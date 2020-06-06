@@ -250,8 +250,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   void UpdateFixedFunctionState(bool primitive_two_faced);
   void UpdateSystemConstantValues(
       bool shared_memory_is_uav, bool primitive_two_faced,
-      uint32_t line_loop_closing_index, Endian index_endian, bool early_z,
-      uint32_t color_mask,
+      uint32_t line_loop_closing_index, Endian index_endian,
+      uint32_t used_texture_mask, bool early_z, uint32_t color_mask,
       const RenderTargetCache::PipelineRenderTarget render_targets[4]);
   bool UpdateBindings(const D3D12Shader* vertex_shader,
                       const D3D12Shader* pixel_shader,

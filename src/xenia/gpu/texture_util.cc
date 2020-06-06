@@ -340,40 +340,43 @@ int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t width,
   return address;
 }
 
-uint32_t SwizzleSigns(const xenos::xe_gpu_texture_fetch_t& fetch,
-                      bool* any_unsigned_out, bool* any_signed_out) {
-  uint32_t signs = 0;
-  bool any_unsigned = false, any_signed = false;
+uint8_t SwizzleSigns(const xenos::xe_gpu_texture_fetch_t& fetch) {
+  uint8_t signs = 0;
+  bool any_not_signed = false, any_signed = false;
   // 0b00 or 0b01 for each component, whether it's constant 0/1.
-  uint32_t constant_mask = 0b00000000;
+  uint8_t constant_mask = 0b00000000;
   for (uint32_t i = 0; i < 4; ++i) {
     uint32_t swizzle = (fetch.swizzle >> (i * 3)) & 0b111;
     if (swizzle & 0b100) {
-      constant_mask |= 1 << (i * 2);
+      constant_mask |= uint8_t(1) << (i * 2);
     } else {
       TextureSign sign =
           TextureSign((fetch.dword_0 >> (2 + swizzle * 2)) & 0b11);
-      signs |= uint32_t(sign) << (i * 2);
+      signs |= uint8_t(sign) << (i * 2);
       if (sign == TextureSign::kSigned) {
         any_signed = true;
       } else {
-        any_unsigned = true;
+        any_not_signed = true;
       }
     }
   }
-  if (any_signed && !any_unsigned) {
+  TextureSign constants_sign = TextureSign::kUnsigned;
+  if (constant_mask == 0b01010101) {
+    // If only constant components, choose according to the original format
+    // (what would more likely be loaded if there were non-constant components).
+    // If all components would be signed, use signed.
+    if (((fetch.dword_0 >> 2) & 0b11111111) ==
+        uint32_t(TextureSign::kSigned) * 0b01010101) {
+      constants_sign = TextureSign::kSigned;
+    }
+  } else {
     // If only signed and constant components, reading just from the signed host
     // view is enough.
-    signs |= uint32_t(TextureSign::kSigned) * constant_mask;
-  } else {
-    signs |= uint32_t(TextureSign::kUnsigned) * constant_mask;
+    if (any_signed && !any_not_signed) {
+      constants_sign = TextureSign::kSigned;
+    }
   }
-  if (any_unsigned_out) {
-    *any_unsigned_out = any_unsigned;
-  }
-  if (any_signed_out) {
-    *any_signed_out = any_signed;
-  }
+  signs |= uint8_t(constants_sign) * constant_mask;
   return signs;
 }
 

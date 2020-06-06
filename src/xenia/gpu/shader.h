@@ -487,6 +487,11 @@ struct ParsedTextureFetchInstruction {
   // Attributes describing the fetch operation.
   Attributes attributes;
 
+  // Considering the operation, dimensions, filter overrides, and the result
+  // components, returns which components of the result will have a value that
+  // is not always zero.
+  uint32_t GetNonZeroResultComponents() const;
+
   // Disassembles the instruction into ucode assembly text.
   void Disassemble(StringBuffer* out) const;
 };
@@ -546,97 +551,22 @@ struct ParsedAluInstruction {
   // This is for disassembly! Translators should use the write masks and
   // AluVectorOpHasSideEffects to skip operations, as this only covers one very
   // specific nop format!
-  bool IsVectorOpDefaultNop() const {
-    if (vector_opcode != ucode::AluVectorOpcode::kMax ||
-        vector_and_constant_result.original_write_mask ||
-        vector_and_constant_result.is_clamped ||
-        vector_operands[0].storage_source !=
-            InstructionStorageSource::kRegister ||
-        vector_operands[0].storage_index != 0 ||
-        vector_operands[0].storage_addressing_mode !=
-            InstructionStorageAddressingMode::kStatic ||
-        vector_operands[0].is_negated || vector_operands[0].is_absolute_value ||
-        !vector_operands[0].IsStandardSwizzle() ||
-        vector_operands[1].storage_source !=
-            InstructionStorageSource::kRegister ||
-        vector_operands[1].storage_index != 0 ||
-        vector_operands[1].storage_addressing_mode !=
-            InstructionStorageAddressingMode::kStatic ||
-        vector_operands[1].is_negated || vector_operands[1].is_absolute_value ||
-        !vector_operands[1].IsStandardSwizzle()) {
-      return false;
-    }
-    if (vector_and_constant_result.storage_target ==
-        InstructionStorageTarget::kRegister) {
-      if (vector_and_constant_result.storage_index != 0 ||
-          vector_and_constant_result.storage_addressing_mode !=
-              InstructionStorageAddressingMode::kStatic) {
-        return false;
-      }
-    } else {
-      // In case both vector and scalar operations are nop, still need to write
-      // somewhere that it's an export, not mov r0._, r0 + retain_prev r0._.
-      // Accurate round trip is possible only if the target is o0 or oC0,
-      // because if the total write mask is empty, the XNA assembler forces the
-      // destination to be o0/oC0, but this doesn't really matter in this case.
-      if (IsScalarOpDefaultNop()) {
-        return false;
-      }
-    }
-    return true;
-  }
-
+  bool IsVectorOpDefaultNop() const;
   // Whether the scalar part of the instruction is the same as if it was omitted
   // in the assembly (if compiled or assembled with the Xbox 360 shader
   // compiler), and thus reassembling the shader with this instruction omitted
   // will result in the same microcode (since instructions with just an empty
   // write mask may have different values in other fields).
-  bool IsScalarOpDefaultNop() const {
-    if (scalar_opcode != ucode::AluScalarOpcode::kRetainPrev ||
-        scalar_result.original_write_mask || scalar_result.is_clamped) {
-      return false;
-    }
-    if (scalar_result.storage_target == InstructionStorageTarget::kRegister) {
-      if (scalar_result.storage_index != 0 ||
-          scalar_result.storage_addressing_mode !=
-              InstructionStorageAddressingMode::kStatic) {
-        return false;
-      }
-    }
-    // For exports, if both are nop, the vector operation will be kept to state
-    // in the microcode that the destination in the microcode is an export.
-    return true;
-  }
+  bool IsScalarOpDefaultNop() const;
 
   // For translation (not disassembly) - whether this instruction has totally no
   // effect.
-  bool IsNop() const {
-    return scalar_opcode == ucode::AluScalarOpcode::kRetainPrev &&
-           !scalar_result.GetUsedWriteMask() &&
-           !vector_and_constant_result.GetUsedWriteMask() &&
-           !ucode::AluVectorOpHasSideEffects(vector_opcode);
-  }
+  bool IsNop() const;
 
   // If this is a "normal" eA write recognized by Xenia (MAD with a stream
   // constant), returns the index of the stream float constant, otherwise
   // returns UINT32_MAX.
-  uint32_t GetMemExportStreamConstant() const {
-    if (vector_and_constant_result.storage_target ==
-            InstructionStorageTarget::kExportAddress &&
-        vector_opcode == ucode::AluVectorOpcode::kMad &&
-        vector_and_constant_result.GetUsedResultComponents() == 0b1111 &&
-        !vector_and_constant_result.is_clamped &&
-        vector_operands[2].storage_source ==
-            InstructionStorageSource::kConstantFloat &&
-        vector_operands[2].storage_addressing_mode ==
-            InstructionStorageAddressingMode::kStatic &&
-        vector_operands[2].IsStandardSwizzle() &&
-        !vector_operands[2].is_negated &&
-        !vector_operands[2].is_absolute_value) {
-      return vector_operands[2].storage_index;
-    }
-    return UINT32_MAX;
-  }
+  uint32_t GetMemExportStreamConstant() const;
 
   // Disassembles the instruction into ucode assembly text.
   void Disassemble(StringBuffer* out) const;

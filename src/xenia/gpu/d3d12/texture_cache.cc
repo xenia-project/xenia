@@ -1279,10 +1279,9 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
     const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
         XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + index * 6);
     TextureKey old_key = binding.key;
-    bool old_has_unsigned = binding.has_unsigned;
-    bool old_has_signed = binding.has_signed;
-    BindingInfoFromFetchConstant(fetch, binding.key, &binding.swizzle,
-                                 &binding.has_unsigned, &binding.has_signed);
+    uint8_t old_swizzled_signs = binding.swizzled_signs;
+    BindingInfoFromFetchConstant(fetch, binding.key, &binding.host_swizzle,
+                                 &binding.swizzled_signs);
     texture_keys_in_sync_ |= index_bit;
     if (binding.key.IsInvalid()) {
       binding.texture = nullptr;
@@ -1298,20 +1297,21 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
     if (IsSignedVersionSeparate(binding.key.format)) {
       // Can reuse previously loaded unsigned/signed versions if the key is the
       // same and the texture was previously bound as unsigned/signed
-      // respectively (checking the previous values of has_unsigned/has_signed
-      // rather than binding.texture != nullptr and binding.texture_signed !=
-      // nullptr also prevents repeated attempts to load the texture if it has
-      // failed to load).
-      if (binding.has_unsigned) {
-        if (key_changed || !old_has_unsigned) {
+      // respectively (checking the previous values of signedness rather than
+      // binding.texture != nullptr and binding.texture_signed != nullptr also
+      // prevents repeated attempts to load the texture if it has failed to
+      // load).
+      if (texture_util::IsAnySignNotSigned(binding.swizzled_signs)) {
+        if (key_changed ||
+            !texture_util::IsAnySignNotSigned(old_swizzled_signs)) {
           binding.texture = FindOrCreateTexture(binding.key);
           load_unsigned_data = true;
         }
       } else {
         binding.texture = nullptr;
       }
-      if (binding.has_signed) {
-        if (key_changed || !old_has_signed) {
+      if (texture_util::IsAnySignSigned(binding.swizzled_signs)) {
+        if (key_changed || !texture_util::IsAnySignSigned(old_swizzled_signs)) {
           TextureKey signed_key = binding.key;
           signed_key.signed_separate = 1;
           binding.texture_signed = FindOrCreateTexture(signed_key);
@@ -1380,15 +1380,13 @@ uint64_t TextureCache::GetDescriptorHashForActiveTextures(
                  sizeof(texture_srv.dimension));
     XXH64_update(&hash_state, &texture_srv.is_signed,
                  sizeof(texture_srv.is_signed));
-    XXH64_update(&hash_state, &texture_srv.is_sign_required,
-                 sizeof(texture_srv.is_sign_required));
     const TextureBinding& binding =
         texture_bindings_[texture_srv.fetch_constant];
     XXH64_update(&hash_state, &binding.key, sizeof(binding.key));
-    XXH64_update(&hash_state, &binding.swizzle, sizeof(binding.swizzle));
-    XXH64_update(&hash_state, &binding.has_unsigned,
-                 sizeof(binding.has_unsigned));
-    XXH64_update(&hash_state, &binding.has_signed, sizeof(binding.has_signed));
+    XXH64_update(&hash_state, &binding.host_swizzle,
+                 sizeof(binding.host_swizzle));
+    XXH64_update(&hash_state, &binding.swizzled_signs,
+                 sizeof(binding.swizzled_signs));
   }
   return XXH64_digest(&hash_state);
 }
@@ -1418,7 +1416,7 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
     if (texture_srv.is_signed) {
       // Not supporting signed compressed textures - hopefully DXN and DXT5A are
       // not used as signed.
-      if (binding.has_signed || texture_srv.is_sign_required) {
+      if (texture_util::IsAnySignSigned(binding.swizzled_signs)) {
         desc.Format = host_formats_[uint32_t(format)].dxgi_format_snorm;
         if (desc.Format == DXGI_FORMAT_UNKNOWN) {
           unsupported_format_features_used_[uint32_t(format)] |=
@@ -1426,7 +1424,7 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
         }
       }
     } else {
-      if (binding.has_unsigned || texture_srv.is_sign_required) {
+      if (texture_util::IsAnySignNotSigned(binding.swizzled_signs)) {
         desc.Format = GetDXGIUnormFormat(binding.key);
         if (desc.Format == DXGI_FORMAT_UNKNOWN) {
           unsupported_format_features_used_[uint32_t(format)] |=
@@ -1441,7 +1439,7 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
     // XE_GPU_SWIZZLE and D3D12_SHADER_COMPONENT_MAPPING are the same except for
     // one bit.
     desc.Shader4ComponentMapping =
-        binding.swizzle |
+        binding.host_swizzle |
         D3D12_SHADER_COMPONENT_MAPPING_ALWAYS_SET_BIT_AVOIDING_ZEROMEM_MISTAKES;
   } else {
     binding_dimension = Dimension::k2D;
@@ -1522,7 +1520,7 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
   if (texture->cached_srv_descriptor_swizzle !=
       Texture::kCachedSRVDescriptorSwizzleMissing) {
     // Use an existing cached descriptor if it has the needed swizzle.
-    if (binding.swizzle == texture->cached_srv_descriptor_swizzle) {
+    if (binding.host_swizzle == texture->cached_srv_descriptor_swizzle) {
       cached_handle_available = true;
       cached_handle = texture->cached_srv_descriptor;
     }
@@ -1561,7 +1559,7 @@ void TextureCache::WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
     if (cached_handle_available) {
       device->CreateShaderResourceView(resource, &desc, cached_handle);
       texture->cached_srv_descriptor = cached_handle;
-      texture->cached_srv_descriptor_swizzle = binding.swizzle;
+      texture->cached_srv_descriptor_swizzle = binding.host_swizzle;
     }
   }
   if (cached_handle_available) {
@@ -1591,7 +1589,6 @@ TextureCache::SamplerParameters TextureCache::GetSamplerParameters(
       &mip_max_level, binding.mip_filter);
   parameters.mip_min_level = mip_min_level;
   parameters.mip_max_level = std::max(mip_max_level, mip_min_level);
-  parameters.lod_bias = fetch.lod_bias;
 
   AnisoFilter aniso_filter = binding.aniso_filter == AnisoFilter::kUseFetchConst
                                  ? fetch.aniso_filter
@@ -1662,7 +1659,8 @@ void TextureCache::WriteSampler(SamplerParameters parameters,
   desc.AddressU = kAddressModeMap[uint32_t(parameters.clamp_x)];
   desc.AddressV = kAddressModeMap[uint32_t(parameters.clamp_y)];
   desc.AddressW = kAddressModeMap[uint32_t(parameters.clamp_z)];
-  desc.MipLODBias = parameters.lod_bias * (1.0f / 32.0f);
+  // LOD is calculated in shaders.
+  desc.MipLODBias = 0.0f;
   desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
   // TODO(Triang3l): Border colors k_ACBYCR_BLACK and k_ACBCRY_BLACK.
   if (parameters.border_color == BorderColor::k_AGBR_White) {
@@ -2018,7 +2016,7 @@ ID3D12Resource* TextureCache::RequestSwapTexture(
       XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0);
   TextureKey key;
   uint32_t swizzle;
-  BindingInfoFromFetchConstant(fetch, key, &swizzle, nullptr, nullptr);
+  BindingInfoFromFetchConstant(fetch, key, &swizzle, nullptr);
   if (key.base_page == 0 || key.dimension != Dimension::k2D) {
     return nullptr;
   }
@@ -2072,19 +2070,16 @@ TextureCache::LoadMode TextureCache::GetLoadMode(TextureKey key) {
 
 void TextureCache::BindingInfoFromFetchConstant(
     const xenos::xe_gpu_texture_fetch_t& fetch, TextureKey& key_out,
-    uint32_t* swizzle_out, bool* has_unsigned_out, bool* has_signed_out) {
+    uint32_t* host_swizzle_out, uint8_t* swizzled_signs_out) {
   // Reset the key and the swizzle.
   key_out.MakeInvalid();
-  if (swizzle_out != nullptr) {
-    *swizzle_out = xenos::XE_GPU_SWIZZLE_0 | (xenos::XE_GPU_SWIZZLE_0 << 3) |
-                   (xenos::XE_GPU_SWIZZLE_0 << 6) |
-                   (xenos::XE_GPU_SWIZZLE_0 << 9);
+  if (host_swizzle_out != nullptr) {
+    *host_swizzle_out =
+        xenos::XE_GPU_SWIZZLE_0 | (xenos::XE_GPU_SWIZZLE_0 << 3) |
+        (xenos::XE_GPU_SWIZZLE_0 << 6) | (xenos::XE_GPU_SWIZZLE_0 << 9);
   }
-  if (has_unsigned_out != nullptr) {
-    *has_unsigned_out = false;
-  }
-  if (has_signed_out != nullptr) {
-    *has_signed_out = false;
+  if (swizzled_signs_out != nullptr) {
+    *swizzled_signs_out = uint8_t(TextureSign::kUnsigned) * uint8_t(0b01010101);
   }
 
   switch (fetch.type) {
@@ -2096,8 +2091,7 @@ void TextureCache::BindingInfoFromFetchConstant(
       }
       XELOGW(
           "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
-          "has "
-          "\"invalid\" type! This is incorrect behavior, but you can try "
+          "has \"invalid\" type! This is incorrect behavior, but you can try "
           "bypassing this by launching Xenia with "
           "--gpu_allow_invalid_fetch_constants=true.",
           fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3,
@@ -2106,8 +2100,7 @@ void TextureCache::BindingInfoFromFetchConstant(
     default:
       XELOGW(
           "Texture fetch constant ({:08X} {:08X} {:08X} {:08X} {:08X} {:08X}) "
-          "is "
-          "completely invalid!",
+          "is completely invalid!",
           fetch.dword_0, fetch.dword_1, fetch.dword_2, fetch.dword_3,
           fetch.dword_4, fetch.dword_5);
       return;
@@ -2144,36 +2137,26 @@ void TextureCache::BindingInfoFromFetchConstant(
   key_out.format = format;
   key_out.endianness = fetch.endianness;
 
-  if (swizzle_out != nullptr) {
-    uint32_t swizzle = 0;
+  if (host_swizzle_out != nullptr) {
+    uint32_t host_swizzle = 0;
     for (uint32_t i = 0; i < 4; ++i) {
-      uint32_t swizzle_component = (fetch.swizzle >> (i * 3)) & 0b111;
-      if (swizzle_component >= 4) {
+      uint32_t host_swizzle_component = (fetch.swizzle >> (i * 3)) & 0b111;
+      if (host_swizzle_component >= 4) {
         // Get rid of 6 and 7 values (to prevent device losses if the game has
         // something broken) the quick and dirty way - by changing them to 4 (0)
         // and 5 (1).
-        swizzle_component &= 0b101;
+        host_swizzle_component &= 0b101;
       } else {
-        swizzle_component =
-            host_formats_[uint32_t(format)].swizzle[swizzle_component];
+        host_swizzle_component =
+            host_formats_[uint32_t(format)].swizzle[host_swizzle_component];
       }
-      swizzle |= swizzle_component << (i * 3);
+      host_swizzle |= host_swizzle_component << (i * 3);
     }
-    *swizzle_out = swizzle;
+    *host_swizzle_out = host_swizzle;
   }
 
-  // TODO(Triang3l): Move to texture_util::SwizzleSigns.
-  if (has_unsigned_out != nullptr) {
-    *has_unsigned_out = fetch.sign_x != TextureSign::kSigned ||
-                        fetch.sign_y != TextureSign::kSigned ||
-                        fetch.sign_z != TextureSign::kSigned ||
-                        fetch.sign_w != TextureSign::kSigned;
-  }
-  if (has_signed_out != nullptr) {
-    *has_signed_out = fetch.sign_x == TextureSign::kSigned ||
-                      fetch.sign_y == TextureSign::kSigned ||
-                      fetch.sign_z == TextureSign::kSigned ||
-                      fetch.sign_w == TextureSign::kSigned;
+  if (swizzled_signs_out != nullptr) {
+    *swizzled_signs_out = texture_util::SwizzleSigns(fetch);
   }
 }
 

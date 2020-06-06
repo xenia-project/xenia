@@ -366,7 +366,7 @@ void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
   static const char* kTextureFilterNames[] = {
       "point",
       "linear",
-      "BASEMAP",
+      "basemap",
       "keep",
   };
   static const char* kAnisoFilterNames[] = {

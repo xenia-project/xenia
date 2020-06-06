@@ -12,7 +12,6 @@
 #include <memory>
 #include <sstream>
 
-#include "third_party/dxbc/d3d12TokenizedProgramFormat.hpp"
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
@@ -48,12 +47,11 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
     cbuffer_index_fetch_constants_ = cbuffer_count_++;
   }
-  DxbcSrc fetch_constant_src(
-      DxbcSrc::CB(cbuffer_index_fetch_constants_,
-                  uint32_t(CbufferRegister::kFetchConstants),
-                  instr.operands[1].storage_index >> 1)
-          .Swizzle((instr.operands[1].storage_index & 1) ? 0b10101110
-                                                         : 0b00000100));
+  DxbcSrc fetch_constant_src(DxbcSrc::CB(
+      cbuffer_index_fetch_constants_,
+      uint32_t(CbufferRegister::kFetchConstants),
+      instr.operands[1].storage_index >> 1,
+      (instr.operands[1].storage_index & 1) ? 0b10101110 : 0b00000100));
 
   // TODO(Triang3l): Verify the fetch constant type (that it's a vertex fetch,
   // not a texture fetch), here instead of dropping draws with invalid vertex
@@ -440,56 +438,55 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   StoreResult(instr.result, DxbcSrc::R(system_temp_result_));
 }
 
-uint32_t DxbcShaderTranslator::FindOrAddTextureSRV(uint32_t fetch_constant,
-                                                   TextureDimension dimension,
-                                                   bool is_signed,
-                                                   bool is_sign_required) {
+DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::FindOrAddTextureSRV(
+    uint32_t fetch_constant, TextureDimension dimension, bool is_signed) {
   // 1D and 2D textures (including stacked ones) are treated as 2D arrays for
   // binding and coordinate simplicity.
   if (dimension == TextureDimension::k1D) {
     dimension = TextureDimension::k2D;
   }
+  uint32_t srv_index = UINT32_MAX;
   for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
     TextureSRV& texture_srv = texture_srvs_[i];
     if (texture_srv.fetch_constant == fetch_constant &&
         texture_srv.dimension == dimension &&
         texture_srv.is_signed == is_signed) {
-      if (is_sign_required && !texture_srv.is_sign_required) {
-        // kGetTextureComputedLod uses only the unsigned SRV, which means it
-        // must be bound even when all components are signed.
-        texture_srv.is_sign_required = true;
-      }
-      return i;
+      srv_index = i;
+      break;
     }
   }
-  if (texture_srvs_.size() >= kMaxTextureSRVs) {
-    assert_always();
-    return kMaxTextureSRVs - 1;
+  if (srv_index == UINT32_MAX) {
+    if (texture_srvs_.size() >= kMaxTextureSRVs) {
+      assert_always();
+      srv_index = kMaxTextureSRVs - 1;
+    } else {
+      TextureSRV new_texture_srv;
+      new_texture_srv.fetch_constant = fetch_constant;
+      new_texture_srv.dimension = dimension;
+      new_texture_srv.is_signed = is_signed;
+      const char* dimension_name;
+      switch (dimension) {
+        case TextureDimension::k3D:
+          dimension_name = "3d";
+          break;
+        case TextureDimension::kCube:
+          dimension_name = "cube";
+          break;
+        default:
+          dimension_name = "2d";
+      }
+      new_texture_srv.name = fmt::format("xe_texture{}_{}_{}", fetch_constant,
+                                         dimension_name, is_signed ? 's' : 'u');
+      srv_index = uint32_t(texture_srvs_.size());
+      texture_srvs_.emplace_back(std::move(new_texture_srv));
+    }
   }
-  TextureSRV new_texture_srv;
-  new_texture_srv.fetch_constant = fetch_constant;
-  new_texture_srv.dimension = dimension;
-  new_texture_srv.is_signed = is_signed;
-  new_texture_srv.is_sign_required = is_sign_required;
-  const char* dimension_name;
-  switch (dimension) {
-    case TextureDimension::k3D:
-      dimension_name = "3d";
-      break;
-    case TextureDimension::kCube:
-      dimension_name = "cube";
-      break;
-    default:
-      dimension_name = "2d";
-  }
-  new_texture_srv.name = fmt::format("xe_texture{}_{}_{}", fetch_constant,
-                                     dimension_name, is_signed ? 's' : 'u');
-  uint32_t srv_index = uint32_t(texture_srvs_.size());
-  texture_srvs_.emplace_back(std::move(new_texture_srv));
-  return srv_index;
+  // T0 is shared memory.
+  return DxbcSrc::T(1 + srv_index,
+                    uint32_t(SRVMainRegister::kBoundTexturesStart) + srv_index);
 }
 
-uint32_t DxbcShaderTranslator::FindOrAddSamplerBinding(
+DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::FindOrAddSamplerBinding(
     uint32_t fetch_constant, TextureFilter mag_filter, TextureFilter min_filter,
     TextureFilter mip_filter, AnisoFilter aniso_filter) {
   // In Direct3D 12, anisotropic filtering implies linear filtering.
@@ -500,7 +497,7 @@ uint32_t DxbcShaderTranslator::FindOrAddSamplerBinding(
     mip_filter = TextureFilter::kLinear;
     aniso_filter = std::min(aniso_filter, AnisoFilter::kMax_16_1);
   }
-
+  uint32_t sampler_index = UINT32_MAX;
   for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
     const SamplerBinding& sampler_binding = sampler_bindings_[i];
     if (sampler_binding.fetch_constant == fetch_constant &&
@@ -508,346 +505,43 @@ uint32_t DxbcShaderTranslator::FindOrAddSamplerBinding(
         sampler_binding.min_filter == min_filter &&
         sampler_binding.mip_filter == mip_filter &&
         sampler_binding.aniso_filter == aniso_filter) {
-      return i;
+      sampler_index = i;
+      break;
     }
   }
-
-  if (sampler_bindings_.size() >= kMaxSamplerBindings) {
-    assert_always();
-    return kMaxSamplerBindings - 1;
-  }
-
-  std::ostringstream name;
-  name << "xe_sampler" << fetch_constant;
-  if (aniso_filter != AnisoFilter::kUseFetchConst) {
-    if (aniso_filter == AnisoFilter::kDisabled) {
-      name << "_a0";
+  if (sampler_index == UINT32_MAX) {
+    if (sampler_bindings_.size() >= kMaxSamplerBindings) {
+      assert_always();
+      sampler_index = kMaxSamplerBindings - 1;
     } else {
-      name << "_a" << (1u << (uint32_t(aniso_filter) - 1));
+      std::ostringstream name;
+      name << "xe_sampler" << fetch_constant;
+      if (aniso_filter != AnisoFilter::kUseFetchConst) {
+        if (aniso_filter == AnisoFilter::kDisabled) {
+          name << "_a0";
+        } else {
+          name << "_a" << (1u << (uint32_t(aniso_filter) - 1));
+        }
+      }
+      if (aniso_filter == AnisoFilter::kDisabled ||
+          aniso_filter == AnisoFilter::kUseFetchConst) {
+        static const char* kFilterSuffixes[] = {"p", "l", "b", "f"};
+        name << "_" << kFilterSuffixes[uint32_t(mag_filter)]
+             << kFilterSuffixes[uint32_t(min_filter)]
+             << kFilterSuffixes[uint32_t(mip_filter)];
+      }
+      SamplerBinding new_sampler_binding;
+      new_sampler_binding.fetch_constant = fetch_constant;
+      new_sampler_binding.mag_filter = mag_filter;
+      new_sampler_binding.min_filter = min_filter;
+      new_sampler_binding.mip_filter = mip_filter;
+      new_sampler_binding.aniso_filter = aniso_filter;
+      new_sampler_binding.name = name.str();
+      sampler_index = uint32_t(sampler_bindings_.size());
+      sampler_bindings_.emplace_back(std::move(new_sampler_binding));
     }
   }
-  if (aniso_filter == AnisoFilter::kDisabled ||
-      aniso_filter == AnisoFilter::kUseFetchConst) {
-    static const char* kFilterSuffixes[] = {"p", "l", "b", "f"};
-    name << "_" << kFilterSuffixes[uint32_t(mag_filter)]
-         << kFilterSuffixes[uint32_t(min_filter)]
-         << kFilterSuffixes[uint32_t(mip_filter)];
-  }
-
-  SamplerBinding new_sampler_binding;
-  new_sampler_binding.fetch_constant = fetch_constant;
-  new_sampler_binding.mag_filter = mag_filter;
-  new_sampler_binding.min_filter = min_filter;
-  new_sampler_binding.mip_filter = mip_filter;
-  new_sampler_binding.aniso_filter = aniso_filter;
-  new_sampler_binding.name = name.str();
-  uint32_t sampler_register = uint32_t(sampler_bindings_.size());
-  sampler_bindings_.emplace_back(std::move(new_sampler_binding));
-  return sampler_register;
-}
-
-void DxbcShaderTranslator::TfetchCubeCoordToCubeDirection(uint32_t reg) {
-  // This does the reverse of what's done by the ALU sequence for cubemap
-  // coordinate calculation.
-  //
-  // The major axis depends on the face index (passed as a float in reg.z):
-  // +X for 0, -X for 1, +Y for 2, -Y for 3, +Z for 4, -Z for 5.
-  //
-  // If the major axis is X:
-  // * X is 1.0 or -1.0.
-  // * Y is -T.
-  // * Z is -S for positive X, +S for negative X.
-  // If it's Y:
-  // * X is +S.
-  // * Y is 1.0 or -1.0.
-  // * Z is +T for positive Y, -T for negative Y.
-  // If it's Z:
-  // * X is +S for positive Z, -S for negative Z.
-  // * Y is -T.
-  // * Z is 1.0 or -1.0.
-
-  // Make 0, not 1.5, the center of S and T.
-  // mad reg.xy__, reg.xy__, l(2.0, 2.0, _, _), l(-3.0, -3.0, _, _)
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(0x40000000u);
-  shader_code_.push_back(0x40000000u);
-  shader_code_.push_back(0x3F800000u);
-  shader_code_.push_back(0x3F800000u);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(0xC0400000u);
-  shader_code_.push_back(0xC0400000u);
-  shader_code_.push_back(0);
-  shader_code_.push_back(0);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-
-  // Clamp the face index to 0...5 for safety (in case an offset was applied).
-  // max reg.z, reg.z, l(0.0)
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(0);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-  // min reg.z, reg.z, l(5.0)
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MIN) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(0x40A00000);
-  ++stat_.instruction_count;
-  ++stat_.float_instruction_count;
-
-  // Allocate a register for major axis info.
-  uint32_t major_axis_temp = PushSystemTemp();
-
-  // Convert the face index to an integer.
-  // ftou major_axis_temp.x, reg.z
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_FTOU) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(major_axis_temp);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(reg);
-  ++stat_.instruction_count;
-  ++stat_.conversion_instruction_count;
-
-  // Split the face number into major axis number and direction.
-  // ubfe major_axis_temp.x__w, l(2, _, _, 1), l(1, _, _, 0),
-  //      major_axis_temp.x__x
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1001, 1));
-  shader_code_.push_back(major_axis_temp);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(2);
-  shader_code_.push_back(0);
-  shader_code_.push_back(0);
-  shader_code_.push_back(1);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(1);
-  shader_code_.push_back(0);
-  shader_code_.push_back(0);
-  shader_code_.push_back(0);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(major_axis_temp);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // Make booleans for whether each axis is major.
-  // ieq major_axis_temp.xyz_, major_axis_temp.xxx_, l(0, 1, 2, _)
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
-  shader_code_.push_back(major_axis_temp);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(major_axis_temp);
-  shader_code_.push_back(EncodeVectorSwizzledOperand(
-      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-  shader_code_.push_back(0);
-  shader_code_.push_back(1);
-  shader_code_.push_back(2);
-  shader_code_.push_back(0);
-  ++stat_.instruction_count;
-  ++stat_.int_instruction_count;
-
-  // Replace the face index in the source/destination with 1.0 or -1.0 for
-  // swizzling.
-  // movc reg.z, major_axis_temp.w, l(-1.0), l(1.0)
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(major_axis_temp);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(0xBF800000u);
-  shader_code_.push_back(
-      EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-  shader_code_.push_back(0x3F800000u);
-  ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
-
-  // Swizzle and negate the coordinates depending on which axis is major, but
-  // don't negate according to the direction of the major axis (will be done
-  // later).
-
-  // X case.
-  // movc reg.xyz_, major_axis_temp.xxx_, reg.zyx_, reg.xyz_
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(major_axis_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b11000110, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(reg);
-  ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
-  // movc reg._yz_, major_axis_temp._xx_, -reg._yz_, reg._yz_
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0110, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(major_axis_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1) |
-      ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
-  shader_code_.push_back(
-      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(D3D10_SB_OPERAND_MODIFIER_NEG));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(reg);
-  ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
-
-  // Y case.
-  // movc reg._yz_, major_axis_temp._yy_, reg._zy_, reg._yz_
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0110, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(major_axis_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b11011000, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(reg);
-  ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
-
-  // Z case.
-  // movc reg.y, major_axis_temp.z, -reg.y, reg.y
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-  shader_code_.push_back(major_axis_temp);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1) |
-      ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
-  shader_code_.push_back(
-      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(D3D10_SB_OPERAND_MODIFIER_NEG));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(reg);
-  ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
-
-  // Flip coordinates according to the direction of the major axis.
-
-  // Z needs to be flipped if the major axis is X or Y, so make an X || Y mask.
-  // X is flipped only when the major axis is Z.
-  // or major_axis_temp.x, major_axis_temp.x, major_axis_temp.y
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_OR) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-  shader_code_.push_back(major_axis_temp);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-  shader_code_.push_back(major_axis_temp);
-  shader_code_.push_back(
-      EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-  shader_code_.push_back(major_axis_temp);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // If the major axis is positive, nothing needs to be flipped. We have
-  // 0xFFFFFFFF/0 at this point in the major axis mask, but 1/0 in the major
-  // axis direction (didn't include W in ieq to waste less scalar operations),
-  // but AND would result in 1/0, which is fine for movc too.
-  // and major_axis_temp.x_z_, major_axis_temp.x_z_, major_axis_temp.w_w_
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0101, 1));
-  shader_code_.push_back(major_axis_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(major_axis_temp);
-  shader_code_.push_back(
-      EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-  shader_code_.push_back(major_axis_temp);
-  ++stat_.instruction_count;
-  ++stat_.uint_instruction_count;
-
-  // Flip axes that need to be flipped.
-  // movc reg.x_z_, major_axis_temp.z_x_, -reg.x_z_, reg.x_z_
-  shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-                         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-  shader_code_.push_back(
-      EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0101, 1));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b11000110, 1));
-  shader_code_.push_back(major_axis_temp);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1) |
-      ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
-  shader_code_.push_back(
-      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(D3D10_SB_OPERAND_MODIFIER_NEG));
-  shader_code_.push_back(reg);
-  shader_code_.push_back(
-      EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-  shader_code_.push_back(reg);
-  ++stat_.instruction_count;
-  ++stat_.movc_instruction_count;
-
-  // Release major_axis_temp.
-  PopSystemTemp();
+  return DxbcSrc::S(sampler_index, sampler_index);
 }
 
 void DxbcShaderTranslator::ProcessTextureFetchInstruction(
@@ -859,1746 +553,1194 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
   UpdateInstructionPredicationAndEmitDisassembly(instr.is_predicated,
                                                  instr.predicate_condition);
 
-  bool store_result = false;
-  // Whether the result is only in X and all components should be remapped to X
-  // while storing.
-  bool replicate_result = false;
+  // Handle instructions for setting register LOD.
+  switch (instr.opcode) {
+    case FetchOpcode::kSetTextureLod: {
+      bool lod_operand_temp_pushed = false;
+      DxbcOpMov(DxbcDest::R(system_temp_grad_h_lod_, 0b1000),
+                LoadOperand(instr.operands[0], 0b0001, lod_operand_temp_pushed)
+                    .SelectFromSwizzled(0));
+      if (lod_operand_temp_pushed) {
+        PopSystemTemp();
+      }
+      return;
+    }
+    case FetchOpcode::kSetTextureGradientsHorz: {
+      bool grad_operand_temp_pushed = false;
+      DxbcOpMov(
+          DxbcDest::R(system_temp_grad_h_lod_, 0b0111),
+          LoadOperand(instr.operands[0], 0b0111, grad_operand_temp_pushed));
+      if (grad_operand_temp_pushed) {
+        PopSystemTemp();
+      }
+      return;
+    }
+    case FetchOpcode::kSetTextureGradientsVert: {
+      bool grad_operand_temp_pushed = false;
+      DxbcOpMov(
+          DxbcDest::R(system_temp_grad_v_, 0b0111),
+          LoadOperand(instr.operands[0], 0b0111, grad_operand_temp_pushed));
+      if (grad_operand_temp_pushed) {
+        PopSystemTemp();
+      }
+      return;
+    }
+    default:
+      break;
+  }
 
-  DxbcSourceOperand operand;
-  uint32_t operand_length = 0;
-  if (instr.operand_count >= 1) {
-    LoadDxbcSourceOperand(instr.operands[0], operand);
-    operand_length = DxbcSourceOperandLength(operand);
+  // Handle instructions that store something.
+  uint32_t used_result_components = instr.result.GetUsedResultComponents();
+  uint32_t used_result_nonzero_components = instr.GetNonZeroResultComponents();
+  // FIXME(Triang3l): Currently disregarding the LOD completely in getWeights
+  // because the needed code would be very complicated, while getWeights is
+  // mostly used for things like PCF of shadow maps, that don't have mips. The
+  // LOD would be needed for the mip lerp factor in W of the return value and to
+  // choose the LOD where interpolation would take place for XYZ. That would
+  // require either implementing the LOD calculation algorithm using the ALU
+  // (since the `lod` instruction is limited to pixel shaders and can't be used
+  // when there's control flow divergence, unlike explicit gradients), or
+  // sampling a texture filled with LOD numbers (easier and more consistent -
+  // unclamped LOD doesn't make sense for getWeights anyway). The same applies
+  // to offsets.
+  if (instr.opcode == FetchOpcode::kGetTextureWeights) {
+    used_result_nonzero_components &= ~uint32_t(0b1000);
+  }
+  if (!used_result_nonzero_components) {
+    // Nothing to fetch, only constant 0/1 writes.
+    StoreResult(instr.result, DxbcSrc::LF(0.0f));
+    return;
+  }
+
+  if (instr.opcode == FetchOpcode::kGetTextureGradients) {
+    // Handle before doing anything that actually needs the texture.
+    bool grad_operand_temp_pushed = false;
+    DxbcSrc grad_operand =
+        LoadOperand(instr.operands[0], 0b0011, grad_operand_temp_pushed);
+    if (used_result_components & 0b0101) {
+      DxbcOpDerivRTXFine(
+          DxbcDest::R(system_temp_result_, used_result_components & 0b0101),
+          grad_operand.SwizzleSwizzled(0b010000));
+    }
+    if (used_result_components & 0b1010) {
+      DxbcOpDerivRTYFine(
+          DxbcDest::R(system_temp_result_, used_result_components & 0b1010),
+          grad_operand.SwizzleSwizzled(0b01000000));
+    }
+    if (grad_operand_temp_pushed) {
+      PopSystemTemp();
+    }
+    StoreResult(instr.result, DxbcSrc::R(system_temp_result_));
+    return;
+  }
+
+  // Handle instructions that need the coordinates, the fetch constant, the LOD
+  // and possibly the SRV - kTextureFetch, kGetTextureBorderColorFrac,
+  // kGetTextureComputedLod, kGetTextureWeights.
+
+  if (instr.opcode == FetchOpcode::kGetTextureBorderColorFrac) {
+    // TODO(Triang3l): Bind a black texture with a white border to calculate the
+    // border color fraction (in the X component of the result).
+    assert_always();
+    EmitTranslationError("getBCF is unimplemented", false);
+    StoreResult(instr.result, DxbcSrc::LF(0.0f));
+    return;
+  }
+
+  if (instr.opcode != FetchOpcode::kTextureFetch &&
+      instr.opcode != FetchOpcode::kGetTextureBorderColorFrac &&
+      instr.opcode != FetchOpcode::kGetTextureComputedLod &&
+      instr.opcode != FetchOpcode::kGetTextureWeights) {
+    assert_unhandled_case(instr.opcode);
+    EmitTranslationError("Unknown texture fetch operation");
+    StoreResult(instr.result, DxbcSrc::LF(0.0f));
+    return;
   }
 
   uint32_t tfetch_index = instr.operands[1].storage_index;
-  // Fetch constants are laid out like:
-  // tf0[0] tf0[1] tf0[2] tf0[3]
-  // tf0[4] tf0[5] tf1[0] tf1[1]
-  // tf1[2] tf1[3] tf1[4] tf1[5]
-  uint32_t tfetch_pair_offset = (tfetch_index >> 1) * 3;
 
-  // TODO(Triang3l): kGetTextureBorderColorFrac.
-  if (!IsDxbcPixelShader() &&
-      (instr.opcode == FetchOpcode::kGetTextureComputedLod ||
-       instr.opcode == FetchOpcode::kGetTextureGradients)) {
-    // Quickly skip everything if tried to get anything involving derivatives
-    // not in a pixel shader because only the pixel shader has derivatives.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(system_temp_result_);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
-  } else if (instr.opcode == FetchOpcode::kTextureFetch ||
-             instr.opcode == FetchOpcode::kGetTextureComputedLod ||
-             instr.opcode == FetchOpcode::kGetTextureWeights) {
-    store_result = true;
+  // Whether to use gradients (implicit or explicit) for LOD calculation.
+  bool use_computed_lod =
+      instr.attributes.use_computed_lod &&
+      (IsDxbcPixelShader() || instr.attributes.use_register_gradients);
+  if (instr.opcode == FetchOpcode::kGetTextureComputedLod &&
+      (!use_computed_lod || instr.attributes.use_register_gradients)) {
+    assert_always();
+    EmitTranslationError(
+        "getCompTexLOD used with explicit LOD or gradients - contradicts MSDN",
+        false);
+    StoreResult(instr.result, DxbcSrc::LF(0.0f));
+    return;
+  }
 
-    // 0 is unsigned, 1 is signed.
-    uint32_t srv_indices[2] = {UINT32_MAX, UINT32_MAX};
-    uint32_t srv_indices_stacked[2] = {UINT32_MAX, UINT32_MAX};
-    uint32_t sampler_register = UINT32_MAX;
-    // Only the fetch constant needed for kGetTextureWeights.
-    if (instr.opcode != FetchOpcode::kGetTextureWeights) {
-      if (instr.opcode == FetchOpcode::kGetTextureComputedLod) {
-        // The LOD is a scalar and it doesn't depend on the texture contents, so
-        // require any variant - unsigned in this case because more texture
-        // formats support it.
-        srv_indices[0] =
-            FindOrAddTextureSRV(tfetch_index, instr.dimension, false, true);
-        if (instr.dimension == TextureDimension::k3D) {
-          // 3D or 2D stacked is selected dynamically.
-          srv_indices_stacked[0] = FindOrAddTextureSRV(
-              tfetch_index, TextureDimension::k2D, false, true);
-        }
-      } else {
-        srv_indices[0] =
-            FindOrAddTextureSRV(tfetch_index, instr.dimension, false);
-        srv_indices[1] =
-            FindOrAddTextureSRV(tfetch_index, instr.dimension, true);
-        if (instr.dimension == TextureDimension::k3D) {
-          // 3D or 2D stacked is selected dynamically.
-          srv_indices_stacked[0] =
-              FindOrAddTextureSRV(tfetch_index, TextureDimension::k2D, false);
-          srv_indices_stacked[1] =
-              FindOrAddTextureSRV(tfetch_index, TextureDimension::k2D, true);
-        }
-      }
-      sampler_register = FindOrAddSamplerBinding(
-          tfetch_index, instr.attributes.mag_filter,
-          instr.attributes.min_filter, instr.attributes.mip_filter,
-          instr.attributes.aniso_filter);
-    }
-
-    uint32_t coord_temp = PushSystemTemp();
-    // Move coordinates to pv temporarily so zeros can be added to expand them
-    // to Texture2DArray coordinates and to apply offset. Or, if the instruction
-    // is getWeights, move them to pv because their fractional part will be
-    // returned.
-    uint32_t coord_mask = 0b0111;
+  // Get offsets applied to the coordinates before sampling.
+  // FIXME(Triang3l): Offsets need to be applied at the LOD being fetched, not
+  // at LOD 0. However, since offsets have granularity of 0.5, not 1, on the
+  // Xbox 360, they can't be passed directly as AOffImmI to the `sample`
+  // instruction (plus-minus 0.5 offsets are very common in games). But
+  // offsetting at mip levels is a rare usage case, mostly offsets are used for
+  // things like shadow maps and blur, where there are no mips.
+  float offsets[4] = {};
+  // MSDN doesn't list offsets as getCompTexLOD parameters.
+  if (instr.opcode != FetchOpcode::kGetTextureComputedLod) {
+    // Add a small epsilon to the offset (1/4 the fixed-point texture coordinate
+    // ULP - shouldn't significantly effect the fixed-point conversion) to
+    // resolve ambiguity when fetching point-sampled textures between texels.
+    // This applies to both normalized (Banjo-Kazooie Xbox Live Arcade logo,
+    // coordinates interpolated between vertices with half-pixel offset) and
+    // unnormalized (Halo 3 lighting G-buffer reading, ps_param_gen pixels)
+    // coordinates. On Nvidia Pascal, without this adjustment, blockiness is
+    // visible in both cases. Possibly there is a better way, however, an
+    // attempt was made to error-correct division by adding the difference
+    // between original and re-denormalized coordinates, but on Nvidia, `mul`
+    // and internal multiplication in texture sampling apparently round
+    // differently, so `mul` gives a value that would be floored as expected,
+    // but the left/upper pixel is still sampled instead.
+    const float rounding_offset = 1.0f / 1024.0f;
     switch (instr.dimension) {
       case TextureDimension::k1D:
-        coord_mask = 0b0001;
+        offsets[0] = instr.attributes.offset_x + rounding_offset;
+        if (instr.opcode == FetchOpcode::kGetTextureWeights) {
+          // For coordinate lerp factors. This needs to be done separately for
+          // point mag/min filters, but they're currently not handled here
+          // anyway.
+          offsets[0] -= 0.5f;
+        }
         break;
       case TextureDimension::k2D:
-        coord_mask = 0b0011;
+        offsets[0] = instr.attributes.offset_x + rounding_offset;
+        offsets[1] = instr.attributes.offset_y + rounding_offset;
+        if (instr.opcode == FetchOpcode::kGetTextureWeights) {
+          offsets[0] -= 0.5f;
+          offsets[1] -= 0.5f;
+        }
         break;
       case TextureDimension::k3D:
-        coord_mask = 0b0111;
+        offsets[0] = instr.attributes.offset_x + rounding_offset;
+        offsets[1] = instr.attributes.offset_y + rounding_offset;
+        offsets[2] = instr.attributes.offset_z + rounding_offset;
+        if (instr.opcode == FetchOpcode::kGetTextureWeights) {
+          offsets[0] -= 0.5f;
+          offsets[1] -= 0.5f;
+          offsets[2] -= 0.5f;
+        }
         break;
       case TextureDimension::kCube:
-        // Don't need the 3rd component for getWeights because it's the face
-        // index, so it doesn't participate in bilinear filtering.
-        coord_mask =
-            instr.opcode == FetchOpcode::kGetTextureWeights ? 0b0011 : 0b0111;
+        // Applying the rounding epsilon to cube maps too for potential game
+        // passes processing cube map faces themselves.
+        offsets[0] = instr.attributes.offset_x + rounding_offset;
+        offsets[1] = instr.attributes.offset_y + rounding_offset;
+        if (instr.opcode == FetchOpcode::kGetTextureWeights) {
+          offsets[0] -= 0.5f;
+          offsets[1] -= 0.5f;
+          // The logic for ST weights is the same for all faces.
+          // FIXME(Triang3l): If LOD calculation is added to getWeights, face
+          // offset probably will need to be handled too (if the hardware
+          // supports it at all, though MSDN lists OffsetZ in tfetchCube).
+        } else {
+          offsets[2] = instr.attributes.offset_z;
+        }
         break;
     }
-    shader_code_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + operand_length));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, coord_mask, 1));
-    shader_code_.push_back(coord_temp);
-    UseDxbcSourceOperand(operand);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
-
-    // If 1D or 2D, fill the unused coordinates with zeros (sampling the only
-    // row of the only slice). For getWeights, also clear the 4th component
-    // because the coordinates will be returned.
-    uint32_t coord_all_components_mask =
-        instr.opcode == FetchOpcode::kGetTextureWeights ? 0b1111 : 0b0111;
-    uint32_t coord_zero_mask = coord_all_components_mask & ~coord_mask;
-    if (coord_zero_mask) {
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-      shader_code_.push_back(EncodeVectorMaskedOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, coord_zero_mask, 1));
-      shader_code_.push_back(coord_temp);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      shader_code_.push_back(0);
-      shader_code_.push_back(0);
-      shader_code_.push_back(0);
-      shader_code_.push_back(0);
-      ++stat_.instruction_count;
-      ++stat_.mov_instruction_count;
+  }
+  uint32_t offsets_not_zero = 0b000;
+  for (uint32_t i = 0; i < 3; ++i) {
+    if (offsets[i]) {
+      offsets_not_zero |= 1 << i;
     }
+  }
 
-    // Get the offset to see if the size of the texture is needed.
-    // It's probably applicable to tfetchCube too, we're going to assume it's
-    // used for them the same way as for stacked textures.
-    // http://web.archive.org/web/20090511231340/http://msdn.microsoft.com:80/en-us/library/bb313959.aspx
-    // Adding 1/1024 - quarter of one fixed-point unit of subpixel precision
-    // (not to touch rounding when the GPU is converting to fixed-point) - to
-    // resolve the ambiguity when the texture coordinate is directly between two
-    // pixels, which hurts nearest-neighbor sampling (fixes the XBLA logo being
-    // blocky in Banjo-Kazooie and the outlines around things and overall
-    // blockiness in Halo 3).
-    // TODO(Triang3l): Investigate the sign of this epsilon, because in Halo 3
-    // positive causes thin outlines with MSAA (with ROV), and negative causes
-    // thick outlines with SSAA there.
-    float offset_x = instr.attributes.offset_x + (1.0f / 1024.0f);
-    if (instr.opcode == FetchOpcode::kGetTextureWeights) {
-      // Bilinear filtering (for shadows, for instance, in Halo 3), 0.5 -
-      // exactly the pixel.
-      offset_x -= 0.5f;
-    }
-    float offset_y = 0.0f, offset_z = 0.0f;
-    if (instr.dimension == TextureDimension::k2D ||
-        instr.dimension == TextureDimension::k3D ||
-        instr.dimension == TextureDimension::kCube) {
-      offset_y = instr.attributes.offset_y + (1.0f / 1024.0f);
-      if (instr.opcode == FetchOpcode::kGetTextureWeights) {
-        offset_y -= 0.5f;
-      }
-      // Don't care about the Z offset for cubemaps when getting weights because
-      // zero Z will be returned anyway (the face index doesn't participate in
-      // bilinear filtering).
-      if (instr.dimension == TextureDimension::k3D ||
-          (instr.dimension == TextureDimension::kCube &&
-           instr.opcode != FetchOpcode::kGetTextureWeights)) {
-        offset_z = instr.attributes.offset_z;
-        if (instr.dimension == TextureDimension::k3D) {
-          // Z is the face index for cubemaps, so don't apply the epsilon to it.
-          offset_z += 1.0f / 1024.0f;
-          if (instr.opcode == FetchOpcode::kGetTextureWeights) {
-            offset_z -= 0.5f;
-          }
-        }
+  // Load the texture size if needed.
+  // 1D: X - width.
+  // 2D, cube: X - width, Y - height (cube maps probably can be only square, but
+  //           for simplicity).
+  // 3D: X - width, Y - height, Z - depth, W - 0 if stacked 2D, 1 if 3D.
+  uint32_t size_needed_components = 0b0000;
+  if (instr.opcode == FetchOpcode::kGetTextureWeights) {
+    // Size needed for denormalization for coordinate lerp factor.
+    // FIXME(Triang3l): Currently disregarding the LOD completely in getWeights.
+    // However, if the LOD lerp factor and the LOD where filtering would happen
+    // are ever calculated, all components of the size may be needed for ALU LOD
+    // calculation with normalized coordinates (or, if a texture filled with LOD
+    // indices is used, coordinates will need to be normalized as normally).
+    if (!instr.attributes.unnormalized_coordinates) {
+      switch (instr.dimension) {
+        case TextureDimension::k1D:
+          size_needed_components |= used_result_nonzero_components & 0b0001;
+          break;
+        case TextureDimension::k2D:
+        case TextureDimension::kCube:
+          size_needed_components |= used_result_nonzero_components & 0b0011;
+          break;
+        case TextureDimension::k3D:
+          size_needed_components |= used_result_nonzero_components & 0b0111;
+          break;
       }
     }
-
-    // Gather info about filtering across array layers.
-    // Use the magnification filter when no derivatives:
-    // https://stackoverflow.com/questions/40328956/difference-between-sample-and-samplelevel-wrt-texture-filtering
-    bool vol_min_filter_applicable =
-        instr.opcode == FetchOpcode::kTextureFetch &&
-        (instr.attributes.use_register_gradients ||
-         (instr.attributes.use_computed_lod && IsDxbcPixelShader()));
-    bool has_vol_mag_filter =
-        instr.attributes.vol_mag_filter != TextureFilter::kUseFetchConst;
-    bool has_vol_min_filter =
-        vol_min_filter_applicable
-            ? instr.attributes.vol_min_filter != TextureFilter::kUseFetchConst
-            : has_vol_mag_filter;
-    bool vol_mag_filter_linear =
-        instr.attributes.vol_mag_filter == TextureFilter::kLinear;
-    bool vol_min_filter_linear =
-        vol_min_filter_applicable
-            ? instr.attributes.vol_min_filter == TextureFilter::kLinear
-            : vol_mag_filter_linear;
-    bool vol_mag_filter_point = has_vol_mag_filter && !vol_mag_filter_linear;
-    bool vol_min_filter_point = has_vol_min_filter && !vol_min_filter_linear;
-
-    // Get the texture size if needed, apply offset and switch between
-    // normalized and unnormalized coordinates if needed. The offset is
-    // fractional on the Xbox 360 (has 0.5 granularity), unlike in Direct3D 12,
-    // and cubemaps possibly can have offset and their coordinates are different
-    // than in Direct3D 12 (like an array texture rather than a direction).
-    // getWeights instructions also need the texture size because they work like
-    // frac(coord * texture_size).
-    // TODO(Triang3l): Unnormalized coordinates should be disabled when the
-    // wrap mode is not a clamped one, though it's probably a very rare case,
-    // unlikely to be used on purpose.
-    // http://web.archive.org/web/20090514012026/http://msdn.microsoft.com:80/en-us/library/bb313957.aspx
-    uint32_t size_and_is_3d_temp = UINT32_MAX;
-    // For stacked textures, if point sampling is not forced in the instruction:
-    // X - whether linear filtering should be done across layers (for color
-    //     grading LUTs in Unreal Engine 3 games and Burnout Revenge), unless
-    //     the filter is known from the instruction for all cases.
-    // Y - lerp factor between the two layers, unless only point sampling can be
-    //     used.
-    uint32_t vol_filter_temp = UINT32_MAX;
-    bool vol_filter_temp_linear_test = D3D10_SB_INSTRUCTION_TEST_NONZERO;
-    // With 1/1024 this will always be true anyway, but let's keep the shorter
-    // path without the offset in case some day this hack won't be used anymore
-    // somehow.
-    bool has_offset = offset_x != 0.0f || offset_y != 0.0f || offset_z != 0.0f;
-    if (instr.opcode == FetchOpcode::kGetTextureWeights || has_offset ||
-        instr.attributes.unnormalized_coordinates ||
-        instr.dimension == TextureDimension::k3D) {
-      size_and_is_3d_temp = PushSystemTemp();
-      if (instr.opcode == FetchOpcode::kTextureFetch &&
-          instr.dimension == TextureDimension::k3D) {
-        uint32_t vol_filter_temp_components = 0b0000;
-        if (!has_vol_mag_filter || !has_vol_min_filter ||
-            vol_mag_filter_linear != vol_min_filter_linear) {
-          vol_filter_temp_components |= 0b0011;
-        } else if (vol_mag_filter_linear || vol_min_filter_linear) {
-          vol_filter_temp_components |= 0b0010;
-        }
-        // Initialize to 0 to break register dependency.
-        if (vol_filter_temp_components != 0) {
-          vol_filter_temp = PushSystemTemp(vol_filter_temp_components);
-        }
-      }
-
-      // Will use fetch constants for the size and for stacked texture filter.
-      if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
-        cbuffer_index_fetch_constants_ = cbuffer_count_++;
-      }
-
-      // Get 2D texture size and array layer count, in bits 0:12, 13:25, 26:31
-      // of dword 2 ([0].z or [2].x).
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, coord_mask, 1));
-      shader_code_.push_back(size_and_is_3d_temp);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      shader_code_.push_back(13);
-      shader_code_.push_back(instr.dimension != TextureDimension::k1D ? 13 : 0);
-      shader_code_.push_back(instr.dimension == TextureDimension::k3D ? 6 : 0);
-      shader_code_.push_back(0);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      shader_code_.push_back(0);
-      shader_code_.push_back(13);
-      shader_code_.push_back(26);
-      shader_code_.push_back(0);
-      shader_code_.push_back(
-          EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                        2 - 2 * (tfetch_index & 1), 3));
-      shader_code_.push_back(cbuffer_index_fetch_constants_);
-      shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
-      shader_code_.push_back(tfetch_pair_offset + (tfetch_index & 1) * 2);
-      ++stat_.instruction_count;
-      ++stat_.uint_instruction_count;
-
-      if (instr.dimension == TextureDimension::k3D) {
-        // Write whether the texture is 3D to W if it's 3D/stacked, as
-        // 0xFFFFFFFF for 3D or 0 for stacked. The dimension is in dword 5 in
-        // bits 9:10.
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
-        shader_code_.push_back(size_and_is_3d_temp);
-        // Dword 5 is [1].y or [2].w.
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                      1 + 2 * (tfetch_index & 1), 3));
-        shader_code_.push_back(cbuffer_index_fetch_constants_);
-        shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
-        shader_code_.push_back(tfetch_pair_offset + 1 + (tfetch_index & 1));
-        shader_code_.push_back(
-            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-        shader_code_.push_back(0x3 << 9);
-        ++stat_.instruction_count;
-        ++stat_.uint_instruction_count;
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
-        shader_code_.push_back(size_and_is_3d_temp);
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-        shader_code_.push_back(size_and_is_3d_temp);
-        shader_code_.push_back(
-            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-        shader_code_.push_back(uint32_t(Dimension::k3D) << 9);
-        ++stat_.instruction_count;
-        ++stat_.int_instruction_count;
-
-        // Check if need to replace the size with 3D texture size.
-        shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                               ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                                   D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-                               ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-        shader_code_.push_back(size_and_is_3d_temp);
-        ++stat_.instruction_count;
-        ++stat_.dynamic_flow_control_count;
-
-        // Extract 3D texture size (in the same constant, but 11:11:10).
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
-        shader_code_.push_back(size_and_is_3d_temp);
-        shader_code_.push_back(EncodeVectorSwizzledOperand(
-            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-        shader_code_.push_back(11);
-        shader_code_.push_back(11);
-        shader_code_.push_back(10);
-        shader_code_.push_back(0);
-        shader_code_.push_back(EncodeVectorSwizzledOperand(
-            D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-        shader_code_.push_back(0);
-        shader_code_.push_back(11);
-        shader_code_.push_back(22);
-        shader_code_.push_back(0);
-        shader_code_.push_back(
-            EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                          2 - 2 * (tfetch_index & 1), 3));
-        shader_code_.push_back(cbuffer_index_fetch_constants_);
-        shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
-        shader_code_.push_back(tfetch_pair_offset + (tfetch_index & 1) * 2);
-        ++stat_.instruction_count;
-        ++stat_.uint_instruction_count;
-
-        // Done replacing.
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-        ++stat_.instruction_count;
-      }
-
-      // Convert the size to float.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_UTOF) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, coord_mask, 1));
-      shader_code_.push_back(size_and_is_3d_temp);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(size_and_is_3d_temp);
-      ++stat_.instruction_count;
-      ++stat_.conversion_instruction_count;
-
-      // Add 1 to the size because fetch constants store size minus one.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, coord_mask, 1));
-      shader_code_.push_back(size_and_is_3d_temp);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(size_and_is_3d_temp);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-      shader_code_.push_back(0x3F800000);
-      shader_code_.push_back(0x3F800000);
-      shader_code_.push_back(0x3F800000);
-      shader_code_.push_back(0);
-      ++stat_.instruction_count;
-      ++stat_.float_instruction_count;
-
-      if (instr.opcode == FetchOpcode::kGetTextureWeights) {
-        // Weights for bilinear filtering - need to get the fractional part of
-        // unnormalized coordinates.
-
+  } else {
+    // Size needed for normalization (or, for stacked texture layers,
+    // denormalization) and for offsets.
+    size_needed_components |= offsets_not_zero;
+    switch (instr.dimension) {
+      case TextureDimension::k1D:
         if (instr.attributes.unnormalized_coordinates) {
-          if (has_offset) {
-            // Apply the offset.
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-            shader_code_.push_back(EncodeVectorMaskedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, coord_mask, 1));
-            shader_code_.push_back(coord_temp);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-            shader_code_.push_back(coord_temp);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-            shader_code_.push_back(
-                *reinterpret_cast<const uint32_t*>(&offset_x));
-            shader_code_.push_back(
-                *reinterpret_cast<const uint32_t*>(&offset_y));
-            shader_code_.push_back(
-                *reinterpret_cast<const uint32_t*>(&offset_z));
-            shader_code_.push_back(0);
-            ++stat_.instruction_count;
-            ++stat_.float_instruction_count;
-          }
+          size_needed_components |= 0b0001;
+        }
+        break;
+      case TextureDimension::k2D:
+        if (instr.attributes.unnormalized_coordinates) {
+          size_needed_components |= 0b0011;
+        }
+        break;
+      case TextureDimension::k3D:
+        // Stacked and 3D textures are fetched from different SRVs - the check
+        // is always needed.
+        size_needed_components |= 0b1000;
+        if (instr.attributes.unnormalized_coordinates) {
+          // Need to normalize all (if 3D).
+          size_needed_components |= 0b0111;
         } else {
-          // Unnormalize the coordinates and apply the offset.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(has_offset ? D3D10_SB_OPCODE_MAD
-                                                     : D3D10_SB_OPCODE_MUL) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(has_offset ? 12
-                                                                      : 7));
-          shader_code_.push_back(EncodeVectorMaskedOperand(
-              D3D10_SB_OPERAND_TYPE_TEMP, coord_mask, 1));
-          shader_code_.push_back(coord_temp);
-          shader_code_.push_back(EncodeVectorSwizzledOperand(
-              D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-          shader_code_.push_back(coord_temp);
-          shader_code_.push_back(EncodeVectorSwizzledOperand(
-              D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-          shader_code_.push_back(size_and_is_3d_temp);
-          if (has_offset) {
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-            shader_code_.push_back(
-                *reinterpret_cast<const uint32_t*>(&offset_x));
-            shader_code_.push_back(
-                *reinterpret_cast<const uint32_t*>(&offset_y));
-            shader_code_.push_back(
-                *reinterpret_cast<const uint32_t*>(&offset_z));
-            shader_code_.push_back(0);
-          }
-          ++stat_.instruction_count;
-          ++stat_.float_instruction_count;
+          // Need to denormalize Z (if stacked).
+          size_needed_components |= 0b0100;
+        }
+        break;
+      case TextureDimension::kCube:
+        if (instr.attributes.unnormalized_coordinates) {
+          size_needed_components |= 0b0011;
+        }
+        // The size is not needed for face ID offset.
+        size_needed_components &= 0b0011;
+        break;
+    }
+  }
+  if (instr.dimension == TextureDimension::k3D && size_needed_components) {
+    // Stacked and 3D textures have different size packing - need to get whether
+    // the texture is 3D unconditionally.
+    size_needed_components |= 0b1000;
+  }
+  uint32_t size_and_is_3d_temp =
+      size_needed_components ? PushSystemTemp() : UINT32_MAX;
+  if (size_needed_components) {
+    switch (instr.dimension) {
+      case TextureDimension::k1D:
+        DxbcOpUBFE(DxbcDest::R(size_and_is_3d_temp, 0b0001), DxbcSrc::LU(24),
+                   DxbcSrc::LU(0),
+                   RequestTextureFetchConstantWord(tfetch_index, 2));
+        break;
+      case TextureDimension::k2D:
+      case TextureDimension::kCube:
+        DxbcOpUBFE(DxbcDest::R(size_and_is_3d_temp, size_needed_components),
+                   DxbcSrc::LU(13, 13, 0, 0), DxbcSrc::LU(0, 13, 0, 0),
+                   RequestTextureFetchConstantWord(tfetch_index, 2));
+        break;
+      case TextureDimension::k3D:
+        // tfetch3D is used for both stacked and 3D - first, check if 3D.
+        DxbcOpUBFE(DxbcDest::R(size_and_is_3d_temp, 0b1000), DxbcSrc::LU(2),
+                   DxbcSrc::LU(9),
+                   RequestTextureFetchConstantWord(tfetch_index, 5));
+        DxbcOpIEq(DxbcDest::R(size_and_is_3d_temp, 0b1000),
+                  DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW),
+                  DxbcSrc::LU(uint32_t(Dimension::k3D)));
+        if (size_needed_components & 0b0111) {
+          // Even if depth isn't needed specifically for stacked or specifically
+          // for 3D later, load both cases anyway to make sure the register is
+          // always initialized.
+          DxbcOpIf(true, DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW));
+          // Load the 3D texture size.
+          DxbcOpUBFE(
+              DxbcDest::R(size_and_is_3d_temp, size_needed_components & 0b0111),
+              DxbcSrc::LU(11, 11, 10, 0), DxbcSrc::LU(0, 11, 22, 0),
+              RequestTextureFetchConstantWord(tfetch_index, 2));
+          DxbcOpElse();
+          // Load the 2D stacked texture size.
+          DxbcOpUBFE(
+              DxbcDest::R(size_and_is_3d_temp, size_needed_components & 0b0111),
+              DxbcSrc::LU(13, 13, 6, 0), DxbcSrc::LU(0, 13, 26, 0),
+              RequestTextureFetchConstantWord(tfetch_index, 2));
+          DxbcOpEndIf();
+        }
+        break;
+    }
+    if (size_needed_components & 0b0111) {
+      // Fetch constants store size minus 1 - add 1.
+      DxbcOpIAdd(
+          DxbcDest::R(size_and_is_3d_temp, size_needed_components & 0b0111),
+          DxbcSrc::R(size_and_is_3d_temp), DxbcSrc::LU(1));
+      // Convert the size to float for multiplication/division.
+      DxbcOpUToF(
+          DxbcDest::R(size_and_is_3d_temp, size_needed_components & 0b0111),
+          DxbcSrc::R(size_and_is_3d_temp));
+    }
+  }
+
+  if (instr.opcode == FetchOpcode::kGetTextureWeights) {
+    // FIXME(Triang3l): Mip lerp factor needs to be calculated, and the
+    // coordinate lerp factors should be calculated at the mip level texels
+    // would be sampled from. That would require some way of calculating the LOD
+    // that would be applicable to explicit gradients and vertex shaders. Also,
+    // with point sampling, possibly lerp factors need to be 0. W  (mip lerp
+    // factor) should have been masked out previously because it's not supported
+    // currently.
+    assert_zero(used_result_nonzero_components & 0b1000);
+
+    // FIXME(Triang3l): Filtering modes should possibly be taken into account,
+    // but for simplicity, not doing that - from a high level point of view,
+    // would be useless to get weights that will always be zero.
+
+    // Need unnormalized coordinates.
+    bool coord_operand_temp_pushed = false;
+    DxbcSrc coord_operand =
+        LoadOperand(instr.operands[0], used_result_nonzero_components,
+                    coord_operand_temp_pushed);
+    DxbcSrc coord_src(coord_operand);
+    uint32_t coord_temp = UINT32_MAX;
+    uint32_t offsets_needed = offsets_not_zero & used_result_nonzero_components;
+    if (!instr.attributes.unnormalized_coordinates || offsets_needed) {
+      // Using system_temp_result_ as a temporary for coordinate denormalization
+      // and offsetting.
+      coord_src = DxbcSrc::R(system_temp_result_);
+      DxbcDest coord_dest(
+          DxbcDest::R(system_temp_result_, used_result_nonzero_components));
+      if (instr.attributes.unnormalized_coordinates) {
+        if (offsets_needed) {
+          DxbcOpAdd(coord_dest, coord_operand, DxbcSrc::LP(offsets));
         }
       } else {
-        // Texture fetch - need to get normalized coordinates (with unnormalized
-        // Z for stacked textures).
-
-        if (has_offset || instr.attributes.unnormalized_coordinates) {
-          // Take the reciprocal of the size to normalize the UV coordinates and
-          // the offset.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_RCP) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-          shader_code_.push_back(EncodeVectorMaskedOperand(
-              D3D10_SB_OPERAND_TYPE_TEMP, coord_mask & 0b0011, 1));
-          shader_code_.push_back(size_and_is_3d_temp);
-          shader_code_.push_back(EncodeVectorSwizzledOperand(
-              D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-          shader_code_.push_back(size_and_is_3d_temp);
-          ++stat_.instruction_count;
-          ++stat_.float_instruction_count;
-
-          // Normalize the coordinates.
-          if (instr.attributes.unnormalized_coordinates) {
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-            shader_code_.push_back(EncodeVectorMaskedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, coord_mask & 0b0011, 1));
-            shader_code_.push_back(coord_temp);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-            shader_code_.push_back(coord_temp);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-            shader_code_.push_back(size_and_is_3d_temp);
-            ++stat_.instruction_count;
-            ++stat_.float_instruction_count;
-          }
-
-          // Apply the offset (coord = offset * 1/size + coord).
-          if (has_offset) {
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(12));
-            shader_code_.push_back(EncodeVectorMaskedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, coord_mask & 0b0011, 1));
-            shader_code_.push_back(coord_temp);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-            shader_code_.push_back(
-                *reinterpret_cast<const uint32_t*>(&offset_x));
-            shader_code_.push_back(
-                *reinterpret_cast<const uint32_t*>(&offset_y));
-            shader_code_.push_back(0);
-            shader_code_.push_back(0);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-            shader_code_.push_back(size_and_is_3d_temp);
-            shader_code_.push_back(EncodeVectorSwizzledOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-            shader_code_.push_back(coord_temp);
-            ++stat_.instruction_count;
-            ++stat_.float_instruction_count;
-          }
-        }
-
-        if (instr.dimension == TextureDimension::k3D) {
-          // Both 3D textures and 2D arrays have their Z coordinate normalized,
-          // however, on PC, array elements have unnormalized indices.
-          // https://www.slideshare.net/blackdevilvikas/next-generation-graphics-programming-on-xbox-360
-          // The offset must be handled not only for 3D textures, but for the
-          // array layer too - used in Halo 3.
-
-          // Check if stacked.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-              ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                  D3D10_SB_INSTRUCTION_TEST_ZERO) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-          shader_code_.push_back(size_and_is_3d_temp);
-          ++stat_.instruction_count;
-          ++stat_.dynamic_flow_control_count;
-
-          // Layers on the Xenos are indexed like texels, with 0.5 being exactly
-          // layer 0, but in D3D10+ 0.0 is exactly layer 0. Halo 3 uses i + 0.5
-          // offset for lightmap index, for instance.
-          float offset_layer = offset_z - 0.5f;
-
-          if (instr.attributes.unnormalized_coordinates) {
-            if (offset_layer != 0.0f) {
-              // Add the offset to the array layer.
-              shader_code_.push_back(
-                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-              shader_code_.push_back(EncodeVectorMaskedOperand(
-                  D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-              shader_code_.push_back(coord_temp);
-              shader_code_.push_back(
-                  EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-              shader_code_.push_back(coord_temp);
-              shader_code_.push_back(
-                  EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-              shader_code_.push_back(
-                  *reinterpret_cast<const uint32_t*>(&offset_layer));
-              ++stat_.instruction_count;
-              ++stat_.float_instruction_count;
-            }
-          } else {
-            // Unnormalize the array layer and apply the offset.
-            if (offset_layer != 0.0f) {
-              shader_code_.push_back(
-                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-            } else {
-              shader_code_.push_back(
-                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-            }
-            shader_code_.push_back(EncodeVectorMaskedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-            shader_code_.push_back(coord_temp);
-            shader_code_.push_back(
-                EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-            shader_code_.push_back(coord_temp);
-            shader_code_.push_back(
-                EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-            shader_code_.push_back(size_and_is_3d_temp);
-            if (offset_layer != 0.0f) {
-              shader_code_.push_back(
-                  EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-              shader_code_.push_back(
-                  *reinterpret_cast<const uint32_t*>(&offset_layer));
-            }
-            ++stat_.instruction_count;
-            ++stat_.float_instruction_count;
-          }
-
-          if (vol_filter_temp != UINT32_MAX) {
-            if (vol_min_filter_applicable) {
-              if (!has_vol_mag_filter || !has_vol_min_filter ||
-                  vol_mag_filter_linear != vol_min_filter_linear) {
-                // Check if magnifying (derivative <= 1, according to OpenGL
-                // rules) or minifying (> 1) the texture across Z. Get the
-                // maximum of absolutes of the two derivatives of the array
-                // layer, either explicit or implicit.
-                if (instr.attributes.use_register_gradients) {
-                  shader_code_.push_back(
-                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
-                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-                  shader_code_.push_back(EncodeVectorMaskedOperand(
-                      D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-                  shader_code_.push_back(vol_filter_temp);
-                  shader_code_.push_back(EncodeVectorSelectOperand(
-                                             D3D10_SB_OPERAND_TYPE_TEMP, 2, 1) |
-                                         ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
-                  shader_code_.push_back(
-                      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
-                          D3D10_SB_OPERAND_MODIFIER_ABS));
-                  shader_code_.push_back(system_temp_grad_h_lod_);
-                  shader_code_.push_back(EncodeVectorSelectOperand(
-                                             D3D10_SB_OPERAND_TYPE_TEMP, 2, 1) |
-                                         ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
-                  shader_code_.push_back(
-                      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
-                          D3D10_SB_OPERAND_MODIFIER_ABS));
-                  shader_code_.push_back(system_temp_grad_v_);
-                  ++stat_.instruction_count;
-                  ++stat_.float_instruction_count;
-                } else {
-                  for (uint32_t i = 0; i < 2; ++i) {
-                    shader_code_.push_back(
-                        ENCODE_D3D10_SB_OPCODE_TYPE(
-                            i ? D3D11_SB_OPCODE_DERIV_RTY_COARSE
-                              : D3D11_SB_OPCODE_DERIV_RTX_COARSE) |
-                        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-                    shader_code_.push_back(EncodeVectorMaskedOperand(
-                        D3D10_SB_OPERAND_TYPE_TEMP, 1 << i, 1));
-                    shader_code_.push_back(vol_filter_temp);
-                    shader_code_.push_back(EncodeVectorSelectOperand(
-                        D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-                    shader_code_.push_back(coord_temp);
-                    ++stat_.instruction_count;
-                    ++stat_.float_instruction_count;
-                  }
-
-                  shader_code_.push_back(
-                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAX) |
-                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-                  shader_code_.push_back(EncodeVectorMaskedOperand(
-                      D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-                  shader_code_.push_back(vol_filter_temp);
-                  shader_code_.push_back(EncodeVectorSelectOperand(
-                                             D3D10_SB_OPERAND_TYPE_TEMP, 0, 1) |
-                                         ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
-                  shader_code_.push_back(
-                      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
-                          D3D10_SB_OPERAND_MODIFIER_ABS));
-                  shader_code_.push_back(vol_filter_temp);
-                  shader_code_.push_back(EncodeVectorSelectOperand(
-                                             D3D10_SB_OPERAND_TYPE_TEMP, 1, 1) |
-                                         ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
-                  shader_code_.push_back(
-                      ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
-                          D3D10_SB_OPERAND_MODIFIER_ABS));
-                  shader_code_.push_back(vol_filter_temp);
-                  ++stat_.instruction_count;
-                  ++stat_.float_instruction_count;
-                }
-
-                // Check if minifying.
-                shader_code_.push_back(
-                    ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_LT) |
-                    ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-                shader_code_.push_back(EncodeVectorMaskedOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-                shader_code_.push_back(vol_filter_temp);
-                shader_code_.push_back(
-                    EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-                shader_code_.push_back(0x3F800000);
-                shader_code_.push_back(EncodeVectorSelectOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-                shader_code_.push_back(vol_filter_temp);
-                ++stat_.instruction_count;
-                ++stat_.float_instruction_count;
-
-                if (has_vol_mag_filter || has_vol_min_filter) {
-                  if (has_vol_mag_filter && has_vol_min_filter) {
-                    // Both from the instruction.
-                    assert_true(vol_mag_filter_linear != vol_min_filter_linear);
-                    if (vol_mag_filter_linear) {
-                      // Either linear when minifying (non-zero) or linear when
-                      // magnifying (zero).
-                      vol_filter_temp_linear_test =
-                          D3D10_SB_INSTRUCTION_TEST_ZERO;
-                    }
-                  } else {
-                    // Check if need to use the filter from the fetch constant.
-                    // Has mag filter - need the fetch constant filter when
-                    // minifying (non-zero minification test result).
-                    // Has min filter - need it when magnifying (zero).
-                    shader_code_.push_back(
-                        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                        ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                            has_vol_mag_filter
-                                ? D3D10_SB_INSTRUCTION_TEST_NONZERO
-                                : D3D10_SB_INSTRUCTION_TEST_ZERO) |
-                        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-                    shader_code_.push_back(EncodeVectorSelectOperand(
-                        D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-                    shader_code_.push_back(vol_filter_temp);
-                    ++stat_.instruction_count;
-                    ++stat_.dynamic_flow_control_count;
-
-                    // Take the filter from the dword 4 of the fetch constant
-                    // ([1].x or [2].z) if it's not in the instruction.
-                    // Has mag filter - this will be executed for minification
-                    // (bit 1).
-                    // Has min filter - for magnification (bit 0).
-                    shader_code_.push_back(
-                        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-                    shader_code_.push_back(EncodeVectorMaskedOperand(
-                        D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-                    shader_code_.push_back(vol_filter_temp);
-                    shader_code_.push_back(EncodeVectorSelectOperand(
-                        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                        2 * (tfetch_index & 1), 3));
-                    shader_code_.push_back(cbuffer_index_fetch_constants_);
-                    shader_code_.push_back(
-                        uint32_t(CbufferRegister::kFetchConstants));
-                    shader_code_.push_back(tfetch_pair_offset + 1 +
-                                           (tfetch_index & 1));
-                    shader_code_.push_back(EncodeScalarOperand(
-                        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-                    shader_code_.push_back(has_vol_mag_filter ? (1 << 1)
-                                                              : (1 << 0));
-                    ++stat_.instruction_count;
-                    ++stat_.uint_instruction_count;
-
-                    // If not using the filter from the fetch constant, set the
-                    // value from the instruction.
-                    // Need to change this for:
-                    // - Magnifying (zero set) and linear (non-zero needed) vol
-                    //   mag filter.
-                    // - Minifying (non-zero set) and point (zero needed) vol
-                    //   min filter.
-                    // Already the expected zero or non-zero value for:
-                    // - Magnifying (zero set) and point (zero needed) vol mag
-                    //   filter.
-                    // - Minifying (non-zero set) and linear (non-zero needed)
-                    //   vol min filter.
-                    if (vol_mag_filter_linear || vol_min_filter_point) {
-                      shader_code_.push_back(
-                          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ELSE) |
-                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-                      ++stat_.instruction_count;
-
-                      shader_code_.push_back(
-                          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-                      shader_code_.push_back(EncodeVectorMaskedOperand(
-                          D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-                      shader_code_.push_back(vol_filter_temp);
-                      shader_code_.push_back(EncodeScalarOperand(
-                          D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-                      shader_code_.push_back(uint32_t(has_vol_mag_filter));
-                      ++stat_.instruction_count;
-                      ++stat_.mov_instruction_count;
-                    }
-
-                    // Close the fetch constant filter check.
-                    shader_code_.push_back(
-                        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-                    ++stat_.instruction_count;
-                  }
-                } else {
-                  // Mask the bit offset (1 for vol_min_filter, 0 for
-                  // vol_mag_filter) in the fetch constant.
-                  shader_code_.push_back(
-                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-                  shader_code_.push_back(EncodeVectorMaskedOperand(
-                      D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-                  shader_code_.push_back(vol_filter_temp);
-                  shader_code_.push_back(EncodeVectorSelectOperand(
-                      D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-                  shader_code_.push_back(vol_filter_temp);
-                  shader_code_.push_back(EncodeScalarOperand(
-                      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-                  shader_code_.push_back(1);
-                  ++stat_.instruction_count;
-                  ++stat_.uint_instruction_count;
-
-                  // Extract the filter from dword 4 of the fetch constant
-                  // ([1].x or [2].z).
-                  shader_code_.push_back(
-                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
-                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-                  shader_code_.push_back(EncodeVectorMaskedOperand(
-                      D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-                  shader_code_.push_back(vol_filter_temp);
-                  shader_code_.push_back(EncodeScalarOperand(
-                      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-                  shader_code_.push_back(1);
-                  shader_code_.push_back(EncodeVectorSelectOperand(
-                      D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-                  shader_code_.push_back(vol_filter_temp);
-                  shader_code_.push_back(EncodeVectorSelectOperand(
-                      D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                      2 * (tfetch_index & 1), 3));
-                  shader_code_.push_back(cbuffer_index_fetch_constants_);
-                  shader_code_.push_back(
-                      uint32_t(CbufferRegister::kFetchConstants));
-                  shader_code_.push_back(tfetch_pair_offset + 1 +
-                                         (tfetch_index & 1));
-                  ++stat_.instruction_count;
-                  ++stat_.uint_instruction_count;
-                }
-              }
-            } else {
-              if (!has_vol_mag_filter) {
-                // Extract the magnification filter when there are no
-                // derivatives from bit 0 of dword 4 of the fetch constant
-                // ([1].x or [2].z).
-                shader_code_.push_back(
-                    ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_AND) |
-                    ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-                shader_code_.push_back(EncodeVectorMaskedOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-                shader_code_.push_back(vol_filter_temp);
-                shader_code_.push_back(EncodeVectorSelectOperand(
-                    D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                    2 * (tfetch_index & 1), 3));
-                shader_code_.push_back(cbuffer_index_fetch_constants_);
-                shader_code_.push_back(
-                    uint32_t(CbufferRegister::kFetchConstants));
-                shader_code_.push_back(tfetch_pair_offset + 1 +
-                                       (tfetch_index & 1));
-                shader_code_.push_back(
-                    EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-                shader_code_.push_back(1);
-                ++stat_.instruction_count;
-                ++stat_.uint_instruction_count;
-              }
-            }
-          }
-
-          if (!vol_mag_filter_point || !vol_min_filter_point) {
-            if (!vol_mag_filter_linear || !vol_min_filter_linear) {
-              // Check if using linear filtering between array layers.
-              shader_code_.push_back(
-                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                  ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                      vol_filter_temp_linear_test) |
-                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-              shader_code_.push_back(
-                  EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-              shader_code_.push_back(vol_filter_temp);
-              ++stat_.instruction_count;
-              ++stat_.dynamic_flow_control_count;
-            }
-
-            // Floor the layer index to get the linear interpolation factor.
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ROUND_NI) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-            shader_code_.push_back(EncodeVectorMaskedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-            shader_code_.push_back(vol_filter_temp);
-            shader_code_.push_back(
-                EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-            shader_code_.push_back(coord_temp);
-            ++stat_.instruction_count;
-            ++stat_.float_instruction_count;
-
-            // Get the fraction of the layer index, with i + 0.5 right between
-            // layers, as the linear interpolation factor between layers Z and
-            // Z + 1.
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-            shader_code_.push_back(EncodeVectorMaskedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-            shader_code_.push_back(vol_filter_temp);
-            shader_code_.push_back(
-                EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-            shader_code_.push_back(coord_temp);
-            shader_code_.push_back(
-                EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1) |
-                ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
-            shader_code_.push_back(ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
-                D3D10_SB_OPERAND_MODIFIER_NEG));
-            shader_code_.push_back(vol_filter_temp);
-            ++stat_.instruction_count;
-            ++stat_.float_instruction_count;
-
-            // Floor the layer index again for sampling.
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ROUND_NI) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-            shader_code_.push_back(EncodeVectorMaskedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-            shader_code_.push_back(coord_temp);
-            shader_code_.push_back(
-                EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-            shader_code_.push_back(coord_temp);
-            ++stat_.instruction_count;
-            ++stat_.float_instruction_count;
-
-            if (!vol_mag_filter_linear || !vol_min_filter_linear) {
-              // Close the linear filtering check.
-              shader_code_.push_back(
-                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-              ++stat_.instruction_count;
-            }
-          }
-
-          if (instr.attributes.unnormalized_coordinates || offset_z != 0.0f) {
-            // Handle 3D texture coordinates - may need to normalize and/or add
-            // the offset. Check if 3D.
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ELSE) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-            ++stat_.instruction_count;
-
-            // Need 1/depth for both normalization and offset.
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_RCP) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-            shader_code_.push_back(EncodeVectorMaskedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-            shader_code_.push_back(size_and_is_3d_temp);
-            shader_code_.push_back(
-                EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-            shader_code_.push_back(size_and_is_3d_temp);
-            ++stat_.instruction_count;
-            ++stat_.float_instruction_count;
-
-            if (instr.attributes.unnormalized_coordinates) {
-              // Normalize the W coordinate.
-              shader_code_.push_back(
-                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-              shader_code_.push_back(EncodeVectorMaskedOperand(
-                  D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-              shader_code_.push_back(coord_temp);
-              shader_code_.push_back(
-                  EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-              shader_code_.push_back(coord_temp);
-              shader_code_.push_back(
-                  EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-              shader_code_.push_back(size_and_is_3d_temp);
-              ++stat_.instruction_count;
-              ++stat_.float_instruction_count;
-            }
-
-            if (offset_z != 0.0f) {
-              // Add normalized offset.
-              shader_code_.push_back(
-                  ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                  ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-              shader_code_.push_back(EncodeVectorMaskedOperand(
-                  D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-              shader_code_.push_back(coord_temp);
-              shader_code_.push_back(
-                  EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-              shader_code_.push_back(
-                  *reinterpret_cast<const uint32_t*>(&offset_z));
-              shader_code_.push_back(
-                  EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-              shader_code_.push_back(size_and_is_3d_temp);
-              shader_code_.push_back(
-                  EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-              shader_code_.push_back(coord_temp);
-              ++stat_.instruction_count;
-              ++stat_.float_instruction_count;
-            }
-          }
-
-          // Close the 3D or stacked check.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-          ++stat_.instruction_count;
+        assert_true((size_needed_components & used_result_nonzero_components) ==
+                    used_result_nonzero_components);
+        if (offsets_needed) {
+          DxbcOpMAd(coord_dest, coord_operand, DxbcSrc::R(size_and_is_3d_temp),
+                    DxbcSrc::LP(offsets));
+        } else {
+          DxbcOpMul(coord_dest, coord_operand, DxbcSrc::R(size_and_is_3d_temp));
         }
       }
     }
+    // 0.5 has already been subtracted via offsets previously.
+    DxbcOpFrc(DxbcDest::R(system_temp_result_, used_result_nonzero_components),
+              coord_src);
+    if (coord_operand_temp_pushed) {
+      PopSystemTemp();
+    }
+  } else {
+    // - Component signedness, for selecting the SRV, and if data is needed.
 
-    if (instr.opcode == FetchOpcode::kGetTextureWeights) {
-      // Return the fractional part of unnormalized coordinates as bilinear
-      // filtering weights.
-      shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_FRC) |
-                             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(5));
-      shader_code_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, coord_mask, 1));
-      shader_code_.push_back(system_temp_result_);
-      shader_code_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-      shader_code_.push_back(coord_temp);
-      ++stat_.instruction_count;
-      ++stat_.float_instruction_count;
-    } else {
-      if (instr.dimension == TextureDimension::kCube) {
-        // Convert cubemap coordinates passed as 2D array texture coordinates
-        // plus 1 in ST to a 3D direction. We can't use a 2D array to emulate
-        // cubemaps because at the edges, especially in pixel shader helper
-        // invocations, the major axis changes, causing S/T to jump between 0
-        // and 1, breaking gradient calculation and causing the 1x1 mipmap to be
-        // sampled.
-        TfetchCubeCoordToCubeDirection(coord_temp);
-      }
+    DxbcSrc signs_uint_src(
+        DxbcSrc::CB(cbuffer_index_system_constants_,
+                    uint32_t(CbufferRegister::kSystemConstants),
+                    kSysConst_TextureSwizzledSigns_Vec + (tfetch_index >> 4))
+            .Select((tfetch_index >> 2) & 3));
+    uint32_t signs_shift = (tfetch_index & 3) * 8;
+    uint32_t signs_temp = UINT32_MAX;
+    if (instr.opcode == FetchOpcode::kTextureFetch) {
+      signs_temp = PushSystemTemp();
+      system_constants_used_ |= 1ull << kSysConst_TextureSwizzledSigns_Index;
+      DxbcOpUBFE(DxbcDest::R(signs_temp, used_result_nonzero_components),
+                 DxbcSrc::LU(2),
+                 DxbcSrc::LU(signs_shift, signs_shift + 2, signs_shift + 4,
+                             signs_shift + 6),
+                 signs_uint_src);
+    }
 
-      // Bias the register LOD if fetching with explicit LOD (so this is not
-      // done two or four times due to 3D/stacked and unsigned/signed).
-      uint32_t lod_temp = system_temp_grad_h_lod_, lod_temp_component = 3;
-      if (instr.opcode == FetchOpcode::kTextureFetch &&
-          instr.attributes.use_register_lod &&
-          instr.attributes.lod_bias != 0.0f) {
-        lod_temp = PushSystemTemp();
-        lod_temp_component = 0;
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-        shader_code_.push_back(lod_temp);
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-        shader_code_.push_back(system_temp_grad_h_lod_);
-        shader_code_.push_back(
-            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-        shader_code_.push_back(
-            *reinterpret_cast<const uint32_t*>(&instr.attributes.lod_bias));
-        ++stat_.instruction_count;
-        ++stat_.float_instruction_count;
-      }
+    // - Coordinates.
 
-      // Allocate the register for the value from the signed texture, and also
-      // for the second array layer and lerping the layers.
-      uint32_t signed_value_temp = instr.opcode == FetchOpcode::kTextureFetch
-                                       ? PushSystemTemp()
-                                       : UINT32_MAX;
-      uint32_t vol_filter_lerp_temp = UINT32_MAX;
-      if (vol_filter_temp != UINT32_MAX &&
-          (!vol_mag_filter_point || !vol_min_filter_point)) {
-        vol_filter_lerp_temp = PushSystemTemp();
-      }
+    // Will need a temporary in all cases:
+    // - 1D, 2D array - need to be padded to 2D array coordinates.
+    // - 3D - Z needs to be unnormalized for stacked and normalized for 3D.
+    // - Cube - coordinates need to be transformed into the cube space.
+    uint32_t coord_temp = PushSystemTemp();
 
-      // tfetch1D/2D/Cube just fetch directly. tfetch3D needs to fetch either
-      // the 3D texture or the 2D stacked texture, so two sample instructions
-      // selected conditionally are used in this case.
-      if (instr.dimension == TextureDimension::k3D) {
-        assert_true(size_and_is_3d_temp != UINT32_MAX);
-        shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                               ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                                   D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-                               ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 3, 1));
-        shader_code_.push_back(size_and_is_3d_temp);
-        ++stat_.instruction_count;
-        ++stat_.dynamic_flow_control_count;
-      }
-      // Sample both 3D and 2D array bindings for tfetch3D.
-      for (uint32_t i = 0;
-           i < (instr.dimension == TextureDimension::k3D ? 2u : 1u); ++i) {
-        if (i) {
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ELSE) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-          ++stat_.instruction_count;
+    // Need normalized coordinates (except for Z - keep it as is, will be
+    // converted later according to whether the texture is 3D). For cube maps,
+    // coordinates need to be transformed back into the cube space.
+    bool coord_operand_temp_pushed = false;
+    DxbcSrc coord_operand = LoadOperand(
+        instr.operands[0],
+        (1 << GetTextureDimensionComponentCount(instr.dimension)) - 1,
+        coord_operand_temp_pushed);
+    uint32_t normalized_components = 0b0000;
+    switch (instr.dimension) {
+      case TextureDimension::k1D:
+        normalized_components = 0b0001;
+        break;
+      case TextureDimension::k2D:
+      case TextureDimension::kCube:
+        normalized_components = 0b0011;
+        break;
+      case TextureDimension::k3D:
+        normalized_components = 0b0111;
+        break;
+    }
+    if (instr.attributes.unnormalized_coordinates) {
+      // Unnormalized coordinates - normalize XY, and if 3D, normalize Z.
+      assert_not_zero(normalized_components);
+      assert_true((size_needed_components & normalized_components) ==
+                  normalized_components);
+      if (offsets_not_zero & normalized_components) {
+        // FIXME(Triang3l): Offsets need to be applied at the LOD being fetched.
+        DxbcOpAdd(DxbcDest::R(coord_temp, normalized_components), coord_operand,
+                  DxbcSrc::LP(offsets));
+        assert_not_zero(normalized_components & 0b011);
+        DxbcOpDiv(DxbcDest::R(coord_temp, normalized_components & 0b011),
+                  DxbcSrc::R(coord_temp), DxbcSrc::R(size_and_is_3d_temp));
+        if (instr.dimension == TextureDimension::k3D) {
+          // Normalize if 3D.
+          assert_true((size_needed_components & 0b1100) == 0b1100);
+          DxbcOpIf(true, DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW));
+          DxbcOpDiv(DxbcDest::R(coord_temp, 0b0100),
+                    DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ),
+                    DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kZZZZ));
+          DxbcOpEndIf();
         }
-        if (instr.opcode == FetchOpcode::kGetTextureComputedLod) {
-          // The non-pixel-shader case should be handled before because it
-          // just returns a constant in this case.
-          assert_true(IsDxbcPixelShader());
-          uint32_t srv_index_current =
-              i ? srv_indices_stacked[0] : srv_indices[0];
-          replicate_result = true;
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_1_SB_OPCODE_LOD) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-          shader_code_.push_back(system_temp_result_);
-          shader_code_.push_back(EncodeVectorSwizzledOperand(
-              D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-          shader_code_.push_back(coord_temp);
-          shader_code_.push_back(EncodeVectorSwizzledOperand(
-              D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
-          shader_code_.push_back(1 + srv_index_current);
-          shader_code_.push_back(
-              uint32_t(SRVMainRegister::kBoundTexturesStart) +
-              srv_index_current);
-          shader_code_.push_back(
-              EncodeZeroComponentOperand(D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
-          shader_code_.push_back(sampler_register);
-          shader_code_.push_back(sampler_register);
-          ++stat_.instruction_count;
-          ++stat_.lod_instructions;
-          // Apply the LOD bias if used.
-          if (instr.attributes.lod_bias != 0.0f) {
-            shader_code_.push_back(
-                ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-                ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-            shader_code_.push_back(EncodeVectorMaskedOperand(
-                D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-            shader_code_.push_back(system_temp_result_);
-            shader_code_.push_back(
-                EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-            shader_code_.push_back(system_temp_result_);
-            shader_code_.push_back(
-                EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-            shader_code_.push_back(
-                *reinterpret_cast<const uint32_t*>(&instr.attributes.lod_bias));
-            ++stat_.instruction_count;
-            ++stat_.float_instruction_count;
+      } else {
+        DxbcOpDiv(DxbcDest::R(coord_temp, normalized_components), coord_operand,
+                  DxbcSrc::R(size_and_is_3d_temp));
+        if (instr.dimension == TextureDimension::k3D) {
+          // Don't normalize if stacked.
+          assert_true((size_needed_components & 0b1000) == 0b1000);
+          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0100),
+                     DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW),
+                     DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ),
+                     coord_operand.SelectFromSwizzled(2));
+        }
+      }
+    } else {
+      // Normalized coordinates - apply offsets to XY or copy them to
+      // coord_temp, and if stacked, denormalize Z.
+      uint32_t coords_with_offset = offsets_not_zero & normalized_components;
+      if (coords_with_offset) {
+        // FIXME(Triang3l): Offsets need to be applied at the LOD being fetched.
+        assert_true((size_needed_components & coords_with_offset) ==
+                    coords_with_offset);
+        DxbcOpDiv(DxbcDest::R(coord_temp, coords_with_offset),
+                  DxbcSrc::LP(offsets), DxbcSrc::R(size_and_is_3d_temp));
+        DxbcOpAdd(DxbcDest::R(coord_temp, coords_with_offset), coord_operand,
+                  DxbcSrc::R(coord_temp));
+      }
+      uint32_t coords_without_offset =
+          ~coords_with_offset & normalized_components;
+      // 3D/stacked without offset is handled separately.
+      if (coords_without_offset & 0b011) {
+        DxbcOpMov(DxbcDest::R(coord_temp, coords_without_offset & 0b011),
+                  coord_operand);
+      }
+      if (instr.dimension == TextureDimension::k3D) {
+        assert_true((size_needed_components & 0b1100) == 0b1100);
+        if (coords_with_offset & 0b100) {
+          // Denormalize and offset Z (re-apply the offset not to lose precision
+          // as a result of division) if stacked.
+          DxbcOpIf(false, DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW));
+          DxbcOpMAd(DxbcDest::R(coord_temp, 0b0100),
+                    coord_operand.SelectFromSwizzled(2),
+                    DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kZZZZ),
+                    DxbcSrc::LF(offsets[2]));
+          DxbcOpEndIf();
+        } else {
+          // Denormalize Z if stacked, and revert to normalized if 3D.
+          DxbcOpMul(DxbcDest::R(coord_temp, 0b0100),
+                    coord_operand.SelectFromSwizzled(2),
+                    DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kZZZZ));
+          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0100),
+                     DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW),
+                     coord_operand.SelectFromSwizzled(2),
+                     DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ));
+        }
+      }
+    }
+    switch (instr.dimension) {
+      case TextureDimension::k1D:
+        // Pad to 2D array coordinates.
+        DxbcOpMov(DxbcDest::R(coord_temp, 0b0110), DxbcSrc::LF(0.0f));
+        break;
+      case TextureDimension::k2D:
+        // Pad to 2D array coordinates.
+        DxbcOpMov(DxbcDest::R(coord_temp, 0b0100), DxbcSrc::LF(0.0f));
+        break;
+      case TextureDimension::kCube: {
+        // Transform from the major axis SC/TC plus 1 into cube coordinates.
+        // Move SC/TC from 1...2 to -1...1.
+        DxbcOpMAd(DxbcDest::R(coord_temp, 0b0011), DxbcSrc::R(coord_temp),
+                  DxbcSrc::LF(2.0f), DxbcSrc::LF(-3.0f));
+        // Get the face index (floored, within 0...5) as an integer to
+        // coord_temp.z.
+        if (offsets[2]) {
+          DxbcOpAdd(DxbcDest::R(coord_temp, 0b0100),
+                    coord_operand.SelectFromSwizzled(2),
+                    DxbcSrc::LF(offsets[2]));
+          DxbcOpFToU(DxbcDest::R(coord_temp, 0b0100),
+                     DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ));
+        } else {
+          DxbcOpFToU(DxbcDest::R(coord_temp, 0b0100),
+                     coord_operand.SelectFromSwizzled(2));
+        }
+        DxbcOpUMin(DxbcDest::R(coord_temp, 0b0100),
+                   DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ), DxbcSrc::LU(5));
+        // Split the face index into axis and sign (0 - positive, 1 - negative)
+        // to coord_temp.zw (sign in W so it won't be overwritten).
+        DxbcOpUBFE(DxbcDest::R(coord_temp, 0b1100), DxbcSrc::LU(0, 0, 2, 1),
+                   DxbcSrc::LU(0, 0, 1, 0),
+                   DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ));
+        // Remap the axes in a way opposite to the ALU cube instruction.
+        DxbcOpSwitch(DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ));
+        DxbcOpCase(DxbcSrc::LU(0));
+        {
+          // X is the major axis.
+          // Y = -TC (TC overwritten).
+          DxbcOpMov(DxbcDest::R(coord_temp, 0b0010),
+                    -DxbcSrc::R(coord_temp, DxbcSrc::kYYYY));
+          // Z = neg ? SC : -SC.
+          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0100),
+                     DxbcSrc::R(coord_temp, DxbcSrc::kWWWW),
+                     DxbcSrc::R(coord_temp, DxbcSrc::kXXXX),
+                     -DxbcSrc::R(coord_temp, DxbcSrc::kXXXX));
+          // X = neg ? -1 : 1 (SC overwritten).
+          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0001),
+                     DxbcSrc::R(coord_temp, DxbcSrc::kWWWW), DxbcSrc::LF(-1.0f),
+                     DxbcSrc::LF(1.0f));
+        }
+        DxbcOpBreak();
+        DxbcOpCase(DxbcSrc::LU(1));
+        {
+          // Y is the major axis.
+          // X = SC (already there).
+          // Z = neg ? -TC : TC.
+          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0100),
+                     DxbcSrc::R(coord_temp, DxbcSrc::kWWWW),
+                     -DxbcSrc::R(coord_temp, DxbcSrc::kYYYY),
+                     DxbcSrc::R(coord_temp, DxbcSrc::kYYYY));
+          // Y = neg ? -1 : 1 (TC overwritten).
+          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0010),
+                     DxbcSrc::R(coord_temp, DxbcSrc::kWWWW), DxbcSrc::LF(-1.0f),
+                     DxbcSrc::LF(1.0f));
+        }
+        DxbcOpBreak();
+        DxbcOpDefault();
+        {
+          // Z is the major axis.
+          // X = neg ? -SC : SC (SC overwritten).
+          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0001),
+                     DxbcSrc::R(coord_temp, DxbcSrc::kWWWW),
+                     -DxbcSrc::R(coord_temp, DxbcSrc::kXXXX),
+                     DxbcSrc::R(coord_temp, DxbcSrc::kXXXX));
+          // Y = -TC (TC overwritten).
+          DxbcOpMov(DxbcDest::R(coord_temp, 0b0010),
+                    -DxbcSrc::R(coord_temp, DxbcSrc::kYYYY));
+          // Z = neg ? -1 : 1.
+          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0100),
+                     DxbcSrc::R(coord_temp, DxbcSrc::kWWWW), DxbcSrc::LF(-1.0f),
+                     DxbcSrc::LF(1.0f));
+        }
+        DxbcOpBreak();
+        DxbcOpEndSwitch();
+      } break;
+      default:
+        break;
+    }
+    if (coord_operand_temp_pushed) {
+      PopSystemTemp();
+    }
+
+    if (instr.opcode == FetchOpcode::kGetTextureComputedLod) {
+      // Because the `lod` instruction is not defined for point sampling, and
+      // since the return value can be used with bias later, forcing linear mip
+      // filtering (the XNA assembler also doesn't accept MipFilter overrides
+      // for getCompTexLOD).
+      DxbcSrc sampler(FindOrAddSamplerBinding(
+          tfetch_index, instr.attributes.mag_filter,
+          instr.attributes.min_filter, TextureFilter::kLinear,
+          instr.attributes.aniso_filter));
+      // Check which SRV needs to be accessed - signed or unsigned. If there is
+      // at least one non-signed component, will be using the unsigned one.
+      uint32_t is_unsigned_temp = PushSystemTemp();
+      system_constants_used_ |= 1ull << kSysConst_TextureSwizzledSigns_Index;
+      DxbcOpUBFE(DxbcDest::R(is_unsigned_temp, 0b0001), DxbcSrc::LU(8),
+                 DxbcSrc::LU(signs_shift), signs_uint_src);
+      DxbcOpINE(DxbcDest::R(is_unsigned_temp, 0b0001),
+                DxbcSrc::R(is_unsigned_temp, DxbcSrc::kXXXX),
+                DxbcSrc::LU(uint32_t(TextureSign::kSigned) * 0b01010101));
+      DxbcOpIf(true, DxbcSrc::R(is_unsigned_temp, DxbcSrc::kXXXX));
+      // Release is_unsigned_temp.
+      PopSystemTemp();
+      for (uint32_t is_signed = 0; is_signed < 2; ++is_signed) {
+        if (is_signed) {
+          DxbcOpElse();
+        }
+        if (instr.dimension == TextureDimension::k3D) {
+          // Check if 3D.
+          assert_true((size_needed_components & 0b1000) == 0b1000);
+          DxbcOpIf(true, DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW));
+        }
+        for (uint32_t is_stacked = 0;
+             is_stacked < (instr.dimension == TextureDimension::k3D ? 2u : 1u);
+             ++is_stacked) {
+          if (is_stacked) {
+            DxbcOpElse();
+          }
+          // Always 3 coordinate components (1D and 2D are padded to 2D arrays,
+          // 3D and cube have 3 coordinate dimensions). Not caring about
+          // normalization of the array layer because it doesn't participate in
+          // LOD calculation in Direct3D 12.
+          // The `lod` instruction returns the unclamped LOD (probably need
+          // unclamped so it can be biased back into the range later) in the Y
+          // component, and the resource swizzle is the return value swizzle.
+          // FIXME(Triang3l): Gradient exponent adjustment from the fetch
+          // constant needs to be applied here, would require SV_Position.xy & 1
+          // math, replacing coordinates for one pixel with 0 and for another
+          // with the adjusted gradient, but possibly not used by any games.
+          assert_true(used_result_nonzero_components == 0b0001);
+          DxbcOpLOD(DxbcDest::R(system_temp_result_, 0b0001),
+                    DxbcSrc::R(coord_temp), 3,
+                    FindOrAddTextureSRV(
+                        tfetch_index,
+                        is_stacked ? TextureDimension::k2D : instr.dimension,
+                        is_signed != 0)
+                        .Select(1),
+                    sampler);
+        }
+        if (instr.dimension == TextureDimension::k3D) {
+          // Close the 3D/stacked check.
+          DxbcOpEndIf();
+        }
+      }
+      // Close the signedness check.
+      DxbcOpEndIf();
+    } else {
+      // - Gradients or LOD to be passed to the sample_d/sample_l.
+
+      DxbcSrc lod_src(DxbcSrc::LF(0.0f));
+      uint32_t grad_component_count = 0;
+      // Will be allocated for both explicit and computed LOD.
+      uint32_t grad_h_lod_temp = UINT32_MAX;
+      // Will be allocated for computed LOD only, and if not using basemap mip
+      // filter.
+      uint32_t grad_v_temp = UINT32_MAX;
+      if (instr.attributes.mip_filter != TextureFilter::kBaseMap) {
+        grad_h_lod_temp = PushSystemTemp();
+        lod_src = DxbcSrc::R(grad_h_lod_temp, DxbcSrc::kWWWW);
+        // Accumulate the explicit LOD sources (in D3D11.3 specification order:
+        // specified LOD + sampler LOD bias + instruction LOD bias).
+        DxbcDest lod_dest(DxbcDest::R(grad_h_lod_temp, 0b1000));
+        // Fetch constant LOD bias * 32.
+        DxbcOpIBFE(lod_dest, DxbcSrc::LU(10), DxbcSrc::LU(12),
+                   RequestTextureFetchConstantWord(tfetch_index, 4));
+        DxbcOpIToF(lod_dest, lod_src);
+        if (instr.attributes.use_register_lod) {
+          // Divide the fetch constant LOD bias by 32, and add the register LOD
+          // and the instruction LOD bias.
+          DxbcOpMAd(lod_dest, lod_src, DxbcSrc::LF(1.0f / 32.0f),
+                    DxbcSrc::R(system_temp_grad_h_lod_, DxbcSrc::kWWWW));
+          if (instr.attributes.lod_bias) {
+            DxbcOpAdd(lod_dest, lod_src,
+                      DxbcSrc::LF(instr.attributes.lod_bias));
           }
         } else {
-          // Sample both unsigned and signed, and for stacked textures, two
-          // samples if filtering is needed.
-          for (uint32_t j = 0; j < 2; ++j) {
-            uint32_t srv_index_current =
-                i ? srv_indices_stacked[j] : srv_indices[j];
-            uint32_t target_temp_sign =
-                j ? signed_value_temp : system_temp_result_;
-            for (uint32_t k = 0;
-                 k < (vol_filter_lerp_temp != UINT32_MAX ? 2u : 1u); ++k) {
-              uint32_t target_temp_current =
-                  k ? vol_filter_lerp_temp : target_temp_sign;
-              if (k) {
-                if (!vol_mag_filter_linear || !vol_min_filter_linear) {
-                  // Check if array layer filtering is enabled and need one more
-                  // sample.
-                  shader_code_.push_back(
-                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-                      ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                          vol_filter_temp_linear_test) |
-                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-                  shader_code_.push_back(EncodeVectorSelectOperand(
-                      D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-                  shader_code_.push_back(vol_filter_temp);
-                  ++stat_.instruction_count;
-                  ++stat_.dynamic_flow_control_count;
-                }
-
-                // Go to the next array texture sample.
-                shader_code_.push_back(
-                    ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-                    ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-                shader_code_.push_back(EncodeVectorMaskedOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-                shader_code_.push_back(coord_temp);
-                shader_code_.push_back(EncodeVectorSelectOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-                shader_code_.push_back(coord_temp);
-                shader_code_.push_back(
-                    EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-                shader_code_.push_back(0x3F800000);
-                ++stat_.instruction_count;
-                ++stat_.float_instruction_count;
+          // Divide the fetch constant LOD by 32, and add the instruction LOD
+          // bias.
+          if (instr.attributes.lod_bias) {
+            DxbcOpMAd(lod_dest, lod_src, DxbcSrc::LF(1.0f / 32.0f),
+                      DxbcSrc::LF(instr.attributes.lod_bias));
+          } else {
+            DxbcOpMul(lod_dest, lod_src, DxbcSrc::LF(1.0f / 32.0f));
+          }
+        }
+        if (use_computed_lod) {
+          grad_v_temp = PushSystemTemp();
+          switch (instr.dimension) {
+            case TextureDimension::k1D:
+              grad_component_count = 1;
+              break;
+            case TextureDimension::k2D:
+              grad_component_count = 2;
+              break;
+            case TextureDimension::k3D:
+            case TextureDimension::kCube:
+              grad_component_count = 3;
+              break;
+          }
+          assert_not_zero(grad_component_count);
+          uint32_t grad_mask = (1 << grad_component_count) - 1;
+          // Convert the bias to a gradient scale.
+          DxbcOpExp(lod_dest, lod_src);
+          // FIXME(Triang3l): Gradient exponent adjustment is currently not done
+          // in getCompTexLOD, so don't do it here too.
+#if 0
+          // Extract gradient exponent biases from the fetch constant and merge
+          // them with the LOD bias.
+          DxbcOpIBFE(DxbcDest::R(grad_h_lod_temp, 0b0011), DxbcSrc::LU(5),
+                     DxbcSrc::LU(22, 27, 0, 0),
+                     RequestTextureFetchConstantWord(tfetch_index, 4));
+          DxbcOpIMAd(DxbcDest::R(grad_h_lod_temp, 0b0011),
+                     DxbcSrc::R(grad_h_lod_temp), DxbcSrc::LI(int32_t(1) << 23),
+                     DxbcSrc::LF(1.0f));
+          DxbcOpMul(DxbcDest::R(grad_v_temp, 0b1000), lod_src,
+                    DxbcSrc::R(grad_h_lod_temp, DxbcSrc::kYYYY));
+          DxbcOpMul(lod_dest, lod_src,
+                    DxbcSrc::R(grad_h_lod_temp, DxbcSrc::kXXXX));
+#endif
+          // Obtain the gradients and apply biases to them.
+          if (instr.attributes.use_register_gradients) {
+            // Register gradients are already in the cube space for cube maps.
+            DxbcOpMul(DxbcDest::R(grad_h_lod_temp, grad_mask),
+                      DxbcSrc::R(system_temp_grad_h_lod_), lod_src);
+            // FIXME(Triang3l): Gradient exponent adjustment is currently not
+            // done in getCompTexLOD, so don't do it here too.
+#if 0
+            DxbcOpMul(DxbcDest::R(grad_v_temp, grad_mask),
+                      DxbcSrc::R(system_temp_grad_v_),
+                      DxbcSrc::R(grad_v_temp, DxbcSrc::kWWWW));
+#else
+            DxbcOpMul(DxbcDest::R(grad_v_temp, grad_mask),
+                      DxbcSrc::R(system_temp_grad_v_), lod_src);
+#endif
+            // TODO(Triang3l): Are cube map register gradients unnormalized if
+            // the coordinates themselves are unnormalized?
+            if (instr.attributes.unnormalized_coordinates &&
+                instr.dimension != TextureDimension::kCube) {
+              uint32_t grad_norm_mask = grad_mask;
+              if (instr.dimension == TextureDimension::k3D) {
+                grad_norm_mask &= 0b0011;
               }
-              if (instr.attributes.use_register_lod) {
-                shader_code_.push_back(
-                    ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE_L) |
-                    ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
-                shader_code_.push_back(EncodeVectorMaskedOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-                shader_code_.push_back(target_temp_current);
-                shader_code_.push_back(EncodeVectorSwizzledOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-                shader_code_.push_back(coord_temp);
-                shader_code_.push_back(EncodeVectorSwizzledOperand(
-                    D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
-                shader_code_.push_back(1 + srv_index_current);
-                shader_code_.push_back(
-                    uint32_t(SRVMainRegister::kBoundTexturesStart) +
-                    srv_index_current);
-                shader_code_.push_back(EncodeZeroComponentOperand(
-                    D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
-                shader_code_.push_back(sampler_register);
-                shader_code_.push_back(sampler_register);
-                shader_code_.push_back(EncodeVectorSelectOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, lod_temp_component, 1));
-                shader_code_.push_back(lod_temp);
-                ++stat_.instruction_count;
-                ++stat_.texture_normal_instructions;
-              } else if (instr.attributes.use_register_gradients) {
-                // TODO(Triang3l): Apply the LOD bias somehow for register
-                // gradients (possibly will require moving the bias to the
-                // sampler, which may be not very good considering the sampler
-                // count is very limited).
-                shader_code_.push_back(
-                    ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE_D) |
-                    ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(15));
-                shader_code_.push_back(EncodeVectorMaskedOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-                shader_code_.push_back(target_temp_current);
-                shader_code_.push_back(EncodeVectorSwizzledOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-                shader_code_.push_back(coord_temp);
-                shader_code_.push_back(EncodeVectorSwizzledOperand(
-                    D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
-                shader_code_.push_back(1 + srv_index_current);
-                shader_code_.push_back(
-                    uint32_t(SRVMainRegister::kBoundTexturesStart) +
-                    srv_index_current);
-                shader_code_.push_back(EncodeZeroComponentOperand(
-                    D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
-                shader_code_.push_back(sampler_register);
-                shader_code_.push_back(sampler_register);
-                shader_code_.push_back(EncodeVectorSwizzledOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-                shader_code_.push_back(system_temp_grad_h_lod_);
-                shader_code_.push_back(EncodeVectorSwizzledOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-                shader_code_.push_back(system_temp_grad_v_);
-                ++stat_.instruction_count;
-                ++stat_.texture_gradient_instructions;
-              } else {
-                // 3 different DXBC opcodes handled here:
-                // - sample_l, when not using a computed LOD or not in a pixel
-                //   shader, in this case, LOD (0 + bias) is sampled.
-                // - sample, when sampling in a pixel shader (thus with
-                //   derivatives) with a computed LOD.
-                // - sample_b, when sampling in a pixel shader with a biased
-                //   computed LOD.
-                // Both sample_l and sample_b should add the LOD bias as the
-                // last operand in our case.
-                bool explicit_lod =
-                    !instr.attributes.use_computed_lod || !IsDxbcPixelShader();
-                if (explicit_lod) {
-                  shader_code_.push_back(
-                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE_L) |
-                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
-                } else if (instr.attributes.lod_bias != 0.0f) {
-                  shader_code_.push_back(
-                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE_B) |
-                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(13));
-                } else {
-                  shader_code_.push_back(
-                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_SAMPLE) |
-                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-                }
-                shader_code_.push_back(EncodeVectorMaskedOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-                shader_code_.push_back(target_temp_current);
-                shader_code_.push_back(EncodeVectorSwizzledOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-                shader_code_.push_back(coord_temp);
-                shader_code_.push_back(EncodeVectorSwizzledOperand(
-                    D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 2));
-                shader_code_.push_back(1 + srv_index_current);
-                shader_code_.push_back(
-                    uint32_t(SRVMainRegister::kBoundTexturesStart) +
-                    srv_index_current);
-                shader_code_.push_back(EncodeZeroComponentOperand(
-                    D3D10_SB_OPERAND_TYPE_SAMPLER, 2));
-                shader_code_.push_back(sampler_register);
-                shader_code_.push_back(sampler_register);
-                if (explicit_lod || instr.attributes.lod_bias != 0.0f) {
-                  shader_code_.push_back(EncodeScalarOperand(
-                      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-                  shader_code_.push_back(*reinterpret_cast<const uint32_t*>(
-                      &instr.attributes.lod_bias));
-                }
-                ++stat_.instruction_count;
-                if (!explicit_lod && instr.attributes.lod_bias != 0.0f) {
-                  ++stat_.texture_bias_instructions;
-                } else {
-                  ++stat_.texture_normal_instructions;
-                }
-              }
-              if (k) {
-                // b - a
-                shader_code_.push_back(
-                    ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-                    ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-                shader_code_.push_back(EncodeVectorMaskedOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-                shader_code_.push_back(target_temp_current);
-                shader_code_.push_back(EncodeVectorSwizzledOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-                shader_code_.push_back(target_temp_current);
-                shader_code_.push_back(
-                    EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                kSwizzleXYZW, 1) |
-                    ENCODE_D3D10_SB_OPERAND_EXTENDED(1));
-                shader_code_.push_back(
-                    ENCODE_D3D10_SB_EXTENDED_OPERAND_MODIFIER(
-                        D3D10_SB_OPERAND_MODIFIER_NEG));
-                shader_code_.push_back(target_temp_sign);
-                ++stat_.instruction_count;
-                ++stat_.float_instruction_count;
-
-                // a + (b - a) * factor
-                shader_code_.push_back(
-                    ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-                    ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-                shader_code_.push_back(EncodeVectorMaskedOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-                shader_code_.push_back(target_temp_sign);
-                shader_code_.push_back(EncodeVectorSwizzledOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-                shader_code_.push_back(target_temp_current);
-                shader_code_.push_back(EncodeVectorReplicatedOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-                shader_code_.push_back(vol_filter_temp);
-                shader_code_.push_back(EncodeVectorSwizzledOperand(
-                    D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-                shader_code_.push_back(target_temp_sign);
-                ++stat_.instruction_count;
-                ++stat_.float_instruction_count;
-
-                if (!j) {
-                  // Go back to the first layer to sample the signed texture.
-                  shader_code_.push_back(
-                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ADD) |
-                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-                  shader_code_.push_back(EncodeVectorMaskedOperand(
-                      D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-                  shader_code_.push_back(coord_temp);
-                  shader_code_.push_back(EncodeVectorSelectOperand(
-                      D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-                  shader_code_.push_back(coord_temp);
-                  shader_code_.push_back(EncodeScalarOperand(
-                      D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-                  shader_code_.push_back(0xBF800000u);
-                  ++stat_.instruction_count;
-                  ++stat_.float_instruction_count;
-                }
-
-                if (!vol_mag_filter_linear || !vol_min_filter_linear) {
-                  // Close the array layer filtering check.
-                  shader_code_.push_back(
-                      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-                      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-                  ++stat_.instruction_count;
-                }
-              }
+              assert_true((size_needed_components & grad_norm_mask) ==
+                          grad_norm_mask);
+              DxbcOpDiv(DxbcDest::R(grad_h_lod_temp, grad_norm_mask),
+                        DxbcSrc::R(grad_h_lod_temp),
+                        DxbcSrc::R(size_and_is_3d_temp));
+              DxbcOpDiv(DxbcDest::R(grad_v_temp, grad_norm_mask),
+                        DxbcSrc::R(grad_v_temp),
+                        DxbcSrc::R(size_and_is_3d_temp));
+              // Normalize Z of the gradients for fetching from the 3D texture.
+              assert_true((size_needed_components & 0b1100) == 0b1100);
+              DxbcOpIf(true, DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW));
+              DxbcOpDiv(DxbcDest::R(grad_h_lod_temp, 0b0100),
+                        DxbcSrc::R(grad_h_lod_temp, DxbcSrc::kZZZZ),
+                        DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kZZZZ));
+              DxbcOpDiv(DxbcDest::R(grad_v_temp, 0b0100),
+                        DxbcSrc::R(grad_v_temp, DxbcSrc::kZZZZ),
+                        DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kZZZZ));
+              DxbcOpEndIf();
             }
+          } else {
+            // Coarse is according to the Direct3D 11.3 specification.
+            DxbcOpDerivRTXCoarse(DxbcDest::R(grad_h_lod_temp, grad_mask),
+                                 DxbcSrc::R(coord_temp));
+            DxbcOpMul(DxbcDest::R(grad_h_lod_temp, grad_mask),
+                      DxbcSrc::R(grad_h_lod_temp), lod_src);
+            DxbcOpDerivRTYCoarse(DxbcDest::R(grad_v_temp, grad_mask),
+                                 DxbcSrc::R(coord_temp));
+            // FIXME(Triang3l): Gradient exponent adjustment is currently not
+            // done in getCompTexLOD, so don't do it here too.
+#if 0
+            DxbcOpMul(DxbcDest::R(grad_v_temp, grad_mask),
+                      DxbcSrc::R(grad_v_temp),
+                      DxbcSrc::R(grad_v_temp, DxbcSrc::kWWWW));
+#else
+            DxbcOpMul(DxbcDest::R(grad_v_temp, grad_mask),
+                      DxbcSrc::R(grad_v_temp), lod_src);
+#endif
+          }
+          if (instr.dimension == TextureDimension::k1D) {
+            // Pad the gradients to 2D because 1D textures are fetched as 2D
+            // arrays.
+            DxbcOpMov(DxbcDest::R(grad_h_lod_temp, 0b0010), DxbcSrc::LF(0.0f));
+            DxbcOpMov(DxbcDest::R(grad_v_temp, 0b0010), DxbcSrc::LF(0.0f));
+            grad_component_count = 2;
+          }
+        }
+      }
+
+      // - Data.
+
+      // Viva Pinata uses vertex displacement map textures for tessellated
+      // models like the beehive tree with explicit LOD with point sampling
+      // (they store values packed in two components), however, the fetch
+      // constant has anisotropic filtering enabled. However, Direct3D 12
+      // doesn't allow mixing anisotropic and point filtering. Possibly
+      // anistropic filtering should be disabled when explicit LOD is used - do
+      // this here.
+      DxbcSrc sampler(FindOrAddSamplerBinding(
+          tfetch_index, instr.attributes.mag_filter,
+          instr.attributes.min_filter, instr.attributes.mip_filter,
+          use_computed_lod ? instr.attributes.aniso_filter
+                           : AnisoFilter::kDisabled));
+
+      // Break result register dependencies because textures will be sampled
+      // conditionally, including the primary signs.
+      DxbcOpMov(
+          DxbcDest::R(system_temp_result_, used_result_nonzero_components),
+          DxbcSrc::LF(0.0f));
+
+      // Extract whether each component is signed.
+      uint32_t is_signed_temp = PushSystemTemp();
+      DxbcOpIEq(DxbcDest::R(is_signed_temp, used_result_nonzero_components),
+                DxbcSrc::R(signs_temp),
+                DxbcSrc::LU(uint32_t(TextureSign::kSigned)));
+
+      // Calculate the lerp factor between stacked texture layers if needed (or
+      // 0 if point-sampled), and check which signedness SRVs need to be
+      // sampled.
+      // As a result, if srv_selection_temp is allocated at all:
+      // - srv_selection_temp.x - if multiple components, whether all components
+      //   are signed, wrapped by is_all_signed_src with a fallback for the
+      //   single component case. If false, the unsigned SRV needs to be
+      //   sampled.
+      // - srv_selection_temp.y - if multiple components, whether any component
+      //   is signed, wrapped by is_any_signed_src with a fallback for the
+      //   single component case. If true, the signed SRV needs to be sampled.
+      // - srv_selection_temp.z - if stacked and not forced to be point-sampled,
+      //   the lerp factor between two layers, wrapped by layer_lerp_factor_src
+      //   with l(0.0) fallback for the point sampling case.
+      // - srv_selection_temp.w - scratch for calculations involving these.
+      DxbcSrc layer_lerp_factor_src(DxbcSrc::LF(0.0f));
+      uint32_t srv_selection_temp = UINT32_MAX;
+      if (instr.dimension == TextureDimension::k3D) {
+        bool vol_mag_filter_is_fetch_const =
+            instr.attributes.vol_mag_filter == TextureFilter::kUseFetchConst;
+        bool vol_min_filter_is_fetch_const =
+            instr.attributes.vol_min_filter == TextureFilter::kUseFetchConst;
+        bool vol_mag_filter_is_linear =
+            instr.attributes.vol_mag_filter == TextureFilter::kLinear;
+        bool vol_min_filter_is_linear =
+            instr.attributes.vol_min_filter == TextureFilter::kLinear;
+        if (grad_v_temp != UINT32_MAX &&
+            (vol_mag_filter_is_fetch_const || vol_min_filter_is_fetch_const ||
+             vol_mag_filter_is_linear != vol_min_filter_is_linear)) {
+          if (srv_selection_temp == UINT32_MAX) {
+            srv_selection_temp = PushSystemTemp();
+          }
+          layer_lerp_factor_src =
+              DxbcSrc::R(srv_selection_temp, DxbcSrc::kZZZZ);
+          // Initialize to point sampling, and break register dependency for 3D.
+          DxbcOpMov(DxbcDest::R(srv_selection_temp, 0b0100), DxbcSrc::LF(0.0f));
+          assert_true((size_needed_components & 0b1000) == 0b1000);
+          DxbcOpIf(false, DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW));
+          // Check if minifying along layers (derivative > 1 along any axis).
+          DxbcOpMax(DxbcDest::R(srv_selection_temp, 0b1000),
+                    DxbcSrc::R(grad_h_lod_temp, DxbcSrc::kZZZZ),
+                    DxbcSrc::R(grad_v_temp, DxbcSrc::kZZZZ));
+          if (!instr.attributes.unnormalized_coordinates) {
+            // Denormalize the gradient if provided as normalized.
+            assert_true((size_needed_components & 0b0100) == 0b0100);
+            DxbcOpMul(DxbcDest::R(srv_selection_temp, 0b1000),
+                      DxbcSrc::R(srv_selection_temp, DxbcSrc::kWWWW),
+                      DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kZZZZ));
+          }
+          // For NaN, considering that magnification is being done. Zero
+          // srv_selection_temp.w means magnifying, non-zero means minifying.
+          DxbcOpLT(DxbcDest::R(srv_selection_temp, 0b1000), DxbcSrc::LF(1.0f),
+                   DxbcSrc::R(srv_selection_temp, DxbcSrc::kWWWW));
+          if (vol_mag_filter_is_fetch_const || vol_min_filter_is_fetch_const) {
+            DxbcOpIf(false, DxbcSrc::R(srv_selection_temp, DxbcSrc::kWWWW));
+            // Write the magnification filter to srv_selection_temp.w. In the
+            // "if" rather than "else" because this is more likely to happen if
+            // the layer is constant.
+            if (vol_mag_filter_is_fetch_const) {
+              DxbcOpAnd(DxbcDest::R(srv_selection_temp, 0b1000),
+                        RequestTextureFetchConstantWord(tfetch_index, 4),
+                        DxbcSrc::LU(1));
+            } else {
+              DxbcOpMov(DxbcDest::R(srv_selection_temp, 0b1000),
+                        DxbcSrc::LU(uint32_t(vol_mag_filter_is_linear)));
+            }
+            DxbcOpElse();
+            // Write the minification filter to srv_selection_temp.w.
+            if (vol_min_filter_is_fetch_const) {
+              DxbcOpUBFE(DxbcDest::R(srv_selection_temp, 0b1000),
+                         DxbcSrc::LU(1), DxbcSrc::LU(1),
+                         RequestTextureFetchConstantWord(tfetch_index, 4));
+            } else {
+              DxbcOpMov(DxbcDest::R(srv_selection_temp, 0b1000),
+                        DxbcSrc::LU(uint32_t(vol_min_filter_is_linear)));
+            }
+            // Close the magnification check.
+            DxbcOpEndIf();
+            // Check if the filter is linear.
+            DxbcOpIf(true, DxbcSrc::R(srv_selection_temp, DxbcSrc::kWWWW));
+          } else if (vol_mag_filter_is_linear) {
+            assert_false(vol_min_filter_is_linear);
+            // Both overridden, one (magnification) is linear, another
+            // (minification) is not - handle linear filtering if magnifying.
+            DxbcOpIf(false, DxbcSrc::R(srv_selection_temp, DxbcSrc::kWWWW));
+          } else {
+            assert_true(vol_min_filter_is_linear);
+            assert_false(vol_mag_filter_is_linear);
+            // Both overridden, one (minification) is linear, another
+            // (magnification) is not - handle linear filtering if minifying.
+            DxbcOpIf(true, DxbcSrc::R(srv_selection_temp, DxbcSrc::kWWWW));
+          }
+          // For linear filtering, subtract 0.5 from the coordinates and store
+          // the lerp factor. Flooring will be done later.
+          DxbcOpAdd(DxbcDest::R(coord_temp, 0b0100),
+                    DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ), DxbcSrc::LF(-0.5f));
+          DxbcOpFrc(DxbcDest::R(srv_selection_temp, 0b0100),
+                    DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ));
+          // Close the linear check.
+          DxbcOpEndIf();
+          // Close the stacked check.
+          DxbcOpEndIf();
+        } else {
+          // No gradients, or using the same filter overrides for magnifying and
+          // minifying. Assume always magnifying if no gradients (LOD 0, always
+          // <= 0). LOD is within 2D layers, not between them (unlike in 3D
+          // textures, which have mips with depth reduced).
+          if (vol_mag_filter_is_fetch_const || vol_mag_filter_is_linear) {
+            if (srv_selection_temp == UINT32_MAX) {
+              srv_selection_temp = PushSystemTemp();
+            }
+            layer_lerp_factor_src =
+                DxbcSrc::R(srv_selection_temp, DxbcSrc::kZZZZ);
+            // Initialize to point sampling, and break register dependency for
+            // 3D.
+            DxbcOpMov(DxbcDest::R(srv_selection_temp, 0b0100),
+                      DxbcSrc::LF(0.0f));
+            assert_true((size_needed_components & 0b1000) == 0b1000);
+            DxbcOpIf(false, DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW));
+            if (vol_mag_filter_is_fetch_const) {
+              // Extract the magnification filtering mode from the fetch
+              // constant.
+              DxbcOpAnd(DxbcDest::R(srv_selection_temp, 0b1000),
+                        RequestTextureFetchConstantWord(tfetch_index, 4),
+                        DxbcSrc::LU(1));
+              // Check if it's linear.
+              DxbcOpIf(true, DxbcSrc::R(srv_selection_temp, DxbcSrc::kWWWW));
+            }
+            // For linear filtering, subtract 0.5 from the coordinates and store
+            // the lerp factor. Flooring will be done later.
+            DxbcOpAdd(DxbcDest::R(coord_temp, 0b0100),
+                      DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ),
+                      DxbcSrc::LF(-0.5f));
+            DxbcOpFrc(DxbcDest::R(srv_selection_temp, 0b0100),
+                      DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ));
+            if (vol_mag_filter_is_fetch_const) {
+              // Close the fetch constant linear filtering mode check.
+              DxbcOpEndIf();
+            }
+            // Close the stacked check.
+            DxbcOpEndIf();
+          }
+        }
+      }
+      // Check if any component is not signed, and if any component is signed.
+      uint32_t result_first_component;
+      xe::bit_scan_forward(used_result_nonzero_components,
+                           &result_first_component);
+      DxbcSrc is_all_signed_src(
+          DxbcSrc::R(is_signed_temp).Select(result_first_component));
+      DxbcSrc is_any_signed_src(
+          DxbcSrc::R(is_signed_temp).Select(result_first_component));
+      if (used_result_nonzero_components != (1 << result_first_component)) {
+        // Multiple components fetched - need to merge.
+        if (srv_selection_temp == UINT32_MAX) {
+          srv_selection_temp = PushSystemTemp();
+        }
+        DxbcDest is_all_signed_dest(DxbcDest::R(srv_selection_temp, 0b0001));
+        DxbcDest is_any_signed_dest(DxbcDest::R(srv_selection_temp, 0b0010));
+        uint32_t result_remaining_components =
+            used_result_nonzero_components &
+            ~(uint32_t(1) << result_first_component);
+        uint32_t result_component;
+        while (xe::bit_scan_forward(result_remaining_components,
+                                    &result_component)) {
+          result_remaining_components &= ~(uint32_t(1) << result_component);
+          DxbcOpAnd(is_all_signed_dest, is_all_signed_src,
+                    DxbcSrc::R(is_signed_temp).Select(result_component));
+          DxbcOpOr(is_any_signed_dest, is_any_signed_src,
+                   DxbcSrc::R(is_signed_temp).Select(result_component));
+          // For the first component, both sources must both be two is_signed
+          // components, to initialize.
+          is_all_signed_src = DxbcSrc::R(srv_selection_temp, DxbcSrc::kXXXX);
+          is_any_signed_src = DxbcSrc::R(srv_selection_temp, DxbcSrc::kYYYY);
+        }
+      }
+
+      // Sample the texture - choose between 3D and stacked, and then sample
+      // unsigned and signed SRVs and choose between them.
+
+      if (instr.dimension == TextureDimension::k3D) {
+        assert_true((size_needed_components & 0b1000) == 0b1000);
+        // The first fetch attempt will be for the 3D SRV.
+        DxbcOpIf(true, DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW));
+      }
+      for (uint32_t is_stacked = 0;
+           is_stacked < (instr.dimension == TextureDimension::k3D ? 2u : 1u);
+           ++is_stacked) {
+        // i == 0 - 1D/2D/3D/cube.
+        // i == 1 - 2D stacked.
+        TextureDimension srv_dimension = instr.dimension;
+        uint32_t srv_grad_component_count = grad_component_count;
+        bool layer_lerp_needed = false;
+        if (is_stacked) {
+          srv_dimension = TextureDimension::k2D;
+          srv_grad_component_count = 2;
+          layer_lerp_needed =
+              layer_lerp_factor_src.type_ != DxbcOperandType::kImmediate32;
+          DxbcOpElse();
+          // Floor the array layer (Direct3D 12 does rounding to nearest even
+          // for the layer index, but on the Xbox 360, addressing is similar to
+          // that of 3D textures). This is needed for both point and linear
+          // filtering (with linear, 0.5 was subtracted previously).
+          DxbcOpRoundNI(DxbcDest::R(coord_temp, 0b0100),
+                        DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ));
+        }
+        DxbcSrc srv_unsigned(
+            FindOrAddTextureSRV(tfetch_index, srv_dimension, false));
+        DxbcSrc srv_signed(
+            FindOrAddTextureSRV(tfetch_index, srv_dimension, true));
+        for (uint32_t layer = 0; layer < (layer_lerp_needed ? 2u : 1u);
+             ++layer) {
+          uint32_t layer_value_temp = system_temp_result_;
+          if (layer) {
+            layer_value_temp = PushSystemTemp();
+            // Check if the lerp factor is not zero (or NaN).
+            DxbcOpNE(DxbcDest::R(layer_value_temp, 0b0001),
+                     layer_lerp_factor_src, DxbcSrc::LF(0.0f));
+            // If the lerp factor is not zero, sample the next layer.
+            DxbcOpIf(true, DxbcSrc::R(layer_value_temp, DxbcSrc::kXXXX));
+            // Go to the next layer.
+            DxbcOpAdd(DxbcDest::R(coord_temp, 0b0100),
+                      DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ),
+                      DxbcSrc::LF(1.0f));
+          }
+          // Always 3 coordinate components (1D and 2D are padded to 2D arrays,
+          // 3D and cube have 3 coordinate dimensions).
+          DxbcOpIf(false, is_all_signed_src);
+          {
+            // Sample the unsigned texture.
+            if (grad_v_temp != UINT32_MAX) {
+              assert_not_zero(grad_component_count);
+              DxbcOpSampleD(
+                  DxbcDest::R(layer_value_temp, used_result_nonzero_components),
+                  DxbcSrc::R(coord_temp), 3, srv_unsigned, sampler,
+                  DxbcSrc::R(grad_h_lod_temp), DxbcSrc::R(grad_v_temp),
+                  srv_grad_component_count);
+            } else {
+              DxbcOpSampleL(
+                  DxbcDest::R(layer_value_temp, used_result_nonzero_components),
+                  DxbcSrc::R(coord_temp), 3, srv_unsigned, sampler, lod_src);
+            }
+          }
+          DxbcOpEndIf();
+          DxbcOpIf(true, is_any_signed_src);
+          {
+            // Sample the signed texture.
+            uint32_t signed_temp = PushSystemTemp();
+            if (grad_v_temp != UINT32_MAX) {
+              assert_not_zero(grad_component_count);
+              DxbcOpSampleD(
+                  DxbcDest::R(signed_temp, used_result_nonzero_components),
+                  DxbcSrc::R(coord_temp), 3, srv_signed, sampler,
+                  DxbcSrc::R(grad_h_lod_temp), DxbcSrc::R(grad_v_temp),
+                  srv_grad_component_count);
+            } else {
+              DxbcOpSampleL(
+                  DxbcDest::R(signed_temp, used_result_nonzero_components),
+                  DxbcSrc::R(coord_temp), 3, srv_signed, sampler, lod_src);
+            }
+            DxbcOpMovC(
+                DxbcDest::R(layer_value_temp, used_result_nonzero_components),
+                DxbcSrc::R(is_signed_temp), DxbcSrc::R(signed_temp),
+                DxbcSrc::R(layer_value_temp));
+            // Release signed_temp.
+            PopSystemTemp();
+          }
+          DxbcOpEndIf();
+          if (layer) {
+            assert_true(layer_value_temp != system_temp_result_);
+            // Interpolate between the two layers.
+            DxbcOpAdd(
+                DxbcDest::R(layer_value_temp, used_result_nonzero_components),
+                DxbcSrc::R(layer_value_temp), -DxbcSrc::R(system_temp_result_));
+            DxbcOpMAd(DxbcDest::R(system_temp_result_,
+                                  used_result_nonzero_components),
+                      DxbcSrc::R(layer_value_temp), layer_lerp_factor_src,
+                      DxbcSrc::R(system_temp_result_));
+            // Close the linear filtering check.
+            DxbcOpEndIf();
+            // Release the allocated layer_value_temp.
+            PopSystemTemp();
           }
         }
       }
       if (instr.dimension == TextureDimension::k3D) {
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-        ++stat_.instruction_count;
+        // Close the stacked/3D check.
+        DxbcOpEndIf();
       }
 
-      if (instr.opcode == FetchOpcode::kTextureFetch) {
-        // Will take sign values and exponent bias from the fetch constant.
-        if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
-          cbuffer_index_fetch_constants_ = cbuffer_count_++;
-        }
-
-        assert_true(signed_value_temp != UINT32_MAX);
-        uint32_t sign_temp = PushSystemTemp();
-
-        // Choose between channels from the unsigned SRV and the signed one,
-        // apply sign bias (2 * color - 1) and linearize gamma textures.
-        // This is done before applying the exponent bias because biasing and
-        // linearization must be done on color values in 0...1 range, and this
-        // is closer to the storage format, while exponent bias is closer to the
-        // actual usage in shaders.
-        // TODO(Triang3l): Signs should be pre-swizzled.
-        for (uint32_t i = 0; i < 4; ++i) {
-          // Extract the sign values from dword 0 ([0].x or [1].z) of the fetch
-          // constant (in bits 2:9, 2 bits per component) to sign_temp.x.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_UBFE) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-          shader_code_.push_back(sign_temp);
-          shader_code_.push_back(
-              EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-          shader_code_.push_back(2);
-          shader_code_.push_back(
-              EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-          shader_code_.push_back(2 + i * 2);
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                        (tfetch_index & 1) * 2, 3));
-          shader_code_.push_back(cbuffer_index_fetch_constants_);
-          shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
-          shader_code_.push_back(tfetch_pair_offset + (tfetch_index & 1));
-          ++stat_.instruction_count;
-          ++stat_.uint_instruction_count;
-
-          // Get if the channel is signed to sign_temp.y.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-          shader_code_.push_back(sign_temp);
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-          shader_code_.push_back(sign_temp);
-          shader_code_.push_back(
-              EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-          shader_code_.push_back(uint32_t(TextureSign::kSigned));
-          ++stat_.instruction_count;
-          ++stat_.int_instruction_count;
-
-          // Choose between the unsigned and the signed channel.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1 << i, 1));
-          shader_code_.push_back(system_temp_result_);
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-          shader_code_.push_back(sign_temp);
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
-          shader_code_.push_back(signed_value_temp);
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
-          shader_code_.push_back(system_temp_result_);
-          ++stat_.instruction_count;
-          ++stat_.movc_instruction_count;
-
-          // Get if the channel is biased to sign_temp.y.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0010, 1));
-          shader_code_.push_back(sign_temp);
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-          shader_code_.push_back(sign_temp);
-          shader_code_.push_back(
-              EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-          shader_code_.push_back(uint32_t(TextureSign::kUnsignedBiased));
-          ++stat_.instruction_count;
-          ++stat_.int_instruction_count;
-
-          // Expand 0...1 to -1...1 (for normal and DuDv maps, for instance) to
-          // sign_temp.z.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MAD) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0100, 1));
-          shader_code_.push_back(sign_temp);
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
-          shader_code_.push_back(system_temp_result_);
-          shader_code_.push_back(
-              EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-          shader_code_.push_back(0x40000000u);
-          shader_code_.push_back(
-              EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-          shader_code_.push_back(0xBF800000u);
-          ++stat_.instruction_count;
-          ++stat_.float_instruction_count;
-
-          // Choose between the unbiased and the biased channel.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOVC) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(9));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1 << i, 1));
-          shader_code_.push_back(system_temp_result_);
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 1, 1));
-          shader_code_.push_back(sign_temp);
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 2, 1));
-          shader_code_.push_back(sign_temp);
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, i, 1));
-          shader_code_.push_back(system_temp_result_);
-          ++stat_.instruction_count;
-          ++stat_.movc_instruction_count;
-
-          // Get if the channel is in PWL gamma to sign_temp.x.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IEQ) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-          shader_code_.push_back(sign_temp);
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-          shader_code_.push_back(sign_temp);
-          shader_code_.push_back(
-              EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-          shader_code_.push_back(uint32_t(TextureSign::kGamma));
-          ++stat_.instruction_count;
-          ++stat_.int_instruction_count;
-
-          // Check if need to degamma.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IF) |
-              ENCODE_D3D10_SB_INSTRUCTION_TEST_BOOLEAN(
-                  D3D10_SB_INSTRUCTION_TEST_NONZERO) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-          shader_code_.push_back(
-              EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-          shader_code_.push_back(sign_temp);
-          ++stat_.instruction_count;
-          ++stat_.dynamic_flow_control_count;
-
-          // Degamma the channel.
-          ConvertPWLGamma(false, system_temp_result_, i, system_temp_result_, i,
-                          sign_temp, 0, sign_temp, 1);
-
-          // Close the gamma conditional.
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ENDIF) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-          ++stat_.instruction_count;
-        }
-
-        // Release sign_temp.
-        PopSystemTemp();
-
-        // Apply exponent bias.
-        uint32_t exp_adjust_temp = PushSystemTemp();
-        // Get the bias value in bits 13:18 of dword 3, which is [0].w or [2].y.
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_IBFE) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(11));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-        shader_code_.push_back(exp_adjust_temp);
-        shader_code_.push_back(
-            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-        shader_code_.push_back(6);
-        shader_code_.push_back(
-            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-        shader_code_.push_back(13);
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER,
-                                      3 - 2 * (tfetch_index & 1), 3));
-        shader_code_.push_back(cbuffer_index_fetch_constants_);
-        shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
-        shader_code_.push_back(tfetch_pair_offset + (tfetch_index & 1) * 2);
-        ++stat_.instruction_count;
-        ++stat_.uint_instruction_count;
-        // Shift it into float exponent bits.
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ISHL) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-        shader_code_.push_back(exp_adjust_temp);
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-        shader_code_.push_back(exp_adjust_temp);
-        shader_code_.push_back(
-            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-        shader_code_.push_back(23);
-        ++stat_.instruction_count;
-        ++stat_.int_instruction_count;
-        // Add this to the exponent of 1.0.
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0001, 1));
-        shader_code_.push_back(exp_adjust_temp);
-        shader_code_.push_back(
-            EncodeVectorSelectOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-        shader_code_.push_back(exp_adjust_temp);
-        shader_code_.push_back(
-            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_IMMEDIATE32, 0));
-        shader_code_.push_back(0x3F800000);
-        ++stat_.instruction_count;
-        ++stat_.int_instruction_count;
-        // Multiply the value from the texture by 2.0^bias.
-        shader_code_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-        shader_code_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-        shader_code_.push_back(system_temp_result_);
-        shader_code_.push_back(EncodeVectorSwizzledOperand(
-            D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-        shader_code_.push_back(system_temp_result_);
-        shader_code_.push_back(
-            EncodeVectorReplicatedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0, 1));
-        shader_code_.push_back(exp_adjust_temp);
-        ++stat_.instruction_count;
-        ++stat_.float_instruction_count;
-        // Release exp_adjust_temp.
+      if (srv_selection_temp != UINT32_MAX) {
         PopSystemTemp();
       }
-
-      if (vol_filter_lerp_temp != UINT32_MAX) {
-        PopSystemTemp();
-      }
-      if (signed_value_temp != UINT32_MAX) {
-        PopSystemTemp();
-      }
-      if (lod_temp != system_temp_grad_h_lod_) {
-        PopSystemTemp();
-      }
-    }
-
-    if (vol_filter_temp != UINT32_MAX) {
+      // Release is_signed_temp.
       PopSystemTemp();
+
+      // Release grad_h_lod_temp and grad_v_temp.
+      if (grad_v_temp != UINT32_MAX) {
+        PopSystemTemp();
+      }
+      if (grad_h_lod_temp != UINT32_MAX) {
+        PopSystemTemp();
+      }
     }
-    if (size_and_is_3d_temp != UINT32_MAX) {
-      PopSystemTemp();
-    }
+
     // Release coord_temp.
     PopSystemTemp();
-  } else if (instr.opcode == FetchOpcode::kGetTextureGradients) {
-    assert_true(IsDxbcPixelShader());
-    store_result = true;
-    // pv.xz = ddx(coord.xy)
-    shader_code_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DERIV_RTX_COARSE) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + operand_length));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0101, 1));
-    shader_code_.push_back(system_temp_result_);
-    UseDxbcSourceOperand(operand, 0b01010000);
-    ++stat_.instruction_count;
-    ++stat_.float_instruction_count;
-    // pv.yw = ddy(coord.xy)
-    shader_code_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DERIV_RTY_COARSE) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + operand_length));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1010, 1));
-    shader_code_.push_back(system_temp_result_);
-    UseDxbcSourceOperand(operand, 0b01010000);
-    ++stat_.instruction_count;
-    ++stat_.float_instruction_count;
-    // Get the exponent bias (horizontal in bits 22:26, vertical in bits 27:31
-    // of dword 4 ([1].x or [2].z) of the fetch constant).
-    if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
-      cbuffer_index_fetch_constants_ = cbuffer_count_++;
+
+    // Apply the bias and gamma correction (gamma is after filtering here,
+    // likely should be before, but it's outside Xenia's control for host
+    // sampler filtering).
+    if (instr.opcode == FetchOpcode::kTextureFetch) {
+      assert_true(signs_temp != UINT32_MAX);
+      for (uint32_t i = 0; i < 4; ++i) {
+        if (!(used_result_nonzero_components & (1 << i))) {
+          continue;
+        }
+        DxbcDest component_dest(DxbcDest::R(system_temp_result_, 1 << i));
+        DxbcSrc component_src(DxbcSrc::R(system_temp_result_).Select(i));
+        DxbcOpSwitch(DxbcSrc::R(signs_temp).Select(i));
+        DxbcOpCase(DxbcSrc::LU(uint32_t(TextureSign::kUnsignedBiased)));
+        DxbcOpMAd(component_dest, component_src, DxbcSrc::LF(2.0f),
+                  DxbcSrc::LF(-1.0f));
+        DxbcOpBreak();
+        DxbcOpCase(DxbcSrc::LU(uint32_t(TextureSign::kGamma)));
+        uint32_t gamma_temp = PushSystemTemp();
+        ConvertPWLGamma(false, system_temp_result_, i, system_temp_result_, i,
+                        gamma_temp, 0, gamma_temp, 1);
+        // Release gamma_temp.
+        PopSystemTemp();
+        DxbcOpBreak();
+        DxbcOpEndSwitch();
+      }
     }
-    uint32_t exp_bias_temp = PushSystemTemp();
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_IBFE) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(17));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-    shader_code_.push_back(exp_bias_temp);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(5);
-    shader_code_.push_back(5);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(22);
-    shader_code_.push_back(27);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    shader_code_.push_back(EncodeVectorReplicatedOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, (tfetch_index & 1) * 2, 3));
-    shader_code_.push_back(cbuffer_index_fetch_constants_);
-    shader_code_.push_back(uint32_t(CbufferRegister::kFetchConstants));
-    shader_code_.push_back(tfetch_pair_offset + 1 + (tfetch_index & 1));
-    ++stat_.instruction_count;
-    ++stat_.int_instruction_count;
-    // Shift the exponent bias into float exponent bits.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_ISHL) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-    shader_code_.push_back(exp_bias_temp);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(exp_bias_temp);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(23);
-    shader_code_.push_back(23);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    ++stat_.instruction_count;
-    ++stat_.int_instruction_count;
-    // Add the bias to the exponent of 1.0.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_IADD) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(10));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0011, 1));
-    shader_code_.push_back(exp_bias_temp);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(exp_bias_temp);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    shader_code_.push_back(0x3F800000);
-    shader_code_.push_back(0x3F800000);
-    shader_code_.push_back(0);
-    shader_code_.push_back(0);
-    ++stat_.instruction_count;
-    ++stat_.int_instruction_count;
-    // Apply the exponent bias.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MUL) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(system_temp_result_);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_TEMP, kSwizzleXYZW, 1));
-    shader_code_.push_back(system_temp_result_);
-    shader_code_.push_back(
-        EncodeVectorSwizzledOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b01000100, 1));
-    shader_code_.push_back(exp_bias_temp);
-    ++stat_.instruction_count;
-    ++stat_.float_instruction_count;
-    // Release exp_bias_temp.
+    if (signs_temp != UINT32_MAX) {
+      PopSystemTemp();
+    }
+  }
+
+  if (size_and_is_3d_temp != UINT32_MAX) {
     PopSystemTemp();
-  } else if (instr.opcode == FetchOpcode::kSetTextureLod) {
-    shader_code_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + operand_length));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1000, 1));
-    shader_code_.push_back(system_temp_grad_h_lod_);
-    UseDxbcSourceOperand(operand, kSwizzleXYZW, 0);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
-  } else if (instr.opcode == FetchOpcode::kSetTextureGradientsHorz ||
-             instr.opcode == FetchOpcode::kSetTextureGradientsVert) {
-    shader_code_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3 + operand_length));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b0111, 1));
-    shader_code_.push_back(instr.opcode == FetchOpcode::kSetTextureGradientsVert
-                               ? system_temp_grad_v_
-                               : system_temp_grad_h_lod_);
-    UseDxbcSourceOperand(operand);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
   }
 
-  if (instr.operand_count >= 1) {
-    UnloadDxbcSourceOperand(operand);
+  if (instr.opcode == FetchOpcode::kTextureFetch) {
+    // Apply the result exponent bias.
+    uint32_t exp_adjust_temp = PushSystemTemp();
+    DxbcOpIBFE(DxbcDest::R(exp_adjust_temp, 0b0001), DxbcSrc::LU(6),
+               DxbcSrc::LU(13),
+               RequestTextureFetchConstantWord(tfetch_index, 3));
+    DxbcOpIMAd(DxbcDest::R(exp_adjust_temp, 0b0001),
+               DxbcSrc::R(exp_adjust_temp, DxbcSrc::kXXXX),
+               DxbcSrc::LI(int32_t(1) << 23), DxbcSrc::LF(1.0f));
+    DxbcOpMul(DxbcDest::R(system_temp_result_, used_result_nonzero_components),
+              DxbcSrc::R(system_temp_result_),
+              DxbcSrc::R(exp_adjust_temp, DxbcSrc::kXXXX));
+    // Release exp_adjust_temp.
+    PopSystemTemp();
   }
 
-  if (store_result) {
-    StoreResult(instr.result,
-                DxbcSrc::R(system_temp_result_,
-                           replicate_result ? DxbcSrc::kXXXX : DxbcSrc::kXYZW));
+  uint32_t used_result_zero_components =
+      used_result_components & ~used_result_nonzero_components;
+  if (used_result_zero_components) {
+    DxbcOpMov(DxbcDest::R(system_temp_result_, used_result_zero_components),
+              DxbcSrc::LF(0.0f));
   }
+  StoreResult(instr.result, DxbcSrc::R(system_temp_result_));
 }
 
 }  // namespace gpu

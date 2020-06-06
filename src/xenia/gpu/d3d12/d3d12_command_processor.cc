@@ -1414,10 +1414,11 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     line_loop_closing_index = 0;
   }
 
-  // Update the textures - this may bind pipelines.
-  texture_cache_->RequestTextures(
+  // Update the textures - this may bind pipeline state objects.
+  uint32_t used_texture_mask =
       vertex_shader->GetUsedTextureMask() |
-      (pixel_shader != nullptr ? pixel_shader->GetUsedTextureMask() : 0));
+      (pixel_shader != nullptr ? pixel_shader->GetUsedTextureMask() : 0);
+  texture_cache_->RequestTextures(used_texture_mask);
 
   // Check if early depth/stencil can be enabled.
   bool early_z;
@@ -1453,8 +1454,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // Update system constants before uploading them.
   UpdateSystemConstantValues(
       memexport_used, primitive_two_faced, line_loop_closing_index,
-      indexed ? index_buffer_info->endianness : Endian::kNone, early_z,
-      GetCurrentColorMask(pixel_shader), pipeline_render_targets);
+      indexed ? index_buffer_info->endianness : Endian::kNone,
+      used_texture_mask, early_z, GetCurrentColorMask(pixel_shader),
+      pipeline_render_targets);
 
   // Update constant buffers, descriptors and root parameters.
   if (!UpdateBindings(vertex_shader, pixel_shader, root_signature)) {
@@ -2312,8 +2314,8 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
 
 void D3D12CommandProcessor::UpdateSystemConstantValues(
     bool shared_memory_is_uav, bool primitive_two_faced,
-    uint32_t line_loop_closing_index, Endian index_endian, bool early_z,
-    uint32_t color_mask,
+    uint32_t line_loop_closing_index, Endian index_endian,
+    uint32_t used_texture_mask, bool early_z, uint32_t color_mask,
     const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
   auto& regs = *register_file_;
 
@@ -2645,6 +2647,23 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       sq_program_cntl.param_gen ? sq_context_misc.param_gen_pos : UINT_MAX;
   dirty |= system_constants_.ps_param_gen != ps_param_gen;
   system_constants_.ps_param_gen = ps_param_gen;
+
+  // Texture signedness.
+  uint32_t textures_remaining = used_texture_mask;
+  uint32_t texture_index;
+  while (xe::bit_scan_forward(textures_remaining, &texture_index)) {
+    textures_remaining &= ~(uint32_t(1) << texture_index);
+    uint32_t& texture_signs_uint =
+        system_constants_.texture_swizzled_signs[texture_index >> 2];
+    uint32_t texture_signs_shift = (texture_index & 3) * 8;
+    uint32_t texture_signs_shifted =
+        uint32_t(texture_cache_->GetActiveTextureSwizzledSigns(texture_index))
+        << texture_signs_shift;
+    uint32_t texture_signs_mask = uint32_t(0b11111111) << texture_signs_shift;
+    dirty |= (texture_signs_uint & texture_signs_mask) != texture_signs_shifted;
+    texture_signs_uint =
+        (texture_signs_uint & ~texture_signs_mask) | texture_signs_shifted;
+  }
 
   // Log2 of sample count, for scaling VPOS with SSAA (without ROV) and for
   // EDRAM address calculation with MSAA (with ROV).

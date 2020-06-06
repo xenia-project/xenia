@@ -1073,7 +1073,7 @@ void SpirvShaderTranslator::ProcessCallInstruction(
 
   // Unused instruction(?)
   assert_always();
-  EmitUnimplementedTranslationError();
+  EmitTranslationError("call is unimplemented", false);
 
   assert_true(cf_blocks_.size() > instr.dword_index + 1);
   b.createBranch(cf_blocks_[instr.dword_index + 1].block);
@@ -1088,7 +1088,7 @@ void SpirvShaderTranslator::ProcessReturnInstruction(
 
   // Unused instruction(?)
   assert_always();
-  EmitUnimplementedTranslationError();
+  EmitTranslationError("ret is unimplemented", false);
 
   assert_true(cf_blocks_.size() > instr.dword_index + 1);
   b.createBranch(cf_blocks_[instr.dword_index + 1].block);
