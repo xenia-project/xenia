@@ -52,9 +52,6 @@ class D3D12Shader : public Shader {
     uint32_t fetch_constant;
     TextureDimension dimension;
     bool is_signed;
-    // Whether this SRV must be bound even if it's signed and all components are
-    // unsigned and vice versa.
-    bool is_sign_required;
   };
   const TextureSRV* GetTextureSRVs(uint32_t& count_out) const {
     count_out = uint32_t(texture_srvs_.size());

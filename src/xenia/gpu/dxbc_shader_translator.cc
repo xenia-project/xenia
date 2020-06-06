@@ -74,8 +74,6 @@ constexpr uint32_t DxbcShaderTranslator::kSwizzleXXXX;
 constexpr uint32_t DxbcShaderTranslator::kSwizzleYYYY;
 constexpr uint32_t DxbcShaderTranslator::kSwizzleZZZZ;
 constexpr uint32_t DxbcShaderTranslator::kSwizzleWWWW;
-constexpr uint32_t
-    DxbcShaderTranslator::DxbcSourceOperand::kIntermediateRegisterNone;
 constexpr uint32_t DxbcShaderTranslator::kCbufferIndexUnallocated;
 constexpr uint32_t DxbcShaderTranslator::kCfExecBoolConstantNone;
 
@@ -1404,392 +1402,6 @@ DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::LoadOperand(
   return src.WithModifiers(operand.is_absolute_value, operand.is_negated);
 }
 
-void DxbcShaderTranslator::LoadDxbcSourceOperand(
-    const InstructionOperand& operand, DxbcSourceOperand& dxbc_operand) {
-  // Initialize the values to their defaults.
-  dxbc_operand.type = DxbcSourceOperand::Type::kZerosOnes;
-  dxbc_operand.index = 0;
-  dxbc_operand.addressing_mode = InstructionStorageAddressingMode::kStatic;
-  dxbc_operand.swizzle = kSwizzleXYZW;
-  dxbc_operand.is_negated = operand.is_negated;
-  dxbc_operand.is_absolute_value = operand.is_absolute_value;
-  dxbc_operand.intermediate_register =
-      DxbcSourceOperand::kIntermediateRegisterNone;
-
-  if (operand.component_count == 0) {
-    // No components requested, probably totally invalid - give something more
-    // or less safe (zeros) and exit.
-    assert_always();
-    return;
-  }
-
-  // Make the DXBC swizzle, and also check whether there are any components with
-  // constant zero or one values (in this case, the operand will have to be
-  // loaded into the intermediate register) and if there are any real components
-  // at all (if there aren't, a literal can just be loaded).
-  uint32_t swizzle = 0;
-  uint32_t constant_components = 0;
-  uint32_t constant_component_values = 0;
-  for (uint32_t i = 0; i < uint32_t(operand.component_count); ++i) {
-    if (operand.components[i] <= SwizzleSource::kW) {
-      swizzle |= uint32_t(operand.components[i]) << (2 * i);
-    } else {
-      constant_components |= 1 << i;
-      if (operand.components[i] == SwizzleSource::k1) {
-        constant_component_values |= 1 << i;
-      }
-    }
-  }
-  // Replicate the last component's swizzle into all unused components.
-  uint32_t component_last = uint32_t(operand.component_count) - 1;
-  for (uint32_t i = uint32_t(operand.component_count); i < 4; ++i) {
-    swizzle |= ((swizzle >> (2 * component_last)) & 0x3) << (2 * i);
-    constant_components |= ((constant_components >> component_last) & 0x1) << i;
-    constant_component_values |=
-        ((constant_component_values >> component_last) & 0x1) << i;
-  }
-  // If all components are constant, just write a literal.
-  if (constant_components == 0xF) {
-    dxbc_operand.index = constant_component_values;
-    return;
-  }
-  dxbc_operand.swizzle = swizzle;
-
-  // If the index is dynamic, choose where it's taken from.
-  uint32_t dynamic_address_register, dynamic_address_component;
-  if (operand.storage_addressing_mode ==
-      InstructionStorageAddressingMode::kAddressRelative) {
-    // Addressed by aL.x.
-    dynamic_address_register = system_temp_aL_;
-    dynamic_address_component = 0;
-  } else {
-    // Addressed by a0.
-    dynamic_address_register = system_temp_ps_pc_p0_a0_;
-    dynamic_address_component = 3;
-  }
-
-  // Actually load the operand.
-  switch (operand.storage_source) {
-    case InstructionStorageSource::kRegister:
-      // ***********************************************************************
-      // General-purpose register
-      // ***********************************************************************
-      if (uses_register_dynamic_addressing()) {
-        // GPRs are in x0 - need to load to the intermediate register (indexable
-        // temps are only accessible via mov load/store).
-        if (dxbc_operand.intermediate_register ==
-            DxbcSourceOperand::kIntermediateRegisterNone) {
-          dxbc_operand.intermediate_register = PushSystemTemp();
-        }
-        dxbc_operand.type = DxbcSourceOperand::Type::kIntermediateRegister;
-        if (operand.storage_addressing_mode ==
-            InstructionStorageAddressingMode::kStatic) {
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-          shader_code_.push_back(dxbc_operand.intermediate_register);
-          shader_code_.push_back(EncodeVectorSwizzledOperand(
-              D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, kSwizzleXYZW, 2));
-          shader_code_.push_back(0);
-          shader_code_.push_back(operand.storage_index);
-        } else {
-          shader_code_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-          shader_code_.push_back(
-              EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-          shader_code_.push_back(dxbc_operand.intermediate_register);
-          shader_code_.push_back(EncodeVectorSwizzledOperand(
-              D3D10_SB_OPERAND_TYPE_INDEXABLE_TEMP, kSwizzleXYZW, 2,
-              D3D10_SB_OPERAND_INDEX_IMMEDIATE32,
-              D3D10_SB_OPERAND_INDEX_IMMEDIATE32_PLUS_RELATIVE));
-          shader_code_.push_back(0);
-          shader_code_.push_back(operand.storage_index);
-          shader_code_.push_back(EncodeVectorSelectOperand(
-              D3D10_SB_OPERAND_TYPE_TEMP, dynamic_address_component, 1));
-          shader_code_.push_back(dynamic_address_register);
-        }
-        ++stat_.instruction_count;
-        ++stat_.array_instruction_count;
-      } else {
-        // GPRs are in r# - accessing directly.
-        assert_true(operand.storage_addressing_mode ==
-                    InstructionStorageAddressingMode::kStatic);
-        dxbc_operand.type = DxbcSourceOperand::Type::kRegister;
-        dxbc_operand.index = operand.storage_index;
-      }
-      break;
-
-    case InstructionStorageSource::kConstantFloat:
-      // ***********************************************************************
-      // Float constant
-      // ***********************************************************************
-      if (cbuffer_index_float_constants_ == kCbufferIndexUnallocated) {
-        cbuffer_index_float_constants_ = cbuffer_count_++;
-      }
-      dxbc_operand.type = DxbcSourceOperand::Type::kConstantFloat;
-      dxbc_operand.addressing_mode = operand.storage_addressing_mode;
-      if (operand.storage_addressing_mode ==
-          InstructionStorageAddressingMode::kStatic) {
-        uint32_t float_constant_index =
-            constant_register_map().GetPackedFloatConstantIndex(
-                operand.storage_index);
-        assert_true(float_constant_index != UINT32_MAX);
-        dxbc_operand.index =
-            float_constant_index != UINT32_MAX ? float_constant_index : 0;
-      } else {
-        assert_true(constant_register_map().float_dynamic_addressing);
-        dxbc_operand.index = operand.storage_index;
-      }
-      break;
-
-    default:
-      // Fall back to constant zeros for invalid types.
-      dxbc_operand.index = constant_component_values;
-      dxbc_operand.swizzle = kSwizzleXYZW;
-      return;
-  }
-
-  // If there are zeros or ones in the swizzle, force load the operand into the
-  // intermediate register (applying the swizzle and the modifiers), and then
-  // replace the components there.
-  if (constant_components != 0) {
-    if (dxbc_operand.intermediate_register ==
-        DxbcSourceOperand::kIntermediateRegisterNone) {
-      dxbc_operand.intermediate_register = PushSystemTemp();
-    }
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(
-                               3 + DxbcSourceOperandLength(dxbc_operand)));
-    shader_code_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP, 0b1111, 1));
-    shader_code_.push_back(dxbc_operand.intermediate_register);
-    UseDxbcSourceOperand(dxbc_operand);
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
-
-    // Write the constant components.
-    shader_code_.push_back(ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_MOV) |
-                           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(8));
-    shader_code_.push_back(EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_TEMP,
-                                                     constant_components, 1));
-    shader_code_.push_back(dxbc_operand.intermediate_register);
-    shader_code_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_IMMEDIATE32, kSwizzleXYZW, 0));
-    for (uint32_t i = 0; i < 4; ++i) {
-      if (constant_component_values & (1 << i)) {
-        shader_code_.push_back(operand.is_negated ? 0xBF800000u : 0x3F800000u);
-      } else {
-        shader_code_.push_back(0);
-      }
-    }
-    ++stat_.instruction_count;
-    ++stat_.mov_instruction_count;
-
-    dxbc_operand.type = DxbcSourceOperand::Type::kIntermediateRegister;
-    // Swizzle and modifiers already applied.
-    dxbc_operand.swizzle = kSwizzleXYZW;
-    dxbc_operand.is_negated = false;
-    dxbc_operand.is_absolute_value = false;
-  }
-}
-
-uint32_t DxbcShaderTranslator::DxbcSourceOperandLength(
-    const DxbcSourceOperand& operand, bool negate, bool absolute) const {
-  uint32_t length;
-  switch (operand.type) {
-    case DxbcSourceOperand::Type::kRegister:
-    case DxbcSourceOperand::Type::kIntermediateRegister:
-      // Either a game register (for non-indexable GPRs) or the intermediate
-      // register with the data loaded (for indexable GPRs, bool and loop
-      // constants).
-      length = 2;
-      break;
-    case DxbcSourceOperand::Type::kConstantFloat:
-      if (operand.addressing_mode !=
-          InstructionStorageAddressingMode::kStatic) {
-        // Constant buffer, 3D index - immediate 0, immediate 1, immediate plus
-        // register 2.
-        length = 6;
-      } else {
-        // Constant buffer, 3D immediate index.
-        length = 4;
-      }
-      break;
-    default:
-      // Pre-negated literal of zeros and ones (no extension dword), or a
-      // totally invalid operand replaced by a literal.
-      return 5;
-  }
-  // Apply overrides (for instance, for subtraction). Xenos operand modifiers
-  // are ignored when forcing absolute value (though negated absolute can still
-  // be forced in this case).
-  if (!absolute) {
-    if (operand.is_negated) {
-      negate = !negate;
-    }
-    absolute |= operand.is_absolute_value;
-  }
-  // Modifier extension - neg/abs or non-uniform binding index.
-  if (negate || absolute) {
-    ++length;
-  }
-  return length;
-}
-
-void DxbcShaderTranslator::UseDxbcSourceOperand(
-    const DxbcSourceOperand& operand, uint32_t additional_swizzle,
-    uint32_t select_component, bool negate, bool absolute) {
-  // Apply swizzle needed by the instruction implementation in addition to the
-  // operand swizzle.
-  uint32_t swizzle = 0;
-  for (uint32_t i = 0; i < 4; ++i) {
-    uint32_t swizzle_component = (additional_swizzle >> (i * 2)) & 3;
-    swizzle |= ((operand.swizzle >> (swizzle_component * 2)) & 3) << (i * 2);
-  }
-
-  // Access either the whole vector or only one component of it, depending to
-  // what is needed.
-  uint32_t component_bits =
-      ENCODE_D3D10_SB_OPERAND_NUM_COMPONENTS(D3D10_SB_OPERAND_4_COMPONENT);
-  if (select_component <= 3) {
-    component_bits |= ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
-                          D3D10_SB_OPERAND_4_COMPONENT_SELECT_1_MODE) |
-                      (((swizzle >> (select_component * 2)) & 0x3)
-                       << D3D10_SB_OPERAND_4_COMPONENT_SELECT_1_SHIFT);
-  } else {
-    component_bits |= ENCODE_D3D10_SB_OPERAND_4_COMPONENT_SELECTION_MODE(
-                          D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_MODE) |
-                      (swizzle << D3D10_SB_OPERAND_4_COMPONENT_SWIZZLE_SHIFT);
-  }
-
-  // Apply overrides (for instance, for subtraction). Xenos operand modifiers
-  // are ignored when forcing absolute value (though negated absolute can still
-  // be forced in this case).
-  if (!absolute) {
-    if (operand.is_negated) {
-      negate = !negate;
-    }
-    absolute |= operand.is_absolute_value;
-  }
-  // Build OperandToken1 for modifiers (negate, absolute, minimum precision,
-  // non-uniform binding index) - if it has any, it will be non-zero.
-  // NOTE: AMD GPUs or drivers do NOT support non-uniform constant buffer
-  // indices as of October 1, 2018 - they were causing significant skinned mesh
-  // corruption when Xenia used multiple descriptors for float constants rather
-  // than remapping.
-  uint32_t modifiers = 0;
-  if (negate && absolute) {
-    modifiers |= D3D10_SB_OPERAND_MODIFIER_ABSNEG
-                 << D3D10_SB_OPERAND_MODIFIER_SHIFT;
-  } else if (negate) {
-    modifiers |= D3D10_SB_OPERAND_MODIFIER_NEG
-                 << D3D10_SB_OPERAND_MODIFIER_SHIFT;
-  } else if (absolute) {
-    modifiers |= D3D10_SB_OPERAND_MODIFIER_ABS
-                 << D3D10_SB_OPERAND_MODIFIER_SHIFT;
-  }
-  if (modifiers != 0) {
-    // Mark the extension as containing modifiers.
-    modifiers |= ENCODE_D3D10_SB_EXTENDED_OPERAND_TYPE(
-        D3D10_SB_EXTENDED_OPERAND_MODIFIER);
-  }
-  uint32_t extended_bit = ENCODE_D3D10_SB_OPERAND_EXTENDED(modifiers);
-
-  // Actually write the operand tokens.
-  switch (operand.type) {
-    case DxbcSourceOperand::Type::kRegister:
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_TEMP) |
-          ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_1D) |
-          ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-              0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
-          component_bits | extended_bit);
-      if (modifiers != 0) {
-        shader_code_.push_back(modifiers);
-      }
-      shader_code_.push_back(operand.index);
-      break;
-
-    case DxbcSourceOperand::Type::kConstantFloat: {
-      bool is_static =
-          operand.addressing_mode == InstructionStorageAddressingMode::kStatic;
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER) |
-          ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_3D) |
-          ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-              0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
-          ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-              1, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
-          ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-              2, is_static ? D3D10_SB_OPERAND_INDEX_IMMEDIATE32
-                           : D3D10_SB_OPERAND_INDEX_IMMEDIATE32_PLUS_RELATIVE) |
-          component_bits | extended_bit);
-      if (modifiers != 0) {
-        shader_code_.push_back(modifiers);
-      }
-      shader_code_.push_back(cbuffer_index_float_constants_);
-      shader_code_.push_back(uint32_t(CbufferRegister::kFloatConstants));
-      shader_code_.push_back(operand.index);
-      if (!is_static) {
-        uint32_t dynamic_address_register, dynamic_address_component;
-        if (operand.addressing_mode ==
-            InstructionStorageAddressingMode::kAddressRelative) {
-          // Addressed by aL.x.
-          dynamic_address_register = system_temp_aL_;
-          dynamic_address_component = 0;
-        } else {
-          // Addressed by a0.
-          dynamic_address_register = system_temp_ps_pc_p0_a0_;
-          dynamic_address_component = 3;
-        }
-        shader_code_.push_back(EncodeVectorSelectOperand(
-            D3D10_SB_OPERAND_TYPE_TEMP, dynamic_address_component, 1));
-        shader_code_.push_back(dynamic_address_register);
-      }
-    } break;
-
-    case DxbcSourceOperand::Type::kIntermediateRegister:
-      // Already loaded as float to the intermediate temporary register.
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_TEMP) |
-          ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_1D) |
-          ENCODE_D3D10_SB_OPERAND_INDEX_REPRESENTATION(
-              0, D3D10_SB_OPERAND_INDEX_IMMEDIATE32) |
-          component_bits | extended_bit);
-      if (modifiers != 0) {
-        shader_code_.push_back(modifiers);
-      }
-      shader_code_.push_back(operand.intermediate_register);
-      break;
-
-    default:
-      // Only zeros and ones in the swizzle, or the safest replacement for an
-      // invalid operand (such as a fetch constant).
-      shader_code_.push_back(
-          ENCODE_D3D10_SB_OPERAND_TYPE(D3D10_SB_OPERAND_TYPE_IMMEDIATE32) |
-          ENCODE_D3D10_SB_OPERAND_INDEX_DIMENSION(D3D10_SB_OPERAND_INDEX_0D) |
-          component_bits);
-      for (uint32_t i = 0; i < 4; ++i) {
-        if (operand.index & (1 << i)) {
-          shader_code_.push_back(negate ? 0xBF800000u : 0x3F800000u);
-        } else {
-          shader_code_.push_back(0);
-        }
-      }
-  }
-}
-
-void DxbcShaderTranslator::UnloadDxbcSourceOperand(
-    const DxbcSourceOperand& operand) {
-  if (operand.intermediate_register !=
-      DxbcSourceOperand::kIntermediateRegisterNone) {
-    PopSystemTemp();
-  }
-}
-
 void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
                                        const DxbcSrc& src,
                                        bool can_store_memexport_address) {
@@ -2349,52 +1961,67 @@ const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
 
 const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
     system_constant_rdef_[DxbcShaderTranslator::kSysConst_Count] = {
-        {"xe_flags", RdefTypeIndex::kUint, 4},
-        {"xe_line_loop_closing_index", RdefTypeIndex::kUint, 4},
-        {"xe_vertex_index_endian", RdefTypeIndex::kUint, 4},
-        {"xe_vertex_base_index", RdefTypeIndex::kInt, 4},
+        {"xe_flags", RdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_line_loop_closing_index", RdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_vertex_index_endian", RdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_vertex_base_index", RdefTypeIndex::kInt, sizeof(int32_t)},
 
-        {"xe_user_clip_planes", RdefTypeIndex::kFloat4Array6, 96},
+        {"xe_user_clip_planes", RdefTypeIndex::kFloat4Array6,
+         sizeof(float) * 4 * 6},
 
-        {"xe_ndc_scale", RdefTypeIndex::kFloat3, 12},
-        {"xe_ps_param_gen", RdefTypeIndex::kUint, 4},
+        {"xe_ndc_scale", RdefTypeIndex::kFloat3, sizeof(float) * 3},
+        {"xe_ps_param_gen", RdefTypeIndex::kUint, sizeof(uint32_t)},
 
-        {"xe_ndc_offset", RdefTypeIndex::kFloat3, 12},
-        {"xe_alpha_test_reference", RdefTypeIndex::kFloat, 4},
+        {"xe_ndc_offset", RdefTypeIndex::kFloat3, sizeof(float) * 3},
+        {"xe_alpha_test_reference", RdefTypeIndex::kFloat, sizeof(float)},
 
-        {"xe_point_size", RdefTypeIndex::kFloat2, 8},
-        {"xe_point_size_min_max", RdefTypeIndex::kFloat2, 8},
+        {"xe_point_size", RdefTypeIndex::kFloat2, sizeof(float) * 2},
+        {"xe_point_size_min_max", RdefTypeIndex::kFloat2, sizeof(float) * 2},
 
-        {"xe_point_screen_to_ndc", RdefTypeIndex::kFloat2, 8},
-        {"xe_sample_count_log2", RdefTypeIndex::kUint2, 8},
+        {"xe_point_screen_to_ndc", RdefTypeIndex::kFloat2, sizeof(float) * 2},
+        {"xe_sample_count_log2", RdefTypeIndex::kUint2, sizeof(uint32_t) * 2},
 
-        {"xe_edram_resolution_square_scale", RdefTypeIndex::kUint, 4},
-        {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, 4},
-        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, 4, 4},
+        {"xe_texture_swizzled_signs", RdefTypeIndex::kUint4Array2,
+         sizeof(uint32_t) * 4 * 2},
 
-        {"xe_color_exp_bias", RdefTypeIndex::kFloat4, 16},
+        {"xe_edram_resolution_square_scale", RdefTypeIndex::kUint,
+         sizeof(uint32_t)},
+        {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, sizeof(uint32_t),
+         sizeof(float)},
 
-        {"xe_color_output_map", RdefTypeIndex::kUint4, 16},
+        {"xe_color_exp_bias", RdefTypeIndex::kFloat4, sizeof(float) * 4},
 
-        {"xe_tessellation_factor_range", RdefTypeIndex::kFloat2, 8},
-        {"xe_edram_depth_range", RdefTypeIndex::kFloat2, 8},
+        {"xe_color_output_map", RdefTypeIndex::kUint4, sizeof(uint32_t) * 4},
 
-        {"xe_edram_poly_offset_front", RdefTypeIndex::kFloat2, 8},
-        {"xe_edram_poly_offset_back", RdefTypeIndex::kFloat2, 8},
+        {"xe_tessellation_factor_range", RdefTypeIndex::kFloat2,
+         sizeof(float) * 2},
+        {"xe_edram_depth_range", RdefTypeIndex::kFloat2, sizeof(float) * 2},
 
-        {"xe_edram_stencil", RdefTypeIndex::kUint4Array2, 32},
+        {"xe_edram_poly_offset_front", RdefTypeIndex::kFloat2,
+         sizeof(float) * 2},
+        {"xe_edram_poly_offset_back", RdefTypeIndex::kFloat2,
+         sizeof(float) * 2},
 
-        {"xe_edram_rt_base_dwords_scaled", RdefTypeIndex::kUint4, 16},
+        {"xe_edram_stencil", RdefTypeIndex::kUint4Array2,
+         sizeof(uint32_t) * 4 * 2},
 
-        {"xe_edram_rt_format_flags", RdefTypeIndex::kUint4, 16},
+        {"xe_edram_rt_base_dwords_scaled", RdefTypeIndex::kUint4,
+         sizeof(uint32_t) * 4},
 
-        {"xe_edram_rt_clamp", RdefTypeIndex::kFloat4Array4, 64},
+        {"xe_edram_rt_format_flags", RdefTypeIndex::kUint4,
+         sizeof(uint32_t) * 4},
 
-        {"xe_edram_rt_keep_mask", RdefTypeIndex::kUint4Array2, 32},
+        {"xe_edram_rt_clamp", RdefTypeIndex::kFloat4Array4,
+         sizeof(float) * 4 * 4},
 
-        {"xe_edram_rt_blend_factors_ops", RdefTypeIndex::kUint4, 16},
+        {"xe_edram_rt_keep_mask", RdefTypeIndex::kUint4Array2,
+         sizeof(uint32_t) * 4 * 2},
 
-        {"xe_edram_blend_constant", RdefTypeIndex::kFloat4, 16},
+        {"xe_edram_rt_blend_factors_ops", RdefTypeIndex::kUint4,
+         sizeof(uint32_t) * 4},
+
+        {"xe_edram_blend_constant", RdefTypeIndex::kFloat4, sizeof(float) * 4},
 };
 
 void DxbcShaderTranslator::WriteResourceDefinitions() {

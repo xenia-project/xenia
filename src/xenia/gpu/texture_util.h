@@ -119,12 +119,19 @@ int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t width,
 // the fetch constant, so the shader can apply TextureSigns after reading a
 // pre-swizzled texture. 0/1 elements are considered unsigned (and not biased),
 // however, if all non-constant components are signed, 0/1 are considered signed
-// too (because in backends, unsigned and signed textures may use separate views
-// with different formats, so just one view is used for both signed and constant
-// components).
-uint32_t SwizzleSigns(const xenos::xe_gpu_texture_fetch_t& fetch,
-                      bool* any_unsigned_out = nullptr,
-                      bool* any_signed_out = nullptr);
+// too (because in backends, unsigned and signed textures may use separate host
+// textures with different formats, so just one is used for both signed and
+// constant components).
+uint8_t SwizzleSigns(const xenos::xe_gpu_texture_fetch_t& fetch);
+constexpr bool IsAnySignNotSigned(uint8_t packed_signs) {
+  return packed_signs != uint32_t(TextureSign::kSigned) * 0b01010101;
+}
+constexpr bool IsAnySignSigned(uint8_t packed_signs) {
+  // Make signed 00 - check if all are 01, 10 or 11.
+  uint32_t xor_signed =
+      packed_signs ^ (uint32_t(TextureSign::kSigned) * 0b01010101);
+  return ((xor_signed | (xor_signed >> 1)) & 0b01010101) != 0b01010101;
+}
 
 }  // namespace texture_util
 }  // namespace gpu

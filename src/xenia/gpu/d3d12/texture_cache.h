@@ -71,10 +71,8 @@ class TextureCache {
       AnisoFilter aniso_filter : 3;  // 17
       uint32_t mip_min_level : 4;    // 21
       uint32_t mip_max_level : 4;    // 25
-
-      int32_t lod_bias : 10;  // 42
     };
-    uint64_t value;
+    uint32_t value;
 
     // Clearing the unused bits.
     SamplerParameters() : value(0) {}
@@ -116,6 +114,11 @@ class TextureCache {
   uint64_t GetDescriptorHashForActiveTextures(
       const D3D12Shader::TextureSRV* texture_srvs,
       uint32_t texture_srv_count) const;
+  // Returns the post-swizzle signedness of a currently bound texture (must be
+  // called after RequestTextures).
+  uint8_t GetActiveTextureSwizzledSigns(uint32_t index) const {
+    return texture_bindings_[index].swizzled_signs;
+  }
 
   void WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
                        D3D12_CPU_DESCRIPTOR_HANDLE handle);
@@ -446,11 +449,11 @@ class TextureCache {
 
   struct TextureBinding {
     TextureKey key;
-    uint32_t swizzle;
-    // Whether the fetch has unsigned/biased/gamma components.
-    bool has_unsigned;
-    // Whether the fetch has signed components.
-    bool has_signed;
+    // Destination swizzle merged with guest->host format swizzle.
+    uint32_t host_swizzle;
+    // Packed TextureSign values, 2 bit per each component, with guest-side
+    // destination swizzle from the fetch constant applied to them.
+    uint8_t swizzled_signs;
     // Unsigned version of the texture (or signed if they have the same data).
     Texture* texture;
     // Signed version of the texture if the data in the signed version is
@@ -497,10 +500,10 @@ class TextureCache {
 
   // Converts a texture fetch constant to a texture key, normalizing and
   // validating the values, or creating an invalid key, and also gets the
-  // swizzle and used signedness.
+  // host swizzle and post-guest-swizzle signedness.
   static void BindingInfoFromFetchConstant(
       const xenos::xe_gpu_texture_fetch_t& fetch, TextureKey& key_out,
-      uint32_t* swizzle_out, bool* has_unsigned_out, bool* has_signed_out);
+      uint32_t* host_swizzle_out, uint8_t* swizzled_signs_out);
 
   static void LogTextureKeyAction(TextureKey key, const char* action);
   static void LogTextureAction(const Texture* texture, const char* action);

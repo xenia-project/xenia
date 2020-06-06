@@ -24,6 +24,8 @@ cbuffer xe_system_cbuffer : register(b0) {
   float2 xe_point_screen_to_ndc;
   uint2 xe_sample_count_log2;
 
+  uint4 xe_texture_swizzled_signs[2];
+
   uint xe_edram_resolution_square_scale;
   uint xe_edram_pitch_tiles;
   uint xe_edram_depth_base_dwords;

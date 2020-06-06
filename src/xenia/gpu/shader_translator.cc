@@ -244,20 +244,14 @@ void ShaderTranslator::AppendUcodeDisasmFormat(const char* format, ...) {
   va_end(va);
 }
 
-void ShaderTranslator::EmitTranslationError(const char* message) {
+void ShaderTranslator::EmitTranslationError(const char* message,
+                                            bool is_fatal) {
   Shader::Error error;
-  error.is_fatal = true;
+  error.is_fatal = is_fatal;
   error.message = message;
   // TODO(benvanik): location information.
   errors_.push_back(std::move(error));
-}
-
-void ShaderTranslator::EmitUnimplementedTranslationError() {
-  Shader::Error error;
-  error.is_fatal = false;
-  error.message = "Unimplemented translation";
-  // TODO(benvanik): location information.
-  errors_.push_back(std::move(error));
+  XELOGE("Shader translation {}error: {}", is_fatal ? "fatal " : "", message);
 }
 
 void ShaderTranslator::GatherInstructionInformation(
@@ -1057,7 +1051,6 @@ void ShaderTranslator::ParseTextureFetchInstruction(
       opcode_info = {"setGradientV", false, false, false, 3};
       break;
     default:
-    case FetchOpcode::kUnknownTextureOp:
       assert_unhandled_case(fetch_opcode);
       return;
   }
@@ -1116,6 +1109,54 @@ void ShaderTranslator::ParseTextureFetchInstruction(
     i.attributes.offset_y = op.offset_y();
     i.attributes.offset_z = op.offset_z();
   }
+}
+
+uint32_t ParsedTextureFetchInstruction::GetNonZeroResultComponents() const {
+  uint32_t components = 0b0000;
+  switch (opcode) {
+    case FetchOpcode::kTextureFetch:
+    case FetchOpcode::kGetTextureGradients:
+      components = 0b1111;
+      break;
+    case FetchOpcode::kGetTextureBorderColorFrac:
+      components = 0b0001;
+      break;
+    case FetchOpcode::kGetTextureComputedLod:
+      // Not checking if the MipFilter is basemap because XNA doesn't accept
+      // MipFilter for getCompTexLOD.
+      components = 0b0001;
+      break;
+    case FetchOpcode::kGetTextureWeights:
+      // FIXME(Triang3l): Not caring about mag/min filters currently for
+      // simplicity. It's very unlikely that this instruction is ever seriously
+      // used to retrieve weights of zero though.
+      switch (dimension) {
+        case TextureDimension::k1D:
+          components = 0b1001;
+          break;
+        case TextureDimension::k2D:
+        case TextureDimension::kCube:
+          // TODO(Triang3l): Is the depth lerp factor always 0 for cube maps?
+          components = 0b1011;
+          break;
+        case TextureDimension::k3D:
+          components = 0b1111;
+          break;
+      }
+      if (attributes.mip_filter == TextureFilter::kBaseMap ||
+          attributes.mip_filter == TextureFilter::kPoint) {
+        components &= ~uint32_t(0b1000);
+      }
+      break;
+    case FetchOpcode::kSetTextureLod:
+    case FetchOpcode::kSetTextureGradientsHorz:
+    case FetchOpcode::kSetTextureGradientsVert:
+      components = 0b0000;
+      break;
+    default:
+      assert_unhandled_case(opcode);
+  }
+  return result.GetUsedResultComponents() & components;
 }
 
 const ShaderTranslator::AluOpcodeInfo
@@ -1445,6 +1486,87 @@ void ShaderTranslator::ParseAluInstructionOperandSpecial(
   }
   out_op.component_count = 1;
   out_op.components[0] = GetSwizzleFromComponentIndex(component_index);
+}
+
+bool ParsedAluInstruction::IsVectorOpDefaultNop() const {
+  if (vector_opcode != ucode::AluVectorOpcode::kMax ||
+      vector_and_constant_result.original_write_mask ||
+      vector_and_constant_result.is_clamped ||
+      vector_operands[0].storage_source !=
+          InstructionStorageSource::kRegister ||
+      vector_operands[0].storage_index != 0 ||
+      vector_operands[0].storage_addressing_mode !=
+          InstructionStorageAddressingMode::kStatic ||
+      vector_operands[0].is_negated || vector_operands[0].is_absolute_value ||
+      !vector_operands[0].IsStandardSwizzle() ||
+      vector_operands[1].storage_source !=
+          InstructionStorageSource::kRegister ||
+      vector_operands[1].storage_index != 0 ||
+      vector_operands[1].storage_addressing_mode !=
+          InstructionStorageAddressingMode::kStatic ||
+      vector_operands[1].is_negated || vector_operands[1].is_absolute_value ||
+      !vector_operands[1].IsStandardSwizzle()) {
+    return false;
+  }
+  if (vector_and_constant_result.storage_target ==
+      InstructionStorageTarget::kRegister) {
+    if (vector_and_constant_result.storage_index != 0 ||
+        vector_and_constant_result.storage_addressing_mode !=
+            InstructionStorageAddressingMode::kStatic) {
+      return false;
+    }
+  } else {
+    // In case both vector and scalar operations are nop, still need to write
+    // somewhere that it's an export, not mov r0._, r0 + retain_prev r0._.
+    // Accurate round trip is possible only if the target is o0 or oC0, because
+    // if the total write mask is empty, the XNA assembler forces the
+    // destination to be o0/oC0, but this doesn't really matter in this case.
+    if (IsScalarOpDefaultNop()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool ParsedAluInstruction::IsScalarOpDefaultNop() const {
+  if (scalar_opcode != ucode::AluScalarOpcode::kRetainPrev ||
+      scalar_result.original_write_mask || scalar_result.is_clamped) {
+    return false;
+  }
+  if (scalar_result.storage_target == InstructionStorageTarget::kRegister) {
+    if (scalar_result.storage_index != 0 ||
+        scalar_result.storage_addressing_mode !=
+            InstructionStorageAddressingMode::kStatic) {
+      return false;
+    }
+  }
+  // For exports, if both are nop, the vector operation will be kept to state in
+  // the microcode that the destination in the microcode is an export.
+  return true;
+}
+
+bool ParsedAluInstruction::IsNop() const {
+  return scalar_opcode == ucode::AluScalarOpcode::kRetainPrev &&
+         !scalar_result.GetUsedWriteMask() &&
+         !vector_and_constant_result.GetUsedWriteMask() &&
+         !ucode::AluVectorOpHasSideEffects(vector_opcode);
+}
+
+uint32_t ParsedAluInstruction::GetMemExportStreamConstant() const {
+  if (vector_and_constant_result.storage_target ==
+          InstructionStorageTarget::kExportAddress &&
+      vector_opcode == ucode::AluVectorOpcode::kMad &&
+      vector_and_constant_result.GetUsedResultComponents() == 0b1111 &&
+      !vector_and_constant_result.is_clamped &&
+      vector_operands[2].storage_source ==
+          InstructionStorageSource::kConstantFloat &&
+      vector_operands[2].storage_addressing_mode ==
+          InstructionStorageAddressingMode::kStatic &&
+      vector_operands[2].IsStandardSwizzle() &&
+      !vector_operands[2].is_negated && !vector_operands[2].is_absolute_value) {
+    return vector_operands[2].storage_index;
+  }
+  return UINT32_MAX;
 }
 
 }  // namespace gpu

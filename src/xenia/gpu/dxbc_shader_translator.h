@@ -233,6 +233,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // EDRAM address calculation.
     uint32_t sample_count_log2[2];
 
+    // Each byte contains post-swizzle TextureSign values for each of the needed
+    // components of each of the 32 used texture fetch constants.
+    uint32_t texture_swizzled_signs[8];
+
     uint32_t edram_resolution_square_scale;
     uint32_t edram_pitch_tiles;
     uint32_t edram_depth_base_dwords;
@@ -344,9 +348,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t fetch_constant;
     TextureDimension dimension;
     bool is_signed;
-    // Whether this SRV must be bound even if it's signed and all components are
-    // unsigned and vice versa (for kGetTextureComputedLod).
-    bool is_sign_required;
     std::string name;
   };
   // The first binding returned is at t[SRVMainRegister::kBoundTexturesStart]
@@ -883,6 +884,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
       DxbcOperandDimension dimension = GetDimension(in_dcl);
       operand_token |= uint32_t(dimension);
       if (dimension == DxbcOperandDimension::kVector) {
+        assert_true(write_mask_ > 0b0000 && write_mask_ <= 0b1111);
         operand_token |=
             (uint32_t(DxbcComponentSelection::kMask) << 2) | (write_mask_ << 4);
       }
@@ -1041,8 +1043,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
       }
       return ((absolute_ || negate_) ? 2 : 1) + DxbcOperandAddress::GetLength();
     }
-    static uint32_t GetModifiedImmediate(uint32_t value, bool is_integer,
-                                         bool absolute, bool negate) {
+    static constexpr uint32_t GetModifiedImmediate(uint32_t value,
+                                                   bool is_integer,
+                                                   bool absolute, bool negate) {
       if (is_integer) {
         if (absolute) {
           *reinterpret_cast<int32_t*>(&value) =
@@ -1128,6 +1131,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kRoundNI = 65,
     kRoundZ = 67,
     kRSq = 68,
+    kSampleL = 72,
+    kSampleD = 73,
     kSqRt = 75,
     kSwitch = 76,
     kSinCos = 77,
@@ -1140,6 +1145,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kUShR = 85,
     kUToF = 86,
     kXOr = 87,
+    kLOD = 108,
     kDerivRTXCoarse = 122,
     kDerivRTXFine = 123,
     kDerivRTYCoarse = 124,
@@ -1158,10 +1164,30 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kEvalSampleIndex = 204,
   };
 
-  static uint32_t DxbcOpcodeToken(DxbcOpcode opcode, uint32_t operands_length,
-                                  bool saturate = false) {
-    return uint32_t(opcode) | (saturate ? (1 << 13) : 0) |
-           ((1 + operands_length) << 24);
+  // D3D10_SB_EXTENDED_OPCODE_TYPE
+  enum class DxbcExtendedOpcodeType : uint32_t {
+    kEmpty,
+    kSampleControls,
+    kResourceDim,
+    kResourceReturnType,
+  };
+
+  static constexpr uint32_t DxbcOpcodeToken(
+      DxbcOpcode opcode, uint32_t operands_length, bool saturate = false,
+      uint32_t extended_opcode_count = 0) {
+    return uint32_t(opcode) | (saturate ? (uint32_t(1) << 13) : 0) |
+           ((uint32_t(1) + extended_opcode_count + operands_length) << 24) |
+           (extended_opcode_count ? (uint32_t(1) << 31) : 0);
+  }
+
+  static constexpr uint32_t DxbcSampleControlsExtendedOpcodeToken(
+      int32_t aoffimmi_u, int32_t aoffimmi_v, int32_t aoffimmi_w,
+      bool extended = false) {
+    return uint32_t(DxbcExtendedOpcodeType::kSampleControls) |
+           ((uint32_t(aoffimmi_u) & uint32_t(0b1111)) << 9) |
+           ((uint32_t(aoffimmi_v) & uint32_t(0b1111)) << 13) |
+           ((uint32_t(aoffimmi_w) & uint32_t(0b1111)) << 17) |
+           (extended ? (uint32_t(1) << 31) : 0);
   }
 
   void DxbcEmitAluOp(DxbcOpcode opcode, uint32_t src_are_integer,
@@ -1562,6 +1588,77 @@ class DxbcShaderTranslator : public ShaderTranslator {
     DxbcEmitAluOp(DxbcOpcode::kRSq, 0b0, dest, src, saturate);
     ++stat_.float_instruction_count;
   }
+  void DxbcOpSampleL(const DxbcDest& dest, const DxbcSrc& address,
+                     uint32_t address_components, const DxbcSrc& resource,
+                     const DxbcSrc& sampler, const DxbcSrc& lod,
+                     int32_t aoffimmi_u = 0, int32_t aoffimmi_v = 0,
+                     int32_t aoffimmi_w = 0) {
+    uint32_t dest_write_mask = dest.GetMask();
+    uint32_t sample_controls = 0;
+    if (aoffimmi_u || aoffimmi_v || aoffimmi_w) {
+      sample_controls = DxbcSampleControlsExtendedOpcodeToken(
+          aoffimmi_u, aoffimmi_v, aoffimmi_w);
+    }
+    uint32_t address_mask = (1 << address_components) - 1;
+    uint32_t operands_length =
+        dest.GetLength() + address.GetLength(address_mask) +
+        resource.GetLength(dest_write_mask, true) + sampler.GetLength(0b0000) +
+        lod.GetLength(0b0000);
+    shader_code_.reserve(shader_code_.size() + 1 + (sample_controls ? 1 : 0) +
+                         operands_length);
+    shader_code_.push_back(DxbcOpcodeToken(
+        DxbcOpcode::kSampleL, operands_length, false, sample_controls ? 1 : 0));
+    if (sample_controls) {
+      shader_code_.push_back(sample_controls);
+    }
+    dest.Write(shader_code_);
+    address.Write(shader_code_, false, address_mask);
+    resource.Write(shader_code_, false, dest_write_mask, true);
+    sampler.Write(shader_code_, false, 0b0000);
+    lod.Write(shader_code_, false, 0b0000);
+    ++stat_.instruction_count;
+    ++stat_.texture_normal_instructions;
+  }
+  void DxbcOpSampleD(const DxbcDest& dest, const DxbcSrc& address,
+                     uint32_t address_components, const DxbcSrc& resource,
+                     const DxbcSrc& sampler, const DxbcSrc& x_derivatives,
+                     const DxbcSrc& y_derivatives,
+                     uint32_t derivatives_components, int32_t aoffimmi_u = 0,
+                     int32_t aoffimmi_v = 0, int32_t aoffimmi_w = 0) {
+    // If the address is 1-component, the derivatives are 1-component, if the
+    // address is 4-component, the derivatives are 4-component.
+    assert_true(derivatives_components <= address_components);
+    uint32_t dest_write_mask = dest.GetMask();
+    uint32_t sample_controls = 0;
+    if (aoffimmi_u || aoffimmi_v || aoffimmi_w) {
+      sample_controls = DxbcSampleControlsExtendedOpcodeToken(
+          aoffimmi_u, aoffimmi_v, aoffimmi_w);
+    }
+    uint32_t address_mask = (1 << address_components) - 1;
+    uint32_t derivatives_mask = (1 << derivatives_components) - 1;
+    uint32_t operands_length =
+        dest.GetLength() + address.GetLength(address_mask) +
+        resource.GetLength(dest_write_mask, true) + sampler.GetLength(0b0000) +
+        x_derivatives.GetLength(derivatives_mask, address_components > 1) +
+        y_derivatives.GetLength(derivatives_mask, address_components > 1);
+    shader_code_.reserve(shader_code_.size() + 1 + (sample_controls ? 1 : 0) +
+                         operands_length);
+    shader_code_.push_back(DxbcOpcodeToken(
+        DxbcOpcode::kSampleD, operands_length, false, sample_controls ? 1 : 0));
+    if (sample_controls) {
+      shader_code_.push_back(sample_controls);
+    }
+    dest.Write(shader_code_);
+    address.Write(shader_code_, false, address_mask);
+    resource.Write(shader_code_, false, dest_write_mask, true);
+    sampler.Write(shader_code_, false, 0b0000);
+    x_derivatives.Write(shader_code_, false, derivatives_mask,
+                        address_components > 1);
+    y_derivatives.Write(shader_code_, false, derivatives_mask,
+                        address_components > 1);
+    ++stat_.instruction_count;
+    ++stat_.texture_gradient_instructions;
+  }
   void DxbcOpSqRt(const DxbcDest& dest, const DxbcSrc& src,
                   bool saturate = false) {
     DxbcEmitAluOp(DxbcOpcode::kSqRt, 0b0, dest, src, saturate);
@@ -1619,6 +1716,23 @@ class DxbcShaderTranslator : public ShaderTranslator {
                  const DxbcSrc& src1) {
     DxbcEmitAluOp(DxbcOpcode::kXOr, 0b11, dest, src0, src1);
     ++stat_.uint_instruction_count;
+  }
+  void DxbcOpLOD(const DxbcDest& dest, const DxbcSrc& address,
+                 uint32_t address_components, const DxbcSrc& resource,
+                 const DxbcSrc& sampler) {
+    uint32_t dest_write_mask = dest.GetMask();
+    uint32_t address_mask = (1 << address_components) - 1;
+    uint32_t operands_length =
+        dest.GetLength() + address.GetLength(address_mask) +
+        resource.GetLength(dest_write_mask) + sampler.GetLength(0b0000);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(DxbcOpcodeToken(DxbcOpcode::kLOD, operands_length));
+    dest.Write(shader_code_);
+    address.Write(shader_code_, false, address_mask);
+    resource.Write(shader_code_, false, dest_write_mask);
+    sampler.Write(shader_code_, false, 0b0000);
+    ++stat_.instruction_count;
+    ++stat_.lod_instructions;
   }
   void DxbcOpDerivRTXCoarse(const DxbcDest& dest, const DxbcSrc& src,
                             bool saturate = false) {
@@ -1813,10 +1927,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_SampleCountLog2_Vec = kSysConst_PointScreenToNDC_Vec,
     kSysConst_SampleCountLog2_Comp = 2,
 
+    kSysConst_TextureSwizzledSigns_Index = kSysConst_SampleCountLog2_Index + 1,
+    // 2 vectors.
+    kSysConst_TextureSwizzledSigns_Vec = kSysConst_SampleCountLog2_Vec + 1,
+
     kSysConst_EDRAMResolutionSquareScale_Index =
-        kSysConst_SampleCountLog2_Index + 1,
+        kSysConst_TextureSwizzledSigns_Index + 1,
     kSysConst_EDRAMResolutionSquareScale_Vec =
-        kSysConst_SampleCountLog2_Vec + 1,
+        kSysConst_TextureSwizzledSigns_Vec + 2,
     kSysConst_EDRAMResolutionSquareScale_Comp = 0,
     kSysConst_EDRAMPitchTiles_Index =
         kSysConst_EDRAMResolutionSquareScale_Index + 1,
@@ -2158,64 +2276,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // be done when the operand is not needed anymore.
   DxbcSrc LoadOperand(const InstructionOperand& operand,
                       uint32_t needed_components, bool& temp_pushed_out);
-  // Abstract 4-component vector source operand.
-  // TODO(Triang3l): Remove after fully moving to the new emitter.
-  struct DxbcSourceOperand {
-    enum class Type {
-      // GPR number in the index - used only when GPRs are not dynamically
-      // indexed in the shader and there are no constant zeros and ones in the
-      // swizzle.
-      kRegister,
-      // Immediate: float constant vector number in the index.
-      // Dynamic: intermediate X contains page number, intermediate Y contains
-      // vector number in the page.
-      kConstantFloat,
-      // The whole value preloaded to the intermediate register - used for GPRs
-      // when they are indexable, for bool/loop constants pre-converted to
-      // float, and for other operands if their swizzle contains 0 or 1.
-      kIntermediateRegister,
-      // Literal vector of zeros and positive or negative ones - when the
-      // swizzle contains only them, or when the parsed operand is invalid (for
-      // example, if it's a fetch constant in a non-tfetch texture instruction).
-      // 0 or 1 specified in the index as bits, can be negated.
-      kZerosOnes,
-    };
-
-    Type type;
-    uint32_t index;
-    // If the operand is dynamically indexed directly when it's used as an
-    // operand in DXBC instructions.
-    InstructionStorageAddressingMode addressing_mode;
-
-    uint32_t swizzle;
-    bool is_negated;
-    bool is_absolute_value;
-
-    // Temporary register containing data required to access the value if it has
-    // to be accessed in multiple operations (allocated with PushSystemTemp).
-    uint32_t intermediate_register;
-    static constexpr uint32_t kIntermediateRegisterNone = UINT32_MAX;
-  };
-  // Each Load must be followed by Unload, otherwise there may be a temporary
-  // register leak.
-  // TODO(Triang3l): Remove after fully moving to the new emitter.
-  void LoadDxbcSourceOperand(const InstructionOperand& operand,
-                             DxbcSourceOperand& dxbc_operand);
-  // Number of tokens this operand adds to the instruction length when used.
-  // TODO(Triang3l): Remove after fully moving to the new emitter.
-  uint32_t DxbcSourceOperandLength(const DxbcSourceOperand& operand,
-                                   bool negate = false,
-                                   bool absolute = false) const;
-  // Writes the operand access tokens to the instruction (either for a scalar if
-  // select_component is <= 3, or for a vector).
-  // TODO(Triang3l): Remove after fully moving to the new emitter.
-  void UseDxbcSourceOperand(const DxbcSourceOperand& operand,
-                            uint32_t additional_swizzle = kSwizzleXYZW,
-                            uint32_t select_component = 4, bool negate = false,
-                            bool absolute = false);
-  // TODO(Triang3l): Remove after fully moving to the new emitter.
-  void UnloadDxbcSourceOperand(const DxbcSourceOperand& operand);
-
   // Writes the specified source (src must be usable as a vector `mov` source,
   // including to x#) to an instruction storage target.
   // can_store_memexport_address is for safety, to allow only proper MADs with a
@@ -2268,20 +2328,33 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void CloseInstructionPredication();
   void JumpToLabel(uint32_t address);
 
-  // Returns index in texture_srvs_, and, for bound textures, it's also relative
-  // to the base T#/t# index of textures.
-  uint32_t FindOrAddTextureSRV(uint32_t fetch_constant,
-                               TextureDimension dimension, bool is_signed,
-                               bool is_sign_required = false);
-  // Returns S#/s# index (they are the same in this translator).
-  uint32_t FindOrAddSamplerBinding(uint32_t fetch_constant,
-                                   TextureFilter mag_filter,
-                                   TextureFilter min_filter,
-                                   TextureFilter mip_filter,
-                                   AnisoFilter aniso_filter);
-  // Converts (array S + 1, array T + 1, face index) in the specified temporary
-  // register to a 3D cubemap coordinate.
-  void TfetchCubeCoordToCubeDirection(uint32_t reg);
+  DxbcSrc FindOrAddTextureSRV(uint32_t fetch_constant,
+                              TextureDimension dimension, bool is_signed);
+  DxbcSrc FindOrAddSamplerBinding(uint32_t fetch_constant,
+                                  TextureFilter mag_filter,
+                                  TextureFilter min_filter,
+                                  TextureFilter mip_filter,
+                                  AnisoFilter aniso_filter);
+  // Marks fetch constants as used by the DXBC shader and returns DxbcSrc
+  // for the words 01 (pair 0), 23 (pair 1) or 45 (pair 2) of the texture fetch
+  // constant.
+  DxbcSrc RequestTextureFetchConstantWordPair(uint32_t fetch_constant_index,
+                                              uint32_t pair_index) {
+    if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
+      cbuffer_index_fetch_constants_ = cbuffer_count_++;
+    }
+    uint32_t total_pair_index = fetch_constant_index * 3 + pair_index;
+    return DxbcSrc::CB(cbuffer_index_fetch_constants_,
+                       uint32_t(CbufferRegister::kFetchConstants),
+                       total_pair_index >> 1,
+                       (total_pair_index & 1) ? 0b10101110 : 0b00000100);
+  }
+  DxbcSrc RequestTextureFetchConstantWord(uint32_t fetch_constant_index,
+                                          uint32_t word_index) {
+    return RequestTextureFetchConstantWordPair(fetch_constant_index,
+                                               word_index >> 1)
+        .SelectFromSwizzled(word_index & 1);
+  }
 
   void ProcessVectorAluOperation(const ParsedAluInstruction& instr,
                                  uint32_t& result_swizzle,
@@ -2342,7 +2415,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kFloat4Array6,
     // Float constants - size written dynamically.
     kFloat4ConstantArray,
-    // Bool constants, front/back stencil, render target keep masks.
+    // Bool constants, texture signedness, front/back stencil, render target
+    // keep masks.
     kUint4Array2,
     // Loop constants.
     kUint4Array8,

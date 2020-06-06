@@ -444,15 +444,142 @@ inline void UnpackControlFlowInstructions(const uint32_t* dwords,
 
 enum class FetchOpcode : uint32_t {
   kVertexFetch = 0,
+
+  // http://web.archive.org/web/20090514012026/http://msdn.microsoft.com/en-us/library/bb313957.aspx
+  //
+  // Parameters:
+  // - UnnormalizedTextureCoords = false (default) / true.
+  //   Only taken into account if AddressU (1D) / AddressU/V (2D) / AddressU/V/W
+  //   (3D/cube) are all set to a non-wrapping mode. To access 1D textures that
+  //   are wider than 8192 texels, unnormalized texture coordinates must be
+  //   used.
+  // - MagFilter = point / linear / keep (default).
+  // - MinFilter = point / linear / keep (default).
+  // - MipFilter = point / linear / basemap (undocumented, but assembled) / keep
+  //   (default).
+  // - VolMagFilter (3D only) - "filter used when the volume is magnified"
+  //   ("volume" as opposed to "texture") - point / linear / keep (default).
+  // - VolMinFilter (3D only) - point / linear / keep (default).
+  // - AnisoFilter = disabled / max1to1 / max2to1 / max4to1 / max8to1 /
+  //   max16to1 / keep (default).
+  // - UseComputedLOD = false / true (default).
+  // - UseRegisterLOD = false (default) / true.
+  // - LODBias = -4.0...3.9375, in 1/16 increments. the default is 0.
+  // - OffsetX - value added to the x-component of the texel address right
+  //   before sampling = -8.0...7.5, in 1/2 increments, the default is 0.
+  // - OffsetY (2D, 3D and cube only) - similar to OffsetX.
+  // - OffsetZ (3D and cube only) - similar to OffsetX.
+  // - FetchValidOnly - performance booster, whether the data should be fetched
+  //   only for pixels inside the current primitive in a 2x2 quad (must be set
+  //   to false if the result itself is used to calculate gradients) = false /
+  //   true (default).
+  //
+  // Coordinates:
+  // - 1D: U (normalized or unnormalized)
+  // - 2D: U, V (normalized or unnormalized)
+  // - 3D (used for both 3D and stacked 2D texture): U, V, W (normalized or
+  //   unnormalized - same for both 3D W and stack layer; also VolMagFilter /
+  //   VolMinFilter between stack layers is supported, used for color correction
+  //   in Burnout Revenge).
+  // - Cube: SC, TC (between 1 and 2 for normalized), face ID (0.0 to 5.0), the
+  //   cube vector ALU instruction is used to calculate them.
+  // https://gpuopen.com/learn/fetching-from-cubes-and-octahedrons/
+  // "The 1.5 constant is designed such that the output face coordinate (v4 and
+  //  v5 in the above example) range is {1.0 <= x < 2.0} which has an advantage
+  //  in bit encoding compared to {0.0 <= x < 1.0} in that the upper mantissa
+  //  bits are constant throughout the entire output range."
+  //
+  // The total LOD for a sample is additive and is based on what is enabled.
+  //
+  // For cube maps, according to what texCUBEgrad compiles to in a modified
+  // HLSL shader of Brave: A Warrior's Tale and to XNA assembler output for PC
+  // SM3 texldd, register gradients are in cube space (not in SC/TC space,
+  // unlike the coordinates themselves). This isn't true for the GCN, however.
+  //
+  // TODO(Triang3l): Find if gradients are unnormalized for cube maps if
+  // coordinates are unnormalized. Since texldd doesn't perform any
+  // transformation for gradients (unlike for the coordinates themselves),
+  // gradients are probably in cube space, which is -MA...MA, and LOD
+  // calculation involves gradients in this space, so probably gradients
+  // shouldn't be unnormalized.
+  //
+  // Adreno has only been supporting seamless cube map sampling since 3xx, so
+  // the Xenos likely doesn't support seamless sampling:
+  // https://developer.qualcomm.com/qfile/28557/80-nu141-1_b_adreno_opengl_es_developer_guide.pdf
+  //
+  // Offsets are likely applied at the LOD at which the texture is sampled (not
+  // sure if to the higher-quality or to both - though "right before sampling"
+  // probably means to both - in Direct3D 10, it's recommended to only use
+  // offsets at integer mip levels, otherwise "you may get results that do not
+  // translate well to hardware".
   kTextureFetch = 1,
+
+  // Gets the fraction of border color that would be blended into the texture
+  // data at the specified coordinates into the X component of the destination.
+  // http://web.archive.org/web/20090512001222/http://msdn.microsoft.com/en-us/library/bb313945.aspx
+  //
+  // According to MSDN, this may take all the parameters that tfetch takes.
   kGetTextureBorderColorFrac = 16,
+
+  // Gets the LOD for all of the pixels in the quad at the specified coordinates
+  // into the X component of the destination.
+  // http://web.archive.org/web/20090511233056/http://msdn.microsoft.com/en-us/library/bb313949.aspx
+  //
+  // According to MSDN, the only valid parameters for this are
+  // UnnormalizedTextureCoords, AnisoFilter, VolMagFilter and VolMinFilter.
+  // However, while XNA assembler rejects LODBias, it assembles UseComputedLOD /
+  // UseRegisterLOD / UseRegisterGradients for it. It's unlikely that it takes
+  // the LOD bias into account, because a getCompTexLOD + tfetch combination
+  // with biases in both would result in double biasing (though not sure whether
+  // grad_exp_adjust_h/v apply - in a getCompTexLOD + tfetch with
+  // UseComputedLOD=false pair, gradient exponent adjustment is more logical to
+  // be applied here). MipFilter also can't be overriden, the XNA assembler does
+  // not assemble this instruction at all with MipFilter, so it's possible that
+  // the mip filtering mode has no effect on the result (possibly should be
+  // treated as linear - so fractional biasing can be done before rounding).
+  //
+  // Valid only in pixel shaders. Since the documentation says "for all of the
+  // pixels in the quad" (with explicit gradients, this may diverge), and this
+  // instruction doesn't assemble at all in vertex shaders, even with
+  // UseRegisterGradients=true, it's possible that only implicit gradients may
+  // be used in this instruction.
+  //
+  // Used with AnisoFilter=max16to1 in one place in the Source Engine.
+  //
+  // Not sure if the LOD should be clamped - probably not, considering an
+  // out-of-range LOD passed from getCompTexLOD to setTexLOD may be biased back
+  // into the range later.
   kGetTextureComputedLod = 17,
+
+  // Source is 2-component. XZ = ddx(source.xy), YW = ddy(source.xy).
   kGetTextureGradients = 18,
+
+  // Gets the weights used in a bilinear fetch.
+  // http://web.archive.org/web/20090511230938/http://msdn.microsoft.com/en-us/library/bb313953.aspx
+  // X - horizontal lerp factor.
+  // Y - vertical lerp factor.
+  // Z - depth lerp factor.
+  // W - mip lerp factor.
+  //
+  // According to MSDN, this may take all the parameters that tfetch takes.
+  //
+  // Takes filtering mode into account - in some games, used explicitly with
+  // MagFilter=linear, MinFilter=linear. Source Engine explicitly uses this with
+  // UseComputedLOD=false while only using XY of the result. Offsets and LOD
+  // biasing also apply. Likely the factors are at the higher-quality LOD of the
+  // pair used for filtering, though not checked.
+  //
+  // For cube maps, the factors are probably in SC/TC space (not sure what the
+  // depth lerp factor means in case of them), since apparently there's no
+  // seamless cube map sampling on the Xenos.
   kGetTextureWeights = 19,
+
+  // Source is 1-component.
   kSetTextureLod = 24,
+  // Source is 3-component.
   kSetTextureGradientsHorz = 25,
+  // Source is 3-component.
   kSetTextureGradientsVert = 26,
-  kUnknownTextureOp = 27,
 };
 
 struct VertexFetchInstruction {
@@ -1178,9 +1305,14 @@ enum class AluVectorOpcode : uint32_t {
   //     tfetchCube r0, r0.yxw, tf0
   // http://web.archive.org/web/20100705154143/http://msdn.microsoft.com/en-us/library/bb313921.aspx
   // On GCN, the sequence is the same, so GCN documentation can be used as a
-  // reference (tfetchCube doesn't accept the UV as if the texture was a 2D
-  // array in XY exactly, to get texture array UV, 1 must be subtracted from its
+  // reference (tfetchCube doesn't accept the ST as if the texture was a 2D
+  // array in XY exactly, to get texture array ST, 1 must be subtracted from its
   // XY inputs).
+  // https://gpuopen.com/learn/fetching-from-cubes-and-octahedrons/
+  // "The 1.5 constant is designed such that the output face coordinate (v4 and
+  //  v5 in the above example) range is {1.0 <= x < 2.0} which has an advantage
+  //  in bit encoding compared to {0.0 <= x < 1.0} in that the upper mantissa
+  //  bits are constant throughout the entire output range."
   kCube = 18,
 
   // Four-Element Maximum

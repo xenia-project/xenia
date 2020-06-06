@@ -736,8 +736,7 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
         uint32_t width : 13;
         uint32_t height : 13;
         // Should be 0 for k2D and 5 for kCube if not stacked, but not very
-        // meaningful in this case, preferably should be ignored for
-        // non-stacked.
+        // meaningful in this case, likely should be ignored for non-stacked.
         uint32_t stack_depth : 6;
       } size_2d;
       struct {
@@ -758,23 +757,26 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     xenos::ArbitraryFilter arbitrary_filter : 3;  // +28
     uint32_t border_size : 1;                     // +31
 
-    uint32_t vol_mag_filter : 1;    // +0 dword_4
-    uint32_t vol_min_filter : 1;    // +1
-    uint32_t mip_min_level : 4;     // +2
-    uint32_t mip_max_level : 4;     // +6
-    uint32_t mag_aniso_walk : 1;    // +10
-    uint32_t min_aniso_walk : 1;    // +11
-    int32_t lod_bias : 10;          // +12
+    uint32_t vol_mag_filter : 1;  // +0 dword_4
+    uint32_t vol_min_filter : 1;  // +1
+    uint32_t mip_min_level : 4;   // +2
+    uint32_t mip_max_level : 4;   // +6
+    uint32_t mag_aniso_walk : 1;  // +10
+    uint32_t min_aniso_walk : 1;  // +11
+    // 5 fractional bits (A2XX_SQ_TEX_4_LOD_BIAS).
+    int32_t lod_bias : 10;  // +12
+    // Also known as LodBiasH/V in sys2gmem.
     int32_t grad_exp_adjust_h : 5;  // +22
     int32_t grad_exp_adjust_v : 5;  // +27
 
     BorderColor border_color : 2;    // +0 dword_5
     uint32_t force_bc_w_to_max : 1;  // +2
-    uint32_t tri_clamp : 2;          // +3
-    int32_t aniso_bias : 4;          // +5
-    Dimension dimension : 2;         // +9
-    uint32_t packed_mips : 1;        // +11
-    uint32_t mip_address : 20;       // +12 mip address >> 12
+    // Also known as TriJuice.
+    uint32_t tri_clamp : 2;     // +3
+    int32_t aniso_bias : 4;     // +5
+    Dimension dimension : 2;    // +9
+    uint32_t packed_mips : 1;   // +11
+    uint32_t mip_address : 20;  // +12 mip address >> 12
   });
   XEPACKEDSTRUCTANONYMOUS({
     uint32_t dword_0;
