@@ -81,10 +81,10 @@ class ObjectTable {
   void PurgeAllObjects();  // Purges the object table of all guest objects
 
  private:
-  typedef struct {
+  struct ObjectTableEntry {
     int handle_ref_count = 0;
     XObject* object = nullptr;
-  } ObjectTableEntry;
+  };
 
   ObjectTableEntry* LookupTable(X_HANDLE handle);
   XObject* LookupObject(X_HANDLE handle, bool already_locked);
