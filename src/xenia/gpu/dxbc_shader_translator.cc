@@ -833,14 +833,16 @@ void DxbcShaderTranslator::StartTranslation() {
     if (edram_rov_used_) {
       // Will be initialized unconditionally.
       system_temp_rov_params_ = PushSystemTemp();
-      // If the shader doesn't write to oDepth, each component will be written
-      // to if depth/stencil is enabled and the respective sample is covered -
-      // so need to initialize now because the first writes will be conditional.
-      // If the shader writes to oDepth, this is oDepth of the shader, written
-      // by the guest code, so initialize because assumptions can't be made
-      // about the integrity of the guest code.
-      system_temp_rov_depth_stencil_ =
-          PushSystemTemp(writes_depth() ? 0b0001 : 0b1111);
+      if (ROV_IsDepthStencilEarly() || writes_depth()) {
+        // If the shader doesn't write to oDepth, each component will be written
+        // to if depth/stencil is enabled and the respective sample is covered -
+        // so need to initialize now because the first writes will be
+        // conditional. If the shader writes to oDepth, this is oDepth of the
+        // shader, written by the guest code, so initialize because assumptions
+        // can't be made about the integrity of the guest code.
+        system_temp_rov_depth_stencil_ =
+            PushSystemTemp(writes_depth() ? 0b0001 : 0b1111);
+      }
     }
     for (uint32_t i = 0; i < 4; ++i) {
       if (writes_color_target(i)) {
@@ -887,15 +889,15 @@ void DxbcShaderTranslator::StartTranslation() {
     system_temp_loop_count_ = PushSystemTemp(0b1111);
     system_temp_grad_h_lod_ = PushSystemTemp(0b1111);
     system_temp_grad_v_ = PushSystemTemp(0b0111);
-  }
 
-  // Zero general-purpose registers to prevent crashes when the game references
-  // them after only initializing them conditionally.
-  for (uint32_t i = IsDxbcPixelShader() ? kInterpolatorCount : 0;
-       i < register_count(); ++i) {
-    DxbcOpMov(
-        uses_register_dynamic_addressing() ? DxbcDest::X(0, i) : DxbcDest::R(i),
-        DxbcSrc::LF(0.0f));
+    // Zero general-purpose registers to prevent crashes when the game
+    // references them after only initializing them conditionally.
+    for (uint32_t i = IsDxbcPixelShader() ? kInterpolatorCount : 0;
+         i < register_count(); ++i) {
+      DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, i)
+                                                   : DxbcDest::R(i),
+                DxbcSrc::LF(0.0f));
+    }
   }
 
   // Write stage-specific prologue.
@@ -1163,8 +1165,12 @@ void DxbcShaderTranslator::CompleteShaderCode() {
       }
     }
     if (edram_rov_used_) {
-      // Release system_temp_rov_params_ and system_temp_rov_depth_stencil_.
-      PopSystemTemp(2);
+      if (ROV_IsDepthStencilEarly() || writes_depth()) {
+        // Release system_temp_rov_depth_stencil_.
+        PopSystemTemp();
+      }
+      // Release system_temp_rov_params_.
+      PopSystemTemp();
     }
   }
 

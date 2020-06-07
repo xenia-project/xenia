@@ -581,23 +581,28 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     // Perform depth/stencil test for the sample, get the result in bits 4
     // (passed) and 8 (new depth/stencil buffer value is different).
     DxbcOpCall(DxbcSrc::Label(label_rov_depth_stencil_sample_));
-    // Write the resulting depth/stencil value in system_temps_subroutine_[0].x
-    // to the sample's depth in system_temp_rov_depth_stencil_.
-    DxbcOpMov(DxbcDest::R(system_temp_rov_depth_stencil_, 1 << i),
-              DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-    if (i) {
-      // Shift the result bits to the correct position.
-      DxbcOpIShL(DxbcDest::R(system_temps_subroutine_, 0b0010),
-                 DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY),
-                 DxbcSrc::LU(i));
+    if (ROV_IsDepthStencilEarly()) {
+      // Write the resulting depth/stencil value in
+      // system_temps_subroutine_[0].x to the sample's depth in
+      // system_temp_rov_depth_stencil_.
+      DxbcOpMov(DxbcDest::R(system_temp_rov_depth_stencil_, 1 << i),
+                DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
     }
-    // Add the result in system_temps_subroutine_[0].y to
-    // system_temp_rov_params_.x. Bits 0:3 will be cleared in case of test
-    // failure (only doing this for covered samples), bits 4:7 will be added if
-    // need to defer writing.
-    DxbcOpXOr(DxbcDest::R(system_temp_rov_params_, 0b0001),
-              DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
-              DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY));
+    if (!is_depth_only_pixel_shader_) {
+      if (i) {
+        // Shift the result bits to the correct position.
+        DxbcOpIShL(DxbcDest::R(system_temps_subroutine_, 0b0010),
+                   DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY),
+                   DxbcSrc::LU(i));
+      }
+      // Add the result in system_temps_subroutine_[0].y to
+      // system_temp_rov_params_.x. Bits 0:3 will be cleared in case of test
+      // failure (only doing this for covered samples), bits 4:7 will be added
+      // if need to defer writing.
+      DxbcOpXOr(DxbcDest::R(system_temp_rov_params_, 0b0001),
+                DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
+                DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY));
+    }
 
     // Close the sample conditional.
     DxbcOpEndIf();
@@ -1595,11 +1600,13 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     ROV_DepthStencilTest();
   }
 
-  // Check if any sample is still covered after depth testing and writing, skip
-  // color writing completely in this case.
-  DxbcOpAnd(temp_x_dest, DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
-            DxbcSrc::LU(0b1111));
-  DxbcOpRetC(false, temp_x_src);
+  if (!is_depth_only_pixel_shader_) {
+    // Check if any sample is still covered after depth testing and writing,
+    // skip color writing completely in this case.
+    DxbcOpAnd(temp_x_dest, DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
+              DxbcSrc::LU(0b1111));
+    DxbcOpRetC(false, temp_x_src);
+  }
 
   // Write color values.
   for (uint32_t i = 0; i < 4; ++i) {
