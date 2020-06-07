@@ -2522,7 +2522,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   //     dwords.
   uint32_t system_temp_rov_params_;
   // ROV only - new depth/stencil data. 4 VGPRs when not writing to oDepth, 1
-  // VGPR when writing to oDepth.
+  // VGPR when writing to oDepth. Not used in the depth-only pixel shader (or,
+  // more formally, if neither early depth-stencil nor oDepth are used) because
+  // it always calculates and writes in the same place.
   // When not writing to oDepth: New per-sample depth/stencil values, generated
   // during early depth/stencil test (actual writing checks coverage bits).
   // When writing to oDepth: X also used to hold the depth written by the
