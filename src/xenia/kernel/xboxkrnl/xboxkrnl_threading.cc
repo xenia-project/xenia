@@ -970,12 +970,24 @@ void KfLowerIrql(dword_t old_value) {
 DECLARE_XBOXKRNL_EXPORT2(KfLowerIrql, kThreading, kImplemented, kHighFrequency);
 
 void NtQueueApcThread(dword_t thread_handle, lpvoid_t apc_routine,
-                      lpvoid_t arg1, lpvoid_t arg2, lpvoid_t arg3) {
-  // Alloc APC object (from somewhere) and insert.
+                      lpvoid_t apc_routine_context, lpvoid_t arg1,
+                      lpvoid_t arg2) {
+  auto thread =
+      kernel_state()->object_table()->LookupObject<XThread>(thread_handle);
 
-  assert_always("not implemented");
+  if (!thread) {
+    XELOGE("NtQueueApcThread: Incorrect thread handle! Might cause crash");
+    return;
+  }
+
+  if (!apc_routine) {
+    XELOGE("NtQueueApcThread: Incorrect apc routine! Might cause crash");
+    return;
+  }
+
+  thread->EnqueueApc(apc_routine, apc_routine_context, arg1, arg2);
 }
-// DECLARE_XBOXKRNL_EXPORT1(NtQueueApcThread, kThreading, kStub);
+DECLARE_XBOXKRNL_EXPORT1(NtQueueApcThread, kThreading, kImplemented);
 
 void KeInitializeApc(pointer_t<XAPC> apc, lpvoid_t thread_ptr,
                      lpvoid_t kernel_routine, lpvoid_t rundown_routine,
