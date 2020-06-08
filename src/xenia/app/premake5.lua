@@ -5,7 +5,7 @@ group("src")
 project("xenia-app")
   uuid("d7e98620-d007-4ad8-9dbd-b47c8853a17f")
   kind("WindowedApp")
-  targetname("xenia")
+  targetname("xenia_canary")
   language("C++")
   links({
     "xenia-app-discord",
