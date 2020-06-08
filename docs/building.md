@@ -12,7 +12,7 @@ drivers.
 * [Visual Studio 2019 or Visual Studio 2017](https://www.visualstudio.com/downloads/)
 * [Python 3.6+](https://www.python.org/downloads/)
   * Ensure Python is in PATH.
-* Windows 10 SDK
+* Windows 10 SDK (15063 or later)
 
 ```
 git clone https://github.com/xenia-project/xenia.git
