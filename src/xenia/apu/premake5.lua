@@ -14,6 +14,6 @@ project("xenia-apu")
   defines({
   })
   includedirs({
-    project_root.."/third_party/libav/",
+    project_root.."/third_party/FFmpeg/",
   })
   local_platform_files()
