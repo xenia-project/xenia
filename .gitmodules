@@ -7,9 +7,6 @@
 [submodule "third_party/binutils-ppc-cygwin"]
 	path = third_party/binutils-ppc-cygwin
 	url = https://github.com/benvanik/binutils-ppc-cygwin.git
-[submodule "third_party/libav"]
-	path = third_party/libav
-	url = https://github.com/xenia-project/libav.git
 [submodule "third_party/spirv-tools"]
 	path = third_party/spirv-tools
 	url = https://github.com/xenia-project/SPIRV-Tools.git
@@ -76,3 +73,6 @@
 [submodule "third_party/xxhash"]
 	path = third_party/xxhash
 	url = https://github.com/Cyan4973/xxHash.git
+[submodule "third_party/FFmpeg"]
+	path = third_party/FFmpeg
+	url = https://github.com/xenia-project/FFmpeg.git
