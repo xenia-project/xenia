@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -21,7 +21,7 @@
 #include "xenia/kernel/xthread.h"
 
 extern "C" {
-#include "third_party/libav/libavutil/log.h"
+#include "third_party/FFmpeg/libavutil/log.h"
 }  // extern "C"
 
 // As with normal Microsoft, there are like twelve different ways to access
@@ -48,7 +48,7 @@ extern "C" {
 // do this, it's likely they are either passing the context to XAudio or
 // using the XMA* functions.
 
-DEFINE_bool(libav_verbose, false, "Verbose libav output (debug and above)",
+DEFINE_bool(ffmpeg_verbose, false, "Verbose FFmpeg output (debug and above)",
             "APU");
 
 namespace xe {
@@ -60,7 +60,7 @@ XmaDecoder::XmaDecoder(cpu::Processor* processor)
 XmaDecoder::~XmaDecoder() = default;
 
 void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
-  if (!cvars::libav_verbose && level > AV_LOG_WARNING) {
+  if (!cvars::ffmpeg_verbose && level > AV_LOG_WARNING) {
     return;
   }
 
@@ -101,12 +101,12 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
 
   StringBuffer buff;
   buff.AppendVarargs(fmt, va);
-  xe::logging::AppendLogLineFormat(log_level, level_char, "libav: {}",
+  xe::logging::AppendLogLineFormat(log_level, level_char, "ffmpeg: {}",
                                    buff.to_string_view());
 }
 
 X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
-  // Setup libav logging callback
+  // Setup ffmpeg logging callback
   av_log_set_callback(av_log_callback);
 
   // Let the processor know we want register access callbacks.
