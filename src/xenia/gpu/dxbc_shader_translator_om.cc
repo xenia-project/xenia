@@ -1575,8 +1575,11 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       DxbcOpIf(true, temp_x_src);
       {
         // Write the new depth/stencil.
+        if (uav_index_edram_ == kBindingIndexUnallocated) {
+          uav_index_edram_ = uav_count_++;
+        }
         DxbcOpStoreUAVTyped(
-            DxbcDest::U(ROV_GetEDRAMUAVIndex(), uint32_t(UAVRegister::kEDRAM)),
+            DxbcDest::U(uav_index_edram_, uint32_t(UAVRegister::kEDRAM)),
             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kYYYY), 1,
             DxbcSrc::R(system_temp_rov_depth_stencil_).Select(i));
       }
@@ -1955,10 +1958,13 @@ void DxbcShaderTranslator::
   // Load the old depth/stencil value to VGPR [0].z.
   // VGPR [0].x = new depth
   // VGPR [0].z = old depth/stencil
+  if (uav_index_edram_ == kBindingIndexUnallocated) {
+    uav_index_edram_ = uav_count_++;
+  }
   DxbcOpLdUAVTyped(DxbcDest::R(system_temps_subroutine_, 0b0100),
                    DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kYYYY), 1,
-                   DxbcSrc::U(ROV_GetEDRAMUAVIndex(),
-                              uint32_t(UAVRegister::kEDRAM), DxbcSrc::kXXXX));
+                   DxbcSrc::U(uav_index_edram_, uint32_t(UAVRegister::kEDRAM),
+                              DxbcSrc::kXXXX));
   // Extract the old depth part to VGPR [0].w.
   // VGPR [0].x = new depth
   // VGPR [0].z = old depth/stencil
@@ -2398,8 +2404,11 @@ void DxbcShaderTranslator::
     // Write the new depth/stencil.
     // VGPR [0].x = new depth/stencil
     // VGPR [0].y = depth/stencil test failure
+    if (uav_index_edram_ == kBindingIndexUnallocated) {
+      uav_index_edram_ = uav_count_++;
+    }
     DxbcOpStoreUAVTyped(
-        DxbcDest::U(ROV_GetEDRAMUAVIndex(), uint32_t(UAVRegister::kEDRAM)),
+        DxbcDest::U(uav_index_edram_, uint32_t(UAVRegister::kEDRAM)),
         DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kYYYY), 1,
         DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
     if (depth_stencil_early) {
@@ -2499,10 +2508,13 @@ void DxbcShaderTranslator::CompleteShaderCode_ROV_ColorSampleSubroutine(
       // Load the lower 32 bits of the 64bpp color to VGPR [0].z.
       // VGPRs [0].xy - packed source color/alpha if not blending.
       // VGPR [0].z - lower 32 bits of the packed color.
+      if (uav_index_edram_ == kBindingIndexUnallocated) {
+        uav_index_edram_ = uav_count_++;
+      }
       DxbcOpLdUAVTyped(
           DxbcDest::R(system_temps_subroutine_, 0b0100),
           DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kWWWW), 1,
-          DxbcSrc::U(ROV_GetEDRAMUAVIndex(), uint32_t(UAVRegister::kEDRAM),
+          DxbcSrc::U(uav_index_edram_, uint32_t(UAVRegister::kEDRAM),
                      DxbcSrc::kXXXX));
       // Get the address of the upper 32 bits of the color to VGPR [0].w.
       // VGPRs [0].xy - packed source color/alpha if not blending.
@@ -2514,10 +2526,13 @@ void DxbcShaderTranslator::CompleteShaderCode_ROV_ColorSampleSubroutine(
       // Load the upper 32 bits of the 64bpp color to VGPR [0].w.
       // VGPRs [0].xy - packed source color/alpha if not blending.
       // VGPRs [0].zw - packed destination color/alpha.
+      if (uav_index_edram_ == kBindingIndexUnallocated) {
+        uav_index_edram_ = uav_count_++;
+      }
       DxbcOpLdUAVTyped(
           DxbcDest::R(system_temps_subroutine_, 0b1000),
           DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kWWWW), 1,
-          DxbcSrc::U(ROV_GetEDRAMUAVIndex(), uint32_t(UAVRegister::kEDRAM),
+          DxbcSrc::U(uav_index_edram_, uint32_t(UAVRegister::kEDRAM),
                      DxbcSrc::kXXXX));
     }
     // The color is 32bpp.
@@ -2526,10 +2541,13 @@ void DxbcShaderTranslator::CompleteShaderCode_ROV_ColorSampleSubroutine(
       // Load the 32bpp color to VGPR [0].z.
       // VGPRs [0].xy - packed source color/alpha if not blending.
       // VGPR [0].z - packed 32bpp destination color.
+      if (uav_index_edram_ == kBindingIndexUnallocated) {
+        uav_index_edram_ = uav_count_++;
+      }
       DxbcOpLdUAVTyped(
           DxbcDest::R(system_temps_subroutine_, 0b0100),
           DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kZZZZ), 1,
-          DxbcSrc::U(ROV_GetEDRAMUAVIndex(), uint32_t(UAVRegister::kEDRAM),
+          DxbcSrc::U(uav_index_edram_, uint32_t(UAVRegister::kEDRAM),
                      DxbcSrc::kXXXX));
       // Break register dependency in VGPR [0].w if the color is 32bpp.
       // VGPRs [0].xy - packed source color/alpha if not blending.
@@ -3276,8 +3294,11 @@ void DxbcShaderTranslator::CompleteShaderCode_ROV_ColorSampleSubroutine(
   DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kZZZZ));
   {
     // Store the lower 32 bits of the 64bpp color.
+    if (uav_index_edram_ == kBindingIndexUnallocated) {
+      uav_index_edram_ = uav_count_++;
+    }
     DxbcOpStoreUAVTyped(
-        DxbcDest::U(ROV_GetEDRAMUAVIndex(), uint32_t(UAVRegister::kEDRAM)),
+        DxbcDest::U(uav_index_edram_, uint32_t(UAVRegister::kEDRAM)),
         DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kWWWW), 1,
         DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
     // Get the address of the upper 32 bits of the color to VGPR [0].z (can't
@@ -3289,8 +3310,11 @@ void DxbcShaderTranslator::CompleteShaderCode_ROV_ColorSampleSubroutine(
                DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kWWWW),
                DxbcSrc::LU(1));
     // Store the upper 32 bits of the 64bpp color.
+    if (uav_index_edram_ == kBindingIndexUnallocated) {
+      uav_index_edram_ = uav_count_++;
+    }
     DxbcOpStoreUAVTyped(
-        DxbcDest::U(ROV_GetEDRAMUAVIndex(), uint32_t(UAVRegister::kEDRAM)),
+        DxbcDest::U(uav_index_edram_, uint32_t(UAVRegister::kEDRAM)),
         DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kZZZZ), 1,
         DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY));
   }
@@ -3298,8 +3322,11 @@ void DxbcShaderTranslator::CompleteShaderCode_ROV_ColorSampleSubroutine(
   DxbcOpElse();
   {
     // Store the 32bpp color.
+    if (uav_index_edram_ == kBindingIndexUnallocated) {
+      uav_index_edram_ = uav_count_++;
+    }
     DxbcOpStoreUAVTyped(
-        DxbcDest::U(ROV_GetEDRAMUAVIndex(), uint32_t(UAVRegister::kEDRAM)),
+        DxbcDest::U(uav_index_edram_, uint32_t(UAVRegister::kEDRAM)),
         DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kZZZZ), 1,
         DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
   }

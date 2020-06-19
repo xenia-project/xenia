@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 
+#include <cstring>
+
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/gpu/gpu_flags.h"
@@ -18,8 +20,8 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-constexpr uint32_t D3D12Shader::kMaxTextureSRVIndexBits;
-constexpr uint32_t D3D12Shader::kMaxTextureSRVs;
+constexpr uint32_t D3D12Shader::kMaxTextureBindingIndexBits;
+constexpr uint32_t D3D12Shader::kMaxTextureBindings;
 constexpr uint32_t D3D12Shader::kMaxSamplerBindingIndexBits;
 constexpr uint32_t D3D12Shader::kMaxSamplerBindings;
 
@@ -28,34 +30,40 @@ D3D12Shader::D3D12Shader(ShaderType shader_type, uint64_t data_hash,
     : Shader(shader_type, data_hash, dword_ptr, dword_count) {}
 
 void D3D12Shader::SetTexturesAndSamplers(
-    const DxbcShaderTranslator::TextureSRV* texture_srvs,
-    uint32_t texture_srv_count,
+    const DxbcShaderTranslator::TextureBinding* texture_bindings,
+    uint32_t texture_binding_count,
     const DxbcShaderTranslator::SamplerBinding* sampler_bindings,
     uint32_t sampler_binding_count) {
-  texture_srvs_.clear();
-  texture_srvs_.reserve(texture_srv_count);
+  texture_bindings_.clear();
+  texture_bindings_.reserve(texture_binding_count);
   used_texture_mask_ = 0;
-  for (uint32_t i = 0; i < texture_srv_count; ++i) {
-    TextureSRV srv;
-    const DxbcShaderTranslator::TextureSRV& translator_srv = texture_srvs[i];
-    srv.fetch_constant = translator_srv.fetch_constant;
-    srv.dimension = translator_srv.dimension;
-    srv.is_signed = translator_srv.is_signed;
-    texture_srvs_.push_back(srv);
-    used_texture_mask_ |= 1u << translator_srv.fetch_constant;
+  for (uint32_t i = 0; i < texture_binding_count; ++i) {
+    TextureBinding& binding = texture_bindings_.emplace_back();
+    // For a stable hash.
+    std::memset(&binding, 0, sizeof(binding));
+    const DxbcShaderTranslator::TextureBinding& translator_binding =
+        texture_bindings[i];
+    binding.bindless_descriptor_index =
+        translator_binding.bindless_descriptor_index;
+    binding.fetch_constant = translator_binding.fetch_constant;
+    binding.dimension = translator_binding.dimension;
+    binding.is_signed = translator_binding.is_signed;
+    used_texture_mask_ |= 1u << translator_binding.fetch_constant;
   }
   sampler_bindings_.clear();
   sampler_bindings_.reserve(sampler_binding_count);
   for (uint32_t i = 0; i < sampler_binding_count; ++i) {
-    SamplerBinding sampler;
-    const DxbcShaderTranslator::SamplerBinding& translator_sampler =
+    SamplerBinding binding;
+    const DxbcShaderTranslator::SamplerBinding& translator_binding =
         sampler_bindings[i];
-    sampler.fetch_constant = translator_sampler.fetch_constant;
-    sampler.mag_filter = translator_sampler.mag_filter;
-    sampler.min_filter = translator_sampler.min_filter;
-    sampler.mip_filter = translator_sampler.mip_filter;
-    sampler.aniso_filter = translator_sampler.aniso_filter;
-    sampler_bindings_.push_back(sampler);
+    binding.bindless_descriptor_index =
+        translator_binding.bindless_descriptor_index;
+    binding.fetch_constant = translator_binding.fetch_constant;
+    binding.mag_filter = translator_binding.mag_filter;
+    binding.min_filter = translator_binding.min_filter;
+    binding.mip_filter = translator_binding.mip_filter;
+    binding.aniso_filter = translator_binding.aniso_filter;
+    sampler_bindings_.push_back(binding);
   }
 }
 

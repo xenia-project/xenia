@@ -327,19 +327,22 @@ bool D3D12Provider::Initialize() {
 
   // Check if optional features are supported.
   rasterizer_ordered_views_supported_ = false;
-  tiled_resources_tier_ = 0;
+  resource_binding_tier_ = D3D12_RESOURCE_BINDING_TIER_1;
+  tiled_resources_tier_ = D3D12_TILED_RESOURCES_TIER_NOT_SUPPORTED;
   D3D12_FEATURE_DATA_D3D12_OPTIONS options;
   if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS,
                                             &options, sizeof(options)))) {
     rasterizer_ordered_views_supported_ = options.ROVsSupported ? true : false;
-    tiled_resources_tier_ = uint32_t(options.TiledResourcesTier);
+    resource_binding_tier_ = options.ResourceBindingTier;
+    tiled_resources_tier_ = options.TiledResourcesTier;
   }
-  programmable_sample_positions_tier_ = 0;
+  programmable_sample_positions_tier_ =
+      D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER_NOT_SUPPORTED;
   D3D12_FEATURE_DATA_D3D12_OPTIONS2 options2;
   if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS2,
                                             &options2, sizeof(options2)))) {
     programmable_sample_positions_tier_ =
-        uint32_t(options2.ProgrammableSamplePositionsTier);
+        options2.ProgrammableSamplePositionsTier;
   }
   virtual_address_bits_per_resource_ = 0;
   D3D12_FEATURE_DATA_GPU_VIRTUAL_ADDRESS_SUPPORT virtual_address_support;
@@ -349,14 +352,17 @@ bool D3D12Provider::Initialize() {
     virtual_address_bits_per_resource_ =
         virtual_address_support.MaxGPUVirtualAddressBitsPerResource;
   }
-  XELOGD3D("Direct3D 12 device features:");
-  XELOGD3D("* Max GPU virtual address bits per resource: {}",
-           virtual_address_bits_per_resource_);
-  XELOGD3D("* Programmable sample positions: tier {}",
-           programmable_sample_positions_tier_);
-  XELOGD3D("* Rasterizer-ordered views: {}",
-           rasterizer_ordered_views_supported_ ? "yes" : "no");
-  XELOGD3D("* Tiled resources: tier {}", tiled_resources_tier_);
+  XELOGD3D(
+      "Direct3D 12 device features:\n"
+      "Max GPU virtual address bits per resource: {}\n"
+      "Programmable sample positions: tier {}\n"
+      "Rasterizer-ordered views: {}\n"
+      "Resource binding: tier {}\n"
+      "Tiled resources: tier {}\n",
+      virtual_address_bits_per_resource_,
+      uint32_t(programmable_sample_positions_tier_),
+      rasterizer_ordered_views_supported_ ? "yes" : "no",
+      uint32_t(resource_binding_tier_), uint32_t(tiled_resources_tier_));
 
   // Get the graphics analysis interface, will silently fail if PIX is not
   // attached.

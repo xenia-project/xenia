@@ -10,12 +10,17 @@
 #ifndef XENIA_UI_D3D12_D3D12_UTIL_H_
 #define XENIA_UI_D3D12_D3D12_UTIL_H_
 
+#include <utility>
+
 #include "xenia/ui/d3d12/d3d12_provider.h"
 
 namespace xe {
 namespace ui {
 namespace d3d12 {
 namespace util {
+
+using DescriptorCPUGPUHandlePair =
+    std::pair<D3D12_CPU_DESCRIPTOR_HANDLE, D3D12_GPU_DESCRIPTOR_HANDLE>;
 
 extern const D3D12_HEAP_PROPERTIES kHeapPropertiesDefault;
 extern const D3D12_HEAP_PROPERTIES kHeapPropertiesUpload;

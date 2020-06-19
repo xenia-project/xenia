@@ -494,7 +494,8 @@ bool SharedMemory::AreTiledResourcesUsed() const {
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
   // As of October 8th, 2018, PIX doesn't support tiled buffers.
   // FIXME(Triang3l): Re-enable tiled resources with PIX once fixed.
-  return provider->GetTiledResourcesTier() >= 1 &&
+  return provider->GetTiledResourcesTier() !=
+             D3D12_TILED_RESOURCES_TIER_NOT_SUPPORTED &&
          provider->GetGraphicsAnalysis() == nullptr;
 }
 

@@ -29,6 +29,7 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/ui/d3d12/d3d12_context.h"
+#include "xenia/ui/d3d12/d3d12_util.h"
 #include "xenia/ui/d3d12/pools.h"
 
 namespace xe {
@@ -53,8 +54,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   void RestoreEDRAMSnapshot(const void* snapshot) override;
 
   // Needed by everything that owns transient objects.
-  xe::ui::d3d12::D3D12Context* GetD3D12Context() const {
-    return static_cast<xe::ui::d3d12::D3D12Context*>(context_.get());
+  ui::d3d12::D3D12Context* GetD3D12Context() const {
+    return static_cast<ui::d3d12::D3D12Context*>(context_.get());
   }
 
   // Returns the deferred drawing command list for the currently open
@@ -95,18 +96,43 @@ class D3D12CommandProcessor : public CommandProcessor {
   ui::d3d12::UploadBufferPool* GetConstantBufferPool() const {
     return constant_buffer_pool_.get();
   }
-  // Request and automatically rebind descriptors on the draw command list.
-  // Refer to DescriptorHeapPool::Request for partial/full update explanation.
-  uint64_t RequestViewDescriptors(uint64_t previous_heap_index,
-                                  uint32_t count_for_partial_update,
-                                  uint32_t count_for_full_update,
-                                  D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
-                                  D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
-  uint64_t RequestSamplerDescriptors(
-      uint64_t previous_heap_index, uint32_t count_for_partial_update,
-      uint32_t count_for_full_update,
-      D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
-      D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
+
+  D3D12_CPU_DESCRIPTOR_HANDLE GetViewBindlessHeapCPUStart() const {
+    assert_true(bindless_resources_used_);
+    return view_bindless_heap_cpu_start_;
+  }
+  D3D12_GPU_DESCRIPTOR_HANDLE GetViewBindlessHeapGPUStart() const {
+    assert_true(bindless_resources_used_);
+    return view_bindless_heap_gpu_start_;
+  }
+  // Returns UINT32_MAX if no free descriptors.
+  uint32_t RequestPersistentViewBindlessDescriptor();
+  void ReleaseViewBindlessDescriptorImmediately(uint32_t descriptor_index);
+  // Request non-contiguous SRV/UAV descriptors for use only within the next
+  // draw or dispatch command done for internal purposes. May change the current
+  // descriptor heap.
+  bool RequestOneUseSingleViewDescriptors(
+      uint32_t count, ui::d3d12::util::DescriptorCPUGPUHandlePair* handles_out);
+  // These are needed often, so they are always allocated.
+  enum class SystemBindlessView : uint32_t {
+    kNullTexture2DArray,
+    kNullTexture3D,
+    kNullTextureCube,
+
+    kSharedMemoryRawSRV,
+    kSharedMemoryRawUAV,
+
+    kEDRAMR32UintUAV,
+    kEDRAMRawSRV,
+    kEDRAMRawUAV,
+
+    kGammaRampNormalSRV,
+    kGammaRampPWLSRV,
+
+    kCount,
+  };
+  ui::d3d12::util::DescriptorCPUGPUHandlePair GetSystemBindlessViewHandlePair(
+      SystemBindlessView view) const;
 
   // Returns a single temporary GPU-side buffer within a submission for tasks
   // like texture untiling and resolving.
@@ -148,6 +174,10 @@ class D3D12CommandProcessor : public CommandProcessor {
       bool changing_viewport = true, bool changing_blend_factor = false,
       bool changing_stencil_ref = false);
 
+  // For the pipeline state cache to call when binding layout UIDs may be
+  // reused.
+  void NotifyShaderBindingsLayoutUIDsInvalidated();
+
   // Returns the text to display in the GPU backend name in the window title.
   std::string GetWindowTitleText() const;
 
@@ -180,36 +210,66 @@ class D3D12CommandProcessor : public CommandProcessor {
   static constexpr uint32_t kQueueFrames = 3;
 
   enum RootParameter : UINT {
+    // Keep the size of the root signature at each stage 13 dwords or less
+    // (better 12 or less) so it fits in user data on AMD. Descriptor tables are
+    // 1 dword, root descriptors are 2 dwords (however, root descriptors require
+    // less setup on the CPU - balance needs to be maintained).
+
+    // CBVs are set in both bindful and bindless cases via root descriptors.
+
+    // - Bindful resources - multiple root signatures depending on extra
+    //   parameters.
+
     // These are always present.
 
     // Very frequently changed, especially for UI draws, and for models drawn in
     // multiple parts - contains vertex and texture fetch constants.
-    kRootParameter_FetchConstants,
+    kRootParameter_Bindful_FetchConstants = 0,  // +2 dwords = 2 in all.
     // Quite frequently changed (for one object drawn multiple times, for
     // instance - may contain projection matrices).
-    kRootParameter_FloatConstantsVertex,
+    kRootParameter_Bindful_FloatConstantsVertex,  // +2 = 4 in VS.
     // Less frequently changed (per-material).
-    kRootParameter_FloatConstantsPixel,
-    // Rarely changed - system constants like viewport and alpha testing.
-    kRootParameter_SystemConstants,
+    kRootParameter_Bindful_FloatConstantsPixel,  // +2 = 4 in PS.
+    // May stay the same across many draws.
+    kRootParameter_Bindful_SystemConstants,  // +2 = 6 in all.
     // Pretty rarely used and rarely changed - flow control constants.
-    kRootParameter_BoolLoopConstants,
+    kRootParameter_Bindful_BoolLoopConstants,  // +2 = 8 in all.
     // Never changed except for when starting a new descriptor heap - shared
-    // memory byte address buffer, and, if ROV is used for EDRAM, EDRAM UAV.
-    kRootParameter_SharedMemoryAndEDRAM,
+    // memory byte address buffer, and, if ROV is used for EDRAM, EDRAM R32_UINT
+    // UAV.
+    // SRV/UAV descriptor table.
+    kRootParameter_Bindful_SharedMemoryAndEDRAM,  // +1 = 9 in all.
 
-    kRootParameter_Count_Base,
+    kRootParameter_Bindful_Count_Base,
 
     // Extra parameter that may or may not exist:
-    // - Pixel textures (t1+).
-    // - Pixel samplers (s0+).
-    // - Vertex textures (t1+).
-    // - Vertex samplers (s0+).
+    // - Pixel textures (+1 = 10 in PS).
+    // - Pixel samplers (+1 = 11 in PS).
+    // - Vertex textures (+1 = 10 in VS).
+    // - Vertex samplers (+1 = 11 in VS).
 
-    kRootParameter_Count_Max = kRootParameter_Count_Base + 4,
+    kRootParameter_Bindful_Count_Max = kRootParameter_Bindful_Count_Base + 4,
+
+    // - Bindless resources - two global root signatures (for non-tessellated
+    //   and tessellated drawing), so these are always present.
+
+    kRootParameter_Bindless_FetchConstants = 0,    // +2 = 2 in all.
+    kRootParameter_Bindless_FloatConstantsVertex,  // +2 = 4 in VS.
+    kRootParameter_Bindless_FloatConstantsPixel,   // +2 = 4 in PS.
+    // Changed per-material, texture and sampler descriptor indices.
+    kRootParameter_Bindless_DescriptorIndicesPixel,   // +2 = 6 in PS.
+    kRootParameter_Bindless_DescriptorIndicesVertex,  // +2 = 6 in VS.
+    kRootParameter_Bindless_SystemConstants,          // +2 = 8 in all.
+    kRootParameter_Bindless_BoolLoopConstants,        // +2 = 10 in all.
+    // Unbounded sampler descriptor table - changed in case of overflow.
+    kRootParameter_Bindless_SamplerHeap,  // +1 = 11 in all.
+    // Unbounded SRV/UAV descriptor table - never changed.
+    kRootParameter_Bindless_ViewHeap,  // +1 = 12 in all.
+
+    kRootParameter_Bindless_Count,
   };
 
-  struct RootExtraParameterIndices {
+  struct RootBindfulExtraParameterIndices {
     uint32_t textures_pixel;
     uint32_t samplers_pixel;
     uint32_t textures_vertex;
@@ -218,9 +278,9 @@ class D3D12CommandProcessor : public CommandProcessor {
   };
   // Gets the indices of optional root parameters. Returns the total parameter
   // count.
-  static uint32_t GetRootExtraParameterIndices(
+  static uint32_t GetRootBindfulExtraParameterIndices(
       const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
-      RootExtraParameterIndices& indices_out);
+      RootBindfulExtraParameterIndices& indices_out);
 
   // BeginSubmission and EndSubmission may be called at any time. If there's an
   // open non-frame submission, BeginSubmission(true) will promote it to a
@@ -247,6 +307,20 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Need to await submission completion before calling.
   void ClearCommandAllocatorCache();
 
+  // Request descriptors and automatically rebind the descriptor heap on the
+  // draw command list. Refer to DescriptorHeapPool::Request for partial/full
+  // update explanation. Doesn't work when bindless descriptors are used.
+  uint64_t RequestViewBindfulDescriptors(
+      uint64_t previous_heap_index, uint32_t count_for_partial_update,
+      uint32_t count_for_full_update,
+      D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
+      D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
+  uint64_t RequestSamplerBindfulDescriptors(
+      uint64_t previous_heap_index, uint32_t count_for_partial_update,
+      uint32_t count_for_full_update,
+      D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
+      D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
+
   void UpdateFixedFunctionState(bool primitive_two_faced);
   void UpdateSystemConstantValues(
       bool shared_memory_is_uav, bool primitive_two_faced,
@@ -267,6 +341,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Returns a buffer for reading GPU data back to the CPU. Assuming
   // synchronizing immediately after use. Always in COPY_DEST state.
   ID3D12Resource* RequestReadbackBuffer(uint32_t size);
+
+  void WriteGammaRampSRV(bool is_pwl, D3D12_CPU_DESCRIPTOR_HANDLE handle) const;
 
   bool cache_clear_requested_ = false;
 
@@ -298,27 +374,88 @@ class D3D12CommandProcessor : public CommandProcessor {
   ID3D12GraphicsCommandList1* command_list_1_ = nullptr;
   std::unique_ptr<DeferredCommandList> deferred_command_list_ = nullptr;
 
-  std::unique_ptr<SharedMemory> shared_memory_ = nullptr;
-
-  // Root signatures for different descriptor counts.
-  std::unordered_map<uint32_t, ID3D12RootSignature*> root_signatures_;
-
-  std::unique_ptr<PipelineCache> pipeline_cache_ = nullptr;
-
+  // Should bindless textures and samplers be used - many times faster
+  // UpdateBindings than bindful (that becomes a significant bottleneck with
+  // bindful - mainly because of CopyDescriptorsSimple, which takes the majority
+  // of UpdateBindings time, and that's outside the emulator's control even).
+  bool bindless_resources_used_ = false;
   // Should a rasterizer-ordered UAV of the EDRAM buffer with format conversion
   // and blending performed in pixel shaders be used instead of host render
   // targets.
   bool edram_rov_used_ = false;
+
+  std::unique_ptr<ui::d3d12::UploadBufferPool> constant_buffer_pool_ = nullptr;
+
+  static constexpr uint32_t kViewBindfulHeapSize = 32768;
+  static_assert(kViewBindfulHeapSize <=
+                D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1);
+  std::unique_ptr<ui::d3d12::DescriptorHeapPool> view_bindful_heap_pool_ =
+      nullptr;
+  // Currently bound descriptor heap - updated by RequestViewBindfulDescriptors.
+  ID3D12DescriptorHeap* view_bindful_heap_current_;
+  // Rationale: textures have 4 KB alignment in guest memory, and there can be
+  // 512 MB / 4 KB in total of them at most, and multiply by 3 for different
+  // swizzles, signedness, and multiple host textures for one guest texture, and
+  // transient descriptors. Though in reality there will be a lot fewer of
+  // course, this is just a "safe" value. The limit is 1000000 for resource
+  // binding tier 2.
+  static constexpr uint32_t kViewBindlessHeapSize = 262144;
+  static_assert(kViewBindlessHeapSize <=
+                D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_2);
+  ID3D12DescriptorHeap* view_bindless_heap_ = nullptr;
+  D3D12_CPU_DESCRIPTOR_HANDLE view_bindless_heap_cpu_start_;
+  D3D12_GPU_DESCRIPTOR_HANDLE view_bindless_heap_gpu_start_;
+  uint32_t view_bindless_heap_allocated_ = 0;
+  std::vector<uint32_t> view_bindless_heap_free_;
+  // <Descriptor index, submission where requested>, sorted by the submission
+  // number.
+  std::deque<std::pair<uint32_t, uint64_t>> view_bindless_one_use_descriptors_;
+
+  // Direct3D 12 only allows shader-visible heaps with no more than 2048
+  // samplers (due to Nvidia addressing). However, there's also possibly a weird
+  // bug in the Nvidia driver (tested on 440.97 and earlier on Windows 10 1803)
+  // that caused the sampler with index 2047 not to work if a heap with 8 or
+  // less samplers also exists - in case of Xenia, it's the immediate drawer's
+  // sampler heap.
+  // FIXME(Triang3l): Investigate the issue with the sampler 2047 on Nvidia.
+  static constexpr uint32_t kSamplerHeapSize = 2000;
+  static_assert(kSamplerHeapSize <= D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE);
+  std::unique_ptr<ui::d3d12::DescriptorHeapPool> sampler_bindful_heap_pool_ =
+      nullptr;
+  ID3D12DescriptorHeap* sampler_bindful_heap_current_;
+  ID3D12DescriptorHeap* sampler_bindless_heap_current_ = nullptr;
+  D3D12_CPU_DESCRIPTOR_HANDLE sampler_bindless_heap_cpu_start_;
+  D3D12_GPU_DESCRIPTOR_HANDLE sampler_bindless_heap_gpu_start_;
+  // Currently the sampler heap is used only for texture cache samplers, so
+  // individual samplers are never freed, and using a simple linear allocator
+  // inside the current heap without a free list.
+  uint32_t sampler_bindless_heap_allocated_ = 0;
+  // <Heap, overflow submission number>, if total sampler count used so far
+  // exceeds kSamplerHeapSize, and the heap has been switched (this is not a
+  // totally impossible situation considering Direct3D 9 has sampler parameter
+  // state instead of sampler objects, and having one "unimportant" parameter
+  // changed may result in doubling of sampler count). Sorted by the submission
+  // number (so checking if the first can be reused is enough).
+  std::deque<std::pair<ID3D12DescriptorHeap*, uint64_t>>
+      sampler_bindless_heaps_overflowed_;
+  // TextureCache::SamplerParameters::value -> indices within the current
+  // bindless sampler heap.
+  std::unordered_map<uint32_t, uint32_t> texture_cache_bindless_sampler_map_;
+
+  // Root signatures for different descriptor counts.
+  std::unordered_map<uint32_t, ID3D12RootSignature*> root_signatures_bindful_;
+  ID3D12RootSignature* root_signature_bindless_vs_ = nullptr;
+  ID3D12RootSignature* root_signature_bindless_ds_ = nullptr;
+
+  std::unique_ptr<SharedMemory> shared_memory_ = nullptr;
+
+  std::unique_ptr<PipelineCache> pipeline_cache_ = nullptr;
 
   std::unique_ptr<TextureCache> texture_cache_ = nullptr;
 
   std::unique_ptr<RenderTargetCache> render_target_cache_ = nullptr;
 
   std::unique_ptr<PrimitiveConverter> primitive_converter_ = nullptr;
-
-  std::unique_ptr<ui::d3d12::UploadBufferPool> constant_buffer_pool_ = nullptr;
-  std::unique_ptr<ui::d3d12::DescriptorHeapPool> view_heap_pool_ = nullptr;
-  std::unique_ptr<ui::d3d12::DescriptorHeapPool> sampler_heap_pool_ = nullptr;
 
   // Mip 0 contains the normal gamma ramp (256 entries), mip 1 contains the PWL
   // ramp (128 entries). DXGI_FORMAT_R10G10B10A2_UNORM 1D.
@@ -348,11 +485,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Unsubmitted barrier batch.
   std::vector<D3D12_RESOURCE_BARRIER> barriers_;
 
-  struct BufferForDeletion {
-    ID3D12Resource* buffer;
-    uint64_t last_usage_submission;
-  };
-  std::deque<BufferForDeletion> buffers_for_deletion_;
+  // <Resource, submission where requested>, sorted by the submission number.
+  std::deque<std::pair<ID3D12Resource*, uint64_t>> buffers_for_deletion_;
 
   static constexpr uint32_t kScratchBufferSizeIncrement = 16 * 1024 * 1024;
   ID3D12Resource* scratch_buffer_ = nullptr;
@@ -390,18 +524,12 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Currently bound graphics root signature.
   ID3D12RootSignature* current_graphics_root_signature_;
   // Extra parameters which may or may not be present.
-  RootExtraParameterIndices current_graphics_root_extras_;
+  RootBindfulExtraParameterIndices current_graphics_root_bindful_extras_;
   // Whether root parameters are up to date - reset if a new signature is bound.
   uint32_t current_graphics_root_up_to_date_;
 
-  // Currently bound descriptor heaps - update by RequestViewDescriptors and
-  // RequestSamplerDescriptors.
-  ID3D12DescriptorHeap* current_view_heap_;
-  ID3D12DescriptorHeap* current_sampler_heap_;
-
   // System shader constants.
   DxbcShaderTranslator::SystemConstants system_constants_;
-  ColorRenderTargetFormat system_constants_color_formats_[4];
 
   // Float constant usage masks of the last draw call.
   uint64_t current_float_constant_map_vertex_[4];
@@ -409,45 +537,48 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   // Constant buffer bindings.
   struct ConstantBufferBinding {
-    D3D12_GPU_VIRTUAL_ADDRESS buffer_address;
+    D3D12_GPU_VIRTUAL_ADDRESS address;
     bool up_to_date;
   };
-  ConstantBufferBinding cbuffer_bindings_system_;
-  ConstantBufferBinding cbuffer_bindings_float_vertex_;
-  ConstantBufferBinding cbuffer_bindings_float_pixel_;
-  ConstantBufferBinding cbuffer_bindings_bool_loop_;
-  ConstantBufferBinding cbuffer_bindings_fetch_;
+  ConstantBufferBinding cbuffer_binding_system_;
+  ConstantBufferBinding cbuffer_binding_float_vertex_;
+  ConstantBufferBinding cbuffer_binding_float_pixel_;
+  ConstantBufferBinding cbuffer_binding_bool_loop_;
+  ConstantBufferBinding cbuffer_binding_fetch_;
+  ConstantBufferBinding cbuffer_binding_descriptor_indices_vertex_;
+  ConstantBufferBinding cbuffer_binding_descriptor_indices_pixel_;
 
   // Pages with the descriptors currently used for handling Xenos draw calls.
-  uint64_t draw_view_heap_index_;
-  uint64_t draw_sampler_heap_index_;
+  uint64_t draw_view_bindful_heap_index_;
+  uint64_t draw_sampler_bindful_heap_index_;
 
-  // Whether the last used texture bindings have been written to the current
-  // view descriptor heap.
-  bool texture_bindings_written_vertex_;
-  bool texture_bindings_written_pixel_;
-  // Hashes of the last texture bindings written to the current view descriptor
-  // heap with the last used descriptor layout. Valid only when the
-  // corresponding "written" variables are true.
-  uint64_t current_texture_bindings_hash_vertex_;
-  uint64_t current_texture_bindings_hash_pixel_;
+  // Whether the last used texture sampler bindings have been written to the
+  // current view descriptor heap.
+  bool bindful_textures_written_vertex_;
+  bool bindful_textures_written_pixel_;
+  bool bindful_samplers_written_vertex_;
+  bool bindful_samplers_written_pixel_;
+  // Layout UIDs and last texture and sampler bindings written to the current
+  // descriptor heaps (for bindful) or descriptor index constant buffer (for
+  // bindless) with the last used descriptor layout. Valid only when:
+  // - For bindful, when bindful_#_written_#_ is true.
+  // - For bindless, when cbuffer_binding_descriptor_indices_#_.up_to_date is
+  //   true.
+  size_t current_texture_layout_uid_vertex_;
+  size_t current_texture_layout_uid_pixel_;
+  size_t current_sampler_layout_uid_vertex_;
+  size_t current_sampler_layout_uid_pixel_;
+  // Size of these should be ignored when checking whether these are up to date,
+  // layout UID should be checked first (they will be different for different
+  // binding counts).
+  std::vector<TextureCache::TextureSRVKey> current_texture_srv_keys_vertex_;
+  std::vector<TextureCache::TextureSRVKey> current_texture_srv_keys_pixel_;
+  std::vector<TextureCache::SamplerParameters> current_samplers_vertex_;
+  std::vector<TextureCache::SamplerParameters> current_samplers_pixel_;
+  std::vector<uint32_t> current_sampler_bindless_indices_vertex_;
+  std::vector<uint32_t> current_sampler_bindless_indices_pixel_;
 
-  // Whether the last used samplers have been written to the current sampler
-  // descriptor heap.
-  bool samplers_written_vertex_;
-  bool samplers_written_pixel_;
-  // Hashes of the last sampler parameters written to the current sampler
-  // descriptor heap with the last used descriptor layout. Valid only when the
-  // corresponding "written" variables are true.
-  uint64_t current_samplers_hash_vertex_;
-  uint64_t current_samplers_hash_pixel_;
-
-  // Latest descriptor handles used for handling Xenos draw calls.
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_system_constants_;
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_float_constants_vertex_;
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_float_constants_pixel_;
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_bool_loop_constants_;
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_fetch_constants_;
+  // Latest bindful descriptor handles used for handling Xenos draw calls.
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_and_edram_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_textures_vertex_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_textures_pixel_;

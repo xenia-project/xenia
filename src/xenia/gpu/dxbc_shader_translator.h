@@ -101,8 +101,8 @@ namespace gpu {
 // 0 for NaN.
 class DxbcShaderTranslator : public ShaderTranslator {
  public:
-  DxbcShaderTranslator(uint32_t vendor_id, bool edram_rov_used,
-                       bool force_emit_source_map = false);
+  DxbcShaderTranslator(uint32_t vendor_id, bool bindless_resources_used,
+                       bool edram_rov_used, bool force_emit_source_map = false);
   ~DxbcShaderTranslator() override;
 
   // Constant buffer bindings in space 0.
@@ -111,6 +111,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kFloatConstants,
     kBoolLoopConstants,
     kFetchConstants,
+    kDescriptorIndices,
   };
 
   // Some are referenced in xenos_draw.hlsli - check it too when updating!
@@ -331,30 +332,39 @@ class DxbcShaderTranslator : public ShaderTranslator {
   enum class SRVSpace {
     // SRVMainSpaceRegister t# layout.
     kMain,
+    kBindlessTextures2DArray,
+    kBindlessTextures3D,
+    kBindlessTexturesCube,
   };
 
   // Shader resource view bindings in SRVSpace::kMain.
   enum class SRVMainRegister {
     kSharedMemory,
-    kBoundTexturesStart,
+    kBindfulTexturesStart,
   };
 
   // 192 textures at most because there are 32 fetch constants, and textures can
   // be 2D array, 3D or cube, and also signed and unsigned.
-  static constexpr uint32_t kMaxTextureSRVIndexBits = 8;
-  static constexpr uint32_t kMaxTextureSRVs =
-      (1 << kMaxTextureSRVIndexBits) - 1;
-  struct TextureSRV {
+  static constexpr uint32_t kMaxTextureBindingIndexBits = 8;
+  static constexpr uint32_t kMaxTextureBindings =
+      (1 << kMaxTextureBindingIndexBits) - 1;
+  struct TextureBinding {
+    uint32_t bindful_srv_index;
+    // Temporary for WriteResourceDefinitions.
+    uint32_t bindful_srv_rdef_name_offset;
+    uint32_t bindless_descriptor_index;
     uint32_t fetch_constant;
+    // Stacked and 3D are separate TextureBindings, even for bindless for null
+    // descriptor handling simplicity.
     TextureDimension dimension;
     bool is_signed;
     std::string name;
   };
-  // The first binding returned is at t[SRVMainRegister::kBoundTexturesStart]
+  // The first binding returned is at t[SRVMainRegister::kBindfulTexturesStart]
   // of space SRVSpace::kMain.
-  const TextureSRV* GetTextureSRVs(uint32_t& count_out) const {
-    count_out = uint32_t(texture_srvs_.size());
-    return texture_srvs_.data();
+  const TextureBinding* GetTextureBindings(uint32_t& count_out) const {
+    count_out = uint32_t(texture_bindings_.size());
+    return texture_bindings_.data();
   }
 
   // Arbitrary limit - there can't be more than 2048 in a shader-visible
@@ -369,6 +379,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   static constexpr uint32_t kMaxSamplerBindings =
       (1 << kMaxSamplerBindingIndexBits) - 1;
   struct SamplerBinding {
+    uint32_t bindless_descriptor_index;
     uint32_t fetch_constant;
     TextureFilter mag_filter;
     TextureFilter min_filter;
@@ -379,6 +390,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
   const SamplerBinding* GetSamplerBindings(uint32_t& count_out) const {
     count_out = uint32_t(sampler_bindings_.size());
     return sampler_bindings_.data();
+  }
+
+  // Returns the number of texture SRV and sampler offsets that need to be
+  // passed via a constant buffer to the shader.
+  uint32_t GetBindlessResourceCount() const {
+    return uint32_t(texture_bindings_.size() + sampler_bindings_.size());
   }
 
   // Unordered access view bindings in space 0.
@@ -2144,11 +2161,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
                        uint32_t piece_temp_component, uint32_t accumulator_temp,
                        uint32_t accumulator_temp_component);
 
-  inline uint32_t ROV_GetEDRAMUAVIndex() const {
-    // xe_edram is U1 when there's xe_shared_memory_uav which is U0, but when
-    // there's no xe_shared_memory_uav, it's U0.
-    return is_depth_only_pixel_shader_ ? 0 : 1;
-  }
   // Whether it's possible and worth skipping running the translated shader for
   // 2x2 quads.
   bool ROV_IsDepthStencilEarly() const {
@@ -2328,19 +2340,19 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void CloseInstructionPredication();
   void JumpToLabel(uint32_t address);
 
-  DxbcSrc FindOrAddTextureSRV(uint32_t fetch_constant,
-                              TextureDimension dimension, bool is_signed);
-  DxbcSrc FindOrAddSamplerBinding(uint32_t fetch_constant,
-                                  TextureFilter mag_filter,
-                                  TextureFilter min_filter,
-                                  TextureFilter mip_filter,
-                                  AnisoFilter aniso_filter);
+  uint32_t FindOrAddTextureBinding(uint32_t fetch_constant,
+                                   TextureDimension dimension, bool is_signed);
+  uint32_t FindOrAddSamplerBinding(uint32_t fetch_constant,
+                                   TextureFilter mag_filter,
+                                   TextureFilter min_filter,
+                                   TextureFilter mip_filter,
+                                   AnisoFilter aniso_filter);
   // Marks fetch constants as used by the DXBC shader and returns DxbcSrc
   // for the words 01 (pair 0), 23 (pair 1) or 45 (pair 2) of the texture fetch
   // constant.
   DxbcSrc RequestTextureFetchConstantWordPair(uint32_t fetch_constant_index,
                                               uint32_t pair_index) {
-    if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
+    if (cbuffer_index_fetch_constants_ == kBindingIndexUnallocated) {
       cbuffer_index_fetch_constants_ = cbuffer_count_++;
     }
     uint32_t total_pair_index = fetch_constant_index * 3 + pair_index;
@@ -2392,6 +2404,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Vendor ID of the GPU manufacturer, for toggling unsupported features.
   uint32_t vendor_id_;
 
+  // Whether textures and samplers should be bindless.
+  bool bindless_resources_used_;
+
   // Whether the output merger should be emulated in pixel shaders.
   bool edram_rov_used_;
 
@@ -2422,6 +2437,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kUint4Array8,
     // Fetch constants.
     kUint4Array48,
+    // Descriptor indices - size written dynamically.
+    kUint4DescriptorIndexArray,
 
     kCount,
     kUnknown = kCount
@@ -2448,14 +2465,16 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
   static const RdefType rdef_types_[size_t(RdefTypeIndex::kCount)];
 
+  static constexpr uint32_t kBindingIndexUnallocated = UINT32_MAX;
+
   // Number of constant buffer bindings used in this shader - also used for
   // generation of indices of constant buffers that are optional.
   uint32_t cbuffer_count_;
-  static constexpr uint32_t kCbufferIndexUnallocated = UINT32_MAX;
   uint32_t cbuffer_index_system_constants_;
   uint32_t cbuffer_index_float_constants_;
   uint32_t cbuffer_index_bool_loop_constants_;
   uint32_t cbuffer_index_fetch_constants_;
+  uint32_t cbuffer_index_descriptor_indices_;
 
   struct SystemConstantRdef {
     const char* name;
@@ -2582,7 +2601,24 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // predicate condition anymore.
   bool cf_exec_predicate_written_;
 
-  std::vector<TextureSRV> texture_srvs_;
+  // Number of SRV resources used in this shader - also used for generation of
+  // indices of SRV resources that are optional.
+  uint32_t srv_count_;
+  uint32_t srv_index_shared_memory_;
+  uint32_t srv_index_bindless_textures_2d_;
+  uint32_t srv_index_bindless_textures_3d_;
+  uint32_t srv_index_bindless_textures_cube_;
+
+  std::vector<TextureBinding> texture_bindings_;
+  std::unordered_map<uint32_t, uint32_t>
+      texture_bindings_for_bindful_srv_indices_;
+
+  // Number of UAV resources used in this shader - also used for generation of
+  // indices of UAV resources that are optional.
+  uint32_t uav_count_;
+  uint32_t uav_index_shared_memory_;
+  uint32_t uav_index_edram_;
+
   std::vector<SamplerBinding> sampler_bindings_;
 
   // Number of `alloc export`s encountered so far in the translation. The index

@@ -26,8 +26,8 @@ class D3D12Shader : public Shader {
               const uint32_t* dword_ptr, uint32_t dword_count);
 
   void SetTexturesAndSamplers(
-      const DxbcShaderTranslator::TextureSRV* texture_srvs,
-      uint32_t texture_srv_count,
+      const DxbcShaderTranslator::TextureBinding* texture_bindings,
+      uint32_t texture_binding_count,
       const DxbcShaderTranslator::SamplerBinding* sampler_bindings,
       uint32_t sampler_binding_count);
 
@@ -44,18 +44,22 @@ class D3D12Shader : public Shader {
 
   bool DisassembleDxbc(const ui::d3d12::D3D12Provider* provider);
 
-  static constexpr uint32_t kMaxTextureSRVIndexBits =
-      DxbcShaderTranslator::kMaxTextureSRVIndexBits;
-  static constexpr uint32_t kMaxTextureSRVs =
-      DxbcShaderTranslator::kMaxTextureSRVs;
-  struct TextureSRV {
+  static constexpr uint32_t kMaxTextureBindingIndexBits =
+      DxbcShaderTranslator::kMaxTextureBindingIndexBits;
+  static constexpr uint32_t kMaxTextureBindings =
+      DxbcShaderTranslator::kMaxTextureBindings;
+  struct TextureBinding {
+    uint32_t bindless_descriptor_index;
     uint32_t fetch_constant;
+    // Stacked and 3D are separate TextureBindings, even for bindless for null
+    // descriptor handling simplicity.
     TextureDimension dimension;
     bool is_signed;
   };
-  const TextureSRV* GetTextureSRVs(uint32_t& count_out) const {
-    count_out = uint32_t(texture_srvs_.size());
-    return texture_srvs_.data();
+  // Safe to hash and compare with memcmp for layout hashing.
+  const TextureBinding* GetTextureBindings(uint32_t& count_out) const {
+    count_out = uint32_t(texture_bindings_.size());
+    return texture_bindings_.data();
   }
   const uint32_t GetUsedTextureMask() const { return used_texture_mask_; }
 
@@ -64,6 +68,7 @@ class D3D12Shader : public Shader {
   static constexpr uint32_t kMaxSamplerBindings =
       DxbcShaderTranslator::kMaxSamplerBindings;
   struct SamplerBinding {
+    uint32_t bindless_descriptor_index;
     uint32_t fetch_constant;
     TextureFilter mag_filter;
     TextureFilter min_filter;
@@ -75,10 +80,29 @@ class D3D12Shader : public Shader {
     return sampler_bindings_.data();
   }
 
+  // For owning subsystems like the pipeline state cache, accessors for unique
+  // identifiers (used instead of hashes to make sure collisions can't happen)
+  // of binding layouts used by the shader, for invalidation if a shader with an
+  // incompatible layout was bound.
+  size_t GetTextureBindingLayoutUserUID() const {
+    return texture_binding_layout_user_uid_;
+  }
+  void SetTextureBindingLayoutUserUID(size_t uid) {
+    texture_binding_layout_user_uid_ = uid;
+  }
+  size_t GetSamplerBindingLayoutUserUID() const {
+    return sampler_binding_layout_user_uid_;
+  }
+  void SetSamplerBindingLayoutUserUID(size_t uid) {
+    sampler_binding_layout_user_uid_ = uid;
+  }
+
  private:
-  std::vector<TextureSRV> texture_srvs_;
-  uint32_t used_texture_mask_ = 0;
+  std::vector<TextureBinding> texture_bindings_;
   std::vector<SamplerBinding> sampler_bindings_;
+  size_t texture_binding_layout_user_uid_ = 0;
+  size_t sampler_binding_layout_user_uid_ = 0;
+  uint32_t used_texture_mask_ = 0;
 
   std::vector<uint8_t> forced_early_z_shader_;
 };

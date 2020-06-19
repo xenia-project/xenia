@@ -251,7 +251,7 @@ class RenderTargetCache {
 
   RenderTargetCache(D3D12CommandProcessor* command_processor,
                     RegisterFile* register_file, TraceWriter* trace_writer,
-                    bool edram_rov_used);
+                    bool bindless_resources_used, bool edram_rov_used);
   ~RenderTargetCache();
 
   bool Initialize(const TextureCache* texture_cache);
@@ -284,7 +284,9 @@ class RenderTargetCache {
   // the command processor takes over framebuffer bindings to draw something
   // special. May change the CBV/SRV/UAV descriptor heap.
   void FlushAndUnbindRenderTargets();
-  void WriteEDRAMUint32UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void WriteEDRAMR32UintUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void WriteEDRAMRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void WriteEDRAMRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
 
   // Totally necessary to rely on the base format - Too Human switches between
   // 2_10_10_10_FLOAT and 2_10_10_10_FLOAT_AS_16_16_16_16 every draw.
@@ -436,9 +438,6 @@ class RenderTargetCache {
   void TransitionEDRAMBuffer(D3D12_RESOURCE_STATES new_state);
   void CommitEDRAMBufferUAVWrites(bool force);
 
-  void WriteEDRAMRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
-  void WriteEDRAMRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
-
   void ClearBindings();
 
 #if 0
@@ -518,6 +517,7 @@ class RenderTargetCache {
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
   TraceWriter* trace_writer_;
+  bool bindless_resources_used_;
   bool edram_rov_used_;
 
   // Whether 1 guest pixel is rendered as 2x2 host pixels (currently only
@@ -538,7 +538,7 @@ class RenderTargetCache {
     kRawSRV,
     kRawUAV,
     // For ROV access primarily.
-    kUint32UAV,
+    kR32UintUAV,
 
     kCount,
   };

@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "xenia/base/hash.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/threading.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
@@ -37,9 +38,11 @@ class D3D12CommandProcessor;
 
 class PipelineCache {
  public:
+  static constexpr size_t kLayoutUIDEmpty = 0;
+
   PipelineCache(D3D12CommandProcessor* command_processor,
-                RegisterFile* register_file, bool edram_rov_used,
-                uint32_t resolution_scale);
+                RegisterFile* register_file, bool bindless_resources_used,
+                bool edram_rov_used, uint32_t resolution_scale);
   ~PipelineCache();
 
   bool Initialize();
@@ -217,6 +220,7 @@ class PipelineCache {
     PipelineDescription description;
   };
 
+  // Can be called from multiple threads.
   bool TranslateShader(DxbcShaderTranslator& translator, D3D12Shader* shader,
                        reg::SQ_PROGRAM_CNTL cntl,
                        Shader::HostVertexShaderType host_vertex_shader_type =
@@ -233,13 +237,37 @@ class PipelineCache {
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
+  bool bindless_resources_used_;
   bool edram_rov_used_;
   uint32_t resolution_scale_;
 
   // Reusable shader translator.
   std::unique_ptr<DxbcShaderTranslator> shader_translator_ = nullptr;
   // All loaded shaders mapped by their guest hash key.
-  std::unordered_map<uint64_t, D3D12Shader*> shader_map_;
+  std::unordered_map<uint64_t, D3D12Shader*, xe::hash::IdentityHasher<uint64_t>>
+      shader_map_;
+
+  struct LayoutUID {
+    size_t uid;
+    size_t vector_span_offset;
+    size_t vector_span_length;
+  };
+  std::mutex layouts_mutex_;
+  // Texture binding layouts of different shaders, for obtaining layout UIDs.
+  std::vector<D3D12Shader::TextureBinding> texture_binding_layouts_;
+  // Map of texture binding layouts used by shaders, for obtaining UIDs. Keys
+  // are XXH64 hashes of layouts, values need manual collision resolution using
+  // layout_vector_offset:layout_length of texture_binding_layouts_.
+  std::unordered_multimap<uint64_t, LayoutUID,
+                          xe::hash::IdentityHasher<uint64_t>>
+      texture_binding_layout_map_;
+  // Bindless sampler indices of different shaders, for obtaining layout UIDs.
+  // For bindful, sampler count is used as the UID instead.
+  std::vector<uint32_t> bindless_sampler_layouts_;
+  // Keys are XXH64 hashes of used bindless sampler indices.
+  std::unordered_multimap<uint64_t, LayoutUID,
+                          xe::hash::IdentityHasher<uint64_t>>
+      bindless_sampler_layout_map_;
 
   // Empty depth-only pixel shader for writing to depth buffer via ROV when no
   // Xenos pixel shader provided.
@@ -252,7 +280,9 @@ class PipelineCache {
   };
   // All previously generated pipeline state objects identified by hash and the
   // description.
-  std::unordered_multimap<uint64_t, PipelineState*> pipeline_states_;
+  std::unordered_multimap<uint64_t, PipelineState*,
+                          xe::hash::IdentityHasher<uint64_t>>
+      pipeline_states_;
 
   // Previously used pipeline state object. This matches our current state
   // settings and allows us to quickly(ish) reuse the pipeline state if no

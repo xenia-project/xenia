@@ -11,7 +11,9 @@
 #define XENIA_GPU_D3D12_TEXTURE_CACHE_H_
 
 #include <atomic>
+#include <cstring>
 #include <unordered_map>
+#include <utility>
 
 #include "xenia/base/mutex.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
@@ -55,9 +57,84 @@ class D3D12CommandProcessor;
 //   MipAddress but no BaseAddress to save memory because textures are streamed
 //   this way anyway.
 class TextureCache {
+  union TextureKey {
+    struct {
+      // Physical 4 KB page with the base mip level, disregarding A/C/E address
+      // range prefix.
+      uint32_t base_page : 17;  // 17 total
+      Dimension dimension : 2;  // 19
+      uint32_t width : 13;      // 32
+
+      uint32_t height : 13;      // 45
+      uint32_t tiled : 1;        // 46
+      uint32_t packed_mips : 1;  // 47
+      // Physical 4 KB page with mip 1 and smaller.
+      uint32_t mip_page : 17;  // 64
+
+      // Layers for stacked and 3D, 6 for cube, 1 for other dimensions.
+      uint32_t depth : 10;         // 74
+      uint32_t mip_max_level : 4;  // 78
+      TextureFormat format : 6;    // 84
+      Endian endianness : 2;       // 86
+      // Whether this texture is signed and has a different host representation
+      // than an unsigned view of the same guest texture.
+      uint32_t signed_separate : 1;  // 87
+      // Whether this texture is a 2x-scaled resolve target.
+      uint32_t scaled_resolve : 1;  // 88
+    };
+    struct {
+      // The key used for unordered_multimap lookup. Single uint32_t instead of
+      // a uint64_t so XXH hash can be calculated in a stable way due to no
+      // padding.
+      uint32_t map_key[2];
+      // The key used to identify one texture within unordered_multimap buckets.
+      uint32_t bucket_key;
+    };
+    TextureKey() { MakeInvalid(); }
+    TextureKey(const TextureKey& key) {
+      SetMapKey(key.GetMapKey());
+      bucket_key = key.bucket_key;
+    }
+    TextureKey& operator=(const TextureKey& key) {
+      SetMapKey(key.GetMapKey());
+      bucket_key = key.bucket_key;
+      return *this;
+    }
+    bool operator==(const TextureKey& key) const {
+      return GetMapKey() == key.GetMapKey() && bucket_key == key.bucket_key;
+    }
+    bool operator!=(const TextureKey& key) const {
+      return GetMapKey() != key.GetMapKey() || bucket_key != key.bucket_key;
+    }
+    inline uint64_t GetMapKey() const {
+      return uint64_t(map_key[0]) | (uint64_t(map_key[1]) << 32);
+    }
+    inline void SetMapKey(uint64_t key) {
+      map_key[0] = uint32_t(key);
+      map_key[1] = uint32_t(key >> 32);
+    }
+    inline bool IsInvalid() const {
+      // Zero base and zero width is enough for a binding to be invalid.
+      return map_key[0] == 0;
+    }
+    inline void MakeInvalid() {
+      // Reset all for a stable hash.
+      SetMapKey(0);
+      bucket_key = 0;
+    }
+  };
+
  public:
+  // Keys that can be stored for checking validity whether descriptors for host
+  // shader bindings are up to date.
+  struct TextureSRVKey {
+    TextureKey key;
+    uint32_t host_swizzle;
+    uint8_t swizzled_signs;
+  };
+
   // Sampler parameters that can be directly converted to a host sampler or used
-  // for binding hashing.
+  // for binding checking validity whether samplers are up to date.
   union SamplerParameters {
     struct {
       ClampMode clamp_x : 3;         // 3
@@ -70,7 +147,7 @@ class TextureCache {
       uint32_t mip_linear : 1;       // 14
       AnisoFilter aniso_filter : 3;  // 17
       uint32_t mip_min_level : 4;    // 21
-      uint32_t mip_max_level : 4;    // 25
+      // Maximum mip level is in the texture resource itself.
     };
     uint32_t value;
 
@@ -91,7 +168,8 @@ class TextureCache {
   };
 
   TextureCache(D3D12CommandProcessor* command_processor,
-               RegisterFile* register_file, SharedMemory* shared_memory);
+               RegisterFile* register_file, bool bindless_resources_used,
+               SharedMemory* shared_memory);
   ~TextureCache();
 
   bool Initialize(bool edram_rov_used);
@@ -109,19 +187,33 @@ class TextureCache {
   // binding the actual drawing pipeline.
   void RequestTextures(uint32_t used_texture_mask);
 
-  // Returns the hash of the current bindings (must be called after
-  // RequestTextures) for the provided SRV descriptor layout.
-  uint64_t GetDescriptorHashForActiveTextures(
-      const D3D12Shader::TextureSRV* texture_srvs,
-      uint32_t texture_srv_count) const;
+  // "ActiveTexture" means as of the latest RequestTextures call.
+
+  // Returns whether texture SRV keys stored externally are still valid for the
+  // current bindings and host shader binding layout. Both keys and
+  // host_shader_bindings must have host_shader_binding_count elements
+  // (otherwise they are incompatible - like if this function returned false).
+  bool AreActiveTextureSRVKeysUpToDate(
+      const TextureSRVKey* keys,
+      const D3D12Shader::TextureBinding* host_shader_bindings,
+      uint32_t host_shader_binding_count) const;
+  // Exports the current binding data to texture SRV keys so they can be stored
+  // for checking whether subsequent draw calls can keep using the same
+  // bindings. Write host_shader_binding_count keys.
+  void WriteActiveTextureSRVKeys(
+      TextureSRVKey* keys,
+      const D3D12Shader::TextureBinding* host_shader_bindings,
+      uint32_t host_shader_binding_count) const;
   // Returns the post-swizzle signedness of a currently bound texture (must be
   // called after RequestTextures).
   uint8_t GetActiveTextureSwizzledSigns(uint32_t index) const {
     return texture_bindings_[index].swizzled_signs;
   }
-
-  void WriteTextureSRV(const D3D12Shader::TextureSRV& texture_srv,
-                       D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void WriteActiveTextureBindfulSRV(
+      const D3D12Shader::TextureBinding& host_shader_binding,
+      D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  uint32_t GetActiveTextureBindlessSRVIndex(
+      const D3D12Shader::TextureBinding& host_shader_binding);
 
   SamplerParameters GetSamplerParameters(
       const D3D12Shader::SamplerBinding& binding) const;
@@ -276,73 +368,6 @@ class TextureCache {
     uint8_t swizzle[4];
   };
 
-  union TextureKey {
-    struct {
-      // Physical 4 KB page with the base mip level, disregarding A/C/E address
-      // range prefix.
-      uint32_t base_page : 17;  // 17 total
-      Dimension dimension : 2;  // 19
-      uint32_t width : 13;      // 32
-
-      uint32_t height : 13;      // 45
-      uint32_t tiled : 1;        // 46
-      uint32_t packed_mips : 1;  // 47
-      // Physical 4 KB page with mip 1 and smaller.
-      uint32_t mip_page : 17;  // 64
-
-      // Layers for stacked and 3D, 6 for cube, 1 for other dimensions.
-      uint32_t depth : 10;         // 74
-      uint32_t mip_max_level : 4;  // 78
-      TextureFormat format : 6;    // 84
-      Endian endianness : 2;       // 86
-      // Whether this texture is signed and has a different host representation
-      // than an unsigned view of the same guest texture.
-      uint32_t signed_separate : 1;  // 87
-      // Whether this texture is a 2x-scaled resolve target.
-      uint32_t scaled_resolve : 1;  // 88
-    };
-    struct {
-      // The key used for unordered_multimap lookup. Single uint32_t instead of
-      // a uint64_t so XXH hash can be calculated in a stable way due to no
-      // padding.
-      uint32_t map_key[2];
-      // The key used to identify one texture within unordered_multimap buckets.
-      uint32_t bucket_key;
-    };
-    TextureKey() { MakeInvalid(); }
-    TextureKey(const TextureKey& key) {
-      SetMapKey(key.GetMapKey());
-      bucket_key = key.bucket_key;
-    }
-    TextureKey& operator=(const TextureKey& key) {
-      SetMapKey(key.GetMapKey());
-      bucket_key = key.bucket_key;
-      return *this;
-    }
-    bool operator==(const TextureKey& key) const {
-      return GetMapKey() == key.GetMapKey() && bucket_key == key.bucket_key;
-    }
-    bool operator!=(const TextureKey& key) const {
-      return GetMapKey() != key.GetMapKey() || bucket_key != key.bucket_key;
-    }
-    inline uint64_t GetMapKey() const {
-      return uint64_t(map_key[0]) | (uint64_t(map_key[1]) << 32);
-    }
-    inline void SetMapKey(uint64_t key) {
-      map_key[0] = uint32_t(key);
-      map_key[1] = uint32_t(key >> 32);
-    }
-    inline bool IsInvalid() const {
-      // Zero base and zero width is enough for a binding to be invalid.
-      return map_key[0] == 0;
-    }
-    inline void MakeInvalid() {
-      // Reset all for a stable hash.
-      SetMapKey(0);
-      bucket_key = 0;
-    }
-  };
-
   struct Texture {
     TextureKey key;
     ID3D12Resource* resource;
@@ -367,13 +392,11 @@ class TextureCache {
     // Row pitches on each mip level (for linear layout mainly).
     uint32_t pitches[14];
 
-    // SRV descriptor from the cache, for the first swizzle the texture was used
-    // with (which is usually determined by the format, such as RGBA or BGRA).
-    // If swizzle is kCachedSRVDescriptorSwizzleMissing, the cached descriptor
-    // doesn't exist yet (there are no invalid D3D descriptor handle values).
-    D3D12_CPU_DESCRIPTOR_HANDLE cached_srv_descriptor;
-    static constexpr uint32_t kCachedSRVDescriptorSwizzleMissing = UINT32_MAX;
-    uint32_t cached_srv_descriptor_swizzle;
+    // For bindful - indices in the non-shader-visible descriptor cache for
+    // copying to the shader-visible heap (much faster than recreating, which,
+    // according to profiling, was often a bottleneck in many games).
+    // For bindless - indices in the global shader-visible descriptor heap.
+    std::unordered_map<uint32_t, uint32_t> srv_descriptors;
 
     // These are to be accessed within the global critical region to synchronize
     // with shared memory.
@@ -390,7 +413,6 @@ class TextureCache {
     static constexpr uint32_t kHeapSize = 65536;
     ID3D12DescriptorHeap* heap;
     D3D12_CPU_DESCRIPTOR_HANDLE heap_start;
-    uint32_t current_usage;
   };
 
   struct LoadConstants {
@@ -459,6 +481,14 @@ class TextureCache {
     // Signed version of the texture if the data in the signed version is
     // different on the host.
     Texture* texture_signed;
+    // Descriptor indices of texture and texture_signed returned from
+    // FindOrCreateTextureDescriptor.
+    uint32_t descriptor_index;
+    uint32_t descriptor_index_signed;
+    void Clear() {
+      std::memset(this, 0, sizeof(*this));
+      descriptor_index = descriptor_index_signed = UINT32_MAX;
+    }
   };
 
   // Whether the signed version of the texture has a different representation on
@@ -505,6 +535,22 @@ class TextureCache {
       const xenos::xe_gpu_texture_fetch_t& fetch, TextureKey& key_out,
       uint32_t* host_swizzle_out, uint8_t* swizzled_signs_out);
 
+  static constexpr bool AreDimensionsCompatible(
+      TextureDimension binding_dimension, Dimension resource_dimension) {
+    switch (binding_dimension) {
+      case TextureDimension::k1D:
+      case TextureDimension::k2D:
+        return resource_dimension == Dimension::k1D ||
+               resource_dimension == Dimension::k2D;
+      case TextureDimension::k3D:
+        return resource_dimension == Dimension::k3D;
+      case TextureDimension::kCube:
+        return resource_dimension == Dimension::kCube;
+      default:
+        return false;
+    }
+  }
+
   static void LogTextureKeyAction(TextureKey key, const char* action);
   static void LogTextureAction(const Texture* texture, const char* action);
 
@@ -516,6 +562,14 @@ class TextureCache {
   // Writes data from the shared memory to the texture. This binds pipelines,
   // allocates descriptors and copies!
   bool LoadTextureData(Texture* texture);
+
+  // Returns the index of an existing of a newly created non-shader-visible
+  // cached (for bindful) or a shader-visible global (for bindless) descriptor,
+  // or UINT32_MAX if failed to create.
+  uint32_t FindOrCreateTextureDescriptor(Texture& texture, bool is_signed,
+                                         uint32_t host_swizzle);
+  D3D12_CPU_DESCRIPTOR_HANDLE GetTextureDescriptorCPUHandle(
+      uint32_t descriptor_index) const;
 
   // For LRU caching - updates the last usage frame and moves the texture to
   // the end of the usage queue. Must be called any time the texture is
@@ -552,6 +606,7 @@ class TextureCache {
 
   D3D12CommandProcessor* command_processor_;
   RegisterFile* register_file_;
+  bool bindless_resources_used_;
   SharedMemory* shared_memory_;
 
   static const LoadModeInfo load_mode_info_[];
@@ -571,8 +626,9 @@ class TextureCache {
   uint64_t texture_current_usage_time_;
 
   std::vector<SRVDescriptorCachePage> srv_descriptor_cache_;
-  // Cached descriptors used by deleted textures, for reuse.
-  std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> srv_descriptor_cache_free_;
+  uint32_t srv_descriptor_cache_allocated_;
+  // Indices of cached descriptors used by deleted textures, for reuse.
+  std::vector<uint32_t> srv_descriptor_cache_free_;
 
   enum class NullSRVDescriptorIndex {
     k2DArray,
@@ -587,9 +643,9 @@ class TextureCache {
   D3D12_CPU_DESCRIPTOR_HANDLE null_srv_descriptor_heap_start_;
 
   TextureBinding texture_bindings_[32] = {};
-  // Bit vector with bits reset on fetch constant writes to avoid getting
-  // texture keys from the fetch constants again and again.
-  uint32_t texture_keys_in_sync_ = 0;
+  // Bit vector with bits reset on fetch constant writes to avoid parsing fetch
+  // constants again and again.
+  uint32_t texture_bindings_in_sync_ = 0;
 
   // Whether a texture has been invalidated (a watch has been triggered), so
   // need to try to reload textures, disregarding whether fetch constants have

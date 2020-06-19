@@ -41,6 +41,8 @@ DEFINE_string(
     "[vertex or unspecified, linedomaincp, linedomainpatch, triangledomaincp, "
     "triangledomainpatch, quaddomaincp, quaddomainpatch].",
     "GPU");
+DEFINE_bool(shader_output_bindless_resources, false,
+            "Output host shader with bindless resources used.", "GPU");
 DEFINE_bool(shader_output_dxbc_rov, false,
             "Output ROV-based output-merger code in DXBC pixel shaders.",
             "GPU");
@@ -109,7 +111,8 @@ int shader_compiler_main(const std::vector<std::string>& args) {
   } else if (cvars::shader_output_type == "dxbc" ||
              cvars::shader_output_type == "dxbctext") {
     translator = std::make_unique<DxbcShaderTranslator>(
-        0, cvars::shader_output_dxbc_rov);
+        0, cvars::shader_output_bindless_resources,
+        cvars::shader_output_dxbc_rov);
   } else {
     translator = std::make_unique<UcodeShaderTranslator>();
   }
