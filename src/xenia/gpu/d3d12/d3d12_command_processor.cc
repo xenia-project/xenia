@@ -25,7 +25,7 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
-DEFINE_bool(d3d12_bindless_resources, false,
+DEFINE_bool(d3d12_bindless, true,
             "Use bindless resources where available - may improve performance, "
             "but may make debugging more complicated.",
             "D3D12");
@@ -866,7 +866,7 @@ bool D3D12CommandProcessor::SetupContext() {
   deferred_command_list_ = std::make_unique<DeferredCommandList>(this);
 
   bindless_resources_used_ =
-      cvars::d3d12_bindless_resources &&
+      cvars::d3d12_bindless &&
       provider->GetResourceBindingTier() >= D3D12_RESOURCE_BINDING_TIER_2;
   edram_rov_used_ =
       cvars::d3d12_edram_rov && provider->AreRasterizerOrderedViewsSupported();
