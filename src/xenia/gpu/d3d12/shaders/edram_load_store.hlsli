@@ -47,10 +47,10 @@ cbuffer XeEDRAMLoadStoreConstants : register(b0) {
 #define xe_edram_clear_depth24 (xe_edram_load_store_constants.z)
 #define xe_edram_clear_depth32 (xe_edram_load_store_constants.w)
 
+RWByteAddressBuffer xe_edram_load_store_dest : register(u0);
 #ifndef XE_EDRAM_WRITE_ONLY
 ByteAddressBuffer xe_edram_load_store_source : register(t0);
 #endif
-RWByteAddressBuffer xe_edram_load_store_dest : register(u0);
 
 uint2 XeEDRAMSampleCountLog2() {
   return (xe_edram_base_samples_2x_depth_pitch >> uint2(12u, 11u)) & 1u;

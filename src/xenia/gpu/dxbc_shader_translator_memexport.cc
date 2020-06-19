@@ -435,8 +435,12 @@ void DxbcShaderTranslator::ExportToMemory() {
       DxbcOpSwitch(element_size_src);
       for (uint32_t k = 1; k <= 4; k <<= 1) {
         DxbcOpCase(DxbcSrc::LU(k * 4));
+        if (uav_index_shared_memory_ == kBindingIndexUnallocated) {
+          uav_index_shared_memory_ = uav_count_++;
+        }
         DxbcOpStoreRaw(
-            DxbcDest::U(0, uint32_t(UAVRegister::kSharedMemory), (1 << k) - 1),
+            DxbcDest::U(uav_index_shared_memory_,
+                        uint32_t(UAVRegister::kSharedMemory), (1 << k) - 1),
             address_src, eM_src);
         DxbcOpBreak();
       }

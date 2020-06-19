@@ -62,8 +62,8 @@ using namespace ucode;
 //   S#/T#/U# binding index, and the second is the s#/t#/u# register index
 //   within its space.
 
-constexpr uint32_t DxbcShaderTranslator::kMaxTextureSRVIndexBits;
-constexpr uint32_t DxbcShaderTranslator::kMaxTextureSRVs;
+constexpr uint32_t DxbcShaderTranslator::kMaxTextureBindingIndexBits;
+constexpr uint32_t DxbcShaderTranslator::kMaxTextureBindings;
 constexpr uint32_t DxbcShaderTranslator::kMaxSamplerBindingIndexBits;
 constexpr uint32_t DxbcShaderTranslator::kMaxSamplerBindings;
 constexpr uint32_t DxbcShaderTranslator::kInterpolatorCount;
@@ -74,13 +74,16 @@ constexpr uint32_t DxbcShaderTranslator::kSwizzleXXXX;
 constexpr uint32_t DxbcShaderTranslator::kSwizzleYYYY;
 constexpr uint32_t DxbcShaderTranslator::kSwizzleZZZZ;
 constexpr uint32_t DxbcShaderTranslator::kSwizzleWWWW;
-constexpr uint32_t DxbcShaderTranslator::kCbufferIndexUnallocated;
+constexpr uint32_t DxbcShaderTranslator::kBindingIndexUnallocated;
 constexpr uint32_t DxbcShaderTranslator::kCfExecBoolConstantNone;
 
 DxbcShaderTranslator::DxbcShaderTranslator(uint32_t vendor_id,
+                                           bool bindless_resources_used,
                                            bool edram_rov_used,
                                            bool force_emit_source_map)
-    : vendor_id_(vendor_id), edram_rov_used_(edram_rov_used) {
+    : vendor_id_(vendor_id),
+      bindless_resources_used_(bindless_resources_used),
+      edram_rov_used_(edram_rov_used) {
   emit_source_map_ = force_emit_source_map || cvars::dxbc_source_map;
   // Don't allocate again and again for the first shader.
   shader_code_.reserve(8192);
@@ -154,9 +157,10 @@ void DxbcShaderTranslator::Reset() {
   cbuffer_count_ = 0;
   // System constants always used in prologues/epilogues.
   cbuffer_index_system_constants_ = cbuffer_count_++;
-  cbuffer_index_float_constants_ = kCbufferIndexUnallocated;
-  cbuffer_index_bool_loop_constants_ = kCbufferIndexUnallocated;
-  cbuffer_index_fetch_constants_ = kCbufferIndexUnallocated;
+  cbuffer_index_float_constants_ = kBindingIndexUnallocated;
+  cbuffer_index_bool_loop_constants_ = kBindingIndexUnallocated;
+  cbuffer_index_fetch_constants_ = kBindingIndexUnallocated;
+  cbuffer_index_descriptor_indices_ = kBindingIndexUnallocated;
 
   system_constants_used_ = 0;
 
@@ -172,7 +176,19 @@ void DxbcShaderTranslator::Reset() {
   cf_instruction_predicate_if_open_ = false;
   cf_exec_predicate_written_ = false;
 
-  texture_srvs_.clear();
+  srv_count_ = 0;
+  srv_index_shared_memory_ = kBindingIndexUnallocated;
+  srv_index_bindless_textures_2d_ = kBindingIndexUnallocated;
+  srv_index_bindless_textures_3d_ = kBindingIndexUnallocated;
+  srv_index_bindless_textures_cube_ = kBindingIndexUnallocated;
+
+  texture_bindings_.clear();
+  texture_bindings_for_bindful_srv_indices_.clear();
+
+  uav_count_ = 0;
+  uav_index_shared_memory_ = kBindingIndexUnallocated;
+  uav_index_edram_ = kBindingIndexUnallocated;
+
   sampler_bindings_.clear();
 
   memexport_alloc_current_count_ = 0;
@@ -1369,7 +1385,7 @@ DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::LoadOperand(
       }
     } break;
     case InstructionStorageSource::kConstantFloat: {
-      if (cbuffer_index_float_constants_ == kCbufferIndexUnallocated) {
+      if (cbuffer_index_float_constants_ == kBindingIndexUnallocated) {
         cbuffer_index_float_constants_ = cbuffer_count_++;
       }
       if (operand.storage_addressing_mode ==
@@ -1600,7 +1616,7 @@ void DxbcShaderTranslator::UpdateExecConditionalsAndEmitDisassembly(
   if (type == ParsedExecInstruction::Type::kConditional) {
     uint32_t bool_constant_test_temp = PushSystemTemp();
     // Check the bool constant value.
-    if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
+    if (cbuffer_index_bool_loop_constants_ == kBindingIndexUnallocated) {
       cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
     }
     DxbcOpAnd(DxbcDest::R(bool_constant_test_temp, 0b0001),
@@ -1755,7 +1771,7 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
 
   // Count (unsigned) in bits 0:7 of the loop constant, initial aL (unsigned) in
   // 8:15. Starting from vector 2 because of bool constants.
-  if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
+  if (cbuffer_index_bool_loop_constants_ == kBindingIndexUnallocated) {
     cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
   }
   DxbcSrc loop_constant_src(
@@ -1843,7 +1859,7 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
     uint32_t aL_add_temp = PushSystemTemp();
     // Extract the value to add to aL (signed, in bits 16:23 of the loop
     // constant). Starting from vector 2 because of bool constants.
-    if (cbuffer_index_bool_loop_constants_ == kCbufferIndexUnallocated) {
+    if (cbuffer_index_bool_loop_constants_ == kBindingIndexUnallocated) {
       cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
     }
     DxbcOpIBFE(DxbcDest::R(aL_add_temp, 0b0001), DxbcSrc::LU(8),
@@ -1963,6 +1979,10 @@ const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
     // kUint4Array48
     {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kUInt, 1, 4,
      48, 0, RdefTypeIndex::kUint4, nullptr},
+    // kUint4DescriptorIndexArray - bindless descriptor indices - size written
+    // dynamically.
+    {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kUInt, 1, 4,
+     0, 0, RdefTypeIndex::kUint4, nullptr},
 };
 
 const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
@@ -2042,22 +2062,17 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   shader_object_.push_back(cbuffer_count_);
   // Constant buffer offset (set later).
   shader_object_.push_back(0);
-  // Bound resource count (samplers, SRV, UAV, CBV).
-  uint32_t resource_count = cbuffer_count_;
-  if (!is_depth_only_pixel_shader_) {
-    // + 2 for shared memory SRV and UAV (vfetches can appear in pixel shaders
-    // too, and the UAV is needed for memexport, however, the choice between
-    // SRV and UAV is per-pipeline, not per-shader - a resource can't be in a
-    // read-only state (SRV, IBV) if it's in a read/write state such as UAV).
-    resource_count +=
-        uint32_t(sampler_bindings_.size()) + 2 + uint32_t(texture_srvs_.size());
-  }
-  if (IsDxbcPixelShader() && edram_rov_used_) {
-    // EDRAM.
-    ++resource_count;
+  // Bindful resource count.
+  uint32_t resource_count = srv_count_ + uav_count_ + cbuffer_count_;
+  if (!sampler_bindings_.empty()) {
+    if (bindless_resources_used_) {
+      ++resource_count;
+    } else {
+      resource_count += uint32_t(sampler_bindings_.size());
+    }
   }
   shader_object_.push_back(resource_count);
-  // Bound resource buffer offset (set later).
+  // Bindful resource buffer offset (set later).
   shader_object_.push_back(0);
   if (IsDxbcVertexShader()) {
     // vs_5_1
@@ -2119,14 +2134,20 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     shader_object_.push_back(uint32_t(type.variable_class) |
                              (uint32_t(type.variable_type) << 16));
     shader_object_.push_back(type.row_count | (type.column_count << 16));
-    if (RdefTypeIndex(i) == RdefTypeIndex::kFloat4ConstantArray) {
-      // Declaring a 0-sized array may not be safe, so write something valid
-      // even if they aren't used.
-      shader_object_.push_back(
-          std::max(constant_register_map().float_count, uint32_t(1)));
-    } else {
-      shader_object_.push_back(type.element_count |
-                               (type.struct_member_count << 16));
+    switch (RdefTypeIndex(i)) {
+      case RdefTypeIndex::kFloat4ConstantArray:
+        // Declaring a 0-sized array may not be safe, so write something valid
+        // even if they aren't used.
+        shader_object_.push_back(
+            std::max(constant_register_map().float_count, uint32_t(1)));
+        break;
+      case RdefTypeIndex::kUint4DescriptorIndexArray:
+        shader_object_.push_back(std::max(
+            uint32_t((GetBindlessResourceCount() + 3) >> 2), uint32_t(1)));
+        break;
+      default:
+        shader_object_.push_back(type.element_count |
+                                 (type.struct_member_count << 16));
     }
     // Struct member offset (set later).
     shader_object_.push_back(0);
@@ -2177,33 +2198,37 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                sizeof(uint32_t);
   uint32_t constant_name_offsets_system[kSysConst_Count];
-  if (cbuffer_index_system_constants_ != kCbufferIndexUnallocated) {
+  if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
     for (uint32_t i = 0; i < kSysConst_Count; ++i) {
       constant_name_offsets_system[i] = new_offset;
       new_offset += AppendString(shader_object_, system_constant_rdef_[i].name);
     }
   }
   uint32_t constant_name_offset_float = new_offset;
-  if (cbuffer_index_float_constants_ != kCbufferIndexUnallocated) {
+  if (cbuffer_index_float_constants_ != kBindingIndexUnallocated) {
     new_offset += AppendString(shader_object_, "xe_float_constants");
   }
   uint32_t constant_name_offset_bool = new_offset;
-  uint32_t constant_name_offset_loop = constant_name_offset_bool;
-  if (cbuffer_index_bool_loop_constants_ != kCbufferIndexUnallocated) {
+  uint32_t constant_name_offset_loop = new_offset;
+  if (cbuffer_index_bool_loop_constants_ != kBindingIndexUnallocated) {
     new_offset += AppendString(shader_object_, "xe_bool_constants");
     constant_name_offset_loop = new_offset;
     new_offset += AppendString(shader_object_, "xe_loop_constants");
   }
   uint32_t constant_name_offset_fetch = new_offset;
-  if (constant_name_offset_fetch != kCbufferIndexUnallocated) {
+  if (cbuffer_index_fetch_constants_ != kBindingIndexUnallocated) {
     new_offset += AppendString(shader_object_, "xe_fetch_constants");
+  }
+  uint32_t constant_name_offset_descriptor_indices = new_offset;
+  if (cbuffer_index_descriptor_indices_ != kBindingIndexUnallocated) {
+    new_offset += AppendString(shader_object_, "xe_descriptor_indices");
   }
 
   const uint32_t constant_size = 10 * sizeof(uint32_t);
 
   // System constants.
   uint32_t constant_offset_system = new_offset;
-  if (cbuffer_index_system_constants_ != kCbufferIndexUnallocated) {
+  if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
     uint32_t system_cbuffer_constant_offset = 0;
     for (uint32_t i = 0; i < kSysConst_Count; ++i) {
       const SystemConstantRdef& constant = system_constant_rdef_[i];
@@ -2229,12 +2254,12 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
 
   // Float constants.
   uint32_t constant_offset_float = new_offset;
-  if (cbuffer_index_float_constants_ != kCbufferIndexUnallocated) {
+  if (cbuffer_index_float_constants_ != kBindingIndexUnallocated) {
+    assert_not_zero(constant_register_map().float_count);
     shader_object_.push_back(constant_name_offset_float);
     shader_object_.push_back(0);
-    shader_object_.push_back(
-        std::max(constant_register_map().float_count, uint32_t(1)) * 4 *
-        sizeof(float));
+    shader_object_.push_back(constant_register_map().float_count * 4 *
+                             sizeof(float));
     shader_object_.push_back(kDxbcRdefVariableFlagUsed);
     shader_object_.push_back(types_offset +
                              uint32_t(RdefTypeIndex::kFloat4ConstantArray) *
@@ -2249,7 +2274,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
 
   // Bool and loop constants.
   uint32_t constant_offset_bool_loop = new_offset;
-  if (cbuffer_index_bool_loop_constants_ != kCbufferIndexUnallocated) {
+  if (cbuffer_index_bool_loop_constants_ != kBindingIndexUnallocated) {
     shader_object_.push_back(constant_name_offset_bool);
     shader_object_.push_back(0);
     shader_object_.push_back(2 * 4 * sizeof(uint32_t));
@@ -2279,13 +2304,33 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
 
   // Fetch constants.
   uint32_t constant_offset_fetch = new_offset;
-  if (cbuffer_index_fetch_constants_ != kCbufferIndexUnallocated) {
+  if (cbuffer_index_fetch_constants_ != kBindingIndexUnallocated) {
     shader_object_.push_back(constant_name_offset_fetch);
     shader_object_.push_back(0);
     shader_object_.push_back(32 * 6 * sizeof(uint32_t));
     shader_object_.push_back(kDxbcRdefVariableFlagUsed);
     shader_object_.push_back(
         types_offset + uint32_t(RdefTypeIndex::kUint4Array48) * type_size);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0xFFFFFFFFu);
+    shader_object_.push_back(0);
+    shader_object_.push_back(0xFFFFFFFFu);
+    shader_object_.push_back(0);
+    new_offset += constant_size;
+  }
+
+  // Bindless description indices.
+  uint32_t constant_offset_descriptor_indices = new_offset;
+  if (cbuffer_index_descriptor_indices_ != kBindingIndexUnallocated) {
+    assert_not_zero(GetBindlessResourceCount());
+    shader_object_.push_back(constant_name_offset_descriptor_indices);
+    shader_object_.push_back(0);
+    shader_object_.push_back(
+        xe::align(GetBindlessResourceCount(), uint32_t(4)) * sizeof(uint32_t));
+    shader_object_.push_back(kDxbcRdefVariableFlagUsed);
+    shader_object_.push_back(
+        types_offset +
+        uint32_t(RdefTypeIndex::kUint4DescriptorIndexArray) * type_size);
     shader_object_.push_back(0);
     shader_object_.push_back(0xFFFFFFFFu);
     shader_object_.push_back(0);
@@ -2302,20 +2347,24 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                sizeof(uint32_t);
   uint32_t cbuffer_name_offset_system = new_offset;
-  if (cbuffer_index_system_constants_ != kCbufferIndexUnallocated) {
+  if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
     new_offset += AppendString(shader_object_, "xe_system_cbuffer");
   }
   uint32_t cbuffer_name_offset_float = new_offset;
-  if (cbuffer_index_float_constants_ != kCbufferIndexUnallocated) {
+  if (cbuffer_index_float_constants_ != kBindingIndexUnallocated) {
     new_offset += AppendString(shader_object_, "xe_float_cbuffer");
   }
   uint32_t cbuffer_name_offset_bool_loop = new_offset;
-  if (cbuffer_index_bool_loop_constants_ != kCbufferIndexUnallocated) {
+  if (cbuffer_index_bool_loop_constants_ != kBindingIndexUnallocated) {
     new_offset += AppendString(shader_object_, "xe_bool_loop_cbuffer");
   }
   uint32_t cbuffer_name_offset_fetch = new_offset;
-  if (cbuffer_index_fetch_constants_ != kCbufferIndexUnallocated) {
+  if (cbuffer_index_fetch_constants_ != kBindingIndexUnallocated) {
     new_offset += AppendString(shader_object_, "xe_fetch_cbuffer");
+  }
+  uint32_t cbuffer_name_offset_descriptor_indices = new_offset;
+  if (cbuffer_index_descriptor_indices_ != kBindingIndexUnallocated) {
+    new_offset += AppendString(shader_object_, "xe_descriptor_indices_cbuffer");
   }
 
   // Write the offset to the header.
@@ -2333,12 +2382,12 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       // No D3D_SHADER_CBUFFER_FLAGS.
       shader_object_.push_back(0);
     } else if (i == cbuffer_index_float_constants_) {
+      assert_not_zero(constant_register_map().float_count);
       shader_object_.push_back(cbuffer_name_offset_float);
       shader_object_.push_back(1);
       shader_object_.push_back(constant_offset_float);
-      shader_object_.push_back(
-          std::max(constant_register_map().float_count, uint32_t(1)) * 4 *
-          sizeof(float));
+      shader_object_.push_back(constant_register_map().float_count * 4 *
+                               sizeof(float));
       shader_object_.push_back(uint32_t(DxbcRdefCbufferType::kCbuffer));
       shader_object_.push_back(0);
     } else if (i == cbuffer_index_bool_loop_constants_) {
@@ -2356,6 +2405,18 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       shader_object_.push_back(32 * 6 * sizeof(uint32_t));
       shader_object_.push_back(uint32_t(DxbcRdefCbufferType::kCbuffer));
       shader_object_.push_back(0);
+    } else if (i == cbuffer_index_descriptor_indices_) {
+      assert_not_zero(GetBindlessResourceCount());
+      shader_object_.push_back(cbuffer_name_offset_descriptor_indices);
+      shader_object_.push_back(1);
+      shader_object_.push_back(constant_offset_descriptor_indices);
+      shader_object_.push_back(
+          xe::align(GetBindlessResourceCount(), uint32_t(4)) *
+          sizeof(uint32_t));
+      shader_object_.push_back(uint32_t(DxbcRdefCbufferType::kCbuffer));
+      shader_object_.push_back(0);
+    } else {
+      assert_unhandled_case(i);
     }
   }
 
@@ -2367,138 +2428,219 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   // their names already.
   new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
                sizeof(uint32_t);
-  uint32_t sampler_name_offset = 0;
-  uint32_t shared_memory_srv_name_offset = 0;
-  uint32_t texture_name_offset = 0;
-  uint32_t shared_memory_uav_name_offset = 0;
-  if (!is_depth_only_pixel_shader_) {
-    sampler_name_offset = new_offset;
-    for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
-      new_offset +=
-          AppendString(shader_object_, sampler_bindings_[i].name.c_str());
+  uint32_t sampler_name_offset = new_offset;
+  if (!sampler_bindings_.empty()) {
+    if (bindless_resources_used_) {
+      new_offset += AppendString(shader_object_, "xe_samplers");
+    } else {
+      for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
+        new_offset +=
+            AppendString(shader_object_, sampler_bindings_[i].name.c_str());
+      }
     }
-    shared_memory_srv_name_offset = new_offset;
+  }
+  uint32_t shared_memory_srv_name_offset = new_offset;
+  if (srv_index_shared_memory_ != kBindingIndexUnallocated) {
     new_offset += AppendString(shader_object_, "xe_shared_memory_srv");
-    texture_name_offset = new_offset;
-    for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
-      new_offset += AppendString(shader_object_, texture_srvs_[i].name.c_str());
+  }
+  uint32_t bindless_textures_2d_name_offset = new_offset;
+  uint32_t bindless_textures_3d_name_offset = new_offset;
+  uint32_t bindless_textures_cube_name_offset = new_offset;
+  if (bindless_resources_used_) {
+    if (srv_index_bindless_textures_2d_ != kBindingIndexUnallocated) {
+      bindless_textures_2d_name_offset = new_offset;
+      new_offset += AppendString(shader_object_, "xe_textures_2d");
     }
-    shared_memory_uav_name_offset = new_offset;
+    if (srv_index_bindless_textures_3d_ != kBindingIndexUnallocated) {
+      bindless_textures_3d_name_offset = new_offset;
+      new_offset += AppendString(shader_object_, "xe_textures_3d");
+    }
+    if (srv_index_bindless_textures_cube_ != kBindingIndexUnallocated) {
+      bindless_textures_cube_name_offset = new_offset;
+      new_offset += AppendString(shader_object_, "xe_textures_cube");
+    }
+  } else {
+    for (TextureBinding& texture_binding : texture_bindings_) {
+      texture_binding.bindful_srv_rdef_name_offset = new_offset;
+      new_offset += AppendString(shader_object_, texture_binding.name.c_str());
+    }
+  }
+  uint32_t shared_memory_uav_name_offset = new_offset;
+  if (uav_index_shared_memory_ != kBindingIndexUnallocated) {
     new_offset += AppendString(shader_object_, "xe_shared_memory_uav");
   }
   uint32_t edram_name_offset = new_offset;
-  if (IsDxbcPixelShader() && edram_rov_used_) {
+  if (uav_index_edram_ != kBindingIndexUnallocated) {
     new_offset += AppendString(shader_object_, "xe_edram");
   }
 
   // Write the offset to the header.
   shader_object_[chunk_position_dwords + 3] = new_offset;
 
-  if (!is_depth_only_pixel_shader_) {
-    // Samplers.
-    for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
-      const SamplerBinding& sampler_binding = sampler_bindings_[i];
+  // Samplers.
+  if (!sampler_bindings_.empty()) {
+    if (bindless_resources_used_) {
+      // Bindless sampler heap.
       shader_object_.push_back(sampler_name_offset);
       shader_object_.push_back(uint32_t(DxbcRdefInputType::kSampler));
       shader_object_.push_back(uint32_t(DxbcRdefReturnType::kVoid));
       shader_object_.push_back(uint32_t(DxbcRdefDimension::kUnknown));
       // Multisampling not applicable.
       shader_object_.push_back(0);
-      // Register s[i].
-      shader_object_.push_back(i);
+      // Registers s0:*.
+      shader_object_.push_back(0);
+      // Unbounded number of bindings.
+      shader_object_.push_back(0);
+      // No DxbcRdefInputFlags.
+      shader_object_.push_back(0);
+      // Register space 0.
+      shader_object_.push_back(0);
+      // Sampler ID S0.
+      shader_object_.push_back(0);
+    } else {
+      // Bindful samplers.
+      uint32_t sampler_current_name_offset = sampler_name_offset;
+      for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
+        const SamplerBinding& sampler_binding = sampler_bindings_[i];
+        shader_object_.push_back(sampler_current_name_offset);
+        shader_object_.push_back(uint32_t(DxbcRdefInputType::kSampler));
+        shader_object_.push_back(uint32_t(DxbcRdefReturnType::kVoid));
+        shader_object_.push_back(uint32_t(DxbcRdefDimension::kUnknown));
+        // Multisampling not applicable.
+        shader_object_.push_back(0);
+        // Register s[i].
+        shader_object_.push_back(i);
+        // One binding.
+        shader_object_.push_back(1);
+        // No DxbcRdefInputFlags.
+        shader_object_.push_back(0);
+        // Register space 0.
+        shader_object_.push_back(0);
+        // Sampler ID S[i].
+        shader_object_.push_back(i);
+        sampler_current_name_offset +=
+            GetStringLength(sampler_binding.name.c_str());
+      }
+    }
+  }
+
+  // Shader resource views, sorted by binding index.
+  for (uint32_t i = 0; i < srv_count_; ++i) {
+    if (i == srv_index_shared_memory_) {
+      // Shared memory (when memexport isn't used in the pipeline).
+      shader_object_.push_back(shared_memory_srv_name_offset);
+      shader_object_.push_back(uint32_t(DxbcRdefInputType::kByteAddress));
+      shader_object_.push_back(uint32_t(DxbcRdefReturnType::kMixed));
+      shader_object_.push_back(uint32_t(DxbcRdefDimension::kSRVBuffer));
+      // Multisampling not applicable.
+      shader_object_.push_back(0);
+      shader_object_.push_back(uint32_t(SRVMainRegister::kSharedMemory));
+      // One binding.
+      shader_object_.push_back(1);
+      // No DxbcRdefInputFlags.
+      shader_object_.push_back(0);
+      shader_object_.push_back(uint32_t(SRVSpace::kMain));
+    } else {
+      uint32_t texture_name_offset;
+      DxbcRdefDimension texture_dimension;
+      uint32_t texture_register;
+      uint32_t texture_register_count;
+      SRVSpace texture_register_space;
+      if (bindless_resources_used_) {
+        // Bindless texture heap.
+        if (i == srv_index_bindless_textures_3d_) {
+          texture_name_offset = bindless_textures_3d_name_offset;
+          texture_dimension = DxbcRdefDimension::kSRVTexture3D;
+          texture_register_space = SRVSpace::kBindlessTextures3D;
+        } else if (i == srv_index_bindless_textures_cube_) {
+          texture_name_offset = bindless_textures_cube_name_offset;
+          texture_dimension = DxbcRdefDimension::kSRVTextureCube;
+          texture_register_space = SRVSpace::kBindlessTexturesCube;
+        } else {
+          assert_true(i == srv_index_bindless_textures_2d_);
+          texture_name_offset = bindless_textures_2d_name_offset;
+          texture_dimension = DxbcRdefDimension::kSRVTexture2DArray;
+          texture_register_space = SRVSpace::kBindlessTextures2DArray;
+        }
+        texture_register = 0;
+        texture_register_count = 0;
+      } else {
+        // Bindful texture.
+        auto it = texture_bindings_for_bindful_srv_indices_.find(i);
+        assert_true(it != texture_bindings_for_bindful_srv_indices_.end());
+        uint32_t texture_binding_index = it->second;
+        const TextureBinding& texture_binding =
+            texture_bindings_[texture_binding_index];
+        texture_name_offset = texture_binding.bindful_srv_rdef_name_offset;
+        switch (texture_binding.dimension) {
+          case TextureDimension::k3D:
+            texture_dimension = DxbcRdefDimension::kSRVTexture3D;
+            break;
+          case TextureDimension::kCube:
+            texture_dimension = DxbcRdefDimension::kSRVTextureCube;
+            break;
+          default:
+            assert_true(texture_binding.dimension == TextureDimension::k2D);
+            texture_dimension = DxbcRdefDimension::kSRVTexture2DArray;
+        }
+        texture_register = uint32_t(SRVMainRegister::kBindfulTexturesStart) +
+                           texture_binding_index;
+        texture_register_count = 1;
+        texture_register_space = SRVSpace::kMain;
+      }
+      shader_object_.push_back(texture_name_offset);
+      shader_object_.push_back(uint32_t(DxbcRdefInputType::kTexture));
+      shader_object_.push_back(uint32_t(DxbcRdefReturnType::kFloat));
+      shader_object_.push_back(uint32_t(texture_dimension));
+      // Not multisampled.
+      shader_object_.push_back(0xFFFFFFFFu);
+      shader_object_.push_back(texture_register);
+      shader_object_.push_back(texture_register_count);
+      // 4-component.
+      shader_object_.push_back(DxbcRdefInputFlagsComponents);
+      shader_object_.push_back(uint32_t(texture_register_space));
+    }
+    // SRV ID T[i].
+    shader_object_.push_back(i);
+  }
+
+  // Unordered access views, sorted by binding index.
+  for (uint32_t i = 0; i < uav_count_; ++i) {
+    if (i == uav_index_shared_memory_) {
+      // Shared memory (when memexport is used in the pipeline).
+      shader_object_.push_back(shared_memory_uav_name_offset);
+      shader_object_.push_back(uint32_t(DxbcRdefInputType::kUAVRWByteAddress));
+      shader_object_.push_back(uint32_t(DxbcRdefReturnType::kMixed));
+      shader_object_.push_back(uint32_t(DxbcRdefDimension::kUAVBuffer));
+      // Multisampling not applicable.
+      shader_object_.push_back(0);
+      shader_object_.push_back(uint32_t(UAVRegister::kSharedMemory));
       // One binding.
       shader_object_.push_back(1);
       // No DxbcRdefInputFlags.
       shader_object_.push_back(0);
       // Register space 0.
       shader_object_.push_back(0);
-      // Sampler ID S[i].
-      shader_object_.push_back(i);
-      sampler_name_offset += GetStringLength(sampler_binding.name.c_str());
-    }
-
-    // Shared memory (when memexport isn't used in the pipeline).
-    shader_object_.push_back(shared_memory_srv_name_offset);
-    shader_object_.push_back(uint32_t(DxbcRdefInputType::kByteAddress));
-    shader_object_.push_back(uint32_t(DxbcRdefReturnType::kMixed));
-    shader_object_.push_back(uint32_t(DxbcRdefDimension::kSRVBuffer));
-    // Multisampling not applicable.
-    shader_object_.push_back(0);
-    shader_object_.push_back(uint32_t(SRVMainRegister::kSharedMemory));
-    // One binding.
-    shader_object_.push_back(1);
-    // No DxbcRdefInputFlags.
-    shader_object_.push_back(0);
-    shader_object_.push_back(uint32_t(SRVSpace::kMain));
-    // SRV ID T0.
-    shader_object_.push_back(0);
-
-    for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
-      const TextureSRV& texture_srv = texture_srvs_[i];
-      shader_object_.push_back(texture_name_offset);
-      shader_object_.push_back(uint32_t(DxbcRdefInputType::kTexture));
-      shader_object_.push_back(uint32_t(DxbcRdefReturnType::kFloat));
-      switch (texture_srv.dimension) {
-        case TextureDimension::k3D:
-          shader_object_.push_back(uint32_t(DxbcRdefDimension::kSRVTexture3D));
-          break;
-        case TextureDimension::kCube:
-          shader_object_.push_back(
-              uint32_t(DxbcRdefDimension::kSRVTextureCube));
-          break;
-        default:
-          shader_object_.push_back(
-              uint32_t(DxbcRdefDimension::kSRVTexture2DArray));
-      }
+    } else if (i == uav_index_edram_) {
+      // EDRAM R32_UINT buffer.
+      shader_object_.push_back(edram_name_offset);
+      shader_object_.push_back(uint32_t(DxbcRdefInputType::kUAVRWTyped));
+      shader_object_.push_back(uint32_t(DxbcRdefReturnType::kUInt));
+      shader_object_.push_back(uint32_t(DxbcRdefDimension::kUAVBuffer));
       // Not multisampled.
       shader_object_.push_back(0xFFFFFFFFu);
-      shader_object_.push_back(uint32_t(SRVMainRegister::kBoundTexturesStart) +
-                               i);
+      shader_object_.push_back(uint32_t(UAVRegister::kEDRAM));
       // One binding.
       shader_object_.push_back(1);
-      // 4-component.
-      shader_object_.push_back(DxbcRdefInputFlagsComponents);
-      shader_object_.push_back(uint32_t(SRVSpace::kMain));
-      // SRV ID T[1 + i] - T0 is shared memory.
-      shader_object_.push_back(1 + i);
-      texture_name_offset += GetStringLength(texture_srv.name.c_str());
+      // No DxbcRdefInputFlags.
+      shader_object_.push_back(0);
+      // Register space 0.
+      shader_object_.push_back(0);
+    } else {
+      assert_unhandled_case(i);
     }
-
-    // Shared memory (when memexport is used in the pipeline).
-    shader_object_.push_back(shared_memory_uav_name_offset);
-    shader_object_.push_back(uint32_t(DxbcRdefInputType::kUAVRWByteAddress));
-    shader_object_.push_back(uint32_t(DxbcRdefReturnType::kMixed));
-    shader_object_.push_back(uint32_t(DxbcRdefDimension::kUAVBuffer));
-    // Multisampling not applicable.
-    shader_object_.push_back(0);
-    shader_object_.push_back(uint32_t(UAVRegister::kSharedMemory));
-    // One binding.
-    shader_object_.push_back(1);
-    // No DxbcRdefInputFlags.
-    shader_object_.push_back(0);
-    // Register space 0.
-    shader_object_.push_back(0);
-    // UAV ID U0.
-    shader_object_.push_back(0);
-  }
-
-  if (IsDxbcPixelShader() && edram_rov_used_) {
-    // EDRAM uint32 buffer.
-    shader_object_.push_back(edram_name_offset);
-    shader_object_.push_back(uint32_t(DxbcRdefInputType::kUAVRWTyped));
-    shader_object_.push_back(uint32_t(DxbcRdefReturnType::kUInt));
-    shader_object_.push_back(uint32_t(DxbcRdefDimension::kUAVBuffer));
-    // Not multisampled.
-    shader_object_.push_back(0xFFFFFFFFu);
-    shader_object_.push_back(uint32_t(UAVRegister::kEDRAM));
-    // One binding.
-    shader_object_.push_back(1);
-    // No DxbcRdefInputFlags.
-    shader_object_.push_back(0);
-    // Register space 0.
-    shader_object_.push_back(0);
-    // UAV ID U1 or U0 depending on whether there's U0.
-    shader_object_.push_back(ROV_GetEDRAMUAVIndex());
+    // UAV ID U[i].
+    shader_object_.push_back(i);
   }
 
   // Constant buffers.
@@ -2516,6 +2658,11 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     } else if (i == cbuffer_index_fetch_constants_) {
       shader_object_.push_back(cbuffer_name_offset_fetch);
       register_index = uint32_t(CbufferRegister::kFetchConstants);
+    } else if (i == cbuffer_index_descriptor_indices_) {
+      shader_object_.push_back(cbuffer_name_offset_descriptor_indices);
+      register_index = uint32_t(CbufferRegister::kDescriptorIndices);
+    } else {
+      assert_unhandled_case(i);
     }
     shader_object_.push_back(uint32_t(DxbcRdefInputType::kCbuffer));
     shader_object_.push_back(uint32_t(DxbcRdefReturnType::kVoid));
@@ -3180,7 +3327,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
 
   // Constant buffers, from most frequenly accessed to least frequently accessed
   // (the order is a hint to the driver according to the DXBC header).
-  if (cbuffer_index_float_constants_ != kCbufferIndexUnallocated) {
+  if (cbuffer_index_float_constants_ != kBindingIndexUnallocated) {
+    assert_not_zero(constant_register_map().float_count);
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
         ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
@@ -3196,7 +3344,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(constant_register_map().float_count);
     shader_object_.push_back(0);
   }
-  if (cbuffer_index_system_constants_ != kCbufferIndexUnallocated) {
+  if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
         ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
@@ -3210,7 +3358,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back((sizeof(SystemConstants) + 15) >> 4);
     shader_object_.push_back(0);
   }
-  if (cbuffer_index_fetch_constants_ != kCbufferIndexUnallocated) {
+  if (cbuffer_index_fetch_constants_ != kBindingIndexUnallocated) {
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
         ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
@@ -3224,7 +3372,22 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(48);
     shader_object_.push_back(0);
   }
-  if (cbuffer_index_bool_loop_constants_ != kCbufferIndexUnallocated) {
+  if (cbuffer_index_descriptor_indices_ != kBindingIndexUnallocated) {
+    assert_not_zero(GetBindlessResourceCount());
+    shader_object_.push_back(
+        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
+        ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
+            D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED) |
+        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+    shader_object_.push_back(EncodeVectorSwizzledOperand(
+        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
+    shader_object_.push_back(cbuffer_index_descriptor_indices_);
+    shader_object_.push_back(uint32_t(CbufferRegister::kDescriptorIndices));
+    shader_object_.push_back(uint32_t(CbufferRegister::kDescriptorIndices));
+    shader_object_.push_back((GetBindlessResourceCount() + 3) >> 2);
+    shader_object_.push_back(0);
+  }
+  if (cbuffer_index_bool_loop_constants_ != kBindingIndexUnallocated) {
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
         ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
@@ -3239,46 +3402,93 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(0);
   }
 
-  if (!is_depth_only_pixel_shader_) {
-    // Samplers.
-    for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
-      const SamplerBinding& sampler_binding = sampler_bindings_[i];
+  // Samplers.
+  if (!sampler_bindings_.empty()) {
+    if (bindless_resources_used_) {
+      // Bindless sampler heap.
       shader_object_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_SAMPLER) |
           ENCODE_D3D10_SB_SAMPLER_MODE(D3D10_SB_SAMPLER_MODE_DEFAULT) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
       shader_object_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_SAMPLER, kSwizzleXYZW, 3));
-      shader_object_.push_back(i);
-      shader_object_.push_back(i);
-      shader_object_.push_back(i);
       shader_object_.push_back(0);
+      shader_object_.push_back(0);
+      shader_object_.push_back(UINT32_MAX);
+      shader_object_.push_back(0);
+    } else {
+      // Bindful samplers.
+      for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
+        const SamplerBinding& sampler_binding = sampler_bindings_[i];
+        shader_object_.push_back(
+            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_SAMPLER) |
+            ENCODE_D3D10_SB_SAMPLER_MODE(D3D10_SB_SAMPLER_MODE_DEFAULT) |
+            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
+        shader_object_.push_back(EncodeVectorSwizzledOperand(
+            D3D10_SB_OPERAND_TYPE_SAMPLER, kSwizzleXYZW, 3));
+        shader_object_.push_back(i);
+        shader_object_.push_back(i);
+        shader_object_.push_back(i);
+        shader_object_.push_back(0);
+      }
     }
+  }
 
-    // Shader resources.
-    // Shared memory ByteAddressBuffer.
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DCL_RESOURCE_RAW) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-    shader_object_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
-    shader_object_.push_back(0);
-    shader_object_.push_back(uint32_t(SRVMainRegister::kSharedMemory));
-    shader_object_.push_back(uint32_t(SRVMainRegister::kSharedMemory));
-    shader_object_.push_back(uint32_t(SRVSpace::kMain));
-    // Textures.
-    for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
-      const TextureSRV& texture_srv = texture_srvs_[i];
+  // Shader resource views, sorted by binding index.
+  for (uint32_t i = 0; i < srv_count_; ++i) {
+    if (i == srv_index_shared_memory_) {
+      // Shared memory ByteAddressBuffer.
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DCL_RESOURCE_RAW) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
+      shader_object_.push_back(EncodeVectorSwizzledOperand(
+          D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
+      shader_object_.push_back(srv_index_shared_memory_);
+      shader_object_.push_back(uint32_t(SRVMainRegister::kSharedMemory));
+      shader_object_.push_back(uint32_t(SRVMainRegister::kSharedMemory));
+      shader_object_.push_back(uint32_t(SRVSpace::kMain));
+    } else {
+      // Texture or texture heap.
       D3D10_SB_RESOURCE_DIMENSION texture_srv_dimension;
-      switch (texture_srv.dimension) {
-        case TextureDimension::k3D:
+      uint32_t texture_register_first, texture_register_last;
+      SRVSpace texture_register_space;
+      if (bindless_resources_used_) {
+        // Bindless texture heap.
+        texture_register_first = 0;
+        texture_register_last = UINT32_MAX;
+        if (i == srv_index_bindless_textures_3d_) {
           texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE3D;
-          break;
-        case TextureDimension::kCube:
+          texture_register_space = SRVSpace::kBindlessTextures3D;
+        } else if (i == srv_index_bindless_textures_cube_) {
           texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURECUBE;
-          break;
-        default:
+          texture_register_space = SRVSpace::kBindlessTexturesCube;
+        } else {
+          assert_true(i == srv_index_bindless_textures_2d_);
           texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE2DARRAY;
+          texture_register_space = SRVSpace::kBindlessTextures2DArray;
+        }
+      } else {
+        // Bindful texture.
+        auto it = texture_bindings_for_bindful_srv_indices_.find(i);
+        assert_true(it != texture_bindings_for_bindful_srv_indices_.end());
+        uint32_t texture_binding_index = it->second;
+        const TextureBinding& texture_binding =
+            texture_bindings_[texture_binding_index];
+        switch (texture_binding.dimension) {
+          case TextureDimension::k3D:
+            texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE3D;
+            break;
+          case TextureDimension::kCube:
+            texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURECUBE;
+            break;
+          default:
+            assert_true(texture_binding.dimension == TextureDimension::k2D);
+            texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE2DARRAY;
+        }
+        texture_register_first = texture_register_last =
+            uint32_t(SRVMainRegister::kBindfulTexturesStart) +
+            texture_binding_index;
+        texture_register_space = SRVSpace::kMain;
       }
       shader_object_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_RESOURCE) |
@@ -3286,54 +3496,55 @@ void DxbcShaderTranslator::WriteShaderCode() {
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
       shader_object_.push_back(EncodeVectorSwizzledOperand(
           D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
-      // T0 is shared memory.
-      shader_object_.push_back(1 + i);
-      shader_object_.push_back(uint32_t(SRVMainRegister::kBoundTexturesStart) +
-                               i);
-      shader_object_.push_back(uint32_t(SRVMainRegister::kBoundTexturesStart) +
-                               i);
+      shader_object_.push_back(i);
+      shader_object_.push_back(texture_register_first);
+      shader_object_.push_back(texture_register_last);
       shader_object_.push_back(
           ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 0) |
           ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 1) |
           ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 2) |
           ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 3));
-      shader_object_.push_back(uint32_t(SRVSpace::kMain));
+      shader_object_.push_back(uint32_t(texture_register_space));
     }
   }
 
-  // Unordered access views.
-  if (!is_depth_only_pixel_shader_) {
-    // Shared memory RWByteAddressBuffer.
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(
-            D3D11_SB_OPCODE_DCL_UNORDERED_ACCESS_VIEW_RAW) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-    shader_object_.push_back(EncodeVectorSwizzledOperand(
-        D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 3));
-    shader_object_.push_back(0);
-    shader_object_.push_back(uint32_t(UAVRegister::kSharedMemory));
-    shader_object_.push_back(uint32_t(UAVRegister::kSharedMemory));
-    shader_object_.push_back(0);
-  }
-  if (IsDxbcPixelShader() && edram_rov_used_) {
-    // EDRAM uint32 rasterizer-ordered buffer.
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(
-            D3D11_SB_OPCODE_DCL_UNORDERED_ACCESS_VIEW_TYPED) |
-        ENCODE_D3D10_SB_RESOURCE_DIMENSION(D3D10_SB_RESOURCE_DIMENSION_BUFFER) |
-        D3D11_SB_RASTERIZER_ORDERED_ACCESS |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_object_.push_back(EncodeVectorSwizzledOperand(
-        D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 3));
-    shader_object_.push_back(ROV_GetEDRAMUAVIndex());
-    shader_object_.push_back(uint32_t(UAVRegister::kEDRAM));
-    shader_object_.push_back(uint32_t(UAVRegister::kEDRAM));
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 0) |
-        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 1) |
-        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 2) |
-        ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 3));
-    shader_object_.push_back(0);
+  // Unordered access views, sorted by binding index.
+  for (uint32_t i = 0; i < uav_count_; ++i) {
+    if (i == uav_index_shared_memory_) {
+      // Shared memory RWByteAddressBuffer.
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(
+              D3D11_SB_OPCODE_DCL_UNORDERED_ACCESS_VIEW_RAW) |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
+      shader_object_.push_back(EncodeVectorSwizzledOperand(
+          D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 3));
+      shader_object_.push_back(uav_index_shared_memory_);
+      shader_object_.push_back(uint32_t(UAVRegister::kSharedMemory));
+      shader_object_.push_back(uint32_t(UAVRegister::kSharedMemory));
+      shader_object_.push_back(0);
+    } else if (i == uav_index_edram_) {
+      // EDRAM buffer R32_UINT rasterizer-ordered view.
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_OPCODE_TYPE(
+              D3D11_SB_OPCODE_DCL_UNORDERED_ACCESS_VIEW_TYPED) |
+          ENCODE_D3D10_SB_RESOURCE_DIMENSION(
+              D3D10_SB_RESOURCE_DIMENSION_BUFFER) |
+          D3D11_SB_RASTERIZER_ORDERED_ACCESS |
+          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
+      shader_object_.push_back(EncodeVectorSwizzledOperand(
+          D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 3));
+      shader_object_.push_back(uav_index_edram_);
+      shader_object_.push_back(uint32_t(UAVRegister::kEDRAM));
+      shader_object_.push_back(uint32_t(UAVRegister::kEDRAM));
+      shader_object_.push_back(
+          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 0) |
+          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 1) |
+          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 2) |
+          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 3));
+      shader_object_.push_back(0);
+    } else {
+      assert_unhandled_case(i);
+    }
   }
 
   // Inputs and outputs.

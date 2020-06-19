@@ -27,8 +27,8 @@ cbuffer XeTextureLoadConstants : register(b0) {
 
 #define XeTextureLoadGuestPitchTiled 0xFFFFFFFFu
 
-ByteAddressBuffer xe_texture_load_source : register(t0);
 RWByteAddressBuffer xe_texture_load_dest : register(u0);
+ByteAddressBuffer xe_texture_load_source : register(t0);
 
 // bpb and bpb_log2 are separate because bpb may be not a power of 2 (like 96).
 uint4 XeTextureLoadGuestBlockOffsets(uint3 block_index, uint bpb,

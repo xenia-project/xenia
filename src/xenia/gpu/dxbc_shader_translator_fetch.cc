@@ -44,7 +44,7 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
 
   // Create a 2-component DxbcSrc for the fetch constant (vf0 is in [0].xy of
   // the fetch constants array, vf1 is in [0].zw, vf2 is in [1].xy).
-  if (cbuffer_index_fetch_constants_ == kCbufferIndexUnallocated) {
+  if (cbuffer_index_fetch_constants_ == kBindingIndexUnallocated) {
     cbuffer_index_fetch_constants_ = cbuffer_count_++;
   }
   DxbcSrc fetch_constant_src(DxbcSrc::CB(
@@ -135,13 +135,21 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
                 .Select(kSysConst_Flags_Comp),
             DxbcSrc::LU(kSysFlag_SharedMemoryIsUAV));
   DxbcOpIf(false, DxbcSrc::R(system_temp_result_, DxbcSrc::kXXXX));
+  if (srv_index_shared_memory_ == kBindingIndexUnallocated) {
+    srv_index_shared_memory_ = srv_count_++;
+  }
+  if (uav_index_shared_memory_ == kBindingIndexUnallocated) {
+    uav_index_shared_memory_ = uav_count_++;
+  }
   for (uint32_t i = 0; i < 2; ++i) {
     if (i) {
       DxbcOpElse();
     }
     DxbcSrc shared_memory_src(
-        i ? DxbcSrc::U(0, uint32_t(UAVRegister::kSharedMemory))
-          : DxbcSrc::T(0, uint32_t(SRVMainRegister::kSharedMemory)));
+        i ? DxbcSrc::U(uav_index_shared_memory_,
+                       uint32_t(UAVRegister::kSharedMemory))
+          : DxbcSrc::T(srv_index_shared_memory_,
+                       uint32_t(SRVMainRegister::kSharedMemory)));
     uint32_t needed_words_remaining = needed_words;
     uint32_t word_index_previous = first_word_index;
     while (needed_words_remaining) {
@@ -438,7 +446,7 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   StoreResult(instr.result, DxbcSrc::R(system_temp_result_));
 }
 
-DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::FindOrAddTextureSRV(
+uint32_t DxbcShaderTranslator::FindOrAddTextureBinding(
     uint32_t fetch_constant, TextureDimension dimension, bool is_signed) {
   // 1D and 2D textures (including stacked ones) are treated as 2D arrays for
   // binding and coordinate simplicity.
@@ -446,47 +454,52 @@ DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::FindOrAddTextureSRV(
     dimension = TextureDimension::k2D;
   }
   uint32_t srv_index = UINT32_MAX;
-  for (uint32_t i = 0; i < uint32_t(texture_srvs_.size()); ++i) {
-    TextureSRV& texture_srv = texture_srvs_[i];
-    if (texture_srv.fetch_constant == fetch_constant &&
-        texture_srv.dimension == dimension &&
-        texture_srv.is_signed == is_signed) {
-      srv_index = i;
+  for (uint32_t i = 0; i < uint32_t(texture_bindings_.size()); ++i) {
+    TextureBinding& texture_binding = texture_bindings_[i];
+    if (texture_binding.fetch_constant == fetch_constant &&
+        texture_binding.dimension == dimension &&
+        texture_binding.is_signed == is_signed) {
+      return i;
+    }
+  }
+  if (texture_bindings_.size() >= kMaxTextureBindings) {
+    assert_always();
+    return kMaxTextureBindings - 1;
+  }
+  uint32_t texture_binding_index = uint32_t(texture_bindings_.size());
+  TextureBinding new_texture_binding;
+  if (!bindless_resources_used_) {
+    new_texture_binding.bindful_srv_index = srv_count_++;
+    texture_bindings_for_bindful_srv_indices_.insert(
+        {new_texture_binding.bindful_srv_index, texture_binding_index});
+  } else {
+    new_texture_binding.bindful_srv_index = kBindingIndexUnallocated;
+  }
+  new_texture_binding.bindful_srv_rdef_name_offset = 0;
+  // Consistently 0 if not bindless as it may be used for hashing.
+  new_texture_binding.bindless_descriptor_index =
+      bindless_resources_used_ ? GetBindlessResourceCount() : 0;
+  new_texture_binding.fetch_constant = fetch_constant;
+  new_texture_binding.dimension = dimension;
+  new_texture_binding.is_signed = is_signed;
+  const char* dimension_name;
+  switch (dimension) {
+    case TextureDimension::k3D:
+      dimension_name = "3d";
       break;
-    }
+    case TextureDimension::kCube:
+      dimension_name = "cube";
+      break;
+    default:
+      dimension_name = "2d";
   }
-  if (srv_index == UINT32_MAX) {
-    if (texture_srvs_.size() >= kMaxTextureSRVs) {
-      assert_always();
-      srv_index = kMaxTextureSRVs - 1;
-    } else {
-      TextureSRV new_texture_srv;
-      new_texture_srv.fetch_constant = fetch_constant;
-      new_texture_srv.dimension = dimension;
-      new_texture_srv.is_signed = is_signed;
-      const char* dimension_name;
-      switch (dimension) {
-        case TextureDimension::k3D:
-          dimension_name = "3d";
-          break;
-        case TextureDimension::kCube:
-          dimension_name = "cube";
-          break;
-        default:
-          dimension_name = "2d";
-      }
-      new_texture_srv.name = fmt::format("xe_texture{}_{}_{}", fetch_constant,
+  new_texture_binding.name = fmt::format("xe_texture{}_{}_{}", fetch_constant,
                                          dimension_name, is_signed ? 's' : 'u');
-      srv_index = uint32_t(texture_srvs_.size());
-      texture_srvs_.emplace_back(std::move(new_texture_srv));
-    }
-  }
-  // T0 is shared memory.
-  return DxbcSrc::T(1 + srv_index,
-                    uint32_t(SRVMainRegister::kBoundTexturesStart) + srv_index);
+  texture_bindings_.emplace_back(std::move(new_texture_binding));
+  return texture_binding_index;
 }
 
-DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::FindOrAddSamplerBinding(
+uint32_t DxbcShaderTranslator::FindOrAddSamplerBinding(
     uint32_t fetch_constant, TextureFilter mag_filter, TextureFilter min_filter,
     TextureFilter mip_filter, AnisoFilter aniso_filter) {
   // In Direct3D 12, anisotropic filtering implies linear filtering.
@@ -505,43 +518,42 @@ DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::FindOrAddSamplerBinding(
         sampler_binding.min_filter == min_filter &&
         sampler_binding.mip_filter == mip_filter &&
         sampler_binding.aniso_filter == aniso_filter) {
-      sampler_index = i;
-      break;
+      return i;
     }
   }
-  if (sampler_index == UINT32_MAX) {
-    if (sampler_bindings_.size() >= kMaxSamplerBindings) {
-      assert_always();
-      sampler_index = kMaxSamplerBindings - 1;
+  if (sampler_bindings_.size() >= kMaxSamplerBindings) {
+    assert_always();
+    return kMaxSamplerBindings - 1;
+  }
+  std::ostringstream name;
+  name << "xe_sampler" << fetch_constant;
+  if (aniso_filter != AnisoFilter::kUseFetchConst) {
+    if (aniso_filter == AnisoFilter::kDisabled) {
+      name << "_a0";
     } else {
-      std::ostringstream name;
-      name << "xe_sampler" << fetch_constant;
-      if (aniso_filter != AnisoFilter::kUseFetchConst) {
-        if (aniso_filter == AnisoFilter::kDisabled) {
-          name << "_a0";
-        } else {
-          name << "_a" << (1u << (uint32_t(aniso_filter) - 1));
-        }
-      }
-      if (aniso_filter == AnisoFilter::kDisabled ||
-          aniso_filter == AnisoFilter::kUseFetchConst) {
-        static const char* kFilterSuffixes[] = {"p", "l", "b", "f"};
-        name << "_" << kFilterSuffixes[uint32_t(mag_filter)]
-             << kFilterSuffixes[uint32_t(min_filter)]
-             << kFilterSuffixes[uint32_t(mip_filter)];
-      }
-      SamplerBinding new_sampler_binding;
-      new_sampler_binding.fetch_constant = fetch_constant;
-      new_sampler_binding.mag_filter = mag_filter;
-      new_sampler_binding.min_filter = min_filter;
-      new_sampler_binding.mip_filter = mip_filter;
-      new_sampler_binding.aniso_filter = aniso_filter;
-      new_sampler_binding.name = name.str();
-      sampler_index = uint32_t(sampler_bindings_.size());
-      sampler_bindings_.emplace_back(std::move(new_sampler_binding));
+      name << "_a" << (1u << (uint32_t(aniso_filter) - 1));
     }
   }
-  return DxbcSrc::S(sampler_index, sampler_index);
+  if (aniso_filter == AnisoFilter::kDisabled ||
+      aniso_filter == AnisoFilter::kUseFetchConst) {
+    static const char* kFilterSuffixes[] = {"p", "l", "b", "f"};
+    name << "_" << kFilterSuffixes[uint32_t(mag_filter)]
+         << kFilterSuffixes[uint32_t(min_filter)]
+         << kFilterSuffixes[uint32_t(mip_filter)];
+  }
+  SamplerBinding new_sampler_binding;
+  // Consistently 0 if not bindless as it may be used for hashing.
+  new_sampler_binding.bindless_descriptor_index =
+      bindless_resources_used_ ? GetBindlessResourceCount() : 0;
+  new_sampler_binding.fetch_constant = fetch_constant;
+  new_sampler_binding.mag_filter = mag_filter;
+  new_sampler_binding.min_filter = min_filter;
+  new_sampler_binding.mip_filter = mip_filter;
+  new_sampler_binding.aniso_filter = aniso_filter;
+  new_sampler_binding.name = name.str();
+  uint32_t sampler_binding_index = uint32_t(sampler_bindings_.size());
+  sampler_bindings_.emplace_back(std::move(new_sampler_binding));
+  return sampler_binding_index;
 }
 
 void DxbcShaderTranslator::ProcessTextureFetchInstruction(
@@ -893,7 +905,6 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         LoadOperand(instr.operands[0], used_result_nonzero_components,
                     coord_operand_temp_pushed);
     DxbcSrc coord_src(coord_operand);
-    uint32_t coord_temp = UINT32_MAX;
     uint32_t offsets_needed = offsets_not_zero & used_result_nonzero_components;
     if (!instr.attributes.unnormalized_coordinates || offsets_needed) {
       // Using system_temp_result_ as a temporary for coordinate denormalization
@@ -948,7 +959,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     // - 1D, 2D array - need to be padded to 2D array coordinates.
     // - 3D - Z needs to be unnormalized for stacked and normalized for 3D.
     // - Cube - coordinates need to be transformed into the cube space.
-    uint32_t coord_temp = PushSystemTemp();
+    // Bindless sampler index will be loaded to W after loading the coordinates
+    // (so W can be used as a temporary for coordinate loading).
+    uint32_t coord_and_sampler_temp = PushSystemTemp();
 
     // Need normalized coordinates (except for Z - keep it as is, will be
     // converted later according to whether the texture is 3D). For cube maps,
@@ -978,51 +991,54 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
                   normalized_components);
       if (offsets_not_zero & normalized_components) {
         // FIXME(Triang3l): Offsets need to be applied at the LOD being fetched.
-        DxbcOpAdd(DxbcDest::R(coord_temp, normalized_components), coord_operand,
-                  DxbcSrc::LP(offsets));
+        DxbcOpAdd(DxbcDest::R(coord_and_sampler_temp, normalized_components),
+                  coord_operand, DxbcSrc::LP(offsets));
         assert_not_zero(normalized_components & 0b011);
-        DxbcOpDiv(DxbcDest::R(coord_temp, normalized_components & 0b011),
-                  DxbcSrc::R(coord_temp), DxbcSrc::R(size_and_is_3d_temp));
+        DxbcOpDiv(
+            DxbcDest::R(coord_and_sampler_temp, normalized_components & 0b011),
+            DxbcSrc::R(coord_and_sampler_temp),
+            DxbcSrc::R(size_and_is_3d_temp));
         if (instr.dimension == TextureDimension::k3D) {
           // Normalize if 3D.
           assert_true((size_needed_components & 0b1100) == 0b1100);
           DxbcOpIf(true, DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW));
-          DxbcOpDiv(DxbcDest::R(coord_temp, 0b0100),
-                    DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ),
+          DxbcOpDiv(DxbcDest::R(coord_and_sampler_temp, 0b0100),
+                    DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kZZZZ),
                     DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kZZZZ));
           DxbcOpEndIf();
         }
       } else {
-        DxbcOpDiv(DxbcDest::R(coord_temp, normalized_components), coord_operand,
-                  DxbcSrc::R(size_and_is_3d_temp));
+        DxbcOpDiv(DxbcDest::R(coord_and_sampler_temp, normalized_components),
+                  coord_operand, DxbcSrc::R(size_and_is_3d_temp));
         if (instr.dimension == TextureDimension::k3D) {
           // Don't normalize if stacked.
           assert_true((size_needed_components & 0b1000) == 0b1000);
-          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0100),
+          DxbcOpMovC(DxbcDest::R(coord_and_sampler_temp, 0b0100),
                      DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW),
-                     DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ),
+                     DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kZZZZ),
                      coord_operand.SelectFromSwizzled(2));
         }
       }
     } else {
       // Normalized coordinates - apply offsets to XY or copy them to
-      // coord_temp, and if stacked, denormalize Z.
+      // coord_and_sampler_temp, and if stacked, denormalize Z.
       uint32_t coords_with_offset = offsets_not_zero & normalized_components;
       if (coords_with_offset) {
         // FIXME(Triang3l): Offsets need to be applied at the LOD being fetched.
         assert_true((size_needed_components & coords_with_offset) ==
                     coords_with_offset);
-        DxbcOpDiv(DxbcDest::R(coord_temp, coords_with_offset),
+        DxbcOpDiv(DxbcDest::R(coord_and_sampler_temp, coords_with_offset),
                   DxbcSrc::LP(offsets), DxbcSrc::R(size_and_is_3d_temp));
-        DxbcOpAdd(DxbcDest::R(coord_temp, coords_with_offset), coord_operand,
-                  DxbcSrc::R(coord_temp));
+        DxbcOpAdd(DxbcDest::R(coord_and_sampler_temp, coords_with_offset),
+                  coord_operand, DxbcSrc::R(coord_and_sampler_temp));
       }
       uint32_t coords_without_offset =
           ~coords_with_offset & normalized_components;
       // 3D/stacked without offset is handled separately.
       if (coords_without_offset & 0b011) {
-        DxbcOpMov(DxbcDest::R(coord_temp, coords_without_offset & 0b011),
-                  coord_operand);
+        DxbcOpMov(
+            DxbcDest::R(coord_and_sampler_temp, coords_without_offset & 0b011),
+            coord_operand);
       }
       if (instr.dimension == TextureDimension::k3D) {
         assert_true((size_needed_components & 0b1100) == 0b1100);
@@ -1030,73 +1046,79 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           // Denormalize and offset Z (re-apply the offset not to lose precision
           // as a result of division) if stacked.
           DxbcOpIf(false, DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW));
-          DxbcOpMAd(DxbcDest::R(coord_temp, 0b0100),
+          DxbcOpMAd(DxbcDest::R(coord_and_sampler_temp, 0b0100),
                     coord_operand.SelectFromSwizzled(2),
                     DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kZZZZ),
                     DxbcSrc::LF(offsets[2]));
           DxbcOpEndIf();
         } else {
           // Denormalize Z if stacked, and revert to normalized if 3D.
-          DxbcOpMul(DxbcDest::R(coord_temp, 0b0100),
+          DxbcOpMul(DxbcDest::R(coord_and_sampler_temp, 0b0100),
                     coord_operand.SelectFromSwizzled(2),
                     DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kZZZZ));
-          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0100),
+          DxbcOpMovC(DxbcDest::R(coord_and_sampler_temp, 0b0100),
                      DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW),
                      coord_operand.SelectFromSwizzled(2),
-                     DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ));
+                     DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kZZZZ));
         }
       }
     }
     switch (instr.dimension) {
       case TextureDimension::k1D:
         // Pad to 2D array coordinates.
-        DxbcOpMov(DxbcDest::R(coord_temp, 0b0110), DxbcSrc::LF(0.0f));
+        DxbcOpMov(DxbcDest::R(coord_and_sampler_temp, 0b0110),
+                  DxbcSrc::LF(0.0f));
         break;
       case TextureDimension::k2D:
         // Pad to 2D array coordinates.
-        DxbcOpMov(DxbcDest::R(coord_temp, 0b0100), DxbcSrc::LF(0.0f));
+        DxbcOpMov(DxbcDest::R(coord_and_sampler_temp, 0b0100),
+                  DxbcSrc::LF(0.0f));
         break;
       case TextureDimension::kCube: {
         // Transform from the major axis SC/TC plus 1 into cube coordinates.
         // Move SC/TC from 1...2 to -1...1.
-        DxbcOpMAd(DxbcDest::R(coord_temp, 0b0011), DxbcSrc::R(coord_temp),
-                  DxbcSrc::LF(2.0f), DxbcSrc::LF(-3.0f));
+        DxbcOpMAd(DxbcDest::R(coord_and_sampler_temp, 0b0011),
+                  DxbcSrc::R(coord_and_sampler_temp), DxbcSrc::LF(2.0f),
+                  DxbcSrc::LF(-3.0f));
         // Get the face index (floored, within 0...5) as an integer to
-        // coord_temp.z.
+        // coord_and_sampler_temp.z.
         if (offsets[2]) {
-          DxbcOpAdd(DxbcDest::R(coord_temp, 0b0100),
+          DxbcOpAdd(DxbcDest::R(coord_and_sampler_temp, 0b0100),
                     coord_operand.SelectFromSwizzled(2),
                     DxbcSrc::LF(offsets[2]));
-          DxbcOpFToU(DxbcDest::R(coord_temp, 0b0100),
-                     DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ));
+          DxbcOpFToU(DxbcDest::R(coord_and_sampler_temp, 0b0100),
+                     DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kZZZZ));
         } else {
-          DxbcOpFToU(DxbcDest::R(coord_temp, 0b0100),
+          DxbcOpFToU(DxbcDest::R(coord_and_sampler_temp, 0b0100),
                      coord_operand.SelectFromSwizzled(2));
         }
-        DxbcOpUMin(DxbcDest::R(coord_temp, 0b0100),
-                   DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ), DxbcSrc::LU(5));
+        DxbcOpUMin(DxbcDest::R(coord_and_sampler_temp, 0b0100),
+                   DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kZZZZ),
+                   DxbcSrc::LU(5));
         // Split the face index into axis and sign (0 - positive, 1 - negative)
-        // to coord_temp.zw (sign in W so it won't be overwritten).
-        DxbcOpUBFE(DxbcDest::R(coord_temp, 0b1100), DxbcSrc::LU(0, 0, 2, 1),
-                   DxbcSrc::LU(0, 0, 1, 0),
-                   DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ));
+        // to coord_and_sampler_temp.zw (sign in W so it won't be overwritten).
+        // Fine to overwrite W at this point, the sampler index hasn't been
+        // loaded yet.
+        DxbcOpUBFE(DxbcDest::R(coord_and_sampler_temp, 0b1100),
+                   DxbcSrc::LU(0, 0, 2, 1), DxbcSrc::LU(0, 0, 1, 0),
+                   DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kZZZZ));
         // Remap the axes in a way opposite to the ALU cube instruction.
-        DxbcOpSwitch(DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ));
+        DxbcOpSwitch(DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kZZZZ));
         DxbcOpCase(DxbcSrc::LU(0));
         {
           // X is the major axis.
           // Y = -TC (TC overwritten).
-          DxbcOpMov(DxbcDest::R(coord_temp, 0b0010),
-                    -DxbcSrc::R(coord_temp, DxbcSrc::kYYYY));
+          DxbcOpMov(DxbcDest::R(coord_and_sampler_temp, 0b0010),
+                    -DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kYYYY));
           // Z = neg ? SC : -SC.
-          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0100),
-                     DxbcSrc::R(coord_temp, DxbcSrc::kWWWW),
-                     DxbcSrc::R(coord_temp, DxbcSrc::kXXXX),
-                     -DxbcSrc::R(coord_temp, DxbcSrc::kXXXX));
+          DxbcOpMovC(DxbcDest::R(coord_and_sampler_temp, 0b0100),
+                     DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kWWWW),
+                     DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kXXXX),
+                     -DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kXXXX));
           // X = neg ? -1 : 1 (SC overwritten).
-          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0001),
-                     DxbcSrc::R(coord_temp, DxbcSrc::kWWWW), DxbcSrc::LF(-1.0f),
-                     DxbcSrc::LF(1.0f));
+          DxbcOpMovC(DxbcDest::R(coord_and_sampler_temp, 0b0001),
+                     DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kWWWW),
+                     DxbcSrc::LF(-1.0f), DxbcSrc::LF(1.0f));
         }
         DxbcOpBreak();
         DxbcOpCase(DxbcSrc::LU(1));
@@ -1104,31 +1126,31 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           // Y is the major axis.
           // X = SC (already there).
           // Z = neg ? -TC : TC.
-          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0100),
-                     DxbcSrc::R(coord_temp, DxbcSrc::kWWWW),
-                     -DxbcSrc::R(coord_temp, DxbcSrc::kYYYY),
-                     DxbcSrc::R(coord_temp, DxbcSrc::kYYYY));
+          DxbcOpMovC(DxbcDest::R(coord_and_sampler_temp, 0b0100),
+                     DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kWWWW),
+                     -DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kYYYY),
+                     DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kYYYY));
           // Y = neg ? -1 : 1 (TC overwritten).
-          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0010),
-                     DxbcSrc::R(coord_temp, DxbcSrc::kWWWW), DxbcSrc::LF(-1.0f),
-                     DxbcSrc::LF(1.0f));
+          DxbcOpMovC(DxbcDest::R(coord_and_sampler_temp, 0b0010),
+                     DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kWWWW),
+                     DxbcSrc::LF(-1.0f), DxbcSrc::LF(1.0f));
         }
         DxbcOpBreak();
         DxbcOpDefault();
         {
           // Z is the major axis.
           // X = neg ? -SC : SC (SC overwritten).
-          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0001),
-                     DxbcSrc::R(coord_temp, DxbcSrc::kWWWW),
-                     -DxbcSrc::R(coord_temp, DxbcSrc::kXXXX),
-                     DxbcSrc::R(coord_temp, DxbcSrc::kXXXX));
+          DxbcOpMovC(DxbcDest::R(coord_and_sampler_temp, 0b0001),
+                     DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kWWWW),
+                     -DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kXXXX),
+                     DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kXXXX));
           // Y = -TC (TC overwritten).
-          DxbcOpMov(DxbcDest::R(coord_temp, 0b0010),
-                    -DxbcSrc::R(coord_temp, DxbcSrc::kYYYY));
+          DxbcOpMov(DxbcDest::R(coord_and_sampler_temp, 0b0010),
+                    -DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kYYYY));
           // Z = neg ? -1 : 1.
-          DxbcOpMovC(DxbcDest::R(coord_temp, 0b0100),
-                     DxbcSrc::R(coord_temp, DxbcSrc::kWWWW), DxbcSrc::LF(-1.0f),
-                     DxbcSrc::LF(1.0f));
+          DxbcOpMovC(DxbcDest::R(coord_and_sampler_temp, 0b0100),
+                     DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kWWWW),
+                     DxbcSrc::LF(-1.0f), DxbcSrc::LF(1.0f));
         }
         DxbcOpBreak();
         DxbcOpEndSwitch();
@@ -1145,10 +1167,26 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       // since the return value can be used with bias later, forcing linear mip
       // filtering (the XNA assembler also doesn't accept MipFilter overrides
       // for getCompTexLOD).
-      DxbcSrc sampler(FindOrAddSamplerBinding(
+      uint32_t sampler_binding_index = FindOrAddSamplerBinding(
           tfetch_index, instr.attributes.mag_filter,
           instr.attributes.min_filter, TextureFilter::kLinear,
-          instr.attributes.aniso_filter));
+          instr.attributes.aniso_filter);
+      DxbcSrc sampler(DxbcSrc::S(sampler_binding_index, sampler_binding_index));
+      if (bindless_resources_used_) {
+        // Load the sampler index to coord_and_sampler_temp.w and use relative
+        // sampler indexing.
+        if (cbuffer_index_descriptor_indices_ == kBindingIndexUnallocated) {
+          cbuffer_index_descriptor_indices_ = cbuffer_count_++;
+        }
+        uint32_t sampler_bindless_descriptor_index =
+            sampler_bindings_[sampler_binding_index].bindless_descriptor_index;
+        DxbcOpMov(DxbcDest::R(coord_and_sampler_temp, 0b1000),
+                  DxbcSrc::CB(cbuffer_index_descriptor_indices_,
+                              uint32_t(CbufferRegister::kDescriptorIndices),
+                              sampler_bindless_descriptor_index >> 2)
+                      .Select(sampler_bindless_descriptor_index & 3));
+        sampler = DxbcSrc::S(0, DxbcIndex(coord_and_sampler_temp, 3));
+      }
       // Check which SRV needs to be accessed - signed or unsigned. If there is
       // at least one non-signed component, will be using the unsigned one.
       uint32_t is_unsigned_temp = PushSystemTemp();
@@ -1158,13 +1196,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       DxbcOpINE(DxbcDest::R(is_unsigned_temp, 0b0001),
                 DxbcSrc::R(is_unsigned_temp, DxbcSrc::kXXXX),
                 DxbcSrc::LU(uint32_t(TextureSign::kSigned) * 0b01010101));
-      DxbcOpIf(true, DxbcSrc::R(is_unsigned_temp, DxbcSrc::kXXXX));
-      // Release is_unsigned_temp.
-      PopSystemTemp();
-      for (uint32_t is_signed = 0; is_signed < 2; ++is_signed) {
-        if (is_signed) {
-          DxbcOpElse();
-        }
+      if (bindless_resources_used_) {
+        // Bindless path - select the SRV index between unsigned and signed to
+        // query.
         if (instr.dimension == TextureDimension::k3D) {
           // Check if 3D.
           assert_true((size_needed_components & 0b1000) == 0b1000);
@@ -1173,37 +1207,119 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         for (uint32_t is_stacked = 0;
              is_stacked < (instr.dimension == TextureDimension::k3D ? 2u : 1u);
              ++is_stacked) {
+          TextureDimension srv_dimension = instr.dimension;
           if (is_stacked) {
+            srv_dimension = TextureDimension::k2D;
             DxbcOpElse();
           }
-          // Always 3 coordinate components (1D and 2D are padded to 2D arrays,
-          // 3D and cube have 3 coordinate dimensions). Not caring about
-          // normalization of the array layer because it doesn't participate in
-          // LOD calculation in Direct3D 12.
+          uint32_t texture_binding_index_unsigned =
+              FindOrAddTextureBinding(tfetch_index, srv_dimension, false);
+          uint32_t texture_binding_index_signed =
+              FindOrAddTextureBinding(tfetch_index, srv_dimension, true);
+          uint32_t texture_bindless_descriptor_index_unsigned =
+              texture_bindings_[texture_binding_index_unsigned]
+                  .bindless_descriptor_index;
+          uint32_t texture_bindless_descriptor_index_signed =
+              texture_bindings_[texture_binding_index_signed]
+                  .bindless_descriptor_index;
+          if (cbuffer_index_descriptor_indices_ == kBindingIndexUnallocated) {
+            cbuffer_index_descriptor_indices_ = cbuffer_count_++;
+          }
+          DxbcOpMovC(
+              DxbcDest::R(is_unsigned_temp, 0b0001),
+              DxbcSrc::R(is_unsigned_temp, DxbcSrc::kXXXX),
+              DxbcSrc::CB(cbuffer_index_descriptor_indices_,
+                          uint32_t(CbufferRegister::kDescriptorIndices),
+                          texture_bindless_descriptor_index_unsigned >> 2)
+                  .Select(texture_bindless_descriptor_index_unsigned & 3),
+              DxbcSrc::CB(cbuffer_index_descriptor_indices_,
+                          uint32_t(CbufferRegister::kDescriptorIndices),
+                          texture_bindless_descriptor_index_signed >> 2)
+                  .Select(texture_bindless_descriptor_index_signed & 3));
+          // Always 3 coordinate components (1D and 2D are padded to 2D
+          // arrays, 3D and cube have 3 coordinate dimensions). Not caring
+          // about normalization of the array layer because it doesn't
+          // participate in LOD calculation in Direct3D 12.
           // The `lod` instruction returns the unclamped LOD (probably need
           // unclamped so it can be biased back into the range later) in the Y
           // component, and the resource swizzle is the return value swizzle.
           // FIXME(Triang3l): Gradient exponent adjustment from the fetch
-          // constant needs to be applied here, would require SV_Position.xy & 1
-          // math, replacing coordinates for one pixel with 0 and for another
-          // with the adjusted gradient, but possibly not used by any games.
+          // constant needs to be applied here, would require math involving
+          // SV_Position parity, replacing coordinates for one pixel with 0
+          // and for another with the adjusted gradient, but possibly not used
+          // by any games.
           assert_true(used_result_nonzero_components == 0b0001);
+          uint32_t* bindless_srv_index = nullptr;
+          switch (srv_dimension) {
+            case TextureDimension::k1D:
+            case TextureDimension::k2D:
+              bindless_srv_index = &srv_index_bindless_textures_2d_;
+              break;
+            case TextureDimension::k3D:
+              bindless_srv_index = &srv_index_bindless_textures_3d_;
+              break;
+            case TextureDimension::kCube:
+              bindless_srv_index = &srv_index_bindless_textures_cube_;
+              break;
+          }
+          assert_not_null(bindless_srv_index);
+          if (*bindless_srv_index == kBindingIndexUnallocated) {
+            *bindless_srv_index = srv_count_++;
+          }
           DxbcOpLOD(DxbcDest::R(system_temp_result_, 0b0001),
-                    DxbcSrc::R(coord_temp), 3,
-                    FindOrAddTextureSRV(
-                        tfetch_index,
-                        is_stacked ? TextureDimension::k2D : instr.dimension,
-                        is_signed != 0)
-                        .Select(1),
+                    DxbcSrc::R(coord_and_sampler_temp), 3,
+                    DxbcSrc::T(*bindless_srv_index,
+                               DxbcIndex(is_unsigned_temp, 0), DxbcSrc::kYYYY),
                     sampler);
         }
         if (instr.dimension == TextureDimension::k3D) {
           // Close the 3D/stacked check.
           DxbcOpEndIf();
         }
+      } else {
+        // Bindful path - conditionally query one of the SRVs.
+        DxbcOpIf(true, DxbcSrc::R(is_unsigned_temp, DxbcSrc::kXXXX));
+        for (uint32_t is_signed = 0; is_signed < 2; ++is_signed) {
+          if (is_signed) {
+            DxbcOpElse();
+          }
+          if (instr.dimension == TextureDimension::k3D) {
+            // Check if 3D.
+            assert_true((size_needed_components & 0b1000) == 0b1000);
+            DxbcOpIf(true, DxbcSrc::R(size_and_is_3d_temp, DxbcSrc::kWWWW));
+          }
+          for (uint32_t is_stacked = 0;
+               is_stacked <
+               (instr.dimension == TextureDimension::k3D ? 2u : 1u);
+               ++is_stacked) {
+            if (is_stacked) {
+              DxbcOpElse();
+            }
+            assert_true(used_result_nonzero_components == 0b0001);
+            uint32_t texture_binding_index = FindOrAddTextureBinding(
+                tfetch_index,
+                is_stacked ? TextureDimension::k2D : instr.dimension,
+                is_signed != 0);
+            DxbcOpLOD(
+                DxbcDest::R(system_temp_result_, 0b0001),
+                DxbcSrc::R(coord_and_sampler_temp), 3,
+                DxbcSrc::T(
+                    texture_bindings_[texture_binding_index].bindful_srv_index,
+                    uint32_t(SRVMainRegister::kBindfulTexturesStart) +
+                        texture_binding_index,
+                    DxbcSrc::kYYYY),
+                sampler);
+          }
+          if (instr.dimension == TextureDimension::k3D) {
+            // Close the 3D/stacked check.
+            DxbcOpEndIf();
+          }
+        }
+        // Close the signedness check.
+        DxbcOpEndIf();
       }
-      // Close the signedness check.
-      DxbcOpEndIf();
+      // Release is_unsigned_temp.
+      PopSystemTemp();
     } else {
       // - Gradients or LOD to be passed to the sample_d/sample_l.
 
@@ -1322,11 +1438,11 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           } else {
             // Coarse is according to the Direct3D 11.3 specification.
             DxbcOpDerivRTXCoarse(DxbcDest::R(grad_h_lod_temp, grad_mask),
-                                 DxbcSrc::R(coord_temp));
+                                 DxbcSrc::R(coord_and_sampler_temp));
             DxbcOpMul(DxbcDest::R(grad_h_lod_temp, grad_mask),
                       DxbcSrc::R(grad_h_lod_temp), lod_src);
             DxbcOpDerivRTYCoarse(DxbcDest::R(grad_v_temp, grad_mask),
-                                 DxbcSrc::R(coord_temp));
+                                 DxbcSrc::R(coord_and_sampler_temp));
             // FIXME(Triang3l): Gradient exponent adjustment is currently not
             // done in getCompTexLOD, so don't do it here too.
 #if 0
@@ -1357,11 +1473,27 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       // doesn't allow mixing anisotropic and point filtering. Possibly
       // anistropic filtering should be disabled when explicit LOD is used - do
       // this here.
-      DxbcSrc sampler(FindOrAddSamplerBinding(
+      uint32_t sampler_binding_index = FindOrAddSamplerBinding(
           tfetch_index, instr.attributes.mag_filter,
           instr.attributes.min_filter, instr.attributes.mip_filter,
           use_computed_lod ? instr.attributes.aniso_filter
-                           : AnisoFilter::kDisabled));
+                           : AnisoFilter::kDisabled);
+      DxbcSrc sampler(DxbcSrc::S(sampler_binding_index, sampler_binding_index));
+      if (bindless_resources_used_) {
+        // Load the sampler index to coord_and_sampler_temp.w and use relative
+        // sampler indexing.
+        if (cbuffer_index_descriptor_indices_ == kBindingIndexUnallocated) {
+          cbuffer_index_descriptor_indices_ = cbuffer_count_++;
+        }
+        uint32_t sampler_bindless_descriptor_index =
+            sampler_bindings_[sampler_binding_index].bindless_descriptor_index;
+        DxbcOpMov(DxbcDest::R(coord_and_sampler_temp, 0b1000),
+                  DxbcSrc::CB(cbuffer_index_descriptor_indices_,
+                              uint32_t(CbufferRegister::kDescriptorIndices),
+                              sampler_bindless_descriptor_index >> 2)
+                      .Select(sampler_bindless_descriptor_index & 3));
+        sampler = DxbcSrc::S(0, DxbcIndex(coord_and_sampler_temp, 3));
+      }
 
       // Break result register dependencies because textures will be sampled
       // conditionally, including the primary signs.
@@ -1389,9 +1521,12 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       // - srv_selection_temp.z - if stacked and not forced to be point-sampled,
       //   the lerp factor between two layers, wrapped by layer_lerp_factor_src
       //   with l(0.0) fallback for the point sampling case.
-      // - srv_selection_temp.w - scratch for calculations involving these.
+      // - srv_selection_temp.w - first, scratch for calculations involving
+      //   these, then, unsigned or signed SRV description index.
       DxbcSrc layer_lerp_factor_src(DxbcSrc::LF(0.0f));
-      uint32_t srv_selection_temp = UINT32_MAX;
+      // W is always needed for bindless.
+      uint32_t srv_selection_temp =
+          bindless_resources_used_ ? PushSystemTemp() : UINT32_MAX;
       if (instr.dimension == TextureDimension::k3D) {
         bool vol_mag_filter_is_fetch_const =
             instr.attributes.vol_mag_filter == TextureFilter::kUseFetchConst;
@@ -1469,10 +1604,11 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           }
           // For linear filtering, subtract 0.5 from the coordinates and store
           // the lerp factor. Flooring will be done later.
-          DxbcOpAdd(DxbcDest::R(coord_temp, 0b0100),
-                    DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ), DxbcSrc::LF(-0.5f));
+          DxbcOpAdd(DxbcDest::R(coord_and_sampler_temp, 0b0100),
+                    DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kZZZZ),
+                    DxbcSrc::LF(-0.5f));
           DxbcOpFrc(DxbcDest::R(srv_selection_temp, 0b0100),
-                    DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ));
+                    DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kZZZZ));
           // Close the linear check.
           DxbcOpEndIf();
           // Close the stacked check.
@@ -1505,11 +1641,11 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
             }
             // For linear filtering, subtract 0.5 from the coordinates and store
             // the lerp factor. Flooring will be done later.
-            DxbcOpAdd(DxbcDest::R(coord_temp, 0b0100),
-                      DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ),
+            DxbcOpAdd(DxbcDest::R(coord_and_sampler_temp, 0b0100),
+                      DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kZZZZ),
                       DxbcSrc::LF(-0.5f));
             DxbcOpFrc(DxbcDest::R(srv_selection_temp, 0b0100),
-                      DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ));
+                      DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kZZZZ));
             if (vol_mag_filter_is_fetch_const) {
               // Close the fetch constant linear filtering mode check.
               DxbcOpEndIf();
@@ -1578,13 +1714,50 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           // for the layer index, but on the Xbox 360, addressing is similar to
           // that of 3D textures). This is needed for both point and linear
           // filtering (with linear, 0.5 was subtracted previously).
-          DxbcOpRoundNI(DxbcDest::R(coord_temp, 0b0100),
-                        DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ));
+          DxbcOpRoundNI(DxbcDest::R(coord_and_sampler_temp, 0b0100),
+                        DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kZZZZ));
         }
-        DxbcSrc srv_unsigned(
-            FindOrAddTextureSRV(tfetch_index, srv_dimension, false));
-        DxbcSrc srv_signed(
-            FindOrAddTextureSRV(tfetch_index, srv_dimension, true));
+        uint32_t texture_binding_index_unsigned =
+            FindOrAddTextureBinding(tfetch_index, srv_dimension, false);
+        const TextureBinding& texture_binding_unsigned =
+            texture_bindings_[texture_binding_index_unsigned];
+        uint32_t texture_binding_index_signed =
+            FindOrAddTextureBinding(tfetch_index, srv_dimension, true);
+        const TextureBinding& texture_binding_signed =
+            texture_bindings_[texture_binding_index_signed];
+        DxbcSrc srv_unsigned(DxbcSrc::LF(0.0f)), srv_signed(DxbcSrc::LF(0.0f));
+        if (bindless_resources_used_) {
+          uint32_t* bindless_srv_index = nullptr;
+          switch (srv_dimension) {
+            case TextureDimension::k1D:
+            case TextureDimension::k2D:
+              bindless_srv_index = &srv_index_bindless_textures_2d_;
+              break;
+            case TextureDimension::k3D:
+              bindless_srv_index = &srv_index_bindless_textures_3d_;
+              break;
+            case TextureDimension::kCube:
+              bindless_srv_index = &srv_index_bindless_textures_cube_;
+              break;
+          }
+          assert_not_null(bindless_srv_index);
+          if (*bindless_srv_index == kBindingIndexUnallocated) {
+            *bindless_srv_index = srv_count_++;
+          }
+          assert_true(srv_selection_temp != UINT32_MAX);
+          srv_unsigned =
+              DxbcSrc::T(*bindless_srv_index, DxbcIndex(srv_selection_temp, 3));
+          srv_signed = srv_unsigned;
+        } else {
+          srv_unsigned =
+              DxbcSrc::T(texture_binding_unsigned.bindful_srv_index,
+                         uint32_t(SRVMainRegister::kBindfulTexturesStart) +
+                             texture_binding_index_unsigned);
+          srv_signed =
+              DxbcSrc::T(texture_binding_signed.bindful_srv_index,
+                         uint32_t(SRVMainRegister::kBindfulTexturesStart) +
+                             texture_binding_index_signed);
+        }
         for (uint32_t layer = 0; layer < (layer_lerp_needed ? 2u : 1u);
              ++layer) {
           uint32_t layer_value_temp = system_temp_result_;
@@ -1596,8 +1769,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
             // If the lerp factor is not zero, sample the next layer.
             DxbcOpIf(true, DxbcSrc::R(layer_value_temp, DxbcSrc::kXXXX));
             // Go to the next layer.
-            DxbcOpAdd(DxbcDest::R(coord_temp, 0b0100),
-                      DxbcSrc::R(coord_temp, DxbcSrc::kZZZZ),
+            DxbcOpAdd(DxbcDest::R(coord_and_sampler_temp, 0b0100),
+                      DxbcSrc::R(coord_and_sampler_temp, DxbcSrc::kZZZZ),
                       DxbcSrc::LF(1.0f));
           }
           // Always 3 coordinate components (1D and 2D are padded to 2D arrays,
@@ -1605,17 +1778,34 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           DxbcOpIf(false, is_all_signed_src);
           {
             // Sample the unsigned texture.
+            if (bindless_resources_used_) {
+              // Load the unsigned texture descriptor index.
+              assert_true(srv_selection_temp != UINT32_MAX);
+              if (cbuffer_index_descriptor_indices_ ==
+                  kBindingIndexUnallocated) {
+                cbuffer_index_descriptor_indices_ = cbuffer_count_++;
+              }
+              uint32_t texture_bindless_descriptor_index =
+                  texture_binding_unsigned.bindless_descriptor_index;
+              DxbcOpMov(
+                  DxbcDest::R(srv_selection_temp, 0b1000),
+                  DxbcSrc::CB(cbuffer_index_descriptor_indices_,
+                              uint32_t(CbufferRegister::kDescriptorIndices),
+                              texture_bindless_descriptor_index >> 2)
+                      .Select(texture_bindless_descriptor_index & 3));
+            }
             if (grad_v_temp != UINT32_MAX) {
               assert_not_zero(grad_component_count);
               DxbcOpSampleD(
                   DxbcDest::R(layer_value_temp, used_result_nonzero_components),
-                  DxbcSrc::R(coord_temp), 3, srv_unsigned, sampler,
+                  DxbcSrc::R(coord_and_sampler_temp), 3, srv_unsigned, sampler,
                   DxbcSrc::R(grad_h_lod_temp), DxbcSrc::R(grad_v_temp),
                   srv_grad_component_count);
             } else {
               DxbcOpSampleL(
                   DxbcDest::R(layer_value_temp, used_result_nonzero_components),
-                  DxbcSrc::R(coord_temp), 3, srv_unsigned, sampler, lod_src);
+                  DxbcSrc::R(coord_and_sampler_temp), 3, srv_unsigned, sampler,
+                  lod_src);
             }
           }
           DxbcOpEndIf();
@@ -1623,17 +1813,34 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           {
             // Sample the signed texture.
             uint32_t signed_temp = PushSystemTemp();
+            if (bindless_resources_used_) {
+              // Load the signed texture descriptor index.
+              assert_true(srv_selection_temp != UINT32_MAX);
+              if (cbuffer_index_descriptor_indices_ ==
+                  kBindingIndexUnallocated) {
+                cbuffer_index_descriptor_indices_ = cbuffer_count_++;
+              }
+              uint32_t texture_bindless_descriptor_index =
+                  texture_binding_signed.bindless_descriptor_index;
+              DxbcOpMov(
+                  DxbcDest::R(srv_selection_temp, 0b1000),
+                  DxbcSrc::CB(cbuffer_index_descriptor_indices_,
+                              uint32_t(CbufferRegister::kDescriptorIndices),
+                              texture_bindless_descriptor_index >> 2)
+                      .Select(texture_bindless_descriptor_index & 3));
+            }
             if (grad_v_temp != UINT32_MAX) {
               assert_not_zero(grad_component_count);
               DxbcOpSampleD(
                   DxbcDest::R(signed_temp, used_result_nonzero_components),
-                  DxbcSrc::R(coord_temp), 3, srv_signed, sampler,
+                  DxbcSrc::R(coord_and_sampler_temp), 3, srv_signed, sampler,
                   DxbcSrc::R(grad_h_lod_temp), DxbcSrc::R(grad_v_temp),
                   srv_grad_component_count);
             } else {
               DxbcOpSampleL(
                   DxbcDest::R(signed_temp, used_result_nonzero_components),
-                  DxbcSrc::R(coord_temp), 3, srv_signed, sampler, lod_src);
+                  DxbcSrc::R(coord_and_sampler_temp), 3, srv_signed, sampler,
+                  lod_src);
             }
             DxbcOpMovC(
                 DxbcDest::R(layer_value_temp, used_result_nonzero_components),
@@ -1680,7 +1887,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       }
     }
 
-    // Release coord_temp.
+    // Release coord_and_sampler_temp.
     PopSystemTemp();
 
     // Apply the bias and gamma correction (gamma is after filtering here,

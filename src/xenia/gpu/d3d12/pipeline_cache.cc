@@ -61,19 +61,22 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/primitive_rectangle_list_gs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/tessellation_vs.h"
 
+constexpr size_t PipelineCache::kLayoutUIDEmpty;
 constexpr uint32_t PipelineCache::PipelineDescription::kVersion;
 
 PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
-                             RegisterFile* register_file, bool edram_rov_used,
+                             RegisterFile* register_file,
+                             bool bindless_resources_used, bool edram_rov_used,
                              uint32_t resolution_scale)
     : command_processor_(command_processor),
       register_file_(register_file),
+      bindless_resources_used_(bindless_resources_used),
       edram_rov_used_(edram_rov_used),
       resolution_scale_(resolution_scale) {
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
 
   shader_translator_ = std::make_unique<DxbcShaderTranslator>(
-      provider->GetAdapterVendorID(), edram_rov_used_,
+      provider->GetAdapterVendorID(), bindless_resources_used_, edram_rov_used_,
       provider->GetGraphicsAnalysis() != nullptr);
 
   if (edram_rov_used_) {
@@ -178,6 +181,13 @@ void PipelineCache::ClearCache(bool shutting_down) {
   COUNT_profile_set("gpu/pipeline_cache/pipeline_states", 0);
 
   // Destroy all shaders.
+  command_processor_->NotifyShaderBindingsLayoutUIDsInvalidated();
+  if (bindless_resources_used_) {
+    bindless_sampler_layout_map_.clear();
+    bindless_sampler_layouts_.clear();
+  }
+  texture_binding_layout_map_.clear();
+  texture_binding_layouts_.clear();
   for (auto it : shader_map_) {
     delete it.second;
   }
@@ -264,8 +274,8 @@ void PipelineCache::InitializeShaderStorage(
     auto shader_translation_thread_function = [&]() {
       auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
       DxbcShaderTranslator translator(
-          provider->GetAdapterVendorID(), edram_rov_used_,
-          provider->GetGraphicsAnalysis() != nullptr);
+          provider->GetAdapterVendorID(), bindless_resources_used_,
+          edram_rov_used_, provider->GetGraphicsAnalysis() != nullptr);
       for (;;) {
         std::pair<ShaderStoredHeader, D3D12Shader*> shader_to_translate;
         for (;;) {
@@ -287,11 +297,11 @@ void PipelineCache::InitializeShaderStorage(
                 translator, shader_to_translate.second,
                 shader_to_translate.first.sq_program_cntl,
                 shader_to_translate.first.host_vertex_shader_type)) {
-          std::unique_lock<std::mutex> lock(shaders_failed_to_translate_mutex);
+          std::lock_guard<std::mutex> lock(shaders_failed_to_translate_mutex);
           shaders_failed_to_translate.push_back(shader_to_translate.second);
         }
         {
-          std::unique_lock<std::mutex> lock(shaders_translation_thread_mutex);
+          std::lock_guard<std::mutex> lock(shaders_translation_thread_mutex);
           --shader_translation_threads_busy;
         }
       }
@@ -340,7 +350,7 @@ void PipelineCache::InitializeShaderStorage(
       // one.
       size_t shader_translation_threads_needed;
       {
-        std::unique_lock<std::mutex> lock(shaders_translation_thread_mutex);
+        std::lock_guard<std::mutex> lock(shaders_translation_thread_mutex);
         shader_translation_threads_needed =
             std::min(shader_translation_threads_busy +
                          shaders_to_translate.size() + size_t(1),
@@ -353,7 +363,7 @@ void PipelineCache::InitializeShaderStorage(
         shader_translation_threads.back()->set_name("Shader Translation");
       }
       {
-        std::unique_lock<std::mutex> lock(shaders_translation_thread_mutex);
+        std::lock_guard<std::mutex> lock(shaders_translation_thread_mutex);
         shaders_to_translate.emplace_back(shader_header, shader);
       }
       shaders_translation_thread_cond.notify_one();
@@ -362,7 +372,7 @@ void PipelineCache::InitializeShaderStorage(
     }
     if (!shader_translation_threads.empty()) {
       {
-        std::unique_lock<std::mutex> lock(shaders_translation_thread_mutex);
+        std::lock_guard<std::mutex> lock(shaders_translation_thread_mutex);
         shader_translation_threads_shutdown = true;
       }
       shaders_translation_thread_cond.notify_all();
@@ -662,7 +672,7 @@ void PipelineCache::EndSubmission() {
   if (shader_storage_file_flush_needed_ ||
       pipeline_state_storage_file_flush_needed_) {
     {
-      std::unique_lock<std::mutex> lock(storage_write_request_lock_);
+      std::lock_guard<std::mutex> lock(storage_write_request_lock_);
       if (shader_storage_file_flush_needed_) {
         storage_write_flush_shaders_ = true;
       }
@@ -955,47 +965,165 @@ bool PipelineCache::TranslateShader(
     return false;
   }
 
-  uint32_t texture_srv_count;
-  const DxbcShaderTranslator::TextureSRV* texture_srvs =
-      translator.GetTextureSRVs(texture_srv_count);
+  const char* host_shader_type;
+  if (shader->type() == ShaderType::kVertex) {
+    switch (shader->host_vertex_shader_type()) {
+      case Shader::HostVertexShaderType::kLineDomainCPIndexed:
+        host_shader_type = "control-point-indexed line domain";
+        break;
+      case Shader::HostVertexShaderType::kLineDomainPatchIndexed:
+        host_shader_type = "patch-indexed line domain";
+        break;
+      case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
+        host_shader_type = "control-point-indexed triangle domain";
+        break;
+      case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
+        host_shader_type = "patch-indexed triangle domain";
+        break;
+      case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
+        host_shader_type = "control-point-indexed quad domain";
+        break;
+      case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
+        host_shader_type = "patch-indexed quad domain";
+        break;
+      default:
+        host_shader_type = "vertex";
+    }
+  } else {
+    host_shader_type = "pixel";
+  }
+  XELOGGPU("Generated {} shader ({}b) - hash {:016X}:\n{}\n", host_shader_type,
+           shader->ucode_dword_count() * 4, shader->ucode_data_hash(),
+           shader->ucode_disassembly().c_str());
+
+  // Set up texture and sampler bindings.
+  uint32_t texture_binding_count;
+  const DxbcShaderTranslator::TextureBinding* translator_texture_bindings =
+      translator.GetTextureBindings(texture_binding_count);
   uint32_t sampler_binding_count;
   const DxbcShaderTranslator::SamplerBinding* sampler_bindings =
       translator.GetSamplerBindings(sampler_binding_count);
-  shader->SetTexturesAndSamplers(texture_srvs, texture_srv_count,
-                                 sampler_bindings, sampler_binding_count);
-
-  if (shader->is_valid()) {
-    const char* host_shader_type;
-    if (shader->type() == ShaderType::kVertex) {
-      switch (shader->host_vertex_shader_type()) {
-        case Shader::HostVertexShaderType::kLineDomainCPIndexed:
-          host_shader_type = "control-point-indexed line domain";
-          break;
-        case Shader::HostVertexShaderType::kLineDomainPatchIndexed:
-          host_shader_type = "patch-indexed line domain";
-          break;
-        case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
-          host_shader_type = "control-point-indexed triangle domain";
-          break;
-        case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
-          host_shader_type = "patch-indexed triangle domain";
-          break;
-        case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
-          host_shader_type = "control-point-indexed quad domain";
-          break;
-        case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
-          host_shader_type = "patch-indexed quad domain";
-          break;
-        default:
-          host_shader_type = "vertex";
-      }
-    } else {
-      host_shader_type = "pixel";
-    }
-    XELOGGPU("Generated {} shader ({}b) - hash {:016X}:\n{}\n",
-             host_shader_type, shader->ucode_dword_count() * 4,
-             shader->ucode_data_hash(), shader->ucode_disassembly().c_str());
+  shader->SetTexturesAndSamplers(translator_texture_bindings,
+                                 texture_binding_count, sampler_bindings,
+                                 sampler_binding_count);
+  assert_false(bindless_resources_used_ &&
+               texture_binding_count + sampler_binding_count >
+                   D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 4);
+  // Get hashable texture bindings, without translator-specific info.
+  const D3D12Shader::TextureBinding* texture_bindings =
+      shader->GetTextureBindings(texture_binding_count);
+  size_t texture_binding_layout_bytes =
+      texture_binding_count * sizeof(*texture_bindings);
+  uint64_t texture_binding_layout_hash = 0;
+  if (texture_binding_count) {
+    texture_binding_layout_hash =
+        XXH64(texture_bindings, texture_binding_layout_bytes, 0);
   }
+  uint32_t bindless_sampler_count =
+      bindless_resources_used_ ? sampler_binding_count : 0;
+  uint64_t bindless_sampler_layout_hash = 0;
+  if (bindless_sampler_count) {
+    XXH64_state_t hash_state;
+    XXH64_reset(&hash_state, 0);
+    for (uint32_t i = 0; i < bindless_sampler_count; ++i) {
+      XXH64_update(&hash_state, &sampler_bindings[i].bindless_descriptor_index,
+                   sizeof(sampler_bindings[i].bindless_descriptor_index));
+    }
+    bindless_sampler_layout_hash = XXH64_digest(&hash_state);
+  }
+  // Obtain the unique IDs of binding layouts if there are any texture bindings
+  // or bindless samplers, for invalidation in the command processor.
+  size_t texture_binding_layout_uid = kLayoutUIDEmpty;
+  // Use sampler count for the bindful case because it's the only thing that
+  // must be the same for layouts to be compatible in this case
+  // (instruction-specified parameters are used as overrides for actual
+  // samplers).
+  static_assert(
+      kLayoutUIDEmpty == 0,
+      "Empty layout UID is assumed to be 0 because for bindful samplers, the "
+      "UID is their count");
+  size_t sampler_binding_layout_uid = bindless_resources_used_
+                                          ? kLayoutUIDEmpty
+                                          : size_t(sampler_binding_count);
+  if (texture_binding_count || bindless_sampler_count) {
+    std::lock_guard<std::mutex> layouts_mutex_(layouts_mutex_);
+    if (texture_binding_count) {
+      auto found_range =
+          texture_binding_layout_map_.equal_range(texture_binding_layout_hash);
+      for (auto it = found_range.first; it != found_range.second; ++it) {
+        if (it->second.vector_span_length == texture_binding_count &&
+            !std::memcmp(
+                texture_binding_layouts_.data() + it->second.vector_span_offset,
+                texture_bindings, texture_binding_layout_bytes)) {
+          texture_binding_layout_uid = it->second.uid;
+          break;
+        }
+      }
+      if (texture_binding_layout_uid == kLayoutUIDEmpty) {
+        static_assert(
+            kLayoutUIDEmpty == 0,
+            "Layout UID is size + 1 because it's assumed that 0 is the UID for "
+            "an empty layout");
+        texture_binding_layout_uid = texture_binding_layout_map_.size() + 1;
+        LayoutUID new_uid;
+        new_uid.uid = texture_binding_layout_uid;
+        new_uid.vector_span_offset = texture_binding_layouts_.size();
+        new_uid.vector_span_length = texture_binding_count;
+        texture_binding_layouts_.resize(new_uid.vector_span_offset +
+                                        texture_binding_count);
+        std::memcpy(
+            texture_binding_layouts_.data() + new_uid.vector_span_offset,
+            texture_bindings, texture_binding_layout_bytes);
+        texture_binding_layout_map_.insert(
+            {texture_binding_layout_hash, new_uid});
+      }
+    }
+    if (bindless_sampler_count) {
+      auto found_range =
+          bindless_sampler_layout_map_.equal_range(sampler_binding_layout_uid);
+      for (auto it = found_range.first; it != found_range.second; ++it) {
+        if (it->second.vector_span_length != bindless_sampler_count) {
+          continue;
+        }
+        sampler_binding_layout_uid = it->second.uid;
+        const uint32_t* vector_bindless_sampler_layout =
+            bindless_sampler_layouts_.data() + it->second.vector_span_offset;
+        for (uint32_t i = 0; i < bindless_sampler_count; ++i) {
+          if (vector_bindless_sampler_layout[i] !=
+              sampler_bindings[i].bindless_descriptor_index) {
+            sampler_binding_layout_uid = kLayoutUIDEmpty;
+            break;
+          }
+        }
+        if (sampler_binding_layout_uid != kLayoutUIDEmpty) {
+          break;
+        }
+      }
+      if (sampler_binding_layout_uid == kLayoutUIDEmpty) {
+        sampler_binding_layout_uid = bindless_sampler_layout_map_.size();
+        LayoutUID new_uid;
+        static_assert(
+            kLayoutUIDEmpty == 0,
+            "Layout UID is size + 1 because it's assumed that 0 is the UID for "
+            "an empty layout");
+        new_uid.uid = sampler_binding_layout_uid + 1;
+        new_uid.vector_span_offset = bindless_sampler_layouts_.size();
+        new_uid.vector_span_length = sampler_binding_count;
+        bindless_sampler_layouts_.resize(new_uid.vector_span_offset +
+                                         sampler_binding_count);
+        uint32_t* vector_bindless_sampler_layout =
+            bindless_sampler_layouts_.data() + new_uid.vector_span_offset;
+        for (uint32_t i = 0; i < bindless_sampler_count; ++i) {
+          vector_bindless_sampler_layout[i] =
+              sampler_bindings[i].bindless_descriptor_index;
+        }
+        bindless_sampler_layout_map_.insert(
+            {bindless_sampler_layout_hash, new_uid});
+      }
+    }
+  }
+  shader->SetTextureBindingLayoutUserUID(texture_binding_layout_uid);
+  shader->SetSamplerBindingLayoutUserUID(sampler_binding_layout_uid);
 
   // Create a version of the shader with early depth/stencil forced by Xenia
   // itself when it's safe to do so or when EARLY_Z_ENABLE is set in
@@ -1856,7 +1984,7 @@ void PipelineCache::CreationThread(size_t thread_index) {
     // set the completion event if needed (at the next iteration, or in some
     // other thread).
     {
-      std::unique_lock<std::mutex> lock(creation_request_lock_);
+      std::lock_guard<std::mutex> lock(creation_request_lock_);
       --creation_threads_busy_;
     }
   }
@@ -1867,7 +1995,7 @@ void PipelineCache::CreateQueuedPipelineStatesOnProcessorThread() {
   while (true) {
     PipelineState* pipeline_state_to_create;
     {
-      std::unique_lock<std::mutex> lock(creation_request_lock_);
+      std::lock_guard<std::mutex> lock(creation_request_lock_);
       if (creation_queue_.empty()) {
         break;
       }
