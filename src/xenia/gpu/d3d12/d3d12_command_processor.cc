@@ -920,7 +920,7 @@ bool D3D12CommandProcessor::SetupContext() {
     // Global bindless resource root signatures.
     D3D12_ROOT_SIGNATURE_DESC root_signature_bindless_desc;
     D3D12_ROOT_PARAMETER
-        root_parameters_bindless[kRootParameter_Bindless_Count];
+    root_parameters_bindless[kRootParameter_Bindless_Count];
     root_signature_bindless_desc.NumParameters = kRootParameter_Bindless_Count;
     root_signature_bindless_desc.pParameters = root_parameters_bindless;
     root_signature_bindless_desc.NumStaticSamplers = 0;
