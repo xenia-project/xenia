@@ -572,15 +572,13 @@ uint64_t D3D12CommandProcessor::RequestSamplerBindfulDescriptors(
     deferred_command_list_->SetDescriptorHeaps(view_bindful_heap_current_,
                                                sampler_bindful_heap_current_);
   }
-  uint32_t descriptor_offset =
-      descriptor_index *
-      GetD3D12Context()->GetD3D12Provider()->GetSamplerDescriptorSize();
-  cpu_handle_out.ptr =
-      sampler_bindful_heap_pool_->GetLastRequestHeapCPUStart().ptr +
-      descriptor_offset;
-  gpu_handle_out.ptr =
-      sampler_bindful_heap_pool_->GetLastRequestHeapGPUStart().ptr +
-      descriptor_offset;
+  auto provider = GetD3D12Context()->GetD3D12Provider();
+  cpu_handle_out = provider->OffsetSamplerDescriptor(
+      sampler_bindful_heap_pool_->GetLastRequestHeapCPUStart(),
+      descriptor_index);
+  gpu_handle_out = provider->OffsetSamplerDescriptor(
+      sampler_bindful_heap_pool_->GetLastRequestHeapGPUStart(),
+      descriptor_index);
   return current_heap_index;
 }
 
@@ -3729,7 +3727,7 @@ bool D3D12CommandProcessor::UpdateBindings(
               sampler_index = sampler_bindless_heap_allocated_++;
               texture_cache_->WriteSampler(
                   sampler_parameters,
-                  provider->OffsetViewDescriptor(
+                  provider->OffsetSamplerDescriptor(
                       sampler_bindless_heap_cpu_start_, sampler_index));
               texture_cache_bindless_sampler_map_.insert(
                   {sampler_parameters.value, sampler_index});
@@ -3761,7 +3759,7 @@ bool D3D12CommandProcessor::UpdateBindings(
               sampler_index = sampler_bindless_heap_allocated_++;
               texture_cache_->WriteSampler(
                   sampler_parameters,
-                  provider->OffsetViewDescriptor(
+                  provider->OffsetSamplerDescriptor(
                       sampler_bindless_heap_cpu_start_, sampler_index));
               texture_cache_bindless_sampler_map_.insert(
                   {sampler_parameters.value, sampler_index});
