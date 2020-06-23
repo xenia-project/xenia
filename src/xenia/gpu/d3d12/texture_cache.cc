@@ -115,6 +115,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -126,6 +127,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -137,6 +139,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k8bpb,
      DXGI_FORMAT_R8_SNORM,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R8_UNORM,
@@ -149,6 +152,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k16bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -161,6 +165,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k16bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_B5G6R5_UNORM,
@@ -173,6 +178,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k16bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_B5G6R5_UNORM,
@@ -184,6 +190,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k32bpb,
      DXGI_FORMAT_R8G8B8A8_SNORM,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -195,6 +202,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k32bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R10G10B10A2_UNORM,
@@ -206,6 +214,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k8bpb,
      DXGI_FORMAT_R8_SNORM,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R8_UNORM,
@@ -217,6 +226,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -228,6 +238,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k16bpb,
      DXGI_FORMAT_R8G8_SNORM,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R8G8_UNORM,
@@ -240,6 +251,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k32bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     true,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -256,6 +268,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k32bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     true,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -268,6 +281,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -279,6 +293,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -291,6 +306,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k16bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -302,6 +318,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kR11G11B10ToRGBA16,
      DXGI_FORMAT_R16G16B16A16_SNORM,
      LoadMode::kR11G11B10ToRGBA16SNorm,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R16G16B16A16_UNORM,
@@ -313,6 +330,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kR10G11B11ToRGBA16,
      DXGI_FORMAT_R16G16B16A16_SNORM,
      LoadMode::kR10G11B11ToRGBA16SNorm,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R16G16B16A16_UNORM,
@@ -324,6 +342,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k64bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     true,
      DXGI_FORMAT_R8G8B8A8_UNORM,
      LoadMode::kDXT1ToRGBA8,
      DXGI_FORMAT_UNKNOWN,
@@ -335,6 +354,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k128bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     true,
      DXGI_FORMAT_R8G8B8A8_UNORM,
      LoadMode::kDXT3ToRGBA8,
      DXGI_FORMAT_UNKNOWN,
@@ -346,6 +366,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k128bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     true,
      DXGI_FORMAT_R8G8B8A8_UNORM,
      LoadMode::kDXT5ToRGBA8,
      DXGI_FORMAT_UNKNOWN,
@@ -358,6 +379,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -371,6 +393,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kDepthUnorm,
      DXGI_FORMAT_R32_FLOAT,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -382,6 +405,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kDepthFloat,
      DXGI_FORMAT_R32_FLOAT,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -393,6 +417,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k16bpb,
      DXGI_FORMAT_R16_SNORM,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R16_UNORM,
@@ -406,6 +431,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k32bpb,
      DXGI_FORMAT_R16G16_SNORM,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R16G16_UNORM,
@@ -419,6 +445,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k64bpb,
      DXGI_FORMAT_R16G16B16A16_SNORM,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R16G16B16A16_UNORM,
@@ -430,6 +457,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k16bpb,
      DXGI_FORMAT_R16_FLOAT,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R16_FLOAT,
@@ -441,6 +469,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k32bpb,
      DXGI_FORMAT_R16G16_FLOAT,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R16G16_FLOAT,
@@ -452,6 +481,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k64bpb,
      DXGI_FORMAT_R16G16B16A16_FLOAT,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R16G16B16A16_FLOAT,
@@ -463,6 +493,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k16bpb,
      DXGI_FORMAT_R16_FLOAT,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R16_FLOAT,
@@ -474,6 +505,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k32bpb,
      DXGI_FORMAT_R16G16_FLOAT,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R16G16_FLOAT,
@@ -485,6 +517,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k64bpb,
      DXGI_FORMAT_R16G16B16A16_FLOAT,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R16G16B16A16_FLOAT,
@@ -496,6 +529,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -507,6 +541,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -518,6 +553,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -529,6 +565,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k32bpb,
      DXGI_FORMAT_R32_FLOAT,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R32_FLOAT,
@@ -540,6 +577,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k64bpb,
      DXGI_FORMAT_R32G32_FLOAT,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R32G32_FLOAT,
@@ -551,6 +589,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k128bpb,
      DXGI_FORMAT_R32G32B32A32_FLOAT,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R32G32B32A32_FLOAT,
@@ -562,6 +601,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -573,6 +613,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -584,6 +625,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -595,6 +637,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -606,6 +649,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -617,6 +661,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -628,6 +673,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -639,6 +685,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -650,6 +697,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -661,6 +709,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -672,6 +721,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k128bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     true,
      DXGI_FORMAT_R8G8_UNORM,
      LoadMode::kDXNToRG8,
      DXGI_FORMAT_UNKNOWN,
@@ -683,6 +733,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k32bpb,
      DXGI_FORMAT_R8G8B8A8_SNORM,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -694,6 +745,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k64bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     true,
      DXGI_FORMAT_R8G8B8A8_UNORM,
      LoadMode::kDXT1ToRGBA8,
      DXGI_FORMAT_UNKNOWN,
@@ -705,6 +757,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k128bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     true,
      DXGI_FORMAT_R8G8B8A8_UNORM,
      LoadMode::kDXT3ToRGBA8,
      DXGI_FORMAT_UNKNOWN,
@@ -716,6 +769,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k128bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     true,
      DXGI_FORMAT_R8G8B8A8_UNORM,
      LoadMode::kDXT5ToRGBA8,
      DXGI_FORMAT_UNKNOWN,
@@ -727,6 +781,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k32bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R10G10B10A2_UNORM,
@@ -738,6 +793,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kR11G11B10ToRGBA16,
      DXGI_FORMAT_R16G16B16A16_SNORM,
      LoadMode::kR11G11B10ToRGBA16SNorm,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R16G16B16A16_UNORM,
@@ -749,6 +805,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kR10G11B11ToRGBA16,
      DXGI_FORMAT_R16G16B16A16_SNORM,
      LoadMode::kR10G11B11ToRGBA16SNorm,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_R16G16B16A16_UNORM,
@@ -760,6 +817,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -773,6 +831,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kDXT3A,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -784,6 +843,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::k64bpb,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     true,
      DXGI_FORMAT_R8_UNORM,
      LoadMode::kDXT5AToR8,
      DXGI_FORMAT_UNKNOWN,
@@ -795,6 +855,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kCTX1,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -806,6 +867,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kDXT3AAs1111,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -818,6 +880,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -830,6 +893,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
+     false,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      DXGI_FORMAT_UNKNOWN,
@@ -956,9 +1020,10 @@ bool TextureCache::Initialize(bool edram_rov_used) {
   root_parameters[0].Descriptor.ShaderRegister = 0;
   root_parameters[0].Descriptor.RegisterSpace = 0;
   root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-  // Parameter 1 is the destination.
+  // Parameter 1 is the source (may be changed multiple times for the same
+  // destination).
   D3D12_DESCRIPTOR_RANGE root_dest_range;
-  root_dest_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+  root_dest_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
   root_dest_range.NumDescriptors = 1;
   root_dest_range.BaseShaderRegister = 0;
   root_dest_range.RegisterSpace = 0;
@@ -967,9 +1032,9 @@ bool TextureCache::Initialize(bool edram_rov_used) {
   root_parameters[1].DescriptorTable.NumDescriptorRanges = 1;
   root_parameters[1].DescriptorTable.pDescriptorRanges = &root_dest_range;
   root_parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-  // Parameter 2 is the source.
+  // Parameter 2 is the destination.
   D3D12_DESCRIPTOR_RANGE root_source_range;
-  root_source_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+  root_source_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
   root_source_range.NumDescriptors = 1;
   root_source_range.BaseShaderRegister = 0;
   root_source_range.RegisterSpace = 0;
@@ -1753,6 +1818,7 @@ bool TextureCache::TileResolvedTexture(
   // resolution the UI texture gets ignored). This doesn't apply to 3D resolves,
   // however, because their tiling is more complex - some excess data will even
   // be marked as resolved for them if resolving not to (0,0).
+
   uint32_t bpb_log2 =
       xe::log2_floor(FormatInfo::Get(format)->bits_per_pixel >> 3);
   if (is_3d) {
@@ -1802,6 +1868,9 @@ bool TextureCache::TileResolvedTexture(
   }
 
   // Tile the texture.
+
+  // TODO(Triang3l): Use precreated bindless descriptors here after overall
+  // cleanup/optimization involving typed buffers.
   ui::d3d12::util::DescriptorCPUGPUHandlePair descriptors[2];
   if (!command_processor_->RequestOneUseSingleViewDescriptors(2, descriptors)) {
     return false;
@@ -1815,12 +1884,6 @@ bool TextureCache::TileResolvedTexture(
   command_list->D3DSetComputeRootSignature(resolve_tile_root_signature_);
 
   ResolveTileConstants resolve_tile_constants;
-
-  // TODO(Triang3l): Use precreated bindless descriptors here after overall
-  // cleanup/optimization involving typed buffers.
-  ui::d3d12::util::CreateRawBufferSRV(device, descriptors[1].first, buffer,
-                                      buffer_size);
-  command_list->D3DSetComputeRootDescriptorTable(2, descriptors[1].second);
 
   if (resolve_tile_mode_info.typed_uav_format != DXGI_FORMAT_UNKNOWN) {
     // Not sure if this alignment is actually needed in Direct3D 12, but for
@@ -1857,7 +1920,11 @@ bool TextureCache::TileResolvedTexture(
       shared_memory_->WriteRawUAVDescriptor(descriptors[0].first);
     }
   }
-  command_list->D3DSetComputeRootDescriptorTable(1, descriptors[0].second);
+  command_list->D3DSetComputeRootDescriptorTable(2, descriptors[0].second);
+
+  ui::d3d12::util::CreateRawBufferSRV(device, descriptors[1].first, buffer,
+                                      buffer_size);
+  command_list->D3DSetComputeRootDescriptorTable(1, descriptors[1].second);
 
   resolve_tile_constants.info = uint32_t(endian) | (uint32_t(format) << 3) |
                                 (resolution_scale_log2 << 9) |
@@ -2295,13 +2362,19 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   }
   texture->mip_size = 0;
   if (key.mip_page != 0) {
+    assert_not_zero(key.mip_max_level);
     uint32_t mip_max_storage_level = key.mip_max_level;
     if (key.packed_mips) {
       mip_max_storage_level =
           std::min(mip_max_storage_level,
                    texture_util::GetPackedMipLevel(key.width, key.height));
     }
-    for (uint32_t i = 1; i <= mip_max_storage_level; ++i) {
+    // If the texture is very small, its packed mips may be stored at level 0,
+    // which will be mip_max_storage_level. For i == 0, this will produce the
+    // same values slice size and pitch as for the base, but will fill the
+    // fields even if the base doesn't need to be loaded.
+    for (uint32_t i = std::min(uint32_t(1), mip_max_storage_level);
+         i <= mip_max_storage_level; ++i) {
       texture_util::GetGuestMipBlocks(key.dimension, key.width, key.height,
                                       key.depth, key.format, i, width_blocks,
                                       height_blocks, depth_blocks);
@@ -2401,11 +2474,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     }
   }
 
-  // Update LRU caching because the texture will be used by the command list.
-  MarkTextureUsed(texture);
-
   // Get the guest layout.
-  bool is_3d = texture->key.dimension == Dimension::k3D;
+  Dimension dimension = texture->key.dimension;
+  bool is_3d = dimension == Dimension::k3D;
   uint32_t width = texture->key.width;
   uint32_t height = texture->key.height;
   uint32_t depth = is_3d ? texture->key.depth : 1;
@@ -2414,21 +2485,80 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   const FormatInfo* guest_format_info = FormatInfo::Get(guest_format);
   uint32_t block_width = guest_format_info->block_width;
   uint32_t block_height = guest_format_info->block_height;
+  uint32_t mip_first = base_in_sync ? 1 : 0;
+  uint32_t mip_last = mips_in_sync ? 0 : texture->key.mip_max_level;
+  assert_true(mip_first <= mip_last);
+  uint32_t mip_packed = UINT32_MAX;
+  uint32_t mip_packed_width = 0;
+  uint32_t mip_packed_height = 0;
+  uint32_t mip_packed_depth = 0;
+  if (texture->key.packed_mips) {
+    mip_packed = texture_util::GetPackedMipLevel(width, height);
+    texture_util::GetGuestMipBlocks(dimension, width, height, depth,
+                                    guest_format, mip_packed, mip_packed_width,
+                                    mip_packed_height, mip_packed_depth);
+    mip_packed_width *= block_width;
+    mip_packed_height *= block_height;
+  }
 
   // Get the host layout and the buffer.
-  D3D12_RESOURCE_DESC resource_desc = texture->resource->GetDesc();
+  // To let the load shaders copy multiple consecutive blocks at once without
+  // having to care about the alignment of the base, all packed mips are untiled
+  // at once, with offsets later applied in CopyTextureRegion.
+  uint32_t texture_mip_count = texture->key.mip_max_level + 1;
   D3D12_PLACED_SUBRESOURCE_FOOTPRINT host_layouts[D3D12_REQ_MIP_LEVELS];
-  UINT64 host_slice_size;
-  device->GetCopyableFootprints(&resource_desc, 0, resource_desc.MipLevels, 0,
-                                host_layouts, nullptr, nullptr,
-                                &host_slice_size);
-  // The shaders deliberately overflow for simplicity, and GetCopyableFootprints
-  // doesn't align the size of the last row (or the size if there's only one
-  // row, not really sure) to row pitch, so add some excess bytes for safety.
-  // 1x1 8-bit and 16-bit textures even give a device loss because the raw UAV
-  // has a size of 0.
-  host_slice_size =
-      xe::align(host_slice_size, UINT64(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
+  D3D12_PLACED_SUBRESOURCE_FOOTPRINT host_layout_packed;
+  // If need to load both base and mips, and both are in the packed mip tail,
+  // but base and mip addresses are different, host_layout_packed is for the
+  // base level, but mips starting from 1 are placed at this offset from
+  // host_layout_packed.
+  UINT64 host_layout_packed_mips_offset = 0;
+  UINT64 host_slice_size = 0;
+  {
+    D3D12_RESOURCE_DESC footprint_resource_desc = texture->resource->GetDesc();
+    if (mip_first < mip_packed) {
+      host_slice_size = xe::align(
+          host_slice_size, UINT64(D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT));
+      UINT64 host_layouts_size;
+      device->GetCopyableFootprints(
+          &footprint_resource_desc, mip_first,
+          std::min(mip_packed, mip_last + uint32_t(1)) - mip_first,
+          host_slice_size, host_layouts, nullptr, nullptr, &host_layouts_size);
+      // Shaders write excess pixels in the end of the row for simplicity (not
+      // to bound-check every pixel, because multiple pixels may be copied at
+      // once), but GetCopyableFootprints doesn't align the last row.
+      host_slice_size += xe::align(host_layouts_size,
+                                   UINT64(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
+    }
+    if (mip_last >= mip_packed) {
+      host_slice_size = xe::align(
+          host_slice_size, UINT64(D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT));
+      UINT64 host_layout_packed_offset = host_slice_size;
+      footprint_resource_desc.Width = mip_packed_width;
+      footprint_resource_desc.Height = mip_packed_height;
+      footprint_resource_desc.DepthOrArraySize = mip_packed_depth;
+      footprint_resource_desc.MipLevels = 1;
+      UINT64 host_layout_packed_size;
+      device->GetCopyableFootprints(&footprint_resource_desc, 0, 1,
+                                    host_slice_size, &host_layout_packed,
+                                    nullptr, nullptr, &host_layout_packed_size);
+      host_layout_packed_size = xe::align(
+          host_layout_packed_size, UINT64(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
+      host_slice_size += host_layout_packed_size;
+      if (mip_packed == 0 && mip_first == 0 && mip_last != 0 &&
+          texture->key.base_page != texture->key.mip_page) {
+        // Base and mips are both small enough to be packed, but stored at
+        // different addresses - load different mip tails containing different
+        // data for the base and the mips. Allocate another area for the packed
+        // mips untiled from a different address.
+        host_slice_size = xe::align(
+            host_slice_size, UINT64(D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT));
+        host_layout_packed_mips_offset =
+            host_slice_size - host_layout_packed_offset;
+        host_slice_size += host_layout_packed_size;
+      }
+    }
+  }
   D3D12_RESOURCE_STATES copy_buffer_state =
       D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
   ID3D12Resource* copy_buffer = command_processor_->RequestScratchGPUBuffer(
@@ -2436,27 +2566,29 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   if (copy_buffer == nullptr) {
     return false;
   }
+  uint32_t host_block_width = 1;
+  uint32_t host_block_height = 1;
+  if (host_formats_[uint32_t(guest_format)].dxgi_format_block_aligned &&
+      !IsDecompressionNeeded(guest_format, width, height)) {
+    host_block_width = block_width;
+    host_block_height = block_height;
+  }
 
   // Begin loading.
-  uint32_t mip_first = base_in_sync ? 1 : 0;
-  uint32_t mip_last = mips_in_sync ? 0 : resource_desc.MipLevels - 1;
   // Can't address more than 512 MB directly on Nvidia - need two separate UAV
   // descriptors for base and mips.
   bool separate_base_and_mips_descriptors =
       scaled_resolve && mip_first == 0 && mip_last != 0;
   // TODO(Triang3l): Use precreated bindless descriptors here after overall
   // cleanup/optimization involving typed buffers.
-  uint32_t descriptor_count = separate_base_and_mips_descriptors ? 4 : 2;
-  ui::d3d12::util::DescriptorCPUGPUHandlePair descriptors[4];
+  uint32_t descriptor_count = separate_base_and_mips_descriptors ? 3 : 2;
+  ui::d3d12::util::DescriptorCPUGPUHandlePair descriptors[3];
   if (!command_processor_->RequestOneUseSingleViewDescriptors(descriptor_count,
                                                               descriptors)) {
     return false;
   }
-  // Create two destination descriptors since the table has both.
-  for (uint32_t i = 0; i < descriptor_count; i += 2) {
-    ui::d3d12::util::CreateRawBufferUAV(device, descriptors[i].first,
-                                        copy_buffer, uint32_t(host_slice_size));
-  }
+  ui::d3d12::util::CreateRawBufferUAV(device, descriptors[0].first, copy_buffer,
+                                      uint32_t(host_slice_size));
   if (scaled_resolve) {
     // TODO(Triang3l): Allow partial invalidation of scaled textures - send a
     // part of scaled_resolve_pages_ to the shader and choose the source
@@ -2469,7 +2601,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       CreateScaledResolveBufferRawSRV(
           descriptors[source_descriptor_index].first, texture->key.base_page,
           (texture->base_size + 0xFFF) >> 12);
-      source_descriptor_index += 2;
+      ++source_descriptor_index;
     }
     if (mip_last != 0) {
       CreateScaledResolveBufferRawSRV(
@@ -2482,11 +2614,10 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   }
   command_processor_->SetComputePipeline(pipeline);
   command_list->D3DSetComputeRootSignature(load_root_signature_);
-  if (!separate_base_and_mips_descriptors) {
-    // Will be bound later if separate base and mip descriptors.
-    command_list->D3DSetComputeRootDescriptorTable(2, descriptors[1].second);
-    command_list->D3DSetComputeRootDescriptorTable(1, descriptors[0].second);
-  }
+  command_list->D3DSetComputeRootDescriptorTable(2, descriptors[0].second);
+
+  // Update LRU caching because the texture will be used by the command list.
+  MarkTextureUsed(texture);
 
   // Submit commands.
   command_processor_->PushTransitionBarrier(texture->resource, texture->state,
@@ -2497,77 +2628,103 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   load_constants.is_3d = is_3d ? 1 : 0;
   load_constants.endianness = uint32_t(texture->key.endianness);
   load_constants.guest_format = uint32_t(guest_format);
-  if (!texture->key.packed_mips) {
-    load_constants.guest_mip_offset[0] = 0;
-    load_constants.guest_mip_offset[1] = 0;
-    load_constants.guest_mip_offset[2] = 0;
+  uint32_t loop_mip_first = std::min(mip_first, mip_packed);
+  uint32_t loop_mip_last = std::min(mip_last, mip_packed);
+  if (host_layout_packed_mips_offset) {
+    assert_zero(mip_packed);
+    // Need to load two different packed mip tails for the base and the mips.
+    // loop_mip == 0 - packed base.
+    // loop_mip == 1 - packed mips.
+    loop_mip_last = 1;
   }
-  for (uint32_t i = 0; i < slice_count; ++i) {
+  uint32_t last_source_descriptor_index = UINT32_MAX;
+  for (uint32_t slice = 0; slice < slice_count; ++slice) {
     command_processor_->PushTransitionBarrier(
         copy_buffer, copy_buffer_state, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     copy_buffer_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    for (uint32_t j = mip_first; j <= mip_last; ++j) {
+    for (uint32_t loop_mip = loop_mip_first; loop_mip <= loop_mip_last;
+         ++loop_mip) {
+      // If need to load two different packed mip tails, there will be two
+      // iterations of the loop, but both images will have the size of mip 0.
+      uint32_t mip = (mip_packed != 0 ? loop_mip : 0);
+      bool is_base;
+      if (mip_packed == 0) {
+        is_base = (mip_first == 0 && loop_mip == 0);
+      } else {
+        is_base = (mip == 0);
+      }
+      uint32_t source_descriptor_index = 1;
       if (scaled_resolve) {
         // Offset already applied in the buffer because more than 512 MB can't
         // be directly addresses on Nvidia.
         load_constants.guest_base = 0;
-      } else {
-        if (j == 0) {
-          load_constants.guest_base = texture->key.base_page << 12;
-        } else {
-          load_constants.guest_base = texture->key.mip_page << 12;
+        if (separate_base_and_mips_descriptors) {
+          source_descriptor_index = is_base ? 1 : 2;
         }
+      } else {
+        load_constants.guest_base =
+            (is_base ? texture->key.base_page : texture->key.mip_page) << 12;
       }
       load_constants.guest_base +=
-          texture->mip_offsets[j] + i * texture->slice_sizes[j];
+          texture->mip_offsets[mip] + slice * texture->slice_sizes[mip];
+      const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& host_layout =
+          mip == mip_packed ? host_layout_packed
+                            : host_layouts[mip - mip_first];
       load_constants.guest_pitch = texture->key.tiled
                                        ? LoadConstants::kGuestPitchTiled
-                                       : texture->pitches[j];
-      load_constants.host_base = uint32_t(host_layouts[j].Offset);
-      load_constants.host_pitch = host_layouts[j].Footprint.RowPitch;
-      load_constants.size_texels[0] = std::max(width >> j, 1u);
-      load_constants.size_texels[1] = std::max(height >> j, 1u);
-      load_constants.size_texels[2] = std::max(depth >> j, 1u);
-      load_constants.size_blocks[0] =
-          (load_constants.size_texels[0] + (block_width - 1)) / block_width;
-      load_constants.size_blocks[1] =
-          (load_constants.size_texels[1] + (block_height - 1)) / block_height;
-      load_constants.size_blocks[2] = load_constants.size_texels[2];
-      if (j == 0) {
-        load_constants.guest_storage_width_height[0] =
-            xe::align(load_constants.size_blocks[0], 32u);
-        load_constants.guest_storage_width_height[1] =
-            xe::align(load_constants.size_blocks[1], 32u);
-      } else {
-        load_constants.guest_storage_width_height[0] =
-            xe::align(xe::next_pow2(load_constants.size_blocks[0]), 32u);
-        load_constants.guest_storage_width_height[1] =
-            xe::align(xe::next_pow2(load_constants.size_blocks[1]), 32u);
+                                       : texture->pitches[mip];
+      load_constants.host_base = uint32_t(host_layout.Offset);
+      if (mip_packed == 0 && loop_mip) {
+        // Two packed mip tails, but this one is for the mips.
+        load_constants.host_base += uint32_t(host_layout_packed_mips_offset);
       }
-      if (texture->key.packed_mips) {
-        texture_util::GetPackedMipOffset(width, height, depth, guest_format, j,
-                                         load_constants.guest_mip_offset[0],
-                                         load_constants.guest_mip_offset[1],
-                                         load_constants.guest_mip_offset[2]);
+      load_constants.host_pitch = host_layout.Footprint.RowPitch;
+      uint32_t mip_width, mip_height, mip_depth;
+      if (mip == mip_packed) {
+        // Force power of 2 for both the source and the destination if it's the
+        // mip tail, and it's not on level 0.
+        mip_width = mip_packed_width;
+        mip_height = mip_packed_height;
+        mip_depth = mip_packed_depth;
+      } else {
+        mip_width = std::max(width >> mip, uint32_t(1));
+        mip_height = std::max(height >> mip, uint32_t(1));
+        mip_depth = std::max(depth >> mip, uint32_t(1));
+      }
+      load_constants.size_blocks[0] =
+          (mip_width + (block_width - 1)) / block_width;
+      load_constants.size_blocks[1] =
+          (mip_height + (block_height - 1)) / block_height;
+      load_constants.size_blocks[2] = mip_depth;
+      load_constants.height_texels = mip_height;
+      if (mip == 0) {
+        load_constants.guest_storage_width_height[0] =
+            xe::align(load_constants.size_blocks[0], uint32_t(32));
+        load_constants.guest_storage_width_height[1] =
+            xe::align(load_constants.size_blocks[1], uint32_t(32));
+      } else {
+        load_constants.guest_storage_width_height[0] = xe::align(
+            xe::next_pow2(load_constants.size_blocks[0]), uint32_t(32));
+        load_constants.guest_storage_width_height[1] = xe::align(
+            xe::next_pow2(load_constants.size_blocks[1]), uint32_t(32));
       }
       D3D12_GPU_VIRTUAL_ADDRESS cbuffer_gpu_address;
       uint8_t* cbuffer_mapping = cbuffer_pool->Request(
           command_processor_->GetCurrentFrame(),
-          xe::align(uint32_t(sizeof(load_constants)), 256u), nullptr, nullptr,
-          &cbuffer_gpu_address);
+          xe::align(uint32_t(sizeof(load_constants)), uint32_t(256)), nullptr,
+          nullptr, &cbuffer_gpu_address);
       if (cbuffer_mapping == nullptr) {
         command_processor_->ReleaseScratchGPUBuffer(copy_buffer,
                                                     copy_buffer_state);
         return false;
       }
       std::memcpy(cbuffer_mapping, &load_constants, sizeof(load_constants));
-      command_list->D3DSetComputeRootConstantBufferView(0, cbuffer_gpu_address);
-      if (separate_base_and_mips_descriptors && j <= 1) {
+      if (last_source_descriptor_index != source_descriptor_index) {
+        last_source_descriptor_index = source_descriptor_index;
         command_list->D3DSetComputeRootDescriptorTable(
-            2, descriptors[j * 2 + 1].second);
-        command_list->D3DSetComputeRootDescriptorTable(
-            1, descriptors[j * 2].second);
+            1, descriptors[source_descriptor_index].second);
       }
+      command_list->D3DSetComputeRootConstantBufferView(0, cbuffer_gpu_address);
       command_processor_->SubmitBarriers();
       // Each thread group processes 32x32x1 blocks after resolution scaling has
       // been applied.
@@ -2587,16 +2744,42 @@ bool TextureCache::LoadTextureData(Texture* texture) {
                                               D3D12_RESOURCE_STATE_COPY_SOURCE);
     copy_buffer_state = D3D12_RESOURCE_STATE_COPY_SOURCE;
     command_processor_->SubmitBarriers();
-    UINT slice_first_subresource = i * resource_desc.MipLevels;
-    for (uint32_t j = mip_first; j <= mip_last; ++j) {
+    UINT slice_first_subresource = slice * texture_mip_count;
+    for (uint32_t mip = mip_first; mip <= mip_last; ++mip) {
       D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
       location_source.pResource = copy_buffer;
       location_source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-      location_source.PlacedFootprint = host_layouts[j];
       location_dest.pResource = texture->resource;
       location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-      location_dest.SubresourceIndex = slice_first_subresource + j;
-      command_list->CopyTexture(location_dest, location_source);
+      location_dest.SubresourceIndex = slice_first_subresource + mip;
+      if (mip >= mip_packed) {
+        location_source.PlacedFootprint = host_layout_packed;
+        if (mip != 0) {
+          location_source.PlacedFootprint.Offset +=
+              host_layout_packed_mips_offset;
+        }
+        uint32_t mip_offset_blocks_x, mip_offset_blocks_y, mip_offset_z;
+        texture_util::GetPackedMipOffset(width, height, depth, guest_format,
+                                         mip, mip_offset_blocks_x,
+                                         mip_offset_blocks_y, mip_offset_z);
+        D3D12_BOX source_box;
+        source_box.left = mip_offset_blocks_x * block_width;
+        source_box.top = mip_offset_blocks_y * block_height;
+        source_box.front = mip_offset_z;
+        source_box.right =
+            source_box.left +
+            xe::align(std::max(width >> mip, uint32_t(1)), host_block_width);
+        source_box.bottom =
+            source_box.top +
+            xe::align(std::max(height >> mip, uint32_t(1)), host_block_height);
+        source_box.back =
+            source_box.front + std::max(depth >> mip, uint32_t(1));
+        command_list->CopyTextureRegion(location_dest, 0, 0, 0, location_source,
+                                        source_box);
+      } else {
+        location_source.PlacedFootprint = host_layouts[mip - mip_first];
+        command_list->CopyTexture(location_dest, location_source);
+      }
     }
   }
 

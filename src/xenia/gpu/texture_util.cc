@@ -63,9 +63,11 @@ void GetSubresourcesFromFetchConstant(
     *depth_or_faces_out = depth_or_faces;
   }
 
-  uint32_t size_mip_max_level = GetSmallestMipLevel(
-      width, height, fetch.dimension == Dimension::k3D ? depth_or_faces : 1,
-      false);
+  uint32_t longest_axis = std::max(width, height);
+  if (fetch.dimension == Dimension::k3D) {
+    longest_axis = std::max(longest_axis, depth_or_faces);
+  }
+  uint32_t size_mip_max_level = xe::log2_floor(longest_axis);
   TextureFilter mip_filter = sampler_mip_filter == TextureFilter::kUseFetchConst
                                  ? fetch.mip_filter
                                  : sampler_mip_filter;
@@ -121,11 +123,11 @@ void GetGuestMipBlocks(Dimension dimension, uint32_t width, uint32_t height,
                        uint32_t& depth_blocks_out) {
   // Get mipmap size.
   if (mip != 0) {
-    width = std::max(xe::next_pow2(width) >> mip, 1u);
+    width = std::max(xe::next_pow2(width) >> mip, uint32_t(1));
     if (dimension != Dimension::k1D) {
-      height = std::max(xe::next_pow2(height) >> mip, 1u);
+      height = std::max(xe::next_pow2(height) >> mip, uint32_t(1));
       if (dimension == Dimension::k3D) {
-        depth = std::max(xe::next_pow2(depth) >> mip, 1u);
+        depth = std::max(xe::next_pow2(depth) >> mip, uint32_t(1));
       }
     }
   }
@@ -136,17 +138,17 @@ void GetGuestMipBlocks(Dimension dimension, uint32_t width, uint32_t height,
   height =
       xe::align(height, format_info->block_height) / format_info->block_height;
 
-  // 32x32x4-align.
-  width_blocks_out = xe::align(width, 32u);
+  // Align to tile size.
+  width_blocks_out = xe::align(width, uint32_t(32));
   if (dimension != Dimension::k1D) {
-    height_blocks_out = xe::align(height, 32u);
-    if (dimension == Dimension::k3D) {
-      depth_blocks_out = xe::align(depth, 4u);
-    } else {
-      depth_blocks_out = 1;
-    }
+    height_blocks_out = xe::align(height, uint32_t(32));
   } else {
     height_blocks_out = 1;
+  }
+  if (dimension == Dimension::k3D) {
+    depth_blocks_out = xe::align(depth, uint32_t(4));
+  } else {
+    depth_blocks_out = 1;
   }
 }
 
@@ -281,19 +283,28 @@ void GetTextureTotalSize(Dimension dimension, uint32_t width, uint32_t height,
     *base_size_out = size;
   }
   if (mip_size_out) {
-    mip_max_level = std::min(
-        mip_max_level,
-        GetSmallestMipLevel(width, height, is_3d ? depth : 1, packed_mips));
     uint32_t size = 0;
-    for (uint32_t i = 1; i <= mip_max_level; ++i) {
-      GetGuestMipBlocks(dimension, width, height, depth, format, i,
-                        width_blocks, height_blocks, depth_blocks);
-      uint32_t level_size = GetGuestMipSliceStorageSize(
-          width_blocks, height_blocks, depth_blocks, is_tiled, format, nullptr);
-      if (!is_3d) {
-        level_size *= depth;
+    uint32_t longest_axis = std::max(width, height);
+    if (is_3d) {
+      longest_axis = std::max(longest_axis, depth);
+    }
+    mip_max_level = std::min(mip_max_level, xe::log2_floor(longest_axis));
+    if (mip_max_level) {
+      // If the texture is very small, its packed mips may be stored at level 0.
+      uint32_t mip_packed =
+          packed_mips ? GetPackedMipLevel(width, height) : UINT32_MAX;
+      for (uint32_t i = std::min(uint32_t(1), mip_packed);
+           i <= std::min(mip_max_level, mip_packed); ++i) {
+        GetGuestMipBlocks(dimension, width, height, depth, format, i,
+                          width_blocks, height_blocks, depth_blocks);
+        uint32_t level_size = GetGuestMipSliceStorageSize(
+            width_blocks, height_blocks, depth_blocks, is_tiled, format,
+            nullptr);
+        if (!is_3d) {
+          level_size *= depth;
+        }
+        size += level_size;
       }
-      size += level_size;
     }
     *mip_size_out = size;
   }

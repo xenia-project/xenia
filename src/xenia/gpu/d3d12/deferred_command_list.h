@@ -78,6 +78,20 @@ class DeferredCommandList {
     std::memcpy(&args.src, &src, sizeof(D3D12_TEXTURE_COPY_LOCATION));
   }
 
+  inline void CopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION& dst,
+                                UINT dst_x, UINT dst_y, UINT dst_z,
+                                const D3D12_TEXTURE_COPY_LOCATION& src,
+                                const D3D12_BOX& src_box) {
+    auto& args = *reinterpret_cast<CopyTextureRegionArguments*>(WriteCommand(
+        Command::kCopyTextureRegion, sizeof(CopyTextureRegionArguments)));
+    std::memcpy(&args.dst, &dst, sizeof(D3D12_TEXTURE_COPY_LOCATION));
+    args.dst_x = dst_x;
+    args.dst_y = dst_y;
+    args.dst_z = dst_z;
+    std::memcpy(&args.src, &src, sizeof(D3D12_TEXTURE_COPY_LOCATION));
+    args.src_box = src_box;
+  }
+
   inline void D3DDispatch(UINT thread_group_count_x, UINT thread_group_count_y,
                           UINT thread_group_count_z) {
     auto& args = *reinterpret_cast<D3DDispatchArguments*>(
@@ -325,6 +339,7 @@ class DeferredCommandList {
     kD3DCopyBufferRegion,
     kD3DCopyResource,
     kCopyTexture,
+    kCopyTextureRegion,
     kD3DDispatch,
     kD3DDrawIndexedInstanced,
     kD3DDrawInstanced,
@@ -377,6 +392,15 @@ class DeferredCommandList {
   struct CopyTextureArguments {
     D3D12_TEXTURE_COPY_LOCATION dst;
     D3D12_TEXTURE_COPY_LOCATION src;
+  };
+
+  struct CopyTextureRegionArguments {
+    D3D12_TEXTURE_COPY_LOCATION dst;
+    UINT dst_x;
+    UINT dst_y;
+    UINT dst_z;
+    D3D12_TEXTURE_COPY_LOCATION src;
+    D3D12_BOX src_box;
   };
 
   struct D3DDispatchArguments {

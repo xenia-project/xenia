@@ -349,6 +349,9 @@ class TextureCache {
     // though), add a constant buffer containing multipliers for the
     // textures and multiplication to the tfetch implementation.
 
+    // Whether the DXGI format, if not uncompressing the texture, consists of
+    // blocks, thus copy regions must be aligned to block size.
+    bool dxgi_format_block_aligned;
     // Uncompression info for when the regular host format for this texture is
     // block-compressed, but the size is not block-aligned, and thus such
     // texture cannot be created in Direct3D on PC and needs decompression,
@@ -420,26 +423,23 @@ class TextureCache {
     uint32_t guest_base;
     // For linear textures - row byte pitch.
     uint32_t guest_pitch;
-    uint32_t host_base;
-    uint32_t host_pitch;
+    // Block-aligned and, for mipmaps, power-of-two-aligned width and height.
+    uint32_t guest_storage_width_height[2];
 
     // vec4 1.
-    uint32_t size_texels[3];
     uint32_t is_3d;
+    uint32_t guest_format;
+    uint32_t endianness;
+    uint32_t padding_1;
 
     // vec4 2.
     uint32_t size_blocks[3];
-    uint32_t endianness;
+    uint32_t height_texels;
 
     // vec4 3.
-    // Block-aligned and, for mipmaps, power-of-two-aligned width and height.
-    uint32_t guest_storage_width_height[2];
-    uint32_t guest_format;
-    uint32_t padding_3;
-
-    // vec4 4.
-    // Offset within the packed mip for small mips.
-    uint32_t guest_mip_offset[3];
+    uint32_t host_base;
+    uint32_t host_pitch;
+    uint32_t padding_3[2];
 
     static constexpr uint32_t kGuestPitchTiled = UINT32_MAX;
   };

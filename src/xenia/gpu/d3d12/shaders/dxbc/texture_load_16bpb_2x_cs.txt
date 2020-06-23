@@ -9,15 +9,14 @@
 //
 //   uint xe_texture_load_guest_base;   // Offset:    0 Size:     4
 //   uint xe_texture_load_guest_pitch;  // Offset:    4 Size:     4
-//   uint xe_texture_load_host_base;    // Offset:    8 Size:     4
-//   uint xe_texture_load_host_pitch;   // Offset:   12 Size:     4
-//   uint3 xe_texture_load_size_texels; // Offset:   16 Size:    12 [unused]
-//   bool xe_texture_load_is_3d;        // Offset:   28 Size:     4
+//   uint2 xe_texture_guest_storage_width_height;// Offset:    8 Size:     8
+//   bool xe_texture_load_is_3d;        // Offset:   16 Size:     4
+//   uint xe_texture_load_guest_format; // Offset:   20 Size:     4
+//   uint xe_texture_load_endianness;   // Offset:   24 Size:     4
 //   uint3 xe_texture_load_size_blocks; // Offset:   32 Size:    12
-//   uint xe_texture_load_endianness;   // Offset:   44 Size:     4
-//   uint2 xe_texture_guest_storage_width_height;// Offset:   48 Size:     8
-//   uint xe_texture_load_guest_format; // Offset:   56 Size:     4
-//   uint3 xe_texture_load_guest_mip_offset;// Offset:   64 Size:    12
+//   uint xe_texture_load_height_texels;// Offset:   44 Size:     4 [unused]
+//   uint xe_texture_load_host_base;    // Offset:   48 Size:     4
+//   uint xe_texture_load_host_pitch;   // Offset:   52 Size:     4
 //
 // }
 //
@@ -45,97 +44,102 @@
 // no Output
 cs_5_1
 dcl_globalFlags refactoringAllowed
-dcl_constantbuffer CB0[0:0][5], immediateIndexed, space=0
+dcl_constantbuffer CB0[0:0][4], immediateIndexed, space=0
 dcl_resource_raw T0[0:0], space=0
 dcl_uav_raw U0[0:0], space=0
 dcl_input vThreadID.xyz
-dcl_temps 7
+dcl_temps 5
 dcl_thread_group 8, 16, 1
 ishl r0.x, vThreadID.x, l(1)
 mov r0.yz, vThreadID.yyzy
-uge r1.xyz, r0.xyzx, CB0[0][2].xyzx
-or r0.w, r1.y, r1.x
-or r0.w, r1.z, r0.w
-if_nz r0.w
+uge r0.yzw, r0.xxyz, CB0[0][2].xxyz
+or r0.y, r0.z, r0.y
+or r0.y, r0.w, r0.y
+if_nz r0.y
   ret 
 endif 
-iadd r0.xyz, r0.xyzx, CB0[0][4].xyzx
-ieq r0.w, CB0[0][0].y, l(-1)
-if_nz r0.w
-  if_nz CB0[0][1].w
-    iadd r1.xy, CB0[0][3].yxyy, l(31, 31, 0, 0)
-    iadd r2.xyzw, r0.xxxx, l(0, 1, 0, 1)
-    ushr r3.xyz, r0.yzyy, l(4, 2, 3, 0)
-    ushr r1.xy, r1.xyxx, l(4, 5, 0, 0)
-    and r0.w, r1.x, l(0x0ffffffe)
-    imad r0.w, r3.y, r0.w, r3.x
-    ushr r4.xyzw, r2.zwzw, l(5, 5, 3, 3)
-    imad r1.xyzw, r0.wwww, r1.yyyy, r4.xyxy
-    ishl r0.w, r0.y, l(9)
-    and r0.w, r0.w, l(3072)
-    bfi r2.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r2.xyzw, r0.wwww
+ieq r0.y, CB0[0][0].y, l(-1)
+if_nz r0.y
+  if_nz CB0[0][1].x
+    iadd r0.yz, CB0[0][0].wwzw, l(0, 31, 31, 0)
+    ushr r1.xyz, vThreadID.yzyy, l(4, 2, 3, 0)
+    ushr r0.yz, r0.yyzy, l(0, 4, 5, 0)
+    and r0.y, r0.y, l(0x0ffffffe)
+    imad r0.y, r1.y, r0.y, r1.x
+    ubfe r1.xw, l(27, 0, 0, 29), l(4, 0, 0, 2), vThreadID.xxxx
+    imad r0.y, r0.y, r0.z, r1.x
+    bfi r0.z, l(2), l(1), vThreadID.x, l(0)
+    iadd r2.xyzw, r0.zzzz, l(0, 1, 0, 1)
+    ishl r0.z, vThreadID.y, l(9)
+    and r0.z, r0.z, l(3072)
+    imad r2.xyzw, r2.xyzw, l(128, 128, 128, 128), r0.zzzz
     ushr r2.xyzw, r2.xyzw, l(6, 6, 6, 6)
-    iadd r0.w, r3.y, r3.z
-    bfi r3.x, l(1), l(1), r0.w, l(0)
-    iadd r3.xy, r3.xxxx, r4.zwzz
-    bfi r3.xy, l(2, 2, 0, 0), l(1, 1, 0, 0), r3.xyxx, l(0, 0, 0, 0)
-    bfi r3.xy, l(1, 1, 0, 0), l(0, 0, 0, 0), r0.wwww, r3.xyxx
-    and r4.xyzw, r2.zwzw, l(48, 48, 48, 48)
-    bfi r1.xyzw, l(21, 21, 21, 21), l(9, 9, 12, 12), r1.xyzw, l(0, 0, 0, 0)
-    imad r1.xyzw, r4.xyzw, l(2, 2, 16, 16), r1.xyzw
-    bfi r1.xyzw, l(4, 4, 4, 4), l(0, 0, 3, 3), r2.xyzw, r1.xyzw
-    bfi r1.xyzw, l(2, 2, 2, 2), l(7, 7, 10, 10), r0.zzzz, r1.xyzw
-    ubfe r2.xy, l(3, 3, 0, 0), l(6, 6, 0, 0), r1.xyxx
-    and r2.zw, r3.xxxy, l(0, 0, 6, 6)
-    bfi r3.xy, l(1, 1, 0, 0), l(8, 8, 0, 0), r3.xyxx, l(0, 0, 0, 0)
-    imad r2.xy, r2.xyxx, l(32, 32, 0, 0), r3.xyxx
-    imad r2.xy, r2.zwzz, l(4, 4, 0, 0), r2.xyxx
-    bfi r1.xyzw, l(1, 1, 1, 1), l(4, 4, 7, 7), r0.yyyy, r1.xyzw
-    bfi r1.zw, l(0, 0, 9, 9), l(0, 0, 3, 3), r2.xxxy, r1.zzzw
-    bfi r1.xy, l(6, 6, 0, 0), l(0, 0, 0, 0), r1.xyxx, r1.zwzz
+    iadd r0.z, r1.y, r1.z
+    bfi r0.yw, l(0, 21, 0, 1), l(0, 9, 0, 1), r0.yyyz, l(0, 0, 0, 0)
+    iadd r0.w, r0.w, r1.w
+    bfi r0.w, l(2), l(1), r0.w, l(0)
+    bfi r0.z, l(1), l(0), r0.z, r0.w
+    and r1.xyzw, r2.xyzw, l(48, 48, 12, 14)
+    imad r0.yw, r1.xxxy, l(0, 2, 0, 2), r0.yyyy
+    iadd r0.yw, r1.zzzw, r0.yyyw
+    bfi r1.xy, l(2, 2, 0, 0), l(7, 7, 0, 0), vThreadID.zzzz, r0.ywyy
+    bfi r1.zw, l(0, 0, 1, 1), l(0, 0, 4, 4), vThreadID.yyyy, r1.xxxy
+    ubfe r1.xy, l(3, 3, 0, 0), l(6, 6, 0, 0), r1.xyxx
+    and r2.x, r0.z, l(6)
+    bfi r0.z, l(1), l(8), r0.z, l(0)
+    imad r1.xy, r1.xyxx, l(32, 32, 0, 0), r0.zzzz
+    imad r1.xy, r2.xxxx, l(4, 4, 0, 0), r1.xyxx
+    ishl r0.yz, r0.yywy, l(0, 3, 3, 0)
+    bfi r0.yz, l(0, 2, 2, 0), l(0, 10, 10, 0), vThreadID.zzzz, r0.yyzy
+    bfi r0.yz, l(0, 1, 1, 0), l(0, 7, 7, 0), vThreadID.yyyy, r0.yyzy
+    bfi r0.yz, l(0, 9, 9, 0), l(0, 3, 3, 0), r1.xxyx, r0.yyzy
+    and r1.xy, r1.zwzz, l(60, 62, 0, 0)
+    iadd r0.yz, r0.yyzy, r1.xxyx
   else 
-    iadd r2.xyzw, r0.xxxx, l(0, 1, 0, 1)
-    ushr r3.xyzw, r2.zwzw, l(5, 5, 3, 3)
-    ushr r1.zw, r0.yyyy, l(0, 0, 5, 2)
-    iadd r0.w, CB0[0][3].x, l(31)
+    ubfe r1.xy, l(27, 29, 0, 0), l(4, 2, 0, 0), vThreadID.xxxx
+    ushr r1.zw, vThreadID.yyyy, l(0, 0, 5, 2)
+    iadd r0.w, CB0[0][0].z, l(31)
     ushr r0.w, r0.w, l(5)
-    imad r4.xyzw, r1.zzzz, r0.wwww, r3.xyxy
-    ishl r3.xy, r0.yyyy, l(3, 7, 0, 0)
-    and r3.xy, r3.xyxx, l(112, 2048, 0, 0)
-    bfi r5.xyzw, l(3, 3, 3, 3), l(1, 1, 1, 1), r2.zwzw, r3.xxxx
-    ishl r0.w, r3.x, l(1)
-    bfi r2.xyzw, l(3, 3, 3, 3), l(2, 2, 2, 2), r2.xyzw, r0.wwww
+    imad r0.w, r1.z, r0.w, r1.x
+    bfi r1.x, l(2), l(1), vThreadID.x, l(0)
+    iadd r2.xyzw, r1.xxxx, l(0, 1, 0, 1)
+    ishl r1.xz, vThreadID.yyyy, l(2, 0, 7, 0)
+    and r1.xz, r1.xxzx, l(56, 0, 2048, 0)
+    iadd r3.xyzw, r1.xxxx, r2.zwzw
+    ishl r1.x, r1.x, l(2)
+    imad r2.xyzw, r2.xyzw, l(4, 4, 4, 4), r1.xxxx
     and r2.xyzw, r2.xyzw, l(224, 224, 224, 224)
-    bfi r6.xy, l(24, 24, 0, 0), l(8, 8, 0, 0), r4.zwzz, r2.zwzz
-    bfi r6.xy, l(4, 4, 0, 0), l(0, 0, 0, 0), r5.zwzz, r6.xyxx
-    bfi r6.xy, l(1, 1, 0, 0), l(4, 4, 0, 0), r0.yyyy, r6.xyxx
+    bfi r4.xy, l(24, 24, 0, 0), l(8, 8, 0, 0), r0.wwww, r2.zwzz
+    bfi r4.xy, l(3, 3, 0, 0), l(1, 1, 0, 0), r3.zwzz, r4.xyxx
+    bfi r4.xy, l(1, 1, 0, 0), l(4, 4, 0, 0), vThreadID.yyyy, r4.xyxx
     ishl r2.xyzw, r2.xyzw, l(3, 3, 2, 2)
-    bfi r2.xyzw, l(24, 24, 24, 24), l(11, 11, 10, 10), r4.xyzw, r2.xyzw
-    bfi r2.xyzw, l(4, 4, 4, 4), l(3, 3, 2, 2), r5.xyzw, r2.xyzw
-    bfi r2.xyzw, l(1, 1, 1, 1), l(7, 7, 6, 6), r0.yyyy, r2.xyzw
-    bfi r2.xy, l(12, 12, 0, 0), l(0, 0, 0, 0), r3.yyyy, r2.xyxx
-    and r2.zw, r2.zzzw, l(0, 0, 1792, 1792)
-    iadd r2.xy, r2.xyxx, r2.zwzz
+    bfi r2.xyzw, l(24, 24, 24, 24), l(11, 11, 10, 10), r0.wwww, r2.xyzw
+    bfi r2.xyzw, l(3, 3, 3, 3), l(4, 4, 3, 3), r3.xyzw, r2.xyzw
+    bfi r2.xyzw, l(1, 1, 1, 1), l(7, 7, 6, 6), vThreadID.yyyy, r2.xyzw
+    bfi r1.xz, l(12, 0, 12, 0), l(0, 0, 0, 0), r1.zzzz, r2.xxyx
+    and r2.xy, r2.zwzz, l(1792, 1792, 0, 0)
+    iadd r1.xz, r1.xxzx, r2.xxyx
     and r0.w, r1.w, l(2)
-    iadd r1.zw, r0.wwww, r3.zzzw
-    bfi r1.zw, l(0, 0, 2, 2), l(0, 0, 6, 6), r1.zzzw, l(0, 0, 0, 0)
-    iadd r1.zw, r2.xxxy, r1.zzzw
-    bfi r1.xy, l(6, 6, 0, 0), l(0, 0, 0, 0), r6.xyxx, r1.zwzz
+    iadd r0.w, r0.w, r1.y
+    bfi r0.w, l(2), l(6), r0.w, l(0)
+    iadd r1.xy, r1.xzxx, r0.wwww
+    and r1.zw, r4.xxxy, l(0, 0, 60, 62)
+    iadd r0.yz, r1.zzwz, r1.xxyx
   endif 
 else 
   ishl r0.x, r0.x, l(1)
   iadd r0.w, CB0[0][2].y, l(31)
   and r0.w, r0.w, l(-32)
-  imad r0.y, r0.z, r0.w, r0.y
-  imad r0.x, r0.y, CB0[0][0].y, r0.x
-  iadd r1.xy, r0.xxxx, l(0, 2, 0, 0)
+  imad r0.w, vThreadID.z, r0.w, vThreadID.y
+  imad r0.x, r0.w, CB0[0][0].y, r0.x
+  iadd r0.yz, r0.xxxx, l(0, 0, 2, 0)
 endif 
-iadd r0.xy, r1.xyxx, CB0[0][0].xxxx
+iadd r0.xy, r0.yzyy, CB0[0][0].xxxx
 ishl r0.xy, r0.xyxx, l(2, 2, 0, 0)
 ld_raw r1.xz, r0.x, T0[0].xxyx
 ld_raw r1.yw, r0.y, T0[0].xxxy
-ushr r0.x, CB0[0][2].w, l(1)
-xor r0.x, r0.x, CB0[0][2].w
+ushr r0.x, CB0[0][1].z, l(1)
+xor r0.x, r0.x, CB0[0][1].z
 and r0.x, r0.x, l(1)
 if_nz r0.x
   ishl r0.xyzw, r1.xzyw, l(8, 8, 8, 8)
@@ -144,7 +148,7 @@ if_nz r0.x
   and r2.xyzw, r2.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
   iadd r1.xyzw, r0.xzyw, r2.xzyw
 endif 
-ieq r0.x, CB0[0][3].z, l(3)
+ieq r0.x, CB0[0][1].y, l(3)
 if_nz r0.x
   and r0.xyzw, r1.xzyw, l(0x83e083e0, 0x83e083e0, 0x83e083e0, 0x83e083e0)
   ishl r2.xyzw, r1.xzyw, l(10, 10, 10, 10)
@@ -154,7 +158,7 @@ if_nz r0.x
   and r2.xyzw, r2.xyzw, l(0x001f001f, 0x001f001f, 0x001f001f, 0x001f001f)
   iadd r1.xyzw, r0.xzyw, r2.xzyw
 else 
-  ieq r0.x, CB0[0][3].z, l(4)
+  ieq r0.x, CB0[0][1].y, l(4)
   if_nz r0.x
     and r0.xyzw, r1.xzyw, l(0x07e007e0, 0x07e007e0, 0x07e007e0, 0x07e007e0)
     ishl r2.xyzw, r1.xzyw, l(11, 11, 11, 11)
@@ -164,7 +168,7 @@ else
     and r2.xyzw, r2.xyzw, l(0x001f001f, 0x001f001f, 0x001f001f, 0x001f001f)
     iadd r1.xyzw, r0.xzyw, r2.xzyw
   else 
-    ieq r0.x, CB0[0][3].z, l(5)
+    ieq r0.x, CB0[0][1].y, l(5)
     if_nz r0.x
       ishl r0.xyzw, r1.xzyw, l(11, 11, 11, 11)
       and r0.xyzw, r0.xyzw, l(0xf800f800, 0xf800f800, 0xf800f800, 0xf800f800)
@@ -172,7 +176,7 @@ else
       and r2.xyzw, r2.xyzw, l(0x07ff07ff, 0x07ff07ff, 0x07ff07ff, 0x07ff07ff)
       iadd r1.xyzw, r0.xzyw, r2.xzyw
     else 
-      ieq r0.x, CB0[0][3].z, l(15)
+      ieq r0.x, CB0[0][1].y, l(15)
       if_nz r0.x
         and r0.xyzw, r1.xzyw, l(0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0)
         ishl r2.xyzw, r1.xzyw, l(8, 8, 8, 8)
@@ -189,10 +193,10 @@ ishl r0.xy, vThreadID.xyxx, l(2, 1, 0, 0)
 ishl r0.z, CB0[0][2].y, l(1)
 ishl r0.x, r0.x, l(1)
 imad r0.y, vThreadID.z, r0.z, r0.y
-imad r0.x, r0.y, CB0[0][0].w, r0.x
-iadd r0.x, r0.x, CB0[0][0].z
+imad r0.x, r0.y, CB0[0][3].y, r0.x
+iadd r0.x, r0.x, CB0[0][3].x
 store_raw U0[0].xy, r0.x, r1.xyxx
-iadd r0.x, r0.x, CB0[0][0].w
+iadd r0.x, r0.x, CB0[0][3].y
 store_raw U0[0].xy, r0.x, r1.zwzz
 ret 
-// Approximately 144 instruction slots used
+// Approximately 149 instruction slots used
