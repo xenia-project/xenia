@@ -47,7 +47,7 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   // Uncompress and write the rows.
   uint3 texel_index_host = block_index << uint3(2u, 2u, 0u);
   uint texel_offset_host = XeTextureHostLinearOffset(
-      texel_index_host, xe_texture_load_size_texels.y,
+      texel_index_host, xe_texture_load_height_texels,
       xe_texture_load_host_pitch, 2u) + xe_texture_load_host_base;
   for (uint i = 0u; i < 4u; ++i) {
     uint4 r_row = XeDXT5Four8StepBlocksRowToA8(
@@ -74,7 +74,7 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
         (((g_row.zzww >> uint4(0u, 16u, 0u, 16u)) & 0xFFu) << 8u) |
         (((g_row.zzww >> uint4(8u, 24u, 8u, 24u)) & 0xFFu) << 24u);
     xe_texture_load_dest.Store4(texel_offset_host + 16u, rg_row_half);
-    if (++texel_index_host.y >= xe_texture_load_size_texels.y) {
+    if (++texel_index_host.y >= xe_texture_load_height_texels) {
       return;
     }
     texel_offset_host += xe_texture_load_host_pitch;
