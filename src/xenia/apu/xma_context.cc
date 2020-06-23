@@ -20,8 +20,11 @@
 #include "xenia/base/ring_buffer.h"
 
 extern "C" {
+#pragma warning(push)
+#pragma warning(disable : 4101 4244 5033)
 #include "third_party/FFmpeg/libavcodec/avcodec.h"
 #include "third_party/FFmpeg/libavcodec/wma.h"
+#pragma warning(pop)
 
 extern AVCodec ff_xma2_decoder;
 }  // extern "C"
