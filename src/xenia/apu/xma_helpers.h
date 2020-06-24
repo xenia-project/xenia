@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -18,6 +18,8 @@ namespace xe {
 namespace apu {
 namespace xma {
 
+static const uint32_t kMaxFrameLength = 0x7FFF;
+
 // Get number of frames that /begin/ in this packet.
 uint32_t GetPacketFrameCount(uint8_t* packet) {
   return (uint8_t)(packet[0] >> 2);
@@ -27,11 +29,12 @@ uint32_t GetPacketFrameCount(uint8_t* packet) {
 uint32_t GetPacketFrameOffset(uint8_t* packet) {
   uint32_t val = (uint16_t)(((packet[0] & 0x3) << 13) | (packet[1] << 5) |
                             (packet[2] >> 3));
-  if (val == 0x7FFF) {
-    return -1;
-  } else {
-    return val + 32;
-  }
+  // if (val > kBitsPerPacket - kBitsPerHeader) {
+  //   // There is no data in this packet
+  //   return -1;
+  // } else {
+  return val + 32;
+  // }
 }
 
 uint32_t GetPacketMetadata(uint8_t* packet) {
