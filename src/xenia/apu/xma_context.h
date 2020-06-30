@@ -222,6 +222,7 @@ class XmaContext {
   // bool split_frame_pending_ = false;
   uint32_t split_frame_len_ = 0;
   uint32_t split_frame_len_partial_ = 0;
+  uint8_t split_frame_padding_start_ = 0;
   // first byte contains bit offset information
   std::array<uint8_t, 1 + 4096> xma_frame_;
 
