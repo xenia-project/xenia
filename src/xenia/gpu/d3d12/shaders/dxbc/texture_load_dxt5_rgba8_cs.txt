@@ -9,14 +9,12 @@
 //
 //   uint xe_texture_load_guest_base;   // Offset:    0 Size:     4
 //   uint xe_texture_load_guest_pitch;  // Offset:    4 Size:     4
-//   uint2 xe_texture_guest_storage_width_height;// Offset:    8 Size:     8
-//   bool xe_texture_load_is_3d;        // Offset:   16 Size:     4
-//   uint xe_texture_load_guest_format; // Offset:   20 Size:     4 [unused]
-//   uint xe_texture_load_endianness;   // Offset:   24 Size:     4
-//   uint3 xe_texture_load_size_blocks; // Offset:   32 Size:    12
-//   uint xe_texture_load_height_texels;// Offset:   44 Size:     4
-//   uint xe_texture_load_host_base;    // Offset:   48 Size:     4
-//   uint xe_texture_load_host_pitch;   // Offset:   52 Size:     4
+//   uint2 xe_texture_load_guest_storage_width_height;// Offset:    8 Size:     8
+//   uint3 xe_texture_load_size_blocks; // Offset:   16 Size:    12
+//   uint xe_texture_load_is_3d_endian; // Offset:   28 Size:     4
+//   uint xe_texture_load_host_base;    // Offset:   32 Size:     4
+//   uint xe_texture_load_host_pitch;   // Offset:   36 Size:     4
+//   uint xe_texture_load_height_texels;// Offset:   40 Size:     4
 //
 // }
 //
@@ -25,8 +23,8 @@
 //
 // Name                                 Type  Format         Dim      ID      HLSL Bind  Count
 // ------------------------------ ---------- ------- ----------- ------- -------------- ------
-// xe_texture_load_source            texture    byte         r/o      T0             t0      1 
-// xe_texture_load_dest                  UAV    byte         r/w      U0             u0      1 
+// xe_texture_load_source            texture   uint4         buf      T0             t0      1 
+// xe_texture_load_dest                  UAV   uint4         buf      U0             u0      1 
 // XeTextureLoadConstants            cbuffer      NA          NA     CB0            cb0      1 
 //
 //
@@ -44,460 +42,866 @@
 // no Output
 cs_5_1
 dcl_globalFlags refactoringAllowed
-dcl_constantbuffer CB0[0:0][4], immediateIndexed, space=0
-dcl_resource_raw T0[0:0], space=0
-dcl_uav_raw U0[0:0], space=0
+dcl_constantbuffer CB0[0:0][3], immediateIndexed, space=0
+dcl_resource_buffer (uint,uint,uint,uint) T0[0:0], space=0
+dcl_uav_typed_buffer (uint,uint,uint,uint) U0[0:0], space=0
 dcl_input vThreadID.xyz
-dcl_temps 25
-dcl_thread_group 8, 32, 1
-ishl r0.x, vThreadID.x, l(2)
+dcl_temps 8
+dcl_thread_group 16, 32, 1
+ishl r0.x, vThreadID.x, l(1)
 mov r0.yz, vThreadID.yyzy
-uge r1.xyz, r0.xyzx, CB0[0][2].xyzx
+uge r1.xyz, r0.xyzx, CB0[0][1].xyzx
 or r0.z, r1.y, r1.x
 or r0.z, r1.z, r0.z
 if_nz r0.z
   ret 
 endif 
-ieq r0.z, CB0[0][0].y, l(-1)
-if_nz r0.z
-  if_nz CB0[0][1].x
-    iadd r0.zw, CB0[0][0].wwwz, l(0, 0, 31, 31)
-    ushr r1.xyz, vThreadID.yzyy, l(4, 2, 3, 0)
-    ushr r0.zw, r0.zzzw, l(0, 0, 4, 5)
-    and r0.z, r0.z, l(0x0ffffffe)
-    imad r0.z, r1.y, r0.z, r1.x
-    ubfe r1.xw, l(27, 0, 0, 29), l(3, 0, 0, 1), vThreadID.xxxx
-    imad r0.z, r0.z, r0.w, r1.x
-    bfi r2.xyzw, l(1, 1, 1, 1), l(2, 2, 2, 2), vThreadID.xxxx, l(0, 1, 2, 3)
-    ishl r0.w, vThreadID.y, l(2)
-    and r0.w, r0.w, l(24)
-    iadd r2.xyzw, r0.wwww, r2.xyzw
-    ishl r2.xyzw, r2.xyzw, l(10, 10, 10, 10)
-    ushr r2.xyzw, r2.xyzw, l(6, 6, 6, 6)
-    iadd r0.w, r1.y, r1.z
-    bfi r1.x, l(1), l(1), r0.w, l(0)
-    iadd r1.x, r1.x, r1.w
-    bfi r1.x, l(2), l(1), r1.x, l(0)
-    bfi r0.w, l(1), l(0), r0.w, r1.x
-    ishl r1.xyzw, r2.xyzw, l(1, 1, 1, 1)
-    bfi r1.xyzw, l(18, 18, 18, 18), l(12, 12, 12, 12), r0.zzzz, r1.xyzw
-    bfi r1.xyzw, l(2, 2, 2, 2), l(10, 10, 10, 10), vThreadID.zzzz, r1.xyzw
-    bfi r0.z, l(1), l(4), vThreadID.y, l(0)
-    iadd r2.xyzw, r1.xyzw, r0.zzzz
-    ubfe r1.xyzw, l(3, 3, 3, 3), l(6, 6, 6, 6), r1.xyzw
-    and r0.z, r0.w, l(6)
-    bfi r0.w, l(1), l(8), r0.w, l(0)
-    imad r1.xyzw, r1.xyzw, l(32, 32, 32, 32), r0.wwww
-    imad r1.xyzw, r0.zzzz, l(4, 4, 4, 4), r1.xyzw
-    and r3.xyzw, r2.xyzw, l(0x3ffffe00, 0x3ffffe00, 0x3ffffe00, 0x3ffffe00)
-    iadd r1.xyzw, r1.xyzw, r3.xyzw
-    ishl r1.xyzw, r1.xyzw, l(3, 3, 3, 3)
-    and r2.xyzw, r2.xyzw, l(16, 48, 16, 48)
-    iadd r1.xyzw, r1.xyzw, r2.xyzw
+ishl r0.yz, r0.xxyx, l(0, 2, 2, 0)
+ishl r0.y, r0.y, l(2)
+imad r0.z, vThreadID.z, CB0[0][2].z, r0.z
+imad r0.y, r0.z, CB0[0][2].y, r0.y
+iadd r0.y, r0.y, CB0[0][2].x
+ushr r0.z, CB0[0][2].y, l(4)
+ieq r0.w, CB0[0][0].y, l(-1)
+if_nz r0.w
+  and r1.x, CB0[0][1].w, l(1)
+  if_nz r1.x
+    iadd r1.xy, CB0[0][0].wzww, l(31, 31, 0, 0)
+    ishr r2.xyz, vThreadID.yzyy, l(4, 2, 3, 0)
+    ushr r1.xy, r1.xyxx, l(4, 5, 0, 0)
+    and r1.x, r1.x, l(0x0ffffffe)
+    imad r1.x, r2.y, r1.x, r2.x
+    ibfe r1.zw, l(0, 0, 27, 29), l(0, 0, 4, 2), vThreadID.xxxx
+    imad r1.x, r1.x, r1.y, r1.z
+    ishl r1.y, vThreadID.y, l(12)
+    and r1.y, r1.y, l(0x00006000)
+    bfi r1.y, l(3), l(10), r0.x, r1.y
+    ishr r1.y, r1.y, l(6)
+    iadd r1.z, r2.y, r2.z
+    bfi r2.x, l(1), l(1), r1.z, l(0)
+    iadd r1.w, r1.w, r2.x
+    bfi r1.w, l(2), l(1), r1.w, l(0)
+    bfi r1.z, l(1), l(0), r1.z, r1.w
+    bfi r1.xw, l(18, 0, 0, 18), l(12, 0, 0, 15), r1.xxxx, l(0, 0, 0, 0)
+    imad r1.xy, r1.yyyy, l(2, 16, 0, 0), r1.xwxx
+    bfi r1.xy, l(2, 2, 0, 0), l(10, 13, 0, 0), vThreadID.zzzz, r1.xyxx
+    bfi r1.w, l(1), l(4), vThreadID.y, l(0)
+    ubfe r2.x, l(3), l(6), r1.x
+    and r2.y, r1.z, l(6)
+    bfi r1.z, l(1), l(8), r1.z, l(0)
+    imad r1.z, r2.x, l(32), r1.z
+    imad r1.z, r2.y, l(4), r1.z
+    bfi r1.xy, l(6, 6, 0, 0), l(0, 3, 0, 0), r1.wwww, r1.xyxx
+    bfi r1.y, l(9), l(3), r1.z, r1.y
+    bfi r1.x, l(6), l(0), r1.x, r1.y
   else 
-    ubfe r0.zw, l(0, 0, 27, 29), l(0, 0, 3, 1), vThreadID.xxxx
-    ushr r2.xy, vThreadID.yyyy, l(5, 2, 0, 0)
-    iadd r2.z, CB0[0][0].z, l(31)
-    ushr r2.z, r2.z, l(5)
-    imad r0.z, r2.x, r2.z, r0.z
-    ishl r0.z, r0.z, l(11)
-    bfi r3.xyzw, l(1, 1, 1, 1), l(2, 2, 2, 2), vThreadID.xxxx, l(0, 1, 2, 3)
-    ishl r2.xz, vThreadID.yyyy, l(2, 0, 7, 0)
-    and r2.xz, r2.xxzx, l(56, 0, 2048, 0)
-    iadd r3.xyzw, r2.xxxx, r3.xyzw
-    ishl r3.xyzw, r3.xyzw, l(5, 5, 5, 5)
-    iadd r3.xyzw, r0.zzzz, r3.xyzw
-    bfi r0.z, l(1), l(4), vThreadID.y, l(0)
-    iadd r4.xyzw, r3.xyzw, r0.zzzz
-    ishl r5.xyzw, r3.xyzw, l(3, 3, 3, 3)
-    imad r5.xyzw, r0.zzzz, l(8, 8, 8, 8), r5.xyzw
-    bfi r5.xyzw, l(12, 12, 12, 12), l(0, 0, 0, 0), r2.zzzz, r5.xyzw
-    ishl r3.xyzw, r3.xyzw, l(2, 2, 2, 2)
-    imad r3.xyzw, r0.zzzz, l(4, 4, 4, 4), r3.xyzw
-    and r3.xyzw, r3.xyzw, l(1792, 1792, 1792, 1792)
-    iadd r3.xyzw, r3.xyzw, r5.xyzw
-    and r0.z, r2.y, l(2)
-    iadd r0.z, r0.z, r0.w
-    bfi r0.z, l(2), l(6), r0.z, l(0)
-    iadd r2.xyzw, r3.xyzw, r0.zzzz
-    and r3.xyzw, r4.xyzw, l(16, 48, 16, 48)
-    iadd r1.xyzw, r2.xyzw, r3.xyzw
+    ibfe r1.yz, l(0, 27, 29, 0), l(0, 4, 2, 0), vThreadID.xxxx
+    ishr r2.xy, vThreadID.yyyy, l(5, 2, 0, 0)
+    iadd r1.w, CB0[0][0].z, l(31)
+    ushr r1.w, r1.w, l(5)
+    imad r1.y, r2.x, r1.w, r1.y
+    ishl r1.w, vThreadID.y, l(7)
+    and r2.xz, r1.wwww, l(1792, 0, 2048, 0)
+    bfi r1.w, l(3), l(5), r0.x, r2.x
+    bfi r1.w, l(21), l(11), r1.y, r1.w
+    bfi r2.w, l(1), l(4), vThreadID.y, l(0)
+    iadd r1.w, r1.w, r2.w
+    ishl r3.xy, r2.xxxx, l(3, 2, 0, 0)
+    bfi r3.xy, l(3, 3, 0, 0), l(8, 7, 0, 0), r0.xxxx, r3.xyxx
+    bfi r3.xy, l(21, 21, 0, 0), l(14, 13, 0, 0), r1.yyyy, r3.xyxx
+    imad r2.xw, r2.wwww, l(8, 0, 0, 4), r3.xxxy
+    bfi r1.y, l(12), l(0), r2.z, r2.x
+    and r2.x, r2.w, l(1792)
+    iadd r1.y, r1.y, r2.x
+    and r2.x, r2.y, l(2)
+    iadd r1.z, r1.z, r2.x
+    bfi r1.z, l(2), l(6), r1.z, l(0)
+    iadd r1.y, r1.y, r1.z
+    bfi r1.x, l(6), l(0), r1.w, r1.y
   endif 
 else 
-  ishl r0.z, r0.x, l(4)
-  iadd r0.w, CB0[0][2].y, l(31)
-  and r0.w, r0.w, l(-32)
-  imad r0.w, vThreadID.z, r0.w, vThreadID.y
-  imad r0.z, r0.w, CB0[0][0].y, r0.z
-  iadd r1.xyzw, r0.zzzz, l(0, 16, 32, 48)
+  ishl r0.x, r0.x, l(4)
+  iadd r1.y, CB0[0][1].y, l(31)
+  and r1.y, r1.y, l(-32)
+  imad r1.y, vThreadID.z, r1.y, vThreadID.y
+  imad r1.x, r1.y, CB0[0][0].y, r0.x
 endif 
-iadd r1.xyzw, r1.xyzw, CB0[0][0].xxxx
-ld_raw r2.xyzw, r1.x, T0[0].wxyz
-ld_raw r3.xyzw, r1.y, T0[0].xyzw
-ld_raw r4.xyzw, r1.z, T0[0].xyzw
-ld_raw r1.xyzw, r1.w, T0[0].xyzw
-ushr r0.z, CB0[0][1].z, l(1)
-xor r0.z, r0.z, CB0[0][1].z
-and r0.z, r0.z, l(1)
-if_nz r0.z
-  ishl r5.xyzw, r2.yzwx, l(8, 8, 8, 8)
-  and r5.xyzw, r5.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
-  ushr r6.xyzw, r2.yzwx, l(8, 8, 8, 8)
-  and r6.xyzw, r6.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
-  iadd r2.xyzw, r5.wxyz, r6.wxyz
-endif 
-and r0.w, CB0[0][1].z, l(2)
-if_nz r0.w
-  ushr r5.xyzw, r2.yzwx, l(16, 16, 16, 16)
-  bfi r2.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r2.xyzw, r5.wxyz
-  mov r5.x, r2.y
-  mov r6.x, r2.z
-  mov r7.x, r2.w
-else 
-  mov r5.x, r2.y
-  mov r6.x, r2.z
-  mov r7.x, r2.w
-endif 
-if_nz r0.z
-  ishl r8.xyzw, r3.xyzw, l(8, 8, 8, 8)
-  and r8.xyzw, r8.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
-  ushr r9.xyzw, r3.xyzw, l(8, 8, 8, 8)
-  and r9.xyzw, r9.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
-  iadd r3.xyzw, r8.xyzw, r9.xyzw
-endif 
-if_nz r0.w
-  ushr r8.xyzw, r3.xyzw, l(16, 16, 16, 16)
-  bfi r8.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r3.xyzw, r8.xyzw
-  mov r5.y, r8.x
-  mov r6.y, r8.y
-  mov r7.y, r8.z
-  mov r2.y, r8.w
-else 
-  mov r5.y, r3.x
-  mov r6.y, r3.y
-  mov r7.y, r3.z
-  mov r2.y, r3.w
-endif 
-if_nz r0.z
-  ishl r3.xyzw, r4.xyzw, l(8, 8, 8, 8)
+iadd r0.x, r1.x, CB0[0][0].x
+ushr r0.xy, r0.xyxx, l(4, 4, 0, 0)
+ushr r1.x, CB0[0][1].w, l(1)
+ld r2.xyzw, r0.xxxx, T0[0].yxzw
+ushr r1.y, r1.x, l(1)
+xor r1.y, r1.y, r1.x
+and r1.xy, r1.xyxx, l(2, 1, 0, 0)
+if_nz r1.y
+  ishl r3.xyzw, r2.yxzw, l(8, 8, 8, 8)
   and r3.xyzw, r3.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
-  ushr r8.xyzw, r4.xyzw, l(8, 8, 8, 8)
-  and r8.xyzw, r8.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
-  iadd r4.xyzw, r3.xyzw, r8.xyzw
-endif 
-if_nz r0.w
-  ushr r3.xyzw, r4.xyzw, l(16, 16, 16, 16)
-  bfi r3.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r4.xyzw, r3.xyzw
-  mov r5.z, r3.x
-  mov r6.z, r3.y
-  mov r7.z, r3.z
-  mov r2.z, r3.w
-else 
-  mov r5.z, r4.x
-  mov r6.z, r4.y
-  mov r7.z, r4.z
-  mov r2.z, r4.w
-endif 
-if_nz r0.z
-  ishl r3.xyzw, r1.xyzw, l(8, 8, 8, 8)
-  and r3.xyzw, r3.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
-  ushr r4.xyzw, r1.xyzw, l(8, 8, 8, 8)
+  ushr r4.xyzw, r2.yxzw, l(8, 8, 8, 8)
   and r4.xyzw, r4.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
-  iadd r1.xyzw, r3.xyzw, r4.xyzw
+  iadd r2.xyzw, r3.yxzw, r4.yxzw
 endif 
-if_nz r0.w
-  ushr r3.xyzw, r1.xyzw, l(16, 16, 16, 16)
-  bfi r3.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r1.xyzw, r3.xyzw
-  mov r5.w, r3.x
-  mov r6.w, r3.y
-  mov r7.w, r3.z
-  mov r2.w, r3.w
+if_nz r1.x
+  ushr r3.xyzw, r2.yxzw, l(16, 16, 16, 16)
+  bfi r2.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r2.xyzw, r3.yxzw
+  mov r3.xy, r2.ywyy
 else 
-  mov r5.w, r1.x
-  mov r6.w, r1.y
-  mov r7.w, r1.z
-  mov r2.w, r1.w
+  mov r3.xy, r2.ywyy
 endif 
-ishl r1.xyzw, r2.xyzw, l(1, 1, 1, 1)
-and r1.xyzw, r1.xyzw, l(0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa, 0xaaaaaaaa)
-ushr r2.xyzw, r2.xyzw, l(1, 1, 1, 1)
-and r2.xyzw, r2.xyzw, l(0x55555555, 0x55555555, 0x55555555, 0x55555555)
-iadd r1.xyzw, r1.xyzw, r2.xyzw
-ushr r2.xyzw, r1.xyzw, l(1, 1, 1, 1)
-and r2.xyzw, r2.xyzw, l(0x55555555, 0x55555555, 0x55555555, 0x55555555)
-xor r1.xyzw, r1.xyzw, r2.xyzw
-ushr r2.xyzw, r5.xyzw, l(16, 16, 16, 16)
-bfi r3.xyzw, l(8, 8, 8, 8), l(16, 16, 16, 16), r6.xyzw, l(0, 0, 0, 0)
-iadd r2.xyzw, r2.xyzw, r3.xyzw
-ushr r3.xyzw, r6.xyzw, l(8, 8, 8, 8)
-and r4.xyzw, r2.xyzw, l(0x00249249, 0x00249249, 0x00249249, 0x00249249)
-ushr r6.xyzw, r2.xyzw, l(1, 1, 1, 1)
-and r8.xyzw, r6.xyzw, l(0x00249249, 0x00249249, 0x00249249, 0x00249249)
-or r9.xyzw, r2.xyzw, r6.xyzw
-ushr r10.xyzw, r2.xyzw, l(2, 2, 2, 2)
-and r11.xyzw, r10.xyzw, l(0x00249249, 0x00249249, 0x00249249, 0x00249249)
-or r9.xyzw, r9.xyzw, r10.xyzw
-and r9.xyzw, r9.xyzw, l(0x00249249, 0x00249249, 0x00249249, 0x00249249)
-xor r9.xyzw, r9.xyzw, l(0x00249249, 0x00249249, 0x00249249, 0x00249249)
-not r8.xyzw, r8.xyzw
-and r8.xyzw, r4.xyzw, r8.xyzw
-not r10.xyzw, r11.xyzw
-and r8.xyzw, r8.xyzw, r10.xyzw
-or r9.xyzw, r2.xyzw, r9.xyzw
-iadd r9.xyzw, r9.xyzw, l(0xffdb6db7, 0xffdb6db7, 0xffdb6db7, 0xffdb6db7)
-or r9.xyzw, r8.xyzw, r9.xyzw
-ishl r10.xyzw, r8.xyzw, l(1, 1, 1, 1)
-or r10.xyzw, r9.xyzw, r10.xyzw
-ishl r8.xyzw, r8.xyzw, l(2, 2, 2, 2)
-or r10.xyzw, r8.xyzw, r10.xyzw
-and r11.xyzw, r3.xyzw, l(0x00249249, 0x00249249, 0x00249249, 0x00249249)
-ushr r12.xyzw, r3.xyzw, l(1, 1, 1, 1)
-and r13.xyzw, r12.xyzw, l(0x00249249, 0x00249249, 0x00249249, 0x00249249)
-or r14.xyzw, r3.xyzw, r12.xyzw
-ushr r15.xyzw, r3.xyzw, l(2, 2, 2, 2)
-and r16.xyzw, r15.xyzw, l(0x00249249, 0x00249249, 0x00249249, 0x00249249)
-or r14.xyzw, r14.xyzw, r15.xyzw
-and r14.xyzw, r14.xyzw, l(0x00249249, 0x00249249, 0x00249249, 0x00249249)
-xor r14.xyzw, r14.xyzw, l(0x00249249, 0x00249249, 0x00249249, 0x00249249)
-not r13.xyzw, r13.xyzw
-and r13.xyzw, r11.xyzw, r13.xyzw
-not r15.xyzw, r16.xyzw
-and r13.xyzw, r13.xyzw, r15.xyzw
-or r14.xyzw, r3.xyzw, r14.xyzw
-iadd r14.xyzw, r14.xyzw, l(0xffdb6db7, 0xffdb6db7, 0xffdb6db7, 0xffdb6db7)
-or r14.xyzw, r13.xyzw, r14.xyzw
-ishl r15.xyzw, r13.xyzw, l(1, 1, 1, 1)
-or r15.xyzw, r14.xyzw, r15.xyzw
-ishl r13.xyzw, r13.xyzw, l(2, 2, 2, 2)
-or r15.xyzw, r13.xyzw, r15.xyzw
-and r2.xyzw, r2.xyzw, r6.xyzw
-and r2.xyzw, r2.xyzw, l(0x00492492, 0x00492492, 0x00492492, 0x00492492)
-ishl r6.xyzw, r2.xyzw, l(1, 1, 1, 1)
-ushr r16.xyzw, r2.xyzw, l(1, 1, 1, 1)
-iadd r2.xyzw, r2.xyzw, r6.xyzw
-iadd r2.xyzw, r2.xyzw, r16.xyzw
-iadd r4.xyzw, r4.xyzw, l(0x00db6db6, 0x00db6db6, 0x00db6db6, 0x00db6db6)
-and r4.xyzw, r2.xyzw, r4.xyzw
-or r6.xyzw, r8.xyzw, r9.xyzw
-not r2.xyzw, r2.xyzw
-and r2.xyzw, r2.xyzw, r6.xyzw
-or r2.xyzw, r4.xyzw, r2.xyzw
-and r3.xyzw, r3.xyzw, r12.xyzw
-and r3.xyzw, r3.xyzw, l(0x00492492, 0x00492492, 0x00492492, 0x00492492)
-ishl r4.xyzw, r3.xyzw, l(1, 1, 1, 1)
-ushr r6.xyzw, r3.xyzw, l(1, 1, 1, 1)
-iadd r3.xyzw, r3.xyzw, r4.xyzw
-iadd r3.xyzw, r3.xyzw, r6.xyzw
-iadd r4.xyzw, r11.xyzw, l(0x00db6db6, 0x00db6db6, 0x00db6db6, 0x00db6db6)
-and r4.xyzw, r3.xyzw, r4.xyzw
-or r6.xyzw, r13.xyzw, r14.xyzw
-not r3.xyzw, r3.xyzw
-and r3.xyzw, r3.xyzw, r6.xyzw
-or r3.xyzw, r4.xyzw, r3.xyzw
-bfi r4.xyzw, l(5, 5, 5, 5), l(23, 23, 23, 23), r7.xyzw, l(0, 0, 0, 0)
-ishl r6.xyzw, r7.xyzw, l(18, 18, 18, 18)
-and r6.xyzw, r6.xyzw, l(0x00700000, 0x00700000, 0x00700000, 0x00700000)
-iadd r4.xyzw, r4.xyzw, r6.xyzw
-ishl r6.xyzw, r7.xyzw, l(7, 7, 7, 7)
-and r8.xyzw, r6.xyzw, l(0x0003f000, 0x0003f000, 0x0003f000, 0x0003f000)
-iadd r4.xyzw, r4.xyzw, r8.xyzw
-ishl r8.xyzw, r7.xyzw, l(1, 1, 1, 1)
-and r8.xyzw, r8.xyzw, l(3072, 3072, 3072, 3072)
-iadd r4.xyzw, r4.xyzw, r8.xyzw
-ushr r8.xyzw, r7.xyzw, l(8, 8, 8, 8)
-and r8.xyzw, r8.xyzw, l(248, 248, 248, 248)
-iadd r4.xyzw, r4.xyzw, r8.xyzw
-ubfe r8.xyzw, l(3, 3, 3, 3), l(13, 13, 13, 13), r7.xyzw
-iadd r4.xyzw, r4.xyzw, r8.xyzw
-and r6.xyzw, r6.xyzw, l(0x0f800000, 0x0f800000, 0x0f800000, 0x0f800000)
-ishl r8.xyzw, r7.xyzw, l(2, 2, 2, 2)
-and r8.xyzw, r8.xyzw, l(0x00700000, 0x00700000, 0x00700000, 0x00700000)
-iadd r6.xyzw, r6.xyzw, r8.xyzw
-ushr r8.xyzw, r7.xyzw, l(9, 9, 9, 9)
-and r8.xyzw, r8.xyzw, l(0x0003f000, 0x0003f000, 0x0003f000, 0x0003f000)
-iadd r6.xyzw, r6.xyzw, r8.xyzw
-ushr r8.xyzw, r7.xyzw, l(15, 15, 15, 15)
-and r8.xyzw, r8.xyzw, l(3072, 3072, 3072, 3072)
-iadd r6.xyzw, r6.xyzw, r8.xyzw
-ushr r8.xyzw, r7.xyzw, l(24, 24, 24, 24)
-and r8.xyzw, r8.xyzw, l(248, 248, 248, 248)
-iadd r6.xyzw, r6.xyzw, r8.xyzw
-ushr r7.xyzw, r7.xyzw, l(29, 29, 29, 29)
-iadd r6.xyzw, r6.xyzw, r7.xyzw
-and r7.xyzw, r5.xyzw, l(255, 255, 255, 255)
-ubfe r5.xyzw, l(8, 8, 8, 8), l(8, 8, 8, 8), r5.xyzw
-ishl r0.xy, r0.xyxx, l(2, 2, 0, 0)
-ishl r0.x, r0.x, l(2)
-imad r0.z, vThreadID.z, CB0[0][2].w, r0.y
-imad r0.x, r0.z, CB0[0][3].y, r0.x
-iadd r0.x, r0.x, CB0[0][3].x
-uge r8.xyzw, r5.xyzw, r7.xyzw
-movc r9.xyzw, r8.xyzw, l(5,5,5,5), l(7,7,7,7)
-movc r11.xyzw, r8.xyzw, l(2925,2925,2925,2925), l(4095,4095,4095,4095)
-mov r0.z, CB0[0][2].w
-mov r0.w, r0.y
-mov r12.x, r0.x
-mov r12.y, l(0)
-loop 
-  uge r12.z, r12.y, l(4)
-  breakc_nz r12.z
-  ishl r12.z, r12.y, l(3)
-  ushr r13.xyzw, r1.wxyz, r12.zzzz
-  not r14.xyzw, r13.xyzw
-  ushr r16.yzw, r14.yyyy, l(0, 2, 4, 6)
-  mov r16.x, r14.y
-  and r16.xyzw, r16.xyzw, l(3, 3, 3, 3)
-  ushr r17.yzw, r13.yyyy, l(0, 2, 4, 6)
-  mov r17.x, r13.y
-  and r17.xyzw, r17.xyzw, l(3, 3, 3, 3)
-  imul null, r17.xyzw, r6.xxxx, r17.xyzw
-  imad r16.xyzw, r16.xyzw, r4.xxxx, r17.xyzw
-  and r17.xyzw, r16.xyzw, l(1023, 1023, 1023, 1023)
-  udiv r17.xyzw, null, r17.xyzw, l(3, 3, 3, 3)
-  ubfe r18.xyzw, l(10, 10, 10, 10), l(10, 10, 10, 10), r16.xyzw
-  udiv r18.xyzw, null, r18.xyzw, l(3, 3, 3, 3)
-  ishl r18.xyzw, r18.xyzw, l(8, 8, 8, 8)
-  or r17.xyzw, r17.xyzw, r18.xyzw
-  ushr r16.xyzw, r16.xyzw, l(20, 20, 20, 20)
-  udiv r16.xyzw, null, r16.xyzw, l(3, 3, 3, 3)
-  ishl r16.xyzw, r16.xyzw, l(16, 16, 16, 16)
-  or r16.xyzw, r16.xyzw, r17.xyzw
-  ushr r17.yzw, r14.zzzz, l(0, 2, 4, 6)
-  mov r17.x, r14.z
-  and r17.xyzw, r17.xyzw, l(3, 3, 3, 3)
-  ushr r18.yzw, r13.zzzz, l(0, 2, 4, 6)
-  mov r18.x, r13.z
-  and r18.xyzw, r18.xyzw, l(3, 3, 3, 3)
-  imul null, r18.xyzw, r6.yyyy, r18.xyzw
-  imad r17.xyzw, r17.xyzw, r4.yyyy, r18.xyzw
-  and r18.xyzw, r17.xyzw, l(1023, 1023, 1023, 1023)
-  udiv r18.xyzw, null, r18.xyzw, l(3, 3, 3, 3)
-  ubfe r19.xyzw, l(10, 10, 10, 10), l(10, 10, 10, 10), r17.xyzw
-  udiv r19.xyzw, null, r19.xyzw, l(3, 3, 3, 3)
-  ishl r19.xyzw, r19.xyzw, l(8, 8, 8, 8)
-  or r18.xyzw, r18.xyzw, r19.xyzw
-  ushr r17.xyzw, r17.xyzw, l(20, 20, 20, 20)
-  udiv r17.xyzw, null, r17.xyzw, l(3, 3, 3, 3)
-  ishl r17.xyzw, r17.xyzw, l(16, 16, 16, 16)
-  or r17.xyzw, r17.xyzw, r18.xyzw
-  ushr r18.yzw, r14.wwww, l(0, 2, 4, 6)
-  mov r18.x, r14.w
-  and r18.xyzw, r18.xyzw, l(3, 3, 3, 3)
-  ushr r19.yzw, r13.wwww, l(0, 2, 4, 6)
-  mov r19.x, r13.w
-  and r19.xyzw, r19.xyzw, l(3, 3, 3, 3)
-  imul null, r19.xyzw, r6.zzzz, r19.xyzw
-  imad r18.xyzw, r18.xyzw, r4.zzzz, r19.xyzw
-  and r19.xyzw, r18.xyzw, l(1023, 1023, 1023, 1023)
-  udiv r19.xyzw, null, r19.xyzw, l(3, 3, 3, 3)
-  ubfe r20.xyzw, l(10, 10, 10, 10), l(10, 10, 10, 10), r18.xyzw
-  udiv r20.xyzw, null, r20.xyzw, l(3, 3, 3, 3)
-  ishl r20.xyzw, r20.xyzw, l(8, 8, 8, 8)
-  or r19.xyzw, r19.xyzw, r20.xyzw
-  ushr r18.xyzw, r18.xyzw, l(20, 20, 20, 20)
-  udiv r18.xyzw, null, r18.xyzw, l(3, 3, 3, 3)
-  ishl r18.xyzw, r18.xyzw, l(16, 16, 16, 16)
-  or r18.xyzw, r18.xyzw, r19.xyzw
-  ushr r14.yzw, r14.xxxx, l(0, 2, 4, 6)
-  and r14.xyzw, r14.xyzw, l(3, 3, 3, 3)
-  ushr r13.yzw, r13.xxxx, l(0, 2, 4, 6)
-  and r13.xyzw, r13.xyzw, l(3, 3, 3, 3)
-  imul null, r13.xyzw, r6.wwww, r13.xyzw
-  imad r13.xyzw, r14.xyzw, r4.wwww, r13.xyzw
-  and r14.xyzw, r13.xyzw, l(1023, 1023, 1023, 1023)
-  udiv r14.xyzw, null, r14.xyzw, l(3, 3, 3, 3)
-  ubfe r19.xyzw, l(10, 10, 10, 10), l(10, 10, 10, 10), r13.xyzw
-  udiv r19.xyzw, null, r19.xyzw, l(3, 3, 3, 3)
-  ishl r19.xyzw, r19.xyzw, l(8, 8, 8, 8)
-  or r14.xyzw, r14.xyzw, r19.xyzw
-  ushr r13.xyzw, r13.xyzw, l(20, 20, 20, 20)
-  udiv r13.xyzw, null, r13.xyzw, l(3, 3, 3, 3)
-  ishl r13.xyzw, r13.xyzw, l(16, 16, 16, 16)
-  or r13.xyzw, r13.xyzw, r14.xyzw
-  ult r12.z, r12.y, l(2)
-  movc r14.xyzw, r12.zzzz, r10.xyzw, r15.xyzw
-  and r12.w, r12.y, l(1)
-  imul null, r12.w, r12.w, l(12)
-  ushr r14.xyzw, r14.xyzw, r12.wwww
-  movc r19.xyzw, r12.zzzz, r2.xyzw, r3.xyzw
-  ushr r19.xyzw, r19.xyzw, r12.wwww
-  movc r14.xyzw, r8.xyzw, r19.xyzw, r14.xyzw
-  ushr r20.xyzw, r19.xyzw, l(1, 1, 1, 1)
-  and r20.xyzw, r19.xyzw, r20.xyzw
-  and r20.xyzw, r8.xyzw, r20.xyzw
-  and r20.xyzw, r20.xyzw, l(1170, 1170, 1170, 1170)
-  ishl r21.xyzw, r20.xyzw, l(1, 1, 1, 1)
-  ushr r22.xyzw, r20.xyzw, l(1, 1, 1, 1)
-  iadd r20.xyzw, r20.xyzw, r21.xyzw
-  iadd r20.xyzw, r20.xyzw, r22.xyzw
-  not r21.xyzw, r20.xyzw
-  and r14.xyzw, r14.xyzw, r21.xyzw
-  iadd r22.xyzw, r11.xyzw, -r14.xyzw
-  and r21.xyzw, r21.xyzw, r22.xyzw
-  and r22.xyzw, r21.xyzw, l(7, 7, 7, 7)
-  and r23.xyzw, r14.xyzw, l(7, 7, 7, 7)
-  imul null, r23.xyzw, r5.xyzw, r23.xyzw
-  imad r22.xyzw, r7.xyzw, r22.xyzw, r23.xyzw
-  udiv r22.xyzw, null, r22.xyzw, r9.xyzw
-  ubfe r23.xyzw, l(3, 3, 3, 3), l(3, 3, 3, 3), r21.xyzw
-  ubfe r24.xyzw, l(3, 3, 3, 3), l(3, 3, 3, 3), r14.xyzw
-  imul null, r24.xyzw, r5.xyzw, r24.xyzw
-  imad r23.xyzw, r7.xyzw, r23.xyzw, r24.xyzw
-  udiv r23.xyzw, null, r23.xyzw, r9.xyzw
-  ishl r23.xyzw, r23.xyzw, l(8, 8, 8, 8)
-  or r22.xyzw, r22.xyzw, r23.xyzw
-  ubfe r23.xyzw, l(3, 3, 3, 3), l(6, 6, 6, 6), r21.xyzw
-  ubfe r24.xyzw, l(3, 3, 3, 3), l(6, 6, 6, 6), r14.xyzw
-  imul null, r24.xyzw, r5.xyzw, r24.xyzw
-  imad r23.xyzw, r7.xyzw, r23.xyzw, r24.xyzw
-  udiv r23.xyzw, null, r23.xyzw, r9.xyzw
-  ishl r23.xyzw, r23.xyzw, l(16, 16, 16, 16)
-  or r22.xyzw, r22.xyzw, r23.xyzw
-  ubfe r21.xyzw, l(3, 3, 3, 3), l(9, 9, 9, 9), r21.xyzw
-  ubfe r14.xyzw, l(3, 3, 3, 3), l(9, 9, 9, 9), r14.xyzw
-  imul null, r14.xyzw, r5.xyzw, r14.xyzw
-  imad r14.xyzw, r7.xyzw, r21.xyzw, r14.xyzw
-  udiv r14.xyzw, null, r14.xyzw, r9.xyzw
-  ishl r14.xyzw, r14.xyzw, l(24, 24, 24, 24)
-  or r14.xyzw, r14.xyzw, r22.xyzw
-  and r19.xyzw, r19.xyzw, r20.xyzw
-  ishl r20.xyzw, r19.xyzw, l(5, 5, 5, 5)
-  and r20.xyzw, r20.xyzw, l(256, 256, 256, 256)
-  bfi r20.xyzw, l(1, 1, 1, 1), l(0, 0, 0, 0), r19.xyzw, r20.xyzw
-  ishl r21.xyzw, r19.xyzw, l(10, 10, 10, 10)
-  and r21.xyzw, r21.xyzw, l(0x00010000, 0x00010000, 0x00010000, 0x00010000)
-  iadd r20.xyzw, r20.xyzw, r21.xyzw
-  ishl r19.xyzw, r19.xyzw, l(15, 15, 15, 15)
-  and r19.xyzw, r19.xyzw, l(0x01000000, 0x01000000, 0x01000000, 0x01000000)
-  iadd r19.xyzw, r19.xyzw, r20.xyzw
-  imad r14.xyzw, r19.xyzw, l(255, 255, 255, 255), r14.xyzw
-  ishl r19.xyz, r14.xxxx, l(24, 16, 8, 0)
-  mov r19.w, r14.x
-  and r19.xyzw, r19.xyzw, l(0xff000000, 0xff000000, 0xff000000, 0xff000000)
-  or r16.xyzw, r16.xyzw, r19.xyzw
-  store_raw U0[0].xyzw, r12.x, r16.xyzw
-  iadd r16.xyz, r12.xxxx, l(16, 32, 48, 0)
-  ishl r19.xyz, r14.yyyy, l(24, 16, 8, 0)
-  mov r19.w, r14.y
-  and r19.xyzw, r19.xyzw, l(0xff000000, 0xff000000, 0xff000000, 0xff000000)
-  or r17.xyzw, r17.xyzw, r19.xyzw
-  store_raw U0[0].xyzw, r16.x, r17.xyzw
-  ishl r17.xyz, r14.zzzz, l(24, 16, 8, 0)
-  mov r17.w, r14.z
-  and r17.xyzw, r17.xyzw, l(0xff000000, 0xff000000, 0xff000000, 0xff000000)
-  or r17.xyzw, r17.xyzw, r18.xyzw
-  store_raw U0[0].xyzw, r16.y, r17.xyzw
-  ishl r14.xyz, r14.wwww, l(24, 16, 8, 0)
-  and r14.xyzw, r14.xyzw, l(0xff000000, 0xff000000, 0xff000000, 0xff000000)
-  or r13.xyzw, r13.xyzw, r14.xyzw
-  store_raw U0[0].xyzw, r16.z, r13.xyzw
-  iadd r0.w, r0.w, l(1)
-  uge r12.z, r0.w, r0.z
-  if_nz r12.z
-    ret 
+ishl r4.xyz, r2.zzzz, l(3, 7, 12, 0)
+ushr r5.xyz, r2.zzzz, l(13, 4, 9, 0)
+mov r4.w, r5.x
+and r1.zw, r4.xxxw, l(0, 0, 248, 248)
+mov r5.xw, r4.zzzy
+and r2.yz, r5.wwzw, l(0, 0x0003f000, 0x0003f000, 0)
+iadd r1.zw, r1.zzzw, r2.yyyz
+and r2.yz, r5.xxyx, l(0, 0x0f800000, 0x0f800000, 0)
+iadd r1.zw, r1.zzzw, r2.yyyz
+ushr r2.yz, r1.zzwz, l(0, 5, 5, 0)
+and r2.yz, r2.yyzy, l(0, 0x00700007, 0x00700007, 0)
+iadd r1.zw, r1.zzzw, r2.yyyz
+ushr r2.yz, r1.zzwz, l(0, 6, 6, 0)
+and r2.yz, r2.yyzy, l(0, 3072, 3072, 0)
+iadd r1.zw, r1.zzzw, r2.yyyz
+ishl r2.y, r3.y, l(1)
+and r2.y, r2.y, l(0xaaaaaaaa)
+ushr r4.xyz, r3.yxxy, l(1, 8, 16, 0)
+and r2.z, r4.x, l(0x55555555)
+iadd r2.y, r2.z, r2.y
+ushr r2.z, r2.y, l(1)
+and r2.z, r2.z, l(0x55555555)
+xor r5.x, r2.z, r2.y
+mov r3.z, r4.y
+and r2.yz, r3.xxzx, l(0, 255, 255, 0)
+bfi r2.w, l(8), l(16), r2.x, l(0)
+iadd r2.w, r2.w, r4.z
+uge r3.x, r2.z, r2.y
+ushr r3.yz, r2.wwww, l(0, 1, 2, 0)
+and r3.w, r2.w, r3.y
+and r3.w, r3.w, l(0x00492492)
+ishl r4.x, r3.w, l(1)
+ushr r4.y, r3.w, l(1)
+iadd r3.w, r3.w, r4.x
+iadd r3.w, r3.w, r4.y
+and r4.x, r2.w, l(0x00249249)
+iadd r4.y, r4.x, l(0x00db6db6)
+and r4.y, r3.w, r4.y
+or r4.z, r2.w, r3.y
+and r6.xy, r3.yzyy, l(0x00249249, 0x00249249, 0, 0)
+or r3.y, r3.z, r4.z
+and r3.y, r3.y, l(0x00249249)
+xor r3.y, r3.y, l(0x00249249)
+not r4.zw, r6.xxxy
+and r3.z, r4.z, r4.x
+and r3.z, r4.w, r3.z
+or r2.w, r2.w, r3.y
+iadd r2.w, r2.w, l(0xffdb6db7)
+or r2.w, r3.z, r2.w
+ishl r3.yz, r3.zzzz, l(0, 2, 1, 0)
+or r4.x, r2.w, r3.y
+not r3.w, r3.w
+and r3.w, r3.w, r4.x
+or r3.w, r4.y, r3.w
+iadd r3.y, r3.z, r3.y
+or r2.w, r2.w, r3.y
+movc r2.w, r3.x, r3.w, r2.w
+not r4.x, r5.x
+ushr r4.yzw, r4.xxxx, l(0, 2, 4, 6)
+and r4.xyzw, r4.xyzw, l(3, 3, 3, 3)
+ushr r5.yzw, r5.xxxx, l(0, 2, 4, 6)
+and r6.xyzw, r5.xyzw, l(3, 3, 3, 3)
+imul null, r6.xyzw, r1.wwww, r6.xyzw
+imad r4.xyzw, r4.xyzw, r1.zzzz, r6.xyzw
+and r6.xyzw, r4.xyzw, l(1023, 1023, 1023, 1023)
+udiv r6.xyzw, null, r6.xyzw, l(3, 3, 3, 3)
+ishl r6.xyzw, r6.xyzw, l(16, 16, 16, 16)
+ubfe r7.xyzw, l(10, 10, 10, 10), l(10, 10, 10, 10), r4.xyzw
+udiv r7.xyzw, null, r7.xyzw, l(3, 3, 3, 3)
+bfi r6.xyzw, l(8, 8, 8, 8), l(8, 8, 8, 8), r7.xyzw, r6.xyzw
+ushr r4.xyzw, r4.xyzw, l(20, 20, 20, 20)
+udiv r4.xyzw, null, r4.xyzw, l(3, 3, 3, 3)
+or r4.xyzw, r4.xyzw, r6.xyzw
+ushr r3.y, r2.w, l(1)
+and r3.y, r2.w, r3.y
+and r3.y, r3.y, l(1170)
+ishl r3.z, r3.y, l(1)
+ushr r3.w, r3.y, l(1)
+iadd r3.y, r3.y, r3.z
+iadd r3.y, r3.y, r3.w
+not r3.z, r3.y
+and r3.yw, r2.wwww, r3.yyyz
+iadd r5.y, -r3.w, l(2925)
+and r3.z, r3.z, r5.y
+and r5.yz, r3.zzwz, l(0, 7, 7, 0)
+imul null, r5.z, r2.z, r5.z
+imad r5.y, r2.y, r5.y, r5.z
+udiv r5.y, null, r5.y, l(5)
+ubfe r6.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r3.zzzz
+ubfe r7.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r3.wwww
+imul null, r7.xyz, r2.zzzz, r7.xyzx
+imad r6.xyz, r2.yyyy, r6.xyzx, r7.xyzx
+udiv r6.xyz, null, r6.xyzx, l(5, 5, 5, 0)
+ishl r6.xyz, r6.xyzx, l(8, 16, 24, 0)
+or r3.z, r5.y, r6.x
+or r3.z, r6.y, r3.z
+or r3.z, r6.z, r3.z
+ishl r5.yzw, r3.yyyy, l(0, 5, 10, 15)
+and r5.yzw, r5.yyzw, l(0, 256, 0x00010000, 0x01000000)
+bfi r3.y, l(1), l(0), r3.y, r5.y
+iadd r3.y, r5.z, r3.y
+iadd r3.y, r5.w, r3.y
+imad r3.y, r3.y, l(255), r3.z
+not r3.z, r2.w
+and r3.w, r3.z, l(7)
+and r5.y, r2.w, l(7)
+imul null, r5.y, r2.z, r5.y
+imad r3.w, r2.y, r3.w, r5.y
+udiv r3.w, null, r3.w, l(7)
+ubfe r5.yzw, l(0, 3, 3, 3), l(0, 3, 6, 9), r3.zzzz
+ubfe r6.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r2.wwww
+imul null, r6.xyz, r2.zzzz, r6.xyzx
+imad r5.yzw, r2.yyyy, r5.yyzw, r6.xxyz
+udiv r5.yzw, null, r5.yyzw, l(0, 7, 7, 7)
+ishl r5.yzw, r5.yyzw, l(0, 8, 16, 24)
+or r3.z, r3.w, r5.y
+or r3.z, r5.z, r3.z
+or r3.z, r5.w, r3.z
+movc r6.w, r3.x, r3.y, r3.z
+ishl r6.xyz, r6.wwww, l(24, 16, 8, 0)
+and r6.xyzw, r6.xyzw, l(0xff000000, 0xff000000, 0xff000000, 0xff000000)
+or r4.xyzw, r4.xyzw, r6.xyzw
+store_uav_typed U0[0].xyzw, r0.yyyy, r4.xyzw
+imad r3.y, vThreadID.y, l(4), l(1)
+ilt r3.y, r3.y, CB0[0][2].z
+if_nz r3.y
+  iadd r3.z, r0.z, r0.y
+  ushr r4.x, r5.x, l(8)
+  not r6.x, r4.x
+  ushr r6.yzw, r6.xxxx, l(0, 2, 4, 6)
+  and r6.xyzw, r6.xyzw, l(3, 3, 3, 3)
+  ushr r4.yzw, r4.xxxx, l(0, 2, 4, 6)
+  and r4.xyzw, r4.xyzw, l(3, 3, 3, 3)
+  imul null, r4.xyzw, r1.wwww, r4.xyzw
+  imad r4.xyzw, r6.xyzw, r1.zzzz, r4.xyzw
+  and r6.xyzw, r4.xyzw, l(1023, 1023, 1023, 1023)
+  udiv r6.xyzw, null, r6.xyzw, l(3, 3, 3, 3)
+  ishl r6.xyzw, r6.xyzw, l(16, 16, 16, 16)
+  ubfe r7.xyzw, l(10, 10, 10, 10), l(10, 10, 10, 10), r4.xyzw
+  udiv r7.xyzw, null, r7.xyzw, l(3, 3, 3, 3)
+  bfi r6.xyzw, l(8, 8, 8, 8), l(8, 8, 8, 8), r7.xyzw, r6.xyzw
+  ushr r4.xyzw, r4.xyzw, l(20, 20, 20, 20)
+  udiv r4.xyzw, null, r4.xyzw, l(3, 3, 3, 3)
+  or r4.xyzw, r4.xyzw, r6.xyzw
+  ushr r3.w, r2.w, l(12)
+  ushr r5.y, r3.w, l(1)
+  and r5.y, r3.w, r5.y
+  and r5.y, r5.y, l(1170)
+  ishl r5.z, r5.y, l(1)
+  ushr r5.w, r5.y, l(1)
+  iadd r5.y, r5.y, r5.z
+  iadd r5.y, r5.y, r5.w
+  not r5.z, r5.y
+  and r5.yw, r3.wwww, r5.yyyz
+  iadd r6.x, -r5.w, l(2925)
+  and r5.z, r5.z, r6.x
+  and r6.xy, r5.zwzz, l(7, 7, 0, 0)
+  imul null, r6.y, r2.z, r6.y
+  imad r6.x, r2.y, r6.x, r6.y
+  ubfe r6.yzw, l(0, 3, 3, 3), l(0, 3, 6, 9), r5.zzzz
+  ubfe r7.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r5.wwww
+  imul null, r7.xyz, r2.zzzz, r7.xyzx
+  imad r6.yzw, r2.yyyy, r6.yyzw, r7.xxyz
+  udiv r6.xyzw, null, r6.xyzw, l(5, 5, 5, 5)
+  ishl r6.yzw, r6.yyzw, l(0, 8, 16, 24)
+  or r5.z, r6.y, r6.x
+  or r5.z, r6.z, r5.z
+  or r5.z, r6.w, r5.z
+  ishl r6.xyz, r5.yyyy, l(5, 10, 15, 0)
+  and r6.xyz, r6.xyzx, l(256, 0x00010000, 0x01000000, 0)
+  bfi r5.y, l(1), l(0), r5.y, r6.x
+  iadd r5.y, r6.y, r5.y
+  iadd r5.y, r6.z, r5.y
+  imad r5.y, r5.y, l(255), r5.z
+  not r3.w, r3.w
+  and r5.z, r3.w, l(7)
+  ubfe r6.xyzw, l(3, 3, 3, 3), l(12, 15, 18, 21), r2.wwww
+  imul null, r6.xyzw, r2.zzzz, r6.xyzw
+  imad r2.w, r2.y, r5.z, r6.x
+  udiv r2.w, null, r2.w, l(7)
+  ubfe r7.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r3.wwww
+  imad r6.xyz, r2.yyyy, r7.xyzx, r6.yzwy
+  udiv r6.xyz, null, r6.xyzx, l(7, 7, 7, 0)
+  ishl r6.xyz, r6.xyzx, l(8, 16, 24, 0)
+  or r2.w, r2.w, r6.x
+  or r2.w, r6.y, r2.w
+  or r2.w, r6.z, r2.w
+  movc r6.w, r3.x, r5.y, r2.w
+  ishl r6.xyz, r6.wwww, l(24, 16, 8, 0)
+  and r6.xyzw, r6.xyzw, l(0xff000000, 0xff000000, 0xff000000, 0xff000000)
+  or r4.xyzw, r4.xyzw, r6.xyzw
+  store_uav_typed U0[0].xyzw, r3.zzzz, r4.xyzw
+  imad r2.w, vThreadID.y, l(4), l(2)
+  ilt r2.w, r2.w, CB0[0][2].z
+  if_nz r2.w
+    ushr r2.x, r2.x, l(8)
+    ushr r3.zw, r2.xxxx, l(0, 0, 1, 2)
+    and r2.w, r2.x, r3.z
+    and r2.w, r2.w, l(0x00492492)
+    ishl r4.x, r2.w, l(1)
+    ushr r4.y, r2.w, l(1)
+    iadd r2.w, r2.w, r4.x
+    iadd r2.w, r2.w, r4.y
+    and r4.x, r2.x, l(0x00249249)
+    iadd r4.y, r4.x, l(0x00db6db6)
+    and r4.y, r2.w, r4.y
+    or r4.z, r2.x, r3.z
+    and r5.yz, r3.zzwz, l(0, 0x00249249, 0x00249249, 0)
+    or r3.z, r3.w, r4.z
+    and r3.z, r3.z, l(0x00249249)
+    xor r3.z, r3.z, l(0x00249249)
+    not r4.zw, r5.yyyz
+    and r3.w, r4.z, r4.x
+    and r3.w, r4.w, r3.w
+    or r2.x, r2.x, r3.z
+    iadd r2.x, r2.x, l(0xffdb6db7)
+    or r2.x, r3.w, r2.x
+    ishl r3.zw, r3.wwww, l(0, 0, 2, 1)
+    or r4.x, r2.x, r3.z
+    not r2.w, r2.w
+    and r2.w, r2.w, r4.x
+    or r2.w, r4.y, r2.w
+    iadd r3.z, r3.w, r3.z
+    or r2.x, r2.x, r3.z
+    movc r2.x, r3.x, r2.w, r2.x
+    ishl r2.w, r0.z, l(1)
+    iadd r2.w, r0.y, r2.w
+    ushr r4.x, r5.x, l(16)
+    not r6.x, r4.x
+    ushr r6.yzw, r6.xxxx, l(0, 2, 4, 6)
+    and r6.xyzw, r6.xyzw, l(3, 3, 3, 3)
+    ushr r4.yzw, r4.xxxx, l(0, 2, 4, 6)
+    and r4.xyzw, r4.xyzw, l(3, 3, 3, 3)
+    imul null, r4.xyzw, r1.wwww, r4.xyzw
+    imad r4.xyzw, r6.xyzw, r1.zzzz, r4.xyzw
+    and r6.xyzw, r4.xyzw, l(1023, 1023, 1023, 1023)
+    udiv r6.xyzw, null, r6.xyzw, l(3, 3, 3, 3)
+    ishl r6.xyzw, r6.xyzw, l(16, 16, 16, 16)
+    ubfe r7.xyzw, l(10, 10, 10, 10), l(10, 10, 10, 10), r4.xyzw
+    udiv r7.xyzw, null, r7.xyzw, l(3, 3, 3, 3)
+    bfi r6.xyzw, l(8, 8, 8, 8), l(8, 8, 8, 8), r7.xyzw, r6.xyzw
+    ushr r4.xyzw, r4.xyzw, l(20, 20, 20, 20)
+    udiv r4.xyzw, null, r4.xyzw, l(3, 3, 3, 3)
+    or r4.xyzw, r4.xyzw, r6.xyzw
+    ushr r3.z, r2.x, l(1)
+    and r3.z, r2.x, r3.z
+    and r3.z, r3.z, l(1170)
+    ishl r3.w, r3.z, l(1)
+    ushr r5.y, r3.z, l(1)
+    iadd r3.z, r3.z, r3.w
+    iadd r3.z, r3.z, r5.y
+    not r3.w, r3.z
+    and r5.y, r2.x, r3.w
+    iadd r5.z, -r5.y, l(2925)
+    and r3.w, r3.w, r5.z
+    and r5.z, r3.w, l(7)
+    and r5.w, r5.y, l(7)
+    imul null, r5.w, r2.z, r5.w
+    imad r5.z, r2.y, r5.z, r5.w
+    udiv r5.z, null, r5.z, l(5)
+    ubfe r6.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r3.wwww
+    ubfe r7.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r5.yyyy
+    imul null, r7.xyz, r2.zzzz, r7.xyzx
+    imad r6.xyz, r2.yyyy, r6.xyzx, r7.xyzx
+    udiv r6.xyz, null, r6.xyzx, l(5, 5, 5, 0)
+    ishl r6.xyz, r6.xyzx, l(8, 16, 24, 0)
+    or r3.w, r5.z, r6.x
+    or r3.w, r6.y, r3.w
+    or r3.w, r6.z, r3.w
+    and r3.z, r2.x, r3.z
+    ishl r5.yzw, r3.zzzz, l(0, 5, 10, 15)
+    and r5.yzw, r5.yyzw, l(0, 256, 0x00010000, 0x01000000)
+    bfi r3.z, l(1), l(0), r3.z, r5.y
+    iadd r3.z, r5.z, r3.z
+    iadd r3.z, r5.w, r3.z
+    imad r3.z, r3.z, l(255), r3.w
+    not r3.w, r2.x
+    and r5.y, r3.w, l(7)
+    and r5.z, r2.x, l(7)
+    imul null, r5.z, r2.z, r5.z
+    imad r5.y, r2.y, r5.y, r5.z
+    udiv r5.y, null, r5.y, l(7)
+    ubfe r6.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r3.wwww
+    ubfe r7.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r2.xxxx
+    imul null, r7.xyz, r2.zzzz, r7.xyzx
+    imad r6.xyz, r2.yyyy, r6.xyzx, r7.xyzx
+    udiv r6.xyz, null, r6.xyzx, l(7, 7, 7, 0)
+    ishl r6.xyz, r6.xyzx, l(8, 16, 24, 0)
+    or r3.w, r5.y, r6.x
+    or r3.w, r6.y, r3.w
+    or r3.w, r6.z, r3.w
+    movc r6.w, r3.x, r3.z, r3.w
+    ishl r6.xyz, r6.wwww, l(24, 16, 8, 0)
+    and r6.xyzw, r6.xyzw, l(0xff000000, 0xff000000, 0xff000000, 0xff000000)
+    or r4.xyzw, r4.xyzw, r6.xyzw
+    store_uav_typed U0[0].xyzw, r2.wwww, r4.xyzw
+    imad r2.w, vThreadID.y, l(4), l(3)
+    ilt r2.w, r2.w, CB0[0][2].z
+    if_nz r2.w
+      imad r2.w, l(3), r0.z, r0.y
+      ushr r4.x, r5.x, l(24)
+      not r5.x, r4.x
+      ushr r5.yzw, r5.xxxx, l(0, 2, 4, 6)
+      and r5.xyzw, r5.xyzw, l(3, 3, 3, 3)
+      ushr r4.yzw, r4.xxxx, l(0, 2, 4, 6)
+      and r4.xyzw, r4.xyzw, l(3, 3, 3, 3)
+      imul null, r4.xyzw, r1.wwww, r4.xyzw
+      imad r4.xyzw, r5.xyzw, r1.zzzz, r4.xyzw
+      and r5.xyzw, r4.xyzw, l(1023, 1023, 1023, 1023)
+      udiv r5.xyzw, null, r5.xyzw, l(3, 3, 3, 3)
+      ishl r5.xyzw, r5.xyzw, l(16, 16, 16, 16)
+      ubfe r6.xyzw, l(10, 10, 10, 10), l(10, 10, 10, 10), r4.xyzw
+      udiv r6.xyzw, null, r6.xyzw, l(3, 3, 3, 3)
+      bfi r5.xyzw, l(8, 8, 8, 8), l(8, 8, 8, 8), r6.xyzw, r5.xyzw
+      ushr r4.xyzw, r4.xyzw, l(20, 20, 20, 20)
+      udiv r4.xyzw, null, r4.xyzw, l(3, 3, 3, 3)
+      or r4.xyzw, r4.xyzw, r5.xyzw
+      ushr r1.z, r2.x, l(12)
+      ushr r1.w, r1.z, l(1)
+      and r1.w, r1.z, r1.w
+      and r1.w, r1.w, l(1170)
+      ishl r3.z, r1.w, l(1)
+      ushr r3.w, r1.w, l(1)
+      iadd r1.w, r1.w, r3.z
+      iadd r1.w, r1.w, r3.w
+      not r3.z, r1.w
+      and r3.w, r1.z, r3.z
+      iadd r5.x, -r3.w, l(2925)
+      and r3.z, r3.z, r5.x
+      and r5.xy, r3.zwzz, l(7, 7, 0, 0)
+      imul null, r5.y, r2.z, r5.y
+      imad r5.x, r2.y, r5.x, r5.y
+      ubfe r5.yzw, l(0, 3, 3, 3), l(0, 3, 6, 9), r3.zzzz
+      ubfe r6.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r3.wwww
+      imul null, r6.xyz, r2.zzzz, r6.xyzx
+      imad r5.yzw, r2.yyyy, r5.yyzw, r6.xxyz
+      udiv r5.xyzw, null, r5.xyzw, l(5, 5, 5, 5)
+      ishl r5.yzw, r5.yyzw, l(0, 8, 16, 24)
+      or r3.z, r5.y, r5.x
+      or r3.z, r5.z, r3.z
+      or r3.z, r5.w, r3.z
+      and r1.w, r1.w, r1.z
+      ishl r5.xyz, r1.wwww, l(5, 10, 15, 0)
+      and r5.xyz, r5.xyzx, l(256, 0x00010000, 0x01000000, 0)
+      bfi r1.w, l(1), l(0), r1.w, r5.x
+      iadd r1.w, r5.y, r1.w
+      iadd r1.w, r5.z, r1.w
+      imad r1.w, r1.w, l(255), r3.z
+      not r1.z, r1.z
+      and r3.z, r1.z, l(7)
+      ubfe r5.xyzw, l(3, 3, 3, 3), l(12, 15, 18, 21), r2.xxxx
+      imul null, r5.xyzw, r2.zzzz, r5.xyzw
+      imad r2.x, r2.y, r3.z, r5.x
+      udiv r2.x, null, r2.x, l(7)
+      ubfe r6.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r1.zzzz
+      imad r5.xyz, r2.yyyy, r6.xyzx, r5.yzwy
+      udiv r5.xyz, null, r5.xyzx, l(7, 7, 7, 0)
+      ishl r5.xyz, r5.xyzx, l(8, 16, 24, 0)
+      or r1.z, r2.x, r5.x
+      or r1.z, r5.y, r1.z
+      or r1.z, r5.z, r1.z
+      movc r5.w, r3.x, r1.w, r1.z
+      ishl r5.xyz, r5.wwww, l(24, 16, 8, 0)
+      and r5.xyzw, r5.xyzw, l(0xff000000, 0xff000000, 0xff000000, 0xff000000)
+      or r4.xyzw, r4.xyzw, r5.xyzw
+      store_uav_typed U0[0].xyzw, r2.wwww, r4.xyzw
+    endif 
   endif 
-  iadd r12.x, r12.x, CB0[0][3].y
-  iadd r12.y, r12.y, l(1)
-endloop 
+endif 
+iadd r0.y, r0.y, l(1)
+movc r0.w, r0.w, l(2), l(1)
+iadd r0.x, r0.w, r0.x
+ld r2.xyzw, r0.xxxx, T0[0].yxzw
+if_nz r1.y
+  ishl r4.xyzw, r2.yxzw, l(8, 8, 8, 8)
+  and r4.xyzw, r4.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
+  ushr r5.xyzw, r2.yxzw, l(8, 8, 8, 8)
+  and r5.xyzw, r5.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
+  iadd r2.xyzw, r4.yxzw, r5.yxzw
+endif 
+if_nz r1.x
+  ushr r1.xyzw, r2.yxzw, l(16, 16, 16, 16)
+  bfi r2.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r2.xyzw, r1.yxzw
+  mov r1.xy, r2.ywyy
+else 
+  mov r1.xy, r2.ywyy
+endif 
+ishl r4.xyz, r2.zzzz, l(3, 7, 12, 0)
+ushr r5.xyz, r2.zzzz, l(13, 4, 9, 0)
+mov r4.w, r5.x
+and r0.xw, r4.xxxw, l(248, 0, 0, 248)
+mov r5.xw, r4.zzzy
+and r2.yz, r5.wwzw, l(0, 0x0003f000, 0x0003f000, 0)
+iadd r0.xw, r0.xxxw, r2.yyyz
+and r2.yz, r5.xxyx, l(0, 0x0f800000, 0x0f800000, 0)
+iadd r0.xw, r0.xxxw, r2.yyyz
+ushr r2.yz, r0.xxwx, l(0, 5, 5, 0)
+and r2.yz, r2.yyzy, l(0, 0x00700007, 0x00700007, 0)
+iadd r0.xw, r0.xxxw, r2.yyyz
+ushr r2.yz, r0.xxwx, l(0, 6, 6, 0)
+and r2.yz, r2.yyzy, l(0, 3072, 3072, 0)
+iadd r0.xw, r0.xxxw, r2.yyyz
+ishl r1.w, r1.y, l(1)
+and r1.w, r1.w, l(0xaaaaaaaa)
+ushr r2.yzw, r1.yyxx, l(0, 1, 8, 16)
+and r1.y, r2.y, l(0x55555555)
+iadd r1.y, r1.y, r1.w
+ushr r1.w, r1.y, l(1)
+and r1.w, r1.w, l(0x55555555)
+xor r4.x, r1.w, r1.y
+mov r1.z, r2.z
+and r1.xy, r1.xzxx, l(255, 255, 0, 0)
+bfi r1.z, l(8), l(16), r2.x, l(0)
+iadd r1.z, r1.z, r2.w
+uge r1.w, r1.y, r1.x
+ushr r2.yz, r1.zzzz, l(0, 1, 2, 0)
+and r2.w, r1.z, r2.y
+and r2.w, r2.w, l(0x00492492)
+ishl r3.x, r2.w, l(1)
+ushr r3.z, r2.w, l(1)
+iadd r2.w, r2.w, r3.x
+iadd r2.w, r2.w, r3.z
+and r3.x, r1.z, l(0x00249249)
+iadd r3.z, r3.x, l(0x00db6db6)
+and r3.z, r2.w, r3.z
+or r3.w, r1.z, r2.y
+and r5.xy, r2.yzyy, l(0x00249249, 0x00249249, 0, 0)
+or r2.y, r2.z, r3.w
+and r2.y, r2.y, l(0x00249249)
+xor r2.y, r2.y, l(0x00249249)
+not r5.xy, r5.xyxx
+and r2.z, r3.x, r5.x
+and r2.z, r5.y, r2.z
+or r1.z, r1.z, r2.y
+iadd r1.z, r1.z, l(0xffdb6db7)
+or r1.z, r2.z, r1.z
+ishl r2.yz, r2.zzzz, l(0, 2, 1, 0)
+or r3.x, r1.z, r2.y
+not r2.w, r2.w
+and r2.w, r2.w, r3.x
+or r2.w, r3.z, r2.w
+iadd r2.y, r2.z, r2.y
+or r1.z, r1.z, r2.y
+movc r1.z, r1.w, r2.w, r1.z
+not r5.x, r4.x
+ushr r5.yzw, r5.xxxx, l(0, 2, 4, 6)
+and r5.xyzw, r5.xyzw, l(3, 3, 3, 3)
+ushr r4.yzw, r4.xxxx, l(0, 2, 4, 6)
+and r6.xyzw, r4.xyzw, l(3, 3, 3, 3)
+imul null, r6.xyzw, r0.wwww, r6.xyzw
+imad r5.xyzw, r5.xyzw, r0.xxxx, r6.xyzw
+and r6.xyzw, r5.xyzw, l(1023, 1023, 1023, 1023)
+udiv r6.xyzw, null, r6.xyzw, l(3, 3, 3, 3)
+ishl r6.xyzw, r6.xyzw, l(16, 16, 16, 16)
+ubfe r7.xyzw, l(10, 10, 10, 10), l(10, 10, 10, 10), r5.xyzw
+udiv r7.xyzw, null, r7.xyzw, l(3, 3, 3, 3)
+bfi r6.xyzw, l(8, 8, 8, 8), l(8, 8, 8, 8), r7.xyzw, r6.xyzw
+ushr r5.xyzw, r5.xyzw, l(20, 20, 20, 20)
+udiv r5.xyzw, null, r5.xyzw, l(3, 3, 3, 3)
+or r5.xyzw, r5.xyzw, r6.xyzw
+ushr r2.y, r1.z, l(1)
+and r2.y, r1.z, r2.y
+and r2.y, r2.y, l(1170)
+ishl r2.z, r2.y, l(1)
+ushr r2.w, r2.y, l(1)
+iadd r2.y, r2.y, r2.z
+iadd r2.y, r2.y, r2.w
+not r2.z, r2.y
+and r2.yw, r1.zzzz, r2.yyyz
+iadd r3.x, -r2.w, l(2925)
+and r2.z, r2.z, r3.x
+and r3.xz, r2.zzwz, l(7, 0, 7, 0)
+imul null, r3.z, r1.y, r3.z
+imad r3.x, r1.x, r3.x, r3.z
+udiv r3.x, null, r3.x, l(5)
+ubfe r4.yzw, l(0, 3, 3, 3), l(0, 3, 6, 9), r2.zzzz
+ubfe r6.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r2.wwww
+imul null, r6.xyz, r1.yyyy, r6.xyzx
+imad r4.yzw, r1.xxxx, r4.yyzw, r6.xxyz
+udiv r4.yzw, null, r4.yyzw, l(0, 5, 5, 5)
+ishl r4.yzw, r4.yyzw, l(0, 8, 16, 24)
+or r2.z, r3.x, r4.y
+or r2.z, r4.z, r2.z
+or r2.z, r4.w, r2.z
+ishl r3.xzw, r2.yyyy, l(5, 0, 10, 15)
+and r3.xzw, r3.xxzw, l(256, 0, 0x00010000, 0x01000000)
+bfi r2.y, l(1), l(0), r2.y, r3.x
+iadd r2.y, r3.z, r2.y
+iadd r2.y, r3.w, r2.y
+imad r2.y, r2.y, l(255), r2.z
+not r2.z, r1.z
+and r2.w, r2.z, l(7)
+and r3.x, r1.z, l(7)
+imul null, r3.x, r1.y, r3.x
+imad r2.w, r1.x, r2.w, r3.x
+udiv r2.w, null, r2.w, l(7)
+ubfe r3.xzw, l(3, 0, 3, 3), l(3, 0, 6, 9), r2.zzzz
+ubfe r4.yzw, l(0, 3, 3, 3), l(0, 3, 6, 9), r1.zzzz
+imul null, r4.yzw, r1.yyyy, r4.yyzw
+imad r3.xzw, r1.xxxx, r3.xxzw, r4.yyzw
+udiv r3.xzw, null, r3.xxzw, l(7, 0, 7, 7)
+ishl r3.xzw, r3.xxzw, l(8, 0, 16, 24)
+or r2.z, r2.w, r3.x
+or r2.z, r3.z, r2.z
+or r2.z, r3.w, r2.z
+movc r6.w, r1.w, r2.y, r2.z
+ishl r6.xyz, r6.wwww, l(24, 16, 8, 0)
+and r6.xyzw, r6.xyzw, l(0xff000000, 0xff000000, 0xff000000, 0xff000000)
+or r5.xyzw, r5.xyzw, r6.xyzw
+store_uav_typed U0[0].xyzw, r0.yyyy, r5.xyzw
+if_nz r3.y
+  iadd r2.y, r0.z, r0.y
+  ushr r3.x, r4.x, l(8)
+  not r5.x, r3.x
+  ushr r5.yzw, r5.xxxx, l(0, 2, 4, 6)
+  and r5.xyzw, r5.xyzw, l(3, 3, 3, 3)
+  ushr r3.yzw, r3.xxxx, l(0, 2, 4, 6)
+  and r3.xyzw, r3.xyzw, l(3, 3, 3, 3)
+  imul null, r3.xyzw, r0.wwww, r3.xyzw
+  imad r3.xyzw, r5.xyzw, r0.xxxx, r3.xyzw
+  and r5.xyzw, r3.xyzw, l(1023, 1023, 1023, 1023)
+  udiv r5.xyzw, null, r5.xyzw, l(3, 3, 3, 3)
+  ishl r5.xyzw, r5.xyzw, l(16, 16, 16, 16)
+  ubfe r6.xyzw, l(10, 10, 10, 10), l(10, 10, 10, 10), r3.xyzw
+  udiv r6.xyzw, null, r6.xyzw, l(3, 3, 3, 3)
+  bfi r5.xyzw, l(8, 8, 8, 8), l(8, 8, 8, 8), r6.xyzw, r5.xyzw
+  ushr r3.xyzw, r3.xyzw, l(20, 20, 20, 20)
+  udiv r3.xyzw, null, r3.xyzw, l(3, 3, 3, 3)
+  or r3.xyzw, r3.xyzw, r5.xyzw
+  ushr r2.z, r1.z, l(12)
+  ushr r2.w, r2.z, l(1)
+  and r2.w, r2.z, r2.w
+  and r2.w, r2.w, l(1170)
+  ishl r4.y, r2.w, l(1)
+  ushr r4.z, r2.w, l(1)
+  iadd r2.w, r2.w, r4.y
+  iadd r2.w, r2.w, r4.z
+  not r4.y, r2.w
+  and r4.z, r2.z, r4.y
+  iadd r4.w, -r4.z, l(2925)
+  and r4.y, r4.y, r4.w
+  and r4.w, r4.y, l(7)
+  and r5.x, r4.z, l(7)
+  imul null, r5.x, r1.y, r5.x
+  imad r4.w, r1.x, r4.w, r5.x
+  udiv r4.w, null, r4.w, l(5)
+  ubfe r5.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r4.yyyy
+  ubfe r6.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r4.zzzz
+  imul null, r6.xyz, r1.yyyy, r6.xyzx
+  imad r5.xyz, r1.xxxx, r5.xyzx, r6.xyzx
+  udiv r5.xyz, null, r5.xyzx, l(5, 5, 5, 0)
+  ishl r5.xyz, r5.xyzx, l(8, 16, 24, 0)
+  or r4.y, r4.w, r5.x
+  or r4.y, r5.y, r4.y
+  or r4.y, r5.z, r4.y
+  and r2.w, r2.w, r2.z
+  ishl r5.xyz, r2.wwww, l(5, 10, 15, 0)
+  and r5.xyz, r5.xyzx, l(256, 0x00010000, 0x01000000, 0)
+  bfi r2.w, l(1), l(0), r2.w, r5.x
+  iadd r2.w, r5.y, r2.w
+  iadd r2.w, r5.z, r2.w
+  imad r2.w, r2.w, l(255), r4.y
+  not r2.z, r2.z
+  and r4.y, r2.z, l(7)
+  ubfe r5.xyzw, l(3, 3, 3, 3), l(12, 15, 18, 21), r1.zzzz
+  imul null, r5.xyzw, r1.yyyy, r5.xyzw
+  imad r1.z, r1.x, r4.y, r5.x
+  udiv r1.z, null, r1.z, l(7)
+  ubfe r4.yzw, l(0, 3, 3, 3), l(0, 3, 6, 9), r2.zzzz
+  imad r4.yzw, r1.xxxx, r4.yyzw, r5.yyzw
+  udiv r4.yzw, null, r4.yyzw, l(0, 7, 7, 7)
+  ishl r4.yzw, r4.yyzw, l(0, 8, 16, 24)
+  or r1.z, r1.z, r4.y
+  or r1.z, r4.z, r1.z
+  or r1.z, r4.w, r1.z
+  movc r5.w, r1.w, r2.w, r1.z
+  ishl r5.xyz, r5.wwww, l(24, 16, 8, 0)
+  and r5.xyzw, r5.xyzw, l(0xff000000, 0xff000000, 0xff000000, 0xff000000)
+  or r3.xyzw, r3.xyzw, r5.xyzw
+  store_uav_typed U0[0].xyzw, r2.yyyy, r3.xyzw
+  imad r1.z, vThreadID.y, l(4), l(2)
+  ilt r1.z, r1.z, CB0[0][2].z
+  if_nz r1.z
+    ushr r1.z, r2.x, l(8)
+    ushr r2.xy, r1.zzzz, l(1, 2, 0, 0)
+    and r2.z, r1.z, r2.x
+    and r2.z, r2.z, l(0x00492492)
+    ishl r2.w, r2.z, l(1)
+    ushr r3.x, r2.z, l(1)
+    iadd r2.z, r2.z, r2.w
+    iadd r2.z, r2.z, r3.x
+    and r2.w, r1.z, l(0x00249249)
+    iadd r3.x, r2.w, l(0x00db6db6)
+    and r3.x, r2.z, r3.x
+    or r3.y, r1.z, r2.x
+    and r3.zw, r2.xxxy, l(0, 0, 0x00249249, 0x00249249)
+    or r2.x, r2.y, r3.y
+    and r2.x, r2.x, l(0x00249249)
+    xor r2.x, r2.x, l(0x00249249)
+    not r3.yz, r3.zzwz
+    and r2.y, r2.w, r3.y
+    and r2.y, r3.z, r2.y
+    or r1.z, r1.z, r2.x
+    iadd r1.z, r1.z, l(0xffdb6db7)
+    or r1.z, r2.y, r1.z
+    ishl r2.xy, r2.yyyy, l(2, 1, 0, 0)
+    or r2.w, r1.z, r2.x
+    not r2.z, r2.z
+    and r2.z, r2.z, r2.w
+    or r2.z, r3.x, r2.z
+    iadd r2.x, r2.y, r2.x
+    or r1.z, r1.z, r2.x
+    movc r1.z, r1.w, r2.z, r1.z
+    ishl r2.x, r0.z, l(1)
+    iadd r2.x, r0.y, r2.x
+    ushr r3.x, r4.x, l(16)
+    not r5.x, r3.x
+    ushr r5.yzw, r5.xxxx, l(0, 2, 4, 6)
+    and r5.xyzw, r5.xyzw, l(3, 3, 3, 3)
+    ushr r3.yzw, r3.xxxx, l(0, 2, 4, 6)
+    and r3.xyzw, r3.xyzw, l(3, 3, 3, 3)
+    imul null, r3.xyzw, r0.wwww, r3.xyzw
+    imad r3.xyzw, r5.xyzw, r0.xxxx, r3.xyzw
+    and r5.xyzw, r3.xyzw, l(1023, 1023, 1023, 1023)
+    udiv r5.xyzw, null, r5.xyzw, l(3, 3, 3, 3)
+    ishl r5.xyzw, r5.xyzw, l(16, 16, 16, 16)
+    ubfe r6.xyzw, l(10, 10, 10, 10), l(10, 10, 10, 10), r3.xyzw
+    udiv r6.xyzw, null, r6.xyzw, l(3, 3, 3, 3)
+    bfi r5.xyzw, l(8, 8, 8, 8), l(8, 8, 8, 8), r6.xyzw, r5.xyzw
+    ushr r3.xyzw, r3.xyzw, l(20, 20, 20, 20)
+    udiv r3.xyzw, null, r3.xyzw, l(3, 3, 3, 3)
+    or r3.xyzw, r3.xyzw, r5.xyzw
+    ushr r2.y, r1.z, l(1)
+    and r2.y, r1.z, r2.y
+    and r2.y, r2.y, l(1170)
+    ishl r2.z, r2.y, l(1)
+    ushr r2.w, r2.y, l(1)
+    iadd r2.y, r2.y, r2.z
+    iadd r2.y, r2.y, r2.w
+    not r2.z, r2.y
+    and r2.yw, r1.zzzz, r2.yyyz
+    iadd r4.y, -r2.w, l(2925)
+    and r2.z, r2.z, r4.y
+    and r4.yz, r2.zzwz, l(0, 7, 7, 0)
+    imul null, r4.z, r1.y, r4.z
+    imad r4.y, r1.x, r4.y, r4.z
+    udiv r4.y, null, r4.y, l(5)
+    ubfe r5.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r2.zzzz
+    ubfe r6.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r2.wwww
+    imul null, r6.xyz, r1.yyyy, r6.xyzx
+    imad r5.xyz, r1.xxxx, r5.xyzx, r6.xyzx
+    udiv r5.xyz, null, r5.xyzx, l(5, 5, 5, 0)
+    ishl r5.xyz, r5.xyzx, l(8, 16, 24, 0)
+    or r2.z, r4.y, r5.x
+    or r2.z, r5.y, r2.z
+    or r2.z, r5.z, r2.z
+    ishl r4.yzw, r2.yyyy, l(0, 5, 10, 15)
+    and r4.yzw, r4.yyzw, l(0, 256, 0x00010000, 0x01000000)
+    bfi r2.y, l(1), l(0), r2.y, r4.y
+    iadd r2.y, r4.z, r2.y
+    iadd r2.y, r4.w, r2.y
+    imad r2.y, r2.y, l(255), r2.z
+    not r2.z, r1.z
+    and r2.w, r2.z, l(7)
+    and r4.y, r1.z, l(7)
+    imul null, r4.y, r1.y, r4.y
+    imad r2.w, r1.x, r2.w, r4.y
+    udiv r2.w, null, r2.w, l(7)
+    ubfe r4.yzw, l(0, 3, 3, 3), l(0, 3, 6, 9), r2.zzzz
+    ubfe r5.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r1.zzzz
+    imul null, r5.xyz, r1.yyyy, r5.xyzx
+    imad r4.yzw, r1.xxxx, r4.yyzw, r5.xxyz
+    udiv r4.yzw, null, r4.yyzw, l(0, 7, 7, 7)
+    ishl r4.yzw, r4.yyzw, l(0, 8, 16, 24)
+    or r2.z, r2.w, r4.y
+    or r2.z, r4.z, r2.z
+    or r2.z, r4.w, r2.z
+    movc r5.w, r1.w, r2.y, r2.z
+    ishl r5.xyz, r5.wwww, l(24, 16, 8, 0)
+    and r5.xyzw, r5.xyzw, l(0xff000000, 0xff000000, 0xff000000, 0xff000000)
+    or r3.xyzw, r3.xyzw, r5.xyzw
+    store_uav_typed U0[0].xyzw, r2.xxxx, r3.xyzw
+    imad r2.x, vThreadID.y, l(4), l(3)
+    ilt r2.x, r2.x, CB0[0][2].z
+    if_nz r2.x
+      imad r0.y, l(3), r0.z, r0.y
+      ushr r2.x, r4.x, l(24)
+      not r3.x, r2.x
+      ushr r3.yzw, r3.xxxx, l(0, 2, 4, 6)
+      and r3.xyzw, r3.xyzw, l(3, 3, 3, 3)
+      ushr r2.yzw, r2.xxxx, l(0, 2, 4, 6)
+      and r2.xyzw, r2.xyzw, l(3, 3, 3, 3)
+      imul null, r2.xyzw, r0.wwww, r2.xyzw
+      imad r2.xyzw, r3.xyzw, r0.xxxx, r2.xyzw
+      and r3.xyzw, r2.xyzw, l(1023, 1023, 1023, 1023)
+      udiv r3.xyzw, null, r3.xyzw, l(3, 3, 3, 3)
+      ishl r3.xyzw, r3.xyzw, l(16, 16, 16, 16)
+      ubfe r4.xyzw, l(10, 10, 10, 10), l(10, 10, 10, 10), r2.xyzw
+      udiv r4.xyzw, null, r4.xyzw, l(3, 3, 3, 3)
+      bfi r3.xyzw, l(8, 8, 8, 8), l(8, 8, 8, 8), r4.xyzw, r3.xyzw
+      ushr r2.xyzw, r2.xyzw, l(20, 20, 20, 20)
+      udiv r2.xyzw, null, r2.xyzw, l(3, 3, 3, 3)
+      or r2.xyzw, r2.xyzw, r3.xyzw
+      ushr r0.x, r1.z, l(12)
+      ushr r0.z, r0.x, l(1)
+      and r0.z, r0.x, r0.z
+      and r0.z, r0.z, l(1170)
+      ishl r0.w, r0.z, l(1)
+      ushr r3.x, r0.z, l(1)
+      iadd r0.z, r0.z, r0.w
+      iadd r0.z, r0.z, r3.x
+      not r0.w, r0.z
+      and r3.x, r0.w, r0.x
+      iadd r3.y, -r3.x, l(2925)
+      and r0.w, r0.w, r3.y
+      and r3.y, r0.w, l(7)
+      and r3.z, r3.x, l(7)
+      imul null, r3.z, r1.y, r3.z
+      imad r3.y, r1.x, r3.y, r3.z
+      ubfe r4.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r0.wwww
+      ubfe r3.xzw, l(3, 0, 3, 3), l(3, 0, 6, 9), r3.xxxx
+      imul null, r3.xzw, r1.yyyy, r3.xxzw
+      imad r3.xzw, r1.xxxx, r4.xxyz, r3.xxzw
+      udiv r3.xyzw, null, r3.xyzw, l(5, 5, 5, 5)
+      ishl r3.xzw, r3.xxzw, l(8, 0, 16, 24)
+      or r0.w, r3.x, r3.y
+      or r0.w, r3.z, r0.w
+      or r0.w, r3.w, r0.w
+      and r0.z, r0.z, r0.x
+      ishl r3.xyz, r0.zzzz, l(5, 10, 15, 0)
+      and r3.xyz, r3.xyzx, l(256, 0x00010000, 0x01000000, 0)
+      bfi r0.z, l(1), l(0), r0.z, r3.x
+      iadd r0.z, r3.y, r0.z
+      iadd r0.z, r3.z, r0.z
+      imad r0.z, r0.z, l(255), r0.w
+      not r0.x, r0.x
+      and r0.w, r0.x, l(7)
+      ubfe r3.xyzw, l(3, 3, 3, 3), l(12, 15, 18, 21), r1.zzzz
+      imul null, r3.xyzw, r1.yyyy, r3.xyzw
+      imad r0.w, r1.x, r0.w, r3.x
+      udiv r0.w, null, r0.w, l(7)
+      ubfe r4.xyz, l(3, 3, 3, 0), l(3, 6, 9, 0), r0.xxxx
+      imad r1.xyz, r1.xxxx, r4.xyzx, r3.yzwy
+      udiv r1.xyz, null, r1.xyzx, l(7, 7, 7, 0)
+      ishl r1.xyz, r1.xyzx, l(8, 16, 24, 0)
+      or r0.x, r0.w, r1.x
+      or r0.x, r1.y, r0.x
+      or r0.x, r1.z, r0.x
+      movc r1.w, r1.w, r0.z, r0.x
+      ishl r1.xyz, r1.wwww, l(24, 16, 8, 0)
+      and r1.xyzw, r1.xyzw, l(0xff000000, 0xff000000, 0xff000000, 0xff000000)
+      or r1.xyzw, r1.xyzw, r2.xyzw
+      store_uav_typed U0[0].xyzw, r0.yyyy, r1.xyzw
+    endif 
+  endif 
+endif 
 ret 
-// Approximately 450 instruction slots used
+// Approximately 856 instruction slots used

@@ -9,14 +9,12 @@
 //
 //   uint xe_texture_load_guest_base;   // Offset:    0 Size:     4
 //   uint xe_texture_load_guest_pitch;  // Offset:    4 Size:     4
-//   uint2 xe_texture_guest_storage_width_height;// Offset:    8 Size:     8
-//   bool xe_texture_load_is_3d;        // Offset:   16 Size:     4
-//   uint xe_texture_load_guest_format; // Offset:   20 Size:     4 [unused]
-//   uint xe_texture_load_endianness;   // Offset:   24 Size:     4
-//   uint3 xe_texture_load_size_blocks; // Offset:   32 Size:    12
-//   uint xe_texture_load_height_texels;// Offset:   44 Size:     4 [unused]
-//   uint xe_texture_load_host_base;    // Offset:   48 Size:     4
-//   uint xe_texture_load_host_pitch;   // Offset:   52 Size:     4
+//   uint2 xe_texture_load_guest_storage_width_height;// Offset:    8 Size:     8
+//   uint3 xe_texture_load_size_blocks; // Offset:   16 Size:    12
+//   uint xe_texture_load_is_3d_endian; // Offset:   28 Size:     4
+//   uint xe_texture_load_host_base;    // Offset:   32 Size:     4
+//   uint xe_texture_load_host_pitch;   // Offset:   36 Size:     4
+//   uint xe_texture_load_height_texels;// Offset:   40 Size:     4 [unused]
 //
 // }
 //
@@ -25,8 +23,8 @@
 //
 // Name                                 Type  Format         Dim      ID      HLSL Bind  Count
 // ------------------------------ ---------- ------- ----------- ------- -------------- ------
-// xe_texture_load_source            texture    byte         r/o      T0             t0      1 
-// xe_texture_load_dest                  UAV    byte         r/w      U0             u0      1 
+// xe_texture_load_source            texture   uint4         buf      T0             t0      1 
+// xe_texture_load_dest                  UAV   uint4         buf      U0             u0      1 
 // XeTextureLoadConstants            cbuffer      NA          NA     CB0            cb0      1 
 //
 //
@@ -44,118 +42,119 @@
 // no Output
 cs_5_1
 dcl_globalFlags refactoringAllowed
-dcl_constantbuffer CB0[0:0][4], immediateIndexed, space=0
-dcl_resource_raw T0[0:0], space=0
-dcl_uav_raw U0[0:0], space=0
+dcl_constantbuffer CB0[0:0][3], immediateIndexed, space=0
+dcl_resource_buffer (uint,uint,uint,uint) T0[0:0], space=0
+dcl_uav_typed_buffer (uint,uint,uint,uint) U0[0:0], space=0
 dcl_input vThreadID.xyz
-dcl_temps 6
-dcl_thread_group 8, 32, 1
-ishl r0.x, vThreadID.x, l(2)
+dcl_temps 5
+dcl_thread_group 4, 32, 1
+ishl r0.x, vThreadID.x, l(3)
 mov r0.yz, vThreadID.yyzy
-uge r0.yzw, r0.xxyz, CB0[0][2].xxyz
+uge r0.yzw, r0.xxyz, CB0[0][1].xxyz
 or r0.y, r0.z, r0.y
 or r0.y, r0.w, r0.y
 if_nz r0.y
   ret 
 endif 
-ieq r0.y, CB0[0][0].y, l(-1)
-if_nz r0.y
-  if_nz CB0[0][1].x
-    iadd r0.yz, CB0[0][0].wwzw, l(0, 31, 31, 0)
-    ushr r1.xyz, vThreadID.yzyy, l(4, 2, 3, 0)
-    ushr r0.yz, r0.yyzy, l(0, 4, 5, 0)
-    and r0.y, r0.y, l(0x0ffffffe)
-    imad r0.y, r1.y, r0.y, r1.x
-    ubfe r1.xw, l(27, 0, 0, 29), l(3, 0, 0, 1), vThreadID.xxxx
-    imad r0.y, r0.y, r0.z, r1.x
-    bfi r2.xyzw, l(1, 1, 1, 1), l(2, 2, 2, 2), vThreadID.xxxx, l(0, 1, 2, 3)
-    ishl r0.z, vThreadID.y, l(2)
-    and r0.z, r0.z, l(24)
-    iadd r2.xyzw, r0.zzzz, r2.xyzw
-    ishl r2.xyzw, r2.xyzw, l(8, 8, 8, 8)
-    ushr r2.xyzw, r2.xyzw, l(6, 6, 6, 6)
-    iadd r0.z, r1.y, r1.z
-    bfi r0.yw, l(0, 20, 0, 1), l(0, 10, 0, 1), r0.yyyz, l(0, 0, 0, 0)
-    iadd r0.w, r0.w, r1.w
-    bfi r0.w, l(2), l(1), r0.w, l(0)
-    bfi r0.z, l(1), l(0), r0.z, r0.w
-    and r1.xyzw, r2.xyzw, l(112, 112, 112, 112)
-    imad r1.xyzw, r1.xyzw, l(2, 2, 2, 2), r0.yyyy
-    iadd r1.xyzw, r1.xyzw, l(0, 4, 8, 12)
-    bfi r2.xyzw, l(2, 2, 2, 2), l(8, 8, 8, 8), vThreadID.zzzz, r1.xyzw
-    bfi r3.xyzw, l(1, 1, 1, 1), l(4, 4, 4, 4), vThreadID.yyyy, r2.xyzw
-    ubfe r2.xyzw, l(3, 3, 3, 3), l(6, 6, 6, 6), r2.xyzw
-    and r0.y, r0.z, l(6)
-    bfi r0.z, l(1), l(8), r0.z, l(0)
-    imad r2.xyzw, r2.xyzw, l(32, 32, 32, 32), r0.zzzz
-    imad r2.xyzw, r0.yyyy, l(4, 4, 4, 4), r2.xyzw
-    ishl r1.xyzw, r1.xyzw, l(3, 3, 3, 3)
-    bfi r1.xyzw, l(2, 2, 2, 2), l(11, 11, 11, 11), vThreadID.zzzz, r1.xyzw
-    bfi r1.xyzw, l(1, 1, 1, 1), l(7, 7, 7, 7), vThreadID.yyyy, r1.xyzw
-    bfi r1.xyzw, l(9, 9, 9, 9), l(3, 3, 3, 3), r2.xyzw, r1.xyzw
-    and r2.xyzw, r3.xyzw, l(48, 52, 56, 60)
-    iadd r1.xyzw, r1.xyzw, r2.xyzw
+ishl r0.x, r0.x, l(2)
+imad r0.y, vThreadID.z, CB0[0][1].y, vThreadID.y
+imad r0.y, r0.y, CB0[0][2].y, r0.x
+iadd r0.y, r0.y, CB0[0][2].x
+ieq r0.z, CB0[0][0].y, l(-1)
+if_nz r0.z
+  and r0.w, CB0[0][1].w, l(1)
+  if_nz r0.w
+    iadd r1.xy, CB0[0][0].wzww, l(31, 31, 0, 0)
+    ishr r2.xyz, vThreadID.yzyy, l(4, 2, 3, 0)
+    ushr r1.xy, r1.xyxx, l(4, 5, 0, 0)
+    and r0.w, r1.x, l(0x0ffffffe)
+    imad r0.w, r2.y, r0.w, r2.x
+    ibfe r1.xz, l(27, 0, 29, 0), l(2, 0, 0, 0), vThreadID.xxxx
+    imad r0.w, r0.w, r1.y, r1.x
+    ishl r1.x, vThreadID.y, l(10)
+    ishr r1.x, r1.x, l(6)
+    and r1.x, r1.x, l(96)
+    iadd r1.y, r2.y, r2.z
+    bfi r1.w, l(1), l(1), r1.y, l(0)
+    iadd r1.z, r1.w, r1.z
+    bfi r1.z, l(2), l(1), r1.z, l(0)
+    bfi r1.y, l(1), l(0), r1.y, r1.z
+    bfi r1.zw, l(0, 0, 20, 20), l(0, 0, 10, 13), r0.wwww, l(0, 0, 0, 0)
+    imad r1.xz, r1.xxxx, l(2, 0, 16, 0), r1.zzwz
+    bfi r1.xz, l(2, 0, 2, 0), l(8, 0, 11, 0), vThreadID.zzzz, r1.xxzx
+    bfi r0.w, l(1), l(4), vThreadID.y, l(0)
+    ubfe r1.w, l(3), l(6), r1.x
+    and r2.x, r1.y, l(6)
+    bfi r1.y, l(1), l(8), r1.y, l(0)
+    imad r1.y, r1.w, l(32), r1.y
+    imad r1.y, r2.x, l(4), r1.y
+    bfi r1.xz, l(6, 0, 6, 0), l(0, 0, 3, 0), r0.wwww, r1.xxzx
+    bfi r0.w, l(9), l(3), r1.y, r1.z
+    bfi r0.w, l(6), l(0), r1.x, r0.w
   else 
-    ubfe r0.yz, l(0, 27, 29, 0), l(0, 3, 1, 0), vThreadID.xxxx
-    ushr r2.xy, vThreadID.yyyy, l(5, 2, 0, 0)
-    iadd r0.w, CB0[0][0].z, l(31)
-    ushr r0.w, r0.w, l(5)
-    imad r0.y, r2.x, r0.w, r0.y
-    bfi r3.xyzw, l(1, 1, 1, 1), l(2, 2, 2, 2), vThreadID.xxxx, l(0, 1, 2, 3)
-    ishl r2.xz, vThreadID.yyyy, l(2, 0, 7, 0)
-    and r2.xz, r2.xxzx, l(56, 0, 2048, 0)
-    iadd r3.xyzw, r2.xxxx, r3.xyzw
-    ishl r3.xyzw, r3.xyzw, l(3, 3, 3, 3)
-    and r3.xyzw, r3.xyzw, l(480, 480, 480, 480)
-    bfi r3.xyzw, l(23, 23, 23, 23), l(9, 9, 9, 9), r0.yyyy, r3.xyzw
-    iadd r3.xyzw, r3.xyzw, l(0, 4, 8, 12)
-    bfi r4.xyzw, l(1, 1, 1, 1), l(4, 4, 4, 4), vThreadID.yyyy, r3.xyzw
-    ishl r5.xyzw, r3.xyzw, l(3, 3, 3, 3)
-    bfi r5.xyzw, l(1, 1, 1, 1), l(7, 7, 7, 7), vThreadID.yyyy, r5.xyzw
-    bfi r5.xyzw, l(12, 12, 12, 12), l(0, 0, 0, 0), r2.zzzz, r5.xyzw
-    ishl r3.xyzw, r3.xyzw, l(2, 2, 2, 2)
-    bfi r3.xyzw, l(1, 1, 1, 1), l(6, 6, 6, 6), vThreadID.yyyy, r3.xyzw
-    and r3.xyzw, r3.xyzw, l(1792, 1792, 1792, 1792)
-    iadd r3.xyzw, r5.xyzw, r3.xyzw
-    and r0.y, r2.y, l(2)
-    iadd r0.y, r0.y, r0.z
-    bfi r0.y, l(2), l(6), r0.y, l(0)
-    iadd r2.xyzw, r3.xyzw, r0.yyyy
-    and r3.xyzw, r4.xyzw, l(48, 52, 56, 60)
-    iadd r1.xyzw, r2.xyzw, r3.xyzw
+    ibfe r1.xy, l(27, 29, 0, 0), l(2, 0, 0, 0), vThreadID.xxxx
+    ishr r1.zw, vThreadID.yyyy, l(0, 0, 5, 2)
+    iadd r2.x, CB0[0][0].z, l(31)
+    ushr r2.x, r2.x, l(5)
+    imad r1.x, r1.z, r2.x, r1.x
+    ishl r2.xy, vThreadID.yyyy, l(5, 7, 0, 0)
+    and r2.xy, r2.xyxx, l(448, 2048, 0, 0)
+    bfi r1.z, l(23), l(9), r1.x, r2.x
+    bfi r2.z, l(1), l(4), vThreadID.y, l(0)
+    iadd r1.z, r1.z, r2.z
+    ishl r2.xw, r2.xxxx, l(3, 0, 0, 2)
+    bfi r2.xw, l(23, 0, 0, 23), l(12, 0, 0, 11), r1.xxxx, r2.xxxw
+    imad r2.xz, r2.zzzz, l(8, 0, 4, 0), r2.xxwx
+    bfi r1.x, l(12), l(0), r2.y, r2.x
+    and r2.x, r2.z, l(1792)
+    iadd r1.x, r1.x, r2.x
+    and r1.w, r1.w, l(2)
+    iadd r1.y, r1.y, r1.w
+    bfi r1.y, l(2), l(6), r1.y, l(0)
+    iadd r1.x, r1.x, r1.y
+    bfi r0.w, l(6), l(0), r1.z, r1.x
   endif 
 else 
-  ishl r0.y, r0.x, l(2)
-  iadd r0.z, CB0[0][2].y, l(31)
-  and r0.z, r0.z, l(-32)
-  imad r0.z, vThreadID.z, r0.z, vThreadID.y
-  imad r0.y, r0.z, CB0[0][0].y, r0.y
-  iadd r1.xyzw, r0.yyyy, l(0, 4, 8, 12)
+  iadd r1.x, CB0[0][1].y, l(31)
+  and r1.x, r1.x, l(-32)
+  imad r1.x, vThreadID.z, r1.x, vThreadID.y
+  imad r0.w, r1.x, CB0[0][0].y, r0.x
 endif 
-iadd r1.xyzw, r1.xyzw, CB0[0][0].xxxx
-ld_raw r2.x, r1.x, T0[0].xxxx
-ld_raw r2.y, r1.y, T0[0].xxxx
-ld_raw r2.z, r1.z, T0[0].xxxx
-ld_raw r2.w, r1.w, T0[0].xxxx
-ushr r0.y, CB0[0][1].z, l(1)
-xor r0.y, r0.y, CB0[0][1].z
-and r0.y, r0.y, l(1)
-if_nz r0.y
-  ishl r1.xyzw, r2.xyzw, l(8, 8, 8, 8)
-  and r1.xyzw, r1.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
-  ushr r3.xyzw, r2.xyzw, l(8, 8, 8, 8)
-  and r3.xyzw, r3.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
-  iadd r2.xyzw, r1.xyzw, r3.xyzw
+iadd r0.x, r0.w, CB0[0][0].x
+ushr r0.xy, r0.xyxx, l(4, 4, 0, 0)
+ushr r0.w, CB0[0][1].w, l(1)
+ld r1.xyzw, r0.xxxx, T0[0].xyzw
+ushr r2.x, r0.w, l(1)
+xor r2.x, r0.w, r2.x
+and r2.x, r2.x, l(1)
+if_nz r2.x
+  ishl r3.xyzw, r1.xyzw, l(8, 8, 8, 8)
+  and r3.xyzw, r3.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
+  ushr r4.xyzw, r1.xyzw, l(8, 8, 8, 8)
+  and r4.xyzw, r4.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
+  iadd r1.xyzw, r3.xyzw, r4.xyzw
 endif 
-and r0.y, CB0[0][1].z, l(2)
-if_nz r0.y
-  ushr r1.xyzw, r2.xyzw, l(16, 16, 16, 16)
-  bfi r2.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r2.xyzw, r1.xyzw
+and r0.w, r0.w, l(2)
+if_nz r0.w
+  ushr r3.xyzw, r1.xyzw, l(16, 16, 16, 16)
+  bfi r1.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r1.xyzw, r3.xyzw
 endif 
-ishl r0.x, r0.x, l(2)
-imad r0.y, vThreadID.z, CB0[0][2].y, vThreadID.y
-imad r0.x, r0.y, CB0[0][3].y, r0.x
-iadd r0.x, r0.x, CB0[0][3].x
-store_raw U0[0].xyzw, r0.x, r2.xyzw
+store_uav_typed U0[0].xyzw, r0.yyyy, r1.xyzw
+iadd r1.x, r0.y, l(1)
+movc r0.z, r0.z, l(2), l(1)
+iadd r0.x, r0.z, r0.x
+ld r3.xyzw, r0.xxxx, T0[0].xyzw
+if_nz r2.x
+  ishl r2.xyzw, r3.xyzw, l(8, 8, 8, 8)
+  and r2.xyzw, r2.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
+  ushr r4.xyzw, r3.xyzw, l(8, 8, 8, 8)
+  and r4.xyzw, r4.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
+  iadd r3.xyzw, r2.xyzw, r4.xyzw
+endif 
+if_nz r0.w
+  ushr r2.xyzw, r3.xyzw, l(16, 16, 16, 16)
+  bfi r3.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r3.xyzw, r2.xyzw
+endif 
+store_uav_typed U0[0].xyzw, r1.xxxx, r3.xyzw
 ret 
-// Approximately 108 instruction slots used
+// Approximately 109 instruction slots used

@@ -552,6 +552,48 @@ D3D12CommandProcessor::GetSystemBindlessViewHandlePair(
                             view_bindless_heap_gpu_start_, uint32_t(view)));
 }
 
+ui::d3d12::util::DescriptorCPUGPUHandlePair
+D3D12CommandProcessor::GetSharedMemoryUintPow2BindlessSRVHandlePair(
+    uint32_t element_size_bytes_pow2) const {
+  SystemBindlessView view;
+  switch (element_size_bytes_pow2) {
+    case 2:
+      view = SystemBindlessView::kSharedMemoryR32UintSRV;
+      break;
+    case 3:
+      view = SystemBindlessView::kSharedMemoryR32G32UintSRV;
+      break;
+    case 4:
+      view = SystemBindlessView::kSharedMemoryR32G32B32A32UintSRV;
+      break;
+    default:
+      assert_unhandled_case(element_size_bytes_pow2);
+      view = SystemBindlessView::kSharedMemoryR32UintSRV;
+  }
+  return GetSystemBindlessViewHandlePair(view);
+}
+
+ui::d3d12::util::DescriptorCPUGPUHandlePair
+D3D12CommandProcessor::GetSharedMemoryUintPow2BindlessUAVHandlePair(
+    uint32_t element_size_bytes_pow2) const {
+  SystemBindlessView view;
+  switch (element_size_bytes_pow2) {
+    case 2:
+      view = SystemBindlessView::kSharedMemoryR32UintUAV;
+      break;
+    case 3:
+      view = SystemBindlessView::kSharedMemoryR32G32UintUAV;
+      break;
+    case 4:
+      view = SystemBindlessView::kSharedMemoryR32G32B32A32UintUAV;
+      break;
+    default:
+      assert_unhandled_case(element_size_bytes_pow2);
+      view = SystemBindlessView::kSharedMemoryR32UintUAV;
+  }
+  return GetSystemBindlessViewHandlePair(view);
+}
+
 uint64_t D3D12CommandProcessor::RequestSamplerBindfulDescriptors(
     uint64_t previous_heap_index, uint32_t count_for_partial_update,
     uint32_t count_for_full_update, D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
@@ -1326,10 +1368,46 @@ bool D3D12CommandProcessor::SetupContext() {
     shared_memory_->WriteRawSRVDescriptor(provider->OffsetViewDescriptor(
         view_bindless_heap_cpu_start_,
         uint32_t(SystemBindlessView::kSharedMemoryRawSRV)));
+    // kSharedMemoryR32UintSRV.
+    shared_memory_->WriteUintPow2SRVDescriptor(
+        provider->OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            uint32_t(SystemBindlessView::kSharedMemoryR32UintSRV)),
+        2);
+    // kSharedMemoryR32G32UintSRV.
+    shared_memory_->WriteUintPow2SRVDescriptor(
+        provider->OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            uint32_t(SystemBindlessView::kSharedMemoryR32G32UintSRV)),
+        3);
+    // kSharedMemoryR32G32B32A32UintSRV.
+    shared_memory_->WriteUintPow2SRVDescriptor(
+        provider->OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            uint32_t(SystemBindlessView::kSharedMemoryR32G32B32A32UintSRV)),
+        4);
     // kSharedMemoryRawUAV.
     shared_memory_->WriteRawUAVDescriptor(provider->OffsetViewDescriptor(
         view_bindless_heap_cpu_start_,
         uint32_t(SystemBindlessView::kSharedMemoryRawUAV)));
+    // kSharedMemoryR32UintUAV.
+    shared_memory_->WriteUintPow2UAVDescriptor(
+        provider->OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            uint32_t(SystemBindlessView::kSharedMemoryR32UintUAV)),
+        2);
+    // kSharedMemoryR32G32UintUAV.
+    shared_memory_->WriteUintPow2UAVDescriptor(
+        provider->OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            uint32_t(SystemBindlessView::kSharedMemoryR32G32UintUAV)),
+        3);
+    // kSharedMemoryR32G32B32A32UintUAV.
+    shared_memory_->WriteUintPow2UAVDescriptor(
+        provider->OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            uint32_t(SystemBindlessView::kSharedMemoryR32G32B32A32UintUAV)),
+        4);
     // kEDRAMR32UintUAV.
     render_target_cache_->WriteEDRAMR32UintUAVDescriptor(
         provider->OffsetViewDescriptor(
