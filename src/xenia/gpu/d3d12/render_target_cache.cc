@@ -158,13 +158,13 @@ bool RenderTargetCache::Initialize(const TextureCache* texture_cache) {
   }
   edram_buffer_descriptor_heap_start_ =
       edram_buffer_descriptor_heap_->GetCPUDescriptorHandleForHeapStart();
-  ui::d3d12::util::CreateRawBufferSRV(
+  ui::d3d12::util::CreateBufferRawSRV(
       device,
       provider->OffsetViewDescriptor(
           edram_buffer_descriptor_heap_start_,
           uint32_t(EDRAMBufferDescriptorIndex::kRawSRV)),
       edram_buffer_, GetEDRAMBufferSize());
-  ui::d3d12::util::CreateRawBufferUAV(
+  ui::d3d12::util::CreateBufferRawUAV(
       device,
       provider->OffsetViewDescriptor(
           edram_buffer_descriptor_heap_start_,
@@ -1659,7 +1659,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         0);
 
     command_list->D3DSetComputeRootDescriptorTable(2, descriptor_edram.second);
-    ui::d3d12::util::CreateRawBufferUAV(device, descriptor_copy_buffer.first,
+    ui::d3d12::util::CreateBufferRawUAV(device, descriptor_copy_buffer.first,
                                         copy_buffer,
                                         render_target->copy_buffer_size);
     command_list->D3DSetComputeRootDescriptorTable(
@@ -2797,7 +2797,7 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
   auto device =
       command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
   command_list->D3DSetComputeRootSignature(edram_load_store_root_signature_);
-  ui::d3d12::util::CreateRawBufferSRV(device, descriptor_source.first,
+  ui::d3d12::util::CreateBufferRawSRV(device, descriptor_source.first,
                                       copy_buffer, copy_buffer_size);
   command_list->D3DSetComputeRootDescriptorTable(2, descriptor_source.second);
   command_list->D3DSetComputeRootDescriptorTable(1, descriptor_edram.second);
@@ -2959,7 +2959,7 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
       command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
   command_list->D3DSetComputeRootSignature(edram_load_store_root_signature_);
   command_list->D3DSetComputeRootDescriptorTable(2, descriptor_edram.second);
-  ui::d3d12::util::CreateRawBufferUAV(device, descriptor_dest.first,
+  ui::d3d12::util::CreateBufferRawUAV(device, descriptor_dest.first,
                                       copy_buffer, copy_buffer_size);
   command_list->D3DSetComputeRootDescriptorTable(1, descriptor_dest.second);
 

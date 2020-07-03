@@ -247,9 +247,6 @@ class TextureCache {
   void UseScaledResolveBufferForReading();
   void UseScaledResolveBufferForWriting();
   // Can't address more than 512 MB on Nvidia, so an offset is required.
-  void CreateScaledResolveBufferRawSRV(D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                                       uint32_t first_unscaled_4kb_page,
-                                       uint32_t unscaled_4kb_page_count);
   void CreateScaledResolveBufferRawUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle,
                                        uint32_t first_unscaled_4kb_page,
                                        uint32_t unscaled_4kb_page_count);
@@ -268,10 +265,14 @@ class TextureCache {
     k32bpb,
     k64bpb,
     k128bpb,
-    kR11G11B10ToRGBA16,
-    kR11G11B10ToRGBA16SNorm,
+    kR5G5B5A1ToB5G5R5A1,
+    kR5G6B5ToB5G6R5,
+    kR5G5B6ToB5G6R5WithRBGASwizzle,
+    kR4G4B4A4ToB4G4R4A4,
     kR10G11B11ToRGBA16,
     kR10G11B11ToRGBA16SNorm,
+    kR11G11B10ToRGBA16,
+    kR11G11B10ToRGBA16SNorm,
     kDXT1ToRGBA8,
     kDXT3ToRGBA8,
     kDXT5ToRGBA8,
@@ -291,9 +292,16 @@ class TextureCache {
   struct LoadModeInfo {
     const void* shader;
     size_t shader_size;
+    // Log2 of the sizes, in bytes, of the source (guest) SRV and the
+    // destination (host) UAV accessed by the copying shader, since the shader
+    // may copy multiple blocks per one invocation.
+    uint32_t srv_bpe_log2;
+    uint32_t uav_bpe_log2;
     // Optional shader for loading 2x-scaled resolve targets.
     const void* shader_2x;
     size_t shader_2x_size;
+    uint32_t srv_bpe_log2_2x;
+    uint32_t uav_bpe_log2_2x;
   };
 
   // Tiling modes for storing textures after resolving - needed only for the
@@ -420,26 +428,22 @@ class TextureCache {
 
   struct LoadConstants {
     // vec4 0.
+    // Base offset in bytes.
     uint32_t guest_base;
     // For linear textures - row byte pitch.
     uint32_t guest_pitch;
-    // Block-aligned and, for mipmaps, power-of-two-aligned width and height.
+    // In blocks - and for mipmaps, it's also power-of-two-aligned.
     uint32_t guest_storage_width_height[2];
 
     // vec4 1.
-    uint32_t is_3d;
-    uint32_t guest_format;
-    uint32_t endianness;
-    uint32_t padding_1;
+    uint32_t size_blocks[3];
+    uint32_t is_3d_endian;
 
     // vec4 2.
-    uint32_t size_blocks[3];
-    uint32_t height_texels;
-
-    // vec4 3.
+    // Base offset in bytes.
     uint32_t host_base;
     uint32_t host_pitch;
-    uint32_t padding_3[2];
+    uint32_t height_texels;
 
     static constexpr uint32_t kGuestPitchTiled = UINT32_MAX;
   };

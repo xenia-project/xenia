@@ -120,7 +120,13 @@ class D3D12CommandProcessor : public CommandProcessor {
     kNullTextureCube,
 
     kSharedMemoryRawSRV,
+    kSharedMemoryR32UintSRV,
+    kSharedMemoryR32G32UintSRV,
+    kSharedMemoryR32G32B32A32UintSRV,
     kSharedMemoryRawUAV,
+    kSharedMemoryR32UintUAV,
+    kSharedMemoryR32G32UintUAV,
+    kSharedMemoryR32G32B32A32UintUAV,
 
     kEDRAMR32UintUAV,
     kEDRAMRawSRV,
@@ -133,6 +139,12 @@ class D3D12CommandProcessor : public CommandProcessor {
   };
   ui::d3d12::util::DescriptorCPUGPUHandlePair GetSystemBindlessViewHandlePair(
       SystemBindlessView view) const;
+  ui::d3d12::util::DescriptorCPUGPUHandlePair
+  GetSharedMemoryUintPow2BindlessSRVHandlePair(
+      uint32_t element_size_bytes_pow2) const;
+  ui::d3d12::util::DescriptorCPUGPUHandlePair
+  GetSharedMemoryUintPow2BindlessUAVHandlePair(
+      uint32_t element_size_bytes_pow2) const;
 
   // Returns a single temporary GPU-side buffer within a submission for tasks
   // like texture untiling and resolving.

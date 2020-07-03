@@ -63,7 +63,7 @@ ID3D12PipelineState* CreateComputePipeline(
   return pipeline;
 }
 
-void CreateRawBufferSRV(ID3D12Device* device,
+void CreateBufferRawSRV(ID3D12Device* device,
                         D3D12_CPU_DESCRIPTOR_HANDLE handle,
                         ID3D12Resource* buffer, uint32_t size,
                         uint64_t offset) {
@@ -80,7 +80,7 @@ void CreateRawBufferSRV(ID3D12Device* device,
   device->CreateShaderResourceView(buffer, &desc, handle);
 }
 
-void CreateRawBufferUAV(ID3D12Device* device,
+void CreateBufferRawUAV(ID3D12Device* device,
                         D3D12_CPU_DESCRIPTOR_HANDLE handle,
                         ID3D12Resource* buffer, uint32_t size,
                         uint64_t offset) {
@@ -94,6 +94,36 @@ void CreateRawBufferUAV(ID3D12Device* device,
   desc.Buffer.StructureByteStride = 0;
   desc.Buffer.CounterOffsetInBytes = 0;
   desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+  device->CreateUnorderedAccessView(buffer, nullptr, &desc, handle);
+}
+
+void CreateBufferTypedSRV(ID3D12Device* device,
+                          D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                          ID3D12Resource* buffer, DXGI_FORMAT format,
+                          uint32_t num_elements, uint64_t first_element) {
+  D3D12_SHADER_RESOURCE_VIEW_DESC desc;
+  desc.Format = format;
+  desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+  desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  desc.Buffer.FirstElement = first_element;
+  desc.Buffer.NumElements = num_elements;
+  desc.Buffer.StructureByteStride = 0;
+  desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+  device->CreateShaderResourceView(buffer, &desc, handle);
+}
+
+void CreateBufferTypedUAV(ID3D12Device* device,
+                          D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                          ID3D12Resource* buffer, DXGI_FORMAT format,
+                          uint32_t num_elements, uint64_t first_element) {
+  D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
+  desc.Format = format;
+  desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+  desc.Buffer.FirstElement = first_element;
+  desc.Buffer.NumElements = num_elements;
+  desc.Buffer.StructureByteStride = 0;
+  desc.Buffer.CounterOffsetInBytes = 0;
+  desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
   device->CreateUnorderedAccessView(buffer, nullptr, &desc, handle);
 }
 

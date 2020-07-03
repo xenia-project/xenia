@@ -110,16 +110,52 @@ bool SharedMemory::Initialize() {
   }
   buffer_descriptor_heap_start_ =
       buffer_descriptor_heap_->GetCPUDescriptorHandleForHeapStart();
-  ui::d3d12::util::CreateRawBufferSRV(
+  ui::d3d12::util::CreateBufferRawSRV(
       device,
       provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
                                      uint32_t(BufferDescriptorIndex::kRawSRV)),
       buffer_, kBufferSize);
-  ui::d3d12::util::CreateRawBufferUAV(
+  ui::d3d12::util::CreateBufferTypedSRV(
+      device,
+      provider->OffsetViewDescriptor(
+          buffer_descriptor_heap_start_,
+          uint32_t(BufferDescriptorIndex::kR32UintSRV)),
+      buffer_, DXGI_FORMAT_R32_UINT, kBufferSize >> 2);
+  ui::d3d12::util::CreateBufferTypedSRV(
+      device,
+      provider->OffsetViewDescriptor(
+          buffer_descriptor_heap_start_,
+          uint32_t(BufferDescriptorIndex::kR32G32UintSRV)),
+      buffer_, DXGI_FORMAT_R32G32_UINT, kBufferSize >> 3);
+  ui::d3d12::util::CreateBufferTypedSRV(
+      device,
+      provider->OffsetViewDescriptor(
+          buffer_descriptor_heap_start_,
+          uint32_t(BufferDescriptorIndex::kR32G32B32A32UintSRV)),
+      buffer_, DXGI_FORMAT_R32G32B32A32_UINT, kBufferSize >> 4);
+  ui::d3d12::util::CreateBufferRawUAV(
       device,
       provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
                                      uint32_t(BufferDescriptorIndex::kRawUAV)),
       buffer_, kBufferSize);
+  ui::d3d12::util::CreateBufferTypedUAV(
+      device,
+      provider->OffsetViewDescriptor(
+          buffer_descriptor_heap_start_,
+          uint32_t(BufferDescriptorIndex::kR32UintUAV)),
+      buffer_, DXGI_FORMAT_R32_UINT, kBufferSize >> 2);
+  ui::d3d12::util::CreateBufferTypedUAV(
+      device,
+      provider->OffsetViewDescriptor(
+          buffer_descriptor_heap_start_,
+          uint32_t(BufferDescriptorIndex::kR32G32UintUAV)),
+      buffer_, DXGI_FORMAT_R32G32_UINT, kBufferSize >> 3);
+  ui::d3d12::util::CreateBufferTypedUAV(
+      device,
+      provider->OffsetViewDescriptor(
+          buffer_descriptor_heap_start_,
+          uint32_t(BufferDescriptorIndex::kR32G32B32A32UintUAV)),
+      buffer_, DXGI_FORMAT_R32G32B32A32_UINT, kBufferSize >> 4);
 
   system_page_flags_.clear();
   system_page_flags_.resize((page_count_ + 63) / 64);
@@ -707,6 +743,58 @@ void SharedMemory::WriteRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
       1, handle,
       provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
                                      uint32_t(BufferDescriptorIndex::kRawUAV)),
+      D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+}
+
+void SharedMemory::WriteUintPow2SRVDescriptor(
+    D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t element_size_bytes_pow2) {
+  BufferDescriptorIndex descriptor_index;
+  switch (element_size_bytes_pow2) {
+    case 2:
+      descriptor_index = BufferDescriptorIndex::kR32UintSRV;
+      break;
+    case 3:
+      descriptor_index = BufferDescriptorIndex::kR32G32UintSRV;
+      break;
+    case 4:
+      descriptor_index = BufferDescriptorIndex::kR32G32B32A32UintSRV;
+      break;
+    default:
+      assert_unhandled_case(element_size_bytes_pow2);
+      return;
+  }
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto device = provider->GetDevice();
+  device->CopyDescriptorsSimple(
+      1, handle,
+      provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                     uint32_t(descriptor_index)),
+      D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+}
+
+void SharedMemory::WriteUintPow2UAVDescriptor(
+    D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t element_size_bytes_pow2) {
+  BufferDescriptorIndex descriptor_index;
+  switch (element_size_bytes_pow2) {
+    case 2:
+      descriptor_index = BufferDescriptorIndex::kR32UintUAV;
+      break;
+    case 3:
+      descriptor_index = BufferDescriptorIndex::kR32G32UintUAV;
+      break;
+    case 4:
+      descriptor_index = BufferDescriptorIndex::kR32G32B32A32UintUAV;
+      break;
+    default:
+      assert_unhandled_case(element_size_bytes_pow2);
+      return;
+  }
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto device = provider->GetDevice();
+  device->CopyDescriptorsSimple(
+      1, handle,
+      provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                     uint32_t(descriptor_index)),
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 

@@ -127,6 +127,12 @@ class SharedMemory {
 
   void WriteRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
   void WriteRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  // Due to the Nvidia 128 megatexel limitation, the smallest supported formats
+  // are 32-bit.
+  void WriteUintPow2SRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                                  uint32_t element_size_bytes_pow2);
+  void WriteUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                                  uint32_t element_size_bytes_pow2);
 
   // Returns true if any downloads were submitted to the command processor.
   bool InitializeTraceSubmitDownloads();
@@ -172,7 +178,13 @@ class SharedMemory {
   // rather than creation).
   enum class BufferDescriptorIndex : uint32_t {
     kRawSRV,
+    kR32UintSRV,
+    kR32G32UintSRV,
+    kR32G32B32A32UintSRV,
     kRawUAV,
+    kR32UintUAV,
+    kR32G32UintUAV,
+    kR32G32B32A32UintUAV,
 
     kCount,
   };

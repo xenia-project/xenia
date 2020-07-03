@@ -315,7 +315,7 @@ int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t width,
   // https://github.com/gildor2/UModel/blob/de8fbd3bc922427ea056b7340202dcdcc19ccff5/Unreal/UnTexture.cpp#L489
   width = xe::align(width, 32u);
   // Top bits of coordinates.
-  int32_t macro = ((x >> 5) + (y >> 5) * (width >> 5)) << (bpb_log2 + 7);
+  int32_t macro = ((x >> 5) + (y >> 5) * int32_t(width >> 5)) << (bpb_log2 + 7);
   // Lower bits of coordinates (result is 6-bit value).
   int32_t micro = ((x & 7) + ((y & 0xE) << 2)) << bpb_log2;
   // Mix micro/macro + add few remaining x/y bits.
@@ -331,7 +331,8 @@ int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t width,
   // Reconstructed from disassembly of XGRAPHICS::TileVolume.
   width = xe::align(width, 32u);
   height = xe::align(height, 32u);
-  int32_t macro_outer = ((y >> 4) + (z >> 2) * (height >> 4)) * (width >> 5);
+  int32_t macro_outer =
+      ((y >> 4) + (z >> 2) * int32_t(height >> 4)) * int32_t(width >> 5);
   int32_t macro = ((((x >> 5) + macro_outer) << (bpb_log2 + 6)) & 0xFFFFFFF)
                   << 1;
   int32_t micro = (((x & 7) + ((y & 6) << 2)) << (bpb_log2 + 6)) >> 6;

@@ -44,6 +44,23 @@ ID3D12PipelineState* CreateComputePipeline(ID3D12Device* device,
                                            size_t shader_size,
                                            ID3D12RootSignature* root_signature);
 
+constexpr DXGI_FORMAT GetUintPow2DXGIFormat(uint32_t element_size_bytes_log2) {
+  switch (element_size_bytes_log2) {
+    case 0:
+      return DXGI_FORMAT_R8_UINT;
+    case 1:
+      return DXGI_FORMAT_R16_UINT;
+    case 2:
+      return DXGI_FORMAT_R32_UINT;
+    case 3:
+      return DXGI_FORMAT_R32G32_UINT;
+    case 4:
+      return DXGI_FORMAT_R32G32B32A32_UINT;
+    default:
+      return DXGI_FORMAT_UNKNOWN;
+  }
+}
+
 inline void FillBufferResourceDesc(D3D12_RESOURCE_DESC& desc, UINT64 size,
                                    D3D12_RESOURCE_FLAGS flags) {
   desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
@@ -59,14 +76,22 @@ inline void FillBufferResourceDesc(D3D12_RESOURCE_DESC& desc, UINT64 size,
   desc.Flags = flags;
 }
 
-void CreateRawBufferSRV(ID3D12Device* device,
+void CreateBufferRawSRV(ID3D12Device* device,
                         D3D12_CPU_DESCRIPTOR_HANDLE handle,
                         ID3D12Resource* buffer, uint32_t size,
                         uint64_t offset = 0);
-void CreateRawBufferUAV(ID3D12Device* device,
+void CreateBufferRawUAV(ID3D12Device* device,
                         D3D12_CPU_DESCRIPTOR_HANDLE handle,
                         ID3D12Resource* buffer, uint32_t size,
                         uint64_t offset = 0);
+void CreateBufferTypedSRV(ID3D12Device* device,
+                          D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                          ID3D12Resource* buffer, DXGI_FORMAT format,
+                          uint32_t num_elements, uint64_t first_element = 0);
+void CreateBufferTypedUAV(ID3D12Device* device,
+                          D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                          ID3D12Resource* buffer, DXGI_FORMAT format,
+                          uint32_t num_elements, uint64_t first_element = 0);
 
 }  // namespace util
 }  // namespace d3d12

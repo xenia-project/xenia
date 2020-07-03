@@ -1,22 +1,41 @@
-#include "pixel_formats.hlsli"
 #include "texture_load.hlsli"
 
-[numthreads(16, 16, 1)]
+Buffer<uint4> xe_texture_load_source : register(t0);
+RWBuffer<uint4> xe_texture_load_dest : register(u0);
+
+[numthreads(4, 32, 1)]
 void main(uint3 xe_thread_id : SV_DispatchThreadID) {
-  // 1 thread = 1 guest depth texel (24-bit unorm depth converted to 32-bit,
-  // can't read stencil in shaders anyway because it would require a separate
-  // DXGI_FORMAT_X24_TYPELESS_G8_UINT SRV).
-  [branch] if (any(xe_thread_id >= xe_texture_load_size_blocks)) {
+  // 1 thread = 8 depth texels, 24-bit unorm depth converted to 32-bit, can't
+  // read stencil in shaders anyway because it would require a separate
+  // DXGI_FORMAT_X32_TYPELESS_G8X24_UINT SRV.
+  uint3 block_index = xe_thread_id << uint3(3, 0, 0);
+  [branch] if (any(block_index >= xe_texture_load_size_blocks)) {
     return;
   }
-  uint4 blocks = xe_texture_load_source.Load4(
-      XeTextureLoadGuestBlockOffsets(xe_thread_id, 4u, 2u).x << 2u);
-  blocks = asuint(float4(XeByteSwap(blocks, xe_texture_load_endianness) >> 8u) /
-                  16777215.0);
-  uint block_offset_host = XeTextureHostLinearOffset(
-      xe_thread_id << uint3(1u, 1u, 0u), xe_texture_load_size_blocks.y << 1u,
-      xe_texture_load_host_pitch, 4u) + xe_texture_load_host_base;
-  xe_texture_load_dest.Store2(block_offset_host, blocks.xy);
-  xe_texture_load_dest.Store2(block_offset_host + xe_texture_load_host_pitch,
-                              blocks.zw);
+  int block_offset_host =
+      (XeTextureHostLinearOffset(int3(block_index) << int3(1, 1, 0),
+                                 xe_texture_load_size_blocks.y << 1,
+                                 xe_texture_load_host_pitch, 4u) +
+       xe_texture_load_host_base) >> 4;
+  int elements_pitch_host = xe_texture_load_host_pitch >> 4;
+  int block_offset_guest =
+      XeTextureLoadGuestBlockOffset(int3(block_index), 4u, 2u) >> (4 - 2);
+  uint endian = XeTextureLoadEndian();
+  int i;
+  [unroll] for (i = 0; i < 8; i += 2) {
+    if (i == 4 && XeTextureLoadIsTiled()) {
+      // Odd 4 blocks start = even 4 blocks end + 16 guest bytes when tiled.
+      block_offset_guest += 1 << 2;
+    }
+    // TTBB TTBB -> TTTT on the top row, BBBB on the bottom row.
+    uint4 block_0 = XeByteSwap(xe_texture_load_source[block_offset_guest++],
+                               endian);
+    uint4 block_1 = XeByteSwap(xe_texture_load_source[block_offset_guest++],
+                               endian);
+    xe_texture_load_dest[block_offset_host] =
+        asuint(float4(uint4(block_0.xy, block_1.xy) >> 8) / 16777215.0);
+    xe_texture_load_dest[block_offset_host + elements_pitch_host] =
+        asuint(float4(uint4(block_0.zw, block_1.zw) >> 8) / 16777215.0);
+    ++block_offset_host;
+  }
 }

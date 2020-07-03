@@ -84,6 +84,14 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r11g11b10_rgba16_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r11g11b10_rgba16_snorm_2x_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r11g11b10_rgba16_snorm_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r4g4b4a4_b4g4r4a4_2x_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r4g4b4a4_b4g4r4a4_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g5b5a1_b5g5r5a1_2x_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g5b5a1_b5g5r5a1_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g5b6_b5g6r5_swizzle_rbga_2x_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g6b5_b5g6r5_2x_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g6b5_b5g6r5_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_128bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_16bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_16bpp_rgba_cs.h"
@@ -149,7 +157,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // Red and blue swapped in the load shader for simplicity.
     {DXGI_FORMAT_B5G5R5A1_UNORM,
      DXGI_FORMAT_B5G5R5A1_UNORM,
-     LoadMode::k16bpb,
+     LoadMode::kR5G5B5A1ToB5G5R5A1,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      false,
@@ -162,7 +170,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // Red and blue swapped in the load shader for simplicity.
     {DXGI_FORMAT_B5G6R5_UNORM,
      DXGI_FORMAT_B5G6R5_UNORM,
-     LoadMode::k16bpb,
+     LoadMode::kR5G6B5ToB5G6R5,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      false,
@@ -175,7 +183,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // On the host, green bits in blue, blue bits in green.
     {DXGI_FORMAT_B5G6R5_UNORM,
      DXGI_FORMAT_B5G6R5_UNORM,
-     LoadMode::k16bpb,
+     LoadMode::kR5G5B6ToB5G6R5WithRBGASwizzle,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      false,
@@ -303,7 +311,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // Red and blue swapped in the load shader for simplicity.
     {DXGI_FORMAT_B4G4R4A4_UNORM,
      DXGI_FORMAT_B4G4R4A4_UNORM,
-     LoadMode::k16bpb,
+     LoadMode::kR4G4B4A4ToB4G4R4A4,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      false,
@@ -905,46 +913,67 @@ const char* const TextureCache::dimension_names_[4] = {"1D", "2D", "3D",
                                                        "cube"};
 
 const TextureCache::LoadModeInfo TextureCache::load_mode_info_[] = {
-    {texture_load_8bpb_cs, sizeof(texture_load_8bpb_cs),
-     texture_load_8bpb_2x_cs, sizeof(texture_load_8bpb_2x_cs)},
-    {texture_load_16bpb_cs, sizeof(texture_load_16bpb_cs),
-     texture_load_16bpb_2x_cs, sizeof(texture_load_16bpb_2x_cs)},
-    {texture_load_32bpb_cs, sizeof(texture_load_32bpb_cs),
-     texture_load_32bpb_2x_cs, sizeof(texture_load_32bpb_2x_cs)},
-    {texture_load_64bpb_cs, sizeof(texture_load_64bpb_cs),
-     texture_load_64bpb_2x_cs, sizeof(texture_load_64bpb_2x_cs)},
-    {texture_load_128bpb_cs, sizeof(texture_load_128bpb_cs),
-     texture_load_128bpb_2x_cs, sizeof(texture_load_128bpb_2x_cs)},
-    {texture_load_r11g11b10_rgba16_cs, sizeof(texture_load_r11g11b10_rgba16_cs),
-     texture_load_r11g11b10_rgba16_2x_cs,
-     sizeof(texture_load_r11g11b10_rgba16_2x_cs)},
-    {texture_load_r11g11b10_rgba16_snorm_cs,
-     sizeof(texture_load_r11g11b10_rgba16_snorm_cs),
-     texture_load_r11g11b10_rgba16_snorm_2x_cs,
-     sizeof(texture_load_r11g11b10_rgba16_snorm_2x_cs)},
+    {texture_load_8bpb_cs, sizeof(texture_load_8bpb_cs), 3, 4,
+     texture_load_8bpb_2x_cs, sizeof(texture_load_8bpb_2x_cs), 4, 4},
+    {texture_load_16bpb_cs, sizeof(texture_load_16bpb_cs), 4, 4,
+     texture_load_16bpb_2x_cs, sizeof(texture_load_16bpb_2x_cs), 4, 4},
+    {texture_load_32bpb_cs, sizeof(texture_load_32bpb_cs), 4, 4,
+     texture_load_32bpb_2x_cs, sizeof(texture_load_32bpb_2x_cs), 4, 4},
+    {texture_load_64bpb_cs, sizeof(texture_load_64bpb_cs), 4, 4,
+     texture_load_64bpb_2x_cs, sizeof(texture_load_64bpb_2x_cs), 4, 4},
+    {texture_load_128bpb_cs, sizeof(texture_load_128bpb_cs), 4, 4,
+     texture_load_128bpb_2x_cs, sizeof(texture_load_128bpb_2x_cs), 4, 4},
+    {texture_load_r5g5b5a1_b5g5r5a1_cs,
+     sizeof(texture_load_r5g5b5a1_b5g5r5a1_cs), 4, 4,
+     texture_load_r5g5b5a1_b5g5r5a1_2x_cs,
+     sizeof(texture_load_r5g5b5a1_b5g5r5a1_2x_cs), 4, 4},
+    {texture_load_r5g6b5_b5g6r5_cs, sizeof(texture_load_r5g6b5_b5g6r5_cs), 4, 4,
+     texture_load_r5g6b5_b5g6r5_2x_cs, sizeof(texture_load_r5g6b5_b5g6r5_2x_cs),
+     4, 4},
+    {texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs,
+     sizeof(texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs), 4, 4,
+     texture_load_r5g5b6_b5g6r5_swizzle_rbga_2x_cs,
+     sizeof(texture_load_r5g5b6_b5g6r5_swizzle_rbga_2x_cs), 4, 4},
+    {texture_load_r4g4b4a4_b4g4r4a4_cs,
+     sizeof(texture_load_r4g4b4a4_b4g4r4a4_cs), 4, 4,
+     texture_load_r4g4b4a4_b4g4r4a4_2x_cs,
+     sizeof(texture_load_r4g4b4a4_b4g4r4a4_2x_cs), 4, 4},
     {texture_load_r10g11b11_rgba16_cs, sizeof(texture_load_r10g11b11_rgba16_cs),
-     texture_load_r10g11b11_rgba16_2x_cs,
-     sizeof(texture_load_r10g11b11_rgba16_2x_cs)},
+     4, 4, texture_load_r10g11b11_rgba16_2x_cs,
+     sizeof(texture_load_r10g11b11_rgba16_2x_cs), 4, 4},
     {texture_load_r10g11b11_rgba16_snorm_cs,
-     sizeof(texture_load_r10g11b11_rgba16_snorm_cs),
+     sizeof(texture_load_r10g11b11_rgba16_snorm_cs), 4, 4,
      texture_load_r10g11b11_rgba16_snorm_2x_cs,
-     sizeof(texture_load_r10g11b11_rgba16_snorm_2x_cs)},
-    {texture_load_dxt1_rgba8_cs, sizeof(texture_load_dxt1_rgba8_cs), nullptr,
-     0},
-    {texture_load_dxt3_rgba8_cs, sizeof(texture_load_dxt3_rgba8_cs), nullptr,
-     0},
-    {texture_load_dxt5_rgba8_cs, sizeof(texture_load_dxt5_rgba8_cs), nullptr,
-     0},
-    {texture_load_dxn_rg8_cs, sizeof(texture_load_dxn_rg8_cs), nullptr, 0},
-    {texture_load_dxt3a_cs, sizeof(texture_load_dxt3a_cs), nullptr, 0},
-    {texture_load_dxt3aas1111_cs, sizeof(texture_load_dxt3aas1111_cs), nullptr,
-     0},
-    {texture_load_dxt5a_r8_cs, sizeof(texture_load_dxt5a_r8_cs), nullptr, 0},
-    {texture_load_ctx1_cs, sizeof(texture_load_ctx1_cs), nullptr, 0},
-    {texture_load_depth_unorm_cs, sizeof(texture_load_depth_unorm_cs),
-     texture_load_depth_unorm_2x_cs, sizeof(texture_load_depth_unorm_2x_cs)},
-    {texture_load_depth_float_cs, sizeof(texture_load_depth_float_cs),
-     texture_load_depth_float_2x_cs, sizeof(texture_load_depth_float_2x_cs)},
+     sizeof(texture_load_r10g11b11_rgba16_snorm_2x_cs), 4, 4},
+    {texture_load_r11g11b10_rgba16_cs, sizeof(texture_load_r11g11b10_rgba16_cs),
+     4, 4, texture_load_r11g11b10_rgba16_2x_cs,
+     sizeof(texture_load_r11g11b10_rgba16_2x_cs), 4, 4},
+    {texture_load_r11g11b10_rgba16_snorm_cs,
+     sizeof(texture_load_r11g11b10_rgba16_snorm_cs), 4, 4,
+     texture_load_r11g11b10_rgba16_snorm_2x_cs,
+     sizeof(texture_load_r11g11b10_rgba16_snorm_2x_cs), 4, 4},
+    {texture_load_dxt1_rgba8_cs, sizeof(texture_load_dxt1_rgba8_cs), 4, 4,
+     nullptr, 0, 4, 4},
+    {texture_load_dxt3_rgba8_cs, sizeof(texture_load_dxt3_rgba8_cs), 4, 4,
+     nullptr, 0, 4, 4},
+    {texture_load_dxt5_rgba8_cs, sizeof(texture_load_dxt5_rgba8_cs), 4, 4,
+     nullptr, 0, 4, 4},
+    {texture_load_dxn_rg8_cs, sizeof(texture_load_dxn_rg8_cs), 4, 4, nullptr, 0,
+     4, 4},
+    {texture_load_dxt3a_cs, sizeof(texture_load_dxt3a_cs), 4, 4, nullptr, 0, 4,
+     4},
+    {texture_load_dxt3aas1111_cs, sizeof(texture_load_dxt3aas1111_cs), 4, 4,
+     nullptr, 0, 4, 4},
+    {texture_load_dxt5a_r8_cs, sizeof(texture_load_dxt5a_r8_cs), 4, 4, nullptr,
+     0, 4, 4},
+    {texture_load_ctx1_cs, sizeof(texture_load_ctx1_cs), 4, 4, nullptr, 0, 4,
+     4},
+    {texture_load_depth_unorm_cs, sizeof(texture_load_depth_unorm_cs), 4, 4,
+     texture_load_depth_unorm_2x_cs, sizeof(texture_load_depth_unorm_2x_cs), 4,
+     4},
+    {texture_load_depth_float_cs, sizeof(texture_load_depth_float_cs), 4, 4,
+     texture_load_depth_float_2x_cs, sizeof(texture_load_depth_float_2x_cs), 4,
+     4},
 };
 
 const TextureCache::ResolveTileModeInfo
@@ -1922,7 +1951,7 @@ bool TextureCache::TileResolvedTexture(
   }
   command_list->D3DSetComputeRootDescriptorTable(2, descriptors[0].second);
 
-  ui::d3d12::util::CreateRawBufferSRV(device, descriptors[1].first, buffer,
+  ui::d3d12::util::CreateBufferRawSRV(device, descriptors[1].first, buffer,
                                       buffer_size);
   command_list->D3DSetComputeRootDescriptorTable(1, descriptors[1].second);
 
@@ -2041,20 +2070,6 @@ void TextureCache::UseScaledResolveBufferForWriting() {
   scaled_resolve_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 }
 
-void TextureCache::CreateScaledResolveBufferRawSRV(
-    D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t first_unscaled_4kb_page,
-    uint32_t unscaled_4kb_page_count) {
-  assert_true(IsResolutionScale2X());
-  first_unscaled_4kb_page = std::min(first_unscaled_4kb_page, 0x1FFFFu);
-  unscaled_4kb_page_count = std::max(
-      std::min(unscaled_4kb_page_count, 0x20000u - first_unscaled_4kb_page),
-      1u);
-  ui::d3d12::util::CreateRawBufferSRV(
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice(),
-      handle, scaled_resolve_buffer_, unscaled_4kb_page_count << 14,
-      first_unscaled_4kb_page << 14);
-}
-
 void TextureCache::CreateScaledResolveBufferRawUAV(
     D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t first_unscaled_4kb_page,
     uint32_t unscaled_4kb_page_count) {
@@ -2063,7 +2078,7 @@ void TextureCache::CreateScaledResolveBufferRawUAV(
   unscaled_4kb_page_count = std::max(
       std::min(unscaled_4kb_page_count, 0x20000u - first_unscaled_4kb_page),
       1u);
-  ui::d3d12::util::CreateRawBufferUAV(
+  ui::d3d12::util::CreateBufferRawUAV(
       command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice(),
       handle, scaled_resolve_buffer_, unscaled_4kb_page_count << 14,
       first_unscaled_4kb_page << 14);
@@ -2437,12 +2452,13 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     return false;
   }
   bool scaled_resolve = texture->key.scaled_resolve ? true : false;
-  ID3D12PipelineState* pipeline = scaled_resolve
-                                      ? load_pipelines_2x_[uint32_t(load_mode)]
-                                      : load_pipelines_[uint32_t(load_mode)];
-  if (pipeline == nullptr) {
+  ID3D12PipelineState* pipeline_state =
+      scaled_resolve ? load_pipelines_2x_[uint32_t(load_mode)]
+                     : load_pipelines_[uint32_t(load_mode)];
+  if (pipeline_state == nullptr) {
     return false;
   }
+  const LoadModeInfo& load_mode_info = load_mode_info_[uint32_t(load_mode)];
 
   // Request uploading of the texture data to the shared memory.
   // This is also necessary when resolution scale is used - the texture cache
@@ -2575,20 +2591,37 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   }
 
   // Begin loading.
-  // Can't address more than 512 MB directly on Nvidia - need two separate UAV
-  // descriptors for base and mips.
+  // Can't address more than 128 megatexels directly on Nvidia - need two
+  // separate UAV descriptors for base and mips.
   bool separate_base_and_mips_descriptors =
       scaled_resolve && mip_first == 0 && mip_last != 0;
-  // TODO(Triang3l): Use precreated bindless descriptors here after overall
-  // cleanup/optimization involving typed buffers.
-  uint32_t descriptor_count = separate_base_and_mips_descriptors ? 3 : 2;
+  ui::d3d12::util::DescriptorCPUGPUHandlePair descriptor_dest;
+  ui::d3d12::util::DescriptorCPUGPUHandlePair descriptors_source[2];
+  // Destination.
+  uint32_t descriptor_count = 1;
+  if (scaled_resolve) {
+    // Source - base and mips.
+    descriptor_count += separate_base_and_mips_descriptors ? 2 : 1;
+  } else {
+    // Source - shared memory.
+    if (!bindless_resources_used_) {
+      ++descriptor_count;
+    }
+  }
   ui::d3d12::util::DescriptorCPUGPUHandlePair descriptors[3];
   if (!command_processor_->RequestOneUseSingleViewDescriptors(descriptor_count,
                                                               descriptors)) {
     return false;
   }
-  ui::d3d12::util::CreateRawBufferUAV(device, descriptors[0].first, copy_buffer,
-                                      uint32_t(host_slice_size));
+  uint32_t descriptor_write_index = 0;
+  uint32_t uav_bpe_log2 = scaled_resolve ? load_mode_info.uav_bpe_log2_2x
+                                         : load_mode_info.uav_bpe_log2;
+  assert_true(descriptor_write_index < descriptor_count);
+  descriptor_dest = descriptors[descriptor_write_index++];
+  ui::d3d12::util::CreateBufferTypedUAV(
+      device, descriptor_dest.first, copy_buffer,
+      ui::d3d12::util::GetUintPow2DXGIFormat(uav_bpe_log2),
+      uint32_t(host_slice_size) >> uav_bpe_log2);
   if (scaled_resolve) {
     // TODO(Triang3l): Allow partial invalidation of scaled textures - send a
     // part of scaled_resolve_pages_ to the shader and choose the source
@@ -2596,25 +2629,49 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     // it's not, duplicate the texels from the unscaled version - will be
     // blocky with filtering, but better than nothing.
     UseScaledResolveBufferForReading();
-    uint32_t source_descriptor_index = 1;
+    uint32_t descriptor_source_write_index = 0;
     if (mip_first == 0) {
-      CreateScaledResolveBufferRawSRV(
-          descriptors[source_descriptor_index].first, texture->key.base_page,
-          (texture->base_size + 0xFFF) >> 12);
-      ++source_descriptor_index;
+      assert_true(descriptor_write_index < descriptor_count);
+      descriptors_source[descriptor_source_write_index] =
+          descriptors[descriptor_write_index++];
+      ui::d3d12::util::CreateBufferTypedSRV(
+          device, descriptors_source[descriptor_source_write_index++].first,
+          scaled_resolve_buffer_,
+          ui::d3d12::util::GetUintPow2DXGIFormat(
+              load_mode_info.srv_bpe_log2_2x),
+          texture->base_size << 2 >> load_mode_info.srv_bpe_log2_2x,
+          uint64_t(texture->key.base_page) << (12 + 2) >>
+              load_mode_info.srv_bpe_log2_2x);
     }
     if (mip_last != 0) {
-      CreateScaledResolveBufferRawSRV(
-          descriptors[source_descriptor_index].first, texture->key.mip_page,
-          (texture->mip_size + 0xFFF) >> 12);
+      assert_true(descriptor_write_index < descriptor_count);
+      descriptors_source[descriptor_source_write_index] =
+          descriptors[descriptor_write_index++];
+      ui::d3d12::util::CreateBufferTypedSRV(
+          device, descriptors_source[descriptor_source_write_index++].first,
+          scaled_resolve_buffer_,
+          ui::d3d12::util::GetUintPow2DXGIFormat(
+              load_mode_info.srv_bpe_log2_2x),
+          texture->mip_size << 2 >> load_mode_info.srv_bpe_log2_2x,
+          uint64_t(texture->key.mip_page) << (12 + 2) >>
+              load_mode_info.srv_bpe_log2_2x);
     }
   } else {
     shared_memory_->UseForReading();
-    shared_memory_->WriteRawSRVDescriptor(descriptors[1].first);
+    if (bindless_resources_used_) {
+      descriptors_source[0] =
+          command_processor_->GetSharedMemoryUintPow2BindlessSRVHandlePair(
+              load_mode_info.srv_bpe_log2);
+    } else {
+      assert_true(descriptor_write_index < descriptor_count);
+      descriptors_source[0] = descriptors[descriptor_write_index++];
+      shared_memory_->WriteUintPow2SRVDescriptor(descriptors_source[0].first,
+                                                 load_mode_info.srv_bpe_log2);
+    }
   }
-  command_processor_->SetComputePipeline(pipeline);
+  command_processor_->SetComputePipeline(pipeline_state);
   command_list->D3DSetComputeRootSignature(load_root_signature_);
-  command_list->D3DSetComputeRootDescriptorTable(2, descriptors[0].second);
+  command_list->D3DSetComputeRootDescriptorTable(2, descriptor_dest.second);
 
   // Update LRU caching because the texture will be used by the command list.
   MarkTextureUsed(texture);
@@ -2625,9 +2682,8 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   texture->state = D3D12_RESOURCE_STATE_COPY_DEST;
   auto cbuffer_pool = command_processor_->GetConstantBufferPool();
   LoadConstants load_constants;
-  load_constants.is_3d = is_3d ? 1 : 0;
-  load_constants.endianness = uint32_t(texture->key.endianness);
-  load_constants.guest_format = uint32_t(guest_format);
+  load_constants.is_3d_endian =
+      uint32_t(is_3d) | (uint32_t(texture->key.endianness) << 1);
   uint32_t loop_mip_first = std::min(mip_first, mip_packed);
   uint32_t loop_mip_last = std::min(mip_last, mip_packed);
   if (host_layout_packed_mips_offset) {
@@ -2637,7 +2693,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     // loop_mip == 1 - packed mips.
     loop_mip_last = 1;
   }
-  uint32_t last_source_descriptor_index = UINT32_MAX;
+  uint32_t descriptor_source_last_index = UINT32_MAX;
   for (uint32_t slice = 0; slice < slice_count; ++slice) {
     command_processor_->PushTransitionBarrier(
         copy_buffer, copy_buffer_state, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -2653,13 +2709,13 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       } else {
         is_base = (mip == 0);
       }
-      uint32_t source_descriptor_index = 1;
+      uint32_t descriptor_source_index = 0;
       if (scaled_resolve) {
         // Offset already applied in the buffer because more than 512 MB can't
         // be directly addresses on Nvidia.
         load_constants.guest_base = 0;
         if (separate_base_and_mips_descriptors) {
-          source_descriptor_index = is_base ? 1 : 2;
+          descriptor_source_index = is_base ? 0 : 1;
         }
       } else {
         load_constants.guest_base =
@@ -2719,24 +2775,16 @@ bool TextureCache::LoadTextureData(Texture* texture) {
         return false;
       }
       std::memcpy(cbuffer_mapping, &load_constants, sizeof(load_constants));
-      if (last_source_descriptor_index != source_descriptor_index) {
-        last_source_descriptor_index = source_descriptor_index;
+      if (descriptor_source_last_index != descriptor_source_index) {
+        descriptor_source_last_index = descriptor_source_index;
         command_list->D3DSetComputeRootDescriptorTable(
-            1, descriptors[source_descriptor_index].second);
+            1, descriptors_source[descriptor_source_index].second);
       }
       command_list->D3DSetComputeRootConstantBufferView(0, cbuffer_gpu_address);
       command_processor_->SubmitBarriers();
-      // Each thread group processes 32x32x1 blocks after resolution scaling has
-      // been applied.
-      uint32_t group_count_x = load_constants.size_blocks[0];
-      uint32_t group_count_y = load_constants.size_blocks[1];
-      if (texture->key.scaled_resolve) {
-        group_count_x *= 2;
-        group_count_y *= 2;
-      }
-      group_count_x = (group_count_x + 31) >> 5;
-      group_count_y = (group_count_y + 31) >> 5;
-      command_list->D3DDispatch(group_count_x, group_count_y,
+      // Each thread group processes 32x32x1 guest blocks.
+      command_list->D3DDispatch((load_constants.size_blocks[0] + 31) >> 5,
+                                (load_constants.size_blocks[1] + 31) >> 5,
                                 load_constants.size_blocks[2]);
     }
     command_processor_->PushUAVBarrier(copy_buffer);
