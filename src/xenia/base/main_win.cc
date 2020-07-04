@@ -26,6 +26,7 @@
 
 // Includes Windows headers, so it goes here.
 #include "third_party/xbyak/xbyak/xbyak_util.h"
+#include "xenia/config.h"
 
 DEFINE_bool(win32_high_freq, true,
             "Requests high performance from the NT kernel", "Kernel");
@@ -106,7 +107,8 @@ static bool parse_launch_arguments(const xe::EntryInfo& entry_info,
 
   LocalFree(wargv);
 
-  cvar::ParseLaunchArguments(argc, argv, entry_info.positional_usage,
+  Config::Instance().ParseLaunchArguments(
+      argc, argv, entry_info.positional_usage,
                              entry_info.positional_options);
 
   args.clear();
