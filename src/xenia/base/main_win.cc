@@ -26,9 +26,11 @@
 
 // Includes Windows headers, so it goes here.
 #include "third_party/xbyak/xbyak/xbyak_util.h"
+#include "xenia/config.h"
 
 DEFINE_bool(win32_high_freq, true,
             "Requests high performance from the NT kernel", "Kernel");
+DECLARE_path(config_file);
 
 namespace xe {
 
@@ -106,8 +108,8 @@ static bool parse_launch_arguments(const xe::EntryInfo& entry_info,
 
   LocalFree(wargv);
 
-  cvar::ParseLaunchArguments(argc, argv, entry_info.positional_usage,
-                             entry_info.positional_options);
+  Config::Instance().ParseLaunchArguments(
+      argc, argv, entry_info.positional_usage, entry_info.positional_options);
 
   args.clear();
   for (int n = 0; n < argc; n++) {
@@ -133,6 +135,15 @@ int Main() {
   // Initialize logging. Needs parsed FLAGS.
   xe::InitializeLogging(entry_info.name);
 
+  // Print version info.
+  XELOGI("Build: " XE_BUILD_BRANCH " / " XE_BUILD_COMMIT " on " XE_BUILD_DATE);
+
+  if (!cvars::config_file.empty()) {
+    Config::Instance().SetupConfig(cvars::config_file);
+  } else {
+    Config::Instance().SetupConfig(xe::filesystem::XeniaStorageRoot());
+  }
+
   Xbyak::util::Cpu cpu;
   if (!cpu.has(Xbyak::util::Cpu::tAVX)) {
     xe::FatalError(
@@ -140,9 +151,6 @@ int Main() {
         "FAQ for system requirements at https://xenia.jp");
     return -1;
   }
-
-  // Print version info.
-  XELOGI("Build: " XE_BUILD_BRANCH " / " XE_BUILD_COMMIT " on " XE_BUILD_DATE);
 
   // Request high performance timing.
   if (cvars::win32_high_freq) {

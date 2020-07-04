@@ -36,6 +36,9 @@ std::filesystem::path GetExecutableFolder();
 // Get user folder.
 std::filesystem::path GetUserFolder();
 
+// Get the current storage root for xenia's internal storage
+std::filesystem::path XeniaStorageRoot();
+
 // Creates the parent folder of the specified path if needed.
 // This can be used to ensure the destination path for a new file exists before
 // attempting to create it.

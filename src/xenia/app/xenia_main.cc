@@ -55,27 +55,17 @@ DEFINE_string(hid, "any", "Input system. Use: [any, nop, sdl, winkey, xinput]",
 
 DEFINE_bool(fullscreen, false, "Toggles fullscreen", "GPU");
 
-DEFINE_path(
-    storage_root, "",
-    "Root path for persistent internal data storage (config, etc.), or empty "
-    "to use the path preferred for the OS, such as the documents folder, or "
-    "the emulator executable directory if portable.txt is present in it.",
-    "Storage");
-DEFINE_path(
-    content_root, "",
-    "Root path for guest content storage (saves, etc.), or empty to use the "
-    "content folder under the storage root.",
-    "Storage");
-
 DEFINE_bool(mount_scratch, false, "Enable scratch mount", "Storage");
 DEFINE_bool(mount_cache, false, "Enable cache mount", "Storage");
 
 DEFINE_transient_path(target, "",
                       "Specifies the target .xex or .iso to execute.",
                       "General");
-DECLARE_bool(debug);
 
 DEFINE_bool(discord, true, "Enable Discord rich presence", "General");
+
+DECLARE_bool(debug);
+DECLARE_path(content_root);
 
 namespace xe {
 namespace app {
@@ -211,24 +201,9 @@ int xenia_main(const std::vector<std::string>& args) {
   Profiler::Initialize();
   Profiler::ThreadEnter("main");
 
-  // Figure out where internal files and content should go.
-  std::filesystem::path storage_root = cvars::storage_root;
-  if (storage_root.empty()) {
-    storage_root = xe::filesystem::GetExecutableFolder();
-    if (!std::filesystem::exists(storage_root / "portable.txt")) {
-      storage_root = xe::filesystem::GetUserFolder();
-#if defined(XE_PLATFORM_WIN32) || defined(XE_PLATFORM_LINUX)
-      storage_root = storage_root / "Xenia";
-#else
-#warning Unhandled platform for the data root.
-      storage_root = storage_root / "Xenia";
-#endif
-    }
-  }
-  storage_root = std::filesystem::absolute(storage_root);
-  XELOGI("Storage root: {}", xe::path_to_utf8(storage_root));
+  const auto& storage_root = filesystem::XeniaStorageRoot();
 
-  config::SetupConfig(storage_root);
+  XELOGI("Storage root: {}", xe::path_to_utf8(storage_root));
 
   std::filesystem::path content_root = cvars::content_root;
   if (content_root.empty()) {
