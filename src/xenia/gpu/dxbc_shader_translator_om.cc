@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/dxbc_shader_translator.h"
 
+#include "xenia/base/assert.h"
 #include "xenia/base/math.h"
 
 namespace xe {
@@ -386,13 +387,12 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
   DxbcOpIf(true, DxbcSrc::R(temp1, DxbcSrc::kXXXX));
 
   if (writes_depth()) {
-    // Convert the shader-generated depth to 24-bit - move the 32-bit depth to
-    // the conversion subroutine's argument.
-    DxbcOpMov(DxbcDest::R(system_temps_subroutine_, 0b0001),
-              DxbcSrc::R(system_temp_rov_depth_stencil_, DxbcSrc::kXXXX));
-    // Convert the shader-generated depth to 24-bit.
-    DxbcOpCall(DxbcSrc::Label(label_rov_depth_to_24bit_));
-    // Store a copy of the depth in temp1.x to reload later.
+    // Convert the shader-generated depth to 24-bit to
+    // system_temps_subroutine_[0].x, using temp1.x as temporary.
+    ROV_DepthTo24Bit(system_temps_subroutine_, 0,
+                     system_temp_rov_depth_stencil_, 0, temp1, 0);
+    // Store a copy of the depth in temp1.x to reload to
+    // system_temps_subroutine_[0].x for samples other than the first one.
     // temp1.x = 24-bit oDepth
     DxbcOpMov(DxbcDest::R(temp1, 0b0001),
               DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
@@ -573,9 +573,10 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
       DxbcOpMin(DxbcDest::R(system_temps_subroutine_, 0b0001),
                 DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
                 DxbcSrc::R(temp1, DxbcSrc::kYYYY), true);
-      // Convert the depth to 24-bit - takes system_temps_subroutine_[0].x,
-      // returns also in system_temps_subroutine_[0].x.
-      DxbcOpCall(DxbcSrc::Label(label_rov_depth_to_24bit_));
+      // Convert the depth in system_temps_subroutine_[0].x to 24-bit, using
+      // system_temps_subroutine_[0].y as a temporary.
+      ROV_DepthTo24Bit(system_temps_subroutine_, 0, system_temps_subroutine_, 0,
+                       system_temps_subroutine_, 1);
     }
 
     // Perform depth/stencil test for the sample, get the result in bits 4
@@ -1868,15 +1869,23 @@ void DxbcShaderTranslator::CompletePixelShader() {
   }
 }
 
-void DxbcShaderTranslator::CompleteShaderCode_ROV_DepthTo24BitSubroutine() {
-  DxbcOpLabel(DxbcSrc::Label(label_rov_depth_to_24bit_));
+void DxbcShaderTranslator::ROV_DepthTo24Bit(uint32_t d24_temp,
+                                            uint32_t d24_temp_component,
+                                            uint32_t d32_temp,
+                                            uint32_t d32_temp_component,
+                                            uint32_t temp_temp,
+                                            uint32_t temp_temp_component) {
+  assert_true(temp_temp != d24_temp ||
+              temp_temp_component != d24_temp_component);
+  assert_true(temp_temp != d32_temp ||
+              temp_temp_component != d32_temp_component);
+  // Source and destination may be the same.
+  DxbcDest d24_dest(DxbcDest::R(d24_temp, 1 << d24_temp_component));
+  DxbcSrc d24_src(DxbcSrc::R(d24_temp).Select(d24_temp_component));
+  DxbcSrc d32_src(DxbcSrc::R(d32_temp).Select(d32_temp_component));
+  DxbcDest temp_dest(DxbcDest::R(temp_temp, 1 << temp_temp_component));
+  DxbcSrc temp_src(DxbcSrc::R(temp_temp).Select(temp_temp_component));
 
-  DxbcDest depth_dest(DxbcDest::R(system_temps_subroutine_, 0b0001));
-  DxbcSrc depth_src(DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-  DxbcDest temp_dest(DxbcDest::R(system_temps_subroutine_, 0b0010));
-  DxbcSrc temp_src(DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY));
-
-  // Extract the depth format to Y. Take 1 SGPR.
   system_constants_used_ |= 1ull << kSysConst_Flags_Index;
   DxbcOpAnd(temp_dest,
             DxbcSrc::CB(cbuffer_index_system_constants_,
@@ -1884,7 +1893,7 @@ void DxbcShaderTranslator::CompleteShaderCode_ROV_DepthTo24BitSubroutine() {
                         kSysConst_Flags_Vec)
                 .Select(kSysConst_Flags_Comp),
             DxbcSrc::LU(kSysFlag_ROVDepthFloat24));
-  // Convert according to the format. Release 1 SGPR.
+  // Convert according to the format.
   DxbcOpIf(true, temp_src);
   {
     // 20e4 conversion, using 1 VGPR.
@@ -1894,12 +1903,12 @@ void DxbcShaderTranslator::CompleteShaderCode_ROV_DepthTo24BitSubroutine() {
 
     // Check if the number is too small to be represented as normalized 20e4.
     // temp = f32 < 2^-14
-    DxbcOpULT(temp_dest, depth_src, DxbcSrc::LU(0x38800000));
+    DxbcOpULT(temp_dest, d32_src, DxbcSrc::LU(0x38800000));
     // Handle denormalized numbers separately.
     DxbcOpIf(true, temp_src);
     {
       // temp = f32 >> 23
-      DxbcOpUShR(temp_dest, depth_src, DxbcSrc::LU(23));
+      DxbcOpUShR(temp_dest, d32_src, DxbcSrc::LU(23));
       // temp = 113 - (f32 >> 23)
       DxbcOpIAdd(temp_dest, DxbcSrc::LI(113), -temp_src);
       // Don't allow the shift to overflow, since in DXBC the lower 5 bits of
@@ -1907,11 +1916,11 @@ void DxbcShaderTranslator::CompleteShaderCode_ROV_DepthTo24BitSubroutine() {
       // temp = min(113 - (f32 >> 23), 24)
       DxbcOpUMin(temp_dest, temp_src, DxbcSrc::LU(24));
       // biased_f32 = (f32 & 0x7FFFFF) | 0x800000
-      DxbcOpBFI(depth_dest, DxbcSrc::LU(9), DxbcSrc::LU(23), DxbcSrc::LU(1),
-                depth_src);
+      DxbcOpBFI(d24_dest, DxbcSrc::LU(9), DxbcSrc::LU(23), DxbcSrc::LU(1),
+                d32_src);
       // biased_f32 =
       //     ((f32 & 0x7FFFFF) | 0x800000) >> min(113 - (f32 >> 23), 24)
-      DxbcOpUShR(depth_dest, depth_src, temp_src);
+      DxbcOpUShR(d24_dest, d24_src, temp_src);
     }
     // Not denormalized?
     DxbcOpElse();
@@ -1919,37 +1928,35 @@ void DxbcShaderTranslator::CompleteShaderCode_ROV_DepthTo24BitSubroutine() {
       // Bias the exponent.
       // biased_f32 = f32 + (-112 << 23)
       // (left shift of a negative value is undefined behavior)
-      DxbcOpIAdd(depth_dest, depth_src, DxbcSrc::LU(0xC8000000u));
+      DxbcOpIAdd(d24_dest, d32_src, DxbcSrc::LU(0xC8000000u));
     }
     // Close the denormal check.
     DxbcOpEndIf();
     // Build the 20e4 number.
     // temp = (biased_f32 >> 3) & 1
-    DxbcOpUBFE(temp_dest, DxbcSrc::LU(1), DxbcSrc::LU(3), depth_src);
+    DxbcOpUBFE(temp_dest, DxbcSrc::LU(1), DxbcSrc::LU(3), d24_src);
     // f24 = biased_f32 + 3
-    DxbcOpIAdd(depth_dest, depth_src, DxbcSrc::LU(3));
+    DxbcOpIAdd(d24_dest, d24_src, DxbcSrc::LU(3));
     // f24 = biased_f32 + 3 + ((biased_f32 >> 3) & 1)
-    DxbcOpIAdd(depth_dest, depth_src, temp_src);
+    DxbcOpIAdd(d24_dest, d24_src, temp_src);
     // f24 = ((biased_f32 + 3 + ((biased_f32 >> 3) & 1)) >> 3) & 0xFFFFFF
-    DxbcOpUBFE(depth_dest, DxbcSrc::LU(24), DxbcSrc::LU(3), depth_src);
+    DxbcOpUBFE(d24_dest, DxbcSrc::LU(24), DxbcSrc::LU(3), d24_src);
   }
   DxbcOpElse();
   {
     // Unorm24 conversion.
 
     // Multiply by float(0xFFFFFF).
-    DxbcOpMul(depth_dest, depth_src, DxbcSrc::LF(16777215.0f));
+    DxbcOpMul(d24_dest, d32_src, DxbcSrc::LF(16777215.0f));
     // Round to the nearest even integer. This seems to be the correct way:
     // rounding towards zero gives 0xFF instead of 0x100 in clear shaders in,
     // for instance, Halo 3, but other clear shaders in it are also broken if
     // 0.5 is added before ftou instead of round_ne.
-    DxbcOpRoundNE(depth_dest, depth_src);
+    DxbcOpRoundNE(d24_dest, d24_src);
     // Convert to fixed-point.
-    DxbcOpFToU(depth_dest, depth_src);
+    DxbcOpFToU(d24_dest, d24_src);
   }
   DxbcOpEndIf();
-
-  DxbcOpRet();
 }
 
 void DxbcShaderTranslator::

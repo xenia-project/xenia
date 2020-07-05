@@ -2166,6 +2166,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
   bool ROV_IsDepthStencilEarly() const {
     return !is_depth_only_pixel_shader_ && !writes_depth();
   }
+  // Converts the depth value to 24-bit (storing the result in bits 0:23 and
+  // zeros in 24:31, not creating room for stencil - since this may be involved
+  // in comparisons) according to the format specified in the system constants.
+  // Source and destination may be the same, temporary must be different than
+  // both.
+  void ROV_DepthTo24Bit(uint32_t d24_temp, uint32_t d24_temp_component,
+                        uint32_t d32_temp, uint32_t d32_temp_component,
+                        uint32_t temp_temp, uint32_t temp_temp_component);
   // Does all the depth/stencil-related things, including or not including
   // writing based on whether it's late, or on whether it's safe to do it early.
   // Updates system_temp_rov_params_ result and coverage if allowed and safe,
@@ -2231,15 +2239,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void CompletePixelShader_WriteToROV();
   void CompletePixelShader();
 
-  // Writes a function that converts depth to 24 bits, putting it in 0:23, not
-  // creating space for stencil (ROV only).
-  // Input:
-  // - system_temps_subroutine_[0].x - Z/W + polygon offset at sample.
-  // Output:
-  // - system_temps_subroutine_[0].x - 24-bit depth.
-  // Local temps:
-  // - system_temps_subroutine_[0].y.
-  void CompleteShaderCode_ROV_DepthTo24BitSubroutine();
   // Writes a function that does early (or both early and late, when not
   // separating) depth/stencil testing for one sample (ROV only).
   // Input:
@@ -2496,7 +2495,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Subroutine labels. D3D10_SB_OPCODE_LABEL is not counted as an instruction
   // in STAT.
-  uint32_t label_rov_depth_to_24bit_;
   uint32_t label_rov_depth_stencil_sample_;
   uint32_t label_rov_color_sample_[4];
 
