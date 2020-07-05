@@ -812,15 +812,11 @@ void DxbcShaderTranslator::StartPixelShader() {
 
 void DxbcShaderTranslator::StartTranslation() {
   // Allocate labels and registers for subroutines.
-  label_rov_depth_to_24bit_ = UINT32_MAX;
   label_rov_depth_stencil_sample_ = UINT32_MAX;
   std::memset(label_rov_color_sample_, 0xFF, sizeof(label_rov_color_sample_));
   uint32_t label_index = 0;
   system_temps_subroutine_count_ = 0;
   if (IsDxbcPixelShader() && edram_rov_used_) {
-    label_rov_depth_to_24bit_ = label_index++;
-    system_temps_subroutine_count_ =
-        std::max((uint32_t)1, system_temps_subroutine_count_);
     label_rov_depth_stencil_sample_ = label_index++;
     system_temps_subroutine_count_ =
         std::max((uint32_t)2, system_temps_subroutine_count_);
@@ -1157,9 +1153,6 @@ void DxbcShaderTranslator::CompleteShaderCode() {
   // need the global system temps, and can't allocate their own temps (since
   // they may be called from anywhere and don't know anything about the caller's
   // register allocation).
-  if (label_rov_depth_to_24bit_ != UINT32_MAX) {
-    CompleteShaderCode_ROV_DepthTo24BitSubroutine();
-  }
   if (label_rov_depth_stencil_sample_ != UINT32_MAX) {
     CompleteShaderCode_ROV_DepthStencilSampleSubroutine();
   }
