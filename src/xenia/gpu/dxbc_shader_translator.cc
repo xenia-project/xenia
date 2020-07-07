@@ -167,6 +167,8 @@ void DxbcShaderTranslator::Reset() {
   in_domain_location_used_ = 0;
   in_primitive_id_used_ = false;
   in_control_point_index_used_ = false;
+  in_position_xy_used_ = false;
+  in_front_face_used_ = false;
 
   system_temp_count_current_ = 0;
   system_temp_count_max_ = 0;
@@ -688,6 +690,7 @@ void DxbcShaderTranslator::StartPixelShader() {
       // faceness as X sign bit. Using Z as scratch register now.
       if (edram_rov_used_) {
         // Get XY address of the current host pixel as float.
+        in_position_xy_used_ = true;
         DxbcOpRoundZ(DxbcDest::R(param_gen_temp, 0b0011),
                      DxbcSrc::V(uint32_t(InOutRegister::kPSInPosition)));
         // Revert resolution scale - after truncating, so if the pixel position
@@ -711,6 +714,7 @@ void DxbcShaderTranslator::StartPixelShader() {
       } else {
         // Get XY address of the current SSAA sample by converting
         // SV_Position.xy to an integer.
+        in_position_xy_used_ = true;
         DxbcOpFToU(DxbcDest::R(param_gen_temp, 0b0011),
                    DxbcSrc::V(uint32_t(InOutRegister::kPSInPosition)));
         // Undo SSAA that is used instead of MSAA - since it's used as a
@@ -741,6 +745,7 @@ void DxbcShaderTranslator::StartPixelShader() {
       {
         // Negate modifier flips the sign bit even for 0 - set it to minus for
         // backfaces.
+        in_front_face_used_ = true;
         DxbcOpMovC(
             DxbcDest::R(param_gen_temp, 0b0001),
             DxbcSrc::V(uint32_t(InOutRegister::kPSInFrontFace), DxbcSrc::kXXXX),
@@ -2003,11 +2008,11 @@ const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
         {"xe_texture_swizzled_signs", RdefTypeIndex::kUint4Array2,
          sizeof(uint32_t) * 4 * 2},
 
+        {"xe_alpha_to_mask", RdefTypeIndex::kUint, sizeof(uint32_t)},
         {"xe_edram_resolution_square_scale", RdefTypeIndex::kUint,
          sizeof(uint32_t)},
         {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, sizeof(uint32_t),
-         sizeof(float)},
+        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, sizeof(uint32_t)},
 
         {"xe_color_exp_bias", RdefTypeIndex::kFloat4, sizeof(float) * 4},
 
@@ -2808,9 +2813,8 @@ void DxbcShaderTranslator::WriteInputSignature() {
       clip_space_zw.always_reads_mask = edram_rov_used_ ? 0b0011 : 0b0000;
     }
 
-    // Position (SV_Position, only XY needed for ps_param_gen and for EDRAM
-    // address calculation). Z is not needed - ROV depth testing calculates the
-    // depth from the clip space Z/W texcoord, and if oDepth is used, it must be
+    // Pixel position. Z is not needed - ROV depth testing calculates the depth
+    // from the clip space Z/W texcoord, and if oDepth is used, it must be
     // written to on every execution path anyway (SV_Position).
     size_t position_position = shader_object_.size();
     shader_object_.resize(shader_object_.size() + kParameterDwords);
@@ -2823,11 +2827,10 @@ void DxbcShaderTranslator::WriteInputSignature() {
       position.component_type = DxbcSignatureRegisterComponentType::kFloat32;
       position.register_index = uint32_t(InOutRegister::kPSInPosition);
       position.mask = 0b1111;
-      position.always_reads_mask =
-          (param_gen_used || edram_rov_used_) ? 0b0011 : 0b0000;
+      position.always_reads_mask = in_position_xy_used_ ? 0b0011 : 0b0000;
     }
 
-    // Is front face (SV_IsFrontFace), for ps_param_gen and ROV stencil.
+    // Is front face (SV_IsFrontFace).
     size_t is_front_face_position = shader_object_.size();
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
@@ -2840,8 +2843,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
           DxbcSignatureRegisterComponentType::kUInt32;
       is_front_face.register_index = uint32_t(InOutRegister::kPSInFrontFace);
       is_front_face.mask = 0b0001;
-      is_front_face.always_reads_mask =
-          (param_gen_used || edram_rov_used_) ? 0b0001 : 0b0000;
+      is_front_face.always_reads_mask = in_front_face_used_ ? 0b0001 : 0b0000;
     }
 
     // Semantic names.
@@ -3706,7 +3708,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
       shader_object_.push_back(uint32_t(InOutRegister::kPSInClipSpaceZW));
       ++stat_.dcl_count;
     }
-    if (edram_rov_used_ || (!is_depth_only_pixel_shader_ && register_count())) {
+    if (in_position_xy_used_) {
       // Position input (only XY needed for ps_param_gen, and the ROV depth code
       // calculates the depth from clip space Z and W).
       shader_object_.push_back(
@@ -3719,6 +3721,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
       shader_object_.push_back(uint32_t(InOutRegister::kPSInPosition));
       shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
       ++stat_.dcl_count;
+    }
+    if (in_front_face_used_) {
       // Is front face.
       shader_object_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS_SGV) |

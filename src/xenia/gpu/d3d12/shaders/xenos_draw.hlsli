@@ -1,9 +1,6 @@
 #ifndef XENIA_GPU_D3D12_SHADERS_XENOS_DRAW_HLSLI_
 #define XENIA_GPU_D3D12_SHADERS_XENOS_DRAW_HLSLI_
 
-#define XeSysFlag_SharedMemoryIsUAV_Shift 0u
-#define XeSysFlag_SharedMemoryIsUAV (1u << XeSysFlag_SharedMemoryIsUAV_Shift)
-
 cbuffer xe_system_cbuffer : register(b0) {
   uint xe_flags;
   uint xe_line_loop_closing_index;
@@ -26,6 +23,7 @@ cbuffer xe_system_cbuffer : register(b0) {
 
   uint4 xe_texture_swizzled_signs[2];
 
+  uint xe_alpha_to_mask;
   uint xe_edram_resolution_square_scale;
   uint xe_edram_pitch_tiles;
   uint xe_edram_depth_base_dwords;

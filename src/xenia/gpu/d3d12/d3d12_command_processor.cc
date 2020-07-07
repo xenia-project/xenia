@@ -2987,10 +2987,6 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
              DxbcShaderTranslator::kSysFlag_AlphaPassIfEqual |
              DxbcShaderTranslator::kSysFlag_AlphaPassIfGreater;
   }
-  // Alpha to coverage.
-  if (rb_colorcontrol.alpha_to_mask_enable) {
-    flags |= DxbcShaderTranslator::kSysFlag_AlphaToCoverage;
-  }
   // Gamma writing.
   for (uint32_t i = 0; i < 4; ++i) {
     if (color_infos[i].color_format ==
@@ -3211,9 +3207,14 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   system_constants_.sample_count_log2[0] = sample_count_log2_x;
   system_constants_.sample_count_log2[1] = sample_count_log2_y;
 
-  // Alpha test.
+  // Alpha test and alpha to coverage.
   dirty |= system_constants_.alpha_test_reference != rb_alpha_ref;
   system_constants_.alpha_test_reference = rb_alpha_ref;
+  uint32_t alpha_to_mask = rb_colorcontrol.alpha_to_mask_enable
+                               ? (rb_colorcontrol.value >> 24) | (1 << 8)
+                               : 0;
+  dirty |= system_constants_.alpha_to_mask != alpha_to_mask;
+  system_constants_.alpha_to_mask = alpha_to_mask;
 
   // EDRAM pitch for ROV writing.
   if (edram_rov_used_) {

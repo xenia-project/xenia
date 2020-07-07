@@ -163,6 +163,7 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   // bigger) to integer to system_temp_rov_params_.zw.
   // system_temp_rov_params_.z = X host pixel position as uint
   // system_temp_rov_params_.w = Y host pixel position as uint
+  in_position_xy_used_ = true;
   DxbcOpFToU(DxbcDest::R(system_temp_rov_params_, 0b1100),
              DxbcSrc::V(uint32_t(InOutRegister::kPSInPosition), 0b01000000));
   // Revert the resolution scale to convert the position to guest pixels.
@@ -310,6 +311,7 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
     // Add host pixel offsets.
     // system_temp_rov_params_.y = scaled 32bpp depth/stencil address
     // system_temp_rov_params_.z = scaled 32bpp color offset if needed
+    in_position_xy_used_ = true;
     for (uint32_t i = 0; i < 2; ++i) {
       // Convert a position component to integer.
       DxbcOpFToU(DxbcDest::R(system_temp_rov_params_, 0b0001),
@@ -447,6 +449,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     // temp1.x = max(|ddx(z)|, |ddy(z)|)
     // temp1.y = polygon offset scale
     // temp1.z = polygon offset bias
+    in_front_face_used_ = true;
     system_constants_used_ |= (1ull << kSysConst_EDRAMPolyOffsetFront_Index) |
                               (1ull << kSysConst_EDRAMPolyOffsetBack_Index);
     DxbcOpMovC(
@@ -1266,90 +1269,134 @@ void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(
   DxbcOpBreak();
 }
 
-void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs_AlphaToCoverage() {
-  // Refer to CompletePixelShader_ROV_AlphaToCoverage for the description of the
-  // alpha to coverage pattern used.
+void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs_AlphaToMask() {
+  // Check if alpha to coverage can be done at all in this shader.
   if (!writes_color_target(0)) {
     return;
   }
-  uint32_t atoc_temp = PushSystemTemp();
-  // Extract the flag to check if alpha to coverage is enabled.
-  system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-  DxbcOpAnd(DxbcDest::R(atoc_temp, 0b0001),
-            DxbcSrc::CB(cbuffer_index_system_constants_,
-                        uint32_t(CbufferRegister::kSystemConstants),
-                        kSysConst_Flags_Vec)
-                .Select(kSysConst_Flags_Comp),
-            DxbcSrc::LU(kSysFlag_AlphaToCoverage));
+
   // Check if alpha to coverage is enabled.
-  DxbcOpIf(true, DxbcSrc::R(atoc_temp, DxbcSrc::kXXXX));
-  // Convert SSAA sample position to integer (not caring about the resolution
-  // scale because it's not supported anywhere on the RTV output path).
-  DxbcOpFToU(DxbcDest::R(atoc_temp, 0b0011),
+  system_constants_used_ |= 1ull << kSysConst_AlphaToMask_Index;
+  DxbcOpIf(true, DxbcSrc::CB(cbuffer_index_system_constants_,
+                             uint32_t(CbufferRegister::kSystemConstants),
+                             kSysConst_AlphaToMask_Vec)
+                     .Select(kSysConst_AlphaToMask_Comp));
+
+  uint32_t temp = PushSystemTemp();
+  DxbcDest temp_x_dest(DxbcDest::R(temp, 0b0001));
+  DxbcSrc temp_x_src(DxbcSrc::R(temp, DxbcSrc::kXXXX));
+  DxbcDest temp_y_dest(DxbcDest::R(temp, 0b0010));
+  DxbcSrc temp_y_src(DxbcSrc::R(temp, DxbcSrc::kYYYY));
+  DxbcDest temp_z_dest(DxbcDest::R(temp, 0b0100));
+  DxbcSrc temp_z_src(DxbcSrc::R(temp, DxbcSrc::kZZZZ));
+
+  // Convert SSAA sample position to integer to temp.xy (not caring about the
+  // resolution scale because it's not supported anywhere on the RTV output
+  // path).
+  in_position_xy_used_ = true;
+  DxbcOpFToU(DxbcDest::R(temp, 0b0011),
              DxbcSrc::V(uint32_t(InOutRegister::kPSInPosition)));
-  // Get SSAA sample coordinates in the pixel.
+
+  // Check if SSAA is enabled.
   system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-  DxbcOpAnd(DxbcDest::R(atoc_temp, 0b0011), DxbcSrc::R(atoc_temp),
-            DxbcSrc::CB(cbuffer_index_system_constants_,
-                        uint32_t(CbufferRegister::kSystemConstants),
-                        kSysConst_SampleCountLog2_Vec,
-                        kSysConst_SampleCountLog2_Comp |
-                            ((kSysConst_SampleCountLog2_Comp + 1) << 2)));
-  // Get the sample index - 0 and 2 being the top ones, 1 and 3 being the bottom
-  // ones (because at 2x SSAA, 1 is the bottom).
-  DxbcOpUMAd(DxbcDest::R(atoc_temp, 0b0001),
-             DxbcSrc::R(atoc_temp, DxbcSrc::kXXXX), DxbcSrc::LU(2),
-             DxbcSrc::R(atoc_temp, DxbcSrc::kYYYY));
-  // Create a mask to choose the specific threshold to compare to.
-  DxbcOpIEq(DxbcDest::R(atoc_temp), DxbcSrc::R(atoc_temp, DxbcSrc::kXXXX),
-            DxbcSrc::LU(0, 1, 2, 3));
-  uint32_t atoc_thresholds_temp = PushSystemTemp();
-  // Choose the thresholds based on the sample count - first between 2 and 1
-  // samples. 0.25 and 0.75 for 2 samples, 0.5 for 1 sample. NaN where
-  // comparison must always fail.
-  system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-  DxbcOpMovC(DxbcDest::R(atoc_thresholds_temp),
+  DxbcOpIf(true, DxbcSrc::CB(cbuffer_index_system_constants_,
+                             uint32_t(CbufferRegister::kSystemConstants),
+                             kSysConst_SampleCountLog2_Vec)
+                     .Select(kSysConst_SampleCountLog2_Comp + 1));
+  {
+    // Check if SSAA is 4x or 2x.
+    system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
+    DxbcOpIf(true, DxbcSrc::CB(cbuffer_index_system_constants_,
+                               uint32_t(CbufferRegister::kSystemConstants),
+                               kSysConst_SampleCountLog2_Vec)
+                       .Select(kSysConst_SampleCountLog2_Comp));
+    {
+      // 4x SSAA.
+      // Build the sample index in temp.z where X is the low bit and Y is the
+      // high bit, for calculation of the dithering base according to the sample
+      // position (left/right and top/bottom).
+      DxbcOpAnd(temp_z_dest, temp_y_src, DxbcSrc::LU(1));
+      DxbcOpBFI(temp_z_dest, DxbcSrc::LU(31), DxbcSrc::LU(1), temp_z_src,
+                temp_x_src);
+      // Top-left sample base: 0.75.
+      // Top-right sample base: 0.5.
+      // Bottom-left sample base: 0.25.
+      // Bottom-right sample base: 1.0.
+      // The threshold would be 1 - frac(0.25 + 0.25 * (x | (y << 1))) - offset.
+      // Multiplication here will result in exactly 1 (power of 2 multiplied by
+      // an integer).
+      // Calculate the base.
+      DxbcOpUToF(temp_z_dest, temp_z_src);
+      DxbcOpMAd(temp_z_dest, temp_z_src, DxbcSrc::LF(0.25f),
+                DxbcSrc::LF(0.25f));
+      DxbcOpFrc(temp_z_dest, temp_z_src);
+      DxbcOpAdd(temp_z_dest, DxbcSrc::LF(1.0f), -temp_z_src);
+      // Get the dithering threshold offset index for the guest pixel to temp.x,
+      // Y - low bit of offset index, X - high bit.
+      DxbcOpUBFE(DxbcDest::R(temp, 0b0011), DxbcSrc::LU(1), DxbcSrc::LU(1),
+                 DxbcSrc::R(temp));
+      DxbcOpBFI(temp_x_dest, DxbcSrc::LU(1), DxbcSrc::LU(1), temp_x_src,
+                temp_y_src);
+      // Write the offset scale to temp.y.
+      DxbcOpMov(temp_y_dest, DxbcSrc::LF(-1.0f / 16.0f));
+    }
+    DxbcOpElse();
+    {
+      // 2x SSAA.
+      // Check if the top (base 0.5) or the bottom (base 1.0) sample to temp.z,
+      // and also extract the guest pixel Y parity to temp.y.
+      DxbcOpUBFE(DxbcDest::R(temp, 0b0110), DxbcSrc::LU(1),
+                 DxbcSrc::LU(0, 1, 0, 0), temp_y_src);
+      DxbcOpMovC(temp_z_dest, temp_z_src, DxbcSrc::LF(1.0f), DxbcSrc::LF(0.5f));
+      // Get the dithering threshold offset index for the guest pixel to temp.x,
+      // Y - low bit of offset index, X - high bit.
+      DxbcOpBFI(temp_x_dest, DxbcSrc::LU(1), DxbcSrc::LU(1), temp_x_src,
+                temp_y_src);
+      // Write the offset scale to temp.y.
+      DxbcOpMov(temp_y_dest, DxbcSrc::LF(-1.0f / 8.0f));
+    }
+    // Close the 4x check.
+    DxbcOpEndIf();
+  }
+  // SSAA is disabled.
+  DxbcOpElse();
+  {
+    // Write the base 1.0 to temp.z.
+    DxbcOpMov(temp_z_dest, DxbcSrc::LF(1.0f));
+    // Get the dithering threshold offset index for the guest pixel to temp.x,
+    // Y - low bit of offset index, X - high bit.
+    DxbcOpAnd(temp_y_dest, temp_y_src, DxbcSrc::LU(1));
+    DxbcOpBFI(temp_x_dest, DxbcSrc::LU(1), DxbcSrc::LU(1), temp_x_src,
+              temp_y_src);
+    // Write the offset scale to temp.y.
+    DxbcOpMov(temp_y_dest, DxbcSrc::LF(-1.0f / 4.0f));
+  }
+  // Close the 2x/4x check.
+  DxbcOpEndIf();
+
+  // Extract the dithering offset to temp.x for the quad pixel index.
+  DxbcOpIShL(temp_x_dest, temp_x_src, DxbcSrc::LU(1));
+  system_constants_used_ |= 1ull << kSysConst_AlphaToMask_Index;
+  DxbcOpUBFE(temp_x_dest, DxbcSrc::LU(2), temp_x_src,
              DxbcSrc::CB(cbuffer_index_system_constants_,
                          uint32_t(CbufferRegister::kSystemConstants),
-                         kSysConst_SampleCountLog2_Vec)
-                 .Select(kSysConst_SampleCountLog2_Comp + 1),
-             DxbcSrc::LU(0x3E800000, 0x3F400000, 0x7FC00000, 0x7FC00000),
-             DxbcSrc::LU(0x3F000000, 0x7FC00000, 0x7FC00000, 0x7FC00000));
-  // Choose the thresholds based on the sample count - between 4 or 1/2 samples.
-  // 0.625, 0.125, 0.375, 0.875 for 4 samples.
-  system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-  DxbcOpMovC(DxbcDest::R(atoc_thresholds_temp),
-             DxbcSrc::CB(cbuffer_index_system_constants_,
-                         uint32_t(CbufferRegister::kSystemConstants),
-                         kSysConst_SampleCountLog2_Vec)
-                 .Select(kSysConst_SampleCountLog2_Comp),
-             DxbcSrc::LU(0x3F200000, 0x3E000000, 0x3EC00000, 0x3F600000),
-             DxbcSrc::R(atoc_thresholds_temp));
-  // Choose the threshold to compare the alpha to according to the current
-  // sample index - mask.
-  DxbcOpAnd(DxbcDest::R(atoc_temp), DxbcSrc::R(atoc_thresholds_temp),
-            DxbcSrc::R(atoc_temp));
-  // Release atoc_thresholds_temp.
-  PopSystemTemp();
-  // Choose the threshold to compare the alpha to according to the current
-  // sample index - select within pairs.
-  DxbcOpOr(DxbcDest::R(atoc_temp, 0b0011), DxbcSrc::R(atoc_temp),
-           DxbcSrc::R(atoc_temp, 0b1110));
-  // Choose the threshold to compare the alpha to according to the current
-  // sample index - combine pairs.
-  DxbcOpOr(DxbcDest::R(atoc_temp, 0b0001),
-           DxbcSrc::R(atoc_temp, DxbcSrc::kXXXX),
-           DxbcSrc::R(atoc_temp, DxbcSrc::kYYYY));
-  // Compare the alpha to the threshold.
-  DxbcOpGE(DxbcDest::R(atoc_temp, 0b0001),
-           DxbcSrc::R(system_temps_color_[0], DxbcSrc::kWWWW),
-           DxbcSrc::R(atoc_temp, DxbcSrc::kXXXX));
+                         kSysConst_AlphaToMask_Vec)
+                 .Select(kSysConst_AlphaToMask_Comp));
+  DxbcOpUToF(temp_x_dest, temp_x_src);
+  // Combine the base and the offset to temp.x.
+  DxbcOpMAd(temp_x_dest, temp_x_src, temp_y_src, temp_z_src);
+  // Check if alpha of oC0 is at or greater than the threshold (handling NaN
+  // according to the Direct3D 11.3 functional specification, as not covered).
+  DxbcOpGE(temp_x_dest, DxbcSrc::R(system_temps_color_[0], DxbcSrc::kWWWW),
+           temp_x_src);
   // Discard the SSAA sample if it's not covered.
-  DxbcOpDiscard(false, DxbcSrc::R(atoc_temp, DxbcSrc::kXXXX));
+  DxbcOpDiscard(false, temp_x_src);
+
+  // Release temp.
+  PopSystemTemp();
+
   // Close the alpha to coverage check.
   DxbcOpEndIf();
-  // Release atoc_temp.
-  PopSystemTemp();
 }
 
 void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
@@ -1358,7 +1405,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
   }
 
   // Check if this sample needs to be discarded by alpha to coverage.
-  CompletePixelShader_WriteToRTVs_AlphaToCoverage();
+  CompletePixelShader_WriteToRTVs_AlphaToMask();
 
   // Get the write mask as components, and also apply the exponent bias after
   // alpha to coverage because it needs the unbiased alpha from the shader.
@@ -1439,14 +1486,18 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
   PopSystemTemp(2);
 }
 
-void DxbcShaderTranslator::CompletePixelShader_ROV_AlphaToCoverageSample(
-    uint32_t sample_index, float threshold, uint32_t temp,
-    uint32_t temp_component) {
+void DxbcShaderTranslator::CompletePixelShader_ROV_AlphaToMaskSample(
+    uint32_t sample_index, float threshold_base, DxbcSrc threshold_offset,
+    float threshold_offset_scale, uint32_t temp, uint32_t temp_component) {
   DxbcDest temp_dest(DxbcDest::R(temp, 1 << temp_component));
   DxbcSrc temp_src(DxbcSrc::R(temp).Select(temp_component));
-  // Check if alpha of oC0 is at or greater than the threshold.
+  // Calculate the threshold.
+  DxbcOpMAd(temp_dest, threshold_offset, DxbcSrc::LF(-threshold_offset_scale),
+            DxbcSrc::LF(threshold_base));
+  // Check if alpha of oC0 is at or greater than the threshold (handling NaN
+  // according to the Direct3D 11.3 functional specification, as not covered).
   DxbcOpGE(temp_dest, DxbcSrc::R(system_temps_color_[0], DxbcSrc::kWWWW),
-           DxbcSrc::LF(threshold));
+           temp_src);
   // Keep all bits in system_temp_rov_params_.x but the ones that need to be
   // removed in case of failure (coverage and deferred depth/stencil write are
   // removed).
@@ -1457,47 +1508,43 @@ void DxbcShaderTranslator::CompletePixelShader_ROV_AlphaToCoverageSample(
             DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX), temp_src);
 }
 
-void DxbcShaderTranslator::CompletePixelShader_ROV_AlphaToCoverage() {
+void DxbcShaderTranslator::CompletePixelShader_ROV_AlphaToMask() {
   // Check if alpha to coverage can be done at all in this shader.
   if (!writes_color_target(0)) {
     return;
   }
 
-  // 1 VGPR or 1 SGPR.
-  uint32_t temp = PushSystemTemp();
-  DxbcDest temp_dest(DxbcDest::R(temp, 0b0001));
-  DxbcSrc temp_src(DxbcSrc::R(temp, DxbcSrc::kXXXX));
-
-  // Extract the flag to check if alpha to coverage is enabled (1 SGPR).
-  system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-  DxbcOpAnd(temp_dest,
-            DxbcSrc::CB(cbuffer_index_system_constants_,
-                        uint32_t(CbufferRegister::kSystemConstants),
-                        kSysConst_Flags_Vec)
-                .Select(kSysConst_Flags_Comp),
-            DxbcSrc::LU(kSysFlag_AlphaToCoverage));
   // Check if alpha to coverage is enabled.
-  DxbcOpIf(true, temp_src);
+  system_constants_used_ |= 1ull << kSysConst_AlphaToMask_Index;
+  DxbcOpIf(true, DxbcSrc::CB(cbuffer_index_system_constants_,
+                             uint32_t(CbufferRegister::kSystemConstants),
+                             kSysConst_AlphaToMask_Vec)
+                     .Select(kSysConst_AlphaToMask_Comp));
 
-  // According to tests on an Adreno 200 device (LG Optimus L7), without
-  // dithering, done by drawing 0.5x0.5 rectangles in different corners of four
-  // pixels in a quad to a multisampled GLSurfaceView, the coverage is the
-  // following for 4 samples:
-  // 0.25)  [0.25, 0.5)  [0.5, 0.75)  [0.75, 1)   [1
-  //  --        --           --          --       --
-  // |  |      |  |         | #|        |##|     |##|
-  // |  |      |# |         |# |        |# |     |##|
-  //  --        --           --          --       --
-  // (VPOS near 0 on the top, near 1 on the bottom here.)
-  // For 2 samples, the top sample (closer to VPOS 0) is covered when alpha is
-  // in [0.5, 1).
-  // With these values, however, in Red Dead Redemption, almost all distant
-  // trees are transparent, and it's also weird that the values are so
-  // unbalanced (0.25-wide range with zero coverage, but only one point with
-  // full coverage), so ranges are halfway offset here.
-  // TODO(Triang3l): Find an Adreno device with dithering enabled, and where the
-  // numbers 3, 1, 0, 2 look meaningful for pixels in quads, and implement
-  // offsets.
+  uint32_t temp = PushSystemTemp();
+  DxbcDest temp_x_dest(DxbcDest::R(temp, 0b0001));
+  DxbcSrc temp_x_src(DxbcSrc::R(temp, DxbcSrc::kXXXX));
+
+  // Get the dithering threshold offset index for the pixel, Y - low bit of
+  // offset index, X - high bit, and extract the offset and convert it to
+  // floating-point. With resolution scaling, still using host pixels, to
+  // preserve the idea of dithering.
+  // temp.x = alpha to coverage offset as float 0.0...3.0.
+  in_position_xy_used_ = true;
+  DxbcOpFToU(DxbcDest::R(temp, 0b0011),
+             DxbcSrc::V(uint32_t(InOutRegister::kPSInPosition)));
+  DxbcOpAnd(DxbcDest::R(temp, 0b0010), DxbcSrc::R(temp, DxbcSrc::kYYYY),
+            DxbcSrc::LU(1));
+  DxbcOpBFI(temp_x_dest, DxbcSrc::LU(1), DxbcSrc::LU(1), temp_x_src,
+            DxbcSrc::R(temp, DxbcSrc::kYYYY));
+  DxbcOpIShL(temp_x_dest, temp_x_src, DxbcSrc::LU(1));
+  system_constants_used_ |= 1ull << kSysConst_AlphaToMask_Index;
+  DxbcOpUBFE(temp_x_dest, DxbcSrc::LU(2), temp_x_src,
+             DxbcSrc::CB(cbuffer_index_system_constants_,
+                         uint32_t(CbufferRegister::kSystemConstants),
+                         kSysConst_AlphaToMask_Vec)
+                 .Select(kSysConst_AlphaToMask_Comp));
+  DxbcOpUToF(temp_x_dest, temp_x_src);
 
   // The test must effect not only the coverage bits, but also the deferred
   // depth/stencil write bits since the coverage is zeroed for samples that have
@@ -1505,7 +1552,7 @@ void DxbcShaderTranslator::CompletePixelShader_ROV_AlphaToCoverage() {
   // if the sample is discarded by alpha to coverage, it must not be written at
   // all.
 
-  // Check if any MSAA is enabled.
+  // Check if MSAA is enabled.
   system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
   DxbcOpIf(true, DxbcSrc::CB(cbuffer_index_system_constants_,
                              uint32_t(CbufferRegister::kSystemConstants),
@@ -1518,24 +1565,28 @@ void DxbcShaderTranslator::CompletePixelShader_ROV_AlphaToCoverage() {
                                uint32_t(CbufferRegister::kSystemConstants),
                                kSysConst_SampleCountLog2_Vec)
                        .Select(kSysConst_SampleCountLog2_Comp));
-    {
-      CompletePixelShader_ROV_AlphaToCoverageSample(0, 0.625f, temp, 0);
-      CompletePixelShader_ROV_AlphaToCoverageSample(1, 0.375f, temp, 0);
-      CompletePixelShader_ROV_AlphaToCoverageSample(2, 0.125f, temp, 0);
-      CompletePixelShader_ROV_AlphaToCoverageSample(3, 0.875f, temp, 0);
-    }
-    // 2x MSAA is used.
+    // 4x MSAA.
+    CompletePixelShader_ROV_AlphaToMaskSample(0, 0.75f, temp_x_src,
+                                              1.0f / 16.0f, temp, 1);
+    CompletePixelShader_ROV_AlphaToMaskSample(1, 0.5f, temp_x_src, 1.0f / 16.0f,
+                                              temp, 1);
+    CompletePixelShader_ROV_AlphaToMaskSample(2, 0.25f, temp_x_src,
+                                              1.0f / 16.0f, temp, 1);
+    CompletePixelShader_ROV_AlphaToMaskSample(3, 1.0f, temp_x_src, 1.0f / 16.0f,
+                                              temp, 1);
+    // 2x MSAA.
     DxbcOpElse();
-    {
-      CompletePixelShader_ROV_AlphaToCoverageSample(0, 0.25f, temp, 0);
-      CompletePixelShader_ROV_AlphaToCoverageSample(1, 0.75f, temp, 0);
-    }
+    CompletePixelShader_ROV_AlphaToMaskSample(0, 0.5f, temp_x_src, 1.0f / 8.0f,
+                                              temp, 1);
+    CompletePixelShader_ROV_AlphaToMaskSample(1, 1.0f, temp_x_src, 1.0f / 8.0f,
+                                              temp, 1);
     // Close the 4x check.
     DxbcOpEndIf();
   }
   // MSAA is disabled.
   DxbcOpElse();
-  { CompletePixelShader_ROV_AlphaToCoverageSample(0, 0.5f, temp, 0); }
+  CompletePixelShader_ROV_AlphaToMaskSample(0, 1.0f, temp_x_src, 1.0f / 4.0f,
+                                            temp, 1);
   // Close the 2x/4x check.
   DxbcOpEndIf();
 
@@ -1543,9 +1594,9 @@ void DxbcShaderTranslator::CompletePixelShader_ROV_AlphaToCoverage() {
   // parts because there may be samples which passed alpha to coverage, but not
   // stencil test, and the stencil buffer needs to be modified - in this case,
   // samples would be dropped in 0:3, but not in 4:7).
-  DxbcOpAnd(temp_dest, DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
+  DxbcOpAnd(temp_x_dest, DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
             DxbcSrc::LU(0b11111111));
-  DxbcOpRetC(false, temp_src);
+  DxbcOpRetC(false, temp_x_src);
 
   // Release temp.
   PopSystemTemp();
@@ -1556,7 +1607,7 @@ void DxbcShaderTranslator::CompletePixelShader_ROV_AlphaToCoverage() {
 
 void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   // Discard samples with alpha to coverage.
-  CompletePixelShader_ROV_AlphaToCoverage();
+  CompletePixelShader_ROV_AlphaToMask();
 
   // 2 VGPR (at most, as temp when packing during blending) or 1 SGPR.
   uint32_t temp = PushSystemTemp();
@@ -2087,6 +2138,7 @@ void DxbcShaderTranslator::
   DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kWWWW));
   {
     // Check the current face to get the reference and apply the read mask.
+    in_front_face_used_ = true;
     DxbcOpIf(true, DxbcSrc::V(uint32_t(InOutRegister::kPSInFrontFace),
                               DxbcSrc::kXXXX));
     DxbcSrc stencil_front_src(
@@ -2168,6 +2220,7 @@ void DxbcShaderTranslator::
     // VGPR [0].z = old depth/stencil
     // VGPR [0].w = stencil function passed bits
     // VGPR [1].x = stencil function and operations
+    in_front_face_used_ = true;
     system_constants_used_ |= 1ull << kSysConst_EDRAMStencil_Index;
     DxbcOpMovC(
         DxbcDest::R(system_temps_subroutine_ + 1, 0b0001),
@@ -2243,6 +2296,7 @@ void DxbcShaderTranslator::
       // Replace.
       DxbcOpCase(DxbcSrc::LU(uint32_t(StencilOp::kReplace)));
       {
+        in_front_face_used_ = true;
         system_constants_used_ |= 1ull << kSysConst_EDRAMStencil_Index;
         DxbcOpMovC(
             DxbcDest::R(system_temps_subroutine_, 0b1000),
@@ -2323,6 +2377,7 @@ void DxbcShaderTranslator::
     // VGPR [0].z = old depth/stencil
     // VGPR [0].w = unmasked new stencil
     // VGPR [1].x = stencil write mask
+    in_front_face_used_ = true;
     system_constants_used_ |= 1ull << kSysConst_EDRAMStencil_Index;
     DxbcOpMovC(
         DxbcDest::R(system_temps_subroutine_ + 1, 0b0001),

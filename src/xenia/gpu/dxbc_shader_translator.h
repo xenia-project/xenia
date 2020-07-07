@@ -132,7 +132,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater_Shift,
-    kSysFlag_AlphaToCoverage_Shift,
     kSysFlag_Color0Gamma_Shift,
     kSysFlag_Color1Gamma_Shift,
     kSysFlag_Color2Gamma_Shift,
@@ -175,7 +174,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_AlphaPassIfLess = 1u << kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual = 1u << kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater = 1u << kSysFlag_AlphaPassIfGreater_Shift,
-    kSysFlag_AlphaToCoverage = 1u << kSysFlag_AlphaToCoverage_Shift,
     kSysFlag_Color0Gamma = 1u << kSysFlag_Color0Gamma_Shift,
     kSysFlag_Color1Gamma = 1u << kSysFlag_Color1Gamma_Shift,
     kSysFlag_Color2Gamma = 1u << kSysFlag_Color2Gamma_Shift,
@@ -238,10 +236,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // components of each of the 32 used texture fetch constants.
     uint32_t texture_swizzled_signs[8];
 
+    // If alpha to mask is disabled, the entire alpha_to_mask value must be 0.
+    // If alpha to mask is enabled, bits 0:7 are sample offsets, and bit 8 must
+    // be 1.
+    uint32_t alpha_to_mask;
     uint32_t edram_resolution_square_scale;
     uint32_t edram_pitch_tiles;
     uint32_t edram_depth_base_dwords;
-    uint32_t padding_edram_depth_base_dwords;
 
     float color_exp_bias[4];
 
@@ -1948,19 +1949,20 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // 2 vectors.
     kSysConst_TextureSwizzledSigns_Vec = kSysConst_SampleCountLog2_Vec + 1,
 
+    kSysConst_AlphaToMask_Index = kSysConst_TextureSwizzledSigns_Index + 1,
+    kSysConst_AlphaToMask_Vec = kSysConst_TextureSwizzledSigns_Vec + 2,
+    kSysConst_AlphaToMask_Comp = 0,
     kSysConst_EDRAMResolutionSquareScale_Index =
-        kSysConst_TextureSwizzledSigns_Index + 1,
-    kSysConst_EDRAMResolutionSquareScale_Vec =
-        kSysConst_TextureSwizzledSigns_Vec + 2,
-    kSysConst_EDRAMResolutionSquareScale_Comp = 0,
+        kSysConst_AlphaToMask_Index + 1,
+    kSysConst_EDRAMResolutionSquareScale_Vec = kSysConst_AlphaToMask_Vec,
+    kSysConst_EDRAMResolutionSquareScale_Comp = 1,
     kSysConst_EDRAMPitchTiles_Index =
         kSysConst_EDRAMResolutionSquareScale_Index + 1,
-    kSysConst_EDRAMPitchTiles_Vec = kSysConst_EDRAMResolutionSquareScale_Vec,
-    kSysConst_EDRAMPitchTiles_Comp = 1,
+    kSysConst_EDRAMPitchTiles_Vec = kSysConst_AlphaToMask_Vec,
+    kSysConst_EDRAMPitchTiles_Comp = 2,
     kSysConst_EDRAMDepthBaseDwords_Index = kSysConst_EDRAMPitchTiles_Index + 1,
-    kSysConst_EDRAMDepthBaseDwords_Vec =
-        kSysConst_EDRAMResolutionSquareScale_Vec,
-    kSysConst_EDRAMDepthBaseDwords_Comp = 2,
+    kSysConst_EDRAMDepthBaseDwords_Vec = kSysConst_AlphaToMask_Vec,
+    kSysConst_EDRAMDepthBaseDwords_Comp = 3,
 
     kSysConst_ColorExpBias_Index = kSysConst_EDRAMDepthBaseDwords_Index + 1,
     kSysConst_ColorExpBias_Vec = kSysConst_EDRAMDepthBaseDwords_Vec + 1,
@@ -2225,17 +2227,17 @@ class DxbcShaderTranslator : public ShaderTranslator {
                                   const DxbcSrc& is_signed);
   void ExportToMemory();
   void CompleteVertexOrDomainShader();
-  // Discards the SSAA sample if it fails alpha to coverage.
-  void CompletePixelShader_WriteToRTVs_AlphaToCoverage();
+  // Discards the SSAA sample if it's masked out by alpha to coverage.
+  void CompletePixelShader_WriteToRTVs_AlphaToMask();
   void CompletePixelShader_WriteToRTVs();
   // Masks the sample away from system_temp_rov_params_.x if it's not covered.
-  void CompletePixelShader_ROV_AlphaToCoverageSample(uint32_t sample_index,
-                                                     float threshold,
-                                                     uint32_t temp,
-                                                     uint32_t temp_component);
+  // threshold_offset and temp.temp_component can be the same if needed.
+  void CompletePixelShader_ROV_AlphaToMaskSample(
+      uint32_t sample_index, float threshold_base, DxbcSrc threshold_offset,
+      float threshold_offset_scale, uint32_t temp, uint32_t temp_component);
   // Performs alpha to coverage if necessary, updating the low (coverage) bits
-  // of system_temp_.
-  void CompletePixelShader_ROV_AlphaToCoverage();
+  // of system_temp_rov_params_.x.
+  void CompletePixelShader_ROV_AlphaToMask();
   void CompletePixelShader_WriteToROV();
   void CompletePixelShader();
 
@@ -2492,6 +2494,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   bool in_primitive_id_used_;
   // Whether InOutRegister::kDSInControlPointIndex has been used in the shader.
   bool in_control_point_index_used_;
+  // Whether the XY of the pixel position has been used in the pixel shader.
+  bool in_position_xy_used_;
+  // Whether the faceness has been used in the pixel shader.
+  bool in_front_face_used_;
 
   // Subroutine labels. D3D10_SB_OPCODE_LABEL is not counted as an instruction
   // in STAT.

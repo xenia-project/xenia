@@ -21,9 +21,10 @@
 //   float2 xe_point_screen_to_ndc;     // Offset:  160 Size:     8
 //   uint2 xe_sample_count_log2;        // Offset:  168 Size:     8 [unused]
 //   uint4 xe_texture_swizzled_signs[2];// Offset:  176 Size:    32 [unused]
-//   uint xe_edram_resolution_square_scale;// Offset:  208 Size:     4 [unused]
-//   uint xe_edram_pitch_tiles;         // Offset:  212 Size:     4 [unused]
-//   uint xe_edram_depth_base_dwords;   // Offset:  216 Size:     4 [unused]
+//   uint xe_alpha_to_mask;             // Offset:  208 Size:     4 [unused]
+//   uint xe_edram_resolution_square_scale;// Offset:  212 Size:     4 [unused]
+//   uint xe_edram_pitch_tiles;         // Offset:  216 Size:     4 [unused]
+//   uint xe_edram_depth_base_dwords;   // Offset:  220 Size:     4 [unused]
 //   float4 xe_color_exp_bias;          // Offset:  224 Size:    16 [unused]
 //   uint4 xe_color_output_map;         // Offset:  240 Size:    16 [unused]
 //   float2 xe_tessellation_factor_range;// Offset:  256 Size:     8 [unused]
