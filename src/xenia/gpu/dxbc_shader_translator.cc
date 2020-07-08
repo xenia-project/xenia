@@ -665,10 +665,54 @@ void DxbcShaderTranslator::StartPixelShader() {
   uint32_t interpolator_count = std::min(kInterpolatorCount, register_count());
   if (interpolator_count != 0) {
     // Copy interpolants to GPRs.
-    for (uint32_t i = 0; i < interpolator_count; ++i) {
-      DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, i)
-                                                   : DxbcDest::R(i),
-                DxbcSrc::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
+    if (edram_rov_used_) {
+      uint32_t centroid_temp =
+          uses_register_dynamic_addressing() ? PushSystemTemp() : UINT32_MAX;
+      system_constants_used_ |= 1ull
+                                << kSysConst_InterpolatorSamplingPattern_Index;
+      DxbcSrc sampling_pattern_src(
+          DxbcSrc::CB(cbuffer_index_system_constants_,
+                      uint32_t(CbufferRegister::kSystemConstants),
+                      kSysConst_InterpolatorSamplingPattern_Vec)
+              .Select(kSysConst_InterpolatorSamplingPattern_Comp));
+      for (uint32_t i = 0; i < interpolator_count; ++i) {
+        // With GPR dynamic addressing, first evaluate to centroid_temp r#, then
+        // store to the x#.
+        uint32_t centroid_register =
+            uses_register_dynamic_addressing() ? centroid_temp : i;
+        // Check if the input needs to be interpolated at center (if the bit is
+        // set).
+        DxbcOpAnd(DxbcDest::R(centroid_register, 0b0001), sampling_pattern_src,
+                  DxbcSrc::LU(uint32_t(1) << i));
+        DxbcOpIf(bool(SampleLocation::kCenter),
+                 DxbcSrc::R(centroid_register, DxbcSrc::kXXXX));
+        // At center.
+        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, i)
+                                                     : DxbcDest::R(i),
+                  DxbcSrc::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
+        DxbcOpElse();
+        // At centroid. Not really important that 2x MSAA is emulated using
+        // ForcedSampleCount 4 - what matters is that the sample position will
+        // be within the primitive, and the value will not be extrapolated.
+        DxbcOpEvalCentroid(
+            DxbcDest::R(centroid_register),
+            DxbcSrc::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
+        if (uses_register_dynamic_addressing()) {
+          DxbcOpMov(DxbcDest::X(0, i), DxbcSrc::R(centroid_register));
+        }
+        DxbcOpEndIf();
+      }
+      if (centroid_temp != UINT32_MAX) {
+        PopSystemTemp();
+      }
+    } else {
+      // SSAA instead of MSAA without ROV - everything is interpolated at
+      // samples, can't extrapolate.
+      for (uint32_t i = 0; i < interpolator_count; ++i) {
+        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, i)
+                                                     : DxbcDest::R(i),
+                  DxbcSrc::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
+      }
     }
 
     // Write pixel parameters - screen (XY absolute value) and point sprite (ZW
@@ -753,10 +797,32 @@ void DxbcShaderTranslator::StartPixelShader() {
             -DxbcSrc::R(param_gen_temp, DxbcSrc::kXXXX));
       }
       DxbcOpEndIf();
-      // ZW - UV within a point sprite in the absolute value.
-      DxbcOpMov(DxbcDest::R(param_gen_temp, 0b1100),
-                DxbcSrc::V(uint32_t(InOutRegister::kPSInPointParameters),
-                           0b01000000));
+      // ZW - UV within a point sprite in the absolute value, at centroid if
+      // requested for the interpolator.
+      DxbcDest point_coord_r_zw_dest(DxbcDest::R(param_gen_temp, 0b1100));
+      DxbcSrc point_coord_v_xxxy_src(DxbcSrc::V(
+          uint32_t(InOutRegister::kPSInPointParameters), 0b01000000));
+      if (edram_rov_used_) {
+        system_constants_used_ |=
+            1ull << kSysConst_InterpolatorSamplingPattern_Index;
+        DxbcOpUBFE(DxbcDest::R(param_gen_temp, 0b0100), DxbcSrc::LU(1),
+                   param_gen_index_src,
+                   DxbcSrc::CB(cbuffer_index_system_constants_,
+                               uint32_t(CbufferRegister::kSystemConstants),
+                               kSysConst_InterpolatorSamplingPattern_Vec)
+                       .Select(kSysConst_InterpolatorSamplingPattern_Comp));
+        DxbcOpIf(bool(SampleLocation::kCenter),
+                 DxbcSrc::R(param_gen_temp, DxbcSrc::kZZZZ));
+        // At center.
+        DxbcOpMov(point_coord_r_zw_dest, point_coord_v_xxxy_src);
+        DxbcOpElse();
+        // At centroid.
+        DxbcOpEvalCentroid(point_coord_r_zw_dest, point_coord_v_xxxy_src);
+        DxbcOpEndIf();
+      } else {
+        // At the SSAA sample.
+        DxbcOpMov(point_coord_r_zw_dest, point_coord_v_xxxy_src);
+      }
       // Write ps_param_gen to the specified GPR.
       DxbcSrc param_gen_src(DxbcSrc::R(param_gen_temp));
       if (uses_register_dynamic_addressing()) {
@@ -1986,46 +2052,50 @@ const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
 const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
     system_constant_rdef_[DxbcShaderTranslator::kSysConst_Count] = {
         {"xe_flags", RdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_tessellation_factor_range", RdefTypeIndex::kFloat2,
+         sizeof(float) * 2},
         {"xe_line_loop_closing_index", RdefTypeIndex::kUint, sizeof(uint32_t)},
+
         {"xe_vertex_index_endian", RdefTypeIndex::kUint, sizeof(uint32_t)},
         {"xe_vertex_base_index", RdefTypeIndex::kInt, sizeof(int32_t)},
+        {"xe_point_size", RdefTypeIndex::kFloat2, sizeof(float) * 2},
+
+        {"xe_point_size_min_max", RdefTypeIndex::kFloat2, sizeof(float) * 2},
+        {"xe_point_screen_to_ndc", RdefTypeIndex::kFloat2, sizeof(float) * 2},
 
         {"xe_user_clip_planes", RdefTypeIndex::kFloat4Array6,
          sizeof(float) * 4 * 6},
 
         {"xe_ndc_scale", RdefTypeIndex::kFloat3, sizeof(float) * 3},
-        {"xe_ps_param_gen", RdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_interpolator_sampling_pattern", RdefTypeIndex::kUint,
+         sizeof(uint32_t)},
 
         {"xe_ndc_offset", RdefTypeIndex::kFloat3, sizeof(float) * 3},
-        {"xe_alpha_test_reference", RdefTypeIndex::kFloat, sizeof(float)},
-
-        {"xe_point_size", RdefTypeIndex::kFloat2, sizeof(float) * 2},
-        {"xe_point_size_min_max", RdefTypeIndex::kFloat2, sizeof(float) * 2},
-
-        {"xe_point_screen_to_ndc", RdefTypeIndex::kFloat2, sizeof(float) * 2},
-        {"xe_sample_count_log2", RdefTypeIndex::kUint2, sizeof(uint32_t) * 2},
+        {"xe_ps_param_gen", RdefTypeIndex::kUint, sizeof(uint32_t)},
 
         {"xe_texture_swizzled_signs", RdefTypeIndex::kUint4Array2,
          sizeof(uint32_t) * 4 * 2},
 
+        {"xe_sample_count_log2", RdefTypeIndex::kUint2, sizeof(uint32_t) * 2},
+        {"xe_alpha_test_reference", RdefTypeIndex::kFloat, sizeof(float)},
         {"xe_alpha_to_mask", RdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_edram_resolution_square_scale", RdefTypeIndex::kUint,
-         sizeof(uint32_t)},
-        {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, sizeof(uint32_t)},
 
         {"xe_color_exp_bias", RdefTypeIndex::kFloat4, sizeof(float) * 4},
 
         {"xe_color_output_map", RdefTypeIndex::kUint4, sizeof(uint32_t) * 4},
 
-        {"xe_tessellation_factor_range", RdefTypeIndex::kFloat2,
-         sizeof(float) * 2},
+        {"xe_edram_resolution_square_scale", RdefTypeIndex::kUint,
+         sizeof(uint32_t)},
+        {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, sizeof(uint32_t)},
         {"xe_edram_depth_range", RdefTypeIndex::kFloat2, sizeof(float) * 2},
 
         {"xe_edram_poly_offset_front", RdefTypeIndex::kFloat2,
          sizeof(float) * 2},
         {"xe_edram_poly_offset_back", RdefTypeIndex::kFloat2,
          sizeof(float) * 2},
+
+        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, sizeof(uint32_t),
+         sizeof(float) * 3},
 
         {"xe_edram_stencil", RdefTypeIndex::kUint4Array2,
          sizeof(uint32_t) * 4 * 2},

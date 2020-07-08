@@ -554,6 +554,24 @@ enum class SampleControl : uint32_t {
   kCentroidsAndCenters = 2,
 };
 
+// - msaa_samples is RB_SURFACE_INFO::msaa_samples.
+// - sample_control is SQ_CONTEXT_MISC::sc_sample_cntl.
+// - interpolator_control_sampling_pattern is
+//   SQ_INTERPOLATOR_CNTL::sampling_pattern.
+inline uint32_t GetInterpolatorSamplingPattern(
+    MsaaSamples msaa_samples, SampleControl sample_control,
+    uint32_t interpolator_control_sampling_pattern) {
+  if (msaa_samples == MsaaSamples::k1X ||
+      sample_control == SampleControl::kCentersOnly) {
+    return ((1 << 16) - 1) * uint32_t(SampleLocation::kCenter);
+  }
+  if (sample_control == SampleControl::kCentroidsOnly) {
+    return ((1 << 16) - 1) * uint32_t(SampleLocation::kCentroid);
+  }
+  assert_true(sample_control == SampleControl::kCentroidsAndCenters);
+  return interpolator_control_sampling_pattern;
+}
+
 enum class VGTOutputPath : uint32_t {
   kVertexReuse = 0,
   kTessellationEnable = 1,

@@ -209,45 +209,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // - d3d12/shaders/xenos_draw.hlsli (for geometry shaders).
   struct SystemConstants {
     uint32_t flags;
-    uint32_t line_loop_closing_index;
-    Endian vertex_index_endian;
-    int32_t vertex_base_index;
-
-    float user_clip_planes[6][4];
-
-    float ndc_scale[3];
-    uint32_t ps_param_gen;
-
-    float ndc_offset[3];
-    float alpha_test_reference;
-
-    float point_size[2];
-    float point_size_min_max[2];
-
-    // Inverse scale of the host viewport (but not supersampled), with signs
-    // pre-applied.
-    float point_screen_to_ndc[2];
-    // Log2 of X and Y sample size. For SSAA with RTV/DSV, this is used to get
-    // VPOS to pass to the game's shader. For MSAA with ROV, this is used for
-    // EDRAM address calculation.
-    uint32_t sample_count_log2[2];
-
-    // Each byte contains post-swizzle TextureSign values for each of the needed
-    // components of each of the 32 used texture fetch constants.
-    uint32_t texture_swizzled_signs[8];
-
-    // If alpha to mask is disabled, the entire alpha_to_mask value must be 0.
-    // If alpha to mask is enabled, bits 0:7 are sample offsets, and bit 8 must
-    // be 1.
-    uint32_t alpha_to_mask;
-    uint32_t edram_resolution_square_scale;
-    uint32_t edram_pitch_tiles;
-    uint32_t edram_depth_base_dwords;
-
-    float color_exp_bias[4];
-
-    uint32_t color_output_map[4];
-
     union {
       struct {
         float tessellation_factor_range_min;
@@ -255,6 +216,45 @@ class DxbcShaderTranslator : public ShaderTranslator {
       };
       float tessellation_factor_range[2];
     };
+    uint32_t line_loop_closing_index;
+
+    Endian vertex_index_endian;
+    int32_t vertex_base_index;
+    float point_size[2];
+
+    float point_size_min_max[2];
+    // Inverse scale of the host viewport (but not supersampled), with signs
+    // pre-applied.
+    float point_screen_to_ndc[2];
+
+    float user_clip_planes[6][4];
+
+    float ndc_scale[3];
+    uint32_t interpolator_sampling_pattern;
+
+    float ndc_offset[3];
+    uint32_t ps_param_gen;
+
+    // Each byte contains post-swizzle TextureSign values for each of the needed
+    // components of each of the 32 used texture fetch constants.
+    uint32_t texture_swizzled_signs[8];
+
+    // Log2 of X and Y sample size. For SSAA with RTV/DSV, this is used to get
+    // VPOS to pass to the game's shader. For MSAA with ROV, this is used for
+    // EDRAM address calculation.
+    uint32_t sample_count_log2[2];
+    float alpha_test_reference;
+    uint32_t alpha_to_mask;
+
+    float color_exp_bias[4];
+
+    uint32_t color_output_map[4];
+
+    // If alpha to mask is disabled, the entire alpha_to_mask value must be 0.
+    // If alpha to mask is enabled, bits 0:7 are sample offsets, and bit 8 must
+    // be 1.
+    uint32_t edram_resolution_square_scale;
+    uint32_t edram_pitch_tiles;
     union {
       struct {
         float edram_depth_range_scale;
@@ -277,6 +277,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
       };
       float edram_poly_offset_back[2];
     };
+
+    uint32_t edram_depth_base_dwords;
+    uint32_t padding_edram_depth_base_dwords[3];
 
     // In stencil function/operations (they match the layout of the
     // function/operations in RB_DEPTHCONTROL):
@@ -1180,6 +1183,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kLdRaw = 165,
     kStoreRaw = 166,
     kEvalSampleIndex = 204,
+    kEvalCentroid = 205,
   };
 
   // D3D10_SB_EXTENDED_OPCODE_TYPE
@@ -1897,86 +1901,96 @@ class DxbcShaderTranslator : public ShaderTranslator {
     sample_index.Write(shader_code_, true, 0b0000);
     ++stat_.instruction_count;
   }
+  void DxbcOpEvalCentroid(const DxbcDest& dest, const DxbcSrc& value) {
+    uint32_t dest_write_mask = dest.GetMask();
+    uint32_t operands_length =
+        dest.GetLength() + value.GetLength(dest_write_mask);
+    shader_code_.reserve(shader_code_.size() + 1 + operands_length);
+    shader_code_.push_back(
+        DxbcOpcodeToken(DxbcOpcode::kEvalCentroid, operands_length));
+    dest.Write(shader_code_);
+    value.Write(shader_code_, false, dest_write_mask);
+    ++stat_.instruction_count;
+  }
 
   enum : uint32_t {
     kSysConst_Flags_Index = 0,
     kSysConst_Flags_Vec = 0,
     kSysConst_Flags_Comp = 0,
-    kSysConst_LineLoopClosingIndex_Index = kSysConst_Flags_Index + 1,
+    kSysConst_TessellationFactorRange_Index = kSysConst_Flags_Index + 1,
+    kSysConst_TessellationFactorRange_Vec = kSysConst_Flags_Vec,
+    kSysConst_TessellationFactorRange_Comp = 1,
+    kSysConst_LineLoopClosingIndex_Index =
+        kSysConst_TessellationFactorRange_Index + 1,
     kSysConst_LineLoopClosingIndex_Vec = kSysConst_Flags_Vec,
-    kSysConst_LineLoopClosingIndex_Comp = 1,
+    kSysConst_LineLoopClosingIndex_Comp = 3,
+
     kSysConst_VertexIndexEndian_Index =
         kSysConst_LineLoopClosingIndex_Index + 1,
-    kSysConst_VertexIndexEndian_Vec = kSysConst_Flags_Vec,
-    kSysConst_VertexIndexEndian_Comp = 2,
+    kSysConst_VertexIndexEndian_Vec = kSysConst_LineLoopClosingIndex_Vec + 1,
+    kSysConst_VertexIndexEndian_Comp = 0,
     kSysConst_VertexBaseIndex_Index = kSysConst_VertexIndexEndian_Index + 1,
-    kSysConst_VertexBaseIndex_Vec = kSysConst_Flags_Vec,
-    kSysConst_VertexBaseIndex_Comp = 3,
+    kSysConst_VertexBaseIndex_Vec = kSysConst_VertexIndexEndian_Vec,
+    kSysConst_VertexBaseIndex_Comp = 1,
+    kSysConst_PointSize_Index = kSysConst_VertexBaseIndex_Index + 1,
+    kSysConst_PointSize_Vec = kSysConst_VertexIndexEndian_Vec,
+    kSysConst_PointSize_Comp = 2,
 
-    kSysConst_UserClipPlanes_Index = kSysConst_VertexBaseIndex_Index + 1,
+    kSysConst_PointSizeMinMax_Index = kSysConst_PointSize_Index + 1,
+    kSysConst_PointSizeMinMax_Vec = kSysConst_PointSize_Vec + 1,
+    kSysConst_PointSizeMinMax_Comp = 0,
+    kSysConst_PointScreenToNDC_Index = kSysConst_PointSizeMinMax_Index + 1,
+    kSysConst_PointScreenToNDC_Vec = kSysConst_PointSizeMinMax_Vec,
+    kSysConst_PointScreenToNDC_Comp = 2,
+
+    kSysConst_UserClipPlanes_Index = kSysConst_PointScreenToNDC_Index + 1,
     // 6 vectors.
-    kSysConst_UserClipPlanes_Vec = kSysConst_VertexBaseIndex_Vec + 1,
+    kSysConst_UserClipPlanes_Vec = kSysConst_PointScreenToNDC_Vec + 1,
 
     kSysConst_NDCScale_Index = kSysConst_UserClipPlanes_Index + 1,
     kSysConst_NDCScale_Vec = kSysConst_UserClipPlanes_Vec + 6,
     kSysConst_NDCScale_Comp = 0,
-    kSysConst_PSParamGen_Index = kSysConst_NDCScale_Index + 1,
-    kSysConst_PSParamGen_Vec = kSysConst_NDCScale_Vec,
+    kSysConst_InterpolatorSamplingPattern_Index = kSysConst_NDCScale_Index + 1,
+    kSysConst_InterpolatorSamplingPattern_Vec = kSysConst_NDCScale_Vec,
+    kSysConst_InterpolatorSamplingPattern_Comp = 3,
+
+    kSysConst_NDCOffset_Index = kSysConst_InterpolatorSamplingPattern_Index + 1,
+    kSysConst_NDCOffset_Vec = kSysConst_InterpolatorSamplingPattern_Vec + 1,
+    kSysConst_NDCOffset_Comp = 0,
+    kSysConst_PSParamGen_Index = kSysConst_NDCOffset_Index + 1,
+    kSysConst_PSParamGen_Vec = kSysConst_NDCOffset_Vec,
     kSysConst_PSParamGen_Comp = 3,
 
-    kSysConst_NDCOffset_Index = kSysConst_PSParamGen_Index + 1,
-    kSysConst_NDCOffset_Vec = kSysConst_PSParamGen_Vec + 1,
-    kSysConst_NDCOffset_Comp = 0,
-    kSysConst_AlphaTestReference_Index = kSysConst_NDCOffset_Index + 1,
-    kSysConst_AlphaTestReference_Vec = kSysConst_NDCOffset_Vec,
-    kSysConst_AlphaTestReference_Comp = 3,
-
-    kSysConst_PointSize_Index = kSysConst_AlphaTestReference_Index + 1,
-    kSysConst_PointSize_Vec = kSysConst_AlphaTestReference_Vec + 1,
-    kSysConst_PointSize_Comp = 0,
-    kSysConst_PointSizeMinMax_Index = kSysConst_PointSize_Index + 1,
-    kSysConst_PointSizeMinMax_Vec = kSysConst_PointSize_Vec,
-    kSysConst_PointSizeMinMax_Comp = 2,
-
-    kSysConst_PointScreenToNDC_Index = kSysConst_PointSizeMinMax_Index + 1,
-    kSysConst_PointScreenToNDC_Vec = kSysConst_PointSizeMinMax_Vec + 1,
-    kSysConst_PointScreenToNDC_Comp = 0,
-    kSysConst_SampleCountLog2_Index = kSysConst_PointScreenToNDC_Index + 1,
-    kSysConst_SampleCountLog2_Vec = kSysConst_PointScreenToNDC_Vec,
-    kSysConst_SampleCountLog2_Comp = 2,
-
-    kSysConst_TextureSwizzledSigns_Index = kSysConst_SampleCountLog2_Index + 1,
+    kSysConst_TextureSwizzledSigns_Index = kSysConst_PSParamGen_Index + 1,
     // 2 vectors.
-    kSysConst_TextureSwizzledSigns_Vec = kSysConst_SampleCountLog2_Vec + 1,
+    kSysConst_TextureSwizzledSigns_Vec = kSysConst_PSParamGen_Vec + 1,
 
-    kSysConst_AlphaToMask_Index = kSysConst_TextureSwizzledSigns_Index + 1,
-    kSysConst_AlphaToMask_Vec = kSysConst_TextureSwizzledSigns_Vec + 2,
-    kSysConst_AlphaToMask_Comp = 0,
-    kSysConst_EDRAMResolutionSquareScale_Index =
-        kSysConst_AlphaToMask_Index + 1,
-    kSysConst_EDRAMResolutionSquareScale_Vec = kSysConst_AlphaToMask_Vec,
-    kSysConst_EDRAMResolutionSquareScale_Comp = 1,
-    kSysConst_EDRAMPitchTiles_Index =
-        kSysConst_EDRAMResolutionSquareScale_Index + 1,
-    kSysConst_EDRAMPitchTiles_Vec = kSysConst_AlphaToMask_Vec,
-    kSysConst_EDRAMPitchTiles_Comp = 2,
-    kSysConst_EDRAMDepthBaseDwords_Index = kSysConst_EDRAMPitchTiles_Index + 1,
-    kSysConst_EDRAMDepthBaseDwords_Vec = kSysConst_AlphaToMask_Vec,
-    kSysConst_EDRAMDepthBaseDwords_Comp = 3,
+    kSysConst_SampleCountLog2_Index = kSysConst_TextureSwizzledSigns_Index + 1,
+    kSysConst_SampleCountLog2_Vec = kSysConst_TextureSwizzledSigns_Vec + 2,
+    kSysConst_SampleCountLog2_Comp = 0,
+    kSysConst_AlphaTestReference_Index = kSysConst_SampleCountLog2_Index + 1,
+    kSysConst_AlphaTestReference_Vec = kSysConst_SampleCountLog2_Vec,
+    kSysConst_AlphaTestReference_Comp = 2,
+    kSysConst_AlphaToMask_Index = kSysConst_AlphaTestReference_Index + 1,
+    kSysConst_AlphaToMask_Vec = kSysConst_SampleCountLog2_Vec,
+    kSysConst_AlphaToMask_Comp = 3,
 
-    kSysConst_ColorExpBias_Index = kSysConst_EDRAMDepthBaseDwords_Index + 1,
-    kSysConst_ColorExpBias_Vec = kSysConst_EDRAMDepthBaseDwords_Vec + 1,
+    kSysConst_ColorExpBias_Index = kSysConst_AlphaToMask_Index + 1,
+    kSysConst_ColorExpBias_Vec = kSysConst_AlphaToMask_Vec + 1,
 
     kSysConst_ColorOutputMap_Index = kSysConst_ColorExpBias_Index + 1,
     kSysConst_ColorOutputMap_Vec = kSysConst_ColorExpBias_Vec + 1,
 
-    kSysConst_TessellationFactorRange_Index =
+    kSysConst_EDRAMResolutionSquareScale_Index =
         kSysConst_ColorOutputMap_Index + 1,
-    kSysConst_TessellationFactorRange_Vec = kSysConst_ColorOutputMap_Vec + 1,
-    kSysConst_TessellationFactorRange_Comp = 0,
-    kSysConst_EDRAMDepthRange_Index =
-        kSysConst_TessellationFactorRange_Index + 1,
-    kSysConst_EDRAMDepthRange_Vec = kSysConst_TessellationFactorRange_Vec,
+    kSysConst_EDRAMResolutionSquareScale_Vec = kSysConst_ColorOutputMap_Vec + 1,
+    kSysConst_EDRAMResolutionSquareScale_Comp = 0,
+    kSysConst_EDRAMPitchTiles_Index =
+        kSysConst_EDRAMResolutionSquareScale_Index + 1,
+    kSysConst_EDRAMPitchTiles_Vec = kSysConst_EDRAMResolutionSquareScale_Vec,
+    kSysConst_EDRAMPitchTiles_Comp = 1,
+    kSysConst_EDRAMDepthRange_Index = kSysConst_EDRAMPitchTiles_Index + 1,
+    kSysConst_EDRAMDepthRange_Vec = kSysConst_EDRAMResolutionSquareScale_Vec,
     kSysConst_EDRAMDepthRangeScale_Comp = 2,
     kSysConst_EDRAMDepthRangeOffset_Comp = 3,
 
@@ -1990,9 +2004,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_EDRAMPolyOffsetBackScale_Comp = 2,
     kSysConst_EDRAMPolyOffsetBackOffset_Comp = 3,
 
-    kSysConst_EDRAMStencil_Index = kSysConst_EDRAMPolyOffsetBack_Index + 1,
+    kSysConst_EDRAMDepthBaseDwords_Index =
+        kSysConst_EDRAMPolyOffsetBack_Index + 1,
+    kSysConst_EDRAMDepthBaseDwords_Vec = kSysConst_EDRAMPolyOffsetBack_Vec + 1,
+    kSysConst_EDRAMDepthBaseDwords_Comp = 0,
+
+    kSysConst_EDRAMStencil_Index = kSysConst_EDRAMDepthBaseDwords_Index + 1,
     // 2 vectors.
-    kSysConst_EDRAMStencil_Vec = kSysConst_EDRAMPolyOffsetFront_Vec + 1,
+    kSysConst_EDRAMStencil_Vec = kSysConst_EDRAMDepthBaseDwords_Vec + 1,
     kSysConst_EDRAMStencil_Front_Vec = kSysConst_EDRAMStencil_Vec,
     kSysConst_EDRAMStencil_Back_Vec,
     kSysConst_EDRAMStencil_Reference_Comp = 0,

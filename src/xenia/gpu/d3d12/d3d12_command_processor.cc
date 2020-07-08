@@ -3291,8 +3291,21 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     }
   }
 
-  // Resolution scale, depth/stencil testing and blend constant for ROV.
+  // Interpolator sampling pattern, resolution scale, depth/stencil testing and
+  // blend constant for ROV.
   if (edram_rov_used_) {
+    // Not needed without ROV because without ROV, MSAA is faked with SSAA, and
+    // everything is interpolated at samples, without the possibility of
+    // extrapolation.
+    uint32_t interpolator_sampling_pattern =
+        xenos::GetInterpolatorSamplingPattern(
+            rb_surface_info.msaa_samples, sq_context_misc.sc_sample_cntl,
+            regs.Get<reg::SQ_INTERPOLATOR_CNTL>().sampling_pattern);
+    dirty |= system_constants_.interpolator_sampling_pattern !=
+             interpolator_sampling_pattern;
+    system_constants_.interpolator_sampling_pattern =
+        interpolator_sampling_pattern;
+
     uint32_t resolution_square_scale =
         texture_cache_->IsResolutionScale2X() ? 4 : 1;
     dirty |= system_constants_.edram_resolution_square_scale !=
