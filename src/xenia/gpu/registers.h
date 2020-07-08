@@ -143,6 +143,17 @@ union SQ_CONTEXT_MISC {
   static constexpr Register register_index = XE_GPU_REG_SQ_CONTEXT_MISC;
 };
 
+union SQ_INTERPOLATOR_CNTL {
+  struct {
+    uint32_t param_shade : 16;  // +0
+    // SampleLocation bits - 0 for centroid, 1 for center, if
+    // SQ_CONTEXT_MISC::sc_sample_cntl is kCentroidsAndCenters.
+    uint32_t sampling_pattern : 16;  // +16
+  };
+  uint32_t value;
+  static constexpr Register register_index = XE_GPU_REG_SQ_INTERPOLATOR_CNTL;
+};
+
 /*******************************************************************************
  __   _____ ___ _____ _____  __
  \ \ / / __| _ \_   _| __\ \/ /
