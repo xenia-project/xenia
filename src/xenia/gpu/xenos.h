@@ -558,6 +558,12 @@ enum class SampleControl : uint32_t {
 // - sample_control is SQ_CONTEXT_MISC::sc_sample_cntl.
 // - interpolator_control_sampling_pattern is
 //   SQ_INTERPOLATOR_CNTL::sampling_pattern.
+// Centroid interpolation can be tested in Red Dead Redemption. If the GPU host
+// backend implements guest MSAA properly, using host MSAA, with everything
+// interpolated at centers, the Diez Coronas start screen background may have
+// a few distinctly bright pixels on the mesas/buttes, where extrapolation
+// happens. Interpolating certain values (ones that aren't used for gradient
+// calculation, not texture coordinates) at centroids fixes this issue.
 inline uint32_t GetInterpolatorSamplingPattern(
     MsaaSamples msaa_samples, SampleControl sample_control,
     uint32_t interpolator_control_sampling_pattern) {
