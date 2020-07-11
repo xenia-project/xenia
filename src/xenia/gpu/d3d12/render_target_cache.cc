@@ -1487,7 +1487,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
       // of the buffer.
       root_constants.tile_sample_dest_base -= dest_address & ~0xFFFu;
     }
-    assert_true(dest_pitch <= 8192);
+    assert_true(dest_pitch <= xenos::kTexture2DCubeMaxWidthHeight);
     root_constants.tile_sample_dest_info =
         ((dest_pitch + 31) >> 5) |
         (rb_copy_dest_info.copy_dest_array ? (((dest_height + 31) >> 5) << 9)

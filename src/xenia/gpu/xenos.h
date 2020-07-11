@@ -549,6 +549,8 @@ enum class VertexShaderExportMode : uint32_t {
   kMultipass = 7,
 };
 
+constexpr uint32_t kMaxInterpolators = 16;
+
 enum class SampleControl : uint32_t {
   kCentroidsOnly = 0,
   kCentersOnly = 1,
@@ -570,10 +572,10 @@ inline uint32_t GetInterpolatorSamplingPattern(
     uint32_t interpolator_control_sampling_pattern) {
   if (msaa_samples == MsaaSamples::k1X ||
       sample_control == SampleControl::kCentersOnly) {
-    return ((1 << 16) - 1) * uint32_t(SampleLocation::kCenter);
+    return ((1 << kMaxInterpolators) - 1) * uint32_t(SampleLocation::kCenter);
   }
   if (sample_control == SampleControl::kCentroidsOnly) {
-    return ((1 << 16) - 1) * uint32_t(SampleLocation::kCentroid);
+    return ((1 << kMaxInterpolators) - 1) * uint32_t(SampleLocation::kCentroid);
   }
   assert_true(sample_control == SampleControl::kCentroidsAndCenters);
   return interpolator_control_sampling_pattern;
@@ -722,6 +724,21 @@ XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
   });
 });
 
+// Texture fetch constant size field widths.
+constexpr uint32_t kTexture1DMaxWidthLog2 = 24;
+constexpr uint32_t kTexture1DMaxWidth = uint32_t(1) << kTexture1DMaxWidthLog2;
+constexpr uint32_t kTexture2DCubeMaxWidthHeightLog2 = 13;
+constexpr uint32_t kTexture2DCubeMaxWidthHeight =
+    uint32_t(1) << kTexture2DCubeMaxWidthHeightLog2;
+constexpr uint32_t kTexture2DMaxStackDepthLog2 = 6;
+constexpr uint32_t kTexture2DMaxStackDepth = uint32_t(1)
+                                             << kTexture2DMaxStackDepthLog2;
+constexpr uint32_t kTexture3DMaxWidthHeightLog2 = 11;
+constexpr uint32_t kTexture3DMaxWidthHeight = uint32_t(1)
+                                              << kTexture3DMaxWidthHeightLog2;
+constexpr uint32_t kTexture3DMaxDepthLog2 = 10;
+constexpr uint32_t kTexture3DMaxDepth = uint32_t(1) << kTexture3DMaxDepthLog2;
+
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
 XEPACKEDUNION(xe_gpu_texture_fetch_t, {
   XEPACKEDSTRUCTANONYMOUS({
@@ -752,6 +769,7 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     uint32_t nearest_clamp_policy : 1;  // +11 d3d/opengl
     uint32_t base_address : 20;         // +12 base address >> 12
 
+    // Size is stored with 1 subtracted from each component.
     union {  // dword_2
       struct {
         uint32_t width : 24;

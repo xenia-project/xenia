@@ -1123,12 +1123,12 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(RingBuffer* reader,
   // drawcall.
   // https://www.google.com/patents/US20060055701
   uint16_t extents[] = {
-      0 >> 3,     // min x
-      8192 >> 3,  // max x
-      0 >> 3,     // min y
-      8192 >> 3,  // max y
-      0,          // min z
-      1,          // max z
+      0 >> 3,                                    // min x
+      xenos::kTexture2DCubeMaxWidthHeight >> 3,  // max x
+      0 >> 3,                                    // min y
+      xenos::kTexture2DCubeMaxWidthHeight >> 3,  // max y
+      0,                                         // min z
+      1,                                         // max z
   };
   assert_true(endianness == xenos::Endian::k8in16);
   xe::copy_and_swap_16_unaligned(memory_->TranslatePhysical(address), extents,

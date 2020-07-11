@@ -219,10 +219,10 @@ class D3D12CommandProcessor;
 //   other, and because the height is unknown (and the viewport and scissor are
 //   not always present - D3DPT_RECTLIST is used very commonly, especially for
 //   clearing (Direct3D 9 Clear is implemented this way on the Xbox 360) and
-//   copying, and it's usually drawn without a viewport and with 8192x8192
-//   scissor), there may be cases of simultaneously bound render targets
-//   overlapping each other in the EDRAM in a way that is difficult to resolve,
-//   and stores/loads may destroy data.
+//   copying, and it's usually drawn without a viewport and with the scissor of
+//   the maximum possible size), there may be cases of simultaneously bound
+//   render targets overlapping each other in the EDRAM in a way that is
+//   difficult to resolve, and stores/loads may destroy data.
 //
 // =============================================================================
 // 2x width and height scaling implementation:

@@ -2189,7 +2189,9 @@ void TextureCache::BindingInfoFromFetchConstant(
     // No texture data at all.
     return;
   }
-  if (fetch.dimension == xenos::DataDimension::k1D && width > 8192) {
+  // TODO(Triang3l): Support long 1D textures.
+  if (fetch.dimension == xenos::DataDimension::k1D &&
+      width > xenos::kTexture2DCubeMaxWidthHeight) {
     XELOGE(
         "1D texture is too wide ({}) - ignoring! "
         "Report the game to Xenia developers",

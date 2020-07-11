@@ -2049,8 +2049,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   static_assert(kSysConst_Count <= 64,
                 "Too many system constants, can't use uint64_t for usage bits");
 
-  static constexpr uint32_t kInterpolatorCount = 16;
-  static constexpr uint32_t kPointParametersTexCoord = kInterpolatorCount;
+  static constexpr uint32_t kPointParametersTexCoord = xenos::kMaxInterpolators;
   static constexpr uint32_t kClipSpaceZWTexCoord = kPointParametersTexCoord + 1;
 
   enum class InOutRegister : uint32_t {
@@ -2061,7 +2060,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kDSInControlPointIndex = 0,
 
     kVSDSOutInterpolators = 0,
-    kVSDSOutPointParameters = kVSDSOutInterpolators + kInterpolatorCount,
+    kVSDSOutPointParameters = kVSDSOutInterpolators + xenos::kMaxInterpolators,
     kVSDSOutClipSpaceZW,
     kVSDSOutPosition,
     // Clip and cull distances must be tightly packed in Direct3D!
@@ -2073,7 +2072,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // kill.
 
     kPSInInterpolators = 0,
-    kPSInPointParameters = kPSInInterpolators + kInterpolatorCount,
+    kPSInPointParameters = kPSInInterpolators + xenos::kMaxInterpolators,
     kPSInClipSpaceZW,
     kPSInPosition,
     kPSInFrontFace,
