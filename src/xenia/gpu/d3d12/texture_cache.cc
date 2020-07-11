@@ -1362,7 +1362,7 @@ void TextureCache::EndFrame() {
       XELOGE("Unsupported texture formats used in the frame:");
       unsupported_header_written = true;
     }
-    XELOGE("* {}{}{}{}", FormatInfo::Get(TextureFormat(i))->name,
+    XELOGE("* {}{}{}{}", FormatInfo::Get(xenos::TextureFormat(i))->name,
            unsupported_features & kUnsupportedResourceBit ? " resource" : "",
            unsupported_features & kUnsupportedUnormBit ? " unorm" : "",
            unsupported_features & kUnsupportedSnormBit ? " snorm" : "");
@@ -1595,15 +1595,16 @@ void TextureCache::WriteActiveTextureBindfulSRV(
   } else {
     NullSRVDescriptorIndex null_descriptor_index;
     switch (host_shader_binding.dimension) {
-      case TextureDimension::k3D:
+      case xenos::FetchOpDimension::k3DOrStacked:
         null_descriptor_index = NullSRVDescriptorIndex::k3D;
         break;
-      case TextureDimension::kCube:
+      case xenos::FetchOpDimension::kCube:
         null_descriptor_index = NullSRVDescriptorIndex::kCube;
         break;
       default:
-        assert_true(host_shader_binding.dimension == TextureDimension::k1D ||
-                    host_shader_binding.dimension == TextureDimension::k2D);
+        assert_true(
+            host_shader_binding.dimension == xenos::FetchOpDimension::k1D ||
+            host_shader_binding.dimension == xenos::FetchOpDimension::k2D);
         null_descriptor_index = NullSRVDescriptorIndex::k2DArray;
     }
     source_handle = provider->OffsetViewDescriptor(
@@ -1637,17 +1638,18 @@ uint32_t TextureCache::GetActiveTextureBindlessSRVIndex(
   }
   if (descriptor_index == UINT32_MAX) {
     switch (host_shader_binding.dimension) {
-      case TextureDimension::k3D:
+      case xenos::FetchOpDimension::k3DOrStacked:
         descriptor_index =
             uint32_t(D3D12CommandProcessor::SystemBindlessView::kNullTexture3D);
         break;
-      case TextureDimension::kCube:
+      case xenos::FetchOpDimension::kCube:
         descriptor_index = uint32_t(
             D3D12CommandProcessor::SystemBindlessView::kNullTextureCube);
         break;
       default:
-        assert_true(host_shader_binding.dimension == TextureDimension::k1D ||
-                    host_shader_binding.dimension == TextureDimension::k2D);
+        assert_true(
+            host_shader_binding.dimension == xenos::FetchOpDimension::k1D ||
+            host_shader_binding.dimension == xenos::FetchOpDimension::k2D);
         descriptor_index = uint32_t(
             D3D12CommandProcessor::SystemBindlessView::kNullTexture2DArray);
     }
@@ -1674,31 +1676,32 @@ TextureCache::SamplerParameters TextureCache::GetSamplerParameters(
       nullptr, binding.mip_filter);
   parameters.mip_min_level = mip_min_level;
 
-  AnisoFilter aniso_filter = binding.aniso_filter == AnisoFilter::kUseFetchConst
-                                 ? fetch.aniso_filter
-                                 : binding.aniso_filter;
-  aniso_filter = std::min(aniso_filter, AnisoFilter::kMax_16_1);
+  xenos::AnisoFilter aniso_filter =
+      binding.aniso_filter == xenos::AnisoFilter::kUseFetchConst
+          ? fetch.aniso_filter
+          : binding.aniso_filter;
+  aniso_filter = std::min(aniso_filter, xenos::AnisoFilter::kMax_16_1);
   parameters.aniso_filter = aniso_filter;
-  if (aniso_filter != AnisoFilter::kDisabled) {
+  if (aniso_filter != xenos::AnisoFilter::kDisabled) {
     parameters.mag_linear = 1;
     parameters.min_linear = 1;
     parameters.mip_linear = 1;
   } else {
-    TextureFilter mag_filter =
-        binding.mag_filter == TextureFilter::kUseFetchConst
+    xenos::TextureFilter mag_filter =
+        binding.mag_filter == xenos::TextureFilter::kUseFetchConst
             ? fetch.mag_filter
             : binding.mag_filter;
-    parameters.mag_linear = mag_filter == TextureFilter::kLinear;
-    TextureFilter min_filter =
-        binding.min_filter == TextureFilter::kUseFetchConst
+    parameters.mag_linear = mag_filter == xenos::TextureFilter::kLinear;
+    xenos::TextureFilter min_filter =
+        binding.min_filter == xenos::TextureFilter::kUseFetchConst
             ? fetch.min_filter
             : binding.min_filter;
-    parameters.min_linear = min_filter == TextureFilter::kLinear;
-    TextureFilter mip_filter =
-        binding.mip_filter == TextureFilter::kUseFetchConst
+    parameters.min_linear = min_filter == xenos::TextureFilter::kLinear;
+    xenos::TextureFilter mip_filter =
+        binding.mip_filter == xenos::TextureFilter::kUseFetchConst
             ? fetch.mip_filter
             : binding.mip_filter;
-    parameters.mip_linear = mip_filter == TextureFilter::kLinear;
+    parameters.mip_linear = mip_filter == xenos::TextureFilter::kLinear;
   }
 
   return parameters;
@@ -1707,7 +1710,7 @@ TextureCache::SamplerParameters TextureCache::GetSamplerParameters(
 void TextureCache::WriteSampler(SamplerParameters parameters,
                                 D3D12_CPU_DESCRIPTOR_HANDLE handle) const {
   D3D12_SAMPLER_DESC desc;
-  if (parameters.aniso_filter != AnisoFilter::kDisabled) {
+  if (parameters.aniso_filter != xenos::AnisoFilter::kDisabled) {
     desc.Filter = D3D12_FILTER_ANISOTROPIC;
     desc.MaxAnisotropy = 1u << (uint32_t(parameters.aniso_filter) - 1);
   } else {
@@ -1747,7 +1750,7 @@ void TextureCache::WriteSampler(SamplerParameters parameters,
   desc.MipLODBias = 0.0f;
   desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
   // TODO(Triang3l): Border colors k_ACBYCR_BLACK and k_ACBCRY_BLACK.
-  if (parameters.border_color == BorderColor::k_AGBR_White) {
+  if (parameters.border_color == xenos::BorderColor::k_AGBR_White) {
     desc.BorderColor[0] = 1.0f;
     desc.BorderColor[1] = 1.0f;
     desc.BorderColor[2] = 1.0f;
@@ -1799,10 +1802,10 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled,
 }
 
 bool TextureCache::TileResolvedTexture(
-    TextureFormat format, uint32_t texture_base, uint32_t texture_pitch,
+    xenos::TextureFormat format, uint32_t texture_base, uint32_t texture_pitch,
     uint32_t texture_height, bool is_3d, uint32_t offset_x, uint32_t offset_y,
     uint32_t offset_z, uint32_t resolve_width, uint32_t resolve_height,
-    Endian128 endian, ID3D12Resource* buffer, uint32_t buffer_size,
+    xenos::Endian128 endian, ID3D12Resource* buffer, uint32_t buffer_size,
     const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint,
     uint32_t* written_address_out, uint32_t* written_length_out) {
   if (written_address_out) {
@@ -2085,14 +2088,16 @@ void TextureCache::CreateScaledResolveBufferRawUAV(
 }
 
 ID3D12Resource* TextureCache::RequestSwapTexture(
-    D3D12_SHADER_RESOURCE_VIEW_DESC& srv_desc_out, TextureFormat& format_out) {
+    D3D12_SHADER_RESOURCE_VIEW_DESC& srv_desc_out,
+    xenos::TextureFormat& format_out) {
   auto& regs = *register_file_;
   const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
       XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0);
   TextureKey key;
   uint32_t swizzle;
   BindingInfoFromFetchConstant(fetch, key, &swizzle, nullptr);
-  if (key.base_page == 0 || key.dimension != Dimension::k2D) {
+  if (key.base_page == 0 ||
+      key.dimension != xenos::DataDimension::k2DOrStacked) {
     return nullptr;
   }
   Texture* texture = FindOrCreateTexture(key);
@@ -2120,8 +2125,8 @@ ID3D12Resource* TextureCache::RequestSwapTexture(
   return texture->resource;
 }
 
-bool TextureCache::IsDecompressionNeeded(TextureFormat format, uint32_t width,
-                                         uint32_t height) {
+bool TextureCache::IsDecompressionNeeded(xenos::TextureFormat format,
+                                         uint32_t width, uint32_t height) {
   DXGI_FORMAT dxgi_format_uncompressed =
       host_formats_[uint32_t(format)].dxgi_format_uncompressed;
   if (dxgi_format_uncompressed == DXGI_FORMAT_UNKNOWN) {
@@ -2154,7 +2159,8 @@ void TextureCache::BindingInfoFromFetchConstant(
         (xenos::XE_GPU_SWIZZLE_0 << 6) | (xenos::XE_GPU_SWIZZLE_0 << 9);
   }
   if (swizzled_signs_out != nullptr) {
-    *swizzled_signs_out = uint8_t(TextureSign::kUnsigned) * uint8_t(0b01010101);
+    *swizzled_signs_out =
+        uint8_t(xenos::TextureSign::kUnsigned) * uint8_t(0b01010101);
   }
 
   switch (fetch.type) {
@@ -2190,7 +2196,7 @@ void TextureCache::BindingInfoFromFetchConstant(
     // No texture data at all.
     return;
   }
-  if (fetch.dimension == Dimension::k1D && width > 8192) {
+  if (fetch.dimension == xenos::DataDimension::k1D && width > 8192) {
     XELOGE(
         "1D texture is too wide ({}) - ignoring! "
         "Report the game to Xenia developers",
@@ -2198,7 +2204,7 @@ void TextureCache::BindingInfoFromFetchConstant(
     return;
   }
 
-  TextureFormat format = GetBaseFormat(fetch.format);
+  xenos::TextureFormat format = GetBaseFormat(fetch.format);
 
   key_out.base_page = base_page;
   key_out.mip_page = mip_page;
@@ -2305,7 +2311,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
         kUnsupportedResourceBit;
     return nullptr;
   }
-  if (key.dimension == Dimension::k3D) {
+  if (key.dimension == xenos::DataDimension::k3D) {
     desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
   } else {
     // 1D textures are treated as 2D for simplicity.
@@ -2357,7 +2363,8 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   texture_used_last_ = texture;
   texture->mip_offsets[0] = 0;
   uint32_t width_blocks, height_blocks, depth_blocks;
-  uint32_t array_size = key.dimension != Dimension::k3D ? key.depth : 1;
+  uint32_t array_size =
+      key.dimension != xenos::DataDimension::k3D ? key.depth : 1;
   if (key.base_page != 0) {
     texture_util::GetGuestMipBlocks(key.dimension, key.width, key.height,
                                     key.depth, key.format, 0, width_blocks,
@@ -2491,13 +2498,13 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   }
 
   // Get the guest layout.
-  Dimension dimension = texture->key.dimension;
-  bool is_3d = dimension == Dimension::k3D;
+  xenos::DataDimension dimension = texture->key.dimension;
+  bool is_3d = dimension == xenos::DataDimension::k3D;
   uint32_t width = texture->key.width;
   uint32_t height = texture->key.height;
   uint32_t depth = is_3d ? texture->key.depth : 1;
   uint32_t slice_count = is_3d ? 1 : texture->key.depth;
-  TextureFormat guest_format = texture->key.format;
+  xenos::TextureFormat guest_format = texture->key.format;
   const FormatInfo* guest_format_info = FormatInfo::Get(guest_format);
   uint32_t block_width = guest_format_info->block_width;
   uint32_t block_height = guest_format_info->block_height;
@@ -2871,7 +2878,7 @@ uint32_t TextureCache::FindOrCreateTextureDescriptor(Texture& texture,
   // Create a new bindless or cached descriptor if supported.
   D3D12_SHADER_RESOURCE_VIEW_DESC desc;
 
-  TextureFormat format = texture.key.format;
+  xenos::TextureFormat format = texture.key.format;
   if (IsSignedVersionSeparate(format) &&
       texture.key.signed_separate != uint32_t(is_signed)) {
     // Not the version with the needed signedness.
@@ -2892,8 +2899,8 @@ uint32_t TextureCache::FindOrCreateTextureDescriptor(Texture& texture,
 
   uint32_t mip_levels = texture.key.mip_max_level + 1;
   switch (texture.key.dimension) {
-    case Dimension::k1D:
-    case Dimension::k2D:
+    case xenos::DataDimension::k1D:
+    case xenos::DataDimension::k2DOrStacked:
       desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
       desc.Texture2DArray.MostDetailedMip = 0;
       desc.Texture2DArray.MipLevels = mip_levels;
@@ -2902,13 +2909,13 @@ uint32_t TextureCache::FindOrCreateTextureDescriptor(Texture& texture,
       desc.Texture2DArray.PlaneSlice = 0;
       desc.Texture2DArray.ResourceMinLODClamp = 0.0f;
       break;
-    case Dimension::k3D:
+    case xenos::DataDimension::k3D:
       desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
       desc.Texture3D.MostDetailedMip = 0;
       desc.Texture3D.MipLevels = mip_levels;
       desc.Texture3D.ResourceMinLODClamp = 0.0f;
       break;
-    case Dimension::kCube:
+    case xenos::DataDimension::kCube:
       desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
       desc.TextureCube.MostDetailedMip = 0;
       desc.TextureCube.MipLevels = mip_levels;

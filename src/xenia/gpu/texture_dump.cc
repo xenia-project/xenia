@@ -57,22 +57,22 @@ void TextureDump(const TextureInfo& src, void* buffer, size_t length) {
 
   dds_header.pixel_format.size = sizeof(dds_header.pixel_format);
   switch (src.format) {
-    case TextureFormat::k_DXT1: {
+    case xenos::TextureFormat::k_DXT1: {
       dds_header.pixel_format.flags = 0x4u;
       dds_header.pixel_format.fourcc = '1TXD';
       break;
     }
-    case TextureFormat::k_DXT2_3: {
+    case xenos::TextureFormat::k_DXT2_3: {
       dds_header.pixel_format.flags = 0x4u;
       dds_header.pixel_format.fourcc = '3TXD';
       break;
     }
-    case TextureFormat::k_DXT4_5: {
+    case xenos::TextureFormat::k_DXT4_5: {
       dds_header.pixel_format.flags = 0x4u;
       dds_header.pixel_format.fourcc = '5TXD';
       break;
     }
-    case TextureFormat::k_8_8_8_8: {
+    case xenos::TextureFormat::k_8_8_8_8: {
       dds_header.pixel_format.flags = 0x1u | 0x40u;
       dds_header.pixel_format.rgb_bit_count = 32;
       dds_header.pixel_format.r_bit_mask = 0x00FF0000u;

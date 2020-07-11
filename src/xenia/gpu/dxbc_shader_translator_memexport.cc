@@ -190,8 +190,9 @@ void DxbcShaderTranslator::ExportToMemory() {
     {
       // k_8_8_8_8
       // k_8_8_8_8_AS_16_16_16_16
-      DxbcOpCase(DxbcSrc::LU(uint32_t(ColorFormat::k_8_8_8_8)));
-      DxbcOpCase(DxbcSrc::LU(uint32_t(ColorFormat::k_8_8_8_8_AS_16_16_16_16)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::ColorFormat::k_8_8_8_8)));
+      DxbcOpCase(
+          DxbcSrc::LU(uint32_t(xenos::ColorFormat::k_8_8_8_8_AS_16_16_16_16)));
       {
         uint32_t bits[4] = {8, 8, 8, 8};
         ExportToMemory_PackFixed32(eM_temps, eM_count, bits, is_integer,
@@ -201,9 +202,9 @@ void DxbcShaderTranslator::ExportToMemory() {
 
       // k_2_10_10_10
       // k_2_10_10_10_AS_16_16_16_16
-      DxbcOpCase(DxbcSrc::LU(uint32_t(ColorFormat::k_2_10_10_10)));
-      DxbcOpCase(
-          DxbcSrc::LU(uint32_t(ColorFormat::k_2_10_10_10_AS_16_16_16_16)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::ColorFormat::k_2_10_10_10)));
+      DxbcOpCase(DxbcSrc::LU(
+          uint32_t(xenos::ColorFormat::k_2_10_10_10_AS_16_16_16_16)));
       {
         uint32_t bits[4] = {10, 10, 10, 2};
         ExportToMemory_PackFixed32(eM_temps, eM_count, bits, is_integer,
@@ -213,8 +214,9 @@ void DxbcShaderTranslator::ExportToMemory() {
 
       // k_10_11_11
       // k_10_11_11_AS_16_16_16_16
-      DxbcOpCase(DxbcSrc::LU(uint32_t(ColorFormat::k_10_11_11)));
-      DxbcOpCase(DxbcSrc::LU(uint32_t(ColorFormat::k_10_11_11_AS_16_16_16_16)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::ColorFormat::k_10_11_11)));
+      DxbcOpCase(
+          DxbcSrc::LU(uint32_t(xenos::ColorFormat::k_10_11_11_AS_16_16_16_16)));
       {
         uint32_t bits[4] = {11, 11, 10};
         ExportToMemory_PackFixed32(eM_temps, eM_count, bits, is_integer,
@@ -224,8 +226,9 @@ void DxbcShaderTranslator::ExportToMemory() {
 
       // k_11_11_10
       // k_11_11_10_AS_16_16_16_16
-      DxbcOpCase(DxbcSrc::LU(uint32_t(ColorFormat::k_11_11_10)));
-      DxbcOpCase(DxbcSrc::LU(uint32_t(ColorFormat::k_11_11_10_AS_16_16_16_16)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::ColorFormat::k_11_11_10)));
+      DxbcOpCase(
+          DxbcSrc::LU(uint32_t(xenos::ColorFormat::k_11_11_10_AS_16_16_16_16)));
       {
         uint32_t bits[4] = {10, 11, 11};
         ExportToMemory_PackFixed32(eM_temps, eM_count, bits, is_integer,
@@ -234,7 +237,7 @@ void DxbcShaderTranslator::ExportToMemory() {
       DxbcOpBreak();
 
       // k_16_16
-      DxbcOpCase(DxbcSrc::LU(uint32_t(ColorFormat::k_16_16)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::ColorFormat::k_16_16)));
       {
         uint32_t bits[4] = {16, 16};
         ExportToMemory_PackFixed32(eM_temps, eM_count, bits, is_integer,
@@ -243,7 +246,7 @@ void DxbcShaderTranslator::ExportToMemory() {
       DxbcOpBreak();
 
       // k_16_16_16_16
-      DxbcOpCase(DxbcSrc::LU(uint32_t(ColorFormat::k_16_16_16_16)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::ColorFormat::k_16_16_16_16)));
       DxbcOpMov(element_size_dest, DxbcSrc::LU(8));
       DxbcOpIf(true, is_signed);
       {
@@ -291,7 +294,7 @@ void DxbcShaderTranslator::ExportToMemory() {
       DxbcOpBreak();
 
       // k_16_16_FLOAT
-      DxbcOpCase(DxbcSrc::LU(uint32_t(ColorFormat::k_16_16_FLOAT)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::ColorFormat::k_16_16_FLOAT)));
       for (uint32_t j = 0; j < eM_count; ++j) {
         uint32_t eM_temp = eM_temps[j];
         DxbcOpF32ToF16(DxbcDest::R(eM_temp, 0b0011), DxbcSrc::R(eM_temp));
@@ -302,7 +305,8 @@ void DxbcShaderTranslator::ExportToMemory() {
       DxbcOpBreak();
 
       // k_16_16_16_16_FLOAT
-      DxbcOpCase(DxbcSrc::LU(uint32_t(ColorFormat::k_16_16_16_16_FLOAT)));
+      DxbcOpCase(
+          DxbcSrc::LU(uint32_t(xenos::ColorFormat::k_16_16_16_16_FLOAT)));
       DxbcOpMov(element_size_dest, DxbcSrc::LU(8));
       for (uint32_t j = 0; j < eM_count; ++j) {
         uint32_t eM_temp = eM_temps[j];
@@ -318,13 +322,14 @@ void DxbcShaderTranslator::ExportToMemory() {
       // selected.
 
       // k_32_32_FLOAT
-      DxbcOpCase(DxbcSrc::LU(uint32_t(ColorFormat::k_32_32_FLOAT)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::ColorFormat::k_32_32_FLOAT)));
       DxbcOpMov(element_size_dest, DxbcSrc::LU(8));
       // Already in the destination format.
       DxbcOpBreak();
 
       // k_32_32_32_32_FLOAT
-      DxbcOpCase(DxbcSrc::LU(uint32_t(ColorFormat::k_32_32_32_32_FLOAT)));
+      DxbcOpCase(
+          DxbcSrc::LU(uint32_t(xenos::ColorFormat::k_32_32_32_32_FLOAT)));
       DxbcOpMov(element_size_dest, DxbcSrc::LU(16));
       // Already in the destination format.
       DxbcOpBreak();
@@ -342,9 +347,9 @@ void DxbcShaderTranslator::ExportToMemory() {
 
       // Change 8-in-64 and 8-in-128 to 8-in-32.
       for (uint32_t j = 0; j < 2; ++j) {
-        DxbcOpIEq(
-            DxbcDest::R(control_temp, 0b0100), endian_src,
-            DxbcSrc::LU(uint32_t(j ? Endian128::k8in128 : Endian128::k8in64)));
+        DxbcOpIEq(DxbcDest::R(control_temp, 0b0100), endian_src,
+                  DxbcSrc::LU(uint32_t(j ? xenos::Endian128::k8in128
+                                         : xenos::Endian128::k8in64)));
         for (uint32_t k = 0; k < eM_count; ++k) {
           uint32_t eM_temp = eM_temps[k];
           DxbcOpMovC(DxbcDest::R(eM_temp),
@@ -353,7 +358,7 @@ void DxbcShaderTranslator::ExportToMemory() {
                      DxbcSrc::R(eM_temp));
         }
         DxbcOpMovC(endian_dest, DxbcSrc::R(control_temp, DxbcSrc::kZZZZ),
-                   DxbcSrc::LU(uint32_t(Endian128::k8in32)), endian_src);
+                   DxbcSrc::LU(uint32_t(xenos::Endian128::k8in32)), endian_src);
       }
 
       uint32_t swap_temp = PushSystemTemp();
@@ -362,8 +367,8 @@ void DxbcShaderTranslator::ExportToMemory() {
 
       // 8-in-16 or one half of 8-in-32.
       DxbcOpSwitch(endian_src);
-      DxbcOpCase(DxbcSrc::LU(uint32_t(Endian128::k8in16)));
-      DxbcOpCase(DxbcSrc::LU(uint32_t(Endian128::k8in32)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::Endian128::k8in16)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::Endian128::k8in32)));
       for (uint32_t j = 0; j < eM_count; ++j) {
         DxbcDest eM_dest(DxbcDest::R(eM_temps[j]));
         DxbcSrc eM_src(DxbcSrc::R(eM_temps[j]));
@@ -381,8 +386,8 @@ void DxbcShaderTranslator::ExportToMemory() {
 
       // 16-in-32 or another half of 8-in-32.
       DxbcOpSwitch(endian_src);
-      DxbcOpCase(DxbcSrc::LU(uint32_t(Endian128::k8in32)));
-      DxbcOpCase(DxbcSrc::LU(uint32_t(Endian128::k16in32)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::Endian128::k8in32)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::Endian128::k16in32)));
       for (uint32_t j = 0; j < eM_count; ++j) {
         DxbcDest eM_dest(DxbcDest::R(eM_temps[j]));
         DxbcSrc eM_src(DxbcSrc::R(eM_temps[j]));

@@ -175,11 +175,11 @@ union SQ_INTERPOLATOR_CNTL {
 union VGT_DRAW_INITIATOR {
   // Different than on A2xx and R6xx/R7xx.
   struct {
-    PrimitiveType prim_type : 6;            // +0
+    xenos::PrimitiveType prim_type : 6;     // +0
     xenos::SourceSelect source_select : 2;  // +6
     xenos::MajorMode major_mode : 2;        // +8
     uint32_t : 1;                           // +10
-    IndexFormat index_size : 1;             // +11
+    xenos::IndexFormat index_size : 1;      // +11
     uint32_t not_eop : 1;                   // +12
     uint32_t : 3;                           // +13
     uint32_t num_indices : 16;              // +16
@@ -394,10 +394,10 @@ union RB_MODECONTROL {
 
 union RB_SURFACE_INFO {
   struct {
-    uint32_t surface_pitch : 14;   // +0
-    uint32_t : 2;                  // +14
-    MsaaSamples msaa_samples : 2;  // +16
-    uint32_t hiz_pitch : 14;       // +18
+    uint32_t surface_pitch : 14;          // +0
+    uint32_t : 2;                         // +14
+    xenos::MsaaSamples msaa_samples : 2;  // +16
+    uint32_t hiz_pitch : 14;              // +18
   };
   uint32_t value;
   static constexpr Register register_index = XE_GPU_REG_RB_SURFACE_INFO;
@@ -405,9 +405,9 @@ union RB_SURFACE_INFO {
 
 union RB_COLORCONTROL {
   struct {
-    CompareFunction alpha_func : 3;     // +0
-    uint32_t alpha_test_enable : 1;     // +3
-    uint32_t alpha_to_mask_enable : 1;  // +4
+    xenos::CompareFunction alpha_func : 3;  // +0
+    uint32_t alpha_test_enable : 1;         // +3
+    uint32_t alpha_to_mask_enable : 1;      // +4
     // Everything in between was added on Adreno.
     uint32_t : 19;  // +5
     // According to tests on an Adreno 200 device (LG Optimus L7), done by
@@ -454,10 +454,10 @@ union RB_COLORCONTROL {
 
 union RB_COLOR_INFO {
   struct {
-    uint32_t color_base : 12;                  // +0
-    uint32_t : 4;                              // +12
-    ColorRenderTargetFormat color_format : 4;  // +16
-    int32_t color_exp_bias : 6;                // +20
+    uint32_t color_base : 12;                         // +0
+    uint32_t : 4;                                     // +12
+    xenos::ColorRenderTargetFormat color_format : 4;  // +16
+    int32_t color_exp_bias : 6;                       // +20
   };
   uint32_t value;
   static constexpr Register register_index = XE_GPU_REG_RB_COLOR_INFO;
@@ -490,13 +490,13 @@ union RB_COLOR_MASK {
 
 union RB_BLENDCONTROL {
   struct {
-    BlendFactor color_srcblend : 5;   // +0
-    BlendOp color_comb_fcn : 3;       // +5
-    BlendFactor color_destblend : 5;  // +8
-    uint32_t : 3;                     // +13
-    BlendFactor alpha_srcblend : 5;   // +16
-    BlendOp alpha_comb_fcn : 3;       // +21
-    BlendFactor alpha_destblend : 5;  // +24
+    xenos::BlendFactor color_srcblend : 5;   // +0
+    xenos::BlendOp color_comb_fcn : 3;       // +5
+    xenos::BlendFactor color_destblend : 5;  // +8
+    uint32_t : 3;                            // +13
+    xenos::BlendFactor alpha_srcblend : 5;   // +16
+    xenos::BlendOp alpha_comb_fcn : 3;       // +21
+    xenos::BlendFactor alpha_destblend : 5;  // +24
     // BLEND_FORCE_ENABLE and BLEND_FORCE were added on Adreno.
   };
   uint32_t value;
@@ -511,17 +511,17 @@ union RB_DEPTHCONTROL {
     uint32_t z_enable : 1;        // +1
     uint32_t z_write_enable : 1;  // +2
     // EARLY_Z_ENABLE was added on Adreno.
-    uint32_t : 1;                        // +3
-    CompareFunction zfunc : 3;           // +4
-    uint32_t backface_enable : 1;        // +7
-    CompareFunction stencilfunc : 3;     // +8
-    StencilOp stencilfail : 3;           // +11
-    StencilOp stencilzpass : 3;          // +14
-    StencilOp stencilzfail : 3;          // +17
-    CompareFunction stencilfunc_bf : 3;  // +20
-    StencilOp stencilfail_bf : 3;        // +23
-    StencilOp stencilzpass_bf : 3;       // +26
-    StencilOp stencilzfail_bf : 3;       // +29
+    uint32_t : 1;                               // +3
+    xenos::CompareFunction zfunc : 3;           // +4
+    uint32_t backface_enable : 1;               // +7
+    xenos::CompareFunction stencilfunc : 3;     // +8
+    xenos::StencilOp stencilfail : 3;           // +11
+    xenos::StencilOp stencilzpass : 3;          // +14
+    xenos::StencilOp stencilzfail : 3;          // +17
+    xenos::CompareFunction stencilfunc_bf : 3;  // +20
+    xenos::StencilOp stencilfail_bf : 3;        // +23
+    xenos::StencilOp stencilzpass_bf : 3;       // +26
+    xenos::StencilOp stencilzfail_bf : 3;       // +29
   };
   uint32_t value;
   static constexpr Register register_index = XE_GPU_REG_RB_DEPTHCONTROL;
@@ -540,9 +540,9 @@ union RB_STENCILREFMASK {
 
 union RB_DEPTH_INFO {
   struct {
-    uint32_t depth_base : 12;                  // +0
-    uint32_t : 4;                              // +12
-    DepthRenderTargetFormat depth_format : 1;  // +16
+    uint32_t depth_base : 12;                         // +0
+    uint32_t : 4;                                     // +12
+    xenos::DepthRenderTargetFormat depth_format : 1;  // +16
   };
   uint32_t value;
   static constexpr Register register_index = XE_GPU_REG_RB_DEPTH_INFO;
@@ -565,14 +565,14 @@ union RB_COPY_CONTROL {
 
 union RB_COPY_DEST_INFO {
   struct {
-    Endian128 copy_dest_endian : 3;    // +0
-    uint32_t copy_dest_array : 1;      // +3
-    uint32_t copy_dest_slice : 3;      // +4
-    ColorFormat copy_dest_format : 6;  // +7
-    uint32_t copy_dest_number : 3;     // +13
-    int32_t copy_dest_exp_bias : 6;    // +16
-    uint32_t : 2;                      // +22
-    uint32_t copy_dest_swap : 1;       // +24
+    xenos::Endian128 copy_dest_endian : 3;    // +0
+    uint32_t copy_dest_array : 1;             // +3
+    uint32_t copy_dest_slice : 3;             // +4
+    xenos::ColorFormat copy_dest_format : 6;  // +7
+    uint32_t copy_dest_number : 3;            // +13
+    int32_t copy_dest_exp_bias : 6;           // +16
+    uint32_t : 2;                             // +22
+    uint32_t copy_dest_swap : 1;              // +24
   };
   uint32_t value;
   static constexpr Register register_index = XE_GPU_REG_RB_COPY_DEST_INFO;

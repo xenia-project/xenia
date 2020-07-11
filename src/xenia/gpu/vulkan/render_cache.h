@@ -101,18 +101,18 @@ struct RenderConfiguration {
   // ESTIMATED target surface height multiplied by MSAA, in pixels.
   uint32_t surface_height_px;
   // Surface MSAA setting.
-  MsaaSamples surface_msaa;
+  xenos::MsaaSamples surface_msaa;
   // Color attachments for the 4 render targets.
   struct {
     bool used;
     uint32_t edram_base;
-    ColorRenderTargetFormat format;
+    xenos::ColorRenderTargetFormat format;
   } color[4];
   // Depth/stencil attachment.
   struct {
     bool used;
     uint32_t edram_base;
-    DepthRenderTargetFormat format;
+    xenos::DepthRenderTargetFormat format;
   } depth_stencil;
 };
 
@@ -285,7 +285,7 @@ class RenderCache {
   bool dirty() const;
 
   CachedTileView* FindTileView(uint32_t base, uint32_t pitch,
-                               MsaaSamples samples, bool color_or_depth,
+                               xenos::MsaaSamples samples, bool color_or_depth,
                                uint32_t format);
 
   // Begins a render pass targeting the state-specified framebuffer formats.
@@ -311,23 +311,26 @@ class RenderCache {
   // Queues commands to blit EDRAM contents into an image.
   // The command buffer must not be inside of a render pass when calling this.
   void BlitToImage(VkCommandBuffer command_buffer, uint32_t edram_base,
-                   uint32_t pitch, uint32_t height, MsaaSamples num_samples,
-                   VkImage image, VkImageLayout image_layout,
-                   bool color_or_depth, uint32_t format, VkFilter filter,
-                   VkOffset3D offset, VkExtent3D extents);
+                   uint32_t pitch, uint32_t height,
+                   xenos::MsaaSamples num_samples, VkImage image,
+                   VkImageLayout image_layout, bool color_or_depth,
+                   uint32_t format, VkFilter filter, VkOffset3D offset,
+                   VkExtent3D extents);
 
   // Queues commands to clear EDRAM contents with a solid color.
   // The command buffer must not be inside of a render pass when calling this.
   void ClearEDRAMColor(VkCommandBuffer command_buffer, uint32_t edram_base,
-                       ColorRenderTargetFormat format, uint32_t pitch,
-                       uint32_t height, MsaaSamples num_samples, float* color);
+                       xenos::ColorRenderTargetFormat format, uint32_t pitch,
+                       uint32_t height, xenos::MsaaSamples num_samples,
+                       float* color);
   // Queues commands to clear EDRAM contents with depth/stencil values.
   // The command buffer must not be inside of a render pass when calling this.
   void ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
                               uint32_t edram_base,
-                              DepthRenderTargetFormat format, uint32_t pitch,
-                              uint32_t height, MsaaSamples num_samples,
-                              float depth, uint32_t stencil);
+                              xenos::DepthRenderTargetFormat format,
+                              uint32_t pitch, uint32_t height,
+                              xenos::MsaaSamples num_samples, float depth,
+                              uint32_t stencil);
   // Queues commands to fill EDRAM contents with a constant value.
   // The command buffer must not be inside of a render pass when calling this.
   void FillEDRAM(VkCommandBuffer command_buffer, uint32_t value);

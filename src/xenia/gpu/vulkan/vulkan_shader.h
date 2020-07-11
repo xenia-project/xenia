@@ -21,7 +21,7 @@ namespace vulkan {
 
 class VulkanShader : public Shader {
  public:
-  VulkanShader(ui::vulkan::VulkanDevice* device, ShaderType shader_type,
+  VulkanShader(ui::vulkan::VulkanDevice* device, xenos::ShaderType shader_type,
                uint64_t data_hash, const uint32_t* dword_ptr,
                uint32_t dword_count);
   ~VulkanShader() override;

@@ -25,16 +25,16 @@ class D3D12TraceViewer : public TraceViewer {
     return std::unique_ptr<gpu::GraphicsSystem>(new D3D12GraphicsSystem());
   }
 
-  uintptr_t GetColorRenderTarget(uint32_t pitch, MsaaSamples samples,
-                                 uint32_t base,
-                                 ColorRenderTargetFormat format) override {
+  uintptr_t GetColorRenderTarget(
+      uint32_t pitch, xenos::MsaaSamples samples, uint32_t base,
+      xenos::ColorRenderTargetFormat format) override {
     // TODO(Triang3l): EDRAM viewer.
     return 0;
   }
 
-  uintptr_t GetDepthRenderTarget(uint32_t pitch, MsaaSamples samples,
-                                 uint32_t base,
-                                 DepthRenderTargetFormat format) override {
+  uintptr_t GetDepthRenderTarget(
+      uint32_t pitch, xenos::MsaaSamples samples, uint32_t base,
+      xenos::DepthRenderTargetFormat format) override {
     // TODO(Triang3l): EDRAM viewer.
     return 0;
   }

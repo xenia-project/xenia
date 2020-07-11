@@ -241,13 +241,13 @@ bool PacketDisassembler::DisasmPacketType3(const uint8_t* base_ptr,
       uint32_t dword0 = xe::load_and_swap<uint32_t>(ptr + 0);
       uint32_t dword1 = xe::load_and_swap<uint32_t>(ptr + 4);
       uint32_t index_count = dword1 >> 16;
-      auto prim_type = static_cast<PrimitiveType>(dword1 & 0x3F);
+      auto prim_type = static_cast<xenos::PrimitiveType>(dword1 & 0x3F);
       uint32_t src_sel = (dword1 >> 6) & 0x3;
       if (src_sel == 0x0) {
         // Indexed draw.
         uint32_t guest_base = xe::load_and_swap<uint32_t>(ptr + 8);
         uint32_t index_size = xe::load_and_swap<uint32_t>(ptr + 12);
-        auto endianness = static_cast<Endian>(index_size >> 30);
+        auto endianness = static_cast<xenos::Endian>(index_size >> 30);
         index_size &= 0x00FFFFFF;
         bool index_32bit = (dword1 >> 11) & 0x1;
         index_size *= index_32bit ? 4 : 2;
@@ -266,7 +266,7 @@ bool PacketDisassembler::DisasmPacketType3(const uint8_t* base_ptr,
       out_info->type_info = &op_info;
       uint32_t dword0 = xe::load_and_swap<uint32_t>(ptr + 0);
       uint32_t index_count = dword0 >> 16;
-      auto prim_type = static_cast<PrimitiveType>(dword0 & 0x3F);
+      auto prim_type = static_cast<xenos::PrimitiveType>(dword0 & 0x3F);
       uint32_t src_sel = (dword0 >> 6) & 0x3;
       assert_true(src_sel == 0x2);  // 'SrcSel=AutoIndex'
       bool index_32bit = (dword0 >> 11) & 0x1;
@@ -386,7 +386,7 @@ bool PacketDisassembler::DisasmPacketType3(const uint8_t* base_ptr,
                                              "PM4_IM_LOAD"};
       out_info->type_info = &op_info;
       uint32_t addr_type = xe::load_and_swap<uint32_t>(ptr + 0);
-      auto shader_type = static_cast<ShaderType>(addr_type & 0x3);
+      auto shader_type = static_cast<xenos::ShaderType>(addr_type & 0x3);
       uint32_t addr = addr_type & ~0x3;
       uint32_t start_size = xe::load_and_swap<uint32_t>(ptr + 4);
       uint32_t start = start_size >> 16;
@@ -401,7 +401,7 @@ bool PacketDisassembler::DisasmPacketType3(const uint8_t* base_ptr,
       out_info->type_info = &op_info;
       uint32_t dword0 = xe::load_and_swap<uint32_t>(ptr + 0);
       uint32_t dword1 = xe::load_and_swap<uint32_t>(ptr + 4);
-      auto shader_type = static_cast<ShaderType>(dword0);
+      auto shader_type = static_cast<xenos::ShaderType>(dword0);
       uint32_t start_size = dword1;
       uint32_t start = start_size >> 16;
       uint32_t size_dwords = start_size & 0xFFFF;  // dwords

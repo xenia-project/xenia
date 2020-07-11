@@ -673,7 +673,8 @@ void D3D12CommandProcessor::ReleaseScratchGPUBuffer(
   }
 }
 
-void D3D12CommandProcessor::SetSamplePositions(MsaaSamples sample_positions) {
+void D3D12CommandProcessor::SetSamplePositions(
+    xenos::MsaaSamples sample_positions) {
   if (current_sample_positions_ == sample_positions) {
     return;
   }
@@ -696,10 +697,10 @@ void D3D12CommandProcessor::SetSamplePositions(MsaaSamples sample_positions) {
       // work a little bit better for tall stairs.
       // FIXME(Triang3l): This is currently even uglier than without custom
       // sample positions.
-      if (sample_positions >= MsaaSamples::k2X) {
+      if (sample_positions >= xenos::MsaaSamples::k2X) {
         // Sample 1 is lower-left on Xenos, but upper-right in Direct3D 12.
         D3D12_SAMPLE_POSITION d3d_sample_positions[4];
-        if (sample_positions >= MsaaSamples::k4X) {
+        if (sample_positions >= xenos::MsaaSamples::k4X) {
           // Upper-left.
           d3d_sample_positions[0].X = -2 + 4;
           d3d_sample_positions[0].Y = -6 + 4;
@@ -1657,7 +1658,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   }
 
   D3D12_SHADER_RESOURCE_VIEW_DESC swap_texture_srv_desc;
-  TextureFormat frontbuffer_format;
+  xenos::TextureFormat frontbuffer_format;
   ID3D12Resource* swap_texture_resource = texture_cache_->RequestSwapTexture(
       swap_texture_srv_desc, frontbuffer_format);
   if (swap_texture_resource) {
@@ -1667,8 +1668,8 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     // executable, which initializes the normal gamma ramp for 8_8_8_8 output
     // and the PWL gamma ramp for 2_10_10_10.
     bool use_pwl_gamma_ramp =
-        frontbuffer_format == TextureFormat::k_2_10_10_10 ||
-        frontbuffer_format == TextureFormat::k_2_10_10_10_AS_16_16_16_16;
+        frontbuffer_format == xenos::TextureFormat::k_2_10_10_10 ||
+        frontbuffer_format == xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16;
 
     bool descriptors_obtained;
     ui::d3d12::util::DescriptorCPUGPUHandlePair descriptor_swap_texture;
@@ -1757,7 +1758,7 @@ void D3D12CommandProcessor::OnPrimaryBufferEnd() {
   }
 }
 
-Shader* D3D12CommandProcessor::LoadShader(ShaderType shader_type,
+Shader* D3D12CommandProcessor::LoadShader(xenos::ShaderType shader_type,
                                           uint32_t guest_address,
                                           const uint32_t* host_address,
                                           uint32_t dword_count) {
@@ -1765,7 +1766,7 @@ Shader* D3D12CommandProcessor::LoadShader(ShaderType shader_type,
                                      dword_count);
 }
 
-bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
+bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
                                       uint32_t index_count,
                                       IndexBufferInfo* index_buffer_info,
                                       bool major_mode_explicit) {
@@ -1833,7 +1834,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
       !pixel_shader->memexport_stream_constants().empty();
   bool memexport_used = memexport_used_vertex || memexport_used_pixel;
 
-  bool primitive_two_faced = IsPrimitiveTwoFaced(tessellated, primitive_type);
+  bool primitive_two_faced =
+      xenos::IsPrimitiveTwoFaced(tessellated, primitive_type);
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
   if (!memexport_used_vertex &&
@@ -1856,18 +1858,18 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   // Set up primitive topology.
   bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
-  PrimitiveType primitive_type_converted;
+  xenos::PrimitiveType primitive_type_converted;
   D3D_PRIMITIVE_TOPOLOGY primitive_topology;
   if (tessellated) {
     primitive_type_converted = primitive_type;
     switch (primitive_type_converted) {
       // TODO(Triang3l): Support all kinds of patches if found in games.
-      case PrimitiveType::kTriangleList:
-      case PrimitiveType::kTrianglePatch:
+      case xenos::PrimitiveType::kTriangleList:
+      case xenos::PrimitiveType::kTrianglePatch:
         primitive_topology = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
         break;
-      case PrimitiveType::kQuadList:
-      case PrimitiveType::kQuadPatch:
+      case xenos::PrimitiveType::kQuadList:
+      case xenos::PrimitiveType::kQuadPatch:
         primitive_topology = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
         break;
       default:
@@ -1877,23 +1879,23 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     primitive_type_converted =
         PrimitiveConverter::GetReplacementPrimitiveType(primitive_type);
     switch (primitive_type_converted) {
-      case PrimitiveType::kPointList:
+      case xenos::PrimitiveType::kPointList:
         primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
         break;
-      case PrimitiveType::kLineList:
+      case xenos::PrimitiveType::kLineList:
         primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
         break;
-      case PrimitiveType::kLineStrip:
+      case xenos::PrimitiveType::kLineStrip:
         primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
         break;
-      case PrimitiveType::kTriangleList:
-      case PrimitiveType::kRectangleList:
+      case xenos::PrimitiveType::kTriangleList:
+      case xenos::PrimitiveType::kRectangleList:
         primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
         break;
-      case PrimitiveType::kTriangleStrip:
+      case xenos::PrimitiveType::kTriangleStrip:
         primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
         break;
-      case PrimitiveType::kQuadList:
+      case xenos::PrimitiveType::kQuadList:
         primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST_ADJ;
         break;
       default:
@@ -1905,7 +1907,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     deferred_command_list_->D3DIASetPrimitiveTopology(primitive_topology);
   }
   uint32_t line_loop_closing_index;
-  if (primitive_type == PrimitiveType::kLineLoop && !indexed &&
+  if (primitive_type == xenos::PrimitiveType::kLineLoop && !indexed &&
       index_count >= 3) {
     // Add a vertex to close the loop, and make the vertex shader replace its
     // index (before adding the offset) with 0 to fetch the first vertex again.
@@ -1929,7 +1931,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
     auto rb_colorcontrol = regs.Get<reg::RB_COLORCONTROL>();
     early_z = pixel_shader->implicit_early_z_allowed() &&
               (!rb_colorcontrol.alpha_test_enable ||
-               rb_colorcontrol.alpha_func == CompareFunction::kAlways) &&
+               rb_colorcontrol.alpha_func == xenos::CompareFunction::kAlways) &&
               !rb_colorcontrol.alpha_to_mask_enable;
   } else {
     early_z = true;
@@ -1940,8 +1942,9 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   ID3D12RootSignature* root_signature;
   if (!pipeline_cache_->ConfigurePipeline(
           vertex_shader, pixel_shader, primitive_type_converted,
-          indexed ? index_buffer_info->format : IndexFormat::kInt16, early_z,
-          pipeline_render_targets, &pipeline_handle, &root_signature)) {
+          indexed ? index_buffer_info->format : xenos::IndexFormat::kInt16,
+          early_z, pipeline_render_targets, &pipeline_handle,
+          &root_signature)) {
     return false;
   }
   if (current_cached_pipeline_ != pipeline_handle) {
@@ -1957,7 +1960,7 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
   // Update system constants before uploading them.
   UpdateSystemConstantValues(
       memexport_used, primitive_two_faced, line_loop_closing_index,
-      indexed ? index_buffer_info->endianness : Endian::kNone,
+      indexed ? index_buffer_info->endianness : xenos::Endian::kNone,
       used_texture_mask, early_z, GetCurrentColorMask(pixel_shader),
       pipeline_render_targets);
 
@@ -2032,7 +2035,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
           GetSupportedMemExportFormatSize(memexport_stream.format);
       if (memexport_format_size == 0) {
         XELOGE("Unsupported memexport format {}",
-               FormatInfo::Get(TextureFormat(uint32_t(memexport_stream.format)))
+               FormatInfo::Get(
+                   xenos::TextureFormat(uint32_t(memexport_stream.format)))
                    ->name);
         return false;
       }
@@ -2074,7 +2078,8 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
           GetSupportedMemExportFormatSize(memexport_stream.format);
       if (memexport_format_size == 0) {
         XELOGE("Unsupported memexport format {}",
-               FormatInfo::Get(TextureFormat(uint32_t(memexport_stream.format)))
+               FormatInfo::Get(
+                   xenos::TextureFormat(uint32_t(memexport_stream.format)))
                    ->name);
         return false;
       }
@@ -2114,16 +2119,18 @@ bool D3D12CommandProcessor::IssueDraw(PrimitiveType primitive_type,
 
   // Actually draw.
   if (indexed) {
-    uint32_t index_size = index_buffer_info->format == IndexFormat::kInt32
-                              ? sizeof(uint32_t)
-                              : sizeof(uint16_t);
+    uint32_t index_size =
+        index_buffer_info->format == xenos::IndexFormat::kInt32
+            ? sizeof(uint32_t)
+            : sizeof(uint16_t);
     assert_false(index_buffer_info->guest_base & (index_size - 1));
     uint32_t index_base =
         index_buffer_info->guest_base & 0x1FFFFFFF & ~(index_size - 1);
     D3D12_INDEX_BUFFER_VIEW index_buffer_view;
-    index_buffer_view.Format = index_buffer_info->format == IndexFormat::kInt32
-                                   ? DXGI_FORMAT_R32_UINT
-                                   : DXGI_FORMAT_R16_UINT;
+    index_buffer_view.Format =
+        index_buffer_info->format == xenos::IndexFormat::kInt32
+            ? DXGI_FORMAT_R32_UINT
+            : DXGI_FORMAT_R16_UINT;
     PrimitiveConverter::ConversionResult conversion_result;
     uint32_t converted_index_count;
     if (tessellated) {
@@ -2455,7 +2462,7 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
     ff_scissor_update_needed_ = true;
     ff_blend_factor_update_needed_ = true;
     ff_stencil_ref_update_needed_ = true;
-    current_sample_positions_ = MsaaSamples::k1X;
+    current_sample_positions_ = xenos::MsaaSamples::k1X;
     current_cached_pipeline_ = nullptr;
     current_external_pipeline_ = nullptr;
     current_graphics_root_signature_ = nullptr;
@@ -2703,9 +2710,10 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
     pixel_size_x = 1;
     pixel_size_y = 1;
   } else {
-    MsaaSamples msaa_samples = regs.Get<reg::RB_SURFACE_INFO>().msaa_samples;
-    pixel_size_x = msaa_samples >= MsaaSamples::k4X ? 2 : 1;
-    pixel_size_y = msaa_samples >= MsaaSamples::k2X ? 2 : 1;
+    xenos::MsaaSamples msaa_samples =
+        regs.Get<reg::RB_SURFACE_INFO>().msaa_samples;
+    pixel_size_x = msaa_samples >= xenos::MsaaSamples::k4X ? 2 : 1;
+    pixel_size_y = msaa_samples >= xenos::MsaaSamples::k2X ? 2 : 1;
   }
   if (texture_cache_->IsResolutionScale2X()) {
     pixel_size_x *= 2;
@@ -2849,7 +2857,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
 
 void D3D12CommandProcessor::UpdateSystemConstantValues(
     bool shared_memory_is_uav, bool primitive_two_faced,
-    uint32_t line_loop_closing_index, Endian index_endian,
+    uint32_t line_loop_closing_index, xenos::Endian index_endian,
     uint32_t used_texture_mask, bool early_z, uint32_t color_mask,
     const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
   auto& regs = *register_file_;
@@ -2990,13 +2998,13 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   // Gamma writing.
   for (uint32_t i = 0; i < 4; ++i) {
     if (color_infos[i].color_format ==
-        ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
+        xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
       flags |= DxbcShaderTranslator::kSysFlag_Color0Gamma << i;
     }
   }
   if (edram_rov_used_ && depth_stencil_enabled) {
     flags |= DxbcShaderTranslator::kSysFlag_ROVDepthStencil;
-    if (rb_depth_info.depth_format == DepthRenderTargetFormat::kD24FS8) {
+    if (rb_depth_info.depth_format == xenos::DepthRenderTargetFormat::kD24FS8) {
       flags |= DxbcShaderTranslator::kSysFlag_ROVDepthFloat24;
     }
     if (rb_depthcontrol.z_enable) {
@@ -3199,9 +3207,9 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   // Log2 of sample count, for scaling VPOS with SSAA (without ROV) and for
   // EDRAM address calculation with MSAA (with ROV).
   uint32_t sample_count_log2_x =
-      rb_surface_info.msaa_samples >= MsaaSamples::k4X ? 1 : 0;
+      rb_surface_info.msaa_samples >= xenos::MsaaSamples::k4X ? 1 : 0;
   uint32_t sample_count_log2_y =
-      rb_surface_info.msaa_samples >= MsaaSamples::k2X ? 1 : 0;
+      rb_surface_info.msaa_samples >= xenos::MsaaSamples::k2X ? 1 : 0;
   dirty |= system_constants_.sample_count_log2[0] != sample_count_log2_x;
   dirty |= system_constants_.sample_count_log2[1] != sample_count_log2_y;
   system_constants_.sample_count_log2[0] = sample_count_log2_x;
@@ -3220,7 +3228,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   if (edram_rov_used_) {
     uint32_t edram_pitch_tiles =
         ((rb_surface_info.surface_pitch *
-          (rb_surface_info.msaa_samples >= MsaaSamples::k4X ? 2 : 1)) +
+          (rb_surface_info.msaa_samples >= xenos::MsaaSamples::k4X ? 2 : 1)) +
          79) /
         80;
     dirty |= system_constants_.edram_pitch_tiles != edram_pitch_tiles;
@@ -3232,8 +3240,9 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     reg::RB_COLOR_INFO color_info = color_infos[i];
     // Exponent bias is in bits 20:25 of RB_COLOR_INFO.
     int32_t color_exp_bias = color_info.color_exp_bias;
-    if (color_info.color_format == ColorRenderTargetFormat::k_16_16 ||
-        color_info.color_format == ColorRenderTargetFormat::k_16_16_16_16) {
+    if (color_info.color_format == xenos::ColorRenderTargetFormat::k_16_16 ||
+        color_info.color_format ==
+            xenos::ColorRenderTargetFormat::k_16_16_16_16) {
       // On the Xbox 360, k_16_16_EDRAM and k_16_16_16_16_EDRAM internally have
       // -32...32 range and expect shaders to give -32...32 values, but they're
       // emulated using normalized RG16/RGBA16 when not using the ROV, so the
@@ -4239,28 +4248,28 @@ bool D3D12CommandProcessor::UpdateBindings(
 }
 
 uint32_t D3D12CommandProcessor::GetSupportedMemExportFormatSize(
-    ColorFormat format) {
+    xenos::ColorFormat format) {
   switch (format) {
-    case ColorFormat::k_8_8_8_8:
-    case ColorFormat::k_2_10_10_10:
+    case xenos::ColorFormat::k_8_8_8_8:
+    case xenos::ColorFormat::k_2_10_10_10:
     // TODO(Triang3l): Investigate how k_8_8_8_8_A works - not supported in the
     // texture cache currently.
-    // case ColorFormat::k_8_8_8_8_A:
-    case ColorFormat::k_10_11_11:
-    case ColorFormat::k_11_11_10:
-    case ColorFormat::k_16_16:
-    case ColorFormat::k_16_16_FLOAT:
-    case ColorFormat::k_32_FLOAT:
-    case ColorFormat::k_8_8_8_8_AS_16_16_16_16:
-    case ColorFormat::k_2_10_10_10_AS_16_16_16_16:
-    case ColorFormat::k_10_11_11_AS_16_16_16_16:
-    case ColorFormat::k_11_11_10_AS_16_16_16_16:
+    // case xenos::ColorFormat::k_8_8_8_8_A:
+    case xenos::ColorFormat::k_10_11_11:
+    case xenos::ColorFormat::k_11_11_10:
+    case xenos::ColorFormat::k_16_16:
+    case xenos::ColorFormat::k_16_16_FLOAT:
+    case xenos::ColorFormat::k_32_FLOAT:
+    case xenos::ColorFormat::k_8_8_8_8_AS_16_16_16_16:
+    case xenos::ColorFormat::k_2_10_10_10_AS_16_16_16_16:
+    case xenos::ColorFormat::k_10_11_11_AS_16_16_16_16:
+    case xenos::ColorFormat::k_11_11_10_AS_16_16_16_16:
       return 1;
-    case ColorFormat::k_16_16_16_16:
-    case ColorFormat::k_16_16_16_16_FLOAT:
-    case ColorFormat::k_32_32_FLOAT:
+    case xenos::ColorFormat::k_16_16_16_16:
+    case xenos::ColorFormat::k_16_16_16_16_FLOAT:
+    case xenos::ColorFormat::k_32_32_FLOAT:
       return 2;
-    case ColorFormat::k_32_32_32_32_FLOAT:
+    case xenos::ColorFormat::k_32_32_32_32_FLOAT:
       return 4;
     default:
       break;

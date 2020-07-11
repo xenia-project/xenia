@@ -14,6 +14,7 @@
 
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/shader.h"
+#include "xenia/gpu/xenos.h"
 #include "xenia/ui/d3d12/d3d12_provider.h"
 
 namespace xe {
@@ -22,7 +23,7 @@ namespace d3d12 {
 
 class D3D12Shader : public Shader {
  public:
-  D3D12Shader(ShaderType shader_type, uint64_t data_hash,
+  D3D12Shader(xenos::ShaderType shader_type, uint64_t data_hash,
               const uint32_t* dword_ptr, uint32_t dword_count);
 
   void SetTexturesAndSamplers(
@@ -53,7 +54,7 @@ class D3D12Shader : public Shader {
     uint32_t fetch_constant;
     // Stacked and 3D are separate TextureBindings, even for bindless for null
     // descriptor handling simplicity.
-    TextureDimension dimension;
+    xenos::FetchOpDimension dimension;
     bool is_signed;
   };
   // Safe to hash and compare with memcmp for layout hashing.
@@ -70,10 +71,10 @@ class D3D12Shader : public Shader {
   struct SamplerBinding {
     uint32_t bindless_descriptor_index;
     uint32_t fetch_constant;
-    TextureFilter mag_filter;
-    TextureFilter min_filter;
-    TextureFilter mip_filter;
-    AnisoFilter aniso_filter;
+    xenos::TextureFilter mag_filter;
+    xenos::TextureFilter min_filter;
+    xenos::TextureFilter mip_filter;
+    xenos::AnisoFilter aniso_filter;
   };
   const SamplerBinding* GetSamplerBindings(uint32_t& count_out) const {
     count_out = uint32_t(sampler_bindings_.size());

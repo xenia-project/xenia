@@ -627,7 +627,7 @@ struct VertexFetchInstruction {
   uint32_t prefetch_count() const { return data_.prefetch_count; }
   bool is_mini_fetch() const { return data_.is_mini_fetch == 1; }
 
-  VertexFormat data_format() const { return data_.format; }
+  xenos::VertexFormat data_format() const { return data_.format; }
   // [-32, 31]
   int exp_adjust() const { return data_.exp_adjust; }
   bool is_signed() const { return data_.fomat_comp_all == 1; }
@@ -668,7 +668,7 @@ struct VertexFetchInstruction {
       uint32_t num_format_all : 1;
       xenos::SignedRepeatingFractionMode signed_rf_mode_all : 1;
       uint32_t is_index_rounded : 1;
-      VertexFormat format : 6;
+      xenos::VertexFormat format : 6;
       uint32_t reserved2 : 2;
       int32_t exp_adjust : 6;
       uint32_t is_mini_fetch : 1;
@@ -700,37 +700,39 @@ struct TextureFetchInstruction {
   uint32_t src_swizzle() const { return data_.src_swiz; }
   bool is_src_relative() const { return data_.src_reg_am; }
 
-  TextureDimension dimension() const { return data_.dimension; }
+  xenos::FetchOpDimension dimension() const { return data_.dimension; }
   bool fetch_valid_only() const { return data_.fetch_valid_only == 1; }
   bool unnormalized_coordinates() const { return data_.tx_coord_denorm == 1; }
   bool has_mag_filter() const {
-    return data_.mag_filter != TextureFilter::kUseFetchConst;
+    return data_.mag_filter != xenos::TextureFilter::kUseFetchConst;
   }
-  TextureFilter mag_filter() const { return data_.mag_filter; }
+  xenos::TextureFilter mag_filter() const { return data_.mag_filter; }
   bool has_min_filter() const {
-    return data_.min_filter != TextureFilter::kUseFetchConst;
+    return data_.min_filter != xenos::TextureFilter::kUseFetchConst;
   }
-  TextureFilter min_filter() const { return data_.min_filter; }
+  xenos::TextureFilter min_filter() const { return data_.min_filter; }
   bool has_mip_filter() const {
-    return data_.mip_filter != TextureFilter::kUseFetchConst;
+    return data_.mip_filter != xenos::TextureFilter::kUseFetchConst;
   }
-  TextureFilter mip_filter() const { return data_.mip_filter; }
+  xenos::TextureFilter mip_filter() const { return data_.mip_filter; }
   bool has_aniso_filter() const {
-    return data_.aniso_filter != AnisoFilter::kUseFetchConst;
+    return data_.aniso_filter != xenos::AnisoFilter::kUseFetchConst;
   }
-  AnisoFilter aniso_filter() const { return data_.aniso_filter; }
+  xenos::AnisoFilter aniso_filter() const { return data_.aniso_filter; }
   bool has_vol_mag_filter() const {
-    return data_.vol_mag_filter != TextureFilter::kUseFetchConst;
+    return data_.vol_mag_filter != xenos::TextureFilter::kUseFetchConst;
   }
-  TextureFilter vol_mag_filter() const { return data_.vol_mag_filter; }
+  xenos::TextureFilter vol_mag_filter() const { return data_.vol_mag_filter; }
   bool has_vol_min_filter() const {
-    return data_.vol_min_filter != TextureFilter::kUseFetchConst;
+    return data_.vol_min_filter != xenos::TextureFilter::kUseFetchConst;
   }
-  TextureFilter vol_min_filter() const { return data_.vol_min_filter; }
+  xenos::TextureFilter vol_min_filter() const { return data_.vol_min_filter; }
   bool use_computed_lod() const { return data_.use_comp_lod == 1; }
   bool use_register_lod() const { return data_.use_reg_lod == 1; }
   bool use_register_gradients() const { return data_.use_reg_gradients == 1; }
-  SampleLocation sample_location() const { return data_.sample_location; }
+  xenos::SampleLocation sample_location() const {
+    return data_.sample_location;
+  }
   float lod_bias() const {
     // http://web.archive.org/web/20090514012026/http://msdn.microsoft.com:80/en-us/library/bb313957.aspx
     return data_.lod_bias * (1.0f / 16.0f);
@@ -754,13 +756,13 @@ struct TextureFetchInstruction {
     });
     XEPACKEDSTRUCTANONYMOUS({
       uint32_t dst_swiz : 12;  // xyzw
-      TextureFilter mag_filter : 2;
-      TextureFilter min_filter : 2;
-      TextureFilter mip_filter : 2;
-      AnisoFilter aniso_filter : 3;
+      xenos::TextureFilter mag_filter : 2;
+      xenos::TextureFilter min_filter : 2;
+      xenos::TextureFilter mip_filter : 2;
+      xenos::AnisoFilter aniso_filter : 3;
       xenos::ArbitraryFilter arbitrary_filter : 3;
-      TextureFilter vol_mag_filter : 2;
-      TextureFilter vol_min_filter : 2;
+      xenos::TextureFilter vol_mag_filter : 2;
+      xenos::TextureFilter vol_min_filter : 2;
       uint32_t use_comp_lod : 1;
       uint32_t use_reg_lod : 1;
       uint32_t unk : 1;
@@ -768,10 +770,10 @@ struct TextureFetchInstruction {
     });
     XEPACKEDSTRUCTANONYMOUS({
       uint32_t use_reg_gradients : 1;
-      SampleLocation sample_location : 1;
+      xenos::SampleLocation sample_location : 1;
       int32_t lod_bias : 7;
       uint32_t unused : 5;
-      TextureDimension dimension : 2;
+      xenos::FetchOpDimension dimension : 2;
       int32_t offset_x : 5;
       int32_t offset_y : 5;
       int32_t offset_z : 5;

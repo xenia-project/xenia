@@ -414,8 +414,8 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
 
     // 8-in-16 or one half of 8-in-32.
     DxbcOpSwitch(endian_src);
-    DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k8in16)));
-    DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k8in32)));
+    DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::Endian::k8in16)));
+    DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::Endian::k8in32)));
     // Temp = X0Z0.
     DxbcOpAnd(swap_temp_dest, index_src, DxbcSrc::LU(0x00FF00FF));
     // Index = YZW0.
@@ -429,8 +429,8 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
 
     // 16-in-32 or another half of 8-in-32.
     DxbcOpSwitch(endian_src);
-    DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k8in32)));
-    DxbcOpCase(DxbcSrc::LU(uint32_t(Endian::k16in32)));
+    DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::Endian::k8in32)));
+    DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::Endian::k16in32)));
     // Temp = ZW00.
     DxbcOpUShR(swap_temp_dest, index_src, DxbcSrc::LU(16));
     // Index = ZWXY.
@@ -684,7 +684,7 @@ void DxbcShaderTranslator::StartPixelShader() {
         // set).
         DxbcOpAnd(DxbcDest::R(centroid_register, 0b0001), sampling_pattern_src,
                   DxbcSrc::LU(uint32_t(1) << i));
-        DxbcOpIf(bool(SampleLocation::kCenter),
+        DxbcOpIf(bool(xenos::SampleLocation::kCenter),
                  DxbcSrc::R(centroid_register, DxbcSrc::kXXXX));
         // At center.
         DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, i)
@@ -811,7 +811,7 @@ void DxbcShaderTranslator::StartPixelShader() {
                                uint32_t(CbufferRegister::kSystemConstants),
                                kSysConst_InterpolatorSamplingPattern_Vec)
                        .Select(kSysConst_InterpolatorSamplingPattern_Comp));
-        DxbcOpIf(bool(SampleLocation::kCenter),
+        DxbcOpIf(bool(xenos::SampleLocation::kCenter),
                  DxbcSrc::R(param_gen_temp, DxbcSrc::kZZZZ));
         // At center.
         DxbcOpMov(point_coord_r_zw_dest, point_coord_v_xxxy_src);
@@ -2641,14 +2641,15 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
             texture_bindings_[texture_binding_index];
         texture_name_offset = texture_binding.bindful_srv_rdef_name_offset;
         switch (texture_binding.dimension) {
-          case TextureDimension::k3D:
+          case xenos::FetchOpDimension::k3DOrStacked:
             texture_dimension = DxbcRdefDimension::kSRVTexture3D;
             break;
-          case TextureDimension::kCube:
+          case xenos::FetchOpDimension::kCube:
             texture_dimension = DxbcRdefDimension::kSRVTextureCube;
             break;
           default:
-            assert_true(texture_binding.dimension == TextureDimension::k2D);
+            assert_true(texture_binding.dimension ==
+                        xenos::FetchOpDimension::k2D);
             texture_dimension = DxbcRdefDimension::kSRVTexture2DArray;
         }
         texture_register = uint32_t(SRVMainRegister::kBindfulTexturesStart) +
@@ -3540,14 +3541,15 @@ void DxbcShaderTranslator::WriteShaderCode() {
         const TextureBinding& texture_binding =
             texture_bindings_[texture_binding_index];
         switch (texture_binding.dimension) {
-          case TextureDimension::k3D:
+          case xenos::FetchOpDimension::k3DOrStacked:
             texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE3D;
             break;
-          case TextureDimension::kCube:
+          case xenos::FetchOpDimension::kCube:
             texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURECUBE;
             break;
           default:
-            assert_true(texture_binding.dimension == TextureDimension::k2D);
+            assert_true(texture_binding.dimension ==
+                        xenos::FetchOpDimension::k2D);
             texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE2DARRAY;
         }
         texture_register_first = texture_register_last =

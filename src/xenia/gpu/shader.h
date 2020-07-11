@@ -422,7 +422,7 @@ struct ParsedVertexFetchInstruction {
   InstructionOperand operands[2];
 
   struct Attributes {
-    VertexFormat data_format = VertexFormat::kUndefined;
+    xenos::VertexFormat data_format = xenos::VertexFormat::kUndefined;
     int32_t offset = 0;
     uint32_t stride = 0;  // In dwords.
     int32_t exp_adjust = 0;
@@ -447,7 +447,7 @@ struct ParsedTextureFetchInstruction {
   // Friendly name of the instruction.
   const char* opcode_name = nullptr;
   // Texture dimension for opcodes that have multiple dimension forms.
-  TextureDimension dimension = TextureDimension::k1D;
+  xenos::FetchOpDimension dimension = xenos::FetchOpDimension::k1D;
 
   // True if the instruction is predicated on the specified
   // predicate_condition.
@@ -470,12 +470,12 @@ struct ParsedTextureFetchInstruction {
   struct Attributes {
     bool fetch_valid_only = true;
     bool unnormalized_coordinates = false;
-    TextureFilter mag_filter = TextureFilter::kUseFetchConst;
-    TextureFilter min_filter = TextureFilter::kUseFetchConst;
-    TextureFilter mip_filter = TextureFilter::kUseFetchConst;
-    AnisoFilter aniso_filter = AnisoFilter::kUseFetchConst;
-    TextureFilter vol_mag_filter = TextureFilter::kUseFetchConst;
-    TextureFilter vol_min_filter = TextureFilter::kUseFetchConst;
+    xenos::TextureFilter mag_filter = xenos::TextureFilter::kUseFetchConst;
+    xenos::TextureFilter min_filter = xenos::TextureFilter::kUseFetchConst;
+    xenos::TextureFilter mip_filter = xenos::TextureFilter::kUseFetchConst;
+    xenos::AnisoFilter aniso_filter = xenos::AnisoFilter::kUseFetchConst;
+    xenos::TextureFilter vol_mag_filter = xenos::TextureFilter::kUseFetchConst;
+    xenos::TextureFilter vol_min_filter = xenos::TextureFilter::kUseFetchConst;
     bool use_computed_lod = true;
     bool use_register_lod = false;
     bool use_register_gradients = false;
@@ -666,12 +666,12 @@ class Shader {
     }
   };
 
-  Shader(ShaderType shader_type, uint64_t ucode_data_hash,
+  Shader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
          const uint32_t* ucode_dwords, size_t ucode_dword_count);
   virtual ~Shader();
 
   // Whether the shader is identified as a vertex or pixel shader.
-  ShaderType type() const { return shader_type_; }
+  xenos::ShaderType type() const { return shader_type_; }
 
   // If this is a vertex shader, and it has been translated, type of the shader
   // in a D3D11-like rendering pipeline - shader interface depends on in, so it
@@ -761,7 +761,7 @@ class Shader {
  protected:
   friend class ShaderTranslator;
 
-  ShaderType shader_type_;
+  xenos::ShaderType shader_type_;
   HostVertexShaderType host_vertex_shader_type_ = HostVertexShaderType::kVertex;
   std::vector<uint32_t> ucode_data_;
   uint64_t ucode_data_hash_;

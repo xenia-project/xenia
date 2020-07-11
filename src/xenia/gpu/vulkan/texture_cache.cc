@@ -38,7 +38,7 @@ using xe::ui::vulkan::CheckResult;
 constexpr uint32_t kMaxTextureSamplers = 32;
 constexpr VkDeviceSize kStagingBufferSize = 64 * 1024 * 1024;
 
-const char* get_dimension_name(Dimension dimension) {
+const char* get_dimension_name(xenos::DataDimension dimension) {
   static const char* names[] = {
       "1D",
       "2D",
@@ -203,8 +203,8 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   image_info.flags = 0;
 
   switch (texture_info.dimension) {
-    case Dimension::k1D:
-    case Dimension::k2D:
+    case xenos::DataDimension::k1D:
+    case xenos::DataDimension::k2DOrStacked:
       if (!texture_info.is_stacked) {
         image_info.imageType = VK_IMAGE_TYPE_2D;
       } else {
@@ -212,10 +212,10 @@ TextureCache::Texture* TextureCache::AllocateTexture(
         image_info.flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
       }
       break;
-    case Dimension::k3D:
+    case xenos::DataDimension::k3D:
       image_info.imageType = VK_IMAGE_TYPE_3D;
       break;
-    case Dimension::kCube:
+    case xenos::DataDimension::kCube:
       image_info.imageType = VK_IMAGE_TYPE_2D;
       image_info.flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
       is_cube = true;
@@ -242,7 +242,7 @@ TextureCache::Texture* TextureCache::AllocateTexture(
             required_flags & ~props.optimalTilingFeatures)));
   }
 
-  if (texture_info.dimension != Dimension::kCube &&
+  if (texture_info.dimension != xenos::DataDimension::kCube &&
       props.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT) {
     // Add color attachment usage if it's supported.
     image_info.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -502,8 +502,8 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
   }
 
   VkFormatFeatureFlags required_flags = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
-  if (texture_info.format == TextureFormat::k_24_8 ||
-      texture_info.format == TextureFormat::k_24_8_FLOAT) {
+  if (texture_info.format == xenos::TextureFormat::k_24_8 ||
+      texture_info.format == xenos::TextureFormat::k_24_8_FLOAT) {
     required_flags |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
   } else {
     required_flags |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
@@ -639,18 +639,18 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
 
   bool is_cube = false;
   switch (texture->texture_info.dimension) {
-    case Dimension::k1D:
-    case Dimension::k2D:
+    case xenos::DataDimension::k1D:
+    case xenos::DataDimension::k2DOrStacked:
       if (!texture->texture_info.is_stacked) {
         view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
       } else {
         view_info.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
       }
       break;
-    case Dimension::k3D:
+    case xenos::DataDimension::k3D:
       view_info.viewType = VK_IMAGE_VIEW_TYPE_3D;
       break;
-    case Dimension::kCube:
+    case xenos::DataDimension::kCube:
       view_info.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
       is_cube = true;
       break;
@@ -739,14 +739,14 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   // Texture level filtering.
   VkSamplerMipmapMode mip_filter;
   switch (sampler_info.mip_filter) {
-    case TextureFilter::kBaseMap:
+    case xenos::TextureFilter::kBaseMap:
       // TODO(DrChat): ?
       mip_filter = VK_SAMPLER_MIPMAP_MODE_NEAREST;
       break;
-    case TextureFilter::kPoint:
+    case xenos::TextureFilter::kPoint:
       mip_filter = VK_SAMPLER_MIPMAP_MODE_NEAREST;
       break;
-    case TextureFilter::kLinear:
+    case xenos::TextureFilter::kLinear:
       mip_filter = VK_SAMPLER_MIPMAP_MODE_LINEAR;
       break;
     default:
@@ -756,10 +756,10 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
 
   VkFilter min_filter;
   switch (sampler_info.min_filter) {
-    case TextureFilter::kPoint:
+    case xenos::TextureFilter::kPoint:
       min_filter = VK_FILTER_NEAREST;
       break;
-    case TextureFilter::kLinear:
+    case xenos::TextureFilter::kLinear:
       min_filter = VK_FILTER_LINEAR;
       break;
     default:
@@ -768,10 +768,10 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   }
   VkFilter mag_filter;
   switch (sampler_info.mag_filter) {
-    case TextureFilter::kPoint:
+    case xenos::TextureFilter::kPoint:
       mag_filter = VK_FILTER_NEAREST;
       break;
-    case TextureFilter::kLinear:
+    case xenos::TextureFilter::kLinear:
       mag_filter = VK_FILTER_LINEAR;
       break;
     default:
@@ -803,22 +803,22 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
 
   float aniso = 0.f;
   switch (sampler_info.aniso_filter) {
-    case AnisoFilter::kDisabled:
+    case xenos::AnisoFilter::kDisabled:
       aniso = 1.0f;
       break;
-    case AnisoFilter::kMax_1_1:
+    case xenos::AnisoFilter::kMax_1_1:
       aniso = 1.0f;
       break;
-    case AnisoFilter::kMax_2_1:
+    case xenos::AnisoFilter::kMax_2_1:
       aniso = 2.0f;
       break;
-    case AnisoFilter::kMax_4_1:
+    case xenos::AnisoFilter::kMax_4_1:
       aniso = 4.0f;
       break;
-    case AnisoFilter::kMax_8_1:
+    case xenos::AnisoFilter::kMax_8_1:
       aniso = 8.0f;
       break;
-    case AnisoFilter::kMax_16_1:
+    case xenos::AnisoFilter::kMax_16_1:
       aniso = 16.0f;
       break;
     default:
@@ -827,7 +827,8 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   }
 
   sampler_create_info.anisotropyEnable =
-      sampler_info.aniso_filter != AnisoFilter::kDisabled ? VK_TRUE : VK_FALSE;
+      sampler_info.aniso_filter != xenos::AnisoFilter::kDisabled ? VK_TRUE
+                                                                 : VK_FALSE;
   sampler_create_info.maxAnisotropy = aniso;
 
   sampler_create_info.compareEnable = VK_FALSE;
@@ -853,11 +854,12 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   return sampler;
 }
 
-bool TextureFormatIsSimilar(TextureFormat left, TextureFormat right) {
-#define COMPARE_FORMAT(x, y)                                     \
-  if ((left == TextureFormat::x && right == TextureFormat::y) || \
-      (left == TextureFormat::y && right == TextureFormat::x)) { \
-    return true;                                                 \
+bool TextureFormatIsSimilar(xenos::TextureFormat left,
+                            xenos::TextureFormat right) {
+#define COMPARE_FORMAT(x, y)                                                   \
+  if ((left == xenos::TextureFormat::x && right == xenos::TextureFormat::y) || \
+      (left == xenos::TextureFormat::y && right == xenos::TextureFormat::x)) { \
+    return true;                                                               \
   }
 
   if (left == right) return true;
@@ -913,7 +915,7 @@ TextureCache::Texture* TextureCache::Lookup(const TextureInfo& texture_info) {
 TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
                                                    uint32_t width,
                                                    uint32_t height,
-                                                   TextureFormat format,
+                                                   xenos::TextureFormat format,
                                                    VkOffset2D* out_offset) {
   for (auto it = textures_.begin(); it != textures_.end(); ++it) {
     const auto& texture_info = it->second->texture_info;
@@ -924,7 +926,7 @@ TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
         out_offset) {
       auto offset_bytes = guest_address - texture_info.memory.base_address;
 
-      if (texture_info.dimension == Dimension::k2D) {
+      if (texture_info.dimension == xenos::DataDimension::k2DOrStacked) {
         out_offset->x = 0;
         out_offset->y = offset_bytes / texture_info.pitch;
         if (offset_bytes % texture_info.pitch != 0) {
@@ -936,7 +938,7 @@ TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
     }
 
     if (texture_info.memory.base_address == guest_address &&
-        texture_info.dimension == Dimension::k2D &&
+        texture_info.dimension == xenos::DataDimension::k2DOrStacked &&
         texture_info.pitch == width && texture_info.height == height) {
       if (out_offset) {
         out_offset->x = 0;
@@ -1000,7 +1002,7 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
 
   void* host_address = memory_->TranslatePhysical(address);
 
-  auto is_cube = src.dimension == Dimension::kCube;
+  auto is_cube = src.dimension == xenos::DataDimension::kCube;
   auto src_extent = src.GetMipExtent(mip, true);
   auto dst_extent = GetMipExtent(src, mip);
 
@@ -1218,23 +1220,23 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   return true;
 }
 
-const FormatInfo* TextureCache::GetFormatInfo(TextureFormat format) {
+const FormatInfo* TextureCache::GetFormatInfo(xenos::TextureFormat format) {
   switch (format) {
-    case TextureFormat::k_CTX1:
-      return FormatInfo::Get(TextureFormat::k_8_8);
-    case TextureFormat::k_DXT3A:
-      return FormatInfo::Get(TextureFormat::k_DXT2_3);
+    case xenos::TextureFormat::k_CTX1:
+      return FormatInfo::Get(xenos::TextureFormat::k_8_8);
+    case xenos::TextureFormat::k_DXT3A:
+      return FormatInfo::Get(xenos::TextureFormat::k_DXT2_3);
     default:
       return FormatInfo::Get(format);
   }
 }
 
 texture_conversion::CopyBlockCallback TextureCache::GetFormatCopyBlock(
-    TextureFormat format) {
+    xenos::TextureFormat format) {
   switch (format) {
-    case TextureFormat::k_CTX1:
+    case xenos::TextureFormat::k_CTX1:
       return texture_conversion::ConvertTexelCTX1ToR8G8;
-    case TextureFormat::k_DXT3A:
+    case xenos::TextureFormat::k_DXT3A:
       return texture_conversion::ConvertTexelDXT3AToDXT3;
     default:
       return texture_conversion::CopySwapBlock;

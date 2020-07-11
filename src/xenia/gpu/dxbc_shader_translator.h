@@ -218,7 +218,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     };
     uint32_t line_loop_closing_index;
 
-    Endian vertex_index_endian;
+    xenos::Endian vertex_index_endian;
     int32_t vertex_base_index;
     float point_size[2];
 
@@ -360,7 +360,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t fetch_constant;
     // Stacked and 3D are separate TextureBindings, even for bindless for null
     // descriptor handling simplicity.
-    TextureDimension dimension;
+    xenos::FetchOpDimension dimension;
     bool is_signed;
     std::string name;
   };
@@ -385,10 +385,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   struct SamplerBinding {
     uint32_t bindless_descriptor_index;
     uint32_t fetch_constant;
-    TextureFilter mag_filter;
-    TextureFilter min_filter;
-    TextureFilter mip_filter;
-    AnisoFilter aniso_filter;
+    xenos::TextureFilter mag_filter;
+    xenos::TextureFilter min_filter;
+    xenos::TextureFilter mip_filter;
+    xenos::AnisoFilter aniso_filter;
     std::string name;
   };
   const SamplerBinding* GetSamplerBindings(uint32_t& count_out) const {
@@ -415,24 +415,24 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Returns the format with internal flags for passing via the
   // edram_rt_format_flags system constant.
   static constexpr uint32_t ROV_AddColorFormatFlags(
-      ColorRenderTargetFormat format) {
+      xenos::ColorRenderTargetFormat format) {
     uint32_t format_flags = uint32_t(format);
-    if (format == ColorRenderTargetFormat::k_16_16_16_16 ||
-        format == ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
-        format == ColorRenderTargetFormat::k_32_32_FLOAT) {
+    if (format == xenos::ColorRenderTargetFormat::k_16_16_16_16 ||
+        format == xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
+        format == xenos::ColorRenderTargetFormat::k_32_32_FLOAT) {
       format_flags |= kRTFormatFlag_64bpp;
     }
-    if (format == ColorRenderTargetFormat::k_8_8_8_8 ||
-        format == ColorRenderTargetFormat::k_8_8_8_8_GAMMA ||
-        format == ColorRenderTargetFormat::k_2_10_10_10 ||
-        format == ColorRenderTargetFormat::k_16_16 ||
-        format == ColorRenderTargetFormat::k_16_16_16_16 ||
-        format == ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10) {
+    if (format == xenos::ColorRenderTargetFormat::k_8_8_8_8 ||
+        format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA ||
+        format == xenos::ColorRenderTargetFormat::k_2_10_10_10 ||
+        format == xenos::ColorRenderTargetFormat::k_16_16 ||
+        format == xenos::ColorRenderTargetFormat::k_16_16_16_16 ||
+        format == xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10) {
       format_flags |=
           kRTFormatFlag_FixedPointColor | kRTFormatFlag_FixedPointAlpha;
-    } else if (format == ColorRenderTargetFormat::k_2_10_10_10_FLOAT ||
-               format ==
-                   ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16) {
+    } else if (format == xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT ||
+               format == xenos::ColorRenderTargetFormat::
+                             k_2_10_10_10_FLOAT_AS_16_16_16_16) {
       format_flags |= kRTFormatFlag_FixedPointAlpha;
     }
     return format_flags;
@@ -441,9 +441,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // be done externally, not in SetColorFormatConstants, because the flags
   // contain other state.
   static void ROV_GetColorFormatSystemConstants(
-      ColorRenderTargetFormat format, uint32_t write_mask, float& clamp_rgb_low,
-      float& clamp_alpha_low, float& clamp_rgb_high, float& clamp_alpha_high,
-      uint32_t& keep_mask_low, uint32_t& keep_mask_high);
+      xenos::ColorRenderTargetFormat format, uint32_t write_mask,
+      float& clamp_rgb_low, float& clamp_alpha_low, float& clamp_rgb_high,
+      float& clamp_alpha_high, uint32_t& keep_mask_low,
+      uint32_t& keep_mask_high);
 
   // Creates a special pixel shader without color outputs - this resets the
   // state of the translator.
@@ -2361,12 +2362,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void JumpToLabel(uint32_t address);
 
   uint32_t FindOrAddTextureBinding(uint32_t fetch_constant,
-                                   TextureDimension dimension, bool is_signed);
+                                   xenos::FetchOpDimension dimension,
+                                   bool is_signed);
   uint32_t FindOrAddSamplerBinding(uint32_t fetch_constant,
-                                   TextureFilter mag_filter,
-                                   TextureFilter min_filter,
-                                   TextureFilter mip_filter,
-                                   AnisoFilter aniso_filter);
+                                   xenos::TextureFilter mag_filter,
+                                   xenos::TextureFilter min_filter,
+                                   xenos::TextureFilter mip_filter,
+                                   xenos::AnisoFilter aniso_filter);
   // Marks fetch constants as used by the DXBC shader and returns DxbcSrc
   // for the words 01 (pair 0), 23 (pair 1) or 45 (pair 2) of the texture fetch
   // constant.

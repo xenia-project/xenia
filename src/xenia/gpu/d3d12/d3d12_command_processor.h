@@ -158,7 +158,7 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   // Sets the current SSAA sample positions, needs to be done before setting
   // render targets or copying to depth render targets.
-  void SetSamplePositions(MsaaSamples sample_positions);
+  void SetSamplePositions(xenos::MsaaSamples sample_positions);
 
   // Returns a pipeline state object with deferred creation by its handle. May
   // return nullptr if failed to create the pipeline state object.
@@ -206,11 +206,11 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   void OnPrimaryBufferEnd() override;
 
-  Shader* LoadShader(ShaderType shader_type, uint32_t guest_address,
+  Shader* LoadShader(xenos::ShaderType shader_type, uint32_t guest_address,
                      const uint32_t* host_address,
                      uint32_t dword_count) override;
 
-  bool IssueDraw(PrimitiveType primitive_type, uint32_t index_count,
+  bool IssueDraw(xenos::PrimitiveType primitive_type, uint32_t index_count,
                  IndexBufferInfo* index_buffer_info,
                  bool major_mode_explicit) override;
   bool IssueCopy() override;
@@ -336,7 +336,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   void UpdateFixedFunctionState(bool primitive_two_faced);
   void UpdateSystemConstantValues(
       bool shared_memory_is_uav, bool primitive_two_faced,
-      uint32_t line_loop_closing_index, Endian index_endian,
+      uint32_t line_loop_closing_index, xenos::Endian index_endian,
       uint32_t used_texture_mask, bool early_z, uint32_t color_mask,
       const RenderTargetCache::PipelineRenderTarget render_targets[4]);
   bool UpdateBindings(const D3D12Shader* vertex_shader,
@@ -348,7 +348,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   // for instance).
   // TODO(Triang3l): Check if any game uses memexport with formats smaller than
   // 32 bits per element.
-  static uint32_t GetSupportedMemExportFormatSize(ColorFormat format);
+  static uint32_t GetSupportedMemExportFormatSize(xenos::ColorFormat format);
 
   // Returns a buffer for reading GPU data back to the CPU. Assuming
   // synchronizing immediately after use. Always in COPY_DEST state.
@@ -524,7 +524,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool ff_stencil_ref_update_needed_;
 
   // Current SSAA sample positions (to be updated by the render target cache).
-  MsaaSamples current_sample_positions_;
+  xenos::MsaaSamples current_sample_positions_;
 
   // Currently bound pipeline, either a graphics pipeline from the pipeline
   // cache (with potentially deferred creation - current_external_pipeline_ is

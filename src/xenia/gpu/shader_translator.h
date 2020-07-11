@@ -49,14 +49,18 @@ class ShaderTranslator {
   // Register count.
   uint32_t register_count() const { return register_count_; }
   // True if the current shader is a vertex shader.
-  bool is_vertex_shader() const { return shader_type_ == ShaderType::kVertex; }
+  bool is_vertex_shader() const {
+    return shader_type_ == xenos::ShaderType::kVertex;
+  }
   // If translating a vertex shader, type of the shader in a D3D11-like
   // rendering pipeline.
   Shader::HostVertexShaderType host_vertex_shader_type() const {
     return host_vertex_shader_type_;
   }
   // True if the current shader is a pixel shader.
-  bool is_pixel_shader() const { return shader_type_ == ShaderType::kPixel; }
+  bool is_pixel_shader() const {
+    return shader_type_ == xenos::ShaderType::kPixel;
+  }
   // Used constant register info, populated before translation.
   const Shader::ConstantRegisterMap& constant_register_map() const {
     return constant_register_map_;
@@ -243,7 +247,7 @@ class ShaderTranslator {
       InstructionOperand& out_op);
 
   // Input shader metadata and microcode.
-  ShaderType shader_type_;
+  xenos::ShaderType shader_type_;
   Shader::HostVertexShaderType host_vertex_shader_type_;
   const uint32_t* ucode_dwords_;
   size_t ucode_dword_count_;

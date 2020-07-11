@@ -35,14 +35,14 @@ void NullCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                                        uint32_t frontbuffer_width,
                                        uint32_t frontbuffer_height) {}
 
-Shader* NullCommandProcessor::LoadShader(ShaderType shader_type,
+Shader* NullCommandProcessor::LoadShader(xenos::ShaderType shader_type,
                                          uint32_t guest_address,
                                          const uint32_t* host_address,
                                          uint32_t dword_count) {
   return nullptr;
 }
 
-bool NullCommandProcessor::IssueDraw(PrimitiveType prim_type,
+bool NullCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                                      uint32_t index_count,
                                      IndexBufferInfo* index_buffer_info,
                                      bool major_mode_explicit) {

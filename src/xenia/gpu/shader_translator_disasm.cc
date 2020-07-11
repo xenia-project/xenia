@@ -341,7 +341,7 @@ void ParsedVertexFetchInstruction::Disassemble(StringBuffer* out) const {
   if (attributes.offset) {
     out->AppendFormat(", Offset={}", attributes.offset);
   }
-  if (attributes.data_format != VertexFormat::kUndefined) {
+  if (attributes.data_format != xenos::VertexFormat::kUndefined) {
     out->AppendFormat(
         ", DataFormat={}",
         kVertexFetchDataFormats[static_cast<int>(attributes.data_format)].name);
@@ -404,32 +404,32 @@ void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
   if (attributes.unnormalized_coordinates) {
     out->Append(", UnnormalizedTextureCoords=true");
   }
-  if (attributes.mag_filter != TextureFilter::kUseFetchConst) {
+  if (attributes.mag_filter != xenos::TextureFilter::kUseFetchConst) {
     out->AppendFormat(
         ", MagFilter={}",
         kTextureFilterNames[static_cast<int>(attributes.mag_filter)]);
   }
-  if (attributes.min_filter != TextureFilter::kUseFetchConst) {
+  if (attributes.min_filter != xenos::TextureFilter::kUseFetchConst) {
     out->AppendFormat(
         ", MinFilter={}",
         kTextureFilterNames[static_cast<int>(attributes.min_filter)]);
   }
-  if (attributes.mip_filter != TextureFilter::kUseFetchConst) {
+  if (attributes.mip_filter != xenos::TextureFilter::kUseFetchConst) {
     out->AppendFormat(
         ", MipFilter={}",
         kTextureFilterNames[static_cast<int>(attributes.mip_filter)]);
   }
-  if (attributes.aniso_filter != AnisoFilter::kUseFetchConst) {
+  if (attributes.aniso_filter != xenos::AnisoFilter::kUseFetchConst) {
     out->AppendFormat(
         ", AnisoFilter={}",
         kAnisoFilterNames[static_cast<int>(attributes.aniso_filter)]);
   }
-  if (attributes.vol_mag_filter != TextureFilter::kUseFetchConst) {
+  if (attributes.vol_mag_filter != xenos::TextureFilter::kUseFetchConst) {
     out->AppendFormat(
         ", VolMagFilter={}",
         kTextureFilterNames[static_cast<int>(attributes.vol_mag_filter)]);
   }
-  if (attributes.vol_min_filter != TextureFilter::kUseFetchConst) {
+  if (attributes.vol_min_filter != xenos::TextureFilter::kUseFetchConst) {
     out->AppendFormat(
         ", VolMinFilter={}",
         kTextureFilterNames[static_cast<int>(attributes.vol_min_filter)]);
@@ -446,7 +446,7 @@ void ParsedTextureFetchInstruction::Disassemble(StringBuffer* out) const {
   if (attributes.lod_bias != 0.0f) {
     out->AppendFormat(", LODBias={:g}", attributes.lod_bias);
   }
-  int component_count = GetTextureDimensionComponentCount(dimension);
+  int component_count = xenos::GetFetchOpDimensionComponentCount(dimension);
   if (attributes.offset_x != 0.0f) {
     out->AppendFormat(", OffsetX={:g}", attributes.offset_x);
   }

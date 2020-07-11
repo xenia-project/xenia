@@ -51,12 +51,12 @@ namespace xe {
 namespace gpu {
 
 int shader_compiler_main(const std::vector<std::string>& args) {
-  ShaderType shader_type;
+  xenos::ShaderType shader_type;
   if (!cvars::shader_input_type.empty()) {
     if (cvars::shader_input_type == "vs") {
-      shader_type = ShaderType::kVertex;
+      shader_type = xenos::ShaderType::kVertex;
     } else if (cvars::shader_input_type == "ps") {
-      shader_type = ShaderType::kPixel;
+      shader_type = xenos::ShaderType::kPixel;
     } else {
       XELOGE("Invalid --shader_input_type; must be 'vs' or 'ps'.");
       return 1;
@@ -66,10 +66,10 @@ int shader_compiler_main(const std::vector<std::string>& args) {
     if (cvars::shader_input.has_extension()) {
       auto extension = cvars::shader_input.extension();
       if (extension == ".vs") {
-        shader_type = ShaderType::kVertex;
+        shader_type = xenos::ShaderType::kVertex;
         valid_type = true;
       } else if (extension == ".ps") {
-        shader_type = ShaderType::kPixel;
+        shader_type = xenos::ShaderType::kPixel;
         valid_type = true;
       }
     }
@@ -96,7 +96,7 @@ int shader_compiler_main(const std::vector<std::string>& args) {
 
   XELOGI("Opened {} as a {} shader, {} words ({} bytes).",
          xe::path_to_utf8(cvars::shader_input),
-         shader_type == ShaderType::kVertex ? "vertex" : "pixel",
+         shader_type == xenos::ShaderType::kVertex ? "vertex" : "pixel",
          ucode_dwords.size(), ucode_dwords.size() * 4);
 
   // TODO(benvanik): hash? need to return the data to big-endian format first.
@@ -119,7 +119,7 @@ int shader_compiler_main(const std::vector<std::string>& args) {
 
   Shader::HostVertexShaderType host_vertex_shader_type =
       Shader::HostVertexShaderType::kVertex;
-  if (shader_type == ShaderType::kVertex) {
+  if (shader_type == xenos::ShaderType::kVertex) {
     if (cvars::vertex_shader_output_type == "linedomaincp") {
       host_vertex_shader_type =
           Shader::HostVertexShaderType::kLineDomainCPIndexed;

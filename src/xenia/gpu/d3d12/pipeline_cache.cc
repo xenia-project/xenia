@@ -715,7 +715,7 @@ bool PipelineCache::IsCreatingPipelineStates() {
   return !creation_queue_.empty() || creation_threads_busy_ != 0;
 }
 
-D3D12Shader* PipelineCache::LoadShader(ShaderType shader_type,
+D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
                                        uint32_t guest_address,
                                        const uint32_t* host_address,
                                        uint32_t dword_count) {
@@ -760,7 +760,7 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
   xenos::TessellationMode tessellation_mode =
       regs.Get<reg::VGT_HOS_CNTL>().tess_mode;
   switch (vgt_draw_initiator.prim_type) {
-    case PrimitiveType::kTriangleList:
+    case xenos::PrimitiveType::kTriangleList:
       // Also supported by triangle strips and fans according to:
       // https://www.khronos.org/registry/OpenGL/extensions/AMD/AMD_vertex_shader_tessellator.txt
       // Would need to convert those to triangle lists, but haven't seen any
@@ -779,7 +779,7 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
           break;
       }
       break;
-    case PrimitiveType::kQuadList:
+    case xenos::PrimitiveType::kQuadList:
       switch (tessellation_mode) {
         // Also supported by quad strips according to:
         // https://www.khronos.org/registry/OpenGL/extensions/AMD/AMD_vertex_shader_tessellator.txt
@@ -794,11 +794,11 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
           break;
       }
       break;
-    case PrimitiveType::kTrianglePatch:
+    case xenos::PrimitiveType::kTrianglePatch:
       // - Banjo-Kazooie: Nuts & Bolts - water - adaptive.
       // - Halo 3 - water - adaptive.
       return Shader::HostVertexShaderType::kTriangleDomainPatchIndexed;
-    case PrimitiveType::kQuadPatch:
+    case xenos::PrimitiveType::kQuadPatch:
       // - Fable II - continuous.
       // - Viva Pinata - garden ground - adaptive.
       return Shader::HostVertexShaderType::kQuadDomainPatchIndexed;
@@ -866,7 +866,8 @@ bool PipelineCache::EnsureShadersTranslated(
 
 bool PipelineCache::ConfigurePipeline(
     D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
-    PrimitiveType primitive_type, IndexFormat index_format, bool early_z,
+    xenos::PrimitiveType primitive_type, xenos::IndexFormat index_format,
+    bool early_z,
     const RenderTargetCache::PipelineRenderTarget render_targets[5],
     void** pipeline_state_handle_out,
     ID3D12RootSignature** root_signature_out) {
@@ -966,7 +967,7 @@ bool PipelineCache::TranslateShader(
   }
 
   const char* host_shader_type;
-  if (shader->type() == ShaderType::kVertex) {
+  if (shader->type() == xenos::ShaderType::kVertex) {
     switch (shader->host_vertex_shader_type()) {
       case Shader::HostVertexShaderType::kLineDomainCPIndexed:
         host_shader_type = "control-point-indexed line domain";
@@ -1128,7 +1129,7 @@ bool PipelineCache::TranslateShader(
   // Create a version of the shader with early depth/stencil forced by Xenia
   // itself when it's safe to do so or when EARLY_Z_ENABLE is set in
   // RB_DEPTHCONTROL.
-  if (shader->type() == ShaderType::kPixel && !edram_rov_used_ &&
+  if (shader->type() == xenos::ShaderType::kPixel && !edram_rov_used_ &&
       !shader->writes_depth()) {
     shader->SetForcedEarlyZShaderObject(
         std::move(DxbcShaderTranslator::ForceEarlyDepthStencil(
@@ -1147,7 +1148,7 @@ bool PipelineCache::TranslateShader(
   // Dump shader files if desired.
   if (!cvars::dump_shaders.empty()) {
     shader->Dump(cvars::dump_shaders,
-                 (shader->type() == ShaderType::kPixel)
+                 (shader->type() == xenos::ShaderType::kPixel)
                      ? (edram_rov_used_ ? "d3d12_rov" : "d3d12_rtv")
                      : "d3d12");
   }
@@ -1157,7 +1158,8 @@ bool PipelineCache::TranslateShader(
 
 bool PipelineCache::GetCurrentStateDescription(
     D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
-    PrimitiveType primitive_type, IndexFormat index_format, bool early_z,
+    xenos::PrimitiveType primitive_type, xenos::IndexFormat index_format,
+    bool early_z,
     const RenderTargetCache::PipelineRenderTarget render_targets[5],
     PipelineRuntimeDescription& runtime_description_out) {
   PipelineDescription& description_out = runtime_description_out.description;
@@ -1187,7 +1189,7 @@ bool PipelineCache::GetCurrentStateDescription(
   if (pa_su_sc_mode_cntl.multi_prim_ib_ena) {
     // Not using 0xFFFF with 32-bit indices because in index buffers it will be
     // 0xFFFF0000 anyway due to endianness.
-    description_out.strip_cut_index = index_format == IndexFormat::kInt32
+    description_out.strip_cut_index = index_format == xenos::IndexFormat::kInt32
                                           ? PipelineStripCutIndex::kFFFFFFFF
                                           : PipelineStripCutIndex::kFFFF;
   } else {
@@ -1203,16 +1205,16 @@ bool PipelineCache::GetCurrentStateDescription(
   description_out.host_vertex_shader_type = host_vertex_shader_type;
   if (host_vertex_shader_type == Shader::HostVertexShaderType::kVertex) {
     switch (primitive_type) {
-      case PrimitiveType::kPointList:
+      case xenos::PrimitiveType::kPointList:
         description_out.primitive_topology_type_or_tessellation_mode =
             uint32_t(PipelinePrimitiveTopologyType::kPoint);
         break;
-      case PrimitiveType::kLineList:
-      case PrimitiveType::kLineStrip:
-      case PrimitiveType::kLineLoop:
+      case xenos::PrimitiveType::kLineList:
+      case xenos::PrimitiveType::kLineStrip:
+      case xenos::PrimitiveType::kLineLoop:
       // Quads are emulated as line lists with adjacency.
-      case PrimitiveType::kQuadList:
-      case PrimitiveType::k2DLineStrip:
+      case xenos::PrimitiveType::kQuadList:
+      case xenos::PrimitiveType::k2DLineStrip:
         description_out.primitive_topology_type_or_tessellation_mode =
             uint32_t(PipelinePrimitiveTopologyType::kLine);
         break;
@@ -1222,14 +1224,14 @@ bool PipelineCache::GetCurrentStateDescription(
         break;
     }
     switch (primitive_type) {
-      case PrimitiveType::kPointList:
+      case xenos::PrimitiveType::kPointList:
         description_out.geometry_shader = PipelineGeometryShader::kPointList;
         break;
-      case PrimitiveType::kRectangleList:
+      case xenos::PrimitiveType::kRectangleList:
         description_out.geometry_shader =
             PipelineGeometryShader::kRectangleList;
         break;
-      case PrimitiveType::kQuadList:
+      case xenos::PrimitiveType::kQuadList:
         description_out.geometry_shader = PipelineGeometryShader::kQuadList;
         break;
       default:
@@ -1241,7 +1243,7 @@ bool PipelineCache::GetCurrentStateDescription(
         uint32_t(regs.Get<reg::VGT_HOS_CNTL>().tess_mode);
   }
 
-  bool primitive_two_faced = IsPrimitiveTwoFaced(
+  bool primitive_two_faced = xenos::IsPrimitiveTwoFaced(
       host_vertex_shader_type != Shader::HostVertexShaderType::kVertex,
       primitive_type);
 
@@ -1332,7 +1334,7 @@ bool PipelineCache::GetCurrentStateDescription(
     // (shadows - 2^17 is not enough, 2^18 hasn't been tested, but 2^19
     // eliminates the acne).
     if (regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
-        DepthRenderTargetFormat::kD24FS8) {
+        xenos::DepthRenderTargetFormat::kD24FS8) {
       poly_offset *= float(1 << 19);
     } else {
       poly_offset *= float(1 << 23);
@@ -1353,8 +1355,8 @@ bool PipelineCache::GetCurrentStateDescription(
   }
   description_out.depth_clip = !regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable;
   if (edram_rov_used_) {
-    description_out.rov_msaa =
-        regs.Get<reg::RB_SURFACE_INFO>().msaa_samples != MsaaSamples::k1X;
+    description_out.rov_msaa = regs.Get<reg::RB_SURFACE_INFO>().msaa_samples !=
+                               xenos::MsaaSamples::k1X;
   } else {
     // Depth/stencil. No stencil, always passing depth test and no depth writing
     // means depth disabled.
@@ -1364,7 +1366,7 @@ bool PipelineCache::GetCurrentStateDescription(
         description_out.depth_func = rb_depthcontrol.zfunc;
         description_out.depth_write = rb_depthcontrol.z_write_enable;
       } else {
-        description_out.depth_func = CompareFunction::kAlways;
+        description_out.depth_func = xenos::CompareFunction::kAlways;
       }
       if (rb_depthcontrol.stencil_enable) {
         description_out.stencil_enable = 1;
@@ -1406,13 +1408,13 @@ bool PipelineCache::GetCurrentStateDescription(
         }
       }
       // If not binding the DSV, ignore the format in the hash.
-      if (description_out.depth_func != CompareFunction::kAlways ||
+      if (description_out.depth_func != xenos::CompareFunction::kAlways ||
           description_out.depth_write || description_out.stencil_enable) {
         description_out.depth_format =
             regs.Get<reg::RB_DEPTH_INFO>().depth_format;
       }
     } else {
-      description_out.depth_func = CompareFunction::kAlways;
+      description_out.depth_func = xenos::CompareFunction::kAlways;
     }
     if (early_z) {
       description_out.force_early_z = 1;
@@ -1495,10 +1497,10 @@ bool PipelineCache::GetCurrentStateDescription(
       } else {
         rt.src_blend = PipelineBlendFactor::kOne;
         rt.dest_blend = PipelineBlendFactor::kZero;
-        rt.blend_op = BlendOp::kAdd;
+        rt.blend_op = xenos::BlendOp::kAdd;
         rt.src_blend_alpha = PipelineBlendFactor::kOne;
         rt.dest_blend_alpha = PipelineBlendFactor::kZero;
-        rt.blend_op_alpha = BlendOp::kAdd;
+        rt.blend_op_alpha = xenos::BlendOp::kAdd;
       }
     }
   }
@@ -1725,7 +1727,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
 
   if (!edram_rov_used_) {
     // Depth/stencil.
-    if (description.depth_func != CompareFunction::kAlways ||
+    if (description.depth_func != xenos::CompareFunction::kAlways ||
         description.depth_write) {
       state_desc.DepthStencilState.DepthEnable = TRUE;
       state_desc.DepthStencilState.DepthWriteMask =
@@ -1812,10 +1814,10 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
       // Call of Duty 4 - GPU performance is better when not blending.
       if (rt.src_blend != PipelineBlendFactor::kOne ||
           rt.dest_blend != PipelineBlendFactor::kZero ||
-          rt.blend_op != BlendOp::kAdd ||
+          rt.blend_op != xenos::BlendOp::kAdd ||
           rt.src_blend_alpha != PipelineBlendFactor::kOne ||
           rt.dest_blend_alpha != PipelineBlendFactor::kZero ||
-          rt.blend_op_alpha != BlendOp::kAdd) {
+          rt.blend_op_alpha != xenos::BlendOp::kAdd) {
         blend_desc.BlendEnable = TRUE;
         blend_desc.SrcBlend = kBlendFactorMap[uint32_t(rt.src_blend)];
         blend_desc.DestBlend = kBlendFactorMap[uint32_t(rt.dest_blend)];

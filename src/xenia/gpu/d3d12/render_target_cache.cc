@@ -579,9 +579,9 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
     return false;
   }
   uint32_t msaa_samples_x =
-      rb_surface_info.msaa_samples >= MsaaSamples::k4X ? 2 : 1;
+      rb_surface_info.msaa_samples >= xenos::MsaaSamples::k4X ? 2 : 1;
   uint32_t msaa_samples_y =
-      rb_surface_info.msaa_samples >= MsaaSamples::k2X ? 2 : 1;
+      rb_surface_info.msaa_samples >= xenos::MsaaSamples::k2X ? 2 : 1;
 
   // Extract color/depth info in an unified way.
   bool enabled[5];
@@ -596,7 +596,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
     edram_bases[i] = std::min(color_info.color_base, 2048u);
     formats[i] = uint32_t(GetBaseColorFormat(color_info.color_format));
     formats_are_64bpp[i] =
-        IsColorFormat64bpp(ColorRenderTargetFormat(formats[i]));
+        IsColorFormat64bpp(xenos::ColorRenderTargetFormat(formats[i]));
   }
   auto rb_depthcontrol = regs.Get<reg::RB_DEPTHCONTROL>();
   auto rb_depth_info = regs.Get<reg::RB_DEPTH_INFO>();
@@ -968,7 +968,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
         render_target->state = D3D12_RESOURCE_STATE_RENDER_TARGET;
         current_pipeline_render_targets_[rtv_count].guest_render_target = i;
         current_pipeline_render_targets_[rtv_count].format =
-            GetColorDXGIFormat(ColorRenderTargetFormat(formats[i]));
+            GetColorDXGIFormat(xenos::ColorRenderTargetFormat(formats[i]));
         ++rtv_count;
       }
       for (uint32_t i = rtv_count; i < 4; ++i) {
@@ -985,7 +985,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
             D3D12_RESOURCE_STATE_DEPTH_WRITE);
         depth_render_target->state = D3D12_RESOURCE_STATE_DEPTH_WRITE;
         current_pipeline_render_targets_[4].format =
-            GetDepthDXGIFormat(DepthRenderTargetFormat(formats[4]));
+            GetDepthDXGIFormat(xenos::DepthRenderTargetFormat(formats[4]));
       } else {
         current_pipeline_render_targets_[4].format = DXGI_FORMAT_UNKNOWN;
       }
@@ -1094,7 +1094,7 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   const auto& fetch = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
       XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0);
   assert_true(fetch.type == xenos::FetchConstantType::kVertex);
-  assert_true(fetch.endian == Endian::k8in32);
+  assert_true(fetch.endian == xenos::Endian::k8in32);
   assert_true(fetch.size == 6);
   trace_writer_->WriteMemoryRead(fetch.address << 2, fetch.size << 2);
   const uint8_t* src_vertex_address =
@@ -1106,7 +1106,7 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
   for (uint32_t i = 0; i < 6; ++i) {
     vertices[i] =
         xenos::GpuSwap(xe::load<float>(src_vertex_address + i * sizeof(float)),
-                       Endian(fetch.endian)) +
+                       xenos::Endian(fetch.endian)) +
         vertex_offset;
   }
   // Xenos only supports rectangle copies (luckily).
@@ -1175,7 +1175,7 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
       "at {}",
       rect.left, rect.top, rect.right, rect.bottom, surface_index,
       surface_pitch, 1 << uint32_t(rb_surface_info.msaa_samples),
-      rb_surface_info.msaa_samples != MsaaSamples::k1X ? "s" : "",
+      rb_surface_info.msaa_samples != xenos::MsaaSamples::k1X ? "s" : "",
       surface_format, surface_edram_base);
 
   if (rect.left >= rect.right || rect.top >= rect.bottom) {
@@ -1211,8 +1211,9 @@ bool RenderTargetCache::Resolve(SharedMemory* shared_memory,
 bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
                                     TextureCache* texture_cache,
                                     uint32_t edram_base, uint32_t surface_pitch,
-                                    MsaaSamples msaa_samples, bool is_depth,
-                                    uint32_t src_format, const D3D12_RECT& rect,
+                                    xenos::MsaaSamples msaa_samples,
+                                    bool is_depth, uint32_t src_format,
+                                    const D3D12_RECT& rect,
                                     uint32_t& written_address_out,
                                     uint32_t& written_length_out) {
   written_address_out = written_length_out = 0;
@@ -1231,35 +1232,35 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
 
   // Get format info.
   auto rb_copy_dest_info = regs.Get<reg::RB_COPY_DEST_INFO>();
-  TextureFormat src_texture_format;
+  xenos::TextureFormat src_texture_format;
   bool src_64bpp;
   if (is_depth) {
-    src_texture_format =
-        DepthRenderTargetToTextureFormat(DepthRenderTargetFormat(src_format));
+    src_texture_format = DepthRenderTargetToTextureFormat(
+        xenos::DepthRenderTargetFormat(src_format));
     src_64bpp = false;
   } else {
     // Force k_16_16 and k_16_16_16_16 RTs to be always resolved via drawing,
     // because resolving to a k_16_16 or a k_16_16_16_16 texture should result
     // in unsigned texture data, unlike the render target which is signed.
-    if (ColorRenderTargetFormat(src_format) ==
-        ColorRenderTargetFormat::k_16_16) {
-      src_texture_format = TextureFormat::k_16_16_EDRAM;
-    } else if (ColorRenderTargetFormat(src_format) ==
-               ColorRenderTargetFormat::k_16_16_16_16) {
-      src_texture_format = TextureFormat::k_16_16_16_16_EDRAM;
+    if (xenos::ColorRenderTargetFormat(src_format) ==
+        xenos::ColorRenderTargetFormat::k_16_16) {
+      src_texture_format = xenos::TextureFormat::k_16_16_EDRAM;
+    } else if (xenos::ColorRenderTargetFormat(src_format) ==
+               xenos::ColorRenderTargetFormat::k_16_16_16_16) {
+      src_texture_format = xenos::TextureFormat::k_16_16_16_16_EDRAM;
     } else {
       src_texture_format = GetBaseFormat(ColorRenderTargetToTextureFormat(
-          ColorRenderTargetFormat(src_format)));
+          xenos::ColorRenderTargetFormat(src_format)));
     }
-    src_64bpp = IsColorFormat64bpp(ColorRenderTargetFormat(src_format));
+    src_64bpp = IsColorFormat64bpp(xenos::ColorRenderTargetFormat(src_format));
   }
-  assert_true(src_texture_format != TextureFormat::kUnknown);
+  assert_true(src_texture_format != xenos::TextureFormat::kUnknown);
   // The destination format is specified as k_8_8_8_8 when resolving depth, but
   // no format conversion is done for depth, so ignore it.
-  TextureFormat dest_format =
-      is_depth
-          ? src_texture_format
-          : GetBaseFormat(TextureFormat(rb_copy_dest_info.copy_dest_format));
+  xenos::TextureFormat dest_format =
+      is_depth ? src_texture_format
+               : GetBaseFormat(
+                     xenos::TextureFormat(rb_copy_dest_info.copy_dest_format));
   const FormatInfo* dest_format_info = FormatInfo::Get(dest_format);
 
   // Get the destination region and clamp the source region to it.
@@ -1328,10 +1329,10 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     dest_exp_bias = 0;
   } else {
     dest_exp_bias = rb_copy_dest_info.copy_dest_exp_bias;
-    if (ColorRenderTargetFormat(src_format) ==
-            ColorRenderTargetFormat::k_16_16 ||
-        ColorRenderTargetFormat(src_format) ==
-            ColorRenderTargetFormat::k_16_16_16_16) {
+    if (xenos::ColorRenderTargetFormat(src_format) ==
+            xenos::ColorRenderTargetFormat::k_16_16 ||
+        xenos::ColorRenderTargetFormat(src_format) ==
+            xenos::ColorRenderTargetFormat::k_16_16_16_16) {
       // On the Xbox 360, k_16_16_EDRAM and k_16_16_16_16_EDRAM internally have
       // -32...32 range, but they're emulated using normalized RG16/RGBA16, so
       // sampling the host render target gives 1/32 of what is actually stored
@@ -1505,9 +1506,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         edram_base | (resolution_scale_log2 << 13) |
         (resolution_scale_edge_clamp ? (1 << 14) : 0) |
         (is_depth ? (1 << 15) : 0) | (surface_pitch_tiles << 16);
-    if (msaa_samples >= MsaaSamples::k2X) {
+    if (msaa_samples >= xenos::MsaaSamples::k2X) {
       root_constants.base_samples_2x_depth_pitch |= 1 << 11;
-      if (msaa_samples >= MsaaSamples::k4X) {
+      if (msaa_samples >= xenos::MsaaSamples::k4X) {
         root_constants.base_samples_2x_depth_pitch |= 1 << 12;
       }
     }
@@ -1520,9 +1521,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     command_processor_->SubmitBarriers();
     // 1 group per destination 80x16 region.
     uint32_t group_count_x = row_width_ss_div_80, group_count_y = rows;
-    if (msaa_samples >= MsaaSamples::k2X) {
+    if (msaa_samples >= xenos::MsaaSamples::k2X) {
       group_count_y = (group_count_y + 1) >> 1;
-      if (msaa_samples >= MsaaSamples::k4X) {
+      if (msaa_samples >= xenos::MsaaSamples::k4X) {
         group_count_x = (group_count_x + 1) >> 1;
       }
     }
@@ -1648,9 +1649,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     load_root_constants.base_samples_2x_depth_pitch =
         edram_base | (resolution_scale_log2 << 13) |
         (surface_pitch_tiles << 16);
-    if (msaa_samples >= MsaaSamples::k2X) {
+    if (msaa_samples >= xenos::MsaaSamples::k2X) {
       load_root_constants.base_samples_2x_depth_pitch |= 1 << 11;
-      if (msaa_samples >= MsaaSamples::k4X) {
+      if (msaa_samples >= xenos::MsaaSamples::k4X) {
         load_root_constants.base_samples_2x_depth_pitch |= 1 << 12;
       }
     }
@@ -1713,8 +1714,8 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     command_list->D3DSetGraphicsRootSignature(resolve_root_signature_);
 
     ResolveRootConstants resolve_root_constants;
-    uint32_t samples_x_log2 = msaa_samples >= MsaaSamples::k4X ? 1 : 0;
-    uint32_t samples_y_log2 = msaa_samples >= MsaaSamples::k2X ? 1 : 0;
+    uint32_t samples_x_log2 = msaa_samples >= xenos::MsaaSamples::k4X ? 1 : 0;
+    uint32_t samples_y_log2 = msaa_samples >= xenos::MsaaSamples::k2X ? 1 : 0;
     resolve_root_constants.rect_samples_lw =
         (copy_rect.left << (samples_x_log2 + resolution_scale_log2)) |
         (copy_width << (16 + samples_x_log2 + resolution_scale_log2));
@@ -1728,10 +1729,10 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
         samples_y_log2 | (samples_x_log2 << 1) |
         (resolution_scale_edge_clamp ? (1 << 6) : 0) |
         ((uint32_t(dest_exp_bias) & 0x3F) << 7);
-    if (msaa_samples == MsaaSamples::k1X) {
+    if (msaa_samples == xenos::MsaaSamples::k1X) {
       // No offset.
       resolve_root_constants.resolve_info |= (1 << 2) | (1 << 4);
-    } else if (msaa_samples == MsaaSamples::k2X) {
+    } else if (msaa_samples == xenos::MsaaSamples::k2X) {
       // -0.5 or +0.5 samples vertical offset if getting only one sample.
       if (sample_select == xenos::CopySampleSelect::k0) {
         resolve_root_constants.resolve_info |= (0 << 2) | (1 << 4);
@@ -1772,26 +1773,26 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
 
     D3D12_SHADER_RESOURCE_VIEW_DESC rt_srv_desc;
     rt_srv_desc.Format =
-        GetColorDXGIFormat(ColorRenderTargetFormat(src_format));
+        GetColorDXGIFormat(xenos::ColorRenderTargetFormat(src_format));
     rt_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     UINT swizzle = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     if (dest_swap) {
-      switch (ColorRenderTargetFormat(src_format)) {
-        case ColorRenderTargetFormat::k_8_8_8_8:
-        case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-        case ColorRenderTargetFormat::k_2_10_10_10:
-        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-        case ColorRenderTargetFormat::k_16_16_16_16:
-        case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
-        case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
-        case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+      switch (xenos::ColorRenderTargetFormat(src_format)) {
+        case xenos::ColorRenderTargetFormat::k_8_8_8_8:
+        case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+        case xenos::ColorRenderTargetFormat::k_2_10_10_10:
+        case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+        case xenos::ColorRenderTargetFormat::k_16_16_16_16:
+        case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+        case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
+        case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
           swizzle = D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(2, 1, 0, 3);
           break;
         default:
           break;
       }
     }
-    if (dest_format == TextureFormat::k_6_5_5) {
+    if (dest_format == xenos::TextureFormat::k_6_5_5) {
       // Green bits of the resolve target used for blue, and blue bits used for
       // green.
       swizzle = D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(
@@ -1810,7 +1811,7 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
     command_list->D3DSetGraphicsRootDescriptorTable(1, descriptor_rt.second);
 
     command_processor_->SubmitBarriers();
-    command_processor_->SetSamplePositions(MsaaSamples::k1X);
+    command_processor_->SetSamplePositions(xenos::MsaaSamples::k1X);
     command_processor_->SetExternalGraphicsPipeline(resolve_pipeline);
     command_list->D3DOMSetRenderTargets(1, &resolve_target->rtv_handle, TRUE,
                                         nullptr);
@@ -1881,8 +1882,9 @@ bool RenderTargetCache::ResolveCopy(SharedMemory* shared_memory,
 
 bool RenderTargetCache::ResolveClear(uint32_t edram_base,
                                      uint32_t surface_pitch,
-                                     MsaaSamples msaa_samples, bool is_depth,
-                                     uint32_t format, const D3D12_RECT& rect) {
+                                     xenos::MsaaSamples msaa_samples,
+                                     bool is_depth, uint32_t format,
+                                     const D3D12_RECT& rect) {
   auto& regs = *register_file_;
 
   // Check if clearing is enabled.
@@ -1902,7 +1904,7 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
 
   // Calculate the layout.
   bool is_64bpp =
-      !is_depth && IsColorFormat64bpp(ColorRenderTargetFormat(format));
+      !is_depth && IsColorFormat64bpp(xenos::ColorRenderTargetFormat(format));
   D3D12_RECT clear_rect = rect;
   uint32_t surface_pitch_tiles, row_width_ss_div_80, rows;
   if (!GetEDRAMLayout(surface_pitch, msaa_samples, is_64bpp, edram_base,
@@ -1911,8 +1913,8 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
     // Nothing to clear.
     return true;
   }
-  uint32_t samples_x_log2 = msaa_samples >= MsaaSamples::k4X ? 1 : 0;
-  uint32_t samples_y_log2 = msaa_samples >= MsaaSamples::k2X ? 1 : 0;
+  uint32_t samples_x_log2 = msaa_samples >= xenos::MsaaSamples::k4X ? 1 : 0;
+  uint32_t samples_y_log2 = msaa_samples >= xenos::MsaaSamples::k2X ? 1 : 0;
 
   // Get transient data needed for clearing.
   ui::d3d12::util::DescriptorCPUGPUHandlePair descriptor_edram;
@@ -1941,7 +1943,8 @@ bool RenderTargetCache::ResolveClear(uint32_t edram_base,
       (surface_pitch_tiles << 16);
   // When ROV is used, there's no 32-bit depth buffer.
   if (!edram_rov_used_ && is_depth &&
-      DepthRenderTargetFormat(format) == DepthRenderTargetFormat::kD24FS8) {
+      xenos::DepthRenderTargetFormat(format) ==
+          xenos::DepthRenderTargetFormat::kD24FS8) {
     root_constants.clear_depth24 = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
     // 20e4 [0,2), based on CFloat24 from d3dref9.dll and on 6e4 in DirectXTex.
     uint32_t depth24 = root_constants.clear_depth24 >> 8;
@@ -2222,42 +2225,42 @@ void RenderTargetCache::WriteEDRAMRawUAVDescriptor(
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-ColorRenderTargetFormat RenderTargetCache::GetBaseColorFormat(
-    ColorRenderTargetFormat format) {
+xenos::ColorRenderTargetFormat RenderTargetCache::GetBaseColorFormat(
+    xenos::ColorRenderTargetFormat format) {
   switch (format) {
-    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      return ColorRenderTargetFormat::k_8_8_8_8;
-    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
-      return ColorRenderTargetFormat::k_2_10_10_10;
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-      return ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+      return xenos::ColorRenderTargetFormat::k_8_8_8_8;
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
+      return xenos::ColorRenderTargetFormat::k_2_10_10_10;
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+      return xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
     default:
       return format;
   }
 }
 
 DXGI_FORMAT RenderTargetCache::GetColorDXGIFormat(
-    ColorRenderTargetFormat format) {
+    xenos::ColorRenderTargetFormat format) {
   switch (format) {
-    case ColorRenderTargetFormat::k_8_8_8_8:
-    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8:
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
       return DXGI_FORMAT_R8G8B8A8_UNORM;
-    case ColorRenderTargetFormat::k_2_10_10_10:
-    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10:
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
       return DXGI_FORMAT_R10G10B10A2_UNORM;
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-    case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
       return DXGI_FORMAT_R16G16B16A16_FLOAT;
-    case ColorRenderTargetFormat::k_16_16:
+    case xenos::ColorRenderTargetFormat::k_16_16:
       return DXGI_FORMAT_R16G16_SNORM;
-    case ColorRenderTargetFormat::k_16_16_16_16:
+    case xenos::ColorRenderTargetFormat::k_16_16_16_16:
       return DXGI_FORMAT_R16G16B16A16_SNORM;
-    case ColorRenderTargetFormat::k_16_16_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_16_16_FLOAT:
       return DXGI_FORMAT_R16G16_FLOAT;
-    case ColorRenderTargetFormat::k_32_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_32_FLOAT:
       return DXGI_FORMAT_R32_FLOAT;
-    case ColorRenderTargetFormat::k_32_32_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_32_32_FLOAT:
       return DXGI_FORMAT_R32G32_FLOAT;
     default:
       break;
@@ -2412,7 +2415,7 @@ void RenderTargetCache::CommitEDRAMBufferUAVWrites(bool force) {
 
 void RenderTargetCache::ClearBindings() {
   current_surface_pitch_ = 0;
-  current_msaa_samples_ = MsaaSamples::k1X;
+  current_msaa_samples_ = xenos::MsaaSamples::k1X;
   current_edram_max_rows_ = 0;
   std::memset(current_bindings_, 0, sizeof(current_bindings_));
   apply_to_command_list_ = true;
@@ -2481,8 +2484,9 @@ bool RenderTargetCache::GetResourceDesc(RenderTargetKey key,
     return false;
   }
   DXGI_FORMAT dxgi_format =
-      key.is_depth ? GetDepthDXGIFormat(DepthRenderTargetFormat(key.format))
-                   : GetColorDXGIFormat(ColorRenderTargetFormat(key.format));
+      key.is_depth
+          ? GetDepthDXGIFormat(xenos::DepthRenderTargetFormat(key.format))
+          : GetColorDXGIFormat(xenos::ColorRenderTargetFormat(key.format));
   if (dxgi_format == DXGI_FORMAT_UNKNOWN) {
     return false;
   }
@@ -2651,7 +2655,7 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
 }
 
 bool RenderTargetCache::GetEDRAMLayout(
-    uint32_t pitch_pixels, MsaaSamples msaa_samples, bool is_64bpp,
+    uint32_t pitch_pixels, xenos::MsaaSamples msaa_samples, bool is_64bpp,
     uint32_t& base_in_out, D3D12_RECT& rect_in_out, uint32_t& pitch_tiles_out,
     uint32_t& row_width_ss_div_80_out, uint32_t& rows_out) {
   if (pitch_pixels == 0 || rect_in_out.right <= 0 || rect_in_out.bottom <= 0 ||
@@ -2667,8 +2671,8 @@ bool RenderTargetCache::GetEDRAMLayout(
     return false;
   }
 
-  uint32_t samples_x_log2 = msaa_samples >= MsaaSamples::k4X ? 1 : 0;
-  uint32_t samples_y_log2 = msaa_samples >= MsaaSamples::k2X ? 1 : 0;
+  uint32_t samples_x_log2 = msaa_samples >= xenos::MsaaSamples::k4X ? 1 : 0;
+  uint32_t samples_y_log2 = msaa_samples >= xenos::MsaaSamples::k2X ? 1 : 0;
   uint32_t sample_size_log2 = is_64bpp ? 1 : 0;
 
   uint32_t pitch_tiles = (((pitch_pixels << samples_x_log2) + 79) / 80)
@@ -2711,14 +2715,16 @@ bool RenderTargetCache::GetEDRAMLayout(
 RenderTargetCache::EDRAMLoadStoreMode RenderTargetCache::GetLoadStoreMode(
     bool is_depth, uint32_t format) {
   if (is_depth) {
-    return DepthRenderTargetFormat(format) == DepthRenderTargetFormat::kD24FS8
+    return xenos::DepthRenderTargetFormat(format) ==
+                   xenos::DepthRenderTargetFormat::kD24FS8
                ? EDRAMLoadStoreMode::kDepthFloat
                : EDRAMLoadStoreMode::kDepthUnorm;
   }
-  ColorRenderTargetFormat color_format = ColorRenderTargetFormat(format);
-  if (color_format == ColorRenderTargetFormat::k_2_10_10_10_FLOAT ||
+  xenos::ColorRenderTargetFormat color_format =
+      xenos::ColorRenderTargetFormat(format);
+  if (color_format == xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT ||
       color_format ==
-          ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16) {
+          xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16) {
     return EDRAMLoadStoreMode::kColor7e3;
   }
   return IsColorFormat64bpp(color_format) ? EDRAMLoadStoreMode::kColor64bpp
@@ -2824,7 +2830,7 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
   // Calculate the dispatch width.
   uint32_t surface_pitch_ss =
       current_surface_pitch_ *
-      (current_msaa_samples_ >= MsaaSamples::k4X ? 2 : 1);
+      (current_msaa_samples_ >= xenos::MsaaSamples::k4X ? 2 : 1);
   uint32_t surface_pitch_tiles = (surface_pitch_ss + 79) / 80;
   assert_true(surface_pitch_tiles != 0);
 
@@ -2854,7 +2860,7 @@ void RenderTargetCache::StoreRenderTargetsToEDRAM() {
     uint32_t rt_pitch_tiles = surface_pitch_tiles;
     if (!render_target->key.is_depth &&
         IsColorFormat64bpp(
-            ColorRenderTargetFormat(render_target->key.format))) {
+            xenos::ColorRenderTargetFormat(render_target->key.format))) {
       rt_pitch_tiles *= 2;
     }
     // TODO(Triang3l): log2(sample count, resolution scale).
@@ -2975,7 +2981,7 @@ void RenderTargetCache::LoadRenderTargetsFromEDRAM(
     uint32_t edram_pitch_tiles = render_target->key.width_ss_div_80;
     if (!render_target->key.is_depth &&
         IsColorFormat64bpp(
-            ColorRenderTargetFormat(render_target->key.format))) {
+            xenos::ColorRenderTargetFormat(render_target->key.format))) {
       edram_pitch_tiles *= 2;
     }
     // Clamp the height if somehow requested a render target that is too large.

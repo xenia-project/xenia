@@ -290,20 +290,21 @@ class RenderTargetCache {
 
   // Totally necessary to rely on the base format - Too Human switches between
   // 2_10_10_10_FLOAT and 2_10_10_10_FLOAT_AS_16_16_16_16 every draw.
-  static ColorRenderTargetFormat GetBaseColorFormat(
-      ColorRenderTargetFormat format);
-  static inline bool IsColorFormat64bpp(ColorRenderTargetFormat format) {
-    return format == ColorRenderTargetFormat::k_16_16_16_16 ||
-           format == ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
-           format == ColorRenderTargetFormat::k_32_32_FLOAT;
+  static xenos::ColorRenderTargetFormat GetBaseColorFormat(
+      xenos::ColorRenderTargetFormat format);
+  static inline bool IsColorFormat64bpp(xenos::ColorRenderTargetFormat format) {
+    return format == xenos::ColorRenderTargetFormat::k_16_16_16_16 ||
+           format == xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
+           format == xenos::ColorRenderTargetFormat::k_32_32_FLOAT;
   }
-  static DXGI_FORMAT GetColorDXGIFormat(ColorRenderTargetFormat format);
+  static DXGI_FORMAT GetColorDXGIFormat(xenos::ColorRenderTargetFormat format);
   // Nvidia may have higher performance with 24-bit depth, AMD should have no
   // performance difference, but with EDRAM loads/stores less conversion should
   // be performed by the shaders if D24S8 is emulated as D24_UNORM_S8_UINT, and
   // it's probably more accurate.
-  static inline DXGI_FORMAT GetDepthDXGIFormat(DepthRenderTargetFormat format) {
-    return format == DepthRenderTargetFormat::kD24FS8
+  static inline DXGI_FORMAT GetDepthDXGIFormat(
+      xenos::DepthRenderTargetFormat format) {
+    return format == xenos::DepthRenderTargetFormat::kD24FS8
                ? DXGI_FORMAT_D32_FLOAT_S8X24_UINT
                : DXGI_FORMAT_D24_UNORM_S8_UINT;
   }
@@ -396,8 +397,8 @@ class RenderTargetCache {
     uint32_t edram_dirty_rows;
     union {
       uint32_t format;
-      ColorRenderTargetFormat color_format;
-      DepthRenderTargetFormat depth_format;
+      xenos::ColorRenderTargetFormat color_format;
+      xenos::DepthRenderTargetFormat depth_format;
     };
     RenderTarget* render_target;
   };
@@ -472,9 +473,10 @@ class RenderTargetCache {
   // rectangle is within the bounds of EDRAM and is not empty, but if it returns
   // false, the output values may not be written, so the return value must be
   // checked.
-  static bool GetEDRAMLayout(uint32_t pitch_pixels, MsaaSamples msaa_samples,
-                             bool is_64bpp, uint32_t& base_in_out,
-                             D3D12_RECT& rect_in_out, uint32_t& pitch_tiles_out,
+  static bool GetEDRAMLayout(uint32_t pitch_pixels,
+                             xenos::MsaaSamples msaa_samples, bool is_64bpp,
+                             uint32_t& base_in_out, D3D12_RECT& rect_in_out,
+                             uint32_t& pitch_tiles_out,
                              uint32_t& row_width_ss_div_80_out,
                              uint32_t& rows_out);
 
@@ -493,13 +495,13 @@ class RenderTargetCache {
   // Performs the copying part of a resolve.
   bool ResolveCopy(SharedMemory* shared_memory, TextureCache* texture_cache,
                    uint32_t edram_base, uint32_t surface_pitch,
-                   MsaaSamples msaa_samples, bool is_depth, uint32_t src_format,
-                   const D3D12_RECT& rect, uint32_t& written_address_out,
-                   uint32_t& written_length_out);
+                   xenos::MsaaSamples msaa_samples, bool is_depth,
+                   uint32_t src_format, const D3D12_RECT& rect,
+                   uint32_t& written_address_out, uint32_t& written_length_out);
   // Performs the clearing part of a resolve.
   bool ResolveClear(uint32_t edram_base, uint32_t surface_pitch,
-                    MsaaSamples msaa_samples, bool is_depth, uint32_t format,
-                    const D3D12_RECT& rect);
+                    xenos::MsaaSamples msaa_samples, bool is_depth,
+                    uint32_t format, const D3D12_RECT& rect);
 
   ID3D12PipelineState* GetResolvePipeline(DXGI_FORMAT dest_format);
   // Returns any available resolve target placed at least at
@@ -646,7 +648,7 @@ class RenderTargetCache {
   std::unordered_multimap<uint32_t, RenderTarget*> render_targets_;
 
   uint32_t current_surface_pitch_ = 0;
-  MsaaSamples current_msaa_samples_ = MsaaSamples::k1X;
+  xenos::MsaaSamples current_msaa_samples_ = xenos::MsaaSamples::k1X;
   // current_edram_max_rows_ is for RTV/DSV only (render target texture size).
   uint32_t current_edram_max_rows_ = 0;
   RenderTargetBinding current_bindings_[5] = {};
