@@ -63,11 +63,6 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/resolve_ps.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/resolve_vs.h"
 
-#if 0
-constexpr uint32_t RenderTargetCache::kHeap4MBPages;
-#endif
-constexpr uint32_t RenderTargetCache::kRenderTargetDescriptorHeapSize;
-
 const RenderTargetCache::EDRAMLoadStoreModeInfo
     RenderTargetCache::edram_load_store_mode_info_[size_t(
         RenderTargetCache::EDRAMLoadStoreMode::kCount)] = {

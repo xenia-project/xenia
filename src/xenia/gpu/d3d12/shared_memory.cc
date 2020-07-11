@@ -34,15 +34,6 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-constexpr uint32_t SharedMemory::kBufferSizeLog2;
-constexpr uint32_t SharedMemory::kBufferSize;
-constexpr uint32_t SharedMemory::kHeapSizeLog2;
-constexpr uint32_t SharedMemory::kHeapSize;
-constexpr uint32_t SharedMemory::kWatchBucketSizeLog2;
-constexpr uint32_t SharedMemory::kWatchBucketCount;
-constexpr uint32_t SharedMemory::kWatchRangePoolSize;
-constexpr uint32_t SharedMemory::kWatchNodePoolSize;
-
 SharedMemory::SharedMemory(D3D12CommandProcessor* command_processor,
                            Memory* memory, TraceWriter* trace_writer)
     : command_processor_(command_processor),

@@ -62,21 +62,6 @@ using namespace ucode;
 //   S#/T#/U# binding index, and the second is the s#/t#/u# register index
 //   within its space.
 
-constexpr uint32_t DxbcShaderTranslator::kMaxTextureBindingIndexBits;
-constexpr uint32_t DxbcShaderTranslator::kMaxTextureBindings;
-constexpr uint32_t DxbcShaderTranslator::kMaxSamplerBindingIndexBits;
-constexpr uint32_t DxbcShaderTranslator::kMaxSamplerBindings;
-constexpr uint32_t DxbcShaderTranslator::kInterpolatorCount;
-constexpr uint32_t DxbcShaderTranslator::kPointParametersTexCoord;
-constexpr uint32_t DxbcShaderTranslator::kClipSpaceZWTexCoord;
-constexpr uint32_t DxbcShaderTranslator::kSwizzleXYZW;
-constexpr uint32_t DxbcShaderTranslator::kSwizzleXXXX;
-constexpr uint32_t DxbcShaderTranslator::kSwizzleYYYY;
-constexpr uint32_t DxbcShaderTranslator::kSwizzleZZZZ;
-constexpr uint32_t DxbcShaderTranslator::kSwizzleWWWW;
-constexpr uint32_t DxbcShaderTranslator::kBindingIndexUnallocated;
-constexpr uint32_t DxbcShaderTranslator::kCfExecBoolConstantNone;
-
 DxbcShaderTranslator::DxbcShaderTranslator(uint32_t vendor_id,
                                            bool bindless_resources_used,
                                            bool edram_rov_used,

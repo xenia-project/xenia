@@ -61,9 +61,6 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/primitive_rectangle_list_gs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/tessellation_vs.h"
 
-constexpr size_t PipelineCache::kLayoutUIDEmpty;
-constexpr uint32_t PipelineCache::PipelineDescription::kVersion;
-
 PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
                              RegisterFile* register_file,
                              bool bindless_resources_used, bool edram_rov_used,
