@@ -135,11 +135,11 @@ class PrimitiveConverter {
   union ConvertedIndicesKey {
     uint64_t value;
     struct {
-      uint32_t address;               // 32
+      uint32_t address;                      // 32
       xenos::PrimitiveType source_type : 6;  // 38
       xenos::IndexFormat format : 1;         // 39
-      uint32_t count : 16;            // 55
-      uint32_t reset : 1;             // 56
+      uint32_t count : 16;                   // 55
+      uint32_t reset : 1;                    // 56
     };
 
     // Clearing the unused bits.
