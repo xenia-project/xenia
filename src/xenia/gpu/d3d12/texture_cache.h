@@ -142,11 +142,11 @@ class TextureCache {
       xenos::ClampMode clamp_z : 3;         // 9
       xenos::BorderColor border_color : 2;  // 11
       // For anisotropic, these are true.
-      uint32_t mag_linear : 1;       // 12
-      uint32_t min_linear : 1;       // 13
-      uint32_t mip_linear : 1;       // 14
+      uint32_t mag_linear : 1;              // 12
+      uint32_t min_linear : 1;              // 13
+      uint32_t mip_linear : 1;              // 14
       xenos::AnisoFilter aniso_filter : 3;  // 17
-      uint32_t mip_min_level : 4;    // 21
+      uint32_t mip_min_level : 4;           // 21
       // Maximum mip level is in the texture resource itself.
     };
     uint32_t value;
