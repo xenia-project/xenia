@@ -33,13 +33,6 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-constexpr uint32_t PrimitiveConverter::kMaxNonIndexedVertices;
-constexpr uint32_t PrimitiveConverter::kStaticIBTriangleFanOffset;
-constexpr uint32_t PrimitiveConverter::kStaticIBTriangleFanCount;
-constexpr uint32_t PrimitiveConverter::kStaticIBQuadOffset;
-constexpr uint32_t PrimitiveConverter::kStaticIBQuadCount;
-constexpr uint32_t PrimitiveConverter::kStaticIBTotalCount;
-
 PrimitiveConverter::PrimitiveConverter(D3D12CommandProcessor* command_processor,
                                        RegisterFile* register_file,
                                        Memory* memory,

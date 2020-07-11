@@ -42,8 +42,6 @@ using namespace ucode;
 // Lots of naming comes from the disassembly spit out by the XNA GS compiler
 // and dumps of d3dcompiler and games: https://pastebin.com/i4kAv7bB
 
-constexpr uint32_t ShaderTranslator::kMaxMemExports;
-
 ShaderTranslator::ShaderTranslator() = default;
 
 ShaderTranslator::~ShaderTranslator() = default;

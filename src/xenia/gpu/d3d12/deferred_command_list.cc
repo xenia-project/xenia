@@ -17,8 +17,6 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-constexpr size_t DeferredCommandList::kAlignment;
-
 DeferredCommandList::DeferredCommandList(
     D3D12CommandProcessor* command_processor, size_t initial_size)
     : command_processor_(command_processor) {

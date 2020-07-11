@@ -20,11 +20,6 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-constexpr uint32_t D3D12Shader::kMaxTextureBindingIndexBits;
-constexpr uint32_t D3D12Shader::kMaxTextureBindings;
-constexpr uint32_t D3D12Shader::kMaxSamplerBindingIndexBits;
-constexpr uint32_t D3D12Shader::kMaxSamplerBindings;
-
 D3D12Shader::D3D12Shader(xenos::ShaderType shader_type, uint64_t data_hash,
                          const uint32_t* dword_ptr, uint32_t dword_count)
     : Shader(shader_type, data_hash, dword_ptr, dword_count) {}

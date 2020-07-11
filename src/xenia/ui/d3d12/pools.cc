@@ -163,8 +163,6 @@ uint8_t* UploadBufferPool::RequestPartial(
   return mapping;
 }
 
-constexpr uint64_t DescriptorHeapPool::kHeapIndexInvalid;
-
 DescriptorHeapPool::DescriptorHeapPool(ID3D12Device* device,
                                        D3D12_DESCRIPTOR_HEAP_TYPE type,
                                        uint32_t page_size)

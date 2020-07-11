@@ -101,13 +101,6 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_r10g11b11_rgba16_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/texture_tile_r11g11b10_rgba16_cs.h"
 
-constexpr uint32_t TextureCache::SRVDescriptorCachePage::kHeapSize;
-constexpr uint32_t TextureCache::LoadConstants::kGuestPitchTiled;
-constexpr uint32_t TextureCache::kScaledResolveBufferSizeLog2;
-constexpr uint32_t TextureCache::kScaledResolveBufferSize;
-constexpr uint32_t TextureCache::kScaledResolveHeapSizeLog2;
-constexpr uint32_t TextureCache::kScaledResolveHeapSize;
-
 // For formats with less than 4 components, assuming the last component is
 // replicated into the non-existent ones, similar to what is done for unused
 // components of operands in shaders.

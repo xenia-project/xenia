@@ -26,9 +26,6 @@ namespace xe {
 namespace ui {
 namespace d3d12 {
 
-constexpr uint32_t D3D12Context::kSwapCommandAllocatorCount;
-constexpr uint32_t D3D12Context::kSwapChainBufferCount;
-
 D3D12Context::D3D12Context(D3D12Provider* provider, Window* target_window)
     : GraphicsContext(provider, target_window) {}
 
