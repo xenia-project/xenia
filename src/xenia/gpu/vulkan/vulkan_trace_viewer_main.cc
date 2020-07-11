@@ -25,9 +25,9 @@ class VulkanTraceViewer : public TraceViewer {
     return std::unique_ptr<gpu::GraphicsSystem>(new VulkanGraphicsSystem());
   }
 
-  uintptr_t GetColorRenderTarget(uint32_t pitch, MsaaSamples samples,
-                                 uint32_t base,
-                                 ColorRenderTargetFormat format) override {
+  uintptr_t GetColorRenderTarget(
+      uint32_t pitch, xenos::MsaaSamples samples, uint32_t base,
+      xenos::ColorRenderTargetFormat format) override {
     auto command_processor = static_cast<VulkanCommandProcessor*>(
         graphics_system_->command_processor());
     // return command_processor->GetColorRenderTarget(pitch, samples, base,
@@ -35,9 +35,9 @@ class VulkanTraceViewer : public TraceViewer {
     return 0;
   }
 
-  uintptr_t GetDepthRenderTarget(uint32_t pitch, MsaaSamples samples,
-                                 uint32_t base,
-                                 DepthRenderTargetFormat format) override {
+  uintptr_t GetDepthRenderTarget(
+      uint32_t pitch, xenos::MsaaSamples samples, uint32_t base,
+      xenos::DepthRenderTargetFormat format) override {
     auto command_processor = static_cast<VulkanCommandProcessor*>(
         graphics_system_->command_processor());
     // return command_processor->GetDepthRenderTarget(pitch, samples, base,

@@ -1279,7 +1279,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
 
   spv::Id vertex = 0;
   switch (instr.attributes.data_format) {
-    case VertexFormat::k_8_8_8_8: {
+    case xenos::VertexFormat::k_8_8_8_8: {
       auto vertex_ptr = b.createAccessChain(
           spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
       auto vertex_data = b.createLoad(vertex_ptr);
@@ -1312,7 +1312,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       }
     } break;
 
-    case VertexFormat::k_16_16: {
+    case xenos::VertexFormat::k_16_16: {
       spv::Id components[1] = {};
       for (uint32_t i = 0; i < 1; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
@@ -1359,7 +1359,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       vertex = components[0];
     } break;
 
-    case VertexFormat::k_16_16_16_16: {
+    case xenos::VertexFormat::k_16_16_16_16: {
       spv::Id components[2] = {};
       for (uint32_t i = 0; i < 2; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
@@ -1407,7 +1407,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           spv::NoPrecision, {components[0], components[1]}, vec4_float_type_);
     } break;
 
-    case VertexFormat::k_16_16_FLOAT: {
+    case xenos::VertexFormat::k_16_16_FLOAT: {
       spv::Id components[1] = {};
       for (uint32_t i = 0; i < 1; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
@@ -1426,7 +1426,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       vertex = components[0];
     } break;
 
-    case VertexFormat::k_16_16_16_16_FLOAT: {
+    case xenos::VertexFormat::k_16_16_16_16_FLOAT: {
       spv::Id components[2] = {};
       for (uint32_t i = 0; i < 2; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
@@ -1446,7 +1446,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           spv::NoPrecision, {components[0], components[1]}, vec4_float_type_);
     } break;
 
-    case VertexFormat::k_32: {
+    case xenos::VertexFormat::k_32: {
       spv::Id components[1] = {};
       for (uint32_t i = 0; i < 1; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
@@ -1481,7 +1481,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       vertex = components[0];
     } break;
 
-    case VertexFormat::k_32_32: {
+    case xenos::VertexFormat::k_32_32: {
       spv::Id components[2] = {};
       for (uint32_t i = 0; i < 2; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
@@ -1516,7 +1516,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
                                           {components[0], components[1]});
     } break;
 
-    case VertexFormat::k_32_32_32_32: {
+    case xenos::VertexFormat::k_32_32_32_32: {
       spv::Id components[4] = {};
       for (uint32_t i = 0; i < 4; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
@@ -1552,7 +1552,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           {components[0], components[1], components[2], components[3]});
     } break;
 
-    case VertexFormat::k_32_FLOAT: {
+    case xenos::VertexFormat::k_32_FLOAT: {
       auto vertex_ptr = b.createAccessChain(
           spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
       auto vertex_data = b.createLoad(vertex_ptr);
@@ -1560,7 +1560,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       vertex = b.createUnaryOp(spv::Op::OpBitcast, float_type_, vertex_data);
     } break;
 
-    case VertexFormat::k_32_32_FLOAT: {
+    case xenos::VertexFormat::k_32_32_FLOAT: {
       spv::Id components[2] = {};
       for (uint32_t i = 0; i < 2; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
@@ -1577,7 +1577,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
                                           {components[0], components[1]});
     } break;
 
-    case VertexFormat::k_32_32_32_FLOAT: {
+    case xenos::VertexFormat::k_32_32_32_FLOAT: {
       spv::Id components[3] = {};
       for (uint32_t i = 0; i < 3; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
@@ -1594,7 +1594,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           vec3_float_type_, {components[0], components[1], components[2]});
     } break;
 
-    case VertexFormat::k_32_32_32_32_FLOAT: {
+    case xenos::VertexFormat::k_32_32_32_32_FLOAT: {
       spv::Id components[4] = {};
       for (uint32_t i = 0; i < 4; i++) {
         auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
@@ -1612,7 +1612,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           {components[0], components[1], components[2], components[3]});
     } break;
 
-    case VertexFormat::k_2_10_10_10: {
+    case xenos::VertexFormat::k_2_10_10_10: {
       auto vertex_ptr = b.createAccessChain(
           spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
       auto vertex_data = b.createLoad(vertex_ptr);
@@ -1659,7 +1659,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
                                              components[2], components[3]}));
     } break;
 
-    case VertexFormat::k_10_11_11: {
+    case xenos::VertexFormat::k_10_11_11: {
       auto vertex_ptr = b.createAccessChain(
           spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
       auto vertex_data = b.createLoad(vertex_ptr);
@@ -1717,7 +1717,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           std::vector<Id>({components[0], components[1], components[2]}));
     } break;
 
-    case VertexFormat::k_11_11_10: {
+    case xenos::VertexFormat::k_11_11_10: {
       auto vertex_ptr = b.createAccessChain(
           spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
       auto vertex_data = b.createLoad(vertex_ptr);
@@ -1768,7 +1768,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           std::vector<Id>({components[0], components[1], components[2]}));
     } break;
 
-    case VertexFormat::kUndefined:
+    case xenos::VertexFormat::kUndefined:
       break;
   }
 
@@ -1815,14 +1815,14 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
   uint32_t dim_idx = 0;
   switch (instr.dimension) {
-    case TextureDimension::k1D:
-    case TextureDimension::k2D: {
+    case xenos::FetchOpDimension::k1D:
+    case xenos::FetchOpDimension::k2D: {
       dim_idx = 0;
     } break;
-    case TextureDimension::k3D: {
+    case xenos::FetchOpDimension::k3DOrStacked: {
       dim_idx = 1;
     } break;
-    case TextureDimension::kCube: {
+    case xenos::FetchOpDimension::kCube: {
       dim_idx = 2;
     } break;
     default:
@@ -1838,7 +1838,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                               tex_[dim_idx], std::vector<Id>({texture_index}));
       auto texture = b.createLoad(texture_ptr);
 
-      if (instr.dimension == TextureDimension::k1D) {
+      if (instr.dimension == xenos::FetchOpDimension::k1D) {
         // Upgrade 1D src coordinate into 2D
         src = b.createCompositeConstruct(vec2_float_type_,
                                          {src, b.makeFloatConstant(0.f)});
@@ -1863,7 +1863,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
         Id offset = 0;
         switch (instr.dimension) {
-          case TextureDimension::k1D: {
+          case xenos::FetchOpDimension::k1D: {
             // https://msdn.microsoft.com/en-us/library/windows/desktop/bb944006.aspx
             // "Because the runtime does not support 1D textures, the compiler
             // will use a 2D texture with the knowledge that the y-coordinate is
@@ -1872,18 +1872,18 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                 vec2_int_type_,
                 {b.makeIntConstant(int(offset_x)), b.makeIntConstant(0)});
           } break;
-          case TextureDimension::k2D: {
+          case xenos::FetchOpDimension::k2D: {
             offset = b.makeCompositeConstant(
                 vec2_int_type_, {b.makeIntConstant(int(offset_x)),
                                  b.makeIntConstant(int(offset_y))});
           } break;
-          case TextureDimension::k3D: {
+          case xenos::FetchOpDimension::k3DOrStacked: {
             offset = b.makeCompositeConstant(
                 vec3_int_type_, {b.makeIntConstant(int(offset_x)),
                                  b.makeIntConstant(int(offset_y)),
                                  b.makeIntConstant(int(offset_z))});
           } break;
-          case TextureDimension::kCube: {
+          case xenos::FetchOpDimension::kCube: {
             // FIXME(DrChat): Is this the correct dimension? I forget
             offset = b.makeCompositeConstant(
                 vec3_int_type_, {b.makeIntConstant(int(offset_x)),
@@ -1926,8 +1926,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           b.createUnaryOp(spv::OpImage, b.getImageType(texture), texture);
 
       switch (instr.dimension) {
-        case TextureDimension::k1D:
-        case TextureDimension::k2D: {
+        case xenos::FetchOpDimension::k1D:
+        case xenos::FetchOpDimension::k2D: {
           spv::Builder::TextureParameters params;
           std::memset(&params, 0, sizeof(params));
           params.sampler = image;
@@ -1966,7 +1966,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                               tex_[dim_idx], std::vector<Id>({texture_index}));
       auto texture = b.createLoad(texture_ptr);
 
-      if (instr.dimension == TextureDimension::k1D) {
+      if (instr.dimension == xenos::FetchOpDimension::k1D) {
         // Upgrade 1D src coordinate into 2D
         src = b.createCompositeConstruct(vec2_float_type_,
                                          {src, b.makeFloatConstant(0.f)});

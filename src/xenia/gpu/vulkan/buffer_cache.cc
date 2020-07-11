@@ -420,7 +420,7 @@ std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
 
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
     VkCommandBuffer command_buffer, uint32_t source_addr,
-    uint32_t source_length, IndexFormat format, VkFence fence) {
+    uint32_t source_length, xenos::IndexFormat format, VkFence fence) {
   // Allocate space in the buffer for our data.
   auto offset = AllocateTransientData(source_length, fence);
   if (offset == VK_WHOLE_SIZE) {
@@ -439,23 +439,23 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
   // primitive reset indices to something Vulkan understands.
   // TODO(benvanik): memcpy then use compute shaders to swap?
   if (prim_reset_enabled) {
-    if (format == IndexFormat::kInt16) {
+    if (format == xenos::IndexFormat::kInt16) {
       // Endian::k8in16, swap half-words.
       copy_cmp_swap_16_unaligned(
           transient_buffer_->host_base() + offset, source_ptr,
           static_cast<uint16_t>(prim_reset_index), source_length / 2);
-    } else if (format == IndexFormat::kInt32) {
+    } else if (format == xenos::IndexFormat::kInt32) {
       // Endian::k8in32, swap words.
       copy_cmp_swap_32_unaligned(transient_buffer_->host_base() + offset,
                                  source_ptr, prim_reset_index,
                                  source_length / 4);
     }
   } else {
-    if (format == IndexFormat::kInt16) {
+    if (format == xenos::IndexFormat::kInt16) {
       // Endian::k8in16, swap half-words.
       xe::copy_and_swap_16_unaligned(transient_buffer_->host_base() + offset,
                                      source_ptr, source_length / 2);
-    } else if (format == IndexFormat::kInt32) {
+    } else if (format == xenos::IndexFormat::kInt32) {
       // Endian::k8in32, swap words.
       xe::copy_and_swap_32_unaligned(transient_buffer_->host_base() + offset,
                                      source_ptr, source_length / 4);
@@ -485,7 +485,7 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
 
 std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
     VkCommandBuffer command_buffer, uint32_t source_addr,
-    uint32_t source_length, Endian endian, VkFence fence) {
+    uint32_t source_length, xenos::Endian endian, VkFence fence) {
   auto offset = FindCachedTransientData(source_addr, source_length);
   if (offset != VK_WHOLE_SIZE) {
     return {transient_buffer_->gpu_buffer(), offset};
@@ -518,11 +518,11 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
 
   // Copy data into the buffer.
   // TODO(benvanik): memcpy then use compute shaders to swap?
-  if (endian == Endian::k8in32) {
+  if (endian == xenos::Endian::k8in32) {
     // Endian::k8in32, swap words.
     xe::copy_and_swap_32_unaligned(transient_buffer_->host_base() + offset,
                                    upload_ptr, source_length / 4);
-  } else if (endian == Endian::k16in32) {
+  } else if (endian == xenos::Endian::k16in32) {
     xe::copy_and_swap_16_in_32_unaligned(
         transient_buffer_->host_base() + offset, upload_ptr, source_length / 4);
   } else {

@@ -376,11 +376,11 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   }
   fetch.base_address = frontbuffer_address >> 12;
 
-  auto texture_format = gpu::TextureFormat(texture_format_ptr.value());
+  auto texture_format = gpu::xenos::TextureFormat(texture_format_ptr.value());
   auto color_space = *color_space_ptr;
-  assert_true(texture_format == gpu::TextureFormat::k_8_8_8_8 ||
+  assert_true(texture_format == gpu::xenos::TextureFormat::k_8_8_8_8 ||
               texture_format ==
-                  gpu::TextureFormat::k_2_10_10_10_AS_16_16_16_16);
+                  gpu::xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16);
   assert_true(color_space == 0);  // RGB(0)
   assert_true(*width == 1 + fetch.size_2d.width);
   assert_true(*height == 1 + fetch.size_2d.height);

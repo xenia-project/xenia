@@ -19,31 +19,31 @@
 namespace xe {
 namespace gpu {
 
-inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
+inline xenos::TextureFormat GetBaseFormat(xenos::TextureFormat texture_format) {
   // These formats are used for resampling textures / gamma control.
   switch (texture_format) {
-    case TextureFormat::k_16_EXPAND:
-      return TextureFormat::k_16_FLOAT;
-    case TextureFormat::k_16_16_EXPAND:
-      return TextureFormat::k_16_16_FLOAT;
-    case TextureFormat::k_16_16_16_16_EXPAND:
-      return TextureFormat::k_16_16_16_16_FLOAT;
-    case TextureFormat::k_8_8_8_8_AS_16_16_16_16:
-      return TextureFormat::k_8_8_8_8;
-    case TextureFormat::k_DXT1_AS_16_16_16_16:
-      return TextureFormat::k_DXT1;
-    case TextureFormat::k_DXT2_3_AS_16_16_16_16:
-      return TextureFormat::k_DXT2_3;
-    case TextureFormat::k_DXT4_5_AS_16_16_16_16:
-      return TextureFormat::k_DXT4_5;
-    case TextureFormat::k_2_10_10_10_AS_16_16_16_16:
-      return TextureFormat::k_2_10_10_10;
-    case TextureFormat::k_10_11_11_AS_16_16_16_16:
-      return TextureFormat::k_10_11_11;
-    case TextureFormat::k_11_11_10_AS_16_16_16_16:
-      return TextureFormat::k_11_11_10;
-    case TextureFormat::k_8_8_8_8_GAMMA_EDRAM:
-      return TextureFormat::k_8_8_8_8;
+    case xenos::TextureFormat::k_16_EXPAND:
+      return xenos::TextureFormat::k_16_FLOAT;
+    case xenos::TextureFormat::k_16_16_EXPAND:
+      return xenos::TextureFormat::k_16_16_FLOAT;
+    case xenos::TextureFormat::k_16_16_16_16_EXPAND:
+      return xenos::TextureFormat::k_16_16_16_16_FLOAT;
+    case xenos::TextureFormat::k_8_8_8_8_AS_16_16_16_16:
+      return xenos::TextureFormat::k_8_8_8_8;
+    case xenos::TextureFormat::k_DXT1_AS_16_16_16_16:
+      return xenos::TextureFormat::k_DXT1;
+    case xenos::TextureFormat::k_DXT2_3_AS_16_16_16_16:
+      return xenos::TextureFormat::k_DXT2_3;
+    case xenos::TextureFormat::k_DXT4_5_AS_16_16_16_16:
+      return xenos::TextureFormat::k_DXT4_5;
+    case xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16:
+      return xenos::TextureFormat::k_2_10_10_10;
+    case xenos::TextureFormat::k_10_11_11_AS_16_16_16_16:
+      return xenos::TextureFormat::k_10_11_11;
+    case xenos::TextureFormat::k_11_11_10_AS_16_16_16_16:
+      return xenos::TextureFormat::k_11_11_10;
+    case xenos::TextureFormat::k_8_8_8_8_GAMMA_EDRAM:
+      return xenos::TextureFormat::k_8_8_8_8;
     default:
       break;
   }
@@ -51,42 +51,42 @@ inline TextureFormat GetBaseFormat(TextureFormat texture_format) {
   return texture_format;
 }
 
-inline size_t GetTexelSize(TextureFormat format) {
+inline size_t GetTexelSize(xenos::TextureFormat format) {
   switch (format) {
-    case TextureFormat::k_1_5_5_5:
+    case xenos::TextureFormat::k_1_5_5_5:
       return 2;
-    case TextureFormat::k_2_10_10_10:
+    case xenos::TextureFormat::k_2_10_10_10:
       return 4;
-    case TextureFormat::k_4_4_4_4:
+    case xenos::TextureFormat::k_4_4_4_4:
       return 2;
-    case TextureFormat::k_5_6_5:
+    case xenos::TextureFormat::k_5_6_5:
       return 2;
-    case TextureFormat::k_8:
+    case xenos::TextureFormat::k_8:
       return 1;
-    case TextureFormat::k_8_8:
+    case xenos::TextureFormat::k_8_8:
       return 2;
-    case TextureFormat::k_8_8_8_8:
+    case xenos::TextureFormat::k_8_8_8_8:
       return 4;
-    case TextureFormat::k_16:
+    case xenos::TextureFormat::k_16:
       return 4;
-    case TextureFormat::k_16_FLOAT:
+    case xenos::TextureFormat::k_16_FLOAT:
       return 4;
-    case TextureFormat::k_16_16:
+    case xenos::TextureFormat::k_16_16:
       return 4;
-    case TextureFormat::k_16_16_FLOAT:
+    case xenos::TextureFormat::k_16_16_FLOAT:
       return 4;
-    case TextureFormat::k_16_16_16_16:
+    case xenos::TextureFormat::k_16_16_16_16:
       return 8;
-    case TextureFormat::k_16_16_16_16_FLOAT:
+    case xenos::TextureFormat::k_16_16_16_16_FLOAT:
       return 8;
-    case TextureFormat::k_32_FLOAT:
+    case xenos::TextureFormat::k_32_FLOAT:
       return 4;
-    case TextureFormat::k_32_32_FLOAT:
+    case xenos::TextureFormat::k_32_32_FLOAT:
       return 8;
-    case TextureFormat::k_32_32_32_32_FLOAT:
+    case xenos::TextureFormat::k_32_32_32_32_FLOAT:
       return 16;
-    case TextureFormat::k_10_11_11:
-    case TextureFormat::k_11_11_10:
+    case xenos::TextureFormat::k_10_11_11:
+    case xenos::TextureFormat::k_11_11_10:
       return 4;
     default:
       assert_unhandled_case(format);
@@ -94,104 +94,52 @@ inline size_t GetTexelSize(TextureFormat format) {
   }
 }
 
-inline bool IsSRGBCapable(TextureFormat format) {
-  switch (format) {
-    case TextureFormat::k_1_REVERSE:
-    case TextureFormat::k_1:
-    case TextureFormat::k_8:
-    case TextureFormat::k_1_5_5_5:
-    case TextureFormat::k_5_6_5:
-    case TextureFormat::k_6_5_5:
-    case TextureFormat::k_8_8_8_8:
-    case TextureFormat::k_8_8:
-    case TextureFormat::k_Cr_Y1_Cb_Y0_REP:
-    case TextureFormat::k_Y1_Cr_Y0_Cb_REP:
-    case TextureFormat::k_4_4_4_4:
-    case TextureFormat::k_DXT1:
-    case TextureFormat::k_DXT2_3:
-    case TextureFormat::k_DXT4_5:
-    case TextureFormat::k_24_8:
-    case TextureFormat::k_16:
-    case TextureFormat::k_16_16:
-    case TextureFormat::k_16_16_16_16:
-    case TextureFormat::k_16_EXPAND:
-    case TextureFormat::k_16_16_EXPAND:
-    case TextureFormat::k_16_16_16_16_EXPAND:
-    case TextureFormat::k_32:
-    case TextureFormat::k_32_32:
-    case TextureFormat::k_32_32_32_32:
-    case TextureFormat::k_32_FLOAT:
-    case TextureFormat::k_32_32_FLOAT:
-    case TextureFormat::k_32_32_32_32_FLOAT:
-    case TextureFormat::k_32_AS_8:
-    case TextureFormat::k_32_AS_8_8:
-    case TextureFormat::k_16_MPEG:
-    case TextureFormat::k_16_16_MPEG:
-    case TextureFormat::k_8_INTERLACED:
-    case TextureFormat::k_32_AS_8_INTERLACED:
-    case TextureFormat::k_32_AS_8_8_INTERLACED:
-    case TextureFormat::k_16_INTERLACED:
-    case TextureFormat::k_16_MPEG_INTERLACED:
-    case TextureFormat::k_16_16_MPEG_INTERLACED:
-    case TextureFormat::k_DXN:
-    case TextureFormat::k_8_8_8_8_AS_16_16_16_16:
-    case TextureFormat::k_DXT1_AS_16_16_16_16:
-    case TextureFormat::k_DXT2_3_AS_16_16_16_16:
-    case TextureFormat::k_DXT4_5_AS_16_16_16_16:
-    case TextureFormat::k_2_10_10_10_AS_16_16_16_16:
-    case TextureFormat::k_10_11_11_AS_16_16_16_16:
-    case TextureFormat::k_11_11_10_AS_16_16_16_16:
-      return true;
-    default:
-      return false;
-  }
+inline xenos::TextureFormat ColorFormatToTextureFormat(
+    xenos::ColorFormat color_format) {
+  return static_cast<xenos::TextureFormat>(color_format);
 }
 
-inline TextureFormat ColorFormatToTextureFormat(ColorFormat color_format) {
-  return static_cast<TextureFormat>(color_format);
-}
-
-inline TextureFormat ColorRenderTargetToTextureFormat(
-    ColorRenderTargetFormat color_format) {
+inline xenos::TextureFormat ColorRenderTargetToTextureFormat(
+    xenos::ColorRenderTargetFormat color_format) {
   switch (color_format) {
-    case ColorRenderTargetFormat::k_8_8_8_8:
-      return TextureFormat::k_8_8_8_8;
-    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      return TextureFormat::k_8_8_8_8_GAMMA_EDRAM;
-    case ColorRenderTargetFormat::k_2_10_10_10:
-    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
-      return TextureFormat::k_2_10_10_10;
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-      return TextureFormat::k_2_10_10_10_FLOAT_EDRAM;
-    case ColorRenderTargetFormat::k_16_16:
-      return TextureFormat::k_16_16_EDRAM;
-    case ColorRenderTargetFormat::k_16_16_16_16:
-      return TextureFormat::k_16_16_16_16_EDRAM;
-    case ColorRenderTargetFormat::k_16_16_FLOAT:
-      return TextureFormat::k_16_16_FLOAT;
-    case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
-      return TextureFormat::k_16_16_16_16_FLOAT;
-    case ColorRenderTargetFormat::k_32_FLOAT:
-      return TextureFormat::k_32_FLOAT;
-    case ColorRenderTargetFormat::k_32_32_FLOAT:
-      return TextureFormat::k_32_32_FLOAT;
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8:
+      return xenos::TextureFormat::k_8_8_8_8;
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+      return xenos::TextureFormat::k_8_8_8_8_GAMMA_EDRAM;
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10:
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
+      return xenos::TextureFormat::k_2_10_10_10;
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+      return xenos::TextureFormat::k_2_10_10_10_FLOAT_EDRAM;
+    case xenos::ColorRenderTargetFormat::k_16_16:
+      return xenos::TextureFormat::k_16_16_EDRAM;
+    case xenos::ColorRenderTargetFormat::k_16_16_16_16:
+      return xenos::TextureFormat::k_16_16_16_16_EDRAM;
+    case xenos::ColorRenderTargetFormat::k_16_16_FLOAT:
+      return xenos::TextureFormat::k_16_16_FLOAT;
+    case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+      return xenos::TextureFormat::k_16_16_16_16_FLOAT;
+    case xenos::ColorRenderTargetFormat::k_32_FLOAT:
+      return xenos::TextureFormat::k_32_FLOAT;
+    case xenos::ColorRenderTargetFormat::k_32_32_FLOAT:
+      return xenos::TextureFormat::k_32_32_FLOAT;
     default:
       assert_unhandled_case(color_format);
-      return TextureFormat::kUnknown;
+      return xenos::TextureFormat::kUnknown;
   }
 }
 
-inline TextureFormat DepthRenderTargetToTextureFormat(
-    DepthRenderTargetFormat depth_format) {
+inline xenos::TextureFormat DepthRenderTargetToTextureFormat(
+    xenos::DepthRenderTargetFormat depth_format) {
   switch (depth_format) {
-    case DepthRenderTargetFormat::kD24S8:
-      return TextureFormat::k_24_8;
-    case DepthRenderTargetFormat::kD24FS8:
-      return TextureFormat::k_24_8_FLOAT;
+    case xenos::DepthRenderTargetFormat::kD24S8:
+      return xenos::TextureFormat::k_24_8;
+    case xenos::DepthRenderTargetFormat::kD24FS8:
+      return xenos::TextureFormat::k_24_8_FLOAT;
     default:
       assert_unhandled_case(depth_format);
-      return TextureFormat::kUnknown;
+      return xenos::TextureFormat::kUnknown;
   }
 }
 
@@ -201,7 +149,7 @@ enum class FormatType {
 };
 
 struct FormatInfo {
-  TextureFormat format;
+  xenos::TextureFormat format;
   const char* name;
   FormatType type;
   uint32_t block_width;
@@ -214,7 +162,7 @@ struct FormatInfo {
 
   static const FormatInfo* Get(uint32_t gpu_format);
 
-  static const FormatInfo* Get(TextureFormat format) {
+  static const FormatInfo* Get(xenos::TextureFormat format) {
     return Get(static_cast<uint32_t>(format));
   }
 };
@@ -250,10 +198,10 @@ struct TextureMemoryInfo {
 };
 
 struct TextureInfo {
-  TextureFormat format;
-  Endian endianness;
+  xenos::TextureFormat format;
+  xenos::Endian endianness;
 
-  Dimension dimension;
+  xenos::DataDimension dimension;
   uint32_t width;   // width in pixels
   uint32_t height;  // height in pixels
   uint32_t depth;   // depth in layers
@@ -281,9 +229,10 @@ struct TextureInfo {
                       TextureInfo* out_info);
 
   static bool PrepareResolve(uint32_t physical_address,
-                             TextureFormat texture_format, Endian endian,
-                             uint32_t pitch, uint32_t width, uint32_t height,
-                             uint32_t depth, TextureInfo* out_info);
+                             xenos::TextureFormat texture_format,
+                             xenos::Endian endian, uint32_t pitch,
+                             uint32_t width, uint32_t height, uint32_t depth,
+                             TextureInfo* out_info);
 
   uint32_t GetMaxMipLevels() const;
 

@@ -78,7 +78,7 @@ class BufferCache {
   // Size will be VK_WHOLE_SIZE if the data could not be uploaded (OOM).
   std::pair<VkBuffer, VkDeviceSize> UploadIndexBuffer(
       VkCommandBuffer command_buffer, uint32_t source_addr,
-      uint32_t source_length, IndexFormat format, VkFence fence);
+      uint32_t source_length, xenos::IndexFormat format, VkFence fence);
 
   // Uploads vertex buffer data from guest memory, possibly eliding with
   // recently uploaded data or cached copies.
@@ -86,7 +86,7 @@ class BufferCache {
   // Size will be VK_WHOLE_SIZE if the data could not be uploaded (OOM).
   std::pair<VkBuffer, VkDeviceSize> UploadVertexBuffer(
       VkCommandBuffer command_buffer, uint32_t source_addr,
-      uint32_t source_length, Endian endian, VkFence fence);
+      uint32_t source_length, xenos::Endian endian, VkFence fence);
 
   // Prepares and returns a vertex descriptor set.
   VkDescriptorSet PrepareVertexSet(

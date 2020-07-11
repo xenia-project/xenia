@@ -161,8 +161,8 @@ class CommandProcessor {
 
  protected:
   struct IndexBufferInfo {
-    IndexFormat format = IndexFormat::kInt16;
-    Endian endianness = Endian::kNone;
+    xenos::IndexFormat format = xenos::IndexFormat::kInt16;
+    xenos::Endian endianness = xenos::Endian::kNone;
     uint32_t count = 0;
     uint32_t guest_base = 0;
     size_t length = 0;
@@ -241,11 +241,12 @@ class CommandProcessor {
   bool ExecutePacketType3_VIZ_QUERY(RingBuffer* reader, uint32_t packet,
                                     uint32_t count);
 
-  virtual Shader* LoadShader(ShaderType shader_type, uint32_t guest_address,
+  virtual Shader* LoadShader(xenos::ShaderType shader_type,
+                             uint32_t guest_address,
                              const uint32_t* host_address,
                              uint32_t dword_count) = 0;
 
-  virtual bool IssueDraw(PrimitiveType prim_type, uint32_t index_count,
+  virtual bool IssueDraw(xenos::PrimitiveType prim_type, uint32_t index_count,
                          IndexBufferInfo* index_buffer_info,
                          bool major_mode_explicit) = 0;
   virtual bool IssueCopy() = 0;

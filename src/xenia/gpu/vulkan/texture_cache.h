@@ -110,7 +110,7 @@ class TextureCache {
   // If offset_x and offset_y are not null, this may return a texture that
   // contains this address at an offset.
   Texture* LookupAddress(uint32_t guest_address, uint32_t width,
-                         uint32_t height, TextureFormat format,
+                         uint32_t height, xenos::TextureFormat format,
                          VkOffset2D* out_offset = nullptr);
 
   TextureView* DemandView(Texture* texture, uint16_t swizzle);
@@ -166,9 +166,9 @@ class TextureCache {
   bool ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
                       uint32_t mip, const TextureInfo& src);
 
-  static const FormatInfo* GetFormatInfo(TextureFormat format);
+  static const FormatInfo* GetFormatInfo(xenos::TextureFormat format);
   static texture_conversion::CopyBlockCallback GetFormatCopyBlock(
-      TextureFormat format);
+      xenos::TextureFormat format);
   static TextureExtent GetMipExtent(const TextureInfo& src, uint32_t mip);
   static uint32_t ComputeMipStorage(const FormatInfo* format_info,
                                     uint32_t width, uint32_t height,

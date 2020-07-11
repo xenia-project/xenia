@@ -61,9 +61,9 @@ class TextureCache {
     struct {
       // Physical 4 KB page with the base mip level, disregarding A/C/E address
       // range prefix.
-      uint32_t base_page : 17;  // 17 total
-      Dimension dimension : 2;  // 19
-      uint32_t width : 13;      // 32
+      uint32_t base_page : 17;             // 17 total
+      xenos::DataDimension dimension : 2;  // 19
+      uint32_t width : 13;                 // 32
 
       uint32_t height : 13;      // 45
       uint32_t tiled : 1;        // 46
@@ -72,10 +72,10 @@ class TextureCache {
       uint32_t mip_page : 17;  // 64
 
       // Layers for stacked and 3D, 6 for cube, 1 for other dimensions.
-      uint32_t depth : 10;         // 74
-      uint32_t mip_max_level : 4;  // 78
-      TextureFormat format : 6;    // 84
-      Endian endianness : 2;       // 86
+      uint32_t depth : 10;              // 74
+      uint32_t mip_max_level : 4;       // 78
+      xenos::TextureFormat format : 6;  // 84
+      xenos::Endian endianness : 2;     // 86
       // Whether this texture is signed and has a different host representation
       // than an unsigned view of the same guest texture.
       uint32_t signed_separate : 1;  // 87
@@ -137,15 +137,15 @@ class TextureCache {
   // for binding checking validity whether samplers are up to date.
   union SamplerParameters {
     struct {
-      ClampMode clamp_x : 3;         // 3
-      ClampMode clamp_y : 3;         // 6
-      ClampMode clamp_z : 3;         // 9
-      BorderColor border_color : 2;  // 11
+      xenos::ClampMode clamp_x : 3;         // 3
+      xenos::ClampMode clamp_y : 3;         // 6
+      xenos::ClampMode clamp_z : 3;         // 9
+      xenos::BorderColor border_color : 2;  // 11
       // For anisotropic, these are true.
       uint32_t mag_linear : 1;       // 12
       uint32_t min_linear : 1;       // 13
       uint32_t mip_linear : 1;       // 14
-      AnisoFilter aniso_filter : 3;  // 17
+      xenos::AnisoFilter aniso_filter : 3;  // 17
       uint32_t mip_min_level : 4;    // 21
       // Maximum mip level is in the texture resource itself.
     };
@@ -221,15 +221,15 @@ class TextureCache {
                     D3D12_CPU_DESCRIPTOR_HANDLE handle) const;
 
   void MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled);
-  static inline DXGI_FORMAT GetResolveDXGIFormat(TextureFormat format) {
+  static inline DXGI_FORMAT GetResolveDXGIFormat(xenos::TextureFormat format) {
     return host_formats_[uint32_t(format)].dxgi_format_resolve_tile;
   }
   // The source buffer must be in the non-pixel-shader SRV state.
-  bool TileResolvedTexture(TextureFormat format, uint32_t texture_base,
+  bool TileResolvedTexture(xenos::TextureFormat format, uint32_t texture_base,
                            uint32_t texture_pitch, uint32_t texture_height,
                            bool is_3d, uint32_t offset_x, uint32_t offset_y,
                            uint32_t offset_z, uint32_t resolve_width,
-                           uint32_t resolve_height, Endian128 endian,
+                           uint32_t resolve_height, xenos::Endian128 endian,
                            ID3D12Resource* buffer, uint32_t buffer_size,
                            const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint,
                            uint32_t* written_address_out,
@@ -256,7 +256,8 @@ class TextureCache {
   // description of its SRV. May call LoadTextureData, so the same restrictions
   // (such as about descriptor heap change possibility) apply.
   ID3D12Resource* RequestSwapTexture(
-      D3D12_SHADER_RESOURCE_VIEW_DESC& srv_desc_out, TextureFormat& format_out);
+      D3D12_SHADER_RESOURCE_VIEW_DESC& srv_desc_out,
+      xenos::TextureFormat& format_out);
 
  private:
   enum class LoadMode {
@@ -498,16 +499,16 @@ class TextureCache {
   // Whether the signed version of the texture has a different representation on
   // the host than its unsigned version (for example, if it's a fixed-point
   // texture emulated with a larger host pixel format).
-  static inline bool IsSignedVersionSeparate(TextureFormat format) {
+  static inline bool IsSignedVersionSeparate(xenos::TextureFormat format) {
     const HostFormat& host_format = host_formats_[uint32_t(format)];
     return host_format.load_mode_snorm != LoadMode::kUnknown &&
            host_format.load_mode_snorm != host_format.load_mode;
   }
   // Whether decompression is needed on the host (Direct3D only allows creation
   // of block-compressed textures with 4x4-aligned dimensions on PC).
-  static bool IsDecompressionNeeded(TextureFormat format, uint32_t width,
+  static bool IsDecompressionNeeded(xenos::TextureFormat format, uint32_t width,
                                     uint32_t height);
-  static inline DXGI_FORMAT GetDXGIResourceFormat(TextureFormat format,
+  static inline DXGI_FORMAT GetDXGIResourceFormat(xenos::TextureFormat format,
                                                   uint32_t width,
                                                   uint32_t height) {
     const HostFormat& host_format = host_formats_[uint32_t(format)];
@@ -518,7 +519,7 @@ class TextureCache {
   static inline DXGI_FORMAT GetDXGIResourceFormat(TextureKey key) {
     return GetDXGIResourceFormat(key.format, key.width, key.height);
   }
-  static inline DXGI_FORMAT GetDXGIUnormFormat(TextureFormat format,
+  static inline DXGI_FORMAT GetDXGIUnormFormat(xenos::TextureFormat format,
                                                uint32_t width,
                                                uint32_t height) {
     const HostFormat& host_format = host_formats_[uint32_t(format)];
@@ -540,16 +541,17 @@ class TextureCache {
       uint32_t* host_swizzle_out, uint8_t* swizzled_signs_out);
 
   static constexpr bool AreDimensionsCompatible(
-      TextureDimension binding_dimension, Dimension resource_dimension) {
+      xenos::FetchOpDimension binding_dimension,
+      xenos::DataDimension resource_dimension) {
     switch (binding_dimension) {
-      case TextureDimension::k1D:
-      case TextureDimension::k2D:
-        return resource_dimension == Dimension::k1D ||
-               resource_dimension == Dimension::k2D;
-      case TextureDimension::k3D:
-        return resource_dimension == Dimension::k3D;
-      case TextureDimension::kCube:
-        return resource_dimension == Dimension::kCube;
+      case xenos::FetchOpDimension::k1D:
+      case xenos::FetchOpDimension::k2D:
+        return resource_dimension == xenos::DataDimension::k1D ||
+               resource_dimension == xenos::DataDimension::k2DOrStacked;
+      case xenos::FetchOpDimension::k3DOrStacked:
+        return resource_dimension == xenos::DataDimension::k3D;
+      case xenos::FetchOpDimension::kCube:
+        return resource_dimension == xenos::DataDimension::kCube;
       default:
         return false;
     }

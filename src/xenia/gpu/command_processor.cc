@@ -864,7 +864,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingBuffer* reader,
     uint32_t value;
     if (wait_info & 0x10) {
       // Memory.
-      auto endianness = static_cast<Endian>(poll_reg_addr & 0x3);
+      auto endianness = static_cast<xenos::Endian>(poll_reg_addr & 0x3);
       poll_reg_addr &= ~0x3;
       value = xe::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
       value = GpuSwap(value, endianness);
@@ -971,7 +971,7 @@ bool CommandProcessor::ExecutePacketType3_REG_TO_MEM(RingBuffer* reader,
   assert_true(reg_addr < RegisterFile::kRegisterCount);
   reg_val = register_file_->values[reg_addr].u32;
 
-  auto endianness = static_cast<Endian>(mem_addr & 0x3);
+  auto endianness = static_cast<xenos::Endian>(mem_addr & 0x3);
   mem_addr &= ~0x3;
   reg_val = GpuSwap(reg_val, endianness);
   xe::store(memory_->TranslatePhysical(mem_addr), reg_val);
@@ -987,7 +987,7 @@ bool CommandProcessor::ExecutePacketType3_MEM_WRITE(RingBuffer* reader,
   for (uint32_t i = 0; i < count - 1; i++) {
     uint32_t write_data = reader->ReadAndSwap<uint32_t>();
 
-    auto endianness = static_cast<Endian>(write_addr & 0x3);
+    auto endianness = static_cast<xenos::Endian>(write_addr & 0x3);
     auto addr = write_addr & ~0x3;
     write_data = GpuSwap(write_data, endianness);
     xe::store(memory_->TranslatePhysical(addr), write_data);
@@ -1011,7 +1011,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingBuffer* reader,
   uint32_t value;
   if (wait_info & 0x10) {
     // Memory.
-    auto endianness = static_cast<Endian>(poll_reg_addr & 0x3);
+    auto endianness = static_cast<xenos::Endian>(poll_reg_addr & 0x3);
     poll_reg_addr &= ~0x3;
     trace_writer_.WriteMemoryRead(CpuToGpu(poll_reg_addr), 4);
     value = xe::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
@@ -1052,7 +1052,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingBuffer* reader,
     // Write.
     if (wait_info & 0x100) {
       // Memory.
-      auto endianness = static_cast<Endian>(write_reg_addr & 0x3);
+      auto endianness = static_cast<xenos::Endian>(write_reg_addr & 0x3);
       write_reg_addr &= ~0x3;
       write_data = GpuSwap(write_data, endianness);
       xe::store(memory_->TranslatePhysical(write_reg_addr), write_data);
@@ -1099,7 +1099,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_SHD(RingBuffer* reader,
     // Write value.
     data_value = value;
   }
-  auto endianness = static_cast<Endian>(address & 0x3);
+  auto endianness = static_cast<xenos::Endian>(address & 0x3);
   address &= ~0x3;
   data_value = GpuSwap(data_value, endianness);
   xe::store(memory_->TranslatePhysical(address), data_value);
@@ -1115,7 +1115,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(RingBuffer* reader,
   uint32_t address = reader->ReadAndSwap<uint32_t>();
   // Writeback initiator.
   WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
-  auto endianness = static_cast<Endian>(address & 0x3);
+  auto endianness = static_cast<xenos::Endian>(address & 0x3);
   address &= ~0x3;
 
   // Let us hope we can fake this.
@@ -1130,7 +1130,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(RingBuffer* reader,
       0,          // min z
       1,          // max z
   };
-  assert_true(endianness == Endian::k8in16);
+  assert_true(endianness == xenos::Endian::k8in16);
   xe::copy_and_swap_16_unaligned(memory_->TranslatePhysical(address), extents,
                                  xe::countof(extents));
   trace_writer_.WriteMemoryWrite(CpuToGpu(address), sizeof(extents));
@@ -1188,11 +1188,12 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
       is_indexed = true;
       index_buffer_info.guest_base = reader->ReadAndSwap<uint32_t>();
       uint32_t index_size = reader->ReadAndSwap<uint32_t>();
-      index_buffer_info.endianness = static_cast<Endian>(index_size >> 30);
+      index_buffer_info.endianness =
+          static_cast<xenos::Endian>(index_size >> 30);
       index_size &= 0x00FFFFFF;
       index_buffer_info.format = vgt_draw_initiator.index_size;
       index_size *=
-          (vgt_draw_initiator.index_size == IndexFormat::kInt32) ? 4 : 2;
+          (vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32) ? 4 : 2;
       index_buffer_info.length = index_size;
       index_buffer_info.count = vgt_draw_initiator.num_indices;
     } break;
@@ -1238,7 +1239,8 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingBuffer* reader,
   // Index buffer unused as automatic.
   // uint32_t indices_size =
   //     vgt_draw_initiator.num_indices *
-  //         (vgt_draw_initiator.index_size == IndexFormat::kInt32 ? 4 : 2);
+  //         (vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32 ? 4
+  //                                                                      : 2);
   // uint32_t index_ptr = reader->ptr();
   // TODO(Triang3l): VGT_IMMED_DATA.
   reader->AdvanceRead((count - 1) * sizeof(uint32_t));
@@ -1363,7 +1365,7 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD(RingBuffer* reader,
 
   // load sequencer instruction memory (pointer-based)
   uint32_t addr_type = reader->ReadAndSwap<uint32_t>();
-  auto shader_type = static_cast<ShaderType>(addr_type & 0x3);
+  auto shader_type = static_cast<xenos::ShaderType>(addr_type & 0x3);
   uint32_t addr = addr_type & ~0x3;
   uint32_t start_size = reader->ReadAndSwap<uint32_t>();
   uint32_t start = start_size >> 16;
@@ -1374,10 +1376,10 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD(RingBuffer* reader,
       LoadShader(shader_type, addr, memory_->TranslatePhysical<uint32_t*>(addr),
                  size_dwords);
   switch (shader_type) {
-    case ShaderType::kVertex:
+    case xenos::ShaderType::kVertex:
       active_vertex_shader_ = shader;
       break;
-    case ShaderType::kPixel:
+    case xenos::ShaderType::kPixel:
       active_pixel_shader_ = shader;
       break;
     default:
@@ -1395,7 +1397,7 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(RingBuffer* reader,
   // load sequencer instruction memory (code embedded in packet)
   uint32_t dword0 = reader->ReadAndSwap<uint32_t>();
   uint32_t dword1 = reader->ReadAndSwap<uint32_t>();
-  auto shader_type = static_cast<ShaderType>(dword0);
+  auto shader_type = static_cast<xenos::ShaderType>(dword0);
   uint32_t start_size = dword1;
   uint32_t start = start_size >> 16;
   uint32_t size_dwords = start_size & 0xFFFF;  // dwords
@@ -1406,10 +1408,10 @@ bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(RingBuffer* reader,
       LoadShader(shader_type, uint32_t(reader->read_ptr()),
                  reinterpret_cast<uint32_t*>(reader->read_ptr()), size_dwords);
   switch (shader_type) {
-    case ShaderType::kVertex:
+    case xenos::ShaderType::kVertex:
       active_vertex_shader_ = shader;
       break;
-    case ShaderType::kPixel:
+    case xenos::ShaderType::kPixel:
       active_pixel_shader_ = shader;
       break;
     default:

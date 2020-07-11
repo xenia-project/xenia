@@ -22,15 +22,15 @@ namespace xe {
 namespace gpu {
 namespace texture_conversion {
 
-typedef std::function<void(Endian, void*, const void*, size_t)>
+typedef std::function<void(xenos::Endian, void*, const void*, size_t)>
     CopyBlockCallback;
 
-void CopySwapBlock(Endian endian, void* output, const void* input,
+void CopySwapBlock(xenos::Endian endian, void* output, const void* input,
                    size_t length);
-void ConvertTexelCTX1ToR8G8(Endian endian, void* output, const void* input,
-                            size_t length);
-void ConvertTexelDXT3AToDXT3(Endian endian, void* output, const void* input,
-                             size_t length);
+void ConvertTexelCTX1ToR8G8(xenos::Endian endian, void* output,
+                            const void* input, size_t length);
+void ConvertTexelDXT3AToDXT3(xenos::Endian endian, void* output,
+                             const void* input, size_t length);
 
 typedef std::function<void(void*, const void*, size_t)> UntileCopyBlockCallback;
 

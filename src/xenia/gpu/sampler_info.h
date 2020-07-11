@@ -17,14 +17,14 @@ namespace xe {
 namespace gpu {
 
 struct SamplerInfo {
-  TextureFilter min_filter;
-  TextureFilter mag_filter;
-  TextureFilter mip_filter;
-  ClampMode clamp_u;
-  ClampMode clamp_v;
-  ClampMode clamp_w;
-  AnisoFilter aniso_filter;
-  BorderColor border_color;
+  xenos::TextureFilter min_filter;
+  xenos::TextureFilter mag_filter;
+  xenos::TextureFilter mip_filter;
+  xenos::ClampMode clamp_u;
+  xenos::ClampMode clamp_v;
+  xenos::ClampMode clamp_w;
+  xenos::AnisoFilter aniso_filter;
+  xenos::BorderColor border_color;
   float lod_bias;
   uint32_t mip_min_level;
   uint32_t mip_max_level;

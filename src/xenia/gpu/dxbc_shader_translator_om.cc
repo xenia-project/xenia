@@ -17,13 +17,14 @@ namespace gpu {
 using namespace ucode;
 
 void DxbcShaderTranslator::ROV_GetColorFormatSystemConstants(
-    ColorRenderTargetFormat format, uint32_t write_mask, float& clamp_rgb_low,
-    float& clamp_alpha_low, float& clamp_rgb_high, float& clamp_alpha_high,
-    uint32_t& keep_mask_low, uint32_t& keep_mask_high) {
+    xenos::ColorRenderTargetFormat format, uint32_t write_mask,
+    float& clamp_rgb_low, float& clamp_alpha_low, float& clamp_rgb_high,
+    float& clamp_alpha_high, uint32_t& keep_mask_low,
+    uint32_t& keep_mask_high) {
   keep_mask_low = keep_mask_high = 0;
   switch (format) {
-    case ColorRenderTargetFormat::k_8_8_8_8:
-    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA: {
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8:
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA: {
       clamp_rgb_low = clamp_alpha_low = 0.0f;
       clamp_rgb_high = clamp_alpha_high = 1.0f;
       for (uint32_t i = 0; i < 4; ++i) {
@@ -32,8 +33,8 @@ void DxbcShaderTranslator::ROV_GetColorFormatSystemConstants(
         }
       }
     } break;
-    case ColorRenderTargetFormat::k_2_10_10_10:
-    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10: {
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10:
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10: {
       clamp_rgb_low = clamp_alpha_low = 0.0f;
       clamp_rgb_high = clamp_alpha_high = 1.0f;
       for (uint32_t i = 0; i < 3; ++i) {
@@ -45,8 +46,8 @@ void DxbcShaderTranslator::ROV_GetColorFormatSystemConstants(
         keep_mask_low |= uint32_t(3) << 30;
       }
     } break;
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16: {
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16: {
       clamp_rgb_low = clamp_alpha_low = 0.0f;
       clamp_rgb_high = 31.875f;
       clamp_alpha_high = 1.0f;
@@ -59,8 +60,8 @@ void DxbcShaderTranslator::ROV_GetColorFormatSystemConstants(
         keep_mask_low |= uint32_t(3) << 30;
       }
     } break;
-    case ColorRenderTargetFormat::k_16_16:
-    case ColorRenderTargetFormat::k_16_16_16_16:
+    case xenos::ColorRenderTargetFormat::k_16_16:
+    case xenos::ColorRenderTargetFormat::k_16_16_16_16:
       // Alpha clamping affects blending source, so it's non-zero for alpha for
       // k_16_16 (the render target is fixed-point).
       clamp_rgb_low = clamp_alpha_low = -32.0f;
@@ -71,7 +72,7 @@ void DxbcShaderTranslator::ROV_GetColorFormatSystemConstants(
       if (!(write_mask & 0b0010)) {
         keep_mask_low |= 0xFFFF0000u;
       }
-      if (format == ColorRenderTargetFormat::k_16_16_16_16) {
+      if (format == xenos::ColorRenderTargetFormat::k_16_16_16_16) {
         if (!(write_mask & 0b0100)) {
           keep_mask_high |= 0xFFFFu;
         }
@@ -82,8 +83,8 @@ void DxbcShaderTranslator::ROV_GetColorFormatSystemConstants(
         write_mask &= 0b0011;
       }
       break;
-    case ColorRenderTargetFormat::k_16_16_FLOAT:
-    case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_16_16_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
       // No NaNs on the Xbox 360 GPU, though can't use the extended range with
       // f32tof16.
       clamp_rgb_low = clamp_alpha_low = -65504.0f;
@@ -94,7 +95,7 @@ void DxbcShaderTranslator::ROV_GetColorFormatSystemConstants(
       if (!(write_mask & 0b0010)) {
         keep_mask_low |= 0xFFFF0000u;
       }
-      if (format == ColorRenderTargetFormat::k_16_16_16_16_FLOAT) {
+      if (format == xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT) {
         if (!(write_mask & 0b0100)) {
           keep_mask_high |= 0xFFFFu;
         }
@@ -105,7 +106,7 @@ void DxbcShaderTranslator::ROV_GetColorFormatSystemConstants(
         write_mask &= 0b0011;
       }
       break;
-    case ColorRenderTargetFormat::k_32_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_32_FLOAT:
       // No clamping - let min/max always pick the original value.
       clamp_rgb_low = clamp_alpha_low = clamp_rgb_high = clamp_alpha_high =
           std::nanf("");
@@ -114,7 +115,7 @@ void DxbcShaderTranslator::ROV_GetColorFormatSystemConstants(
         keep_mask_low = ~uint32_t(0);
       }
       break;
-    case ColorRenderTargetFormat::k_32_32_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_32_32_FLOAT:
       // No clamping - let min/max always pick the original value.
       clamp_rgb_low = clamp_alpha_low = clamp_rgb_high = clamp_alpha_high =
           std::nanf("");
@@ -701,9 +702,9 @@ void DxbcShaderTranslator::ROV_UnpackColor(
   // k_8_8_8_8_GAMMA
   // ***************************************************************************
   for (uint32_t i = 0; i < 2; ++i) {
-    DxbcOpCase(DxbcSrc::LU(
-        ROV_AddColorFormatFlags(i ? ColorRenderTargetFormat::k_8_8_8_8_GAMMA
-                                  : ColorRenderTargetFormat::k_8_8_8_8)));
+    DxbcOpCase(DxbcSrc::LU(ROV_AddColorFormatFlags(
+        i ? xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA
+          : xenos::ColorRenderTargetFormat::k_8_8_8_8)));
     // Unpack the components.
     DxbcOpUBFE(DxbcDest::R(color_temp), DxbcSrc::LU(8),
                DxbcSrc::LU(0, 8, 16, 24), packed_temp_low);
@@ -726,9 +727,9 @@ void DxbcShaderTranslator::ROV_UnpackColor(
   // k_2_10_10_10_AS_10_10_10_10
   // ***************************************************************************
   DxbcOpCase(DxbcSrc::LU(
-      ROV_AddColorFormatFlags(ColorRenderTargetFormat::k_2_10_10_10)));
+      ROV_AddColorFormatFlags(xenos::ColorRenderTargetFormat::k_2_10_10_10)));
   DxbcOpCase(DxbcSrc::LU(ROV_AddColorFormatFlags(
-      ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10)));
+      xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10)));
   {
     // Unpack the components.
     DxbcOpUBFE(DxbcDest::R(color_temp), DxbcSrc::LU(10, 10, 10, 2),
@@ -747,10 +748,10 @@ void DxbcShaderTranslator::ROV_UnpackColor(
   // k_2_10_10_10_FLOAT_AS_16_16_16_16
   // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
   // ***************************************************************************
-  DxbcOpCase(DxbcSrc::LU(
-      ROV_AddColorFormatFlags(ColorRenderTargetFormat::k_2_10_10_10_FLOAT)));
   DxbcOpCase(DxbcSrc::LU(ROV_AddColorFormatFlags(
-      ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16)));
+      xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT)));
+  DxbcOpCase(DxbcSrc::LU(ROV_AddColorFormatFlags(
+      xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16)));
   {
     // Unpack the alpha.
     DxbcOpUBFE(DxbcDest::R(color_temp, 0b1000), DxbcSrc::LU(2), DxbcSrc::LU(30),
@@ -824,9 +825,9 @@ void DxbcShaderTranslator::ROV_UnpackColor(
   // k_16_16_16_16 (64bpp)
   // ***************************************************************************
   for (uint32_t i = 0; i < 2; ++i) {
-    DxbcOpCase(DxbcSrc::LU(
-        ROV_AddColorFormatFlags(i ? ColorRenderTargetFormat::k_16_16_16_16
-                                  : ColorRenderTargetFormat::k_16_16)));
+    DxbcOpCase(DxbcSrc::LU(ROV_AddColorFormatFlags(
+        i ? xenos::ColorRenderTargetFormat::k_16_16_16_16
+          : xenos::ColorRenderTargetFormat::k_16_16)));
     DxbcDest color_components_dest(
         DxbcDest::R(color_temp, i ? 0b1111 : 0b0011));
     // Unpack the components.
@@ -847,9 +848,9 @@ void DxbcShaderTranslator::ROV_UnpackColor(
   // k_16_16_16_16_FLOAT (64bpp)
   // ***************************************************************************
   for (uint32_t i = 0; i < 2; ++i) {
-    DxbcOpCase(DxbcSrc::LU(
-        ROV_AddColorFormatFlags(i ? ColorRenderTargetFormat::k_16_16_16_16_FLOAT
-                                  : ColorRenderTargetFormat::k_16_16_FLOAT)));
+    DxbcOpCase(DxbcSrc::LU(ROV_AddColorFormatFlags(
+        i ? xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT
+          : xenos::ColorRenderTargetFormat::k_16_16_FLOAT)));
     DxbcDest color_components_dest(
         DxbcDest::R(color_temp, i ? 0b1111 : 0b0011));
     // Unpack the components.
@@ -905,9 +906,9 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
   // k_8_8_8_8_GAMMA
   // ***************************************************************************
   for (uint32_t i = 0; i < 2; ++i) {
-    DxbcOpCase(DxbcSrc::LU(
-        ROV_AddColorFormatFlags(i ? ColorRenderTargetFormat::k_8_8_8_8_GAMMA
-                                  : ColorRenderTargetFormat::k_8_8_8_8)));
+    DxbcOpCase(DxbcSrc::LU(ROV_AddColorFormatFlags(
+        i ? xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA
+          : xenos::ColorRenderTargetFormat::k_8_8_8_8)));
     for (uint32_t j = 0; j < 4; ++j) {
       if (i && j < 3) {
         ConvertPWLGamma(true, color_temp, j, temp1, temp1_component, temp1,
@@ -939,9 +940,9 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
   // k_2_10_10_10_AS_10_10_10_10
   // ***************************************************************************
   DxbcOpCase(DxbcSrc::LU(
-      ROV_AddColorFormatFlags(ColorRenderTargetFormat::k_2_10_10_10)));
+      ROV_AddColorFormatFlags(xenos::ColorRenderTargetFormat::k_2_10_10_10)));
   DxbcOpCase(DxbcSrc::LU(ROV_AddColorFormatFlags(
-      ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10)));
+      xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10)));
   for (uint32_t i = 0; i < 4; ++i) {
     // Denormalize.
     DxbcOpMul(temp1_dest, DxbcSrc::R(color_temp).Select(i),
@@ -965,10 +966,10 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
   // k_2_10_10_10_FLOAT_AS_16_16_16_16
   // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
   // ***************************************************************************
-  DxbcOpCase(DxbcSrc::LU(
-      ROV_AddColorFormatFlags(ColorRenderTargetFormat::k_2_10_10_10_FLOAT)));
   DxbcOpCase(DxbcSrc::LU(ROV_AddColorFormatFlags(
-      ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16)));
+      xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT)));
+  DxbcOpCase(DxbcSrc::LU(ROV_AddColorFormatFlags(
+      xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16)));
   {
     for (uint32_t i = 0; i < 3; ++i) {
       DxbcSrc color_component_src(DxbcSrc::R(color_temp).Select(i));
@@ -1039,9 +1040,9 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
   // k_16_16_16_16 (64bpp)
   // ***************************************************************************
   for (uint32_t i = 0; i < 2; ++i) {
-    DxbcOpCase(DxbcSrc::LU(
-        ROV_AddColorFormatFlags(i ? ColorRenderTargetFormat::k_16_16_16_16
-                                  : ColorRenderTargetFormat::k_16_16)));
+    DxbcOpCase(DxbcSrc::LU(ROV_AddColorFormatFlags(
+        i ? xenos::ColorRenderTargetFormat::k_16_16_16_16
+          : xenos::ColorRenderTargetFormat::k_16_16)));
     for (uint32_t j = 0; j < (uint32_t(2) << i); ++j) {
       // Denormalize.
       DxbcOpMul(temp1_dest, DxbcSrc::R(color_temp).Select(j),
@@ -1069,9 +1070,9 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
   // k_16_16_16_16_FLOAT (64bpp)
   // ***************************************************************************
   for (uint32_t i = 0; i < 2; ++i) {
-    DxbcOpCase(DxbcSrc::LU(
-        ROV_AddColorFormatFlags(i ? ColorRenderTargetFormat::k_16_16_16_16_FLOAT
-                                  : ColorRenderTargetFormat::k_16_16_FLOAT)));
+    DxbcOpCase(DxbcSrc::LU(ROV_AddColorFormatFlags(
+        i ? xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT
+          : xenos::ColorRenderTargetFormat::k_16_16_FLOAT)));
     for (uint32_t j = 0; j < (uint32_t(2) << i); ++j) {
       DxbcDest packed_dest_half(
           DxbcDest::R(packed_temp, 1 << (packed_temp_components + (j >> 1))));
@@ -1105,51 +1106,51 @@ void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(
   DxbcSrc one_src(DxbcSrc::LF(1.0f));
 
   // kOne.
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kOne)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kOne)));
   DxbcOpMov(factor_dest, one_src);
   DxbcOpBreak();
 
   // kSrcColor
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kSrcColor)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kSrcColor)));
   if (factor_temp != src_temp) {
     DxbcOpMov(factor_dest, DxbcSrc::R(src_temp));
   }
   DxbcOpBreak();
 
   // kOneMinusSrcColor
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kOneMinusSrcColor)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kOneMinusSrcColor)));
   DxbcOpAdd(factor_dest, one_src, -DxbcSrc::R(src_temp));
   DxbcOpBreak();
 
   // kSrcAlpha
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kSrcAlpha)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kSrcAlpha)));
   DxbcOpMov(factor_dest, DxbcSrc::R(src_temp, DxbcSrc::kWWWW));
   DxbcOpBreak();
 
   // kOneMinusSrcAlpha
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kOneMinusSrcAlpha)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kOneMinusSrcAlpha)));
   DxbcOpAdd(factor_dest, one_src, -DxbcSrc::R(src_temp, DxbcSrc::kWWWW));
   DxbcOpBreak();
 
   // kDstColor
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kDstColor)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kDstColor)));
   if (factor_temp != dst_temp) {
     DxbcOpMov(factor_dest, DxbcSrc::R(dst_temp));
   }
   DxbcOpBreak();
 
   // kOneMinusDstColor
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kOneMinusDstColor)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kOneMinusDstColor)));
   DxbcOpAdd(factor_dest, one_src, -DxbcSrc::R(dst_temp));
   DxbcOpBreak();
 
   // kDstAlpha
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kDstAlpha)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kDstAlpha)));
   DxbcOpMov(factor_dest, DxbcSrc::R(dst_temp, DxbcSrc::kWWWW));
   DxbcOpBreak();
 
   // kOneMinusDstAlpha
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kOneMinusDstAlpha)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kOneMinusDstAlpha)));
   DxbcOpAdd(factor_dest, one_src, -DxbcSrc::R(dst_temp, DxbcSrc::kWWWW));
   DxbcOpBreak();
 
@@ -1157,7 +1158,7 @@ void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(
   system_constants_used_ |= 1ull << kSysConst_EDRAMBlendConstant_Index;
 
   // kConstantColor
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kConstantColor)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kConstantColor)));
   DxbcOpMov(factor_dest,
             DxbcSrc::CB(cbuffer_index_system_constants_,
                         uint32_t(CbufferRegister::kSystemConstants),
@@ -1165,7 +1166,7 @@ void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(
   DxbcOpBreak();
 
   // kOneMinusConstantColor
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kOneMinusConstantColor)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kOneMinusConstantColor)));
   DxbcOpAdd(factor_dest, one_src,
             -DxbcSrc::CB(cbuffer_index_system_constants_,
                          uint32_t(CbufferRegister::kSystemConstants),
@@ -1173,7 +1174,7 @@ void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(
   DxbcOpBreak();
 
   // kConstantAlpha
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kConstantAlpha)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kConstantAlpha)));
   DxbcOpMov(factor_dest,
             DxbcSrc::CB(cbuffer_index_system_constants_,
                         uint32_t(CbufferRegister::kSystemConstants),
@@ -1181,7 +1182,7 @@ void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(
   DxbcOpBreak();
 
   // kOneMinusConstantAlpha
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kOneMinusConstantAlpha)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kOneMinusConstantAlpha)));
   DxbcOpAdd(factor_dest, one_src,
             -DxbcSrc::CB(cbuffer_index_system_constants_,
                          uint32_t(CbufferRegister::kSystemConstants),
@@ -1189,7 +1190,7 @@ void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(
   DxbcOpBreak();
 
   // kSrcAlphaSaturate
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kSrcAlphaSaturate)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kSrcAlphaSaturate)));
   DxbcOpAdd(DxbcDest::R(factor_temp, 0b0001), one_src,
             -DxbcSrc::R(dst_temp, DxbcSrc::kWWWW));
   DxbcOpMin(factor_dest, DxbcSrc::R(src_temp, DxbcSrc::kWWWW),
@@ -1209,36 +1210,36 @@ void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(
   DxbcSrc one_src(DxbcSrc::LF(1.0f));
 
   // kOne, kSrcAlphaSaturate.
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kOne)));
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kSrcAlphaSaturate)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kOne)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kSrcAlphaSaturate)));
   DxbcOpMov(factor_dest, one_src);
   DxbcOpBreak();
 
   // kSrcColor, kSrcAlpha.
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kSrcColor)));
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kSrcAlpha)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kSrcColor)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kSrcAlpha)));
   if (factor_temp != src_temp || factor_component != 3) {
     DxbcOpMov(factor_dest, DxbcSrc::R(src_temp, DxbcSrc::kWWWW));
   }
   DxbcOpBreak();
 
   // kOneMinusSrcColor, kOneMinusSrcAlpha.
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kOneMinusSrcColor)));
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kOneMinusSrcAlpha)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kOneMinusSrcColor)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kOneMinusSrcAlpha)));
   DxbcOpAdd(factor_dest, one_src, -DxbcSrc::R(src_temp, DxbcSrc::kWWWW));
   DxbcOpBreak();
 
   // kDstColor, kDstAlpha.
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kDstColor)));
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kDstAlpha)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kDstColor)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kDstAlpha)));
   if (factor_temp != dst_temp || factor_component != 3) {
     DxbcOpMov(factor_dest, DxbcSrc::R(dst_temp, DxbcSrc::kWWWW));
   }
   DxbcOpBreak();
 
   // kOneMinusDstColor, kOneMinusDstAlpha.
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kOneMinusDstColor)));
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kOneMinusDstAlpha)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kOneMinusDstColor)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kOneMinusDstAlpha)));
   DxbcOpAdd(factor_dest, one_src, -DxbcSrc::R(dst_temp, DxbcSrc::kWWWW));
   DxbcOpBreak();
 
@@ -1246,8 +1247,8 @@ void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(
   system_constants_used_ |= 1ull << kSysConst_EDRAMBlendConstant_Index;
 
   // kConstantColor, kConstantAlpha.
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kConstantColor)));
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kConstantAlpha)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kConstantColor)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kConstantAlpha)));
   DxbcOpMov(factor_dest,
             DxbcSrc::CB(cbuffer_index_system_constants_,
                         uint32_t(CbufferRegister::kSystemConstants),
@@ -1255,8 +1256,8 @@ void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(
   DxbcOpBreak();
 
   // kOneMinusConstantColor, kOneMinusConstantAlpha.
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kOneMinusConstantColor)));
-  DxbcOpCase(DxbcSrc::LU(uint32_t(BlendFactor::kOneMinusConstantAlpha)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kOneMinusConstantColor)));
+  DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::BlendFactor::kOneMinusConstantAlpha)));
   DxbcOpAdd(factor_dest, one_src,
             -DxbcSrc::CB(cbuffer_index_system_constants_,
                          uint32_t(CbufferRegister::kSystemConstants),
@@ -2287,14 +2288,14 @@ void DxbcShaderTranslator::
     DxbcOpSwitch(DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kWWWW));
     {
       // Zero.
-      DxbcOpCase(DxbcSrc::LU(uint32_t(StencilOp::kZero)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::StencilOp::kZero)));
       {
         DxbcOpMov(DxbcDest::R(system_temps_subroutine_, 0b1000),
                   DxbcSrc::LU(0));
       }
       DxbcOpBreak();
       // Replace.
-      DxbcOpCase(DxbcSrc::LU(uint32_t(StencilOp::kReplace)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::StencilOp::kReplace)));
       {
         in_front_face_used_ = true;
         system_constants_used_ |= 1ull << kSysConst_EDRAMStencil_Index;
@@ -2306,7 +2307,7 @@ void DxbcShaderTranslator::
       }
       DxbcOpBreak();
       // Increment and clamp.
-      DxbcOpCase(DxbcSrc::LU(uint32_t(StencilOp::kIncrementClamp)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::StencilOp::kIncrementClamp)));
       {
         // Clear the upper bits for saturation.
         DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b1000),
@@ -2323,7 +2324,7 @@ void DxbcShaderTranslator::
       }
       DxbcOpBreak();
       // Decrement and clamp.
-      DxbcOpCase(DxbcSrc::LU(uint32_t(StencilOp::kDecrementClamp)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::StencilOp::kDecrementClamp)));
       {
         // Clear the upper bits for saturation.
         DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b1000),
@@ -2340,7 +2341,7 @@ void DxbcShaderTranslator::
       }
       DxbcOpBreak();
       // Invert.
-      DxbcOpCase(DxbcSrc::LU(uint32_t(StencilOp::kInvert)));
+      DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::StencilOp::kInvert)));
       {
         DxbcOpNot(DxbcDest::R(system_temps_subroutine_, 0b1000),
                   DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kZZZZ));
@@ -2348,8 +2349,8 @@ void DxbcShaderTranslator::
       DxbcOpBreak();
       // Increment/decrement and wrap.
       for (uint32_t i = 0; i < 2; ++i) {
-        DxbcOpCase(DxbcSrc::LU(uint32_t(i ? StencilOp::kDecrementWrap
-                                          : StencilOp::kIncrementWrap)));
+        DxbcOpCase(DxbcSrc::LU(uint32_t(i ? xenos::StencilOp::kDecrementWrap
+                                          : xenos::StencilOp::kIncrementWrap)));
         {
           DxbcOpIAdd(DxbcDest::R(system_temps_subroutine_, 0b1000),
                      DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kZZZZ),

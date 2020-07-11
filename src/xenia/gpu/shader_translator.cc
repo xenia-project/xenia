@@ -111,8 +111,9 @@ bool ShaderTranslator::Translate(
     Shader* shader, reg::SQ_PROGRAM_CNTL cntl,
     Shader::HostVertexShaderType host_vertex_shader_type) {
   Reset();
-  uint32_t cntl_num_reg =
-      shader->type() == ShaderType::kVertex ? cntl.vs_num_reg : cntl.ps_num_reg;
+  uint32_t cntl_num_reg = shader->type() == xenos::ShaderType::kVertex
+                              ? cntl.vs_num_reg
+                              : cntl.ps_num_reg;
   register_count_ = (cntl_num_reg & 0x80) ? 0 : (cntl_num_reg + 1);
 
   return TranslateInternal(shader, host_vertex_shader_type);
@@ -494,8 +495,8 @@ void ShaderTranslator::GatherVertexFetchInformation(
   // Populate attribute.
   attrib->attrib_index = total_attrib_count_++;
   attrib->fetch_instr = fetch_instr;
-  attrib->size_words =
-      GetVertexFormatSizeInWords(attrib->fetch_instr.attributes.data_format);
+  attrib->size_words = xenos::GetVertexFormatSizeInWords(
+      attrib->fetch_instr.attributes.data_format);
 }
 
 void ShaderTranslator::GatherTextureFetchInformation(
@@ -1080,7 +1081,7 @@ void ShaderTranslator::ParseTextureFetchInstruction(
   src_op.component_count =
       opcode_info.override_component_count
           ? opcode_info.override_component_count
-          : GetTextureDimensionComponentCount(op.dimension());
+          : xenos::GetFetchOpDimensionComponentCount(op.dimension());
   uint32_t swizzle = op.src_swizzle();
   for (uint32_t j = 0; j < src_op.component_count; ++j, swizzle >>= 2) {
     src_op.components[j] = GetSwizzleFromComponentIndex(swizzle & 0x3);
@@ -1131,20 +1132,20 @@ uint32_t ParsedTextureFetchInstruction::GetNonZeroResultComponents() const {
       // simplicity. It's very unlikely that this instruction is ever seriously
       // used to retrieve weights of zero though.
       switch (dimension) {
-        case TextureDimension::k1D:
+        case xenos::FetchOpDimension::k1D:
           components = 0b1001;
           break;
-        case TextureDimension::k2D:
-        case TextureDimension::kCube:
+        case xenos::FetchOpDimension::k2D:
+        case xenos::FetchOpDimension::kCube:
           // TODO(Triang3l): Is the depth lerp factor always 0 for cube maps?
           components = 0b1011;
           break;
-        case TextureDimension::k3D:
+        case xenos::FetchOpDimension::k3DOrStacked:
           components = 0b1111;
           break;
       }
-      if (attributes.mip_filter == TextureFilter::kBaseMap ||
-          attributes.mip_filter == TextureFilter::kPoint) {
+      if (attributes.mip_filter == xenos::TextureFilter::kBaseMap ||
+          attributes.mip_filter == xenos::TextureFilter::kPoint) {
         components &= ~uint32_t(0b1000);
       }
       break;

@@ -203,7 +203,7 @@ void PipelineCache::Shutdown() {
   }
 }
 
-VulkanShader* PipelineCache::LoadShader(ShaderType shader_type,
+VulkanShader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
                                         uint32_t guest_address,
                                         const uint32_t* host_address,
                                         uint32_t dword_count) {
@@ -228,7 +228,7 @@ VulkanShader* PipelineCache::LoadShader(ShaderType shader_type,
 PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
     VkCommandBuffer command_buffer, const RenderState* render_state,
     VulkanShader* vertex_shader, VulkanShader* pixel_shader,
-    PrimitiveType primitive_type, VkPipeline* pipeline_out) {
+    xenos::PrimitiveType primitive_type, VkPipeline* pipeline_out) {
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
@@ -380,7 +380,7 @@ bool PipelineCache::TranslateShader(VulkanShader* shader,
 
   if (shader->is_valid()) {
     XELOGGPU("Generated {} shader ({}b) - hash {:016X}:\n{}\n",
-             shader->type() == ShaderType::kVertex ? "vertex" : "pixel",
+             shader->type() == xenos::ShaderType::kVertex ? "vertex" : "pixel",
              shader->ucode_dword_count() * 4, shader->ucode_data_hash(),
              shader->ucode_disassembly());
   }
@@ -529,33 +529,33 @@ void PipelineCache::DumpShaderDisasmNV(
   vkDestroyPipelineCache(*device_, dummy_pipeline_cache, nullptr);
 }
 
-VkShaderModule PipelineCache::GetGeometryShader(PrimitiveType primitive_type,
-                                                bool is_line_mode) {
+VkShaderModule PipelineCache::GetGeometryShader(
+    xenos::PrimitiveType primitive_type, bool is_line_mode) {
   switch (primitive_type) {
-    case PrimitiveType::kLineList:
-    case PrimitiveType::kLineLoop:
-    case PrimitiveType::kLineStrip:
-    case PrimitiveType::kTriangleList:
-    case PrimitiveType::kTriangleFan:
-    case PrimitiveType::kTriangleStrip:
+    case xenos::PrimitiveType::kLineList:
+    case xenos::PrimitiveType::kLineLoop:
+    case xenos::PrimitiveType::kLineStrip:
+    case xenos::PrimitiveType::kTriangleList:
+    case xenos::PrimitiveType::kTriangleFan:
+    case xenos::PrimitiveType::kTriangleStrip:
       // Supported directly - no need to emulate.
       return nullptr;
-    case PrimitiveType::kPointList:
+    case xenos::PrimitiveType::kPointList:
       return geometry_shaders_.point_list;
-    case PrimitiveType::kTriangleWithWFlags:
+    case xenos::PrimitiveType::kTriangleWithWFlags:
       assert_always("Unknown geometry type");
       return nullptr;
-    case PrimitiveType::kRectangleList:
+    case xenos::PrimitiveType::kRectangleList:
       return geometry_shaders_.rect_list;
-    case PrimitiveType::kQuadList:
+    case xenos::PrimitiveType::kQuadList:
       return is_line_mode ? geometry_shaders_.line_quad_list
                           : geometry_shaders_.quad_list;
-    case PrimitiveType::kQuadStrip:
+    case xenos::PrimitiveType::kQuadStrip:
       // TODO(benvanik): quad strip geometry shader.
       assert_always("Quad strips not implemented");
       return nullptr;
-    case PrimitiveType::kTrianglePatch:
-    case PrimitiveType::kQuadPatch:
+    case xenos::PrimitiveType::kTrianglePatch:
+    case xenos::PrimitiveType::kQuadPatch:
       assert_always("Tessellation is not implemented");
       return nullptr;
     default:
@@ -640,18 +640,18 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
                                             XE_GPU_REG_PA_CL_VPORT_ZSCALE);
   // RB_SURFACE_INFO
   auto surface_msaa =
-      static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
+      static_cast<xenos::MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
 
   // Apply a multiplier to emulate MSAA.
   float window_width_scalar = 1;
   float window_height_scalar = 1;
   switch (surface_msaa) {
-    case MsaaSamples::k1X:
+    case xenos::MsaaSamples::k1X:
       break;
-    case MsaaSamples::k2X:
+    case xenos::MsaaSamples::k2X:
       window_height_scalar = 2;
       break;
-    case MsaaSamples::k4X:
+    case xenos::MsaaSamples::k4X:
       window_width_scalar = window_height_scalar = 2;
       break;
   }
@@ -954,7 +954,7 @@ bool PipelineCache::SetShadowRegisterArray(uint32_t* dest, uint32_t num,
 
 PipelineCache::UpdateStatus PipelineCache::UpdateState(
     VulkanShader* vertex_shader, VulkanShader* pixel_shader,
-    PrimitiveType primitive_type) {
+    xenos::PrimitiveType primitive_type) {
   bool mismatch = false;
 
   // Reset hash so we can build it up.
@@ -1035,7 +1035,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRenderTargetState() {
 
 PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
     VulkanShader* vertex_shader, VulkanShader* pixel_shader,
-    PrimitiveType primitive_type) {
+    xenos::PrimitiveType primitive_type) {
   auto& regs = update_shader_stages_regs_;
 
   // These are the constant base addresses/ranges for shaders.
@@ -1150,7 +1150,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
 }
 
 PipelineCache::UpdateStatus PipelineCache::UpdateInputAssemblyState(
-    PrimitiveType primitive_type) {
+    xenos::PrimitiveType primitive_type) {
   auto& regs = update_input_assembly_state_regs_;
   auto& state_info = update_input_assembly_state_info_;
 
@@ -1172,35 +1172,35 @@ PipelineCache::UpdateStatus PipelineCache::UpdateInputAssemblyState(
   state_info.flags = 0;
 
   switch (primitive_type) {
-    case PrimitiveType::kPointList:
+    case xenos::PrimitiveType::kPointList:
       state_info.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
       break;
-    case PrimitiveType::kLineList:
+    case xenos::PrimitiveType::kLineList:
       state_info.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
       break;
-    case PrimitiveType::kLineStrip:
+    case xenos::PrimitiveType::kLineStrip:
       state_info.topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
       break;
-    case PrimitiveType::kLineLoop:
+    case xenos::PrimitiveType::kLineLoop:
       state_info.topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
       break;
-    case PrimitiveType::kTriangleList:
+    case xenos::PrimitiveType::kTriangleList:
       state_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
       break;
-    case PrimitiveType::kTriangleStrip:
+    case xenos::PrimitiveType::kTriangleStrip:
       state_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
       break;
-    case PrimitiveType::kTriangleFan:
+    case xenos::PrimitiveType::kTriangleFan:
       state_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
       break;
-    case PrimitiveType::kRectangleList:
+    case xenos::PrimitiveType::kRectangleList:
       state_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
       break;
-    case PrimitiveType::kQuadList:
+    case xenos::PrimitiveType::kQuadList:
       state_info.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
       break;
     default:
-    case PrimitiveType::kTriangleWithWFlags:
+    case xenos::PrimitiveType::kTriangleWithWFlags:
       XELOGE("unsupported primitive type {}", primitive_type);
       assert_unhandled_case(primitive_type);
       return UpdateStatus::kError;
@@ -1243,7 +1243,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateViewportState() {
 }
 
 PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
-    PrimitiveType primitive_type) {
+    xenos::PrimitiveType primitive_type) {
   auto& regs = update_rasterization_state_regs_;
   auto& state_info = update_rasterization_state_info_;
 
@@ -1341,10 +1341,10 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
   } else {
     state_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   }
-  if (primitive_type == PrimitiveType::kRectangleList) {
+  if (primitive_type == xenos::PrimitiveType::kRectangleList) {
     // Rectangle lists aren't culled. There may be other things they skip too.
     state_info.cullMode = VK_CULL_MODE_NONE;
-  } else if (primitive_type == PrimitiveType::kPointList) {
+  } else if (primitive_type == xenos::PrimitiveType::kPointList) {
     // Face culling doesn't apply to point primitives.
     state_info.cullMode = VK_CULL_MODE_NONE;
   }
@@ -1385,15 +1385,15 @@ PipelineCache::UpdateStatus PipelineCache::UpdateMultisampleState() {
   // all sampled from the pixel center.
   if (cvars::vulkan_native_msaa) {
     auto msaa_num_samples =
-        static_cast<MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
+        static_cast<xenos::MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
     switch (msaa_num_samples) {
-      case MsaaSamples::k1X:
+      case xenos::MsaaSamples::k1X:
         state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
         break;
-      case MsaaSamples::k2X:
+      case xenos::MsaaSamples::k2X:
         state_info.rasterizationSamples = VK_SAMPLE_COUNT_2_BIT;
         break;
-      case MsaaSamples::k4X:
+      case xenos::MsaaSamples::k4X:
         state_info.rasterizationSamples = VK_SAMPLE_COUNT_4_BIT;
         break;
       default:

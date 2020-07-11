@@ -29,41 +29,43 @@ using xe::ui::vulkan::CheckResult;
 
 constexpr uint32_t kEdramBufferCapacity = 10 * 1024 * 1024;
 
-ColorRenderTargetFormat GetBaseRTFormat(ColorRenderTargetFormat format) {
+xenos::ColorRenderTargetFormat GetBaseRTFormat(
+    xenos::ColorRenderTargetFormat format) {
   switch (format) {
-    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      return ColorRenderTargetFormat::k_8_8_8_8;
-    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
-      return ColorRenderTargetFormat::k_2_10_10_10;
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-      return ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+      return xenos::ColorRenderTargetFormat::k_8_8_8_8;
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
+      return xenos::ColorRenderTargetFormat::k_2_10_10_10;
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+      return xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
     default:
       return format;
   }
 }
 
-VkFormat ColorRenderTargetFormatToVkFormat(ColorRenderTargetFormat format) {
+VkFormat ColorRenderTargetFormatToVkFormat(
+    xenos::ColorRenderTargetFormat format) {
   switch (format) {
-    case ColorRenderTargetFormat::k_8_8_8_8:
-    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8:
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
       return VK_FORMAT_R8G8B8A8_UNORM;
-    case ColorRenderTargetFormat::k_2_10_10_10:
-    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10:
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
       return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
       return VK_FORMAT_R16G16B16A16_SFLOAT;
-    case ColorRenderTargetFormat::k_16_16:
+    case xenos::ColorRenderTargetFormat::k_16_16:
       return VK_FORMAT_R16G16_UNORM;
-    case ColorRenderTargetFormat::k_16_16_16_16:
+    case xenos::ColorRenderTargetFormat::k_16_16_16_16:
       return VK_FORMAT_R16G16B16A16_UNORM;
-    case ColorRenderTargetFormat::k_16_16_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_16_16_FLOAT:
       return VK_FORMAT_R16G16_SFLOAT;
-    case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
       return VK_FORMAT_R16G16B16A16_SFLOAT;
-    case ColorRenderTargetFormat::k_32_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_32_FLOAT:
       return VK_FORMAT_R32_SFLOAT;
-    case ColorRenderTargetFormat::k_32_32_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_32_32_FLOAT:
       return VK_FORMAT_R32G32_SFLOAT;
     default:
       assert_unhandled_case(key.edram_format);
@@ -71,11 +73,12 @@ VkFormat ColorRenderTargetFormatToVkFormat(ColorRenderTargetFormat format) {
   }
 }
 
-VkFormat DepthRenderTargetFormatToVkFormat(DepthRenderTargetFormat format) {
+VkFormat DepthRenderTargetFormatToVkFormat(
+    xenos::DepthRenderTargetFormat format) {
   switch (format) {
-    case DepthRenderTargetFormat::kD24S8:
+    case xenos::DepthRenderTargetFormat::kD24S8:
       return VK_FORMAT_D24_UNORM_S8_UINT;
-    case DepthRenderTargetFormat::kD24FS8:
+    case xenos::DepthRenderTargetFormat::kD24FS8:
       // Vulkan doesn't support 24-bit floats, so just promote it to 32-bit
       return VK_FORMAT_D32_SFLOAT_S8_UINT;
     default:
@@ -161,12 +164,13 @@ VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
   VkFormat vulkan_format = VK_FORMAT_UNDEFINED;
   uint32_t bpp = 4;
   if (key.color_or_depth) {
-    auto edram_format = static_cast<ColorRenderTargetFormat>(key.edram_format);
+    auto edram_format =
+        static_cast<xenos::ColorRenderTargetFormat>(key.edram_format);
     vulkan_format = ColorRenderTargetFormatToVkFormat(edram_format);
     switch (edram_format) {
-      case ColorRenderTargetFormat::k_16_16_16_16:
-      case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
-      case ColorRenderTargetFormat::k_32_32_FLOAT:
+      case xenos::ColorRenderTargetFormat::k_16_16_16_16:
+      case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+      case xenos::ColorRenderTargetFormat::k_32_32_FLOAT:
         bpp = 8;
         break;
       default:
@@ -174,7 +178,8 @@ VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
         break;
     }
   } else {
-    auto edram_format = static_cast<DepthRenderTargetFormat>(key.edram_format);
+    auto edram_format =
+        static_cast<xenos::DepthRenderTargetFormat>(key.edram_format);
     vulkan_format = DepthRenderTargetFormatToVkFormat(edram_format);
   }
   assert_true(vulkan_format != VK_FORMAT_UNDEFINED);
@@ -196,15 +201,15 @@ VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
   image_info.mipLevels = 1;
   image_info.arrayLayers = 1;
   if (cvars::vulkan_native_msaa) {
-    auto msaa_samples = static_cast<MsaaSamples>(key.msaa_samples);
+    auto msaa_samples = static_cast<xenos::MsaaSamples>(key.msaa_samples);
     switch (msaa_samples) {
-      case MsaaSamples::k1X:
+      case xenos::MsaaSamples::k1X:
         image_info.samples = VK_SAMPLE_COUNT_1_BIT;
         break;
-      case MsaaSamples::k2X:
+      case xenos::MsaaSamples::k2X:
         image_info.samples = VK_SAMPLE_COUNT_2_BIT;
         break;
-      case MsaaSamples::k4X:
+      case xenos::MsaaSamples::k4X:
         image_info.samples = VK_SAMPLE_COUNT_4_BIT;
         break;
       default:
@@ -371,12 +376,14 @@ bool CachedFramebuffer::IsCompatible(
     const RenderConfiguration& desired_config) const {
   // We already know all render pass things line up, so let's verify dimensions,
   // edram offsets, etc. We need an exact match.
-  uint32_t surface_pitch_px = desired_config.surface_msaa != MsaaSamples::k4X
-                                  ? desired_config.surface_pitch_px
-                                  : desired_config.surface_pitch_px * 2;
-  uint32_t surface_height_px = desired_config.surface_msaa == MsaaSamples::k1X
-                                   ? desired_config.surface_height_px
-                                   : desired_config.surface_height_px * 2;
+  uint32_t surface_pitch_px =
+      desired_config.surface_msaa != xenos::MsaaSamples::k4X
+          ? desired_config.surface_pitch_px
+          : desired_config.surface_pitch_px * 2;
+  uint32_t surface_height_px =
+      desired_config.surface_msaa == xenos::MsaaSamples::k1X
+          ? desired_config.surface_height_px
+          : desired_config.surface_height_px * 2;
   surface_pitch_px = std::min(surface_pitch_px, 2560u);
   surface_height_px = std::min(surface_height_px, 2560u);
   if (surface_pitch_px != width || surface_height_px != height) {
@@ -426,13 +433,13 @@ VkResult CachedRenderPass::Initialize() {
   VkSampleCountFlagBits sample_count;
   if (cvars::vulkan_native_msaa) {
     switch (config.surface_msaa) {
-      case MsaaSamples::k1X:
+      case xenos::MsaaSamples::k1X:
         sample_count = VK_SAMPLE_COUNT_1_BIT;
         break;
-      case MsaaSamples::k2X:
+      case xenos::MsaaSamples::k2X:
         sample_count = VK_SAMPLE_COUNT_2_BIT;
         break;
-      case MsaaSamples::k4X:
+      case xenos::MsaaSamples::k4X:
         sample_count = VK_SAMPLE_COUNT_4_BIT;
         break;
       default:
@@ -759,10 +766,10 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
   render_pass_begin_info.renderArea.extent.width = config->surface_pitch_px;
   render_pass_begin_info.renderArea.extent.height = config->surface_height_px;
 
-  if (config->surface_msaa == MsaaSamples::k2X) {
+  if (config->surface_msaa == xenos::MsaaSamples::k2X) {
     render_pass_begin_info.renderArea.extent.height =
         std::min(config->surface_height_px * 2, 2560u);
-  } else if (config->surface_msaa == MsaaSamples::k4X) {
+  } else if (config->surface_msaa == xenos::MsaaSamples::k4X) {
     render_pass_begin_info.renderArea.extent.width *= 2;
     render_pass_begin_info.renderArea.extent.height =
         std::min(config->surface_height_px * 2, 2560u);
@@ -822,7 +829,7 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
   } else {
     for (int i = 0; i < 4; ++i) {
       config->color[i].edram_base = 0;
-      config->color[i].format = ColorRenderTargetFormat::k_8_8_8_8;
+      config->color[i].format = xenos::ColorRenderTargetFormat::k_8_8_8_8;
       config->color[i].used = false;
     }
   }
@@ -834,7 +841,7 @@ bool RenderCache::ParseConfiguration(RenderConfiguration* config) {
     config->depth_stencil.format = regs.rb_depth_info.depth_format;
   } else {
     config->depth_stencil.edram_base = 0;
-    config->depth_stencil.format = DepthRenderTargetFormat::kD24S8;
+    config->depth_stencil.format = xenos::DepthRenderTargetFormat::kD24S8;
     config->depth_stencil.used = false;
   }
 
@@ -886,8 +893,10 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
 
   // If no framebuffer was found in the cache create a new one.
   if (!framebuffer) {
-    uint32_t tile_width = config->surface_msaa == MsaaSamples::k4X ? 40 : 80;
-    uint32_t tile_height = config->surface_msaa != MsaaSamples::k1X ? 8 : 16;
+    uint32_t tile_width =
+        config->surface_msaa == xenos::MsaaSamples::k4X ? 40 : 80;
+    uint32_t tile_height =
+        config->surface_msaa != xenos::MsaaSamples::k1X ? 8 : 16;
 
     CachedTileView* target_color_attachments[4] = {nullptr, nullptr, nullptr,
                                                    nullptr};
@@ -930,10 +939,10 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
       return false;
     }
 
-    uint32_t surface_pitch_px = config->surface_msaa != MsaaSamples::k4X
+    uint32_t surface_pitch_px = config->surface_msaa != xenos::MsaaSamples::k4X
                                     ? config->surface_pitch_px
                                     : config->surface_pitch_px * 2;
-    uint32_t surface_height_px = config->surface_msaa == MsaaSamples::k1X
+    uint32_t surface_height_px = config->surface_msaa == xenos::MsaaSamples::k1X
                                      ? config->surface_height_px
                                      : config->surface_height_px * 2;
     surface_pitch_px = std::min(surface_pitch_px, 2560u);
@@ -958,16 +967,16 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
 }
 
 CachedTileView* RenderCache::FindTileView(uint32_t base, uint32_t pitch,
-                                          MsaaSamples samples,
+                                          xenos::MsaaSamples samples,
                                           bool color_or_depth,
                                           uint32_t format) {
-  uint32_t tile_width = samples == MsaaSamples::k4X ? 40 : 80;
-  uint32_t tile_height = samples != MsaaSamples::k1X ? 8 : 16;
+  uint32_t tile_width = samples == xenos::MsaaSamples::k4X ? 40 : 80;
+  uint32_t tile_height = samples != xenos::MsaaSamples::k1X ? 8 : 16;
 
   if (color_or_depth) {
     // Adjust similar formats for easier matching.
     format = static_cast<uint32_t>(
-        GetBaseRTFormat(static_cast<ColorRenderTargetFormat>(format)));
+        GetBaseRTFormat(static_cast<xenos::ColorRenderTargetFormat>(format)));
   }
 
   TileViewKey key;
@@ -1011,9 +1020,9 @@ void RenderCache::UpdateTileView(VkCommandBuffer command_buffer,
                                  CachedTileView* view, bool load,
                                  bool insert_barrier) {
   uint32_t tile_width =
-      view->key.msaa_samples == uint16_t(MsaaSamples::k4X) ? 40 : 80;
+      view->key.msaa_samples == uint16_t(xenos::MsaaSamples::k4X) ? 40 : 80;
   uint32_t tile_height =
-      view->key.msaa_samples != uint16_t(MsaaSamples::k1X) ? 8 : 16;
+      view->key.msaa_samples != uint16_t(xenos::MsaaSamples::k1X) ? 8 : 16;
 
   if (insert_barrier) {
     VkBufferMemoryBarrier barrier;
@@ -1196,7 +1205,7 @@ void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
 
 void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
                               uint32_t edram_base, uint32_t pitch,
-                              uint32_t height, MsaaSamples num_samples,
+                              uint32_t height, xenos::MsaaSamples num_samples,
                               VkImage image, VkImageLayout image_layout,
                               bool color_or_depth, uint32_t format,
                               VkFilter filter, VkOffset3D offset,
@@ -1204,11 +1213,11 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
   if (color_or_depth) {
     // Adjust similar formats for easier matching.
     format = static_cast<uint32_t>(
-        GetBaseRTFormat(static_cast<ColorRenderTargetFormat>(format)));
+        GetBaseRTFormat(static_cast<xenos::ColorRenderTargetFormat>(format)));
   }
 
-  uint32_t tile_width = num_samples == MsaaSamples::k4X ? 40 : 80;
-  uint32_t tile_height = num_samples != MsaaSamples::k1X ? 8 : 16;
+  uint32_t tile_width = num_samples == xenos::MsaaSamples::k4X ? 40 : 80;
+  uint32_t tile_height = num_samples != xenos::MsaaSamples::k1X ? 8 : 16;
 
   // Grab a tile view that represents the source image.
   TileViewKey key;
@@ -1300,17 +1309,18 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
 
 void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
                                   uint32_t edram_base,
-                                  ColorRenderTargetFormat format,
+                                  xenos::ColorRenderTargetFormat format,
                                   uint32_t pitch, uint32_t height,
-                                  MsaaSamples num_samples, float* color) {
+                                  xenos::MsaaSamples num_samples,
+                                  float* color) {
   // TODO: For formats <= 4 bpp, we can directly fill the EDRAM buffer. Just
   // need to detect this and calculate a value.
 
   // Adjust similar formats for easier matching.
-  format = GetBaseRTFormat(static_cast<ColorRenderTargetFormat>(format));
+  format = GetBaseRTFormat(static_cast<xenos::ColorRenderTargetFormat>(format));
 
-  uint32_t tile_width = num_samples == MsaaSamples::k4X ? 40 : 80;
-  uint32_t tile_height = num_samples != MsaaSamples::k1X ? 8 : 16;
+  uint32_t tile_width = num_samples == xenos::MsaaSamples::k4X ? 40 : 80;
+  uint32_t tile_height = num_samples != xenos::MsaaSamples::k1X ? 8 : 16;
 
   // Grab a tile view (as we need to clear an image first)
   TileViewKey key;
@@ -1338,15 +1348,15 @@ void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
 
 void RenderCache::ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
                                          uint32_t edram_base,
-                                         DepthRenderTargetFormat format,
+                                         xenos::DepthRenderTargetFormat format,
                                          uint32_t pitch, uint32_t height,
-                                         MsaaSamples num_samples, float depth,
-                                         uint32_t stencil) {
+                                         xenos::MsaaSamples num_samples,
+                                         float depth, uint32_t stencil) {
   // TODO: For formats <= 4 bpp, we can directly fill the EDRAM buffer. Just
   // need to detect this and calculate a value.
 
-  uint32_t tile_width = num_samples == MsaaSamples::k4X ? 40 : 80;
-  uint32_t tile_height = num_samples != MsaaSamples::k1X ? 8 : 16;
+  uint32_t tile_width = num_samples == xenos::MsaaSamples::k4X ? 40 : 80;
+  uint32_t tile_height = num_samples != xenos::MsaaSamples::k1X ? 8 : 16;
 
   // Grab a tile view (as we need to clear an image first)
   TileViewKey key;

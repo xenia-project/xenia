@@ -40,12 +40,13 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.width = info.height = info.depth = 0;
   info.is_stacked = false;
   switch (info.dimension) {
-    case Dimension::k1D:
-      info.dimension = Dimension::k2D;  // we treat 1D textures as 2D
+    case xenos::DataDimension::k1D:
+      // we treat 1D textures as 2D
+      info.dimension = DataDimension::k2DOrStacked;
       info.width = fetch.size_1d.width;
       assert_true(!fetch.stacked);
       break;
-    case Dimension::k2D:
+    case xenos::DataDimension::k2DOrStacked:
       info.width = fetch.size_2d.width;
       info.height = fetch.size_2d.height;
       if (fetch.stacked) {
@@ -53,13 +54,13 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
         info.is_stacked = true;
       }
       break;
-    case Dimension::k3D:
+    case xenos::DataDimension::k3D:
       info.width = fetch.size_3d.width;
       info.height = fetch.size_3d.height;
       info.depth = fetch.size_3d.depth;
       assert_true(!fetch.stacked);
       break;
-    case Dimension::kCube:
+    case xenos::DataDimension::kCube:
       info.width = fetch.size_2d.width;
       info.height = fetch.size_2d.height;
       assert_true(fetch.size_2d.stack_depth == 5);
@@ -78,7 +79,7 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.is_tiled = fetch.tiled;
   info.has_packed_mips = fetch.packed_mips;
 
-  if (info.format_info()->format == TextureFormat::kUnknown) {
+  if (info.format_info()->format == xenos::TextureFormat::kUnknown) {
     XELOGE("Attempting to fetch from unsupported texture format {}",
            info.format);
     info.memory.base_address = fetch.base_address << 12;
@@ -100,10 +101,10 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
 }
 
 bool TextureInfo::PrepareResolve(uint32_t physical_address,
-                                 TextureFormat format, Endian endian,
-                                 uint32_t pitch, uint32_t width,
-                                 uint32_t height, uint32_t depth,
-                                 TextureInfo* out_info) {
+                                 xenos::TextureFormat format,
+                                 xenos::Endian endian, uint32_t pitch,
+                                 uint32_t width, uint32_t height,
+                                 uint32_t depth, TextureInfo* out_info) {
   assert_true(width > 0);
   assert_true(height > 0);
 
@@ -113,7 +114,7 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
   info.format = format;
   info.endianness = endian;
 
-  info.dimension = Dimension::k2D;
+  info.dimension = xenos::DataDimension::k2DOrStacked;
   info.width = width - 1;
   info.height = height - 1;
   info.depth = depth - 1;
@@ -125,7 +126,7 @@ bool TextureInfo::PrepareResolve(uint32_t physical_address,
   info.is_tiled = true;
   info.has_packed_mips = false;
 
-  if (info.format_info()->format == TextureFormat::kUnknown) {
+  if (info.format_info()->format == xenos::TextureFormat::kUnknown) {
     assert_true("Unsupported texture format");
     info.memory.base_address = physical_address;
     return false;

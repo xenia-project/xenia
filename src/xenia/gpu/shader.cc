@@ -23,7 +23,7 @@ namespace xe {
 namespace gpu {
 using namespace ucode;
 
-Shader::Shader(ShaderType shader_type, uint64_t ucode_data_hash,
+Shader::Shader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
                const uint32_t* ucode_dwords, size_t ucode_dword_count)
     : shader_type_(shader_type), ucode_data_hash_(ucode_data_hash) {
   // We keep ucode data in host native format so it's easier to work with.
@@ -54,7 +54,7 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Dump(
       fmt::format("shader_{}_{:016X}", path_prefix, ucode_data_hash_);
 
   std::string txt_name, bin_name;
-  if (shader_type_ == ShaderType::kVertex) {
+  if (shader_type_ == xenos::ShaderType::kVertex) {
     txt_name = base_name + ".vert";
     bin_name = base_name + ".bin.vert";
   } else {

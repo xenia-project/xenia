@@ -27,27 +27,28 @@ namespace texture_conversion {
 
 using namespace xe::gpu::xenos;
 
-void CopySwapBlock(Endian endian, void* output, const void* input,
+void CopySwapBlock(xenos::Endian endian, void* output, const void* input,
                    size_t length) {
   switch (endian) {
-    case Endian::k8in16:
+    case xenos::Endian::k8in16:
       xe::copy_and_swap_16_unaligned(output, input, length / 2);
       break;
-    case Endian::k8in32:
+    case xenos::Endian::k8in32:
       xe::copy_and_swap_32_unaligned(output, input, length / 4);
       break;
-    case Endian::k16in32:  // Swap high and low 16 bits within a 32 bit word
+    case xenos::Endian::k16in32:  // Swap high and low 16 bits within a 32 bit
+                                  // word
       xe::copy_and_swap_16_in_32_unaligned(output, input, length);
       break;
     default:
-    case Endian::kNone:
+    case xenos::Endian::kNone:
       std::memcpy(output, input, length);
       break;
   }
 }
 
-void ConvertTexelCTX1ToR8G8(Endian endian, void* output, const void* input,
-                            size_t length) {
+void ConvertTexelCTX1ToR8G8(xenos::Endian endian, void* output,
+                            const void* input, size_t length) {
   // https://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
   // (R is in the higher bits, according to how this format is used in Halo 3).
   union {
@@ -81,8 +82,8 @@ void ConvertTexelCTX1ToR8G8(Endian endian, void* output, const void* input,
   }
 }
 
-void ConvertTexelDXT3AToDXT3(Endian endian, void* output, const void* input,
-                             size_t length) {
+void ConvertTexelDXT3AToDXT3(xenos::Endian endian, void* output,
+                             const void* input, size_t length) {
   const uint32_t bytes_per_block = 16;
   auto output_bytes = static_cast<uint8_t*>(output);
   CopySwapBlock(endian, &output_bytes[0], input, 8);

@@ -51,7 +51,8 @@ class PrimitiveConverter {
   void BeginFrame();
 
   // Returns the primitive type that the original type will be converted to.
-  static PrimitiveType GetReplacementPrimitiveType(PrimitiveType type);
+  static xenos::PrimitiveType GetReplacementPrimitiveType(
+      xenos::PrimitiveType type);
 
   enum class ConversionResult {
     // Converted to a transient buffer.
@@ -69,10 +70,10 @@ class PrimitiveConverter {
   // buffer will be in the GENERIC_READ state (it's in an upload heap). Only
   // writing to the outputs if returning kConverted. The restart index will be
   // handled internally from the register values.
-  ConversionResult ConvertPrimitives(PrimitiveType source_type,
+  ConversionResult ConvertPrimitives(xenos::PrimitiveType source_type,
                                      uint32_t address, uint32_t index_count,
-                                     IndexFormat index_format,
-                                     Endian index_endianness,
+                                     xenos::IndexFormat index_format,
+                                     xenos::Endian index_endianness,
                                      D3D12_GPU_VIRTUAL_ADDRESS& gpu_address_out,
                                      uint32_t& index_count_out);
 
@@ -80,7 +81,7 @@ class PrimitiveConverter {
   // primitives in INDEX_BUFFER state, for non-indexed drawing. Returns 0 if
   // conversion is not available (can draw natively).
   D3D12_GPU_VIRTUAL_ADDRESS GetStaticIndexBuffer(
-      PrimitiveType source_type, uint32_t index_count,
+      xenos::PrimitiveType source_type, uint32_t index_count,
       uint32_t& index_count_out) const;
 
   // Callback for invalidating buffers mid-frame.
@@ -93,7 +94,7 @@ class PrimitiveConverter {
   // simd_offset is source address & 15 - if SIMD is used, the source and the
   // target must have the same alignment within one register. 0 is optimal when
   // not using SIMD.
-  void* AllocateIndices(IndexFormat format, uint32_t count,
+  void* AllocateIndices(xenos::IndexFormat format, uint32_t count,
                         uint32_t simd_offset,
                         D3D12_GPU_VIRTUAL_ADDRESS& gpu_address_out);
 
@@ -135,8 +136,8 @@ class PrimitiveConverter {
     uint64_t value;
     struct {
       uint32_t address;               // 32
-      PrimitiveType source_type : 6;  // 38
-      IndexFormat format : 1;         // 39
+      xenos::PrimitiveType source_type : 6;  // 38
+      xenos::IndexFormat format : 1;         // 39
       uint32_t count : 16;            // 55
       uint32_t reset : 1;             // 56
     };
