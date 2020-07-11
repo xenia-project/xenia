@@ -450,7 +450,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
 
 void DxbcShaderTranslator::StartVertexOrDomainShader() {
   // Zero the interpolators.
-  for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+  for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
     DxbcOpMov(DxbcDest::O(uint32_t(InOutRegister::kVSDSOutInterpolators) + i),
               DxbcSrc::LF(0.0f));
   }
@@ -647,7 +647,8 @@ void DxbcShaderTranslator::StartPixelShader() {
     DxbcOpMov(DxbcDest::ODepth(), DxbcSrc::LF(0.0f));
   }
 
-  uint32_t interpolator_count = std::min(kInterpolatorCount, register_count());
+  uint32_t interpolator_count =
+      std::min(xenos::kMaxInterpolators, register_count());
   if (interpolator_count != 0) {
     // Copy interpolants to GPRs.
     if (edram_rov_used_) {
@@ -960,7 +961,7 @@ void DxbcShaderTranslator::StartTranslation() {
 
     // Zero general-purpose registers to prevent crashes when the game
     // references them after only initializing them conditionally.
-    for (uint32_t i = IsDxbcPixelShader() ? kInterpolatorCount : 0;
+    for (uint32_t i = IsDxbcPixelShader() ? xenos::kMaxInterpolators : 0;
          i < register_count(); ++i) {
       DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, i)
                                                    : DxbcDest::R(i),
@@ -2813,13 +2814,13 @@ void DxbcShaderTranslator::WriteInputSignature() {
     // Intepolators (TEXCOORD#).
     size_t interpolator_position = shader_object_.size();
     shader_object_.resize(shader_object_.size() +
-                          kInterpolatorCount * kParameterDwords);
-    parameter_count += kInterpolatorCount;
+                          xenos::kMaxInterpolators * kParameterDwords);
+    parameter_count += xenos::kMaxInterpolators;
     {
       DxbcSignatureParameter* interpolators =
           reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
                                                     interpolator_position);
-      for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+      for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
         DxbcSignatureParameter& interpolator = interpolators[i];
         interpolator.semantic_index = i;
         interpolator.component_type =
@@ -2909,7 +2910,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
       DxbcSignatureParameter* interpolators =
           reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
                                                     interpolator_position);
-      for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+      for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
         interpolators[i].semantic_name = semantic_offset;
       }
       DxbcSignatureParameter& point_parameters =
@@ -3077,13 +3078,13 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     // Intepolators (TEXCOORD#).
     size_t interpolator_position = shader_object_.size();
     shader_object_.resize(shader_object_.size() +
-                          kInterpolatorCount * kParameterDwords);
-    parameter_count += kInterpolatorCount;
+                          xenos::kMaxInterpolators * kParameterDwords);
+    parameter_count += xenos::kMaxInterpolators;
     {
       DxbcSignatureParameter* interpolators =
           reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
                                                     interpolator_position);
-      for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+      for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
         DxbcSignatureParameter& interpolator = interpolators[i];
         interpolator.semantic_index = i;
         interpolator.component_type =
@@ -3197,7 +3198,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
       DxbcSignatureParameter* interpolators =
           reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
                                                     interpolator_position);
-      for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+      for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
         interpolators[i].semantic_name = semantic_offset;
       }
       DxbcSignatureParameter& point_parameters =
@@ -3665,7 +3666,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
       }
     }
     // Interpolator output.
-    for (uint32_t i = 0; i < kInterpolatorCount; ++i) {
+    for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
       shader_object_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
@@ -3727,7 +3728,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
     // Interpolator input.
     if (!is_depth_only_pixel_shader_) {
       uint32_t interpolator_count =
-          std::min(kInterpolatorCount, register_count());
+          std::min(xenos::kMaxInterpolators, register_count());
       for (uint32_t i = 0; i < interpolator_count; ++i) {
         shader_object_.push_back(
             ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS) |
