@@ -39,6 +39,41 @@ struct CreateOptions {
   static const uint32_t FILE_RANDOM_ACCESS = 0x00000800;
 };
 
+static bool IsValidPath(const std::string_view s, bool is_pattern) {
+  // TODO(gibbed): validate path components individually
+  for (const auto& c : s) {
+    if (c <= 31 || c >= 127) {
+      return false;
+    }
+    switch (c) {
+      case '"':
+      // case '*':
+      case '+':
+      case ',':
+      // case ':':
+      case ';':
+      case '<':
+      case '=':
+      case '>':
+      // case '?':
+      case '|': {
+        return false;
+      }
+      case '*':
+      case '?': {
+        // Pattern-specific (for NtQueryDirectoryFile)
+        if (!is_pattern) {
+          return false;
+        }
+      }
+      default: {
+        break;
+      }
+    }
+  }
+  return true;
+}
+
 dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
                             pointer_t<X_OBJECT_ATTRIBUTES> object_attrs,
                             pointer_t<X_IO_STATUS_BLOCK> io_status_block,
@@ -64,6 +99,12 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
 
   // Compute path, possibly attrs relative.
   auto target_path = util::TranslateAnsiString(kernel_memory(), object_name);
+
+  // Enforce that the path is ASCII.
+  if (!IsValidPath(target_path, false)) {
+    return X_STATUS_OBJECT_NAME_INVALID;
+  }
+
   if (object_attrs->root_directory != 0xFFFFFFFD &&  // ObDosDevices
       object_attrs->root_directory != 0) {
     auto root_file = kernel_state()->object_table()->LookupObject<XFile>(
@@ -341,9 +382,15 @@ dword_result_t NtQueryFullAttributesFile(
     assert_always();
   }
 
+  auto target_path = util::TranslateAnsiString(kernel_memory(), object_name);
+
+  // Enforce that the path is ASCII.
+  if (!IsValidPath(target_path, false)) {
+    return X_STATUS_OBJECT_NAME_INVALID;
+  }
+
   // Resolve the file using the virtual file system.
-  auto entry = kernel_state()->file_system()->ResolvePath(
-      util::TranslateAnsiString(kernel_memory(), object_name));
+  auto entry = kernel_state()->file_system()->ResolvePath(target_path);
   if (entry) {
     // Found.
     file_info->creation_time = entry->create_timestamp();
@@ -375,6 +422,12 @@ dword_result_t NtQueryDirectoryFile(
 
   auto file = kernel_state()->object_table()->LookupObject<XFile>(file_handle);
   auto name = util::TranslateAnsiString(kernel_memory(), file_name);
+
+  // Enforce that the path is ASCII.
+  if (!IsValidPath(name, true)) {
+    return X_STATUS_OBJECT_NAME_INVALID;
+  }
+
   if (file) {
     X_FILE_DIRECTORY_INFORMATION dir_info = {0};
     result =
@@ -427,6 +480,12 @@ dword_result_t NtOpenSymbolicLinkObject(
 
   std::string target_path =
       util::TranslateAnsiString(kernel_memory(), object_name);
+
+  // Enforce that the path is ASCII.
+  if (!IsValidPath(target_path, false)) {
+    return X_STATUS_OBJECT_NAME_INVALID;
+  }
+
   if (object_attrs->root_directory != 0) {
     assert_always();
   }
