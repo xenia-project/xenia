@@ -56,6 +56,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_ACCESS_DENIED                          ((X_STATUS)0xC0000022L)
 #define X_STATUS_BUFFER_TOO_SMALL                       ((X_STATUS)0xC0000023L)
 #define X_STATUS_OBJECT_TYPE_MISMATCH                   ((X_STATUS)0xC0000024L)
+#define X_STATUS_OBJECT_NAME_INVALID                    ((X_STATUS)0xC0000033L)
 #define X_STATUS_OBJECT_NAME_NOT_FOUND                  ((X_STATUS)0xC0000034L)
 #define X_STATUS_OBJECT_NAME_COLLISION                  ((X_STATUS)0xC0000035L)
 #define X_STATUS_INVALID_PAGE_PROTECTION                ((X_STATUS)0xC0000045L)
