@@ -39,9 +39,8 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
         ((block.xxxx >> uint4(0u, 4u, 8u, 12u)) & 0xFu) * 0x11000000u;
     [branch] if (texel_index_host.y + 1 < int(xe_texture_load_height_texels)) {
       xe_texture_load_dest[block_offset_host + elements_pitch_host] =
-        xe_texture_load_dest[block_offset_host] =
-            XeDXTOpaqueRowToRGB8(bgr_end_8in10, bgr_weights >> 8u) +
-            ((block.xxxx >> uint4(16u, 20u, 24u, 28u)) & 0xFu) * 0x11000000u;
+          XeDXTOpaqueRowToRGB8(bgr_end_8in10, bgr_weights >> 8u) +
+          ((block.xxxx >> uint4(16u, 20u, 24u, 28u)) & 0xFu) * 0x11000000u;
       [branch] if (texel_index_host.y + 2 <
                        int(xe_texture_load_height_texels)) {
         xe_texture_load_dest[block_offset_host + 2 * elements_pitch_host] =
