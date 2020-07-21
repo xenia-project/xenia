@@ -123,6 +123,8 @@ dword_result_t keXamBuildResourceLocator(uint64_t module,
   }
   auto copy_count = std::min(size_t(buffer_count), path.size());
   xe::copy_and_swap(buffer_ptr.as<char16_t*>(), path.c_str(), copy_count);
+  (buffer_ptr.as<char16_t*>())[copy_count] = 0;
+
   return 0;
 }
 
