@@ -95,6 +95,11 @@ void AppendLogLine(LogLevel log_level, const char prefix_char,
 // Logs a fatal error and aborts the program.
 void FatalError(const std::string_view str);
 
+// Shows error box
+void ShowErrorMessageBox(std::string m);
+
+// Show info box
+void ShowInfoMessageBox(std::string m);
 }  // namespace xe
 
 #if XE_OPTION_ENABLE_LOGGING
