@@ -363,4 +363,18 @@ void FatalError(const std::string_view str) {
   std::exit(1);
 }
 
+void ShowInfoMessageBox(std::string m) {
+#if XE_PLATFORM_WIN32
+  MessageBoxW(NULL, (LPCWSTR)xe::to_utf16(m).c_str(), L"Xenia Help",
+              MB_OK | MB_ICONINFORMATION | MB_APPLMODAL | MB_SETFOREGROUND);
+#endif  // WIN32
+}
+
+void ShowErrorMessageBox(std::string m) {
+#if XE_PLATFORM_WIN32
+  MessageBoxW(NULL, (LPCWSTR)xe::path_to_utf16(m).c_str(), L"Xenia Error",
+              MB_OK | MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
+#endif  // WIN32
+}
+
 }  // namespace xe
