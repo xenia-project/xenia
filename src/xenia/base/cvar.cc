@@ -14,6 +14,9 @@
 #define UTF_CPP_CPLUSPLUS 201703L
 #include "third_party/utfcpp/source/utf8.h"
 
+#include "xenia/base/logging.h"
+#include "xenia/base/main.h"
+
 namespace utfcpp = utf8;
 
 using u8_citer = utfcpp::iterator<std::string_view::const_iterator>;
@@ -61,7 +64,12 @@ void ParseLaunchArguments(int& argc, char**& argv,
 
     auto result = options.parse(argc, argv);
     if (result.count("help")) {
-      PrintHelpAndExit();
+      if (xe::has_console_attached()) {
+        PrintHelpAndExit();
+      } else {
+        xe::ShowInfoMessageBox(options.help({""}));
+        exit(0);
+      }
     }
 
     for (auto& it : *CmdVars) {
@@ -78,8 +86,15 @@ void ParseLaunchArguments(int& argc, char**& argv,
       }
     }
   } catch (const cxxopts::OptionException& e) {
-    std::cout << e.what() << std::endl;
-    PrintHelpAndExit();
+    if (xe::has_console_attached()) {
+      std::cout << e.what() << std::endl;
+      PrintHelpAndExit();
+    } else {
+      std::string m =
+          "Invalid launch options were given.\n" + options.help({""});
+      xe::ShowErrorMessageBox(m);
+      exit(0);
+    }
   }
 }
 
