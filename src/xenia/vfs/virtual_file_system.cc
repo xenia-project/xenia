@@ -172,7 +172,8 @@ X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry,
                                      const std::string_view path,
                                      FileDisposition creation_disposition,
                                      uint32_t desired_access, bool is_directory,
-                                     File** out_file, FileAction* out_action) {
+                                     bool is_non_directory, File** out_file,
+                                     FileAction* out_action) {
   // TODO(gibbed): should 'is_directory' remain as a bool or should it be
   // flipped to a generic FileAttributeFlags?
 
@@ -205,6 +206,12 @@ X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry,
     entry = parent_entry->GetChild(file_name);
   } else {
     entry = !root_entry ? ResolvePath(path) : root_entry->GetChild(path);
+  }
+
+  if (entry) {
+    if (entry->attributes() & kFileAttributeDirectory && is_non_directory) {
+      return X_STATUS_FILE_IS_A_DIRECTORY;
+    }
   }
 
   // Check if exists (if we need it to), or that it doesn't (if it shouldn't).
