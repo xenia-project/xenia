@@ -73,6 +73,10 @@ DEFINE_bool(mount_cache, false, "Enable cache mount", "Storage");
 DEFINE_transient_path(target, "",
                       "Specifies the target .xex or .iso to execute.",
                       "General");
+DEFINE_transient_bool(portable, false,
+                      "Specifies if Xenia should run in portable mode.",
+                      "General");
+
 DECLARE_bool(debug);
 
 DEFINE_bool(discord, true, "Enable Discord rich presence", "General");
@@ -215,7 +219,8 @@ int xenia_main(const std::vector<std::string>& args) {
   std::filesystem::path storage_root = cvars::storage_root;
   if (storage_root.empty()) {
     storage_root = xe::filesystem::GetExecutableFolder();
-    if (!std::filesystem::exists(storage_root / "portable.txt")) {
+    if (!cvars::portable &&
+        !std::filesystem::exists(storage_root / "portable.txt")) {
       storage_root = xe::filesystem::GetUserFolder();
 #if defined(XE_PLATFORM_WIN32) || defined(XE_PLATFORM_LINUX)
       storage_root = storage_root / "Xenia";
