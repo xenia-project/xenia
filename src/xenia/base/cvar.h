@@ -298,6 +298,9 @@ T* define_cmdvar(const char* name, T* default_value, const char* description) {
   DEFINE_CVar(name, default_value, description, category, false, \
               std::filesystem::path)
 
+#define DEFINE_transient_bool(name, default_value, description, category) \
+  DEFINE_CVar(name, default_value, description, category, true, bool)
+
 #define DEFINE_transient_string(name, default_value, description, category) \
   DEFINE_CVar(name, default_value, description, category, true, std::string)
 
