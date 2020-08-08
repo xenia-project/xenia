@@ -121,21 +121,19 @@ void XELOGFS(const char* format, const Args&... args) {
 
 #else
 
-#define XELOGDUMMY \
-  do {             \
+#define __XELOGDUMMY \
+  do {               \
   } while (false)
 
-#define XELOGE(...) XELOGDUMMY
-#define XELOGW(...) XELOGDUMMY
-#define XELOGI(...) XELOGDUMMY
-#define XELOGD(...) XELOGDUMMY
-#define XELOGCPU(...) XELOGDUMMY
-#define XELOGAPU(...) XELOGDUMMY
-#define XELOGGPU(...) XELOGDUMMY
-#define XELOGKERNEL(...) XELOGDUMMY
-#define XELOGFS(...) XELOGDUMMY
-
-#undef XELOGDUMMY
+#define XELOGE(...) __XELOGDUMMY
+#define XELOGW(...) __XELOGDUMMY
+#define XELOGI(...) __XELOGDUMMY
+#define XELOGD(...) __XELOGDUMMY
+#define XELOGCPU(...) __XELOGDUMMY
+#define XELOGAPU(...) __XELOGDUMMY
+#define XELOGGPU(...) __XELOGDUMMY
+#define XELOGKERNEL(...) __XELOGDUMMY
+#define XELOGFS(...) __XELOGDUMMY
 
 #endif  // ENABLE_LOGGING
 
