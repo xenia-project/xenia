@@ -21,7 +21,7 @@ VulkanCommandProcessor::~VulkanCommandProcessor() = default;
 void VulkanCommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
                                                       uint32_t length) {}
 
-void VulkanCommandProcessor::RestoreEDRAMSnapshot(const void* snapshot) {}
+void VulkanCommandProcessor::RestoreEdramSnapshot(const void* snapshot) {}
 
 bool VulkanCommandProcessor::SetupContext() { return true; }
 

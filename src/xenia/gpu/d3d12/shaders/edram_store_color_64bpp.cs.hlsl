@@ -10,5 +10,5 @@ void main(uint3 xe_group_id : SV_GroupID,
   uint2 tile_sample_index = xe_group_thread_id.xy;
   tile_sample_index.x *= 2u;
   xe_edram_load_store_dest.Store4(
-      XeEDRAMOffset64bpp(xe_group_id.xy, tile_sample_index), samples);
+      XeEdramOffset64bpp(xe_group_id.xy, tile_sample_index), samples);
 }

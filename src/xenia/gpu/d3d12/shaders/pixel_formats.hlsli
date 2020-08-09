@@ -1,6 +1,378 @@
 #ifndef XENIA_GPU_D3D12_SHADERS_PIXEL_FORMATS_HLSLI_
 #define XENIA_GPU_D3D12_SHADERS_PIXEL_FORMATS_HLSLI_
 
+#define kXenosFormat_1_REVERSE 0u
+#define kXenosFormat_1 1u
+#define kXenosFormat_8 2u
+#define kXenosFormat_1_5_5_5 3u
+#define kXenosFormat_5_6_5 4u
+#define kXenosFormat_6_5_5 5u
+#define kXenosFormat_8_8_8_8 6u
+#define kXenosFormat_2_10_10_10 7u
+#define kXenosFormat_8_A 8u
+#define kXenosFormat_8_B 9u
+#define kXenosFormat_8_8 10u
+#define kXenosFormat_Cr_Y1_Cb_Y0_REP 11u
+#define kXenosFormat_Y1_Cr_Y0_Cb_REP 12u
+#define kXenosFormat_16_16_EDRAM 13u
+#define kXenosFormat_8_8_8_8_A 14u
+#define kXenosFormat_4_4_4_4 15u
+#define kXenosFormat_10_11_11 16u
+#define kXenosFormat_11_11_10 17u
+#define kXenosFormat_DXT1 18u
+#define kXenosFormat_DXT2_3 19u
+#define kXenosFormat_DXT4_5 20u
+#define kXenosFormat_16_16_16_16_EDRAM 21u
+#define kXenosFormat_24_8 22u
+#define kXenosFormat_24_8_FLOAT 23u
+#define kXenosFormat_16 24u
+#define kXenosFormat_16_16 25u
+#define kXenosFormat_16_16_16_16 26u
+#define kXenosFormat_16_EXPAND 27u
+#define kXenosFormat_16_16_EXPAND 28u
+#define kXenosFormat_16_16_16_16_EXPAND 29u
+#define kXenosFormat_16_FLOAT 30u
+#define kXenosFormat_16_16_FLOAT 31u
+#define kXenosFormat_16_16_16_16_FLOAT 32u
+#define kXenosFormat_32 33u
+#define kXenosFormat_32_32 34u
+#define kXenosFormat_32_32_32_32 35u
+#define kXenosFormat_32_FLOAT 36u
+#define kXenosFormat_32_32_FLOAT 37u
+#define kXenosFormat_32_32_32_32_FLOAT 38u
+#define kXenosFormat_32_AS_8 39u
+#define kXenosFormat_32_AS_8_8 40u
+#define kXenosFormat_16_MPEG 41u
+#define kXenosFormat_16_16_MPEG 42u
+#define kXenosFormat_8_INTERLACED 43u
+#define kXenosFormat_32_AS_8_INTERLACED 44u
+#define kXenosFormat_32_AS_8_8_INTERLACED 45u
+#define kXenosFormat_16_INTERLACED 46u
+#define kXenosFormat_16_MPEG_INTERLACED 47u
+#define kXenosFormat_16_16_MPEG_INTERLACED 48u
+#define kXenosFormat_DXN 49u
+#define kXenosFormat_8_8_8_8_AS_16_16_16_16 50u
+#define kXenosFormat_DXT1_AS_16_16_16_16 51u
+#define kXenosFormat_DXT2_3_AS_16_16_16_16 52u
+#define kXenosFormat_DXT4_5_AS_16_16_16_16 53u
+#define kXenosFormat_2_10_10_10_AS_16_16_16_16 54u
+#define kXenosFormat_10_11_11_AS_16_16_16_16 55u
+#define kXenosFormat_11_11_10_AS_16_16_16_16 56u
+#define kXenosFormat_32_32_32_FLOAT 57u
+#define kXenosFormat_DXT3A 58u
+#define kXenosFormat_DXT5A 59u
+#define kXenosFormat_CTX1 60u
+#define kXenosFormat_DXT3A_AS_1_1_1_1 61u
+#define kXenosFormat_8_8_8_8_GAMMA_EDRAM 62u
+#define kXenosFormat_2_10_10_10_FLOAT_EDRAM 63u
+
+#define kXenosColorRenderTargetFormat_8_8_8_8 0u
+#define kXenosColorRenderTargetFormat_8_8_8_8_GAMMA 1u
+#define kXenosColorRenderTargetFormat_2_10_10_10 2u
+#define kXenosColorRenderTargetFormat_2_10_10_10_FLOAT 3u
+#define kXenosColorRenderTargetFormat_16_16 4u
+#define kXenosColorRenderTargetFormat_16_16_16_16 5u
+#define kXenosColorRenderTargetFormat_16_16_FLOAT 6u
+#define kXenosColorRenderTargetFormat_16_16_16_16_FLOAT 7u
+#define kXenosColorRenderTargetFormat_2_10_10_10_AS_10_10_10_10 10u
+#define kXenosColorRenderTargetFormat_2_10_10_10_FLOAT_AS_16_16_16_16 12u
+#define kXenosColorRenderTargetFormat_32_FLOAT 14u
+#define kXenosColorRenderTargetFormat_32_32_FLOAT 15u
+
+#define kXenosDepthRenderTargetFormat_D24S8 0u
+#define kXenosDepthRenderTargetFormat_D24FS8 1u
+
+// ColorFormat packing, according to the Direct3D 11.3 functional specification.
+
+uint XePackR8UNorm(float f) {
+  return uint(saturate(f) * 255.0f + 0.5f);
+}
+
+uint XePackR5G5B5A1UNorm(float4 f) {
+  uint4 n = uint4(saturate(f) * float2(31.0f, 1.0f).xxxy + 0.5f);
+  return n.r | (n.g << 5) | (n.b << 10) | (n.a << 15);
+}
+
+uint XePackR5G6B5UNorm(float3 f) {
+  uint3 n = uint3(saturate(f) * float3(31.0f, 63.0f, 31.0f) + 0.5f);
+  return n.r | (n.g << 5) | (n.b << 11);
+}
+
+uint XePackR5G5B6UNorm(float3 f) {
+  uint3 n = uint3(saturate(f) * float3(31.0f, 31.0f, 63.0f) + 0.5f);
+  return n.r | (n.g << 5) | (n.b << 10);
+}
+
+uint XePackR8G8B8A8UNorm(float4 f) {
+  uint4 n = uint4(saturate(f) * 255.0f + 0.5f);
+  return n.r | (n.g << 8) | (n.b << 16) | (n.a << 24);
+}
+
+uint XePackR10G10B10A2UNorm(float4 f) {
+  uint4 n = uint4(saturate(f) * float2(1023.0f, 3.0f).xxxy + 0.5f);
+  return n.r | (n.g << 10) | (n.b << 20) | (n.a << 30);
+}
+
+uint XePackR4G4B4A4UNorm(float4 f) {
+  uint4 n = uint4(saturate(f) * 15.0f + 0.5f);
+  return n.r | (n.g << 4) | (n.b << 8) | (n.a << 12);
+}
+
+uint XePackR11G11B10UNorm(float3 f) {
+  uint3 n = uint3(saturate(f) * float3(2047.0f, 2047.0f, 1023.0f) + 0.5f);
+  return n.r | (n.g << 11) | (n.b << 22);
+}
+
+uint XePackR10G11B11UNorm(float3 f) {
+  uint3 n = uint3(saturate(f) * float3(1023.0f, 2047.0f, 2047.0f) + 0.5f);
+  return n.r | (n.g << 10) | (n.b << 21);
+}
+
+uint XePackR16UNorm(float f) {
+  return uint(saturate(f) * 65535.0f + 0.5f);
+}
+
+uint XePackR16G16UNorm(float2 f) {
+  uint2 n = uint2(saturate(f) * 65535.0f + 0.5f);
+  return n.r | (n.g << 16);
+}
+
+uint2 XePackR16G16B16A16UNorm(float4 f) {
+  uint4 n = uint4(saturate(f) * 65535.0f + 0.5f);
+  return n.rb | (n.ga << 16);
+}
+
+uint2 XePack16bpp4Pixels(float4 pixel_0, float4 pixel_1, float4 pixel_2,
+                         float4 pixel_3, uint format) {
+  uint2 packed;
+  switch (format) {
+    case kXenosFormat_1_5_5_5:
+      packed.x = XePackR5G5B5A1UNorm(pixel_0) |
+                 (XePackR5G5B5A1UNorm(pixel_1) << 16u);
+      packed.y = XePackR5G5B5A1UNorm(pixel_2) |
+                 (XePackR5G5B5A1UNorm(pixel_3) << 16u);
+      break;
+    case kXenosFormat_5_6_5:
+      packed.x = XePackR5G6B5UNorm(pixel_0.rgb) |
+                 (XePackR5G6B5UNorm(pixel_1.rgb) << 16u);
+      packed.y = XePackR5G6B5UNorm(pixel_2.rgb) |
+                 (XePackR5G6B5UNorm(pixel_3.rgb) << 16u);
+      break;
+    case kXenosFormat_6_5_5:
+      packed.x = XePackR5G5B6UNorm(pixel_0.rgb) |
+                 (XePackR5G5B6UNorm(pixel_1.rgb) << 16u);
+      packed.y = XePackR5G5B6UNorm(pixel_2.rgb) |
+                 (XePackR5G5B6UNorm(pixel_3.rgb) << 16u);
+      break;
+    case kXenosFormat_8_8:
+      packed.x = XePackR8G8B8A8UNorm(float4(pixel_0.rg, pixel_1.rg));
+      packed.y = XePackR8G8B8A8UNorm(float4(pixel_2.rg, pixel_3.rg));
+      break;
+    case kXenosFormat_4_4_4_4:
+      packed.x = XePackR4G4B4A4UNorm(pixel_0) |
+                 (XePackR4G4B4A4UNorm(pixel_1) << 16u);
+      packed.y = XePackR4G4B4A4UNorm(pixel_2) |
+                 (XePackR4G4B4A4UNorm(pixel_3) << 16u);
+      break;
+    case kXenosFormat_16:
+      packed = XePackR16G16B16A16UNorm(float4(pixel_0.r, pixel_1.r,
+                                              pixel_2.r, pixel_3.r));
+      break;
+    default:
+      // Treat as something (16_FLOAT).
+      packed = f32tof16(float2(pixel_0.r, pixel_2.r)) |
+               (f32tof16(float2(pixel_1.r, pixel_3.r)) << 16u);
+      break;
+  }
+  return packed;
+}
+
+uint4 XePack32bpp4Pixels(float4 pixel_0, float4 pixel_1, float4 pixel_2,
+                         float4 pixel_3, uint format) {
+  uint4 packed;
+  switch (format) {
+    case kXenosFormat_8_8_8_8:
+    // TODO(Triang3l): Investigate 8_8_8_8_A.
+    case kXenosFormat_8_8_8_8_A:
+    case kXenosFormat_8_8_8_8_AS_16_16_16_16:
+      packed.x = XePackR8G8B8A8UNorm(pixel_0);
+      packed.y = XePackR8G8B8A8UNorm(pixel_1);
+      packed.z = XePackR8G8B8A8UNorm(pixel_2);
+      packed.w = XePackR8G8B8A8UNorm(pixel_3);
+      break;
+    case kXenosFormat_2_10_10_10:
+    case kXenosFormat_2_10_10_10_AS_16_16_16_16:
+      packed.x = XePackR10G10B10A2UNorm(pixel_0);
+      packed.y = XePackR10G10B10A2UNorm(pixel_1);
+      packed.z = XePackR10G10B10A2UNorm(pixel_2);
+      packed.w = XePackR10G10B10A2UNorm(pixel_3);
+      break;
+    case kXenosFormat_10_11_11:
+    case kXenosFormat_10_11_11_AS_16_16_16_16:
+      packed.x = XePackR11G11B10UNorm(pixel_0.rgb);
+      packed.y = XePackR11G11B10UNorm(pixel_1.rgb);
+      packed.z = XePackR11G11B10UNorm(pixel_2.rgb);
+      packed.w = XePackR11G11B10UNorm(pixel_3.rgb);
+      break;
+    case kXenosFormat_11_11_10:
+    case kXenosFormat_11_11_10_AS_16_16_16_16:
+      packed.x = XePackR10G11B11UNorm(pixel_0.rgb);
+      packed.y = XePackR10G11B11UNorm(pixel_1.rgb);
+      packed.z = XePackR10G11B11UNorm(pixel_2.rgb);
+      packed.w = XePackR10G11B11UNorm(pixel_3.rgb);
+      break;
+    case kXenosFormat_16_16:
+      packed.x = XePackR16G16UNorm(pixel_0.rg);
+      packed.y = XePackR16G16UNorm(pixel_1.rg);
+      packed.z = XePackR16G16UNorm(pixel_2.rg);
+      packed.w = XePackR16G16UNorm(pixel_3.rg);
+      break;
+    case kXenosFormat_16_16_FLOAT:
+      packed =
+          f32tof16(float4(pixel_0.r, pixel_1.r, pixel_2.r, pixel_3.r)) |
+          (f32tof16(float4(pixel_0.g, pixel_1.g, pixel_2.g, pixel_3.g)) << 16u);
+      break;
+    default:
+      // Treat as 32_FLOAT.
+      packed.x = asuint(pixel_0.r);
+      packed.y = asuint(pixel_1.r);
+      packed.z = asuint(pixel_2.r);
+      packed.w = asuint(pixel_3.r);
+      break;
+  }
+  return packed;
+}
+
+void XePack64bpp4Pixels(float4 pixel_0, float4 pixel_1, float4 pixel_2,
+                        float4 pixel_3, uint format, out uint4 packed_01,
+                        out uint4 packed_23) {
+  switch (format) {
+    case kXenosFormat_16_16_16_16:
+      packed_01.xy = XePackR16G16B16A16UNorm(pixel_0);
+      packed_01.zw = XePackR16G16B16A16UNorm(pixel_1);
+      packed_23.xy = XePackR16G16B16A16UNorm(pixel_2);
+      packed_23.zw = XePackR16G16B16A16UNorm(pixel_3);
+      break;
+    case kXenosFormat_16_16_16_16_FLOAT:
+      packed_01 =
+          f32tof16(float4(pixel_0.r, pixel_0.b, pixel_1.r, pixel_1.b)) |
+          (f32tof16(float4(pixel_0.g, pixel_0.a, pixel_1.g, pixel_1.a)) << 16u);
+      packed_23 =
+          f32tof16(float4(pixel_2.r, pixel_2.b, pixel_3.r, pixel_3.b)) |
+          (f32tof16(float4(pixel_2.g, pixel_2.a, pixel_3.g, pixel_3.a)) << 16u);
+      break;
+    default:
+      // Treat as 32_32_FLOAT.
+      packed_01 = asuint(float4(pixel_0.rg, pixel_1.rg));
+      packed_23 = asuint(float4(pixel_2.rg, pixel_3.rg));
+      break;
+  }
+}
+
+// EDRAM color format packing.
+
+uint XePackR10G10B10A2Float(float4 f) {
+  // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
+  // Keep only positive integers and saturate to 31.875 (also dropping NaNs).
+  // Was previously done with `asuint(clamp(asint(rgb_f32u32), 0, 0x41FF0000))`,
+  // but FXC decides to ignore the uint->int cast, and negative numbers become
+  // 0x41FF0000.
+  uint3 rgb_f32u32 = asuint(f.rgb);
+  rgb_f32u32 = min((rgb_f32u32 <= 0x7FFFFFFFu) ? rgb_f32u32 : (0u).xxx,
+                   0x41FF0000u);
+  uint3 denormalized = ((rgb_f32u32 & 0x7FFFFFu) | 0x800000u) >>
+                       min((125u).xxx - (rgb_f32u32 >> 23u), 24u);
+  uint3 rgb_f10u32 =
+      (rgb_f32u32 < 0x3E800000u) ? denormalized : (rgb_f32u32 + 0xC2000000u);
+  rgb_f10u32 =
+      ((rgb_f10u32 + 0x7FFFu + ((rgb_f10u32 >> 16u) & 1u)) >> 16u) & 0x3FFu;
+  // Rounding alpha to the nearest integer.
+  return rgb_f10u32.r | (rgb_f10u32.g << 10u) | (rgb_f10u32.b << 20u) |
+         (uint(saturate(f.a) * 3.0f + 0.5f) << 30u);
+}
+
+// EDRAM color format unpacking.
+
+float4 XeUnpackR8UNormX4(uint4 p) {
+  return float4(p & 255u) * (1.0f / 255.0f);
+}
+
+float4 XeUnpackR8G8B8A8UNorm(uint p) {
+  return float4((p >> uint4(0u, 8u, 16u, 24u)) & 255u) * (1.0f / 255.0f);
+}
+
+float4 XeUnpackR10UNormX4(uint4 p) {
+  return float4(p & 1023u) * (1.0f / 1023.0f);
+}
+
+float4 XeUnpackR10G10B10A2UNorm(uint p) {
+  return float4((p >> uint4(0u, 10u, 20u, 30u)) & uint2(1023u, 3u).xxxy) *
+         float2(1.0f / 1023.0f, 1.0f / 3.0f).xxxy;
+}
+
+float4 XeUnpackR10FloatX4(uint4 p) {
+  // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
+  uint4 f10u32 = p & 0x3FFu;
+  uint4 mantissa = f10u32 & 0x7Fu;
+  uint4 exponent = f10u32 >> 7u;
+  // Normalize the values for the denormalized components.
+  // Exponent = 1;
+  // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x80) == 0);
+  bool4 is_denormalized = exponent == 0u;
+  uint4 mantissa_lzcnt = (7u).xxxx - firstbithigh(mantissa);
+  exponent = is_denormalized ? ((1u).xxxx - mantissa_lzcnt) : exponent;
+  mantissa =
+      is_denormalized ? ((mantissa << mantissa_lzcnt) & 0x7Fu) : mantissa;
+  // Combine into 32-bit float bits and clear zeros.
+  return asfloat(
+      (f10u32 != 0u) ? (((exponent + 124u) << 23u) | (mantissa << 16u))
+                     : (0u).xxxx);
+}
+
+float4 XeUnpackR10G10B10A2Float(uint p) {
+  // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
+  uint3 rgb_f10u32 = (p.xxx >> uint3(0u, 10u, 20u)) & 0x3FFu;
+  uint3 mantissa = rgb_f10u32 & 0x7Fu;
+  uint3 exponent = rgb_f10u32 >> 7u;
+  // Normalize the values for the denormalized components.
+  // Exponent = 1;
+  // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x80) == 0);
+  bool3 is_denormalized = exponent == 0u;
+  uint3 mantissa_lzcnt = (7u).xxx - firstbithigh(mantissa);
+  exponent = is_denormalized ? ((1u).xxx - mantissa_lzcnt) : exponent;
+  mantissa =
+      is_denormalized ? ((mantissa << mantissa_lzcnt) & 0x7Fu) : mantissa;
+  // Combine into 32-bit float bits and clear zeros.
+  uint3 rgb_f32u32 =
+      (rgb_f10u32 != 0u) ? (((exponent + 124u) << 23u) | (mantissa << 16u))
+                         : (0u).xxx;
+  return float4(asfloat(rgb_f32u32), float(p >> 30u) * (1.0f / 3.0f));
+}
+
+// http://web.archive.org/web/20180826210254/https://www.students.science.uu.nl/~3220516/advancedgraphics/papers/inferred_lighting.pdf
+// "The format of the DSF buffer (two 16 bit channels) in EDRAM is fixed point
+//  with a range of -32 to 32. The corresponding texture format is fixed point
+//  with a range of 0 to 1. This requires the shader to scale the shader output
+//  of 0 to 1 to -32 to 32. To maintain 16 bit precision, the texture used for
+//  the resolve needs to be created with a custom format that has a range of -1
+//  to 1. When sampling from this texture in a shader, the results must be
+//  scaled to a 0 to 1 range."
+
+float4 XeUnpackR16EdramX4(uint4 p) {
+  return max(float4(asint(p) << 16 >> 16) * (32.0f / 32767.0f), -1.0f);
+}
+
+float2 XeUnpackR16G16Edram(uint p) {
+  return max(float2(asint(p) << int2(16, 0) >> 16) * (32.0f / 32767.0f),
+             -1.0f);
+}
+
+float4 XeUnpackR16G16B16A16Edram(uint2 p) {
+  return max(
+      float4(asint(p).xxyy << int2(16, 0).xyxy >> 16) * (32.0f / 32767.0f),
+      -1.0f);
+}
+
 // Xenos 16-bit packed textures are RGBA, but in Direct3D 12 they are BGRA.
 
 uint4 XeR5G5B5A1ToB5G5R5A1(uint4 packed_texels) {
@@ -116,48 +488,6 @@ void XeR11G11B10SNormToRGBA16(uint4 packed_texels, out uint4 out_01,
                               out uint4 out_23) {
   out_01 = XeR11G11B10SNormToRGBA16(packed_texels.xy);
   out_23 = XeR11G11B10SNormToRGBA16(packed_texels.zw);
-}
-
-// https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
-
-uint XeFloat32To7e3(uint4 rgba_f32u32) {
-  // Keep only positive integers and saturate to 31.875 (also dropping NaNs).
-  // Was previously done with `asuint(clamp(asint(rgb_f32u32), 0, 0x41FF0000))`,
-  // but FXC decides to ignore the uint->int cast, and negative numbers become
-  // 0x41FF0000.
-  rgba_f32u32.rgb = min(
-      (rgba_f32u32.rgb <= 0x7FFFFFFFu) ? rgba_f32u32.rgb : (0u).xxx,
-      0x41FF0000u);
-  uint3 denormalized = ((rgba_f32u32.rgb & 0x7FFFFFu) | 0x800000u) >>
-                       min((125u).xxx - (rgba_f32u32.rgb >> 23u), 24u);
-  uint3 rgb_f10u32 =
-      (rgba_f32u32.rgb < 0x3E800000u) ? denormalized
-                                      : (rgba_f32u32.rgb + 0xC2000000u);
-  rgb_f10u32 =
-      ((rgb_f10u32 + 0x7FFFu + ((rgb_f10u32 >> 16u) & 1u)) >> 16u) & 0x3FFu;
-  // Rounding alpha to the nearest integer.
-  // https://docs.microsoft.com/en-us/windows/desktop/direct3d10/d3d10-graphics-programming-guide-resources-data-conversion
-  return rgb_f10u32.r | (rgb_f10u32.g << 10u) | (rgb_f10u32.b << 20u) |
-         (uint(round(saturate(asfloat(rgba_f32u32.a)) * 3.0)) << 30u);
-}
-
-uint4 XeFloat7e3To32(uint rgba_packed) {
-  uint3 rgb_f10u32 = (rgba_packed.xxx >> uint3(0u, 10u, 20u)) & 0x3FFu;
-  uint3 mantissa = rgb_f10u32 & 0x7Fu;
-  uint3 exponent = rgb_f10u32 >> 7u;
-  // Normalize the values for the denormalized components.
-  // Exponent = 1;
-  // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x80) == 0);
-  bool3 is_denormalized = exponent == 0u;
-  uint3 mantissa_lzcnt = (7u).xxx - firstbithigh(mantissa);
-  exponent = is_denormalized ? ((1u).xxx - mantissa_lzcnt) : exponent;
-  mantissa =
-      is_denormalized ? ((mantissa << mantissa_lzcnt) & 0x7Fu) : mantissa;
-  // Combine into 32-bit float bits and clear zeros.
-  uint3 rgb_f32u32 =
-      (rgb_f10u32 != 0u) ? (((exponent + 124u) << 23u) | (mantissa << 16u))
-                         : (0u).xxx;
-  return uint4(rgb_f32u32, asuint(float(rgba_packed >> 30u) * (1.0 / 3.0)));
 }
 
 // Based on CFloat24 from d3dref9.dll and the 6e4 code from:

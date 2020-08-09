@@ -21,7 +21,7 @@ NullCommandProcessor::~NullCommandProcessor() = default;
 void NullCommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
                                                     uint32_t length) {}
 
-void NullCommandProcessor::RestoreEDRAMSnapshot(const void* snapshot) {}
+void NullCommandProcessor::RestoreEdramSnapshot(const void* snapshot) {}
 
 bool NullCommandProcessor::SetupContext() {
   return CommandProcessor::SetupContext();

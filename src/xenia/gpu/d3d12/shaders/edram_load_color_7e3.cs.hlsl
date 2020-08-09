@@ -8,11 +8,11 @@ void main(uint3 xe_group_id : SV_GroupID,
   uint2 tile_sample_index = xe_group_thread_id.xy;
   tile_sample_index.x *= 2u;
   uint2 samples_7e3_packed = xe_edram_load_store_source.Load2(
-      XeEDRAMOffset32bpp(xe_group_id.xy, tile_sample_index));
+      XeEdramOffset32bpp(xe_group_id.xy, tile_sample_index));
   uint4 sample_0_f16u32 =
-      f32tof16(asfloat(XeFloat7e3To32(samples_7e3_packed.x)));
+      f32tof16(XeUnpackR10G10B10A2Float(samples_7e3_packed.x));
   uint4 sample_1_f16u32 =
-      f32tof16(asfloat(XeFloat7e3To32(samples_7e3_packed.y)));
+      f32tof16(XeUnpackR10G10B10A2Float(samples_7e3_packed.y));
   uint4 samples_f16u32_packed =
       uint4(sample_0_f16u32.xz, sample_1_f16u32.xz) |
       (uint4(sample_0_f16u32.yw, sample_1_f16u32.yw) << 16u);

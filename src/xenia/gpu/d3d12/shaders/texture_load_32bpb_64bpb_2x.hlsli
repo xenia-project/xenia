@@ -20,7 +20,7 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   int elements_pitch_host = xe_texture_load_host_pitch >> 4;
   int block_offset_guest =
       XeTextureLoadGuestBlockOffset(int3(block_index), 4u, 2u) >> (4 - 2);
-  uint endian = XeTextureLoadEndian();
+  uint endian = XeTextureLoadEndian32();
   int i;
   [unroll] for (i = 0; i < 8; i += 2) {
     if (i == 4 && XeTextureLoadIsTiled()) {
@@ -29,11 +29,11 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
     }
     // TTBB TTBB -> TTTT on the top row, BBBB on the bottom row.
     XE_TEXTURE_LOAD_32BPB_TO_64BPB(
-        XeByteSwap(xe_texture_load_source[block_offset_guest++], endian),
+        XeEndianSwap32(xe_texture_load_source[block_offset_guest++], endian),
         xe_texture_load_dest[block_offset_host],
         xe_texture_load_dest[block_offset_host + elements_pitch_host]);
     XE_TEXTURE_LOAD_32BPB_TO_64BPB(
-        XeByteSwap(xe_texture_load_source[block_offset_guest++], endian),
+        XeEndianSwap32(xe_texture_load_source[block_offset_guest++], endian),
         xe_texture_load_dest[block_offset_host + 1],
         xe_texture_load_dest[block_offset_host + elements_pitch_host + 1]);
     block_offset_host += 2;

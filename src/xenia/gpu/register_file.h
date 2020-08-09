@@ -40,15 +40,29 @@ class RegisterFile {
   };
   RegisterValue values[kRegisterCount];
 
+  const RegisterValue& operator[](uint32_t reg) const { return values[reg]; }
   RegisterValue& operator[](uint32_t reg) { return values[reg]; }
+  const RegisterValue& operator[](Register reg) const { return values[reg]; }
   RegisterValue& operator[](Register reg) { return values[reg]; }
+  template <typename T>
+  const T& Get(uint32_t reg) const {
+    return *reinterpret_cast<const T*>(&values[reg]);
+  }
   template <typename T>
   T& Get(uint32_t reg) {
     return *reinterpret_cast<T*>(&values[reg]);
   }
   template <typename T>
+  const T& Get(Register reg) const {
+    return *reinterpret_cast<const T*>(&values[reg]);
+  }
+  template <typename T>
   T& Get(Register reg) {
     return *reinterpret_cast<T*>(&values[reg]);
+  }
+  template <typename T>
+  const T& Get() const {
+    return *reinterpret_cast<const T*>(&values[T::register_index]);
   }
   template <typename T>
   T& Get() {

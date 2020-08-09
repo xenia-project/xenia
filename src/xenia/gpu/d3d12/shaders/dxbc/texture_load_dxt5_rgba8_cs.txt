@@ -130,17 +130,16 @@ iadd r0.x, r1.x, CB0[0][0].x
 ushr r0.xy, r0.xyxx, l(4, 4, 0, 0)
 ushr r1.x, CB0[0][1].w, l(1)
 ld r2.xyzw, r0.xxxx, T0[0].yxzw
-ushr r1.y, r1.x, l(1)
-xor r1.y, r1.y, r1.x
-and r1.xy, r1.xyxx, l(2, 1, 0, 0)
-if_nz r1.y
+ieq r1.xyz, r1.xxxx, l(1, 2, 3, 0)
+or r1.xy, r1.yzyy, r1.xyxx
+if_nz r1.x
   ishl r3.xyzw, r2.yxzw, l(8, 8, 8, 8)
   and r3.xyzw, r3.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
   ushr r4.xyzw, r2.yxzw, l(8, 8, 8, 8)
   and r4.xyzw, r4.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
   iadd r2.xyzw, r3.yxzw, r4.yxzw
 endif 
-if_nz r1.x
+if_nz r1.y
   ushr r3.xyzw, r2.yxzw, l(16, 16, 16, 16)
   bfi r2.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r2.xyzw, r3.yxzw
   mov r3.xy, r2.ywyy
@@ -520,14 +519,14 @@ iadd r0.y, r0.y, l(1)
 movc r0.w, r0.w, l(2), l(1)
 iadd r0.x, r0.w, r0.x
 ld r2.xyzw, r0.xxxx, T0[0].yxzw
-if_nz r1.y
+if_nz r1.x
   ishl r4.xyzw, r2.yxzw, l(8, 8, 8, 8)
   and r4.xyzw, r4.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
   ushr r5.xyzw, r2.yxzw, l(8, 8, 8, 8)
   and r5.xyzw, r5.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
   iadd r2.xyzw, r4.yxzw, r5.yxzw
 endif 
-if_nz r1.x
+if_nz r1.y
   ushr r1.xyzw, r2.yxzw, l(16, 16, 16, 16)
   bfi r2.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r2.xyzw, r1.yxzw
   mov r1.xy, r2.ywyy
@@ -904,4 +903,4 @@ if_nz r3.y
   endif 
 endif 
 ret 
-// Approximately 856 instruction slots used
+// Approximately 855 instruction slots used

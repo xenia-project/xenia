@@ -18,7 +18,7 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   int elements_pitch_host = xe_texture_load_host_pitch >> 4;
   int block_offset_guest =
       XeTextureLoadGuestBlockOffset(int3(block_index), 8u, 3u) >> (4 - 2);
-  uint endian = XeTextureLoadEndian();
+  uint endian = XeTextureLoadEndian32();
   int i;
   [unroll] for (i = 0; i < 4; ++i) {
     if (i == 2 && XeTextureLoadIsTiled()) {
@@ -27,10 +27,10 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
     }
     // Top host half of the block.
     xe_texture_load_dest[block_offset_host] =
-        XeByteSwap(xe_texture_load_source[block_offset_guest++], endian);
+        XeEndianSwap32(xe_texture_load_source[block_offset_guest++], endian);
     // Bottom host half of the block.
     xe_texture_load_dest[block_offset_host + elements_pitch_host] =
-        XeByteSwap(xe_texture_load_source[block_offset_guest++], endian);
+        XeEndianSwap32(xe_texture_load_source[block_offset_guest++], endian);
     ++block_offset_host;
   }
 }

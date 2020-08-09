@@ -221,19 +221,6 @@ class TextureCache {
                     D3D12_CPU_DESCRIPTOR_HANDLE handle) const;
 
   void MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled);
-  static inline DXGI_FORMAT GetResolveDXGIFormat(xenos::TextureFormat format) {
-    return host_formats_[uint32_t(format)].dxgi_format_resolve_tile;
-  }
-  // The source buffer must be in the non-pixel-shader SRV state.
-  bool TileResolvedTexture(xenos::TextureFormat format, uint32_t texture_base,
-                           uint32_t texture_pitch, uint32_t texture_height,
-                           bool is_3d, uint32_t offset_x, uint32_t offset_y,
-                           uint32_t offset_z, uint32_t resolve_width,
-                           uint32_t resolve_height, xenos::Endian128 endian,
-                           ID3D12Resource* buffer, uint32_t buffer_size,
-                           const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& footprint,
-                           uint32_t* written_address_out,
-                           uint32_t* written_length_out);
 
   inline bool IsResolutionScale2X() const {
     return scaled_resolve_buffer_ != nullptr;
@@ -246,10 +233,16 @@ class TextureCache {
                                          uint32_t length_unscaled);
   void UseScaledResolveBufferForReading();
   void UseScaledResolveBufferForWriting();
+  inline void MarkScaledResolveBufferUAVWritesCommitNeeded() {
+    if (scaled_resolve_buffer_state_ == D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
+      scaled_resolve_buffer_uav_writes_commit_needed_ = true;
+    }
+  }
   // Can't address more than 512 MB on Nvidia, so an offset is required.
-  void CreateScaledResolveBufferRawUAV(D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                                       uint32_t first_unscaled_4kb_page,
-                                       uint32_t unscaled_4kb_page_count);
+  void CreateScaledResolveBufferUintPow2UAV(D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                                            uint32_t guest_address_bytes,
+                                            uint32_t guest_length_bytes,
+                                            uint32_t element_size_bytes_pow2);
 
   // Returns the ID3D12Resource of the front buffer texture (in
   // PIXEL_SHADER_RESOURCE state), or nullptr in case of failure, and writes the
@@ -305,35 +298,6 @@ class TextureCache {
     uint32_t uav_bpe_log2_2x;
   };
 
-  // Tiling modes for storing textures after resolving - needed only for the
-  // formats that can be resolved to.
-  enum class ResolveTileMode {
-    k8bpp,
-    k16bpp,
-    k32bpp,
-    k64bpp,
-    k128bpp,
-    // B5G5R5A1 and B4G4R4A4 are optional in DXGI for render targets, and aren't
-    // supported on Nvidia.
-    k16bppRGBA,
-    kR11G11B10AsRGBA16,
-    kR10G11B11AsRGBA16,
-
-    kCount,
-
-    kUnknown = kCount
-  };
-
-  struct ResolveTileModeInfo {
-    const void* shader;
-    size_t shader_size;
-    // DXGI_FORMAT_UNKNOWN for ByteAddressBuffer (usable only for textures with
-    // texels that are 32-bit or larger).
-    DXGI_FORMAT typed_uav_format;
-    // For typed UAVs, log2 of the number of bytes in each UAV texel.
-    uint32_t uav_texel_size_log2;
-  };
-
   struct HostFormat {
     // Format info for the regular case.
     // DXGI format (typeless when different signedness or number representation
@@ -369,12 +333,6 @@ class TextureCache {
     // used for DXN and DXT5A.
     DXGI_FORMAT dxgi_format_uncompressed;
     LoadMode decompress_mode;
-
-    // For writing textures after resolving render targets. The format itself
-    // must be renderable, because resolving is done by drawing a quad into a
-    // texture of this format.
-    DXGI_FORMAT dxgi_format_resolve_tile;
-    ResolveTileMode resolve_tile_mode;
 
     // Mapping of Xenos swizzle components to DXGI format components.
     uint8_t swizzle[4];
@@ -447,31 +405,6 @@ class TextureCache {
     uint32_t height_texels;
 
     static constexpr uint32_t kGuestPitchTiled = UINT32_MAX;
-  };
-
-  struct ResolveTileConstants {
-    // Either from the start of the shared memory or from the start of the typed
-    // UAV, in bytes (even for typed UAVs, so XeTextureTiledOffset2D is easier
-    // to use).
-    uint32_t guest_base;
-    // 0:2 - endianness (up to Xin128).
-    // 3:8 - guest format (primarily for 16-bit textures).
-    // 10:18 - align(guest texture pitch, 32) / 32.
-    // 19:27 - align(guest texture height, 32) / 32 for 3D, 0 for 2D.
-    uint32_t info;
-    // Origin of the written data in the destination texture (for anything
-    // bigger, adjust the base address with 32x32x8 granularity).
-    // 0:4 - X & 31.
-    // 5:9 - Y & 31.
-    // 10:12 - Z & 7.
-    uint32_t offset;
-    // Size to copy, texels with index bigger than this won't be written.
-    // Width in the lower 16 bits, height in the upper.
-    uint32_t size;
-    // Byte offset to the first texel from the beginning of the source buffer.
-    uint32_t host_base;
-    // Row pitch of the source buffer.
-    uint32_t host_pitch;
   };
 
   struct TextureBinding {
@@ -617,13 +550,9 @@ class TextureCache {
 
   static const LoadModeInfo load_mode_info_[];
   ID3D12RootSignature* load_root_signature_ = nullptr;
-  ID3D12PipelineState* load_pipelines_[size_t(LoadMode::kCount)] = {};
-  // Load pipelines for 2x-scaled resolved targets.
-  ID3D12PipelineState* load_pipelines_2x_[size_t(LoadMode::kCount)] = {};
-  static const ResolveTileModeInfo resolve_tile_mode_info_[];
-  ID3D12RootSignature* resolve_tile_root_signature_ = nullptr;
-  ID3D12PipelineState*
-      resolve_tile_pipelines_[size_t(ResolveTileMode::kCount)] = {};
+  ID3D12PipelineState* load_pipeline_states_[size_t(LoadMode::kCount)] = {};
+  // Load pipeline state objects for 2x-scaled resolved targets.
+  ID3D12PipelineState* load_pipeline_states_2x_[size_t(LoadMode::kCount)] = {};
 
   std::unordered_multimap<uint64_t, Texture*> textures_;
   uint64_t textures_total_size_ = 0;
@@ -674,6 +603,7 @@ class TextureCache {
   ID3D12Resource* scaled_resolve_buffer_ = nullptr;
   D3D12_RESOURCE_STATES scaled_resolve_buffer_state_ =
       D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+  bool scaled_resolve_buffer_uav_writes_commit_needed_ = false;
   // Not very big heaps (16 MB) because they are needed pretty sparsely. One
   // scaled 1280x720x32bpp texture is slighly bigger than 14 MB.
   static constexpr uint32_t kScaledResolveHeapSizeLog2 = 24;

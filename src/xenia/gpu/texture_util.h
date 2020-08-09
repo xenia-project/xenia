@@ -14,6 +14,7 @@
 
 #include "xenia/base/math.h"
 #include "xenia/gpu/texture_info.h"
+#include "xenia/gpu/xenos.h"
 
 namespace xe {
 namespace gpu {
@@ -82,6 +83,9 @@ void GetTextureTotalSize(xenos::DataDimension dimension, uint32_t width,
 // - Offset3D(X * 32 + x, Y * 32 + y, Z * 8 + z) ==
 //       Offset3D(X * 32, Y * 32, Z * 8) + Offset3D(x, y, z)
 //   (true for negative offsets too).
+// - 2D 32x32 tiles are laid out linearly.
+// - 3D tiled texture slices 0:3 and 4:7 are stored separately in memory, in
+//   non-overlapping ranges, but addressing in 4:7 is different than in 0:3.
 // - Addressing of blocks that are contiguous along X (for tiling/untiling of
 //   larger portions at once):
 //   - 1bpb - each 8 blocks are laid out sequentially, odd 8 blocks =
@@ -93,13 +97,10 @@ void GetTextureTotalSize(xenos::DataDimension dimension, uint32_t width,
 //   - 4bpb - odd 4 blocks = even 4 blocks + 32 bytes.
 //   - 8bpb - odd 2 blocks = even 2 blocks + 32 bytes.
 //   - 16bpb - odd block = even block + 32 bytes.
-// - Resolve granularity for both offset and size is 8x8 pixels
-//   (GPU_RESOLVE_ALIGNMENT - for example, Halo 3 resolves a 24x16 region for a
-//   18x10 texture, 8x8 region for a 1x1 texture).
-//   https://github.com/jmfauvel/CSGO-SDK/blob/master/game/client/view.cpp#L944
-//   https://github.com/stanriders/hl2-asw-port/blob/master/src/game/client/vgui_int.cpp#L901
-//   So, multiple pixels can still be loaded/stored when resolving, taking
-//   contiguous storage patterns into account.
+// - Resolve granularity for both offset and size is 8x8 pixels - see
+//   xenos::kResolveAlignmentPixels. So, multiple pixels can still be loaded and
+//   stored when resolving, taking the contiguous storage patterns described
+//   above into account.
 
 int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t width,
                          uint32_t bpb_log2);

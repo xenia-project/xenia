@@ -96,9 +96,9 @@ namespace gpu {
 // mov l(0, 0, 0, 0) to such components before potential branching -
 // PushSystemTemp accepts a zero mask for this purpose.
 //
-// Clamping must be done first to the lower bound (using max), then to the upper
-// bound (using min), to match the saturate modifier behavior, which results in
-// 0 for NaN.
+// Clamping of non-negative values must be done first to the lower bound (using
+// max), then to the upper bound (using min), to match the saturate modifier
+// behavior, which results in 0 for NaN.
 class DxbcShaderTranslator : public ShaderTranslator {
  public:
   DxbcShaderTranslator(uint32_t vendor_id, bool bindless_resources_used,
@@ -405,7 +405,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Unordered access view bindings in space 0.
   enum class UAVRegister {
     kSharedMemory,
-    kEDRAM,
+    kEdram,
   };
 
   // Creates a copy of the shader with early depth/stencil testing forced,
@@ -1179,6 +1179,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kUBFE = 138,
     kIBFE = 139,
     kBFI = 140,
+    kBFRev = 141,
     kLdUAVTyped = 163,
     kStoreUAVTyped = 164,
     kLdRaw = 165,
@@ -1810,6 +1811,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     DxbcEmitAluOp(DxbcOpcode::kBFI, 0b1111, dest, width, offset, from, to);
     ++stat_.uint_instruction_count;
   }
+  void DxbcOpBFRev(const DxbcDest& dest, const DxbcSrc& src) {
+    DxbcEmitAluOp(DxbcOpcode::kBFRev, 0b1, dest, src);
+    ++stat_.uint_instruction_count;
+  }
   void DxbcOpLdUAVTyped(const DxbcDest& dest, const DxbcSrc& address,
                         uint32_t address_components, const DxbcSrc& uav) {
     uint32_t dest_write_mask = dest.GetMask();
@@ -1982,69 +1987,69 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysConst_ColorOutputMap_Index = kSysConst_ColorExpBias_Index + 1,
     kSysConst_ColorOutputMap_Vec = kSysConst_ColorExpBias_Vec + 1,
 
-    kSysConst_EDRAMResolutionSquareScale_Index =
+    kSysConst_EdramResolutionSquareScale_Index =
         kSysConst_ColorOutputMap_Index + 1,
-    kSysConst_EDRAMResolutionSquareScale_Vec = kSysConst_ColorOutputMap_Vec + 1,
-    kSysConst_EDRAMResolutionSquareScale_Comp = 0,
-    kSysConst_EDRAMPitchTiles_Index =
-        kSysConst_EDRAMResolutionSquareScale_Index + 1,
-    kSysConst_EDRAMPitchTiles_Vec = kSysConst_EDRAMResolutionSquareScale_Vec,
-    kSysConst_EDRAMPitchTiles_Comp = 1,
-    kSysConst_EDRAMDepthRange_Index = kSysConst_EDRAMPitchTiles_Index + 1,
-    kSysConst_EDRAMDepthRange_Vec = kSysConst_EDRAMResolutionSquareScale_Vec,
-    kSysConst_EDRAMDepthRangeScale_Comp = 2,
-    kSysConst_EDRAMDepthRangeOffset_Comp = 3,
+    kSysConst_EdramResolutionSquareScale_Vec = kSysConst_ColorOutputMap_Vec + 1,
+    kSysConst_EdramResolutionSquareScale_Comp = 0,
+    kSysConst_EdramPitchTiles_Index =
+        kSysConst_EdramResolutionSquareScale_Index + 1,
+    kSysConst_EdramPitchTiles_Vec = kSysConst_EdramResolutionSquareScale_Vec,
+    kSysConst_EdramPitchTiles_Comp = 1,
+    kSysConst_EdramDepthRange_Index = kSysConst_EdramPitchTiles_Index + 1,
+    kSysConst_EdramDepthRange_Vec = kSysConst_EdramResolutionSquareScale_Vec,
+    kSysConst_EdramDepthRangeScale_Comp = 2,
+    kSysConst_EdramDepthRangeOffset_Comp = 3,
 
-    kSysConst_EDRAMPolyOffsetFront_Index = kSysConst_EDRAMDepthRange_Index + 1,
-    kSysConst_EDRAMPolyOffsetFront_Vec = kSysConst_EDRAMDepthRange_Vec + 1,
-    kSysConst_EDRAMPolyOffsetFrontScale_Comp = 0,
-    kSysConst_EDRAMPolyOffsetFrontOffset_Comp = 1,
-    kSysConst_EDRAMPolyOffsetBack_Index =
-        kSysConst_EDRAMPolyOffsetFront_Index + 1,
-    kSysConst_EDRAMPolyOffsetBack_Vec = kSysConst_EDRAMPolyOffsetFront_Vec,
-    kSysConst_EDRAMPolyOffsetBackScale_Comp = 2,
-    kSysConst_EDRAMPolyOffsetBackOffset_Comp = 3,
+    kSysConst_EdramPolyOffsetFront_Index = kSysConst_EdramDepthRange_Index + 1,
+    kSysConst_EdramPolyOffsetFront_Vec = kSysConst_EdramDepthRange_Vec + 1,
+    kSysConst_EdramPolyOffsetFrontScale_Comp = 0,
+    kSysConst_EdramPolyOffsetFrontOffset_Comp = 1,
+    kSysConst_EdramPolyOffsetBack_Index =
+        kSysConst_EdramPolyOffsetFront_Index + 1,
+    kSysConst_EdramPolyOffsetBack_Vec = kSysConst_EdramPolyOffsetFront_Vec,
+    kSysConst_EdramPolyOffsetBackScale_Comp = 2,
+    kSysConst_EdramPolyOffsetBackOffset_Comp = 3,
 
-    kSysConst_EDRAMDepthBaseDwords_Index =
-        kSysConst_EDRAMPolyOffsetBack_Index + 1,
-    kSysConst_EDRAMDepthBaseDwords_Vec = kSysConst_EDRAMPolyOffsetBack_Vec + 1,
-    kSysConst_EDRAMDepthBaseDwords_Comp = 0,
+    kSysConst_EdramDepthBaseDwords_Index =
+        kSysConst_EdramPolyOffsetBack_Index + 1,
+    kSysConst_EdramDepthBaseDwords_Vec = kSysConst_EdramPolyOffsetBack_Vec + 1,
+    kSysConst_EdramDepthBaseDwords_Comp = 0,
 
-    kSysConst_EDRAMStencil_Index = kSysConst_EDRAMDepthBaseDwords_Index + 1,
+    kSysConst_EdramStencil_Index = kSysConst_EdramDepthBaseDwords_Index + 1,
     // 2 vectors.
-    kSysConst_EDRAMStencil_Vec = kSysConst_EDRAMDepthBaseDwords_Vec + 1,
-    kSysConst_EDRAMStencil_Front_Vec = kSysConst_EDRAMStencil_Vec,
-    kSysConst_EDRAMStencil_Back_Vec,
-    kSysConst_EDRAMStencil_Reference_Comp = 0,
-    kSysConst_EDRAMStencil_ReadMask_Comp,
-    kSysConst_EDRAMStencil_WriteMask_Comp,
-    kSysConst_EDRAMStencil_FuncOps_Comp,
+    kSysConst_EdramStencil_Vec = kSysConst_EdramDepthBaseDwords_Vec + 1,
+    kSysConst_EdramStencil_Front_Vec = kSysConst_EdramStencil_Vec,
+    kSysConst_EdramStencil_Back_Vec,
+    kSysConst_EdramStencil_Reference_Comp = 0,
+    kSysConst_EdramStencil_ReadMask_Comp,
+    kSysConst_EdramStencil_WriteMask_Comp,
+    kSysConst_EdramStencil_FuncOps_Comp,
 
-    kSysConst_EDRAMRTBaseDwordsScaled_Index = kSysConst_EDRAMStencil_Index + 1,
-    kSysConst_EDRAMRTBaseDwordsScaled_Vec = kSysConst_EDRAMStencil_Vec + 2,
+    kSysConst_EdramRTBaseDwordsScaled_Index = kSysConst_EdramStencil_Index + 1,
+    kSysConst_EdramRTBaseDwordsScaled_Vec = kSysConst_EdramStencil_Vec + 2,
 
-    kSysConst_EDRAMRTFormatFlags_Index =
-        kSysConst_EDRAMRTBaseDwordsScaled_Index + 1,
-    kSysConst_EDRAMRTFormatFlags_Vec =
-        kSysConst_EDRAMRTBaseDwordsScaled_Vec + 1,
+    kSysConst_EdramRTFormatFlags_Index =
+        kSysConst_EdramRTBaseDwordsScaled_Index + 1,
+    kSysConst_EdramRTFormatFlags_Vec =
+        kSysConst_EdramRTBaseDwordsScaled_Vec + 1,
 
-    kSysConst_EDRAMRTClamp_Index = kSysConst_EDRAMRTFormatFlags_Index + 1,
+    kSysConst_EdramRTClamp_Index = kSysConst_EdramRTFormatFlags_Index + 1,
     // 4 vectors.
-    kSysConst_EDRAMRTClamp_Vec = kSysConst_EDRAMRTFormatFlags_Vec + 1,
+    kSysConst_EdramRTClamp_Vec = kSysConst_EdramRTFormatFlags_Vec + 1,
 
-    kSysConst_EDRAMRTKeepMask_Index = kSysConst_EDRAMRTClamp_Index + 1,
+    kSysConst_EdramRTKeepMask_Index = kSysConst_EdramRTClamp_Index + 1,
     // 2 vectors (render targets 01 and 23).
-    kSysConst_EDRAMRTKeepMask_Vec = kSysConst_EDRAMRTClamp_Vec + 4,
+    kSysConst_EdramRTKeepMask_Vec = kSysConst_EdramRTClamp_Vec + 4,
 
-    kSysConst_EDRAMRTBlendFactorsOps_Index =
-        kSysConst_EDRAMRTKeepMask_Index + 1,
-    kSysConst_EDRAMRTBlendFactorsOps_Vec = kSysConst_EDRAMRTKeepMask_Vec + 2,
+    kSysConst_EdramRTBlendFactorsOps_Index =
+        kSysConst_EdramRTKeepMask_Index + 1,
+    kSysConst_EdramRTBlendFactorsOps_Vec = kSysConst_EdramRTKeepMask_Vec + 2,
 
-    kSysConst_EDRAMBlendConstant_Index =
-        kSysConst_EDRAMRTBlendFactorsOps_Index + 1,
-    kSysConst_EDRAMBlendConstant_Vec = kSysConst_EDRAMRTBlendFactorsOps_Vec + 1,
+    kSysConst_EdramBlendConstant_Index =
+        kSysConst_EdramRTBlendFactorsOps_Index + 1,
+    kSysConst_EdramBlendConstant_Vec = kSysConst_EdramRTBlendFactorsOps_Vec + 1,
 
-    kSysConst_Count = kSysConst_EDRAMBlendConstant_Index + 1
+    kSysConst_Count = kSysConst_EdramBlendConstant_Index + 1
   };
   static_assert(kSysConst_Count <= 64,
                 "Too many system constants, can't use uint64_t for usage bits");

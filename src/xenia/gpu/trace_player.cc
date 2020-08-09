@@ -11,6 +11,7 @@
 
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/graphics_system.h"
+#include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
 
 namespace xe {
@@ -186,17 +187,16 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
         trace_ptr += cmd->encoded_length;
         break;
       }
-      case TraceCommandType::kEDRAMSnapshot: {
-        auto cmd = reinterpret_cast<const EDRAMSnapshotCommand*>(trace_ptr);
+      case TraceCommandType::kEdramSnapshot: {
+        auto cmd = reinterpret_cast<const EdramSnapshotCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
-        const size_t kEDRAMSize = 10 * 1024 * 1024;
         if (!edram_snapshot_) {
-          edram_snapshot_ = new uint8_t[kEDRAMSize];
+          edram_snapshot_ = new uint8_t[xenos::kEdramSizeBytes];
         }
         DecompressMemory(cmd->encoding_format, trace_ptr, cmd->encoded_length,
-                         edram_snapshot_, kEDRAMSize);
+                         edram_snapshot_, xenos::kEdramSizeBytes);
         trace_ptr += cmd->encoded_length;
-        command_processor->RestoreEDRAMSnapshot(edram_snapshot_);
+        command_processor->RestoreEdramSnapshot(edram_snapshot_);
         break;
       }
       case TraceCommandType::kEvent: {

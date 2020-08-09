@@ -17,7 +17,7 @@ void main(uint3 xe_group_id : SV_GroupID,
                       uint4(0u, 8u, 16u, 24u)) & 0xFFu;
   uint2 tile_sample_index = xe_group_thread_id.xy;
   tile_sample_index.x *= 4u;
-  uint edram_offset = XeEDRAMOffset32bpp(xe_group_id.xy, tile_sample_index);
+  uint edram_offset = XeEdramOffset32bpp(xe_group_id.xy, tile_sample_index);
   // Store 24-bit depth for aliasing and checking if 32-bit depth is up to date.
   xe_edram_load_store_dest.Store4(edram_offset, depth24_stencil);
   // Store 32-bit depth so precision isn't lost when doing multipass rendering.
