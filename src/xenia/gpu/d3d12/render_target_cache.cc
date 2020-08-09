@@ -32,12 +32,6 @@ DEFINE_bool(d3d12_16bit_rtv_full_range, true,
             "Use full -32...32 range for RG16 and RGBA16 render targets "
             "(at the expense of blending correctness) without ROV.",
             "D3D12");
-DEFINE_bool(d3d12_resolution_scale_resolve_edge_clamp, true,
-            "When using resolution scale, apply the hack that duplicates the "
-            "right/lower subpixel in the left and top sides of render target "
-            "resolve areas to eliminate the gap caused by half-pixel offset "
-            "(this is necessary for certain games like GTA IV to work).",
-            "D3D12");
 
 namespace xe {
 namespace gpu {
