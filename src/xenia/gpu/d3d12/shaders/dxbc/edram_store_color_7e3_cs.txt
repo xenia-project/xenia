@@ -4,10 +4,13 @@
 //
 // Buffer Definitions: 
 //
-// cbuffer XeEDRAMLoadStoreConstants
+// cbuffer XeEdramLoadStoreConstants
 // {
 //
-//   uint4 xe_edram_load_store_constants;// Offset:    0 Size:    16
+//   uint xe_edram_rt_color_depth_offset;// Offset:    0 Size:     4
+//   uint xe_edram_rt_color_depth_pitch;// Offset:    4 Size:     4
+//   uint xe_edram_rt_stencil_offset;   // Offset:    8 Size:     4 [unused]
+//   uint xe_edram_rt_stencil_pitch;    // Offset:   12 Size:     4 [unused]
 //   uint xe_edram_base_samples_2x_depth_pitch;// Offset:   16 Size:     4
 //
 // }
@@ -19,7 +22,7 @@
 // ------------------------------ ---------- ------- ----------- ------- -------------- ------
 // xe_edram_load_store_source        texture    byte         r/o      T0             t0      1 
 // xe_edram_load_store_dest              UAV    byte         r/w      U0             u0      1 
-// XeEDRAMLoadStoreConstants         cbuffer      NA          NA     CB0            cb0      1 
+// XeEdramLoadStoreConstants         cbuffer      NA          NA     CB0            cb0      1 
 //
 //
 //
@@ -69,8 +72,7 @@ ubfe r2.yzw, l(0, 10, 10, 10), l(0, 16, 16, 16), r2.yyzw
 imad r0.x, r2.z, l(1024), r2.y
 imad r0.x, r2.w, l(0x00100000), r0.x
 mov_sat r2.x, r2.x
-mul r0.y, r2.x, l(3.000000)
-round_ne r0.y, r0.y
+mad r0.y, r2.x, l(3.000000), l(0.500000)
 ftou r0.y, r0.y
 imad r0.x, r0.y, l(0x40000000), r0.x
 f16tof32 r2.yw, r0.zzzw
@@ -93,8 +95,7 @@ ubfe r1.xyz, l(10, 10, 10, 0), l(16, 16, 16, 0), r1.xyzx
 imad r0.z, r1.y, l(1024), r1.x
 imad r0.z, r1.z, l(0x00100000), r0.z
 mov_sat r2.x, r2.x
-mul r0.w, r2.x, l(3.000000)
-round_ne r0.w, r0.w
+mad r0.w, r2.x, l(3.000000), l(0.500000)
 ftou r0.w, r0.w
 imad r0.y, r0.w, l(0x40000000), r0.z
 ishl r0.z, vThreadIDInGroup.x, l(1)
@@ -119,4 +120,4 @@ ishl r0.w, r0.w, l(1)
 ishl r0.z, r0.z, r0.w
 store_raw U0[0].xy, r0.z, r0.xyxx
 ret 
-// Approximately 75 instruction slots used
+// Approximately 73 instruction slots used

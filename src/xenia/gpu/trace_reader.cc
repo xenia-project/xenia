@@ -189,8 +189,8 @@ void TraceReader::ParseTrace() {
         trace_ptr += sizeof(*cmd) + cmd->encoded_length;
         break;
       }
-      case TraceCommandType::kEDRAMSnapshot: {
-        auto cmd = reinterpret_cast<const EDRAMSnapshotCommand*>(trace_ptr);
+      case TraceCommandType::kEdramSnapshot: {
+        auto cmd = reinterpret_cast<const EdramSnapshotCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd) + cmd->encoded_length;
         break;
       }

@@ -27,7 +27,7 @@ class NullCommandProcessor : public CommandProcessor {
 
   void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) override;
 
-  void RestoreEDRAMSnapshot(const void* snapshot) override;
+  void RestoreEdramSnapshot(const void* snapshot) override;
 
  private:
   bool SetupContext() override;

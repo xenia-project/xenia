@@ -51,7 +51,7 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) override;
 
-  void RestoreEDRAMSnapshot(const void* snapshot) override;
+  void RestoreEdramSnapshot(const void* snapshot) override;
 
   // Needed by everything that owns transient objects.
   ui::d3d12::D3D12Context* GetD3D12Context() const {
@@ -128,9 +128,13 @@ class D3D12CommandProcessor : public CommandProcessor {
     kSharedMemoryR32G32UintUAV,
     kSharedMemoryR32G32B32A32UintUAV,
 
-    kEDRAMR32UintUAV,
-    kEDRAMRawSRV,
-    kEDRAMRawUAV,
+    kEdramRawSRV,
+    kEdramR32UintSRV,
+    kEdramR32G32UintSRV,
+    kEdramR32G32B32A32UintSRV,
+    kEdramRawUAV,
+    kEdramR32UintUAV,
+    kEdramR32G32B32A32UintUAV,
 
     kGammaRampNormalSRV,
     kGammaRampPWLSRV,
@@ -145,6 +149,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   ui::d3d12::util::DescriptorCPUGPUHandlePair
   GetSharedMemoryUintPow2BindlessUAVHandlePair(
       uint32_t element_size_bytes_pow2) const;
+  ui::d3d12::util::DescriptorCPUGPUHandlePair
+  GetEdramUintPow2BindlessSRVHandlePair(uint32_t element_size_bytes_pow2) const;
 
   // Returns a single temporary GPU-side buffer within a submission for tasks
   // like texture untiling and resolving.
@@ -167,24 +173,9 @@ class D3D12CommandProcessor : public CommandProcessor {
     return pipeline_cache_->GetD3D12PipelineStateByHandle(handle);
   }
 
-  // Sets the current pipeline state to a compute pipeline. This is for cache
+  // Sets the current pipeline state to a compute one. This is for cache
   // invalidation primarily. A submission must be open.
-  void SetComputePipeline(ID3D12PipelineState* pipeline);
-
-  // Stores and unbinds render targets before binding changing render targets
-  // externally. This is separate from SetExternalGraphicsPipeline because it
-  // causes computations to be dispatched, and the scratch buffer may also be
-  // used.
-  void FlushAndUnbindRenderTargets();
-
-  // Sets the current pipeline state to a special drawing pipeline, invalidating
-  // various cached state variables. FlushAndUnbindRenderTargets may be needed
-  // before calling this. A submission must be open.
-  void SetExternalGraphicsPipeline(
-      ID3D12PipelineState* pipeline,
-      bool changing_rts_and_sample_positions = true,
-      bool changing_viewport = true, bool changing_blend_factor = false,
-      bool changing_stencil_ref = false);
+  void SetComputePipelineState(ID3D12PipelineState* pipeline_state);
 
   // For the pipeline state cache to call when binding layout UIDs may be
   // reused.
@@ -250,7 +241,7 @@ class D3D12CommandProcessor : public CommandProcessor {
     // memory byte address buffer, and, if ROV is used for EDRAM, EDRAM R32_UINT
     // UAV.
     // SRV/UAV descriptor table.
-    kRootParameter_Bindful_SharedMemoryAndEDRAM,  // +1 = 9 in all.
+    kRootParameter_Bindful_SharedMemoryAndEdram,  // +1 = 9 in all.
 
     kRootParameter_Bindful_Count_Base,
 
@@ -526,12 +517,13 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Current SSAA sample positions (to be updated by the render target cache).
   xenos::MsaaSamples current_sample_positions_;
 
-  // Currently bound pipeline, either a graphics pipeline from the pipeline
-  // cache (with potentially deferred creation - current_external_pipeline_ is
-  // nullptr in this case) or a non-Xenos graphics or compute pipeline
-  // (current_cached_pipeline_ is nullptr in this case).
-  void* current_cached_pipeline_;
-  ID3D12PipelineState* current_external_pipeline_;
+  // Currently bound pipeline state, either a graphics pipeline state object
+  // from the pipeline state cache (with potentially deferred creation -
+  // current_external_pipeline_state_ is nullptr in this case) or a non-Xenos
+  // graphics or compute pipeline state object (current_cached_pipeline_state_
+  // is nullptr in this case).
+  void* current_cached_pipeline_state_;
+  ID3D12PipelineState* current_external_pipeline_state_;
 
   // Currently bound graphics root signature.
   ID3D12RootSignature* current_graphics_root_signature_;

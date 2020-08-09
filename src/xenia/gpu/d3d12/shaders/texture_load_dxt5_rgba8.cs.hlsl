@@ -20,7 +20,7 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   int elements_pitch_host = xe_texture_load_host_pitch >> 4;
   int block_offset_guest =
       XeTextureLoadGuestBlockOffset(int3(block_index), 16u, 4u) >> 4;
-  uint endian = XeTextureLoadEndian();
+  uint endian = XeTextureLoadEndian32();
   int i;
   [unroll] for (i = 0; i < 2; ++i) {
     if (i) {
@@ -28,8 +28,8 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
       // Odd block = even block + 32 guest bytes when tiled.
       block_offset_guest += XeTextureLoadIsTiled() ? 2 : 1;
     }
-    uint4 block = XeByteSwap(xe_texture_load_source[block_offset_guest],
-                             endian);
+    uint4 block = XeEndianSwap32(xe_texture_load_source[block_offset_guest],
+                                 endian);
     uint2 bgr_end_8in10 = XeDXTColorEndpointsToBGR8In10(block.z);
     // Sort the color indices so they can be used as weights for the second
     // endpoint.

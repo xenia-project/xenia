@@ -112,17 +112,27 @@ class SharedMemory {
   // Makes the buffer usable for vertices, indices and texture untiling.
   inline void UseForReading() {
     // Vertex fetch is also allowed in pixel shaders.
-    TransitionBuffer(D3D12_RESOURCE_STATE_INDEX_BUFFER |
-                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
-                     D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    CommitUAVWritesAndTransitionBuffer(
+        D3D12_RESOURCE_STATE_INDEX_BUFFER |
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
+        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
   }
   // Makes the buffer usable for texture tiling after a resolve.
   inline void UseForWriting() {
-    TransitionBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
   }
   // Makes the buffer usable as a source for copy commands.
   inline void UseAsCopySource() {
-    TransitionBuffer(D3D12_RESOURCE_STATE_COPY_SOURCE);
+    CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_COPY_SOURCE);
+  }
+  // Must be called when doing draws/dispatches modifying data within the shared
+  // memory buffer as a UAV, to make sure that when UseForWriting is called the
+  // next time, a UAV barrier will be done, and subsequent overlapping UAV
+  // writes and reads are ordered.
+  inline void MarkUAVWritesCommitNeeded() {
+    if (buffer_state_ == D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
+      buffer_uav_writes_commit_needed_ = true;
+    }
   }
 
   void WriteRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
@@ -154,7 +164,8 @@ class SharedMemory {
   ID3D12Resource* buffer_ = nullptr;
   D3D12_GPU_VIRTUAL_ADDRESS buffer_gpu_address_ = 0;
   D3D12_RESOURCE_STATES buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
-  void TransitionBuffer(D3D12_RESOURCE_STATES new_state);
+  bool buffer_uav_writes_commit_needed_ = false;
+  void CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATES new_state);
 
   // Heaps are 4 MB, so not too many of them are allocated, but also not to
   // waste too much memory for padding (with 16 MB there's too much).

@@ -70,22 +70,20 @@ dcl_constantbuffer CB0[0:0][2], immediateIndexed, space=0
 dcl_input_sgv v0.x, vertex_id
 dcl_output o0.x
 dcl_temps 1
-ushr r0.x, CB0[0][1].x, l(1)
-xor r0.x, r0.x, CB0[0][1].x
-and r0.x, r0.x, l(1)
+ieq r0.xyz, CB0[0][1].xxxx, l(1, 2, 3, 0)
+or r0.xy, r0.yzyy, r0.xyxx
 if_nz r0.x
   ishl r0.x, v0.x, l(8)
-  ushr r0.y, v0.x, l(8)
-  and r0.xy, r0.xyxx, l(0xff00ff00, 0x00ff00ff, 0, 0)
-  iadd r0.x, r0.y, r0.x
+  ushr r0.z, v0.x, l(8)
+  and r0.xz, r0.xxzx, l(0xff00ff00, 0, 0x00ff00ff, 0)
+  iadd r0.x, r0.z, r0.x
 else 
   mov r0.x, v0.x
 endif 
-and r0.y, CB0[0][1].x, l(2)
 if_nz r0.y
   ushr r0.y, r0.x, l(16)
   bfi r0.x, l(16), l(16), r0.x, r0.y
 endif 
 iadd o0.x, r0.x, CB0[0][1].y
 ret 
-// Approximately 18 instruction slots used
+// Approximately 16 instruction slots used

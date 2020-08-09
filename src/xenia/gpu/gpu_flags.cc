@@ -28,6 +28,18 @@ DEFINE_bool(
     "the real reason why they're invalid is found.",
     "GPU");
 
+DEFINE_bool(
+    half_pixel_offset, true,
+    "Enable support of vertex half-pixel offset (D3D9 PA_SU_VTX_CNTL "
+    "PIX_CENTER). Generally games are aware of the half-pixel offset, and "
+    "having this enabled is the correct behavior (disabling this may "
+    "significantly break post-processing in some games, like Halo 3), but in "
+    "some games it might have been ignored, resulting in slight blurriness of "
+    "UI textures, for instance, when they are read between texels rather than "
+    "at texel centers (Banjo-Kazooie), or the leftmost/topmost pixels may not "
+    "be fully covered when MSAA is used with fullscreen passes.",
+    "GPU");
+
 DEFINE_int32(query_occlusion_fake_sample_count, 1000,
              "If set to -1 no sample counts are written, games may hang. Else, "
              "the sample count of every tile will be incremented on every "

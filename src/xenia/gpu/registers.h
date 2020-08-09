@@ -394,7 +394,7 @@ union RB_MODECONTROL {
 
 union RB_SURFACE_INFO {
   struct {
-    uint32_t surface_pitch : 14;          // +0
+    uint32_t surface_pitch : 14;          // +0 in pixels.
     uint32_t : 2;                         // +14
     xenos::MsaaSamples msaa_samples : 2;  // +16
     uint32_t hiz_pitch : 14;              // +18
@@ -454,7 +454,7 @@ union RB_COLORCONTROL {
 
 union RB_COLOR_INFO {
   struct {
-    uint32_t color_base : 12;                         // +0
+    uint32_t color_base : 12;                         // +0 in tiles.
     uint32_t : 4;                                     // +12
     xenos::ColorRenderTargetFormat color_format : 4;  // +16
     int32_t color_exp_bias : 6;                       // +20
@@ -540,13 +540,15 @@ union RB_STENCILREFMASK {
 
 union RB_DEPTH_INFO {
   struct {
-    uint32_t depth_base : 12;                         // +0
+    uint32_t depth_base : 12;                         // +0 in tiles.
     uint32_t : 4;                                     // +12
     xenos::DepthRenderTargetFormat depth_format : 1;  // +16
   };
   uint32_t value;
   static constexpr Register register_index = XE_GPU_REG_RB_DEPTH_INFO;
 };
+
+// Copy registers are very different than on Adreno.
 
 union RB_COPY_CONTROL {
   struct {

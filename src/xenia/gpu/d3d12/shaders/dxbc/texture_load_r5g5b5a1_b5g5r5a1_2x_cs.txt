@@ -126,9 +126,7 @@ iadd r0.x, r1.x, CB0[0][0].x
 ushr r0.xy, r0.xyxx, l(2, 4, 0, 0)
 ushr r1.x, CB0[0][1].w, l(1)
 ld r2.xyzw, r0.xxxx, T0[0].ywxz
-ushr r1.y, r1.x, l(1)
-xor r1.x, r1.y, r1.x
-and r1.x, r1.x, l(1)
+ieq r1.x, r1.x, l(1)
 if_nz r1.x
   ishl r3.xyzw, r2.zxwy, l(8, 8, 8, 8)
   and r3.xyzw, r3.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
@@ -299,4 +297,4 @@ and r2.xyzw, r2.xyzw, l(0x001f001f, 0x001f001f, 0x001f001f, 0x001f001f)
 iadd r0.xyzw, r0.xyzw, r2.xyzw
 store_uav_typed U0[0].xyzw, r1.wwww, r0.xyzw
 ret 
-// Approximately 251 instruction slots used
+// Approximately 249 instruction slots used

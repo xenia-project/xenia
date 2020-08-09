@@ -34,7 +34,7 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   int elements_pitch_host = xe_texture_load_host_pitch >> 4;
   int block_offset_guest =
       XeTextureLoadGuestBlockOffset(int3(block_index), 8u, 3u) >> 4;
-  uint endian = XeTextureLoadEndian();
+  uint endian = XeTextureLoadEndian32();
   int i;
   [unroll] for (i = 0; i < 2; ++i) {
     if (i) {
@@ -43,8 +43,8 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
       block_offset_guest += XeTextureLoadIsTiled() ? 2 : 1;
     }
     // Two blocks.
-    uint4 blocks = XeByteSwap(xe_texture_load_source[block_offset_guest],
-                              endian);
+    uint4 blocks = XeEndianSwap32(xe_texture_load_source[block_offset_guest],
+                                  endian);
     // Unpack the endpoints as 0x00g000r0 0x00G000R0 0x00g100r1 0x00G100R1 so
     // they can be multiplied by their weights allowing overflow.
     uint4 end_8in16;

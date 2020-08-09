@@ -81,6 +81,7 @@ bool SharedMemory::Initialize() {
     }
   }
   buffer_gpu_address_ = buffer_->GetGPUVirtualAddress();
+  buffer_uav_writes_commit_needed_ = false;
 
   std::memset(heaps_, 0, sizeof(heaps_));
   heap_count_ = 0;
@@ -427,7 +428,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
   if (upload_ranges_.size() == 0) {
     return true;
   }
-  TransitionBuffer(D3D12_RESOURCE_STATE_COPY_DEST);
+  CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_COPY_DEST);
   command_processor_->SubmitBarriers();
   for (auto upload_range : upload_ranges_) {
     uint32_t upload_range_start = upload_range.first;
@@ -712,9 +713,20 @@ std::pair<uint32_t, uint32_t> SharedMemory::MemoryInvalidationCallback(
                         (page_last - page_first + 1) << page_size_log2_);
 }
 
-void SharedMemory::TransitionBuffer(D3D12_RESOURCE_STATES new_state) {
+void SharedMemory::CommitUAVWritesAndTransitionBuffer(
+    D3D12_RESOURCE_STATES new_state) {
+  if (buffer_state_ == new_state) {
+    if (new_state == D3D12_RESOURCE_STATE_UNORDERED_ACCESS &&
+        buffer_uav_writes_commit_needed_) {
+      command_processor_->PushUAVBarrier(buffer_);
+      buffer_uav_writes_commit_needed_ = false;
+    }
+    return;
+  }
   command_processor_->PushTransitionBarrier(buffer_, buffer_state_, new_state);
   buffer_state_ = new_state;
+  // "UAV -> anything" transition commits the writes implicitly.
+  buffer_uav_writes_commit_needed_ = false;
 }
 
 void SharedMemory::WriteRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle) {

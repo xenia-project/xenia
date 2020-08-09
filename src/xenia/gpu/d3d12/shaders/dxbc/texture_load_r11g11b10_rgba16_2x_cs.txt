@@ -128,17 +128,16 @@ iadd r0.x, r1.x, CB0[0][0].x
 ushr r0.xy, r0.xyxx, l(2, 4, 0, 0)
 ushr r1.x, CB0[0][1].w, l(1)
 ld r2.xyzw, r0.xxxx, T0[0].zwxy
-ushr r1.y, r1.x, l(1)
-xor r1.y, r1.y, r1.x
-and r1.xy, r1.xyxx, l(2, 1, 0, 0)
-if_nz r1.y
+ieq r1.xyz, r1.xxxx, l(1, 2, 3, 0)
+or r1.xy, r1.yzyy, r1.xyxx
+if_nz r1.x
   ishl r3.xyzw, r2.zwxy, l(8, 8, 8, 8)
   and r3.xyzw, r3.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
   ushr r4.xyzw, r2.zwxy, l(8, 8, 8, 8)
   and r4.xyzw, r4.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
   iadd r2.xyzw, r3.zwxy, r4.zwxy
 endif 
-if_nz r1.x
+if_nz r1.y
   ushr r3.xyzw, r2.zwxy, l(16, 16, 16, 16)
   bfi r2.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r2.xyzw, r3.zwxy
   mov r3.xy, r2.zwzz
@@ -170,14 +169,14 @@ iadd r1.z, r0.z, r0.y
 store_uav_typed U0[0].xyzw, r1.zzzz, r2.xyzw
 iadd r2.xyz, r0.xxxx, l(1, 2, 3, 0)
 ld r3.xyzw, r2.xxxx, T0[0].zwxy
-if_nz r1.y
+if_nz r1.x
   ishl r4.xyzw, r3.zwxy, l(8, 8, 8, 8)
   and r4.xyzw, r4.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
   ushr r5.xyzw, r3.zwxy, l(8, 8, 8, 8)
   and r5.xyzw, r5.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
   iadd r3.xyzw, r4.zwxy, r5.zwxy
 endif 
-if_nz r1.x
+if_nz r1.y
   ushr r4.xyzw, r3.zwxy, l(16, 16, 16, 16)
   bfi r3.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r3.xyzw, r4.zwxy
   mov r4.xy, r3.zwzz
@@ -209,14 +208,14 @@ store_uav_typed U0[0].xyzw, r5.xxxx, r4.xyzw
 iadd r1.z, r1.z, l(1)
 store_uav_typed U0[0].xyzw, r1.zzzz, r3.xyzw
 ld r3.xyzw, r2.yyyy, T0[0].zwxy
-if_nz r1.y
+if_nz r1.x
   ishl r4.xyzw, r3.zwxy, l(8, 8, 8, 8)
   and r4.xyzw, r4.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
   ushr r6.xyzw, r3.zwxy, l(8, 8, 8, 8)
   and r6.xyzw, r6.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
   iadd r3.xyzw, r4.zwxy, r6.zwxy
 endif 
-if_nz r1.x
+if_nz r1.y
   ushr r4.xyzw, r3.zwxy, l(16, 16, 16, 16)
   bfi r3.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r3.xyzw, r4.zwxy
   mov r4.xy, r3.zwzz
@@ -247,14 +246,14 @@ store_uav_typed U0[0].xyzw, r5.yyyy, r4.xyzw
 iadd r1.zw, r0.zzzz, r5.yyyw
 store_uav_typed U0[0].xyzw, r1.zzzz, r3.xyzw
 ld r2.xyzw, r2.zzzz, T0[0].zwxy
-if_nz r1.y
+if_nz r1.x
   ishl r3.xyzw, r2.zwxy, l(8, 8, 8, 8)
   and r3.xyzw, r3.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
   ushr r4.xyzw, r2.zwxy, l(8, 8, 8, 8)
   and r4.xyzw, r4.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
   iadd r2.xyzw, r3.zwxy, r4.zwxy
 endif 
-if_nz r1.x
+if_nz r1.y
   ushr r3.xyzw, r2.zwxy, l(16, 16, 16, 16)
   bfi r2.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r2.xyzw, r3.zwxy
   mov r3.xy, r2.zwzz
@@ -290,14 +289,14 @@ else
   iadd r0.w, r0.x, l(4)
 endif 
 ld r2.xyzw, r0.wwww, T0[0].zwxy
-if_nz r1.y
+if_nz r1.x
   ishl r4.xyzw, r2.zwxy, l(8, 8, 8, 8)
   and r4.xyzw, r4.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
   ushr r6.xyzw, r2.zwxy, l(8, 8, 8, 8)
   and r6.xyzw, r6.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
   iadd r2.xyzw, r4.zwxy, r6.zwxy
 endif 
-if_nz r1.x
+if_nz r1.y
   ushr r4.xyzw, r2.zwxy, l(16, 16, 16, 16)
   bfi r2.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r2.xyzw, r4.zwxy
   mov r4.xy, r2.zwzz
@@ -328,14 +327,14 @@ store_uav_typed U0[0].xyzw, r5.wwww, r4.xyzw
 store_uav_typed U0[0].xyzw, r1.wwww, r2.xyzw
 iadd r2.xyz, r0.wwww, l(1, 2, 3, 0)
 ld r4.xyzw, r2.xxxx, T0[0].zwxy
-if_nz r1.y
+if_nz r1.x
   ishl r5.xyzw, r4.zwxy, l(8, 8, 8, 8)
   and r5.xyzw, r5.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
   ushr r6.xyzw, r4.zwxy, l(8, 8, 8, 8)
   and r6.xyzw, r6.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
   iadd r4.xyzw, r5.zwxy, r6.zwxy
 endif 
-if_nz r1.x
+if_nz r1.y
   ushr r5.xyzw, r4.zwxy, l(16, 16, 16, 16)
   bfi r4.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r4.xyzw, r5.zwxy
   mov r5.xy, r4.zwzz
@@ -366,14 +365,14 @@ iadd r0.xyw, r0.yyyy, l(5, 6, 0, 7)
 store_uav_typed U0[0].xyzw, r0.xxxx, r5.xyzw
 store_uav_typed U0[0].xyzw, r3.yyyy, r4.xyzw
 ld r3.xyzw, r2.yyyy, T0[0].zwxy
-if_nz r1.y
+if_nz r1.x
   ishl r4.xyzw, r3.zwxy, l(8, 8, 8, 8)
   and r4.xyzw, r4.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
   ushr r5.xyzw, r3.zwxy, l(8, 8, 8, 8)
   and r5.xyzw, r5.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
   iadd r3.xyzw, r4.zwxy, r5.zwxy
 endif 
-if_nz r1.x
+if_nz r1.y
   ushr r4.xyzw, r3.zwxy, l(16, 16, 16, 16)
   bfi r3.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r3.xyzw, r4.zwxy
   mov r4.xy, r3.zwzz
@@ -404,14 +403,14 @@ store_uav_typed U0[0].xyzw, r0.yyyy, r4.xyzw
 iadd r0.x, r0.z, r0.y
 store_uav_typed U0[0].xyzw, r0.xxxx, r3.xyzw
 ld r2.xyzw, r2.zzzz, T0[0].zwxy
-if_nz r1.y
+if_nz r1.x
   ishl r3.xyzw, r2.zwxy, l(8, 8, 8, 8)
   and r3.xyzw, r3.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
   ushr r4.xyzw, r2.zwxy, l(8, 8, 8, 8)
   and r4.xyzw, r4.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
   iadd r2.xyzw, r3.zwxy, r4.zwxy
 endif 
-if_nz r1.x
+if_nz r1.y
   ushr r1.xyzw, r2.zwxy, l(16, 16, 16, 16)
   bfi r2.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r2.xyzw, r1.zwxy
   mov r1.xy, r2.zwzz
@@ -442,4 +441,4 @@ store_uav_typed U0[0].xyzw, r0.wwww, r1.xyzw
 iadd r0.x, r0.x, l(1)
 store_uav_typed U0[0].xyzw, r0.xxxx, r2.xyzw
 ret 
-// Approximately 394 instruction slots used
+// Approximately 393 instruction slots used

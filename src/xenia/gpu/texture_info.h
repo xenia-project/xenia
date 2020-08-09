@@ -144,6 +144,9 @@ inline xenos::TextureFormat DepthRenderTargetToTextureFormat(
 }
 
 enum class FormatType {
+  // Uncompressed, and is also a ColorFormat.
+  kResolvable,
+  // Uncompressed, but resolve or memory export cannot be done to the format.
   kUncompressed,
   kCompressed,
 };

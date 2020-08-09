@@ -7,7 +7,7 @@ void main(uint3 xe_group_id : SV_GroupID,
           uint3 xe_thread_id : SV_DispatchThreadID) {
   uint2 tile_sample_index = xe_group_thread_id.xy;
   tile_sample_index.x *= 4u;
-  uint edram_offset = XeEDRAMOffset32bpp(xe_group_id.xy, tile_sample_index);
+  uint edram_offset = XeEdramOffset32bpp(xe_group_id.xy, tile_sample_index);
   uint4 depth24_stencil = xe_edram_load_store_source.Load4(edram_offset);
   uint4 depth24 = depth24_stencil >> 8u;
   uint4 depth32 = xe_edram_load_store_source.Load4(10485760u + edram_offset);

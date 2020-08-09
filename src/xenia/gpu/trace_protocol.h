@@ -51,7 +51,7 @@ enum class TraceCommandType : uint32_t {
   kPacketEnd,
   kMemoryRead,
   kMemoryWrite,
-  kEDRAMSnapshot,
+  kEdramSnapshot,
   kEvent,
 };
 
@@ -115,7 +115,7 @@ struct MemoryCommand {
 // (since replaying the trace will reconstruct its state at any point later) as
 // a sequence of tiles with row-major samples (2x multisampling as 1x2 samples,
 // 4x as 2x2 samples).
-struct EDRAMSnapshotCommand {
+struct EdramSnapshotCommand {
   TraceCommandType type;
   // Encoding format of the data in the trace file.
   MemoryEncodingFormat encoding_format;

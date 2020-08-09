@@ -42,6 +42,7 @@ void DxbcShaderTranslator::ExportToMemory_PackFixed32(
     for (uint32_t i = 0; i < eM_count; ++i) {
       DxbcDest eM_dest(DxbcDest::R(eM_temps[i], mask));
       DxbcSrc eM_src(DxbcSrc::R(eM_temps[i]));
+      // TODO(Triang3l): NaN should become zero, not -range.
       DxbcOpMax(eM_dest, eM_src, -range_src);
       DxbcOpMin(eM_dest, eM_src, range_src);
     }
@@ -71,6 +72,7 @@ void DxbcShaderTranslator::ExportToMemory_PackFixed32(
     uint32_t eM_temp = eM_temps[i];
     // Round to the nearest integer, according to the rules of handling integer
     // formats in Direct3D.
+    // TODO(Triang3l): Round by adding +-0.5, not with round_ne.
     DxbcOpRoundNE(DxbcDest::R(eM_temp, mask), DxbcSrc::R(eM_temp));
     DxbcOpFToI(DxbcDest::R(eM_temp, mask), DxbcSrc::R(eM_temp));
     DxbcDest eM_packed_dest(DxbcDest::R(eM_temp, 0b0001));
@@ -109,12 +111,12 @@ void DxbcShaderTranslator::ExportToMemory() {
     // ambiguous.
     if (edram_rov_used_) {
       system_constants_used_ |= 1ull
-                                << kSysConst_EDRAMResolutionSquareScale_Index;
+                                << kSysConst_EdramResolutionSquareScale_Index;
       DxbcOpULT(DxbcDest::R(control_temp, 0b0010),
                 DxbcSrc::CB(cbuffer_index_system_constants_,
                             uint32_t(CbufferRegister::kSystemConstants),
-                            kSysConst_EDRAMResolutionSquareScale_Vec)
-                    .Select(kSysConst_EDRAMResolutionSquareScale_Comp),
+                            kSysConst_EdramResolutionSquareScale_Vec)
+                    .Select(kSysConst_EdramResolutionSquareScale_Comp),
                 DxbcSrc::LU(2));
       DxbcOpAnd(DxbcDest::R(control_temp, 0b0001),
                 DxbcSrc::R(control_temp, DxbcSrc::kXXXX),
@@ -260,6 +262,7 @@ void DxbcShaderTranslator::ExportToMemory() {
         for (uint32_t j = 0; j < eM_count; ++j) {
           DxbcDest eM_dest(DxbcDest::R(eM_temps[j]));
           DxbcSrc eM_src(DxbcSrc::R(eM_temps[j]));
+          // TODO(Triang3l): NaN should become zero, not -range.
           DxbcOpMax(eM_dest, eM_src, DxbcSrc::LF(-32767.0f));
           DxbcOpMin(eM_dest, eM_src, DxbcSrc::LF(32767.0f));
         }
@@ -285,6 +288,7 @@ void DxbcShaderTranslator::ExportToMemory() {
         uint32_t eM_temp = eM_temps[j];
         // Round to the nearest integer, according to the rules of handling
         // integer formats in Direct3D.
+        // TODO(Triang3l): Round by adding +-0.5, not with round_ne.
         DxbcOpRoundNE(DxbcDest::R(eM_temp), DxbcSrc::R(eM_temp));
         DxbcOpFToI(DxbcDest::R(eM_temp), DxbcSrc::R(eM_temp));
         DxbcOpBFI(DxbcDest::R(eM_temp, 0b0011), DxbcSrc::LU(16),

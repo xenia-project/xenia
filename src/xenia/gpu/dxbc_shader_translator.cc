@@ -728,12 +728,12 @@ void DxbcShaderTranslator::StartPixelShader() {
         // it will be sampled with higher resolution too.
         // Check if resolution scale is 2x2 and multiply by 0.5 in this case.
         system_constants_used_ |= 1ull
-                                  << kSysConst_EDRAMResolutionSquareScale_Index;
+                                  << kSysConst_EdramResolutionSquareScale_Index;
         DxbcOpIEq(DxbcDest::R(param_gen_temp, 0b0100),
                   DxbcSrc::CB(cbuffer_index_system_constants_,
                               uint32_t(CbufferRegister::kSystemConstants),
-                              kSysConst_EDRAMResolutionSquareScale_Vec)
-                      .Select(kSysConst_EDRAMResolutionSquareScale_Comp),
+                              kSysConst_EdramResolutionSquareScale_Vec)
+                      .Select(kSysConst_EdramResolutionSquareScale_Comp),
                   DxbcSrc::LU(4));
         DxbcOpIf(true, DxbcSrc::R(param_gen_temp, DxbcSrc::kZZZZ));
         {
@@ -2684,7 +2684,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       shader_object_.push_back(uint32_t(DxbcRdefDimension::kUAVBuffer));
       // Not multisampled.
       shader_object_.push_back(0xFFFFFFFFu);
-      shader_object_.push_back(uint32_t(UAVRegister::kEDRAM));
+      shader_object_.push_back(uint32_t(UAVRegister::kEdram));
       // One binding.
       shader_object_.push_back(1);
       // No DxbcRdefInputFlags.
@@ -3587,8 +3587,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
       shader_object_.push_back(EncodeVectorSwizzledOperand(
           D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 3));
       shader_object_.push_back(uav_index_edram_);
-      shader_object_.push_back(uint32_t(UAVRegister::kEDRAM));
-      shader_object_.push_back(uint32_t(UAVRegister::kEDRAM));
+      shader_object_.push_back(uint32_t(UAVRegister::kEdram));
+      shader_object_.push_back(uint32_t(UAVRegister::kEdram));
       shader_object_.push_back(
           ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 0) |
           ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 1) |

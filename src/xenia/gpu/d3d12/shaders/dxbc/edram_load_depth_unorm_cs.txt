@@ -4,10 +4,13 @@
 //
 // Buffer Definitions: 
 //
-// cbuffer XeEDRAMLoadStoreConstants
+// cbuffer XeEdramLoadStoreConstants
 // {
 //
-//   uint4 xe_edram_load_store_constants;// Offset:    0 Size:    16
+//   uint xe_edram_rt_color_depth_offset;// Offset:    0 Size:     4
+//   uint xe_edram_rt_color_depth_pitch;// Offset:    4 Size:     4
+//   uint xe_edram_rt_stencil_offset;   // Offset:    8 Size:     4
+//   uint xe_edram_rt_stencil_pitch;    // Offset:   12 Size:     4
 //   uint xe_edram_base_samples_2x_depth_pitch;// Offset:   16 Size:     4
 //
 // }
@@ -19,7 +22,7 @@
 // ------------------------------ ---------- ------- ----------- ------- -------------- ------
 // xe_edram_load_store_source        texture    byte         r/o      T0             t0      1 
 // xe_edram_load_store_dest              UAV    byte         r/w      U0             u0      1 
-// XeEDRAMLoadStoreConstants         cbuffer      NA          NA     CB0            cb0      1 
+// XeEdramLoadStoreConstants         cbuffer      NA          NA     CB0            cb0      1 
 //
 //
 //

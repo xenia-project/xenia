@@ -10,8 +10,11 @@
 #ifndef XENIA_GPU_XENOS_H_
 #define XENIA_GPU_XENOS_H_
 
+#include <algorithm>
+
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
+#include "xenia/base/math.h"
 #include "xenia/base/platform.h"
 
 namespace xe {
@@ -196,16 +199,64 @@ enum class SurfaceNumFormat : uint32_t {
   kFloat = 7,
 };
 
+// The EDRAM is an opaque block of memory accessible by the RB pipeline stage of
+// the GPU, which performs output-merger functionality (color render target
+// writing and blending, depth and stencil testing) and resolve (copy)
+// operations.
+//
+// Data in the 10 MiB of EDRAM is laid out as 2048 tiles on 80x16 32bpp MSAA
+// samples. With 2x MSAA, one pixel consists of 1x2 samples, and with 4x, it
+// consists of 2x2 samples. Thus, for a 32bpp render target, one tile contains
+// 80x16 pixels without MSAA, samples of 80x8 pixels with 2x MSAA, or samples of
+// 40x8 pixels with 4x MSAA. The base is specified in tiles, the pitch is also
+// treated as tiles (so a 256x single-sampled surface will be stored in the
+// EDRAM as 320x).
+//
+// XGSurfaceSize code in game executables calculates the size in tiles in the
+// following order:
+// 1) If MSAA is >=2x, multiply the height by 2.
+// 2) If MSAA is 4x, multiply the width by 2.
+// 3) 80x16-align width and height in samples.
+// 4) Multiply width*height in samples by 4 or 8 depending on the pixel format.
+// 5) Divide the byte size by 5120.
+// This means that when working with layout of surfaces in the EDRAM, it should
+// be assumed that a multisampled surface is the same as a single-sampled
+// surface with 2x height and (with 4x MSAA) width - however, format size
+// doesn't effect the dimensions, 64bpp surfaces take twice as many tiles as
+// 32bpp surfaces.
+//
+// From this, it follows that the tile row pitch in tiles can be multiplied by
+// 64bpp too. In the formula for calculating the tile count:
+// (height rounded up to 16) * (width rounded up to 80) * (4 or 8) / 5120
+// the fraction can be reduced because the numerator is always divisible by
+// 5120 - it changes in 80 * 16 * 4 = 5120 increments - in tile increments -
+// resulting in:
+// (height in tiles) * (width in tiles) * (1 or 2)
+// Here we get only multiplication, which (disregarding the variable size) is
+// associative for integers, so:
+// ((height in tiles) * (width in tiles)) * (1 or 2)
+// is identical to:
+// (height in tiles) * ((width in tiles) * (1 or 2))
+//
+// Depth surfaces are also stored as 32bpp tiles, however, as opposed to color
+// surfaces, 40x16-sample halves of each tile are swapped - game shaders (for
+// example, in GTA IV, Halo 3) perform this swapping when writing specific
+// depth/stencil values by drawing to a depth buffer's memory through a color
+// render target (to reupload a depth/stencil surface previously evicted from
+// the EDRAM to the main memory, for instance).
+
 enum class MsaaSamples : uint32_t {
   k1X = 0,
   k2X = 1,
   k4X = 2,
 };
 
+constexpr uint32_t kMsaaSamplesBits = 2;
+
+constexpr uint32_t kMaxColorRenderTargets = 4;
+
 enum class ColorRenderTargetFormat : uint32_t {
-  // D3DFMT_A8R8G8B8 (or ABGR?).
   k_8_8_8_8 = 0,
-  // D3DFMT_A8R8G8B8 with gamma correction.
   k_8_8_8_8_GAMMA = 1,
   k_2_10_10_10 = 2,
   // 7e3 [0, 32) RGB, unorm alpha.
@@ -219,16 +270,89 @@ enum class ColorRenderTargetFormat : uint32_t {
   k_16_16_FLOAT = 6,
   k_16_16_16_16_FLOAT = 7,
   k_2_10_10_10_AS_10_10_10_10 = 10,
+  // 16-bit fixed point at half speed, with full blending.
+  // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
   k_2_10_10_10_FLOAT_AS_16_16_16_16 = 12,
   k_32_FLOAT = 14,
   k_32_32_FLOAT = 15,
 };
+
+const char* GetColorRenderTargetFormatName(ColorRenderTargetFormat format);
+
+constexpr bool IsColorRenderTargetFormat64bpp(ColorRenderTargetFormat format) {
+  return format == ColorRenderTargetFormat::k_16_16_16_16 ||
+         format == ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
+         format == ColorRenderTargetFormat::k_32_32_FLOAT;
+}
 
 enum class DepthRenderTargetFormat : uint32_t {
   kD24S8 = 0,
   // 20e4 [0, 2).
   kD24FS8 = 1,
 };
+
+const char* GetDepthRenderTargetFormatName(DepthRenderTargetFormat format);
+
+// Converts Xenos floating-point depth in bits 0:23 (not clamping) to an
+// IEEE-754 32-bit floating-point number.
+float Float20e4To32(uint32_t f24);
+
+constexpr uint32_t kColorRenderTargetFormatBits = 4;
+constexpr uint32_t kDepthRenderTargetFormatBits = 1;
+constexpr uint32_t kRenderTargetFormatBits =
+    std::max(kColorRenderTargetFormatBits, kDepthRenderTargetFormatBits);
+
+constexpr uint32_t kEdramTileWidthSamples = 80;
+constexpr uint32_t kEdramTileHeightSamples = 16;
+constexpr uint32_t kEdramTileCount = 2048;
+constexpr uint32_t kEdramSizeBytes = kEdramTileCount * kEdramTileHeightSamples *
+                                     kEdramTileWidthSamples * sizeof(uint32_t);
+
+// RB_SURFACE_INFO::surface_pitch width.
+constexpr uint32_t kEdramPitchPixelsBits = 14;
+// RB_COLOR_INFO::color_base/RB_DEPTH_INFO::depth_base width (though for the
+// Xbox 360 only 11 make sense, but to avoid bounds checks).
+constexpr uint32_t kEdramBaseTilesBits = 12;
+
+inline uint32_t GetSurfacePitchTiles(uint32_t pitch_pixels,
+                                     MsaaSamples msaa_samples, bool is_64bpp) {
+  uint32_t pitch_samples = pitch_pixels
+                           << uint32_t(msaa_samples >= MsaaSamples::k4X);
+  uint32_t pitch_tiles =
+      (pitch_samples + (kEdramTileWidthSamples - 1)) / kEdramTileWidthSamples;
+  if (is_64bpp) {
+    pitch_tiles <<= 1;
+  }
+  return pitch_tiles;
+}
+
+// log2_ceil of the maximum value of GetSurfacePitchTiles, assuming 16383 being
+// the maximum pitch in pixels (not sure about the validity of values above
+// 8192, but to avoid bounds checking).
+// log2_ceil of 16383, multiplied by 2 for 4x MSAA, rounded to 80 samples,
+// multiplied by 2 for 64bpp.
+constexpr uint32_t kEdramPitchTilesBits = 10;
+
+// Returns the maximum height of a render target, in pixels, that may fit in the
+// EDRAM starting from the specified base address, until the end of the EDRAM or
+// the specified tile (for instance, until the next render target).
+inline uint32_t GetMaxRenderTargetHeight(
+    uint32_t base_tiles, uint32_t pitch_pixels, MsaaSamples msaa_samples,
+    bool is_64bpp, uint32_t until_tile = kEdramTileCount) {
+  if (base_tiles >= until_tile) {
+    return 0;
+  }
+  uint32_t pitch_tiles =
+      GetSurfacePitchTiles(pitch_pixels, msaa_samples, is_64bpp);
+  if (!pitch_tiles) {
+    return 0;
+  }
+  return ((until_tile - base_tiles) / pitch_tiles) *
+         (kEdramTileHeightSamples >>
+          uint32_t(msaa_samples >= MsaaSamples::k2X));
+}
+
+constexpr uint32_t kFormatBits = 6;
 
 // a2xx_sq_surfaceformat +
 // https://github.com/indirivacua/RAGE-Console-Texture-Editor/blob/master/Console.Xbox360.Graphics.pas
@@ -330,6 +454,36 @@ enum class ColorFormat : uint32_t {
   k_10_11_11_AS_16_16_16_16 = 55,
   k_11_11_10_AS_16_16_16_16 = 56,
 };
+
+// Resolve writes unsigned data for fixed-point formats (so k_16_16 and
+// k_16_16_16_16 render target formats, which are signed and also have a
+// different range, are not equivalent to the respective texture formats).
+constexpr bool IsColorResolveFormatBitwiseEquivalent(
+    ColorRenderTargetFormat render_target_format, ColorFormat color_format) {
+  switch (render_target_format) {
+    case ColorRenderTargetFormat::k_8_8_8_8:
+    // Shaders fetch data copied from k_8_8_8_8_GAMMA with TextureSign::kGamma.
+    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+      // TODO(Triang3l): Investigate k_8_8_8_8_A.
+      return color_format == ColorFormat::k_8_8_8_8 ||
+             color_format == ColorFormat::k_8_8_8_8_A ||
+             color_format == ColorFormat::k_8_8_8_8_AS_16_16_16_16;
+    case ColorRenderTargetFormat::k_2_10_10_10:
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
+      return color_format == ColorFormat::k_2_10_10_10 ||
+             color_format == ColorFormat::k_2_10_10_10_AS_16_16_16_16;
+    case ColorRenderTargetFormat::k_16_16_FLOAT:
+      return color_format == ColorFormat::k_16_16_FLOAT;
+    case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+      return color_format == ColorFormat::k_16_16_16_16_FLOAT;
+    case ColorRenderTargetFormat::k_32_FLOAT:
+      return color_format == ColorFormat::k_32_FLOAT;
+    case ColorRenderTargetFormat::k_32_32_FLOAT:
+      return color_format == ColorFormat::k_32_32_FLOAT;
+    default:
+      return false;
+  }
+}
 
 enum class VertexFormat : uint32_t {
   kUndefined = 0,
@@ -611,6 +765,87 @@ enum class ModeControl : uint32_t {
   kCopy = 6,
 };
 
+// Xenos copies EDRAM contents to a tiled 2D or 3D texture (resolves - from
+// "MSAA resolve", but this name is also used for single-sampled copying) by
+// drawing primitives with the EDRAM mode ModeControl::kCopy. Pixels covered by
+// the drawn geometry are copied. It's likely that only rectangular regions can
+// be resolved.
+//
+// Resolve operation can write color data in ColorFormat formats, with or
+// without MSAA color sample averaging, endian swap, red/blue swap, and exponent
+// bias. Depth resolving likely has a lot more restrictions, considering sample
+// averaging, red/blue swap and exponent bias would be pretty meaningless for it
+// (also, Direct3D 9 specifies k_8_8_8_8 as RB_COPY_DEST_INFO::copy_dest_format
+// for depth, which is clearly not true - the right format would be k_24_8 or
+// k_24_8_FLOAT, so depth resolving likely doesn't support format conversion),
+// though endian swap is supported.
+//
+// In addition, a resolve draw may clear the region it copies (this feature is
+// commonly used when going to the next tile with predicated tiling). While one
+// resolve draw call may copy just one color or depth buffer, it may clear both
+// color and depth at once (or just color or depth, or nothing) if copying a
+// color buffer (the color render target cleared is the same as the one copied -
+// however, depth resolves have RB_COPY_CONTROL::copy_src_select 4, so they
+// can't clear color).
+//
+// Direct3D 9 does resolving by drawing kRectangleList with 3 vertices with a
+// vertex shader that accepts k_32_32_FLOAT vertices with k8in32 endianness in
+// SHADER_CONSTANT_FETCH_00_0, with the half-pixel offset, according to the
+// PA_SU_VTX_CNTL::pix_center setting, pre-applied to the vertices (for Direct3D
+// 9 pixel centers, 0.5 must be added to the vertex positions to get the
+// coordinates of the corners).
+//
+// The rectangle is used for both the source render target and the destination
+// texture, according to how it's used in Tales of Vesperia.
+//
+// Direct3D 9 gives the rectangle in source render target coordinates (for
+// example, in Halo 3, the sniper rifle scope has a (128,64)->(448,256)
+// rectangle). It doesn't adjust the EDRAM base pointer, otherwise (taking into
+// account that 4x MSAA is used for the scope) it would have been
+// (8,0)->(328,192), but it's not. However, it adjusts the destination texture
+// address so (0,0) relative to the destination address is (0,0) relative to
+// the render target (if resolving a part of a render target to the top-left
+// corner of a texture, Direct3D 9 actually moves the destination pointer before
+// the start of the texture, with tiled offset internally calculated for a
+// negative offset). When copying, the pointer needs to be adjusted to the first
+// 32x32 tile that will actually be modified, by adding the value of
+// XGAddress2D/3DTiledOffset called for left/top & ~31.
+//
+// RB_COPY_DEST_PITCH's purpose appears to be not clamping or something like
+// that, but just specifying pitch for going between rows, and height for going
+// between 3D texture slices. copy_dest_pitch is rounded to 32 by Direct3D 9,
+// copy_dest_height is not. In the Halo 3 sniper rifle scope example,
+// copy_dest_pitch is 320, and copy_dest_height is 192 - the same as the resolve
+// rectangle size (resolving from a 320x192 portion of the surface at 128,64 to
+// the whole texture, at 0,0). Relative to RB_COPY_DEST_BASE, the height should
+// have been 256, but it's not. Adreno doesn't have copy_dest_height at all (as
+// well as RB_COPY_DEST_INFO::copy_dest_slice), suggesting (alongside the name
+// of the register) that it exists purely to be able to go between 3D texture
+// slices.
+//
+// Window scissor must also be applied - in the jigsaw puzzle in Banjo-Tooie,
+// there are 1280x720 resolve rectangles, but only the scissored 1280x256
+// needs to be copied, otherwise it overflows even beyond the EDRAM, and the
+// depth buffer is visible on the screen. It also ensures the coordinates are
+// not negative (in F.E.A.R., for example, the right tile is resolved with
+// vertices (-640,0)->(640,720), however, the destination texture pointer is
+// adjusted properly to the right half of the texture, and the source render
+// target has a pitch of 800).
+
+// Granularity of offset and size in resolve operations is 8x8 pixels
+// (GPU_RESOLVE_ALIGNMENT - for example, Halo 3 resolves a 24x16 region for a
+// 18x10 texture, 8x8 region for a 1x1 texture).
+// https://github.com/jmfauvel/CSGO-SDK/blob/master/game/client/view.cpp#L944
+// https://github.com/stanriders/hl2-asw-port/blob/master/src/game/client/vgui_int.cpp#L901
+constexpr uint32_t kResolveAlignmentPixelsLog2 = 3;
+constexpr uint32_t kResolveAlignmentPixels = 1 << kResolveAlignmentPixelsLog2;
+
+// Same as RB_SURFACE_INFO::surface_pitch, RB_COPY_DEST_PITCH::copy_dest_pitch
+// and RB_COPY_DEST_PITCH::copy_dest_height.
+constexpr uint32_t kResolveSizeBits = 14;
+constexpr uint32_t kMaxResolveSize =
+    (1 << kResolveSizeBits) - kResolveAlignmentPixels;
+
 enum class CopyCommand : uint32_t {
   kRaw = 0,
   kConvert = 1,
@@ -628,6 +863,11 @@ enum class CopySampleSelect : uint32_t {
   k23,
   k0123,
 };
+
+constexpr bool IsSingleCopySampleSelected(CopySampleSelect copy_sample_select) {
+  return copy_sample_select >= CopySampleSelect::k0 &&
+         copy_sample_select <= CopySampleSelect::k3;
+}
 
 #define XE_GPU_MAKE_SWIZZLE(x, y, z, w)                        \
   (((XE_GPU_SWIZZLE_##x) << 0) | ((XE_GPU_SWIZZLE_##y) << 3) | \
@@ -724,20 +964,47 @@ XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
   });
 });
 
+// Byte alignment of texture subresources in memory - of each mip and stack
+// slice / cube face (and of textures themselves), this number of bits is also
+// omitted from base_address and mip_address.
+constexpr uint32_t kTextureSubresourceAlignmentBytesLog2 = 12;
+constexpr uint32_t kTextureSubresourceAlignmentBytes =
+    1 << kTextureSubresourceAlignmentBytesLog2;
+
 // Texture fetch constant size field widths.
 constexpr uint32_t kTexture1DMaxWidthLog2 = 24;
-constexpr uint32_t kTexture1DMaxWidth = uint32_t(1) << kTexture1DMaxWidthLog2;
+constexpr uint32_t kTexture1DMaxWidth = 1 << kTexture1DMaxWidthLog2;
 constexpr uint32_t kTexture2DCubeMaxWidthHeightLog2 = 13;
 constexpr uint32_t kTexture2DCubeMaxWidthHeight =
-    uint32_t(1) << kTexture2DCubeMaxWidthHeightLog2;
+    1 << kTexture2DCubeMaxWidthHeightLog2;
 constexpr uint32_t kTexture2DMaxStackDepthLog2 = 6;
-constexpr uint32_t kTexture2DMaxStackDepth = uint32_t(1)
-                                             << kTexture2DMaxStackDepthLog2;
+constexpr uint32_t kTexture2DMaxStackDepth = 1 << kTexture2DMaxStackDepthLog2;
 constexpr uint32_t kTexture3DMaxWidthHeightLog2 = 11;
-constexpr uint32_t kTexture3DMaxWidthHeight = uint32_t(1)
-                                              << kTexture3DMaxWidthHeightLog2;
+constexpr uint32_t kTexture3DMaxWidthHeight = 1 << kTexture3DMaxWidthHeightLog2;
 constexpr uint32_t kTexture3DMaxDepthLog2 = 10;
-constexpr uint32_t kTexture3DMaxDepth = uint32_t(1) << kTexture3DMaxDepthLog2;
+constexpr uint32_t kTexture3DMaxDepth = 1 << kTexture3DMaxDepthLog2;
+
+// Tiled texture sizes are in 32x32 increments for 2D, 32x32x4 for 3D.
+// 2DTiledOffset(X * 32 + x, Y * 32 + y) ==
+//     2DTiledOffset(X * 32, Y * 32) + 2DTiledOffset(x, y)
+// 3DTiledOffset(X * 32 + x, Y * 32 + y, Z * 8 + z) ==
+//     3DTiledOffset(X * 32, Y * 32, Z * 8) + 3DTiledOffset(x, y, z)
+// Both are true for negative offsets too.
+constexpr uint32_t kTextureTileWidthHeightLog2 = 5;
+constexpr uint32_t kTextureTileWidthHeight = 1 << kTextureTileWidthHeightLog2;
+// 3D tiled texture slices 0:3 and 4:7 are stored separately in memory, in
+// non-overlapping ranges, but addressing in 4:7 is different than in 0:3.
+constexpr uint32_t kTextureTiledDepthGranularityLog2 = 2;
+constexpr uint32_t kTextureTiledDepthGranularity =
+    1 << kTextureTiledDepthGranularityLog2;
+constexpr uint32_t kTextureTiledZBaseGranularityLog2 = 3;
+constexpr uint32_t kTextureTiledZBaseGranularity =
+    1 << kTextureTiledZBaseGranularityLog2;
+
+// Row pitch alignment of non-tiled textures.
+constexpr uint32_t kTextureLinearRowAlignmentBytesLog2 = 8;
+constexpr uint32_t kTextureLinearRowAlignmentBytes =
+    1 << kTextureLinearRowAlignmentBytesLog2;
 
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
 XEPACKEDUNION(xe_gpu_texture_fetch_t, {

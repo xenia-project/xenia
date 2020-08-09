@@ -17,6 +17,7 @@
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/d3d12/shared_memory.h"
 #include "xenia/gpu/d3d12/texture_cache.h"
+#include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/trace_writer.h"
 #include "xenia/gpu/xenos.h"
@@ -274,29 +275,29 @@ class RenderTargetCache {
   // Performs the resolve to a shared memory area according to the current
   // register values, and also clears the EDRAM buffer if needed. Must be in a
   // frame for calling.
+
+  bool Resolve(const Memory& memory, SharedMemory& shared_memory,
+               TextureCache& texture_cache, uint32_t& written_address_out,
+               uint32_t& written_length_out);
+
   bool Resolve(SharedMemory* shared_memory, TextureCache* texture_cache,
                Memory* memory, uint32_t& written_address_out,
                uint32_t& written_length_out);
-  // Makes sure the render targets are re-attached to the command list for which
-  // the next update will take place.
-  void ForceApplyOnNextUpdate() { apply_to_command_list_ = true; }
   // Flushes the render targets to EDRAM and unbinds them, for instance, when
   // the command processor takes over framebuffer bindings to draw something
   // special. May change the CBV/SRV/UAV descriptor heap.
   void FlushAndUnbindRenderTargets();
-  void WriteEDRAMR32UintUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
-  void WriteEDRAMRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
-  void WriteEDRAMRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void WriteEdramRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void WriteEdramRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void WriteEdramUintPow2SRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                                       uint32_t element_size_bytes_pow2);
+  void WriteEdramUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
+                                       uint32_t element_size_bytes_pow2);
 
   // Totally necessary to rely on the base format - Too Human switches between
   // 2_10_10_10_FLOAT and 2_10_10_10_FLOAT_AS_16_16_16_16 every draw.
   static xenos::ColorRenderTargetFormat GetBaseColorFormat(
       xenos::ColorRenderTargetFormat format);
-  static inline bool IsColorFormat64bpp(xenos::ColorRenderTargetFormat format) {
-    return format == xenos::ColorRenderTargetFormat::k_16_16_16_16 ||
-           format == xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
-           format == xenos::ColorRenderTargetFormat::k_32_32_FLOAT;
-  }
   static DXGI_FORMAT GetColorDXGIFormat(xenos::ColorRenderTargetFormat format);
   // Nvidia may have higher performance with 24-bit depth, AMD should have no
   // performance difference, but with EDRAM loads/stores less conversion should
@@ -312,10 +313,10 @@ class RenderTargetCache {
   // Returns true if any downloads were submitted to the command processor.
   bool InitializeTraceSubmitDownloads();
   void InitializeTraceCompleteDownloads();
-  void RestoreEDRAMSnapshot(const void* snapshot);
+  void RestoreEdramSnapshot(const void* snapshot);
 
  private:
-  enum class EDRAMLoadStoreMode {
+  enum class EdramLoadStoreMode {
     kColor32bpp,
     kColor64bpp,
     kColor7e3,
@@ -325,7 +326,7 @@ class RenderTargetCache {
     kCount
   };
 
-  struct EDRAMLoadStoreModeInfo {
+  struct EdramLoadStoreModeInfo {
     const void* load_shader;
     size_t load_shader_size;
     const WCHAR* load_pipeline_name;
@@ -333,10 +334,6 @@ class RenderTargetCache {
     const void* store_shader;
     size_t store_shader_size;
     const WCHAR* store_pipeline_name;
-
-    const void* load_2x_resolve_shader;
-    size_t load_2x_resolve_shader_size;
-    const WCHAR* load_2x_resolve_pipeline_name;
   };
 
   union RenderTargetKey {
@@ -434,10 +431,10 @@ class RenderTargetCache {
     uint32_t copy_buffer_size;
   };
 
-  uint32_t GetEDRAMBufferSize() const;
+  uint32_t GetEdramBufferSize() const;
 
-  void TransitionEDRAMBuffer(D3D12_RESOURCE_STATES new_state);
-  void CommitEDRAMBufferUAVWrites(bool force);
+  void TransitionEdramBuffer(D3D12_RESOURCE_STATES new_state);
+  void CommitEdramBufferUAVWrites(bool force);
 
   void ClearBindings();
 
@@ -462,48 +459,18 @@ class RenderTargetCache {
                                          uint32_t instance);
 #endif
 
-  // Calculates the tile layout for a rectangle on a render target of the given
-  // configuration. The base is adjusted so it points to the tile containing the
-  // top-left pixel of the rectangle, the rectangle is also adjusted so it's
-  // relative to that tile (because its coordinates don't have to be multiples
-  // of the tile size) and so it's not larger than the pitch and the available
-  // memory space. EDRAM row pitch in tiles (for memory access) and actual width
-  // and height of the region containing the rectangle in tiles (for thread
-  // group count) are also written. This function returns true if the requested
-  // rectangle is within the bounds of EDRAM and is not empty, but if it returns
-  // false, the output values may not be written, so the return value must be
-  // checked.
-  static bool GetEDRAMLayout(uint32_t pitch_pixels,
-                             xenos::MsaaSamples msaa_samples, bool is_64bpp,
-                             uint32_t& base_in_out, D3D12_RECT& rect_in_out,
-                             uint32_t& pitch_tiles_out,
-                             uint32_t& row_width_ss_div_80_out,
-                             uint32_t& rows_out);
-
-  static EDRAMLoadStoreMode GetLoadStoreMode(bool is_depth, uint32_t format);
+  static EdramLoadStoreMode GetLoadStoreMode(bool is_depth, uint32_t format);
 
   // Must be in a frame to call. Stores the dirty areas of the currently bound
   // render targets and marks them as clean.
-  void StoreRenderTargetsToEDRAM();
+  void StoreRenderTargetsToEdram();
 
   // Must be in a frame to call. Loads the render targets from the EDRAM buffer,
   // filling all the rows the render target can hold.
-  void LoadRenderTargetsFromEDRAM(uint32_t render_target_count,
+  void LoadRenderTargetsFromEdram(uint32_t render_target_count,
                                   RenderTarget* const* render_targets,
                                   const uint32_t* edram_bases);
 
-  // Performs the copying part of a resolve.
-  bool ResolveCopy(SharedMemory* shared_memory, TextureCache* texture_cache,
-                   uint32_t edram_base, uint32_t surface_pitch,
-                   xenos::MsaaSamples msaa_samples, bool is_depth,
-                   uint32_t src_format, const D3D12_RECT& rect,
-                   uint32_t& written_address_out, uint32_t& written_length_out);
-  // Performs the clearing part of a resolve.
-  bool ResolveClear(uint32_t edram_base, uint32_t surface_pitch,
-                    xenos::MsaaSamples msaa_samples, bool is_depth,
-                    uint32_t format, const D3D12_RECT& rect);
-
-  ID3D12PipelineState* GetResolvePipeline(DXGI_FORMAT dest_format);
   // Returns any available resolve target placed at least at
   // min_heap_first_page, or tries to place it at the specified position (if not
   // possible, will place it in the next heap).
@@ -536,11 +503,14 @@ class RenderTargetCache {
   // Non-shader-visible descriptor heap containing pre-created SRV and UAV
   // descriptors of the EDRAM buffer, for faster binding (via copying rather
   // than creation).
-  enum class EDRAMBufferDescriptorIndex : uint32_t {
+  enum class EdramBufferDescriptorIndex : uint32_t {
     kRawSRV,
+    kR32UintSRV,
+    kR32G32UintSRV,
+    kR32G32B32A32UintSRV,
     kRawUAV,
-    // For ROV access primarily.
     kR32UintUAV,
+    kR32G32B32A32UintUAV,
 
     kCount,
   };
@@ -549,73 +519,46 @@ class RenderTargetCache {
 
   // EDRAM root signatures.
   ID3D12RootSignature* edram_load_store_root_signature_ = nullptr;
-  ID3D12RootSignature* edram_clear_root_signature_ = nullptr;
-  struct EDRAMLoadStoreRootConstants {
-    union {
-      struct {
-        uint32_t rt_color_depth_offset;
-        uint32_t rt_color_depth_pitch;
-        uint32_t rt_stencil_offset;
-        uint32_t rt_stencil_pitch;
-      };
-      struct {
-        // 0:11 - resolve area width/height in pixels.
-        // 12:16 - offset in the destination texture (only up to 31 - assuming
-        //         32*n is pre-applied to the base pointer).
-        // 17:19 - Z in destination 3D texture (in [0]).
-        // 20:31 - left/top of the copied region (relative to EDRAM base).
-        uint32_t tile_sample_dimensions[2];
-        uint32_t tile_sample_dest_base;
-        // 0:8 - align(destination pitch, 32) / 32.
-        // 9:17 - align(destination height, 32) / 32 for 3D, 0 for 2D.
-        // 18:19 - sample to load (18 - vertical index, 19 - horizontal index).
-        // 20:22 - destination endianness.
-        // 23:26 - source format (for red/blue swapping).
-        // 27 - whether to swap red and blue.
-        uint32_t tile_sample_dest_info;
-      };
-      struct {
-        // 16 bits for X, 16 bits for Y.
-        uint32_t clear_rect_lt;
-        uint32_t clear_rect_rb;
-        union {
-          struct {
-            uint32_t clear_color_high;
-            uint32_t clear_color_low;
-          };
-          struct {
-            uint32_t clear_depth24;
-            uint32_t clear_depth32;
-          };
-        };
-      };
-    };
+  struct EdramLoadStoreRootConstants {
+    uint32_t rt_color_depth_offset;
+    uint32_t rt_color_depth_pitch;
+    uint32_t rt_stencil_offset;
+    uint32_t rt_stencil_pitch;
     // 0:10 - EDRAM base in tiles.
     // 11 - log2(vertical sample count), 0 for 1x AA, 1 for 2x/4x AA.
     // 12 - log2(horizontal sample count), 0 for 1x/2x AA, 1 for 4x AA.
     // 13 - whether 2x resolution scale is used.
     // 14 - whether to apply the hack and duplicate the top/left
     //      half-row/half-column to reduce the impact of half-pixel offset with
-    //      2x resolution scale.
+    //      2x resolution scale (obsolete since the move to the new resolve
+    //      code).
     // 15 - whether it's a depth render target.
     // 16: - EDRAM pitch in tiles.
     uint32_t base_samples_2x_depth_pitch;
   };
-  // EDRAM pipelines.
-  static const EDRAMLoadStoreModeInfo
-      edram_load_store_mode_info_[size_t(EDRAMLoadStoreMode::kCount)];
+  // EDRAM pipeline states for the RTV/DSV path.
+  static const EdramLoadStoreModeInfo
+      edram_load_store_mode_info_[size_t(EdramLoadStoreMode::kCount)];
   ID3D12PipelineState*
-      edram_load_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
+      edram_load_pipelines_[size_t(EdramLoadStoreMode::kCount)] = {};
   // Store pipelines are not created with ROV.
   ID3D12PipelineState*
-      edram_store_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
-  ID3D12PipelineState*
-      edram_load_2x_resolve_pipelines_[size_t(EDRAMLoadStoreMode::kCount)] = {};
-  ID3D12PipelineState* edram_tile_sample_32bpp_pipeline_ = nullptr;
-  ID3D12PipelineState* edram_tile_sample_64bpp_pipeline_ = nullptr;
-  ID3D12PipelineState* edram_clear_32bpp_pipeline_ = nullptr;
-  ID3D12PipelineState* edram_clear_64bpp_pipeline_ = nullptr;
-  ID3D12PipelineState* edram_clear_depth_float_pipeline_ = nullptr;
+      edram_store_pipelines_[size_t(EdramLoadStoreMode::kCount)] = {};
+
+  // Resolve root signatures and pipeline state objects.
+  ID3D12RootSignature* resolve_copy_root_signature_ = nullptr;
+  static const std::pair<const uint8_t*, size_t>
+      resolve_copy_shaders_[size_t(draw_util::ResolveCopyShaderIndex::kCount)];
+  ID3D12PipelineState* resolve_copy_pipeline_states_[size_t(
+      draw_util::ResolveCopyShaderIndex::kCount)] = {};
+  ID3D12RootSignature* resolve_clear_root_signature_ = nullptr;
+  // Clearing 32bpp color, depth with ROV, or unorm depth without ROV.
+  ID3D12PipelineState* resolve_clear_32bpp_pipeline_state_ = nullptr;
+  // Clearing 64bpp color.
+  ID3D12PipelineState* resolve_clear_64bpp_pipeline_state_ = nullptr;
+  // Clearing float depth without ROV, both the float24 and the host float32
+  // versions.
+  ID3D12PipelineState* resolve_clear_depth_24_32_pipeline_state_ = nullptr;
 
   // FIXME(Triang3l): Investigate what's wrong with placed RTV/DSV aliasing on
   // Nvidia Maxwell 1st generation and older.
@@ -655,37 +598,6 @@ class RenderTargetCache {
   bool apply_to_command_list_ = true;
 
   PipelineRenderTarget current_pipeline_render_targets_[5];
-
-  ID3D12RootSignature* resolve_root_signature_ = nullptr;
-  struct ResolveRootConstants {
-    // In samples.
-    // Left and top in the lower 16 bits, width and height in the upper.
-    uint32_t rect_samples_lw;
-    uint32_t rect_samples_th;
-    // In samples. Width in the lower 16 bits, height in the upper.
-    uint32_t source_size;
-    // 0 - log2(vertical sample count), 0 for 1x AA, 1 for 2x/4x AA.
-    // 1 - log2(horizontal sample count), 0 for 1x/2x AA, 1 for 4x AA.
-    // 2:3 - vertical sample position:
-    //       0 for the upper samples with 2x/4x AA.
-    //       1 for 1x AA or to mix samples with 2x/4x AA.
-    //       2 for the lower samples with 2x/4x AA.
-    // 4:5 - horizontal sample position:
-    //       0 for the left samples with 4x AA.
-    //       1 for 1x/2x AA or to mix samples with 4x AA.
-    //       2 for the right samples with 4x AA.
-    // 6 - whether to apply the hack and duplicate the top/left
-    //     half-row/half-column to reduce the impact of half-pixel offset with
-    //     2x resolution scale.
-    // 7:12 - exponent bias.
-    uint32_t resolve_info;
-  };
-  std::vector<ResolvePipeline> resolve_pipelines_;
-#if 0
-  std::unordered_multimap<uint32_t, ResolveTarget*> resolve_targets_;
-#else
-  std::unordered_map<uint32_t, ResolveTarget*> resolve_targets_;
-#endif
 
   // For traces only.
   ID3D12Resource* edram_snapshot_download_buffer_ = nullptr;

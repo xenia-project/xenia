@@ -19,16 +19,16 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
        xe_texture_load_host_base) >> 4;
   int block_offset_guest =
       XeTextureLoadGuestBlockOffset(int3(block_index), 4u, 2u) >> 4;
-  uint endian = XeTextureLoadEndian();
+  uint endian = XeTextureLoadEndian32();
   XE_TEXTURE_LOAD_32BPB_TO_64BPB(
-      XeByteSwap(xe_texture_load_source[block_offset_guest], endian),
+      XeEndianSwap32(xe_texture_load_source[block_offset_guest], endian),
       xe_texture_load_dest[block_offset_host],
       xe_texture_load_dest[block_offset_host + 1]);
   block_offset_host += 2;
   // Odd 4 blocks = even 4 blocks + 32 bytes when tiled.
   block_offset_guest += XeTextureLoadIsTiled() ? 2 : 1;
   XE_TEXTURE_LOAD_32BPB_TO_64BPB(
-      XeByteSwap(xe_texture_load_source[block_offset_guest], endian),
+      XeEndianSwap32(xe_texture_load_source[block_offset_guest], endian),
       xe_texture_load_dest[block_offset_host],
       xe_texture_load_dest[block_offset_host + 1]);
 }

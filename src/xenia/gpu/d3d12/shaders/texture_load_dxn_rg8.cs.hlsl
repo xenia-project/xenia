@@ -20,13 +20,13 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   int elements_pitch_host = xe_texture_load_host_pitch >> 4;
   int block_offset_guest =
       XeTextureLoadGuestBlockOffset(int3(block_index), 16u, 4u) >> 4;
-  uint endian = XeTextureLoadEndian();
-  uint4 block_0 = XeByteSwap(xe_texture_load_source[block_offset_guest],
-                             endian);
+  uint endian = XeTextureLoadEndian32();
+  uint4 block_0 = XeEndianSwap32(xe_texture_load_source[block_offset_guest],
+                                 endian);
   // Odd block = even block + 32 guest bytes when tiled.
   block_offset_guest += XeTextureLoadIsTiled() ? 2 : 1;
-  uint4 block_1 = XeByteSwap(xe_texture_load_source[block_offset_guest],
-                             endian);
+  uint4 block_1 = XeEndianSwap32(xe_texture_load_source[block_offset_guest],
+                                 endian);
   uint4 end_0 = (block_0.xxzz >> uint4(0u, 8u, 0u, 8u)) & 0xFFu;
   uint4 end_1 = (block_1.xxzz >> uint4(0u, 8u, 0u, 8u)) & 0xFFu;
   uint4 weights = (uint4(block_0.xz, block_1.xz) >> 16u) |

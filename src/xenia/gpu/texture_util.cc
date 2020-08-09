@@ -140,15 +140,15 @@ void GetGuestMipBlocks(xenos::DataDimension dimension, uint32_t width,
   height =
       xe::align(height, format_info->block_height) / format_info->block_height;
 
-  // Align to tile size.
-  width_blocks_out = xe::align(width, uint32_t(32));
+  // Align to tiles.
+  width_blocks_out = xe::align(width, xenos::kTextureTileWidthHeight);
   if (dimension != xenos::DataDimension::k1D) {
-    height_blocks_out = xe::align(height, uint32_t(32));
+    height_blocks_out = xe::align(height, xenos::kTextureTileWidthHeight);
   } else {
     height_blocks_out = 1;
   }
   if (dimension == xenos::DataDimension::k3D) {
-    depth_blocks_out = xe::align(depth, uint32_t(4));
+    depth_blocks_out = xe::align(depth, xenos::kTextureTiledDepthGranularity);
   } else {
     depth_blocks_out = 1;
   }
@@ -164,14 +164,14 @@ uint32_t GetGuestMipSliceStorageSize(uint32_t width_blocks,
                        format_info->block_height * format_info->bits_per_pixel /
                        8;
   if (!is_tiled) {
-    row_pitch = xe::align(row_pitch, 256u);
+    row_pitch = xe::align(row_pitch, xenos::kTextureLinearRowAlignmentBytes);
   }
   if (row_pitch_out != nullptr) {
     *row_pitch_out = row_pitch;
   }
   uint32_t size = row_pitch * height_blocks * depth_blocks;
   if (align_4kb) {
-    size = xe::align(size, 4096u);
+    size = xe::align(size, xenos::kTextureSubresourceAlignmentBytes);
   }
   return size;
 }
@@ -317,7 +317,7 @@ void GetTextureTotalSize(xenos::DataDimension dimension, uint32_t width,
 int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t width,
                          uint32_t bpb_log2) {
   // https://github.com/gildor2/UModel/blob/de8fbd3bc922427ea056b7340202dcdcc19ccff5/Unreal/UnTexture.cpp#L489
-  width = xe::align(width, 32u);
+  width = xe::align(width, xenos::kTextureTileWidthHeight);
   // Top bits of coordinates.
   int32_t macro = ((x >> 5) + (y >> 5) * int32_t(width >> 5)) << (bpb_log2 + 7);
   // Lower bits of coordinates (result is 6-bit value).
@@ -333,8 +333,8 @@ int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t width,
 int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t width,
                          uint32_t height, uint32_t bpb_log2) {
   // Reconstructed from disassembly of XGRAPHICS::TileVolume.
-  width = xe::align(width, 32u);
-  height = xe::align(height, 32u);
+  width = xe::align(width, xenos::kTextureTileWidthHeight);
+  height = xe::align(height, xenos::kTextureTileWidthHeight);
   int32_t macro_outer =
       ((y >> 4) + (z >> 2) * int32_t(height >> 4)) * int32_t(width >> 5);
   int32_t macro = ((((x >> 5) + macro_outer) << (bpb_log2 + 6)) & 0xFFFFFFF)

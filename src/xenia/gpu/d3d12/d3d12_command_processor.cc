@@ -33,12 +33,6 @@ DEFINE_bool(d3d12_edram_rov, true,
             "Use rasterizer-ordered views for render target emulation where "
             "available.",
             "D3D12");
-// Some games (such as Banjo-Kazooie) are not aware of the half-pixel offset and
-// may be blurry or have texture sampling artifacts, in this case the user may
-// disable half-pixel offset by setting this to false.
-DEFINE_bool(d3d12_half_pixel_offset, true,
-            "Enable half-pixel vertex offset (D3D9 PA_SU_VTX_CNTL PIX_CENTER).",
-            "D3D12");
 DEFINE_bool(d3d12_readback_memexport, false,
             "Read data written by memory export in shaders on the CPU. This "
             "may be needed in some games (but many only access exported data "
@@ -99,10 +93,10 @@ void D3D12CommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
   primitive_converter_->MemoryInvalidationCallback(base_ptr, length, true);
 }
 
-void D3D12CommandProcessor::RestoreEDRAMSnapshot(const void* snapshot) {
+void D3D12CommandProcessor::RestoreEdramSnapshot(const void* snapshot) {
   // Starting a new frame because descriptors may be needed.
   BeginSubmission(true);
-  render_target_cache_->RestoreEDRAMSnapshot(snapshot);
+  render_target_cache_->RestoreEdramSnapshot(snapshot);
 }
 
 uint32_t D3D12CommandProcessor::GetCurrentColorMask(
@@ -279,7 +273,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
   // Shared memory and, if ROVs are used, EDRAM.
   D3D12_DESCRIPTOR_RANGE shared_memory_and_edram_ranges[3];
   {
-    auto& parameter = parameters[kRootParameter_Bindful_SharedMemoryAndEDRAM];
+    auto& parameter = parameters[kRootParameter_Bindful_SharedMemoryAndEdram];
     parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     parameter.DescriptorTable.NumDescriptorRanges = 2;
     parameter.DescriptorTable.pDescriptorRanges =
@@ -306,7 +300,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
           D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
       shared_memory_and_edram_ranges[2].NumDescriptors = 1;
       shared_memory_and_edram_ranges[2].BaseShaderRegister =
-          UINT(DxbcShaderTranslator::UAVRegister::kEDRAM);
+          UINT(DxbcShaderTranslator::UAVRegister::kEdram);
       shared_memory_and_edram_ranges[2].RegisterSpace = 0;
       shared_memory_and_edram_ranges[2].OffsetInDescriptorsFromTableStart = 2;
     }
@@ -584,6 +578,27 @@ D3D12CommandProcessor::GetSharedMemoryUintPow2BindlessUAVHandlePair(
   return GetSystemBindlessViewHandlePair(view);
 }
 
+ui::d3d12::util::DescriptorCPUGPUHandlePair
+D3D12CommandProcessor::GetEdramUintPow2BindlessSRVHandlePair(
+    uint32_t element_size_bytes_pow2) const {
+  SystemBindlessView view;
+  switch (element_size_bytes_pow2) {
+    case 2:
+      view = SystemBindlessView::kEdramR32UintSRV;
+      break;
+    case 3:
+      view = SystemBindlessView::kEdramR32G32UintSRV;
+      break;
+    case 4:
+      view = SystemBindlessView::kEdramR32G32B32A32UintSRV;
+      break;
+    default:
+      assert_unhandled_case(element_size_bytes_pow2);
+      view = SystemBindlessView::kEdramR32UintSRV;
+  }
+  return GetSystemBindlessViewHandlePair(view);
+}
+
 uint64_t D3D12CommandProcessor::RequestSamplerBindfulDescriptors(
     uint64_t previous_heap_index, uint32_t count_for_partial_update,
     uint32_t count_for_full_update, D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
@@ -725,42 +740,12 @@ void D3D12CommandProcessor::SetSamplePositions(
   current_sample_positions_ = sample_positions;
 }
 
-void D3D12CommandProcessor::SetComputePipeline(ID3D12PipelineState* pipeline) {
-  if (current_external_pipeline_ != pipeline) {
-    deferred_command_list_->D3DSetPipelineState(pipeline);
-    current_external_pipeline_ = pipeline;
-    current_cached_pipeline_ = nullptr;
-  }
-}
-
-void D3D12CommandProcessor::FlushAndUnbindRenderTargets() {
-  render_target_cache_->FlushAndUnbindRenderTargets();
-}
-
-void D3D12CommandProcessor::SetExternalGraphicsPipeline(
-    ID3D12PipelineState* pipeline, bool changing_rts_and_sample_positions,
-    bool changing_viewport, bool changing_blend_factor,
-    bool changing_stencil_ref) {
-  if (current_external_pipeline_ != pipeline) {
-    deferred_command_list_->D3DSetPipelineState(pipeline);
-    current_external_pipeline_ = pipeline;
-    current_cached_pipeline_ = nullptr;
-  }
-  current_graphics_root_signature_ = nullptr;
-  current_graphics_root_up_to_date_ = 0;
-  primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
-  if (changing_rts_and_sample_positions) {
-    render_target_cache_->ForceApplyOnNextUpdate();
-  }
-  if (changing_viewport) {
-    ff_viewport_update_needed_ = true;
-    ff_scissor_update_needed_ = true;
-  }
-  if (changing_blend_factor) {
-    ff_blend_factor_update_needed_ = true;
-  }
-  if (changing_stencil_ref) {
-    ff_stencil_ref_update_needed_ = true;
+void D3D12CommandProcessor::SetComputePipelineState(
+    ID3D12PipelineState* pipeline_state) {
+  if (current_external_pipeline_state_ != pipeline_state) {
+    deferred_command_list_->D3DSetPipelineState(pipeline_state);
+    current_external_pipeline_state_ = pipeline_state;
+    current_cached_pipeline_state_ = nullptr;
   }
 }
 
@@ -1131,10 +1116,10 @@ bool D3D12CommandProcessor::SetupContext() {
         range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
         range.NumDescriptors = 1;
         range.BaseShaderRegister =
-            UINT(DxbcShaderTranslator::UAVRegister::kEDRAM);
+            UINT(DxbcShaderTranslator::UAVRegister::kEdram);
         range.RegisterSpace = 0;
         range.OffsetInDescriptorsFromTableStart =
-            UINT(SystemBindlessView::kEDRAMR32UintUAV);
+            UINT(SystemBindlessView::kEdramR32UintUAV);
       }
     }
     root_signature_bindless_vs_ = ui::d3d12::util::CreateRootSignature(
@@ -1399,21 +1384,46 @@ bool D3D12CommandProcessor::SetupContext() {
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kSharedMemoryR32G32B32A32UintUAV)),
         4);
-    // kEDRAMR32UintUAV.
-    render_target_cache_->WriteEDRAMR32UintUAVDescriptor(
+    // kEdramRawSRV.
+    render_target_cache_->WriteEdramRawSRVDescriptor(
         provider->OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
-            uint32_t(SystemBindlessView::kEDRAMR32UintUAV)));
-    // kEDRAMRawSRV.
-    render_target_cache_->WriteEDRAMRawSRVDescriptor(
+            uint32_t(SystemBindlessView::kEdramRawSRV)));
+    // kEdramR32UintSRV.
+    render_target_cache_->WriteEdramUintPow2SRVDescriptor(
         provider->OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
-            uint32_t(SystemBindlessView::kEDRAMRawSRV)));
-    // kEDRAMRawUAV.
-    render_target_cache_->WriteEDRAMRawUAVDescriptor(
+            uint32_t(SystemBindlessView::kEdramR32UintSRV)),
+        2);
+    // kEdramR32G32UintSRV.
+    render_target_cache_->WriteEdramUintPow2SRVDescriptor(
         provider->OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
-            uint32_t(SystemBindlessView::kEDRAMRawUAV)));
+            uint32_t(SystemBindlessView::kEdramR32G32UintSRV)),
+        3);
+    // kEdramR32G32B32A32UintSRV.
+    render_target_cache_->WriteEdramUintPow2SRVDescriptor(
+        provider->OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            uint32_t(SystemBindlessView::kEdramR32G32B32A32UintSRV)),
+        4);
+    // kEdramRawUAV.
+    render_target_cache_->WriteEdramRawUAVDescriptor(
+        provider->OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            uint32_t(SystemBindlessView::kEdramRawUAV)));
+    // kEdramR32UintUAV.
+    render_target_cache_->WriteEdramUintPow2UAVDescriptor(
+        provider->OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            uint32_t(SystemBindlessView::kEdramR32UintUAV)),
+        2);
+    // kEdramR32G32B32A32UintUAV.
+    render_target_cache_->WriteEdramUintPow2UAVDescriptor(
+        provider->OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            uint32_t(SystemBindlessView::kEdramR32G32B32A32UintUAV)),
+        4);
     // kGammaRampNormalSRV.
     WriteGammaRampSRV(false,
                       provider->OffsetViewDescriptor(
@@ -1927,21 +1937,21 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     early_z = true;
   }
 
-  // Create the pipeline if needed and bind it.
-  void* pipeline_handle;
+  // Create the pipeline state object if needed and bind it.
+  void* pipeline_state_handle;
   ID3D12RootSignature* root_signature;
   if (!pipeline_cache_->ConfigurePipeline(
           vertex_shader, pixel_shader, primitive_type_converted,
           indexed ? index_buffer_info->format : xenos::IndexFormat::kInt16,
-          early_z, pipeline_render_targets, &pipeline_handle,
+          early_z, pipeline_render_targets, &pipeline_state_handle,
           &root_signature)) {
     return false;
   }
-  if (current_cached_pipeline_ != pipeline_handle) {
+  if (current_cached_pipeline_state_ != pipeline_state_handle) {
     deferred_command_list_->SetPipelineStateHandle(
-        reinterpret_cast<void*>(pipeline_handle));
-    current_cached_pipeline_ = pipeline_handle;
-    current_external_pipeline_ = nullptr;
+        reinterpret_cast<void*>(pipeline_state_handle));
+    current_cached_pipeline_state_ = pipeline_state_handle;
+    current_external_pipeline_state_ = nullptr;
   }
 
   // Update viewport, scissor, blend factor and stencil reference.
@@ -2216,8 +2226,11 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   }
 
   if (memexport_used) {
-    // Commit shared memory writing.
-    PushUAVBarrier(shared_memory_->GetBuffer());
+    // Make sure this memexporting draw is ordered with other work using shared
+    // memory as a UAV.
+    // TODO(Triang3l): Find some PM4 command that can be used for indication of
+    // when memexports should be awaited?
+    shared_memory_->MarkUAVWritesCommitNeeded();
     // Invalidate textures in memexported memory and watch for changes.
     for (uint32_t i = 0; i < memexport_range_count; ++i) {
       const MemExportRange& memexport_range = memexport_ranges[i];
@@ -2303,9 +2316,8 @@ bool D3D12CommandProcessor::IssueCopy() {
 #endif  // FINE_GRAINED_DRAW_SCOPES
   BeginSubmission(true);
   uint32_t written_address, written_length;
-  if (!render_target_cache_->Resolve(shared_memory_.get(), texture_cache_.get(),
-                                     memory_, written_address,
-                                     written_length)) {
+  if (!render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_,
+                                     written_address, written_length)) {
     return false;
   }
   if (cvars::d3d12_readback_resolve && !texture_cache_->IsResolutionScale2X() &&
@@ -2453,8 +2465,8 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
     ff_blend_factor_update_needed_ = true;
     ff_stencil_ref_update_needed_ = true;
     current_sample_positions_ = xenos::MsaaSamples::k1X;
-    current_cached_pipeline_ = nullptr;
-    current_external_pipeline_ = nullptr;
+    current_cached_pipeline_state_ = nullptr;
+    current_external_pipeline_state_ = nullptr;
     current_graphics_root_signature_ = nullptr;
     current_graphics_root_up_to_date_ = 0;
     if (bindless_resources_used_) {
@@ -3108,7 +3120,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     float ndc_offset_x = pa_cl_vte_cntl.vport_x_offset_ena ? 0.0f : -1.0f;
     float ndc_offset_y = pa_cl_vte_cntl.vport_y_offset_ena ? 0.0f : 1.0f;
     float ndc_offset_z = gl_clip_space_def ? 0.5f : 0.0f;
-    if (cvars::d3d12_half_pixel_offset && !pa_su_vtx_cntl.pix_center) {
+    if (cvars::half_pixel_offset && !pa_su_vtx_cntl.pix_center) {
       // Signs are hopefully correct here, tested in GTA IV on both clearing
       // (without a viewport) and drawing things near the edges of the screen.
       if (pa_cl_vte_cntl.vport_x_scale_ena) {
@@ -4029,12 +4041,13 @@ bool D3D12CommandProcessor::UpdateBindings(
       view_cpu_handle.ptr += descriptor_size_view;
       view_gpu_handle.ptr += descriptor_size_view;
       if (edram_rov_used_) {
-        render_target_cache_->WriteEDRAMR32UintUAVDescriptor(view_cpu_handle);
+        render_target_cache_->WriteEdramUintPow2UAVDescriptor(view_cpu_handle,
+                                                              2);
         view_cpu_handle.ptr += descriptor_size_view;
         view_gpu_handle.ptr += descriptor_size_view;
       }
       current_graphics_root_up_to_date_ &=
-          ~(1u << kRootParameter_Bindful_SharedMemoryAndEDRAM);
+          ~(1u << kRootParameter_Bindful_SharedMemoryAndEdram);
     }
     if (sampler_heap_index !=
             ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid &&
@@ -4196,12 +4209,12 @@ bool D3D12CommandProcessor::UpdateBindings(
     }
   } else {
     if (!(current_graphics_root_up_to_date_ &
-          (1u << kRootParameter_Bindful_SharedMemoryAndEDRAM))) {
+          (1u << kRootParameter_Bindful_SharedMemoryAndEdram))) {
       deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
-          kRootParameter_Bindful_SharedMemoryAndEDRAM,
+          kRootParameter_Bindful_SharedMemoryAndEdram,
           gpu_handle_shared_memory_and_edram_);
       current_graphics_root_up_to_date_ |=
-          1u << kRootParameter_Bindful_SharedMemoryAndEDRAM;
+          1u << kRootParameter_Bindful_SharedMemoryAndEdram;
     }
     uint32_t extra_index;
     extra_index = current_graphics_root_bindful_extras_.textures_pixel;
