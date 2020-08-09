@@ -15,6 +15,7 @@
 #include "third_party/fmt/include/fmt/format.h"
 
 #include "xenia/base/byte_order.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
@@ -25,6 +26,12 @@
 #include "xenia/cpu/ppc/ppc_frontend.h"
 #include "xenia/cpu/ppc/ppc_opcode_info.h"
 #include "xenia/cpu/processor.h"
+
+DEFINE_bool(
+    break_on_unimplemented_instructions, true,
+    "Break to the host debugger (or crash if no debugger attached) if an "
+    "unimplemented PowerPC instruction is encountered.",
+    "CPU");
 
 namespace xe {
 namespace cpu {
@@ -169,10 +176,14 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
     i.opcode_info = &opcode_info;
     if (!opcode_info.emit || opcode_info.emit(*this, i)) {
       auto& disasm_info = GetOpcodeDisasmInfo(opcode);
-      XELOGE("Unimplemented instr {:08X} {:08X} {}", address, code,
-             disasm_info.name);
+      XELOGE(
+          "Unimplemented instr {:08X} {:08X} {} - report the game to Xenia "
+          "developers; to skip, disable break_on_unimplemented_instructions",
+          address, code, disasm_info.name);
       Comment("UNIMPLEMENTED!");
-      DebugBreak();
+      if (cvars::break_on_unimplemented_instructions) {
+        DebugBreak();
+      }
     }
   }
 
