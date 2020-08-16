@@ -2217,7 +2217,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Packs a float32x4 color value to 32bpp or a 64bpp in color_temp to
   // packed_temp.packed_temp_components, using 2 temporary VGPR. color_temp and
   // packed_temp may be the same if packed_temp_components is 0. If the format
-  // is 32bpp, will still the high part to break register dependency.
+  // is 32bpp, will still write the high part to break register dependency.
   void ROV_PackPreClampedColor(uint32_t rt_index, uint32_t color_temp,
                                uint32_t packed_temp,
                                uint32_t packed_temp_components, uint32_t temp1,
@@ -2280,25 +2280,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // - system_temps_subroutine_[0].zw.
   // - system_temps_subroutine_[1].xy.
   void CompleteShaderCode_ROV_DepthStencilSampleSubroutine();
-  // Writes a function that does loading, blending, write masking and storing
-  // for one color sample of the specified render target.
-  // Input:
-  // - system_temps_subroutine_[0].xy:
-  //   - If not blending, packed source color (will be masked by the function).
-  //   - If blending, used as a temporary.
-  // - system_temp_rov_params_.zw - color sample 32bpp and 64bpp EDRAM
-  //   addresses.
-  // - system_temps_color_[rt_index]:
-  //   - If blending (blend control is 0x00010001), source color clamped to the
-  //     render target's representable range if it's fixed-point, unclamped
-  //     source color if it's floating-point, not modified.
-  //   - If not blending, ignored.
-  // Local temps:
-  // - system_temps_subroutine_[0].zw.
-  // - system_temps_subroutine_[1].xyzw.
-  // - system_temps_subroutine_[2].xyz.
-  // - system_temps_subroutine_[3].xyz.
-  void CompleteShaderCode_ROV_ColorSampleSubroutine(uint32_t rt_index);
   void CompleteShaderCode();
 
   // Writes the original instruction disassembly in the output DXBC if enabled,
@@ -2527,7 +2508,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Subroutine labels. D3D10_SB_OPCODE_LABEL is not counted as an instruction
   // in STAT.
   uint32_t label_rov_depth_stencil_sample_;
-  uint32_t label_rov_color_sample_[4];
 
   // Number of currently allocated Xenia internal r# registers.
   uint32_t system_temp_count_current_;

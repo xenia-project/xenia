@@ -870,20 +870,12 @@ void DxbcShaderTranslator::StartPixelShader() {
 void DxbcShaderTranslator::StartTranslation() {
   // Allocate labels and registers for subroutines.
   label_rov_depth_stencil_sample_ = UINT32_MAX;
-  std::memset(label_rov_color_sample_, 0xFF, sizeof(label_rov_color_sample_));
   uint32_t label_index = 0;
   system_temps_subroutine_count_ = 0;
   if (IsDxbcPixelShader() && edram_rov_used_) {
     label_rov_depth_stencil_sample_ = label_index++;
     system_temps_subroutine_count_ =
         std::max((uint32_t)2, system_temps_subroutine_count_);
-    for (uint32_t i = 0; i < xe::countof(label_rov_color_sample_); ++i) {
-      if (writes_color_target(i)) {
-        label_rov_color_sample_[i] = label_index++;
-        system_temps_subroutine_count_ =
-            std::max((uint32_t)4, system_temps_subroutine_count_);
-      }
-    }
   }
   system_temps_subroutine_ = PushSystemTemp(0, system_temps_subroutine_count_);
 
@@ -1212,11 +1204,6 @@ void DxbcShaderTranslator::CompleteShaderCode() {
   // register allocation).
   if (label_rov_depth_stencil_sample_ != UINT32_MAX) {
     CompleteShaderCode_ROV_DepthStencilSampleSubroutine();
-  }
-  for (uint32_t i = 0; i < 4; ++i) {
-    if (label_rov_color_sample_[i] != UINT32_MAX) {
-      CompleteShaderCode_ROV_ColorSampleSubroutine(i);
-    }
   }
 
   if (IsDxbcVertexOrDomainShader()) {
