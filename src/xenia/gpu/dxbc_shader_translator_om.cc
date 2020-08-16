@@ -1618,21 +1618,28 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   // Discard samples with alpha to coverage.
   CompletePixelShader_ROV_AlphaToMask();
 
-  // 2 VGPR (at most, as temp when packing during blending) or 1 SGPR.
   uint32_t temp = PushSystemTemp();
   DxbcDest temp_x_dest(DxbcDest::R(temp, 0b0001));
   DxbcSrc temp_x_src(DxbcSrc::R(temp, DxbcSrc::kXXXX));
+  DxbcDest temp_y_dest(DxbcDest::R(temp, 0b0010));
+  DxbcSrc temp_y_src(DxbcSrc::R(temp, DxbcSrc::kYYYY));
+  DxbcDest temp_z_dest(DxbcDest::R(temp, 0b0100));
+  DxbcSrc temp_z_src(DxbcSrc::R(temp, DxbcSrc::kZZZZ));
+  DxbcDest temp_w_dest(DxbcDest::R(temp, 0b1000));
+  DxbcSrc temp_w_src(DxbcSrc::R(temp, DxbcSrc::kWWWW));
 
   // Do late depth/stencil test (which includes writing) if needed or deferred
   // depth writing.
   if (ROV_IsDepthStencilEarly()) {
     // Write modified depth/stencil.
     for (uint32_t i = 0; i < 4; ++i) {
-      // Get if need to write to temp1.x.
+      // Get if need to write to temp.x.
+      // temp.x = whether the depth sample needs to be written.
       DxbcOpAnd(temp_x_dest,
                 DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
                 DxbcSrc::LU(1 << (4 + i)));
       // Check if need to write.
+      // temp.x = free.
       DxbcOpIf(true, temp_x_src);
       {
         // Write the new depth/stencil.
@@ -1667,8 +1674,10 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   if (!is_depth_only_pixel_shader_) {
     // Check if any sample is still covered after depth testing and writing,
     // skip color writing completely in this case.
+    // temp.x = whether any sample is still covered.
     DxbcOpAnd(temp_x_dest, DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
               DxbcSrc::LU(0b1111));
+    // temp.x = free.
     DxbcOpRetC(false, temp_x_src);
   }
 
@@ -1683,26 +1692,32 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                     uint32_t(CbufferRegister::kSystemConstants),
                     kSysConst_EdramRTKeepMask_Vec + (i >> 1)));
     uint32_t keep_mask_component = (i & 1) * 2;
+    uint32_t keep_mask_swizzle = keep_mask_component * 0b0101 + 0b0100;
 
     // Check if color writing is disabled - special keep mask constant case,
     // both 32bpp parts are forced UINT32_MAX, but also check whether the shader
     // has written anything to this target at all.
 
     // Combine both parts of the keep mask to check if both are 0xFFFFFFFF.
+    // temp.x = whether all bits need to be kept.
     system_constants_used_ |= 1ull << kSysConst_EdramRTKeepMask_Index;
     DxbcOpAnd(temp_x_dest, keep_mask_vec_src.Select(keep_mask_component),
               keep_mask_vec_src.Select(keep_mask_component + 1));
     // Flip the bits so both UINT32_MAX would result in 0 - not writing.
+    // temp.x = whether any bits need to be written.
     DxbcOpNot(temp_x_dest, temp_x_src);
     // Get the bits that will be used for checking wherther the render target
     // has been written to on the taken execution path - if the write mask is
     // empty, AND zero with the test bit to always get zero.
+    // temp.x = bits for checking whether the render target has been written to.
     DxbcOpMovC(temp_x_dest, temp_x_src,
                DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
                DxbcSrc::LU(0));
     // Check if the render target was written to on the execution path.
+    // temp.x = whether anything was written and needs to be stored.
     DxbcOpAnd(temp_x_dest, temp_x_src, DxbcSrc::LU(1 << (8 + i)));
     // Check if need to write anything to the render target.
+    // temp.x = free.
     DxbcOpIf(true, temp_x_src);
 
     // Apply the exponent bias after alpha to coverage because it needs the
@@ -1724,19 +1739,21 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                            kSysConst_EdramRTBaseDwordsScaled_Vec)
                    .Select(i));
 
+    DxbcSrc rt_blend_factors_ops_src(
+        DxbcSrc::CB(cbuffer_index_system_constants_,
+                    uint32_t(CbufferRegister::kSystemConstants),
+                    kSysConst_EdramRTBlendFactorsOps_Vec)
+            .Select(i));
     DxbcSrc rt_clamp_vec_src(
         DxbcSrc::CB(cbuffer_index_system_constants_,
                     uint32_t(CbufferRegister::kSystemConstants),
                     kSysConst_EdramRTClamp_Vec + i));
     // Get if not blending to pack the color once for all 4 samples.
+    // temp.x = whether blending is disabled.
     system_constants_used_ |= 1ull << kSysConst_EdramRTBlendFactorsOps_Index;
-    DxbcOpIEq(temp_x_dest,
-              DxbcSrc::CB(cbuffer_index_system_constants_,
-                          uint32_t(CbufferRegister::kSystemConstants),
-                          kSysConst_EdramRTBlendFactorsOps_Vec)
-                  .Select(i),
-              DxbcSrc::LU(0x00010001));
+    DxbcOpIEq(temp_x_dest, rt_blend_factors_ops_src, DxbcSrc::LU(0x00010001));
     // Check if not blending.
+    // temp.x = free.
     DxbcOpIf(true, temp_x_src);
     {
       // Clamp the color to the render target's representable range - will be
@@ -1749,13 +1766,15 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                 DxbcSrc::R(system_temps_color_[i]),
                 rt_clamp_vec_src.Swizzle(0b11101010));
       // Pack the color once if blending.
-      ROV_PackPreClampedColor(i, system_temps_color_[i],
-                              system_temps_subroutine_, 0, temp, 0, temp, 1);
+      // temp.xy = packed color.
+      ROV_PackPreClampedColor(i, system_temps_color_[i], temp, 0, temp, 2, temp,
+                              3);
     }
     // Blending is enabled.
     DxbcOpElse();
     {
       // Get if the blending source color is fixed-point for clamping if it is.
+      // temp.x = whether color is fixed-point.
       system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
       DxbcOpAnd(temp_x_dest,
                 DxbcSrc::CB(cbuffer_index_system_constants_,
@@ -1764,6 +1783,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                     .Select(i),
                 DxbcSrc::LU(kRTFormatFlag_FixedPointColor));
       // Check if the blending source color is fixed-point and needs clamping.
+      // temp.x = free.
       DxbcOpIf(true, temp_x_src);
       {
         // Clamp the blending source color if needed.
@@ -1779,6 +1799,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       DxbcOpEndIf();
 
       // Get if the blending source alpha is fixed-point for clamping if it is.
+      // temp.x = whether alpha is fixed-point.
       system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
       DxbcOpAnd(temp_x_dest,
                 DxbcSrc::CB(cbuffer_index_system_constants_,
@@ -1787,6 +1808,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                     .Select(i),
                 DxbcSrc::LU(kRTFormatFlag_FixedPointAlpha));
       // Check if the blending source alpha is fixed-point and needs clamping.
+      // temp.x = free.
       DxbcOpIf(true, temp_x_src);
       {
         // Clamp the blending source alpha if needed.
@@ -1800,19 +1822,712 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       }
       // Close the fixed-point alpha check.
       DxbcOpEndIf();
-      // Break register dependency in the color sample subroutine.
-      DxbcOpMov(DxbcDest::R(system_temps_subroutine_, 0b0011), DxbcSrc::LU(0));
+      // Break register dependency in the color sample raster operation.
+      // temp.xy = 0 instead of packed color.
+      DxbcOpMov(DxbcDest::R(temp, 0b0011), DxbcSrc::LU(0));
     }
     DxbcOpEndIf();
+
+    DxbcSrc rt_format_flags_src(
+        DxbcSrc::CB(cbuffer_index_system_constants_,
+                    uint32_t(CbufferRegister::kSystemConstants),
+                    kSysConst_EdramRTFormatFlags_Vec)
+            .Select(i));
 
     // Blend, mask and write all samples.
     for (uint32_t j = 0; j < 4; ++j) {
       // Get if the sample is covered.
-      DxbcOpAnd(temp_x_dest,
+      // temp.z = whether the sample is covered.
+      DxbcOpAnd(temp_z_dest,
                 DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
                 DxbcSrc::LU(1 << j));
-      // Do ROP for the sample if it's covered.
-      DxbcOpCallC(true, temp_x_src, DxbcSrc::Label(label_rov_color_sample_[i]));
+
+      // Check if the sample is covered.
+      // temp.z = free.
+      DxbcOpIf(true, temp_z_src);
+
+      // Only temp.xy are used at this point (containing the packed color from
+      // the shader if not blending).
+
+      // ***********************************************************************
+      // Color sample raster operation.
+      // ***********************************************************************
+
+      // ***********************************************************************
+      // Checking if color loading must be done - if any component needs to be
+      // kept or if blending is enabled.
+      // ***********************************************************************
+
+      // Get if need to keep any components to temp.z.
+      // temp.z = whether any components must be kept (OR of keep masks).
+      system_constants_used_ |= 1ull << kSysConst_EdramRTKeepMask_Index;
+      DxbcOpOr(temp_z_dest, keep_mask_vec_src.Select(keep_mask_component),
+               keep_mask_vec_src.Select(keep_mask_component + 1));
+      // Blending isn't done if it's 1 * source + 0 * destination. But since the
+      // previous color also needs to be loaded if any original components need
+      // to be kept, force the blend control to something with blending in this
+      // case in temp.z.
+      // temp.z = blending mode used to check if need to load.
+      system_constants_used_ |= 1ull << kSysConst_EdramRTBlendFactorsOps_Index;
+      DxbcOpMovC(temp_z_dest, temp_z_src, DxbcSrc::LU(0),
+                 rt_blend_factors_ops_src);
+      // Get if the blend control register requires loading the color to temp.z.
+      // temp.z = whether need to load the color.
+      DxbcOpINE(temp_z_dest, temp_z_src, DxbcSrc::LU(0x00010001));
+      // Check if need to do something with the previous color.
+      // temp.z = free.
+      DxbcOpIf(true, temp_z_src);
+      {
+        // *********************************************************************
+        // Loading the previous color to temp.zw.
+        // *********************************************************************
+
+        // Get if the format is 64bpp to temp.z.
+        // temp.z = whether the render target is 64bpp.
+        system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
+        DxbcOpAnd(temp_z_dest, rt_format_flags_src,
+                  DxbcSrc::LU(kRTFormatFlag_64bpp));
+        // Check if the format is 64bpp.
+        // temp.z = free.
+        DxbcOpIf(true, temp_z_src);
+        {
+          // Load the lower 32 bits of the 64bpp color to temp.z.
+          // temp.z = lower 32 bits of the packed color.
+          if (uav_index_edram_ == kBindingIndexUnallocated) {
+            uav_index_edram_ = uav_count_++;
+          }
+          DxbcOpLdUAVTyped(
+              temp_z_dest, DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kWWWW),
+              1,
+              DxbcSrc::U(uav_index_edram_, uint32_t(UAVRegister::kEdram),
+                         DxbcSrc::kXXXX));
+          // Get the address of the upper 32 bits of the color to temp.w.
+          // temp.w = address of the upper 32 bits of the packed color.
+          DxbcOpIAdd(temp_w_dest,
+                     DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kWWWW),
+                     DxbcSrc::LU(1));
+          // Load the upper 32 bits of the 64bpp color to temp.w.
+          // temp.zw = packed destination color/alpha.
+          if (uav_index_edram_ == kBindingIndexUnallocated) {
+            uav_index_edram_ = uav_count_++;
+          }
+          DxbcOpLdUAVTyped(
+              temp_w_dest, temp_w_src, 1,
+              DxbcSrc::U(uav_index_edram_, uint32_t(UAVRegister::kEdram),
+                         DxbcSrc::kXXXX));
+        }
+        // The color is 32bpp.
+        DxbcOpElse();
+        {
+          // Load the 32bpp color to temp.z.
+          // temp.z = packed 32bpp destination color.
+          if (uav_index_edram_ == kBindingIndexUnallocated) {
+            uav_index_edram_ = uav_count_++;
+          }
+          DxbcOpLdUAVTyped(
+              temp_z_dest, DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kZZZZ),
+              1,
+              DxbcSrc::U(uav_index_edram_, uint32_t(UAVRegister::kEdram),
+                         DxbcSrc::kXXXX));
+          // Break register dependency in temp.w if the color is 32bpp.
+          // temp.zw = packed destination color/alpha.
+          DxbcOpMov(temp_w_dest, DxbcSrc::LU(0));
+        }
+        // Close the color format check.
+        DxbcOpEndIf();
+
+        uint32_t color_temp = PushSystemTemp();
+        DxbcDest color_temp_rgb_dest(DxbcDest::R(color_temp, 0b0111));
+        DxbcDest color_temp_a_dest(DxbcDest::R(color_temp, 0b1000));
+        DxbcSrc color_temp_src(DxbcSrc::R(color_temp));
+        DxbcSrc color_temp_a_src(DxbcSrc::R(color_temp, DxbcSrc::kWWWW));
+
+        // Get if blending is enabled to color_temp.x.
+        // color_temp.x = whether blending is enabled.
+        system_constants_used_ |= 1ull
+                                  << kSysConst_EdramRTBlendFactorsOps_Index;
+        DxbcOpINE(DxbcDest::R(color_temp, 0b0001), rt_blend_factors_ops_src,
+                  DxbcSrc::LU(0x00010001));
+        // Check if need to blend.
+        // color_temp.x = free.
+        DxbcOpIf(true, DxbcSrc::R(color_temp, DxbcSrc::kXXXX));
+        {
+          // Now, when blending is enabled, temp.xy are used as scratch since
+          // the color is packed after blending.
+
+          // Unpack the destination color to color_temp, using temp.xy as temps.
+          // The destination color never needs clamping because out-of-range
+          // values can't be loaded.
+          // color_temp.xyzw = destination color/alpha.
+          ROV_UnpackColor(i, temp, 2, color_temp, temp, 0, temp, 1);
+
+          // *******************************************************************
+          // Color blending.
+          // *******************************************************************
+
+          // Extract the color min/max bit to temp.x.
+          // temp.x = whether min/max should be used for color.
+          system_constants_used_ |= 1ull
+                                    << kSysConst_EdramRTBlendFactorsOps_Index;
+          DxbcOpAnd(temp_x_dest, rt_blend_factors_ops_src,
+                    DxbcSrc::LU(1 << (5 + 1)));
+          // Check if need to do blend the color with factors.
+          // temp.x = free.
+          DxbcOpIf(false, temp_x_src);
+          {
+            uint32_t blend_src_temp = PushSystemTemp();
+            DxbcDest blend_src_temp_rgb_dest(
+                DxbcDest::R(blend_src_temp, 0b0111));
+            DxbcSrc blend_src_temp_src(DxbcSrc::R(blend_src_temp));
+
+            // Extract the source color factor to temp.x.
+            // temp.x = source color factor index.
+            system_constants_used_ |= 1ull
+                                      << kSysConst_EdramRTBlendFactorsOps_Index;
+            DxbcOpAnd(temp_x_dest, rt_blend_factors_ops_src,
+                      DxbcSrc::LU((1 << 5) - 1));
+            // Check if the source color factor is not zero - if it is, the
+            // source must be ignored completely, and Infinity and NaN in it
+            // shouldn't affect blending.
+            DxbcOpIf(true, temp_x_src);
+            {
+              // Open the switch for choosing the source color blend factor.
+              // temp.x = free.
+              DxbcOpSwitch(temp_x_src);
+              // Write the source color factor to blend_src_temp.xyz.
+              // blend_src_temp.xyz = unclamped source color factor.
+              ROV_HandleColorBlendFactorCases(system_temps_color_[i],
+                                              color_temp, blend_src_temp);
+              // Close the source color factor switch.
+              DxbcOpEndSwitch();
+              // Get if the render target color is fixed-point and the source
+              // color factor needs clamping to temp.x.
+              // temp.x = whether color is fixed-point.
+              system_constants_used_ |= 1ull
+                                        << kSysConst_EdramRTFormatFlags_Index;
+              DxbcOpAnd(temp_x_dest, rt_format_flags_src,
+                        DxbcSrc::LU(kRTFormatFlag_FixedPointColor));
+              // Check if the source color factor needs clamping.
+              DxbcOpIf(true, temp_x_src);
+              {
+                // Clamp the source color factor in blend_src_temp.xyz.
+                // blend_src_temp.xyz = source color factor.
+                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
+                DxbcOpMax(blend_src_temp_rgb_dest, blend_src_temp_src,
+                          rt_clamp_vec_src.Select(0));
+                DxbcOpMin(blend_src_temp_rgb_dest, blend_src_temp_src,
+                          rt_clamp_vec_src.Select(2));
+              }
+              // Close the source color factor clamping check.
+              DxbcOpEndIf();
+              // Apply the factor to the source color.
+              // blend_src_temp.xyz = unclamped source color part without
+              //                      addition sign.
+              DxbcOpMul(blend_src_temp_rgb_dest,
+                        DxbcSrc::R(system_temps_color_[i]), blend_src_temp_src);
+              // Check if the source color part needs clamping after the
+              // multiplication.
+              // temp.x = free.
+              DxbcOpIf(true, temp_x_src);
+              {
+                // Clamp the source color part.
+                // blend_src_temp.xyz = source color part without addition sign.
+                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
+                DxbcOpMax(blend_src_temp_rgb_dest, blend_src_temp_src,
+                          rt_clamp_vec_src.Select(0));
+                DxbcOpMin(blend_src_temp_rgb_dest, blend_src_temp_src,
+                          rt_clamp_vec_src.Select(2));
+              }
+              // Close the source color part clamping check.
+              DxbcOpEndIf();
+              // Extract the source color sign to temp.x.
+              // temp.x = source color sign as zero for 1 and non-zero for -1.
+              system_constants_used_ |=
+                  1ull << kSysConst_EdramRTBlendFactorsOps_Index;
+              DxbcOpAnd(temp_x_dest, rt_blend_factors_ops_src,
+                        DxbcSrc::LU(1 << (5 + 2)));
+              // Apply the source color sign.
+              // blend_src_temp.xyz = source color part.
+              // temp.x = free.
+              DxbcOpMovC(blend_src_temp_rgb_dest, temp_x_src,
+                         -blend_src_temp_src, blend_src_temp_src);
+            }
+            // The source color factor is zero.
+            DxbcOpElse();
+            {
+              // Write zero to the source color part.
+              // blend_src_temp.xyz = source color part.
+              // temp.x = free.
+              DxbcOpMov(blend_src_temp_rgb_dest, DxbcSrc::LF(0.0f));
+            }
+            // Close the source color factor zero check.
+            DxbcOpEndIf();
+
+            // Extract the destination color factor to temp.x.
+            // temp.x = destination color factor index.
+            system_constants_used_ |= 1ull
+                                      << kSysConst_EdramRTBlendFactorsOps_Index;
+            DxbcOpUBFE(temp_x_dest, DxbcSrc::LU(5), DxbcSrc::LU(8),
+                       rt_blend_factors_ops_src);
+            // Check if the destination color factor is not zero.
+            DxbcOpIf(true, temp_x_src);
+            {
+              uint32_t blend_dest_factor_temp = PushSystemTemp();
+              DxbcSrc blend_dest_factor_temp_src(
+                  DxbcSrc::R(blend_dest_factor_temp));
+              // Open the switch for choosing the destination color blend
+              // factor.
+              // temp.x = free.
+              DxbcOpSwitch(temp_x_src);
+              // Write the destination color factor to
+              // blend_dest_factor_temp.xyz.
+              // blend_dest_factor_temp.xyz = unclamped destination color
+              //                              factor.
+              ROV_HandleColorBlendFactorCases(
+                  system_temps_color_[i], color_temp, blend_dest_factor_temp);
+              // Close the destination color factor switch.
+              DxbcOpEndSwitch();
+              // Get if the render target color is fixed-point and the
+              // destination color factor needs clamping to temp.x.
+              // temp.x = whether color is fixed-point.
+              system_constants_used_ |= 1ull
+                                        << kSysConst_EdramRTFormatFlags_Index;
+              DxbcOpAnd(temp_x_dest, rt_format_flags_src,
+                        DxbcSrc::LU(kRTFormatFlag_FixedPointColor));
+              // Check if the destination color factor needs clamping.
+              DxbcOpIf(true, temp_x_src);
+              {
+                // Clamp the destination color factor in
+                // blend_dest_factor_temp.xyz.
+                // blend_dest_factor_temp.xyz = destination color factor.
+                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
+                DxbcOpMax(DxbcDest::R(blend_dest_factor_temp, 0b0111),
+                          blend_dest_factor_temp_src,
+                          rt_clamp_vec_src.Select(0));
+                DxbcOpMin(DxbcDest::R(blend_dest_factor_temp, 0b0111),
+                          blend_dest_factor_temp_src,
+                          rt_clamp_vec_src.Select(2));
+              }
+              // Close the destination color factor clamping check.
+              DxbcOpEndIf();
+              // Apply the factor to the destination color in color_temp.xyz.
+              // color_temp.xyz = unclamped destination color part without
+              //                  addition sign.
+              // blend_dest_temp.xyz = free.
+              DxbcOpMul(color_temp_rgb_dest, color_temp_src,
+                        blend_dest_factor_temp_src);
+              // Release blend_dest_factor_temp.
+              PopSystemTemp();
+              // Check if the destination color part needs clamping after the
+              // multiplication.
+              // temp.x = free.
+              DxbcOpIf(true, temp_x_src);
+              {
+                // Clamp the destination color part.
+                // color_temp.xyz = destination color part without addition
+                // sign.
+                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
+                DxbcOpMax(color_temp_rgb_dest, color_temp_src,
+                          rt_clamp_vec_src.Select(0));
+                DxbcOpMin(color_temp_rgb_dest, color_temp_src,
+                          rt_clamp_vec_src.Select(2));
+              }
+              // Close the destination color part clamping check.
+              DxbcOpEndIf();
+              // Extract the destination color sign to temp.x.
+              // temp.x = destination color sign as zero for 1 and non-zero for
+              //          -1.
+              system_constants_used_ |=
+                  1ull << kSysConst_EdramRTBlendFactorsOps_Index;
+              DxbcOpAnd(temp_x_dest, rt_blend_factors_ops_src,
+                        DxbcSrc::LU(1 << 5));
+              // Select the sign for destination multiply-add as 1.0 or -1.0 to
+              // temp.x.
+              // temp.x = destination color sign as float.
+              DxbcOpMovC(temp_x_dest, temp_x_src, DxbcSrc::LF(-1.0f),
+                         DxbcSrc::LF(1.0f));
+              // Perform color blending to color_temp.xyz.
+              // color_temp.xyz = unclamped blended color.
+              // blend_src_temp.xyz = free.
+              // temp.x = free.
+              DxbcOpMAd(color_temp_rgb_dest, color_temp_src, temp_x_src,
+                        blend_src_temp_src);
+            }
+            // The destination color factor is zero.
+            DxbcOpElse();
+            {
+              // Write the source color part without applying the destination
+              // color.
+              // color_temp.xyz = unclamped blended color.
+              // blend_src_temp.xyz = free.
+              // temp.x = free.
+              DxbcOpMov(color_temp_rgb_dest, blend_src_temp_src);
+            }
+            // Close the destination color factor zero check.
+            DxbcOpEndIf();
+
+            // Release blend_src_temp.
+            PopSystemTemp();
+
+            // Clamp the color in color_temp.xyz before packing.
+            // color_temp.xyz = blended color.
+            system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
+            DxbcOpMax(color_temp_rgb_dest, color_temp_src,
+                      rt_clamp_vec_src.Select(0));
+            DxbcOpMin(color_temp_rgb_dest, color_temp_src,
+                      rt_clamp_vec_src.Select(2));
+          }
+          // Need to do min/max for color.
+          DxbcOpElse();
+          {
+            // Extract the color min (0) or max (1) bit to temp.x
+            // temp.x = whether min or max should be used for color.
+            system_constants_used_ |= 1ull
+                                      << kSysConst_EdramRTBlendFactorsOps_Index;
+            DxbcOpAnd(temp_x_dest, rt_blend_factors_ops_src,
+                      DxbcSrc::LU(1 << 5));
+            // Check if need to do min or max for color.
+            // temp.x = free.
+            DxbcOpIf(true, temp_x_src);
+            {
+              // Choose max of the colors without applying the factors to
+              // color_temp.xyz.
+              // color_temp.xyz = blended color.
+              DxbcOpMax(color_temp_rgb_dest, DxbcSrc::R(system_temps_color_[i]),
+                        color_temp_src);
+            }
+            // Need to do min.
+            DxbcOpElse();
+            {
+              // Choose min of the colors without applying the factors to
+              // color_temp.xyz.
+              // color_temp.xyz = blended color.
+              DxbcOpMin(color_temp_rgb_dest, DxbcSrc::R(system_temps_color_[i]),
+                        color_temp_src);
+            }
+            // Close the min or max check.
+            DxbcOpEndIf();
+          }
+          // Close the color factor blending or min/max check.
+          DxbcOpEndIf();
+
+          // *******************************************************************
+          // Alpha blending.
+          // *******************************************************************
+
+          // Extract the alpha min/max bit to temp.x.
+          // temp.x = whether min/max should be used for alpha.
+          system_constants_used_ |= 1ull
+                                    << kSysConst_EdramRTBlendFactorsOps_Index;
+          DxbcOpAnd(temp_x_dest, rt_blend_factors_ops_src,
+                    DxbcSrc::LU(1 << (21 + 1)));
+          // Check if need to do blend the color with factors.
+          // temp.x = free.
+          DxbcOpIf(false, temp_x_src);
+          {
+            // Extract the source alpha factor to temp.x.
+            // temp.x = source alpha factor index.
+            system_constants_used_ |= 1ull
+                                      << kSysConst_EdramRTBlendFactorsOps_Index;
+            DxbcOpUBFE(temp_x_dest, DxbcSrc::LU(5), DxbcSrc::LU(16),
+                       rt_blend_factors_ops_src);
+            // Check if the source alpha factor is not zero.
+            DxbcOpIf(true, temp_x_src);
+            {
+              // Open the switch for choosing the source alpha blend factor.
+              // temp.x = free.
+              DxbcOpSwitch(temp_x_src);
+              // Write the source alpha factor to temp.x.
+              // temp.x = unclamped source alpha factor.
+              ROV_HandleAlphaBlendFactorCases(system_temps_color_[i],
+                                              color_temp, temp, 0);
+              // Close the source alpha factor switch.
+              DxbcOpEndSwitch();
+              // Get if the render target alpha is fixed-point and the source
+              // alpha factor needs clamping to temp.y.
+              // temp.y = whether alpha is fixed-point.
+              system_constants_used_ |= 1ull
+                                        << kSysConst_EdramRTFormatFlags_Index;
+              DxbcOpAnd(temp_y_dest, rt_format_flags_src,
+                        DxbcSrc::LU(kRTFormatFlag_FixedPointAlpha));
+              // Check if the source alpha factor needs clamping.
+              DxbcOpIf(true, temp_y_src);
+              {
+                // Clamp the source alpha factor in temp.x.
+                // temp.x = source alpha factor.
+                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
+                DxbcOpMax(temp_x_dest, temp_x_src, rt_clamp_vec_src.Select(1));
+                DxbcOpMin(temp_x_dest, temp_x_src, rt_clamp_vec_src.Select(3));
+              }
+              // Close the source alpha factor clamping check.
+              DxbcOpEndIf();
+              // Apply the factor to the source alpha.
+              // temp.x = unclamped source alpha part without addition sign.
+              DxbcOpMul(temp_x_dest,
+                        DxbcSrc::R(system_temps_color_[i], DxbcSrc::kWWWW),
+                        temp_x_src);
+              // Check if the source alpha part needs clamping after the
+              // multiplication.
+              // temp.y = free.
+              DxbcOpIf(true, temp_y_src);
+              {
+                // Clamp the source alpha part.
+                // temp.x = source alpha part without addition sign.
+                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
+                DxbcOpMax(temp_x_dest, temp_x_src, rt_clamp_vec_src.Select(1));
+                DxbcOpMin(temp_x_dest, temp_x_src, rt_clamp_vec_src.Select(3));
+              }
+              // Close the source alpha part clamping check.
+              DxbcOpEndIf();
+              // Extract the source alpha sign to temp.y.
+              // temp.y = source alpha sign as zero for 1 and non-zero for -1.
+              system_constants_used_ |=
+                  1ull << kSysConst_EdramRTBlendFactorsOps_Index;
+              DxbcOpAnd(temp_y_dest, rt_blend_factors_ops_src,
+                        DxbcSrc::LU(1 << (21 + 2)));
+              // Apply the source alpha sign.
+              // temp.x = source alpha part.
+              DxbcOpMovC(temp_x_dest, temp_y_src, -temp_x_src, temp_x_src);
+            }
+            // The source alpha factor is zero.
+            DxbcOpElse();
+            {
+              // Write zero to the source alpha part.
+              // temp.x = source alpha part.
+              DxbcOpMov(temp_x_dest, DxbcSrc::LF(0.0f));
+            }
+            // Close the source alpha factor zero check.
+            DxbcOpEndIf();
+
+            // Extract the destination alpha factor to temp.y.
+            // temp.y = destination alpha factor index.
+            system_constants_used_ |= 1ull
+                                      << kSysConst_EdramRTBlendFactorsOps_Index;
+            DxbcOpUBFE(temp_y_dest, DxbcSrc::LU(5), DxbcSrc::LU(24),
+                       rt_blend_factors_ops_src);
+            // Check if the destination alpha factor is not zero.
+            DxbcOpIf(true, temp_y_src);
+            {
+              // Open the switch for choosing the destination alpha blend
+              // factor.
+              // temp.y = free.
+              DxbcOpSwitch(temp_y_src);
+              // Write the destination alpha factor to temp.y.
+              // temp.y = unclamped destination alpha factor.
+              ROV_HandleAlphaBlendFactorCases(system_temps_color_[i],
+                                              color_temp, temp, 1);
+              // Close the destination alpha factor switch.
+              DxbcOpEndSwitch();
+              // Get if the render target alpha is fixed-point and the
+              // destination alpha factor needs clamping.
+              // alpha_is_fixed_temp.x = whether alpha is fixed-point.
+              uint32_t alpha_is_fixed_temp = PushSystemTemp();
+              system_constants_used_ |= 1ull
+                                        << kSysConst_EdramRTFormatFlags_Index;
+              DxbcOpAnd(DxbcDest::R(alpha_is_fixed_temp, 0b0001),
+                        rt_format_flags_src,
+                        DxbcSrc::LU(kRTFormatFlag_FixedPointAlpha));
+              // Check if the destination alpha factor needs clamping.
+              DxbcOpIf(true, DxbcSrc::R(alpha_is_fixed_temp, DxbcSrc::kXXXX));
+              {
+                // Clamp the destination alpha factor in temp.y.
+                // temp.y = destination alpha factor.
+                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
+                DxbcOpMax(temp_y_dest, temp_y_src, rt_clamp_vec_src.Select(1));
+                DxbcOpMin(temp_y_dest, temp_y_src, rt_clamp_vec_src.Select(3));
+              }
+              // Close the destination alpha factor clamping check.
+              DxbcOpEndIf();
+              // Apply the factor to the destination alpha in color_temp.w.
+              // color_temp.w = unclamped destination alpha part without
+              //                addition sign.
+              DxbcOpMul(color_temp_a_dest, color_temp_a_src, temp_y_src);
+              // Check if the destination alpha part needs clamping after the
+              // multiplication.
+              // alpha_is_fixed_temp.x = free.
+              DxbcOpIf(true, DxbcSrc::R(alpha_is_fixed_temp, DxbcSrc::kXXXX));
+              // Release alpha_is_fixed_temp.
+              PopSystemTemp();
+              {
+                // Clamp the destination alpha part.
+                // color_temp.w = destination alpha part without addition sign.
+                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
+                DxbcOpMax(color_temp_a_dest, color_temp_a_src,
+                          rt_clamp_vec_src.Select(1));
+                DxbcOpMin(color_temp_a_dest, color_temp_a_src,
+                          rt_clamp_vec_src.Select(3));
+              }
+              // Close the destination alpha factor clamping check.
+              DxbcOpEndIf();
+              // Extract the destination alpha sign to temp.y.
+              // temp.y = destination alpha sign as zero for 1 and non-zero for
+              //          -1.
+              system_constants_used_ |=
+                  1ull << kSysConst_EdramRTBlendFactorsOps_Index;
+              DxbcOpAnd(temp_y_dest, rt_blend_factors_ops_src,
+                        DxbcSrc::LU(1 << 21));
+              // Select the sign for destination multiply-add as 1.0 or -1.0 to
+              // temp.y.
+              // temp.y = destination alpha sign as float.
+              DxbcOpMovC(temp_y_dest, temp_y_src, DxbcSrc::LF(-1.0f),
+                         DxbcSrc::LF(1.0f));
+              // Perform alpha blending to color_temp.w.
+              // color_temp.w = unclamped blended alpha.
+              // temp.xy = free.
+              DxbcOpMAd(color_temp_a_dest, color_temp_a_src, temp_y_src,
+                        temp_x_src);
+            }
+            // The destination alpha factor is zero.
+            DxbcOpElse();
+            {
+              // Write the source alpha part without applying the destination
+              // alpha.
+              // color_temp.w = unclamped blended alpha.
+              // temp.xy = free.
+              DxbcOpMov(color_temp_a_dest, temp_x_src);
+            }
+            // Close the destination alpha factor zero check.
+            DxbcOpEndIf();
+
+            // Clamp the alpha in color_temp.w before packing.
+            // color_temp.w = blended alpha.
+            system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
+            DxbcOpMax(color_temp_a_dest, color_temp_a_src,
+                      rt_clamp_vec_src.Select(1));
+            DxbcOpMin(color_temp_a_dest, color_temp_a_src,
+                      rt_clamp_vec_src.Select(3));
+          }
+          // Need to do min/max for alpha.
+          DxbcOpElse();
+          {
+            // Extract the alpha min (0) or max (1) bit to temp.x.
+            // temp.x = whether min or max should be used for alpha.
+            system_constants_used_ |= 1ull
+                                      << kSysConst_EdramRTBlendFactorsOps_Index;
+            DxbcOpAnd(temp_x_dest, rt_blend_factors_ops_src,
+                      DxbcSrc::LU(1 << 21));
+            // Check if need to do min or max for alpha.
+            // temp.x = free.
+            DxbcOpIf(true, temp_x_src);
+            {
+              // Choose max of the alphas without applying the factors to
+              // color_temp.w.
+              // color_temp.w = blended alpha.
+              DxbcOpMax(color_temp_a_dest,
+                        DxbcSrc::R(system_temps_color_[i], DxbcSrc::kWWWW),
+                        color_temp_a_src);
+            }
+            // Need to do min.
+            DxbcOpElse();
+            {
+              // Choose min of the alphas without applying the factors to
+              // color_temp.w.
+              // color_temp.w = blended alpha.
+              DxbcOpMin(color_temp_a_dest,
+                        DxbcSrc::R(system_temps_color_[i], DxbcSrc::kWWWW),
+                        color_temp_a_src);
+            }
+            // Close the min or max check.
+            DxbcOpEndIf();
+          }
+          // Close the alpha factor blending or min/max check.
+          DxbcOpEndIf();
+
+          // Pack the new color/alpha to temp.xy.
+          // temp.xy = packed new color/alpha.
+          uint32_t color_pack_temp = PushSystemTemp();
+          ROV_PackPreClampedColor(i, color_temp, temp, 0, color_pack_temp, 0,
+                                  color_pack_temp, 1);
+          // Release color_pack_temp.
+          PopSystemTemp();
+        }
+        // Close the blending check.
+        DxbcOpEndIf();
+
+        // *********************************************************************
+        // Write mask application
+        // *********************************************************************
+
+        // Apply the keep mask to the previous packed color/alpha in temp.zw.
+        // temp.zw = masked packed old color/alpha.
+        system_constants_used_ |= 1ull << kSysConst_EdramRTKeepMask_Index;
+        DxbcOpAnd(DxbcDest::R(temp, 0b1100), DxbcSrc::R(temp),
+                  keep_mask_vec_src.Swizzle(keep_mask_swizzle << 4));
+        // Invert the keep mask into color_temp.xy.
+        // color_temp.xy = inverted keep mask (write mask).
+        system_constants_used_ |= 1ull << kSysConst_EdramRTKeepMask_Index;
+        DxbcOpNot(DxbcDest::R(color_temp, 0b0011),
+                  keep_mask_vec_src.Swizzle(keep_mask_swizzle));
+        // Release color_temp.
+        PopSystemTemp();
+        // Apply the write mask to the new color/alpha in temp.xy.
+        // temp.xy = masked packed new color/alpha.
+        DxbcOpAnd(DxbcDest::R(temp, 0b0011), DxbcSrc::R(temp),
+                  DxbcSrc::R(color_temp));
+        // Combine the masked colors into temp.xy.
+        // temp.xy = packed resulting color/alpha.
+        // temp.zw = free.
+        DxbcOpOr(DxbcDest::R(temp, 0b0011), DxbcSrc::R(temp),
+                 DxbcSrc::R(temp, 0b1110));
+      }
+      // Close the previous color load check.
+      DxbcOpEndIf();
+
+      // ***********************************************************************
+      // Writing the color
+      // ***********************************************************************
+
+      // Get if the format is 64bpp to temp.z.
+      // temp.z = whether the render target is 64bpp.
+      system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
+      DxbcOpAnd(temp_z_dest, rt_format_flags_src,
+                DxbcSrc::LU(kRTFormatFlag_64bpp));
+      // Check if the format is 64bpp.
+      // temp.z = free.
+      DxbcOpIf(true, temp_z_src);
+      {
+        // Store the lower 32 bits of the 64bpp color.
+        if (uav_index_edram_ == kBindingIndexUnallocated) {
+          uav_index_edram_ = uav_count_++;
+        }
+        DxbcOpStoreUAVTyped(
+            DxbcDest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
+            DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kWWWW), 1, temp_x_src);
+        // Get the address of the upper 32 bits of the color to temp.z (can't
+        // use temp.x because components when not blending, packing is done once
+        // for all samples, so it has to be preserved).
+        DxbcOpIAdd(temp_z_dest,
+                   DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kWWWW),
+                   DxbcSrc::LU(1));
+        // Store the upper 32 bits of the 64bpp color.
+        if (uav_index_edram_ == kBindingIndexUnallocated) {
+          uav_index_edram_ = uav_count_++;
+        }
+        DxbcOpStoreUAVTyped(
+            DxbcDest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
+            temp_z_src, 1, temp_y_src);
+      }
+      // The color is 32bpp.
+      DxbcOpElse();
+      {
+        // Store the 32bpp color.
+        if (uav_index_edram_ == kBindingIndexUnallocated) {
+          uav_index_edram_ = uav_count_++;
+        }
+        DxbcOpStoreUAVTyped(
+            DxbcDest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
+            DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kZZZZ), 1, temp_x_src);
+      }
+      // Close the 64bpp/32bpp conditional.
+      DxbcOpEndIf();
+
+      // ***********************************************************************
+      // End of color sample raster operation.
+      // ***********************************************************************
+
+      // Close the sample covered check.
+      DxbcOpEndIf();
+
       // Go to the next sample (samples are at +0, +80, +1, +81, so need to do
       // +80, -79, +80 and -81 after each sample).
       system_constants_used_ |= 1ull
@@ -2500,910 +3215,6 @@ void DxbcShaderTranslator::
   }
   // Close the write check.
   DxbcOpEndIf();
-  // End the subroutine.
-  DxbcOpRet();
-}
-
-void DxbcShaderTranslator::CompleteShaderCode_ROV_ColorSampleSubroutine(
-    uint32_t rt_index) {
-  DxbcOpLabel(DxbcSrc::Label(label_rov_color_sample_[rt_index]));
-
-  DxbcSrc keep_mask_vec_src(
-      DxbcSrc::CB(cbuffer_index_system_constants_,
-                  uint32_t(CbufferRegister::kSystemConstants),
-                  kSysConst_EdramRTKeepMask_Vec + (rt_index >> 1)));
-  uint32_t keep_mask_component = (rt_index & 1) * 2;
-  uint32_t keep_mask_swizzle = (rt_index & 1) ? 0b1110 : 0b0100;
-
-  DxbcSrc rt_format_flags_src(
-      DxbcSrc::CB(cbuffer_index_system_constants_,
-                  uint32_t(CbufferRegister::kSystemConstants),
-                  kSysConst_EdramRTFormatFlags_Vec)
-          .Select(rt_index));
-  DxbcSrc rt_clamp_vec_src(
-      DxbcSrc::CB(cbuffer_index_system_constants_,
-                  uint32_t(CbufferRegister::kSystemConstants),
-                  kSysConst_EdramRTClamp_Vec + rt_index));
-  DxbcSrc rt_blend_factors_ops_src(
-      DxbcSrc::CB(cbuffer_index_system_constants_,
-                  uint32_t(CbufferRegister::kSystemConstants),
-                  kSysConst_EdramRTBlendFactorsOps_Vec)
-          .Select(rt_index));
-
-  // ***************************************************************************
-  // Checking if color loading must be done - if any component needs to be kept
-  // or if blending is enabled.
-  // ***************************************************************************
-
-  // Check if need to keep any components to SGPR [0].z.
-  // VGPRs [0].xy - packed source color/alpha if not blending.
-  // SGPR [0].z - whether any components must be kept (OR of keep masks).
-  system_constants_used_ |= 1ull << kSysConst_EdramRTKeepMask_Index;
-  DxbcOpOr(DxbcDest::R(system_temps_subroutine_, 0b0100),
-           keep_mask_vec_src.Select(keep_mask_component),
-           keep_mask_vec_src.Select(keep_mask_component + 1));
-  // Blending isn't done if it's 1 * source + 0 * destination. But since the
-  // previous color also needs to be loaded if any original components need to
-  // be kept, force the blend control to something with blending in this case
-  // in SGPR [0].z.
-  // VGPRs [0].xy - packed source color/alpha if not blending.
-  // SGPR [0].z - blending mode used to check if need to load.
-  system_constants_used_ |= 1ull << kSysConst_EdramRTBlendFactorsOps_Index;
-  DxbcOpMovC(DxbcDest::R(system_temps_subroutine_, 0b0100),
-             DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kZZZZ),
-             DxbcSrc::LU(0), rt_blend_factors_ops_src);
-  // Get if the blend control requires loading the color to SGPR [0].z.
-  // VGPRs [0].xy - packed source color/alpha if not blending.
-  // SGPR [0].z - whether need to load the color.
-  DxbcOpINE(DxbcDest::R(system_temps_subroutine_, 0b0100),
-            DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kZZZZ),
-            DxbcSrc::LU(0x00010001));
-  // Check if need to do something with the previous color.
-  // VGPRs [0].xy - packed source color/alpha if not blending.
-  DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kZZZZ));
-  {
-    // *************************************************************************
-    // Loading the previous color to SGPR [0].zw.
-    // *************************************************************************
-
-    // Get if the format is 64bpp to SGPR [0].z.
-    // VGPRs [0].xy - packed source color/alpha if not blending.
-    // SGPR [0].z - whether the render target is 64bpp.
-    system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
-    DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0100),
-              rt_format_flags_src, DxbcSrc::LU(kRTFormatFlag_64bpp));
-    // Check if the format is 64bpp.
-    // VGPRs [0].xy - packed source color/alpha if not blending.
-    DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kZZZZ));
-    {
-      // Load the lower 32 bits of the 64bpp color to VGPR [0].z.
-      // VGPRs [0].xy - packed source color/alpha if not blending.
-      // VGPR [0].z - lower 32 bits of the packed color.
-      if (uav_index_edram_ == kBindingIndexUnallocated) {
-        uav_index_edram_ = uav_count_++;
-      }
-      DxbcOpLdUAVTyped(
-          DxbcDest::R(system_temps_subroutine_, 0b0100),
-          DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kWWWW), 1,
-          DxbcSrc::U(uav_index_edram_, uint32_t(UAVRegister::kEdram),
-                     DxbcSrc::kXXXX));
-      // Get the address of the upper 32 bits of the color to VGPR [0].w.
-      // VGPRs [0].xy - packed source color/alpha if not blending.
-      // VGPR [0].z - lower 32 bits of the packed color.
-      // VGPR [0].w - address of the upper 32 bits of the packed color.
-      DxbcOpIAdd(DxbcDest::R(system_temps_subroutine_, 0b1000),
-                 DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kWWWW),
-                 DxbcSrc::LU(1));
-      // Load the upper 32 bits of the 64bpp color to VGPR [0].w.
-      // VGPRs [0].xy - packed source color/alpha if not blending.
-      // VGPRs [0].zw - packed destination color/alpha.
-      if (uav_index_edram_ == kBindingIndexUnallocated) {
-        uav_index_edram_ = uav_count_++;
-      }
-      DxbcOpLdUAVTyped(
-          DxbcDest::R(system_temps_subroutine_, 0b1000),
-          DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kWWWW), 1,
-          DxbcSrc::U(uav_index_edram_, uint32_t(UAVRegister::kEdram),
-                     DxbcSrc::kXXXX));
-    }
-    // The color is 32bpp.
-    DxbcOpElse();
-    {
-      // Load the 32bpp color to VGPR [0].z.
-      // VGPRs [0].xy - packed source color/alpha if not blending.
-      // VGPR [0].z - packed 32bpp destination color.
-      if (uav_index_edram_ == kBindingIndexUnallocated) {
-        uav_index_edram_ = uav_count_++;
-      }
-      DxbcOpLdUAVTyped(
-          DxbcDest::R(system_temps_subroutine_, 0b0100),
-          DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kZZZZ), 1,
-          DxbcSrc::U(uav_index_edram_, uint32_t(UAVRegister::kEdram),
-                     DxbcSrc::kXXXX));
-      // Break register dependency in VGPR [0].w if the color is 32bpp.
-      // VGPRs [0].xy - packed source color/alpha if not blending.
-      // VGPRs [0].zw - packed destination color/alpha.
-      DxbcOpMov(DxbcDest::R(system_temps_subroutine_, 0b1000), DxbcSrc::LU(0));
-    }
-    // Close the color format check.
-    DxbcOpEndIf();
-
-    // Get if blending is enabled to SGPR [1].x.
-    // VGPRs [0].xy - packed source color/alpha if not blending.
-    // VGPRs [0].zw - packed destination color/alpha.
-    // SGPR [1].x - whether blending is enabled.
-    system_constants_used_ |= 1ull << kSysConst_EdramRTBlendFactorsOps_Index;
-    DxbcOpINE(DxbcDest::R(system_temps_subroutine_ + 1, 0b0001),
-              rt_blend_factors_ops_src, DxbcSrc::LU(0x00010001));
-    // Check if need to blend.
-    // VGPRs [0].xy - packed source color/alpha if not blending.
-    // VGPRs [0].zw - packed destination color/alpha.
-    DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_ + 1, DxbcSrc::kXXXX));
-    {
-      // Now, when blending is enabled, registers [0].xy are used as scratch.
-
-      // Unpack the destination color to VGPRs [1].xyzw, using [0].xy as temps.
-      // The destination color never needs clamping because out-of-range values
-      // can't be loaded.
-      // VGPRs [0].zw - packed destination color/alpha.
-      // VGPRs [1].xyzw - destination color/alpha.
-      ROV_UnpackColor(rt_index, system_temps_subroutine_, 2,
-                      system_temps_subroutine_ + 1, system_temps_subroutine_, 0,
-                      system_temps_subroutine_, 1);
-
-      // ***********************************************************************
-      // Color blending.
-      // ***********************************************************************
-
-      // Extract the color min/max bit to SGPR [0].x.
-      // SGPR [0].x - whether min/max should be used for color.
-      // VGPRs [0].zw - packed destination color/alpha.
-      // VGPRs [1].xyzw - destination color/alpha.
-      system_constants_used_ |= 1ull << kSysConst_EdramRTBlendFactorsOps_Index;
-      DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                rt_blend_factors_ops_src, DxbcSrc::LU(1 << (5 + 1)));
-      // Check if need to do min/max for color.
-      // VGPRs [0].zw - packed destination color/alpha.
-      // VGPRs [1].xyzw - destination color/alpha.
-      DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-      {
-        // Extract the color min (0) or max (1) bit to SGPR [0].x.
-        // SGPR [0].x - whether min or max should be used for color.
-        // VGPRs [0].zw - packed destination color/alpha.
-        // VGPRs [1].xyzw - destination color/alpha.
-        system_constants_used_ |= 1ull
-                                  << kSysConst_EdramRTBlendFactorsOps_Index;
-        DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                  rt_blend_factors_ops_src, DxbcSrc::LU(1 << 5));
-        // Check if need to do min or max for color.
-        // VGPRs [0].zw - packed destination color/alpha.
-        // VGPRs [1].xyzw - destination color/alpha.
-        DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-        {
-          // Do max of the colors without applying the factors to VGPRs [1].xyz.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyzw - blended color, destination alpha.
-          DxbcOpMax(DxbcDest::R(system_temps_subroutine_ + 1, 0b0111),
-                    DxbcSrc::R(system_temps_color_[rt_index]),
-                    DxbcSrc::R(system_temps_subroutine_ + 1));
-        }
-        // Need to do min.
-        DxbcOpElse();
-        {
-          // Do min of the colors without applying the factors to VGPRs [1].xyz.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyzw - blended color, destination alpha.
-          DxbcOpMin(DxbcDest::R(system_temps_subroutine_ + 1, 0b0111),
-                    DxbcSrc::R(system_temps_color_[rt_index]),
-                    DxbcSrc::R(system_temps_subroutine_ + 1));
-        }
-        // Close the min or max check.
-        DxbcOpEndIf();
-      }
-      // Need to do blend colors with the factors.
-      DxbcOpElse();
-      {
-        // Extract the source color factor to SGPR [0].x.
-        // SGPR [0].x - source color factor index.
-        // VGPRs [0].zw - packed destination color/alpha.
-        // VGPRs [1].xyzw - destination color/alpha.
-        system_constants_used_ |= 1ull
-                                  << kSysConst_EdramRTBlendFactorsOps_Index;
-        DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                  rt_blend_factors_ops_src, DxbcSrc::LU((1 << 5) - 1));
-        // Check if the source color factor is not zero - if it is, the source
-        // must be ignored completely, and Infinity and NaN in it shouldn't
-        // affect blending.
-        DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-        {
-          // Open the switch for choosing the source color blend factor.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyzw - destination color/alpha.
-          DxbcOpSwitch(DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-          {
-            // Write the source color factor to VGPRs [2].xyz.
-            // VGPRs [0].zw - packed destination color/alpha.
-            // VGPRs [1].xyzw - destination color/alpha.
-            // VGPRs [2].xyz - unclamped source color factor.
-            ROV_HandleColorBlendFactorCases(system_temps_color_[rt_index],
-                                            system_temps_subroutine_ + 1,
-                                            system_temps_subroutine_ + 2);
-          }
-          // Close the source color factor switch.
-          DxbcOpEndSwitch();
-          // Get if the render target color is fixed-point and the source color
-          // factor needs clamping to SGPR [0].x.
-          // SGPR [0].x - whether color is fixed-point.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyzw - destination color/alpha.
-          // VGPRs [2].xyz - unclamped source color factor.
-          system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
-          DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                    rt_format_flags_src,
-                    DxbcSrc::LU(kRTFormatFlag_FixedPointColor));
-          // Check if the source color factor needs clamping.
-          DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-          {
-            // Clamp the source color factor in VGPRs [2].xyz.
-            // SGPR [0].x - whether color is fixed-point.
-            // VGPRs [0].zw - packed destination color/alpha.
-            // VGPRs [1].xyzw - destination color/alpha.
-            // VGPRs [2].xyz - source color factor.
-            system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
-            DxbcOpMax(DxbcDest::R(system_temps_subroutine_ + 2, 0b0111),
-                      DxbcSrc::R(system_temps_subroutine_ + 2),
-                      rt_clamp_vec_src.Select(0));
-            DxbcOpMin(DxbcDest::R(system_temps_subroutine_ + 2, 0b0111),
-                      DxbcSrc::R(system_temps_subroutine_ + 2),
-                      rt_clamp_vec_src.Select(2));
-          }
-          // Close the source color factor clamping check.
-          DxbcOpEndIf();
-          // Apply the factor to the source color.
-          // SGPR [0].x - whether color is fixed-point.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyzw - destination color/alpha.
-          // VGPRs [2].xyz - unclamped source color part without addition sign.
-          DxbcOpMul(DxbcDest::R(system_temps_subroutine_ + 2, 0b0111),
-                    DxbcSrc::R(system_temps_color_[rt_index]),
-                    DxbcSrc::R(system_temps_subroutine_ + 2));
-          // Check if the source color part needs clamping after the
-          // multiplication.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyzw - destination color/alpha.
-          // VGPRs [2].xyz - unclamped source color part without addition sign.
-          DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-          {
-            // Clamp the source color part.
-            // VGPRs [0].zw - packed destination color/alpha.
-            // VGPRs [1].xyzw - destination color/alpha.
-            // VGPRs [2].xyz - source color part without addition sign.
-            system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
-            DxbcOpMax(DxbcDest::R(system_temps_subroutine_ + 2, 0b0111),
-                      DxbcSrc::R(system_temps_subroutine_ + 2),
-                      rt_clamp_vec_src.Select(0));
-            DxbcOpMin(DxbcDest::R(system_temps_subroutine_ + 2, 0b0111),
-                      DxbcSrc::R(system_temps_subroutine_ + 2),
-                      rt_clamp_vec_src.Select(2));
-          }
-          // Close the source color part clamping check.
-          DxbcOpEndIf();
-          // Extract the source color sign to SGPR [0].x.
-          // SGPR [0].x - source color sign as zero for 1 and non-zero for -1.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyzw - destination color/alpha.
-          // VGPRs [2].xyz - source color part without addition sign.
-          system_constants_used_ |= 1ull
-                                    << kSysConst_EdramRTBlendFactorsOps_Index;
-          DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                    rt_blend_factors_ops_src, DxbcSrc::LU(1 << (5 + 2)));
-          // Apply the source color sign.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyzw - destination color/alpha.
-          // VGPRs [2].xyz - source color part.
-          DxbcOpMovC(DxbcDest::R(system_temps_subroutine_ + 2, 0b0111),
-                     DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
-                     -DxbcSrc::R(system_temps_subroutine_ + 2),
-                     DxbcSrc::R(system_temps_subroutine_ + 2));
-        }
-        // The source color factor is zero.
-        DxbcOpElse();
-        {
-          // Write zero to the source color part.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyzw - destination color/alpha.
-          // VGPRs [2].xyz - source color part.
-          DxbcOpMov(DxbcDest::R(system_temps_subroutine_ + 2, 0b0111),
-                    DxbcSrc::LF(0.0f));
-        }
-        // Close the source color factor zero check.
-        DxbcOpEndIf();
-
-        // Extract the destination color factor to SGPR [0].x.
-        // SGPR [0].x - destination color factor index.
-        // VGPRs [0].zw - packed destination color/alpha.
-        // VGPRs [1].xyzw - destination color/alpha.
-        // VGPRs [2].xyz - source color part.
-        system_constants_used_ |= 1ull
-                                  << kSysConst_EdramRTBlendFactorsOps_Index;
-        DxbcOpUBFE(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                   DxbcSrc::LU(5), DxbcSrc::LU(8), rt_blend_factors_ops_src);
-        // Check if the destination color factor is not zero.
-        DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-        {
-          // Open the switch for choosing the destination color blend factor.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyzw - destination color/alpha.
-          // VGPRs [2].xyz - source color part.
-          DxbcOpSwitch(DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-          {
-            // Write the destination color factor to VGPRs [3].xyz.
-            // VGPRs [0].zw - packed destination color/alpha.
-            // VGPRs [1].xyzw - destination color/alpha.
-            // VGPRs [2].xyz - source color part.
-            // VGPRs [3].xyz - unclamped destination color factor.
-            ROV_HandleColorBlendFactorCases(system_temps_color_[rt_index],
-                                            system_temps_subroutine_ + 1,
-                                            system_temps_subroutine_ + 3);
-          }
-          // Close the destination color factor switch.
-          DxbcOpEndSwitch();
-          // Get if the render target color is fixed-point and the destination
-          // color factor needs clamping to SGPR [0].x.
-          // SGPR [0].x - whether color is fixed-point.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyzw - destination color/alpha.
-          // VGPRs [2].xyz - source color part.
-          // VGPRs [3].xyz - unclamped destination color factor.
-          system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
-          DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                    rt_format_flags_src,
-                    DxbcSrc::LU(kRTFormatFlag_FixedPointColor));
-          // Check if the destination color factor needs clamping.
-          DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-          {
-            // Clamp the destination color factor in VGPRs [3].xyz.
-            // SGPR [0].x - whether color is fixed-point.
-            // VGPRs [0].zw - packed destination color/alpha.
-            // VGPRs [1].xyzw - destination color/alpha.
-            // VGPRs [2].xyz - source color part.
-            // VGPRs [3].xyz - destination color factor.
-            system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
-            DxbcOpMax(DxbcDest::R(system_temps_subroutine_ + 3, 0b0111),
-                      DxbcSrc::R(system_temps_subroutine_ + 3),
-                      rt_clamp_vec_src.Select(0));
-            DxbcOpMin(DxbcDest::R(system_temps_subroutine_ + 3, 0b0111),
-                      DxbcSrc::R(system_temps_subroutine_ + 3),
-                      rt_clamp_vec_src.Select(2));
-          }
-          // Close the destination color factor clamping check.
-          DxbcOpEndIf();
-          // Apply the factor to the destination color in VGPRs [1].xyz.
-          // SGPR [0].x - whether color is fixed-point.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - unclamped destination color part without addition
-          //                 sign.
-          // VGPR [1].w - destination alpha.
-          // VGPRs [2].xyz - source color part.
-          DxbcOpMul(DxbcDest::R(system_temps_subroutine_ + 1, 0b0111),
-                    DxbcSrc::R(system_temps_subroutine_ + 1),
-                    DxbcSrc::R(system_temps_subroutine_ + 3));
-          // Check if the destination color part needs clamping after the
-          // multiplication.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - unclamped destination color part without addition
-          //                 sign.
-          // VGPR [1].w - destination alpha.
-          // VGPRs [2].xyz - source color part.
-          DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-          {
-            // Clamp the destination color part.
-            // VGPRs [0].zw - packed destination color/alpha.
-            // VGPRs [1].xyz - destination color part without addition sign.
-            // VGPR [1].w - destination alpha.
-            // VGPRs [2].xyz - source color part.
-            system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
-            DxbcOpMax(DxbcDest::R(system_temps_subroutine_ + 1, 0b0111),
-                      DxbcSrc::R(system_temps_subroutine_ + 1),
-                      rt_clamp_vec_src.Select(0));
-            DxbcOpMin(DxbcDest::R(system_temps_subroutine_ + 1, 0b0111),
-                      DxbcSrc::R(system_temps_subroutine_ + 1),
-                      rt_clamp_vec_src.Select(2));
-          }
-          // Close the destination color part clamping check.
-          DxbcOpEndIf();
-          // Extract the destination color sign to SGPR [0].x.
-          // SGPR [0].x - destination color sign as zero for 1 and non-zero for
-          //              -1.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - destination color part without addition sign.
-          // VGPR [1].w - destination alpha.
-          // VGPRs [2].xyz - source color part.
-          system_constants_used_ |= 1ull
-                                    << kSysConst_EdramRTBlendFactorsOps_Index;
-          DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                    rt_blend_factors_ops_src, DxbcSrc::LU(1 << 5));
-          // Select the sign for destination multiply-add as 1.0 or -1.0 to
-          // SGPR [0].x.
-          // SGPR [0].x - destination color sign as float.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - destination color part without addition sign.
-          // VGPR [1].w - destination alpha.
-          // VGPRs [2].xyz - source color part.
-          DxbcOpMovC(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                     DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
-                     DxbcSrc::LF(-1.0f), DxbcSrc::LF(1.0f));
-          // Perform color blending to VGPRs [1].xyz.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - unclamped blended color.
-          // VGPR [1].w - destination alpha.
-          DxbcOpMAd(DxbcDest::R(system_temps_subroutine_ + 1, 0b0111),
-                    DxbcSrc::R(system_temps_subroutine_ + 1),
-                    DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
-                    DxbcSrc::R(system_temps_subroutine_ + 2));
-        }
-        // The destination color factor is zero.
-        DxbcOpElse();
-        {
-          // Write the source color part without applying the destination color.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - unclamped blended color.
-          // VGPR [1].w - destination alpha.
-          DxbcOpMov(DxbcDest::R(system_temps_subroutine_ + 1, 0b0111),
-                    DxbcSrc::R(system_temps_subroutine_ + 2));
-        }
-        // Close the destination color factor zero check.
-        DxbcOpEndIf();
-
-        // Clamp the color in VGPRs [1].xyz before packing.
-        // VGPRs [0].zw - packed destination color/alpha.
-        // VGPRs [1].xyz - blended color.
-        // VGPR [1].w - destination alpha.
-        system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
-        DxbcOpMax(DxbcDest::R(system_temps_subroutine_ + 1, 0b0111),
-                  DxbcSrc::R(system_temps_subroutine_ + 1),
-                  rt_clamp_vec_src.Select(0));
-        DxbcOpMin(DxbcDest::R(system_temps_subroutine_ + 1, 0b0111),
-                  DxbcSrc::R(system_temps_subroutine_ + 1),
-                  rt_clamp_vec_src.Select(2));
-      }
-      // Close the color min/max enabled check.
-      DxbcOpEndIf();
-
-      // ***********************************************************************
-      // Alpha blending.
-      // ***********************************************************************
-
-      // Extract the alpha min/max bit to SGPR [0].x.
-      // SGPR [0].x - whether min/max should be used for alpha.
-      // VGPRs [0].zw - packed destination color/alpha.
-      // VGPRs [1].xyz - blended color.
-      // VGPR [1].w - destination alpha.
-      system_constants_used_ |= 1ull << kSysConst_EdramRTBlendFactorsOps_Index;
-      DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                rt_blend_factors_ops_src, DxbcSrc::LU(1 << (21 + 1)));
-      // Check if need to do min/max for alpha.
-      // VGPRs [0].zw - packed destination color/alpha.
-      // VGPRs [1].xyz - blended color.
-      // VGPR [1].w - destination alpha.
-      DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-      {
-        // Extract the alpha min (0) or max (1) bit to SGPR [0].x.
-        // SGPR [0].x - whether min or max should be used for alpha.
-        // VGPRs [0].zw - packed destination color/alpha.
-        // VGPRs [1].xyz - blended color.
-        // VGPR [1].w - destination alpha.
-        system_constants_used_ |= 1ull
-                                  << kSysConst_EdramRTBlendFactorsOps_Index;
-        DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                  rt_blend_factors_ops_src, DxbcSrc::LU(1 << 21));
-        // Check if need to do min or max for alpha.
-        // VGPRs [0].zw - packed destination color/alpha.
-        // VGPRs [1].xyz - blended color.
-        // VGPR [1].w - destination alpha.
-        DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-        {
-          // Do max of the alphas without applying the factors to VGPRs [1].xyz.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color/alpha.
-          DxbcOpMax(DxbcDest::R(system_temps_subroutine_ + 1, 0b1000),
-                    DxbcSrc::R(system_temps_color_[rt_index], DxbcSrc::kWWWW),
-                    DxbcSrc::R(system_temps_subroutine_ + 1, DxbcSrc::kWWWW));
-        }
-        // Need to do min.
-        DxbcOpElse();
-        {
-          // Do min of the alphas without applying the factors to VGPRs [1].xyz.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color/alpha.
-          DxbcOpMin(DxbcDest::R(system_temps_subroutine_ + 1, 0b1000),
-                    DxbcSrc::R(system_temps_color_[rt_index], DxbcSrc::kWWWW),
-                    DxbcSrc::R(system_temps_subroutine_ + 1, DxbcSrc::kWWWW));
-        }
-        // Close the min or max check.
-        DxbcOpEndIf();
-      }
-      // Need to do blend alphas with the factors.
-      DxbcOpElse();
-      {
-        // Extract the source alpha factor to SGPR [0].x.
-        // SGPR [0].x - source alpha factor index.
-        // VGPRs [0].zw - packed destination color/alpha.
-        // VGPRs [1].xyz - blended color.
-        // VGPR [1].w - destination alpha.
-        system_constants_used_ |= 1ull
-                                  << kSysConst_EdramRTBlendFactorsOps_Index;
-        DxbcOpUBFE(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                   DxbcSrc::LU(5), DxbcSrc::LU(16), rt_blend_factors_ops_src);
-        // Check if the source alpha factor is not zero.
-        DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-        {
-          // Open the switch for choosing the source alpha blend factor.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - destination alpha.
-          DxbcOpSwitch(DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-          {
-            // Write the source alpha factor to VGPR [0].x.
-            // VGPR [0].x - unclamped source alpha factor.
-            // VGPRs [0].zw - packed destination color/alpha.
-            // VGPRs [1].xyz - blended color.
-            // VGPR [1].w - destination alpha.
-            ROV_HandleAlphaBlendFactorCases(system_temps_color_[rt_index],
-                                            system_temps_subroutine_ + 1,
-                                            system_temps_subroutine_, 0);
-          }
-          // Close the source alpha factor switch.
-          DxbcOpEndSwitch();
-          // Get if the render target alpha is fixed-point and the source alpha
-          // factor needs clamping to SGPR [0].y.
-          // VGPR [0].x - unclamped source alpha factor.
-          // SGPR [0].y - whether alpha is fixed-point.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - destination alpha.
-          system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
-          DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0010),
-                    rt_format_flags_src,
-                    DxbcSrc::LU(kRTFormatFlag_FixedPointAlpha));
-          // Check if the source alpha factor needs clamping.
-          DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY));
-          {
-            // Clamp the source alpha factor in VGPR [0].x.
-            // VGPR [0].x - source alpha factor.
-            // SGPR [0].y - whether alpha is fixed-point.
-            // VGPRs [0].zw - packed destination color/alpha.
-            // VGPRs [1].xyz - blended color.
-            // VGPR [1].w - destination alpha.
-            system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
-            DxbcOpMax(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                      DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
-                      rt_clamp_vec_src.Select(1));
-            DxbcOpMin(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                      DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
-                      rt_clamp_vec_src.Select(3));
-          }
-          // Close the source alpha factor clamping check.
-          DxbcOpEndIf();
-          // Apply the factor to the source alpha.
-          // VGPR [0].x - unclamped source alpha part without addition sign.
-          // SGPR [0].y - whether alpha is fixed-point.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - destination alpha.
-          DxbcOpMul(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                    DxbcSrc::R(system_temps_color_[rt_index], DxbcSrc::kWWWW),
-                    DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-          // Check if the source alpha part needs clamping after the
-          // multiplication.
-          // VGPR [0].x - unclamped source alpha part without addition sign.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - destination alpha.
-          DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY));
-          {
-            // Clamp the source alpha part.
-            // VGPR [0].x - source alpha part without addition sign.
-            // VGPRs [0].zw - packed destination color/alpha.
-            // VGPRs [1].xyz - blended color.
-            // VGPR [1].w - destination alpha.
-            system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
-            DxbcOpMax(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                      DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
-                      rt_clamp_vec_src.Select(1));
-            DxbcOpMin(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                      DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
-                      rt_clamp_vec_src.Select(3));
-          }
-          // Close the source alpha part clamping check.
-          DxbcOpEndIf();
-          // Extract the source alpha sign to SGPR [0].y.
-          // VGPR [0].x - source alpha part without addition sign.
-          // SGPR [0].y - source alpha sign as zero for 1 and non-zero for -1.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - destination alpha.
-          DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0010),
-                    rt_blend_factors_ops_src, DxbcSrc::LU(1 << (21 + 2)));
-          // Apply the source alpha sign.
-          // VGPR [0].x - source alpha part.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - destination alpha.
-          DxbcOpMovC(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                     DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY),
-                     -DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX),
-                     DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-        }
-        // The source alpha factor is zero.
-        DxbcOpElse();
-        {
-          // Write zero to the source alpha part.
-          // VGPR [0].x - source alpha part.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - destination alpha.
-          DxbcOpMov(DxbcDest::R(system_temps_subroutine_, 0b0001),
-                    DxbcSrc::LF(0.0f));
-        }
-        // Close the source alpha factor zero check.
-        DxbcOpEndIf();
-
-        // Extract the destination alpha factor to SGPR [0].y.
-        // VGPR [0].x - source alpha part.
-        // SGPR [0].y - destination alpha factor index.
-        // VGPRs [0].zw - packed destination color/alpha.
-        // VGPRs [1].xyz - blended color.
-        // VGPR [1].w - destination alpha.
-        system_constants_used_ |= 1ull
-                                  << kSysConst_EdramRTBlendFactorsOps_Index;
-        DxbcOpUBFE(DxbcDest::R(system_temps_subroutine_, 0b0010),
-                   DxbcSrc::LU(5), DxbcSrc::LU(24), rt_blend_factors_ops_src);
-        // Check if the destination alpha factor is not zero.
-        DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY));
-        {
-          // Open the switch for choosing the destination alpha blend factor.
-          // VGPR [0].x - source alpha part.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - destination alpha.
-          DxbcOpSwitch(DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY));
-          {
-            // Write the destination alpha factor to VGPR [0].y.
-            // VGPR [0].x - source alpha part.
-            // VGPR [0].y - unclamped destination alpha factor.
-            // VGPRs [0].zw - packed destination color/alpha.
-            // VGPRs [1].xyz - blended color.
-            // VGPR [1].w - destination alpha.
-            ROV_HandleAlphaBlendFactorCases(system_temps_color_[rt_index],
-                                            system_temps_subroutine_ + 1,
-                                            system_temps_subroutine_, 1);
-          }
-          // Close the destination alpha factor switch.
-          DxbcOpEndSwitch();
-          // Get if the render target alpha is fixed-point and the destination
-          // alpha factor needs clamping to SGPR [2].x.
-          // VGPR [0].x - source alpha part.
-          // VGPR [0].y - unclamped destination alpha factor.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - destination alpha.
-          // SGPR [2].x - whether alpha is fixed-point.
-          system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
-          DxbcOpAnd(DxbcDest::R(system_temps_subroutine_ + 2, 0b0001),
-                    rt_format_flags_src,
-                    DxbcSrc::LU(kRTFormatFlag_FixedPointAlpha));
-          // Check if the destination alpha factor needs clamping.
-          DxbcOpIf(true,
-                   DxbcSrc::R(system_temps_subroutine_ + 2, DxbcSrc::kXXXX));
-          {
-            // Clamp the destination alpha factor in VGPR [0].y.
-            // VGPR [0].x - source alpha part.
-            // VGPR [0].y - destination alpha factor.
-            // VGPRs [0].zw - packed destination color/alpha.
-            // VGPRs [1].xyz - blended color.
-            // VGPR [1].w - destination alpha.
-            // SGPR [2].x - whether alpha is fixed-point.
-            system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
-            DxbcOpMax(DxbcDest::R(system_temps_subroutine_, 0b0010),
-                      DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY),
-                      rt_clamp_vec_src.Select(1));
-            DxbcOpMin(DxbcDest::R(system_temps_subroutine_, 0b0010),
-                      DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY),
-                      rt_clamp_vec_src.Select(3));
-          }
-          // Close the destination alpha factor clamping check.
-          DxbcOpEndIf();
-          // Apply the factor to the destination alpha in VGPR [1].w.
-          // VGPR [0].x - source alpha part.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - unclamped destination alpha part without addition
-          //              sign.
-          // SGPR [2].x - whether alpha is fixed-point.
-          DxbcOpMul(DxbcDest::R(system_temps_subroutine_ + 1, 0b1000),
-                    DxbcSrc::R(system_temps_subroutine_ + 1, DxbcSrc::kWWWW),
-                    DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY));
-          // Check if the destination alpha part needs clamping after the
-          // multiplication.
-          // VGPR [0].x - source alpha part.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - unclamped destination alpha part without addition
-          //              sign.
-          DxbcOpIf(true,
-                   DxbcSrc::R(system_temps_subroutine_ + 2, DxbcSrc::kXXXX));
-          {
-            // Clamp the destination alpha part.
-            // VGPR [0].x - source alpha part.
-            // VGPRs [0].zw - packed destination color/alpha.
-            // VGPRs [1].xyz - blended color.
-            // VGPR [1].w - destination alpha part without addition sign.
-            system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
-            DxbcOpMax(DxbcDest::R(system_temps_subroutine_ + 1, 0b1000),
-                      DxbcSrc::R(system_temps_subroutine_ + 1, DxbcSrc::kWWWW),
-                      rt_clamp_vec_src.Select(1));
-            DxbcOpMin(DxbcDest::R(system_temps_subroutine_ + 1, 0b1000),
-                      DxbcSrc::R(system_temps_subroutine_ + 1, DxbcSrc::kWWWW),
-                      rt_clamp_vec_src.Select(3));
-          }
-          // Close the destination alpha factor clamping check.
-          DxbcOpEndIf();
-          // Extract the destination alpha sign to SGPR [0].y.
-          // VGPR [0].x - source alpha part.
-          // SGPR [0].y - destination alpha sign as zero for 1 and non-zero for
-          //              -1.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - destination alpha part without addition sign.
-          system_constants_used_ |= 1ull
-                                    << kSysConst_EdramRTBlendFactorsOps_Index;
-          DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0010),
-                    rt_blend_factors_ops_src, DxbcSrc::LU(1 << 21));
-          // Select the sign for destination multiply-add as 1.0 or -1.0 to
-          // SGPR [0].y.
-          // VGPR [0].x - source alpha part.
-          // SGPR [0].y - destination alpha sign as float.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - destination alpha part without addition sign.
-          DxbcOpMovC(DxbcDest::R(system_temps_subroutine_, 0b0010),
-                     DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY),
-                     DxbcSrc::LF(-1.0f), DxbcSrc::LF(1.0f));
-          // Perform alpha blending to VGPR [1].w.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - unclamped blended alpha.
-          DxbcOpMAd(DxbcDest::R(system_temps_subroutine_ + 1, 0b1000),
-                    DxbcSrc::R(system_temps_subroutine_ + 1, DxbcSrc::kWWWW),
-                    DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY),
-                    DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-        }
-        // The destination alpha factor is zero.
-        DxbcOpElse();
-        {
-          // Write the source alpha part without applying the destination alpha.
-          // VGPRs [0].zw - packed destination color/alpha.
-          // VGPRs [1].xyz - blended color.
-          // VGPR [1].w - unclamped blended alpha.
-          DxbcOpMov(DxbcDest::R(system_temps_subroutine_ + 1, 0b1000),
-                    DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-        }
-        // Close the destination alpha factor zero check.
-        DxbcOpEndIf();
-
-        // Clamp the alpha in VGPR [1].w before packing.
-        // VGPRs [0].zw - packed destination color/alpha.
-        // VGPRs [1].xyzw - blended color/alpha.
-        system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
-        DxbcOpMax(DxbcDest::R(system_temps_subroutine_ + 1, 0b1000),
-                  DxbcSrc::R(system_temps_subroutine_ + 1, DxbcSrc::kWWWW),
-                  rt_clamp_vec_src.Select(1));
-        DxbcOpMin(DxbcDest::R(system_temps_subroutine_ + 1, 0b1000),
-                  DxbcSrc::R(system_temps_subroutine_ + 1, DxbcSrc::kWWWW),
-                  rt_clamp_vec_src.Select(3));
-      }
-      // Close the alpha min/max enabled check.
-      DxbcOpEndIf();
-
-      // Pack the new color/alpha to VGPRs [0].xy, using VGPRs [2].xy as
-      // temporary.
-      // VGPRs [0].xy - packed new color/alpha.
-      // VGPRs [0].zw - packed old color/alpha.
-      ROV_PackPreClampedColor(
-          rt_index, system_temps_subroutine_ + 1, system_temps_subroutine_, 0,
-          system_temps_subroutine_ + 2, 0, system_temps_subroutine_ + 2, 1);
-    }
-    // Close the blending check.
-    DxbcOpEndIf();
-
-    // *************************************************************************
-    // Write mask application
-    // *************************************************************************
-
-    // Apply the keep mask to the previous packed color/alpha in VGPRs [0].zw.
-    // VGPRs [0].xy - packed new color/alpha.
-    // VGPRs [0].zw - masked packed old color/alpha.
-    system_constants_used_ |= 1ull << kSysConst_EdramRTKeepMask_Index;
-    DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b1100),
-              DxbcSrc::R(system_temps_subroutine_),
-              keep_mask_vec_src.Swizzle(keep_mask_swizzle << 4));
-    // Invert the keep mask into SGPRs [1].xy.
-    // VGPRs [0].xy - packed new color/alpha.
-    // VGPRs [0].zw - masked packed old color/alpha.
-    // SGPRs [1].xy - inverted keep mask (write mask).
-    system_constants_used_ |= 1ull << kSysConst_EdramRTKeepMask_Index;
-    DxbcOpNot(DxbcDest::R(system_temps_subroutine_ + 1, 0b0011),
-              keep_mask_vec_src.Swizzle(keep_mask_swizzle));
-    // Apply the write mask to the new color/alpha in VGPRs [0].xy.
-    // VGPRs [0].xy - masked packed new color/alpha.
-    // VGPRs [0].zw - masked packed old color/alpha.
-    DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0011),
-              DxbcSrc::R(system_temps_subroutine_),
-              DxbcSrc::R(system_temps_subroutine_ + 1));
-    // Combine the masked colors into VGPRs [0].xy.
-    // VGPRs [0].xy - packed resulting color/alpha.
-    DxbcOpOr(DxbcDest::R(system_temps_subroutine_, 0b0011),
-             DxbcSrc::R(system_temps_subroutine_),
-             DxbcSrc::R(system_temps_subroutine_, 0b1110));
-  }
-  // Close the previous color load check.
-  DxbcOpEndIf();
-
-  // ***************************************************************************
-  // Writing the color
-  // ***************************************************************************
-
-  // Get if the format is 64bpp to SGPR [0].z.
-  // VGPRs [0].xy - packed resulting color/alpha.
-  // SGPR [0].z - whether the render target is 64bpp.
-  system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
-  DxbcOpAnd(DxbcDest::R(system_temps_subroutine_, 0b0100), rt_format_flags_src,
-            DxbcSrc::LU(kRTFormatFlag_64bpp));
-  // Check if the format is 64bpp.
-  // VGPRs [0].xy - packed resulting color/alpha.
-  DxbcOpIf(true, DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kZZZZ));
-  {
-    // Store the lower 32 bits of the 64bpp color.
-    if (uav_index_edram_ == kBindingIndexUnallocated) {
-      uav_index_edram_ = uav_count_++;
-    }
-    DxbcOpStoreUAVTyped(
-        DxbcDest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
-        DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kWWWW), 1,
-        DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-    // Get the address of the upper 32 bits of the color to VGPR [0].z (can't
-    // use [0].x because components when not blending, packing is done once for
-    // all samples).
-    // VGPRs [0].xy - packed resulting color/alpha.
-    // VGPR [0].z - address of the upper 32 bits of the packed color.
-    DxbcOpIAdd(DxbcDest::R(system_temps_subroutine_, 0b0100),
-               DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kWWWW),
-               DxbcSrc::LU(1));
-    // Store the upper 32 bits of the 64bpp color.
-    if (uav_index_edram_ == kBindingIndexUnallocated) {
-      uav_index_edram_ = uav_count_++;
-    }
-    DxbcOpStoreUAVTyped(
-        DxbcDest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
-        DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kZZZZ), 1,
-        DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kYYYY));
-  }
-  // The color is 32bpp.
-  DxbcOpElse();
-  {
-    // Store the 32bpp color.
-    if (uav_index_edram_ == kBindingIndexUnallocated) {
-      uav_index_edram_ = uav_count_++;
-    }
-    DxbcOpStoreUAVTyped(
-        DxbcDest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
-        DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kZZZZ), 1,
-        DxbcSrc::R(system_temps_subroutine_, DxbcSrc::kXXXX));
-  }
-  // Close the 64bpp/32bpp conditional.
-  DxbcOpEndIf();
-
   // End the subroutine.
   DxbcOpRet();
 }
