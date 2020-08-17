@@ -489,6 +489,14 @@ dword_result_t XamContentDelete(dword_t user_index, lpvoid_t content_data_ptr,
 }
 DECLARE_XAM_EXPORT1(XamContentDelete, kContent, kImplemented);
 
+dword_result_t XamContentDeleteInternal(lpvoid_t content_data_ptr,
+                                        lpunknown_t overlapped_ptr) {
+  // INFO: Analysis of xam.xex shows that "internal" functions are wrappers with
+  // 0xFE as user_index
+  return XamContentDelete(0xFE, content_data_ptr, overlapped_ptr);
+}
+DECLARE_XAM_EXPORT1(XamContentDeleteInternal, kContent, kImplemented);
+
 void RegisterContentExports(xe::cpu::ExportResolver* export_resolver,
                             KernelState* kernel_state) {}
 
