@@ -224,6 +224,9 @@ class PipelineCache {
   // Can be called from multiple threads.
   bool TranslateShader(DxbcShaderTranslator& translator, D3D12Shader* shader,
                        reg::SQ_PROGRAM_CNTL cntl,
+                       IDxbcConverter* dxbc_converter = nullptr,
+                       IDxcUtils* dxc_utils = nullptr,
+                       IDxcCompiler* dxc_compiler = nullptr,
                        Shader::HostVertexShaderType host_vertex_shader_type =
                            Shader::HostVertexShaderType::kVertex);
 
@@ -245,6 +248,13 @@ class PipelineCache {
 
   // Reusable shader translator.
   std::unique_ptr<DxbcShaderTranslator> shader_translator_ = nullptr;
+
+  // Command processor thread DXIL conversion/disassembly interfaces, if DXIL
+  // disassembly is enabled.
+  IDxbcConverter* dxbc_converter_ = nullptr;
+  IDxcUtils* dxc_utils_ = nullptr;
+  IDxcCompiler* dxc_compiler_ = nullptr;
+
   // All loaded shaders mapped by their guest hash key.
   std::unordered_map<uint64_t, D3D12Shader*, xe::hash::IdentityHasher<uint64_t>>
       shader_map_;

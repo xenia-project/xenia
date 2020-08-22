@@ -78,6 +78,12 @@ D3D12Provider::~D3D12Provider() {
     dxgi_factory_->Release();
   }
 
+  if (library_dxcompiler_ != nullptr) {
+    FreeLibrary(library_dxcompiler_);
+  }
+  if (library_dxilconv_ != nullptr) {
+    FreeLibrary(library_dxilconv_);
+  }
   if (library_d3dcompiler_ != nullptr) {
     FreeLibrary(library_d3dcompiler_);
   }
@@ -109,13 +115,11 @@ bool D3D12Provider::EnableIncreaseBasePriorityPrivilege() {
 }
 
 bool D3D12Provider::Initialize() {
-  // Load the libraries.
+  // Load the core libraries.
   library_dxgi_ = LoadLibraryW(L"dxgi.dll");
   library_d3d12_ = LoadLibraryW(L"D3D12.dll");
-  library_d3dcompiler_ = LoadLibraryW(L"D3DCompiler_47.dll");
-  if (library_dxgi_ == nullptr || library_d3d12_ == nullptr ||
-      library_d3dcompiler_ == nullptr) {
-    XELOGE("Failed to load dxgi.dll, D3D12.dll or D3DCompiler_47.dll.");
+  if (library_dxgi_ == nullptr || library_d3d12_ == nullptr) {
+    XELOGE("Failed to load dxgi.dll or D3D12.dll");
     return false;
   }
   bool libraries_loaded = true;
@@ -136,10 +140,63 @@ bool D3D12Provider::Initialize() {
       (pfn_d3d12_serialize_root_signature_ = PFN_D3D12_SERIALIZE_ROOT_SIGNATURE(
            GetProcAddress(library_d3d12_, "D3D12SerializeRootSignature"))) !=
       nullptr;
-  libraries_loaded &= (pfn_d3d_disassemble_ = pD3DDisassemble(GetProcAddress(
-                           library_d3dcompiler_, "D3DDisassemble"))) != nullptr;
   if (!libraries_loaded) {
+    XELOGE("Failed to get DXGI or Direct3D 12 functions");
     return false;
+  }
+
+  // Load optional D3DCompiler_47.dll.
+  pfn_d3d_disassemble_ = nullptr;
+  library_d3dcompiler_ = LoadLibraryW(L"D3DCompiler_47.dll");
+  if (library_d3dcompiler_) {
+    pfn_d3d_disassemble_ =
+        pD3DDisassemble(GetProcAddress(library_d3dcompiler_, "D3DDisassemble"));
+    if (pfn_d3d_disassemble_ == nullptr) {
+      XELOGW(
+          "Failed to get D3DDisassemble from D3DCompiler_47.dll, DXBC "
+          "disassembly for debugging will be unavailable");
+    }
+  } else {
+    XELOGW(
+        "Failed to load D3DCompiler_47.dll, DXBC disassembly for debugging "
+        "will be unavailable");
+  }
+
+  // Load optional dxilconv.dll.
+  pfn_dxilconv_dxc_create_instance_ = nullptr;
+  library_dxilconv_ = LoadLibraryW(L"dxilconv.dll");
+  if (library_dxilconv_) {
+    pfn_dxilconv_dxc_create_instance_ = DxcCreateInstanceProc(
+        GetProcAddress(library_dxilconv_, "DxcCreateInstance"));
+    if (pfn_dxilconv_dxc_create_instance_ == nullptr) {
+      XELOGW(
+          "Failed to get DxcCreateInstance from dxilconv.dll, converted DXIL "
+          "disassembly for debugging will be unavailable");
+    }
+  } else {
+    XELOGW(
+        "Failed to load dxilconv.dll, converted DXIL disassembly for debugging "
+        "will be unavailable - DXIL may be unsupported by your OS version");
+  }
+
+  // Load optional dxcompiler.dll.
+  pfn_dxcompiler_dxc_create_instance_ = nullptr;
+  library_dxcompiler_ = LoadLibraryW(L"dxcompiler.dll");
+  if (library_dxcompiler_) {
+    pfn_dxcompiler_dxc_create_instance_ = DxcCreateInstanceProc(
+        GetProcAddress(library_dxcompiler_, "DxcCreateInstance"));
+    if (pfn_dxcompiler_dxc_create_instance_ == nullptr) {
+      XELOGW(
+          "Failed to get DxcCreateInstance from dxcompiler.dll, converted DXIL "
+          "disassembly for debugging will be unavailable");
+    }
+  } else {
+    XELOGW(
+        "Failed to load dxcompiler.dll, converted DXIL disassembly for "
+        "debugging will be unavailable - if needed, download the DirectX "
+        "Shader Compiler from "
+        "https://github.com/microsoft/DirectXShaderCompiler/releases and place "
+        "the DLL in the Xenia directory");
   }
 
   // Configure the DXGI debug info queue.
@@ -205,13 +262,13 @@ bool D3D12Provider::Initialize() {
     ++adapter_index;
   }
   if (adapter == nullptr) {
-    XELOGE("Failed to get an adapter supporting Direct3D feature level 11_0.");
+    XELOGE("Failed to get an adapter supporting Direct3D feature level 11_0");
     dxgi_factory->Release();
     return false;
   }
   DXGI_ADAPTER_DESC adapter_desc;
   if (FAILED(adapter->GetDesc(&adapter_desc))) {
-    XELOGE("Failed to get the DXGI adapter description.");
+    XELOGE("Failed to get the DXGI adapter description");
     adapter->Release();
     dxgi_factory->Release();
     return false;
@@ -234,7 +291,7 @@ bool D3D12Provider::Initialize() {
   ID3D12Device* device;
   if (FAILED(pfn_d3d12_create_device_(adapter, D3D_FEATURE_LEVEL_11_0,
                                       IID_PPV_ARGS(&device)))) {
-    XELOGE("Failed to create a Direct3D 12 feature level 11_0 device.");
+    XELOGE("Failed to create a Direct3D 12 feature level 11_0 device");
     adapter->Release();
     dxgi_factory->Release();
     return false;
