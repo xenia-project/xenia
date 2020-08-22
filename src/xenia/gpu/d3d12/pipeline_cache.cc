@@ -95,6 +95,9 @@ bool PipelineCache::Initialize() {
   auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
 
   // Initialize the command processor thread DXIL objects.
+  dxbc_converter_ = nullptr;
+  dxc_utils_ = nullptr;
+  dxc_compiler_ = nullptr;
   if (cvars::d3d12_dxbc_disasm_dxilconv) {
     if (FAILED(provider->DxbcConverterCreateInstance(
             CLSID_DxbcConverter, IID_PPV_ARGS(&dxbc_converter_)))) {
