@@ -96,8 +96,26 @@ class D3D12Provider : public GraphicsProvider {
   inline HRESULT Disassemble(const void* src_data, size_t src_data_size,
                              UINT flags, const char* comments,
                              ID3DBlob** disassembly_out) const {
+    if (!pfn_d3d_disassemble_) {
+      return E_NOINTERFACE;
+    }
     return pfn_d3d_disassemble_(src_data, src_data_size, flags, comments,
                                 disassembly_out);
+  }
+  inline HRESULT DxbcConverterCreateInstance(const CLSID& rclsid,
+                                             const IID& riid,
+                                             void** ppv) const {
+    if (!pfn_dxilconv_dxc_create_instance_) {
+      return E_NOINTERFACE;
+    }
+    return pfn_dxilconv_dxc_create_instance_(rclsid, riid, ppv);
+  }
+  inline HRESULT DxcCreateInstance(const CLSID& rclsid, const IID& riid,
+                                   void** ppv) const {
+    if (!pfn_dxcompiler_dxc_create_instance_) {
+      return E_NOINTERFACE;
+    }
+    return pfn_dxcompiler_dxc_create_instance_(rclsid, riid, ppv);
   }
 
  private:
@@ -106,21 +124,28 @@ class D3D12Provider : public GraphicsProvider {
   static bool EnableIncreaseBasePriorityPrivilege();
   bool Initialize();
 
-  HMODULE library_dxgi_ = nullptr;
-  HMODULE library_d3d12_ = nullptr;
-  HMODULE library_d3dcompiler_ = nullptr;
-
   typedef HRESULT(WINAPI* PFNCreateDXGIFactory2)(UINT Flags, REFIID riid,
                                                  _COM_Outptr_ void** ppFactory);
   typedef HRESULT(WINAPI* PFNDXGIGetDebugInterface1)(
       UINT Flags, REFIID riid, _COM_Outptr_ void** pDebug);
 
+  HMODULE library_dxgi_ = nullptr;
   PFNCreateDXGIFactory2 pfn_create_dxgi_factory2_;
   PFNDXGIGetDebugInterface1 pfn_dxgi_get_debug_interface1_;
+
+  HMODULE library_d3d12_ = nullptr;
   PFN_D3D12_GET_DEBUG_INTERFACE pfn_d3d12_get_debug_interface_;
   PFN_D3D12_CREATE_DEVICE pfn_d3d12_create_device_;
   PFN_D3D12_SERIALIZE_ROOT_SIGNATURE pfn_d3d12_serialize_root_signature_;
-  pD3DDisassemble pfn_d3d_disassemble_;
+
+  HMODULE library_d3dcompiler_ = nullptr;
+  pD3DDisassemble pfn_d3d_disassemble_ = nullptr;
+
+  HMODULE library_dxilconv_ = nullptr;
+  DxcCreateInstanceProc pfn_dxilconv_dxc_create_instance_ = nullptr;
+
+  HMODULE library_dxcompiler_ = nullptr;
+  DxcCreateInstanceProc pfn_dxcompiler_dxc_create_instance_ = nullptr;
 
   IDXGIFactory2* dxgi_factory_ = nullptr;
   IDXGraphicsAnalysis* graphics_analysis_ = nullptr;

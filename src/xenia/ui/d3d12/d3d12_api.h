@@ -20,6 +20,9 @@
 #include <dxgi1_4.h>
 #include <dxgidebug.h>
 
+#include "third_party/DirectXShaderCompiler/include/dxc/dxcapi.h"
+#include "third_party/DirectXShaderCompiler/projects/dxilconv/include/DxbcConverter.h"
+
 #define XELOGD3D XELOGI
 
 #endif  // XENIA_UI_D3D12_D3D12_API_H_

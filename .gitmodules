@@ -61,3 +61,6 @@
 [submodule "third_party/disruptorplus"]
 	path = third_party/disruptorplus
 	url = https://github.com/xenia-project/disruptorplus.git
+[submodule "third_party/DirectXShaderCompiler"]
+	path = third_party/DirectXShaderCompiler
+	url = https://github.com/microsoft/DirectXShaderCompiler.git

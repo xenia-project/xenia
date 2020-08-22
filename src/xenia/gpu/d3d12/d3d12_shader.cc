@@ -62,21 +62,73 @@ void D3D12Shader::SetTexturesAndSamplers(
   }
 }
 
-bool D3D12Shader::DisassembleDxbc(const ui::d3d12::D3D12Provider* provider) {
-  if (!host_disassembly_.empty()) {
-    return true;
+void D3D12Shader::DisassembleDxbc(const ui::d3d12::D3D12Provider& provider,
+                                  bool disassemble_dxbc,
+                                  IDxbcConverter* dxbc_converter,
+                                  IDxcUtils* dxc_utils,
+                                  IDxcCompiler* dxc_compiler) {
+  bool is_first_disassembly = true;
+  if (disassemble_dxbc) {
+    ID3DBlob* dxbc_disassembly;
+    if (SUCCEEDED(provider.Disassemble(translated_binary().data(),
+                                       translated_binary().size(),
+                                       D3D_DISASM_ENABLE_INSTRUCTION_NUMBERING |
+                                           D3D_DISASM_ENABLE_INSTRUCTION_OFFSET,
+                                       nullptr, &dxbc_disassembly))) {
+      assert_true(is_first_disassembly);
+      is_first_disassembly = false;
+      host_disassembly_.append(
+          reinterpret_cast<const char*>(dxbc_disassembly->GetBufferPointer()));
+      dxbc_disassembly->Release();
+    } else {
+      XELOGE("Failed to disassemble DXBC shader {:016X}", ucode_data_hash());
+    }
   }
-  ID3DBlob* blob;
-  if (FAILED(provider->Disassemble(translated_binary().data(),
-                                   translated_binary().size(),
-                                   D3D_DISASM_ENABLE_INSTRUCTION_NUMBERING |
-                                       D3D_DISASM_ENABLE_INSTRUCTION_OFFSET,
-                                   nullptr, &blob))) {
-    return false;
+  if (dxbc_converter && dxc_utils && dxc_compiler) {
+    void* dxil;
+    UINT32 dxil_size;
+    if (SUCCEEDED(dxbc_converter->Convert(
+            translated_binary().data(), UINT32(translated_binary().size()),
+            nullptr, &dxil, &dxil_size, nullptr)) &&
+        dxil != nullptr) {
+      IDxcBlobEncoding* dxil_blob;
+      if (SUCCEEDED(dxc_utils->CreateBlobFromPinned(dxil, dxil_size, DXC_CP_ACP,
+                                                    &dxil_blob))) {
+        IDxcBlobEncoding* dxil_disassembly;
+        bool dxil_disassembled =
+            SUCCEEDED(dxc_compiler->Disassemble(dxil_blob, &dxil_disassembly));
+        dxil_blob->Release();
+        CoTaskMemFree(dxil);
+        if (dxil_disassembled) {
+          IDxcBlobUtf8* dxil_disassembly_utf8;
+          bool dxil_disassembly_got_utf8 = SUCCEEDED(dxc_utils->GetBlobAsUtf8(
+              dxil_disassembly, &dxil_disassembly_utf8));
+          dxil_disassembly->Release();
+          if (dxil_disassembly_got_utf8) {
+            if (!is_first_disassembly) {
+              host_disassembly_.append("\n\n");
+            }
+            is_first_disassembly = false;
+            host_disassembly_.append(reinterpret_cast<const char*>(
+                dxil_disassembly_utf8->GetStringPointer()));
+            dxil_disassembly_utf8->Release();
+          } else {
+            XELOGE("Failed to get DXIL shader {:016X} disassembly as UTF-8",
+                   ucode_data_hash());
+          }
+        } else {
+          XELOGE("Failed to disassemble DXIL shader {:016X}",
+                 ucode_data_hash());
+        }
+      } else {
+        XELOGE("Failed to create a blob with DXIL shader {:016X}",
+               ucode_data_hash());
+        CoTaskMemFree(dxil);
+      }
+    } else {
+      XELOGE("Failed to convert shader {:016X} to DXIL", ucode_data_hash());
+    }
   }
-  host_disassembly_ = reinterpret_cast<const char*>(blob->GetBufferPointer());
-  blob->Release();
-  return true;
 }
 
 }  // namespace d3d12

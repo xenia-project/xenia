@@ -43,7 +43,11 @@ class D3D12Shader : public Shader {
     return forced_early_z_shader_;
   }
 
-  bool DisassembleDxbc(const ui::d3d12::D3D12Provider* provider);
+  void DisassembleDxbc(const ui::d3d12::D3D12Provider& provider,
+                       bool disassemble_dxbc,
+                       IDxbcConverter* dxbc_converter = nullptr,
+                       IDxcUtils* dxc_utils = nullptr,
+                       IDxcCompiler* dxc_compiler = nullptr);
 
   static constexpr uint32_t kMaxTextureBindingIndexBits =
       DxbcShaderTranslator::kMaxTextureBindingIndexBits;

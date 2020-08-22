@@ -31,9 +31,16 @@
 #include "xenia/base/string.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/gpu_flags.h"
+#include "xenia/ui/d3d12/d3d12_util.h"
 
 DEFINE_bool(d3d12_dxbc_disasm, false,
             "Disassemble DXBC shaders after generation.", "D3D12");
+DEFINE_bool(
+    d3d12_dxbc_disasm_dxilconv, false,
+    "Disassemble DXBC shaders after conversion to DXIL, if DXIL shaders are "
+    "supported by the OS, and DirectX Shader Compiler DLLs available at "
+    "https://github.com/microsoft/DirectXShaderCompiler/releases are present.",
+    "D3D12");
 DEFINE_int32(
     d3d12_pipeline_creation_threads, -1,
     "Number of threads used for graphics pipeline state object creation. -1 to "
@@ -85,6 +92,30 @@ PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
 PipelineCache::~PipelineCache() { Shutdown(); }
 
 bool PipelineCache::Initialize() {
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+
+  // Initialize the command processor thread DXIL objects.
+  if (cvars::d3d12_dxbc_disasm_dxilconv) {
+    if (FAILED(provider->DxbcConverterCreateInstance(
+            CLSID_DxbcConverter, IID_PPV_ARGS(&dxbc_converter_)))) {
+      XELOGE(
+          "Failed to create DxbcConverter, converted DXIL disassembly for "
+          "debugging will be unavailable");
+    }
+    if (FAILED(provider->DxcCreateInstance(CLSID_DxcUtils,
+                                           IID_PPV_ARGS(&dxc_utils_)))) {
+      XELOGE(
+          "Failed to create DxcUtils, converted DXIL disassembly for debugging "
+          "will be unavailable");
+    }
+    if (FAILED(provider->DxcCreateInstance(CLSID_DxcCompiler,
+                                           IID_PPV_ARGS(&dxc_compiler_)))) {
+      XELOGE(
+          "Failed to create DxcCompiler, converted DXIL disassembly for "
+          "debugging will be unavailable");
+    }
+  }
+
   uint32_t logical_processor_count = xe::threading::logical_processor_count();
   if (!logical_processor_count) {
     // Pick some reasonable amount if couldn't determine the number of cores.
@@ -134,6 +165,10 @@ void PipelineCache::Shutdown() {
     creation_threads_.clear();
   }
   creation_completion_event_.reset();
+
+  ui::d3d12::util::ReleaseAndNull(dxc_compiler_);
+  ui::d3d12::util::ReleaseAndNull(dxc_utils_);
+  ui::d3d12::util::ReleaseAndNull(dxbc_converter_);
 }
 
 void PipelineCache::ClearCache(bool shutting_down) {
@@ -273,6 +308,19 @@ void PipelineCache::InitializeShaderStorage(
       DxbcShaderTranslator translator(
           provider->GetAdapterVendorID(), bindless_resources_used_,
           edram_rov_used_, provider->GetGraphicsAnalysis() != nullptr);
+      // If needed and possible, create objects needed for DXIL conversion and
+      // disassembly on this thread.
+      IDxbcConverter* dxbc_converter = nullptr;
+      IDxcUtils* dxc_utils = nullptr;
+      IDxcCompiler* dxc_compiler = nullptr;
+      if (cvars::d3d12_dxbc_disasm_dxilconv && dxbc_converter_ && dxc_utils_ &&
+          dxc_compiler_) {
+        provider->DxbcConverterCreateInstance(CLSID_DxbcConverter,
+                                              IID_PPV_ARGS(&dxbc_converter));
+        provider->DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&dxc_utils));
+        provider->DxcCreateInstance(CLSID_DxcCompiler,
+                                    IID_PPV_ARGS(&dxc_compiler));
+      }
       for (;;) {
         std::pair<ShaderStoredHeader, D3D12Shader*> shader_to_translate;
         for (;;) {
@@ -292,7 +340,8 @@ void PipelineCache::InitializeShaderStorage(
         assert_not_null(shader_to_translate.second);
         if (!TranslateShader(
                 translator, shader_to_translate.second,
-                shader_to_translate.first.sq_program_cntl,
+                shader_to_translate.first.sq_program_cntl, dxbc_converter,
+                dxc_utils, dxc_compiler,
                 shader_to_translate.first.host_vertex_shader_type)) {
           std::lock_guard<std::mutex> lock(shaders_failed_to_translate_mutex);
           shaders_failed_to_translate.push_back(shader_to_translate.second);
@@ -301,6 +350,15 @@ void PipelineCache::InitializeShaderStorage(
           std::lock_guard<std::mutex> lock(shaders_translation_thread_mutex);
           --shader_translation_threads_busy;
         }
+      }
+      if (dxc_compiler) {
+        dxc_compiler->Release();
+      }
+      if (dxc_utils) {
+        dxc_utils->Release();
+      }
+      if (dxbc_converter) {
+        dxbc_converter->Release();
       }
     };
     std::vector<std::unique_ptr<xe::threading::Thread>>
@@ -825,6 +883,7 @@ bool PipelineCache::EnsureShadersTranslated(
 
   if (!vertex_shader->is_translated()) {
     if (!TranslateShader(*shader_translator_, vertex_shader, sq_program_cntl,
+                         dxbc_converter_, dxc_utils_, dxc_compiler_,
                          host_vertex_shader_type)) {
       XELOGE("Failed to translate the vertex shader!");
       return false;
@@ -842,7 +901,8 @@ bool PipelineCache::EnsureShadersTranslated(
   }
 
   if (pixel_shader != nullptr && !pixel_shader->is_translated()) {
-    if (!TranslateShader(*shader_translator_, pixel_shader, sq_program_cntl)) {
+    if (!TranslateShader(*shader_translator_, pixel_shader, sq_program_cntl,
+                         dxbc_converter_, dxc_utils_, dxc_compiler_)) {
       XELOGE("Failed to translate the pixel shader!");
       return false;
     }
@@ -953,7 +1013,8 @@ bool PipelineCache::ConfigurePipeline(
 
 bool PipelineCache::TranslateShader(
     DxbcShaderTranslator& translator, D3D12Shader* shader,
-    reg::SQ_PROGRAM_CNTL cntl,
+    reg::SQ_PROGRAM_CNTL cntl, IDxbcConverter* dxbc_converter,
+    IDxcUtils* dxc_utils, IDxcCompiler* dxc_compiler,
     Shader::HostVertexShaderType host_vertex_shader_type) {
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
@@ -1134,12 +1195,12 @@ bool PipelineCache::TranslateShader(
   }
 
   // Disassemble the shader for dumping.
-  if (cvars::d3d12_dxbc_disasm) {
-    auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
-    if (!shader->DisassembleDxbc(provider)) {
-      XELOGE("Failed to disassemble DXBC shader {:016X}",
-             shader->ucode_data_hash());
-    }
+  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  if (cvars::d3d12_dxbc_disasm_dxilconv) {
+    shader->DisassembleDxbc(*provider, cvars::d3d12_dxbc_disasm, dxbc_converter,
+                            dxc_utils, dxc_compiler);
+  } else {
+    shader->DisassembleDxbc(*provider, cvars::d3d12_dxbc_disasm);
   }
 
   // Dump shader files if desired.
