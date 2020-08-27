@@ -9,6 +9,7 @@
 
 #include "xenia/base/cvar.h"
 #include "xenia/base/main.h"
+#include "xenia/config.h"
 
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
@@ -23,8 +24,8 @@ bool has_console_attached() { return true; }
 extern "C" int main(int argc, char** argv) {
   auto entry_info = xe::GetEntryInfo();
 
-  cvar::ParseLaunchArguments(argc, argv, entry_info.positional_usage,
-                             entry_info.positional_options);
+  Config::Instance().ParseLaunchArguments(
+      argc, argv, entry_info.positional_usage, entry_info.positional_options);
 
   std::vector<std::string> args;
   for (int n = 0; n < argc; n++) {

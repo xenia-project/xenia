@@ -664,7 +664,7 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   // Try and load the resource database (xex only).
   if (module->title_id()) {
     auto title_id = fmt::format("{:08X}", module->title_id());
-    config::LoadGameConfig(title_id);
+    Config::Instance().LoadGameConfig(title_id);
     uint32_t resource_data = 0;
     uint32_t resource_size = 0;
     if (XSUCCEEDED(module->GetSection(title_id.c_str(), &resource_data,

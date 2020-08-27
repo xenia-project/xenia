@@ -14,8 +14,10 @@
 #include <vector>
 
 #define CATCH_CONFIG_RUNNER
+
 #include "third_party/catch/include/catch.hpp"
 #include "xenia/base/cvar.h"
+#include "xenia/config.h"
 
 namespace xe {
 
@@ -23,7 +25,8 @@ bool has_console_attached() { return true; }
 
 // Used in console mode apps; automatically picked based on subsystem.
 int Main(int argc, char* argv[]) {
-  cvar::ParseLaunchArguments(argc, argv, "", std::vector<std::string>());
+  Config::Instance().ParseLaunchArguments(argc, argv, "",
+                                          std::vector<std::string>());
 
   // Run Catch.
   int result = Catch::Session().run(argc, argv);

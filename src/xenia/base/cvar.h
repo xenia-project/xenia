@@ -17,13 +17,16 @@
 
 #include "cpptoml/include/cpptoml.h"
 #include "cxxopts/include/cxxopts.hpp"
+
 #include "xenia/base/filesystem.h"
 #include "xenia/base/string_util.h"
+#include "xenia/config.h"
 
+namespace xe {
 namespace cvar {
 
 namespace toml {
-std::string EscapeString(const std::string_view str);
+std::string EscapeString(const std::string_view view);
 }
 
 class ICommandVar {
@@ -40,6 +43,7 @@ class IConfigVar : virtual public ICommandVar {
  public:
   virtual const std::string& category() const = 0;
   virtual bool is_transient() const = 0;
+  virtual bool requires_restart() const = 0;
   virtual std::string config_value() const = 0;
   virtual void LoadConfigValue(std::shared_ptr<cpptoml::base> result) = 0;
   virtual void LoadGameConfigValue(std::shared_ptr<cpptoml::base> result) = 0;
@@ -48,285 +52,176 @@ class IConfigVar : virtual public ICommandVar {
 template <class T>
 class CommandVar : virtual public ICommandVar {
  public:
-  CommandVar<T>(const char* name, T* default_value, const char* description);
-  const std::string& name() const override;
-  const std::string& description() const override;
+  CommandVar<T>(std::string_view name, T* default_value,
+                std::string_view description);
+
+  const std::string& name() const override { return name_; }
+  const std::string& description() const override { return description_; }
+
   void AddToLaunchOptions(cxxopts::Options* options) override;
   void LoadFromLaunchOptions(cxxopts::ParseResult* result) override;
+
   T* current_value() { return current_value_; }
+  T* command_line_value() { return commandline_value_.get(); }
+  const T& default_value() const { return default_value_; }
 
  protected:
+  void set_current_value(const T& val) { *current_value_ = val; }
+
+  void set_command_line_value(const T& val) {
+    commandline_value_ = std::make_unique<T>(val);
+  }
+
+  T Convert(std::string_view val) const {
+    return xe::string_util::from_string<T>(val);
+  }
+
+  static std::string ToString(const T& val) { return std::to_string(val); }
+  void UpdateValue() override;
+
+ private:
   std::string name_;
   T default_value_;
   T* current_value_;
   std::unique_ptr<T> commandline_value_;
   std::string description_;
-  T Convert(std::string val);
-  static std::string ToString(T val);
-  void SetValue(T val);
-  void SetCommandLineValue(T val);
-  void UpdateValue() override;
 };
 #pragma warning(push)
 #pragma warning(disable : 4250)
+
 template <class T>
-class ConfigVar : public CommandVar<T>, virtual public IConfigVar {
+class ConfigVar final : public CommandVar<T>, virtual public IConfigVar {
  public:
-  ConfigVar<T>(const char* name, T* default_value, const char* description,
-               const char* category, bool is_transient);
-  std::string config_value() const override;
-  const std::string& category() const override;
-  bool is_transient() const override;
+  ConfigVar<T>(std::string_view name, T* default_value,
+               std::string_view description, std::string_view category,
+               bool is_transient, bool requires_restart);
+
+  std::string config_value() const override {
+    if (config_value_) return this->ToString(*config_value_);
+    return this->ToString(this->default_value());
+  }
+
+  const std::string& category() const override { return category_; }
+  bool is_transient() const override { return is_transient_; }
+  bool requires_restart() const override { return requires_restart_; }
+
+  void set_config_value(const T& val) {
+    config_value_ = std::make_unique<T>(val);
+    UpdateValue();
+  }
+
+  void set_game_config_value(const T& val) {
+    game_config_value_ = std::make_unique<T>(val);
+    UpdateValue();
+  }
+
   void AddToLaunchOptions(cxxopts::Options* options) override;
   void LoadConfigValue(std::shared_ptr<cpptoml::base> result) override;
   void LoadGameConfigValue(std::shared_ptr<cpptoml::base> result) override;
-  void SetConfigValue(T val);
-  void SetGameConfigValue(T val);
 
  private:
+  void UpdateValue() override;
+
   std::string category_;
   bool is_transient_;
+  bool requires_restart_;
   std::unique_ptr<T> config_value_ = nullptr;
   std::unique_ptr<T> game_config_value_ = nullptr;
-  void UpdateValue() override;
 };
 
 #pragma warning(pop)
-template <class T>
-const std::string& CommandVar<T>::name() const {
-  return name_;
-}
-template <class T>
-const std::string& CommandVar<T>::description() const {
-  return description_;
-}
-template <class T>
-void CommandVar<T>::AddToLaunchOptions(cxxopts::Options* options) {
-  options->add_options()(name_, description_, cxxopts::value<T>());
-}
-template <>
-inline void CommandVar<std::filesystem::path>::AddToLaunchOptions(
-    cxxopts::Options* options) {
-  options->add_options()(name_, description_, cxxopts::value<std::string>());
-}
-template <class T>
-void ConfigVar<T>::AddToLaunchOptions(cxxopts::Options* options) {
-  options->add_options(category_)(this->name_, this->description_,
-                                  cxxopts::value<T>());
-}
-template <>
-inline void ConfigVar<std::filesystem::path>::AddToLaunchOptions(
-    cxxopts::Options* options) {
-  options->add_options(category_)(this->name_, this->description_,
-                                  cxxopts::value<std::string>());
-}
-template <class T>
-void CommandVar<T>::LoadFromLaunchOptions(cxxopts::ParseResult* result) {
-  T value = (*result)[name_].template as<T>();
-  SetCommandLineValue(value);
-}
-template <>
-inline void CommandVar<std::filesystem::path>::LoadFromLaunchOptions(
-    cxxopts::ParseResult* result) {
-  std::string value = (*result)[name_].template as<std::string>();
-  SetCommandLineValue(value);
-}
-template <class T>
-void ConfigVar<T>::LoadConfigValue(std::shared_ptr<cpptoml::base> result) {
-  SetConfigValue(*cpptoml::get_impl<T>(result));
-}
-template <>
-inline void ConfigVar<std::filesystem::path>::LoadConfigValue(
-    std::shared_ptr<cpptoml::base> result) {
-  SetConfigValue(
-      xe::utf8::fix_path_separators(*cpptoml::get_impl<std::string>(result)));
-}
-template <class T>
-void ConfigVar<T>::LoadGameConfigValue(std::shared_ptr<cpptoml::base> result) {
-  SetGameConfigValue(*cpptoml::get_impl<T>(result));
-}
-template <>
-inline void ConfigVar<std::filesystem::path>::LoadGameConfigValue(
-    std::shared_ptr<cpptoml::base> result) {
-  SetGameConfigValue(
-      xe::utf8::fix_path_separators(*cpptoml::get_impl<std::string>(result)));
-}
-template <class T>
-CommandVar<T>::CommandVar(const char* name, T* default_value,
-                          const char* description)
-    : name_(name),
-      default_value_(*default_value),
-      description_(description),
-      current_value_(default_value) {}
-
-template <class T>
-ConfigVar<T>::ConfigVar(const char* name, T* default_value,
-                        const char* description, const char* category,
-                        bool is_transient)
-    : CommandVar<T>(name, default_value, description),
-      category_(category),
-      is_transient_(is_transient) {}
-
-template <class T>
-void CommandVar<T>::UpdateValue() {
-  if (commandline_value_) return SetValue(*commandline_value_);
-  return SetValue(default_value_);
-}
-template <class T>
-void ConfigVar<T>::UpdateValue() {
-  if (this->commandline_value_) {
-    return this->SetValue(*this->commandline_value_);
-  }
-  if (game_config_value_) return this->SetValue(*game_config_value_);
-  if (config_value_) return this->SetValue(*config_value_);
-  return this->SetValue(this->default_value_);
-}
-template <class T>
-T CommandVar<T>::Convert(std::string val) {
-  return xe::string_util::from_string<T>(val);
-}
-template <>
-inline std::string CommandVar<std::string>::Convert(std::string val) {
-  return val;
-}
-template <>
-inline std::filesystem::path CommandVar<std::filesystem::path>::Convert(
-    std::string val) {
-  return xe::to_path(val);
-}
-
-template <>
-inline std::string CommandVar<bool>::ToString(bool val) {
-  return val ? "true" : "false";
-}
-template <>
-inline std::string CommandVar<std::string>::ToString(std::string val) {
-  return toml::EscapeString(val);
-}
-template <>
-inline std::string CommandVar<std::filesystem::path>::ToString(
-    std::filesystem::path val) {
-  return toml::EscapeString(
-      xe::utf8::fix_path_separators(xe::path_to_utf8(val), '/'));
-}
-
-template <class T>
-std::string CommandVar<T>::ToString(T val) {
-  return std::to_string(val);
-}
-
-template <class T>
-void CommandVar<T>::SetValue(T val) {
-  *current_value_ = val;
-}
-template <class T>
-const std::string& ConfigVar<T>::category() const {
-  return category_;
-}
-template <class T>
-bool ConfigVar<T>::is_transient() const {
-  return is_transient_;
-}
-template <class T>
-std::string ConfigVar<T>::config_value() const {
-  if (config_value_) return this->ToString(*config_value_);
-  return this->ToString(this->default_value_);
-}
-template <class T>
-void CommandVar<T>::SetCommandLineValue(const T val) {
-  commandline_value_ = std::make_unique<T>(val);
-  UpdateValue();
-}
-template <class T>
-void ConfigVar<T>::SetConfigValue(T val) {
-  config_value_ = std::make_unique<T>(val);
-  UpdateValue();
-}
-template <class T>
-void ConfigVar<T>::SetGameConfigValue(T val) {
-  game_config_value_ = std::make_unique<T>(val);
-  UpdateValue();
-}
-
-extern std::map<std::string, ICommandVar*>* CmdVars;
-extern std::map<std::string, IConfigVar*>* ConfigVars;
-
-inline void AddConfigVar(IConfigVar* cv) {
-  if (!ConfigVars) ConfigVars = new std::map<std::string, IConfigVar*>();
-  ConfigVars->insert(std::pair<std::string, IConfigVar*>(cv->name(), cv));
-}
-inline void AddCommandVar(ICommandVar* cv) {
-  if (!CmdVars) CmdVars = new std::map<std::string, ICommandVar*>();
-  CmdVars->insert(std::pair<std::string, ICommandVar*>(cv->name(), cv));
-}
-void ParseLaunchArguments(int& argc, char**& argv,
-                          const std::string_view positional_help,
-                          const std::vector<std::string>& positional_options);
 
 template <typename T>
-T* define_configvar(const char* name, T* default_value, const char* description,
-                    const char* category, bool is_transient) {
-  IConfigVar* cfgVar = new ConfigVar<T>(name, default_value, description,
-                                        category, is_transient);
-  AddConfigVar(cfgVar);
-  return default_value;
+ConfigVar<T>* register_configvar(std::string_view name, T* default_value,
+                                 std::string_view description,
+                                 std::string_view category, bool is_transient,
+                                 bool requires_restart) {
+  // config instance claims ownership of this pointer
+  ConfigVar<T>* var =
+      new ConfigVar<T>{name,     default_value, description,
+                       category, is_transient,  requires_restart};
+  return Config::Instance().RegisterConfigVar<T>(var);
 }
 
 template <typename T>
-T* define_cmdvar(const char* name, T* default_value, const char* description) {
-  ICommandVar* cmdVar = new CommandVar<T>(name, default_value, description);
-  AddCommandVar(cmdVar);
-  return default_value;
+CommandVar<T>* register_commandvar(std::string_view name, T* default_value,
+                                   std::string_view description) {
+  // config instance claims ownership of this pointer
+  CommandVar<T>* var = new CommandVar<T>{name, default_value, description};
+  return Config::Instance().RegisterCommandVar<T>(var);
 }
 
 #define DEFINE_bool(name, default_value, description, category) \
-  DEFINE_CVar(name, default_value, description, category, false, bool)
+  DEFINE_CVar(name, default_value, description, category, false, false, bool)
 
 #define DEFINE_int32(name, default_value, description, category) \
-  DEFINE_CVar(name, default_value, description, category, false, int32_t)
+  DEFINE_CVar(name, default_value, description, category, false, false, int32_t)
 
-#define DEFINE_uint64(name, default_value, description, category) \
-  DEFINE_CVar(name, default_value, description, category, false, uint64_t)
+#define DEFINE_uint64(name, default_value, description, category)       \
+  DEFINE_CVar(name, default_value, description, category, false, false, \
+              uint64_t)
 
 #define DEFINE_double(name, default_value, description, category) \
-  DEFINE_CVar(name, default_value, description, category, false, double)
+  DEFINE_CVar(name, default_value, description, category, false, false, double)
 
-#define DEFINE_string(name, default_value, description, category) \
-  DEFINE_CVar(name, default_value, description, category, false, std::string)
+#define DEFINE_string(name, default_value, description, category)       \
+  DEFINE_CVar(name, default_value, description, category, false, false, \
+              std::string)
 
-#define DEFINE_path(name, default_value, description, category)  \
-  DEFINE_CVar(name, default_value, description, category, false, \
+#define DEFINE_path(name, default_value, description, category)         \
+  DEFINE_CVar(name, default_value, description, category, false, false, \
+              std::filesystem::path)
+
+#define DEFINE_unrestartable_bool(name, default_value, description, category) \
+  DEFINE_CVar(name, default_value, description, category, false, true, bool)
+
+#define DEFINE_unrestartable_int32(name, default_value, description, category) \
+  DEFINE_CVar(name, default_value, description, category, false, true, int32_t)
+
+#define DEFINE_unrestartable_uint64(name, default_value, description, \
+                                    category)                         \
+  DEFINE_CVar(name, default_value, description, category, false, true, uint64_t)
+
+#define DEFINE_unrestartable_double(name, default_value, description, \
+                                    category)                         \
+  DEFINE_CVar(name, default_value, description, category, false, true, double)
+
+#define DEFINE_unrestartable_string(name, default_value, description,  \
+                                    category)                          \
+  DEFINE_CVar(name, default_value, description, category, false, true, \
+              std::string)
+
+#define DEFINE_unrestartable_path(name, default_value, description, category) \
+  DEFINE_CVar(name, default_value, description, category, false, true,        \
               std::filesystem::path)
 
 #define DEFINE_transient_bool(name, default_value, description, category) \
   DEFINE_CVar(name, default_value, description, category, true, bool)
 
 #define DEFINE_transient_string(name, default_value, description, category) \
-  DEFINE_CVar(name, default_value, description, category, true, std::string)
+  DEFINE_CVar(name, default_value, description, category, true, false,      \
+              std::string)
 
 #define DEFINE_transient_path(name, default_value, description, category) \
-  DEFINE_CVar(name, default_value, description, category, true,           \
+  DEFINE_CVar(name, default_value, description, category, true, false,    \
               std::filesystem::path)
 
 #define DEFINE_CVar(name, default_value, description, category, is_transient, \
-                    type)                                                     \
-  namespace cvars {                                                           \
+                    requires_restart, type)                                   \
+  namespace xe::cvars {                                                       \
   type name = default_value;                                                  \
-  }                                                                           \
-  namespace cv {                                                              \
-  static auto cv_##name = cvar::define_configvar(                             \
-      #name, &cvars::name, description, category, is_transient);              \
-  }
+  static auto cv_##name = xe::cvar::register_configvar<type>(                 \
+      #name, &cvars::name, description, category, is_transient,               \
+      requires_restart);                                                      \
+  }  // namespace cvars
 
 // CmdVars can only be strings for now, we don't need any others
-#define CmdVar(name, default_value, description)             \
-  namespace cvars {                                          \
-  std::string name = default_value;                          \
-  }                                                          \
-  namespace cv {                                             \
-  static auto cv_##name =                                    \
-      cvar::define_cmdvar(#name, &cvars::name, description); \
-  }
+#define CmdVar(name, default_value, description)                          \
+  namespace xe::cvars {                                                   \
+  std::string name = default_value;                                       \
+  static auto cmdvar_##name = xe::cvar::register_commandvar<std::string>( \
+      #name, &cvars::name, description);                                  \
+  }  // namespace cvars
 
 #define DECLARE_bool(name) DECLARE_CVar(name, bool)
 
@@ -341,10 +236,14 @@ T* define_cmdvar(const char* name, T* default_value, const char* description) {
 #define DECLARE_path(name) DECLARE_CVar(name, std::filesystem::path)
 
 #define DECLARE_CVar(name, type) \
-  namespace cvars {              \
+  namespace xe::cvars {          \
   extern type name;              \
   }
 
+// load template implementations
+#include "cvar.inc"
+
 }  // namespace cvar
+}  // namespace xe
 
 #endif  // XENIA_CVAR_H_
