@@ -868,17 +868,6 @@ void DxbcShaderTranslator::StartPixelShader() {
 }
 
 void DxbcShaderTranslator::StartTranslation() {
-  // Allocate labels and registers for subroutines.
-  label_rov_depth_stencil_sample_ = UINT32_MAX;
-  uint32_t label_index = 0;
-  system_temps_subroutine_count_ = 0;
-  if (IsDxbcPixelShader() && edram_rov_used_) {
-    label_rov_depth_stencil_sample_ = label_index++;
-    system_temps_subroutine_count_ =
-        std::max((uint32_t)2, system_temps_subroutine_count_);
-  }
-  system_temps_subroutine_ = PushSystemTemp(0, system_temps_subroutine_count_);
-
   // Allocate global system temporary registers that may also be used in the
   // epilogue.
   if (IsDxbcVertexOrDomainShader()) {
@@ -1198,14 +1187,6 @@ void DxbcShaderTranslator::CompleteShaderCode() {
   // Return from `main`.
   DxbcOpRet();
 
-  // Write subroutines - can only do this immediately after `ret`. They still
-  // need the global system temps, and can't allocate their own temps (since
-  // they may be called from anywhere and don't know anything about the caller's
-  // register allocation).
-  if (label_rov_depth_stencil_sample_ != UINT32_MAX) {
-    CompleteShaderCode_ROV_DepthStencilSampleSubroutine();
-  }
-
   if (IsDxbcVertexOrDomainShader()) {
     // Release system_temp_position_ and
     // system_temp_point_size_edge_flag_kill_vertex_.
@@ -1226,9 +1207,6 @@ void DxbcShaderTranslator::CompleteShaderCode() {
       PopSystemTemp();
     }
   }
-
-  // Release system_temps_subroutine_.
-  PopSystemTemp(system_temps_subroutine_count_);
 }
 
 std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {

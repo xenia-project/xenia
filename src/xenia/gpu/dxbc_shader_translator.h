@@ -2265,21 +2265,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void CompletePixelShader_WriteToROV();
   void CompletePixelShader();
 
-  // Writes a function that does early (or both early and late, when not
-  // separating) depth/stencil testing for one sample (ROV only).
-  // Input:
-  // - system_temps_subroutine_[0].x - depth converted to 24 bits in bits 0:23.
-  // - system_temp_rov_params_.y - depth sample EDRAM address.
-  // Output:
-  // - system_temps_subroutine_[0].x - resulting packed depth/stencil.
-  // - system_temps_subroutine_[0].y - test result, bit 0 if test FAILED (so
-  //   coverage can be updated with XOR), and if depth/stencil is early, also
-  //   bit 4 if the pixel shader still needs to be done to check for
-  //   kills/alphatest/AtoC before writing the new stencil.
-  // Local temps:
-  // - system_temps_subroutine_[0].zw.
-  // - system_temps_subroutine_[1].xy.
-  void CompleteShaderCode_ROV_DepthStencilSampleSubroutine();
   void CompleteShaderCode();
 
   // Writes the original instruction disassembly in the output DXBC if enabled,
@@ -2505,21 +2490,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Whether the faceness has been used in the pixel shader.
   bool in_front_face_used_;
 
-  // Subroutine labels. D3D10_SB_OPCODE_LABEL is not counted as an instruction
-  // in STAT.
-  uint32_t label_rov_depth_stencil_sample_;
-
   // Number of currently allocated Xenia internal r# registers.
   uint32_t system_temp_count_current_;
   // Total maximum number of temporary registers ever used during this
   // translation (for the declaration).
   uint32_t system_temp_count_max_;
-
-  // Registers for the needed count of non-main-subroutine-local variables.
-  // This includes arguments.
-  uint32_t system_temps_subroutine_;
-  // Number of registers allocated for subroutines other than main.
-  uint32_t system_temps_subroutine_count_;
 
   // Position in vertex shaders (because viewport and W transformations can be
   // applied in the end of the shader).
