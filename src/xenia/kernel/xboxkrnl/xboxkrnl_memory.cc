@@ -9,6 +9,7 @@
 
 #include <cstring>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/kernel/kernel_state.h"
@@ -283,14 +284,17 @@ dword_result_t NtQueryVirtualMemory(
   memory_basic_information_ptr->allocation_protect =
       ToXdkProtectFlags(alloc_info.allocation_protect);
   memory_basic_information_ptr->region_size = alloc_info.region_size;
-  uint32_t x_state = X_MEM_FREE;
-  if (alloc_info.state & kMemoryAllocationReserve) {
-    x_state |= X_MEM_RESERVE;
-    x_state &= ~X_MEM_FREE;
-  }
+  // https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-memory_basic_information
+  // State: ... This member can be one of the following values: MEM_COMMIT,
+  // MEM_FREE, MEM_RESERVE.
+  uint32_t x_state;
   if (alloc_info.state & kMemoryAllocationCommit) {
-    x_state |= X_MEM_COMMIT;
-    x_state &= ~X_MEM_FREE;
+    assert_not_zero(alloc_info.state & kMemoryAllocationReserve);
+    x_state = X_MEM_COMMIT;
+  } else if (alloc_info.state & kMemoryAllocationReserve) {
+    x_state = X_MEM_RESERVE;
+  } else {
+    x_state = X_MEM_FREE;
   }
   memory_basic_information_ptr->state = x_state;
   memory_basic_information_ptr->protect = ToXdkProtectFlags(alloc_info.protect);
