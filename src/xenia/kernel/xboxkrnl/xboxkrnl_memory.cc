@@ -287,6 +287,7 @@ dword_result_t NtQueryVirtualMemory(
   // https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-memory_basic_information
   // State: ... This member can be one of the following values: MEM_COMMIT,
   // MEM_FREE, MEM_RESERVE.
+  // State queried by Beautiful Katamari before displaying the loading screen.
   uint32_t x_state;
   if (alloc_info.state & kMemoryAllocationCommit) {
     assert_not_zero(alloc_info.state & kMemoryAllocationReserve);
