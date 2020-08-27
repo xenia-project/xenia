@@ -283,12 +283,14 @@ dword_result_t NtQueryVirtualMemory(
   memory_basic_information_ptr->allocation_protect =
       ToXdkProtectFlags(alloc_info.allocation_protect);
   memory_basic_information_ptr->region_size = alloc_info.region_size;
-  uint32_t x_state = 0;
+  uint32_t x_state = X_MEM_FREE;
   if (alloc_info.state & kMemoryAllocationReserve) {
     x_state |= X_MEM_RESERVE;
+    x_state &= ~X_MEM_FREE;
   }
   if (alloc_info.state & kMemoryAllocationCommit) {
     x_state |= X_MEM_COMMIT;
+    x_state &= ~X_MEM_FREE;
   }
   memory_basic_information_ptr->state = x_state;
   memory_basic_information_ptr->protect = ToXdkProtectFlags(alloc_info.protect);
