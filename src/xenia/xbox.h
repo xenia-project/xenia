@@ -134,17 +134,19 @@ enum X_MEM : uint32_t {
 };
 
 // PAGE_*, used by NtAllocateVirtualMemory
-#define X_PAGE_NOACCESS           0x00000001
-#define X_PAGE_READONLY           0x00000002
-#define X_PAGE_READWRITE          0x00000004
-#define X_PAGE_WRITECOPY          0x00000008
-#define X_PAGE_EXECUTE            0x00000010
-#define X_PAGE_EXECUTE_READ       0x00000020
-#define X_PAGE_EXECUTE_READWRITE  0x00000040
-#define X_PAGE_EXECUTE_WRITECOPY  0x00000080
-#define X_PAGE_GUARD              0x00000100
-#define X_PAGE_NOCACHE            0x00000200
-#define X_PAGE_WRITECOMBINE       0x00000400
+enum X_PAGE : uint32_t {
+  X_PAGE_NOACCESS          = 0x00000001,
+  X_PAGE_READONLY          = 0x00000002,
+  X_PAGE_READWRITE         = 0x00000004,
+  X_PAGE_WRITECOPY         = 0x00000008,
+  X_PAGE_EXECUTE           = 0x00000010,
+  X_PAGE_EXECUTE_READ      = 0x00000020,
+  X_PAGE_EXECUTE_READWRITE = 0x00000040,
+  X_PAGE_EXECUTE_WRITECOPY = 0x00000080,
+  X_PAGE_GUARD             = 0x00000100,
+  X_PAGE_NOCACHE           = 0x00000200,
+  X_PAGE_WRITECOMBINE      = 0x00000400
+};
 
 // Sockets/networking.
 #define X_INVALID_SOCKET (uint32_t)(~0)
