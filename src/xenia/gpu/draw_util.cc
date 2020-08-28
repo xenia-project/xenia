@@ -48,7 +48,7 @@ int32_t FloatToD3D11Fixed16p8(float f32) {
   }
   // n <= -2^(i-1) -> -2^(i-1) . 0
   if (f32 <= -32768.0f) {
-    return -32768 << 8;
+    return -32768 * 256;
   }
   uint32_t f32_bits = *reinterpret_cast<const uint32_t*>(&f32);
   // Copy float32 mantissa bits [22:0] into corresponding bits [22:0] of a
