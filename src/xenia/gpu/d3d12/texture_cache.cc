@@ -1878,7 +1878,7 @@ void TextureCache::LogTextureAction(const Texture* texture,
                                     const char* action) {
   XELOGGPU(
       "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
-      "base at 0x{:08X} (size {}), mips at 0x{:08X} (size {})",
+      "base at 0x{:08X} (size 0x{:08X}), mips at 0x{:08X} (size 0x{:08X})",
       action, texture->key.tiled ? "tiled" : "linear",
       texture->key.scaled_resolve ? "2x-scaled " : "", texture->key.width,
       texture->key.height, texture->key.depth,

@@ -380,8 +380,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
                                       dest_width, dest_height, dest_depth);
     }
     copy_dest_length = texture_util::GetGuestMipSliceStorageSize(
-        dest_width, dest_height, dest_depth, false, dest_format, nullptr,
-        false);
+        dest_width, dest_height, dest_depth, true, dest_format, nullptr, false);
   } else {
     XELOGE("Tried to resolve to format {}, which is not a ColorFormat",
            dest_format_info.name);
