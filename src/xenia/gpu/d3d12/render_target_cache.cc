@@ -1133,7 +1133,7 @@ bool RenderTargetCache::Resolve(const Memory& memory,
         copy_dest_resident = texture_cache.EnsureScaledResolveBufferResident(
             resolve_info.copy_dest_base, resolve_info.copy_dest_length);
       } else {
-        copy_dest_resident = shared_memory.EnsureTilesResident(
+        copy_dest_resident = shared_memory.RequestRange(
             resolve_info.copy_dest_base, resolve_info.copy_dest_length);
       }
       if (copy_dest_resident) {
@@ -1225,6 +1225,8 @@ bool RenderTargetCache::Resolve(const Memory& memory,
           written_length_out = resolve_info.copy_dest_length;
           copied = true;
         }
+      } else {
+        XELOGE("Failed to obtain the resolve destination memory region");
       }
     }
   } else {

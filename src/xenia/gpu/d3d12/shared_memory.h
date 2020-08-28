@@ -85,10 +85,6 @@ class SharedMemory {
   // Unregisters previously registered watched memory range.
   void UnwatchMemoryRange(WatchHandle handle);
 
-  // Ensures the buffer tiles backing the range are resident, but doesn't upload
-  // anything.
-  bool EnsureTilesResident(uint32_t start, uint32_t length);
-
   // Checks if the range has been updated, uploads new data if needed and
   // ensures the buffer tiles backing the range are resident. May transition the
   // tiled buffer to copy destination - call this before UseForReading or
@@ -106,7 +102,10 @@ class SharedMemory {
   // Marks the range as containing GPU-generated data (such as resolves),
   // triggering modification callbacks, making it valid (so pages are not
   // copied from the main memory until they're modified by the CPU) and
-  // protecting it.
+  // protecting it. Before writing anything from the GPU side, RequestRange must
+  // be called, to make sure, if the GPU writes don't overwrite *everything* in
+  // the pages they touch, the CPU data is properly loaded to the unmodified
+  // regions in those pages.
   void RangeWrittenByGPU(uint32_t start, uint32_t length);
 
   // Makes the buffer usable for vertices, indices and texture untiling.
@@ -184,6 +183,10 @@ class SharedMemory {
   uint32_t page_size_log2_;
   // Total buffer page count.
   uint32_t page_count_;
+
+  // Ensures the buffer tiles backing the range are resident, but doesn't upload
+  // anything.
+  bool EnsureTilesResident(uint32_t start, uint32_t length);
 
   // Non-shader-visible buffer descriptor heap for faster binding (via copying
   // rather than creation).
