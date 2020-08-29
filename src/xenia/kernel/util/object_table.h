@@ -92,6 +92,9 @@ class ObjectTable {
                         std::vector<object_ref<XObject>>* results);
 
   X_HANDLE TranslateHandle(X_HANDLE handle);
+  static constexpr uint32_t GetHandleSlot(X_HANDLE handle) {
+    return (handle - XObject::kHandleBase) >> 2;
+  }
   X_STATUS FindFreeSlot(uint32_t* out_slot);
   bool Resize(uint32_t new_capacity);
 

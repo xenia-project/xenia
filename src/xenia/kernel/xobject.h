@@ -109,6 +109,13 @@ struct X_OBJECT_TYPE {
 
 class XObject {
  public:
+  // Burnout Paradise needs proper handle value for certain calculations
+  // It gets handle value from TLS (without base handle value is 0x88)
+  // and substract 0xF8000088. Without base we're receiving wrong address
+  // Instead of receiving address that starts with 0x82... we're receiving
+  // one with 0x8A... which causes crash
+  static constexpr uint32_t kHandleBase = 0xF8000000;
+
   enum Type {
     kTypeUndefined,
     kTypeEnumerator,

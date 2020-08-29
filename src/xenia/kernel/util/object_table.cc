@@ -112,8 +112,7 @@ X_STATUS ObjectTable::AddHandle(XObject* object, X_HANDLE* out_handle) {
       ObjectTableEntry& entry = table_[slot];
       entry.object = object;
       entry.handle_ref_count = 1;
-
-      handle = slot << 2;
+      handle = XObject::kHandleBase + (slot << 2);
       object->handles().push_back(handle);
 
       // Retain so long as the object is in the table.
@@ -251,7 +250,7 @@ ObjectTable::ObjectTableEntry* ObjectTable::LookupTable(X_HANDLE handle) {
   auto global_lock = global_critical_region_.Acquire();
 
   // Lower 2 bits are ignored.
-  uint32_t slot = handle >> 2;
+  uint32_t slot = GetHandleSlot(handle);
   if (slot <= table_capacity_) {
     return &table_[slot];
   }
@@ -279,7 +278,7 @@ XObject* ObjectTable::LookupObject(X_HANDLE handle, bool already_locked) {
   }
 
   // Lower 2 bits are ignored.
-  uint32_t slot = handle >> 2;
+  uint32_t slot = GetHandleSlot(handle);
 
   // Verify slot.
   if (slot < table_capacity_) {
@@ -390,7 +389,7 @@ bool ObjectTable::Restore(ByteStream* stream) {
 }
 
 X_STATUS ObjectTable::RestoreHandle(X_HANDLE handle, XObject* object) {
-  uint32_t slot = handle >> 2;
+  uint32_t slot = GetHandleSlot(handle);
   assert_true(table_capacity_ >= slot);
 
   if (table_capacity_ >= slot) {
