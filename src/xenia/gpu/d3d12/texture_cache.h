@@ -167,9 +167,9 @@ class TextureCache {
     }
   };
 
-  TextureCache(D3D12CommandProcessor* command_processor,
-               RegisterFile* register_file, bool bindless_resources_used,
-               SharedMemory* shared_memory);
+  TextureCache(D3D12CommandProcessor& command_processor,
+               const RegisterFile& register_file, bool bindless_resources_used,
+               SharedMemory& shared_memory);
   ~TextureCache();
 
   bool Initialize(bool edram_rov_used);
@@ -543,10 +543,10 @@ class TextureCache {
 
   static const char* const dimension_names_[4];
 
-  D3D12CommandProcessor* command_processor_;
-  RegisterFile* register_file_;
+  D3D12CommandProcessor& command_processor_;
+  const RegisterFile& register_file_;
   bool bindless_resources_used_;
-  SharedMemory* shared_memory_;
+  SharedMemory& shared_memory_;
 
   static const LoadModeInfo load_mode_info_[];
   ID3D12RootSignature* load_root_signature_ = nullptr;

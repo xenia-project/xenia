@@ -54,14 +54,14 @@ class D3D12CommandProcessor : public CommandProcessor {
   void RestoreEdramSnapshot(const void* snapshot) override;
 
   // Needed by everything that owns transient objects.
-  ui::d3d12::D3D12Context* GetD3D12Context() const {
-    return static_cast<ui::d3d12::D3D12Context*>(context_.get());
+  ui::d3d12::D3D12Context& GetD3D12Context() const {
+    return static_cast<ui::d3d12::D3D12Context&>(*context_);
   }
 
   // Returns the deferred drawing command list for the currently open
   // submission.
-  DeferredCommandList* GetDeferredCommandList() {
-    return deferred_command_list_.get();
+  DeferredCommandList& GetDeferredCommandList() {
+    return *deferred_command_list_;
   }
 
   uint64_t GetCurrentSubmission() const { return submission_current_; }
@@ -93,8 +93,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   ID3D12RootSignature* GetRootSignature(const D3D12Shader* vertex_shader,
                                         const D3D12Shader* pixel_shader);
 
-  ui::d3d12::UploadBufferPool* GetConstantBufferPool() const {
-    return constant_buffer_pool_.get();
+  ui::d3d12::UploadBufferPool& GetConstantBufferPool() const {
+    return *constant_buffer_pool_;
   }
 
   D3D12_CPU_DESCRIPTOR_HANDLE GetViewBindlessHeapCPUStart() const {

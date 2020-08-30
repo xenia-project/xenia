@@ -250,12 +250,13 @@ class RenderTargetCache {
     DXGI_FORMAT format;
   };
 
-  RenderTargetCache(D3D12CommandProcessor* command_processor,
-                    RegisterFile* register_file, TraceWriter* trace_writer,
-                    bool bindless_resources_used, bool edram_rov_used);
+  RenderTargetCache(D3D12CommandProcessor& command_processor,
+                    const RegisterFile& register_file,
+                    TraceWriter& trace_writer, bool bindless_resources_used,
+                    bool edram_rov_used);
   ~RenderTargetCache();
 
-  bool Initialize(const TextureCache* texture_cache);
+  bool Initialize(const TextureCache& texture_cache);
   void Shutdown();
   void ClearCache();
 
@@ -483,9 +484,9 @@ class RenderTargetCache {
                                            DXGI_FORMAT format);
 #endif
 
-  D3D12CommandProcessor* command_processor_;
-  RegisterFile* register_file_;
-  TraceWriter* trace_writer_;
+  D3D12CommandProcessor& command_processor_;
+  const RegisterFile& register_file_;
+  TraceWriter& trace_writer_;
   bool bindless_resources_used_;
   bool edram_rov_used_;
 

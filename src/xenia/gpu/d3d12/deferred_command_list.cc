@@ -18,7 +18,7 @@ namespace gpu {
 namespace d3d12 {
 
 DeferredCommandList::DeferredCommandList(
-    D3D12CommandProcessor* command_processor, size_t initial_size)
+    D3D12CommandProcessor& command_processor, size_t initial_size)
     : command_processor_(command_processor) {
   command_stream_.reserve(initial_size);
 }
@@ -205,7 +205,7 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
       } break;
       case Command::kSetPipelineStateHandle: {
         current_pipeline_state =
-            command_processor_->GetD3D12PipelineStateByHandle(
+            command_processor_.GetD3D12PipelineStateByHandle(
                 *reinterpret_cast<void* const*>(stream));
         if (current_pipeline_state) {
           command_list->SetPipelineState(current_pipeline_state);

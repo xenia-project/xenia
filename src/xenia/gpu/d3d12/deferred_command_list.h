@@ -25,7 +25,7 @@ class D3D12CommandProcessor;
 
 class DeferredCommandList {
  public:
-  DeferredCommandList(D3D12CommandProcessor* command_processor,
+  DeferredCommandList(D3D12CommandProcessor& command_processor,
                       size_t initial_size = 256 * 1024);
 
   void Reset();
@@ -462,7 +462,7 @@ class DeferredCommandList {
 
   void* WriteCommand(Command command, size_t arguments_size);
 
-  D3D12CommandProcessor* command_processor_;
+  D3D12CommandProcessor& command_processor_;
 
   std::vector<uint8_t> command_stream_;
 };

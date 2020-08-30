@@ -28,10 +28,6 @@ class D3D12Context : public GraphicsContext {
 
   ImmediateDrawer* immediate_drawer() override;
 
-  bool is_current() override;
-  bool MakeCurrent() override;
-  void ClearCurrent() override;
-
   bool WasLost() override { return context_lost_; }
 
   void BeginSwap() override;
@@ -39,8 +35,8 @@ class D3D12Context : public GraphicsContext {
 
   std::unique_ptr<RawImage> Capture() override;
 
-  D3D12Provider* GetD3D12Provider() const {
-    return static_cast<D3D12Provider*>(provider_);
+  D3D12Provider& GetD3D12Provider() const {
+    return static_cast<D3D12Provider&>(*provider_);
   }
 
   // The format used by DWM.
