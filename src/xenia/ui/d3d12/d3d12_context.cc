@@ -32,10 +32,10 @@ D3D12Context::D3D12Context(D3D12Provider* provider, Window* target_window)
 D3D12Context::~D3D12Context() { Shutdown(); }
 
 bool D3D12Context::Initialize() {
-  auto provider = GetD3D12Provider();
-  auto dxgi_factory = provider->GetDXGIFactory();
-  auto device = provider->GetDevice();
-  auto direct_queue = provider->GetDirectQueue();
+  auto& provider = GetD3D12Provider();
+  auto dxgi_factory = provider.GetDXGIFactory();
+  auto device = provider.GetDevice();
+  auto direct_queue = provider.GetDirectQueue();
 
   context_lost_ = false;
 
@@ -74,7 +74,7 @@ bool D3D12Context::Initialize() {
     swap_chain_desc.Flags = 0;
     IDXGISwapChain1* swap_chain_1;
     if (FAILED(dxgi_factory->CreateSwapChainForHwnd(
-            provider->GetDirectQueue(),
+            provider.GetDirectQueue(),
             static_cast<HWND>(target_window_->native_handle()),
             &swap_chain_desc, nullptr, nullptr, &swap_chain_1))) {
       XELOGE("Failed to create a DXGI swap chain");
@@ -131,7 +131,7 @@ bool D3D12Context::Initialize() {
     swap_command_list_->Close();
 
     // Initialize the immediate mode drawer if not offscreen.
-    immediate_drawer_ = std::make_unique<D3D12ImmediateDrawer>(this);
+    immediate_drawer_ = std::make_unique<D3D12ImmediateDrawer>(*this);
     if (!immediate_drawer_->Initialize()) {
       Shutdown();
       return false;
@@ -155,7 +155,7 @@ bool D3D12Context::InitializeSwapChainBuffers() {
   swap_chain_back_buffer_index_ = swap_chain_->GetCurrentBackBufferIndex();
 
   // Create RTV descriptors for the swap chain buffers.
-  auto device = GetD3D12Provider()->GetDevice();
+  auto device = GetD3D12Provider().GetDevice();
   D3D12_RENDER_TARGET_VIEW_DESC rtv_desc;
   rtv_desc.Format = kSwapChainFormat;
   rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
@@ -222,12 +222,6 @@ void D3D12Context::Shutdown() {
 ImmediateDrawer* D3D12Context::immediate_drawer() {
   return immediate_drawer_.get();
 }
-
-bool D3D12Context::is_current() { return false; }
-
-bool D3D12Context::MakeCurrent() { return true; }
-
-void D3D12Context::ClearCurrent() {}
 
 void D3D12Context::BeginSwap() {
   if (!target_window_ || context_lost_) {
@@ -320,7 +314,7 @@ void D3D12Context::EndSwap() {
     return;
   }
 
-  auto direct_queue = GetD3D12Provider()->GetDirectQueue();
+  auto direct_queue = GetD3D12Provider().GetDirectQueue();
 
   // Switch the back buffer to presentation state.
   D3D12_RESOURCE_BARRIER barrier;
@@ -358,8 +352,8 @@ std::unique_ptr<RawImage> D3D12Context::Capture() {
 
 D3D12_CPU_DESCRIPTOR_HANDLE D3D12Context::GetSwapChainBufferRTV(
     uint32_t buffer_index) const {
-  return GetD3D12Provider()->OffsetRTVDescriptor(swap_chain_rtv_heap_start_,
-                                                 buffer_index);
+  return GetD3D12Provider().OffsetRTVDescriptor(swap_chain_rtv_heap_start_,
+                                                buffer_index);
 }
 
 }  // namespace d3d12

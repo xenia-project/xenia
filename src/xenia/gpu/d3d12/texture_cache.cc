@@ -829,10 +829,10 @@ const TextureCache::LoadModeInfo TextureCache::load_mode_info_[] = {
      4},
 };
 
-TextureCache::TextureCache(D3D12CommandProcessor* command_processor,
-                           RegisterFile* register_file,
+TextureCache::TextureCache(D3D12CommandProcessor& command_processor,
+                           const RegisterFile& register_file,
                            bool bindless_resources_used,
-                           SharedMemory* shared_memory)
+                           SharedMemory& shared_memory)
     : command_processor_(command_processor),
       register_file_(register_file),
       bindless_resources_used_(bindless_resources_used),
@@ -841,15 +841,15 @@ TextureCache::TextureCache(D3D12CommandProcessor* command_processor,
 TextureCache::~TextureCache() { Shutdown(); }
 
 bool TextureCache::Initialize(bool edram_rov_used) {
-  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
-  auto device = provider->GetDevice();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  auto device = provider.GetDevice();
 
   // Try to create the tiled buffer 2x resolution scaling.
   // Not currently supported with the RTV/DSV output path for various reasons.
   if (cvars::d3d12_resolution_scale >= 2 && edram_rov_used &&
-      provider->GetTiledResourcesTier() !=
+      provider.GetTiledResourcesTier() !=
           D3D12_TILED_RESOURCES_TIER_NOT_SUPPORTED &&
-      provider->GetVirtualAddressBitsPerResource() >=
+      provider.GetVirtualAddressBitsPerResource() >=
           kScaledResolveBufferSizeLog2) {
     D3D12_RESOURCE_DESC scaled_resolve_buffer_desc;
     ui::d3d12::util::FillBufferResourceDesc(
@@ -983,7 +983,7 @@ bool TextureCache::Initialize(bool edram_rov_used) {
   null_srv_desc.Texture2DArray.ResourceMinLODClamp = 0.0f;
   device->CreateShaderResourceView(
       nullptr, &null_srv_desc,
-      provider->OffsetViewDescriptor(
+      provider.OffsetViewDescriptor(
           null_srv_descriptor_heap_start_,
           uint32_t(NullSRVDescriptorIndex::k2DArray)));
   null_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
@@ -992,19 +992,19 @@ bool TextureCache::Initialize(bool edram_rov_used) {
   null_srv_desc.Texture3D.ResourceMinLODClamp = 0.0f;
   device->CreateShaderResourceView(
       nullptr, &null_srv_desc,
-      provider->OffsetViewDescriptor(null_srv_descriptor_heap_start_,
-                                     uint32_t(NullSRVDescriptorIndex::k3D)));
+      provider.OffsetViewDescriptor(null_srv_descriptor_heap_start_,
+                                    uint32_t(NullSRVDescriptorIndex::k3D)));
   null_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
   null_srv_desc.TextureCube.MostDetailedMip = 0;
   null_srv_desc.TextureCube.MipLevels = 1;
   null_srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
   device->CreateShaderResourceView(
       nullptr, &null_srv_desc,
-      provider->OffsetViewDescriptor(null_srv_descriptor_heap_start_,
-                                     uint32_t(NullSRVDescriptorIndex::kCube)));
+      provider.OffsetViewDescriptor(null_srv_descriptor_heap_start_,
+                                    uint32_t(NullSRVDescriptorIndex::kCube)));
 
   if (IsResolutionScale2X()) {
-    scaled_resolve_global_watch_handle_ = shared_memory_->RegisterGlobalWatch(
+    scaled_resolve_global_watch_handle_ = shared_memory_.RegisterGlobalWatch(
         ScaledResolveGlobalWatchCallbackThunk, this);
   }
 
@@ -1017,7 +1017,7 @@ void TextureCache::Shutdown() {
   ClearCache();
 
   if (scaled_resolve_global_watch_handle_ != nullptr) {
-    shared_memory_->UnregisterGlobalWatch(scaled_resolve_global_watch_handle_);
+    shared_memory_.UnregisterGlobalWatch(scaled_resolve_global_watch_handle_);
     scaled_resolve_global_watch_handle_ = nullptr;
   }
 
@@ -1046,13 +1046,13 @@ void TextureCache::ClearCache() {
   // Destroy all the textures.
   for (auto texture_pair : textures_) {
     Texture* texture = texture_pair.second;
-    shared_memory_->UnwatchMemoryRange(texture->base_watch_handle);
-    shared_memory_->UnwatchMemoryRange(texture->mip_watch_handle);
+    shared_memory_.UnwatchMemoryRange(texture->base_watch_handle);
+    shared_memory_.UnwatchMemoryRange(texture->mip_watch_handle);
     // Bindful descriptor cache will be cleared entirely now, so only release
     // bindless descriptors.
     if (bindless_resources_used_) {
       for (auto descriptor_pair : texture->srv_descriptors) {
-        command_processor_->ReleaseViewBindlessDescriptorImmediately(
+        command_processor_.ReleaseViewBindlessDescriptorImmediately(
             descriptor_pair.second);
       }
     }
@@ -1090,7 +1090,7 @@ void TextureCache::BeginFrame() {
   texture_current_usage_time_ = xe::Clock::QueryHostUptimeMillis();
 
   // If memory usage is too high, destroy unused textures.
-  uint64_t completed_frame = command_processor_->GetCompletedFrame();
+  uint64_t completed_frame = command_processor_.GetCompletedFrame();
   uint32_t limit_soft_mb = cvars::d3d12_texture_cache_limit_soft;
   uint32_t limit_hard_mb = cvars::d3d12_texture_cache_limit_hard;
   if (IsResolutionScale2X()) {
@@ -1134,11 +1134,11 @@ void TextureCache::BeginFrame() {
     // Exclude the texture from the memory usage counter.
     textures_total_size_ -= texture->resource_size;
     // Destroy the texture.
-    shared_memory_->UnwatchMemoryRange(texture->base_watch_handle);
-    shared_memory_->UnwatchMemoryRange(texture->mip_watch_handle);
+    shared_memory_.UnwatchMemoryRange(texture->base_watch_handle);
+    shared_memory_.UnwatchMemoryRange(texture->mip_watch_handle);
     if (bindless_resources_used_) {
       for (auto descriptor_pair : texture->srv_descriptors) {
-        command_processor_->ReleaseViewBindlessDescriptorImmediately(
+        command_processor_.ReleaseViewBindlessDescriptorImmediately(
             descriptor_pair.second);
       }
     } else {
@@ -1177,7 +1177,7 @@ void TextureCache::EndFrame() {
 }
 
 void TextureCache::RequestTextures(uint32_t used_texture_mask) {
-  auto& regs = *register_file_;
+  const auto& regs = register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
@@ -1315,7 +1315,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
     if (binding.texture != nullptr) {
       // Will be referenced by the command list, so mark as used.
       MarkTextureUsed(binding.texture);
-      command_processor_->PushTransitionBarrier(
+      command_processor_.PushTransitionBarrier(
           binding.texture->resource, binding.texture->state,
           D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
               D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -1324,7 +1324,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
     }
     if (binding.texture_signed != nullptr) {
       MarkTextureUsed(binding.texture_signed);
-      command_processor_->PushTransitionBarrier(
+      command_processor_.PushTransitionBarrier(
           binding.texture_signed->resource, binding.texture_signed->state,
           D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
               D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -1392,7 +1392,7 @@ void TextureCache::WriteActiveTextureBindfulSRV(
       }
     }
   }
-  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
   D3D12_CPU_DESCRIPTOR_HANDLE source_handle;
   if (descriptor_index != UINT32_MAX) {
     assert_not_null(texture);
@@ -1413,10 +1413,10 @@ void TextureCache::WriteActiveTextureBindfulSRV(
             host_shader_binding.dimension == xenos::FetchOpDimension::k2D);
         null_descriptor_index = NullSRVDescriptorIndex::k2DArray;
     }
-    source_handle = provider->OffsetViewDescriptor(
+    source_handle = provider.OffsetViewDescriptor(
         null_srv_descriptor_heap_start_, uint32_t(null_descriptor_index));
   }
-  auto device = provider->GetDevice();
+  auto device = provider.GetDevice();
   {
 #if FINE_GRAINED_DRAW_SCOPES
     SCOPE_profile_cpu_i(
@@ -1465,7 +1465,7 @@ uint32_t TextureCache::GetActiveTextureBindlessSRVIndex(
 
 TextureCache::SamplerParameters TextureCache::GetSamplerParameters(
     const D3D12Shader::SamplerBinding& binding) const {
-  auto& regs = *register_file_;
+  const auto& regs = register_file_;
   const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
       XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + binding.fetch_constant * 6);
 
@@ -1571,7 +1571,7 @@ void TextureCache::WriteSampler(SamplerParameters parameters,
   // Maximum mip level is in the texture resource itself.
   desc.MaxLOD = FLT_MAX;
   auto device =
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
   device->CreateSampler(&desc, handle);
 }
 
@@ -1604,7 +1604,7 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled,
 
   // Invalidate textures. Toggling individual textures between scaled and
   // unscaled also relies on invalidation through shared memory.
-  shared_memory_->RangeWrittenByGPU(start_unscaled, length_unscaled);
+  shared_memory_.RangeWrittenByGPU(start_unscaled, length_unscaled);
 }
 
 bool TextureCache::EnsureScaledResolveBufferResident(uint32_t start_unscaled,
@@ -1627,9 +1627,9 @@ bool TextureCache::EnsureScaledResolveBufferResident(uint32_t start_unscaled,
     if (scaled_resolve_heaps_[i] != nullptr) {
       continue;
     }
-    auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
-    auto device = provider->GetDevice();
-    auto direct_queue = provider->GetDirectQueue();
+    auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+    auto device = provider.GetDevice();
+    auto direct_queue = provider.GetDirectQueue();
     D3D12_HEAP_DESC heap_desc = {};
     heap_desc.SizeInBytes = kScaledResolveHeapSize;
     heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
@@ -1671,7 +1671,7 @@ bool TextureCache::EnsureScaledResolveBufferResident(uint32_t start_unscaled,
 
 void TextureCache::UseScaledResolveBufferForReading() {
   assert_true(IsResolutionScale2X());
-  command_processor_->PushTransitionBarrier(
+  command_processor_.PushTransitionBarrier(
       scaled_resolve_buffer_, scaled_resolve_buffer_state_,
       D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
   scaled_resolve_buffer_state_ = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
@@ -1683,12 +1683,12 @@ void TextureCache::UseScaledResolveBufferForWriting() {
   assert_true(IsResolutionScale2X());
   if (scaled_resolve_buffer_state_ == D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
     if (scaled_resolve_buffer_uav_writes_commit_needed_) {
-      command_processor_->PushUAVBarrier(scaled_resolve_buffer_);
+      command_processor_.PushUAVBarrier(scaled_resolve_buffer_);
       scaled_resolve_buffer_uav_writes_commit_needed_ = false;
     }
     return;
   }
-  command_processor_->PushTransitionBarrier(
+  command_processor_.PushTransitionBarrier(
       scaled_resolve_buffer_, scaled_resolve_buffer_state_,
       D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
   scaled_resolve_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
@@ -1699,7 +1699,7 @@ void TextureCache::CreateScaledResolveBufferUintPow2UAV(
     uint32_t guest_length_bytes, uint32_t element_size_bytes_pow2) {
   assert_true(IsResolutionScale2X());
   ui::d3d12::util::CreateBufferTypedUAV(
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice(),
+      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice(),
       handle, scaled_resolve_buffer_,
       ui::d3d12::util::GetUintPow2DXGIFormat(element_size_bytes_pow2),
       guest_length_bytes << 2 >> element_size_bytes_pow2,
@@ -1709,7 +1709,7 @@ void TextureCache::CreateScaledResolveBufferUintPow2UAV(
 ID3D12Resource* TextureCache::RequestSwapTexture(
     D3D12_SHADER_RESOURCE_VIEW_DESC& srv_desc_out,
     xenos::TextureFormat& format_out) {
-  auto& regs = *register_file_;
+  const auto& regs = register_file_;
   const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
       XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0);
   TextureKey key;
@@ -1727,7 +1727,7 @@ ID3D12Resource* TextureCache::RequestSwapTexture(
   // The swap texture is likely to be used only for the presentation pixel
   // shader, and not during emulation, where it'd be NON_PIXEL_SHADER_RESOURCE |
   // PIXEL_SHADER_RESOURCE.
-  command_processor_->PushTransitionBarrier(
+  command_processor_.PushTransitionBarrier(
       texture->resource, texture->state,
       D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
   texture->state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
@@ -1954,7 +1954,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   // is not done that often.
   desc.Flags = D3D12_RESOURCE_FLAG_NONE;
   auto device =
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
   // Assuming untiling will be the next operation.
   D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
   ID3D12Resource* resource;
@@ -1972,7 +1972,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   texture->resource_size =
       device->GetResourceAllocationInfo(0, 1, &desc).SizeInBytes;
   texture->state = state;
-  texture->last_usage_frame = command_processor_->GetCurrentFrame();
+  texture->last_usage_frame = command_processor_.GetCurrentFrame();
   texture->last_usage_time = texture_current_usage_time_;
   texture->used_previous = texture_used_last_;
   texture->used_next = nullptr;
@@ -2070,9 +2070,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     return true;
   }
 
-  auto command_list = command_processor_->GetDeferredCommandList();
+  auto& command_list = command_processor_.GetDeferredCommandList();
   auto device =
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
 
   // Get the pipeline.
   LoadMode load_mode = GetLoadMode(texture->key);
@@ -2095,14 +2095,14 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   // its pages is invalidated, in this case we'll need the texture from the
   // shared memory to load the unscaled parts.
   if (!base_in_sync) {
-    if (!shared_memory_->RequestRange(texture->key.base_page << 12,
-                                      texture->base_size)) {
+    if (!shared_memory_.RequestRange(texture->key.base_page << 12,
+                                     texture->base_size)) {
       return false;
     }
   }
   if (!mips_in_sync) {
-    if (!shared_memory_->RequestRange(texture->key.mip_page << 12,
-                                      texture->mip_size)) {
+    if (!shared_memory_.RequestRange(texture->key.mip_page << 12,
+                                     texture->mip_size)) {
       return false;
     }
   }
@@ -2205,7 +2205,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   }
   D3D12_RESOURCE_STATES copy_buffer_state =
       D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-  ID3D12Resource* copy_buffer = command_processor_->RequestScratchGPUBuffer(
+  ID3D12Resource* copy_buffer = command_processor_.RequestScratchGPUBuffer(
       uint32_t(host_slice_size), copy_buffer_state);
   if (copy_buffer == nullptr) {
     return false;
@@ -2237,8 +2237,8 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     }
   }
   ui::d3d12::util::DescriptorCPUGPUHandlePair descriptors[3];
-  if (!command_processor_->RequestOneUseSingleViewDescriptors(descriptor_count,
-                                                              descriptors)) {
+  if (!command_processor_.RequestOneUseSingleViewDescriptors(descriptor_count,
+                                                             descriptors)) {
     return false;
   }
   uint32_t descriptor_write_index = 0;
@@ -2285,30 +2285,30 @@ bool TextureCache::LoadTextureData(Texture* texture) {
               load_mode_info.srv_bpe_log2_2x);
     }
   } else {
-    shared_memory_->UseForReading();
+    shared_memory_.UseForReading();
     if (bindless_resources_used_) {
       descriptors_source[0] =
-          command_processor_->GetSharedMemoryUintPow2BindlessSRVHandlePair(
+          command_processor_.GetSharedMemoryUintPow2BindlessSRVHandlePair(
               load_mode_info.srv_bpe_log2);
     } else {
       assert_true(descriptor_write_index < descriptor_count);
       descriptors_source[0] = descriptors[descriptor_write_index++];
-      shared_memory_->WriteUintPow2SRVDescriptor(descriptors_source[0].first,
-                                                 load_mode_info.srv_bpe_log2);
+      shared_memory_.WriteUintPow2SRVDescriptor(descriptors_source[0].first,
+                                                load_mode_info.srv_bpe_log2);
     }
   }
-  command_processor_->SetComputePipelineState(pipeline_state);
-  command_list->D3DSetComputeRootSignature(load_root_signature_);
-  command_list->D3DSetComputeRootDescriptorTable(2, descriptor_dest.second);
+  command_processor_.SetComputePipelineState(pipeline_state);
+  command_list.D3DSetComputeRootSignature(load_root_signature_);
+  command_list.D3DSetComputeRootDescriptorTable(2, descriptor_dest.second);
 
   // Update LRU caching because the texture will be used by the command list.
   MarkTextureUsed(texture);
 
   // Submit commands.
-  command_processor_->PushTransitionBarrier(texture->resource, texture->state,
-                                            D3D12_RESOURCE_STATE_COPY_DEST);
+  command_processor_.PushTransitionBarrier(texture->resource, texture->state,
+                                           D3D12_RESOURCE_STATE_COPY_DEST);
   texture->state = D3D12_RESOURCE_STATE_COPY_DEST;
-  auto cbuffer_pool = command_processor_->GetConstantBufferPool();
+  auto& cbuffer_pool = command_processor_.GetConstantBufferPool();
   LoadConstants load_constants;
   load_constants.is_3d_endian =
       uint32_t(is_3d) | (uint32_t(texture->key.endianness) << 1);
@@ -2323,7 +2323,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   }
   uint32_t descriptor_source_last_index = UINT32_MAX;
   for (uint32_t slice = 0; slice < slice_count; ++slice) {
-    command_processor_->PushTransitionBarrier(
+    command_processor_.PushTransitionBarrier(
         copy_buffer, copy_buffer_state, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     copy_buffer_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     for (uint32_t loop_mip = loop_mip_first; loop_mip <= loop_mip_last;
@@ -2393,33 +2393,33 @@ bool TextureCache::LoadTextureData(Texture* texture) {
             xe::next_pow2(load_constants.size_blocks[1]), uint32_t(32));
       }
       D3D12_GPU_VIRTUAL_ADDRESS cbuffer_gpu_address;
-      uint8_t* cbuffer_mapping = cbuffer_pool->Request(
-          command_processor_->GetCurrentFrame(),
+      uint8_t* cbuffer_mapping = cbuffer_pool.Request(
+          command_processor_.GetCurrentFrame(),
           xe::align(uint32_t(sizeof(load_constants)), uint32_t(256)), nullptr,
           nullptr, &cbuffer_gpu_address);
       if (cbuffer_mapping == nullptr) {
-        command_processor_->ReleaseScratchGPUBuffer(copy_buffer,
-                                                    copy_buffer_state);
+        command_processor_.ReleaseScratchGPUBuffer(copy_buffer,
+                                                   copy_buffer_state);
         return false;
       }
       std::memcpy(cbuffer_mapping, &load_constants, sizeof(load_constants));
       if (descriptor_source_last_index != descriptor_source_index) {
         descriptor_source_last_index = descriptor_source_index;
-        command_list->D3DSetComputeRootDescriptorTable(
+        command_list.D3DSetComputeRootDescriptorTable(
             1, descriptors_source[descriptor_source_index].second);
       }
-      command_list->D3DSetComputeRootConstantBufferView(0, cbuffer_gpu_address);
-      command_processor_->SubmitBarriers();
+      command_list.D3DSetComputeRootConstantBufferView(0, cbuffer_gpu_address);
+      command_processor_.SubmitBarriers();
       // Each thread group processes 32x32x1 guest blocks.
-      command_list->D3DDispatch((load_constants.size_blocks[0] + 31) >> 5,
-                                (load_constants.size_blocks[1] + 31) >> 5,
-                                load_constants.size_blocks[2]);
+      command_list.D3DDispatch((load_constants.size_blocks[0] + 31) >> 5,
+                               (load_constants.size_blocks[1] + 31) >> 5,
+                               load_constants.size_blocks[2]);
     }
-    command_processor_->PushUAVBarrier(copy_buffer);
-    command_processor_->PushTransitionBarrier(copy_buffer, copy_buffer_state,
-                                              D3D12_RESOURCE_STATE_COPY_SOURCE);
+    command_processor_.PushUAVBarrier(copy_buffer);
+    command_processor_.PushTransitionBarrier(copy_buffer, copy_buffer_state,
+                                             D3D12_RESOURCE_STATE_COPY_SOURCE);
     copy_buffer_state = D3D12_RESOURCE_STATE_COPY_SOURCE;
-    command_processor_->SubmitBarriers();
+    command_processor_.SubmitBarriers();
     UINT slice_first_subresource = slice * texture_mip_count;
     for (uint32_t mip = mip_first; mip <= mip_last; ++mip) {
       D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
@@ -2450,16 +2450,16 @@ bool TextureCache::LoadTextureData(Texture* texture) {
             xe::align(std::max(height >> mip, uint32_t(1)), host_block_height);
         source_box.back =
             source_box.front + std::max(depth >> mip, uint32_t(1));
-        command_list->CopyTextureRegion(location_dest, 0, 0, 0, location_source,
-                                        source_box);
+        command_list.CopyTextureRegion(location_dest, 0, 0, 0, location_source,
+                                       source_box);
       } else {
         location_source.PlacedFootprint = host_layouts[mip - mip_first];
-        command_list->CopyTexture(location_dest, location_source);
+        command_list.CopyTexture(location_dest, location_source);
       }
     }
   }
 
-  command_processor_->ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
+  command_processor_.ReleaseScratchGPUBuffer(copy_buffer, copy_buffer_state);
 
   // Mark the ranges as uploaded and watch them. This is needed for scaled
   // resolves as well to detect when the CPU wants to reuse the memory for a
@@ -2470,12 +2470,12 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     texture->base_in_sync = true;
     texture->mips_in_sync = true;
     if (!base_in_sync) {
-      texture->base_watch_handle = shared_memory_->WatchMemoryRange(
+      texture->base_watch_handle = shared_memory_.WatchMemoryRange(
           texture->key.base_page << 12, texture->base_size, WatchCallbackThunk,
           this, texture, 0);
     }
     if (!mips_in_sync) {
-      texture->mip_watch_handle = shared_memory_->WatchMemoryRange(
+      texture->mip_watch_handle = shared_memory_.WatchMemoryRange(
           texture->key.mip_page << 12, texture->mip_size, WatchCallbackThunk,
           this, texture, 1);
     }
@@ -2552,11 +2552,11 @@ uint32_t TextureCache::FindOrCreateTextureDescriptor(Texture& texture,
       D3D12_SHADER_COMPONENT_MAPPING_ALWAYS_SET_BIT_AVOIDING_ZEROMEM_MISTAKES;
 
   auto device =
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
   uint32_t descriptor_index;
   if (bindless_resources_used_) {
     descriptor_index =
-        command_processor_->RequestPersistentViewBindlessDescriptor();
+        command_processor_.RequestPersistentViewBindlessDescriptor();
     if (descriptor_index == UINT32_MAX) {
       XELOGE(
           "Failed to create a texture descriptor - no free bindless view "
@@ -2604,21 +2604,21 @@ uint32_t TextureCache::FindOrCreateTextureDescriptor(Texture& texture,
 
 D3D12_CPU_DESCRIPTOR_HANDLE TextureCache::GetTextureDescriptorCPUHandle(
     uint32_t descriptor_index) const {
-  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
   if (bindless_resources_used_) {
-    return provider->OffsetViewDescriptor(
-        command_processor_->GetViewBindlessHeapCPUStart(), descriptor_index);
+    return provider.OffsetViewDescriptor(
+        command_processor_.GetViewBindlessHeapCPUStart(), descriptor_index);
   }
   D3D12_CPU_DESCRIPTOR_HANDLE heap_start =
       srv_descriptor_cache_[descriptor_index /
                             SRVDescriptorCachePage::kHeapSize]
           .heap_start;
   uint32_t heap_offset = descriptor_index % SRVDescriptorCachePage::kHeapSize;
-  return provider->OffsetViewDescriptor(heap_start, heap_offset);
+  return provider.OffsetViewDescriptor(heap_start, heap_offset);
 }
 
 void TextureCache::MarkTextureUsed(Texture* texture) {
-  uint64_t current_frame = command_processor_->GetCurrentFrame();
+  uint64_t current_frame = command_processor_.GetCurrentFrame();
   // This is called very frequently, don't relink unless needed for caching.
   if (texture->last_usage_frame != current_frame) {
     texture->last_usage_frame = current_frame;

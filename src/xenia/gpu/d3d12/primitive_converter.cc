@@ -33,10 +33,10 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-PrimitiveConverter::PrimitiveConverter(D3D12CommandProcessor* command_processor,
-                                       RegisterFile* register_file,
-                                       Memory* memory,
-                                       TraceWriter* trace_writer)
+PrimitiveConverter::PrimitiveConverter(D3D12CommandProcessor& command_processor,
+                                       const RegisterFile& register_file,
+                                       Memory& memory,
+                                       TraceWriter& trace_writer)
     : command_processor_(command_processor),
       register_file_(register_file),
       memory_(memory),
@@ -48,7 +48,7 @@ PrimitiveConverter::~PrimitiveConverter() { Shutdown(); }
 
 bool PrimitiveConverter::Initialize() {
   auto device =
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
 
   // There can be at most 65535 indices in a Xenos draw call, but they can be up
   // to 4 bytes large, and conversion can add more indices (almost triple the
@@ -119,7 +119,7 @@ bool PrimitiveConverter::Initialize() {
 
   memory_regions_invalidated_.store(0ull, std::memory_order_relaxed);
   memory_invalidation_callback_handle_ =
-      memory_->RegisterPhysicalMemoryInvalidationCallback(
+      memory_.RegisterPhysicalMemoryInvalidationCallback(
           MemoryInvalidationCallbackThunk, this);
 
   return true;
@@ -127,7 +127,7 @@ bool PrimitiveConverter::Initialize() {
 
 void PrimitiveConverter::Shutdown() {
   if (memory_invalidation_callback_handle_ != nullptr) {
-    memory_->UnregisterPhysicalMemoryInvalidationCallback(
+    memory_.UnregisterPhysicalMemoryInvalidationCallback(
         memory_invalidation_callback_handle_);
     memory_invalidation_callback_handle_ = nullptr;
   }
@@ -139,7 +139,7 @@ void PrimitiveConverter::Shutdown() {
 void PrimitiveConverter::ClearCache() { buffer_pool_->ClearCache(); }
 
 void PrimitiveConverter::CompletedSubmissionUpdated() {
-  if (static_ib_upload_ && command_processor_->GetCompletedSubmission() >=
+  if (static_ib_upload_ && command_processor_.GetCompletedSubmission() >=
                                static_ib_upload_submission_) {
     // Completely uploaded - release the upload buffer.
     static_ib_upload_->Release();
@@ -151,17 +151,17 @@ void PrimitiveConverter::BeginSubmission() {
   // Got a command list now - upload and transition the static index buffer if
   // needed.
   if (static_ib_upload_ && static_ib_upload_submission_ == UINT64_MAX) {
-    command_processor_->GetDeferredCommandList()->D3DCopyResource(
+    command_processor_.GetDeferredCommandList().D3DCopyResource(
         static_ib_, static_ib_upload_);
-    command_processor_->PushTransitionBarrier(
-        static_ib_, D3D12_RESOURCE_STATE_COPY_DEST,
-        D3D12_RESOURCE_STATE_INDEX_BUFFER);
-    static_ib_upload_submission_ = command_processor_->GetCurrentSubmission();
+    command_processor_.PushTransitionBarrier(static_ib_,
+                                             D3D12_RESOURCE_STATE_COPY_DEST,
+                                             D3D12_RESOURCE_STATE_INDEX_BUFFER);
+    static_ib_upload_submission_ = command_processor_.GetCurrentSubmission();
   }
 }
 
 void PrimitiveConverter::BeginFrame() {
-  buffer_pool_->Reclaim(command_processor_->GetCompletedFrame());
+  buffer_pool_->Reclaim(command_processor_.GetCompletedFrame());
   converted_indices_cache_.clear();
   memory_regions_used_ = 0;
 }
@@ -189,7 +189,7 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     xenos::IndexFormat index_format, xenos::Endian index_endianness,
     D3D12_GPU_VIRTUAL_ADDRESS& gpu_address_out, uint32_t& index_count_out) {
   bool index_32bit = index_format == xenos::IndexFormat::kInt32;
-  auto& regs = *register_file_;
+  const auto& regs = register_file_;
   bool reset = regs.Get<reg::PA_SU_SC_MODE_CNTL>().multi_prim_ib_ena;
   // Swap the reset index because we will be comparing unswapped values to it.
   uint32_t reset_index = xenos::GpuSwap(
@@ -291,7 +291,7 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     const uint32_t* source_32;
     uintptr_t source_uintptr;
   };
-  source = memory_->TranslatePhysical(address);
+  source = memory_.TranslatePhysical(address);
 
   // Calculate the new index count, and also check if there's nothing to convert
   // in the buffer (for instance, if not using actually primitive reset).
@@ -304,7 +304,7 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
   if (source_type == xenos::PrimitiveType::kTriangleFan) {
     // Triangle fans are not supported by Direct3D 12 at all.
     conversion_needed = true;
-    trace_writer_->WriteMemoryRead(address, index_buffer_size);
+    trace_writer_.WriteMemoryRead(address, index_buffer_size);
     if (reset) {
       uint32_t current_fan_index_count = 0;
       for (uint32_t i = 0; i < index_count; ++i) {
@@ -328,7 +328,7 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     // Check if the restart index is used at all in this buffer because reading
     // vertices from a default heap is faster than from an upload heap.
     conversion_needed = false;
-    trace_writer_->WriteMemoryRead(address, index_buffer_size);
+    trace_writer_.WriteMemoryRead(address, index_buffer_size);
 #if XE_ARCH_AMD64
     // Will use SIMD to copy 16-byte blocks using _mm_or_si128.
     simd = true;
@@ -414,7 +414,7 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
 #endif  // XE_ARCH_AMD64
   } else if (source_type == xenos::PrimitiveType::kLineLoop) {
     conversion_needed = true;
-    trace_writer_->WriteMemoryRead(address, index_buffer_size);
+    trace_writer_.WriteMemoryRead(address, index_buffer_size);
     if (reset) {
       reset_actually_used = false;
       uint32_t current_strip_index_count = 0;
@@ -441,7 +441,7 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     }
   } else if (source_type == xenos::PrimitiveType::kQuadList) {
     conversion_needed = true;
-    trace_writer_->WriteMemoryRead(address, index_buffer_size);
+    trace_writer_.WriteMemoryRead(address, index_buffer_size);
     converted_index_count = (index_count >> 2) * 6;
   }
   converted_indices.converted_index_count = converted_index_count;
@@ -695,8 +695,8 @@ void* PrimitiveConverter::AllocateIndices(
   }
   D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
   uint8_t* mapping =
-      buffer_pool_->Request(command_processor_->GetCurrentFrame(), size,
-                            nullptr, nullptr, &gpu_address);
+      buffer_pool_->Request(command_processor_.GetCurrentFrame(), size, nullptr,
+                            nullptr, &gpu_address);
   if (mapping == nullptr) {
     XELOGE("Failed to allocate space for {} converted {}-bit vertex indices",
            count, format == xenos::IndexFormat::kInt32 ? 32 : 16);

@@ -96,7 +96,7 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
   stretch_root_desc.Flags =
       D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS;
   stretch_root_signature_ =
-      ui::d3d12::util::CreateRootSignature(d3d12_provider, stretch_root_desc);
+      ui::d3d12::util::CreateRootSignature(*d3d12_provider, stretch_root_desc);
   if (stretch_root_signature_ == nullptr) {
     XELOGE("Failed to create the front buffer stretch root signature");
     return X_STATUS_UNSUCCESSFUL;
@@ -123,7 +123,7 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
   stretch_root_desc.NumParameters = 3;
   stretch_root_desc.pParameters = stretch_root_parameters;
   stretch_gamma_root_signature_ =
-      ui::d3d12::util::CreateRootSignature(d3d12_provider, stretch_root_desc);
+      ui::d3d12::util::CreateRootSignature(*d3d12_provider, stretch_root_desc);
   if (stretch_gamma_root_signature_ == nullptr) {
     XELOGE(
         "Failed to create the gamma-correcting front buffer stretch root "

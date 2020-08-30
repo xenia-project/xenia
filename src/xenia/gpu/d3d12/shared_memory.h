@@ -31,8 +31,8 @@ class D3D12CommandProcessor;
 // system page size granularity.
 class SharedMemory {
  public:
-  SharedMemory(D3D12CommandProcessor* command_processor, Memory* memory,
-               TraceWriter* trace_writer);
+  SharedMemory(D3D12CommandProcessor& command_processor, Memory& memory,
+               TraceWriter& trace_writer);
   ~SharedMemory();
 
   bool Initialize();
@@ -153,9 +153,9 @@ class SharedMemory {
   // Mark the memory range as updated and protect it.
   void MakeRangeValid(uint32_t start, uint32_t length, bool written_by_gpu);
 
-  D3D12CommandProcessor* command_processor_;
-  Memory* memory_;
-  TraceWriter* trace_writer_;
+  D3D12CommandProcessor& command_processor_;
+  Memory& memory_;
+  TraceWriter& trace_writer_;
 
   // The 512 MB tiled buffer.
   static constexpr uint32_t kBufferSizeLog2 = 29;

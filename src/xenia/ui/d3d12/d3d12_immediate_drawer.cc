@@ -109,14 +109,14 @@ void D3D12ImmediateTexture::Transition(
   state_ = new_state;
 }
 
-D3D12ImmediateDrawer::D3D12ImmediateDrawer(D3D12Context* graphics_context)
-    : ImmediateDrawer(graphics_context), context_(graphics_context) {}
+D3D12ImmediateDrawer::D3D12ImmediateDrawer(D3D12Context& graphics_context)
+    : ImmediateDrawer(&graphics_context), context_(graphics_context) {}
 
 D3D12ImmediateDrawer::~D3D12ImmediateDrawer() { Shutdown(); }
 
 bool D3D12ImmediateDrawer::Initialize() {
-  auto provider = context_->GetD3D12Provider();
-  auto device = provider->GetDevice();
+  auto& provider = context_.GetD3D12Provider();
+  auto device = provider.GetDevice();
 
   // Create the root signature.
   D3D12_ROOT_PARAMETER root_parameters[size_t(RootParameter::kCount)];
@@ -247,7 +247,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   }
   sampler_heap_cpu_start_ = sampler_heap_->GetCPUDescriptorHandleForHeapStart();
   sampler_heap_gpu_start_ = sampler_heap_->GetGPUDescriptorHandleForHeapStart();
-  uint32_t sampler_size = provider->GetSamplerDescriptorSize();
+  uint32_t sampler_size = provider.GetSamplerDescriptorSize();
   // Nearest neighbor, clamp.
   D3D12_SAMPLER_DESC sampler_desc;
   sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
@@ -326,7 +326,7 @@ std::unique_ptr<ImmediateTexture> D3D12ImmediateDrawer::CreateTexture(
     const uint8_t* data) {
   auto texture =
       std::make_unique<D3D12ImmediateTexture>(width, height, filter, repeat);
-  texture->Initialize(context_->GetD3D12Provider()->GetDevice());
+  texture->Initialize(context_.GetD3D12Provider().GetDevice());
   if (data != nullptr) {
     UpdateTexture(texture.get(), data);
   }
@@ -343,7 +343,7 @@ void D3D12ImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
   }
   uint32_t width = d3d_texture->width, height = d3d_texture->height;
 
-  auto device = context_->GetD3D12Provider()->GetDevice();
+  auto device = context_.GetD3D12Provider().GetDevice();
 
   // Create and fill the upload buffer.
   D3D12_RESOURCE_DESC texture_desc = texture_resource->GetDesc();
@@ -400,7 +400,7 @@ void D3D12ImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
                                              &location_source, nullptr);
     SubmittedTextureUpload submitted_upload;
     submitted_upload.buffer = buffer;
-    submitted_upload.fence_value = context_->GetSwapCurrentFenceValue();
+    submitted_upload.fence_value = context_.GetSwapCurrentFenceValue();
     texture_uploads_submitted_.push_back(submitted_upload);
   } else {
     // Defer uploading to the next frame when there's a command list.
@@ -413,13 +413,13 @@ void D3D12ImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
 
 void D3D12ImmediateDrawer::Begin(int render_target_width,
                                  int render_target_height) {
-  auto device = context_->GetD3D12Provider()->GetDevice();
+  auto device = context_.GetD3D12Provider().GetDevice();
 
   // Use the compositing command list.
-  current_command_list_ = context_->GetSwapCommandList();
+  current_command_list_ = context_.GetSwapCommandList();
 
-  uint64_t completed_fence_value = context_->GetSwapCompletedFenceValue();
-  uint64_t current_fence_value = context_->GetSwapCurrentFenceValue();
+  uint64_t completed_fence_value = context_.GetSwapCompletedFenceValue();
+  uint64_t current_fence_value = context_.GetSwapCurrentFenceValue();
 
   // Remove temporary buffers for completed texture uploads.
   auto erase_uploads_end = texture_uploads_submitted_.begin();
@@ -494,7 +494,7 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
   if (current_command_list_ == nullptr) {
     return;
   }
-  uint64_t current_fence_value = context_->GetSwapCurrentFenceValue();
+  uint64_t current_fence_value = context_.GetSwapCurrentFenceValue();
 
   batch_open_ = false;
 
@@ -549,8 +549,8 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
     return;
   }
 
-  auto provider = context_->GetD3D12Provider();
-  auto device = provider->GetDevice();
+  auto& provider = context_.GetD3D12Provider();
+  auto device = provider.GetDevice();
 
   // Bind the texture.
   auto texture = reinterpret_cast<D3D12ImmediateTexture*>(draw.texture_handle);
@@ -565,7 +565,7 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
   bool bind_texture = current_texture_ != texture;
   uint32_t texture_descriptor_index;
   uint64_t texture_heap_index = texture_descriptor_pool_->Request(
-      context_->GetSwapCurrentFenceValue(), texture_descriptor_pool_heap_index_,
+      context_.GetSwapCurrentFenceValue(), texture_descriptor_pool_heap_index_,
       bind_texture ? 1 : 0, 1, texture_descriptor_index);
   if (texture_heap_index == DescriptorHeapPool::kHeapIndexInvalid) {
     return;
@@ -589,12 +589,12 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
     texture_view_desc.Texture2D.ResourceMinLODClamp = 0.0f;
     device->CreateShaderResourceView(
         texture_resource, &texture_view_desc,
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             texture_descriptor_pool_->GetLastRequestHeapCPUStart(),
             texture_descriptor_index));
     current_command_list_->SetGraphicsRootDescriptorTable(
         UINT(RootParameter::kTexture),
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             texture_descriptor_pool_->GetLastRequestHeapGPUStart(),
             texture_descriptor_index));
     current_texture_ = texture;
@@ -616,8 +616,8 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
   if (current_sampler_index_ != sampler_index) {
     current_command_list_->SetGraphicsRootDescriptorTable(
         UINT(RootParameter::kSampler),
-        provider->OffsetSamplerDescriptor(sampler_heap_gpu_start_,
-                                          uint32_t(sampler_index)));
+        provider.OffsetSamplerDescriptor(sampler_heap_gpu_start_,
+                                         uint32_t(sampler_index)));
     current_sampler_index_ = sampler_index;
   }
 

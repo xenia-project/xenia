@@ -34,8 +34,8 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-SharedMemory::SharedMemory(D3D12CommandProcessor* command_processor,
-                           Memory* memory, TraceWriter* trace_writer)
+SharedMemory::SharedMemory(D3D12CommandProcessor& command_processor,
+                           Memory& memory, TraceWriter& trace_writer)
     : command_processor_(command_processor),
       memory_(memory),
       trace_writer_(trace_writer) {
@@ -46,8 +46,8 @@ SharedMemory::SharedMemory(D3D12CommandProcessor* command_processor,
 SharedMemory::~SharedMemory() { Shutdown(); }
 
 bool SharedMemory::Initialize() {
-  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
-  auto device = provider->GetDevice();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  auto device = provider.GetDevice();
 
   D3D12_RESOURCE_DESC buffer_desc;
   ui::d3d12::util::FillBufferResourceDesc(
@@ -65,7 +65,7 @@ bool SharedMemory::Initialize() {
         "Direct3D 12 tiled resources are not used for shared memory "
         "emulation - video memory usage may increase significantly "
         "because a full 512 MB buffer will be created!");
-    if (provider->GetGraphicsAnalysis() != nullptr) {
+    if (provider.GetGraphicsAnalysis() != nullptr) {
       // As of October 8th, 2018, PIX doesn't support tiled buffers.
       // FIXME(Triang3l): Re-enable tiled resources with PIX once fixed.
       XELOGGPU(
@@ -104,47 +104,47 @@ bool SharedMemory::Initialize() {
       buffer_descriptor_heap_->GetCPUDescriptorHandleForHeapStart();
   ui::d3d12::util::CreateBufferRawSRV(
       device,
-      provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                     uint32_t(BufferDescriptorIndex::kRawSRV)),
+      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                    uint32_t(BufferDescriptorIndex::kRawSRV)),
       buffer_, kBufferSize);
   ui::d3d12::util::CreateBufferTypedSRV(
       device,
-      provider->OffsetViewDescriptor(
+      provider.OffsetViewDescriptor(
           buffer_descriptor_heap_start_,
           uint32_t(BufferDescriptorIndex::kR32UintSRV)),
       buffer_, DXGI_FORMAT_R32_UINT, kBufferSize >> 2);
   ui::d3d12::util::CreateBufferTypedSRV(
       device,
-      provider->OffsetViewDescriptor(
+      provider.OffsetViewDescriptor(
           buffer_descriptor_heap_start_,
           uint32_t(BufferDescriptorIndex::kR32G32UintSRV)),
       buffer_, DXGI_FORMAT_R32G32_UINT, kBufferSize >> 3);
   ui::d3d12::util::CreateBufferTypedSRV(
       device,
-      provider->OffsetViewDescriptor(
+      provider.OffsetViewDescriptor(
           buffer_descriptor_heap_start_,
           uint32_t(BufferDescriptorIndex::kR32G32B32A32UintSRV)),
       buffer_, DXGI_FORMAT_R32G32B32A32_UINT, kBufferSize >> 4);
   ui::d3d12::util::CreateBufferRawUAV(
       device,
-      provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                     uint32_t(BufferDescriptorIndex::kRawUAV)),
+      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                    uint32_t(BufferDescriptorIndex::kRawUAV)),
       buffer_, kBufferSize);
   ui::d3d12::util::CreateBufferTypedUAV(
       device,
-      provider->OffsetViewDescriptor(
+      provider.OffsetViewDescriptor(
           buffer_descriptor_heap_start_,
           uint32_t(BufferDescriptorIndex::kR32UintUAV)),
       buffer_, DXGI_FORMAT_R32_UINT, kBufferSize >> 2);
   ui::d3d12::util::CreateBufferTypedUAV(
       device,
-      provider->OffsetViewDescriptor(
+      provider.OffsetViewDescriptor(
           buffer_descriptor_heap_start_,
           uint32_t(BufferDescriptorIndex::kR32G32UintUAV)),
       buffer_, DXGI_FORMAT_R32G32_UINT, kBufferSize >> 3);
   ui::d3d12::util::CreateBufferTypedUAV(
       device,
-      provider->OffsetViewDescriptor(
+      provider.OffsetViewDescriptor(
           buffer_descriptor_heap_start_,
           uint32_t(BufferDescriptorIndex::kR32G32B32A32UintUAV)),
       buffer_, DXGI_FORMAT_R32G32B32A32_UINT, kBufferSize >> 4);
@@ -157,7 +157,7 @@ bool SharedMemory::Initialize() {
       xe::align(uint32_t(4 * 1024 * 1024), uint32_t(1) << page_size_log2_));
 
   memory_invalidation_callback_handle_ =
-      memory_->RegisterPhysicalMemoryInvalidationCallback(
+      memory_.RegisterPhysicalMemoryInvalidationCallback(
           MemoryInvalidationCallbackThunk, this);
 
   ResetTraceGPUWrittenBuffer();
@@ -186,7 +186,7 @@ void SharedMemory::Shutdown() {
   watch_range_pools_.clear();
 
   if (memory_invalidation_callback_handle_ != nullptr) {
-    memory_->UnregisterPhysicalMemoryInvalidationCallback(
+    memory_.UnregisterPhysicalMemoryInvalidationCallback(
         memory_invalidation_callback_handle_);
     memory_invalidation_callback_handle_ = nullptr;
   }
@@ -238,7 +238,7 @@ void SharedMemory::ClearCache() {
 }
 
 void SharedMemory::CompletedSubmissionUpdated() {
-  upload_buffer_pool_->Reclaim(command_processor_->GetCompletedSubmission());
+  upload_buffer_pool_->Reclaim(command_processor_.GetCompletedSubmission());
 }
 
 SharedMemory::GlobalWatchHandle SharedMemory::RegisterGlobalWatch(
@@ -364,9 +364,9 @@ bool SharedMemory::EnsureTilesResident(uint32_t start, uint32_t length) {
     if (heaps_[i] != nullptr) {
       continue;
     }
-    auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
-    auto device = provider->GetDevice();
-    auto direct_queue = provider->GetDirectQueue();
+    auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+    auto device = provider.GetDevice();
+    auto direct_queue = provider.GetDirectQueue();
     D3D12_HEAP_DESC heap_desc = {};
     heap_desc.SizeInBytes = kHeapSize;
     heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
@@ -412,7 +412,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
   }
   uint32_t last = start + length - 1;
 
-  auto command_list = command_processor_->GetDeferredCommandList();
+  auto& command_list = command_processor_.GetDeferredCommandList();
 
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
@@ -429,17 +429,17 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
     return true;
   }
   CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_COPY_DEST);
-  command_processor_->SubmitBarriers();
+  command_processor_.SubmitBarriers();
   for (auto upload_range : upload_ranges_) {
     uint32_t upload_range_start = upload_range.first;
     uint32_t upload_range_length = upload_range.second;
-    trace_writer_->WriteMemoryRead(upload_range_start << page_size_log2_,
-                                   upload_range_length << page_size_log2_);
+    trace_writer_.WriteMemoryRead(upload_range_start << page_size_log2_,
+                                  upload_range_length << page_size_log2_);
     while (upload_range_length != 0) {
       ID3D12Resource* upload_buffer;
       uint32_t upload_buffer_offset, upload_buffer_size;
       uint8_t* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(
-          command_processor_->GetCurrentSubmission(),
+          command_processor_.GetCurrentSubmission(),
           upload_range_length << page_size_log2_, &upload_buffer,
           &upload_buffer_offset, &upload_buffer_size, nullptr);
       if (upload_buffer_mapping == nullptr) {
@@ -451,9 +451,9 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
                      upload_buffer_pages << page_size_log2_, false);
       std::memcpy(
           upload_buffer_mapping,
-          memory_->TranslatePhysical(upload_range_start << page_size_log2_),
+          memory_.TranslatePhysical(upload_range_start << page_size_log2_),
           upload_buffer_size);
-      command_list->D3DCopyBufferRegion(
+      command_list.D3DCopyBufferRegion(
           buffer_, upload_range_start << page_size_log2_, upload_buffer,
           upload_buffer_offset, upload_buffer_size);
       upload_range_start += upload_buffer_pages;
@@ -519,12 +519,12 @@ bool SharedMemory::AreTiledResourcesUsed() const {
   if (!cvars::d3d12_tiled_shared_memory) {
     return false;
   }
-  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
   // As of October 8th, 2018, PIX doesn't support tiled buffers.
   // FIXME(Triang3l): Re-enable tiled resources with PIX once fixed.
-  return provider->GetTiledResourcesTier() !=
+  return provider.GetTiledResourcesTier() !=
              D3D12_TILED_RESOURCES_TIER_NOT_SUPPORTED &&
-         provider->GetGraphicsAnalysis() == nullptr;
+         provider.GetGraphicsAnalysis() == nullptr;
 }
 
 void SharedMemory::MakeRangeValid(uint32_t start, uint32_t length,
@@ -561,7 +561,7 @@ void SharedMemory::MakeRangeValid(uint32_t start, uint32_t length,
   }
 
   if (memory_invalidation_callback_handle_) {
-    memory_->EnablePhysicalMemoryAccessCallbacks(
+    memory_.EnablePhysicalMemoryAccessCallbacks(
         valid_page_first << page_size_log2_,
         (valid_page_last - valid_page_first + 1) << page_size_log2_, true,
         false);
@@ -718,34 +718,34 @@ void SharedMemory::CommitUAVWritesAndTransitionBuffer(
   if (buffer_state_ == new_state) {
     if (new_state == D3D12_RESOURCE_STATE_UNORDERED_ACCESS &&
         buffer_uav_writes_commit_needed_) {
-      command_processor_->PushUAVBarrier(buffer_);
+      command_processor_.PushUAVBarrier(buffer_);
       buffer_uav_writes_commit_needed_ = false;
     }
     return;
   }
-  command_processor_->PushTransitionBarrier(buffer_, buffer_state_, new_state);
+  command_processor_.PushTransitionBarrier(buffer_, buffer_state_, new_state);
   buffer_state_ = new_state;
   // "UAV -> anything" transition commits the writes implicitly.
   buffer_uav_writes_commit_needed_ = false;
 }
 
 void SharedMemory::WriteRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
-  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
-  auto device = provider->GetDevice();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  auto device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
-      provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                     uint32_t(BufferDescriptorIndex::kRawSRV)),
+      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                    uint32_t(BufferDescriptorIndex::kRawSRV)),
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
 void SharedMemory::WriteRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
-  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
-  auto device = provider->GetDevice();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  auto device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
-      provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                     uint32_t(BufferDescriptorIndex::kRawUAV)),
+      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                    uint32_t(BufferDescriptorIndex::kRawUAV)),
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
@@ -766,12 +766,12 @@ void SharedMemory::WriteUintPow2SRVDescriptor(
       assert_unhandled_case(element_size_bytes_pow2);
       return;
   }
-  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
-  auto device = provider->GetDevice();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  auto device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
-      provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                     uint32_t(descriptor_index)),
+      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                    uint32_t(descriptor_index)),
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
@@ -792,12 +792,12 @@ void SharedMemory::WriteUintPow2UAVDescriptor(
       assert_unhandled_case(element_size_bytes_pow2);
       return;
   }
-  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
-  auto device = provider->GetDevice();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  auto device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
-      provider->OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                     uint32_t(descriptor_index)),
+      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
+                                    uint32_t(descriptor_index)),
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
@@ -891,7 +891,7 @@ bool SharedMemory::InitializeTraceSubmitDownloads() {
       gpu_written_buffer_desc, gpu_written_page_count << page_size_log2_,
       D3D12_RESOURCE_FLAG_NONE);
   auto device =
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
   if (FAILED(device->CreateCommittedResource(
           &ui::d3d12::util::kHeapPropertiesReadback, D3D12_HEAP_FLAG_NONE,
           &gpu_written_buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
@@ -903,9 +903,9 @@ bool SharedMemory::InitializeTraceSubmitDownloads() {
     ResetTraceGPUWrittenBuffer();
     return false;
   }
-  auto command_list = command_processor_->GetDeferredCommandList();
+  auto& command_list = command_processor_.GetDeferredCommandList();
   UseAsCopySource();
-  command_processor_->SubmitBarriers();
+  command_processor_.SubmitBarriers();
   uint32_t gpu_written_buffer_offset = 0;
   for (auto& gpu_written_submit_range : trace_gpu_written_ranges_) {
     // For cases like resolution scale, when the data may not be actually
@@ -915,7 +915,7 @@ bool SharedMemory::InitializeTraceSubmitDownloads() {
       gpu_written_submit_range.second = 0;
       continue;
     }
-    command_list->D3DCopyBufferRegion(
+    command_list.D3DCopyBufferRegion(
         trace_gpu_written_buffer_, gpu_written_buffer_offset, buffer_,
         gpu_written_submit_range.first, gpu_written_submit_range.second);
     gpu_written_buffer_offset += gpu_written_submit_range.second;
@@ -932,7 +932,7 @@ void SharedMemory::InitializeTraceCompleteDownloads() {
           trace_gpu_written_buffer_->Map(0, nullptr, &download_mapping))) {
     uint32_t gpu_written_buffer_offset = 0;
     for (auto gpu_written_submit_range : trace_gpu_written_ranges_) {
-      trace_writer_->WriteMemoryRead(
+      trace_writer_.WriteMemoryRead(
           gpu_written_submit_range.first, gpu_written_submit_range.second,
           reinterpret_cast<const uint8_t*>(download_mapping) +
               gpu_written_buffer_offset);

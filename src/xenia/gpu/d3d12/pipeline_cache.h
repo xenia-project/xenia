@@ -40,8 +40,8 @@ class PipelineCache {
  public:
   static constexpr size_t kLayoutUIDEmpty = 0;
 
-  PipelineCache(D3D12CommandProcessor* command_processor,
-                RegisterFile* register_file, bool bindless_resources_used,
+  PipelineCache(D3D12CommandProcessor& command_processor,
+                const RegisterFile& register_file, bool bindless_resources_used,
                 bool edram_rov_used, uint32_t resolution_scale);
   ~PipelineCache();
 
@@ -222,7 +222,7 @@ class PipelineCache {
   };
 
   // Can be called from multiple threads.
-  bool TranslateShader(DxbcShaderTranslator& translator, D3D12Shader* shader,
+  bool TranslateShader(DxbcShaderTranslator& translator, D3D12Shader& shader,
                        reg::SQ_PROGRAM_CNTL cntl,
                        IDxbcConverter* dxbc_converter = nullptr,
                        IDxcUtils* dxc_utils = nullptr,
@@ -240,8 +240,8 @@ class PipelineCache {
   ID3D12PipelineState* CreateD3D12PipelineState(
       const PipelineRuntimeDescription& runtime_description);
 
-  D3D12CommandProcessor* command_processor_;
-  RegisterFile* register_file_;
+  D3D12CommandProcessor& command_processor_;
+  const RegisterFile& register_file_;
   bool bindless_resources_used_;
   bool edram_rov_used_;
   uint32_t resolution_scale_;

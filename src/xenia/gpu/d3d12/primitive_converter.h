@@ -37,9 +37,9 @@ class D3D12CommandProcessor;
 //   alternative to the geometry shader).
 class PrimitiveConverter {
  public:
-  PrimitiveConverter(D3D12CommandProcessor* command_processor,
-                     RegisterFile* register_file, Memory* memory,
-                     TraceWriter* trace_writer);
+  PrimitiveConverter(D3D12CommandProcessor& command_processor,
+                     const RegisterFile& register_file, Memory& memory,
+                     TraceWriter& trace_writer);
   ~PrimitiveConverter();
 
   bool Initialize();
@@ -102,10 +102,10 @@ class PrimitiveConverter {
       void* context_ptr, uint32_t physical_address_start, uint32_t length,
       bool exact_range);
 
-  D3D12CommandProcessor* command_processor_;
-  RegisterFile* register_file_;
-  Memory* memory_;
-  TraceWriter* trace_writer_;
+  D3D12CommandProcessor& command_processor_;
+  const RegisterFile& register_file_;
+  Memory& memory_;
+  TraceWriter& trace_writer_;
 
   std::unique_ptr<ui::d3d12::UploadBufferPool> buffer_pool_ = nullptr;
 

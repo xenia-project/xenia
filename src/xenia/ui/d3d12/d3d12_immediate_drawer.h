@@ -26,7 +26,7 @@ class D3D12Context;
 
 class D3D12ImmediateDrawer : public ImmediateDrawer {
  public:
-  D3D12ImmediateDrawer(D3D12Context* graphics_context);
+  D3D12ImmediateDrawer(D3D12Context& graphics_context);
   ~D3D12ImmediateDrawer() override;
 
   bool Initialize();
@@ -46,7 +46,7 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
   void End() override;
 
  private:
-  D3D12Context* context_ = nullptr;
+  D3D12Context& context_;
 
   ID3D12RootSignature* root_signature_ = nullptr;
   enum class RootParameter {

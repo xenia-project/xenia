@@ -20,5 +20,11 @@ GraphicsContext::GraphicsContext(GraphicsProvider* provider,
 
 GraphicsContext::~GraphicsContext() = default;
 
+bool GraphicsContext::is_current() { return true; }
+
+bool GraphicsContext::MakeCurrent() { return true; }
+
+void GraphicsContext::ClearCurrent() {}
+
 }  // namespace ui
 }  // namespace xe

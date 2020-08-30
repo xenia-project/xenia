@@ -68,8 +68,8 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/primitive_rectangle_list_gs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/tessellation_vs.h"
 
-PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
-                             RegisterFile* register_file,
+PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
+                             const RegisterFile& register_file,
                              bool bindless_resources_used, bool edram_rov_used,
                              uint32_t resolution_scale)
     : command_processor_(command_processor),
@@ -77,11 +77,11 @@ PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
       bindless_resources_used_(bindless_resources_used),
       edram_rov_used_(edram_rov_used),
       resolution_scale_(resolution_scale) {
-  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
 
   shader_translator_ = std::make_unique<DxbcShaderTranslator>(
-      provider->GetAdapterVendorID(), bindless_resources_used_, edram_rov_used_,
-      provider->GetGraphicsAnalysis() != nullptr);
+      provider.GetAdapterVendorID(), bindless_resources_used_, edram_rov_used_,
+      provider.GetGraphicsAnalysis() != nullptr);
 
   if (edram_rov_used_) {
     depth_only_pixel_shader_ =
@@ -92,27 +92,27 @@ PipelineCache::PipelineCache(D3D12CommandProcessor* command_processor,
 PipelineCache::~PipelineCache() { Shutdown(); }
 
 bool PipelineCache::Initialize() {
-  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
 
   // Initialize the command processor thread DXIL objects.
   dxbc_converter_ = nullptr;
   dxc_utils_ = nullptr;
   dxc_compiler_ = nullptr;
   if (cvars::d3d12_dxbc_disasm_dxilconv) {
-    if (FAILED(provider->DxbcConverterCreateInstance(
+    if (FAILED(provider.DxbcConverterCreateInstance(
             CLSID_DxbcConverter, IID_PPV_ARGS(&dxbc_converter_)))) {
       XELOGE(
           "Failed to create DxbcConverter, converted DXIL disassembly for "
           "debugging will be unavailable");
     }
-    if (FAILED(provider->DxcCreateInstance(CLSID_DxcUtils,
-                                           IID_PPV_ARGS(&dxc_utils_)))) {
+    if (FAILED(provider.DxcCreateInstance(CLSID_DxcUtils,
+                                          IID_PPV_ARGS(&dxc_utils_)))) {
       XELOGE(
           "Failed to create DxcUtils, converted DXIL disassembly for debugging "
           "will be unavailable");
     }
-    if (FAILED(provider->DxcCreateInstance(CLSID_DxcCompiler,
-                                           IID_PPV_ARGS(&dxc_compiler_)))) {
+    if (FAILED(provider.DxcCreateInstance(CLSID_DxcCompiler,
+                                          IID_PPV_ARGS(&dxc_compiler_)))) {
       XELOGE(
           "Failed to create DxcCompiler, converted DXIL disassembly for "
           "debugging will be unavailable");
@@ -216,7 +216,7 @@ void PipelineCache::ClearCache(bool shutting_down) {
   COUNT_profile_set("gpu/pipeline_cache/pipeline_states", 0);
 
   // Destroy all shaders.
-  command_processor_->NotifyShaderBindingsLayoutUIDsInvalidated();
+  command_processor_.NotifyShaderBindingsLayoutUIDsInvalidated();
   if (bindless_resources_used_) {
     bindless_sampler_layout_map_.clear();
     bindless_sampler_layouts_.clear();
@@ -307,10 +307,10 @@ void PipelineCache::InitializeShaderStorage(
     std::mutex shaders_failed_to_translate_mutex;
     std::vector<D3D12Shader*> shaders_failed_to_translate;
     auto shader_translation_thread_function = [&]() {
-      auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+      auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
       DxbcShaderTranslator translator(
-          provider->GetAdapterVendorID(), bindless_resources_used_,
-          edram_rov_used_, provider->GetGraphicsAnalysis() != nullptr);
+          provider.GetAdapterVendorID(), bindless_resources_used_,
+          edram_rov_used_, provider.GetGraphicsAnalysis() != nullptr);
       // If needed and possible, create objects needed for DXIL conversion and
       // disassembly on this thread.
       IDxbcConverter* dxbc_converter = nullptr;
@@ -318,11 +318,11 @@ void PipelineCache::InitializeShaderStorage(
       IDxcCompiler* dxc_compiler = nullptr;
       if (cvars::d3d12_dxbc_disasm_dxilconv && dxbc_converter_ && dxc_utils_ &&
           dxc_compiler_) {
-        provider->DxbcConverterCreateInstance(CLSID_DxbcConverter,
-                                              IID_PPV_ARGS(&dxbc_converter));
-        provider->DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&dxc_utils));
-        provider->DxcCreateInstance(CLSID_DxcCompiler,
-                                    IID_PPV_ARGS(&dxc_compiler));
+        provider.DxbcConverterCreateInstance(CLSID_DxbcConverter,
+                                             IID_PPV_ARGS(&dxbc_converter));
+        provider.DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&dxc_utils));
+        provider.DxcCreateInstance(CLSID_DxcCompiler,
+                                   IID_PPV_ARGS(&dxc_compiler));
       }
       for (;;) {
         std::pair<ShaderStoredHeader, D3D12Shader*> shader_to_translate;
@@ -342,7 +342,7 @@ void PipelineCache::InitializeShaderStorage(
         }
         assert_not_null(shader_to_translate.second);
         if (!TranslateShader(
-                translator, shader_to_translate.second,
+                translator, *shader_to_translate.second,
                 shader_to_translate.first.sq_program_cntl, dxbc_converter,
                 dxc_utils, dxc_compiler,
                 shader_to_translate.first.host_vertex_shader_type)) {
@@ -598,7 +598,7 @@ void PipelineCache::InitializeShaderStorage(
             pipeline_runtime_description.pixel_shader = nullptr;
           }
           pipeline_runtime_description.root_signature =
-              command_processor_->GetRootSignature(
+              command_processor_.GetRootSignature(
                   pipeline_runtime_description.vertex_shader,
                   pipeline_runtime_description.pixel_shader);
           if (!pipeline_runtime_description.root_signature) {
@@ -803,7 +803,7 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
   // started to return a valid value (in this case the shader wouldn't be cached
   // in the first place). Otherwise games will not be able to locate shaders for
   // draws for which the host vertex shader type has changed!
-  auto& regs = *register_file_;
+  const auto& regs = register_file_;
   auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
   if (!xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode,
                                   vgt_draw_initiator.prim_type)) {
@@ -874,7 +874,7 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
 bool PipelineCache::EnsureShadersTranslated(
     D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
     Shader::HostVertexShaderType host_vertex_shader_type) {
-  auto& regs = *register_file_;
+  const auto& regs = register_file_;
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
 
   // Edge flags are not supported yet (because polygon primitives are not).
@@ -885,7 +885,7 @@ bool PipelineCache::EnsureShadersTranslated(
   assert_false(sq_program_cntl.gen_index_vtx);
 
   if (!vertex_shader->is_translated()) {
-    if (!TranslateShader(*shader_translator_, vertex_shader, sq_program_cntl,
+    if (!TranslateShader(*shader_translator_, *vertex_shader, sq_program_cntl,
                          dxbc_converter_, dxc_utils_, dxc_compiler_,
                          host_vertex_shader_type)) {
       XELOGE("Failed to translate the vertex shader!");
@@ -904,7 +904,7 @@ bool PipelineCache::EnsureShadersTranslated(
   }
 
   if (pixel_shader != nullptr && !pixel_shader->is_translated()) {
-    if (!TranslateShader(*shader_translator_, pixel_shader, sq_program_cntl,
+    if (!TranslateShader(*shader_translator_, *pixel_shader, sq_program_cntl,
                          dxbc_converter_, dxc_utils_, dxc_compiler_)) {
       XELOGE("Failed to translate the pixel shader!");
       return false;
@@ -1015,21 +1015,21 @@ bool PipelineCache::ConfigurePipeline(
 }
 
 bool PipelineCache::TranslateShader(
-    DxbcShaderTranslator& translator, D3D12Shader* shader,
+    DxbcShaderTranslator& translator, D3D12Shader& shader,
     reg::SQ_PROGRAM_CNTL cntl, IDxbcConverter* dxbc_converter,
     IDxcUtils* dxc_utils, IDxcCompiler* dxc_compiler,
     Shader::HostVertexShaderType host_vertex_shader_type) {
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
-  if (!translator.Translate(shader, cntl, host_vertex_shader_type)) {
+  if (!translator.Translate(&shader, cntl, host_vertex_shader_type)) {
     XELOGE("Shader {:016X} translation failed; marking as ignored",
-           shader->ucode_data_hash());
+           shader.ucode_data_hash());
     return false;
   }
 
   const char* host_shader_type;
-  if (shader->type() == xenos::ShaderType::kVertex) {
-    switch (shader->host_vertex_shader_type()) {
+  if (shader.type() == xenos::ShaderType::kVertex) {
+    switch (shader.host_vertex_shader_type()) {
       case Shader::HostVertexShaderType::kLineDomainCPIndexed:
         host_shader_type = "control-point-indexed line domain";
         break;
@@ -1055,8 +1055,8 @@ bool PipelineCache::TranslateShader(
     host_shader_type = "pixel";
   }
   XELOGGPU("Generated {} shader ({}b) - hash {:016X}:\n{}\n", host_shader_type,
-           shader->ucode_dword_count() * 4, shader->ucode_data_hash(),
-           shader->ucode_disassembly().c_str());
+           shader.ucode_dword_count() * 4, shader.ucode_data_hash(),
+           shader.ucode_disassembly().c_str());
 
   // Set up texture and sampler bindings.
   uint32_t texture_binding_count;
@@ -1065,15 +1065,15 @@ bool PipelineCache::TranslateShader(
   uint32_t sampler_binding_count;
   const DxbcShaderTranslator::SamplerBinding* sampler_bindings =
       translator.GetSamplerBindings(sampler_binding_count);
-  shader->SetTexturesAndSamplers(translator_texture_bindings,
-                                 texture_binding_count, sampler_bindings,
-                                 sampler_binding_count);
+  shader.SetTexturesAndSamplers(translator_texture_bindings,
+                                texture_binding_count, sampler_bindings,
+                                sampler_binding_count);
   assert_false(bindless_resources_used_ &&
                texture_binding_count + sampler_binding_count >
                    D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 4);
   // Get hashable texture bindings, without translator-specific info.
   const D3D12Shader::TextureBinding* texture_bindings =
-      shader->GetTextureBindings(texture_binding_count);
+      shader.GetTextureBindings(texture_binding_count);
   size_t texture_binding_layout_bytes =
       texture_binding_count * sizeof(*texture_bindings);
   uint64_t texture_binding_layout_hash = 0;
@@ -1184,37 +1184,37 @@ bool PipelineCache::TranslateShader(
       }
     }
   }
-  shader->SetTextureBindingLayoutUserUID(texture_binding_layout_uid);
-  shader->SetSamplerBindingLayoutUserUID(sampler_binding_layout_uid);
+  shader.SetTextureBindingLayoutUserUID(texture_binding_layout_uid);
+  shader.SetSamplerBindingLayoutUserUID(sampler_binding_layout_uid);
 
   // Create a version of the shader with early depth/stencil forced by Xenia
   // itself when it's safe to do so or when EARLY_Z_ENABLE is set in
   // RB_DEPTHCONTROL.
-  if (shader->type() == xenos::ShaderType::kPixel && !edram_rov_used_ &&
-      !shader->writes_depth()) {
-    shader->SetForcedEarlyZShaderObject(
+  if (shader.type() == xenos::ShaderType::kPixel && !edram_rov_used_ &&
+      !shader.writes_depth()) {
+    shader.SetForcedEarlyZShaderObject(
         std::move(DxbcShaderTranslator::ForceEarlyDepthStencil(
-            shader->translated_binary().data())));
+            shader.translated_binary().data())));
   }
 
   // Disassemble the shader for dumping.
-  auto provider = command_processor_->GetD3D12Context()->GetD3D12Provider();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
   if (cvars::d3d12_dxbc_disasm_dxilconv) {
-    shader->DisassembleDxbc(*provider, cvars::d3d12_dxbc_disasm, dxbc_converter,
-                            dxc_utils, dxc_compiler);
+    shader.DisassembleDxbc(provider, cvars::d3d12_dxbc_disasm, dxbc_converter,
+                           dxc_utils, dxc_compiler);
   } else {
-    shader->DisassembleDxbc(*provider, cvars::d3d12_dxbc_disasm);
+    shader.DisassembleDxbc(provider, cvars::d3d12_dxbc_disasm);
   }
 
   // Dump shader files if desired.
   if (!cvars::dump_shaders.empty()) {
-    shader->Dump(cvars::dump_shaders,
-                 (shader->type() == xenos::ShaderType::kPixel)
-                     ? (edram_rov_used_ ? "d3d12_rov" : "d3d12_rtv")
-                     : "d3d12");
+    shader.Dump(cvars::dump_shaders,
+                (shader.type() == xenos::ShaderType::kPixel)
+                    ? (edram_rov_used_ ? "d3d12_rov" : "d3d12_rtv")
+                    : "d3d12");
   }
 
-  return shader->is_valid();
+  return shader.is_valid();
 }
 
 bool PipelineCache::GetCurrentStateDescription(
@@ -1225,7 +1225,7 @@ bool PipelineCache::GetCurrentStateDescription(
     PipelineRuntimeDescription& runtime_description_out) {
   PipelineDescription& description_out = runtime_description_out.description;
 
-  auto& regs = *register_file_;
+  const auto& regs = register_file_;
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
 
   // Initialize all unused fields to zero for comparison/hashing.
@@ -1233,7 +1233,7 @@ bool PipelineCache::GetCurrentStateDescription(
 
   // Root signature.
   runtime_description_out.root_signature =
-      command_processor_->GetRootSignature(vertex_shader, pixel_shader);
+      command_processor_.GetRootSignature(vertex_shader, pixel_shader);
   if (runtime_description_out.root_signature == nullptr) {
     return false;
   }
@@ -1483,7 +1483,7 @@ bool PipelineCache::GetCurrentStateDescription(
 
     // Render targets and blending state. 32 because of 0x1F mask, for safety
     // (all unknown to zero).
-    uint32_t color_mask = command_processor_->GetCurrentColorMask(pixel_shader);
+    uint32_t color_mask = command_processor_.GetCurrentColorMask(pixel_shader);
     static const PipelineBlendFactor kBlendFactorMap[32] = {
         /*  0 */ PipelineBlendFactor::kZero,
         /*  1 */ PipelineBlendFactor::kOne,
@@ -1895,7 +1895,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
 
   // Create the pipeline state object.
   auto device =
-      command_processor_->GetD3D12Context()->GetD3D12Provider()->GetDevice();
+      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
   ID3D12PipelineState* state;
   if (FAILED(device->CreateGraphicsPipelineState(&state_desc,
                                                  IID_PPV_ARGS(&state)))) {

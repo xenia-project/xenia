@@ -80,7 +80,7 @@ void D3D12CommandProcessor::InitializeShaderStorage(
 void D3D12CommandProcessor::RequestFrameTrace(
     const std::filesystem::path& root_path) {
   // Capture with PIX if attached.
-  if (GetD3D12Context()->GetD3D12Provider()->GetGraphicsAnalysis() != nullptr) {
+  if (GetD3D12Context().GetD3D12Provider().GetGraphicsAnalysis() != nullptr) {
     pix_capture_requested_.store(true, std::memory_order_relaxed);
     return;
   }
@@ -377,7 +377,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
   }
 
   ID3D12RootSignature* root_signature = ui::d3d12::util::CreateRootSignature(
-      GetD3D12Context()->GetD3D12Provider(), desc);
+      GetD3D12Context().GetD3D12Provider(), desc);
   if (root_signature == nullptr) {
     XELOGE(
         "Failed to create a root signature with {} pixel textures, {} pixel "
@@ -448,10 +448,10 @@ uint64_t D3D12CommandProcessor::RequestViewBindfulDescriptors(
     deferred_command_list_->SetDescriptorHeaps(view_bindful_heap_current_,
                                                sampler_bindful_heap_current_);
   }
-  auto provider = GetD3D12Context()->GetD3D12Provider();
-  cpu_handle_out = provider->OffsetViewDescriptor(
+  auto& provider = GetD3D12Context().GetD3D12Provider();
+  cpu_handle_out = provider.OffsetViewDescriptor(
       view_bindful_heap_pool_->GetLastRequestHeapCPUStart(), descriptor_index);
-  gpu_handle_out = provider->OffsetViewDescriptor(
+  gpu_handle_out = provider.OffsetViewDescriptor(
       view_bindful_heap_pool_->GetLastRequestHeapGPUStart(), descriptor_index);
   return current_heap_index;
 }
@@ -482,7 +482,7 @@ bool D3D12CommandProcessor::RequestOneUseSingleViewDescriptors(
     return true;
   }
   assert_not_null(handles_out);
-  auto provider = GetD3D12Context()->GetD3D12Provider();
+  auto& provider = GetD3D12Context().GetD3D12Provider();
   if (bindless_resources_used_) {
     // Request separate bindless descriptors that will be freed when this
     // submission is completed by the GPU.
@@ -501,9 +501,9 @@ bool D3D12CommandProcessor::RequestOneUseSingleViewDescriptors(
       view_bindless_one_use_descriptors_.push_back(
           std::make_pair(descriptor_index, submission_current_));
       handles_out[i] =
-          std::make_pair(provider->OffsetViewDescriptor(
+          std::make_pair(provider.OffsetViewDescriptor(
                              view_bindless_heap_cpu_start_, descriptor_index),
-                         provider->OffsetViewDescriptor(
+                         provider.OffsetViewDescriptor(
                              view_bindless_heap_gpu_start_, descriptor_index));
     }
   } else {
@@ -518,8 +518,8 @@ bool D3D12CommandProcessor::RequestOneUseSingleViewDescriptors(
     }
     for (uint32_t i = 0; i < count; ++i) {
       handles_out[i] =
-          std::make_pair(provider->OffsetViewDescriptor(cpu_handle_start, i),
-                         provider->OffsetViewDescriptor(gpu_handle_start, i));
+          std::make_pair(provider.OffsetViewDescriptor(cpu_handle_start, i),
+                         provider.OffsetViewDescriptor(gpu_handle_start, i));
     }
   }
   return true;
@@ -529,10 +529,10 @@ ui::d3d12::util::DescriptorCPUGPUHandlePair
 D3D12CommandProcessor::GetSystemBindlessViewHandlePair(
     SystemBindlessView view) const {
   assert_true(bindless_resources_used_);
-  auto provider = GetD3D12Context()->GetD3D12Provider();
-  return std::make_pair(provider->OffsetViewDescriptor(
+  auto& provider = GetD3D12Context().GetD3D12Provider();
+  return std::make_pair(provider.OffsetViewDescriptor(
                             view_bindless_heap_cpu_start_, uint32_t(view)),
-                        provider->OffsetViewDescriptor(
+                        provider.OffsetViewDescriptor(
                             view_bindless_heap_gpu_start_, uint32_t(view)));
 }
 
@@ -619,11 +619,11 @@ uint64_t D3D12CommandProcessor::RequestSamplerBindfulDescriptors(
     deferred_command_list_->SetDescriptorHeaps(view_bindful_heap_current_,
                                                sampler_bindful_heap_current_);
   }
-  auto provider = GetD3D12Context()->GetD3D12Provider();
-  cpu_handle_out = provider->OffsetSamplerDescriptor(
+  auto& provider = GetD3D12Context().GetD3D12Provider();
+  cpu_handle_out = provider.OffsetSamplerDescriptor(
       sampler_bindful_heap_pool_->GetLastRequestHeapCPUStart(),
       descriptor_index);
-  gpu_handle_out = provider->OffsetSamplerDescriptor(
+  gpu_handle_out = provider.OffsetSamplerDescriptor(
       sampler_bindful_heap_pool_->GetLastRequestHeapGPUStart(),
       descriptor_index);
   return current_heap_index;
@@ -646,7 +646,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(
 
   size = xe::align(size, kScratchBufferSizeIncrement);
 
-  auto device = GetD3D12Context()->GetD3D12Provider()->GetDevice();
+  auto device = GetD3D12Context().GetD3D12Provider().GetDevice();
   D3D12_RESOURCE_DESC buffer_desc;
   ui::d3d12::util::FillBufferResourceDesc(
       buffer_desc, size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
@@ -690,8 +690,8 @@ void D3D12CommandProcessor::SetSamplePositions(
   // https://docs.microsoft.com/en-us/windows/desktop/api/d3d12/nf-d3d12-id3d12graphicscommandlist1-setsamplepositions
   if (cvars::d3d12_ssaa_custom_sample_positions && !edram_rov_used_ &&
       command_list_1_) {
-    auto provider = GetD3D12Context()->GetD3D12Provider();
-    auto tier = provider->GetProgrammableSamplePositionsTier();
+    auto& provider = GetD3D12Context().GetD3D12Provider();
+    auto tier = provider.GetProgrammableSamplePositionsTier();
     if (tier >= D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER_2) {
       // Depth buffer transitions are affected by sample positions.
       SubmitBarriers();
@@ -830,9 +830,9 @@ bool D3D12CommandProcessor::SetupContext() {
     return false;
   }
 
-  auto provider = GetD3D12Context()->GetD3D12Provider();
-  auto device = provider->GetDevice();
-  auto direct_queue = provider->GetDirectQueue();
+  auto& provider = GetD3D12Context().GetD3D12Provider();
+  auto device = provider.GetDevice();
+  auto direct_queue = provider.GetDirectQueue();
 
   submission_open_ = false;
   submission_current_ = 1;
@@ -879,13 +879,13 @@ bool D3D12CommandProcessor::SetupContext() {
   command_list_->Close();
   // Optional - added in Creators Update (SDK 10.0.15063.0).
   command_list_->QueryInterface(IID_PPV_ARGS(&command_list_1_));
-  deferred_command_list_ = std::make_unique<DeferredCommandList>(this);
+  deferred_command_list_ = std::make_unique<DeferredCommandList>(*this);
 
   bindless_resources_used_ =
       cvars::d3d12_bindless &&
-      provider->GetResourceBindingTier() >= D3D12_RESOURCE_BINDING_TIER_2;
+      provider.GetResourceBindingTier() >= D3D12_RESOURCE_BINDING_TIER_2;
   edram_rov_used_ =
-      cvars::d3d12_edram_rov && provider->AreRasterizerOrderedViewsSupported();
+      cvars::d3d12_edram_rov && provider.AreRasterizerOrderedViewsSupported();
 
   // Initialize resource binding.
   constant_buffer_pool_ =
@@ -1145,29 +1145,29 @@ bool D3D12CommandProcessor::SetupContext() {
   }
 
   shared_memory_ =
-      std::make_unique<SharedMemory>(this, memory_, &trace_writer_);
+      std::make_unique<SharedMemory>(*this, *memory_, trace_writer_);
   if (!shared_memory_->Initialize()) {
     XELOGE("Failed to initialize shared memory");
     return false;
   }
 
   texture_cache_ = std::make_unique<TextureCache>(
-      this, register_file_, bindless_resources_used_, shared_memory_.get());
+      *this, *register_file_, bindless_resources_used_, *shared_memory_);
   if (!texture_cache_->Initialize(edram_rov_used_)) {
     XELOGE("Failed to initialize the texture cache");
     return false;
   }
 
   render_target_cache_ = std::make_unique<RenderTargetCache>(
-      this, register_file_, &trace_writer_, bindless_resources_used_,
+      *this, *register_file_, trace_writer_, bindless_resources_used_,
       edram_rov_used_);
-  if (!render_target_cache_->Initialize(texture_cache_.get())) {
+  if (!render_target_cache_->Initialize(*texture_cache_)) {
     XELOGE("Failed to initialize the render target cache");
     return false;
   }
 
   pipeline_cache_ = std::make_unique<PipelineCache>(
-      this, register_file_, bindless_resources_used_, edram_rov_used_,
+      *this, *register_file_, bindless_resources_used_, edram_rov_used_,
       texture_cache_->IsResolutionScale2X() ? 2 : 1);
   if (!pipeline_cache_->Initialize()) {
     XELOGE("Failed to initialize the graphics pipeline state cache");
@@ -1175,7 +1175,7 @@ bool D3D12CommandProcessor::SetupContext() {
   }
 
   primitive_converter_ = std::make_unique<PrimitiveConverter>(
-      this, register_file_, memory_, &trace_writer_);
+      *this, *register_file_, *memory_, trace_writer_);
   if (!primitive_converter_->Initialize()) {
     XELOGE("Failed to initialize the geometric primitive converter");
     return false;
@@ -1317,7 +1317,7 @@ bool D3D12CommandProcessor::SetupContext() {
     null_srv_desc.Texture2DArray.ResourceMinLODClamp = 0.0f;
     device->CreateShaderResourceView(
         nullptr, &null_srv_desc,
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kNullTexture2DArray)));
     // kNullTexture3D.
@@ -1327,7 +1327,7 @@ bool D3D12CommandProcessor::SetupContext() {
     null_srv_desc.Texture3D.ResourceMinLODClamp = 0.0f;
     device->CreateShaderResourceView(
         nullptr, &null_srv_desc,
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kNullTexture3D)));
     // kNullTextureCube.
@@ -1337,101 +1337,101 @@ bool D3D12CommandProcessor::SetupContext() {
     null_srv_desc.TextureCube.ResourceMinLODClamp = 0.0f;
     device->CreateShaderResourceView(
         nullptr, &null_srv_desc,
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kNullTextureCube)));
     // kSharedMemoryRawSRV.
-    shared_memory_->WriteRawSRVDescriptor(provider->OffsetViewDescriptor(
+    shared_memory_->WriteRawSRVDescriptor(provider.OffsetViewDescriptor(
         view_bindless_heap_cpu_start_,
         uint32_t(SystemBindlessView::kSharedMemoryRawSRV)));
     // kSharedMemoryR32UintSRV.
     shared_memory_->WriteUintPow2SRVDescriptor(
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kSharedMemoryR32UintSRV)),
         2);
     // kSharedMemoryR32G32UintSRV.
     shared_memory_->WriteUintPow2SRVDescriptor(
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kSharedMemoryR32G32UintSRV)),
         3);
     // kSharedMemoryR32G32B32A32UintSRV.
     shared_memory_->WriteUintPow2SRVDescriptor(
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kSharedMemoryR32G32B32A32UintSRV)),
         4);
     // kSharedMemoryRawUAV.
-    shared_memory_->WriteRawUAVDescriptor(provider->OffsetViewDescriptor(
+    shared_memory_->WriteRawUAVDescriptor(provider.OffsetViewDescriptor(
         view_bindless_heap_cpu_start_,
         uint32_t(SystemBindlessView::kSharedMemoryRawUAV)));
     // kSharedMemoryR32UintUAV.
     shared_memory_->WriteUintPow2UAVDescriptor(
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kSharedMemoryR32UintUAV)),
         2);
     // kSharedMemoryR32G32UintUAV.
     shared_memory_->WriteUintPow2UAVDescriptor(
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kSharedMemoryR32G32UintUAV)),
         3);
     // kSharedMemoryR32G32B32A32UintUAV.
     shared_memory_->WriteUintPow2UAVDescriptor(
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kSharedMemoryR32G32B32A32UintUAV)),
         4);
     // kEdramRawSRV.
     render_target_cache_->WriteEdramRawSRVDescriptor(
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kEdramRawSRV)));
     // kEdramR32UintSRV.
     render_target_cache_->WriteEdramUintPow2SRVDescriptor(
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kEdramR32UintSRV)),
         2);
     // kEdramR32G32UintSRV.
     render_target_cache_->WriteEdramUintPow2SRVDescriptor(
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kEdramR32G32UintSRV)),
         3);
     // kEdramR32G32B32A32UintSRV.
     render_target_cache_->WriteEdramUintPow2SRVDescriptor(
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kEdramR32G32B32A32UintSRV)),
         4);
     // kEdramRawUAV.
     render_target_cache_->WriteEdramRawUAVDescriptor(
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kEdramRawUAV)));
     // kEdramR32UintUAV.
     render_target_cache_->WriteEdramUintPow2UAVDescriptor(
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kEdramR32UintUAV)),
         2);
     // kEdramR32G32B32A32UintUAV.
     render_target_cache_->WriteEdramUintPow2UAVDescriptor(
-        provider->OffsetViewDescriptor(
+        provider.OffsetViewDescriptor(
             view_bindless_heap_cpu_start_,
             uint32_t(SystemBindlessView::kEdramR32G32B32A32UintUAV)),
         4);
     // kGammaRampNormalSRV.
     WriteGammaRampSRV(false,
-                      provider->OffsetViewDescriptor(
+                      provider.OffsetViewDescriptor(
                           view_bindless_heap_cpu_start_,
                           uint32_t(SystemBindlessView::kGammaRampNormalSRV)));
     // kGammaRampPWLSRV.
     WriteGammaRampSRV(true,
-                      provider->OffsetViewDescriptor(
+                      provider.OffsetViewDescriptor(
                           view_bindless_heap_cpu_start_,
                           uint32_t(SystemBindlessView::kGammaRampPWLSRV)));
   }
@@ -1599,7 +1599,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   // In case the swap command is the only one in the frame.
   BeginSubmission(true);
 
-  auto device = GetD3D12Context()->GetD3D12Provider()->GetDevice();
+  auto device = GetD3D12Context().GetD3D12Provider().GetDevice();
 
   // Upload the new gamma ramps, using the upload buffer for the current frame
   // (will close the frame after this anyway, so can't write multiple times per
@@ -1770,7 +1770,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
                                       uint32_t index_count,
                                       IndexBufferInfo* index_buffer_info,
                                       bool major_mode_explicit) {
-  auto device = GetD3D12Context()->GetD3D12Provider()->GetDevice();
+  auto device = GetD3D12Context().GetD3D12Provider().GetDevice();
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -2522,7 +2522,7 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
         pix_capture_requested_.exchange(false, std::memory_order_relaxed);
     if (pix_capturing_) {
       IDXGraphicsAnalysis* graphics_analysis =
-          GetD3D12Context()->GetD3D12Provider()->GetGraphicsAnalysis();
+          GetD3D12Context().GetD3D12Provider().GetGraphicsAnalysis();
       if (graphics_analysis != nullptr) {
         graphics_analysis->BeginCapture();
       }
@@ -2535,12 +2535,12 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
 }
 
 bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
-  auto provider = GetD3D12Context()->GetD3D12Provider();
+  auto& provider = GetD3D12Context().GetD3D12Provider();
 
   // Make sure there is a command allocator to write commands to.
   if (submission_open_ && !command_allocator_writable_first_) {
     ID3D12CommandAllocator* command_allocator;
-    if (FAILED(provider->GetDevice()->CreateCommandAllocator(
+    if (FAILED(provider.GetDevice()->CreateCommandAllocator(
             D3D12_COMMAND_LIST_TYPE_DIRECT,
             IID_PPV_ARGS(&command_allocator)))) {
       XELOGE("Failed to create a command allocator");
@@ -2570,7 +2570,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
     // destroyed between frames.
     SubmitBarriers();
 
-    auto direct_queue = provider->GetDirectQueue();
+    auto direct_queue = provider.GetDirectQueue();
 
     // Submit the command list.
     ID3D12CommandAllocator* command_allocator =
@@ -2604,7 +2604,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
   if (is_closing_frame) {
     // Close the capture after submitting.
     if (pix_capturing_) {
-      IDXGraphicsAnalysis* graphics_analysis = provider->GetGraphicsAnalysis();
+      IDXGraphicsAnalysis* graphics_analysis = provider.GetGraphicsAnalysis();
       if (graphics_analysis != nullptr) {
         graphics_analysis->EndCapture();
       }
@@ -2665,7 +2665,7 @@ bool D3D12CommandProcessor::CanEndSubmissionImmediately() const {
 void D3D12CommandProcessor::AwaitAllSubmissionsCompletion() {
   // May be called if shutting down without everything set up.
   if ((submission_completed_ + 1) >= submission_current_ ||
-      !submission_fence_ || GetD3D12Context()->WasLost()) {
+      !submission_fence_ || GetD3D12Context().WasLost()) {
     return;
   }
   submission_fence_->SetEventOnCompletion(submission_current_ - 1,
@@ -3462,8 +3462,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 bool D3D12CommandProcessor::UpdateBindings(
     const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
     ID3D12RootSignature* root_signature) {
-  auto provider = GetD3D12Context()->GetD3D12Provider();
-  auto device = provider->GetDevice();
+  auto& provider = GetD3D12Context().GetD3D12Provider();
+  auto device = provider.GetDevice();
   auto& regs = *register_file_;
 
 #if FINE_GRAINED_DRAW_SCOPES
@@ -3830,7 +3830,7 @@ bool D3D12CommandProcessor::UpdateBindings(
               sampler_index = sampler_bindless_heap_allocated_++;
               texture_cache_->WriteSampler(
                   sampler_parameters,
-                  provider->OffsetSamplerDescriptor(
+                  provider.OffsetSamplerDescriptor(
                       sampler_bindless_heap_cpu_start_, sampler_index));
               texture_cache_bindless_sampler_map_.insert(
                   {sampler_parameters.value, sampler_index});
@@ -3862,7 +3862,7 @@ bool D3D12CommandProcessor::UpdateBindings(
               sampler_index = sampler_bindless_heap_allocated_++;
               texture_cache_->WriteSampler(
                   sampler_parameters,
-                  provider->OffsetSamplerDescriptor(
+                  provider.OffsetSamplerDescriptor(
                       sampler_bindless_heap_cpu_start_, sampler_index));
               texture_cache_bindless_sampler_map_.insert(
                   {sampler_parameters.value, sampler_index});
@@ -3994,7 +3994,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     }
     D3D12_CPU_DESCRIPTOR_HANDLE view_cpu_handle;
     D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle;
-    uint32_t descriptor_size_view = provider->GetViewDescriptorSize();
+    uint32_t descriptor_size_view = provider.GetViewDescriptorSize();
     uint64_t view_heap_index = RequestViewBindfulDescriptors(
         draw_view_bindful_heap_index_, view_count_partial_update,
         view_count_full_update, view_cpu_handle, view_gpu_handle);
@@ -4011,7 +4011,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     }
     D3D12_CPU_DESCRIPTOR_HANDLE sampler_cpu_handle = {};
     D3D12_GPU_DESCRIPTOR_HANDLE sampler_gpu_handle = {};
-    uint32_t descriptor_size_sampler = provider->GetSamplerDescriptorSize();
+    uint32_t descriptor_size_sampler = provider.GetSamplerDescriptorSize();
     uint64_t sampler_heap_index =
         ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid;
     if (sampler_count_vertex != 0 || sampler_count_pixel != 0) {
@@ -4286,7 +4286,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(uint32_t size) {
   }
   size = xe::align(size, kReadbackBufferSizeIncrement);
   if (size > readback_buffer_size_) {
-    auto device = GetD3D12Context()->GetD3D12Provider()->GetDevice();
+    auto device = GetD3D12Context().GetD3D12Provider().GetDevice();
     D3D12_RESOURCE_DESC buffer_desc;
     ui::d3d12::util::FillBufferResourceDesc(buffer_desc, size,
                                             D3D12_RESOURCE_FLAG_NONE);
@@ -4308,7 +4308,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(uint32_t size) {
 
 void D3D12CommandProcessor::WriteGammaRampSRV(
     bool is_pwl, D3D12_CPU_DESCRIPTOR_HANDLE handle) const {
-  auto device = GetD3D12Context()->GetD3D12Provider()->GetDevice();
+  auto device = GetD3D12Context().GetD3D12Provider().GetDevice();
   D3D12_SHADER_RESOURCE_VIEW_DESC desc;
   desc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
   desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE1D;
