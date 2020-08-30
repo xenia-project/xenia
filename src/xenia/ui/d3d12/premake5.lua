@@ -14,3 +14,24 @@ project("xenia-ui-d3d12")
   files({
     "shaders/bin/*.h",
   })
+
+group("demos")
+project("xenia-ui-window-d3d12-demo")
+  uuid("3b9686a7-0f04-4e17-8b00-aeb78ae1107c")
+  kind("WindowedApp")
+  language("C++")
+  links({
+    "fmt",
+    "imgui",
+    "xenia-base",
+    "xenia-ui",
+    "xenia-ui-d3d12",
+  })
+  files({
+    "../window_demo.cc",
+    "d3d12_window_demo.cc",
+    project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
+  })
+  resincludedirs({
+    project_root,
+  })
