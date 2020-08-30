@@ -43,7 +43,8 @@ class D3D12Context : public GraphicsContext {
     return static_cast<D3D12Provider*>(provider_);
   }
 
-  static constexpr DXGI_FORMAT kSwapChainFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+  // The format used by DWM.
+  static constexpr DXGI_FORMAT kSwapChainFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
   ID3D12Resource* GetSwapChainBuffer(uint32_t buffer_index) const {
     return swap_chain_buffers_[buffer_index];
   }
