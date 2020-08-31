@@ -14,7 +14,6 @@ project("xenia-gpu")
     "spirv-tools",
     "xenia-base",
     "xenia-ui",
-    "xenia-ui-spirv",
     "xxhash",
   })
   defines({
@@ -23,8 +22,6 @@ project("xenia-gpu")
     project_root.."/third_party/spirv-tools/external/include",
   })
   local_platform_files()
-  -- local_platform_files("spirv")
-  -- local_platform_files("spirv/passes")
 
 group("src")
 project("xenia-gpu-shader-compiler")
@@ -38,7 +35,6 @@ project("xenia-gpu-shader-compiler")
     "spirv-tools",
     "xenia-base",
     "xenia-gpu",
-    "xenia-ui-spirv",
   })
   defines({
   })

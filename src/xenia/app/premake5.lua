@@ -39,7 +39,6 @@ project("xenia-app")
     "xenia-hid-sdl",
     "xenia-kernel",
     "xenia-ui",
-    "xenia-ui-spirv",
     "xenia-ui-vulkan",
     "xenia-vfs",
     "xxhash",

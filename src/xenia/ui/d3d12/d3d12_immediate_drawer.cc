@@ -22,8 +22,8 @@ namespace ui {
 namespace d3d12 {
 
 // Generated with `xb buildhlsl`.
-#include "xenia/ui/d3d12/shaders/dxbc/immediate_ps.h"
-#include "xenia/ui/d3d12/shaders/dxbc/immediate_vs.h"
+#include "xenia/ui/shaders/bytecode/d3d12_5_1/immediate_ps.h"
+#include "xenia/ui/shaders/bytecode/d3d12_5_1/immediate_vs.h"
 
 class D3D12ImmediateTexture : public ImmediateTexture {
  public:
