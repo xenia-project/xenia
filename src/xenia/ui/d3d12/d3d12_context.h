@@ -69,11 +69,10 @@ class D3D12Context : public GraphicsContext {
 
  private:
   friend class D3D12Provider;
-
   explicit D3D12Context(D3D12Provider* provider, Window* target_window);
+  bool Initialize();
 
  private:
-  bool Initialize();
   bool InitializeSwapChainBuffers();
   void Shutdown();
 

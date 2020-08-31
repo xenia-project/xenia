@@ -57,16 +57,16 @@ namespace gpu {
 namespace d3d12 {
 
 // Generated with `xb buildhlsl`.
-#include "xenia/gpu/d3d12/shaders/dxbc/adaptive_quad_hs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/adaptive_triangle_hs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/continuous_quad_hs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/continuous_triangle_hs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/discrete_quad_hs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/discrete_triangle_hs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/primitive_point_list_gs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/primitive_quad_list_gs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/primitive_rectangle_list_gs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/tessellation_vs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/adaptive_quad_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/adaptive_triangle_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/continuous_quad_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/continuous_triangle_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/discrete_quad_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/discrete_triangle_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/primitive_point_list_gs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/primitive_quad_list_gs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/primitive_rectangle_list_gs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/tessellation_vs.h"
 
 PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
                              const RegisterFile& register_file,

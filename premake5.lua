@@ -248,7 +248,6 @@ solution("xenia")
   include("src/xenia/hid/sdl")
   include("src/xenia/kernel")
   include("src/xenia/ui")
-  include("src/xenia/ui/spirv")
   include("src/xenia/ui/vulkan")
   include("src/xenia/vfs")
 

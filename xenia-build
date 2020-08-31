@@ -434,7 +434,7 @@ def discover_commands(subparsers):
         'tidy': TidyCommand(subparsers),
         }
     if sys.platform == 'win32':
-        commands['buildhlsl'] = BuildHlslCommand(subparsers)
+        commands['gendxbc'] = GenDxbcCommand(subparsers)
     return commands
 
 
@@ -764,16 +764,16 @@ class GenSpirvCommand(Command):
         return 0
 
 
-class BuildHlslCommand(Command):
-    """'buildhlsl' command."""
+class GenDxbcCommand(Command):
+    """'gendxbc' command."""
 
     def __init__(self, subparsers, *args, **kwargs):
-        super(BuildHlslCommand, self).__init__(
+        super(GenDxbcCommand, self).__init__(
             subparsers,
-            name='buildhlsl',
+            name='gendxbc',
             help_short='Generates Direct3D shader binaries and header files.',
             help_long='''
-            Generates the .cso/.h binaries under src/xenia/*/d3d12/shaders/dxbc/.
+            Generates the .cso/.h binaries under src/xenia/*/shaders/bytecode/d3d12_5_1/.
             Run after modifying any .hs/vs/ds/gs/ps/cs.hlsl files.
             ''',
             *args, **kwargs)
@@ -811,7 +811,8 @@ class BuildHlslCommand(Command):
             src_name = os.path.splitext(os.path.basename(src_file))[0]
             identifier = os.path.basename(src_file)[:-5].replace('.', '_')
 
-            bin_path = os.path.join(os.path.dirname(src_file), 'dxbc')
+            bin_path = os.path.join(os.path.dirname(src_file),
+                                    'bytecode/d3d12_5_1')
             if not os.path.exists(bin_path):
                 os.mkdir(bin_path)
             cso_file = os.path.join(bin_path, identifier) + '.cso'
@@ -830,7 +831,7 @@ class BuildHlslCommand(Command):
 
             # bin2c so we get a header file we can compile in.
             with open(h_file, 'w') as out_file:
-                out_file.write('// generated from `xb buildhlsl`\n')
+                out_file.write('// generated from `xb gendxbc`\n')
                 out_file.write('// source: %s\n' % os.path.basename(src_file))
                 out_file.write('const uint8_t %s[] = {' % (identifier))
                 with open(cso_file, 'rb') as in_file:

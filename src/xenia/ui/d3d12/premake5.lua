@@ -12,7 +12,7 @@ project("xenia-ui-d3d12")
   })
   local_platform_files()
   files({
-    "shaders/bin/*.h",
+    "../shaders/bytecode/d3d12_5_1/*.h",
   })
 
 group("demos")

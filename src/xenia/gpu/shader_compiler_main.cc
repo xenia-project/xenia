@@ -19,8 +19,6 @@
 #include "xenia/base/string.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/shader_translator.h"
-#include "xenia/gpu/spirv_shader_translator.h"
-#include "xenia/ui/spirv/spirv_disassembler.h"
 
 // For D3DDisassemble:
 #if XE_PLATFORM_WIN32
@@ -33,8 +31,7 @@ DEFINE_string(shader_input_type, "",
               "GPU");
 DEFINE_path(shader_output, "", "Output shader file path.", "GPU");
 DEFINE_string(shader_output_type, "ucode",
-              "Translator to use: [ucode, spirv, spirvtext, dxbc, dxbctext].",
-              "GPU");
+              "Translator to use: [ucode, dxbc, dxbctext].", "GPU");
 DEFINE_string(
     vertex_shader_output_type, "",
     "Type of the host interface to produce the vertex or domain shader for: "
@@ -105,11 +102,8 @@ int shader_compiler_main(const std::vector<std::string>& args) {
       shader_type, ucode_data_hash, ucode_dwords.data(), ucode_dwords.size());
 
   std::unique_ptr<ShaderTranslator> translator;
-  if (cvars::shader_output_type == "spirv" ||
-      cvars::shader_output_type == "spirvtext") {
-    translator = std::make_unique<SpirvShaderTranslator>();
-  } else if (cvars::shader_output_type == "dxbc" ||
-             cvars::shader_output_type == "dxbctext") {
+  if (cvars::shader_output_type == "dxbc" ||
+      cvars::shader_output_type == "dxbctext") {
     translator = std::make_unique<DxbcShaderTranslator>(
         0, cvars::shader_output_bindless_resources,
         cvars::shader_output_dxbc_rov);
@@ -146,14 +140,6 @@ int shader_compiler_main(const std::vector<std::string>& args) {
   const void* source_data = shader->translated_binary().data();
   size_t source_data_size = shader->translated_binary().size();
 
-  std::unique_ptr<xe::ui::spirv::SpirvDisassembler::Result> spirv_disasm_result;
-  if (cvars::shader_output_type == "spirvtext") {
-    // Disassemble SPIRV.
-    spirv_disasm_result = xe::ui::spirv::SpirvDisassembler().Disassemble(
-        reinterpret_cast<const uint32_t*>(source_data), source_data_size / 4);
-    source_data = spirv_disasm_result->text();
-    source_data_size = std::strlen(spirv_disasm_result->text()) + 1;
-  }
 #if XE_PLATFORM_WIN32
   ID3DBlob* dxbc_disasm_blob = nullptr;
   if (cvars::shader_output_type == "dxbctext") {
