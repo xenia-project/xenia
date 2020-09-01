@@ -1145,12 +1145,38 @@ bool BaseHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
 
 bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
                        uint32_t* old_protect) {
-  uint32_t page_count = xe::round_up(size, page_size_) / page_size_;
+  if (!size) {
+    XELOGE("BaseHeap::Protect failed due to zero size");
+    return false;
+  }
+
+  // From the VirtualProtect MSDN page:
+  //
+  // "The region of affected pages includes all pages containing one or more
+  //  bytes in the range from the lpAddress parameter to (lpAddress+dwSize).
+  //  This means that a 2-byte range straddling a page boundary causes the
+  //  protection attributes of both pages to be changed."
+  //
+  // "The access protection value can be set only on committed pages. If the
+  //  state of any page in the specified region is not committed, the function
+  //  fails and returns without modifying the access protection of any pages in
+  //  the specified region."
+
   uint32_t start_page_number = (address - heap_base_) / page_size_;
-  uint32_t end_page_number = start_page_number + page_count - 1;
-  start_page_number =
-      std::min(uint32_t(page_table_.size()) - 1, start_page_number);
-  end_page_number = std::min(uint32_t(page_table_.size()) - 1, end_page_number);
+  if (start_page_number >= page_table_.size()) {
+    XELOGE("BaseHeap::Protect failed due to out-of-bounds base address {:08X}",
+           address);
+    return false;
+  }
+  uint32_t end_page_number =
+      uint32_t((uint64_t(address) + size - 1 - heap_base_) / page_size_);
+  if (end_page_number >= page_table_.size()) {
+    XELOGE(
+        "BaseHeap::Protect failed due to out-of-bounds range ({:08X} bytes "
+        "from {:08x})",
+        size, address);
+    return false;
+  }
 
   auto global_lock = global_critical_region_.Acquire();
 
@@ -1173,6 +1199,7 @@ bool BaseHeap::Protect(uint32_t address, uint32_t size, uint32_t protect,
 
   // Attempt host change (hopefully won't fail).
   // We can only do this if our size matches system page granularity.
+  uint32_t page_count = end_page_number - start_page_number + 1;
   if (page_size_ == xe::memory::page_size() ||
       (((page_count * page_size_) % xe::memory::page_size() == 0) &&
        ((start_page_number * page_size_) % xe::memory::page_size() == 0))) {
