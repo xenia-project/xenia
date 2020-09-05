@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/draw_util.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -29,6 +30,36 @@ DEFINE_bool(
     "right/lower host pixel in the left and top sides of render target resolve "
     "areas to eliminate the gap caused by half-pixel offset (this is necessary "
     "for certain games like GTA IV to work).",
+    "GPU");
+
+DEFINE_bool(
+    present_stretch, true,
+    "Whether to rescale the image, instead of maintaining the original pixel "
+    "size, when presenting to the window. When this is disabled, other "
+    "positioning options are ignored.",
+    "GPU");
+DEFINE_bool(
+    present_letterbox, true,
+    "Maintain aspect ratio when stretching by displaying bars around the image "
+    "when there's no more overscan area to crop out.",
+    "GPU");
+// https://github.com/MonoGame/MonoGame/issues/4697#issuecomment-217779403
+// Using the value from DirectXTK (5% cropped out from each side, thus 90%),
+// which is not exactly the Xbox One title-safe area, but close, and within the
+// action-safe area:
+// https://github.com/microsoft/DirectXTK/blob/1e80a465c6960b457ef9ab6716672c1443a45024/Src/SimpleMath.cpp#L144
+// XNA TitleSafeArea is 80%, but it's very conservative, designed for CRT, and
+// is the title-safe area rather than the action-safe area.
+// 90% is also exactly the fraction of 16:9 height in 16:10.
+DEFINE_int32(
+    present_safe_area_x, 90,
+    "Percentage of the image width that can be kept when presenting to "
+    "maintain aspect ratio without letterboxing or stretching.",
+    "GPU");
+DEFINE_int32(
+    present_safe_area_y, 90,
+    "Percentage of the image height that can be kept when presenting to "
+    "maintain aspect ratio without letterboxing or stretching.",
     "GPU");
 
 namespace xe {
@@ -587,6 +618,87 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(
   }
 
   return shader;
+}
+
+void GetPresentArea(uint32_t source_width, uint32_t source_height,
+                    uint32_t window_width, uint32_t window_height,
+                    int32_t& target_x_out, int32_t& target_y_out,
+                    uint32_t& target_width_out, uint32_t& target_height_out) {
+  if (!cvars::present_stretch) {
+    target_x_out = (int32_t(window_width) - int32_t(source_width)) / 2;
+    target_y_out = (int32_t(window_height) - int32_t(source_height)) / 2;
+    target_width_out = source_width;
+    target_height_out = source_height;
+    return;
+  }
+  // Prevent division by zero.
+  if (!source_width || !source_height) {
+    target_x_out = 0;
+    target_y_out = 0;
+    target_width_out = 0;
+    target_height_out = 0;
+    return;
+  }
+  if (uint64_t(window_width) * source_height >
+      uint64_t(source_width) * window_height) {
+    // The window is wider that the source - crop along Y, then letterbox or
+    // stretch along X.
+    uint32_t present_safe_area;
+    if (cvars::present_safe_area_y > 0 && cvars::present_safe_area_y < 100) {
+      present_safe_area = uint32_t(cvars::present_safe_area_y);
+    } else {
+      present_safe_area = 100;
+    }
+    uint32_t target_height =
+        uint32_t(uint64_t(window_width) * source_height / source_width);
+    bool letterbox = false;
+    if (target_height * present_safe_area > window_height * 100) {
+      // Don't crop out more than the safe area margin - letterbox or stretch.
+      target_height = window_height * 100 / present_safe_area;
+      letterbox = true;
+    }
+    if (letterbox && cvars::present_letterbox) {
+      uint32_t target_width =
+          uint32_t(uint64_t(source_width) * window_height * 100 /
+                   (source_height * present_safe_area));
+      target_x_out = (int32_t(window_width) - int32_t(target_width)) / 2;
+      target_width_out = target_width;
+    } else {
+      target_x_out = 0;
+      target_width_out = window_width;
+    }
+    target_y_out = (int32_t(window_height) - int32_t(target_height)) / 2;
+    target_height_out = target_height;
+  } else {
+    // The window is taller than the source - crop along X, then letterbox or
+    // stretch along Y.
+    uint32_t present_safe_area;
+    if (cvars::present_safe_area_x > 0 && cvars::present_safe_area_x < 100) {
+      present_safe_area = uint32_t(cvars::present_safe_area_x);
+    } else {
+      present_safe_area = 100;
+    }
+    uint32_t target_width =
+        uint32_t(uint64_t(window_height) * source_width / source_height);
+    bool letterbox = false;
+    if (target_width * present_safe_area > window_width * 100) {
+      // Don't crop out more than the safe area margin - letterbox or stretch.
+      target_width = window_width * 100 / present_safe_area;
+      letterbox = true;
+    }
+    if (letterbox && cvars::present_letterbox) {
+      uint32_t target_height =
+          uint32_t(uint64_t(source_height) * window_width * 100 /
+                   (source_width * present_safe_area));
+      target_y_out = (int32_t(window_height) - int32_t(target_height)) / 2;
+      target_height_out = target_height;
+    } else {
+      target_y_out = 0;
+      target_height_out = window_height;
+    }
+    target_x_out = (int32_t(window_width) - int32_t(target_width)) / 2;
+    target_width_out = target_width;
+  }
 }
 
 }  // namespace draw_util
