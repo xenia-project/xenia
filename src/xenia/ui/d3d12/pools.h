@@ -12,7 +12,7 @@
 
 #include <cstdint>
 
-#include "xenia/ui/d3d12/d3d12_api.h"
+#include "xenia/ui/d3d12/d3d12_provider.h"
 
 namespace xe {
 namespace ui {
@@ -23,7 +23,7 @@ namespace d3d12 {
 
 class UploadBufferPool {
  public:
-  UploadBufferPool(ID3D12Device* device, uint32_t page_size);
+  UploadBufferPool(D3D12Provider& provider, uint32_t page_size);
   ~UploadBufferPool();
 
   void Reclaim(uint64_t completed_submission_index);
@@ -41,7 +41,7 @@ class UploadBufferPool {
                           D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
 
  private:
-  ID3D12Device* device_;
+  D3D12Provider& provider_;
   uint32_t page_size_;
 
   struct Page {
