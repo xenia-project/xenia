@@ -253,20 +253,6 @@ bool Win32Window::ReleaseMouse() {
 
 bool Win32Window::is_fullscreen() const { return fullscreen_; }
 
-// https://blogs.msdn.microsoft.com/oldnewthing/20131017-00/?p=2903
-BOOL UnadjustWindowRect(LPRECT prc, DWORD dwStyle, BOOL fMenu) {
-  RECT rc;
-  SetRectEmpty(&rc);
-  BOOL fRc = AdjustWindowRect(&rc, dwStyle, fMenu);
-  if (fRc) {
-    prc->left -= rc.left;
-    prc->top -= rc.top;
-    prc->right -= rc.right;
-    prc->bottom -= rc.bottom;
-  }
-  return fRc;
-}
-
 void Win32Window::ToggleFullscreen(bool fullscreen) {
   if (fullscreen == is_fullscreen()) {
     return;
@@ -288,9 +274,6 @@ void Win32Window::ToggleFullscreen(bool fullscreen) {
       AdjustWindowRect(&rc, GetWindowLong(hwnd_, GWL_STYLE), false);
       MoveWindow(hwnd_, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
                  TRUE);
-
-      width_ = rc.right - rc.left;
-      height_ = rc.bottom - rc.top;
     }
   } else {
     // Reinstate borders, resize to 1280x720
@@ -301,15 +284,13 @@ void Win32Window::ToggleFullscreen(bool fullscreen) {
     if (main_menu) {
       ::SetMenu(hwnd_, main_menu->handle());
     }
-
-    auto& rc = windowed_pos_.rcNormalPosition;
-    bool has_menu = main_menu_ ? true : false;
-    UnadjustWindowRect(&rc, GetWindowLong(hwnd_, GWL_STYLE), has_menu);
-    width_ = rc.right - rc.left;
-    height_ = rc.bottom - rc.top;
   }
 
   fullscreen_ = fullscreen;
+
+  // width_ and height_ will be updated by the WM_SIZE handler -
+  // windowed_pos_.rcNormalPosition is also not the correct source for them when
+  // switching from fullscreen to maximized.
 }
 
 bool Win32Window::is_bordered() const {
