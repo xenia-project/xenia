@@ -33,7 +33,7 @@ DEFINE_bool(
     "GPU");
 
 DEFINE_bool(
-    present_stretch, true,
+    present_rescale, true,
     "Whether to rescale the image, instead of maintaining the original pixel "
     "size, when presenting to the window. When this is disabled, other "
     "positioning options are ignored.",
@@ -624,7 +624,7 @@ void GetPresentArea(uint32_t source_width, uint32_t source_height,
                     uint32_t window_width, uint32_t window_height,
                     int32_t& target_x_out, int32_t& target_y_out,
                     uint32_t& target_width_out, uint32_t& target_height_out) {
-  if (!cvars::present_stretch) {
+  if (!cvars::present_rescale) {
     target_x_out = (int32_t(window_width) - int32_t(source_width)) / 2;
     target_y_out = (int32_t(window_height) - int32_t(source_height)) / 2;
     target_width_out = source_width;
