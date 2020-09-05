@@ -137,8 +137,6 @@ bool RenderTargetCache::Initialize(const TextureCache& texture_cache) {
   uint32_t edram_buffer_size = GetEdramBufferSize();
 
   // Create the buffer for reinterpreting EDRAM contents.
-  // No need to clear it in the first frame, memory is zeroed out when allocated
-  // on Windows.
   D3D12_RESOURCE_DESC edram_buffer_desc;
   ui::d3d12::util::FillBufferResourceDesc(
       edram_buffer_desc, edram_buffer_size,
@@ -147,8 +145,15 @@ bool RenderTargetCache::Initialize(const TextureCache& texture_cache) {
   edram_buffer_state_ = edram_rov_used_
                             ? D3D12_RESOURCE_STATE_UNORDERED_ACCESS
                             : D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+  // Request zeroed (though no guarantee) when not using ROV so the host 32-bit
+  // depth buffer will be initialized to deterministic values (because it's
+  // involved in comparison with converted 24-bit values - whether the 32-bit
+  // value is up to date is determined by whether it's equal to the 24-bit
+  // value in the main EDRAM buffer when converted to 24-bit).
   if (FAILED(device->CreateCommittedResource(
-          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
+          &ui::d3d12::util::kHeapPropertiesDefault,
+          edram_rov_used_ ? provider.GetHeapFlagCreateNotZeroed()
+                          : D3D12_HEAP_FLAG_NONE,
           &edram_buffer_desc, edram_buffer_state_, nullptr,
           IID_PPV_ARGS(&edram_buffer_)))) {
     XELOGE("Failed to create the EDRAM buffer");
@@ -1451,10 +1456,11 @@ bool RenderTargetCache::InitializeTraceSubmitDownloads() {
     ui::d3d12::util::FillBufferResourceDesc(edram_snapshot_download_buffer_desc,
                                             xenos::kEdramSizeBytes,
                                             D3D12_RESOURCE_FLAG_NONE);
-    auto device =
-        command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
+    auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+    auto device = provider.GetDevice();
     if (FAILED(device->CreateCommittedResource(
-            &ui::d3d12::util::kHeapPropertiesReadback, D3D12_HEAP_FLAG_NONE,
+            &ui::d3d12::util::kHeapPropertiesReadback,
+            provider.GetHeapFlagCreateNotZeroed(),
             &edram_snapshot_download_buffer_desc,
             D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
             IID_PPV_ARGS(&edram_snapshot_download_buffer_)))) {
@@ -1493,10 +1499,9 @@ void RenderTargetCache::RestoreEdramSnapshot(const void* snapshot) {
     return;
   }
   auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
-  auto device = provider.GetDevice();
   if (!edram_snapshot_restore_pool_) {
     edram_snapshot_restore_pool_ =
-        std::make_unique<ui::d3d12::UploadBufferPool>(device,
+        std::make_unique<ui::d3d12::UploadBufferPool>(provider,
                                                       xenos::kEdramSizeBytes);
   }
   ID3D12Resource* upload_buffer;
@@ -1603,14 +1608,15 @@ bool RenderTargetCache::MakeHeapResident(uint32_t heap_index) {
   if (heaps_[heap_index] != nullptr) {
     return true;
   }
-  auto device =
-      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  auto device = provider.GetDevice();
   D3D12_HEAP_DESC heap_desc = {};
   heap_desc.SizeInBytes = kHeap4MBPages << 22;
   heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
   // TODO(Triang3l): If real MSAA is added, alignment must be 4 MB.
   heap_desc.Alignment = 0;
-  heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES;
+  heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES |
+                    provider.GetHeapFlagCreateNotZeroed();
   if (FAILED(
           device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heaps_[heap_index])))) {
     XELOGE("Failed to create a {} MB heap for render targets",
@@ -1756,8 +1762,9 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
   }
 #else
   if (FAILED(device->CreateCommittedResource(
-          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
-          &resource_desc, state, nullptr, IID_PPV_ARGS(&resource)))) {
+          &ui::d3d12::util::kHeapPropertiesDefault,
+          provider.GetHeapFlagCreateNotZeroed(), &resource_desc, state, nullptr,
+          IID_PPV_ARGS(&resource)))) {
     XELOGE(
         "Failed to create a committed resource for {}x{} {} render target with "
         "format {}",
