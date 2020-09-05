@@ -300,9 +300,9 @@ void D3D12Context::BeginSwap() {
     clear_color[1] = 1.0f;
     clear_color[2] = 0.0f;
   } else {
-    clear_color[0] = 238.0f / 255.0f;
-    clear_color[1] = 238.0f / 255.0f;
-    clear_color[2] = 238.0f / 255.0f;
+    clear_color[0] = 0.0f;
+    clear_color[1] = 0.0f;
+    clear_color[2] = 0.0f;
   }
   clear_color[3] = 1.0f;
   swap_command_list_->ClearRenderTargetView(back_buffer_rtv, clear_color, 0,
