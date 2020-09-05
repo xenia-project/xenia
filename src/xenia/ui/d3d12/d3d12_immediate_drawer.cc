@@ -33,7 +33,7 @@ class D3D12ImmediateTexture : public ImmediateTexture {
                         ImmediateTextureFilter filter, bool repeat);
   ~D3D12ImmediateTexture() override;
 
-  bool Initialize(ID3D12Device* device);
+  bool Initialize(D3D12Provider& provider);
   void Shutdown();
 
   ID3D12Resource* GetResource() const { return resource_; }
@@ -59,7 +59,7 @@ D3D12ImmediateTexture::D3D12ImmediateTexture(uint32_t width, uint32_t height,
 
 D3D12ImmediateTexture::~D3D12ImmediateTexture() { Shutdown(); }
 
-bool D3D12ImmediateTexture::Initialize(ID3D12Device* device) {
+bool D3D12ImmediateTexture::Initialize(D3D12Provider& provider) {
   // The first operation will likely be copying the contents.
   state_ = D3D12_RESOURCE_STATE_COPY_DEST;
 
@@ -75,9 +75,9 @@ bool D3D12ImmediateTexture::Initialize(ID3D12Device* device) {
   resource_desc.SampleDesc.Quality = 0;
   resource_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
   resource_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-  if (FAILED(device->CreateCommittedResource(
-          &util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE, &resource_desc,
-          state_, nullptr, IID_PPV_ARGS(&resource_)))) {
+  if (FAILED(provider.GetDevice()->CreateCommittedResource(
+          &util::kHeapPropertiesDefault, provider.GetHeapFlagCreateNotZeroed(),
+          &resource_desc, state_, nullptr, IID_PPV_ARGS(&resource_)))) {
     XELOGE("Failed to create a {}x{} texture for immediate drawing", width,
            height);
     return false;
@@ -288,7 +288,7 @@ bool D3D12ImmediateDrawer::Initialize() {
 
   // Create pools for draws.
   vertex_buffer_pool_ =
-      std::make_unique<UploadBufferPool>(device, 2 * 1024 * 1024);
+      std::make_unique<UploadBufferPool>(provider, 2 * 1024 * 1024);
   texture_descriptor_pool_ = std::make_unique<DescriptorHeapPool>(
       device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 2048);
   texture_descriptor_pool_heap_index_ = DescriptorHeapPool::kHeapIndexInvalid;
@@ -326,7 +326,7 @@ std::unique_ptr<ImmediateTexture> D3D12ImmediateDrawer::CreateTexture(
     const uint8_t* data) {
   auto texture =
       std::make_unique<D3D12ImmediateTexture>(width, height, filter, repeat);
-  texture->Initialize(context_.GetD3D12Provider().GetDevice());
+  texture->Initialize(context_.GetD3D12Provider());
   if (data != nullptr) {
     UpdateTexture(texture.get(), data);
   }
@@ -343,7 +343,8 @@ void D3D12ImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
   }
   uint32_t width = d3d_texture->width, height = d3d_texture->height;
 
-  auto device = context_.GetD3D12Provider().GetDevice();
+  auto& provider = context_.GetD3D12Provider();
+  auto device = provider.GetDevice();
 
   // Create and fill the upload buffer.
   D3D12_RESOURCE_DESC texture_desc = texture_resource->GetDesc();
@@ -356,8 +357,9 @@ void D3D12ImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
                                D3D12_RESOURCE_FLAG_NONE);
   ID3D12Resource* buffer;
   if (FAILED(device->CreateCommittedResource(
-          &util::kHeapPropertiesUpload, D3D12_HEAP_FLAG_NONE, &buffer_desc,
-          D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&buffer)))) {
+          &util::kHeapPropertiesUpload, provider.GetHeapFlagCreateNotZeroed(),
+          &buffer_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+          IID_PPV_ARGS(&buffer)))) {
     XELOGE(
         "Failed to create an upload buffer for a {}x{} texture for "
         "immediate drawing",

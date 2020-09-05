@@ -73,8 +73,9 @@ bool SharedMemory::Initialize() {
           "resources yet.");
     }
     if (FAILED(device->CreateCommittedResource(
-            &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
-            &buffer_desc, buffer_state_, nullptr, IID_PPV_ARGS(&buffer_)))) {
+            &ui::d3d12::util::kHeapPropertiesDefault,
+            provider.GetHeapFlagCreateNotZeroed(), &buffer_desc, buffer_state_,
+            nullptr, IID_PPV_ARGS(&buffer_)))) {
       XELOGE("Shared memory: Failed to create the 512 MB buffer");
       Shutdown();
       return false;
@@ -153,7 +154,7 @@ bool SharedMemory::Initialize() {
   system_page_flags_.resize((page_count_ + 63) / 64);
 
   upload_buffer_pool_ = std::make_unique<ui::d3d12::UploadBufferPool>(
-      device,
+      provider,
       xe::align(uint32_t(4 * 1024 * 1024), uint32_t(1) << page_size_log2_));
 
   memory_invalidation_callback_handle_ =
@@ -370,7 +371,8 @@ bool SharedMemory::EnsureTilesResident(uint32_t start, uint32_t length) {
     D3D12_HEAP_DESC heap_desc = {};
     heap_desc.SizeInBytes = kHeapSize;
     heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
-    heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
+    heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS |
+                      provider.GetHeapFlagCreateNotZeroed();
     if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heaps_[i])))) {
       XELOGE("Shared memory: Failed to create a tile heap");
       return false;
@@ -890,11 +892,12 @@ bool SharedMemory::InitializeTraceSubmitDownloads() {
   ui::d3d12::util::FillBufferResourceDesc(
       gpu_written_buffer_desc, gpu_written_page_count << page_size_log2_,
       D3D12_RESOURCE_FLAG_NONE);
-  auto device =
-      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  auto device = provider.GetDevice();
   if (FAILED(device->CreateCommittedResource(
-          &ui::d3d12::util::kHeapPropertiesReadback, D3D12_HEAP_FLAG_NONE,
-          &gpu_written_buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
+          &ui::d3d12::util::kHeapPropertiesReadback,
+          provider.GetHeapFlagCreateNotZeroed(), &gpu_written_buffer_desc,
+          D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
           IID_PPV_ARGS(&trace_gpu_written_buffer_)))) {
     XELOGE(
         "Shared memory: Failed to create a {} KB GPU-written memory download "

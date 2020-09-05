@@ -1633,7 +1633,8 @@ bool TextureCache::EnsureScaledResolveBufferResident(uint32_t start_unscaled,
     D3D12_HEAP_DESC heap_desc = {};
     heap_desc.SizeInBytes = kScaledResolveHeapSize;
     heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
-    heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS;
+    heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS |
+                      provider.GetHeapFlagCreateNotZeroed();
     if (FAILED(device->CreateHeap(&heap_desc,
                                   IID_PPV_ARGS(&scaled_resolve_heaps_[i])))) {
       XELOGE("Texture cache: Failed to create a scaled resolve tile heap");
@@ -1953,14 +1954,15 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   // Untiling through a buffer instead of using unordered access because copying
   // is not done that often.
   desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-  auto device =
-      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  auto device = provider.GetDevice();
   // Assuming untiling will be the next operation.
   D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
   ID3D12Resource* resource;
   if (FAILED(device->CreateCommittedResource(
-          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE, &desc,
-          state, nullptr, IID_PPV_ARGS(&resource)))) {
+          &ui::d3d12::util::kHeapPropertiesDefault,
+          provider.GetHeapFlagCreateNotZeroed(), &desc, state, nullptr,
+          IID_PPV_ARGS(&resource)))) {
     LogTextureKeyAction(key, "Failed to create");
     return nullptr;
   }
