@@ -733,12 +733,6 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
       DxbcOpAnd(DxbcDest::R(system_temp_rov_params_, 0b0001),
                 DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
                 DxbcSrc::LU(~uint32_t(1 << i)));
-      // temp.x? = resulting sample depth after the depth test
-      // temp.y = polygon offset if not writing to oDepth
-      // temp.z = viewport maximum depth if not writing to oDepth
-      // temp.w = old depth/stencil
-      // sample_temp.x = free
-      DxbcOpMov(sample_depth_stencil_dest, sample_temp_x_src);
     }
     DxbcOpEndIf();
     // Create packed depth/stencil, with the stencil value unchanged at this
@@ -977,6 +971,25 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     // Close the stencil test check.
     DxbcOpEndIf();
 
+    // Check if the depth/stencil has failed not to modify the depth if it has.
+    // sample_temp.x = whether depth/stencil has passed for this sample
+    DxbcOpAnd(sample_temp_x_dest,
+              DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
+              DxbcSrc::LU(1 << i));
+    // If the depth/stencil test has failed, don't change the depth.
+    // sample_temp.x = free
+    DxbcOpIf(false, sample_temp_x_src);
+    {
+      // Copy the new stencil over the old depth.
+      // temp.x? = resulting sample depth/stencil
+      // temp.y = polygon offset if not writing to oDepth
+      // temp.z = viewport maximum depth if not writing to oDepth
+      // temp.w = old depth/stencil
+      DxbcOpBFI(sample_depth_stencil_dest, DxbcSrc::LU(8), DxbcSrc::LU(0),
+                sample_depth_stencil_src, temp_w_src);
+    }
+    // Close the depth/stencil passing check.
+    DxbcOpEndIf();
     // Check if the new depth/stencil is different, and thus needs to be
     // written, to temp.w.
     // temp.x? = resulting sample depth/stencil
