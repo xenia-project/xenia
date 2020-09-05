@@ -420,18 +420,17 @@ bool D3D12Provider::Initialize() {
   XELOGD3D(
       "Direct3D 12 device and OS features:\n"
       "* Max GPU virtual address bits per resource: {}\n"
+      "* Non-zeroed heap creation: {}\n"
       "* Programmable sample positions: tier {}\n"
       "* Rasterizer-ordered views: {}\n"
       "* Resource binding: tier {}\n"
-      "* Tiled resources: tier {}\n"
-      "* Non-zeroed heap creation: {}\n",
+      "* Tiled resources: tier {}\n",
       virtual_address_bits_per_resource_,
+      (heap_flag_create_not_zeroed_ & D3D12_HEAP_FLAG_CREATE_NOT_ZEROED) ? "yes"
+                                                                         : "no",
       uint32_t(programmable_sample_positions_tier_),
       rasterizer_ordered_views_supported_ ? "yes" : "no",
-      uint32_t(resource_binding_tier_), uint32_t(tiled_resources_tier_),
-      (heap_flag_create_not_zeroed_ & D3D12_HEAP_FLAG_CREATE_NOT_ZEROED)
-          ? "yes"
-          : "no");
+      uint32_t(resource_binding_tier_), uint32_t(tiled_resources_tier_));
 
   // Get the graphics analysis interface, will silently fail if PIX is not
   // attached.
