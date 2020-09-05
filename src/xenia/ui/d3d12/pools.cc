@@ -19,8 +19,8 @@ namespace xe {
 namespace ui {
 namespace d3d12 {
 
-UploadBufferPool::UploadBufferPool(ID3D12Device* device, uint32_t page_size)
-    : device_(device), page_size_(page_size) {}
+UploadBufferPool::UploadBufferPool(D3D12Provider& provider, uint32_t page_size)
+    : provider_(provider), page_size_(page_size) {}
 
 UploadBufferPool::~UploadBufferPool() { ClearCache(); }
 
@@ -101,9 +101,10 @@ uint8_t* UploadBufferPool::Request(uint64_t submission_index, uint32_t size,
       util::FillBufferResourceDesc(new_buffer_desc, page_size_,
                                    D3D12_RESOURCE_FLAG_NONE);
       ID3D12Resource* new_buffer;
-      if (FAILED(device_->CreateCommittedResource(
-              &util::kHeapPropertiesUpload, D3D12_HEAP_FLAG_NONE,
-              &new_buffer_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+      if (FAILED(provider_.GetDevice()->CreateCommittedResource(
+              &util::kHeapPropertiesUpload,
+              provider_.GetHeapFlagCreateNotZeroed(), &new_buffer_desc,
+              D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
               IID_PPV_ARGS(&new_buffer)))) {
         XELOGE("Failed to create a D3D upload buffer with {} bytes",
                page_size_);

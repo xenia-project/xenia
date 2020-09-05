@@ -47,14 +47,16 @@ PrimitiveConverter::PrimitiveConverter(D3D12CommandProcessor& command_processor,
 PrimitiveConverter::~PrimitiveConverter() { Shutdown(); }
 
 bool PrimitiveConverter::Initialize() {
-  auto device =
-      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
+  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  auto device = provider.GetDevice();
+  D3D12_HEAP_FLAGS heap_flag_create_not_zeroed =
+      provider.GetHeapFlagCreateNotZeroed();
 
   // There can be at most 65535 indices in a Xenos draw call, but they can be up
   // to 4 bytes large, and conversion can add more indices (almost triple the
   // count for triangle strips, for instance).
   buffer_pool_ =
-      std::make_unique<ui::d3d12::UploadBufferPool>(device, 4 * 1024 * 1024);
+      std::make_unique<ui::d3d12::UploadBufferPool>(provider, 4 * 1024 * 1024);
 
   // Create the static index buffer for non-indexed drawing.
   D3D12_RESOURCE_DESC static_ib_desc;
@@ -62,7 +64,7 @@ bool PrimitiveConverter::Initialize() {
       static_ib_desc, kStaticIBTotalCount * sizeof(uint16_t),
       D3D12_RESOURCE_FLAG_NONE);
   if (FAILED(device->CreateCommittedResource(
-          &ui::d3d12::util::kHeapPropertiesUpload, D3D12_HEAP_FLAG_NONE,
+          &ui::d3d12::util::kHeapPropertiesUpload, heap_flag_create_not_zeroed,
           &static_ib_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
           IID_PPV_ARGS(&static_ib_upload_)))) {
     XELOGE(
@@ -108,7 +110,7 @@ bool PrimitiveConverter::Initialize() {
   // Not uploaded yet.
   static_ib_upload_submission_ = UINT64_MAX;
   if (FAILED(device->CreateCommittedResource(
-          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
+          &ui::d3d12::util::kHeapPropertiesDefault, heap_flag_create_not_zeroed,
           &static_ib_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
           IID_PPV_ARGS(&static_ib_)))) {
     XELOGE("Failed to create the primitive conversion static index buffer");

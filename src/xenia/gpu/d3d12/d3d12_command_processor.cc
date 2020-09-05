@@ -646,14 +646,16 @@ ID3D12Resource* D3D12CommandProcessor::RequestScratchGPUBuffer(
 
   size = xe::align(size, kScratchBufferSizeIncrement);
 
-  auto device = GetD3D12Context().GetD3D12Provider().GetDevice();
+  auto& provider = GetD3D12Context().GetD3D12Provider();
+  auto device = provider.GetDevice();
   D3D12_RESOURCE_DESC buffer_desc;
   ui::d3d12::util::FillBufferResourceDesc(
       buffer_desc, size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
   ID3D12Resource* buffer;
   if (FAILED(device->CreateCommittedResource(
-          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
-          &buffer_desc, state, nullptr, IID_PPV_ARGS(&buffer)))) {
+          &ui::d3d12::util::kHeapPropertiesDefault,
+          provider.GetHeapFlagCreateNotZeroed(), &buffer_desc, state, nullptr,
+          IID_PPV_ARGS(&buffer)))) {
     XELOGE("Failed to create a {} MB scratch GPU buffer", size >> 20);
     return nullptr;
   }
@@ -889,7 +891,7 @@ bool D3D12CommandProcessor::SetupContext() {
 
   // Initialize resource binding.
   constant_buffer_pool_ =
-      std::make_unique<ui::d3d12::UploadBufferPool>(device, 1024 * 1024);
+      std::make_unique<ui::d3d12::UploadBufferPool>(provider, 1024 * 1024);
   if (bindless_resources_used_) {
     D3D12_DESCRIPTOR_HEAP_DESC view_bindless_heap_desc;
     view_bindless_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -1181,6 +1183,9 @@ bool D3D12CommandProcessor::SetupContext() {
     return false;
   }
 
+  D3D12_HEAP_FLAGS heap_flag_create_not_zeroed =
+      provider.GetHeapFlagCreateNotZeroed();
+
   // Create gamma ramp resources. The PWL gamma ramp is 16-bit, but 6 bits are
   // hardwired to zero, so DXGI_FORMAT_R10G10B10A2_UNORM can be used for it too.
   // https://www.x.org/docs/AMD/old/42590_m76_rrg_1.01o.pdf
@@ -1202,7 +1207,7 @@ bool D3D12CommandProcessor::SetupContext() {
   // The first action will be uploading.
   gamma_ramp_texture_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
   if (FAILED(device->CreateCommittedResource(
-          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
+          &ui::d3d12::util::kHeapPropertiesDefault, heap_flag_create_not_zeroed,
           &gamma_ramp_desc, gamma_ramp_texture_state_, nullptr,
           IID_PPV_ARGS(&gamma_ramp_texture_)))) {
     XELOGE("Failed to create the gamma ramp texture");
@@ -1218,7 +1223,7 @@ bool D3D12CommandProcessor::SetupContext() {
   ui::d3d12::util::FillBufferResourceDesc(
       gamma_ramp_desc, gamma_ramp_upload_size, D3D12_RESOURCE_FLAG_NONE);
   if (FAILED(device->CreateCommittedResource(
-          &ui::d3d12::util::kHeapPropertiesUpload, D3D12_HEAP_FLAG_NONE,
+          &ui::d3d12::util::kHeapPropertiesUpload, heap_flag_create_not_zeroed,
           &gamma_ramp_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
           IID_PPV_ARGS(&gamma_ramp_upload_)))) {
     XELOGE("Failed to create the gamma ramp upload buffer");
@@ -1246,7 +1251,7 @@ bool D3D12CommandProcessor::SetupContext() {
   swap_texture_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
   // Can be sampled at any time, switch to render target when needed, then back.
   if (FAILED(device->CreateCommittedResource(
-          &ui::d3d12::util::kHeapPropertiesDefault, D3D12_HEAP_FLAG_NONE,
+          &ui::d3d12::util::kHeapPropertiesDefault, heap_flag_create_not_zeroed,
           &swap_texture_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
           nullptr, IID_PPV_ARGS(&swap_texture_)))) {
     XELOGE("Failed to create the command processor front buffer");
@@ -4286,15 +4291,16 @@ ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(uint32_t size) {
   }
   size = xe::align(size, kReadbackBufferSizeIncrement);
   if (size > readback_buffer_size_) {
-    auto device = GetD3D12Context().GetD3D12Provider().GetDevice();
+    auto& provider = GetD3D12Context().GetD3D12Provider();
+    auto device = provider.GetDevice();
     D3D12_RESOURCE_DESC buffer_desc;
     ui::d3d12::util::FillBufferResourceDesc(buffer_desc, size,
                                             D3D12_RESOURCE_FLAG_NONE);
     ID3D12Resource* buffer;
     if (FAILED(device->CreateCommittedResource(
-            &ui::d3d12::util::kHeapPropertiesReadback, D3D12_HEAP_FLAG_NONE,
-            &buffer_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
-            IID_PPV_ARGS(&buffer)))) {
+            &ui::d3d12::util::kHeapPropertiesReadback,
+            provider.GetHeapFlagCreateNotZeroed(), &buffer_desc,
+            D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&buffer)))) {
       XELOGE("Failed to create a {} MB readback buffer", size >> 20);
       return nullptr;
     }
