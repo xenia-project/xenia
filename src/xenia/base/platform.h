@@ -31,8 +31,14 @@
 #define XE_PLATFORM_MAC 1
 #elif defined(WIN32) || defined(_WIN32)
 #define XE_PLATFORM_WIN32 1
-#else
+#elif defined(__ANDROID__)
+#define XE_PLATFORM_ANDROID 1
 #define XE_PLATFORM_LINUX 1
+#elif defined(__gnu_linux__)
+#define XE_PLATFORM_GNU_LINUX 1
+#define XE_PLATFORM_LINUX 1
+#else
+#error Unsupported target OS.
 #endif
 
 #if defined(__clang__)
@@ -51,8 +57,11 @@
 
 #if defined(_M_AMD64) || defined(__amd64__)
 #define XE_ARCH_AMD64 1
-#elif defined(_M_IX86)
-#error "Xenia is not supported on 32-bit platforms."
+#elif defined(_M_ARM64) || defined(__aarch64__)
+#define XE_ARCH_ARM64 1
+#elif defined(_M_IX86) || defined(__i386__) || defined(_M_ARM) || \
+    defined(__arm__)
+#error Xenia is not supported on 32-bit platforms.
 #elif defined(_M_PPC) || defined(__powerpc__)
 #define XE_ARCH_PPC 1
 #endif
