@@ -37,7 +37,7 @@
 #include "third_party/fmt/include/fmt/format.h"
 
 DEFINE_path(log_file, "", "Logs are written to the given file", "Logging");
-DEFINE_bool(log_to_stdout, false, "Write log output to stdout", "Logging");
+DEFINE_bool(log_to_stdout, true, "Write log output to stdout", "Logging");
 DEFINE_bool(log_to_debugprint, false, "Dump the log to DebugPrint.", "Logging");
 DEFINE_bool(flush_log, true, "Flush log file after each log line batch.",
             "Logging");
