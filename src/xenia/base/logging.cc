@@ -36,10 +36,8 @@
 
 #include "third_party/fmt/include/fmt/format.h"
 
-DEFINE_path(
-    log_file, "",
-    "Logs are written to the given file (specify stdout for command line)",
-    "Logging");
+DEFINE_path(log_file, "", "Logs are written to the given file", "Logging");
+DEFINE_bool(log_to_stdout, false, "Write log output to stdout", "Logging");
 DEFINE_bool(log_to_debugprint, false, "Dump the log to DebugPrint.", "Logging");
 DEFINE_bool(flush_log, true, "Flush log file after each log line batch.",
             "Logging");
@@ -66,10 +64,8 @@ struct LogLine {
 
 thread_local char thread_log_buffer_[64 * 1024];
 
-
 void FileLogSink::Write(const char* buf, size_t size) {
   if (file_) {
-    fwrite(buf, 1, size, file_);
   }
 }
 
@@ -82,14 +78,11 @@ void FileLogSink::Flush() {
 class Logger {
  public:
   explicit Logger(const std::string_view app_name)
-      : 
-        wait_strategy_(),
+      : wait_strategy_(),
         claim_strategy_(kBlockCount, wait_strategy_),
         consumed_(wait_strategy_),
         running_(true) {
     claim_strategy_.add_claim_barrier(consumed_);
-
-   
 
     write_thread_ =
         xe::threading::Thread::Create({}, [this]() { WriteThread(); });
@@ -296,25 +289,26 @@ void InitializeLogging(const std::string_view app_name) {
   auto mem = memory::AlignedAlloc<Logger>(0x10);
   logger_ = new (mem) Logger(app_name);
 
-  FILE* file = nullptr;
+  FILE* log_file = nullptr;
 
-   if (cvars::log_file.empty()) {
+  if (cvars::log_file.empty()) {
     // Default to app name.
     auto file_name = fmt::format("{}.log", app_name);
     auto file_path = std::filesystem::path(file_name);
     xe::filesystem::CreateParentFolder(file_path);
 
-    file = xe::filesystem::OpenFile(file_path, "wt");
+    log_file = xe::filesystem::OpenFile(file_path, "wt");
   } else {
-    if (cvars::log_file == "stdout") {
-      file = stdout;
-    } else {
-      xe::filesystem::CreateParentFolder(cvars::log_file);
-      file = xe::filesystem::OpenFile(cvars::log_file, "wt");
-    }
+    xe::filesystem::CreateParentFolder(cvars::log_file);
+    log_file = xe::filesystem::OpenFile(cvars::log_file, "wt");
   }
-  auto sink = std::make_unique<FileLogSink>(file);
+  auto sink = std::make_unique<FileLogSink>(log_file);
   logger_->AddLogSink(std::move(sink));
+
+  if (cvars::log_to_stdout) {
+    auto stdout_sink = std::make_unique<FileLogSink>(stdout);
+    logger_->AddLogSink(std::move(stdout_sink));
+  }
 }
 
 void ShutdownLogging() {
