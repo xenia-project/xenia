@@ -9,14 +9,26 @@
 
 #include "xenia/ui/vulkan/vulkan_immediate_drawer.h"
 
+#include "xenia/ui/vulkan/vulkan_context.h"
+
 namespace xe {
 namespace ui {
 namespace vulkan {
 
+class VulkanImmediateTexture : public ImmediateTexture {
+ public:
+  VulkanImmediateTexture(uint32_t width, uint32_t height)
+      : ImmediateTexture(width, height) {}
+};
+
+VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext& graphics_context)
+    : ImmediateDrawer(&graphics_context), context_(graphics_context) {}
+
 std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::CreateTexture(
     uint32_t width, uint32_t height, ImmediateTextureFilter filter, bool repeat,
     const uint8_t* data) {
-  return nullptr;
+  auto texture = std::make_unique<VulkanImmediateTexture>(width, height);
+  return std::unique_ptr<ImmediateTexture>(texture.release());
 }
 
 void VulkanImmediateDrawer::UpdateTexture(ImmediateTexture* texture,

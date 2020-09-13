@@ -16,8 +16,12 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
+class VulkanContext;
+
 class VulkanImmediateDrawer : public ImmediateDrawer {
  public:
+  VulkanImmediateDrawer(VulkanContext& graphics_context);
+
   std::unique_ptr<ImmediateTexture> CreateTexture(uint32_t width,
                                                   uint32_t height,
                                                   ImmediateTextureFilter filter,
@@ -30,6 +34,9 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   void Draw(const ImmediateDraw& draw) override;
   void EndDrawBatch() override;
   void End() override;
+
+ private:
+  VulkanContext& context_;
 };
 
 }  // namespace vulkan
