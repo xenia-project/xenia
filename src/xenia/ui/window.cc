@@ -200,9 +200,13 @@ void Window::OnPaint(UIEvent* e) {
   io.DisplaySize = ImVec2(static_cast<float>(scaled_width()),
                           static_cast<float>(scaled_height()));
 
-  context_->BeginSwap();
+  bool can_swap = context_->BeginSwap();
   if (context_->WasLost()) {
     on_context_lost(e);
+    return;
+  }
+  if (!can_swap) {
+    // Surface not available.
     return;
   }
 

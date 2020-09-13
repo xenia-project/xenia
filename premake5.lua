@@ -226,7 +226,6 @@ solution("xenia")
   include("third_party/SDL2.lua")
   include("third_party/snappy.lua")
   include("third_party/spirv-tools.lua")
-  include("third_party/volk.lua")
   include("third_party/xxhash.lua")
 
   include("src/xenia")

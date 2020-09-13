@@ -28,9 +28,9 @@ class D3D12Context : public GraphicsContext {
 
   ImmediateDrawer* immediate_drawer() override;
 
-  bool WasLost() override { return context_lost_; }
+  bool WasLost() override;
 
-  void BeginSwap() override;
+  bool BeginSwap() override;
   void EndSwap() override;
 
   std::unique_ptr<RawImage> Capture() override;

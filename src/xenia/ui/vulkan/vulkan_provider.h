@@ -24,7 +24,7 @@
 #ifndef VK_USE_PLATFORM_WIN32_KHR
 #define VK_USE_PLATFORM_WIN32_KHR 1
 #endif
-#endif  // XE_PLATFORM_WIN32
+#endif
 
 #ifndef VK_NO_PROTOTYPES
 #define VK_NO_PROTOTYPES 1
@@ -47,37 +47,45 @@ class VulkanProvider : public GraphicsProvider {
       Window* target_window) override;
   std::unique_ptr<GraphicsContext> CreateOffscreenContext() override;
 
-  // Functions with a version suffix (like _1_1) are null when api_version() is
-  // below this version.
-
   struct LibraryFunctions {
-    PFN_vkCreateInstance createInstance;
-    PFN_vkEnumerateInstanceExtensionProperties
-        enumerateInstanceExtensionProperties;
-    PFN_vkEnumerateInstanceVersion enumerateInstanceVersion_1_1;
+    // From the module.
+    PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
+    PFN_vkDestroyInstance vkDestroyInstance;
+    // From vkGetInstanceProcAddr.
+    PFN_vkCreateInstance vkCreateInstance;
+    struct {
+      PFN_vkEnumerateInstanceVersion vkEnumerateInstanceVersion;
+    } v_1_1;
   };
-  const LibraryFunctions& library_functions() const {
-    return library_functions_;
-  }
+  const LibraryFunctions& lfn() const { return lfn_; }
 
   uint32_t api_version() const { return api_version_; }
 
   VkInstance instance() const { return instance_; }
   struct InstanceFunctions {
-    PFN_vkCreateDevice createDevice;
-    PFN_vkDestroyDevice destroyDevice;
-    PFN_vkEnumerateDeviceExtensionProperties enumerateDeviceExtensionProperties;
-    PFN_vkEnumeratePhysicalDevices enumeratePhysicalDevices;
-    PFN_vkGetDeviceProcAddr getDeviceProcAddr;
-    PFN_vkGetPhysicalDeviceFeatures getPhysicalDeviceFeatures;
-    PFN_vkGetPhysicalDeviceProperties getPhysicalDeviceProperties;
+    PFN_vkCreateDevice vkCreateDevice;
+    PFN_vkDestroyDevice vkDestroyDevice;
+    PFN_vkDestroySurfaceKHR vkDestroySurfaceKHR;
+    PFN_vkEnumerateDeviceExtensionProperties
+        vkEnumerateDeviceExtensionProperties;
+    PFN_vkEnumeratePhysicalDevices vkEnumeratePhysicalDevices;
+    PFN_vkGetDeviceProcAddr vkGetDeviceProcAddr;
+    PFN_vkGetPhysicalDeviceFeatures vkGetPhysicalDeviceFeatures;
+    PFN_vkGetPhysicalDeviceProperties vkGetPhysicalDeviceProperties;
     PFN_vkGetPhysicalDeviceQueueFamilyProperties
-        getPhysicalDeviceQueueFamilyProperties;
-    PFN_vkGetPhysicalDeviceSurfaceSupportKHR getPhysicalDeviceSurfaceSupportKHR;
+        vkGetPhysicalDeviceQueueFamilyProperties;
+    PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
+    PFN_vkGetPhysicalDeviceSurfaceFormatsKHR
+        vkGetPhysicalDeviceSurfaceFormatsKHR;
+    PFN_vkGetPhysicalDeviceSurfacePresentModesKHR
+        vkGetPhysicalDeviceSurfacePresentModesKHR;
+    PFN_vkGetPhysicalDeviceSurfaceSupportKHR
+        vkGetPhysicalDeviceSurfaceSupportKHR;
 #if XE_PLATFORM_ANDROID
-    PFN_vkCreateAndroidSurfaceKHR createAndroidSurfaceKHR;
+    PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR;
 #elif XE_PLATFORM_WIN32
-    PFN_vkCreateWin32SurfaceKHR createWin32SurfaceKHR;
+    PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR;
 #endif
   };
   const InstanceFunctions& ifn() const { return ifn_; }
@@ -103,7 +111,33 @@ class VulkanProvider : public GraphicsProvider {
 
   VkDevice device() const { return device_; }
   struct DeviceFunctions {
-    PFN_vkGetDeviceQueue getDeviceQueue;
+    PFN_vkAcquireNextImageKHR vkAcquireNextImageKHR;
+    PFN_vkAllocateCommandBuffers vkAllocateCommandBuffers;
+    PFN_vkBeginCommandBuffer vkBeginCommandBuffer;
+    PFN_vkCmdBeginRenderPass vkCmdBeginRenderPass;
+    PFN_vkCmdEndRenderPass vkCmdEndRenderPass;
+    PFN_vkCreateCommandPool vkCreateCommandPool;
+    PFN_vkCreateFence vkCreateFence;
+    PFN_vkCreateFramebuffer vkCreateFramebuffer;
+    PFN_vkCreateImageView vkCreateImageView;
+    PFN_vkCreateRenderPass vkCreateRenderPass;
+    PFN_vkCreateSemaphore vkCreateSemaphore;
+    PFN_vkCreateSwapchainKHR vkCreateSwapchainKHR;
+    PFN_vkDestroyCommandPool vkDestroyCommandPool;
+    PFN_vkDestroyFence vkDestroyFence;
+    PFN_vkDestroyFramebuffer vkDestroyFramebuffer;
+    PFN_vkDestroyImageView vkDestroyImageView;
+    PFN_vkDestroyRenderPass vkDestroyRenderPass;
+    PFN_vkDestroySemaphore vkDestroySemaphore;
+    PFN_vkDestroySwapchainKHR vkDestroySwapchainKHR;
+    PFN_vkEndCommandBuffer vkEndCommandBuffer;
+    PFN_vkGetDeviceQueue vkGetDeviceQueue;
+    PFN_vkGetSwapchainImagesKHR vkGetSwapchainImagesKHR;
+    PFN_vkResetCommandPool vkResetCommandPool;
+    PFN_vkResetFences vkResetFences;
+    PFN_vkQueuePresentKHR vkQueuePresentKHR;
+    PFN_vkQueueSubmit vkQueueSubmit;
+    PFN_vkWaitForFences vkWaitForFences;
   };
   const DeviceFunctions& dfn() const { return dfn_; }
 
@@ -122,9 +156,7 @@ class VulkanProvider : public GraphicsProvider {
   HMODULE library_ = nullptr;
 #endif
 
-  PFN_vkGetInstanceProcAddr getInstanceProcAddr_ = nullptr;
-  PFN_vkDestroyInstance destroyInstance_ = nullptr;
-  LibraryFunctions library_functions_ = {};
+  LibraryFunctions lfn_ = {};
 
   uint32_t api_version_ = VK_API_VERSION_1_0;
 

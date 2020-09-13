@@ -24,6 +24,12 @@
 #include "xenia/base/platform_win.h"
 #endif
 
+// TODO(Triang3l): Disable Vulkan validation before releasing a stable version.
+DEFINE_bool(
+    vulkan_validation, true,
+    "Enable Vulkan validation (VK_LAYER_KHRONOS_validation). Messages will be "
+    "written to the OS debug log.",
+    "GPU");
 DEFINE_int32(
     vulkan_device, -1,
     "Index of the physical device to use, or -1 for any compatible device.",
@@ -55,10 +61,10 @@ VulkanProvider::VulkanProvider(Window* main_window)
 
 VulkanProvider::~VulkanProvider() {
   if (device_ != VK_NULL_HANDLE) {
-    ifn_.destroyDevice(device_, nullptr);
+    ifn_.vkDestroyDevice(device_, nullptr);
   }
   if (instance_ != VK_NULL_HANDLE) {
-    destroyInstance_(instance_, nullptr);
+    lfn_.vkDestroyInstance(instance_, nullptr);
   }
 
 #if XE_PLATFORM_LINUX
@@ -74,6 +80,7 @@ VulkanProvider::~VulkanProvider() {
 
 bool VulkanProvider::Initialize() {
   // Load the library.
+  bool library_functions_loaded = true;
 #if XE_PLATFORM_LINUX
 #if XE_PLATFORM_ANDROID
   const char* libvulkan_name = "libvulkan.so";
@@ -86,61 +93,46 @@ bool VulkanProvider::Initialize() {
     XELOGE("Failed to load {}", libvulkan_name);
     return false;
   }
-  getInstanceProcAddr_ =
-      PFN_vkGetInstanceProcAddr(dlsym(library_, "vkGetInstanceProcAddr"));
-  destroyInstance_ =
-      PFN_vkDestroyInstance(dlsym(library_, "vkDestroyInstance"));
-  if (!getInstanceProcAddr_ || !destroyInstance_) {
-    XELOGE("Failed to get vkGetInstanceProcAddr and vkDestroyInstance from {}",
-           libvulkan_name);
-    return false;
-  }
+#define XE_VULKAN_LOAD_MODULE_LFN(name) \
+  library_functions_loaded &=           \
+      (lfn_.name = PFN_##name(dlsym(library_, #name))) != nullptr;
 #elif XE_PLATFORM_WIN32
   library_ = LoadLibraryA("vulkan-1.dll");
   if (!library_) {
     XELOGE("Failed to load vulkan-1.dll");
     return false;
   }
-  getInstanceProcAddr_ = PFN_vkGetInstanceProcAddr(
-      GetProcAddress(library_, "vkGetInstanceProcAddr"));
-  destroyInstance_ =
-      PFN_vkDestroyInstance(GetProcAddress(library_, "vkDestroyInstance"));
-  if (!getInstanceProcAddr_ || !destroyInstance_) {
-    XELOGE(
-        "Failed to get vkGetInstanceProcAddr and vkDestroyInstance from "
-        "vulkan-1.dll");
-    return false;
-  }
+#define XE_VULKAN_LOAD_MODULE_LFN(name) \
+  library_functions_loaded &=           \
+      (lfn_.name = PFN_##name(GetProcAddress(library_, #name))) != nullptr;
 #else
 #error No Vulkan library loading provided for the target platform.
 #endif
-  assert_not_null(getInstanceProcAddr_);
-  assert_not_null(destroyInstance_);
-  bool library_functions_loaded = true;
-  library_functions_loaded &=
-      (library_functions_.createInstance = PFN_vkCreateInstance(
-           getInstanceProcAddr_(VK_NULL_HANDLE, "vkCreateInstance"))) !=
-      nullptr;
-  library_functions_loaded &=
-      (library_functions_.enumerateInstanceExtensionProperties =
-           PFN_vkEnumerateInstanceExtensionProperties(getInstanceProcAddr_(
-               VK_NULL_HANDLE, "vkEnumerateInstanceExtensionProperties"))) !=
-      nullptr;
+  XE_VULKAN_LOAD_MODULE_LFN(vkGetInstanceProcAddr);
+  XE_VULKAN_LOAD_MODULE_LFN(vkDestroyInstance);
+#undef XE_VULKAN_LOAD_MODULE_LFN
   if (!library_functions_loaded) {
     XELOGE("Failed to get Vulkan library function pointers");
     return false;
   }
-  library_functions_.enumerateInstanceVersion_1_1 =
-      PFN_vkEnumerateInstanceVersion(
-          getInstanceProcAddr_(VK_NULL_HANDLE, "vkEnumerateInstanceVersion"));
+  library_functions_loaded &=
+      (lfn_.vkCreateInstance = PFN_vkCreateInstance(lfn_.vkGetInstanceProcAddr(
+           VK_NULL_HANDLE, "vkCreateInstance"))) != nullptr;
+  if (!library_functions_loaded) {
+    XELOGE(
+        "Failed to get Vulkan library function pointers via "
+        "vkGetInstanceProcAddr");
+    return false;
+  }
+  lfn_.v_1_1.vkEnumerateInstanceVersion = PFN_vkEnumerateInstanceVersion(
+      lfn_.vkGetInstanceProcAddr(VK_NULL_HANDLE, "vkEnumerateInstanceVersion"));
 
   // Get the API version.
   const uint32_t api_version_target = VK_MAKE_VERSION(1, 2, 148);
   static_assert(VK_HEADER_VERSION_COMPLETE >= api_version_target,
                 "Vulkan header files must be up to date");
-  if (!library_functions_.enumerateInstanceVersion_1_1 ||
-      library_functions_.enumerateInstanceVersion_1_1(&api_version_) !=
-          VK_SUCCESS) {
+  if (!lfn_.v_1_1.vkEnumerateInstanceVersion ||
+      lfn_.v_1_1.vkEnumerateInstanceVersion(&api_version_) != VK_SUCCESS) {
     api_version_ = VK_API_VERSION_1_0;
   }
   XELOGVK("Vulkan instance version {}.{}.{}", VK_VERSION_MAJOR(api_version_),
@@ -173,66 +165,59 @@ bool VulkanProvider::Initialize() {
   instance_create_info.pNext = nullptr;
   instance_create_info.flags = 0;
   instance_create_info.pApplicationInfo = &application_info;
-  // TODO(Triang3l): Enable the validation layer.
-  instance_create_info.enabledLayerCount = 0;
-  instance_create_info.ppEnabledLayerNames = nullptr;
+  static const char* validation_layer = "VK_LAYER_KHRONOS_validation";
+  if (cvars::vulkan_validation) {
+    instance_create_info.enabledLayerCount = 1;
+    instance_create_info.ppEnabledLayerNames = &validation_layer;
+  } else {
+    instance_create_info.enabledLayerCount = 0;
+    instance_create_info.ppEnabledLayerNames = nullptr;
+  }
   instance_create_info.enabledExtensionCount =
       uint32_t(instance_extensions_enabled.size());
   instance_create_info.ppEnabledExtensionNames =
       instance_extensions_enabled.data();
-  if (library_functions_.createInstance(&instance_create_info, nullptr,
-                                        &instance_) != VK_SUCCESS) {
-    XELOGE("Failed to create a Vulkan instance with surface support");
-    return false;
+  VkResult instance_create_result =
+      lfn_.vkCreateInstance(&instance_create_info, nullptr, &instance_);
+  if (instance_create_result != VK_SUCCESS) {
+    if (instance_create_result == VK_ERROR_LAYER_NOT_PRESENT) {
+      XELOGE("Failed to enable the Vulkan validation layer");
+      instance_create_info.enabledLayerCount = 0;
+      instance_create_info.ppEnabledLayerNames = nullptr;
+      instance_create_result =
+          lfn_.vkCreateInstance(&instance_create_info, nullptr, &instance_);
+    }
+    if (instance_create_result != VK_SUCCESS) {
+      XELOGE("Failed to create a Vulkan instance with surface support");
+      return false;
+    }
   }
 
   // Get instance functions.
   bool instance_functions_loaded = true;
-  instance_functions_loaded &=
-      (ifn_.createDevice = PFN_vkCreateDevice(
-           getInstanceProcAddr_(instance_, "vkCreateDevice"))) != nullptr;
-  instance_functions_loaded &=
-      (ifn_.destroyDevice = PFN_vkDestroyDevice(
-           getInstanceProcAddr_(instance_, "vkDestroyDevice"))) != nullptr;
-  instance_functions_loaded &=
-      (ifn_.enumerateDeviceExtensionProperties =
-           PFN_vkEnumerateDeviceExtensionProperties(getInstanceProcAddr_(
-               instance_, "vkEnumerateDeviceExtensionProperties"))) != nullptr;
-  instance_functions_loaded &=
-      (ifn_.enumeratePhysicalDevices = PFN_vkEnumeratePhysicalDevices(
-           getInstanceProcAddr_(instance_, "vkEnumeratePhysicalDevices"))) !=
-      nullptr;
-  instance_functions_loaded &=
-      (ifn_.getDeviceProcAddr = PFN_vkGetDeviceProcAddr(
-           getInstanceProcAddr_(instance_, "vkGetDeviceProcAddr"))) != nullptr;
-  instance_functions_loaded &=
-      (ifn_.getPhysicalDeviceFeatures = PFN_vkGetPhysicalDeviceFeatures(
-           getInstanceProcAddr_(instance_, "vkGetPhysicalDeviceFeatures"))) !=
-      nullptr;
-  instance_functions_loaded &=
-      (ifn_.getPhysicalDeviceProperties = PFN_vkGetPhysicalDeviceProperties(
-           getInstanceProcAddr_(instance_, "vkGetPhysicalDeviceProperties"))) !=
-      nullptr;
-  instance_functions_loaded &=
-      (ifn_.getPhysicalDeviceQueueFamilyProperties =
-           PFN_vkGetPhysicalDeviceQueueFamilyProperties(getInstanceProcAddr_(
-               instance_, "vkGetPhysicalDeviceQueueFamilyProperties"))) !=
-      nullptr;
-  instance_functions_loaded &=
-      (ifn_.getPhysicalDeviceSurfaceSupportKHR =
-           PFN_vkGetPhysicalDeviceSurfaceSupportKHR(getInstanceProcAddr_(
-               instance_, "vkGetPhysicalDeviceSurfaceSupportKHR"))) != nullptr;
+#define XE_VULKAN_LOAD_IFN(name) \
+  instance_functions_loaded &=   \
+      (ifn_.name = PFN_##name(   \
+           lfn_.vkGetInstanceProcAddr(instance_, #name))) != nullptr;
+  XE_VULKAN_LOAD_IFN(vkCreateDevice);
+  XE_VULKAN_LOAD_IFN(vkDestroyDevice);
+  XE_VULKAN_LOAD_IFN(vkDestroySurfaceKHR);
+  XE_VULKAN_LOAD_IFN(vkEnumerateDeviceExtensionProperties);
+  XE_VULKAN_LOAD_IFN(vkEnumeratePhysicalDevices);
+  XE_VULKAN_LOAD_IFN(vkGetDeviceProcAddr);
+  XE_VULKAN_LOAD_IFN(vkGetPhysicalDeviceFeatures);
+  XE_VULKAN_LOAD_IFN(vkGetPhysicalDeviceProperties);
+  XE_VULKAN_LOAD_IFN(vkGetPhysicalDeviceQueueFamilyProperties);
+  XE_VULKAN_LOAD_IFN(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
+  XE_VULKAN_LOAD_IFN(vkGetPhysicalDeviceSurfaceFormatsKHR);
+  XE_VULKAN_LOAD_IFN(vkGetPhysicalDeviceSurfacePresentModesKHR);
+  XE_VULKAN_LOAD_IFN(vkGetPhysicalDeviceSurfaceSupportKHR);
 #if XE_PLATFORM_ANDROID
-  instance_functions_loaded &=
-      (ifn_.createAndroidSurfaceKHR = PFN_vkCreateAndroidSurfaceKHR(
-           getInstanceProcAddr_(instance_, "vkCreateAndroidSurfaceKHR"))) !=
-      nullptr;
+  XE_VULKAN_LOAD_IFN(vkCreateAndroidSurfaceKHR);
 #elif XE_PLATFORM_WIN32
-  instance_functions_loaded &=
-      (ifn_.createWin32SurfaceKHR = PFN_vkCreateWin32SurfaceKHR(
-           getInstanceProcAddr_(instance_, "vkCreateWin32SurfaceKHR"))) !=
-      nullptr;
+  XE_VULKAN_LOAD_IFN(vkCreateWin32SurfaceKHR);
 #endif
+#undef XE_VULKAN_LOAD_IFN
   if (!instance_functions_loaded) {
     XELOGE("Failed to get Vulkan instance function pointers");
     return false;
@@ -242,8 +227,8 @@ bool VulkanProvider::Initialize() {
   std::vector<VkPhysicalDevice> physical_devices;
   for (;;) {
     uint32_t physical_device_count = uint32_t(physical_devices.size());
-    bool physical_devices_was_empty = physical_devices.empty();
-    VkResult physical_device_enumerate_result = ifn_.enumeratePhysicalDevices(
+    bool physical_devices_was_empty = !physical_device_count;
+    VkResult physical_device_enumerate_result = ifn_.vkEnumeratePhysicalDevices(
         instance_, &physical_device_count,
         physical_devices_was_empty ? nullptr : physical_devices.data());
     // If the original device count was 0 (first call), SUCCESS is returned, not
@@ -288,7 +273,8 @@ bool VulkanProvider::Initialize() {
     VkPhysicalDevice physical_device_current = physical_devices[i];
 
     // Get physical device features and check if the needed ones are supported.
-    ifn_.getPhysicalDeviceFeatures(physical_device_current, &device_features_);
+    ifn_.vkGetPhysicalDeviceFeatures(physical_device_current,
+                                     &device_features_);
     // TODO(Triang3l): Make geometry shaders optional by providing compute
     // shader fallback (though that would require vertex shader stores).
     if (!device_features_.geometryShader) {
@@ -299,10 +285,10 @@ bool VulkanProvider::Initialize() {
     // (preferably the same for the least latency between the two, as Xenia
     // submits sparse binding commands right before graphics commands anyway).
     uint32_t queue_family_count = 0;
-    ifn_.getPhysicalDeviceQueueFamilyProperties(physical_device_current,
-                                                &queue_family_count, nullptr);
+    ifn_.vkGetPhysicalDeviceQueueFamilyProperties(physical_device_current,
+                                                  &queue_family_count, nullptr);
     queue_families.resize(queue_family_count);
-    ifn_.getPhysicalDeviceQueueFamilyProperties(
+    ifn_.vkGetPhysicalDeviceQueueFamilyProperties(
         physical_device_current, &queue_family_count, queue_families.data());
     assert_true(queue_family_count == queue_families.size());
     queue_family_graphics_compute_ = UINT32_MAX;
@@ -364,9 +350,9 @@ bool VulkanProvider::Initialize() {
     for (;;) {
       uint32_t device_extension_count =
           uint32_t(device_extension_properties.size());
-      bool device_extensions_was_empty = device_extension_properties.empty();
+      bool device_extensions_was_empty = !device_extension_count;
       device_extensions_enumerate_result =
-          ifn_.enumerateDeviceExtensionProperties(
+          ifn_.vkEnumerateDeviceExtensionProperties(
               physical_device_current, nullptr, &device_extension_count,
               device_extensions_was_empty ? nullptr
                                           : device_extension_properties.data());
@@ -411,7 +397,7 @@ bool VulkanProvider::Initialize() {
         "support");
     return false;
   }
-  ifn_.getPhysicalDeviceProperties(physical_device_, &device_properties_);
+  ifn_.vkGetPhysicalDeviceProperties(physical_device_, &device_properties_);
   XELOGVK(
       "Vulkan device: {} (vendor {:04X}, device {:04X}, driver {:08X}, API "
       "{}.{}.{})",
@@ -454,7 +440,7 @@ bool VulkanProvider::Initialize() {
   device_create_info.queueCreateInfoCount =
       separate_sparse_binding_queue ? 2 : 1;
   device_create_info.pQueueCreateInfos = queue_create_infos;
-  // TODO(Triang3l): Enable the validation layer.
+  // Device layers are deprecated - using validation layer on the instance.
   device_create_info.enabledLayerCount = 0;
   device_create_info.ppEnabledLayerNames = nullptr;
   device_create_info.enabledExtensionCount =
@@ -462,29 +448,58 @@ bool VulkanProvider::Initialize() {
   device_create_info.ppEnabledExtensionNames = device_extensions_enabled.data();
   // TODO(Triang3l): Enable only needed features.
   device_create_info.pEnabledFeatures = &device_features_;
-  if (ifn_.createDevice(physical_device_, &device_create_info, nullptr,
-                        &device_) != VK_SUCCESS) {
+  if (ifn_.vkCreateDevice(physical_device_, &device_create_info, nullptr,
+                          &device_) != VK_SUCCESS) {
     XELOGE("Failed to create a Vulkan device");
     return false;
   }
 
   // Get device functions.
   bool device_functions_loaded = true;
-  device_functions_loaded &=
-      (dfn_.getDeviceQueue = PFN_vkGetDeviceQueue(
-           ifn_.getDeviceProcAddr(device_, "vkGetDeviceQueue"))) != nullptr;
+#define XE_VULKAN_LOAD_DFN(name)                                            \
+  device_functions_loaded &=                                                \
+      (dfn_.name = PFN_##name(ifn_.vkGetDeviceProcAddr(device_, #name))) != \
+      nullptr;
+  XE_VULKAN_LOAD_DFN(vkAcquireNextImageKHR);
+  XE_VULKAN_LOAD_DFN(vkAllocateCommandBuffers);
+  XE_VULKAN_LOAD_DFN(vkBeginCommandBuffer);
+  XE_VULKAN_LOAD_DFN(vkCmdBeginRenderPass);
+  XE_VULKAN_LOAD_DFN(vkCmdEndRenderPass);
+  XE_VULKAN_LOAD_DFN(vkCreateCommandPool);
+  XE_VULKAN_LOAD_DFN(vkCreateFence);
+  XE_VULKAN_LOAD_DFN(vkCreateFramebuffer);
+  XE_VULKAN_LOAD_DFN(vkCreateImageView);
+  XE_VULKAN_LOAD_DFN(vkCreateRenderPass);
+  XE_VULKAN_LOAD_DFN(vkCreateSemaphore);
+  XE_VULKAN_LOAD_DFN(vkCreateSwapchainKHR);
+  XE_VULKAN_LOAD_DFN(vkDestroyCommandPool);
+  XE_VULKAN_LOAD_DFN(vkDestroyFence);
+  XE_VULKAN_LOAD_DFN(vkDestroyFramebuffer);
+  XE_VULKAN_LOAD_DFN(vkDestroyImageView);
+  XE_VULKAN_LOAD_DFN(vkDestroyRenderPass);
+  XE_VULKAN_LOAD_DFN(vkDestroySemaphore);
+  XE_VULKAN_LOAD_DFN(vkDestroySwapchainKHR);
+  XE_VULKAN_LOAD_DFN(vkEndCommandBuffer);
+  XE_VULKAN_LOAD_DFN(vkGetDeviceQueue);
+  XE_VULKAN_LOAD_DFN(vkGetSwapchainImagesKHR);
+  XE_VULKAN_LOAD_DFN(vkResetCommandPool);
+  XE_VULKAN_LOAD_DFN(vkResetFences);
+  XE_VULKAN_LOAD_DFN(vkQueuePresentKHR);
+  XE_VULKAN_LOAD_DFN(vkQueueSubmit);
+  XE_VULKAN_LOAD_DFN(vkWaitForFences);
+#undef XE_VULKAN_LOAD_DFN
   if (!device_functions_loaded) {
     XELOGE("Failed to get Vulkan device function pointers");
     return false;
   }
 
   // Get the queues.
-  dfn_.getDeviceQueue(device_, queue_family_graphics_compute_, 0,
-                      &queue_graphics_compute_);
+  dfn_.vkGetDeviceQueue(device_, queue_family_graphics_compute_, 0,
+                        &queue_graphics_compute_);
   if (queue_family_sparse_binding != UINT32_MAX) {
     if (separate_sparse_binding_queue) {
-      dfn_.getDeviceQueue(device_, queue_family_sparse_binding, 0,
-                          &queue_sparse_binding_);
+      dfn_.vkGetDeviceQueue(device_, queue_family_sparse_binding, 0,
+                            &queue_sparse_binding_);
     } else {
       queue_sparse_binding_ = queue_graphics_compute_;
     }

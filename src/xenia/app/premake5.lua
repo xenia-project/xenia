@@ -20,7 +20,6 @@ project("xenia-app")
     "mspack",
     "snappy",
     "spirv-tools",
-    "volk",
     "xenia-app-discord",
     "xenia-apu",
     "xenia-apu-nop",
