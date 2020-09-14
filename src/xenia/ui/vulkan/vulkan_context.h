@@ -40,7 +40,7 @@ class VulkanContext : public GraphicsContext {
 
   bool WasLost() override { return context_lost_; }
 
-  void BeginSwap() override;
+  bool BeginSwap() override;
   void EndSwap() override;
 
   std::unique_ptr<RawImage> Capture() override;
