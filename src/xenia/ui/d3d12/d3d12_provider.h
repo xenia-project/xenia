@@ -68,6 +68,9 @@ class D3D12Provider : public GraphicsProvider {
   uint32_t GetAdapterVendorID() const { return adapter_vendor_id_; }
 
   // Device features.
+  D3D12_HEAP_FLAGS GetHeapFlagCreateNotZeroed() const {
+    return heap_flag_create_not_zeroed_;
+  }
   D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER
   GetProgrammableSamplePositionsTier() const {
     return programmable_sample_positions_tier_;
@@ -83,9 +86,6 @@ class D3D12Provider : public GraphicsProvider {
   }
   uint32_t GetVirtualAddressBitsPerResource() const {
     return virtual_address_bits_per_resource_;
-  }
-  D3D12_HEAP_FLAGS GetHeapFlagCreateNotZeroed() const {
-    return heap_flag_create_not_zeroed_;
   }
 
   // Proxies for Direct3D 12 functions since they are loaded dynamically.
@@ -162,12 +162,12 @@ class D3D12Provider : public GraphicsProvider {
 
   uint32_t adapter_vendor_id_;
 
+  D3D12_HEAP_FLAGS heap_flag_create_not_zeroed_;
   D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER programmable_sample_positions_tier_;
   bool rasterizer_ordered_views_supported_;
   D3D12_RESOURCE_BINDING_TIER resource_binding_tier_;
   D3D12_TILED_RESOURCES_TIER tiled_resources_tier_;
   uint32_t virtual_address_bits_per_resource_;
-  D3D12_HEAP_FLAGS heap_flag_create_not_zeroed_;
 };
 
 }  // namespace d3d12

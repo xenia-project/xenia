@@ -51,13 +51,16 @@ class GraphicsContext {
   // This context must be made current in order for this call to work properly.
   virtual bool WasLost() = 0;
 
-  virtual void BeginSwap() = 0;
+  // Returns true if able to draw now (the target surface is available).
+  virtual bool BeginSwap() = 0;
   virtual void EndSwap() = 0;
 
   virtual std::unique_ptr<RawImage> Capture() = 0;
 
  protected:
   explicit GraphicsContext(GraphicsProvider* provider, Window* target_window);
+
+  static void GetClearColor(float* rgba);
 
   GraphicsProvider* provider_ = nullptr;
   Window* target_window_ = nullptr;
