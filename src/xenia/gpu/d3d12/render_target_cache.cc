@@ -1507,7 +1507,7 @@ void RenderTargetCache::RestoreEdramSnapshot(const void* snapshot) {
   ID3D12Resource* upload_buffer;
   uint32_t upload_buffer_offset;
   void* upload_buffer_mapping = edram_snapshot_restore_pool_->Request(
-      command_processor_.GetCurrentSubmission(), xenos::kEdramSizeBytes,
+      command_processor_.GetCurrentSubmission(), xenos::kEdramSizeBytes, 1,
       &upload_buffer, &upload_buffer_offset, nullptr);
   if (!upload_buffer_mapping) {
     XELOGE("Failed to get a buffer for restoring a EDRAM snapshot");

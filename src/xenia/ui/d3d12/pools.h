@@ -23,7 +23,12 @@ namespace d3d12 {
 
 class UploadBufferPool {
  public:
-  UploadBufferPool(D3D12Provider& provider, uint32_t page_size);
+  // Taken from the Direct3D 12 MiniEngine sample (LinearAllocator
+  // kCpuAllocatorPageSize). Large enough for most cases.
+  static constexpr uint32_t kDefaultPageSize = 2 * 1024 * 1024;
+
+  UploadBufferPool(D3D12Provider& provider,
+                   uint32_t page_size = kDefaultPageSize);
   ~UploadBufferPool();
 
   void Reclaim(uint64_t completed_submission_index);
@@ -31,13 +36,13 @@ class UploadBufferPool {
 
   // Request to write data in a single piece, creating a new page if the current
   // one doesn't have enough free space.
-  uint8_t* Request(uint64_t submission_index, uint32_t size,
+  uint8_t* Request(uint64_t submission_index, uint32_t size, uint32_t alignment,
                    ID3D12Resource** buffer_out, uint32_t* offset_out,
                    D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
   // Request to write data in multiple parts, filling the buffer entirely.
   uint8_t* RequestPartial(uint64_t submission_index, uint32_t size,
-                          ID3D12Resource** buffer_out, uint32_t* offset_out,
-                          uint32_t* size_out,
+                          uint32_t alignment, ID3D12Resource** buffer_out,
+                          uint32_t* offset_out, uint32_t* size_out,
                           D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
 
  private:

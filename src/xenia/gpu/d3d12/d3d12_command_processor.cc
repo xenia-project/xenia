@@ -890,8 +890,10 @@ bool D3D12CommandProcessor::SetupContext() {
       cvars::d3d12_edram_rov && provider.AreRasterizerOrderedViewsSupported();
 
   // Initialize resource binding.
-  constant_buffer_pool_ =
-      std::make_unique<ui::d3d12::UploadBufferPool>(provider, 1024 * 1024);
+  constant_buffer_pool_ = std::make_unique<ui::d3d12::UploadBufferPool>(
+      provider, std::max(ui::d3d12::UploadBufferPool::kDefaultPageSize,
+                         uint32_t(D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 4 *
+                                  sizeof(float))));
   if (bindless_resources_used_) {
     D3D12_DESCRIPTOR_HEAP_DESC view_bindless_heap_desc;
     view_bindless_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -3519,13 +3521,6 @@ bool D3D12CommandProcessor::UpdateBindings(
   const Shader::ConstantRegisterMap& float_constant_map_vertex =
       vertex_shader->constant_register_map();
   uint32_t float_constant_count_vertex = float_constant_map_vertex.float_count;
-  // Even if the shader doesn't need any float constants, a valid binding must
-  // still be provided, so if the first draw in the frame with the current root
-  // signature doesn't have float constants at all, still allocate an empty
-  // buffer.
-  uint32_t float_constant_size_vertex = xe::align(
-      uint32_t(std::max(float_constant_count_vertex, 1u) * 4 * sizeof(float)),
-      256u);
   for (uint32_t i = 0; i < 4; ++i) {
     if (current_float_constant_map_vertex_[i] !=
         float_constant_map_vertex.float_bitmap[i]) {
@@ -3557,15 +3552,13 @@ bool D3D12CommandProcessor::UpdateBindings(
     std::memset(current_float_constant_map_pixel_, 0,
                 sizeof(current_float_constant_map_pixel_));
   }
-  uint32_t float_constant_size_pixel = xe::align(
-      uint32_t(std::max(float_constant_count_pixel, 1u) * 4 * sizeof(float)),
-      256u);
 
   // Write the constant buffer data.
   if (!cbuffer_binding_system_.up_to_date) {
     uint8_t* system_constants = constant_buffer_pool_->Request(
-        frame_current_, xe::align(uint32_t(sizeof(system_constants_)), 256u),
-        nullptr, nullptr, &cbuffer_binding_system_.address);
+        frame_current_, sizeof(system_constants_),
+        D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
+        &cbuffer_binding_system_.address);
     if (system_constants == nullptr) {
       return false;
     }
@@ -3576,8 +3569,15 @@ bool D3D12CommandProcessor::UpdateBindings(
         ~(1u << root_parameter_system_constants);
   }
   if (!cbuffer_binding_float_vertex_.up_to_date) {
+    // Even if the shader doesn't need any float constants, a valid binding must
+    // still be provided, so if the first draw in the frame with the current
+    // root signature doesn't have float constants at all, still allocate an
+    // empty buffer.
     uint8_t* float_constants = constant_buffer_pool_->Request(
-        frame_current_, float_constant_size_vertex, nullptr, nullptr,
+        frame_current_,
+        uint32_t(std::max(float_constant_count_vertex, uint32_t(1)) * 4 *
+                 sizeof(float)),
+        D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
         &cbuffer_binding_float_vertex_.address);
     if (float_constants == nullptr) {
       return false;
@@ -3603,7 +3603,10 @@ bool D3D12CommandProcessor::UpdateBindings(
   }
   if (!cbuffer_binding_float_pixel_.up_to_date) {
     uint8_t* float_constants = constant_buffer_pool_->Request(
-        frame_current_, float_constant_size_pixel, nullptr, nullptr,
+        frame_current_,
+        uint32_t(std::max(float_constant_count_pixel, uint32_t(1)) * 4 *
+                 sizeof(float)),
+        D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
         &cbuffer_binding_float_pixel_.address);
     if (float_constants == nullptr) {
       return false;
@@ -3632,28 +3635,33 @@ bool D3D12CommandProcessor::UpdateBindings(
         ~(1u << root_parameter_float_constants_pixel);
   }
   if (!cbuffer_binding_bool_loop_.up_to_date) {
-    uint8_t* bool_loop_constants =
-        constant_buffer_pool_->Request(frame_current_, 256, nullptr, nullptr,
-                                       &cbuffer_binding_bool_loop_.address);
+    constexpr uint32_t kBoolLoopConstantsSize = (8 + 32) * sizeof(uint32_t);
+    uint8_t* bool_loop_constants = constant_buffer_pool_->Request(
+        frame_current_, kBoolLoopConstantsSize,
+        D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
+        &cbuffer_binding_bool_loop_.address);
     if (bool_loop_constants == nullptr) {
       return false;
     }
     std::memcpy(bool_loop_constants,
                 &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].u32,
-                (8 + 32) * sizeof(uint32_t));
+                kBoolLoopConstantsSize);
     cbuffer_binding_bool_loop_.up_to_date = true;
     current_graphics_root_up_to_date_ &=
         ~(1u << root_parameter_bool_loop_constants);
   }
   if (!cbuffer_binding_fetch_.up_to_date) {
+    constexpr uint32_t kFetchConstantsSize = 32 * 6 * sizeof(uint32_t);
     uint8_t* fetch_constants = constant_buffer_pool_->Request(
-        frame_current_, 768, nullptr, nullptr, &cbuffer_binding_fetch_.address);
+        frame_current_, kFetchConstantsSize,
+        D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
+        &cbuffer_binding_fetch_.address);
     if (fetch_constants == nullptr) {
       return false;
     }
     std::memcpy(fetch_constants,
                 &regs[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0].u32,
-                32 * 6 * sizeof(uint32_t));
+                kFetchConstantsSize);
     cbuffer_binding_fetch_.up_to_date = true;
     current_graphics_root_up_to_date_ &=
         ~(1u << root_parameter_fetch_constants);
@@ -3885,12 +3893,10 @@ bool D3D12CommandProcessor::UpdateBindings(
       uint32_t* descriptor_indices =
           reinterpret_cast<uint32_t*>(constant_buffer_pool_->Request(
               frame_current_,
-              xe::align(
-                  uint32_t(std::max(texture_count_vertex + sampler_count_vertex,
-                                    uint32_t(1)) *
-                           sizeof(uint32_t)),
-                  uint32_t(256)),
-              nullptr, nullptr,
+              uint32_t(std::max(texture_count_vertex + sampler_count_vertex,
+                                uint32_t(1)) *
+                       sizeof(uint32_t)),
+              D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
               &cbuffer_binding_descriptor_indices_vertex_.address));
       if (!descriptor_indices) {
         return false;
@@ -3923,12 +3929,10 @@ bool D3D12CommandProcessor::UpdateBindings(
       uint32_t* descriptor_indices =
           reinterpret_cast<uint32_t*>(constant_buffer_pool_->Request(
               frame_current_,
-              xe::align(
-                  uint32_t(std::max(texture_count_pixel + sampler_count_pixel,
-                                    uint32_t(1)) *
-                           sizeof(uint32_t)),
-                  uint32_t(256)),
-              nullptr, nullptr,
+              uint32_t(std::max(texture_count_pixel + sampler_count_pixel,
+                                uint32_t(1)) *
+                       sizeof(uint32_t)),
+              D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
               &cbuffer_binding_descriptor_indices_pixel_.address));
       if (!descriptor_indices) {
         return false;
