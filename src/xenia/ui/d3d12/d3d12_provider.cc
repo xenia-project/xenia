@@ -383,6 +383,14 @@ bool D3D12Provider::Initialize() {
       device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
   // Check if optional features are supported.
+  // D3D12_HEAP_FLAG_CREATE_NOT_ZEROED requires Windows 10 2004 (indicated by
+  // the availability of ID3D12Device8 or D3D12_FEATURE_D3D12_OPTIONS7).
+  heap_flag_create_not_zeroed_ = D3D12_HEAP_FLAG_NONE;
+  D3D12_FEATURE_DATA_D3D12_OPTIONS7 options7;
+  if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7,
+                                            &options7, sizeof(options7)))) {
+    heap_flag_create_not_zeroed_ = D3D12_HEAP_FLAG_CREATE_NOT_ZEROED;
+  }
   rasterizer_ordered_views_supported_ = false;
   resource_binding_tier_ = D3D12_RESOURCE_BINDING_TIER_1;
   tiled_resources_tier_ = D3D12_TILED_RESOURCES_TIER_NOT_SUPPORTED;

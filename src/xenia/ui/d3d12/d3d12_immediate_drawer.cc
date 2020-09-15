@@ -287,8 +287,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   device->CreateSampler(&sampler_desc, sampler_handle);
 
   // Create pools for draws.
-  vertex_buffer_pool_ =
-      std::make_unique<UploadBufferPool>(provider, 2 * 1024 * 1024);
+  vertex_buffer_pool_ = std::make_unique<UploadBufferPool>(provider);
   texture_descriptor_pool_ = std::make_unique<DescriptorHeapPool>(
       device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 2048);
   texture_descriptor_pool_heap_index_ = DescriptorHeapPool::kHeapIndexInvalid;
@@ -506,8 +505,8 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
   vertex_buffer_view.SizeInBytes =
       batch.vertex_count * uint32_t(sizeof(ImmediateVertex));
   void* vertex_buffer_mapping = vertex_buffer_pool_->Request(
-      current_fence_value, vertex_buffer_view.SizeInBytes, nullptr, nullptr,
-      &vertex_buffer_view.BufferLocation);
+      current_fence_value, vertex_buffer_view.SizeInBytes, sizeof(uint32_t),
+      nullptr, nullptr, &vertex_buffer_view.BufferLocation);
   if (vertex_buffer_mapping == nullptr) {
     XELOGE("Failed to get a buffer for {} vertices in the immediate drawer",
            batch.vertex_count);
@@ -524,8 +523,7 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
     index_buffer_view.SizeInBytes = batch.index_count * sizeof(uint16_t);
     index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
     void* index_buffer_mapping = vertex_buffer_pool_->Request(
-        current_fence_value,
-        xe::align(index_buffer_view.SizeInBytes, UINT(sizeof(uint32_t))),
+        current_fence_value, index_buffer_view.SizeInBytes, sizeof(uint16_t),
         nullptr, nullptr, &index_buffer_view.BufferLocation);
     if (index_buffer_mapping == nullptr) {
       XELOGE("Failed to get a buffer for {} indices in the immediate drawer",

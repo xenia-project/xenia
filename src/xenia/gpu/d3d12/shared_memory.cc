@@ -154,8 +154,8 @@ bool SharedMemory::Initialize() {
   system_page_flags_.resize((page_count_ + 63) / 64);
 
   upload_buffer_pool_ = std::make_unique<ui::d3d12::UploadBufferPool>(
-      provider,
-      xe::align(uint32_t(4 * 1024 * 1024), uint32_t(1) << page_size_log2_));
+      provider, xe::align(ui::d3d12::UploadBufferPool::kDefaultPageSize,
+                          uint32_t(1) << page_size_log2_));
 
   memory_invalidation_callback_handle_ =
       memory_.RegisterPhysicalMemoryInvalidationCallback(
@@ -442,8 +442,9 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
       uint32_t upload_buffer_offset, upload_buffer_size;
       uint8_t* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(
           command_processor_.GetCurrentSubmission(),
-          upload_range_length << page_size_log2_, &upload_buffer,
-          &upload_buffer_offset, &upload_buffer_size, nullptr);
+          upload_range_length << page_size_log2_,
+          uint32_t(1) << page_size_log2_, &upload_buffer, &upload_buffer_offset,
+          &upload_buffer_size, nullptr);
       if (upload_buffer_mapping == nullptr) {
         XELOGE("Shared memory: Failed to get an upload buffer");
         return false;
