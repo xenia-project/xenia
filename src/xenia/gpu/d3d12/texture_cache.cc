@@ -2396,9 +2396,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       }
       D3D12_GPU_VIRTUAL_ADDRESS cbuffer_gpu_address;
       uint8_t* cbuffer_mapping = cbuffer_pool.Request(
-          command_processor_.GetCurrentFrame(),
-          xe::align(uint32_t(sizeof(load_constants)), uint32_t(256)), nullptr,
-          nullptr, &cbuffer_gpu_address);
+          command_processor_.GetCurrentFrame(), sizeof(load_constants),
+          D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
+          &cbuffer_gpu_address);
       if (cbuffer_mapping == nullptr) {
         command_processor_.ReleaseScratchGPUBuffer(copy_buffer,
                                                    copy_buffer_state);

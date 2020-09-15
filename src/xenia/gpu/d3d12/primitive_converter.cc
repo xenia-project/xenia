@@ -52,11 +52,13 @@ bool PrimitiveConverter::Initialize() {
   D3D12_HEAP_FLAGS heap_flag_create_not_zeroed =
       provider.GetHeapFlagCreateNotZeroed();
 
-  // There can be at most 65535 indices in a Xenos draw call, but they can be up
-  // to 4 bytes large, and conversion can add more indices (almost triple the
-  // count for triangle strips, for instance).
-  buffer_pool_ =
-      std::make_unique<ui::d3d12::UploadBufferPool>(provider, 4 * 1024 * 1024);
+  // There can be at most 65535 indices in a Xenos draw call (16 bit index
+  // count), but they can be up to 4 bytes large, and conversion can add more
+  // indices (almost triple the count for triangle strips or fans, for
+  // instance).
+  buffer_pool_ = std::make_unique<ui::d3d12::UploadBufferPool>(
+      provider, std::max(uint32_t(65535 * 3 * sizeof(uint32_t)),
+                         ui::d3d12::UploadBufferPool::kDefaultPageSize));
 
   // Create the static index buffer for non-indexed drawing.
   D3D12_RESOURCE_DESC static_ib_desc;
@@ -697,8 +699,8 @@ void* PrimitiveConverter::AllocateIndices(
   }
   D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
   uint8_t* mapping =
-      buffer_pool_->Request(command_processor_.GetCurrentFrame(), size, nullptr,
-                            nullptr, &gpu_address);
+      buffer_pool_->Request(command_processor_.GetCurrentFrame(), size, 16,
+                            nullptr, nullptr, &gpu_address);
   if (mapping == nullptr) {
     XELOGE("Failed to allocate space for {} converted {}-bit vertex indices",
            count, format == xenos::IndexFormat::kInt32 ? 32 : 16);

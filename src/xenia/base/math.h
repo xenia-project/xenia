@@ -26,23 +26,28 @@
 namespace xe {
 
 template <typename T, size_t N>
-size_t countof(T (&arr)[N]) {
+constexpr size_t countof(T (&arr)[N]) {
   return std::extent<T[N]>::value;
+}
+
+template <typename T>
+constexpr bool is_pow2(T value) {
+  return (value & (value - 1)) == 0;
 }
 
 // Rounds up the given value to the given alignment.
 template <typename T>
-T align(T value, T alignment) {
+constexpr T align(T value, T alignment) {
   return (value + alignment - 1) & ~(alignment - 1);
 }
 
 // Rounds the given number up to the next highest multiple.
 template <typename T, typename V>
-T round_up(T value, V multiple) {
+constexpr T round_up(T value, V multiple) {
   return value ? (((value + multiple - 1) / multiple) * multiple) : multiple;
 }
 
-inline float saturate(float value) {
+constexpr float saturate(float value) {
   return std::max(std::min(1.0f, value), -1.0f);
 }
 
@@ -62,7 +67,7 @@ T next_pow2(T value) {
 
 #if __cpp_lib_gcd_lcm
 template <typename T>
-inline constexpr T greatest_common_divisor(T a, T b) {
+constexpr T greatest_common_divisor(T a, T b) {
   return std::gcd(a, b);
 }
 #else
@@ -77,14 +82,14 @@ constexpr T greatest_common_divisor(T a, T b) {
 #endif
 
 template <typename T>
-inline constexpr void reduce_fraction(T& numerator, T& denominator) {
+constexpr void reduce_fraction(T& numerator, T& denominator) {
   auto gcd = greatest_common_divisor(numerator, denominator);
   numerator /= gcd;
   denominator /= gcd;
 }
 
 template <typename T>
-inline constexpr void reduce_fraction(std::pair<T, T>& fraction) {
+constexpr void reduce_fraction(std::pair<T, T>& fraction) {
   reduce_fraction<T>(fraction.first, fraction.second);
 }
 

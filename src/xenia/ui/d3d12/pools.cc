@@ -13,14 +13,20 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
 namespace xe {
 namespace ui {
 namespace d3d12 {
 
+// Align to D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT not to waste any space if
+// it's smaller (the size of the heap backing the buffer will be aligned to
+// D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT anyway).
 UploadBufferPool::UploadBufferPool(D3D12Provider& provider, uint32_t page_size)
-    : provider_(provider), page_size_(page_size) {}
+    : provider_(provider),
+      page_size_(xe::align(
+          page_size, uint32_t(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT))) {}
 
 UploadBufferPool::~UploadBufferPool() { ClearCache(); }
 
@@ -68,9 +74,13 @@ void UploadBufferPool::ClearCache() {
 }
 
 uint8_t* UploadBufferPool::Request(uint64_t submission_index, uint32_t size,
+                                   uint32_t alignment,
                                    ID3D12Resource** buffer_out,
                                    uint32_t* offset_out,
                                    D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out) {
+  assert_not_zero(alignment);
+  assert_true(xe::is_pow2(alignment));
+  size = xe::align(size, alignment);
   assert_true(size <= page_size_);
   if (size > page_size_) {
     return nullptr;
@@ -79,7 +89,8 @@ uint8_t* UploadBufferPool::Request(uint64_t submission_index, uint32_t size,
               submission_index >= writable_first_->last_submission_index);
   assert_true(!submitted_last_ ||
               submission_index >= submitted_last_->last_submission_index);
-  if (page_size_ - current_page_used_ < size || !writable_first_) {
+  uint32_t current_page_used_aligned = xe::align(current_page_used_, alignment);
+  if (current_page_used_aligned + size > page_size_ || !writable_first_) {
     // Start a new page if can't fit all the bytes or don't have an open page.
     if (writable_first_) {
       // Close the page that was current.
@@ -128,33 +139,39 @@ uint8_t* UploadBufferPool::Request(uint64_t submission_index, uint32_t size,
       writable_last_ = writable_first_;
     }
     current_page_used_ = 0;
+    current_page_used_aligned = 0;
   }
   writable_first_->last_submission_index = submission_index;
   if (buffer_out) {
     *buffer_out = writable_first_->buffer;
   }
   if (offset_out) {
-    *offset_out = current_page_used_;
+    *offset_out = current_page_used_aligned;
   }
   if (gpu_address_out) {
-    *gpu_address_out = writable_first_->gpu_address + current_page_used_;
+    *gpu_address_out = writable_first_->gpu_address + current_page_used_aligned;
   }
-  uint8_t* mapping =
-      reinterpret_cast<uint8_t*>(writable_first_->mapping) + current_page_used_;
-  current_page_used_ += size;
+  uint8_t* mapping = reinterpret_cast<uint8_t*>(writable_first_->mapping) +
+                     current_page_used_aligned;
+  current_page_used_ = current_page_used_aligned + size;
   return mapping;
 }
 
 uint8_t* UploadBufferPool::RequestPartial(
-    uint64_t submission_index, uint32_t size, ID3D12Resource** buffer_out,
-    uint32_t* offset_out, uint32_t* size_out,
+    uint64_t submission_index, uint32_t size, uint32_t alignment,
+    ID3D12Resource** buffer_out, uint32_t* offset_out, uint32_t* size_out,
     D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out) {
+  assert_not_zero(alignment);
+  assert_true(xe::is_pow2(alignment));
+  size = xe::align(size, alignment);
   size = std::min(size, page_size_);
-  if (current_page_used_ < page_size_) {
-    size = std::min(size, page_size_ - current_page_used_);
+  uint32_t current_page_used_aligned = xe::align(current_page_used_, alignment);
+  if (current_page_used_aligned + alignment <= page_size_) {
+    size = std::min(
+        size, (page_size_ - current_page_used_aligned) & ~(alignment - 1));
   }
-  uint8_t* mapping =
-      Request(submission_index, size, buffer_out, offset_out, gpu_address_out);
+  uint8_t* mapping = Request(submission_index, size, alignment, buffer_out,
+                             offset_out, gpu_address_out);
   if (!mapping) {
     return nullptr;
   }
