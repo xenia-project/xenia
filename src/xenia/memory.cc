@@ -376,7 +376,7 @@ uint32_t Memory::HostToGuestVirtualThunk(const void* context,
 
 uint32_t Memory::GetPhysicalAddress(uint32_t address) const {
   const BaseHeap* heap = LookupHeap(address);
-  if (!heap || !heap->IsGuestPhysicalHeap()) {
+  if (!heap || heap->heap_type() != HeapType::kGuestPhysical) {
     return UINT32_MAX;
   }
   return static_cast<const PhysicalHeap*>(heap)->GetPhysicalAddress(address);
@@ -452,7 +452,7 @@ bool Memory::AccessViolationCallback(
   }
   uint32_t virtual_address = HostToGuestVirtual(host_address);
   BaseHeap* heap = LookupHeap(virtual_address);
-  if (!heap->IsGuestPhysicalHeap()) {
+  if (heap->heap_type() != HeapType::kGuestPhysical) {
     return false;
   }
 
@@ -478,7 +478,7 @@ bool Memory::TriggerPhysicalMemoryCallbacks(
     uint32_t virtual_address, uint32_t length, bool is_write,
     bool unwatch_exact_range, bool unprotect) {
   BaseHeap* heap = LookupHeap(virtual_address);
-  if (heap->IsGuestPhysicalHeap()) {
+  if (heap->heap_type() == HeapType::kGuestPhysical) {
     auto physical_heap = static_cast<PhysicalHeap*>(heap);
     return physical_heap->TriggerCallbacks(std::move(global_lock_locked_once),
                                            virtual_address, length, is_write,
