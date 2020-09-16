@@ -187,9 +187,6 @@ class BaseHeap {
   xe::memory::PageAccess QueryRangeAccess(uint32_t low_address,
                                           uint32_t high_address);
 
-  // Whether the heap is a guest virtual memory mapping of the physical memory.
-  virtual bool IsGuestPhysicalHeap() const { return false; }
-
   bool Save(ByteStream* stream);
   bool Restore(ByteStream* stream);
 
@@ -264,7 +261,6 @@ class PhysicalHeap : public BaseHeap {
       uint32_t virtual_address, uint32_t length, bool is_write,
       bool unwatch_exact_range, bool unprotect = true);
 
-  bool IsGuestPhysicalHeap() const override { return true; }
   uint32_t GetPhysicalAddress(uint32_t address) const;
 
  protected:
