@@ -438,9 +438,10 @@ uint64_t D3D12CommandProcessor::RequestViewBindfulDescriptors(
   uint64_t current_heap_index = view_bindful_heap_pool_->Request(
       frame_current_, previous_heap_index, count_for_partial_update,
       count_for_full_update, descriptor_index);
-  if (current_heap_index == ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
+  if (current_heap_index ==
+      ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
     // There was an error.
-    return ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid;
+    return ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid;
   }
   ID3D12DescriptorHeap* heap = view_bindful_heap_pool_->GetLastRequestHeap();
   if (view_bindful_heap_current_ != heap) {
@@ -511,9 +512,9 @@ bool D3D12CommandProcessor::RequestOneUseSingleViewDescriptors(
     D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle_start;
     D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_start;
     if (RequestViewBindfulDescriptors(
-            ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid, count, count,
+            ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid, count, count,
             cpu_handle_start, gpu_handle_start) ==
-        ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
+        ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
       return false;
     }
     for (uint32_t i = 0; i < count; ++i) {
@@ -609,9 +610,10 @@ uint64_t D3D12CommandProcessor::RequestSamplerBindfulDescriptors(
   uint64_t current_heap_index = sampler_bindful_heap_pool_->Request(
       frame_current_, previous_heap_index, count_for_partial_update,
       count_for_full_update, descriptor_index);
-  if (current_heap_index == ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
+  if (current_heap_index ==
+      ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
     // There was an error.
-    return ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid;
+    return ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid;
   }
   ID3D12DescriptorHeap* heap = sampler_bindful_heap_pool_->GetLastRequestHeap();
   if (sampler_bindful_heap_current_ != heap) {
@@ -890,10 +892,10 @@ bool D3D12CommandProcessor::SetupContext() {
       cvars::d3d12_edram_rov && provider.AreRasterizerOrderedViewsSupported();
 
   // Initialize resource binding.
-  constant_buffer_pool_ = std::make_unique<ui::d3d12::UploadBufferPool>(
-      provider, std::max(ui::d3d12::UploadBufferPool::kDefaultPageSize,
-                         uint32_t(D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 4 *
-                                  sizeof(float))));
+  constant_buffer_pool_ = std::make_unique<ui::d3d12::D3D12UploadBufferPool>(
+      provider,
+      std::max(ui::d3d12::D3D12UploadBufferPool::kDefaultPageSize,
+               sizeof(float) * 4 * D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT));
   if (bindless_resources_used_) {
     D3D12_DESCRIPTOR_HEAP_DESC view_bindless_heap_desc;
     view_bindless_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -929,10 +931,12 @@ bool D3D12CommandProcessor::SetupContext() {
         sampler_bindless_heap_current_->GetGPUDescriptorHandleForHeapStart();
     sampler_bindless_heap_allocated_ = 0;
   } else {
-    view_bindful_heap_pool_ = std::make_unique<ui::d3d12::DescriptorHeapPool>(
-        device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, kViewBindfulHeapSize);
+    view_bindful_heap_pool_ =
+        std::make_unique<ui::d3d12::D3D12DescriptorHeapPool>(
+            device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+            kViewBindfulHeapSize);
     sampler_bindful_heap_pool_ =
-        std::make_unique<ui::d3d12::DescriptorHeapPool>(
+        std::make_unique<ui::d3d12::D3D12DescriptorHeapPool>(
             device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, kSamplerHeapSize);
   }
 
@@ -2508,9 +2512,9 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
       cbuffer_binding_descriptor_indices_pixel_.up_to_date = false;
     } else {
       draw_view_bindful_heap_index_ =
-          ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid;
+          ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid;
       draw_sampler_bindful_heap_index_ =
-          ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid;
+          ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid;
       bindful_textures_written_vertex_ = false;
       bindful_textures_written_pixel_ = false;
       bindful_samplers_written_vertex_ = false;
@@ -3575,8 +3579,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     // empty buffer.
     uint8_t* float_constants = constant_buffer_pool_->Request(
         frame_current_,
-        uint32_t(std::max(float_constant_count_vertex, uint32_t(1)) * 4 *
-                 sizeof(float)),
+        sizeof(float) * 4 * std::max(float_constant_count_vertex, uint32_t(1)),
         D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
         &cbuffer_binding_float_vertex_.address);
     if (float_constants == nullptr) {
@@ -3604,8 +3607,7 @@ bool D3D12CommandProcessor::UpdateBindings(
   if (!cbuffer_binding_float_pixel_.up_to_date) {
     uint8_t* float_constants = constant_buffer_pool_->Request(
         frame_current_,
-        uint32_t(std::max(float_constant_count_pixel, uint32_t(1)) * 4 *
-                 sizeof(float)),
+        sizeof(float) * 4 * std::max(float_constant_count_pixel, uint32_t(1)),
         D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
         &cbuffer_binding_float_pixel_.address);
     if (float_constants == nullptr) {
@@ -3893,9 +3895,9 @@ bool D3D12CommandProcessor::UpdateBindings(
       uint32_t* descriptor_indices =
           reinterpret_cast<uint32_t*>(constant_buffer_pool_->Request(
               frame_current_,
-              uint32_t(std::max(texture_count_vertex + sampler_count_vertex,
-                                uint32_t(1)) *
-                       sizeof(uint32_t)),
+              std::max(texture_count_vertex + sampler_count_vertex,
+                       uint32_t(1)) *
+                  sizeof(uint32_t),
               D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
               &cbuffer_binding_descriptor_indices_vertex_.address));
       if (!descriptor_indices) {
@@ -3929,9 +3931,8 @@ bool D3D12CommandProcessor::UpdateBindings(
       uint32_t* descriptor_indices =
           reinterpret_cast<uint32_t*>(constant_buffer_pool_->Request(
               frame_current_,
-              uint32_t(std::max(texture_count_pixel + sampler_count_pixel,
-                                uint32_t(1)) *
-                       sizeof(uint32_t)),
+              std::max(texture_count_pixel + sampler_count_pixel, uint32_t(1)) *
+                  sizeof(uint32_t),
               D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
               &cbuffer_binding_descriptor_indices_pixel_.address));
       if (!descriptor_indices) {
@@ -4007,7 +4008,8 @@ bool D3D12CommandProcessor::UpdateBindings(
     uint64_t view_heap_index = RequestViewBindfulDescriptors(
         draw_view_bindful_heap_index_, view_count_partial_update,
         view_count_full_update, view_cpu_handle, view_gpu_handle);
-    if (view_heap_index == ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
+    if (view_heap_index ==
+        ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
       XELOGE("Failed to allocate view descriptors");
       return false;
     }
@@ -4022,14 +4024,14 @@ bool D3D12CommandProcessor::UpdateBindings(
     D3D12_GPU_DESCRIPTOR_HANDLE sampler_gpu_handle = {};
     uint32_t descriptor_size_sampler = provider.GetSamplerDescriptorSize();
     uint64_t sampler_heap_index =
-        ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid;
+        ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid;
     if (sampler_count_vertex != 0 || sampler_count_pixel != 0) {
       sampler_heap_index = RequestSamplerBindfulDescriptors(
           draw_sampler_bindful_heap_index_, sampler_count_partial_update,
           sampler_count_vertex + sampler_count_pixel, sampler_cpu_handle,
           sampler_gpu_handle);
       if (sampler_heap_index ==
-          ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
+          ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
         XELOGE("Failed to allocate sampler descriptors");
         return false;
       }
@@ -4059,7 +4061,7 @@ bool D3D12CommandProcessor::UpdateBindings(
           ~(1u << kRootParameter_Bindful_SharedMemoryAndEdram);
     }
     if (sampler_heap_index !=
-            ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid &&
+            ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid &&
         draw_sampler_bindful_heap_index_ != sampler_heap_index) {
       write_samplers_vertex = sampler_count_vertex != 0;
       write_samplers_pixel = sampler_count_pixel != 0;
@@ -4143,7 +4145,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     // Wrote new descriptors on the current page.
     draw_view_bindful_heap_index_ = view_heap_index;
     if (sampler_heap_index !=
-        ui::d3d12::DescriptorHeapPool::kHeapIndexInvalid) {
+        ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
       draw_sampler_bindful_heap_index_ = sampler_heap_index;
     }
   }

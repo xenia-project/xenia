@@ -19,7 +19,7 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
 #include "xenia/ui/d3d12/d3d12_context.h"
-#include "xenia/ui/d3d12/pools.h"
+#include "xenia/ui/d3d12/d3d12_upload_buffer_pool.h"
 
 namespace xe {
 namespace gpu {
@@ -107,7 +107,7 @@ class PrimitiveConverter {
   Memory& memory_;
   TraceWriter& trace_writer_;
 
-  std::unique_ptr<ui::d3d12::UploadBufferPool> buffer_pool_ = nullptr;
+  std::unique_ptr<ui::d3d12::D3D12UploadBufferPool> buffer_pool_ = nullptr;
 
   // Static index buffers for emulating unsupported primitive types when drawing
   // without an index buffer.

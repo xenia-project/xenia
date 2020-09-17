@@ -2,13 +2,13 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#ifndef XENIA_UI_D3D12_POOLS_H_
-#define XENIA_UI_D3D12_POOLS_H_
+#ifndef XENIA_UI_D3D12_D3D12_DESCRIPTOR_HEAP_POOL_H_
+#define XENIA_UI_D3D12_D3D12_DESCRIPTOR_HEAP_POOL_H_
 
 #include <cstdint>
 
@@ -21,60 +21,13 @@ namespace d3d12 {
 // Submission index is the fence value or a value derived from it (if reclaiming
 // less often than once per fence value, for instance).
 
-class UploadBufferPool {
- public:
-  // Taken from the Direct3D 12 MiniEngine sample (LinearAllocator
-  // kCpuAllocatorPageSize). Large enough for most cases.
-  static constexpr uint32_t kDefaultPageSize = 2 * 1024 * 1024;
-
-  UploadBufferPool(D3D12Provider& provider,
-                   uint32_t page_size = kDefaultPageSize);
-  ~UploadBufferPool();
-
-  void Reclaim(uint64_t completed_submission_index);
-  void ClearCache();
-
-  // Request to write data in a single piece, creating a new page if the current
-  // one doesn't have enough free space.
-  uint8_t* Request(uint64_t submission_index, uint32_t size, uint32_t alignment,
-                   ID3D12Resource** buffer_out, uint32_t* offset_out,
-                   D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
-  // Request to write data in multiple parts, filling the buffer entirely.
-  uint8_t* RequestPartial(uint64_t submission_index, uint32_t size,
-                          uint32_t alignment, ID3D12Resource** buffer_out,
-                          uint32_t* offset_out, uint32_t* size_out,
-                          D3D12_GPU_VIRTUAL_ADDRESS* gpu_address_out);
-
- private:
-  D3D12Provider& provider_;
-  uint32_t page_size_;
-
-  struct Page {
-    ID3D12Resource* buffer;
-    D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
-    void* mapping;
-    uint64_t last_submission_index;
-    Page* next;
-  };
-
-  // A list of buffers with free space, with the first buffer being the one
-  // currently being filled.
-  Page* writable_first_ = nullptr;
-  Page* writable_last_ = nullptr;
-  // A list of full buffers that can be reclaimed when the GPU doesn't use them
-  // anymore.
-  Page* submitted_first_ = nullptr;
-  Page* submitted_last_ = nullptr;
-  uint32_t current_page_used_ = 0;
-};
-
-class DescriptorHeapPool {
+class D3D12DescriptorHeapPool {
  public:
   static constexpr uint64_t kHeapIndexInvalid = UINT64_MAX;
 
-  DescriptorHeapPool(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type,
-                     uint32_t page_size);
-  ~DescriptorHeapPool();
+  D3D12DescriptorHeapPool(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type,
+                          uint32_t page_size);
+  ~D3D12DescriptorHeapPool();
 
   void Reclaim(uint64_t completed_submission_index);
   void ClearCache();
@@ -153,4 +106,4 @@ class DescriptorHeapPool {
 }  // namespace ui
 }  // namespace xe
 
-#endif  // XENIA_UI_D3D12_POOLS_H_
+#endif  // XENIA_UI_D3D12_D3D12_UPLOAD_BUFFER_POOL_H_
