@@ -672,17 +672,10 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
       swizzle_component_map[(swizzle >> 9) & 0x7],
   };
 
-#define SWIZZLE_VECTOR(r, x)                                        \
-  {                                                                 \
-    assert_true(config.vector_swizzle.x >= 0 &&                     \
-                config.vector_swizzle.x < xe::countof(components)); \
-    view_info.components.r = components[config.vector_swizzle.x];   \
-  }
-  SWIZZLE_VECTOR(r, x);
-  SWIZZLE_VECTOR(g, y);
-  SWIZZLE_VECTOR(b, z);
-  SWIZZLE_VECTOR(a, w);
-#undef SWIZZLE_CHANNEL
+  view_info.components.r = components[config.vector_swizzle.x];
+  view_info.components.g = components[config.vector_swizzle.y];
+  view_info.components.b = components[config.vector_swizzle.z];
+  view_info.components.a = components[config.vector_swizzle.w];
 
   if (texture->format == VK_FORMAT_D16_UNORM_S8_UINT ||
       texture->format == VK_FORMAT_D24_UNORM_S8_UINT ||
