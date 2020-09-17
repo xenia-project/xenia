@@ -153,9 +153,9 @@ bool SharedMemory::Initialize() {
   system_page_flags_.clear();
   system_page_flags_.resize((page_count_ + 63) / 64);
 
-  upload_buffer_pool_ = std::make_unique<ui::d3d12::UploadBufferPool>(
-      provider, xe::align(ui::d3d12::UploadBufferPool::kDefaultPageSize,
-                          uint32_t(1) << page_size_log2_));
+  upload_buffer_pool_ = std::make_unique<ui::d3d12::D3D12UploadBufferPool>(
+      provider, xe::align(ui::d3d12::D3D12UploadBufferPool::kDefaultPageSize,
+                          size_t(1) << page_size_log2_));
 
   memory_invalidation_callback_handle_ =
       memory_.RegisterPhysicalMemoryInvalidationCallback(
@@ -439,26 +439,26 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
                                   upload_range_length << page_size_log2_);
     while (upload_range_length != 0) {
       ID3D12Resource* upload_buffer;
-      uint32_t upload_buffer_offset, upload_buffer_size;
+      size_t upload_buffer_offset, upload_buffer_size;
       uint8_t* upload_buffer_mapping = upload_buffer_pool_->RequestPartial(
           command_processor_.GetCurrentSubmission(),
-          upload_range_length << page_size_log2_,
-          uint32_t(1) << page_size_log2_, &upload_buffer, &upload_buffer_offset,
-          &upload_buffer_size, nullptr);
+          upload_range_length << page_size_log2_, size_t(1) << page_size_log2_,
+          &upload_buffer, &upload_buffer_offset, &upload_buffer_size, nullptr);
       if (upload_buffer_mapping == nullptr) {
         XELOGE("Shared memory: Failed to get an upload buffer");
         return false;
       }
-      uint32_t upload_buffer_pages = upload_buffer_size >> page_size_log2_;
       MakeRangeValid(upload_range_start << page_size_log2_,
-                     upload_buffer_pages << page_size_log2_, false);
+                     uint32_t(upload_buffer_size), false);
       std::memcpy(
           upload_buffer_mapping,
           memory_.TranslatePhysical(upload_range_start << page_size_log2_),
           upload_buffer_size);
       command_list.D3DCopyBufferRegion(
           buffer_, upload_range_start << page_size_log2_, upload_buffer,
-          upload_buffer_offset, upload_buffer_size);
+          UINT64(upload_buffer_offset), UINT64(upload_buffer_size));
+      uint32_t upload_buffer_pages =
+          uint32_t(upload_buffer_size >> page_size_log2_);
       upload_range_start += upload_buffer_pages;
       upload_range_length -= upload_buffer_pages;
     }

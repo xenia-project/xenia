@@ -29,8 +29,9 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/ui/d3d12/d3d12_context.h"
+#include "xenia/ui/d3d12/d3d12_descriptor_heap_pool.h"
+#include "xenia/ui/d3d12/d3d12_upload_buffer_pool.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
-#include "xenia/ui/d3d12/pools.h"
 
 namespace xe {
 namespace gpu {
@@ -93,7 +94,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   ID3D12RootSignature* GetRootSignature(const D3D12Shader* vertex_shader,
                                         const D3D12Shader* pixel_shader);
 
-  ui::d3d12::UploadBufferPool& GetConstantBufferPool() const {
+  ui::d3d12::D3D12UploadBufferPool& GetConstantBufferPool() const {
     return *constant_buffer_pool_;
   }
 
@@ -311,8 +312,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   void ClearCommandAllocatorCache();
 
   // Request descriptors and automatically rebind the descriptor heap on the
-  // draw command list. Refer to DescriptorHeapPool::Request for partial/full
-  // update explanation. Doesn't work when bindless descriptors are used.
+  // draw command list. Refer to D3D12DescriptorHeapPool::Request for partial /
+  // full update explanation. Doesn't work when bindless descriptors are used.
   uint64_t RequestViewBindfulDescriptors(
       uint64_t previous_heap_index, uint32_t count_for_partial_update,
       uint32_t count_for_full_update,
@@ -387,12 +388,13 @@ class D3D12CommandProcessor : public CommandProcessor {
   // targets.
   bool edram_rov_used_ = false;
 
-  std::unique_ptr<ui::d3d12::UploadBufferPool> constant_buffer_pool_ = nullptr;
+  std::unique_ptr<ui::d3d12::D3D12UploadBufferPool> constant_buffer_pool_ =
+      nullptr;
 
   static constexpr uint32_t kViewBindfulHeapSize = 32768;
   static_assert(kViewBindfulHeapSize <=
                 D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1);
-  std::unique_ptr<ui::d3d12::DescriptorHeapPool> view_bindful_heap_pool_ =
+  std::unique_ptr<ui::d3d12::D3D12DescriptorHeapPool> view_bindful_heap_pool_ =
       nullptr;
   // Currently bound descriptor heap - updated by RequestViewBindfulDescriptors.
   ID3D12DescriptorHeap* view_bindful_heap_current_;
@@ -423,8 +425,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   // FIXME(Triang3l): Investigate the issue with the sampler 2047 on Nvidia.
   static constexpr uint32_t kSamplerHeapSize = 2000;
   static_assert(kSamplerHeapSize <= D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE);
-  std::unique_ptr<ui::d3d12::DescriptorHeapPool> sampler_bindful_heap_pool_ =
-      nullptr;
+  std::unique_ptr<ui::d3d12::D3D12DescriptorHeapPool>
+      sampler_bindful_heap_pool_ = nullptr;
   ID3D12DescriptorHeap* sampler_bindful_heap_current_;
   ID3D12DescriptorHeap* sampler_bindless_heap_current_ = nullptr;
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_bindless_heap_cpu_start_;
