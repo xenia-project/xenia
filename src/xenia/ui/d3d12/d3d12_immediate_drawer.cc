@@ -287,10 +287,11 @@ bool D3D12ImmediateDrawer::Initialize() {
   device->CreateSampler(&sampler_desc, sampler_handle);
 
   // Create pools for draws.
-  vertex_buffer_pool_ = std::make_unique<UploadBufferPool>(provider);
-  texture_descriptor_pool_ = std::make_unique<DescriptorHeapPool>(
+  vertex_buffer_pool_ = std::make_unique<D3D12UploadBufferPool>(provider);
+  texture_descriptor_pool_ = std::make_unique<D3D12DescriptorHeapPool>(
       device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 2048);
-  texture_descriptor_pool_heap_index_ = DescriptorHeapPool::kHeapIndexInvalid;
+  texture_descriptor_pool_heap_index_ =
+      D3D12DescriptorHeapPool::kHeapIndexInvalid;
 
   // Reset the current state.
   current_command_list_ = nullptr;
@@ -465,7 +466,8 @@ void D3D12ImmediateDrawer::Begin(int render_target_width,
 
   vertex_buffer_pool_->Reclaim(completed_fence_value);
   texture_descriptor_pool_->Reclaim(completed_fence_value);
-  texture_descriptor_pool_heap_index_ = DescriptorHeapPool::kHeapIndexInvalid;
+  texture_descriptor_pool_heap_index_ =
+      D3D12DescriptorHeapPool::kHeapIndexInvalid;
 
   current_render_target_width_ = render_target_width;
   current_render_target_height_ = render_target_height;
@@ -567,7 +569,7 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
   uint64_t texture_heap_index = texture_descriptor_pool_->Request(
       context_.GetSwapCurrentFenceValue(), texture_descriptor_pool_heap_index_,
       bind_texture ? 1 : 0, 1, texture_descriptor_index);
-  if (texture_heap_index == DescriptorHeapPool::kHeapIndexInvalid) {
+  if (texture_heap_index == D3D12DescriptorHeapPool::kHeapIndexInvalid) {
     return;
   }
   if (texture_descriptor_pool_heap_index_ != texture_heap_index) {

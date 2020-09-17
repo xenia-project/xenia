@@ -15,7 +15,8 @@
 #include <vector>
 
 #include "xenia/ui/d3d12/d3d12_api.h"
-#include "xenia/ui/d3d12/pools.h"
+#include "xenia/ui/d3d12/d3d12_descriptor_heap_pool.h"
+#include "xenia/ui/d3d12/d3d12_upload_buffer_pool.h"
 #include "xenia/ui/immediate_drawer.h"
 
 namespace xe {
@@ -74,8 +75,8 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_heap_cpu_start_;
   D3D12_GPU_DESCRIPTOR_HANDLE sampler_heap_gpu_start_;
 
-  std::unique_ptr<UploadBufferPool> vertex_buffer_pool_ = nullptr;
-  std::unique_ptr<DescriptorHeapPool> texture_descriptor_pool_ = nullptr;
+  std::unique_ptr<D3D12UploadBufferPool> vertex_buffer_pool_ = nullptr;
+  std::unique_ptr<D3D12DescriptorHeapPool> texture_descriptor_pool_ = nullptr;
   uint64_t texture_descriptor_pool_heap_index_;
 
   struct PendingTextureUpload {

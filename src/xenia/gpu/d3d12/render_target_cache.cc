@@ -26,7 +26,6 @@
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/texture_util.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
-#include "xenia/ui/d3d12/pools.h"
 
 DEFINE_bool(d3d12_16bit_rtv_full_range, true,
             "Use full -32...32 range for RG16 and RGBA16 render targets "
@@ -1501,11 +1500,11 @@ void RenderTargetCache::RestoreEdramSnapshot(const void* snapshot) {
   auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
   if (!edram_snapshot_restore_pool_) {
     edram_snapshot_restore_pool_ =
-        std::make_unique<ui::d3d12::UploadBufferPool>(provider,
-                                                      xenos::kEdramSizeBytes);
+        std::make_unique<ui::d3d12::D3D12UploadBufferPool>(
+            provider, xenos::kEdramSizeBytes);
   }
   ID3D12Resource* upload_buffer;
-  uint32_t upload_buffer_offset;
+  size_t upload_buffer_offset;
   void* upload_buffer_mapping = edram_snapshot_restore_pool_->Request(
       command_processor_.GetCurrentSubmission(), xenos::kEdramSizeBytes, 1,
       &upload_buffer, &upload_buffer_offset, nullptr);
@@ -1518,7 +1517,7 @@ void RenderTargetCache::RestoreEdramSnapshot(const void* snapshot) {
   TransitionEdramBuffer(D3D12_RESOURCE_STATE_COPY_DEST);
   command_processor_.SubmitBarriers();
   command_list.D3DCopyBufferRegion(edram_buffer_, 0, upload_buffer,
-                                   upload_buffer_offset,
+                                   UINT64(upload_buffer_offset),
                                    xenos::kEdramSizeBytes);
   if (!edram_rov_used_) {
     // Clear and ignore the old 32-bit float depth - the non-ROV path is
