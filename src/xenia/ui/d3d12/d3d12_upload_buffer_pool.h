@@ -17,9 +17,6 @@ namespace xe {
 namespace ui {
 namespace d3d12 {
 
-// Submission index is the fence value or a value derived from it (if reclaiming
-// less often than once per fence value, for instance).
-
 class D3D12UploadBufferPool : public GraphicsUploadBufferPool {
  public:
   D3D12UploadBufferPool(D3D12Provider& provider,
