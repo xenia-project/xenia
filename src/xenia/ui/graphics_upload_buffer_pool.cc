@@ -13,7 +13,6 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
-#include "xenia/ui/graphics_upload_buffer_pool.h"
 
 namespace xe {
 namespace ui {
