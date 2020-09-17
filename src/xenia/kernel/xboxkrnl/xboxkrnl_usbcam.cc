@@ -17,11 +17,17 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-dword_result_t XUsbcamCreate(unknown_t unk1,  // E
-                             unknown_t unk2,  // 0x4B000
+dword_result_t XUsbcamCreate(dword_t buffer,
+                             dword_t buffer_size,  // 0x4B000 640x480?
                              lpunknown_t unk3_ptr) {
-  // 0 = success.
-  return X_ERROR_DEVICE_NOT_CONNECTED;
+  // This function should return success.
+  // It looks like it only allocates space for usbcam support.
+  // returning error code might cause games to initialize incorrectly.
+  // "Carcassonne" initalization function checks for result from this
+  // function. If value is different than 0 instead of loading
+  // rest of the game it returns from initalization function and tries
+  // to run game normally which causes crash, due to uninitialized data.
+  return X_STATUS_SUCCESS;
 }
 DECLARE_XBOXKRNL_EXPORT1(XUsbcamCreate, kNone, kStub);
 
