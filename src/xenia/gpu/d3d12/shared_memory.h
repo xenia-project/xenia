@@ -18,7 +18,7 @@
 #include "xenia/gpu/trace_writer.h"
 #include "xenia/memory.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
-#include "xenia/ui/d3d12/pools.h"
+#include "xenia/ui/d3d12/d3d12_upload_buffer_pool.h"
 
 namespace xe {
 namespace gpu {
@@ -212,7 +212,8 @@ class SharedMemory {
   std::vector<UploadRange> upload_ranges_;
   void GetRangesToUpload(uint32_t request_page_first,
                          uint32_t request_page_last);
-  std::unique_ptr<ui::d3d12::UploadBufferPool> upload_buffer_pool_ = nullptr;
+  std::unique_ptr<ui::d3d12::D3D12UploadBufferPool> upload_buffer_pool_ =
+      nullptr;
 
   // GPU-written memory downloading for traces.
   // Start page, length in pages.

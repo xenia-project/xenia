@@ -23,7 +23,7 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
-#include "xenia/ui/d3d12/pools.h"
+#include "xenia/ui/d3d12/d3d12_upload_buffer_pool.h"
 
 DECLARE_bool(d3d12_16bit_rtv_full_range);
 
@@ -602,8 +602,8 @@ class RenderTargetCache {
 
   // For traces only.
   ID3D12Resource* edram_snapshot_download_buffer_ = nullptr;
-  std::unique_ptr<ui::d3d12::UploadBufferPool> edram_snapshot_restore_pool_ =
-      nullptr;
+  std::unique_ptr<ui::d3d12::D3D12UploadBufferPool>
+      edram_snapshot_restore_pool_ = nullptr;
 };
 
 }  // namespace d3d12

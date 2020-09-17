@@ -56,9 +56,9 @@ bool PrimitiveConverter::Initialize() {
   // count), but they can be up to 4 bytes large, and conversion can add more
   // indices (almost triple the count for triangle strips or fans, for
   // instance).
-  buffer_pool_ = std::make_unique<ui::d3d12::UploadBufferPool>(
-      provider, std::max(uint32_t(65535 * 3 * sizeof(uint32_t)),
-                         ui::d3d12::UploadBufferPool::kDefaultPageSize));
+  buffer_pool_ = std::make_unique<ui::d3d12::D3D12UploadBufferPool>(
+      provider, std::max(sizeof(uint32_t) * 3 * 65535,
+                         ui::d3d12::D3D12UploadBufferPool::kDefaultPageSize));
 
   // Create the static index buffer for non-indexed drawing.
   D3D12_RESOURCE_DESC static_ib_desc;
