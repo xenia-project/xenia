@@ -10,6 +10,7 @@
 #ifndef XENIA_UI_GRAPHICS_UPLOAD_BUFFER_POOL_H_
 #define XENIA_UI_GRAPHICS_UPLOAD_BUFFER_POOL_H_
 
+#include <cstddef>
 #include <cstdint>
 
 namespace xe {
