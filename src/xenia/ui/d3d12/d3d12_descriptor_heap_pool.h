@@ -106,4 +106,4 @@ class D3D12DescriptorHeapPool {
 }  // namespace ui
 }  // namespace xe
 
-#endif  // XENIA_UI_D3D12_D3D12_UPLOAD_BUFFER_POOL_H_
+#endif  // XENIA_UI_D3D12_D3D12_DESCRIPTOR_HEAP_POOL_H_
