@@ -417,14 +417,6 @@ bool D3D12Provider::Initialize() {
     virtual_address_bits_per_resource_ =
         virtual_address_support.MaxGPUVirtualAddressBitsPerResource;
   }
-  // D3D12_HEAP_FLAG_CREATE_NOT_ZEROED requires Windows 10 2004 (indicated by
-  // the availability of ID3D12Device8 or D3D12_FEATURE_D3D12_OPTIONS7).
-  heap_flag_create_not_zeroed_ = D3D12_HEAP_FLAG_NONE;
-  D3D12_FEATURE_DATA_D3D12_OPTIONS7 options7;
-  if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7,
-                                            &options7, sizeof(options7)))) {
-    heap_flag_create_not_zeroed_ = D3D12_HEAP_FLAG_CREATE_NOT_ZEROED;
-  }
   XELOGD3D(
       "Direct3D 12 device and OS features:\n"
       "* Max GPU virtual address bits per resource: {}\n"
