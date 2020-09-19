@@ -59,8 +59,6 @@ class VulkanProvider : public GraphicsProvider {
   };
   const LibraryFunctions& lfn() const { return lfn_; }
 
-  uint32_t api_version() const { return api_version_; }
-
   VkInstance instance() const { return instance_; }
   struct InstanceFunctions {
     PFN_vkCreateDevice vkCreateDevice;
@@ -71,6 +69,7 @@ class VulkanProvider : public GraphicsProvider {
     PFN_vkEnumeratePhysicalDevices vkEnumeratePhysicalDevices;
     PFN_vkGetDeviceProcAddr vkGetDeviceProcAddr;
     PFN_vkGetPhysicalDeviceFeatures vkGetPhysicalDeviceFeatures;
+    PFN_vkGetPhysicalDeviceMemoryProperties vkGetPhysicalDeviceMemoryProperties;
     PFN_vkGetPhysicalDeviceProperties vkGetPhysicalDeviceProperties;
     PFN_vkGetPhysicalDeviceQueueFamilyProperties
         vkGetPhysicalDeviceQueueFamilyProperties;
@@ -99,9 +98,20 @@ class VulkanProvider : public GraphicsProvider {
   }
   struct DeviceExtensions {
     bool ext_fragment_shader_interlock;
+    // Core since 1.1.0.
+    bool khr_dedicated_allocation;
   };
   const DeviceExtensions& device_extensions() const {
     return device_extensions_;
+  }
+  uint32_t memory_types_device_local() const {
+    return memory_types_device_local_;
+  }
+  uint32_t memory_types_host_visible() const {
+    return memory_types_host_visible_;
+  }
+  uint32_t memory_types_host_coherent() const {
+    return memory_types_host_coherent_;
   }
   // FIXME(Triang3l): Allow a separate queue for present - see
   // vulkan_provider.cc for details.
@@ -113,26 +123,48 @@ class VulkanProvider : public GraphicsProvider {
   struct DeviceFunctions {
     PFN_vkAcquireNextImageKHR vkAcquireNextImageKHR;
     PFN_vkAllocateCommandBuffers vkAllocateCommandBuffers;
+    PFN_vkAllocateMemory vkAllocateMemory;
     PFN_vkBeginCommandBuffer vkBeginCommandBuffer;
+    PFN_vkBindBufferMemory vkBindBufferMemory;
     PFN_vkCmdBeginRenderPass vkCmdBeginRenderPass;
+    PFN_vkCmdBindIndexBuffer vkCmdBindIndexBuffer;
+    PFN_vkCmdBindPipeline vkCmdBindPipeline;
+    PFN_vkCmdBindVertexBuffers vkCmdBindVertexBuffers;
+    PFN_vkCmdDraw vkCmdDraw;
+    PFN_vkCmdDrawIndexed vkCmdDrawIndexed;
     PFN_vkCmdEndRenderPass vkCmdEndRenderPass;
+    PFN_vkCmdPushConstants vkCmdPushConstants;
+    PFN_vkCmdSetScissor vkCmdSetScissor;
+    PFN_vkCmdSetViewport vkCmdSetViewport;
+    PFN_vkCreateBuffer vkCreateBuffer;
     PFN_vkCreateCommandPool vkCreateCommandPool;
     PFN_vkCreateFence vkCreateFence;
     PFN_vkCreateFramebuffer vkCreateFramebuffer;
+    PFN_vkCreateGraphicsPipelines vkCreateGraphicsPipelines;
     PFN_vkCreateImageView vkCreateImageView;
+    PFN_vkCreatePipelineLayout vkCreatePipelineLayout;
     PFN_vkCreateRenderPass vkCreateRenderPass;
     PFN_vkCreateSemaphore vkCreateSemaphore;
+    PFN_vkCreateShaderModule vkCreateShaderModule;
     PFN_vkCreateSwapchainKHR vkCreateSwapchainKHR;
+    PFN_vkDestroyBuffer vkDestroyBuffer;
     PFN_vkDestroyCommandPool vkDestroyCommandPool;
     PFN_vkDestroyFence vkDestroyFence;
     PFN_vkDestroyFramebuffer vkDestroyFramebuffer;
     PFN_vkDestroyImageView vkDestroyImageView;
+    PFN_vkDestroyPipeline vkDestroyPipeline;
+    PFN_vkDestroyPipelineLayout vkDestroyPipelineLayout;
     PFN_vkDestroyRenderPass vkDestroyRenderPass;
     PFN_vkDestroySemaphore vkDestroySemaphore;
+    PFN_vkDestroyShaderModule vkDestroyShaderModule;
     PFN_vkDestroySwapchainKHR vkDestroySwapchainKHR;
     PFN_vkEndCommandBuffer vkEndCommandBuffer;
+    PFN_vkFlushMappedMemoryRanges vkFlushMappedMemoryRanges;
+    PFN_vkFreeMemory vkFreeMemory;
+    PFN_vkGetBufferMemoryRequirements vkGetBufferMemoryRequirements;
     PFN_vkGetDeviceQueue vkGetDeviceQueue;
     PFN_vkGetSwapchainImagesKHR vkGetSwapchainImagesKHR;
+    PFN_vkMapMemory vkMapMemory;
     PFN_vkResetCommandPool vkResetCommandPool;
     PFN_vkResetFences vkResetFences;
     PFN_vkQueuePresentKHR vkQueuePresentKHR;
@@ -158,8 +190,6 @@ class VulkanProvider : public GraphicsProvider {
 
   LibraryFunctions lfn_ = {};
 
-  uint32_t api_version_ = VK_API_VERSION_1_0;
-
   VkInstance instance_ = VK_NULL_HANDLE;
   InstanceFunctions ifn_ = {};
 
@@ -167,6 +197,9 @@ class VulkanProvider : public GraphicsProvider {
   VkPhysicalDeviceProperties device_properties_;
   VkPhysicalDeviceFeatures device_features_;
   DeviceExtensions device_extensions_;
+  uint32_t memory_types_device_local_;
+  uint32_t memory_types_host_visible_;
+  uint32_t memory_types_host_coherent_;
   uint32_t queue_family_graphics_compute_;
 
   VkDevice device_ = VK_NULL_HANDLE;

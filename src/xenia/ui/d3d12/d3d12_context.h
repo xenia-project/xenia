@@ -99,7 +99,7 @@ class D3D12Context : public GraphicsContext {
   //     kSwapCommandAllocatorCount.
   ID3D12GraphicsCommandList* swap_command_list_ = nullptr;
 
-  std::unique_ptr<D3D12ImmediateDrawer> immediate_drawer_ = nullptr;
+  std::unique_ptr<D3D12ImmediateDrawer> immediate_drawer_;
 };
 
 }  // namespace d3d12

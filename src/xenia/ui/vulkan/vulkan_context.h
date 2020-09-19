@@ -24,6 +24,8 @@ namespace vulkan {
 
 class VulkanContext : public GraphicsContext {
  public:
+  ~VulkanContext() override;
+
   ImmediateDrawer* immediate_drawer() override;
 
   bool WasLost() override;
@@ -43,6 +45,15 @@ class VulkanContext : public GraphicsContext {
     return swap_submissions_[swap_submission_current_ % kSwapchainMaxImageCount]
         .command_buffer;
   }
+  uint64_t swap_submission_current() const { return swap_submission_current_; }
+  uint64_t swap_submission_completed() const {
+    return swap_submission_completed_;
+  }
+
+  const VkSurfaceFormatKHR& swap_surface_format() const {
+    return swap_surface_format_;
+  }
+  VkRenderPass swap_render_pass() const { return swap_render_pass_; }
 
  private:
   friend class VulkanProvider;

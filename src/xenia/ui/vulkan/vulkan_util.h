@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -35,6 +35,22 @@ inline bool DestroyAndNullHandle(F* destroy_function, P parent, T& handle) {
     return true;
   }
   return false;
+}
+
+inline VkShaderModule CreateShaderModule(const VulkanProvider& provider,
+                                         const void* code, size_t code_size) {
+  VkShaderModuleCreateInfo shader_module_create_info;
+  shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+  shader_module_create_info.pNext = nullptr;
+  shader_module_create_info.flags = 0;
+  shader_module_create_info.codeSize = code_size;
+  shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(code);
+  VkShaderModule shader_module;
+  return provider.dfn().vkCreateShaderModule(
+             provider.device(), &shader_module_create_info, nullptr,
+             &shader_module) == VK_SUCCESS
+             ? shader_module
+             : nullptr;
 }
 
 }  // namespace util

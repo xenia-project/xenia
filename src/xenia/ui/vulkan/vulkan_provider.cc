@@ -131,12 +131,16 @@ bool VulkanProvider::Initialize() {
   const uint32_t api_version_target = VK_MAKE_VERSION(1, 2, 148);
   static_assert(VK_HEADER_VERSION_COMPLETE >= api_version_target,
                 "Vulkan header files must be up to date");
+  uint32_t instance_api_version;
   if (!lfn_.v_1_1.vkEnumerateInstanceVersion ||
-      lfn_.v_1_1.vkEnumerateInstanceVersion(&api_version_) != VK_SUCCESS) {
-    api_version_ = VK_API_VERSION_1_0;
+      lfn_.v_1_1.vkEnumerateInstanceVersion(&instance_api_version) !=
+          VK_SUCCESS) {
+    instance_api_version = VK_API_VERSION_1_0;
   }
-  XELOGVK("Vulkan instance version {}.{}.{}", VK_VERSION_MAJOR(api_version_),
-          VK_VERSION_MINOR(api_version_), VK_VERSION_PATCH(api_version_));
+  XELOGVK("Vulkan instance version {}.{}.{}",
+          VK_VERSION_MAJOR(instance_api_version),
+          VK_VERSION_MINOR(instance_api_version),
+          VK_VERSION_PATCH(instance_api_version));
 
   // Create the instance.
   std::vector<const char*> instance_extensions_enabled;
@@ -157,9 +161,9 @@ bool VulkanProvider::Initialize() {
   //  designed to use"
   // "Vulkan 1.0 implementations were required to return
   //  VK_ERROR_INCOMPATIBLE_DRIVER if apiVersion was larger than 1.0"
-  application_info.apiVersion = api_version_ >= VK_MAKE_VERSION(1, 1, 0)
+  application_info.apiVersion = instance_api_version >= VK_MAKE_VERSION(1, 1, 0)
                                     ? api_version_target
-                                    : api_version_;
+                                    : instance_api_version;
   VkInstanceCreateInfo instance_create_info;
   instance_create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
   instance_create_info.pNext = nullptr;
@@ -207,6 +211,7 @@ bool VulkanProvider::Initialize() {
   XE_VULKAN_LOAD_IFN(vkGetDeviceProcAddr);
   XE_VULKAN_LOAD_IFN(vkGetPhysicalDeviceFeatures);
   XE_VULKAN_LOAD_IFN(vkGetPhysicalDeviceProperties);
+  XE_VULKAN_LOAD_IFN(vkGetPhysicalDeviceMemoryProperties);
   XE_VULKAN_LOAD_IFN(vkGetPhysicalDeviceQueueFamilyProperties);
   XE_VULKAN_LOAD_IFN(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
   XE_VULKAN_LOAD_IFN(vkGetPhysicalDeviceSurfaceFormatsKHR);
@@ -344,6 +349,11 @@ bool VulkanProvider::Initialize() {
       continue;
     }
 
+    // Get device properties, will be needed to check if extensions have been
+    // promoted to core.
+    ifn_.vkGetPhysicalDeviceProperties(physical_device_current,
+                                       &device_properties_);
+
     // Get the extensions, check if swapchain is supported.
     device_extension_properties.clear();
     VkResult device_extensions_enumerate_result;
@@ -373,18 +383,53 @@ bool VulkanProvider::Initialize() {
       continue;
     }
     std::memset(&device_extensions_, 0, sizeof(device_extensions_));
+    if (device_properties_.apiVersion >= VK_MAKE_VERSION(1, 1, 0)) {
+      device_extensions_.khr_dedicated_allocation = true;
+    }
     bool device_supports_swapchain = false;
     for (const VkExtensionProperties& device_extension :
          device_extension_properties) {
       const char* device_extension_name = device_extension.extensionName;
-      if (!std::strcmp(device_extension_name,
+      if (!device_extensions_.ext_fragment_shader_interlock &&
+          !std::strcmp(device_extension_name,
                        "VK_EXT_fragment_shader_interlock")) {
         device_extensions_.ext_fragment_shader_interlock = true;
-      } else if (!std::strcmp(device_extension_name, "VK_KHR_swapchain")) {
+      } else if (!device_extensions_.khr_dedicated_allocation &&
+                 !std::strcmp(device_extension_name,
+                              "VK_KHR_dedicated_allocation")) {
+        device_extensions_.khr_dedicated_allocation = true;
+      } else if (!device_supports_swapchain &&
+                 !std::strcmp(device_extension_name, "VK_KHR_swapchain")) {
         device_supports_swapchain = true;
       }
     }
     if (!device_supports_swapchain) {
+      continue;
+    }
+
+    // Get the memory types.
+    VkPhysicalDeviceMemoryProperties memory_properties;
+    ifn_.vkGetPhysicalDeviceMemoryProperties(physical_device_current,
+                                             &memory_properties);
+    memory_types_device_local_ = 0;
+    memory_types_host_visible_ = 0;
+    memory_types_host_coherent_ = 0;
+    for (uint32_t j = 0; j < memory_properties.memoryTypeCount; ++j) {
+      VkMemoryPropertyFlags memory_property_flags =
+          memory_properties.memoryTypes[j].propertyFlags;
+      uint32_t memory_type_bit = uint32_t(1) << j;
+      if (memory_property_flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
+        memory_types_device_local_ |= memory_type_bit;
+      }
+      if (memory_property_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+        memory_types_host_visible_ |= memory_type_bit;
+      }
+      if (memory_property_flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) {
+        memory_types_host_coherent_ |= memory_type_bit;
+      }
+    }
+    if (!memory_types_device_local_ && !memory_types_host_visible_) {
+      // Shouldn't happen according to the specification.
       continue;
     }
 
@@ -397,7 +442,6 @@ bool VulkanProvider::Initialize() {
         "support");
     return false;
   }
-  ifn_.vkGetPhysicalDeviceProperties(physical_device_, &device_properties_);
   XELOGVK(
       "Vulkan device: {} (vendor {:04X}, device {:04X}, driver {:08X}, API "
       "{}.{}.{})",
@@ -406,7 +450,12 @@ bool VulkanProvider::Initialize() {
       VK_VERSION_MAJOR(device_properties_.apiVersion),
       VK_VERSION_MINOR(device_properties_.apiVersion),
       VK_VERSION_PATCH(device_properties_.apiVersion));
-  // TODO(Triang3l): Report properties, features, extensions.
+  XELOGVK("Vulkan device extensions:");
+  XELOGVK("* VK_EXT_fragment_shader_interlock: {}",
+          device_extensions_.ext_fragment_shader_interlock ? "yes" : "no");
+  XELOGVK("* VK_KHR_dedicated_allocation: {}",
+          device_extensions_.khr_dedicated_allocation ? "yes" : "no");
+  // TODO(Triang3l): Report properties, features.
 
   // Create the device.
   float queue_priority_high = 1.0f;
@@ -432,6 +481,11 @@ bool VulkanProvider::Initialize() {
   device_extensions_enabled.push_back("VK_KHR_swapchain");
   if (device_extensions_.ext_fragment_shader_interlock) {
     device_extensions_enabled.push_back("VK_EXT_fragment_shader_interlock");
+  }
+  if (device_properties_.apiVersion < VK_MAKE_VERSION(1, 1, 0)) {
+    if (device_extensions_.khr_dedicated_allocation) {
+      device_extensions_enabled.push_back("VK_KHR_dedicated_allocation");
+    }
   }
   VkDeviceCreateInfo device_create_info;
   device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -462,26 +516,48 @@ bool VulkanProvider::Initialize() {
       nullptr;
   XE_VULKAN_LOAD_DFN(vkAcquireNextImageKHR);
   XE_VULKAN_LOAD_DFN(vkAllocateCommandBuffers);
+  XE_VULKAN_LOAD_DFN(vkAllocateMemory);
   XE_VULKAN_LOAD_DFN(vkBeginCommandBuffer);
+  XE_VULKAN_LOAD_DFN(vkBindBufferMemory);
   XE_VULKAN_LOAD_DFN(vkCmdBeginRenderPass);
+  XE_VULKAN_LOAD_DFN(vkCmdBindIndexBuffer);
+  XE_VULKAN_LOAD_DFN(vkCmdBindPipeline);
+  XE_VULKAN_LOAD_DFN(vkCmdBindVertexBuffers);
+  XE_VULKAN_LOAD_DFN(vkCmdDraw);
+  XE_VULKAN_LOAD_DFN(vkCmdDrawIndexed);
   XE_VULKAN_LOAD_DFN(vkCmdEndRenderPass);
+  XE_VULKAN_LOAD_DFN(vkCmdPushConstants);
+  XE_VULKAN_LOAD_DFN(vkCmdSetScissor);
+  XE_VULKAN_LOAD_DFN(vkCmdSetViewport);
+  XE_VULKAN_LOAD_DFN(vkCreateBuffer);
   XE_VULKAN_LOAD_DFN(vkCreateCommandPool);
   XE_VULKAN_LOAD_DFN(vkCreateFence);
   XE_VULKAN_LOAD_DFN(vkCreateFramebuffer);
+  XE_VULKAN_LOAD_DFN(vkCreateGraphicsPipelines);
   XE_VULKAN_LOAD_DFN(vkCreateImageView);
+  XE_VULKAN_LOAD_DFN(vkCreatePipelineLayout);
   XE_VULKAN_LOAD_DFN(vkCreateRenderPass);
   XE_VULKAN_LOAD_DFN(vkCreateSemaphore);
+  XE_VULKAN_LOAD_DFN(vkCreateShaderModule);
   XE_VULKAN_LOAD_DFN(vkCreateSwapchainKHR);
+  XE_VULKAN_LOAD_DFN(vkDestroyBuffer);
   XE_VULKAN_LOAD_DFN(vkDestroyCommandPool);
   XE_VULKAN_LOAD_DFN(vkDestroyFence);
   XE_VULKAN_LOAD_DFN(vkDestroyFramebuffer);
   XE_VULKAN_LOAD_DFN(vkDestroyImageView);
+  XE_VULKAN_LOAD_DFN(vkDestroyPipeline);
+  XE_VULKAN_LOAD_DFN(vkDestroyPipelineLayout);
   XE_VULKAN_LOAD_DFN(vkDestroyRenderPass);
   XE_VULKAN_LOAD_DFN(vkDestroySemaphore);
+  XE_VULKAN_LOAD_DFN(vkDestroyShaderModule);
   XE_VULKAN_LOAD_DFN(vkDestroySwapchainKHR);
   XE_VULKAN_LOAD_DFN(vkEndCommandBuffer);
+  XE_VULKAN_LOAD_DFN(vkFlushMappedMemoryRanges);
+  XE_VULKAN_LOAD_DFN(vkFreeMemory);
+  XE_VULKAN_LOAD_DFN(vkGetBufferMemoryRequirements);
   XE_VULKAN_LOAD_DFN(vkGetDeviceQueue);
   XE_VULKAN_LOAD_DFN(vkGetSwapchainImagesKHR);
+  XE_VULKAN_LOAD_DFN(vkMapMemory);
   XE_VULKAN_LOAD_DFN(vkResetCommandPool);
   XE_VULKAN_LOAD_DFN(vkResetFences);
   XE_VULKAN_LOAD_DFN(vkQueuePresentKHR);

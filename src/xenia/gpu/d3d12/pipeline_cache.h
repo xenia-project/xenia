@@ -247,7 +247,7 @@ class PipelineCache {
   uint32_t resolution_scale_;
 
   // Reusable shader translator.
-  std::unique_ptr<DxbcShaderTranslator> shader_translator_ = nullptr;
+  std::unique_ptr<DxbcShaderTranslator> shader_translator_;
 
   // Command processor thread DXIL conversion/disassembly interfaces, if DXIL
   // disassembly is enabled.
@@ -344,7 +344,7 @@ class PipelineCache {
   // Manual-reset event set when the last queued pipeline state object is
   // created and there are no more pipeline state objects to create. This is
   // triggered by the thread creating the last pipeline state object.
-  std::unique_ptr<xe::threading::Event> creation_completion_event_ = nullptr;
+  std::unique_ptr<xe::threading::Event> creation_completion_event_;
   // Whether setting the event on completion is queued. Protected with
   // creation_request_lock_, notify_one creation_request_cond_ when set.
   bool creation_completion_set_event_ = false;
