@@ -53,7 +53,7 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-// Generated with `xb buildhlsl`.
+// Generated with `xb gendxbc`.
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_128bpb_2x_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_128bpb_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_16bpb_2x_cs.h"

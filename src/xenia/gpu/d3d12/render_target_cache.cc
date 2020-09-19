@@ -36,7 +36,7 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-// Generated with `xb buildhlsl`.
+// Generated with `xb gendxbc`.
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/edram_load_color_32bpp_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/edram_load_color_64bpp_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/edram_load_color_7e3_cs.h"

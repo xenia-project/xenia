@@ -689,7 +689,6 @@ class GenSpirvCommand(Command):
         vulkan_bin_path = os.path.join(vulkan_sdk_path, 'bin')
         glslang = os.path.join(vulkan_bin_path, 'glslangValidator')
         spirv_dis = os.path.join(vulkan_bin_path, 'spirv-dis')
-        spirv_remap = os.path.join(vulkan_bin_path, 'spirv-remap')
 
         # Ensure we have the tools.
         if not os.path.exists(vulkan_sdk_path):
@@ -700,9 +699,6 @@ class GenSpirvCommand(Command):
             return 1
         elif not has_bin(spirv_dis):
             print('ERROR: could not find spirv-dis')
-            return 1
-        elif not has_bin(spirv_remap):
-            print('ERROR: could not find spirv-remap')
             return 1
 
         src_files = [os.path.join(root, name)
@@ -717,7 +713,8 @@ class GenSpirvCommand(Command):
             src_name = os.path.splitext(os.path.basename(src_file))[0]
             identifier = os.path.basename(src_file).replace('.', '_')
 
-            bin_path = os.path.join(os.path.dirname(src_file), 'bin')
+            bin_path = os.path.join(os.path.dirname(src_file),
+                                    'bytecode/vulkan_spirv')
             spv_file = os.path.join(bin_path, identifier) + '.spv'
             txt_file = os.path.join(bin_path, identifier) + '.txt'
             h_file = os.path.join(bin_path, identifier) + '.h'

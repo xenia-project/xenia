@@ -14,3 +14,24 @@ project("xenia-ui-vulkan")
   files({
     "../shaders/bytecode/vulkan_spirv/*.h",
   })
+
+group("demos")
+project("xenia-ui-window-vulkan-demo")
+  uuid("97598f13-3177-454c-8e58-c59e2b6ede27")
+  kind("WindowedApp")
+  language("C++")
+  links({
+    "fmt",
+    "imgui",
+    "xenia-base",
+    "xenia-ui",
+    "xenia-ui-vulkan",
+  })
+  files({
+    "../window_demo.cc",
+    "vulkan_window_demo.cc",
+    project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
+  })
+  resincludedirs({
+    project_root,
+  })

@@ -35,6 +35,8 @@ namespace vulkan {
 VulkanContext::VulkanContext(VulkanProvider* provider, Window* target_window)
     : GraphicsContext(provider, target_window) {}
 
+VulkanContext::~VulkanContext() { Shutdown(); }
+
 bool VulkanContext::Initialize() {
   context_lost_ = false;
 
@@ -110,7 +112,10 @@ bool VulkanContext::Initialize() {
   }
 
   immediate_drawer_ = std::make_unique<VulkanImmediateDrawer>(*this);
-  // TODO(Triang3l): Initialize the immediate drawer.
+  if (!immediate_drawer_->Initialize()) {
+    Shutdown();
+    return false;
+  }
 
   swap_swapchain_or_surface_recreation_needed_ = true;
 
@@ -123,6 +128,8 @@ void VulkanContext::Shutdown() {
   }
 
   AwaitAllSwapSubmissionsCompletion();
+
+  immediate_drawer_.reset();
 
   const VulkanProvider& provider = GetVulkanProvider();
   const VulkanProvider::InstanceFunctions& ifn = provider.ifn();

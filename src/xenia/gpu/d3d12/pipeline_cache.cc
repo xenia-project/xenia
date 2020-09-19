@@ -56,7 +56,7 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-// Generated with `xb buildhlsl`.
+// Generated with `xb gendxbc`.
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/adaptive_quad_hs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/adaptive_triangle_hs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/continuous_quad_hs.h"

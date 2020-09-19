@@ -21,7 +21,7 @@ namespace xe {
 namespace ui {
 namespace d3d12 {
 
-// Generated with `xb buildhlsl`.
+// Generated with `xb gendxbc`.
 #include "xenia/ui/shaders/bytecode/d3d12_5_1/immediate_ps.h"
 #include "xenia/ui/shaders/bytecode/d3d12_5_1/immediate_vs.h"
 
@@ -158,7 +158,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   }
   {
     auto& root_parameter =
-        root_parameters[size_t(RootParameter::kViewportInvSize)];
+        root_parameters[size_t(RootParameter::kViewportSizeInv)];
     root_parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     root_parameter.Constants.ShaderRegister = 0;
     root_parameter.Constants.RegisterSpace = 0;
@@ -179,7 +179,7 @@ bool D3D12ImmediateDrawer::Initialize() {
     return false;
   }
 
-  // Create the pipelines.
+  // Create the pipeline states.
   D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc = {};
   pipeline_desc.pRootSignature = root_signature_;
   pipeline_desc.VS.pShaderBytecode = immediate_vs;
@@ -192,10 +192,13 @@ bool D3D12ImmediateDrawer::Initialize() {
   pipeline_blend_desc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
   pipeline_blend_desc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
   pipeline_blend_desc.BlendOp = D3D12_BLEND_OP_ADD;
-  pipeline_blend_desc.SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
-  pipeline_blend_desc.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+  // Don't change alpha (always 1).
+  pipeline_blend_desc.SrcBlendAlpha = D3D12_BLEND_ZERO;
+  pipeline_blend_desc.DestBlendAlpha = D3D12_BLEND_ONE;
   pipeline_blend_desc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
-  pipeline_blend_desc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+  pipeline_blend_desc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_RED |
+                                              D3D12_COLOR_WRITE_ENABLE_GREEN |
+                                              D3D12_COLOR_WRITE_ENABLE_BLUE;
   pipeline_desc.SampleMask = UINT_MAX;
   pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
   pipeline_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
@@ -295,6 +298,7 @@ bool D3D12ImmediateDrawer::Initialize() {
 
   // Reset the current state.
   current_command_list_ = nullptr;
+  batch_open_ = false;
 
   return true;
 }
@@ -415,6 +419,9 @@ void D3D12ImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
 
 void D3D12ImmediateDrawer::Begin(int render_target_width,
                                  int render_target_height) {
+  assert_null(current_command_list_);
+  assert_false(batch_open_);
+
   auto device = context_.GetD3D12Provider().GetDevice();
 
   // Use the compositing command list.
@@ -485,7 +492,7 @@ void D3D12ImmediateDrawer::Begin(int render_target_width,
   viewport_inv_size[0] = 1.0f / viewport.Width;
   viewport_inv_size[1] = 1.0f / viewport.Height;
   current_command_list_->SetGraphicsRoot32BitConstants(
-      UINT(RootParameter::kViewportInvSize), 2, viewport_inv_size, 0);
+      UINT(RootParameter::kViewportSizeInv), 2, viewport_inv_size, 0);
 
   current_primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
   current_texture_ = nullptr;
@@ -493,21 +500,18 @@ void D3D12ImmediateDrawer::Begin(int render_target_width,
 }
 
 void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
+  assert_false(batch_open_);
   assert_not_null(current_command_list_);
-  if (current_command_list_ == nullptr) {
-    return;
-  }
-  uint64_t current_fence_value = context_.GetSwapCurrentFenceValue();
 
-  batch_open_ = false;
+  uint64_t current_fence_value = context_.GetSwapCurrentFenceValue();
 
   // Bind the vertices.
   D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view;
   vertex_buffer_view.StrideInBytes = UINT(sizeof(ImmediateVertex));
   vertex_buffer_view.SizeInBytes =
-      batch.vertex_count * uint32_t(sizeof(ImmediateVertex));
+      UINT(sizeof(ImmediateVertex)) * batch.vertex_count;
   void* vertex_buffer_mapping = vertex_buffer_pool_->Request(
-      current_fence_value, vertex_buffer_view.SizeInBytes, sizeof(uint32_t),
+      current_fence_value, vertex_buffer_view.SizeInBytes, sizeof(float),
       nullptr, nullptr, &vertex_buffer_view.BufferLocation);
   if (vertex_buffer_mapping == nullptr) {
     XELOGE("Failed to get a buffer for {} vertices in the immediate drawer",
@@ -522,7 +526,7 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
   batch_has_index_buffer_ = batch.indices != nullptr;
   if (batch_has_index_buffer_) {
     D3D12_INDEX_BUFFER_VIEW index_buffer_view;
-    index_buffer_view.SizeInBytes = batch.index_count * sizeof(uint16_t);
+    index_buffer_view.SizeInBytes = UINT(sizeof(uint16_t)) * batch.index_count;
     index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
     void* index_buffer_mapping = vertex_buffer_pool_->Request(
         current_fence_value, index_buffer_view.SizeInBytes, sizeof(uint16_t),
@@ -541,11 +545,6 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
 }
 
 void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
-  assert_not_null(current_command_list_);
-  if (current_command_list_ == nullptr) {
-    return;
-  }
-
   if (!batch_open_) {
     // Could be an error while obtaining the vertex and index buffers.
     return;
@@ -678,7 +677,10 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
 
 void D3D12ImmediateDrawer::EndDrawBatch() { batch_open_ = false; }
 
-void D3D12ImmediateDrawer::End() { current_command_list_ = nullptr; }
+void D3D12ImmediateDrawer::End() {
+  assert_false(batch_open_);
+  current_command_list_ = nullptr;
+}
 
 }  // namespace d3d12
 }  // namespace ui
