@@ -23,7 +23,7 @@ const D3D12_HEAP_PROPERTIES kHeapPropertiesReadback = {
     D3D12_HEAP_TYPE_READBACK};
 
 ID3D12RootSignature* CreateRootSignature(
-    D3D12Provider& provider, const D3D12_ROOT_SIGNATURE_DESC& desc) {
+    const D3D12Provider& provider, const D3D12_ROOT_SIGNATURE_DESC& desc) {
   ID3DBlob* blob;
   ID3DBlob* error_blob = nullptr;
   if (FAILED(provider.SerializeRootSignature(
