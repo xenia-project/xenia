@@ -20,7 +20,7 @@ namespace d3d12 {
 // Align to D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT not to waste any space if
 // it's smaller (the size of the heap backing the buffer will be aligned to
 // D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT anyway).
-D3D12UploadBufferPool::D3D12UploadBufferPool(D3D12Provider& provider,
+D3D12UploadBufferPool::D3D12UploadBufferPool(const D3D12Provider& provider,
                                              size_t page_size)
     : GraphicsUploadBufferPool(xe::align(
           page_size, size_t(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT))),
