@@ -730,7 +730,7 @@ std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::CreateTexture(
   }
 
   if (data) {
-    UpdateTexture(texture.get(), data);
+    texture->Upload(data);
   }
   return std::unique_ptr<ImmediateTexture>(texture.release());
 }
@@ -749,11 +749,6 @@ std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::WrapTexture(
   }
 
   return texture;
-}
-
-void VulkanImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
-                                          const uint8_t* data) {
-  static_cast<VulkanImmediateTexture*>(texture)->Upload(data);
 }
 
 void VulkanImmediateDrawer::Begin(int render_target_width,

@@ -39,7 +39,6 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
                                                 VkSampler sampler,
                                                 uint32_t width,
                                                 uint32_t height);
-  void UpdateTexture(ImmediateTexture* texture, const uint8_t* data) override;
 
   void Begin(int render_target_width, int render_target_height) override;
   void BeginDrawBatch(const ImmediateDrawBatch& batch) override;
