@@ -17,7 +17,7 @@
 // Name                                 Type  Format         Dim      ID      HLSL Bind  Count
 // ------------------------------ ---------- ------- ----------- ------- -------------- ------
 // xe_sampler_linear_clamp           sampler      NA          NA      S0             s0      1 
-// xe_texture                        texture  float4          2d      T0             t0      1 
+// xe_texture                        texture  float3          2d      T0             t0      1 
 // xe_gamma_ramp                     texture  float3          1d      T1             t1      1 
 // XeStretchGammaRootConstants       cbuffer      NA          NA     CB0            cb0      1 
 //
@@ -45,13 +45,14 @@ dcl_resource_texture1d (float,float,float,float) T1[1:1], space=0
 dcl_input_ps linear v0.xy
 dcl_output o0.xyzw
 dcl_temps 2
-sample_l r0.xyzw, v0.xyxx, T0[0].xyzw, S0[0], l(0.000000)
-add r1.x, -CB0[0][0].x, l(1.000000)
-mul r1.y, CB0[0][0].x, l(0.500000)
-mad r0.xyz, r0.xyzx, r1.xxxx, r1.yyyy
+sample_l r0.xyz, v0.xyxx, T0[0].xyzw, S0[0], l(0.000000)
+add r0.w, -CB0[0][0].x, l(1.000000)
+mul r1.x, CB0[0][0].x, l(0.500000)
+mad r0.xyz, r0.xyzx, r0.wwww, r1.xxxx
 sample_l r0.x, r0.x, T1[1].xyzw, S0[0], l(0.000000)
 sample_l r0.y, r0.y, T1[1].xyzw, S0[0], l(0.000000)
 sample_l r0.z, r0.z, T1[1].xyzw, S0[0], l(0.000000)
-mov o0.xyzw, r0.xyzw
+mov o0.xyz, r0.xyzx
+mov o0.w, l(1.000000)
 ret 
-// Approximately 9 instruction slots used
+// Approximately 10 instruction slots used

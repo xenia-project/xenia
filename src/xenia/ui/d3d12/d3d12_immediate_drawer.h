@@ -95,6 +95,7 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
   int current_render_target_width_, current_render_target_height_;
   bool batch_open_ = false;
   bool batch_has_index_buffer_;
+  D3D12_RECT current_scissor_;
   D3D_PRIMITIVE_TOPOLOGY current_primitive_topology_;
   ImmediateTexture* current_texture_;
   SamplerIndex current_sampler_index_;

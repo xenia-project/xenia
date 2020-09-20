@@ -14,10 +14,10 @@ struct XeVertexShaderOutput {
 
 XeVertexShaderOutput main(XeVertexShaderInput input) {
   XeVertexShaderOutput output;
-  output.texcoord = input.texcoord;
-  output.color = input.color;
   output.position = float4(
       input.position * xe_viewport_size_inv * float2(2.0, -2.0) +
       float2(-1.0, 1.0), 0.0, 1.0);
+  output.texcoord = input.texcoord;
+  output.color = input.color;
   return output;
 }

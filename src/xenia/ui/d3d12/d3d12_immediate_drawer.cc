@@ -486,6 +486,10 @@ void D3D12ImmediateDrawer::Begin(int render_target_width,
   viewport.MinDepth = 0.0f;
   viewport.MaxDepth = 1.0f;
   current_command_list_->RSSetViewports(1, &viewport);
+  current_scissor_.left = 0;
+  current_scissor_.top = 0;
+  current_scissor_.right = 0;
+  current_scissor_.bottom = 0;
 
   current_command_list_->SetGraphicsRootSignature(root_signature_);
   float viewport_inv_size[2];
@@ -553,6 +557,32 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
   auto& provider = context_.GetD3D12Provider();
   auto device = provider.GetDevice();
 
+  // Set the scissor rectangle if enabled.
+  D3D12_RECT scissor;
+  if (draw.scissor) {
+    scissor.left = draw.scissor_rect[0];
+    scissor.top = current_render_target_height_ -
+                  (draw.scissor_rect[1] + draw.scissor_rect[3]);
+    scissor.right = scissor.left + draw.scissor_rect[2];
+    scissor.bottom = scissor.top + draw.scissor_rect[3];
+  } else {
+    scissor.left = 0;
+    scissor.top = 0;
+    scissor.right = current_render_target_width_;
+    scissor.bottom = current_render_target_height_;
+  }
+  if (scissor.right <= scissor.left || scissor.bottom <= scissor.top) {
+    // Nothing is visible (used as the default current_scissor_ value also).
+    return;
+  }
+  if (current_scissor_.left != scissor.left ||
+      current_scissor_.top != scissor.top ||
+      current_scissor_.right != scissor.right ||
+      current_scissor_.bottom != scissor.bottom) {
+    current_scissor_ = scissor;
+    current_command_list_->RSSetScissorRects(1, &scissor);
+  }
+
   // Bind the texture.
   auto texture = reinterpret_cast<D3D12ImmediateTexture*>(draw.texture_handle);
   ID3D12Resource* texture_resource;
@@ -579,6 +609,7 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
     current_command_list_->SetDescriptorHeaps(2, descriptor_heaps);
   }
   if (bind_texture) {
+    current_texture_ = texture;
     D3D12_SHADER_RESOURCE_VIEW_DESC texture_view_desc;
     texture_view_desc.Format = D3D12ImmediateTexture::kFormat;
     texture_view_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -598,7 +629,6 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
         provider.OffsetViewDescriptor(
             texture_descriptor_pool_->GetLastRequestHeapGPUStart(),
             texture_descriptor_index));
-    current_texture_ = texture;
   }
 
   // Bind the sampler.
@@ -615,11 +645,11 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
     sampler_index = SamplerIndex::kNearestClamp;
   }
   if (current_sampler_index_ != sampler_index) {
+    current_sampler_index_ = sampler_index;
     current_command_list_->SetGraphicsRootDescriptorTable(
         UINT(RootParameter::kSampler),
         provider.OffsetSamplerDescriptor(sampler_heap_gpu_start_,
                                          uint32_t(sampler_index)));
-    current_sampler_index_ = sampler_index;
   }
 
   // Set whether texture coordinates need to be restricted.
@@ -645,26 +675,10 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
       return;
   }
   if (current_primitive_topology_ != primitive_topology) {
+    current_primitive_topology_ = primitive_topology;
     current_command_list_->IASetPrimitiveTopology(primitive_topology);
     current_command_list_->SetPipelineState(pipeline);
-    current_primitive_topology_ = primitive_topology;
   }
-
-  // Set the scissor rectangle if enabled.
-  D3D12_RECT scissor;
-  if (draw.scissor) {
-    scissor.left = draw.scissor_rect[0];
-    scissor.top = current_render_target_height_ -
-                  (draw.scissor_rect[1] + draw.scissor_rect[3]);
-    scissor.right = scissor.left + draw.scissor_rect[2];
-    scissor.bottom = scissor.top + draw.scissor_rect[3];
-  } else {
-    scissor.left = 0;
-    scissor.top = 0;
-    scissor.right = current_render_target_width_;
-    scissor.bottom = current_render_target_height_;
-  }
-  current_command_list_->RSSetScissorRects(1, &scissor);
 
   // Draw.
   if (batch_has_index_buffer_) {
