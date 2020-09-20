@@ -142,6 +142,7 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
   stretch_pipeline_desc.VS.BytecodeLength = sizeof(fullscreen_vs);
   stretch_pipeline_desc.PS.pShaderBytecode = stretch_ps;
   stretch_pipeline_desc.PS.BytecodeLength = sizeof(stretch_ps);
+  // The shader will set alpha to 1, don't use output-merger to preserve it.
   stretch_pipeline_desc.BlendState.RenderTarget[0].RenderTargetWriteMask =
       D3D12_COLOR_WRITE_ENABLE_ALL;
   stretch_pipeline_desc.SampleMask = UINT_MAX;

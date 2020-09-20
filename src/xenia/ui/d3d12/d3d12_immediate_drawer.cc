@@ -158,7 +158,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   }
   {
     auto& root_parameter =
-        root_parameters[size_t(RootParameter::kViewportInvSize)];
+        root_parameters[size_t(RootParameter::kViewportSizeInv)];
     root_parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     root_parameter.Constants.ShaderRegister = 0;
     root_parameter.Constants.RegisterSpace = 0;
@@ -179,7 +179,7 @@ bool D3D12ImmediateDrawer::Initialize() {
     return false;
   }
 
-  // Create the pipelines.
+  // Create the pipeline states.
   D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc = {};
   pipeline_desc.pRootSignature = root_signature_;
   pipeline_desc.VS.pShaderBytecode = immediate_vs;
@@ -192,10 +192,13 @@ bool D3D12ImmediateDrawer::Initialize() {
   pipeline_blend_desc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
   pipeline_blend_desc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
   pipeline_blend_desc.BlendOp = D3D12_BLEND_OP_ADD;
-  pipeline_blend_desc.SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
-  pipeline_blend_desc.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+  // Don't change alpha (always 1).
+  pipeline_blend_desc.SrcBlendAlpha = D3D12_BLEND_ZERO;
+  pipeline_blend_desc.DestBlendAlpha = D3D12_BLEND_ONE;
   pipeline_blend_desc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
-  pipeline_blend_desc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+  pipeline_blend_desc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_RED |
+                                              D3D12_COLOR_WRITE_ENABLE_GREEN |
+                                              D3D12_COLOR_WRITE_ENABLE_BLUE;
   pipeline_desc.SampleMask = UINT_MAX;
   pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
   pipeline_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
@@ -295,6 +298,7 @@ bool D3D12ImmediateDrawer::Initialize() {
 
   // Reset the current state.
   current_command_list_ = nullptr;
+  batch_open_ = false;
 
   return true;
 }
@@ -415,6 +419,9 @@ void D3D12ImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
 
 void D3D12ImmediateDrawer::Begin(int render_target_width,
                                  int render_target_height) {
+  assert_null(current_command_list_);
+  assert_false(batch_open_);
+
   auto device = context_.GetD3D12Provider().GetDevice();
 
   // Use the compositing command list.
@@ -479,13 +486,17 @@ void D3D12ImmediateDrawer::Begin(int render_target_width,
   viewport.MinDepth = 0.0f;
   viewport.MaxDepth = 1.0f;
   current_command_list_->RSSetViewports(1, &viewport);
+  current_scissor_.left = 0;
+  current_scissor_.top = 0;
+  current_scissor_.right = 0;
+  current_scissor_.bottom = 0;
 
   current_command_list_->SetGraphicsRootSignature(root_signature_);
   float viewport_inv_size[2];
   viewport_inv_size[0] = 1.0f / viewport.Width;
   viewport_inv_size[1] = 1.0f / viewport.Height;
   current_command_list_->SetGraphicsRoot32BitConstants(
-      UINT(RootParameter::kViewportInvSize), 2, viewport_inv_size, 0);
+      UINT(RootParameter::kViewportSizeInv), 2, viewport_inv_size, 0);
 
   current_primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
   current_texture_ = nullptr;
@@ -493,21 +504,18 @@ void D3D12ImmediateDrawer::Begin(int render_target_width,
 }
 
 void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
+  assert_false(batch_open_);
   assert_not_null(current_command_list_);
-  if (current_command_list_ == nullptr) {
-    return;
-  }
-  uint64_t current_fence_value = context_.GetSwapCurrentFenceValue();
 
-  batch_open_ = false;
+  uint64_t current_fence_value = context_.GetSwapCurrentFenceValue();
 
   // Bind the vertices.
   D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view;
   vertex_buffer_view.StrideInBytes = UINT(sizeof(ImmediateVertex));
   vertex_buffer_view.SizeInBytes =
-      batch.vertex_count * uint32_t(sizeof(ImmediateVertex));
+      UINT(sizeof(ImmediateVertex)) * batch.vertex_count;
   void* vertex_buffer_mapping = vertex_buffer_pool_->Request(
-      current_fence_value, vertex_buffer_view.SizeInBytes, sizeof(uint32_t),
+      current_fence_value, vertex_buffer_view.SizeInBytes, sizeof(float),
       nullptr, nullptr, &vertex_buffer_view.BufferLocation);
   if (vertex_buffer_mapping == nullptr) {
     XELOGE("Failed to get a buffer for {} vertices in the immediate drawer",
@@ -522,7 +530,7 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
   batch_has_index_buffer_ = batch.indices != nullptr;
   if (batch_has_index_buffer_) {
     D3D12_INDEX_BUFFER_VIEW index_buffer_view;
-    index_buffer_view.SizeInBytes = batch.index_count * sizeof(uint16_t);
+    index_buffer_view.SizeInBytes = UINT(sizeof(uint16_t)) * batch.index_count;
     index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
     void* index_buffer_mapping = vertex_buffer_pool_->Request(
         current_fence_value, index_buffer_view.SizeInBytes, sizeof(uint16_t),
@@ -541,11 +549,6 @@ void D3D12ImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
 }
 
 void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
-  assert_not_null(current_command_list_);
-  if (current_command_list_ == nullptr) {
-    return;
-  }
-
   if (!batch_open_) {
     // Could be an error while obtaining the vertex and index buffers.
     return;
@@ -553,6 +556,32 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
 
   auto& provider = context_.GetD3D12Provider();
   auto device = provider.GetDevice();
+
+  // Set the scissor rectangle if enabled.
+  D3D12_RECT scissor;
+  if (draw.scissor) {
+    scissor.left = draw.scissor_rect[0];
+    scissor.top = current_render_target_height_ -
+                  (draw.scissor_rect[1] + draw.scissor_rect[3]);
+    scissor.right = scissor.left + draw.scissor_rect[2];
+    scissor.bottom = scissor.top + draw.scissor_rect[3];
+  } else {
+    scissor.left = 0;
+    scissor.top = 0;
+    scissor.right = current_render_target_width_;
+    scissor.bottom = current_render_target_height_;
+  }
+  if (scissor.right <= scissor.left || scissor.bottom <= scissor.top) {
+    // Nothing is visible (used as the default current_scissor_ value also).
+    return;
+  }
+  if (current_scissor_.left != scissor.left ||
+      current_scissor_.top != scissor.top ||
+      current_scissor_.right != scissor.right ||
+      current_scissor_.bottom != scissor.bottom) {
+    current_scissor_ = scissor;
+    current_command_list_->RSSetScissorRects(1, &scissor);
+  }
 
   // Bind the texture.
   auto texture = reinterpret_cast<D3D12ImmediateTexture*>(draw.texture_handle);
@@ -580,6 +609,7 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
     current_command_list_->SetDescriptorHeaps(2, descriptor_heaps);
   }
   if (bind_texture) {
+    current_texture_ = texture;
     D3D12_SHADER_RESOURCE_VIEW_DESC texture_view_desc;
     texture_view_desc.Format = D3D12ImmediateTexture::kFormat;
     texture_view_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -599,7 +629,6 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
         provider.OffsetViewDescriptor(
             texture_descriptor_pool_->GetLastRequestHeapGPUStart(),
             texture_descriptor_index));
-    current_texture_ = texture;
   }
 
   // Bind the sampler.
@@ -616,11 +645,11 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
     sampler_index = SamplerIndex::kNearestClamp;
   }
   if (current_sampler_index_ != sampler_index) {
+    current_sampler_index_ = sampler_index;
     current_command_list_->SetGraphicsRootDescriptorTable(
         UINT(RootParameter::kSampler),
         provider.OffsetSamplerDescriptor(sampler_heap_gpu_start_,
                                          uint32_t(sampler_index)));
-    current_sampler_index_ = sampler_index;
   }
 
   // Set whether texture coordinates need to be restricted.
@@ -646,26 +675,10 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
       return;
   }
   if (current_primitive_topology_ != primitive_topology) {
+    current_primitive_topology_ = primitive_topology;
     current_command_list_->IASetPrimitiveTopology(primitive_topology);
     current_command_list_->SetPipelineState(pipeline);
-    current_primitive_topology_ = primitive_topology;
   }
-
-  // Set the scissor rectangle if enabled.
-  D3D12_RECT scissor;
-  if (draw.scissor) {
-    scissor.left = draw.scissor_rect[0];
-    scissor.top = current_render_target_height_ -
-                  (draw.scissor_rect[1] + draw.scissor_rect[3]);
-    scissor.right = scissor.left + draw.scissor_rect[2];
-    scissor.bottom = scissor.top + draw.scissor_rect[3];
-  } else {
-    scissor.left = 0;
-    scissor.top = 0;
-    scissor.right = current_render_target_width_;
-    scissor.bottom = current_render_target_height_;
-  }
-  current_command_list_->RSSetScissorRects(1, &scissor);
 
   // Draw.
   if (batch_has_index_buffer_) {
@@ -678,7 +691,10 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
 
 void D3D12ImmediateDrawer::EndDrawBatch() { batch_open_ = false; }
 
-void D3D12ImmediateDrawer::End() { current_command_list_ = nullptr; }
+void D3D12ImmediateDrawer::End() {
+  assert_false(batch_open_);
+  current_command_list_ = nullptr;
+}
 
 }  // namespace d3d12
 }  // namespace ui

@@ -603,7 +603,7 @@ class RenderTargetCache {
   // For traces only.
   ID3D12Resource* edram_snapshot_download_buffer_ = nullptr;
   std::unique_ptr<ui::d3d12::D3D12UploadBufferPool>
-      edram_snapshot_restore_pool_ = nullptr;
+      edram_snapshot_restore_pool_;
 };
 
 }  // namespace d3d12
