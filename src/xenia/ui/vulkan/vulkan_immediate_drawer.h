@@ -63,6 +63,7 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
 
   VkCommandBuffer current_command_buffer_ = VK_NULL_HANDLE;
   VkExtent2D current_render_target_extent_;
+  VkRect2D current_scissor_;
   VkPipeline current_pipeline_;
   bool batch_open_ = false;
   bool batch_has_index_buffer_;

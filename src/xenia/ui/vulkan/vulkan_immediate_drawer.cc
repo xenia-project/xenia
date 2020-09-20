@@ -9,6 +9,7 @@
 
 #include "xenia/ui/vulkan/vulkan_immediate_drawer.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "xenia/base/assert.h"
@@ -131,6 +132,10 @@ void VulkanImmediateDrawer::Begin(int render_target_width,
                          VK_SHADER_STAGE_VERTEX_BIT,
                          offsetof(PushConstants, vertex),
                          sizeof(PushConstants::Vertex), &push_constants_vertex);
+  current_scissor_.offset.x = 0;
+  current_scissor_.offset.y = 0;
+  current_scissor_.extent.width = 0;
+  current_scissor_.extent.height = 0;
 
   current_pipeline_ = VK_NULL_HANDLE;
 }
@@ -194,6 +199,31 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
   const VulkanProvider::DeviceFunctions& dfn =
       context_.GetVulkanProvider().dfn();
 
+  // Set the scissor rectangle if enabled.
+  VkRect2D scissor;
+  if (draw.scissor) {
+    scissor.offset.x = draw.scissor_rect[0];
+    scissor.offset.y = current_render_target_extent_.height -
+                       (draw.scissor_rect[1] + draw.scissor_rect[3]);
+    scissor.extent.width = std::max(draw.scissor_rect[2], 0);
+    scissor.extent.height = std::max(draw.scissor_rect[3], 0);
+  } else {
+    scissor.offset.x = 0;
+    scissor.offset.y = 0;
+    scissor.extent = current_render_target_extent_;
+  }
+  if (!scissor.extent.width || !scissor.extent.height) {
+    // Nothing is visible (used as the default current_scissor_ value also).
+    return;
+  }
+  if (current_scissor_.offset.x != scissor.offset.x ||
+      current_scissor_.offset.y != scissor.offset.y ||
+      current_scissor_.extent.width != scissor.extent.width ||
+      current_scissor_.extent.height != scissor.extent.height) {
+    current_scissor_ = scissor;
+    dfn.vkCmdSetScissor(current_command_buffer_, 0, 1, &scissor);
+  }
+
   // Bind the pipeline for the current primitive count.
   VkPipeline pipeline;
   switch (draw.primitive_type) {
@@ -212,21 +242,6 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
     dfn.vkCmdBindPipeline(current_command_buffer_,
                           VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
   }
-
-  // Set the scissor rectangle if enabled.
-  VkRect2D scissor;
-  if (draw.scissor) {
-    scissor.offset.x = draw.scissor_rect[0];
-    scissor.offset.y = current_render_target_extent_.height -
-                       (draw.scissor_rect[1] + draw.scissor_rect[3]);
-    scissor.extent.width = draw.scissor_rect[2];
-    scissor.extent.height = draw.scissor_rect[3];
-  } else {
-    scissor.offset.x = 0;
-    scissor.offset.y = 0;
-    scissor.extent = current_render_target_extent_;
-  }
-  dfn.vkCmdSetScissor(current_command_buffer_, 0, 1, &scissor);
 
   // Draw.
   if (batch_has_index_buffer_) {
