@@ -34,7 +34,6 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
                                                   ImmediateTextureFilter filter,
                                                   bool repeat,
                                                   const uint8_t* data) override;
-  void UpdateTexture(ImmediateTexture* texture, const uint8_t* data) override;
 
   void Begin(int render_target_width, int render_target_height) override;
   void BeginDrawBatch(const ImmediateDrawBatch& batch) override;

@@ -95,9 +95,6 @@ std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::CreateTexture(
   return std::unique_ptr<ImmediateTexture>(texture.release());
 }
 
-void VulkanImmediateDrawer::UpdateTexture(ImmediateTexture* texture,
-                                          const uint8_t* data) {}
-
 void VulkanImmediateDrawer::Begin(int render_target_width,
                                   int render_target_height) {
   assert_true(current_command_buffer_ == VK_NULL_HANDLE);

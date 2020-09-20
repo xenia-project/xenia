@@ -96,14 +96,10 @@ class ImmediateDrawer {
  public:
   virtual ~ImmediateDrawer() = default;
 
-  // Creates a new texture with the given attributes and optionally updates
-  // initial data.
+  // Creates a new texture with the given attributes and R8G8B8A8 data.
   virtual std::unique_ptr<ImmediateTexture> CreateTexture(
       uint32_t width, uint32_t height, ImmediateTextureFilter filter,
-      bool repeat, const uint8_t* data = nullptr) = 0;
-  // Uploads data to the given texture, replacing the current contents.
-  virtual void UpdateTexture(ImmediateTexture* texture,
-                             const uint8_t* data) = 0;
+      bool repeat, const uint8_t* data) = 0;
 
   // Begins drawing in immediate mode using the given projection matrix.
   virtual void Begin(int render_target_width, int render_target_height) = 0;

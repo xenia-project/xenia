@@ -38,7 +38,6 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
                                                   ImmediateTextureFilter filter,
                                                   bool repeat,
                                                   const uint8_t* data) override;
-  void UpdateTexture(ImmediateTexture* texture, const uint8_t* data) override;
 
   void Begin(int render_target_width, int render_target_height) override;
   void BeginDrawBatch(const ImmediateDrawBatch& batch) override;
@@ -47,6 +46,8 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
   void End() override;
 
  private:
+  void UploadTextures();
+
   D3D12Context& context_;
 
   ID3D12RootSignature* root_signature_ = nullptr;
@@ -59,8 +60,8 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
     kCount
   };
 
-  ID3D12PipelineState* pipeline_triangle_ = nullptr;
-  ID3D12PipelineState* pipeline_line_ = nullptr;
+  ID3D12PipelineState* pipeline_state_triangle_ = nullptr;
+  ID3D12PipelineState* pipeline_state_line_ = nullptr;
 
   enum class SamplerIndex {
     kNearestClamp,
@@ -77,15 +78,15 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
 
   std::unique_ptr<D3D12UploadBufferPool> vertex_buffer_pool_;
   std::unique_ptr<D3D12DescriptorHeapPool> texture_descriptor_pool_;
-  uint64_t texture_descriptor_pool_heap_index_;
 
   struct PendingTextureUpload {
-    ImmediateTexture* texture;
+    ID3D12Resource* texture;
     ID3D12Resource* buffer;
   };
   std::vector<PendingTextureUpload> texture_uploads_pending_;
 
   struct SubmittedTextureUpload {
+    ID3D12Resource* texture;
     ID3D12Resource* buffer;
     uint64_t fence_value;
   };
@@ -97,7 +98,8 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
   bool batch_has_index_buffer_;
   D3D12_RECT current_scissor_;
   D3D_PRIMITIVE_TOPOLOGY current_primitive_topology_;
-  ImmediateTexture* current_texture_;
+  ID3D12Resource* current_texture_;
+  uint64_t current_texture_descriptor_heap_index_;
   SamplerIndex current_sampler_index_;
 };
 
