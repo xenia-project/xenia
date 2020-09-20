@@ -54,7 +54,7 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
     kRestrictTextureSamples,
     kTexture,
     kSampler,
-    kViewportInvSize,
+    kViewportSizeInv,
 
     kCount
   };
@@ -75,8 +75,8 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_heap_cpu_start_;
   D3D12_GPU_DESCRIPTOR_HANDLE sampler_heap_gpu_start_;
 
-  std::unique_ptr<D3D12UploadBufferPool> vertex_buffer_pool_ = nullptr;
-  std::unique_ptr<D3D12DescriptorHeapPool> texture_descriptor_pool_ = nullptr;
+  std::unique_ptr<D3D12UploadBufferPool> vertex_buffer_pool_;
+  std::unique_ptr<D3D12DescriptorHeapPool> texture_descriptor_pool_;
   uint64_t texture_descriptor_pool_heap_index_;
 
   struct PendingTextureUpload {
@@ -95,6 +95,7 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
   int current_render_target_width_, current_render_target_height_;
   bool batch_open_ = false;
   bool batch_has_index_buffer_;
+  D3D12_RECT current_scissor_;
   D3D_PRIMITIVE_TOPOLOGY current_primitive_topology_;
   ImmediateTexture* current_texture_;
   SamplerIndex current_sampler_index_;

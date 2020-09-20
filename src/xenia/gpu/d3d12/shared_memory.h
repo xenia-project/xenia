@@ -212,8 +212,7 @@ class SharedMemory {
   std::vector<UploadRange> upload_ranges_;
   void GetRangesToUpload(uint32_t request_page_first,
                          uint32_t request_page_last);
-  std::unique_ptr<ui::d3d12::D3D12UploadBufferPool> upload_buffer_pool_ =
-      nullptr;
+  std::unique_ptr<ui::d3d12::D3D12UploadBufferPool> upload_buffer_pool_;
 
   // GPU-written memory downloading for traces.
   // Start page, length in pages.

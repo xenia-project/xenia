@@ -1,4 +1,4 @@
-float2 xe_viewport_inv_size : register(b0);
+float2 xe_viewport_size_inv : register(b0);
 
 struct XeVertexShaderInput {
   float2 position : POSITION;
@@ -15,7 +15,7 @@ struct XeVertexShaderOutput {
 XeVertexShaderOutput main(XeVertexShaderInput input) {
   XeVertexShaderOutput output;
   output.position = float4(
-      input.position * xe_viewport_inv_size * float2(2.0, -2.0) +
+      input.position * xe_viewport_size_inv * float2(2.0, -2.0) +
       float2(-1.0, 1.0), 0.0, 1.0);
   output.texcoord = input.texcoord;
   output.color = input.color;

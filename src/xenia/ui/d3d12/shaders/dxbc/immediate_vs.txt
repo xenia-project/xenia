@@ -7,7 +7,7 @@
 // cbuffer $Globals
 // {
 //
-//   float2 xe_viewport_inv_size;       // Offset:    0 Size:     8
+//   float2 xe_viewport_size_inv;       // Offset:    0 Size:     8
 //
 // }
 //
