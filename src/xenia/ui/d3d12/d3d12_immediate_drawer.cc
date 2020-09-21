@@ -28,27 +28,9 @@ namespace d3d12 {
 #include "xenia/ui/d3d12/shaders/dxbc/immediate_ps.h"
 #include "xenia/ui/d3d12/shaders/dxbc/immediate_vs.h"
 
-class D3D12ImmediateTexture : public ImmediateTexture {
- public:
-  static constexpr DXGI_FORMAT kFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-  D3D12ImmediateTexture(uint32_t width, uint32_t height,
-                        ID3D12Resource* resource_if_exists,
-                        ImmediateTextureFilter filter, bool is_repeated);
-  ~D3D12ImmediateTexture() override;
-  ID3D12Resource* resource() const { return resource_; }
-  ImmediateTextureFilter filter() const { return filter_; }
-  bool is_repeated() const { return is_repeated_; }
-
- private:
-  ID3D12Resource* resource_;
-  ImmediateTextureFilter filter_;
-  bool is_repeated_;
-};
-
-D3D12ImmediateTexture::D3D12ImmediateTexture(uint32_t width, uint32_t height,
-                                             ID3D12Resource* resource_if_exists,
-                                             ImmediateTextureFilter filter,
-                                             bool is_repeated)
+D3D12ImmediateDrawer::D3D12ImmediateTexture::D3D12ImmediateTexture(
+    uint32_t width, uint32_t height, ID3D12Resource* resource_if_exists,
+    ImmediateTextureFilter filter, bool is_repeated)
     : ImmediateTexture(width, height),
       resource_(resource_if_exists),
       filter_(filter),
@@ -59,7 +41,7 @@ D3D12ImmediateTexture::D3D12ImmediateTexture(uint32_t width, uint32_t height,
   handle = reinterpret_cast<uintptr_t>(this);
 }
 
-D3D12ImmediateTexture::~D3D12ImmediateTexture() {
+D3D12ImmediateDrawer::D3D12ImmediateTexture::~D3D12ImmediateTexture() {
   if (resource_) {
     resource_->Release();
   }
