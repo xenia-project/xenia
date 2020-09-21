@@ -46,6 +46,23 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
   void End() override;
 
  private:
+  class D3D12ImmediateTexture : public ImmediateTexture {
+   public:
+    static constexpr DXGI_FORMAT kFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    D3D12ImmediateTexture(uint32_t width, uint32_t height,
+                          ID3D12Resource* resource_if_exists,
+                          ImmediateTextureFilter filter, bool is_repeated);
+    ~D3D12ImmediateTexture() override;
+    ID3D12Resource* resource() const { return resource_; }
+    ImmediateTextureFilter filter() const { return filter_; }
+    bool is_repeated() const { return is_repeated_; }
+
+   private:
+    ID3D12Resource* resource_;
+    ImmediateTextureFilter filter_;
+    bool is_repeated_;
+  };
+
   void UploadTextures();
 
   D3D12Context& context_;
