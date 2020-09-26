@@ -198,20 +198,12 @@ bool D3D12ImmediateDrawer::Initialize() {
   sampler_heap_gpu_start_ = sampler_heap_->GetGPUDescriptorHandleForHeapStart();
   uint32_t sampler_size = provider.GetSamplerDescriptorSize();
   // Nearest neighbor, clamp.
-  D3D12_SAMPLER_DESC sampler_desc;
+  D3D12_SAMPLER_DESC sampler_desc = {};
   sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
   sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
   sampler_desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
   sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-  sampler_desc.MipLODBias = 0.0f;
   sampler_desc.MaxAnisotropy = 1;
-  sampler_desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-  sampler_desc.BorderColor[0] = 0.0f;
-  sampler_desc.BorderColor[1] = 0.0f;
-  sampler_desc.BorderColor[2] = 0.0f;
-  sampler_desc.BorderColor[3] = 0.0f;
-  sampler_desc.MinLOD = 0.0f;
-  sampler_desc.MaxLOD = 0.0f;
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_handle;
   sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
                        uint32_t(SamplerIndex::kNearestClamp) * sampler_size;
@@ -221,18 +213,17 @@ bool D3D12ImmediateDrawer::Initialize() {
   sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
                        uint32_t(SamplerIndex::kLinearClamp) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
-  // Nearest neighbor, repeat.
-  sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+  // Bilinear, repeat.
   sampler_desc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
   sampler_desc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
   sampler_desc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
   sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
-                       uint32_t(SamplerIndex::kNearestRepeat) * sampler_size;
-  device->CreateSampler(&sampler_desc, sampler_handle);
-  // Bilinear, repeat.
-  sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-  sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
                        uint32_t(SamplerIndex::kLinearRepeat) * sampler_size;
+  device->CreateSampler(&sampler_desc, sampler_handle);
+  // Nearest neighbor, repeat.
+  sampler_desc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+  sampler_handle.ptr = sampler_heap_cpu_start_.ptr +
+                       uint32_t(SamplerIndex::kNearestRepeat) * sampler_size;
   device->CreateSampler(&sampler_desc, sampler_handle);
 
   // Create pools for draws.
@@ -315,25 +306,30 @@ std::unique_ptr<ImmediateTexture> D3D12ImmediateDrawer::CreateTexture(
       void* upload_buffer_mapping;
       if (SUCCEEDED(upload_buffer->Map(0, &upload_buffer_read_range,
                                        &upload_buffer_mapping))) {
-        uint8_t* upload_buffer_row =
-            reinterpret_cast<uint8_t*>(upload_buffer_mapping) +
-            upload_footprint.Offset;
-        const uint8_t* data_row = data;
-        for (uint32_t i = 0; i < height; ++i) {
-          std::memcpy(upload_buffer_row, data_row, width * 4);
-          data_row += width * 4;
-          upload_buffer_row += upload_footprint.Footprint.RowPitch;
+        size_t data_row_length = sizeof(uint32_t) * width;
+        if (data_row_length == upload_footprint.Footprint.RowPitch) {
+          std::memcpy(upload_buffer_mapping, data, data_row_length * height);
+        } else {
+          uint8_t* upload_buffer_row =
+              reinterpret_cast<uint8_t*>(upload_buffer_mapping) +
+              upload_footprint.Offset;
+          const uint8_t* data_row = data;
+          for (uint32_t i = 0; i < height; ++i) {
+            std::memcpy(upload_buffer_row, data_row, data_row_length);
+            data_row += data_row_length;
+            upload_buffer_row += upload_footprint.Footprint.RowPitch;
+          }
         }
         upload_buffer->Unmap(0, nullptr);
         // Defer uploading and transition to the next draw.
-        PendingTextureUpload pending_upload;
+        PendingTextureUpload& pending_upload =
+            texture_uploads_pending_.emplace_back();
         // While the upload has not been yet completed, keep a reference to the
         // resource because its lifetime is not tied to that of the
         // ImmediateTexture (and thus to context's submissions) now.
         resource->AddRef();
         pending_upload.texture = resource;
         pending_upload.buffer = upload_buffer;
-        texture_uploads_pending_.push_back(pending_upload);
       } else {
         XELOGE(
             "Failed to map a Direct3D 12 upload buffer for a {}x{} texture for "
@@ -383,9 +379,7 @@ void D3D12ImmediateDrawer::Begin(int render_target_width,
   // Release upload buffers for completed texture uploads.
   auto erase_uploads_end = texture_uploads_submitted_.begin();
   while (erase_uploads_end != texture_uploads_submitted_.end()) {
-    uint64_t upload_fence_value = erase_uploads_end->fence_value;
-    if (upload_fence_value > completed_fence_value) {
-      ++erase_uploads_end;
+    if (erase_uploads_end->fence_value > completed_fence_value) {
       break;
     }
     erase_uploads_end->buffer->Release();
@@ -650,9 +644,7 @@ void D3D12ImmediateDrawer::UploadTextures() {
   // pipeline barriers).
   std::vector<D3D12_RESOURCE_BARRIER> barriers;
   barriers.reserve(texture_uploads_pending_.size());
-  while (!texture_uploads_pending_.empty()) {
-    const PendingTextureUpload& pending_upload =
-        texture_uploads_pending_.back();
+  for (const PendingTextureUpload& pending_upload : texture_uploads_pending_) {
     ID3D12Resource* texture = pending_upload.texture;
 
     D3D12_RESOURCE_DESC texture_desc = texture->GetDesc();
@@ -676,15 +668,15 @@ void D3D12ImmediateDrawer::UploadTextures() {
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
     barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 
-    SubmittedTextureUpload submitted_upload;
+    SubmittedTextureUpload& submitted_upload =
+        texture_uploads_submitted_.emplace_back();
     // Transfer the reference to the texture - need to keep it until the upload
     // is completed.
     submitted_upload.texture = texture;
     submitted_upload.buffer = pending_upload.buffer;
     submitted_upload.fence_value = current_fence_value;
-    texture_uploads_submitted_.push_back(submitted_upload);
-    texture_uploads_pending_.pop_back();
   }
+  texture_uploads_pending_.clear();
   assert_false(barriers.empty());
   current_command_list_->ResourceBarrier(UINT(barriers.size()),
                                          barriers.data());
