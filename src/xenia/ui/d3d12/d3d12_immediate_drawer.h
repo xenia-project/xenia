@@ -36,7 +36,7 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
   std::unique_ptr<ImmediateTexture> CreateTexture(uint32_t width,
                                                   uint32_t height,
                                                   ImmediateTextureFilter filter,
-                                                  bool repeat,
+                                                  bool is_repeated,
                                                   const uint8_t* data) override;
 
   void Begin(int render_target_width, int render_target_height) override;
@@ -69,7 +69,6 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
 
   ID3D12RootSignature* root_signature_ = nullptr;
   enum class RootParameter {
-    kRestrictTextureSamples,
     kTexture,
     kSampler,
     kViewportSizeInv,
