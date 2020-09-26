@@ -24,6 +24,7 @@ const int kFontTextureHeight = 9;
 const int kFontCharWidth = 5;
 const int kFontCharHeight = 8;
 
+// The last texel is for solid color.
 const uint8_t kFontData[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -120,7 +121,7 @@ const uint8_t kFontData[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
 };
 
 MicroprofileDrawer::MicroprofileDrawer(xe::ui::Window* window)
@@ -216,7 +217,6 @@ void MicroprofileDrawer::Flush() {
   draw.primitive_type = current_primitive_type_;
   draw.count = vertex_count_;
   draw.texture_handle = font_texture_->handle;
-  draw.restrict_texture_samples = true;
   drawer->Draw(draw);
 
   drawer->EndDrawBatch();
@@ -242,23 +242,23 @@ void MicroprofileDrawer::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
     Q0(v, x, static_cast<float>(x0));
     Q0(v, y, static_cast<float>(y0));
     Q0(v, color, color);
-    Q0(v, u, 2.0f);
-    Q0(v, v, 2.0f);
+    Q0(v, u, 1.0f);
+    Q0(v, v, 1.0f);
     Q1(v, x, static_cast<float>(x1));
     Q1(v, y, static_cast<float>(y0));
     Q1(v, color, color);
-    Q1(v, u, 2.0f);
-    Q1(v, v, 2.0f);
+    Q1(v, u, 1.0f);
+    Q1(v, v, 1.0f);
     Q2(v, x, static_cast<float>(x1));
     Q2(v, y, static_cast<float>(y1));
     Q2(v, color, color);
-    Q2(v, u, 2.0f);
-    Q2(v, v, 2.0f);
+    Q2(v, u, 1.0f);
+    Q2(v, v, 1.0f);
     Q3(v, x, static_cast<float>(x0));
     Q3(v, y, static_cast<float>(y1));
     Q3(v, color, color);
-    Q3(v, u, 2.0f);
-    Q3(v, v, 2.0f);
+    Q3(v, u, 1.0f);
+    Q3(v, v, 1.0f);
   } else {
     uint32_t r = 0xff & (color >> 16);
     uint32_t g = 0xff & (color >> 8);
@@ -278,23 +278,23 @@ void MicroprofileDrawer::DrawBox(int x0, int y0, int x1, int y1, uint32_t color,
     Q0(v, x, static_cast<float>(x0));
     Q0(v, y, static_cast<float>(y0));
     Q0(v, color, color0);
-    Q0(v, u, 2.0f);
-    Q0(v, v, 2.0f);
+    Q0(v, u, 1.0f);
+    Q0(v, v, 1.0f);
     Q1(v, x, static_cast<float>(x1));
     Q1(v, y, static_cast<float>(y0));
     Q1(v, color, color0);
-    Q1(v, u, 3.0f);
-    Q1(v, v, 2.0f);
+    Q1(v, u, 1.0f);
+    Q1(v, v, 1.0f);
     Q2(v, x, static_cast<float>(x1));
     Q2(v, y, static_cast<float>(y1));
     Q2(v, color, color1);
-    Q2(v, u, 3.0f);
-    Q2(v, v, 3.0f);
+    Q2(v, u, 1.0f);
+    Q2(v, v, 1.0f);
     Q3(v, x, static_cast<float>(x0));
     Q3(v, y, static_cast<float>(y1));
     Q3(v, color, color1);
-    Q3(v, u, 2.0f);
-    Q3(v, v, 3.0f);
+    Q3(v, u, 1.0f);
+    Q3(v, v, 1.0f);
   }
   EndVertices();
 }
@@ -311,13 +311,13 @@ void MicroprofileDrawer::DrawLine2D(uint32_t count, float* vertices,
     v[0].x = vertices[i * 2];
     v[0].y = vertices[i * 2 + 1];
     v[0].color = color;
-    v[0].u = 2.0f;
-    v[0].v = 2.0f;
+    v[0].u = 1.0f;
+    v[0].v = 1.0f;
     v[1].x = vertices[(i + 1) * 2];
     v[1].y = vertices[(i + 1) * 2 + 1];
     v[1].color = color;
-    v[1].u = 2.0f;
-    v[1].v = 2.0f;
+    v[1].u = 1.0f;
+    v[1].v = 1.0f;
     v += 2;
   }
   EndVertices();
