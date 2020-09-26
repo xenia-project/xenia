@@ -80,8 +80,6 @@ struct ImmediateDraw {
   // Texture used when drawing, or nullptr if color only.
   // This is most commonly the handle of an ImmediateTexture.
   uintptr_t texture_handle = 0;
-  // Any samples outside of [0-1] on uv will be ignored.
-  bool restrict_texture_samples = false;
 
   // True to enable scissoring using the region defined by scissor_rect.
   bool scissor = false;

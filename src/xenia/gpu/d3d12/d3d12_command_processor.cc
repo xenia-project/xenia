@@ -819,11 +819,23 @@ std::unique_ptr<xe::ui::RawImage> D3D12CommandProcessor::Capture() {
   const uint8_t* readback_source_data =
       reinterpret_cast<const uint8_t*>(readback_mapping) +
       swap_texture_copy_footprint_.Offset;
+  static_assert(
+      ui::d3d12::D3D12Context::kSwapChainFormat == DXGI_FORMAT_B8G8R8A8_UNORM,
+      "D3D12CommandProcessor::Capture assumes swap_texture_ to be in "
+      "DXGI_FORMAT_B8G8R8A8_UNORM because it swaps red and blue");
   for (uint32_t i = 0; i < swap_texture_size.second; ++i) {
-    std::memcpy(raw_image->data.data() + i * raw_image->stride,
-                readback_source_data +
-                    i * swap_texture_copy_footprint_.Footprint.RowPitch,
-                raw_image->stride);
+    uint8_t* pixel_dest = raw_image->data.data() + i * raw_image->stride;
+    const uint8_t* pixel_source =
+        readback_source_data +
+        i * swap_texture_copy_footprint_.Footprint.RowPitch;
+    for (uint32_t j = 0; j < swap_texture_size.first; ++j) {
+      pixel_dest[0] = pixel_source[2];
+      pixel_dest[1] = pixel_source[1];
+      pixel_dest[2] = pixel_source[0];
+      pixel_dest[3] = pixel_source[3];
+      pixel_dest += 4;
+      pixel_source += 4;
+    }
   }
   return raw_image;
 }
