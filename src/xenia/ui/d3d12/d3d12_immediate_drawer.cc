@@ -44,6 +44,9 @@ D3D12ImmediateDrawer::D3D12ImmediateTexture::D3D12ImmediateTexture(
 D3D12ImmediateDrawer::D3D12ImmediateTexture::~D3D12ImmediateTexture() {
   if (resource_) {
     resource_->Release();
+    // TODO(Triang3l): Track last usage submission because it turns out that
+    // deletion in the ImGui and the profiler actually happens before after
+    // awaiting submission completion.
   }
 }
 
@@ -59,15 +62,6 @@ bool D3D12ImmediateDrawer::Initialize() {
   // Create the root signature.
   D3D12_ROOT_PARAMETER root_parameters[size_t(RootParameter::kCount)];
   D3D12_DESCRIPTOR_RANGE descriptor_range_texture, descriptor_range_sampler;
-  {
-    auto& root_parameter =
-        root_parameters[size_t(RootParameter::kRestrictTextureSamples)];
-    root_parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-    root_parameter.Constants.ShaderRegister = 0;
-    root_parameter.Constants.RegisterSpace = 0;
-    root_parameter.Constants.Num32BitValues = 1;
-    root_parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-  }
   {
     auto& root_parameter = root_parameters[size_t(RootParameter::kTexture)];
     root_parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
@@ -581,12 +575,6 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
         provider.OffsetSamplerDescriptor(sampler_heap_gpu_start_,
                                          uint32_t(sampler_index)));
   }
-
-  // Set whether texture coordinates need to be restricted.
-  uint32_t restrict_texture_samples = draw.restrict_texture_samples ? 1 : 0;
-  current_command_list_->SetGraphicsRoot32BitConstants(
-      UINT(RootParameter::kRestrictTextureSamples), 1,
-      &restrict_texture_samples, 0);
 
   // Set the primitive type and the pipeline state for it.
   D3D_PRIMITIVE_TOPOLOGY primitive_topology;

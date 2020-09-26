@@ -1,4 +1,6 @@
-float2 xe_viewport_size_inv : register(b0);
+cbuffer XeImmediateVertexConstants : register(b0) {
+  float2 xe_viewport_size_inv;
+};
 
 struct XeVertexShaderInput {
   float2 position : POSITION;

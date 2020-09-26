@@ -841,8 +841,9 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
   }
 
   // Use push constants for our per-draw changes.
-  // Here, the restrict_texture_samples uniform.
-  int restrict_texture_samples = draw.restrict_texture_samples ? 1 : 0;
+  // Here, the restrict_texture_samples uniform (was used before September 26,
+  // 2020, now deleted).
+  int restrict_texture_samples = 0;
   vkCmdPushConstants(current_cmd_buffer_, pipeline_layout_,
                      VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 16,
                      sizeof(int), &restrict_texture_samples);
