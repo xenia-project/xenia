@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "xenia/ui/graphics_context.h"
@@ -45,6 +46,7 @@ class VulkanContext : public GraphicsContext {
     return swap_submissions_[swap_submission_current_ % kSwapchainMaxImageCount]
         .command_buffer;
   }
+  VkCommandBuffer AcquireSwapSetupCommandBuffer();
   uint64_t swap_submission_current() const { return swap_submission_current_; }
   uint64_t swap_submission_completed() const {
     return swap_submission_completed_;
@@ -63,7 +65,12 @@ class VulkanContext : public GraphicsContext {
  private:
   void Shutdown();
 
-  void AwaitAllSwapSubmissionsCompletion();
+  bool AwaitSwapSubmissionsCompletion(uint64_t awaited_submission,
+                                      bool ignore_result);
+  void AwaitAllSwapSubmissionsCompletion() {
+    // Current starts from 1, so subtracting 1 can't result in a negative value.
+    AwaitSwapSubmissionsCompletion(swap_submission_current_ - 1, true);
+  }
 
   // AwaitAllSwapSubmissionsCompletion must be called before. As this can be
   // used in swapchain creation or in shutdown,
@@ -83,6 +90,13 @@ class VulkanContext : public GraphicsContext {
   // (it's okay to wait first for completion of A, then of B, no matter if they
   // are actually completed in AB or in BA order).
 
+  // May be used infrequently, so allocated on demand (to only keep 1 rather
+  // than 3).
+  std::pair<VkCommandPool, VkCommandBuffer>
+      swap_setup_command_buffers_[kSwapchainMaxImageCount];
+  uint32_t swap_setup_command_buffers_allocated_count_ = 0;
+  uint32_t swap_setup_command_buffers_free_bits_ = 0;
+
   struct SwapSubmission {
     // One pool per frame, with resetting the pool itself rather than individual
     // command buffers (resetting command buffers themselves is not recommended
@@ -92,6 +106,7 @@ class VulkanContext : public GraphicsContext {
     VkFence fence = VK_NULL_HANDLE;
     VkCommandPool command_pool = VK_NULL_HANDLE;
     VkCommandBuffer command_buffer;
+    uint32_t setup_command_buffer_index = UINT32_MAX;
   };
   SwapSubmission swap_submissions_[kSwapchainMaxImageCount];
   uint64_t swap_submission_current_ = 1;

@@ -61,15 +61,16 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
       target_window_->loop()->PostSynchronous([&]() {
         // Create the context used for presentation.
         assert_null(target_window->context());
-        target_window_->set_context(provider_->CreateContext(target_window_));
+        target_window_->set_context(
+            provider_->CreateHostContext(target_window_));
 
         // Setup the context the command processor will do all its drawing in.
         // It's shared with the display context so that we can resolve
         // framebuffers from it.
-        processor_context = provider()->CreateOffscreenContext();
+        processor_context = provider()->CreateEmulationContext();
       });
     } else {
-      processor_context = provider()->CreateOffscreenContext();
+      processor_context = provider()->CreateEmulationContext();
     }
 
     if (!processor_context) {

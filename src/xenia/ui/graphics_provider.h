@@ -28,13 +28,13 @@ class GraphicsProvider {
   // The 'main' window of an application, used to query provider information.
   Window* main_window() const { return main_window_; }
 
-  // Creates a new graphics context and swapchain for presenting to a window.
-  virtual std::unique_ptr<GraphicsContext> CreateContext(
+  // Creates a new host-side graphics context and swapchain, possibly presenting
+  // to a window and using the immediate drawer.
+  virtual std::unique_ptr<GraphicsContext> CreateHostContext(
       Window* target_window) = 0;
 
-  // Creates a new offscreen graphics context without a swapchain or immediate
-  // drawer.
-  virtual std::unique_ptr<GraphicsContext> CreateOffscreenContext() = 0;
+  // Creates a new offscreen emulation graphics context.
+  virtual std::unique_ptr<GraphicsContext> CreateEmulationContext() = 0;
 
  protected:
   explicit GraphicsProvider(Window* main_window) : main_window_(main_window) {}

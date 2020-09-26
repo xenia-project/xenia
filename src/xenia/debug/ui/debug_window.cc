@@ -104,7 +104,7 @@ bool DebugWindow::Initialize() {
 
   // Create the graphics context used for drawing.
   auto provider = emulator_->display_window()->context()->provider();
-  window_->set_context(provider->CreateContext(window_.get()));
+  window_->set_context(provider->CreateHostContext(window_.get()));
 
   // Enable imgui input.
   window_->set_imgui_input_enabled(true);

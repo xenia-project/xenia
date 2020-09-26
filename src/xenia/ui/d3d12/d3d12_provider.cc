@@ -439,7 +439,7 @@ bool D3D12Provider::Initialize() {
   return true;
 }
 
-std::unique_ptr<GraphicsContext> D3D12Provider::CreateContext(
+std::unique_ptr<GraphicsContext> D3D12Provider::CreateHostContext(
     Window* target_window) {
   auto new_context =
       std::unique_ptr<D3D12Context>(new D3D12Context(this, target_window));
@@ -449,7 +449,7 @@ std::unique_ptr<GraphicsContext> D3D12Provider::CreateContext(
   return std::unique_ptr<GraphicsContext>(new_context.release());
 }
 
-std::unique_ptr<GraphicsContext> D3D12Provider::CreateOffscreenContext() {
+std::unique_ptr<GraphicsContext> D3D12Provider::CreateEmulationContext() {
   auto new_context =
       std::unique_ptr<D3D12Context>(new D3D12Context(this, nullptr));
   if (!new_context->Initialize()) {
