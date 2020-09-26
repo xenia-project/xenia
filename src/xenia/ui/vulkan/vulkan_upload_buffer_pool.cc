@@ -13,24 +13,21 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/ui/vulkan/vulkan_util.h"
 
 namespace xe {
 namespace ui {
 namespace vulkan {
 
+// Memory mappings are always aligned to nonCoherentAtomSize, so for simplicity,
+// round the page size to it now via GetMappableMemorySize.
 VulkanUploadBufferPool::VulkanUploadBufferPool(const VulkanProvider& provider,
                                                VkBufferUsageFlags usage,
                                                size_t page_size)
-    : GraphicsUploadBufferPool(page_size), provider_(provider), usage_(usage) {
-  VkDeviceSize non_coherent_atom_size =
-      provider_.device_properties().limits.nonCoherentAtomSize;
-  // Memory mappings are always aligned to nonCoherentAtomSize, so for
-  // simplicity, round the page size to it now. On some Android implementations,
-  // nonCoherentAtomSize is 0, not 1.
-  if (non_coherent_atom_size > 1) {
-    page_size_ = xe::round_up(page_size_, non_coherent_atom_size);
-  }
-}
+    : GraphicsUploadBufferPool(size_t(
+          util::GetMappableMemorySize(provider, VkDeviceSize(page_size)))),
+      provider_(provider),
+      usage_(usage) {}
 
 uint8_t* VulkanUploadBufferPool::Request(uint64_t submission_index, size_t size,
                                          size_t alignment, VkBuffer& buffer_out,
@@ -96,10 +93,9 @@ VulkanUploadBufferPool::CreatePageImplementation() {
   if (memory_type_ == kMemoryTypeUnknown) {
     VkMemoryRequirements memory_requirements;
     dfn.vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
-    uint32_t memory_types_host_visible = provider_.memory_types_host_visible();
-    if (!xe::bit_scan_forward(
-            memory_requirements.memoryTypeBits & memory_types_host_visible,
-            &memory_type_)) {
+    memory_type_ = util::ChooseHostMemoryType(
+        provider_, memory_requirements.memoryTypeBits, false);
+    if (memory_type_ == UINT32_MAX) {
       XELOGE(
           "No host-visible memory types can store an Vulkan upload buffer with "
           "{} bytes",
@@ -125,11 +121,10 @@ VulkanUploadBufferPool::CreatePageImplementation() {
         VkMemoryRequirements memory_requirements_expanded;
         dfn.vkGetBufferMemoryRequirements(device, buffer_expanded,
                                           &memory_requirements_expanded);
-        uint32_t memory_type_expanded;
+        uint32_t memory_type_expanded = util::ChooseHostMemoryType(
+            provider_, memory_requirements.memoryTypeBits, false);
         if (memory_requirements_expanded.size <= allocation_size_ &&
-            xe::bit_scan_forward(memory_requirements_expanded.memoryTypeBits &
-                                     memory_types_host_visible,
-                                 &memory_type_expanded)) {
+            memory_type_expanded != UINT32_MAX) {
           // page_size_ must be aligned to nonCoherentAtomSize.
           page_size_ = size_t(allocation_size_aligned);
           allocation_size_ = memory_requirements_expanded.size;
@@ -190,28 +185,9 @@ VulkanUploadBufferPool::CreatePageImplementation() {
 
 void VulkanUploadBufferPool::FlushPageWrites(Page* page, size_t offset,
                                              size_t size) {
-  if (provider_.memory_types_host_coherent() & (uint32_t(1) << memory_type_)) {
-    return;
-  }
-  const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
-  VkDevice device = provider_.device();
-  VkMappedMemoryRange range;
-  range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-  range.pNext = nullptr;
-  range.memory = static_cast<const VulkanPage*>(page)->memory_;
-  range.offset = VkDeviceSize(offset);
-  range.size = VkDeviceSize(size);
-  VkDeviceSize non_coherent_atom_size =
-      provider_.device_properties().limits.nonCoherentAtomSize;
-  // On some Android implementations, nonCoherentAtomSize is 0, not 1.
-  if (non_coherent_atom_size > 1) {
-    VkDeviceSize end =
-        xe::round_up(range.offset + range.size, non_coherent_atom_size);
-    range.offset =
-        range.offset / non_coherent_atom_size * non_coherent_atom_size;
-    range.size = end - range.offset;
-  }
-  dfn.vkFlushMappedMemoryRanges(device, 1, &range);
+  util::FlushMappedMemoryRange(
+      provider_, static_cast<const VulkanPage*>(page)->memory_, memory_type_,
+      VkDeviceSize(offset), VkDeviceSize(size));
 }
 
 VulkanUploadBufferPool::VulkanPage::~VulkanPage() {

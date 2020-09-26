@@ -43,9 +43,9 @@ class VulkanProvider : public GraphicsProvider {
 
   static std::unique_ptr<VulkanProvider> Create(Window* main_window);
 
-  std::unique_ptr<GraphicsContext> CreateContext(
+  std::unique_ptr<GraphicsContext> CreateHostContext(
       Window* target_window) override;
-  std::unique_ptr<GraphicsContext> CreateOffscreenContext() override;
+  std::unique_ptr<GraphicsContext> CreateEmulationContext() override;
 
   struct LibraryFunctions {
     // From the module.
@@ -113,6 +113,9 @@ class VulkanProvider : public GraphicsProvider {
   uint32_t memory_types_host_coherent() const {
     return memory_types_host_coherent_;
   }
+  uint32_t memory_types_host_cached() const {
+    return memory_types_host_cached_;
+  }
   // FIXME(Triang3l): Allow a separate queue for present - see
   // vulkan_provider.cc for details.
   uint32_t queue_family_graphics_compute() const {
@@ -123,38 +126,52 @@ class VulkanProvider : public GraphicsProvider {
   struct DeviceFunctions {
     PFN_vkAcquireNextImageKHR vkAcquireNextImageKHR;
     PFN_vkAllocateCommandBuffers vkAllocateCommandBuffers;
+    PFN_vkAllocateDescriptorSets vkAllocateDescriptorSets;
     PFN_vkAllocateMemory vkAllocateMemory;
     PFN_vkBeginCommandBuffer vkBeginCommandBuffer;
     PFN_vkBindBufferMemory vkBindBufferMemory;
+    PFN_vkBindImageMemory vkBindImageMemory;
     PFN_vkCmdBeginRenderPass vkCmdBeginRenderPass;
+    PFN_vkCmdBindDescriptorSets vkCmdBindDescriptorSets;
     PFN_vkCmdBindIndexBuffer vkCmdBindIndexBuffer;
     PFN_vkCmdBindPipeline vkCmdBindPipeline;
     PFN_vkCmdBindVertexBuffers vkCmdBindVertexBuffers;
+    PFN_vkCmdClearColorImage vkCmdClearColorImage;
+    PFN_vkCmdCopyBufferToImage vkCmdCopyBufferToImage;
     PFN_vkCmdDraw vkCmdDraw;
     PFN_vkCmdDrawIndexed vkCmdDrawIndexed;
     PFN_vkCmdEndRenderPass vkCmdEndRenderPass;
+    PFN_vkCmdPipelineBarrier vkCmdPipelineBarrier;
     PFN_vkCmdPushConstants vkCmdPushConstants;
     PFN_vkCmdSetScissor vkCmdSetScissor;
     PFN_vkCmdSetViewport vkCmdSetViewport;
     PFN_vkCreateBuffer vkCreateBuffer;
     PFN_vkCreateCommandPool vkCreateCommandPool;
+    PFN_vkCreateDescriptorPool vkCreateDescriptorPool;
+    PFN_vkCreateDescriptorSetLayout vkCreateDescriptorSetLayout;
     PFN_vkCreateFence vkCreateFence;
     PFN_vkCreateFramebuffer vkCreateFramebuffer;
     PFN_vkCreateGraphicsPipelines vkCreateGraphicsPipelines;
+    PFN_vkCreateImage vkCreateImage;
     PFN_vkCreateImageView vkCreateImageView;
     PFN_vkCreatePipelineLayout vkCreatePipelineLayout;
     PFN_vkCreateRenderPass vkCreateRenderPass;
+    PFN_vkCreateSampler vkCreateSampler;
     PFN_vkCreateSemaphore vkCreateSemaphore;
     PFN_vkCreateShaderModule vkCreateShaderModule;
     PFN_vkCreateSwapchainKHR vkCreateSwapchainKHR;
     PFN_vkDestroyBuffer vkDestroyBuffer;
     PFN_vkDestroyCommandPool vkDestroyCommandPool;
+    PFN_vkDestroyDescriptorPool vkDestroyDescriptorPool;
+    PFN_vkDestroyDescriptorSetLayout vkDestroyDescriptorSetLayout;
     PFN_vkDestroyFence vkDestroyFence;
     PFN_vkDestroyFramebuffer vkDestroyFramebuffer;
+    PFN_vkDestroyImage vkDestroyImage;
     PFN_vkDestroyImageView vkDestroyImageView;
     PFN_vkDestroyPipeline vkDestroyPipeline;
     PFN_vkDestroyPipelineLayout vkDestroyPipelineLayout;
     PFN_vkDestroyRenderPass vkDestroyRenderPass;
+    PFN_vkDestroySampler vkDestroySampler;
     PFN_vkDestroySemaphore vkDestroySemaphore;
     PFN_vkDestroyShaderModule vkDestroyShaderModule;
     PFN_vkDestroySwapchainKHR vkDestroySwapchainKHR;
@@ -163,12 +180,15 @@ class VulkanProvider : public GraphicsProvider {
     PFN_vkFreeMemory vkFreeMemory;
     PFN_vkGetBufferMemoryRequirements vkGetBufferMemoryRequirements;
     PFN_vkGetDeviceQueue vkGetDeviceQueue;
+    PFN_vkGetImageMemoryRequirements vkGetImageMemoryRequirements;
     PFN_vkGetSwapchainImagesKHR vkGetSwapchainImagesKHR;
     PFN_vkMapMemory vkMapMemory;
     PFN_vkResetCommandPool vkResetCommandPool;
     PFN_vkResetFences vkResetFences;
     PFN_vkQueuePresentKHR vkQueuePresentKHR;
     PFN_vkQueueSubmit vkQueueSubmit;
+    PFN_vkUnmapMemory vkUnmapMemory;
+    PFN_vkUpdateDescriptorSets vkUpdateDescriptorSets;
     PFN_vkWaitForFences vkWaitForFences;
   };
   const DeviceFunctions& dfn() const { return dfn_; }
@@ -176,6 +196,22 @@ class VulkanProvider : public GraphicsProvider {
   VkQueue queue_graphics_compute() const { return queue_graphics_compute_; }
   // May be VK_NULL_HANDLE if not available.
   VkQueue queue_sparse_binding() const { return queue_sparse_binding_; }
+
+  // Samplers that may be useful for host needs. Only these samplers should be
+  // used in host, non-emulation contexts, because the total number of samplers
+  // is heavily limited (4000) on Nvidia GPUs - the rest of samplers are
+  // allocated for emulation.
+  enum class HostSampler {
+    kNearestClamp,
+    kLinearClamp,
+    kNearestRepeat,
+    kLinearRepeat,
+
+    kCount,
+  };
+  VkSampler GetHostSampler(HostSampler sampler) const {
+    return host_samplers_[size_t(sampler)];
+  }
 
  private:
   explicit VulkanProvider(Window* main_window);
@@ -200,6 +236,7 @@ class VulkanProvider : public GraphicsProvider {
   uint32_t memory_types_device_local_;
   uint32_t memory_types_host_visible_;
   uint32_t memory_types_host_coherent_;
+  uint32_t memory_types_host_cached_;
   uint32_t queue_family_graphics_compute_;
 
   VkDevice device_ = VK_NULL_HANDLE;
@@ -207,6 +244,8 @@ class VulkanProvider : public GraphicsProvider {
   VkQueue queue_graphics_compute_;
   // May be VK_NULL_HANDLE if not available.
   VkQueue queue_sparse_binding_;
+
+  VkSampler host_samplers_[size_t(HostSampler::kCount)] = {};
 };
 
 }  // namespace vulkan

@@ -9,6 +9,7 @@
 
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
+#include <cfloat>
 #include <cstring>
 #include <vector>
 
@@ -60,6 +61,12 @@ VulkanProvider::VulkanProvider(Window* main_window)
     : GraphicsProvider(main_window) {}
 
 VulkanProvider::~VulkanProvider() {
+  for (size_t i = 0; i < size_t(HostSampler::kCount); ++i) {
+    if (host_samplers_[i] != VK_NULL_HANDLE) {
+      dfn_.vkDestroySampler(device_, host_samplers_[i], nullptr);
+    }
+  }
+
   if (device_ != VK_NULL_HANDLE) {
     ifn_.vkDestroyDevice(device_, nullptr);
   }
@@ -414,6 +421,7 @@ bool VulkanProvider::Initialize() {
     memory_types_device_local_ = 0;
     memory_types_host_visible_ = 0;
     memory_types_host_coherent_ = 0;
+    memory_types_host_cached_ = 0;
     for (uint32_t j = 0; j < memory_properties.memoryTypeCount; ++j) {
       VkMemoryPropertyFlags memory_property_flags =
           memory_properties.memoryTypes[j].propertyFlags;
@@ -426,6 +434,9 @@ bool VulkanProvider::Initialize() {
       }
       if (memory_property_flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) {
         memory_types_host_coherent_ |= memory_type_bit;
+      }
+      if (memory_property_flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) {
+        memory_types_host_cached_ |= memory_type_bit;
       }
     }
     if (!memory_types_device_local_ && !memory_types_host_visible_) {
@@ -516,38 +527,52 @@ bool VulkanProvider::Initialize() {
       nullptr;
   XE_VULKAN_LOAD_DFN(vkAcquireNextImageKHR);
   XE_VULKAN_LOAD_DFN(vkAllocateCommandBuffers);
+  XE_VULKAN_LOAD_DFN(vkAllocateDescriptorSets);
   XE_VULKAN_LOAD_DFN(vkAllocateMemory);
   XE_VULKAN_LOAD_DFN(vkBeginCommandBuffer);
   XE_VULKAN_LOAD_DFN(vkBindBufferMemory);
+  XE_VULKAN_LOAD_DFN(vkBindImageMemory);
   XE_VULKAN_LOAD_DFN(vkCmdBeginRenderPass);
+  XE_VULKAN_LOAD_DFN(vkCmdBindDescriptorSets);
   XE_VULKAN_LOAD_DFN(vkCmdBindIndexBuffer);
   XE_VULKAN_LOAD_DFN(vkCmdBindPipeline);
   XE_VULKAN_LOAD_DFN(vkCmdBindVertexBuffers);
+  XE_VULKAN_LOAD_DFN(vkCmdClearColorImage);
+  XE_VULKAN_LOAD_DFN(vkCmdCopyBufferToImage);
   XE_VULKAN_LOAD_DFN(vkCmdDraw);
   XE_VULKAN_LOAD_DFN(vkCmdDrawIndexed);
   XE_VULKAN_LOAD_DFN(vkCmdEndRenderPass);
+  XE_VULKAN_LOAD_DFN(vkCmdPipelineBarrier);
   XE_VULKAN_LOAD_DFN(vkCmdPushConstants);
   XE_VULKAN_LOAD_DFN(vkCmdSetScissor);
   XE_VULKAN_LOAD_DFN(vkCmdSetViewport);
   XE_VULKAN_LOAD_DFN(vkCreateBuffer);
   XE_VULKAN_LOAD_DFN(vkCreateCommandPool);
+  XE_VULKAN_LOAD_DFN(vkCreateDescriptorPool);
+  XE_VULKAN_LOAD_DFN(vkCreateDescriptorSetLayout);
   XE_VULKAN_LOAD_DFN(vkCreateFence);
   XE_VULKAN_LOAD_DFN(vkCreateFramebuffer);
   XE_VULKAN_LOAD_DFN(vkCreateGraphicsPipelines);
+  XE_VULKAN_LOAD_DFN(vkCreateImage);
   XE_VULKAN_LOAD_DFN(vkCreateImageView);
   XE_VULKAN_LOAD_DFN(vkCreatePipelineLayout);
   XE_VULKAN_LOAD_DFN(vkCreateRenderPass);
+  XE_VULKAN_LOAD_DFN(vkCreateSampler);
   XE_VULKAN_LOAD_DFN(vkCreateSemaphore);
   XE_VULKAN_LOAD_DFN(vkCreateShaderModule);
   XE_VULKAN_LOAD_DFN(vkCreateSwapchainKHR);
   XE_VULKAN_LOAD_DFN(vkDestroyBuffer);
   XE_VULKAN_LOAD_DFN(vkDestroyCommandPool);
+  XE_VULKAN_LOAD_DFN(vkDestroyDescriptorPool);
+  XE_VULKAN_LOAD_DFN(vkDestroyDescriptorSetLayout);
   XE_VULKAN_LOAD_DFN(vkDestroyFence);
   XE_VULKAN_LOAD_DFN(vkDestroyFramebuffer);
+  XE_VULKAN_LOAD_DFN(vkDestroyImage);
   XE_VULKAN_LOAD_DFN(vkDestroyImageView);
   XE_VULKAN_LOAD_DFN(vkDestroyPipeline);
   XE_VULKAN_LOAD_DFN(vkDestroyPipelineLayout);
   XE_VULKAN_LOAD_DFN(vkDestroyRenderPass);
+  XE_VULKAN_LOAD_DFN(vkDestroySampler);
   XE_VULKAN_LOAD_DFN(vkDestroySemaphore);
   XE_VULKAN_LOAD_DFN(vkDestroyShaderModule);
   XE_VULKAN_LOAD_DFN(vkDestroySwapchainKHR);
@@ -556,12 +581,15 @@ bool VulkanProvider::Initialize() {
   XE_VULKAN_LOAD_DFN(vkFreeMemory);
   XE_VULKAN_LOAD_DFN(vkGetBufferMemoryRequirements);
   XE_VULKAN_LOAD_DFN(vkGetDeviceQueue);
+  XE_VULKAN_LOAD_DFN(vkGetImageMemoryRequirements);
   XE_VULKAN_LOAD_DFN(vkGetSwapchainImagesKHR);
   XE_VULKAN_LOAD_DFN(vkMapMemory);
   XE_VULKAN_LOAD_DFN(vkResetCommandPool);
   XE_VULKAN_LOAD_DFN(vkResetFences);
   XE_VULKAN_LOAD_DFN(vkQueuePresentKHR);
   XE_VULKAN_LOAD_DFN(vkQueueSubmit);
+  XE_VULKAN_LOAD_DFN(vkUnmapMemory);
+  XE_VULKAN_LOAD_DFN(vkUpdateDescriptorSets);
   XE_VULKAN_LOAD_DFN(vkWaitForFences);
 #undef XE_VULKAN_LOAD_DFN
   if (!device_functions_loaded) {
@@ -583,10 +611,54 @@ bool VulkanProvider::Initialize() {
     queue_sparse_binding_ = VK_NULL_HANDLE;
   }
 
+  // Create host-side samplers.
+  VkSamplerCreateInfo sampler_create_info = {};
+  sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  sampler_create_info.magFilter = VK_FILTER_NEAREST;
+  sampler_create_info.minFilter = VK_FILTER_NEAREST;
+  sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  sampler_create_info.maxLod = FLT_MAX;
+  if (dfn_.vkCreateSampler(
+          device_, &sampler_create_info, nullptr,
+          &host_samplers_[size_t(HostSampler::kNearestClamp)]) != VK_SUCCESS) {
+    XELOGE("Failed to create the nearest-neighbor clamping Vulkan sampler");
+    return false;
+  }
+  sampler_create_info.magFilter = VK_FILTER_LINEAR;
+  sampler_create_info.minFilter = VK_FILTER_LINEAR;
+  sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+  if (dfn_.vkCreateSampler(
+          device_, &sampler_create_info, nullptr,
+          &host_samplers_[size_t(HostSampler::kLinearClamp)]) != VK_SUCCESS) {
+    XELOGE("Failed to create the bilinear-filtering clamping Vulkan sampler");
+    return false;
+  }
+  sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  if (dfn_.vkCreateSampler(
+          device_, &sampler_create_info, nullptr,
+          &host_samplers_[size_t(HostSampler::kLinearRepeat)]) != VK_SUCCESS) {
+    XELOGE("Failed to create the bilinear-filtering repeating Vulkan sampler");
+    return false;
+  }
+  sampler_create_info.magFilter = VK_FILTER_NEAREST;
+  sampler_create_info.minFilter = VK_FILTER_NEAREST;
+  sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  if (dfn_.vkCreateSampler(
+          device_, &sampler_create_info, nullptr,
+          &host_samplers_[size_t(HostSampler::kNearestRepeat)]) != VK_SUCCESS) {
+    XELOGE("Failed to create the nearest-neighbor repeating Vulkan sampler");
+    return false;
+  }
+
   return true;
 }
 
-std::unique_ptr<GraphicsContext> VulkanProvider::CreateContext(
+std::unique_ptr<GraphicsContext> VulkanProvider::CreateHostContext(
     Window* target_window) {
   auto new_context =
       std::unique_ptr<VulkanContext>(new VulkanContext(this, target_window));
@@ -596,7 +668,7 @@ std::unique_ptr<GraphicsContext> VulkanProvider::CreateContext(
   return std::unique_ptr<GraphicsContext>(new_context.release());
 }
 
-std::unique_ptr<GraphicsContext> VulkanProvider::CreateOffscreenContext() {
+std::unique_ptr<GraphicsContext> VulkanProvider::CreateEmulationContext() {
   auto new_context =
       std::unique_ptr<VulkanContext>(new VulkanContext(this, nullptr));
   if (!new_context->Initialize()) {

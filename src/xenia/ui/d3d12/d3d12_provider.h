@@ -27,9 +27,9 @@ class D3D12Provider : public GraphicsProvider {
 
   static std::unique_ptr<D3D12Provider> Create(Window* main_window);
 
-  std::unique_ptr<GraphicsContext> CreateContext(
+  std::unique_ptr<GraphicsContext> CreateHostContext(
       Window* target_window) override;
-  std::unique_ptr<GraphicsContext> CreateOffscreenContext() override;
+  std::unique_ptr<GraphicsContext> CreateEmulationContext() override;
 
   IDXGIFactory2* GetDXGIFactory() const { return dxgi_factory_; }
   // nullptr if PIX not attached.

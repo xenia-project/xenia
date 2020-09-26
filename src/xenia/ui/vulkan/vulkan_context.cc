@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "xenia/base/assert.h"
@@ -151,14 +152,21 @@ void VulkanContext::Shutdown() {
   util::DestroyAndNullHandle(dfn.vkDestroySemaphore, device,
                              swap_image_acquisition_semaphore_);
 
+  swap_submission_completed_ = 0;
+  swap_submission_current_ = 1;
   for (uint32_t i = 0; i < kSwapchainMaxImageCount; ++i) {
     SwapSubmission& submission = swap_submissions_[i];
+    submission.setup_command_buffer_index = UINT32_MAX;
     util::DestroyAndNullHandle(dfn.vkDestroyCommandPool, device,
                                submission.command_pool);
     util::DestroyAndNullHandle(dfn.vkDestroyFence, device, submission.fence);
+    if (i < swap_setup_command_buffers_allocated_count_) {
+      dfn.vkDestroyCommandPool(device, swap_setup_command_buffers_[i].first,
+                               nullptr);
+    }
   }
-  swap_submission_current_ = 1;
-  swap_submission_completed_ = 0;
+  swap_setup_command_buffers_free_bits_ = 0;
+  swap_setup_command_buffers_allocated_count_ = 0;
 }
 
 ImmediateDrawer* VulkanContext::immediate_drawer() {
@@ -645,27 +653,10 @@ bool VulkanContext::BeginSwap() {
     // Await the frame data to be available before doing anything else.
     if (swap_submission_completed_ + kSwapchainMaxImageCount <
         swap_submission_current_) {
-      uint64_t submission_awaited =
-          swap_submission_current_ - kSwapchainMaxImageCount;
-      VkFence submission_fences[kSwapchainMaxImageCount];
-      uint32_t submission_fence_count = 0;
-      while (swap_submission_completed_ + 1 + submission_fence_count <=
-             submission_awaited) {
-        assert_true(submission_fence_count < kSwapchainMaxImageCount);
-        uint32_t submission_index =
-            (swap_submission_completed_ + 1 + submission_fence_count) %
-            kSwapchainMaxImageCount;
-        submission_fences[submission_fence_count++] =
-            swap_submissions_[submission_index].fence;
-      }
-      if (submission_fence_count) {
-        if (dfn.vkWaitForFences(device, submission_fence_count,
-                                submission_fences, VK_TRUE,
-                                UINT64_MAX) != VK_SUCCESS) {
-          XELOGE("Failed to await the Vulkan presentation submission fences");
-          return false;
-        }
-        swap_submission_completed_ += submission_fence_count;
+      if (!AwaitSwapSubmissionsCompletion(
+              swap_submission_current_ - kSwapchainMaxImageCount, false)) {
+        XELOGE("Failed to await the Vulkan presentation submission fences");
+        return false;
       }
     }
 
@@ -753,8 +744,20 @@ void VulkanContext::EndSwap() {
 
   const SwapSubmission& submission =
       swap_submissions_[swap_submission_current_ % kSwapchainMaxImageCount];
+  VkCommandBuffer submit_command_buffers[2];
+  uint32_t submit_command_buffer_count = 0;
+  if (submission.setup_command_buffer_index != UINT32_MAX) {
+    VkCommandBuffer submit_setup_command_buffer =
+        swap_setup_command_buffers_[submission.setup_command_buffer_index]
+            .second;
+    dfn.vkEndCommandBuffer(submit_setup_command_buffer);
+    submit_command_buffers[submit_command_buffer_count++] =
+        submit_setup_command_buffer;
+  }
   dfn.vkCmdEndRenderPass(submission.command_buffer);
   dfn.vkEndCommandBuffer(submission.command_buffer);
+  submit_command_buffers[submit_command_buffer_count++] =
+      submission.command_buffer;
   dfn.vkResetFences(device, 1, &submission.fence);
   VkSubmitInfo submit_info;
   submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -764,8 +767,8 @@ void VulkanContext::EndSwap() {
   VkPipelineStageFlags image_acquisition_semaphore_wait_stage =
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
   submit_info.pWaitDstStageMask = &image_acquisition_semaphore_wait_stage;
-  submit_info.commandBufferCount = 1;
-  submit_info.pCommandBuffers = &submission.command_buffer;
+  submit_info.commandBufferCount = submit_command_buffer_count;
+  submit_info.pCommandBuffers = submit_command_buffers;
   submit_info.signalSemaphoreCount = 1;
   submit_info.pSignalSemaphores = &swap_render_completion_semaphore_;
   VkResult submit_result = dfn.vkQueueSubmit(queue_graphics_compute, 1,
@@ -845,22 +848,124 @@ void VulkanContext::RequestSurfaceRecreation() {
   swap_surface_ = VK_NULL_HANDLE;
 }
 
-void VulkanContext::AwaitAllSwapSubmissionsCompletion() {
+bool VulkanContext::AwaitSwapSubmissionsCompletion(uint64_t awaited_submission,
+                                                   bool ignore_result) {
   assert_not_null(target_window_);
+  assert_true(awaited_submission < swap_submission_current_);
   const VulkanProvider& provider = GetVulkanProvider();
   const VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
   VkFence fences[kSwapchainMaxImageCount];
   uint32_t fence_count = 0;
-  while (swap_submission_completed_ + 1 < swap_submission_current_) {
+  while (swap_submission_completed_ + 1 + fence_count <= awaited_submission) {
     assert_true(fence_count < kSwapchainMaxImageCount);
-    uint32_t submission_index =
-        ++swap_submission_completed_ % kSwapchainMaxImageCount;
+    uint32_t submission_index = (swap_submission_completed_ + 1 + fence_count) %
+                                kSwapchainMaxImageCount;
     fences[fence_count++] = swap_submissions_[submission_index].fence;
   }
-  if (fence_count && !context_lost_) {
-    dfn.vkWaitForFences(device, fence_count, fences, VK_TRUE, UINT64_MAX);
+  if (!fence_count) {
+    return true;
   }
+  VkResult result =
+      dfn.vkWaitForFences(device, fence_count, fences, VK_TRUE, UINT64_MAX);
+  if (!ignore_result && result != VK_SUCCESS) {
+    return false;
+  }
+  // Reclaim setup command buffers if used.
+  for (uint32_t i = 0; i < fence_count; ++i) {
+    uint32_t submission_index =
+        (swap_submission_completed_ + 1 + i) % kSwapchainMaxImageCount;
+    uint32_t& setup_command_buffer_index =
+        swap_submissions_[submission_index].setup_command_buffer_index;
+    if (setup_command_buffer_index == UINT32_MAX) {
+      continue;
+    }
+    assert_zero(swap_setup_command_buffers_free_bits_ &
+                (uint32_t(1) << setup_command_buffer_index));
+    swap_setup_command_buffers_free_bits_ |= uint32_t(1)
+                                             << setup_command_buffer_index;
+    setup_command_buffer_index = UINT32_MAX;
+  }
+  swap_submission_completed_ += fence_count;
+  return result == VK_SUCCESS;
+}
+
+VkCommandBuffer VulkanContext::AcquireSwapSetupCommandBuffer() {
+  assert_not_null(target_window_);
+
+  uint32_t& submission_command_buffer_index =
+      swap_submissions_[swap_submission_current_ % kSwapchainMaxImageCount]
+          .setup_command_buffer_index;
+  if (submission_command_buffer_index != UINT32_MAX) {
+    // A command buffer is already being recorded.
+    return swap_setup_command_buffers_[submission_command_buffer_index].second;
+  }
+
+  const VulkanProvider& provider = GetVulkanProvider();
+  const VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+
+  VkCommandBufferBeginInfo command_buffer_begin_info;
+  command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  command_buffer_begin_info.pNext = nullptr;
+  command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+  command_buffer_begin_info.pInheritanceInfo = nullptr;
+
+  // Try to use a recycled one.
+  uint32_t command_buffer_index;
+  if (xe::bit_scan_forward(swap_setup_command_buffers_free_bits_,
+                           &command_buffer_index)) {
+    const std::pair<VkCommandPool, VkCommandBuffer>& command_buffer =
+        swap_setup_command_buffers_[command_buffer_index];
+    if (dfn.vkResetCommandPool(device, command_buffer.first, 0) != VK_SUCCESS ||
+        dfn.vkBeginCommandBuffer(command_buffer.second,
+                                 &command_buffer_begin_info) != VK_SUCCESS) {
+      return VK_NULL_HANDLE;
+    }
+    submission_command_buffer_index = command_buffer_index;
+    swap_setup_command_buffers_free_bits_ &=
+        ~(uint32_t(1) << command_buffer_index);
+    return command_buffer.second;
+  }
+
+  // Create a new command buffer.
+  assert_true(swap_setup_command_buffers_allocated_count_ <
+              kSwapchainMaxImageCount);
+  if (swap_setup_command_buffers_allocated_count_ >= kSwapchainMaxImageCount) {
+    return VK_NULL_HANDLE;
+  }
+  VkCommandPoolCreateInfo command_pool_create_info;
+  command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+  command_pool_create_info.pNext = nullptr;
+  command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+  command_pool_create_info.queueFamilyIndex =
+      provider.queue_family_graphics_compute();
+  VkCommandPool new_command_pool;
+  if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr,
+                              &new_command_pool) != VK_SUCCESS) {
+    return VK_NULL_HANDLE;
+  }
+  VkCommandBufferAllocateInfo command_buffer_allocate_info;
+  command_buffer_allocate_info.sType =
+      VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  command_buffer_allocate_info.pNext = nullptr;
+  command_buffer_allocate_info.commandPool = new_command_pool;
+  command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  command_buffer_allocate_info.commandBufferCount = 1;
+  VkCommandBuffer new_command_buffer;
+  if (dfn.vkAllocateCommandBuffers(device, &command_buffer_allocate_info,
+                                   &new_command_buffer) != VK_SUCCESS ||
+      dfn.vkBeginCommandBuffer(new_command_buffer,
+                               &command_buffer_begin_info) != VK_SUCCESS) {
+    dfn.vkDestroyCommandPool(device, new_command_pool, nullptr);
+    return VK_NULL_HANDLE;
+  }
+  uint32_t new_command_buffer_index =
+      swap_setup_command_buffers_allocated_count_++;
+  submission_command_buffer_index = new_command_buffer_index;
+  swap_setup_command_buffers_[new_command_buffer_index] =
+      std::make_pair(new_command_pool, new_command_buffer);
+  return new_command_buffer;
 }
 
 void VulkanContext::DestroySwapchainFramebuffers() {

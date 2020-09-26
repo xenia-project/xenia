@@ -73,7 +73,7 @@ int window_demo_main(const std::vector<std::string>& args) {
     // The window will finish initialization wtih the context (loading
     // resources, etc).
     graphics_provider = CreateDemoGraphicsProvider(window.get());
-    window->set_context(graphics_provider->CreateContext(window.get()));
+    window->set_context(graphics_provider->CreateHostContext(window.get()));
 
     // Setup the profiler display.
     GraphicsContextLock context_lock(window->context());
