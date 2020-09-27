@@ -11,6 +11,8 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
+#include <utility>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
@@ -25,6 +27,12 @@ namespace vulkan {
 // Generated with `xb genspirv`.
 #include "xenia/ui/shaders/bytecode/vulkan_spirv/immediate_frag.h"
 #include "xenia/ui/shaders/bytecode/vulkan_spirv/immediate_vert.h"
+
+VulkanImmediateDrawer::VulkanImmediateTexture::~VulkanImmediateTexture() {
+  if (immediate_drawer_) {
+    immediate_drawer_->OnImmediateTextureDestroyed(*this);
+  }
+}
 
 VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext& graphics_context)
     : ImmediateDrawer(&graphics_context), context_(graphics_context) {}
@@ -64,9 +72,10 @@ bool VulkanImmediateDrawer::Initialize() {
 
   // Create the (1, 1, 1, 1) texture as a replacement when drawing without a
   // real texture.
-  white_texture_index_ = CreateVulkanTexture(
-      1, 1, ImmediateTextureFilter::kNearest, false, nullptr);
-  if (white_texture_index_ == SIZE_MAX) {
+  size_t white_texture_pending_upload_index;
+  if (!CreateTextureResource(1, 1, ImmediateTextureFilter::kNearest, false,
+                             nullptr, white_texture_,
+                             white_texture_pending_upload_index)) {
     XELOGE("Failed to create a blank texture for the Vulkan immediate drawer");
     Shutdown();
     return false;
@@ -117,39 +126,36 @@ void VulkanImmediateDrawer::Shutdown() {
   util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
                              pipeline_layout_);
 
-  for (SubmittedTextureUpload& submitted_texture_upload :
-       texture_uploads_submitted_) {
-    if (submitted_texture_upload.buffer != VK_NULL_HANDLE) {
-      dfn.vkDestroyBuffer(device, submitted_texture_upload.buffer, nullptr);
-    }
-    if (submitted_texture_upload.buffer_memory != VK_NULL_HANDLE) {
-      dfn.vkFreeMemory(device, submitted_texture_upload.buffer_memory, nullptr);
-    }
+  for (auto& deleted_texture : textures_deleted_) {
+    DestroyTextureResource(deleted_texture.first);
   }
-  texture_uploads_submitted_.clear();
+  textures_deleted_.clear();
+  for (SubmittedTextureUploadBuffer& submitted_texture_upload_buffer :
+       texture_upload_buffers_submitted_) {
+    dfn.vkDestroyBuffer(device, submitted_texture_upload_buffer.buffer,
+                        nullptr);
+    dfn.vkFreeMemory(device, submitted_texture_upload_buffer.buffer_memory,
+                     nullptr);
+  }
+  texture_upload_buffers_submitted_.clear();
   for (PendingTextureUpload& pending_texture_upload :
        texture_uploads_pending_) {
-    if (pending_texture_upload.buffer != VK_NULL_HANDLE) {
-      dfn.vkDestroyBuffer(device, pending_texture_upload.buffer, nullptr);
-    }
-    if (pending_texture_upload.buffer_memory != VK_NULL_HANDLE) {
-      dfn.vkFreeMemory(device, pending_texture_upload.buffer_memory, nullptr);
-    }
+    dfn.vkDestroyBuffer(device, pending_texture_upload.buffer, nullptr);
+    dfn.vkFreeMemory(device, pending_texture_upload.buffer_memory, nullptr);
   }
   texture_uploads_pending_.clear();
-  textures_free_.clear();
-  for (Texture& texture : textures_) {
-    if (!texture.reference_count) {
+  for (VulkanImmediateTexture* texture : textures_) {
+    if (texture->immediate_drawer_ != this) {
       continue;
     }
-    if (texture.immediate_texture) {
-      texture.immediate_texture->DetachFromImmediateDrawer();
-    }
-    dfn.vkDestroyImageView(device, texture.image_view, nullptr);
-    dfn.vkDestroyImage(device, texture.image, nullptr);
-    dfn.vkFreeMemory(device, texture.memory, nullptr);
+    texture->immediate_drawer_ = nullptr;
+    DestroyTextureResource(texture->resource_);
   }
   textures_.clear();
+  if (white_texture_.image != VK_NULL_HANDLE) {
+    DestroyTextureResource(white_texture_);
+    white_texture_.image = VK_NULL_HANDLE;
+  }
 
   texture_descriptor_pool_recycled_first_ = nullptr;
   texture_descriptor_pool_unallocated_first_ = nullptr;
@@ -166,21 +172,19 @@ std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::CreateTexture(
     uint32_t width, uint32_t height, ImmediateTextureFilter filter,
     bool is_repeated, const uint8_t* data) {
   assert_not_null(data);
-  size_t texture_index =
-      CreateVulkanTexture(width, height, filter, is_repeated, data);
-  if (texture_index == SIZE_MAX) {
-    texture_index = white_texture_index_;
+  auto texture = std::make_unique<VulkanImmediateTexture>(width, height);
+  size_t pending_upload_index;
+  if (CreateTextureResource(width, height, filter, is_repeated, data,
+                            texture->resource_, pending_upload_index)) {
+    // Manage by this immediate drawer.
+    texture->immediate_drawer_ = this;
+    texture->immediate_drawer_index_ = textures_.size();
+    textures_.push_back(texture.get());
+    texture->pending_upload_index_ = pending_upload_index;
+    texture_uploads_pending_[texture->pending_upload_index_].texture =
+        texture.get();
   }
-  Texture& texture = textures_[texture_index];
-  auto immediate_texture = std::make_unique<VulkanImmediateTexture>(
-      width, height, this, GetTextureHandleForIndex(texture_index));
-  if (texture_index != white_texture_index_) {
-    texture.immediate_texture = immediate_texture.get();
-  }
-  // Transferring a new reference to a real texture or giving a weak reference
-  // to the white texture (there's no backlink to the ImmediateTexture from it
-  // also).
-  return std::unique_ptr<ImmediateTexture>(immediate_texture.release());
+  return std::unique_ptr<ImmediateTexture>(texture.release());
 }
 
 void VulkanImmediateDrawer::Begin(int render_target_width,
@@ -200,25 +204,30 @@ void VulkanImmediateDrawer::Begin(int render_target_width,
   const VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
+  // Destroy deleted textures.
+  for (auto it = textures_deleted_.begin(); it != textures_deleted_.end();) {
+    if (it->second > submission_completed) {
+      ++it;
+      continue;
+    }
+    if (std::next(it) != textures_deleted_.end()) {
+      *it = textures_deleted_.back();
+    }
+    textures_deleted_.pop_back();
+  }
+
   // Release upload buffers for completed texture uploads.
-  auto erase_texture_uploads_end = texture_uploads_submitted_.begin();
-  while (erase_texture_uploads_end != texture_uploads_submitted_.end()) {
+  auto erase_texture_uploads_end = texture_upload_buffers_submitted_.begin();
+  while (erase_texture_uploads_end != texture_upload_buffers_submitted_.end()) {
     if (erase_texture_uploads_end->submission_index > submission_completed) {
       break;
     }
-    if (erase_texture_uploads_end->buffer != VK_NULL_HANDLE) {
-      dfn.vkDestroyBuffer(device, erase_texture_uploads_end->buffer, nullptr);
-    }
-    if (erase_texture_uploads_end->buffer_memory != VK_NULL_HANDLE) {
-      dfn.vkFreeMemory(device, erase_texture_uploads_end->buffer_memory,
-                       nullptr);
-    }
-    // Release the texture reference held for uploading.
-    ReleaseTexture(erase_texture_uploads_end->texture_index);
+    dfn.vkDestroyBuffer(device, erase_texture_uploads_end->buffer, nullptr);
+    dfn.vkFreeMemory(device, erase_texture_uploads_end->buffer_memory, nullptr);
     ++erase_texture_uploads_end;
   }
-  texture_uploads_submitted_.erase(texture_uploads_submitted_.begin(),
-                                   erase_texture_uploads_end);
+  texture_upload_buffers_submitted_.erase(
+      texture_upload_buffers_submitted_.begin(), erase_texture_uploads_end);
 
   vertex_buffer_pool_->Reclaim(submission_completed);
 
@@ -352,8 +361,15 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
   }
 
   // Bind the texture.
-  uint32_t texture_descriptor_index =
-      textures_[GetTextureIndexForHandle(draw.texture_handle)].descriptor_index;
+  uint32_t texture_descriptor_index;
+  VulkanImmediateTexture* texture =
+      reinterpret_cast<VulkanImmediateTexture*>(draw.texture_handle);
+  if (texture && texture->immediate_drawer_ == this) {
+    texture_descriptor_index = texture->resource_.descriptor_index;
+    texture->last_usage_submission_ = context_.swap_submission_current();
+  } else {
+    texture_descriptor_index = white_texture_.descriptor_index;
+  }
   if (current_texture_descriptor_index_ != texture_descriptor_index) {
     current_texture_descriptor_index_ = texture_descriptor_index;
     VkDescriptorSet texture_descriptor_set =
@@ -408,7 +424,7 @@ void VulkanImmediateDrawer::End() {
       for (const PendingTextureUpload& pending_texture_upload :
            texture_uploads_pending_) {
         image_memory_barriers.emplace_back(image_memory_barrier).image =
-            textures_[pending_texture_upload.texture_index].image;
+            pending_texture_upload.image;
       }
       dfn.vkCmdPipelineBarrier(
           setup_command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
@@ -416,12 +432,10 @@ void VulkanImmediateDrawer::End() {
           uint32_t(image_memory_barriers.size()), image_memory_barriers.data());
 
       // Do transfer operations and transition to
-      // VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL.
+      // VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, and also mark as used.
       for (size_t i = 0; i < texture_uploads_pending_count; ++i) {
         const PendingTextureUpload& pending_texture_upload =
             texture_uploads_pending_[i];
-        VkImage texture_upload_image =
-            textures_[pending_texture_upload.texture_index].image;
         if (pending_texture_upload.buffer != VK_NULL_HANDLE) {
           // Copying.
           VkBufferImageCopy copy_region;
@@ -440,8 +454,16 @@ void VulkanImmediateDrawer::End() {
           copy_region.imageExtent.depth = 1;
           dfn.vkCmdCopyBufferToImage(
               setup_command_buffer, pending_texture_upload.buffer,
-              texture_upload_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-              &copy_region);
+              pending_texture_upload.image,
+              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
+
+          SubmittedTextureUploadBuffer& submitted_texture_upload_buffer =
+              texture_upload_buffers_submitted_.emplace_back();
+          submitted_texture_upload_buffer.buffer =
+              pending_texture_upload.buffer;
+          submitted_texture_upload_buffer.buffer_memory =
+              pending_texture_upload.buffer_memory;
+          submitted_texture_upload_buffer.submission_index = submission_current;
         } else {
           // Clearing (initializing the empty image).
           VkClearColorValue white_clear_value;
@@ -449,10 +471,10 @@ void VulkanImmediateDrawer::End() {
           white_clear_value.float32[1] = 1.0f;
           white_clear_value.float32[2] = 1.0f;
           white_clear_value.float32[3] = 1.0f;
-          dfn.vkCmdClearColorImage(setup_command_buffer, texture_upload_image,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   &white_clear_value, 1,
-                                   &image_memory_barrier.subresourceRange);
+          dfn.vkCmdClearColorImage(
+              setup_command_buffer, pending_texture_upload.image,
+              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &white_clear_value, 1,
+              &image_memory_barrier.subresourceRange);
         }
 
         VkImageMemoryBarrier& image_memory_barrier_current =
@@ -465,16 +487,11 @@ void VulkanImmediateDrawer::End() {
         image_memory_barrier_current.newLayout =
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        SubmittedTextureUpload& submitted_texture_upload =
-            texture_uploads_submitted_.emplace_back();
-        // Transfer the reference to the texture - need to keep it until the
-        // upload is completed.
-        submitted_texture_upload.texture_index =
-            pending_texture_upload.texture_index;
-        submitted_texture_upload.buffer = pending_texture_upload.buffer;
-        submitted_texture_upload.buffer_memory =
-            pending_texture_upload.buffer_memory;
-        submitted_texture_upload.submission_index = submission_current;
+        if (pending_texture_upload.texture) {
+          pending_texture_upload.texture->last_usage_submission_ =
+              submission_current;
+          pending_texture_upload.texture->pending_upload_index_ = SIZE_MAX;
+        }
       }
       dfn.vkCmdPipelineBarrier(
           setup_command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -808,11 +825,11 @@ void VulkanImmediateDrawer::FreeTextureDescriptor(uint32_t descriptor_index) {
   pool->recycled_bits |= uint64_t(1) << allocation_index;
 }
 
-size_t VulkanImmediateDrawer::CreateVulkanTexture(uint32_t width,
-                                                  uint32_t height,
-                                                  ImmediateTextureFilter filter,
-                                                  bool is_repeated,
-                                                  const uint8_t* data) {
+bool VulkanImmediateDrawer::CreateTextureResource(
+    uint32_t width, uint32_t height, ImmediateTextureFilter filter,
+    bool is_repeated, const uint8_t* data,
+    VulkanImmediateTexture::Resource& resource_out,
+    size_t& pending_upload_index_out) {
   const VulkanProvider& provider = context_.GetVulkanProvider();
   const VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
@@ -846,7 +863,7 @@ size_t VulkanImmediateDrawer::CreateVulkanTexture(uint32_t width,
     XELOGE(
         "Failed to create a Vulkan image for a {}x{} immediate drawer texture",
         width, height);
-    return SIZE_MAX;
+    return false;
   }
 
   VkMemoryAllocateInfo image_memory_allocate_info;
@@ -860,7 +877,7 @@ size_t VulkanImmediateDrawer::CreateVulkanTexture(uint32_t width,
         "drawer Vulkan image",
         width, height);
     dfn.vkDestroyImage(device, image, nullptr);
-    return SIZE_MAX;
+    return false;
   }
   image_memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
   VkMemoryDedicatedAllocateInfoKHR image_memory_dedicated_allocate_info;
@@ -883,14 +900,14 @@ size_t VulkanImmediateDrawer::CreateVulkanTexture(uint32_t width,
         "image",
         width, height);
     dfn.vkDestroyImage(device, image, nullptr);
-    return SIZE_MAX;
+    return false;
   }
   if (dfn.vkBindImageMemory(device, image, image_memory, 0) != VK_SUCCESS) {
     XELOGE("Failed to bind memory to a {}x{} immediate drawer Vulkan image",
            width, height);
     dfn.vkDestroyImage(device, image, nullptr);
     dfn.vkFreeMemory(device, image_memory, nullptr);
-    return SIZE_MAX;
+    return false;
   }
 
   VkImageViewCreateInfo image_view_create_info;
@@ -917,7 +934,7 @@ size_t VulkanImmediateDrawer::CreateVulkanTexture(uint32_t width,
         width, height);
     dfn.vkDestroyImage(device, image, nullptr);
     dfn.vkFreeMemory(device, image_memory, nullptr);
-    return SIZE_MAX;
+    return false;
   }
 
   uint32_t descriptor_index = AllocateTextureDescriptor();
@@ -929,7 +946,7 @@ size_t VulkanImmediateDrawer::CreateVulkanTexture(uint32_t width,
     dfn.vkDestroyImageView(device, image_view, nullptr);
     dfn.vkDestroyImage(device, image, nullptr);
     dfn.vkFreeMemory(device, image_memory, nullptr);
-    return SIZE_MAX;
+    return false;
   }
   VkDescriptorImageInfo descriptor_image_info;
   VulkanProvider::HostSampler host_sampler;
@@ -983,7 +1000,7 @@ size_t VulkanImmediateDrawer::CreateVulkanTexture(uint32_t width,
       dfn.vkDestroyImageView(device, image_view, nullptr);
       dfn.vkDestroyImage(device, image, nullptr);
       dfn.vkFreeMemory(device, image_memory, nullptr);
-      return SIZE_MAX;
+      return false;
     }
 
     VkMemoryAllocateInfo upload_buffer_memory_allocate_info;
@@ -1003,7 +1020,7 @@ size_t VulkanImmediateDrawer::CreateVulkanTexture(uint32_t width,
       dfn.vkDestroyImageView(device, image_view, nullptr);
       dfn.vkDestroyImage(device, image, nullptr);
       dfn.vkFreeMemory(device, image_memory, nullptr);
-      return SIZE_MAX;
+      return false;
     }
     upload_buffer_memory_allocate_info.sType =
         VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -1034,7 +1051,7 @@ size_t VulkanImmediateDrawer::CreateVulkanTexture(uint32_t width,
       dfn.vkDestroyImageView(device, image_view, nullptr);
       dfn.vkDestroyImage(device, image, nullptr);
       dfn.vkFreeMemory(device, image_memory, nullptr);
-      return SIZE_MAX;
+      return false;
     }
     if (dfn.vkBindBufferMemory(device, upload_buffer, upload_buffer_memory,
                                0) != VK_SUCCESS) {
@@ -1048,7 +1065,7 @@ size_t VulkanImmediateDrawer::CreateVulkanTexture(uint32_t width,
       dfn.vkDestroyImageView(device, image_view, nullptr);
       dfn.vkDestroyImage(device, image, nullptr);
       dfn.vkFreeMemory(device, image_memory, nullptr);
-      return SIZE_MAX;
+      return false;
     }
 
     void* upload_buffer_mapping;
@@ -1064,7 +1081,7 @@ size_t VulkanImmediateDrawer::CreateVulkanTexture(uint32_t width,
       dfn.vkDestroyImageView(device, image_view, nullptr);
       dfn.vkDestroyImage(device, image, nullptr);
       dfn.vkFreeMemory(device, image_memory, nullptr);
-      return SIZE_MAX;
+      return false;
     }
     std::memcpy(upload_buffer_mapping, data, data_size);
     util::FlushMappedMemoryRange(
@@ -1073,59 +1090,66 @@ size_t VulkanImmediateDrawer::CreateVulkanTexture(uint32_t width,
     dfn.vkUnmapMemory(device, upload_buffer_memory);
   }
 
-  size_t texture_index;
-  if (!textures_free_.empty()) {
-    texture_index = textures_free_.back();
-    textures_free_.pop_back();
-  } else {
-    texture_index = textures_.size();
-    textures_.emplace_back();
-  }
-  Texture& texture = textures_[texture_index];
-  texture.immediate_texture = nullptr;
-  texture.image = image;
-  texture.memory = image_memory;
-  texture.image_view = image_view;
-  texture.descriptor_index = descriptor_index;
-  // The reference that will be returned to the caller.
-  texture.reference_count = 1;
+  resource_out.image = image;
+  resource_out.memory = image_memory;
+  resource_out.image_view = image_view;
+  resource_out.descriptor_index = descriptor_index;
 
-  PendingTextureUpload& pending_texture_upload =
+  pending_upload_index_out = texture_uploads_pending_.size();
+  PendingTextureUpload& pending_upload =
       texture_uploads_pending_.emplace_back();
-  // While the upload has not been yet completed, keep a reference to the
-  // texture because its lifetime is not tied to that of the ImmediateTexture
-  // (and thus to context's submissions) now.
-  ++texture.reference_count;
-  pending_texture_upload.texture_index = texture_index;
-  pending_texture_upload.width = width;
-  pending_texture_upload.height = height;
-  pending_texture_upload.buffer = upload_buffer;
-  pending_texture_upload.buffer_memory = upload_buffer_memory;
+  // The caller will set the ImmedateTexture pointer if needed.
+  pending_upload.texture = nullptr;
+  pending_upload.buffer = upload_buffer;
+  pending_upload.buffer_memory = upload_buffer_memory;
+  pending_upload.image = image;
+  pending_upload.width = width;
+  pending_upload.height = height;
 
-  return texture_index;
+  return true;
 }
 
-void VulkanImmediateDrawer::ReleaseTexture(size_t index) {
-  assert_true(index < textures_.size());
-  Texture& texture = textures_[index];
-  assert_not_zero(texture.reference_count);
-  if (--texture.reference_count) {
-    return;
-  }
-  // If the texture is attached to a VulkanImmediateTexture, the
-  // VulkanImmediateTexture must hold a reference to it.
-  assert_null(texture.immediate_texture);
-  FreeTextureDescriptor(texture.descriptor_index);
+void VulkanImmediateDrawer::DestroyTextureResource(
+    VulkanImmediateTexture::Resource& resource) {
+  FreeTextureDescriptor(resource.descriptor_index);
   const VulkanProvider& provider = context_.GetVulkanProvider();
   const VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
-  dfn.vkDestroyImageView(device, texture.image_view, nullptr);
-  dfn.vkDestroyImage(device, texture.image, nullptr);
-  dfn.vkFreeMemory(device, texture.memory, nullptr);
-  textures_free_.push_back(index);
-  // TODO(Triang3l): Track last usage submission because it turns out that
-  // deletion in the ImGui and the profiler actually happens before after
-  // awaiting submission completion.
+  dfn.vkDestroyImageView(device, resource.image_view, nullptr);
+  dfn.vkDestroyImage(device, resource.image, nullptr);
+  dfn.vkFreeMemory(device, resource.memory, nullptr);
+}
+
+void VulkanImmediateDrawer::OnImmediateTextureDestroyed(
+    VulkanImmediateTexture& texture) {
+  // Remove from the pending uploads.
+  size_t pending_upload_index = texture.pending_upload_index_;
+  if (pending_upload_index != SIZE_MAX) {
+    if (pending_upload_index + 1 < texture_uploads_pending_.size()) {
+      PendingTextureUpload& pending_upload =
+          texture_uploads_pending_[pending_upload_index];
+      pending_upload = texture_uploads_pending_.back();
+      if (pending_upload.texture) {
+        pending_upload.texture->pending_upload_index_ = pending_upload_index;
+      }
+    }
+    texture_uploads_pending_.pop_back();
+  }
+
+  // Remove from the texture list.
+  VulkanImmediateTexture*& texture_at_index =
+      textures_[texture.immediate_drawer_index_];
+  texture_at_index = textures_.back();
+  texture_at_index->immediate_drawer_index_ = texture.immediate_drawer_index_;
+  textures_.pop_back();
+
+  // Destroy immediately or queue for destruction if in use.
+  if (texture.last_usage_submission_ > context_.swap_submission_completed()) {
+    textures_deleted_.emplace_back(
+        std::make_pair(texture.resource_, texture.last_usage_submission_));
+  } else {
+    DestroyTextureResource(texture.resource_);
+  }
 }
 
 }  // namespace vulkan
