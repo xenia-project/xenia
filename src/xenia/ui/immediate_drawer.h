@@ -32,12 +32,10 @@ class ImmediateTexture {
   uint32_t width;
   // Texture height, in pixels.
   uint32_t height;
-  // Internal handle. Can be passed with the ImmediateDrawBatch.
-  uintptr_t handle;
 
  protected:
   ImmediateTexture(uint32_t width, uint32_t height)
-      : width(width), height(height), handle(0ULL) {}
+      : width(width), height(height) {}
 };
 
 // Describes the primitive type used by a draw call.
@@ -78,16 +76,12 @@ struct ImmediateDraw {
   int base_vertex = 0;
 
   // Texture used when drawing, or nullptr if color only.
-  // This is most commonly the handle of an ImmediateTexture.
-  uintptr_t texture_handle = 0;
+  ImmediateTexture* texture = nullptr;
 
   // True to enable scissoring using the region defined by scissor_rect.
   bool scissor = false;
   // Scissoring region in framebuffer pixels as (x, y, w, h).
   int scissor_rect[4] = {0};
-
-  // Blends this draw with the background depending on its alpha (if true).
-  bool alpha_blend = true;
 };
 
 class ImmediateDrawer {
@@ -97,7 +91,7 @@ class ImmediateDrawer {
   // Creates a new texture with the given attributes and R8G8B8A8 data.
   virtual std::unique_ptr<ImmediateTexture> CreateTexture(
       uint32_t width, uint32_t height, ImmediateTextureFilter filter,
-      bool repeat, const uint8_t* data) = 0;
+      bool is_repeated, const uint8_t* data) = 0;
 
   // Begins drawing in immediate mode using the given projection matrix.
   virtual void Begin(int render_target_width, int render_target_height) = 0;
