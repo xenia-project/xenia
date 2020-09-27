@@ -40,7 +40,6 @@ D3D12ImmediateDrawer::D3D12ImmediateTexture::D3D12ImmediateTexture(
   if (resource_) {
     resource_->AddRef();
   }
-  handle = reinterpret_cast<uintptr_t>(this);
 }
 
 D3D12ImmediateDrawer::D3D12ImmediateTexture::~D3D12ImmediateTexture() {
@@ -544,7 +543,7 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
   // index will be invalid initially, and the texture will be bound regardless
   // of what's in current_texture_.
   uint64_t current_fence_value = context_.GetSwapCurrentFenceValue();
-  auto texture = reinterpret_cast<D3D12ImmediateTexture*>(draw.texture_handle);
+  auto texture = static_cast<D3D12ImmediateTexture*>(draw.texture);
   ID3D12Resource* texture_resource = texture ? texture->resource() : nullptr;
   bool bind_texture = current_texture_ != texture_resource;
   uint32_t texture_descriptor_index;

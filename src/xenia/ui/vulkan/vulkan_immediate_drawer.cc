@@ -152,7 +152,6 @@ class VulkanImmediateTexture : public ImmediateTexture {
 
   VkResult Initialize(VkDescriptorSetLayout descriptor_set_layout,
                       VkImageView image_view) {
-    handle = reinterpret_cast<uintptr_t>(this);
     image_view_ = image_view;
     VkResult status;
 
@@ -191,7 +190,6 @@ class VulkanImmediateTexture : public ImmediateTexture {
   }
 
   VkResult Initialize(VkDescriptorSetLayout descriptor_set_layout) {
-    handle = reinterpret_cast<uintptr_t>(this);
     VkResult status;
 
     // Create image object.
@@ -824,7 +822,7 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
   }
 
   // Setup texture binding.
-  auto texture = reinterpret_cast<VulkanImmediateTexture*>(draw.texture_handle);
+  auto texture = static_cast<VulkanImmediateTexture*>(draw.texture);
   if (texture) {
     if (texture->layout() != VK_IMAGE_LAYOUT_GENERAL) {
       texture->TransitionLayout(current_cmd_buffer_, VK_IMAGE_LAYOUT_GENERAL);
