@@ -163,7 +163,7 @@ void ImGuiDrawer::SetupFont() {
       width, height, ImmediateTextureFilter::kLinear, true,
       reinterpret_cast<uint8_t*>(pixels));
 
-  io.Fonts->TexID = reinterpret_cast<void*>(font_texture_->handle);
+  io.Fonts->TexID = reinterpret_cast<ImTextureID>(font_texture_.get());
 }
 
 void ImGuiDrawer::RenderDrawLists(ImDrawData* data) {
@@ -198,11 +198,7 @@ void ImGuiDrawer::RenderDrawLists(ImDrawData* data) {
       draw.primitive_type = ImmediatePrimitiveType::kTriangles;
       draw.count = cmd.ElemCount;
       draw.index_offset = index_offset;
-      draw.texture_handle =
-          reinterpret_cast<uintptr_t>(cmd.TextureId) & ~kIgnoreAlpha;
-      draw.alpha_blend =
-          reinterpret_cast<uintptr_t>(cmd.TextureId) & kIgnoreAlpha ? false
-                                                                    : true;
+      draw.texture = reinterpret_cast<ImmediateTexture*>(cmd.TextureId);
       draw.scissor = true;
       draw.scissor_rect[0] = static_cast<int>(cmd.ClipRect.x);
       draw.scissor_rect[1] = static_cast<int>(height - cmd.ClipRect.w);
