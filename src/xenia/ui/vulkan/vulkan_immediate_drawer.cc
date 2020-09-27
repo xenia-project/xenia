@@ -184,7 +184,7 @@ std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::CreateTexture(
     texture_uploads_pending_[texture->pending_upload_index_].texture =
         texture.get();
   }
-  return std::unique_ptr<ImmediateTexture>(texture.release());
+  return std::move(texture);
 }
 
 void VulkanImmediateDrawer::Begin(int render_target_width,
