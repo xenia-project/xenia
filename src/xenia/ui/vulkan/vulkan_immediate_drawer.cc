@@ -210,6 +210,7 @@ void VulkanImmediateDrawer::Begin(int render_target_width,
       ++it;
       continue;
     }
+    DestroyTextureResource(it->first);
     if (std::next(it) != textures_deleted_.end()) {
       *it = textures_deleted_.back();
     }
