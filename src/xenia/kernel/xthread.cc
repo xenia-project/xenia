@@ -205,6 +205,7 @@ void XThread::InitializeGuestObject() {
   // 0xA88 = APC
   // 0x18 = timer
   xe::store_and_swap<uint32_t>(p + 0x09C, 0xFDFFD7FF);
+  xe::store_and_swap<uint8_t>(p + 0xBF, 0);
   xe::store_and_swap<uint32_t>(p + 0x0D0, stack_base_);
   xe::store_and_swap<uint64_t>(p + 0x130, Clock::QueryGuestSystemTime());
   xe::store_and_swap<uint32_t>(p + 0x144, guest_object() + 0x144);
@@ -346,6 +347,9 @@ X_STATUS XThread::Create() {
   // Exports use this to get the kernel.
   thread_state_->context()->kernel_state = kernel_state_;
 
+  // Initialize the KTHREAD object.
+  InitializeGuestObject();
+
   X_KPCR* pcr = memory()->TranslateVirtual<X_KPCR*>(pcr_address_);
 
   pcr->tls_ptr = tls_static_address_;
@@ -355,14 +359,12 @@ X_STATUS XThread::Create() {
   pcr->stack_base_ptr = stack_base_;
   pcr->stack_end_ptr = stack_limit_;
 
+  pcr->dpc_active = 0;  // DPC active bool?
+
   uint8_t proc_mask =
       static_cast<uint8_t>(creation_params_.creation_flags >> 24);
-
-  pcr->current_cpu = GetFakeCpuNumber(proc_mask);  // Current CPU(?)
-  pcr->dpc_active = 0;                             // DPC active bool?
-
-  // Initialize the KTHREAD object.
-  InitializeGuestObject();
+  // Assign cpu core used by thread on guest side
+  SetAffinity(1 << GetFakeCpuNumber(proc_mask));
 
   // Always retain when starting - the thread owns itself until exited.
   RetainHandle();
@@ -714,7 +716,7 @@ void XThread::SetAffinity(uint32_t affinity) {
     XELOGW("Too few processors - scheduling will be wonky");
   }
   SetActiveCpu(GetFakeCpuNumber(affinity));
-  affinity_ = affinity;
+
   if (!cvars::ignore_thread_affinities) {
     thread_->set_affinity_mask(affinity);
   }
@@ -729,6 +731,12 @@ void XThread::SetActiveCpu(uint32_t cpu_index) {
   assert_true(cpu_index < 6);
   uint8_t* pcr = memory()->TranslateVirtual(pcr_address_);
   xe::store_and_swap<uint8_t>(pcr + 0x10C, cpu_index);
+
+  if (is_guest_thread()) {
+    X_KTHREAD* thread_object =
+        memory()->TranslateVirtual<X_KTHREAD*>(guest_object());
+    thread_object->current_cpu = cpu_index;
+  }
 }
 
 bool XThread::GetTLSValue(uint32_t slot, uint32_t* value_out) {
