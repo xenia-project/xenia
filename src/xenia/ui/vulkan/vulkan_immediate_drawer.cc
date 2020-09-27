@@ -364,7 +364,7 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
   // Bind the texture.
   uint32_t texture_descriptor_index;
   VulkanImmediateTexture* texture =
-      reinterpret_cast<VulkanImmediateTexture*>(draw.texture_handle);
+      static_cast<VulkanImmediateTexture*>(draw.texture);
   if (texture && texture->immediate_drawer_ == this) {
     texture_descriptor_index = texture->resource_.descriptor_index;
     texture->last_usage_submission_ = context_.swap_submission_current();

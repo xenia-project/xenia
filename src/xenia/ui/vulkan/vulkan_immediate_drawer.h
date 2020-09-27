@@ -36,7 +36,7 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   std::unique_ptr<ImmediateTexture> CreateTexture(uint32_t width,
                                                   uint32_t height,
                                                   ImmediateTextureFilter filter,
-                                                  bool repeat,
+                                                  bool is_repeated,
                                                   const uint8_t* data) override;
 
   void Begin(int render_target_width, int render_target_height) override;
@@ -62,9 +62,7 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
     };
 
     VulkanImmediateTexture(uint32_t width, uint32_t height)
-        : ImmediateTexture(width, height), immediate_drawer_(nullptr) {
-      handle = reinterpret_cast<uintptr_t>(this);
-    }
+        : ImmediateTexture(width, height), immediate_drawer_(nullptr) {}
     ~VulkanImmediateTexture() override;
 
     // If null, this is either a blank texture, or the immediate drawer has been
