@@ -1658,14 +1658,11 @@ bool TextureCache::EnsureScaledResolveBufferResident(uint32_t start_unscaled,
     UINT heap_range_start_offset = 0;
     UINT range_tile_count =
         kScaledResolveHeapSize / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;
-    // FIXME(Triang3l): This may cause issues if the emulator is shut down
-    // mid-frame and the heaps are destroyed before tile mappings are updated
-    // (awaiting the fence won't catch this then). Defer this until the actual
-    // command list submission.
     direct_queue->UpdateTileMappings(
         scaled_resolve_buffer_, 1, &region_start_coordinates, &region_size,
         scaled_resolve_heaps_[i], 1, &range_flags, &heap_range_start_offset,
         &range_tile_count, D3D12_TILE_MAPPING_FLAG_NONE);
+    command_processor_.NotifyQueueOperationsDoneDirectly();
   }
   return true;
 }

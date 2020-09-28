@@ -68,6 +68,13 @@ class D3D12CommandProcessor : public CommandProcessor {
   uint64_t GetCurrentSubmission() const { return submission_current_; }
   uint64_t GetCompletedSubmission() const { return submission_completed_; }
 
+  // Must be called when a subsystem does something like UpdateTileMappings so
+  // it can be awaited in AwaitAllQueueOperationsCompletion if it was done after
+  // the latest ExecuteCommandLists + Signal.
+  void NotifyQueueOperationsDoneDirectly() {
+    queue_operations_done_since_submission_signal_ = true;
+  }
+
   uint64_t GetCurrentFrame() const { return frame_current_; }
   uint64_t GetCompletedFrame() const { return frame_completed_; }
 
@@ -307,7 +314,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   // as when there are unfinished graphics pipeline state creation requests that
   // would need to be fulfilled before actually submitting the command list.
   bool CanEndSubmissionImmediately() const;
-  void AwaitAllSubmissionsCompletion();
+  void AwaitAllQueueOperationsCompletion();
   // Need to await submission completion before calling.
   void ClearCommandAllocatorCache();
 
@@ -350,12 +357,20 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   bool cache_clear_requested_ = false;
 
+  HANDLE fence_completion_event_ = nullptr;
+
   bool submission_open_ = false;
   // Values of submission_fence_.
   uint64_t submission_current_ = 1;
   uint64_t submission_completed_ = 0;
-  HANDLE submission_fence_completion_event_ = nullptr;
   ID3D12Fence* submission_fence_ = nullptr;
+
+  // For awaiting non-submission queue operations such as UpdateTileMappings in
+  // AwaitAllQueueOperationsCompletion when they're queued after the latest
+  // ExecuteCommandLists + Signal, thus won't be awaited by just awaiting the
+  // submission.
+  ID3D12Fence* queue_operations_since_submission_signal_fence_ = nullptr;
+  bool queue_operations_done_since_submission_signal_ = false;
 
   bool frame_open_ = false;
   // Guest frame index, since some transient resources can be reused across

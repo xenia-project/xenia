@@ -802,7 +802,7 @@ std::unique_ptr<xe::ui::RawImage> D3D12CommandProcessor::Capture() {
   if (!EndSubmission(false)) {
     return nullptr;
   }
-  AwaitAllSubmissionsCompletion();
+  AwaitAllQueueOperationsCompletion();
   D3D12_RANGE readback_range;
   readback_range.Begin = swap_texture_copy_footprint_.Offset;
   readback_range.End = swap_texture_copy_size_;
@@ -850,25 +850,24 @@ bool D3D12CommandProcessor::SetupContext() {
   auto device = provider.GetDevice();
   auto direct_queue = provider.GetDirectQueue();
 
-  submission_open_ = false;
-  submission_current_ = 1;
-  submission_completed_ = 0;
+  fence_completion_event_ = CreateEvent(nullptr, false, false, nullptr);
+  if (fence_completion_event_ == nullptr) {
+    XELOGE("Failed to create the fence completion event");
+    return false;
+  }
   if (FAILED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE,
                                  IID_PPV_ARGS(&submission_fence_)))) {
     XELOGE("Failed to create the submission fence");
     return false;
   }
-  submission_fence_completion_event_ =
-      CreateEvent(nullptr, false, false, nullptr);
-  if (submission_fence_completion_event_ == nullptr) {
-    XELOGE("Failed to create the submission fence completion event");
+  if (FAILED(device->CreateFence(
+          0, D3D12_FENCE_FLAG_NONE,
+          IID_PPV_ARGS(&queue_operations_since_submission_signal_fence_)))) {
+    XELOGE(
+        "Failed to create the fence for awaiting queue operations done since "
+        "the latest submission");
     return false;
   }
-
-  frame_open_ = false;
-  frame_current_ = 1;
-  frame_completed_ = 0;
-  std::memset(closed_frame_submissions_, 0, sizeof(closed_frame_submissions_));
 
   // Create the command list and one allocator because it's needed for a command
   // list.
@@ -883,8 +882,6 @@ bool D3D12CommandProcessor::SetupContext() {
   command_allocator_writable_first_->last_usage_submission = 0;
   command_allocator_writable_first_->next = nullptr;
   command_allocator_writable_last_ = command_allocator_writable_first_;
-  command_allocator_submitted_first_ = nullptr;
-  command_allocator_submitted_last_ = nullptr;
   if (FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT,
                                        command_allocator, nullptr,
                                        IID_PPV_ARGS(&command_list_)))) {
@@ -1469,7 +1466,7 @@ bool D3D12CommandProcessor::SetupContext() {
 }
 
 void D3D12CommandProcessor::ShutdownContext() {
-  AwaitAllSubmissionsCompletion();
+  AwaitAllQueueOperationsCompletion();
 
   ui::d3d12::util::ReleaseAndNull(readback_buffer_);
   readback_buffer_size_ = 0;
@@ -1557,15 +1554,21 @@ void D3D12CommandProcessor::ShutdownContext() {
   frame_completed_ = 0;
   std::memset(closed_frame_submissions_, 0, sizeof(closed_frame_submissions_));
 
-  // First release the fence since it may reference the event.
+  // First release the fences since they may reference fence_completion_event_.
+
+  queue_operations_done_since_submission_signal_ = false;
+  ui::d3d12::util::ReleaseAndNull(
+      queue_operations_since_submission_signal_fence_);
+
   ui::d3d12::util::ReleaseAndNull(submission_fence_);
-  if (submission_fence_completion_event_) {
-    CloseHandle(submission_fence_completion_event_);
-    submission_fence_completion_event_ = nullptr;
-  }
   submission_open_ = false;
   submission_current_ = 1;
   submission_completed_ = 0;
+
+  if (fence_completion_event_) {
+    CloseHandle(fence_completion_event_);
+    fence_completion_event_ = nullptr;
+  }
 
   CommandProcessor::ShutdownContext();
 }
@@ -2283,7 +2286,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
                 memexport_range.base_address_dwords << 2, memexport_range_size);
             readback_buffer_offset += memexport_range_size;
           }
-          AwaitAllSubmissionsCompletion();
+          AwaitAllQueueOperationsCompletion();
           D3D12_RANGE readback_range;
           readback_range.Begin = 0;
           readback_range.End = memexport_total_size;
@@ -2322,7 +2325,7 @@ void D3D12CommandProcessor::InitializeTrace() {
   if (!EndSubmission(false)) {
     return;
   }
-  AwaitAllSubmissionsCompletion();
+  AwaitAllQueueOperationsCompletion();
   if (render_target_cache_submitted) {
     render_target_cache_->InitializeTraceCompleteDownloads();
   }
@@ -2355,7 +2358,7 @@ bool D3D12CommandProcessor::IssueCopy() {
           readback_buffer, 0, shared_memory_buffer, written_address,
           written_length);
       if (EndSubmission(false)) {
-        AwaitAllSubmissionsCompletion();
+        AwaitAllQueueOperationsCompletion();
         D3D12_RANGE readback_range;
         readback_range.Begin = 0;
         readback_range.End = written_length;
@@ -2384,8 +2387,8 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
   submission_completed_ = submission_fence_->GetCompletedValue();
   if (submission_completed_ < await_submission) {
     submission_fence_->SetEventOnCompletion(await_submission,
-                                            submission_fence_completion_event_);
-    WaitForSingleObject(submission_fence_completion_event_, INFINITE);
+                                            fence_completion_event_);
+    WaitForSingleObject(fence_completion_event_, INFINITE);
     submission_completed_ = submission_fence_->GetCompletedValue();
   }
   if (submission_completed_ <= submission_completed_before) {
@@ -2622,6 +2625,10 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
     direct_queue->Signal(submission_fence_, submission_current_++);
 
     submission_open_ = false;
+
+    // Queue operations done directly (like UpdateTileMappings) will be awaited
+    // alongside the last submission if needed.
+    queue_operations_done_since_submission_signal_ = false;
   }
 
   if (is_closing_frame) {
@@ -2640,7 +2647,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
 
     if (cache_clear_requested_) {
       cache_clear_requested_ = false;
-      AwaitAllSubmissionsCompletion();
+      AwaitAllQueueOperationsCompletion();
 
       ClearCommandAllocatorCache();
 
@@ -2685,15 +2692,31 @@ bool D3D12CommandProcessor::CanEndSubmissionImmediately() const {
   return !submission_open_ || !pipeline_cache_->IsCreatingPipelineStates();
 }
 
-void D3D12CommandProcessor::AwaitAllSubmissionsCompletion() {
-  // May be called if shutting down without everything set up.
-  if ((submission_completed_ + 1) >= submission_current_ ||
-      !submission_fence_ || GetD3D12Context().WasLost()) {
+void D3D12CommandProcessor::AwaitAllQueueOperationsCompletion() {
+  ui::d3d12::D3D12Context& context = GetD3D12Context();
+  if (context.WasLost()) {
     return;
   }
-  submission_fence_->SetEventOnCompletion(submission_current_ - 1,
-                                          submission_fence_completion_event_);
-  WaitForSingleObject(submission_fence_completion_event_, INFINITE);
+  if (queue_operations_done_since_submission_signal_) {
+    assert_not_null(queue_operations_since_submission_signal_fence_);
+    UINT64 fence_value =
+        queue_operations_since_submission_signal_fence_->GetCompletedValue() +
+        1;
+    context.GetD3D12Provider().GetDirectQueue()->Signal(
+        queue_operations_since_submission_signal_fence_, fence_value);
+    queue_operations_since_submission_signal_fence_->SetEventOnCompletion(
+        fence_value, fence_completion_event_);
+    queue_operations_done_since_submission_signal_ = false;
+    // Since this indicates operations made after the last submission was done,
+    // it will await all the preceding submissions too.
+  } else if ((submission_completed_ + 1) < submission_current_) {
+    assert_not_null(submission_fence_);
+    submission_fence_->SetEventOnCompletion(submission_current_ - 1,
+                                            fence_completion_event_);
+  } else {
+    return;
+  }
+  WaitForSingleObject(fence_completion_event_, INFINITE);
   submission_completed_ = submission_current_ - 1;
 }
 
