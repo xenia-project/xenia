@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "xenia/base/assert.h"
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/deferred_command_list.h"
@@ -54,7 +55,6 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   void RestoreEdramSnapshot(const void* snapshot) override;
 
-  // Needed by everything that owns transient objects.
   ui::d3d12::D3D12Context& GetD3D12Context() const {
     return static_cast<ui::d3d12::D3D12Context&>(*context_);
   }
@@ -62,6 +62,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Returns the deferred drawing command list for the currently open
   // submission.
   DeferredCommandList& GetDeferredCommandList() {
+    assert_true(submission_open_);
     return *deferred_command_list_;
   }
 
@@ -69,8 +70,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   uint64_t GetCompletedSubmission() const { return submission_completed_; }
 
   // Must be called when a subsystem does something like UpdateTileMappings so
-  // it can be awaited in AwaitAllQueueOperationsCompletion if it was done after
-  // the latest ExecuteCommandLists + Signal.
+  // it can be awaited in CheckSubmissionFence(submission_current_) if it was
+  // done after the latest ExecuteCommandLists + Signal.
   void NotifyQueueOperationsDoneDirectly() {
     queue_operations_done_since_submission_signal_ = true;
   }
@@ -299,7 +300,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   // submission has already been closed.
 
   // Rechecks submission number and reclaims per-submission resources. Pass 0 as
-  // the submission to await to simply check status.
+  // the submission to await to simply check status, or pass submission_current_
+  // to wait for all queue operations to be completed.
   void CheckSubmissionFence(uint64_t await_submission);
   // If is_guest_command is true, a new full frame - with full cleanup of
   // resources and, if needed, starting capturing - is opened if pending (as
@@ -314,7 +316,10 @@ class D3D12CommandProcessor : public CommandProcessor {
   // as when there are unfinished graphics pipeline state creation requests that
   // would need to be fulfilled before actually submitting the command list.
   bool CanEndSubmissionImmediately() const;
-  void AwaitAllQueueOperationsCompletion();
+  bool AwaitAllQueueOperationsCompletion() {
+    CheckSubmissionFence(submission_current_);
+    return submission_completed_ + 1 >= submission_current_;
+  }
   // Need to await submission completion before calling.
   void ClearCommandAllocatorCache();
 
@@ -369,7 +374,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   // AwaitAllQueueOperationsCompletion when they're queued after the latest
   // ExecuteCommandLists + Signal, thus won't be awaited by just awaiting the
   // submission.
-  ID3D12Fence* queue_operations_since_submission_signal_fence_ = nullptr;
+  ID3D12Fence* queue_operations_since_submission_fence_ = nullptr;
+  uint64_t queue_operations_since_submission_fence_last_ = 0;
   bool queue_operations_done_since_submission_signal_ = false;
 
   bool frame_open_ = false;
