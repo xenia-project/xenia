@@ -12,8 +12,10 @@
 
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <vector>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/platform.h"
 #include "xenia/ui/graphics_provider.h"
 
@@ -193,9 +195,22 @@ class VulkanProvider : public GraphicsProvider {
   };
   const DeviceFunctions& dfn() const { return dfn_; }
 
-  VkQueue queue_graphics_compute() const { return queue_graphics_compute_; }
-  // May be VK_NULL_HANDLE if not available.
-  VkQueue queue_sparse_binding() const { return queue_sparse_binding_; }
+  VkResult SubmitToGraphicsComputeQueue(uint32_t submit_count,
+                                        const VkSubmitInfo* submits,
+                                        VkFence fence) {
+    std::lock_guard<std::mutex> lock(queue_graphics_compute_mutex_);
+    return dfn_.vkQueueSubmit(queue_graphics_compute_, submit_count, submits,
+                              fence);
+  }
+  bool CanSubmitSparseBindings() const {
+    return queue_sparse_binding_ != VK_NULL_HANDLE;
+  }
+  VkResult Present(const VkPresentInfoKHR* present_info) {
+    // FIXME(Triang3l): Allow a separate queue for present - see
+    // vulkan_provider.cc for details.
+    std::lock_guard<std::mutex> lock(queue_graphics_compute_mutex_);
+    return dfn_.vkQueuePresentKHR(queue_graphics_compute_, present_info);
+  }
 
   // Samplers that may be useful for host needs. Only these samplers should be
   // used in host, non-emulation contexts, because the total number of samplers
@@ -242,8 +257,14 @@ class VulkanProvider : public GraphicsProvider {
   VkDevice device_ = VK_NULL_HANDLE;
   DeviceFunctions dfn_ = {};
   VkQueue queue_graphics_compute_;
+  // VkQueue access must be externally synchronized - must be locked when
+  // submitting anything.
+  std::mutex queue_graphics_compute_mutex_;
   // May be VK_NULL_HANDLE if not available.
   VkQueue queue_sparse_binding_;
+  // If queue_sparse_binding_ == queue_graphics_compute_, lock
+  // queue_graphics_compute_mutex_ instead when submitting sparse bindings.
+  std::mutex queue_sparse_binding_separate_mutex_;
 
   VkSampler host_samplers_[size_t(HostSampler::kCount)] = {};
 };
