@@ -19,6 +19,8 @@
 #include "xenia/ui/vulkan/vulkan_immediate_drawer.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
+#define FINE_GRAINED_DRAW_SCOPES 1
+
 namespace xe {
 namespace ui {
 namespace vulkan {

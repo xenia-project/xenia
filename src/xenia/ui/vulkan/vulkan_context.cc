@@ -737,10 +737,9 @@ void VulkanContext::EndSwap() {
     return;
   }
 
-  const VulkanProvider& provider = GetVulkanProvider();
+  VulkanProvider& provider = GetVulkanProvider();
   const VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
-  VkQueue queue_graphics_compute = provider.queue_graphics_compute();
 
   const SwapSubmission& submission =
       swap_submissions_[swap_submission_current_ % kSwapchainMaxImageCount];
@@ -771,8 +770,8 @@ void VulkanContext::EndSwap() {
   submit_info.pCommandBuffers = submit_command_buffers;
   submit_info.signalSemaphoreCount = 1;
   submit_info.pSignalSemaphores = &swap_render_completion_semaphore_;
-  VkResult submit_result = dfn.vkQueueSubmit(queue_graphics_compute, 1,
-                                             &submit_info, submission.fence);
+  VkResult submit_result =
+      provider.SubmitToGraphicsComputeQueue(1, &submit_info, submission.fence);
   if (submit_result != VK_SUCCESS) {
     // If failed, can't even return the swapchain image - so treat all errors as
     // context loss.
@@ -790,10 +789,7 @@ void VulkanContext::EndSwap() {
   present_info.pSwapchains = &swap_swapchain_;
   present_info.pImageIndices = &swap_swapchain_image_current_;
   present_info.pResults = nullptr;
-  // FIXME(Triang3l): Allow a separate queue for present - see
-  // vulkan_provider.cc for details.
-  VkResult present_result =
-      dfn.vkQueuePresentKHR(queue_graphics_compute, &present_info);
+  VkResult present_result = provider.Present(&present_info);
   swap_swapchain_image_current_ = UINT32_MAX;
   switch (present_result) {
     case VK_SUCCESS:

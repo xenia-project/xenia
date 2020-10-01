@@ -10,10 +10,16 @@
 #ifndef XENIA_GPU_VULKAN_VULKAN_COMMAND_PROCESSOR_H_
 #define XENIA_GPU_VULKAN_VULKAN_COMMAND_PROCESSOR_H_
 
+#include <cstdint>
+#include <deque>
+#include <utility>
+#include <vector>
+
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/vulkan/vulkan_graphics_system.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/ui/vulkan/vulkan_context.h"
 
 namespace xe {
 namespace gpu {
@@ -29,7 +35,17 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   void RestoreEdramSnapshot(const void* snapshot) override;
 
- private:
+  ui::vulkan::VulkanContext& GetVulkanContext() const {
+    return static_cast<ui::vulkan::VulkanContext&>(*context_);
+  }
+
+  uint64_t GetCurrentSubmission() const {
+    return submission_completed_ +
+           uint64_t(submissions_in_flight_fences_.size()) + 1;
+  }
+  uint64_t GetCompletedSubmission() const { return submission_completed_; }
+
+ protected:
   bool SetupContext() override;
   void ShutdownContext() override;
 
@@ -47,6 +63,56 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   void InitializeTrace() override;
   void FinalizeTrace() override;
+
+ private:
+  // BeginSubmission and EndSubmission may be called at any time. If there's an
+  // open non-frame submission, BeginSubmission(true) will promote it to a
+  // frame. EndSubmission(true) will close the frame no matter whether the
+  // submission has already been closed.
+
+  // Rechecks submission number and reclaims per-submission resources. Pass 0 as
+  // the submission to await to simply check status, or pass
+  // GetCurrentSubmission() to wait for all queue operations to be completed.
+  void CheckSubmissionFence(uint64_t await_submission);
+  // If is_guest_command is true, a new full frame - with full cleanup of
+  // resources and, if needed, starting capturing - is opened if pending (as
+  // opposed to simply resuming after mid-frame synchronization).
+  void BeginSubmission(bool is_guest_command);
+  // If is_swap is true, a full frame is closed - with, if needed, cache
+  // clearing and stopping capturing. Returns whether the submission was done
+  // successfully, if it has failed, leaves it open.
+  bool EndSubmission(bool is_swap);
+  bool AwaitAllQueueOperationsCompletion() {
+    CheckSubmissionFence(GetCurrentSubmission());
+    return !submission_open_ && submissions_in_flight_fences_.empty();
+  }
+
+  bool cache_clear_requested_ = false;
+
+  std::vector<VkFence> fences_free_;
+  std::vector<VkSemaphore> semaphores_free_;
+
+  bool submission_open_ = false;
+  uint64_t submission_completed_ = 0;
+  std::vector<VkFence> submissions_in_flight_fences_;
+  std::deque<std::pair<VkSemaphore, uint64_t>>
+      submissions_in_flight_sparse_binding_semaphores_;
+
+  static constexpr uint32_t kMaxFramesInFlight = 3;
+  bool frame_open_ = false;
+  // Guest frame index, since some transient resources can be reused across
+  // submissions. Values updated in the beginning of a frame.
+  uint64_t frame_current_ = 1;
+  uint64_t frame_completed_ = 0;
+  // Submission indices of frames that have already been submitted.
+  uint64_t closed_frame_submissions_[kMaxFramesInFlight] = {};
+
+  struct CommandBuffer {
+    VkCommandPool pool;
+    VkCommandBuffer buffer;
+  };
+  std::vector<CommandBuffer> command_buffers_writable_;
+  std::deque<std::pair<CommandBuffer, uint64_t>> command_buffers_submitted_;
 };
 
 }  // namespace vulkan
