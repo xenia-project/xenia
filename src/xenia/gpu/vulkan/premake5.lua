@@ -41,6 +41,7 @@ project("xenia-gpu-vulkan-trace-viewer")
     "xenia-hid",
     "xenia-hid-nop",
     "xenia-kernel",
+    "xenia-patcher",
     "xenia-ui",
     "xenia-ui-spirv",
     "xenia-ui-vulkan",
@@ -112,6 +113,7 @@ project("xenia-gpu-vulkan-trace-dump")
     "xenia-ui-spirv",
     "xenia-ui-vulkan",
     "xenia-vfs",
+    "xenia-patcher",
   })
   links({
     "aes_128",

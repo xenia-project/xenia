@@ -36,6 +36,7 @@ project("xenia-gpu-d3d12-trace-viewer")
     "xenia-hid",
     "xenia-hid-nop",
     "xenia-kernel",
+    "xenia-patcher",
     "xenia-ui",
     "xenia-ui-d3d12",
     "xenia-vfs",
@@ -86,6 +87,7 @@ project("xenia-gpu-d3d12-trace-dump")
     "xenia-ui",
     "xenia-ui-d3d12",
     "xenia-vfs",
+    "xenia-patcher",
   })
   links({
     "aes_128",
