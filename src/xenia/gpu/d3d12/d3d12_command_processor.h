@@ -20,11 +20,11 @@
 #include "xenia/base/assert.h"
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
+#include "xenia/gpu/d3d12/d3d12_shared_memory.h"
 #include "xenia/gpu/d3d12/deferred_command_list.h"
 #include "xenia/gpu/d3d12/pipeline_cache.h"
 #include "xenia/gpu/d3d12/primitive_converter.h"
 #include "xenia/gpu/d3d12/render_target_cache.h"
-#include "xenia/gpu/d3d12/shared_memory.h"
 #include "xenia/gpu/d3d12/texture_cache.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/xenos.h"
@@ -471,7 +471,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   ID3D12RootSignature* root_signature_bindless_vs_ = nullptr;
   ID3D12RootSignature* root_signature_bindless_ds_ = nullptr;
 
-  std::unique_ptr<SharedMemory> shared_memory_;
+  std::unique_ptr<D3D12SharedMemory> shared_memory_;
 
   std::unique_ptr<PipelineCache> pipeline_cache_;
 
