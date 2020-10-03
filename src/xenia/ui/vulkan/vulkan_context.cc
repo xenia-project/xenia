@@ -529,6 +529,36 @@ bool VulkanContext::BeginSwap() {
         render_pass_subpass.pDepthStencilAttachment = nullptr;
         render_pass_subpass.preserveAttachmentCount = 0;
         render_pass_subpass.pPreserveAttachments = nullptr;
+        // Presentation engine does memory reading - external dependencies
+        // needed, and presentation doesn't occur in any normal pipeline stage,
+        // but it can be represented in the "bottom of pipeline" stage.
+        // https://software.intel.com/content/www/us/en/develop/articles/api-without-secrets-introduction-to-vulkan-part-4.html
+        VkSubpassDependency render_pass_dependencies[2];
+        render_pass_dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+        render_pass_dependencies[0].dstSubpass = 0;
+        render_pass_dependencies[0].srcStageMask =
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        render_pass_dependencies[0].dstStageMask =
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        render_pass_dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        // Using blending, so both reading and writing.
+        render_pass_dependencies[0].dstAccessMask =
+            VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        render_pass_dependencies[0].dependencyFlags =
+            VK_DEPENDENCY_BY_REGION_BIT;
+        render_pass_dependencies[1].srcSubpass = 0;
+        render_pass_dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+        render_pass_dependencies[1].srcStageMask =
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        render_pass_dependencies[1].dstStageMask =
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        render_pass_dependencies[1].srcAccessMask =
+            VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        render_pass_dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        render_pass_dependencies[1].dependencyFlags =
+            VK_DEPENDENCY_BY_REGION_BIT;
         VkRenderPassCreateInfo render_pass_create_info;
         render_pass_create_info.sType =
             VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -538,8 +568,9 @@ bool VulkanContext::BeginSwap() {
         render_pass_create_info.pAttachments = &render_pass_color_attachment;
         render_pass_create_info.subpassCount = 1;
         render_pass_create_info.pSubpasses = &render_pass_subpass;
-        render_pass_create_info.dependencyCount = 0;
-        render_pass_create_info.pDependencies = nullptr;
+        render_pass_create_info.dependencyCount =
+            uint32_t(xe::countof(render_pass_dependencies));
+        render_pass_create_info.pDependencies = render_pass_dependencies;
         if (dfn.vkCreateRenderPass(device, &render_pass_create_info, nullptr,
                                    &swap_render_pass_) != VK_SUCCESS) {
           XELOGE("Failed to create the Vulkan presentation render pass.");
