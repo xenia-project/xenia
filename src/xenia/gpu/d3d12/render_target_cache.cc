@@ -1085,7 +1085,7 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
 }
 
 bool RenderTargetCache::Resolve(const Memory& memory,
-                                SharedMemory& shared_memory,
+                                D3D12SharedMemory& shared_memory,
                                 TextureCache& texture_cache,
                                 uint32_t& written_address_out,
                                 uint32_t& written_length_out) {

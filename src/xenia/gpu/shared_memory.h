@@ -2,49 +2,32 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Ben Vanik. All rights reserved.                             *
+ * Copyright 2020 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_D3D12_SHARED_MEMORY_H_
-#define XENIA_GPU_D3D12_SHARED_MEMORY_H_
+#ifndef XENIA_GPU_SHARED_MEMORY_H_
+#define XENIA_GPU_SHARED_MEMORY_H_
 
-#include <memory>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
 #include "xenia/base/mutex.h"
-#include "xenia/gpu/trace_writer.h"
 #include "xenia/memory.h"
-#include "xenia/ui/d3d12/d3d12_api.h"
-#include "xenia/ui/d3d12/d3d12_upload_buffer_pool.h"
 
 namespace xe {
 namespace gpu {
-namespace d3d12 {
-
-class D3D12CommandProcessor;
 
 // Manages memory for unconverted textures, resolve targets, vertex and index
 // buffers that can be accessed from shaders with Xenon physical addresses, with
 // system page size granularity.
 class SharedMemory {
  public:
-  SharedMemory(D3D12CommandProcessor& command_processor, Memory& memory,
-               TraceWriter& trace_writer);
-  ~SharedMemory();
-
-  bool Initialize();
-  void Shutdown();
-  void ClearCache();
-
-  ID3D12Resource* GetBuffer() const { return buffer_; }
-  D3D12_GPU_VIRTUAL_ADDRESS GetGPUAddress() const {
-    return buffer_gpu_address_;
-  }
-
-  void CompletedSubmissionUpdated();
+  virtual ~SharedMemory();
+  // Call in the implementation-specific ClearCache.
+  virtual void ClearCache();
 
   typedef void (*GlobalWatchCallback)(void* context, uint32_t address_first,
                                       uint32_t address_last,
@@ -86,10 +69,8 @@ class SharedMemory {
   void UnwatchMemoryRange(WatchHandle handle);
 
   // Checks if the range has been updated, uploads new data if needed and
-  // ensures the buffer tiles backing the range are resident. May transition the
-  // tiled buffer to copy destination - call this before UseForReading or
-  // UseForWriting. Returns true if the range has been fully updated and is
-  // usable.
+  // ensures the host GPU memory backing the range are resident. Returns true if
+  // the range has been fully updated and is usable.
   bool RequestRange(uint32_t start, uint32_t length);
 
   // Marks the range and, if not exact_range, potentially its surroundings
@@ -106,123 +87,82 @@ class SharedMemory {
   // be called, to make sure, if the GPU writes don't overwrite *everything* in
   // the pages they touch, the CPU data is properly loaded to the unmodified
   // regions in those pages.
-  void RangeWrittenByGPU(uint32_t start, uint32_t length);
+  void RangeWrittenByGpu(uint32_t start, uint32_t length);
 
-  // Makes the buffer usable for vertices, indices and texture untiling.
-  inline void UseForReading() {
-    // Vertex fetch is also allowed in pixel shaders.
-    CommitUAVWritesAndTransitionBuffer(
-        D3D12_RESOURCE_STATE_INDEX_BUFFER |
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
-        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-  }
-  // Makes the buffer usable for texture tiling after a resolve.
-  inline void UseForWriting() {
-    CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-  }
-  // Makes the buffer usable as a source for copy commands.
-  inline void UseAsCopySource() {
-    CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_COPY_SOURCE);
-  }
-  // Must be called when doing draws/dispatches modifying data within the shared
-  // memory buffer as a UAV, to make sure that when UseForWriting is called the
-  // next time, a UAV barrier will be done, and subsequent overlapping UAV
-  // writes and reads are ordered.
-  inline void MarkUAVWritesCommitNeeded() {
-    if (buffer_state_ == D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
-      buffer_uav_writes_commit_needed_ = true;
-    }
-  }
+ protected:
+  SharedMemory(Memory& memory);
+  // Call in implementation-specific initialization.
+  void InitializeCommon();
+  // Call last in implementation-specific shutdown, also callable from the
+  // destructor.
+  void ShutdownCommon();
 
-  void WriteRawSRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
-  void WriteRawUAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle);
-  // Due to the Nvidia 128 megatexel limitation, the smallest supported formats
-  // are 32-bit.
-  void WriteUintPow2SRVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                                  uint32_t element_size_bytes_pow2);
-  void WriteUintPow2UAVDescriptor(D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                                  uint32_t element_size_bytes_pow2);
+  static constexpr uint32_t kBufferSizeLog2 = 29;
+  static constexpr uint32_t kBufferSize = 1 << kBufferSizeLog2;
 
-  // Returns true if any downloads were submitted to the command processor.
-  bool InitializeTraceSubmitDownloads();
-  void InitializeTraceCompleteDownloads();
+  // Sparse allocations are 4 MB, so not too many of them are allocated, but
+  // also not to waste too much memory for padding (with 16 MB there's too
+  // much).
+  static constexpr uint32_t kOptimalAllocationLog2 = 22;
+  static_assert(kOptimalAllocationLog2 <= kBufferSizeLog2);
 
- private:
-  bool AreTiledResourcesUsed() const;
+  Memory& memory() const { return memory_; }
+
+  uint32_t page_size_log2() const { return page_size_log2_; }
 
   // Mark the memory range as updated and protect it.
   void MakeRangeValid(uint32_t start, uint32_t length, bool written_by_gpu);
 
-  D3D12CommandProcessor& command_processor_;
+  // Ensures the host GPU memory backing the range is accessible by host GPU
+  // drawing / computations / copying, but doesn't upload anything.
+  virtual bool EnsureHostGpuMemoryAllocated(uint32_t start,
+                                            uint32_t length) = 0;
+
+  // Uploads a range of host pages - only called if EnsureHostGpuMemoryAllocated
+  // succeeded. While uploading, MarkRangeValid must be called for each
+  // successfully uploaded range as early as possible, before the memcpy, to
+  // make sure invalidation that happened during the CPU -> GPU memcpy isn't
+  // missed (upload_page_ranges is in pages because of this - MarkRangeValid has
+  // page granularity).
+  virtual bool UploadRanges(
+      const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) = 0;
+
+  // Mutable so the implementation can skip ranges by setting their "second"
+  // value to 0 if needed.
+  std::vector<std::pair<uint32_t, uint32_t>>& trace_download_ranges() {
+    return trace_download_ranges_;
+  }
+  uint32_t trace_download_page_count() const {
+    return trace_download_page_count_;
+  }
+  // Fills trace_download_ranges() and trace_download_page_count() with
+  // GPU-written ranges that need to be downloaded, and also invalidates
+  // non-GPU-written ranges so only the needed data - not the all the collected
+  // data - will be written in the trace. trace_download_page_count() will be 0
+  // if nothing to download.
+  void PrepareForTraceDownload();
+  // Release memory used for trace download ranges, to be called after
+  // downloading or in cases when download is dropped.
+  void ReleaseTraceDownloadRanges();
+
+ private:
   Memory& memory_;
-  TraceWriter& trace_writer_;
-
-  // The 512 MB tiled buffer.
-  static constexpr uint32_t kBufferSizeLog2 = 29;
-  static constexpr uint32_t kBufferSize = 1 << kBufferSizeLog2;
-  ID3D12Resource* buffer_ = nullptr;
-  D3D12_GPU_VIRTUAL_ADDRESS buffer_gpu_address_ = 0;
-  D3D12_RESOURCE_STATES buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
-  bool buffer_uav_writes_commit_needed_ = false;
-  void CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATES new_state);
-
-  // Heaps are 4 MB, so not too many of them are allocated, but also not to
-  // waste too much memory for padding (with 16 MB there's too much).
-  static constexpr uint32_t kHeapSizeLog2 = 22;
-  static constexpr uint32_t kHeapSize = 1 << kHeapSizeLog2;
-  static_assert((kHeapSize % D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES) == 0,
-                "Heap size must be a multiple of Direct3D tile size");
-  // Resident portions of the tiled buffer.
-  ID3D12Heap* heaps_[kBufferSize >> kHeapSizeLog2] = {};
-  // Number of the heaps currently resident, for profiling.
-  uint32_t heap_count_ = 0;
 
   // Log2 of invalidation granularity (the system page size, but the dependency
   // on it is not hard - the access callback takes a range as an argument, and
   // touched pages of the buffer of this size will be invalidated).
   uint32_t page_size_log2_;
-  // Total buffer page count.
-  uint32_t page_count_;
-
-  // Ensures the buffer tiles backing the range are resident, but doesn't upload
-  // anything.
-  bool EnsureTilesResident(uint32_t start, uint32_t length);
-
-  // Non-shader-visible buffer descriptor heap for faster binding (via copying
-  // rather than creation).
-  enum class BufferDescriptorIndex : uint32_t {
-    kRawSRV,
-    kR32UintSRV,
-    kR32G32UintSRV,
-    kR32G32B32A32UintSRV,
-    kRawUAV,
-    kR32UintUAV,
-    kR32G32UintUAV,
-    kR32G32B32A32UintUAV,
-
-    kCount,
-  };
-  ID3D12DescriptorHeap* buffer_descriptor_heap_ = nullptr;
-  D3D12_CPU_DESCRIPTOR_HANDLE buffer_descriptor_heap_start_;
-
-  // First page and length in pages.
-  typedef std::pair<uint32_t, uint32_t> UploadRange;
-  // Ranges that need to be uploaded, generated by GetRangesToUpload (a
-  // persistently allocated vector).
-  std::vector<UploadRange> upload_ranges_;
-  void GetRangesToUpload(uint32_t request_page_first,
-                         uint32_t request_page_last);
-  std::unique_ptr<ui::d3d12::D3D12UploadBufferPool> upload_buffer_pool_;
-
-  // GPU-written memory downloading for traces.
-  // Start page, length in pages.
-  std::vector<std::pair<uint32_t, uint32_t>> trace_gpu_written_ranges_;
-  // Created temporarily, only for downloading.
-  ID3D12Resource* trace_gpu_written_buffer_ = nullptr;
-  void ResetTraceGPUWrittenBuffer();
 
   void* memory_invalidation_callback_handle_ = nullptr;
   void* memory_data_provider_handle_ = nullptr;
+
+  // Ranges that need to be uploaded, generated by GetRangesToUpload (a
+  // persistently allocated vector).
+  std::vector<std::pair<uint32_t, uint32_t>> upload_ranges_;
+
+  // GPU-written memory downloading for traces. <Start address, length>.
+  std::vector<std::pair<uint32_t, uint32_t>> trace_download_ranges_;
+  uint32_t trace_download_page_count_ = 0;
 
   // Mutex between the guest memory subsystem and the command processor, to be
   // locked when checking or updating validity of pages/ranges and when firing
@@ -309,8 +249,7 @@ class SharedMemory {
   void UnlinkWatchRange(WatchRange* range);
 };
 
-}  // namespace d3d12
 }  // namespace gpu
 }  // namespace xe
 
-#endif  // XENIA_GPU_D3D12_SHARED_MEMORY_H_
+#endif  // XENIA_GPU_SHARED_MEMORY_H_
