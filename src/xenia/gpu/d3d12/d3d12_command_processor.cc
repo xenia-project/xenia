@@ -1161,7 +1161,7 @@ bool D3D12CommandProcessor::SetupContext() {
   }
 
   shared_memory_ =
-      std::make_unique<SharedMemory>(*this, *memory_, trace_writer_);
+      std::make_unique<D3D12SharedMemory>(*this, *memory_, trace_writer_);
   if (!shared_memory_->Initialize()) {
     XELOGE("Failed to initialize shared memory");
     return false;
@@ -2259,7 +2259,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     // Invalidate textures in memexported memory and watch for changes.
     for (uint32_t i = 0; i < memexport_range_count; ++i) {
       const MemExportRange& memexport_range = memexport_ranges[i];
-      shared_memory_->RangeWrittenByGPU(
+      shared_memory_->RangeWrittenByGpu(
           memexport_range.base_address_dwords << 2,
           memexport_range.size_dwords << 2);
     }

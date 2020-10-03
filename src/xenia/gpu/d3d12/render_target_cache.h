@@ -15,7 +15,7 @@
 
 #include "xenia/base/cvar.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
-#include "xenia/gpu/d3d12/shared_memory.h"
+#include "xenia/gpu/d3d12/d3d12_shared_memory.h"
 #include "xenia/gpu/d3d12/texture_cache.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/register_file.h"
@@ -277,11 +277,11 @@ class RenderTargetCache {
   // register values, and also clears the EDRAM buffer if needed. Must be in a
   // frame for calling.
 
-  bool Resolve(const Memory& memory, SharedMemory& shared_memory,
+  bool Resolve(const Memory& memory, D3D12SharedMemory& shared_memory,
                TextureCache& texture_cache, uint32_t& written_address_out,
                uint32_t& written_length_out);
 
-  bool Resolve(SharedMemory* shared_memory, TextureCache* texture_cache,
+  bool Resolve(D3D12SharedMemory* shared_memory, TextureCache* texture_cache,
                Memory* memory, uint32_t& written_address_out,
                uint32_t& written_length_out);
   // Flushes the render targets to EDRAM and unbinds them, for instance, when
