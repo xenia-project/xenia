@@ -832,7 +832,7 @@ const TextureCache::LoadModeInfo TextureCache::load_mode_info_[] = {
 TextureCache::TextureCache(D3D12CommandProcessor& command_processor,
                            const RegisterFile& register_file,
                            bool bindless_resources_used,
-                           SharedMemory& shared_memory)
+                           D3D12SharedMemory& shared_memory)
     : command_processor_(command_processor),
       register_file_(register_file),
       bindless_resources_used_(bindless_resources_used),
@@ -1604,7 +1604,7 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled,
 
   // Invalidate textures. Toggling individual textures between scaled and
   // unscaled also relies on invalidation through shared memory.
-  shared_memory_.RangeWrittenByGPU(start_unscaled, length_unscaled);
+  shared_memory_.RangeWrittenByGpu(start_unscaled, length_unscaled);
 }
 
 bool TextureCache::EnsureScaledResolveBufferResident(uint32_t start_unscaled,

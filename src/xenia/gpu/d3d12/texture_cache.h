@@ -17,7 +17,7 @@
 
 #include "xenia/base/mutex.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
-#include "xenia/gpu/d3d12/shared_memory.h"
+#include "xenia/gpu/d3d12/d3d12_shared_memory.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"
@@ -169,7 +169,7 @@ class TextureCache {
 
   TextureCache(D3D12CommandProcessor& command_processor,
                const RegisterFile& register_file, bool bindless_resources_used,
-               SharedMemory& shared_memory);
+               D3D12SharedMemory& shared_memory);
   ~TextureCache();
 
   bool Initialize(bool edram_rov_used);
@@ -546,7 +546,7 @@ class TextureCache {
   D3D12CommandProcessor& command_processor_;
   const RegisterFile& register_file_;
   bool bindless_resources_used_;
-  SharedMemory& shared_memory_;
+  D3D12SharedMemory& shared_memory_;
 
   static const LoadModeInfo load_mode_info_[];
   ID3D12RootSignature* load_root_signature_ = nullptr;
