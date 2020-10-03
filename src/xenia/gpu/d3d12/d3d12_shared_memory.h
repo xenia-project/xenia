@@ -114,10 +114,6 @@ class D3D12SharedMemory : public SharedMemory {
   // Number of the heaps currently resident, for profiling.
   uint32_t heap_count_ = 0;
 
-  // Ensures the buffer tiles backing the range are resident, but doesn't upload
-  // anything.
-  bool EnsureTilesResident(uint32_t start, uint32_t length);
-
   // Non-shader-visible buffer descriptor heap for faster binding (via copying
   // rather than creation).
   enum class BufferDescriptorIndex : uint32_t {
