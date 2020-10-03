@@ -11,6 +11,7 @@
 #define XENIA_GPU_D3D12_DEFERRED_COMMAND_LIST_H_
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <vector>
 
@@ -26,7 +27,7 @@ class D3D12CommandProcessor;
 class DeferredCommandList {
  public:
   DeferredCommandList(D3D12CommandProcessor& command_processor,
-                      size_t initial_size = 256 * 1024);
+                      size_t initial_size_bytes = 1024 * 1024);
 
   void Reset();
   void Execute(ID3D12GraphicsCommandList* command_list,
@@ -332,8 +333,6 @@ class DeferredCommandList {
   }
 
  private:
-  static constexpr size_t kAlignment = std::max(sizeof(void*), sizeof(UINT64));
-
   enum class Command : uint32_t {
     kD3DClearUnorderedAccessViewUint,
     kD3DCopyBufferRegion,
@@ -364,6 +363,13 @@ class DeferredCommandList {
     kSetPipelineStateHandle,
     kD3DSetSamplePositions,
   };
+
+  struct CommandHeader {
+    Command command;
+    uint32_t arguments_size_elements;
+  };
+  static constexpr size_t kCommandHeaderSizeElements =
+      (sizeof(CommandHeader) + sizeof(uintmax_t) - 1) / sizeof(uintmax_t);
 
   struct ClearUnorderedAccessViewHeader {
     D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle_in_current_heap;
@@ -460,11 +466,12 @@ class DeferredCommandList {
     D3D12_SAMPLE_POSITION sample_positions[16];
   };
 
-  void* WriteCommand(Command command, size_t arguments_size);
+  void* WriteCommand(Command command, size_t arguments_size_bytes);
 
   D3D12CommandProcessor& command_processor_;
 
-  std::vector<uint8_t> command_stream_;
+  // uintmax_t to ensure uint64_t and pointer alignment of all structures.
+  std::vector<uintmax_t> command_stream_;
 };
 
 }  // namespace d3d12
