@@ -931,9 +931,9 @@ bool PipelineCache::ConfigurePipeline(
     const RenderTargetCache::PipelineRenderTarget render_targets[5],
     void** pipeline_state_handle_out,
     ID3D12RootSignature** root_signature_out) {
-#if FINE_GRAINED_DRAW_SCOPES
+#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
 
   assert_not_null(pipeline_state_handle_out);
   assert_not_null(root_signature_out);

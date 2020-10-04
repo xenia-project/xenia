@@ -1179,9 +1179,9 @@ void TextureCache::EndFrame() {
 void TextureCache::RequestTextures(uint32_t used_texture_mask) {
   const auto& regs = register_file_;
 
-#if FINE_GRAINED_DRAW_SCOPES
+#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
 
   if (texture_invalidated_.exchange(false, std::memory_order_acquire)) {
     // Clear the bindings not only for this draw call, but entirely, because
@@ -1418,12 +1418,12 @@ void TextureCache::WriteActiveTextureBindfulSRV(
   }
   auto device = provider.GetDevice();
   {
-#if FINE_GRAINED_DRAW_SCOPES
+#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
     SCOPE_profile_cpu_i(
         "gpu",
         "xe::gpu::d3d12::TextureCache::WriteActiveTextureBindfulSRV->"
         "CopyDescriptorsSimple");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
     device->CopyDescriptorsSimple(1, handle, source_handle,
                                   D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
   }
