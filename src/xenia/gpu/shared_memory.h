@@ -123,7 +123,9 @@ class SharedMemory {
   // successfully uploaded range as early as possible, before the memcpy, to
   // make sure invalidation that happened during the CPU -> GPU memcpy isn't
   // missed (upload_page_ranges is in pages because of this - MarkRangeValid has
-  // page granularity).
+  // page granularity). upload_page_ranges are sorted in ascending address
+  // order, so front and back can be used to determine the overall bounds of
+  // pages to be uploaded.
   virtual bool UploadRanges(
       const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) = 0;
 

@@ -538,6 +538,7 @@ bool VulkanProvider::Initialize() {
   XE_VULKAN_LOAD_DFN(vkCmdBindPipeline);
   XE_VULKAN_LOAD_DFN(vkCmdBindVertexBuffers);
   XE_VULKAN_LOAD_DFN(vkCmdClearColorImage);
+  XE_VULKAN_LOAD_DFN(vkCmdCopyBuffer);
   XE_VULKAN_LOAD_DFN(vkCmdCopyBufferToImage);
   XE_VULKAN_LOAD_DFN(vkCmdDraw);
   XE_VULKAN_LOAD_DFN(vkCmdDrawIndexed);

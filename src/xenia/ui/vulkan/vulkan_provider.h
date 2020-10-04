@@ -35,6 +35,8 @@
 
 #define XELOGVK XELOGI
 
+#define XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES 1
+
 namespace xe {
 namespace ui {
 namespace vulkan {
@@ -139,6 +141,7 @@ class VulkanProvider : public GraphicsProvider {
     PFN_vkCmdBindPipeline vkCmdBindPipeline;
     PFN_vkCmdBindVertexBuffers vkCmdBindVertexBuffers;
     PFN_vkCmdClearColorImage vkCmdClearColorImage;
+    PFN_vkCmdCopyBuffer vkCmdCopyBuffer;
     PFN_vkCmdCopyBufferToImage vkCmdCopyBufferToImage;
     PFN_vkCmdDraw vkCmdDraw;
     PFN_vkCmdDrawIndexed vkCmdDrawIndexed;
