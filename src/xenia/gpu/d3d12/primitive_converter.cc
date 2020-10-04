@@ -223,9 +223,9 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
     return ConversionResult::kConversionNotNeeded;
   }
 
-#if FINE_GRAINED_DRAW_SCOPES
+#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
 
   // Exit early for clearly empty draws, without even reading the memory.
   uint32_t index_count_min;
