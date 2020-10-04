@@ -1798,9 +1798,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   auto device = GetD3D12Context().GetD3D12Provider().GetDevice();
   auto& regs = *register_file_;
 
-#if FINE_GRAINED_DRAW_SCOPES
+#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
 
   xenos::ModeControl enable_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
   if (enable_mode == xenos::ModeControl::kIgnore) {
@@ -2336,9 +2336,9 @@ void D3D12CommandProcessor::InitializeTrace() {
 void D3D12CommandProcessor::FinalizeTrace() {}
 
 bool D3D12CommandProcessor::IssueCopy() {
-#if FINE_GRAINED_DRAW_SCOPES
+#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   BeginSubmission(true);
   uint32_t written_address, written_length;
   if (!render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_,
@@ -2472,9 +2472,9 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
 }
 
 void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
-#if FINE_GRAINED_DRAW_SCOPES
+#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
 
   bool is_opening_frame = is_guest_command && !frame_open_;
   if (submission_open_ && !is_opening_frame) {
@@ -2741,9 +2741,9 @@ void D3D12CommandProcessor::ClearCommandAllocatorCache() {
 void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
   auto& regs = *register_file_;
 
-#if FINE_GRAINED_DRAW_SCOPES
+#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
 
   // Window parameters.
   // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
@@ -2911,9 +2911,9 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
   auto& regs = *register_file_;
 
-#if FINE_GRAINED_DRAW_SCOPES
+#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
 
   auto pa_cl_clip_cntl = regs.Get<reg::PA_CL_CLIP_CNTL>();
   auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
@@ -3513,9 +3513,9 @@ bool D3D12CommandProcessor::UpdateBindings(
   auto device = provider.GetDevice();
   auto& regs = *register_file_;
 
-#if FINE_GRAINED_DRAW_SCOPES
+#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
 
   // Set the new root signature.
   if (current_graphics_root_signature_ != root_signature) {
