@@ -26,7 +26,7 @@ class D3D12CommandProcessor;
 
 class DeferredCommandList {
  public:
-  DeferredCommandList(D3D12CommandProcessor& command_processor,
+  DeferredCommandList(const D3D12CommandProcessor& command_processor,
                       size_t initial_size_bytes = 1024 * 1024);
 
   void Reset();
@@ -196,6 +196,7 @@ class DeferredCommandList {
     if (num_barriers == 0) {
       return;
     }
+    static_assert(alignof(D3D12_RESOURCE_BARRIER) <= alignof(uintmax_t));
     const size_t header_size =
         xe::align(sizeof(UINT), alignof(D3D12_RESOURCE_BARRIER));
     uint8_t* args = reinterpret_cast<uint8_t*>(WriteCommand(
@@ -333,7 +334,7 @@ class DeferredCommandList {
   }
 
  private:
-  enum class Command : uint32_t {
+  enum class Command {
     kD3DClearUnorderedAccessViewUint,
     kD3DCopyBufferRegion,
     kD3DCopyResource,
@@ -468,7 +469,7 @@ class DeferredCommandList {
 
   void* WriteCommand(Command command, size_t arguments_size_bytes);
 
-  D3D12CommandProcessor& command_processor_;
+  const D3D12CommandProcessor& command_processor_;
 
   // uintmax_t to ensure uint64_t and pointer alignment of all structures.
   std::vector<uintmax_t> command_stream_;

@@ -63,7 +63,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   // submission.
   DeferredCommandList& GetDeferredCommandList() {
     assert_true(submission_open_);
-    return *deferred_command_list_;
+    return deferred_command_list_;
   }
 
   uint64_t GetCurrentSubmission() const { return submission_current_; }
@@ -397,7 +397,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   CommandAllocator* command_allocator_submitted_last_ = nullptr;
   ID3D12GraphicsCommandList* command_list_ = nullptr;
   ID3D12GraphicsCommandList1* command_list_1_ = nullptr;
-  std::unique_ptr<DeferredCommandList> deferred_command_list_;
+  DeferredCommandList deferred_command_list_;
 
   // Should bindless textures and samplers be used - many times faster
   // UpdateBindings than bindful (that becomes a significant bottleneck with
