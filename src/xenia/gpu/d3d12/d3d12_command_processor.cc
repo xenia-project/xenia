@@ -62,7 +62,8 @@ namespace d3d12 {
 
 D3D12CommandProcessor::D3D12CommandProcessor(
     D3D12GraphicsSystem* graphics_system, kernel::KernelState* kernel_state)
-    : CommandProcessor(graphics_system, kernel_state) {}
+    : CommandProcessor(graphics_system, kernel_state),
+      deferred_command_list_(*this) {}
 D3D12CommandProcessor::~D3D12CommandProcessor() = default;
 
 void D3D12CommandProcessor::ClearCaches() {
@@ -151,7 +152,7 @@ void D3D12CommandProcessor::PushUAVBarrier(ID3D12Resource* resource) {
 void D3D12CommandProcessor::SubmitBarriers() {
   UINT barrier_count = UINT(barriers_.size());
   if (barrier_count != 0) {
-    deferred_command_list_->D3DResourceBarrier(barrier_count, barriers_.data());
+    deferred_command_list_.D3DResourceBarrier(barrier_count, barriers_.data());
     barriers_.clear();
   }
 }
@@ -446,8 +447,8 @@ uint64_t D3D12CommandProcessor::RequestViewBindfulDescriptors(
   ID3D12DescriptorHeap* heap = view_bindful_heap_pool_->GetLastRequestHeap();
   if (view_bindful_heap_current_ != heap) {
     view_bindful_heap_current_ = heap;
-    deferred_command_list_->SetDescriptorHeaps(view_bindful_heap_current_,
-                                               sampler_bindful_heap_current_);
+    deferred_command_list_.SetDescriptorHeaps(view_bindful_heap_current_,
+                                              sampler_bindful_heap_current_);
   }
   auto& provider = GetD3D12Context().GetD3D12Provider();
   cpu_handle_out = provider.OffsetViewDescriptor(
@@ -618,8 +619,8 @@ uint64_t D3D12CommandProcessor::RequestSamplerBindfulDescriptors(
   ID3D12DescriptorHeap* heap = sampler_bindful_heap_pool_->GetLastRequestHeap();
   if (sampler_bindful_heap_current_ != heap) {
     sampler_bindful_heap_current_ = heap;
-    deferred_command_list_->SetDescriptorHeaps(view_bindful_heap_current_,
-                                               sampler_bindful_heap_current_);
+    deferred_command_list_.SetDescriptorHeaps(view_bindful_heap_current_,
+                                              sampler_bindful_heap_current_);
   }
   auto& provider = GetD3D12Context().GetD3D12Provider();
   cpu_handle_out = provider.OffsetSamplerDescriptor(
@@ -734,10 +735,10 @@ void D3D12CommandProcessor::SetSamplePositions(
           d3d_sample_positions[3].X = 4;
           d3d_sample_positions[3].Y = 4 - 4;
         }
-        deferred_command_list_->D3DSetSamplePositions(1, 4,
-                                                      d3d_sample_positions);
+        deferred_command_list_.D3DSetSamplePositions(1, 4,
+                                                     d3d_sample_positions);
       } else {
-        deferred_command_list_->D3DSetSamplePositions(0, 0, nullptr);
+        deferred_command_list_.D3DSetSamplePositions(0, 0, nullptr);
       }
     }
   }
@@ -747,7 +748,7 @@ void D3D12CommandProcessor::SetSamplePositions(
 void D3D12CommandProcessor::SetComputePipelineState(
     ID3D12PipelineState* pipeline_state) {
   if (current_external_pipeline_state_ != pipeline_state) {
-    deferred_command_list_->D3DSetPipelineState(pipeline_state);
+    deferred_command_list_.D3DSetPipelineState(pipeline_state);
     current_external_pipeline_state_ = pipeline_state;
     current_cached_pipeline_state_ = nullptr;
   }
@@ -796,7 +797,7 @@ std::unique_ptr<xe::ui::RawImage> D3D12CommandProcessor::Capture() {
   location_dest.pResource = readback_buffer;
   location_dest.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
   location_dest.PlacedFootprint = swap_texture_copy_footprint_;
-  deferred_command_list_->CopyTexture(location_dest, location_source);
+  deferred_command_list_.CopyTexture(location_dest, location_source);
   PushTransitionBarrier(swap_texture_, D3D12_RESOURCE_STATE_COPY_SOURCE,
                         D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
   if (!AwaitAllQueueOperationsCompletion()) {
@@ -891,7 +892,6 @@ bool D3D12CommandProcessor::SetupContext() {
   command_list_->Close();
   // Optional - added in Creators Update (SDK 10.0.15063.0).
   command_list_->QueryInterface(IID_PPV_ARGS(&command_list_1_));
-  deferred_command_list_ = std::make_unique<DeferredCommandList>(*this);
 
   bindless_resources_used_ =
       cvars::d3d12_bindless &&
@@ -1543,7 +1543,7 @@ void D3D12CommandProcessor::ShutdownContext() {
   }
   constant_buffer_pool_.reset();
 
-  deferred_command_list_.reset();
+  deferred_command_list_.Reset();
   ui::d3d12::util::ReleaseAndNull(command_list_1_);
   ui::d3d12::util::ReleaseAndNull(command_list_);
   ClearCommandAllocatorCache();
@@ -1653,7 +1653,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     location_dest.pResource = gamma_ramp_texture_;
     location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
     location_dest.SubresourceIndex = 0;
-    deferred_command_list_->CopyTexture(location_dest, location_source);
+    deferred_command_list_.CopyTexture(location_dest, location_source);
     dirty_gamma_ramp_normal_ = false;
   }
   if (dirty_gamma_ramp_pwl_) {
@@ -1678,7 +1678,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     location_dest.pResource = gamma_ramp_texture_;
     location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
     location_dest.SubresourceIndex = 1;
-    deferred_command_list_->CopyTexture(location_dest, location_source);
+    deferred_command_list_.CopyTexture(location_dest, location_source);
     dirty_gamma_ramp_pwl_ = false;
   }
 
@@ -1735,8 +1735,8 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       auto swap_texture_size = GetSwapTextureSize();
 
       // Draw the stretching rectangle.
-      deferred_command_list_->D3DOMSetRenderTargets(1, &swap_texture_rtv_, TRUE,
-                                                    nullptr);
+      deferred_command_list_.D3DOMSetRenderTargets(1, &swap_texture_rtv_, TRUE,
+                                                   nullptr);
       D3D12_VIEWPORT viewport;
       viewport.TopLeftX = 0.0f;
       viewport.TopLeftY = 0.0f;
@@ -1744,19 +1744,19 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       viewport.Height = float(swap_texture_size.second);
       viewport.MinDepth = 0.0f;
       viewport.MaxDepth = 0.0f;
-      deferred_command_list_->RSSetViewport(viewport);
+      deferred_command_list_.RSSetViewport(viewport);
       D3D12_RECT scissor;
       scissor.left = 0;
       scissor.top = 0;
       scissor.right = swap_texture_size.first;
       scissor.bottom = swap_texture_size.second;
-      deferred_command_list_->RSSetScissorRect(scissor);
+      deferred_command_list_.RSSetScissorRect(scissor);
       D3D12GraphicsSystem* graphics_system =
           static_cast<D3D12GraphicsSystem*>(graphics_system_);
       graphics_system->StretchTextureToFrontBuffer(
           descriptor_swap_texture.second, &descriptor_gamma_ramp.second,
           use_pwl_gamma_ramp ? (1.0f / 128.0f) : (1.0f / 256.0f),
-          *deferred_command_list_);
+          deferred_command_list_);
       // Ending the current frame anyway, so no need to reset the current render
       // targets when using ROV.
 
@@ -1929,7 +1929,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   }
   if (primitive_topology_ != primitive_topology) {
     primitive_topology_ = primitive_topology;
-    deferred_command_list_->D3DIASetPrimitiveTopology(primitive_topology);
+    deferred_command_list_.D3DIASetPrimitiveTopology(primitive_topology);
   }
   uint32_t line_loop_closing_index;
   if (primitive_type == xenos::PrimitiveType::kLineLoop && !indexed &&
@@ -1973,7 +1973,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     return false;
   }
   if (current_cached_pipeline_state_ != pipeline_state_handle) {
-    deferred_command_list_->SetPipelineStateHandle(
+    deferred_command_list_.SetPipelineStateHandle(
         reinterpret_cast<void*>(pipeline_state_handle));
     current_cached_pipeline_state_ = pipeline_state_handle;
     current_external_pipeline_state_ = nullptr;
@@ -2198,7 +2198,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
         }
         shared_memory_->UseAsCopySource();
         SubmitBarriers();
-        deferred_command_list_->D3DCopyBufferRegion(
+        deferred_command_list_.D3DCopyBufferRegion(
             scratch_index_buffer, 0, shared_memory_->GetBuffer(), index_base,
             index_buffer_size);
         PushTransitionBarrier(scratch_index_buffer,
@@ -2218,8 +2218,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       shared_memory_->UseForReading();
     }
     SubmitBarriers();
-    deferred_command_list_->D3DIASetIndexBuffer(&index_buffer_view);
-    deferred_command_list_->D3DDrawIndexedInstanced(index_count, 1, 0, 0, 0);
+    deferred_command_list_.D3DIASetIndexBuffer(&index_buffer_view);
+    deferred_command_list_.D3DDrawIndexedInstanced(index_count, 1, 0, 0, 0);
     if (scratch_index_buffer != nullptr) {
       ReleaseScratchGPUBuffer(scratch_index_buffer,
                               D3D12_RESOURCE_STATE_INDEX_BUFFER);
@@ -2242,11 +2242,11 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       index_buffer_view.BufferLocation = conversion_gpu_address;
       index_buffer_view.SizeInBytes = converted_index_count * sizeof(uint16_t);
       index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
-      deferred_command_list_->D3DIASetIndexBuffer(&index_buffer_view);
-      deferred_command_list_->D3DDrawIndexedInstanced(converted_index_count, 1,
-                                                      0, 0, 0);
+      deferred_command_list_.D3DIASetIndexBuffer(&index_buffer_view);
+      deferred_command_list_.D3DDrawIndexedInstanced(converted_index_count, 1,
+                                                     0, 0, 0);
     } else {
-      deferred_command_list_->D3DDrawInstanced(index_count, 1, 0, 0);
+      deferred_command_list_.D3DDrawInstanced(index_count, 1, 0, 0);
     }
   }
 
@@ -2280,7 +2280,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
           for (uint32_t i = 0; i < memexport_range_count; ++i) {
             const MemExportRange& memexport_range = memexport_ranges[i];
             uint32_t memexport_range_size = memexport_range.size_dwords << 2;
-            deferred_command_list_->D3DCopyBufferRegion(
+            deferred_command_list_.D3DCopyBufferRegion(
                 readback_buffer, readback_buffer_offset, shared_memory_buffer,
                 memexport_range.base_address_dwords << 2, memexport_range_size);
             readback_buffer_offset += memexport_range_size;
@@ -2353,7 +2353,7 @@ bool D3D12CommandProcessor::IssueCopy() {
       shared_memory_->UseAsCopySource();
       SubmitBarriers();
       ID3D12Resource* shared_memory_buffer = shared_memory_->GetBuffer();
-      deferred_command_list_->D3DCopyBufferRegion(
+      deferred_command_list_.D3DCopyBufferRegion(
           readback_buffer, 0, shared_memory_buffer, written_address,
           written_length);
       if (AwaitAllQueueOperationsCompletion()) {
@@ -2513,7 +2513,7 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
     // Start a new deferred command list - will submit it to the real one in the
     // end of the submission (when async pipeline state object creation requests
     // are fulfilled).
-    deferred_command_list_->Reset();
+    deferred_command_list_.Reset();
 
     // Reset cached state of the command list.
     ff_viewport_update_needed_ = true;
@@ -2526,8 +2526,8 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
     current_graphics_root_signature_ = nullptr;
     current_graphics_root_up_to_date_ = 0;
     if (bindless_resources_used_) {
-      deferred_command_list_->SetDescriptorHeaps(
-          view_bindless_heap_, sampler_bindless_heap_current_);
+      deferred_command_list_.SetDescriptorHeaps(view_bindless_heap_,
+                                                sampler_bindless_heap_current_);
     } else {
       view_bindful_heap_current_ = nullptr;
       sampler_bindful_heap_current_ = nullptr;
@@ -2633,7 +2633,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
         command_allocator_writable_first_->command_allocator;
     command_allocator->Reset();
     command_list_->Reset(command_allocator, nullptr);
-    deferred_command_list_->Execute(command_list_, command_list_1_);
+    deferred_command_list_.Execute(command_list_, command_list_1_);
     command_list_->Close();
     ID3D12CommandList* execute_command_lists[] = {command_list_};
     direct_queue->ExecuteCommandLists(1, execute_command_lists);
@@ -2827,7 +2827,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
   ff_viewport_update_needed_ |= ff_viewport_.MaxDepth != viewport.MaxDepth;
   if (ff_viewport_update_needed_) {
     ff_viewport_ = viewport;
-    deferred_command_list_->RSSetViewport(viewport);
+    deferred_command_list_.RSSetViewport(viewport);
     ff_viewport_update_needed_ = false;
   }
 
@@ -2859,7 +2859,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
   ff_scissor_update_needed_ |= ff_scissor_.bottom != scissor.bottom;
   if (ff_scissor_update_needed_) {
     ff_scissor_ = scissor;
-    deferred_command_list_->RSSetScissorRect(scissor);
+    deferred_command_list_.RSSetScissorRect(scissor);
     ff_scissor_update_needed_ = false;
   }
 
@@ -2878,7 +2878,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
       ff_blend_factor_[1] = regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
       ff_blend_factor_[2] = regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
       ff_blend_factor_[3] = regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
-      deferred_command_list_->D3DOMSetBlendFactor(ff_blend_factor_);
+      deferred_command_list_.D3DOMSetBlendFactor(ff_blend_factor_);
       ff_blend_factor_update_needed_ = false;
     }
 
@@ -2898,7 +2898,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
     ff_stencil_ref_update_needed_ |= ff_stencil_ref_ != stencil_ref;
     if (ff_stencil_ref_update_needed_) {
       ff_stencil_ref_ = stencil_ref;
-      deferred_command_list_->D3DOMSetStencilRef(stencil_ref);
+      deferred_command_list_.D3DOMSetStencilRef(stencil_ref);
       ff_stencil_ref_update_needed_ = false;
     }
   }
@@ -3526,7 +3526,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     }
     // Changing the root signature invalidates all bindings.
     current_graphics_root_up_to_date_ = 0;
-    deferred_command_list_->D3DSetGraphicsRootSignature(root_signature);
+    deferred_command_list_.D3DSetGraphicsRootSignature(root_signature);
   }
 
   // Select the root parameter indices depending on the used binding model.
@@ -3854,7 +3854,7 @@ bool D3D12CommandProcessor::UpdateBindings(
           // The only thing the heap is used for now is texture cache samplers -
           // invalidate all of them.
           texture_cache_bindless_sampler_map_.clear();
-          deferred_command_list_->SetDescriptorHeaps(
+          deferred_command_list_.SetDescriptorHeaps(
               view_bindless_heap_, sampler_bindless_heap_current_);
           current_graphics_root_up_to_date_ &=
               ~(1u << kRootParameter_Bindless_SamplerHeap);
@@ -4189,13 +4189,13 @@ bool D3D12CommandProcessor::UpdateBindings(
   // Update the root parameters.
   if (!(current_graphics_root_up_to_date_ &
         (1u << root_parameter_fetch_constants))) {
-    deferred_command_list_->D3DSetGraphicsRootConstantBufferView(
+    deferred_command_list_.D3DSetGraphicsRootConstantBufferView(
         root_parameter_fetch_constants, cbuffer_binding_fetch_.address);
     current_graphics_root_up_to_date_ |= 1u << root_parameter_fetch_constants;
   }
   if (!(current_graphics_root_up_to_date_ &
         (1u << root_parameter_float_constants_vertex))) {
-    deferred_command_list_->D3DSetGraphicsRootConstantBufferView(
+    deferred_command_list_.D3DSetGraphicsRootConstantBufferView(
         root_parameter_float_constants_vertex,
         cbuffer_binding_float_vertex_.address);
     current_graphics_root_up_to_date_ |=
@@ -4203,7 +4203,7 @@ bool D3D12CommandProcessor::UpdateBindings(
   }
   if (!(current_graphics_root_up_to_date_ &
         (1u << root_parameter_float_constants_pixel))) {
-    deferred_command_list_->D3DSetGraphicsRootConstantBufferView(
+    deferred_command_list_.D3DSetGraphicsRootConstantBufferView(
         root_parameter_float_constants_pixel,
         cbuffer_binding_float_pixel_.address);
     current_graphics_root_up_to_date_ |=
@@ -4211,13 +4211,13 @@ bool D3D12CommandProcessor::UpdateBindings(
   }
   if (!(current_graphics_root_up_to_date_ &
         (1u << root_parameter_system_constants))) {
-    deferred_command_list_->D3DSetGraphicsRootConstantBufferView(
+    deferred_command_list_.D3DSetGraphicsRootConstantBufferView(
         root_parameter_system_constants, cbuffer_binding_system_.address);
     current_graphics_root_up_to_date_ |= 1u << root_parameter_system_constants;
   }
   if (!(current_graphics_root_up_to_date_ &
         (1u << root_parameter_bool_loop_constants))) {
-    deferred_command_list_->D3DSetGraphicsRootConstantBufferView(
+    deferred_command_list_.D3DSetGraphicsRootConstantBufferView(
         root_parameter_bool_loop_constants, cbuffer_binding_bool_loop_.address);
     current_graphics_root_up_to_date_ |= 1u
                                          << root_parameter_bool_loop_constants;
@@ -4225,7 +4225,7 @@ bool D3D12CommandProcessor::UpdateBindings(
   if (bindless_resources_used_) {
     if (!(current_graphics_root_up_to_date_ &
           (1u << kRootParameter_Bindless_DescriptorIndicesPixel))) {
-      deferred_command_list_->D3DSetGraphicsRootConstantBufferView(
+      deferred_command_list_.D3DSetGraphicsRootConstantBufferView(
           kRootParameter_Bindless_DescriptorIndicesPixel,
           cbuffer_binding_descriptor_indices_pixel_.address);
       current_graphics_root_up_to_date_ |=
@@ -4233,7 +4233,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     }
     if (!(current_graphics_root_up_to_date_ &
           (1u << kRootParameter_Bindless_DescriptorIndicesVertex))) {
-      deferred_command_list_->D3DSetGraphicsRootConstantBufferView(
+      deferred_command_list_.D3DSetGraphicsRootConstantBufferView(
           kRootParameter_Bindless_DescriptorIndicesVertex,
           cbuffer_binding_descriptor_indices_vertex_.address);
       current_graphics_root_up_to_date_ |=
@@ -4241,7 +4241,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     }
     if (!(current_graphics_root_up_to_date_ &
           (1u << kRootParameter_Bindless_SamplerHeap))) {
-      deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
+      deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
           kRootParameter_Bindless_SamplerHeap,
           sampler_bindless_heap_gpu_start_);
       current_graphics_root_up_to_date_ |=
@@ -4249,7 +4249,7 @@ bool D3D12CommandProcessor::UpdateBindings(
     }
     if (!(current_graphics_root_up_to_date_ &
           (1u << kRootParameter_Bindless_ViewHeap))) {
-      deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
+      deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
           kRootParameter_Bindless_ViewHeap, view_bindless_heap_gpu_start_);
       current_graphics_root_up_to_date_ |= 1u
                                            << kRootParameter_Bindless_ViewHeap;
@@ -4257,7 +4257,7 @@ bool D3D12CommandProcessor::UpdateBindings(
   } else {
     if (!(current_graphics_root_up_to_date_ &
           (1u << kRootParameter_Bindful_SharedMemoryAndEdram))) {
-      deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
+      deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
           kRootParameter_Bindful_SharedMemoryAndEdram,
           gpu_handle_shared_memory_and_edram_);
       current_graphics_root_up_to_date_ |=
@@ -4267,28 +4267,28 @@ bool D3D12CommandProcessor::UpdateBindings(
     extra_index = current_graphics_root_bindful_extras_.textures_pixel;
     if (extra_index != RootBindfulExtraParameterIndices::kUnavailable &&
         !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
-      deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
+      deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
           extra_index, gpu_handle_textures_pixel_);
       current_graphics_root_up_to_date_ |= 1u << extra_index;
     }
     extra_index = current_graphics_root_bindful_extras_.samplers_pixel;
     if (extra_index != RootBindfulExtraParameterIndices::kUnavailable &&
         !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
-      deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
+      deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
           extra_index, gpu_handle_samplers_pixel_);
       current_graphics_root_up_to_date_ |= 1u << extra_index;
     }
     extra_index = current_graphics_root_bindful_extras_.textures_vertex;
     if (extra_index != RootBindfulExtraParameterIndices::kUnavailable &&
         !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
-      deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
+      deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
           extra_index, gpu_handle_textures_vertex_);
       current_graphics_root_up_to_date_ |= 1u << extra_index;
     }
     extra_index = current_graphics_root_bindful_extras_.samplers_vertex;
     if (extra_index != RootBindfulExtraParameterIndices::kUnavailable &&
         !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
-      deferred_command_list_->D3DSetGraphicsRootDescriptorTable(
+      deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
           extra_index, gpu_handle_samplers_vertex_);
       current_graphics_root_up_to_date_ |= 1u << extra_index;
     }
