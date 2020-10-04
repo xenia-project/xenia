@@ -16,7 +16,9 @@
 #include <vector>
 
 #include "xenia/gpu/command_processor.h"
+#include "xenia/gpu/vulkan/deferred_command_buffer.h"
 #include "xenia/gpu/vulkan/vulkan_graphics_system.h"
+#include "xenia/gpu/vulkan/vulkan_shared_memory.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/ui/vulkan/vulkan_context.h"
@@ -37,6 +39,13 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   ui::vulkan::VulkanContext& GetVulkanContext() const {
     return static_cast<ui::vulkan::VulkanContext&>(*context_);
+  }
+
+  // Returns the deferred drawing command list for the currently open
+  // submission.
+  DeferredCommandBuffer& deferred_command_buffer() {
+    assert_true(submission_open_);
+    return deferred_command_buffer_;
   }
 
   uint64_t GetCurrentSubmission() const {
@@ -113,6 +122,9 @@ class VulkanCommandProcessor : public CommandProcessor {
   };
   std::vector<CommandBuffer> command_buffers_writable_;
   std::deque<std::pair<CommandBuffer, uint64_t>> command_buffers_submitted_;
+  DeferredCommandBuffer deferred_command_buffer_;
+
+  std::unique_ptr<VulkanSharedMemory> shared_memory_;
 };
 
 }  // namespace vulkan

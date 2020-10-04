@@ -15,6 +15,8 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
+#include "xenia/gpu/vulkan/deferred_command_buffer.h"
+#include "xenia/gpu/vulkan/vulkan_shared_memory.h"
 #include "xenia/ui/vulkan/vulkan_context.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
@@ -25,7 +27,9 @@ namespace vulkan {
 
 VulkanCommandProcessor::VulkanCommandProcessor(
     VulkanGraphicsSystem* graphics_system, kernel::KernelState* kernel_state)
-    : CommandProcessor(graphics_system, kernel_state) {}
+    : CommandProcessor(graphics_system, kernel_state),
+      deferred_command_buffer_(*this) {}
+
 VulkanCommandProcessor::~VulkanCommandProcessor() = default;
 
 void VulkanCommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
@@ -39,10 +43,12 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
-  const ui::vulkan::VulkanProvider& provider =
-      GetVulkanContext().GetVulkanProvider();
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
-  VkDevice device = provider.device();
+  shared_memory_ =
+      std::make_unique<VulkanSharedMemory>(*this, *memory_, trace_writer_);
+  if (!shared_memory_->Initialize()) {
+    XELOGE("Failed to initialize shared memory");
+    return false;
+  }
 
   return true;
 }
@@ -50,11 +56,14 @@ bool VulkanCommandProcessor::SetupContext() {
 void VulkanCommandProcessor::ShutdownContext() {
   AwaitAllQueueOperationsCompletion();
 
+  shared_memory_.reset();
+
   const ui::vulkan::VulkanProvider& provider =
       GetVulkanContext().GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
+  deferred_command_buffer_.Reset();
   for (const auto& command_buffer_pair : command_buffers_submitted_) {
     dfn.vkDestroyCommandPool(device, command_buffer_pair.first.pool, nullptr);
   }
@@ -119,19 +128,46 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                                        uint32_t index_count,
                                        IndexBufferInfo* index_buffer_info,
                                        bool major_mode_explicit) {
-#if FINE_GRAINED_DRAW_SCOPES
+#if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
 
   BeginSubmission(true);
+
+  bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
+
+  // Actually draw.
+  if (indexed) {
+    uint32_t index_size =
+        index_buffer_info->format == xenos::IndexFormat::kInt32
+            ? sizeof(uint32_t)
+            : sizeof(uint16_t);
+    assert_false(index_buffer_info->guest_base & (index_size - 1));
+    uint32_t index_base =
+        index_buffer_info->guest_base & 0x1FFFFFFF & ~(index_size - 1);
+    uint32_t index_buffer_size = index_buffer_info->count * index_size;
+    if (!shared_memory_->RequestRange(index_base, index_buffer_size)) {
+      XELOGE(
+          "Failed to request index buffer at 0x{:08X} (size {}) in the shared "
+          "memory",
+          index_base, index_buffer_size);
+      return false;
+    }
+    deferred_command_buffer_.CmdVkBindIndexBuffer(
+        shared_memory_->buffer(), index_base,
+        index_buffer_info->format == xenos::IndexFormat::kInt32
+            ? VK_INDEX_TYPE_UINT32
+            : VK_INDEX_TYPE_UINT16);
+  }
+  shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
 
   return true;
 }
 
 bool VulkanCommandProcessor::IssueCopy() {
-#if FINE_GRAINED_DRAW_SCOPES
+#if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
 
   BeginSubmission(true);
 
@@ -217,12 +253,14 @@ void VulkanCommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
     command_buffers_writable_.push_back(command_buffer_pair.first);
     command_buffers_submitted_.pop_front();
   }
+
+  shared_memory_->CompletedSubmissionUpdated();
 }
 
 void VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
-#if FINE_GRAINED_DRAW_SCOPES
+#if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
 
   bool is_opening_frame = is_guest_command && !frame_open_;
   if (submission_open_ && !is_opening_frame) {
@@ -257,6 +295,11 @@ void VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
 
   if (!submission_open_) {
     submission_open_ = true;
+
+    // Start a new deferred command buffer - will submit it to the real one in
+    // the end of the submission (when async pipeline state object creation
+    // requests are fulfilled).
+    deferred_command_buffer_.Reset();
   }
 
   if (is_opening_frame) {
@@ -321,6 +364,8 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
   bool is_closing_frame = is_swap && frame_open_;
 
   if (submission_open_) {
+    shared_memory_->EndSubmission();
+
     assert_false(command_buffers_writable_.empty());
     CommandBuffer command_buffer = command_buffers_writable_.back();
     if (dfn.vkResetCommandPool(device, command_buffer.pool, 0) != VK_SUCCESS) {
@@ -339,6 +384,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       XELOGE("Failed to begin a Vulkan command buffer");
       return false;
     }
+    deferred_command_buffer_.Execute(command_buffer.buffer);
     // TODO(Triang3l): Write deferred command buffer commands.
     if (dfn.vkEndCommandBuffer(command_buffer.buffer) != VK_SUCCESS) {
       XELOGE("Failed to end a Vulkan command buffer");
