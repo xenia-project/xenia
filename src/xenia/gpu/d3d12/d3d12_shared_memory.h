@@ -87,32 +87,23 @@ class D3D12SharedMemory : public SharedMemory {
   void InitializeTraceCompleteDownloads();
 
  protected:
-  bool EnsureHostGpuMemoryAllocated(uint32_t start, uint32_t length) override;
+  bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
+                                        uint32_t length_allocations) override;
 
   bool UploadRanges(const std::vector<std::pair<uint32_t, uint32_t>>&
                         upload_page_ranges) override;
 
  private:
-  bool AreTiledResourcesUsed() const;
-
   D3D12CommandProcessor& command_processor_;
   TraceWriter& trace_writer_;
 
   // The 512 MB tiled buffer.
   ID3D12Resource* buffer_ = nullptr;
   D3D12_GPU_VIRTUAL_ADDRESS buffer_gpu_address_ = 0;
+  std::vector<ID3D12Heap*> buffer_tiled_heaps_;
   D3D12_RESOURCE_STATES buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
   bool buffer_uav_writes_commit_needed_ = false;
   void CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATES new_state);
-
-  static_assert(D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES == (1 << 16));
-  static constexpr uint32_t kHeapSizeLog2 =
-      std::max(kOptimalAllocationLog2, uint32_t(16));
-  static constexpr uint32_t kHeapSize = 1 << kHeapSizeLog2;
-  // Resident portions of the tiled buffer.
-  ID3D12Heap* heaps_[kBufferSize >> kHeapSizeLog2] = {};
-  // Number of the heaps currently resident, for profiling.
-  uint32_t heap_count_ = 0;
 
   // Non-shader-visible buffer descriptor heap for faster binding (via copying
   // rather than creation).

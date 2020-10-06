@@ -188,12 +188,6 @@ void VulkanSharedMemory::Use(Usage usage,
   last_written_range_ = written_range;
 }
 
-bool VulkanSharedMemory::EnsureHostGpuMemoryAllocated(uint32_t start,
-                                                      uint32_t length) {
-  // TODO(Triang3l): Do sparse binding.
-  return true;
-}
-
 bool VulkanSharedMemory::UploadRanges(
     const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) {
   if (upload_page_ranges.empty()) {
