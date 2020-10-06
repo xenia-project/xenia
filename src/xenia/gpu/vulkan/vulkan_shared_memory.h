@@ -54,8 +54,6 @@ class VulkanSharedMemory : public SharedMemory {
   VkBuffer buffer() const { return buffer_; }
 
  protected:
-  bool EnsureHostGpuMemoryAllocated(uint32_t start, uint32_t length) override;
-
   bool UploadRanges(const std::vector<std::pair<uint32_t, uint32_t>>&
                         upload_page_ranges) override;
 
@@ -75,7 +73,8 @@ class VulkanSharedMemory : public SharedMemory {
   // Maximum of 1024 allocations in the worst case for all of the buffer because
   // of the overall 4096 allocation count limit on Windows drivers.
   static constexpr uint32_t kMinBufferAllocationSizeLog2 =
-      std::max(kOptimalAllocationLog2, kBufferSizeLog2 - 10);
+      std::max(kHostGpuMemoryOptimalSparseAllocationLog2,
+               kBufferSizeLog2 - uint32_t(10));
   uint32_t buffer_allocation_size_log2_ = kBufferSizeLog2;
   // Sparse memory allocations, of different sizes.
   std::vector<VkDeviceMemory> buffer_memory_;
