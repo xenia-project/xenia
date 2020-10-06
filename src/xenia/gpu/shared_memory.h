@@ -93,6 +93,7 @@ class SharedMemory {
   SharedMemory(Memory& memory);
   // Call in implementation-specific initialization.
   void InitializeCommon();
+  void InitializeSparseHostGpuMemory(uint32_t granularity_log2);
   // Call last in implementation-specific shutdown, also callable from the
   // destructor.
   void ShutdownCommon();
@@ -103,33 +104,35 @@ class SharedMemory {
   // Sparse allocations are 4 MB, so not too many of them are allocated, but
   // also not to waste too much memory for padding (with 16 MB there's too
   // much).
-  static constexpr uint32_t kOptimalAllocationLog2 = 22;
-  static_assert(kOptimalAllocationLog2 <= kBufferSizeLog2);
+  static constexpr uint32_t kHostGpuMemoryOptimalSparseAllocationLog2 = 22;
+  static_assert(kHostGpuMemoryOptimalSparseAllocationLog2 <= kBufferSizeLog2);
 
   Memory& memory() const { return memory_; }
 
   uint32_t page_size_log2() const { return page_size_log2_; }
 
+  uint32_t host_gpu_memory_sparse_granularity_log2() const {
+    return host_gpu_memory_sparse_granularity_log2_;
+  }
+
+  virtual bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
+                                                uint32_t length_allocations);
+
   // Mark the memory range as updated and protect it.
   void MakeRangeValid(uint32_t start, uint32_t length, bool written_by_gpu);
 
-  // Ensures the host GPU memory backing the range is accessible by host GPU
-  // drawing / computations / copying, but doesn't upload anything.
-  virtual bool EnsureHostGpuMemoryAllocated(uint32_t start,
-                                            uint32_t length) = 0;
-
-  // Uploads a range of host pages - only called if EnsureHostGpuMemoryAllocated
-  // succeeded. While uploading, MarkRangeValid must be called for each
-  // successfully uploaded range as early as possible, before the memcpy, to
-  // make sure invalidation that happened during the CPU -> GPU memcpy isn't
-  // missed (upload_page_ranges is in pages because of this - MarkRangeValid has
-  // page granularity).
+  // Uploads a range of host pages - only called if host GPU sparse memory
+  // allocation succeeded if needed. While uploading, MarkRangeValid must be
+  // called for each successfully uploaded range as early as possible, before
+  // the memcpy, to make sure invalidation that happened during the CPU -> GPU
+  // memcpy isn't missed (upload_page_ranges is in pages because of this -
+  // MarkRangeValid has page granularity). upload_page_ranges are sorted in
+  // ascending address order, so front and back can be used to determine the
+  // overall bounds of pages to be uploaded.
   virtual bool UploadRanges(
       const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) = 0;
 
-  // Mutable so the implementation can skip ranges by setting their "second"
-  // value to 0 if needed.
-  std::vector<std::pair<uint32_t, uint32_t>>& trace_download_ranges() {
+  const std::vector<std::pair<uint32_t, uint32_t>>& trace_download_ranges() {
     return trace_download_ranges_;
   }
   uint32_t trace_download_page_count() const {
@@ -152,6 +155,12 @@ class SharedMemory {
   // on it is not hard - the access callback takes a range as an argument, and
   // touched pages of the buffer of this size will be invalidated).
   uint32_t page_size_log2_;
+
+  bool EnsureHostGpuMemoryAllocated(uint32_t start, uint32_t length);
+  uint32_t host_gpu_memory_sparse_granularity_log2_ = UINT32_MAX;
+  std::vector<uint64_t> host_gpu_memory_sparse_allocated_;
+  uint32_t host_gpu_memory_sparse_allocations_ = 0;
+  uint32_t host_gpu_memory_sparse_used_bytes_ = 0;
 
   void* memory_invalidation_callback_handle_ = nullptr;
   void* memory_data_provider_handle_ = nullptr;

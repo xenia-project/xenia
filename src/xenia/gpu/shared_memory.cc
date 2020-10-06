@@ -13,6 +13,7 @@
 #include <utility>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/bit_range.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
@@ -34,6 +35,15 @@ void SharedMemory::InitializeCommon() {
   memory_invalidation_callback_handle_ =
       memory_.RegisterPhysicalMemoryInvalidationCallback(
           MemoryInvalidationCallbackThunk, this);
+}
+
+void SharedMemory::InitializeSparseHostGpuMemory(uint32_t granularity_log2) {
+  assert_true(granularity_log2 <= kBufferSizeLog2);
+  assert_true(host_gpu_memory_sparse_granularity_log2_ == UINT32_MAX);
+  host_gpu_memory_sparse_granularity_log2_ = granularity_log2;
+  host_gpu_memory_sparse_allocated_.resize(
+      size_t(1) << (std::max(kBufferSizeLog2 - granularity_log2, uint32_t(6)) -
+                    6));
 }
 
 void SharedMemory::ShutdownCommon() {
@@ -61,6 +71,19 @@ void SharedMemory::ShutdownCommon() {
         memory_invalidation_callback_handle_);
     memory_invalidation_callback_handle_ = nullptr;
   }
+
+  if (host_gpu_memory_sparse_used_bytes_) {
+    host_gpu_memory_sparse_used_bytes_ = 0;
+    COUNT_profile_set("gpu/shared_memory/host_gpu_memory_sparse_used_mb", 0);
+  }
+  if (host_gpu_memory_sparse_allocations_) {
+    host_gpu_memory_sparse_allocations_ = 0;
+    COUNT_profile_set("gpu/shared_memory/host_gpu_memory_sparse_allocations",
+                      0);
+  }
+  host_gpu_memory_sparse_allocated_.clear();
+  host_gpu_memory_sparse_allocated_.shrink_to_fit();
+  host_gpu_memory_sparse_granularity_log2_ = UINT32_MAX;
 }
 
 void SharedMemory::ClearCache() {
@@ -244,6 +267,14 @@ void SharedMemory::RangeWrittenByGpu(uint32_t start, uint32_t length) {
   MakeRangeValid(start, length, true);
 }
 
+bool SharedMemory::AllocateSparseHostGpuMemoryRange(
+    uint32_t offset_allocations, uint32_t length_allocations) {
+  assert_always(
+      "Sparse host GPU memory allocation has been initialized, but the "
+      "implementation doesn't provide AllocateSparseHostGpuMemoryRange");
+  return false;
+}
+
 void SharedMemory::MakeRangeValid(uint32_t start, uint32_t length,
                                   bool written_by_gpu) {
   if (length == 0 || start >= kBufferSize) {
@@ -316,7 +347,6 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length) {
   if (start > kBufferSize || (kBufferSize - start) < length) {
     return false;
   }
-  uint32_t last = start + length - 1;
 
   SCOPE_profile_cpu_f("gpu");
 
@@ -506,10 +536,14 @@ void SharedMemory::PrepareForTraceDownload() {
       } else {
         uint32_t gpu_written_range_length =
             gpu_written_page - gpu_written_range_start;
-        trace_download_ranges_.push_back(
-            std::make_pair(gpu_written_range_start << page_size_log2_,
-                           gpu_written_range_length << page_size_log2_));
-        trace_download_page_count_ += gpu_written_range_length;
+        if (EnsureHostGpuMemoryAllocated(
+                gpu_written_range_start << page_size_log2_,
+                gpu_written_range_length << page_size_log2_)) {
+          trace_download_ranges_.push_back(
+              std::make_pair(gpu_written_range_start << page_size_log2_,
+                             gpu_written_range_length << page_size_log2_));
+          trace_download_page_count_ += gpu_written_range_length;
+        }
         gpu_written_range_start = UINT32_MAX;
       }
       uint64_t gpu_written_block_mask =
@@ -524,10 +558,14 @@ void SharedMemory::PrepareForTraceDownload() {
   }
   if (gpu_written_range_start != UINT32_MAX) {
     uint32_t gpu_written_range_length = page_count - gpu_written_range_start;
-    trace_download_ranges_.push_back(
-        std::make_pair(gpu_written_range_start << page_size_log2_,
-                       gpu_written_range_length << page_size_log2_));
-    trace_download_page_count_ += gpu_written_range_length;
+    if (EnsureHostGpuMemoryAllocated(
+            gpu_written_range_start << page_size_log2_,
+            gpu_written_range_length << page_size_log2_)) {
+      trace_download_ranges_.push_back(
+          std::make_pair(gpu_written_range_start << page_size_log2_,
+                         gpu_written_range_length << page_size_log2_));
+      trace_download_page_count_ += gpu_written_range_length;
+    }
   }
 }
 
@@ -535,6 +573,51 @@ void SharedMemory::ReleaseTraceDownloadRanges() {
   trace_download_ranges_.clear();
   trace_download_ranges_.shrink_to_fit();
   trace_download_page_count_ = 0;
+}
+
+bool SharedMemory::EnsureHostGpuMemoryAllocated(uint32_t start,
+                                                uint32_t length) {
+  if (host_gpu_memory_sparse_granularity_log2_ == UINT32_MAX) {
+    return true;
+  }
+  if (!length) {
+    return true;
+  }
+  if (start > kBufferSize || (kBufferSize - start) < length) {
+    return false;
+  }
+  uint32_t page_first = start >> page_size_log2_;
+  uint32_t page_last = (start + length - 1) >> page_size_log2_;
+  uint32_t allocation_first =
+      page_first << page_size_log2_ >> host_gpu_memory_sparse_granularity_log2_;
+  uint32_t allocation_last =
+      page_last << page_size_log2_ >> host_gpu_memory_sparse_granularity_log2_;
+  while (true) {
+    std::pair<size_t, size_t> allocation_range = xe::bit_range::NextUnsetRange(
+        host_gpu_memory_sparse_allocated_.data(), allocation_first,
+        allocation_last - allocation_first + 1);
+    if (!allocation_range.second) {
+      break;
+    }
+    if (!AllocateSparseHostGpuMemoryRange(uint32_t(allocation_range.first),
+                                          uint32_t(allocation_range.second))) {
+      return false;
+    }
+    xe::bit_range::SetRange(host_gpu_memory_sparse_allocated_.data(),
+                            allocation_range.first, allocation_range.second);
+    ++host_gpu_memory_sparse_allocations_;
+    COUNT_profile_set("gpu/shared_memory/host_gpu_memory_sparse_allocations",
+                      host_gpu_memory_sparse_allocations_);
+    host_gpu_memory_sparse_used_bytes_ +=
+        uint32_t(allocation_range.second)
+        << host_gpu_memory_sparse_granularity_log2_;
+    COUNT_profile_set(
+        "gpu/shared_memory/host_gpu_memory_sparse_used_mb",
+        (host_gpu_memory_sparse_used_bytes_ + ((1 << 20) - 1)) >> 20);
+    allocation_first =
+        uint32_t(allocation_range.first + allocation_range.second);
+  }
+  return true;
 }
 
 }  // namespace gpu
