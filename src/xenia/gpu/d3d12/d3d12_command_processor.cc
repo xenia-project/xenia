@@ -2322,9 +2322,7 @@ void D3D12CommandProcessor::InitializeTrace() {
   if (!render_target_cache_submitted && !shared_memory_submitted) {
     return;
   }
-  if (!AwaitAllQueueOperationsCompletion()) {
-    return;
-  }
+  AwaitAllQueueOperationsCompletion();
   if (render_target_cache_submitted) {
     render_target_cache_->InitializeTraceCompleteDownloads();
   }
