@@ -17,7 +17,6 @@
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
-#include "xenia/base/profiling.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
@@ -43,26 +42,35 @@ D3D12SharedMemory::~D3D12SharedMemory() { Shutdown(true); }
 bool D3D12SharedMemory::Initialize() {
   InitializeCommon();
 
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
-  auto device = provider.GetDevice();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Context().GetD3D12Provider();
+  ID3D12Device* device = provider.GetDevice();
 
   D3D12_RESOURCE_DESC buffer_desc;
   ui::d3d12::util::FillBufferResourceDesc(
       buffer_desc, kBufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
   buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
-  if (AreTiledResourcesUsed()) {
+  if (cvars::d3d12_tiled_shared_memory &&
+      provider.GetTiledResourcesTier() !=
+          D3D12_TILED_RESOURCES_TIER_NOT_SUPPORTED &&
+      !provider.GetGraphicsAnalysis()) {
     if (FAILED(device->CreateReservedResource(
             &buffer_desc, buffer_state_, nullptr, IID_PPV_ARGS(&buffer_)))) {
-      XELOGE("Shared memory: Failed to create the 512 MB tiled buffer");
+      XELOGE("Shared memory: Failed to create the {} MB tiled buffer",
+             kBufferSize >> 20);
       Shutdown();
       return false;
     }
+    static_assert(D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES == (1 << 16));
+    InitializeSparseHostGpuMemory(
+        std::max(kHostGpuMemoryOptimalSparseAllocationLog2, uint32_t(16)));
   } else {
     XELOGGPU(
         "Direct3D 12 tiled resources are not used for shared memory "
         "emulation - video memory usage may increase significantly "
-        "because a full 512 MB buffer will be created!");
-    if (provider.GetGraphicsAnalysis() != nullptr) {
+        "because a full {} MB buffer will be created!",
+        kBufferSize >> 20);
+    if (provider.GetGraphicsAnalysis()) {
       // As of October 8th, 2018, PIX doesn't support tiled buffers.
       // FIXME(Triang3l): Re-enable tiled resources with PIX once fixed.
       XELOGGPU(
@@ -73,7 +81,8 @@ bool D3D12SharedMemory::Initialize() {
             &ui::d3d12::util::kHeapPropertiesDefault,
             provider.GetHeapFlagCreateNotZeroed(), &buffer_desc, buffer_state_,
             nullptr, IID_PPV_ARGS(&buffer_)))) {
-      XELOGE("Shared memory: Failed to create the 512 MB buffer");
+      XELOGE("Shared memory: Failed to create the {} MB buffer",
+             kBufferSize >> 20);
       Shutdown();
       return false;
     }
@@ -161,13 +170,10 @@ void D3D12SharedMemory::Shutdown(bool from_destructor) {
   // First free the buffer to detach it from the heaps.
   ui::d3d12::util::ReleaseAndNull(buffer_);
 
-  if (AreTiledResourcesUsed()) {
-    for (uint32_t i = 0; i < xe::countof(heaps_); ++i) {
-      ui::d3d12::util::ReleaseAndNull(heaps_[i]);
-    }
-    heap_count_ = 0;
-    COUNT_profile_set("gpu/shared_memory/used_mb", 0);
+  for (ID3D12Heap* heap : buffer_tiled_heaps_) {
+    heap->Release();
   }
+  buffer_tiled_heaps_.clear();
 
   // If calling from the destructor, the SharedMemory destructor will call
   // ShutdownCommon.
@@ -180,24 +186,10 @@ void D3D12SharedMemory::ClearCache() {
   SharedMemory::ClearCache();
 
   upload_buffer_pool_->ClearCache();
-
-  // TODO(Triang3l): Unmap and destroy heaps.
 }
 
 void D3D12SharedMemory::CompletedSubmissionUpdated() {
   upload_buffer_pool_->Reclaim(command_processor_.GetCompletedSubmission());
-}
-
-bool D3D12SharedMemory::AreTiledResourcesUsed() const {
-  if (!cvars::d3d12_tiled_shared_memory) {
-    return false;
-  }
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
-  // As of October 8th, 2018, PIX doesn't support tiled buffers.
-  // FIXME(Triang3l): Re-enable tiled resources with PIX once fixed.
-  return provider.GetTiledResourcesTier() !=
-             D3D12_TILED_RESOURCES_TIER_NOT_SUPPORTED &&
-         provider.GetGraphicsAnalysis() == nullptr;
 }
 
 void D3D12SharedMemory::CommitUAVWritesAndTransitionBuffer(
@@ -321,11 +313,6 @@ bool D3D12SharedMemory::InitializeTraceSubmitDownloads() {
   command_processor_.SubmitBarriers();
   uint32_t download_buffer_offset = 0;
   for (auto& download_range : trace_download_ranges()) {
-    if (!EnsureHostGpuMemoryAllocated(download_range.first,
-                                      download_range.second)) {
-      download_range.second = 0;
-      continue;
-    }
     command_list.D3DCopyBufferRegion(
         trace_download_buffer_, download_buffer_offset, buffer_,
         download_range.first, download_range.second);
@@ -362,52 +349,50 @@ void D3D12SharedMemory::ResetTraceDownload() {
   ReleaseTraceDownloadRanges();
 }
 
-bool D3D12SharedMemory::EnsureHostGpuMemoryAllocated(uint32_t start,
-                                                     uint32_t length) {
-  if (!length || !AreTiledResourcesUsed()) {
+bool D3D12SharedMemory::AllocateSparseHostGpuMemoryRange(
+    uint32_t offset_allocations, uint32_t length_allocations) {
+  if (!length_allocations) {
     return true;
   }
-  uint32_t heap_first = start >> kHeapSizeLog2;
-  uint32_t heap_last = (start + length - 1) >> kHeapSizeLog2;
-  assert_true(heap_first < xe::countof(heaps_));
-  assert_true(heap_last < xe::countof(heaps_));
-  for (uint32_t i = heap_first; i <= heap_last; ++i) {
-    if (heaps_[i] != nullptr) {
-      continue;
-    }
-    auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
-    auto device = provider.GetDevice();
-    auto direct_queue = provider.GetDirectQueue();
-    D3D12_HEAP_DESC heap_desc = {};
-    heap_desc.SizeInBytes = kHeapSize;
-    heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
-    heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS |
-                      provider.GetHeapFlagCreateNotZeroed();
-    if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heaps_[i])))) {
-      XELOGE("Shared memory: Failed to create a tile heap");
-      return false;
-    }
-    ++heap_count_;
-    COUNT_profile_set("gpu/shared_memory/used_mb",
-                      heap_count_ << kHeapSizeLog2 >> 20);
-    D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
-    region_start_coordinates.X =
-        (i << kHeapSizeLog2) / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;
-    region_start_coordinates.Y = 0;
-    region_start_coordinates.Z = 0;
-    region_start_coordinates.Subresource = 0;
-    D3D12_TILE_REGION_SIZE region_size;
-    region_size.NumTiles = kHeapSize / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;
-    region_size.UseBox = FALSE;
-    D3D12_TILE_RANGE_FLAGS range_flags = D3D12_TILE_RANGE_FLAG_NONE;
-    UINT heap_range_start_offset = 0;
-    UINT range_tile_count = kHeapSize / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;
-    direct_queue->UpdateTileMappings(
-        buffer_, 1, &region_start_coordinates, &region_size, heaps_[i], 1,
-        &range_flags, &heap_range_start_offset, &range_tile_count,
-        D3D12_TILE_MAPPING_FLAG_NONE);
-    command_processor_.NotifyQueueOperationsDoneDirectly();
+
+  uint32_t offset_bytes = offset_allocations
+                          << host_gpu_memory_sparse_granularity_log2();
+  uint32_t length_bytes = length_allocations
+                          << host_gpu_memory_sparse_granularity_log2();
+
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Context().GetD3D12Provider();
+  ID3D12Device* device = provider.GetDevice();
+  ID3D12CommandQueue* direct_queue = provider.GetDirectQueue();
+
+  D3D12_HEAP_DESC heap_desc = {};
+  heap_desc.SizeInBytes = length_bytes;
+  heap_desc.Properties.Type = D3D12_HEAP_TYPE_DEFAULT;
+  heap_desc.Flags = D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS |
+                    provider.GetHeapFlagCreateNotZeroed();
+  ID3D12Heap* heap;
+  if (FAILED(device->CreateHeap(&heap_desc, IID_PPV_ARGS(&heap)))) {
+    XELOGE("Shared memory: Failed to create a tile heap");
+    return false;
   }
+  buffer_tiled_heaps_.push_back(heap);
+
+  D3D12_TILED_RESOURCE_COORDINATE region_start_coordinates;
+  region_start_coordinates.X =
+      offset_bytes / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;
+  region_start_coordinates.Y = 0;
+  region_start_coordinates.Z = 0;
+  region_start_coordinates.Subresource = 0;
+  D3D12_TILE_REGION_SIZE region_size;
+  region_size.NumTiles = length_bytes / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;
+  region_size.UseBox = FALSE;
+  D3D12_TILE_RANGE_FLAGS range_flags = D3D12_TILE_RANGE_FLAG_NONE;
+  UINT heap_range_start_offset = 0;
+  direct_queue->UpdateTileMappings(
+      buffer_, 1, &region_start_coordinates, &region_size, heap, 1,
+      &range_flags, &heap_range_start_offset, &region_size.NumTiles,
+      D3D12_TILE_MAPPING_FLAG_NONE);
+  command_processor_.NotifyQueueOperationsDoneDirectly();
   return true;
 }
 
