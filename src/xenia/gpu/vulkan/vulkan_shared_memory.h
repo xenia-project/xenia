@@ -53,6 +53,10 @@ class VulkanSharedMemory : public SharedMemory {
 
   VkBuffer buffer() const { return buffer_; }
 
+  // Returns true if any downloads were submitted to the command processor.
+  bool InitializeTraceSubmitDownloads();
+  void InitializeTraceCompleteDownloads();
+
  protected:
   bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
                                         uint32_t length_allocations) override;
@@ -78,6 +82,11 @@ class VulkanSharedMemory : public SharedMemory {
 
   std::unique_ptr<ui::vulkan::VulkanUploadBufferPool> upload_buffer_pool_;
   std::vector<VkBufferCopy> upload_regions_;
+
+  // Created temporarily, only for downloading.
+  VkBuffer trace_download_buffer_ = VK_NULL_HANDLE;
+  VkDeviceMemory trace_download_buffer_memory_ = VK_NULL_HANDLE;
+  void ResetTraceDownload();
 };
 
 }  // namespace vulkan

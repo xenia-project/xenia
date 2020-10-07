@@ -198,7 +198,18 @@ bool VulkanCommandProcessor::IssueCopy() {
   return true;
 }
 
-void VulkanCommandProcessor::InitializeTrace() {}
+void VulkanCommandProcessor::InitializeTrace() {
+  BeginSubmission(false);
+  bool shared_memory_submitted =
+      shared_memory_->InitializeTraceSubmitDownloads();
+  if (!shared_memory_submitted) {
+    return;
+  }
+  AwaitAllQueueOperationsCompletion();
+  if (shared_memory_submitted) {
+    shared_memory_->InitializeTraceCompleteDownloads();
+  }
+}
 
 void VulkanCommandProcessor::FinalizeTrace() {}
 

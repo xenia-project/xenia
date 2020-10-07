@@ -982,17 +982,11 @@ bool VulkanImmediateDrawer::CreateTextureResource(
   VkDeviceMemory upload_buffer_memory = VK_NULL_HANDLE;
   if (data) {
     size_t data_size = sizeof(uint32_t) * width * height;
-    VkBufferCreateInfo upload_buffer_create_info;
-    upload_buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    upload_buffer_create_info.pNext = nullptr;
-    upload_buffer_create_info.flags = 0;
-    upload_buffer_create_info.size = VkDeviceSize(data_size);
-    upload_buffer_create_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    upload_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    upload_buffer_create_info.queueFamilyIndexCount = 0;
-    upload_buffer_create_info.pQueueFamilyIndices = nullptr;
-    if (dfn.vkCreateBuffer(device, &upload_buffer_create_info, nullptr,
-                           &upload_buffer) != VK_SUCCESS) {
+    uint32_t upload_buffer_memory_type;
+    if (!util::CreateDedicatedAllocationBuffer(
+            provider, VkDeviceSize(data_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            util::MemoryPurpose::kUpload, upload_buffer, upload_buffer_memory,
+            &upload_buffer_memory_type)) {
       XELOGE(
           "Failed to create a Vulkan upload buffer for a {}x{} immediate "
           "drawer texture",
@@ -1003,72 +997,6 @@ bool VulkanImmediateDrawer::CreateTextureResource(
       dfn.vkFreeMemory(device, image_memory, nullptr);
       return false;
     }
-
-    VkMemoryAllocateInfo upload_buffer_memory_allocate_info;
-    VkMemoryRequirements upload_buffer_memory_requirements;
-    dfn.vkGetBufferMemoryRequirements(device, upload_buffer,
-                                      &upload_buffer_memory_requirements);
-    upload_buffer_memory_allocate_info.memoryTypeIndex =
-        util::ChooseHostMemoryType(
-            provider, upload_buffer_memory_requirements.memoryTypeBits, false);
-    if (upload_buffer_memory_allocate_info.memoryTypeIndex == UINT32_MAX) {
-      XELOGE(
-          "Failed to get a host-visible memory type for a Vulkan upload buffer "
-          "for a {}x{} immediate drawer texture",
-          width, height);
-      dfn.vkDestroyBuffer(device, upload_buffer, nullptr);
-      FreeTextureDescriptor(descriptor_index);
-      dfn.vkDestroyImageView(device, image_view, nullptr);
-      dfn.vkDestroyImage(device, image, nullptr);
-      dfn.vkFreeMemory(device, image_memory, nullptr);
-      return false;
-    }
-    upload_buffer_memory_allocate_info.sType =
-        VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    VkMemoryDedicatedAllocateInfoKHR
-        upload_buffer_memory_dedicated_allocate_info;
-    if (dedicated_allocation_supported) {
-      upload_buffer_memory_dedicated_allocate_info.sType =
-          VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
-      upload_buffer_memory_dedicated_allocate_info.pNext = nullptr;
-      upload_buffer_memory_dedicated_allocate_info.image = VK_NULL_HANDLE;
-      upload_buffer_memory_dedicated_allocate_info.buffer = upload_buffer;
-      upload_buffer_memory_allocate_info.pNext =
-          &upload_buffer_memory_dedicated_allocate_info;
-    } else {
-      upload_buffer_memory_allocate_info.pNext = nullptr;
-    }
-    upload_buffer_memory_allocate_info.allocationSize =
-        util::GetMappableMemorySize(provider,
-                                    upload_buffer_memory_requirements.size);
-    if (dfn.vkAllocateMemory(device, &upload_buffer_memory_allocate_info,
-                             nullptr, &upload_buffer_memory) != VK_SUCCESS) {
-      XELOGE(
-          "Failed to allocate memory for a Vulkan upload buffer for a {}x{} "
-          "immediate drawer texture",
-          width, height);
-      dfn.vkDestroyBuffer(device, upload_buffer, nullptr);
-      FreeTextureDescriptor(descriptor_index);
-      dfn.vkDestroyImageView(device, image_view, nullptr);
-      dfn.vkDestroyImage(device, image, nullptr);
-      dfn.vkFreeMemory(device, image_memory, nullptr);
-      return false;
-    }
-    if (dfn.vkBindBufferMemory(device, upload_buffer, upload_buffer_memory,
-                               0) != VK_SUCCESS) {
-      XELOGE(
-          "Failed to bind memory to a Vulkan upload buffer for a {}x{} "
-          "immediate drawer texture",
-          width, height);
-      dfn.vkDestroyBuffer(device, upload_buffer, nullptr);
-      dfn.vkFreeMemory(device, upload_buffer_memory, nullptr);
-      FreeTextureDescriptor(descriptor_index);
-      dfn.vkDestroyImageView(device, image_view, nullptr);
-      dfn.vkDestroyImage(device, image, nullptr);
-      dfn.vkFreeMemory(device, image_memory, nullptr);
-      return false;
-    }
-
     void* upload_buffer_mapping;
     if (dfn.vkMapMemory(device, upload_buffer_memory, 0, VK_WHOLE_SIZE, 0,
                         &upload_buffer_mapping) != VK_SUCCESS) {
@@ -1085,9 +1013,8 @@ bool VulkanImmediateDrawer::CreateTextureResource(
       return false;
     }
     std::memcpy(upload_buffer_mapping, data, data_size);
-    util::FlushMappedMemoryRange(
-        provider, upload_buffer_memory,
-        upload_buffer_memory_allocate_info.memoryTypeIndex);
+    util::FlushMappedMemoryRange(provider, upload_buffer_memory,
+                                 upload_buffer_memory_type);
     dfn.vkUnmapMemory(device, upload_buffer_memory);
   }
 

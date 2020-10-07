@@ -10,6 +10,8 @@
 #ifndef XENIA_UI_VULKAN_VULKAN_UTIL_H_
 #define XENIA_UI_VULKAN_VULKAN_UTIL_H_
 
+#include <cstdint>
+
 #include "xenia/base/math.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
@@ -37,6 +39,12 @@ inline bool DestroyAndNullHandle(F* destroy_function, P parent, T& handle) {
   }
   return false;
 }
+
+enum class MemoryPurpose {
+  kDeviceLocal,
+  kUpload,
+  kReadback,
+};
 
 inline VkDeviceSize GetMappableMemorySize(const VulkanProvider& provider,
                                           VkDeviceSize size) {
@@ -84,6 +92,14 @@ inline void InitializeSubresourceRange(
   range.baseArrayLayer = base_array_layer;
   range.layerCount = layer_count;
 }
+
+// Creates a buffer backed by a dedicated allocation. If using a mappable memory
+// purpose (upload/readback), the allocation size will be aligned to
+// nonCoherentAtomSize.
+bool CreateDedicatedAllocationBuffer(
+    const VulkanProvider& provider, VkDeviceSize size, VkBufferUsageFlags usage,
+    MemoryPurpose memory_purpose, VkBuffer& buffer_out,
+    VkDeviceMemory& memory_out, uint32_t* memory_type_out = nullptr);
 
 inline VkShaderModule CreateShaderModule(const VulkanProvider& provider,
                                          const void* code, size_t code_size) {
