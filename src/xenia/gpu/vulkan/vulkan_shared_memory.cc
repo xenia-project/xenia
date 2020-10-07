@@ -15,11 +15,19 @@
 #include <vector>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/vulkan/deferred_command_buffer.h"
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
+
+DEFINE_bool(vulkan_sparse_shared_memory, true,
+            "Enable sparse binding for shared memory emulation. Disabling it "
+            "increases video memory usage - a 512 MB buffer is created - but "
+            "allows graphics debuggers that don't support sparse binding to "
+            "work.",
+            "Vulkan");
 
 namespace xe {
 namespace gpu {
@@ -43,14 +51,15 @@ bool VulkanSharedMemory::Initialize() {
   VkDevice device = provider.device();
   const VkPhysicalDeviceFeatures& device_features = provider.device_features();
 
-  VkBufferCreateInfo buffer_create_info;
-  buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  buffer_create_info.pNext = nullptr;
-  buffer_create_info.flags = 0;
   const VkBufferCreateFlags sparse_flags =
       VK_BUFFER_CREATE_SPARSE_BINDING_BIT |
       VK_BUFFER_CREATE_SPARSE_RESIDENCY_BIT;
-  // TODO(Triang3l): Sparse binding.
+
+  // Try to create a sparse buffer.
+  VkBufferCreateInfo buffer_create_info;
+  buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  buffer_create_info.pNext = nullptr;
+  buffer_create_info.flags = sparse_flags;
   buffer_create_info.size = kBufferSize;
   buffer_create_info.usage =
       VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
@@ -58,39 +67,90 @@ bool VulkanSharedMemory::Initialize() {
   buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   buffer_create_info.queueFamilyIndexCount = 0;
   buffer_create_info.pQueueFamilyIndices = nullptr;
-  VkResult buffer_create_result =
-      dfn.vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer_);
-  if (buffer_create_result != VK_SUCCESS) {
-    if (buffer_create_info.flags & sparse_flags) {
-      buffer_create_info.flags &= ~sparse_flags;
-      buffer_create_result =
-          dfn.vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer_);
+  if (cvars::vulkan_sparse_shared_memory &&
+      provider.IsSparseBindingSupported() &&
+      device_features.sparseResidencyBuffer) {
+    if (dfn.vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer_) ==
+        VK_SUCCESS) {
+      VkMemoryRequirements buffer_memory_requirements;
+      dfn.vkGetBufferMemoryRequirements(device, buffer_,
+                                        &buffer_memory_requirements);
+      if (xe::bit_scan_forward(buffer_memory_requirements.memoryTypeBits &
+                                   provider.memory_types_device_local(),
+                               &buffer_memory_type_)) {
+        uint32_t allocation_size_log2;
+        xe::bit_scan_forward(
+            std::max(uint64_t(buffer_memory_requirements.alignment),
+                     uint64_t(1)),
+            &allocation_size_log2);
+        if (allocation_size_log2 < kBufferSizeLog2) {
+          // Maximum of 1024 allocations in the worst case for all of the
+          // buffer because of the overall 4096 allocation count limit on
+          // Windows drivers.
+          InitializeSparseHostGpuMemory(
+              std::max(allocation_size_log2,
+                       std::max(kHostGpuMemoryOptimalSparseAllocationLog2,
+                                kBufferSizeLog2 - uint32_t(10))));
+        } else {
+          // Shouldn't happen on any real platform, but no point allocating the
+          // buffer sparsely.
+          dfn.vkDestroyBuffer(device, buffer_, nullptr);
+          buffer_ = VK_NULL_HANDLE;
+        }
+      } else {
+        XELOGE(
+            "Shared memory: Failed to get a device-local Vulkan memory type "
+            "for the sparse buffer");
+        dfn.vkDestroyBuffer(device, buffer_, nullptr);
+        buffer_ = VK_NULL_HANDLE;
+      }
+    } else {
+      XELOGE("Shared memory: Failed to create the {} MB Vulkan sparse buffer",
+             kBufferSize >> 20);
     }
-    if (buffer_create_result != VK_SUCCESS) {
+  }
+
+  // Create a non-sparse buffer if there were issues with the sparse buffer.
+  if (buffer_ == VK_NULL_HANDLE) {
+    XELOGGPU(
+        "Vulkan sparse binding is not used for shared memory emulation - video "
+        "memory usage may increase significantly because a full {} MB buffer "
+        "will be created",
+        kBufferSize >> 20);
+    buffer_create_info.flags &= ~sparse_flags;
+    if (dfn.vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer_) !=
+        VK_SUCCESS) {
       XELOGE("Shared memory: Failed to create the {} MB Vulkan buffer",
              kBufferSize >> 20);
       Shutdown();
       return false;
     }
-  }
-  VkMemoryRequirements buffer_memory_requirements;
-  dfn.vkGetBufferMemoryRequirements(device, buffer_,
-                                    &buffer_memory_requirements);
-  // TODO(Triang3l): Determine sparse binding properties from memory
-  // requirements.
-  if (!xe::bit_scan_forward(buffer_memory_requirements.memoryTypeBits &
-                                provider.memory_types_device_local(),
-                            &buffer_memory_type_)) {
-    XELOGE(
-        "Shared memory: Failed to get a device-local Vulkan memory type for "
-        "the buffer");
-    Shutdown();
-    return false;
-  }
-  if (!(buffer_create_info.flags & sparse_flags)) {
+    VkMemoryRequirements buffer_memory_requirements;
+    dfn.vkGetBufferMemoryRequirements(device, buffer_,
+                                      &buffer_memory_requirements);
+    if (!xe::bit_scan_forward(buffer_memory_requirements.memoryTypeBits &
+                                  provider.memory_types_device_local(),
+                              &buffer_memory_type_)) {
+      XELOGE(
+          "Shared memory: Failed to get a device-local Vulkan memory type for "
+          "the buffer");
+      Shutdown();
+      return false;
+    }
     VkMemoryAllocateInfo buffer_memory_allocate_info;
     buffer_memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    buffer_memory_allocate_info.pNext = nullptr;
+    VkMemoryDedicatedAllocateInfoKHR buffer_memory_dedicated_allocate_info;
+    if (provider.device_extensions().khr_dedicated_allocation) {
+      buffer_memory_dedicated_allocate_info.sType =
+          VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
+      buffer_memory_dedicated_allocate_info.pNext = nullptr;
+      buffer_memory_dedicated_allocate_info.image = VK_NULL_HANDLE;
+      buffer_memory_dedicated_allocate_info.buffer = buffer_;
+      buffer_memory_allocate_info.pNext =
+          &buffer_memory_dedicated_allocate_info;
+    } else {
+      buffer_memory_allocate_info.pNext = nullptr;
+    }
     buffer_memory_allocate_info.allocationSize =
         buffer_memory_requirements.size;
     buffer_memory_allocate_info.memoryTypeIndex = buffer_memory_type_;
@@ -133,8 +193,6 @@ void VulkanSharedMemory::Shutdown(bool from_destructor) {
   VkDevice device = provider.device();
 
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, buffer_);
-
-  buffer_memory_allocated_.clear();
   for (VkDeviceMemory memory : buffer_memory_) {
     dfn.vkFreeMemory(device, memory, nullptr);
   }
@@ -186,6 +244,51 @@ void VulkanSharedMemory::Use(Usage usage,
         &buffer_memory_barrier, 0, nullptr);
   }
   last_written_range_ = written_range;
+}
+
+bool VulkanSharedMemory::AllocateSparseHostGpuMemoryRange(
+    uint32_t offset_allocations, uint32_t length_allocations) {
+  if (!length_allocations) {
+    return true;
+  }
+
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanContext().GetVulkanProvider();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+
+  VkMemoryAllocateInfo memory_allocate_info;
+  memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  memory_allocate_info.pNext = nullptr;
+  memory_allocate_info.allocationSize =
+      length_allocations << host_gpu_memory_sparse_granularity_log2();
+  memory_allocate_info.memoryTypeIndex = buffer_memory_type_;
+  VkDeviceMemory memory;
+  if (dfn.vkAllocateMemory(device, &memory_allocate_info, nullptr, &memory) !=
+      VK_SUCCESS) {
+    XELOGE("Shared memory: Failed to allocate sparse buffer memory");
+    return false;
+  }
+  buffer_memory_.push_back(memory);
+
+  VkSparseMemoryBind bind;
+  bind.resourceOffset = offset_allocations
+                        << host_gpu_memory_sparse_granularity_log2();
+  bind.size = memory_allocate_info.allocationSize;
+  bind.memory = memory;
+  bind.memoryOffset = 0;
+  bind.flags = 0;
+  VkPipelineStageFlags bind_wait_stage_mask =
+      VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+      VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
+  if (provider.device_features().tessellationShader) {
+    bind_wait_stage_mask |=
+        VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT;
+  }
+  command_processor_.SparseBindBuffer(buffer_, 1, &bind, bind_wait_stage_mask);
+
+  return true;
 }
 
 bool VulkanSharedMemory::UploadRanges(
