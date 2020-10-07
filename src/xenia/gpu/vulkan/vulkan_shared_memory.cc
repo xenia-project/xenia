@@ -182,6 +182,8 @@ bool VulkanSharedMemory::Initialize() {
 }
 
 void VulkanSharedMemory::Shutdown(bool from_destructor) {
+  ResetTraceDownload();
+
   upload_buffer_pool_.reset();
 
   last_written_range_ = std::make_pair<uint32_t, uint32_t>(0, 0);
@@ -246,6 +248,92 @@ void VulkanSharedMemory::Use(Usage usage,
   last_written_range_ = written_range;
 }
 
+bool VulkanSharedMemory::InitializeTraceSubmitDownloads() {
+  ResetTraceDownload();
+  PrepareForTraceDownload();
+  uint32_t download_page_count = trace_download_page_count();
+  if (!download_page_count) {
+    return false;
+  }
+
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanContext().GetVulkanProvider();
+  if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
+          provider, download_page_count << page_size_log2(),
+          VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+          ui::vulkan::util::MemoryPurpose::kReadback, trace_download_buffer_,
+          trace_download_buffer_memory_)) {
+    XELOGE(
+        "Shared memory: Failed to create a {} KB GPU-written memory download "
+        "buffer for frame tracing",
+        download_page_count << page_size_log2() >> 10);
+    ResetTraceDownload();
+    return false;
+  }
+
+  // TODO(Triang3l): End the render pass.
+  Use(Usage::kRead);
+  DeferredCommandBuffer& command_buffer =
+      command_processor_.deferred_command_buffer();
+
+  size_t download_range_count = trace_download_ranges().size();
+  VkBufferCopy* download_regions = command_buffer.CmdCopyBufferEmplace(
+      buffer_, trace_download_buffer_, uint32_t(download_range_count));
+  VkDeviceSize download_buffer_offset = 0;
+  for (size_t i = 0; i < download_range_count; ++i) {
+    VkBufferCopy& download_region = download_regions[i];
+    const std::pair<uint32_t, uint32_t>& download_range =
+        trace_download_ranges()[i];
+    download_region.srcOffset = download_range.first;
+    download_region.dstOffset = download_buffer_offset;
+    download_region.size = download_range.second;
+    download_buffer_offset += download_range.second;
+  }
+
+  VkBufferMemoryBarrier download_buffer_barrier;
+  download_buffer_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+  download_buffer_barrier.pNext = nullptr;
+  download_buffer_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  download_buffer_barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+  download_buffer_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  download_buffer_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  download_buffer_barrier.buffer = trace_download_buffer_;
+  download_buffer_barrier.offset = 0;
+  download_buffer_barrier.size = VK_WHOLE_SIZE;
+  command_buffer.CmdVkPipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                      VK_PIPELINE_STAGE_HOST_BIT, 0, 0, nullptr,
+                                      1, &download_buffer_barrier, 0, nullptr);
+
+  return true;
+}
+
+void VulkanSharedMemory::InitializeTraceCompleteDownloads() {
+  if (!trace_download_buffer_memory_) {
+    return;
+  }
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanContext().GetVulkanProvider();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+  void* download_mapping;
+  if (dfn.vkMapMemory(device, trace_download_buffer_memory_, 0, VK_WHOLE_SIZE,
+                      0, &download_mapping) == VK_SUCCESS) {
+    uint32_t download_buffer_offset = 0;
+    for (const auto& download_range : trace_download_ranges()) {
+      trace_writer_.WriteMemoryRead(
+          download_range.first, download_range.second,
+          reinterpret_cast<const uint8_t*>(download_mapping) +
+              download_buffer_offset);
+    }
+    dfn.vkUnmapMemory(device, trace_download_buffer_memory_);
+  } else {
+    XELOGE(
+        "Shared memory: Failed to map the GPU-written memory download buffer "
+        "for frame tracing");
+  }
+  ResetTraceDownload();
+}
+
 bool VulkanSharedMemory::AllocateSparseHostGpuMemoryRange(
     uint32_t offset_allocations, uint32_t length_allocations) {
   if (!length_allocations) {
@@ -296,6 +384,7 @@ bool VulkanSharedMemory::UploadRanges(
   if (upload_page_ranges.empty()) {
     return true;
   }
+  // TODO(Triang3l): End the render pass.
   // upload_page_ranges are sorted, use them to determine the range for the
   // ordering barrier.
   Use(Usage::kTransferDestination,
@@ -399,6 +488,18 @@ void VulkanSharedMemory::GetBarrier(Usage usage,
     default:
       assert_unhandled_case(usage);
   }
+}
+
+void VulkanSharedMemory::ResetTraceDownload() {
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanContext().GetVulkanProvider();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
+                                         trace_download_buffer_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                         trace_download_buffer_memory_);
+  ReleaseTraceDownloadRanges();
 }
 
 }  // namespace vulkan

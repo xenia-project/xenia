@@ -40,8 +40,8 @@ class DeferredCommandBuffer {
     args.index_type = index_type;
   }
 
-  void CmdVkCopyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer,
-                       uint32_t region_count, const VkBufferCopy* regions) {
+  VkBufferCopy* CmdCopyBufferEmplace(VkBuffer src_buffer, VkBuffer dst_buffer,
+                                     uint32_t region_count) {
     static_assert(alignof(VkBufferCopy) <= alignof(uintmax_t));
     const size_t header_size =
         xe::align(sizeof(ArgsVkCopyBuffer), alignof(VkBufferCopy));
@@ -52,8 +52,12 @@ class DeferredCommandBuffer {
     args.src_buffer = src_buffer;
     args.dst_buffer = dst_buffer;
     args.region_count = region_count;
-    std::memcpy(args_ptr + header_size, regions,
-                sizeof(VkBufferCopy) * region_count);
+    return reinterpret_cast<VkBufferCopy*>(args_ptr + header_size);
+  }
+  void CmdVkCopyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer,
+                       uint32_t region_count, const VkBufferCopy* regions) {
+    std::memcpy(CmdCopyBufferEmplace(src_buffer, dst_buffer, region_count),
+                regions, sizeof(VkBufferCopy) * region_count);
   }
 
   // pNext of all barriers must be null.
