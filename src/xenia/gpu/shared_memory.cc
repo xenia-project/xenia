@@ -536,6 +536,10 @@ void SharedMemory::PrepareForTraceDownload() {
       } else {
         uint32_t gpu_written_range_length =
             gpu_written_page - gpu_written_range_start;
+        // Call EnsureHostGpuMemoryAllocated in case the page was marked as
+        // GPU-written not as a result to an actual write to the shared memory
+        // buffer, but, for instance, by resolving with resolution scaling (to a
+        // separate buffer).
         if (EnsureHostGpuMemoryAllocated(
                 gpu_written_range_start << page_size_log2_,
                 gpu_written_range_length << page_size_log2_)) {
