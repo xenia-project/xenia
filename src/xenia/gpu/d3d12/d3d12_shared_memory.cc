@@ -22,9 +22,9 @@
 
 DEFINE_bool(d3d12_tiled_shared_memory, true,
             "Enable tiled resources for shared memory emulation. Disabling "
-            "them greatly increases video memory usage - a 512 MB buffer is "
-            "created - but allows graphics debuggers that don't support tiled "
-            "resources to work.",
+            "them increases video memory usage - a 512 MB buffer is created - "
+            "but allows graphics debuggers that don't support tiled resources "
+            "to work.",
             "D3D12");
 
 namespace xe {
@@ -68,7 +68,7 @@ bool D3D12SharedMemory::Initialize() {
     XELOGGPU(
         "Direct3D 12 tiled resources are not used for shared memory "
         "emulation - video memory usage may increase significantly "
-        "because a full {} MB buffer will be created!",
+        "because a full {} MB buffer will be created",
         kBufferSize >> 20);
     if (provider.GetGraphicsAnalysis()) {
       // As of October 8th, 2018, PIX doesn't support tiled buffers.
@@ -100,7 +100,7 @@ bool D3D12SharedMemory::Initialize() {
           &buffer_descriptor_heap_desc,
           IID_PPV_ARGS(&buffer_descriptor_heap_)))) {
     XELOGE(
-        "Failed to create the descriptor heap for shared memory buffer views");
+        "Shared memory: Failed to create the descriptor heap for buffer views");
     Shutdown();
     return false;
   }
@@ -286,7 +286,6 @@ bool D3D12SharedMemory::InitializeTraceSubmitDownloads() {
   ResetTraceDownload();
   PrepareForTraceDownload();
   uint32_t download_page_count = trace_download_page_count();
-  // Request downloading of GPU-written memory.
   if (!download_page_count) {
     return false;
   }
@@ -312,7 +311,7 @@ bool D3D12SharedMemory::InitializeTraceSubmitDownloads() {
   UseAsCopySource();
   command_processor_.SubmitBarriers();
   uint32_t download_buffer_offset = 0;
-  for (auto& download_range : trace_download_ranges()) {
+  for (const auto& download_range : trace_download_ranges()) {
     command_list.D3DCopyBufferRegion(
         trace_download_buffer_, download_buffer_offset, buffer_,
         download_range.first, download_range.second);
@@ -328,7 +327,7 @@ void D3D12SharedMemory::InitializeTraceCompleteDownloads() {
   void* download_mapping;
   if (SUCCEEDED(trace_download_buffer_->Map(0, nullptr, &download_mapping))) {
     uint32_t download_buffer_offset = 0;
-    for (auto download_range : trace_download_ranges()) {
+    for (const auto& download_range : trace_download_ranges()) {
       trace_writer_.WriteMemoryRead(
           download_range.first, download_range.second,
           reinterpret_cast<const uint8_t*>(download_mapping) +
@@ -338,8 +337,8 @@ void D3D12SharedMemory::InitializeTraceCompleteDownloads() {
     trace_download_buffer_->Unmap(0, &download_write_range);
   } else {
     XELOGE(
-        "Failed to map the GPU-written memory download buffer for frame "
-        "tracing");
+        "Shared memory: Failed to map the GPU-written memory download buffer "
+        "for frame tracing");
   }
   ResetTraceDownload();
 }
