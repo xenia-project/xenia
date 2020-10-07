@@ -63,6 +63,10 @@ void VulkanCommandProcessor::ShutdownContext() {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
+  sparse_bind_wait_stage_mask_ = 0;
+  sparse_buffer_binds_.clear();
+  sparse_memory_binds_.clear();
+
   deferred_command_buffer_.Reset();
   for (const auto& command_buffer_pair : command_buffers_submitted_) {
     dfn.vkDestroyCommandPool(device, command_buffer_pair.first.pool, nullptr);
@@ -78,15 +82,19 @@ void VulkanCommandProcessor::ShutdownContext() {
   frame_current_ = 1;
   frame_open_ = false;
 
-  for (const auto& semaphore :
-       submissions_in_flight_sparse_binding_semaphores_) {
+  for (const auto& semaphore : submissions_in_flight_semaphores_) {
     dfn.vkDestroySemaphore(device, semaphore.first, nullptr);
   }
-  submissions_in_flight_sparse_binding_semaphores_.clear();
+  submissions_in_flight_semaphores_.clear();
   for (VkFence& fence : submissions_in_flight_fences_) {
     dfn.vkDestroyFence(device, fence, nullptr);
   }
   submissions_in_flight_fences_.clear();
+  current_submission_wait_stage_masks_.clear();
+  for (VkSemaphore semaphore : current_submission_wait_semaphores_) {
+    dfn.vkDestroySemaphore(device, semaphore, nullptr);
+  }
+  current_submission_wait_semaphores_.clear();
   submission_completed_ = 0;
   submission_open_ = false;
 
@@ -100,6 +108,22 @@ void VulkanCommandProcessor::ShutdownContext() {
   fences_free_.clear();
 
   CommandProcessor::ShutdownContext();
+}
+
+void VulkanCommandProcessor::SparseBindBuffer(
+    VkBuffer buffer, uint32_t bind_count, const VkSparseMemoryBind* binds,
+    VkPipelineStageFlags wait_stage_mask) {
+  if (!bind_count) {
+    return;
+  }
+  SparseBufferBind& buffer_bind = sparse_buffer_binds_.emplace_back();
+  buffer_bind.buffer = buffer;
+  buffer_bind.bind_offset = sparse_memory_binds_.size();
+  buffer_bind.bind_count = bind_count;
+  sparse_memory_binds_.reserve(sparse_memory_binds_.size() + bind_count);
+  sparse_memory_binds_.insert(sparse_memory_binds_.end(), binds,
+                              binds + bind_count);
+  sparse_bind_wait_stage_mask_ |= wait_stage_mask;
 }
 
 void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
@@ -233,15 +257,15 @@ void VulkanCommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
                                       submissions_in_flight_fences_awaited_end);
   submission_completed_ += fences_awaited;
 
-  // Reclaim semaphores used for sparse binding and graphics synchronization.
-  while (!submissions_in_flight_sparse_binding_semaphores_.empty()) {
+  // Reclaim semaphores.
+  while (!submissions_in_flight_semaphores_.empty()) {
     const auto& semaphore_submission =
-        submissions_in_flight_sparse_binding_semaphores_.front();
+        submissions_in_flight_semaphores_.front();
     if (semaphore_submission.second > submission_completed_) {
       break;
     }
     semaphores_free_.push_back(semaphore_submission.first);
-    submissions_in_flight_sparse_binding_semaphores_.pop_front();
+    submissions_in_flight_semaphores_.pop_front();
   }
 
   // Reclaim command pools.
@@ -322,14 +346,26 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       VkFence fence;
       if (dfn.vkCreateFence(device, &fence_create_info, nullptr, &fence) !=
           VK_SUCCESS) {
-        XELOGE("Failed to create a Vulkan submission fence");
+        XELOGE("Failed to create a Vulkan fence");
         // Try to submit later. Completely dropping the submission is not
         // permitted because resources would be left in an undefined state.
         return false;
       }
       fences_free_.push_back(fence);
     }
-    // TODO(Triang3l): Create a sparse binding semaphore.
+    if (!sparse_memory_binds_.empty() && semaphores_free_.empty()) {
+      VkSemaphoreCreateInfo semaphore_create_info;
+      semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+      semaphore_create_info.pNext = nullptr;
+      semaphore_create_info.flags = 0;
+      VkSemaphore semaphore;
+      if (dfn.vkCreateSemaphore(device, &semaphore_create_info, nullptr,
+                                &semaphore) != VK_SUCCESS) {
+        XELOGE("Failed to create a Vulkan semaphore");
+        return false;
+      }
+      semaphores_free_.push_back(semaphore);
+    }
     if (command_buffers_writable_.empty()) {
       CommandBuffer command_buffer;
       VkCommandPoolCreateInfo command_pool_create_info;
@@ -366,6 +402,52 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
   if (submission_open_) {
     shared_memory_->EndSubmission();
 
+    // Submit sparse binds earlier, before executing the deferred command
+    // buffer, to reduce latency.
+    if (!sparse_memory_binds_.empty()) {
+      sparse_buffer_bind_infos_temp_.clear();
+      sparse_buffer_bind_infos_temp_.reserve(sparse_buffer_binds_.size());
+      for (const SparseBufferBind& sparse_buffer_bind : sparse_buffer_binds_) {
+        VkSparseBufferMemoryBindInfo& sparse_buffer_bind_info =
+            sparse_buffer_bind_infos_temp_.emplace_back();
+        sparse_buffer_bind_info.buffer = sparse_buffer_bind.buffer;
+        sparse_buffer_bind_info.bindCount = sparse_buffer_bind.bind_count;
+        sparse_buffer_bind_info.pBinds =
+            sparse_memory_binds_.data() + sparse_buffer_bind.bind_offset;
+      }
+      assert_false(semaphores_free_.empty());
+      VkSemaphore bind_sparse_semaphore = semaphores_free_.back();
+      VkBindSparseInfo bind_sparse_info;
+      bind_sparse_info.sType = VK_STRUCTURE_TYPE_BIND_SPARSE_INFO;
+      bind_sparse_info.pNext = nullptr;
+      bind_sparse_info.waitSemaphoreCount = 0;
+      bind_sparse_info.pWaitSemaphores = nullptr;
+      bind_sparse_info.bufferBindCount =
+          uint32_t(sparse_buffer_bind_infos_temp_.size());
+      bind_sparse_info.pBufferBinds =
+          !sparse_buffer_bind_infos_temp_.empty()
+              ? sparse_buffer_bind_infos_temp_.data()
+              : nullptr;
+      bind_sparse_info.imageOpaqueBindCount = 0;
+      bind_sparse_info.pImageOpaqueBinds = nullptr;
+      bind_sparse_info.imageBindCount = 0;
+      bind_sparse_info.pImageBinds = 0;
+      bind_sparse_info.signalSemaphoreCount = 1;
+      bind_sparse_info.pSignalSemaphores = &bind_sparse_semaphore;
+      if (provider.BindSparse(1, &bind_sparse_info, VK_NULL_HANDLE) !=
+          VK_SUCCESS) {
+        XELOGE("Failed to submit Vulkan sparse binds");
+        return false;
+      }
+      current_submission_wait_semaphores_.push_back(bind_sparse_semaphore);
+      semaphores_free_.pop_back();
+      current_submission_wait_stage_masks_.push_back(
+          sparse_bind_wait_stage_mask_);
+      sparse_bind_wait_stage_mask_ = 0;
+      sparse_buffer_binds_.clear();
+      sparse_memory_binds_.clear();
+    }
+
     assert_false(command_buffers_writable_.empty());
     CommandBuffer command_buffer = command_buffers_writable_.back();
     if (dfn.vkResetCommandPool(device, command_buffer.pool, 0) != VK_SUCCESS) {
@@ -385,18 +467,25 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       return false;
     }
     deferred_command_buffer_.Execute(command_buffer.buffer);
-    // TODO(Triang3l): Write deferred command buffer commands.
     if (dfn.vkEndCommandBuffer(command_buffer.buffer) != VK_SUCCESS) {
       XELOGE("Failed to end a Vulkan command buffer");
       return false;
     }
-    // TODO(Triang3l): Submit sparse binding.
+
     VkSubmitInfo submit_info;
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.pNext = nullptr;
-    submit_info.waitSemaphoreCount = 0;
-    submit_info.pWaitSemaphores = nullptr;
-    submit_info.pWaitDstStageMask = nullptr;
+    if (!current_submission_wait_semaphores_.empty()) {
+      submit_info.waitSemaphoreCount =
+          uint32_t(current_submission_wait_semaphores_.size());
+      submit_info.pWaitSemaphores = current_submission_wait_semaphores_.data();
+      submit_info.pWaitDstStageMask =
+          current_submission_wait_stage_masks_.data();
+    } else {
+      submit_info.waitSemaphoreCount = 0;
+      submit_info.pWaitSemaphores = nullptr;
+      submit_info.pWaitDstStageMask = nullptr;
+    }
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &command_buffer.buffer;
     submit_info.signalSemaphoreCount = 0;
@@ -412,8 +501,14 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       XELOGE("Failed to submit a Vulkan command buffer");
       return false;
     }
-    command_buffers_submitted_.push_back(
-        std::make_pair(command_buffer, GetCurrentSubmission()));
+    uint64_t submission_current = GetCurrentSubmission();
+    current_submission_wait_stage_masks_.clear();
+    for (VkSemaphore semaphore : current_submission_wait_semaphores_) {
+      submissions_in_flight_semaphores_.emplace_back(semaphore,
+                                                     submission_current);
+    }
+    current_submission_wait_semaphores_.clear();
+    command_buffers_submitted_.emplace_back(command_buffer, submission_current);
     command_buffers_writable_.pop_back();
     // Increments the current submission number, going to the next submission.
     submissions_in_flight_fences_.push_back(fence);

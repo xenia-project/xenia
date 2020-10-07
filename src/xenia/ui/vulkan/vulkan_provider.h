@@ -190,6 +190,7 @@ class VulkanProvider : public GraphicsProvider {
     PFN_vkMapMemory vkMapMemory;
     PFN_vkResetCommandPool vkResetCommandPool;
     PFN_vkResetFences vkResetFences;
+    PFN_vkQueueBindSparse vkQueueBindSparse;
     PFN_vkQueuePresentKHR vkQueuePresentKHR;
     PFN_vkQueueSubmit vkQueueSubmit;
     PFN_vkUnmapMemory vkUnmapMemory;
@@ -205,8 +206,20 @@ class VulkanProvider : public GraphicsProvider {
     return dfn_.vkQueueSubmit(queue_graphics_compute_, submit_count, submits,
                               fence);
   }
-  bool CanSubmitSparseBindings() const {
+  // Safer in Xenia context - in case a sparse binding queue was not obtained
+  // for some reason.
+  bool IsSparseBindingSupported() const {
     return queue_sparse_binding_ != VK_NULL_HANDLE;
+  }
+  VkResult BindSparse(uint32_t bind_info_count,
+                      const VkBindSparseInfo* bind_info, VkFence fence) {
+    assert_true(IsSparseBindingSupported());
+    std::mutex& mutex = queue_sparse_binding_ == queue_graphics_compute_
+                            ? queue_graphics_compute_mutex_
+                            : queue_sparse_binding_separate_mutex_;
+    std::lock_guard<std::mutex> lock(mutex);
+    return dfn_.vkQueueBindSparse(queue_sparse_binding_, bind_info_count,
+                                  bind_info, fence);
   }
   VkResult Present(const VkPresentInfoKHR* present_info) {
     // FIXME(Triang3l): Allow a separate queue for present - see

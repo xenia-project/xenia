@@ -54,6 +54,16 @@ class VulkanCommandProcessor : public CommandProcessor {
   }
   uint64_t GetCompletedSubmission() const { return submission_completed_; }
 
+  // Sparse binds are:
+  // - In a single submission, all submitted in one vkQueueBindSparse.
+  // - Sent to the queue without waiting for a semaphore.
+  // Thus, multiple sparse binds between the completed and the current
+  // submission, and within one submission, must not touch any overlapping
+  // memory regions.
+  void SparseBindBuffer(VkBuffer buffer, uint32_t bind_count,
+                        const VkSparseMemoryBind* binds,
+                        VkPipelineStageFlags wait_stage_mask);
+
  protected:
   bool SetupContext() override;
   void ShutdownContext() override;
@@ -103,9 +113,13 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   bool submission_open_ = false;
   uint64_t submission_completed_ = 0;
+  // In case vkQueueSubmit fails after something like a successful
+  // vkQueueBindSparse, to wait correctly on the next attempt.
+  std::vector<VkSemaphore> current_submission_wait_semaphores_;
+  std::vector<VkPipelineStageFlags> current_submission_wait_stage_masks_;
   std::vector<VkFence> submissions_in_flight_fences_;
   std::deque<std::pair<VkSemaphore, uint64_t>>
-      submissions_in_flight_sparse_binding_semaphores_;
+      submissions_in_flight_semaphores_;
 
   static constexpr uint32_t kMaxFramesInFlight = 3;
   bool frame_open_ = false;
@@ -123,6 +137,19 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::vector<CommandBuffer> command_buffers_writable_;
   std::deque<std::pair<CommandBuffer, uint64_t>> command_buffers_submitted_;
   DeferredCommandBuffer deferred_command_buffer_;
+
+  std::vector<VkSparseMemoryBind> sparse_memory_binds_;
+  struct SparseBufferBind {
+    VkBuffer buffer;
+    size_t bind_offset;
+    uint32_t bind_count;
+  };
+  std::vector<SparseBufferBind> sparse_buffer_binds_;
+  // SparseBufferBind converted to VkSparseBufferMemoryBindInfo to this buffer
+  // on submission (because pBinds should point to a place in std::vector, but
+  // it may be reallocated).
+  std::vector<VkSparseBufferMemoryBindInfo> sparse_buffer_bind_infos_temp_;
+  VkPipelineStageFlags sparse_bind_wait_stage_mask_ = 0;
 
   std::unique_ptr<VulkanSharedMemory> shared_memory_;
 };

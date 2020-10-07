@@ -30,7 +30,7 @@ DEFINE_bool(
     vulkan_validation, true,
     "Enable Vulkan validation (VK_LAYER_KHRONOS_validation). Messages will be "
     "written to the OS debug log.",
-    "GPU");
+    "Vulkan");
 DEFINE_int32(
     vulkan_device, -1,
     "Index of the physical device to use, or -1 for any compatible device.",
@@ -587,6 +587,7 @@ bool VulkanProvider::Initialize() {
   XE_VULKAN_LOAD_DFN(vkMapMemory);
   XE_VULKAN_LOAD_DFN(vkResetCommandPool);
   XE_VULKAN_LOAD_DFN(vkResetFences);
+  XE_VULKAN_LOAD_DFN(vkQueueBindSparse);
   XE_VULKAN_LOAD_DFN(vkQueuePresentKHR);
   XE_VULKAN_LOAD_DFN(vkQueueSubmit);
   XE_VULKAN_LOAD_DFN(vkUnmapMemory);

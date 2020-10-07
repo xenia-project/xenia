@@ -54,14 +54,13 @@ class VulkanSharedMemory : public SharedMemory {
   VkBuffer buffer() const { return buffer_; }
 
  protected:
+  bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
+                                        uint32_t length_allocations) override;
+
   bool UploadRanges(const std::vector<std::pair<uint32_t, uint32_t>>&
                         upload_page_ranges) override;
 
  private:
-  bool IsSparse() const {
-    return buffer_allocation_size_log2_ < kBufferSizeLog2;
-  }
-
   void GetBarrier(Usage usage, VkPipelineStageFlags& stage_mask,
                   VkAccessFlags& access_mask) const;
 
@@ -70,16 +69,8 @@ class VulkanSharedMemory : public SharedMemory {
 
   VkBuffer buffer_ = VK_NULL_HANDLE;
   uint32_t buffer_memory_type_;
-  // Maximum of 1024 allocations in the worst case for all of the buffer because
-  // of the overall 4096 allocation count limit on Windows drivers.
-  static constexpr uint32_t kMinBufferAllocationSizeLog2 =
-      std::max(kHostGpuMemoryOptimalSparseAllocationLog2,
-               kBufferSizeLog2 - uint32_t(10));
-  uint32_t buffer_allocation_size_log2_ = kBufferSizeLog2;
-  // Sparse memory allocations, of different sizes.
+  // Single for non-sparse, every allocation so far for sparse.
   std::vector<VkDeviceMemory> buffer_memory_;
-  // One bit per every 2^buffer_allocation_size_log2_ of the buffer.
-  std::vector<uint64_t> buffer_memory_allocated_;
 
   // First usage will likely be uploading.
   Usage last_usage_ = Usage::kTransferDestination;

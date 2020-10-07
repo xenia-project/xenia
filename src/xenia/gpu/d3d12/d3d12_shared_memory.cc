@@ -22,9 +22,9 @@
 
 DEFINE_bool(d3d12_tiled_shared_memory, true,
             "Enable tiled resources for shared memory emulation. Disabling "
-            "them greatly increases video memory usage - a 512 MB buffer is "
-            "created - but allows graphics debuggers that don't support tiled "
-            "resources to work.",
+            "them greatly video memory usage - a 512 MB buffer is created - "
+            "but allows graphics debuggers that don't support tiled resources "
+            "to work.",
             "D3D12");
 
 namespace xe {
@@ -68,7 +68,7 @@ bool D3D12SharedMemory::Initialize() {
     XELOGGPU(
         "Direct3D 12 tiled resources are not used for shared memory "
         "emulation - video memory usage may increase significantly "
-        "because a full {} MB buffer will be created!",
+        "because a full {} MB buffer will be created",
         kBufferSize >> 20);
     if (provider.GetGraphicsAnalysis()) {
       // As of October 8th, 2018, PIX doesn't support tiled buffers.
