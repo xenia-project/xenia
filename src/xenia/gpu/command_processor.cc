@@ -125,7 +125,6 @@ void CommandProcessor::EndTracing() {
     return;
   }
   assert_true(trace_state_ == TraceState::kStreaming);
-  FinalizeTrace();
   trace_state_ = TraceState::kDisabled;
   trace_writer_.Close();
 }
@@ -751,7 +750,6 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
       trace_writer_.WriteEvent(EventCommand::Type::kSwap);
       trace_writer_.Flush();
       if (trace_state_ == TraceState::kSingleFrame) {
-        FinalizeTrace();
         trace_state_ = TraceState::kDisabled;
         trace_writer_.Close();
       }

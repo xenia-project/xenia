@@ -252,7 +252,6 @@ class CommandProcessor {
   virtual bool IssueCopy() = 0;
 
   virtual void InitializeTrace() = 0;
-  virtual void FinalizeTrace() = 0;
 
   Memory* memory_ = nullptr;
   kernel::KernelState* kernel_state_ = nullptr;
