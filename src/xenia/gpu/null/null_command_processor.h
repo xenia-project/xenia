@@ -46,7 +46,6 @@ class NullCommandProcessor : public CommandProcessor {
   bool IssueCopy() override;
 
   void InitializeTrace() override;
-  void FinalizeTrace() override;
 };
 
 }  // namespace null
