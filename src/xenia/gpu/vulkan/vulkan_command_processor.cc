@@ -211,8 +211,6 @@ void VulkanCommandProcessor::InitializeTrace() {
   }
 }
 
-void VulkanCommandProcessor::FinalizeTrace() {}
-
 void VulkanCommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
   if (await_submission >= GetCurrentSubmission()) {
     if (submission_open_) {
