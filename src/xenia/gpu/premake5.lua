@@ -11,15 +11,11 @@ project("xenia-gpu")
     "fmt",
     "glslang-spirv",
     "snappy",
-    "spirv-tools",
     "xenia-base",
     "xenia-ui",
     "xxhash",
   })
   defines({
-  })
-  includedirs({
-    project_root.."/third_party/spirv-tools/external/include",
   })
   local_platform_files()
 
@@ -32,7 +28,6 @@ project("xenia-gpu-shader-compiler")
     "dxbc",
     "fmt",
     "glslang-spirv",
-    "spirv-tools",
     "xenia-base",
     "xenia-gpu",
   })
