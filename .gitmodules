@@ -57,4 +57,5 @@
 	url = https://github.com/microsoft/DirectXShaderCompiler.git
 [submodule "third_party/glslang"]
 	path = third_party/glslang
-	url = https://github.com/KhronosGroup/glslang.git
+	url = https://github.com/Triang3l/glslang.git
+	branch = patch-1

@@ -12,10 +12,8 @@ project("glslang-spirv")
   })
   files({
     "glslang/SPIRV/bitutils.h",
-    -- Disabled temporarily until PR #2417 removing SpvTools.h dependency is
-    -- merged.
-    -- "glslang/SPIRV/disassemble.cpp",
-    -- "glslang/SPIRV/disassemble.h",
+    "glslang/SPIRV/disassemble.cpp",
+    "glslang/SPIRV/disassemble.h",
     "glslang/SPIRV/doc.cpp",
     "glslang/SPIRV/doc.h",
     "glslang/SPIRV/GLSL.ext.AMD.h",
