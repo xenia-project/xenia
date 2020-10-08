@@ -19,7 +19,6 @@ project("xenia-app")
     "libavutil",
     "mspack",
     "snappy",
-    "spirv-tools",
     "xenia-app-discord",
     "xenia-apu",
     "xenia-apu-nop",
