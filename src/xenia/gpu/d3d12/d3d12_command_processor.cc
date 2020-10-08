@@ -2331,8 +2331,6 @@ void D3D12CommandProcessor::InitializeTrace() {
   }
 }
 
-void D3D12CommandProcessor::FinalizeTrace() {}
-
 bool D3D12CommandProcessor::IssueCopy() {
 #if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");

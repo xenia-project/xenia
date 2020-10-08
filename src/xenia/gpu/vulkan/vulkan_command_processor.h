@@ -81,7 +81,6 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool IssueCopy() override;
 
   void InitializeTrace() override;
-  void FinalizeTrace() override;
 
  private:
   // BeginSubmission and EndSubmission may be called at any time. If there's an

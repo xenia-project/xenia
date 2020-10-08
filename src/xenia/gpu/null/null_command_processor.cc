@@ -53,8 +53,6 @@ bool NullCommandProcessor::IssueCopy() { return true; }
 
 void NullCommandProcessor::InitializeTrace() {}
 
-void NullCommandProcessor::FinalizeTrace() {}
-
 }  // namespace null
 }  // namespace gpu
 }  // namespace xe
