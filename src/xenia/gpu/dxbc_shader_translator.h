@@ -16,12 +16,9 @@
 #include <vector>
 
 #include "xenia/base/assert.h"
-#include "xenia/base/cvar.h"
 #include "xenia/base/math.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/gpu/shader_translator.h"
-
-DECLARE_bool(dxbc_source_map);
 
 namespace xe {
 namespace gpu {
