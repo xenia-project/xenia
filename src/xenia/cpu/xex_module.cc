@@ -930,8 +930,6 @@ bool XexModule::Load(const std::string_view name, const std::string_view path,
   name_ = name;
   path_ = path;
 
-  uint8_t* data = memory()->TranslateVirtual(base_address_);
-
   // Load in the XEX basefile
   // We'll try using both XEX2 keys to see if any give a valid PE
   int result_code = ReadImage(xex_addr, xex_length, false);

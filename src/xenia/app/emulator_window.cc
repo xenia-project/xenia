@@ -1005,6 +1005,10 @@ void EmulatorWindow::UpdateTitle() {
     sb.Append(u8" (Preloading shaders\u2026)");
   }
 
+  patcher::Patcher* patcher = emulator()->patcher();
+  if (patcher && patcher->IsAnyPatchApplied()) {
+    sb.Append(u8" [Patches Applied]");
+  }
   window_->SetTitle(sb.to_string_view());
 }
 
