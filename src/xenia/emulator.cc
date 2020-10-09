@@ -219,6 +219,8 @@ X_STATUS Emulator::Setup(
   // Bring up the virtual filesystem used by the kernel.
   file_system_ = std::make_unique<xe::vfs::VirtualFileSystem>();
 
+  patcher_ = std::make_unique<xe::patcher::Patcher>(storage_root_);
+
   // Shared kernel state.
   kernel_state_ = std::make_unique<xe::kernel::KernelState>(this);
 
