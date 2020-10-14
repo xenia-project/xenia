@@ -29,10 +29,6 @@ class ShaderTranslator {
  public:
   virtual ~ShaderTranslator();
 
-  // Gathers all vertex/texture bindings. Implicitly called in Translate.
-  // DEPRECATED(benvanik): remove this when shader cache is removed.
-  bool GatherAllBindingInformation(Shader* shader);
-
   bool Translate(Shader* shader, reg::SQ_PROGRAM_CNTL cntl,
                  Shader::HostVertexShaderType host_vertex_shader_type =
                      Shader::HostVertexShaderType::kVertex);
@@ -61,6 +57,9 @@ class ShaderTranslator {
   bool is_pixel_shader() const {
     return shader_type_ == xenos::ShaderType::kPixel;
   }
+  // Labels that jumps (explicit or from loops) can be done to, gathered before
+  // translation.
+  const std::set<uint32_t>& label_addresses() const { return label_addresses_; }
   // Used constant register info, populated before translation.
   const Shader::ConstantRegisterMap& constant_register_map() const {
     return constant_register_map_;
@@ -200,7 +199,6 @@ class ShaderTranslator {
   void AppendUcodeDisasm(const char* value);
   void AppendUcodeDisasmFormat(const char* format, ...);
 
-  bool TranslateBlocks();
   void GatherInstructionInformation(const ucode::ControlFlowInstruction& cf);
   void GatherVertexFetchInformation(const ucode::VertexFetchInstruction& op);
   void GatherTextureFetchInformation(const ucode::TextureFetchInstruction& op);
@@ -269,6 +267,10 @@ class ShaderTranslator {
 
   // Kept for supporting vfetch_mini.
   ucode::VertexFetchInstruction previous_vfetch_full_;
+
+  // Labels that jumps (explicit or from loops) can be done to, gathered before
+  // translation.
+  std::set<uint32_t> label_addresses_;
 
   // Detected binding information gathered before translation.
   int total_attrib_count_ = 0;
