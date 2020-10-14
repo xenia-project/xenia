@@ -52,6 +52,7 @@ void ShaderTranslator::Reset() {
   ucode_disasm_line_number_ = 0;
   previous_ucode_disasm_scan_offset_ = 0;
   register_count_ = 64;
+  label_addresses_.clear();
   total_attrib_count_ = 0;
   vertex_bindings_.clear();
   unique_vertex_bindings_ = 0;
@@ -68,41 +69,6 @@ void ShaderTranslator::Reset() {
   memexport_eA_written_ = 0;
   std::memset(&memexport_eM_written_, 0, sizeof(memexport_eM_written_));
   memexport_stream_constants_.clear();
-}
-
-bool ShaderTranslator::GatherAllBindingInformation(Shader* shader) {
-  // DEPRECATED: remove this codepath when GL4 goes away.
-  Reset();
-
-  shader_type_ = shader->type();
-  ucode_dwords_ = shader->ucode_dwords();
-  ucode_dword_count_ = shader->ucode_dword_count();
-
-  uint32_t max_cf_dword_index = static_cast<uint32_t>(ucode_dword_count_);
-  for (uint32_t i = 0; i < max_cf_dword_index; i += 3) {
-    ControlFlowInstruction cf_a;
-    ControlFlowInstruction cf_b;
-    UnpackControlFlowInstructions(ucode_dwords_ + i, &cf_a, &cf_b);
-    if (IsControlFlowOpcodeExec(cf_a.opcode())) {
-      max_cf_dword_index =
-          std::min(max_cf_dword_index, cf_a.exec.address() * 3);
-    }
-    if (IsControlFlowOpcodeExec(cf_b.opcode())) {
-      max_cf_dword_index =
-          std::min(max_cf_dword_index, cf_b.exec.address() * 3);
-    }
-
-    GatherInstructionInformation(cf_a);
-    GatherInstructionInformation(cf_b);
-  }
-
-  shader->vertex_bindings_ = std::move(vertex_bindings_);
-  shader->texture_bindings_ = std::move(texture_bindings_);
-  for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
-    shader->writes_color_targets_[i] = writes_color_targets_[i];
-  }
-
-  return true;
 }
 
 bool ShaderTranslator::Translate(
@@ -130,13 +96,19 @@ bool ShaderTranslator::TranslateInternal(
   ucode_dwords_ = shader->ucode_dwords();
   ucode_dword_count_ = shader->ucode_dword_count();
 
-  // Run through and gather all binding, operand addressing and export
-  // information. Translators may need this before they start codegen.
+  // Control flow instructions come paired in blocks of 3 dwords and all are
+  // listed at the top of the ucode.
+  // Each control flow instruction is executed sequentially until the final
+  // ending instruction.
   uint32_t max_cf_dword_index = static_cast<uint32_t>(ucode_dword_count_);
+  std::vector<ControlFlowInstruction> cf_instructions;
   for (uint32_t i = 0; i < max_cf_dword_index; i += 3) {
     ControlFlowInstruction cf_a;
     ControlFlowInstruction cf_b;
     UnpackControlFlowInstructions(ucode_dwords_ + i, &cf_a, &cf_b);
+    // Guess how long the control flow program is by scanning for the first
+    // kExec-ish and instruction and using its address as the upper bound.
+    // This is what freedreno does.
     if (IsControlFlowOpcodeExec(cf_a.opcode())) {
       max_cf_dword_index =
           std::min(max_cf_dword_index, cf_a.exec.address() * 3);
@@ -145,9 +117,12 @@ bool ShaderTranslator::TranslateInternal(
       max_cf_dword_index =
           std::min(max_cf_dword_index, cf_b.exec.address() * 3);
     }
-
+    // Gather all labels, binding, operand addressing and export information.
+    // Translators may need this before they start codegen.
     GatherInstructionInformation(cf_a);
     GatherInstructionInformation(cf_b);
+    cf_instructions.push_back(cf_a);
+    cf_instructions.push_back(cf_b);
   }
 
   if (constant_register_map_.float_dynamic_addressing) {
@@ -184,7 +159,38 @@ bool ShaderTranslator::TranslateInternal(
 
   StartTranslation();
 
-  TranslateBlocks();
+  PreProcessControlFlowInstructions(cf_instructions);
+
+  // Translate all instructions.
+  for (uint32_t i = 0, cf_index = 0; i < max_cf_dword_index; i += 3) {
+    ControlFlowInstruction cf_a;
+    ControlFlowInstruction cf_b;
+    UnpackControlFlowInstructions(ucode_dwords_ + i, &cf_a, &cf_b);
+
+    cf_index_ = cf_index;
+    MarkUcodeInstruction(i);
+    if (label_addresses_.find(cf_index) != label_addresses_.end()) {
+      AppendUcodeDisasmFormat("                label L%u\n", cf_index);
+      ProcessLabel(cf_index);
+    }
+    AppendUcodeDisasmFormat("/* %4u.0 */ ", cf_index / 2);
+    ProcessControlFlowInstructionBegin(cf_index);
+    TranslateControlFlowInstruction(cf_a);
+    ProcessControlFlowInstructionEnd(cf_index);
+    ++cf_index;
+
+    cf_index_ = cf_index;
+    MarkUcodeInstruction(i);
+    if (label_addresses_.find(cf_index) != label_addresses_.end()) {
+      AppendUcodeDisasmFormat("                label L%u\n", cf_index);
+      ProcessLabel(cf_index);
+    }
+    AppendUcodeDisasmFormat("/* %4u.1 */ ", cf_index / 2);
+    ProcessControlFlowInstructionBegin(cf_index);
+    TranslateControlFlowInstruction(cf_b);
+    ProcessControlFlowInstructionEnd(cf_index);
+    ++cf_index;
+  }
 
   shader->errors_ = std::move(errors_);
   shader->translated_binary_ = CompleteTranslation();
@@ -264,20 +270,24 @@ void ShaderTranslator::GatherInstructionInformation(
       bool_constant_index = cf.cond_exec.bool_address();
       break;
     case ControlFlowOpcode::kCondCall:
+      label_addresses_.insert(cf.cond_call.address());
       if (!cf.cond_call.is_unconditional() && !cf.cond_call.is_predicated()) {
         bool_constant_index = cf.cond_call.bool_address();
       }
       break;
     case ControlFlowOpcode::kCondJmp:
+      label_addresses_.insert(cf.cond_jmp.address());
       if (!cf.cond_jmp.is_unconditional() && !cf.cond_jmp.is_predicated()) {
         bool_constant_index = cf.cond_jmp.bool_address();
       }
       break;
     case ControlFlowOpcode::kLoopStart:
+      label_addresses_.insert(cf.loop_start.address());
       constant_register_map_.loop_bitmap |= uint32_t(1)
                                             << cf.loop_start.loop_id();
       break;
     case ControlFlowOpcode::kLoopEnd:
+      label_addresses_.insert(cf.loop_end.address());
       constant_register_map_.loop_bitmap |= uint32_t(1)
                                             << cf.loop_end.loop_id();
       break;
@@ -533,94 +543,6 @@ void ShaderTranslator::GatherTextureFetchInformation(
   }
 
   texture_bindings_.emplace_back(std::move(binding));
-}
-
-void AddControlFlowTargetLabel(const ControlFlowInstruction& cf,
-                               std::set<uint32_t>* label_addresses) {
-  switch (cf.opcode()) {
-    case ControlFlowOpcode::kLoopStart:
-      label_addresses->insert(cf.loop_start.address());
-      break;
-    case ControlFlowOpcode::kLoopEnd:
-      label_addresses->insert(cf.loop_end.address());
-      break;
-    case ControlFlowOpcode::kCondCall:
-      label_addresses->insert(cf.cond_call.address());
-      break;
-    case ControlFlowOpcode::kCondJmp:
-      label_addresses->insert(cf.cond_jmp.address());
-      break;
-    default:
-      // Ignored.
-      break;
-  }
-}
-
-bool ShaderTranslator::TranslateBlocks() {
-  // Control flow instructions come paired in blocks of 3 dwords and all are
-  // listed at the top of the ucode.
-  // Each control flow instruction is executed sequentially until the final
-  // ending instruction.
-
-  // Guess how long the control flow program is by scanning for the first
-  // kExec-ish and instruction and using its address as the upper bound.
-  // This is what freedreno does.
-  uint32_t max_cf_dword_index = static_cast<uint32_t>(ucode_dword_count_);
-  std::set<uint32_t> label_addresses;
-  std::vector<ControlFlowInstruction> cf_instructions;
-  for (uint32_t i = 0; i < max_cf_dword_index; i += 3) {
-    ControlFlowInstruction cf_a;
-    ControlFlowInstruction cf_b;
-    UnpackControlFlowInstructions(ucode_dwords_ + i, &cf_a, &cf_b);
-    if (IsControlFlowOpcodeExec(cf_a.opcode())) {
-      max_cf_dword_index =
-          std::min(max_cf_dword_index, cf_a.exec.address() * 3);
-    }
-    if (IsControlFlowOpcodeExec(cf_b.opcode())) {
-      max_cf_dword_index =
-          std::min(max_cf_dword_index, cf_b.exec.address() * 3);
-    }
-    AddControlFlowTargetLabel(cf_a, &label_addresses);
-    AddControlFlowTargetLabel(cf_b, &label_addresses);
-
-    cf_instructions.push_back(cf_a);
-    cf_instructions.push_back(cf_b);
-  }
-
-  PreProcessControlFlowInstructions(cf_instructions);
-
-  // Translate all instructions.
-  for (uint32_t i = 0, cf_index = 0; i < max_cf_dword_index; i += 3) {
-    ControlFlowInstruction cf_a;
-    ControlFlowInstruction cf_b;
-    UnpackControlFlowInstructions(ucode_dwords_ + i, &cf_a, &cf_b);
-
-    cf_index_ = cf_index;
-    MarkUcodeInstruction(i);
-    if (label_addresses.count(cf_index)) {
-      AppendUcodeDisasmFormat("                label L%u\n", cf_index);
-      ProcessLabel(cf_index);
-    }
-    AppendUcodeDisasmFormat("/* %4u.0 */ ", cf_index / 2);
-    ProcessControlFlowInstructionBegin(cf_index);
-    TranslateControlFlowInstruction(cf_a);
-    ProcessControlFlowInstructionEnd(cf_index);
-    ++cf_index;
-
-    cf_index_ = cf_index;
-    MarkUcodeInstruction(i);
-    if (label_addresses.count(cf_index)) {
-      AppendUcodeDisasmFormat("                label L%u\n", cf_index);
-      ProcessLabel(cf_index);
-    }
-    AppendUcodeDisasmFormat("/* %4u.1 */ ", cf_index / 2);
-    ProcessControlFlowInstructionBegin(cf_index);
-    TranslateControlFlowInstruction(cf_b);
-    ProcessControlFlowInstructionEnd(cf_index);
-    ++cf_index;
-  }
-
-  return true;
 }
 
 std::vector<uint8_t> UcodeShaderTranslator::CompleteTranslation() {
