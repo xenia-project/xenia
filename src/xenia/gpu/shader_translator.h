@@ -136,10 +136,6 @@ class ShaderTranslator {
     shader->host_disassembly_ = std::move(value);
   }
 
-  // Pre-process a control-flow instruction before anything else.
-  virtual void PreProcessControlFlowInstructions(
-      std::vector<ucode::ControlFlowInstruction> instrs) {}
-
   // Handles translation for control flow label addresses.
   // This is triggered once for each label required (due to control flow
   // operations) before any of the instructions within the target exec.

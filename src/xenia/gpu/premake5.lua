@@ -30,6 +30,7 @@ project("xenia-gpu-shader-compiler")
     "glslang-spirv",
     "xenia-base",
     "xenia-gpu",
+    "xenia-ui-vulkan",
   })
   defines({
   })

@@ -101,7 +101,6 @@ bool ShaderTranslator::TranslateInternal(
   // Each control flow instruction is executed sequentially until the final
   // ending instruction.
   uint32_t max_cf_dword_index = static_cast<uint32_t>(ucode_dword_count_);
-  std::vector<ControlFlowInstruction> cf_instructions;
   for (uint32_t i = 0; i < max_cf_dword_index; i += 3) {
     ControlFlowInstruction cf_a;
     ControlFlowInstruction cf_b;
@@ -121,8 +120,6 @@ bool ShaderTranslator::TranslateInternal(
     // Translators may need this before they start codegen.
     GatherInstructionInformation(cf_a);
     GatherInstructionInformation(cf_b);
-    cf_instructions.push_back(cf_a);
-    cf_instructions.push_back(cf_b);
   }
 
   if (constant_register_map_.float_dynamic_addressing) {
@@ -158,8 +155,6 @@ bool ShaderTranslator::TranslateInternal(
   }
 
   StartTranslation();
-
-  PreProcessControlFlowInstructions(cf_instructions);
 
   // Translate all instructions.
   for (uint32_t i = 0, cf_index = 0; i < max_cf_dword_index; i += 3) {

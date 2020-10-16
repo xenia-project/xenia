@@ -46,24 +46,38 @@ class SpirvShaderTranslator : public ShaderTranslator {
   bool IsSpirvFragmentShader() const { return is_pixel_shader(); }
 
   void StartVertexOrTessEvalShaderBeforeMain();
+  void StartVertexOrTessEvalShaderInMain();
   void CompleteVertexOrTessEvalShaderInMain();
+  void CompleteVertexOrTessEvalShaderAfterMain(spv::Instruction* entry_point);
 
   bool supports_clip_distance_;
   bool supports_cull_distance_;
 
   std::unique_ptr<spv::Builder> builder_;
 
+  std::vector<spv::Id> id_vector_temp_;
+  std::vector<unsigned int> uint_vector_temp_;
+
   spv::Id ext_inst_glsl_std_450_;
 
   spv::Id type_void_;
+  spv::Id type_bool_;
+  spv::Id type_int_;
+  spv::Id type_int4_;
+  spv::Id type_uint_;
   spv::Id type_float_;
   spv::Id type_float2_;
   spv::Id type_float3_;
   spv::Id type_float4_;
-  spv::Id type_int_;
-  spv::Id type_uint_;
 
+  spv::Id const_int_0_;
+  spv::Id const_int4_0_;
+  spv::Id const_float_0_;
+  spv::Id const_float4_0_;
+
+  // VS as VS only - int.
   spv::Id input_vertex_index_;
+  // VS as TES only - int.
   spv::Id input_primitive_id_;
 
   enum OutputPerVertexMember : unsigned int {
@@ -75,8 +89,21 @@ class SpirvShaderTranslator : public ShaderTranslator {
   };
   spv::Id output_per_vertex_;
 
-  spv::Id function_main_;
+  spv::Function* function_main_;
+  // bool.
+  spv::Id var_main_predicate_;
+  // int4.
+  spv::Id var_main_address_relative_;
+  // int.
+  spv::Id var_main_address_absolute_;
+  // float4[register_count()].
   spv::Id var_main_registers_;
+  // VS only - float3 (special exports).
+  spv::Id var_main_point_size_edge_flag_kill_vertex_;
+  spv::Block* main_loop_header_;
+  spv::Block* main_loop_continue_;
+  spv::Block* main_loop_merge_;
+  spv::Id main_loop_pc_next_;
 };
 
 }  // namespace gpu

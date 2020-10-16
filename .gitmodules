@@ -57,5 +57,7 @@
 	url = https://github.com/microsoft/DirectXShaderCompiler.git
 [submodule "third_party/glslang"]
 	path = third_party/glslang
-	url = https://github.com/Triang3l/glslang.git
-	branch = patch-1
+	url = https://github.com/KhronosGroup/glslang.git
+[submodule "third_party/SPIRV-Tools"]
+	path = third_party/SPIRV-Tools
+	url = https://github.com/KhronosGroup/SPIRV-Tools.git
