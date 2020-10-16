@@ -23,6 +23,7 @@
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/shader_translator.h"
 #include "xenia/gpu/spirv_shader_translator.h"
+#include "xenia/ui/vulkan/spirv_tools_context.h"
 
 // For D3DDisassemble:
 #if XE_PLATFORM_WIN32
@@ -159,6 +160,17 @@ int shader_compiler_main(const std::vector<std::string>& args) {
                             source_data_size / sizeof(unsigned int));
     spv::Disassemble(spirv_disasm_stream, spirv_source);
     spirv_disasm = std::move(spirv_disasm_stream.str());
+    ui::vulkan::SpirvToolsContext spirv_tools_context;
+    if (spirv_tools_context.Initialize()) {
+      std::string spirv_validation_error;
+      spirv_tools_context.Validate(
+          reinterpret_cast<const uint32_t*>(spirv_source.data()),
+          spirv_source.size(), &spirv_validation_error);
+      if (!spirv_validation_error.empty()) {
+        spirv_disasm.append(1, '\n');
+        spirv_disasm.append(spirv_validation_error);
+      }
+    }
     source_data = spirv_disasm.c_str();
     source_data_size = spirv_disasm.size();
   }
