@@ -29,7 +29,8 @@ void SpirvShaderTranslator::Reset() {
 
   builder_.reset();
 
-  // main_switch_cases_.reset();
+  main_switch_op_.reset();
+  main_switch_next_pc_phi_operands_.clear();
 }
 
 void SpirvShaderTranslator::StartTranslation() {
@@ -117,7 +118,6 @@ void SpirvShaderTranslator::StartTranslation() {
   }
 
   // Open the main loop.
-
   spv::Block* main_loop_pre_header = builder_->getBuildPoint();
   main_loop_header_ = &builder_->makeNewBlock();
   spv::Block& main_loop_body = builder_->makeNewBlock();
@@ -130,18 +130,25 @@ void SpirvShaderTranslator::StartTranslation() {
   main_loop_merge_ = new spv::Block(builder_->getUniqueId(), *function_main_);
   builder_->createBranch(main_loop_header_);
 
+  // If no jumps, don't create a switch, but still create a loop so exece can
+  // break.
+  bool has_main_switch = !label_addresses().empty();
+
   // Main loop header - based on whether it's the first iteration (entered from
   // the function or from the continuation), choose the program counter.
   builder_->setBuildPoint(main_loop_header_);
-  id_vector_temp_.clear();
-  id_vector_temp_.reserve(4);
-  id_vector_temp_.push_back(const_int_0_);
-  id_vector_temp_.push_back(main_loop_pre_header->getId());
-  main_loop_pc_next_ = builder_->getUniqueId();
-  id_vector_temp_.push_back(main_loop_pc_next_);
-  id_vector_temp_.push_back(main_loop_continue_->getId());
-  spv::Id main_loop_pc_current =
-      builder_->createOp(spv::OpPhi, type_int_, id_vector_temp_);
+  spv::Id main_loop_pc_current = 0;
+  if (has_main_switch) {
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(4);
+    id_vector_temp_.push_back(const_int_0_);
+    id_vector_temp_.push_back(main_loop_pre_header->getId());
+    main_loop_pc_next_ = builder_->getUniqueId();
+    id_vector_temp_.push_back(main_loop_pc_next_);
+    id_vector_temp_.push_back(main_loop_continue_->getId());
+    main_loop_pc_current =
+        builder_->createOp(spv::OpPhi, type_int_, id_vector_temp_);
+  }
   uint_vector_temp_.clear();
   builder_->createLoopMerge(main_loop_merge_, main_loop_continue_,
                             spv::LoopControlDontUnrollMask, uint_vector_temp_);
@@ -149,29 +156,86 @@ void SpirvShaderTranslator::StartTranslation() {
 
   // Main loop body.
   builder_->setBuildPoint(&main_loop_body);
-  // TODO(Triang3l): Create the switch, add the block for the case 0 and set the
-  // build point to it.
+  if (has_main_switch) {
+    // Create the program counter switch with cases for every label and for
+    // label 0.
+    main_switch_header_ = builder_->getBuildPoint();
+    main_switch_merge_ =
+        new spv::Block(builder_->getUniqueId(), *function_main_);
+    {
+      std::unique_ptr<spv::Instruction> main_switch_selection_merge_op =
+          std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
+      main_switch_selection_merge_op->addIdOperand(main_switch_merge_->getId());
+      main_switch_selection_merge_op->addImmediateOperand(
+          spv::SelectionControlDontFlattenMask);
+      builder_->getBuildPoint()->addInstruction(
+          std::move(main_switch_selection_merge_op));
+    }
+    main_switch_op_ = std::make_unique<spv::Instruction>(spv::OpSwitch);
+    main_switch_op_->addIdOperand(main_loop_pc_current);
+    main_switch_op_->addIdOperand(main_switch_merge_->getId());
+    // The default case (the merge here) must have the header as a predecessor.
+    main_switch_merge_->addPredecessor(main_switch_header_);
+    // The instruction will be inserted later, when all cases are filled.
+    // Insert and enter case 0.
+    spv::Block* main_switch_case_0_block =
+        new spv::Block(builder_->getUniqueId(), *function_main_);
+    main_switch_op_->addImmediateOperand(0);
+    main_switch_op_->addIdOperand(main_switch_case_0_block->getId());
+    // Every switch case must have the OpSelectionMerge/OpSwitch block as a
+    // predecessor.
+    main_switch_case_0_block->addPredecessor(main_switch_header_);
+    function_main_->addBlock(main_switch_case_0_block);
+    builder_->setBuildPoint(main_switch_case_0_block);
+  }
 }
 
 std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
-  // Close the main loop.
-  // Break from the body after falling through the end or breaking.
-  builder_->createBranch(main_loop_merge_);
+  bool has_main_switch = !label_addresses().empty();
+  // After the final exec (if it happened to be not exece, which would already
+  // have a break branch), break from the switch if it exists, or from the
+  // loop it doesn't.
+  if (!builder_->getBuildPoint()->isTerminated()) {
+    builder_->createBranch(has_main_switch ? main_switch_merge_
+                                           : main_loop_merge_);
+  }
+  if (has_main_switch) {
+    // Insert the switch instruction with all cases added as operands.
+    builder_->setBuildPoint(main_switch_header_);
+    builder_->getBuildPoint()->addInstruction(std::move(main_switch_op_));
+    // Build the main switch merge, breaking out of the loop after falling
+    // through the end or breaking from exece (only continuing if a jump - from
+    // a guest loop or from jmp/call - was made).
+    function_main_->addBlock(main_switch_merge_);
+    builder_->setBuildPoint(main_switch_merge_);
+    builder_->createBranch(main_loop_merge_);
+  }
+
   // Main loop continuation - choose the program counter based on the path
   // taken (-1 if not from a jump as a safe fallback, which would result in not
   // hitting any switch case and reaching the final break in the body).
   function_main_->addBlock(main_loop_continue_);
   builder_->setBuildPoint(main_loop_continue_);
-  {
+  if (has_main_switch) {
+    // If labels were added, but not jumps (for example, due to the call
+    // instruction not being implemented as of October 18, 2020), send an
+    // impossible program counter value (-1) to the OpPhi at the next iteration.
+    if (main_switch_next_pc_phi_operands_.empty()) {
+      main_switch_next_pc_phi_operands_.push_back(
+          builder_->makeIntConstant(-1));
+    }
     std::unique_ptr<spv::Instruction> main_loop_pc_next_op =
-        std::make_unique<spv::Instruction>(main_loop_pc_next_, type_int_,
-                                           spv::OpCopyObject);
-    // TODO(Triang3l): Phi between the continues in the switch cases and the
-    // switch merge block.
-    main_loop_pc_next_op->addIdOperand(builder_->makeIntConstant(-1));
+        std::make_unique<spv::Instruction>(
+            main_loop_pc_next_, type_int_,
+            main_switch_next_pc_phi_operands_.size() >= 2 ? spv::OpPhi
+                                                          : spv::OpCopyObject);
+    for (spv::Id operand : main_switch_next_pc_phi_operands_) {
+      main_loop_pc_next_op->addIdOperand(operand);
+    }
     builder_->getBuildPoint()->addInstruction(std::move(main_loop_pc_next_op));
   }
   builder_->createBranch(main_loop_header_);
+
   // Add the main loop merge block and go back to the function.
   function_main_->addBlock(main_loop_merge_);
   builder_->setBuildPoint(main_loop_merge_);
@@ -212,6 +276,27 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
                       reinterpret_cast<const uint8_t*>(module_uints.data()) +
                           sizeof(unsigned int) * module_uints.size());
   return module_bytes;
+}
+
+void SpirvShaderTranslator::ProcessLabel(uint32_t cf_index) {
+  if (cf_index == 0) {
+    // 0 already added in the beginning.
+    return;
+  }
+  spv::Function& function = builder_->getBuildPoint()->getParent();
+  // Create the next switch case and fallthrough to it.
+  spv::Block* new_case = new spv::Block(builder_->getUniqueId(), function);
+  main_switch_op_->addImmediateOperand(cf_index);
+  main_switch_op_->addIdOperand(new_case->getId());
+  // Every switch case must have the OpSelectionMerge/OpSwitch block as a
+  // predecessor.
+  new_case->addPredecessor(main_switch_header_);
+  // The previous block may have already been terminated if was exece.
+  if (!builder_->getBuildPoint()->isTerminated()) {
+    builder_->createBranch(new_case);
+  }
+  function.addBlock(new_case);
+  builder_->setBuildPoint(new_case);
 }
 
 void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
