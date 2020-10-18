@@ -106,6 +106,10 @@ class VulkanContext : public GraphicsContext {
     // recommended by Nvidia (Direct3D 12-like way):
     // https://developer.nvidia.com/sites/default/files/akamai/gameworks/blog/munich/mschott_vulkan_multi_threading.pdf
     VkFence fence = VK_NULL_HANDLE;
+    // One pair of semaphores per frame because queue operations may be done out
+    // of order.
+    VkSemaphore image_acquisition_semaphore = VK_NULL_HANDLE;
+    VkSemaphore render_completion_semaphore = VK_NULL_HANDLE;
     VkCommandPool command_pool = VK_NULL_HANDLE;
     VkCommandBuffer command_buffer;
     uint32_t setup_command_buffer_index = UINT32_MAX;
@@ -113,9 +117,6 @@ class VulkanContext : public GraphicsContext {
   SwapSubmission swap_submissions_[kSwapchainMaxImageCount];
   uint64_t swap_submission_current_ = 1;
   uint64_t swap_submission_completed_ = 0;
-
-  VkSemaphore swap_image_acquisition_semaphore_ = VK_NULL_HANDLE;
-  VkSemaphore swap_render_completion_semaphore_ = VK_NULL_HANDLE;
 
   VkSurfaceKHR swap_surface_ = VK_NULL_HANDLE;
   VkSurfaceFormatKHR swap_surface_format_ = {VK_FORMAT_UNDEFINED,
