@@ -950,6 +950,10 @@ bool D3D12CommandProcessor::SetupContext() {
 
   if (bindless_resources_used_) {
     // Global bindless resource root signatures.
+    // No CBV or UAV descriptor ranges with any descriptors to be allocated
+    // dynamically (via RequestPersistentViewBindlessDescriptor or
+    // RequestOneUseSingleViewDescriptors) should be here, because they would
+    // overlap the unbounded SRV range, which is not allowed on Nvidia Fermi!
     D3D12_ROOT_SIGNATURE_DESC root_signature_bindless_desc;
     D3D12_ROOT_PARAMETER
     root_parameters_bindless[kRootParameter_Bindless_Count];
@@ -1056,45 +1060,6 @@ bool D3D12CommandProcessor::SetupContext() {
       parameter.DescriptorTable.NumDescriptorRanges = 0;
       parameter.DescriptorTable.pDescriptorRanges = root_bindless_view_ranges;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-      // 2D array textures.
-      {
-        assert_true(parameter.DescriptorTable.NumDescriptorRanges <
-                    xe::countof(root_bindless_view_ranges));
-        auto& range = root_bindless_view_ranges[parameter.DescriptorTable
-                                                    .NumDescriptorRanges++];
-        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-        range.NumDescriptors = UINT_MAX;
-        range.BaseShaderRegister = 0;
-        range.RegisterSpace =
-            UINT(DxbcShaderTranslator::SRVSpace::kBindlessTextures2DArray);
-        range.OffsetInDescriptorsFromTableStart = 0;
-      }
-      // 3D textures.
-      {
-        assert_true(parameter.DescriptorTable.NumDescriptorRanges <
-                    xe::countof(root_bindless_view_ranges));
-        auto& range = root_bindless_view_ranges[parameter.DescriptorTable
-                                                    .NumDescriptorRanges++];
-        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-        range.NumDescriptors = UINT_MAX;
-        range.BaseShaderRegister = 0;
-        range.RegisterSpace =
-            UINT(DxbcShaderTranslator::SRVSpace::kBindlessTextures3D);
-        range.OffsetInDescriptorsFromTableStart = 0;
-      }
-      // Cube textures.
-      {
-        assert_true(parameter.DescriptorTable.NumDescriptorRanges <
-                    xe::countof(root_bindless_view_ranges));
-        auto& range = root_bindless_view_ranges[parameter.DescriptorTable
-                                                    .NumDescriptorRanges++];
-        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-        range.NumDescriptors = UINT_MAX;
-        range.BaseShaderRegister = 0;
-        range.RegisterSpace =
-            UINT(DxbcShaderTranslator::SRVSpace::kBindlessTexturesCube);
-        range.OffsetInDescriptorsFromTableStart = 0;
-      }
       // Shared memory SRV.
       {
         assert_true(parameter.DescriptorTable.NumDescriptorRanges <
@@ -1136,6 +1101,51 @@ bool D3D12CommandProcessor::SetupContext() {
         range.RegisterSpace = 0;
         range.OffsetInDescriptorsFromTableStart =
             UINT(SystemBindlessView::kEdramR32UintUAV);
+      }
+      // Used UAV and SRV ranges must not overlap on Nvidia Fermi, so textures
+      // have OffsetInDescriptorsFromTableStart after all static descriptors of
+      // other types.
+      // 2D array textures.
+      {
+        assert_true(parameter.DescriptorTable.NumDescriptorRanges <
+                    xe::countof(root_bindless_view_ranges));
+        auto& range = root_bindless_view_ranges[parameter.DescriptorTable
+                                                    .NumDescriptorRanges++];
+        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+        range.NumDescriptors = UINT_MAX;
+        range.BaseShaderRegister = 0;
+        range.RegisterSpace =
+            UINT(DxbcShaderTranslator::SRVSpace::kBindlessTextures2DArray);
+        range.OffsetInDescriptorsFromTableStart =
+            UINT(SystemBindlessView::kUnboundedSRVsStart);
+      }
+      // 3D textures.
+      {
+        assert_true(parameter.DescriptorTable.NumDescriptorRanges <
+                    xe::countof(root_bindless_view_ranges));
+        auto& range = root_bindless_view_ranges[parameter.DescriptorTable
+                                                    .NumDescriptorRanges++];
+        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+        range.NumDescriptors = UINT_MAX;
+        range.BaseShaderRegister = 0;
+        range.RegisterSpace =
+            UINT(DxbcShaderTranslator::SRVSpace::kBindlessTextures3D);
+        range.OffsetInDescriptorsFromTableStart =
+            UINT(SystemBindlessView::kUnboundedSRVsStart);
+      }
+      // Cube textures.
+      {
+        assert_true(parameter.DescriptorTable.NumDescriptorRanges <
+                    xe::countof(root_bindless_view_ranges));
+        auto& range = root_bindless_view_ranges[parameter.DescriptorTable
+                                                    .NumDescriptorRanges++];
+        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+        range.NumDescriptors = UINT_MAX;
+        range.BaseShaderRegister = 0;
+        range.RegisterSpace =
+            UINT(DxbcShaderTranslator::SRVSpace::kBindlessTexturesCube);
+        range.OffsetInDescriptorsFromTableStart =
+            UINT(SystemBindlessView::kUnboundedSRVsStart);
       }
     }
     root_signature_bindless_vs_ = ui::d3d12::util::CreateRootSignature(
@@ -3938,7 +3948,8 @@ bool D3D12CommandProcessor::UpdateBindings(
       for (uint32_t i = 0; i < texture_count_vertex; ++i) {
         const D3D12Shader::TextureBinding& texture = textures_vertex[i];
         descriptor_indices[texture.bindless_descriptor_index] =
-            texture_cache_->GetActiveTextureBindlessSRVIndex(texture);
+            texture_cache_->GetActiveTextureBindlessSRVIndex(texture) -
+            uint32_t(SystemBindlessView::kUnboundedSRVsStart);
       }
       current_texture_layout_uid_vertex_ = texture_layout_uid_vertex;
       if (texture_count_vertex) {
@@ -3973,7 +3984,8 @@ bool D3D12CommandProcessor::UpdateBindings(
       for (uint32_t i = 0; i < texture_count_pixel; ++i) {
         const D3D12Shader::TextureBinding& texture = textures_pixel[i];
         descriptor_indices[texture.bindless_descriptor_index] =
-            texture_cache_->GetActiveTextureBindlessSRVIndex(texture);
+            texture_cache_->GetActiveTextureBindlessSRVIndex(texture) -
+            uint32_t(SystemBindlessView::kUnboundedSRVsStart);
       }
       current_texture_layout_uid_pixel_ = texture_layout_uid_pixel;
       if (texture_count_pixel) {
