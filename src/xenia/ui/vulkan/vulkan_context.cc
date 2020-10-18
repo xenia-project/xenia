@@ -54,6 +54,11 @@ bool VulkanContext::Initialize() {
   fence_create_info.pNext = nullptr;
   fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
+  VkSemaphoreCreateInfo semaphore_create_info;
+  semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+  semaphore_create_info.pNext = nullptr;
+  semaphore_create_info.flags = 0;
+
   VkCommandPoolCreateInfo command_pool_create_info;
   command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   command_pool_create_info.pNext = nullptr;
@@ -76,6 +81,24 @@ bool VulkanContext::Initialize() {
       Shutdown();
       return false;
     }
+    if (dfn.vkCreateSemaphore(device, &semaphore_create_info, nullptr,
+                              &submission.image_acquisition_semaphore) !=
+        VK_SUCCESS) {
+      XELOGE(
+          "Failed to create the Vulkan swap chain image acquisition "
+          "semaphores");
+      Shutdown();
+      return false;
+    }
+    if (dfn.vkCreateSemaphore(device, &semaphore_create_info, nullptr,
+                              &submission.render_completion_semaphore) !=
+        VK_SUCCESS) {
+      XELOGE(
+          "Failed to create the Vulkan swap chain rendering completion "
+          "semaphores");
+      Shutdown();
+      return false;
+    }
     if (dfn.vkCreateCommandPool(device, &command_pool_create_info, nullptr,
                                 &submission.command_pool) != VK_SUCCESS) {
       XELOGE("Failed to create the Vulkan composition command pools");
@@ -90,26 +113,6 @@ bool VulkanContext::Initialize() {
       Shutdown();
       return false;
     }
-  }
-
-  VkSemaphoreCreateInfo semaphore_create_info;
-  semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-  semaphore_create_info.pNext = nullptr;
-  semaphore_create_info.flags = 0;
-  if (dfn.vkCreateSemaphore(device, &semaphore_create_info, nullptr,
-                            &swap_image_acquisition_semaphore_) != VK_SUCCESS) {
-    XELOGE(
-        "Failed to create the Vulkan swap chain image acquisition semaphore");
-    Shutdown();
-    return false;
-  }
-  if (dfn.vkCreateSemaphore(device, &semaphore_create_info, nullptr,
-                            &swap_render_completion_semaphore_) != VK_SUCCESS) {
-    XELOGE(
-        "Failed to create the Vulkan swap chain rendering completion "
-        "semaphore");
-    Shutdown();
-    return false;
   }
 
   immediate_drawer_ = std::make_unique<VulkanImmediateDrawer>(*this);
@@ -147,23 +150,22 @@ void VulkanContext::Shutdown() {
   util::DestroyAndNullHandle(ifn.vkDestroySurfaceKHR, instance, swap_surface_);
   swap_swapchain_or_surface_recreation_needed_ = false;
 
-  util::DestroyAndNullHandle(dfn.vkDestroySemaphore, device,
-                             swap_render_completion_semaphore_);
-  util::DestroyAndNullHandle(dfn.vkDestroySemaphore, device,
-                             swap_image_acquisition_semaphore_);
-
   swap_submission_completed_ = 0;
   swap_submission_current_ = 1;
   for (uint32_t i = 0; i < kSwapchainMaxImageCount; ++i) {
-    SwapSubmission& submission = swap_submissions_[i];
-    submission.setup_command_buffer_index = UINT32_MAX;
-    util::DestroyAndNullHandle(dfn.vkDestroyCommandPool, device,
-                               submission.command_pool);
-    util::DestroyAndNullHandle(dfn.vkDestroyFence, device, submission.fence);
     if (i < swap_setup_command_buffers_allocated_count_) {
       dfn.vkDestroyCommandPool(device, swap_setup_command_buffers_[i].first,
                                nullptr);
     }
+    SwapSubmission& submission = swap_submissions_[i];
+    submission.setup_command_buffer_index = UINT32_MAX;
+    util::DestroyAndNullHandle(dfn.vkDestroyCommandPool, device,
+                               submission.command_pool);
+    util::DestroyAndNullHandle(dfn.vkDestroySemaphore, device,
+                               submission.render_completion_semaphore);
+    util::DestroyAndNullHandle(dfn.vkDestroySemaphore, device,
+                               submission.image_acquisition_semaphore);
+    util::DestroyAndNullHandle(dfn.vkDestroyFence, device, submission.fence);
   }
   swap_setup_command_buffers_free_bits_ = 0;
   swap_setup_command_buffers_allocated_count_ = 0;
@@ -704,7 +706,7 @@ bool VulkanContext::BeginSwap() {
     // swapchain.
     uint32_t acquired_image_index;
     switch (dfn.vkAcquireNextImageKHR(device, swap_swapchain_, UINT64_MAX,
-                                      swap_image_acquisition_semaphore_,
+                                      submission.image_acquisition_semaphore,
                                       nullptr, &acquired_image_index)) {
       case VK_SUCCESS:
       case VK_SUBOPTIMAL_KHR:
@@ -793,14 +795,14 @@ void VulkanContext::EndSwap() {
   submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
   submit_info.pNext = nullptr;
   submit_info.waitSemaphoreCount = 1;
-  submit_info.pWaitSemaphores = &swap_image_acquisition_semaphore_;
+  submit_info.pWaitSemaphores = &submission.image_acquisition_semaphore;
   VkPipelineStageFlags image_acquisition_semaphore_wait_stage =
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
   submit_info.pWaitDstStageMask = &image_acquisition_semaphore_wait_stage;
   submit_info.commandBufferCount = submit_command_buffer_count;
   submit_info.pCommandBuffers = submit_command_buffers;
   submit_info.signalSemaphoreCount = 1;
-  submit_info.pSignalSemaphores = &swap_render_completion_semaphore_;
+  submit_info.pSignalSemaphores = &submission.render_completion_semaphore;
   VkResult submit_result =
       provider.SubmitToGraphicsComputeQueue(1, &submit_info, submission.fence);
   if (submit_result != VK_SUCCESS) {
@@ -815,7 +817,7 @@ void VulkanContext::EndSwap() {
   present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
   present_info.pNext = nullptr;
   present_info.waitSemaphoreCount = 1;
-  present_info.pWaitSemaphores = &swap_render_completion_semaphore_;
+  present_info.pWaitSemaphores = &submission.render_completion_semaphore;
   present_info.swapchainCount = 1;
   present_info.pSwapchains = &swap_swapchain_;
   present_info.pImageIndices = &swap_swapchain_image_current_;
