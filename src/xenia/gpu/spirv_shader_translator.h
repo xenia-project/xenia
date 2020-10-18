@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "third_party/glslang/SPIRV/SpvBuilder.h"
@@ -31,6 +32,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   void StartTranslation() override;
 
   std::vector<uint8_t> CompleteTranslation() override;
+
+  void ProcessLabel(uint32_t cf_index) override;
 
  private:
   // TODO(Triang3l): Depth-only pixel shader.
@@ -104,6 +107,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Block* main_loop_continue_;
   spv::Block* main_loop_merge_;
   spv::Id main_loop_pc_next_;
+  spv::Block* main_switch_header_;
+  std::unique_ptr<spv::Instruction> main_switch_op_;
+  spv::Block* main_switch_merge_;
+  std::vector<spv::Id> main_switch_next_pc_phi_operands_;
 };
 
 }  // namespace gpu
