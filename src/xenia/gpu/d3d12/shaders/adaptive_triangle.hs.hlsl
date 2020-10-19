@@ -38,6 +38,11 @@ XeHSConstantDataOutput XePatchConstant(
   // 3) r0.z * v0 + r0.y * v1 + r0.x * v2 by the guest.
   // With this order, there are no cracks in Halo 3 water.
   [unroll] for (i = 0u; i < 3u; ++i) {
+    // While Viva Pinata sets the factors to 0 for frustum-culled (quad)
+    // patches, in Halo 3 only allowing patches with factors above 0 makes
+    // distant (triangle) patches disappear - it appears that there are no
+    // special values for culled patches on the Xbox 360 (unlike 0 and NaN on
+    // Direct3D 11).
     output.edges[i] = clamp(
         asfloat(xe_input_patch[(i + 1u) % 3u].index_or_edge_factor) + 1.0f,
         xe_tessellation_factor_range.x, xe_tessellation_factor_range.y);
