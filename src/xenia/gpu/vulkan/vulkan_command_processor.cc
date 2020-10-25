@@ -14,8 +14,9 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
-#include "xenia/gpu/vulkan/deferred_command_buffer.h"
+#include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/gpu/vulkan/vulkan_shared_memory.h"
 #include "xenia/ui/vulkan/vulkan_context.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
@@ -43,6 +44,76 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
+  const ui::vulkan::VulkanProvider& provider =
+      GetVulkanContext().GetVulkanProvider();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+
+  VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info;
+  descriptor_set_layout_create_info.sType =
+      VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  descriptor_set_layout_create_info.pNext = nullptr;
+  descriptor_set_layout_create_info.flags = 0;
+  descriptor_set_layout_create_info.bindingCount = 0;
+  descriptor_set_layout_create_info.pBindings = nullptr;
+  if (dfn.vkCreateDescriptorSetLayout(
+          device, &descriptor_set_layout_create_info, nullptr,
+          &descriptor_set_layout_empty_) != VK_SUCCESS) {
+    XELOGE("Failed to create an empty Vulkan descriptor set layout");
+    return false;
+  }
+  VkShaderStageFlags shader_stages_guest_vertex =
+      GetGuestVertexShaderStageFlags();
+  VkDescriptorSetLayoutBinding descriptor_set_layout_binding_uniform_buffer;
+  descriptor_set_layout_binding_uniform_buffer.binding = 0;
+  descriptor_set_layout_binding_uniform_buffer.descriptorType =
+      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  descriptor_set_layout_binding_uniform_buffer.descriptorCount = 1;
+  descriptor_set_layout_binding_uniform_buffer.stageFlags =
+      shader_stages_guest_vertex;
+  descriptor_set_layout_binding_uniform_buffer.pImmutableSamplers = nullptr;
+  descriptor_set_layout_create_info.bindingCount = 1;
+  descriptor_set_layout_create_info.pBindings =
+      &descriptor_set_layout_binding_uniform_buffer;
+  if (dfn.vkCreateDescriptorSetLayout(
+          device, &descriptor_set_layout_create_info, nullptr,
+          &descriptor_set_layout_uniform_buffer_guest_vertex_) != VK_SUCCESS) {
+    XELOGE(
+        "Failed to create a Vulkan descriptor set layout for an uniform buffer "
+        "accessible by guest vertex shaders");
+    return false;
+  }
+  descriptor_set_layout_binding_uniform_buffer.stageFlags =
+      VK_SHADER_STAGE_FRAGMENT_BIT;
+  if (dfn.vkCreateDescriptorSetLayout(
+          device, &descriptor_set_layout_create_info, nullptr,
+          &descriptor_set_layout_uniform_buffer_guest_pixel_) != VK_SUCCESS) {
+    XELOGE(
+        "Failed to create a Vulkan descriptor set layout for an uniform buffer "
+        "accessible by guest pixel shaders");
+    return false;
+  }
+  descriptor_set_layout_binding_uniform_buffer.stageFlags =
+      VK_SHADER_STAGE_FRAGMENT_BIT;
+  if (dfn.vkCreateDescriptorSetLayout(
+          device, &descriptor_set_layout_create_info, nullptr,
+          &descriptor_set_layout_uniform_buffer_guest_pixel_) != VK_SUCCESS) {
+    XELOGE(
+        "Failed to create a Vulkan descriptor set layout for an uniform buffer "
+        "accessible by guest pixel shaders");
+    return false;
+  }
+  descriptor_set_layout_binding_uniform_buffer.stageFlags =
+      shader_stages_guest_vertex | VK_SHADER_STAGE_FRAGMENT_BIT;
+  if (dfn.vkCreateDescriptorSetLayout(
+          device, &descriptor_set_layout_create_info, nullptr,
+          &descriptor_set_layout_uniform_buffer_guest_) != VK_SUCCESS) {
+    XELOGE(
+        "Failed to create a Vulkan descriptor set layout for an uniform buffer "
+        "accessible by guest shaders");
+    return false;
+  }
+
   shared_memory_ =
       std::make_unique<VulkanSharedMemory>(*this, *memory_, trace_writer_);
   if (!shared_memory_->Initialize()) {
@@ -62,6 +133,30 @@ void VulkanCommandProcessor::ShutdownContext() {
       GetVulkanContext().GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
+
+  for (const auto& pipeline_layout_pair : pipeline_layouts_) {
+    dfn.vkDestroyPipelineLayout(
+        device, pipeline_layout_pair.second.pipeline_layout, nullptr);
+  }
+  pipeline_layouts_.clear();
+  for (const auto& descriptor_set_layout_pair :
+       descriptor_set_layouts_textures_) {
+    dfn.vkDestroyDescriptorSetLayout(device, descriptor_set_layout_pair.second,
+                                     nullptr);
+  }
+  descriptor_set_layouts_textures_.clear();
+
+  ui::vulkan::util::DestroyAndNullHandle(
+      dfn.vkDestroyDescriptorSetLayout, device,
+      descriptor_set_layout_uniform_buffer_guest_);
+  ui::vulkan::util::DestroyAndNullHandle(
+      dfn.vkDestroyDescriptorSetLayout, device,
+      descriptor_set_layout_uniform_buffer_guest_pixel_);
+  ui::vulkan::util::DestroyAndNullHandle(
+      dfn.vkDestroyDescriptorSetLayout, device,
+      descriptor_set_layout_uniform_buffer_guest_vertex_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout,
+                                         device, descriptor_set_layout_empty_);
 
   sparse_bind_wait_stage_mask_ = 0;
   sparse_buffer_binds_.clear();
@@ -139,6 +234,152 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   BeginSubmission(true);
 
   EndSubmission(true);
+}
+
+bool VulkanCommandProcessor::GetPipelineLayout(
+    uint32_t texture_count_pixel, uint32_t texture_count_vertex,
+    PipelineLayout& pipeline_layout_out) {
+  PipelineLayoutKey pipeline_layout_key;
+  pipeline_layout_key.texture_count_pixel = texture_count_pixel;
+  pipeline_layout_key.texture_count_vertex = texture_count_vertex;
+  {
+    auto it = pipeline_layouts_.find(pipeline_layout_key.key);
+    if (it != pipeline_layouts_.end()) {
+      pipeline_layout_out = it->second;
+      return true;
+    }
+  }
+
+  const ui::vulkan::VulkanProvider& provider =
+      GetVulkanContext().GetVulkanProvider();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+
+  VkDescriptorSetLayout descriptor_set_layout_textures_pixel;
+  if (texture_count_pixel) {
+    TextureDescriptorSetLayoutKey texture_descriptor_set_layout_key;
+    texture_descriptor_set_layout_key.is_vertex = 0;
+    texture_descriptor_set_layout_key.texture_count = texture_count_pixel;
+    auto it = descriptor_set_layouts_textures_.find(
+        texture_descriptor_set_layout_key.key);
+    if (it != descriptor_set_layouts_textures_.end()) {
+      descriptor_set_layout_textures_pixel = it->second;
+    } else {
+      VkDescriptorSetLayoutBinding descriptor_set_layout_binding;
+      descriptor_set_layout_binding.binding = 0;
+      descriptor_set_layout_binding.descriptorType =
+          VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+      descriptor_set_layout_binding.descriptorCount = texture_count_pixel;
+      descriptor_set_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+      descriptor_set_layout_binding.pImmutableSamplers = nullptr;
+      VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info;
+      descriptor_set_layout_create_info.sType =
+          VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+      descriptor_set_layout_create_info.pNext = nullptr;
+      descriptor_set_layout_create_info.flags = 0;
+      descriptor_set_layout_create_info.bindingCount = 1;
+      descriptor_set_layout_create_info.pBindings =
+          &descriptor_set_layout_binding;
+      if (dfn.vkCreateDescriptorSetLayout(
+              device, &descriptor_set_layout_create_info, nullptr,
+              &descriptor_set_layout_textures_pixel) != VK_SUCCESS) {
+        XELOGE(
+            "Failed to create a Vulkan descriptor set layout for {} combined "
+            "images and samplers for guest pixel shaders",
+            texture_count_pixel);
+        return false;
+      }
+      descriptor_set_layouts_textures_.emplace(
+          texture_descriptor_set_layout_key.key,
+          descriptor_set_layout_textures_pixel);
+    }
+  } else {
+    descriptor_set_layout_textures_pixel = descriptor_set_layout_empty_;
+  }
+
+  VkDescriptorSetLayout descriptor_set_layout_textures_vertex;
+  if (texture_count_vertex) {
+    TextureDescriptorSetLayoutKey texture_descriptor_set_layout_key;
+    texture_descriptor_set_layout_key.is_vertex = 0;
+    texture_descriptor_set_layout_key.texture_count = texture_count_vertex;
+    auto it = descriptor_set_layouts_textures_.find(
+        texture_descriptor_set_layout_key.key);
+    if (it != descriptor_set_layouts_textures_.end()) {
+      descriptor_set_layout_textures_vertex = it->second;
+    } else {
+      VkDescriptorSetLayoutBinding descriptor_set_layout_binding;
+      descriptor_set_layout_binding.binding = 0;
+      descriptor_set_layout_binding.descriptorType =
+          VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+      descriptor_set_layout_binding.descriptorCount = texture_count_vertex;
+      descriptor_set_layout_binding.stageFlags =
+          GetGuestVertexShaderStageFlags();
+      descriptor_set_layout_binding.pImmutableSamplers = nullptr;
+      VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info;
+      descriptor_set_layout_create_info.sType =
+          VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+      descriptor_set_layout_create_info.pNext = nullptr;
+      descriptor_set_layout_create_info.flags = 0;
+      descriptor_set_layout_create_info.bindingCount = 1;
+      descriptor_set_layout_create_info.pBindings =
+          &descriptor_set_layout_binding;
+      if (dfn.vkCreateDescriptorSetLayout(
+              device, &descriptor_set_layout_create_info, nullptr,
+              &descriptor_set_layout_textures_vertex) != VK_SUCCESS) {
+        XELOGE(
+            "Failed to create a Vulkan descriptor set layout for {} combined "
+            "images and samplers for guest vertex shaders",
+            texture_count_vertex);
+        return false;
+      }
+      descriptor_set_layouts_textures_.emplace(
+          texture_descriptor_set_layout_key.key,
+          descriptor_set_layout_textures_vertex);
+    }
+  } else {
+    descriptor_set_layout_textures_vertex = descriptor_set_layout_empty_;
+  }
+
+  VkDescriptorSetLayout
+      descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetCount];
+  // Fill any unused set layouts with empty layouts.
+  // TODO(Triang3l): Remove this.
+  for (size_t i = 0; i < xe::countof(descriptor_set_layouts); ++i) {
+    descriptor_set_layouts[i] = descriptor_set_layout_empty_;
+  }
+  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetTexturesPixel] =
+      descriptor_set_layout_textures_pixel;
+  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetTexturesVertex] =
+      descriptor_set_layout_textures_vertex;
+
+  VkPipelineLayoutCreateInfo pipeline_layout_create_info;
+  pipeline_layout_create_info.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipeline_layout_create_info.pNext = nullptr;
+  pipeline_layout_create_info.flags = 0;
+  pipeline_layout_create_info.setLayoutCount =
+      uint32_t(xe::countof(descriptor_set_layouts));
+  pipeline_layout_create_info.pSetLayouts = descriptor_set_layouts;
+  pipeline_layout_create_info.pushConstantRangeCount = 0;
+  pipeline_layout_create_info.pPushConstantRanges = nullptr;
+  VkPipelineLayout pipeline_layout;
+  if (dfn.vkCreatePipelineLayout(device, &pipeline_layout_create_info, nullptr,
+                                 &pipeline_layout) != VK_SUCCESS) {
+    XELOGE(
+        "Failed to create a Vulkan pipeline layout for guest drawing with {} "
+        "pixel shader and {} vertex shader textures",
+        texture_count_pixel, texture_count_vertex);
+    return false;
+  }
+  PipelineLayout pipeline_layout_entry;
+  pipeline_layout_entry.pipeline_layout = pipeline_layout;
+  pipeline_layout_entry.descriptor_set_layout_textures_pixel_ref =
+      descriptor_set_layout_textures_pixel;
+  pipeline_layout_entry.descriptor_set_layout_textures_vertex_ref =
+      descriptor_set_layout_textures_vertex;
+  pipeline_layouts_.emplace(pipeline_layout_key.key, pipeline_layout_entry);
+  pipeline_layout_out = pipeline_layout_entry;
+  return true;
 }
 
 Shader* VulkanCommandProcessor::LoadShader(xenos::ShaderType shader_type,
@@ -543,6 +784,17 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
   }
 
   return true;
+}
+
+VkShaderStageFlags VulkanCommandProcessor::GetGuestVertexShaderStageFlags()
+    const {
+  VkShaderStageFlags stages = VK_SHADER_STAGE_VERTEX_BIT;
+  const ui::vulkan::VulkanProvider& provider =
+      GetVulkanContext().GetVulkanProvider();
+  if (provider.device_features().tessellationShader) {
+    stages |= VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+  }
+  return stages;
 }
 
 }  // namespace vulkan

@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <deque>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -64,6 +65,15 @@ class VulkanCommandProcessor : public CommandProcessor {
                         const VkSparseMemoryBind* binds,
                         VkPipelineStageFlags wait_stage_mask);
 
+  struct PipelineLayout {
+    VkPipelineLayout pipeline_layout;
+    VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref;
+    VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref;
+  };
+  bool GetPipelineLayout(uint32_t texture_count_pixel,
+                         uint32_t texture_count_vertex,
+                         PipelineLayout& pipeline_layout_out);
+
  protected:
   bool SetupContext() override;
   void ShutdownContext() override;
@@ -104,6 +114,8 @@ class VulkanCommandProcessor : public CommandProcessor {
     CheckSubmissionFence(GetCurrentSubmission());
     return !submission_open_ && submissions_in_flight_fences_.empty();
   }
+
+  VkShaderStageFlags GetGuestVertexShaderStageFlags() const;
 
   bool cache_clear_requested_ = false;
 
@@ -149,6 +161,39 @@ class VulkanCommandProcessor : public CommandProcessor {
   // it may be reallocated).
   std::vector<VkSparseBufferMemoryBindInfo> sparse_buffer_bind_infos_temp_;
   VkPipelineStageFlags sparse_bind_wait_stage_mask_ = 0;
+
+  // Common descriptor set layouts, usable by anything that may need them.
+  VkDescriptorSetLayout descriptor_set_layout_empty_ = VK_NULL_HANDLE;
+  VkDescriptorSetLayout descriptor_set_layout_uniform_buffer_guest_vertex_ =
+      VK_NULL_HANDLE;
+  VkDescriptorSetLayout descriptor_set_layout_uniform_buffer_guest_pixel_ =
+      VK_NULL_HANDLE;
+  VkDescriptorSetLayout descriptor_set_layout_uniform_buffer_guest_ =
+      VK_NULL_HANDLE;
+
+  union TextureDescriptorSetLayoutKey {
+    struct {
+      uint32_t is_vertex : 1;
+      // For 0, use descriptor_set_layout_empty_ instead as these are owning
+      // references.
+      uint32_t texture_count : 31;
+    };
+    uint32_t key = 0;
+  };
+  // TextureDescriptorSetLayoutKey::key -> VkDescriptorSetLayout.
+  std::unordered_map<uint32_t, VkDescriptorSetLayout>
+      descriptor_set_layouts_textures_;
+  union PipelineLayoutKey {
+    struct {
+      // Pixel textures in the low bits since those are varied much more
+      // commonly.
+      uint32_t texture_count_pixel : 16;
+      uint32_t texture_count_vertex : 16;
+    };
+    uint32_t key = 0;
+  };
+  // PipelineLayoutKey::key -> PipelineLayout.
+  std::unordered_map<uint32_t, PipelineLayout> pipeline_layouts_;
 
   std::unique_ptr<VulkanSharedMemory> shared_memory_;
 };
