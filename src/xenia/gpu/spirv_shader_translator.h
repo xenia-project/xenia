@@ -23,6 +23,29 @@ namespace gpu {
 
 class SpirvShaderTranslator : public ShaderTranslator {
  public:
+  enum DescriptorSet : uint32_t {
+    // In order of update frequency.
+    // Very frequently changed, especially for UI draws, and for models drawn in
+    // multiple parts - contains vertex and texture fetch constants.
+    kDescriptorSetFetchConstants,
+    // Quite frequently changed (for one object drawn multiple times, for
+    // instance - may contain projection matrices).
+    kDescriptorSetFloatConstantsVertex,
+    // Less frequently changed (per-material).
+    kDescriptorSetFloatConstantsPixel,
+    // Per-material, combined images and samplers.
+    kDescriptorSetTexturesPixel,
+    // Rarely used at all, but may be changed at an unpredictable rate when
+    // vertex textures are used, combined images and samplers.
+    kDescriptorSetTexturesVertex,
+    // May stay the same across many draws.
+    kDescriptorSetSystemConstants,
+    // Pretty rarely used and rarely changed - flow control constants.
+    kDescriptorSetBoolLoopConstants,
+    // Never changed.
+    kDescriptorSetSharedMemoryAndEdram,
+    kDescriptorSetCount,
+  };
   SpirvShaderTranslator(bool supports_clip_distance = true,
                         bool supports_cull_distance = true);
 
@@ -34,6 +57,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
   std::vector<uint8_t> CompleteTranslation() override;
 
   void ProcessLabel(uint32_t cf_index) override;
+
+  void ProcessExecInstructionBegin(const ParsedExecInstruction& instr) override;
+  void ProcessExecInstructionEnd(const ParsedExecInstruction& instr) override;
+  void ProcessJumpInstruction(const ParsedJumpInstruction& instr) override;
 
  private:
   // TODO(Triang3l): Depth-only pixel shader.
@@ -48,10 +75,33 @@ class SpirvShaderTranslator : public ShaderTranslator {
   }
   bool IsSpirvFragmentShader() const { return is_pixel_shader(); }
 
+  // Must be called before emitting any non-control-flow SPIR-V operations in
+  // translator callback to ensure that if the last instruction added was
+  // something like OpBranch - in this case, an unreachable block is created.
+  void EnsureBuildPointAvailable();
+
   void StartVertexOrTessEvalShaderBeforeMain();
   void StartVertexOrTessEvalShaderInMain();
   void CompleteVertexOrTessEvalShaderInMain();
   void CompleteVertexOrTessEvalShaderAfterMain(spv::Instruction* entry_point);
+
+  // Updates the current flow control condition (to be called in the beginning
+  // of exec and in jumps), closing the previous conditionals if needed.
+  // However, if the condition is not different, the instruction-level predicate
+  // conditional also won't be closed - this must be checked separately if
+  // needed (for example, in jumps).
+  void UpdateExecConditionals(ParsedExecInstruction::Type type,
+                              uint32_t bool_constant_index, bool condition);
+  // Closes the instruction-level predicate conditional if it's open, useful if
+  // a control flow instruction needs to do some code which needs to respect the
+  // current exec conditional, but can't itself be predicated.
+  void CloseInstructionPredication();
+  // Closes conditionals opened by exec and instructions within them (but not by
+  // labels) and updates the state accordingly.
+  void CloseExecConditionals();
+  // Sets the next iteration's program counter value (adding it to phi operands)
+  // and closes the current block.
+  void JumpToLabel(uint32_t address);
 
   bool supports_clip_distance_;
   bool supports_cull_distance_;
@@ -68,6 +118,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id type_int_;
   spv::Id type_int4_;
   spv::Id type_uint_;
+  spv::Id type_uint4_;
   spv::Id type_float_;
   spv::Id type_float2_;
   spv::Id type_float3_;
@@ -75,8 +126,11 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   spv::Id const_int_0_;
   spv::Id const_int4_0_;
+  spv::Id const_uint_0_;
   spv::Id const_float_0_;
   spv::Id const_float4_0_;
+
+  spv::Id uniform_bool_loop_constants_;
 
   // VS as VS only - int.
   spv::Id input_vertex_index_;
@@ -111,6 +165,30 @@ class SpirvShaderTranslator : public ShaderTranslator {
   std::unique_ptr<spv::Instruction> main_switch_op_;
   spv::Block* main_switch_merge_;
   std::vector<spv::Id> main_switch_next_pc_phi_operands_;
+
+  // If the exec bool constant / predicate conditional is open, block after it
+  // (not added to the function yet).
+  spv::Block* cf_exec_conditional_merge_;
+  // If the instruction-level predicate conditional is open, block after it (not
+  // added to the function yet).
+  spv::Block* cf_instruction_predicate_merge_;
+  // When cf_exec_conditional_merge_ is not null:
+  // If the current exec conditional is based on a bool constant: the number of
+  // the bool constant.
+  // If it's based on the predicate value: kCfExecBoolConstantPredicate.
+  uint32_t cf_exec_bool_constant_or_predicate_;
+  static constexpr uint32_t kCfExecBoolConstantPredicate = UINT32_MAX;
+  // When cf_exec_conditional_merge_ is not null, the expected bool constant or
+  // predicate value for the current exec conditional.
+  bool cf_exec_condition_;
+  // When cf_instruction_predicate_merge_ is not null, the expected predicate
+  // value for the current or the last instruction.
+  bool cf_instruction_predicate_condition_;
+  // Whether there was a `setp` in the current exec before the current
+  // instruction, thus instruction-level predicate value can be different than
+  // the exec-level predicate value, and can't merge two execs with the same
+  // predicate condition anymore.
+  bool cf_exec_predicate_written_;
 };
 
 }  // namespace gpu

@@ -31,6 +31,9 @@ void SpirvShaderTranslator::Reset() {
 
   main_switch_op_.reset();
   main_switch_next_pc_phi_operands_.clear();
+
+  cf_exec_conditional_merge_ = nullptr;
+  cf_instruction_predicate_merge_ = nullptr;
 }
 
 void SpirvShaderTranslator::StartTranslation() {
@@ -50,12 +53,15 @@ void SpirvShaderTranslator::StartTranslation() {
   type_bool_ = builder_->makeBoolType();
   type_int_ = builder_->makeIntType(32);
   type_int4_ = builder_->makeVectorType(type_int_, 4);
+  type_uint_ = builder_->makeUintType(32);
+  type_uint4_ = builder_->makeVectorType(type_uint_, 4);
   type_float_ = builder_->makeFloatType(32);
   type_float2_ = builder_->makeVectorType(type_float_, 2);
   type_float3_ = builder_->makeVectorType(type_float_, 3);
   type_float4_ = builder_->makeVectorType(type_float_, 4);
 
   const_int_0_ = builder_->makeIntConstant(0);
+  const_uint_0_ = builder_->makeUintConstant(0);
   id_vector_temp_.clear();
   id_vector_temp_.reserve(4);
   for (uint32_t i = 0; i < 4; ++i) {
@@ -70,6 +76,40 @@ void SpirvShaderTranslator::StartTranslation() {
   }
   const_float4_0_ =
       builder_->makeCompositeConstant(type_float4_, id_vector_temp_);
+
+  // Common uniform buffer - bool and loop constants.
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(2);
+  // 256 bool constants.
+  id_vector_temp_.push_back(builder_->makeArrayType(
+      type_uint4_, builder_->makeUintConstant(2), sizeof(uint32_t) * 4));
+  // Currently (as of October 24, 2020) makeArrayType only uses the stride to
+  // check if deduplication can be done - the array stride decoration needs to
+  // be applied explicitly.
+  builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
+                          sizeof(uint32_t) * 4);
+  // 32 loop constants.
+  id_vector_temp_.push_back(builder_->makeArrayType(
+      type_uint4_, builder_->makeUintConstant(8), sizeof(uint32_t) * 4));
+  builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
+                          sizeof(uint32_t) * 4);
+  spv::Id type_bool_loop_constants =
+      builder_->makeStructType(id_vector_temp_, "XeBoolLoopConstants");
+  builder_->addMemberName(type_bool_loop_constants, 0, "bool_constants");
+  builder_->addMemberDecoration(type_bool_loop_constants, 0,
+                                spv::DecorationOffset, 0);
+  builder_->addMemberName(type_bool_loop_constants, 1, "loop_constants");
+  builder_->addMemberDecoration(type_bool_loop_constants, 1,
+                                spv::DecorationOffset, sizeof(uint32_t) * 8);
+  builder_->addDecoration(type_bool_loop_constants, spv::DecorationBlock);
+  uniform_bool_loop_constants_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassUniform, type_bool_loop_constants,
+      "xe_uniform_bool_loop_constants");
+  builder_->addDecoration(uniform_bool_loop_constants_,
+                          spv::DecorationDescriptorSet,
+                          int(kDescriptorSetBoolLoopConstants));
+  builder_->addDecoration(uniform_bool_loop_constants_, spv::DecorationBinding,
+                          0);
 
   if (IsSpirvVertexOrTessEvalShader()) {
     StartVertexOrTessEvalShaderBeforeMain();
@@ -118,7 +158,7 @@ void SpirvShaderTranslator::StartTranslation() {
   }
 
   // Open the main loop.
-  spv::Block* main_loop_pre_header = builder_->getBuildPoint();
+  spv::Block& main_loop_pre_header = *builder_->getBuildPoint();
   main_loop_header_ = &builder_->makeNewBlock();
   spv::Block& main_loop_body = builder_->makeNewBlock();
   // Added later because the body has nested control flow, but according to the
@@ -142,7 +182,7 @@ void SpirvShaderTranslator::StartTranslation() {
     id_vector_temp_.clear();
     id_vector_temp_.reserve(4);
     id_vector_temp_.push_back(const_int_0_);
-    id_vector_temp_.push_back(main_loop_pre_header->getId());
+    id_vector_temp_.push_back(main_loop_pre_header.getId());
     main_loop_pc_next_ = builder_->getUniqueId();
     id_vector_temp_.push_back(main_loop_pc_next_);
     id_vector_temp_.push_back(main_loop_continue_->getId());
@@ -191,6 +231,8 @@ void SpirvShaderTranslator::StartTranslation() {
 }
 
 std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
+  // Close flow control within the last switch case.
+  CloseExecConditionals();
   bool has_main_switch = !label_addresses().empty();
   // After the final exec (if it happened to be not exece, which would already
   // have a break branch), break from the switch if it exists, or from the
@@ -283,6 +325,12 @@ void SpirvShaderTranslator::ProcessLabel(uint32_t cf_index) {
     // 0 already added in the beginning.
     return;
   }
+
+  assert_false(label_addresses().empty());
+
+  // Close flow control within the previous switch case.
+  CloseExecConditionals();
+
   spv::Function& function = builder_->getBuildPoint()->getParent();
   // Create the next switch case and fallthrough to it.
   spv::Block* new_case = new spv::Block(builder_->getUniqueId(), function);
@@ -297,6 +345,57 @@ void SpirvShaderTranslator::ProcessLabel(uint32_t cf_index) {
   }
   function.addBlock(new_case);
   builder_->setBuildPoint(new_case);
+}
+
+void SpirvShaderTranslator::ProcessExecInstructionBegin(
+    const ParsedExecInstruction& instr) {
+  UpdateExecConditionals(instr.type, instr.bool_constant_index,
+                         instr.condition);
+}
+
+void SpirvShaderTranslator::ProcessExecInstructionEnd(
+    const ParsedExecInstruction& instr) {
+  if (instr.is_end) {
+    // Break out of the main switch (if exists) and the main loop.
+    CloseInstructionPredication();
+    if (!builder_->getBuildPoint()->isTerminated()) {
+      builder_->createBranch(label_addresses().empty() ? main_loop_merge_
+                                                       : main_switch_merge_);
+    }
+  }
+  UpdateExecConditionals(instr.type, instr.bool_constant_index,
+                         instr.condition);
+}
+
+void SpirvShaderTranslator::ProcessJumpInstruction(
+    const ParsedJumpInstruction& instr) {
+  // Treat like exec, merge with execs if possible, since it's an if too.
+  ParsedExecInstruction::Type type;
+  if (instr.type == ParsedJumpInstruction::Type::kConditional) {
+    type = ParsedExecInstruction::Type::kConditional;
+  } else if (instr.type == ParsedJumpInstruction::Type::kPredicated) {
+    type = ParsedExecInstruction::Type::kPredicated;
+  } else {
+    type = ParsedExecInstruction::Type::kUnconditional;
+  }
+  UpdateExecConditionals(type, instr.bool_constant_index, instr.condition);
+
+  // UpdateExecConditionals may not necessarily close the instruction-level
+  // predicate check (it's not necessary if the execs are merged), but here the
+  // instruction itself is on the control flow level, so the predicate check is
+  // on the control flow level too.
+  CloseInstructionPredication();
+
+  JumpToLabel(instr.target_address);
+}
+
+void SpirvShaderTranslator::EnsureBuildPointAvailable() {
+  if (!builder_->getBuildPoint()->isTerminated()) {
+    return;
+  }
+  spv::Block& new_block = builder_->makeNewBlock();
+  new_block.setUnreachable();
+  builder_->setBuildPoint(&new_block);
 }
 
 void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
@@ -371,6 +470,136 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderAfterMain(
     entry_point->addIdOperand(input_vertex_index_);
   }
   entry_point->addIdOperand(output_per_vertex_);
+}
+
+void SpirvShaderTranslator::UpdateExecConditionals(
+    ParsedExecInstruction::Type type, uint32_t bool_constant_index,
+    bool condition) {
+  // Check if we can merge the new exec with the previous one, or the jump with
+  // the previous exec. The instruction-level predicate check is also merged in
+  // this case.
+  if (type == ParsedExecInstruction::Type::kConditional) {
+    // Can merge conditional with conditional, as long as the bool constant and
+    // the expected values are the same.
+    if (cf_exec_conditional_merge_ &&
+        cf_exec_bool_constant_or_predicate_ == bool_constant_index &&
+        cf_exec_condition_ == condition) {
+      return;
+    }
+  } else if (type == ParsedExecInstruction::Type::kPredicated) {
+    // Can merge predicated with predicated if the conditions are the same and
+    // the previous exec hasn't modified the predicate register.
+    if (!cf_exec_predicate_written_ && cf_exec_conditional_merge_ &&
+        cf_exec_bool_constant_or_predicate_ == kCfExecBoolConstantPredicate &&
+        cf_exec_condition_ == condition) {
+      return;
+    }
+  } else {
+    // Can merge unconditional with unconditional.
+    assert_true(type == ParsedExecInstruction::Type::kUnconditional);
+    if (!cf_exec_conditional_merge_) {
+      return;
+    }
+  }
+
+  CloseExecConditionals();
+
+  if (type == ParsedExecInstruction::Type::kUnconditional) {
+    return;
+  }
+
+  EnsureBuildPointAvailable();
+  spv::Id condition_id;
+  if (type == ParsedExecInstruction::Type::kConditional) {
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(3);
+    // Bool constants (member 0).
+    id_vector_temp_.push_back(const_int_0_);
+    // 128-bit vector.
+    id_vector_temp_.push_back(
+        builder_->makeIntConstant(int(bool_constant_index >> 7)));
+    // 32-bit scalar of a 128-bit vector.
+    id_vector_temp_.push_back(
+        builder_->makeIntConstant(int((bool_constant_index >> 5) & 2)));
+    spv::Id bool_constant_scalar =
+        builder_->createLoad(builder_->createAccessChain(
+                                 spv::StorageClassUniform,
+                                 uniform_bool_loop_constants_, id_vector_temp_),
+                             spv::NoPrecision);
+    condition_id = builder_->createBinOp(
+        spv::OpINotEqual, type_bool_,
+        builder_->createBinOp(
+            spv::OpBitwiseAnd, type_uint_, bool_constant_scalar,
+            builder_->makeUintConstant(uint32_t(1)
+                                       << (bool_constant_index & 31))),
+        const_uint_0_);
+    cf_exec_bool_constant_or_predicate_ = bool_constant_index;
+  } else if (type == ParsedExecInstruction::Type::kPredicated) {
+    condition_id = builder_->createLoad(var_main_predicate_, spv::NoPrecision);
+    cf_exec_bool_constant_or_predicate_ = kCfExecBoolConstantPredicate;
+  } else {
+    assert_unhandled_case(type);
+    return;
+  }
+  cf_exec_condition_ = condition;
+  spv::Function& function = builder_->getBuildPoint()->getParent();
+  cf_exec_conditional_merge_ =
+      new spv::Block(builder_->getUniqueId(), function);
+  {
+    std::unique_ptr<spv::Instruction> selection_merge_op =
+        std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
+    selection_merge_op->addIdOperand(cf_exec_conditional_merge_->getId());
+    selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
+    builder_->getBuildPoint()->addInstruction(std::move(selection_merge_op));
+  }
+  spv::Block& inner_block = builder_->makeNewBlock();
+  builder_->createConditionalBranch(
+      condition_id, condition ? &inner_block : cf_exec_conditional_merge_,
+      condition ? cf_exec_conditional_merge_ : &inner_block);
+  builder_->setBuildPoint(&inner_block);
+}
+
+void SpirvShaderTranslator::CloseInstructionPredication() {
+  if (!cf_instruction_predicate_merge_) {
+    return;
+  }
+  spv::Block& inner_block = *builder_->getBuildPoint();
+  if (!inner_block.isTerminated()) {
+    builder_->createBranch(cf_instruction_predicate_merge_);
+  }
+  inner_block.getParent().addBlock(cf_instruction_predicate_merge_);
+  builder_->setBuildPoint(cf_instruction_predicate_merge_);
+  cf_instruction_predicate_merge_ = nullptr;
+}
+
+void SpirvShaderTranslator::CloseExecConditionals() {
+  // Within the exec - instruction-level predicate check.
+  CloseInstructionPredication();
+  // Exec level.
+  if (cf_exec_conditional_merge_) {
+    spv::Block& inner_block = *builder_->getBuildPoint();
+    if (!inner_block.isTerminated()) {
+      builder_->createBranch(cf_exec_conditional_merge_);
+    }
+    inner_block.getParent().addBlock(cf_exec_conditional_merge_);
+    builder_->setBuildPoint(cf_exec_conditional_merge_);
+    cf_exec_conditional_merge_ = nullptr;
+  }
+  // Nothing relies on the predicate value being unchanged now.
+  cf_exec_predicate_written_ = false;
+}
+
+void SpirvShaderTranslator::JumpToLabel(uint32_t address) {
+  assert_false(label_addresses().empty());
+  spv::Block& origin_block = *builder_->getBuildPoint();
+  if (origin_block.isTerminated()) {
+    // Unreachable jump for some reason.
+    return;
+  }
+  main_switch_next_pc_phi_operands_.push_back(
+      builder_->makeIntConstant(int(address)));
+  main_switch_next_pc_phi_operands_.push_back(origin_block.getId());
+  builder_->createBranch(main_loop_continue_);
 }
 
 }  // namespace gpu
