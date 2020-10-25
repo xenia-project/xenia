@@ -67,7 +67,7 @@ DEFINE_path(
     "Storage");
 
 DEFINE_bool(mount_scratch, false, "Enable scratch mount", "Storage");
-DEFINE_bool(mount_cache, false, "Enable cache mount", "Storage");
+DEFINE_bool(mount_cache, true, "Enable cache mount", "Storage");
 
 DEFINE_transient_path(target, "",
                       "Specifies the target .xex or .iso to execute.",
