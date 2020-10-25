@@ -1862,10 +1862,14 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
   }
   {
     // Break case.
-    // Pop the current loop off the stack, move YZW to XYZ and set W to 0.
+    // Pop the current loop off the loop counter and the relative address
+    // stacks - move YZW to XYZ and set W to 0.
     DxbcOpMov(DxbcDest::R(system_temp_loop_count_, 0b0111),
               DxbcSrc::R(system_temp_loop_count_, 0b111001));
     DxbcOpMov(DxbcDest::R(system_temp_loop_count_, 0b1000), DxbcSrc::LU(0));
+    DxbcOpMov(DxbcDest::R(system_temp_aL_, 0b0111),
+              DxbcSrc::R(system_temp_aL_, 0b111001));
+    DxbcOpMov(DxbcDest::R(system_temp_aL_, 0b1000), DxbcSrc::LI(0));
     // Now going to fall through to the next exec (no need to jump).
   }
   DxbcOpElse();
