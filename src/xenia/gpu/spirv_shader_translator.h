@@ -60,6 +60,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   void ProcessExecInstructionBegin(const ParsedExecInstruction& instr) override;
   void ProcessExecInstructionEnd(const ParsedExecInstruction& instr) override;
+  void ProcessLoopStartInstruction(
+      const ParsedLoopStartInstruction& instr) override;
+  void ProcessLoopEndInstruction(
+      const ParsedLoopEndInstruction& instr) override;
   void ProcessJumpInstruction(const ParsedJumpInstruction& instr) override;
 
  private:
@@ -99,9 +103,6 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // Closes conditionals opened by exec and instructions within them (but not by
   // labels) and updates the state accordingly.
   void CloseExecConditionals();
-  // Sets the next iteration's program counter value (adding it to phi operands)
-  // and closes the current block.
-  void JumpToLabel(uint32_t address);
 
   bool supports_clip_distance_;
   bool supports_cull_distance_;
@@ -118,6 +119,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id type_int_;
   spv::Id type_int4_;
   spv::Id type_uint_;
+  spv::Id type_uint3_;
   spv::Id type_uint4_;
   spv::Id type_float_;
   spv::Id type_float2_;
@@ -127,6 +129,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id const_int_0_;
   spv::Id const_int4_0_;
   spv::Id const_uint_0_;
+  spv::Id const_uint4_0_;
   spv::Id const_float_0_;
   spv::Id const_float4_0_;
 
@@ -149,6 +152,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Function* function_main_;
   // bool.
   spv::Id var_main_predicate_;
+  // uint4.
+  spv::Id var_main_loop_count_;
   // int4.
   spv::Id var_main_address_relative_;
   // int.
