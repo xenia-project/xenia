@@ -827,6 +827,51 @@ void SpirvShaderTranslator::UpdateExecConditionals(
   builder_->setBuildPoint(&inner_block);
 }
 
+void SpirvShaderTranslator::UpdateInstructionPredication(bool predicated,
+                                                         bool condition) {
+  if (!predicated) {
+    CloseInstructionPredication();
+    return;
+  }
+
+  if (cf_instruction_predicate_merge_) {
+    if (cf_instruction_predicate_condition_ == condition) {
+      // Already in the needed instruction-level conditional.
+      return;
+    }
+    CloseInstructionPredication();
+  }
+
+  // If the instruction predicate condition is the same as the exec predicate
+  // condition, no need to open a check. However, if there was a `setp` prior
+  // to this instruction, the predicate value now may be different than it was
+  // in the beginning of the exec.
+  if (!cf_exec_predicate_written_ && cf_exec_conditional_merge_ &&
+      cf_exec_bool_constant_or_predicate_ == kCfExecBoolConstantPredicate &&
+      cf_exec_condition_ == condition) {
+    return;
+  }
+
+  cf_instruction_predicate_condition_ = condition;
+  EnsureBuildPointAvailable();
+  spv::Id predicate_id =
+      builder_->createLoad(var_main_predicate_, spv::NoPrecision);
+  spv::Block& predicated_block = builder_->makeNewBlock();
+  cf_instruction_predicate_merge_ = &builder_->makeNewBlock();
+  {
+    std::unique_ptr<spv::Instruction> selection_merge_op =
+        std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
+    selection_merge_op->addIdOperand(cf_instruction_predicate_merge_->getId());
+    selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
+    builder_->getBuildPoint()->addInstruction(std::move(selection_merge_op));
+  }
+  builder_->createConditionalBranch(
+      predicate_id,
+      condition ? &predicated_block : cf_instruction_predicate_merge_,
+      condition ? cf_instruction_predicate_merge_ : &predicated_block);
+  builder_->setBuildPoint(&predicated_block);
+}
+
 void SpirvShaderTranslator::CloseInstructionPredication() {
   if (!cf_instruction_predicate_merge_) {
     return;

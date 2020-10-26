@@ -66,6 +66,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
       const ParsedLoopEndInstruction& instr) override;
   void ProcessJumpInstruction(const ParsedJumpInstruction& instr) override;
 
+  void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
+
  private:
   // TODO(Triang3l): Depth-only pixel shader.
   bool IsSpirvVertexOrTessEvalShader() const { return is_vertex_shader(); }
@@ -96,6 +98,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // needed (for example, in jumps).
   void UpdateExecConditionals(ParsedExecInstruction::Type type,
                               uint32_t bool_constant_index, bool condition);
+  // Opens or reopens the predicate check conditional for the instruction.
+  // Should be called before processing a non-control-flow instruction.
+  void UpdateInstructionPredication(bool predicated, bool condition);
   // Closes the instruction-level predicate conditional if it's open, useful if
   // a control flow instruction needs to do some code which needs to respect the
   // current exec conditional, but can't itself be predicated.
