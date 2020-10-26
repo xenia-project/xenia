@@ -137,14 +137,21 @@ static_assert_size(X_USER_READ_PROFILE_SETTING, 40);
 
 // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/xboxtools.cpp
 uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
-                                        uint32_t xuid_count, lpvoid_t xuids_ptr,
+                                        uint32_t xuid_count, lpqword_t xuids,
                                         uint32_t setting_count,
                                         lpdword_t setting_ids, uint32_t unk,
                                         lpdword_t buffer_size_ptr,
                                         lpvoid_t buffer_ptr,
                                         uint32_t overlapped_ptr) {
-  assert_zero(xuid_count);
-  assert_zero(xuids_ptr.value());
+  if (!xuid_count) {
+    assert_null(xuids);
+  } else {
+    assert_true(xuid_count == 1);
+    assert_not_null(xuids);
+    // TODO(gibbed): allow proper lookup of arbitrary XUIDs
+    const auto& user_profile = kernel_state()->user_profile();
+    assert_true(static_cast<uint64_t>(xuids[0]) == user_profile->xuid());
+  }
   assert_zero(unk);
 
   // must have at least 1 to 32 settings
@@ -180,7 +187,7 @@ uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
       }
     }
   }
-  if (xuids_ptr) {
+  if (xuids) {
     // needed_header_size *= xuid_count;
     // needed_extra_size *= !xuid_count;
   }
@@ -276,22 +283,21 @@ uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
 }
 
 dword_result_t XamUserReadProfileSettings(
-    dword_t title_id, dword_t user_index, dword_t xuid_count,
-    lpvoid_t xuids_ptr, dword_t setting_count, lpdword_t setting_ids,
-    lpdword_t buffer_size_ptr, lpvoid_t buffer_ptr, dword_t overlapped_ptr) {
+    dword_t title_id, dword_t user_index, dword_t xuid_count, lpqword_t xuids,
+    dword_t setting_count, lpdword_t setting_ids, lpdword_t buffer_size_ptr,
+    lpvoid_t buffer_ptr, dword_t overlapped_ptr) {
   return xeXamUserReadProfileSettingsEx(
-      title_id, user_index, xuid_count, xuids_ptr, setting_count, setting_ids,
-      0, buffer_size_ptr, buffer_ptr, overlapped_ptr);
+      title_id, user_index, xuid_count, xuids, setting_count, setting_ids, 0,
+      buffer_size_ptr, buffer_ptr, overlapped_ptr);
 }
 DECLARE_XAM_EXPORT1(XamUserReadProfileSettings, kUserProfiles, kImplemented);
 
 dword_result_t XamUserReadProfileSettingsEx(
-    dword_t title_id, dword_t user_index, dword_t xuid_count,
-    lpvoid_t xuids_ptr, dword_t setting_count, lpdword_t setting_ids,
-    lpdword_t buffer_size_ptr, dword_t unk_2, lpvoid_t buffer_ptr,
-    dword_t overlapped_ptr) {
+    dword_t title_id, dword_t user_index, dword_t xuid_count, lpqword_t xuids,
+    dword_t setting_count, lpdword_t setting_ids, lpdword_t buffer_size_ptr,
+    dword_t unk_2, lpvoid_t buffer_ptr, dword_t overlapped_ptr) {
   return xeXamUserReadProfileSettingsEx(
-      title_id, user_index, xuid_count, xuids_ptr, setting_count, setting_ids,
+      title_id, user_index, xuid_count, xuids, setting_count, setting_ids,
       unk_2, buffer_size_ptr, buffer_ptr, overlapped_ptr);
 }
 DECLARE_XAM_EXPORT1(XamUserReadProfileSettingsEx, kUserProfiles, kImplemented);
