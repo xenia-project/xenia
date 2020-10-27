@@ -29,6 +29,10 @@ void SpirvShaderTranslator::Reset() {
 
   builder_.reset();
 
+  uniform_float_constants_ = spv::NoResult;
+
+  var_main_registers_ = spv::NoResult;
+
   main_switch_op_.reset();
   main_switch_next_pc_phi_operands_.clear();
 
@@ -85,15 +89,42 @@ void SpirvShaderTranslator::StartTranslation() {
   const_float4_0_ =
       builder_->makeCompositeConstant(type_float4_, id_vector_temp_);
 
+  // Common uniform buffer - float constants.
+  uint32_t float_constant_count = constant_register_map().float_count;
+  if (float_constant_count) {
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(1);
+    id_vector_temp_.push_back(builder_->makeArrayType(
+        type_float4_, builder_->makeUintConstant(float_constant_count),
+        sizeof(float) * 4));
+    // Currently (as of October 24, 2020) makeArrayType only uses the stride to
+    // check if deduplication can be done - the array stride decoration needs to
+    // be applied explicitly.
+    builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
+                            sizeof(float) * 4);
+    spv::Id type_float_constants =
+        builder_->makeStructType(id_vector_temp_, "XeFloatConstants");
+    builder_->addMemberName(type_float_constants, 0, "float_constants");
+    builder_->addMemberDecoration(type_float_constants, 0,
+                                  spv::DecorationOffset, 0);
+    builder_->addDecoration(type_float_constants, spv::DecorationBlock);
+    uniform_float_constants_ = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassUniform, type_float_constants,
+        "xe_uniform_float_constants");
+    builder_->addDecoration(
+        uniform_float_constants_, spv::DecorationDescriptorSet,
+        int(IsSpirvFragmentShader() ? kDescriptorSetFloatConstantsPixel
+                                    : kDescriptorSetFloatConstantsVertex));
+    builder_->addDecoration(uniform_float_constants_, spv::DecorationBinding,
+                            0);
+  }
+
   // Common uniform buffer - bool and loop constants.
   id_vector_temp_.clear();
   id_vector_temp_.reserve(2);
   // 256 bool constants.
   id_vector_temp_.push_back(builder_->makeArrayType(
       type_uint4_, builder_->makeUintConstant(2), sizeof(uint32_t) * 4));
-  // Currently (as of October 24, 2020) makeArrayType only uses the stride to
-  // check if deduplication can be done - the array stride decoration needs to
-  // be applied explicitly.
   builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
                           sizeof(uint32_t) * 4);
   // 32 loop constants.
@@ -188,7 +219,7 @@ void SpirvShaderTranslator::StartTranslation() {
   // Main loop header - based on whether it's the first iteration (entered from
   // the function or from the continuation), choose the program counter.
   builder_->setBuildPoint(main_loop_header_);
-  spv::Id main_loop_pc_current = 0;
+  spv::Id main_loop_pc_current = spv::NoResult;
   if (has_main_switch) {
     // OpPhi must be the first in the block.
     id_vector_temp_.clear();
@@ -706,13 +737,22 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
       builder_->makeStructType(struct_per_vertex_members, "gl_PerVertex");
   builder_->addMemberDecoration(type_struct_per_vertex,
                                 kOutputPerVertexMemberPosition,
+                                spv::DecorationInvariant);
+  builder_->addMemberDecoration(type_struct_per_vertex,
+                                kOutputPerVertexMemberPosition,
                                 spv::DecorationBuiltIn, spv::BuiltInPosition);
   builder_->addMemberDecoration(type_struct_per_vertex,
                                 kOutputPerVertexMemberPointSize,
                                 spv::DecorationBuiltIn, spv::BuiltInPointSize);
+  builder_->addMemberDecoration(type_struct_per_vertex,
+                                kOutputPerVertexMemberClipDistance,
+                                spv::DecorationInvariant);
   builder_->addMemberDecoration(
       type_struct_per_vertex, kOutputPerVertexMemberClipDistance,
       spv::DecorationBuiltIn, spv::BuiltInClipDistance);
+  builder_->addMemberDecoration(type_struct_per_vertex,
+                                kOutputPerVertexMemberCullDistance,
+                                spv::DecorationInvariant);
   builder_->addMemberDecoration(
       type_struct_per_vertex, kOutputPerVertexMemberCullDistance,
       spv::DecorationBuiltIn, spv::BuiltInCullDistance);
@@ -900,6 +940,133 @@ void SpirvShaderTranslator::CloseExecConditionals() {
   }
   // Nothing relies on the predicate value being unchanged now.
   cf_exec_predicate_written_ = false;
+}
+
+spv::Id SpirvShaderTranslator::GetStorageAddressingIndex(
+    InstructionStorageAddressingMode addressing_mode, uint32_t storage_index) {
+  EnsureBuildPointAvailable();
+  spv::Id base_pointer = spv::NoResult;
+  switch (addressing_mode) {
+    case InstructionStorageAddressingMode::kStatic:
+      return builder_->makeIntConstant(int(storage_index));
+    case InstructionStorageAddressingMode::kAddressAbsolute:
+      base_pointer = var_main_address_absolute_;
+      break;
+    case InstructionStorageAddressingMode::kAddressRelative:
+      // Load X component.
+      id_vector_temp_util_.clear();
+      id_vector_temp_util_.reserve(1);
+      id_vector_temp_util_.push_back(const_int_0_);
+      base_pointer = builder_->createAccessChain(spv::StorageClassFunction,
+                                                 var_main_address_relative_,
+                                                 id_vector_temp_util_);
+      break;
+  }
+  assert_not_zero(base_pointer);
+  spv::Id index = builder_->createLoad(base_pointer, spv::NoPrecision);
+  if (storage_index) {
+    index =
+        builder_->createBinOp(spv::OpIAdd, type_int_, index,
+                              builder_->makeIntConstant(int(storage_index)));
+  }
+  return index;
+}
+
+spv::Id SpirvShaderTranslator::LoadOperandStorage(
+    const InstructionOperand& operand) {
+  spv::Id index = GetStorageAddressingIndex(operand.storage_addressing_mode,
+                                            operand.storage_index);
+  EnsureBuildPointAvailable();
+  spv::Id vec4_pointer = spv::NoResult;
+  switch (operand.storage_source) {
+    case InstructionStorageSource::kRegister:
+      assert_not_zero(var_main_registers_);
+      id_vector_temp_util_.clear();
+      id_vector_temp_util_.reserve(1);
+      // Array element.
+      id_vector_temp_util_.push_back(index);
+      vec4_pointer = builder_->createAccessChain(
+          spv::StorageClassFunction, var_main_registers_, id_vector_temp_util_);
+      break;
+    case InstructionStorageSource::kConstantFloat:
+      assert_not_zero(uniform_float_constants_);
+      id_vector_temp_util_.clear();
+      id_vector_temp_util_.reserve(2);
+      // The first and the only structure member.
+      id_vector_temp_util_.push_back(const_int_0_);
+      // Array element.
+      id_vector_temp_util_.push_back(index);
+      vec4_pointer = builder_->createAccessChain(spv::StorageClassUniform,
+                                                 uniform_float_constants_,
+                                                 id_vector_temp_util_);
+      break;
+    default:
+      assert_unhandled_case(operand.storage_source);
+  }
+  assert_not_zero(vec4_pointer);
+  return builder_->createLoad(vec4_pointer, spv::NoPrecision);
+}
+
+spv::Id SpirvShaderTranslator::ApplyOperandModifiers(
+    spv::Id operand_value, const InstructionOperand& original_operand,
+    bool invert_negate, bool force_absolute) {
+  spv::Id type = builder_->getTypeId(operand_value);
+  assert_true(type != spv::NoType);
+  if (type == spv::NoType) {
+    return operand_value;
+  }
+  if (original_operand.is_absolute_value || force_absolute) {
+    EnsureBuildPointAvailable();
+    id_vector_temp_util_.clear();
+    id_vector_temp_util_.reserve(1);
+    id_vector_temp_util_.push_back(operand_value);
+    operand_value = builder_->createBuiltinCall(
+        type, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_util_);
+  }
+  if (original_operand.is_negated != invert_negate) {
+    EnsureBuildPointAvailable();
+    operand_value =
+        builder_->createUnaryOp(spv::OpFNegate, type, operand_value);
+    builder_->addDecoration(operand_value, spv::DecorationNoContraction);
+  }
+  return operand_value;
+}
+
+spv::Id SpirvShaderTranslator::GetUnmodifiedOperandComponents(
+    spv::Id operand_storage, const InstructionOperand& original_operand,
+    uint32_t components) {
+  assert_not_zero(components);
+  if (!components) {
+    return spv::NoResult;
+  }
+  assert_true(components <= 0b1111);
+  if (components == 0b1111 && original_operand.IsStandardSwizzle()) {
+    return operand_storage;
+  }
+  EnsureBuildPointAvailable();
+  uint32_t component_count = xe::bit_count(components);
+  if (component_count == 1) {
+    uint32_t scalar_index;
+    xe::bit_scan_forward(components, &scalar_index);
+    return builder_->createCompositeExtract(
+        operand_storage, type_float_,
+        static_cast<unsigned int>(original_operand.GetComponent(scalar_index)) -
+            static_cast<unsigned int>(SwizzleSource::kX));
+  }
+  id_vector_temp_util_.clear();
+  id_vector_temp_util_.reserve(component_count);
+  uint32_t components_remaining = components;
+  uint32_t component_index;
+  while (xe::bit_scan_forward(components_remaining, &component_index)) {
+    components_remaining &= ~(uint32_t(1) << component_index);
+    id_vector_temp_util_.push_back(
+        static_cast<unsigned int>(
+            original_operand.GetComponent(component_index)) -
+        static_cast<unsigned int>(SwizzleSource::kX));
+  }
+  return builder_->createRvalueSwizzle(spv::NoPrecision,
+                                       type_float_vectors_[component_count - 1],
+                                       operand_storage, id_vector_temp_util_);
 }
 
 }  // namespace gpu

@@ -81,9 +81,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
   }
   bool IsSpirvFragmentShader() const { return is_pixel_shader(); }
 
-  // Must be called before emitting any non-control-flow SPIR-V operations in
-  // translator callback to ensure that if the last instruction added was
-  // something like OpBranch - in this case, an unreachable block is created.
+  // Must be called before emitting any SPIR-V operations that must be in a
+  // block in translator callbacks to ensure that if the last instruction added
+  // was something like OpBranch - in this case, an unreachable block is
+  // created.
   void EnsureBuildPointAvailable();
 
   void StartVertexOrTessEvalShaderBeforeMain();
@@ -109,12 +110,47 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // labels) and updates the state accordingly.
   void CloseExecConditionals();
 
+  spv::Id GetStorageAddressingIndex(
+      InstructionStorageAddressingMode addressing_mode, uint32_t storage_index);
+  // Loads unswizzled operand without sign modifiers as float4.
+  spv::Id LoadOperandStorage(const InstructionOperand& operand);
+  spv::Id ApplyOperandModifiers(spv::Id operand_value,
+                                const InstructionOperand& original_operand,
+                                bool invert_negate = false,
+                                bool force_absolute = false);
+  // Returns the requested components, with the operand's swizzle applied, in a
+  // condensed form, but without negation / absolute value modifiers. The
+  // storage is float4, no matter what the component count of original_operand
+  // is (the storage will be either r# or c#, but the instruction may be
+  // scalar).
+  spv::Id GetUnmodifiedOperandComponents(
+      spv::Id operand_storage, const InstructionOperand& original_operand,
+      uint32_t components);
+  spv::Id GetOperandComponents(spv::Id operand_storage,
+                               const InstructionOperand& original_operand,
+                               uint32_t components, bool invert_negate = false,
+                               bool force_absolute = false) {
+    return ApplyOperandModifiers(
+        GetUnmodifiedOperandComponents(operand_storage, original_operand,
+                                       components),
+        original_operand, invert_negate, force_absolute);
+  }
+
+  // Return type is a float vector of xe::bit_count(result.GetUsedWriteMask())
+  // or a single float, depending on whether it's a reduction instruction (check
+  // getTypeId of the result), or returns spv::NoResult if nothing to store.
+  spv::Id ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+                                    bool& predicate_written);
+
   bool supports_clip_distance_;
   bool supports_cull_distance_;
 
   std::unique_ptr<spv::Builder> builder_;
 
   std::vector<spv::Id> id_vector_temp_;
+  // For helper functions like operand loading, so they don't conflict with
+  // id_vector_temp_ usage in bigger callbacks.
+  std::vector<spv::Id> id_vector_temp_util_;
   std::vector<unsigned int> uint_vector_temp_;
 
   spv::Id ext_inst_glsl_std_450_;
@@ -126,10 +162,16 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id type_uint_;
   spv::Id type_uint3_;
   spv::Id type_uint4_;
-  spv::Id type_float_;
-  spv::Id type_float2_;
-  spv::Id type_float3_;
-  spv::Id type_float4_;
+  union {
+    struct {
+      spv::Id type_float_;
+      spv::Id type_float2_;
+      spv::Id type_float3_;
+      spv::Id type_float4_;
+    };
+    // Index = component count - 1.
+    spv::Id type_float_vectors_[4];
+  };
 
   spv::Id const_int_0_;
   spv::Id const_int4_0_;
@@ -138,6 +180,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id const_float_0_;
   spv::Id const_float4_0_;
 
+  spv::Id uniform_float_constants_;
   spv::Id uniform_bool_loop_constants_;
 
   // VS as VS only - int.
