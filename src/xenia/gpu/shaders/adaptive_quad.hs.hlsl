@@ -39,11 +39,13 @@ XeHSConstantDataOutput XePatchConstant(
         xe_tessellation_factor_range.x, xe_tessellation_factor_range.y);
   }
 
+  // On the Xbox 360, according to the presentation, the inside factor is the
+  // minimum of the factors of the edges along the axis.
   // Direct3D 12:
   // [0] - along U.
   // [1] - along V.
-  output.inside[0u] = min(output.edges[0u], output.edges[2u]);
-  output.inside[1u] = min(output.edges[1u], output.edges[3u]);
+  output.inside[0u] = min(output.edges[1u], output.edges[3u]);
+  output.inside[1u] = min(output.edges[0u], output.edges[2u]);
 
   return output;
 }

@@ -42,15 +42,19 @@ DECLARE_XAM_EXPORT1(XamNotifyCreateListener, kNone, kImplemented);
 // https://github.com/CodeAsm/ffplay360/blob/master/Common/AtgSignIn.cpp
 dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
                               lpdword_t id_ptr, lpdword_t param_ptr) {
-  if (!handle) {
-    return 0;
+  if (param_ptr) {
+    *param_ptr = 0;
   }
 
+  if (!id_ptr) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+  *id_ptr = 0;
   // Grab listener.
   auto listener =
       kernel_state()->object_table()->LookupObject<XNotifyListener>(handle);
   if (!listener) {
-    return 0;
+    return X_ERROR_INVALID_HANDLE;
   }
 
   bool dequeued = false;
@@ -65,21 +69,13 @@ dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
     dequeued = listener->DequeueNotification(&id, &param);
   }
 
+  *id_ptr = dequeued ? id : 0;
   // param_ptr may be null - Ghost Recon Advanced Warfighter 2 Demo explicitly
   // passes nullptr in the code.
   // https://github.com/xenia-project/xenia/pull/1577
-  if (dequeued) {
-    *id_ptr = id;
-    if (param_ptr) {
-      *param_ptr = param;
-    }
-  } else {
-    *id_ptr = 0;
-    if (param_ptr) {
-      *param_ptr = 0;
-    }
+  if (param_ptr) {
+    *param_ptr = dequeued ? param : 0;
   }
-
   return dequeued ? 1 : 0;
 }
 DECLARE_XAM_EXPORT2(XNotifyGetNext, kNone, kImplemented, kHighFrequency);
