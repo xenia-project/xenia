@@ -127,8 +127,9 @@ dcl_output_siv o5.x, finalQuadVInsideTessFactor
 dcl_temps 1
 dcl_indexrange o4.x 2
 dcl_indexrange vpc0.x 4
-mov r0.x, vJoinInstanceID.x
-min r0.y, vpc[r0.x + 0].x, vpc[r0.x + 2].x
-mov o[r0.x + 4].x, r0.y
+iadd r0.x, -vJoinInstanceID.x, l(1)
+min r0.x, vpc[r0.x + 0].x, vpc[r0.x + 2].x
+mov r0.y, vJoinInstanceID.x
+mov o[r0.y + 4].x, r0.x
 ret 
-// Approximately 14 instruction slots used
+// Approximately 15 instruction slots used
