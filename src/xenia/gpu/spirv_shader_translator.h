@@ -135,10 +135,16 @@ class SpirvShaderTranslator : public ShaderTranslator {
                                        components),
         original_operand, invert_negate, force_absolute);
   }
+  // The type of the value must be a float vector consisting of
+  // xe::bit_count(result.GetUsedResultComponents()) elements, or (to replicate
+  // a scalar into all used components) float, or the value can be spv::NoResult
+  // if there's no result to store (like constants only).
+  void StoreResult(const InstructionResult& result, spv::Id value);
 
-  // Return type is a float vector of xe::bit_count(result.GetUsedWriteMask())
-  // or a single float, depending on whether it's a reduction instruction (check
-  // getTypeId of the result), or returns spv::NoResult if nothing to store.
+  // Return type is a xe::bit_count(result.GetUsedResultComponents())-component
+  // float vector or a single float, depending on whether it's a reduction
+  // instruction (check getTypeId of the result), or returns spv::NoResult if
+  // nothing to store.
   spv::Id ProcessVectorAluOperation(const ParsedAluInstruction& instr,
                                     bool& predicate_written);
 
@@ -152,6 +158,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // id_vector_temp_ usage in bigger callbacks.
   std::vector<spv::Id> id_vector_temp_util_;
   std::vector<unsigned int> uint_vector_temp_;
+  std::vector<unsigned int> uint_vector_temp_util_;
 
   spv::Id ext_inst_glsl_std_450_;
 
@@ -177,8 +184,27 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id const_int4_0_;
   spv::Id const_uint_0_;
   spv::Id const_uint4_0_;
-  spv::Id const_float_0_;
-  spv::Id const_float4_0_;
+  union {
+    struct {
+      spv::Id const_float_0_;
+      spv::Id const_float2_0_;
+      spv::Id const_float3_0_;
+      spv::Id const_float4_0_;
+    };
+    spv::Id const_float_vectors_0_[4];
+  };
+  union {
+    struct {
+      spv::Id const_float_1_;
+      spv::Id const_float2_1_;
+      spv::Id const_float3_1_;
+      spv::Id const_float4_1_;
+    };
+    spv::Id const_float_vectors_1_[4];
+  };
+  // vec2(0.0, 1.0), to arbitrarily VectorShuffle non-constant and constant
+  // components.
+  spv::Id const_float2_0_1_;
 
   spv::Id uniform_float_constants_;
   spv::Id uniform_bool_loop_constants_;

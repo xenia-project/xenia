@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/spirv_shader_translator.h"
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -83,17 +84,32 @@ void SpirvShaderTranslator::StartTranslation() {
   const_float_0_ = builder_->makeFloatConstant(0.0f);
   id_vector_temp_.clear();
   id_vector_temp_.reserve(4);
-  for (uint32_t i = 0; i < 4; ++i) {
+  id_vector_temp_.push_back(const_float_0_);
+  for (uint32_t i = 1; i < 4; ++i) {
     id_vector_temp_.push_back(const_float_0_);
+    const_float_vectors_0_[i] = builder_->makeCompositeConstant(
+        type_float_vectors_[i], id_vector_temp_);
   }
-  const_float4_0_ =
-      builder_->makeCompositeConstant(type_float4_, id_vector_temp_);
+  const_float_1_ = builder_->makeFloatConstant(1.0f);
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(4);
+  id_vector_temp_.push_back(const_float_1_);
+  for (uint32_t i = 1; i < 4; ++i) {
+    id_vector_temp_.push_back(const_float_1_);
+    const_float_vectors_1_[i] = builder_->makeCompositeConstant(
+        type_float_vectors_[i], id_vector_temp_);
+  }
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(2);
+  id_vector_temp_.push_back(const_float_0_);
+  id_vector_temp_.push_back(const_float_1_);
+  const_float2_0_1_ =
+      builder_->makeCompositeConstant(type_float2_, id_vector_temp_);
 
   // Common uniform buffer - float constants.
   uint32_t float_constant_count = constant_register_map().float_count;
   if (float_constant_count) {
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(1);
     id_vector_temp_.push_back(builder_->makeArrayType(
         type_float4_, builder_->makeUintConstant(float_constant_count),
         sizeof(float) * 4));
@@ -120,6 +136,9 @@ void SpirvShaderTranslator::StartTranslation() {
   }
 
   // Common uniform buffer - bool and loop constants.
+  // Uniform buffers must have std140 packing, so using arrays of 4-component
+  // vectors instead of scalar arrays because the latter would have padding to
+  // 16 bytes in each element.
   id_vector_temp_.clear();
   id_vector_temp_.reserve(2);
   // 256 bool constants.
@@ -653,8 +672,6 @@ void SpirvShaderTranslator::ProcessLoopEndInstruction(
   builder_->createStore(
       builder_->createCompositeConstruct(type_int4_, id_vector_temp_),
       var_main_address_relative_);
-  id_vector_temp_.clear();
-  id_vector_temp_.reserve(4);
   // Now going to fall through to the next control flow instruction.
 }
 
@@ -955,14 +972,13 @@ spv::Id SpirvShaderTranslator::GetStorageAddressingIndex(
     case InstructionStorageAddressingMode::kAddressRelative:
       // Load X component.
       id_vector_temp_util_.clear();
-      id_vector_temp_util_.reserve(1);
       id_vector_temp_util_.push_back(const_int_0_);
       base_pointer = builder_->createAccessChain(spv::StorageClassFunction,
                                                  var_main_address_relative_,
                                                  id_vector_temp_util_);
       break;
   }
-  assert_not_zero(base_pointer);
+  assert_true(base_pointer != spv::NoResult);
   spv::Id index = builder_->createLoad(base_pointer, spv::NoPrecision);
   if (storage_index) {
     index =
@@ -980,16 +996,15 @@ spv::Id SpirvShaderTranslator::LoadOperandStorage(
   spv::Id vec4_pointer = spv::NoResult;
   switch (operand.storage_source) {
     case InstructionStorageSource::kRegister:
-      assert_not_zero(var_main_registers_);
+      assert_true(var_main_registers_ != spv::NoResult);
       id_vector_temp_util_.clear();
-      id_vector_temp_util_.reserve(1);
       // Array element.
       id_vector_temp_util_.push_back(index);
       vec4_pointer = builder_->createAccessChain(
           spv::StorageClassFunction, var_main_registers_, id_vector_temp_util_);
       break;
     case InstructionStorageSource::kConstantFloat:
-      assert_not_zero(uniform_float_constants_);
+      assert_true(uniform_float_constants_ != spv::NoResult);
       id_vector_temp_util_.clear();
       id_vector_temp_util_.reserve(2);
       // The first and the only structure member.
@@ -1003,7 +1018,7 @@ spv::Id SpirvShaderTranslator::LoadOperandStorage(
     default:
       assert_unhandled_case(operand.storage_source);
   }
-  assert_not_zero(vec4_pointer);
+  assert_true(vec4_pointer != spv::NoResult);
   return builder_->createLoad(vec4_pointer, spv::NoPrecision);
 }
 
@@ -1018,7 +1033,6 @@ spv::Id SpirvShaderTranslator::ApplyOperandModifiers(
   if (original_operand.is_absolute_value || force_absolute) {
     EnsureBuildPointAvailable();
     id_vector_temp_util_.clear();
-    id_vector_temp_util_.reserve(1);
     id_vector_temp_util_.push_back(operand_value);
     operand_value = builder_->createBuiltinCall(
         type, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_util_);
@@ -1067,6 +1081,278 @@ spv::Id SpirvShaderTranslator::GetUnmodifiedOperandComponents(
   return builder_->createRvalueSwizzle(spv::NoPrecision,
                                        type_float_vectors_[component_count - 1],
                                        operand_storage, id_vector_temp_util_);
+}
+
+void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
+                                        spv::Id value) {
+  uint32_t used_write_mask = result.GetUsedWriteMask();
+  if (!used_write_mask) {
+    return;
+  }
+
+  EnsureBuildPointAvailable();
+
+  spv::Id target_pointer = spv::NoResult;
+  switch (result.storage_target) {
+    case InstructionStorageTarget::kNone:
+      break;
+    case InstructionStorageTarget::kRegister: {
+      assert_true(var_main_registers_ != spv::NoResult);
+      // Must call GetStorageAddressingIndex first because of
+      // id_vector_temp_util_ usage in it.
+      spv::Id register_index = GetStorageAddressingIndex(
+          result.storage_addressing_mode, result.storage_index);
+      id_vector_temp_util_.clear();
+      // Array element.
+      id_vector_temp_util_.push_back(register_index);
+      target_pointer = builder_->createAccessChain(
+          spv::StorageClassFunction, var_main_registers_, id_vector_temp_util_);
+    } break;
+    case InstructionStorageTarget::kPosition:
+      assert_true(IsSpirvVertexOrTessEvalShader());
+      id_vector_temp_util_.clear();
+      id_vector_temp_util_.push_back(
+          builder_->makeIntConstant(kOutputPerVertexMemberPosition));
+      target_pointer = builder_->createAccessChain(
+          spv::StorageClassOutput, output_per_vertex_, id_vector_temp_util_);
+      break;
+    default:
+      // TODO(Triang3l): All storage targets.
+      break;
+  }
+  if (target_pointer == spv::NoResult) {
+    return;
+  }
+
+  uint32_t constant_values;
+  uint32_t constant_components =
+      result.GetUsedConstantComponents(constant_values);
+  if (value == spv::NoResult) {
+    // The instruction processing function decided that nothing useful needs to
+    // be stored for some reason, however, some components still need to be
+    // written on the guest side - fill them with zeros.
+    constant_components = used_write_mask;
+  }
+  uint32_t non_constant_components = used_write_mask & ~constant_components;
+
+  unsigned int value_num_components =
+      value != spv::NoResult
+          ? static_cast<unsigned int>(builder_->getNumComponents(value))
+          : 0;
+
+  if (result.is_clamped && non_constant_components) {
+    // Apply the saturation modifier to the result.
+    id_vector_temp_util_.clear();
+    id_vector_temp_util_.reserve(3);
+    id_vector_temp_util_.push_back(value);
+    id_vector_temp_util_.push_back(
+        const_float_vectors_0_[value_num_components - 1]);
+    id_vector_temp_util_.push_back(
+        const_float_vectors_1_[value_num_components - 1]);
+    value = builder_->createBuiltinCall(
+        type_float_vectors_[value_num_components - 1], ext_inst_glsl_std_450_,
+        GLSLstd450NClamp, id_vector_temp_util_);
+  }
+
+  // The value contains either result.GetUsedResultComponents() in a condensed
+  // way, or a scalar to be replicated. Decompress them to create a mapping from
+  // guest result components to the ones in the value vector.
+  uint32_t used_result_components = result.GetUsedResultComponents();
+  unsigned int result_unswizzled_value_components[4] = {};
+  if (value_num_components > 1) {
+    unsigned int value_component = 0;
+    uint32_t used_result_components_remaining = used_result_components;
+    uint32_t result_component;
+    while (xe::bit_scan_forward(used_result_components_remaining,
+                                &result_component)) {
+      used_result_components_remaining &= ~(1 << result_component);
+      result_unswizzled_value_components[result_component] =
+          std::min(value_component++, value_num_components - 1);
+    }
+  }
+
+  // Get swizzled mapping of non-constant components to the components of
+  // `value`.
+  unsigned int result_swizzled_value_components[4] = {};
+  for (uint32_t i = 0; i < 4; ++i) {
+    if (!(non_constant_components & (1 << i))) {
+      continue;
+    }
+    SwizzleSource swizzle = result.components[i];
+    assert_true(swizzle >= SwizzleSource::kX && swizzle <= SwizzleSource::kW);
+    result_swizzled_value_components[i] =
+        result_unswizzled_value_components[uint32_t(swizzle) -
+                                           uint32_t(SwizzleSource::kX)];
+  }
+
+  spv::Id target_type = builder_->getDerefTypeId(target_pointer);
+  unsigned int target_num_components =
+      builder_->getNumTypeComponents(target_type);
+  assert_true(
+      target_num_components ==
+      GetInstructionStorageTargetUsedComponentCount(result.storage_target));
+  uint32_t target_component_mask = (1 << target_num_components) - 1;
+  assert_zero(used_write_mask & ~target_component_mask);
+
+  spv::Id value_to_store;
+  if (target_component_mask == used_write_mask) {
+    // All components are overwritten - no need to load the original value.
+    // Possible cases:
+    // * Non-constants only.
+    //   * Vector target.
+    //     * Vector source.
+    //       * Identity swizzle - store directly.
+    //       * Non-identity swizzle - shuffle.
+    //     * Scalar source - smear.
+    //   * Scalar target.
+    //     * Vector source - extract.
+    //     * Scalar source - store directly.
+    // * Constants only.
+    //   * Vector target - make composite constant.
+    //   * Scalar target - store directly.
+    // * Mixed non-constants and constants (only for vector targets - scalar
+    //   targets fully covered by the previous cases).
+    //   * Vector source - shuffle with {0, 1} also applying swizzle.
+    //   * Scalar source - construct composite.
+    if (!constant_components) {
+      if (target_num_components > 1) {
+        if (value_num_components > 1) {
+          // Non-constants only - vector target, vector source.
+          bool is_identity_swizzle =
+              target_num_components == value_num_components;
+          for (uint32_t i = 0; is_identity_swizzle && i < target_num_components;
+               ++i) {
+            is_identity_swizzle &= result_swizzled_value_components[i] == i;
+          }
+          if (is_identity_swizzle) {
+            value_to_store = value;
+          } else {
+            uint_vector_temp_util_.clear();
+            uint_vector_temp_util_.reserve(target_num_components);
+            uint_vector_temp_util_.insert(
+                uint_vector_temp_util_.cend(), result_swizzled_value_components,
+                result_swizzled_value_components + target_num_components);
+            value_to_store = builder_->createRvalueSwizzle(
+                spv::NoPrecision, target_type, value, uint_vector_temp_util_);
+          }
+        } else {
+          // Non-constants only - vector target, scalar source.
+          value_to_store =
+              builder_->smearScalar(spv::NoPrecision, value, target_type);
+        }
+      } else {
+        if (value_num_components > 1) {
+          // Non-constants only - scalar target, vector source.
+          value_to_store = builder_->createCompositeExtract(
+              value, type_float_, result_swizzled_value_components[0]);
+        } else {
+          // Non-constants only - scalar target, scalar source.
+          value_to_store = value;
+        }
+      }
+    } else if (!non_constant_components) {
+      if (target_num_components > 1) {
+        // Constants only - vector target.
+        id_vector_temp_util_.clear();
+        id_vector_temp_util_.reserve(target_num_components);
+        for (uint32_t i = 0; i < target_num_components; ++i) {
+          id_vector_temp_util_.push_back(
+              (constant_values & (1 << i)) ? const_float_1_ : const_float_0_);
+        }
+        value_to_store =
+            builder_->makeCompositeConstant(target_type, id_vector_temp_util_);
+      } else {
+        // Constants only - scalar target.
+        value_to_store =
+            (constant_values & 0b0001) ? const_float_1_ : const_float_0_;
+      }
+    } else {
+      assert_true(target_num_components > 1);
+      if (value_num_components > 1) {
+        // Mixed non-constants and constants - vector source.
+        value_to_store = builder_->getUniqueId();
+        std::unique_ptr<spv::Instruction> shuffle_op =
+            std::make_unique<spv::Instruction>(value_to_store, target_type,
+                                               spv::OpVectorShuffle);
+        shuffle_op->addIdOperand(value);
+        shuffle_op->addIdOperand(const_float2_0_1_);
+        for (uint32_t i = 0; i < target_num_components; ++i) {
+          shuffle_op->addImmediateOperand(
+              (constant_components & (1 << i))
+                  ? value_num_components + ((constant_values >> i) & 1)
+                  : result_swizzled_value_components[i]);
+        }
+        builder_->getBuildPoint()->addInstruction(std::move(shuffle_op));
+      } else {
+        // Mixed non-constants and constants - scalar source.
+        id_vector_temp_util_.clear();
+        id_vector_temp_util_.reserve(target_num_components);
+        for (uint32_t i = 0; i < target_num_components; ++i) {
+          if (constant_components & (1 << i)) {
+            id_vector_temp_util_.push_back(
+                (constant_values & (1 << i)) ? const_float_1_ : const_float_0_);
+          } else {
+            id_vector_temp_util_.push_back(value);
+          }
+        }
+        value_to_store = builder_->createCompositeConstruct(
+            target_type, id_vector_temp_util_);
+      }
+    }
+  } else {
+    // Only certain components are overwritten.
+    // Scalar targets are always overwritten fully, can't reach this case for
+    // them.
+    assert_true(target_num_components > 1);
+    value_to_store = builder_->createLoad(target_pointer, spv::NoPrecision);
+    // Two steps:
+    // 1) Insert constants by shuffling (first so dependency chain of step 2 is
+    //    simpler if constants are written first).
+    // 2) Insert value components - via shuffling for vector source, via
+    //    composite inserts for scalar value.
+    if (constant_components) {
+      spv::Id shuffle_result = builder_->getUniqueId();
+      std::unique_ptr<spv::Instruction> shuffle_op =
+          std::make_unique<spv::Instruction>(shuffle_result, target_type,
+                                             spv::OpVectorShuffle);
+      shuffle_op->addIdOperand(value_to_store);
+      shuffle_op->addIdOperand(const_float2_0_1_);
+      for (uint32_t i = 0; i < target_num_components; ++i) {
+        shuffle_op->addImmediateOperand((constant_components & (1 << i))
+                                            ? target_num_components +
+                                                  ((constant_values >> i) & 1)
+                                            : i);
+      }
+      builder_->getBuildPoint()->addInstruction(std::move(shuffle_op));
+      value_to_store = shuffle_result;
+    }
+    if (non_constant_components) {
+      if (value_num_components > 1) {
+        spv::Id shuffle_result = builder_->getUniqueId();
+        std::unique_ptr<spv::Instruction> shuffle_op =
+            std::make_unique<spv::Instruction>(shuffle_result, target_type,
+                                               spv::OpVectorShuffle);
+        shuffle_op->addIdOperand(value_to_store);
+        shuffle_op->addIdOperand(value);
+        for (uint32_t i = 0; i < target_num_components; ++i) {
+          shuffle_op->addImmediateOperand(
+              (non_constant_components & (1 << i))
+                  ? target_num_components + result_swizzled_value_components[i]
+                  : i);
+        }
+        builder_->getBuildPoint()->addInstruction(std::move(shuffle_op));
+        value_to_store = shuffle_result;
+      } else {
+        for (uint32_t i = 0; i < target_num_components; ++i) {
+          if (non_constant_components & (1 << i)) {
+            value_to_store = builder_->createCompositeInsert(
+                value, value_to_store, target_type, i);
+          }
+        }
+      }
+    }
+  }
+  builder_->createStore(value_to_store, target_pointer);
 }
 
 }  // namespace gpu
