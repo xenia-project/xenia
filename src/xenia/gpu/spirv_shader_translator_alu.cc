@@ -34,8 +34,11 @@ void SpirvShaderTranslator::ProcessAluInstruction(
   // Whether the instruction has changed the predicate, and it needs to be
   // checked again later.
   bool predicate_written_vector = false;
-  ProcessVectorAluOperation(instr, predicate_written_vector);
+  spv::Id vector_result =
+      ProcessVectorAluOperation(instr, predicate_written_vector);
   // TODO(Triang3l): Process the ALU scalar operation.
+
+  StoreResult(instr.vector_and_constant_result, vector_result);
 
   if (predicate_written_vector) {
     cf_exec_predicate_written_ = true;
