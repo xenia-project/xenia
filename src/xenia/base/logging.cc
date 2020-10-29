@@ -79,8 +79,7 @@ class Logger {
     if (cvars::log_file.empty()) {
       // Default to app name.
       auto file_name = fmt::format("{}.log", app_name);
-      auto file_path = std::filesystem::path(file_name);
-      xe::filesystem::CreateParentFolder(file_path);
+      auto file_path = xe::filesystem::GetExecutableFolder() / file_name;
       file_ = xe::filesystem::OpenFile(file_path, "wt");
     } else {
       if (cvars::log_file == "stdout") {
