@@ -800,13 +800,26 @@ static_assert_size(TextureFetchInstruction, 12);
 //   Both are valid only within the current ALU clause. They are not modified
 //   when the instruction that would write them fails its predication check.
 // - Direct3D 9 rules (like in GCN v_*_legacy_f32 instructions) for
-//   multiplication (0 or denormal * anything = 0) wherever it's present (mul,
-//   mad, dp, etc.) and for NaN in min/max. It's very important to respect this
-//   rule for multiplication, as games often rely on it in vector normalization
-//   (rcp and mul), Infinity * 0 resulting in NaN breaks a lot of things in
-//   games - causes white screen in Halo 3, white specular on characters in GTA
-//   IV.
-// TODO(Triang3l): Investigate signed zero handling in multiplication.
+//   multiplication (+-0 or denormal * anything = +0) wherever it's present
+//   (mul, mad, dp, etc.) and for NaN in min/max. It's very important to respect
+//   this rule for multiplication, as games often rely on it in vector
+//   normalization (rcp and mul), Infinity * 0 resulting in NaN breaks a lot of
+//   things in games - causes white screen in Halo 3, white specular on
+//   characters in GTA IV. The result is always positive zero in this case, no
+//   matter what the signs of the other operands are, according to R5xx
+//   Acceleration section 8.7.5 "Legacy multiply behavior" and testing on
+//   Adreno 200. This means that the following need to be taken into account
+//   (according to 8.7.2 "ALU Non-Transcendental Floating Point"):
+//   - +0 * -0 is -0 with IEEE conformance, however, with this legacy SM3
+//     handling, it should result in +0.
+//   - +0 + -0 is +0, so multiply-add should not be replaced with conditional
+//     move of the third operand in case of zero multiplicands, because the term
+//     may be -0, while the result should be +0 in this case.
+//   http://developer.amd.com/wordpress/media/2013/10/R5xx_Acceleration_v1.5.pdf
+//   Multiply-add also appears to be not fused (the SM3 behavior instruction on
+//   GCN is called v_mad_legacy_f32, not v_fma_legacy_f32) - shader translators
+//   should not use instructions that may be interpreted by the host GPU as
+//   fused multiply-add.
 
 enum class AluScalarOpcode : uint32_t {
   // Floating-Point Add

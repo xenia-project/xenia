@@ -212,14 +212,19 @@ struct InstructionOperand {
     return false;
   }
 
-  // Returns which components of two operands are identical, but may have
-  // different signs (for simplicity of usage with GetComponent, treating the
-  // rightmost component as replicated).
-  uint32_t GetAbsoluteIdenticalComponents(
+  // Returns which components of two operands are identical, so that
+  // multiplication of them would result in pow2 with + sign, including in case
+  // they're zero (because -0 * |-0|, or -0 * +0, is -0), for providing a fast
+  // path in emulation of the Shader Model 3 +-0 * x = +0 multiplication
+  // behavior (disregarding component_count for simplicity of usage with
+  // GetComponent, treating the rightmost component as replicated).
+  uint32_t GetIdenticalMultiplicandComponents(
       const InstructionOperand& other) const {
     if (storage_source != other.storage_source ||
         storage_index != other.storage_index ||
-        storage_addressing_mode != other.storage_addressing_mode) {
+        storage_addressing_mode != other.storage_addressing_mode ||
+        is_absolute_value != other.is_absolute_value ||
+        (!is_absolute_value && is_negated != other.is_negated)) {
       return 0;
     }
     uint32_t identical_components = 0;
@@ -229,15 +234,14 @@ struct InstructionOperand {
     }
     return identical_components;
   }
-  // Returns which components of two operands will always be bitwise equal, but
-  // may have different signs (disregarding component_count for simplicity of
-  // usage with GetComponent, treating the rightmost component as replicated).
+  // Returns which components of two operands will always be bitwise equal
+  // (disregarding component_count for simplicity of usage with GetComponent,
+  // treating the rightmost component as replicated).
   uint32_t GetIdenticalComponents(const InstructionOperand& other) const {
-    if (is_negated != other.is_negated ||
-        is_absolute_value != other.is_absolute_value) {
+    if (is_negated != other.is_negated) {
       return 0;
     }
-    return GetAbsoluteIdenticalComponents(other);
+    return GetIdenticalMultiplicandComponents(other);
   }
 };
 
