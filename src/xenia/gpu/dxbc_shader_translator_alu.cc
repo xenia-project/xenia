@@ -74,7 +74,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
       DxbcOpMul(per_component_dest, operands[0], operands[1]);
       uint32_t multiplicands_different =
           used_result_components &
-          ~instr.vector_operands[0].GetIdenticalMultiplicandComponents(
+          ~instr.vector_operands[0].GetIdenticalComponents(
               instr.vector_operands[1]);
       if (multiplicands_different) {
         // Shader Model 3: +-0 or denormal * anything = +0.
@@ -181,15 +181,14 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
         component_count = 4;
       }
       result_swizzle = DxbcSrc::kXXXX;
-      uint32_t multiplicands_different =
-          uint32_t((1 << component_count) - 1) &
-          ~instr.vector_operands[0].GetIdenticalMultiplicandComponents(
-              instr.vector_operands[1]);
+      uint32_t different = uint32_t((1 << component_count) - 1) &
+                           ~instr.vector_operands[0].GetIdenticalComponents(
+                               instr.vector_operands[1]);
       for (uint32_t i = 0; i < component_count; ++i) {
         DxbcOpMul(DxbcDest::R(system_temp_result_, i ? 0b0010 : 0b0001),
                   operands[0].SelectFromSwizzled(i),
                   operands[1].SelectFromSwizzled(i));
-        if ((multiplicands_different & (1 << i)) != 0) {
+        if ((different & (1 << i)) != 0) {
           // Shader Model 3: +-0 or denormal * anything = +0 (also not replacing
           // true `0 + term` with movc of the term because +0 + -0 should result
           // in +0, not -0).
@@ -569,7 +568,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
         DxbcOpMul(DxbcDest::R(system_temp_result_, 0b0010),
                   operands[0].SelectFromSwizzled(1),
                   operands[1].SelectFromSwizzled(1));
-        if (!(instr.vector_operands[0].GetIdenticalMultiplicandComponents(
+        if (!(instr.vector_operands[0].GetIdenticalComponents(
                   instr.vector_operands[1]) &
               0b0010)) {
           // Shader Model 3: +-0 or denormal * anything = +0.
@@ -987,7 +986,7 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
     case AluScalarOpcode::kMulsc0:
     case AluScalarOpcode::kMulsc1:
       DxbcOpMul(ps_dest, operand_0_a, operand_1);
-      if (!(instr.scalar_operands[0].GetIdenticalMultiplicandComponents(
+      if (!(instr.scalar_operands[0].GetIdenticalComponents(
                 instr.scalar_operands[1]) &
             0b0001)) {
         // Shader Model 3: +-0 or denormal * anything = +0.
