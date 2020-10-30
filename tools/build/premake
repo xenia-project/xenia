@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 
 # Copyright 2015 Ben Vanik. All Rights Reserved.
 
@@ -107,13 +107,14 @@ def has_bin(bin):
   return None
 
 
-def shell_call(command, throw_on_error=True, stdout_path=None):
+def shell_call(command, throw_on_error=True, stdout_path=None, stderr_path=None, shell=False):
   """Executes a shell command.
 
   Args:
     command: Command to execute, as a list of parameters.
     throw_on_error: Whether to throw an error or return the status code.
     stdout_path: File path to write stdout output to.
+    stderr_path: File path to write stderr output to.
 
   Returns:
     If throw_on_error is False the status code of the call will be returned.
@@ -121,17 +122,22 @@ def shell_call(command, throw_on_error=True, stdout_path=None):
   stdout_file = None
   if stdout_path:
     stdout_file = open(stdout_path, 'w')
+  stderr_file = None
+  if stderr_path:
+    stderr_file = open(stderr_path, 'w')
   result = 0
   try:
     if throw_on_error:
       result = 1
-      subprocess.check_call(command, shell=False, stdout=stdout_file)
+      subprocess.check_call(command, shell=shell, stdout=stdout_file, stderr=stderr_file)
       result = 0
     else:
-      result = subprocess.call(command, shell=False, stdout=stdout_file)
+      result = subprocess.call(command, shell=shell, stdout=stdout_file, stderr=stderr_file)
   finally:
     if stdout_file:
       stdout_file.close()
+    if stderr_file:
+      stderr_file.close()
   return result
 
 
@@ -195,43 +201,6 @@ def import_subprocess_environment(args):
           setting = os.path.dirname(sys.executable) + os.pathsep + setting
         os.environ[var.upper()] = setting
         break
-
-def git_submodule_update():
-  """Runs a full recursive git submodule init and update.
-
-  Older versions of git do not support 'update --init --recursive'. We could
-  check and run it on versions that do support it and speed things up a bit.
-  """
-  if True:
-    shell_call([
-        'git',
-        'submodule',
-        'update',
-        '--init',
-        '--recursive',
-        ])
-  else:
-    shell_call([
-        'git',
-        'submodule',
-        'init',
-        ])
-    shell_call([
-        'git',
-        'submodule',
-        'foreach',
-        '--recursive',
-        'git',
-        'submodule',
-        'init',
-        ])
-    shell_call([
-        'git',
-        'submodule',
-        'update',
-        '--recursive',
-        ])
-
 
 if __name__ == '__main__':
   main()
