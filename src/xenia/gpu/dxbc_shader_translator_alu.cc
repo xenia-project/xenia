@@ -68,31 +68,33 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
       break;
     case AluVectorOpcode::kMul:
     case AluVectorOpcode::kMad: {
-      bool is_mad = instr.vector_opcode == AluVectorOpcode::kMad;
-      if (is_mad) {
-        DxbcOpMAd(per_component_dest, operands[0], operands[1], operands[2]);
-      } else {
-        DxbcOpMul(per_component_dest, operands[0], operands[1]);
-      }
-      // Shader Model 3: 0 or denormal * anything = 0.
-      // FIXME(Triang3l): Signed zero needs research and handling.
-      uint32_t absolute_different =
+      // Not using DXBC mad to prevent fused multiply-add (mul followed by add
+      // may be optimized into non-fused mad by the driver in the identical
+      // operands case also).
+      DxbcOpMul(per_component_dest, operands[0], operands[1]);
+      uint32_t multiplicands_different =
           used_result_components &
-          ~instr.vector_operands[0].GetAbsoluteIdenticalComponents(
+          ~instr.vector_operands[0].GetIdenticalComponents(
               instr.vector_operands[1]);
-      if (absolute_different) {
+      if (multiplicands_different) {
+        // Shader Model 3: +-0 or denormal * anything = +0.
         uint32_t is_zero_temp = PushSystemTemp();
-        DxbcOpMin(DxbcDest::R(is_zero_temp, absolute_different),
+        DxbcOpMin(DxbcDest::R(is_zero_temp, multiplicands_different),
                   operands[0].Abs(), operands[1].Abs());
         // min isn't required to flush denormals, eq is.
-        DxbcOpEq(DxbcDest::R(is_zero_temp, absolute_different),
+        DxbcOpEq(DxbcDest::R(is_zero_temp, multiplicands_different),
                  DxbcSrc::R(is_zero_temp), DxbcSrc::LF(0.0f));
-        DxbcOpMovC(DxbcDest::R(system_temp_result_, absolute_different),
-                   DxbcSrc::R(is_zero_temp),
-                   is_mad ? operands[2] : DxbcSrc::LF(0.0f),
+        // Not replacing true `0 + term` with movc of the term because +0 + -0
+        // should result in +0, not -0.
+        DxbcOpMovC(DxbcDest::R(system_temp_result_, multiplicands_different),
+                   DxbcSrc::R(is_zero_temp), DxbcSrc::LF(0.0f),
                    DxbcSrc::R(system_temp_result_));
         // Release is_zero_temp.
         PopSystemTemp();
+      }
+      if (instr.vector_opcode == AluVectorOpcode::kMad) {
+        DxbcOpAdd(per_component_dest, DxbcSrc::R(system_temp_result_),
+                  operands[2]);
       }
     } break;
 
@@ -179,69 +181,40 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
         component_count = 4;
       }
       result_swizzle = DxbcSrc::kXXXX;
-      uint32_t absolute_different =
-          uint32_t((1 << component_count) - 1) &
-          ~instr.vector_operands[0].GetAbsoluteIdenticalComponents(
-              instr.vector_operands[1]);
-      if (absolute_different) {
-        // Shader Model 3: 0 or denormal * anything = 0.
-        // FIXME(Triang3l): Signed zero needs research and handling.
-        // Add component products only if non-zero. For dp4, 16 scalar
-        // operations in the worst case (as opposed to always 20 for
-        // eq/movc/eq/movc/dp4 or min/eq/movc/movc/dp4 for preparing operands
-        // for dp4).
-        DxbcOpMul(DxbcDest::R(system_temp_result_, 0b0001),
-                  operands[0].SelectFromSwizzled(0),
-                  operands[1].SelectFromSwizzled(0));
-        if (absolute_different & 0b0001) {
-          DxbcOpMin(DxbcDest::R(system_temp_result_, 0b0010),
-                    operands[0].SelectFromSwizzled(0).Abs(),
-                    operands[1].SelectFromSwizzled(0).Abs());
-          DxbcOpEq(DxbcDest::R(system_temp_result_, 0b0010),
-                   DxbcSrc::R(system_temp_result_, DxbcSrc::kYYYY),
+      uint32_t different = uint32_t((1 << component_count) - 1) &
+                           ~instr.vector_operands[0].GetIdenticalComponents(
+                               instr.vector_operands[1]);
+      for (uint32_t i = 0; i < component_count; ++i) {
+        DxbcOpMul(DxbcDest::R(system_temp_result_, i ? 0b0010 : 0b0001),
+                  operands[0].SelectFromSwizzled(i),
+                  operands[1].SelectFromSwizzled(i));
+        if ((different & (1 << i)) != 0) {
+          // Shader Model 3: +-0 or denormal * anything = +0 (also not replacing
+          // true `0 + term` with movc of the term because +0 + -0 should result
+          // in +0, not -0).
+          DxbcOpMin(DxbcDest::R(system_temp_result_, 0b0100),
+                    operands[0].SelectFromSwizzled(i).Abs(),
+                    operands[1].SelectFromSwizzled(i).Abs());
+          DxbcOpEq(DxbcDest::R(system_temp_result_, 0b0100),
+                   DxbcSrc::R(system_temp_result_, DxbcSrc::kZZZZ),
                    DxbcSrc::LF(0.0f));
-          DxbcOpMovC(DxbcDest::R(system_temp_result_, 0b0001),
-                     DxbcSrc::R(system_temp_result_, DxbcSrc::kYYYY),
-                     DxbcSrc::LF(0.0f),
-                     DxbcSrc::R(system_temp_result_, DxbcSrc::kXXXX));
-        }
-        for (uint32_t i = 1; i < component_count; ++i) {
-          bool component_different = (absolute_different & (1 << i)) != 0;
-          DxbcOpMAd(DxbcDest::R(system_temp_result_,
-                                component_different ? 0b0010 : 0b0001),
-                    operands[0].SelectFromSwizzled(i),
-                    operands[1].SelectFromSwizzled(i),
-                    DxbcSrc::R(system_temp_result_, DxbcSrc::kXXXX));
-          if (component_different) {
-            DxbcOpMin(DxbcDest::R(system_temp_result_, 0b0100),
-                      operands[0].SelectFromSwizzled(i).Abs(),
-                      operands[1].SelectFromSwizzled(i).Abs());
-            DxbcOpEq(DxbcDest::R(system_temp_result_, 0b0100),
+          DxbcOpMovC(DxbcDest::R(system_temp_result_, i ? 0b0010 : 0b0001),
                      DxbcSrc::R(system_temp_result_, DxbcSrc::kZZZZ),
-                     DxbcSrc::LF(0.0f));
-            DxbcOpMovC(DxbcDest::R(system_temp_result_, 0b0001),
-                       DxbcSrc::R(system_temp_result_, DxbcSrc::kZZZZ),
-                       DxbcSrc::R(system_temp_result_, DxbcSrc::kXXXX),
-                       DxbcSrc::R(system_temp_result_, DxbcSrc::kYYYY));
-          }
+                     DxbcSrc::LF(0.0f),
+                     DxbcSrc::R(system_temp_result_,
+                                i ? DxbcSrc::kYYYY : DxbcSrc::kXXXX));
         }
-      } else {
-        if (component_count == 2) {
-          DxbcOpDP2(DxbcDest::R(system_temp_result_, 0b0001), operands[0],
-                    operands[1]);
-        } else if (component_count == 3) {
-          DxbcOpDP3(DxbcDest::R(system_temp_result_, 0b0001), operands[0],
-                    operands[1]);
-        } else {
-          assert_true(component_count == 4);
-          DxbcOpDP4(DxbcDest::R(system_temp_result_, 0b0001), operands[0],
-                    operands[1]);
+        if (i) {
+          // Not using DXBC dp# to avoid fused multiply-add, PC GPUs are scalar
+          // as of 2020 anyway, and not using mad for the same reason (mul
+          // followed by add may be optimized into non-fused mad by the driver
+          // in the identical operands case also).
+          DxbcOpAdd(DxbcDest::R(system_temp_result_, 0b0001),
+                    DxbcSrc::R(system_temp_result_, DxbcSrc::kXXXX),
+                    DxbcSrc::R(system_temp_result_, DxbcSrc::kYYYY));
         }
       }
       if (component_count == 2) {
-        // Add the third operand. Since floating-point addition isn't
-        // associative, even though adding this in multiply-add for the first
-        // component would be faster, it's safer to add here, in the end.
         DxbcOpAdd(DxbcDest::R(system_temp_result_, 0b0001),
                   DxbcSrc::R(system_temp_result_, DxbcSrc::kXXXX),
                   operands[2].SelectFromSwizzled(0));
@@ -592,14 +565,13 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
         DxbcOpMov(DxbcDest::R(system_temp_result_, 0b0001), DxbcSrc::LF(1.0f));
       }
       if (used_result_components & 0b0010) {
-        // Shader Model 3: 0 or denormal * anything = 0.
-        // FIXME(Triang3l): Signed zero needs research and handling.
         DxbcOpMul(DxbcDest::R(system_temp_result_, 0b0010),
                   operands[0].SelectFromSwizzled(1),
                   operands[1].SelectFromSwizzled(1));
-        if (!(instr.vector_operands[0].GetAbsoluteIdenticalComponents(
+        if (!(instr.vector_operands[0].GetIdenticalComponents(
                   instr.vector_operands[1]) &
               0b0010)) {
+          // Shader Model 3: +-0 or denormal * anything = +0.
           DxbcOpMin(DxbcDest::R(system_temp_result_, 0b0100),
                     operands[0].SelectFromSwizzled(1).Abs(),
                     operands[1].SelectFromSwizzled(1).Abs());
@@ -700,8 +672,7 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
       DxbcOpMul(ps_dest, operand_0_a, operand_0_b);
       if (instr.scalar_operands[0].components[0] !=
           instr.scalar_operands[0].components[1]) {
-        // Shader Model 3: 0 or denormal * anything = 0.
-        // FIXME(Triang3l): Signed zero needs research and handling.
+        // Shader Model 3: +-0 or denormal * anything = +0.
         uint32_t is_zero_temp = PushSystemTemp();
         DxbcOpMin(DxbcDest::R(is_zero_temp, 0b0001), operand_0_a.Abs(),
                   operand_0_b.Abs());
@@ -714,58 +685,50 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
         PopSystemTemp();
       }
       break;
-    case AluScalarOpcode::kMulsPrev: {
-      // Shader Model 3: 0 or denormal * anything = 0.
-      // FIXME(Triang3l): Signed zero needs research and handling.
-      uint32_t is_zero_temp = PushSystemTemp();
-      DxbcOpMin(DxbcDest::R(is_zero_temp, 0b0001), operand_0_a.Abs(),
-                ps_src.Abs());
-      // min isn't required to flush denormals, eq is.
-      DxbcOpEq(DxbcDest::R(is_zero_temp, 0b0001),
-               DxbcSrc::R(is_zero_temp, DxbcSrc::kXXXX), DxbcSrc::LF(0.0f));
-      DxbcOpMul(ps_dest, operand_0_a, ps_src);
-      DxbcOpMovC(ps_dest, DxbcSrc::R(is_zero_temp, DxbcSrc::kXXXX),
-                 DxbcSrc::LF(0.0f), ps_src);
-      // Release is_zero_temp.
-      PopSystemTemp();
-    } break;
+    case AluScalarOpcode::kMulsPrev:
     case AluScalarOpcode::kMulsPrev2: {
       uint32_t test_temp = PushSystemTemp();
-      // Check if need to select the src0.a * ps case.
-      // ps != -FLT_MAX.
-      DxbcOpNE(DxbcDest::R(test_temp, 0b0001), ps_src, DxbcSrc::LF(-FLT_MAX));
-      // isfinite(ps), or |ps| <= FLT_MAX, or -|ps| >= -FLT_MAX, since -FLT_MAX
-      // is already loaded to an SGPR, this is also false if it's NaN.
-      DxbcOpGE(DxbcDest::R(test_temp, 0b0010), -ps_src.Abs(),
-               DxbcSrc::LF(-FLT_MAX));
-      DxbcOpAnd(DxbcDest::R(test_temp, 0b0001),
-                DxbcSrc::R(test_temp, DxbcSrc::kXXXX),
-                DxbcSrc::R(test_temp, DxbcSrc::kYYYY));
-      // isfinite(src0.b).
-      DxbcOpGE(DxbcDest::R(test_temp, 0b0010), -operand_0_b.Abs(),
-               DxbcSrc::LF(-FLT_MAX));
-      DxbcOpAnd(DxbcDest::R(test_temp, 0b0001),
-                DxbcSrc::R(test_temp, DxbcSrc::kXXXX),
-                DxbcSrc::R(test_temp, DxbcSrc::kYYYY));
-      // src0.b > 0 (need !(src0.b <= 0), but src0.b has already been checked
-      // for NaN).
-      DxbcOpLT(DxbcDest::R(test_temp, 0b0010), DxbcSrc::LF(0.0f), operand_0_b);
-      DxbcOpAnd(DxbcDest::R(test_temp, 0b0001),
-                DxbcSrc::R(test_temp, DxbcSrc::kXXXX),
-                DxbcSrc::R(test_temp, DxbcSrc::kYYYY));
-      DxbcOpIf(true, DxbcSrc::R(test_temp, DxbcSrc::kXXXX));
-      // Shader Model 3: 0 or denormal * anything = 0.
-      // ps is already known to be not NaN or Infinity, so multiplying it by 0
-      // will result in 0. However, src0.a can be anything, so the result should
-      // be zero if ps is zero.
-      // FIXME(Triang3l): Signed zero needs research and handling.
-      DxbcOpEq(DxbcDest::R(test_temp, 0b0001), ps_src, DxbcSrc::LF(0.0f));
+      if (instr.scalar_opcode == AluScalarOpcode::kMulsPrev2) {
+        // Check if need to select the src0.a * ps case.
+        // ps != -FLT_MAX.
+        DxbcOpNE(DxbcDest::R(test_temp, 0b0001), ps_src, DxbcSrc::LF(-FLT_MAX));
+        // isfinite(ps), or |ps| <= FLT_MAX, or -|ps| >= -FLT_MAX, since
+        // -FLT_MAX is already loaded to an SGPR, this is also false if it's
+        // NaN.
+        DxbcOpGE(DxbcDest::R(test_temp, 0b0010), -ps_src.Abs(),
+                 DxbcSrc::LF(-FLT_MAX));
+        DxbcOpAnd(DxbcDest::R(test_temp, 0b0001),
+                  DxbcSrc::R(test_temp, DxbcSrc::kXXXX),
+                  DxbcSrc::R(test_temp, DxbcSrc::kYYYY));
+        // isfinite(src0.b).
+        DxbcOpGE(DxbcDest::R(test_temp, 0b0010), -operand_0_b.Abs(),
+                 DxbcSrc::LF(-FLT_MAX));
+        DxbcOpAnd(DxbcDest::R(test_temp, 0b0001),
+                  DxbcSrc::R(test_temp, DxbcSrc::kXXXX),
+                  DxbcSrc::R(test_temp, DxbcSrc::kYYYY));
+        // src0.b > 0 (need !(src0.b <= 0), but src0.b has already been checked
+        // for NaN).
+        DxbcOpLT(DxbcDest::R(test_temp, 0b0010), DxbcSrc::LF(0.0f),
+                 operand_0_b);
+        DxbcOpAnd(DxbcDest::R(test_temp, 0b0001),
+                  DxbcSrc::R(test_temp, DxbcSrc::kXXXX),
+                  DxbcSrc::R(test_temp, DxbcSrc::kYYYY));
+        DxbcOpIf(true, DxbcSrc::R(test_temp, DxbcSrc::kXXXX));
+      }
+      // Shader Model 3: +-0 or denormal * anything = +0.
+      DxbcOpMin(DxbcDest::R(test_temp, 0b0001), operand_0_a.Abs(),
+                ps_src.Abs());
+      // min isn't required to flush denormals, eq is.
+      DxbcOpEq(DxbcDest::R(test_temp, 0b0001),
+               DxbcSrc::R(test_temp, DxbcSrc::kXXXX), DxbcSrc::LF(0.0f));
       DxbcOpMul(ps_dest, operand_0_a, ps_src);
       DxbcOpMovC(ps_dest, DxbcSrc::R(test_temp, DxbcSrc::kXXXX),
                  DxbcSrc::LF(0.0f), ps_src);
-      DxbcOpElse();
-      DxbcOpMov(ps_dest, DxbcSrc::LF(-FLT_MAX));
-      DxbcOpEndIf();
+      if (instr.scalar_opcode == AluScalarOpcode::kMulsPrev2) {
+        DxbcOpElse();
+        DxbcOpMov(ps_dest, DxbcSrc::LF(-FLT_MAX));
+        DxbcOpEndIf();
+      }
       // Release test_temp.
       PopSystemTemp();
     } break;
@@ -1023,11 +986,10 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
     case AluScalarOpcode::kMulsc0:
     case AluScalarOpcode::kMulsc1:
       DxbcOpMul(ps_dest, operand_0_a, operand_1);
-      if (!(instr.scalar_operands[0].GetAbsoluteIdenticalComponents(
+      if (!(instr.scalar_operands[0].GetIdenticalComponents(
                 instr.scalar_operands[1]) &
             0b0001)) {
-        // Shader Model 3: 0 or denormal * anything = 0.
-        // FIXME(Triang3l): Signed zero needs research and handling.
+        // Shader Model 3: +-0 or denormal * anything = +0.
         uint32_t is_zero_temp = PushSystemTemp();
         DxbcOpMin(DxbcDest::R(is_zero_temp, 0b0001), operand_0_a.Abs(),
                   operand_1.Abs());
