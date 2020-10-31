@@ -170,7 +170,17 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id ext_inst_glsl_std_450_;
 
   spv::Id type_void_;
-  spv::Id type_bool_;
+
+  union {
+    struct {
+      spv::Id type_bool_;
+      spv::Id type_bool2_;
+      spv::Id type_bool3_;
+      spv::Id type_bool4_;
+    };
+    // Index = component count - 1.
+    spv::Id type_bool_vectors_[4];
+  };
   spv::Id type_int_;
   spv::Id type_int4_;
   spv::Id type_uint_;
@@ -183,7 +193,6 @@ class SpirvShaderTranslator : public ShaderTranslator {
       spv::Id type_float3_;
       spv::Id type_float4_;
     };
-    // Index = component count - 1.
     spv::Id type_float_vectors_[4];
   };
 
