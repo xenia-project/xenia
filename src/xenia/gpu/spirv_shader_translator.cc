@@ -87,6 +87,9 @@ void SpirvShaderTranslator::StartTranslation() {
 
   type_void_ = builder_->makeVoidType();
   type_bool_ = builder_->makeBoolType();
+  type_bool2_ = builder_->makeVectorType(type_bool_, 2);
+  type_bool3_ = builder_->makeVectorType(type_bool_, 3);
+  type_bool4_ = builder_->makeVectorType(type_bool_, 4);
   type_int_ = builder_->makeIntType(32);
   type_int4_ = builder_->makeVectorType(type_int_, 4);
   type_uint_ = builder_->makeUintType(32);
@@ -1312,10 +1315,9 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
       assert_true(target_num_components > 1);
       if (value_num_components > 1) {
         // Mixed non-constants and constants - vector source.
-        value_to_store = builder_->getUniqueId();
         std::unique_ptr<spv::Instruction> shuffle_op =
-            std::make_unique<spv::Instruction>(value_to_store, target_type,
-                                               spv::OpVectorShuffle);
+            std::make_unique<spv::Instruction>(
+                builder_->getUniqueId(), target_type, spv::OpVectorShuffle);
         shuffle_op->addIdOperand(value);
         shuffle_op->addIdOperand(const_float2_0_1_);
         for (uint32_t i = 0; i < target_num_components; ++i) {
@@ -1324,6 +1326,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
                   ? value_num_components + ((constant_values >> i) & 1)
                   : result_swizzled_value_components[i]);
         }
+        value_to_store = shuffle_op->getResultId();
         builder_->getBuildPoint()->addInstruction(std::move(shuffle_op));
       } else {
         // Mixed non-constants and constants - scalar source.
@@ -1353,10 +1356,9 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
     // 2) Insert value components - via shuffling for vector source, via
     //    composite inserts for scalar value.
     if (constant_components) {
-      spv::Id shuffle_result = builder_->getUniqueId();
       std::unique_ptr<spv::Instruction> shuffle_op =
-          std::make_unique<spv::Instruction>(shuffle_result, target_type,
-                                             spv::OpVectorShuffle);
+          std::make_unique<spv::Instruction>(builder_->getUniqueId(),
+                                             target_type, spv::OpVectorShuffle);
       shuffle_op->addIdOperand(value_to_store);
       shuffle_op->addIdOperand(const_float2_0_1_);
       for (uint32_t i = 0; i < target_num_components; ++i) {
@@ -1365,15 +1367,14 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
                                                   ((constant_values >> i) & 1)
                                             : i);
       }
+      value_to_store = shuffle_op->getResultId();
       builder_->getBuildPoint()->addInstruction(std::move(shuffle_op));
-      value_to_store = shuffle_result;
     }
     if (non_constant_components) {
       if (value_num_components > 1) {
-        spv::Id shuffle_result = builder_->getUniqueId();
         std::unique_ptr<spv::Instruction> shuffle_op =
-            std::make_unique<spv::Instruction>(shuffle_result, target_type,
-                                               spv::OpVectorShuffle);
+            std::make_unique<spv::Instruction>(
+                builder_->getUniqueId(), target_type, spv::OpVectorShuffle);
         shuffle_op->addIdOperand(value_to_store);
         shuffle_op->addIdOperand(value);
         for (uint32_t i = 0; i < target_num_components; ++i) {
@@ -1382,8 +1383,8 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
                   ? target_num_components + result_swizzled_value_components[i]
                   : i);
         }
+        value_to_store = shuffle_op->getResultId();
         builder_->getBuildPoint()->addInstruction(std::move(shuffle_op));
-        value_to_store = shuffle_result;
       } else {
         for (uint32_t i = 0; i < target_num_components; ++i) {
           if (non_constant_components & (1 << i)) {
