@@ -17,6 +17,7 @@
 
 #include "third_party/glslang/SPIRV/SpvBuilder.h"
 #include "xenia/gpu/shader_translator.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 
 namespace xe {
 namespace gpu {
@@ -46,8 +47,16 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kDescriptorSetSharedMemoryAndEdram,
     kDescriptorSetCount,
   };
-  SpirvShaderTranslator(bool supports_clip_distance = true,
-                        bool supports_cull_distance = true);
+
+  struct Features {
+    explicit Features(const ui::vulkan::VulkanProvider& provider);
+    explicit Features(bool all = false);
+    unsigned int spirv_version;
+    bool clip_distance;
+    bool cull_distance;
+    bool float_controls;
+  };
+  SpirvShaderTranslator(const Features& features);
 
  protected:
   void Reset() override;
@@ -90,7 +99,6 @@ class SpirvShaderTranslator : public ShaderTranslator {
   void StartVertexOrTessEvalShaderBeforeMain();
   void StartVertexOrTessEvalShaderInMain();
   void CompleteVertexOrTessEvalShaderInMain();
-  void CompleteVertexOrTessEvalShaderAfterMain(spv::Instruction* entry_point);
 
   // Updates the current flow control condition (to be called in the beginning
   // of exec and in jumps), closing the previous conditionals if needed.
@@ -148,8 +156,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id ProcessVectorAluOperation(const ParsedAluInstruction& instr,
                                     bool& predicate_written);
 
-  bool supports_clip_distance_;
-  bool supports_cull_distance_;
+  Features features_;
 
   std::unique_ptr<spv::Builder> builder_;
 
@@ -223,6 +230,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   };
   spv::Id output_per_vertex_;
 
+  std::vector<spv::Id> main_interface_;
   spv::Function* function_main_;
   // bool.
   spv::Id var_main_predicate_;

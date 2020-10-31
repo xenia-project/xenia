@@ -20,10 +20,34 @@
 namespace xe {
 namespace gpu {
 
-SpirvShaderTranslator::SpirvShaderTranslator(bool supports_clip_distance,
-                                             bool supports_cull_distance)
-    : supports_clip_distance_(supports_clip_distance),
-      supports_cull_distance_(supports_cull_distance) {}
+SpirvShaderTranslator::Features::Features(bool all)
+    : spirv_version(all ? spv::Spv_1_5 : spv::Spv_1_0),
+      clip_distance(all),
+      cull_distance(all),
+      float_controls(all) {}
+
+SpirvShaderTranslator::Features::Features(
+    const ui::vulkan::VulkanProvider& provider)
+    : clip_distance(provider.device_features().shaderClipDistance),
+      cull_distance(provider.device_features().shaderCullDistance) {
+  uint32_t device_version = provider.device_properties().apiVersion;
+  const ui::vulkan::VulkanProvider::DeviceExtensions& device_extensions =
+      provider.device_extensions();
+  if (device_version >= VK_MAKE_VERSION(1, 2, 0)) {
+    spirv_version = spv::Spv_1_5;
+  } else if (device_extensions.khr_spirv_1_4) {
+    spirv_version = spv::Spv_1_4;
+  } else if (device_version >= VK_MAKE_VERSION(1, 1, 0)) {
+    spirv_version = spv::Spv_1_3;
+  } else {
+    spirv_version = spv::Spv_1_0;
+  }
+  float_controls = spirv_version >= spv::Spv_1_4 ||
+                   device_extensions.khr_shader_float_controls;
+}
+
+SpirvShaderTranslator::SpirvShaderTranslator(const Features& features)
+    : features_(features) {}
 
 void SpirvShaderTranslator::Reset() {
   ShaderTranslator::Reset();
@@ -32,6 +56,7 @@ void SpirvShaderTranslator::Reset() {
 
   uniform_float_constants_ = spv::NoResult;
 
+  main_interface_.clear();
   var_main_registers_ = spv::NoResult;
 
   main_switch_op_.reset();
@@ -45,10 +70,16 @@ void SpirvShaderTranslator::StartTranslation() {
   // Tool ID 26 "Xenia Emulator Microcode Translator".
   // https://github.com/KhronosGroup/SPIRV-Headers/blob/c43a43c7cc3af55910b9bec2a71e3e8a622443cf/include/spirv/spir-v.xml#L79
   // TODO(Triang3l): Logger.
-  builder_ = std::make_unique<spv::Builder>(1 << 16, (26 << 16) | 1, nullptr);
+  builder_ = std::make_unique<spv::Builder>(features_.spirv_version,
+                                            (26 << 16) | 1, nullptr);
 
   builder_->addCapability(IsSpirvTessEvalShader() ? spv::CapabilityTessellation
                                                   : spv::CapabilityShader);
+  if (features_.spirv_version < spv::Spv_1_4) {
+    if (features_.float_controls) {
+      builder_->addExtension("SPV_KHR_float_controls");
+    }
+  }
   ext_inst_glsl_std_450_ = builder_->import("GLSL.std.450");
   builder_->setMemoryModel(spv::AddressingModelLogical,
                            spv::MemoryModelGLSL450);
@@ -133,6 +164,9 @@ void SpirvShaderTranslator::StartTranslation() {
                                     : kDescriptorSetFloatConstantsVertex));
     builder_->addDecoration(uniform_float_constants_, spv::DecorationBinding,
                             0);
+    if (features_.spirv_version >= spv::Spv_1_4) {
+      main_interface_.push_back(uniform_float_constants_);
+    }
   }
 
   // Common uniform buffer - bool and loop constants.
@@ -168,6 +202,9 @@ void SpirvShaderTranslator::StartTranslation() {
                           int(kDescriptorSetBoolLoopConstants));
   builder_->addDecoration(uniform_bool_loop_constants_, spv::DecorationBinding,
                           0);
+  if (features_.spirv_version >= spv::Spv_1_4) {
+    main_interface_.push_back(uniform_bool_loop_constants_);
+  }
 
   if (IsSpirvVertexOrTessEvalShader()) {
     StartVertexOrTessEvalShaderBeforeMain();
@@ -364,11 +401,23 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
                           ? spv::ExecutionModelTessellationEvaluation
                           : spv::ExecutionModelVertex;
   }
+  if (features_.float_controls) {
+    // Flush to zero, similar to the real hardware, also for things like Shader
+    // Model 3 multiplication emulation.
+    builder_->addCapability(spv::CapabilityDenormFlushToZero);
+    builder_->addExecutionMode(function_main_,
+                               spv::ExecutionModeDenormFlushToZero, 32);
+    // Signed zero used to get VFACE from ps_param_gen, also special behavior
+    // for infinity in certain instructions (such as logarithm, reciprocal,
+    // muls_prev2).
+    builder_->addCapability(spv::CapabilitySignedZeroInfNanPreserve);
+    builder_->addExecutionMode(function_main_,
+                               spv::ExecutionModeSignedZeroInfNanPreserve, 32);
+  }
   spv::Instruction* entry_point =
       builder_->addEntryPoint(execution_model, function_main_, "main");
-
-  if (IsSpirvVertexOrTessEvalShader()) {
-    CompleteVertexOrTessEvalShaderAfterMain(entry_point);
+  for (spv::Id interface_id : main_interface_) {
+    entry_point->addIdOperand(interface_id);
   }
 
   // TODO(Triang3l): Avoid copy?
@@ -721,11 +770,13 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
         spv::NoPrecision, spv::StorageClassInput, type_int_, "gl_PrimitiveID");
     builder_->addDecoration(input_primitive_id_, spv::DecorationBuiltIn,
                             spv::BuiltInPrimitiveId);
+    main_interface_.push_back(input_primitive_id_);
   } else {
     input_vertex_index_ = builder_->createVariable(
         spv::NoPrecision, spv::StorageClassInput, type_int_, "gl_VertexIndex");
     builder_->addDecoration(input_vertex_index_, spv::DecorationBuiltIn,
                             spv::BuiltInVertexIndex);
+    main_interface_.push_back(input_vertex_index_);
   }
 
   // Create the entire GLSL 4.50 gl_PerVertex output similar to what glslang
@@ -733,10 +784,10 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
   // ClipDistance and CullDistance may exist even if the device doesn't support
   // them, as long as the capabilities aren't enabled, and nothing is stored to
   // them.
-  if (supports_clip_distance_) {
+  if (features_.clip_distance) {
     builder_->addCapability(spv::CapabilityClipDistance);
   }
-  if (supports_cull_distance_) {
+  if (features_.cull_distance) {
     builder_->addCapability(spv::CapabilityCullDistance);
   }
   std::vector<spv::Id> struct_per_vertex_members;
@@ -746,7 +797,7 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
   // TODO(Triang3l): Specialization constant for ucp_cull_only_ena, for 6 + 1
   // or 1 + 7 array sizes.
   struct_per_vertex_members.push_back(builder_->makeArrayType(
-      type_float_, builder_->makeUintConstant(supports_clip_distance_ ? 6 : 1),
+      type_float_, builder_->makeUintConstant(features_.clip_distance ? 6 : 1),
       0));
   struct_per_vertex_members.push_back(
       builder_->makeArrayType(type_float_, builder_->makeUintConstant(1), 0));
@@ -777,6 +828,7 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
   output_per_vertex_ =
       builder_->createVariable(spv::NoPrecision, spv::StorageClassOutput,
                                type_struct_per_vertex, "xe_out_gl_PerVertex");
+  main_interface_.push_back(output_per_vertex_);
 }
 
 void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
@@ -786,16 +838,6 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
 }
 
 void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {}
-
-void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderAfterMain(
-    spv::Instruction* entry_point) {
-  if (IsSpirvTessEvalShader()) {
-    entry_point->addIdOperand(input_primitive_id_);
-  } else {
-    entry_point->addIdOperand(input_vertex_index_);
-  }
-  entry_point->addIdOperand(output_per_vertex_);
-}
 
 void SpirvShaderTranslator::UpdateExecConditionals(
     ParsedExecInstruction::Type type, uint32_t bool_constant_index,

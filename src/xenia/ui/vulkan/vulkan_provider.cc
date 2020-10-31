@@ -392,6 +392,10 @@ bool VulkanProvider::Initialize() {
     std::memset(&device_extensions_, 0, sizeof(device_extensions_));
     if (device_properties_.apiVersion >= VK_MAKE_VERSION(1, 1, 0)) {
       device_extensions_.khr_dedicated_allocation = true;
+      if (device_properties_.apiVersion >= VK_MAKE_VERSION(1, 2, 0)) {
+        device_extensions_.khr_shader_float_controls = true;
+        device_extensions_.khr_spirv_1_4 = true;
+      }
     }
     bool device_supports_swapchain = false;
     for (const VkExtensionProperties& device_extension :
@@ -405,6 +409,13 @@ bool VulkanProvider::Initialize() {
                  !std::strcmp(device_extension_name,
                               "VK_KHR_dedicated_allocation")) {
         device_extensions_.khr_dedicated_allocation = true;
+      } else if (!device_extensions_.khr_shader_float_controls &&
+                 !std::strcmp(device_extension_name,
+                              "VK_KHR_shader_float_controls")) {
+        device_extensions_.khr_shader_float_controls = true;
+      } else if (!device_extensions_.khr_spirv_1_4 &&
+                 !std::strcmp(device_extension_name, "VK_KHR_spirv_1_4")) {
+        device_extensions_.khr_spirv_1_4 = true;
       } else if (!device_supports_swapchain &&
                  !std::strcmp(device_extension_name, "VK_KHR_swapchain")) {
         device_supports_swapchain = true;
@@ -466,6 +477,10 @@ bool VulkanProvider::Initialize() {
           device_extensions_.ext_fragment_shader_interlock ? "yes" : "no");
   XELOGVK("* VK_KHR_dedicated_allocation: {}",
           device_extensions_.khr_dedicated_allocation ? "yes" : "no");
+  XELOGVK("* VK_KHR_shader_float_controls: {}",
+          device_extensions_.khr_shader_float_controls ? "yes" : "no");
+  XELOGVK("* VK_KHR_spirv_1_4: {}",
+          device_extensions_.khr_spirv_1_4 ? "yes" : "no");
   // TODO(Triang3l): Report properties, features.
 
   // Create the device.
@@ -493,9 +508,17 @@ bool VulkanProvider::Initialize() {
   if (device_extensions_.ext_fragment_shader_interlock) {
     device_extensions_enabled.push_back("VK_EXT_fragment_shader_interlock");
   }
-  if (device_properties_.apiVersion < VK_MAKE_VERSION(1, 1, 0)) {
-    if (device_extensions_.khr_dedicated_allocation) {
-      device_extensions_enabled.push_back("VK_KHR_dedicated_allocation");
+  if (device_properties_.apiVersion < VK_MAKE_VERSION(1, 2, 0)) {
+    if (device_properties_.apiVersion < VK_MAKE_VERSION(1, 1, 0)) {
+      if (device_extensions_.khr_dedicated_allocation) {
+        device_extensions_enabled.push_back("VK_KHR_dedicated_allocation");
+      }
+    }
+    if (device_extensions_.khr_shader_float_controls) {
+      device_extensions_enabled.push_back("VK_KHR_shader_float_controls");
+    }
+    if (device_extensions_.khr_spirv_1_4) {
+      device_extensions_enabled.push_back("VK_KHR_spirv_1_4");
     }
   }
   VkDeviceCreateInfo device_create_info;

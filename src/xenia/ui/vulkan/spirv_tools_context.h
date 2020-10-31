@@ -32,7 +32,7 @@ class SpirvToolsContext {
   SpirvToolsContext(const SpirvToolsContext& context) = delete;
   SpirvToolsContext& operator=(const SpirvToolsContext& context) = delete;
   ~SpirvToolsContext() { Shutdown(); }
-  bool Initialize();
+  bool Initialize(unsigned int spirv_version);
   void Shutdown();
 
   spv_result_t Validate(const uint32_t* words, size_t num_words,
