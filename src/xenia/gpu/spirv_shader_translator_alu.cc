@@ -83,6 +83,40 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
   // block (like via OpKill).
   EnsureBuildPointAvailable();
 
+  // Lookup table for variants of instructions with similar structure.
+  static const unsigned int kOps[] = {
+      static_cast<unsigned int>(spv::OpNop),                   // kAdd
+      static_cast<unsigned int>(spv::OpNop),                   // kMul
+      static_cast<unsigned int>(spv::OpFOrdGreaterThanEqual),  // kMax
+      static_cast<unsigned int>(spv::OpFOrdLessThan),          // kMin
+      static_cast<unsigned int>(spv::OpFOrdEqual),             // kSeq
+      static_cast<unsigned int>(spv::OpFOrdGreaterThan),       // kSgt
+      static_cast<unsigned int>(spv::OpFOrdGreaterThanEqual),  // kSge
+      static_cast<unsigned int>(spv::OpFUnordNotEqual),        // kSne
+      static_cast<unsigned int>(GLSLstd450Fract),              // kFrc
+      static_cast<unsigned int>(GLSLstd450Trunc),              // kTrunc
+      static_cast<unsigned int>(GLSLstd450Floor),              // kFloor
+      static_cast<unsigned int>(spv::OpNop),                   // kMad
+      static_cast<unsigned int>(spv::OpFOrdEqual),             // kCndEq
+      static_cast<unsigned int>(spv::OpFOrdGreaterThanEqual),  // kCndGe
+      static_cast<unsigned int>(spv::OpFOrdGreaterThan),       // kCndGt
+      static_cast<unsigned int>(spv::OpNop),                   // kDp4
+      static_cast<unsigned int>(spv::OpNop),                   // kDp3
+      static_cast<unsigned int>(spv::OpNop),                   // kDp2Add
+      static_cast<unsigned int>(spv::OpNop),                   // kCube
+      static_cast<unsigned int>(spv::OpNop),                   // kMax4
+      static_cast<unsigned int>(spv::OpFOrdEqual),             // kSetpEqPush
+      static_cast<unsigned int>(spv::OpFUnordNotEqual),        // kSetpNePush
+      static_cast<unsigned int>(spv::OpFOrdGreaterThan),       // kSetpGtPush
+      static_cast<unsigned int>(spv::OpFOrdGreaterThanEqual),  // kSetpGePush
+      static_cast<unsigned int>(spv::OpFOrdEqual),             // kKillEq
+      static_cast<unsigned int>(spv::OpFOrdGreaterThan),       // kKillGt
+      static_cast<unsigned int>(spv::OpFOrdGreaterThanEqual),  // kKillGe
+      static_cast<unsigned int>(spv::OpFUnordNotEqual),        // kKillNe
+      static_cast<unsigned int>(spv::OpNop),                   // kDst
+      static_cast<unsigned int>(spv::OpNop),                   // kMaxA
+  };
+
   switch (instr.vector_opcode) {
     case ucode::AluVectorOpcode::kAdd: {
       spv::Id result = builder_->createBinOp(
@@ -93,7 +127,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
                                used_result_components));
       builder_->addDecoration(result, spv::DecorationNoContraction);
       return result;
-    } break;
+    }
     case ucode::AluVectorOpcode::kMul:
     case ucode::AluVectorOpcode::kMad: {
       spv::Id multiplicands[2];
@@ -214,7 +248,104 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
                                  used_result_components));
         builder_->addDecoration(result, spv::DecorationNoContraction);
       }
-    } break;
+      return result;
+    }
+
+    case ucode::AluVectorOpcode::kMax:
+    case ucode::AluVectorOpcode::kMin: {
+      spv::Id operand_0 = GetOperandComponents(
+          operand_storage[0], instr.vector_operands[0], used_result_components);
+      // max is commonly used as mov.
+      uint32_t identical = instr.vector_operands[0].GetIdenticalComponents(
+                               instr.vector_operands[1]) &
+                           used_result_components;
+      if (identical == used_result_components) {
+        // All components are identical - mov.
+        return operand_0;
+      }
+      spv::Id operand_1 = GetOperandComponents(
+          operand_storage[1], instr.vector_operands[1], used_result_components);
+      // Shader Model 3 NaN behavior (a op b ? a : b, not SPIR-V FMax/FMin which
+      // are undefined for NaN or NMax/NMin which return the non-NaN operand).
+      spv::Op op = spv::Op(kOps[size_t(instr.vector_opcode)]);
+      if (!identical) {
+        // All components are different - max/min of the scalars or the entire
+        // vectors.
+        return builder_->createTriOp(
+            spv::OpSelect, result_type,
+            builder_->createBinOp(
+                op, type_bool_vectors_[used_result_component_count - 1],
+                operand_0, operand_1),
+            operand_0, operand_1);
+      }
+      // Mixed identical and different components.
+      assert_true(used_result_component_count > 1);
+      id_vector_temp_.clear();
+      id_vector_temp_.reserve(used_result_component_count);
+      uint32_t components_remaining = used_result_components;
+      for (uint32_t i = 0; i < used_result_component_count; ++i) {
+        spv::Id result_component =
+            builder_->createCompositeExtract(operand_0, type_float_, i);
+        uint32_t component_index;
+        xe::bit_scan_forward(components_remaining, &component_index);
+        components_remaining &= ~(1 << component_index);
+        if (!(identical & (1 << component_index))) {
+          spv::Id operand_1_component =
+              builder_->createCompositeExtract(operand_1, type_float_, i);
+          result_component = builder_->createTriOp(
+              spv::OpSelect, type_float_,
+              builder_->createBinOp(op, type_bool_, result_component,
+                                    operand_1_component),
+              result_component, operand_1_component);
+        }
+        id_vector_temp_.push_back(result_component);
+      }
+      return builder_->createCompositeConstruct(result_type, id_vector_temp_);
+    }
+
+    case ucode::AluVectorOpcode::kSeq:
+    case ucode::AluVectorOpcode::kSgt:
+    case ucode::AluVectorOpcode::kSge:
+    case ucode::AluVectorOpcode::kSne:
+      return builder_->createTriOp(
+          spv::OpSelect, result_type,
+          builder_->createBinOp(
+              spv::Op(kOps[size_t(instr.vector_opcode)]),
+              type_bool_vectors_[used_result_component_count - 1],
+              GetOperandComponents(operand_storage[0], instr.vector_operands[0],
+                                   used_result_components),
+              GetOperandComponents(operand_storage[1], instr.vector_operands[1],
+                                   used_result_components)),
+          const_float_vectors_1_[used_result_component_count - 1],
+          const_float_vectors_0_[used_result_component_count - 1]);
+
+    case ucode::AluVectorOpcode::kFrc:
+    case ucode::AluVectorOpcode::kTrunc:
+    case ucode::AluVectorOpcode::kFloor:
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(GetOperandComponents(operand_storage[0],
+                                                     instr.vector_operands[0],
+                                                     used_result_components));
+      return builder_->createBuiltinCall(
+          result_type, ext_inst_glsl_std_450_,
+          GLSLstd450(kOps[size_t(instr.vector_opcode)]), id_vector_temp_);
+
+    case ucode::AluVectorOpcode::kCndEq:
+    case ucode::AluVectorOpcode::kCndGe:
+    case ucode::AluVectorOpcode::kCndGt:
+      return builder_->createTriOp(
+          spv::OpSelect, result_type,
+          builder_->createBinOp(
+              spv::Op(kOps[size_t(instr.vector_opcode)]),
+              type_bool_vectors_[used_result_component_count - 1],
+              GetOperandComponents(operand_storage[0], instr.vector_operands[0],
+                                   used_result_components),
+              const_float_vectors_0_[used_result_component_count - 1]),
+          GetOperandComponents(operand_storage[1], instr.vector_operands[1],
+                               used_result_components),
+          GetOperandComponents(operand_storage[2], instr.vector_operands[2],
+                               used_result_components));
+
     // TODO(Triang3l): Handle all instructions.
     default:
       break;
