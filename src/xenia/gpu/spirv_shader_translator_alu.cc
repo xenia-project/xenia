@@ -428,6 +428,216 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       return result;
     }
 
+    case ucode::AluVectorOpcode::kCube: {
+      // operands[0] is .z_xy.
+      // Result is T coordinate, S coordinate, 2 * major axis, face ID.
+      // Skipping the second component of the operand, so 120, not 230.
+      spv::Id operand_vector = GetOperandComponents(
+          operand_storage[0], instr.vector_operands[0], 0b1101);
+      // Remapped from ZXY (Z_XY without the skipped component) to XYZ.
+      spv::Id operand[3];
+      for (unsigned int i = 0; i < 3; ++i) {
+        operand[i] = builder_->createCompositeExtract(operand_vector,
+                                                      type_float_, (i + 1) % 3);
+      }
+      spv::Id operand_abs[3];
+      if (!instr.vector_operands[0].is_absolute_value ||
+          instr.vector_operands[0].is_negated) {
+        for (unsigned int i = 0; i < 3; ++i) {
+          id_vector_temp_.clear();
+          id_vector_temp_.push_back(operand[i]);
+          operand_abs[i] =
+              builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                          GLSLstd450FAbs, id_vector_temp_);
+        }
+      } else {
+        for (unsigned int i = 0; i < 3; ++i) {
+          operand_abs[i] = operand[i];
+        }
+      }
+      spv::Id operand_neg[3] = {};
+      if (used_result_components & 0b0001) {
+        operand_neg[1] =
+            builder_->createUnaryOp(spv::OpFNegate, type_float_, operand[1]);
+        builder_->addDecoration(operand_neg[1], spv::DecorationNoContraction);
+      }
+      if (used_result_components & 0b0010) {
+        operand_neg[0] =
+            builder_->createUnaryOp(spv::OpFNegate, type_float_, operand[0]);
+        builder_->addDecoration(operand_neg[0], spv::DecorationNoContraction);
+        operand_neg[2] =
+            builder_->createUnaryOp(spv::OpFNegate, type_float_, operand[2]);
+        builder_->addDecoration(operand_neg[2], spv::DecorationNoContraction);
+      }
+
+      // Check if the major axis is Z (abs(z) >= abs(x) && abs(z) >= abs(y)).
+      // Selection merge must be the penultimate instruction in the block, check
+      // the condition before it.
+      spv::Id ma_z_condition = builder_->createBinOp(
+          spv::OpLogicalAnd, type_bool_,
+          builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
+                                operand_abs[2], operand_abs[0]),
+          builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
+                                operand_abs[2], operand_abs[1]));
+      spv::Function& function = builder_->getBuildPoint()->getParent();
+      spv::Block& ma_z_block = builder_->makeNewBlock();
+      spv::Block& ma_yx_block = builder_->makeNewBlock();
+      spv::Block* ma_merge_block =
+          new spv::Block(builder_->getUniqueId(), function);
+      {
+        std::unique_ptr<spv::Instruction> selection_merge_op =
+            std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
+        selection_merge_op->addIdOperand(ma_merge_block->getId());
+        selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
+        builder_->getBuildPoint()->addInstruction(
+            std::move(selection_merge_op));
+      }
+      builder_->createConditionalBranch(ma_z_condition, &ma_z_block,
+                                        &ma_yx_block);
+
+      builder_->setBuildPoint(&ma_z_block);
+      // The major axis is Z.
+      spv::Id ma_z_result[4] = {};
+      // tc = -y
+      ma_z_result[0] = operand_neg[1];
+      // ma/2 = z
+      ma_z_result[2] = operand[2];
+      if (used_result_components & 0b1010) {
+        spv::Id z_is_neg = builder_->createBinOp(
+            spv::OpFOrdLessThan, type_bool_, operand[2], const_float_0_);
+        if (used_result_components & 0b0010) {
+          // sc = z < 0.0 ? -x : x
+          ma_z_result[1] = builder_->createTriOp(
+              spv::OpSelect, type_float_, z_is_neg, operand_neg[0], operand[0]);
+        }
+        if (used_result_components & 0b1000) {
+          // id = z < 0.0 ? 5.0 : 4.0
+          ma_z_result[3] =
+              builder_->createTriOp(spv::OpSelect, type_float_, z_is_neg,
+                                    builder_->makeFloatConstant(5.0f),
+                                    builder_->makeFloatConstant(4.0f));
+        }
+      }
+      builder_->createBranch(ma_merge_block);
+
+      builder_->setBuildPoint(&ma_yx_block);
+      // The major axis is not Z - create an inner conditional to check if the
+      // major axis is Y (abs(y) >= abs(x)).
+      // Selection merge must be the penultimate instruction in the block, check
+      // the condition before it.
+      spv::Id ma_y_condition =
+          builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
+                                operand_abs[1], operand_abs[0]);
+      spv::Block& ma_y_block = builder_->makeNewBlock();
+      spv::Block& ma_x_block = builder_->makeNewBlock();
+      spv::Block& ma_yx_merge_block = builder_->makeNewBlock();
+      {
+        std::unique_ptr<spv::Instruction> selection_merge_op =
+            std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
+        selection_merge_op->addIdOperand(ma_yx_merge_block.getId());
+        selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
+        builder_->getBuildPoint()->addInstruction(
+            std::move(selection_merge_op));
+      }
+      builder_->createConditionalBranch(ma_y_condition, &ma_y_block,
+                                        &ma_x_block);
+
+      builder_->setBuildPoint(&ma_y_block);
+      // The major axis is Y.
+      spv::Id ma_y_result[4] = {};
+      // sc = x
+      ma_y_result[1] = operand[0];
+      // ma/2 = y
+      ma_y_result[2] = operand[1];
+      if (used_result_components & 0b1001) {
+        spv::Id y_is_neg = builder_->createBinOp(
+            spv::OpFOrdLessThan, type_bool_, operand[1], const_float_0_);
+        if (used_result_components & 0b0001) {
+          // tc = y < 0.0 ? -z : z
+          ma_y_result[0] = builder_->createTriOp(
+              spv::OpSelect, type_float_, y_is_neg, operand_neg[2], operand[2]);
+          // id = y < 0.0 ? 3.0 : 2.0
+          ma_y_result[3] =
+              builder_->createTriOp(spv::OpSelect, type_float_, y_is_neg,
+                                    builder_->makeFloatConstant(3.0f),
+                                    builder_->makeFloatConstant(2.0f));
+        }
+      }
+      builder_->createBranch(&ma_yx_merge_block);
+
+      builder_->setBuildPoint(&ma_x_block);
+      // The major axis is X.
+      spv::Id ma_x_result[4] = {};
+      // tc = -y
+      ma_x_result[0] = operand_neg[1];
+      // ma/2 = x
+      ma_x_result[2] = operand[2];
+      if (used_result_components & 0b1010) {
+        spv::Id x_is_neg = builder_->createBinOp(
+            spv::OpFOrdLessThan, type_bool_, operand[0], const_float_0_);
+        if (used_result_components & 0b0010) {
+          // sc = x < 0.0 ? z : -z
+          ma_x_result[1] = builder_->createTriOp(
+              spv::OpSelect, type_float_, x_is_neg, operand[2], operand_neg[2]);
+        }
+        if (used_result_components & 0b1000) {
+          // id = x < 0.0 ? 1.0 : 0.0
+          ma_x_result[3] =
+              builder_->createTriOp(spv::OpSelect, type_float_, x_is_neg,
+                                    const_float_1_, const_float_0_);
+        }
+      }
+      builder_->createBranch(&ma_yx_merge_block);
+
+      builder_->setBuildPoint(&ma_yx_merge_block);
+      // The major axis is Y or X - choose the options of the result from Y and
+      // X.
+      spv::Id ma_yx_result[4] = {};
+      for (uint32_t i = 0; i < 4; ++i) {
+        if (!(used_result_components & (1 << i))) {
+          continue;
+        }
+        std::unique_ptr<spv::Instruction> phi_op =
+            std::make_unique<spv::Instruction>(builder_->getUniqueId(),
+                                               type_float_, spv::OpPhi);
+        phi_op->addIdOperand(ma_y_result[i]);
+        phi_op->addIdOperand(ma_y_block.getId());
+        phi_op->addIdOperand(ma_x_result[i]);
+        phi_op->addIdOperand(ma_x_block.getId());
+        ma_yx_result[i] = phi_op->getResultId();
+        builder_->getBuildPoint()->addInstruction(std::move(phi_op));
+      }
+      builder_->createBranch(ma_merge_block);
+
+      function.addBlock(ma_merge_block);
+      builder_->setBuildPoint(ma_merge_block);
+      // Choose the result options from Z and YX cases.
+      id_vector_temp_.clear();
+      id_vector_temp_.reserve(used_result_component_count);
+      for (uint32_t i = 0; i < 4; ++i) {
+        if (!(used_result_components & (1 << i))) {
+          continue;
+        }
+        std::unique_ptr<spv::Instruction> phi_op =
+            std::make_unique<spv::Instruction>(builder_->getUniqueId(),
+                                               type_float_, spv::OpPhi);
+        phi_op->addIdOperand(ma_z_result[i]);
+        phi_op->addIdOperand(ma_z_block.getId());
+        phi_op->addIdOperand(ma_yx_result[i]);
+        phi_op->addIdOperand(ma_yx_merge_block.getId());
+        id_vector_temp_.push_back(phi_op->getResultId());
+        builder_->getBuildPoint()->addInstruction(std::move(phi_op));
+      }
+      assert_true(id_vector_temp_.size() == used_result_component_count);
+      if (used_result_component_count == 1) {
+        // Only one component - not composite.
+        return id_vector_temp_[0];
+      }
+      return builder_->createCompositeConstruct(
+          type_float_vectors_[used_result_component_count - 1],
+          id_vector_temp_);
+    }
+
     // TODO(Triang3l): Handle all instructions.
     default:
       break;
