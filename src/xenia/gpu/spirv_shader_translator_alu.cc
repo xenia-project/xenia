@@ -28,8 +28,10 @@ void SpirvShaderTranslator::ProcessAluInstruction(
   UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition);
 
   // Floating-point arithmetic operations (addition, subtraction, negation,
-  // multiplication, dot product, division, modulo - see isArithmeticOperation
-  // in propagateNoContraction of glslang) must have the NoContraction
+  // multiplication, division, modulo - see isArithmeticOperation in
+  // propagateNoContraction of glslang; though for some reason it's not applied
+  // to SPIR-V OpDot, at least in the February 16, 2020 version installed on
+  // http://shader-playground.timjones.io/) must have the NoContraction
   // decoration to prevent reordering to make sure floating-point calculations
   // are optimized predictably and exactly the same in different shaders to
   // allow for multipass rendering (in addition to the Invariant decoration on
@@ -345,6 +347,86 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
                                used_result_components),
           GetOperandComponents(operand_storage[2], instr.vector_operands[2],
                                used_result_components));
+
+    case ucode::AluVectorOpcode::kDp4:
+    case ucode::AluVectorOpcode::kDp3:
+    case ucode::AluVectorOpcode::kDp2Add: {
+      // Not using OpDot for predictable optimization (especially addition
+      // order) and NoContraction (which, for some reason, isn't placed on dot
+      // in glslang as of the February 16, 2020 version).
+      uint32_t component_count;
+      if (instr.vector_opcode == ucode::AluVectorOpcode::kDp2Add) {
+        component_count = 2;
+      } else if (instr.vector_opcode == ucode::AluVectorOpcode::kDp3) {
+        component_count = 3;
+      } else {
+        component_count = 4;
+      }
+      uint32_t component_mask = (1 << component_count) - 1;
+      spv::Id operands[2];
+      for (uint32_t i = 0; i < 2; ++i) {
+        operands[i] = GetOperandComponents(
+            operand_storage[i], instr.vector_operands[i], component_mask);
+      }
+      uint32_t different =
+          component_mask & ~instr.vector_operands[0].GetIdenticalComponents(
+                               instr.vector_operands[1]);
+      spv::Id result = spv::NoResult;
+      for (uint32_t i = 0; i < component_count; ++i) {
+        spv::Id operand_components[2];
+        for (unsigned int j = 0; j < 2; ++j) {
+          operand_components[j] =
+              builder_->createCompositeExtract(operands[j], type_float_, i);
+        }
+        spv::Id product =
+            builder_->createBinOp(spv::OpFMul, type_float_,
+                                  operand_components[0], operand_components[1]);
+        builder_->addDecoration(product, spv::DecorationNoContraction);
+        if (different & (1 << i)) {
+          // Shader Model 3: +0 or denormal * anything = +-0.
+          // Check if the different components in any of the operands are zero,
+          // even if the other is NaN - if min(|a|, |b|) is 0.
+          for (uint32_t j = 0; j < 2; ++j) {
+            if (instr.vector_operands[j].is_absolute_value &&
+                !instr.vector_operands[j].is_negated) {
+              continue;
+            }
+            id_vector_temp_.clear();
+            id_vector_temp_.push_back(operand_components[j]);
+            operand_components[j] =
+                builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                            GLSLstd450FAbs, id_vector_temp_);
+          }
+          id_vector_temp_.clear();
+          id_vector_temp_.reserve(2);
+          id_vector_temp_.push_back(operand_components[0]);
+          id_vector_temp_.push_back(operand_components[1]);
+          product = builder_->createTriOp(
+              spv::OpSelect, type_float_,
+              builder_->createBinOp(spv::OpFOrdEqual, type_bool_,
+                                    builder_->createBuiltinCall(
+                                        type_float_, ext_inst_glsl_std_450_,
+                                        GLSLstd450NMin, id_vector_temp_),
+                                    const_float_0_),
+              const_float_0_, product);
+        }
+        if (!i) {
+          result = product;
+          continue;
+        }
+        result =
+            builder_->createBinOp(spv::OpFAdd, type_float_, result, product);
+        builder_->addDecoration(result, spv::DecorationNoContraction);
+      }
+      if (instr.vector_opcode == ucode::AluVectorOpcode::kDp2Add) {
+        result = builder_->createBinOp(
+            spv::OpFAdd, type_float_, result,
+            GetOperandComponents(operand_storage[2], instr.vector_operands[2],
+                                 0b0001));
+        builder_->addDecoration(result, spv::DecorationNoContraction);
+      }
+      return result;
+    }
 
     // TODO(Triang3l): Handle all instructions.
     default:
