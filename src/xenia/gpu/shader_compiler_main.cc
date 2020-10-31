@@ -108,9 +108,10 @@ int shader_compiler_main(const std::vector<std::string>& args) {
       shader_type, ucode_data_hash, ucode_dwords.data(), ucode_dwords.size());
 
   std::unique_ptr<ShaderTranslator> translator;
+  SpirvShaderTranslator::Features spirv_features(true);
   if (cvars::shader_output_type == "spirv" ||
       cvars::shader_output_type == "spirvtext") {
-    translator = std::make_unique<SpirvShaderTranslator>();
+    translator = std::make_unique<SpirvShaderTranslator>(spirv_features);
   } else if (cvars::shader_output_type == "dxbc" ||
              cvars::shader_output_type == "dxbctext") {
     translator = std::make_unique<DxbcShaderTranslator>(
@@ -161,7 +162,7 @@ int shader_compiler_main(const std::vector<std::string>& args) {
     spv::Disassemble(spirv_disasm_stream, spirv_source);
     spirv_disasm = std::move(spirv_disasm_stream.str());
     ui::vulkan::SpirvToolsContext spirv_tools_context;
-    if (spirv_tools_context.Initialize()) {
+    if (spirv_tools_context.Initialize(spirv_features.spirv_version)) {
       std::string spirv_validation_error;
       spirv_tools_context.Validate(
           reinterpret_cast<const uint32_t*>(spirv_source.data()),

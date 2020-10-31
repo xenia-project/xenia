@@ -26,7 +26,7 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
-bool SpirvToolsContext::Initialize() {
+bool SpirvToolsContext::Initialize(unsigned int spirv_version) {
   const char* vulkan_sdk_env = std::getenv("VULKAN_SDK");
   if (!vulkan_sdk_env) {
     XELOGE("SPIRV-Tools: Failed to get the VULKAN_SDK environment variable");
@@ -63,7 +63,17 @@ bool SpirvToolsContext::Initialize() {
     Shutdown();
     return false;
   }
-  context_ = fn_spvContextCreate_(SPV_ENV_VULKAN_1_0);
+  spv_target_env target_env;
+  if (spirv_version >= 0x10500) {
+    target_env = SPV_ENV_VULKAN_1_2;
+  } else if (spirv_version >= 0x10400) {
+    target_env = SPV_ENV_VULKAN_1_1_SPIRV_1_4;
+  } else if (spirv_version >= 0x10300) {
+    target_env = SPV_ENV_VULKAN_1_1;
+  } else {
+    target_env = SPV_ENV_VULKAN_1_0;
+  }
+  context_ = fn_spvContextCreate_(target_env);
   if (!context_) {
     XELOGE("SPIRV-Tools: Failed to create a Vulkan 1.0 context");
     Shutdown();

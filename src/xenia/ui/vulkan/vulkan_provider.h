@@ -104,6 +104,10 @@ class VulkanProvider : public GraphicsProvider {
     bool ext_fragment_shader_interlock;
     // Core since 1.1.0.
     bool khr_dedicated_allocation;
+    // Core since 1.2.0.
+    bool khr_shader_float_controls;
+    // Core since 1.2.0.
+    bool khr_spirv_1_4;
   };
   const DeviceExtensions& device_extensions() const {
     return device_extensions_;
