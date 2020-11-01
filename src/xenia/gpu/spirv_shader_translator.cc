@@ -235,6 +235,9 @@ void SpirvShaderTranslator::StartTranslation() {
   var_main_address_relative_ = builder_->createVariable(
       spv::NoPrecision, spv::StorageClassFunction, type_int4_,
       "xe_var_address_relative", const_int4_0_);
+  var_main_previous_scalar_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassFunction, type_float_,
+      "xe_var_previous_scalar", const_float_0_);
   uint32_t register_array_size = register_count();
   if (register_array_size) {
     id_vector_temp_.clear();
@@ -1126,6 +1129,31 @@ spv::Id SpirvShaderTranslator::GetUnmodifiedOperandComponents(
   return builder_->createRvalueSwizzle(spv::NoPrecision,
                                        type_float_vectors_[component_count - 1],
                                        operand_storage, id_vector_temp_util_);
+}
+
+void SpirvShaderTranslator::GetOperandScalarXY(
+    spv::Id operand_storage, const InstructionOperand& original_operand,
+    spv::Id& a_out, spv::Id& b_out, bool invert_negate, bool force_absolute) {
+  spv::Id a = GetOperandComponents(operand_storage, original_operand, 0b0001,
+                                   invert_negate, force_absolute);
+  a_out = a;
+  b_out = original_operand.GetComponent(0) != original_operand.GetComponent(1)
+              ? GetOperandComponents(operand_storage, original_operand, 0b0010,
+                                     invert_negate, force_absolute)
+              : a;
+}
+
+spv::Id SpirvShaderTranslator::GetAbsoluteOperand(
+    spv::Id operand_storage, const InstructionOperand& original_operand) {
+  if (original_operand.is_absolute_value && !original_operand.is_negated) {
+    return operand_storage;
+  }
+  EnsureBuildPointAvailable();
+  id_vector_temp_util_.clear();
+  id_vector_temp_util_.push_back(operand_storage);
+  return builder_->createBuiltinCall(builder_->getTypeId(operand_storage),
+                                     ext_inst_glsl_std_450_, GLSLstd450FAbs,
+                                     id_vector_temp_util_);
 }
 
 void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
