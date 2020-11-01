@@ -960,57 +960,57 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
 
   // Lookup table for variants of instructions with similar structure.
   static const unsigned int kOps[] = {
-      static_cast<unsigned int>(spv::OpFAdd),  // kAdds
-      static_cast<unsigned int>(spv::OpFAdd),  // kAddsPrev
-      static_cast<unsigned int>(spv::OpNop),   // kMuls
-      static_cast<unsigned int>(spv::OpNop),   // kMulsPrev
-      static_cast<unsigned int>(spv::OpNop),   // kMulsPrev2
-      static_cast<unsigned int>(spv::OpNop),   // kMaxs
-      static_cast<unsigned int>(spv::OpNop),   // kMins
-      static_cast<unsigned int>(spv::OpNop),   // kSeqs
-      static_cast<unsigned int>(spv::OpNop),   // kSgts
-      static_cast<unsigned int>(spv::OpNop),   // kSges
-      static_cast<unsigned int>(spv::OpNop),   // kSnes
-      static_cast<unsigned int>(spv::OpNop),   // kFrcs
-      static_cast<unsigned int>(spv::OpNop),   // kTruncs
-      static_cast<unsigned int>(spv::OpNop),   // kFloors
-      static_cast<unsigned int>(spv::OpNop),   // kExp
-      static_cast<unsigned int>(spv::OpNop),   // kLogc
-      static_cast<unsigned int>(spv::OpNop),   // kLog
-      static_cast<unsigned int>(spv::OpNop),   // kRcpc
-      static_cast<unsigned int>(spv::OpNop),   // kRcpf
-      static_cast<unsigned int>(spv::OpNop),   // kRcp
-      static_cast<unsigned int>(spv::OpNop),   // kRsqc
-      static_cast<unsigned int>(spv::OpNop),   // kRsqf
-      static_cast<unsigned int>(spv::OpNop),   // kRsq
-      static_cast<unsigned int>(spv::OpNop),   // kMaxAs
-      static_cast<unsigned int>(spv::OpNop),   // kMaxAsf
-      static_cast<unsigned int>(spv::OpFSub),  // kSubs
-      static_cast<unsigned int>(spv::OpFSub),  // kSubsPrev
-      static_cast<unsigned int>(spv::OpNop),   // kSetpEq
-      static_cast<unsigned int>(spv::OpNop),   // kSetpNe
-      static_cast<unsigned int>(spv::OpNop),   // kSetpGt
-      static_cast<unsigned int>(spv::OpNop),   // kSetpGe
-      static_cast<unsigned int>(spv::OpNop),   // kSetpInv
-      static_cast<unsigned int>(spv::OpNop),   // kSetpPop
-      static_cast<unsigned int>(spv::OpNop),   // kSetpClr
-      static_cast<unsigned int>(spv::OpNop),   // kSetpRstr
-      static_cast<unsigned int>(spv::OpNop),   // kKillsEq
-      static_cast<unsigned int>(spv::OpNop),   // kKillsGt
-      static_cast<unsigned int>(spv::OpNop),   // kKillsGe
-      static_cast<unsigned int>(spv::OpNop),   // kKillsNe
-      static_cast<unsigned int>(spv::OpNop),   // kKillsOne
-      static_cast<unsigned int>(spv::OpNop),   // kSqrt
-      static_cast<unsigned int>(spv::OpNop),   // Invalid
-      static_cast<unsigned int>(spv::OpNop),   // kMulsc0
-      static_cast<unsigned int>(spv::OpNop),   // kMulsc1
-      static_cast<unsigned int>(spv::OpNop),   // kAddsc0
-      static_cast<unsigned int>(spv::OpNop),   // kAddsc1
-      static_cast<unsigned int>(spv::OpNop),   // kSubsc0
-      static_cast<unsigned int>(spv::OpNop),   // kSubsc1
-      static_cast<unsigned int>(spv::OpNop),   // kSin
-      static_cast<unsigned int>(spv::OpNop),   // kCos
-      static_cast<unsigned int>(spv::OpNop),   // kRetainPrev
+      static_cast<unsigned int>(spv::OpFAdd),                  // kAdds
+      static_cast<unsigned int>(spv::OpFAdd),                  // kAddsPrev
+      static_cast<unsigned int>(spv::OpNop),                   // kMuls
+      static_cast<unsigned int>(spv::OpNop),                   // kMulsPrev
+      static_cast<unsigned int>(spv::OpNop),                   // kMulsPrev2
+      static_cast<unsigned int>(spv::OpFOrdGreaterThanEqual),  // kMaxs
+      static_cast<unsigned int>(spv::OpFOrdLessThan),          // kMins
+      static_cast<unsigned int>(spv::OpFOrdEqual),             // kSeqs
+      static_cast<unsigned int>(spv::OpFOrdGreaterThan),       // kSgts
+      static_cast<unsigned int>(spv::OpFOrdGreaterThanEqual),  // kSges
+      static_cast<unsigned int>(spv::OpFUnordNotEqual),        // kSnes
+      static_cast<unsigned int>(GLSLstd450Fract),              // kFrcs
+      static_cast<unsigned int>(GLSLstd450Trunc),              // kTruncs
+      static_cast<unsigned int>(GLSLstd450Floor),              // kFloors
+      static_cast<unsigned int>(GLSLstd450Exp2),               // kExp
+      static_cast<unsigned int>(spv::OpNop),                   // kLogc
+      static_cast<unsigned int>(GLSLstd450Log2),               // kLog
+      static_cast<unsigned int>(spv::OpNop),                   // kRcpc
+      static_cast<unsigned int>(spv::OpNop),                   // kRcpf
+      static_cast<unsigned int>(spv::OpNop),                   // kRcp
+      static_cast<unsigned int>(spv::OpNop),                   // kRsqc
+      static_cast<unsigned int>(spv::OpNop),                   // kRsqf
+      static_cast<unsigned int>(GLSLstd450InverseSqrt),        // kRsq
+      static_cast<unsigned int>(spv::OpNop),                   // kMaxAs
+      static_cast<unsigned int>(spv::OpNop),                   // kMaxAsf
+      static_cast<unsigned int>(spv::OpFSub),                  // kSubs
+      static_cast<unsigned int>(spv::OpFSub),                  // kSubsPrev
+      static_cast<unsigned int>(spv::OpNop),                   // kSetpEq
+      static_cast<unsigned int>(spv::OpNop),                   // kSetpNe
+      static_cast<unsigned int>(spv::OpNop),                   // kSetpGt
+      static_cast<unsigned int>(spv::OpNop),                   // kSetpGe
+      static_cast<unsigned int>(spv::OpNop),                   // kSetpInv
+      static_cast<unsigned int>(spv::OpNop),                   // kSetpPop
+      static_cast<unsigned int>(spv::OpNop),                   // kSetpClr
+      static_cast<unsigned int>(spv::OpNop),                   // kSetpRstr
+      static_cast<unsigned int>(spv::OpNop),                   // kKillsEq
+      static_cast<unsigned int>(spv::OpNop),                   // kKillsGt
+      static_cast<unsigned int>(spv::OpNop),                   // kKillsGe
+      static_cast<unsigned int>(spv::OpNop),                   // kKillsNe
+      static_cast<unsigned int>(spv::OpNop),                   // kKillsOne
+      static_cast<unsigned int>(GLSLstd450Sqrt),               // kSqrt
+      static_cast<unsigned int>(spv::OpNop),                   // Invalid
+      static_cast<unsigned int>(spv::OpNop),                   // kMulsc0
+      static_cast<unsigned int>(spv::OpNop),                   // kMulsc1
+      static_cast<unsigned int>(spv::OpNop),                   // kAddsc0
+      static_cast<unsigned int>(spv::OpNop),                   // kAddsc1
+      static_cast<unsigned int>(spv::OpNop),                   // kSubsc0
+      static_cast<unsigned int>(spv::OpNop),                   // kSubsc1
+      static_cast<unsigned int>(GLSLstd450Sin),                // kSin
+      static_cast<unsigned int>(GLSLstd450Cos),                // kCos
+      static_cast<unsigned int>(spv::OpNop),                   // kRetainPrev
   };
 
   switch (instr.scalar_opcode) {
@@ -1164,10 +1164,57 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
         return phi_result;
       }
     }
+
+    case ucode::AluScalarOpcode::kMaxs:
+    case ucode::AluScalarOpcode::kMins: {
+      spv::Id a, b;
+      GetOperandScalarXY(operand_storage[0], instr.scalar_operands[0], a, b);
+      if (a == b) {
+        // max is commonly used as mov.
+        return a;
+      }
+      // Shader Model 3 NaN behavior (a op b ? a : b, not SPIR-V FMax/FMin which
+      // are undefined for NaN or NMax/NMin which return the non-NaN operand).
+      return builder_->createTriOp(
+          spv::OpSelect, type_float_,
+          builder_->createBinOp(spv::Op(kOps[size_t(instr.scalar_opcode)]),
+                                type_bool_, a, b),
+          a, b);
+    }
+
+    case ucode::AluScalarOpcode::kSeqs:
+    case ucode::AluScalarOpcode::kSgts:
+    case ucode::AluScalarOpcode::kSges:
+    case ucode::AluScalarOpcode::kSnes:
+      return builder_->createTriOp(
+          spv::OpSelect, type_float_,
+          builder_->createBinOp(
+              spv::Op(kOps[size_t(instr.scalar_opcode)]), type_bool_,
+              GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
+                                   0b0001),
+              const_float_0_),
+          const_float_1_, const_float_0_);
+
+    case ucode::AluScalarOpcode::kFrcs:
+    case ucode::AluScalarOpcode::kTruncs:
+    case ucode::AluScalarOpcode::kFloors:
+    case ucode::AluScalarOpcode::kExp:
+    case ucode::AluScalarOpcode::kLog:
+    case ucode::AluScalarOpcode::kRsq:
+    case ucode::AluScalarOpcode::kSqrt:
+    case ucode::AluScalarOpcode::kSin:
+    case ucode::AluScalarOpcode::kCos:
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(GetOperandComponents(
+          operand_storage[0], instr.scalar_operands[0], 0b0001));
+      return builder_->createBuiltinCall(
+          type_float_, ext_inst_glsl_std_450_,
+          GLSLstd450(kOps[size_t(instr.scalar_opcode)]), id_vector_temp_);
+
       // TODO(Triang3l): Implement the rest of instructions.
   }
 
-  /* assert_unhandled_case(instr.vector_opcode);
+  /* assert_unhandled_case(instr.scalar_opcode);
   EmitTranslationError("Unknown ALU scalar operation"); */
   return spv::NoResult;
 }
