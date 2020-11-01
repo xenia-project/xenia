@@ -997,11 +997,11 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
       static_cast<unsigned int>(spv::OpNop),                   // kSetpPop
       static_cast<unsigned int>(spv::OpNop),                   // kSetpClr
       static_cast<unsigned int>(spv::OpNop),                   // kSetpRstr
-      static_cast<unsigned int>(spv::OpNop),                   // kKillsEq
-      static_cast<unsigned int>(spv::OpNop),                   // kKillsGt
-      static_cast<unsigned int>(spv::OpNop),                   // kKillsGe
-      static_cast<unsigned int>(spv::OpNop),                   // kKillsNe
-      static_cast<unsigned int>(spv::OpNop),                   // kKillsOne
+      static_cast<unsigned int>(spv::OpFOrdEqual),             // kKillsEq
+      static_cast<unsigned int>(spv::OpFOrdGreaterThan),       // kKillsGt
+      static_cast<unsigned int>(spv::OpFOrdGreaterThanEqual),  // kKillsGe
+      static_cast<unsigned int>(spv::OpFUnordNotEqual),        // kKillsNe
+      static_cast<unsigned int>(spv::OpFOrdEqual),             // kKillsOne
       static_cast<unsigned int>(GLSLstd450Sqrt),               // kSqrt
       static_cast<unsigned int>(spv::OpNop),                   // Invalid
       static_cast<unsigned int>(spv::OpNop),                   // kMulsc0
@@ -1043,8 +1043,8 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
       if (a != b) {
         // Shader Model 3: +0 or denormal * anything = +-0.
         result = ZeroIfAnyOperandIsZero(
-            result, GetAbsoluteOperand(a, instr.vector_operands[0]),
-            GetAbsoluteOperand(b, instr.vector_operands[0]));
+            result, GetAbsoluteOperand(a, instr.scalar_operands[0]),
+            GetAbsoluteOperand(b, instr.scalar_operands[0]));
       }
       return result;
     }
@@ -1398,6 +1398,39 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
       predicate_written = true;
       return builder_->createTriOp(spv::OpSelect, type_float_, predicate,
                                    const_float_0_, a);
+    }
+
+    case ucode::AluScalarOpcode::kKillsEq:
+    case ucode::AluScalarOpcode::kKillsGt:
+    case ucode::AluScalarOpcode::kKillsGe:
+    case ucode::AluScalarOpcode::kKillsNe:
+    case ucode::AluScalarOpcode::kKillsOne: {
+      // Selection merge must be the penultimate instruction in the block, check
+      // the condition before it.
+      spv::Id condition = builder_->createBinOp(
+          spv::Op(kOps[size_t(instr.scalar_opcode)]), type_bool_,
+          GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
+                               0b0001),
+          instr.scalar_opcode == ucode::AluScalarOpcode::kKillsOne
+              ? const_float_1_
+              : const_float_0_);
+      spv::Block& kill_block = builder_->makeNewBlock();
+      spv::Block& merge_block = builder_->makeNewBlock();
+      {
+        std::unique_ptr<spv::Instruction> selection_merge_op =
+            std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
+        selection_merge_op->addIdOperand(merge_block.getId());
+        selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
+        builder_->getBuildPoint()->addInstruction(
+            std::move(selection_merge_op));
+      }
+      builder_->createConditionalBranch(condition, &kill_block, &merge_block);
+      builder_->setBuildPoint(&kill_block);
+      // TODO(Triang3l): Demote to helper invocation to keep derivatives if
+      // needed (and return 1 if killed in this case).
+      builder_->createNoResultOp(spv::OpKill);
+      builder_->setBuildPoint(&merge_block);
+      return const_float_0_;
     }
 
       // TODO(Triang3l): Implement the rest of instructions.
