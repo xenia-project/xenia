@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/spirv_shader_translator.h"
 
+#include <cfloat>
 #include <memory>
 
 #include "third_party/glslang/SPIRV/GLSL.std.450.h"
@@ -17,6 +18,28 @@
 
 namespace xe {
 namespace gpu {
+
+spv::Id SpirvShaderTranslator::ZeroIfAnyOperandIsZero(spv::Id value,
+                                                      spv::Id operand_0_abs,
+                                                      spv::Id operand_1_abs) {
+  EnsureBuildPointAvailable();
+  int num_components = builder_->getNumComponents(value);
+  assert_true(builder_->getNumComponents(operand_0_abs) == num_components);
+  assert_true(builder_->getNumComponents(operand_1_abs) == num_components);
+  id_vector_temp_util_.clear();
+  id_vector_temp_util_.reserve(2);
+  id_vector_temp_util_.push_back(operand_0_abs);
+  id_vector_temp_util_.push_back(operand_1_abs);
+  return builder_->createTriOp(
+      spv::OpSelect, type_float_,
+      builder_->createBinOp(
+          spv::OpFOrdEqual, type_bool_vectors_[num_components - 1],
+          builder_->createBuiltinCall(type_float_vectors_[num_components - 1],
+                                      ext_inst_glsl_std_450_, GLSLstd450NMin,
+                                      id_vector_temp_util_),
+          const_float_vectors_0_[num_components - 1]),
+      const_float_vectors_0_[num_components - 1], value);
+}
 
 void SpirvShaderTranslator::ProcessAluInstruction(
     const ParsedAluInstruction& instr) {
@@ -42,11 +65,25 @@ void SpirvShaderTranslator::ProcessAluInstruction(
   bool predicate_written_vector = false;
   spv::Id vector_result =
       ProcessVectorAluOperation(instr, predicate_written_vector);
-  // TODO(Triang3l): Process the ALU scalar operation.
 
+  bool predicate_written_scalar = false;
+  spv::Id scalar_result =
+      ProcessScalarAluOperation(instr, predicate_written_scalar);
+
+  if (scalar_result != spv::NoResult) {
+    builder_->createStore(scalar_result, var_main_previous_scalar_);
+  } else {
+    // Special retain_prev case - load ps only if needed and don't store the
+    // same value back to ps.
+    if (instr.scalar_result.GetUsedWriteMask()) {
+      scalar_result =
+          builder_->createLoad(var_main_previous_scalar_, spv::NoPrecision);
+    }
+  }
   StoreResult(instr.vector_and_constant_result, vector_result);
+  StoreResult(instr.scalar_result, scalar_result);
 
-  if (predicate_written_vector) {
+  if (predicate_written_vector || predicate_written_scalar) {
     cf_exec_predicate_written_ = true;
     CloseInstructionPredication();
   }
@@ -186,15 +223,8 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         // Check if the different components in any of the operands are zero,
         // even if the other is NaN - if min(|a|, |b|) is 0.
         for (uint32_t i = 0; i < 2; ++i) {
-          if (instr.vector_operands[i].is_absolute_value &&
-              !instr.vector_operands[i].is_negated) {
-            continue;
-          }
-          id_vector_temp_.clear();
-          id_vector_temp_.push_back(different_operands[i]);
-          different_operands[i] = builder_->createBuiltinCall(
-              different_type, ext_inst_glsl_std_450_, GLSLstd450FAbs,
-              id_vector_temp_);
+          different_operands[i] = GetAbsoluteOperand(different_operands[i],
+                                                     instr.vector_operands[i]);
         }
         id_vector_temp_.clear();
         id_vector_temp_.reserve(2);
@@ -465,32 +495,12 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         builder_->addDecoration(product, spv::DecorationNoContraction);
         if (different & (1 << i)) {
           // Shader Model 3: +0 or denormal * anything = +-0.
-          // Check if the different components in any of the operands are zero,
-          // even if the other is NaN - if min(|a|, |b|) is 0, if yes, replace
-          // the result with zero.
-          for (uint32_t j = 0; j < 2; ++j) {
-            if (instr.vector_operands[j].is_absolute_value &&
-                !instr.vector_operands[j].is_negated) {
-              continue;
-            }
-            id_vector_temp_.clear();
-            id_vector_temp_.push_back(operand_components[j]);
-            operand_components[j] =
-                builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                            GLSLstd450FAbs, id_vector_temp_);
-          }
-          id_vector_temp_.clear();
-          id_vector_temp_.reserve(2);
-          id_vector_temp_.push_back(operand_components[0]);
-          id_vector_temp_.push_back(operand_components[1]);
-          product = builder_->createTriOp(
-              spv::OpSelect, type_float_,
-              builder_->createBinOp(spv::OpFOrdEqual, type_bool_,
-                                    builder_->createBuiltinCall(
-                                        type_float_, ext_inst_glsl_std_450_,
-                                        GLSLstd450NMin, id_vector_temp_),
-                                    const_float_0_),
-              const_float_0_, product);
+          product = ZeroIfAnyOperandIsZero(
+              product,
+              GetAbsoluteOperand(operand_components[0],
+                                 instr.vector_operands[0]),
+              GetAbsoluteOperand(operand_components[1],
+                                 instr.vector_operands[1]));
         }
         if (!i) {
           result = product;
@@ -888,29 +898,11 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         if (!(instr.vector_operands[0].GetIdenticalComponents(
                   instr.vector_operands[1]) &
               0b0010)) {
-          for (uint32_t i = 0; i < 2; ++i) {
-            if (instr.vector_operands[i].is_absolute_value &&
-                !instr.vector_operands[i].is_negated) {
-              continue;
-            }
-            id_vector_temp_.clear();
-            id_vector_temp_.push_back(operands_y[i]);
-            operands_y[i] =
-                builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                            GLSLstd450FAbs, id_vector_temp_);
-          }
-          id_vector_temp_.clear();
-          id_vector_temp_.reserve(2);
-          id_vector_temp_.push_back(operands_y[0]);
-          id_vector_temp_.push_back(operands_y[1]);
-          result_y = builder_->createTriOp(
-              spv::OpSelect, type_float_,
-              builder_->createBinOp(spv::OpFOrdEqual, type_bool_,
-                                    builder_->createBuiltinCall(
-                                        type_float_, ext_inst_glsl_std_450_,
-                                        GLSLstd450NMin, id_vector_temp_),
-                                    const_float_0_),
-              const_float_0_, result_y);
+          // Shader Model 3: +0 or denormal * anything = +-0.
+          result_y = ZeroIfAnyOperandIsZero(
+              result_y,
+              GetAbsoluteOperand(operands_y[0], instr.vector_operands[0]),
+              GetAbsoluteOperand(operands_y[1], instr.vector_operands[1]));
         }
       }
       id_vector_temp_.clear();
@@ -950,6 +942,233 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
 
   assert_unhandled_case(instr.vector_opcode);
   EmitTranslationError("Unknown ALU vector operation");
+  return spv::NoResult;
+}
+
+spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
+    const ParsedAluInstruction& instr, bool& predicate_written) {
+  predicate_written = false;
+
+  spv::Id operand_storage[2] = {};
+  for (uint32_t i = 0; i < instr.scalar_operand_count; ++i) {
+    operand_storage[i] = LoadOperandStorage(instr.scalar_operands[i]);
+  }
+
+  // In case the paired vector instruction (if processed first) terminates the
+  // block (like via OpKill).
+  EnsureBuildPointAvailable();
+
+  // Lookup table for variants of instructions with similar structure.
+  static const unsigned int kOps[] = {
+      static_cast<unsigned int>(spv::OpFAdd),  // kAdds
+      static_cast<unsigned int>(spv::OpFAdd),  // kAddsPrev
+      static_cast<unsigned int>(spv::OpNop),   // kMuls
+      static_cast<unsigned int>(spv::OpNop),   // kMulsPrev
+      static_cast<unsigned int>(spv::OpNop),   // kMulsPrev2
+      static_cast<unsigned int>(spv::OpNop),   // kMaxs
+      static_cast<unsigned int>(spv::OpNop),   // kMins
+      static_cast<unsigned int>(spv::OpNop),   // kSeqs
+      static_cast<unsigned int>(spv::OpNop),   // kSgts
+      static_cast<unsigned int>(spv::OpNop),   // kSges
+      static_cast<unsigned int>(spv::OpNop),   // kSnes
+      static_cast<unsigned int>(spv::OpNop),   // kFrcs
+      static_cast<unsigned int>(spv::OpNop),   // kTruncs
+      static_cast<unsigned int>(spv::OpNop),   // kFloors
+      static_cast<unsigned int>(spv::OpNop),   // kExp
+      static_cast<unsigned int>(spv::OpNop),   // kLogc
+      static_cast<unsigned int>(spv::OpNop),   // kLog
+      static_cast<unsigned int>(spv::OpNop),   // kRcpc
+      static_cast<unsigned int>(spv::OpNop),   // kRcpf
+      static_cast<unsigned int>(spv::OpNop),   // kRcp
+      static_cast<unsigned int>(spv::OpNop),   // kRsqc
+      static_cast<unsigned int>(spv::OpNop),   // kRsqf
+      static_cast<unsigned int>(spv::OpNop),   // kRsq
+      static_cast<unsigned int>(spv::OpNop),   // kMaxAs
+      static_cast<unsigned int>(spv::OpNop),   // kMaxAsf
+      static_cast<unsigned int>(spv::OpFSub),  // kSubs
+      static_cast<unsigned int>(spv::OpFSub),  // kSubsPrev
+      static_cast<unsigned int>(spv::OpNop),   // kSetpEq
+      static_cast<unsigned int>(spv::OpNop),   // kSetpNe
+      static_cast<unsigned int>(spv::OpNop),   // kSetpGt
+      static_cast<unsigned int>(spv::OpNop),   // kSetpGe
+      static_cast<unsigned int>(spv::OpNop),   // kSetpInv
+      static_cast<unsigned int>(spv::OpNop),   // kSetpPop
+      static_cast<unsigned int>(spv::OpNop),   // kSetpClr
+      static_cast<unsigned int>(spv::OpNop),   // kSetpRstr
+      static_cast<unsigned int>(spv::OpNop),   // kKillsEq
+      static_cast<unsigned int>(spv::OpNop),   // kKillsGt
+      static_cast<unsigned int>(spv::OpNop),   // kKillsGe
+      static_cast<unsigned int>(spv::OpNop),   // kKillsNe
+      static_cast<unsigned int>(spv::OpNop),   // kKillsOne
+      static_cast<unsigned int>(spv::OpNop),   // kSqrt
+      static_cast<unsigned int>(spv::OpNop),   // Invalid
+      static_cast<unsigned int>(spv::OpNop),   // kMulsc0
+      static_cast<unsigned int>(spv::OpNop),   // kMulsc1
+      static_cast<unsigned int>(spv::OpNop),   // kAddsc0
+      static_cast<unsigned int>(spv::OpNop),   // kAddsc1
+      static_cast<unsigned int>(spv::OpNop),   // kSubsc0
+      static_cast<unsigned int>(spv::OpNop),   // kSubsc1
+      static_cast<unsigned int>(spv::OpNop),   // kSin
+      static_cast<unsigned int>(spv::OpNop),   // kCos
+      static_cast<unsigned int>(spv::OpNop),   // kRetainPrev
+  };
+
+  switch (instr.scalar_opcode) {
+    case ucode::AluScalarOpcode::kAdds:
+    case ucode::AluScalarOpcode::kSubs: {
+      spv::Id a, b;
+      GetOperandScalarXY(operand_storage[0], instr.scalar_operands[0], a, b);
+      spv::Id result = builder_->createBinOp(
+          spv::Op(kOps[size_t(instr.scalar_opcode)]), type_float_, a, b);
+      builder_->addDecoration(result, spv::DecorationNoContraction);
+      return result;
+    }
+    case ucode::AluScalarOpcode::kAddsPrev:
+    case ucode::AluScalarOpcode::kSubsPrev: {
+      spv::Id result = builder_->createBinOp(
+          spv::Op(kOps[size_t(instr.scalar_opcode)]), type_float_,
+          GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
+                               0b0001),
+          builder_->createLoad(var_main_previous_scalar_, spv::NoPrecision));
+      builder_->addDecoration(result, spv::DecorationNoContraction);
+      return result;
+    }
+    case ucode::AluScalarOpcode::kMuls: {
+      spv::Id a, b;
+      GetOperandScalarXY(operand_storage[0], instr.scalar_operands[0], a, b);
+      spv::Id result = builder_->createBinOp(spv::OpFMul, type_float_, a, b);
+      builder_->addDecoration(result, spv::DecorationNoContraction);
+      if (a != b) {
+        // Shader Model 3: +0 or denormal * anything = +-0.
+        result = ZeroIfAnyOperandIsZero(
+            result, GetAbsoluteOperand(a, instr.vector_operands[0]),
+            GetAbsoluteOperand(b, instr.vector_operands[0]));
+      }
+      return result;
+    }
+    case ucode::AluScalarOpcode::kMulsPrev: {
+      spv::Id a = GetOperandComponents(operand_storage[0],
+                                       instr.scalar_operands[0], 0b0001);
+      spv::Id ps =
+          builder_->createLoad(var_main_previous_scalar_, spv::NoPrecision);
+      spv::Id result = builder_->createBinOp(spv::OpFMul, type_float_, a, ps);
+      builder_->addDecoration(result, spv::DecorationNoContraction);
+      // Shader Model 3: +0 or denormal * anything = +-0.
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(ps);
+      return ZeroIfAnyOperandIsZero(
+          result, GetAbsoluteOperand(a, instr.scalar_operands[0]),
+          builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                      GLSLstd450FAbs, id_vector_temp_));
+    }
+    case ucode::AluScalarOpcode::kMulsPrev2: {
+      // Check if need to select the src0.a * ps case.
+      // Selection merge must be the penultimate instruction in the block, check
+      // the condition before it.
+      spv::Id ps =
+          builder_->createLoad(var_main_previous_scalar_, spv::NoPrecision);
+      // ps != -FLT_MAX.
+      spv::Id const_float_max_neg = builder_->makeFloatConstant(-FLT_MAX);
+      spv::Id condition = builder_->createBinOp(
+          spv::OpFUnordNotEqual, type_bool_, ps, const_float_max_neg);
+      // isfinite(ps), or |ps| <= FLT_MAX, or -|ps| >= -FLT_MAX, since -FLT_MAX
+      // is already loaded to an SGPR, this is also false if it's NaN.
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(ps);
+      spv::Id ps_abs = builder_->createBuiltinCall(
+          type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_);
+      spv::Id ps_abs_neg =
+          builder_->createUnaryOp(spv::OpFNegate, type_float_, ps_abs);
+      builder_->addDecoration(ps_abs_neg, spv::DecorationNoContraction);
+      condition = builder_->createBinOp(
+          spv::OpLogicalAnd, type_bool_, condition,
+          builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
+                                ps_abs_neg, const_float_max_neg));
+      // isfinite(src0.b), or -|src0.b| >= -FLT_MAX for the same reason.
+      spv::Id b = GetOperandComponents(operand_storage[0],
+                                       instr.scalar_operands[0], 0b0010);
+      spv::Id b_abs_neg = b;
+      if (!instr.scalar_operands[0].is_absolute_value) {
+        id_vector_temp_.clear();
+        id_vector_temp_.push_back(b_abs_neg);
+        b_abs_neg =
+            builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                        GLSLstd450FAbs, id_vector_temp_);
+      }
+      if (!instr.scalar_operands[0].is_absolute_value ||
+          !instr.scalar_operands[0].is_negated) {
+        b_abs_neg =
+            builder_->createUnaryOp(spv::OpFNegate, type_float_, b_abs_neg);
+        builder_->addDecoration(b_abs_neg, spv::DecorationNoContraction);
+      }
+      condition = builder_->createBinOp(
+          spv::OpLogicalAnd, type_bool_, condition,
+          builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
+                                b_abs_neg, const_float_max_neg));
+      // src0.b > 0 (need !(src0.b <= 0), but src0.b has already been checked
+      // for NaN).
+      condition = builder_->createBinOp(
+          spv::OpLogicalAnd, type_bool_, condition,
+          builder_->createBinOp(spv::OpFOrdGreaterThan, type_bool_, b,
+                                const_float_0_));
+      spv::Block& multiply_block = builder_->makeNewBlock();
+      spv::Block& merge_block = builder_->makeNewBlock();
+      {
+        std::unique_ptr<spv::Instruction> selection_merge_op =
+            std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
+        selection_merge_op->addIdOperand(merge_block.getId());
+        selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
+        builder_->getBuildPoint()->addInstruction(
+            std::move(selection_merge_op));
+      }
+      {
+        std::unique_ptr<spv::Instruction> branch_conditional_op =
+            std::make_unique<spv::Instruction>(spv::OpBranchConditional);
+        branch_conditional_op->addIdOperand(condition);
+        branch_conditional_op->addIdOperand(multiply_block.getId());
+        branch_conditional_op->addIdOperand(merge_block.getId());
+        // More likely to multiply that to return -FLT_MAX.
+        branch_conditional_op->addImmediateOperand(2);
+        branch_conditional_op->addImmediateOperand(1);
+        builder_->getBuildPoint()->addInstruction(
+            std::move(branch_conditional_op));
+      }
+      spv::Block& head_block = *builder_->getBuildPoint();
+      multiply_block.addPredecessor(&head_block);
+      merge_block.addPredecessor(&head_block);
+      // Multiplication case.
+      builder_->setBuildPoint(&multiply_block);
+      spv::Id a = instr.scalar_operands[0].GetComponent(0) !=
+                          instr.scalar_operands[0].GetComponent(1)
+                      ? GetOperandComponents(operand_storage[0],
+                                             instr.scalar_operands[0], 0b0001)
+                      : b;
+      spv::Id product = builder_->createBinOp(spv::OpFMul, type_float_, a, ps);
+      builder_->addDecoration(product, spv::DecorationNoContraction);
+      // Shader Model 3: +0 or denormal * anything = +-0.
+      product = ZeroIfAnyOperandIsZero(
+          product, GetAbsoluteOperand(a, instr.scalar_operands[0]), ps_abs);
+      builder_->createBranch(&merge_block);
+      // Merge case - choose between the product and -FLT_MAX.
+      builder_->setBuildPoint(&merge_block);
+      {
+        std::unique_ptr<spv::Instruction> phi_op =
+            std::make_unique<spv::Instruction>(builder_->getUniqueId(),
+                                               type_float_, spv::OpPhi);
+        phi_op->addIdOperand(product);
+        phi_op->addIdOperand(multiply_block.getId());
+        phi_op->addIdOperand(const_float_max_neg);
+        phi_op->addIdOperand(head_block.getId());
+        spv::Id phi_result = phi_op->getResultId();
+        builder_->getBuildPoint()->addInstruction(std::move(phi_op));
+        return phi_result;
+      }
+    }
+      // TODO(Triang3l): Implement the rest of instructions.
+  }
+
+  /* assert_unhandled_case(instr.vector_opcode);
+  EmitTranslationError("Unknown ALU scalar operation"); */
   return spv::NoResult;
 }
 

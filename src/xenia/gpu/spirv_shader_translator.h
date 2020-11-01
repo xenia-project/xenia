@@ -143,17 +143,37 @@ class SpirvShaderTranslator : public ShaderTranslator {
                                        components),
         original_operand, invert_negate, force_absolute);
   }
+  // If components are identical, the same Id will be written to both outputs.
+  void GetOperandScalarXY(spv::Id operand_storage,
+                          const InstructionOperand& original_operand,
+                          spv::Id& a_out, spv::Id& b_out,
+                          bool invert_negate = false,
+                          bool force_absolute = false);
+  // Gets the absolute value of the loaded operand if it's not absolute already.
+  spv::Id GetAbsoluteOperand(spv::Id operand_storage,
+                             const InstructionOperand& original_operand);
   // The type of the value must be a float vector consisting of
   // xe::bit_count(result.GetUsedResultComponents()) elements, or (to replicate
   // a scalar into all used components) float, or the value can be spv::NoResult
   // if there's no result to store (like constants only).
   void StoreResult(const InstructionResult& result, spv::Id value);
 
+  // For Shader Model 3 multiplication (+-0 or denormal * anything = +0),
+  // replaces the value with +0 if the minimum of the two operands is 0. This
+  // must be called with absolute values of operands - use GetAbsoluteOperand!
+  spv::Id ZeroIfAnyOperandIsZero(spv::Id value, spv::Id operand_0_abs,
+                                 spv::Id operand_1_abs);
   // Return type is a xe::bit_count(result.GetUsedResultComponents())-component
   // float vector or a single float, depending on whether it's a reduction
   // instruction (check getTypeId of the result), or returns spv::NoResult if
   // nothing to store.
   spv::Id ProcessVectorAluOperation(const ParsedAluInstruction& instr,
+                                    bool& predicate_written);
+  // Returns a float value to write to the previous scalar register and to the
+  // destination. If the return value is ps itself (in the retain_prev case),
+  // returns spv::NoResult (handled as a special case, so if it's retain_prev,
+  // but don't need to write to anywhere, no OpLoad(ps) will be done).
+  spv::Id ProcessScalarAluOperation(const ParsedAluInstruction& instr,
                                     bool& predicate_written);
 
   Features features_;
@@ -249,6 +269,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id var_main_address_relative_;
   // int.
   spv::Id var_main_address_absolute_;
+  // float.
+  spv::Id var_main_previous_scalar_;
   // float4[register_count()].
   spv::Id var_main_registers_;
   // VS only - float3 (special exports).
