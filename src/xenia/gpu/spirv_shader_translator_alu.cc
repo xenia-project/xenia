@@ -858,10 +858,10 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       builder_->createConditionalBranch(condition, &kill_block, &merge_block);
       builder_->setBuildPoint(&kill_block);
       // TODO(Triang3l): Demote to helper invocation to keep derivatives if
-      // needed (and return const_float4_1_ if killed in this case).
+      // needed (and return 1 if killed in this case).
       builder_->createNoResultOp(spv::OpKill);
       builder_->setBuildPoint(&merge_block);
-      return const_float4_0_;
+      return const_float_0_;
     }
 
     case ucode::AluVectorOpcode::kDst: {
@@ -985,14 +985,14 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
       static_cast<unsigned int>(spv::OpNop),                   // kRsqc
       static_cast<unsigned int>(spv::OpNop),                   // kRsqf
       static_cast<unsigned int>(GLSLstd450InverseSqrt),        // kRsq
-      static_cast<unsigned int>(spv::OpNop),                   // kMaxAs
-      static_cast<unsigned int>(spv::OpNop),                   // kMaxAsf
+      static_cast<unsigned int>(spv::OpFOrdGreaterThanEqual),  // kMaxAs
+      static_cast<unsigned int>(spv::OpFOrdGreaterThanEqual),  // kMaxAsf
       static_cast<unsigned int>(spv::OpFSub),                  // kSubs
       static_cast<unsigned int>(spv::OpFSub),                  // kSubsPrev
-      static_cast<unsigned int>(spv::OpNop),                   // kSetpEq
-      static_cast<unsigned int>(spv::OpNop),                   // kSetpNe
-      static_cast<unsigned int>(spv::OpNop),                   // kSetpGt
-      static_cast<unsigned int>(spv::OpNop),                   // kSetpGe
+      static_cast<unsigned int>(spv::OpFOrdEqual),             // kSetpEq
+      static_cast<unsigned int>(spv::OpFUnordNotEqual),        // kSetpNe
+      static_cast<unsigned int>(spv::OpFOrdGreaterThan),       // kSetpGt
+      static_cast<unsigned int>(spv::OpFOrdGreaterThanEqual),  // kSetpGe
       static_cast<unsigned int>(spv::OpNop),                   // kSetpInv
       static_cast<unsigned int>(spv::OpNop),                   // kSetpPop
       static_cast<unsigned int>(spv::OpNop),                   // kSetpClr
@@ -1168,9 +1168,40 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
     }
 
     case ucode::AluScalarOpcode::kMaxs:
-    case ucode::AluScalarOpcode::kMins: {
+    case ucode::AluScalarOpcode::kMins:
+    case ucode::AluScalarOpcode::kMaxAs:
+    case ucode::AluScalarOpcode::kMaxAsf: {
       spv::Id a, b;
       GetOperandScalarXY(operand_storage[0], instr.scalar_operands[0], a, b);
+      if (instr.scalar_opcode == ucode::AluScalarOpcode::kMaxAs ||
+          instr.scalar_opcode == ucode::AluScalarOpcode::kMaxAsf) {
+        // maxas: a0 = (int)clamp(floor(src0.a + 0.5), -256.0, 255.0)
+        // maxasf: a0 = (int)clamp(floor(src0.a), -256.0, 255.0)
+        spv::Id maxa_address;
+        if (instr.scalar_opcode == ucode::AluScalarOpcode::kMaxAs) {
+          maxa_address = builder_->createBinOp(
+              spv::OpFAdd, type_float_, a, builder_->makeFloatConstant(0.5f));
+          builder_->addDecoration(maxa_address, spv::DecorationNoContraction);
+        } else {
+          maxa_address = a;
+        }
+        id_vector_temp_.clear();
+        id_vector_temp_.push_back(maxa_address);
+        maxa_address =
+            builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                        GLSLstd450Floor, id_vector_temp_);
+        id_vector_temp_.clear();
+        id_vector_temp_.reserve(3);
+        id_vector_temp_.push_back(maxa_address);
+        id_vector_temp_.push_back(builder_->makeFloatConstant(-256.0f));
+        id_vector_temp_.push_back(builder_->makeFloatConstant(255.0f));
+        builder_->createStore(
+            builder_->createUnaryOp(
+                spv::OpConvertFToS, type_int_,
+                builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                            GLSLstd450NClamp, id_vector_temp_)),
+            var_main_address_absolute_);
+      }
       if (a == b) {
         // max is commonly used as mov.
         return a;
@@ -1309,6 +1340,64 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
           builder_->makeUintConstant(uint32_t(INT32_MIN)),
           builder_->createUnaryOp(spv::OpBitcast, type_uint_, result));
       return builder_->createUnaryOp(spv::OpBitcast, type_float_, result);
+    }
+
+    case ucode::AluScalarOpcode::kSetpEq:
+    case ucode::AluScalarOpcode::kSetpNe:
+    case ucode::AluScalarOpcode::kSetpGt:
+    case ucode::AluScalarOpcode::kSetpGe: {
+      spv::Id predicate = builder_->createBinOp(
+          spv::Op(kOps[size_t(instr.scalar_opcode)]), type_bool_,
+          GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
+                               0b0001),
+          const_float_0_);
+      builder_->createStore(predicate, var_main_predicate_);
+      predicate_written = true;
+      return builder_->createTriOp(spv::OpSelect, type_float_, predicate,
+                                   const_float_0_, const_float_1_);
+    }
+    case ucode::AluScalarOpcode::kSetpInv: {
+      spv::Id a = GetOperandComponents(operand_storage[0],
+                                       instr.scalar_operands[0], 0b0001);
+      spv::Id predicate = builder_->createBinOp(spv::OpFOrdEqual, type_bool_, a,
+                                                const_float_1_);
+      builder_->createStore(predicate, var_main_predicate_);
+      predicate_written = true;
+      return builder_->createTriOp(
+          spv::OpSelect, type_float_, predicate, const_float_0_,
+          builder_->createTriOp(
+              spv::OpSelect, type_float_,
+              builder_->createBinOp(spv::OpFOrdEqual, type_bool_, a,
+                                    const_float_0_),
+              const_float_1_, a));
+    }
+    case ucode::AluScalarOpcode::kSetpPop: {
+      spv::Id a_minus_1 = builder_->createBinOp(
+          spv::OpFSub, type_float_,
+          GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
+                               0b0001),
+          const_float_1_);
+      builder_->addDecoration(a_minus_1, spv::DecorationNoContraction);
+      spv::Id predicate = builder_->createBinOp(
+          spv::OpFOrdLessThanEqual, type_bool_, a_minus_1, const_float_0_);
+      builder_->createStore(predicate, var_main_predicate_);
+      predicate_written = true;
+      return builder_->createTriOp(spv::OpSelect, type_float_, predicate,
+                                   const_float_0_, a_minus_1);
+    }
+    case ucode::AluScalarOpcode::kSetpClr:
+      builder_->createStore(builder_->makeBoolConstant(false),
+                            var_main_predicate_);
+      return builder_->makeFloatConstant(FLT_MAX);
+    case ucode::AluScalarOpcode::kSetpRstr: {
+      spv::Id a = GetOperandComponents(operand_storage[0],
+                                       instr.scalar_operands[0], 0b0001);
+      spv::Id predicate = builder_->createBinOp(spv::OpFOrdEqual, type_bool_, a,
+                                                const_float_0_);
+      builder_->createStore(predicate, var_main_predicate_);
+      predicate_written = true;
+      return builder_->createTriOp(spv::OpSelect, type_float_, predicate,
+                                   const_float_0_, a);
     }
 
       // TODO(Triang3l): Implement the rest of instructions.
