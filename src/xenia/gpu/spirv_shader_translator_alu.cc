@@ -10,6 +10,8 @@
 #include "xenia/gpu/spirv_shader_translator.h"
 
 #include <cfloat>
+#include <cmath>
+#include <cstdint>
 #include <memory>
 
 #include "third_party/glslang/SPIRV/GLSL.std.450.h"
@@ -1210,6 +1212,104 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
       return builder_->createBuiltinCall(
           type_float_, ext_inst_glsl_std_450_,
           GLSLstd450(kOps[size_t(instr.scalar_opcode)]), id_vector_temp_);
+    case ucode::AluScalarOpcode::kLogc: {
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(GetOperandComponents(
+          operand_storage[0], instr.scalar_operands[0], 0b0001));
+      spv::Id result = builder_->createBuiltinCall(
+          type_float_, ext_inst_glsl_std_450_, GLSLstd450Log2, id_vector_temp_);
+      return builder_->createTriOp(
+          spv::OpSelect, type_float_,
+          builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
+                                builder_->makeFloatConstant(-INFINITY)),
+          builder_->makeFloatConstant(-FLT_MAX), result);
+    }
+    case ucode::AluScalarOpcode::kRcpc: {
+      spv::Id result = builder_->createBinOp(
+          spv::OpFDiv, type_float_, const_float_1_,
+          GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
+                               0b0001));
+      builder_->addDecoration(result, spv::DecorationNoContraction);
+      result = builder_->createTriOp(
+          spv::OpSelect, type_float_,
+          builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
+                                builder_->makeFloatConstant(-INFINITY)),
+          builder_->makeFloatConstant(-FLT_MAX), result);
+      return builder_->createTriOp(
+          spv::OpSelect, type_float_,
+          builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
+                                builder_->makeFloatConstant(INFINITY)),
+          builder_->makeFloatConstant(FLT_MAX), result);
+    }
+    case ucode::AluScalarOpcode::kRcpf: {
+      spv::Id result = builder_->createBinOp(
+          spv::OpFDiv, type_float_, const_float_1_,
+          GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
+                               0b0001));
+      builder_->addDecoration(result, spv::DecorationNoContraction);
+      result = builder_->createTriOp(
+          spv::OpSelect, type_float_,
+          builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
+                                builder_->makeFloatConstant(INFINITY)),
+          const_float_0_, result);
+      // Can't create -0.0f with makeFloatConstant due to float comparison
+      // internally, cast to bit pattern.
+      result = builder_->createTriOp(
+          spv::OpSelect, type_uint_,
+          builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
+                                builder_->makeFloatConstant(-INFINITY)),
+          builder_->makeUintConstant(uint32_t(INT32_MIN)),
+          builder_->createUnaryOp(spv::OpBitcast, type_uint_, result));
+      return builder_->createUnaryOp(spv::OpBitcast, type_float_, result);
+    }
+    case ucode::AluScalarOpcode::kRcp: {
+      spv::Id result = builder_->createBinOp(
+          spv::OpFDiv, type_float_, const_float_1_,
+          GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
+                               0b0001));
+      builder_->addDecoration(result, spv::DecorationNoContraction);
+      return result;
+    }
+    case ucode::AluScalarOpcode::kRsqc: {
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(GetOperandComponents(
+          operand_storage[0], instr.scalar_operands[0], 0b0001));
+      spv::Id result =
+          builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                      GLSLstd450InverseSqrt, id_vector_temp_);
+      result = builder_->createTriOp(
+          spv::OpSelect, type_float_,
+          builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
+                                builder_->makeFloatConstant(-INFINITY)),
+          builder_->makeFloatConstant(-FLT_MAX), result);
+      return builder_->createTriOp(
+          spv::OpSelect, type_float_,
+          builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
+                                builder_->makeFloatConstant(INFINITY)),
+          builder_->makeFloatConstant(FLT_MAX), result);
+    }
+    case ucode::AluScalarOpcode::kRsqf: {
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(GetOperandComponents(
+          operand_storage[0], instr.scalar_operands[0], 0b0001));
+      spv::Id result =
+          builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                      GLSLstd450InverseSqrt, id_vector_temp_);
+      result = builder_->createTriOp(
+          spv::OpSelect, type_float_,
+          builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
+                                builder_->makeFloatConstant(INFINITY)),
+          const_float_0_, result);
+      // Can't create -0.0f with makeFloatConstant due to float comparison
+      // internally, cast to bit pattern.
+      result = builder_->createTriOp(
+          spv::OpSelect, type_uint_,
+          builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
+                                builder_->makeFloatConstant(-INFINITY)),
+          builder_->makeUintConstant(uint32_t(INT32_MIN)),
+          builder_->createUnaryOp(spv::OpBitcast, type_uint_, result));
+      return builder_->createUnaryOp(spv::OpBitcast, type_float_, result);
+    }
 
       // TODO(Triang3l): Implement the rest of instructions.
   }
