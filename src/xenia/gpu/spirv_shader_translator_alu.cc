@@ -116,7 +116,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       static_cast<unsigned int>(spv::OpFOrdGreaterThanEqual),  // kKillGe
       static_cast<unsigned int>(spv::OpFUnordNotEqual),        // kKillNe
       static_cast<unsigned int>(spv::OpNop),                   // kDst
-      static_cast<unsigned int>(spv::OpNop),                   // kMaxA
+      static_cast<unsigned int>(spv::OpFOrdGreaterThanEqual),  // kMaxA
   };
 
   switch (instr.vector_opcode) {
@@ -254,16 +254,87 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
     }
 
     case ucode::AluVectorOpcode::kMax:
-    case ucode::AluVectorOpcode::kMin: {
+    case ucode::AluVectorOpcode::kMin:
+    case ucode::AluVectorOpcode::kMaxA: {
+      bool is_maxa = instr.vector_opcode == ucode::AluVectorOpcode::kMaxA;
       spv::Id operand_0 = GetOperandComponents(
-          operand_storage[0], instr.vector_operands[0], used_result_components);
+          operand_storage[0], instr.vector_operands[0],
+          used_result_components | (is_maxa ? 0b1000 : 0b0000));
+      spv::Id maxa_operand_0_w = spv::NoResult;
+      if (is_maxa) {
+        // a0 = (int)clamp(floor(src0.w + 0.5), -256.0, 255.0)
+        int operand_0_num_components = builder_->getNumComponents(operand_0);
+        if (operand_0_num_components > 1) {
+          maxa_operand_0_w = builder_->createCompositeExtract(
+              operand_0, type_float_,
+              static_cast<unsigned int>(operand_0_num_components - 1));
+        } else {
+          maxa_operand_0_w = operand_0;
+        }
+        spv::Id maxa_address =
+            builder_->createBinOp(spv::OpFAdd, type_float_, maxa_operand_0_w,
+                                  builder_->makeFloatConstant(0.5f));
+        builder_->addDecoration(maxa_address, spv::DecorationNoContraction);
+        id_vector_temp_.clear();
+        id_vector_temp_.push_back(maxa_address);
+        maxa_address =
+            builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                        GLSLstd450Floor, id_vector_temp_);
+        id_vector_temp_.clear();
+        id_vector_temp_.reserve(3);
+        id_vector_temp_.push_back(maxa_address);
+        id_vector_temp_.push_back(builder_->makeFloatConstant(-256.0f));
+        id_vector_temp_.push_back(builder_->makeFloatConstant(255.0f));
+        builder_->createStore(
+            builder_->createUnaryOp(
+                spv::OpConvertFToS, type_int_,
+                builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                            GLSLstd450NClamp, id_vector_temp_)),
+            var_main_address_absolute_);
+      }
+      if (!used_result_components) {
+        // maxa returning nothing - can't load src1.
+        return spv::NoResult;
+      }
       // max is commonly used as mov.
       uint32_t identical = instr.vector_operands[0].GetIdenticalComponents(
                                instr.vector_operands[1]) &
                            used_result_components;
+      spv::Id operand_0_per_component;
+      if (is_maxa && !(used_result_components & 0b1000) &&
+          (identical == used_result_components || !identical)) {
+        // operand_0 and operand_1 have different lengths though if src0.w is
+        // forced without W being in the write mask for maxa purposes -
+        // shuffle/extract the needed part if src0.w is only needed for setting
+        // a0.
+        // This is only needed for cases without mixed identical and different
+        // components - the mixed case uses CompositeExtract, which works fine.
+        if (used_result_component_count > 1) {
+          // Need all but the last (W) element of operand_0 as a vector.
+          uint_vector_temp_.clear();
+          uint_vector_temp_.reserve(used_result_component_count);
+          for (unsigned int i = 0; i < used_result_component_count; ++i) {
+            uint_vector_temp_.push_back(i);
+          }
+          operand_0_per_component = builder_->createRvalueSwizzle(
+              spv::NoPrecision,
+              type_float_vectors_[used_result_component_count - 1], operand_0,
+              uint_vector_temp_);
+        } else {
+          // Need the non-W component as scalar.
+          operand_0_per_component =
+              builder_->createCompositeExtract(operand_0, type_float_, 0);
+        }
+      } else {
+        operand_0_per_component = operand_0;
+      }
       if (identical == used_result_components) {
-        // All components are identical - mov.
-        return operand_0;
+        // All components are identical - mov (with the correct length in case
+        // of maxa). Don't access operand_1 at all in this case (operand_0 is
+        // already accessed for W in case of maxa).
+        assert_true(builder_->getNumComponents(operand_0_per_component) ==
+                    used_result_component_count);
+        return operand_0_per_component;
       }
       spv::Id operand_1 = GetOperandComponents(
           operand_storage[1], instr.vector_operands[1], used_result_components);
@@ -272,13 +343,15 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       spv::Op op = spv::Op(kOps[size_t(instr.vector_opcode)]);
       if (!identical) {
         // All components are different - max/min of the scalars or the entire
-        // vectors.
+        // vectors (with the correct length in case of maxa).
+        assert_true(builder_->getNumComponents(operand_0_per_component) ==
+                    used_result_component_count);
         return builder_->createTriOp(
             spv::OpSelect, result_type,
             builder_->createBinOp(
                 op, type_bool_vectors_[used_result_component_count - 1],
-                operand_0, operand_1),
-            operand_0, operand_1);
+                operand_0_per_component, operand_1),
+            operand_0_per_component, operand_1);
       }
       // Mixed identical and different components.
       assert_true(used_result_component_count > 1);
@@ -286,8 +359,16 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       id_vector_temp_.reserve(used_result_component_count);
       uint32_t components_remaining = used_result_components;
       for (uint32_t i = 0; i < used_result_component_count; ++i) {
+        // Composite extraction of operand_0[i] works fine even it's maxa with
+        // src0.w forced without W being in the write mask - src0.w would be the
+        // last, so all indices before it are still valid. Don't extract twice
+        // if already extracted though.
         spv::Id result_component =
-            builder_->createCompositeExtract(operand_0, type_float_, i);
+            ((used_result_components & 0b1000) &&
+             i + 1 >= used_result_component_count &&
+             maxa_operand_0_w != spv::NoResult)
+                ? maxa_operand_0_w
+                : builder_->createCompositeExtract(operand_0, type_float_, i);
         uint32_t component_index;
         xe::bit_scan_forward(components_remaining, &component_index);
         components_remaining &= ~(uint32_t(1) << component_index);
@@ -385,7 +466,8 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         if (different & (1 << i)) {
           // Shader Model 3: +0 or denormal * anything = +-0.
           // Check if the different components in any of the operands are zero,
-          // even if the other is NaN - if min(|a|, |b|) is 0.
+          // even if the other is NaN - if min(|a|, |b|) is 0, if yes, replace
+          // the result with zero.
           for (uint32_t j = 0; j < 2; ++j) {
             if (instr.vector_operands[j].is_absolute_value &&
                 !instr.vector_operands[j].is_negated) {
@@ -674,12 +756,192 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       return result;
     }
 
-    // TODO(Triang3l): Handle all instructions.
-    default:
-      break;
+    case ucode::AluVectorOpcode::kSetpEqPush:
+    case ucode::AluVectorOpcode::kSetpNePush:
+    case ucode::AluVectorOpcode::kSetpGtPush:
+    case ucode::AluVectorOpcode::kSetpGePush: {
+      // X is only needed for the result, W is needed for the predicate.
+      spv::Id operands[2];
+      spv::Id operands_w[2];
+      for (uint32_t i = 0; i < 2; ++i) {
+        operands[i] =
+            GetOperandComponents(operand_storage[i], instr.vector_operands[i],
+                                 used_result_components ? 0b1001 : 0b1000);
+        if (used_result_components) {
+          operands_w[i] =
+              builder_->createCompositeExtract(operands[i], type_float_, 1);
+        } else {
+          operands_w[i] = operands[i];
+        }
+      }
+      spv::Op op = spv::Op(kOps[size_t(instr.vector_opcode)]);
+      // p0 = src0.w == 0.0 && src1.w op 0.0
+      builder_->createStore(
+          builder_->createBinOp(
+              spv::OpLogicalAnd, type_bool_,
+              builder_->createBinOp(spv::OpFOrdEqual, type_bool_, operands_w[0],
+                                    const_float_0_),
+              builder_->createBinOp(op, type_bool_, operands_w[1],
+                                    const_float_0_)),
+          var_main_predicate_);
+      predicate_written = true;
+      if (!used_result_components) {
+        return spv::NoResult;
+      }
+      // result = (src0.x == 0.0 && src1.x op 0.0) ? 0.0 : src0.x + 1.0
+      // Or:
+      // result = ((src0.x == 0.0 && src1.x op 0.0) ? -1.0 : src0.x) + 1.0
+      spv::Id operands_x[2];
+      for (uint32_t i = 0; i < 2; ++i) {
+        operands_x[i] =
+            builder_->createCompositeExtract(operands[i], type_float_, 0);
+      }
+      spv::Id condition = builder_->createBinOp(
+          spv::OpLogicalAnd, type_bool_,
+          builder_->createBinOp(spv::OpFOrdEqual, type_bool_, operands_x[0],
+                                const_float_0_),
+          builder_->createBinOp(op, type_bool_, operands_x[1], const_float_0_));
+      spv::Id result = builder_->createBinOp(
+          spv::OpFAdd, type_float_,
+          builder_->createTriOp(spv::OpSelect, type_float_, condition,
+                                builder_->makeFloatConstant(-1.0f),
+                                operands_x[0]),
+          const_float_1_);
+      builder_->addDecoration(result, spv::DecorationNoContraction);
+      return result;
+    }
+
+    case ucode::AluVectorOpcode::kKillEq:
+    case ucode::AluVectorOpcode::kKillGt:
+    case ucode::AluVectorOpcode::kKillGe:
+    case ucode::AluVectorOpcode::kKillNe: {
+      // Selection merge must be the penultimate instruction in the block, check
+      // the condition before it.
+      spv::Id condition = builder_->createUnaryOp(
+          spv::OpAny, type_bool_,
+          builder_->createBinOp(
+              spv::Op(kOps[size_t(instr.vector_opcode)]), type_bool4_,
+              GetOperandComponents(operand_storage[0], instr.vector_operands[0],
+                                   0b1111),
+              GetOperandComponents(operand_storage[1], instr.vector_operands[1],
+                                   0b1111)));
+      spv::Block& kill_block = builder_->makeNewBlock();
+      spv::Block& merge_block = builder_->makeNewBlock();
+      {
+        std::unique_ptr<spv::Instruction> selection_merge_op =
+            std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
+        selection_merge_op->addIdOperand(merge_block.getId());
+        selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
+        builder_->getBuildPoint()->addInstruction(
+            std::move(selection_merge_op));
+      }
+      builder_->createConditionalBranch(condition, &kill_block, &merge_block);
+      builder_->setBuildPoint(&kill_block);
+      // TODO(Triang3l): Demote to helper invocation to keep derivatives if
+      // needed (and return const_float4_1_ if killed in this case).
+      builder_->createNoResultOp(spv::OpKill);
+      builder_->setBuildPoint(&merge_block);
+      return const_float4_0_;
+    }
+
+    case ucode::AluVectorOpcode::kDst: {
+      spv::Id operands[2] = {};
+      if (used_result_components & 0b0110) {
+        // result.yz is needed: [0] = y, [1] = z.
+        // resuly.y is needed: scalar = y.
+        // resuly.z is needed: scalar = z.
+        operands[0] =
+            GetOperandComponents(operand_storage[0], instr.vector_operands[0],
+                                 used_result_components & 0b0110);
+      }
+      if (used_result_components & 0b1010) {
+        // result.yw is needed: [0] = y, [1] = w.
+        // resuly.y is needed: scalar = y.
+        // resuly.w is needed: scalar = w.
+        operands[1] =
+            GetOperandComponents(operand_storage[1], instr.vector_operands[1],
+                                 used_result_components & 0b1010);
+      }
+      // y = src0.y * src1.y
+      spv::Id result_y = spv::NoResult;
+      if (used_result_components & 0b0010) {
+        spv::Id operands_y[2];
+        operands_y[0] =
+            (used_result_components & 0b0100)
+                ? builder_->createCompositeExtract(operands[0], type_float_, 0)
+                : operands[0];
+        operands_y[1] =
+            (used_result_components & 0b1000)
+                ? builder_->createCompositeExtract(operands[1], type_float_, 0)
+                : operands[1];
+        result_y = builder_->createBinOp(spv::OpFMul, type_float_,
+                                         operands_y[0], operands_y[1]);
+        builder_->addDecoration(result_y, spv::DecorationNoContraction);
+        if (!(instr.vector_operands[0].GetIdenticalComponents(
+                  instr.vector_operands[1]) &
+              0b0010)) {
+          for (uint32_t i = 0; i < 2; ++i) {
+            if (instr.vector_operands[i].is_absolute_value &&
+                !instr.vector_operands[i].is_negated) {
+              continue;
+            }
+            id_vector_temp_.clear();
+            id_vector_temp_.push_back(operands_y[i]);
+            operands_y[i] =
+                builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                            GLSLstd450FAbs, id_vector_temp_);
+          }
+          id_vector_temp_.clear();
+          id_vector_temp_.reserve(2);
+          id_vector_temp_.push_back(operands_y[0]);
+          id_vector_temp_.push_back(operands_y[1]);
+          result_y = builder_->createTriOp(
+              spv::OpSelect, type_float_,
+              builder_->createBinOp(spv::OpFOrdEqual, type_bool_,
+                                    builder_->createBuiltinCall(
+                                        type_float_, ext_inst_glsl_std_450_,
+                                        GLSLstd450NMin, id_vector_temp_),
+                                    const_float_0_),
+              const_float_0_, result_y);
+        }
+      }
+      id_vector_temp_.clear();
+      id_vector_temp_.reserve(used_result_component_count);
+      if (used_result_components & 0b0001) {
+        // x = 1.0
+        id_vector_temp_.push_back(const_float_1_);
+      }
+      if (used_result_components & 0b0010) {
+        // y = src0.y * src1.y
+        id_vector_temp_.push_back(result_y);
+      }
+      if (used_result_components & 0b0100) {
+        // z = src0.z
+        id_vector_temp_.push_back(
+            (used_result_components & 0b0010)
+                ? builder_->createCompositeExtract(operands[0], type_float_, 1)
+                : operands[0]);
+      }
+      if (used_result_components & 0b1000) {
+        // w = src1.w
+        id_vector_temp_.push_back(
+            (used_result_components & 0b0010)
+                ? builder_->createCompositeExtract(operands[1], type_float_, 1)
+                : operands[1]);
+      }
+      assert_true(id_vector_temp_.size() == used_result_component_count);
+      if (used_result_component_count == 1) {
+        // Only one component - not composite.
+        return id_vector_temp_[0];
+      }
+      return builder_->createCompositeConstruct(
+          type_float_vectors_[used_result_component_count - 1],
+          id_vector_temp_);
+    }
   }
 
-  // Invalid instruction.
+  assert_unhandled_case(instr.vector_opcode);
+  EmitTranslationError("Unknown ALU vector operation");
   return spv::NoResult;
 }
 
