@@ -159,7 +159,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
           for (uint32_t i = 0; i < used_result_component_count; ++i) {
             uint32_t component;
             xe::bit_scan_forward(components_remaining, &component);
-            components_remaining &= ~(1 << component);
+            components_remaining &= ~(uint32_t(1) << component);
             if (multiplicands_different & (1 << component)) {
               uint_vector_temp_.push_back(i);
             }
@@ -223,7 +223,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
             for (uint32_t i = 0; i < used_result_component_count; ++i) {
               uint32_t component;
               xe::bit_scan_forward(components_remaining, &component);
-              components_remaining &= ~(1 << component);
+              components_remaining &= ~(uint32_t(1) << component);
               shuffle_op->addImmediateOperand(
                   (multiplicands_different & (1 << component))
                       ? different_shuffle_index++
@@ -290,7 +290,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
             builder_->createCompositeExtract(operand_0, type_float_, i);
         uint32_t component_index;
         xe::bit_scan_forward(components_remaining, &component_index);
-        components_remaining &= ~(1 << component_index);
+        components_remaining &= ~(uint32_t(1) << component_index);
         if (!(identical & (1 << component_index))) {
           spv::Id operand_1_component =
               builder_->createCompositeExtract(operand_1, type_float_, i);
@@ -636,6 +636,42 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       return builder_->createCompositeConstruct(
           type_float_vectors_[used_result_component_count - 1],
           id_vector_temp_);
+    }
+
+    case ucode::AluVectorOpcode::kMax4: {
+      // Find max of all different components of the first operand.
+      // FIXME(Triang3l): Not caring about NaN because no info about the
+      // correct order, just using NMax here, which replaces them with the
+      // non-NaN component (however, there's one nice thing about it is that it
+      // may be compiled into max3 + max on GCN).
+      uint32_t components_remaining = 0b0000;
+      for (uint32_t i = 0; i < 4; ++i) {
+        SwizzleSource swizzle_source = instr.vector_operands[0].GetComponent(i);
+        assert_true(swizzle_source >= SwizzleSource::kX &&
+                    swizzle_source <= SwizzleSource::kW);
+        components_remaining |=
+            1 << (uint32_t(swizzle_source) - uint32_t(SwizzleSource::kX));
+      }
+      assert_not_zero(components_remaining);
+      spv::Id operand =
+          ApplyOperandModifiers(operand_storage[0], instr.vector_operands[0]);
+      uint32_t component;
+      xe::bit_scan_forward(components_remaining, &component);
+      components_remaining &= ~(uint32_t(1) << component);
+      spv::Id result = builder_->createCompositeExtract(
+          operand, type_float_, static_cast<unsigned int>(component));
+      while (xe::bit_scan_forward(components_remaining, &component)) {
+        components_remaining &= ~(uint32_t(1) << component);
+        id_vector_temp_.clear();
+        id_vector_temp_.reserve(2);
+        id_vector_temp_.push_back(result);
+        id_vector_temp_.push_back(builder_->createCompositeExtract(
+            operand, type_float_, static_cast<unsigned int>(component)));
+        result =
+            builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                        GLSLstd450NMax, id_vector_temp_);
+      }
+      return result;
     }
 
     // TODO(Triang3l): Handle all instructions.

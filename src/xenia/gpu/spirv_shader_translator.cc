@@ -1210,7 +1210,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
     uint32_t result_component;
     while (xe::bit_scan_forward(used_result_components_remaining,
                                 &result_component)) {
-      used_result_components_remaining &= ~(1 << result_component);
+      used_result_components_remaining &= ~(uint32_t(1) << result_component);
       result_unswizzled_value_components[result_component] =
           std::min(value_component++, value_num_components - 1);
     }
