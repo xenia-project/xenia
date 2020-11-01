@@ -711,6 +711,14 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         builder_->getBuildPoint()->addInstruction(std::move(phi_op));
       }
       assert_true(id_vector_temp_.size() == used_result_component_count);
+      if (used_result_components & 0b0100) {
+        // Multiply the major axis by 2.
+        spv::Id& ma2 = id_vector_temp_[xe::bit_count(used_result_components &
+                                                     ((1 << 2) - 1))];
+        ma2 = builder_->createBinOp(spv::OpFMul, type_float_,
+                                    builder_->makeFloatConstant(2.0f), ma2);
+        builder_->addDecoration(ma2, spv::DecorationNoContraction);
+      }
       if (used_result_component_count == 1) {
         // Only one component - not composite.
         return id_vector_temp_[0];
