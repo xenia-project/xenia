@@ -1006,10 +1006,10 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
       static_cast<unsigned int>(spv::OpNop),                   // Invalid
       static_cast<unsigned int>(spv::OpNop),                   // kMulsc0
       static_cast<unsigned int>(spv::OpNop),                   // kMulsc1
-      static_cast<unsigned int>(spv::OpNop),                   // kAddsc0
-      static_cast<unsigned int>(spv::OpNop),                   // kAddsc1
-      static_cast<unsigned int>(spv::OpNop),                   // kSubsc0
-      static_cast<unsigned int>(spv::OpNop),                   // kSubsc1
+      static_cast<unsigned int>(spv::OpFAdd),                  // kAddsc0
+      static_cast<unsigned int>(spv::OpFAdd),                  // kAddsc1
+      static_cast<unsigned int>(spv::OpFSub),                  // kSubsc0
+      static_cast<unsigned int>(spv::OpFSub),                  // kSubsc1
       static_cast<unsigned int>(GLSLstd450Sin),                // kSin
       static_cast<unsigned int>(GLSLstd450Cos),                // kCos
       static_cast<unsigned int>(spv::OpNop),                   // kRetainPrev
@@ -1433,11 +1433,47 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
       return const_float_0_;
     }
 
-      // TODO(Triang3l): Implement the rest of instructions.
+    case ucode::AluScalarOpcode::kMulsc0:
+    case ucode::AluScalarOpcode::kMulsc1: {
+      spv::Id operand_0 = GetOperandComponents(
+          operand_storage[0], instr.scalar_operands[0], 0b0001);
+      spv::Id operand_1 = GetOperandComponents(
+          operand_storage[1], instr.scalar_operands[1], 0b0001);
+      spv::Id result =
+          builder_->createBinOp(spv::OpFMul, type_float_, operand_0, operand_1);
+      builder_->addDecoration(result, spv::DecorationNoContraction);
+      if (!(instr.scalar_operands[0].GetIdenticalComponents(
+                instr.scalar_operands[1]) &
+            0b0001)) {
+        // Shader Model 3: +0 or denormal * anything = +-0.
+        result = ZeroIfAnyOperandIsZero(
+            result, GetAbsoluteOperand(operand_0, instr.scalar_operands[0]),
+            GetAbsoluteOperand(operand_1, instr.scalar_operands[1]));
+      }
+      return result;
+    }
+    case ucode::AluScalarOpcode::kAddsc0:
+    case ucode::AluScalarOpcode::kAddsc1:
+    case ucode::AluScalarOpcode::kSubsc0:
+    case ucode::AluScalarOpcode::kSubsc1: {
+      spv::Id result = builder_->createBinOp(
+          spv::Op(kOps[size_t(instr.scalar_opcode)]), type_float_,
+          GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
+                               0b0001),
+          GetOperandComponents(operand_storage[1], instr.scalar_operands[1],
+                               0b0001));
+      builder_->addDecoration(result, spv::DecorationNoContraction);
+      return result;
+    }
+
+    case ucode::AluScalarOpcode::kRetainPrev:
+      // Special case in ProcessAluInstruction - loading ps only if writing to
+      // anywhere.
+      return spv::NoResult;
   }
 
-  /* assert_unhandled_case(instr.scalar_opcode);
-  EmitTranslationError("Unknown ALU scalar operation"); */
+  assert_unhandled_case(instr.scalar_opcode);
+  EmitTranslationError("Unknown ALU scalar operation");
   return spv::NoResult;
 }
 
