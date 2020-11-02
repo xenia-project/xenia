@@ -71,17 +71,19 @@ void SpirvShaderTranslator::ProcessAluInstruction(
   bool predicate_written_scalar = false;
   spv::Id scalar_result =
       ProcessScalarAluOperation(instr, predicate_written_scalar);
-
   if (scalar_result != spv::NoResult) {
+    EnsureBuildPointAvailable();
     builder_->createStore(scalar_result, var_main_previous_scalar_);
   } else {
     // Special retain_prev case - load ps only if needed and don't store the
     // same value back to ps.
     if (instr.scalar_result.GetUsedWriteMask()) {
+      EnsureBuildPointAvailable();
       scalar_result =
           builder_->createLoad(var_main_previous_scalar_, spv::NoPrecision);
     }
   }
+
   StoreResult(instr.vector_and_constant_result, vector_result);
   StoreResult(instr.scalar_result, scalar_result);
 
