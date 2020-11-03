@@ -1,5 +1,6 @@
 include("tools/build")
 require("third_party/premake-export-compile-commands/export-compile-commands")
+require("third_party/premake-cmake/cmake")
 
 location(build_root)
 targetdir(build_bin)
