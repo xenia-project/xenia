@@ -10,12 +10,14 @@
 #include "xenia/gpu/spirv_shader_translator.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <utility>
 #include <vector>
 
 #include "third_party/glslang/SPIRV/GLSL.std.450.h"
 #include "xenia/base/assert.h"
+#include "xenia/base/math.h"
 
 namespace xe {
 namespace gpu {
@@ -139,6 +141,45 @@ void SpirvShaderTranslator::StartTranslation() {
   id_vector_temp_.push_back(const_float_1_);
   const_float2_0_1_ =
       builder_->makeCompositeConstant(type_float2_, id_vector_temp_);
+
+  // Common uniform buffer - system constants.
+  struct SystemConstant {
+    const char* name;
+    size_t offset;
+    spv::Id type;
+  };
+  const SystemConstant system_constants[] = {
+      {"vertex_index_endian", offsetof(SystemConstants, vertex_index_endian),
+       type_uint_},
+      {"vertex_base_index", offsetof(SystemConstants, vertex_base_index),
+       type_int_},
+  };
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(xe::countof(system_constants));
+  for (size_t i = 0; i < xe::countof(system_constants); ++i) {
+    id_vector_temp_.push_back(system_constants[i].type);
+  }
+  spv::Id type_system_constants =
+      builder_->makeStructType(id_vector_temp_, "XeSystemConstants");
+  for (size_t i = 0; i < xe::countof(system_constants); ++i) {
+    const SystemConstant& system_constant = system_constants[i];
+    builder_->addMemberName(type_system_constants, static_cast<unsigned int>(i),
+                            system_constant.name);
+    builder_->addMemberDecoration(
+        type_system_constants, static_cast<unsigned int>(i),
+        spv::DecorationOffset, int(system_constant.offset));
+  }
+  builder_->addDecoration(type_system_constants, spv::DecorationBlock);
+  uniform_system_constants_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassUniform, type_system_constants,
+      "xe_uniform_system_constants");
+  builder_->addDecoration(uniform_system_constants_,
+                          spv::DecorationDescriptorSet,
+                          kDescriptorSetSystemConstants);
+  builder_->addDecoration(uniform_system_constants_, spv::DecorationBinding, 0);
+  if (features_.spirv_version >= spv::Spv_1_4) {
+    main_interface_.push_back(uniform_system_constants_);
+  }
 
   // Common uniform buffer - float constants.
   uint32_t float_constant_count = constant_register_map().float_count;
@@ -307,15 +348,8 @@ void SpirvShaderTranslator::StartTranslation() {
     main_switch_header_ = builder_->getBuildPoint();
     main_switch_merge_ =
         new spv::Block(builder_->getUniqueId(), *function_main_);
-    {
-      std::unique_ptr<spv::Instruction> main_switch_selection_merge_op =
-          std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-      main_switch_selection_merge_op->addIdOperand(main_switch_merge_->getId());
-      main_switch_selection_merge_op->addImmediateOperand(
-          spv::SelectionControlDontFlattenMask);
-      builder_->getBuildPoint()->addInstruction(
-          std::move(main_switch_selection_merge_op));
-    }
+    SpirvCreateSelectionMerge(main_switch_merge_->getId(),
+                              spv::SelectionControlDontFlattenMask);
     main_switch_op_ = std::make_unique<spv::Instruction>(spv::OpSwitch);
     main_switch_op_->addIdOperand(main_loop_pc_current);
     main_switch_op_->addIdOperand(main_switch_merge_->getId());
@@ -564,13 +598,7 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
       spv::OpIEqual, type_bool_, loop_count_new, const_uint_0_);
   spv::Block& skip_block = builder_->makeNewBlock();
   spv::Block& body_block = builder_->makeNewBlock();
-  {
-    std::unique_ptr<spv::Instruction> selection_merge_op =
-        std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-    selection_merge_op->addIdOperand(body_block.getId());
-    selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
-    head_block.addInstruction(std::move(selection_merge_op));
-  }
+  SpirvCreateSelectionMerge(body_block.getId());
   {
     std::unique_ptr<spv::Instruction> branch_conditional_op =
         std::make_unique<spv::Instruction>(spv::OpBranchConditional);
@@ -632,13 +660,7 @@ void SpirvShaderTranslator::ProcessLoopEndInstruction(
   spv::Block& body_block = *builder_->getBuildPoint();
   spv::Block& continue_block = builder_->makeNewBlock();
   spv::Block& break_block = builder_->makeNewBlock();
-  {
-    std::unique_ptr<spv::Instruction> selection_merge_op =
-        std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-    selection_merge_op->addIdOperand(break_block.getId());
-    selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
-    body_block.addInstruction(std::move(selection_merge_op));
-  }
+  SpirvCreateSelectionMerge(break_block.getId());
   {
     std::unique_ptr<spv::Instruction> branch_conditional_op =
         std::make_unique<spv::Instruction>(spv::OpBranchConditional);
@@ -841,6 +863,53 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
   var_main_point_size_edge_flag_kill_vertex_ = builder_->createVariable(
       spv::NoPrecision, spv::StorageClassFunction, type_float3_,
       "xe_var_point_size_edge_flag_kill_vertex");
+
+  // Load the vertex index or the tessellation parameters.
+  if (register_count()) {
+    // TODO(Triang3l): Barycentric coordinates and patch index.
+    if (IsSpirvVertexShader()) {
+      // TODO(Triang3l): Fetch the vertex index from the shared memory when
+      // fullDrawIndexUint32 isn't available and the index is 32-bit and needs
+      // endian swap.
+      // TODO(Triang3l): Close line loop primitive.
+      // Load the unswapped index as uint for swapping.
+      spv::Id vertex_index = builder_->createUnaryOp(
+          spv::OpBitcast, type_uint_,
+          builder_->createLoad(input_vertex_index_, spv::NoPrecision));
+      // Endian-swap the index and convert to int.
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(
+          builder_->makeIntConstant(kSystemConstantIndexVertexIndexEndian));
+      spv::Id vertex_index_endian =
+          builder_->createLoad(builder_->createAccessChain(
+                                   spv::StorageClassUniform,
+                                   uniform_system_constants_, id_vector_temp_),
+                               spv::NoPrecision);
+      vertex_index = builder_->createUnaryOp(
+          spv::OpBitcast, type_int_,
+          EndianSwap32Uint(vertex_index, vertex_index_endian));
+      // Add the base to the index.
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(
+          builder_->makeIntConstant(kSystemConstantIndexVertexBaseIndex));
+      vertex_index = builder_->createBinOp(
+          spv::OpIAdd, type_int_, vertex_index,
+          builder_->createLoad(builder_->createAccessChain(
+                                   spv::StorageClassUniform,
+                                   uniform_system_constants_, id_vector_temp_),
+                               spv::NoPrecision));
+      // Write the index to r0.x as float.
+      id_vector_temp_.clear();
+      id_vector_temp_.reserve(2);
+      id_vector_temp_.push_back(const_int_0_);
+      id_vector_temp_.push_back(const_int_0_);
+      builder_->createStore(
+          builder_->createUnaryOp(spv::OpConvertSToF, type_float_,
+                                  vertex_index),
+          builder_->createAccessChain(spv::StorageClassFunction,
+                                      var_main_registers_, id_vector_temp_));
+    }
+  }
 }
 
 void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {}
@@ -918,13 +987,7 @@ void SpirvShaderTranslator::UpdateExecConditionals(
   spv::Function& function = builder_->getBuildPoint()->getParent();
   cf_exec_conditional_merge_ =
       new spv::Block(builder_->getUniqueId(), function);
-  {
-    std::unique_ptr<spv::Instruction> selection_merge_op =
-        std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-    selection_merge_op->addIdOperand(cf_exec_conditional_merge_->getId());
-    selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
-    builder_->getBuildPoint()->addInstruction(std::move(selection_merge_op));
-  }
+  SpirvCreateSelectionMerge(cf_exec_conditional_merge_->getId());
   spv::Block& inner_block = builder_->makeNewBlock();
   builder_->createConditionalBranch(
       condition_id, condition ? &inner_block : cf_exec_conditional_merge_,
@@ -963,13 +1026,7 @@ void SpirvShaderTranslator::UpdateInstructionPredication(bool predicated,
       builder_->createLoad(var_main_predicate_, spv::NoPrecision);
   spv::Block& predicated_block = builder_->makeNewBlock();
   cf_instruction_predicate_merge_ = &builder_->makeNewBlock();
-  {
-    std::unique_ptr<spv::Instruction> selection_merge_op =
-        std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-    selection_merge_op->addIdOperand(cf_instruction_predicate_merge_->getId());
-    selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
-    builder_->getBuildPoint()->addInstruction(std::move(selection_merge_op));
-  }
+  SpirvCreateSelectionMerge(cf_instruction_predicate_merge_->getId());
   builder_->createConditionalBranch(
       predicate_id,
       condition ? &predicated_block : cf_instruction_predicate_merge_,
@@ -1424,6 +1481,120 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
     }
   }
   builder_->createStore(value_to_store, target_pointer);
+}
+
+spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
+  spv::Id type = builder_->getTypeId(value);
+  spv::Id const_uint_8_scalar = builder_->makeUintConstant(8);
+  spv::Id const_uint_00ff00ff_scalar = builder_->makeUintConstant(0x00FF00FF);
+  spv::Id const_uint_16_scalar = builder_->makeUintConstant(16);
+  spv::Id const_uint_8_typed, const_uint_00ff00ff_typed, const_uint_16_typed;
+  int num_components = builder_->getNumTypeComponents(type);
+  if (num_components > 1) {
+    id_vector_temp_.reserve(num_components);
+    id_vector_temp_.clear();
+    id_vector_temp_.insert(id_vector_temp_.cend(), num_components,
+                           const_uint_8_scalar);
+    const_uint_8_typed = builder_->makeCompositeConstant(type, id_vector_temp_);
+    id_vector_temp_.clear();
+    id_vector_temp_.insert(id_vector_temp_.cend(), num_components,
+                           const_uint_00ff00ff_scalar);
+    const_uint_00ff00ff_typed =
+        builder_->makeCompositeConstant(type, id_vector_temp_);
+    id_vector_temp_.clear();
+    id_vector_temp_.insert(id_vector_temp_.cend(), num_components,
+                           const_uint_16_scalar);
+    const_uint_16_typed =
+        builder_->makeCompositeConstant(type, id_vector_temp_);
+  } else {
+    const_uint_8_typed = const_uint_8_scalar;
+    const_uint_00ff00ff_typed = const_uint_00ff00ff_scalar;
+    const_uint_16_typed = const_uint_16_scalar;
+  }
+
+  // 8-in-16 or one half of 8-in-32 (doing 8-in-16 swap).
+  spv::Id is_8in16 = builder_->createBinOp(
+      spv::OpIEqual, type_bool_, endian,
+      builder_->makeUintConstant(
+          static_cast<unsigned int>(xenos::Endian::k8in16)));
+  spv::Id is_8in32 = builder_->createBinOp(
+      spv::OpIEqual, type_bool_, endian,
+      builder_->makeUintConstant(
+          static_cast<unsigned int>(xenos::Endian::k8in32)));
+  spv::Id is_8in16_or_8in32 =
+      builder_->createBinOp(spv::OpLogicalAnd, type_bool_, is_8in16, is_8in32);
+  spv::Block& block_pre_8in16 = *builder_->getBuildPoint();
+  assert_false(block_pre_8in16.isTerminated());
+  spv::Block& block_8in16 = builder_->makeNewBlock();
+  spv::Block& block_8in16_merge = builder_->makeNewBlock();
+  SpirvCreateSelectionMerge(block_8in16_merge.getId());
+  builder_->createConditionalBranch(is_8in16_or_8in32, &block_8in16,
+                                    &block_8in16_merge);
+  builder_->setBuildPoint(&block_8in16);
+  spv::Id swapped_8in16 = builder_->createBinOp(
+      spv::OpBitwiseOr, type,
+      builder_->createBinOp(
+          spv::OpBitwiseAnd, type,
+          builder_->createBinOp(spv::OpShiftRightLogical, type, value,
+                                const_uint_8_typed),
+          const_uint_00ff00ff_typed),
+      builder_->createBinOp(
+          spv::OpShiftLeftLogical, type,
+          builder_->createBinOp(spv::OpBitwiseAnd, type, value,
+                                const_uint_00ff00ff_typed),
+          const_uint_8_typed));
+  builder_->createBranch(&block_8in16_merge);
+  builder_->setBuildPoint(&block_8in16_merge);
+  {
+    std::unique_ptr<spv::Instruction> phi_op =
+        std::make_unique<spv::Instruction>(builder_->getUniqueId(), type,
+                                           spv::OpPhi);
+    phi_op->addIdOperand(swapped_8in16);
+    phi_op->addIdOperand(block_8in16.getId());
+    phi_op->addIdOperand(value);
+    phi_op->addIdOperand(block_pre_8in16.getId());
+    value = phi_op->getResultId();
+    builder_->getBuildPoint()->addInstruction(std::move(phi_op));
+  }
+
+  // 16-in-32 or another half of 8-in-32 (doing 16-in-32 swap).
+  spv::Id is_16in32 = builder_->createBinOp(
+      spv::OpIEqual, type_bool_, endian,
+      builder_->makeUintConstant(
+          static_cast<unsigned int>(xenos::Endian::k16in32)));
+  spv::Id is_8in32_or_16in32 =
+      builder_->createBinOp(spv::OpLogicalAnd, type_bool_, is_8in32, is_16in32);
+  spv::Block& block_pre_16in32 = *builder_->getBuildPoint();
+  spv::Block& block_16in32 = builder_->makeNewBlock();
+  spv::Block& block_16in32_merge = builder_->makeNewBlock();
+  SpirvCreateSelectionMerge(block_16in32_merge.getId());
+  builder_->createConditionalBranch(is_8in32_or_16in32, &block_16in32,
+                                    &block_16in32_merge);
+  builder_->setBuildPoint(&block_16in32);
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(4);
+  id_vector_temp_.push_back(builder_->createBinOp(
+      spv::OpShiftRightLogical, type, value, const_uint_16_typed));
+  id_vector_temp_.push_back(value);
+  id_vector_temp_.insert(id_vector_temp_.cend(), 2,
+                         builder_->makeIntConstant(16));
+  spv::Id swapped_16in32 =
+      builder_->createOp(spv::OpBitFieldInsert, type, id_vector_temp_);
+  builder_->createBranch(&block_16in32_merge);
+  builder_->setBuildPoint(&block_16in32_merge);
+  {
+    std::unique_ptr<spv::Instruction> phi_op =
+        std::make_unique<spv::Instruction>(builder_->getUniqueId(), type,
+                                           spv::OpPhi);
+    phi_op->addIdOperand(swapped_16in32);
+    phi_op->addIdOperand(block_16in32.getId());
+    phi_op->addIdOperand(value);
+    phi_op->addIdOperand(block_pre_16in32.getId());
+    value = phi_op->getResultId();
+    builder_->getBuildPoint()->addInstruction(std::move(phi_op));
+  }
+
+  return value;
 }
 
 }  // namespace gpu

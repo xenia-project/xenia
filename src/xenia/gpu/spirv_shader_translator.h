@@ -17,6 +17,7 @@
 
 #include "third_party/glslang/SPIRV/SpvBuilder.h"
 #include "xenia/gpu/shader_translator.h"
+#include "xenia/gpu/xenos.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
 namespace xe {
@@ -24,6 +25,19 @@ namespace gpu {
 
 class SpirvShaderTranslator : public ShaderTranslator {
  public:
+  // IF SYSTEM CONSTANTS ARE CHANGED OR ADDED, THE FOLLOWING MUST BE UPDATED:
+  // - SystemConstantIndex enum.
+  // - Structure members in BeginTranslation.
+  struct SystemConstants {
+    xenos::Endian vertex_index_endian;
+    int32_t vertex_base_index;
+  };
+
+  // The minimum limit for maxPerStageDescriptorStorageBuffers is 4, and for
+  // maxStorageBufferRange it's 128 MB. These are the values of those limits on
+  // Arm Mali as of November 2020. Xenia needs 512 MB shared memory to be bound,
+  // therefore SSBOs must only be used for shared memory - all other storage
+  // resources must be images or texel buffers.
   enum DescriptorSet : uint32_t {
     // In order of update frequency.
     // Very frequently changed, especially for UI draws, and for models drawn in
@@ -78,6 +92,17 @@ class SpirvShaderTranslator : public ShaderTranslator {
   void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
+  // Builder helpers.
+  void SpirvCreateSelectionMerge(
+      spv::Id merge_block_id, spv::SelectionControlMask selection_control_mask =
+                                  spv::SelectionControlMaskNone) {
+    std::unique_ptr<spv::Instruction> selection_merge_op =
+        std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
+    selection_merge_op->addIdOperand(merge_block_id);
+    selection_merge_op->addImmediateOperand(selection_control_mask);
+    builder_->getBuildPoint()->addInstruction(std::move(selection_merge_op));
+  }
+
   // TODO(Triang3l): Depth-only pixel shader.
   bool IsSpirvVertexOrTessEvalShader() const { return is_vertex_shader(); }
   bool IsSpirvVertexShader() const {
@@ -176,6 +201,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id ProcessScalarAluOperation(const ParsedAluInstruction& instr,
                                     bool& predicate_written);
 
+  // Perform endian swap of a uint scalar or vector.
+  spv::Id EndianSwap32Uint(spv::Id value, spv::Id endian);
+
   Features features_;
 
   std::unique_ptr<spv::Builder> builder_;
@@ -242,6 +270,11 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // components.
   spv::Id const_float2_0_1_;
 
+  enum SystemConstantIndex : unsigned int {
+    kSystemConstantIndexVertexIndexEndian,
+    kSystemConstantIndexVertexBaseIndex,
+  };
+  spv::Id uniform_system_constants_;
   spv::Id uniform_float_constants_;
   spv::Id uniform_bool_loop_constants_;
 
