@@ -580,14 +580,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       spv::Block& ma_yx_block = builder_->makeNewBlock();
       spv::Block* ma_merge_block =
           new spv::Block(builder_->getUniqueId(), function);
-      {
-        std::unique_ptr<spv::Instruction> selection_merge_op =
-            std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-        selection_merge_op->addIdOperand(ma_merge_block->getId());
-        selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
-        builder_->getBuildPoint()->addInstruction(
-            std::move(selection_merge_op));
-      }
+      SpirvCreateSelectionMerge(ma_merge_block->getId());
       builder_->createConditionalBranch(ma_z_condition, &ma_z_block,
                                         &ma_yx_block);
 
@@ -627,14 +620,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       spv::Block& ma_y_block = builder_->makeNewBlock();
       spv::Block& ma_x_block = builder_->makeNewBlock();
       spv::Block& ma_yx_merge_block = builder_->makeNewBlock();
-      {
-        std::unique_ptr<spv::Instruction> selection_merge_op =
-            std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-        selection_merge_op->addIdOperand(ma_yx_merge_block.getId());
-        selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
-        builder_->getBuildPoint()->addInstruction(
-            std::move(selection_merge_op));
-      }
+      SpirvCreateSelectionMerge(ma_yx_merge_block.getId());
       builder_->createConditionalBranch(ma_y_condition, &ma_y_block,
                                         &ma_x_block);
 
@@ -849,14 +835,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
                                    0b1111)));
       spv::Block& kill_block = builder_->makeNewBlock();
       spv::Block& merge_block = builder_->makeNewBlock();
-      {
-        std::unique_ptr<spv::Instruction> selection_merge_op =
-            std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-        selection_merge_op->addIdOperand(merge_block.getId());
-        selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
-        builder_->getBuildPoint()->addInstruction(
-            std::move(selection_merge_op));
-      }
+      SpirvCreateSelectionMerge(merge_block.getId());
       builder_->createConditionalBranch(condition, &kill_block, &merge_block);
       builder_->setBuildPoint(&kill_block);
       // TODO(Triang3l): Demote to helper invocation to keep derivatives if
@@ -1117,14 +1096,7 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
                                 const_float_0_));
       spv::Block& multiply_block = builder_->makeNewBlock();
       spv::Block& merge_block = builder_->makeNewBlock();
-      {
-        std::unique_ptr<spv::Instruction> selection_merge_op =
-            std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-        selection_merge_op->addIdOperand(merge_block.getId());
-        selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
-        builder_->getBuildPoint()->addInstruction(
-            std::move(selection_merge_op));
-      }
+      SpirvCreateSelectionMerge(merge_block.getId());
       {
         std::unique_ptr<spv::Instruction> branch_conditional_op =
             std::make_unique<spv::Instruction>(spv::OpBranchConditional);
@@ -1418,14 +1390,7 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
               : const_float_0_);
       spv::Block& kill_block = builder_->makeNewBlock();
       spv::Block& merge_block = builder_->makeNewBlock();
-      {
-        std::unique_ptr<spv::Instruction> selection_merge_op =
-            std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-        selection_merge_op->addIdOperand(merge_block.getId());
-        selection_merge_op->addImmediateOperand(spv::SelectionControlMaskNone);
-        builder_->getBuildPoint()->addInstruction(
-            std::move(selection_merge_op));
-      }
+      SpirvCreateSelectionMerge(merge_block.getId());
       builder_->createConditionalBranch(condition, &kill_block, &merge_block);
       builder_->setBuildPoint(&kill_block);
       // TODO(Triang3l): Demote to helper invocation to keep derivatives if
