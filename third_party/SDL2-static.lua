@@ -18,7 +18,7 @@ project("SDL2")
     "SDL2/include",
   })
   buildoptions({
-    "/wd4828",  -- illegal characters in file
+    "/wd4828",  -- illegal characters in file https://bugzilla.libsdl.org/show_bug.cgi?id=5333
   })
   files({
     -- 1:1 from SDL.vcxproj file
