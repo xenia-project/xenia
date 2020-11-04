@@ -25,15 +25,6 @@ project("xenia-gpu-d3d12-trace-viewer")
   kind("WindowedApp")
   language("C++")
   links({
-    "aes_128",
-    "capstone",
-    "dxbc",
-    "fmt",
-    "imgui",
-    "libavcodec",
-    "libavutil",
-    "mspack",
-    "snappy",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",
@@ -48,6 +39,17 @@ project("xenia-gpu-d3d12-trace-viewer")
     "xenia-ui",
     "xenia-ui-d3d12",
     "xenia-vfs",
+  })
+  links({
+    "aes_128",
+    "capstone",
+    "dxbc",
+    "fmt",
+    "imgui",
+    "libavcodec",
+    "libavutil",
+    "mspack",
+    "snappy",
     "xxhash",
   })
   files({
@@ -70,15 +72,6 @@ project("xenia-gpu-d3d12-trace-dump")
   kind("ConsoleApp")
   language("C++")
   links({
-    "aes_128",
-    "capstone",
-    "dxbc",
-    "fmt",
-    "imgui",
-    "libavcodec",
-    "libavutil",
-    "mspack",
-    "snappy",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",
@@ -93,6 +86,17 @@ project("xenia-gpu-d3d12-trace-dump")
     "xenia-ui",
     "xenia-ui-d3d12",
     "xenia-vfs",
+  })
+  links({
+    "aes_128",
+    "capstone",
+    "dxbc",
+    "fmt",
+    "imgui",
+    "libavcodec",
+    "libavutil",
+    "mspack",
+    "snappy",
     "xxhash",
   })
   files({

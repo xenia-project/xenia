@@ -30,17 +30,6 @@ project("xenia-gpu-vulkan-trace-viewer")
   kind("WindowedApp")
   language("C++")
   links({
-    "aes_128",
-    "capstone",
-    "fmt",
-    "glslang-spirv",
-    "imgui",
-    "libavcodec",
-    "libavutil",
-    "mspack",
-    "snappy",
-    "spirv-tools",
-    "volk",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",
@@ -56,6 +45,19 @@ project("xenia-gpu-vulkan-trace-viewer")
     "xenia-ui-spirv",
     "xenia-ui-vulkan",
     "xenia-vfs",
+  })
+  links({
+    "aes_128",
+    "capstone",
+    "fmt",
+    "glslang-spirv",
+    "imgui",
+    "libavcodec",
+    "libavutil",
+    "mspack",
+    "snappy",
+    "spirv-tools",
+    "volk",
     "xxhash",
   })
   defines({
@@ -97,17 +99,6 @@ project("xenia-gpu-vulkan-trace-dump")
   kind("ConsoleApp")
   language("C++")
   links({
-    "aes_128",
-    "capstone",
-    "fmt",
-    "glslang-spirv",
-    "imgui",
-    "libavcodec",
-    "libavutil",
-    "mspack",
-    "snappy",
-    "spirv-tools",
-    "volk",
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",
@@ -123,6 +114,19 @@ project("xenia-gpu-vulkan-trace-dump")
     "xenia-ui-spirv",
     "xenia-ui-vulkan",
     "xenia-vfs",
+  })
+  links({
+    "aes_128",
+    "capstone",
+    "fmt",
+    "glslang-spirv",
+    "imgui",
+    "libavcodec",
+    "libavutil",
+    "mspack",
+    "snappy",
+    "spirv-tools",
+    "volk",
     "xxhash",
   })
   defines({
