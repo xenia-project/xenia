@@ -105,6 +105,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
       const ParsedLoopEndInstruction& instr) override;
   void ProcessJumpInstruction(const ParsedJumpInstruction& instr) override;
 
+  void ProcessVertexFetchInstruction(
+      const ParsedVertexFetchInstruction& instr) override;
   void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
@@ -247,11 +249,24 @@ class SpirvShaderTranslator : public ShaderTranslator {
     // Index = component count - 1.
     spv::Id type_bool_vectors_[4];
   };
-  spv::Id type_int_;
-  spv::Id type_int4_;
-  spv::Id type_uint_;
-  spv::Id type_uint3_;
-  spv::Id type_uint4_;
+  union {
+    struct {
+      spv::Id type_int_;
+      spv::Id type_int2_;
+      spv::Id type_int3_;
+      spv::Id type_int4_;
+    };
+    spv::Id type_int_vectors_[4];
+  };
+  union {
+    struct {
+      spv::Id type_uint_;
+      spv::Id type_uint2_;
+      spv::Id type_uint3_;
+      spv::Id type_uint4_;
+    };
+    spv::Id type_uint_vectors_[4];
+  };
   union {
     struct {
       spv::Id type_float_;
@@ -295,6 +310,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id uniform_system_constants_;
   spv::Id uniform_float_constants_;
   spv::Id uniform_bool_loop_constants_;
+  spv::Id uniform_fetch_constants_;
 
   spv::Id buffers_shared_memory_[512 / 128];
 

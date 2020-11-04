@@ -97,8 +97,11 @@ void SpirvShaderTranslator::StartTranslation() {
   type_bool3_ = builder_->makeVectorType(type_bool_, 3);
   type_bool4_ = builder_->makeVectorType(type_bool_, 4);
   type_int_ = builder_->makeIntType(32);
+  type_int2_ = builder_->makeVectorType(type_int_, 2);
+  type_int3_ = builder_->makeVectorType(type_int_, 3);
   type_int4_ = builder_->makeVectorType(type_int_, 4);
   type_uint_ = builder_->makeUintType(32);
+  type_uint2_ = builder_->makeVectorType(type_uint_, 2);
   type_uint3_ = builder_->makeVectorType(type_uint_, 3);
   type_uint4_ = builder_->makeVectorType(type_uint_, 4);
   type_float_ = builder_->makeFloatType(32);
@@ -254,6 +257,31 @@ void SpirvShaderTranslator::StartTranslation() {
     main_interface_.push_back(uniform_bool_loop_constants_);
   }
 
+  // Common uniform buffer - fetch constants (32 x 6 uints packed in std140 as
+  // 4-component vectors).
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(builder_->makeArrayType(
+      type_uint4_, builder_->makeUintConstant(32 * 6 / 4),
+      sizeof(uint32_t) * 4));
+  builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
+                          sizeof(uint32_t) * 4);
+  spv::Id type_fetch_constants =
+      builder_->makeStructType(id_vector_temp_, "XeFetchConstants");
+  builder_->addMemberName(type_fetch_constants, 0, "fetch_constants");
+  builder_->addMemberDecoration(type_fetch_constants, 0, spv::DecorationOffset,
+                                0);
+  builder_->addDecoration(type_fetch_constants, spv::DecorationBlock);
+  uniform_fetch_constants_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassUniform, type_fetch_constants,
+      "xe_uniform_fetch_constants");
+  builder_->addDecoration(uniform_fetch_constants_,
+                          spv::DecorationDescriptorSet,
+                          int(kDescriptorSetFetchConstants));
+  builder_->addDecoration(uniform_fetch_constants_, spv::DecorationBinding, 0);
+  if (features_.spirv_version >= spv::Spv_1_4) {
+    main_interface_.push_back(uniform_fetch_constants_);
+  }
+
   // Common storage buffers - shared memory uint[], each 128 MB or larger,
   // depending on what's possible on the device. glslang generates everything,
   // including all the types, for each storage buffer separately.
@@ -271,7 +299,7 @@ void SpirvShaderTranslator::StartTranslation() {
         '0' + i;
     spv::Id type_shared_memory =
         builder_->makeStructType(id_vector_temp_, shared_memory_struct_name);
-    builder_->addMemberName(type_shared_memory, 0, "memory");
+    builder_->addMemberName(type_shared_memory, 0, "shared_memory");
     // TODO(Triang3l): Make writable when memexport is implemented.
     builder_->addMemberDecoration(type_shared_memory, 0,
                                   spv::DecorationNonWritable);
@@ -1706,6 +1734,7 @@ spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(
   }
   // Set up the access chain indices.
   id_vector_temp_.clear();
+  id_vector_temp_.reserve(2);
   // The only SSBO struct member.
   id_vector_temp_.push_back(const_int_0_);
   id_vector_temp_.push_back(binding_address);
