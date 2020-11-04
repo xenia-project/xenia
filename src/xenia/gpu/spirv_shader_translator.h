@@ -66,11 +66,27 @@ class SpirvShaderTranslator : public ShaderTranslator {
     explicit Features(const ui::vulkan::VulkanProvider& provider);
     explicit Features(bool all = false);
     unsigned int spirv_version;
+    uint32_t max_storage_buffer_range;
     bool clip_distance;
     bool cull_distance;
     bool float_controls;
   };
   SpirvShaderTranslator(const Features& features);
+
+  static constexpr uint32_t GetSharedMemoryStorageBufferCountLog2(
+      uint32_t max_storage_buffer_range) {
+    if (max_storage_buffer_range >= 512 * 1024 * 1024) {
+      return 0;
+    }
+    if (max_storage_buffer_range >= 256 * 1024 * 1024) {
+      return 1;
+    }
+    return 2;
+  }
+  uint32_t GetSharedMemoryStorageBufferCountLog2() const {
+    return GetSharedMemoryStorageBufferCountLog2(
+        features_.max_storage_buffer_range);
+  }
 
  protected:
   void Reset() override;
@@ -204,6 +220,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // Perform endian swap of a uint scalar or vector.
   spv::Id EndianSwap32Uint(spv::Id value, spv::Id endian);
 
+  spv::Id LoadUint32FromSharedMemory(spv::Id address_dwords_int);
+
   Features features_;
 
   std::unique_ptr<spv::Builder> builder_;
@@ -277,6 +295,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id uniform_system_constants_;
   spv::Id uniform_float_constants_;
   spv::Id uniform_bool_loop_constants_;
+
+  spv::Id buffers_shared_memory_[512 / 128];
 
   // VS as VS only - int.
   spv::Id input_vertex_index_;

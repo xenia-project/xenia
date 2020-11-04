@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -24,13 +25,16 @@ namespace gpu {
 
 SpirvShaderTranslator::Features::Features(bool all)
     : spirv_version(all ? spv::Spv_1_5 : spv::Spv_1_0),
+      max_storage_buffer_range(all ? UINT32_MAX : (128 * 1024 * 1024)),
       clip_distance(all),
       cull_distance(all),
       float_controls(all) {}
 
 SpirvShaderTranslator::Features::Features(
     const ui::vulkan::VulkanProvider& provider)
-    : clip_distance(provider.device_features().shaderClipDistance),
+    : max_storage_buffer_range(
+          provider.device_properties().limits.maxStorageBufferRange),
+      clip_distance(provider.device_features().shaderClipDistance),
       cull_distance(provider.device_features().shaderCullDistance) {
   uint32_t device_version = provider.device_properties().apiVersion;
   const ui::vulkan::VulkanProvider::DeviceExtensions& device_extensions =
@@ -248,6 +252,50 @@ void SpirvShaderTranslator::StartTranslation() {
                           0);
   if (features_.spirv_version >= spv::Spv_1_4) {
     main_interface_.push_back(uniform_bool_loop_constants_);
+  }
+
+  // Common storage buffers - shared memory uint[], each 128 MB or larger,
+  // depending on what's possible on the device. glslang generates everything,
+  // including all the types, for each storage buffer separately.
+  uint32_t shared_memory_binding_count =
+      1 << GetSharedMemoryStorageBufferCountLog2();
+  char shared_memory_struct_name[] = "XeSharedMemory0";
+  char shared_memory_buffer_name[] = "xe_shared_memory_0";
+  for (uint32_t i = 0; i < shared_memory_binding_count; ++i) {
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(builder_->makeRuntimeArray(type_uint_));
+    // Storage buffers have std430 packing, no padding to 4-component vectors.
+    builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
+                            sizeof(uint32_t));
+    shared_memory_struct_name[xe::countof(shared_memory_struct_name) - 2] =
+        '0' + i;
+    spv::Id type_shared_memory =
+        builder_->makeStructType(id_vector_temp_, shared_memory_struct_name);
+    builder_->addMemberName(type_shared_memory, 0, "memory");
+    // TODO(Triang3l): Make writable when memexport is implemented.
+    builder_->addMemberDecoration(type_shared_memory, 0,
+                                  spv::DecorationNonWritable);
+    builder_->addMemberDecoration(type_shared_memory, 0, spv::DecorationOffset,
+                                  0);
+    builder_->addDecoration(type_shared_memory,
+                            features_.spirv_version >= spv::Spv_1_3
+                                ? spv::DecorationBlock
+                                : spv::DecorationBufferBlock);
+    shared_memory_buffer_name[xe::countof(shared_memory_buffer_name) - 2] =
+        '0' + i;
+    spv::Id buffer_shared_memory = builder_->createVariable(
+        spv::NoPrecision,
+        features_.spirv_version >= spv::Spv_1_3 ? spv::StorageClassStorageBuffer
+                                                : spv::StorageClassUniform,
+        type_shared_memory, shared_memory_buffer_name);
+    buffers_shared_memory_[i] = buffer_shared_memory;
+    builder_->addDecoration(buffer_shared_memory, spv::DecorationDescriptorSet,
+                            int(kDescriptorSetSharedMemoryAndEdram));
+    builder_->addDecoration(buffer_shared_memory, spv::DecorationBinding,
+                            int(i));
+    if (features_.spirv_version >= spv::Spv_1_4) {
+      main_interface_.push_back(buffer_shared_memory);
+    }
   }
 
   if (IsSpirvVertexOrTessEvalShader()) {
@@ -1595,6 +1643,84 @@ spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
   }
 
   return value;
+}
+
+spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(
+    spv::Id address_dwords_int) {
+  spv::Block& head_block = *builder_->getBuildPoint();
+  assert_false(head_block.isTerminated());
+
+  spv::StorageClass storage_class = features_.spirv_version >= spv::Spv_1_3
+                                        ? spv::StorageClassStorageBuffer
+                                        : spv::StorageClassUniform;
+  uint32_t buffer_count_log2 = GetSharedMemoryStorageBufferCountLog2();
+  if (!buffer_count_log2) {
+    // Single binding - load directly.
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(2);
+    // The only SSBO struct member.
+    id_vector_temp_.push_back(const_int_0_);
+    id_vector_temp_.push_back(address_dwords_int);
+    return builder_->createLoad(
+        builder_->createAccessChain(storage_class, buffers_shared_memory_[0],
+                                    id_vector_temp_),
+        spv::NoPrecision);
+  }
+
+  // The memory is split into multiple bindings - check which binding to load
+  // from. 29 is log2(512 MB), but addressing in dwords (4 B).
+  uint32_t binding_address_bits = (29 - 2) - buffer_count_log2;
+  spv::Id binding_index = builder_->createBinOp(
+      spv::OpShiftRightLogical, type_uint_,
+      builder_->createUnaryOp(spv::OpBitcast, type_uint_, address_dwords_int),
+      builder_->makeUintConstant(binding_address_bits));
+  spv::Id binding_address = builder_->createBinOp(
+      spv::OpBitwiseAnd, type_int_, address_dwords_int,
+      builder_->makeIntConstant(
+          int((uint32_t(1) << binding_address_bits) - 1)));
+  uint32_t buffer_count = 1 << buffer_count_log2;
+  spv::Block* switch_case_blocks[512 / 128];
+  for (uint32_t i = 0; i < buffer_count; ++i) {
+    switch_case_blocks[i] = &builder_->makeNewBlock();
+  }
+  spv::Block& switch_merge_block = builder_->makeNewBlock();
+  spv::Id value_phi_result = builder_->getUniqueId();
+  std::unique_ptr<spv::Instruction> value_phi_op =
+      std::make_unique<spv::Instruction>(value_phi_result, type_uint_,
+                                         spv::OpPhi);
+  SpirvCreateSelectionMerge(switch_merge_block.getId(),
+                            spv::SelectionControlDontFlattenMask);
+  {
+    std::unique_ptr<spv::Instruction> switch_op =
+        std::make_unique<spv::Instruction>(spv::OpSwitch);
+    switch_op->addIdOperand(binding_index);
+    // Highest binding index is the default case.
+    switch_op->addIdOperand(switch_case_blocks[buffer_count - 1]->getId());
+    switch_case_blocks[buffer_count - 1]->addPredecessor(&head_block);
+    for (uint32_t i = 0; i < buffer_count - 1; ++i) {
+      switch_op->addImmediateOperand(int(i));
+      switch_op->addIdOperand(switch_case_blocks[i]->getId());
+      switch_case_blocks[i]->addPredecessor(&head_block);
+    }
+    builder_->getBuildPoint()->addInstruction(std::move(switch_op));
+  }
+  // Set up the access chain indices.
+  id_vector_temp_.clear();
+  // The only SSBO struct member.
+  id_vector_temp_.push_back(const_int_0_);
+  id_vector_temp_.push_back(binding_address);
+  for (uint32_t i = 0; i < buffer_count; ++i) {
+    builder_->setBuildPoint(switch_case_blocks[i]);
+    value_phi_op->addIdOperand(builder_->createLoad(
+        builder_->createAccessChain(storage_class, buffers_shared_memory_[i],
+                                    id_vector_temp_),
+        spv::NoPrecision));
+    value_phi_op->addIdOperand(switch_case_blocks[i]->getId());
+    builder_->createBranch(&switch_merge_block);
+  }
+  builder_->setBuildPoint(&switch_merge_block);
+  builder_->getBuildPoint()->addInstruction(std::move(value_phi_op));
+  return value_phi_result;
 }
 
 }  // namespace gpu
