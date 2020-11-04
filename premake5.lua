@@ -91,7 +91,6 @@ filter("platforms:Linux")
   buildoptions({
     -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
     ({os.outputof("pkg-config --cflags gtk+-x11-3.0")})[1],
-    "-fno-lto", -- Premake doesn't support LTO on clang
   })
   links({
     "stdc++fs",
