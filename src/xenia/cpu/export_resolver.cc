@@ -30,7 +30,7 @@ ExportResolver::Table::Table(const std::string_view module_name,
   }
   std::sort(
       exports_by_name_.begin(), exports_by_name_.end(),
-      [](Export* a, Export* b) { return std::strcmp(a->name, b->name) <= 0; });
+      [](Export* a, Export* b) { return std::strcmp(a->name, b->name) < 0; });
 }
 
 ExportResolver::ExportResolver() = default;
@@ -51,7 +51,7 @@ void ExportResolver::RegisterTable(
   }
   std::sort(
       all_exports_by_name_.begin(), all_exports_by_name_.end(),
-      [](Export* a, Export* b) { return std::strcmp(a->name, b->name) <= 0; });
+      [](Export* a, Export* b) { return std::strcmp(a->name, b->name) < 0; });
 }
 
 Export* ExportResolver::GetExportByOrdinal(const std::string_view module_name,
