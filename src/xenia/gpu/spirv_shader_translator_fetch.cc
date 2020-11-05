@@ -178,6 +178,57 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   switch (instr.attributes.data_format) {
       // TODO(Triang3l): All format conversion.
 
+    case xenos::VertexFormat::k_16_16_FLOAT:
+    case xenos::VertexFormat::k_16_16_16_16_FLOAT: {
+      // FIXME(Triang3l): This converts from GLSL float16 with NaNs instead of
+      // Xbox 360 float16 with extended range. However, haven't encountered
+      // games relying on that yet.
+      spv::Id word_needed_component_values[2] = {};
+      for (uint32_t i = 0; i < 2; ++i) {
+        uint32_t word_needed_components =
+            (used_format_components >> (i * 2)) & 0b11;
+        if (!word_needed_components) {
+          continue;
+        }
+        spv::Id word;
+        if (word_count > 1) {
+          word = builder_->createCompositeExtract(words, type_uint_,
+                                                  word_composite_indices[i]);
+        } else {
+          word = words;
+        }
+        id_vector_temp_.clear();
+        id_vector_temp_.push_back(word);
+        word = builder_->createBuiltinCall(type_float2_, ext_inst_glsl_std_450_,
+                                           GLSLstd450UnpackHalf2x16,
+                                           id_vector_temp_);
+        if (word_needed_components != 0b11) {
+          // If only one of two components is needed, extract it.
+          word = builder_->createCompositeExtract(
+              word, type_float_, (word_needed_components & 0b01) ? 0 : 1);
+        }
+        word_needed_component_values[i] = word;
+      }
+      if (word_needed_component_values[1] == spv::NoResult) {
+        result = word_needed_component_values[0];
+      } else if (word_needed_component_values[0] == spv::NoResult) {
+        result = word_needed_component_values[1];
+      } else {
+        // Bypassing the assertion in spv::Builder::createCompositeConstruct as
+        // of November 5, 2020 - can construct vectors by concatenating vectors,
+        // not just from individual scalars.
+        std::unique_ptr<spv::Instruction> composite_construct_op =
+            std::make_unique<spv::Instruction>(builder_->getUniqueId(),
+                                               result_type,
+                                               spv::OpCompositeConstruct);
+        composite_construct_op->addIdOperand(word_needed_component_values[0]);
+        composite_construct_op->addIdOperand(word_needed_component_values[1]);
+        result = composite_construct_op->getResultId();
+        builder_->getBuildPoint()->addInstruction(
+            std::move(composite_construct_op));
+      }
+    } break;
+
     case xenos::VertexFormat::k_32:
     case xenos::VertexFormat::k_32_32:
     case xenos::VertexFormat::k_32_32_32_32:
@@ -260,9 +311,9 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     uint32_t used_missing_components =
         used_result_components & ~used_format_components;
     if (used_missing_components) {
-      // Bypassing the assertion in spv::Builder::createCompositeConstruct - can
-      // construct vectors by concatenating vectors, not just from individual
-      // scalars.
+      // Bypassing the assertion in spv::Builder::createCompositeConstruct as of
+      // November 5, 2020 - can construct vectors by concatenating vectors, not
+      // just from individual scalars.
       std::unique_ptr<spv::Instruction> composite_construct_op =
           std::make_unique<spv::Instruction>(
               builder_->getUniqueId(),
