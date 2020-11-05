@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/spirv_shader_translator.h"
 
+#include <climits>
 #include <cmath>
 #include <memory>
 #include <utility>
@@ -87,22 +88,10 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     }
     address = builder_->createBinOp(spv::OpIAdd, type_int_, address, index);
   }
-  // Add the word offset from the instruction (signed), plus the offset of the
-  // first needed word within the element.
-  uint32_t first_word_index;
-  xe::bit_scan_forward(needed_words, &first_word_index);
-  int32_t first_word_buffer_offset =
-      instr.attributes.offset + int32_t(first_word_index);
-  if (first_word_buffer_offset) {
-    // Add the constant word offset.
-    address = builder_->createBinOp(
-        spv::OpIAdd, type_int_, address,
-        builder_->makeIntConstant(int(first_word_buffer_offset)));
-  }
 
   // Load the needed words.
   unsigned int word_composite_indices[4] = {};
-  spv::Id word_composite_construct[4];
+  spv::Id word_composite_constituents[4];
   uint32_t word_count = 0;
   uint32_t words_remaining = needed_words;
   uint32_t word_index;
@@ -122,7 +111,7 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     // any games relying on out-of-bounds access. On Adreno 200 on Android (LG
     // P705), however, words (not full elements) out of glBufferData bounds
     // contain 0.
-    word_composite_construct[word_count++] =
+    word_composite_constituents[word_count++] =
         LoadUint32FromSharedMemory(word_address);
   }
   spv::Id words;
@@ -132,12 +121,12 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     // id_vector_temp_ internally).
     id_vector_temp_.clear();
     id_vector_temp_.reserve(word_count);
-    id_vector_temp_.insert(id_vector_temp_.cend(), word_composite_construct,
-                           word_composite_construct + word_count);
+    id_vector_temp_.insert(id_vector_temp_.cend(), word_composite_constituents,
+                           word_composite_constituents + word_count);
     words = builder_->createCompositeConstruct(
         type_uint_vectors_[word_count - 1], id_vector_temp_);
   } else {
-    words = word_composite_construct[0];
+    words = word_composite_constituents[0];
   }
 
   // Endian swap the words, getting the endianness from bits 0:1 of the second
@@ -175,8 +164,52 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   assert_not_zero(used_format_components);
   uint32_t used_format_component_count = xe::bit_count(used_format_components);
   spv::Id result_type = type_float_vectors_[used_format_component_count - 1];
+  bool format_is_packed = false;
+  int packed_widths[4] = {}, packed_offsets[4] = {};
+  uint32_t packed_words[4] = {};
   switch (instr.attributes.data_format) {
-      // TODO(Triang3l): All format conversion.
+    case xenos::VertexFormat::k_8_8_8_8:
+      format_is_packed = true;
+      packed_widths[0] = packed_widths[1] = packed_widths[2] =
+          packed_widths[3] = 8;
+      packed_offsets[1] = 8;
+      packed_offsets[2] = 16;
+      packed_offsets[3] = 24;
+      break;
+    case xenos::VertexFormat::k_2_10_10_10:
+      format_is_packed = true;
+      packed_widths[0] = packed_widths[1] = packed_widths[2] = 10;
+      packed_widths[3] = 2;
+      packed_offsets[1] = 10;
+      packed_offsets[2] = 20;
+      packed_offsets[3] = 30;
+      break;
+    case xenos::VertexFormat::k_10_11_11:
+      format_is_packed = true;
+      packed_widths[0] = packed_widths[1] = 11;
+      packed_widths[2] = 10;
+      packed_offsets[1] = 11;
+      packed_offsets[2] = 22;
+      break;
+    case xenos::VertexFormat::k_11_11_10:
+      format_is_packed = true;
+      packed_widths[0] = 10;
+      packed_widths[1] = packed_widths[2] = 11;
+      packed_offsets[1] = 10;
+      packed_offsets[2] = 21;
+      break;
+    case xenos::VertexFormat::k_16_16:
+      format_is_packed = true;
+      packed_widths[0] = packed_widths[1] = 16;
+      packed_offsets[1] = 16;
+      break;
+    case xenos::VertexFormat::k_16_16_16_16:
+      format_is_packed = true;
+      packed_widths[0] = packed_widths[1] = packed_widths[2] =
+          packed_widths[3] = 16;
+      packed_offsets[1] = packed_offsets[3] = 16;
+      packed_words[2] = packed_words[3] = 1;
+      break;
 
     case xenos::VertexFormat::k_16_16_FLOAT:
     case xenos::VertexFormat::k_16_16_16_16_FLOAT: {
@@ -294,6 +327,159 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
       result = builder_->createUnaryOp(
           spv::OpBitcast, type_float_vectors_[word_count - 1], words);
       break;
+
+    default:
+      assert_unhandled_case(instr.attributes.data_format);
+  }
+
+  if (format_is_packed) {
+    assert_true(result == spv::NoResult);
+    // Extract the components from the words as individual ints or uints.
+    if (instr.attributes.is_signed) {
+      // Sign-extending extraction - in GLSL the sign-extending overload accepts
+      // int.
+      words = builder_->createUnaryOp(spv::OpBitcast,
+                                      type_int_vectors_[word_count - 1], words);
+    }
+    int extracted_widths[4] = {};
+    spv::Id extracted_components[4] = {};
+    uint32_t extracted_component_count = 0;
+    unsigned int extraction_word_current_index = UINT_MAX;
+    // Default is `words` itself if 1 word loaded.
+    spv::Id extraction_word_current = words;
+    for (uint32_t i = 0; i < 4; ++i) {
+      if (!(used_format_components & (1 << i))) {
+        continue;
+      }
+      if (word_count > 1) {
+        unsigned int extraction_word_new_index =
+            word_composite_indices[packed_words[i]];
+        if (extraction_word_current_index != extraction_word_new_index) {
+          extraction_word_current_index = extraction_word_new_index;
+          extraction_word_current = builder_->createCompositeExtract(
+              words, instr.attributes.is_signed ? type_int_ : type_uint_,
+              extraction_word_new_index);
+        }
+      }
+      int extraction_width = packed_widths[i];
+      assert_not_zero(extraction_width);
+      extracted_widths[extracted_component_count] = extraction_width;
+      extracted_components[extracted_component_count] = builder_->createTriOp(
+          instr.attributes.is_signed ? spv::OpBitFieldSExtract
+                                     : spv::OpBitFieldUExtract,
+          instr.attributes.is_signed ? type_int_ : type_uint_,
+          extraction_word_current, builder_->makeIntConstant(packed_offsets[i]),
+          builder_->makeIntConstant(extraction_width));
+      ++extracted_component_count;
+    }
+    // Combine extracted components into a vector.
+    assert_true(extracted_component_count == used_format_component_count);
+    if (used_format_component_count > 1) {
+      id_vector_temp_.clear();
+      id_vector_temp_.reserve(used_format_component_count);
+      id_vector_temp_.insert(
+          id_vector_temp_.cend(), extracted_components,
+          extracted_components + used_format_component_count);
+      result = builder_->createCompositeConstruct(
+          instr.attributes.is_signed
+              ? type_int_vectors_[used_format_component_count - 1]
+              : type_uint_vectors_[used_format_component_count - 1],
+          id_vector_temp_);
+    } else {
+      result = extracted_components[0];
+    }
+    // Convert to floating-point.
+    result = builder_->createUnaryOp(
+        instr.attributes.is_signed ? spv::OpConvertSToF : spv::OpConvertUToF,
+        result_type, result);
+    // Normalize.
+    if (!instr.attributes.is_integer) {
+      float packed_scales[4];
+      bool packed_scales_same = true;
+      for (uint32_t i = 0; i < used_format_component_count; ++i) {
+        int extracted_width = extracted_widths[i];
+        // The signed case would result in 1.0 / 0.0 for 1-bit components, but
+        // there are no Xenos formats with them.
+        assert_true(extracted_width >= 2);
+        packed_scales_same &= extracted_width != extracted_widths[0];
+        float packed_scale_inv;
+        if (instr.attributes.is_signed) {
+          packed_scale_inv = float((uint32_t(1) << (extracted_width - 1)) - 1);
+          if (instr.attributes.signed_rf_mode ==
+              xenos::SignedRepeatingFractionMode::kNoZero) {
+            packed_scale_inv += 0.5f;
+          }
+        } else {
+          packed_scale_inv = float((uint32_t(1) << extracted_width) - 1);
+        }
+        packed_scales[i] = 1.0f / packed_scale_inv;
+      }
+      spv::Id const_packed_scale =
+          builder_->makeFloatConstant(packed_scales[0]);
+      spv::Op packed_scale_mul_op;
+      if (used_format_component_count > 1) {
+        if (packed_scales_same) {
+          packed_scale_mul_op = spv::OpVectorTimesScalar;
+        } else {
+          packed_scale_mul_op = spv::OpFMul;
+          id_vector_temp_.clear();
+          id_vector_temp_.reserve(used_format_component_count);
+          id_vector_temp_.push_back(const_packed_scale);
+          for (uint32_t i = 1; i < used_format_component_count; ++i) {
+            id_vector_temp_.push_back(
+                builder_->makeFloatConstant(packed_scales[i]));
+          }
+          const_packed_scale =
+              builder_->makeCompositeConstant(result_type, id_vector_temp_);
+        }
+      } else {
+        packed_scale_mul_op = spv::OpFMul;
+      }
+      result = builder_->createBinOp(packed_scale_mul_op, result_type, result,
+                                     const_packed_scale);
+      builder_->addDecoration(result, spv::DecorationNoContraction);
+      if (instr.attributes.is_signed) {
+        switch (instr.attributes.signed_rf_mode) {
+          case xenos::SignedRepeatingFractionMode::kZeroClampMinusOne: {
+            // Treat both -(2^(n-1)) and -(2^(n-1)-1) as -1. Using regular FMax,
+            // not NMax, because the number is known not to be NaN.
+            spv::Id const_minus_1 = builder_->makeFloatConstant(-1.0f);
+            if (used_format_component_count > 1) {
+              id_vector_temp_.clear();
+              id_vector_temp_.reserve(used_format_component_count);
+              id_vector_temp_.insert(id_vector_temp_.cend(),
+                                     used_format_component_count,
+                                     const_minus_1);
+              const_minus_1 =
+                  builder_->makeCompositeConstant(result_type, id_vector_temp_);
+            }
+            id_vector_temp_.clear();
+            id_vector_temp_.push_back(result);
+            id_vector_temp_.push_back(const_minus_1);
+            result =
+                builder_->createBuiltinCall(result_type, ext_inst_glsl_std_450_,
+                                            GLSLstd450FMax, id_vector_temp_);
+          } break;
+          case xenos::SignedRepeatingFractionMode::kNoZero:
+            id_vector_temp_.clear();
+            id_vector_temp_.reserve(used_format_component_count);
+            for (uint32_t i = 0; i < used_format_component_count; ++i) {
+              id_vector_temp_.push_back(
+                  builder_->makeFloatConstant(0.5f * packed_scales[i]));
+            }
+            result =
+                builder_->createBinOp(spv::OpFAdd, result_type, result,
+                                      used_format_component_count > 1
+                                          ? builder_->makeCompositeConstant(
+                                                result_type, id_vector_temp_)
+                                          : id_vector_temp_[0]);
+            builder_->addDecoration(result, spv::DecorationNoContraction);
+            break;
+          default:
+            assert_unhandled_case(instr.attributes.signed_rf_mode);
+        }
+      }
+    }
   }
 
   if (result != spv::NoResult) {
