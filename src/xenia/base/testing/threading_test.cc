@@ -38,6 +38,13 @@ TEST_CASE("Fence") {
   pFence->Signal();
   pFence->Wait();
 
+  // Signal and wait two times
+  pFence = std::make_unique<threading::Fence>();
+  pFence->Signal();
+  pFence->Wait();
+  pFence->Signal();
+  pFence->Wait();
+
   // Test to synchronize multiple threads
   std::atomic<int> started(0);
   std::atomic<int> finished(0);
@@ -57,15 +64,10 @@ TEST_CASE("Fence") {
   });
 
   Sleep(100ms);
+  REQUIRE(started.load() == threads.size());
   REQUIRE(finished.load() == 0);
 
-  // TODO(bwrsandman): Check if this is correct behaviour: looping with Sleep
-  // is the only way to get fence to signal all threads on windows
-  for (int i = 0; i < threads.size(); ++i) {
-    Sleep(10ms);
-    pFence->Signal();
-  }
-  REQUIRE(started.load() == threads.size());
+  pFence->Signal();
 
   for (auto& t : threads) t.join();
   REQUIRE(finished.load() == threads.size());
