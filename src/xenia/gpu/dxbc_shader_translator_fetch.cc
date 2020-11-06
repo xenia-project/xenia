@@ -1730,10 +1730,10 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         }
         uint32_t texture_binding_index_unsigned =
             FindOrAddTextureBinding(tfetch_index, srv_dimension, false);
-        const TextureBinding& texture_binding_unsigned =
-            texture_bindings_[texture_binding_index_unsigned];
         uint32_t texture_binding_index_signed =
             FindOrAddTextureBinding(tfetch_index, srv_dimension, true);
+        const TextureBinding& texture_binding_unsigned =
+            texture_bindings_[texture_binding_index_unsigned];
         const TextureBinding& texture_binding_signed =
             texture_bindings_[texture_binding_index_signed];
         DxbcSrc srv_unsigned(DxbcSrc::LF(0.0f)), srv_signed(DxbcSrc::LF(0.0f));
