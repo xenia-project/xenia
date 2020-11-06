@@ -24,27 +24,56 @@
 #include <utility>
 #include <vector>
 
+#include "xenia/base/assert.h"
+
 namespace xe {
 namespace threading {
 
+// This is more like an Event with self-reset when returning from Wait()
 class Fence {
  public:
-  Fence() : signaled_(false) {}
+  Fence() : signal_state_(0) {}
+
   void Signal() {
     std::unique_lock<std::mutex> lock(mutex_);
-    signaled_ = true;
+    signal_state_ |= SIGMASK_;
     cond_.notify_all();
   }
+
+  // Wait for the Fence to be signaled. Clears the signal on return.
   void Wait() {
     std::unique_lock<std::mutex> lock(mutex_);
-    cond_.wait(lock, [this] { return signaled_; });
-    signaled_ = false;
+    assert_true((signal_state_ & ~SIGMASK_) < (SIGMASK_ - 1) &&
+                "Too many threads?");
+
+    // keep local copy to minimize loads
+    auto signal_state = ++signal_state_;
+    for (; !(signal_state & SIGMASK_); signal_state = signal_state_) {
+      cond_.wait(lock);
+    }
+
+    // We can't just clear the signal as other threads may not have read it yet
+    assert_true((signal_state & ~SIGMASK_) > 0);  // wait_count > 0
+    if (signal_state == (1 | SIGMASK_)) {         // wait_count == 1
+      // Last one out turn off the lights
+      signal_state_ = 0;
+    } else {
+      // Oops, another thread is still waiting, set the new count and keep the
+      // signal.
+      signal_state_ = --signal_state;
+    }
   }
 
  private:
+  using state_t_ = uint_fast32_t;
+  static constexpr state_t_ SIGMASK_ = state_t_(1)
+                                       << (sizeof(state_t_) * 8 - 1);
+
   std::mutex mutex_;
   std::condition_variable cond_;
-  bool signaled_;
+  // Use the highest bit (sign bit) as the signal flag and the rest to count
+  // waiting threads.
+  volatile state_t_ signal_state_;
 };
 
 // Returns the total number of logical processors in the host system.
