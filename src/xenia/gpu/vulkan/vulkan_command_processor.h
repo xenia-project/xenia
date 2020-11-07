@@ -200,6 +200,9 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::unordered_map<uint32_t, PipelineLayout> pipeline_layouts_;
 
   std::unique_ptr<VulkanSharedMemory> shared_memory_;
+
+  VkDescriptorPool shared_memory_and_edram_descriptor_pool_ = VK_NULL_HANDLE;
+  VkDescriptorSet shared_memory_and_edram_descriptor_set_;
 };
 
 }  // namespace vulkan
