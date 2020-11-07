@@ -193,6 +193,7 @@ class VulkanProvider : public GraphicsProvider {
     PFN_vkGetSwapchainImagesKHR vkGetSwapchainImagesKHR;
     PFN_vkMapMemory vkMapMemory;
     PFN_vkResetCommandPool vkResetCommandPool;
+    PFN_vkResetDescriptorPool vkResetDescriptorPool;
     PFN_vkResetFences vkResetFences;
     PFN_vkQueueBindSparse vkQueueBindSparse;
     PFN_vkQueuePresentKHR vkQueuePresentKHR;

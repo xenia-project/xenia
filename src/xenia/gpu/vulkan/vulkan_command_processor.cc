@@ -49,6 +49,12 @@ bool VulkanCommandProcessor::SetupContext() {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
+  // No specific reason for 32768, just the "too much" amount from Direct3D 12
+  // PIX warnings.
+  transient_descriptor_pool_uniform_buffers_ =
+      std::make_unique<ui::vulkan::TransientDescriptorPool>(
+          provider, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 32768, 32768);
+
   VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info;
   descriptor_set_layout_create_info.sType =
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -77,7 +83,7 @@ bool VulkanCommandProcessor::SetupContext() {
       &descriptor_set_layout_binding_uniform_buffer;
   if (dfn.vkCreateDescriptorSetLayout(
           device, &descriptor_set_layout_create_info, nullptr,
-          &descriptor_set_layout_ub_fetch_bool_loop_constants_) != VK_SUCCESS) {
+          &descriptor_set_layout_fetch_bool_loop_constants_) != VK_SUCCESS) {
     XELOGE(
         "Failed to create a Vulkan descriptor set layout for the fetch, bool "
         "and loop constants uniform buffer");
@@ -87,7 +93,7 @@ bool VulkanCommandProcessor::SetupContext() {
       shader_stages_guest_vertex;
   if (dfn.vkCreateDescriptorSetLayout(
           device, &descriptor_set_layout_create_info, nullptr,
-          &descriptor_set_layout_ub_float_constants_vertex_) != VK_SUCCESS) {
+          &descriptor_set_layout_float_constants_vertex_) != VK_SUCCESS) {
     XELOGE(
         "Failed to create a Vulkan descriptor set layout for the vertex shader "
         "float constants uniform buffer");
@@ -97,7 +103,7 @@ bool VulkanCommandProcessor::SetupContext() {
       VK_SHADER_STAGE_FRAGMENT_BIT;
   if (dfn.vkCreateDescriptorSetLayout(
           device, &descriptor_set_layout_create_info, nullptr,
-          &descriptor_set_layout_ub_float_constants_pixel_) != VK_SUCCESS) {
+          &descriptor_set_layout_float_constants_pixel_) != VK_SUCCESS) {
     XELOGE(
         "Failed to create a Vulkan descriptor set layout for the pixel shader "
         "float constants uniform buffer");
@@ -111,7 +117,7 @@ bool VulkanCommandProcessor::SetupContext() {
   }
   if (dfn.vkCreateDescriptorSetLayout(
           device, &descriptor_set_layout_create_info, nullptr,
-          &descriptor_set_layout_ub_system_constants_) != VK_SUCCESS) {
+          &descriptor_set_layout_system_constants_) != VK_SUCCESS) {
     XELOGE(
         "Failed to create a Vulkan descriptor set layout for the system "
         "constants uniform buffer");
@@ -257,18 +263,20 @@ void VulkanCommandProcessor::ShutdownContext() {
       descriptor_set_layout_shared_memory_and_edram_);
   ui::vulkan::util::DestroyAndNullHandle(
       dfn.vkDestroyDescriptorSetLayout, device,
-      descriptor_set_layout_ub_system_constants_);
+      descriptor_set_layout_system_constants_);
   ui::vulkan::util::DestroyAndNullHandle(
       dfn.vkDestroyDescriptorSetLayout, device,
-      descriptor_set_layout_ub_float_constants_pixel_);
+      descriptor_set_layout_float_constants_pixel_);
   ui::vulkan::util::DestroyAndNullHandle(
       dfn.vkDestroyDescriptorSetLayout, device,
-      descriptor_set_layout_ub_float_constants_vertex_);
+      descriptor_set_layout_float_constants_vertex_);
   ui::vulkan::util::DestroyAndNullHandle(
       dfn.vkDestroyDescriptorSetLayout, device,
-      descriptor_set_layout_ub_fetch_bool_loop_constants_);
+      descriptor_set_layout_fetch_bool_loop_constants_);
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout,
                                          device, descriptor_set_layout_empty_);
+
+  transient_descriptor_pool_uniform_buffers_.reset();
 
   sparse_bind_wait_stage_mask_ = 0;
   sparse_buffer_binds_.clear();
@@ -454,15 +462,26 @@ bool VulkanCommandProcessor::GetPipelineLayout(
 
   VkDescriptorSetLayout
       descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetCount];
-  // Fill any unused set layouts with empty layouts.
-  // TODO(Triang3l): Remove this.
-  for (size_t i = 0; i < xe::countof(descriptor_set_layouts); ++i) {
-    descriptor_set_layouts[i] = descriptor_set_layout_empty_;
-  }
+  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetFetchConstants] =
+      descriptor_set_layout_fetch_bool_loop_constants_;
+  descriptor_set_layouts
+      [SpirvShaderTranslator::kDescriptorSetFloatConstantsVertex] =
+          descriptor_set_layout_float_constants_vertex_;
+  descriptor_set_layouts
+      [SpirvShaderTranslator::kDescriptorSetFloatConstantsPixel] =
+          descriptor_set_layout_float_constants_pixel_;
   descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetTexturesPixel] =
       descriptor_set_layout_textures_pixel;
   descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetTexturesVertex] =
       descriptor_set_layout_textures_vertex;
+  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetSystemConstants] =
+      descriptor_set_layout_system_constants_;
+  descriptor_set_layouts
+      [SpirvShaderTranslator::kDescriptorSetBoolLoopConstants] =
+          descriptor_set_layout_fetch_bool_loop_constants_;
+  descriptor_set_layouts
+      [SpirvShaderTranslator::kDescriptorSetSharedMemoryAndEdram] =
+          descriptor_set_layout_shared_memory_and_edram_;
 
   VkPipelineLayoutCreateInfo pipeline_layout_create_info;
   pipeline_layout_create_info.sType =
@@ -639,6 +658,9 @@ void VulkanCommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
     command_buffers_writable_.push_back(command_buffer_pair.first);
     command_buffers_submitted_.pop_front();
   }
+
+  // Reclaim descriptor pools.
+  transient_descriptor_pool_uniform_buffers_->Reclaim(submission_completed_);
 
   shared_memory_->CompletedSubmissionUpdated();
 }
@@ -888,6 +910,9 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
     if (cache_clear_requested_ && AwaitAllQueueOperationsCompletion()) {
       cache_clear_requested_ = false;
 
+      transient_descriptor_pool_uniform_buffers_->ClearCache();
+
+      assert_true(command_buffers_submitted_.empty());
       for (const CommandBuffer& command_buffer : command_buffers_writable_) {
         dfn.vkDestroyCommandPool(device, command_buffer.pool, nullptr);
       }
