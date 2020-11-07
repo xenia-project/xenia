@@ -268,7 +268,8 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
   // The order of this list is also the order in which events are send if
   // multiple buttons change at once.
   static_assert(sizeof(X_INPUT_GAMEPAD::buttons) == 2);
-  static const std::array<std::underlying_type<X_INPUT_GAMEPAD_VK>::type, 34>
+  static constexpr std::array<std::underlying_type<X_INPUT_GAMEPAD_VK>::type,
+                              34>
       vk_lookup = {
           // 00 - True buttons from xinput button field
           X_INPUT_GAMEPAD_VK_DPAD_UP,
@@ -497,23 +498,39 @@ void SDLInputDriver::OnControllerDeviceButtonChanged(const SDL_Event& event) {
 
   // Define a lookup table to map between SDL and XInput button codes.
   // These need to be in the order of the SDL_GameControllerButton enum.
-  static const std::array<std::underlying_type<X_INPUT_GAMEPAD_BUTTON>::type,
-                          SDL_CONTROLLER_BUTTON_MAX>
-      xbutton_lookup = {X_INPUT_GAMEPAD_A,
-                        X_INPUT_GAMEPAD_B,
-                        X_INPUT_GAMEPAD_X,
-                        X_INPUT_GAMEPAD_Y,
-                        X_INPUT_GAMEPAD_BACK,
-                        X_INPUT_GAMEPAD_GUIDE,
-                        X_INPUT_GAMEPAD_START,
-                        X_INPUT_GAMEPAD_LEFT_THUMB,
-                        X_INPUT_GAMEPAD_RIGHT_THUMB,
-                        X_INPUT_GAMEPAD_LEFT_SHOULDER,
-                        X_INPUT_GAMEPAD_RIGHT_SHOULDER,
-                        X_INPUT_GAMEPAD_DPAD_UP,
-                        X_INPUT_GAMEPAD_DPAD_DOWN,
-                        X_INPUT_GAMEPAD_DPAD_LEFT,
-                        X_INPUT_GAMEPAD_DPAD_RIGHT};
+  static constexpr std::array<
+      std::underlying_type<X_INPUT_GAMEPAD_BUTTON>::type, 21>
+      xbutton_lookup = {
+          // Standard buttons:
+          X_INPUT_GAMEPAD_A,
+          X_INPUT_GAMEPAD_B,
+          X_INPUT_GAMEPAD_X,
+          X_INPUT_GAMEPAD_Y,
+          X_INPUT_GAMEPAD_BACK,
+          X_INPUT_GAMEPAD_GUIDE,
+          X_INPUT_GAMEPAD_START,
+          X_INPUT_GAMEPAD_LEFT_THUMB,
+          X_INPUT_GAMEPAD_RIGHT_THUMB,
+          X_INPUT_GAMEPAD_LEFT_SHOULDER,
+          X_INPUT_GAMEPAD_RIGHT_SHOULDER,
+          X_INPUT_GAMEPAD_DPAD_UP,
+          X_INPUT_GAMEPAD_DPAD_DOWN,
+          X_INPUT_GAMEPAD_DPAD_LEFT,
+          X_INPUT_GAMEPAD_DPAD_RIGHT,
+          // There are additional buttons only available on some controllers.
+          // For now just assign sensible defaults
+          // Misc:
+          X_INPUT_GAMEPAD_GUIDE,
+          // Xbox Elite paddles:
+          X_INPUT_GAMEPAD_Y,
+          X_INPUT_GAMEPAD_B,
+          X_INPUT_GAMEPAD_X,
+          X_INPUT_GAMEPAD_A,
+          // PS touchpad button
+          X_INPUT_GAMEPAD_GUIDE,
+      };
+  static_assert(SDL_CONTROLLER_BUTTON_A == 0);
+  static_assert(SDL_CONTROLLER_BUTTON_DPAD_RIGHT == 14);
 
   auto idx = GetControllerIndexFromInstanceID(event.cbutton.which);
   assert(idx);
@@ -521,6 +538,11 @@ void SDLInputDriver::OnControllerDeviceButtonChanged(const SDL_Event& event) {
 
   uint16_t xbuttons = controller.state.gamepad.buttons;
   // Lookup the XInput button code.
+  if (event.cbutton.button >= xbutton_lookup.size()) {
+    // A newer SDL Version may have added new buttons.
+    XELOGI("SDL HID: Unknown button was pressed: {}.", event.cbutton.button);
+    return;
+  }
   auto xbutton = xbutton_lookup.at(event.cbutton.button);
   // Pressed or released?
   if (event.cbutton.state == SDL_PRESSED) {
