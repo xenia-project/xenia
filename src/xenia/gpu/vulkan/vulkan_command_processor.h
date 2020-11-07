@@ -162,13 +162,17 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::vector<VkSparseBufferMemoryBindInfo> sparse_buffer_bind_infos_temp_;
   VkPipelineStageFlags sparse_bind_wait_stage_mask_ = 0;
 
-  // Common descriptor set layouts, usable by anything that may need them.
+  // Descriptor set layouts used by different shaders.
   VkDescriptorSetLayout descriptor_set_layout_empty_ = VK_NULL_HANDLE;
-  VkDescriptorSetLayout descriptor_set_layout_uniform_buffer_guest_vertex_ =
+  VkDescriptorSetLayout descriptor_set_layout_ub_fetch_bool_loop_constants_ =
       VK_NULL_HANDLE;
-  VkDescriptorSetLayout descriptor_set_layout_uniform_buffer_guest_pixel_ =
+  VkDescriptorSetLayout descriptor_set_layout_ub_float_constants_vertex_ =
       VK_NULL_HANDLE;
-  VkDescriptorSetLayout descriptor_set_layout_uniform_buffer_guest_ =
+  VkDescriptorSetLayout descriptor_set_layout_ub_float_constants_pixel_ =
+      VK_NULL_HANDLE;
+  VkDescriptorSetLayout descriptor_set_layout_ub_system_constants_ =
+      VK_NULL_HANDLE;
+  VkDescriptorSetLayout descriptor_set_layout_shared_memory_and_edram_ =
       VK_NULL_HANDLE;
 
   union TextureDescriptorSetLayoutKey {

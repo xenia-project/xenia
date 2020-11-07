@@ -283,47 +283,41 @@ void SpirvShaderTranslator::StartTranslation() {
   }
 
   // Common storage buffers - shared memory uint[], each 128 MB or larger,
-  // depending on what's possible on the device. glslang generates everything,
-  // including all the types, for each storage buffer separately.
-  uint32_t shared_memory_binding_count =
+  // depending on what's possible on the device.
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(builder_->makeRuntimeArray(type_uint_));
+  // Storage buffers have std430 packing, no padding to 4-component vectors.
+  builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
+                          sizeof(uint32_t) * 4);
+  spv::Id type_shared_memory =
+      builder_->makeStructType(id_vector_temp_, "XeSharedMemory");
+  builder_->addMemberName(type_shared_memory, 0, "shared_memory");
+  // TODO(Triang3l): Make writable when memexport is implemented.
+  builder_->addMemberDecoration(type_shared_memory, 0,
+                                spv::DecorationNonWritable);
+  builder_->addMemberDecoration(type_shared_memory, 0, spv::DecorationOffset,
+                                0);
+  builder_->addDecoration(type_shared_memory,
+                          features_.spirv_version >= spv::Spv_1_3
+                              ? spv::DecorationBlock
+                              : spv::DecorationBufferBlock);
+  unsigned int shared_memory_binding_count =
       1 << GetSharedMemoryStorageBufferCountLog2();
-  char shared_memory_struct_name[] = "XeSharedMemory0";
-  char shared_memory_buffer_name[] = "xe_shared_memory_0";
-  for (uint32_t i = 0; i < shared_memory_binding_count; ++i) {
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(builder_->makeRuntimeArray(type_uint_));
-    // Storage buffers have std430 packing, no padding to 4-component vectors.
-    builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
-                            sizeof(uint32_t));
-    shared_memory_struct_name[xe::countof(shared_memory_struct_name) - 2] =
-        '0' + i;
-    spv::Id type_shared_memory =
-        builder_->makeStructType(id_vector_temp_, shared_memory_struct_name);
-    builder_->addMemberName(type_shared_memory, 0, "shared_memory");
-    // TODO(Triang3l): Make writable when memexport is implemented.
-    builder_->addMemberDecoration(type_shared_memory, 0,
-                                  spv::DecorationNonWritable);
-    builder_->addMemberDecoration(type_shared_memory, 0, spv::DecorationOffset,
-                                  0);
-    builder_->addDecoration(type_shared_memory,
-                            features_.spirv_version >= spv::Spv_1_3
-                                ? spv::DecorationBlock
-                                : spv::DecorationBufferBlock);
-    shared_memory_buffer_name[xe::countof(shared_memory_buffer_name) - 2] =
-        '0' + i;
-    spv::Id buffer_shared_memory = builder_->createVariable(
-        spv::NoPrecision,
-        features_.spirv_version >= spv::Spv_1_3 ? spv::StorageClassStorageBuffer
-                                                : spv::StorageClassUniform,
-        type_shared_memory, shared_memory_buffer_name);
-    buffers_shared_memory_[i] = buffer_shared_memory;
-    builder_->addDecoration(buffer_shared_memory, spv::DecorationDescriptorSet,
-                            int(kDescriptorSetSharedMemoryAndEdram));
-    builder_->addDecoration(buffer_shared_memory, spv::DecorationBinding,
-                            int(i));
-    if (features_.spirv_version >= spv::Spv_1_4) {
-      main_interface_.push_back(buffer_shared_memory);
-    }
+  if (shared_memory_binding_count > 1) {
+    type_shared_memory = builder_->makeArrayType(
+        type_shared_memory,
+        builder_->makeUintConstant(shared_memory_binding_count), 0);
+  }
+  buffers_shared_memory_ = builder_->createVariable(
+      spv::NoPrecision,
+      features_.spirv_version >= spv::Spv_1_3 ? spv::StorageClassStorageBuffer
+                                              : spv::StorageClassUniform,
+      type_shared_memory, "xe_shared_memory");
+  builder_->addDecoration(buffers_shared_memory_, spv::DecorationDescriptorSet,
+                          int(kDescriptorSetSharedMemoryAndEdram));
+  builder_->addDecoration(buffers_shared_memory_, spv::DecorationBinding, 0);
+  if (features_.spirv_version >= spv::Spv_1_4) {
+    main_interface_.push_back(buffers_shared_memory_);
   }
 
   if (IsSpirvVertexOrTessEvalShader()) {
@@ -1690,13 +1684,14 @@ spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(
     id_vector_temp_.push_back(const_int_0_);
     id_vector_temp_.push_back(address_dwords_int);
     return builder_->createLoad(
-        builder_->createAccessChain(storage_class, buffers_shared_memory_[0],
+        builder_->createAccessChain(storage_class, buffers_shared_memory_,
                                     id_vector_temp_),
         spv::NoPrecision);
   }
 
   // The memory is split into multiple bindings - check which binding to load
-  // from. 29 is log2(512 MB), but addressing in dwords (4 B).
+  // from. 29 is log2(512 MB), but addressing in dwords (4 B). Not indexing the
+  // array with the variable itself because it needs VK_EXT_descriptor_indexing.
   uint32_t binding_address_bits = (29 - 2) - buffer_count_log2;
   spv::Id binding_index = builder_->createBinOp(
       spv::OpShiftRightLogical, type_uint_,
@@ -1732,16 +1727,16 @@ spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(
     }
     builder_->getBuildPoint()->addInstruction(std::move(switch_op));
   }
-  // Set up the access chain indices.
-  id_vector_temp_.clear();
-  id_vector_temp_.reserve(2);
-  // The only SSBO struct member.
-  id_vector_temp_.push_back(const_int_0_);
-  id_vector_temp_.push_back(binding_address);
   for (uint32_t i = 0; i < buffer_count; ++i) {
     builder_->setBuildPoint(switch_case_blocks[i]);
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(3);
+    id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
+    // The only SSBO struct member.
+    id_vector_temp_.push_back(const_int_0_);
+    id_vector_temp_.push_back(binding_address);
     value_phi_op->addIdOperand(builder_->createLoad(
-        builder_->createAccessChain(storage_class, buffers_shared_memory_[i],
+        builder_->createAccessChain(storage_class, buffers_shared_memory_,
                                     id_vector_temp_),
         spv::NoPrecision));
     value_phi_op->addIdOperand(switch_case_blocks[i]->getId());

@@ -312,7 +312,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id uniform_bool_loop_constants_;
   spv::Id uniform_fetch_constants_;
 
-  spv::Id buffers_shared_memory_[512 / 128];
+  spv::Id buffers_shared_memory_;
 
   // VS as VS only - int.
   spv::Id input_vertex_index_;
