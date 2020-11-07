@@ -70,47 +70,81 @@ bool VulkanCommandProcessor::SetupContext() {
       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
   descriptor_set_layout_binding_uniform_buffer.descriptorCount = 1;
   descriptor_set_layout_binding_uniform_buffer.stageFlags =
-      shader_stages_guest_vertex;
+      shader_stages_guest_vertex | VK_SHADER_STAGE_FRAGMENT_BIT;
   descriptor_set_layout_binding_uniform_buffer.pImmutableSamplers = nullptr;
   descriptor_set_layout_create_info.bindingCount = 1;
   descriptor_set_layout_create_info.pBindings =
       &descriptor_set_layout_binding_uniform_buffer;
   if (dfn.vkCreateDescriptorSetLayout(
           device, &descriptor_set_layout_create_info, nullptr,
-          &descriptor_set_layout_uniform_buffer_guest_vertex_) != VK_SUCCESS) {
+          &descriptor_set_layout_ub_fetch_bool_loop_constants_) != VK_SUCCESS) {
     XELOGE(
-        "Failed to create a Vulkan descriptor set layout for an uniform buffer "
-        "accessible by guest vertex shaders");
+        "Failed to create a Vulkan descriptor set layout for the fetch, bool "
+        "and loop constants uniform buffer");
+    return false;
+  }
+  descriptor_set_layout_binding_uniform_buffer.stageFlags =
+      shader_stages_guest_vertex;
+  if (dfn.vkCreateDescriptorSetLayout(
+          device, &descriptor_set_layout_create_info, nullptr,
+          &descriptor_set_layout_ub_float_constants_vertex_) != VK_SUCCESS) {
+    XELOGE(
+        "Failed to create a Vulkan descriptor set layout for the vertex shader "
+        "float constants uniform buffer");
     return false;
   }
   descriptor_set_layout_binding_uniform_buffer.stageFlags =
       VK_SHADER_STAGE_FRAGMENT_BIT;
   if (dfn.vkCreateDescriptorSetLayout(
           device, &descriptor_set_layout_create_info, nullptr,
-          &descriptor_set_layout_uniform_buffer_guest_pixel_) != VK_SUCCESS) {
+          &descriptor_set_layout_ub_float_constants_pixel_) != VK_SUCCESS) {
     XELOGE(
-        "Failed to create a Vulkan descriptor set layout for an uniform buffer "
-        "accessible by guest pixel shaders");
-    return false;
-  }
-  descriptor_set_layout_binding_uniform_buffer.stageFlags =
-      VK_SHADER_STAGE_FRAGMENT_BIT;
-  if (dfn.vkCreateDescriptorSetLayout(
-          device, &descriptor_set_layout_create_info, nullptr,
-          &descriptor_set_layout_uniform_buffer_guest_pixel_) != VK_SUCCESS) {
-    XELOGE(
-        "Failed to create a Vulkan descriptor set layout for an uniform buffer "
-        "accessible by guest pixel shaders");
+        "Failed to create a Vulkan descriptor set layout for the pixel shader "
+        "float constants uniform buffer");
     return false;
   }
   descriptor_set_layout_binding_uniform_buffer.stageFlags =
       shader_stages_guest_vertex | VK_SHADER_STAGE_FRAGMENT_BIT;
+  if (provider.device_features().tessellationShader) {
+    descriptor_set_layout_binding_uniform_buffer.stageFlags |=
+        VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+  }
   if (dfn.vkCreateDescriptorSetLayout(
           device, &descriptor_set_layout_create_info, nullptr,
-          &descriptor_set_layout_uniform_buffer_guest_) != VK_SUCCESS) {
+          &descriptor_set_layout_ub_system_constants_) != VK_SUCCESS) {
     XELOGE(
-        "Failed to create a Vulkan descriptor set layout for an uniform buffer "
-        "accessible by guest shaders");
+        "Failed to create a Vulkan descriptor set layout for the system "
+        "constants uniform buffer");
+    return false;
+  }
+  uint32_t shared_memory_binding_count_log2 =
+      SpirvShaderTranslator::GetSharedMemoryStorageBufferCountLog2(
+          provider.device_properties().limits.maxStorageBufferRange);
+  uint32_t shared_memory_binding_count = uint32_t(1)
+                                         << shared_memory_binding_count_log2;
+  VkDescriptorSetLayoutBinding
+      descriptor_set_layout_binding_shared_memory_and_edram[1];
+  descriptor_set_layout_binding_shared_memory_and_edram[0].binding = 0;
+  descriptor_set_layout_binding_shared_memory_and_edram[0].descriptorType =
+      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+  descriptor_set_layout_binding_shared_memory_and_edram[0].descriptorCount =
+      shared_memory_binding_count;
+  // TODO(Triang3l): When fullDrawIndexUint32 fallback is added, force host
+  // vertex shader access to the shared memory for the tessellation vertex
+  // shader (to retrieve tessellation factors).
+  descriptor_set_layout_binding_shared_memory_and_edram[0].stageFlags =
+      shader_stages_guest_vertex | VK_SHADER_STAGE_FRAGMENT_BIT;
+  descriptor_set_layout_binding_shared_memory_and_edram[0].pImmutableSamplers =
+      nullptr;
+  // TODO(Triang3l): EDRAM binding for the fragment shader interlocks case.
+  descriptor_set_layout_create_info.pBindings =
+      descriptor_set_layout_binding_shared_memory_and_edram;
+  if (dfn.vkCreateDescriptorSetLayout(
+          device, &descriptor_set_layout_create_info, nullptr,
+          &descriptor_set_layout_shared_memory_and_edram_) != VK_SUCCESS) {
+    XELOGE(
+        "Failed to create a Vulkan descriptor set layout for the shared memory "
+        "and the EDRAM");
     return false;
   }
 
@@ -148,13 +182,19 @@ void VulkanCommandProcessor::ShutdownContext() {
 
   ui::vulkan::util::DestroyAndNullHandle(
       dfn.vkDestroyDescriptorSetLayout, device,
-      descriptor_set_layout_uniform_buffer_guest_);
+      descriptor_set_layout_shared_memory_and_edram_);
   ui::vulkan::util::DestroyAndNullHandle(
       dfn.vkDestroyDescriptorSetLayout, device,
-      descriptor_set_layout_uniform_buffer_guest_pixel_);
+      descriptor_set_layout_ub_system_constants_);
   ui::vulkan::util::DestroyAndNullHandle(
       dfn.vkDestroyDescriptorSetLayout, device,
-      descriptor_set_layout_uniform_buffer_guest_vertex_);
+      descriptor_set_layout_ub_float_constants_pixel_);
+  ui::vulkan::util::DestroyAndNullHandle(
+      dfn.vkDestroyDescriptorSetLayout, device,
+      descriptor_set_layout_ub_float_constants_vertex_);
+  ui::vulkan::util::DestroyAndNullHandle(
+      dfn.vkDestroyDescriptorSetLayout, device,
+      descriptor_set_layout_ub_fetch_bool_loop_constants_);
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout,
                                          device, descriptor_set_layout_empty_);
 
@@ -794,6 +834,8 @@ VkShaderStageFlags VulkanCommandProcessor::GetGuestVertexShaderStageFlags()
   if (provider.device_features().tessellationShader) {
     stages |= VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
   }
+  // TODO(Triang3l): Vertex to compute translation for rectangle and possibly
+  // point emulation.
   return stages;
 }
 
