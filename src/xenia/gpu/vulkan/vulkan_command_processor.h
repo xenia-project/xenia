@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -22,6 +23,7 @@
 #include "xenia/gpu/vulkan/vulkan_shared_memory.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/ui/vulkan/transient_descriptor_pool.h"
 #include "xenia/ui/vulkan/vulkan_context.h"
 
 namespace xe {
@@ -162,15 +164,18 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::vector<VkSparseBufferMemoryBindInfo> sparse_buffer_bind_infos_temp_;
   VkPipelineStageFlags sparse_bind_wait_stage_mask_ = 0;
 
+  std::unique_ptr<ui::vulkan::TransientDescriptorPool>
+      transient_descriptor_pool_uniform_buffers_;
+
   // Descriptor set layouts used by different shaders.
   VkDescriptorSetLayout descriptor_set_layout_empty_ = VK_NULL_HANDLE;
-  VkDescriptorSetLayout descriptor_set_layout_ub_fetch_bool_loop_constants_ =
+  VkDescriptorSetLayout descriptor_set_layout_fetch_bool_loop_constants_ =
       VK_NULL_HANDLE;
-  VkDescriptorSetLayout descriptor_set_layout_ub_float_constants_vertex_ =
+  VkDescriptorSetLayout descriptor_set_layout_float_constants_vertex_ =
       VK_NULL_HANDLE;
-  VkDescriptorSetLayout descriptor_set_layout_ub_float_constants_pixel_ =
+  VkDescriptorSetLayout descriptor_set_layout_float_constants_pixel_ =
       VK_NULL_HANDLE;
-  VkDescriptorSetLayout descriptor_set_layout_ub_system_constants_ =
+  VkDescriptorSetLayout descriptor_set_layout_system_constants_ =
       VK_NULL_HANDLE;
   VkDescriptorSetLayout descriptor_set_layout_shared_memory_and_edram_ =
       VK_NULL_HANDLE;

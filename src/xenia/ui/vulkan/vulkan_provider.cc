@@ -615,6 +615,7 @@ bool VulkanProvider::Initialize() {
   XE_VULKAN_LOAD_DFN(vkGetSwapchainImagesKHR);
   XE_VULKAN_LOAD_DFN(vkMapMemory);
   XE_VULKAN_LOAD_DFN(vkResetCommandPool);
+  XE_VULKAN_LOAD_DFN(vkResetDescriptorPool);
   XE_VULKAN_LOAD_DFN(vkResetFences);
   XE_VULKAN_LOAD_DFN(vkQueueBindSparse);
   XE_VULKAN_LOAD_DFN(vkQueuePresentKHR);

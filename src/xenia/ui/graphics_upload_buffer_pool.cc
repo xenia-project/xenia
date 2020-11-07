@@ -71,7 +71,7 @@ void GraphicsUploadBufferPool::FlushWrites() {
 GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(
     uint64_t submission_index, size_t size, size_t alignment,
     size_t& offset_out) {
-  assert_not_zero(alignment);
+  alignment = std::max(alignment, size_t(1));
   assert_true(xe::is_pow2(alignment));
   size = xe::align(size, alignment);
   assert_true(size <= page_size_);
@@ -126,7 +126,7 @@ GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::Request(
 GraphicsUploadBufferPool::Page* GraphicsUploadBufferPool::RequestPartial(
     uint64_t submission_index, size_t size, size_t alignment,
     size_t& offset_out, size_t& size_out) {
-  assert_not_zero(alignment);
+  alignment = std::max(alignment, size_t(1));
   assert_true(xe::is_pow2(alignment));
   size = xe::align(size, alignment);
   size = std::min(size, page_size_);
