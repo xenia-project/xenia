@@ -123,22 +123,23 @@ bool VulkanCommandProcessor::SetupContext() {
   uint32_t shared_memory_binding_count = uint32_t(1)
                                          << shared_memory_binding_count_log2;
   VkDescriptorSetLayoutBinding
-      descriptor_set_layout_binding_shared_memory_and_edram[1];
-  descriptor_set_layout_binding_shared_memory_and_edram[0].binding = 0;
-  descriptor_set_layout_binding_shared_memory_and_edram[0].descriptorType =
+      descriptor_set_layout_bindings_shared_memory_and_edram[1];
+  descriptor_set_layout_bindings_shared_memory_and_edram[0].binding = 0;
+  descriptor_set_layout_bindings_shared_memory_and_edram[0].descriptorType =
       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-  descriptor_set_layout_binding_shared_memory_and_edram[0].descriptorCount =
+  descriptor_set_layout_bindings_shared_memory_and_edram[0].descriptorCount =
       shared_memory_binding_count;
   // TODO(Triang3l): When fullDrawIndexUint32 fallback is added, force host
   // vertex shader access to the shared memory for the tessellation vertex
   // shader (to retrieve tessellation factors).
-  descriptor_set_layout_binding_shared_memory_and_edram[0].stageFlags =
+  descriptor_set_layout_bindings_shared_memory_and_edram[0].stageFlags =
       shader_stages_guest_vertex | VK_SHADER_STAGE_FRAGMENT_BIT;
-  descriptor_set_layout_binding_shared_memory_and_edram[0].pImmutableSamplers =
+  descriptor_set_layout_bindings_shared_memory_and_edram[0].pImmutableSamplers =
       nullptr;
-  // TODO(Triang3l): EDRAM binding for the fragment shader interlocks case.
+  // TODO(Triang3l): EDRAM storage image binding for the fragment shader
+  // interlocks case.
   descriptor_set_layout_create_info.pBindings =
-      descriptor_set_layout_binding_shared_memory_and_edram;
+      descriptor_set_layout_bindings_shared_memory_and_edram;
   if (dfn.vkCreateDescriptorSetLayout(
           device, &descriptor_set_layout_create_info, nullptr,
           &descriptor_set_layout_shared_memory_and_edram_) != VK_SUCCESS) {
@@ -155,18 +156,89 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
+  // Shared memory and EDRAM common bindings.
+  VkDescriptorPoolSize descriptor_pool_sizes[1];
+  descriptor_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+  descriptor_pool_sizes[0].descriptorCount = shared_memory_binding_count;
+  // TODO(Triang3l): EDRAM storage image binding for the fragment shader
+  // interlocks case.
+  VkDescriptorPoolCreateInfo descriptor_pool_create_info;
+  descriptor_pool_create_info.sType =
+      VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+  descriptor_pool_create_info.pNext = nullptr;
+  descriptor_pool_create_info.flags = 0;
+  descriptor_pool_create_info.maxSets = 1;
+  descriptor_pool_create_info.poolSizeCount = 1;
+  descriptor_pool_create_info.pPoolSizes = descriptor_pool_sizes;
+  if (dfn.vkCreateDescriptorPool(device, &descriptor_pool_create_info, nullptr,
+                                 &shared_memory_and_edram_descriptor_pool_) !=
+      VK_SUCCESS) {
+    XELOGE(
+        "Failed to create the Vulkan descriptor pool for shared memory and "
+        "EDRAM");
+    return false;
+  }
+  VkDescriptorSetAllocateInfo descriptor_set_allocate_info;
+  descriptor_set_allocate_info.sType =
+      VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  descriptor_set_allocate_info.pNext = nullptr;
+  descriptor_set_allocate_info.descriptorPool =
+      shared_memory_and_edram_descriptor_pool_;
+  descriptor_set_allocate_info.descriptorSetCount = 1;
+  descriptor_set_allocate_info.pSetLayouts =
+      &descriptor_set_layout_shared_memory_and_edram_;
+  if (dfn.vkAllocateDescriptorSets(device, &descriptor_set_allocate_info,
+                                   &shared_memory_and_edram_descriptor_set_) !=
+      VK_SUCCESS) {
+    XELOGE(
+        "Failed to allocate the Vulkan descriptor set for shared memory and "
+        "EDRAM");
+    return false;
+  }
+  VkDescriptorBufferInfo
+      shared_memory_descriptor_buffers_info[SharedMemory::kBufferSize /
+                                            (128 << 20)];
+  uint32_t shared_memory_binding_range =
+      SharedMemory::kBufferSize >> shared_memory_binding_count_log2;
+  for (uint32_t i = 0; i < shared_memory_binding_count; ++i) {
+    VkDescriptorBufferInfo& shared_memory_descriptor_buffer_info =
+        shared_memory_descriptor_buffers_info[i];
+    shared_memory_descriptor_buffer_info.buffer = shared_memory_->buffer();
+    shared_memory_descriptor_buffer_info.offset =
+        shared_memory_binding_range * i;
+    shared_memory_descriptor_buffer_info.range = shared_memory_binding_range;
+  }
+  VkWriteDescriptorSet write_descriptor_sets[1];
+  write_descriptor_sets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  write_descriptor_sets[0].pNext = nullptr;
+  write_descriptor_sets[0].dstSet = shared_memory_and_edram_descriptor_set_;
+  write_descriptor_sets[0].dstBinding = 0;
+  write_descriptor_sets[0].dstArrayElement = 0;
+  write_descriptor_sets[0].descriptorCount = shared_memory_binding_count;
+  write_descriptor_sets[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+  write_descriptor_sets[0].pImageInfo = nullptr;
+  write_descriptor_sets[0].pBufferInfo = shared_memory_descriptor_buffers_info;
+  write_descriptor_sets[0].pTexelBufferView = nullptr;
+  // TODO(Triang3l): EDRAM storage image binding for the fragment shader
+  // interlocks case.
+  dfn.vkUpdateDescriptorSets(device, 1, write_descriptor_sets, 0, nullptr);
+
   return true;
 }
 
 void VulkanCommandProcessor::ShutdownContext() {
   AwaitAllQueueOperationsCompletion();
 
-  shared_memory_.reset();
-
   const ui::vulkan::VulkanProvider& provider =
       GetVulkanContext().GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
+
+  ui::vulkan::util::DestroyAndNullHandle(
+      dfn.vkDestroyDescriptorPool, device,
+      shared_memory_and_edram_descriptor_pool_);
+
+  shared_memory_.reset();
 
   for (const auto& pipeline_layout_pair : pipeline_layouts_) {
     dfn.vkDestroyPipelineLayout(
