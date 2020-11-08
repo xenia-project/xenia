@@ -88,6 +88,16 @@ def main():
     sys.exit(return_code)
 
 
+def print_box(msg):
+    """Prints an important message inside a box
+    """
+    print(
+        '┌{0:─^{2}}╖\n'
+        '│{1: ^{2}}║\n'
+        '╘{0:═^{2}}╝\n'
+        .format('', msg, len(msg) + 2))
+
+
 def import_vs_environment():
     """Finds the installed Visual Studio version and imports
     interesting environment variables into os.environ.
@@ -152,6 +162,7 @@ def import_subprocess_environment(args):
                     setting = os.path.dirname(sys.executable) + os.pathsep + setting
                 os.environ[var.upper()] = setting
                 break
+
 
 def has_bin(binary):
     """Checks whether the given binary is present.
@@ -406,6 +417,43 @@ def get_build_bin_path(args):
     else:
         platform = 'linux'
     return os.path.join(self_path, 'build', 'bin', platform.capitalize(), args['config'].capitalize())
+
+
+def create_clion_workspace():
+    """Creates some basic workspace information inside the .idea directory for first start.
+    """
+    if os.path.exists('.idea'):
+        # No first start
+        return False
+    print('Generating CLion workspace files...')
+    # Might become easier in the future: https://youtrack.jetbrains.com/issue/CPP-7911
+
+    # Set the location of the CMakeLists.txt
+    os.mkdir('.idea')
+    with open(os.path.join('.idea', 'misc.xml'), 'w') as f:
+        f.write("""<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CMakeWorkspace" PROJECT_DIR="$PROJECT_DIR$/build">
+    <contentRoot DIR="$PROJECT_DIR$" />
+  </component>
+</project>
+""")
+
+    # Set available configurations
+    # TODO Find a way to trigger a cmake reload
+    with open(os.path.join('.idea', 'workspace.xml'), 'w') as f:
+        f.write("""<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CMakeSettings">
+    <configurations>
+      <configuration PROFILE_NAME="Checked" CONFIG_NAME="Checked" />
+      <configuration PROFILE_NAME="Debug" CONFIG_NAME="Debug" />
+      <configuration PROFILE_NAME="Release" CONFIG_NAME="Release" />
+    </configurations>
+  </component>
+</project>""")
+
+    return True
 
 
 def discover_commands(subparsers):
@@ -1446,8 +1494,13 @@ class DevenvCommand(Command):
 
     def execute(self, args, pass_args, cwd):
         devenv = None
+        show_reload_prompt = False
         if sys.platform == 'win32':
             print('Launching Visual Studio...')
+        elif has_bin('clion') or has_bin('clion.sh'):
+            print('Launching CLion...')
+            show_reload_prompt = create_clion_workspace()
+            devenv = 'cmake'
         else:
             print('Launching CodeLite...')
             devenv = 'codelite'
@@ -1458,10 +1511,22 @@ class DevenvCommand(Command):
         print('')
 
         print('- launching devenv...')
+        if show_reload_prompt:
+            print_box('Please run "File ⇒ ↺ Reload CMake Project" from inside the IDE!')
         if sys.platform == 'win32':
             shell_call([
                 'devenv',
                 'build\\xenia.sln',
+            ])
+        elif has_bin('clion'):
+            shell_call([
+                'clion',
+                '.',
+            ])
+        elif has_bin('clion.sh'):
+            shell_call([
+                'clion.sh',
+                '.',
             ])
         else:
             shell_call([
