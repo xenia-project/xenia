@@ -728,9 +728,17 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
     } break;
     case PM4_CONTEXT_UPDATE: {
       assert_true(count == 1);
-      uint64_t value = reader->ReadAndSwap<uint32_t>();
+      uint32_t value = reader->ReadAndSwap<uint32_t>();
       XELOGGPU("GPU context update = {:08X}", value);
       assert_true(value == 0);
+      result = true;
+      break;
+    }
+    case PM4_WAIT_FOR_IDLE: {
+      // This opcode is used by "Duke Nukem Forever" while going/being ingame
+      assert_true(count == 1);
+      uint32_t value = reader->ReadAndSwap<uint32_t>();
+      XELOGGPU("GPU wait for idle = {:08X}", value);
       result = true;
       break;
     }
