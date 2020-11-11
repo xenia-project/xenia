@@ -62,6 +62,7 @@ X_STATUS XFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
 
     entry = file_->entry()->IterateChildren(find_engine_, &find_index_);
     if (!entry) {
+      find_index_ = 0;
       return X_STATUS_NO_MORE_FILES;
     }
   }
