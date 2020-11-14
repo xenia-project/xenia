@@ -166,9 +166,17 @@ class XThread : public XObject, public cpu::Thread {
   int32_t priority() const { return priority_; }
   int32_t QueryPriority();
   void SetPriority(int32_t increment);
+
+  // Xbox thread IDs:
+  // 0 - core 0, thread 0 - user
+  // 1 - core 0, thread 1 - user
+  // 2 - core 1, thread 0 - sometimes xcontent
+  // 3 - core 1, thread 1 - user
+  // 4 - core 2, thread 0 - xaudio
+  // 5 - core 2, thread 1 - user
   void SetAffinity(uint32_t affinity);
-  uint32_t active_cpu() const;
-  void SetActiveCpu(uint32_t cpu_index);
+  uint8_t active_cpu() const;
+  void SetActiveCpu(uint8_t cpu_index);
 
   bool GetTLSValue(uint32_t slot, uint32_t* value_out);
   bool SetTLSValue(uint32_t slot, uint32_t value);
