@@ -118,15 +118,15 @@ bool D3D12ImmediateDrawer::Initialize() {
     return false;
   }
 
-  // Create the pipeline states.
-  D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_state_desc = {};
-  pipeline_state_desc.pRootSignature = root_signature_;
-  pipeline_state_desc.VS.pShaderBytecode = immediate_vs;
-  pipeline_state_desc.VS.BytecodeLength = sizeof(immediate_vs);
-  pipeline_state_desc.PS.pShaderBytecode = immediate_ps;
-  pipeline_state_desc.PS.BytecodeLength = sizeof(immediate_ps);
+  // Create the pipelines.
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc = {};
+  pipeline_desc.pRootSignature = root_signature_;
+  pipeline_desc.VS.pShaderBytecode = immediate_vs;
+  pipeline_desc.VS.BytecodeLength = sizeof(immediate_vs);
+  pipeline_desc.PS.pShaderBytecode = immediate_ps;
+  pipeline_desc.PS.BytecodeLength = sizeof(immediate_ps);
   D3D12_RENDER_TARGET_BLEND_DESC& pipeline_blend_desc =
-      pipeline_state_desc.BlendState.RenderTarget[0];
+      pipeline_desc.BlendState.RenderTarget[0];
   pipeline_blend_desc.BlendEnable = TRUE;
   pipeline_blend_desc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
   pipeline_blend_desc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
@@ -138,11 +138,11 @@ bool D3D12ImmediateDrawer::Initialize() {
   pipeline_blend_desc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_RED |
                                               D3D12_COLOR_WRITE_ENABLE_GREEN |
                                               D3D12_COLOR_WRITE_ENABLE_BLUE;
-  pipeline_state_desc.SampleMask = UINT_MAX;
-  pipeline_state_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-  pipeline_state_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-  pipeline_state_desc.RasterizerState.FrontCounterClockwise = FALSE;
-  pipeline_state_desc.RasterizerState.DepthClipEnable = TRUE;
+  pipeline_desc.SampleMask = UINT_MAX;
+  pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+  pipeline_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+  pipeline_desc.RasterizerState.FrontCounterClockwise = FALSE;
+  pipeline_desc.RasterizerState.DepthClipEnable = TRUE;
   D3D12_INPUT_ELEMENT_DESC pipeline_input_elements[3] = {};
   pipeline_input_elements[0].SemanticName = "POSITION";
   pipeline_input_elements[0].Format = DXGI_FORMAT_R32G32_FLOAT;
@@ -154,26 +154,24 @@ bool D3D12ImmediateDrawer::Initialize() {
   pipeline_input_elements[2].Format = DXGI_FORMAT_R8G8B8A8_UNORM;
   pipeline_input_elements[2].AlignedByteOffset =
       offsetof(ImmediateVertex, color);
-  pipeline_state_desc.InputLayout.pInputElementDescs = pipeline_input_elements;
-  pipeline_state_desc.InputLayout.NumElements =
+  pipeline_desc.InputLayout.pInputElementDescs = pipeline_input_elements;
+  pipeline_desc.InputLayout.NumElements =
       UINT(xe::countof(pipeline_input_elements));
-  pipeline_state_desc.PrimitiveTopologyType =
-      D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-  pipeline_state_desc.NumRenderTargets = 1;
-  pipeline_state_desc.RTVFormats[0] = D3D12Context::kSwapChainFormat;
-  pipeline_state_desc.SampleDesc.Count = 1;
+  pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  pipeline_desc.NumRenderTargets = 1;
+  pipeline_desc.RTVFormats[0] = D3D12Context::kSwapChainFormat;
+  pipeline_desc.SampleDesc.Count = 1;
   if (FAILED(device->CreateGraphicsPipelineState(
-          &pipeline_state_desc, IID_PPV_ARGS(&pipeline_state_triangle_)))) {
+          &pipeline_desc, IID_PPV_ARGS(&pipeline_triangle_)))) {
     XELOGE(
         "Failed to create the Direct3D 12 immediate drawer triangle pipeline "
         "state");
     Shutdown();
     return false;
   }
-  pipeline_state_desc.PrimitiveTopologyType =
-      D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+  pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
   if (FAILED(device->CreateGraphicsPipelineState(
-          &pipeline_state_desc, IID_PPV_ARGS(&pipeline_state_line_)))) {
+          &pipeline_desc, IID_PPV_ARGS(&pipeline_line_)))) {
     XELOGE(
         "Failed to create the Direct3D 12 immediate drawer line pipeline "
         "state");
@@ -267,8 +265,8 @@ void D3D12ImmediateDrawer::Shutdown() {
 
   util::ReleaseAndNull(sampler_heap_);
 
-  util::ReleaseAndNull(pipeline_state_line_);
-  util::ReleaseAndNull(pipeline_state_triangle_);
+  util::ReleaseAndNull(pipeline_line_);
+  util::ReleaseAndNull(pipeline_triangle_);
 
   util::ReleaseAndNull(root_signature_);
 }
@@ -611,17 +609,17 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
                                          uint32_t(sampler_index)));
   }
 
-  // Set the primitive type and the pipeline state for it.
+  // Set the primitive type and the pipeline for it.
   D3D_PRIMITIVE_TOPOLOGY primitive_topology;
-  ID3D12PipelineState* pipeline_state;
+  ID3D12PipelineState* pipeline;
   switch (draw.primitive_type) {
     case ImmediatePrimitiveType::kLines:
       primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
-      pipeline_state = pipeline_state_line_;
+      pipeline = pipeline_line_;
       break;
     case ImmediatePrimitiveType::kTriangles:
       primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-      pipeline_state = pipeline_state_triangle_;
+      pipeline = pipeline_triangle_;
       break;
     default:
       assert_unhandled_case(draw.primitive_type);
@@ -630,7 +628,7 @@ void D3D12ImmediateDrawer::Draw(const ImmediateDraw& draw) {
   if (current_primitive_topology_ != primitive_topology) {
     current_primitive_topology_ = primitive_topology;
     current_command_list_->IASetPrimitiveTopology(primitive_topology);
-    current_command_list_->SetPipelineState(pipeline_state);
+    current_command_list_->SetPipelineState(pipeline);
   }
 
   // Draw.

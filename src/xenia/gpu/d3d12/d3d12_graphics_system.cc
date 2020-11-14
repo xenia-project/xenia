@@ -157,7 +157,7 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
   stretch_pipeline_desc.SampleDesc.Count = 1;
   if (FAILED(device->CreateGraphicsPipelineState(
           &stretch_pipeline_desc, IID_PPV_ARGS(&stretch_pipeline_)))) {
-    XELOGE("Failed to create the front buffer stretch pipeline state");
+    XELOGE("Failed to create the front buffer stretch pipeline");
     stretch_gamma_root_signature_->Release();
     stretch_gamma_root_signature_ = nullptr;
     stretch_root_signature_->Release();
@@ -170,8 +170,7 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
   if (FAILED(device->CreateGraphicsPipelineState(
           &stretch_pipeline_desc, IID_PPV_ARGS(&stretch_gamma_pipeline_)))) {
     XELOGE(
-        "Failed to create the gamma-correcting front buffer stretch "
-        "pipeline state");
+        "Failed to create the gamma-correcting front buffer stretch pipeline");
     stretch_pipeline_->Release();
     stretch_pipeline_ = nullptr;
     stretch_gamma_root_signature_->Release();

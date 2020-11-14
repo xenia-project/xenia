@@ -387,7 +387,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
         sampler_count_vertex);
     return nullptr;
   }
-  root_signatures_bindful_.insert({index, root_signature});
+  root_signatures_bindful_.emplace(index, root_signature);
   return root_signature;
 }
 
@@ -745,12 +745,11 @@ void D3D12CommandProcessor::SetSamplePositions(
   current_sample_positions_ = sample_positions;
 }
 
-void D3D12CommandProcessor::SetComputePipelineState(
-    ID3D12PipelineState* pipeline_state) {
-  if (current_external_pipeline_state_ != pipeline_state) {
-    deferred_command_list_.D3DSetPipelineState(pipeline_state);
-    current_external_pipeline_state_ = pipeline_state;
-    current_cached_pipeline_state_ = nullptr;
+void D3D12CommandProcessor::SetComputePipeline(ID3D12PipelineState* pipeline) {
+  if (current_external_pipeline_ != pipeline) {
+    deferred_command_list_.D3DSetPipelineState(pipeline);
+    current_external_pipeline_ = pipeline;
+    current_cached_pipeline_ = nullptr;
   }
 }
 
@@ -773,8 +772,16 @@ std::string D3D12CommandProcessor::GetWindowTitleText() const {
     }
     // Currently scaling is only supported with ROV.
     if (texture_cache_ != nullptr && texture_cache_->IsResolutionScale2X()) {
-      return "Direct3D 12 - 2x";
+      return "Direct3D 12 - ROV 2x";
     }
+    // Rasterizer-ordered views are a feature very rarely used as of 2020 and
+    // that faces adoption complications (outside of Direct3D - on Vulkan - at
+    // least), but crucial to Xenia - raise awareness of its usage.
+    // https://github.com/KhronosGroup/Vulkan-Ecosystem/issues/27#issuecomment-455712319
+    // "In Xenia's title bar "D3D12 ROV" can be seen, which was a surprise, as I
+    //  wasn't aware that Xenia D3D12 backend was using Raster Order Views
+    //  feature" - oscarbg in that issue.
+    return "Direct3D 12 - ROV";
   }
   return "Direct3D 12";
 }
@@ -1196,7 +1203,7 @@ bool D3D12CommandProcessor::SetupContext() {
       *this, *register_file_, bindless_resources_used_, edram_rov_used_,
       texture_cache_->IsResolutionScale2X() ? 2 : 1);
   if (!pipeline_cache_->Initialize()) {
-    XELOGE("Failed to initialize the graphics pipeline state cache");
+    XELOGE("Failed to initialize the graphics pipeline cache");
     return false;
   }
 
@@ -1526,8 +1533,7 @@ void D3D12CommandProcessor::ShutdownContext() {
   // Shut down binding - bindless descriptors may be owned by subsystems like
   // the texture cache.
 
-  // Root signatured are used by pipeline states, thus freed after the pipeline
-  // states.
+  // Root signatures are used by pipelines, thus freed after the pipelines.
   ui::d3d12::util::ReleaseAndNull(root_signature_bindless_ds_);
   ui::d3d12::util::ReleaseAndNull(root_signature_bindless_vs_);
   for (auto it : root_signatures_bindful_) {
@@ -1878,7 +1884,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
            xenos::VertexShaderExportMode::kMultipass ||
        (primitive_two_faced && pa_su_sc_mode_cntl.cull_front &&
         pa_su_sc_mode_cntl.cull_back))) {
-    // All faces are culled - can't be expressed in the pipeline state.
+    // All faces are culled - can't be expressed in the pipeline.
     return true;
   }
 
@@ -1954,7 +1960,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     line_loop_closing_index = 0;
   }
 
-  // Update the textures - this may bind pipeline state objects.
+  // Update the textures - this may bind pipelines.
   uint32_t used_texture_mask =
       vertex_shader->GetUsedTextureMask() |
       (pixel_shader != nullptr ? pixel_shader->GetUsedTextureMask() : 0);
@@ -1972,21 +1978,21 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     early_z = true;
   }
 
-  // Create the pipeline state object if needed and bind it.
-  void* pipeline_state_handle;
+  // Create the pipeline if needed and bind it.
+  void* pipeline_handle;
   ID3D12RootSignature* root_signature;
   if (!pipeline_cache_->ConfigurePipeline(
           vertex_shader, pixel_shader, primitive_type_converted,
           indexed ? index_buffer_info->format : xenos::IndexFormat::kInt16,
-          early_z, pipeline_render_targets, &pipeline_state_handle,
+          early_z, pipeline_render_targets, &pipeline_handle,
           &root_signature)) {
     return false;
   }
-  if (current_cached_pipeline_state_ != pipeline_state_handle) {
+  if (current_cached_pipeline_ != pipeline_handle) {
     deferred_command_list_.SetPipelineStateHandle(
-        reinterpret_cast<void*>(pipeline_state_handle));
-    current_cached_pipeline_state_ = pipeline_state_handle;
-    current_external_pipeline_state_ = nullptr;
+        reinterpret_cast<void*>(pipeline_handle));
+    current_cached_pipeline_ = pipeline_handle;
+    current_external_pipeline_ = nullptr;
   }
 
   // Update viewport, scissor, blend factor and stencil reference.
@@ -2005,14 +2011,15 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   }
   // Must not call anything that can change the descriptor heap from now on!
 
-  // Ensure vertex and index buffers are resident and draw.
+  // Ensure vertex buffers are resident.
   // TODO(Triang3l): Cache residency for ranges in a way similar to how texture
-  // validity will be tracked.
+  // validity is tracked.
   uint64_t vertex_buffers_resident[2] = {};
-  for (const auto& vertex_binding : vertex_shader->vertex_bindings()) {
+  for (const Shader::VertexBinding& vertex_binding :
+       vertex_shader->vertex_bindings()) {
     uint32_t vfetch_index = vertex_binding.fetch_constant;
     if (vertex_buffers_resident[vfetch_index >> 6] &
-        (1ull << (vfetch_index & 63))) {
+        (uint64_t(1) << (vfetch_index & 63))) {
       continue;
     }
     const auto& vfetch_constant = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
@@ -2045,7 +2052,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
           vfetch_constant.address << 2, vfetch_constant.size << 2);
       return false;
     }
-    vertex_buffers_resident[vfetch_index >> 6] |= 1ull << (vfetch_index & 63);
+    vertex_buffers_resident[vfetch_index >> 6] |= uint64_t(1)
+                                                  << (vfetch_index & 63);
   }
 
   // Gather memexport ranges and ensure the heaps for them are resident, and
@@ -2517,8 +2525,8 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
     submission_open_ = true;
 
     // Start a new deferred command list - will submit it to the real one in the
-    // end of the submission (when async pipeline state object creation requests
-    // are fulfilled).
+    // end of the submission (when async pipeline creation requests are
+    // fulfilled).
     deferred_command_list_.Reset();
 
     // Reset cached state of the command list.
@@ -2527,8 +2535,8 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
     ff_blend_factor_update_needed_ = true;
     ff_stencil_ref_update_needed_ = true;
     current_sample_positions_ = xenos::MsaaSamples::k1X;
-    current_cached_pipeline_state_ = nullptr;
-    current_external_pipeline_state_ = nullptr;
+    current_cached_pipeline_ = nullptr;
+    current_external_pipeline_ = nullptr;
     current_graphics_root_signature_ = nullptr;
     current_graphics_root_up_to_date_ = 0;
     if (bindless_resources_used_) {
@@ -2724,7 +2732,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
 }
 
 bool D3D12CommandProcessor::CanEndSubmissionImmediately() const {
-  return !submission_open_ || !pipeline_cache_->IsCreatingPipelineStates();
+  return !submission_open_ || !pipeline_cache_->IsCreatingPipelines();
 }
 
 void D3D12CommandProcessor::ClearCommandAllocatorCache() {
@@ -2745,11 +2753,11 @@ void D3D12CommandProcessor::ClearCommandAllocatorCache() {
 }
 
 void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
-  auto& regs = *register_file_;
-
 #if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+
+  const RegisterFile& regs = *register_file_;
 
   // Window parameters.
   // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
@@ -2846,14 +2854,14 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
   scissor.right = pa_sc_window_scissor_br.br_x;
   scissor.bottom = pa_sc_window_scissor_br.br_y;
   if (!pa_sc_window_scissor_tl.window_offset_disable) {
-    scissor.left =
-        std::max(scissor.left + pa_sc_window_offset.window_x_offset, LONG(0));
-    scissor.top =
-        std::max(scissor.top + pa_sc_window_offset.window_y_offset, LONG(0));
-    scissor.right =
-        std::max(scissor.right + pa_sc_window_offset.window_x_offset, LONG(0));
-    scissor.bottom =
-        std::max(scissor.bottom + pa_sc_window_offset.window_y_offset, LONG(0));
+    scissor.left = std::max(
+        LONG(scissor.left + pa_sc_window_offset.window_x_offset), LONG(0));
+    scissor.top = std::max(
+        LONG(scissor.top + pa_sc_window_offset.window_y_offset), LONG(0));
+    scissor.right = std::max(
+        LONG(scissor.right + pa_sc_window_offset.window_x_offset), LONG(0));
+    scissor.bottom = std::max(
+        LONG(scissor.bottom + pa_sc_window_offset.window_y_offset), LONG(0));
   }
   scissor.left *= pixel_size_x;
   scissor.top *= pixel_size_y;
@@ -2915,12 +2923,11 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     uint32_t line_loop_closing_index, xenos::Endian index_endian,
     uint32_t used_texture_mask, bool early_z, uint32_t color_mask,
     const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
-  auto& regs = *register_file_;
-
 #if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
 
+  const RegisterFile& regs = *register_file_;
   auto pa_cl_clip_cntl = regs.Get<reg::PA_CL_CLIP_CNTL>();
   auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
   auto pa_su_point_minmax = regs.Get<reg::PA_SU_POINT_MINMAX>();
@@ -3103,13 +3110,13 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   dirty |= system_constants_.line_loop_closing_index != line_loop_closing_index;
   system_constants_.line_loop_closing_index = line_loop_closing_index;
 
-  // Vertex index offset.
-  dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
-  system_constants_.vertex_base_index = vgt_indx_offset;
-
   // Index or tessellation edge factor buffer endianness.
   dirty |= system_constants_.vertex_index_endian != index_endian;
   system_constants_.vertex_index_endian = index_endian;
+
+  // Vertex index offset.
+  dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
+  system_constants_.vertex_base_index = vgt_indx_offset;
 
   // User clip planes (UCP_ENA_#), when not CLIP_DISABLE.
   if (!pa_cl_clip_cntl.clip_disable) {
@@ -3574,7 +3581,7 @@ bool D3D12CommandProcessor::UpdateBindings(
           float_constant_map_vertex.float_bitmap[i];
       // If no float constants at all, we can reuse any buffer for them, so not
       // invalidating.
-      if (float_constant_map_vertex.float_count != 0) {
+      if (float_constant_count_vertex) {
         cbuffer_binding_float_vertex_.up_to_date = false;
       }
     }
@@ -3589,7 +3596,7 @@ bool D3D12CommandProcessor::UpdateBindings(
           float_constant_map_pixel.float_bitmap[i]) {
         current_float_constant_map_pixel_[i] =
             float_constant_map_pixel.float_bitmap[i];
-        if (float_constant_map_pixel.float_count != 0) {
+        if (float_constant_count_pixel) {
           cbuffer_binding_float_pixel_.up_to_date = false;
         }
       }
@@ -3889,8 +3896,8 @@ bool D3D12CommandProcessor::UpdateBindings(
                   sampler_parameters,
                   provider.OffsetSamplerDescriptor(
                       sampler_bindless_heap_cpu_start_, sampler_index));
-              texture_cache_bindless_sampler_map_.insert(
-                  {sampler_parameters.value, sampler_index});
+              texture_cache_bindless_sampler_map_.emplace(
+                  sampler_parameters.value, sampler_index);
             }
             current_sampler_bindless_indices_vertex_[j] = sampler_index;
           }
@@ -3921,8 +3928,8 @@ bool D3D12CommandProcessor::UpdateBindings(
                   sampler_parameters,
                   provider.OffsetSamplerDescriptor(
                       sampler_bindless_heap_cpu_start_, sampler_index));
-              texture_cache_bindless_sampler_map_.insert(
-                  {sampler_parameters.value, sampler_index});
+              texture_cache_bindless_sampler_map_.emplace(
+                  sampler_parameters.value, sampler_index);
             }
             current_sampler_bindless_indices_pixel_[j] = sampler_index;
           }
