@@ -550,9 +550,9 @@ class TextureCache {
 
   static const LoadModeInfo load_mode_info_[];
   ID3D12RootSignature* load_root_signature_ = nullptr;
-  ID3D12PipelineState* load_pipeline_states_[size_t(LoadMode::kCount)] = {};
-  // Load pipeline state objects for 2x-scaled resolved targets.
-  ID3D12PipelineState* load_pipeline_states_2x_[size_t(LoadMode::kCount)] = {};
+  ID3D12PipelineState* load_pipelines_[size_t(LoadMode::kCount)] = {};
+  // Load pipelines for 2x-scaled resolved targets.
+  ID3D12PipelineState* load_pipelines_2x_[size_t(LoadMode::kCount)] = {};
 
   std::unordered_multimap<uint64_t, Texture*> textures_;
   uint64_t textures_total_size_ = 0;

@@ -47,7 +47,7 @@ ID3D12RootSignature* CreateRootSignature(
   return root_signature;
 }
 
-ID3D12PipelineState* CreateComputePipelineState(
+ID3D12PipelineState* CreateComputePipeline(
     ID3D12Device* device, const void* shader, size_t shader_size,
     ID3D12RootSignature* root_signature) {
   D3D12_COMPUTE_PIPELINE_STATE_DESC desc;

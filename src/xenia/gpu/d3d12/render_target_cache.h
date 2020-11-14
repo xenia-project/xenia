@@ -237,14 +237,13 @@ class D3D12CommandProcessor;
 // get each of the 4 host pixels for each sample.
 class RenderTargetCache {
  public:
-  // Direct3D 12 debug layer does some kaschenit-style trolling by giving errors
-  // that contradict each other when you use null RTV descriptors - if you set
-  // a valid format in RTVFormats in the pipeline state, it says that null
-  // descriptors can only be used if the format in the pipeline state is
-  // DXGI_FORMAT_UNKNOWN, however, if DXGI_FORMAT_UNKNOWN is set, it complains
-  // that the format in the pipeline doesn't match the RTV format. So we have to
-  // make render target bindings consecutive and remap the output indices in
-  // pixel shaders.
+  // Direct3D 12 debug layer is giving errors that contradict each other when
+  // you use null RTV descriptors - if you set a valid format in RTVFormats in
+  // the pipeline state, it says that null descriptors can only be used if the
+  // format in the pipeline state is DXGI_FORMAT_UNKNOWN, however, if
+  // DXGI_FORMAT_UNKNOWN is set, it complains that the format in the pipeline
+  // state doesn't match the RTV format. So we have to make render target
+  // bindings consecutive and remap the output indices in pixel shaders.
   struct PipelineRenderTarget {
     uint32_t guest_render_target;
     DXGI_FORMAT format;
@@ -537,7 +536,7 @@ class RenderTargetCache {
     // 16: - EDRAM pitch in tiles.
     uint32_t base_samples_2x_depth_pitch;
   };
-  // EDRAM pipeline states for the RTV/DSV path.
+  // EDRAM pipelines for the RTV/DSV path.
   static const EdramLoadStoreModeInfo
       edram_load_store_mode_info_[size_t(EdramLoadStoreMode::kCount)];
   ID3D12PipelineState*
@@ -546,20 +545,20 @@ class RenderTargetCache {
   ID3D12PipelineState*
       edram_store_pipelines_[size_t(EdramLoadStoreMode::kCount)] = {};
 
-  // Resolve root signatures and pipeline state objects.
+  // Resolve root signatures and pipelines.
   ID3D12RootSignature* resolve_copy_root_signature_ = nullptr;
   static const std::pair<const uint8_t*, size_t>
       resolve_copy_shaders_[size_t(draw_util::ResolveCopyShaderIndex::kCount)];
-  ID3D12PipelineState* resolve_copy_pipeline_states_[size_t(
+  ID3D12PipelineState* resolve_copy_pipelines_[size_t(
       draw_util::ResolveCopyShaderIndex::kCount)] = {};
   ID3D12RootSignature* resolve_clear_root_signature_ = nullptr;
   // Clearing 32bpp color, depth with ROV, or unorm depth without ROV.
-  ID3D12PipelineState* resolve_clear_32bpp_pipeline_state_ = nullptr;
+  ID3D12PipelineState* resolve_clear_32bpp_pipeline_ = nullptr;
   // Clearing 64bpp color.
-  ID3D12PipelineState* resolve_clear_64bpp_pipeline_state_ = nullptr;
+  ID3D12PipelineState* resolve_clear_64bpp_pipeline_ = nullptr;
   // Clearing float depth without ROV, both the float24 and the host float32
   // versions.
-  ID3D12PipelineState* resolve_clear_depth_24_32_pipeline_state_ = nullptr;
+  ID3D12PipelineState* resolve_clear_depth_24_32_pipeline_ = nullptr;
 
   // FIXME(Triang3l): Investigate what's wrong with placed RTV/DSV aliasing on
   // Nvidia Maxwell 1st generation and older.

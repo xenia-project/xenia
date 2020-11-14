@@ -43,10 +43,10 @@ DEFINE_bool(
     "D3D12");
 DEFINE_int32(
     d3d12_pipeline_creation_threads, -1,
-    "Number of threads used for graphics pipeline state object creation. -1 to "
-    "calculate automatically (75% of logical CPU cores), a positive number to "
-    "specify the number of threads explicitly (up to the number of logical CPU "
-    "cores), 0 to disable multithreaded pipeline state object creation.",
+    "Number of threads used for graphics pipeline creation. -1 to calculate "
+    "automatically (75% of logical CPU cores), a positive number to specify "
+    "the number of threads explicitly (up to the number of logical CPU cores), "
+    "0 to disable multithreaded pipeline creation.",
     "D3D12");
 DEFINE_bool(d3d12_tessellation_wireframe, false,
             "Display tessellated surfaces as wireframe for debugging.",
@@ -125,8 +125,8 @@ bool PipelineCache::Initialize() {
     logical_processor_count = 6;
   }
   // Initialize creation thread synchronization data even if not using creation
-  // threads because they may be used anyway to create pipeline state objects
-  // from the storage.
+  // threads because they may be used anyway to create pipelines from the
+  // storage.
   creation_threads_busy_ = 0;
   creation_completion_event_ =
       xe::threading::Event::CreateManualResetEvent(true);
@@ -145,7 +145,7 @@ bool PipelineCache::Initialize() {
     for (size_t i = 0; i < creation_thread_count; ++i) {
       std::unique_ptr<xe::threading::Thread> creation_thread =
           xe::threading::Thread::Create({}, [this, i]() { CreationThread(i); });
-      creation_thread->set_name("D3D12 Pipeline States");
+      creation_thread->set_name("D3D12 Pipelines");
       creation_threads_.push_back(std::move(creation_thread));
     }
   }
@@ -184,13 +184,12 @@ void PipelineCache::ClearCache(bool shutting_down) {
   }
   ShutdownShaderStorage();
 
-  // Remove references to the current pipeline state object.
-  current_pipeline_state_ = nullptr;
+  // Remove references to the current pipeline.
+  current_pipeline_ = nullptr;
 
   if (!creation_threads_.empty()) {
-    // Empty the pipeline state object creation queue and make sure there are no
-    // threads currently creating pipeline state objects because pipeline states
-    // are going to be deleted.
+    // Empty the pipeline creation queue and make sure there are no threads
+    // currently creating pipelines because pipelines are going to be deleted.
     bool await_creation_completion_event = false;
     {
       std::lock_guard<std::mutex> lock(creation_request_lock_);
@@ -207,13 +206,13 @@ void PipelineCache::ClearCache(bool shutting_down) {
     }
   }
 
-  // Destroy all pipeline state objects.
-  for (auto it : pipeline_states_) {
+  // Destroy all pipelines.
+  for (auto it : pipelines_) {
     it.second->state->Release();
     delete it.second;
   }
-  pipeline_states_.clear();
-  COUNT_profile_set("gpu/pipeline_cache/pipeline_states", 0);
+  pipelines_.clear();
+  COUNT_profile_set("gpu/pipeline_cache/pipelines", 0);
 
   // Destroy all shaders.
   command_processor_.NotifyShaderBindingsLayoutUIDsInvalidated();
@@ -223,10 +222,10 @@ void PipelineCache::ClearCache(bool shutting_down) {
   }
   texture_binding_layout_map_.clear();
   texture_binding_layouts_.clear();
-  for (auto it : shader_map_) {
+  for (auto it : shaders_) {
     delete it.second;
   }
-  shader_map_.clear();
+  shaders_.clear();
 
   if (reinitialize_shader_storage) {
     InitializeShaderStorage(shader_storage_root, shader_storage_title_id,
@@ -374,8 +373,7 @@ void PipelineCache::InitializeShaderStorage(
       }
       size_t ucode_byte_count =
           shader_header.ucode_dword_count * sizeof(uint32_t);
-      if (shader_map_.find(shader_header.ucode_data_hash) !=
-          shader_map_.end()) {
+      if (shaders_.find(shader_header.ucode_data_hash) != shaders_.end()) {
         // Already added - usually shaders aren't added without the intention of
         // translating them imminently, so don't do additional checks to
         // actually ensure that translation happens right now (they would cause
@@ -402,7 +400,7 @@ void PipelineCache::InitializeShaderStorage(
       D3D12Shader* shader =
           new D3D12Shader(shader_header.type, ucode_data_hash,
                           ucode_dwords.data(), shader_header.ucode_dword_count);
-      shader_map_.insert({ucode_data_hash, shader});
+      shaders_.emplace(ucode_data_hash, shader);
       // Create new threads if the currently existing threads can't keep up with
       // file reading, but not more than the number of logical processors minus
       // one.
@@ -439,7 +437,7 @@ void PipelineCache::InitializeShaderStorage(
       }
       shader_translation_threads.clear();
       for (D3D12Shader* shader : shaders_failed_to_translate) {
-        shader_map_.erase(shader->ucode_data_hash());
+        shaders_.erase(shader->ucode_data_hash());
         delete shader;
       }
     }
@@ -460,72 +458,66 @@ void PipelineCache::InitializeShaderStorage(
   }
 
   // 'DXRO' or 'DXRT'.
-  const uint32_t pipeline_state_storage_magic_api =
+  const uint32_t pipeline_storage_magic_api =
       edram_rov_used_ ? 0x4F525844 : 0x54525844;
 
-  // Initialize the pipeline state storage stream.
-  uint64_t pipeline_state_storage_initialization_start_ =
+  // Initialize the pipeline storage stream.
+  uint64_t pipeline_storage_initialization_start_ =
       xe::Clock::QueryHostTickCount();
-  auto pipeline_state_storage_file_path =
+  auto pipeline_storage_file_path =
       shader_storage_shareable_root /
       fmt::format("{:08X}.{}.d3d12.xpso", title_id,
                   edram_rov_used_ ? "rov" : "rtv");
-  pipeline_state_storage_file_ =
-      xe::filesystem::OpenFile(pipeline_state_storage_file_path, "a+b");
-  if (!pipeline_state_storage_file_) {
+  pipeline_storage_file_ =
+      xe::filesystem::OpenFile(pipeline_storage_file_path, "a+b");
+  if (!pipeline_storage_file_) {
     XELOGE(
-        "Failed to open the Direct3D 12 pipeline state description storage "
-        "file for writing, persistent shader storage will be disabled: {}",
-        xe::path_to_utf8(pipeline_state_storage_file_path));
+        "Failed to open the Direct3D 12 pipeline description storage file for "
+        "writing, persistent shader storage will be disabled: {}",
+        xe::path_to_utf8(pipeline_storage_file_path));
     fclose(shader_storage_file_);
     shader_storage_file_ = nullptr;
     return;
   }
-  pipeline_state_storage_file_flush_needed_ = false;
+  pipeline_storage_file_flush_needed_ = false;
   // 'XEPS'.
-  const uint32_t pipeline_state_storage_magic = 0x53504558;
+  const uint32_t pipeline_storage_magic = 0x53504558;
   struct {
     uint32_t magic;
     uint32_t magic_api;
     uint32_t version_swapped;
-  } pipeline_state_storage_file_header;
-  if (fread(&pipeline_state_storage_file_header,
-            sizeof(pipeline_state_storage_file_header), 1,
-            pipeline_state_storage_file_) &&
-      pipeline_state_storage_file_header.magic ==
-          pipeline_state_storage_magic &&
-      pipeline_state_storage_file_header.magic_api ==
-          pipeline_state_storage_magic_api &&
-      xe::byte_swap(pipeline_state_storage_file_header.version_swapped) ==
+  } pipeline_storage_file_header;
+  if (fread(&pipeline_storage_file_header, sizeof(pipeline_storage_file_header),
+            1, pipeline_storage_file_) &&
+      pipeline_storage_file_header.magic == pipeline_storage_magic &&
+      pipeline_storage_file_header.magic_api == pipeline_storage_magic_api &&
+      xe::byte_swap(pipeline_storage_file_header.version_swapped) ==
           PipelineDescription::kVersion) {
-    uint64_t pipeline_state_storage_valid_bytes =
-        sizeof(pipeline_state_storage_file_header);
-    // Enqueue pipeline state descriptions written by previous Xenia executions
-    // until the end of the file or until a corrupted one is detected.
-    xe::filesystem::Seek(pipeline_state_storage_file_, 0, SEEK_END);
-    int64_t pipeline_state_storage_told_end =
-        xe::filesystem::Tell(pipeline_state_storage_file_);
-    size_t pipeline_state_storage_told_count =
-        size_t(pipeline_state_storage_told_end >=
-                       int64_t(pipeline_state_storage_valid_bytes)
-                   ? (uint64_t(pipeline_state_storage_told_end) -
-                      pipeline_state_storage_valid_bytes) /
-                         sizeof(PipelineStoredDescription)
-                   : 0);
-    if (pipeline_state_storage_told_count &&
-        xe::filesystem::Seek(pipeline_state_storage_file_,
-                             int64_t(pipeline_state_storage_valid_bytes),
-                             SEEK_SET)) {
+    uint64_t pipeline_storage_valid_bytes =
+        sizeof(pipeline_storage_file_header);
+    // Enqueue pipeline descriptions written by previous Xenia executions until
+    // the end of the file or until a corrupted one is detected.
+    xe::filesystem::Seek(pipeline_storage_file_, 0, SEEK_END);
+    int64_t pipeline_storage_told_end =
+        xe::filesystem::Tell(pipeline_storage_file_);
+    size_t pipeline_storage_told_count = size_t(
+        pipeline_storage_told_end >= int64_t(pipeline_storage_valid_bytes)
+            ? (uint64_t(pipeline_storage_told_end) -
+               pipeline_storage_valid_bytes) /
+                  sizeof(PipelineStoredDescription)
+            : 0);
+    if (pipeline_storage_told_count &&
+        xe::filesystem::Seek(pipeline_storage_file_,
+                             int64_t(pipeline_storage_valid_bytes), SEEK_SET)) {
       std::vector<PipelineStoredDescription> pipeline_stored_descriptions;
-      pipeline_stored_descriptions.resize(pipeline_state_storage_told_count);
-      pipeline_stored_descriptions.resize(fread(
-          pipeline_stored_descriptions.data(),
-          sizeof(PipelineStoredDescription), pipeline_state_storage_told_count,
-          pipeline_state_storage_file_));
+      pipeline_stored_descriptions.resize(pipeline_storage_told_count);
+      pipeline_stored_descriptions.resize(
+          fread(pipeline_stored_descriptions.data(),
+                sizeof(PipelineStoredDescription), pipeline_storage_told_count,
+                pipeline_storage_file_));
       if (!pipeline_stored_descriptions.empty()) {
         // Launch additional creation threads to use all cores to create
-        // pipeline state objects faster. Will also be using the main thread, so
-        // minus 1.
+        // pipelines faster. Will also be using the main thread, so minus 1.
         size_t creation_thread_original_count = creation_threads_.size();
         size_t creation_thread_needed_count =
             std::max(std::min(pipeline_stored_descriptions.size(),
@@ -539,10 +531,10 @@ void PipelineCache::InitializeShaderStorage(
                   {}, [this, creation_thread_index]() {
                     CreationThread(creation_thread_index);
                   });
-          creation_thread->set_name("D3D12 Pipeline States Additional");
+          creation_thread->set_name("D3D12 Pipelines");
           creation_threads_.push_back(std::move(creation_thread));
         }
-        size_t pipeline_states_created = 0;
+        size_t pipelines_created = 0;
         for (const PipelineStoredDescription& pipeline_stored_description :
              pipeline_stored_descriptions) {
           const PipelineDescription& pipeline_description =
@@ -554,30 +546,28 @@ void PipelineCache::InitializeShaderStorage(
                     0) != pipeline_stored_description.description_hash) {
             break;
           }
-          pipeline_state_storage_valid_bytes +=
-              sizeof(PipelineStoredDescription);
-          // Skip already known pipeline states - those have already been
-          // enqueued.
-          auto found_range = pipeline_states_.equal_range(
+          pipeline_storage_valid_bytes += sizeof(PipelineStoredDescription);
+          // Skip already known pipelines - those have already been enqueued.
+          auto found_range = pipelines_.equal_range(
               pipeline_stored_description.description_hash);
-          bool pipeline_state_found = false;
+          bool pipeline_found = false;
           for (auto it = found_range.first; it != found_range.second; ++it) {
-            PipelineState* found_pipeline_state = it->second;
-            if (!std::memcmp(&found_pipeline_state->description.description,
+            Pipeline* found_pipeline = it->second;
+            if (!std::memcmp(&found_pipeline->description.description,
                              &pipeline_description,
                              sizeof(pipeline_description))) {
-              pipeline_state_found = true;
+              pipeline_found = true;
               break;
             }
           }
-          if (pipeline_state_found) {
+          if (pipeline_found) {
             continue;
           }
 
           PipelineRuntimeDescription pipeline_runtime_description;
           auto vertex_shader_it =
-              shader_map_.find(pipeline_description.vertex_shader_hash);
-          if (vertex_shader_it == shader_map_.end()) {
+              shaders_.find(pipeline_description.vertex_shader_hash);
+          if (vertex_shader_it == shaders_.end()) {
             continue;
           }
           pipeline_runtime_description.vertex_shader = vertex_shader_it->second;
@@ -586,8 +576,8 @@ void PipelineCache::InitializeShaderStorage(
           }
           if (pipeline_description.pixel_shader_hash) {
             auto pixel_shader_it =
-                shader_map_.find(pipeline_description.pixel_shader_hash);
-            if (pixel_shader_it == shader_map_.end()) {
+                shaders_.find(pipeline_description.pixel_shader_hash);
+            if (pixel_shader_it == shaders_.end()) {
               continue;
             }
             pipeline_runtime_description.pixel_shader = pixel_shader_it->second;
@@ -607,36 +597,33 @@ void PipelineCache::InitializeShaderStorage(
           std::memcpy(&pipeline_runtime_description.description,
                       &pipeline_description, sizeof(pipeline_description));
 
-          PipelineState* new_pipeline_state = new PipelineState;
-          new_pipeline_state->state = nullptr;
-          std::memcpy(&new_pipeline_state->description,
-                      &pipeline_runtime_description,
+          Pipeline* new_pipeline = new Pipeline;
+          new_pipeline->state = nullptr;
+          std::memcpy(&new_pipeline->description, &pipeline_runtime_description,
                       sizeof(pipeline_runtime_description));
-          pipeline_states_.insert(
-              std::make_pair(pipeline_stored_description.description_hash,
-                             new_pipeline_state));
-          COUNT_profile_set("gpu/pipeline_cache/pipeline_states",
-                            pipeline_states_.size());
+          pipelines_.emplace(pipeline_stored_description.description_hash,
+                             new_pipeline);
+          COUNT_profile_set("gpu/pipeline_cache/pipelines", pipelines_.size());
           if (!creation_threads_.empty()) {
             // Submit the pipeline for creation to any available thread.
             {
               std::lock_guard<std::mutex> lock(creation_request_lock_);
-              creation_queue_.push_back(new_pipeline_state);
+              creation_queue_.push_back(new_pipeline);
             }
             creation_request_cond_.notify_one();
           } else {
-            new_pipeline_state->state =
-                CreateD3D12PipelineState(pipeline_runtime_description);
+            new_pipeline->state =
+                CreateD3D12Pipeline(pipeline_runtime_description);
           }
-          ++pipeline_states_created;
+          ++pipelines_created;
         }
-        CreateQueuedPipelineStatesOnProcessorThread();
+        CreateQueuedPipelinesOnProcessorThread();
         if (creation_threads_.size() > creation_thread_original_count) {
           {
             std::lock_guard<std::mutex> lock(creation_request_lock_);
             creation_threads_shutdown_from_ = creation_thread_original_count;
             // Assuming the queue is empty because of
-            // CreateQueuedPipelineStatesOnProcessorThread.
+            // CreateQueuedPipelinesOnProcessorThread.
           }
           creation_request_cond_.notify_all();
           while (creation_threads_.size() > creation_thread_original_count) {
@@ -664,26 +651,23 @@ void PipelineCache::InitializeShaderStorage(
           }
         }
         XELOGGPU(
-            "Created {} graphics pipeline state objects from the storage in {} "
-            "milliseconds",
-            pipeline_states_created,
+            "Created {} graphics pipelines from the storage in {} milliseconds",
+            pipelines_created,
             (xe::Clock::QueryHostTickCount() -
-             pipeline_state_storage_initialization_start_) *
+             pipeline_storage_initialization_start_) *
                 1000 / xe::Clock::QueryHostTickFrequency());
       }
     }
-    xe::filesystem::TruncateStdioFile(pipeline_state_storage_file_,
-                                      pipeline_state_storage_valid_bytes);
+    xe::filesystem::TruncateStdioFile(pipeline_storage_file_,
+                                      pipeline_storage_valid_bytes);
   } else {
-    xe::filesystem::TruncateStdioFile(pipeline_state_storage_file_, 0);
-    pipeline_state_storage_file_header.magic = pipeline_state_storage_magic;
-    pipeline_state_storage_file_header.magic_api =
-        pipeline_state_storage_magic_api;
-    pipeline_state_storage_file_header.version_swapped =
+    xe::filesystem::TruncateStdioFile(pipeline_storage_file_, 0);
+    pipeline_storage_file_header.magic = pipeline_storage_magic;
+    pipeline_storage_file_header.magic_api = pipeline_storage_magic_api;
+    pipeline_storage_file_header.version_swapped =
         xe::byte_swap(PipelineDescription::kVersion);
-    fwrite(&pipeline_state_storage_file_header,
-           sizeof(pipeline_state_storage_file_header), 1,
-           pipeline_state_storage_file_);
+    fwrite(&pipeline_storage_file_header, sizeof(pipeline_storage_file_header),
+           1, pipeline_storage_file_);
   }
 
   shader_storage_root_ = storage_root;
@@ -691,7 +675,7 @@ void PipelineCache::InitializeShaderStorage(
 
   // Start the storage writing thread.
   storage_write_flush_shaders_ = false;
-  storage_write_flush_pipeline_states_ = false;
+  storage_write_flush_pipelines_ = false;
   storage_write_thread_shutdown_ = false;
   storage_write_thread_ =
       xe::threading::Thread::Create({}, [this]() { StorageWriteThread(); });
@@ -708,12 +692,12 @@ void PipelineCache::ShutdownShaderStorage() {
     storage_write_thread_.reset();
   }
   storage_write_shader_queue_.clear();
-  storage_write_pipeline_state_queue_.clear();
+  storage_write_pipeline_queue_.clear();
 
-  if (pipeline_state_storage_file_) {
-    fclose(pipeline_state_storage_file_);
-    pipeline_state_storage_file_ = nullptr;
-    pipeline_state_storage_file_flush_needed_ = false;
+  if (pipeline_storage_file_) {
+    fclose(pipeline_storage_file_);
+    pipeline_storage_file_ = nullptr;
+    pipeline_storage_file_flush_needed_ = false;
   }
 
   if (shader_storage_file_) {
@@ -728,30 +712,29 @@ void PipelineCache::ShutdownShaderStorage() {
 
 void PipelineCache::EndSubmission() {
   if (shader_storage_file_flush_needed_ ||
-      pipeline_state_storage_file_flush_needed_) {
+      pipeline_storage_file_flush_needed_) {
     {
       std::lock_guard<std::mutex> lock(storage_write_request_lock_);
       if (shader_storage_file_flush_needed_) {
         storage_write_flush_shaders_ = true;
       }
-      if (pipeline_state_storage_file_flush_needed_) {
-        storage_write_flush_pipeline_states_ = true;
+      if (pipeline_storage_file_flush_needed_) {
+        storage_write_flush_pipelines_ = true;
       }
     }
     storage_write_request_cond_.notify_one();
     shader_storage_file_flush_needed_ = false;
-    pipeline_state_storage_file_flush_needed_ = false;
+    pipeline_storage_file_flush_needed_ = false;
   }
   if (!creation_threads_.empty()) {
-    CreateQueuedPipelineStatesOnProcessorThread();
-    // Await creation of all queued pipeline state objects.
+    CreateQueuedPipelinesOnProcessorThread();
+    // Await creation of all queued pipelines.
     bool await_creation_completion_event;
     {
       std::lock_guard<std::mutex> lock(creation_request_lock_);
       // Assuming the creation queue is already empty (because the processor
-      // thread also worked on creating the leftover pipeline state objects), so
-      // only check if there are threads with pipeline state objects currently
-      // being created.
+      // thread also worked on creating the leftover pipelines), so only check
+      // if there are threads with pipelines currently being created.
       await_creation_completion_event = creation_threads_busy_ != 0;
       if (await_creation_completion_event) {
         creation_completion_event_->Reset();
@@ -765,7 +748,7 @@ void PipelineCache::EndSubmission() {
   }
 }
 
-bool PipelineCache::IsCreatingPipelineStates() {
+bool PipelineCache::IsCreatingPipelines() {
   if (creation_threads_.empty()) {
     return false;
   }
@@ -779,8 +762,8 @@ D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
                                        uint32_t dword_count) {
   // Hash the input memory and lookup the shader.
   uint64_t data_hash = XXH64(host_address, dword_count * sizeof(uint32_t), 0);
-  auto it = shader_map_.find(data_hash);
-  if (it != shader_map_.end()) {
+  auto it = shaders_.find(data_hash);
+  if (it != shaders_.end()) {
     // Shader has been previously loaded.
     return it->second;
   }
@@ -790,7 +773,7 @@ D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
   // again.
   D3D12Shader* shader =
       new D3D12Shader(shader_type, data_hash, host_address, dword_count);
-  shader_map_.insert({data_hash, shader});
+  shaders_.emplace(data_hash, shader);
 
   return shader;
 }
@@ -798,11 +781,11 @@ D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
 Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
     const {
   // If the values this functions returns are changed, INVALIDATE THE SHADER
-  // STORAGE (increase kVersion for BOTH shaders and pipeline states)! The
-  // exception is when the function originally returned "unsupported", but
-  // started to return a valid value (in this case the shader wouldn't be cached
-  // in the first place). Otherwise games will not be able to locate shaders for
-  // draws for which the host vertex shader type has changed!
+  // STORAGE (increase kVersion for BOTH shaders and pipelines)! The exception
+  // is when the function originally returned "unsupported", but started to
+  // return a valid value (in this case the shader wouldn't be cached in the
+  // first place). Otherwise games will not be able to locate shaders for draws
+  // for which the host vertex shader type has changed!
   const auto& regs = register_file_;
   auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
   if (!xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode,
@@ -929,13 +912,12 @@ bool PipelineCache::ConfigurePipeline(
     xenos::PrimitiveType primitive_type, xenos::IndexFormat index_format,
     bool early_z,
     const RenderTargetCache::PipelineRenderTarget render_targets[5],
-    void** pipeline_state_handle_out,
-    ID3D12RootSignature** root_signature_out) {
+    void** pipeline_handle_out, ID3D12RootSignature** root_signature_out) {
 #if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
 
-  assert_not_null(pipeline_state_handle_out);
+  assert_not_null(pipeline_handle_out);
   assert_not_null(root_signature_out);
 
   PipelineRuntimeDescription runtime_description;
@@ -946,24 +928,24 @@ bool PipelineCache::ConfigurePipeline(
   }
   PipelineDescription& description = runtime_description.description;
 
-  if (current_pipeline_state_ != nullptr &&
-      !std::memcmp(&current_pipeline_state_->description.description,
-                   &description, sizeof(description))) {
-    *pipeline_state_handle_out = current_pipeline_state_;
+  if (current_pipeline_ != nullptr &&
+      !std::memcmp(&current_pipeline_->description.description, &description,
+                   sizeof(description))) {
+    *pipeline_handle_out = current_pipeline_;
     *root_signature_out = runtime_description.root_signature;
     return true;
   }
 
-  // Find an existing pipeline state object in the cache.
+  // Find an existing pipeline in the cache.
   uint64_t hash = XXH64(&description, sizeof(description), 0);
-  auto found_range = pipeline_states_.equal_range(hash);
+  auto found_range = pipelines_.equal_range(hash);
   for (auto it = found_range.first; it != found_range.second; ++it) {
-    PipelineState* found_pipeline_state = it->second;
-    if (!std::memcmp(&found_pipeline_state->description.description,
-                     &description, sizeof(description))) {
-      current_pipeline_state_ = found_pipeline_state;
-      *pipeline_state_handle_out = found_pipeline_state;
-      *root_signature_out = found_pipeline_state->description.root_signature;
+    Pipeline* found_pipeline = it->second;
+    if (!std::memcmp(&found_pipeline->description.description, &description,
+                     sizeof(description))) {
+      current_pipeline_ = found_pipeline;
+      *pipeline_handle_out = found_pipeline;
+      *root_signature_out = found_pipeline->description.root_signature;
       return true;
     }
   }
@@ -974,33 +956,32 @@ bool PipelineCache::ConfigurePipeline(
     return false;
   }
 
-  PipelineState* new_pipeline_state = new PipelineState;
-  new_pipeline_state->state = nullptr;
-  std::memcpy(&new_pipeline_state->description, &runtime_description,
+  Pipeline* new_pipeline = new Pipeline;
+  new_pipeline->state = nullptr;
+  std::memcpy(&new_pipeline->description, &runtime_description,
               sizeof(runtime_description));
-  pipeline_states_.insert(std::make_pair(hash, new_pipeline_state));
-  COUNT_profile_set("gpu/pipeline_cache/pipeline_states",
-                    pipeline_states_.size());
+  pipelines_.emplace(hash, new_pipeline);
+  COUNT_profile_set("gpu/pipeline_cache/pipelines", pipelines_.size());
 
   if (!creation_threads_.empty()) {
-    // Submit the pipeline state object for creation to any available thread.
+    // Submit the pipeline for creation to any available thread.
     {
       std::lock_guard<std::mutex> lock(creation_request_lock_);
-      creation_queue_.push_back(new_pipeline_state);
+      creation_queue_.push_back(new_pipeline);
     }
     creation_request_cond_.notify_one();
   } else {
-    new_pipeline_state->state = CreateD3D12PipelineState(runtime_description);
+    new_pipeline->state = CreateD3D12Pipeline(runtime_description);
   }
 
-  if (pipeline_state_storage_file_) {
+  if (pipeline_storage_file_) {
     assert_not_null(storage_write_thread_);
-    pipeline_state_storage_file_flush_needed_ = true;
+    pipeline_storage_file_flush_needed_ = true;
     {
       std::lock_guard<std::mutex> lock(storage_write_request_lock_);
-      storage_write_pipeline_state_queue_.emplace_back();
+      storage_write_pipeline_queue_.emplace_back();
       PipelineStoredDescription& stored_description =
-          storage_write_pipeline_state_queue_.back();
+          storage_write_pipeline_queue_.back();
       stored_description.description_hash = hash;
       std::memcpy(&stored_description.description, &description,
                   sizeof(description));
@@ -1008,8 +989,8 @@ bool PipelineCache::ConfigurePipeline(
     storage_write_request_cond_.notify_all();
   }
 
-  current_pipeline_state_ = new_pipeline_state;
-  *pipeline_state_handle_out = new_pipeline_state;
+  current_pipeline_ = new_pipeline;
+  *pipeline_handle_out = new_pipeline;
   *root_signature_out = runtime_description.root_signature;
   return true;
 }
@@ -1136,8 +1117,8 @@ bool PipelineCache::TranslateShader(
         std::memcpy(
             texture_binding_layouts_.data() + new_uid.vector_span_offset,
             texture_bindings, texture_binding_layout_bytes);
-        texture_binding_layout_map_.insert(
-            {texture_binding_layout_hash, new_uid});
+        texture_binding_layout_map_.emplace(texture_binding_layout_hash,
+                                            new_uid);
       }
     }
     if (bindless_sampler_count) {
@@ -1179,8 +1160,8 @@ bool PipelineCache::TranslateShader(
           vector_bindless_sampler_layout[i] =
               sampler_bindings[i].bindless_descriptor_index;
         }
-        bindless_sampler_layout_map_.insert(
-            {bindless_sampler_layout_hash, new_uid});
+        bindless_sampler_layout_map_.emplace(bindless_sampler_layout_hash,
+                                             new_uid);
       }
     }
   }
@@ -1508,8 +1489,7 @@ bool PipelineCache::GetCurrentStateDescription(
         /* 16 */ PipelineBlendFactor::kSrcAlphaSat,
     };
     // Like kBlendFactorMap, but with color modes changed to alpha. Some
-    // pipeline state objects aren't created in Prey because a color mode is
-    // used for alpha.
+    // pipelines aren't created in Prey because a color mode is used for alpha.
     static const PipelineBlendFactor kBlendFactorAlphaMap[32] = {
         /*  0 */ PipelineBlendFactor::kZero,
         /*  1 */ PipelineBlendFactor::kOne,
@@ -1569,18 +1549,16 @@ bool PipelineCache::GetCurrentStateDescription(
   return true;
 }
 
-ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
+ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
     const PipelineRuntimeDescription& runtime_description) {
   const PipelineDescription& description = runtime_description.description;
 
   if (runtime_description.pixel_shader != nullptr) {
-    XELOGGPU(
-        "Creating graphics pipeline state with VS {:016X}"
-        ", PS {:016X}",
-        runtime_description.vertex_shader->ucode_data_hash(),
-        runtime_description.pixel_shader->ucode_data_hash());
+    XELOGGPU("Creating graphics pipeline with VS {:016X}, PS {:016X}",
+             runtime_description.vertex_shader->ucode_data_hash(),
+             runtime_description.pixel_shader->ucode_data_hash());
   } else {
-    XELOGGPU("Creating graphics pipeline state with VS {:016X}",
+    XELOGGPU("Creating graphics pipeline with VS {:016X}",
              runtime_description.vertex_shader->ucode_data_hash());
   }
 
@@ -1893,20 +1871,18 @@ ID3D12PipelineState* PipelineCache::CreateD3D12PipelineState(
     }
   }
 
-  // Create the pipeline state object.
+  // Create the D3D12 pipeline state object.
   auto device =
       command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
   ID3D12PipelineState* state;
   if (FAILED(device->CreateGraphicsPipelineState(&state_desc,
                                                  IID_PPV_ARGS(&state)))) {
     if (runtime_description.pixel_shader != nullptr) {
-      XELOGE(
-          "Failed to create graphics pipeline state with VS {:016X}"
-          ", PS {:016X}",
-          runtime_description.vertex_shader->ucode_data_hash(),
-          runtime_description.pixel_shader->ucode_data_hash());
+      XELOGE("Failed to create graphics pipeline with VS {:016X}, PS {:016X}",
+             runtime_description.vertex_shader->ucode_data_hash(),
+             runtime_description.pixel_shader->ucode_data_hash());
     } else {
-      XELOGE("Failed to create graphics pipeline state with VS {:016X}",
+      XELOGE("Failed to create graphics pipeline with VS {:016X}",
              runtime_description.vertex_shader->ucode_data_hash());
     }
     return nullptr;
@@ -1933,7 +1909,7 @@ void PipelineCache::StorageWriteThread() {
   ucode_guest_endian.reserve(0xFFFF);
 
   bool flush_shaders = false;
-  bool flush_pipeline_states = false;
+  bool flush_pipelines = false;
 
   while (true) {
     if (flush_shaders) {
@@ -1941,15 +1917,15 @@ void PipelineCache::StorageWriteThread() {
       assert_not_null(shader_storage_file_);
       fflush(shader_storage_file_);
     }
-    if (flush_pipeline_states) {
-      flush_pipeline_states = false;
-      assert_not_null(pipeline_state_storage_file_);
-      fflush(pipeline_state_storage_file_);
+    if (flush_pipelines) {
+      flush_pipelines = false;
+      assert_not_null(pipeline_storage_file_);
+      fflush(pipeline_storage_file_);
     }
 
     std::pair<const Shader*, reg::SQ_PROGRAM_CNTL> shader_pair = {};
     PipelineStoredDescription pipeline_description;
-    bool write_pipeline_state = false;
+    bool write_pipeline = false;
     {
       std::unique_lock<std::mutex> lock(storage_write_request_lock_);
       if (storage_write_thread_shutdown_) {
@@ -1962,17 +1938,17 @@ void PipelineCache::StorageWriteThread() {
         storage_write_flush_shaders_ = false;
         flush_shaders = true;
       }
-      if (!storage_write_pipeline_state_queue_.empty()) {
+      if (!storage_write_pipeline_queue_.empty()) {
         std::memcpy(&pipeline_description,
-                    &storage_write_pipeline_state_queue_.front(),
+                    &storage_write_pipeline_queue_.front(),
                     sizeof(pipeline_description));
-        storage_write_pipeline_state_queue_.pop_front();
-        write_pipeline_state = true;
-      } else if (storage_write_flush_pipeline_states_) {
-        storage_write_flush_pipeline_states_ = false;
-        flush_pipeline_states = true;
+        storage_write_pipeline_queue_.pop_front();
+        write_pipeline = true;
+      } else if (storage_write_flush_pipelines_) {
+        storage_write_flush_pipelines_ = false;
+        flush_pipelines = true;
       }
-      if (!shader_pair.first && !write_pipeline_state) {
+      if (!shader_pair.first && !write_pipeline) {
         storage_write_request_cond_.wait(lock);
         continue;
       }
@@ -1999,27 +1975,26 @@ void PipelineCache::StorageWriteThread() {
       }
     }
 
-    if (write_pipeline_state) {
-      assert_not_null(pipeline_state_storage_file_);
+    if (write_pipeline) {
+      assert_not_null(pipeline_storage_file_);
       fwrite(&pipeline_description, sizeof(pipeline_description), 1,
-             pipeline_state_storage_file_);
+             pipeline_storage_file_);
     }
   }
 }
 
 void PipelineCache::CreationThread(size_t thread_index) {
   while (true) {
-    PipelineState* pipeline_state_to_create = nullptr;
+    Pipeline* pipeline_to_create = nullptr;
 
     // Check if need to shut down or set the completion event and dequeue the
-    // pipeline state if there is any.
+    // pipeline if there is any.
     {
       std::unique_lock<std::mutex> lock(creation_request_lock_);
       if (thread_index >= creation_threads_shutdown_from_ ||
           creation_queue_.empty()) {
         if (creation_completion_set_event_ && creation_threads_busy_ == 0) {
-          // Last pipeline state object in the queue created - signal the event
-          // if requested.
+          // Last pipeline in the queue created - signal the event if requested.
           creation_completion_set_event_ = false;
           creation_completion_event_->Set();
         }
@@ -2029,23 +2004,22 @@ void PipelineCache::CreationThread(size_t thread_index) {
         creation_request_cond_.wait(lock);
         continue;
       }
-      // Take the pipeline state from the queue and increment the busy thread
-      // count until the pipeline state object is created - other threads must
-      // be able to dequeue requests, but can't set the completion event until
-      // the pipeline state objects are fully created (rather than just started
-      // creating).
-      pipeline_state_to_create = creation_queue_.front();
+      // Take the pipeline from the queue and increment the busy thread count
+      // until the pipeline is created - other threads must be able to dequeue
+      // requests, but can't set the completion event until the pipelines are
+      // fully created (rather than just started creating).
+      pipeline_to_create = creation_queue_.front();
       creation_queue_.pop_front();
       ++creation_threads_busy_;
     }
 
     // Create the D3D12 pipeline state object.
-    pipeline_state_to_create->state =
-        CreateD3D12PipelineState(pipeline_state_to_create->description);
+    pipeline_to_create->state =
+        CreateD3D12Pipeline(pipeline_to_create->description);
 
-    // Pipeline state object created - the thread is not busy anymore, safe to
-    // set the completion event if needed (at the next iteration, or in some
-    // other thread).
+    // Pipeline created - the thread is not busy anymore, safe to set the
+    // completion event if needed (at the next iteration, or in some other
+    // thread).
     {
       std::lock_guard<std::mutex> lock(creation_request_lock_);
       --creation_threads_busy_;
@@ -2053,20 +2027,20 @@ void PipelineCache::CreationThread(size_t thread_index) {
   }
 }
 
-void PipelineCache::CreateQueuedPipelineStatesOnProcessorThread() {
+void PipelineCache::CreateQueuedPipelinesOnProcessorThread() {
   assert_false(creation_threads_.empty());
   while (true) {
-    PipelineState* pipeline_state_to_create;
+    Pipeline* pipeline_to_create;
     {
       std::lock_guard<std::mutex> lock(creation_request_lock_);
       if (creation_queue_.empty()) {
         break;
       }
-      pipeline_state_to_create = creation_queue_.front();
+      pipeline_to_create = creation_queue_.front();
       creation_queue_.pop_front();
     }
-    pipeline_state_to_create->state =
-        CreateD3D12PipelineState(pipeline_state_to_create->description);
+    pipeline_to_create->state =
+        CreateD3D12Pipeline(pipeline_to_create->description);
   }
 }
 

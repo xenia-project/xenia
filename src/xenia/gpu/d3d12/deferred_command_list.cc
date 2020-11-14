@@ -209,9 +209,8 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
         }
       } break;
       case Command::kSetPipelineStateHandle: {
-        current_pipeline_state =
-            command_processor_.GetD3D12PipelineStateByHandle(
-                *reinterpret_cast<void* const*>(stream));
+        current_pipeline_state = command_processor_.GetD3D12PipelineByHandle(
+            *reinterpret_cast<void* const*>(stream));
         if (current_pipeline_state) {
           command_list->SetPipelineState(current_pipeline_state);
         }

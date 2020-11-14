@@ -25,6 +25,9 @@ namespace gpu {
 // system page size granularity.
 class SharedMemory {
  public:
+  static constexpr uint32_t kBufferSizeLog2 = 29;
+  static constexpr uint32_t kBufferSize = 1 << kBufferSizeLog2;
+
   virtual ~SharedMemory();
   // Call in the implementation-specific ClearCache.
   virtual void ClearCache();
@@ -97,9 +100,6 @@ class SharedMemory {
   // Call last in implementation-specific shutdown, also callable from the
   // destructor.
   void ShutdownCommon();
-
-  static constexpr uint32_t kBufferSizeLog2 = 29;
-  static constexpr uint32_t kBufferSize = 1 << kBufferSizeLog2;
 
   // Sparse allocations are 4 MB, so not too many of them are allocated, but
   // also not to waste too much memory for padding (with 16 MB there's too

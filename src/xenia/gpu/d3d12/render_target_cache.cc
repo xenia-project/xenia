@@ -277,20 +277,19 @@ bool RenderTargetCache::Initialize(const TextureCache& texture_cache) {
       return false;
     }
 
-    // Create the EDRAM load/store pipeline state objects.
+    // Create the EDRAM load/store pipelines.
     for (uint32_t i = 0; i < uint32_t(EdramLoadStoreMode::kCount); ++i) {
       const EdramLoadStoreModeInfo& mode_info = edram_load_store_mode_info_[i];
-      edram_load_pipelines_[i] = ui::d3d12::util::CreateComputePipelineState(
+      edram_load_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
           device, mode_info.load_shader, mode_info.load_shader_size,
           edram_load_store_root_signature_);
-      edram_store_pipelines_[i] = ui::d3d12::util::CreateComputePipelineState(
+      edram_store_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
           device, mode_info.store_shader, mode_info.store_shader_size,
           edram_load_store_root_signature_);
       if (edram_load_pipelines_[i] == nullptr ||
           edram_store_pipelines_[i] == nullptr) {
-        XELOGE(
-            "Failed to create the EDRAM load/store pipeline states for mode {}",
-            i);
+        XELOGE("Failed to create the EDRAM load/store pipelines for mode {}",
+               i);
         Shutdown();
         return false;
       }
@@ -299,7 +298,7 @@ bool RenderTargetCache::Initialize(const TextureCache& texture_cache) {
     }
   }
 
-  // Create the resolve root signatures and pipeline state objects.
+  // Create the resolve root signatures and pipelines.
   D3D12_ROOT_PARAMETER resolve_root_parameters[3];
 
   // Copying root signature.
@@ -369,7 +368,7 @@ bool RenderTargetCache::Initialize(const TextureCache& texture_cache) {
     return false;
   }
 
-  // Copying pipeline state objects.
+  // Copying pipelines.
   uint32_t resolution_scale = resolution_scale_2x_ ? 2 : 1;
   for (size_t i = 0; i < size_t(draw_util::ResolveCopyShaderIndex::kCount);
        ++i) {
@@ -381,63 +380,61 @@ bool RenderTargetCache::Initialize(const TextureCache& texture_cache) {
       continue;
     }
     const auto& resolve_copy_shader = resolve_copy_shaders_[i];
-    ID3D12PipelineState* resolve_copy_pipeline_state =
-        ui::d3d12::util::CreateComputePipelineState(
+    ID3D12PipelineState* resolve_copy_pipeline =
+        ui::d3d12::util::CreateComputePipeline(
             device, resolve_copy_shader.first, resolve_copy_shader.second,
             resolve_copy_root_signature_);
-    if (resolve_copy_pipeline_state == nullptr) {
-      XELOGE("Failed to create {} resolve copy pipeline state",
+    if (resolve_copy_pipeline == nullptr) {
+      XELOGE("Failed to create {} resolve copy pipeline",
              resolve_copy_shader_info.debug_name);
     }
-    resolve_copy_pipeline_state->SetName(reinterpret_cast<LPCWSTR>(
+    resolve_copy_pipeline->SetName(reinterpret_cast<LPCWSTR>(
         xe::to_utf16(resolve_copy_shader_info.debug_name).c_str()));
-    resolve_copy_pipeline_states_[i] = resolve_copy_pipeline_state;
+    resolve_copy_pipelines_[i] = resolve_copy_pipeline;
   }
 
-  // Clearing pipeline state objects.
-  resolve_clear_32bpp_pipeline_state_ =
-      ui::d3d12::util::CreateComputePipelineState(
-          device,
-          resolution_scale_2x_ ? resolve_clear_32bpp_2xres_cs
-                               : resolve_clear_32bpp_cs,
-          resolution_scale_2x_ ? sizeof(resolve_clear_32bpp_2xres_cs)
-                               : sizeof(resolve_clear_32bpp_cs),
-          resolve_clear_root_signature_);
-  if (resolve_clear_32bpp_pipeline_state_ == nullptr) {
-    XELOGE("Failed to create the 32bpp resolve clear pipeline state");
+  // Clearing pipelines.
+  resolve_clear_32bpp_pipeline_ = ui::d3d12::util::CreateComputePipeline(
+      device,
+      resolution_scale_2x_ ? resolve_clear_32bpp_2xres_cs
+                           : resolve_clear_32bpp_cs,
+      resolution_scale_2x_ ? sizeof(resolve_clear_32bpp_2xres_cs)
+                           : sizeof(resolve_clear_32bpp_cs),
+      resolve_clear_root_signature_);
+  if (resolve_clear_32bpp_pipeline_ == nullptr) {
+    XELOGE("Failed to create the 32bpp resolve clear pipeline");
     Shutdown();
     return false;
   }
-  resolve_clear_32bpp_pipeline_state_->SetName(L"Resolve Clear 32bpp");
-  resolve_clear_64bpp_pipeline_state_ =
-      ui::d3d12::util::CreateComputePipelineState(
-          device,
-          resolution_scale_2x_ ? resolve_clear_64bpp_2xres_cs
-                               : resolve_clear_64bpp_cs,
-          resolution_scale_2x_ ? sizeof(resolve_clear_64bpp_2xres_cs)
-                               : sizeof(resolve_clear_64bpp_cs),
-          resolve_clear_root_signature_);
-  if (resolve_clear_64bpp_pipeline_state_ == nullptr) {
-    XELOGE("Failed to create the 64bpp resolve clear pipeline state");
+  resolve_clear_32bpp_pipeline_->SetName(L"Resolve Clear 32bpp");
+  resolve_clear_64bpp_pipeline_ = ui::d3d12::util::CreateComputePipeline(
+      device,
+      resolution_scale_2x_ ? resolve_clear_64bpp_2xres_cs
+                           : resolve_clear_64bpp_cs,
+      resolution_scale_2x_ ? sizeof(resolve_clear_64bpp_2xres_cs)
+                           : sizeof(resolve_clear_64bpp_cs),
+      resolve_clear_root_signature_);
+  if (resolve_clear_64bpp_pipeline_ == nullptr) {
+    XELOGE("Failed to create the 64bpp resolve clear pipeline");
     Shutdown();
     return false;
   }
-  resolve_clear_64bpp_pipeline_state_->SetName(L"Resolve Clear 64bpp");
+  resolve_clear_64bpp_pipeline_->SetName(L"Resolve Clear 64bpp");
   if (!edram_rov_used_) {
     assert_false(resolution_scale_2x_);
-    resolve_clear_depth_24_32_pipeline_state_ =
-        ui::d3d12::util::CreateComputePipelineState(
+    resolve_clear_depth_24_32_pipeline_ =
+        ui::d3d12::util::CreateComputePipeline(
             device, resolve_clear_depth_24_32_cs,
             sizeof(resolve_clear_depth_24_32_cs),
             resolve_clear_root_signature_);
-    if (resolve_clear_depth_24_32_pipeline_state_ == nullptr) {
+    if (resolve_clear_depth_24_32_pipeline_ == nullptr) {
       XELOGE(
           "Failed to create the 24-bit and 32-bit depth resolve clear pipeline "
           "state");
       Shutdown();
       return false;
     }
-    resolve_clear_64bpp_pipeline_state_->SetName(
+    resolve_clear_64bpp_pipeline_->SetName(
         L"Resolve Clear 24-bit & 32-bit Depth");
   }
 
@@ -451,12 +448,12 @@ void RenderTargetCache::Shutdown() {
 
   edram_snapshot_restore_pool_.reset();
   ui::d3d12::util::ReleaseAndNull(edram_snapshot_download_buffer_);
-  ui::d3d12::util::ReleaseAndNull(resolve_clear_depth_24_32_pipeline_state_);
-  ui::d3d12::util::ReleaseAndNull(resolve_clear_64bpp_pipeline_state_);
-  ui::d3d12::util::ReleaseAndNull(resolve_clear_32bpp_pipeline_state_);
+  ui::d3d12::util::ReleaseAndNull(resolve_clear_depth_24_32_pipeline_);
+  ui::d3d12::util::ReleaseAndNull(resolve_clear_64bpp_pipeline_);
+  ui::d3d12::util::ReleaseAndNull(resolve_clear_32bpp_pipeline_);
   ui::d3d12::util::ReleaseAndNull(resolve_clear_root_signature_);
-  for (size_t i = 0; i < xe::countof(resolve_copy_pipeline_states_); ++i) {
-    ui::d3d12::util::ReleaseAndNull(resolve_copy_pipeline_states_[i]);
+  for (size_t i = 0; i < xe::countof(resolve_copy_pipelines_); ++i) {
+    ui::d3d12::util::ReleaseAndNull(resolve_copy_pipelines_[i]);
   }
   ui::d3d12::util::ReleaseAndNull(resolve_copy_root_signature_);
   for (uint32_t i = 0; i < uint32_t(EdramLoadStoreMode::kCount); ++i) {
@@ -1209,8 +1206,8 @@ bool RenderTargetCache::Resolve(const Memory& memory,
                 0, sizeof(copy_shader_constants) / sizeof(uint32_t),
                 &copy_shader_constants, 0);
           }
-          command_processor_.SetComputePipelineState(
-              resolve_copy_pipeline_states_[size_t(copy_shader)]);
+          command_processor_.SetComputePipeline(
+              resolve_copy_pipelines_[size_t(copy_shader)]);
           command_processor_.SubmitBarriers();
           command_list.D3DDispatch(copy_group_count_x, copy_group_count_y, 1);
 
@@ -1279,9 +1276,9 @@ bool RenderTargetCache::Resolve(const Memory& memory,
         command_list.D3DSetComputeRoot32BitConstants(
             0, sizeof(depth_clear_constants) / sizeof(uint32_t),
             &depth_clear_constants, 0);
-        command_processor_.SetComputePipelineState(
-            clear_float32_depth ? resolve_clear_depth_24_32_pipeline_state_
-                                : resolve_clear_32bpp_pipeline_state_);
+        command_processor_.SetComputePipeline(
+            clear_float32_depth ? resolve_clear_depth_24_32_pipeline_
+                                : resolve_clear_32bpp_pipeline_);
         command_processor_.SubmitBarriers();
         command_list.D3DDispatch(clear_group_count.first,
                                  clear_group_count.second, 1);
@@ -1301,10 +1298,10 @@ bool RenderTargetCache::Resolve(const Memory& memory,
               0, sizeof(color_clear_constants) / sizeof(uint32_t),
               &color_clear_constants, 0);
         }
-        command_processor_.SetComputePipelineState(
+        command_processor_.SetComputePipeline(
             resolve_info.color_edram_info.format_is_64bpp
-                ? resolve_clear_64bpp_pipeline_state_
-                : resolve_clear_32bpp_pipeline_state_);
+                ? resolve_clear_64bpp_pipeline_
+                : resolve_clear_32bpp_pipeline_);
         command_processor_.SubmitBarriers();
         command_list.D3DDispatch(clear_group_count.first,
                                  clear_group_count.second, 1);
@@ -1816,7 +1813,7 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
                                 render_target->footprints, nullptr, nullptr,
                                 &copy_buffer_size);
   render_target->copy_buffer_size = uint32_t(copy_buffer_size);
-  render_targets_.insert(std::make_pair(key.value, render_target));
+  render_targets_.emplace(key.value, render_target);
   COUNT_profile_set("gpu/render_target_cache/render_targets",
                     render_targets_.size());
 #if 0
@@ -2015,8 +2012,7 @@ void RenderTargetCache::StoreRenderTargetsToEdram() {
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
     EdramLoadStoreMode mode = GetLoadStoreMode(render_target->key.is_depth,
                                                render_target->key.format);
-    command_processor_.SetComputePipelineState(
-        edram_store_pipelines_[size_t(mode)]);
+    command_processor_.SetComputePipeline(edram_store_pipelines_[size_t(mode)]);
     // 1 group per 80x16 samples.
     command_list.D3DDispatch(surface_pitch_tiles, binding.edram_dirty_rows, 1);
 
@@ -2140,8 +2136,7 @@ void RenderTargetCache::LoadRenderTargetsFromEdram(
         0, sizeof(root_constants) / sizeof(uint32_t), &root_constants, 0);
     EdramLoadStoreMode mode = GetLoadStoreMode(render_target->key.is_depth,
                                                render_target->key.format);
-    command_processor_.SetComputePipelineState(
-        edram_load_pipelines_[size_t(mode)]);
+    command_processor_.SetComputePipeline(edram_load_pipelines_[size_t(mode)]);
     // 1 group per 80x16 samples.
     command_list.D3DDispatch(render_target->key.width_ss_div_80, edram_rows, 1);
 
