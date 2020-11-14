@@ -542,19 +542,13 @@ dword_result_t NetDll_XNetDnsRelease(dword_t caller, pointer_t<XNDNS> dns) {
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetDnsRelease, kNetworking, kStub);
 
-SHIM_CALL NetDll_XNetQosServiceLookup_shim(PPCContext* ppc_context,
-                                           KernelState* kernel_state) {
-  uint32_t caller = SHIM_GET_ARG_32(0);
-  uint32_t zero = SHIM_GET_ARG_32(1);
-  uint32_t event_handle = SHIM_GET_ARG_32(2);
-  uint32_t out_ptr = SHIM_GET_ARG_32(3);
-
-  XELOGD("NetDll_XNetQosServiceLookup({}, {}, {:08X}, {:08X})", caller, zero,
-         event_handle, out_ptr);
-
+dword_result_t NetDll_XNetQosServiceLookup(dword_t caller, dword_t zero,
+                                           dword_t event_handle,
+                                           lpdword_t out_ptr) {
   // Non-zero is error.
-  SHIM_SET_RETURN_32(1);
+  return 1;
 }
+DECLARE_XAM_EXPORT1(NetDll_XNetQosServiceLookup, kNetworking, kStub);
 
 dword_result_t NetDll_XNetQosListen(dword_t caller, lpvoid_t id, lpvoid_t data,
                                     dword_t data_size, dword_t r7,
@@ -965,9 +959,7 @@ dword_result_t NetDll___WSAFDIsSet(dword_t socket_handle,
 DECLARE_XAM_EXPORT1(NetDll___WSAFDIsSet, kNetworking, kImplemented);
 
 void RegisterNetExports(xe::cpu::ExportResolver* export_resolver,
-                        KernelState* kernel_state) {
-  SHIM_SET_MAPPING("xam.xex", NetDll_XNetQosServiceLookup, state);
-}
+                        KernelState* kernel_state) {}
 
 }  // namespace xam
 }  // namespace kernel
