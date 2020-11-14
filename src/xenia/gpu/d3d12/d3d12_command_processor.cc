@@ -2005,14 +2005,15 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   }
   // Must not call anything that can change the descriptor heap from now on!
 
-  // Ensure vertex and index buffers are resident and draw.
+  // Ensure vertex buffers are resident.
   // TODO(Triang3l): Cache residency for ranges in a way similar to how texture
-  // validity will be tracked.
+  // validity is tracked.
   uint64_t vertex_buffers_resident[2] = {};
-  for (const auto& vertex_binding : vertex_shader->vertex_bindings()) {
+  for (const Shader::VertexBinding& vertex_binding :
+       vertex_shader->vertex_bindings()) {
     uint32_t vfetch_index = vertex_binding.fetch_constant;
     if (vertex_buffers_resident[vfetch_index >> 6] &
-        (1ull << (vfetch_index & 63))) {
+        (uint64_t(1) << (vfetch_index & 63))) {
       continue;
     }
     const auto& vfetch_constant = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
@@ -2045,7 +2046,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
           vfetch_constant.address << 2, vfetch_constant.size << 2);
       return false;
     }
-    vertex_buffers_resident[vfetch_index >> 6] |= 1ull << (vfetch_index & 63);
+    vertex_buffers_resident[vfetch_index >> 6] |= uint64_t(1)
+                                                  << (vfetch_index & 63);
   }
 
   // Gather memexport ranges and ensure the heaps for them are resident, and
@@ -2745,11 +2747,11 @@ void D3D12CommandProcessor::ClearCommandAllocatorCache() {
 }
 
 void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
-  auto& regs = *register_file_;
-
 #if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+
+  const RegisterFile& regs = *register_file_;
 
   // Window parameters.
   // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
@@ -2846,14 +2848,14 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
   scissor.right = pa_sc_window_scissor_br.br_x;
   scissor.bottom = pa_sc_window_scissor_br.br_y;
   if (!pa_sc_window_scissor_tl.window_offset_disable) {
-    scissor.left =
-        std::max(scissor.left + pa_sc_window_offset.window_x_offset, LONG(0));
-    scissor.top =
-        std::max(scissor.top + pa_sc_window_offset.window_y_offset, LONG(0));
-    scissor.right =
-        std::max(scissor.right + pa_sc_window_offset.window_x_offset, LONG(0));
-    scissor.bottom =
-        std::max(scissor.bottom + pa_sc_window_offset.window_y_offset, LONG(0));
+    scissor.left = std::max(
+        LONG(scissor.left + pa_sc_window_offset.window_x_offset), LONG(0));
+    scissor.top = std::max(
+        LONG(scissor.top + pa_sc_window_offset.window_y_offset), LONG(0));
+    scissor.right = std::max(
+        LONG(scissor.right + pa_sc_window_offset.window_x_offset), LONG(0));
+    scissor.bottom = std::max(
+        LONG(scissor.bottom + pa_sc_window_offset.window_y_offset), LONG(0));
   }
   scissor.left *= pixel_size_x;
   scissor.top *= pixel_size_y;
@@ -2915,12 +2917,11 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     uint32_t line_loop_closing_index, xenos::Endian index_endian,
     uint32_t used_texture_mask, bool early_z, uint32_t color_mask,
     const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
-  auto& regs = *register_file_;
-
 #if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
 
+  const RegisterFile& regs = *register_file_;
   auto pa_cl_clip_cntl = regs.Get<reg::PA_CL_CLIP_CNTL>();
   auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
   auto pa_su_point_minmax = regs.Get<reg::PA_SU_POINT_MINMAX>();
@@ -3103,13 +3104,13 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   dirty |= system_constants_.line_loop_closing_index != line_loop_closing_index;
   system_constants_.line_loop_closing_index = line_loop_closing_index;
 
-  // Vertex index offset.
-  dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
-  system_constants_.vertex_base_index = vgt_indx_offset;
-
   // Index or tessellation edge factor buffer endianness.
   dirty |= system_constants_.vertex_index_endian != index_endian;
   system_constants_.vertex_index_endian = index_endian;
+
+  // Vertex index offset.
+  dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
+  system_constants_.vertex_base_index = vgt_indx_offset;
 
   // User clip planes (UCP_ENA_#), when not CLIP_DISABLE.
   if (!pa_cl_clip_cntl.clip_disable) {
@@ -3574,7 +3575,7 @@ bool D3D12CommandProcessor::UpdateBindings(
           float_constant_map_vertex.float_bitmap[i];
       // If no float constants at all, we can reuse any buffer for them, so not
       // invalidating.
-      if (float_constant_map_vertex.float_count != 0) {
+      if (float_constant_count_vertex) {
         cbuffer_binding_float_vertex_.up_to_date = false;
       }
     }
@@ -3589,7 +3590,7 @@ bool D3D12CommandProcessor::UpdateBindings(
           float_constant_map_pixel.float_bitmap[i]) {
         current_float_constant_map_pixel_[i] =
             float_constant_map_pixel.float_bitmap[i];
-        if (float_constant_map_pixel.float_count != 0) {
+        if (float_constant_count_pixel) {
           cbuffer_binding_float_pixel_.up_to_date = false;
         }
       }

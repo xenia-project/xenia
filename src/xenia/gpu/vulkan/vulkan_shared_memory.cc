@@ -241,6 +241,7 @@ void VulkanSharedMemory::Use(Usage usage,
       buffer_memory_barrier.size = VK_WHOLE_SIZE;
       last_usage_ = usage;
     }
+    command_processor_.EndRenderPass();
     command_processor_.deferred_command_buffer().CmdVkPipelineBarrier(
         stage_mask_src, stage_mask_dst, 0, 0, nullptr, 1,
         &buffer_memory_barrier, 0, nullptr);
@@ -271,7 +272,7 @@ bool VulkanSharedMemory::InitializeTraceSubmitDownloads() {
     return false;
   }
 
-  // TODO(Triang3l): End the render pass.
+  command_processor_.EndRenderPass();
   Use(Usage::kRead);
   DeferredCommandBuffer& command_buffer =
       command_processor_.deferred_command_buffer();
@@ -384,7 +385,7 @@ bool VulkanSharedMemory::UploadRanges(
   if (upload_page_ranges.empty()) {
     return true;
   }
-  // TODO(Triang3l): End the render pass.
+  command_processor_.EndRenderPass();
   // upload_page_ranges are sorted, use them to determine the range for the
   // ordering barrier.
   Use(Usage::kTransferDestination,

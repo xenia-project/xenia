@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/math.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
@@ -31,6 +32,65 @@ class DeferredCommandBuffer {
   void Reset();
   void Execute(VkCommandBuffer command_buffer);
 
+  // render_pass_begin->pNext of all barriers must be null.
+  void CmdVkBeginRenderPass(const VkRenderPassBeginInfo* render_pass_begin,
+                            VkSubpassContents contents) {
+    assert_null(render_pass_begin->pNext);
+    size_t arguments_size = sizeof(ArgsVkBeginRenderPass);
+    uint32_t clear_value_count = render_pass_begin->clearValueCount;
+    size_t clear_values_offset = 0;
+    if (clear_value_count) {
+      arguments_size = xe::align(arguments_size, alignof(VkClearValue));
+      clear_values_offset = arguments_size;
+      arguments_size += sizeof(VkClearValue) * clear_value_count;
+    }
+    uint8_t* args_ptr = reinterpret_cast<uint8_t*>(
+        WriteCommand(Command::kVkBeginRenderPass, arguments_size));
+    auto& args = *reinterpret_cast<ArgsVkBeginRenderPass*>(args_ptr);
+    args.render_pass = render_pass_begin->renderPass;
+    args.framebuffer = render_pass_begin->framebuffer;
+    args.render_area = render_pass_begin->renderArea;
+    args.clear_value_count = clear_value_count;
+    args.contents = contents;
+    if (clear_value_count) {
+      std::memcpy(args_ptr + clear_values_offset,
+                  render_pass_begin->pClearValues,
+                  sizeof(VkClearValue) * clear_value_count);
+    }
+  }
+
+  void CmdVkBindDescriptorSets(VkPipelineBindPoint pipeline_bind_point,
+                               VkPipelineLayout layout, uint32_t first_set,
+                               uint32_t descriptor_set_count,
+                               const VkDescriptorSet* descriptor_sets,
+                               uint32_t dynamic_offset_count,
+                               const uint32_t* dynamic_offsets) {
+    size_t arguments_size =
+        xe::align(sizeof(ArgsVkBindDescriptorSets), alignof(VkDescriptorSet));
+    size_t descriptor_sets_offset = arguments_size;
+    arguments_size += sizeof(VkDescriptorSet) * descriptor_set_count;
+    size_t dynamic_offsets_offset = 0;
+    if (dynamic_offset_count) {
+      arguments_size = xe::align(arguments_size, alignof(uint32_t));
+      dynamic_offsets_offset = arguments_size;
+      arguments_size += sizeof(uint32_t) * dynamic_offset_count;
+    }
+    uint8_t* args_ptr = reinterpret_cast<uint8_t*>(
+        WriteCommand(Command::kVkBindDescriptorSets, arguments_size));
+    auto& args = *reinterpret_cast<ArgsVkBindDescriptorSets*>(args_ptr);
+    args.pipeline_bind_point = pipeline_bind_point;
+    args.layout = layout;
+    args.first_set = first_set;
+    args.descriptor_set_count = descriptor_set_count;
+    args.dynamic_offset_count = dynamic_offset_count;
+    std::memcpy(args_ptr + descriptor_sets_offset, descriptor_sets,
+                sizeof(VkDescriptorSet) * descriptor_set_count);
+    if (dynamic_offset_count) {
+      std::memcpy(args_ptr + dynamic_offsets_offset, dynamic_offsets,
+                  sizeof(uint32_t) * dynamic_offset_count);
+    }
+  }
+
   void CmdVkBindIndexBuffer(VkBuffer buffer, VkDeviceSize offset,
                             VkIndexType index_type) {
     auto& args = *reinterpret_cast<ArgsVkBindIndexBuffer*>(WriteCommand(
@@ -40,9 +100,16 @@ class DeferredCommandBuffer {
     args.index_type = index_type;
   }
 
+  void CmdVkBindPipeline(VkPipelineBindPoint pipeline_bind_point,
+                         VkPipeline pipeline) {
+    auto& args = *reinterpret_cast<ArgsVkBindPipeline*>(
+        WriteCommand(Command::kVkBindPipeline, sizeof(ArgsVkBindPipeline)));
+    args.pipeline_bind_point = pipeline_bind_point;
+    args.pipeline = pipeline;
+  }
+
   VkBufferCopy* CmdCopyBufferEmplace(VkBuffer src_buffer, VkBuffer dst_buffer,
                                      uint32_t region_count) {
-    static_assert(alignof(VkBufferCopy) <= alignof(uintmax_t));
     const size_t header_size =
         xe::align(sizeof(ArgsVkCopyBuffer), alignof(VkBufferCopy));
     uint8_t* args_ptr = reinterpret_cast<uint8_t*>(
@@ -60,6 +127,30 @@ class DeferredCommandBuffer {
                 regions, sizeof(VkBufferCopy) * region_count);
   }
 
+  void CmdVkDraw(uint32_t vertex_count, uint32_t instance_count,
+                 uint32_t first_vertex, uint32_t first_instance) {
+    auto& args = *reinterpret_cast<ArgsVkDraw*>(
+        WriteCommand(Command::kVkDraw, sizeof(ArgsVkDraw)));
+    args.vertex_count = vertex_count;
+    args.instance_count = instance_count;
+    args.first_vertex = first_vertex;
+    args.first_instance = first_instance;
+  }
+
+  void CmdVkDrawIndexed(uint32_t index_count, uint32_t instance_count,
+                        uint32_t first_index, int32_t vertex_offset,
+                        uint32_t first_instance) {
+    auto& args = *reinterpret_cast<ArgsVkDrawIndexed*>(
+        WriteCommand(Command::kVkDrawIndexed, sizeof(ArgsVkDrawIndexed)));
+    args.index_count = index_count;
+    args.instance_count = instance_count;
+    args.first_index = first_index;
+    args.vertex_offset = vertex_offset;
+    args.first_instance = first_instance;
+  }
+
+  void CmdVkEndRenderPass() { WriteCommand(Command::kVkEndRenderPass, 0); }
+
   // pNext of all barriers must be null.
   void CmdVkPipelineBarrier(VkPipelineStageFlags src_stage_mask,
                             VkPipelineStageFlags dst_stage_mask,
@@ -71,11 +162,47 @@ class DeferredCommandBuffer {
                             uint32_t image_memory_barrier_count,
                             const VkImageMemoryBarrier* image_memory_barriers);
 
+  void CmdVkSetScissor(uint32_t first_scissor, uint32_t scissor_count,
+                       const VkRect2D* scissors) {
+    const size_t header_size =
+        xe::align(sizeof(ArgsVkSetScissor), alignof(VkRect2D));
+    uint8_t* args_ptr = reinterpret_cast<uint8_t*>(
+        WriteCommand(Command::kVkSetScissor,
+                     header_size + sizeof(VkRect2D) * scissor_count));
+    auto& args = *reinterpret_cast<ArgsVkSetScissor*>(args_ptr);
+    args.first_scissor = first_scissor;
+    args.scissor_count = scissor_count;
+    std::memcpy(args_ptr + header_size, scissors,
+                sizeof(VkRect2D) * scissor_count);
+  }
+
+  void CmdVkSetViewport(uint32_t first_viewport, uint32_t viewport_count,
+                        const VkViewport* viewports) {
+    const size_t header_size =
+        xe::align(sizeof(ArgsVkSetViewport), alignof(VkViewport));
+    uint8_t* args_ptr = reinterpret_cast<uint8_t*>(
+        WriteCommand(Command::kVkSetViewport,
+                     header_size + sizeof(VkViewport) * viewport_count));
+    auto& args = *reinterpret_cast<ArgsVkSetViewport*>(args_ptr);
+    args.first_viewport = first_viewport;
+    args.viewport_count = viewport_count;
+    std::memcpy(args_ptr + header_size, viewports,
+                sizeof(VkViewport) * viewport_count);
+  }
+
  private:
   enum class Command {
+    kVkBeginRenderPass,
+    kVkBindDescriptorSets,
     kVkBindIndexBuffer,
+    kVkBindPipeline,
     kVkCopyBuffer,
+    kVkDraw,
+    kVkDrawIndexed,
+    kVkEndRenderPass,
     kVkPipelineBarrier,
+    kVkSetScissor,
+    kVkSetViewport,
   };
 
   struct CommandHeader {
@@ -85,17 +212,58 @@ class DeferredCommandBuffer {
   static constexpr size_t kCommandHeaderSizeElements =
       (sizeof(CommandHeader) + sizeof(uintmax_t) - 1) / sizeof(uintmax_t);
 
+  struct ArgsVkBeginRenderPass {
+    VkRenderPass render_pass;
+    VkFramebuffer framebuffer;
+    VkRect2D render_area;
+    uint32_t clear_value_count;
+    VkSubpassContents contents;
+    // Followed by aligned optional VkClearValue[].
+    static_assert(alignof(VkClearValue) <= alignof(uintmax_t));
+  };
+
+  struct ArgsVkBindDescriptorSets {
+    VkPipelineBindPoint pipeline_bind_point;
+    VkPipelineLayout layout;
+    uint32_t first_set;
+    uint32_t descriptor_set_count;
+    uint32_t dynamic_offset_count;
+    // Followed by aligned VkDescriptorSet[], optional uint32_t[].
+    static_assert(alignof(VkDescriptorSet) <= alignof(uintmax_t));
+  };
+
   struct ArgsVkBindIndexBuffer {
     VkBuffer buffer;
     VkDeviceSize offset;
     VkIndexType index_type;
   };
 
+  struct ArgsVkBindPipeline {
+    VkPipelineBindPoint pipeline_bind_point;
+    VkPipeline pipeline;
+  };
+
   struct ArgsVkCopyBuffer {
     VkBuffer src_buffer;
     VkBuffer dst_buffer;
     uint32_t region_count;
-    // Followed by VkBufferCopy[].
+    // Followed by aligned VkBufferCopy[].
+    static_assert(alignof(VkBufferCopy) <= alignof(uintmax_t));
+  };
+
+  struct ArgsVkDraw {
+    uint32_t vertex_count;
+    uint32_t instance_count;
+    uint32_t first_vertex;
+    uint32_t first_instance;
+  };
+
+  struct ArgsVkDrawIndexed {
+    uint32_t index_count;
+    uint32_t instance_count;
+    uint32_t first_index;
+    int32_t vertex_offset;
+    uint32_t first_instance;
   };
 
   struct ArgsVkPipelineBarrier {
@@ -105,8 +273,25 @@ class DeferredCommandBuffer {
     uint32_t memory_barrier_count;
     uint32_t buffer_memory_barrier_count;
     uint32_t image_memory_barrier_count;
-    // Followed by aligned VkMemoryBarrier[], VkBufferMemoryBarrier[],
-    // VkImageMemoryBarrier[].
+    // Followed by aligned optional VkMemoryBarrier[],
+    // optional VkBufferMemoryBarrier[], optional VkImageMemoryBarrier[].
+    static_assert(alignof(VkMemoryBarrier) <= alignof(uintmax_t));
+    static_assert(alignof(VkBufferMemoryBarrier) <= alignof(uintmax_t));
+    static_assert(alignof(VkImageMemoryBarrier) <= alignof(uintmax_t));
+  };
+
+  struct ArgsVkSetScissor {
+    uint32_t first_scissor;
+    uint32_t scissor_count;
+    // Followed by aligned VkRect2D[].
+    static_assert(alignof(VkRect2D) <= alignof(uintmax_t));
+  };
+
+  struct ArgsVkSetViewport {
+    uint32_t first_viewport;
+    uint32_t viewport_count;
+    // Followed by aligned VkViewport[].
+    static_assert(alignof(VkViewport) <= alignof(uintmax_t));
   };
 
   void* WriteCommand(Command command, size_t arguments_size_bytes);

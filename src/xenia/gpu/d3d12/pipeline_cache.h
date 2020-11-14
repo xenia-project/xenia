@@ -29,6 +29,7 @@
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/ui/d3d12/d3d12_api.h"
 
 namespace xe {
 namespace gpu {
@@ -255,9 +256,9 @@ class PipelineCache {
   IDxcUtils* dxc_utils_ = nullptr;
   IDxcCompiler* dxc_compiler_ = nullptr;
 
-  // All loaded shaders mapped by their guest hash key.
+  // Ucode hash -> shader.
   std::unordered_map<uint64_t, D3D12Shader*, xe::hash::IdentityHasher<uint64_t>>
-      shader_map_;
+      shaders_;
 
   struct LayoutUID {
     size_t uid;
