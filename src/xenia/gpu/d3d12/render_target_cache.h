@@ -303,8 +303,7 @@ class RenderTargetCache {
   // performance difference, but with EDRAM loads/stores less conversion should
   // be performed by the shaders if D24S8 is emulated as D24_UNORM_S8_UINT, and
   // it's probably more accurate.
-  static inline DXGI_FORMAT GetDepthDXGIFormat(
-      xenos::DepthRenderTargetFormat format) {
+  static DXGI_FORMAT GetDepthDXGIFormat(xenos::DepthRenderTargetFormat format) {
     return format == xenos::DepthRenderTargetFormat::kD24FS8
                ? DXGI_FORMAT_D32_FLOAT_S8X24_UINT
                : DXGI_FORMAT_D24_UNORM_S8_UINT;

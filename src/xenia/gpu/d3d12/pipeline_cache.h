@@ -78,7 +78,7 @@ class PipelineCache {
 
   // Returns a pipeline with deferred creation by its handle. May return nullptr
   // if failed to create the pipeline.
-  inline ID3D12PipelineState* GetD3D12PipelineByHandle(void* handle) const {
+  ID3D12PipelineState* GetD3D12PipelineByHandle(void* handle) const {
     return reinterpret_cast<const Pipeline*>(handle)->state;
   }
 
