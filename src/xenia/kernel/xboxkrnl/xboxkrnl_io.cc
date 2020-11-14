@@ -65,7 +65,20 @@ static bool IsValidPath(const std::string_view s, bool is_pattern) {
         if (!is_pattern) {
           return false;
         }
+        break;
       }
+      case '_': {
+        /* Pattern-specific (for NtQueryDirectoryFile)
+        Based on console behaviour and Viva Pinata - Part Animals debugging
+        It uses "Game:\c*_X3.rkv" as pattern.
+        Different examples shows that using underscore in pattern searching is
+        forbidden */
+        if (is_pattern) {
+          return false;
+        }
+        break;
+      }
+
       default: {
         break;
       }
