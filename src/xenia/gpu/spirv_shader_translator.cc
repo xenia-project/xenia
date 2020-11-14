@@ -288,7 +288,7 @@ void SpirvShaderTranslator::StartTranslation() {
   id_vector_temp_.push_back(builder_->makeRuntimeArray(type_uint_));
   // Storage buffers have std430 packing, no padding to 4-component vectors.
   builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
-                          sizeof(uint32_t) * 4);
+                          sizeof(uint32_t));
   spv::Id type_shared_memory =
       builder_->makeStructType(id_vector_temp_, "XeSharedMemory");
   builder_->addMemberName(type_shared_memory, 0, "shared_memory");
@@ -511,7 +511,9 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
                           ? spv::ExecutionModelTessellationEvaluation
                           : spv::ExecutionModelVertex;
   }
-  if (features_.float_controls) {
+  // TODO(Triang3l): Re-enable float controls when
+  // VkPhysicalDeviceFloatControlsPropertiesKHR are handled.
+  /* if (features_.float_controls) {
     // Flush to zero, similar to the real hardware, also for things like Shader
     // Model 3 multiplication emulation.
     builder_->addCapability(spv::CapabilityDenormFlushToZero);
@@ -523,7 +525,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     builder_->addCapability(spv::CapabilitySignedZeroInfNanPreserve);
     builder_->addExecutionMode(function_main_,
                                spv::ExecutionModeSignedZeroInfNanPreserve, 32);
-  }
+  } */
   spv::Instruction* entry_point =
       builder_->addEntryPoint(execution_model, function_main_, "main");
   for (spv::Id interface_id : main_interface_) {
@@ -982,7 +984,19 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
   }
 }
 
-void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {}
+void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
+  // Write 1 to point size (using a geometry shader or another kind of fallback
+  // to expand point sprites - point size support is not guaranteed, and the
+  // size would also be limited, and can't be controlled independently along two
+  // axes).
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(
+      builder_->makeIntConstant(kOutputPerVertexMemberPointSize));
+  builder_->createStore(
+      const_float_1_,
+      builder_->createAccessChain(spv::StorageClassOutput, output_per_vertex_,
+                                  id_vector_temp_));
+}
 
 void SpirvShaderTranslator::UpdateExecConditionals(
     ParsedExecInstruction::Type type, uint32_t bool_constant_index,
@@ -1054,9 +1068,8 @@ void SpirvShaderTranslator::UpdateExecConditionals(
     return;
   }
   cf_exec_condition_ = condition;
-  spv::Function& function = builder_->getBuildPoint()->getParent();
-  cf_exec_conditional_merge_ =
-      new spv::Block(builder_->getUniqueId(), function);
+  cf_exec_conditional_merge_ = new spv::Block(
+      builder_->getUniqueId(), builder_->getBuildPoint()->getParent());
   SpirvCreateSelectionMerge(cf_exec_conditional_merge_->getId());
   spv::Block& inner_block = builder_->makeNewBlock();
   builder_->createConditionalBranch(
@@ -1095,7 +1108,8 @@ void SpirvShaderTranslator::UpdateInstructionPredication(bool predicated,
   spv::Id predicate_id =
       builder_->createLoad(var_main_predicate_, spv::NoPrecision);
   spv::Block& predicated_block = builder_->makeNewBlock();
-  cf_instruction_predicate_merge_ = &builder_->makeNewBlock();
+  cf_instruction_predicate_merge_ = new spv::Block(
+      builder_->getUniqueId(), builder_->getBuildPoint()->getParent());
   SpirvCreateSelectionMerge(cf_instruction_predicate_merge_->getId());
   builder_->createConditionalBranch(
       predicate_id,
@@ -1135,12 +1149,23 @@ void SpirvShaderTranslator::CloseExecConditionals() {
 }
 
 spv::Id SpirvShaderTranslator::GetStorageAddressingIndex(
-    InstructionStorageAddressingMode addressing_mode, uint32_t storage_index) {
+    InstructionStorageAddressingMode addressing_mode, uint32_t storage_index,
+    bool is_float_constant) {
   EnsureBuildPointAvailable();
   spv::Id base_pointer = spv::NoResult;
   switch (addressing_mode) {
-    case InstructionStorageAddressingMode::kStatic:
-      return builder_->makeIntConstant(int(storage_index));
+    case InstructionStorageAddressingMode::kStatic: {
+      uint32_t static_storage_index = storage_index;
+      if (is_float_constant) {
+        static_storage_index =
+            constant_register_map().GetPackedFloatConstantIndex(storage_index);
+        assert_true(static_storage_index != UINT32_MAX);
+        if (static_storage_index == UINT32_MAX) {
+          static_storage_index = 0;
+        }
+      }
+      return builder_->makeIntConstant(int(static_storage_index));
+    }
     case InstructionStorageAddressingMode::kAddressAbsolute:
       base_pointer = var_main_address_absolute_;
       break;
@@ -1153,6 +1178,8 @@ spv::Id SpirvShaderTranslator::GetStorageAddressingIndex(
                                                  id_vector_temp_util_);
       break;
   }
+  assert_true(!is_float_constant ||
+              constant_register_map().float_dynamic_addressing);
   assert_true(base_pointer != spv::NoResult);
   spv::Id index = builder_->createLoad(base_pointer, spv::NoPrecision);
   if (storage_index) {
@@ -1165,8 +1192,9 @@ spv::Id SpirvShaderTranslator::GetStorageAddressingIndex(
 
 spv::Id SpirvShaderTranslator::LoadOperandStorage(
     const InstructionOperand& operand) {
-  spv::Id index = GetStorageAddressingIndex(operand.storage_addressing_mode,
-                                            operand.storage_index);
+  spv::Id index = GetStorageAddressingIndex(
+      operand.storage_addressing_mode, operand.storage_index,
+      operand.storage_source == InstructionStorageSource::kConstantFloat);
   EnsureBuildPointAvailable();
   spv::Id vec4_pointer = spv::NoResult;
   switch (operand.storage_source) {
@@ -1592,7 +1620,7 @@ spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
       builder_->makeUintConstant(
           static_cast<unsigned int>(xenos::Endian::k8in32)));
   spv::Id is_8in16_or_8in32 =
-      builder_->createBinOp(spv::OpLogicalAnd, type_bool_, is_8in16, is_8in32);
+      builder_->createBinOp(spv::OpLogicalOr, type_bool_, is_8in16, is_8in32);
   spv::Block& block_pre_8in16 = *builder_->getBuildPoint();
   assert_false(block_pre_8in16.isTerminated());
   spv::Block& block_8in16 = builder_->makeNewBlock();
@@ -1633,7 +1661,7 @@ spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
       builder_->makeUintConstant(
           static_cast<unsigned int>(xenos::Endian::k16in32)));
   spv::Id is_8in32_or_16in32 =
-      builder_->createBinOp(spv::OpLogicalAnd, type_bool_, is_8in32, is_16in32);
+      builder_->createBinOp(spv::OpLogicalOr, type_bool_, is_8in32, is_16in32);
   spv::Block& block_pre_16in32 = *builder_->getBuildPoint();
   spv::Block& block_16in32 = builder_->makeNewBlock();
   spv::Block& block_16in32_merge = builder_->makeNewBlock();

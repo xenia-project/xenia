@@ -39,26 +39,49 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // therefore SSBOs must only be used for shared memory - all other storage
   // resources must be images or texel buffers.
   enum DescriptorSet : uint32_t {
-    // In order of update frequency.
-    // Very frequently changed, especially for UI draws, and for models drawn in
-    // multiple parts - contains vertex and texture fetch constants.
-    kDescriptorSetFetchConstants,
+    // According to the "Pipeline Layout Compatibility" section of the Vulkan
+    // specification:
+    // "Two pipeline layouts are defined to be "compatible for set N" if they
+    //  were created with identically defined descriptor set layouts for sets
+    //  zero through N, and if they were created with identical push constant
+    //  ranges."
+    // "Place the least frequently changing descriptor sets near the start of
+    //  the pipeline layout, and place the descriptor sets representing the most
+    //  frequently changing resources near the end. When pipelines are switched,
+    //  only the descriptor set bindings that have been invalidated will need to
+    //  be updated and the remainder of the descriptor set bindings will remain
+    //  in place."
+    // This is partially the reverse of the Direct3D 12's rule of placing the
+    // most frequently changed descriptor sets in the beginning. Here all
+    // descriptor sets with an immutable layout are placed first, in reverse
+    // frequency of changing, and sets that may be different for different
+    // pipeline states last.
+
+    // Always the same descriptor set layouts for all pipeline layouts:
+
+    // Never changed.
+    kDescriptorSetSharedMemoryAndEdram,
+    // Pretty rarely used and rarely changed - flow control constants.
+    kDescriptorSetBoolLoopConstants,
+    // May stay the same across many draws.
+    kDescriptorSetSystemConstants,
+    // Less frequently changed (per-material).
+    kDescriptorSetFloatConstantsPixel,
     // Quite frequently changed (for one object drawn multiple times, for
     // instance - may contain projection matrices).
     kDescriptorSetFloatConstantsVertex,
-    // Less frequently changed (per-material).
-    kDescriptorSetFloatConstantsPixel,
-    // Per-material, combined images and samplers.
-    kDescriptorSetTexturesPixel,
+    // Very frequently changed, especially for UI draws, and for models drawn in
+    // multiple parts - contains vertex and texture fetch constants.
+    kDescriptorSetFetchConstants,
+
+    // Mutable part of the pipeline layout:
+    kDescriptorSetMutableLayoutsStart,
+
     // Rarely used at all, but may be changed at an unpredictable rate when
     // vertex textures are used, combined images and samplers.
-    kDescriptorSetTexturesVertex,
-    // May stay the same across many draws.
-    kDescriptorSetSystemConstants,
-    // Pretty rarely used and rarely changed - flow control constants.
-    kDescriptorSetBoolLoopConstants,
-    // Never changed.
-    kDescriptorSetSharedMemoryAndEdram,
+    kDescriptorSetTexturesVertex = kDescriptorSetMutableLayoutsStart,
+    // Per-material, combined images and samplers.
+    kDescriptorSetTexturesPixel,
     kDescriptorSetCount,
   };
 
@@ -162,7 +185,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   void CloseExecConditionals();
 
   spv::Id GetStorageAddressingIndex(
-      InstructionStorageAddressingMode addressing_mode, uint32_t storage_index);
+      InstructionStorageAddressingMode addressing_mode, uint32_t storage_index,
+      bool is_float_constant = false);
   // Loads unswizzled operand without sign modifiers as float4.
   spv::Id LoadOperandStorage(const InstructionOperand& operand);
   spv::Id ApplyOperandModifiers(spv::Id operand_value,

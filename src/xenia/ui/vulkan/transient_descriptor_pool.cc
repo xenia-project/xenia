@@ -80,6 +80,8 @@ VkDescriptorSet TransientDescriptorPool::Request(
   VkDescriptorSet descriptor_set;
 
   // Try to allocate as normal.
+  // TODO(Triang3l): Investigate the possibility of reuse of descriptor sets, as
+  // vkAllocateDescriptorSets may be implemented suboptimally.
   if (!pages_writable_.empty()) {
     if (page_current_descriptor_sets_used_ < page_descriptor_set_count_ &&
         page_current_descriptors_used_ + layout_descriptor_count <=

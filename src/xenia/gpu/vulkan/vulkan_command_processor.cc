@@ -9,15 +9,24 @@
 
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <iterator>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
+#include "xenia/gpu/gpu_flags.h"
+#include "xenia/gpu/registers.h"
+#include "xenia/gpu/shader.h"
 #include "xenia/gpu/spirv_shader_translator.h"
+#include "xenia/gpu/vulkan/vulkan_pipeline_cache.h"
+#include "xenia/gpu/vulkan/vulkan_render_target_cache.h"
+#include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/vulkan/vulkan_shared_memory.h"
+#include "xenia/gpu/xenos.h"
 #include "xenia/ui/vulkan/vulkan_context.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
@@ -54,6 +63,16 @@ bool VulkanCommandProcessor::SetupContext() {
   transient_descriptor_pool_uniform_buffers_ =
       std::make_unique<ui::vulkan::TransientDescriptorPool>(
           provider, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 32768, 32768);
+  // 16384 is bigger than any single uniform buffer that Xenia needs, but is the
+  // minimum maxUniformBufferRange, thus the safe minimum amount.
+  VkDeviceSize uniform_buffer_alignment = std::max(
+      provider.device_properties().limits.minUniformBufferOffsetAlignment,
+      VkDeviceSize(1));
+  uniform_buffer_pool_ = std::make_unique<ui::vulkan::VulkanUploadBufferPool>(
+      provider, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+      xe::align(std::max(ui::GraphicsUploadBufferPool::kDefaultPageSize,
+                         size_t(16384)),
+                size_t(uniform_buffer_alignment)));
 
   VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info;
   descriptor_set_layout_create_info.sType =
@@ -162,6 +181,20 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
+  render_target_cache_ =
+      std::make_unique<VulkanRenderTargetCache>(*this, *register_file_);
+  if (!render_target_cache_->Initialize()) {
+    XELOGE("Failed to initialize the render target cache");
+    return false;
+  }
+
+  pipeline_cache_ = std::make_unique<VulkanPipelineCache>(
+      *this, *register_file_, *render_target_cache_);
+  if (!pipeline_cache_->Initialize()) {
+    XELOGE("Failed to initialize the graphics pipeline cache");
+    return false;
+  }
+
   // Shared memory and EDRAM common bindings.
   VkDescriptorPoolSize descriptor_pool_sizes[1];
   descriptor_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -229,6 +262,9 @@ bool VulkanCommandProcessor::SetupContext() {
   // interlocks case.
   dfn.vkUpdateDescriptorSets(device, 1, write_descriptor_sets, 0, nullptr);
 
+  // Just not to expose uninitialized memory.
+  std::memset(&system_constants_, 0, sizeof(system_constants_));
+
   return true;
 }
 
@@ -243,6 +279,10 @@ void VulkanCommandProcessor::ShutdownContext() {
   ui::vulkan::util::DestroyAndNullHandle(
       dfn.vkDestroyDescriptorPool, device,
       shared_memory_and_edram_descriptor_pool_);
+
+  pipeline_cache_.reset();
+
+  render_target_cache_.reset();
 
   shared_memory_.reset();
 
@@ -276,6 +316,7 @@ void VulkanCommandProcessor::ShutdownContext() {
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout,
                                          device, descriptor_set_layout_empty_);
 
+  uniform_buffer_pool_.reset();
   transient_descriptor_pool_uniform_buffers_.reset();
 
   sparse_bind_wait_stage_mask_ = 0;
@@ -325,6 +366,42 @@ void VulkanCommandProcessor::ShutdownContext() {
   CommandProcessor::ShutdownContext();
 }
 
+void VulkanCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
+  CommandProcessor::WriteRegister(index, value);
+
+  if (index >= XE_GPU_REG_SHADER_CONSTANT_000_X &&
+      index <= XE_GPU_REG_SHADER_CONSTANT_511_W) {
+    if (frame_open_) {
+      uint32_t float_constant_index =
+          (index - XE_GPU_REG_SHADER_CONSTANT_000_X) >> 2;
+      if (float_constant_index >= 256) {
+        float_constant_index -= 256;
+        if (current_float_constant_map_pixel_[float_constant_index >> 6] &
+            (1ull << (float_constant_index & 63))) {
+          current_graphics_descriptor_set_values_up_to_date_ &=
+              ~(uint32_t(1)
+                << SpirvShaderTranslator::kDescriptorSetFloatConstantsPixel);
+        }
+      } else {
+        if (current_float_constant_map_vertex_[float_constant_index >> 6] &
+            (1ull << (float_constant_index & 63))) {
+          current_graphics_descriptor_set_values_up_to_date_ &=
+              ~(uint32_t(1)
+                << SpirvShaderTranslator::kDescriptorSetFloatConstantsVertex);
+        }
+      }
+    }
+  } else if (index >= XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031 &&
+             index <= XE_GPU_REG_SHADER_CONSTANT_LOOP_31) {
+    current_graphics_descriptor_set_values_up_to_date_ &= ~(
+        uint32_t(1) << SpirvShaderTranslator::kDescriptorSetBoolLoopConstants);
+  } else if (index >= XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 &&
+             index <= XE_GPU_REG_SHADER_CONSTANT_FETCH_31_5) {
+    current_graphics_descriptor_set_values_up_to_date_ &=
+        ~(uint32_t(1) << SpirvShaderTranslator::kDescriptorSetFetchConstants);
+  }
+}
+
 void VulkanCommandProcessor::SparseBindBuffer(
     VkBuffer buffer, uint32_t bind_count, const VkSparseMemoryBind* binds,
     VkPipelineStageFlags wait_stage_mask) {
@@ -356,17 +433,25 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   EndSubmission(true);
 }
 
-bool VulkanCommandProcessor::GetPipelineLayout(
-    uint32_t texture_count_pixel, uint32_t texture_count_vertex,
-    PipelineLayout& pipeline_layout_out) {
+void VulkanCommandProcessor::EndRenderPass() {
+  assert_true(submission_open_);
+  if (current_render_pass_ == VK_NULL_HANDLE) {
+    return;
+  }
+  deferred_command_buffer_.CmdVkEndRenderPass();
+  current_render_pass_ = VK_NULL_HANDLE;
+}
+
+const VulkanPipelineCache::PipelineLayoutProvider*
+VulkanCommandProcessor::GetPipelineLayout(uint32_t texture_count_pixel,
+                                          uint32_t texture_count_vertex) {
   PipelineLayoutKey pipeline_layout_key;
   pipeline_layout_key.texture_count_pixel = texture_count_pixel;
   pipeline_layout_key.texture_count_vertex = texture_count_vertex;
   {
     auto it = pipeline_layouts_.find(pipeline_layout_key.key);
     if (it != pipeline_layouts_.end()) {
-      pipeline_layout_out = it->second;
-      return true;
+      return &it->second;
     }
   }
 
@@ -462,26 +547,28 @@ bool VulkanCommandProcessor::GetPipelineLayout(
 
   VkDescriptorSetLayout
       descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetCount];
-  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetFetchConstants] =
-      descriptor_set_layout_fetch_bool_loop_constants_;
-  descriptor_set_layouts
-      [SpirvShaderTranslator::kDescriptorSetFloatConstantsVertex] =
-          descriptor_set_layout_float_constants_vertex_;
-  descriptor_set_layouts
-      [SpirvShaderTranslator::kDescriptorSetFloatConstantsPixel] =
-          descriptor_set_layout_float_constants_pixel_;
-  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetTexturesPixel] =
-      descriptor_set_layout_textures_pixel;
-  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetTexturesVertex] =
-      descriptor_set_layout_textures_vertex;
-  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetSystemConstants] =
-      descriptor_set_layout_system_constants_;
-  descriptor_set_layouts
-      [SpirvShaderTranslator::kDescriptorSetBoolLoopConstants] =
-          descriptor_set_layout_fetch_bool_loop_constants_;
+  // Immutable layouts.
   descriptor_set_layouts
       [SpirvShaderTranslator::kDescriptorSetSharedMemoryAndEdram] =
           descriptor_set_layout_shared_memory_and_edram_;
+  descriptor_set_layouts
+      [SpirvShaderTranslator::kDescriptorSetBoolLoopConstants] =
+          descriptor_set_layout_fetch_bool_loop_constants_;
+  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetSystemConstants] =
+      descriptor_set_layout_system_constants_;
+  descriptor_set_layouts
+      [SpirvShaderTranslator::kDescriptorSetFloatConstantsPixel] =
+          descriptor_set_layout_float_constants_pixel_;
+  descriptor_set_layouts
+      [SpirvShaderTranslator::kDescriptorSetFloatConstantsVertex] =
+          descriptor_set_layout_float_constants_vertex_;
+  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetFetchConstants] =
+      descriptor_set_layout_fetch_bool_loop_constants_;
+  // Mutable layouts.
+  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetTexturesVertex] =
+      descriptor_set_layout_textures_vertex;
+  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetTexturesPixel] =
+      descriptor_set_layout_textures_pixel;
 
   VkPipelineLayoutCreateInfo pipeline_layout_create_info;
   pipeline_layout_create_info.sType =
@@ -508,16 +595,18 @@ bool VulkanCommandProcessor::GetPipelineLayout(
       descriptor_set_layout_textures_pixel;
   pipeline_layout_entry.descriptor_set_layout_textures_vertex_ref =
       descriptor_set_layout_textures_vertex;
-  pipeline_layouts_.emplace(pipeline_layout_key.key, pipeline_layout_entry);
-  pipeline_layout_out = pipeline_layout_entry;
-  return true;
+  auto emplaced_pair =
+      pipeline_layouts_.emplace(pipeline_layout_key.key, pipeline_layout_entry);
+  // unordered_map insertion doesn't invalidate element references.
+  return &emplaced_pair.first->second;
 }
 
 Shader* VulkanCommandProcessor::LoadShader(xenos::ShaderType shader_type,
                                            uint32_t guest_address,
                                            const uint32_t* host_address,
                                            uint32_t dword_count) {
-  return nullptr;
+  return pipeline_cache_->LoadShader(shader_type, guest_address, host_address,
+                                     dword_count);
 }
 
 bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
@@ -530,9 +619,135 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
 
   BeginSubmission(true);
 
+  auto vertex_shader = static_cast<VulkanShader*>(active_vertex_shader());
+  if (!vertex_shader) {
+    // Always need a vertex shader.
+    return false;
+  }
+  // TODO(Triang3l): Get a pixel shader.
+  VulkanShader* pixel_shader = nullptr;
+
+  VulkanRenderTargetCache::FramebufferKey framebuffer_key;
+  if (!render_target_cache_->UpdateRenderTargets(framebuffer_key)) {
+    return false;
+  }
+  VkFramebuffer framebuffer =
+      render_target_cache_->GetFramebuffer(framebuffer_key);
+  if (framebuffer == VK_NULL_HANDLE) {
+    return false;
+  }
+  VkRenderPass render_pass =
+      render_target_cache_->GetRenderPass(framebuffer_key.render_pass_key);
+  if (render_pass == VK_NULL_HANDLE) {
+    return false;
+  }
+
+  // Update the graphics pipeline, and if the new graphics pipeline has a
+  // different layout, invalidate incompatible descriptor sets before updating
+  // current_graphics_pipeline_layout_.
+  VkPipeline pipeline;
+  const VulkanPipelineCache::PipelineLayoutProvider* pipeline_layout_provider;
+  if (!pipeline_cache_->ConfigurePipeline(vertex_shader, pixel_shader,
+                                          framebuffer_key.render_pass_key,
+                                          pipeline, pipeline_layout_provider)) {
+    return false;
+  }
+  deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                             pipeline);
+  auto pipeline_layout =
+      static_cast<const PipelineLayout*>(pipeline_layout_provider);
+  if (current_graphics_pipeline_layout_ != pipeline_layout) {
+    if (current_graphics_pipeline_layout_) {
+      // Keep descriptor set layouts for which the new pipeline layout is
+      // compatible with the previous one (pipeline layouts are compatible for
+      // set N if set layouts 0 through N are compatible).
+      uint32_t descriptor_sets_kept =
+          uint32_t(SpirvShaderTranslator::kDescriptorSetCount);
+      if (current_graphics_pipeline_layout_
+              ->descriptor_set_layout_textures_vertex_ref !=
+          pipeline_layout->descriptor_set_layout_textures_vertex_ref) {
+        descriptor_sets_kept = std::min(
+            descriptor_sets_kept,
+            uint32_t(SpirvShaderTranslator::kDescriptorSetTexturesVertex));
+      }
+      if (current_graphics_pipeline_layout_
+              ->descriptor_set_layout_textures_pixel_ref !=
+          pipeline_layout->descriptor_set_layout_textures_pixel_ref) {
+        descriptor_sets_kept = std::min(
+            descriptor_sets_kept,
+            uint32_t(SpirvShaderTranslator::kDescriptorSetTexturesPixel));
+      }
+    } else {
+      // No or unknown pipeline layout previously bound - all bindings are in an
+      // indeterminate state.
+      current_graphics_descriptor_sets_bound_up_to_date_ = 0;
+    }
+    current_graphics_pipeline_layout_ = pipeline_layout;
+  }
+
+  // Update fixed-function dynamic state.
+  UpdateFixedFunctionState();
+
   bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
 
-  // Actually draw.
+  // Update system constants before uploading them.
+  UpdateSystemConstantValues(indexed ? index_buffer_info->endianness
+                                     : xenos::Endian::kNone);
+
+  // Update uniform buffers and descriptor sets after binding the pipeline with
+  // the new layout.
+  if (!UpdateBindings(vertex_shader, pixel_shader)) {
+    return false;
+  }
+
+  const RegisterFile& regs = *register_file_;
+
+  // Ensure vertex buffers are resident.
+  // TODO(Triang3l): Cache residency for ranges in a way similar to how texture
+  // validity is tracked.
+  uint64_t vertex_buffers_resident[2] = {};
+  for (const Shader::VertexBinding& vertex_binding :
+       vertex_shader->vertex_bindings()) {
+    uint32_t vfetch_index = vertex_binding.fetch_constant;
+    if (vertex_buffers_resident[vfetch_index >> 6] &
+        (uint64_t(1) << (vfetch_index & 63))) {
+      continue;
+    }
+    const auto& vfetch_constant = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
+        XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2);
+    switch (vfetch_constant.type) {
+      case xenos::FetchConstantType::kVertex:
+        break;
+      case xenos::FetchConstantType::kInvalidVertex:
+        if (cvars::gpu_allow_invalid_fetch_constants) {
+          break;
+        }
+        XELOGW(
+            "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" type! "
+            "This "
+            "is incorrect behavior, but you can try bypassing this by "
+            "launching Xenia with --gpu_allow_invalid_fetch_constants=true.",
+            vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+        return false;
+      default:
+        XELOGW(
+            "Vertex fetch constant {} ({:08X} {:08X}) is completely invalid!",
+            vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+        return false;
+    }
+    if (!shared_memory_->RequestRange(vfetch_constant.address << 2,
+                                      vfetch_constant.size << 2)) {
+      XELOGE(
+          "Failed to request vertex buffer at 0x{:08X} (size {}) in the shared "
+          "memory",
+          vfetch_constant.address << 2, vfetch_constant.size << 2);
+      return false;
+    }
+    vertex_buffers_resident[vfetch_index >> 6] |= uint64_t(1)
+                                                  << (vfetch_index & 63);
+  }
+
+  // Set up the geometry.
   if (indexed) {
     uint32_t index_size =
         index_buffer_info->format == xenos::IndexFormat::kInt32
@@ -556,6 +771,37 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             : VK_INDEX_TYPE_UINT16);
   }
   shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
+
+  // After all commands that may dispatch or copy, enter the render pass before
+  // drawing.
+  if (current_render_pass_ != render_pass ||
+      current_framebuffer_ != framebuffer) {
+    if (current_render_pass_ != VK_NULL_HANDLE) {
+      deferred_command_buffer_.CmdVkEndRenderPass();
+    }
+    current_render_pass_ = render_pass;
+    current_framebuffer_ = framebuffer;
+    VkRenderPassBeginInfo render_pass_begin_info;
+    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_begin_info.pNext = nullptr;
+    render_pass_begin_info.renderPass = render_pass;
+    render_pass_begin_info.framebuffer = framebuffer;
+    render_pass_begin_info.renderArea.offset.x = 0;
+    render_pass_begin_info.renderArea.offset.y = 0;
+    render_pass_begin_info.renderArea.extent.width = 1280;
+    render_pass_begin_info.renderArea.extent.height = 720;
+    render_pass_begin_info.clearValueCount = 0;
+    render_pass_begin_info.pClearValues = nullptr;
+    deferred_command_buffer_.CmdVkBeginRenderPass(&render_pass_begin_info,
+                                                  VK_SUBPASS_CONTENTS_INLINE);
+  }
+
+  // Draw.
+  if (indexed) {
+    deferred_command_buffer_.CmdVkDrawIndexed(index_count, 1, 0, 0, 0);
+  } else {
+    deferred_command_buffer_.CmdVkDraw(index_count, 1, 0, 0);
+  }
 
   return true;
 }
@@ -659,9 +905,6 @@ void VulkanCommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
     command_buffers_submitted_.pop_front();
   }
 
-  // Reclaim descriptor pools.
-  transient_descriptor_pool_uniform_buffers_->Reclaim(submission_completed_);
-
   shared_memory_->CompletedSubmissionUpdated();
 }
 
@@ -705,13 +948,41 @@ void VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
     submission_open_ = true;
 
     // Start a new deferred command buffer - will submit it to the real one in
-    // the end of the submission (when async pipeline state object creation
-    // requests are fulfilled).
+    // the end of the submission (when async pipeline object creation requests
+    // are fulfilled).
     deferred_command_buffer_.Reset();
+
+    // Reset cached state of the command buffer.
+    ff_viewport_update_needed_ = true;
+    ff_scissor_update_needed_ = true;
+    current_render_pass_ = VK_NULL_HANDLE;
+    current_framebuffer_ = VK_NULL_HANDLE;
+    current_graphics_pipeline_ = VK_NULL_HANDLE;
+    current_graphics_pipeline_layout_ = nullptr;
+    current_graphics_descriptor_sets_bound_up_to_date_ = 0;
   }
 
   if (is_opening_frame) {
     frame_open_ = true;
+
+    // Reset bindings that depend on transient data.
+    std::memset(current_float_constant_map_vertex_, 0,
+                sizeof(current_float_constant_map_vertex_));
+    std::memset(current_float_constant_map_pixel_, 0,
+                sizeof(current_float_constant_map_pixel_));
+    std::memset(current_graphics_descriptor_sets_, 0,
+                sizeof(current_graphics_descriptor_sets_));
+    current_graphics_descriptor_sets_
+        [SpirvShaderTranslator::kDescriptorSetSharedMemoryAndEdram] =
+            shared_memory_and_edram_descriptor_set_;
+    current_graphics_descriptor_set_values_up_to_date_ =
+        uint32_t(1)
+        << SpirvShaderTranslator::kDescriptorSetSharedMemoryAndEdram;
+
+    // Reclaim pool pages - no need to do this every small submission since some
+    // may be reused.
+    transient_descriptor_pool_uniform_buffers_->Reclaim(frame_completed_);
+    uniform_buffer_pool_->Reclaim(frame_completed_);
   }
 }
 
@@ -784,7 +1055,11 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
   bool is_closing_frame = is_swap && frame_open_;
 
   if (submission_open_) {
+    EndRenderPass();
+
     shared_memory_->EndSubmission();
+
+    uniform_buffer_pool_->FlushWrites();
 
     // Submit sparse binds earlier, before executing the deferred command
     // buffer, to reduce latency.
@@ -910,13 +1185,30 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
     if (cache_clear_requested_ && AwaitAllQueueOperationsCompletion()) {
       cache_clear_requested_ = false;
 
-      transient_descriptor_pool_uniform_buffers_->ClearCache();
-
       assert_true(command_buffers_submitted_.empty());
       for (const CommandBuffer& command_buffer : command_buffers_writable_) {
         dfn.vkDestroyCommandPool(device, command_buffer.pool, nullptr);
       }
       command_buffers_writable_.clear();
+
+      uniform_buffer_pool_->ClearCache();
+      transient_descriptor_pool_uniform_buffers_->ClearCache();
+
+      pipeline_cache_->ClearCache();
+
+      render_target_cache_->ClearCache();
+
+      for (const auto& pipeline_layout_pair : pipeline_layouts_) {
+        dfn.vkDestroyPipelineLayout(
+            device, pipeline_layout_pair.second.pipeline_layout, nullptr);
+      }
+      pipeline_layouts_.clear();
+      for (const auto& descriptor_set_layout_pair :
+           descriptor_set_layouts_textures_) {
+        dfn.vkDestroyDescriptorSetLayout(
+            device, descriptor_set_layout_pair.second, nullptr);
+      }
+      descriptor_set_layouts_textures_.clear();
     }
   }
 
@@ -934,6 +1226,441 @@ VkShaderStageFlags VulkanCommandProcessor::GetGuestVertexShaderStageFlags()
   // TODO(Triang3l): Vertex to compute translation for rectangle and possibly
   // point emulation.
   return stages;
+}
+
+void VulkanCommandProcessor::UpdateFixedFunctionState() {
+#if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
+
+  const RegisterFile& regs = *register_file_;
+
+  // Window parameters.
+  // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
+  // See r200UpdateWindow:
+  // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
+  auto pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
+
+  uint32_t pixel_size_x = 1, pixel_size_y = 1;
+
+  // Viewport.
+  // PA_CL_VTE_CNTL contains whether offsets and scales are enabled.
+  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+  // In games, either all are enabled (for regular drawing) or none are (for
+  // rectangle lists usually).
+  //
+  // If scale/offset is enabled, the Xenos shader is writing (neglecting W
+  // division) position in the NDC (-1, -1, dx_clip_space_def - 1) -> (1, 1, 1)
+  // box. If it's not, the position is in screen space. Since we can only use
+  // the NDC in PC APIs, we use a viewport of the largest possible size, and
+  // divide the position by it in translated shaders.
+  //
+  // TODO(Triang3l): Move all of this to draw_util.
+  // TODO(Triang3l): Limit the viewport if exceeding the device limit; move to
+  // NDC scale/offset constants.
+  auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
+  float viewport_scale_x =
+      pa_cl_vte_cntl.vport_x_scale_ena
+          ? std::abs(regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32)
+          : 4096.0f;
+  float viewport_scale_y =
+      pa_cl_vte_cntl.vport_y_scale_ena
+          ? std::abs(regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32)
+          : 4096.0f;
+  float viewport_scale_z = pa_cl_vte_cntl.vport_z_scale_ena
+                               ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32
+                               : 1.0f;
+  float viewport_offset_x = pa_cl_vte_cntl.vport_x_offset_ena
+                                ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32
+                                : std::abs(viewport_scale_x);
+  float viewport_offset_y = pa_cl_vte_cntl.vport_y_offset_ena
+                                ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
+                                : std::abs(viewport_scale_y);
+  float viewport_offset_z = pa_cl_vte_cntl.vport_z_offset_ena
+                                ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32
+                                : 0.0f;
+  if (regs.Get<reg::PA_SU_SC_MODE_CNTL>().vtx_window_offset_enable) {
+    viewport_offset_x += float(pa_sc_window_offset.window_x_offset);
+    viewport_offset_y += float(pa_sc_window_offset.window_y_offset);
+  }
+  VkViewport viewport;
+  viewport.x = (viewport_offset_x - viewport_scale_x) * float(pixel_size_x);
+  viewport.y = (viewport_offset_y - viewport_scale_y) * float(pixel_size_y);
+  viewport.width = viewport_scale_x * 2.0f * float(pixel_size_x);
+  viewport.height = viewport_scale_y * 2.0f * float(pixel_size_y);
+  viewport.minDepth = std::min(std::max(viewport_offset_z, 0.0f), 1.0f);
+  viewport.maxDepth =
+      std::min(std::max(viewport_offset_z + viewport_scale_z, 0.0f), 1.0f);
+  ff_viewport_update_needed_ |= ff_viewport_.x != viewport.x;
+  ff_viewport_update_needed_ |= ff_viewport_.y != viewport.y;
+  ff_viewport_update_needed_ |= ff_viewport_.width != viewport.width;
+  ff_viewport_update_needed_ |= ff_viewport_.height != viewport.height;
+  ff_viewport_update_needed_ |= ff_viewport_.minDepth != viewport.minDepth;
+  ff_viewport_update_needed_ |= ff_viewport_.maxDepth != viewport.maxDepth;
+  if (ff_viewport_update_needed_) {
+    ff_viewport_ = viewport;
+    deferred_command_buffer_.CmdVkSetViewport(0, 1, &viewport);
+    ff_viewport_update_needed_ = false;
+  }
+
+  // Scissor.
+  // TODO(Triang3l): Move all of this to draw_util.
+  // TODO(Triang3l): Limit the scissor if exceeding the device limit.
+  auto pa_sc_window_scissor_tl = regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>();
+  auto pa_sc_window_scissor_br = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>();
+  VkRect2D scissor;
+  scissor.offset.x = int32_t(pa_sc_window_scissor_tl.tl_x);
+  scissor.offset.y = int32_t(pa_sc_window_scissor_tl.tl_y);
+  int32_t scissor_br_x =
+      std::max(int32_t(pa_sc_window_scissor_br.br_x), scissor.offset.x);
+  int32_t scissor_br_y =
+      std::max(int32_t(pa_sc_window_scissor_br.br_y), scissor.offset.y);
+  if (!pa_sc_window_scissor_tl.window_offset_disable) {
+    scissor.offset.x = std::max(
+        scissor.offset.x + pa_sc_window_offset.window_x_offset, int32_t(0));
+    scissor.offset.y = std::max(
+        scissor.offset.y + pa_sc_window_offset.window_y_offset, int32_t(0));
+    scissor_br_x = std::max(scissor_br_x + pa_sc_window_offset.window_x_offset,
+                            int32_t(0));
+    scissor_br_y = std::max(scissor_br_y + pa_sc_window_offset.window_y_offset,
+                            int32_t(0));
+  }
+  scissor.extent.width = uint32_t(scissor_br_x - scissor.offset.x);
+  scissor.extent.height = uint32_t(scissor_br_y - scissor.offset.y);
+  scissor.offset.x *= pixel_size_x;
+  scissor.offset.y *= pixel_size_y;
+  scissor.extent.width *= pixel_size_x;
+  scissor.extent.height *= pixel_size_y;
+  ff_scissor_update_needed_ |= ff_scissor_.offset.x != scissor.offset.x;
+  ff_scissor_update_needed_ |= ff_scissor_.offset.y != scissor.offset.y;
+  ff_scissor_update_needed_ |= ff_scissor_.extent.width != scissor.extent.width;
+  ff_scissor_update_needed_ |=
+      ff_scissor_.extent.height != scissor.extent.height;
+  if (ff_scissor_update_needed_) {
+    ff_scissor_ = scissor;
+    deferred_command_buffer_.CmdVkSetScissor(0, 1, &scissor);
+    ff_scissor_update_needed_ = false;
+  }
+}
+
+void VulkanCommandProcessor::UpdateSystemConstantValues(
+    xenos::Endian index_endian) {
+#if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
+
+  const RegisterFile& regs = *register_file_;
+  int32_t vgt_indx_offset = int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
+
+  bool dirty = false;
+
+  // Index or tessellation edge factor buffer endianness.
+  dirty |= system_constants_.vertex_index_endian != index_endian;
+  system_constants_.vertex_index_endian = index_endian;
+
+  // Vertex index offset.
+  dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
+  system_constants_.vertex_base_index = vgt_indx_offset;
+
+  if (dirty) {
+    current_graphics_descriptor_set_values_up_to_date_ &=
+        ~(uint32_t(1) << SpirvShaderTranslator::kDescriptorSetSystemConstants);
+  }
+}
+
+bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
+                                            const VulkanShader* pixel_shader) {
+#if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
+
+  const RegisterFile& regs = *register_file_;
+
+  // Invalidate descriptors for changed data.
+  // These are the constant base addresses/ranges for shaders.
+  // We have these hardcoded right now cause nothing seems to differ on the Xbox
+  // 360 (however, OpenGL ES on Adreno 200 on Android has different ranges).
+  assert_true(regs[XE_GPU_REG_SQ_VS_CONST].u32 == 0x000FF000 ||
+              regs[XE_GPU_REG_SQ_VS_CONST].u32 == 0x00000000);
+  assert_true(regs[XE_GPU_REG_SQ_PS_CONST].u32 == 0x000FF100 ||
+              regs[XE_GPU_REG_SQ_PS_CONST].u32 == 0x00000000);
+  // Check if the float constant layout is still the same and get the counts.
+  const Shader::ConstantRegisterMap& float_constant_map_vertex =
+      vertex_shader->constant_register_map();
+  uint32_t float_constant_count_vertex = float_constant_map_vertex.float_count;
+  for (uint32_t i = 0; i < 4; ++i) {
+    if (current_float_constant_map_vertex_[i] !=
+        float_constant_map_vertex.float_bitmap[i]) {
+      current_float_constant_map_vertex_[i] =
+          float_constant_map_vertex.float_bitmap[i];
+      // If no float constants at all, any buffer can be reused for them, so not
+      // invalidating.
+      if (float_constant_count_vertex) {
+        current_graphics_descriptor_set_values_up_to_date_ &=
+            ~(
+                uint32_t(1)
+                << SpirvShaderTranslator::kDescriptorSetFloatConstantsVertex);
+      }
+    }
+  }
+  uint32_t float_constant_count_pixel = 0;
+  if (pixel_shader != nullptr) {
+    const Shader::ConstantRegisterMap& float_constant_map_pixel =
+        pixel_shader->constant_register_map();
+    float_constant_count_pixel = float_constant_map_pixel.float_count;
+    for (uint32_t i = 0; i < 4; ++i) {
+      if (current_float_constant_map_pixel_[i] !=
+          float_constant_map_pixel.float_bitmap[i]) {
+        current_float_constant_map_pixel_[i] =
+            float_constant_map_pixel.float_bitmap[i];
+        if (float_constant_count_pixel) {
+          current_graphics_descriptor_set_values_up_to_date_ &=
+              ~(uint32_t(1)
+                << SpirvShaderTranslator::kDescriptorSetFloatConstantsPixel);
+        }
+      }
+    }
+  } else {
+    std::memset(current_float_constant_map_pixel_, 0,
+                sizeof(current_float_constant_map_pixel_));
+  }
+
+  // Make sure new descriptor sets are bound to the command buffer.
+  current_graphics_descriptor_sets_bound_up_to_date_ &=
+      current_graphics_descriptor_set_values_up_to_date_;
+
+  // Write the new descriptor sets.
+  VkWriteDescriptorSet
+      write_descriptor_sets[SpirvShaderTranslator::kDescriptorSetCount];
+  uint32_t write_descriptor_set_count = 0;
+  uint32_t write_descriptor_set_bits = 0;
+  assert_not_zero(
+      current_graphics_descriptor_set_values_up_to_date_ &
+      (uint32_t(1)
+       << SpirvShaderTranslator::kDescriptorSetSharedMemoryAndEdram));
+  VkDescriptorBufferInfo buffer_info_bool_loop_constants;
+  if (!(current_graphics_descriptor_set_values_up_to_date_ &
+        (uint32_t(1)
+         << SpirvShaderTranslator::kDescriptorSetBoolLoopConstants))) {
+    VkWriteDescriptorSet& write_bool_loop_constants =
+        write_descriptor_sets[write_descriptor_set_count++];
+    constexpr size_t kBoolLoopConstantsSize = sizeof(uint32_t) * (8 + 32);
+    uint8_t* mapping_bool_loop_constants = WriteUniformBufferBinding(
+        kBoolLoopConstantsSize,
+        descriptor_set_layout_fetch_bool_loop_constants_,
+        buffer_info_bool_loop_constants, write_bool_loop_constants);
+    if (!mapping_bool_loop_constants) {
+      return false;
+    }
+    std::memcpy(mapping_bool_loop_constants,
+                &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].u32,
+                kBoolLoopConstantsSize);
+    write_descriptor_set_bits |=
+        uint32_t(1) << SpirvShaderTranslator::kDescriptorSetBoolLoopConstants;
+    current_graphics_descriptor_sets_
+        [SpirvShaderTranslator::kDescriptorSetBoolLoopConstants] =
+            write_bool_loop_constants.dstSet;
+  }
+  VkDescriptorBufferInfo buffer_info_system_constants;
+  if (!(current_graphics_descriptor_set_values_up_to_date_ &
+        (uint32_t(1)
+         << SpirvShaderTranslator::kDescriptorSetSystemConstants))) {
+    VkWriteDescriptorSet& write_system_constants =
+        write_descriptor_sets[write_descriptor_set_count++];
+    uint8_t* mapping_system_constants = WriteUniformBufferBinding(
+        sizeof(SpirvShaderTranslator::SystemConstants),
+        descriptor_set_layout_system_constants_, buffer_info_system_constants,
+        write_system_constants);
+    if (!mapping_system_constants) {
+      return false;
+    }
+    std::memcpy(mapping_system_constants, &system_constants_,
+                sizeof(SpirvShaderTranslator::SystemConstants));
+    write_descriptor_set_bits |=
+        uint32_t(1) << SpirvShaderTranslator::kDescriptorSetSystemConstants;
+    current_graphics_descriptor_sets_
+        [SpirvShaderTranslator::kDescriptorSetSystemConstants] =
+            write_system_constants.dstSet;
+  }
+  VkDescriptorBufferInfo buffer_info_float_constant_pixel;
+  if (!(current_graphics_descriptor_set_values_up_to_date_ &
+        (uint32_t(1)
+         << SpirvShaderTranslator::kDescriptorSetFloatConstantsPixel))) {
+    // Even if the shader doesn't need any float constants, a valid binding must
+    // still be provided (the pipeline layout always has float constants, for
+    // both the vertex shader and the pixel shader), so if the first draw in the
+    // frame doesn't have float constants at all, still allocate an empty
+    // buffer.
+    VkWriteDescriptorSet& write_float_constants_pixel =
+        write_descriptor_sets[write_descriptor_set_count++];
+    uint8_t* mapping_float_constants_pixel = WriteUniformBufferBinding(
+        sizeof(float) * 4 * std::max(float_constant_count_pixel, uint32_t(1)),
+        descriptor_set_layout_float_constants_pixel_,
+        buffer_info_float_constant_pixel, write_float_constants_pixel);
+    if (!mapping_float_constants_pixel) {
+      return false;
+    }
+    for (uint32_t i = 0; i < 4; ++i) {
+      uint64_t float_constant_map_entry = current_float_constant_map_pixel_[i];
+      uint32_t float_constant_index;
+      while (xe::bit_scan_forward(float_constant_map_entry,
+                                  &float_constant_index)) {
+        float_constant_map_entry &= ~(1ull << float_constant_index);
+        std::memcpy(mapping_float_constants_pixel,
+                    &regs[XE_GPU_REG_SHADER_CONSTANT_256_X + (i << 8) +
+                          (float_constant_index << 2)]
+                         .f32,
+                    sizeof(float) * 4);
+        mapping_float_constants_pixel += sizeof(float) * 4;
+      }
+    }
+    write_descriptor_set_bits |=
+        uint32_t(1) << SpirvShaderTranslator::kDescriptorSetFloatConstantsPixel;
+    current_graphics_descriptor_sets_
+        [SpirvShaderTranslator::kDescriptorSetFloatConstantsPixel] =
+            write_float_constants_pixel.dstSet;
+  }
+  VkDescriptorBufferInfo buffer_info_float_constant_vertex;
+  if (!(current_graphics_descriptor_set_values_up_to_date_ &
+        (uint32_t(1)
+         << SpirvShaderTranslator::kDescriptorSetFloatConstantsVertex))) {
+    VkWriteDescriptorSet& write_float_constants_vertex =
+        write_descriptor_sets[write_descriptor_set_count++];
+    uint8_t* mapping_float_constants_vertex = WriteUniformBufferBinding(
+        sizeof(float) * 4 * std::max(float_constant_count_vertex, uint32_t(1)),
+        descriptor_set_layout_float_constants_vertex_,
+        buffer_info_float_constant_vertex, write_float_constants_vertex);
+    if (!mapping_float_constants_vertex) {
+      return false;
+    }
+    for (uint32_t i = 0; i < 4; ++i) {
+      uint64_t float_constant_map_entry = current_float_constant_map_vertex_[i];
+      uint32_t float_constant_index;
+      while (xe::bit_scan_forward(float_constant_map_entry,
+                                  &float_constant_index)) {
+        float_constant_map_entry &= ~(1ull << float_constant_index);
+        std::memcpy(mapping_float_constants_vertex,
+                    &regs[XE_GPU_REG_SHADER_CONSTANT_000_X + (i << 8) +
+                          (float_constant_index << 2)]
+                         .f32,
+                    sizeof(float) * 4);
+        mapping_float_constants_vertex += sizeof(float) * 4;
+      }
+    }
+    write_descriptor_set_bits |=
+        uint32_t(1)
+        << SpirvShaderTranslator::kDescriptorSetFloatConstantsVertex;
+    current_graphics_descriptor_sets_
+        [SpirvShaderTranslator::kDescriptorSetFloatConstantsVertex] =
+            write_float_constants_vertex.dstSet;
+  }
+  VkDescriptorBufferInfo buffer_info_fetch_constants;
+  if (!(current_graphics_descriptor_set_values_up_to_date_ &
+        (uint32_t(1) << SpirvShaderTranslator::kDescriptorSetFetchConstants))) {
+    VkWriteDescriptorSet& write_fetch_constants =
+        write_descriptor_sets[write_descriptor_set_count++];
+    constexpr size_t kFetchConstantsSize = sizeof(uint32_t) * 6 * 32;
+    uint8_t* mapping_fetch_constants = WriteUniformBufferBinding(
+        kFetchConstantsSize, descriptor_set_layout_fetch_bool_loop_constants_,
+        buffer_info_fetch_constants, write_fetch_constants);
+    if (!mapping_fetch_constants) {
+      return false;
+    }
+    std::memcpy(mapping_fetch_constants,
+                &regs[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0].u32,
+                kFetchConstantsSize);
+    write_descriptor_set_bits |=
+        uint32_t(1) << SpirvShaderTranslator::kDescriptorSetFetchConstants;
+    current_graphics_descriptor_sets_
+        [SpirvShaderTranslator::kDescriptorSetFetchConstants] =
+            write_fetch_constants.dstSet;
+  }
+  if (write_descriptor_set_count) {
+    const ui::vulkan::VulkanProvider& provider =
+        GetVulkanContext().GetVulkanProvider();
+    const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+    VkDevice device = provider.device();
+    dfn.vkUpdateDescriptorSets(device, write_descriptor_set_count,
+                               write_descriptor_sets, 0, nullptr);
+  }
+  // Only make valid if written successfully.
+  current_graphics_descriptor_set_values_up_to_date_ |=
+      write_descriptor_set_bits;
+
+  // Bind the new descriptor sets.
+  uint32_t descriptor_sets_needed =
+      (uint32_t(1) << SpirvShaderTranslator::kDescriptorSetCount) - 1;
+  if (current_graphics_pipeline_layout_
+          ->descriptor_set_layout_textures_vertex_ref ==
+      descriptor_set_layout_empty_) {
+    descriptor_sets_needed &=
+        ~(uint32_t(1) << SpirvShaderTranslator::kDescriptorSetTexturesVertex);
+  }
+  if (current_graphics_pipeline_layout_
+          ->descriptor_set_layout_textures_pixel_ref ==
+      descriptor_set_layout_empty_) {
+    descriptor_sets_needed &=
+        ~(uint32_t(1) << SpirvShaderTranslator::kDescriptorSetTexturesPixel);
+  }
+  uint32_t descriptor_sets_remaining =
+      descriptor_sets_needed &
+      ~current_graphics_descriptor_sets_bound_up_to_date_;
+  uint32_t descriptor_set_index;
+  while (
+      xe::bit_scan_forward(descriptor_sets_remaining, &descriptor_set_index)) {
+    uint32_t descriptor_set_mask_tzcnt =
+        xe::tzcnt(~(descriptor_sets_remaining |
+                    ((uint32_t(1) << descriptor_set_index) - 1)));
+    // TODO(Triang3l): Bind to compute for rectangle list emulation without
+    // geometry shaders.
+    deferred_command_buffer_.CmdVkBindDescriptorSets(
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        current_graphics_pipeline_layout_->pipeline_layout,
+        descriptor_set_index, descriptor_set_mask_tzcnt - descriptor_set_index,
+        current_graphics_descriptor_sets_ + descriptor_set_index, 0, nullptr);
+    if (descriptor_set_mask_tzcnt >= 32) {
+      break;
+    }
+    descriptor_sets_remaining &=
+        ~((uint32_t(1) << descriptor_set_mask_tzcnt) - 1);
+  }
+  current_graphics_descriptor_sets_bound_up_to_date_ |= descriptor_sets_needed;
+
+  return true;
+}
+
+uint8_t* VulkanCommandProcessor::WriteUniformBufferBinding(
+    size_t size, VkDescriptorSetLayout descriptor_set_layout,
+    VkDescriptorBufferInfo& descriptor_buffer_info_out,
+    VkWriteDescriptorSet& write_descriptor_set_out) {
+  VkDescriptorSet descriptor_set =
+      transient_descriptor_pool_uniform_buffers_->Request(
+          frame_current_, descriptor_set_layout, 1);
+  if (descriptor_set == VK_NULL_HANDLE) {
+    return nullptr;
+  }
+  const ui::vulkan::VulkanProvider& provider =
+      GetVulkanContext().GetVulkanProvider();
+  uint8_t* mapping = uniform_buffer_pool_->Request(
+      frame_current_, size,
+      size_t(
+          provider.device_properties().limits.minUniformBufferOffsetAlignment),
+      descriptor_buffer_info_out.buffer, descriptor_buffer_info_out.offset);
+  if (!mapping) {
+    return false;
+  }
+  descriptor_buffer_info_out.range = VkDeviceSize(size);
+  write_descriptor_set_out.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  write_descriptor_set_out.pNext = nullptr;
+  write_descriptor_set_out.dstSet = descriptor_set;
+  write_descriptor_set_out.dstBinding = 0;
+  write_descriptor_set_out.dstArrayElement = 0;
+  write_descriptor_set_out.descriptorCount = 1;
+  write_descriptor_set_out.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+  write_descriptor_set_out.pImageInfo = nullptr;
+  write_descriptor_set_out.pBufferInfo = &descriptor_buffer_info_out;
+  write_descriptor_set_out.pTexelBufferView = nullptr;
+  return mapping;
 }
 
 }  // namespace vulkan

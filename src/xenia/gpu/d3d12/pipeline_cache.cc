@@ -223,10 +223,10 @@ void PipelineCache::ClearCache(bool shutting_down) {
   }
   texture_binding_layout_map_.clear();
   texture_binding_layouts_.clear();
-  for (auto it : shader_map_) {
+  for (auto it : shaders_) {
     delete it.second;
   }
-  shader_map_.clear();
+  shaders_.clear();
 
   if (reinitialize_shader_storage) {
     InitializeShaderStorage(shader_storage_root, shader_storage_title_id,
@@ -374,8 +374,7 @@ void PipelineCache::InitializeShaderStorage(
       }
       size_t ucode_byte_count =
           shader_header.ucode_dword_count * sizeof(uint32_t);
-      if (shader_map_.find(shader_header.ucode_data_hash) !=
-          shader_map_.end()) {
+      if (shaders_.find(shader_header.ucode_data_hash) != shaders_.end()) {
         // Already added - usually shaders aren't added without the intention of
         // translating them imminently, so don't do additional checks to
         // actually ensure that translation happens right now (they would cause
@@ -402,7 +401,7 @@ void PipelineCache::InitializeShaderStorage(
       D3D12Shader* shader =
           new D3D12Shader(shader_header.type, ucode_data_hash,
                           ucode_dwords.data(), shader_header.ucode_dword_count);
-      shader_map_.insert({ucode_data_hash, shader});
+      shaders_.insert({ucode_data_hash, shader});
       // Create new threads if the currently existing threads can't keep up with
       // file reading, but not more than the number of logical processors minus
       // one.
@@ -439,7 +438,7 @@ void PipelineCache::InitializeShaderStorage(
       }
       shader_translation_threads.clear();
       for (D3D12Shader* shader : shaders_failed_to_translate) {
-        shader_map_.erase(shader->ucode_data_hash());
+        shaders_.erase(shader->ucode_data_hash());
         delete shader;
       }
     }
@@ -576,8 +575,8 @@ void PipelineCache::InitializeShaderStorage(
 
           PipelineRuntimeDescription pipeline_runtime_description;
           auto vertex_shader_it =
-              shader_map_.find(pipeline_description.vertex_shader_hash);
-          if (vertex_shader_it == shader_map_.end()) {
+              shaders_.find(pipeline_description.vertex_shader_hash);
+          if (vertex_shader_it == shaders_.end()) {
             continue;
           }
           pipeline_runtime_description.vertex_shader = vertex_shader_it->second;
@@ -586,8 +585,8 @@ void PipelineCache::InitializeShaderStorage(
           }
           if (pipeline_description.pixel_shader_hash) {
             auto pixel_shader_it =
-                shader_map_.find(pipeline_description.pixel_shader_hash);
-            if (pixel_shader_it == shader_map_.end()) {
+                shaders_.find(pipeline_description.pixel_shader_hash);
+            if (pixel_shader_it == shaders_.end()) {
               continue;
             }
             pipeline_runtime_description.pixel_shader = pixel_shader_it->second;
@@ -779,8 +778,8 @@ D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
                                        uint32_t dword_count) {
   // Hash the input memory and lookup the shader.
   uint64_t data_hash = XXH64(host_address, dword_count * sizeof(uint32_t), 0);
-  auto it = shader_map_.find(data_hash);
-  if (it != shader_map_.end()) {
+  auto it = shaders_.find(data_hash);
+  if (it != shaders_.end()) {
     // Shader has been previously loaded.
     return it->second;
   }
@@ -790,7 +789,7 @@ D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
   // again.
   D3D12Shader* shader =
       new D3D12Shader(shader_type, data_hash, host_address, dword_count);
-  shader_map_.insert({data_hash, shader});
+  shaders_.insert({data_hash, shader});
 
   return shader;
 }
