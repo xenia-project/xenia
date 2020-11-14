@@ -27,7 +27,7 @@ extern const D3D12_HEAP_PROPERTIES kHeapPropertiesUpload;
 extern const D3D12_HEAP_PROPERTIES kHeapPropertiesReadback;
 
 template <typename T>
-inline bool ReleaseAndNull(T& object) {
+bool ReleaseAndNull(T& object) {
   if (object != nullptr) {
     object->Release();
     object = nullptr;
