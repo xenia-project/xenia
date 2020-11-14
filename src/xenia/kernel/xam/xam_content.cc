@@ -8,6 +8,7 @@
  */
 
 #include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_private.h"
@@ -223,7 +224,8 @@ dword_result_t XamContentCreateDeviceEnumerator(dword_t content_type,
     xe::store_and_swap(&dev->device_type, dummy_device_info_.device_type);
     xe::store_and_swap(&dev->total_bytes, dummy_device_info_.total_bytes);
     xe::store_and_swap(&dev->free_bytes, dummy_device_info_.free_bytes);
-    xe::copy_and_swap(dev->name, dummy_device_info_.name, 28);
+    xe::copy_and_swap(dev->name, dummy_device_info_.name,
+                      xe::countof(dev->name));
   }
 
   *handle_out = e->handle();

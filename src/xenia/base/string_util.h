@@ -10,11 +10,15 @@
 #ifndef XENIA_BASE_STRING_UTIL_H_
 #define XENIA_BASE_STRING_UTIL_H_
 
+#include <algorithm>
 #include <charconv>
+#include <cstddef>
+#include <cstring>
 #include <string>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"
+#include "xenia/base/memory.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/string.h"
 #include "xenia/base/vec128.h"
@@ -29,6 +33,40 @@
 
 namespace xe {
 namespace string_util {
+
+inline size_t copy_truncating(char* dest, const std::string_view source,
+                              size_t dest_buffer_count) {
+  if (!dest_buffer_count) {
+    return 0;
+  }
+  size_t chars_copied = std::min(source.size(), dest_buffer_count - size_t(1));
+  std::memcpy(dest, source.data(), chars_copied);
+  dest[chars_copied] = '\0';
+  return chars_copied;
+}
+
+inline size_t copy_truncating(char16_t* dest, const std::u16string_view source,
+                              size_t dest_buffer_count) {
+  if (!dest_buffer_count) {
+    return 0;
+  }
+  size_t chars_copied = std::min(source.size(), dest_buffer_count - size_t(1));
+  std::memcpy(dest, source.data(), chars_copied * sizeof(char16_t));
+  dest[chars_copied] = u'\0';
+  return chars_copied;
+}
+
+inline size_t copy_and_swap_truncating(char16_t* dest,
+                                       const std::u16string_view source,
+                                       size_t dest_buffer_count) {
+  if (!dest_buffer_count) {
+    return 0;
+  }
+  size_t chars_copied = std::min(source.size(), dest_buffer_count - size_t(1));
+  xe::copy_and_swap(dest, source.data(), chars_copied);
+  dest[chars_copied] = u'\0';
+  return chars_copied;
+}
 
 inline std::string to_hex_string(uint32_t value) {
   return fmt::format("{:08X}", value);
