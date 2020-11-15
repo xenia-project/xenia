@@ -125,6 +125,12 @@ bool VulkanProvider::Initialize() {
   library_functions_loaded &=
       (lfn_.vkCreateInstance = PFN_vkCreateInstance(lfn_.vkGetInstanceProcAddr(
            VK_NULL_HANDLE, "vkCreateInstance"))) != nullptr;
+  library_functions_loaded &=
+      (lfn_.vkEnumerateInstanceExtensionProperties =
+           PFN_vkEnumerateInstanceExtensionProperties(
+               lfn_.vkGetInstanceProcAddr(
+                   VK_NULL_HANDLE,
+                   "vkEnumerateInstanceExtensionProperties"))) != nullptr;
   if (!library_functions_loaded) {
     XELOGE(
         "Failed to get Vulkan library function pointers via "
@@ -144,10 +150,57 @@ bool VulkanProvider::Initialize() {
           VK_SUCCESS) {
     instance_api_version = VK_API_VERSION_1_0;
   }
-  XELOGVK("Vulkan instance version {}.{}.{}",
+  XELOGVK("Vulkan instance version: {}.{}.{}",
           VK_VERSION_MAJOR(instance_api_version),
           VK_VERSION_MINOR(instance_api_version),
           VK_VERSION_PATCH(instance_api_version));
+
+  // Get the instance extensions.
+  std::vector<VkExtensionProperties> instance_extension_properties;
+  VkResult instance_extensions_enumerate_result;
+  for (;;) {
+    uint32_t instance_extension_count =
+        uint32_t(instance_extension_properties.size());
+    bool instance_extensions_was_empty = !instance_extension_count;
+    instance_extensions_enumerate_result =
+        lfn_.vkEnumerateInstanceExtensionProperties(
+            nullptr, &instance_extension_count,
+            instance_extensions_was_empty
+                ? nullptr
+                : instance_extension_properties.data());
+    // If the original extension count was 0 (first call), SUCCESS is
+    // returned, not INCOMPLETE.
+    if (instance_extensions_enumerate_result == VK_SUCCESS ||
+        instance_extensions_enumerate_result == VK_INCOMPLETE) {
+      instance_extension_properties.resize(instance_extension_count);
+      if (instance_extensions_enumerate_result == VK_SUCCESS &&
+          (!instance_extensions_was_empty || !instance_extension_count)) {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+  if (instance_extensions_enumerate_result != VK_SUCCESS) {
+    instance_extension_properties.clear();
+  }
+  std::memset(&instance_extensions_, 0, sizeof(instance_extensions_));
+  if (instance_api_version >= VK_MAKE_VERSION(1, 1, 0)) {
+    instance_extensions_.khr_get_physical_device_properties2 = true;
+  }
+  for (const VkExtensionProperties& instance_extension :
+       instance_extension_properties) {
+    const char* instance_extension_name = instance_extension.extensionName;
+    if (!instance_extensions_.khr_get_physical_device_properties2 &&
+        !std::strcmp(instance_extension_name,
+                     "VK_KHR_get_physical_device_properties2")) {
+      instance_extensions_.khr_get_physical_device_properties2 = true;
+    }
+  }
+  XELOGVK("Vulkan instance extensions:");
+  XELOGVK(
+      "* VK_KHR_get_physical_device_properties2: {}",
+      instance_extensions_.khr_get_physical_device_properties2 ? "yes" : "no");
 
   // Create the instance.
   std::vector<const char*> instance_extensions_enabled;
@@ -157,6 +210,12 @@ bool VulkanProvider::Initialize() {
 #elif XE_PLATFORM_WIN32
   instance_extensions_enabled.push_back("VK_KHR_win32_surface");
 #endif
+  if (instance_api_version < VK_MAKE_VERSION(1, 1, 0)) {
+    if (instance_extensions_.khr_get_physical_device_properties2) {
+      instance_extensions_enabled.push_back(
+          "VK_KHR_get_physical_device_properties2");
+    }
+  }
   VkApplicationInfo application_info;
   application_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
   application_info.pNext = nullptr;
@@ -205,11 +264,16 @@ bool VulkanProvider::Initialize() {
   }
 
   // Get instance functions.
+  std::memset(&ifn_, 0, sizeof(ifn_));
   bool instance_functions_loaded = true;
 #define XE_VULKAN_LOAD_IFN(name) \
   instance_functions_loaded &=   \
       (ifn_.name = PFN_##name(   \
            lfn_.vkGetInstanceProcAddr(instance_, #name))) != nullptr;
+#define XE_VULKAN_LOAD_IFN_SYMBOL(name, symbol) \
+  instance_functions_loaded &=                  \
+      (ifn_.name = PFN_##name(                  \
+           lfn_.vkGetInstanceProcAddr(instance_, symbol))) != nullptr;
   XE_VULKAN_LOAD_IFN(vkCreateDevice);
   XE_VULKAN_LOAD_IFN(vkDestroyDevice);
   XE_VULKAN_LOAD_IFN(vkDestroySurfaceKHR);
@@ -229,6 +293,13 @@ bool VulkanProvider::Initialize() {
 #elif XE_PLATFORM_WIN32
   XE_VULKAN_LOAD_IFN(vkCreateWin32SurfaceKHR);
 #endif
+  if (instance_extensions_.khr_get_physical_device_properties2) {
+    XE_VULKAN_LOAD_IFN_SYMBOL(vkGetPhysicalDeviceProperties2KHR,
+                              (instance_api_version >= VK_MAKE_VERSION(1, 1, 0))
+                                  ? "vkGetPhysicalDeviceProperties2"
+                                  : "vkGetPhysicalDeviceProperties2KHR");
+  }
+#undef XE_VULKAN_LOAD_IFN_SYMBOL
 #undef XE_VULKAN_LOAD_IFN
   if (!instance_functions_loaded) {
     XELOGE("Failed to get Vulkan instance function pointers");
@@ -470,6 +541,32 @@ bool VulkanProvider::Initialize() {
         "support");
     return false;
   }
+
+  // Get additional device properties.
+  std::memset(&device_float_controls_properties_, 0,
+              sizeof(device_float_controls_properties_));
+  if (instance_extensions_.khr_get_physical_device_properties2) {
+    VkPhysicalDeviceProperties2KHR device_properties_2;
+    device_properties_2.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
+    device_properties_2.pNext = nullptr;
+    VkPhysicalDeviceProperties2KHR* device_properties_2_last =
+        &device_properties_2;
+    if (device_extensions_.khr_shader_float_controls) {
+      device_float_controls_properties_.sType =
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES_KHR;
+      device_float_controls_properties_.pNext = nullptr;
+      device_properties_2_last->pNext = &device_float_controls_properties_;
+      device_properties_2_last =
+          reinterpret_cast<VkPhysicalDeviceProperties2KHR*>(
+              &device_float_controls_properties_);
+    }
+    if (device_properties_2_last != &device_properties_2) {
+      ifn_.vkGetPhysicalDeviceProperties2KHR(physical_device_,
+                                             &device_properties_2);
+    }
+  }
+
   XELOGVK(
       "Vulkan device: {} (vendor {:04X}, device {:04X}, driver {:08X}, API "
       "{}.{}.{})",
@@ -487,6 +584,17 @@ bool VulkanProvider::Initialize() {
           device_extensions_.khr_shader_float_controls ? "yes" : "no");
   XELOGVK("* VK_KHR_spirv_1_4: {}",
           device_extensions_.khr_spirv_1_4 ? "yes" : "no");
+  if (device_extensions_.khr_shader_float_controls) {
+    XELOGVK(
+        "* Signed zero, inf, nan preserve for float32: {}",
+        device_float_controls_properties_.shaderSignedZeroInfNanPreserveFloat32
+            ? "yes"
+            : "no");
+    XELOGVK("* Denorm flush to zero for float32: {}",
+            device_float_controls_properties_.shaderDenormFlushToZeroFloat32
+                ? "yes"
+                : "no");
+  }
   // TODO(Triang3l): Report properties, features.
 
   // Create the device.

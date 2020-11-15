@@ -57,12 +57,21 @@ class VulkanProvider : public GraphicsProvider {
     PFN_vkDestroyInstance vkDestroyInstance;
     // From vkGetInstanceProcAddr.
     PFN_vkCreateInstance vkCreateInstance;
+    PFN_vkEnumerateInstanceExtensionProperties
+        vkEnumerateInstanceExtensionProperties;
     struct {
       PFN_vkEnumerateInstanceVersion vkEnumerateInstanceVersion;
     } v_1_1;
   };
   const LibraryFunctions& lfn() const { return lfn_; }
 
+  struct InstanceExtensions {
+    // Core since 1.1.0.
+    bool khr_get_physical_device_properties2;
+  };
+  const InstanceExtensions& instance_extensions() const {
+    return instance_extensions_;
+  }
   VkInstance instance() const { return instance_; }
   struct InstanceFunctions {
     PFN_vkCreateDevice vkCreateDevice;
@@ -75,6 +84,8 @@ class VulkanProvider : public GraphicsProvider {
     PFN_vkGetPhysicalDeviceFeatures vkGetPhysicalDeviceFeatures;
     PFN_vkGetPhysicalDeviceMemoryProperties vkGetPhysicalDeviceMemoryProperties;
     PFN_vkGetPhysicalDeviceProperties vkGetPhysicalDeviceProperties;
+    // VK_KHR_get_physical_device_properties2 or 1.1.0.
+    PFN_vkGetPhysicalDeviceProperties2KHR vkGetPhysicalDeviceProperties2KHR;
     PFN_vkGetPhysicalDeviceQueueFamilyProperties
         vkGetPhysicalDeviceQueueFamilyProperties;
     PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR
@@ -128,6 +139,10 @@ class VulkanProvider : public GraphicsProvider {
   // vulkan_provider.cc for details.
   uint32_t queue_family_graphics_compute() const {
     return queue_family_graphics_compute_;
+  }
+  const VkPhysicalDeviceFloatControlsPropertiesKHR&
+  device_float_controls_properties() const {
+    return device_float_controls_properties_;
   }
 
   VkDevice device() const { return device_; }
@@ -262,8 +277,9 @@ class VulkanProvider : public GraphicsProvider {
 
   LibraryFunctions lfn_ = {};
 
+  InstanceExtensions instance_extensions_;
   VkInstance instance_ = VK_NULL_HANDLE;
-  InstanceFunctions ifn_ = {};
+  InstanceFunctions ifn_;
 
   VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
   VkPhysicalDeviceProperties device_properties_;
@@ -274,6 +290,7 @@ class VulkanProvider : public GraphicsProvider {
   uint32_t memory_types_host_coherent_;
   uint32_t memory_types_host_cached_;
   uint32_t queue_family_graphics_compute_;
+  VkPhysicalDeviceFloatControlsPropertiesKHR device_float_controls_properties_;
 
   VkDevice device_ = VK_NULL_HANDLE;
   DeviceFunctions dfn_ = {};
