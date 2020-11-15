@@ -18,6 +18,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
+#include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/registers.h"
 #include "xenia/gpu/shader.h"
@@ -1304,41 +1305,22 @@ void VulkanCommandProcessor::UpdateFixedFunctionState() {
   }
 
   // Scissor.
-  // TODO(Triang3l): Move all of this to draw_util.
-  // TODO(Triang3l): Limit the scissor if exceeding the device limit.
-  auto pa_sc_window_scissor_tl = regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>();
-  auto pa_sc_window_scissor_br = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>();
-  VkRect2D scissor;
-  scissor.offset.x = int32_t(pa_sc_window_scissor_tl.tl_x);
-  scissor.offset.y = int32_t(pa_sc_window_scissor_tl.tl_y);
-  int32_t scissor_br_x =
-      std::max(int32_t(pa_sc_window_scissor_br.br_x), scissor.offset.x);
-  int32_t scissor_br_y =
-      std::max(int32_t(pa_sc_window_scissor_br.br_y), scissor.offset.y);
-  if (!pa_sc_window_scissor_tl.window_offset_disable) {
-    scissor.offset.x = std::max(
-        scissor.offset.x + pa_sc_window_offset.window_x_offset, int32_t(0));
-    scissor.offset.y = std::max(
-        scissor.offset.y + pa_sc_window_offset.window_y_offset, int32_t(0));
-    scissor_br_x = std::max(scissor_br_x + pa_sc_window_offset.window_x_offset,
-                            int32_t(0));
-    scissor_br_y = std::max(scissor_br_y + pa_sc_window_offset.window_y_offset,
-                            int32_t(0));
-  }
-  scissor.extent.width = uint32_t(scissor_br_x - scissor.offset.x);
-  scissor.extent.height = uint32_t(scissor_br_y - scissor.offset.y);
-  scissor.offset.x *= pixel_size_x;
-  scissor.offset.y *= pixel_size_y;
-  scissor.extent.width *= pixel_size_x;
-  scissor.extent.height *= pixel_size_y;
-  ff_scissor_update_needed_ |= ff_scissor_.offset.x != scissor.offset.x;
-  ff_scissor_update_needed_ |= ff_scissor_.offset.y != scissor.offset.y;
-  ff_scissor_update_needed_ |= ff_scissor_.extent.width != scissor.extent.width;
+  draw_util::Scissor scissor;
+  draw_util::GetScissor(regs, scissor);
+  VkRect2D scissor_rect;
+  scissor_rect.offset.x = int32_t(scissor.left * pixel_size_x);
+  scissor_rect.offset.y = int32_t(scissor.top * pixel_size_y);
+  scissor_rect.extent.width = scissor.width * pixel_size_x;
+  scissor_rect.extent.height = scissor.height * pixel_size_y;
+  ff_scissor_update_needed_ |= ff_scissor_.offset.x != scissor_rect.offset.x;
+  ff_scissor_update_needed_ |= ff_scissor_.offset.y != scissor_rect.offset.y;
   ff_scissor_update_needed_ |=
-      ff_scissor_.extent.height != scissor.extent.height;
+      ff_scissor_.extent.width != scissor_rect.extent.width;
+  ff_scissor_update_needed_ |=
+      ff_scissor_.extent.height != scissor_rect.extent.height;
   if (ff_scissor_update_needed_) {
-    ff_scissor_ = scissor;
-    deferred_command_buffer_.CmdVkSetScissor(0, 1, &scissor);
+    ff_scissor_ = scissor_rect;
+    deferred_command_buffer_.CmdVkSetScissor(0, 1, &scissor_rect);
     ff_scissor_update_needed_ = false;
   }
 }
