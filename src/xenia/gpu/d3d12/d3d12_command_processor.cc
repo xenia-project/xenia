@@ -21,6 +21,7 @@
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
+#include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
@@ -2846,34 +2847,20 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(bool primitive_two_faced) {
   }
 
   // Scissor.
-  auto pa_sc_window_scissor_tl = regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>();
-  auto pa_sc_window_scissor_br = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>();
-  D3D12_RECT scissor;
-  scissor.left = pa_sc_window_scissor_tl.tl_x;
-  scissor.top = pa_sc_window_scissor_tl.tl_y;
-  scissor.right = pa_sc_window_scissor_br.br_x;
-  scissor.bottom = pa_sc_window_scissor_br.br_y;
-  if (!pa_sc_window_scissor_tl.window_offset_disable) {
-    scissor.left = std::max(
-        LONG(scissor.left + pa_sc_window_offset.window_x_offset), LONG(0));
-    scissor.top = std::max(
-        LONG(scissor.top + pa_sc_window_offset.window_y_offset), LONG(0));
-    scissor.right = std::max(
-        LONG(scissor.right + pa_sc_window_offset.window_x_offset), LONG(0));
-    scissor.bottom = std::max(
-        LONG(scissor.bottom + pa_sc_window_offset.window_y_offset), LONG(0));
-  }
-  scissor.left *= pixel_size_x;
-  scissor.top *= pixel_size_y;
-  scissor.right *= pixel_size_x;
-  scissor.bottom *= pixel_size_y;
-  ff_scissor_update_needed_ |= ff_scissor_.left != scissor.left;
-  ff_scissor_update_needed_ |= ff_scissor_.top != scissor.top;
-  ff_scissor_update_needed_ |= ff_scissor_.right != scissor.right;
-  ff_scissor_update_needed_ |= ff_scissor_.bottom != scissor.bottom;
+  draw_util::Scissor scissor;
+  draw_util::GetScissor(regs, scissor);
+  D3D12_RECT scissor_rect;
+  scissor_rect.left = LONG(scissor.left * pixel_size_x);
+  scissor_rect.top = LONG(scissor.top * pixel_size_y);
+  scissor_rect.right = LONG((scissor.left + scissor.width) * pixel_size_x);
+  scissor_rect.bottom = LONG((scissor.top + scissor.height) * pixel_size_y);
+  ff_scissor_update_needed_ |= ff_scissor_.left != scissor_rect.left;
+  ff_scissor_update_needed_ |= ff_scissor_.top != scissor_rect.top;
+  ff_scissor_update_needed_ |= ff_scissor_.right != scissor_rect.right;
+  ff_scissor_update_needed_ |= ff_scissor_.bottom != scissor_rect.bottom;
   if (ff_scissor_update_needed_) {
-    ff_scissor_ = scissor;
-    deferred_command_list_.RSSetScissorRect(scissor);
+    ff_scissor_ = scissor_rect;
+    deferred_command_list_.RSSetScissorRect(scissor_rect);
     ff_scissor_update_needed_ = false;
   }
 

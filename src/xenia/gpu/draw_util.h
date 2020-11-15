@@ -33,6 +33,14 @@ namespace draw_util {
 // for use with the top-left rasterization rule later.
 int32_t FloatToD3D11Fixed16p8(float f32);
 
+struct Scissor {
+  uint32_t left;
+  uint32_t top;
+  uint32_t width;
+  uint32_t height;
+};
+void GetScissor(const RegisterFile& regs, Scissor& scissor_out);
+
 // To avoid passing values that the shader won't understand (even though
 // Direct3D 9 shouldn't pass them anyway).
 xenos::CopySampleSelect SanitizeCopySampleSelect(
