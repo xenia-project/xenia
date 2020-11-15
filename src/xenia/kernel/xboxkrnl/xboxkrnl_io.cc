@@ -92,10 +92,6 @@ static bool IsValidPath(const std::string_view s, bool is_pattern) {
       }
     }
   }
-  if (got_asterisk) {
-    // * must be followed by a . (*.)
-    return false;
-  }
   return true;
 }
 
