@@ -8,17 +8,6 @@ project("xenia-app")
   targetname("xenia")
   language("C++")
   links({
-    "aes_128",
-    "capstone",
-    "fmt",
-    "dxbc",
-    "discord-rpc",
-    "glslang-spirv",
-    "imgui",
-    "libavcodec",
-    "libavutil",
-    "mspack",
-    "snappy",
     "xenia-app-discord",
     "xenia-apu",
     "xenia-apu-nop",
@@ -39,6 +28,19 @@ project("xenia-app")
     "xenia-ui",
     "xenia-ui-vulkan",
     "xenia-vfs",
+  })
+  links({
+    "aes_128",
+    "capstone",
+    "fmt",
+    "dxbc",
+    "discord-rpc",
+    "glslang-spirv",
+    "imgui",
+    "libavcodec",
+    "libavutil",
+    "mspack",
+    "snappy",
     "xxhash",
   })
   defines({

@@ -28,9 +28,9 @@ addons:
 
 jobs:
   include:
-    - env: C_COMPILER=clang-9 CXX_COMPILER=clang++-9 LINT=true
-    - env: C_COMPILER=clang-9 CXX_COMPILER=clang++-9 BUILD=true CONFIG=Debug
-    - env: C_COMPILER=clang-9 CXX_COMPILER=clang++-9 BUILD=true CONFIG=Release
+    - env: C_COMPILER=clang-9 CXX_COMPILER=clang++-9 AR_COMPILER=llvm-ar-9 LINT=true
+    - env: C_COMPILER=clang-9 CXX_COMPILER=clang++-9 AR_COMPILER=llvm-ar-9 BUILD=true CONFIG=Debug
+    - env: C_COMPILER=clang-9 CXX_COMPILER=clang++-9 AR_COMPILER=llvm-ar-9 BUILD=true CONFIG=Release
 
 git:
   # We handle submodules ourselves in xenia-build setup.
@@ -40,8 +40,10 @@ before_script:
   - export LIBVULKAN_VERSION=1.1.70
   - export CXX=$CXX_COMPILER
   - export CC=$C_COMPILER
+  - export AR=$AR_COMPILER
   # Dump useful info.
   - $CXX --version
+  - $AR_COMPILER --version
   - python3 --version
   - clang-format-9 --version
   - clang-format-9 -style=file -dump-config

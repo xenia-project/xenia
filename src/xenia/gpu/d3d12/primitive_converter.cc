@@ -454,8 +454,8 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
   // again and again and exit.
   if (!conversion_needed || converted_index_count == 0) {
     converted_indices.gpu_address = 0;
-    converted_indices_cache_.insert(
-        std::make_pair(converted_indices.key.value, converted_indices));
+    converted_indices_cache_.emplace(converted_indices.key.value,
+                                     converted_indices);
     memory_regions_used_ |= memory_regions_used_bits;
     return converted_index_count == 0 ? ConversionResult::kPrimitiveEmpty
                                       : ConversionResult::kConversionNotNeeded;
@@ -670,8 +670,8 @@ PrimitiveConverter::ConversionResult PrimitiveConverter::ConvertPrimitives(
 
   // Cache and return the indices.
   converted_indices.gpu_address = gpu_address;
-  converted_indices_cache_.insert(
-      std::make_pair(converted_indices.key.value, converted_indices));
+  converted_indices_cache_.emplace(converted_indices.key.value,
+                                   converted_indices);
   memory_regions_used_ |= memory_regions_used_bits;
   gpu_address_out = gpu_address;
   index_count_out = converted_index_count;

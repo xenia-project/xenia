@@ -1,5 +1,6 @@
 include("tools/build")
 require("third_party/premake-export-compile-commands/export-compile-commands")
+require("third_party/premake-cmake/cmake")
 
 location(build_root)
 targetdir(build_bin)
@@ -24,6 +25,9 @@ defines({
   "UNICODE",
 })
 
+cppdialect("C++17")
+symbols("On")
+
 -- TODO(DrChat): Find a way to disable this on other architectures.
 if ARCH ~= "ppc64" then
   filter("architecture:x86_64")
@@ -44,30 +48,29 @@ filter("kind:StaticLib")
 
 filter("configurations:Checked")
   runtime("Debug")
+  optimize("Off")
   defines({
     "DEBUG",
   })
-  runtime("Debug")
 filter({"configurations:Checked", "platforms:Windows"})
   buildoptions({
-    "/RTCsu",   -- Full Run-Time Checks.
+    "/RTCsu",           -- Full Run-Time Checks.
+  })
+filter({"configurations:Checked", "platforms:Linux"})
+  defines({
+    "_GLIBCXX_DEBUG",   -- libstdc++ debug mode
   })
 
 filter("configurations:Debug")
-  runtime("Debug")
+  runtime("Release")
+  optimize("Off")
   defines({
     "DEBUG",
     "_NO_DEBUG_HEAP=1",
   })
-  runtime("Release")
-filter({"configurations:Debug", "platforms:Windows"})
-  linkoptions({
-    "/NODEFAULTLIB:MSVCRTD",
-  })
-
 filter({"configurations:Debug", "platforms:Linux"})
-  buildoptions({
-    "-g",
+  defines({
+    "_GLIBCXX_DEBUG",   -- make dbg symbols work on some distros
   })
 
 filter("configurations:Release")
@@ -76,26 +79,18 @@ filter("configurations:Release")
     "NDEBUG",
     "_NO_DEBUG_HEAP=1",
   })
-  optimize("speed")
+  optimize("Speed")
   inlining("Auto")
   floatingpoint("Fast")
   flags({
     "LinkTimeOptimization",
   })
-  runtime("Release")
-filter({"configurations:Release", "platforms:Windows"})
-  linkoptions({
-    "/NODEFAULTLIB:MSVCRTD",
-  })
-
 filter("platforms:Linux")
   system("linux")
   toolset("clang")
-  cppdialect("C++17")
   buildoptions({
     -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
-    "`pkg-config --cflags gtk+-x11-3.0`",
-    "-fno-lto", -- Premake doesn't support LTO on clang
+    ({os.outputof("pkg-config --cflags gtk+-x11-3.0")})[1],
   })
   links({
     "stdc++fs",
@@ -105,14 +100,13 @@ filter("platforms:Linux")
     "rt",
   })
   linkoptions({
-    "`pkg-config --libs gtk+-3.0`",
+    ({os.outputof("pkg-config --libs gtk+-3.0")})[1],
   })
 
 filter({"platforms:Linux", "kind:*App"})
   linkgroups("On")
 
 filter({"platforms:Linux", "language:C++", "toolset:gcc"})
-  cppdialect("C++17")
   links({
   })
   disablewarnings({
@@ -147,13 +141,11 @@ filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp
 filter("platforms:Windows")
   system("windows")
   toolset("msc")
-  cppdialect("C++17")
   buildoptions({
-    "/MP",      -- Multiprocessor compilation.
     "/utf-8",   -- 'build correctly on systems with non-Latin codepages'.
     -- Mark warnings as severe
-    "/w14839", -- non-standard use of class 'type' as an argument to a variadic function
-    "/w14840", -- non-portable use of class 'type' as an argument to a variadic function
+    "/w14839",  -- non-standard use of class 'type' as an argument to a variadic function
+    "/w14840",  -- non-portable use of class 'type' as an argument to a variadic function
     -- Disable warnings
     "/wd4100",  -- Unreferenced parameters are ok.
     "/wd4201",  -- Nameless struct/unions are ok.
@@ -163,10 +155,10 @@ filter("platforms:Windows")
     "/wd4189",  -- 'local variable is initialized but not referenced'.
   })
   flags({
-    "NoMinimalRebuild", -- Required for /MP above.
+    "MultiProcessorCompile",  -- Multiprocessor compilation.
+    "NoMinimalRebuild",       -- Required for /MP above.
   })
 
-  symbols("On")
   defines({
     "_CRT_NONSTDC_NO_DEPRECATE",
     "_CRT_SECURE_NO_WARNINGS",
