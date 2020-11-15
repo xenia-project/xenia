@@ -28,7 +28,8 @@ SpirvShaderTranslator::Features::Features(bool all)
       max_storage_buffer_range(all ? UINT32_MAX : (128 * 1024 * 1024)),
       clip_distance(all),
       cull_distance(all),
-      float_controls(all) {}
+      signed_zero_inf_nan_preserve_float32(all),
+      denorm_flush_to_zero_float32(all) {}
 
 SpirvShaderTranslator::Features::Features(
     const ui::vulkan::VulkanProvider& provider)
@@ -48,8 +49,18 @@ SpirvShaderTranslator::Features::Features(
   } else {
     spirv_version = spv::Spv_1_0;
   }
-  float_controls = spirv_version >= spv::Spv_1_4 ||
-                   device_extensions.khr_shader_float_controls;
+  if (spirv_version >= spv::Spv_1_4 ||
+      device_extensions.khr_shader_float_controls) {
+    const VkPhysicalDeviceFloatControlsPropertiesKHR&
+        float_controls_properties = provider.device_float_controls_properties();
+    signed_zero_inf_nan_preserve_float32 =
+        bool(float_controls_properties.shaderSignedZeroInfNanPreserveFloat32);
+    denorm_flush_to_zero_float32 =
+        bool(float_controls_properties.shaderDenormFlushToZeroFloat32);
+  } else {
+    signed_zero_inf_nan_preserve_float32 = false;
+    denorm_flush_to_zero_float32 = false;
+  }
 }
 
 SpirvShaderTranslator::SpirvShaderTranslator(const Features& features)
@@ -82,7 +93,8 @@ void SpirvShaderTranslator::StartTranslation() {
   builder_->addCapability(IsSpirvTessEvalShader() ? spv::CapabilityTessellation
                                                   : spv::CapabilityShader);
   if (features_.spirv_version < spv::Spv_1_4) {
-    if (features_.float_controls) {
+    if (features_.signed_zero_inf_nan_preserve_float32 ||
+        features_.denorm_flush_to_zero_float32) {
       builder_->addExtension("SPV_KHR_float_controls");
     }
   }
@@ -511,21 +523,21 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
                           ? spv::ExecutionModelTessellationEvaluation
                           : spv::ExecutionModelVertex;
   }
-  // TODO(Triang3l): Re-enable float controls when
-  // VkPhysicalDeviceFloatControlsPropertiesKHR are handled.
-  /* if (features_.float_controls) {
+  if (features_.denorm_flush_to_zero_float32) {
     // Flush to zero, similar to the real hardware, also for things like Shader
     // Model 3 multiplication emulation.
     builder_->addCapability(spv::CapabilityDenormFlushToZero);
     builder_->addExecutionMode(function_main_,
                                spv::ExecutionModeDenormFlushToZero, 32);
+  }
+  if (features_.signed_zero_inf_nan_preserve_float32) {
     // Signed zero used to get VFACE from ps_param_gen, also special behavior
     // for infinity in certain instructions (such as logarithm, reciprocal,
     // muls_prev2).
     builder_->addCapability(spv::CapabilitySignedZeroInfNanPreserve);
     builder_->addExecutionMode(function_main_,
                                spv::ExecutionModeSignedZeroInfNanPreserve, 32);
-  } */
+  }
   spv::Instruction* entry_point =
       builder_->addEntryPoint(execution_model, function_main_, "main");
   for (spv::Id interface_id : main_interface_) {

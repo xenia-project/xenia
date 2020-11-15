@@ -92,7 +92,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
     uint32_t max_storage_buffer_range;
     bool clip_distance;
     bool cull_distance;
-    bool float_controls;
+    bool signed_zero_inf_nan_preserve_float32;
+    bool denorm_flush_to_zero_float32;
   };
   SpirvShaderTranslator(const Features& features);
 
