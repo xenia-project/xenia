@@ -40,9 +40,10 @@ void DiscordPresence::NotPlaying() {
 }
 
 void DiscordPresence::PlayingTitle(const std::string_view game_title) {
+  auto details = std::string(game_title);
   DiscordRichPresence discordPresence = {};
   discordPresence.state = "In Game";
-  discordPresence.details = std::string(game_title).c_str();
+  discordPresence.details = details.c_str();
   // TODO(gibbed): we don't have state icons yet.
   // discordPresence.smallImageKey = "app";
   // discordPresence.largeImageKey = "state_ingame";
