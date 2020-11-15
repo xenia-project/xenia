@@ -27,7 +27,7 @@ extern const D3D12_HEAP_PROPERTIES kHeapPropertiesUpload;
 extern const D3D12_HEAP_PROPERTIES kHeapPropertiesReadback;
 
 template <typename T>
-inline bool ReleaseAndNull(T& object) {
+bool ReleaseAndNull(T& object) {
   if (object != nullptr) {
     object->Release();
     object = nullptr;
@@ -39,9 +39,10 @@ inline bool ReleaseAndNull(T& object) {
 ID3D12RootSignature* CreateRootSignature(const D3D12Provider& provider,
                                          const D3D12_ROOT_SIGNATURE_DESC& desc);
 
-ID3D12PipelineState* CreateComputePipelineState(
-    ID3D12Device* device, const void* shader, size_t shader_size,
-    ID3D12RootSignature* root_signature);
+ID3D12PipelineState* CreateComputePipeline(ID3D12Device* device,
+                                           const void* shader,
+                                           size_t shader_size,
+                                           ID3D12RootSignature* root_signature);
 
 constexpr DXGI_FORMAT GetUintPow2DXGIFormat(uint32_t element_size_bytes_log2) {
   switch (element_size_bytes_log2) {

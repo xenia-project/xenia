@@ -106,18 +106,18 @@ class TextureCache {
     bool operator!=(const TextureKey& key) const {
       return GetMapKey() != key.GetMapKey() || bucket_key != key.bucket_key;
     }
-    inline uint64_t GetMapKey() const {
+    uint64_t GetMapKey() const {
       return uint64_t(map_key[0]) | (uint64_t(map_key[1]) << 32);
     }
-    inline void SetMapKey(uint64_t key) {
+    void SetMapKey(uint64_t key) {
       map_key[0] = uint32_t(key);
       map_key[1] = uint32_t(key >> 32);
     }
-    inline bool IsInvalid() const {
+    bool IsInvalid() const {
       // Zero base and zero width is enough for a binding to be invalid.
       return map_key[0] == 0;
     }
-    inline void MakeInvalid() {
+    void MakeInvalid() {
       // Reset all for a stable hash.
       SetMapKey(0);
       bucket_key = 0;
@@ -222,9 +222,7 @@ class TextureCache {
 
   void MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled);
 
-  inline bool IsResolutionScale2X() const {
-    return scaled_resolve_buffer_ != nullptr;
-  }
+  bool IsResolutionScale2X() const { return scaled_resolve_buffer_ != nullptr; }
   ID3D12Resource* GetScaledResolveBuffer() const {
     return scaled_resolve_buffer_;
   }
@@ -233,7 +231,7 @@ class TextureCache {
                                          uint32_t length_unscaled);
   void UseScaledResolveBufferForReading();
   void UseScaledResolveBufferForWriting();
-  inline void MarkScaledResolveBufferUAVWritesCommitNeeded() {
+  void MarkScaledResolveBufferUAVWritesCommitNeeded() {
     if (scaled_resolve_buffer_state_ == D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
       scaled_resolve_buffer_uav_writes_commit_needed_ = true;
     }
@@ -432,7 +430,7 @@ class TextureCache {
   // Whether the signed version of the texture has a different representation on
   // the host than its unsigned version (for example, if it's a fixed-point
   // texture emulated with a larger host pixel format).
-  static inline bool IsSignedVersionSeparate(xenos::TextureFormat format) {
+  static bool IsSignedVersionSeparate(xenos::TextureFormat format) {
     const HostFormat& host_format = host_formats_[uint32_t(format)];
     return host_format.load_mode_snorm != LoadMode::kUnknown &&
            host_format.load_mode_snorm != host_format.load_mode;
@@ -441,26 +439,24 @@ class TextureCache {
   // of block-compressed textures with 4x4-aligned dimensions on PC).
   static bool IsDecompressionNeeded(xenos::TextureFormat format, uint32_t width,
                                     uint32_t height);
-  static inline DXGI_FORMAT GetDXGIResourceFormat(xenos::TextureFormat format,
-                                                  uint32_t width,
-                                                  uint32_t height) {
+  static DXGI_FORMAT GetDXGIResourceFormat(xenos::TextureFormat format,
+                                           uint32_t width, uint32_t height) {
     const HostFormat& host_format = host_formats_[uint32_t(format)];
     return IsDecompressionNeeded(format, width, height)
                ? host_format.dxgi_format_uncompressed
                : host_format.dxgi_format_resource;
   }
-  static inline DXGI_FORMAT GetDXGIResourceFormat(TextureKey key) {
+  static DXGI_FORMAT GetDXGIResourceFormat(TextureKey key) {
     return GetDXGIResourceFormat(key.format, key.width, key.height);
   }
-  static inline DXGI_FORMAT GetDXGIUnormFormat(xenos::TextureFormat format,
-                                               uint32_t width,
-                                               uint32_t height) {
+  static DXGI_FORMAT GetDXGIUnormFormat(xenos::TextureFormat format,
+                                        uint32_t width, uint32_t height) {
     const HostFormat& host_format = host_formats_[uint32_t(format)];
     return IsDecompressionNeeded(format, width, height)
                ? host_format.dxgi_format_uncompressed
                : host_format.dxgi_format_unorm;
   }
-  static inline DXGI_FORMAT GetDXGIUnormFormat(TextureKey key) {
+  static DXGI_FORMAT GetDXGIUnormFormat(TextureKey key) {
     return GetDXGIUnormFormat(key.format, key.width, key.height);
   }
 
@@ -550,9 +546,9 @@ class TextureCache {
 
   static const LoadModeInfo load_mode_info_[];
   ID3D12RootSignature* load_root_signature_ = nullptr;
-  ID3D12PipelineState* load_pipeline_states_[size_t(LoadMode::kCount)] = {};
-  // Load pipeline state objects for 2x-scaled resolved targets.
-  ID3D12PipelineState* load_pipeline_states_2x_[size_t(LoadMode::kCount)] = {};
+  ID3D12PipelineState* load_pipelines_[size_t(LoadMode::kCount)] = {};
+  // Load pipelines for 2x-scaled resolved targets.
+  ID3D12PipelineState* load_pipelines_2x_[size_t(LoadMode::kCount)] = {};
 
   std::unordered_multimap<uint64_t, Texture*> textures_;
   uint64_t textures_total_size_ = 0;

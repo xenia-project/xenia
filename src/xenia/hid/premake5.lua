@@ -40,11 +40,11 @@ project("xenia-hid-demo")
 
   filter("platforms:Linux")
     links({
+      "SDL2",
+      "vulkan",
       "X11",
       "xcb",
       "X11-xcb",
-      "vulkan",
-      "SDL2",
     })
 
   filter("platforms:Windows")

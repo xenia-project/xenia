@@ -105,8 +105,8 @@ class D3D12ImmediateDrawer : public ImmediateDrawer {
     kCount
   };
 
-  ID3D12PipelineState* pipeline_state_triangle_ = nullptr;
-  ID3D12PipelineState* pipeline_state_line_ = nullptr;
+  ID3D12PipelineState* pipeline_triangle_ = nullptr;
+  ID3D12PipelineState* pipeline_line_ = nullptr;
 
   ID3D12DescriptorHeap* sampler_heap_ = nullptr;
   D3D12_CPU_DESCRIPTOR_HANDLE sampler_heap_cpu_start_;

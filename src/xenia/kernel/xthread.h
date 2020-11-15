@@ -88,7 +88,8 @@ struct X_KTHREAD {
   char unk_10[0xAC];             // 0x10
   uint8_t suspend_count;         // 0xBC
   uint8_t unk_BD;                // 0xBD
-  uint16_t unk_BE;               // 0xBE
+  uint8_t unk_BE;                // 0xBE
+  uint8_t current_cpu;           // 0xBF
   char unk_C0[0x70];             // 0xC0
   xe::be<uint64_t> create_time;  // 0x130
   xe::be<uint64_t> exit_time;    // 0x138
@@ -165,10 +166,17 @@ class XThread : public XObject, public cpu::Thread {
   int32_t priority() const { return priority_; }
   int32_t QueryPriority();
   void SetPriority(int32_t increment);
-  uint32_t affinity() const { return affinity_; }
+
+  // Xbox thread IDs:
+  // 0 - core 0, thread 0 - user
+  // 1 - core 0, thread 1 - user
+  // 2 - core 1, thread 0 - sometimes xcontent
+  // 3 - core 1, thread 1 - user
+  // 4 - core 2, thread 0 - xaudio
+  // 5 - core 2, thread 1 - user
   void SetAffinity(uint32_t affinity);
-  uint32_t active_cpu() const;
-  void SetActiveCpu(uint32_t cpu_index);
+  uint8_t active_cpu() const;
+  void SetActiveCpu(uint8_t cpu_index);
 
   bool GetTLSValue(uint32_t slot, uint32_t* value_out);
   bool SetTLSValue(uint32_t slot, uint32_t value);
@@ -220,7 +228,6 @@ class XThread : public XObject, public cpu::Thread {
   bool running_ = false;
 
   int32_t priority_ = 0;
-  uint32_t affinity_ = 0;
 
   xe::global_critical_region global_critical_region_;
   std::atomic<uint32_t> irql_ = {0};

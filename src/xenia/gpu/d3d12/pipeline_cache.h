@@ -55,7 +55,7 @@ class PipelineCache {
   void ShutdownShaderStorage();
 
   void EndSubmission();
-  bool IsCreatingPipelineStates();
+  bool IsCreatingPipelines();
 
   D3D12Shader* LoadShader(xenos::ShaderType shader_type, uint32_t guest_address,
                           const uint32_t* host_address, uint32_t dword_count);
@@ -74,14 +74,12 @@ class PipelineCache {
       xenos::PrimitiveType primitive_type, xenos::IndexFormat index_format,
       bool early_z,
       const RenderTargetCache::PipelineRenderTarget render_targets[5],
-      void** pipeline_state_handle_out,
-      ID3D12RootSignature** root_signature_out);
+      void** pipeline_handle_out, ID3D12RootSignature** root_signature_out);
 
-  // Returns a pipeline state object with deferred creation by its handle. May
-  // return nullptr if failed to create the pipeline state object.
-  inline ID3D12PipelineState* GetD3D12PipelineStateByHandle(
-      void* handle) const {
-    return reinterpret_cast<const PipelineState*>(handle)->state;
+  // Returns a pipeline with deferred creation by its handle. May return nullptr
+  // if failed to create the pipeline.
+  ID3D12PipelineState* GetD3D12PipelineByHandle(void* handle) const {
+    return reinterpret_cast<const Pipeline*>(handle)->state;
   }
 
  private:
@@ -238,7 +236,7 @@ class PipelineCache {
       const RenderTargetCache::PipelineRenderTarget render_targets[5],
       PipelineRuntimeDescription& runtime_description_out);
 
-  ID3D12PipelineState* CreateD3D12PipelineState(
+  ID3D12PipelineState* CreateD3D12Pipeline(
       const PipelineRuntimeDescription& runtime_description);
 
   D3D12CommandProcessor& command_processor_;
@@ -286,21 +284,20 @@ class PipelineCache {
   // Xenos pixel shader provided.
   std::vector<uint8_t> depth_only_pixel_shader_;
 
-  struct PipelineState {
+  struct Pipeline {
     // nullptr if creation has failed.
     ID3D12PipelineState* state;
     PipelineRuntimeDescription description;
   };
-  // All previously generated pipeline state objects identified by hash and the
-  // description.
-  std::unordered_multimap<uint64_t, PipelineState*,
+  // All previously generated pipelines identified by hash and the description.
+  std::unordered_multimap<uint64_t, Pipeline*,
                           xe::hash::IdentityHasher<uint64_t>>
-      pipeline_states_;
+      pipelines_;
 
-  // Previously used pipeline state object. This matches our current state
-  // settings and allows us to quickly(ish) reuse the pipeline state if no
-  // registers have changed.
-  PipelineState* current_pipeline_state_ = nullptr;
+  // Previously used pipeline. This matches our current state settings and
+  // allows us to quickly(ish) reuse the pipeline if no registers have been
+  // changed.
+  Pipeline* current_pipeline_ = nullptr;
 
   // Currently open shader storage path.
   std::filesystem::path shader_storage_root_;
@@ -310,10 +307,9 @@ class PipelineCache {
   FILE* shader_storage_file_ = nullptr;
   bool shader_storage_file_flush_needed_ = false;
 
-  // Pipeline state storage output stream, for preload in the next emulator
-  // runs.
-  FILE* pipeline_state_storage_file_ = nullptr;
-  bool pipeline_state_storage_file_flush_needed_ = false;
+  // Pipeline storage output stream, for preload in the next emulator runs.
+  FILE* pipeline_storage_file_ = nullptr;
+  bool pipeline_storage_file_flush_needed_ = false;
 
   // Thread for asynchronous writing to the storage streams.
   void StorageWriteThread();
@@ -323,28 +319,27 @@ class PipelineCache {
   // thread is notified about its change via storage_write_request_cond_.
   std::deque<std::pair<const Shader*, reg::SQ_PROGRAM_CNTL>>
       storage_write_shader_queue_;
-  std::deque<PipelineStoredDescription> storage_write_pipeline_state_queue_;
+  std::deque<PipelineStoredDescription> storage_write_pipeline_queue_;
   bool storage_write_flush_shaders_ = false;
-  bool storage_write_flush_pipeline_states_ = false;
+  bool storage_write_flush_pipelines_ = false;
   bool storage_write_thread_shutdown_ = false;
   std::unique_ptr<xe::threading::Thread> storage_write_thread_;
 
-  // Pipeline state object creation threads.
+  // Pipeline creation threads.
   void CreationThread(size_t thread_index);
-  void CreateQueuedPipelineStatesOnProcessorThread();
+  void CreateQueuedPipelinesOnProcessorThread();
   std::mutex creation_request_lock_;
   std::condition_variable creation_request_cond_;
   // Protected with creation_request_lock_, notify_one creation_request_cond_
   // when set.
-  std::deque<PipelineState*> creation_queue_;
-  // Number of threads that are currently creating a pipeline state object -
-  // incremented when a pipeline state object is dequeued (the completion event
-  // can't be triggered before this is zero). Protected with
-  // creation_request_lock_.
+  std::deque<Pipeline*> creation_queue_;
+  // Number of threads that are currently creating a pipeline - incremented when
+  // a pipeline is dequeued (the completion event can't be triggered before this
+  // is zero). Protected with creation_request_lock_.
   size_t creation_threads_busy_ = 0;
-  // Manual-reset event set when the last queued pipeline state object is
-  // created and there are no more pipeline state objects to create. This is
-  // triggered by the thread creating the last pipeline state object.
+  // Manual-reset event set when the last queued pipeline is created and there
+  // are no more pipelines to create. This is triggered by the thread creating
+  // the last pipeline.
   std::unique_ptr<xe::threading::Event> creation_completion_event_;
   // Whether setting the event on completion is queued. Protected with
   // creation_request_lock_, notify_one creation_request_cond_ when set.

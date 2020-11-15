@@ -46,22 +46,22 @@ class D3D12Provider : public GraphicsProvider {
   uint32_t GetRTVDescriptorSize() const { return descriptor_size_rtv_; }
   uint32_t GetDSVDescriptorSize() const { return descriptor_size_dsv_; }
   template <typename T>
-  inline T OffsetViewDescriptor(T start, uint32_t index) const {
+  T OffsetViewDescriptor(T start, uint32_t index) const {
     start.ptr += index * descriptor_size_view_;
     return start;
   }
   template <typename T>
-  inline T OffsetSamplerDescriptor(T start, uint32_t index) const {
+  T OffsetSamplerDescriptor(T start, uint32_t index) const {
     start.ptr += index * descriptor_size_sampler_;
     return start;
   }
   template <typename T>
-  inline T OffsetRTVDescriptor(T start, uint32_t index) const {
+  T OffsetRTVDescriptor(T start, uint32_t index) const {
     start.ptr += index * descriptor_size_rtv_;
     return start;
   }
   template <typename T>
-  inline T OffsetDSVDescriptor(T start, uint32_t index) const {
+  T OffsetDSVDescriptor(T start, uint32_t index) const {
     start.ptr += index * descriptor_size_dsv_;
     return start;
   }
@@ -91,32 +91,30 @@ class D3D12Provider : public GraphicsProvider {
   }
 
   // Proxies for Direct3D 12 functions since they are loaded dynamically.
-  inline HRESULT SerializeRootSignature(const D3D12_ROOT_SIGNATURE_DESC* desc,
-                                        D3D_ROOT_SIGNATURE_VERSION version,
-                                        ID3DBlob** blob_out,
-                                        ID3DBlob** error_blob_out) const {
+  HRESULT SerializeRootSignature(const D3D12_ROOT_SIGNATURE_DESC* desc,
+                                 D3D_ROOT_SIGNATURE_VERSION version,
+                                 ID3DBlob** blob_out,
+                                 ID3DBlob** error_blob_out) const {
     return pfn_d3d12_serialize_root_signature_(desc, version, blob_out,
                                                error_blob_out);
   }
-  inline HRESULT Disassemble(const void* src_data, size_t src_data_size,
-                             UINT flags, const char* comments,
-                             ID3DBlob** disassembly_out) const {
+  HRESULT Disassemble(const void* src_data, size_t src_data_size, UINT flags,
+                      const char* comments, ID3DBlob** disassembly_out) const {
     if (!pfn_d3d_disassemble_) {
       return E_NOINTERFACE;
     }
     return pfn_d3d_disassemble_(src_data, src_data_size, flags, comments,
                                 disassembly_out);
   }
-  inline HRESULT DxbcConverterCreateInstance(const CLSID& rclsid,
-                                             const IID& riid,
-                                             void** ppv) const {
+  HRESULT DxbcConverterCreateInstance(const CLSID& rclsid, const IID& riid,
+                                      void** ppv) const {
     if (!pfn_dxilconv_dxc_create_instance_) {
       return E_NOINTERFACE;
     }
     return pfn_dxilconv_dxc_create_instance_(rclsid, riid, ppv);
   }
-  inline HRESULT DxcCreateInstance(const CLSID& rclsid, const IID& riid,
-                                   void** ppv) const {
+  HRESULT DxcCreateInstance(const CLSID& rclsid, const IID& riid,
+                            void** ppv) const {
     if (!pfn_dxcompiler_dxc_create_instance_) {
       return E_NOINTERFACE;
     }

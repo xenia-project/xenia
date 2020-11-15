@@ -85,7 +85,7 @@ class D3D12Shader : public Shader {
     return sampler_bindings_.data();
   }
 
-  // For owning subsystems like the pipeline state cache, accessors for unique
+  // For owning subsystems like the pipeline cache, accessors for unique
   // identifiers (used instead of hashes to make sure collisions can't happen)
   // of binding layouts used by the shader, for invalidation if a shader with an
   // incompatible layout was bound.

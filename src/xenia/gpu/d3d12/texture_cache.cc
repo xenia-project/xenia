@@ -918,27 +918,24 @@ bool TextureCache::Initialize(bool edram_rov_used) {
     return false;
   }
 
-  // Create the loading pipeline state objects.
+  // Create the loading pipelines.
   for (uint32_t i = 0; i < uint32_t(LoadMode::kCount); ++i) {
     const LoadModeInfo& mode_info = load_mode_info_[i];
-    load_pipeline_states_[i] = ui::d3d12::util::CreateComputePipelineState(
+    load_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
         device, mode_info.shader, mode_info.shader_size, load_root_signature_);
-    if (load_pipeline_states_[i] == nullptr) {
-      XELOGE(
-          "Failed to create the texture loading pipeline state object for mode "
-          "{}",
-          i);
+    if (load_pipelines_[i] == nullptr) {
+      XELOGE("Failed to create the texture loading pipeline for mode {}", i);
       Shutdown();
       return false;
     }
     if (IsResolutionScale2X() && mode_info.shader_2x != nullptr) {
-      load_pipeline_states_2x_[i] = ui::d3d12::util::CreateComputePipelineState(
+      load_pipelines_2x_[i] = ui::d3d12::util::CreateComputePipeline(
           device, mode_info.shader_2x, mode_info.shader_2x_size,
           load_root_signature_);
-      if (load_pipeline_states_2x_[i] == nullptr) {
+      if (load_pipelines_2x_[i] == nullptr) {
         XELOGE(
-            "Failed to create the 2x-scaled texture loading pipeline state "
-            "for mode {}",
+            "Failed to create the 2x-scaled texture loading pipeline for mode "
+            "{}",
             i);
         Shutdown();
         return false;
@@ -1024,8 +1021,8 @@ void TextureCache::Shutdown() {
   ui::d3d12::util::ReleaseAndNull(null_srv_descriptor_heap_);
 
   for (uint32_t i = 0; i < uint32_t(LoadMode::kCount); ++i) {
-    ui::d3d12::util::ReleaseAndNull(load_pipeline_states_2x_[i]);
-    ui::d3d12::util::ReleaseAndNull(load_pipeline_states_[i]);
+    ui::d3d12::util::ReleaseAndNull(load_pipelines_2x_[i]);
+    ui::d3d12::util::ReleaseAndNull(load_pipelines_[i]);
   }
   ui::d3d12::util::ReleaseAndNull(load_root_signature_);
 
@@ -1892,7 +1889,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   if (IsResolutionScale2X() && key.tiled) {
     LoadMode load_mode = GetLoadMode(key);
     if (load_mode != LoadMode::kUnknown &&
-        load_pipeline_states_2x_[uint32_t(load_mode)] != nullptr) {
+        load_pipelines_2x_[uint32_t(load_mode)] != nullptr) {
       uint32_t base_size = 0, mip_size = 0;
       texture_util::GetTextureTotalSize(
           key.dimension, key.width, key.height, key.depth, key.format,
@@ -2047,7 +2044,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   }
   texture->base_watch_handle = nullptr;
   texture->mip_watch_handle = nullptr;
-  textures_.insert(std::make_pair(map_key, texture));
+  textures_.emplace(map_key, texture);
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
   textures_total_size_ += texture->resource_size;
   COUNT_profile_set("gpu/texture_cache/total_size_mb",
@@ -2079,10 +2076,10 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     return false;
   }
   bool scaled_resolve = texture->key.scaled_resolve ? true : false;
-  ID3D12PipelineState* pipeline_state =
-      scaled_resolve ? load_pipeline_states_2x_[uint32_t(load_mode)]
-                     : load_pipeline_states_[uint32_t(load_mode)];
-  if (pipeline_state == nullptr) {
+  ID3D12PipelineState* pipeline = scaled_resolve
+                                      ? load_pipelines_2x_[uint32_t(load_mode)]
+                                      : load_pipelines_[uint32_t(load_mode)];
+  if (pipeline == nullptr) {
     return false;
   }
   const LoadModeInfo& load_mode_info = load_mode_info_[uint32_t(load_mode)];
@@ -2296,7 +2293,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
                                                 load_mode_info.srv_bpe_log2);
     }
   }
-  command_processor_.SetComputePipelineState(pipeline_state);
+  command_processor_.SetComputePipeline(pipeline);
   command_list.D3DSetComputeRootSignature(load_root_signature_);
   command_list.D3DSetComputeRootDescriptorTable(2, descriptor_dest.second);
 
@@ -2597,7 +2594,7 @@ uint32_t TextureCache::FindOrCreateTextureDescriptor(Texture& texture,
   }
   device->CreateShaderResourceView(
       texture.resource, &desc, GetTextureDescriptorCPUHandle(descriptor_index));
-  texture.srv_descriptors.insert({descriptor_key, descriptor_index});
+  texture.srv_descriptors.emplace(descriptor_key, descriptor_index);
   return descriptor_index;
 }
 
