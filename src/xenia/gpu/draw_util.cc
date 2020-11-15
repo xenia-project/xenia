@@ -111,6 +111,34 @@ int32_t FloatToD3D11Fixed16p8(float f32) {
   return result.s;
 }
 
+void GetScissor(const RegisterFile& regs, Scissor& scissor_out) {
+  // FIXME(Triang3l): Screen scissor isn't applied here, but it seems to be
+  // unused on Xbox 360 Direct3D 9.
+  auto pa_sc_window_scissor_tl = regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>();
+  auto pa_sc_window_scissor_br = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>();
+  uint32_t tl_x = pa_sc_window_scissor_tl.tl_x;
+  uint32_t tl_y = pa_sc_window_scissor_tl.tl_y;
+  uint32_t br_x = pa_sc_window_scissor_br.br_x;
+  uint32_t br_y = pa_sc_window_scissor_br.br_y;
+  if (!pa_sc_window_scissor_tl.window_offset_disable) {
+    auto pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
+    tl_x = uint32_t(std::max(
+        int32_t(tl_x) + pa_sc_window_offset.window_x_offset, int32_t(0)));
+    tl_y = uint32_t(std::max(
+        int32_t(tl_y) + pa_sc_window_offset.window_y_offset, int32_t(0)));
+    br_x = uint32_t(std::max(
+        int32_t(br_x) + pa_sc_window_offset.window_x_offset, int32_t(0)));
+    br_y = uint32_t(std::max(
+        int32_t(br_y) + pa_sc_window_offset.window_y_offset, int32_t(0)));
+  }
+  br_x = std::max(br_x, tl_x);
+  br_y = std::max(br_y, tl_y);
+  scissor_out.left = tl_x;
+  scissor_out.top = tl_y;
+  scissor_out.width = br_x - tl_x;
+  scissor_out.height = br_y - tl_y;
+}
+
 xenos::CopySampleSelect SanitizeCopySampleSelect(
     xenos::CopySampleSelect copy_sample_select, xenos::MsaaSamples msaa_samples,
     bool is_depth) {
