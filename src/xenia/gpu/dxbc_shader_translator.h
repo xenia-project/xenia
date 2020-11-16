@@ -123,7 +123,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_UserClipPlane3_Shift,
     kSysFlag_UserClipPlane4_Shift,
     kSysFlag_UserClipPlane5_Shift,
-    kSysFlag_ReverseZ_Shift,
     kSysFlag_KillIfAnyVertexKilled_Shift,
     kSysFlag_PrimitiveTwoFaced_Shift,
     kSysFlag_AlphaPassIfLess_Shift,
@@ -165,7 +164,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_UserClipPlane3 = 1u << kSysFlag_UserClipPlane3_Shift,
     kSysFlag_UserClipPlane4 = 1u << kSysFlag_UserClipPlane4_Shift,
     kSysFlag_UserClipPlane5 = 1u << kSysFlag_UserClipPlane5_Shift,
-    kSysFlag_ReverseZ = 1u << kSysFlag_ReverseZ_Shift,
     kSysFlag_KillIfAnyVertexKilled = 1u << kSysFlag_KillIfAnyVertexKilled_Shift,
     kSysFlag_PrimitiveTwoFaced = 1u << kSysFlag_PrimitiveTwoFaced_Shift,
     kSysFlag_AlphaPassIfLess = 1u << kSysFlag_AlphaPassIfLess_Shift,
@@ -220,8 +218,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     float point_size[2];
 
     float point_size_min_max[2];
-    // Inverse scale of the host viewport (but not supersampled), with signs
-    // pre-applied.
+    // Screen point size * 2 (but not supersampled) -> size in NDC.
     float point_screen_to_ndc[2];
 
     float user_clip_planes[6][4];
