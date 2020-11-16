@@ -62,7 +62,7 @@ that there are some major work areas still untouched:
 
 * Help work through [missing functionality/bugs in games](https://github.com/xenia-project/xenia/labels/compat)
 * Add input drivers for [DualShock4 (PS4) controllers](https://github.com/xenia-project/xenia/issues/60) (or anything else)
-* Skilled with Linux? A strong contributor is needed to [help with porting](https://github.com/xenia-project/xenia/labels/cross%20platform)
+* Skilled with Linux? A strong contributor is needed to [help with porting](https://github.com/xenia-project/xenia/labels/platform-linux)
 
 See more projects [good for contributors](https://github.com/xenia-project/xenia/labels/good%20first%20issue). It's a good idea to ask on Discord and check the issues page before beginning work on
 something.
