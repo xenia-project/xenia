@@ -370,10 +370,6 @@ X_STATUS XThread::Create() {
 
   pcr->dpc_active = 0;  // DPC active bool?
 
-  // Assign the thread to the logical processor, and also set up the current CPU
-  // in KPCR and KTHREAD.
-  SetActiveCpu(cpu_index);
-
   // Always retain when starting - the thread owns itself until exited.
   RetainHandle();
 
@@ -433,6 +429,10 @@ X_STATUS XThread::Create() {
   if (creation_params_.creation_flags & 0x60) {
     thread_->set_priority(creation_params_.creation_flags & 0x20 ? 1 : 0);
   }
+
+  // Assign the newly created thread to the logical processor, and also set up
+  // the current CPU in KPCR and KTHREAD.
+  SetActiveCpu(cpu_index);
 
   // Notify processor of our creation.
   emulator()->processor()->OnThreadCreated(handle(), thread_state_, this);
@@ -728,11 +728,12 @@ void XThread::SetActiveCpu(uint8_t cpu_index) {
     thread_object.current_cpu = cpu_index;
   }
 
-  if (xe::threading::logical_processor_count() < 6) {
-    XELOGW("Too few processors - scheduling will be wonky");
-  }
-  if (!cvars::ignore_thread_affinities) {
-    thread_->set_affinity_mask(uint64_t(1) << cpu_index);
+  if (xe::threading::logical_processor_count() >= 6) {
+    if (!cvars::ignore_thread_affinities) {
+      thread_->set_affinity_mask(uint64_t(1) << cpu_index);
+    }
+  } else {
+    XELOGW("Too few processor cores - scheduling will be wonky");
   }
 }
 

@@ -65,8 +65,8 @@ std::unique_ptr<EmulatorWindow> EmulatorWindow::Create(Emulator* emulator) {
   std::unique_ptr<EmulatorWindow> emulator_window(new EmulatorWindow(emulator));
 
   emulator_window->loop()->PostSynchronous([&emulator_window]() {
-    xe::threading::set_name("Win32 Loop");
-    xe::Profiler::ThreadEnter("Win32 Loop");
+    xe::threading::set_name("Windowing Loop");
+    xe::Profiler::ThreadEnter("Windowing Loop");
 
     if (!emulator_window->Initialize()) {
       xe::FatalError("Failed to initialize main window");

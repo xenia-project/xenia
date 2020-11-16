@@ -156,12 +156,15 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   //
   // aomega08 says the value is 0x02000817, bit 27: debug mode on.
   // When that is set, though, allocs crash in weird ways.
+  //
+  // From kernel dissasembly, after storage is initialized
+  // XboxHardwareInfo flags is set with flag 5 (0x20).
   uint32_t pXboxHardwareInfo = memory_->SystemHeapAlloc(16);
   auto lpXboxHardwareInfo = memory_->TranslateVirtual(pXboxHardwareInfo);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::XboxHardwareInfo, pXboxHardwareInfo);
-  xe::store_and_swap<uint32_t>(lpXboxHardwareInfo + 0, 0);    // flags
-  xe::store_and_swap<uint8_t>(lpXboxHardwareInfo + 4, 0x06);  // cpu count
+  xe::store_and_swap<uint32_t>(lpXboxHardwareInfo + 0, 0x20);  // flags
+  xe::store_and_swap<uint8_t>(lpXboxHardwareInfo + 4, 0x06);   // cpu count
   // Remaining 11b are zeroes?
 
   // ExConsoleGameRegion, probably same values as keyvault region uses?

@@ -34,6 +34,31 @@ enum class LogLevel {
   Trace,
 };
 
+class LogSink {
+ public:
+  virtual ~LogSink() = default;
+
+  virtual void Write(const char* buf, size_t size) = 0;
+  virtual void Flush() = 0;
+};
+
+class FileLogSink final : public LogSink {
+ public:
+  explicit FileLogSink(FILE* file) : file_(file) {}
+  virtual ~FileLogSink() {
+    if (file_) {
+      fflush(file_);
+      fclose(file_);
+    }
+  }
+
+  void Write(const char* buf, size_t size) override;
+  void Flush() override;
+
+ private:
+  FILE* file_;
+};
+
 // Initializes the logging system and any outputs requested.
 // Must be called on startup.
 void InitializeLogging(const std::string_view app_name);

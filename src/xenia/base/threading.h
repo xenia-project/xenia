@@ -24,29 +24,56 @@
 #include <utility>
 #include <vector>
 
+#include "xenia/base/assert.h"
+
 namespace xe {
 namespace threading {
 
+// This is more like an Event with self-reset when returning from Wait()
 class Fence {
  public:
-  Fence() : signaled_(false) {}
+  Fence() : signal_state_(0) {}
+
   void Signal() {
     std::unique_lock<std::mutex> lock(mutex_);
-    signaled_.store(true);
+    signal_state_ |= SIGMASK_;
     cond_.notify_all();
   }
+
+  // Wait for the Fence to be signaled. Clears the signal on return.
   void Wait() {
     std::unique_lock<std::mutex> lock(mutex_);
-    while (!signaled_.load()) {
+    assert_true((signal_state_ & ~SIGMASK_) < (SIGMASK_ - 1) &&
+                "Too many threads?");
+
+    // keep local copy to minimize loads
+    auto signal_state = ++signal_state_;
+    for (; !(signal_state & SIGMASK_); signal_state = signal_state_) {
       cond_.wait(lock);
     }
-    signaled_.store(false);
+
+    // We can't just clear the signal as other threads may not have read it yet
+    assert_true((signal_state & ~SIGMASK_) > 0);  // wait_count > 0
+    if (signal_state == (1 | SIGMASK_)) {         // wait_count == 1
+      // Last one out turn off the lights
+      signal_state_ = 0;
+    } else {
+      // Oops, another thread is still waiting, set the new count and keep the
+      // signal.
+      signal_state_ = --signal_state;
+    }
   }
 
  private:
+  using state_t_ = uint_fast32_t;
+  static constexpr state_t_ SIGMASK_ = state_t_(1)
+                                       << (sizeof(state_t_) * 8 - 1);
+
   std::mutex mutex_;
   std::condition_variable cond_;
-  std::atomic<bool> signaled_;
+  // Use the highest bit (sign bit) as the signal flag and the rest to count
+  // waiting threads.
+  volatile state_t_ signal_state_;
 };
 
 // Returns the total number of logical processors in the host system.
@@ -308,12 +335,12 @@ class Timer : public WaitHandle {
                             std::chrono::milliseconds period,
                             std::function<void()> opt_callback = nullptr) = 0;
   template <typename Rep, typename Period>
-  void SetRepeating(std::chrono::nanoseconds due_time,
+  bool SetRepeating(std::chrono::nanoseconds due_time,
                     std::chrono::duration<Rep, Period> period,
                     std::function<void()> opt_callback = nullptr) {
-    SetRepeating(due_time,
-                 std::chrono::duration_cast<std::chrono::milliseconds>(period),
-                 std::move(opt_callback));
+    return SetRepeating(
+        due_time, std::chrono::duration_cast<std::chrono::milliseconds>(period),
+        std::move(opt_callback));
   }
 
   // Stops the timer before it can be set to the signaled state and cancels
@@ -391,7 +418,7 @@ class Thread : public WaitHandle {
 
   // Decrements a thread's suspend count. When the suspend count is decremented
   // to zero, the execution of the thread is resumed.
-  virtual bool Resume(uint32_t* out_new_suspend_count = nullptr) = 0;
+  virtual bool Resume(uint32_t* out_previous_suspend_count = nullptr) = 0;
 
   // Suspends the specified thread.
   virtual bool Suspend(uint32_t* out_previous_suspend_count = nullptr) = 0;

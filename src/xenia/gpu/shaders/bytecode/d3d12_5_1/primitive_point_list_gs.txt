@@ -130,7 +130,7 @@ dcl_input_siv v[1][18].xyzw, position
 dcl_input v[1][19].xyzw
 dcl_input v[1][20].xy
 dcl_input v[1][20].z
-dcl_temps 2
+dcl_temps 3
 dcl_inputprimitive point 
 dcl_stream m0
 dcl_outputtopology trianglestrip 
@@ -170,58 +170,9 @@ max [precise(xy)] r0.xy, r0.xyxx, CB0[0][2].xxxx
 min [precise(xy)] r0.xy, r0.xyxx, CB0[0][2].yyyy
 mul [precise(xy)] r0.xy, r0.xyxx, CB0[0][2].zwzz
 mul [precise(xy)] r0.xy, r0.xyxx, v[0][18].wwww
-mul [precise] r1.xyzw, r0.xyxy, l(-1.000000, 1.000000, 1.000000, -1.000000)
-add [precise] r1.xyzw, r1.xyzw, v[0][18].xyxy
-mov o0.xyzw, v[0][0].xyzw
-mov o1.xyzw, v[0][1].xyzw
-mov o2.xyzw, v[0][2].xyzw
-mov o3.xyzw, v[0][3].xyzw
-mov o4.xyzw, v[0][4].xyzw
-mov o5.xyzw, v[0][5].xyzw
-mov o6.xyzw, v[0][6].xyzw
-mov o7.xyzw, v[0][7].xyzw
-mov o8.xyzw, v[0][8].xyzw
-mov o9.xyzw, v[0][9].xyzw
-mov o10.xyzw, v[0][10].xyzw
-mov o11.xyzw, v[0][11].xyzw
-mov o12.xyzw, v[0][12].xyzw
-mov o13.xyzw, v[0][13].xyzw
-mov o14.xyzw, v[0][14].xyzw
-mov o15.xyzw, v[0][15].xyzw
-mov o16.xy, l(0,1.000000,0,0)
-mov o16.z, v[0][16].z
-mov o17.xy, v[0][17].xyxx
-mov o18.xy, r1.xyxx
-mov o18.zw, v[0][18].zzzw
-mov o19.xyzw, v[0][19].xyzw
-mov o20.xy, v[0][20].xyxx
-emit_stream m0
-add [precise(zw)] r0.zw, r0.xxxy, v[0][18].xxxy
-mov o0.xyzw, v[0][0].xyzw
-mov o1.xyzw, v[0][1].xyzw
-mov o2.xyzw, v[0][2].xyzw
-mov o3.xyzw, v[0][3].xyzw
-mov o4.xyzw, v[0][4].xyzw
-mov o5.xyzw, v[0][5].xyzw
-mov o6.xyzw, v[0][6].xyzw
-mov o7.xyzw, v[0][7].xyzw
-mov o8.xyzw, v[0][8].xyzw
-mov o9.xyzw, v[0][9].xyzw
-mov o10.xyzw, v[0][10].xyzw
-mov o11.xyzw, v[0][11].xyzw
-mov o12.xyzw, v[0][12].xyzw
-mov o13.xyzw, v[0][13].xyzw
-mov o14.xyzw, v[0][14].xyzw
-mov o15.xyzw, v[0][15].xyzw
-mov o16.xy, l(1.000000,1.000000,0,0)
-mov o16.z, v[0][16].z
-mov o17.xy, v[0][17].xyxx
-mov o18.xy, r0.zwzz
-mov o18.zw, v[0][18].zzzw
-mov o19.xyzw, v[0][19].xyzw
-mov o20.xy, v[0][20].xyxx
-emit_stream m0
-add [precise(xy)] r0.xy, -r0.xyxx, v[0][18].xyxx
+mov [precise(xyz)] r1.xyz, -r0.xxyx
+mov [precise(w)] r1.w, r0.y
+add [precise] r2.xyzw, r1.xwyz, v[0][18].xyxy
 mov o0.xyzw, v[0][0].xyzw
 mov o1.xyzw, v[0][1].xyzw
 mov o2.xyzw, v[0][2].xyzw
@@ -241,7 +192,7 @@ mov o15.xyzw, v[0][15].xyzw
 mov o16.xy, l(0,0,0,0)
 mov o16.z, v[0][16].z
 mov o17.xy, v[0][17].xyxx
-mov o18.xy, r0.xyxx
+mov o18.xy, r2.xyxx
 mov o18.zw, v[0][18].zzzw
 mov o19.xyzw, v[0][19].xyzw
 mov o20.xy, v[0][20].xyxx
@@ -262,14 +213,65 @@ mov o12.xyzw, v[0][12].xyzw
 mov o13.xyzw, v[0][13].xyzw
 mov o14.xyzw, v[0][14].xyzw
 mov o15.xyzw, v[0][15].xyzw
+mov o16.xy, l(0,1.000000,0,0)
+mov o16.z, v[0][16].z
+mov o17.xy, v[0][17].xyxx
+mov o18.xy, r2.zwzz
+mov o18.zw, v[0][18].zzzw
+mov o19.xyzw, v[0][19].xyzw
+mov o20.xy, v[0][20].xyxx
+emit_stream m0
+add [precise(yw)] r0.yw, r0.xxxy, v[0][18].xxxy
+mov o0.xyzw, v[0][0].xyzw
+mov o1.xyzw, v[0][1].xyzw
+mov o2.xyzw, v[0][2].xyzw
+mov o3.xyzw, v[0][3].xyzw
+mov o4.xyzw, v[0][4].xyzw
+mov o5.xyzw, v[0][5].xyzw
+mov o6.xyzw, v[0][6].xyzw
+mov o7.xyzw, v[0][7].xyzw
+mov o8.xyzw, v[0][8].xyzw
+mov o9.xyzw, v[0][9].xyzw
+mov o10.xyzw, v[0][10].xyzw
+mov o11.xyzw, v[0][11].xyzw
+mov o12.xyzw, v[0][12].xyzw
+mov o13.xyzw, v[0][13].xyzw
+mov o14.xyzw, v[0][14].xyzw
+mov o15.xyzw, v[0][15].xyzw
 mov o16.xy, l(1.000000,0,0,0)
 mov o16.z, v[0][16].z
 mov o17.xy, v[0][17].xyxx
-mov o18.xy, r1.zwzz
+mov o18.xy, r0.ywyy
+mov o18.zw, v[0][18].zzzw
+mov o19.xyzw, v[0][19].xyzw
+mov o20.xy, v[0][20].xyxx
+emit_stream m0
+mov [precise(z)] r0.z, r1.z
+add [precise(xy)] r0.xy, r0.xzxx, v[0][18].xyxx
+mov o0.xyzw, v[0][0].xyzw
+mov o1.xyzw, v[0][1].xyzw
+mov o2.xyzw, v[0][2].xyzw
+mov o3.xyzw, v[0][3].xyzw
+mov o4.xyzw, v[0][4].xyzw
+mov o5.xyzw, v[0][5].xyzw
+mov o6.xyzw, v[0][6].xyzw
+mov o7.xyzw, v[0][7].xyzw
+mov o8.xyzw, v[0][8].xyzw
+mov o9.xyzw, v[0][9].xyzw
+mov o10.xyzw, v[0][10].xyzw
+mov o11.xyzw, v[0][11].xyzw
+mov o12.xyzw, v[0][12].xyzw
+mov o13.xyzw, v[0][13].xyzw
+mov o14.xyzw, v[0][14].xyzw
+mov o15.xyzw, v[0][15].xyzw
+mov o16.xy, l(1.000000,1.000000,0,0)
+mov o16.z, v[0][16].z
+mov o17.xy, v[0][17].xyxx
+mov o18.xy, r0.xyxx
 mov o18.zw, v[0][18].zzzw
 mov o19.xyzw, v[0][19].xyzw
 mov o20.xy, v[0][20].xyxx
 emit_stream m0
 cut_stream m0
 ret 
-// Approximately 116 instruction slots used
+// Approximately 118 instruction slots used

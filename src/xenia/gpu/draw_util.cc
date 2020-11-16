@@ -111,6 +111,178 @@ int32_t FloatToD3D11Fixed16p8(float f32) {
   return result.s;
 }
 
+void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
+                         float pixel_size_y, bool origin_bottom_left,
+                         float xy_max, bool allow_reverse_z,
+                         ViewportInfo& viewport_info_out) {
+  assert_true(pixel_size_x >= 1.0f);
+  assert_true(pixel_size_y >= 1.0f);
+  assert_true(xy_max >= 1.0f);
+
+  // PA_CL_VTE_CNTL contains whether offsets and scales are enabled.
+  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+  // In games, either all are enabled (for regular drawing) or none are (for
+  // rectangle lists usually).
+  //
+  // If scale/offset is enabled, the Xenos shader is writing (neglecting W
+  // division) position in the NDC (-1, -1, dx_clip_space_def - 1) -> (1, 1, 1)
+  // box. If it's not, the position is in screen space. Since we can only use
+  // the NDC in PC APIs, we use a viewport of the largest possible size, and
+  // divide the position by it in translated shaders.
+
+  auto pa_cl_clip_cntl = regs.Get<reg::PA_CL_CLIP_CNTL>();
+  auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
+  auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
+  auto pa_su_vtx_cntl = regs.Get<reg::PA_SU_VTX_CNTL>();
+
+  float viewport_left, viewport_top;
+  float viewport_width, viewport_height;
+  float ndc_scale_x, ndc_scale_y;
+  float ndc_offset_x, ndc_offset_y;
+  // To avoid zero size viewports, which would harm division and aren't allowed
+  // on Vulkan. Nothing will ever be covered by a viewport of this size - this
+  // is 2 orders of magnitude smaller than a .8 subpixel, and thus shouldn't
+  // have any effect on rounding, n and n + 1 / 1024 would be rounded to the
+  // same .8 fixed-point value, thus in fixed-point, the viewport would have
+  // zero size.
+  const float size_min = 1.0f / 1024.0f;
+
+  float viewport_offset_x = pa_cl_vte_cntl.vport_x_offset_ena
+                                ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32
+                                : 0.0f;
+  float viewport_offset_y = pa_cl_vte_cntl.vport_y_offset_ena
+                                ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
+                                : 0.0f;
+  if (pa_su_sc_mode_cntl.vtx_window_offset_enable) {
+    auto pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
+    viewport_offset_x += float(pa_sc_window_offset.window_x_offset);
+    viewport_offset_y += float(pa_sc_window_offset.window_y_offset);
+  }
+
+  if (pa_cl_vte_cntl.vport_x_scale_ena) {
+    float pa_cl_vport_xscale = regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32;
+    float viewport_scale_x_abs = std::abs(pa_cl_vport_xscale) * pixel_size_x;
+    viewport_left = viewport_offset_x * pixel_size_x - viewport_scale_x_abs;
+    float viewport_right = viewport_left + viewport_scale_x_abs * 2.0f;
+    // Keep the viewport in the positive quarter-plane for simplicity of
+    // clamping to the maximum supported bounds.
+    float cutoff_left = std::fmax(-viewport_left, 0.0f);
+    float cutoff_right = std::fmax(viewport_right - xy_max, 0.0f);
+    viewport_left = std::fmax(viewport_left, 0.0f);
+    viewport_right = std::fmin(viewport_right, xy_max);
+    viewport_width = viewport_right - viewport_left;
+    if (viewport_width > size_min) {
+      ndc_scale_x =
+          (viewport_width + cutoff_left + cutoff_right) / viewport_width;
+      if (pa_cl_vport_xscale < 0.0f) {
+        ndc_scale_x = -ndc_scale_x;
+      }
+      ndc_offset_x =
+          ((cutoff_right - cutoff_left) * (0.5f * 2.0f)) / viewport_width;
+    } else {
+      // Empty viewport, but don't pass 0 because that's against the Vulkan
+      // specification.
+      viewport_left = 0.0f;
+      viewport_width = size_min;
+      ndc_scale_x = 0.0f;
+      ndc_offset_x = 0.0f;
+    }
+  } else {
+    // Drawing without a viewport and without clipping to one - use a viewport
+    // covering the entire potential guest render target or the positive part of
+    // the host viewport area, whichever is smaller, and apply the offset, if
+    // enabled, via the shader.
+    viewport_left = 0.0f;
+    viewport_width = std::min(
+        float(xenos::kTexture2DCubeMaxWidthHeight) * pixel_size_x, xy_max);
+    ndc_scale_x = (2.0f * pixel_size_x) / viewport_width;
+    ndc_offset_x = viewport_offset_x * ndc_scale_x - 1.0f;
+  }
+
+  if (pa_cl_vte_cntl.vport_y_scale_ena) {
+    float pa_cl_vport_yscale = regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;
+    float viewport_scale_y_abs = std::abs(pa_cl_vport_yscale) * pixel_size_y;
+    viewport_top = viewport_offset_y * pixel_size_y - viewport_scale_y_abs;
+    float viewport_bottom = viewport_top + viewport_scale_y_abs * 2.0f;
+    float cutoff_top = std::fmax(-viewport_top, 0.0f);
+    float cutoff_bottom = std::fmax(viewport_bottom - xy_max, 0.0f);
+    viewport_top = std::fmax(viewport_top, 0.0f);
+    viewport_bottom = std::fmin(viewport_bottom, xy_max);
+    viewport_height = viewport_bottom - viewport_top;
+    if (viewport_height > size_min) {
+      ndc_scale_y =
+          (viewport_height + cutoff_top + cutoff_bottom) / viewport_height;
+      if (pa_cl_vport_yscale < 0.0f) {
+        ndc_scale_y = -ndc_scale_y;
+      }
+      ndc_offset_y =
+          ((cutoff_bottom - cutoff_top) * (0.5f * 2.0f)) / viewport_height;
+    } else {
+      // Empty viewport, but don't pass 0 because that's against the Vulkan
+      // specification.
+      viewport_top = 0.0f;
+      viewport_height = size_min;
+      ndc_scale_y = 0.0f;
+      ndc_offset_y = 0.0f;
+    }
+  } else {
+    viewport_height = std::min(
+        float(xenos::kTexture2DCubeMaxWidthHeight) * pixel_size_y, xy_max);
+    ndc_scale_y = (2.0f * pixel_size_y) / viewport_height;
+    ndc_offset_y = viewport_offset_y * ndc_scale_y - 1.0f;
+  }
+
+  // Apply the vertex half-pixel offset via the shader (it must not affect
+  // clipping, otherwise with SSAA or resolution scale, samples in the left/top
+  // half will never be covered).
+  if (cvars::half_pixel_offset && !pa_su_vtx_cntl.pix_center) {
+    ndc_offset_x += (0.5f * 2.0f * pixel_size_x) / viewport_width;
+    ndc_offset_y += (0.5f * 2.0f * pixel_size_y) / viewport_height;
+  }
+
+  if (origin_bottom_left) {
+    ndc_scale_y = -ndc_scale_y;
+    ndc_offset_y = -ndc_offset_y;
+  }
+
+  float viewport_scale_z = pa_cl_vte_cntl.vport_z_scale_ena
+                               ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32
+                               : 1.0f;
+  float viewport_offset_z = pa_cl_vte_cntl.vport_z_offset_ena
+                                ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32
+                                : 0.0f;
+  // Vulkan requires the depth bounds to be in the 0 to 1 range without
+  // VK_EXT_depth_range_unrestricted (which isn't used on the Xbox 360).
+  float viewport_z_min = std::min(std::fmax(viewport_offset_z, 0.0f), 1.0f);
+  float viewport_z_max =
+      std::min(std::fmax(viewport_offset_z + viewport_scale_z, 0.0f), 1.0f);
+  // When VPORT_Z_SCALE_ENA is disabled, Z/W is directly what is expected to be
+  // written to the depth buffer, and for some reason DX_CLIP_SPACE_DEF isn't
+  // set in this case in draws in games.
+  bool gl_clip_space_def =
+      !pa_cl_clip_cntl.dx_clip_space_def && pa_cl_vte_cntl.vport_z_scale_ena;
+  float ndc_scale_z = gl_clip_space_def ? 0.5f : 1.0f;
+  float ndc_offset_z = gl_clip_space_def ? 0.5f : 0.0f;
+  if (viewport_z_min > viewport_z_max && !allow_reverse_z) {
+    std::swap(viewport_z_min, viewport_z_max);
+    ndc_scale_z = -ndc_scale_z;
+    ndc_offset_z = 1.0f - ndc_offset_z;
+  }
+
+  viewport_info_out.left = viewport_left;
+  viewport_info_out.top = viewport_top;
+  viewport_info_out.width = viewport_width;
+  viewport_info_out.height = viewport_height;
+  viewport_info_out.z_min = viewport_z_min;
+  viewport_info_out.z_max = viewport_z_max;
+  viewport_info_out.ndc_scale[0] = ndc_scale_x;
+  viewport_info_out.ndc_scale[1] = ndc_scale_y;
+  viewport_info_out.ndc_scale[2] = ndc_scale_z;
+  viewport_info_out.ndc_offset[0] = ndc_offset_x;
+  viewport_info_out.ndc_offset[1] = ndc_offset_y;
+  viewport_info_out.ndc_offset[2] = ndc_offset_z;
+}
+
 void GetScissor(const RegisterFile& regs, Scissor& scissor_out) {
   // FIXME(Triang3l): Screen scissor isn't applied here, but it seems to be
   // unused on Xbox 360 Direct3D 9.

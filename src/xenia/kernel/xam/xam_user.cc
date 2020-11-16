@@ -10,6 +10,8 @@
 #include <cstring>
 
 #include "xenia/base/logging.h"
+#include "xenia/base/math.h"
+#include "xenia/base/string_util.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_private.h"
@@ -91,7 +93,8 @@ X_HRESULT_result_t XamUserGetSigninInfo(dword_t user_index, dword_t flags,
   const auto& user_profile = kernel_state()->user_profile();
   info->xuid = user_profile->xuid();
   info->signin_state = user_profile->signin_state();
-  std::strncpy(info->name, user_profile->name().data(), 15);
+  xe::string_util::copy_truncating(info->name, user_profile->name(),
+                                   xe::countof(info->name));
   return X_E_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamUserGetSigninInfo, kUserProfiles, kImplemented);
@@ -110,10 +113,8 @@ dword_result_t XamUserGetName(dword_t user_index, lpstring_t buffer,
   const auto& user_name = user_profile->name();
 
   // Real XAM will only copy a maximum of 15 characters out.
-  size_t copy_length = std::min(
-      {size_t(15), user_name.size(), static_cast<size_t>(buffer_len) - 1});
-  std::memcpy(buffer, user_name.data(), copy_length);
-  buffer[copy_length] = '\0';
+  xe::string_util::copy_truncating(buffer, user_name,
+                                   std::min(buffer_len.value(), uint32_t(15)));
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamUserGetName, kUserProfiles, kImplemented);
