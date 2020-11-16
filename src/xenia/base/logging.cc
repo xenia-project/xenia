@@ -66,6 +66,7 @@ thread_local char thread_log_buffer_[64 * 1024];
 
 void FileLogSink::Write(const char* buf, size_t size) {
   if (file_) {
+    fwrite(buf, 1, size, file_);
   }
 }
 
@@ -94,7 +95,7 @@ class Logger {
     xe::threading::Wait(write_thread_.get(), true);
   }
 
-  void AddLogSink(std::unique_ptr<LogSink> sink) {
+  void AddLogSink(std::unique_ptr<LogSink>&& sink) {
     sinks_.push_back(std::move(sink));
   }
 
