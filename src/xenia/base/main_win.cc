@@ -29,6 +29,8 @@
 
 DEFINE_bool(win32_high_freq, true,
             "Requests high performance from the NT kernel", "Kernel");
+DEFINE_bool(enable_console, false, "Open a console window with the main window",
+            "General");
 
 namespace xe {
 
@@ -37,27 +39,23 @@ bool has_console_attached_ = true;
 bool has_console_attached() { return has_console_attached_; }
 
 void AttachConsole() {
-  bool has_console = ::AttachConsole(ATTACH_PARENT_PROCESS) == TRUE;
-  if (!has_console) {
-    // We weren't launched from a console, so just return.
-    // We could alloc our own console, but meh:
-    // has_console = AllocConsole() == TRUE;
-    has_console_attached_ = false;
+  if (!cvars::enable_console) {
     return;
   }
+
+  AllocConsole();
+
   has_console_attached_ = true;
 
   auto std_handle = (intptr_t)GetStdHandle(STD_OUTPUT_HANDLE);
   auto con_handle = _open_osfhandle(std_handle, _O_TEXT);
   auto fp = _fdopen(con_handle, "w");
-  *stdout = *fp;
-  setvbuf(stdout, nullptr, _IONBF, 0);
+  freopen_s(&fp, "CONOUT$", "w", stdout);
 
   std_handle = (intptr_t)GetStdHandle(STD_ERROR_HANDLE);
   con_handle = _open_osfhandle(std_handle, _O_TEXT);
   fp = _fdopen(con_handle, "w");
-  *stderr = *fp;
-  setvbuf(stderr, nullptr, _IONBF, 0);
+  freopen_s(&fp, "CONOUT$", "w", stderr);
 }
 
 static void RequestHighPerformance() {
@@ -125,6 +123,10 @@ int Main() {
     return 1;
   }
 
+  // Attach a console so we can write output to stdout. If the user hasn't
+  // redirected output themselves it'll pop up a window.
+  xe::AttachConsole();
+
   // Setup COM on the main thread.
   // NOTE: this may fail if COM has already been initialized - that's OK.
 #pragma warning(suppress : 6031)
@@ -163,10 +165,6 @@ int main(int argc_ignored, char** argv_ignored) { return xe::Main(); }
 
 // Used in windowed apps; automatically picked based on subsystem.
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR command_line, int) {
-  // Attach a console so we can write output to stdout. If the user hasn't
-  // redirected output themselves it'll pop up a window.
-  xe::AttachConsole();
-
   // Run normal entry point.
   return xe::Main();
 }

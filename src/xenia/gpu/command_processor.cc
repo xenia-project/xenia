@@ -73,7 +73,7 @@ bool CommandProcessor::Initialize(
         WorkerThreadMain();
         return 0;
       }));
-  worker_thread_->set_name("GraphicsSystem Command Processor");
+  worker_thread_->set_name("GPU Commands");
   worker_thread_->Create();
 
   return true;

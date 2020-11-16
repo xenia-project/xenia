@@ -26,6 +26,7 @@
 #include "xenia/gpu/d3d12/primitive_converter.h"
 #include "xenia/gpu/d3d12/render_target_cache.h"
 #include "xenia/gpu/d3d12/texture_cache.h"
+#include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
@@ -345,11 +346,15 @@ class D3D12CommandProcessor : public CommandProcessor {
       D3D12_CPU_DESCRIPTOR_HANDLE& cpu_handle_out,
       D3D12_GPU_DESCRIPTOR_HANDLE& gpu_handle_out);
 
-  void UpdateFixedFunctionState(bool primitive_two_faced);
+  void UpdateFixedFunctionState(const draw_util::ViewportInfo& viewport_info,
+                                const draw_util::Scissor& scissor,
+                                bool primitive_two_faced);
   void UpdateSystemConstantValues(
       bool shared_memory_is_uav, bool primitive_two_faced,
       uint32_t line_loop_closing_index, xenos::Endian index_endian,
-      uint32_t used_texture_mask, bool early_z, uint32_t color_mask,
+      const draw_util::ViewportInfo& viewport_info, uint32_t pixel_size_x,
+      uint32_t pixel_size_y, uint32_t used_texture_mask, bool early_z,
+      uint32_t color_mask,
       const RenderTargetCache::PipelineRenderTarget render_targets[4]);
   bool UpdateBindings(const D3D12Shader* vertex_shader,
                       const D3D12Shader* pixel_shader,

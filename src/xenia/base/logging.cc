@@ -36,10 +36,8 @@
 
 #include "third_party/fmt/include/fmt/format.h"
 
-DEFINE_path(
-    log_file, "",
-    "Logs are written to the given file (specify stdout for command line)",
-    "Logging");
+DEFINE_path(log_file, "", "Logs are written to the given file", "Logging");
+DEFINE_bool(log_to_stdout, true, "Write log output to stdout", "Logging");
 DEFINE_bool(log_to_debugprint, false, "Dump the log to DebugPrint.", "Logging");
 DEFINE_bool(flush_log, true, "Flush log file after each log line batch.",
             "Logging");
@@ -66,41 +64,39 @@ struct LogLine {
 
 thread_local char thread_log_buffer_[64 * 1024];
 
+void FileLogSink::Write(const char* buf, size_t size) {
+  if (file_) {
+    fwrite(buf, 1, size, file_);
+  }
+}
+
+void FileLogSink::Flush() {
+  if (file_) {
+    fflush(file_);
+  }
+}
+
 class Logger {
  public:
   explicit Logger(const std::string_view app_name)
-      : file_(nullptr),
-        running_(true),
-        wait_strategy_(),
+      : wait_strategy_(),
         claim_strategy_(kBlockCount, wait_strategy_),
-        consumed_(wait_strategy_) {
+        consumed_(wait_strategy_),
+        running_(true) {
     claim_strategy_.add_claim_barrier(consumed_);
-
-    if (cvars::log_file.empty()) {
-      // Default to app name.
-      auto file_name = fmt::format("{}.log", app_name);
-      auto file_path = std::filesystem::path(file_name);
-      xe::filesystem::CreateParentFolder(file_path);
-      file_ = xe::filesystem::OpenFile(file_path, "wt");
-    } else {
-      if (cvars::log_file == "stdout") {
-        file_ = stdout;
-      } else {
-        xe::filesystem::CreateParentFolder(cvars::log_file);
-        file_ = xe::filesystem::OpenFile(cvars::log_file, "wt");
-      }
-    }
 
     write_thread_ =
         xe::threading::Thread::Create({}, [this]() { WriteThread(); });
-    write_thread_->set_name("xe::FileLogSink Writer");
+    write_thread_->set_name("Logging Writer");
   }
 
   ~Logger() {
     running_ = false;
     xe::threading::Wait(write_thread_.get(), true);
-    fflush(file_);
-    fclose(file_);
+  }
+
+  void AddLogSink(std::unique_ptr<LogSink>&& sink) {
+    sinks_.push_back(std::move(sink));
   }
 
  private:
@@ -126,14 +122,14 @@ class Logger {
   dp::multi_threaded_claim_strategy<dp::spin_wait_strategy> claim_strategy_;
   dp::sequence_barrier<dp::spin_wait_strategy> consumed_;
 
-  FILE* file_;
+  std::vector<std::unique_ptr<LogSink>> sinks_;
 
   std::atomic<bool> running_;
   std::unique_ptr<xe::threading::Thread> write_thread_;
 
   void Write(const char* buf, size_t size) {
-    if (file_) {
-      fwrite(buf, 1, size, file_);
+    for (const auto& sink : sinks_) {
+      sink->Write(buf, size);
     }
     if (cvars::log_to_debugprint) {
       debugging::DebugPrint("{}", std::string_view(buf, size));
@@ -246,7 +242,9 @@ class Logger {
         desired_count = 1;
 
         if (cvars::flush_log) {
-          fflush(file_);
+          for (const auto& sink : sinks_) {
+            sink->Flush();
+          }
         }
 
         idle_loops = 0;
@@ -291,6 +289,27 @@ class Logger {
 void InitializeLogging(const std::string_view app_name) {
   auto mem = memory::AlignedAlloc<Logger>(0x10);
   logger_ = new (mem) Logger(app_name);
+
+  FILE* log_file = nullptr;
+
+  if (cvars::log_file.empty()) {
+    // Default to app name.
+    auto file_name = fmt::format("{}.log", app_name);
+    auto file_path = std::filesystem::path(file_name);
+    xe::filesystem::CreateParentFolder(file_path);
+
+    log_file = xe::filesystem::OpenFile(file_path, "wt");
+  } else {
+    xe::filesystem::CreateParentFolder(cvars::log_file);
+    log_file = xe::filesystem::OpenFile(cvars::log_file, "wt");
+  }
+  auto sink = std::make_unique<FileLogSink>(log_file);
+  logger_->AddLogSink(std::move(sink));
+
+  if (cvars::log_to_stdout) {
+    auto stdout_sink = std::make_unique<FileLogSink>(stdout);
+    logger_->AddLogSink(std::move(stdout_sink));
+  }
 }
 
 void ShutdownLogging() {

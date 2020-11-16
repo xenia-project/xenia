@@ -9,6 +9,7 @@
 
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/string_util.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_flags.h"
 #include "xenia/kernel/kernel_state.h"
@@ -188,8 +189,8 @@ class KeyboardInputDialog : public xe::ui::ImGuiDialog {
       *out_text_ = default_text;
     }
     text_buffer_.resize(max_length);
-    std::strncpy(text_buffer_.data(), default_text_.c_str(),
-                 std::min(text_buffer_.size() - 1, default_text_.size()));
+    xe::string_util::copy_truncating(text_buffer_.data(), default_text_,
+                                     text_buffer_.size());
   }
 
   void OnDraw(ImGuiIO& io) override {

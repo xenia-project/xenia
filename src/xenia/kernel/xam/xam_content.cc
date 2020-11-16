@@ -8,6 +8,7 @@
  */
 
 #include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_private.h"
@@ -45,14 +46,12 @@ struct DeviceInfo {
 // they incorrectly only look at the lower 32-bits of free_bytes,
 // when it is a 64-bit value. Which means any size above ~4GB
 // will not be recognized properly.
-//
-// NOTE(randprint): you can use 120 GB and 42 GB 'fullness'
-// with the proper deviceID feel free to change at your discression
 #define ONE_GB (1024ull * 1024ull * 1024ull)
 static const DeviceInfo dummy_device_info_ = {
-    0x00000001,    1,  // found from debugging / reversing UE3 engine titles
-    4ull * ONE_GB,     // 4GB
-    3ull * ONE_GB,     // 3GB, so it looks a little used.
+    0x00000001,      // id
+    1,               // 1=HDD
+    20ull * ONE_GB,  // 20GB
+    3ull * ONE_GB,   // 3GB, so it looks a little used.
     u"Dummy HDD",
 };
 #undef ONE_GB
@@ -117,7 +116,7 @@ DECLARE_XAM_EXPORT1(XamContentGetDeviceState, kContent, kStub);
 
 typedef struct {
   xe::be<uint32_t> device_id;
-  xe::be<uint32_t> unknown;
+  xe::be<uint32_t> device_type;
   xe::be<uint64_t> total_bytes;
   xe::be<uint64_t> free_bytes;
   xe::be<uint16_t> name[28];
@@ -134,7 +133,7 @@ dword_result_t XamContentGetDeviceData(
   device_data.Zero();
   const auto& device_info = dummy_device_info_;
   device_data->device_id = device_info.device_id;
-  device_data->unknown = device_id & 0xFFFF;  // Fake it.
+  device_data->device_type = device_info.device_type;
   device_data->total_bytes = device_info.total_bytes;
   device_data->free_bytes = device_info.free_bytes;
   xe::store_and_swap<std::u16string>(&device_data->name[0], device_info.name);
@@ -223,7 +222,8 @@ dword_result_t XamContentCreateDeviceEnumerator(dword_t content_type,
     xe::store_and_swap(&dev->device_type, dummy_device_info_.device_type);
     xe::store_and_swap(&dev->total_bytes, dummy_device_info_.total_bytes);
     xe::store_and_swap(&dev->free_bytes, dummy_device_info_.free_bytes);
-    xe::copy_and_swap(dev->name, dummy_device_info_.name, 28);
+    xe::copy_and_swap(dev->name, dummy_device_info_.name,
+                      xe::countof(dev->name));
   }
 
   *handle_out = e->handle();
