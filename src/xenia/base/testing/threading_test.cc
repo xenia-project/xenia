@@ -174,8 +174,8 @@ TEST_CASE("HighResolutionTimer") {
   {
     const auto interval1 = 100ms;
     const auto interval2 = 200ms;
-    std::atomic<uint64_t> counter1;
-    std::atomic<uint64_t> counter2;
+    std::atomic<uint64_t> counter1(0);
+    std::atomic<uint64_t> counter2(0);
     auto start = std::chrono::steady_clock::now();
     auto cb1 = [&counter1] { ++counter1; };
     auto cb2 = [&counter2] { ++counter2; };
