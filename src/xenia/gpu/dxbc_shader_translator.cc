@@ -1044,10 +1044,9 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
     DxbcOpEndIf();
   }
 
-  // Apply scale for drawing without a viewport, and also remap from OpenGL
-  // Z clip space to Direct3D if needed. Also, if the vertex shader is
-  // multipass, the NDC scale constant can be used to set position to NaN to
-  // kill all primitives.
+  // Apply scale for guest to host viewport and clip space conversion. Also, if
+  // the vertex shader is multipass, the NDC scale constant can be used to set
+  // position to NaN to kill all primitives.
   system_constants_used_ |= 1ull << kSysConst_NDCScale_Index;
   DxbcOpMul(DxbcDest::R(system_temp_position_, 0b0111),
             DxbcSrc::R(system_temp_position_),
@@ -1056,16 +1055,7 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
                         kSysConst_NDCScale_Vec,
                         kSysConst_NDCScale_Comp * 0b010101 + 0b100100));
 
-  // Reverse Z (Z = W - Z) if the viewport depth is inverted.
-  DxbcOpAnd(temp_x_dest, flags_src, DxbcSrc::LU(kSysFlag_ReverseZ));
-  DxbcOpIf(true, temp_x_src);
-  DxbcOpAdd(DxbcDest::R(system_temp_position_, 0b0100),
-            DxbcSrc::R(system_temp_position_, DxbcSrc::kWWWW),
-            -DxbcSrc::R(system_temp_position_, DxbcSrc::kZZZZ));
-  DxbcOpEndIf();
-
-  // Apply offset (multiplied by W) for drawing without a viewport and for half
-  // pixel offset.
+  // Apply offset (multiplied by W) used for the same purposes.
   system_constants_used_ |= 1ull << kSysConst_NDCOffset_Index;
   DxbcOpMAd(DxbcDest::R(system_temp_position_, 0b0111),
             DxbcSrc::CB(cbuffer_index_system_constants_,
