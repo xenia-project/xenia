@@ -25,12 +25,33 @@ namespace gpu {
 
 class SpirvShaderTranslator : public ShaderTranslator {
  public:
+  enum : uint32_t {
+    kSysFlag_XYDividedByW_Shift,
+    kSysFlag_ZDividedByW_Shift,
+    kSysFlag_WNotReciprocal_Shift,
+
+    kSysFlag_Count,
+
+    kSysFlag_XYDividedByW = 1u << kSysFlag_XYDividedByW_Shift,
+    kSysFlag_ZDividedByW = 1u << kSysFlag_ZDividedByW_Shift,
+    kSysFlag_WNotReciprocal = 1u << kSysFlag_WNotReciprocal_Shift,
+  };
+  static_assert(kSysFlag_Count <= 32, "Too many flags in the system constants");
+
   // IF SYSTEM CONSTANTS ARE CHANGED OR ADDED, THE FOLLOWING MUST BE UPDATED:
   // - SystemConstantIndex enum.
   // - Structure members in BeginTranslation.
   struct SystemConstants {
+    uint32_t flags;
     xenos::Endian vertex_index_endian;
     int32_t vertex_base_index;
+    uint32_t padding_vertex_base_index;
+
+    float ndc_scale[3];
+    uint32_t padding_ndc_scale;
+
+    float ndc_offset[3];
+    uint32_t padding_ndc_offset;
   };
 
   // The minimum limit for maxPerStageDescriptorStorageBuffers is 4, and for
@@ -329,8 +350,11 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id const_float2_0_1_;
 
   enum SystemConstantIndex : unsigned int {
+    kSystemConstantFlags,
     kSystemConstantIndexVertexIndexEndian,
     kSystemConstantIndexVertexBaseIndex,
+    kSystemConstantNdcScale,
+    kSystemConstantNdcOffset,
   };
   spv::Id uniform_system_constants_;
   spv::Id uniform_float_constants_;

@@ -686,22 +686,51 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     current_graphics_pipeline_layout_ = pipeline_layout;
   }
 
+  const RegisterFile& regs = *register_file_;
+  const ui::vulkan::VulkanProvider& provider =
+      GetVulkanContext().GetVulkanProvider();
+  const VkPhysicalDeviceProperties& device_properties =
+      provider.device_properties();
+
+  // Get dynamic rasterizer state.
+  draw_util::ViewportInfo viewport_info;
+  // Just handling maxViewportDimensions is enough - viewportBoundsRange[1] must
+  // be at least 2 * max(maxViewportDimensions[0...1]) - 1, and
+  // maxViewportDimensions must be greater than or equal to the size of the
+  // largest possible framebuffer attachment (if the viewport has positive
+  // offset and is between maxViewportDimensions and viewportBoundsRange[1],
+  // GetHostViewportInfo will adjust ndc_scale/ndc_offset to clamp it, and the
+  // clamped range will be outside the largest possible framebuffer anyway.
+  // TODO(Triang3l): Possibly handle maxViewportDimensions and
+  // viewportBoundsRange separately because when using fragment shader
+  // interlocks, framebuffers are not used, while the range may be wider than
+  // dimensions? Though viewport bigger than 4096 - the smallest possible
+  // maximum dimension (which is below the 8192 texture size limit on the Xbox
+  // 360) - and with offset, is probably a situation that never happens in real
+  // life. Or even disregard the viewport bounds range in the fragment shader
+  // interlocks case completely - apply the viewport and the scissor offset
+  // directly to pixel address and to things like ps_param_gen.
+  draw_util::GetHostViewportInfo(
+      regs, 1.0f, 1.0f, false,
+      float(device_properties.limits.maxViewportDimensions[0]),
+      float(device_properties.limits.maxViewportDimensions[1]), true,
+      viewport_info);
+
   // Update fixed-function dynamic state.
-  UpdateFixedFunctionState();
+  UpdateFixedFunctionState(viewport_info);
 
   bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
 
   // Update system constants before uploading them.
-  UpdateSystemConstantValues(indexed ? index_buffer_info->endianness
-                                     : xenos::Endian::kNone);
+  UpdateSystemConstantValues(
+      indexed ? index_buffer_info->endianness : xenos::Endian::kNone,
+      viewport_info);
 
   // Update uniform buffers and descriptor sets after binding the pipeline with
   // the new layout.
   if (!UpdateBindings(vertex_shader, pixel_shader)) {
     return false;
   }
-
-  const RegisterFile& regs = *register_file_;
 
   // Ensure vertex buffers are resident.
   // TODO(Triang3l): Cache residency for ranges in a way similar to how texture
@@ -1229,7 +1258,8 @@ VkShaderStageFlags VulkanCommandProcessor::GetGuestVertexShaderStageFlags()
   return stages;
 }
 
-void VulkanCommandProcessor::UpdateFixedFunctionState() {
+void VulkanCommandProcessor::UpdateFixedFunctionState(
+    const draw_util::ViewportInfo& viewport_info) {
 #if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
@@ -1245,53 +1275,13 @@ void VulkanCommandProcessor::UpdateFixedFunctionState() {
   uint32_t pixel_size_x = 1, pixel_size_y = 1;
 
   // Viewport.
-  // PA_CL_VTE_CNTL contains whether offsets and scales are enabled.
-  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
-  // In games, either all are enabled (for regular drawing) or none are (for
-  // rectangle lists usually).
-  //
-  // If scale/offset is enabled, the Xenos shader is writing (neglecting W
-  // division) position in the NDC (-1, -1, dx_clip_space_def - 1) -> (1, 1, 1)
-  // box. If it's not, the position is in screen space. Since we can only use
-  // the NDC in PC APIs, we use a viewport of the largest possible size, and
-  // divide the position by it in translated shaders.
-  //
-  // TODO(Triang3l): Move all of this to draw_util.
-  // TODO(Triang3l): Limit the viewport if exceeding the device limit; move to
-  // NDC scale/offset constants.
-  auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
-  float viewport_scale_x =
-      pa_cl_vte_cntl.vport_x_scale_ena
-          ? std::abs(regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32)
-          : 4096.0f;
-  float viewport_scale_y =
-      pa_cl_vte_cntl.vport_y_scale_ena
-          ? std::abs(regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32)
-          : 4096.0f;
-  float viewport_scale_z = pa_cl_vte_cntl.vport_z_scale_ena
-                               ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32
-                               : 1.0f;
-  float viewport_offset_x = pa_cl_vte_cntl.vport_x_offset_ena
-                                ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32
-                                : std::abs(viewport_scale_x);
-  float viewport_offset_y = pa_cl_vte_cntl.vport_y_offset_ena
-                                ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
-                                : std::abs(viewport_scale_y);
-  float viewport_offset_z = pa_cl_vte_cntl.vport_z_offset_ena
-                                ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32
-                                : 0.0f;
-  if (regs.Get<reg::PA_SU_SC_MODE_CNTL>().vtx_window_offset_enable) {
-    viewport_offset_x += float(pa_sc_window_offset.window_x_offset);
-    viewport_offset_y += float(pa_sc_window_offset.window_y_offset);
-  }
   VkViewport viewport;
-  viewport.x = (viewport_offset_x - viewport_scale_x) * float(pixel_size_x);
-  viewport.y = (viewport_offset_y - viewport_scale_y) * float(pixel_size_y);
-  viewport.width = viewport_scale_x * 2.0f * float(pixel_size_x);
-  viewport.height = viewport_scale_y * 2.0f * float(pixel_size_y);
-  viewport.minDepth = std::min(std::max(viewport_offset_z, 0.0f), 1.0f);
-  viewport.maxDepth =
-      std::min(std::max(viewport_offset_z + viewport_scale_z, 0.0f), 1.0f);
+  viewport.x = viewport_info.left;
+  viewport.y = viewport_info.top;
+  viewport.width = viewport_info.width;
+  viewport.height = viewport_info.height;
+  viewport.minDepth = viewport_info.z_min;
+  viewport.maxDepth = viewport_info.z_max;
   ff_viewport_update_needed_ |= ff_viewport_.x != viewport.x;
   ff_viewport_update_needed_ |= ff_viewport_.y != viewport.y;
   ff_viewport_update_needed_ |= ff_viewport_.width != viewport.width;
@@ -1326,15 +1316,38 @@ void VulkanCommandProcessor::UpdateFixedFunctionState() {
 }
 
 void VulkanCommandProcessor::UpdateSystemConstantValues(
-    xenos::Endian index_endian) {
+    xenos::Endian index_endian, const draw_util::ViewportInfo& viewport_info) {
 #if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
 
   const RegisterFile& regs = *register_file_;
+  auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
   int32_t vgt_indx_offset = int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
 
   bool dirty = false;
+
+  // Flags.
+  uint32_t flags = 0;
+  // W0 division control.
+  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
+  // 8: VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
+  //               = false: multiply the X, Y coordinates by 1/W0.
+  // 9: VTX_Z_FMT = true: the incoming Z has already been multiplied by 1/W0.
+  //              = false: multiply the Z coordinate by 1/W0.
+  // 10: VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal
+  //                        to get 1/W0.
+  if (pa_cl_vte_cntl.vtx_xy_fmt) {
+    flags |= SpirvShaderTranslator::kSysFlag_XYDividedByW;
+  }
+  if (pa_cl_vte_cntl.vtx_z_fmt) {
+    flags |= SpirvShaderTranslator::kSysFlag_ZDividedByW;
+  }
+  if (pa_cl_vte_cntl.vtx_w0_fmt) {
+    flags |= SpirvShaderTranslator::kSysFlag_WNotReciprocal;
+  }
+  dirty |= system_constants_.flags != flags;
+  system_constants_.flags = flags;
 
   // Index or tessellation edge factor buffer endianness.
   dirty |= system_constants_.vertex_index_endian != index_endian;
@@ -1343,6 +1356,14 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   // Vertex index offset.
   dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
   system_constants_.vertex_base_index = vgt_indx_offset;
+
+  // Conversion to host normalized device coordinates.
+  for (uint32_t i = 0; i < 3; ++i) {
+    dirty |= system_constants_.ndc_scale[i] != viewport_info.ndc_scale[i];
+    dirty |= system_constants_.ndc_offset[i] != viewport_info.ndc_offset[i];
+    system_constants_.ndc_scale[i] = viewport_info.ndc_scale[i];
+    system_constants_.ndc_offset[i] = viewport_info.ndc_offset[i];
+  }
 
   if (dirty) {
     current_graphics_descriptor_set_values_up_to_date_ &=
