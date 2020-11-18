@@ -2016,7 +2016,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   }
   draw_util::ViewportInfo viewport_info;
   draw_util::GetHostViewportInfo(regs, float(pixel_size_x), float(pixel_size_y),
-                                 true, float(D3D12_VIEWPORT_BOUNDS_MAX), false,
+                                 true, float(D3D12_VIEWPORT_BOUNDS_MAX),
+                                 float(D3D12_VIEWPORT_BOUNDS_MAX), false,
                                  viewport_info);
   draw_util::Scissor scissor;
   draw_util::GetScissor(regs, scissor);
