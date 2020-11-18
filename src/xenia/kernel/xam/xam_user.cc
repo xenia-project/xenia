@@ -25,25 +25,25 @@ namespace xam {
 
 X_HRESULT_result_t XamUserGetXUID(dword_t user_index, dword_t type_mask,
                                   lpqword_t xuid_ptr) {
+  assert_true(type_mask == 1 || type_mask == 2 || type_mask == 3 ||
+              type_mask == 4 || type_mask == 7);
   if (!xuid_ptr) {
     return X_E_INVALIDARG;
   }
-
-  assert_true(type_mask == 1 || type_mask == 2 || type_mask == 3 ||
-              type_mask == 4 || type_mask == 7);
   uint32_t result = X_E_NO_SUCH_USER;
   uint64_t xuid = 0;
   if (user_index < 4) {
     if (user_index == 0) {
       const auto& user_profile = kernel_state()->user_profile();
-      if (type_mask & (2 | 4)) {
+      auto type = user_profile->type() & type_mask;
+      if (type & (2 | 4)) {
+        // maybe online profile?
         xuid = user_profile->xuid();
         result = X_E_SUCCESS;
-      } else if (type_mask & 1) {
+      } else if (type & 1) {
+        // maybe offline profile?
         xuid = user_profile->xuid();
         result = X_E_SUCCESS;
-      } else {
-        result = X_E_INVALIDARG;
       }
     }
   } else {
@@ -101,23 +101,43 @@ DECLARE_XAM_EXPORT1(XamUserGetSigninInfo, kUserProfiles, kImplemented);
 
 dword_result_t XamUserGetName(dword_t user_index, lpstring_t buffer,
                               dword_t buffer_len) {
-  if (user_index) {
-    return X_ERROR_NO_SUCH_USER;
+  if (user_index >= 4) {
+    return X_E_INVALIDARG;
   }
 
-  if (!buffer_len) {
-    return X_ERROR_SUCCESS;
+  if (user_index) {
+    return X_E_NO_SUCH_USER;
   }
 
   const auto& user_profile = kernel_state()->user_profile();
   const auto& user_name = user_profile->name();
-
-  // Real XAM will only copy a maximum of 15 characters out.
   xe::string_util::copy_truncating(buffer, user_name,
-                                   std::min(buffer_len.value(), uint32_t(15)));
-  return X_ERROR_SUCCESS;
+                                   std::min(buffer_len.value(), uint32_t(16)));
+  return X_E_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamUserGetName, kUserProfiles, kImplemented);
+
+dword_result_t XamUserGetGamerTag(dword_t user_index, lpu16string_t buffer,
+                                  dword_t buffer_len) {
+  if (user_index >= 4) {
+    return X_E_INVALIDARG;
+  }
+
+  if (user_index) {
+    return X_E_NO_SUCH_USER;
+  }
+
+  if (!buffer || buffer_len < 16) {
+    return X_E_INVALIDARG;
+  }
+
+  const auto& user_profile = kernel_state()->user_profile();
+  auto user_name = xe::to_utf16(user_profile->name());
+  xe::string_util::copy_and_swap_truncating(
+      buffer, user_name, std::min(buffer_len.value(), uint32_t(16)));
+  return X_E_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamUserGetGamerTag, kUserProfiles, kImplemented);
 
 typedef struct {
   xe::be<uint32_t> setting_count;
@@ -404,8 +424,15 @@ DECLARE_XAM_EXPORT1(XamUserWriteProfileSettings, kUserProfiles, kImplemented);
 
 dword_result_t XamUserCheckPrivilege(dword_t user_index, dword_t mask,
                                      lpdword_t out_value) {
-  if (user_index) {
-    return X_ERROR_NO_SUCH_USER;
+  // checking all users?
+  if (user_index != 0xFF) {
+    if (user_index >= 4) {
+      return X_ERROR_INVALID_PARAMETER;
+    }
+
+    if (user_index) {
+      return X_ERROR_NO_SUCH_USER;
+    }
   }
 
   // If we deny everything, games should hopefully not try to do stuff.
@@ -461,6 +488,17 @@ DECLARE_XAM_EXPORT1(XamUserContentRestrictionCheckAccess, kUserProfiles, kStub);
 
 dword_result_t XamUserIsOnlineEnabled(dword_t user_index) { return 1; }
 DECLARE_XAM_EXPORT1(XamUserIsOnlineEnabled, kUserProfiles, kStub);
+
+dword_result_t XamUserGetMembershipTier(dword_t user_index) {
+  if (user_index >= 4) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+  if (user_index) {
+    return X_ERROR_NO_SUCH_USER;
+  }
+  return 6 /* 6 appears to be Gold */;
+}
+DECLARE_XAM_EXPORT1(XamUserGetMembershipTier, kUserProfiles, kStub);
 
 dword_result_t XamUserAreUsersFriends(dword_t user_index, dword_t unk1,
                                       dword_t unk2, lpdword_t out_value,
