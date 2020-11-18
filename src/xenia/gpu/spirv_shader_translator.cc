@@ -168,10 +168,13 @@ void SpirvShaderTranslator::StartTranslation() {
     spv::Id type;
   };
   const SystemConstant system_constants[] = {
+      {"flags", offsetof(SystemConstants, flags), type_uint_},
       {"vertex_index_endian", offsetof(SystemConstants, vertex_index_endian),
        type_uint_},
       {"vertex_base_index", offsetof(SystemConstants, vertex_base_index),
        type_int_},
+      {"ndc_scale", offsetof(SystemConstants, ndc_scale), type_float3_},
+      {"ndc_offset", offsetof(SystemConstants, ndc_offset), type_float3_},
   };
   id_vector_temp_.clear();
   id_vector_temp_.reserve(xe::countof(system_constants));
@@ -997,6 +1000,133 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
 }
 
 void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantFlags));
+  spv::Id system_constant_flags = builder_->createLoad(
+      builder_->createAccessChain(spv::StorageClassUniform,
+                                  uniform_system_constants_, id_vector_temp_),
+      spv::NoPrecision);
+
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(
+      builder_->makeIntConstant(kOutputPerVertexMemberPosition));
+  spv::Id position_ptr = builder_->createAccessChain(
+      spv::StorageClassOutput, output_per_vertex_, id_vector_temp_);
+  spv::Id guest_position = builder_->createLoad(position_ptr, spv::NoPrecision);
+
+  // Check if the shader already returns W, not 1/W, and if it doesn't, turn 1/W
+  // into W.
+  spv::Id position_w =
+      builder_->createCompositeExtract(guest_position, type_float_, 3);
+  spv::Id is_w_not_reciprocal = builder_->createBinOp(
+      spv::OpINotEqual, type_bool_,
+      builder_->createBinOp(
+          spv::OpBitwiseAnd, type_uint_, system_constant_flags,
+          builder_->makeUintConstant(
+              static_cast<unsigned int>(kSysFlag_WNotReciprocal))),
+      const_uint_0_);
+  spv::Id guest_position_w_inv = builder_->createBinOp(
+      spv::OpFDiv, type_float_, const_float_1_, position_w);
+  builder_->addDecoration(guest_position_w_inv, spv::DecorationNoContraction);
+  position_w =
+      builder_->createTriOp(spv::OpSelect, type_float_, is_w_not_reciprocal,
+                            position_w, guest_position_w_inv);
+
+  // Check if the shader returns XY/W rather than XY, and if it does, revert
+  // that.
+  // TODO(Triang3l): Check if having XY or Z pre-divided by W should result in
+  // affine interpolation.
+  uint_vector_temp_.clear();
+  uint_vector_temp_.reserve(2);
+  uint_vector_temp_.push_back(0);
+  uint_vector_temp_.push_back(1);
+  spv::Id position_xy = builder_->createRvalueSwizzle(
+      spv::NoPrecision, type_float2_, guest_position, uint_vector_temp_);
+  spv::Id is_xy_divided_by_w = builder_->createBinOp(
+      spv::OpINotEqual, type_bool_,
+      builder_->createBinOp(
+          spv::OpBitwiseAnd, type_uint_, system_constant_flags,
+          builder_->makeUintConstant(
+              static_cast<unsigned int>(kSysFlag_XYDividedByW))),
+      const_uint_0_);
+  spv::Id guest_position_xy_mul_w = builder_->createBinOp(
+      spv::OpVectorTimesScalar, type_float2_, position_xy, position_w);
+  builder_->addDecoration(guest_position_xy_mul_w,
+                          spv::DecorationNoContraction);
+  position_xy =
+      builder_->createTriOp(spv::OpSelect, type_float2_, is_xy_divided_by_w,
+                            guest_position_xy_mul_w, position_xy);
+
+  // Check if the shader returns Z/W rather than Z, and if it does, revert that.
+  // TODO(Triang3l): Check if having XY or Z pre-divided by W should result in
+  // affine interpolation.
+  spv::Id position_z =
+      builder_->createCompositeExtract(guest_position, type_float_, 2);
+  spv::Id is_z_divided_by_w = builder_->createBinOp(
+      spv::OpINotEqual, type_bool_,
+      builder_->createBinOp(
+          spv::OpBitwiseAnd, type_uint_, system_constant_flags,
+          builder_->makeUintConstant(
+              static_cast<unsigned int>(kSysFlag_ZDividedByW))),
+      const_uint_0_);
+  spv::Id guest_position_z_mul_w =
+      builder_->createBinOp(spv::OpFMul, type_float_, position_z, position_w);
+  builder_->addDecoration(guest_position_z_mul_w, spv::DecorationNoContraction);
+  position_z =
+      builder_->createTriOp(spv::OpSelect, type_float_, is_z_divided_by_w,
+                            guest_position_z_mul_w, position_z);
+
+  // Build XYZ of the position with W format handled.
+  spv::Id position_xyz;
+  {
+    std::unique_ptr<spv::Instruction> composite_construct_op =
+        std::make_unique<spv::Instruction>(
+            builder_->getUniqueId(), type_float3_, spv::OpCompositeConstruct);
+    composite_construct_op->addIdOperand(position_xy);
+    composite_construct_op->addIdOperand(position_z);
+    position_xyz = composite_construct_op->getResultId();
+    builder_->getBuildPoint()->addInstruction(
+        std::move(composite_construct_op));
+  }
+
+  // Apply the NDC scale and offset for guest to host viewport transformation.
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantNdcScale));
+  spv::Id ndc_scale = builder_->createLoad(
+      builder_->createAccessChain(spv::StorageClassUniform,
+                                  uniform_system_constants_, id_vector_temp_),
+      spv::NoPrecision);
+  position_xyz =
+      builder_->createBinOp(spv::OpFMul, type_float3_, position_xyz, ndc_scale);
+  builder_->addDecoration(position_xyz, spv::DecorationNoContraction);
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(
+      builder_->makeIntConstant(kSystemConstantNdcOffset));
+  spv::Id ndc_offset = builder_->createLoad(
+      builder_->createAccessChain(spv::StorageClassUniform,
+                                  uniform_system_constants_, id_vector_temp_),
+      spv::NoPrecision);
+  spv::Id ndc_offset_mul_w = builder_->createBinOp(
+      spv::OpVectorTimesScalar, type_float3_, ndc_offset, position_w);
+  builder_->addDecoration(ndc_offset_mul_w, spv::DecorationNoContraction);
+  position_xyz = builder_->createBinOp(spv::OpFAdd, type_float3_, position_xyz,
+                                       ndc_offset_mul_w);
+  builder_->addDecoration(position_xyz, spv::DecorationNoContraction);
+
+  // Store the position converted to the host.
+  spv::Id position;
+  {
+    std::unique_ptr<spv::Instruction> composite_construct_op =
+        std::make_unique<spv::Instruction>(
+            builder_->getUniqueId(), type_float4_, spv::OpCompositeConstruct);
+    composite_construct_op->addIdOperand(position_xyz);
+    composite_construct_op->addIdOperand(position_w);
+    position = composite_construct_op->getResultId();
+    builder_->getBuildPoint()->addInstruction(
+        std::move(composite_construct_op));
+  }
+  builder_->createStore(position, position_ptr);
+
   // Write 1 to point size (using a geometry shader or another kind of fallback
   // to expand point sprites - point size support is not guaranteed, and the
   // size would also be limited, and can't be controlled independently along two
