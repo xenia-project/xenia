@@ -113,11 +113,12 @@ int32_t FloatToD3D11Fixed16p8(float f32) {
 
 void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
                          float pixel_size_y, bool origin_bottom_left,
-                         float xy_max, bool allow_reverse_z,
+                         float x_max, float y_max, bool allow_reverse_z,
                          ViewportInfo& viewport_info_out) {
   assert_true(pixel_size_x >= 1.0f);
   assert_true(pixel_size_y >= 1.0f);
-  assert_true(xy_max >= 1.0f);
+  assert_true(x_max >= 1.0f);
+  assert_true(y_max >= 1.0f);
 
   // PA_CL_VTE_CNTL contains whether offsets and scales are enabled.
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
@@ -167,9 +168,9 @@ void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
     // Keep the viewport in the positive quarter-plane for simplicity of
     // clamping to the maximum supported bounds.
     float cutoff_left = std::fmax(-viewport_left, 0.0f);
-    float cutoff_right = std::fmax(viewport_right - xy_max, 0.0f);
+    float cutoff_right = std::fmax(viewport_right - x_max, 0.0f);
     viewport_left = std::fmax(viewport_left, 0.0f);
-    viewport_right = std::fmin(viewport_right, xy_max);
+    viewport_right = std::fmin(viewport_right, x_max);
     viewport_width = viewport_right - viewport_left;
     if (viewport_width > size_min) {
       ndc_scale_x =
@@ -194,7 +195,7 @@ void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
     // enabled, via the shader.
     viewport_left = 0.0f;
     viewport_width = std::min(
-        float(xenos::kTexture2DCubeMaxWidthHeight) * pixel_size_x, xy_max);
+        float(xenos::kTexture2DCubeMaxWidthHeight) * pixel_size_x, x_max);
     ndc_scale_x = (2.0f * pixel_size_x) / viewport_width;
     ndc_offset_x = viewport_offset_x * ndc_scale_x - 1.0f;
   }
@@ -205,9 +206,9 @@ void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
     viewport_top = viewport_offset_y * pixel_size_y - viewport_scale_y_abs;
     float viewport_bottom = viewport_top + viewport_scale_y_abs * 2.0f;
     float cutoff_top = std::fmax(-viewport_top, 0.0f);
-    float cutoff_bottom = std::fmax(viewport_bottom - xy_max, 0.0f);
+    float cutoff_bottom = std::fmax(viewport_bottom - y_max, 0.0f);
     viewport_top = std::fmax(viewport_top, 0.0f);
-    viewport_bottom = std::fmin(viewport_bottom, xy_max);
+    viewport_bottom = std::fmin(viewport_bottom, y_max);
     viewport_height = viewport_bottom - viewport_top;
     if (viewport_height > size_min) {
       ndc_scale_y =
@@ -227,7 +228,7 @@ void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
     }
   } else {
     viewport_height = std::min(
-        float(xenos::kTexture2DCubeMaxWidthHeight) * pixel_size_y, xy_max);
+        float(xenos::kTexture2DCubeMaxWidthHeight) * pixel_size_y, y_max);
     ndc_scale_y = (2.0f * pixel_size_y) / viewport_height;
     ndc_offset_y = viewport_offset_y * ndc_scale_y - 1.0f;
   }
