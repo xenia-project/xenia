@@ -52,7 +52,7 @@ struct ViewportInfo {
 // Direct3D clip space with 0...W Z rather than -W...W.
 void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
                          float pixel_size_y, bool origin_bottom_left,
-                         float xy_max, bool allow_reverse_z,
+                         float x_max, float y_max, bool allow_reverse_z,
                          ViewportInfo& viewport_info_out);
 
 struct Scissor {
