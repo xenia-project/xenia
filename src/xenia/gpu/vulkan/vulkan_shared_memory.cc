@@ -467,6 +467,8 @@ void VulkanSharedMemory::GetBarrier(Usage usage,
       stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
       access_mask = VK_ACCESS_TRANSFER_WRITE_BIT;
       return;
+    default:
+      break;
   }
   stage_mask = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT |
                VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |

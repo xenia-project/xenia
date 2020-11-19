@@ -493,7 +493,7 @@ VulkanCommandProcessor::GetPipelineLayout(uint32_t texture_count_pixel,
             "Failed to create a Vulkan descriptor set layout for {} combined "
             "images and samplers for guest pixel shaders",
             texture_count_pixel);
-        return false;
+        return nullptr;
       }
       descriptor_set_layouts_textures_.emplace(
           texture_descriptor_set_layout_key.key,
@@ -536,7 +536,7 @@ VulkanCommandProcessor::GetPipelineLayout(uint32_t texture_count_pixel,
             "Failed to create a Vulkan descriptor set layout for {} combined "
             "images and samplers for guest vertex shaders",
             texture_count_vertex);
-        return false;
+        return nullptr;
       }
       descriptor_set_layouts_textures_.emplace(
           texture_descriptor_set_layout_key.key,
@@ -588,7 +588,7 @@ VulkanCommandProcessor::GetPipelineLayout(uint32_t texture_count_pixel,
         "Failed to create a Vulkan pipeline layout for guest drawing with {} "
         "pixel shader and {} vertex shader textures",
         texture_count_pixel, texture_count_vertex);
-    return false;
+    return nullptr;
   }
   PipelineLayout pipeline_layout_entry;
   pipeline_layout_entry.pipeline_layout = pipeline_layout;
@@ -1650,7 +1650,7 @@ uint8_t* VulkanCommandProcessor::WriteUniformBufferBinding(
           provider.device_properties().limits.minUniformBufferOffsetAlignment),
       descriptor_buffer_info_out.buffer, descriptor_buffer_info_out.offset);
   if (!mapping) {
-    return false;
+    return nullptr;
   }
   descriptor_buffer_info_out.range = VkDeviceSize(size);
   write_descriptor_set_out.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
