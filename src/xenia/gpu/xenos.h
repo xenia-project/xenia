@@ -64,7 +64,15 @@ enum class PrimitiveType : uint32_t {
   kQuadPatch = 0x12,
 };
 
-inline bool IsPrimitiveTwoFaced(bool tessellated, PrimitiveType type) {
+// Polygonal primitive types (not including points and lines) are rasterized as
+// triangles, have front and back faces, and also support face culling and fill
+// modes (polymode_front_ptype, polymode_back_ptype). Other primitive types are
+// always "front" (but don't support front face and back face culling, according
+// to OpenGL and Vulkan specifications - even if glCullFace is
+// GL_FRONT_AND_BACK, points and lines are still drawn), and may in some cases
+// use the "para" registers instead of "front" or "back" (for "parallelogram" -
+// like poly_offset_para_enable).
+constexpr bool IsPrimitivePolygonal(bool tessellated, PrimitiveType type) {
   if (tessellated && (type == PrimitiveType::kTrianglePatch ||
                       type == PrimitiveType::kQuadPatch)) {
     return true;
@@ -74,6 +82,7 @@ inline bool IsPrimitiveTwoFaced(bool tessellated, PrimitiveType type) {
     case PrimitiveType::kTriangleFan:
     case PrimitiveType::kTriangleStrip:
     case PrimitiveType::kTriangleWithWFlags:
+    case PrimitiveType::kRectangleList:
     case PrimitiveType::kQuadList:
     case PrimitiveType::kQuadStrip:
     case PrimitiveType::kPolygon:

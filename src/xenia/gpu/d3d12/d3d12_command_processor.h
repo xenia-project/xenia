@@ -348,9 +348,9 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   void UpdateFixedFunctionState(const draw_util::ViewportInfo& viewport_info,
                                 const draw_util::Scissor& scissor,
-                                bool primitive_two_faced);
+                                bool primitive_polygonal);
   void UpdateSystemConstantValues(
-      bool shared_memory_is_uav, bool primitive_two_faced,
+      bool shared_memory_is_uav, bool primitive_polygonal,
       uint32_t line_loop_closing_index, xenos::Endian index_endian,
       const draw_util::ViewportInfo& viewport_info, uint32_t pixel_size_x,
       uint32_t pixel_size_y, uint32_t used_texture_mask, bool early_z,
