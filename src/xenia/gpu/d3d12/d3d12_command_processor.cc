@@ -1876,14 +1876,14 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       !pixel_shader->memexport_stream_constants().empty();
   bool memexport_used = memexport_used_vertex || memexport_used_pixel;
 
-  bool primitive_two_faced =
-      xenos::IsPrimitiveTwoFaced(tessellated, primitive_type);
+  bool primitive_polygonal =
+      xenos::IsPrimitivePolygonal(tessellated, primitive_type);
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
   if (!memexport_used_vertex &&
       (sq_program_cntl.vs_export_mode ==
            xenos::VertexShaderExportMode::kMultipass ||
-       (primitive_two_faced && pa_su_sc_mode_cntl.cull_front &&
+       (primitive_polygonal && pa_su_sc_mode_cntl.cull_front &&
         pa_su_sc_mode_cntl.cull_back))) {
     // All faces are culled - can't be expressed in the pipeline.
     return true;
@@ -2027,11 +2027,11 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   scissor.height *= pixel_size_y;
 
   // Update viewport, scissor, blend factor and stencil reference.
-  UpdateFixedFunctionState(viewport_info, scissor, primitive_two_faced);
+  UpdateFixedFunctionState(viewport_info, scissor, primitive_polygonal);
 
   // Update system constants before uploading them.
   UpdateSystemConstantValues(
-      memexport_used, primitive_two_faced, line_loop_closing_index,
+      memexport_used, primitive_polygonal, line_loop_closing_index,
       indexed ? index_buffer_info->endianness : xenos::Endian::kNone,
       viewport_info, pixel_size_x, pixel_size_y, used_texture_mask, early_z,
       GetCurrentColorMask(pixel_shader), pipeline_render_targets);
@@ -2785,7 +2785,7 @@ void D3D12CommandProcessor::ClearCommandAllocatorCache() {
 
 void D3D12CommandProcessor::UpdateFixedFunctionState(
     const draw_util::ViewportInfo& viewport_info,
-    const draw_util::Scissor& scissor, bool primitive_two_faced) {
+    const draw_util::Scissor& scissor, bool primitive_polygonal) {
 #if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
@@ -2851,7 +2851,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
     // choose the back face one only if drawing only back faces.
     Register stencil_ref_mask_reg;
     auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
-    if (primitive_two_faced &&
+    if (primitive_polygonal &&
         regs.Get<reg::RB_DEPTHCONTROL>().backface_enable &&
         pa_su_sc_mode_cntl.cull_front && !pa_su_sc_mode_cntl.cull_back) {
       stencil_ref_mask_reg = XE_GPU_REG_RB_STENCILREFMASK_BF;
@@ -2870,7 +2870,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
 }
 
 void D3D12CommandProcessor::UpdateSystemConstantValues(
-    bool shared_memory_is_uav, bool primitive_two_faced,
+    bool shared_memory_is_uav, bool primitive_polygonal,
     uint32_t line_loop_closing_index, xenos::Endian index_endian,
     const draw_util::ViewportInfo& viewport_info, uint32_t pixel_size_x,
     uint32_t pixel_size_y, uint32_t used_texture_mask, bool early_z,
@@ -2983,9 +2983,9 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     flags |= (pa_cl_clip_cntl.value & 0b111111)
              << DxbcShaderTranslator::kSysFlag_UserClipPlane0_Shift;
   }
-  // Whether SV_IsFrontFace matters.
-  if (primitive_two_faced) {
-    flags |= DxbcShaderTranslator::kSysFlag_PrimitiveTwoFaced;
+  // Whether the primitive is polygonal and SV_IsFrontFace matters.
+  if (primitive_polygonal) {
+    flags |= DxbcShaderTranslator::kSysFlag_PrimitivePolygonal;
   }
   // Primitive killing condition.
   if (pa_cl_clip_cntl.vtx_kill_or) {
@@ -3082,7 +3082,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   // to do memexport.
   if (sq_program_cntl.vs_export_mode ==
           xenos::VertexShaderExportMode::kMultipass ||
-      (primitive_two_faced && pa_su_sc_mode_cntl.cull_front &&
+      (primitive_polygonal && pa_su_sc_mode_cntl.cull_front &&
        pa_su_sc_mode_cntl.cull_back)) {
     float nan_value = std::nanf("");
     for (uint32_t i = 0; i < 3; ++i) {
@@ -3275,7 +3275,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     // are used.
     float poly_offset_front_scale = 0.0f, poly_offset_front_offset = 0.0f;
     float poly_offset_back_scale = 0.0f, poly_offset_back_offset = 0.0f;
-    if (primitive_two_faced) {
+    if (primitive_polygonal) {
       if (pa_su_sc_mode_cntl.poly_offset_front_enable) {
         poly_offset_front_scale =
             regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
@@ -3338,7 +3338,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
           system_constants_.edram_stencil_front_func_ops != stencil_func_ops;
       system_constants_.edram_stencil_front_func_ops = stencil_func_ops;
 
-      if (primitive_two_faced && rb_depthcontrol.backface_enable) {
+      if (primitive_polygonal && rb_depthcontrol.backface_enable) {
         dirty |= system_constants_.edram_stencil_back_reference !=
                  rb_stencilrefmask_bf.stencilref;
         system_constants_.edram_stencil_back_reference =
