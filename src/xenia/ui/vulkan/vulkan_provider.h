@@ -19,7 +19,11 @@
 #include "xenia/base/platform.h"
 #include "xenia/ui/graphics_provider.h"
 
-#if XE_PLATFORM_WIN32
+#if XE_PLATFORM_ANDROID
+#ifndef VK_USE_PLATFORM_ANDROID_KHR
+#define VK_USE_PLATFORM_ANDROID_KHR 1
+#endif
+#elif XE_PLATFORM_WIN32
 // Must be included before vulkan.h with VK_USE_PLATFORM_WIN32_KHR because it
 // includes Windows.h too.
 #include "xenia/base/platform_win.h"
