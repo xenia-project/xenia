@@ -81,10 +81,15 @@ filter("configurations:Release")
   })
   optimize("Speed")
   inlining("Auto")
-  floatingpoint("Fast")
   flags({
     "LinkTimeOptimization",
   })
+  -- Not using floatingpoint("Fast") - NaN checks are used in some places
+  -- (though rarely), overall preferable to avoid any functional differences
+  -- between debug and release builds, and to have calculations involved in GPU
+  -- (especially anything that may affect vertex position invariance) and CPU
+  -- (such as constant propagation) emulation as predictable as possible,
+  -- including handling of specials since games make assumptions about them.
 filter("platforms:Linux")
   system("linux")
   toolset("clang")
