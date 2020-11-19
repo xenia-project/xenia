@@ -1285,7 +1285,7 @@ bool PipelineCache::GetCurrentStateDescription(
         uint32_t(regs.Get<reg::VGT_HOS_CNTL>().tess_mode);
   }
 
-  bool primitive_two_faced = xenos::IsPrimitiveTwoFaced(
+  bool primitive_polygonal = xenos::IsPrimitivePolygonal(
       host_vertex_shader_type != Shader::HostVertexShaderType::kVertex,
       primitive_type);
 
@@ -1305,15 +1305,16 @@ bool PipelineCache::GetCurrentStateDescription(
   // Here we also assume that only one side is culled - if two sides are culled,
   // the D3D12 command processor will drop such draw early.
   bool cull_front, cull_back;
-  if (primitive_two_faced) {
+  if (primitive_polygonal) {
     cull_front = pa_su_sc_mode_cntl.cull_front != 0;
     cull_back = pa_su_sc_mode_cntl.cull_back != 0;
   } else {
+    // Non-polygonal primitives are never culled.
     cull_front = false;
     cull_back = false;
   }
   float poly_offset = 0.0f, poly_offset_scale = 0.0f;
-  if (primitive_two_faced) {
+  if (primitive_polygonal) {
     description_out.front_counter_clockwise = pa_su_sc_mode_cntl.face == 0;
     if (cull_front) {
       description_out.cull_mode = PipelineCullMode::kFront;
@@ -1327,8 +1328,8 @@ bool PipelineCache::GetCurrentStateDescription(
     if (!cull_front) {
       // Front faces aren't culled.
       // Direct3D 12, unfortunately, doesn't support point fill mode.
-      if (pa_su_sc_mode_cntl.polymode_front_ptype !=
-          xenos::PolygonType::kTriangles) {
+      if (primitive_polygonal && pa_su_sc_mode_cntl.polymode_front_ptype !=
+                                     xenos::PolygonType::kTriangles) {
         description_out.fill_mode_wireframe = 1;
       }
       if (!edram_rov_used_ && pa_su_sc_mode_cntl.poly_offset_front_enable) {
@@ -1338,8 +1339,8 @@ bool PipelineCache::GetCurrentStateDescription(
     }
     if (!cull_back) {
       // Back faces aren't culled.
-      if (pa_su_sc_mode_cntl.polymode_back_ptype !=
-          xenos::PolygonType::kTriangles) {
+      if (primitive_polygonal && pa_su_sc_mode_cntl.polymode_back_ptype !=
+                                     xenos::PolygonType::kTriangles) {
         description_out.fill_mode_wireframe = 1;
       }
       // Prefer front depth bias because in general, front faces are the ones
@@ -1413,7 +1414,7 @@ bool PipelineCache::GetCurrentStateDescription(
       if (rb_depthcontrol.stencil_enable) {
         description_out.stencil_enable = 1;
         bool stencil_backface_enable =
-            primitive_two_faced && rb_depthcontrol.backface_enable;
+            primitive_polygonal && rb_depthcontrol.backface_enable;
         // Per-face masks not supported by Direct3D 12, choose the back face
         // ones only if drawing only back faces.
         Register stencil_ref_mask_reg;
