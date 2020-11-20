@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/vulkan/vulkan_pipeline_cache.h"
 
+#include <algorithm>
 #include <cstring>
 #include <memory>
 
@@ -43,6 +44,7 @@ bool VulkanPipelineCache::Initialize() {
 
   device_pipeline_features_.features = 0;
   // TODO(Triang3l): Support the portability subset.
+  device_pipeline_features_.point_polygons = 1;
   device_pipeline_features_.triangle_fans = 1;
 
   shader_translator_ = std::make_unique<SpirvShaderTranslator>(
@@ -210,15 +212,21 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   description_out.Reset();
 
   const RegisterFile& regs = register_file_;
+  auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
+  auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
 
   description_out.vertex_shader_hash = vertex_shader->ucode_data_hash();
   description_out.pixel_shader_hash =
       pixel_shader ? pixel_shader->ucode_data_hash() : 0;
   description_out.render_pass_key = render_pass_key;
 
-  auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
+  xenos::PrimitiveType primitive_type = vgt_draw_initiator.prim_type;
   PipelinePrimitiveTopology primitive_topology;
-  switch (vgt_draw_initiator.prim_type) {
+  // Vulkan explicitly allows primitive restart only for specific primitive
+  // types, unlike Direct3D where it's valid for non-strips, but has
+  // implementation-defined behavior.
+  bool primitive_restart_allowed = false;
+  switch (primitive_type) {
     case xenos::PrimitiveType::kPointList:
       primitive_topology = PipelinePrimitiveTopology::kPointList;
       break;
@@ -227,24 +235,76 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       break;
     case xenos::PrimitiveType::kLineStrip:
       primitive_topology = PipelinePrimitiveTopology::kLineStrip;
+      primitive_restart_allowed = true;
       break;
     case xenos::PrimitiveType::kTriangleList:
+    case xenos::PrimitiveType::kRectangleList:
       primitive_topology = PipelinePrimitiveTopology::kTriangleList;
       break;
     case xenos::PrimitiveType::kTriangleFan:
-      primitive_topology = device_pipeline_features_.triangle_fans
-                               ? PipelinePrimitiveTopology::kTriangleFan
-                               : PipelinePrimitiveTopology::kTriangleList;
+      if (device_pipeline_features_.triangle_fans) {
+        primitive_topology = PipelinePrimitiveTopology::kTriangleFan;
+        primitive_restart_allowed = true;
+      } else {
+        primitive_topology = PipelinePrimitiveTopology::kTriangleList;
+      }
       break;
     case xenos::PrimitiveType::kTriangleStrip:
       primitive_topology = PipelinePrimitiveTopology::kTriangleStrip;
+      primitive_restart_allowed = true;
       break;
     default:
       // TODO(Triang3l): All primitive types and tessellation.
       return false;
   }
   description_out.primitive_topology = primitive_topology;
-  // TODO(Triang3l): Primitive restart.
+  description_out.primitive_restart =
+      primitive_restart_allowed && pa_su_sc_mode_cntl.multi_prim_ib_ena;
+
+  // TODO(Triang3l): Tessellation.
+  bool primitive_polygonal = xenos::IsPrimitivePolygonal(false, primitive_type);
+  if (primitive_polygonal) {
+    // Vulkan only allows the polygon mode to be set for both faces - pick the
+    // most special one (more likely to represent the developer's deliberate
+    // intentions - fill is very generic, wireframe is common in debug, points
+    // are for pretty unusual things, but closer to debug purposes too - on the
+    // Xenos, points have the lowest register value and triangles have the
+    // highest) based on which faces are not culled.
+    bool cull_front = pa_su_sc_mode_cntl.cull_front;
+    bool cull_back = pa_su_sc_mode_cntl.cull_back;
+    description_out.cull_front = cull_front;
+    description_out.cull_back = cull_back;
+    xenos::PolygonType polygon_type = xenos::PolygonType::kTriangles;
+    if (!cull_front) {
+      polygon_type =
+          std::min(polygon_type, pa_su_sc_mode_cntl.polymode_front_ptype);
+    }
+    if (!cull_back) {
+      polygon_type =
+          std::min(polygon_type, pa_su_sc_mode_cntl.polymode_back_ptype);
+    }
+    switch (polygon_type) {
+      case xenos::PolygonType::kPoints:
+        // When points are not supported, use lines instead, preserving
+        // debug-like purpose.
+        description_out.polygon_mode = device_pipeline_features_.point_polygons
+                                           ? PipelinePolygonMode::kPoint
+                                           : PipelinePolygonMode::kLine;
+        break;
+      case xenos::PolygonType::kLines:
+        description_out.polygon_mode = PipelinePolygonMode::kLine;
+        break;
+      case xenos::PolygonType::kTriangles:
+        description_out.polygon_mode = PipelinePolygonMode::kFill;
+        break;
+      default:
+        assert_unhandled_case(polygon_type);
+        return false;
+    }
+    description_out.front_face_clockwise = pa_su_sc_mode_cntl.face != 0;
+  } else {
+    description_out.polygon_mode = PipelinePolygonMode::kFill;
+  }
 
   return true;
 }
@@ -374,6 +434,34 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   VkPipelineRasterizationStateCreateInfo rasterization_state = {};
   rasterization_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  switch (description.polygon_mode) {
+    case PipelinePolygonMode::kFill:
+      rasterization_state.polygonMode = VK_POLYGON_MODE_FILL;
+      break;
+    case PipelinePolygonMode::kLine:
+      rasterization_state.polygonMode = VK_POLYGON_MODE_LINE;
+      break;
+    case PipelinePolygonMode::kPoint:
+      assert_true(device_pipeline_features_.point_polygons);
+      if (!device_pipeline_features_.point_polygons) {
+        return false;
+      }
+      rasterization_state.polygonMode = VK_POLYGON_MODE_POINT;
+      break;
+    default:
+      assert_unhandled_case(description.polygon_mode);
+      return false;
+  }
+  rasterization_state.cullMode = VK_CULL_MODE_NONE;
+  if (description.cull_front) {
+    rasterization_state.cullMode |= VK_CULL_MODE_FRONT_BIT;
+  }
+  if (description.cull_back) {
+    rasterization_state.cullMode |= VK_CULL_MODE_BACK_BIT;
+  }
+  rasterization_state.frontFace = description.front_face_clockwise
+                                      ? VK_FRONT_FACE_CLOCKWISE
+                                      : VK_FRONT_FACE_COUNTER_CLOCKWISE;
   rasterization_state.lineWidth = 1.0f;
 
   VkPipelineMultisampleStateCreateInfo multisample_state = {};
