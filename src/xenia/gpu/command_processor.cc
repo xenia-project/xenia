@@ -1179,9 +1179,11 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
   // initiate fetch of index buffer and draw
   // if dword0 != 0, this is a conditional draw based on viz query.
   // This ID matches the one issued in PM4_VIZ_QUERY
-  // ID = dword0 & 0x3F;
-  // use = dword0 & 0x40;
   uint32_t dword0 = reader->ReadAndSwap<uint32_t>();  // viz query info
+  // uint32_t viz_id = dword0 & 0x3F;
+  // when true, render conditionally based on query result
+  // uint32_t viz_use = dword0 & 0x100;
+
   reg::VGT_DRAW_INITIATOR vgt_draw_initiator;
   vgt_draw_initiator.value = reader->ReadAndSwap<uint32_t>();
   WriteRegister(XE_GPU_REG_VGT_DRAW_INITIATOR, vgt_draw_initiator.value);
@@ -1218,6 +1220,14 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
     } break;
   }
 
+  auto viz_query = register_file_->Get<reg::PA_SC_VIZ_QUERY>();
+  if (viz_query.viz_query_ena && viz_query.kill_pix_post_hi_z) {
+    // TODO(Triang3l): Don't drop the draw call completely if the vertex shader
+    // has memexport.
+    // TODO(Triang3l || JoelLinn): Handle this properly in the render backends.
+    return true;
+  }
+
   bool success =
       IssueDraw(vgt_draw_initiator.prim_type, vgt_draw_initiator.num_indices,
                 is_indexed ? &index_buffer_info : nullptr,
@@ -1250,6 +1260,14 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingBuffer* reader,
   // uint32_t index_ptr = reader->ptr();
   // TODO(Triang3l): VGT_IMMED_DATA.
   reader->AdvanceRead((count - 1) * sizeof(uint32_t));
+
+  auto viz_query = register_file_->Get<reg::PA_SC_VIZ_QUERY>();
+  if (viz_query.viz_query_ena && viz_query.kill_pix_post_hi_z) {
+    // TODO(Triang3l): Don't drop the draw call completely if the vertex shader
+    // has memexport.
+    // TODO(Triang3l || JoelLinn): Handle this properly in the render backends.
+    return true;
+  }
 
   bool success = IssueDraw(
       vgt_draw_initiator.prim_type, vgt_draw_initiator.num_indices, nullptr,
@@ -1447,15 +1465,26 @@ bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(RingBuffer* reader,
   uint32_t dword0 = reader->ReadAndSwap<uint32_t>();
 
   uint32_t id = dword0 & 0x3F;
-  uint32_t end = dword0 & 0x80;
+  uint32_t end = dword0 & 0x100;
   if (!end) {
     // begin a new viz query @ id
+    // On hardware this clears the internal state of the scan converter (which
+    // is different to the register)
     WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, VIZQUERY_START);
     XELOGGPU("Begin viz query ID {:02X}", id);
   } else {
     // end the viz query
     WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, VIZQUERY_END);
     XELOGGPU("End viz query ID {:02X}", id);
+    // The scan converter writes the internal result back to the register here.
+    // We just fake it and say it was visible in case it is read back.
+    if (id < 32) {
+      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_0].u32 |=
+          uint32_t(1) << id;
+    } else {
+      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_1].u32 |=
+          uint32_t(1) << (id - 32);
+    }
   }
 
   return true;

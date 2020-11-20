@@ -40,6 +40,12 @@ XE_GPU_REGISTER(0x0A2F, kDword, COHER_SIZE_HOST)
 XE_GPU_REGISTER(0x0A30, kDword, COHER_BASE_HOST)
 XE_GPU_REGISTER(0x0A31, kDword, COHER_STATUS_HOST)
 
+// Status flags of viz queries, doesn't seem to be read back by d3d
+// queries 0x00 to 0x1f (be), bit set when visible
+XE_GPU_REGISTER(0x0C44, kDword, PA_SC_VIZ_QUERY_STATUS_0)
+// queries 0x20 to 0x3f (be)
+XE_GPU_REGISTER(0x0C45, kDword, PA_SC_VIZ_QUERY_STATUS_1)
+
 XE_GPU_REGISTER(0x0D00, kDword, SQ_GPR_MANAGEMENT)
 XE_GPU_REGISTER(0x0D01, kDword, SQ_FLOW_CONTROL)
 XE_GPU_REGISTER(0x0D02, kDword, SQ_INST_STORE_MANAGMENT)
@@ -57,7 +63,8 @@ XE_GPU_REGISTER(0x0E42, kDword, UNKNOWN_0E42)
 XE_GPU_REGISTER(0x0F01, kDword, RB_BC_CONTROL)
 XE_GPU_REGISTER(0x0F02, kDword, RB_EDRAM_INFO)
 
-// D1*, LUT, and AVIVO registers taken from libxenon and https://www.x.org/docs/AMD/old/RRG-216M56-03oOEM.pdf
+// D1*, LUT, and AVIVO registers taken from libxenon and
+// https://www.x.org/docs/AMD/old/RRG-216M56-03oOEM.pdf
 XE_GPU_REGISTER(0x1838, kDword, D1MODE_MASTER_UPDATE_LOCK)
 
 XE_GPU_REGISTER(0x1841, kDword, D1GRPH_CONTROL)

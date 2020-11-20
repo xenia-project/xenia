@@ -289,12 +289,16 @@ union PA_SC_MPASS_PS_CNTL {
   static constexpr Register register_index = XE_GPU_REG_PA_SC_MPASS_PS_CNTL;
 };
 
-// Scanline converter viz query
+// Scanline converter viz query, used by D3D for gpu side conditional rendering
 union PA_SC_VIZ_QUERY {
   struct {
-    uint32_t viz_query_ena : 1;          // +0
-    uint32_t viz_query_id : 6;           // +1
-    uint32_t kill_pix_post_early_z : 1;  // +7
+    // the visibility of draws should be evaluated
+    uint32_t viz_query_ena : 1;  // +0
+    uint32_t viz_query_id : 6;   // +1
+    // discard geometry after test (but use for testing)
+    uint32_t kill_pix_post_hi_z : 1;  // +7
+    // not used with d3d
+    uint32_t kill_pix_detail_mask : 1;  // +8
   };
   uint32_t value;
   static constexpr Register register_index = XE_GPU_REG_PA_SC_VIZ_QUERY;
