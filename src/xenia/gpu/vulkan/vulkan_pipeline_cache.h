@@ -74,6 +74,7 @@ class VulkanPipelineCache {
   // method) should result in a different storage file being used.
   union DevicePipelineFeatures {
     struct {
+      uint32_t point_polygons : 1;
       uint32_t triangle_fans : 1;
     };
     uint32_t features = 0;
@@ -91,6 +92,12 @@ class VulkanPipelineCache {
     kPatchList,
   };
 
+  enum class PipelinePolygonMode : uint32_t {
+    kFill,
+    kLine,
+    kPoint,
+  };
+
   XEPACKEDSTRUCT(PipelineDescription, {
     uint64_t vertex_shader_hash;
     // 0 if no pixel shader.
@@ -98,8 +105,13 @@ class VulkanPipelineCache {
     VulkanRenderTargetCache::RenderPassKey render_pass_key;
 
     // Input assembly.
-    PipelinePrimitiveTopology primitive_topology : 3;
-    uint32_t primitive_restart : 1;
+    PipelinePrimitiveTopology primitive_topology : 3;  // 3
+    uint32_t primitive_restart : 1;                    // 4
+    // Rasterization.
+    PipelinePolygonMode polygon_mode : 2;  // 6
+    uint32_t cull_front : 1;               // 7
+    uint32_t cull_back : 1;                // 8
+    uint32_t front_face_clockwise : 1;     // 9
 
     // Including all the padding, for a stable hash.
     PipelineDescription() { Reset(); }
