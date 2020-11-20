@@ -10,6 +10,7 @@ __author__ = 'ben.vanik@gmail.com (Ben Vanik)'
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import re
@@ -17,7 +18,18 @@ import re
 
 self_path = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.join(self_path, '..', '..')
-premake_path = os.path.join(root_path, 'third_party', 'premake-core')
+premake_external_path = os.path.join(root_path, 'third_party', 'premake-core')
+# On Android, the repository may be cloned to the external storage,
+# which doesn't support executables in it.
+# In this case, premake-core needs to be checked out in the internal storage,
+# which supports executables, with all the permissions as set in its repository.
+# On Termux, the home directory is in the internal storage - use it for executing.
+# If xenia-build doesn't have execute permissions, Xenia is in the external storage now.
+premake_path = premake_external_path
+if 'ANDROID_ROOT' in os.environ:
+  xb_file = os.path.join(root_path, 'xenia-build')
+  if os.path.isfile(xb_file) and not os.access(xb_file, os.X_OK) and 'HOME' in os.environ:
+    premake_path = os.path.join(os.environ['HOME'], 'xenia', 'third_party', 'premake-core')
 
 
 def main():
@@ -58,6 +70,8 @@ def main():
 def build_premake():
   """Builds premake from source.
   """
+  # Ensure that on Android, premake-core is in the internal storage.
+  clone_premake_to_internal_storage()
   cwd = os.getcwd()
   try:
     os.chdir(premake_path)
@@ -89,6 +103,33 @@ def build_premake():
   finally:
     os.chdir(cwd)
   pass
+
+
+def clone_premake_to_internal_storage():
+  """Clones premake to the Android internal storage so it can be executed.
+  """
+  # premake_path is initialized to a value different than premake_external_path
+  # if running from the Android external storage, and may not exist yet.
+  if premake_path == premake_external_path:
+    return
+
+  # Ensure the submodule has been checked out.
+  if not os.path.exists(os.path.join(premake_external_path, 'scripts', 'package.lua')):
+    print('third_party/premake-core was not present; run xb setup...')
+    sys.exit(1)
+    return
+
+  # Create or refresh premake-core in the internal storage.
+  print('Cloning premake5 to the internal storage...')
+  shutil.rmtree(premake_path, ignore_errors=True)
+  os.makedirs(premake_path)
+  shell_call([
+      'git',
+      'clone',
+      '--recurse-submodules',
+      premake_external_path,
+      premake_path,
+      ])
 
 
 def has_bin(bin):
