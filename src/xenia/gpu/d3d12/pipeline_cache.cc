@@ -1305,17 +1305,11 @@ bool PipelineCache::GetCurrentStateDescription(
   // Here we also assume that only one side is culled - if two sides are culled,
   // the D3D12 command processor will drop such draw early.
   bool cull_front, cull_back;
-  if (primitive_polygonal) {
-    cull_front = pa_su_sc_mode_cntl.cull_front != 0;
-    cull_back = pa_su_sc_mode_cntl.cull_back != 0;
-  } else {
-    // Non-polygonal primitives are never culled.
-    cull_front = false;
-    cull_back = false;
-  }
   float poly_offset = 0.0f, poly_offset_scale = 0.0f;
   if (primitive_polygonal) {
     description_out.front_counter_clockwise = pa_su_sc_mode_cntl.face == 0;
+    cull_front = pa_su_sc_mode_cntl.cull_front != 0;
+    cull_back = pa_su_sc_mode_cntl.cull_back != 0;
     if (cull_front) {
       description_out.cull_mode = PipelineCullMode::kFront;
     } else if (cull_back) {
@@ -1328,8 +1322,8 @@ bool PipelineCache::GetCurrentStateDescription(
     if (!cull_front) {
       // Front faces aren't culled.
       // Direct3D 12, unfortunately, doesn't support point fill mode.
-      if (primitive_polygonal && pa_su_sc_mode_cntl.polymode_front_ptype !=
-                                     xenos::PolygonType::kTriangles) {
+      if (pa_su_sc_mode_cntl.polymode_front_ptype !=
+          xenos::PolygonType::kTriangles) {
         description_out.fill_mode_wireframe = 1;
       }
       if (!edram_rov_used_ && pa_su_sc_mode_cntl.poly_offset_front_enable) {
@@ -1339,8 +1333,8 @@ bool PipelineCache::GetCurrentStateDescription(
     }
     if (!cull_back) {
       // Back faces aren't culled.
-      if (primitive_polygonal && pa_su_sc_mode_cntl.polymode_back_ptype !=
-                                     xenos::PolygonType::kTriangles) {
+      if (pa_su_sc_mode_cntl.polymode_back_ptype !=
+          xenos::PolygonType::kTriangles) {
         description_out.fill_mode_wireframe = 1;
       }
       // Prefer front depth bias because in general, front faces are the ones
@@ -1355,9 +1349,9 @@ bool PipelineCache::GetCurrentStateDescription(
       description_out.fill_mode_wireframe = 0;
     }
   } else {
-    // Filled front faces only.
-    // Use front depth bias if POLY_OFFSET_PARA_ENABLED
-    // (POLY_OFFSET_FRONT_ENABLED is for two-sided primitives).
+    // Filled front faces only, without culling.
+    cull_front = false;
+    cull_back = false;
     if (!edram_rov_used_ && pa_su_sc_mode_cntl.poly_offset_para_enable) {
       poly_offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
       poly_offset_scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
