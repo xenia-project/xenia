@@ -30,6 +30,7 @@ defines({
 
 cppdialect("C++17")
 exceptionhandling("On")
+rtti("On")
 symbols("On")
 
 -- TODO(DrChat): Find a way to disable this on other architectures.
