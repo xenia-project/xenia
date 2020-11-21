@@ -216,7 +216,7 @@ int xenia_main(const std::vector<std::string>& args) {
     if (!cvars::portable &&
         !std::filesystem::exists(storage_root / "portable.txt")) {
       storage_root = xe::filesystem::GetUserFolder();
-#if defined(XE_PLATFORM_WIN32) || defined(XE_PLATFORM_LINUX)
+#if defined(XE_PLATFORM_WIN32) || defined(XE_PLATFORM_GNU_LINUX)
       storage_root = storage_root / "Xenia";
 #else
 #warning Unhandled platform for the data root.
