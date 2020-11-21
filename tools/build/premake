@@ -18,18 +18,37 @@ import re
 
 self_path = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.join(self_path, '..', '..')
-premake_external_path = os.path.join(root_path, 'third_party', 'premake-core')
-# On Android, the repository may be cloned to the external storage,
-# which doesn't support executables in it.
-# In this case, premake-core needs to be checked out in the internal storage,
-# which supports executables, with all the permissions as set in its repository.
-# On Termux, the home directory is in the internal storage - use it for executing.
-# If xenia-build doesn't have execute permissions, Xenia is in the external storage now.
-premake_path = premake_external_path
-if 'ANDROID_ROOT' in os.environ:
-  xb_file = os.path.join(root_path, 'xenia-build')
-  if os.path.isfile(xb_file) and not os.access(xb_file, os.X_OK) and 'HOME' in os.environ:
-    premake_path = os.path.join(os.environ['HOME'], 'xenia', 'third_party', 'premake-core')
+premake_submodule_path = os.path.join(root_path, 'third_party', 'premake-core')
+premake_path = premake_submodule_path
+
+
+def setup_premake_path_override():
+  global premake_path
+  premake_path = premake_submodule_path
+  if sys.platform == 'linux':
+    # On Android, the repository may be cloned to the external storage, which
+    # doesn't support executables in it.
+    # In this case, premake-core needs to be checked out in the internal
+    # storage, which supports executables, with all the permissions as set in
+    # its repository.
+    # On Termux, the home directory is in the internal storage - use it for
+    # executing.
+    # If xenia-build doesn't have execute permissions, Xenia is in the external
+    # storage now.
+    try:
+      popen = subprocess.Popen(
+          ['uname', '-o'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+          universal_newlines=True)
+      if popen.communicate()[0] == 'Android\n':
+        xb_file = os.path.join(root_path, 'xenia-build')
+        if (os.path.isfile(xb_file) and not os.access(xb_file, os.X_OK) and
+            'HOME' in os.environ):
+          premake_path = os.path.join(
+              os.environ['HOME'], 'xenia', 'third_party', 'premake-core')
+    except Exception:
+      pass
+
+setup_premake_path_override()
 
 
 def main():
@@ -108,13 +127,14 @@ def build_premake():
 def clone_premake_to_internal_storage():
   """Clones premake to the Android internal storage so it can be executed.
   """
-  # premake_path is initialized to a value different than premake_external_path
+  # premake_path is initialized to a value different than premake_submodule_path
   # if running from the Android external storage, and may not exist yet.
-  if premake_path == premake_external_path:
+  if premake_path == premake_submodule_path:
     return
 
   # Ensure the submodule has been checked out.
-  if not os.path.exists(os.path.join(premake_external_path, 'scripts', 'package.lua')):
+  if not os.path.exists(
+      os.path.join(premake_submodule_path, 'scripts', 'package.lua')):
     print('third_party/premake-core was not present; run xb setup...')
     sys.exit(1)
     return
@@ -127,7 +147,7 @@ def clone_premake_to_internal_storage():
       'git',
       'clone',
       '--recurse-submodules',
-      premake_external_path,
+      premake_submodule_path,
       premake_path,
       ])
 
