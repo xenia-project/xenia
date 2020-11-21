@@ -82,7 +82,6 @@ constexpr bool IsPrimitivePolygonal(bool tessellated, PrimitiveType type) {
     case PrimitiveType::kTriangleFan:
     case PrimitiveType::kTriangleStrip:
     case PrimitiveType::kTriangleWithWFlags:
-    case PrimitiveType::kRectangleList:
     case PrimitiveType::kQuadList:
     case PrimitiveType::kQuadStrip:
     case PrimitiveType::kPolygon:
@@ -90,6 +89,10 @@ constexpr bool IsPrimitivePolygonal(bool tessellated, PrimitiveType type) {
     default:
       break;
   }
+  // TODO(Triang3l): Investigate how kRectangleList should be treated - possibly
+  // actually drawn as two polygons on the console, however, the current
+  // geometry shader doesn't care about the winding order - allowing backface
+  // culling for rectangles currently breaks Gears of War 2.
   return false;
 }
 
