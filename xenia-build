@@ -22,6 +22,17 @@ __author__ = 'ben.vanik@gmail.com (Ben Vanik)'
 self_path = os.path.dirname(os.path.abspath(__file__))
 
 
+# Detect if building on Android via Termux.
+host_os_is_android = False
+if sys.platform == 'linux':
+    try:
+        host_os_is_android = subprocess.Popen(
+            ['uname', '-o'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            universal_newlines=True).communicate()[0] == 'Android\n'
+    except Exception:
+        pass
+
+
 def main():
     # Add self to the root search path.
     sys.path.insert(0, self_path)
