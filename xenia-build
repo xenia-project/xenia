@@ -362,8 +362,8 @@ def get_premake_target_os(target_os_override=None):
 
     Returns:
       Target --os to pass to premake. If a return value of this function valid
-      for the current configuration is passed to it function again, the same
-      value will be returned.
+      for the current configuration is passed to it again, the same value will
+      be returned.
     """
     if sys.platform == 'darwin':
         target_os = 'macosx'
