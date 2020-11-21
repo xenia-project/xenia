@@ -15,6 +15,10 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/platform.h"
 
+#if XE_PLATFORM_LINUX
+#include <byteswap.h>
+#endif
+
 namespace xe {
 
 #if XE_PLATFORM_WIN32
@@ -26,9 +30,9 @@ namespace xe {
 #define XENIA_BASE_BYTE_SWAP_32 OSSwapInt32
 #define XENIA_BASE_BYTE_SWAP_64 OSSwapInt64
 #else
-#define XENIA_BASE_BYTE_SWAP_16 __bswap_16
-#define XENIA_BASE_BYTE_SWAP_32 __bswap_32
-#define XENIA_BASE_BYTE_SWAP_64 __bswap_64
+#define XENIA_BASE_BYTE_SWAP_16 bswap_16
+#define XENIA_BASE_BYTE_SWAP_32 bswap_32
+#define XENIA_BASE_BYTE_SWAP_64 bswap_64
 #endif  // XE_PLATFORM_WIN32
 
 inline int8_t byte_swap(int8_t value) { return value; }
