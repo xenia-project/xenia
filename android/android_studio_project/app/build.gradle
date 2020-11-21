@@ -1,0 +1,82 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    compileSdkVersion 30
+    buildToolsVersion "30.0.2"
+    ndkVersion '22.0.6917172 rc1'
+
+    defaultConfig {
+        applicationId "jp.xenia.emulator"
+        minSdkVersion 24
+        targetSdkVersion 30
+        versionCode 1
+        versionName "Prototype"
+        externalNativeBuild {
+            ndkBuild {
+                arguments "NDK_APPLICATION_MK:=../../../build/xenia_Application.mk"
+            }
+        }
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    buildTypes {
+        release {
+            externalNativeBuild {
+                ndkBuild {
+                    arguments "PM5_CONFIG:=release_android"
+                }
+            }
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        releaseDebuggable {
+            initWith release
+            debuggable true
+        }
+        debug {
+            applicationIdSuffix ".debug"
+            debuggable true
+            externalNativeBuild {
+                ndkBuild {
+                    arguments "PM5_CONFIG:=debug_android"
+                }
+            }
+        }
+        checked {
+            applicationIdSuffix ".checked"
+            debuggable true
+            externalNativeBuild {
+                ndkBuild {
+                    arguments "PM5_CONFIG:=checked_android"
+                }
+            }
+        }
+    }
+
+    flavorDimensions "distribution"
+    productFlavors {
+        github {
+            dimension "distribution"
+            applicationIdSuffix ".github"
+        }
+        googlePlay {
+            dimension "distribution"
+            // TODO(Triang3l): Provide a signing config for core contributors only.
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    externalNativeBuild {
+        ndkBuild {
+            path file('../../../build/xenia_Android.mk')
+        }
+    }
+}
