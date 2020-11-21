@@ -29,6 +29,7 @@ defines({
 })
 
 cppdialect("C++17")
+exceptionhandling("On")
 symbols("On")
 
 -- TODO(DrChat): Find a way to disable this on other architectures.
@@ -146,6 +147,9 @@ filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp
     "-stdlib=libstdc++",
   })
 
+filter("platforms:Android")
+  system("android")
+
 filter("platforms:Windows")
   system("windows")
   toolset("msc")
@@ -198,8 +202,9 @@ solution("xenia")
   uuid("931ef4b0-6170-4f7a-aaf2-0fece7632747")
   startproject("xenia-app")
   if os.istarget("android") then
-    architecture("ARM64")
+    -- Not setting architecture as that's handled by ndk-build itself.
     platforms({"Android"})
+    ndkstl("c++_static")
   else
     architecture("x86_64")
     if os.istarget("linux") then
