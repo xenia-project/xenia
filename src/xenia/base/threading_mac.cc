@@ -26,10 +26,6 @@ uint32_t current_thread_id() {
 
 void set_name(const std::string& name) { pthread_setname_np(name.c_str()); }
 
-void set_name(std::thread::native_handle_type handle, const std::string& name) {
-  // ?
-}
-
 void MaybeYield() { pthread_yield_np(); }
 
 void Sleep(std::chrono::microseconds duration) {

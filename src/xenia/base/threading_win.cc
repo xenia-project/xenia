@@ -57,7 +57,7 @@ void raise_thread_name_exception(HANDLE thread, const std::string& name) {
   }
 }
 
-void set_name(HANDLE thread, const std::string_view name) {
+static void set_name(HANDLE thread, const std::string_view name) {
   auto kernel = GetModuleHandleW(L"kernel32.dll");
   if (kernel) {
     auto func =
