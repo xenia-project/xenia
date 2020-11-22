@@ -86,19 +86,19 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
       assert_always();
       return nullptr;
   }
-
   oflag |= O_CREAT;
   auto full_path = "/" / path;
   int ret = shm_open(full_path.c_str(), oflag, 0777);
-  if (ret > 0) {
-    ftruncate64(ret, length);
+  if (ret < 0) {
+    return kFileMappingHandleInvalid;
   }
-
-  return ret <= 0 ? nullptr : reinterpret_cast<FileMappingHandle>(ret);
+  ftruncate64(ret, length);
+  return ret;
 }
 
 void CloseFileMappingHandle(FileMappingHandle handle,
                             const std::filesystem::path& path) {
+  close(handle);
   auto full_path = "/" / path;
   shm_unlink(full_path.c_str());
 }
@@ -106,8 +106,8 @@ void CloseFileMappingHandle(FileMappingHandle handle,
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
                   PageAccess access, size_t file_offset) {
   uint32_t prot = ToPosixProtectFlags(access);
-  return mmap64(base_address, length, prot, MAP_PRIVATE | MAP_ANONYMOUS,
-                reinterpret_cast<intptr_t>(handle), file_offset);
+  return mmap64(base_address, length, prot, MAP_PRIVATE | MAP_ANONYMOUS, handle,
+                file_offset);
 }
 
 bool UnmapFileView(FileMappingHandle handle, void* base_address,
