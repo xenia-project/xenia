@@ -40,11 +40,11 @@ X64CodeCache::~X64CodeCache() {
   }
 
   // Unmap all views and close mapping.
-  if (mapping_) {
+  if (mapping_ != xe::memory::kFileMappingHandleInvalid) {
     xe::memory::UnmapFileView(mapping_, generated_code_base_,
                               kGeneratedCodeSize);
     xe::memory::CloseFileMappingHandle(mapping_, file_name_);
-    mapping_ = nullptr;
+    mapping_ = xe::memory::kFileMappingHandleInvalid;
   }
 }
 
@@ -67,7 +67,7 @@ bool X64CodeCache::Initialize() {
   mapping_ = xe::memory::CreateFileMappingHandle(
       file_name_, kGeneratedCodeSize, xe::memory::PageAccess::kExecuteReadWrite,
       false);
-  if (!mapping_) {
+  if (mapping_ == xe::memory::kFileMappingHandleInvalid) {
     XELOGE("Unable to create code cache mmap");
     return false;
   }
