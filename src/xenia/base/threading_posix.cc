@@ -49,6 +49,12 @@ enum class SignalType {
   kTimer,
   kThreadSuspend,
   kThreadUserCallback,
+#if XE_PLATFORM_ANDROID
+  // pthread_cancel is not available on Android, using a signal handler for
+  // simplified PTHREAD_CANCEL_ASYNCHRONOUS-like behavior - not disabling
+  // cancellation currently, so should be enough.
+  kThreadTerminate,
+#endif
   k_Count
 };
 
@@ -532,9 +538,16 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
   virtual ~PosixCondition() {
     if (thread_ && !signaled_) {
+#if XE_PLATFORM_ANDROID
+      if (pthread_kill(thread_,
+                       GetSystemSignal(SignalType::kThreadTerminate)) != 0) {
+        assert_always();
+      }
+#else
       if (pthread_cancel(thread_) != 0) {
         assert_always();
       }
+#endif
       if (pthread_join(thread_, nullptr) != 0) {
         assert_always();
       }
@@ -568,14 +581,16 @@ class PosixCondition<Thread> : public PosixConditionBase {
   uint64_t affinity_mask() {
     WaitStarted();
     cpu_set_t cpu_set;
-    int get_result;
 #if XE_PLATFORM_ANDROID
-    get_result = sched_getaffinity(pthread_gettid_np(thread_),
-                                   sizeof(cpu_set_t), &cpu_set);
+    if (sched_getaffinity(pthread_gettid_np(thread_), sizeof(cpu_set_t),
+                          &cpu_set) != 0) {
+      assert_always();
+    }
 #else
-    get_result = pthread_getaffinity_np(thread_, sizeof(cpu_set_t), &cpu_set);
+    if (pthread_getaffinity_np(thread_, sizeof(cpu_set_t), &cpu_set) != 0) {
+      assert_always();
+    }
 #endif
-    assert_zero(get_result);
     uint64_t result = 0;
     auto cpu_count = std::min(CPU_SETSIZE, 64);
     for (auto i = 0u; i < cpu_count; i++) {
@@ -594,14 +609,16 @@ class PosixCondition<Thread> : public PosixConditionBase {
         CPU_SET(i, &cpu_set);
       }
     }
-    int ret;
 #if XE_PLATFORM_ANDROID
-    ret = sched_setaffinity(pthread_gettid_np(thread_), sizeof(cpu_set_t),
-                            &cpu_set);
+    if (sched_setaffinity(pthread_gettid_np(thread_), sizeof(cpu_set_t),
+                          &cpu_set) != 0) {
+      assert_always();
+    }
 #else
-    ret = pthread_setaffinity_np(thread_, sizeof(cpu_set_t), &cpu_set);
+    if (pthread_setaffinity_np(thread_, sizeof(cpu_set_t), &cpu_set) != 0) {
+      assert_always();
+    }
 #endif
-    assert_zero(ret);
   }
 
   int priority() {
@@ -687,7 +704,16 @@ class PosixCondition<Thread> : public PosixConditionBase {
     signaled_ = true;
     cond_.notify_all();
 
-    if (pthread_cancel(thread) != 0) assert_always();
+#ifdef XE_PLATFORM_ANDROID
+    if (pthread_kill(thread, GetSystemSignal(SignalType::kThreadTerminate)) !=
+        0) {
+      assert_always();
+    }
+#else
+    if (pthread_cancel(thread) != 0) {
+      assert_always();
+    }
+#endif
   }
 
   void WaitStarted() const {
@@ -963,9 +989,11 @@ class PosixThread : public PosixConditionHandle<Thread> {
 thread_local PosixThread* current_thread_ = nullptr;
 
 void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
+#if !XE_PLATFORM_ANDROID
   if (pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, nullptr) != 0) {
     assert_always();
   }
+#endif
   threading::set_name("");
 
   auto start_data = static_cast<ThreadStartData*>(parameter);
@@ -1012,6 +1040,9 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
                                        std::function<void()> start_routine) {
   install_signal_handler(SignalType::kThreadSuspend);
   install_signal_handler(SignalType::kThreadUserCallback);
+#if XE_PLATFORM_ANDROID
+  install_signal_handler(SignalType::kThreadTerminate);
+#endif
   auto thread = std::make_unique<PosixThread>();
   if (!thread->Initialize(params, std::move(start_routine))) return nullptr;
   assert_not_null(thread);
@@ -1074,6 +1105,11 @@ static void signal_handler(int signal, siginfo_t* info, void* /*context*/) {
         p_thread->CallUserCallback();
       }
     } break;
+#if XE_PLATFORM_ANDROID
+    case SignalType::kThreadTerminate: {
+      pthread_exit(reinterpret_cast<void*>(-1));
+    } break;
+#endif
     default:
       assert_always();
   }
