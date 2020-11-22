@@ -84,7 +84,7 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
       break;
     default:
       assert_always();
-      return nullptr;
+      return kFileMappingHandleInvalid;
   }
   oflag |= O_CREAT;
   auto full_path = "/" / path;
