@@ -48,6 +48,7 @@ void Initialize(const ANativeActivity* activity) {
           dlsym(lib, #name));                                    \
   assert_not_null(api_functions_.api_##api.name);
     XE_PLATFORM_ANDROID_LOAD_API_FUNCTION(libandroid, ASharedMemory_create, 26);
+    // pthreads are a part of Bionic libc on Android.
     XE_PLATFORM_ANDROID_LOAD_API_FUNCTION(libc, pthread_getname_np, 26);
 #undef XE_PLATFORM_ANDROID_LOAD_API_FUNCTION
   }
