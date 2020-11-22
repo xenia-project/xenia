@@ -100,7 +100,8 @@ class X64CodeCache : public CodeCache {
                          UnwindReservation unwind_reservation) {}
 
   std::filesystem::path file_name_;
-  xe::memory::FileMappingHandle mapping_ = nullptr;
+  xe::memory::FileMappingHandle mapping_ =
+      xe::memory::kFileMappingHandleInvalid;
 
   // NOTE: the global critical region must be held when manipulating the offsets
   // or counts of anything, to keep the tables consistent and ordered.

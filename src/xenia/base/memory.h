@@ -18,6 +18,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
+#include "xenia/base/platform.h"
 
 namespace xe {
 namespace memory {
@@ -96,12 +97,21 @@ void AlignedFree(T* ptr) {
 #endif  // XE_COMPILER_MSVC
 }
 
+#if XE_PLATFORM_WIN32
+// HANDLE.
 typedef void* FileMappingHandle;
+constexpr FileMappingHandle kFileMappingHandleInvalid = nullptr;
+#else
+// File descriptor.
+typedef int FileMappingHandle;
+constexpr FileMappingHandle kFileMappingHandleInvalid = -1;
+#endif
 
 FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
                                           size_t length, PageAccess access,
                                           bool commit);
-void CloseFileMappingHandle(FileMappingHandle handle);
+void CloseFileMappingHandle(FileMappingHandle handle,
+                            const std::filesystem::path& path);
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
                   PageAccess access, size_t file_offset);
 bool UnmapFileView(FileMappingHandle handle, void* base_address, size_t length);

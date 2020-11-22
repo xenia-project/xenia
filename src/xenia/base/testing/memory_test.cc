@@ -10,6 +10,9 @@
 #include "xenia/base/memory.h"
 
 #include "third_party/catch/include/catch.hpp"
+#include "third_party/fmt/include/fmt/format.h"
+
+#include "xenia/base/clock.h"
 
 namespace xe {
 namespace base {
@@ -412,6 +415,58 @@ TEST_CASE("copy_and_swap_16_in_32_aligned", "Copy and Swap") {
 TEST_CASE("copy_and_swap_16_in_32_unaligned", "Copy and Swap") {
   // TODO(bwrsandman): test once properly understood.
   REQUIRE(true == true);
+}
+
+TEST_CASE("create_and_close_file_mapping", "Virtual Memory Mapping") {
+  auto path = fmt::format("xenia_test_{}", Clock::QueryHostTickCount());
+  auto memory = xe::memory::CreateFileMappingHandle(
+      path, 0x100, xe::memory::PageAccess::kReadWrite, true);
+  REQUIRE(memory != xe::memory::FileMappingHandleInvalid);
+  xe::memory::CloseFileMappingHandle(memory, path);
+}
+
+TEST_CASE("map_view", "Virtual Memory Mapping") {
+  auto path = fmt::format("xenia_test_{}", Clock::QueryHostTickCount());
+  const size_t length = 0x100;
+  auto memory = xe::memory::CreateFileMappingHandle(
+      path, length, xe::memory::PageAccess::kReadWrite, true);
+  REQUIRE(memory != xe::memory::FileMappingHandleInvalid);
+
+  uintptr_t address = 0x100000000;
+  auto view =
+      xe::memory::MapFileView(memory, reinterpret_cast<void*>(address), length,
+                              xe::memory::PageAccess::kReadWrite, 0);
+  REQUIRE(reinterpret_cast<uintptr_t>(view) == address);
+
+  xe::memory::UnmapFileView(memory, reinterpret_cast<void*>(address), length);
+  xe::memory::CloseFileMappingHandle(memory, path);
+}
+
+TEST_CASE("read_write_view", "Virtual Memory Mapping") {
+  const size_t length = 0x100;
+  auto path = fmt::format("xenia_test_{}", Clock::QueryHostTickCount());
+  auto memory = xe::memory::CreateFileMappingHandle(
+      path, length, xe::memory::PageAccess::kReadWrite, true);
+  REQUIRE(memory != xe::memory::FileMappingHandleInvalid);
+
+  uintptr_t address = 0x100000000;
+  auto view =
+      xe::memory::MapFileView(memory, reinterpret_cast<void*>(address), length,
+                              xe::memory::PageAccess::kReadWrite, 0);
+  REQUIRE(reinterpret_cast<uintptr_t>(view) == address);
+
+  for (uint32_t i = 0; i < length; i += sizeof(uint8_t)) {
+    auto p_value = reinterpret_cast<uint8_t*>(address + i);
+    *p_value = i;
+  }
+  for (uint32_t i = 0; i < length; i += sizeof(uint8_t)) {
+    auto p_value = reinterpret_cast<uint8_t*>(address + i);
+    uint8_t value = *p_value;
+    REQUIRE(value == i);
+  }
+
+  xe::memory::UnmapFileView(memory, reinterpret_cast<void*>(address), length);
+  xe::memory::CloseFileMappingHandle(memory, path);
 }
 
 }  // namespace test

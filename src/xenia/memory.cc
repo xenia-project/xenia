@@ -113,11 +113,11 @@ Memory::~Memory() {
   heaps_.physical.Dispose();
 
   // Unmap all views and close mapping.
-  if (mapping_) {
+  if (mapping_ != xe::memory::kFileMappingHandleInvalid) {
     UnmapViews();
-    xe::memory::CloseFileMappingHandle(mapping_);
+    xe::memory::CloseFileMappingHandle(mapping_, file_name_);
     mapping_base_ = nullptr;
-    mapping_ = nullptr;
+    mapping_ = xe::memory::kFileMappingHandleInvalid;
   }
 
   virtual_membase_ = nullptr;
@@ -125,8 +125,7 @@ Memory::~Memory() {
 }
 
 bool Memory::Initialize() {
-  file_name_ =
-      fmt::format("Local\\xenia_memory_{}", Clock::QueryHostTickCount());
+  file_name_ = fmt::format("xenia_memory_{}", Clock::QueryHostTickCount());
 
   // Create main page file-backed mapping. This is all reserved but
   // uncommitted (so it shouldn't expand page file).
@@ -134,9 +133,9 @@ bool Memory::Initialize() {
       file_name_,
       // entire 4gb space + 512mb physical:
       0x11FFFFFFF, xe::memory::PageAccess::kReadWrite, false);
-  if (!mapping_) {
+  if (mapping_ == xe::memory::kFileMappingHandleInvalid) {
     XELOGE("Unable to reserve the 4gb guest address space.");
-    assert_not_null(mapping_);
+    assert_always();
     return false;
   }
 
