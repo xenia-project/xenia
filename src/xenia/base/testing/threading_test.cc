@@ -813,7 +813,7 @@ TEST_CASE("Create and Run Thread", "Thread") {
   result = Wait(Thread::GetCurrentThread(), false, 50ms);
   REQUIRE(result == WaitResult::kTimeout);
 
-  params.stack_size = 16 * 1024;
+  params.stack_size = 16 * 1024 * 1024;
   thread = Thread::Create(params, [] {
     while (true) {
       Thread::Exit(-1);

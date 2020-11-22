@@ -505,6 +505,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       }
     }
     if (pthread_create(&thread_, &attr, ThreadStartRoutine, start_data) != 0) {
+      pthread_attr_destroy(&attr);
       return false;
     }
     pthread_attr_destroy(&attr);
