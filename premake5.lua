@@ -150,6 +150,10 @@ filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp
 
 filter("platforms:Android")
   system("android")
+  links({
+    "android",
+    "dl",
+  })
 
 filter("platforms:Windows")
   system("windows")
