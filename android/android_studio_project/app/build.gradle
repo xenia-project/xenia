@@ -9,6 +9,7 @@ android {
 
     defaultConfig {
         applicationId "jp.xenia.emulator"
+        // 24 (7.0) - Vulkan.
         minSdkVersion 24
         targetSdkVersion 30
         versionCode 1
