@@ -8,11 +8,22 @@
  */
 
 #include "xenia/base/memory.h"
-#include "xenia/base/string.h"
 
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+
+#include "xenia/base/math.h"
+#include "xenia/base/platform.h"
+#include "xenia/base/string.h"
+
+#if XE_PLATFORM_ANDROID
+#include <linux/ashmem.h>
+#include <string.h>
+#include <sys/ioctl.h>
+
+#include "xenia/base/platform_android.h"
+#endif
 
 namespace xe {
 namespace memory {
@@ -70,6 +81,31 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
 FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
                                           size_t length, PageAccess access,
                                           bool commit) {
+#if XE_PLATFORM_ANDROID
+  if (xe::platform::android::api_level() >= 26) {
+    // TODO(Triang3l): Check if memfd can be used instead on API 30+.
+    int sharedmem_fd =
+        xe::platform::android::api_functions().api_26.ASharedMemory_create(
+            path.c_str(), length);
+    return sharedmem_fd >= 0 ? sharedmem_fd : kFileMappingHandleInvalid;
+  }
+
+  // Use /dev/ashmem on API versions below 26, which added ASharedMemory.
+  // /dev/ashmem was disabled on API 29 for apps targeting it.
+  // https://chromium.googlesource.com/chromium/src/+/master/third_party/ashmem/ashmem-dev.c
+  int ashmem_fd = open("/" ASHMEM_NAME_DEF, O_RDWR);
+  if (ashmem_fd < 0) {
+    return kFileMappingHandleInvalid;
+  }
+  char ashmem_name[ASHMEM_NAME_LEN];
+  strlcpy(ashmem_name, path.c_str(), xe::countof(ashmem_name));
+  if (ioctl(ashmem_fd, ASHMEM_SET_NAME, ashmem_name) < 0 ||
+      ioctl(ashmem_fd, ASHMEM_SET_SIZE, length) < 0) {
+    close(ashmem_fd);
+    return kFileMappingHandleInvalid;
+  }
+  return ashmem_fd;
+#else
   int oflag;
   switch (access) {
     case PageAccess::kNoAccess:
@@ -94,13 +130,16 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
   }
   ftruncate64(ret, length);
   return ret;
+#endif
 }
 
 void CloseFileMappingHandle(FileMappingHandle handle,
                             const std::filesystem::path& path) {
   close(handle);
+#if !XE_PLATFORM_ANDROID
   auto full_path = "/" / path;
   shm_unlink(full_path.c_str());
+#endif
 }
 
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
