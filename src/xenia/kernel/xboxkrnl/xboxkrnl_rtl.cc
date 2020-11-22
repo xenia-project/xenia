@@ -21,13 +21,9 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
+#include "xenia/kernel/xclock.h"
 #include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xthread.h"
-
-#if XE_PLATFORM_WIN32
-#include "xenia/base/platform_win.h"
-#define timegm _mkgmtime
-#endif
 
 namespace xe {
 namespace kernel {
@@ -507,44 +503,51 @@ struct X_TIME_FIELDS {
   xe::be<uint16_t> milliseconds;
   xe::be<uint16_t> weekday;
 };
-static_assert(sizeof(X_TIME_FIELDS) == 16, "Must be LARGEINTEGER");
+static_assert_size(X_TIME_FIELDS, 16);
 
-// https://support.microsoft.com/en-us/kb/167296
+// https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtltimetotimefields
 void RtlTimeToTimeFields(lpqword_t time_ptr,
                          pointer_t<X_TIME_FIELDS> time_fields_ptr) {
-  int64_t time_ms = time_ptr.value() / 10000 - 11644473600000LL;
-  time_t timet = time_ms / 1000;
-  struct tm* tm = gmtime(&timet);
-
-  time_fields_ptr->year = tm->tm_year + 1900;
-  time_fields_ptr->month = tm->tm_mon + 1;
-  time_fields_ptr->day = tm->tm_mday;
-  time_fields_ptr->hour = tm->tm_hour;
-  time_fields_ptr->minute = tm->tm_min;
-  time_fields_ptr->second = tm->tm_sec;
-  time_fields_ptr->milliseconds = time_ms % 1000;
-  time_fields_ptr->weekday = tm->tm_wday;
+  auto tp = XClock::to_sys(XClock::from_file_time(time_ptr.value()));
+  auto dp = date::floor<date::days>(tp);
+  auto year_month_day = date::year_month_day{dp};
+  auto weekday = date::weekday{dp};
+  auto time = date::hh_mm_ss{date::floor<std::chrono::milliseconds>(tp - dp)};
+  time_fields_ptr->year = static_cast<int>(year_month_day.year());
+  time_fields_ptr->month = static_cast<unsigned>(year_month_day.month());
+  time_fields_ptr->day = static_cast<unsigned>(year_month_day.day());
+  time_fields_ptr->weekday = weekday.c_encoding();
+  time_fields_ptr->hour = time.hours().count();
+  time_fields_ptr->minute = time.minutes().count();
+  time_fields_ptr->second = static_cast<uint16_t>(time.seconds().count());
+  time_fields_ptr->milliseconds =
+      static_cast<uint16_t>(time.subseconds().count());
 }
 DECLARE_XBOXKRNL_EXPORT1(RtlTimeToTimeFields, kNone, kImplemented);
 
+// https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtltimefieldstotime
 dword_result_t RtlTimeFieldsToTime(pointer_t<X_TIME_FIELDS> time_fields_ptr,
                                    lpqword_t time_ptr) {
-  struct tm tm;
-  tm.tm_year = time_fields_ptr->year - 1900;
-  tm.tm_mon = time_fields_ptr->month - 1;
-  tm.tm_mday = time_fields_ptr->day;
-  tm.tm_hour = time_fields_ptr->hour;
-  tm.tm_min = time_fields_ptr->minute;
-  tm.tm_sec = time_fields_ptr->second;
-  tm.tm_isdst = 0;
-  time_t timet = timegm(&tm);
-  if (timet == -1) {
-    // set last error = ERROR_INVALID_PARAMETER
+  if (time_fields_ptr->year < 1601 || time_fields_ptr->month < 1 ||
+      time_fields_ptr->month > 11 || time_fields_ptr->day < 1 ||
+      time_fields_ptr->hour > 23 || time_fields_ptr->minute > 59 ||
+      time_fields_ptr->second > 59 || time_fields_ptr->milliseconds > 999) {
     return 0;
   }
-  uint64_t time =
-      ((timet + 11644473600LL) * 1000 + time_fields_ptr->milliseconds) * 10000;
-  *time_ptr = time;
+  auto year = date::year{time_fields_ptr->year};
+  auto month = date::month{time_fields_ptr->month};
+  auto day = date::day{time_fields_ptr->day};
+  auto year_month_day = date::year_month_day{year, month, day};
+  if (!year_month_day.ok()) {
+    return 0;
+  }
+  auto dp = static_cast<date::sys_days>(year_month_day);
+  std::chrono::system_clock::time_point time = dp;
+  time += std::chrono::hours{time_fields_ptr->hour};
+  time += std::chrono::minutes{time_fields_ptr->minute};
+  time += std::chrono::seconds{time_fields_ptr->second};
+  time += std::chrono::milliseconds{time_fields_ptr->milliseconds};
+  *time_ptr = XClock::to_file_time(XClock::from_sys(time));
   return 1;
 }
 DECLARE_XBOXKRNL_EXPORT1(RtlTimeFieldsToTime, kNone, kImplemented);
