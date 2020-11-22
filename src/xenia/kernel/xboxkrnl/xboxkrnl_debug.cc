@@ -47,8 +47,12 @@ void HandleSetThreadName(pointer_t<X_EXCEPTION_RECORD> record) {
     return;
   }
 
+  // TODO(gibbed): cvar for thread name encoding for conversion, some games use
+  // SJIS and there's no way to automatically know this.
   auto name =
-      kernel_memory()->TranslateVirtual<const char*>(thread_info->name_ptr);
+      std::string(kernel_memory()->TranslateVirtual<const char*>(thread_info->name_ptr));
+  std::replace_if(
+      name.begin(), name.end(), [](auto c) { return c < 32 || c > 127; }, '?');
 
   object_ref<XThread> thread;
   if (thread_info->thread_id == -1) {
