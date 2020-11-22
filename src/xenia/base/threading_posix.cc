@@ -505,6 +505,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       }
     }
     if (pthread_create(&thread_, &attr, ThreadStartRoutine, start_data) != 0) {
+      pthread_attr_destroy(&attr);
       return false;
     }
     pthread_attr_destroy(&attr);
@@ -1006,7 +1007,10 @@ Thread* Thread::GetCurrentThread() {
   pthread_t handle = pthread_self();
 
   current_thread_ = new PosixThread(handle);
-  atexit([] { delete current_thread_; });
+  // TODO(bwrsandman): Disabling deleting thread_local current thread to prevent
+  //                   assert in destructor. Since this is thread local, the
+  //                   "memory leaking" is controlled.
+  // atexit([] { delete current_thread_; });
 
   return current_thread_;
 }

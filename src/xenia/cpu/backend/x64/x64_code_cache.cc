@@ -40,11 +40,11 @@ X64CodeCache::~X64CodeCache() {
   }
 
   // Unmap all views and close mapping.
-  if (mapping_) {
+  if (mapping_ != xe::memory::kFileMappingHandleInvalid) {
     xe::memory::UnmapFileView(mapping_, generated_code_base_,
                               kGeneratedCodeSize);
-    xe::memory::CloseFileMappingHandle(mapping_);
-    mapping_ = nullptr;
+    xe::memory::CloseFileMappingHandle(mapping_, file_name_);
+    mapping_ = xe::memory::kFileMappingHandleInvalid;
   }
 }
 
@@ -63,12 +63,11 @@ bool X64CodeCache::Initialize() {
   }
 
   // Create mmap file. This allows us to share the code cache with the debugger.
-  file_name_ =
-      fmt::format("Local\\xenia_code_cache_{}", Clock::QueryHostTickCount());
+  file_name_ = fmt::format("xenia_code_cache_{}", Clock::QueryHostTickCount());
   mapping_ = xe::memory::CreateFileMappingHandle(
       file_name_, kGeneratedCodeSize, xe::memory::PageAccess::kExecuteReadWrite,
       false);
-  if (!mapping_) {
+  if (mapping_ == xe::memory::kFileMappingHandleInvalid) {
     XELOGE("Unable to create code cache mmap");
     return false;
   }

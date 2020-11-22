@@ -491,7 +491,8 @@ class Memory {
   uint8_t* virtual_membase_ = nullptr;
   uint8_t* physical_membase_ = nullptr;
 
-  xe::memory::FileMappingHandle mapping_ = nullptr;
+  xe::memory::FileMappingHandle mapping_ =
+      xe::memory::kFileMappingHandleInvalid;
   uint8_t* mapping_base_ = nullptr;
   union {
     struct {
