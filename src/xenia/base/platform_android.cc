@@ -35,16 +35,20 @@ void Initialize(const ANativeActivity* activity) {
   AConfiguration_delete(configuration);
 
   if (api_level_ >= 26) {
-    // Leaked intentionally, already loaded into the address space.
+    // Leaked intentionally as these will be usable anywhere, already loaded
+    // into the address space as the application is linked against them.
     // https://chromium.googlesource.com/chromium/src/+/master/third_party/ashmem/ashmem-dev.c#201
     void* libandroid = dlopen("libandroid.so", RTLD_NOW);
     assert_not_null(libandroid);
-#define XE_PLATFORM_ANDROID_LOAD_API_FUNCTION(name, api)         \
+    void* libc = dlopen("libc.so", RTLD_NOW);
+    assert_not_null(libc);
+#define XE_PLATFORM_ANDROID_LOAD_API_FUNCTION(lib, name, api)    \
   api_functions_.api_##api.name =                                \
       reinterpret_cast<decltype(api_functions_.api_##api.name)>( \
-          dlsym(libandroid, #name));                             \
+          dlsym(lib, #name));                                    \
   assert_not_null(api_functions_.api_##api.name);
-    XE_PLATFORM_ANDROID_LOAD_API_FUNCTION(ASharedMemory_create, 26);
+    XE_PLATFORM_ANDROID_LOAD_API_FUNCTION(libandroid, ASharedMemory_create, 26);
+    XE_PLATFORM_ANDROID_LOAD_API_FUNCTION(libc, pthread_getname_np, 26);
 #undef XE_PLATFORM_ANDROID_LOAD_API_FUNCTION
   }
 

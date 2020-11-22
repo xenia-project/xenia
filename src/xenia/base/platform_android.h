@@ -15,6 +15,7 @@
 // avoided!
 
 #include <android/native_activity.h>
+#include <pthread.h>
 #include <cstddef>
 #include <cstdint>
 
@@ -32,7 +33,10 @@ int32_t api_level();
 // Android API functions added after the minimum supported API version.
 struct ApiFunctions {
   struct {
+    // libandroid
     int (*ASharedMemory_create)(const char* name, size_t size);
+    // libc
+    int (*pthread_getname_np)(pthread_t pthread, char* buf, size_t n);
   } api_26;
 };
 const ApiFunctions& api_functions();

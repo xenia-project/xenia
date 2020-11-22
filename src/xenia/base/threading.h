@@ -95,9 +95,6 @@ void set_current_thread_id(uint32_t id);
 
 // Sets the current thread name.
 void set_name(const std::string_view name);
-// Sets the target thread name.
-void set_name(std::thread::native_handle_type handle,
-              const std::string_view name);
 
 // Yields the current thread to the scheduler. Maybe.
 void MaybeYield();
