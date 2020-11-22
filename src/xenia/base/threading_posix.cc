@@ -11,6 +11,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/platform.h"
 
 #include <pthread.h>
 #include <signal.h>
@@ -19,8 +20,13 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <array>
 #include <ctime>
 #include <memory>
+
+#if XE_PLATFORM_ANDROID
+#include <sched.h>
+#endif
 
 namespace xe {
 namespace threading {
@@ -88,7 +94,11 @@ void set_name(std::thread::native_handle_type handle,
 void set_name(const std::string_view name) { set_name(pthread_self(), name); }
 
 void MaybeYield() {
+#if XE_PLATFORM_ANDROID
+  sched_yield();
+#else
   pthread_yield();
+#endif
   __sync_synchronize();
 }
 
@@ -558,8 +568,14 @@ class PosixCondition<Thread> : public PosixConditionBase {
   uint64_t affinity_mask() {
     WaitStarted();
     cpu_set_t cpu_set;
-    if (pthread_getaffinity_np(thread_, sizeof(cpu_set_t), &cpu_set) != 0)
-      assert_always();
+    int get_result;
+#if XE_PLATFORM_ANDROID
+    get_result = sched_getaffinity(pthread_gettid_np(thread_),
+                                   sizeof(cpu_set_t), &cpu_set);
+#else
+    get_result = pthread_getaffinity_np(thread_, sizeof(cpu_set_t), &cpu_set);
+#endif
+    assert_zero(get_result);
     uint64_t result = 0;
     auto cpu_count = std::min(CPU_SETSIZE, 64);
     for (auto i = 0u; i < cpu_count; i++) {
@@ -578,9 +594,14 @@ class PosixCondition<Thread> : public PosixConditionBase {
         CPU_SET(i, &cpu_set);
       }
     }
-    if (pthread_setaffinity_np(thread_, sizeof(cpu_set_t), &cpu_set) != 0) {
-      assert_always();
-    }
+    int ret;
+#if XE_PLATFORM_ANDROID
+    ret = sched_setaffinity(pthread_gettid_np(thread_), sizeof(cpu_set_t),
+                            &cpu_set);
+#else
+    ret = pthread_setaffinity_np(thread_, sizeof(cpu_set_t), &cpu_set);
+#endif
+    assert_zero(ret);
   }
 
   int priority() {
