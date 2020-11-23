@@ -26,6 +26,7 @@ xe::cpu::Export* RegisterExport_xam(xe::cpu::Export* export_entry);
                             KernelState* kernel_state)
 DECLARE_REGISTER_EXPORTS(Avatar);
 DECLARE_REGISTER_EXPORTS(Content);
+DECLARE_REGISTER_EXPORTS(Enum);
 DECLARE_REGISTER_EXPORTS(Info);
 DECLARE_REGISTER_EXPORTS(Input);
 DECLARE_REGISTER_EXPORTS(Locale);
