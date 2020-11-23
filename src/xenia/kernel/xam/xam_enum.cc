@@ -10,12 +10,10 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/kernel/xenumerator.h"
-#include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
 
 #if XE_PLATFORM_WIN32
@@ -29,23 +27,23 @@ namespace kernel {
 namespace xam {
 
 // https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L518
-dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
-                            dword_t buffer_length, lpdword_t items_returned,
-                            pointer_t<XAM_OVERLAPPED> overlapped) {
+uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, void* buffer,
+                        uint32_t buffer_length, uint32_t* items_returned,
+                        uint32_t overlapped_ptr) {
   assert_true(flags == 0);
 
   auto e = kernel_state()->object_table()->LookupObject<XEnumerator>(handle);
   if (!e) {
-    if (overlapped) {
+    if (overlapped_ptr) {
       kernel_state()->CompleteOverlappedImmediateEx(
-          overlapped, X_ERROR_INVALID_HANDLE, X_ERROR_INVALID_HANDLE, 0);
+          overlapped_ptr, X_ERROR_INVALID_HANDLE, X_ERROR_INVALID_HANDLE, 0);
       return X_ERROR_IO_PENDING;
     } else {
       return X_ERROR_INVALID_HANDLE;
     }
   }
 
-  size_t actual_buffer_length = (uint32_t)buffer_length;
+  size_t actual_buffer_length = buffer_length;
   if (buffer_length == e->items_per_enumerate()) {
     actual_buffer_length = e->item_size() * e->items_per_enumerate();
     // Known culprits:
@@ -58,7 +56,7 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
         e->items_per_enumerate());
   }
 
-  buffer.Zero(actual_buffer_length);
+  std::memset(buffer, 0, actual_buffer_length);
 
   X_RESULT result;
   uint32_t item_count = 0;
@@ -68,7 +66,7 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
   } else if (e->current_item() >= e->item_count()) {
     result = X_ERROR_NO_MORE_FILES;
   } else {
-    auto item_buffer = buffer.as<uint8_t*>();
+    auto item_buffer = static_cast<uint8_t*>(buffer);
     auto max_items = actual_buffer_length / e->item_size();
     while (max_items--) {
       if (!e->WriteItem(item_buffer)) {
@@ -81,13 +79,13 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
   }
 
   if (items_returned) {
-    assert_true(!overlapped);
+    assert_true(!overlapped_ptr);
     *items_returned = result == X_ERROR_SUCCESS ? item_count : 0;
     return result;
-  } else if (overlapped) {
+  } else if (overlapped_ptr) {
     assert_true(!items_returned);
     kernel_state()->CompleteOverlappedImmediateEx(
-        overlapped,
+        overlapped_ptr,
         result == X_ERROR_SUCCESS ? X_ERROR_SUCCESS : X_ERROR_FUNCTION_FAILED,
         X_HRESULT_FROM_WIN32(result),
         result == X_ERROR_SUCCESS ? item_count : 0);
@@ -96,6 +94,18 @@ dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
     assert_always();
     return X_ERROR_INVALID_PARAMETER;
   }
+}
+
+dword_result_t XamEnumerate(dword_t handle, dword_t flags, lpvoid_t buffer,
+                            dword_t buffer_length, lpdword_t items_returned,
+                            pointer_t<XAM_OVERLAPPED> overlapped) {
+  uint32_t dummy;
+  auto result = xeXamEnumerate(handle, flags, buffer, buffer_length,
+                               !overlapped ? &dummy : nullptr, overlapped);
+  if (!overlapped && items_returned) {
+    *items_returned = dummy;
+  }
+  return result;
 }
 DECLARE_XAM_EXPORT1(XamEnumerate, kNone, kImplemented);
 
@@ -107,9 +117,22 @@ dword_result_t XamCreateEnumeratorHandle(unknown_t unk1, unknown_t unk2,
 }
 DECLARE_XAM_EXPORT1(XamCreateEnumeratorHandle, kNone, kStub);
 
-dword_result_t XamGetPrivateEnumStructureFromHandle(unknown_t unk1,
-                                                    unknown_t unk2) {
-  return X_ERROR_INVALID_PARAMETER;
+dword_result_t XamGetPrivateEnumStructureFromHandle(dword_t handle,
+                                                    lpdword_t out_object_ptr) {
+  auto e = kernel_state()->object_table()->LookupObject<XEnumerator>(handle);
+  if (!e) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+
+  // Caller takes the reference.
+  // It's released in ObDereferenceObject.
+  e->RetainHandle();
+
+  if (out_object_ptr.guest_address()) {
+    *out_object_ptr = e->guest_object();
+  }
+
+  return X_STATUS_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamGetPrivateEnumStructureFromHandle, kNone, kStub);
 

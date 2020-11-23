@@ -30,7 +30,7 @@ XmpApp::XmpApp(KernelState* kernel_state)
       next_playlist_handle_(1),
       next_song_handle_(1) {}
 
-X_RESULT XmpApp::XMPGetStatus(uint32_t state_ptr) {
+X_HRESULT XmpApp::XMPGetStatus(uint32_t state_ptr) {
   // Some stupid games will hammer this on a thread - induce a delay
   // here to keep from starving real threads.
   xe::threading::Sleep(std::chrono::milliseconds(1));
@@ -38,15 +38,13 @@ X_RESULT XmpApp::XMPGetStatus(uint32_t state_ptr) {
   XELOGD("XMPGetStatus({:08X})", state_ptr);
   xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(state_ptr),
                                static_cast<uint32_t>(state_));
-  return X_ERROR_SUCCESS;
+  return X_E_SUCCESS;
 }
 
-X_RESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count,
-                                        uint32_t playlist_name_ptr,
-                                        const std::u16string& playlist_name,
-                                        uint32_t flags,
-                                        uint32_t out_song_handles,
-                                        uint32_t out_playlist_handle) {
+X_HRESULT XmpApp::XMPCreateTitlePlaylist(
+    uint32_t songs_ptr, uint32_t song_count, uint32_t playlist_name_ptr,
+    const std::u16string& playlist_name, uint32_t flags,
+    uint32_t out_song_handles, uint32_t out_playlist_handle) {
   XELOGD(
       "XMPCreateTitlePlaylist({:08X}, {:08X}, {:08X}({}), {:08X}, {:08X}, "
       "{:08X})",
@@ -96,16 +94,16 @@ X_RESULT XmpApp::XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count,
   auto global_lock = global_critical_region_.Acquire();
   playlists_.insert({playlist->handle, playlist.get()});
   playlist.release();
-  return X_ERROR_SUCCESS;
+  return X_E_SUCCESS;
 }
 
-X_RESULT XmpApp::XMPDeleteTitlePlaylist(uint32_t playlist_handle) {
+X_HRESULT XmpApp::XMPDeleteTitlePlaylist(uint32_t playlist_handle) {
   XELOGD("XMPDeleteTitlePlaylist({:08X})", playlist_handle);
   auto global_lock = global_critical_region_.Acquire();
   auto it = playlists_.find(playlist_handle);
   if (it == playlists_.end()) {
     XELOGE("Playlist {:08X} not found", playlist_handle);
-    return X_ERROR_NOT_FOUND;
+    return X_E_NOTFOUND;
   }
   auto playlist = it->second;
   if (playlist == active_playlist_) {
@@ -113,11 +111,11 @@ X_RESULT XmpApp::XMPDeleteTitlePlaylist(uint32_t playlist_handle) {
   }
   playlists_.erase(it);
   delete playlist;
-  return X_ERROR_SUCCESS;
+  return X_E_SUCCESS;
 }
 
-X_RESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle,
-                                      uint32_t song_handle) {
+X_HRESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle,
+                                       uint32_t song_handle) {
   XELOGD("XMPPlayTitlePlaylist({:08X}, {:08X})", playlist_handle, song_handle);
   Playlist* playlist = nullptr;
   {
@@ -125,7 +123,7 @@ X_RESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle,
     auto it = playlists_.find(playlist_handle);
     if (it == playlists_.end()) {
       XELOGE("Playlist {:08X} not found", playlist_handle);
-      return X_ERROR_NOT_FOUND;
+      return X_E_NOTFOUND;
     }
     playlist = it->second;
   }
@@ -133,7 +131,7 @@ X_RESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle,
   if (disabled_) {
     // Ignored because we aren't enabled?
     XELOGW("Ignoring XMPPlayTitlePlaylist because disabled");
-    return X_ERROR_SUCCESS;
+    return X_E_SUCCESS;
   }
 
   // Start playlist?
@@ -143,53 +141,53 @@ X_RESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle,
   state_ = State::kPlaying;
   OnStateChanged();
   kernel_state_->BroadcastNotification(kMsgPlaybackBehaviorChanged, 1);
-  return X_ERROR_SUCCESS;
+  return X_E_SUCCESS;
 }
 
-X_RESULT XmpApp::XMPContinue() {
+X_HRESULT XmpApp::XMPContinue() {
   XELOGD("XMPContinue()");
   if (state_ == State::kPaused) {
     state_ = State::kPlaying;
   }
   OnStateChanged();
-  return X_ERROR_SUCCESS;
+  return X_E_SUCCESS;
 }
 
-X_RESULT XmpApp::XMPStop(uint32_t unk) {
+X_HRESULT XmpApp::XMPStop(uint32_t unk) {
   assert_zero(unk);
   XELOGD("XMPStop({:08X})", unk);
   active_playlist_ = nullptr;  // ?
   active_song_index_ = 0;
   state_ = State::kIdle;
   OnStateChanged();
-  return X_ERROR_SUCCESS;
+  return X_E_SUCCESS;
 }
 
-X_RESULT XmpApp::XMPPause() {
+X_HRESULT XmpApp::XMPPause() {
   XELOGD("XMPPause()");
   if (state_ == State::kPlaying) {
     state_ = State::kPaused;
   }
   OnStateChanged();
-  return X_ERROR_SUCCESS;
+  return X_E_SUCCESS;
 }
 
-X_RESULT XmpApp::XMPNext() {
+X_HRESULT XmpApp::XMPNext() {
   XELOGD("XMPNext()");
   if (!active_playlist_) {
-    return X_ERROR_NOT_FOUND;
+    return X_E_NOTFOUND;
   }
   state_ = State::kPlaying;
   active_song_index_ =
       (active_song_index_ + 1) % active_playlist_->songs.size();
   OnStateChanged();
-  return X_ERROR_SUCCESS;
+  return X_E_SUCCESS;
 }
 
-X_RESULT XmpApp::XMPPrevious() {
+X_HRESULT XmpApp::XMPPrevious() {
   XELOGD("XMPPrevious()");
   if (!active_playlist_) {
-    return X_ERROR_NOT_FOUND;
+    return X_E_NOTFOUND;
   }
   state_ = State::kPlaying;
   if (!active_song_index_) {
@@ -198,7 +196,7 @@ X_RESULT XmpApp::XMPPrevious() {
     --active_song_index_;
   }
   OnStateChanged();
-  return X_ERROR_SUCCESS;
+  return X_E_SUCCESS;
 }
 
 void XmpApp::OnStateChanged() {
@@ -206,8 +204,8 @@ void XmpApp::OnStateChanged() {
                                        static_cast<uint32_t>(state_));
 }
 
-X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
-                                     uint32_t buffer_length) {
+X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
+                                      uint32_t buffer_length) {
   // NOTE: buffer_length may be zero or valid.
   auto buffer = memory_->TranslateVirtual(buffer_ptr);
   switch (message) {
@@ -271,7 +269,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       repeat_mode_ = static_cast<RepeatMode>(uint32_t(args->repeat_mode));
       unknown_flags_ = args->flags;
       kernel_state_->BroadcastNotification(kMsgPlaybackBehaviorChanged, 0);
-      return X_ERROR_SUCCESS;
+      return X_E_SUCCESS;
     }
     case 0x00070009: {
       assert_true(!buffer_length || buffer_length == 8);
@@ -293,7 +291,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       XELOGD("XMPGetVolume({:08X})", uint32_t(args->volume_ptr));
       xe::store_and_swap<float>(memory_->TranslateVirtual(args->volume_ptr),
                                 volume_);
-      return X_ERROR_SUCCESS;
+      return X_E_SUCCESS;
     }
     case 0x0007000C: {
       assert_true(!buffer_length || buffer_length == 8);
@@ -306,7 +304,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       assert_true(args->xmp_client == 0x00000002);
       XELOGD("XMPSetVolume({:g})", float(args->value));
       volume_ = args->value;
-      return X_ERROR_SUCCESS;
+      return X_E_SUCCESS;
     }
     case 0x0007000D: {
       assert_true(!buffer_length || buffer_length == 36);
@@ -358,7 +356,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       XELOGE("XMPGetInfo?({:08X}, {:08X})", uint32_t(args->unk_ptr),
              uint32_t(args->info_ptr));
       if (!active_playlist_) {
-        return X_STATUS_UNSUCCESSFUL;
+        return X_E_FAIL;
       }
       auto& song = active_playlist_->songs[active_song_index_];
       xe::store_and_swap<uint32_t>(info + 0, song->handle);
@@ -372,7 +370,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       xe::store_and_swap<uint32_t>(info + 4 + 572 + 204, song->duration_ms);
       xe::store_and_swap<uint32_t>(info + 4 + 572 + 208,
                                    static_cast<uint32_t>(song->format));
-      return X_ERROR_SUCCESS;
+      return X_E_SUCCESS;
     }
     case 0x00070013: {
       assert_true(!buffer_length || buffer_length == 8);
@@ -409,7 +407,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         XMPStop(0);
       }
       kernel_state_->BroadcastNotification(kMsgDisableChanged, disabled_);
-      return X_ERROR_SUCCESS;
+      return X_E_SUCCESS;
     }
     case 0x0007001B: {
       // XMPGetPlaybackController
@@ -432,7 +430,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 
       // Atrain spawns a thread 82437FD0 to call this in a tight loop forever.
       xe::threading::Sleep(std::chrono::milliseconds(10));
-      return X_ERROR_SUCCESS;
+      return X_E_SUCCESS;
     }
     case 0x00070029: {
       // XMPGetPlaybackBehavior
@@ -464,7 +462,7 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(args->unk3_ptr),
                                      unknown_flags_);
       }
-      return X_ERROR_SUCCESS;
+      return X_E_SUCCESS;
     }
     case 0x0007002E: {
       assert_true(!buffer_length || buffer_length == 12);
@@ -482,20 +480,20 @@ X_RESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       // We don't use the storage, so just fudge the number.
       xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(args->size_ptr),
                                    4 + uint32_t(args->song_count) * 128);
-      return X_ERROR_SUCCESS;
+      return X_E_SUCCESS;
     }
     case 0x0007003D: {
       // XMPCaptureOutput - not sure how this works :/
       XELOGD("XMPCaptureOutput(...)");
       assert_always("XMP output not unimplemented");
-      return X_STATUS_UNSUCCESSFUL;
+      return X_E_FAIL;
     }
   }
   XELOGE(
       "Unimplemented XMP message app={:08X}, msg={:08X}, arg1={:08X}, "
       "arg2={:08X}",
       app_id(), message, buffer_ptr, buffer_length);
-  return X_STATUS_UNSUCCESSFUL;
+  return X_E_FAIL;
 }
 
 }  // namespace apps

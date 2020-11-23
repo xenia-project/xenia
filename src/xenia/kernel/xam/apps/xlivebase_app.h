@@ -22,8 +22,8 @@ class XLiveBaseApp : public App {
  public:
   explicit XLiveBaseApp(KernelState* kernel_state);
 
-  X_RESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
-                               uint32_t buffer_length) override;
+  X_HRESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
+                                uint32_t buffer_length) override;
 };
 
 }  // namespace apps

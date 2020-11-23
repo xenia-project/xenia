@@ -30,7 +30,7 @@ static int content_device_id_ = 0;
 
 ContentPackage::ContentPackage(KernelState* kernel_state,
                                const std::string_view root_name,
-                               const XCONTENT_DATA& data,
+                               const ContentData& data,
                                const std::filesystem::path& package_path)
     : kernel_state_(kernel_state), root_name_(root_name) {
   device_path_ = fmt::format("\\Device\\Content\\{0}\\", ++content_device_id_);
@@ -88,16 +88,16 @@ std::filesystem::path ContentManager::ResolvePackageRoot(
 }
 
 std::filesystem::path ContentManager::ResolvePackagePath(
-    const XCONTENT_DATA& data) {
+    const ContentData& data) {
   // Content path:
   // content_root/title_id/type_name/data_file_name/
   auto package_root = ResolvePackageRoot(data.content_type);
   return package_root / xe::to_path(data.file_name);
 }
 
-std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
-                                                       uint32_t content_type) {
-  std::vector<XCONTENT_DATA> result;
+std::vector<ContentData> ContentManager::ListContent(uint32_t device_id,
+                                                     uint32_t content_type) {
+  std::vector<ContentData> result;
 
   // Search path:
   // content_root/title_id/type_name/*
@@ -108,7 +108,7 @@ std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
       // Directories only.
       continue;
     }
-    XCONTENT_DATA content_data;
+    ContentData content_data;
     content_data.device_id = device_id;
     content_data.content_type = content_type;
     content_data.display_name = xe::path_to_utf16(file_info.name);
@@ -120,7 +120,7 @@ std::vector<XCONTENT_DATA> ContentManager::ListContent(uint32_t device_id,
 }
 
 std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
-    const std::string_view root_name, const XCONTENT_DATA& data) {
+    const std::string_view root_name, const ContentData& data) {
   auto package_path = ResolvePackagePath(data);
   if (!std::filesystem::exists(package_path)) {
     return nullptr;
@@ -133,13 +133,13 @@ std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
   return package;
 }
 
-bool ContentManager::ContentExists(const XCONTENT_DATA& data) {
+bool ContentManager::ContentExists(const ContentData& data) {
   auto path = ResolvePackagePath(data);
   return std::filesystem::exists(path);
 }
 
 X_RESULT ContentManager::CreateContent(const std::string_view root_name,
-                                       const XCONTENT_DATA& data) {
+                                       const ContentData& data) {
   auto global_lock = global_critical_region_.Acquire();
 
   if (open_packages_.count(string_key(root_name))) {
@@ -166,7 +166,7 @@ X_RESULT ContentManager::CreateContent(const std::string_view root_name,
 }
 
 X_RESULT ContentManager::OpenContent(const std::string_view root_name,
-                                     const XCONTENT_DATA& data) {
+                                     const ContentData& data) {
   auto global_lock = global_critical_region_.Acquire();
 
   if (open_packages_.count(string_key(root_name))) {
@@ -204,7 +204,7 @@ X_RESULT ContentManager::CloseContent(const std::string_view root_name) {
   return X_ERROR_SUCCESS;
 }
 
-X_RESULT ContentManager::GetContentThumbnail(const XCONTENT_DATA& data,
+X_RESULT ContentManager::GetContentThumbnail(const ContentData& data,
                                              std::vector<uint8_t>* buffer) {
   auto global_lock = global_critical_region_.Acquire();
   auto package_path = ResolvePackagePath(data);
@@ -223,7 +223,7 @@ X_RESULT ContentManager::GetContentThumbnail(const XCONTENT_DATA& data,
   }
 }
 
-X_RESULT ContentManager::SetContentThumbnail(const XCONTENT_DATA& data,
+X_RESULT ContentManager::SetContentThumbnail(const ContentData& data,
                                              std::vector<uint8_t> buffer) {
   auto global_lock = global_critical_region_.Acquire();
   auto package_path = ResolvePackagePath(data);
@@ -239,7 +239,7 @@ X_RESULT ContentManager::SetContentThumbnail(const XCONTENT_DATA& data,
   }
 }
 
-X_RESULT ContentManager::DeleteContent(const XCONTENT_DATA& data) {
+X_RESULT ContentManager::DeleteContent(const ContentData& data) {
   auto global_lock = global_critical_region_.Acquire();
 
   auto package_path = ResolvePackagePath(data);
