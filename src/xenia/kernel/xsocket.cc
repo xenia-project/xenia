@@ -31,10 +31,11 @@
 namespace xe {
 namespace kernel {
 
-XSocket::XSocket(KernelState* kernel_state) : XObject(kernel_state, kType) {}
+XSocket::XSocket(KernelState* kernel_state)
+    : XObject(kernel_state, kObjectType) {}
 
 XSocket::XSocket(KernelState* kernel_state, uint64_t native_handle)
-    : XObject(kernel_state, kType), native_handle_(native_handle) {}
+    : XObject(kernel_state, kObjectType), native_handle_(native_handle) {}
 
 XSocket::~XSocket() { Close(); }
 

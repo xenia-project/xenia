@@ -16,7 +16,7 @@ namespace xe {
 namespace kernel {
 
 XNotifyListener::XNotifyListener(KernelState* kernel_state)
-    : XObject(kernel_state, kType) {}
+    : XObject(kernel_state, kObjectType) {}
 
 XNotifyListener::~XNotifyListener() {}
 

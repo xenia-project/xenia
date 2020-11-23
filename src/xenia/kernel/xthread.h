@@ -106,7 +106,7 @@ static_assert_size(X_KTHREAD, 0xAB0);
 
 class XThread : public XObject, public cpu::Thread {
  public:
-  static const Type kType = kTypeThread;
+  static const XObject::Type kObjectType = XObject::Type::Thread;
 
   struct CreationParams {
     uint32_t stack_size;

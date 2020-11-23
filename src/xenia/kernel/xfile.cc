@@ -22,11 +22,13 @@ namespace xe {
 namespace kernel {
 
 XFile::XFile(KernelState* kernel_state, vfs::File* file, bool synchronous)
-    : XObject(kernel_state, kType), file_(file), is_synchronous_(synchronous) {
+    : XObject(kernel_state, kObjectType),
+      file_(file),
+      is_synchronous_(synchronous) {
   async_event_ = threading::Event::CreateAutoResetEvent(false);
 }
 
-XFile::XFile() : XObject(kType) {
+XFile::XFile() : XObject(kObjectType) {
   async_event_ = threading::Event::CreateAutoResetEvent(false);
 }
 
