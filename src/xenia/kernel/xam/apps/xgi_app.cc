@@ -21,8 +21,8 @@ XgiApp::XgiApp(KernelState* kernel_state) : App(kernel_state, 0xFB) {}
 
 // http://mb.mirage.org/bugzilla/xliveless/main.c
 
-X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
-                                     uint32_t buffer_length) {
+X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
+                                      uint32_t buffer_length) {
   // NOTE: buffer_length may be zero or valid.
   auto buffer = memory_->TranslateVirtual(buffer_ptr);
   switch (message) {
@@ -38,7 +38,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t context_value = xe::load_and_swap<uint32_t>(buffer + 20);
       XELOGD("XGIUserSetContextEx({:08X}, {:08X}, {:08X})", user_index,
              context_id, context_value);
-      return X_ERROR_SUCCESS;
+      return X_E_SUCCESS;
     }
     case 0x000B0007: {
       uint32_t user_index = xe::load_and_swap<uint32_t>(buffer + 0);
@@ -47,7 +47,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t value_ptr = xe::load_and_swap<uint32_t>(buffer + 24);
       XELOGD("XGIUserSetPropertyEx({:08X}, {:08X}, {}, {:08X})", user_index,
              property_id, value_size, value_ptr);
-      return X_ERROR_SUCCESS;
+      return X_E_SUCCESS;
     }
     case 0x000B0008: {
       assert_true(!buffer_length || buffer_length == 8);
@@ -55,7 +55,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t achievements_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
       XELOGD("XGIUserWriteAchievements({:08X}, {:08X})", achievement_count,
              achievements_ptr);
-      return X_ERROR_SUCCESS;
+      return X_E_SUCCESS;
     }
     case 0x000B0010: {
       assert_true(!buffer_length || buffer_length == 28);
@@ -77,7 +77,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
           "{:08X})",
           session_ptr, flags, num_slots_public, num_slots_private, user_xuid,
           session_info_ptr, nonce_ptr);
-      return X_STATUS_SUCCESS;
+      return X_E_SUCCESS;
     }
     case 0x000B0011: {
       // TODO(DrChat): Figure out what this is again
@@ -93,7 +93,7 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       assert_zero(unk_0);
       XELOGD("XGISessionJoinLocal({:08X}, {}, {}, {:08X}, {:08X})", session_ptr,
              user_count, unk_0, user_index_array, private_slots_array);
-      return X_STATUS_SUCCESS;
+      return X_E_SUCCESS;
     }
     case 0x000B0041: {
       assert_true(!buffer_length || buffer_length == 32);
@@ -110,18 +110,18 @@ X_RESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       if (context) {
         xe::store_and_swap<uint32_t>(context + 4, value);
       }
-      return X_ERROR_FUNCTION_FAILED;
+      return X_E_FAIL;
     }
     case 0x000B0071: {
       XELOGD("XGI 0x000B0071, unimplemented");
-      return X_ERROR_SUCCESS;
+      return X_E_SUCCESS;
     }
   }
   XELOGE(
       "Unimplemented XGI message app={:08X}, msg={:08X}, arg1={:08X}, "
       "arg2={:08X}",
       app_id(), message, buffer_ptr, buffer_length);
-  return X_STATUS_UNSUCCESSFUL;
+  return X_E_FAIL;
 }
 
 }  // namespace apps

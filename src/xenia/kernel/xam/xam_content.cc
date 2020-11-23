@@ -9,8 +9,10 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/string_util.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
+#include "xenia/kernel/xam/xam_content_device.h"
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/xbox.h"
@@ -49,7 +51,7 @@ DECLARE_XAM_EXPORT2(XamContentGetLicenseMask, kContent, kStub, kHighFrequency);
 dword_result_t XamContentResolve(dword_t user_index, lpvoid_t content_data_ptr,
                                  lpunknown_t buffer_ptr, dword_t buffer_size,
                                  dword_t unk1, dword_t unk2, dword_t unk3) {
-  auto content_data = XCONTENT_DATA((uint8_t*)content_data_ptr);
+  auto content_data = content_data_ptr.as<XCONTENT_DATA*>();
 
   // Result of buffer_ptr is sent to RtlInitAnsiString.
   // buffer_size is usually 260 (max path).
@@ -69,8 +71,9 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
                                           lpdword_t buffer_size_ptr,
                                           lpdword_t handle_out) {
   assert_not_null(handle_out);
-  if ((device_id && (device_id & 0x0000000F) != dummy_device_info_.device_id) ||
-      !handle_out) {
+
+  auto device_info = device_id == 0 ? nullptr : GetDummyDeviceInfo(device_id);
+  if ((device_id && device_info == nullptr) || !handle_out) {
     if (buffer_size_ptr) {
       *buffer_size_ptr = 0;
     }
@@ -80,22 +83,29 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
   }
 
   if (buffer_size_ptr) {
-    *buffer_size_ptr = (uint32_t)XCONTENT_DATA::kSize * items_per_enumerate;
+    *buffer_size_ptr = sizeof(XCONTENT_DATA) * items_per_enumerate;
   }
 
-  auto e = new XStaticEnumerator(kernel_state(), items_per_enumerate,
-                                 XCONTENT_DATA::kSize);
-  e->Initialize();
+  auto e = object_ref<XStaticEnumerator>(new XStaticEnumerator(
+      kernel_state(), items_per_enumerate, sizeof(XCONTENT_DATA)));
+  auto result = e->Initialize(0xFF, 0xFE, 0x20005, 0x20007, 0);
+  if (XFAILED(result)) {
+    return result;
+  }
 
-  // Get all content data.
-  auto content_datas = kernel_state()->content_manager()->ListContent(
-      device_id ? static_cast<uint32_t>(device_id)
-                : dummy_device_info_.device_id,
-      content_type);
-  for (auto& content_data : content_datas) {
-    auto ptr = e->AppendItem();
-    assert_not_null(ptr);
-    content_data.Write(ptr);
+  if (!device_info || device_info->device_id == DummyDeviceId::HDD) {
+    // Get all content data.
+    auto content_datas = kernel_state()->content_manager()->ListContent(
+        static_cast<uint32_t>(DummyDeviceId::HDD), content_type);
+    for (const auto& content_data : content_datas) {
+      auto item = reinterpret_cast<XCONTENT_DATA*>(e->AppendItem());
+      assert_not_null(item);
+      content_data.Write(item);
+    }
+  }
+
+  if (!device_info || device_info->device_id == DummyDeviceId::ODD) {
+    // TODO(gibbed): disc drive content
   }
 
   XELOGD("XamContentCreateEnumerator: added {} items to enumerator",
@@ -113,7 +123,8 @@ dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
                                   dword_t cache_size, qword_t content_size,
                                   lpvoid_t overlapped_ptr) {
   X_RESULT result = X_ERROR_INVALID_PARAMETER;
-  auto content_data = XCONTENT_DATA((uint8_t*)content_data_ptr);
+  auto content_data =
+      static_cast<ContentData>(*content_data_ptr.as<XCONTENT_DATA*>());
 
   auto content_manager = kernel_state()->content_manager();
   bool create = false;
@@ -265,7 +276,8 @@ dword_result_t XamContentGetCreator(dword_t user_index,
                                     lpunknown_t overlapped_ptr) {
   auto result = X_ERROR_SUCCESS;
 
-  auto content_data = XCONTENT_DATA((uint8_t*)content_data_ptr);
+  auto content_data =
+      static_cast<ContentData>(*content_data_ptr.as<XCONTENT_DATA*>());
 
   if (content_data.content_type == 1) {
     // User always creates saves.
@@ -296,7 +308,8 @@ dword_result_t XamContentGetThumbnail(dword_t user_index,
                                       lpunknown_t overlapped_ptr) {
   assert_not_null(buffer_size_ptr);
   uint32_t buffer_size = *buffer_size_ptr;
-  auto content_data = XCONTENT_DATA((uint8_t*)content_data_ptr);
+  auto content_data =
+      static_cast<ContentData>(*content_data_ptr.as<XCONTENT_DATA*>());
 
   // Get thumbnail (if it exists).
   std::vector<uint8_t> buffer;
@@ -332,7 +345,8 @@ dword_result_t XamContentSetThumbnail(dword_t user_index,
                                       lpvoid_t content_data_ptr,
                                       lpvoid_t buffer_ptr, dword_t buffer_size,
                                       lpunknown_t overlapped_ptr) {
-  auto content_data = XCONTENT_DATA((uint8_t*)content_data_ptr);
+  auto content_data =
+      static_cast<ContentData>(*content_data_ptr.as<XCONTENT_DATA*>());
 
   // Buffer is PNG data.
   auto buffer = std::vector<uint8_t>((uint8_t*)buffer_ptr,
@@ -351,7 +365,8 @@ DECLARE_XAM_EXPORT1(XamContentSetThumbnail, kContent, kImplemented);
 
 dword_result_t XamContentDelete(dword_t user_index, lpvoid_t content_data_ptr,
                                 lpunknown_t overlapped_ptr) {
-  auto content_data = XCONTENT_DATA((uint8_t*)content_data_ptr);
+  auto content_data =
+      static_cast<ContentData>(*content_data_ptr.as<XCONTENT_DATA*>());
 
   auto result = kernel_state()->content_manager()->DeleteContent(content_data);
 
