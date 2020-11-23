@@ -763,13 +763,13 @@ bool KernelState::Save(ByteStream* stream) {
   for (auto object : objects) {
     auto prev_offset = stream->offset();
 
-    if (object->is_host_object() || object->type() == XObject::kTypeThread) {
+    if (object->is_host_object() || object->type() == XObject::Type::Thread) {
       // Don't save host objects or save XThreads again
       num_objects--;
       continue;
     }
 
-    stream->Write<uint32_t>(object->type());
+    stream->Write<uint32_t>(static_cast<uint32_t>(object->type()));
     if (!object->Save(stream)) {
       XELOGD("Did not save object of type {}", object->type());
       assert_always();
@@ -804,7 +804,7 @@ bool KernelState::Restore(ByteStream* stream) {
   uint32_t num_threads = stream->Read<uint32_t>();
   XELOGD("Loading {} threads...", num_threads);
   for (uint32_t i = 0; i < num_threads; i++) {
-    auto thread = XObject::Restore(this, XObject::kTypeThread, stream);
+    auto thread = XObject::Restore(this, XObject::Type::Thread, stream);
     if (!thread) {
       // Can't continue the restore or we risk misalignment.
       assert_always();

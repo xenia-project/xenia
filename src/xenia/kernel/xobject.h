@@ -116,21 +116,21 @@ class XObject {
   // one with 0x8A... which causes crash
   static constexpr uint32_t kHandleBase = 0xF8000000;
 
-  enum Type {
-    kTypeUndefined,
-    kTypeEnumerator,
-    kTypeEvent,
-    kTypeFile,
-    kTypeIOCompletion,
-    kTypeModule,
-    kTypeMutant,
-    kTypeNotifyListener,
-    kTypeSemaphore,
-    kTypeSession,
-    kTypeSocket,
-    kTypeSymbolicLink,
-    kTypeThread,
-    kTypeTimer,
+  enum class Type : uint32_t {
+    Undefined,
+    Enumerator,
+    Event,
+    File,
+    IOCompletion,
+    Module,
+    Mutant,
+    NotifyListener,
+    Semaphore,
+    Session,
+    Socket,
+    SymbolicLink,
+    Thread,
+    Timer,
   };
 
   XObject(Type type);

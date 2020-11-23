@@ -129,33 +129,33 @@ bool XObject::RestoreObject(ByteStream* stream) {
 object_ref<XObject> XObject::Restore(KernelState* kernel_state, Type type,
                                      ByteStream* stream) {
   switch (type) {
-    case kTypeEnumerator:
+    case Type::Enumerator:
       break;
-    case kTypeEvent:
+    case Type::Event:
       return XEvent::Restore(kernel_state, stream);
-    case kTypeFile:
+    case Type::File:
       return XFile::Restore(kernel_state, stream);
-    case kTypeIOCompletion:
+    case Type::IOCompletion:
       break;
-    case kTypeModule:
+    case Type::Module:
       return XModule::Restore(kernel_state, stream);
-    case kTypeMutant:
+    case Type::Mutant:
       return XMutant::Restore(kernel_state, stream);
-    case kTypeNotifyListener:
+    case Type::NotifyListener:
       return XNotifyListener::Restore(kernel_state, stream);
-    case kTypeSemaphore:
+    case Type::Semaphore:
       return XSemaphore::Restore(kernel_state, stream);
-    case kTypeSession:
+    case Type::Session:
       break;
-    case kTypeSocket:
+    case Type::Socket:
       break;
-    case kTypeSymbolicLink:
+    case Type::SymbolicLink:
       return XSymbolicLink::Restore(kernel_state, stream);
-    case kTypeThread:
+    case Type::Thread:
       return XThread::Restore(kernel_state, stream);
-    case kTypeTimer:
+    case Type::Timer:
       break;
-    case kTypeUndefined:
+    case Type::Undefined:
       break;
   }
 

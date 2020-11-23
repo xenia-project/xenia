@@ -432,7 +432,7 @@ dword_result_t NtCreateEvent(lpdword_t handle_ptr,
   auto existing_object =
       LookupNamedObject<XEvent>(kernel_state(), obj_attributes_ptr);
   if (existing_object) {
-    if (existing_object->type() == XObject::kTypeEvent) {
+    if (existing_object->type() == XObject::Type::Event) {
       if (handle_ptr) {
         existing_object->RetainHandle();
         *handle_ptr = existing_object->handle();
@@ -559,7 +559,7 @@ dword_result_t NtCreateSemaphore(lpdword_t handle_ptr,
   auto existing_object =
       LookupNamedObject<XSemaphore>(kernel_state(), obj_attributes_ptr);
   if (existing_object) {
-    if (existing_object->type() == XObject::kTypeSemaphore) {
+    if (existing_object->type() == XObject::Type::Semaphore) {
       if (handle_ptr) {
         existing_object->RetainHandle();
         *handle_ptr = existing_object->handle();
@@ -613,7 +613,7 @@ dword_result_t NtCreateMutant(lpdword_t handle_out,
   auto existing_object = LookupNamedObject<XMutant>(
       kernel_state(), obj_attributes.guest_address());
   if (existing_object) {
-    if (existing_object->type() == XObject::kTypeMutant) {
+    if (existing_object->type() == XObject::Type::Mutant) {
       if (handle_out) {
         existing_object->RetainHandle();
         *handle_out = existing_object->handle();
@@ -674,7 +674,7 @@ dword_result_t NtCreateTimer(lpdword_t handle_ptr, lpvoid_t obj_attributes_ptr,
   auto existing_object =
       LookupNamedObject<XTimer>(kernel_state(), obj_attributes_ptr);
   if (existing_object) {
-    if (existing_object->type() == XObject::kTypeTimer) {
+    if (existing_object->type() == XObject::Type::Timer) {
       if (handle_ptr) {
         existing_object->RetainHandle();
         *handle_ptr = existing_object->handle();

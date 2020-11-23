@@ -78,22 +78,21 @@ DECLARE_XBOXKRNL_EXPORT1(ObLookupThreadByThreadId, kNone, kImplemented);
 dword_result_t ObReferenceObjectByHandle(dword_t handle,
                                          dword_t object_type_ptr,
                                          lpdword_t out_object_ptr) {
-  const static std::unordered_map<XObject::Type, uint32_t> obj_type_match = {
-      {XObject::kTypeEvent, 0xD00EBEEF},
-      {XObject::kTypeSemaphore, 0xD017BEEF},
-      {XObject::kTypeThread, 0xD01BBEEF}};
-
+  // These values come from how Xenia handles uninitialized kernel data exports.
+  // D###BEEF where ### is the ordinal.
+  const static std::unordered_map<XObject::Type, uint32_t> object_types = {
+      {XObject::Type::Event, 0xD00EBEEF},
+      {XObject::Type::Semaphore, 0xD017BEEF},
+      {XObject::Type::Thread, 0xD01BBEEF}};
   auto object = kernel_state()->object_table()->LookupObject<XObject>(handle);
-
   if (!object) {
     return X_STATUS_INVALID_HANDLE;
   }
 
   uint32_t native_ptr = object->guest_object();
-  auto obj_type = obj_type_match.find(object->type());
-
-  if (obj_type != obj_type_match.end()) {
-    if (object_type_ptr && object_type_ptr != obj_type->second) {
+  auto object_type = object_types.find(object->type());
+  if (object_type != object_types.end()) {
+    if (object_type_ptr && object_type_ptr != object_type->second) {
       return X_STATUS_OBJECT_TYPE_MISMATCH;
     }
   } else {

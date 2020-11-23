@@ -21,7 +21,7 @@ namespace kernel {
 
 class XEnumerator : public XObject {
  public:
-  static const Type kType = kTypeEnumerator;
+  static const XObject::Type kObjectType = XObject::Type::Enumerator;
 
   XEnumerator(KernelState* kernel_state, size_t items_per_enumerate,
               size_t item_size);

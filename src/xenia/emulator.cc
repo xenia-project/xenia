@@ -358,7 +358,7 @@ void Emulator::Pause() {
   auto lock = global_critical_region::AcquireDirect();
   auto threads =
       kernel_state()->object_table()->GetObjectsByType<kernel::XThread>(
-          kernel::XObject::kTypeThread);
+          kernel::XObject::Type::Thread);
   auto current_thread = kernel::XThread::IsInThread()
                             ? kernel::XThread::GetCurrentThread()
                             : nullptr;
@@ -388,7 +388,7 @@ void Emulator::Resume() {
 
   auto threads =
       kernel_state()->object_table()->GetObjectsByType<kernel::XThread>(
-          kernel::XObject::kTypeThread);
+          kernel::XObject::Type::Thread);
   for (auto thread : threads) {
     if (!thread->can_debugger_suspend()) {
       // Don't pause host threads.
