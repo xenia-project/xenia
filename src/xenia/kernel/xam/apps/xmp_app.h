@@ -68,23 +68,24 @@ class XmpApp : public App {
 
   explicit XmpApp(KernelState* kernel_state);
 
-  X_RESULT XMPGetStatus(uint32_t status_ptr);
+  X_HRESULT XMPGetStatus(uint32_t status_ptr);
 
-  X_RESULT XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count,
-                                  uint32_t playlist_name_ptr,
-                                  const std::u16string& playlist_name,
-                                  uint32_t flags, uint32_t out_song_handles,
-                                  uint32_t out_playlist_handle);
-  X_RESULT XMPDeleteTitlePlaylist(uint32_t playlist_handle);
-  X_RESULT XMPPlayTitlePlaylist(uint32_t playlist_handle, uint32_t song_handle);
-  X_RESULT XMPContinue();
-  X_RESULT XMPStop(uint32_t unk);
-  X_RESULT XMPPause();
-  X_RESULT XMPNext();
-  X_RESULT XMPPrevious();
+  X_HRESULT XMPCreateTitlePlaylist(uint32_t songs_ptr, uint32_t song_count,
+                                   uint32_t playlist_name_ptr,
+                                   const std::u16string& playlist_name,
+                                   uint32_t flags, uint32_t out_song_handles,
+                                   uint32_t out_playlist_handle);
+  X_HRESULT XMPDeleteTitlePlaylist(uint32_t playlist_handle);
+  X_HRESULT XMPPlayTitlePlaylist(uint32_t playlist_handle,
+                                 uint32_t song_handle);
+  X_HRESULT XMPContinue();
+  X_HRESULT XMPStop(uint32_t unk);
+  X_HRESULT XMPPause();
+  X_HRESULT XMPNext();
+  X_HRESULT XMPPrevious();
 
-  X_RESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
-                               uint32_t buffer_length) override;
+  X_HRESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
+                                uint32_t buffer_length) override;
 
  private:
   static const uint32_t kMsgStateChanged = 0x0A000001;

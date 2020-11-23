@@ -7,6 +7,8 @@
  ******************************************************************************
  */
 
+#include "xenia/kernel/xam/xam_content_device.h"
+
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/kernel/kernel_state.h"
@@ -19,14 +21,6 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-struct DeviceInfo {
-  uint32_t device_id;
-  uint32_t device_type;
-  uint64_t total_bytes;
-  uint64_t free_bytes;
-  char16_t name[28];
-};
-
 // TODO(gibbed): real information.
 //
 // Until we expose real information about a HDD device, we
@@ -37,36 +31,54 @@ struct DeviceInfo {
 // when it is a 64-bit value. Which means any size above ~4GB
 // will not be recognized properly.
 #define ONE_GB (1024ull * 1024ull * 1024ull)
-static const DeviceInfo dummy_device_info_ = {
-    0x00000001,      // id
-    1,               // 1=HDD
+
+static const DummyDeviceInfo dummy_hdd_device_info_ = {
+    DummyDeviceId::HDD, DeviceType::HDD,
     20ull * ONE_GB,  // 20GB
     3ull * ONE_GB,   // 3GB, so it looks a little used.
     u"Dummy HDD",
 };
+static const DummyDeviceInfo dummy_odd_device_info_ = {
+    DummyDeviceId::ODD, DeviceType::ODD,
+    7ull * ONE_GB,  // 7GB (rough maximum)
+    0ull * ONE_GB,  // read-only FS, so no free space
+    u"Dummy ODD",
+};
+static const DummyDeviceInfo* dummy_device_infos_[] = {
+    &dummy_hdd_device_info_,
+    &dummy_odd_device_info_,
+};
 #undef ONE_GB
+
+const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id) {
+  const auto& begin = std::begin(dummy_device_infos_);
+  const auto& end = std::end(dummy_device_infos_);
+  auto it = std::find_if(begin, end, [device_id](const auto& item) {
+    return static_cast<uint32_t>(item->device_id) == device_id;
+  });
+  return it == end ? nullptr : *it;
+}
 
 dword_result_t XamContentGetDeviceName(dword_t device_id,
                                        lpu16string_t name_buffer,
                                        dword_t name_capacity) {
-  if ((device_id & 0x0000000F) != dummy_device_info_.device_id) {
+  auto device_info = GetDummyDeviceInfo(device_id);
+  if (device_info == nullptr) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
-
-  auto name = std::u16string(dummy_device_info_.name);
+  auto name = std::u16string(device_info->name);
   if (name_capacity < name.size() + 1) {
     return X_ERROR_INSUFFICIENT_BUFFER;
   }
-
-  xe::store_and_swap<std::u16string>(name_buffer, name);
-  ((char16_t*)name_buffer)[name.size()] = 0;
+  xe::string_util::copy_and_swap_truncating(name_buffer, name, name_capacity);
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamContentGetDeviceName, kContent, kImplemented);
 
 dword_result_t XamContentGetDeviceState(dword_t device_id,
                                         lpunknown_t overlapped_ptr) {
-  if ((device_id & 0x0000000F) != dummy_device_info_.device_id) {
+  auto device_info = GetDummyDeviceInfo(device_id);
+  if (device_info == nullptr) {
     if (overlapped_ptr) {
       kernel_state()->CompleteOverlappedImmediateEx(
           overlapped_ptr, X_ERROR_FUNCTION_FAILED, X_ERROR_DEVICE_NOT_CONNECTED,
@@ -76,7 +88,6 @@ dword_result_t XamContentGetDeviceState(dword_t device_id,
       return X_ERROR_DEVICE_NOT_CONNECTED;
     }
   }
-
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
                                                 X_ERROR_SUCCESS);
@@ -92,24 +103,27 @@ typedef struct {
   xe::be<uint32_t> device_type;
   xe::be<uint64_t> total_bytes;
   xe::be<uint64_t> free_bytes;
-  xe::be<uint16_t> name[28];
+  union {
+    xe::be<uint16_t> name[28];
+    char16_t name_chars[28];
+  };
 } X_CONTENT_DEVICE_DATA;
 static_assert_size(X_CONTENT_DEVICE_DATA, 0x50);
 
 dword_result_t XamContentGetDeviceData(
     dword_t device_id, pointer_t<X_CONTENT_DEVICE_DATA> device_data) {
-  if ((device_id & 0x0000000F) != dummy_device_info_.device_id) {
-    // TODO(benvanik): memset 0 the data?
+  auto device_info = GetDummyDeviceInfo(device_id);
+  if (device_info == nullptr) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
-
   device_data.Zero();
-  const auto& device_info = dummy_device_info_;
-  device_data->device_id = device_info.device_id;
-  device_data->device_type = device_info.device_type;
-  device_data->total_bytes = device_info.total_bytes;
-  device_data->free_bytes = device_info.free_bytes;
-  xe::store_and_swap<std::u16string>(&device_data->name[0], device_info.name);
+  device_data->device_id = static_cast<uint32_t>(device_info->device_id);
+  device_data->device_type = static_cast<uint32_t>(device_info->device_type);
+  device_data->total_bytes = device_info->total_bytes;
+  device_data->free_bytes = device_info->free_bytes;
+  xe::string_util::copy_and_swap_truncating(
+      device_data->name_chars, device_info->name,
+      xe::countof(device_data->name_chars));
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamContentGetDeviceData, kContent, kImplemented);
@@ -122,21 +136,29 @@ dword_result_t XamContentCreateDeviceEnumerator(dword_t content_type,
   assert_not_null(handle_out);
 
   if (buffer_size_ptr) {
-    *buffer_size_ptr = sizeof(DeviceInfo) * max_count;
+    *buffer_size_ptr = sizeof(X_CONTENT_DEVICE_DATA) * max_count;
   }
 
-  auto e = new XStaticEnumerator(kernel_state(), max_count, sizeof(DeviceInfo));
-  e->Initialize();
+  auto e = object_ref<XStaticEnumerator>(new XStaticEnumerator(
+      kernel_state(), max_count, sizeof(X_CONTENT_DEVICE_DATA)));
+  auto result = e->Initialize(0xFE, 0xFE, 0x2000A, 0x20009, 0);
+  if (XFAILED(result)) {
+    return result;
+  }
 
-  // Copy our dummy device into the enumerator
-  DeviceInfo* dev = (DeviceInfo*)e->AppendItem();
-  if (dev) {
-    xe::store_and_swap(&dev->device_id, dummy_device_info_.device_id);
-    xe::store_and_swap(&dev->device_type, dummy_device_info_.device_type);
-    xe::store_and_swap(&dev->total_bytes, dummy_device_info_.total_bytes);
-    xe::store_and_swap(&dev->free_bytes, dummy_device_info_.free_bytes);
-    xe::copy_and_swap(dev->name, dummy_device_info_.name,
-                      xe::countof(dev->name));
+  for (const auto& device_info : dummy_device_infos_) {
+    // Copy our dummy device into the enumerator
+    auto device_data = (X_CONTENT_DEVICE_DATA*)e->AppendItem();
+    if (device_data) {
+      device_data->device_id = static_cast<uint32_t>(device_info->device_id);
+      device_data->device_type =
+          static_cast<uint32_t>(device_info->device_type);
+      device_data->total_bytes = device_info->total_bytes;
+      device_data->free_bytes = device_info->free_bytes;
+      xe::string_util::copy_and_swap_truncating(
+          device_data->name_chars, device_info->name,
+          xe::countof(device_data->name_chars));
+    }
   }
 
   *handle_out = e->handle();

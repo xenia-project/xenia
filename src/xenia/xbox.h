@@ -94,6 +94,7 @@ typedef uint32_t X_RESULT;
 #define X_ERROR_BAD_ARGUMENTS                   X_RESULT_FROM_WIN32(0x000000A0L)
 #define X_ERROR_BUSY                            X_RESULT_FROM_WIN32(0x000000AAL)
 #define X_ERROR_ALREADY_EXISTS                  X_RESULT_FROM_WIN32(0x000000B7L)
+#define X_ERROR_IO_INCOMPLETE                   X_RESULT_FROM_WIN32(0x000003E4L)
 #define X_ERROR_IO_PENDING                      X_RESULT_FROM_WIN32(0x000003E5L)
 #define X_ERROR_DEVICE_NOT_CONNECTED            X_RESULT_FROM_WIN32(0x0000048FL)
 #define X_ERROR_NOT_FOUND                       X_RESULT_FROM_WIN32(0x00000490L)
@@ -112,6 +113,8 @@ typedef uint32_t X_HRESULT;
 
 #define X_E_FALSE                               static_cast<X_HRESULT>(0x80000000L)
 #define X_E_SUCCESS                             X_HRESULT_FROM_WIN32(X_ERROR_SUCCESS)
+#define X_E_FAIL                                static_cast<X_HRESULT>(0x80004005L)
+#define X_E_NO_MORE_FILES                       X_HRESULT_FROM_WIN32(X_ERROR_NO_MORE_FILES)
 #define X_E_INVALIDARG                          X_HRESULT_FROM_WIN32(X_ERROR_INVALID_PARAMETER)
 #define X_E_DEVICE_NOT_CONNECTED                X_HRESULT_FROM_WIN32(X_ERROR_DEVICE_NOT_CONNECTED)
 #define X_E_NOTFOUND                            X_HRESULT_FROM_WIN32(X_ERROR_NOT_FOUND)
