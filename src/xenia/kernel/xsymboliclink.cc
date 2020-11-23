@@ -16,9 +16,9 @@ namespace xe {
 namespace kernel {
 
 XSymbolicLink::XSymbolicLink(KernelState* kernel_state)
-    : XObject(kernel_state, kType), path_(), target_() {}
+    : XObject(kernel_state, kObjectType), path_(), target_() {}
 
-XSymbolicLink::XSymbolicLink() : XObject(kType), path_(), target_() {}
+XSymbolicLink::XSymbolicLink() : XObject(kObjectType), path_(), target_() {}
 
 XSymbolicLink::~XSymbolicLink() {}
 

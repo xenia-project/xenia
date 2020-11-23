@@ -23,7 +23,7 @@ namespace kernel {
 
 class XSymbolicLink : public XObject {
  public:
-  static const Type kType = kTypeSymbolicLink;
+  static const XObject::Type kObjectType = XObject::Type::SymbolicLink;
 
   explicit XSymbolicLink(KernelState* kernel_state);
   ~XSymbolicLink() override;

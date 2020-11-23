@@ -66,7 +66,7 @@ struct N_XSOCKADDR_IN {
 
 class XSocket : public XObject {
  public:
-  static const Type kType = kTypeSocket;
+  static const XObject::Type kObjectType = XObject::Type::Socket;
 
   enum AddressFamily {
     AF_INET = 2,

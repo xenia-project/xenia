@@ -25,7 +25,7 @@ static_assert_size(X_KSEMAPHORE, 0x14);
 
 class XSemaphore : public XObject {
  public:
-  static const Type kType = kTypeSemaphore;
+  static const XObject::Type kObjectType = XObject::Type::Semaphore;
 
   explicit XSemaphore(KernelState* kernel_state);
   ~XSemaphore() override;

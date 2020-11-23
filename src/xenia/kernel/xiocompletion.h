@@ -21,7 +21,7 @@ namespace kernel {
 
 class XIOCompletion : public XObject {
  public:
-  static const Type kType = kTypeIOCompletion;
+  static const XObject::Type kObjectType = XObject::Type::IOCompletion;
 
   explicit XIOCompletion(KernelState* kernel_state);
   ~XIOCompletion() override;
