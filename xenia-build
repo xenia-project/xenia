@@ -7,7 +7,7 @@
 Run with --help or no arguments for possible commands.
 """
 from __future__ import print_function
-
+from datetime import datetime
 import argparse
 import json
 import os
@@ -271,6 +271,48 @@ def generate_version_h():
     with open('build/version.h', 'w') as f:
         f.write(contents)
 
+def generate_source_class(path):
+    header_path = '{}.h'.format(path)
+    source_path = '{}.cc'.format(path)
+
+    if os.path.isfile(header_path) or os.path.isfile(source_path):
+        print('ERROR: Target file already exists')
+        return 1
+
+    if generate_source_file(header_path) > 0:
+        return 1
+    if generate_source_file(source_path) > 0:
+        # remove header if source file generation failed
+        os.remove(os.path.join(source_root, header_path))
+        return 1
+    
+    return 0
+
+def generate_source_file(path):
+    """Generates a source file at the specified path containing copyright notice
+    """
+    copyright = '''/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright {} Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */'''.format(datetime.now().year)
+
+    if os.path.isfile(path):
+        print('ERROR: Target file already exists')
+        return 1
+    try:
+        with open(path, 'w') as f:
+            f.write(copyright)
+    except Exception as e:
+        print('ERROR: Could not write to file [path {}]'.format(path))
+        return 1
+    
+    return 0
+
+    
 
 def git_get_head_info():
     """Queries the current branch and commit checksum from git.
@@ -513,6 +555,7 @@ def discover_commands(subparsers):
         'format': FormatCommand(subparsers),
         'style': StyleCommand(subparsers),
         'tidy': TidyCommand(subparsers),
+        'stub': StubCommand(subparsers),
         }
     if sys.platform == 'win32':
         commands['buildhlsl'] = BuildHlslCommand(subparsers)
@@ -1540,6 +1583,57 @@ class TidyCommand(Command):
             print('Tidy completed successfully.')
             return 0
 
+class StubCommand(Command):
+    """'stub' command."""
+
+    def __init__(self, subparsers, *args, **kwargs):
+        super(StubCommand, self).__init__(
+            subparsers,
+            name='stub',
+            help_short='Create new file(s) in the xenia source tree and run premake',
+            *args, **kwargs)
+        self.parser.add_argument(
+            '--file', default=None,
+            help='Generate a source file at the provided location in the source tree')
+        self.parser.add_argument(
+            '--class', default=None,
+            help='Generate a class pair (.cc/.h) at the provided location in the source tree')
+        self.parser.add_argument(
+            '--target_os', default=None,
+            help='Target OS passed to premake, for cross-compilation')
+
+    def execute(self, args, pass_args, cwd):
+        root = os.path.dirname(os.path.realpath(__file__))
+        source_root = os.path.join(root, os.path.normpath('src/xenia'))
+
+        if args['class']:
+            path = os.path.normpath(os.path.join(source_root, args['class']))
+            target_dir = os.path.dirname(path)
+            class_name = os.path.basename(path)
+
+            status = generate_source_class(path)
+            if status > 0:
+                return status
+            
+            print('Created class \'{0}\' at {1}'.format(class_name, target_dir))
+
+        elif args['file']:
+            path = os.path.normpath(os.path.join(source_root, args['file']))
+            target_dir = os.path.dirname(path)
+            file_name = os.path.basename(path)
+
+            status = generate_source_file(path)
+            if status > 0:
+                return status
+            
+            print('Created file \'{0}\' at {1}'.format(file_name, target_dir))
+
+        else:
+            print('ERROR: Please specify a file/class to generate')
+            return 1
+
+        run_platform_premake(target_os_override=args['target_os'])
+        return 0
 
 class DevenvCommand(Command):
     """'devenv' command."""
