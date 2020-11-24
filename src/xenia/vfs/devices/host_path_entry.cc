@@ -97,13 +97,14 @@ std::unique_ptr<Entry> HostPathEntry::CreateEntryInternal(
 
 bool HostPathEntry::DeleteEntryInternal(Entry* entry) {
   auto full_path = host_path_ / xe::to_path(entry->name());
+  std::error_code ec;  // avoid exception on remove/remove_all failure
   if (entry->attributes() & kFileAttributeDirectory) {
     // Delete entire directory and contents.
-    return std::filesystem::remove_all(full_path);
+    return std::filesystem::remove_all(full_path, ec);
   } else {
     // Delete file.
     return !std::filesystem::is_directory(full_path) &&
-           std::filesystem::remove(full_path);
+           std::filesystem::remove(full_path, ec);
   }
 }
 
