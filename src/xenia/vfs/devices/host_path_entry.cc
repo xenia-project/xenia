@@ -100,7 +100,8 @@ bool HostPathEntry::DeleteEntryInternal(Entry* entry) {
   std::error_code ec;  // avoid exception on remove/remove_all failure
   if (entry->attributes() & kFileAttributeDirectory) {
     // Delete entire directory and contents.
-    return std::filesystem::remove_all(full_path, ec);
+    auto removed = std::filesystem::remove_all(full_path, ec);
+    return removed >= 1 && removed != static_cast<std::uintmax_t>(-1);
   } else {
     // Delete file.
     return !std::filesystem::is_directory(full_path) &&
