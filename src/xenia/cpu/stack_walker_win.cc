@@ -9,6 +9,7 @@
 
 #include "xenia/cpu/stack_walker.h"
 
+#include <cstdint>
 #include <mutex>
 
 #include "xenia/base/logging.h"
@@ -120,8 +121,8 @@ class Win32StackWalker : public StackWalker {
     // They never change, so it's fine even if they are touched from multiple
     // threads.
     code_cache_ = code_cache;
-    code_cache_min_ = code_cache_->base_address();
-    code_cache_max_ = code_cache_->base_address() + code_cache_->total_size();
+    code_cache_min_ = code_cache_->execute_base_address();
+    code_cache_max_ = code_cache_min_ + code_cache_->total_size();
   }
 
   bool Initialize() {
@@ -297,13 +298,13 @@ class Win32StackWalker : public StackWalker {
   std::mutex dbghelp_mutex_;
 
   static xe::cpu::backend::CodeCache* code_cache_;
-  static uint32_t code_cache_min_;
-  static uint32_t code_cache_max_;
+  static uintptr_t code_cache_min_;
+  static uintptr_t code_cache_max_;
 };
 
 xe::cpu::backend::CodeCache* Win32StackWalker::code_cache_ = nullptr;
-uint32_t Win32StackWalker::code_cache_min_ = 0;
-uint32_t Win32StackWalker::code_cache_max_ = 0;
+uintptr_t Win32StackWalker::code_cache_min_ = 0;
+uintptr_t Win32StackWalker::code_cache_max_ = 0;
 
 std::unique_ptr<StackWalker> StackWalker::Create(
     backend::CodeCache* code_cache) {

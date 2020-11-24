@@ -125,20 +125,26 @@ void* X64Emitter::Emplace(const EmitFunctionInfo& func_info,
   // top_ points to the Xbyak buffer, and since we are in AutoGrow mode
   // it has pending relocations. We copy the top_ to our buffer, swap the
   // pointer, relocate, then return the original scratch pointer for use.
+  // top_ is used by Xbyak's ready() as both write base pointer and the absolute
+  // address base, which would not work on platforms not supporting writable
+  // executable memory, but Xenia doesn't use absolute label addresses in the
+  // generated code.
   uint8_t* old_address = top_;
-  void* new_address;
+  void* new_execute_address;
+  void* new_write_address;
   assert_true(func_info.code_size.total == size_);
   if (function) {
-    new_address = code_cache_->PlaceGuestCode(function->address(), top_,
-                                              func_info, function);
+    code_cache_->PlaceGuestCode(function->address(), top_, func_info, function,
+                                new_execute_address, new_write_address);
   } else {
-    new_address = code_cache_->PlaceHostCode(0, top_, func_info);
+    code_cache_->PlaceHostCode(0, top_, func_info, new_execute_address,
+                               new_write_address);
   }
-  top_ = reinterpret_cast<uint8_t*>(new_address);
+  top_ = reinterpret_cast<uint8_t*>(new_write_address);
   ready();
   top_ = old_address;
   reset();
-  return new_address;
+  return new_execute_address;
 }
 
 bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {

@@ -513,7 +513,7 @@ bool Emulator::ExceptionCallbackThunk(Exception* ex, void* data) {
 bool Emulator::ExceptionCallback(Exception* ex) {
   // Check to see if the exception occurred in guest code.
   auto code_cache = processor()->backend()->code_cache();
-  auto code_base = code_cache->base_address();
+  auto code_base = code_cache->execute_base_address();
   auto code_end = code_base + code_cache->total_size();
 
   if (!processor()->is_debugger_attached() && debugging::IsDebuggerAttached()) {

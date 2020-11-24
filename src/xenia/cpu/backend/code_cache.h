@@ -10,6 +10,8 @@
 #ifndef XENIA_CPU_BACKEND_CODE_CACHE_H_
 #define XENIA_CPU_BACKEND_CODE_CACHE_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 
 #include "xenia/cpu/function.h"
@@ -24,8 +26,8 @@ class CodeCache {
   virtual ~CodeCache() = default;
 
   virtual const std::filesystem::path& file_name() const = 0;
-  virtual uint32_t base_address() const = 0;
-  virtual uint32_t total_size() const = 0;
+  virtual uintptr_t execute_base_address() const = 0;
+  virtual size_t total_size() const = 0;
 
   // Finds a function based on the given host PC (that may be within a
   // function).
