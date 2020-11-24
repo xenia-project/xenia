@@ -8,11 +8,26 @@
  */
 
 #include "xenia/base/memory.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/platform.h"
 
 #include <algorithm>
 
+DEFINE_bool(
+    writable_executable_memory, true,
+    "Allow mapping memory with both write and execute access, for simulating "
+    "behavior on platforms where that's not supported",
+    "Memory");
+
 namespace xe {
+namespace memory {
+
+bool IsWritableExecutableMemoryPreferred() {
+  return IsWritableExecutableMemorySupported() &&
+         cvars::writable_executable_memory;
+}
+
+}  // namespace memory
 
 // TODO(benvanik): fancy AVX versions.
 // https://github.com/gnuradio/volk/blob/master/kernels/volk/volk_16u_byteswap.h

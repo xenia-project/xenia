@@ -107,11 +107,12 @@ class Win32X64CodeCache : public X64CodeCache {
  private:
   UnwindReservation RequestUnwindReservation(uint8_t* entry_address) override;
   void PlaceCode(uint32_t guest_address, void* machine_code,
-                 const EmitFunctionInfo& func_info, void* code_address,
+                 const EmitFunctionInfo& func_info, void* code_execute_address,
                  UnwindReservation unwind_reservation) override;
 
   void InitializeUnwindEntry(uint8_t* unwind_entry_address,
-                             size_t unwind_table_slot, void* code_address,
+                             size_t unwind_table_slot,
+                             void* code_execute_address,
                              const EmitFunctionInfo& func_info);
 
   // Growable function table system handle.
@@ -140,9 +141,9 @@ Win32X64CodeCache::~Win32X64CodeCache() {
       delete_growable_table_(unwind_table_handle_);
     }
   } else {
-    if (generated_code_base_) {
+    if (generated_code_execute_base_) {
       RtlDeleteFunctionTable(reinterpret_cast<PRUNTIME_FUNCTION>(
-          reinterpret_cast<DWORD64>(generated_code_base_) | 0x3));
+          reinterpret_cast<DWORD64>(generated_code_execute_base_) | 0x3));
     }
   }
 }
@@ -176,11 +177,12 @@ bool Win32X64CodeCache::Initialize() {
   // Create table and register with the system. It's empty now, but we'll grow
   // it as functions are added.
   if (supports_growable_table_) {
-    if (add_growable_table_(&unwind_table_handle_, unwind_table_.data(),
-                            unwind_table_count_, DWORD(unwind_table_.size()),
-                            reinterpret_cast<ULONG_PTR>(generated_code_base_),
-                            reinterpret_cast<ULONG_PTR>(generated_code_base_ +
-                                                        kGeneratedCodeSize))) {
+    if (add_growable_table_(
+            &unwind_table_handle_, unwind_table_.data(), unwind_table_count_,
+            DWORD(unwind_table_.size()),
+            reinterpret_cast<ULONG_PTR>(generated_code_execute_base_),
+            reinterpret_cast<ULONG_PTR>(generated_code_execute_base_ +
+                                        kGeneratedCodeSize))) {
       XELOGE("Unable to create unwind function table");
       return false;
     }
@@ -188,8 +190,9 @@ bool Win32X64CodeCache::Initialize() {
     // Install a callback that the debugger will use to lookup unwind info on
     // demand.
     if (!RtlInstallFunctionTableCallback(
-            reinterpret_cast<DWORD64>(generated_code_base_) | 0x3,
-            reinterpret_cast<DWORD64>(generated_code_base_), kGeneratedCodeSize,
+            reinterpret_cast<DWORD64>(generated_code_execute_base_) | 0x3,
+            reinterpret_cast<DWORD64>(generated_code_execute_base_),
+            kGeneratedCodeSize,
             [](DWORD64 control_pc, PVOID context) {
               auto code_cache = reinterpret_cast<Win32X64CodeCache*>(context);
               return reinterpret_cast<PRUNTIME_FUNCTION>(
@@ -216,11 +219,12 @@ Win32X64CodeCache::RequestUnwindReservation(uint8_t* entry_address) {
 
 void Win32X64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
                                   const EmitFunctionInfo& func_info,
-                                  void* code_address,
+                                  void* code_execute_address,
                                   UnwindReservation unwind_reservation) {
   // Add unwind info.
   InitializeUnwindEntry(unwind_reservation.entry_address,
-                        unwind_reservation.table_slot, code_address, func_info);
+                        unwind_reservation.table_slot, code_execute_address,
+                        func_info);
 
   if (supports_growable_table_) {
     // Notify that the unwind table has grown.
@@ -229,13 +233,15 @@ void Win32X64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
   }
 
   // This isn't needed on x64 (probably), but is convention.
-  FlushInstructionCache(GetCurrentProcess(), code_address,
+  // On UWP, FlushInstructionCache available starting from 10.0.16299.0.
+  // https://docs.microsoft.com/en-us/uwp/win32-and-com/win32-apis
+  FlushInstructionCache(GetCurrentProcess(), code_execute_address,
                         func_info.code_size.total);
 }
 
 void Win32X64CodeCache::InitializeUnwindEntry(
-    uint8_t* unwind_entry_address, size_t unwind_table_slot, void* code_address,
-    const EmitFunctionInfo& func_info) {
+    uint8_t* unwind_entry_address, size_t unwind_table_slot,
+    void* code_execute_address, const EmitFunctionInfo& func_info) {
   auto unwind_info = reinterpret_cast<UNWIND_INFO*>(unwind_entry_address);
   UNWIND_CODE* unwind_code = nullptr;
 
@@ -299,10 +305,12 @@ void Win32X64CodeCache::InitializeUnwindEntry(
   // Add entry.
   auto& fn_entry = unwind_table_[unwind_table_slot];
   fn_entry.BeginAddress =
-      (DWORD)(reinterpret_cast<uint8_t*>(code_address) - generated_code_base_);
+      DWORD(reinterpret_cast<uint8_t*>(code_execute_address) -
+            generated_code_execute_base_);
   fn_entry.EndAddress =
-      (DWORD)(fn_entry.BeginAddress + func_info.code_size.total);
-  fn_entry.UnwindData = (DWORD)(unwind_entry_address - generated_code_base_);
+      DWORD(fn_entry.BeginAddress + func_info.code_size.total);
+  fn_entry.UnwindData =
+      DWORD(unwind_entry_address - generated_code_execute_base_);
 }
 
 void* Win32X64CodeCache::LookupUnwindInfo(uint64_t host_pc) {
@@ -310,8 +318,8 @@ void* Win32X64CodeCache::LookupUnwindInfo(uint64_t host_pc) {
       &host_pc, unwind_table_.data(), unwind_table_count_,
       sizeof(RUNTIME_FUNCTION),
       [](const void* key_ptr, const void* element_ptr) {
-        auto key =
-            *reinterpret_cast<const uintptr_t*>(key_ptr) - kGeneratedCodeBase;
+        auto key = *reinterpret_cast<const uintptr_t*>(key_ptr) -
+                   kGeneratedCodeExecuteBase;
         auto element = reinterpret_cast<const RUNTIME_FUNCTION*>(element_ptr);
         if (key < element->BeginAddress) {
           return -1;

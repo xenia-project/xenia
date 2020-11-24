@@ -621,6 +621,10 @@ uint32_t FromPageAccess(xe::memory::PageAccess protect) {
       return kMemoryProtectRead;
     case memory::PageAccess::kReadWrite:
       return kMemoryProtectRead | kMemoryProtectWrite;
+    case memory::PageAccess::kExecuteReadOnly:
+      // Guest memory cannot be executable - this should never happen :)
+      assert_always();
+      return kMemoryProtectRead;
     case memory::PageAccess::kExecuteReadWrite:
       // Guest memory cannot be executable - this should never happen :)
       assert_always();

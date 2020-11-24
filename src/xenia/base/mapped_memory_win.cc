@@ -29,7 +29,7 @@ class Win32MappedMemory : public MappedMemory {
     if (data_) {
       UnmapViewOfFile(data_);
     }
-    if (mapping_handle != INVALID_HANDLE_VALUE) {
+    if (mapping_handle) {
       CloseHandle(mapping_handle);
     }
     if (file_handle != INVALID_HANDLE_VALUE) {
@@ -42,9 +42,9 @@ class Win32MappedMemory : public MappedMemory {
       UnmapViewOfFile(data_);
       data_ = nullptr;
     }
-    if (mapping_handle != INVALID_HANDLE_VALUE) {
+    if (mapping_handle) {
       CloseHandle(mapping_handle);
-      mapping_handle = INVALID_HANDLE_VALUE;
+      mapping_handle = nullptr;
     }
     if (file_handle != INVALID_HANDLE_VALUE) {
       if (truncate_size) {
@@ -65,8 +65,13 @@ class Win32MappedMemory : public MappedMemory {
     size_t aligned_length = length + (offset - aligned_offset);
 
     UnmapViewOfFile(data_);
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
     data_ = MapViewOfFile(mapping_handle, view_access_, aligned_offset >> 32,
                           aligned_offset & 0xFFFFFFFF, aligned_length);
+#else
+    data_ = MapViewOfFileFromApp(mapping_handle, ULONG(view_access_),
+                                 ULONG64(aligned_offset), aligned_length);
+#endif
     if (!data_) {
       return false;
     }
@@ -84,7 +89,7 @@ class Win32MappedMemory : public MappedMemory {
   }
 
   HANDLE file_handle = INVALID_HANDLE_VALUE;
-  HANDLE mapping_handle = INVALID_HANDLE_VALUE;
+  HANDLE mapping_handle = nullptr;
   DWORD view_access_ = 0;
 };
 
@@ -129,16 +134,28 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(
     return nullptr;
   }
 
-  mm->mapping_handle = CreateFileMapping(mm->file_handle, nullptr,
-                                         mapping_protect, aligned_length >> 32,
-                                         aligned_length & 0xFFFFFFFF, nullptr);
-  if (mm->mapping_handle == INVALID_HANDLE_VALUE) {
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+  mm->mapping_handle = CreateFileMapping(
+      mm->file_handle, nullptr, mapping_protect, DWORD(aligned_length >> 32),
+      DWORD(aligned_length), nullptr);
+#else
+  mm->mapping_handle =
+      CreateFileMappingFromApp(mm->file_handle, nullptr, ULONG(mapping_protect),
+                               ULONG64(aligned_length), nullptr);
+#endif
+  if (!mm->mapping_handle) {
     return nullptr;
   }
 
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
   mm->data_ = reinterpret_cast<uint8_t*>(MapViewOfFile(
-      mm->mapping_handle, view_access, static_cast<DWORD>(aligned_offset >> 32),
-      static_cast<DWORD>(aligned_offset & 0xFFFFFFFF), aligned_length));
+      mm->mapping_handle, view_access, DWORD(aligned_offset >> 32),
+      DWORD(aligned_offset), aligned_length));
+#else
+  mm->data_ = reinterpret_cast<uint8_t*>(
+      MapViewOfFileFromApp(mm->mapping_handle, ULONG(view_access),
+                           ULONG64(aligned_offset), aligned_length));
+#endif
   if (!mm->data_) {
     return nullptr;
   }
@@ -203,8 +220,8 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
   class Chunk {
    public:
     explicit Chunk(size_t capacity)
-        : file_handle_(0),
-          mapping_handle_(0),
+        : file_handle_(INVALID_HANDLE_VALUE),
+          mapping_handle_(nullptr),
           data_(nullptr),
           offset_(0),
           capacity_(capacity),
@@ -217,7 +234,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
       if (mapping_handle_) {
         CloseHandle(mapping_handle_);
       }
-      if (file_handle_) {
+      if (file_handle_ != INVALID_HANDLE_VALUE) {
         CloseHandle(file_handle_);
       }
     }
@@ -231,13 +248,19 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
 
       file_handle_ = CreateFile(path.c_str(), file_access, file_share, nullptr,
                                 create_mode, FILE_ATTRIBUTE_NORMAL, nullptr);
-      if (!file_handle_) {
+      if (file_handle_ == INVALID_HANDLE_VALUE) {
         return false;
       }
 
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
       mapping_handle_ =
-          CreateFileMapping(file_handle_, nullptr, mapping_protect, 0,
-                            static_cast<DWORD>(capacity_), nullptr);
+          CreateFileMapping(file_handle_, nullptr, mapping_protect,
+                            DWORD(capacity_ >> 32), DWORD(capacity_), nullptr);
+#else
+      mapping_handle_ = CreateFileMappingFromApp(file_handle_, nullptr,
+                                                 ULONG(mapping_protect),
+                                                 ULONG64(capacity_), nullptr);
+#endif
       if (!mapping_handle_) {
         return false;
       }
@@ -247,10 +270,32 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
       if (low_address_space) {
         bool successful = false;
         data_ = reinterpret_cast<uint8_t*>(0x10000000);
+#if !WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+        HANDLE process = GetCurrentProcess();
+#endif
         for (int i = 0; i < 1000; ++i) {
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
           if (MapViewOfFileEx(mapping_handle_, view_access, 0, 0, capacity_,
                               data_)) {
             successful = true;
+          }
+#else
+          // VirtualAlloc2FromApp and MapViewOfFile3FromApp were added in
+          // 10.0.17134.0.
+          // https://docs.microsoft.com/en-us/uwp/win32-and-com/win32-apis
+          if (VirtualAlloc2FromApp(process, data_, capacity_,
+                                   MEM_RESERVE | MEM_RESERVE_PLACEHOLDER,
+                                   PAGE_NOACCESS, nullptr, 0)) {
+            if (MapViewOfFile3FromApp(mapping_handle_, process, data_, 0,
+                                      capacity_, MEM_REPLACE_PLACEHOLDER,
+                                      ULONG(mapping_protect), nullptr, 0)) {
+              successful = true;
+            } else {
+              VirtualFree(data_, capacity_, MEM_RELEASE);
+            }
+          }
+#endif
+          if (successful) {
             break;
           }
           data_ += capacity_;
@@ -261,8 +306,13 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
           }
         }
       } else {
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
         data_ = reinterpret_cast<uint8_t*>(
             MapViewOfFile(mapping_handle_, view_access, 0, 0, capacity_));
+#else
+        data_ = reinterpret_cast<uint8_t*>(MapViewOfFileFromApp(
+            mapping_handle_, ULONG(view_access), 0, capacity_));
+#endif
       }
       if (!data_) {
         return false;
