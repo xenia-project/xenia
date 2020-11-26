@@ -17,9 +17,10 @@
 namespace xe {
 namespace kernel {
 
-XMutant::XMutant() : XObject(kType) {}
+XMutant::XMutant(KernelState* kernel_state)
+    : XObject(kernel_state, kObjectType) {}
 
-XMutant::XMutant(KernelState* kernel_state) : XObject(kernel_state, kType) {}
+XMutant::XMutant() : XObject(kObjectType) {}
 
 XMutant::~XMutant() = default;
 

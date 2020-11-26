@@ -27,7 +27,7 @@ class PosixX64CodeCache : public X64CodeCache {
   /*
   UnwindReservation RequestUnwindReservation(uint8_t* entry_address) override;
   void PlaceCode(uint32_t guest_address, void* machine_code, size_t code_size,
-                 size_t stack_size, void* code_address,
+                 size_t stack_size, void* code_execute_address,
                  UnwindReservation unwind_reservation) override;
 
   void InitializeUnwindEntry(uint8_t* unwind_entry_address,

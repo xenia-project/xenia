@@ -75,7 +75,7 @@ class X_FILE_DIRECTORY_INFORMATION {
 
 class XFile : public XObject {
  public:
-  static const Type kType = kTypeFile;
+  static const XObject::Type kObjectType = XObject::Type::File;
 
   XFile(KernelState* kernel_state, vfs::File* file, bool synchronous);
   ~XFile() override;

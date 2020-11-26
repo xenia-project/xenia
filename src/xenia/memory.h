@@ -36,6 +36,13 @@ enum SystemHeapFlag : uint32_t {
   kSystemHeapDefault = kSystemHeapVirtual,
 };
 
+enum class HeapType : uint8_t {
+  kGuestVirtual,
+  kGuestXex,
+  kGuestPhysical,
+  kHostPhysical,
+};
+
 enum MemoryAllocationFlag : uint32_t {
   kMemoryAllocationReserve = 1 << 0,
   kMemoryAllocationCommit = 1 << 1,
@@ -105,6 +112,9 @@ class BaseHeap {
 
   // Size of each page within the heap range in bytes.
   uint32_t page_size() const { return page_size_; }
+
+  // Type of specified heap
+  HeapType heap_type() const { return heap_type_; }
 
   // Offset added to the virtual addresses to convert them to host addresses
   // (not including membase).
@@ -177,9 +187,6 @@ class BaseHeap {
   xe::memory::PageAccess QueryRangeAccess(uint32_t low_address,
                                           uint32_t high_address);
 
-  // Whether the heap is a guest virtual memory mapping of the physical memory.
-  virtual bool IsGuestPhysicalHeap() const { return false; }
-
   bool Save(ByteStream* stream);
   bool Restore(ByteStream* stream);
 
@@ -188,12 +195,13 @@ class BaseHeap {
  protected:
   BaseHeap();
 
-  void Initialize(Memory* memory, uint8_t* membase, uint32_t heap_base,
-                  uint32_t heap_size, uint32_t page_size,
+  void Initialize(Memory* memory, uint8_t* membase, HeapType heap_type,
+                  uint32_t heap_base, uint32_t heap_size, uint32_t page_size,
                   uint32_t host_address_offset = 0);
 
   Memory* memory_;
   uint8_t* membase_;
+  HeapType heap_type_;
   uint32_t heap_base_;
   uint32_t heap_size_;
   uint32_t page_size_;
@@ -209,8 +217,8 @@ class VirtualHeap : public BaseHeap {
   ~VirtualHeap() override;
 
   // Initializes the heap properties and allocates the page table.
-  void Initialize(Memory* memory, uint8_t* membase, uint32_t heap_base,
-                  uint32_t heap_size, uint32_t page_size);
+  void Initialize(Memory* memory, uint8_t* membase, HeapType heap_type,
+                  uint32_t heap_base, uint32_t heap_size, uint32_t page_size);
 };
 
 // A heap for ranges of memory that are mapped to physical ranges.
@@ -226,8 +234,8 @@ class PhysicalHeap : public BaseHeap {
   ~PhysicalHeap() override;
 
   // Initializes the heap properties and allocates the page table.
-  void Initialize(Memory* memory, uint8_t* membase, uint32_t heap_base,
-                  uint32_t heap_size, uint32_t page_size,
+  void Initialize(Memory* memory, uint8_t* membase, HeapType heap_type,
+                  uint32_t heap_base, uint32_t heap_size, uint32_t page_size,
                   VirtualHeap* parent_heap);
 
   bool Alloc(uint32_t size, uint32_t alignment, uint32_t allocation_type,
@@ -253,7 +261,6 @@ class PhysicalHeap : public BaseHeap {
       uint32_t virtual_address, uint32_t length, bool is_write,
       bool unwatch_exact_range, bool unprotect = true);
 
-  bool IsGuestPhysicalHeap() const override { return true; }
   uint32_t GetPhysicalAddress(uint32_t address) const;
 
  protected:
