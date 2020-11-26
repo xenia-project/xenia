@@ -22,11 +22,13 @@ namespace xe {
 namespace kernel {
 
 XFile::XFile(KernelState* kernel_state, vfs::File* file, bool synchronous)
-    : XObject(kernel_state, kType), file_(file), is_synchronous_(synchronous) {
+    : XObject(kernel_state, kObjectType),
+      file_(file),
+      is_synchronous_(synchronous) {
   async_event_ = threading::Event::CreateAutoResetEvent(false);
 }
 
-XFile::XFile() : XObject(kType) {
+XFile::XFile() : XObject(kObjectType) {
   async_event_ = threading::Event::CreateAutoResetEvent(false);
 }
 
@@ -122,14 +124,14 @@ X_STATUS XFile::Read(uint32_t buffer_guest_address, uint32_t buffer_length,
       const xe::BaseHeap* buffer_end_heap =
           memory()->LookupHeap(buffer_guest_high_address);
       if (!buffer_start_heap || !buffer_end_heap ||
-          buffer_start_heap->IsGuestPhysicalHeap() !=
-              buffer_end_heap->IsGuestPhysicalHeap() ||
-          (buffer_start_heap->IsGuestPhysicalHeap() &&
+          (buffer_start_heap->heap_type() == HeapType::kGuestPhysical) !=
+              (buffer_end_heap->heap_type() == HeapType::kGuestPhysical) ||
+          (buffer_start_heap->heap_type() == HeapType::kGuestPhysical &&
            buffer_start_heap != buffer_end_heap)) {
         result = X_STATUS_ACCESS_VIOLATION;
       } else {
         xe::PhysicalHeap* buffer_physical_heap =
-            buffer_start_heap->IsGuestPhysicalHeap()
+            buffer_start_heap->heap_type() == HeapType::kGuestPhysical
                 ? static_cast<xe::PhysicalHeap*>(buffer_start_heap)
                 : nullptr;
         if (buffer_physical_heap &&

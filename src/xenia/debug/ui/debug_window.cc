@@ -1454,7 +1454,7 @@ void DebugWindow::UpdateCache() {
   // Fetch module listing.
   // We hold refs so that none are unloaded.
   cache_.modules =
-      object_table->GetObjectsByType<XModule>(XObject::Type::kTypeModule);
+      object_table->GetObjectsByType<XModule>(XObject::Type::Module);
 
   cache_.thread_debug_infos = processor_->QueryThreadDebugInfos();
 

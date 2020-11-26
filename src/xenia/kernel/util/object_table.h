@@ -51,7 +51,7 @@ class ObjectTable {
   object_ref<T> LookupObject(X_HANDLE handle) {
     auto object = LookupObject(handle, false);
     if (object) {
-      assert_true(object->type() == T::kType);
+      assert_true(object->type() == T::kObjectType);
     }
     auto result = object_ref<T>(reinterpret_cast<T*>(object));
     return result;
@@ -72,7 +72,7 @@ class ObjectTable {
   std::vector<object_ref<T>> GetObjectsByType() {
     std::vector<object_ref<T>> results;
     GetObjectsByType(
-        T::kType,
+        T::kObjectType,
         reinterpret_cast<std::vector<object_ref<XObject>>*>(&results));
     return results;
   }

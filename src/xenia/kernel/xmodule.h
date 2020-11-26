@@ -57,7 +57,7 @@ class XModule : public XObject {
     kUserModule = 1,
   };
 
-  static const Type kType = kTypeModule;
+  static const XObject::Type kObjectType = XObject::Type::Module;
 
   XModule(KernelState* kernel_state, ModuleType module_type);
   virtual ~XModule();

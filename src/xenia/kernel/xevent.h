@@ -25,7 +25,7 @@ static_assert_size(X_KEVENT, 0x10);
 
 class XEvent : public XObject {
  public:
-  static const Type kType = kTypeEvent;
+  static const XObject::Type kObjectType = XObject::Type::Event;
 
   explicit XEvent(KernelState* kernel_state);
   ~XEvent() override;

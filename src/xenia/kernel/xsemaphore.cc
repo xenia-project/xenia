@@ -16,7 +16,7 @@ namespace xe {
 namespace kernel {
 
 XSemaphore::XSemaphore(KernelState* kernel_state)
-    : XObject(kernel_state, kTypeSemaphore) {}
+    : XObject(kernel_state, kObjectType) {}
 
 XSemaphore::~XSemaphore() = default;
 

@@ -39,6 +39,8 @@ uint32_t ToPosixProtectFlags(PageAccess access) {
       return PROT_READ;
     case PageAccess::kReadWrite:
       return PROT_READ | PROT_WRITE;
+    case PageAccess::kExecuteReadOnly:
+      return PROT_READ | PROT_EXEC;
     case PageAccess::kExecuteReadWrite:
       return PROT_READ | PROT_WRITE | PROT_EXEC;
     default:
@@ -46,6 +48,8 @@ uint32_t ToPosixProtectFlags(PageAccess access) {
       return PROT_NONE;
   }
 }
+
+bool IsWritableExecutableMemorySupported() { return true; }
 
 void* AllocFixed(void* base_address, size_t length,
                  AllocationType allocation_type, PageAccess access) {
@@ -112,6 +116,7 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
       oflag = 0;
       break;
     case PageAccess::kReadOnly:
+    case PageAccess::kExecuteReadOnly:
       oflag = O_RDONLY;
       break;
     case PageAccess::kReadWrite:

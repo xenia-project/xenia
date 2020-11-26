@@ -358,7 +358,7 @@ void Emulator::Pause() {
   auto lock = global_critical_region::AcquireDirect();
   auto threads =
       kernel_state()->object_table()->GetObjectsByType<kernel::XThread>(
-          kernel::XObject::kTypeThread);
+          kernel::XObject::Type::Thread);
   auto current_thread = kernel::XThread::IsInThread()
                             ? kernel::XThread::GetCurrentThread()
                             : nullptr;
@@ -388,7 +388,7 @@ void Emulator::Resume() {
 
   auto threads =
       kernel_state()->object_table()->GetObjectsByType<kernel::XThread>(
-          kernel::XObject::kTypeThread);
+          kernel::XObject::Type::Thread);
   for (auto thread : threads) {
     if (!thread->can_debugger_suspend()) {
       // Don't pause host threads.
@@ -513,7 +513,7 @@ bool Emulator::ExceptionCallbackThunk(Exception* ex, void* data) {
 bool Emulator::ExceptionCallback(Exception* ex) {
   // Check to see if the exception occurred in guest code.
   auto code_cache = processor()->backend()->code_cache();
-  auto code_base = code_cache->base_address();
+  auto code_base = code_cache->execute_base_address();
   auto code_end = code_base + code_cache->total_size();
 
   if (!processor()->is_debugger_attached() && debugging::IsDebuggerAttached()) {

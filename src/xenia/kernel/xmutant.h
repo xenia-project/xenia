@@ -20,7 +20,7 @@ class XThread;
 
 class XMutant : public XObject {
  public:
-  static const Type kType = kTypeMutant;
+  static const XObject::Type kObjectType = XObject::Type::Mutant;
 
   explicit XMutant(KernelState* kernel_state);
   ~XMutant() override;

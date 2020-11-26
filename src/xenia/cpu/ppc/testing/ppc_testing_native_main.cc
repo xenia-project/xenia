@@ -177,6 +177,9 @@ class TestRunner {
  public:
   TestRunner() {
     memory_size_ = 64 * 1024 * 1024;
+    // FIXME(Triang3l): If this is ever compiled for a platform without
+    // xe::memory::IsWritableExecutableMemorySupported, two memory mappings must
+    // be used.
     memory_ = memory::AllocFixed(nullptr, memory_size_,
                                  memory::AllocationType::kReserveCommit,
                                  memory::PageAccess::kExecuteReadWrite);

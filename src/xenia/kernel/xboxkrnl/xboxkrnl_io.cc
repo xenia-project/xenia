@@ -131,7 +131,7 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
     auto root_file = kernel_state()->object_table()->LookupObject<XFile>(
         object_attrs->root_directory);
     assert_not_null(root_file);
-    assert_true(root_file->type() == XObject::Type::kTypeFile);
+    assert_true(root_file->type() == XObject::Type::File);
 
     root_entry = root_file->entry();
   }
@@ -399,7 +399,7 @@ dword_result_t NtQueryFullAttributesFile(
     root_file = kernel_state()->object_table()->LookupObject<XFile>(
         obj_attribs->root_directory);
     assert_not_null(root_file);
-    assert_true(root_file->type() == XObject::Type::kTypeFile);
+    assert_true(root_file->type() == XObject::Type::File);
     assert_always();
   }
 
