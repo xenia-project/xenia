@@ -272,17 +272,14 @@ class RenderTargetCache {
   const PipelineRenderTarget* GetCurrentPipelineRenderTargets() const {
     return current_pipeline_render_targets_;
   }
+
   // Performs the resolve to a shared memory area according to the current
   // register values, and also clears the EDRAM buffer if needed. Must be in a
   // frame for calling.
-
   bool Resolve(const Memory& memory, D3D12SharedMemory& shared_memory,
                TextureCache& texture_cache, uint32_t& written_address_out,
                uint32_t& written_length_out);
 
-  bool Resolve(D3D12SharedMemory* shared_memory, TextureCache* texture_cache,
-               Memory* memory, uint32_t& written_address_out,
-               uint32_t& written_length_out);
   // Flushes the render targets to EDRAM and unbinds them, for instance, when
   // the command processor takes over framebuffer bindings to draw something
   // special. May change the CBV/SRV/UAV descriptor heap.
@@ -399,37 +396,6 @@ class RenderTargetCache {
     RenderTarget* render_target;
   };
 
-  // Converting resolve pipeline.
-  struct ResolvePipeline {
-    ID3D12PipelineState* pipeline;
-    DXGI_FORMAT dest_format;
-  };
-
-  union ResolveTargetKey {
-    struct {
-      // 2560 / 32 = 80 (7 bits), * 2 for 2x resolution scale = 160 (8 bits).
-      uint32_t width_div_32 : 8;
-      uint32_t height_div_32 : 8;
-      DXGI_FORMAT format : 16;
-    };
-    uint32_t value;
-  };
-
-  // Target for converting resolves.
-  struct ResolveTarget {
-    ID3D12Resource* resource;
-    D3D12_RESOURCE_STATES state;
-    D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle;
-    ResolveTargetKey key;
-#if 0
-    // The first 4 MB page in the heaps.
-    uint32_t heap_page_first;
-#endif
-    D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
-    // Buffer size needed to copy the resolve target to a linear buffer.
-    uint32_t copy_buffer_size;
-  };
-
   uint32_t GetEdramBufferSize() const;
 
   void TransitionEdramBuffer(D3D12_RESOURCE_STATES new_state);
@@ -469,18 +435,6 @@ class RenderTargetCache {
   void LoadRenderTargetsFromEdram(uint32_t render_target_count,
                                   RenderTarget* const* render_targets,
                                   const uint32_t* edram_bases);
-
-  // Returns any available resolve target placed at least at
-  // min_heap_first_page, or tries to place it at the specified position (if not
-  // possible, will place it in the next heap).
-#if 0
-  ResolveTarget* FindOrCreateResolveTarget(uint32_t width, uint32_t height,
-                                           DXGI_FORMAT format,
-                                           uint32_t min_heap_first_page);
-#else
-  ResolveTarget* FindOrCreateResolveTarget(uint32_t width, uint32_t height,
-                                           DXGI_FORMAT format);
-#endif
 
   D3D12CommandProcessor& command_processor_;
   const RegisterFile& register_file_;
