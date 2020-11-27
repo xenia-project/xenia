@@ -18,6 +18,8 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
+bool xeXamIsUIActive();
+
 xe::cpu::Export* RegisterExport_xam(xe::cpu::Export* export_entry);
 
 // Registration functions, one per file.

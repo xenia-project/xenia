@@ -65,7 +65,7 @@ X_STATUS SDLInputDriver::Setup() {
 
   // SDL_PumpEvents should only be run in the thread that initialized SDL - we
   // are hijacking the window loop thread for that.
-  window_->loop()->PostSynchronous([&]() {
+  window()->loop()->PostSynchronous([&]() {
     if (!xe::helper::sdl::SDLHelper::Prepare()) {
       return;
     }
@@ -385,7 +385,7 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
 }
 
 void SDLInputDriver::OnControllerDeviceAdded(SDL_Event* event) {
-  assert(window_->loop()->is_on_loop_thread());
+  assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   // Open the controller.
@@ -424,7 +424,7 @@ void SDLInputDriver::OnControllerDeviceAdded(SDL_Event* event) {
 }
 
 void SDLInputDriver::OnControllerDeviceRemoved(SDL_Event* event) {
-  assert(window_->loop()->is_on_loop_thread());
+  assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   // Find the disconnected gamecontroller and close it.
@@ -436,7 +436,7 @@ void SDLInputDriver::OnControllerDeviceRemoved(SDL_Event* event) {
 }
 
 void SDLInputDriver::OnControllerDeviceAxisMotion(SDL_Event* event) {
-  assert(window_->loop()->is_on_loop_thread());
+  assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   auto [found, i] = GetControllerIndexFromInstanceID(event->caxis.which);
@@ -469,7 +469,7 @@ void SDLInputDriver::OnControllerDeviceAxisMotion(SDL_Event* event) {
 }
 
 void SDLInputDriver::OnControllerDeviceButtonChanged(SDL_Event* event) {
-  assert(window_->loop()->is_on_loop_thread());
+  assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   // Define a lookup table to map between SDL and XInput button codes.
@@ -569,7 +569,7 @@ void SDLInputDriver::QueueControllerUpdate() {
   bool is_queued = false;
   sdl_pumpevents_queued_.compare_exchange_strong(is_queued, true);
   if (!is_queued) {
-    window_->loop()->Post([this]() {
+    window()->loop()->Post([this]() {
       SDL_PumpEvents();
       sdl_pumpevents_queued_ = false;
     });
