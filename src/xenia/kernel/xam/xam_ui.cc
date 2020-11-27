@@ -41,7 +41,7 @@ namespace xam {
 // We deliberately delay the XN_SYS_UI = false notification to give games time
 // to create a listener (if they're insane enough do this).
 
-std::atomic<int> xam_dialogs_shown_ = {0};
+extern std::atomic<int> xam_dialogs_shown_;
 
 class XamDialog : public xe::ui::ImGuiDialog {
  public:
@@ -192,7 +192,7 @@ X_RESULT xeXamDispatchHeadlessEx(
   }
 }
 
-dword_result_t XamIsUIActive() { return xam_dialogs_shown_ > 0 ? 1 : 0; }
+dword_result_t XamIsUIActive() { return xeXamIsUIActive(); }
 DECLARE_XAM_EXPORT2(XamIsUIActive, kUI, kImplemented, kHighFrequency);
 
 class MessageBoxDialog : public XamDialog {

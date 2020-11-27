@@ -19,6 +19,10 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
+std::atomic<int> xam_dialogs_shown_ = {0};
+
+bool xeXamIsUIActive() { return xam_dialogs_shown_ > 0; }
+
 XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
     : KernelModule(kernel_state, "xe:\\xam.xex"), loader_data_() {
   RegisterExportTable(export_resolver_);

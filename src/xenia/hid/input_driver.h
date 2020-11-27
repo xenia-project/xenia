@@ -10,7 +10,10 @@
 #ifndef XENIA_HID_INPUT_DRIVER_H_
 #define XENIA_HID_INPUT_DRIVER_H_
 
+#include <functional>
+
 #include "xenia/hid/input.h"
+#include "xenia/ui/window.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -38,10 +41,22 @@ class InputDriver {
   virtual X_RESULT GetKeystroke(uint32_t user_index, uint32_t flags,
                                 X_INPUT_KEYSTROKE* out_keystroke) = 0;
 
+  void set_is_active_callback(std::function<bool()> is_active_callback) {
+    is_active_callback_ = is_active_callback;
+  }
+
+ private:
+  xe::ui::Window* window_ = nullptr;
+  std::function<bool()> is_active_callback_ = nullptr;
+
  protected:
   explicit InputDriver(xe::ui::Window* window);
 
-  xe::ui::Window* window_ = nullptr;
+  xe::ui::Window* window() const { return window_; }
+
+  bool is_active() const {
+    return !is_active_callback_ || is_active_callback_();
+  }
 };
 
 }  // namespace hid
