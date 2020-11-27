@@ -326,16 +326,20 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
           // As we run guest callbacks the debugger must be able to suspend us.
           dispatch_thread_->set_can_debugger_suspend(true);
 
+          auto global_lock = global_critical_region_.AcquireDeferred();
           while (dispatch_thread_running_) {
-            auto global_lock = global_critical_region_.Acquire();
+            global_lock.lock();
             if (dispatch_queue_.empty()) {
               dispatch_cond_.wait(global_lock);
               if (!dispatch_thread_running_) {
+                global_lock.unlock();
                 break;
               }
             }
             auto fn = std::move(dispatch_queue_.front());
             dispatch_queue_.pop_front();
+            global_lock.unlock();
+
             fn();
           }
           return 0;
@@ -637,9 +641,8 @@ void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
 
 void KernelState::BroadcastNotification(XNotificationID id, uint32_t data) {
   auto global_lock = global_critical_region_.Acquire();
-  for (auto it = notify_listeners_.begin(); it != notify_listeners_.end();
-       ++it) {
-    (*it)->EnqueueNotification(id, data);
+  for (const auto& notify_listener : notify_listeners_) {
+    notify_listener->EnqueueNotification(id, data);
   }
 }
 
@@ -657,6 +660,7 @@ void KernelState::CompleteOverlappedEx(uint32_t overlapped_ptr, X_RESULT result,
   X_HANDLE event_handle = XOverlappedGetEvent(ptr);
   if (event_handle) {
     auto ev = object_table()->LookupObject<XEvent>(event_handle);
+    assert_not_null(ev);
     if (ev) {
       ev->Set(0, false);
     }
@@ -692,24 +696,62 @@ void KernelState::CompleteOverlappedImmediateEx(uint32_t overlapped_ptr,
 
 void KernelState::CompleteOverlappedDeferred(
     std::function<void()> completion_callback, uint32_t overlapped_ptr,
-    X_RESULT result) {
+    X_RESULT result, std::function<void()> pre_callback,
+    std::function<void()> post_callback) {
   CompleteOverlappedDeferredEx(std::move(completion_callback), overlapped_ptr,
-                               result, result, 0);
+                               result, result, 0, pre_callback, post_callback);
 }
 
 void KernelState::CompleteOverlappedDeferredEx(
     std::function<void()> completion_callback, uint32_t overlapped_ptr,
-    X_RESULT result, uint32_t extended_error, uint32_t length) {
+    X_RESULT result, uint32_t extended_error, uint32_t length,
+    std::function<void()> pre_callback, std::function<void()> post_callback) {
+  CompleteOverlappedDeferredEx(
+      [completion_callback, result, extended_error, length](
+          uint32_t& cb_extended_error, uint32_t& cb_length) -> X_RESULT {
+        completion_callback();
+        cb_extended_error = extended_error;
+        cb_length = length;
+        return result;
+      },
+      overlapped_ptr, pre_callback, post_callback);
+}
+
+void KernelState::CompleteOverlappedDeferred(
+    std::function<X_RESULT()> completion_callback, uint32_t overlapped_ptr,
+    std::function<void()> pre_callback, std::function<void()> post_callback) {
+  CompleteOverlappedDeferredEx(
+      [completion_callback](uint32_t& extended_error,
+                            uint32_t& length) -> X_RESULT {
+        auto result = completion_callback();
+        extended_error = static_cast<uint32_t>(result);
+        length = 0;
+        return result;
+      },
+      overlapped_ptr, pre_callback, post_callback);
+}
+
+void KernelState::CompleteOverlappedDeferredEx(
+    std::function<X_RESULT(uint32_t&, uint32_t&)> completion_callback,
+    uint32_t overlapped_ptr, std::function<void()> pre_callback,
+    std::function<void()> post_callback) {
   auto ptr = memory()->TranslateVirtual(overlapped_ptr);
   XOverlappedSetResult(ptr, X_ERROR_IO_PENDING);
   XOverlappedSetContext(ptr, XThread::GetCurrentThreadHandle());
   auto global_lock = global_critical_region_.Acquire();
-  dispatch_queue_.push_back([this, completion_callback, overlapped_ptr, result,
-                             extended_error, length]() {
+  dispatch_queue_.push_back([this, completion_callback, overlapped_ptr,
+                             pre_callback, post_callback]() {
+    if (pre_callback) {
+      pre_callback();
+    }
     xe::threading::Sleep(
         std::chrono::milliseconds(kDeferredOverlappedDelayMillis));
-    completion_callback();
+    uint32_t extended_error, length;
+    auto result = completion_callback(extended_error, length);
     CompleteOverlappedEx(overlapped_ptr, result, extended_error, length);
+    if (post_callback) {
+      post_callback();
+    }
   });
   dispatch_cond_.notify_all();
 }
