@@ -21,7 +21,7 @@ namespace winkey {
 WinKeyInputDriver::WinKeyInputDriver(xe::ui::Window* window)
     : InputDriver(window), packet_number_(1) {
   // Register a key listener.
-  window_->on_key_down.AddListener([this](ui::KeyEvent* evt) {
+  window->on_key_down.AddListener([this](ui::KeyEvent* evt) {
     auto global_lock = global_critical_region_.Acquire();
 
     KeyEvent key;
@@ -31,7 +31,7 @@ WinKeyInputDriver::WinKeyInputDriver(xe::ui::Window* window)
     key.repeat_count = evt->repeat_count();
     key_events_.push(key);
   });
-  window_->on_key_up.AddListener([this](ui::KeyEvent* evt) {
+  window->on_key_up.AddListener([this](ui::KeyEvent* evt) {
     auto global_lock = global_critical_region_.Acquire();
 
     KeyEvent key;
@@ -88,7 +88,7 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
   int16_t thumb_rx = 0;
   int16_t thumb_ry = 0;
 
-  if (window_->has_focus()) {
+  if (window()->has_focus()) {
     if (IS_KEY_TOGGLED(VK_CAPITAL) || IS_KEY_DOWN(VK_SHIFT)) {
       // dpad toggled
       if (IS_KEY_DOWN('A')) {
