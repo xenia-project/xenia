@@ -22,6 +22,10 @@ WinKeyInputDriver::WinKeyInputDriver(xe::ui::Window* window)
     : InputDriver(window), packet_number_(1) {
   // Register a key listener.
   window->on_key_down.AddListener([this](ui::KeyEvent* evt) {
+    if (!is_active()) {
+      return;
+    }
+
     auto global_lock = global_critical_region_.Acquire();
 
     KeyEvent key;
@@ -32,6 +36,10 @@ WinKeyInputDriver::WinKeyInputDriver(xe::ui::Window* window)
     key_events_.push(key);
   });
   window->on_key_up.AddListener([this](ui::KeyEvent* evt) {
+    if (!is_active()) {
+      return;
+    }
+
     auto global_lock = global_critical_region_.Acquire();
 
     KeyEvent key;
@@ -88,7 +96,7 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
   int16_t thumb_rx = 0;
   int16_t thumb_ry = 0;
 
-  if (window()->has_focus()) {
+  if (window()->has_focus() && is_active()) {
     if (IS_KEY_TOGGLED(VK_CAPITAL) || IS_KEY_DOWN(VK_SHIFT)) {
       // dpad toggled
       if (IS_KEY_DOWN('A')) {
@@ -225,6 +233,10 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
                                          X_INPUT_KEYSTROKE* out_keystroke) {
   if (user_index != 0) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
+  }
+
+  if (!is_active()) {
+    return X_ERROR_EMPTY;
   }
 
   X_RESULT result = X_ERROR_EMPTY;
