@@ -18,26 +18,34 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-dword_result_t XamNotifyCreateListenerInternal(qword_t mask, dword_t unk,
-                                               dword_t one) {
-  // r4=1 may indicate user process?
+uint32_t xeXamNotifyCreateListener(uint64_t mask, uint32_t is_system,
+                                   uint32_t max_version) {
+  assert_true(max_version < 11);
+
+  if (max_version > 10) {
+    max_version = 10;
+  }
 
   auto listener =
       object_ref<XNotifyListener>(new XNotifyListener(kernel_state()));
-  listener->Initialize(mask);
+  listener->Initialize(mask, max_version);
 
   // Handle ref is incremented, so return that.
   uint32_t handle = listener->handle();
 
   return handle;
 }
-DECLARE_XAM_EXPORT2(XamNotifyCreateListenerInternal, kNone, kImplemented,
-                    kSketchy);
 
-dword_result_t XamNotifyCreateListener(qword_t mask, dword_t one) {
-  return XamNotifyCreateListenerInternal(mask, 0, one);
+dword_result_t XamNotifyCreateListener(qword_t mask, dword_t max_version) {
+  return xeXamNotifyCreateListener(mask, 0, max_version);
 }
 DECLARE_XAM_EXPORT1(XamNotifyCreateListener, kNone, kImplemented);
+
+dword_result_t XamNotifyCreateListenerInternal(qword_t mask, dword_t is_system,
+                                               dword_t max_version) {
+  return xeXamNotifyCreateListener(mask, is_system, max_version);
+}
+DECLARE_XAM_EXPORT1(XamNotifyCreateListenerInternal, kNone, kImplemented);
 
 // https://github.com/CodeAsm/ffplay360/blob/master/Common/AtgSignIn.cpp
 dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
@@ -47,14 +55,15 @@ dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
   }
 
   if (!id_ptr) {
-    return X_ERROR_INVALID_PARAMETER;
+    return 0;
   }
   *id_ptr = 0;
+
   // Grab listener.
   auto listener =
       kernel_state()->object_table()->LookupObject<XNotifyListener>(handle);
   if (!listener) {
-    return X_ERROR_INVALID_HANDLE;
+    return 0;
   }
 
   bool dequeued = false;

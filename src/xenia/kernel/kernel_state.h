@@ -167,14 +167,29 @@ class KernelState {
   void CompleteOverlapped(uint32_t overlapped_ptr, X_RESULT result);
   void CompleteOverlappedEx(uint32_t overlapped_ptr, X_RESULT result,
                             uint32_t extended_error, uint32_t length);
+
   void CompleteOverlappedImmediate(uint32_t overlapped_ptr, X_RESULT result);
   void CompleteOverlappedImmediateEx(uint32_t overlapped_ptr, X_RESULT result,
                                      uint32_t extended_error, uint32_t length);
-  void CompleteOverlappedDeferred(std::function<void()> completion_callback,
-                                  uint32_t overlapped_ptr, X_RESULT result);
-  void CompleteOverlappedDeferredEx(std::function<void()> completion_callback,
-                                    uint32_t overlapped_ptr, X_RESULT result,
-                                    uint32_t extended_error, uint32_t length);
+
+  void CompleteOverlappedDeferred(
+      std::function<void()> completion_callback, uint32_t overlapped_ptr,
+      X_RESULT result, std::function<void()> pre_callback = nullptr,
+      std::function<void()> post_callback = nullptr);
+  void CompleteOverlappedDeferredEx(
+      std::function<void()> completion_callback, uint32_t overlapped_ptr,
+      X_RESULT result, uint32_t extended_error, uint32_t length,
+      std::function<void()> pre_callback = nullptr,
+      std::function<void()> post_callback = nullptr);
+
+  void CompleteOverlappedDeferred(
+      std::function<X_RESULT()> completion_callback, uint32_t overlapped_ptr,
+      std::function<void()> pre_callback = nullptr,
+      std::function<void()> post_callback = nullptr);
+  void CompleteOverlappedDeferredEx(
+      std::function<X_RESULT(uint32_t&, uint32_t&)> completion_callback,
+      uint32_t overlapped_ptr, std::function<void()> pre_callback = nullptr,
+      std::function<void()> post_callback = nullptr);
 
   bool Save(ByteStream* stream);
   bool Restore(ByteStream* stream);

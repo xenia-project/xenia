@@ -69,6 +69,11 @@ class global_critical_region {
     return std::unique_lock<std::recursive_mutex>(mutex());
   }
 
+  // Acquires a deferred lock on the global critical section.
+  inline std::unique_lock<std::recursive_mutex> AcquireDeferred() {
+    return std::unique_lock<std::recursive_mutex>(mutex(), std::defer_lock);
+  }
+
   // Tries to acquire a lock on the glboal critical section.
   // Check owns_lock() to see if the lock was successfully acquired.
   inline std::unique_lock<std::recursive_mutex> TryAcquire() {
