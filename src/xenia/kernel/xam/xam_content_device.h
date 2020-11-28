@@ -7,28 +7,37 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XAM_APPS_XAM_APP_H_
-#define XENIA_KERNEL_XAM_APPS_XAM_APP_H_
+#ifndef XENIA_KERNEL_XAM_XAM_CONTENT_DEVICE_H_
+#define XENIA_KERNEL_XAM_XAM_CONTENT_DEVICE_H_
 
-#include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/xam/app_manager.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
 namespace xam {
-namespace apps {
 
-class XamApp : public App {
- public:
-  explicit XamApp(KernelState* kernel_state);
-
-  X_HRESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
-                                uint32_t buffer_length) override;
+enum class DeviceType : uint32_t {
+  HDD = 1,
+  ODD = 4,
 };
 
-}  // namespace apps
+enum class DummyDeviceId : uint32_t {
+  HDD = 1,
+  ODD = 2,
+};
+
+struct DummyDeviceInfo {
+  DummyDeviceId device_id;
+  DeviceType device_type;
+  uint64_t total_bytes;
+  uint64_t free_bytes;
+  const std::u16string_view name;
+};
+
+const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XAM_APPS_XAM_APP_H_
+#endif  // XENIA_KERNEL_XAM_XAM_CONTENT_DEVICE_H_

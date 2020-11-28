@@ -32,8 +32,8 @@ class App {
  public:
   uint32_t app_id() const { return app_id_; }
 
-  virtual X_RESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
-                                       uint32_t buffer_length) = 0;
+  virtual X_HRESULT DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
+                                        uint32_t buffer_length) = 0;
 
   virtual ~App() = default;
 
@@ -51,10 +51,10 @@ class AppManager {
 
   void RegisterApp(std::unique_ptr<App> app);
 
-  X_RESULT DispatchMessageSync(uint32_t app_id, uint32_t message,
-                               uint32_t buffer_ptr, uint32_t buffer_length);
-  X_RESULT DispatchMessageAsync(uint32_t app_id, uint32_t message,
+  X_HRESULT DispatchMessageSync(uint32_t app_id, uint32_t message,
                                 uint32_t buffer_ptr, uint32_t buffer_length);
+  X_HRESULT DispatchMessageAsync(uint32_t app_id, uint32_t message,
+                                 uint32_t buffer_ptr, uint32_t buffer_length);
 
  private:
   std::vector<std::unique_ptr<App>> apps_;

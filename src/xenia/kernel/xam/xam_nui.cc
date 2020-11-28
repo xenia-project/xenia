@@ -64,7 +64,7 @@ dword_result_t XamShowNuiTroubleshooterUI(unknown_t unk1, unknown_t unk2,
 }
 DECLARE_XAM_EXPORT1(XamShowNuiTroubleshooterUI, kNone, kStub);
 
-void RegisterNuiExports(xe::cpu::ExportResolver* export_resolver,
+void RegisterNUIExports(xe::cpu::ExportResolver* export_resolver,
                         KernelState* kernel_state) {}
 
 }  // namespace xam
