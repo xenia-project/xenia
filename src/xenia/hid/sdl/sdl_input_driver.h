@@ -44,8 +44,9 @@ class SDLInputDriver : public InputDriver {
  protected:
   struct ControllerState {
     SDL_GameController* sdl;
-    bool state_changed;
     X_INPUT_STATE state;
+    bool state_changed;
+    bool is_active;
   };
 
   enum class RepeatState {
