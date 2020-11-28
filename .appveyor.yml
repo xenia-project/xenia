@@ -29,6 +29,7 @@ init:
   - git config --global core.autocrlf input
 
 install:
+  - cmd: vcpkg integrate remove
   - cmd: xb setup
 
 platform: Windows
