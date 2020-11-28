@@ -21,6 +21,8 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
+bool xeXamIsUIActive();
+
 class XamModule : public KernelModule {
  public:
   XamModule(Emulator* emulator, KernelState* kernel_state);

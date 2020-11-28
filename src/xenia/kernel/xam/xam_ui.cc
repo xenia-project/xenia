@@ -23,30 +23,195 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-std::atomic<int> xam_dialogs_shown_ = {0};
+// TODO(gibbed): This is all one giant WIP that seems to work better than the
+// previous immediate synchronous completion of dialogs.
+//
+// The deferred execution of dialog handling is done in such a way that there is
+// a pre-, peri- (completion), and post- callback steps.
+//
+// pre();
+// result = completion();
+// CompleteOverlapped(result);
+// post();
+//
+// There are games that are batshit insane enough to wait for the X_OVERLAPPED
+// to be completed (ie not X_ERROR_PENDING) before creating a listener to
+// receive a notification, which is why we have distinct pre- and post- steps.
+//
+// We deliberately delay the XN_SYS_UI = false notification to give games time
+// to create a listener (if they're insane enough do this).
 
-dword_result_t XamIsUIActive() { return xam_dialogs_shown_ > 0 ? 1 : 0; }
+extern std::atomic<int> xam_dialogs_shown_;
+
+class XamDialog : public xe::ui::ImGuiDialog {
+ public:
+  void set_close_callback(std::function<void()> close_callback) {
+    close_callback_ = close_callback;
+  }
+
+ protected:
+  XamDialog(xe::ui::Window* window) : xe::ui::ImGuiDialog(window) {}
+
+  void OnClose() override {
+    if (close_callback_) {
+      close_callback_();
+    }
+  }
+
+ private:
+  std::function<void()> close_callback_ = nullptr;
+};
+
+template <typename T>
+X_RESULT xeXamDispatchDialog(T* dialog,
+                             std::function<X_RESULT(T*)> close_callback,
+                             uint32_t overlapped) {
+  auto pre = []() {
+    // Broadcast XN_SYS_UI = true
+    kernel_state()->BroadcastNotification(0x9, true);
+  };
+  auto run = [dialog, close_callback]() -> X_RESULT {
+    X_RESULT result;
+    dialog->set_close_callback([&dialog, &result, &close_callback]() {
+      result = close_callback(dialog);
+    });
+    xe::threading::Fence fence;
+    kernel_state()->emulator()->display_window()->loop()->PostSynchronous(
+        [&dialog, &fence]() { dialog->Then(&fence); });
+    ++xam_dialogs_shown_;
+    fence.Wait();
+    --xam_dialogs_shown_;
+    // dialog should be deleted at this point!
+    return result;
+  };
+  auto post = []() {
+    xe::threading::Sleep(std::chrono::milliseconds(100));
+    // Broadcast XN_SYS_UI = false
+    kernel_state()->BroadcastNotification(0x9, false);
+  };
+  if (!overlapped) {
+    pre();
+    auto result = run();
+    post();
+    return result;
+  } else {
+    kernel_state()->CompleteOverlappedDeferred(run, overlapped, pre, post);
+    return X_ERROR_IO_PENDING;
+  }
+}
+
+template <typename T>
+X_RESULT xeXamDispatchDialogEx(
+    T* dialog, std::function<X_RESULT(T*, uint32_t&, uint32_t&)> close_callback,
+    uint32_t overlapped) {
+  auto pre = []() {
+    // Broadcast XN_SYS_UI = true
+    kernel_state()->BroadcastNotification(0x9, true);
+  };
+  auto run = [dialog, close_callback](uint32_t& extended_error,
+                                      uint32_t& length) -> X_RESULT {
+    auto display_window = kernel_state()->emulator()->display_window();
+    X_RESULT result;
+    dialog->set_close_callback(
+        [&dialog, &result, &extended_error, &length, &close_callback]() {
+          result = close_callback(dialog, extended_error, length);
+        });
+    xe::threading::Fence fence;
+    display_window->loop()->PostSynchronous(
+        [&dialog, &fence]() { dialog->Then(&fence); });
+    ++xam_dialogs_shown_;
+    fence.Wait();
+    --xam_dialogs_shown_;
+    // dialog should be deleted at this point!
+    return result;
+  };
+  auto post = []() {
+    xe::threading::Sleep(std::chrono::milliseconds(100));
+    // Broadcast XN_SYS_UI = false
+    kernel_state()->BroadcastNotification(0x9, false);
+  };
+  if (!overlapped) {
+    pre();
+    uint32_t extended_error, length;
+    auto result = run(extended_error, length);
+    post();
+    // TODO(gibbed): do something with extended_error/length?
+    return result;
+  } else {
+    kernel_state()->CompleteOverlappedDeferredEx(run, overlapped, pre, post);
+    return X_ERROR_IO_PENDING;
+  }
+}
+
+X_RESULT xeXamDispatchHeadless(std::function<X_RESULT()> run_callback,
+                               uint32_t overlapped) {
+  auto pre = []() {
+    // Broadcast XN_SYS_UI = true
+    kernel_state()->BroadcastNotification(0x9, true);
+  };
+  auto post = []() {
+    xe::threading::Sleep(std::chrono::milliseconds(100));
+    // Broadcast XN_SYS_UI = false
+    kernel_state()->BroadcastNotification(0x9, false);
+  };
+  if (!overlapped) {
+    pre();
+    auto result = run_callback();
+    post();
+    return result;
+  } else {
+    kernel_state()->CompleteOverlappedDeferred(run_callback, overlapped, pre,
+                                               post);
+    return X_ERROR_IO_PENDING;
+  }
+}
+
+X_RESULT xeXamDispatchHeadlessEx(
+    std::function<X_RESULT(uint32_t&, uint32_t&)> run_callback,
+    uint32_t overlapped) {
+  auto pre = []() {
+    // Broadcast XN_SYS_UI = true
+    kernel_state()->BroadcastNotification(0x9, true);
+  };
+  auto post = []() {
+    xe::threading::Sleep(std::chrono::milliseconds(100));
+    // Broadcast XN_SYS_UI = false
+    kernel_state()->BroadcastNotification(0x9, false);
+  };
+  if (!overlapped) {
+    pre();
+    uint32_t extended_error, length;
+    auto result = run_callback(extended_error, length);
+    post();
+    // TODO(gibbed): do something with extended_error/length?
+    return result;
+  } else {
+    kernel_state()->CompleteOverlappedDeferredEx(run_callback, overlapped, pre,
+                                                 post);
+    return X_ERROR_IO_PENDING;
+  }
+}
+
+dword_result_t XamIsUIActive() { return xeXamIsUIActive(); }
 DECLARE_XAM_EXPORT2(XamIsUIActive, kUI, kImplemented, kHighFrequency);
 
-class MessageBoxDialog : public xe::ui::ImGuiDialog {
+class MessageBoxDialog : public XamDialog {
  public:
-  MessageBoxDialog(xe::ui::Window* window, std::u16string title,
-                   std::u16string description,
-                   std::vector<std::u16string> buttons, uint32_t default_button,
-                   uint32_t* out_chosen_button)
-      : ImGuiDialog(window),
-        title_(xe::to_utf8(title)),
-        description_(xe::to_utf8(description)),
+  MessageBoxDialog(xe::ui::Window* window, std::string title,
+                   std::string description, std::vector<std::string> buttons,
+                   uint32_t default_button)
+      : XamDialog(window),
+        title_(title),
+        description_(description),
         buttons_(std::move(buttons)),
         default_button_(default_button),
-        out_chosen_button_(out_chosen_button) {
+        chosen_button_(default_button) {
     if (!title_.size()) {
       title_ = "Message Box";
     }
-    if (out_chosen_button) {
-      *out_chosen_button = default_button;
-    }
   }
+
+  uint32_t chosen_button() const { return chosen_button_; }
 
   void OnDraw(ImGuiIO& io) override {
     bool first_draw = false;
@@ -64,11 +229,8 @@ class MessageBoxDialog : public xe::ui::ImGuiDialog {
         ImGui::SetKeyboardFocusHere();
       }
       for (size_t i = 0; i < buttons_.size(); ++i) {
-        auto button_name = xe::to_utf8(buttons_[i]);
-        if (ImGui::Button(button_name.c_str())) {
-          if (out_chosen_button_) {
-            *out_chosen_button_ = static_cast<uint32_t>(i);
-          }
+        if (ImGui::Button(buttons_[i].c_str())) {
+          chosen_button_ = static_cast<uint32_t>(i);
           ImGui::CloseCurrentPopup();
           Close();
         }
@@ -86,9 +248,9 @@ class MessageBoxDialog : public xe::ui::ImGuiDialog {
   bool has_opened_ = false;
   std::string title_;
   std::string description_;
-  std::vector<std::u16string> buttons_;
+  std::vector<std::string> buttons_;
   uint32_t default_button_ = 0;
-  uint32_t* out_chosen_button_ = nullptr;
+  uint32_t chosen_button_ = 0;
 };
 
 // https://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/
@@ -97,86 +259,71 @@ dword_result_t XamShowMessageBoxUI(dword_t user_index, lpu16string_t title_ptr,
                                    lpdword_t button_ptrs, dword_t active_button,
                                    dword_t flags, lpdword_t result_ptr,
                                    pointer_t<XAM_OVERLAPPED> overlapped) {
-  std::u16string title;
+  std::string title;
   if (title_ptr) {
-    title = title_ptr.value();
+    title = xe::to_utf8(title_ptr.value());
   } else {
-    title = u"";  // TODO(gibbed): default title based on flags?
+    title = "";  // TODO(gibbed): default title based on flags?
   }
-  auto text = text_ptr.value();
 
-  std::vector<std::u16string> buttons;
-  std::u16string all_buttons;
-  for (uint32_t j = 0; j < button_count; ++j) {
-    uint32_t button_ptr = button_ptrs[j];
+  std::vector<std::string> buttons;
+  for (uint32_t i = 0; i < button_count; ++i) {
+    uint32_t button_ptr = button_ptrs[i];
     auto button = xe::load_and_swap<std::u16string>(
         kernel_state()->memory()->TranslateVirtual(button_ptr));
-    all_buttons.append(button);
-    if (j + 1 < button_count) {
-      all_buttons.append(u" | ");
-    }
-    buttons.push_back(button);
+    buttons.push_back(xe::to_utf8(button));
   }
 
-  // Broadcast XN_SYS_UI = true
-  kernel_state()->BroadcastNotification(0x9, true);
-
-  uint32_t chosen_button;
+  X_RESULT result;
   if (cvars::headless) {
     // Auto-pick the focused button.
-    chosen_button = active_button;
+    auto run = [result_ptr, active_button]() -> X_RESULT {
+      *result_ptr = static_cast<uint32_t>(active_button);
+      return X_ERROR_SUCCESS;
+    };
+    result = xeXamDispatchHeadless(run, overlapped);
   } else {
+    // TODO(benvanik): setup icon states.
+    switch (flags & 0xF) {
+      case 0:
+        // config.pszMainIcon = nullptr;
+        break;
+      case 1:
+        // config.pszMainIcon = TD_ERROR_ICON;
+        break;
+      case 2:
+        // config.pszMainIcon = TD_WARNING_ICON;
+        break;
+      case 3:
+        // config.pszMainIcon = TD_INFORMATION_ICON;
+        break;
+    }
+    auto close = [result_ptr](MessageBoxDialog* dialog) -> X_RESULT {
+      *result_ptr = dialog->chosen_button();
+      return X_ERROR_SUCCESS;
+    };
     auto display_window = kernel_state()->emulator()->display_window();
-    xe::threading::Fence fence;
-    display_window->loop()->PostSynchronous([&]() {
-      // TODO(benvanik): setup icon states.
-      switch (flags & 0xF) {
-        case 0:
-          // config.pszMainIcon = nullptr;
-          break;
-        case 1:
-          // config.pszMainIcon = TD_ERROR_ICON;
-          break;
-        case 2:
-          // config.pszMainIcon = TD_WARNING_ICON;
-          break;
-        case 3:
-          // config.pszMainIcon = TD_INFORMATION_ICON;
-          break;
-      }
-      (new MessageBoxDialog(display_window, title, text, buttons, active_button,
-                            &chosen_button))
-          ->Then(&fence);
-    });
-    ++xam_dialogs_shown_;
-    fence.Wait();
-    --xam_dialogs_shown_;
+    result = xeXamDispatchDialog<MessageBoxDialog>(
+        new MessageBoxDialog(display_window, title,
+                             xe::to_utf8(text_ptr.value()), buttons,
+                             active_button),
+        close, overlapped);
   }
-  *result_ptr = chosen_button;
-
-  // Broadcast XN_SYS_UI = false
-  kernel_state()->BroadcastNotification(0x9, false);
-
-  if (overlapped) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped, X_ERROR_SUCCESS);
-    return X_ERROR_IO_PENDING;
-  } else {
-    return X_ERROR_SUCCESS;
-  }
+  return result;
 }
 DECLARE_XAM_EXPORT1(XamShowMessageBoxUI, kUI, kImplemented);
 
-class KeyboardInputDialog : public xe::ui::ImGuiDialog {
+class KeyboardInputDialog : public XamDialog {
  public:
-  KeyboardInputDialog(xe::ui::Window* window, std::u16string title,
-                      std::u16string description, std::u16string default_text,
-                      std::u16string* out_text, size_t max_length)
-      : ImGuiDialog(window),
-        title_(xe::to_utf8(title)),
-        description_(xe::to_utf8(description)),
-        default_text_(xe::to_utf8(default_text)),
-        out_text_(out_text),
-        max_length_(max_length) {
+  KeyboardInputDialog(xe::ui::Window* window, std::string title,
+                      std::string description, std::string default_text,
+                      size_t max_length)
+      : XamDialog(window),
+        title_(title),
+        description_(description),
+        default_text_(default_text),
+        max_length_(max_length),
+        text_buffer_() {
     if (!title_.size()) {
       if (!description_.size()) {
         title_ = "Keyboard Input";
@@ -185,13 +332,14 @@ class KeyboardInputDialog : public xe::ui::ImGuiDialog {
         description_ = "";
       }
     }
-    if (out_text_) {
-      *out_text_ = default_text;
-    }
+    text_ = default_text;
     text_buffer_.resize(max_length);
     xe::string_util::copy_truncating(text_buffer_.data(), default_text_,
                                      text_buffer_.size());
   }
+
+  const std::string& text() const { return text_; }
+  bool cancelled() const { return cancelled_; }
 
   void OnDraw(ImGuiIO& io) override {
     bool first_draw = false;
@@ -210,23 +358,21 @@ class KeyboardInputDialog : public xe::ui::ImGuiDialog {
       }
       if (ImGui::InputText("##body", text_buffer_.data(), text_buffer_.size(),
                            ImGuiInputTextFlags_EnterReturnsTrue)) {
-        if (out_text_) {
-          *out_text_ = xe::to_utf16(
-              std::string_view(text_buffer_.data(), text_buffer_.size()));
-        }
+        text_ = std::string(text_buffer_.data(), text_buffer_.size());
+        cancelled_ = false;
         ImGui::CloseCurrentPopup();
         Close();
       }
       if (ImGui::Button("OK")) {
-        if (out_text_) {
-          *out_text_ = xe::to_utf16(
-              std::string_view(text_buffer_.data(), text_buffer_.size()));
-        }
+        text_ = std::string(text_buffer_.data(), text_buffer_.size());
+        cancelled_ = false;
         ImGui::CloseCurrentPopup();
         Close();
       }
       ImGui::SameLine();
       if (ImGui::Button("Cancel")) {
+        text_ = "";
+        cancelled_ = true;
         ImGui::CloseCurrentPopup();
         Close();
       }
@@ -242,9 +388,10 @@ class KeyboardInputDialog : public xe::ui::ImGuiDialog {
   std::string title_;
   std::string description_;
   std::string default_text_;
-  std::u16string* out_text_ = nullptr;
-  std::vector<char> text_buffer_;
   size_t max_length_ = 0;
+  std::vector<char> text_buffer_;
+  std::string text_ = "";
+  bool cancelled_ = true;
 };
 
 // https://www.se7ensins.com/forums/threads/release-how-to-use-xshowkeyboardui-release.906568/
@@ -257,58 +404,51 @@ dword_result_t XamShowKeyboardUI(dword_t user_index, dword_t flags,
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  // Broadcast XN_SYS_UI = true
-  kernel_state()->BroadcastNotification(0x9, true);
+  assert_not_null(overlapped);
 
+  auto buffer_size = static_cast<size_t>(buffer_length) * 2;
+
+  X_RESULT result;
   if (cvars::headless) {
-    // Redirect default_text back into the buffer.
-    std::memset(buffer, 0, buffer_length * 2);
-    if (default_text) {
-      xe::store_and_swap<std::u16string>(buffer, default_text.value());
-    }
-
-    // Broadcast XN_SYS_UI = false
-    kernel_state()->BroadcastNotification(0x9, false);
-
-    if (overlapped) {
-      kernel_state()->CompleteOverlappedImmediate(overlapped, X_ERROR_SUCCESS);
-      return X_ERROR_IO_PENDING;
-    } else {
+    auto run = [default_text, buffer, buffer_length,
+                buffer_size]() -> X_RESULT {
+      // Redirect default_text back into the buffer.
+      if (!default_text) {
+        std::memset(buffer, 0, buffer_size);
+      } else {
+        string_util::copy_and_swap_truncating(buffer, default_text.value(),
+                                              buffer_length);
+      }
       return X_ERROR_SUCCESS;
-    }
-  }
-
-  std::u16string out_text;
-
-  auto display_window = kernel_state()->emulator()->display_window();
-  xe::threading::Fence fence;
-  display_window->loop()->PostSynchronous([&]() {
-    (new KeyboardInputDialog(display_window, title ? title.value() : u"",
-                             description ? description.value() : u"",
-                             default_text ? default_text.value() : u"",
-                             &out_text, buffer_length))
-        ->Then(&fence);
-  });
-  ++xam_dialogs_shown_;
-  fence.Wait();
-  --xam_dialogs_shown_;
-
-  // Zero the output buffer.
-  std::memset(buffer, 0, buffer_length * 2);
-
-  // Truncate the string.
-  out_text = out_text.substr(0, buffer_length - 1);
-  xe::store_and_swap<std::u16string>(buffer, out_text);
-
-  // Broadcast XN_SYS_UI = false
-  kernel_state()->BroadcastNotification(0x9, false);
-
-  if (overlapped) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped, X_ERROR_SUCCESS);
-    return X_ERROR_IO_PENDING;
+    };
+    result = xeXamDispatchHeadless(run, overlapped);
   } else {
-    return X_ERROR_SUCCESS;
+    auto close = [buffer, buffer_length](KeyboardInputDialog* dialog,
+                                         uint32_t& extended_error,
+                                         uint32_t& length) -> X_RESULT {
+      if (dialog->cancelled()) {
+        extended_error = X_ERROR_CANCELLED;
+        length = 0;
+        return X_ERROR_SUCCESS;
+      } else {
+        // Zero the output buffer.
+        auto text = xe::to_utf16(dialog->text());
+        string_util::copy_and_swap_truncating(buffer, text, buffer_length);
+        extended_error = X_ERROR_SUCCESS;
+        length = 0;
+        return X_ERROR_SUCCESS;
+      }
+    };
+    auto display_window = kernel_state()->emulator()->display_window();
+    result = xeXamDispatchDialogEx<KeyboardInputDialog>(
+        new KeyboardInputDialog(
+            display_window, title ? xe::to_utf8(title.value()) : "",
+            description ? xe::to_utf8(description.value()) : "",
+            default_text ? xe::to_utf8(default_text.value()) : "",
+            buffer_length),
+        close, overlapped);
   }
+  return result;
 }
 DECLARE_XAM_EXPORT1(XamShowKeyboardUI, kUI, kImplemented);
 
@@ -317,19 +457,13 @@ dword_result_t XamShowDeviceSelectorUI(dword_t user_index, dword_t content_type,
                                        qword_t total_requested,
                                        lpdword_t device_id_ptr,
                                        pointer_t<XAM_OVERLAPPED> overlapped) {
-  // NOTE: 0x00000001 is our dummy device ID from xam_content.cc
-  *device_id_ptr = 0x00000001;
-
-  // Broadcast XN_SYS_UI = true followed by XN_SYS_UI = false
-  kernel_state()->BroadcastNotification(0x9, true);
-  kernel_state()->BroadcastNotification(0x9, false);
-
-  if (overlapped) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped, X_ERROR_SUCCESS);
-    return X_ERROR_IO_PENDING;
-  } else {
-    return X_ERROR_SUCCESS;
-  }
+  return xeXamDispatchHeadless(
+      [device_id_ptr]() -> X_RESULT {
+        // NOTE: 0x00000001 is our dummy device ID from xam_content.cc
+        *device_id_ptr = 0x00000001;
+        return X_ERROR_SUCCESS;
+      },
+      overlapped);
 }
 DECLARE_XAM_EXPORT1(XamShowDeviceSelectorUI, kUI, kImplemented);
 
@@ -339,20 +473,14 @@ void XamShowDirtyDiscErrorUI(dword_t user_index) {
     exit(1);
     return;
   }
-
   auto display_window = kernel_state()->emulator()->display_window();
-  xe::threading::Fence fence;
-  display_window->loop()->PostSynchronous([&]() {
-    xe::ui::ImGuiDialog::ShowMessageBox(
-        display_window, "Disc Read Error",
-        "There's been an issue reading content from the game disc.\nThis is "
-        "likely caused by bad or unimplemented file IO calls.")
-        ->Then(&fence);
-  });
-  ++xam_dialogs_shown_;
-  fence.Wait();
-  --xam_dialogs_shown_;
-
+  xeXamDispatchDialog<MessageBoxDialog>(
+      new MessageBoxDialog(
+          display_window, "Disc Read Error",
+          "There's been an issue reading content from the game disc.\nThis is "
+          "likely caused by bad or unimplemented file IO calls.",
+          {"OK"}, 0),
+      [](MessageBoxDialog*) -> X_RESULT { return X_ERROR_SUCCESS; }, 0);
   // This is death, and should never return.
   // TODO(benvanik): cleaner exit.
   exit(1);

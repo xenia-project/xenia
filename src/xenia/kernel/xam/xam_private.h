@@ -18,26 +18,16 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
+bool xeXamIsUIActive();
+
 xe::cpu::Export* RegisterExport_xam(xe::cpu::Export* export_entry);
 
 // Registration functions, one per file.
-#define DECLARE_REGISTER_EXPORTS(n)                                   \
+#define XE_MODULE_EXPORT_GROUP(m, n)                                  \
   void Register##n##Exports(xe::cpu::ExportResolver* export_resolver, \
-                            KernelState* kernel_state)
-DECLARE_REGISTER_EXPORTS(Avatar);
-DECLARE_REGISTER_EXPORTS(Content);
-DECLARE_REGISTER_EXPORTS(Info);
-DECLARE_REGISTER_EXPORTS(Input);
-DECLARE_REGISTER_EXPORTS(Locale);
-DECLARE_REGISTER_EXPORTS(Msg);
-DECLARE_REGISTER_EXPORTS(Net);
-DECLARE_REGISTER_EXPORTS(Notify);
-DECLARE_REGISTER_EXPORTS(Nui);
-DECLARE_REGISTER_EXPORTS(UI);
-DECLARE_REGISTER_EXPORTS(User);
-DECLARE_REGISTER_EXPORTS(Video);
-DECLARE_REGISTER_EXPORTS(Voice);
-#undef DECLARE_REGISTER_EXPORTS
+                            KernelState* kernel_state);
+#include "xam_module_export_groups.inc"
+#undef XE_MODULE_EXPORT_GROUP
 
 }  // namespace xam
 }  // namespace kernel

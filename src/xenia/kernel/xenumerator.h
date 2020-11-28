@@ -19,6 +19,21 @@
 namespace xe {
 namespace kernel {
 
+struct X_KENUMERATOR {
+  be<uint32_t> app_id;
+  be<uint32_t> message;
+  be<uint32_t> message2;
+  be<uint32_t> user_index;
+  be<uint32_t> items_per_enumerate;
+  be<uint32_t> flags;
+};
+static_assert_size(X_KENUMERATOR, 0x18);
+
+struct X_KENUMERATOR_CONTENT_AGGREGATE {
+  be<uint32_t> magic;
+  be<uint32_t> handle;
+};
+
 class XEnumerator : public XObject {
  public:
   static const XObject::Type kObjectType = XObject::Type::Enumerator;
@@ -27,7 +42,24 @@ class XEnumerator : public XObject {
               size_t item_size);
   virtual ~XEnumerator();
 
-  void Initialize();
+  X_STATUS Initialize(uint32_t user_index, uint32_t app_id, uint32_t message,
+                      uint32_t message2, uint32_t flags, uint32_t extra_size,
+                      void** extra_buffer);
+
+  X_STATUS Initialize(uint32_t user_index, uint32_t app_id, uint32_t message,
+                      uint32_t message2, uint32_t flags);
+
+  template <typename T>
+  X_STATUS Initialize(uint32_t user_index, uint32_t app_id, uint32_t message,
+                      uint32_t message2, uint32_t flags, T** extra) {
+    void* dummy;
+    auto result = Initialize(user_index, app_id, message, message2, flags,
+                             static_cast<uint32_t>(sizeof(T)), &dummy);
+    if (extra) {
+      *extra = XFAILED(result) ? nullptr : static_cast<T*>(dummy);
+    }
+    return result;
+  }
 
   virtual uint32_t item_count() const = 0;
   virtual void WriteItems(uint8_t* buffer) = 0;

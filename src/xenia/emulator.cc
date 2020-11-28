@@ -184,7 +184,10 @@ X_STATUS Emulator::Setup(
   if (input_driver_factory) {
     auto input_drivers = input_driver_factory(display_window_);
     for (size_t i = 0; i < input_drivers.size(); ++i) {
-      input_system_->AddDriver(std::move(input_drivers[i]));
+      auto& input_driver = input_drivers[i];
+      input_driver->set_is_active_callback(
+          []() -> bool { return !xe::kernel::xam::xeXamIsUIActive(); });
+      input_system_->AddDriver(std::move(input_driver));
     }
   }
 

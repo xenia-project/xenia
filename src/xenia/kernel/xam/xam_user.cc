@@ -562,11 +562,14 @@ dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
     *buffer_size_ptr = 500 * count;
   }
 
-  auto e = new XStaticEnumerator(kernel_state(), count, 500);
-  e->Initialize();
+  auto e = object_ref<XStaticEnumerator>(
+      new XStaticEnumerator(kernel_state(), count, 500));
+  auto result = e->Initialize(user_index, 0xFB, 0xB000A, 0xB000B, 0);
+  if (XFAILED(result)) {
+    return result;
+  }
 
   *handle_ptr = e->handle();
-
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamUserCreateAchievementEnumerator, kUserProfiles,
