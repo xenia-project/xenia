@@ -193,7 +193,11 @@ X_RESULT SDLInputDriver::GetState(uint32_t user_index,
     return X_ERROR_BAD_ARGUMENTS;
   }
 
-  QueueControllerUpdate();
+  auto is_active = this->is_active();
+
+  if (is_active) {
+    QueueControllerUpdate();
+  }
 
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
@@ -203,12 +207,20 @@ X_RESULT SDLInputDriver::GetState(uint32_t user_index,
   }
 
   // Make sure packet_number is only incremented by 1, even if there have been
-  // multiple updates between GetState calls.
-  if (controller->state_changed) {
+  // multiple updates between GetState calls. Also track `is_active` to
+  // increment the packet number if it changed.
+  if ((is_active != controller->is_active) ||
+      (is_active && controller->state_changed)) {
     controller->state.packet_number++;
+    controller->is_active = is_active;
     controller->state_changed = false;
   }
-  *out_state = controller->state;
+  std::memcpy(out_state, &controller->state, sizeof(*out_state));
+  if (!is_active) {
+    // Simulate an "untouched" controller. When we become active again the
+    // pressed buttons aren't lost and will be visible again.
+    std::memset(&out_state->gamepad, 0, sizeof(out_state->gamepad));
+  }
   return X_ERROR_SUCCESS;
 }
 
@@ -242,6 +254,8 @@ X_RESULT SDLInputDriver::SetState(uint32_t user_index,
 
 X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
                                       X_INPUT_KEYSTROKE* out_keystroke) {
+  // TODO(JoelLinn): Figure out the flags
+  // https://github.com/evilC/UCR/blob/0489929e2a8e39caa3484c67f3993d3fba39e46f/Libraries/XInput.ahk#L85-L98
   assert(sdl_events_initialized_ && sdl_gamecontroller_initialized_);
   bool user_any = users == 0xFF;
   if (users >= HID_SDL_USER_COUNT && !user_any) {
@@ -296,7 +310,11 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
           X_INPUT_GAMEPAD_VK_RTHUMB_DOWNLEFT,
       };
 
-  QueueControllerUpdate();
+  auto is_active = this->is_active();
+
+  if (is_active) {
+    QueueControllerUpdate();
+  }
 
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
@@ -311,8 +329,13 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
       }
     }
 
-    const uint64_t curr_butts = controller->state.gamepad.buttons |
-                                AnalogToKeyfield(controller->state.gamepad);
+    // If input is not active (e.g. due to a dialog overlay), force buttons to
+    // "unpressed". The algorithm will automatically send UP events when
+    // `is_active()` goes low and DOWN events when it goes high again.
+    const uint64_t curr_butts =
+        is_active ? (controller->state.gamepad.buttons |
+                     AnalogToKeyfield(controller->state.gamepad))
+                  : uint64_t(0);
     KeystrokeState& last = keystroke_states_.at(user_index);
 
     // Handle repeating
