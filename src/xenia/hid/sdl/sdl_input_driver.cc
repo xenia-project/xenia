@@ -159,7 +159,7 @@ X_STATUS SDLInputDriver::Setup() {
 X_RESULT SDLInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
                                          X_INPUT_CAPABILITIES* out_caps) {
   assert(sdl_events_initialized_ && sdl_gamecontroller_initialized_);
-  if (user_index >= HID_SDL_USER_COUNT) {
+  if (user_index >= HID_SDL_USER_COUNT || !out_caps) {
     return X_ERROR_BAD_ARGUMENTS;
   }
 
@@ -172,19 +172,12 @@ X_RESULT SDLInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  out_caps->type = 0x01;      // XINPUT_DEVTYPE_GAMEPAD
-  out_caps->sub_type = 0x01;  // XINPUT_DEVSUBTYPE_GAMEPAD
-  out_caps->flags = 0;
-  out_caps->gamepad.buttons =
-      0xF3FF | (cvars::guide_button ? X_INPUT_GAMEPAD_GUIDE : 0x0);
-  out_caps->gamepad.left_trigger = 0xFF;
-  out_caps->gamepad.right_trigger = 0xFF;
-  out_caps->gamepad.thumb_lx = static_cast<int16_t>(0xFFFFu);
-  out_caps->gamepad.thumb_ly = static_cast<int16_t>(0xFFFFu);
-  out_caps->gamepad.thumb_rx = static_cast<int16_t>(0xFFFFu);
-  out_caps->gamepad.thumb_ry = static_cast<int16_t>(0xFFFFu);
-  out_caps->vibration.left_motor_speed = 0xFFFFu;
-  out_caps->vibration.right_motor_speed = 0xFFFFu;
+  // Unfortunately drivers can't present all information immediately (e.g.
+  // battery information) so this needs to be refreshed every time.
+  UpdateXCapabilities(*controller);
+
+  std::memcpy(out_caps, &controller->caps, sizeof(*out_caps));
+
   return X_ERROR_SUCCESS;
 }
 
@@ -461,9 +454,12 @@ void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
     }
   }
   if (user_id >= 0) {
-    controllers_.at(user_id) = {controller, {}};
+    auto& state = controllers_.at(user_id);
+    state = {controller, {}};
     // XInput seems to start with packet_number = 1 .
-    controllers_.at(user_id).state_changed = true;
+    state.state_changed = true;
+    UpdateXCapabilities(state);
+
     XELOGI("SDL OnControllerDeviceAdded: Added at index {}.", user_id);
   } else {
     // No more controllers needed, close it.
@@ -633,6 +629,55 @@ bool SDLInputDriver::TestSDLVersion() const {
     return false;
   }
   return true;
+}
+
+void SDLInputDriver::UpdateXCapabilities(ControllerState& state) {
+  assert(state.sdl);
+  uint16_t cap_flags = 0x0;
+
+  // The RAWINPUT driver combines and enhances input from different APIs. For
+  // details, see `SDL_rawinputjoystick.c`. This correlation however has latency
+  // which might confuse games calling `GetCapabilities()` (The power level is
+  // only available after the controller has been "touched"). Generally that
+  // should not be a problem, when in doubt disable the RAWINPUT driver via hint
+  // (env var).
+
+  // Guess if we are wireless
+  auto power_level =
+      SDL_JoystickCurrentPowerLevel(SDL_GameControllerGetJoystick(state.sdl));
+  if (power_level >= SDL_JOYSTICK_POWER_EMPTY &&
+      power_level <= SDL_JOYSTICK_POWER_FULL) {
+    cap_flags |= X_INPUT_CAPS_WIRELESS;
+  }
+
+  // Check if all navigational buttons are present
+  static constexpr std::array<SDL_GameControllerButton, 6> nav_buttons = {
+      SDL_CONTROLLER_BUTTON_START,     SDL_CONTROLLER_BUTTON_BACK,
+      SDL_CONTROLLER_BUTTON_DPAD_UP,   SDL_CONTROLLER_BUTTON_DPAD_DOWN,
+      SDL_CONTROLLER_BUTTON_DPAD_LEFT, SDL_CONTROLLER_BUTTON_DPAD_RIGHT,
+  };
+  for (auto it = nav_buttons.begin(); it < nav_buttons.end(); it++) {
+    auto bind = SDL_GameControllerGetBindForButton(state.sdl, *it);
+    if (bind.bindType == SDL_CONTROLLER_BINDTYPE_NONE) {
+      cap_flags |= X_INPUT_CAPS_NO_NAVIGATION;
+      break;
+    }
+  }
+
+  auto& c = state.caps;
+  c.type = 0x01;      // XINPUT_DEVTYPE_GAMEPAD
+  c.sub_type = 0x01;  // XINPUT_DEVSUBTYPE_GAMEPAD
+  c.flags = cap_flags;
+  c.gamepad.buttons =
+      0xF3FF | (cvars::guide_button ? X_INPUT_GAMEPAD_GUIDE : 0x0);
+  c.gamepad.left_trigger = 0xFF;
+  c.gamepad.right_trigger = 0xFF;
+  c.gamepad.thumb_lx = static_cast<int16_t>(0xFFFFu);
+  c.gamepad.thumb_ly = static_cast<int16_t>(0xFFFFu);
+  c.gamepad.thumb_rx = static_cast<int16_t>(0xFFFFu);
+  c.gamepad.thumb_ry = static_cast<int16_t>(0xFFFFu);
+  c.vibration.left_motor_speed = 0xFFFFu;
+  c.vibration.right_motor_speed = 0xFFFFu;
 }
 
 void SDLInputDriver::QueueControllerUpdate() {
