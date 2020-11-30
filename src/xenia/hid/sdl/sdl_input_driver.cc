@@ -419,6 +419,25 @@ void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
     assert_always();
     return;
   }
+  XELOGI(
+      "SDL OnControllerDeviceAdded: \"{}\", "
+      "JoystickType({}), "
+      "GameControllerType({}), "
+      "VendorID(0x{:04X}), "
+      "ProductID(0x{:04X})",
+      SDL_GameControllerName(controller),
+      SDL_JoystickGetType(SDL_GameControllerGetJoystick(controller)),
+#if SDL_VERSION_ATLEAST(2, 0, 12)
+      SDL_GameControllerGetType(controller),
+#else
+      "?",
+#endif
+#if SDL_VERSION_ATLEAST(2, 0, 6)
+      SDL_GameControllerGetVendor(controller),
+      SDL_GameControllerGetProduct(controller));
+#else
+      "?", "?");
+#endif
   int user_id = -1;
 #if SDL_VERSION_ATLEAST(2, 0, 9)
   // Check if the controller has a player index LED.
@@ -434,6 +453,9 @@ void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
     for (size_t i = 0; i < controllers_.size(); i++) {
       if (!controllers_.at(i).sdl) {
         user_id = static_cast<int>(i);
+#if SDL_VERSION_ATLEAST(2, 0, 12)
+        SDL_GameControllerSetPlayerIndex(controller, user_id);
+#endif
         break;
       }
     }
@@ -442,9 +464,11 @@ void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
     controllers_.at(user_id) = {controller, {}};
     // XInput seems to start with packet_number = 1 .
     controllers_.at(user_id).state_changed = true;
+    XELOGI("SDL OnControllerDeviceAdded: Added at index {}.", user_id);
   } else {
     // No more controllers needed, close it.
     SDL_GameControllerClose(controller);
+    XELOGW("SDL OnControllerDeviceAdded: Ignored. No free slots.");
   }
 }
 
@@ -453,10 +477,15 @@ void SDLInputDriver::OnControllerDeviceRemoved(const SDL_Event& event) {
 
   // Find the disconnected gamecontroller and close it.
   auto idx = GetControllerIndexFromInstanceID(event.cdevice.which);
-  assert(idx);
-  SDL_GameControllerClose(controllers_.at(*idx).sdl);
-  controllers_.at(*idx) = {};
-  keystroke_states_.at(*idx) = {};
+  if (idx) {
+    SDL_GameControllerClose(controllers_.at(*idx).sdl);
+    controllers_.at(*idx) = {};
+    keystroke_states_.at(*idx) = {};
+    XELOGI("SDL OnControllerDeviceRemoved: Removed at player index {}.", *idx);
+  } else {
+    // Can happen in case all slots where full previously.
+    XELOGW("SDL OnControllerDeviceRemoved: Ignored. Unused device.");
+  }
 }
 
 void SDLInputDriver::OnControllerDeviceAxisMotion(const SDL_Event& event) {
