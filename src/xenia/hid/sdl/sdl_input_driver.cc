@@ -81,6 +81,8 @@ X_STATUS SDLInputDriver::Setup() {
         assert_always();
         return 0;
       }
+      // This callback will likely run on the thread that posts the event, which
+      // may be a dedicated thread SDL has created for the joystick subsystem.
 
       // Event queue should never be (this) full
       assert(SDL_PeepEvents(nullptr, 0, SDL_PEEKEVENT, SDL_FIRSTEVENT,
@@ -409,7 +411,6 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
 }
 
 void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
-  assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   // Open the controller.
@@ -448,7 +449,6 @@ void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
 }
 
 void SDLInputDriver::OnControllerDeviceRemoved(const SDL_Event& event) {
-  assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   // Find the disconnected gamecontroller and close it.
@@ -460,7 +460,6 @@ void SDLInputDriver::OnControllerDeviceRemoved(const SDL_Event& event) {
 }
 
 void SDLInputDriver::OnControllerDeviceAxisMotion(const SDL_Event& event) {
-  assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   auto idx = GetControllerIndexFromInstanceID(event.caxis.which);
@@ -493,7 +492,6 @@ void SDLInputDriver::OnControllerDeviceAxisMotion(const SDL_Event& event) {
 }
 
 void SDLInputDriver::OnControllerDeviceButtonChanged(const SDL_Event& event) {
-  assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   // Define a lookup table to map between SDL and XInput button codes.
