@@ -66,6 +66,7 @@ class SDLInputDriver : public InputDriver {
   };
 
  protected:
+  void HandleEvent(const SDL_Event& event);
   void OnControllerDeviceAdded(const SDL_Event& event);
   void OnControllerDeviceRemoved(const SDL_Event& event);
   void OnControllerDeviceAxisMotion(const SDL_Event& event);

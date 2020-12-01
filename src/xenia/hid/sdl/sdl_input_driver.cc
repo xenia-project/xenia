@@ -76,54 +76,29 @@ X_STATUS SDLInputDriver::Setup() {
     }
     sdl_events_initialized_ = true;
 
-    SDL_EventFilter event_filter{[](void* userdata, SDL_Event* event) -> int {
-      if (!userdata || !event) {
-        assert_always();
-        return 0;
-      }
-      // This callback will likely run on the thread that posts the event, which
-      // may be a dedicated thread SDL has created for the joystick subsystem.
-
-      // Event queue should never be (this) full
-      assert(SDL_PeepEvents(nullptr, 0, SDL_PEEKEVENT, SDL_FIRSTEVENT,
-                            SDL_LASTEVENT) < 0xFFFF);
-
-      const auto type = event->type;
-      if (type < SDL_JOYAXISMOTION || type > SDL_CONTROLLERDEVICEREMAPPED) {
-        return 0;
-      }
-
-      // If another part of xenia uses another SDL subsystem that generates
-      // events, this may seem like a bad idea. They will however not subscribe
-      // to controller events so we get away with that.
-      const auto driver = static_cast<SDLInputDriver*>(userdata);
-      // The queue could grow up to 3.5MB since it is never polled.
-      if (++driver->sdl_events_unflushed_ > 64) {
-        SDL_FlushEvents(SDL_JOYAXISMOTION, SDL_CONTROLLERDEVICEREMAPPED);
-        driver->sdl_events_unflushed_ = 0;
-      }
-      switch (type) {
-        case SDL_CONTROLLERDEVICEADDED:
-          driver->OnControllerDeviceAdded(*event);
-          break;
-        case SDL_CONTROLLERDEVICEREMOVED:
-          driver->OnControllerDeviceRemoved(*event);
-          break;
-        case SDL_CONTROLLERAXISMOTION:
-          driver->OnControllerDeviceAxisMotion(*event);
-          break;
-        case SDL_CONTROLLERBUTTONDOWN:
-        case SDL_CONTROLLERBUTTONUP:
-          driver->OnControllerDeviceButtonChanged(*event);
-          break;
-        default:
-          break;
-      }
-      return 0;
-    }};
     // With an event watch we will always get notified, even if the event queue
     // is full, which can happen if another subsystem does not clear its events.
-    SDL_AddEventWatch(event_filter, this);
+    SDL_AddEventWatch(
+        [](void* userdata, SDL_Event* event) -> int {
+          if (!userdata || !event) {
+            assert_always();
+            return 0;
+          }
+
+          const auto type = event->type;
+          if (type < SDL_JOYAXISMOTION || type >= SDL_FINGERDOWN) {
+            return 0;
+          }
+
+          // If another part of xenia uses another SDL subsystem that generates
+          // events, this may seem like a bad idea. They will however not
+          // subscribe to controller events so we get away with that.
+          const auto driver = static_cast<SDLInputDriver*>(userdata);
+          driver->HandleEvent(*event);
+
+          return 0;
+        },
+        this);
 
     if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) < 0) {
       return;
@@ -401,6 +376,39 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
     }
   }
   return X_ERROR_EMPTY;
+}
+
+void SDLInputDriver::HandleEvent(const SDL_Event& event) {
+  // This callback will likely run on the thread that posts the event, which
+  // may be a dedicated thread SDL has created for the joystick subsystem.
+
+  // Event queue should never be (this) full
+  assert(SDL_PeepEvents(nullptr, 0, SDL_PEEKEVENT, SDL_FIRSTEVENT,
+                        SDL_LASTEVENT) < 0xFFFF);
+
+  // The queue could grow up to 3.5MB since it is never polled.
+  if (++sdl_events_unflushed_ > 64) {
+    SDL_FlushEvents(SDL_JOYAXISMOTION, SDL_FINGERDOWN - 1);
+    sdl_events_unflushed_ = 0;
+  }
+  switch (event.type) {
+    case SDL_CONTROLLERDEVICEADDED:
+      OnControllerDeviceAdded(event);
+      break;
+    case SDL_CONTROLLERDEVICEREMOVED:
+      OnControllerDeviceRemoved(event);
+      break;
+    case SDL_CONTROLLERAXISMOTION:
+      OnControllerDeviceAxisMotion(event);
+      break;
+    case SDL_CONTROLLERBUTTONDOWN:
+    case SDL_CONTROLLERBUTTONUP:
+      OnControllerDeviceButtonChanged(event);
+      break;
+    default:
+      break;
+  }
+  return;
 }
 
 void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
