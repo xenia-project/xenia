@@ -86,8 +86,8 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
     *buffer_size_ptr = sizeof(XCONTENT_DATA) * items_per_enumerate;
   }
 
-  auto e = object_ref<XStaticEnumerator>(new XStaticEnumerator(
-      kernel_state(), items_per_enumerate, sizeof(XCONTENT_DATA)));
+  auto e = make_object<XStaticEnumerator<XCONTENT_DATA>>(kernel_state(),
+                                                         items_per_enumerate);
   auto result = e->Initialize(0xFF, 0xFE, 0x20005, 0x20007, 0);
   if (XFAILED(result)) {
     return result;
@@ -99,8 +99,7 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
         static_cast<uint32_t>(DummyDeviceId::HDD),
         XContentType(uint32_t(content_type)));
     for (const auto& content_data : content_datas) {
-      auto item = reinterpret_cast<XCONTENT_DATA*>(e->AppendItem());
-      assert_not_null(item);
+      auto item = e->AppendItem();
       *item = content_data;
     }
   }

@@ -139,8 +139,8 @@ dword_result_t XamContentCreateDeviceEnumerator(dword_t content_type,
     *buffer_size_ptr = sizeof(X_CONTENT_DEVICE_DATA) * max_count;
   }
 
-  auto e = object_ref<XStaticEnumerator>(new XStaticEnumerator(
-      kernel_state(), max_count, sizeof(X_CONTENT_DEVICE_DATA)));
+  auto e = make_object<XStaticEnumerator<X_CONTENT_DEVICE_DATA>>(kernel_state(),
+                                                                 max_count);
   auto result = e->Initialize(0xFE, 0xFE, 0x2000A, 0x20009, 0);
   if (XFAILED(result)) {
     return result;
@@ -148,7 +148,8 @@ dword_result_t XamContentCreateDeviceEnumerator(dword_t content_type,
 
   for (const auto& device_info : dummy_device_infos_) {
     // Copy our dummy device into the enumerator
-    auto device_data = (X_CONTENT_DEVICE_DATA*)e->AppendItem();
+    auto device_data = e->AppendItem();
+    assert_not_null(device_data);
     if (device_data) {
       device_data->device_id = static_cast<uint32_t>(device_info->device_id);
       device_data->device_type =
