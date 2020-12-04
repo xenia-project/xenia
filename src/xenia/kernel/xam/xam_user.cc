@@ -608,7 +608,7 @@ class XStaticAchievementEnumerator : public XEnumerator {
   }
 
   uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
-                      uint32_t buffer_size, uint32_t* written_count) override {
+                      uint32_t* written_count) override {
     size_t count =
         std::min(items_.size() - current_item_, items_per_enumerate());
     if (!count) {
@@ -616,9 +616,6 @@ class XStaticAchievementEnumerator : public XEnumerator {
     }
 
     size_t size = count * item_size();
-    if (size > buffer_size) {
-      return X_ERROR_INSUFFICIENT_BUFFER;
-    }
 
     auto details = reinterpret_cast<X_ACHIEVEMENT_DETAILS*>(buffer_data);
     size_t string_offset =

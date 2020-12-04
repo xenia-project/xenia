@@ -22,8 +22,8 @@ namespace kernel {
 
 struct X_KENUMERATOR {
   be<uint32_t> app_id;
-  be<uint32_t> message;
-  be<uint32_t> message2;
+  be<uint32_t> open_message;
+  be<uint32_t> close_message;
   be<uint32_t> user_index;
   be<uint32_t> items_per_enumerate;
   be<uint32_t> flags;
@@ -43,19 +43,21 @@ class XEnumerator : public XObject {
               size_t item_size);
   virtual ~XEnumerator();
 
-  X_STATUS Initialize(uint32_t user_index, uint32_t app_id, uint32_t message,
-                      uint32_t message2, uint32_t flags, uint32_t extra_size,
-                      void** extra_buffer);
+  X_STATUS Initialize(uint32_t user_index, uint32_t app_id,
+                      uint32_t open_message, uint32_t close_message,
+                      uint32_t flags, uint32_t extra_size, void** extra_buffer);
 
-  X_STATUS Initialize(uint32_t user_index, uint32_t app_id, uint32_t message,
-                      uint32_t message2, uint32_t flags);
+  X_STATUS Initialize(uint32_t user_index, uint32_t app_id,
+                      uint32_t open_message, uint32_t close_message,
+                      uint32_t flags);
 
   template <typename T>
-  X_STATUS Initialize(uint32_t user_index, uint32_t app_id, uint32_t message,
-                      uint32_t message2, uint32_t flags, T** extra) {
+  X_STATUS Initialize(uint32_t user_index, uint32_t app_id,
+                      uint32_t open_message, uint32_t close_message,
+                      uint32_t flags, T** extra) {
     void* dummy;
-    auto result = Initialize(user_index, app_id, message, message2, flags,
-                             static_cast<uint32_t>(sizeof(T)), &dummy);
+    auto result = Initialize(user_index, app_id, open_message, close_message,
+                             flags, static_cast<uint32_t>(sizeof(T)), &dummy);
     if (extra) {
       *extra = XFAILED(result) ? nullptr : static_cast<T*>(dummy);
     }
@@ -63,7 +65,6 @@ class XEnumerator : public XObject {
   }
 
   virtual uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
-                              uint32_t buffer_size,
                               uint32_t* written_count) = 0;
 
   size_t item_size() const { return item_size_; }
@@ -74,10 +75,10 @@ class XEnumerator : public XObject {
   size_t item_size_;
 };
 
-class XStaticEnumerator : public XEnumerator {
+class XStaticUntypedEnumerator : public XEnumerator {
  public:
-  XStaticEnumerator(KernelState* kernel_state, size_t items_per_enumerate,
-                    size_t item_size)
+  XStaticUntypedEnumerator(KernelState* kernel_state,
+                           size_t items_per_enumerate, size_t item_size)
       : XEnumerator(kernel_state, items_per_enumerate, item_size),
         item_count_(0),
         current_item_(0) {}
@@ -87,12 +88,29 @@ class XStaticEnumerator : public XEnumerator {
   uint8_t* AppendItem();
 
   uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
-                      uint32_t buffer_size, uint32_t* written_count) override;
+                      uint32_t* written_count) override;
 
  private:
   size_t item_count_;
   size_t current_item_;
   std::vector<uint8_t> buffer_;
+};
+
+template <typename T>
+class XStaticEnumerator : public XStaticUntypedEnumerator {
+ public:
+  XStaticEnumerator(KernelState* kernel_state, size_t items_per_enumerate)
+      : XStaticUntypedEnumerator(kernel_state, items_per_enumerate, sizeof(T)) {
+  }
+
+  T* AppendItem() {
+    return reinterpret_cast<T*>(XStaticUntypedEnumerator::AppendItem());
+  }
+
+  void AppendItem(const T& item) {
+    auto ptr = AppendItem();
+    item.Write(ptr);
+  }
 };
 
 }  // namespace kernel

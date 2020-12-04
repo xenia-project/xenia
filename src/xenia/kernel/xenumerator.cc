@@ -21,7 +21,7 @@ XEnumerator::XEnumerator(KernelState* kernel_state, size_t items_per_enumerate,
 XEnumerator::~XEnumerator() = default;
 
 X_STATUS XEnumerator::Initialize(uint32_t user_index, uint32_t app_id,
-                                 uint32_t message, uint32_t message2,
+                                 uint32_t open_message, uint32_t close_message,
                                  uint32_t flags, uint32_t extra_size,
                                  void** extra_buffer) {
   auto native_object = CreateNative(sizeof(X_KENUMERATOR) + extra_size);
@@ -30,8 +30,8 @@ X_STATUS XEnumerator::Initialize(uint32_t user_index, uint32_t app_id,
   }
   auto guest_object = reinterpret_cast<X_KENUMERATOR*>(native_object);
   guest_object->app_id = app_id;
-  guest_object->message = message;
-  guest_object->message2 = message2;
+  guest_object->open_message = open_message;
+  guest_object->close_message = close_message;
   guest_object->user_index = user_index;
   guest_object->items_per_enumerate =
       static_cast<uint32_t>(items_per_enumerate_);
@@ -44,32 +44,27 @@ X_STATUS XEnumerator::Initialize(uint32_t user_index, uint32_t app_id,
 }
 
 X_STATUS XEnumerator::Initialize(uint32_t user_index, uint32_t app_id,
-                                 uint32_t message, uint32_t message2,
+                                 uint32_t open_message, uint32_t close_message,
                                  uint32_t flags) {
-  return Initialize(user_index, app_id, message, message2, flags, 0, nullptr);
+  return Initialize(user_index, app_id, open_message, close_message, flags, 0,
+                    nullptr);
 }
 
-uint8_t* XStaticEnumerator::AppendItem() {
-  buffer_.resize(++item_count_ * item_size());
-  auto ptr =
-      const_cast<uint8_t*>(buffer_.data() + (item_count_ - 1) * item_size());
-  return ptr;
+uint8_t* XStaticUntypedEnumerator::AppendItem() {
+  size_t offset = buffer_.size();
+  buffer_.resize(offset + item_size());
+  return const_cast<uint8_t*>(&buffer_.data()[offset]);
 }
 
-uint32_t XStaticEnumerator::WriteItems(uint32_t buffer_ptr,
-                                       uint8_t* buffer_data,
-                                       uint32_t buffer_size,
-                                       uint32_t* written_count) {
+uint32_t XStaticUntypedEnumerator::WriteItems(uint32_t buffer_ptr,
+                                              uint8_t* buffer_data,
+                                              uint32_t* written_count) {
   size_t count = std::min(item_count_ - current_item_, items_per_enumerate());
   if (!count) {
     return X_ERROR_NO_MORE_FILES;
   }
 
   size_t size = count * item_size();
-  if (size > buffer_size) {
-    return X_ERROR_INSUFFICIENT_BUFFER;
-  }
-
   size_t offset = current_item_ * item_size();
   std::memcpy(buffer_data, buffer_.data() + offset, size);
 

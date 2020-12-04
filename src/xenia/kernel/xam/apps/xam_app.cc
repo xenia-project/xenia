@@ -57,8 +57,7 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         std::memset(buffer, 0, data->buffer_size);
       }
       uint32_t item_count = 0;
-      auto result = e->WriteItems(data->buffer_ptr, buffer, data->buffer_size,
-                                  &item_count);
+      auto result = e->WriteItems(data->buffer_ptr, buffer, &item_count);
 
       if (result == X_ERROR_SUCCESS && item_count >= 1) {
         if (data->length_ptr) {
