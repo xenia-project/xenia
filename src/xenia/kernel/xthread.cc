@@ -498,6 +498,16 @@ X_STATUS XThread::Terminate(int exit_code) {
   return X_STATUS_SUCCESS;
 }
 
+class reenter_exception {
+ public:
+  reenter_exception(uint32_t address) : address_(address){};
+  virtual ~reenter_exception(){};
+  uint32_t address() const { return address_; }
+
+ private:
+  uint32_t address_;
+};
+
 void XThread::Execute() {
   XELOGKERNEL("XThread::Execute thid {} (handle={:08X}, '{}', native={:08X})",
               thread_id_, handle(), thread_name_, thread_->system_id());
@@ -510,31 +520,61 @@ void XThread::Execute() {
   // have time to initialize shared structures AFTER CreateThread (RR).
   xe::threading::Sleep(std::chrono::milliseconds(10));
 
-  int exit_code = 0;
-
   // Dispatch any APCs that were queued before the thread was created first.
   DeliverAPCs();
+
+  uint32_t address;
+  std::vector<uint64_t> args;
+  bool want_exit_code;
+  int exit_code = 0;
 
   // If a XapiThreadStartup value is present, we use that as a trampoline.
   // Otherwise, we are a raw thread.
   if (creation_params_.xapi_thread_startup) {
-    uint64_t args[] = {creation_params_.start_address,
-                       creation_params_.start_context};
-    kernel_state()->processor()->Execute(thread_state_,
-                                         creation_params_.xapi_thread_startup,
-                                         args, xe::countof(args));
+    address = creation_params_.xapi_thread_startup;
+    args.push_back(creation_params_.start_address);
+    args.push_back(creation_params_.start_context);
+    want_exit_code = false;
   } else {
     // Run user code.
-    uint64_t args[] = {creation_params_.start_context};
-    exit_code = static_cast<int>(kernel_state()->processor()->Execute(
-        thread_state_, creation_params_.start_address, args,
-        xe::countof(args)));
-    // If we got here it means the execute completed without an exit being
-    // called.
-    // Treat the return code as an implicit exit code.
+    address = creation_params_.start_address;
+    args.push_back(creation_params_.start_context);
+    want_exit_code = true;
   }
 
-  Exit(exit_code);
+  uint32_t next_address;
+  try {
+    exit_code = static_cast<int>(kernel_state()->processor()->Execute(
+        thread_state_, address, args.data(), args.size()));
+    next_address = 0;
+  } catch (const reenter_exception& ree) {
+    next_address = ree.address();
+  }
+
+  // See XThread::Reenter comments.
+  while (next_address != 0) {
+    try {
+      kernel_state()->processor()->ExecuteRaw(thread_state_, next_address);
+      next_address = 0;
+      if (want_exit_code) {
+        exit_code = static_cast<int>(thread_state_->context()->r[3]);
+      }
+    } catch (const reenter_exception& ree) {
+      next_address = ree.address();
+    }
+  }
+
+  // If we got here it means the execute completed without an exit being called.
+  // Treat the return code as an implicit exit code (if desired).
+  Exit(!want_exit_code ? 0 : exit_code);
+}
+
+void XThread::Reenter(uint32_t address) {
+  // TODO(gibbed): Maybe use setjmp/longjmp on Windows?
+  // https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/longjmp#remarks
+  // On Windows with /EH, setjmp/longjmp do stack unwinding.
+  // Is there a better solution than exceptions for stack unwinding?
+  throw reenter_exception(address);
 }
 
 void XThread::EnterCriticalRegion() {
