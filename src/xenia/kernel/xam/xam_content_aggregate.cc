@@ -23,7 +23,7 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-void AddODDContentTest(object_ref<XStaticEnumerator> e,
+void AddODDContentTest(object_ref<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>> e,
                        XContentType content_type) {
   auto root_entry = kernel_state()->file_system()->ResolvePath(
       "game:\\Content\\0000000000000000");
@@ -62,13 +62,15 @@ void AddODDContentTest(object_ref<XStaticEnumerator> e,
           break;
         }
 
-        auto item = reinterpret_cast<XCONTENT_AGGREGATE_DATA*>(e->AppendItem());
+        auto item = e->AppendItem();
         assert_not_null(item);
-        item->device_id = static_cast<uint32_t>(DummyDeviceId::ODD);
-        item->content_type = content_type;
-        item->set_display_name(to_utf16(content_entry->name()));
-        item->set_file_name(content_entry->name());
-        item->title_id = title_id;
+        if (item) {
+          item->device_id = static_cast<uint32_t>(DummyDeviceId::ODD);
+          item->content_type = content_type;
+          item->set_display_name(to_utf16(content_entry->name()));
+          item->set_file_name(content_entry->name());
+          item->title_id = title_id;
+        }
       }
     }
   }
@@ -86,8 +88,8 @@ dword_result_t XamContentAggregateCreateEnumerator(qword_t xuid,
     return X_E_INVALIDARG;
   }
 
-  auto e = object_ref<XStaticEnumerator>(new XStaticEnumerator(
-      kernel_state(), 1, sizeof(XCONTENT_AGGREGATE_DATA)));
+  auto e = make_object<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>>(
+      kernel_state(), 1);
   X_KENUMERATOR_CONTENT_AGGREGATE* extra;
   auto result = e->Initialize(0xFF, 0xFE, 0x2000E, 0x20010, 0, &extra);
   if (XFAILED(result)) {
@@ -116,9 +118,11 @@ dword_result_t XamContentAggregateCreateEnumerator(qword_t xuid,
           static_cast<uint32_t>(DummyDeviceId::HDD), content_type_enum,
           title_id);
       for (const auto& content_data : content_datas) {
-        auto item = reinterpret_cast<XCONTENT_AGGREGATE_DATA*>(e->AppendItem());
+        auto item = e->AppendItem();
         assert_not_null(item);
-        *item = content_data;
+        if (item) {
+          *item = content_data;
+        }
       }
     }
   }
