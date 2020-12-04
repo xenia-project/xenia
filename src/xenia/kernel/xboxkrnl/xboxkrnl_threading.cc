@@ -205,22 +205,30 @@ dword_result_t NtSuspendThread(dword_t handle, lpdword_t suspend_count_ptr) {
 }
 DECLARE_XBOXKRNL_EXPORT1(NtSuspendThread, kThreading, kImplemented);
 
-void KeSetCurrentStackPointers(lpvoid_t stack_ptr,
-                               pointer_t<X_KTHREAD> cur_thread,
+void KeSetCurrentStackPointers(lpvoid_t stack_ptr, pointer_t<X_KTHREAD> thread,
                                lpvoid_t stack_alloc_base, lpvoid_t stack_base,
                                lpvoid_t stack_limit) {
-  auto thread = XThread::GetCurrentThread();
-  auto context = thread->thread_state()->context();
-  context->r[1] = stack_ptr.guest_address();
+  auto current_thread = XThread::GetCurrentThread();
+  auto context = current_thread->thread_state()->context();
+  auto pcr = kernel_memory()->TranslateVirtual<X_KPCR*>(
+      static_cast<uint32_t>(context->r[13]));
 
-  auto pcr =
-      kernel_memory()->TranslateVirtual<X_KPCR*>((uint32_t)context->r[13]);
+  thread->stack_alloc_base = stack_alloc_base.value();
+  thread->stack_base = stack_base.value();
+  thread->stack_limit = stack_limit.value();
   pcr->stack_base_ptr = stack_base.guest_address();
   pcr->stack_end_ptr = stack_limit.guest_address();
+  context->r[1] = stack_ptr.guest_address();
 
-  // TODO: Do we need to set the stack info on cur_thread?
+  // If a fiber is set, and the thread matches, reenter to avoid issues with
+  // host stack overflowing.
+  if (thread->fiber_ptr &&
+      current_thread->guest_object() == thread.guest_address()) {
+    current_thread->Reenter(static_cast<uint32_t>(context->lr));
+  }
 }
-DECLARE_XBOXKRNL_EXPORT1(KeSetCurrentStackPointers, kThreading, kImplemented);
+DECLARE_XBOXKRNL_EXPORT2(KeSetCurrentStackPointers, kThreading, kImplemented,
+                         kHighFrequency);
 
 dword_result_t KeSetAffinityThread(lpvoid_t thread_ptr, dword_t affinity,
                                    lpdword_t previous_affinity_ptr) {
