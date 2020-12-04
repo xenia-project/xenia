@@ -70,35 +70,72 @@ struct XAPC {
 // Processor Control Region
 struct X_KPCR {
   xe::be<uint32_t> tls_ptr;         // 0x0
-  char unk_04[0x2C];                // 0x4
+  uint8_t unk_04[0x2C];             // 0x4
   xe::be<uint32_t> pcr_ptr;         // 0x30
-  char unk_34[0x3C];                // 0x34
+  uint8_t unk_34[0x3C];             // 0x34
   xe::be<uint32_t> stack_base_ptr;  // 0x70 Stack base address (high addr)
   xe::be<uint32_t> stack_end_ptr;   // 0x74 Stack end (low addr)
-  char unk_78[0x88];                // 0x78
+  uint8_t unk_78[0x88];             // 0x78
   xe::be<uint32_t> current_thread;  // 0x100
-  char unk_104[0x8];                // 0x104
-  xe::be<uint8_t> current_cpu;      // 0x10C
-  char unk_10D[0x43];               // 0x10D
+  uint8_t unk_104[0x8];             // 0x104
+  uint8_t current_cpu;              // 0x10C
+  uint8_t unk_10D[0x43];            // 0x10D
   xe::be<uint32_t> dpc_active;      // 0x150
 };
 
 struct X_KTHREAD {
-  X_DISPATCH_HEADER header;      // 0x0
-  char unk_10[0xAC];             // 0x10
-  uint8_t suspend_count;         // 0xBC
-  uint8_t unk_BD;                // 0xBD
-  uint8_t unk_BE;                // 0xBE
-  uint8_t current_cpu;           // 0xBF
-  char unk_C0[0x70];             // 0xC0
-  xe::be<uint64_t> create_time;  // 0x130
-  xe::be<uint64_t> exit_time;    // 0x138
-  xe::be<uint32_t> exit_status;  // 0x140
-  char unk_144[0x8];             // 0x144
-  xe::be<uint32_t> thread_id;    // 0x14C
-  char unk_150[0x10];            // 0x150
-  xe::be<uint32_t> last_error;   // 0x160
-  char unk_164[0x94C];           // 0x164
+  X_DISPATCH_HEADER header;           // 0x0
+  xe::be<uint32_t> unk_10;            // 0x10
+  xe::be<uint32_t> unk_14;            // 0x14
+  uint8_t unk_18[0x28];               // 0x10
+  xe::be<uint32_t> unk_40;            // 0x40
+  xe::be<uint32_t> unk_44;            // 0x44
+  xe::be<uint32_t> unk_48;            // 0x48
+  xe::be<uint32_t> unk_4C;            // 0x4C
+  uint8_t unk_50[0x4];                // 0x50
+  xe::be<uint16_t> unk_54;            // 0x54
+  xe::be<uint16_t> unk_56;            // 0x56
+  uint8_t unk_58[0x4];                // 0x58
+  xe::be<uint32_t> stack_base;        // 0x5C
+  xe::be<uint32_t> stack_limit;       // 0x60
+  uint8_t unk_64[0x4];                // 0x64
+  xe::be<uint32_t> tls_address;       // 0x68
+  uint8_t unk_6C;                     // 0x6C
+  uint8_t unk_6D[0x7];                // 0x6D
+  xe::be<uint32_t> unk_74;            // 0x74
+  xe::be<uint32_t> unk_78;            // 0x78
+  xe::be<uint32_t> unk_7C;            // 0x7C
+  xe::be<uint32_t> unk_80;            // 0x80
+  xe::be<uint32_t> unk_84;            // 0x84
+  uint8_t unk_88[0x3];                // 0x88
+  uint8_t unk_8B;                     // 0x8B
+  uint8_t unk_8C[0x10];               // 0x8C
+  xe::be<uint32_t> unk_9C;            // 0x9C
+  uint8_t unk_A0[0x1C];               // 0xA0
+  uint8_t suspend_count;              // 0xBC
+  uint8_t unk_BD;                     // 0xBD
+  uint8_t unk_BE;                     // 0xBE
+  uint8_t current_cpu;                // 0xBF
+  uint8_t unk_C0[0x10];               // 0xC0
+  xe::be<uint32_t> stack_alloc_base;  // 0xD0
+  uint8_t unk_D4[0x5C];               // 0xD4
+  xe::be<uint64_t> create_time;       // 0x130
+  xe::be<uint64_t> exit_time;         // 0x138
+  xe::be<uint32_t> exit_status;       // 0x140
+  xe::be<uint32_t> unk_144;           // 0x144
+  xe::be<uint32_t> unk_148;           // 0x148
+  xe::be<uint32_t> thread_id;         // 0x14C
+  xe::be<uint32_t> start_address;     // 0x150
+  xe::be<uint32_t> unk_154;           // 0x154
+  xe::be<uint32_t> unk_158;           // 0x158
+  uint8_t unk_15C[0x4];               // 0x15C
+  xe::be<uint32_t> last_error;        // 0x160
+  xe::be<uint32_t> fiber_ptr;         // 0x164
+  uint8_t unk_168[0x4];               // 0x168
+  xe::be<uint32_t> creation_flags;    // 0x16C
+  uint8_t unk_170[0xC];               // 0x170
+  xe::be<uint32_t> unk_17C;           // 0x17C
+  uint8_t unk_180[0x930];             // 0x180
 
   // This struct is actually quite long... so uh, not filling this out!
 };
@@ -150,6 +187,8 @@ class XThread : public XObject, public cpu::Thread {
   X_STATUS Terminate(int exit_code);
 
   virtual void Execute();
+
+  virtual void Reenter(uint32_t address);
 
   static void EnterCriticalRegion();
   static void LeaveCriticalRegion();
