@@ -400,7 +400,7 @@ dword_result_t MmQueryAddressProtect(dword_t base_address) {
   if (!heap->QueryProtect(base_address, &access)) {
     access = 0;
   }
-  access = ToXdkProtectFlags(access);
+  access = !access ? 0 : ToXdkProtectFlags(access);
 
   return access;
 }
