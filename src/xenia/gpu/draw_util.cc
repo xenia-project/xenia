@@ -227,6 +227,7 @@ void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
       ndc_offset_y = 0.0f;
     }
   } else {
+    viewport_top = 0.0f;
     viewport_height = std::min(
         float(xenos::kTexture2DCubeMaxWidthHeight) * pixel_size_y, y_max);
     ndc_scale_y = (2.0f * pixel_size_y) / viewport_height;
