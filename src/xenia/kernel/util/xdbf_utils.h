@@ -137,6 +137,8 @@ class XdbfGameData : public XdbfWrapper {
 
   // The game's title in its default language.
   std::string title() const;
+
+  std::string title(XdbfLocale locale) const;
 };
 
 }  // namespace util
