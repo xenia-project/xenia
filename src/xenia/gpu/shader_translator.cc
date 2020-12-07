@@ -1,4 +1,3 @@
-#include "shader_translator.h"
 /**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
@@ -14,6 +13,7 @@
 #include <set>
 #include <string>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 
@@ -46,7 +46,9 @@ ShaderTranslator::ShaderTranslator() = default;
 
 ShaderTranslator::~ShaderTranslator() = default;
 
-void ShaderTranslator::Reset() {
+void ShaderTranslator::Reset(xenos::ShaderType shader_type) {
+  shader_type_ = shader_type;
+  modification_ = GetDefaultModification(shader_type);
   errors_.clear();
   ucode_disasm_buffer_.Reset();
   ucode_disasm_line_number_ = 0;
@@ -64,37 +66,37 @@ void ShaderTranslator::Reset() {
     writes_color_targets_[i] = false;
   }
   writes_depth_ = false;
-  implicit_early_z_allowed_ = true;
+  kills_pixels_ = false;
   memexport_alloc_count_ = 0;
   memexport_eA_written_ = 0;
   std::memset(&memexport_eM_written_, 0, sizeof(memexport_eM_written_));
   memexport_stream_constants_.clear();
 }
 
-bool ShaderTranslator::Translate(
-    Shader* shader, reg::SQ_PROGRAM_CNTL cntl,
-    Shader::HostVertexShaderType host_vertex_shader_type) {
-  Reset();
-  uint32_t cntl_num_reg = shader->type() == xenos::ShaderType::kVertex
+bool ShaderTranslator::Translate(Shader::Translation& translation,
+                                 reg::SQ_PROGRAM_CNTL cntl) {
+  xenos::ShaderType shader_type = translation.shader().type();
+  Reset(shader_type);
+  uint32_t cntl_num_reg = shader_type == xenos::ShaderType::kVertex
                               ? cntl.vs_num_reg
                               : cntl.ps_num_reg;
   register_count_ = (cntl_num_reg & 0x80) ? 0 : (cntl_num_reg + 1);
 
-  return TranslateInternal(shader, host_vertex_shader_type);
+  return TranslateInternal(translation);
 }
 
-bool ShaderTranslator::Translate(
-    Shader* shader, Shader::HostVertexShaderType host_vertex_shader_type) {
-  Reset();
-  return TranslateInternal(shader, host_vertex_shader_type);
+bool ShaderTranslator::Translate(Shader::Translation& translation) {
+  Reset(translation.shader().type());
+  return TranslateInternal(translation);
 }
 
-bool ShaderTranslator::TranslateInternal(
-    Shader* shader, Shader::HostVertexShaderType host_vertex_shader_type) {
-  shader_type_ = shader->type();
-  host_vertex_shader_type_ = host_vertex_shader_type;
-  ucode_dwords_ = shader->ucode_dwords();
-  ucode_dword_count_ = shader->ucode_dword_count();
+bool ShaderTranslator::TranslateInternal(Shader::Translation& translation) {
+  Shader& shader = translation.shader();
+  assert_true(shader_type_ == shader.type());
+  shader_type_ = shader.type();
+  ucode_dwords_ = shader.ucode_dwords();
+  ucode_dword_count_ = shader.ucode_dword_count();
+  modification_ = translation.modification();
 
   // Control flow instructions come paired in blocks of 3 dwords and all are
   // listed at the top of the ucode.
@@ -150,12 +152,6 @@ bool ShaderTranslator::TranslateInternal(
   if (memexport_eA_written_ == 0) {
     memexport_stream_constants_.clear();
   }
-  if (!memexport_stream_constants_.empty()) {
-    // TODO(Triang3l): Investigate what happens to memexport when the pixel
-    // fails the depth/stencil test, but in Direct3D 11 UAV writes disable early
-    // depth/stencil.
-    implicit_early_z_allowed_ = false;
-  }
 
   StartTranslation();
 
@@ -192,35 +188,44 @@ bool ShaderTranslator::TranslateInternal(
     ++cf_index;
   }
 
-  shader->errors_ = std::move(errors_);
-  shader->translated_binary_ = CompleteTranslation();
-  shader->ucode_disassembly_ = ucode_disasm_buffer_.to_string();
-  shader->host_vertex_shader_type_ = host_vertex_shader_type_;
-  shader->vertex_bindings_ = std::move(vertex_bindings_);
-  shader->texture_bindings_ = std::move(texture_bindings_);
-  shader->constant_register_map_ = std::move(constant_register_map_);
-  for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
-    shader->writes_color_targets_[i] = writes_color_targets_[i];
-  }
-  shader->writes_depth_ = writes_depth_;
-  shader->implicit_early_z_allowed_ = implicit_early_z_allowed_;
-  shader->memexport_stream_constants_.clear();
-  for (uint32_t memexport_stream_constant : memexport_stream_constants_) {
-    shader->memexport_stream_constants_.push_back(memexport_stream_constant);
-  }
+  translation.errors_ = std::move(errors_);
+  translation.translated_binary_ = CompleteTranslation();
+  translation.is_translated_ = true;
 
-  shader->is_valid_ = true;
-  shader->is_translated_ = true;
-  for (const auto& error : shader->errors_) {
+  bool is_valid = true;
+  for (const auto& error : translation.errors_) {
     if (error.is_fatal) {
-      shader->is_valid_ = false;
+      is_valid = false;
       break;
     }
   }
+  translation.is_valid_ = is_valid;
 
-  PostTranslation(shader);
+  // Setup info that doesn't depend on the modification only once.
+  bool setup_shader_post_translation_info =
+      is_valid && !shader.post_translation_info_set_up_.test_and_set();
+  if (setup_shader_post_translation_info) {
+    shader.ucode_disassembly_ = ucode_disasm_buffer_.to_string();
+    shader.vertex_bindings_ = std::move(vertex_bindings_);
+    shader.texture_bindings_ = std::move(texture_bindings_);
+    shader.constant_register_map_ = std::move(constant_register_map_);
+    for (size_t i = 0; i < xe::countof(writes_color_targets_); ++i) {
+      shader.writes_color_targets_[i] = writes_color_targets_[i];
+    }
+    shader.writes_depth_ = writes_depth_;
+    shader.kills_pixels_ = kills_pixels_;
+    shader.memexport_stream_constants_.clear();
+    shader.memexport_stream_constants_.reserve(
+        memexport_stream_constants_.size());
+    shader.memexport_stream_constants_.insert(
+        shader.memexport_stream_constants_.cend(),
+        memexport_stream_constants_.cbegin(),
+        memexport_stream_constants_.cend());
+  }
+  PostTranslation(translation, setup_shader_post_translation_info);
 
-  return shader->is_valid_;
+  // In case is_valid_ is modified by PostTranslation, reload.
+  return translation.is_valid_;
 }
 
 void ShaderTranslator::MarkUcodeInstruction(uint32_t dword_offset) {
@@ -343,14 +348,9 @@ void ShaderTranslator::GatherInstructionInformation(
           ParsedAluInstruction instr;
           ParseAluInstruction(op, instr);
 
-          const auto& vector_opcode_info =
-              alu_vector_opcode_infos_[uint32_t(op.vector_opcode())];
-          implicit_early_z_allowed_ &=
-              !vector_opcode_info.disable_implicit_early_z;
-          const auto& scalar_opcode_info =
-              alu_scalar_opcode_infos_[uint32_t(op.scalar_opcode())];
-          implicit_early_z_allowed_ &=
-              !scalar_opcode_info.disable_implicit_early_z;
+          kills_pixels_ = kills_pixels_ ||
+                          ucode::AluVectorOpcodeIsKill(op.vector_opcode()) ||
+                          ucode::AluScalarOpcodeIsKill(op.scalar_opcode());
 
           if (instr.vector_and_constant_result.storage_target !=
                   InstructionStorageTarget::kRegister ||
@@ -408,7 +408,6 @@ void ShaderTranslator::GatherInstructionInformation(
                   break;
                 case InstructionStorageTarget::kDepth:
                   writes_depth_ = true;
-                  implicit_early_z_allowed_ = false;
                   break;
                 default:
                   break;
@@ -1082,91 +1081,91 @@ uint32_t ParsedTextureFetchInstruction::GetNonZeroResultComponents() const {
 
 const ShaderTranslator::AluOpcodeInfo
     ShaderTranslator::alu_vector_opcode_infos_[0x20] = {
-        {"add", 2, 4, false},           // 0
-        {"mul", 2, 4, false},           // 1
-        {"max", 2, 4, false},           // 2
-        {"min", 2, 4, false},           // 3
-        {"seq", 2, 4, false},           // 4
-        {"sgt", 2, 4, false},           // 5
-        {"sge", 2, 4, false},           // 6
-        {"sne", 2, 4, false},           // 7
-        {"frc", 1, 4, false},           // 8
-        {"trunc", 1, 4, false},         // 9
-        {"floor", 1, 4, false},         // 10
-        {"mad", 3, 4, false},           // 11
-        {"cndeq", 3, 4, false},         // 12
-        {"cndge", 3, 4, false},         // 13
-        {"cndgt", 3, 4, false},         // 14
-        {"dp4", 2, 4, false},           // 15
-        {"dp3", 2, 4, false},           // 16
-        {"dp2add", 3, 4, false},        // 17
-        {"cube", 2, 4, false},          // 18
-        {"max4", 1, 4, false},          // 19
-        {"setp_eq_push", 2, 4, false},  // 20
-        {"setp_ne_push", 2, 4, false},  // 21
-        {"setp_gt_push", 2, 4, false},  // 22
-        {"setp_ge_push", 2, 4, false},  // 23
-        {"kill_eq", 2, 4, true},        // 24
-        {"kill_gt", 2, 4, true},        // 25
-        {"kill_ge", 2, 4, true},        // 26
-        {"kill_ne", 2, 4, true},        // 27
-        {"dst", 2, 4, false},           // 28
-        {"maxa", 2, 4, false},          // 29
+        {"add", 2, 4},           // 0
+        {"mul", 2, 4},           // 1
+        {"max", 2, 4},           // 2
+        {"min", 2, 4},           // 3
+        {"seq", 2, 4},           // 4
+        {"sgt", 2, 4},           // 5
+        {"sge", 2, 4},           // 6
+        {"sne", 2, 4},           // 7
+        {"frc", 1, 4},           // 8
+        {"trunc", 1, 4},         // 9
+        {"floor", 1, 4},         // 10
+        {"mad", 3, 4},           // 11
+        {"cndeq", 3, 4},         // 12
+        {"cndge", 3, 4},         // 13
+        {"cndgt", 3, 4},         // 14
+        {"dp4", 2, 4},           // 15
+        {"dp3", 2, 4},           // 16
+        {"dp2add", 3, 4},        // 17
+        {"cube", 2, 4},          // 18
+        {"max4", 1, 4},          // 19
+        {"setp_eq_push", 2, 4},  // 20
+        {"setp_ne_push", 2, 4},  // 21
+        {"setp_gt_push", 2, 4},  // 22
+        {"setp_ge_push", 2, 4},  // 23
+        {"kill_eq", 2, 4},       // 24
+        {"kill_gt", 2, 4},       // 25
+        {"kill_ge", 2, 4},       // 26
+        {"kill_ne", 2, 4},       // 27
+        {"dst", 2, 4},           // 28
+        {"maxa", 2, 4},          // 29
 };
 
 const ShaderTranslator::AluOpcodeInfo
     ShaderTranslator::alu_scalar_opcode_infos_[0x40] = {
-        {"adds", 1, 2, false},         // 0
-        {"adds_prev", 1, 1, false},    // 1
-        {"muls", 1, 2, false},         // 2
-        {"muls_prev", 1, 1, false},    // 3
-        {"muls_prev2", 1, 2, false},   // 4
-        {"maxs", 1, 2, false},         // 5
-        {"mins", 1, 2, false},         // 6
-        {"seqs", 1, 1, false},         // 7
-        {"sgts", 1, 1, false},         // 8
-        {"sges", 1, 1, false},         // 9
-        {"snes", 1, 1, false},         // 10
-        {"frcs", 1, 1, false},         // 11
-        {"truncs", 1, 1, false},       // 12
-        {"floors", 1, 1, false},       // 13
-        {"exp", 1, 1, false},          // 14
-        {"logc", 1, 1, false},         // 15
-        {"log", 1, 1, false},          // 16
-        {"rcpc", 1, 1, false},         // 17
-        {"rcpf", 1, 1, false},         // 18
-        {"rcp", 1, 1, false},          // 19
-        {"rsqc", 1, 1, false},         // 20
-        {"rsqf", 1, 1, false},         // 21
-        {"rsq", 1, 1, false},          // 22
-        {"maxas", 1, 2, false},        // 23
-        {"maxasf", 1, 2, false},       // 24
-        {"subs", 1, 2, false},         // 25
-        {"subs_prev", 1, 1, false},    // 26
-        {"setp_eq", 1, 1, false},      // 27
-        {"setp_ne", 1, 1, false},      // 28
-        {"setp_gt", 1, 1, false},      // 29
-        {"setp_ge", 1, 1, false},      // 30
-        {"setp_inv", 1, 1, false},     // 31
-        {"setp_pop", 1, 1, false},     // 32
-        {"setp_clr", 0, 0, false},     // 33
-        {"setp_rstr", 1, 1, false},    // 34
-        {"kills_eq", 1, 1, true},      // 35
-        {"kills_gt", 1, 1, true},      // 36
-        {"kills_ge", 1, 1, true},      // 37
-        {"kills_ne", 1, 1, true},      // 38
-        {"kills_one", 1, 1, true},     // 39
-        {"sqrt", 1, 1, false},         // 40
-        {"UNKNOWN", 0, 0, false},      // 41
-        {"mulsc", 2, 1, false},        // 42
-        {"mulsc", 2, 1, false},        // 43
-        {"addsc", 2, 1, false},        // 44
-        {"addsc", 2, 1, false},        // 45
-        {"subsc", 2, 1, false},        // 46
-        {"subsc", 2, 1, false},        // 47
-        {"sin", 1, 1, false},          // 48
-        {"cos", 1, 1, false},          // 49
-        {"retain_prev", 0, 0, false},  // 50
+        {"adds", 1, 2},         // 0
+        {"adds_prev", 1, 1},    // 1
+        {"muls", 1, 2},         // 2
+        {"muls_prev", 1, 1},    // 3
+        {"muls_prev2", 1, 2},   // 4
+        {"maxs", 1, 2},         // 5
+        {"mins", 1, 2},         // 6
+        {"seqs", 1, 1},         // 7
+        {"sgts", 1, 1},         // 8
+        {"sges", 1, 1},         // 9
+        {"snes", 1, 1},         // 10
+        {"frcs", 1, 1},         // 11
+        {"truncs", 1, 1},       // 12
+        {"floors", 1, 1},       // 13
+        {"exp", 1, 1},          // 14
+        {"logc", 1, 1},         // 15
+        {"log", 1, 1},          // 16
+        {"rcpc", 1, 1},         // 17
+        {"rcpf", 1, 1},         // 18
+        {"rcp", 1, 1},          // 19
+        {"rsqc", 1, 1},         // 20
+        {"rsqf", 1, 1},         // 21
+        {"rsq", 1, 1},          // 22
+        {"maxas", 1, 2},        // 23
+        {"maxasf", 1, 2},       // 24
+        {"subs", 1, 2},         // 25
+        {"subs_prev", 1, 1},    // 26
+        {"setp_eq", 1, 1},      // 27
+        {"setp_ne", 1, 1},      // 28
+        {"setp_gt", 1, 1},      // 29
+        {"setp_ge", 1, 1},      // 30
+        {"setp_inv", 1, 1},     // 31
+        {"setp_pop", 1, 1},     // 32
+        {"setp_clr", 0, 0},     // 33
+        {"setp_rstr", 1, 1},    // 34
+        {"kills_eq", 1, 1},     // 35
+        {"kills_gt", 1, 1},     // 36
+        {"kills_ge", 1, 1},     // 37
+        {"kills_ne", 1, 1},     // 38
+        {"kills_one", 1, 1},    // 39
+        {"sqrt", 1, 1},         // 40
+        {"UNKNOWN", 0, 0},      // 41
+        {"mulsc", 2, 1},        // 42
+        {"mulsc", 2, 1},        // 43
+        {"addsc", 2, 1},        // 44
+        {"addsc", 2, 1},        // 45
+        {"subsc", 2, 1},        // 46
+        {"subsc", 2, 1},        // 47
+        {"sin", 1, 1},          // 48
+        {"cos", 1, 1},          // 49
+        {"retain_prev", 0, 0},  // 50
 };
 
 void ShaderTranslator::TranslateAluInstruction(const AluInstruction& op) {

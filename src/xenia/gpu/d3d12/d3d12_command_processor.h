@@ -27,6 +27,7 @@
 #include "xenia/gpu/d3d12/render_target_cache.h"
 #include "xenia/gpu/d3d12/texture_cache.h"
 #include "xenia/gpu/draw_util.h"
+#include "xenia/gpu/dxbc_shader.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
@@ -47,7 +48,7 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   void ClearCaches() override;
 
-  void InitializeShaderStorage(const std::filesystem::path& storage_root,
+  void InitializeShaderStorage(const std::filesystem::path& cache_root,
                                uint32_t title_id, bool blocking) override;
 
   void RequestFrameTrace(const std::filesystem::path& root_path) override;
@@ -88,7 +89,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   // there are 4 render targets bound with the same EDRAM base (clearly not
   // correct usage), but the shader only clears 1, and then EDRAM buffer stores
   // conflict with each other.
-  uint32_t GetCurrentColorMask(const D3D12Shader* pixel_shader) const;
+  uint32_t GetCurrentColorMask(const Shader* pixel_shader) const;
 
   void PushTransitionBarrier(
       ID3D12Resource* resource, D3D12_RESOURCE_STATES old_state,
@@ -100,8 +101,9 @@ class D3D12CommandProcessor : public CommandProcessor {
   void SubmitBarriers();
 
   // Finds or creates root signature for a pipeline.
-  ID3D12RootSignature* GetRootSignature(const D3D12Shader* vertex_shader,
-                                        const D3D12Shader* pixel_shader);
+  ID3D12RootSignature* GetRootSignature(const DxbcShader* vertex_shader,
+                                        const DxbcShader* pixel_shader,
+                                        bool tessellated);
 
   ui::d3d12::D3D12UploadBufferPool& GetConstantBufferPool() const {
     return *constant_buffer_pool_;
@@ -300,7 +302,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Gets the indices of optional root parameters. Returns the total parameter
   // count.
   static uint32_t GetRootBindfulExtraParameterIndices(
-      const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
+      const DxbcShader* vertex_shader, const DxbcShader* pixel_shader,
       RootBindfulExtraParameterIndices& indices_out);
 
   // BeginSubmission and EndSubmission may be called at any time. If there's an
@@ -353,8 +355,7 @@ class D3D12CommandProcessor : public CommandProcessor {
       bool shared_memory_is_uav, bool primitive_polygonal,
       uint32_t line_loop_closing_index, xenos::Endian index_endian,
       const draw_util::ViewportInfo& viewport_info, uint32_t pixel_size_x,
-      uint32_t pixel_size_y, uint32_t used_texture_mask, bool early_z,
-      uint32_t color_mask,
+      uint32_t pixel_size_y, uint32_t used_texture_mask, uint32_t color_mask,
       const RenderTargetCache::PipelineRenderTarget render_targets[4]);
   bool UpdateBindings(const D3D12Shader* vertex_shader,
                       const D3D12Shader* pixel_shader,

@@ -362,35 +362,38 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
   return pipeline;
 }
 
-bool PipelineCache::TranslateShader(VulkanShader* shader,
-                                    reg::SQ_PROGRAM_CNTL cntl) {
+bool PipelineCache::TranslateShader(
+    VulkanShader::VulkanTranslation& translation, reg::SQ_PROGRAM_CNTL cntl) {
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
-  if (!shader_translator_->Translate(shader, cntl)) {
+  if (!shader_translator_->Translate(translation, cntl)) {
     XELOGE("Shader translation failed; marking shader as ignored");
     return false;
   }
 
   // Prepare the shader for use (creates our VkShaderModule).
   // It could still fail at this point.
-  if (!shader->Prepare()) {
+  if (!translation.Prepare()) {
     XELOGE("Shader preparation failed; marking shader as ignored");
     return false;
   }
 
-  if (shader->is_valid()) {
+  if (translation.is_valid()) {
     XELOGGPU("Generated {} shader ({}b) - hash {:016X}:\n{}\n",
-             shader->type() == xenos::ShaderType::kVertex ? "vertex" : "pixel",
-             shader->ucode_dword_count() * 4, shader->ucode_data_hash(),
-             shader->ucode_disassembly());
+             translation.shader().type() == xenos::ShaderType::kVertex
+                 ? "vertex"
+                 : "pixel",
+             translation.shader().ucode_dword_count() * 4,
+             translation.shader().ucode_data_hash(),
+             translation.shader().ucode_disassembly());
   }
 
   // Dump shader files if desired.
   if (!cvars::dump_shaders.empty()) {
-    shader->Dump(cvars::dump_shaders, "vk");
+    translation.Dump(cvars::dump_shaders, "vk");
   }
 
-  return shader->is_valid();
+  return translation.is_valid();
 }
 
 static void DumpShaderStatisticsAMD(const VkShaderStatisticsInfoAMD& stats) {
@@ -1063,16 +1066,28 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
     return UpdateStatus::kCompatible;
   }
 
-  if (!vertex_shader->is_translated() &&
-      !TranslateShader(vertex_shader, regs.sq_program_cntl)) {
+  VulkanShader::VulkanTranslation* vertex_shader_translation =
+      static_cast<VulkanShader::VulkanTranslation*>(
+          vertex_shader->GetOrCreateTranslation(
+              shader_translator_->GetDefaultModification(
+                  xenos::ShaderType::kVertex)));
+  if (!vertex_shader_translation->is_translated() &&
+      !TranslateShader(*vertex_shader_translation, regs.sq_program_cntl)) {
     XELOGE("Failed to translate the vertex shader!");
     return UpdateStatus::kError;
   }
 
-  if (pixel_shader && !pixel_shader->is_translated() &&
-      !TranslateShader(pixel_shader, regs.sq_program_cntl)) {
-    XELOGE("Failed to translate the pixel shader!");
-    return UpdateStatus::kError;
+  VulkanShader::VulkanTranslation* pixel_shader_translation = nullptr;
+  if (pixel_shader) {
+    pixel_shader_translation = static_cast<VulkanShader::VulkanTranslation*>(
+        pixel_shader->GetOrCreateTranslation(
+            shader_translator_->GetDefaultModification(
+                xenos::ShaderType::kPixel)));
+    if (!pixel_shader_translation->is_translated() &&
+        !TranslateShader(*pixel_shader_translation, regs.sq_program_cntl)) {
+      XELOGE("Failed to translate the pixel shader!");
+      return UpdateStatus::kError;
+    }
   }
 
   update_shader_stages_stage_count_ = 0;
@@ -1084,7 +1099,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   vertex_pipeline_stage.pNext = nullptr;
   vertex_pipeline_stage.flags = 0;
   vertex_pipeline_stage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-  vertex_pipeline_stage.module = vertex_shader->shader_module();
+  vertex_pipeline_stage.module = vertex_shader_translation->shader_module();
   vertex_pipeline_stage.pName = "main";
   vertex_pipeline_stage.pSpecializationInfo = nullptr;
 
@@ -1116,8 +1131,9 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   pixel_pipeline_stage.pNext = nullptr;
   pixel_pipeline_stage.flags = 0;
   pixel_pipeline_stage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  pixel_pipeline_stage.module =
-      pixel_shader ? pixel_shader->shader_module() : dummy_pixel_shader_;
+  pixel_pipeline_stage.module = pixel_shader_translation
+                                    ? pixel_shader_translation->shader_module()
+                                    : dummy_pixel_shader_;
   pixel_pipeline_stage.pName = "main";
   pixel_pipeline_stage.pSpecializationInfo = nullptr;
 

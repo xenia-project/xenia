@@ -40,11 +40,13 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/edram_load_color_32bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/edram_load_color_64bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/edram_load_color_7e3_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/edram_load_depth_float24and32_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/edram_load_depth_float_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/edram_load_depth_unorm_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/edram_store_color_32bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/edram_store_color_64bpp_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/edram_store_color_7e3_cs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/edram_store_depth_float24and32_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/edram_store_depth_float_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/edram_store_depth_unorm_cs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/resolve_clear_32bpp_2xres_cs.h"
@@ -87,6 +89,12 @@ const RenderTargetCache::EdramLoadStoreModeInfo
         {edram_load_depth_float_cs, sizeof(edram_load_depth_float_cs),
          L"EDRAM Load Float Depth", edram_store_depth_float_cs,
          sizeof(edram_store_depth_float_cs), L"EDRAM Store Float Depth"},
+        {edram_load_depth_float24and32_cs,
+         sizeof(edram_load_depth_float24and32_cs),
+         L"EDRAM Load 24-bit & 32-bit Float Depth",
+         edram_store_depth_float24and32_cs,
+         sizeof(edram_store_depth_float24and32_cs),
+         L"EDRAM Store 24-bit & 32-bit Float Depth"},
 };
 
 const std::pair<const uint8_t*, size_t>
@@ -126,6 +134,8 @@ RenderTargetCache::RenderTargetCache(D3D12CommandProcessor& command_processor,
 RenderTargetCache::~RenderTargetCache() { Shutdown(); }
 
 bool RenderTargetCache::Initialize(const TextureCache& texture_cache) {
+  depth_float24_conversion_ = flags::GetDepthFloat24Conversion();
+
   // EDRAM buffer size depends on this.
   resolution_scale_2x_ = texture_cache.IsResolutionScale2X();
   assert_false(resolution_scale_2x_ && !edram_rov_used_);
@@ -420,7 +430,8 @@ bool RenderTargetCache::Initialize(const TextureCache& texture_cache) {
     return false;
   }
   resolve_clear_64bpp_pipeline_->SetName(L"Resolve Clear 64bpp");
-  if (!edram_rov_used_) {
+  if (!edram_rov_used_ &&
+      depth_float24_conversion_ == flags::DepthFloat24Conversion::kOnCopy) {
     assert_false(resolution_scale_2x_);
     resolve_clear_depth_24_32_pipeline_ =
         ui::d3d12::util::CreateComputePipeline(
@@ -434,7 +445,7 @@ bool RenderTargetCache::Initialize(const TextureCache& texture_cache) {
       Shutdown();
       return false;
     }
-    resolve_clear_64bpp_pipeline_->SetName(
+    resolve_clear_depth_24_32_pipeline_->SetName(
         L"Resolve Clear 24-bit & 32-bit Depth");
   }
 
@@ -1266,10 +1277,12 @@ bool RenderTargetCache::Resolve(const Memory& memory,
       if (clear_depth) {
         // Also clear the host 32-bit floating-point depth used for loaing and
         // storing 24-bit floating-point depth at full precision.
-        bool clear_float32_depth =
-            !edram_rov_used_ && xenos::DepthRenderTargetFormat(
-                                    resolve_info.depth_edram_info.format) ==
-                                    xenos::DepthRenderTargetFormat::kD24FS8;
+        bool clear_float32_depth = !edram_rov_used_ &&
+                                   depth_float24_conversion_ ==
+                                       flags::DepthFloat24Conversion::kOnCopy &&
+                                   xenos::DepthRenderTargetFormat(
+                                       resolve_info.depth_edram_info.format) ==
+                                       xenos::DepthRenderTargetFormat::kD24FS8;
         draw_util::ResolveClearShaderConstants depth_clear_constants;
         resolve_info.GetDepthClearShaderConstants(clear_float32_depth,
                                                   depth_clear_constants);
@@ -1558,7 +1571,8 @@ void RenderTargetCache::RestoreEdramSnapshot(const void* snapshot) {
 
 uint32_t RenderTargetCache::GetEdramBufferSize() const {
   uint32_t size = xenos::kEdramSizeBytes;
-  if (!edram_rov_used_) {
+  if (!edram_rov_used_ &&
+      depth_float24_conversion_ == flags::DepthFloat24Conversion::kOnCopy) {
     // Two 10 MB pages, one containing color and integer depth data, another
     // with 32-bit float depth when 20e4 depth is used to allow for multipass
     // drawing without precision loss in case of EDRAM store/load.
@@ -1831,12 +1845,15 @@ RenderTargetCache::RenderTarget* RenderTargetCache::FindOrCreateRenderTarget(
 }
 
 RenderTargetCache::EdramLoadStoreMode RenderTargetCache::GetLoadStoreMode(
-    bool is_depth, uint32_t format) {
+    bool is_depth, uint32_t format) const {
   if (is_depth) {
-    return xenos::DepthRenderTargetFormat(format) ==
-                   xenos::DepthRenderTargetFormat::kD24FS8
-               ? EdramLoadStoreMode::kDepthFloat
-               : EdramLoadStoreMode::kDepthUnorm;
+    if (xenos::DepthRenderTargetFormat(format) ==
+        xenos::DepthRenderTargetFormat::kD24FS8) {
+      return depth_float24_conversion_ == flags::DepthFloat24Conversion::kOnCopy
+                 ? EdramLoadStoreMode::kDepthFloat24And32
+                 : EdramLoadStoreMode::kDepthFloat;
+    }
+    return EdramLoadStoreMode::kDepthUnorm;
   }
   xenos::ColorRenderTargetFormat color_format =
       xenos::ColorRenderTargetFormat(format);

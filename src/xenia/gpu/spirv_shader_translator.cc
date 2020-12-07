@@ -667,12 +667,14 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
   return spirv_bytes;
 }
 
-void SpirvShaderTranslator::PostTranslation(Shader* shader) {
+void SpirvShaderTranslator::PostTranslation(
+    Shader::Translation& translation, bool setup_shader_post_translation_info) {
   // Validation.
   if (cvars::spv_validate) {
     auto validation = validator_.Validate(
-        reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
-        shader->translated_binary().size() / sizeof(uint32_t));
+        reinterpret_cast<const uint32_t*>(
+            translation.translated_binary().data()),
+        translation.translated_binary().size() / sizeof(uint32_t));
     if (validation->has_error()) {
       XELOGE("SPIR-V Shader Validation failed! Error: {}",
              validation->error_string());
@@ -682,12 +684,13 @@ void SpirvShaderTranslator::PostTranslation(Shader* shader) {
   if (cvars::spv_disasm) {
     // TODO(benvanik): only if needed? could be slowish.
     auto disasm = disassembler_.Disassemble(
-        reinterpret_cast<const uint32_t*>(shader->translated_binary().data()),
-        shader->translated_binary().size() / 4);
+        reinterpret_cast<const uint32_t*>(
+            translation.translated_binary().data()),
+        translation.translated_binary().size() / sizeof(uint32_t));
     if (disasm->has_error()) {
       XELOGE("Failed to disassemble SPIRV - invalid?");
     } else {
-      set_host_disassembly(shader, disasm->to_string());
+      set_host_disassembly(translation, disasm->to_string());
     }
   }
 }

@@ -31,9 +31,13 @@ Shader::Shader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
   xe::copy_and_swap(ucode_data_.data(), ucode_dwords, ucode_dword_count);
 }
 
-Shader::~Shader() = default;
+Shader::~Shader() {
+  for (auto it : translations_) {
+    delete it.second;
+  }
+}
 
-std::string Shader::GetTranslatedBinaryString() const {
+std::string Shader::Translation::GetTranslatedBinaryString() const {
   std::string result;
   result.resize(translated_binary_.size());
   std::memcpy(const_cast<char*>(result.data()), translated_binary_.data(),
@@ -41,36 +45,24 @@ std::string Shader::GetTranslatedBinaryString() const {
   return result;
 }
 
-std::pair<std::filesystem::path, std::filesystem::path> Shader::Dump(
+std::filesystem::path Shader::Translation::Dump(
     const std::filesystem::path& base_path, const char* path_prefix) {
+  std::filesystem::path path = base_path;
   // Ensure target path exists.
-  auto target_path = base_path;
-  if (!target_path.empty()) {
-    target_path = std::filesystem::absolute(target_path);
-    std::filesystem::create_directories(target_path);
+  if (!path.empty()) {
+    path = std::filesystem::absolute(path);
+    std::filesystem::create_directories(path);
   }
-
-  auto base_name =
-      fmt::format("shader_{}_{:016X}", path_prefix, ucode_data_hash_);
-
-  std::string txt_name, bin_name;
-  if (shader_type_ == xenos::ShaderType::kVertex) {
-    txt_name = base_name + ".vert";
-    bin_name = base_name + ".bin.vert";
-  } else {
-    txt_name = base_name + ".frag";
-    bin_name = base_name + ".bin.frag";
-  }
-
-  std::filesystem::path txt_path, bin_path;
-  txt_path = base_path / txt_name;
-  bin_path = base_path / bin_name;
-
-  FILE* f = filesystem::OpenFile(txt_path, "wb");
+  path = path /
+         fmt::format(
+             "shader_{:016X}_{:08X}.{}.{}", shader().ucode_data_hash(),
+             modification(), path_prefix,
+             shader().type() == xenos::ShaderType::kVertex ? "vert" : "frag");
+  FILE* f = filesystem::OpenFile(path, "wb");
   if (f) {
     fwrite(translated_binary_.data(), 1, translated_binary_.size(), f);
     fprintf(f, "\n\n");
-    auto ucode_disasm_ptr = ucode_disassembly().c_str();
+    auto ucode_disasm_ptr = shader().ucode_disassembly().c_str();
     while (*ucode_disasm_ptr) {
       auto line_end = std::strchr(ucode_disasm_ptr, '\n');
       fprintf(f, "// ");
@@ -83,14 +75,58 @@ std::pair<std::filesystem::path, std::filesystem::path> Shader::Dump(
     }
     fclose(f);
   }
+  return std::move(path);
+}
 
-  f = filesystem::OpenFile(bin_path, "wb");
+Shader::Translation* Shader::GetOrCreateTranslation(uint32_t modification,
+                                                    bool* is_new) {
+  auto it = translations_.find(modification);
+  if (it != translations_.end()) {
+    if (is_new) {
+      *is_new = false;
+    }
+    return it->second;
+  }
+  Translation* translation = CreateTranslationInstance(modification);
+  translations_.emplace(modification, translation);
+  if (is_new) {
+    *is_new = true;
+  }
+  return translation;
+}
+
+void Shader::DestroyTranslation(uint32_t modification) {
+  auto it = translations_.find(modification);
+  if (it == translations_.end()) {
+    return;
+  }
+  delete it->second;
+  translations_.erase(it);
+}
+
+std::filesystem::path Shader::DumpUcodeBinary(
+    const std::filesystem::path& base_path) {
+  // Ensure target path exists.
+  std::filesystem::path path = base_path;
+  if (!path.empty()) {
+    path = std::filesystem::absolute(path);
+    std::filesystem::create_directories(path);
+  }
+  path = path /
+         fmt::format("shader_{:016X}.ucode.bin.{}", ucode_data_hash(),
+                     type() == xenos::ShaderType::kVertex ? "vert" : "frag");
+
+  FILE* f = filesystem::OpenFile(path, "wb");
   if (f) {
-    fwrite(ucode_data_.data(), 4, ucode_data_.size(), f);
+    fwrite(ucode_data().data(), 4, ucode_data().size(), f);
     fclose(f);
   }
+  return std::move(path);
+}
 
-  return {std::move(txt_path), std::move(bin_path)};
+Shader::Translation* Shader::CreateTranslationInstance(uint32_t modification) {
+  // Default implementation for simple cases like ucode disassembly.
+  return new Translation(*this, modification);
 }
 
 }  //  namespace gpu

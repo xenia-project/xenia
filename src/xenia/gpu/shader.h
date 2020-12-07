@@ -11,8 +11,12 @@
 #define XENIA_GPU_SHADER_H_
 
 #include <algorithm>
+#include <atomic>
+#include <cstdint>
 #include <filesystem>
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "xenia/base/math.h"
@@ -591,6 +595,8 @@ struct ParsedAluInstruction {
 
 class Shader {
  public:
+  // Type of the vertex shader in a D3D11-like rendering pipeline - shader
+  // interface depends on in, so it must be known at translation time.
   // If values are changed, INVALIDATE SHADER STORAGES (increase their version
   // constexpr) where those are stored! And check bit count where this is
   // packed. This is : uint32_t for simplicity of packing in bit fields.
@@ -603,6 +609,8 @@ class Shader {
     kQuadDomainCPIndexed,
     kQuadDomainPatchIndexed,
   };
+  // For packing HostVertexShaderType in bit fields.
+  static constexpr uint32_t kHostVertexShaderTypeBitCount = 3;
 
   struct Error {
     bool is_fatal = false;
@@ -683,6 +691,67 @@ class Shader {
     }
   };
 
+  class Translation {
+   public:
+    virtual ~Translation() {}
+
+    Shader& shader() const { return shader_; }
+
+    // Translator-specific modification bits.
+    uint32_t modification() const { return modification_; }
+
+    // True if the shader was translated and prepared without error.
+    bool is_valid() const { return is_valid_; }
+
+    // True if the shader has already been translated.
+    bool is_translated() const { return is_translated_; }
+
+    // Errors that occurred during translation.
+    const std::vector<Error>& errors() const { return errors_; }
+
+    // Translated shader binary (or text).
+    const std::vector<uint8_t>& translated_binary() const {
+      return translated_binary_;
+    }
+
+    // Gets the translated shader binary as a string.
+    // This is only valid if it is actually text.
+    std::string GetTranslatedBinaryString() const;
+
+    // Disassembly of the translated from the host graphics layer.
+    // May be empty if the host does not support disassembly.
+    const std::string& host_disassembly() const { return host_disassembly_; }
+
+    // In case disassembly depends on the GPU backend, for setting it
+    // externally.
+    void set_host_disassembly(std::string disassembly) {
+      host_disassembly_ = std::move(disassembly);
+    }
+
+    // For dumping after translation. Dumps the shader's disassembled microcode,
+    // translated code, and, if available, translated disassembly, to a file in
+    // the given path based on ucode hash. Returns the name of the written file.
+    std::filesystem::path Dump(const std::filesystem::path& base_path,
+                               const char* path_prefix);
+
+   protected:
+    Translation(Shader& shader, uint32_t modification)
+        : shader_(shader), modification_(modification) {}
+
+   private:
+    friend class Shader;
+    friend class ShaderTranslator;
+
+    Shader& shader_;
+    uint32_t modification_;
+
+    bool is_valid_ = false;
+    bool is_translated_ = false;
+    std::vector<Error> errors_;
+    std::vector<uint8_t> translated_binary_;
+    std::string host_disassembly_;
+  };
+
   Shader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
          const uint32_t* ucode_dwords, size_t ucode_dword_count);
   virtual ~Shader();
@@ -690,18 +759,29 @@ class Shader {
   // Whether the shader is identified as a vertex or pixel shader.
   xenos::ShaderType type() const { return shader_type_; }
 
-  // If this is a vertex shader, and it has been translated, type of the shader
-  // in a D3D11-like rendering pipeline - shader interface depends on in, so it
-  // must be known at translation time.
-  HostVertexShaderType host_vertex_shader_type() const {
-    return host_vertex_shader_type_;
-  }
-
   // Microcode dwords in host endianness.
   const std::vector<uint32_t>& ucode_data() const { return ucode_data_; }
   uint64_t ucode_data_hash() const { return ucode_data_hash_; }
   const uint32_t* ucode_dwords() const { return ucode_data_.data(); }
   size_t ucode_dword_count() const { return ucode_data_.size(); }
+
+  // Host translations with the specified modification bits. Not thread-safe
+  // with respect to translation creation/destruction.
+  const std::unordered_map<uint32_t, Translation*>& translations() const {
+    return translations_;
+  }
+  Translation* GetTranslation(uint32_t modification) const {
+    auto it = translations_.find(modification);
+    if (it != translations_.cend()) {
+      return it->second;
+    }
+    return nullptr;
+  }
+  Translation* GetOrCreateTranslation(uint32_t modification,
+                                      bool* is_new = nullptr);
+  // For shader storage loading, to remove a modification in case of translation
+  // failure. Not thread-safe.
+  void DestroyTranslation(uint32_t modification);
 
   // All vertex bindings used in the shader.
   // Valid for vertex shaders only.
@@ -733,73 +813,55 @@ class Shader {
   // True if the shader overrides the pixel depth.
   bool writes_depth() const { return writes_depth_; }
 
-  // True if Xenia can automatically enable early depth/stencil for the pixel
-  // shader when RB_DEPTHCONTROL EARLY_Z_ENABLE is not set, provided alpha
-  // testing and alpha to coverage are disabled.
-  bool implicit_early_z_allowed() const { return implicit_early_z_allowed_; }
-
-  // True if the shader was translated and prepared without error.
-  bool is_valid() const { return is_valid_; }
-
-  // True if the shader has already been translated.
-  bool is_translated() const { return is_translated_; }
-
-  // Errors that occurred during translation.
-  const std::vector<Error>& errors() const { return errors_; }
+  // True if the current shader has any `kill` instructions.
+  bool kills_pixels() const { return kills_pixels_; }
 
   // Microcode disassembly in D3D format.
   const std::string& ucode_disassembly() const { return ucode_disassembly_; }
 
-  // Translated shader binary (or text).
-  const std::vector<uint8_t>& translated_binary() const {
-    return translated_binary_;
+  // An externally managed identifier of the shader storage the microcode of the
+  // shader was last written to, or was loaded from, to only write the shader
+  // microcode to the storage once. UINT32_MAX by default.
+  uint32_t ucode_storage_index() const { return ucode_storage_index_; }
+  void set_ucode_storage_index(uint32_t storage_index) {
+    ucode_storage_index_ = storage_index;
   }
 
-  // Gets the translated shader binary as a string.
-  // This is only valid if it is actually text.
-  std::string GetTranslatedBinaryString() const;
-
-  // Disassembly of the translated from the host graphics layer.
-  // May be empty if the host does not support disassembly.
-  const std::string& host_disassembly() const { return host_disassembly_; }
-  // A lot of errors that occurred during preparation of the host shader.
-  const std::string& host_error_log() const { return host_error_log_; }
-  // Host binary that can be saved and reused across runs.
-  // May be empty if the host does not support saving binaries.
-  const std::vector<uint8_t>& host_binary() const { return host_binary_; }
-
-  // Dumps the shader to a file in the given path based on ucode hash.
-  // Both the ucode binary and disassembled and translated shader will be
-  // written.
-  // Returns the filename of the shader and the binary.
-  std::pair<std::filesystem::path, std::filesystem::path> Dump(
-      const std::filesystem::path& base_path, const char* path_prefix);
+  // Dumps the shader's microcode binary to a file in the given path based on
+  // ucode hash. Returns the name of the written file. Can be called at any
+  // time, doesn't require the shader to be translated.
+  std::filesystem::path DumpUcodeBinary(const std::filesystem::path& base_path);
 
  protected:
   friend class ShaderTranslator;
 
+  virtual Translation* CreateTranslationInstance(uint32_t modification);
+
   xenos::ShaderType shader_type_;
-  HostVertexShaderType host_vertex_shader_type_ = HostVertexShaderType::kVertex;
   std::vector<uint32_t> ucode_data_;
   uint64_t ucode_data_hash_;
 
+  // Modification bits -> translation.
+  std::unordered_map<uint32_t, Translation*> translations_;
+
+  // Whether setup of the post-translation parameters (listed below, plus those
+  // specific to the implementation) has been initiated, by any thread. If
+  // translation is performed on multiple threads, only one thread must be
+  // setting this up (other threads would write the same data anyway).
+  std::atomic_flag post_translation_info_set_up_ = ATOMIC_FLAG_INIT;
+
+  // Initialized after the first successful translation (these don't depend on
+  // the host-side modification bits).
+  std::string ucode_disassembly_;
   std::vector<VertexBinding> vertex_bindings_;
   std::vector<TextureBinding> texture_bindings_;
   ConstantRegisterMap constant_register_map_ = {0};
   bool writes_color_targets_[4] = {false, false, false, false};
   bool writes_depth_ = false;
-  bool implicit_early_z_allowed_ = true;
+  bool kills_pixels_ = false;
   std::vector<uint32_t> memexport_stream_constants_;
 
-  bool is_valid_ = false;
-  bool is_translated_ = false;
-  std::vector<Error> errors_;
-
-  std::string ucode_disassembly_;
-  std::vector<uint8_t> translated_binary_;
-  std::string host_disassembly_;
-  std::string host_error_log_;
-  std::vector<uint8_t> host_binary_;
+  uint32_t ucode_storage_index_ = UINT32_MAX;
 };
 
 }  // namespace gpu
