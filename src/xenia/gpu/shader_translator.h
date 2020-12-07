@@ -29,29 +29,33 @@ class ShaderTranslator {
  public:
   virtual ~ShaderTranslator();
 
-  bool Translate(Shader* shader, reg::SQ_PROGRAM_CNTL cntl,
-                 Shader::HostVertexShaderType host_vertex_shader_type =
-                     Shader::HostVertexShaderType::kVertex);
-  bool Translate(Shader* shader,
-                 Shader::HostVertexShaderType host_vertex_shader_type =
-                     Shader::HostVertexShaderType::kVertex);
+  virtual uint32_t GetDefaultModification(
+      xenos::ShaderType shader_type,
+      Shader::HostVertexShaderType host_vertex_shader_type =
+          Shader::HostVertexShaderType::kVertex) const {
+    return 0;
+  }
+
+  bool Translate(Shader::Translation& translation, reg::SQ_PROGRAM_CNTL cntl);
+  bool Translate(Shader::Translation& translation);
 
  protected:
   ShaderTranslator();
 
   // Resets translator state before beginning translation.
-  virtual void Reset();
+  // shader_type is passed here so translator implementations can generate
+  // special fixed shaders for internal use, and set up the type for this
+  // purpose.
+  virtual void Reset(xenos::ShaderType shader_type);
+
+  // Current host-side modification being generated.
+  uint32_t modification() const { return modification_; }
 
   // Register count.
   uint32_t register_count() const { return register_count_; }
   // True if the current shader is a vertex shader.
   bool is_vertex_shader() const {
     return shader_type_ == xenos::ShaderType::kVertex;
-  }
-  // If translating a vertex shader, type of the shader in a D3D11-like
-  // rendering pipeline.
-  Shader::HostVertexShaderType host_vertex_shader_type() const {
-    return host_vertex_shader_type_;
   }
   // True if the current shader is a pixel shader.
   bool is_pixel_shader() const {
@@ -85,10 +89,8 @@ class ShaderTranslator {
   // True if the current shader overrides the pixel depth, set before
   // translation. Doesn't include writes with an empty used write mask.
   bool writes_depth() const { return writes_depth_; }
-  // True if Xenia can automatically enable early depth/stencil for the pixel
-  // shader when RB_DEPTHCONTROL EARLY_Z_ENABLE is not set, provided alpha
-  // testing and alpha to coverage are disabled.
-  bool implicit_early_z_allowed() const { return implicit_early_z_allowed_; }
+  // True if the current shader has any `kill` instructions.
+  bool kills_pixels() const { return kills_pixels_; }
   // A list of all vertex bindings, populated before translation occurs.
   const std::vector<Shader::VertexBinding>& vertex_bindings() const {
     return vertex_bindings_;
@@ -112,6 +114,17 @@ class ShaderTranslator {
     return memexport_stream_constants_;
   }
 
+  // Whether the shader can have early depth and stencil writing enabled, unless
+  // alpha test or alpha to coverage is enabled. Data gathered before
+  // translation.
+  bool CanWriteZEarly() const {
+    // TODO(Triang3l): Investigate what happens to memexport when the pixel
+    // fails the depth/stencil test, but in Direct3D 11 UAV writes disable early
+    // depth/stencil.
+    return !writes_depth_ && !kills_pixels_ &&
+           memexport_stream_constants_.empty();
+  }
+
   // Current line number in the ucode disassembly.
   size_t ucode_disasm_line_number() const { return ucode_disasm_line_number_; }
   // Ucode disassembly buffer accumulated during translation.
@@ -130,10 +143,14 @@ class ShaderTranslator {
   }
 
   // Handles post-translation tasks when the shader has been fully translated.
-  virtual void PostTranslation(Shader* shader) {}
+  // setup_shader_post_translation_info if non-modification-specific parameters
+  // of the Shader object behind the Translation can be set by this invocation.
+  virtual void PostTranslation(Shader::Translation& translation,
+                               bool setup_shader_post_translation_info) {}
   // Sets the host disassembly on a shader.
-  void set_host_disassembly(Shader* shader, std::string value) {
-    shader->host_disassembly_ = std::move(value);
+  void set_host_disassembly(Shader::Translation& translation,
+                            std::string value) {
+    translation.host_disassembly_ = std::move(value);
   }
 
   // Pre-process a control-flow instruction before anything else.
@@ -188,11 +205,9 @@ class ShaderTranslator {
     const char* name;
     uint32_t argument_count;
     uint32_t src_swizzle_component_count;
-    bool disable_implicit_early_z;
   };
 
-  bool TranslateInternal(Shader* shader,
-                         Shader::HostVertexShaderType host_vertex_shader_type);
+  bool TranslateInternal(Shader::Translation& translation);
 
   void MarkUcodeInstruction(uint32_t dword_offset);
   void AppendUcodeDisasm(char c);
@@ -246,11 +261,12 @@ class ShaderTranslator {
 
   // Input shader metadata and microcode.
   xenos::ShaderType shader_type_;
-  Shader::HostVertexShaderType host_vertex_shader_type_;
   const uint32_t* ucode_dwords_;
   size_t ucode_dword_count_;
-  reg::SQ_PROGRAM_CNTL program_cntl_;
   uint32_t register_count_;
+
+  // Current host-side modification being generated.
+  uint32_t modification_ = 0;
 
   // Accumulated translation errors.
   std::vector<Shader::Error> errors_;
@@ -272,7 +288,8 @@ class ShaderTranslator {
   // translation.
   std::set<uint32_t> label_addresses_;
 
-  // Detected binding information gathered before translation.
+  // Detected binding information gathered before translation. Must not be
+  // affected by the modification index.
   int total_attrib_count_ = 0;
   std::vector<Shader::VertexBinding> vertex_bindings_;
   std::vector<Shader::TextureBinding> texture_bindings_;
@@ -282,13 +299,15 @@ class ShaderTranslator {
   // These all are gathered before translation.
   // uses_register_dynamic_addressing_ for writes, writes_color_targets_,
   // writes_depth_ don't include empty used write masks.
+  // Must not be affected by the modification index.
   Shader::ConstantRegisterMap constant_register_map_ = {0};
   bool uses_register_dynamic_addressing_ = false;
   bool writes_color_targets_[4] = {false, false, false, false};
   bool writes_depth_ = false;
-  bool implicit_early_z_allowed_ = true;
+  bool kills_pixels_ = false;
 
   // Memexport info is gathered before translation.
+  // Must not be affected by the modification index.
   uint32_t memexport_alloc_count_ = 0;
   // For register allocation in implementations - what was used after each
   // `alloc export`.

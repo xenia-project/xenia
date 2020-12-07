@@ -19,6 +19,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/math.h"
+#include "xenia/gpu/dxbc_shader.h"
 
 DEFINE_bool(dxbc_switch, true,
             "Use switch rather than if for flow control. Turning this off or "
@@ -76,64 +77,31 @@ DxbcShaderTranslator::DxbcShaderTranslator(uint32_t vendor_id,
 }
 DxbcShaderTranslator::~DxbcShaderTranslator() = default;
 
-std::vector<uint8_t> DxbcShaderTranslator::ForceEarlyDepthStencil(
-    const uint8_t* shader) {
-  const uint32_t* old_shader = reinterpret_cast<const uint32_t*>(shader);
-
-  // To return something anyway even if patching fails.
-  std::vector<uint8_t> new_shader;
-  uint32_t shader_size_bytes = old_shader[6];
-  new_shader.resize(shader_size_bytes);
-  std::memcpy(new_shader.data(), shader, shader_size_bytes);
-
-  // Find the SHEX chunk.
-  uint32_t chunk_count = old_shader[7];
-  for (uint32_t i = 0; i < chunk_count; ++i) {
-    uint32_t chunk_offset_bytes = old_shader[8 + i];
-    const uint32_t* chunk = old_shader + chunk_offset_bytes / sizeof(uint32_t);
-    if (chunk[0] != 'XEHS') {
-      continue;
-    }
-    // Find dcl_globalFlags and patch it.
-    uint32_t code_size_dwords = chunk[3];
-    chunk += 4;
-    for (uint32_t j = 0; j < code_size_dwords;) {
-      uint32_t opcode_token = chunk[j];
-      uint32_t opcode = DECODE_D3D10_SB_OPCODE_TYPE(opcode_token);
-      if (opcode == D3D10_SB_OPCODE_DCL_GLOBAL_FLAGS) {
-        opcode_token |= D3D11_SB_GLOBAL_FLAG_FORCE_EARLY_DEPTH_STENCIL;
-        std::memcpy(new_shader.data() +
-                        (chunk_offset_bytes + (4 + j) * sizeof(uint32_t)),
-                    &opcode_token, sizeof(uint32_t));
-        // Recalculate the checksum since the shader was modified.
-        CalculateDXBCChecksum(
-            reinterpret_cast<unsigned char*>(new_shader.data()),
-            shader_size_bytes,
-            reinterpret_cast<unsigned int*>(new_shader.data() +
-                                            sizeof(uint32_t)));
-        break;
-      }
-      if (opcode == D3D10_SB_OPCODE_CUSTOMDATA) {
-        j += chunk[j + 1];
-      } else {
-        j += DECODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(opcode_token);
-      }
-    }
-    break;
-  }
-
-  return std::move(new_shader);
-}
-
 std::vector<uint8_t> DxbcShaderTranslator::CreateDepthOnlyPixelShader() {
-  Reset();
+  Reset(xenos::ShaderType::kPixel);
   is_depth_only_pixel_shader_ = true;
   StartTranslation();
   return std::move(CompleteTranslation());
 }
 
-void DxbcShaderTranslator::Reset() {
-  ShaderTranslator::Reset();
+uint32_t DxbcShaderTranslator::GetDefaultModification(
+    xenos::ShaderType shader_type,
+    Shader::HostVertexShaderType host_vertex_shader_type) const {
+  Modification shader_modification;
+  switch (shader_type) {
+    case xenos::ShaderType::kVertex:
+      shader_modification.host_vertex_shader_type = host_vertex_shader_type;
+      break;
+    case xenos::ShaderType::kPixel:
+      shader_modification.depth_stencil_mode =
+          Modification::DepthStencilMode::kNoModifiers;
+      break;
+  }
+  return shader_modification.value;
+}
+
+void DxbcShaderTranslator::Reset(xenos::ShaderType shader_type) {
+  ShaderTranslator::Reset(shader_type);
 
   shader_code_.clear();
 
@@ -152,7 +120,7 @@ void DxbcShaderTranslator::Reset() {
   in_domain_location_used_ = 0;
   in_primitive_id_used_ = false;
   in_control_point_index_used_ = false;
-  in_position_xy_used_ = false;
+  in_position_used_ = 0;
   in_front_face_used_ = false;
 
   system_temp_count_current_ = 0;
@@ -457,7 +425,9 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
 
   // Remember that x# are only accessible via mov load or store - use a
   // temporary variable if need to do any computations!
-  switch (host_vertex_shader_type()) {
+  Shader::HostVertexShaderType host_vertex_shader_type =
+      GetDxbcShaderModification().host_vertex_shader_type;
+  switch (host_vertex_shader_type) {
     case Shader::HostVertexShaderType::kVertex:
       StartVertexShader_LoadVertexIndex();
       break;
@@ -618,7 +588,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
 
     default:
       // TODO(Triang3l): Support line and non-adaptive quad patches.
-      assert_unhandled_case(host_vertex_shader_type());
+      assert_unhandled_case(host_vertex_shader_type);
       EmitTranslationError(
           "Unsupported host vertex shader type in StartVertexOrDomainShader");
       break;
@@ -720,7 +690,7 @@ void DxbcShaderTranslator::StartPixelShader() {
       // faceness as X sign bit. Using Z as scratch register now.
       if (edram_rov_used_) {
         // Get XY address of the current host pixel as float.
-        in_position_xy_used_ = true;
+        in_position_used_ |= 0b0011;
         DxbcOpRoundZ(DxbcDest::R(param_gen_temp, 0b0011),
                      DxbcSrc::V(uint32_t(InOutRegister::kPSInPosition)));
         // Revert resolution scale - after truncating, so if the pixel position
@@ -744,7 +714,7 @@ void DxbcShaderTranslator::StartPixelShader() {
       } else {
         // Get XY address of the current SSAA sample by converting
         // SV_Position.xy to an integer.
-        in_position_xy_used_ = true;
+        in_position_used_ |= 0b0011;
         DxbcOpFToU(DxbcDest::R(param_gen_temp, 0b0011),
                    DxbcSrc::V(uint32_t(InOutRegister::kPSInPosition)));
         // Undo SSAA that is used instead of MSAA - since it's used as a
@@ -870,7 +840,7 @@ void DxbcShaderTranslator::StartPixelShader() {
 void DxbcShaderTranslator::StartTranslation() {
   // Allocate global system temporary registers that may also be used in the
   // epilogue.
-  if (IsDxbcVertexOrDomainShader()) {
+  if (is_vertex_shader()) {
     system_temp_position_ = PushSystemTemp(0b1111);
     system_temp_point_size_edge_flag_kill_vertex_ = PushSystemTemp(0b0100);
     // Set the point size to a negative value to tell the geometry shader that
@@ -879,20 +849,21 @@ void DxbcShaderTranslator::StartTranslation() {
     DxbcOpMov(
         DxbcDest::R(system_temp_point_size_edge_flag_kill_vertex_, 0b0001),
         DxbcSrc::LF(-1.0f));
-  } else if (IsDxbcPixelShader()) {
+  } else if (is_pixel_shader()) {
     if (edram_rov_used_) {
       // Will be initialized unconditionally.
       system_temp_rov_params_ = PushSystemTemp();
-      if (ROV_IsDepthStencilEarly() || writes_depth()) {
-        // If the shader doesn't write to oDepth, each component will be written
-        // to if depth/stencil is enabled and the respective sample is covered -
-        // so need to initialize now because the first writes will be
-        // conditional. If the shader writes to oDepth, this is oDepth of the
-        // shader, written by the guest code, so initialize because assumptions
-        // can't be made about the integrity of the guest code.
-        system_temp_rov_depth_stencil_ =
-            PushSystemTemp(writes_depth() ? 0b0001 : 0b1111);
-      }
+    }
+    if (IsDepthStencilSystemTempUsed()) {
+      // If the shader doesn't write to oDepth, and ROV is used, each
+      // component will be written to if depth/stencil is enabled and the
+      // respective sample is covered - so need to initialize now because the
+      // first writes will be conditional.
+      // If the shader writes to oDepth, this is oDepth of the shader, written
+      // by the guest code, so initialize because assumptions can't be made
+      // about the integrity of the guest code.
+      system_temp_depth_stencil_ =
+          PushSystemTemp(writes_depth() ? 0b0001 : 0b1111);
     }
     for (uint32_t i = 0; i < 4; ++i) {
       if (writes_color_target(i)) {
@@ -942,7 +913,7 @@ void DxbcShaderTranslator::StartTranslation() {
 
     // Zero general-purpose registers to prevent crashes when the game
     // references them after only initializing them conditionally.
-    for (uint32_t i = IsDxbcPixelShader() ? xenos::kMaxInterpolators : 0;
+    for (uint32_t i = is_pixel_shader() ? xenos::kMaxInterpolators : 0;
          i < register_count(); ++i) {
       DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, i)
                                                    : DxbcDest::R(i),
@@ -951,9 +922,9 @@ void DxbcShaderTranslator::StartTranslation() {
   }
 
   // Write stage-specific prologue.
-  if (IsDxbcVertexOrDomainShader()) {
+  if (is_vertex_shader()) {
     StartVertexOrDomainShader();
-  } else if (IsDxbcPixelShader()) {
+  } else if (is_pixel_shader()) {
     StartPixelShader();
   }
 
@@ -1168,31 +1139,31 @@ void DxbcShaderTranslator::CompleteShaderCode() {
   }
 
   // Write stage-specific epilogue.
-  if (IsDxbcVertexOrDomainShader()) {
+  if (is_vertex_shader()) {
     CompleteVertexOrDomainShader();
-  } else if (IsDxbcPixelShader()) {
+  } else if (is_pixel_shader()) {
     CompletePixelShader();
   }
 
   // Return from `main`.
   DxbcOpRet();
 
-  if (IsDxbcVertexOrDomainShader()) {
+  if (is_vertex_shader()) {
     // Release system_temp_position_ and
     // system_temp_point_size_edge_flag_kill_vertex_.
     PopSystemTemp(2);
-  } else if (IsDxbcPixelShader()) {
+  } else if (is_pixel_shader()) {
     // Release system_temps_color_.
     for (int32_t i = 3; i >= 0; --i) {
       if (writes_color_target(i)) {
         PopSystemTemp();
       }
     }
+    if (IsDepthStencilSystemTempUsed()) {
+      // Release system_temp_depth_stencil_.
+      PopSystemTemp();
+    }
     if (edram_rov_used_) {
-      if (ROV_IsDepthStencilEarly() || writes_depth()) {
-        // Release system_temp_rov_depth_stencil_.
-        PopSystemTemp();
-      }
       // Release system_temp_rov_params_.
       PopSystemTemp();
     }
@@ -1301,6 +1272,44 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
   std::memcpy(shader_object_bytes.data(), shader_object_.data(),
               shader_object_size);
   return shader_object_bytes;
+}
+
+void DxbcShaderTranslator::PostTranslation(
+    Shader::Translation& translation, bool setup_shader_post_translation_info) {
+  if (setup_shader_post_translation_info) {
+    DxbcShader* dxbc_shader = dynamic_cast<DxbcShader*>(&translation.shader());
+    if (dxbc_shader) {
+      dxbc_shader->texture_bindings_.clear();
+      dxbc_shader->texture_bindings_.reserve(texture_bindings_.size());
+      dxbc_shader->used_texture_mask_ = 0;
+      for (const TextureBinding& translator_binding : texture_bindings_) {
+        DxbcShader::TextureBinding& shader_binding =
+            dxbc_shader->texture_bindings_.emplace_back();
+        // For a stable hash.
+        std::memset(&shader_binding, 0, sizeof(shader_binding));
+        shader_binding.bindless_descriptor_index =
+            translator_binding.bindless_descriptor_index;
+        shader_binding.fetch_constant = translator_binding.fetch_constant;
+        shader_binding.dimension = translator_binding.dimension;
+        shader_binding.is_signed = translator_binding.is_signed;
+        dxbc_shader->used_texture_mask_ |= 1u
+                                           << translator_binding.fetch_constant;
+      }
+      dxbc_shader->sampler_bindings_.clear();
+      dxbc_shader->sampler_bindings_.reserve(sampler_bindings_.size());
+      for (const SamplerBinding& translator_binding : sampler_bindings_) {
+        DxbcShader::SamplerBinding& shader_binding =
+            dxbc_shader->sampler_bindings_.emplace_back();
+        shader_binding.bindless_descriptor_index =
+            translator_binding.bindless_descriptor_index;
+        shader_binding.fetch_constant = translator_binding.fetch_constant;
+        shader_binding.mag_filter = translator_binding.mag_filter;
+        shader_binding.min_filter = translator_binding.min_filter;
+        shader_binding.mip_filter = translator_binding.mip_filter;
+        shader_binding.aniso_filter = translator_binding.aniso_filter;
+      }
+    }
+  }
 }
 
 void DxbcShaderTranslator::EmitInstructionDisassembly() {
@@ -1527,19 +1536,20 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
       }
       break;
     case InstructionStorageTarget::kDepth:
-      // Writes X to scalar oDepth or to X of system_temp_rov_depth_stencil_, no
+      // Writes X to scalar oDepth or to X of system_temp_depth_stencil_, no
       // additional swizzling needed.
       assert_true(used_write_mask == 0b0001);
       assert_true(writes_depth());
-      if (edram_rov_used_) {
-        dest = DxbcDest::R(system_temp_rov_depth_stencil_);
+      if (IsDepthStencilSystemTempUsed()) {
+        dest = DxbcDest::R(system_temp_depth_stencil_);
       } else {
         dest = DxbcDest::ODepth();
       }
-      // Depth outside [0, 1] is not safe for use with the ROV code. Though 20e4
-      // float depth can store values below 2, it's a very unusual case.
-      // Direct3D 10+ SV_Depth, however, can accept any values, including
-      // specials, when the depth buffer is floating-point.
+      // Depth outside [0, 1] is not safe for use with the ROV code and with
+      // 20e4-as-32 conversion. Though 20e4 float depth can store values between
+      // 1 and 2, it's a very unusual case. Direct3D 10+ SV_Depth, however, can
+      // accept any values, including specials, when the depth buffer is
+      // floating-point; but depth is clamped to the viewport bounds anyway.
       is_clamped = true;
       break;
   }
@@ -2094,7 +2104,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
     // ds_5_1
     shader_object_.push_back(0x44530501u);
   } else {
-    assert_true(IsDxbcPixelShader());
+    assert_true(is_pixel_shader());
     // ps_5_1
     shader_object_.push_back(0xFFFF0501u);
   }
@@ -2765,7 +2775,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
       control_point_index.semantic_name = semantic_offset;
     }
     semantic_offset += AppendString(shader_object_, "XEVERTEXID");
-  } else if (IsDxbcPixelShader()) {
+  } else if (is_pixel_shader()) {
     // Written dynamically, so assume it's always used if it can be written to
     // any interpolator register.
     bool param_gen_used = !is_depth_only_pixel_shader_ && register_count() != 0;
@@ -2843,7 +2853,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
       position.component_type = DxbcSignatureRegisterComponentType::kFloat32;
       position.register_index = uint32_t(InOutRegister::kPSInPosition);
       position.mask = 0b1111;
-      position.always_reads_mask = in_position_xy_used_ ? 0b0011 : 0b0000;
+      position.always_reads_mask = in_position_used_;
     }
 
     // Is front face (SV_IsFrontFace).
@@ -2927,7 +2937,9 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
   DxbcName tess_factor_edge_system_value = DxbcName::kUndefined;
   uint32_t tess_factor_inside_count = 0;
   DxbcName tess_factor_inside_system_value = DxbcName::kUndefined;
-  switch (host_vertex_shader_type()) {
+  Shader::HostVertexShaderType host_vertex_shader_type =
+      GetDxbcShaderModification().host_vertex_shader_type;
+  switch (host_vertex_shader_type) {
     case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
     case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
       tess_factor_edge_count = 3;
@@ -2944,7 +2956,7 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
       break;
     default:
       // TODO(Triang3l): Support line patches.
-      assert_unhandled_case(host_vertex_shader_type());
+      assert_unhandled_case(host_vertex_shader_type);
       EmitTranslationError(
           "Unsupported host vertex shader type in WritePatchConstantSignature");
   }
@@ -3033,7 +3045,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
   constexpr size_t kParameterDwords =
       sizeof(DxbcSignatureParameter) / sizeof(uint32_t);
 
-  if (IsDxbcVertexOrDomainShader()) {
+  if (is_vertex_shader()) {
     // Intepolators (TEXCOORD#).
     size_t interpolator_position = shader_object_.size();
     shader_object_.resize(shader_object_.size() +
@@ -3195,7 +3207,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
       cull_distance.semantic_name = semantic_offset;
     }
     semantic_offset += AppendString(shader_object_, "SV_CullDistance");
-  } else if (IsDxbcPixelShader()) {
+  } else if (is_pixel_shader()) {
     if (!edram_rov_used_) {
       // Color render targets (SV_Target#).
       size_t target_position = SIZE_MAX;
@@ -3217,9 +3229,11 @@ void DxbcShaderTranslator::WriteOutputSignature() {
         }
       }
 
-      // Depth (SV_Depth).
+      // Depth (SV_Depth or SV_DepthLessEqual).
+      Modification::DepthStencilMode depth_stencil_mode =
+          GetDxbcShaderModification().depth_stencil_mode;
       size_t depth_position = SIZE_MAX;
-      if (writes_depth()) {
+      if (writes_depth() || DSV_IsWritingFloat24Depth()) {
         depth_position = shader_object_.size();
         shader_object_.resize(shader_object_.size() + kParameterDwords);
         ++parameter_count;
@@ -3253,7 +3267,15 @@ void DxbcShaderTranslator::WriteOutputSignature() {
                                                          depth_position);
           depth.semantic_name = semantic_offset;
         }
-        semantic_offset += AppendString(shader_object_, "SV_Depth");
+        const char* depth_semantic_name;
+        if (!writes_depth() &&
+            GetDxbcShaderModification().depth_stencil_mode ==
+                Modification::DepthStencilMode::kFloat24Truncating) {
+          depth_semantic_name = "SV_DepthLessEqual";
+        } else {
+          depth_semantic_name = "SV_Depth";
+        }
+        semantic_offset += AppendString(shader_object_, depth_semantic_name);
       }
     }
   }
@@ -3276,7 +3298,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
   } else if (IsDxbcDomainShader()) {
     shader_type = D3D11_SB_DOMAIN_SHADER;
   } else {
-    assert_true(IsDxbcPixelShader());
+    assert_true(is_pixel_shader());
     shader_type = D3D10_SB_PIXEL_SHADER;
   }
   shader_object_.push_back(
@@ -3296,12 +3318,14 @@ void DxbcShaderTranslator::WriteShaderCode() {
   // Inputs/outputs have 1D-indexed operands with a component mask and a
   // register index.
 
+  Modification shader_modification = GetDxbcShaderModification();
+
   if (IsDxbcDomainShader()) {
     // Not using control point data since Xenos only has a vertex shader acting
     // as both vertex shader and domain shader.
     stat_.c_control_points = 3;
     stat_.tessellator_domain = DxbcTessellatorDomain::kTriangle;
-    switch (host_vertex_shader_type()) {
+    switch (shader_modification.host_vertex_shader_type) {
       case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
       case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
         stat_.c_control_points = 3;
@@ -3314,7 +3338,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
         break;
       default:
         // TODO(Triang3l): Support line patches.
-        assert_unhandled_case(host_vertex_shader_type());
+        assert_unhandled_case(shader_modification.host_vertex_shader_type);
         EmitTranslationError(
             "Unsupported host vertex shader type in WriteShaderCode");
     }
@@ -3330,11 +3354,17 @@ void DxbcShaderTranslator::WriteShaderCode() {
   }
 
   // Don't allow refactoring when converting to native code to maintain position
-  // invariance (needed even in pixel shaders for oDepth invariance). Also this
-  // dcl will be modified by ForceEarlyDepthStencil.
-  shader_object_.push_back(
+  // invariance (needed even in pixel shaders for oDepth invariance).
+  uint32_t global_flags_opcode =
       ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_GLOBAL_FLAGS) |
-      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1);
+  if (is_pixel_shader() &&
+      GetDxbcShaderModification().depth_stencil_mode ==
+          Modification::DepthStencilMode::kEarlyHint &&
+      !edram_rov_used_ && CanWriteZEarly()) {
+    global_flags_opcode |= D3D11_SB_GLOBAL_FLAG_FORCE_EARLY_DEPTH_STENCIL;
+  }
+  shader_object_.push_back(global_flags_opcode);
 
   // Constant buffers, from most frequenly accessed to least frequently accessed
   // (the order is a hint to the driver according to the DXBC header).
@@ -3560,7 +3590,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
   }
 
   // Inputs and outputs.
-  if (IsDxbcVertexOrDomainShader()) {
+  if (is_vertex_shader()) {
     if (IsDxbcDomainShader()) {
       if (in_domain_location_used_) {
         // Domain location input.
@@ -3584,7 +3614,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
       if (in_control_point_index_used_) {
         // Control point indices as float input.
         uint32_t control_point_array_size;
-        switch (host_vertex_shader_type()) {
+        switch (shader_modification.host_vertex_shader_type) {
           case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
             control_point_array_size = 3;
             break;
@@ -3593,7 +3623,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
             break;
           default:
             // TODO(Triang3l): Support line patches.
-            assert_unhandled_case(host_vertex_shader_type());
+            assert_unhandled_case(shader_modification.host_vertex_shader_type);
             EmitTranslationError(
                 "Unsupported host vertex shader type in "
                 "StartVertexOrDomainShader");
@@ -3683,7 +3713,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
         uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance));
     shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_CULL_DISTANCE));
     ++stat_.dcl_count;
-  } else if (IsDxbcPixelShader()) {
+  } else if (is_pixel_shader()) {
+    bool is_writing_float24_depth = DSV_IsWritingFloat24Depth();
     // Interpolator input.
     if (!is_depth_only_pixel_shader_) {
       uint32_t interpolator_count =
@@ -3725,16 +3756,26 @@ void DxbcShaderTranslator::WriteShaderCode() {
       shader_object_.push_back(uint32_t(InOutRegister::kPSInClipSpaceZW));
       ++stat_.dcl_count;
     }
-    if (in_position_xy_used_) {
-      // Position input (only XY needed for ps_param_gen, and the ROV depth code
-      // calculates the depth from clip space Z and W).
+    if (in_position_used_) {
+      // Position input (XY needed for ps_param_gen, Z needed for non-ROV
+      // float24 conversion; the ROV depth code calculates the depth the from
+      // clip space Z and W with pull-mode per-sample interpolation instead).
+      // At the cost of possibility of MSAA with pixel-rate shading, need
+      // per-sample depth - otherwise intersections cannot be antialiased, and
+      // with SV_DepthLessEqual, per-sample (or centroid, but this isn't
+      // applicable here) position is mandatory. However, with depth output, on
+      // the guest, there's only one depth value for the whole pixel.
+      D3D10_SB_INTERPOLATION_MODE position_interpolation_mode =
+          is_writing_float24_depth && !writes_depth()
+              ? D3D10_SB_INTERPOLATION_LINEAR_NOPERSPECTIVE_SAMPLE
+              : D3D10_SB_INTERPOLATION_LINEAR_NOPERSPECTIVE;
       shader_object_.push_back(
           ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS_SIV) |
           ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
-              D3D10_SB_INTERPOLATION_LINEAR_NOPERSPECTIVE) |
+              position_interpolation_mode) |
           ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-      shader_object_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0011, 1));
+      shader_object_.push_back(EncodeVectorMaskedOperand(
+          D3D10_SB_OPERAND_TYPE_INPUT, in_position_used_, 1));
       shader_object_.push_back(uint32_t(InOutRegister::kPSInPosition));
       shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
       ++stat_.dcl_count;
@@ -3778,12 +3819,19 @@ void DxbcShaderTranslator::WriteShaderCode() {
         }
       }
       // Depth output.
-      if (writes_depth()) {
+      if (is_writing_float24_depth || writes_depth()) {
+        D3D10_SB_OPERAND_TYPE depth_operand_type;
+        if (!writes_depth() &&
+            GetDxbcShaderModification().depth_stencil_mode ==
+                Modification::DepthStencilMode::kFloat24Truncating) {
+          depth_operand_type = D3D11_SB_OPERAND_TYPE_OUTPUT_DEPTH_LESS_EQUAL;
+        } else {
+          depth_operand_type = D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH;
+        }
         shader_object_.push_back(
             ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
             ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
-        shader_object_.push_back(
-            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH, 0));
+        shader_object_.push_back(EncodeScalarOperand(depth_operand_type, 0));
         ++stat_.dcl_count;
       }
     }

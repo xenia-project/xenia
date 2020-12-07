@@ -106,7 +106,7 @@ void DxbcShaderTranslator::ExportToMemory() {
                         kSysConst_Flags_Vec)
                 .Select(kSysConst_Flags_Comp),
             DxbcSrc::LU(kSysFlag_SharedMemoryIsUAV));
-  if (IsDxbcPixelShader()) {
+  if (is_pixel_shader()) {
     // Disable memexport in pixel shaders with supersampling since VPOS is
     // ambiguous.
     if (edram_rov_used_) {

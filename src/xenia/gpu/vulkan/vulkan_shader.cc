@@ -27,36 +27,54 @@ VulkanShader::VulkanShader(ui::vulkan::VulkanDevice* device,
                            const uint32_t* dword_ptr, uint32_t dword_count)
     : Shader(shader_type, data_hash, dword_ptr, dword_count), device_(device) {}
 
-VulkanShader::~VulkanShader() {
+VulkanShader::VulkanTranslation::~VulkanTranslation() {
   if (shader_module_) {
-    vkDestroyShaderModule(*device_, shader_module_, nullptr);
+    const VulkanShader& vulkan_shader = static_cast<VulkanShader&>(shader());
+    vkDestroyShaderModule(*vulkan_shader.device_, shader_module_, nullptr);
     shader_module_ = nullptr;
   }
 }
 
-bool VulkanShader::Prepare() {
+bool VulkanShader::VulkanTranslation::Prepare() {
   assert_null(shader_module_);
   assert_true(is_valid());
+
+  const VulkanShader& vulkan_shader = static_cast<VulkanShader&>(shader());
+  ui::vulkan::VulkanDevice* device = vulkan_shader.device_;
 
   // Create the shader module.
   VkShaderModuleCreateInfo shader_info;
   shader_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   shader_info.pNext = nullptr;
   shader_info.flags = 0;
-  shader_info.codeSize = translated_binary_.size();
+  shader_info.codeSize = translated_binary().size();
   shader_info.pCode =
-      reinterpret_cast<const uint32_t*>(translated_binary_.data());
+      reinterpret_cast<const uint32_t*>(translated_binary().data());
   auto status =
-      vkCreateShaderModule(*device_, &shader_info, nullptr, &shader_module_);
+      vkCreateShaderModule(*device, &shader_info, nullptr, &shader_module_);
   CheckResult(status, "vkCreateShaderModule");
 
-  char typeChar = shader_type_ == xenos::ShaderType::kPixel
-                      ? 'p'
-                      : shader_type_ == xenos::ShaderType::kVertex ? 'v' : 'u';
-  device_->DbgSetObjectName(
-      uint64_t(shader_module_), VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
-      fmt::format("S({}): {:016X}", typeChar, ucode_data_hash()));
+  char type_char;
+  switch (vulkan_shader.type()) {
+    case xenos::ShaderType::kVertex:
+      type_char = 'v';
+      break;
+    case xenos::ShaderType::kPixel:
+      type_char = 'p';
+      break;
+    default:
+      type_char = 'u';
+  }
+  device->DbgSetObjectName(uint64_t(shader_module_),
+                           VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
+                           fmt::format("S({}): {:016X}", type_char,
+                                       vulkan_shader.ucode_data_hash()));
   return status == VK_SUCCESS;
+}
+
+Shader::Translation* VulkanShader::CreateTranslationInstance(
+    uint32_t modification) {
+  return new VulkanTranslation(*this, modification);
 }
 
 }  // namespace vulkan

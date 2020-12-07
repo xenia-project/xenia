@@ -79,7 +79,8 @@ class PipelineCache {
   // state.
   VkPipeline GetPipeline(const RenderState* render_state, uint64_t hash_key);
 
-  bool TranslateShader(VulkanShader* shader, reg::SQ_PROGRAM_CNTL cntl);
+  bool TranslateShader(VulkanShader::VulkanTranslation& translation,
+                       reg::SQ_PROGRAM_CNTL cntl);
 
   void DumpShaderDisasmAMD(VkPipeline pipeline);
   void DumpShaderDisasmNV(const VkGraphicsPipelineCreateInfo& info);

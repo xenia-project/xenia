@@ -89,8 +89,8 @@ void CommandProcessor::Shutdown() {
 }
 
 void CommandProcessor::InitializeShaderStorage(
-    const std::filesystem::path& storage_root, uint32_t title_id,
-    bool blocking) {}
+    const std::filesystem::path& cache_root, uint32_t title_id, bool blocking) {
+}
 
 void CommandProcessor::RequestFrameTrace(
     const std::filesystem::path& root_path) {

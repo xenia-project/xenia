@@ -53,6 +53,7 @@ struct ViewportInfo {
 void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
                          float pixel_size_y, bool origin_bottom_left,
                          float x_max, float y_max, bool allow_reverse_z,
+                         bool convert_z_to_float24,
                          ViewportInfo& viewport_info_out);
 
 struct Scissor {

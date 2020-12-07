@@ -61,7 +61,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
  protected:
   void StartTranslation() override;
   std::vector<uint8_t> CompleteTranslation() override;
-  void PostTranslation(Shader* shader) override;
+  void PostTranslation(Shader::Translation& translation,
+                       bool setup_shader_post_translation_info) override;
 
   void PreProcessControlFlowInstructions(
       std::vector<ucode::ControlFlowInstruction> instrs) override;

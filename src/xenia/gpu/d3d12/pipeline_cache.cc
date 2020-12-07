@@ -16,6 +16,7 @@
 #include <cstring>
 #include <deque>
 #include <mutex>
+#include <set>
 #include <utility>
 
 #include "third_party/fmt/include/fmt/format.h"
@@ -63,19 +64,23 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/continuous_triangle_hs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/discrete_quad_hs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/discrete_triangle_hs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/float24_round_ps.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/float24_truncate_ps.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/primitive_point_list_gs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/primitive_quad_list_gs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/primitive_rectangle_list_gs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/tessellation_vs.h"
 
-PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
-                             const RegisterFile& register_file,
-                             bool bindless_resources_used, bool edram_rov_used,
-                             uint32_t resolution_scale)
+PipelineCache::PipelineCache(
+    D3D12CommandProcessor& command_processor, const RegisterFile& register_file,
+    bool bindless_resources_used, bool edram_rov_used,
+    flags::DepthFloat24Conversion depth_float24_conversion,
+    uint32_t resolution_scale)
     : command_processor_(command_processor),
       register_file_(register_file),
       bindless_resources_used_(bindless_resources_used),
       edram_rov_used_(edram_rov_used),
+      depth_float24_conversion_(depth_float24_conversion),
       resolution_scale_(resolution_scale) {
   auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
 
@@ -177,10 +182,10 @@ void PipelineCache::Shutdown() {
 void PipelineCache::ClearCache(bool shutting_down) {
   bool reinitialize_shader_storage =
       !shutting_down && storage_write_thread_ != nullptr;
-  std::filesystem::path shader_storage_root;
+  std::filesystem::path shader_storage_cache_root;
   uint32_t shader_storage_title_id = shader_storage_title_id_;
   if (reinitialize_shader_storage) {
-    shader_storage_root = shader_storage_root_;
+    shader_storage_cache_root = shader_storage_cache_root_;
   }
   ShutdownShaderStorage();
 
@@ -226,19 +231,19 @@ void PipelineCache::ClearCache(bool shutting_down) {
     delete it.second;
   }
   shaders_.clear();
+  shader_storage_index_ = 0;
 
   if (reinitialize_shader_storage) {
-    InitializeShaderStorage(shader_storage_root, shader_storage_title_id,
+    InitializeShaderStorage(shader_storage_cache_root, shader_storage_title_id,
                             false);
   }
 }
 
 void PipelineCache::InitializeShaderStorage(
-    const std::filesystem::path& storage_root, uint32_t title_id,
-    bool blocking) {
+    const std::filesystem::path& cache_root, uint32_t title_id, bool blocking) {
   ShutdownShaderStorage();
 
-  auto shader_storage_root = storage_root / "shaders";
+  auto shader_storage_root = cache_root / "shaders";
   // For files that can be moved between different hosts.
   // Host PSO blobs - if ever added - should be stored in shaders/local/ (they
   // currently aren't used because because they may be not very practical -
@@ -253,6 +258,90 @@ void PipelineCache::InitializeShaderStorage(
           "shader storage will be disabled: {}",
           xe::path_to_utf8(shader_storage_shareable_root));
       return;
+    }
+  }
+
+  // Initialize the pipeline storage stream - read pipeline descriptions and
+  // collect used shader modifications to translate.
+  std::vector<PipelineStoredDescription> pipeline_stored_descriptions;
+  // <Shader hash, modification bits>.
+  std::set<std::pair<uint64_t, uint32_t>> shader_translations_needed;
+  auto pipeline_storage_file_path =
+      shader_storage_shareable_root /
+      fmt::format("{:08X}.{}.d3d12.xpso", title_id,
+                  edram_rov_used_ ? "rov" : "rtv");
+  pipeline_storage_file_ =
+      xe::filesystem::OpenFile(pipeline_storage_file_path, "a+b");
+  if (!pipeline_storage_file_) {
+    XELOGE(
+        "Failed to open the Direct3D 12 pipeline description storage file for "
+        "writing, persistent shader storage will be disabled: {}",
+        xe::path_to_utf8(pipeline_storage_file_path));
+    return;
+  }
+  pipeline_storage_file_flush_needed_ = false;
+  // 'XEPS'.
+  const uint32_t pipeline_storage_magic = 0x53504558;
+  // 'DXRO' or 'DXRT'.
+  const uint32_t pipeline_storage_magic_api =
+      edram_rov_used_ ? 0x4F525844 : 0x54525844;
+  const uint32_t pipeline_storage_version_swapped =
+      xe::byte_swap(std::max(PipelineDescription::kVersion,
+                             DxbcShaderTranslator::Modification::kVersion));
+  struct {
+    uint32_t magic;
+    uint32_t magic_api;
+    uint32_t version_swapped;
+    uint32_t device_features;
+  } pipeline_storage_file_header;
+  if (fread(&pipeline_storage_file_header, sizeof(pipeline_storage_file_header),
+            1, pipeline_storage_file_) &&
+      pipeline_storage_file_header.magic == pipeline_storage_magic &&
+      pipeline_storage_file_header.magic_api == pipeline_storage_magic_api &&
+      pipeline_storage_file_header.version_swapped ==
+          pipeline_storage_version_swapped) {
+    xe::filesystem::Seek(pipeline_storage_file_, 0, SEEK_END);
+    int64_t pipeline_storage_told_end =
+        xe::filesystem::Tell(pipeline_storage_file_);
+    size_t pipeline_storage_told_count =
+        size_t(pipeline_storage_told_end >=
+                       int64_t(sizeof(pipeline_storage_file_header))
+                   ? (uint64_t(pipeline_storage_told_end) -
+                      sizeof(pipeline_storage_file_header)) /
+                         sizeof(PipelineStoredDescription)
+                   : 0);
+    if (pipeline_storage_told_count &&
+        xe::filesystem::Seek(pipeline_storage_file_,
+                             int64_t(sizeof(pipeline_storage_file_header)),
+                             SEEK_SET)) {
+      pipeline_stored_descriptions.resize(pipeline_storage_told_count);
+      pipeline_stored_descriptions.resize(
+          fread(pipeline_stored_descriptions.data(),
+                sizeof(PipelineStoredDescription), pipeline_storage_told_count,
+                pipeline_storage_file_));
+      size_t pipeline_storage_read_count = pipeline_stored_descriptions.size();
+      for (size_t i = 0; i < pipeline_storage_read_count; ++i) {
+        const PipelineStoredDescription& pipeline_stored_description =
+            pipeline_stored_descriptions[i];
+        // Validate file integrity, stop and truncate the stream if data is
+        // corrupted.
+        if (XXH64(&pipeline_stored_description.description,
+                  sizeof(pipeline_stored_description.description),
+                  0) != pipeline_stored_description.description_hash) {
+          pipeline_stored_descriptions.resize(i);
+          break;
+        }
+        // Mark the shader modifications as needed for translation.
+        shader_translations_needed.emplace(
+            pipeline_stored_description.description.vertex_shader_hash,
+            pipeline_stored_description.description.vertex_shader_modification);
+        if (pipeline_stored_description.description.pixel_shader_hash) {
+          shader_translations_needed.emplace(
+              pipeline_stored_description.description.pixel_shader_hash,
+              pipeline_stored_description.description
+                  .pixel_shader_modification);
+        }
+      }
     }
   }
 
@@ -274,8 +363,11 @@ void PipelineCache::InitializeShaderStorage(
         "Failed to open the guest shader storage file for writing, persistent "
         "shader storage will be disabled: {}",
         xe::path_to_utf8(shader_storage_file_path));
+    fclose(pipeline_storage_file_);
+    pipeline_storage_file_ = nullptr;
     return;
   }
+  ++shader_storage_index_;
   shader_storage_file_flush_needed_ = false;
   struct {
     uint32_t magic;
@@ -299,12 +391,12 @@ void PipelineCache::InitializeShaderStorage(
     // Threads overlapping file reading.
     std::mutex shaders_translation_thread_mutex;
     std::condition_variable shaders_translation_thread_cond;
-    std::deque<std::pair<ShaderStoredHeader, D3D12Shader*>>
+    std::deque<std::pair<ShaderStoredHeader, D3D12Shader::D3D12Translation*>>
         shaders_to_translate;
     size_t shader_translation_threads_busy = 0;
     bool shader_translation_threads_shutdown = false;
     std::mutex shaders_failed_to_translate_mutex;
-    std::vector<D3D12Shader*> shaders_failed_to_translate;
+    std::vector<D3D12Shader::D3D12Translation*> shaders_failed_to_translate;
     auto shader_translation_thread_function = [&]() {
       auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
       DxbcShaderTranslator translator(
@@ -324,7 +416,8 @@ void PipelineCache::InitializeShaderStorage(
                                    IID_PPV_ARGS(&dxc_compiler));
       }
       for (;;) {
-        std::pair<ShaderStoredHeader, D3D12Shader*> shader_to_translate;
+        std::pair<ShaderStoredHeader, D3D12Shader::D3D12Translation*>
+            shader_to_translate;
         for (;;) {
           std::unique_lock<std::mutex> lock(shaders_translation_thread_mutex);
           if (shaders_to_translate.empty()) {
@@ -340,11 +433,9 @@ void PipelineCache::InitializeShaderStorage(
           break;
         }
         assert_not_null(shader_to_translate.second);
-        if (!TranslateShader(
-                translator, *shader_to_translate.second,
-                shader_to_translate.first.sq_program_cntl, dxbc_converter,
-                dxc_utils, dxc_compiler,
-                shader_to_translate.first.host_vertex_shader_type)) {
+        if (!TranslateShader(translator, *shader_to_translate.second,
+                             shader_to_translate.first.sq_program_cntl,
+                             dxbc_converter, dxc_utils, dxc_compiler)) {
           std::lock_guard<std::mutex> lock(shaders_failed_to_translate_mutex);
           shaders_failed_to_translate.push_back(shader_to_translate.second);
         }
@@ -373,18 +464,6 @@ void PipelineCache::InitializeShaderStorage(
       }
       size_t ucode_byte_count =
           shader_header.ucode_dword_count * sizeof(uint32_t);
-      if (shaders_.find(shader_header.ucode_data_hash) != shaders_.end()) {
-        // Already added - usually shaders aren't added without the intention of
-        // translating them imminently, so don't do additional checks to
-        // actually ensure that translation happens right now (they would cause
-        // a race condition with shaders currently queued for translation).
-        if (!xe::filesystem::Seek(shader_storage_file_,
-                                  int64_t(ucode_byte_count), SEEK_CUR)) {
-          break;
-        }
-        shader_storage_valid_bytes += sizeof(shader_header) + ucode_byte_count;
-        continue;
-      }
       ucode_dwords.resize(shader_header.ucode_dword_count);
       if (shader_header.ucode_dword_count &&
           !fread(ucode_dwords.data(), ucode_byte_count, 1,
@@ -397,34 +476,60 @@ void PipelineCache::InitializeShaderStorage(
         // Validation failed.
         break;
       }
-      D3D12Shader* shader =
-          new D3D12Shader(shader_header.type, ucode_data_hash,
-                          ucode_dwords.data(), shader_header.ucode_dword_count);
-      shaders_.emplace(ucode_data_hash, shader);
-      // Create new threads if the currently existing threads can't keep up with
-      // file reading, but not more than the number of logical processors minus
-      // one.
-      size_t shader_translation_threads_needed;
-      {
-        std::lock_guard<std::mutex> lock(shaders_translation_thread_mutex);
-        shader_translation_threads_needed =
-            std::min(shader_translation_threads_busy +
-                         shaders_to_translate.size() + size_t(1),
-                     logical_processor_count - size_t(1));
-      }
-      while (shader_translation_threads.size() <
-             shader_translation_threads_needed) {
-        shader_translation_threads.push_back(xe::threading::Thread::Create(
-            {}, shader_translation_thread_function));
-        shader_translation_threads.back()->set_name("Shader Translation");
-      }
-      {
-        std::lock_guard<std::mutex> lock(shaders_translation_thread_mutex);
-        shaders_to_translate.emplace_back(shader_header, shader);
-      }
-      shaders_translation_thread_cond.notify_one();
       shader_storage_valid_bytes += sizeof(shader_header) + ucode_byte_count;
-      ++shaders_translated;
+      // Only add the shader if needed.
+      auto modification_it = shader_translations_needed.lower_bound(
+          std::make_pair(ucode_data_hash, uint32_t(0)));
+      if (modification_it == shader_translations_needed.end() ||
+          modification_it->first != ucode_data_hash) {
+        continue;
+      }
+      D3D12Shader* shader =
+          LoadShader(shader_header.type, ucode_dwords.data(),
+                     shader_header.ucode_dword_count, ucode_data_hash);
+      // Loaded from the current storage - don't write again.
+      shader->set_ucode_storage_index(shader_storage_index_);
+      // Translate all the needed modifications.
+      for (; modification_it != shader_translations_needed.end() &&
+             modification_it->first == ucode_data_hash;
+           ++modification_it) {
+        bool translation_is_new;
+        D3D12Shader::D3D12Translation* translation =
+            static_cast<D3D12Shader::D3D12Translation*>(
+                shader->GetOrCreateTranslation(modification_it->second,
+                                               &translation_is_new));
+        if (!translation_is_new) {
+          // Already added - usually shaders aren't added without the intention
+          // of translating them imminently, so don't do additional checks to
+          // actually ensure that translation happens right now (they would
+          // cause a race condition with shaders currently queued for
+          // translation).
+          continue;
+        }
+        // Create new threads if the currently existing threads can't keep up
+        // with file reading, but not more than the number of logical processors
+        // minus one.
+        size_t shader_translation_threads_needed;
+        {
+          std::lock_guard<std::mutex> lock(shaders_translation_thread_mutex);
+          shader_translation_threads_needed =
+              std::min(shader_translation_threads_busy +
+                           shaders_to_translate.size() + size_t(1),
+                       logical_processor_count - size_t(1));
+        }
+        while (shader_translation_threads.size() <
+               shader_translation_threads_needed) {
+          shader_translation_threads.push_back(xe::threading::Thread::Create(
+              {}, shader_translation_thread_function));
+          shader_translation_threads.back()->set_name("Shader Translation");
+        }
+        {
+          std::lock_guard<std::mutex> lock(shaders_translation_thread_mutex);
+          shaders_to_translate.emplace_back(shader_header, translation);
+        }
+        shaders_translation_thread_cond.notify_one();
+        ++shaders_translated;
+      }
     }
     if (!shader_translation_threads.empty()) {
       {
@@ -436,9 +541,14 @@ void PipelineCache::InitializeShaderStorage(
         xe::threading::Wait(shader_translation_thread.get(), false);
       }
       shader_translation_threads.clear();
-      for (D3D12Shader* shader : shaders_failed_to_translate) {
-        shaders_.erase(shader->ucode_data_hash());
-        delete shader;
+      for (D3D12Shader::D3D12Translation* translation :
+           shaders_failed_to_translate) {
+        D3D12Shader* shader = static_cast<D3D12Shader*>(&translation->shader());
+        shader->DestroyTranslation(translation->modification());
+        if (shader->translations().empty()) {
+          shaders_.erase(shader->ucode_data_hash());
+          delete shader;
+        }
       }
     }
     XELOGGPU("Translated {} shaders from the storage in {} milliseconds",
@@ -457,220 +567,177 @@ void PipelineCache::InitializeShaderStorage(
            shader_storage_file_);
   }
 
-  // 'DXRO' or 'DXRT'.
-  const uint32_t pipeline_storage_magic_api =
-      edram_rov_used_ ? 0x4F525844 : 0x54525844;
+  // Create the pipelines.
+  if (!pipeline_stored_descriptions.empty()) {
+    uint64_t pipeline_creation_start_ = xe::Clock::QueryHostTickCount();
 
-  // Initialize the pipeline storage stream.
-  uint64_t pipeline_storage_initialization_start_ =
-      xe::Clock::QueryHostTickCount();
-  auto pipeline_storage_file_path =
-      shader_storage_shareable_root /
-      fmt::format("{:08X}.{}.d3d12.xpso", title_id,
-                  edram_rov_used_ ? "rov" : "rtv");
-  pipeline_storage_file_ =
-      xe::filesystem::OpenFile(pipeline_storage_file_path, "a+b");
-  if (!pipeline_storage_file_) {
-    XELOGE(
-        "Failed to open the Direct3D 12 pipeline description storage file for "
-        "writing, persistent shader storage will be disabled: {}",
-        xe::path_to_utf8(pipeline_storage_file_path));
-    fclose(shader_storage_file_);
-    shader_storage_file_ = nullptr;
-    return;
-  }
-  pipeline_storage_file_flush_needed_ = false;
-  // 'XEPS'.
-  const uint32_t pipeline_storage_magic = 0x53504558;
-  struct {
-    uint32_t magic;
-    uint32_t magic_api;
-    uint32_t version_swapped;
-  } pipeline_storage_file_header;
-  if (fread(&pipeline_storage_file_header, sizeof(pipeline_storage_file_header),
-            1, pipeline_storage_file_) &&
-      pipeline_storage_file_header.magic == pipeline_storage_magic &&
-      pipeline_storage_file_header.magic_api == pipeline_storage_magic_api &&
-      xe::byte_swap(pipeline_storage_file_header.version_swapped) ==
-          PipelineDescription::kVersion) {
-    uint64_t pipeline_storage_valid_bytes =
-        sizeof(pipeline_storage_file_header);
-    // Enqueue pipeline descriptions written by previous Xenia executions until
-    // the end of the file or until a corrupted one is detected.
-    xe::filesystem::Seek(pipeline_storage_file_, 0, SEEK_END);
-    int64_t pipeline_storage_told_end =
-        xe::filesystem::Tell(pipeline_storage_file_);
-    size_t pipeline_storage_told_count = size_t(
-        pipeline_storage_told_end >= int64_t(pipeline_storage_valid_bytes)
-            ? (uint64_t(pipeline_storage_told_end) -
-               pipeline_storage_valid_bytes) /
-                  sizeof(PipelineStoredDescription)
-            : 0);
-    if (pipeline_storage_told_count &&
-        xe::filesystem::Seek(pipeline_storage_file_,
-                             int64_t(pipeline_storage_valid_bytes), SEEK_SET)) {
-      std::vector<PipelineStoredDescription> pipeline_stored_descriptions;
-      pipeline_stored_descriptions.resize(pipeline_storage_told_count);
-      pipeline_stored_descriptions.resize(
-          fread(pipeline_stored_descriptions.data(),
-                sizeof(PipelineStoredDescription), pipeline_storage_told_count,
-                pipeline_storage_file_));
-      if (!pipeline_stored_descriptions.empty()) {
-        // Launch additional creation threads to use all cores to create
-        // pipelines faster. Will also be using the main thread, so minus 1.
-        size_t creation_thread_original_count = creation_threads_.size();
-        size_t creation_thread_needed_count =
-            std::max(std::min(pipeline_stored_descriptions.size(),
-                              logical_processor_count) -
-                         size_t(1),
-                     creation_thread_original_count);
-        while (creation_threads_.size() < creation_thread_original_count) {
-          size_t creation_thread_index = creation_threads_.size();
-          std::unique_ptr<xe::threading::Thread> creation_thread =
-              xe::threading::Thread::Create(
-                  {}, [this, creation_thread_index]() {
-                    CreationThread(creation_thread_index);
-                  });
-          creation_thread->set_name("D3D12 Pipelines");
-          creation_threads_.push_back(std::move(creation_thread));
-        }
-        size_t pipelines_created = 0;
-        for (const PipelineStoredDescription& pipeline_stored_description :
-             pipeline_stored_descriptions) {
-          const PipelineDescription& pipeline_description =
-              pipeline_stored_description.description;
-          // Validate file integrity, stop and truncate the stream if data is
-          // corrupted.
-          if (XXH64(&pipeline_stored_description.description,
-                    sizeof(pipeline_stored_description.description),
-                    0) != pipeline_stored_description.description_hash) {
-            break;
-          }
-          pipeline_storage_valid_bytes += sizeof(PipelineStoredDescription);
-          // Skip already known pipelines - those have already been enqueued.
-          auto found_range = pipelines_.equal_range(
-              pipeline_stored_description.description_hash);
-          bool pipeline_found = false;
-          for (auto it = found_range.first; it != found_range.second; ++it) {
-            Pipeline* found_pipeline = it->second;
-            if (!std::memcmp(&found_pipeline->description.description,
-                             &pipeline_description,
-                             sizeof(pipeline_description))) {
-              pipeline_found = true;
-              break;
-            }
-          }
-          if (pipeline_found) {
-            continue;
-          }
+    // Launch additional creation threads to use all cores to create
+    // pipelines faster. Will also be using the main thread, so minus 1.
+    size_t creation_thread_original_count = creation_threads_.size();
+    size_t creation_thread_needed_count = std::max(
+        std::min(pipeline_stored_descriptions.size(), logical_processor_count) -
+            size_t(1),
+        creation_thread_original_count);
+    while (creation_threads_.size() < creation_thread_original_count) {
+      size_t creation_thread_index = creation_threads_.size();
+      std::unique_ptr<xe::threading::Thread> creation_thread =
+          xe::threading::Thread::Create({}, [this, creation_thread_index]() {
+            CreationThread(creation_thread_index);
+          });
+      creation_thread->set_name("D3D12 Pipelines");
+      creation_threads_.push_back(std::move(creation_thread));
+    }
 
-          PipelineRuntimeDescription pipeline_runtime_description;
-          auto vertex_shader_it =
-              shaders_.find(pipeline_description.vertex_shader_hash);
-          if (vertex_shader_it == shaders_.end()) {
-            continue;
-          }
-          pipeline_runtime_description.vertex_shader = vertex_shader_it->second;
-          if (!pipeline_runtime_description.vertex_shader->is_valid()) {
-            continue;
-          }
-          if (pipeline_description.pixel_shader_hash) {
-            auto pixel_shader_it =
-                shaders_.find(pipeline_description.pixel_shader_hash);
-            if (pixel_shader_it == shaders_.end()) {
-              continue;
-            }
-            pipeline_runtime_description.pixel_shader = pixel_shader_it->second;
-            if (!pipeline_runtime_description.pixel_shader->is_valid()) {
-              continue;
-            }
-          } else {
-            pipeline_runtime_description.pixel_shader = nullptr;
-          }
-          pipeline_runtime_description.root_signature =
-              command_processor_.GetRootSignature(
-                  pipeline_runtime_description.vertex_shader,
-                  pipeline_runtime_description.pixel_shader);
-          if (!pipeline_runtime_description.root_signature) {
-            continue;
-          }
-          std::memcpy(&pipeline_runtime_description.description,
-                      &pipeline_description, sizeof(pipeline_description));
+    size_t pipelines_created = 0;
+    for (const PipelineStoredDescription& pipeline_stored_description :
+         pipeline_stored_descriptions) {
+      const PipelineDescription& pipeline_description =
+          pipeline_stored_description.description;
+      // Skip already known pipelines - those have already been enqueued.
+      auto found_range =
+          pipelines_.equal_range(pipeline_stored_description.description_hash);
+      bool pipeline_found = false;
+      for (auto it = found_range.first; it != found_range.second; ++it) {
+        Pipeline* found_pipeline = it->second;
+        if (!std::memcmp(&found_pipeline->description.description,
+                         &pipeline_description, sizeof(pipeline_description))) {
+          pipeline_found = true;
+          break;
+        }
+      }
+      if (pipeline_found) {
+        continue;
+      }
 
-          Pipeline* new_pipeline = new Pipeline;
-          new_pipeline->state = nullptr;
-          std::memcpy(&new_pipeline->description, &pipeline_runtime_description,
-                      sizeof(pipeline_runtime_description));
-          pipelines_.emplace(pipeline_stored_description.description_hash,
-                             new_pipeline);
-          COUNT_profile_set("gpu/pipeline_cache/pipelines", pipelines_.size());
-          if (!creation_threads_.empty()) {
-            // Submit the pipeline for creation to any available thread.
-            {
-              std::lock_guard<std::mutex> lock(creation_request_lock_);
-              creation_queue_.push_back(new_pipeline);
-            }
-            creation_request_cond_.notify_one();
-          } else {
-            new_pipeline->state =
-                CreateD3D12Pipeline(pipeline_runtime_description);
-          }
-          ++pipelines_created;
+      PipelineRuntimeDescription pipeline_runtime_description;
+      auto vertex_shader_it =
+          shaders_.find(pipeline_description.vertex_shader_hash);
+      if (vertex_shader_it == shaders_.end()) {
+        continue;
+      }
+      D3D12Shader* vertex_shader = vertex_shader_it->second;
+      pipeline_runtime_description.vertex_shader =
+          static_cast<D3D12Shader::D3D12Translation*>(
+              vertex_shader->GetTranslation(
+                  pipeline_description.vertex_shader_modification));
+      if (!pipeline_runtime_description.vertex_shader ||
+          !pipeline_runtime_description.vertex_shader->is_valid()) {
+        continue;
+      }
+      D3D12Shader* pixel_shader;
+      if (pipeline_description.pixel_shader_hash) {
+        auto pixel_shader_it =
+            shaders_.find(pipeline_description.pixel_shader_hash);
+        if (pixel_shader_it == shaders_.end()) {
+          continue;
         }
-        CreateQueuedPipelinesOnProcessorThread();
-        if (creation_threads_.size() > creation_thread_original_count) {
-          {
-            std::lock_guard<std::mutex> lock(creation_request_lock_);
-            creation_threads_shutdown_from_ = creation_thread_original_count;
-            // Assuming the queue is empty because of
-            // CreateQueuedPipelinesOnProcessorThread.
-          }
-          creation_request_cond_.notify_all();
-          while (creation_threads_.size() > creation_thread_original_count) {
-            xe::threading::Wait(creation_threads_.back().get(), false);
-            creation_threads_.pop_back();
-          }
-          bool await_creation_completion_event;
-          {
-            // Cleanup so additional threads can be created later again.
-            std::lock_guard<std::mutex> lock(creation_request_lock_);
-            creation_threads_shutdown_from_ = SIZE_MAX;
-            // If the invocation is blocking, all the shader storage
-            // initialization is expected to be done before proceeding, to avoid
-            // latency in the command processor after the invocation.
-            await_creation_completion_event =
-                blocking && creation_threads_busy_ != 0;
-            if (await_creation_completion_event) {
-              creation_completion_event_->Reset();
-              creation_completion_set_event_ = true;
-            }
-          }
-          if (await_creation_completion_event) {
-            creation_request_cond_.notify_one();
-            xe::threading::Wait(creation_completion_event_.get(), false);
-          }
+        pixel_shader = pixel_shader_it->second;
+        pipeline_runtime_description.pixel_shader =
+            static_cast<D3D12Shader::D3D12Translation*>(
+                pixel_shader->GetTranslation(
+                    pipeline_description.pixel_shader_modification));
+        if (!pipeline_runtime_description.pixel_shader ||
+            !pipeline_runtime_description.pixel_shader->is_valid()) {
+          continue;
         }
-        XELOGGPU(
-            "Created {} graphics pipelines from the storage in {} milliseconds",
-            pipelines_created,
-            (xe::Clock::QueryHostTickCount() -
-             pipeline_storage_initialization_start_) *
-                1000 / xe::Clock::QueryHostTickFrequency());
+      } else {
+        pixel_shader = nullptr;
+        pipeline_runtime_description.pixel_shader = nullptr;
+      }
+      pipeline_runtime_description.root_signature =
+          command_processor_.GetRootSignature(
+              vertex_shader, pixel_shader,
+              DxbcShaderTranslator::Modification(
+                  pipeline_description.vertex_shader_modification)
+                      .host_vertex_shader_type !=
+                  Shader::HostVertexShaderType::kVertex);
+      if (!pipeline_runtime_description.root_signature) {
+        continue;
+      }
+      std::memcpy(&pipeline_runtime_description.description,
+                  &pipeline_description, sizeof(pipeline_description));
+
+      Pipeline* new_pipeline = new Pipeline;
+      new_pipeline->state = nullptr;
+      std::memcpy(&new_pipeline->description, &pipeline_runtime_description,
+                  sizeof(pipeline_runtime_description));
+      pipelines_.emplace(pipeline_stored_description.description_hash,
+                         new_pipeline);
+      COUNT_profile_set("gpu/pipeline_cache/pipelines", pipelines_.size());
+      if (!creation_threads_.empty()) {
+        // Submit the pipeline for creation to any available thread.
+        {
+          std::lock_guard<std::mutex> lock(creation_request_lock_);
+          creation_queue_.push_back(new_pipeline);
+        }
+        creation_request_cond_.notify_one();
+      } else {
+        new_pipeline->state = CreateD3D12Pipeline(pipeline_runtime_description);
+      }
+      ++pipelines_created;
+    }
+
+    CreateQueuedPipelinesOnProcessorThread();
+    if (creation_threads_.size() > creation_thread_original_count) {
+      {
+        std::lock_guard<std::mutex> lock(creation_request_lock_);
+        creation_threads_shutdown_from_ = creation_thread_original_count;
+        // Assuming the queue is empty because of
+        // CreateQueuedPipelinesOnProcessorThread.
+      }
+      creation_request_cond_.notify_all();
+      while (creation_threads_.size() > creation_thread_original_count) {
+        xe::threading::Wait(creation_threads_.back().get(), false);
+        creation_threads_.pop_back();
+      }
+      bool await_creation_completion_event;
+      {
+        // Cleanup so additional threads can be created later again.
+        std::lock_guard<std::mutex> lock(creation_request_lock_);
+        creation_threads_shutdown_from_ = SIZE_MAX;
+        // If the invocation is blocking, all the shader storage initialization
+        // is expected to be done before proceeding, to avoid latency in the
+        // command processor after the invocation.
+        await_creation_completion_event =
+            blocking && creation_threads_busy_ != 0;
+        if (await_creation_completion_event) {
+          creation_completion_event_->Reset();
+          creation_completion_set_event_ = true;
+        }
+      }
+      if (await_creation_completion_event) {
+        creation_request_cond_.notify_one();
+        xe::threading::Wait(creation_completion_event_.get(), false);
       }
     }
-    xe::filesystem::TruncateStdioFile(pipeline_storage_file_,
-                                      pipeline_storage_valid_bytes);
+
+    XELOGGPU(
+        "Created {} graphics pipelines (not including reading the "
+        "descriptions) from the storage in {} milliseconds",
+        pipelines_created,
+        (xe::Clock::QueryHostTickCount() - pipeline_creation_start_) * 1000 /
+            xe::Clock::QueryHostTickFrequency());
+    // If any pipeline descriptions were corrupted (or the whole file has excess
+    // bytes in the end), truncate to the last valid pipeline description.
+    xe::filesystem::TruncateStdioFile(
+        pipeline_storage_file_,
+        uint64_t(sizeof(pipeline_storage_file_header) +
+                 sizeof(PipelineStoredDescription) *
+                     pipeline_stored_descriptions.size()));
   } else {
     xe::filesystem::TruncateStdioFile(pipeline_storage_file_, 0);
     pipeline_storage_file_header.magic = pipeline_storage_magic;
     pipeline_storage_file_header.magic_api = pipeline_storage_magic_api;
     pipeline_storage_file_header.version_swapped =
-        xe::byte_swap(PipelineDescription::kVersion);
+        pipeline_storage_version_swapped;
+    // Reserved for future (for Vulkan) - host device features affecting legal
+    // pipeline descriptions.
+    pipeline_storage_file_header.device_features = 0;
     fwrite(&pipeline_storage_file_header, sizeof(pipeline_storage_file_header),
            1, pipeline_storage_file_);
   }
 
-  shader_storage_root_ = storage_root;
+  shader_storage_cache_root_ = cache_root;
   shader_storage_title_id_ = title_id;
 
   // Start the storage writing thread.
@@ -706,7 +773,7 @@ void PipelineCache::ShutdownShaderStorage() {
     shader_storage_file_flush_needed_ = false;
   }
 
-  shader_storage_root_.clear();
+  shader_storage_cache_root_.clear();
   shader_storage_title_id_ = 0;
 }
 
@@ -757,11 +824,17 @@ bool PipelineCache::IsCreatingPipelines() {
 }
 
 D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
-                                       uint32_t guest_address,
                                        const uint32_t* host_address,
                                        uint32_t dword_count) {
   // Hash the input memory and lookup the shader.
-  uint64_t data_hash = XXH64(host_address, dword_count * sizeof(uint32_t), 0);
+  return LoadShader(shader_type, host_address, dword_count,
+                    XXH64(host_address, dword_count * sizeof(uint32_t), 0));
+}
+
+D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
+                                       const uint32_t* host_address,
+                                       uint32_t dword_count,
+                                       uint64_t data_hash) {
   auto it = shaders_.find(data_hash);
   if (it != shaders_.end()) {
     // Shader has been previously loaded.
@@ -774,12 +847,64 @@ D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
   D3D12Shader* shader =
       new D3D12Shader(shader_type, data_hash, host_address, dword_count);
   shaders_.emplace(data_hash, shader);
+  if (!cvars::dump_shaders.empty()) {
+    shader->DumpUcodeBinary(cvars::dump_shaders);
+  }
 
   return shader;
 }
 
-Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
-    const {
+bool PipelineCache::GetCurrentShaderModifications(
+    DxbcShaderTranslator::Modification& vertex_shader_modification_out,
+    DxbcShaderTranslator::Modification& pixel_shader_modification_out) const {
+  Shader::HostVertexShaderType host_vertex_shader_type =
+      GetCurrentHostVertexShaderTypeIfValid();
+  if (host_vertex_shader_type == Shader::HostVertexShaderType(-1)) {
+    return false;
+  }
+  vertex_shader_modification_out = DxbcShaderTranslator::Modification(
+      shader_translator_->GetDefaultModification(xenos::ShaderType::kVertex,
+                                                 host_vertex_shader_type));
+  DxbcShaderTranslator::Modification pixel_shader_modification(
+      shader_translator_->GetDefaultModification(xenos::ShaderType::kPixel));
+  if (!edram_rov_used_) {
+    const auto& regs = register_file_;
+    using DepthStencilMode =
+        DxbcShaderTranslator::Modification::DepthStencilMode;
+    if ((depth_float24_conversion_ ==
+             flags::DepthFloat24Conversion::kOnOutputTruncating ||
+         depth_float24_conversion_ ==
+             flags::DepthFloat24Conversion::kOnOutputRounding) &&
+        regs.Get<reg::RB_DEPTHCONTROL>().z_enable &&
+        regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
+            xenos::DepthRenderTargetFormat::kD24FS8) {
+      pixel_shader_modification.depth_stencil_mode =
+          depth_float24_conversion_ ==
+                  flags::DepthFloat24Conversion::kOnOutputTruncating
+              ? DepthStencilMode::kFloat24Truncating
+              : DepthStencilMode::kFloat24Rounding;
+    } else {
+      // Hint to enable early depth/stencil writing if possible - whether it
+      // will actually take effect depends on the shader itself, it's not known
+      // before translation.
+      auto rb_colorcontrol = regs.Get<reg::RB_COLORCONTROL>();
+      if ((!rb_colorcontrol.alpha_test_enable ||
+           rb_colorcontrol.alpha_func == xenos::CompareFunction::kAlways) &&
+          !rb_colorcontrol.alpha_to_mask_enable) {
+        pixel_shader_modification.depth_stencil_mode =
+            DepthStencilMode::kEarlyHint;
+      } else {
+        pixel_shader_modification.depth_stencil_mode =
+            DepthStencilMode::kNoModifiers;
+      }
+    }
+  }
+  pixel_shader_modification_out = pixel_shader_modification;
+  return true;
+}
+
+Shader::HostVertexShaderType
+PipelineCache::GetCurrentHostVertexShaderTypeIfValid() const {
   // If the values this functions returns are changed, INVALIDATE THE SHADER
   // STORAGE (increase kVersion for BOTH shaders and pipelines)! The exception
   // is when the function originally returned "unsupported", but started to
@@ -855,8 +980,8 @@ Shader::HostVertexShaderType PipelineCache::GetHostVertexShaderTypeIfValid()
 }
 
 bool PipelineCache::EnsureShadersTranslated(
-    D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
-    Shader::HostVertexShaderType host_vertex_shader_type) {
+    D3D12Shader::D3D12Translation* vertex_shader,
+    D3D12Shader::D3D12Translation* pixel_shader) {
   const auto& regs = register_file_;
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
 
@@ -869,18 +994,19 @@ bool PipelineCache::EnsureShadersTranslated(
 
   if (!vertex_shader->is_translated()) {
     if (!TranslateShader(*shader_translator_, *vertex_shader, sq_program_cntl,
-                         dxbc_converter_, dxc_utils_, dxc_compiler_,
-                         host_vertex_shader_type)) {
+                         dxbc_converter_, dxc_utils_, dxc_compiler_)) {
       XELOGE("Failed to translate the vertex shader!");
       return false;
     }
-    if (shader_storage_file_) {
+    if (shader_storage_file_ && vertex_shader->shader().ucode_storage_index() !=
+                                    shader_storage_index_) {
+      vertex_shader->shader().set_ucode_storage_index(shader_storage_index_);
       assert_not_null(storage_write_thread_);
       shader_storage_file_flush_needed_ = true;
       {
         std::lock_guard<std::mutex> lock(storage_write_request_lock_);
         storage_write_shader_queue_.push_back(
-            std::make_pair(vertex_shader, sq_program_cntl));
+            std::make_pair(&vertex_shader->shader(), sq_program_cntl));
       }
       storage_write_request_cond_.notify_all();
     }
@@ -892,13 +1018,15 @@ bool PipelineCache::EnsureShadersTranslated(
       XELOGE("Failed to translate the pixel shader!");
       return false;
     }
-    if (shader_storage_file_) {
+    if (shader_storage_file_ &&
+        pixel_shader->shader().ucode_storage_index() != shader_storage_index_) {
+      pixel_shader->shader().set_ucode_storage_index(shader_storage_index_);
       assert_not_null(storage_write_thread_);
       shader_storage_file_flush_needed_ = true;
       {
         std::lock_guard<std::mutex> lock(storage_write_request_lock_);
         storage_write_shader_queue_.push_back(
-            std::make_pair(pixel_shader, sq_program_cntl));
+            std::make_pair(&pixel_shader->shader(), sq_program_cntl));
       }
       storage_write_request_cond_.notify_all();
     }
@@ -908,9 +1036,9 @@ bool PipelineCache::EnsureShadersTranslated(
 }
 
 bool PipelineCache::ConfigurePipeline(
-    D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
+    D3D12Shader::D3D12Translation* vertex_shader,
+    D3D12Shader::D3D12Translation* pixel_shader,
     xenos::PrimitiveType primitive_type, xenos::IndexFormat index_format,
-    bool early_z,
     const RenderTargetCache::PipelineRenderTarget render_targets[5],
     void** pipeline_handle_out, ID3D12RootSignature** root_signature_out) {
 #if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
@@ -922,7 +1050,7 @@ bool PipelineCache::ConfigurePipeline(
 
   PipelineRuntimeDescription runtime_description;
   if (!GetCurrentStateDescription(vertex_shader, pixel_shader, primitive_type,
-                                  index_format, early_z, render_targets,
+                                  index_format, render_targets,
                                   runtime_description)) {
     return false;
   }
@@ -950,9 +1078,7 @@ bool PipelineCache::ConfigurePipeline(
     }
   }
 
-  if (!EnsureShadersTranslated(
-          vertex_shader, pixel_shader,
-          Shader::HostVertexShaderType(description.host_vertex_shader_type))) {
+  if (!EnsureShadersTranslated(vertex_shader, pixel_shader)) {
     return false;
   }
 
@@ -995,14 +1121,17 @@ bool PipelineCache::ConfigurePipeline(
   return true;
 }
 
-bool PipelineCache::TranslateShader(
-    DxbcShaderTranslator& translator, D3D12Shader& shader,
-    reg::SQ_PROGRAM_CNTL cntl, IDxbcConverter* dxbc_converter,
-    IDxcUtils* dxc_utils, IDxcCompiler* dxc_compiler,
-    Shader::HostVertexShaderType host_vertex_shader_type) {
+bool PipelineCache::TranslateShader(DxbcShaderTranslator& translator,
+                                    D3D12Shader::D3D12Translation& translation,
+                                    reg::SQ_PROGRAM_CNTL cntl,
+                                    IDxbcConverter* dxbc_converter,
+                                    IDxcUtils* dxc_utils,
+                                    IDxcCompiler* dxc_compiler) {
+  D3D12Shader& shader = static_cast<D3D12Shader&>(translation.shader());
+
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
-  if (!translator.Translate(&shader, cntl, host_vertex_shader_type)) {
+  if (!translator.Translate(translation, cntl)) {
     XELOGE("Shader {:016X} translation failed; marking as ignored",
            shader.ucode_data_hash());
     return false;
@@ -1010,7 +1139,8 @@ bool PipelineCache::TranslateShader(
 
   const char* host_shader_type;
   if (shader.type() == xenos::ShaderType::kVertex) {
-    switch (shader.host_vertex_shader_type()) {
+    DxbcShaderTranslator::Modification modification(translation.modification());
+    switch (modification.host_vertex_shader_type) {
       case Shader::HostVertexShaderType::kLineDomainCPIndexed:
         host_shader_type = "control-point-indexed line domain";
         break;
@@ -1039,169 +1169,156 @@ bool PipelineCache::TranslateShader(
            shader.ucode_dword_count() * 4, shader.ucode_data_hash(),
            shader.ucode_disassembly().c_str());
 
-  // Set up texture and sampler bindings.
-  uint32_t texture_binding_count;
-  const DxbcShaderTranslator::TextureBinding* translator_texture_bindings =
-      translator.GetTextureBindings(texture_binding_count);
-  uint32_t sampler_binding_count;
-  const DxbcShaderTranslator::SamplerBinding* sampler_bindings =
-      translator.GetSamplerBindings(sampler_binding_count);
-  shader.SetTexturesAndSamplers(translator_texture_bindings,
-                                texture_binding_count, sampler_bindings,
-                                sampler_binding_count);
-  assert_false(bindless_resources_used_ &&
-               texture_binding_count + sampler_binding_count >
-                   D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 4);
-  // Get hashable texture bindings, without translator-specific info.
-  const D3D12Shader::TextureBinding* texture_bindings =
-      shader.GetTextureBindings(texture_binding_count);
-  size_t texture_binding_layout_bytes =
-      texture_binding_count * sizeof(*texture_bindings);
-  uint64_t texture_binding_layout_hash = 0;
-  if (texture_binding_count) {
-    texture_binding_layout_hash =
-        XXH64(texture_bindings, texture_binding_layout_bytes, 0);
-  }
-  uint32_t bindless_sampler_count =
-      bindless_resources_used_ ? sampler_binding_count : 0;
-  uint64_t bindless_sampler_layout_hash = 0;
-  if (bindless_sampler_count) {
-    XXH64_state_t hash_state;
-    XXH64_reset(&hash_state, 0);
-    for (uint32_t i = 0; i < bindless_sampler_count; ++i) {
-      XXH64_update(&hash_state, &sampler_bindings[i].bindless_descriptor_index,
-                   sizeof(sampler_bindings[i].bindless_descriptor_index));
-    }
-    bindless_sampler_layout_hash = XXH64_digest(&hash_state);
-  }
-  // Obtain the unique IDs of binding layouts if there are any texture bindings
-  // or bindless samplers, for invalidation in the command processor.
-  size_t texture_binding_layout_uid = kLayoutUIDEmpty;
-  // Use sampler count for the bindful case because it's the only thing that
-  // must be the same for layouts to be compatible in this case
-  // (instruction-specified parameters are used as overrides for actual
-  // samplers).
-  static_assert(
-      kLayoutUIDEmpty == 0,
-      "Empty layout UID is assumed to be 0 because for bindful samplers, the "
-      "UID is their count");
-  size_t sampler_binding_layout_uid = bindless_resources_used_
-                                          ? kLayoutUIDEmpty
-                                          : size_t(sampler_binding_count);
-  if (texture_binding_count || bindless_sampler_count) {
-    std::lock_guard<std::mutex> layouts_mutex_(layouts_mutex_);
+  // Set up texture and sampler binding layouts.
+  if (shader.EnterBindingLayoutUserUIDSetup()) {
+    uint32_t texture_binding_count;
+    const D3D12Shader::TextureBinding* texture_bindings =
+        shader.GetTextureBindings(texture_binding_count);
+    uint32_t sampler_binding_count;
+    const D3D12Shader::SamplerBinding* sampler_bindings =
+        shader.GetSamplerBindings(sampler_binding_count);
+    assert_false(bindless_resources_used_ &&
+                 texture_binding_count + sampler_binding_count >
+                     D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 4);
+    size_t texture_binding_layout_bytes =
+        texture_binding_count * sizeof(*texture_bindings);
+    uint64_t texture_binding_layout_hash = 0;
     if (texture_binding_count) {
-      auto found_range =
-          texture_binding_layout_map_.equal_range(texture_binding_layout_hash);
-      for (auto it = found_range.first; it != found_range.second; ++it) {
-        if (it->second.vector_span_length == texture_binding_count &&
-            !std::memcmp(
-                texture_binding_layouts_.data() + it->second.vector_span_offset,
-                texture_bindings, texture_binding_layout_bytes)) {
-          texture_binding_layout_uid = it->second.uid;
-          break;
-        }
-      }
-      if (texture_binding_layout_uid == kLayoutUIDEmpty) {
-        static_assert(
-            kLayoutUIDEmpty == 0,
-            "Layout UID is size + 1 because it's assumed that 0 is the UID for "
-            "an empty layout");
-        texture_binding_layout_uid = texture_binding_layout_map_.size() + 1;
-        LayoutUID new_uid;
-        new_uid.uid = texture_binding_layout_uid;
-        new_uid.vector_span_offset = texture_binding_layouts_.size();
-        new_uid.vector_span_length = texture_binding_count;
-        texture_binding_layouts_.resize(new_uid.vector_span_offset +
-                                        texture_binding_count);
-        std::memcpy(
-            texture_binding_layouts_.data() + new_uid.vector_span_offset,
-            texture_bindings, texture_binding_layout_bytes);
-        texture_binding_layout_map_.emplace(texture_binding_layout_hash,
-                                            new_uid);
-      }
+      texture_binding_layout_hash =
+          XXH64(texture_bindings, texture_binding_layout_bytes, 0);
     }
+    uint32_t bindless_sampler_count =
+        bindless_resources_used_ ? sampler_binding_count : 0;
+    uint64_t bindless_sampler_layout_hash = 0;
     if (bindless_sampler_count) {
-      auto found_range =
-          bindless_sampler_layout_map_.equal_range(sampler_binding_layout_uid);
-      for (auto it = found_range.first; it != found_range.second; ++it) {
-        if (it->second.vector_span_length != bindless_sampler_count) {
-          continue;
-        }
-        sampler_binding_layout_uid = it->second.uid;
-        const uint32_t* vector_bindless_sampler_layout =
-            bindless_sampler_layouts_.data() + it->second.vector_span_offset;
-        for (uint32_t i = 0; i < bindless_sampler_count; ++i) {
-          if (vector_bindless_sampler_layout[i] !=
-              sampler_bindings[i].bindless_descriptor_index) {
-            sampler_binding_layout_uid = kLayoutUIDEmpty;
+      XXH64_state_t hash_state;
+      XXH64_reset(&hash_state, 0);
+      for (uint32_t i = 0; i < bindless_sampler_count; ++i) {
+        XXH64_update(&hash_state,
+                     &sampler_bindings[i].bindless_descriptor_index,
+                     sizeof(sampler_bindings[i].bindless_descriptor_index));
+      }
+      bindless_sampler_layout_hash = XXH64_digest(&hash_state);
+    }
+    // Obtain the unique IDs of binding layouts if there are any texture
+    // bindings or bindless samplers, for invalidation in the command processor.
+    size_t texture_binding_layout_uid = kLayoutUIDEmpty;
+    // Use sampler count for the bindful case because it's the only thing that
+    // must be the same for layouts to be compatible in this case
+    // (instruction-specified parameters are used as overrides for actual
+    // samplers).
+    static_assert(
+        kLayoutUIDEmpty == 0,
+        "Empty layout UID is assumed to be 0 because for bindful samplers, the "
+        "UID is their count");
+    size_t sampler_binding_layout_uid = bindless_resources_used_
+                                            ? kLayoutUIDEmpty
+                                            : size_t(sampler_binding_count);
+    if (texture_binding_count || bindless_sampler_count) {
+      std::lock_guard<std::mutex> layouts_mutex_(layouts_mutex_);
+      if (texture_binding_count) {
+        auto found_range = texture_binding_layout_map_.equal_range(
+            texture_binding_layout_hash);
+        for (auto it = found_range.first; it != found_range.second; ++it) {
+          if (it->second.vector_span_length == texture_binding_count &&
+              !std::memcmp(texture_binding_layouts_.data() +
+                               it->second.vector_span_offset,
+                           texture_bindings, texture_binding_layout_bytes)) {
+            texture_binding_layout_uid = it->second.uid;
             break;
           }
         }
-        if (sampler_binding_layout_uid != kLayoutUIDEmpty) {
-          break;
+        if (texture_binding_layout_uid == kLayoutUIDEmpty) {
+          static_assert(
+              kLayoutUIDEmpty == 0,
+              "Layout UID is size + 1 because it's assumed that 0 is the UID "
+              "for an empty layout");
+          texture_binding_layout_uid = texture_binding_layout_map_.size() + 1;
+          LayoutUID new_uid;
+          new_uid.uid = texture_binding_layout_uid;
+          new_uid.vector_span_offset = texture_binding_layouts_.size();
+          new_uid.vector_span_length = texture_binding_count;
+          texture_binding_layouts_.resize(new_uid.vector_span_offset +
+                                          texture_binding_count);
+          std::memcpy(
+              texture_binding_layouts_.data() + new_uid.vector_span_offset,
+              texture_bindings, texture_binding_layout_bytes);
+          texture_binding_layout_map_.emplace(texture_binding_layout_hash,
+                                              new_uid);
         }
       }
-      if (sampler_binding_layout_uid == kLayoutUIDEmpty) {
-        sampler_binding_layout_uid = bindless_sampler_layout_map_.size();
-        LayoutUID new_uid;
-        static_assert(
-            kLayoutUIDEmpty == 0,
-            "Layout UID is size + 1 because it's assumed that 0 is the UID for "
-            "an empty layout");
-        new_uid.uid = sampler_binding_layout_uid + 1;
-        new_uid.vector_span_offset = bindless_sampler_layouts_.size();
-        new_uid.vector_span_length = sampler_binding_count;
-        bindless_sampler_layouts_.resize(new_uid.vector_span_offset +
-                                         sampler_binding_count);
-        uint32_t* vector_bindless_sampler_layout =
-            bindless_sampler_layouts_.data() + new_uid.vector_span_offset;
-        for (uint32_t i = 0; i < bindless_sampler_count; ++i) {
-          vector_bindless_sampler_layout[i] =
-              sampler_bindings[i].bindless_descriptor_index;
+      if (bindless_sampler_count) {
+        auto found_range = bindless_sampler_layout_map_.equal_range(
+            sampler_binding_layout_uid);
+        for (auto it = found_range.first; it != found_range.second; ++it) {
+          if (it->second.vector_span_length != bindless_sampler_count) {
+            continue;
+          }
+          sampler_binding_layout_uid = it->second.uid;
+          const uint32_t* vector_bindless_sampler_layout =
+              bindless_sampler_layouts_.data() + it->second.vector_span_offset;
+          for (uint32_t i = 0; i < bindless_sampler_count; ++i) {
+            if (vector_bindless_sampler_layout[i] !=
+                sampler_bindings[i].bindless_descriptor_index) {
+              sampler_binding_layout_uid = kLayoutUIDEmpty;
+              break;
+            }
+          }
+          if (sampler_binding_layout_uid != kLayoutUIDEmpty) {
+            break;
+          }
         }
-        bindless_sampler_layout_map_.emplace(bindless_sampler_layout_hash,
-                                             new_uid);
+        if (sampler_binding_layout_uid == kLayoutUIDEmpty) {
+          sampler_binding_layout_uid = bindless_sampler_layout_map_.size();
+          LayoutUID new_uid;
+          static_assert(
+              kLayoutUIDEmpty == 0,
+              "Layout UID is size + 1 because it's assumed that 0 is the UID "
+              "for an empty layout");
+          new_uid.uid = sampler_binding_layout_uid + 1;
+          new_uid.vector_span_offset = bindless_sampler_layouts_.size();
+          new_uid.vector_span_length = sampler_binding_count;
+          bindless_sampler_layouts_.resize(new_uid.vector_span_offset +
+                                           sampler_binding_count);
+          uint32_t* vector_bindless_sampler_layout =
+              bindless_sampler_layouts_.data() + new_uid.vector_span_offset;
+          for (uint32_t i = 0; i < bindless_sampler_count; ++i) {
+            vector_bindless_sampler_layout[i] =
+                sampler_bindings[i].bindless_descriptor_index;
+          }
+          bindless_sampler_layout_map_.emplace(bindless_sampler_layout_hash,
+                                               new_uid);
+        }
       }
     }
-  }
-  shader.SetTextureBindingLayoutUserUID(texture_binding_layout_uid);
-  shader.SetSamplerBindingLayoutUserUID(sampler_binding_layout_uid);
-
-  // Create a version of the shader with early depth/stencil forced by Xenia
-  // itself when it's safe to do so or when EARLY_Z_ENABLE is set in
-  // RB_DEPTHCONTROL.
-  if (shader.type() == xenos::ShaderType::kPixel && !edram_rov_used_ &&
-      !shader.writes_depth()) {
-    shader.SetForcedEarlyZShaderObject(
-        std::move(DxbcShaderTranslator::ForceEarlyDepthStencil(
-            shader.translated_binary().data())));
+    shader.SetTextureBindingLayoutUserUID(texture_binding_layout_uid);
+    shader.SetSamplerBindingLayoutUserUID(sampler_binding_layout_uid);
   }
 
   // Disassemble the shader for dumping.
   auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
   if (cvars::d3d12_dxbc_disasm_dxilconv) {
-    shader.DisassembleDxbc(provider, cvars::d3d12_dxbc_disasm, dxbc_converter,
-                           dxc_utils, dxc_compiler);
+    translation.DisassembleDxbcAndDxil(provider, cvars::d3d12_dxbc_disasm,
+                                       dxbc_converter, dxc_utils, dxc_compiler);
   } else {
-    shader.DisassembleDxbc(provider, cvars::d3d12_dxbc_disasm);
+    translation.DisassembleDxbcAndDxil(provider, cvars::d3d12_dxbc_disasm);
   }
 
   // Dump shader files if desired.
   if (!cvars::dump_shaders.empty()) {
-    shader.Dump(cvars::dump_shaders,
-                (shader.type() == xenos::ShaderType::kPixel)
-                    ? (edram_rov_used_ ? "d3d12_rov" : "d3d12_rtv")
-                    : "d3d12");
+    translation.Dump(cvars::dump_shaders,
+                     (shader.type() == xenos::ShaderType::kPixel)
+                         ? (edram_rov_used_ ? "d3d12_rov" : "d3d12_rtv")
+                         : "d3d12");
   }
 
-  return shader.is_valid();
+  return translation.is_valid();
 }
 
 bool PipelineCache::GetCurrentStateDescription(
-    D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
+    D3D12Shader::D3D12Translation* vertex_shader,
+    D3D12Shader::D3D12Translation* pixel_shader,
     xenos::PrimitiveType primitive_type, xenos::IndexFormat index_format,
-    bool early_z,
     const RenderTargetCache::PipelineRenderTarget render_targets[5],
     PipelineRuntimeDescription& runtime_description_out) {
   PipelineDescription& description_out = runtime_description_out.description;
@@ -1212,19 +1329,30 @@ bool PipelineCache::GetCurrentStateDescription(
   // Initialize all unused fields to zero for comparison/hashing.
   std::memset(&runtime_description_out, 0, sizeof(runtime_description_out));
 
+  bool tessellated =
+      DxbcShaderTranslator::Modification(vertex_shader->modification())
+          .host_vertex_shader_type != Shader::HostVertexShaderType::kVertex;
+
   // Root signature.
-  runtime_description_out.root_signature =
-      command_processor_.GetRootSignature(vertex_shader, pixel_shader);
+  runtime_description_out.root_signature = command_processor_.GetRootSignature(
+      static_cast<const DxbcShader*>(&vertex_shader->shader()),
+      pixel_shader ? static_cast<const DxbcShader*>(&pixel_shader->shader())
+                   : nullptr,
+      tessellated);
   if (runtime_description_out.root_signature == nullptr) {
     return false;
   }
 
   // Shaders.
   runtime_description_out.vertex_shader = vertex_shader;
-  description_out.vertex_shader_hash = vertex_shader->ucode_data_hash();
+  description_out.vertex_shader_hash =
+      vertex_shader->shader().ucode_data_hash();
+  description_out.vertex_shader_modification = vertex_shader->modification();
   if (pixel_shader) {
     runtime_description_out.pixel_shader = pixel_shader;
-    description_out.pixel_shader_hash = pixel_shader->ucode_data_hash();
+    description_out.pixel_shader_hash =
+        pixel_shader->shader().ucode_data_hash();
+    description_out.pixel_shader_modification = pixel_shader->modification();
   }
 
   // Index buffer strip cut value.
@@ -1239,13 +1367,10 @@ bool PipelineCache::GetCurrentStateDescription(
   }
 
   // Host vertex shader type and primitive topology.
-  Shader::HostVertexShaderType host_vertex_shader_type =
-      GetHostVertexShaderTypeIfValid();
-  if (host_vertex_shader_type == Shader::HostVertexShaderType(-1)) {
-    return false;
-  }
-  description_out.host_vertex_shader_type = host_vertex_shader_type;
-  if (host_vertex_shader_type == Shader::HostVertexShaderType::kVertex) {
+  if (tessellated) {
+    description_out.primitive_topology_type_or_tessellation_mode =
+        uint32_t(regs.Get<reg::VGT_HOS_CNTL>().tess_mode);
+  } else {
     switch (primitive_type) {
       case xenos::PrimitiveType::kPointList:
         description_out.primitive_topology_type_or_tessellation_mode =
@@ -1280,14 +1405,10 @@ bool PipelineCache::GetCurrentStateDescription(
         description_out.geometry_shader = PipelineGeometryShader::kNone;
         break;
     }
-  } else {
-    description_out.primitive_topology_type_or_tessellation_mode =
-        uint32_t(regs.Get<reg::VGT_HOS_CNTL>().tess_mode);
   }
 
-  bool primitive_polygonal = xenos::IsPrimitivePolygonal(
-      host_vertex_shader_type != Shader::HostVertexShaderType::kVertex,
-      primitive_type);
+  bool primitive_polygonal =
+      xenos::IsPrimitivePolygonal(tessellated, primitive_type);
 
   // Rasterizer state.
   // Because Direct3D 12 doesn't support per-side fill mode and depth bias, the
@@ -1386,8 +1507,7 @@ bool PipelineCache::GetCurrentStateDescription(
     description_out.depth_bias_slope_scaled =
         poly_offset_scale * (1.0f / 16.0f);
   }
-  if (cvars::d3d12_tessellation_wireframe &&
-      host_vertex_shader_type != Shader::HostVertexShaderType::kVertex) {
+  if (tessellated && cvars::d3d12_tessellation_wireframe) {
     description_out.fill_mode_wireframe = 1;
   }
   description_out.depth_clip = !regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable;
@@ -1453,13 +1573,11 @@ bool PipelineCache::GetCurrentStateDescription(
     } else {
       description_out.depth_func = xenos::CompareFunction::kAlways;
     }
-    if (early_z) {
-      description_out.force_early_z = 1;
-    }
 
     // Render targets and blending state. 32 because of 0x1F mask, for safety
     // (all unknown to zero).
-    uint32_t color_mask = command_processor_.GetCurrentColorMask(pixel_shader);
+    uint32_t color_mask = command_processor_.GetCurrentColorMask(
+        pixel_shader ? &pixel_shader->shader() : nullptr);
     static const PipelineBlendFactor kBlendFactorMap[32] = {
         /*  0 */ PipelineBlendFactor::kZero,
         /*  1 */ PipelineBlendFactor::kOne,
@@ -1550,11 +1668,11 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
 
   if (runtime_description.pixel_shader != nullptr) {
     XELOGGPU("Creating graphics pipeline with VS {:016X}, PS {:016X}",
-             runtime_description.vertex_shader->ucode_data_hash(),
-             runtime_description.pixel_shader->ucode_data_hash());
+             runtime_description.vertex_shader->shader().ucode_data_hash(),
+             runtime_description.pixel_shader->shader().ucode_data_hash());
   } else {
     XELOGGPU("Creating graphics pipeline with VS {:016X}",
-             runtime_description.vertex_shader->ucode_data_hash());
+             runtime_description.vertex_shader->shader().ucode_data_hash());
   }
 
   D3D12_GRAPHICS_PIPELINE_STATE_DESC state_desc;
@@ -1580,21 +1698,14 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
   // Primitive topology, vertex, hull, domain and geometry shaders.
   if (!runtime_description.vertex_shader->is_translated()) {
     XELOGE("Vertex shader {:016X} not translated",
-           runtime_description.vertex_shader->ucode_data_hash());
+           runtime_description.vertex_shader->shader().ucode_data_hash());
     assert_always();
     return nullptr;
   }
   Shader::HostVertexShaderType host_vertex_shader_type =
-      description.host_vertex_shader_type;
-  if (runtime_description.vertex_shader->host_vertex_shader_type() !=
-      host_vertex_shader_type) {
-    XELOGE(
-        "Vertex shader {:016X} translated into the wrong host shader "
-        "type",
-        runtime_description.vertex_shader->ucode_data_hash());
-    assert_always();
-    return nullptr;
-  }
+      DxbcShaderTranslator::Modification(
+          runtime_description.vertex_shader->modification())
+          .host_vertex_shader_type;
   if (host_vertex_shader_type == Shader::HostVertexShaderType::kVertex) {
     state_desc.VS.pShaderBytecode =
         runtime_description.vertex_shader->translated_binary().data();
@@ -1704,24 +1815,34 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
   if (runtime_description.pixel_shader != nullptr) {
     if (!runtime_description.pixel_shader->is_translated()) {
       XELOGE("Pixel shader {:016X} not translated",
-             runtime_description.pixel_shader->ucode_data_hash());
+             runtime_description.pixel_shader->shader().ucode_data_hash());
       assert_always();
       return nullptr;
     }
-    const auto& forced_early_z_shader =
-        runtime_description.pixel_shader->GetForcedEarlyZShaderObject();
-    if (description.force_early_z && forced_early_z_shader.size() != 0) {
-      state_desc.PS.pShaderBytecode = forced_early_z_shader.data();
-      state_desc.PS.BytecodeLength = forced_early_z_shader.size();
-    } else {
-      state_desc.PS.pShaderBytecode =
-          runtime_description.pixel_shader->translated_binary().data();
-      state_desc.PS.BytecodeLength =
-          runtime_description.pixel_shader->translated_binary().size();
-    }
+    state_desc.PS.pShaderBytecode =
+        runtime_description.pixel_shader->translated_binary().data();
+    state_desc.PS.BytecodeLength =
+        runtime_description.pixel_shader->translated_binary().size();
   } else if (edram_rov_used_) {
     state_desc.PS.pShaderBytecode = depth_only_pixel_shader_.data();
     state_desc.PS.BytecodeLength = depth_only_pixel_shader_.size();
+  } else {
+    if ((description.depth_func != xenos::CompareFunction::kAlways ||
+         description.depth_write) &&
+        description.depth_format == xenos::DepthRenderTargetFormat::kD24FS8) {
+      switch (depth_float24_conversion_) {
+        case flags::DepthFloat24Conversion::kOnOutputTruncating:
+          state_desc.PS.pShaderBytecode = float24_truncate_ps;
+          state_desc.PS.BytecodeLength = sizeof(float24_truncate_ps);
+          break;
+        case flags::DepthFloat24Conversion::kOnOutputRounding:
+          state_desc.PS.pShaderBytecode = float24_round_ps;
+          state_desc.PS.BytecodeLength = sizeof(float24_round_ps);
+          break;
+        default:
+          break;
+      }
+    }
   }
 
   // Rasterizer state.
@@ -1810,9 +1931,6 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       state_desc.DSVFormat =
           RenderTargetCache::GetDepthDXGIFormat(description.depth_format);
     }
-    // TODO(Triang3l): EARLY_Z_ENABLE (needs to be enabled in shaders, but alpha
-    // test is dynamic - should be enabled anyway if there's no alpha test,
-    // discarding and depth output).
 
     // Render targets and blending.
     state_desc.BlendState.IndependentBlendEnable = TRUE;
@@ -1874,22 +1992,24 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
                                                  IID_PPV_ARGS(&state)))) {
     if (runtime_description.pixel_shader != nullptr) {
       XELOGE("Failed to create graphics pipeline with VS {:016X}, PS {:016X}",
-             runtime_description.vertex_shader->ucode_data_hash(),
-             runtime_description.pixel_shader->ucode_data_hash());
+             runtime_description.vertex_shader->shader().ucode_data_hash(),
+             runtime_description.pixel_shader->shader().ucode_data_hash());
     } else {
       XELOGE("Failed to create graphics pipeline with VS {:016X}",
-             runtime_description.vertex_shader->ucode_data_hash());
+             runtime_description.vertex_shader->shader().ucode_data_hash());
     }
     return nullptr;
   }
   std::wstring name;
   if (runtime_description.pixel_shader != nullptr) {
-    name = fmt::format(L"VS {:016X}, PS {:016X}",
-                       runtime_description.vertex_shader->ucode_data_hash(),
-                       runtime_description.pixel_shader->ucode_data_hash());
+    name = fmt::format(
+        L"VS {:016X}, PS {:016X}",
+        runtime_description.vertex_shader->shader().ucode_data_hash(),
+        runtime_description.pixel_shader->shader().ucode_data_hash());
   } else {
-    name = fmt::format(L"VS {:016X}",
-                       runtime_description.vertex_shader->ucode_data_hash());
+    name = fmt::format(
+        L"VS {:016X}",
+        runtime_description.vertex_shader->shader().ucode_data_hash());
   }
   state->SetName(name.c_str());
   return state;
@@ -1954,7 +2074,6 @@ void PipelineCache::StorageWriteThread() {
       shader_header.ucode_data_hash = shader->ucode_data_hash();
       shader_header.ucode_dword_count = shader->ucode_dword_count();
       shader_header.type = shader->type();
-      shader_header.host_vertex_shader_type = shader->host_vertex_shader_type();
       shader_header.sq_program_cntl = shader_pair.second;
       assert_not_null(shader_storage_file_);
       fwrite(&shader_header, sizeof(shader_header), 1, shader_storage_file_);
