@@ -677,7 +677,12 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
       kernel::util::XdbfGameData db(
           module->memory()->TranslateVirtual(resource_data), resource_size);
       if (db.is_valid()) {
-        game_title_ = db.title();
+        // TODO(gibbed): get title respective to user locale.
+        game_title_ = db.title(kernel::util::XdbfLocale::kEnglish);
+        if (game_title_.empty()) {
+          // If English title is unavailable, get the title in default locale.
+          game_title_ = db.title();
+        }
         auto icon_block = db.icon();
         if (icon_block) {
           display_window_->SetIcon(icon_block.buffer, icon_block.size);
