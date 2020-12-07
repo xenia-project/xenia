@@ -102,6 +102,10 @@ std::string XdbfGameData::title() const {
   return GetStringTableEntry(default_language(), kXdbfIdTitle);
 }
 
+std::string XdbfGameData::title(XdbfLocale locale) const {
+  return GetStringTableEntry(locale, kXdbfIdTitle);
+}
+
 }  // namespace util
 }  // namespace kernel
 }  // namespace xe
