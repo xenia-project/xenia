@@ -2651,6 +2651,8 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
   bool is_closing_frame = is_swap && frame_open_;
 
   if (is_closing_frame) {
+    render_target_cache_->EndFrame();
+
     texture_cache_->EndFrame();
   }
 
