@@ -221,7 +221,9 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
               *reinterpret_cast<const D3DSetSamplePositionsArguments*>(stream);
           command_list_1->SetSamplePositions(
               args.num_samples_per_pixel, args.num_pixels,
-              const_cast<D3D12_SAMPLE_POSITION*>(args.sample_positions));
+              (args.num_samples_per_pixel && args.num_pixels)
+                  ? const_cast<D3D12_SAMPLE_POSITION*>(args.sample_positions)
+                  : nullptr);
         }
       } break;
       default:
