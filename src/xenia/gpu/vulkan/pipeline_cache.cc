@@ -9,11 +9,11 @@
 
 #include "xenia/gpu/vulkan/pipeline_cache.h"
 
-#include "third_party/xxhash/xxhash.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
+#include "xenia/base/xxhash.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
 
@@ -208,7 +208,8 @@ VulkanShader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
                                         const uint32_t* host_address,
                                         uint32_t dword_count) {
   // Hash the input memory and lookup the shader.
-  uint64_t data_hash = XXH64(host_address, dword_count * sizeof(uint32_t), 0);
+  uint64_t data_hash =
+      XXH3_64bits(host_address, dword_count * sizeof(uint32_t));
   auto it = shader_map_.find(data_hash);
   if (it != shader_map_.end()) {
     // Shader has been previously loaded.
@@ -259,7 +260,7 @@ PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
   }
   if (!pipeline) {
     // Should have a hash key produced by the UpdateState pass.
-    uint64_t hash_key = XXH64_digest(&hash_state_);
+    uint64_t hash_key = XXH3_64bits_digest(&hash_state_);
     pipeline = GetPipeline(render_state, hash_key);
     current_pipeline_ = pipeline;
     if (!pipeline) {
@@ -961,7 +962,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateState(
   bool mismatch = false;
 
   // Reset hash so we can build it up.
-  XXH64_reset(&hash_state_, 0);
+  XXH3_64bits_reset(&hash_state_);
 
 #define CHECK_UPDATE_STATUS(status, mismatch, error_message) \
   {                                                          \
@@ -1028,7 +1029,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRenderTargetState() {
   regs.rb_color1_info.color_format = cur_regs->rb_color1_info.color_format;
   regs.rb_color2_info.color_format = cur_regs->rb_color2_info.color_format;
   regs.rb_color3_info.color_format = cur_regs->rb_color3_info.color_format;
-  XXH64_update(&hash_state_, &regs, sizeof(regs));
+  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -1061,7 +1062,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   regs.vertex_shader = vertex_shader;
   regs.pixel_shader = pixel_shader;
   regs.primitive_type = primitive_type;
-  XXH64_update(&hash_state_, &regs, sizeof(regs));
+  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -1148,7 +1149,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
   bool dirty = false;
   dirty |= vertex_shader != regs.vertex_shader;
   regs.vertex_shader = vertex_shader;
-  XXH64_update(&hash_state_, &regs, sizeof(regs));
+  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -1177,7 +1178,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateInputAssemblyState(
   dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
                              XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
   regs.primitive_type = primitive_type;
-  XXH64_update(&hash_state_, &regs, sizeof(regs));
+  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -1303,7 +1304,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
     dirty = true;
   }
 
-  XXH64_update(&hash_state_, &regs, sizeof(regs));
+  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -1385,7 +1386,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateMultisampleState() {
   dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
                              XE_GPU_REG_PA_SU_SC_MODE_CNTL);
   dirty |= SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
-  XXH64_update(&hash_state_, &regs, sizeof(regs));
+  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -1437,7 +1438,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
   dirty |= SetShadowRegister(&regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
   dirty |=
       SetShadowRegister(&regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
-  XXH64_update(&hash_state_, &regs, sizeof(regs));
+  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }
@@ -1526,7 +1527,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateColorBlendState() {
   dirty |=
       SetShadowRegister(&regs.rb_blendcontrol[3], XE_GPU_REG_RB_BLENDCONTROL3);
   dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
-  XXH64_update(&hash_state_, &regs, sizeof(regs));
+  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
   if (!dirty) {
     return UpdateStatus::kCompatible;
   }

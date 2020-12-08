@@ -552,14 +552,14 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
 }
 
 void BufferCache::HashVertexBindings(
-    XXH64_state_t* hash_state,
+    XXH3_state_t* hash_state,
     const std::vector<Shader::VertexBinding>& vertex_bindings) {
   auto& regs = *register_file_;
   for (const auto& vertex_binding : vertex_bindings) {
 #if 0
-    XXH64_update(hash_state, &vertex_binding.binding_index, sizeof(vertex_binding.binding_index));
-    XXH64_update(hash_state, &vertex_binding.fetch_constant, sizeof(vertex_binding.fetch_constant));
-    XXH64_update(hash_state, &vertex_binding.stride_words, sizeof(vertex_binding.stride_words));
+    XXH3_64bits_update(hash_state, &vertex_binding.binding_index, sizeof(vertex_binding.binding_index));
+    XXH3_64bits_update(hash_state, &vertex_binding.fetch_constant, sizeof(vertex_binding.fetch_constant));
+    XXH3_64bits_update(hash_state, &vertex_binding.stride_words, sizeof(vertex_binding.stride_words));
 #endif
     int r = XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
             (vertex_binding.fetch_constant / 3) * 6;
@@ -567,15 +567,15 @@ void BufferCache::HashVertexBindings(
     switch (vertex_binding.fetch_constant % 3) {
       case 0: {
         auto& fetch = group->vertex_fetch_0;
-        XXH64_update(hash_state, &fetch, sizeof(fetch));
+        XXH3_64bits_update(hash_state, &fetch, sizeof(fetch));
       } break;
       case 1: {
         auto& fetch = group->vertex_fetch_1;
-        XXH64_update(hash_state, &fetch, sizeof(fetch));
+        XXH3_64bits_update(hash_state, &fetch, sizeof(fetch));
       } break;
       case 2: {
         auto& fetch = group->vertex_fetch_2;
-        XXH64_update(hash_state, &fetch, sizeof(fetch));
+        XXH3_64bits_update(hash_state, &fetch, sizeof(fetch));
       } break;
     }
   }
@@ -585,12 +585,12 @@ VkDescriptorSet BufferCache::PrepareVertexSet(
     VkCommandBuffer command_buffer, VkFence fence,
     const std::vector<Shader::VertexBinding>& vertex_bindings) {
   // (quickly) Generate a hash.
-  XXH64_state_t hash_state;
-  XXH64_reset(&hash_state, 0);
+  XXH3_state_t hash_state;
+  XXH3_64bits_reset(&hash_state);
 
   // (quickly) Generate a hash.
   HashVertexBindings(&hash_state, vertex_bindings);
-  uint64_t hash = XXH64_digest(&hash_state);
+  uint64_t hash = XXH3_64bits_digest(&hash_state);
   for (auto it = vertex_sets_.find(hash); it != vertex_sets_.end(); ++it) {
     // TODO(DrChat): We need to compare the bindings and ensure they're equal.
     return it->second;

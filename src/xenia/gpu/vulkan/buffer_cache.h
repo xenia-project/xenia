@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_VULKAN_BUFFER_CACHE_H_
 #define XENIA_GPU_VULKAN_BUFFER_CACHE_H_
 
+#include "xenia/base/xxhash.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/shader.h"
 #include "xenia/gpu/xenos.h"
@@ -20,7 +21,6 @@
 #include "xenia/ui/vulkan/vulkan_device.h"
 
 #include "third_party/vulkan/vk_mem_alloc.h"
-#include "third_party/xxhash/xxhash.h"
 
 #include <map>
 #include <unordered_map>
@@ -127,7 +127,7 @@ class BufferCache {
   void FreeConstantDescriptorSet();
 
   void HashVertexBindings(
-      XXH64_state_t* hash_state,
+      XXH3_state_t* hash_state,
       const std::vector<Shader::VertexBinding>& vertex_bindings);
 
   // Allocates a block of memory in the transient buffer.

@@ -1377,7 +1377,7 @@ void TextureCache::WritebackTexture(Texture* texture) {
 }
 
 void TextureCache::HashTextureBindings(
-    XXH64_state_t* hash_state, uint32_t& fetch_mask,
+    XXH3_state_t* hash_state, uint32_t& fetch_mask,
     const std::vector<Shader::TextureBinding>& bindings) {
   for (auto& binding : bindings) {
     uint32_t fetch_bit = 1 << binding.fetch_constant;
@@ -1393,7 +1393,7 @@ void TextureCache::HashTextureBindings(
         reinterpret_cast<const xenos::xe_gpu_fetch_group_t*>(&regs.values[r]);
     auto& fetch = group->texture_fetch;
 
-    XXH64_update(hash_state, &fetch, sizeof(fetch));
+    XXH3_64bits_update(hash_state, &fetch, sizeof(fetch));
   }
 }
 
@@ -1401,14 +1401,14 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
     VkCommandBuffer command_buffer, VkFence completion_fence,
     const std::vector<Shader::TextureBinding>& vertex_bindings,
     const std::vector<Shader::TextureBinding>& pixel_bindings) {
-  XXH64_state_t hash_state;
-  XXH64_reset(&hash_state, 0);
+  XXH3_state_t hash_state;
+  XXH3_64bits_reset(&hash_state);
 
   // (quickly) Generate a hash.
   uint32_t fetch_mask = 0;
   HashTextureBindings(&hash_state, fetch_mask, vertex_bindings);
   HashTextureBindings(&hash_state, fetch_mask, pixel_bindings);
-  uint64_t hash = XXH64_digest(&hash_state);
+  uint64_t hash = XXH3_64bits_digest(&hash_state);
   for (auto it = texture_sets_.find(hash); it != texture_sets_.end(); ++it) {
     // TODO(DrChat): We need to compare the bindings and ensure they're equal.
     return it->second;

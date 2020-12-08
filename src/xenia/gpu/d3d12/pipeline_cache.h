@@ -95,7 +95,7 @@ class PipelineCache {
 
     reg::SQ_PROGRAM_CNTL sq_program_cntl;
 
-    static constexpr uint32_t kVersion = 0x20201129;
+    static constexpr uint32_t kVersion = 0x20201207;
   });
 
   // Update PipelineDescription::kVersion if any of the Pipeline* enums are
@@ -208,7 +208,7 @@ class PipelineCache {
 
     PipelineRenderTarget render_targets[4];
 
-    static constexpr uint32_t kVersion = 0x20201202;
+    static constexpr uint32_t kVersion = 0x20201207;
   });
 
   XEPACKEDSTRUCT(PipelineStoredDescription, {
@@ -279,7 +279,7 @@ class PipelineCache {
   // Texture binding layouts of different shaders, for obtaining layout UIDs.
   std::vector<D3D12Shader::TextureBinding> texture_binding_layouts_;
   // Map of texture binding layouts used by shaders, for obtaining UIDs. Keys
-  // are XXH64 hashes of layouts, values need manual collision resolution using
+  // are XXH3 hashes of layouts, values need manual collision resolution using
   // layout_vector_offset:layout_length of texture_binding_layouts_.
   std::unordered_multimap<uint64_t, LayoutUID,
                           xe::hash::IdentityHasher<uint64_t>>
@@ -287,7 +287,7 @@ class PipelineCache {
   // Bindless sampler indices of different shaders, for obtaining layout UIDs.
   // For bindful, sampler count is used as the UID instead.
   std::vector<uint32_t> bindless_sampler_layouts_;
-  // Keys are XXH64 hashes of used bindless sampler indices.
+  // Keys are XXH3 hashes of used bindless sampler indices.
   std::unordered_multimap<uint64_t, LayoutUID,
                           xe::hash::IdentityHasher<uint64_t>>
       bindless_sampler_layout_map_;
