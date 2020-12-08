@@ -73,3 +73,6 @@
 [submodule "third_party/date"]
 	path = third_party/date
 	url = https://github.com/HowardHinnant/date.git
+[submodule "third_party/xxhash"]
+	path = third_party/xxhash
+	url = https://github.com/Cyan4973/xxHash.git

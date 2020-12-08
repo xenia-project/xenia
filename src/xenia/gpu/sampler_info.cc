@@ -12,7 +12,7 @@
 #include <cstring>
 #include <memory>
 
-#include "third_party/xxhash/xxhash.h"
+#include "xenia/base/xxhash.h"
 
 namespace xe {
 namespace gpu {
@@ -51,7 +51,7 @@ bool SamplerInfo::Prepare(const xenos::xe_gpu_texture_fetch_t& fetch,
 }
 
 uint64_t SamplerInfo::hash() const {
-  return XXH64(this, sizeof(SamplerInfo), 0);
+  return XXH3_64bits(this, sizeof(SamplerInfo));
 }
 
 }  //  namespace gpu

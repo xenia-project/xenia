@@ -186,7 +186,7 @@ class TextureCache {
   bool UploadTexture(VkCommandBuffer command_buffer, VkFence completion_fence,
                      Texture* dest, const TextureInfo& src);
 
-  void HashTextureBindings(XXH64_state_t* hash_state, uint32_t& fetch_mask,
+  void HashTextureBindings(XXH3_state_t* hash_state, uint32_t& fetch_mask,
                            const std::vector<Shader::TextureBinding>& bindings);
   bool SetupTextureBindings(
       VkCommandBuffer command_buffer, VkFence completion_fence,

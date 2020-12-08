@@ -20,7 +20,6 @@
 #include <utility>
 
 #include "third_party/fmt/include/fmt/format.h"
-#include "third_party/xxhash/xxhash.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/clock.h"
@@ -30,6 +29,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/string.h"
+#include "xenia/base/xxhash.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
@@ -325,9 +325,9 @@ void PipelineCache::InitializeShaderStorage(
             pipeline_stored_descriptions[i];
         // Validate file integrity, stop and truncate the stream if data is
         // corrupted.
-        if (XXH64(&pipeline_stored_description.description,
-                  sizeof(pipeline_stored_description.description),
-                  0) != pipeline_stored_description.description_hash) {
+        if (XXH3_64bits(&pipeline_stored_description.description,
+                        sizeof(pipeline_stored_description.description)) !=
+            pipeline_stored_description.description_hash) {
           pipeline_stored_descriptions.resize(i);
           break;
         }
@@ -471,7 +471,7 @@ void PipelineCache::InitializeShaderStorage(
         break;
       }
       uint64_t ucode_data_hash =
-          XXH64(ucode_dwords.data(), ucode_byte_count, 0);
+          XXH3_64bits(ucode_dwords.data(), ucode_byte_count);
       if (shader_header.ucode_data_hash != ucode_data_hash) {
         // Validation failed.
         break;
@@ -828,7 +828,7 @@ D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
                                        uint32_t dword_count) {
   // Hash the input memory and lookup the shader.
   return LoadShader(shader_type, host_address, dword_count,
-                    XXH64(host_address, dword_count * sizeof(uint32_t), 0));
+                    XXH3_64bits(host_address, dword_count * sizeof(uint32_t)));
 }
 
 D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
@@ -1065,7 +1065,7 @@ bool PipelineCache::ConfigurePipeline(
   }
 
   // Find an existing pipeline in the cache.
-  uint64_t hash = XXH64(&description, sizeof(description), 0);
+  uint64_t hash = XXH3_64bits(&description, sizeof(description));
   auto found_range = pipelines_.equal_range(hash);
   for (auto it = found_range.first; it != found_range.second; ++it) {
     Pipeline* found_pipeline = it->second;
@@ -1185,20 +1185,20 @@ bool PipelineCache::TranslateShader(DxbcShaderTranslator& translator,
     uint64_t texture_binding_layout_hash = 0;
     if (texture_binding_count) {
       texture_binding_layout_hash =
-          XXH64(texture_bindings, texture_binding_layout_bytes, 0);
+          XXH3_64bits(texture_bindings, texture_binding_layout_bytes);
     }
     uint32_t bindless_sampler_count =
         bindless_resources_used_ ? sampler_binding_count : 0;
     uint64_t bindless_sampler_layout_hash = 0;
     if (bindless_sampler_count) {
-      XXH64_state_t hash_state;
-      XXH64_reset(&hash_state, 0);
+      XXH3_state_t hash_state;
+      XXH3_64bits_reset(&hash_state);
       for (uint32_t i = 0; i < bindless_sampler_count; ++i) {
-        XXH64_update(&hash_state,
-                     &sampler_bindings[i].bindless_descriptor_index,
-                     sizeof(sampler_bindings[i].bindless_descriptor_index));
+        XXH3_64bits_update(
+            &hash_state, &sampler_bindings[i].bindless_descriptor_index,
+            sizeof(sampler_bindings[i].bindless_descriptor_index));
       }
-      bindless_sampler_layout_hash = XXH64_digest(&hash_state);
+      bindless_sampler_layout_hash = XXH3_64bits_digest(&hash_state);
     }
     // Obtain the unique IDs of binding layouts if there are any texture
     // bindings or bindless samplers, for invalidation in the command processor.

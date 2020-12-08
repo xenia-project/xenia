@@ -12,8 +12,7 @@
 
 #include <unordered_map>
 
-#include "third_party/xxhash/xxhash.h"
-
+#include "xenia/base/xxhash.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/gpu/vulkan/render_cache.h"
@@ -121,7 +120,7 @@ class PipelineCache {
   // Hash state used to incrementally produce pipeline hashes during update.
   // By the time the full update pass has run the hash will represent the
   // current state in a way that can uniquely identify the produced VkPipeline.
-  XXH64_state_t hash_state_;
+  XXH3_state_t hash_state_;
   // All previously generated pipelines mapped by hash.
   std::unordered_map<uint64_t, VkPipeline> cached_pipelines_;
 

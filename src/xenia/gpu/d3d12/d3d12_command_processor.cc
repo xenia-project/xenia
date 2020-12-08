@@ -7,8 +7,6 @@
  ******************************************************************************
  */
 
-#include "third_party/xxhash/xxhash.h"
-
 #include <algorithm>
 #include <cstring>
 #include <utility>
