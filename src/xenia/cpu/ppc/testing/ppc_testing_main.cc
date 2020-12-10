@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include "xenia/base/cvar.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
@@ -28,7 +29,7 @@ DEFINE_path(test_path, "src/xenia/cpu/ppc/testing/",
             "Directory scanned for test files.", "Other");
 DEFINE_path(test_bin_path, "src/xenia/cpu/ppc/testing/bin/",
             "Directory with binary outputs of the test files.", "Other");
-DEFINE_transient_string(test_name, "", "Specifies test name.", "General");
+DEFINE_transient_string(test_name, "", "Test suite name.", "General");
 
 namespace xe {
 namespace cpu {
@@ -475,13 +476,7 @@ bool RunTests(const std::string_view test_name) {
 }
 
 int main(const std::vector<std::string>& args) {
-  // Grab test name, if present.
-  std::string test_name;
-  if (args.size() >= 2) {
-    test_name = args[1];
-  }
-
-  return RunTests(test_name) ? 0 : 1;
+  return RunTests(cvars::test_name) ? 0 : 1;
 }
 
 }  // namespace test
