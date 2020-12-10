@@ -816,10 +816,11 @@ static_assert_size(TextureFetchInstruction, 12);
 //     move of the third operand in case of zero multiplicands, because the term
 //     may be -0, while the result should be +0 in this case.
 //   http://developer.amd.com/wordpress/media/2013/10/R5xx_Acceleration_v1.5.pdf
-//   Multiply-add also appears to be not fused (the SM3 behavior instruction on
-//   GCN is called v_mad_legacy_f32, not v_fma_legacy_f32) - shader translators
-//   should not use instructions that may be interpreted by the host GPU as
-//   fused multiply-add.
+//   Multiply-add also appears to be not fused; the SM3 behavior instruction on
+//   GCN is called v_mad_legacy_f32, not v_fma_legacy_f32 (in 2012-2020, before
+//   RDNA 2, which removed v_mad_f32 as well) - shader translators should not
+//   use instructions that may be interpreted by the host GPU as fused
+//   multiply-add.
 
 enum class AluScalarOpcode : uint32_t {
   // Floating-Point Add
