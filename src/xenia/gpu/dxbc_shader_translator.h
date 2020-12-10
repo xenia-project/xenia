@@ -193,8 +193,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // be discarded some way) - use when alpha test and alpha to coverage are
     // disabled. Ignored by the shader if not applicable to it (like if it has
     // kill instructions or writes the depth output).
-    // TODO(Triang3l): Replace with an alpha-to-mask flag, check if
-    // (flags & (alpha test | alpha to mask)) == (always | disabled).
+    // TODO(Triang3l): Investigate replacement with an alpha-to-mask flag,
+    // checking `(flags & (alpha test | alpha to mask)) == (always | disabled)`,
+    // taking into account the potential relation with occlusion queries (but
+    // should be safe at least temporarily).
     kSysFlag_ROVDepthStencilEarlyWrite_Shift,
 
     kSysFlag_Count,
