@@ -1024,51 +1024,60 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     // temp.z = viewport maximum depth if not writing to oDepth
     // temp.w = whether depth/stencil has been modified
     DxbcOpINE(temp_w_dest, sample_depth_stencil_src, temp_w_src);
-    // Check if need to write.
-    // temp.x? = resulting sample depth/stencil
-    // temp.y = polygon offset if not writing to oDepth
-    // temp.z = viewport maximum depth if not writing to oDepth
-    // temp.w = free
-    DxbcOpIf(true, temp_w_src);
-    {
-      if (depth_stencil_early) {
-        // Get if early depth/stencil write is enabled to temp.w.
-        // temp.w = whether early depth/stencil write is enabled
-        system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-        DxbcOpAnd(temp_w_dest,
-                  DxbcSrc::CB(cbuffer_index_system_constants_,
-                              uint32_t(CbufferRegister::kSystemConstants),
-                              kSysConst_Flags_Vec)
-                      .Select(kSysConst_Flags_Comp),
-                  DxbcSrc::LU(kSysFlag_ROVDepthStencilEarlyWrite));
-        // Check if need to write early.
-        // temp.w = free
-        DxbcOpIf(true, temp_w_src);
+    if (depth_stencil_early && !CanWriteZEarly()) {
+      // Set the sample bit in bits 4:7 of system_temp_rov_params_.x - always
+      // need to write late in this shader, as it may do something like
+      // explicitly killing pixels.
+      DxbcOpBFI(DxbcDest::R(system_temp_rov_params_, 0b0001), DxbcSrc::LU(1),
+                DxbcSrc::LU(4 + i), temp_w_src,
+                DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX));
+    } else {
+      // Check if need to write.
+      // temp.x? = resulting sample depth/stencil
+      // temp.y = polygon offset if not writing to oDepth
+      // temp.z = viewport maximum depth if not writing to oDepth
+      // temp.w = free
+      DxbcOpIf(true, temp_w_src);
+      {
+        if (depth_stencil_early) {
+          // Get if early depth/stencil write is enabled to temp.w.
+          // temp.w = whether early depth/stencil write is enabled
+          system_constants_used_ |= 1ull << kSysConst_Flags_Index;
+          DxbcOpAnd(temp_w_dest,
+                    DxbcSrc::CB(cbuffer_index_system_constants_,
+                                uint32_t(CbufferRegister::kSystemConstants),
+                                kSysConst_Flags_Vec)
+                        .Select(kSysConst_Flags_Comp),
+                    DxbcSrc::LU(kSysFlag_ROVDepthStencilEarlyWrite));
+          // Check if need to write early.
+          // temp.w = free
+          DxbcOpIf(true, temp_w_src);
+        }
+        // Write the new depth/stencil.
+        if (uav_index_edram_ == kBindingIndexUnallocated) {
+          uav_index_edram_ = uav_count_++;
+        }
+        DxbcOpStoreUAVTyped(
+            DxbcDest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
+            DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kYYYY), 1,
+            sample_depth_stencil_src);
+        if (depth_stencil_early) {
+          // Need to still run the shader to know whether to write the
+          // depth/stencil value.
+          DxbcOpElse();
+          // Set the sample bit in bits 4:7 of system_temp_rov_params_.x if need
+          // to write later (after checking if the sample is not discarded by a
+          // kill instruction, alphatest or alpha-to-coverage).
+          DxbcOpOr(DxbcDest::R(system_temp_rov_params_, 0b0001),
+                   DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
+                   DxbcSrc::LU(1 << (4 + i)));
+          // Close the early depth/stencil check.
+          DxbcOpEndIf();
+        }
       }
-      // Write the new depth/stencil.
-      if (uav_index_edram_ == kBindingIndexUnallocated) {
-        uav_index_edram_ = uav_count_++;
-      }
-      DxbcOpStoreUAVTyped(
-          DxbcDest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
-          DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kYYYY), 1,
-          sample_depth_stencil_src);
-      if (depth_stencil_early) {
-        // Need to still run the shader to know whether to write the
-        // depth/stencil value.
-        DxbcOpElse();
-        // Set sample bit out of bits 4:7 of system_temp_rov_params_.x if need
-        // to write later (after checking if the sample is not discarded by a
-        // kill instruction, alphatest or alpha-to-coverage).
-        DxbcOpOr(DxbcDest::R(system_temp_rov_params_, 0b0001),
-                 DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
-                 DxbcSrc::LU(1 << (4 + i)));
-        // Close the early depth/stencil check.
-        DxbcOpEndIf();
-      }
+      // Close the write check.
+      DxbcOpEndIf();
     }
-    // Close the write check.
-    DxbcOpEndIf();
 
     // Release sample_temp.
     PopSystemTemp();

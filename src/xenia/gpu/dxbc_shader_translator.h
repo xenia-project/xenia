@@ -189,12 +189,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_ROVStencilTest_Shift,
     // If the depth/stencil test has failed, but resulted in a stencil value
     // that is different than the one currently in the depth buffer, write it
-    // anyway and don't run the shader (to check if the sample may be discarded
-    // some way). This, however, also results in depth/stencil testing done
-    // entirely early even when it passes to prevent writing in divergent places
-    // in the shader. When the shader can kill, this must be set only for
-    // RB_DEPTHCONTROL EARLY_Z_ENABLE, not for alpha test/alpha to coverage
-    // disabled.
+    // anyway and don't run the rest of the shader (to check if the sample may
+    // be discarded some way) - use when alpha test and alpha to coverage are
+    // disabled. Ignored by the shader if not applicable to it (like if it has
+    // kill instructions or writes the depth output).
+    // TODO(Triang3l): Replace with an alpha-to-mask flag, check if
+    // (flags & (alpha test | alpha to mask)) == (always | disabled).
     kSysFlag_ROVDepthStencilEarlyWrite_Shift,
 
     kSysFlag_Count,
