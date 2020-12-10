@@ -519,8 +519,8 @@ int InstrEmit_vavguw(PPCHIRBuilder& f, const InstrData& i) {
 int InstrEmit_vcfsx_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
                      uint32_t uimm) {
   // (VD) <- float(VB as signed) / 2^uimm
-  float fuimm = static_cast<float>(std::exp2(uimm));
-  Value* v = f.Div(f.VectorConvertI2F(f.LoadVR(vb)),
+  float fuimm = std::ldexp(1.0f, -int32_t(uimm));
+  Value* v = f.Mul(f.VectorConvertI2F(f.LoadVR(vb)),
                    f.Splat(f.LoadConstantFloat32(fuimm), VEC128_TYPE));
   f.StoreVR(vd, v);
   return 0;
@@ -535,8 +535,8 @@ int InstrEmit_vcsxwfp128(PPCHIRBuilder& f, const InstrData& i) {
 int InstrEmit_vcfux_(PPCHIRBuilder& f, uint32_t vd, uint32_t vb,
                      uint32_t uimm) {
   // (VD) <- float(VB as unsigned) / 2^uimm
-  float fuimm = static_cast<float>(std::exp2(uimm));
-  Value* v = f.Div(f.VectorConvertI2F(f.LoadVR(vb), ARITHMETIC_UNSIGNED),
+  float fuimm = std::ldexp(1.0f, -int32_t(uimm));
+  Value* v = f.Mul(f.VectorConvertI2F(f.LoadVR(vb), ARITHMETIC_UNSIGNED),
                    f.Splat(f.LoadConstantFloat32(fuimm), VEC128_TYPE));
   f.StoreVR(vd, v);
   return 0;
