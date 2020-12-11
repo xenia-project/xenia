@@ -179,6 +179,7 @@ X_STATUS XNet::Initialize() {
   GenerateLANKeys(lan_key_hdr->key);
 
   // Now listen for packets from our little utility
+  /*
   proxy_socket_ = Socket::Connect("127.0.0.1", 45981);
   if (!proxy_socket_) {
     xe::FatalError(__FILE__ ": DEBUG - Could not connect to network proxy!");
@@ -187,6 +188,7 @@ X_STATUS XNet::Initialize() {
   proxy_recv_thread_ = std::make_unique<XHostThread>(
       kernel_state_, 0, 0, std::bind(&XNet::ProxyRecvThreadEntry, this));
   proxy_recv_thread_->Create();
+  */
 
   // Test
   // SendPacket(nullptr, nullptr, game_data, sizeof(game_data));

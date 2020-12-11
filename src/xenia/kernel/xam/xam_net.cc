@@ -247,8 +247,6 @@ dword_result_t NetDll_WSAStartup(dword_t caller, word_t version,
   }
 #endif
 
-  // DEBUG
-  /*
   auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
   if (!xam->xnet()) {
     auto xnet = new XNet(kernel_state());
@@ -256,7 +254,6 @@ dword_result_t NetDll_WSAStartup(dword_t caller, word_t version,
 
     xam->set_xnet(xnet);
   }
-  */
 
   return ret;
 }
@@ -503,15 +500,17 @@ dword_result_t NetDll_XNetSetSystemLinkPort(dword_t caller, dword_t port) {
 DECLARE_XAM_EXPORT1(NetDll_XNetSetSystemLinkPort, kNetworking, kStub);
 
 // https://github.com/ILOVEPIE/Cxbx-Reloaded/blob/master/src/CxbxKrnl/EmuXOnline.h#L39
-struct XEthernetStatus {
-  static const uint32_t XNET_ETHERNET_LINK_ACTIVE = 0x01;
-  static const uint32_t XNET_ETHERNET_LINK_100MBPS = 0x02;
-  static const uint32_t XNET_ETHERNET_LINK_10MBPS = 0x04;
-  static const uint32_t XNET_ETHERNET_LINK_FULL_DUPLEX = 0x08;
-  static const uint32_t XNET_ETHERNET_LINK_HALF_DUPLEX = 0x10;
+enum XEthernetStatus {
+  XNET_ETHERNET_LINK_ACTIVE = 0x01,
+  XNET_ETHERNET_LINK_100MBPS = 0x02,
+  XNET_ETHERNET_LINK_10MBPS = 0x04,
+  XNET_ETHERNET_LINK_FULL_DUPLEX = 0x08,
+  XNET_ETHERNET_LINK_HALF_DUPLEX = 0x10,
 };
 
-dword_result_t NetDll_XNetGetEthernetLinkStatus(dword_t caller) { return 0; }
+dword_result_t NetDll_XNetGetEthernetLinkStatus(dword_t caller) {
+    return XNET_ETHERNET_LINK_ACTIVE | XNET_ETHERNET_LINK_100MBPS | XNET_ETHERNET_LINK_FULL_DUPLEX;
+}
 DECLARE_XAM_EXPORT1(NetDll_XNetGetEthernetLinkStatus, kNetworking, kStub);
 
 dword_result_t NetDll_XNetDnsLookup(dword_t caller, lpstring_t host,
