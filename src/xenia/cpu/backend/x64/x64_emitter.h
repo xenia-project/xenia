@@ -114,6 +114,8 @@ enum XmmConst {
   XMMIntMaxPD,
   XMMPosIntMinPS,
   XMMQNaN,
+  XMMInt127,
+  XMM2To32,
 };
 
 // Unfortunately due to the design of xbyak we have to pass this to the ctor.
