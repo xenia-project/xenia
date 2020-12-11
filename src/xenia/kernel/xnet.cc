@@ -19,7 +19,6 @@
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/xsocket.h"
 #include "xenia/kernel/xthread.h"
-#include "xenia/net/net_proxy.h"
 
 #include "third_party/crypto/TinySHA1.hpp"
 #include "third_party/crypto/des/des3.h"
@@ -206,13 +205,11 @@ int XNet::ProxyRecvThreadEntry() {
       break;
     }
 
-    auto proxy_packet = (net::proxypacket*)buf;
-    if (proxy_packet->type == net::proxypacket::kTypeData) {
-      auto packet = (net::proxypacket_data*)buf;
-
-      RecvPacket(packet->enet_src, packet->enet_dest, packet->data,
-                 packet->data_len);
-    }
+    // TODO
+    /*
+    RecvPacket(packet->enet_src, packet->enet_dest, packet->data,
+                packet->data_len);
+    */
   }
 
   return 0;
@@ -220,11 +217,10 @@ int XNet::ProxyRecvThreadEntry() {
 
 int XNet::SendPacket(XSocket* socket, N_XSOCKADDR_IN* to, const uint8_t* buf,
                      size_t buf_len) {
-  auto data = net::proxypacket_data();
-  data.type = net::proxypacket::kTypeData;
-
+  /*
   std::memset(data.enet_src, 0, 6);      // Ignored.
   std::memset(data.enet_dest, 0xFF, 6);  // broadcast (hardcoded for now)
+  */
 
   size_t rounded_buf_len = xe::round_up(buf_len, 8);
   std::vector<uint8_t> xnet_packet_data;
@@ -310,6 +306,7 @@ int XNet::SendPacket(XSocket* socket, N_XSOCKADDR_IN* to, const uint8_t* buf,
 
   std::memcpy(footer->hmac, digest, 0xA);
 
+  /*
   // Copy the XNet packet into our proxy buffer
   std::memcpy(data.data, xnet_packet,
               std::min(0x4 + buf_len + padding_bytes + sizeof(packet_footer),
@@ -317,6 +314,7 @@ int XNet::SendPacket(XSocket* socket, N_XSOCKADDR_IN* to, const uint8_t* buf,
   data.data_len =
       (uint16_t)(0x4 + buf_len + padding_bytes + sizeof(packet_footer));
   proxy_socket_->Send(&data, sizeof(data));
+  */
 
   return 0;
 }
