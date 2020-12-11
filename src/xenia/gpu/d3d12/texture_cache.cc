@@ -9,7 +9,6 @@
 
 #include "xenia/gpu/d3d12/texture_cache.h"
 
-
 #include <algorithm>
 #include <cfloat>
 #include <cstring>
