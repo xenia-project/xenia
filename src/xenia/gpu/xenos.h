@@ -1039,10 +1039,9 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     ClampMode clamp_y : 3;                               // +13
     ClampMode clamp_z : 3;                               // +16
     SignedRepeatingFractionMode signed_rf_mode_all : 1;  // +19
-    // TODO(Triang3l): 1 or 2 dim_tbd bits?
-    uint32_t unk_0 : 2;  // +20
-    uint32_t pitch : 9;  // +22 byte_pitch >> 5
-    uint32_t tiled : 1;  // +31
+    uint32_t dim_tbd : 2;                                // +20
+    uint32_t pitch : 9;                                  // +22 byte_pitch >> 5
+    uint32_t tiled : 1;                                  // +31
 
     TextureFormat format : 6;           // +0 dword_1
     Endian endianness : 2;              // +6
