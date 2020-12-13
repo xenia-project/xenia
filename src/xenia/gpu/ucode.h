@@ -816,10 +816,11 @@ static_assert_size(TextureFetchInstruction, 12);
 //     move of the third operand in case of zero multiplicands, because the term
 //     may be -0, while the result should be +0 in this case.
 //   http://developer.amd.com/wordpress/media/2013/10/R5xx_Acceleration_v1.5.pdf
-//   Multiply-add also appears to be not fused (the SM3 behavior instruction on
-//   GCN is called v_mad_legacy_f32, not v_fma_legacy_f32) - shader translators
-//   should not use instructions that may be interpreted by the host GPU as
-//   fused multiply-add.
+//   Multiply-add also appears to be not fused; the SM3 behavior instruction on
+//   GCN is called v_mad_legacy_f32, not v_fma_legacy_f32 (in 2012-2020, before
+//   RDNA 2, which removed v_mad_f32 as well) - shader translators should not
+//   use instructions that may be interpreted by the host GPU as fused
+//   multiply-add.
 
 enum class AluScalarOpcode : uint32_t {
   // Floating-Point Add
@@ -1147,6 +1148,19 @@ enum class AluScalarOpcode : uint32_t {
   kRetainPrev = 50,
 };
 
+constexpr bool AluScalarOpcodeIsKill(AluScalarOpcode scalar_opcode) {
+  switch (scalar_opcode) {
+    case AluScalarOpcode::kKillsEq:
+    case AluScalarOpcode::kKillsGt:
+    case AluScalarOpcode::kKillsGe:
+    case AluScalarOpcode::kKillsNe:
+    case AluScalarOpcode::kKillsOne:
+      return true;
+    default:
+      return false;
+  }
+}
+
 enum class AluVectorOpcode : uint32_t {
   // Per-Component Floating-Point Add
   // add/ADDv dest, src0, src1
@@ -1471,27 +1485,37 @@ enum class AluVectorOpcode : uint32_t {
   kMaxA = 29,
 };
 
+constexpr bool AluVectorOpcodeIsKill(AluVectorOpcode vector_opcode) {
+  switch (vector_opcode) {
+    case AluVectorOpcode::kKillEq:
+    case AluVectorOpcode::kKillGt:
+    case AluVectorOpcode::kKillGe:
+    case AluVectorOpcode::kKillNe:
+      return true;
+    default:
+      return false;
+  }
+}
+
 // Whether the vector instruction has side effects such as discarding a pixel or
 // setting the predicate and can't be ignored even if it doesn't write to
 // anywhere. Note that all scalar operations except for retain_prev have a side
 // effect of modifying the previous scalar result register, so they must always
 // be executed even if not writing.
 constexpr bool AluVectorOpHasSideEffects(AluVectorOpcode vector_opcode) {
+  if (AluVectorOpcodeIsKill(vector_opcode)) {
+    return true;
+  }
   switch (vector_opcode) {
     case AluVectorOpcode::kSetpEqPush:
     case AluVectorOpcode::kSetpNePush:
     case AluVectorOpcode::kSetpGtPush:
     case AluVectorOpcode::kSetpGePush:
-    case AluVectorOpcode::kKillEq:
-    case AluVectorOpcode::kKillGt:
-    case AluVectorOpcode::kKillGe:
-    case AluVectorOpcode::kKillNe:
     case AluVectorOpcode::kMaxA:
       return true;
     default:
-      break;
+      return false;
   }
-  return false;
 }
 
 // Whether each component of a source operand is used at all in the instruction

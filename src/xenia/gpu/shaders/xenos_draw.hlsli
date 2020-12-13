@@ -63,10 +63,14 @@ struct XeHSControlPointOutput {
   float index : XEVERTEXID;
 };
 
-struct XeVertexPostGS {
+struct XeVertexPrePS {
   float4 interpolators[16] : TEXCOORD0;
   float3 point_params : TEXCOORD16;
   float2 clip_space_zw : TEXCOORD17;
+};
+
+struct XeVertexPostGS {
+  XeVertexPrePS pre_ps;
   // Precise needed to preserve NaN - guest primitives may be converted to more
   // than 1 triangle, so need to kill them entirely manually in GS if any vertex
   // is NaN.

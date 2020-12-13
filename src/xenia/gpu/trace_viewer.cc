@@ -121,7 +121,7 @@ bool TraceViewer::Setup() {
   window_->Resize(1920, 1200);
 
   // Create the emulator but don't initialize so we can setup the window.
-  emulator_ = std::make_unique<Emulator>("", "", "");
+  emulator_ = std::make_unique<Emulator>("", "", "", "");
   X_STATUS result = emulator_->Setup(
       window_.get(), nullptr, [this]() { return CreateGraphicsSystem(); },
       nullptr);
@@ -566,8 +566,21 @@ TraceViewer::ShaderDisplayType TraceViewer::DrawShaderTypeUI() {
 
 void TraceViewer::DrawShaderUI(Shader* shader, ShaderDisplayType display_type) {
   // Must be prepared for advanced display modes.
+  // FIXME(Triang3l): This should display the actual translation used in the
+  // draw, but it may depend on multiple backend-related factors, including
+  // drawing multiple times with multiple modifications, even depending on
+  // values obtained during translation of other modifications (for instance,
+  // a memexporting shader can be executed both as a vertex shader (to draw the
+  // points) and as a compute shader (to actually export) if the host doesn't
+  // support writes from vertex shaders.
+  const Shader::Translation* translation = nullptr;
   if (display_type != ShaderDisplayType::kUcode) {
-    if (!shader->is_valid()) {
+    for (const auto& translation_pair : shader->translations()) {
+      if (translation_pair.second->is_valid()) {
+        translation = translation_pair.second;
+      }
+    }
+    if (!translation) {
       ImGui::TextColored(kColorError,
                          "ERROR: shader error during parsing/translation");
       return;
@@ -580,7 +593,7 @@ void TraceViewer::DrawShaderUI(Shader* shader, ShaderDisplayType display_type) {
       break;
     }
     case ShaderDisplayType::kTranslated: {
-      const auto& str = shader->GetTranslatedBinaryString();
+      const auto& str = translation->GetTranslatedBinaryString();
       size_t i = 0;
       bool done = false;
       while (!done && i < str.size()) {
@@ -600,7 +613,7 @@ void TraceViewer::DrawShaderUI(Shader* shader, ShaderDisplayType display_type) {
       break;
     }
     case ShaderDisplayType::kHostDisasm: {
-      DrawMultilineString(shader->host_disassembly());
+      DrawMultilineString(translation->host_disassembly());
       break;
     }
   }

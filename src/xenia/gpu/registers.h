@@ -254,15 +254,15 @@ union PA_SU_SC_MODE_CNTL {
     uint32_t msaa_enable : 1;                     // +15
     uint32_t vtx_window_offset_enable : 1;        // +16
     // LINE_STIPPLE_ENABLE was added on Adreno.
-    uint32_t : 2;                     // +17
-    uint32_t provoking_vtx_last : 1;  // +19
-    uint32_t persp_corr_dis : 1;      // +20
-    uint32_t multi_prim_ib_ena : 1;   // +21
-    uint32_t : 1;                     // +22
-    uint32_t quad_order_enable : 1;   // +23
+    uint32_t : 2;                        // +17
+    uint32_t provoking_vtx_last : 1;     // +19
+    uint32_t persp_corr_dis : 1;         // +20
+    uint32_t multi_prim_ib_ena : 1;      // +21
+    uint32_t : 1;                        // +22
+    uint32_t quad_order_enable : 1;      // +23
+    uint32_t sc_one_quad_per_clock : 1;  // +24
     // WAIT_RB_IDLE_ALL_TRI and WAIT_RB_IDLE_FIRST_TRI_NEW_STATE were added on
     // Adreno.
-    // TODO(Triang3l): Find SC_ONE_QUAD_PER_CLOCK offset.
   };
   uint32_t value;
   static constexpr Register register_index = XE_GPU_REG_PA_SU_SC_MODE_CNTL;
@@ -298,7 +298,7 @@ union PA_SC_VIZ_QUERY {
     // discard geometry after test (but use for testing)
     uint32_t kill_pix_post_hi_z : 1;  // +7
     // not used with d3d
-    uint32_t kill_pix_detail_mask : 1;  // +8
+    uint32_t kill_pix_post_detail_mask : 1;  // +8
   };
   uint32_t value;
   static constexpr Register register_index = XE_GPU_REG_PA_SC_VIZ_QUERY;

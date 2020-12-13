@@ -958,6 +958,11 @@ dword_result_t NetDll___WSAFDIsSet(dword_t socket_handle,
 }
 DECLARE_XAM_EXPORT1(NetDll___WSAFDIsSet, kNetworking, kImplemented);
 
+void NetDll_WSASetLastError(dword_t error_code) {
+  XThread::SetLastError(error_code);
+}
+DECLARE_XAM_EXPORT1(NetDll_WSASetLastError, kNetworking, kImplemented);
+
 void RegisterNetExports(xe::cpu::ExportResolver* export_resolver,
                         KernelState* kernel_state) {}
 

@@ -266,7 +266,7 @@ object_ref<XFile> XFile::Restore(KernelState* kernel_state,
   vfs::FileAction action;
   auto res = kernel_state->file_system()->OpenFile(
       nullptr, abs_path, vfs::FileDisposition::kOpen, access, is_directory,
-      &vfs_file, &action);
+      false, &vfs_file, &action);
   if (XFAILED(res)) {
     XELOGE("Failed to open XFile: error {:08X}", res);
     return object_ref<XFile>(file);

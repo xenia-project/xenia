@@ -144,11 +144,15 @@ int shader_compiler_main(const std::vector<std::string>& args) {
           Shader::HostVertexShaderType::kQuadDomainPatchIndexed;
     }
   }
+  uint32_t modification =
+      translator->GetDefaultModification(shader_type, host_vertex_shader_type);
 
-  translator->Translate(shader.get(), host_vertex_shader_type);
+  Shader::Translation* translation =
+      shader->GetOrCreateTranslation(modification);
+  translator->Translate(*translation);
 
-  const void* source_data = shader->translated_binary().data();
-  size_t source_data_size = shader->translated_binary().size();
+  const void* source_data = translation->translated_binary().data();
+  size_t source_data_size = translation->translated_binary().size();
 
   std::string spirv_disasm;
   if (cvars::shader_output_type == "spirvtext") {

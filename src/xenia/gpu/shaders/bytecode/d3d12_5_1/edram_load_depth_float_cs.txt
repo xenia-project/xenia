@@ -66,11 +66,12 @@ iadd r0.x, r0.x, r0.y
 ubfe r0.y, l(1), l(13), CB0[0][1].x
 ishl r0.y, r0.y, l(1)
 ishl r0.x, r0.x, r0.y
-ld_raw r1.xyzw, r0.x, T0[0].xyzw
-ushr r2.xyzw, r1.xyzw, l(8, 8, 8, 8)
-iadd r0.x, r0.x, l(0x00a00000)
 ld_raw r0.xyzw, r0.x, T0[0].xyzw
-ubfe r3.xyzw, l(20, 20, 20, 20), l(8, 8, 8, 8), r1.xyzw
+ishl r1.xy, vThreadID.xxxx, l(4, 2, 0, 0)
+imad r1.xy, vThreadID.yyyy, CB0[0][0].ywyy, r1.xyxx
+iadd r1.xy, r1.xyxx, CB0[0][0].xzxx
+ushr r2.xyzw, r0.xyzw, l(8, 8, 8, 8)
+ubfe r3.xyzw, l(20, 20, 20, 20), l(8, 8, 8, 8), r0.xyzw
 ushr r4.xyzw, r2.xyzw, l(20, 20, 20, 20)
 firstbit_hi r5.xyzw, r3.xyzw
 iadd r5.xyzw, r5.xyzw, l(-11, -11, -11, -11)
@@ -84,34 +85,12 @@ ishl r4.xyzw, r6.xyzw, l(23, 23, 23, 23)
 iadd r4.xyzw, r4.xyzw, l(0x38000000, 0x38000000, 0x38000000, 0x38000000)
 ishl r3.xyzw, r3.xyzw, l(3, 3, 3, 3)
 iadd r3.xyzw, r4.xyzw, r3.xyzw
-movc r3.xyzw, r2.xyzw, r3.xyzw, l(0,0,0,0)
-iadd r4.xyzw, r0.xyzw, -r3.xyzw
-uge r5.xyzw, l(0x7fffffff, 0x7fffffff, 0x7fffffff, 0x7fffffff), r0.xyzw
-and r0.xyzw, r0.xyzw, r5.xyzw
-umin r0.xyzw, r0.xyzw, l(0x3ffffff8, 0x3ffffff8, 0x3ffffff8, 0x3ffffff8)
-bfi r5.xyzw, l(23, 23, 23, 23), l(0, 0, 0, 0), r0.xyzw, l(0x00800000, 0x00800000, 0x00800000, 0x00800000)
-ushr r6.xyzw, r0.xyzw, l(23, 23, 23, 23)
-iadd r6.xyzw, -r6.xyzw, l(113, 113, 113, 113)
-umin r6.xyzw, r6.xyzw, l(24, 24, 24, 24)
-ushr r5.xyzw, r5.xyzw, r6.xyzw
-ult r6.xyzw, r0.xyzw, l(0x38800000, 0x38800000, 0x38800000, 0x38800000)
-iadd r0.xyzw, r0.xyzw, l(0xc8000000, 0xc8000000, 0xc8000000, 0xc8000000)
-movc r0.xyzw, r6.xyzw, r5.xyzw, r0.xyzw
-iadd r5.xyzw, r0.xyzw, l(3, 3, 3, 3)
-ubfe r0.xyzw, l(1, 1, 1, 1), l(3, 3, 3, 3), r0.xyzw
-iadd r0.xyzw, r0.xyzw, r5.xyzw
-ubfe r0.xyzw, l(24, 24, 24, 24), l(3, 3, 3, 3), r0.xyzw
-ieq r0.xyzw, r2.xyzw, r0.xyzw
-and r0.xyzw, r0.xyzw, l(1, 1, 1, 1)
-imad r0.xyzw, r4.xyzw, r0.xyzw, r3.xyzw
-ishl r2.xy, vThreadID.xxxx, l(4, 2, 0, 0)
-imad r2.xy, vThreadID.yyyy, CB0[0][0].ywyy, r2.xyxx
-iadd r2.xy, r2.xyxx, CB0[0][0].xzxx
-store_raw U0[0].xyzw, r2.x, r0.xyzw
-and r0.x, r1.x, l(255)
-bfi r0.yzw, l(0, 8, 8, 8), l(0, 8, 16, 24), r1.yyzw, l(0, 0, 0, 0)
-iadd r0.xy, r0.zwzz, r0.xyxx
+movc r2.xyzw, r2.xyzw, r3.xyzw, l(0,0,0,0)
+store_raw U0[0].xyzw, r1.x, r2.xyzw
+and r2.x, r0.x, l(255)
+bfi r2.yzw, l(0, 8, 8, 8), l(0, 8, 16, 24), r0.yyzw, l(0, 0, 0, 0)
+iadd r0.xy, r2.zwzz, r2.xyxx
 iadd r0.x, r0.y, r0.x
-store_raw U0[0].x, r2.y, r0.x
+store_raw U0[0].x, r1.y, r0.x
 ret 
-// Approximately 67 instruction slots used
+// Approximately 46 instruction slots used

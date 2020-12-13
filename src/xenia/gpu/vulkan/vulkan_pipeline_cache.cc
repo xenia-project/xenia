@@ -17,6 +17,8 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
+#include "xenia/base/xxhash.h"
+#include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/registers.h"
 #include "xenia/gpu/spirv_shader_translator.h"
@@ -84,7 +86,8 @@ VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
                                               const uint32_t* host_address,
                                               uint32_t dword_count) {
   // Hash the input memory and lookup the shader.
-  uint64_t data_hash = XXH64(host_address, dword_count * sizeof(uint32_t), 0);
+  uint64_t data_hash =
+      XXH3_64bits(host_address, dword_count * sizeof(uint32_t));
   auto it = shaders_.find(data_hash);
   if (it != shaders_.end()) {
     // Shader has been previously loaded.
@@ -94,16 +97,31 @@ VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
   // Always create the shader and stash it away.
   // We need to track it even if it fails translation so we know not to try
   // again.
-  VulkanShader* shader =
-      new VulkanShader(shader_type, data_hash, host_address, dword_count);
+  VulkanShader* shader = new VulkanShader(
+      shader_type, data_hash, host_address, dword_count,
+      command_processor_.GetVulkanContext().GetVulkanProvider());
   shaders_.emplace(data_hash, shader);
+  if (!cvars::dump_shaders.empty()) {
+    shader->DumpUcodeBinary(cvars::dump_shaders);
+  }
 
   return shader;
 }
 
+bool VulkanPipelineCache::GetCurrentShaderModifications(
+    SpirvShaderTranslator::Modification& vertex_shader_modification_out,
+    SpirvShaderTranslator::Modification& pixel_shader_modification_out) const {
+  // TODO(Triang3l): Tessellation, depth output.
+  vertex_shader_modification_out = SpirvShaderTranslator::Modification(
+      shader_translator_->GetDefaultModification(xenos::ShaderType::kVertex));
+  pixel_shader_modification_out = SpirvShaderTranslator::Modification(
+      shader_translator_->GetDefaultModification(xenos::ShaderType::kPixel));
+  return true;
+}
+
 bool VulkanPipelineCache::EnsureShadersTranslated(
-    VulkanShader* vertex_shader, VulkanShader* pixel_shader,
-    Shader::HostVertexShaderType host_vertex_shader_type) {
+    VulkanShader::VulkanTranslation* vertex_shader,
+    VulkanShader::VulkanTranslation* pixel_shader) {
   const RegisterFile& regs = register_file_;
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
 
@@ -133,7 +151,8 @@ bool VulkanPipelineCache::EnsureShadersTranslated(
 }
 
 bool VulkanPipelineCache::ConfigurePipeline(
-    VulkanShader* vertex_shader, VulkanShader* pixel_shader,
+    VulkanShader::VulkanTranslation* vertex_shader,
+    VulkanShader::VulkanTranslation* pixel_shader,
     VulkanRenderTargetCache::RenderPassKey render_pass_key,
     VkPipeline& pipeline_out,
     const PipelineLayoutProvider*& pipeline_layout_out) {
@@ -160,8 +179,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
   }
 
   // Create the pipeline if not the latest and not already existing.
-  if (!EnsureShadersTranslated(vertex_shader, pixel_shader,
-                               Shader::HostVertexShaderType::kVertex)) {
+  if (!EnsureShadersTranslated(vertex_shader, pixel_shader)) {
     return false;
   }
   const PipelineLayoutProvider* pipeline_layout =
@@ -189,24 +207,22 @@ bool VulkanPipelineCache::ConfigurePipeline(
   return true;
 }
 
-bool VulkanPipelineCache::TranslateShader(SpirvShaderTranslator& translator,
-                                          VulkanShader& shader,
-                                          reg::SQ_PROGRAM_CNTL cntl) {
+bool VulkanPipelineCache::TranslateShader(
+    SpirvShaderTranslator& translator,
+    VulkanShader::VulkanTranslation& translation, reg::SQ_PROGRAM_CNTL cntl) {
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
-  // TODO(Triang3l): Host vertex shader type.
-  if (!translator.Translate(&shader, cntl,
-                            Shader::HostVertexShaderType::kVertex)) {
+  if (!translator.Translate(translation, cntl)) {
     XELOGE("Shader {:016X} translation failed; marking as ignored",
-           shader.ucode_data_hash());
+           translation.shader().ucode_data_hash());
     return false;
   }
-  return shader.InitializeShaderModule(
-      command_processor_.GetVulkanContext().GetVulkanProvider());
+  return translation.GetOrCreateShaderModule() != VK_NULL_HANDLE;
 }
 
 bool VulkanPipelineCache::GetCurrentStateDescription(
-    const VulkanShader* vertex_shader, const VulkanShader* pixel_shader,
+    const VulkanShader::VulkanTranslation* vertex_shader,
+    const VulkanShader::VulkanTranslation* pixel_shader,
     VulkanRenderTargetCache::RenderPassKey render_pass_key,
     PipelineDescription& description_out) const {
   description_out.Reset();
@@ -215,9 +231,14 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
   auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
 
-  description_out.vertex_shader_hash = vertex_shader->ucode_data_hash();
-  description_out.pixel_shader_hash =
-      pixel_shader ? pixel_shader->ucode_data_hash() : 0;
+  description_out.vertex_shader_hash =
+      vertex_shader->shader().ucode_data_hash();
+  description_out.vertex_shader_modification = vertex_shader->modification();
+  if (pixel_shader) {
+    description_out.pixel_shader_hash =
+        pixel_shader->shader().ucode_data_hash();
+    description_out.pixel_shader_modification = pixel_shader->modification();
+  }
   description_out.render_pass_key = render_pass_key;
 
   xenos::PrimitiveType primitive_type = vgt_draw_initiator.prim_type;
@@ -321,11 +342,11 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
 
   if (creation_arguments.pixel_shader) {
     XELOGGPU("Creating graphics pipeline state with VS {:016X}, PS {:016X}",
-             creation_arguments.vertex_shader->ucode_data_hash(),
-             creation_arguments.pixel_shader->ucode_data_hash());
+             creation_arguments.vertex_shader->shader().ucode_data_hash(),
+             creation_arguments.pixel_shader->shader().ucode_data_hash());
   } else {
     XELOGGPU("Creating graphics pipeline state with VS {:016X}",
-             creation_arguments.vertex_shader->ucode_data_hash());
+             creation_arguments.vertex_shader->shader().ucode_data_hash());
   }
 
   const PipelineDescription& description = creation_arguments.pipeline->first;
@@ -514,11 +535,11 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
     /* if (creation_arguments.pixel_shader) {
       XELOGE(
           "Failed to create graphics pipeline with VS {:016X}, PS {:016X}",
-          creation_arguments.vertex_shader->ucode_data_hash(),
-          creation_arguments.pixel_shader->ucode_data_hash());
+          creation_arguments.vertex_shader->shader().ucode_data_hash(),
+          creation_arguments.pixel_shader->shader().ucode_data_hash());
     } else {
       XELOGE("Failed to create graphics pipeline with VS {:016X}",
-             creation_arguments.vertex_shader->ucode_data_hash());
+             creation_arguments.vertex_shader->shader().ucode_data_hash());
     } */
     return false;
   }

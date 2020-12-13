@@ -65,6 +65,14 @@ DEFINE_path(
     "Root path for guest content storage (saves, etc.), or empty to use the "
     "content folder under the storage root.",
     "Storage");
+DEFINE_path(
+    cache_root, "",
+    "Root path for files used to speed up certain parts of the emulator or the "
+    "game. These files may be persistent, but they can be deleted without "
+    "major side effects such as progress loss. If empty, the cache folder "
+    "under the storage root, or, if available, the cache directory preferred "
+    "for the OS, will be used.",
+    "Storage");
 
 DEFINE_bool(mount_scratch, false, "Enable scratch mount", "Storage");
 DEFINE_bool(mount_cache, false, "Enable cache mount", "Storage");
@@ -189,10 +197,12 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
     Factory<hid::InputDriver, ui::Window*> factory;
 #if XE_PLATFORM_WIN32
     factory.Add("xinput", xe::hid::xinput::Create);
+#endif  // XE_PLATFORM_WIN32
+    factory.Add("sdl", xe::hid::sdl::Create);
+#if XE_PLATFORM_WIN32
     // WinKey input driver should always be the last input driver added!
     factory.Add("winkey", xe::hid::winkey::Create);
 #endif  // XE_PLATFORM_WIN32
-    factory.Add("sdl", xe::hid::sdl::Create);
     for (auto& driver : factory.CreateAll(cvars::hid, window)) {
       if (XSUCCEEDED(driver->Setup())) {
         drivers.emplace_back(std::move(driver));
@@ -220,6 +230,8 @@ int xenia_main(const std::vector<std::string>& args) {
 #if defined(XE_PLATFORM_WIN32) || defined(XE_PLATFORM_GNU_LINUX)
       storage_root = storage_root / "Xenia";
 #else
+      // TODO(Triang3l): Point to the app's external storage "files" directory
+      // on Android.
 #warning Unhandled platform for the data root.
       storage_root = storage_root / "Xenia";
 #endif
@@ -243,13 +255,29 @@ int xenia_main(const std::vector<std::string>& args) {
   content_root = std::filesystem::absolute(content_root);
   XELOGI("Content root: {}", xe::path_to_utf8(content_root));
 
+  std::filesystem::path cache_root = cvars::cache_root;
+  if (cache_root.empty()) {
+    cache_root = storage_root / "cache";
+    // TODO(Triang3l): Point to the app's external storage "cache" directory on
+    // Android.
+  } else {
+    // If content root isn't an absolute path, then it should be relative to the
+    // storage root.
+    if (!cache_root.is_absolute()) {
+      cache_root = storage_root / cache_root;
+    }
+  }
+  cache_root = std::filesystem::absolute(cache_root);
+  XELOGI("Cache root: {}", xe::path_to_utf8(cache_root));
+
   if (cvars::discord) {
     discord::DiscordPresence::Initialize();
     discord::DiscordPresence::NotPlaying();
   }
 
   // Create the emulator but don't initialize so we can setup the window.
-  auto emulator = std::make_unique<Emulator>("", storage_root, content_root);
+  auto emulator =
+      std::make_unique<Emulator>("", storage_root, content_root, cache_root);
 
   // Main emulator display window.
   auto emulator_window = EmulatorWindow::Create(emulator.get());

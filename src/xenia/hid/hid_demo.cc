@@ -38,6 +38,7 @@ DEFINE_string(hid, "any", "Input system. Use: [any, nop, sdl, winkey, xinput]",
               "General");
 
 #define MAX_USERS 4
+#define ROW_HEIGHT_GENERAL 60
 #define COL_WIDTH_STATE 320
 #define COL_WIDTH_STROKE 416
 
@@ -45,6 +46,7 @@ namespace xe {
 namespace hid {
 
 std::unique_ptr<xe::hid::InputSystem> input_system_;
+bool is_active = true;
 
 std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
     ui::Window* window) {
@@ -118,7 +120,7 @@ int hid_demo_main(const std::vector<std::string>& args) {
   loop->on_quit.AddListener([&window](xe::ui::UIEvent* e) { window.reset(); });
 
   // Initial size setting, done here so that it knows the menu exists.
-  window->Resize(COL_WIDTH_STATE + COL_WIDTH_STROKE, 500);
+  window->Resize(COL_WIDTH_STATE + COL_WIDTH_STROKE, ROW_HEIGHT_GENERAL + 500);
 
   // Create the graphics context used for drawing and setup the window.
   std::unique_ptr<xe::ui::GraphicsProvider> graphics_provider;
@@ -133,7 +135,9 @@ int hid_demo_main(const std::vector<std::string>& args) {
     input_system_ = std::make_unique<xe::hid::InputSystem>(window.get());
     auto drivers = CreateInputDrivers(window.get());
     for (size_t i = 0; i < drivers.size(); ++i) {
-      input_system_->AddDriver(std::move(drivers[i]));
+      auto& driver = drivers[i];
+      driver->set_is_active_callback([]() -> bool { return is_active; });
+      input_system_->AddDriver(std::move(driver));
     }
 
     window->Invalidate();
@@ -149,10 +153,22 @@ int hid_demo_main(const std::vector<std::string>& args) {
         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
         ImGuiWindowFlags_NoScrollbar;
 
-    ImGui::Begin("GetState()", nullptr, wflags);
+    ImGui::Begin("General", nullptr, wflags);
     {
       ImGui::SetWindowPos(ImVec2(0, 0));
-      ImGui::SetWindowSize(ImVec2(COL_WIDTH_STATE, io.DisplaySize.y));
+      ImGui::SetWindowSize(
+          ImVec2(COL_WIDTH_STATE + COL_WIDTH_STROKE, ROW_HEIGHT_GENERAL));
+
+      ImGui::Text("Input System (hid) = \"%s\"", cvars::hid.c_str());
+      ImGui::Checkbox("is_active", &is_active);
+    }
+    ImGui::End();
+
+    ImGui::Begin("GetState()", nullptr, wflags);
+    {
+      ImGui::SetWindowPos(ImVec2(0, ROW_HEIGHT_GENERAL));
+      ImGui::SetWindowSize(
+          ImVec2(COL_WIDTH_STATE, io.DisplaySize.y - ROW_HEIGHT_GENERAL));
 
       static bool enable_GetState = false;
       ImGui::Checkbox("Active", &enable_GetState);
@@ -167,8 +183,9 @@ int hid_demo_main(const std::vector<std::string>& args) {
 
     ImGui::Begin("GetKeystroke()", nullptr, wflags);
     {
-      ImGui::SetWindowPos(ImVec2(COL_WIDTH_STATE, 0));
-      ImGui::SetWindowSize(ImVec2(COL_WIDTH_STROKE, io.DisplaySize.y));
+      ImGui::SetWindowPos(ImVec2(COL_WIDTH_STATE, ROW_HEIGHT_GENERAL));
+      ImGui::SetWindowSize(
+          ImVec2(COL_WIDTH_STROKE, io.DisplaySize.y - ROW_HEIGHT_GENERAL));
 
       static bool enable_GetKeystroke = false;
       static bool hide_repeats = false;

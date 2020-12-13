@@ -16,8 +16,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
-
-#include "third_party/xxhash/xxhash.h"
+#include "xenia/base/xxhash.h"
 
 namespace xe {
 namespace gpu {
@@ -319,7 +318,7 @@ bool TextureInfo::GetPackedTileOffset(int packed_tile, uint32_t* offset_x,
 }
 
 uint64_t TextureInfo::hash() const {
-  return XXH64(this, sizeof(TextureInfo), 0);
+  return XXH3_64bits(this, sizeof(TextureInfo));
 }
 
 void TextureInfo::SetupMemoryInfo(uint32_t base_address, uint32_t mip_address) {

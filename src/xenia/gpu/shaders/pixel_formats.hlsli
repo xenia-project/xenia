@@ -495,6 +495,16 @@ void XeR11G11B10SNormToRGBA16(uint4 packed_texels, out uint4 out_01,
 // 6e4 has a different exponent bias allowing [0,512) values, 20e4 allows [0,2).
 // We also can't clamp the stored value to 1 as load->store->load must be exact.
 
+uint XeFloat32To20e4(uint f32u32) {
+  // Keep only positive (high bit set means negative for both float and int) and
+  // saturate to the maximum representable value near 2 (also dropping NaNs).
+  f32u32 = min((f32u32 <= 0x7FFFFFFFu) ? f32u32 : 0u, 0x3FFFFFF8u);
+  uint denormalized =
+      ((f32u32 & 0x7FFFFFu) | 0x800000u) >> min(113u - (f32u32 >> 23u), 24u);
+  uint f24u32 = (f32u32 < 0x38800000u) ? denormalized : (f32u32 + 0xC8000000u);
+  return ((f24u32 + 3u + ((f24u32 >> 3u) & 1u)) >> 3u) & 0xFFFFFFu;
+}
+
 uint4 XeFloat32To20e4(uint4 f32u32) {
   // Keep only positive (high bit set means negative for both float and int) and
   // saturate to the maximum representable value near 2 (also dropping NaNs).
@@ -503,6 +513,21 @@ uint4 XeFloat32To20e4(uint4 f32u32) {
                        min((113u).xxxx - (f32u32 >> 23u), 24u);
   uint4 f24u32 = (f32u32 < 0x38800000u) ? denormalized : (f32u32 + 0xC8000000u);
   return ((f24u32 + 3u + ((f24u32 >> 3u) & 1u)) >> 3u) & 0xFFFFFFu;
+}
+
+uint XeFloat20e4To32(uint f24u32) {
+  uint mantissa = f24u32 & 0xFFFFFu;
+  uint exponent = f24u32 >> 20u;
+  // Normalize the values for the denormalized components.
+  // Exponent = 1;
+  // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x100000) == 0);
+  bool is_denormalized = exponent == 0u;
+  uint mantissa_lzcnt = 20u - firstbithigh(mantissa);
+  exponent = is_denormalized ? (1u - mantissa_lzcnt) : exponent;
+  mantissa =
+      is_denormalized ? ((mantissa << mantissa_lzcnt) & 0xFFFFFu) : mantissa;
+  // Combine into 32-bit float bits and clear zeros.
+  return (f24u32 != 0u) ? (((exponent + 112u) << 23u) | (mantissa << 3u)) : 0u;
 }
 
 uint4 XeFloat20e4To32(uint4 f24u32) {

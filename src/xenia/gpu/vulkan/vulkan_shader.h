@@ -22,14 +22,28 @@ namespace vulkan {
 
 class VulkanShader : public Shader {
  public:
-  VulkanShader(xenos::ShaderType shader_type, uint64_t data_hash,
-               const uint32_t* dword_ptr, uint32_t dword_count);
+  class VulkanTranslation : public Translation {
+   public:
+    VulkanTranslation(VulkanShader& shader, uint32_t modification)
+        : Translation(shader, modification) {}
+    ~VulkanTranslation() override;
 
-  bool InitializeShaderModule(const ui::vulkan::VulkanProvider& provider);
-  VkShaderModule shader_module() const { return shader_module_; }
+    VkShaderModule GetOrCreateShaderModule();
+    VkShaderModule shader_module() const { return shader_module_; }
+
+   private:
+    VkShaderModule shader_module_ = VK_NULL_HANDLE;
+  };
+
+  VulkanShader(xenos::ShaderType shader_type, uint64_t data_hash,
+               const uint32_t* dword_ptr, uint32_t dword_count,
+               const ui::vulkan::VulkanProvider& provider);
+
+ protected:
+  Translation* CreateTranslationInstance(uint32_t modification) override;
 
  private:
-  VkShaderModule shader_module_ = VK_NULL_HANDLE;
+  const ui::vulkan::VulkanProvider& provider_;
 };
 
 }  // namespace vulkan

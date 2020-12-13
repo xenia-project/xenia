@@ -7,8 +7,6 @@
  ******************************************************************************
  */
 
-#include "third_party/xxhash/xxhash.h"
-
 #include <algorithm>
 #include <cstring>
 #include <utility>
@@ -73,10 +71,9 @@ void D3D12CommandProcessor::ClearCaches() {
 }
 
 void D3D12CommandProcessor::InitializeShaderStorage(
-    const std::filesystem::path& storage_root, uint32_t title_id,
-    bool blocking) {
-  CommandProcessor::InitializeShaderStorage(storage_root, title_id, blocking);
-  pipeline_cache_->InitializeShaderStorage(storage_root, title_id, blocking);
+    const std::filesystem::path& cache_root, uint32_t title_id, bool blocking) {
+  CommandProcessor::InitializeShaderStorage(cache_root, title_id, blocking);
+  pipeline_cache_->InitializeShaderStorage(cache_root, title_id, blocking);
 }
 
 void D3D12CommandProcessor::RequestFrameTrace(
@@ -102,7 +99,7 @@ void D3D12CommandProcessor::RestoreEdramSnapshot(const void* snapshot) {
 }
 
 uint32_t D3D12CommandProcessor::GetCurrentColorMask(
-    const D3D12Shader* pixel_shader) const {
+    const Shader* pixel_shader) const {
   if (pixel_shader == nullptr) {
     return 0;
   }
@@ -159,25 +156,16 @@ void D3D12CommandProcessor::SubmitBarriers() {
 }
 
 ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
-    const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader) {
-  assert_true(vertex_shader->is_translated());
-
+    const DxbcShader* vertex_shader, const DxbcShader* pixel_shader,
+    bool tessellated) {
   if (bindless_resources_used_) {
-    return vertex_shader->host_vertex_shader_type() !=
-                   Shader::HostVertexShaderType::kVertex
-               ? root_signature_bindless_ds_
-               : root_signature_bindless_vs_;
+    return tessellated ? root_signature_bindless_ds_
+                       : root_signature_bindless_vs_;
   }
 
-  assert_true(pixel_shader == nullptr || pixel_shader->is_translated());
-
-  D3D12_SHADER_VISIBILITY vertex_visibility;
-  if (vertex_shader->host_vertex_shader_type() !=
-      Shader::HostVertexShaderType::kVertex) {
-    vertex_visibility = D3D12_SHADER_VISIBILITY_DOMAIN;
-  } else {
-    vertex_visibility = D3D12_SHADER_VISIBILITY_VERTEX;
-  }
+  D3D12_SHADER_VISIBILITY vertex_visibility =
+      tessellated ? D3D12_SHADER_VISIBILITY_DOMAIN
+                  : D3D12_SHADER_VISIBILITY_VERTEX;
 
   uint32_t texture_count_vertex, sampler_count_vertex;
   vertex_shader->GetTextureBindings(texture_count_vertex);
@@ -393,7 +381,7 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
 }
 
 uint32_t D3D12CommandProcessor::GetRootBindfulExtraParameterIndices(
-    const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
+    const DxbcShader* vertex_shader, const DxbcShader* pixel_shader,
     RootBindfulExtraParameterIndices& indices_out) {
   uint32_t texture_count_pixel = 0, sampler_count_pixel = 0;
   if (pixel_shader != nullptr) {
@@ -1202,6 +1190,7 @@ bool D3D12CommandProcessor::SetupContext() {
 
   pipeline_cache_ = std::make_unique<PipelineCache>(
       *this, *register_file_, bindless_resources_used_, edram_rov_used_,
+      render_target_cache_->depth_float24_conversion(),
       texture_cache_->IsResolutionScale2X() ? 2 : 1);
   if (!pipeline_cache_->Initialize()) {
     XELOGE("Failed to initialize the graphics pipeline cache");
@@ -1804,8 +1793,7 @@ Shader* D3D12CommandProcessor::LoadShader(xenos::ShaderType shader_type,
                                           uint32_t guest_address,
                                           const uint32_t* host_address,
                                           uint32_t dword_count) {
-  return pipeline_cache_->LoadShader(shader_type, guest_address, host_address,
-                                     dword_count);
+  return pipeline_cache_->LoadShader(shader_type, host_address, dword_count);
 }
 
 bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
@@ -1851,21 +1839,30 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     // Need a pixel shader in normal color mode.
     return false;
   }
-  // Get tessellation info for the current draw for vertex shader translation.
-  Shader::HostVertexShaderType host_vertex_shader_type =
-      pipeline_cache_->GetHostVertexShaderTypeIfValid();
-  if (host_vertex_shader_type == Shader::HostVertexShaderType(-1)) {
+  DxbcShaderTranslator::Modification vertex_shader_modification;
+  DxbcShaderTranslator::Modification pixel_shader_modification;
+  if (!pipeline_cache_->GetCurrentShaderModifications(
+          vertex_shader_modification, pixel_shader_modification)) {
     return false;
   }
+  D3D12Shader::D3D12Translation* vertex_shader_translation =
+      static_cast<D3D12Shader::D3D12Translation*>(
+          vertex_shader->GetOrCreateTranslation(
+              vertex_shader_modification.value));
+  D3D12Shader::D3D12Translation* pixel_shader_translation =
+      pixel_shader ? static_cast<D3D12Shader::D3D12Translation*>(
+                         pixel_shader->GetOrCreateTranslation(
+                             pixel_shader_modification.value))
+                   : nullptr;
   // Translate the shaders now to get memexport configuration and color mask,
-  // which is needed by the render target cache, to check the possibility of
-  // doing early depth/stencil, and also to get used textures and samplers.
-  if (!pipeline_cache_->EnsureShadersTranslated(vertex_shader, pixel_shader,
-                                                host_vertex_shader_type)) {
+  // which is needed by the render target cache, and also to get used textures
+  // and samplers.
+  if (!pipeline_cache_->EnsureShadersTranslated(vertex_shader_translation,
+                                                pixel_shader_translation)) {
     return false;
   }
-  bool tessellated =
-      host_vertex_shader_type != Shader::HostVertexShaderType::kVertex;
+  bool tessellated = vertex_shader_modification.host_vertex_shader_type !=
+                     Shader::HostVertexShaderType::kVertex;
 
   // Check if memexport is used. If it is, we can't skip draw calls that have no
   // visual effect.
@@ -1967,26 +1964,14 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       (pixel_shader != nullptr ? pixel_shader->GetUsedTextureMask() : 0);
   texture_cache_->RequestTextures(used_texture_mask);
 
-  // Check if early depth/stencil can be enabled.
-  bool early_z;
-  if (pixel_shader) {
-    auto rb_colorcontrol = regs.Get<reg::RB_COLORCONTROL>();
-    early_z = pixel_shader->implicit_early_z_allowed() &&
-              (!rb_colorcontrol.alpha_test_enable ||
-               rb_colorcontrol.alpha_func == xenos::CompareFunction::kAlways) &&
-              !rb_colorcontrol.alpha_to_mask_enable;
-  } else {
-    early_z = true;
-  }
-
   // Create the pipeline if needed and bind it.
   void* pipeline_handle;
   ID3D12RootSignature* root_signature;
   if (!pipeline_cache_->ConfigurePipeline(
-          vertex_shader, pixel_shader, primitive_type_converted,
+          vertex_shader_translation, pixel_shader_translation,
+          primitive_type_converted,
           indexed ? index_buffer_info->format : xenos::IndexFormat::kInt16,
-          early_z, pipeline_render_targets, &pipeline_handle,
-          &root_signature)) {
+          pipeline_render_targets, &pipeline_handle, &root_signature)) {
     return false;
   }
   if (current_cached_pipeline_ != pipeline_handle) {
@@ -2014,11 +1999,18 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     pixel_size_x *= 2;
     pixel_size_y *= 2;
   }
+  flags::DepthFloat24Conversion depth_float24_conversion =
+      render_target_cache_->depth_float24_conversion();
   draw_util::ViewportInfo viewport_info;
-  draw_util::GetHostViewportInfo(regs, float(pixel_size_x), float(pixel_size_y),
-                                 true, float(D3D12_VIEWPORT_BOUNDS_MAX),
-                                 float(D3D12_VIEWPORT_BOUNDS_MAX), false,
-                                 viewport_info);
+  draw_util::GetHostViewportInfo(
+      regs, float(pixel_size_x), float(pixel_size_y), true,
+      float(D3D12_VIEWPORT_BOUNDS_MAX), float(D3D12_VIEWPORT_BOUNDS_MAX), false,
+      !edram_rov_used_ &&
+          (depth_float24_conversion ==
+               flags::DepthFloat24Conversion::kOnOutputTruncating ||
+           depth_float24_conversion ==
+               flags::DepthFloat24Conversion::kOnOutputRounding),
+      viewport_info);
   draw_util::Scissor scissor;
   draw_util::GetScissor(regs, scissor);
   scissor.left *= pixel_size_x;
@@ -2033,7 +2025,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   UpdateSystemConstantValues(
       memexport_used, primitive_polygonal, line_loop_closing_index,
       indexed ? index_buffer_info->endianness : xenos::Endian::kNone,
-      viewport_info, pixel_size_x, pixel_size_y, used_texture_mask, early_z,
+      viewport_info, pixel_size_x, pixel_size_y, used_texture_mask,
       GetCurrentColorMask(pixel_shader), pipeline_render_targets);
 
   // Update constant buffers, descriptors and root parameters.
@@ -2659,6 +2651,8 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
   bool is_closing_frame = is_swap && frame_open_;
 
   if (is_closing_frame) {
+    render_target_cache_->EndFrame();
+
     texture_cache_->EndFrame();
   }
 
@@ -2873,8 +2867,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     bool shared_memory_is_uav, bool primitive_polygonal,
     uint32_t line_loop_closing_index, xenos::Endian index_endian,
     const draw_util::ViewportInfo& viewport_info, uint32_t pixel_size_x,
-    uint32_t pixel_size_y, uint32_t used_texture_mask, bool early_z,
-    uint32_t color_mask,
+    uint32_t pixel_size_y, uint32_t used_texture_mask, uint32_t color_mask,
     const RenderTargetCache::PipelineRenderTarget render_targets[4]) {
 #if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
@@ -2992,14 +2985,11 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     flags |= DxbcShaderTranslator::kSysFlag_KillIfAnyVertexKilled;
   }
   // Alpha test.
-  if (rb_colorcontrol.alpha_test_enable) {
-    flags |= uint32_t(rb_colorcontrol.alpha_func)
-             << DxbcShaderTranslator::kSysFlag_AlphaPassIfLess_Shift;
-  } else {
-    flags |= DxbcShaderTranslator::kSysFlag_AlphaPassIfLess |
-             DxbcShaderTranslator::kSysFlag_AlphaPassIfEqual |
-             DxbcShaderTranslator::kSysFlag_AlphaPassIfGreater;
-  }
+  xenos::CompareFunction alpha_test_function =
+      rb_colorcontrol.alpha_test_enable ? rb_colorcontrol.alpha_func
+                                        : xenos::CompareFunction::kAlways;
+  flags |= uint32_t(alpha_test_function)
+           << DxbcShaderTranslator::kSysFlag_AlphaPassIfLess_Shift;
   // Gamma writing.
   for (uint32_t i = 0; i < 4; ++i) {
     if (color_infos[i].color_format ==
@@ -3028,7 +3018,9 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     if (rb_depthcontrol.stencil_enable) {
       flags |= DxbcShaderTranslator::kSysFlag_ROVStencilTest;
     }
-    if (early_z) {
+    // Hint - if not applicable to the shader, will not have effect.
+    if (alpha_test_function == xenos::CompareFunction::kAlways &&
+        !rb_colorcontrol.alpha_to_mask_enable) {
       flags |= DxbcShaderTranslator::kSysFlag_ROVDepthStencilEarlyWrite;
     }
   }
