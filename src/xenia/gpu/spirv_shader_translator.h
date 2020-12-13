@@ -25,6 +25,25 @@ namespace gpu {
 
 class SpirvShaderTranslator : public ShaderTranslator {
  public:
+  union Modification {
+    // If anything in this is structure is changed in a way not compatible with
+    // the previous layout, invalidate the pipeline storages by increasing this
+    // version number (0xYYYYMMDD)!
+    // TODO(Triang3l): Change to 0xYYYYMMDD once it's out of the rapid
+    // prototyping stage (easier to do small granular updates with an
+    // incremental counter).
+    static constexpr uint32_t kVersion = 1;
+
+    struct {
+      // VS - pipeline stage and input configuration.
+      Shader::HostVertexShaderType host_vertex_shader_type
+          : Shader::kHostVertexShaderTypeBitCount;
+    };
+    uint32_t value = 0;
+
+    Modification(uint32_t modification_value = 0) : value(modification_value) {}
+  };
+
   enum : uint32_t {
     kSysFlag_XYDividedByW_Shift,
     kSysFlag_ZDividedByW_Shift,
@@ -118,6 +137,11 @@ class SpirvShaderTranslator : public ShaderTranslator {
   };
   SpirvShaderTranslator(const Features& features);
 
+  uint32_t GetDefaultModification(
+      xenos::ShaderType shader_type,
+      Shader::HostVertexShaderType host_vertex_shader_type =
+          Shader::HostVertexShaderType::kVertex) const override;
+
   static constexpr uint32_t GetSharedMemoryStorageBufferCountLog2(
       uint32_t max_storage_buffer_range) {
     if (max_storage_buffer_range >= 512 * 1024 * 1024) {
@@ -134,7 +158,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   }
 
  protected:
-  void Reset() override;
+  void Reset(xenos::ShaderType shader_type) override;
 
   void StartTranslation() override;
 
@@ -166,17 +190,21 @@ class SpirvShaderTranslator : public ShaderTranslator {
     builder_->getBuildPoint()->addInstruction(std::move(selection_merge_op));
   }
 
+  Modification GetSpirvShaderModification() const {
+    return Modification(modification());
+  }
+
   // TODO(Triang3l): Depth-only pixel shader.
-  bool IsSpirvVertexOrTessEvalShader() const { return is_vertex_shader(); }
   bool IsSpirvVertexShader() const {
-    return IsSpirvVertexOrTessEvalShader() &&
-           host_vertex_shader_type() == Shader::HostVertexShaderType::kVertex;
+    return is_vertex_shader() &&
+           GetSpirvShaderModification().host_vertex_shader_type ==
+               Shader::HostVertexShaderType::kVertex;
   }
   bool IsSpirvTessEvalShader() const {
-    return IsSpirvVertexOrTessEvalShader() &&
-           host_vertex_shader_type() != Shader::HostVertexShaderType::kVertex;
+    return is_vertex_shader() &&
+           GetSpirvShaderModification().host_vertex_shader_type !=
+               Shader::HostVertexShaderType::kVertex;
   }
-  bool IsSpirvFragmentShader() const { return is_pixel_shader(); }
 
   // Must be called before emitting any SPIR-V operations that must be in a
   // block in translator callbacks to ensure that if the last instruction added

@@ -627,6 +627,17 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   }
   // TODO(Triang3l): Get a pixel shader.
   VulkanShader* pixel_shader = nullptr;
+  SpirvShaderTranslator::Modification vertex_shader_modification;
+  SpirvShaderTranslator::Modification pixel_shader_modification;
+  if (!pipeline_cache_->GetCurrentShaderModifications(
+          vertex_shader_modification, pixel_shader_modification)) {
+    return false;
+  }
+  VulkanShader::VulkanTranslation* vertex_shader_translation =
+      static_cast<VulkanShader::VulkanTranslation*>(
+          vertex_shader->GetOrCreateTranslation(
+              vertex_shader_modification.value));
+  VulkanShader::VulkanTranslation* pixel_shader_translation = nullptr;
 
   VulkanRenderTargetCache::FramebufferKey framebuffer_key;
   if (!render_target_cache_->UpdateRenderTargets(framebuffer_key)) {
@@ -648,7 +659,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // current_graphics_pipeline_layout_.
   VkPipeline pipeline;
   const VulkanPipelineCache::PipelineLayoutProvider* pipeline_layout_provider;
-  if (!pipeline_cache_->ConfigurePipeline(vertex_shader, pixel_shader,
+  if (!pipeline_cache_->ConfigurePipeline(vertex_shader_translation,
+                                          pixel_shader_translation,
                                           framebuffer_key.render_pass_key,
                                           pipeline, pipeline_layout_provider)) {
     return false;
@@ -713,7 +725,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   draw_util::GetHostViewportInfo(
       regs, 1.0f, 1.0f, false,
       float(device_properties.limits.maxViewportDimensions[0]),
-      float(device_properties.limits.maxViewportDimensions[1]), true,
+      float(device_properties.limits.maxViewportDimensions[1]), true, false,
       viewport_info);
 
   // Update fixed-function dynamic state.

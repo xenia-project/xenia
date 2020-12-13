@@ -17,7 +17,7 @@ namespace hash {
 
 // For use in unordered_sets and unordered_maps (primarily multisets and
 // multimaps, with manual collision resolution), where the hash is calculated
-// externally (for instance, as XXH64), possibly requiring context data rather
+// externally (for instance, as XXH3), possibly requiring context data rather
 // than a pure function to calculate the hash
 template <typename Key>
 struct IdentityHasher {

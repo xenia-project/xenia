@@ -16,9 +16,9 @@
 #include <unordered_map>
 #include <utility>
 
-#include "third_party/xxhash/xxhash.h"
 #include "xenia/base/hash.h"
 #include "xenia/base/platform.h"
+#include "xenia/base/xxhash.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/gpu/vulkan/vulkan_render_target_cache.h"
@@ -55,14 +55,19 @@ class VulkanPipelineCache {
                            uint32_t guest_address, const uint32_t* host_address,
                            uint32_t dword_count);
 
+  // Retrieves the shader modifications for the current state, and returns
+  // whether they are valid.
+  bool GetCurrentShaderModifications(
+      SpirvShaderTranslator::Modification& vertex_shader_modification_out,
+      SpirvShaderTranslator::Modification& pixel_shader_modification_out) const;
+
   // Translates shaders if needed, also making shader info up to date.
-  bool EnsureShadersTranslated(
-      VulkanShader* vertex_shader, VulkanShader* pixel_shader,
-      Shader::HostVertexShaderType host_vertex_shader_type);
+  bool EnsureShadersTranslated(VulkanShader::VulkanTranslation* vertex_shader,
+                               VulkanShader::VulkanTranslation* pixel_shader);
 
   // TODO(Triang3l): Return a deferred creation handle.
-  bool ConfigurePipeline(VulkanShader* vertex_shader,
-                         VulkanShader* pixel_shader,
+  bool ConfigurePipeline(VulkanShader::VulkanTranslation* vertex_shader,
+                         VulkanShader::VulkanTranslation* pixel_shader,
                          VulkanRenderTargetCache::RenderPassKey render_pass_key,
                          VkPipeline& pipeline_out,
                          const PipelineLayoutProvider*& pipeline_layout_out);
@@ -102,6 +107,8 @@ class VulkanPipelineCache {
     uint64_t vertex_shader_hash;
     // 0 if no pixel shader.
     uint64_t pixel_shader_hash;
+    uint32_t vertex_shader_modification;
+    uint32_t pixel_shader_modification;
     VulkanRenderTargetCache::RenderPassKey render_pass_key;
 
     // Input assembly.
@@ -126,7 +133,7 @@ class VulkanPipelineCache {
       return std::memcmp(this, &description, sizeof(*this)) == 0;
     }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
-    uint64_t GetHash() const { return XXH64(this, sizeof(*this), 0); }
+    uint64_t GetHash() const { return XXH3_64bits(this, sizeof(*this)); }
     struct Hasher {
       size_t operator()(const PipelineDescription& description) const {
         return size_t(description.GetHash());
@@ -146,17 +153,19 @@ class VulkanPipelineCache {
   // creation threads, with everything needed from caches pre-looked-up.
   struct PipelineCreationArguments {
     std::pair<const PipelineDescription, Pipeline>* pipeline;
-    const VulkanShader* vertex_shader;
-    const VulkanShader* pixel_shader;
+    const VulkanShader::VulkanTranslation* vertex_shader;
+    const VulkanShader::VulkanTranslation* pixel_shader;
     VkRenderPass render_pass;
   };
 
   // Can be called from multiple threads.
-  bool TranslateShader(SpirvShaderTranslator& translator, VulkanShader& shader,
+  bool TranslateShader(SpirvShaderTranslator& translator,
+                       VulkanShader::VulkanTranslation& translation,
                        reg::SQ_PROGRAM_CNTL cntl);
 
   bool GetCurrentStateDescription(
-      const VulkanShader* vertex_shader, const VulkanShader* pixel_shader,
+      const VulkanShader::VulkanTranslation* vertex_shader,
+      const VulkanShader::VulkanTranslation* pixel_shader,
       VulkanRenderTargetCache::RenderPassKey render_pass_key,
       PipelineDescription& description_out) const;
 

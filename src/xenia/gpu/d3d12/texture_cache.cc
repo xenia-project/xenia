@@ -9,8 +9,6 @@
 
 #include "xenia/gpu/d3d12/texture_cache.h"
 
-#include "third_party/xxhash/xxhash.h"
-
 #include <algorithm>
 #include <cfloat>
 #include <cstring>
@@ -21,6 +19,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
+#include "xenia/base/xxhash.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/texture_info.h"

@@ -14,7 +14,7 @@
 #include <cstring>
 #include <unordered_map>
 
-#include "third_party/xxhash/xxhash.h"
+#include "xenia/base/xxhash.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
@@ -49,7 +49,7 @@ class VulkanRenderTargetCache {
       return std::memcmp(this, &key, sizeof(*this)) == 0;
     }
     void Reset() { std::memset(this, 0, sizeof(*this)); }
-    uint64_t GetHash() const { return XXH64(this, sizeof(*this), 0); }
+    uint64_t GetHash() const { return XXH3_64bits(this, sizeof(*this)); }
     struct Hasher {
       size_t operator()(const FramebufferKey& description) const {
         return size_t(description.GetHash());

@@ -80,16 +80,19 @@ void main(triangle XeVertexPreGS xe_in[3],
     v3_signs = float3(1.0f, 1.0f, -1.0f);
   }
   [unroll] for (int i = 0; i < 16; ++i) {
-    xe_out.interpolators[i] = v3_signs.x * xe_in[0].post_gs.interpolators[i] +
-                              v3_signs.y * xe_in[1].post_gs.interpolators[i] +
-                              v3_signs.z * xe_in[2].post_gs.interpolators[i];
+    xe_out.pre_ps.interpolators[i] =
+        v3_signs.x * xe_in[0].post_gs.pre_ps.interpolators[i] +
+        v3_signs.y * xe_in[1].post_gs.pre_ps.interpolators[i] +
+        v3_signs.z * xe_in[2].post_gs.pre_ps.interpolators[i];
   }
-  xe_out.point_params = v3_signs.x * xe_in[0].post_gs.point_params +
-                        v3_signs.y * xe_in[1].post_gs.point_params +
-                        v3_signs.z * xe_in[2].post_gs.point_params;
-  xe_out.clip_space_zw = v3_signs.x * xe_in[0].post_gs.clip_space_zw +
-                         v3_signs.y * xe_in[1].post_gs.clip_space_zw +
-                         v3_signs.z * xe_in[2].post_gs.clip_space_zw;
+  xe_out.pre_ps.point_params =
+      v3_signs.x * xe_in[0].post_gs.pre_ps.point_params +
+      v3_signs.y * xe_in[1].post_gs.pre_ps.point_params +
+      v3_signs.z * xe_in[2].post_gs.pre_ps.point_params;
+  xe_out.pre_ps.clip_space_zw =
+      v3_signs.x * xe_in[0].post_gs.pre_ps.clip_space_zw +
+      v3_signs.y * xe_in[1].post_gs.pre_ps.clip_space_zw +
+      v3_signs.z * xe_in[2].post_gs.pre_ps.clip_space_zw;
   xe_out.position = v3_signs.x * xe_in[0].post_gs.position +
                     v3_signs.y * xe_in[1].post_gs.position +
                     v3_signs.z * xe_in[2].post_gs.position;

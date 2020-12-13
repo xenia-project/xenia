@@ -13,6 +13,7 @@
 #include <array>
 #include <atomic>
 #include <mutex>
+#include <optional>
 
 #include "SDL.h"
 #include "xenia/hid/input_driver.h"
@@ -44,8 +45,9 @@ class SDLInputDriver : public InputDriver {
  protected:
   struct ControllerState {
     SDL_GameController* sdl;
-    bool state_changed;
     X_INPUT_STATE state;
+    bool state_changed;
+    bool is_active;
   };
 
   enum class RepeatState {
@@ -63,11 +65,11 @@ class SDLInputDriver : public InputDriver {
   };
 
  protected:
-  void OnControllerDeviceAdded(SDL_Event* event);
-  void OnControllerDeviceRemoved(SDL_Event* event);
-  void OnControllerDeviceAxisMotion(SDL_Event* event);
-  void OnControllerDeviceButtonChanged(SDL_Event* event);
-  std::pair<bool, size_t> GetControllerIndexFromInstanceID(
+  void OnControllerDeviceAdded(const SDL_Event& event);
+  void OnControllerDeviceRemoved(const SDL_Event& event);
+  void OnControllerDeviceAxisMotion(const SDL_Event& event);
+  void OnControllerDeviceButtonChanged(const SDL_Event& event);
+  std::optional<size_t> GetControllerIndexFromInstanceID(
       SDL_JoystickID instance_id);
   ControllerState* GetControllerState(uint32_t user_index);
   bool TestSDLVersion() const;

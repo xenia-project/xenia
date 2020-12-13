@@ -77,7 +77,7 @@ X_STATUS SDLInputDriver::Setup() {
     sdl_events_initialized_ = true;
 
     SDL_EventFilter event_filter{[](void* userdata, SDL_Event* event) -> int {
-      if (!userdata) {
+      if (!userdata || !event) {
         assert_always();
         return 0;
       }
@@ -102,17 +102,17 @@ X_STATUS SDLInputDriver::Setup() {
       }
       switch (type) {
         case SDL_CONTROLLERDEVICEADDED:
-          driver->OnControllerDeviceAdded(event);
+          driver->OnControllerDeviceAdded(*event);
           break;
         case SDL_CONTROLLERDEVICEREMOVED:
-          driver->OnControllerDeviceRemoved(event);
+          driver->OnControllerDeviceRemoved(*event);
           break;
         case SDL_CONTROLLERAXISMOTION:
-          driver->OnControllerDeviceAxisMotion(event);
+          driver->OnControllerDeviceAxisMotion(*event);
           break;
         case SDL_CONTROLLERBUTTONDOWN:
         case SDL_CONTROLLERBUTTONUP:
-          driver->OnControllerDeviceButtonChanged(event);
+          driver->OnControllerDeviceButtonChanged(*event);
           break;
         default:
           break;
@@ -193,7 +193,11 @@ X_RESULT SDLInputDriver::GetState(uint32_t user_index,
     return X_ERROR_BAD_ARGUMENTS;
   }
 
-  QueueControllerUpdate();
+  auto is_active = this->is_active();
+
+  if (is_active) {
+    QueueControllerUpdate();
+  }
 
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
@@ -203,12 +207,20 @@ X_RESULT SDLInputDriver::GetState(uint32_t user_index,
   }
 
   // Make sure packet_number is only incremented by 1, even if there have been
-  // multiple updates between GetState calls.
-  if (controller->state_changed) {
+  // multiple updates between GetState calls. Also track `is_active` to
+  // increment the packet number if it changed.
+  if ((is_active != controller->is_active) ||
+      (is_active && controller->state_changed)) {
     controller->state.packet_number++;
+    controller->is_active = is_active;
     controller->state_changed = false;
   }
-  *out_state = controller->state;
+  std::memcpy(out_state, &controller->state, sizeof(*out_state));
+  if (!is_active) {
+    // Simulate an "untouched" controller. When we become active again the
+    // pressed buttons aren't lost and will be visible again.
+    std::memset(&out_state->gamepad, 0, sizeof(out_state->gamepad));
+  }
   return X_ERROR_SUCCESS;
 }
 
@@ -242,6 +254,8 @@ X_RESULT SDLInputDriver::SetState(uint32_t user_index,
 
 X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
                                       X_INPUT_KEYSTROKE* out_keystroke) {
+  // TODO(JoelLinn): Figure out the flags
+  // https://github.com/evilC/UCR/blob/0489929e2a8e39caa3484c67f3993d3fba39e46f/Libraries/XInput.ahk#L85-L98
   assert(sdl_events_initialized_ && sdl_gamecontroller_initialized_);
   bool user_any = users == 0xFF;
   if (users >= HID_SDL_USER_COUNT && !user_any) {
@@ -296,7 +310,11 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
           X_INPUT_GAMEPAD_VK_RTHUMB_DOWNLEFT,
       };
 
-  QueueControllerUpdate();
+  auto is_active = this->is_active();
+
+  if (is_active) {
+    QueueControllerUpdate();
+  }
 
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
@@ -311,8 +329,13 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
       }
     }
 
-    const uint64_t curr_butts = controller->state.gamepad.buttons |
-                                AnalogToKeyfield(controller->state.gamepad);
+    // If input is not active (e.g. due to a dialog overlay), force buttons to
+    // "unpressed". The algorithm will automatically send UP events when
+    // `is_active()` goes low and DOWN events when it goes high again.
+    const uint64_t curr_butts =
+        is_active ? (controller->state.gamepad.buttons |
+                     AnalogToKeyfield(controller->state.gamepad))
+                  : uint64_t(0);
     KeystrokeState& last = keystroke_states_.at(user_index);
 
     // Handle repeating
@@ -384,12 +407,12 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
   return X_ERROR_EMPTY;
 }
 
-void SDLInputDriver::OnControllerDeviceAdded(SDL_Event* event) {
+void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
   assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   // Open the controller.
-  const auto controller = SDL_GameControllerOpen(event->cdevice.which);
+  const auto controller = SDL_GameControllerOpen(event.cdevice.which);
   if (!controller) {
     assert_always();
     return;
@@ -423,52 +446,52 @@ void SDLInputDriver::OnControllerDeviceAdded(SDL_Event* event) {
   }
 }
 
-void SDLInputDriver::OnControllerDeviceRemoved(SDL_Event* event) {
+void SDLInputDriver::OnControllerDeviceRemoved(const SDL_Event& event) {
   assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   // Find the disconnected gamecontroller and close it.
-  auto [found, i] = GetControllerIndexFromInstanceID(event->cdevice.which);
-  assert(found);
-  SDL_GameControllerClose(controllers_.at(i).sdl);
-  controllers_.at(i) = {};
-  keystroke_states_.at(i) = {};
+  auto idx = GetControllerIndexFromInstanceID(event.cdevice.which);
+  assert(idx);
+  SDL_GameControllerClose(controllers_.at(*idx).sdl);
+  controllers_.at(*idx) = {};
+  keystroke_states_.at(*idx) = {};
 }
 
-void SDLInputDriver::OnControllerDeviceAxisMotion(SDL_Event* event) {
+void SDLInputDriver::OnControllerDeviceAxisMotion(const SDL_Event& event) {
   assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
-  auto [found, i] = GetControllerIndexFromInstanceID(event->caxis.which);
-  assert(found);
-  auto& pad = controllers_.at(i).state.gamepad;
-  switch (event->caxis.axis) {
+  auto idx = GetControllerIndexFromInstanceID(event.caxis.which);
+  assert(idx);
+  auto& pad = controllers_.at(*idx).state.gamepad;
+  switch (event.caxis.axis) {
     case SDL_CONTROLLER_AXIS_LEFTX:
-      pad.thumb_lx = event->caxis.value;
+      pad.thumb_lx = event.caxis.value;
       break;
     case SDL_CONTROLLER_AXIS_LEFTY:
-      pad.thumb_ly = ~event->caxis.value;
+      pad.thumb_ly = ~event.caxis.value;
       break;
     case SDL_CONTROLLER_AXIS_RIGHTX:
-      pad.thumb_rx = event->caxis.value;
+      pad.thumb_rx = event.caxis.value;
       break;
     case SDL_CONTROLLER_AXIS_RIGHTY:
-      pad.thumb_ry = ~event->caxis.value;
+      pad.thumb_ry = ~event.caxis.value;
       break;
     case SDL_CONTROLLER_AXIS_TRIGGERLEFT:
-      pad.left_trigger = static_cast<uint8_t>(event->caxis.value >> 7);
+      pad.left_trigger = static_cast<uint8_t>(event.caxis.value >> 7);
       break;
     case SDL_CONTROLLER_AXIS_TRIGGERRIGHT:
-      pad.right_trigger = static_cast<uint8_t>(event->caxis.value >> 7);
+      pad.right_trigger = static_cast<uint8_t>(event.caxis.value >> 7);
       break;
     default:
       assert_always();
       break;
   }
-  controllers_.at(i).state_changed = true;
+  controllers_.at(*idx).state_changed = true;
 }
 
-void SDLInputDriver::OnControllerDeviceButtonChanged(SDL_Event* event) {
+void SDLInputDriver::OnControllerDeviceButtonChanged(const SDL_Event& event) {
   assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
@@ -492,15 +515,15 @@ void SDLInputDriver::OnControllerDeviceButtonChanged(SDL_Event* event) {
                         X_INPUT_GAMEPAD_DPAD_LEFT,
                         X_INPUT_GAMEPAD_DPAD_RIGHT};
 
-  auto [found, i] = GetControllerIndexFromInstanceID(event->cbutton.which);
-  assert(found);
-  auto& controller = controllers_.at(i);
+  auto idx = GetControllerIndexFromInstanceID(event.cbutton.which);
+  assert(idx);
+  auto& controller = controllers_.at(*idx);
 
   uint16_t xbuttons = controller.state.gamepad.buttons;
   // Lookup the XInput button code.
-  auto xbutton = xbutton_lookup.at(event->cbutton.button);
+  auto xbutton = xbutton_lookup.at(event.cbutton.button);
   // Pressed or released?
-  if (event->cbutton.state == SDL_PRESSED) {
+  if (event.cbutton.state == SDL_PRESSED) {
     if (xbutton == X_INPUT_GAMEPAD_GUIDE && !cvars::guide_button) {
       return;
     }
@@ -512,7 +535,7 @@ void SDLInputDriver::OnControllerDeviceButtonChanged(SDL_Event* event) {
   controller.state_changed = true;
 }
 
-std::pair<bool, size_t> SDLInputDriver::GetControllerIndexFromInstanceID(
+std::optional<size_t> SDLInputDriver::GetControllerIndexFromInstanceID(
     SDL_JoystickID instance_id) {
   // Loop through our controllers and try to match the given ID.
   for (size_t i = 0; i < controllers_.size(); i++) {
@@ -525,10 +548,10 @@ std::pair<bool, size_t> SDLInputDriver::GetControllerIndexFromInstanceID(
     auto joy_instance_id = SDL_JoystickInstanceID(joystick);
     assert(joy_instance_id >= 0);
     if (joy_instance_id == instance_id) {
-      return {true, i};
+      return i;
     }
   }
-  return {false, 0};
+  return std::nullopt;
 }
 
 SDLInputDriver::ControllerState* SDLInputDriver::GetControllerState(

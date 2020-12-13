@@ -102,6 +102,51 @@ class DxbcShaderTranslator : public ShaderTranslator {
                        bool edram_rov_used, bool force_emit_source_map = false);
   ~DxbcShaderTranslator() override;
 
+  union Modification {
+    // If anything in this is structure is changed in a way not compatible with
+    // the previous layout, invalidate the pipeline storages by increasing this
+    // version number (0xYYYYMMDD)!
+    static constexpr uint32_t kVersion = 0x20201203;
+
+    enum class DepthStencilMode : uint32_t {
+      kNoModifiers,
+      // [earlydepthstencil] - enable if alpha test and alpha to coverage are
+      // disabled; ignored if anything in the shader blocks early Z writing
+      // (which is not known before translation, so this will be set anyway).
+      kEarlyHint,
+      // Converting the depth to the closest 32-bit float representable exactly
+      // as a 20e4 float, to support invariance in cases when the guest
+      // reuploads a previously resolved depth buffer to the EDRAM, rounding
+      // towards zero (which contradicts the rounding used by the Direct3D 9
+      // reference rasterizer, but allows SV_DepthLessEqual to be used to allow
+      // slightly coarse early Z culling; also truncating regardless of whether
+      // the shader writes depth and thus always uses SV_Depth, for
+      // consistency). MSAA is limited - depth must be per-sample
+      // (SV_DepthLessEqual also explicitly requires sample or centroid position
+      // interpolation), thus the sampler has to run at sample frequency even if
+      // the device supports stencil loading and thus true non-ROV MSAA via
+      // SV_StencilRef.
+      // Fixed-function viewport depth bounds must be snapped to float24 for
+      // clamping purposes.
+      kFloat24Truncating,
+      // Similar to kFloat24Truncating, but rounding to the nearest even,
+      // however, always using SV_Depth rather than SV_DepthLessEqual because
+      // rounding up results in a bigger value. Same viewport usage rules apply.
+      kFloat24Rounding,
+    };
+
+    struct {
+      // VS - pipeline stage and input configuration.
+      Shader::HostVertexShaderType host_vertex_shader_type
+          : Shader::kHostVertexShaderTypeBitCount;
+      // PS, non-ROV - depth / stencil output mode.
+      DepthStencilMode depth_stencil_mode : 2;
+    };
+    uint32_t value = 0;
+
+    Modification(uint32_t modification_value = 0) : value(modification_value) {}
+  };
+
   // Constant buffer bindings in space 0.
   enum class CbufferRegister {
     kSystemConstants,
@@ -144,12 +189,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_ROVStencilTest_Shift,
     // If the depth/stencil test has failed, but resulted in a stencil value
     // that is different than the one currently in the depth buffer, write it
-    // anyway and don't run the shader (to check if the sample may be discarded
-    // some way). This, however, also results in depth/stencil testing done
-    // entirely early even when it passes to prevent writing in divergent places
-    // in the shader. When the shader can kill, this must be set only for
-    // RB_DEPTHCONTROL EARLY_Z_ENABLE, not for alpha test/alpha to coverage
-    // disabled.
+    // anyway and don't run the rest of the shader (to check if the sample may
+    // be discarded some way) - use when alpha test and alpha to coverage are
+    // disabled. Ignored by the shader if not applicable to it (like if it has
+    // kill instructions or writes the depth output).
+    // TODO(Triang3l): Investigate replacement with an alpha-to-mask flag,
+    // checking `(flags & (alpha test | alpha to mask)) == (always | disabled)`,
+    // taking into account the potential relation with occlusion queries (but
+    // should be safe at least temporarily).
     kSysFlag_ROVDepthStencilEarlyWrite_Shift,
 
     kSysFlag_Count,
@@ -238,15 +285,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // EDRAM address calculation.
     uint32_t sample_count_log2[2];
     float alpha_test_reference;
+    // If alpha to mask is disabled, the entire alpha_to_mask value must be 0.
+    // If alpha to mask is enabled, bits 0:7 are sample offsets, and bit 8 must
+    // be 1.
     uint32_t alpha_to_mask;
 
     float color_exp_bias[4];
 
     uint32_t color_output_map[4];
 
-    // If alpha to mask is disabled, the entire alpha_to_mask value must be 0.
-    // If alpha to mask is enabled, bits 0:7 are sample offsets, and bit 8 must
-    // be 1.
     uint32_t edram_resolution_square_scale;
     uint32_t edram_pitch_tiles;
     union {
@@ -358,12 +405,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
     bool is_signed;
     std::string name;
   };
-  // The first binding returned is at t[SRVMainRegister::kBindfulTexturesStart]
-  // of space SRVSpace::kMain.
-  const TextureBinding* GetTextureBindings(uint32_t& count_out) const {
-    count_out = uint32_t(texture_bindings_.size());
-    return texture_bindings_.data();
-  }
 
   // Arbitrary limit - there can't be more than 2048 in a shader-visible
   // descriptor heap, though some older hardware (tier 1 resource binding -
@@ -385,26 +426,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
     xenos::AnisoFilter aniso_filter;
     std::string name;
   };
-  const SamplerBinding* GetSamplerBindings(uint32_t& count_out) const {
-    count_out = uint32_t(sampler_bindings_.size());
-    return sampler_bindings_.data();
-  }
-
-  // Returns the number of texture SRV and sampler offsets that need to be
-  // passed via a constant buffer to the shader.
-  uint32_t GetBindlessResourceCount() const {
-    return uint32_t(texture_bindings_.size() + sampler_bindings_.size());
-  }
 
   // Unordered access view bindings in space 0.
   enum class UAVRegister {
     kSharedMemory,
     kEdram,
   };
-
-  // Creates a copy of the shader with early depth/stencil testing forced,
-  // overriding that alpha testing is used in the shader.
-  static std::vector<uint8_t> ForceEarlyDepthStencil(const uint8_t* shader);
 
   // Returns the format with internal flags for passing via the
   // edram_rt_format_flags system constant.
@@ -440,16 +467,22 @@ class DxbcShaderTranslator : public ShaderTranslator {
       float& clamp_alpha_high, uint32_t& keep_mask_low,
       uint32_t& keep_mask_high);
 
+  uint32_t GetDefaultModification(
+      xenos::ShaderType shader_type,
+      Shader::HostVertexShaderType host_vertex_shader_type =
+          Shader::HostVertexShaderType::kVertex) const override;
+
   // Creates a special pixel shader without color outputs - this resets the
   // state of the translator.
   std::vector<uint8_t> CreateDepthOnlyPixelShader();
 
  protected:
-  void Reset() override;
+  void Reset(xenos::ShaderType shader_type) override;
 
   void StartTranslation() override;
-
   std::vector<uint8_t> CompleteTranslation() override;
+  void PostTranslation(Shader::Translation& translation,
+                       bool setup_shader_post_translation_info) override;
 
   void ProcessLabel(uint32_t cf_index) override;
 
@@ -650,6 +683,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kInputDomainPoint = 28,
     kUnorderedAccessView = 30,
     kInputCoverageMask = 35,
+    kOutputDepthLessEqual = 39,
   };
 
   // D3D10_SB_OPERAND_INDEX_DIMENSION
@@ -689,6 +723,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
         return DxbcOperandDimension::kNoData;
       case DxbcOperandType::kInputPrimitiveID:
       case DxbcOperandType::kOutputDepth:
+      case DxbcOperandType::kOutputDepthLessEqual:
         return DxbcOperandDimension::kScalar;
       case DxbcOperandType::kInputCoverageMask:
         return dest_in_dcl ? DxbcOperandDimension::kScalar
@@ -859,6 +894,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
                       uint32_t write_mask = 0b1111) {
       return DxbcDest(DxbcOperandType::kUnorderedAccessView, write_mask,
                       index_1d, index_2d);
+    }
+    static DxbcDest ODepthLE() {
+      return DxbcDest(DxbcOperandType::kOutputDepthLessEqual, 0b0001);
     }
 
     uint32_t GetMask() const {
@@ -2145,21 +2183,19 @@ class DxbcShaderTranslator : public ShaderTranslator {
            (index_representation_1 << 25) | (index_representation_2 << 28);
   }
 
-  // Use these instead of is_vertex_shader/is_pixel_shader because they don't
-  // take is_depth_only_pixel_shader_ into account.
-  inline bool IsDxbcVertexOrDomainShader() const {
-    return !is_depth_only_pixel_shader_ && is_vertex_shader();
+  Modification GetDxbcShaderModification() const {
+    return Modification(modification());
   }
-  inline bool IsDxbcVertexShader() const {
-    return IsDxbcVertexOrDomainShader() &&
-           host_vertex_shader_type() == Shader::HostVertexShaderType::kVertex;
+
+  bool IsDxbcVertexShader() const {
+    return is_vertex_shader() &&
+           GetDxbcShaderModification().host_vertex_shader_type ==
+               Shader::HostVertexShaderType::kVertex;
   }
-  inline bool IsDxbcDomainShader() const {
-    return IsDxbcVertexOrDomainShader() &&
-           host_vertex_shader_type() != Shader::HostVertexShaderType::kVertex;
-  }
-  inline bool IsDxbcPixelShader() const {
-    return is_depth_only_pixel_shader_ || is_pixel_shader();
+  bool IsDxbcDomainShader() const {
+    return is_vertex_shader() &&
+           GetDxbcShaderModification().host_vertex_shader_type !=
+               Shader::HostVertexShaderType::kVertex;
   }
 
   // Whether to use switch-case rather than if (pc >= label) for control flow.
@@ -2181,10 +2217,37 @@ class DxbcShaderTranslator : public ShaderTranslator {
                        uint32_t piece_temp_component, uint32_t accumulator_temp,
                        uint32_t accumulator_temp_component);
 
+  // Converts the depth value externally clamped to the representable [0, 2)
+  // range to 20e4 floating point, with zeros in bits 24:31, rounding to the
+  // nearest even. Source and destination may be the same, temporary must be
+  // different than both.
+  void PreClampedDepthTo20e4(uint32_t d24_temp, uint32_t d24_temp_component,
+                             uint32_t d32_temp, uint32_t d32_temp_component,
+                             uint32_t temp_temp, uint32_t temp_temp_component);
+  bool IsDepthStencilSystemTempUsed() const {
+    // See system_temp_depth_stencil_ documentation for explanation of cases.
+    if (edram_rov_used_) {
+      return writes_depth() || ROV_IsDepthStencilEarly();
+    }
+    return writes_depth() && DSV_IsWritingFloat24Depth();
+  }
+  // Whether the current non-ROV pixel shader should convert the depth to 20e4.
+  bool DSV_IsWritingFloat24Depth() const {
+    if (edram_rov_used_) {
+      return false;
+    }
+    Modification::DepthStencilMode depth_stencil_mode =
+        GetDxbcShaderModification().depth_stencil_mode;
+    return depth_stencil_mode ==
+               Modification::DepthStencilMode::kFloat24Truncating ||
+           depth_stencil_mode ==
+               Modification::DepthStencilMode::kFloat24Rounding;
+  }
   // Whether it's possible and worth skipping running the translated shader for
   // 2x2 quads.
   bool ROV_IsDepthStencilEarly() const {
-    return !is_depth_only_pixel_shader_ && !writes_depth();
+    return !is_depth_only_pixel_shader_ && !writes_depth() &&
+           memexport_stream_constants().empty();
   }
   // Converts the depth value to 24-bit (storing the result in bits 0:23 and
   // zeros in 24:31, not creating room for stencil - since this may be involved
@@ -2197,8 +2260,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Does all the depth/stencil-related things, including or not including
   // writing based on whether it's late, or on whether it's safe to do it early.
   // Updates system_temp_rov_params_ result and coverage if allowed and safe,
-  // updates system_temp_rov_depth_stencil_, and if early and the coverage is
-  // empty for all pixels in the 2x2 quad and safe to return early (stencil is
+  // updates system_temp_depth_stencil_, and if early and the coverage is empty
+  // for all pixels in the 2x2 quad and safe to return early (stencil is
   // unchanged or known that it's safe not to await kills/alphatest/AtoC),
   // returns from the shader.
   void ROV_DepthStencilTest();
@@ -2248,6 +2311,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Discards the SSAA sample if it's masked out by alpha to coverage.
   void CompletePixelShader_WriteToRTVs_AlphaToMask();
   void CompletePixelShader_WriteToRTVs();
+  void CompletePixelShader_DSV_DepthTo24Bit();
   // Masks the sample away from system_temp_rov_params_.x if it's not covered.
   // threshold_offset and temp.temp_component can be the same if needed.
   void CompletePixelShader_ROV_AlphaToMaskSample(
@@ -2333,6 +2397,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
                                    xenos::TextureFilter min_filter,
                                    xenos::TextureFilter mip_filter,
                                    xenos::AnisoFilter aniso_filter);
+  // Returns the number of texture SRV and sampler offsets that need to be
+  // passed via a constant buffer to the shader.
+  uint32_t GetBindlessResourceCount() const {
+    return uint32_t(texture_bindings_.size() + sampler_bindings_.size());
+  }
   // Marks fetch constants as used by the DXBC shader and returns DxbcSrc
   // for the words 01 (pair 0), 23 (pair 1) or 45 (pair 2) of the texture fetch
   // constant.
@@ -2364,7 +2433,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   static uint32_t AppendString(std::vector<uint32_t>& dest, const char* source);
   // Returns the length of a string as if it was appended to a DWORD stream, in
   // bytes.
-  static inline uint32_t GetStringLength(const char* source) {
+  static uint32_t GetStringLength(const char* source) {
     return uint32_t(xe::align(std::strlen(source) + 1, sizeof(uint32_t)));
   }
 
@@ -2479,8 +2548,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   bool in_primitive_id_used_;
   // Whether InOutRegister::kDSInControlPointIndex has been used in the shader.
   bool in_control_point_index_used_;
-  // Whether the XY of the pixel position has been used in the pixel shader.
-  bool in_position_xy_used_;
+  // Mask of the pixel/sample position actually used in the pixel shader.
+  uint32_t in_position_used_;
   // Whether the faceness has been used in the pixel shader.
   bool in_front_face_used_;
 
@@ -2518,15 +2587,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // W - Base-relative resolution-scaled EDRAM offset for 64bpp color data, in
   //     dwords.
   uint32_t system_temp_rov_params_;
-  // ROV only - new depth/stencil data. 4 VGPRs when not writing to oDepth, 1
-  // VGPR when writing to oDepth. Not used in the depth-only pixel shader (or,
-  // more formally, if neither early depth-stencil nor oDepth are used) because
-  // it always calculates and writes in the same place.
-  // When not writing to oDepth: New per-sample depth/stencil values, generated
-  // during early depth/stencil test (actual writing checks coverage bits).
-  // When writing to oDepth: X also used to hold the depth written by the
-  // shader, later used as a temporary during depth/stencil testing.
-  uint32_t system_temp_rov_depth_stencil_;
+  // Two purposes:
+  // - When writing to oDepth, and either using ROV or converting the depth to
+  //   float24: X also used to hold the depth written by the shader,
+  //   later used as a temporary during depth/stencil testing.
+  // - Otherwise, when using ROV output with ROV_IsDepthStencilEarly being true:
+  //   New per-sample depth/stencil values, generated during early depth/stencil
+  //   test (actual writing checks coverage bits).
+  uint32_t system_temp_depth_stencil_;
   // Up to 4 color outputs in pixel shaders (because of exponent bias, alpha
   // test and remapping, and also for ROV writing).
   uint32_t system_temps_color_[4];
@@ -2587,6 +2655,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   uint32_t srv_index_bindless_textures_3d_;
   uint32_t srv_index_bindless_textures_cube_;
 
+  // The first binding is at t[SRVMainRegister::kBindfulTexturesStart] of space
+  // SRVSpace::kMain.
   std::vector<TextureBinding> texture_bindings_;
   std::unordered_map<uint32_t, uint32_t>
       texture_bindings_for_bindful_srv_indices_;

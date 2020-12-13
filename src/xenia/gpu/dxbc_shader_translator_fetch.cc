@@ -677,7 +677,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
   // Whether to use gradients (implicit or explicit) for LOD calculation.
   bool use_computed_lod =
       instr.attributes.use_computed_lod &&
-      (IsDxbcPixelShader() || instr.attributes.use_register_gradients);
+      (is_pixel_shader() || instr.attributes.use_register_gradients);
   if (instr.opcode == FetchOpcode::kGetTextureComputedLod &&
       (!use_computed_lod || instr.attributes.use_register_gradients)) {
     assert_always();

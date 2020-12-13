@@ -9,17 +9,41 @@
 
 #include "xenia/gpu/xenos.h"
 
+#include <cmath>
+
 #include "xenia/base/math.h"
 
 namespace xe {
 namespace gpu {
 namespace xenos {
 
+// Based on CFloat24 from d3dref9.dll and the 6e4 code from:
+// https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
+// 6e4 has a different exponent bias allowing [0,512) values, 20e4 allows [0,2).
+
+uint32_t Float32To20e4(float f32) {
+  if (!(f32 > 0.0f)) {
+    // Positive only, and not -0 or NaN.
+    return 0;
+  }
+  uint32_t f32u32 = *reinterpret_cast<const uint32_t*>(&f32);
+  if (f32u32 >= 0x3FFFFFF8) {
+    // Saturate.
+    return 0xFFFFFF;
+  }
+  if (f32u32 < 0x38800000) {
+    // The number is too small to be represented as a normalized 20e4.
+    // Convert it to a denormalized value.
+    uint32_t shift = std::min(uint32_t(113 - (f32u32 >> 23)), uint32_t(24));
+    f32u32 = (0x800000 | (f32u32 & 0x7FFFFF)) >> shift;
+  } else {
+    // Rebias the exponent to represent the value as a normalized 20e4.
+    f32u32 += 0xC8000000u;
+  }
+  return ((f32u32 + 3 + ((f32u32 >> 3) & 1)) >> 3) & 0xFFFFFF;
+}
+
 float Float20e4To32(uint32_t f24) {
-  // Based on CFloat24 from d3dref9.dll and the 6e4 code from:
-  // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
-  // 6e4 has a different exponent bias allowing [0,512) values, 20e4 allows
-  // [0,2).
   f24 &= 0xFFFFFF;
   if (!f24) {
     return 0.0f;

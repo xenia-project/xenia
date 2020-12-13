@@ -63,7 +63,7 @@ class GraphicsSystem {
 
   virtual void ClearCaches();
 
-  void InitializeShaderStorage(const std::filesystem::path& storage_root,
+  void InitializeShaderStorage(const std::filesystem::path& cache_root,
                                uint32_t title_id, bool blocking);
 
   void RequestFrameTrace();

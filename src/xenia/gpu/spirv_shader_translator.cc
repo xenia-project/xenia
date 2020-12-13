@@ -66,8 +66,22 @@ SpirvShaderTranslator::Features::Features(
 SpirvShaderTranslator::SpirvShaderTranslator(const Features& features)
     : features_(features) {}
 
-void SpirvShaderTranslator::Reset() {
-  ShaderTranslator::Reset();
+uint32_t SpirvShaderTranslator::GetDefaultModification(
+    xenos::ShaderType shader_type,
+    Shader::HostVertexShaderType host_vertex_shader_type) const {
+  Modification shader_modification;
+  switch (shader_type) {
+    case xenos::ShaderType::kVertex:
+      shader_modification.host_vertex_shader_type = host_vertex_shader_type;
+      break;
+    case xenos::ShaderType::kPixel:
+      break;
+  }
+  return shader_modification.value;
+}
+
+void SpirvShaderTranslator::Reset(xenos::ShaderType shader_type) {
+  ShaderTranslator::Reset(shader_type);
 
   builder_.reset();
 
@@ -226,8 +240,8 @@ void SpirvShaderTranslator::StartTranslation() {
         "xe_uniform_float_constants");
     builder_->addDecoration(
         uniform_float_constants_, spv::DecorationDescriptorSet,
-        int(IsSpirvFragmentShader() ? kDescriptorSetFloatConstantsPixel
-                                    : kDescriptorSetFloatConstantsVertex));
+        int(is_pixel_shader() ? kDescriptorSetFloatConstantsPixel
+                              : kDescriptorSetFloatConstantsVertex));
     builder_->addDecoration(uniform_float_constants_, spv::DecorationBinding,
                             0);
     if (features_.spirv_version >= spv::Spv_1_4) {
@@ -335,7 +349,7 @@ void SpirvShaderTranslator::StartTranslation() {
     main_interface_.push_back(buffers_shared_memory_);
   }
 
-  if (IsSpirvVertexOrTessEvalShader()) {
+  if (is_vertex_shader()) {
     StartVertexOrTessEvalShaderBeforeMain();
   }
 
@@ -383,7 +397,7 @@ void SpirvShaderTranslator::StartTranslation() {
 
   // Write the execution model-specific prologue with access to variables in the
   // main function.
-  if (IsSpirvVertexOrTessEvalShader()) {
+  if (is_vertex_shader()) {
     StartVertexOrTessEvalShaderInMain();
   }
 
@@ -507,7 +521,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
   function_main_->addBlock(main_loop_merge_);
   builder_->setBuildPoint(main_loop_merge_);
 
-  if (IsSpirvVertexOrTessEvalShader()) {
+  if (is_vertex_shader()) {
     CompleteVertexOrTessEvalShaderInMain();
   }
 
@@ -516,12 +530,12 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
   // Make the main function the entry point.
   spv::ExecutionModel execution_model;
-  if (IsSpirvFragmentShader()) {
+  if (is_pixel_shader()) {
     execution_model = spv::ExecutionModelFragment;
     builder_->addExecutionMode(function_main_,
                                spv::ExecutionModeOriginUpperLeft);
   } else {
-    assert_true(IsSpirvVertexOrTessEvalShader());
+    assert_true(is_vertex_shader());
     execution_model = IsSpirvTessEvalShader()
                           ? spv::ExecutionModelTessellationEvaluation
                           : spv::ExecutionModelVertex;
@@ -1479,7 +1493,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
           spv::StorageClassFunction, var_main_registers_, id_vector_temp_util_);
     } break;
     case InstructionStorageTarget::kPosition:
-      assert_true(IsSpirvVertexOrTessEvalShader());
+      assert_true(is_vertex_shader());
       id_vector_temp_util_.clear();
       id_vector_temp_util_.push_back(
           builder_->makeIntConstant(kOutputPerVertexMemberPosition));

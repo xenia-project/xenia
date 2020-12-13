@@ -114,6 +114,7 @@ int32_t FloatToD3D11Fixed16p8(float f32) {
 void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
                          float pixel_size_y, bool origin_bottom_left,
                          float x_max, float y_max, bool allow_reverse_z,
+                         bool convert_z_to_float24,
                          ViewportInfo& viewport_info_out) {
   assert_true(pixel_size_x >= 1.0f);
   assert_true(pixel_size_y >= 1.0f);
@@ -227,6 +228,7 @@ void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
       ndc_offset_y = 0.0f;
     }
   } else {
+    viewport_top = 0.0f;
     viewport_height = std::min(
         float(xenos::kTexture2DCubeMaxWidthHeight) * pixel_size_y, y_max);
     ndc_scale_y = (2.0f * pixel_size_y) / viewport_height;
@@ -268,6 +270,17 @@ void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
     std::swap(viewport_z_min, viewport_z_max);
     ndc_scale_z = -ndc_scale_z;
     ndc_offset_z = 1.0f - ndc_offset_z;
+  }
+  if (convert_z_to_float24 && regs.Get<reg::RB_DEPTHCONTROL>().z_enable &&
+      regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
+          xenos::DepthRenderTargetFormat::kD24FS8) {
+    // Need to adjust the bounds that the resulting depth values will be clamped
+    // to after the pixel shader. Preferring adding some error to interpolated Z
+    // instead if conversion can't be done exactly, without modifying clipping
+    // bounds by adjusting Z in vertex shaders, as that may cause polygons
+    // placed explicitly at Z = 0 or Z = W to be clipped.
+    viewport_z_min = xenos::Float20e4To32(xenos::Float32To20e4(viewport_z_min));
+    viewport_z_max = xenos::Float20e4To32(xenos::Float32To20e4(viewport_z_max));
   }
 
   viewport_info_out.left = viewport_left;

@@ -49,7 +49,8 @@ class Emulator {
  public:
   explicit Emulator(const std::filesystem::path& command_line,
                     const std::filesystem::path& storage_root,
-                    const std::filesystem::path& content_root);
+                    const std::filesystem::path& content_root,
+                    const std::filesystem::path& cache_root);
   ~Emulator();
 
   // Full command line used when launching the process.
@@ -60,6 +61,9 @@ class Emulator {
 
   // Folder guest content is stored in.
   const std::filesystem::path& content_root() const { return content_root_; }
+
+  // Folder files safe to remove without significant side effects are stored in.
+  const std::filesystem::path& cache_root() const { return cache_root_; }
 
   // Title of the game in the default language.
   const std::string& game_title() const { return game_title_; }
@@ -166,6 +170,7 @@ class Emulator {
   std::filesystem::path command_line_;
   std::filesystem::path storage_root_;
   std::filesystem::path content_root_;
+  std::filesystem::path cache_root_;
 
   std::string game_title_;
 

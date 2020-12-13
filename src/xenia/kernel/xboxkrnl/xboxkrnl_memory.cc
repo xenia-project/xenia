@@ -135,8 +135,10 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
   }
   uint32_t protect = FromXdkProtectFlags(protect_bits);
   uint32_t address = 0;
+  BaseHeap* heap;
+
   if (adjusted_base != 0) {
-    auto heap = kernel_memory()->LookupHeap(adjusted_base);
+    heap = kernel_memory()->LookupHeap(adjusted_base);
     if (heap->page_size() != page_size) {
       // Specified the wrong page size for the wrong heap.
       return X_STATUS_ACCESS_DENIED;
@@ -148,7 +150,7 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
     }
   } else {
     bool top_down = !!(alloc_type & X_MEM_TOP_DOWN);
-    auto heap = kernel_memory()->LookupHeapByType(false, page_size);
+    heap = kernel_memory()->LookupHeapByType(false, page_size);
     heap->Alloc(adjusted_size, page_size, allocation_type, protect, top_down,
                 &address);
   }
@@ -160,7 +162,14 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
   // Zero memory, if needed.
   if (address && !(alloc_type & X_MEM_NOZERO)) {
     if (alloc_type & X_MEM_COMMIT) {
+      if (!(protect & kMemoryProtectWrite)) {
+        heap->Protect(address, adjusted_size,
+                      kMemoryProtectRead | kMemoryProtectWrite);
+      }
       kernel_memory()->Zero(address, adjusted_size);
+      if (!(protect & kMemoryProtectWrite)) {
+        heap->Protect(address, adjusted_size, protect);
+      }
     }
   }
 
@@ -400,7 +409,7 @@ dword_result_t MmQueryAddressProtect(dword_t base_address) {
   if (!heap->QueryProtect(base_address, &access)) {
     access = 0;
   }
-  access = ToXdkProtectFlags(access);
+  access = !access ? 0 : ToXdkProtectFlags(access);
 
   return access;
 }

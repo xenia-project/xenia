@@ -18,8 +18,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
-
-#include "third_party/xxhash/xxhash.h"
+#include "xenia/base/xxhash.h"
 
 namespace xe {
 namespace gpu {
