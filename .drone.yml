@@ -1,0 +1,213 @@
+---
+kind: pipeline
+type: docker
+name: lint
+
+# Run this in a separate pipeline so that it will build even if this fails
+steps:
+- name: lint
+  image: xeniaproject/buildenv:2021-06-21
+  commands:
+  - ./xenia-build lint --all
+
+---
+kind: pipeline
+type: docker
+name: x86_64-linux
+platform:
+  os: linux
+  arch: amd64
+
+# Some expressions in this file are duplicates. Scripting support is
+# available using jsonnet but increases complexity
+# https://docs.drone.io/pipeline/scripting/jsonnet/
+
+# These volumes will be mounted at the build directory, allowing to
+# run different premake toolchains from the same source tree
+volumes:
+- name: build-premake
+  temp: {}
+- name: build-cmake
+  temp: {}
+
+steps:
+#
+# Setup the source tree
+#
+- name: clone-submodules
+  image: xeniaproject/buildenv:2021-06-21
+  commands:
+  - pwd
+  # May miss recursive submodules (but faster than xb setup)
+  - git submodule update --init --depth 1 -j $(nproc)
+
+
+#
+# Setup the two build systems
+#
+
+# Native premake Makefiles for production
+- name: toolchain-premake
+  image: xeniaproject/buildenv:2021-06-21
+  volumes:
+  - name: build-premake
+    path: /drone/src/build
+  commands:
+  - $CXX --version
+  - $AR --version
+  - python3 --version
+  - ./xenia-build premake
+  depends_on:
+    - clone-submodules
+
+# Development toolchain
+- name: toolchain-cmake
+  image: xeniaproject/buildenv:2021-06-21
+  volumes:
+  - name: build-cmake
+    path: /drone/src/build
+  commands:
+  - |
+    ./xenia-build premake --devenv=cmake
+    cd build
+    for c in Debug Release
+    do
+      mkdir cmake-$c
+      cd cmake-$c
+      cmake -DCMAKE_BUILD_TYPE=$c ..
+      cd ..
+    done
+  depends_on:
+    # Premake itself needs to be build first:
+    - toolchain-premake
+
+
+#
+# Building
+#
+
+- name: build-premake-debug-all
+  image: xeniaproject/buildenv:2021-06-21
+  volumes:
+  - name: build-premake
+    path: /drone/src/build
+  commands:
+  - ./xenia-build build --no_premake -j$(nproc) --config=Debug
+  depends_on:
+  - toolchain-premake
+
+- name: build-premake-release-tests
+  image: xeniaproject/buildenv:2021-06-21
+  volumes:
+  - name: build-premake
+    path: /drone/src/build
+  commands:
+  - ./xenia-build build --no_premake -j$(nproc) --config=Release --target=xenia-base-tests
+  depends_on:
+  - toolchain-premake
+
+- name: build-premake-release-all
+  image: xeniaproject/buildenv:2021-06-21
+  volumes:
+  - name: build-premake
+    path: /drone/src/build
+  commands:
+  - ./xenia-build build --no_premake -j$(nproc) --config=Release
+  depends_on:
+  - build-premake-release-tests
+
+- name: build-cmake-debug-all
+  image: xeniaproject/buildenv:2021-06-21
+  volumes:
+  - name: build-cmake
+    path: /drone/src/build
+  commands:
+  - cd build/cmake-Debug
+  - cmake --build . -j$(nproc)
+  depends_on:
+  - toolchain-cmake
+
+- name: build-cmake-release-tests
+  image: xeniaproject/buildenv:2021-06-21
+  volumes:
+  - name: build-cmake
+    path: /drone/src/build
+  commands:
+  - cd build/cmake-Release
+  - cmake --build . -j$(nproc) --target xenia-base-tests
+  depends_on:
+  - toolchain-cmake
+
+- name: build-cmake-release-all
+  image: xeniaproject/buildenv:2021-06-21
+  volumes:
+  - name: build-cmake
+    path: /drone/src/build
+  commands:
+  - cd build/cmake-Release
+  - cmake --build . -j$(nproc)
+  depends_on:
+  - build-cmake-release-tests
+
+
+#
+# Tests
+#
+
+- name: test-premake
+  image: xeniaproject/buildenv:2021-06-21
+  volumes:
+  - name: build-premake
+    path: /drone/src/build
+  commands:
+  - ./build/bin/Linux/Release/xenia-base-tests
+  depends_on:
+  - build-premake-release-tests
+
+- name: test-cmake
+  image: xeniaproject/buildenv:2021-06-21
+  volumes:
+  - name: build-cmake
+    path: /drone/src/build
+  commands:
+  - ./build/bin/Linux/Release/xenia-base-tests
+  depends_on:
+  - build-cmake-release-tests
+
+
+#
+# Stat
+#
+
+- name: stat
+  image: xeniaproject/buildenv:2021-06-21
+  volumes:
+  - name: build-premake
+    path: /build-premake
+  - name: build-cmake
+    path: /build-cmake
+  commands:
+  - |
+    header() {
+      SEP='============================================================'
+      echo
+      echo $SEP
+      echo $@
+      echo $SEP
+    }
+
+    for v in premake cmake
+    do
+      for c in Debug Release
+      do
+        header $v $c
+        p=/build-$v/bin/Linux/$c
+        ls -la $p
+        sha256sum $p/*
+      done
+    done
+  depends_on:
+  - build-premake-debug-all
+  - build-premake-release-all
+  - build-cmake-debug-all
+  - build-cmake-release-all
