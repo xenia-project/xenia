@@ -97,6 +97,7 @@ union SQ_PROGRAM_CNTL {
     // Note from a2xx.xml:
     // Only 0x3F worth of valid register values for VS_NUM_REG and PS_NUM_REG,
     // but high bit is set to indicate "0 registers used".
+    // (Register count = (num_reg & 0x80) ? 0 : (num_reg + 1))
     uint32_t vs_num_reg : 8;                           // +0
     uint32_t ps_num_reg : 8;                           // +8
     uint32_t vs_resource : 1;                          // +16

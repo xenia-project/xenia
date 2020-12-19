@@ -1334,8 +1334,8 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
 bool TextureCache::AreActiveTextureSRVKeysUpToDate(
     const TextureSRVKey* keys,
     const D3D12Shader::TextureBinding* host_shader_bindings,
-    uint32_t host_shader_binding_count) const {
-  for (uint32_t i = 0; i < host_shader_binding_count; ++i) {
+    size_t host_shader_binding_count) const {
+  for (size_t i = 0; i < host_shader_binding_count; ++i) {
     const TextureSRVKey& key = keys[i];
     const TextureBinding& binding =
         texture_bindings_[host_shader_bindings[i].fetch_constant];
@@ -1350,8 +1350,8 @@ bool TextureCache::AreActiveTextureSRVKeysUpToDate(
 void TextureCache::WriteActiveTextureSRVKeys(
     TextureSRVKey* keys,
     const D3D12Shader::TextureBinding* host_shader_bindings,
-    uint32_t host_shader_binding_count) const {
-  for (uint32_t i = 0; i < host_shader_binding_count; ++i) {
+    size_t host_shader_binding_count) const {
+  for (size_t i = 0; i < host_shader_binding_count; ++i) {
     TextureSRVKey& key = keys[i];
     const TextureBinding& binding =
         texture_bindings_[host_shader_bindings[i].fetch_constant];

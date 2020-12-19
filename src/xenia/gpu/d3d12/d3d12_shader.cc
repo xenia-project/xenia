@@ -99,7 +99,7 @@ void D3D12Shader::D3D12Translation::DisassembleDxbcAndDxil(
 }
 
 Shader::Translation* D3D12Shader::CreateTranslationInstance(
-    uint32_t modification) {
+    uint64_t modification) {
   return new D3D12Translation(*this, modification);
 }
 

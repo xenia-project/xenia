@@ -10,6 +10,7 @@
 #include "xenia/gpu/dxbc_shader_translator.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <memory>
 
@@ -78,16 +79,23 @@ DxbcShaderTranslator::DxbcShaderTranslator(uint32_t vendor_id,
 DxbcShaderTranslator::~DxbcShaderTranslator() = default;
 
 std::vector<uint8_t> DxbcShaderTranslator::CreateDepthOnlyPixelShader() {
-  Reset(xenos::ShaderType::kPixel);
   is_depth_only_pixel_shader_ = true;
-  StartTranslation();
-  return std::move(CompleteTranslation());
+  // TODO(Triang3l): Handle in a nicer way (is_depth_only_pixel_shader_ is a
+  // leftover from when a Shader object wasn't used during translation).
+  Shader shader(xenos::ShaderType::kPixel, 0, nullptr, 0);
+  shader.AnalyzeUcode(instruction_disassembly_buffer_);
+  Shader::Translation& translation = *shader.GetOrCreateTranslation(0);
+  TranslateAnalyzedShader(translation);
+  is_depth_only_pixel_shader_ = false;
+  return translation.translated_binary();
 }
 
-uint32_t DxbcShaderTranslator::GetDefaultModification(
-    xenos::ShaderType shader_type,
+uint64_t DxbcShaderTranslator::GetDefaultModification(
+    xenos::ShaderType shader_type, uint32_t dynamic_addressable_register_count,
     Shader::HostVertexShaderType host_vertex_shader_type) const {
   Modification shader_modification;
+  shader_modification.dynamic_addressable_register_count =
+      dynamic_addressable_register_count;
   switch (shader_type) {
     case xenos::ShaderType::kVertex:
       shader_modification.host_vertex_shader_type = host_vertex_shader_type;
@@ -100,12 +108,10 @@ uint32_t DxbcShaderTranslator::GetDefaultModification(
   return shader_modification.value;
 }
 
-void DxbcShaderTranslator::Reset(xenos::ShaderType shader_type) {
-  ShaderTranslator::Reset(shader_type);
+void DxbcShaderTranslator::Reset() {
+  ShaderTranslator::Reset();
 
   shader_code_.clear();
-
-  is_depth_only_pixel_shader_ = false;
 
   cbuffer_count_ = 0;
   // System constants always used in prologues/epilogues.
@@ -231,6 +237,10 @@ void DxbcShaderTranslator::DxbcSrc::Write(std::vector<uint32_t>& code,
   }
 }
 
+uint32_t DxbcShaderTranslator::GetModificationRegisterCount() const {
+  return GetDxbcShaderModification().dynamic_addressable_register_count;
+}
+
 bool DxbcShaderTranslator::UseSwitchForControlFlow() const {
   // Xenia crashes on Intel HD Graphics 4000 with switch.
   return cvars::dxbc_switch && vendor_id_ != 0x8086;
@@ -239,7 +249,8 @@ bool DxbcShaderTranslator::UseSwitchForControlFlow() const {
 uint32_t DxbcShaderTranslator::PushSystemTemp(uint32_t zero_mask,
                                               uint32_t count) {
   uint32_t register_index = system_temp_count_current_;
-  if (!uses_register_dynamic_addressing() && !is_depth_only_pixel_shader_) {
+  if (!is_depth_only_pixel_shader_ &&
+      !current_shader().uses_register_dynamic_addressing()) {
     // Guest shader registers first if they're not in x0. Depth-only pixel
     // shader is a special case of the DXBC translator usage, where there are no
     // GPRs because there's no shader to translate, and a guest shader is not
@@ -327,10 +338,13 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
     return;
   }
 
+  bool uses_register_dynamic_addressing =
+      current_shader().uses_register_dynamic_addressing();
+
   // Writing the index to X of GPR 0 - either directly if not using indexable
   // registers, or via a system temporary register.
   uint32_t reg;
-  if (uses_register_dynamic_addressing()) {
+  if (uses_register_dynamic_addressing) {
     reg = PushSystemTemp();
   } else {
     reg = 0;
@@ -392,7 +406,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
     DxbcOpBreak();
     DxbcOpEndSwitch();
 
-    if (!uses_register_dynamic_addressing()) {
+    if (!uses_register_dynamic_addressing) {
       // Break register dependency.
       DxbcOpMov(swap_temp_dest, DxbcSrc::LF(0.0f));
     }
@@ -409,7 +423,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   // Convert to float.
   DxbcOpIToF(index_dest, index_src);
 
-  if (uses_register_dynamic_addressing()) {
+  if (uses_register_dynamic_addressing) {
     // Store to indexed GPR 0 in x0[0].
     DxbcOpMov(DxbcDest::X(0, 0, 0b0001), index_src);
     PopSystemTemp();
@@ -417,6 +431,9 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
 }
 
 void DxbcShaderTranslator::StartVertexOrDomainShader() {
+  bool uses_register_dynamic_addressing =
+      current_shader().uses_register_dynamic_addressing();
+
   // Zero the interpolators.
   for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
     DxbcOpMov(DxbcDest::O(uint32_t(InOutRegister::kVSDSOutInterpolators) + i),
@@ -438,13 +455,13 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         // Copy the domain location to r0.xyz.
         // ZYX swizzle according to Call of Duty 3 and Viva Pinata.
         in_domain_location_used_ |= 0b0111;
-        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0111)
-                                                     : DxbcDest::R(0, 0b0111),
+        DxbcOpMov(uses_register_dynamic_addressing ? DxbcDest::X(0, 0, 0b0111)
+                                                   : DxbcDest::R(0, 0b0111),
                   DxbcSrc::VDomain(0b000110));
         if (register_count() >= 2) {
           // Copy the control point indices (already swapped and converted to
           // float by the host vertex and hull shaders) to r1.xyz.
-          DxbcDest control_point_index_dest(uses_register_dynamic_addressing()
+          DxbcDest control_point_index_dest(uses_register_dynamic_addressing
                                                 ? DxbcDest::X(0, 1)
                                                 : DxbcDest::R(1));
           in_control_point_index_used_ = true;
@@ -465,16 +482,16 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         // ZYX swizzle with r1.y == 0, according to the water shader in
         // Banjo-Kazooie: Nuts & Bolts.
         in_domain_location_used_ |= 0b0111;
-        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0111)
-                                                     : DxbcDest::R(0, 0b0111),
+        DxbcOpMov(uses_register_dynamic_addressing ? DxbcDest::X(0, 0, 0b0111)
+                                                   : DxbcDest::R(0, 0b0111),
                   DxbcSrc::VDomain(0b000110));
         if (register_count() >= 2) {
           // Copy the primitive index to r1.x as a float.
           uint32_t primitive_id_temp =
-              uses_register_dynamic_addressing() ? PushSystemTemp() : 1;
+              uses_register_dynamic_addressing ? PushSystemTemp() : 1;
           in_primitive_id_used_ = true;
           DxbcOpUToF(DxbcDest::R(primitive_id_temp, 0b0001), DxbcSrc::VPrim());
-          if (uses_register_dynamic_addressing()) {
+          if (uses_register_dynamic_addressing) {
             DxbcOpMov(DxbcDest::X(0, 1, 0b0001),
                       DxbcSrc::R(primitive_id_temp, DxbcSrc::kXXXX));
             // Release primitive_id_temp.
@@ -499,9 +516,8 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
           //
           // Direct3D 12 passes the coordinates in a consistent order, so can
           // just use the identity swizzle.
-          DxbcOpMov(uses_register_dynamic_addressing()
-                        ? DxbcDest::X(0, 1, 0b0010)
-                        : DxbcDest::R(1, 0b0010),
+          DxbcOpMov(uses_register_dynamic_addressing ? DxbcDest::X(0, 1, 0b0010)
+                                                     : DxbcDest::R(1, 0b0010),
                     DxbcSrc::LF(0.0f));
         }
       }
@@ -512,8 +528,8 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       if (register_count() >= 1) {
         // Copy the domain location to r0.xy.
         in_domain_location_used_ |= 0b0011;
-        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0011)
-                                                     : DxbcDest::R(0, 0b0011),
+        DxbcOpMov(uses_register_dynamic_addressing ? DxbcDest::X(0, 0, 0b0011)
+                                                   : DxbcDest::R(0, 0b0011),
                   DxbcSrc::VDomain());
         // Control point indices according to the shader from the main menu of
         // Defender, which starts from `cndeq r2, c255.xxxy, r1.xyzz, r0.zzzz`,
@@ -524,14 +540,13 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         // r1.z for (1 - r0.x) * r0.y
         in_control_point_index_used_ = true;
         DxbcOpMov(
-            uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0100)
-                                               : DxbcDest::R(0, 0b0100),
+            uses_register_dynamic_addressing ? DxbcDest::X(0, 0, 0b0100)
+                                             : DxbcDest::R(0, 0b0100),
             DxbcSrc::VICP(0, uint32_t(InOutRegister::kDSInControlPointIndex),
                           DxbcSrc::kXXXX));
         if (register_count() >= 2) {
-          DxbcDest r1_dest(uses_register_dynamic_addressing()
-                               ? DxbcDest::X(0, 1)
-                               : DxbcDest::R(1));
+          DxbcDest r1_dest(uses_register_dynamic_addressing ? DxbcDest::X(0, 1)
+                                                            : DxbcDest::R(1));
           for (uint32_t i = 0; i < 3; ++i) {
             DxbcOpMov(
                 r1_dest.Mask(1 << i),
@@ -549,15 +564,15 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         // Copy the domain location to r0.yz.
         // XY swizzle according to the ground shader in Viva Pinata.
         in_domain_location_used_ |= 0b0011;
-        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0110)
-                                                     : DxbcDest::R(0, 0b0110),
+        DxbcOpMov(uses_register_dynamic_addressing ? DxbcDest::X(0, 0, 0b0110)
+                                                   : DxbcDest::R(0, 0b0110),
                   DxbcSrc::VDomain(0b010000));
         // Copy the primitive index to r0.x as a float.
         uint32_t primitive_id_temp =
-            uses_register_dynamic_addressing() ? PushSystemTemp() : 0;
+            uses_register_dynamic_addressing ? PushSystemTemp() : 0;
         in_primitive_id_used_ = true;
         DxbcOpUToF(DxbcDest::R(primitive_id_temp, 0b0001), DxbcSrc::VPrim());
-        if (uses_register_dynamic_addressing()) {
+        if (uses_register_dynamic_addressing) {
           DxbcOpMov(DxbcDest::X(0, 0, 0b0001),
                     DxbcSrc::R(primitive_id_temp, DxbcSrc::kXXXX));
           // Release primitive_id_temp.
@@ -578,9 +593,8 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
           //
           // Direct3D 12 passes the coordinates in a consistent order, so can
           // just use the identity swizzle.
-          DxbcOpMov(uses_register_dynamic_addressing()
-                        ? DxbcDest::X(0, 1, 0b0001)
-                        : DxbcDest::R(1, 0b0001),
+          DxbcOpMov(uses_register_dynamic_addressing ? DxbcDest::X(0, 1, 0b0001)
+                                                     : DxbcDest::R(1, 0b0001),
                     DxbcSrc::LF(0.0f));
         }
       }
@@ -611,7 +625,10 @@ void DxbcShaderTranslator::StartPixelShader() {
     return;
   }
 
-  if (!edram_rov_used_ && writes_depth()) {
+  bool uses_register_dynamic_addressing =
+      current_shader().uses_register_dynamic_addressing();
+
+  if (!edram_rov_used_ && current_shader().writes_depth()) {
     // Initialize the depth output if used, which must be written to regardless
     // of the taken execution path.
     DxbcOpMov(DxbcDest::ODepth(), DxbcSrc::LF(0.0f));
@@ -623,7 +640,7 @@ void DxbcShaderTranslator::StartPixelShader() {
     // Copy interpolants to GPRs.
     if (edram_rov_used_) {
       uint32_t centroid_temp =
-          uses_register_dynamic_addressing() ? PushSystemTemp() : UINT32_MAX;
+          uses_register_dynamic_addressing ? PushSystemTemp() : UINT32_MAX;
       system_constants_used_ |= 1ull
                                 << kSysConst_InterpolatorSamplingPattern_Index;
       DxbcSrc sampling_pattern_src(
@@ -635,7 +652,7 @@ void DxbcShaderTranslator::StartPixelShader() {
         // With GPR dynamic addressing, first evaluate to centroid_temp r#, then
         // store to the x#.
         uint32_t centroid_register =
-            uses_register_dynamic_addressing() ? centroid_temp : i;
+            uses_register_dynamic_addressing ? centroid_temp : i;
         // Check if the input needs to be interpolated at center (if the bit is
         // set).
         DxbcOpAnd(DxbcDest::R(centroid_register, 0b0001), sampling_pattern_src,
@@ -643,8 +660,8 @@ void DxbcShaderTranslator::StartPixelShader() {
         DxbcOpIf(bool(xenos::SampleLocation::kCenter),
                  DxbcSrc::R(centroid_register, DxbcSrc::kXXXX));
         // At center.
-        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, i)
-                                                     : DxbcDest::R(i),
+        DxbcOpMov(uses_register_dynamic_addressing ? DxbcDest::X(0, i)
+                                                   : DxbcDest::R(i),
                   DxbcSrc::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
         DxbcOpElse();
         // At centroid. Not really important that 2x MSAA is emulated using
@@ -653,7 +670,7 @@ void DxbcShaderTranslator::StartPixelShader() {
         DxbcOpEvalCentroid(
             DxbcDest::R(centroid_register),
             DxbcSrc::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
-        if (uses_register_dynamic_addressing()) {
+        if (uses_register_dynamic_addressing) {
           DxbcOpMov(DxbcDest::X(0, i), DxbcSrc::R(centroid_register));
         }
         DxbcOpEndIf();
@@ -665,8 +682,8 @@ void DxbcShaderTranslator::StartPixelShader() {
       // SSAA instead of MSAA without ROV - everything is interpolated at
       // samples, can't extrapolate.
       for (uint32_t i = 0; i < interpolator_count; ++i) {
-        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, i)
-                                                     : DxbcDest::R(i),
+        DxbcOpMov(uses_register_dynamic_addressing ? DxbcDest::X(0, i)
+                                                   : DxbcDest::R(i),
                   DxbcSrc::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
       }
     }
@@ -781,7 +798,7 @@ void DxbcShaderTranslator::StartPixelShader() {
       }
       // Write ps_param_gen to the specified GPR.
       DxbcSrc param_gen_src(DxbcSrc::R(param_gen_temp));
-      if (uses_register_dynamic_addressing()) {
+      if (uses_register_dynamic_addressing) {
         // Copy the GPR number to r# for relative addressing.
         uint32_t param_gen_copy_temp = PushSystemTemp();
         DxbcOpMov(DxbcDest::R(param_gen_copy_temp, 0b0001),
@@ -863,10 +880,12 @@ void DxbcShaderTranslator::StartTranslation() {
       // by the guest code, so initialize because assumptions can't be made
       // about the integrity of the guest code.
       system_temp_depth_stencil_ =
-          PushSystemTemp(writes_depth() ? 0b0001 : 0b1111);
+          PushSystemTemp(current_shader().writes_depth() ? 0b0001 : 0b1111);
     }
+    uint32_t shader_writes_color_targets =
+        current_shader().writes_color_targets();
     for (uint32_t i = 0; i < 4; ++i) {
-      if (writes_color_target(i)) {
+      if (shader_writes_color_targets & (1 << i)) {
         system_temps_color_[i] = PushSystemTemp(0b1111);
       }
     }
@@ -879,8 +898,8 @@ void DxbcShaderTranslator::StartTranslation() {
     std::memset(system_temps_memexport_data_, 0xFF,
                 sizeof(system_temps_memexport_data_));
     system_temp_memexport_written_ = UINT32_MAX;
-    const uint8_t* memexports_written = memexport_eM_written();
-    for (uint32_t i = 0; i < kMaxMemExports; ++i) {
+    const uint8_t* memexports_written = current_shader().memexport_eM_written();
+    for (uint32_t i = 0; i < Shader::kMaxMemExports; ++i) {
       uint32_t memexport_alloc_written = memexports_written[i];
       if (memexport_alloc_written == 0) {
         continue;
@@ -915,8 +934,9 @@ void DxbcShaderTranslator::StartTranslation() {
     // references them after only initializing them conditionally.
     for (uint32_t i = is_pixel_shader() ? xenos::kMaxInterpolators : 0;
          i < register_count(); ++i) {
-      DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, i)
-                                                   : DxbcDest::R(i),
+      DxbcOpMov(current_shader().uses_register_dynamic_addressing()
+                    ? DxbcDest::X(0, i)
+                    : DxbcDest::R(i),
                 DxbcSrc::LF(0.0f));
     }
   }
@@ -1120,7 +1140,7 @@ void DxbcShaderTranslator::CompleteShaderCode() {
     ExportToMemory();
 
     // Release memexport temporary registers.
-    for (int i = kMaxMemExports - 1; i >= 0; --i) {
+    for (int i = Shader::kMaxMemExports - 1; i >= 0; --i) {
       if (system_temps_memexport_address_[i] == UINT32_MAX) {
         continue;
       }
@@ -1154,8 +1174,10 @@ void DxbcShaderTranslator::CompleteShaderCode() {
     PopSystemTemp(2);
   } else if (is_pixel_shader()) {
     // Release system_temps_color_.
+    uint32_t shader_writes_color_targets =
+        current_shader().writes_color_targets();
     for (int32_t i = 3; i >= 0; --i) {
-      if (writes_color_target(i)) {
+      if (shader_writes_color_targets & (1 << i)) {
         PopSystemTemp();
       }
     }
@@ -1274,40 +1296,42 @@ std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
   return shader_object_bytes;
 }
 
-void DxbcShaderTranslator::PostTranslation(
-    Shader::Translation& translation, bool setup_shader_post_translation_info) {
-  if (setup_shader_post_translation_info) {
-    DxbcShader* dxbc_shader = dynamic_cast<DxbcShader*>(&translation.shader());
-    if (dxbc_shader) {
-      dxbc_shader->texture_bindings_.clear();
-      dxbc_shader->texture_bindings_.reserve(texture_bindings_.size());
-      dxbc_shader->used_texture_mask_ = 0;
-      for (const TextureBinding& translator_binding : texture_bindings_) {
-        DxbcShader::TextureBinding& shader_binding =
-            dxbc_shader->texture_bindings_.emplace_back();
-        // For a stable hash.
-        std::memset(&shader_binding, 0, sizeof(shader_binding));
-        shader_binding.bindless_descriptor_index =
-            translator_binding.bindless_descriptor_index;
-        shader_binding.fetch_constant = translator_binding.fetch_constant;
-        shader_binding.dimension = translator_binding.dimension;
-        shader_binding.is_signed = translator_binding.is_signed;
-        dxbc_shader->used_texture_mask_ |= 1u
-                                           << translator_binding.fetch_constant;
-      }
-      dxbc_shader->sampler_bindings_.clear();
-      dxbc_shader->sampler_bindings_.reserve(sampler_bindings_.size());
-      for (const SamplerBinding& translator_binding : sampler_bindings_) {
-        DxbcShader::SamplerBinding& shader_binding =
-            dxbc_shader->sampler_bindings_.emplace_back();
-        shader_binding.bindless_descriptor_index =
-            translator_binding.bindless_descriptor_index;
-        shader_binding.fetch_constant = translator_binding.fetch_constant;
-        shader_binding.mag_filter = translator_binding.mag_filter;
-        shader_binding.min_filter = translator_binding.min_filter;
-        shader_binding.mip_filter = translator_binding.mip_filter;
-        shader_binding.aniso_filter = translator_binding.aniso_filter;
-      }
+void DxbcShaderTranslator::PostTranslation() {
+  Shader::Translation& translation = current_translation();
+  if (!translation.is_valid()) {
+    return;
+  }
+  DxbcShader* dxbc_shader = dynamic_cast<DxbcShader*>(&translation.shader());
+  if (dxbc_shader && !dxbc_shader->bindings_setup_entered_.test_and_set(
+                         std::memory_order_relaxed)) {
+    dxbc_shader->texture_bindings_.clear();
+    dxbc_shader->texture_bindings_.reserve(texture_bindings_.size());
+    dxbc_shader->used_texture_mask_ = 0;
+    for (const TextureBinding& translator_binding : texture_bindings_) {
+      DxbcShader::TextureBinding& shader_binding =
+          dxbc_shader->texture_bindings_.emplace_back();
+      // For a stable hash.
+      std::memset(&shader_binding, 0, sizeof(shader_binding));
+      shader_binding.bindless_descriptor_index =
+          translator_binding.bindless_descriptor_index;
+      shader_binding.fetch_constant = translator_binding.fetch_constant;
+      shader_binding.dimension = translator_binding.dimension;
+      shader_binding.is_signed = translator_binding.is_signed;
+      dxbc_shader->used_texture_mask_ |= 1u
+                                         << translator_binding.fetch_constant;
+    }
+    dxbc_shader->sampler_bindings_.clear();
+    dxbc_shader->sampler_bindings_.reserve(sampler_bindings_.size());
+    for (const SamplerBinding& translator_binding : sampler_bindings_) {
+      DxbcShader::SamplerBinding& shader_binding =
+          dxbc_shader->sampler_bindings_.emplace_back();
+      shader_binding.bindless_descriptor_index =
+          translator_binding.bindless_descriptor_index;
+      shader_binding.fetch_constant = translator_binding.fetch_constant;
+      shader_binding.mag_filter = translator_binding.mag_filter;
+      shader_binding.min_filter = translator_binding.min_filter;
+      shader_binding.mip_filter = translator_binding.mip_filter;
+      shader_binding.aniso_filter = translator_binding.aniso_filter;
     }
   }
 }
@@ -1373,7 +1397,7 @@ DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::LoadOperand(
   DxbcSrc src(DxbcSrc::LF(0.0f));
   switch (operand.storage_source) {
     case InstructionStorageSource::kRegister: {
-      if (uses_register_dynamic_addressing()) {
+      if (current_shader().uses_register_dynamic_addressing()) {
         // Load x#[#] to r# because x#[#] can be used only with mov.
         uint32_t temp = PushSystemTemp();
         temp_pushed_out = true;
@@ -1402,10 +1426,12 @@ DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::LoadOperand(
       if (cbuffer_index_float_constants_ == kBindingIndexUnallocated) {
         cbuffer_index_float_constants_ = cbuffer_count_++;
       }
+      const Shader::ConstantRegisterMap& constant_register_map =
+          current_shader().constant_register_map();
       if (operand.storage_addressing_mode ==
           InstructionStorageAddressingMode::kStatic) {
         uint32_t float_constant_index =
-            constant_register_map().GetPackedFloatConstantIndex(
+            constant_register_map.GetPackedFloatConstantIndex(
                 operand.storage_index);
         assert_true(float_constant_index != UINT32_MAX);
         if (float_constant_index == UINT32_MAX) {
@@ -1413,7 +1439,7 @@ DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::LoadOperand(
         }
         index.index_ = float_constant_index;
       } else {
-        assert_true(constant_register_map().float_dynamic_addressing);
+        assert_true(constant_register_map.float_dynamic_addressing);
       }
       src = DxbcSrc::CB(cbuffer_index_float_constants_,
                         uint32_t(CbufferRegister::kFloatConstants), index);
@@ -1453,7 +1479,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
     case InstructionStorageTarget::kNone:
       return;
     case InstructionStorageTarget::kRegister:
-      if (uses_register_dynamic_addressing()) {
+      if (current_shader().uses_register_dynamic_addressing()) {
         DxbcIndex register_index(result.storage_index);
         switch (result.storage_addressing_mode) {
           case InstructionStorageAddressingMode::kStatic:
@@ -1488,7 +1514,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
     case InstructionStorageTarget::kExportAddress:
       // Validate memexport writes (Halo 3 has some weird invalid ones).
       if (!can_store_memexport_address || memexport_alloc_current_count_ == 0 ||
-          memexport_alloc_current_count_ > kMaxMemExports ||
+          memexport_alloc_current_count_ > Shader::kMaxMemExports ||
           system_temps_memexport_address_[memexport_alloc_current_count_ - 1] ==
               UINT32_MAX) {
         return;
@@ -1499,7 +1525,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
     case InstructionStorageTarget::kExportData: {
       // Validate memexport writes (Halo 3 has some weird invalid ones).
       if (memexport_alloc_current_count_ == 0 ||
-          memexport_alloc_current_count_ > kMaxMemExports ||
+          memexport_alloc_current_count_ > Shader::kMaxMemExports ||
           system_temps_memexport_data_[memexport_alloc_current_count_ - 1]
                                       [result.storage_index] == UINT32_MAX) {
         return;
@@ -1519,7 +1545,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
     } break;
     case InstructionStorageTarget::kColor:
       assert_not_zero(used_write_mask);
-      assert_true(writes_color_target(result.storage_index));
+      assert_true(current_shader().writes_color_target(result.storage_index));
       dest = DxbcDest::R(system_temps_color_[result.storage_index]);
       if (edram_rov_used_) {
         // For ROV output, mark that the color has been written to.
@@ -1539,7 +1565,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
       // Writes X to scalar oDepth or to X of system_temp_depth_stencil_, no
       // additional swizzling needed.
       assert_true(used_write_mask == 0b0001);
-      assert_true(writes_depth());
+      assert_true(current_shader().writes_depth());
       if (IsDepthStencilSystemTempUsed()) {
         dest = DxbcDest::R(system_temp_depth_stencil_);
       } else {
@@ -2077,6 +2103,9 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
   uint32_t new_offset;
 
+  const Shader::ConstantRegisterMap& constant_register_map =
+      current_shader().constant_register_map();
+
   // ***************************************************************************
   // Header
   // ***************************************************************************
@@ -2162,7 +2191,7 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
         // Declaring a 0-sized array may not be safe, so write something valid
         // even if they aren't used.
         shader_object_.push_back(
-            std::max(constant_register_map().float_count, uint32_t(1)));
+            std::max(constant_register_map.float_count, uint32_t(1)));
         break;
       case RdefTypeIndex::kUint4DescriptorIndexArray:
         shader_object_.push_back(std::max(
@@ -2278,10 +2307,10 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   // Float constants.
   uint32_t constant_offset_float = new_offset;
   if (cbuffer_index_float_constants_ != kBindingIndexUnallocated) {
-    assert_not_zero(constant_register_map().float_count);
+    assert_not_zero(constant_register_map.float_count);
     shader_object_.push_back(constant_name_offset_float);
     shader_object_.push_back(0);
-    shader_object_.push_back(constant_register_map().float_count * 4 *
+    shader_object_.push_back(constant_register_map.float_count * 4 *
                              sizeof(float));
     shader_object_.push_back(kDxbcRdefVariableFlagUsed);
     shader_object_.push_back(types_offset +
@@ -2405,11 +2434,11 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
       // No D3D_SHADER_CBUFFER_FLAGS.
       shader_object_.push_back(0);
     } else if (i == cbuffer_index_float_constants_) {
-      assert_not_zero(constant_register_map().float_count);
+      assert_not_zero(constant_register_map.float_count);
       shader_object_.push_back(cbuffer_name_offset_float);
       shader_object_.push_back(1);
       shader_object_.push_back(constant_offset_float);
-      shader_object_.push_back(constant_register_map().float_count * 4 *
+      shader_object_.push_back(constant_register_map.float_count * 4 *
                                sizeof(float));
       shader_object_.push_back(uint32_t(DxbcRdefCbufferType::kCbuffer));
       shader_object_.push_back(0);
@@ -3211,7 +3240,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     if (!edram_rov_used_) {
       // Color render targets (SV_Target#).
       size_t target_position = SIZE_MAX;
-      if (writes_any_color_target()) {
+      if (current_shader().writes_color_targets()) {
         target_position = shader_object_.size();
         shader_object_.resize(shader_object_.size() + 4 * kParameterDwords);
         parameter_count += 4;
@@ -3233,7 +3262,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
       Modification::DepthStencilMode depth_stencil_mode =
           GetDxbcShaderModification().depth_stencil_mode;
       size_t depth_position = SIZE_MAX;
-      if (writes_depth() || DSV_IsWritingFloat24Depth()) {
+      if (current_shader().writes_depth() || DSV_IsWritingFloat24Depth()) {
         depth_position = shader_object_.size();
         shader_object_.resize(shader_object_.size() + kParameterDwords);
         ++parameter_count;
@@ -3268,7 +3297,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
           depth.semantic_name = semantic_offset;
         }
         const char* depth_semantic_name;
-        if (!writes_depth() &&
+        if (!current_shader().writes_depth() &&
             GetDxbcShaderModification().depth_stencil_mode ==
                 Modification::DepthStencilMode::kFloat24Truncating) {
           depth_semantic_name = "SV_DepthLessEqual";
@@ -3361,7 +3390,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
   if (is_pixel_shader() &&
       GetDxbcShaderModification().depth_stencil_mode ==
           Modification::DepthStencilMode::kEarlyHint &&
-      !edram_rov_used_ && CanWriteZEarly()) {
+      !edram_rov_used_ && current_shader().implicit_early_z_write_allowed()) {
     global_flags_opcode |= D3D11_SB_GLOBAL_FLAG_FORCE_EARLY_DEPTH_STENCIL;
   }
   shader_object_.push_back(global_flags_opcode);
@@ -3369,11 +3398,13 @@ void DxbcShaderTranslator::WriteShaderCode() {
   // Constant buffers, from most frequenly accessed to least frequently accessed
   // (the order is a hint to the driver according to the DXBC header).
   if (cbuffer_index_float_constants_ != kBindingIndexUnallocated) {
-    assert_not_zero(constant_register_map().float_count);
+    const Shader::ConstantRegisterMap& constant_register_map =
+        current_shader().constant_register_map();
+    assert_not_zero(constant_register_map.float_count);
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
         ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
-            constant_register_map().float_dynamic_addressing
+            constant_register_map.float_dynamic_addressing
                 ? D3D10_SB_CONSTANT_BUFFER_DYNAMIC_INDEXED
                 : D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED) |
         ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
@@ -3382,7 +3413,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
     shader_object_.push_back(cbuffer_index_float_constants_);
     shader_object_.push_back(uint32_t(CbufferRegister::kFloatConstants));
     shader_object_.push_back(uint32_t(CbufferRegister::kFloatConstants));
-    shader_object_.push_back(constant_register_map().float_count);
+    shader_object_.push_back(constant_register_map.float_count);
     shader_object_.push_back(0);
   }
   if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
@@ -3715,6 +3746,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
     ++stat_.dcl_count;
   } else if (is_pixel_shader()) {
     bool is_writing_float24_depth = DSV_IsWritingFloat24Depth();
+    bool shader_writes_depth = current_shader().writes_depth();
     // Interpolator input.
     if (!is_depth_only_pixel_shader_) {
       uint32_t interpolator_count =
@@ -3766,7 +3798,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
       // applicable here) position is mandatory. However, with depth output, on
       // the guest, there's only one depth value for the whole pixel.
       D3D10_SB_INTERPOLATION_MODE position_interpolation_mode =
-          is_writing_float24_depth && !writes_depth()
+          is_writing_float24_depth && !shader_writes_depth
               ? D3D10_SB_INTERPOLATION_LINEAR_NOPERSPECTIVE_SAMPLE
               : D3D10_SB_INTERPOLATION_LINEAR_NOPERSPECTIVE;
       shader_object_.push_back(
@@ -3806,7 +3838,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
           EncodeScalarOperand(D3D11_SB_OPERAND_TYPE_INPUT_COVERAGE_MASK, 0));
       ++stat_.dcl_count;
     } else {
-      if (writes_any_color_target()) {
+      if (current_shader().writes_color_targets()) {
         // Color output.
         for (uint32_t i = 0; i < 4; ++i) {
           shader_object_.push_back(
@@ -3819,9 +3851,9 @@ void DxbcShaderTranslator::WriteShaderCode() {
         }
       }
       // Depth output.
-      if (is_writing_float24_depth || writes_depth()) {
+      if (is_writing_float24_depth || shader_writes_depth) {
         D3D10_SB_OPERAND_TYPE depth_operand_type;
-        if (!writes_depth() &&
+        if (!shader_writes_depth &&
             GetDxbcShaderModification().depth_stencil_mode ==
                 Modification::DepthStencilMode::kFloat24Truncating) {
           depth_operand_type = D3D11_SB_OPERAND_TYPE_OUTPUT_DEPTH_LESS_EQUAL;
@@ -3840,7 +3872,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
   // Temporary registers - guest general-purpose registers if not using dynamic
   // indexing and Xenia internal registers.
   stat_.temp_register_count = system_temp_count_max_;
-  if (!is_depth_only_pixel_shader_ && !uses_register_dynamic_addressing()) {
+  if (!is_depth_only_pixel_shader_ &&
+      !current_shader().uses_register_dynamic_addressing()) {
     stat_.temp_register_count += register_count();
   }
   if (stat_.temp_register_count != 0) {
@@ -3851,7 +3884,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
   }
 
   // General-purpose registers if using dynamic indexing (x0).
-  if (!is_depth_only_pixel_shader_ && uses_register_dynamic_addressing()) {
+  if (!is_depth_only_pixel_shader_ &&
+      current_shader().uses_register_dynamic_addressing()) {
     assert_true(register_count() != 0);
     shader_object_.push_back(
         ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INDEXABLE_TEMP) |

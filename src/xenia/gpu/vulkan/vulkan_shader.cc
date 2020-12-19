@@ -73,7 +73,7 @@ bool VulkanShader::VulkanTranslation::Prepare() {
 }
 
 Shader::Translation* VulkanShader::CreateTranslationInstance(
-    uint32_t modification) {
+    uint64_t modification) {
   return new VulkanTranslation(*this, modification);
 }
 

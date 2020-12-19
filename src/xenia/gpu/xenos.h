@@ -546,33 +546,6 @@ inline int GetVertexFormatComponentCount(VertexFormat format) {
   }
 }
 
-inline int GetVertexFormatSizeInWords(VertexFormat format) {
-  switch (format) {
-    case VertexFormat::k_8_8_8_8:
-    case VertexFormat::k_2_10_10_10:
-    case VertexFormat::k_10_11_11:
-    case VertexFormat::k_11_11_10:
-    case VertexFormat::k_16_16:
-    case VertexFormat::k_16_16_FLOAT:
-    case VertexFormat::k_32:
-    case VertexFormat::k_32_FLOAT:
-      return 1;
-    case VertexFormat::k_16_16_16_16:
-    case VertexFormat::k_16_16_16_16_FLOAT:
-    case VertexFormat::k_32_32:
-    case VertexFormat::k_32_32_FLOAT:
-      return 2;
-    case VertexFormat::k_32_32_32_FLOAT:
-      return 3;
-    case VertexFormat::k_32_32_32_32:
-    case VertexFormat::k_32_32_32_32_FLOAT:
-      return 4;
-    default:
-      assert_unhandled_case(format);
-      return 1;
-  }
-}
-
 inline uint32_t GetVertexFormatNeededWords(VertexFormat format,
                                            uint32_t used_components) {
   assert_zero(used_components & ~uint32_t(0b1111));

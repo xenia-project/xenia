@@ -89,7 +89,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   // there are 4 render targets bound with the same EDRAM base (clearly not
   // correct usage), but the shader only clears 1, and then EDRAM buffer stores
   // conflict with each other.
-  uint32_t GetCurrentColorMask(const Shader* pixel_shader) const;
+  uint32_t GetCurrentColorMask(uint32_t shader_writes_color_targets) const;
 
   void PushTransitionBarrier(
       ID3D12Resource* resource, D3D12_RESOURCE_STATES old_state,
