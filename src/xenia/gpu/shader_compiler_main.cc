@@ -17,6 +17,7 @@
 #include "xenia/base/main.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/string.h"
+#include "xenia/base/string_buffer.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/shader_translator.h"
 #include "xenia/gpu/spirv_shader_translator.h"
@@ -104,6 +105,8 @@ int shader_compiler_main(const std::vector<std::string>& args) {
   auto shader = std::make_unique<Shader>(
       shader_type, ucode_data_hash, ucode_dwords.data(), ucode_dwords.size());
 
+  shader->AnalyzeUcode(StringBuffer());
+
   std::unique_ptr<ShaderTranslator> translator;
   if (cvars::shader_output_type == "spirv" ||
       cvars::shader_output_type == "spirvtext") {
@@ -114,7 +117,15 @@ int shader_compiler_main(const std::vector<std::string>& args) {
         0, cvars::shader_output_bindless_resources,
         cvars::shader_output_dxbc_rov);
   } else {
-    translator = std::make_unique<UcodeShaderTranslator>();
+    // Just output microcode disassembly generated during microcode information
+    // gathering.
+    if (!cvars::shader_output.empty()) {
+      auto output_file = filesystem::OpenFile(cvars::shader_output, "wb");
+      fwrite(shader->ucode_disassembly().c_str(), 1,
+             shader->ucode_disassembly().length(), output_file);
+      fclose(output_file);
+    }
+    return 0;
   }
 
   Shader::HostVertexShaderType host_vertex_shader_type =
@@ -140,12 +151,12 @@ int shader_compiler_main(const std::vector<std::string>& args) {
           Shader::HostVertexShaderType::kQuadDomainPatchIndexed;
     }
   }
-  uint32_t modification =
-      translator->GetDefaultModification(shader_type, host_vertex_shader_type);
+  uint64_t modification = translator->GetDefaultModification(
+      shader_type, 64, host_vertex_shader_type);
 
   Shader::Translation* translation =
       shader->GetOrCreateTranslation(modification);
-  translator->Translate(*translation);
+  translator->TranslateAnalyzedShader(*translation);
 
   const void* source_data = translation->translated_binary().data();
   size_t source_data_size = translation->translated_binary().size();

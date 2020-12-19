@@ -23,7 +23,7 @@ class D3D12Shader : public DxbcShader {
  public:
   class D3D12Translation : public DxbcTranslation {
    public:
-    D3D12Translation(D3D12Shader& shader, uint32_t modification)
+    D3D12Translation(D3D12Shader& shader, uint64_t modification)
         : DxbcTranslation(shader, modification) {}
 
     void DisassembleDxbcAndDxil(const ui::d3d12::D3D12Provider& provider,
@@ -60,7 +60,7 @@ class D3D12Shader : public DxbcShader {
   }
 
  protected:
-  Translation* CreateTranslationInstance(uint32_t modification) override;
+  Translation* CreateTranslationInstance(uint64_t modification) override;
 
  private:
   std::atomic_flag binding_layout_user_uids_set_up_ = ATOMIC_FLAG_INIT;

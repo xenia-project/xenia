@@ -58,11 +58,23 @@ class SpirvShaderTranslator : public ShaderTranslator {
   SpirvShaderTranslator();
   ~SpirvShaderTranslator() override;
 
+  // Not storing anything else in modifications (as this shader translator is
+  // being replaced anyway).
+  uint64_t GetDefaultModification(
+      xenos::ShaderType shader_type,
+      uint32_t dynamic_addressable_register_count,
+      Shader::HostVertexShaderType host_vertex_shader_type =
+          Shader::HostVertexShaderType::kVertex) const override {
+    return dynamic_addressable_register_count;
+  }
+
  protected:
+  virtual uint32_t GetModificationRegisterCount() const {
+    return uint32_t(current_translation().modification());
+  }
   void StartTranslation() override;
   std::vector<uint8_t> CompleteTranslation() override;
-  void PostTranslation(Shader::Translation& translation,
-                       bool setup_shader_post_translation_info) override;
+  void PostTranslation() override;
 
   void PreProcessControlFlowInstructions(
       std::vector<ucode::ControlFlowInstruction> instrs) override;

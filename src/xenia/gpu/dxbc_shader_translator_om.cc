@@ -144,7 +144,7 @@ void DxbcShaderTranslator::ROV_GetColorFormatSystemConstants(
 }
 
 void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
-  bool color_targets_written = writes_any_color_target();
+  bool any_color_targets_written = current_shader().writes_color_targets() != 0;
 
   // ***************************************************************************
   // Get EDRAM offsets for the pixel:
@@ -272,7 +272,7 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   DxbcOpIAdd(DxbcDest::R(system_temp_rov_params_, 0b0001),
              DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kZZZZ),
              DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX));
-  if (color_targets_written) {
+  if (any_color_targets_written) {
     // Write 32bpp color offset to system_temp_rov_params_.z.
     // system_temp_rov_params_.x = X sample 0 position within the depth tile
     // system_temp_rov_params_.y = row offset
@@ -303,8 +303,8 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   // Release resolution_scale_log2_temp.
   PopSystemTemp();
   {
-    DxbcDest offsets_dest(DxbcDest::R(system_temp_rov_params_,
-                                      color_targets_written ? 0b0110 : 0b0010));
+    DxbcDest offsets_dest(DxbcDest::R(
+        system_temp_rov_params_, any_color_targets_written ? 0b0110 : 0b0010));
     // Scale the offsets by the resolution scale.
     // system_temp_rov_params_.y = scaled 32bpp depth/stencil first host pixel
     //                             address
@@ -329,7 +329,7 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   // Close the resolution scale conditional.
   DxbcOpEndIf();
 
-  if (color_targets_written) {
+  if (any_color_targets_written) {
     // Get the 64bpp color offset to system_temp_rov_params_.w.
     // TODO(Triang3l): Find some game that aliases 64bpp with 32bpp to emulate
     // the real layout.
@@ -388,8 +388,6 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
 }
 
 void DxbcShaderTranslator::ROV_DepthStencilTest() {
-  bool depth_stencil_early = ROV_IsDepthStencilEarly();
-
   uint32_t temp = PushSystemTemp();
   DxbcDest temp_x_dest(DxbcDest::R(temp, 0b0001));
   DxbcSrc temp_x_src(DxbcSrc::R(temp, DxbcSrc::kXXXX));
@@ -413,6 +411,9 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
   // temp.x = free
   DxbcOpIf(true, temp_x_src);
 
+  bool depth_stencil_early = ROV_IsDepthStencilEarly();
+  bool shader_writes_depth = current_shader().writes_depth();
+
   for (uint32_t i = 0; i < 4; ++i) {
     // With early depth/stencil, depth/stencil writing may be deferred to the
     // end of the shader to prevent writing in case something (like alpha test,
@@ -427,7 +428,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
                             : temp_x_src);
 
     if (!i) {
-      if (writes_depth()) {
+      if (shader_writes_depth) {
         // Clamp oDepth to the lower viewport depth bound (depth clamp happens
         // after the pixel shader in the pipeline, at least on Direct3D 11 and
         // Vulkan, thus applies to the shader's depth output too).
@@ -569,7 +570,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     // temp.w = free
     DxbcOpIf(true, temp_w_src);
 
-    if (writes_depth()) {
+    if (shader_writes_depth) {
       // Copy the 24-bit depth common to all samples to sample_depth_stencil.
       // temp.x = shader-generated 24-bit depth
       DxbcOpMov(sample_depth_stencil_dest,
@@ -1024,7 +1025,8 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     // temp.z = viewport maximum depth if not writing to oDepth
     // temp.w = whether depth/stencil has been modified
     DxbcOpINE(temp_w_dest, sample_depth_stencil_src, temp_w_src);
-    if (depth_stencil_early && !CanWriteZEarly()) {
+    if (depth_stencil_early &&
+        !current_shader().implicit_early_z_write_allowed()) {
       // Set the sample bit in bits 4:7 of system_temp_rov_params_.x - always
       // need to write late in this shader, as it may do something like
       // explicitly killing pixels.
@@ -1734,7 +1736,7 @@ void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(
 
 void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs_AlphaToMask() {
   // Check if alpha to coverage can be done at all in this shader.
-  if (!writes_color_target(0)) {
+  if (!current_shader().writes_color_target(0)) {
     return;
   }
 
@@ -1863,21 +1865,22 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs_AlphaToMask() {
 }
 
 void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
-  if (!writes_any_color_target()) {
+  uint32_t shader_writes_color_targets =
+      current_shader().writes_color_targets();
+  if (!shader_writes_color_targets) {
     return;
   }
 
   // Check if this sample needs to be discarded by alpha to coverage.
   CompletePixelShader_WriteToRTVs_AlphaToMask();
 
-  // Get the write mask as components, and also apply the exponent bias after
-  // alpha to coverage because it needs the unbiased alpha from the shader.
-  uint32_t guest_rt_mask = 0;
+  uint32_t gamma_temp = PushSystemTemp();
   for (uint32_t i = 0; i < 4; ++i) {
-    if (!writes_color_target(i)) {
+    if (!(shader_writes_color_targets & (1 << i))) {
       continue;
     }
-    guest_rt_mask |= 1 << i;
+    // Apply the exponent bias after alpha to coverage because it needs the
+    // unbiased alpha from the shader
     system_constants_used_ |= 1ull << kSysConst_ColorExpBias_Index;
     DxbcOpMul(DxbcDest::R(system_temps_color_[i]),
               DxbcSrc::R(system_temps_color_[i]),
@@ -1885,16 +1888,9 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
                           uint32_t(CbufferRegister::kSystemConstants),
                           kSysConst_ColorExpBias_Vec)
                   .Select(i));
-  }
-
-  // Convert to gamma space - this is incorrect, since it must be done after
-  // blending on the Xbox 360, but this is just one of many blending issues in
-  // the RTV path.
-  uint32_t gamma_temp = PushSystemTemp();
-  for (uint32_t i = 0; i < 4; ++i) {
-    if (!(guest_rt_mask & (1 << i))) {
-      continue;
-    }
+    // Convert to gamma space - this is incorrect, since it must be done after
+    // blending on the Xbox 360, but this is just one of many blending issues in
+    // the RTV path.
     system_constants_used_ |= 1ull << kSysConst_Flags_Index;
     DxbcOpAnd(DxbcDest::R(gamma_temp, 0b0001),
               DxbcSrc::CB(cbuffer_index_system_constants_,
@@ -1923,7 +1919,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
   // Host RT i, guest RT j.
   for (uint32_t i = 0; i < 4; ++i) {
     // mask = map.iiii == (0, 1, 2, 3)
-    DxbcOpIEq(DxbcDest::R(remap_movc_mask_temp, guest_rt_mask),
+    DxbcOpIEq(DxbcDest::R(remap_movc_mask_temp, shader_writes_color_targets),
               DxbcSrc::CB(cbuffer_index_system_constants_,
                           uint32_t(CbufferRegister::kSystemConstants),
                           kSysConst_ColorOutputMap_Vec)
@@ -1932,7 +1928,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
     bool guest_rt_first = true;
     for (uint32_t j = 0; j < 4; ++j) {
       // If map.i == j, move guest color j to the temporary host color.
-      if (!(guest_rt_mask & (1 << j))) {
+      if (!(shader_writes_color_targets & (1 << j))) {
         continue;
       }
       DxbcOpMovC(DxbcDest::R(remap_movc_target_temp),
@@ -1954,8 +1950,10 @@ void DxbcShaderTranslator::CompletePixelShader_DSV_DepthTo24Bit() {
     return;
   }
 
+  bool shader_writes_depth = current_shader().writes_depth();
+
   uint32_t temp;
-  if (writes_depth()) {
+  if (shader_writes_depth) {
     // The depth is already written to system_temp_depth_stencil_.x and clamped
     // to 0...1 with NaNs dropped (saturating in StoreResult); yzw are free.
     temp = system_temp_depth_stencil_;
@@ -1991,8 +1989,8 @@ void DxbcShaderTranslator::CompletePixelShader_DSV_DepthTo24Bit() {
     // The smallest denormalized 20e4 number is -34 - should drop 23 mantissa
     // bits at -34.
     // Anything smaller than 2^-34 becomes 0.
-    DxbcDest truncate_dest(writes_depth() ? DxbcDest::ODepth()
-                                          : DxbcDest::ODepthLE());
+    DxbcDest truncate_dest(shader_writes_depth ? DxbcDest::ODepth()
+                                               : DxbcDest::ODepthLE());
     // Check if the number is representable as a float24 after truncation - the
     // exponent is at least -34.
     DxbcOpUGE(temp_y_dest, temp_x_src, DxbcSrc::LU(0x2E800000));
@@ -2076,7 +2074,7 @@ void DxbcShaderTranslator::CompletePixelShader_DSV_DepthTo24Bit() {
               temp_y_src);
   }
 
-  if (!writes_depth()) {
+  if (!shader_writes_depth) {
     // Release temp.
     PopSystemTemp();
   }
@@ -2106,7 +2104,7 @@ void DxbcShaderTranslator::CompletePixelShader_ROV_AlphaToMaskSample(
 
 void DxbcShaderTranslator::CompletePixelShader_ROV_AlphaToMask() {
   // Check if alpha to coverage can be done at all in this shader.
-  if (!writes_color_target(0)) {
+  if (!current_shader().writes_color_target(0)) {
     return;
   }
 
@@ -2269,8 +2267,10 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   }
 
   // Write color values.
+  uint32_t shader_writes_color_targets =
+      current_shader().writes_color_targets();
   for (uint32_t i = 0; i < 4; ++i) {
-    if (!writes_color_target(i)) {
+    if (!(shader_writes_color_targets & (1 << i))) {
       continue;
     }
 
@@ -3156,7 +3156,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
     return;
   }
 
-  if (writes_color_target(0)) {
+  if (current_shader().writes_color_target(0)) {
     // Alpha test.
     // X - mask, then masked result (SGPR for loading, VGPR for masking).
     // Y - operation result (SGPR for mask operations, VGPR for alpha

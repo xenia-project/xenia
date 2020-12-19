@@ -196,14 +196,14 @@ class TextureCache {
   bool AreActiveTextureSRVKeysUpToDate(
       const TextureSRVKey* keys,
       const D3D12Shader::TextureBinding* host_shader_bindings,
-      uint32_t host_shader_binding_count) const;
+      size_t host_shader_binding_count) const;
   // Exports the current binding data to texture SRV keys so they can be stored
   // for checking whether subsequent draw calls can keep using the same
   // bindings. Write host_shader_binding_count keys.
   void WriteActiveTextureSRVKeys(
       TextureSRVKey* keys,
       const D3D12Shader::TextureBinding* host_shader_bindings,
-      uint32_t host_shader_binding_count) const;
+      size_t host_shader_binding_count) const;
   // Returns the post-swizzle signedness of a currently bound texture (must be
   // called after RequestTextures).
   uint8_t GetActiveTextureSwizzledSigns(uint32_t index) const {

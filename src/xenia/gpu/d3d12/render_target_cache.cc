@@ -535,7 +535,8 @@ void RenderTargetCache::EndFrame() {
   FlushAndUnbindRenderTargets();
 }
 
-bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
+bool RenderTargetCache::UpdateRenderTargets(
+    uint32_t shader_writes_color_targets) {
   // There are two kinds of render target binding updates in this implementation
   // in case something has been changed - full and partial.
   //
@@ -635,7 +636,8 @@ bool RenderTargetCache::UpdateRenderTargets(const D3D12Shader* pixel_shader) {
   uint32_t edram_bases[5];
   uint32_t formats[5];
   bool formats_are_64bpp[5];
-  uint32_t color_mask = command_processor_.GetCurrentColorMask(pixel_shader);
+  uint32_t color_mask =
+      command_processor_.GetCurrentColorMask(shader_writes_color_targets);
   for (uint32_t i = 0; i < 4; ++i) {
     enabled[i] = (color_mask & (0xF << (i * 4))) != 0;
     auto color_info = regs.Get<reg::RB_COLOR_INFO>(

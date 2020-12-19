@@ -364,10 +364,11 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
 }
 
 bool PipelineCache::TranslateShader(
-    VulkanShader::VulkanTranslation& translation, reg::SQ_PROGRAM_CNTL cntl) {
+    VulkanShader::VulkanTranslation& translation) {
+  translation.shader().AnalyzeUcode(ucode_disasm_buffer_);
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
-  if (!shader_translator_->Translate(translation, cntl)) {
+  if (!shader_translator_->TranslateAnalyzedShader(translation)) {
     XELOGE("Shader translation failed; marking shader as ignored");
     return false;
   }
@@ -1071,9 +1072,11 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
       static_cast<VulkanShader::VulkanTranslation*>(
           vertex_shader->GetOrCreateTranslation(
               shader_translator_->GetDefaultModification(
-                  xenos::ShaderType::kVertex)));
+                  xenos::ShaderType::kVertex,
+                  vertex_shader->GetDynamicAddressableRegisterCount(
+                      regs.sq_program_cntl.vs_num_reg))));
   if (!vertex_shader_translation->is_translated() &&
-      !TranslateShader(*vertex_shader_translation, regs.sq_program_cntl)) {
+      !TranslateShader(*vertex_shader_translation)) {
     XELOGE("Failed to translate the vertex shader!");
     return UpdateStatus::kError;
   }
@@ -1083,9 +1086,11 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
     pixel_shader_translation = static_cast<VulkanShader::VulkanTranslation*>(
         pixel_shader->GetOrCreateTranslation(
             shader_translator_->GetDefaultModification(
-                xenos::ShaderType::kPixel)));
+                xenos::ShaderType::kPixel,
+                pixel_shader->GetDynamicAddressableRegisterCount(
+                    regs.sq_program_cntl.ps_num_reg))));
     if (!pixel_shader_translation->is_translated() &&
-        !TranslateShader(*pixel_shader_translation, regs.sq_program_cntl)) {
+        !TranslateShader(*pixel_shader_translation)) {
       XELOGE("Failed to translate the pixel shader!");
       return UpdateStatus::kError;
     }

@@ -269,7 +269,7 @@ class RenderTargetCache {
   void EndFrame();
   // Called in the beginning of a draw call - may bind pipelines and change the
   // view descriptor heap.
-  bool UpdateRenderTargets(const D3D12Shader* pixel_shader);
+  bool UpdateRenderTargets(uint32_t shader_writes_color_targets);
   // Returns the host-to-guest mappings and host formats of currently bound
   // render targets for pipeline creation and remapping in shaders. They are
   // consecutive, and format DXGI_FORMAT_UNKNOWN terminates the list. Depth

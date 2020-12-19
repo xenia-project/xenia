@@ -99,14 +99,11 @@ void D3D12CommandProcessor::RestoreEdramSnapshot(const void* snapshot) {
 }
 
 uint32_t D3D12CommandProcessor::GetCurrentColorMask(
-    const Shader* pixel_shader) const {
-  if (pixel_shader == nullptr) {
-    return 0;
-  }
+    uint32_t shader_writes_color_targets) const {
   auto& regs = *register_file_;
   uint32_t color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32 & 0xFFFF;
   for (uint32_t i = 0; i < 4; ++i) {
-    if (!pixel_shader->writes_color_target(i)) {
+    if (!(shader_writes_color_targets & (1 << i))) {
       color_mask &= ~(0xF << (i * 4));
     }
   }
@@ -167,14 +164,18 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
       tessellated ? D3D12_SHADER_VISIBILITY_DOMAIN
                   : D3D12_SHADER_VISIBILITY_VERTEX;
 
-  uint32_t texture_count_vertex, sampler_count_vertex;
-  vertex_shader->GetTextureBindings(texture_count_vertex);
-  vertex_shader->GetSamplerBindings(sampler_count_vertex);
-  uint32_t texture_count_pixel = 0, sampler_count_pixel = 0;
-  if (pixel_shader != nullptr) {
-    pixel_shader->GetTextureBindings(texture_count_pixel);
-    pixel_shader->GetSamplerBindings(sampler_count_pixel);
-  }
+  uint32_t texture_count_vertex =
+      uint32_t(vertex_shader->GetTextureBindingsAfterTranslation().size());
+  uint32_t sampler_count_vertex =
+      uint32_t(vertex_shader->GetSamplerBindingsAfterTranslation().size());
+  uint32_t texture_count_pixel =
+      pixel_shader
+          ? uint32_t(pixel_shader->GetTextureBindingsAfterTranslation().size())
+          : 0;
+  uint32_t sampler_count_pixel =
+      pixel_shader
+          ? uint32_t(pixel_shader->GetSamplerBindingsAfterTranslation().size())
+          : 0;
 
   // Better put the pixel texture/sampler in the lower bits probably because it
   // changes often.
@@ -383,33 +384,26 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
 uint32_t D3D12CommandProcessor::GetRootBindfulExtraParameterIndices(
     const DxbcShader* vertex_shader, const DxbcShader* pixel_shader,
     RootBindfulExtraParameterIndices& indices_out) {
-  uint32_t texture_count_pixel = 0, sampler_count_pixel = 0;
-  if (pixel_shader != nullptr) {
-    pixel_shader->GetTextureBindings(texture_count_pixel);
-    pixel_shader->GetSamplerBindings(sampler_count_pixel);
-  }
-  uint32_t texture_count_vertex, sampler_count_vertex;
-  vertex_shader->GetTextureBindings(texture_count_vertex);
-  vertex_shader->GetSamplerBindings(sampler_count_vertex);
-
   uint32_t index = kRootParameter_Bindful_Count_Base;
-  if (texture_count_pixel != 0) {
+  if (pixel_shader &&
+      !pixel_shader->GetTextureBindingsAfterTranslation().empty()) {
     indices_out.textures_pixel = index++;
   } else {
     indices_out.textures_pixel = RootBindfulExtraParameterIndices::kUnavailable;
   }
-  if (sampler_count_pixel != 0) {
+  if (pixel_shader &&
+      !pixel_shader->GetSamplerBindingsAfterTranslation().empty()) {
     indices_out.samplers_pixel = index++;
   } else {
     indices_out.samplers_pixel = RootBindfulExtraParameterIndices::kUnavailable;
   }
-  if (texture_count_vertex != 0) {
+  if (!vertex_shader->GetTextureBindingsAfterTranslation().empty()) {
     indices_out.textures_vertex = index++;
   } else {
     indices_out.textures_vertex =
         RootBindfulExtraParameterIndices::kUnavailable;
   }
-  if (sampler_count_vertex != 0) {
+  if (!vertex_shader->GetSamplerBindingsAfterTranslation().empty()) {
     indices_out.samplers_vertex = index++;
   } else {
     indices_out.samplers_vertex =
@@ -1839,10 +1833,14 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     // Need a pixel shader in normal color mode.
     return false;
   }
+  // Gather shader ucode information to get the color mask, which is needed by
+  // the render target cache, and memexport configuration, and also get the
+  // current shader modification bits.
   DxbcShaderTranslator::Modification vertex_shader_modification;
   DxbcShaderTranslator::Modification pixel_shader_modification;
-  if (!pipeline_cache_->GetCurrentShaderModifications(
-          vertex_shader_modification, pixel_shader_modification)) {
+  if (!pipeline_cache_->AnalyzeShaderUcodeAndGetCurrentModifications(
+          vertex_shader, pixel_shader, vertex_shader_modification,
+          pixel_shader_modification)) {
     return false;
   }
   D3D12Shader::D3D12Translation* vertex_shader_translation =
@@ -1854,13 +1852,6 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
                          pixel_shader->GetOrCreateTranslation(
                              pixel_shader_modification.value))
                    : nullptr;
-  // Translate the shaders now to get memexport configuration and color mask,
-  // which is needed by the render target cache, and also to get used textures
-  // and samplers.
-  if (!pipeline_cache_->EnsureShadersTranslated(vertex_shader_translation,
-                                                pixel_shader_translation)) {
-    return false;
-  }
   bool tessellated = vertex_shader_modification.host_vertex_shader_type !=
                      Shader::HostVertexShaderType::kVertex;
 
@@ -1889,7 +1880,10 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   BeginSubmission(true);
 
   // Set up the render targets - this may bind pipelines.
-  if (!render_target_cache_->UpdateRenderTargets(pixel_shader)) {
+  uint32_t pixel_shader_writes_color_targets =
+      pixel_shader ? pixel_shader->writes_color_targets() : 0;
+  if (!render_target_cache_->UpdateRenderTargets(
+          pixel_shader_writes_color_targets)) {
     return false;
   }
   const RenderTargetCache::PipelineRenderTarget* pipeline_render_targets =
@@ -1958,13 +1952,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     line_loop_closing_index = 0;
   }
 
-  // Update the textures - this may bind pipelines.
-  uint32_t used_texture_mask =
-      vertex_shader->GetUsedTextureMask() |
-      (pixel_shader != nullptr ? pixel_shader->GetUsedTextureMask() : 0);
-  texture_cache_->RequestTextures(used_texture_mask);
-
-  // Create the pipeline if needed and bind it.
+  // Translate the shaders and create the pipeline if needed.
   void* pipeline_handle;
   ID3D12RootSignature* root_signature;
   if (!pipeline_cache_->ConfigurePipeline(
@@ -1974,6 +1962,17 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
           pipeline_render_targets, &pipeline_handle, &root_signature)) {
     return false;
   }
+
+  // Update the textures - this may bind pipelines.
+  uint32_t used_texture_mask =
+      vertex_shader->GetUsedTextureMaskAfterTranslation() |
+      (pixel_shader != nullptr
+           ? pixel_shader->GetUsedTextureMaskAfterTranslation()
+           : 0);
+  texture_cache_->RequestTextures(used_texture_mask);
+
+  // Bind the pipeline after configuring it and doing everything that may bind
+  // other pipelines.
   if (current_cached_pipeline_ != pipeline_handle) {
     deferred_command_list_.SetPipelineStateHandle(
         reinterpret_cast<void*>(pipeline_handle));
@@ -2026,7 +2025,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       memexport_used, primitive_polygonal, line_loop_closing_index,
       indexed ? index_buffer_info->endianness : xenos::Endian::kNone,
       viewport_info, pixel_size_x, pixel_size_y, used_texture_mask,
-      GetCurrentColorMask(pixel_shader), pipeline_render_targets);
+      pixel_shader ? GetCurrentColorMask(pixel_shader->writes_color_targets())
+                   : 0,
+      pipeline_render_targets);
 
   // Update constant buffers, descriptors and root parameters.
   if (!UpdateBindings(vertex_shader, pixel_shader, root_signature)) {
@@ -2089,9 +2090,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   MemExportRange memexport_ranges[512];
   uint32_t memexport_range_count = 0;
   if (memexport_used_vertex) {
-    const std::vector<uint32_t>& memexport_stream_constants_vertex =
-        vertex_shader->memexport_stream_constants();
-    for (uint32_t constant_index : memexport_stream_constants_vertex) {
+    for (uint32_t constant_index :
+         vertex_shader->memexport_stream_constants()) {
       const auto& memexport_stream = regs.Get<xenos::xe_gpu_memexport_stream_t>(
           XE_GPU_REG_SHADER_CONSTANT_000_X + constant_index * 4);
       if (memexport_stream.index_count == 0) {
@@ -2132,9 +2132,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     }
   }
   if (memexport_used_pixel) {
-    const std::vector<uint32_t>& memexport_stream_constants_pixel =
-        pixel_shader->memexport_stream_constants();
-    for (uint32_t constant_index : memexport_stream_constants_pixel) {
+    for (uint32_t constant_index : pixel_shader->memexport_stream_constants()) {
       const auto& memexport_stream = regs.Get<xenos::xe_gpu_memexport_stream_t>(
           XE_GPU_REG_SHADER_CONSTANT_256_X + constant_index * 4);
       if (memexport_stream.index_count == 0) {
@@ -3588,20 +3586,21 @@ bool D3D12CommandProcessor::UpdateBindings(
       vertex_shader->GetTextureBindingLayoutUserUID();
   size_t sampler_layout_uid_vertex =
       vertex_shader->GetSamplerBindingLayoutUserUID();
-  uint32_t texture_count_vertex, sampler_count_vertex;
-  const D3D12Shader::TextureBinding* textures_vertex =
-      vertex_shader->GetTextureBindings(texture_count_vertex);
-  const D3D12Shader::SamplerBinding* samplers_vertex =
-      vertex_shader->GetSamplerBindings(sampler_count_vertex);
+  const std::vector<D3D12Shader::TextureBinding>& textures_vertex =
+      vertex_shader->GetTextureBindingsAfterTranslation();
+  const std::vector<D3D12Shader::SamplerBinding>& samplers_vertex =
+      vertex_shader->GetSamplerBindingsAfterTranslation();
+  size_t texture_count_vertex = textures_vertex.size();
+  size_t sampler_count_vertex = samplers_vertex.size();
   if (sampler_count_vertex) {
     if (current_sampler_layout_uid_vertex_ != sampler_layout_uid_vertex) {
       current_sampler_layout_uid_vertex_ = sampler_layout_uid_vertex;
       cbuffer_binding_descriptor_indices_vertex_.up_to_date = false;
       bindful_samplers_written_vertex_ = false;
     }
-    current_samplers_vertex_.resize(std::max(current_samplers_vertex_.size(),
-                                             size_t(sampler_count_vertex)));
-    for (uint32_t i = 0; i < sampler_count_vertex; ++i) {
+    current_samplers_vertex_.resize(
+        std::max(current_samplers_vertex_.size(), sampler_count_vertex));
+    for (size_t i = 0; i < sampler_count_vertex; ++i) {
       TextureCache::SamplerParameters parameters =
           texture_cache_->GetSamplerParameters(samplers_vertex[i]);
       if (current_samplers_vertex_[i] != parameters) {
@@ -3615,14 +3614,16 @@ bool D3D12CommandProcessor::UpdateBindings(
   // Get textures and samplers used by the pixel shader, check if the last used
   // samplers are compatible and update them.
   size_t texture_layout_uid_pixel, sampler_layout_uid_pixel;
-  uint32_t texture_count_pixel, sampler_count_pixel;
-  const D3D12Shader::TextureBinding* textures_pixel;
-  const D3D12Shader::SamplerBinding* samplers_pixel;
+  const std::vector<D3D12Shader::TextureBinding>* textures_pixel;
+  const std::vector<D3D12Shader::SamplerBinding>* samplers_pixel;
+  size_t texture_count_pixel, sampler_count_pixel;
   if (pixel_shader != nullptr) {
     texture_layout_uid_pixel = pixel_shader->GetTextureBindingLayoutUserUID();
     sampler_layout_uid_pixel = pixel_shader->GetSamplerBindingLayoutUserUID();
-    textures_pixel = pixel_shader->GetTextureBindings(texture_count_pixel);
-    samplers_pixel = pixel_shader->GetSamplerBindings(sampler_count_pixel);
+    textures_pixel = &pixel_shader->GetTextureBindingsAfterTranslation();
+    texture_count_pixel = textures_pixel->size();
+    samplers_pixel = &pixel_shader->GetSamplerBindingsAfterTranslation();
+    sampler_count_pixel = samplers_pixel->size();
     if (sampler_count_pixel) {
       if (current_sampler_layout_uid_pixel_ != sampler_layout_uid_pixel) {
         current_sampler_layout_uid_pixel_ = sampler_layout_uid_pixel;
@@ -3633,7 +3634,7 @@ bool D3D12CommandProcessor::UpdateBindings(
                                               size_t(sampler_count_pixel)));
       for (uint32_t i = 0; i < sampler_count_pixel; ++i) {
         TextureCache::SamplerParameters parameters =
-            texture_cache_->GetSamplerParameters(samplers_pixel[i]);
+            texture_cache_->GetSamplerParameters((*samplers_pixel)[i]);
         if (current_samplers_pixel_[i] != parameters) {
           current_samplers_pixel_[i] = parameters;
           cbuffer_binding_descriptor_indices_pixel_.up_to_date = false;
@@ -3663,7 +3664,7 @@ bool D3D12CommandProcessor::UpdateBindings(
         cbuffer_binding_descriptor_indices_vertex_.up_to_date &&
         (current_texture_layout_uid_vertex_ != texture_layout_uid_vertex ||
          !texture_cache_->AreActiveTextureSRVKeysUpToDate(
-             current_texture_srv_keys_vertex_.data(), textures_vertex,
+             current_texture_srv_keys_vertex_.data(), textures_vertex.data(),
              texture_count_vertex))) {
       cbuffer_binding_descriptor_indices_vertex_.up_to_date = false;
     }
@@ -3671,7 +3672,7 @@ bool D3D12CommandProcessor::UpdateBindings(
         cbuffer_binding_descriptor_indices_pixel_.up_to_date &&
         (current_texture_layout_uid_pixel_ != texture_layout_uid_pixel ||
          !texture_cache_->AreActiveTextureSRVKeysUpToDate(
-             current_texture_srv_keys_pixel_.data(), textures_pixel,
+             current_texture_srv_keys_pixel_.data(), textures_pixel->data(),
              texture_count_pixel))) {
       cbuffer_binding_descriptor_indices_pixel_.up_to_date = false;
     }
@@ -3804,15 +3805,14 @@ bool D3D12CommandProcessor::UpdateBindings(
       uint32_t* descriptor_indices =
           reinterpret_cast<uint32_t*>(constant_buffer_pool_->Request(
               frame_current_,
-              std::max(texture_count_vertex + sampler_count_vertex,
-                       uint32_t(1)) *
+              std::max(texture_count_vertex + sampler_count_vertex, size_t(1)) *
                   sizeof(uint32_t),
               D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
               &cbuffer_binding_descriptor_indices_vertex_.address));
       if (!descriptor_indices) {
         return false;
       }
-      for (uint32_t i = 0; i < texture_count_vertex; ++i) {
+      for (size_t i = 0; i < texture_count_vertex; ++i) {
         const D3D12Shader::TextureBinding& texture = textures_vertex[i];
         descriptor_indices[texture.bindless_descriptor_index] =
             texture_cache_->GetActiveTextureBindlessSRVIndex(texture) -
@@ -3824,11 +3824,11 @@ bool D3D12CommandProcessor::UpdateBindings(
             std::max(current_texture_srv_keys_vertex_.size(),
                      size_t(texture_count_vertex)));
         texture_cache_->WriteActiveTextureSRVKeys(
-            current_texture_srv_keys_vertex_.data(), textures_vertex,
+            current_texture_srv_keys_vertex_.data(), textures_vertex.data(),
             texture_count_vertex);
       }
       // Current samplers have already been updated.
-      for (uint32_t i = 0; i < sampler_count_vertex; ++i) {
+      for (size_t i = 0; i < sampler_count_vertex; ++i) {
         descriptor_indices[samplers_vertex[i].bindless_descriptor_index] =
             current_sampler_bindless_indices_vertex_[i];
       }
@@ -3841,15 +3841,15 @@ bool D3D12CommandProcessor::UpdateBindings(
       uint32_t* descriptor_indices =
           reinterpret_cast<uint32_t*>(constant_buffer_pool_->Request(
               frame_current_,
-              std::max(texture_count_pixel + sampler_count_pixel, uint32_t(1)) *
+              std::max(texture_count_pixel + sampler_count_pixel, size_t(1)) *
                   sizeof(uint32_t),
               D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
               &cbuffer_binding_descriptor_indices_pixel_.address));
       if (!descriptor_indices) {
         return false;
       }
-      for (uint32_t i = 0; i < texture_count_pixel; ++i) {
-        const D3D12Shader::TextureBinding& texture = textures_pixel[i];
+      for (size_t i = 0; i < texture_count_pixel; ++i) {
+        const D3D12Shader::TextureBinding& texture = (*textures_pixel)[i];
         descriptor_indices[texture.bindless_descriptor_index] =
             texture_cache_->GetActiveTextureBindlessSRVIndex(texture) -
             uint32_t(SystemBindlessView::kUnboundedSRVsStart);
@@ -3860,12 +3860,12 @@ bool D3D12CommandProcessor::UpdateBindings(
             std::max(current_texture_srv_keys_pixel_.size(),
                      size_t(texture_count_pixel)));
         texture_cache_->WriteActiveTextureSRVKeys(
-            current_texture_srv_keys_pixel_.data(), textures_pixel,
+            current_texture_srv_keys_pixel_.data(), textures_pixel->data(),
             texture_count_pixel);
       }
       // Current samplers have already been updated.
-      for (uint32_t i = 0; i < sampler_count_pixel; ++i) {
-        descriptor_indices[samplers_pixel[i].bindless_descriptor_index] =
+      for (size_t i = 0; i < sampler_count_pixel; ++i) {
+        descriptor_indices[(*samplers_pixel)[i].bindless_descriptor_index] =
             current_sampler_bindless_indices_pixel_[i];
       }
       cbuffer_binding_descriptor_indices_pixel_.up_to_date = true;
@@ -3884,14 +3884,14 @@ bool D3D12CommandProcessor::UpdateBindings(
         (!bindful_textures_written_vertex_ ||
          current_texture_layout_uid_vertex_ != texture_layout_uid_vertex ||
          !texture_cache_->AreActiveTextureSRVKeysUpToDate(
-             current_texture_srv_keys_vertex_.data(), textures_vertex,
+             current_texture_srv_keys_vertex_.data(), textures_vertex.data(),
              texture_count_vertex));
     bool write_textures_pixel =
         texture_count_pixel &&
         (!bindful_textures_written_pixel_ ||
          current_texture_layout_uid_pixel_ != texture_layout_uid_pixel ||
          !texture_cache_->AreActiveTextureSRVKeysUpToDate(
-             current_texture_srv_keys_pixel_.data(), textures_pixel,
+             current_texture_srv_keys_pixel_.data(), textures_pixel->data(),
              texture_count_pixel));
     bool write_samplers_vertex =
         sampler_count_vertex && !bindful_samplers_written_vertex_;
@@ -3899,7 +3899,7 @@ bool D3D12CommandProcessor::UpdateBindings(
         sampler_count_pixel && !bindful_samplers_written_pixel_;
 
     // Allocate the descriptors.
-    uint32_t view_count_partial_update = 0;
+    size_t view_count_partial_update = 0;
     if (write_textures_vertex) {
       view_count_partial_update += texture_count_vertex;
     }
@@ -3907,7 +3907,7 @@ bool D3D12CommandProcessor::UpdateBindings(
       view_count_partial_update += texture_count_pixel;
     }
     // All the constants + shared memory SRV and UAV + textures.
-    uint32_t view_count_full_update =
+    size_t view_count_full_update =
         2 + texture_count_vertex + texture_count_pixel;
     if (edram_rov_used_) {
       // + EDRAM UAV.
@@ -3917,14 +3917,14 @@ bool D3D12CommandProcessor::UpdateBindings(
     D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle;
     uint32_t descriptor_size_view = provider.GetViewDescriptorSize();
     uint64_t view_heap_index = RequestViewBindfulDescriptors(
-        draw_view_bindful_heap_index_, view_count_partial_update,
-        view_count_full_update, view_cpu_handle, view_gpu_handle);
+        draw_view_bindful_heap_index_, uint32_t(view_count_partial_update),
+        uint32_t(view_count_full_update), view_cpu_handle, view_gpu_handle);
     if (view_heap_index ==
         ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
       XELOGE("Failed to allocate view descriptors");
       return false;
     }
-    uint32_t sampler_count_partial_update = 0;
+    size_t sampler_count_partial_update = 0;
     if (write_samplers_vertex) {
       sampler_count_partial_update += sampler_count_vertex;
     }
@@ -3938,9 +3938,10 @@ bool D3D12CommandProcessor::UpdateBindings(
         ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid;
     if (sampler_count_vertex != 0 || sampler_count_pixel != 0) {
       sampler_heap_index = RequestSamplerBindfulDescriptors(
-          draw_sampler_bindful_heap_index_, sampler_count_partial_update,
-          sampler_count_vertex + sampler_count_pixel, sampler_cpu_handle,
-          sampler_gpu_handle);
+          draw_sampler_bindful_heap_index_,
+          uint32_t(sampler_count_partial_update),
+          uint32_t(sampler_count_vertex + sampler_count_pixel),
+          sampler_cpu_handle, sampler_gpu_handle);
       if (sampler_heap_index ==
           ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
         XELOGE("Failed to allocate sampler descriptors");
@@ -3985,7 +3986,7 @@ bool D3D12CommandProcessor::UpdateBindings(
       assert_true(current_graphics_root_bindful_extras_.textures_vertex !=
                   RootBindfulExtraParameterIndices::kUnavailable);
       gpu_handle_textures_vertex_ = view_gpu_handle;
-      for (uint32_t i = 0; i < texture_count_vertex; ++i) {
+      for (size_t i = 0; i < texture_count_vertex; ++i) {
         texture_cache_->WriteActiveTextureBindfulSRV(textures_vertex[i],
                                                      view_cpu_handle);
         view_cpu_handle.ptr += descriptor_size_view;
@@ -3996,7 +3997,7 @@ bool D3D12CommandProcessor::UpdateBindings(
           std::max(current_texture_srv_keys_vertex_.size(),
                    size_t(texture_count_vertex)));
       texture_cache_->WriteActiveTextureSRVKeys(
-          current_texture_srv_keys_vertex_.data(), textures_vertex,
+          current_texture_srv_keys_vertex_.data(), textures_vertex.data(),
           texture_count_vertex);
       bindful_textures_written_vertex_ = true;
       current_graphics_root_up_to_date_ &=
@@ -4006,8 +4007,8 @@ bool D3D12CommandProcessor::UpdateBindings(
       assert_true(current_graphics_root_bindful_extras_.textures_pixel !=
                   RootBindfulExtraParameterIndices::kUnavailable);
       gpu_handle_textures_pixel_ = view_gpu_handle;
-      for (uint32_t i = 0; i < texture_count_pixel; ++i) {
-        texture_cache_->WriteActiveTextureBindfulSRV(textures_pixel[i],
+      for (size_t i = 0; i < texture_count_pixel; ++i) {
+        texture_cache_->WriteActiveTextureBindfulSRV((*textures_pixel)[i],
                                                      view_cpu_handle);
         view_cpu_handle.ptr += descriptor_size_view;
         view_gpu_handle.ptr += descriptor_size_view;
@@ -4016,7 +4017,7 @@ bool D3D12CommandProcessor::UpdateBindings(
       current_texture_srv_keys_pixel_.resize(std::max(
           current_texture_srv_keys_pixel_.size(), size_t(texture_count_pixel)));
       texture_cache_->WriteActiveTextureSRVKeys(
-          current_texture_srv_keys_pixel_.data(), textures_pixel,
+          current_texture_srv_keys_pixel_.data(), textures_pixel->data(),
           texture_count_pixel);
       bindful_textures_written_pixel_ = true;
       current_graphics_root_up_to_date_ &=
@@ -4026,7 +4027,7 @@ bool D3D12CommandProcessor::UpdateBindings(
       assert_true(current_graphics_root_bindful_extras_.samplers_vertex !=
                   RootBindfulExtraParameterIndices::kUnavailable);
       gpu_handle_samplers_vertex_ = sampler_gpu_handle;
-      for (uint32_t i = 0; i < sampler_count_vertex; ++i) {
+      for (size_t i = 0; i < sampler_count_vertex; ++i) {
         texture_cache_->WriteSampler(current_samplers_vertex_[i],
                                      sampler_cpu_handle);
         sampler_cpu_handle.ptr += descriptor_size_sampler;
@@ -4041,7 +4042,7 @@ bool D3D12CommandProcessor::UpdateBindings(
       assert_true(current_graphics_root_bindful_extras_.samplers_pixel !=
                   RootBindfulExtraParameterIndices::kUnavailable);
       gpu_handle_samplers_pixel_ = sampler_gpu_handle;
-      for (uint32_t i = 0; i < sampler_count_pixel; ++i) {
+      for (size_t i = 0; i < sampler_count_pixel; ++i) {
         texture_cache_->WriteSampler(current_samplers_pixel_[i],
                                      sampler_cpu_handle);
         sampler_cpu_handle.ptr += descriptor_size_sampler;

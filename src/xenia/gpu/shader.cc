@@ -55,7 +55,7 @@ std::filesystem::path Shader::Translation::Dump(
   }
   path = path /
          fmt::format(
-             "shader_{:016X}_{:08X}.{}.{}", shader().ucode_data_hash(),
+             "shader_{:016X}_{:016X}.{}.{}", shader().ucode_data_hash(),
              modification(), path_prefix,
              shader().type() == xenos::ShaderType::kVertex ? "vert" : "frag");
   FILE* f = filesystem::OpenFile(path, "wb");
@@ -78,7 +78,7 @@ std::filesystem::path Shader::Translation::Dump(
   return std::move(path);
 }
 
-Shader::Translation* Shader::GetOrCreateTranslation(uint32_t modification,
+Shader::Translation* Shader::GetOrCreateTranslation(uint64_t modification,
                                                     bool* is_new) {
   auto it = translations_.find(modification);
   if (it != translations_.end()) {
@@ -95,7 +95,7 @@ Shader::Translation* Shader::GetOrCreateTranslation(uint32_t modification,
   return translation;
 }
 
-void Shader::DestroyTranslation(uint32_t modification) {
+void Shader::DestroyTranslation(uint64_t modification) {
   auto it = translations_.find(modification);
   if (it == translations_.end()) {
     return;
@@ -124,7 +124,7 @@ std::filesystem::path Shader::DumpUcodeBinary(
   return std::move(path);
 }
 
-Shader::Translation* Shader::CreateTranslationInstance(uint32_t modification) {
+Shader::Translation* Shader::CreateTranslationInstance(uint64_t modification) {
   // Default implementation for simple cases like ucode disassembly.
   return new Translation(*this, modification);
 }

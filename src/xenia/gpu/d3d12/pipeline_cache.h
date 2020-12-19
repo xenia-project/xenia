@@ -23,6 +23,7 @@
 
 #include "xenia/base/hash.h"
 #include "xenia/base/platform.h"
+#include "xenia/base/string_buffer.h"
 #include "xenia/base/threading.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/d3d12/render_target_cache.h"
@@ -63,15 +64,12 @@ class PipelineCache {
   D3D12Shader* LoadShader(xenos::ShaderType shader_type,
                           const uint32_t* host_address, uint32_t dword_count);
 
-  // Retrieves the shader modifications for the current state, and returns
-  // whether they are valid.
-  bool GetCurrentShaderModifications(
+  // Ensures microcode is analyzed, retrieves the shader modifications for the
+  // current state, and returns whether they are valid.
+  bool AnalyzeShaderUcodeAndGetCurrentModifications(
+      D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
       DxbcShaderTranslator::Modification& vertex_shader_modification_out,
-      DxbcShaderTranslator::Modification& pixel_shader_modification_out) const;
-
-  // Translates shaders if needed, also making shader info up to date.
-  bool EnsureShadersTranslated(D3D12Shader::D3D12Translation* vertex_shader,
-                               D3D12Shader::D3D12Translation* pixel_shader);
+      DxbcShaderTranslator::Modification& pixel_shader_modification_out);
 
   bool ConfigurePipeline(
       D3D12Shader::D3D12Translation* vertex_shader,
@@ -93,9 +91,7 @@ class PipelineCache {
     uint32_t ucode_dword_count : 31;
     xenos::ShaderType type : 1;
 
-    reg::SQ_PROGRAM_CNTL sq_program_cntl;
-
-    static constexpr uint32_t kVersion = 0x20201207;
+    static constexpr uint32_t kVersion = 0x20201219;
   });
 
   // Update PipelineDescription::kVersion if any of the Pipeline* enums are
@@ -171,10 +167,10 @@ class PipelineCache {
 
   XEPACKEDSTRUCT(PipelineDescription, {
     uint64_t vertex_shader_hash;
+    uint64_t vertex_shader_modification;
     // 0 if drawing without a pixel shader.
     uint64_t pixel_shader_hash;
-    uint32_t vertex_shader_modification;
-    uint32_t pixel_shader_modification;
+    uint64_t pixel_shader_modification;
 
     int32_t depth_bias;
     float depth_bias_slope_scaled;
@@ -208,7 +204,7 @@ class PipelineCache {
 
     PipelineRenderTarget render_targets[4];
 
-    static constexpr uint32_t kVersion = 0x20201207;
+    static constexpr uint32_t kVersion = 0x20201219;
   });
 
   XEPACKEDSTRUCT(PipelineStoredDescription, {
@@ -232,12 +228,11 @@ class PipelineCache {
                           uint64_t data_hash);
 
   // Can be called from multiple threads.
-  bool TranslateShader(DxbcShaderTranslator& translator,
-                       D3D12Shader::D3D12Translation& translation,
-                       reg::SQ_PROGRAM_CNTL cntl,
-                       IDxbcConverter* dxbc_converter = nullptr,
-                       IDxcUtils* dxc_utils = nullptr,
-                       IDxcCompiler* dxc_compiler = nullptr);
+  bool TranslateAnalyzedShader(DxbcShaderTranslator& translator,
+                               D3D12Shader::D3D12Translation& translation,
+                               IDxbcConverter* dxbc_converter = nullptr,
+                               IDxcUtils* dxc_utils = nullptr,
+                               IDxcCompiler* dxc_compiler = nullptr);
 
   bool GetCurrentStateDescription(
       D3D12Shader::D3D12Translation* vertex_shader,
@@ -257,7 +252,9 @@ class PipelineCache {
   flags::DepthFloat24Conversion depth_float24_conversion_;
   uint32_t resolution_scale_;
 
-  // Reusable shader translator.
+  // Temporary storage for AnalyzeUcode calls on the processor thread.
+  StringBuffer ucode_disasm_buffer_;
+  // Reusable shader translator for the processor thread.
   std::unique_ptr<DxbcShaderTranslator> shader_translator_;
 
   // Command processor thread DXIL conversion/disassembly interfaces, if DXIL
@@ -332,8 +329,7 @@ class PipelineCache {
   std::condition_variable storage_write_request_cond_;
   // Storage thread input is protected with storage_write_request_lock_, and the
   // thread is notified about its change via storage_write_request_cond_.
-  std::deque<std::pair<const Shader*, reg::SQ_PROGRAM_CNTL>>
-      storage_write_shader_queue_;
+  std::deque<const Shader*> storage_write_shader_queue_;
   std::deque<PipelineStoredDescription> storage_write_pipeline_queue_;
   bool storage_write_flush_shaders_ = false;
   bool storage_write_flush_pipelines_ = false;

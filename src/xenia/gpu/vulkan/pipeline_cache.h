@@ -12,6 +12,7 @@
 
 #include <unordered_map>
 
+#include "xenia/base/string_buffer.h"
 #include "xenia/base/xxhash.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/spirv_shader_translator.h"
@@ -78,8 +79,7 @@ class PipelineCache {
   // state.
   VkPipeline GetPipeline(const RenderState* render_state, uint64_t hash_key);
 
-  bool TranslateShader(VulkanShader::VulkanTranslation& translation,
-                       reg::SQ_PROGRAM_CNTL cntl);
+  bool TranslateShader(VulkanShader::VulkanTranslation& translation);
 
   void DumpShaderDisasmAMD(VkPipeline pipeline);
   void DumpShaderDisasmNV(const VkGraphicsPipelineCreateInfo& info);
@@ -92,6 +92,8 @@ class PipelineCache {
   RegisterFile* register_file_ = nullptr;
   ui::vulkan::VulkanDevice* device_ = nullptr;
 
+  // Temporary storage for AnalyzeUcode calls.
+  StringBuffer ucode_disasm_buffer_;
   // Reusable shader translator.
   std::unique_ptr<ShaderTranslator> shader_translator_ = nullptr;
   // Disassembler used to get the SPIRV disasm. Only used in debug.

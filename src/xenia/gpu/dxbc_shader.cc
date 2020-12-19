@@ -19,7 +19,7 @@ DxbcShader::DxbcShader(xenos::ShaderType shader_type, uint64_t data_hash,
     : Shader(shader_type, data_hash, dword_ptr, dword_count) {}
 
 Shader::Translation* DxbcShader::CreateTranslationInstance(
-    uint32_t modification) {
+    uint64_t modification) {
   return new DxbcTranslation(*this, modification);
 }
 

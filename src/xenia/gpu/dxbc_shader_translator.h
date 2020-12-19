@@ -106,13 +106,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // If anything in this is structure is changed in a way not compatible with
     // the previous layout, invalidate the pipeline storages by increasing this
     // version number (0xYYYYMMDD)!
-    static constexpr uint32_t kVersion = 0x20201203;
+    static constexpr uint32_t kVersion = 0x20201219;
 
     enum class DepthStencilMode : uint32_t {
       kNoModifiers,
       // [earlydepthstencil] - enable if alpha test and alpha to coverage are
-      // disabled; ignored if anything in the shader blocks early Z writing
-      // (which is not known before translation, so this will be set anyway).
+      // disabled; ignored if anything in the shader blocks early Z writing.
       kEarlyHint,
       // Converting the depth to the closest 32-bit float representable exactly
       // as a 20e4 float, to support invariance in cases when the guest
@@ -136,15 +135,17 @@ class DxbcShaderTranslator : public ShaderTranslator {
     };
 
     struct {
+      // Both - dynamically indexable register count from SQ_PROGRAM_CNTL.
+      uint32_t dynamic_addressable_register_count : 8;
       // VS - pipeline stage and input configuration.
       Shader::HostVertexShaderType host_vertex_shader_type
           : Shader::kHostVertexShaderTypeBitCount;
       // PS, non-ROV - depth / stencil output mode.
       DepthStencilMode depth_stencil_mode : 2;
     };
-    uint32_t value = 0;
+    uint64_t value = 0;
 
-    Modification(uint32_t modification_value = 0) : value(modification_value) {}
+    Modification(uint64_t modification_value = 0) : value(modification_value) {}
   };
 
   // Constant buffer bindings in space 0.
@@ -467,8 +468,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
       float& clamp_alpha_high, uint32_t& keep_mask_low,
       uint32_t& keep_mask_high);
 
-  uint32_t GetDefaultModification(
+  uint64_t GetDefaultModification(
       xenos::ShaderType shader_type,
+      uint32_t dynamic_addressable_register_count,
       Shader::HostVertexShaderType host_vertex_shader_type =
           Shader::HostVertexShaderType::kVertex) const override;
 
@@ -477,12 +479,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
   std::vector<uint8_t> CreateDepthOnlyPixelShader();
 
  protected:
-  void Reset(xenos::ShaderType shader_type) override;
+  void Reset() override;
+
+  uint32_t GetModificationRegisterCount() const override;
 
   void StartTranslation() override;
   std::vector<uint8_t> CompleteTranslation() override;
-  void PostTranslation(Shader::Translation& translation,
-                       bool setup_shader_post_translation_info) override;
+  void PostTranslation() override;
 
   void ProcessLabel(uint32_t cf_index) override;
 
@@ -2184,7 +2187,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   }
 
   Modification GetDxbcShaderModification() const {
-    return Modification(modification());
+    return Modification(current_translation().modification());
   }
 
   bool IsDxbcVertexShader() const {
@@ -2227,9 +2230,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   bool IsDepthStencilSystemTempUsed() const {
     // See system_temp_depth_stencil_ documentation for explanation of cases.
     if (edram_rov_used_) {
-      return writes_depth() || ROV_IsDepthStencilEarly();
+      return current_shader().writes_depth() || ROV_IsDepthStencilEarly();
     }
-    return writes_depth() && DSV_IsWritingFloat24Depth();
+    return current_shader().writes_depth() && DSV_IsWritingFloat24Depth();
   }
   // Whether the current non-ROV pixel shader should convert the depth to 20e4.
   bool DSV_IsWritingFloat24Depth() const {
@@ -2246,8 +2249,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Whether it's possible and worth skipping running the translated shader for
   // 2x2 quads.
   bool ROV_IsDepthStencilEarly() const {
-    return !is_depth_only_pixel_shader_ && !writes_depth() &&
-           memexport_stream_constants().empty();
+    return !is_depth_only_pixel_shader_ && !current_shader().writes_depth() &&
+           current_shader().memexport_stream_constants().empty();
   }
   // Converts the depth value to 24-bit (storing the result in bits 0:23 and
   // zeros in 24:31, not creating room for stencil - since this may be involved
@@ -2467,7 +2470,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Is currently writing the empty depth-only pixel shader, for
   // CompleteTranslation.
-  bool is_depth_only_pixel_shader_;
+  bool is_depth_only_pixel_shader_ = false;
 
   // Data types used in constants buffers. Listed in dependency order.
   enum class RdefTypeIndex {
@@ -2604,9 +2607,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // 4 `alloc export`s per component.
   uint32_t system_temp_memexport_written_;
   // eA in each `alloc export`, or UINT32_MAX if not used.
-  uint32_t system_temps_memexport_address_[kMaxMemExports];
+  uint32_t system_temps_memexport_address_[Shader::kMaxMemExports];
   // eM# in each `alloc export`, or UINT32_MAX if not used.
-  uint32_t system_temps_memexport_data_[kMaxMemExports][5];
+  uint32_t system_temps_memexport_data_[Shader::kMaxMemExports][5];
 
   // Vector ALU or fetch result/scratch (since Xenos write masks can contain
   // swizzles).

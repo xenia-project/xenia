@@ -23,7 +23,7 @@ class VulkanShader : public Shader {
  public:
   class VulkanTranslation : public Translation {
    public:
-    VulkanTranslation(VulkanShader& shader, uint32_t modification)
+    VulkanTranslation(VulkanShader& shader, uint64_t modification)
         : Translation(shader, modification) {}
     ~VulkanTranslation() override;
 
@@ -41,7 +41,7 @@ class VulkanShader : public Shader {
                uint32_t dword_count);
 
  protected:
-  Translation* CreateTranslationInstance(uint32_t modification) override;
+  Translation* CreateTranslationInstance(uint64_t modification) override;
 
  private:
   ui::vulkan::VulkanDevice* device_ = nullptr;

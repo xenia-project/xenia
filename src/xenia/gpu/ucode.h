@@ -431,15 +431,14 @@ XEPACKEDUNION(ControlFlowInstruction, {
 static_assert_size(ControlFlowInstruction, 8);
 
 inline void UnpackControlFlowInstructions(const uint32_t* dwords,
-                                          ControlFlowInstruction* out_a,
-                                          ControlFlowInstruction* out_b) {
+                                          ControlFlowInstruction* out_ab) {
   uint32_t dword_0 = dwords[0];
   uint32_t dword_1 = dwords[1];
   uint32_t dword_2 = dwords[2];
-  out_a->dword_0 = dword_0;
-  out_a->dword_1 = dword_1 & 0xFFFF;
-  out_b->dword_0 = (dword_1 >> 16) | (dword_2 << 16);
-  out_b->dword_1 = dword_2 >> 16;
+  out_ab[0].dword_0 = dword_0;
+  out_ab[0].dword_1 = dword_1 & 0xFFFF;
+  out_ab[1].dword_0 = (dword_1 >> 16) | (dword_2 << 16);
+  out_ab[1].dword_1 = dword_2 >> 16;
 }
 
 enum class FetchOpcode : uint32_t {
