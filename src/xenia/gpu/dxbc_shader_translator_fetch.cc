@@ -17,6 +17,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/string.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
+#include "xenia/gpu/gpu_flags.h"
 
 namespace xe {
 namespace gpu {
@@ -630,19 +631,42 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
   if (instr.opcode == FetchOpcode::kGetTextureGradients) {
     // Handle before doing anything that actually needs the texture.
     bool grad_operand_temp_pushed = false;
-    DxbcSrc grad_operand =
-        LoadOperand(instr.operands[0], 0b0011, grad_operand_temp_pushed);
-    if (used_result_components & 0b0101) {
-      DxbcOpDerivRTXFine(
-          DxbcDest::R(system_temp_result_, used_result_components & 0b0101),
-          grad_operand.SwizzleSwizzled(0b010000));
+    DxbcSrc grad_operand = LoadOperand(
+        instr.operands[0],
+        ((used_result_nonzero_components & 0b0011) ? 0b0001 : 0) |
+            ((used_result_nonzero_components & 0b1100) ? 0b0010 : 0),
+        grad_operand_temp_pushed);
+    if (used_result_nonzero_components & 0b0101) {
+      DxbcOpDerivRTXCoarse(DxbcDest::R(system_temp_result_,
+                                       used_result_nonzero_components & 0b0101),
+                           grad_operand.SwizzleSwizzled(0b010000));
     }
-    if (used_result_components & 0b1010) {
-      DxbcOpDerivRTYFine(
-          DxbcDest::R(system_temp_result_, used_result_components & 0b1010),
-          grad_operand.SwizzleSwizzled(0b01000000));
+    if (used_result_nonzero_components & 0b1010) {
+      DxbcOpDerivRTYCoarse(DxbcDest::R(system_temp_result_,
+                                       used_result_nonzero_components & 0b1010),
+                           grad_operand.SwizzleSwizzled(0b01000000));
     }
     if (grad_operand_temp_pushed) {
+      PopSystemTemp();
+    }
+    if (!edram_rov_used_ && cvars::ssaa_scale_gradients) {
+      // Scale the gradients to guest pixels with SSAA.
+      uint32_t ssaa_scale_temp = PushSystemTemp();
+      system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
+      DxbcOpMovC(DxbcDest::R(ssaa_scale_temp,
+                             (used_result_nonzero_components & 0b0011) |
+                                 (used_result_nonzero_components >> 2)),
+                 DxbcSrc::CB(cbuffer_index_system_constants_,
+                             uint32_t(CbufferRegister::kSystemConstants),
+                             kSysConst_SampleCountLog2_Vec,
+                             kSysConst_SampleCountLog2_Comp |
+                                 ((kSysConst_SampleCountLog2_Comp + 1) << 2)),
+                 DxbcSrc::LF(2.0f), DxbcSrc::LF(1.0f));
+      DxbcOpMul(
+          DxbcDest::R(system_temp_result_, used_result_nonzero_components),
+          DxbcSrc::R(system_temp_result_),
+          DxbcSrc::R(ssaa_scale_temp, 0b01000100));
+      // Release ssaa_scale_temp.
       PopSystemTemp();
     }
     StoreResult(instr.result, DxbcSrc::R(system_temp_result_));
@@ -1387,12 +1411,27 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           DxbcOpExp(lod_dest, lod_src);
           // FIXME(Triang3l): Gradient exponent adjustment is currently not done
           // in getCompTexLOD, so don't do it here too.
+          bool ssaa_scale_gradients =
+              !instr.attributes.use_register_gradients && !edram_rov_used_ &&
+              cvars::ssaa_scale_gradients;
 #if 0
           // Extract gradient exponent biases from the fetch constant and merge
           // them with the LOD bias.
           DxbcOpIBFE(DxbcDest::R(grad_h_lod_temp, 0b0011), DxbcSrc::LU(5),
                      DxbcSrc::LU(22, 27, 0, 0),
                      RequestTextureFetchConstantWord(tfetch_index, 4));
+          if (ssaa_scale_gradients) {
+            // Adjust the gradient scales to include the SSAA scale.
+            system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
+            DxbcOpIAdd(DxbcDest::R(grad_h_lod_temp, 0b0011),
+                       DxbcSrc::R(grad_h_lod_temp),
+                       DxbcSrc::CB(
+                           cbuffer_index_system_constants_,
+                           uint32_t(CbufferRegister::kSystemConstants),
+                           kSysConst_SampleCountLog2_Vec,
+                           kSysConst_SampleCountLog2_Comp |
+                               ((kSysConst_SampleCountLog2_Comp + 1) << 2)));
+          }
           DxbcOpIMAd(DxbcDest::R(grad_h_lod_temp, 0b0011),
                      DxbcSrc::R(grad_h_lod_temp), DxbcSrc::LI(int32_t(1) << 23),
                      DxbcSrc::LF(1.0f));
@@ -1400,6 +1439,32 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
                     DxbcSrc::R(grad_h_lod_temp, DxbcSrc::kYYYY));
           DxbcOpMul(lod_dest, lod_src,
                     DxbcSrc::R(grad_h_lod_temp, DxbcSrc::kXXXX));
+#else
+          if (ssaa_scale_gradients) {
+            // Adjust the gradient scales in each direction to include the SSAA
+            // scale - for ddy scale, grad_v_temp.w, not grad_h_lod_temp.w, must
+            // be used.
+            // ddy.
+            system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
+            DxbcOpMovC(DxbcDest::R(grad_v_temp, 0b1000),
+                       DxbcSrc::CB(cbuffer_index_system_constants_,
+                                   uint32_t(CbufferRegister::kSystemConstants),
+                                   kSysConst_SampleCountLog2_Vec)
+                           .Select(kSysConst_SampleCountLog2_Comp + 1),
+                       DxbcSrc::LF(2.0f), DxbcSrc::LF(1.0f));
+            DxbcOpMul(DxbcDest::R(grad_v_temp, 0b1000), lod_src,
+                      DxbcSrc::R(grad_v_temp, DxbcSrc::kWWWW));
+            // ddx (after ddy handling, because the ddy code uses lod_src, and
+            // it's being overwritten now).
+            system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
+            DxbcOpIf(true,
+                     DxbcSrc::CB(cbuffer_index_system_constants_,
+                                 uint32_t(CbufferRegister::kSystemConstants),
+                                 kSysConst_SampleCountLog2_Vec)
+                         .Select(kSysConst_SampleCountLog2_Comp));
+            DxbcOpMul(lod_dest, lod_src, DxbcSrc::LF(2.0f));
+            DxbcOpEndIf();
+          }
 #endif
           // Obtain the gradients and apply biases to them.
           if (instr.attributes.use_register_gradients) {
@@ -1458,8 +1523,12 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
                       DxbcSrc::R(grad_v_temp),
                       DxbcSrc::R(grad_v_temp, DxbcSrc::kWWWW));
 #else
-            DxbcOpMul(DxbcDest::R(grad_v_temp, grad_mask),
-                      DxbcSrc::R(grad_v_temp), lod_src);
+            // With SSAA gradient scaling, the scale is separate in each
+            // direction.
+            DxbcOpMul(
+                DxbcDest::R(grad_v_temp, grad_mask), DxbcSrc::R(grad_v_temp),
+                ssaa_scale_gradients ? DxbcSrc::R(grad_v_temp, DxbcSrc::kWWWW)
+                                     : lod_src);
 #endif
           }
           if (instr.dimension == xenos::FetchOpDimension::k1D) {

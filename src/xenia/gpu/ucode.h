@@ -551,6 +551,12 @@ enum class FetchOpcode : uint32_t {
   kGetTextureComputedLod = 17,
 
   // Source is 2-component. XZ = ddx(source.xy), YW = ddy(source.xy).
+  // TODO(Triang3l): Verify whether it's coarse or fine (on Adreno 200, for
+  // instance). This is using the texture unit, where the LOD is computed for
+  // the whole quad (according to the Direct3D 11.3 specification), so likely
+  // coarse; ddx / ddy from the Shader Model 4 era is also compiled by FXC to
+  // deriv_rtx/rty_coarse when targeting Shader Model 5, and on TeraScale,
+  // coarse / fine selection only appeared on Direct3D 11 GPUs.
   kGetTextureGradients = 18,
 
   // Gets the weights used in a bilinear fetch.

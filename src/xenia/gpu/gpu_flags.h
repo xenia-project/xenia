@@ -22,6 +22,8 @@ DECLARE_bool(gpu_allow_invalid_fetch_constants);
 
 DECLARE_bool(half_pixel_offset);
 
+DECLARE_bool(ssaa_scale_gradients);
+
 DECLARE_string(depth_float24_conversion);
 
 DECLARE_int32(query_occlusion_fake_sample_count);

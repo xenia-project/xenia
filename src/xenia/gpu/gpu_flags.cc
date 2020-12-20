@@ -40,6 +40,14 @@ DEFINE_bool(
     "be fully covered when MSAA is used with fullscreen passes.",
     "GPU");
 
+DEFINE_bool(
+    ssaa_scale_gradients, true,
+    "When using SSAA instead of native MSAA, adjust texture coordinate "
+    "derivatives used for mipmap selection, and getGradients results, to guest "
+    "pixels as if true MSAA rather than SSAA was used.\n"
+    "Reduces bandwidth usage of texture fetching.",
+    "GPU");
+
 DEFINE_string(
     depth_float24_conversion, "",
     "Method for converting 32-bit Z values to 20e4 floating point when using "
