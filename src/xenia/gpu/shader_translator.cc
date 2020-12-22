@@ -476,6 +476,8 @@ void Shader::GatherAluResultInformation(
     case InstructionStorageTarget::kDepth:
       writes_depth_ = true;
       break;
+    default:
+      break;
   }
 }
 
