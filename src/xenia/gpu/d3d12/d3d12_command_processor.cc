@@ -101,6 +101,10 @@ void D3D12CommandProcessor::RestoreEdramSnapshot(const void* snapshot) {
 uint32_t D3D12CommandProcessor::GetCurrentColorMask(
     uint32_t shader_writes_color_targets) const {
   auto& regs = *register_file_;
+  if (regs.Get<reg::RB_MODECONTROL>().edram_mode !=
+      xenos::ModeControl::kColorDepth) {
+    return 0;
+  }
   uint32_t color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32 & 0xFFFF;
   for (uint32_t i = 0; i < 4; ++i) {
     if (!(shader_writes_color_targets & (1 << i))) {
@@ -1801,12 +1805,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
 
-  xenos::ModeControl enable_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
-  if (enable_mode == xenos::ModeControl::kIgnore) {
-    // Ignored.
-    return true;
-  }
-  if (enable_mode == xenos::ModeControl::kCopy) {
+  xenos::ModeControl edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
+  if (edram_mode == xenos::ModeControl::kCopy) {
     // Special copy handling.
     return IssueCopy();
   }
@@ -1818,64 +1818,60 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     return true;
   }
 
-  // Shaders will have already been defined by previous loads.
-  // We need them to do just about anything so validate here.
+  // Vertex shader.
   auto vertex_shader = static_cast<D3D12Shader*>(active_vertex_shader());
-  auto pixel_shader = static_cast<D3D12Shader*>(active_pixel_shader());
   if (!vertex_shader) {
     // Always need a vertex shader.
     return false;
   }
-  // Depth-only mode doesn't need a pixel shader.
-  if (enable_mode == xenos::ModeControl::kDepth) {
-    pixel_shader = nullptr;
-  } else if (!pixel_shader) {
-    // Need a pixel shader in normal color mode.
-    return false;
-  }
-  // Gather shader ucode information to get the color mask, which is needed by
-  // the render target cache, and memexport configuration, and also get the
-  // current shader modification bits.
-  DxbcShaderTranslator::Modification vertex_shader_modification;
-  DxbcShaderTranslator::Modification pixel_shader_modification;
-  if (!pipeline_cache_->AnalyzeShaderUcodeAndGetCurrentModifications(
-          vertex_shader, pixel_shader, vertex_shader_modification,
-          pixel_shader_modification)) {
-    return false;
-  }
-  D3D12Shader::D3D12Translation* vertex_shader_translation =
-      static_cast<D3D12Shader::D3D12Translation*>(
-          vertex_shader->GetOrCreateTranslation(
-              vertex_shader_modification.value));
-  D3D12Shader::D3D12Translation* pixel_shader_translation =
-      pixel_shader ? static_cast<D3D12Shader::D3D12Translation*>(
-                         pixel_shader->GetOrCreateTranslation(
-                             pixel_shader_modification.value))
-                   : nullptr;
-  bool tessellated = vertex_shader_modification.host_vertex_shader_type !=
-                     Shader::HostVertexShaderType::kVertex;
-
-  // Check if memexport is used. If it is, we can't skip draw calls that have no
-  // visual effect.
+  pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
   bool memexport_used_vertex =
       !vertex_shader->memexport_stream_constants().empty();
-  bool memexport_used_pixel =
-      pixel_shader != nullptr &&
-      !pixel_shader->memexport_stream_constants().empty();
-  bool memexport_used = memexport_used_vertex || memexport_used_pixel;
-
+  DxbcShaderTranslator::Modification vertex_shader_modification;
+  pipeline_cache_->GetCurrentShaderModification(*vertex_shader,
+                                                vertex_shader_modification);
+  bool tessellated = vertex_shader_modification.host_vertex_shader_type !=
+                     Shader::HostVertexShaderType::kVertex;
   bool primitive_polygonal =
       xenos::IsPrimitivePolygonal(tessellated, primitive_type);
-  auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
-  auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
-  if (!memexport_used_vertex &&
-      (sq_program_cntl.vs_export_mode ==
-           xenos::VertexShaderExportMode::kMultipass ||
-       (primitive_polygonal && pa_su_sc_mode_cntl.cull_front &&
-        pa_su_sc_mode_cntl.cull_back))) {
-    // All faces are culled - can't be expressed in the pipeline.
-    return true;
+
+  // Pixel shader.
+  D3D12Shader* pixel_shader = nullptr;
+  if (draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal)) {
+    // See xenos::ModeControl for explanation why the pixel shader is only used
+    // when it's kColorDepth here.
+    if (edram_mode == xenos::ModeControl::kColorDepth) {
+      pixel_shader = static_cast<D3D12Shader*>(active_pixel_shader());
+      if (pixel_shader) {
+        pipeline_cache_->AnalyzeShaderUcode(*pixel_shader);
+        if (!draw_util::IsPixelShaderNeededWithRasterization(*pixel_shader,
+                                                             regs)) {
+          pixel_shader = nullptr;
+        }
+      }
+    }
+  } else {
+    // Disabling pixel shader for this case is also required by the pipeline
+    // cache.
+    if (!memexport_used_vertex) {
+      // This draw has no effect.
+      return true;
+    }
   }
+  bool memexport_used_pixel;
+  DxbcShaderTranslator::Modification pixel_shader_modification;
+  if (pixel_shader) {
+    memexport_used_pixel = !pixel_shader->memexport_stream_constants().empty();
+    if (!pipeline_cache_->GetCurrentShaderModification(
+            *pixel_shader, pixel_shader_modification)) {
+      return false;
+    }
+  } else {
+    memexport_used_pixel = false;
+    pixel_shader_modification = DxbcShaderTranslator::Modification(0);
+  }
+
+  bool memexport_used = memexport_used_vertex || memexport_used_pixel;
 
   BeginSubmission(true);
 
@@ -1953,6 +1949,15 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   }
 
   // Translate the shaders and create the pipeline if needed.
+  D3D12Shader::D3D12Translation* vertex_shader_translation =
+      static_cast<D3D12Shader::D3D12Translation*>(
+          vertex_shader->GetOrCreateTranslation(
+              vertex_shader_modification.value));
+  D3D12Shader::D3D12Translation* pixel_shader_translation =
+      pixel_shader ? static_cast<D3D12Shader::D3D12Translation*>(
+                         pixel_shader->GetOrCreateTranslation(
+                             pixel_shader_modification.value))
+                   : nullptr;
   void* pipeline_handle;
   ID3D12RootSignature* root_signature;
   if (!pipeline_cache_->ConfigurePipeline(
@@ -2844,7 +2849,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
     Register stencil_ref_mask_reg;
     auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
     if (primitive_polygonal &&
-        regs.Get<reg::RB_DEPTHCONTROL>().backface_enable &&
+        draw_util::GetDepthControlForCurrentEdramMode(regs).backface_enable &&
         pa_su_sc_mode_cntl.cull_front && !pa_su_sc_mode_cntl.cull_back) {
       stencil_ref_mask_reg = XE_GPU_REG_RB_STENCILREFMASK_BF;
     } else {
@@ -2880,7 +2885,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   float rb_alpha_ref = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
   auto rb_colorcontrol = regs.Get<reg::RB_COLORCONTROL>();
   auto rb_depth_info = regs.Get<reg::RB_DEPTH_INFO>();
-  auto rb_depthcontrol = regs.Get<reg::RB_DEPTHCONTROL>();
+  auto rb_depthcontrol = draw_util::GetDepthControlForCurrentEdramMode(regs);
   auto rb_stencilrefmask = regs.Get<reg::RB_STENCILREFMASK>();
   auto rb_stencilrefmask_bf =
       regs.Get<reg::RB_STENCILREFMASK>(XE_GPU_REG_RB_STENCILREFMASK_BF);
@@ -3068,24 +3073,11 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   }
 
   // Conversion to Direct3D 12 normalized device coordinates.
-  // Kill all primitives if multipass or both faces are culled, but still need
-  // to do memexport.
-  if (sq_program_cntl.vs_export_mode ==
-          xenos::VertexShaderExportMode::kMultipass ||
-      (primitive_polygonal && pa_su_sc_mode_cntl.cull_front &&
-       pa_su_sc_mode_cntl.cull_back)) {
-    float nan_value = std::nanf("");
-    for (uint32_t i = 0; i < 3; ++i) {
-      dirty |= !std::isnan(system_constants_.ndc_scale[i]);
-      system_constants_.ndc_scale[i] = nan_value;
-    }
-  } else {
-    for (uint32_t i = 0; i < 3; ++i) {
-      dirty |= system_constants_.ndc_scale[i] != viewport_info.ndc_scale[i];
-      dirty |= system_constants_.ndc_offset[i] != viewport_info.ndc_offset[i];
-      system_constants_.ndc_scale[i] = viewport_info.ndc_scale[i];
-      system_constants_.ndc_offset[i] = viewport_info.ndc_offset[i];
-    }
+  for (uint32_t i = 0; i < 3; ++i) {
+    dirty |= system_constants_.ndc_scale[i] != viewport_info.ndc_scale[i];
+    dirty |= system_constants_.ndc_offset[i] != viewport_info.ndc_offset[i];
+    system_constants_.ndc_scale[i] = viewport_info.ndc_scale[i];
+    system_constants_.ndc_offset[i] = viewport_info.ndc_offset[i];
   }
 
   // Point size.

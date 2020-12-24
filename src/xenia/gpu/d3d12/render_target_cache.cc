@@ -647,7 +647,7 @@ bool RenderTargetCache::UpdateRenderTargets(
     formats_are_64bpp[i] = xenos::IsColorRenderTargetFormat64bpp(
         xenos::ColorRenderTargetFormat(formats[i]));
   }
-  auto rb_depthcontrol = regs.Get<reg::RB_DEPTHCONTROL>();
+  auto rb_depthcontrol = draw_util::GetDepthControlForCurrentEdramMode(regs);
   auto rb_depth_info = regs.Get<reg::RB_DEPTH_INFO>();
   // 0x1 = stencil test, 0x2 = depth test.
   enabled[4] = rb_depthcontrol.stencil_enable || rb_depthcontrol.z_enable;

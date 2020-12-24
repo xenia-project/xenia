@@ -33,6 +33,7 @@
 #include "xenia/base/string_buffer.h"
 #include "xenia/base/xxhash.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
+#include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
@@ -857,32 +858,30 @@ D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
   return shader;
 }
 
-bool PipelineCache::AnalyzeShaderUcodeAndGetCurrentModifications(
-    D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
-    DxbcShaderTranslator::Modification& vertex_shader_modification_out,
-    DxbcShaderTranslator::Modification& pixel_shader_modification_out) {
-  Shader::HostVertexShaderType host_vertex_shader_type =
-      GetCurrentHostVertexShaderTypeIfValid();
-  if (host_vertex_shader_type == Shader::HostVertexShaderType(-1)) {
-    return false;
-  }
+bool PipelineCache::GetCurrentShaderModification(
+    const Shader& shader,
+    DxbcShaderTranslator::Modification& modification_out) const {
+  assert_true(shader.is_ucode_analyzed());
   const auto& regs = register_file_;
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
-
-  vertex_shader->AnalyzeUcode(ucode_disasm_buffer_);
-  vertex_shader_modification_out = DxbcShaderTranslator::Modification(
-      shader_translator_->GetDefaultModification(
-          xenos::ShaderType::kVertex,
-          vertex_shader->GetDynamicAddressableRegisterCount(
-              sq_program_cntl.vs_num_reg),
-          host_vertex_shader_type));
-
-  if (pixel_shader) {
-    pixel_shader->AnalyzeUcode(ucode_disasm_buffer_);
+  if (shader.type() == xenos::ShaderType::kVertex) {
+    Shader::HostVertexShaderType host_vertex_shader_type =
+        GetCurrentHostVertexShaderTypeIfValid();
+    if (host_vertex_shader_type == Shader::HostVertexShaderType(-1)) {
+      return false;
+    }
+    modification_out = DxbcShaderTranslator::Modification(
+        shader_translator_->GetDefaultModification(
+            xenos::ShaderType::kVertex,
+            shader.GetDynamicAddressableRegisterCount(
+                sq_program_cntl.vs_num_reg),
+            host_vertex_shader_type));
+  } else {
+    assert_true(shader.type() == xenos::ShaderType::kPixel);
     DxbcShaderTranslator::Modification pixel_shader_modification(
         shader_translator_->GetDefaultModification(
             xenos::ShaderType::kPixel,
-            pixel_shader->GetDynamicAddressableRegisterCount(
+            shader.GetDynamicAddressableRegisterCount(
                 sq_program_cntl.ps_num_reg)));
     if (!edram_rov_used_) {
       using DepthStencilMode =
@@ -891,7 +890,7 @@ bool PipelineCache::AnalyzeShaderUcodeAndGetCurrentModifications(
                flags::DepthFloat24Conversion::kOnOutputTruncating ||
            depth_float24_conversion_ ==
                flags::DepthFloat24Conversion::kOnOutputRounding) &&
-          regs.Get<reg::RB_DEPTHCONTROL>().z_enable &&
+          draw_util::GetDepthControlForCurrentEdramMode(regs).z_enable &&
           regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
               xenos::DepthRenderTargetFormat::kD24FS8) {
         pixel_shader_modification.depth_stencil_mode =
@@ -900,11 +899,10 @@ bool PipelineCache::AnalyzeShaderUcodeAndGetCurrentModifications(
                 ? DepthStencilMode::kFloat24Truncating
                 : DepthStencilMode::kFloat24Rounding;
       } else {
-        auto rb_colorcontrol = regs.Get<reg::RB_COLORCONTROL>();
-        if (pixel_shader->implicit_early_z_write_allowed() &&
-            (!rb_colorcontrol.alpha_test_enable ||
-             rb_colorcontrol.alpha_func == xenos::CompareFunction::kAlways) &&
-            !rb_colorcontrol.alpha_to_mask_enable) {
+        if (shader.implicit_early_z_write_allowed() &&
+            (!shader.writes_color_target(0) ||
+             !draw_util::DoesCoverageDependOnAlpha(
+                 regs.Get<reg::RB_COLORCONTROL>()))) {
           pixel_shader_modification.depth_stencil_mode =
               DepthStencilMode::kEarlyHint;
         } else {
@@ -913,11 +911,7 @@ bool PipelineCache::AnalyzeShaderUcodeAndGetCurrentModifications(
         }
       }
     }
-    pixel_shader_modification_out = pixel_shader_modification;
-  } else {
-    pixel_shader_modification_out = DxbcShaderTranslator::Modification(
-        shader_translator_->GetDefaultModification(xenos::ShaderType::kPixel,
-                                                   0));
+    modification_out = pixel_shader_modification;
   }
   return true;
 }
@@ -1336,6 +1330,21 @@ bool PipelineCache::GetCurrentStateDescription(
   bool tessellated =
       DxbcShaderTranslator::Modification(vertex_shader->modification())
           .host_vertex_shader_type != Shader::HostVertexShaderType::kVertex;
+  bool primitive_polygonal =
+      xenos::IsPrimitivePolygonal(tessellated, primitive_type);
+  bool rasterization_enabled =
+      draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
+  // In Direct3D, rasterization (along with pixel counting) is disabled by
+  // disabling the pixel shader and depth / stencil. However, if rasterization
+  // should be disabled, the pixel shader must be disabled externally, to ensure
+  // things like texture binding layout is correct for the shader actually being
+  // used (don't replace anything here).
+  if (!rasterization_enabled) {
+    assert_null(pixel_shader);
+    if (pixel_shader) {
+      return false;
+    }
+  }
 
   // Root signature.
   runtime_description_out.root_signature = command_processor_.GetRootSignature(
@@ -1347,17 +1356,11 @@ bool PipelineCache::GetCurrentStateDescription(
     return false;
   }
 
-  // Shaders.
+  // Vertex shader.
   runtime_description_out.vertex_shader = vertex_shader;
   description_out.vertex_shader_hash =
       vertex_shader->shader().ucode_data_hash();
   description_out.vertex_shader_modification = vertex_shader->modification();
-  if (pixel_shader) {
-    runtime_description_out.pixel_shader = pixel_shader;
-    description_out.pixel_shader_hash =
-        pixel_shader->shader().ucode_data_hash();
-    description_out.pixel_shader_modification = pixel_shader->modification();
-  }
 
   // Index buffer strip cut value.
   if (pa_su_sc_mode_cntl.multi_prim_ib_ena) {
@@ -1411,8 +1414,20 @@ bool PipelineCache::GetCurrentStateDescription(
     }
   }
 
-  bool primitive_polygonal =
-      xenos::IsPrimitivePolygonal(tessellated, primitive_type);
+  // The rest doesn't matter when rasterization is disabled (thus no writing to
+  // anywhere from post-geometry stages and no samples are counted).
+  if (!rasterization_enabled) {
+    description_out.cull_mode = PipelineCullMode::kDisableRasterization;
+    return true;
+  }
+
+  // Pixel shader.
+  if (pixel_shader) {
+    runtime_description_out.pixel_shader = pixel_shader;
+    description_out.pixel_shader_hash =
+        pixel_shader->shader().ucode_data_hash();
+    description_out.pixel_shader_modification = pixel_shader->modification();
+  }
 
   // Rasterizer state.
   // Because Direct3D 12 doesn't support per-side fill mode and depth bias, the
@@ -1428,7 +1443,8 @@ bool PipelineCache::GetCurrentStateDescription(
   // developer didn't want to fill the whole primitive and use wireframe (like
   // Xenos fill mode 1).
   // Here we also assume that only one side is culled - if two sides are culled,
-  // the D3D12 command processor will drop such draw early.
+  // rasterization will be disabled externally, or the draw call will be dropped
+  // early if the vertex shader doesn't export to memory.
   bool cull_front, cull_back;
   float poly_offset = 0.0f, poly_offset_scale = 0.0f;
   if (primitive_polygonal) {
@@ -1436,6 +1452,9 @@ bool PipelineCache::GetCurrentStateDescription(
     cull_front = pa_su_sc_mode_cntl.cull_front != 0;
     cull_back = pa_su_sc_mode_cntl.cull_back != 0;
     if (cull_front) {
+      // The case when both faces are culled should be handled by disabling
+      // rasterization.
+      assert_false(cull_back);
       description_out.cull_mode = PipelineCullMode::kFront;
     } else if (cull_back) {
       description_out.cull_mode = PipelineCullMode::kBack;
@@ -1522,7 +1541,8 @@ bool PipelineCache::GetCurrentStateDescription(
     // Depth/stencil. No stencil, always passing depth test and no depth writing
     // means depth disabled.
     if (render_targets[4].format != DXGI_FORMAT_UNKNOWN) {
-      auto rb_depthcontrol = regs.Get<reg::RB_DEPTHCONTROL>();
+      auto rb_depthcontrol =
+          draw_util::GetDepthControlForCurrentEdramMode(regs);
       if (rb_depthcontrol.z_enable) {
         description_out.depth_func = rb_depthcontrol.zfunc;
         description_out.depth_write = rb_depthcontrol.z_write_enable;
@@ -1864,6 +1884,9 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       state_desc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
       break;
     default:
+      assert_true(description.cull_mode == PipelineCullMode::kNone ||
+                  description.cull_mode ==
+                      PipelineCullMode::kDisableRasterization);
       state_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
       break;
   }
@@ -1988,6 +2011,23 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       }
       blend_desc.RenderTargetWriteMask = rt.write_mask;
     }
+  }
+
+  // Disable rasterization if needed (parameter combinations that make no
+  // difference when rasterization is disabled have already been handled in
+  // GetCurrentStateDescription) the way it's disabled in Direct3D by design
+  // (disabling a pixel shader and depth / stencil).
+  // TODO(Triang3l): When it happens to be that a combination of parameters
+  // (no host pixel shader and depth / stencil without ROV) would disable
+  // rasterization when it's still needed (for occlusion query sample counting),
+  // ensure rasterization happens (by binding an empty pixel shader, or maybe
+  // via ForcedSampleCount when not using 2x MSAA - its requirements for
+  // OMSetRenderTargets need some investigation though).
+  if (description.cull_mode == PipelineCullMode::kDisableRasterization) {
+    state_desc.PS.pShaderBytecode = nullptr;
+    state_desc.PS.BytecodeLength = 0;
+    state_desc.DepthStencilState.DepthEnable = FALSE;
+    state_desc.DepthStencilState.StencilEnable = FALSE;
   }
 
   // Create the D3D12 pipeline state object.

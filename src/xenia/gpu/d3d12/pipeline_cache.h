@@ -63,14 +63,19 @@ class PipelineCache {
 
   D3D12Shader* LoadShader(xenos::ShaderType shader_type,
                           const uint32_t* host_address, uint32_t dword_count);
+  // Analyze shader microcode on the translator thread.
+  void AnalyzeShaderUcode(Shader& shader) {
+    shader.AnalyzeUcode(ucode_disasm_buffer_);
+  }
 
-  // Ensures microcode is analyzed, retrieves the shader modifications for the
-  // current state, and returns whether they are valid.
-  bool AnalyzeShaderUcodeAndGetCurrentModifications(
-      D3D12Shader* vertex_shader, D3D12Shader* pixel_shader,
-      DxbcShaderTranslator::Modification& vertex_shader_modification_out,
-      DxbcShaderTranslator::Modification& pixel_shader_modification_out);
+  // Retrieves the shader modification for the current state, and returns
+  // whether it is valid. The shader must have microcode analyzed.
+  bool PipelineCache::GetCurrentShaderModification(
+      const Shader& shader,
+      DxbcShaderTranslator::Modification& modification_out) const;
 
+  // If draw_util::IsRasterizationPotentiallyDone is false, the pixel shader
+  // MUST be made nullptr BEFORE calling this!
   bool ConfigurePipeline(
       D3D12Shader::D3D12Translation* vertex_shader,
       D3D12Shader::D3D12Translation* pixel_shader,
@@ -134,6 +139,8 @@ class PipelineCache {
     kNone,
     kFront,
     kBack,
+    // Special case, handled via disabling the pixel shader and depth / stencil.
+    kDisableRasterization,
   };
 
   enum class PipelineBlendFactor : uint32_t {
@@ -234,6 +241,8 @@ class PipelineCache {
                                IDxcUtils* dxc_utils = nullptr,
                                IDxcCompiler* dxc_compiler = nullptr);
 
+  // If draw_util::IsRasterizationPotentiallyDone is false, the pixel shader
+  // MUST be made nullptr BEFORE calling this!
   bool GetCurrentStateDescription(
       D3D12Shader::D3D12Translation* vertex_shader,
       D3D12Shader::D3D12Translation* pixel_shader,
