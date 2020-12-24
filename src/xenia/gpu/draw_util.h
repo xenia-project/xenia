@@ -16,6 +16,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/registers.h"
+#include "xenia/gpu/shader.h"
 #include "xenia/gpu/trace_writer.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
@@ -32,6 +33,45 @@ namespace draw_util {
 // coordinates incorrectly, for instance) with some error tolerance near 0.5,
 // for use with the top-left rasterization rule later.
 int32_t FloatToD3D11Fixed16p8(float f32);
+
+// Whether with the current state, any samples to rasterize (for any reason, not
+// only to write something to a render target, but also to do sample counting or
+// pixel shader memexport) can be generated. Finally dropping draw calls can
+// only be done if the vertex shader doesn't memexport.
+bool IsRasterizationPotentiallyDone(const RegisterFile& regs,
+                                    bool primitive_polygonal);
+
+inline reg::RB_DEPTHCONTROL GetDepthControlForCurrentEdramMode(
+    const RegisterFile& regs) {
+  xenos::ModeControl edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
+  if (edram_mode != xenos::ModeControl::kColorDepth &&
+      edram_mode != xenos::ModeControl::kDepth) {
+    // Both depth and stencil disabled (EDRAM depth and stencil ignored).
+    reg::RB_DEPTHCONTROL disabled;
+    disabled.value = 0;
+    return disabled;
+  }
+  return regs.Get<reg::RB_DEPTHCONTROL>();
+}
+
+inline bool DoesCoverageDependOnAlpha(reg::RB_COLORCONTROL rb_colorcontrol) {
+  return (rb_colorcontrol.alpha_test_enable &&
+          rb_colorcontrol.alpha_func != xenos::CompareFunction::kAlways) ||
+         rb_colorcontrol.alpha_to_mask_enable;
+}
+
+// Whether the pixel shader can be disabled on the host to speed up depth
+// pre-passes and shadowmaps. The shader must have its ucode analyzed. If
+// IsRasterizationPotentiallyDone, this shouldn't be called, and assumed false
+// instead. Helps reject the pixel shader in some cases - memexport draws in
+// Halo 3, and also most of some 1-point draws not covering anything done for
+// some reason in different games with a leftover pixel shader from the previous
+// draw, but with SQ_PROGRAM_CNTL destroyed, reducing the number of
+// unpredictable unneeded translations of random shaders with different host
+// modification bits, such as register count and depth format-related (though
+// shaders with side effects on depth or memory export will still be preserved).
+bool IsPixelShaderNeededWithRasterization(const Shader& shader,
+                                          const RegisterFile& regs);
 
 struct ViewportInfo {
   // The returned viewport will always be in the positive quarter-plane for

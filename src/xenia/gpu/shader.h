@@ -892,11 +892,11 @@ class Shader {
     // TODO(Triang3l): Investigate what happens to memexport when the pixel
     // fails the depth/stencil test, but in Direct3D 11 UAV writes disable early
     // depth/stencil.
-    return !writes_depth() && !kills_pixels() &&
+    return !kills_pixels() && !writes_depth() &&
            memexport_stream_constants().empty();
   }
 
-  // Whether each color render target is written to on any exection path.
+  // Whether each color render target is written to on any execution path.
   uint32_t writes_color_targets() const { return writes_color_targets_; }
   bool writes_color_target(uint32_t i) const {
     return (writes_color_targets() & (uint32_t(1) << i)) != 0;
@@ -954,8 +954,9 @@ class Shader {
   // compiled when a new material appears in the game, and having the order of
   // draws also matter in such unpredictable way would break this rule; limit
   // the effect to shaders with dynamic register addressing only, which are
-  // extremely rare), also some info needed for drawing is collected during the
-  // ucode analysis.
+  // extremely rare; however care should be taken regarding depth format-related
+  // translation modifications in this case), also some info needed for drawing
+  // is collected during the ucode analysis.
   bool is_ucode_analyzed_ = false;
 
   std::string ucode_disassembly_;

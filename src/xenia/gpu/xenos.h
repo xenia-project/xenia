@@ -297,6 +297,20 @@ constexpr bool IsColorRenderTargetFormat64bpp(ColorRenderTargetFormat format) {
          format == ColorRenderTargetFormat::k_32_32_FLOAT;
 }
 
+inline uint32_t GetColorRenderTargetFormatComponentCount(
+    ColorRenderTargetFormat format) {
+  switch (format) {
+    case ColorRenderTargetFormat::k_32_FLOAT:
+      return 1;
+    case ColorRenderTargetFormat::k_16_16:
+    case ColorRenderTargetFormat::k_16_16_FLOAT:
+    case ColorRenderTargetFormat::k_32_32_FLOAT:
+      return 2;
+    default:
+      return 4;
+  }
+}
+
 enum class DepthRenderTargetFormat : uint32_t {
   kD24S8 = 0,
   // 20e4 [0, 2).
@@ -749,6 +763,26 @@ enum class PolygonType : uint32_t {
 enum class ModeControl : uint32_t {
   kIgnore = 0,
   kColorDepth = 4,
+  // TODO(Triang3l): Verify whether kDepth means the pixel shader is ignored
+  // completely even if it writes depth, exports to memory or kills pixels.
+  // Hints suggesting that it should be completely ignored (which is desirable
+  // on real hardware to avoid scheduling the pixel shader at all and waiting
+  // for it especially since the Xbox 360 doesn't have early per-sample depth /
+  // stencil, only early hi-Z / hi-stencil, and other registers possibly
+  // toggling pixel shader execution are yet to be found):
+  // - Most of depth pre-pass draws in Call of Duty 4 use the kDepth more with
+  //   a `oC0 = tfetch2D(tf0, r0.xy) * r1` shader, some use `oC0 = r0` though.
+  //   However, when alphatested surfaces are drawn, kColorDepth is explicitly
+  //   used with the same shader performing the texture fetch.
+  // - Red Dead Redemption has some kDepth draws with alphatest enabled, but the
+  //   shader is `oC0 = r0`, which makes no sense (alphatest based on an
+  //   interpolant from the vertex shader) as no texture alpha cutout is
+  //   involved.
+  // - Red Dead Redemption also has kDepth draws with pretty complex shaders
+  //   clearly for use only in the color pass - even fetching and filtering a
+  //   shadowmap.
+  // For now, based on these, let's assume the pixel shader is never used with
+  // kDepth.
   kDepth = 5,
   kCopy = 6,
 };
