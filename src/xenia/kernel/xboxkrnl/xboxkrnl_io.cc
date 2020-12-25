@@ -353,6 +353,26 @@ dword_result_t NtCreateIoCompletion(lpdword_t out_handle,
 }
 DECLARE_XBOXKRNL_EXPORT1(NtCreateIoCompletion, kFileSystem, kImplemented);
 
+dword_result_t NtSetIoCompletion(dword_t handle, dword_t key_context,
+                                 dword_t apc_context, dword_t completion_status,
+                                 dword_t num_bytes) {
+  auto port =
+      kernel_state()->object_table()->LookupObject<XIOCompletion>(handle);
+  if (!port) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+
+  XIOCompletion::IONotification notification;
+  notification.key_context = key_context;
+  notification.apc_context = apc_context;
+  notification.num_bytes = num_bytes;
+  notification.status = completion_status;
+
+  port->QueueNotification(notification);
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(NtSetIoCompletion, kFileSystem, kImplemented);
+
 // Dequeues a packet from the completion port.
 dword_result_t NtRemoveIoCompletion(
     dword_t handle, lpdword_t key_context, lpdword_t apc_context,
