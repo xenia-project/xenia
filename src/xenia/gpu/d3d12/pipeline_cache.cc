@@ -844,17 +844,12 @@ D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
     // Shader has been previously loaded.
     return it->second;
   }
-
   // Always create the shader and stash it away.
   // We need to track it even if it fails translation so we know not to try
   // again.
   D3D12Shader* shader =
       new D3D12Shader(shader_type, data_hash, host_address, dword_count);
   shaders_.emplace(data_hash, shader);
-  if (!cvars::dump_shaders.empty()) {
-    shader->DumpUcodeBinary(cvars::dump_shaders);
-  }
-
   return shader;
 }
 

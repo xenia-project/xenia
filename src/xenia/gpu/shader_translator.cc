@@ -18,6 +18,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/gpu/gpu_flags.h"
 
 namespace xe {
 namespace gpu {
@@ -224,6 +225,12 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
   }
 
   is_ucode_analyzed_ = true;
+
+  // An empty shader can be created internally by shader translators as a dummy,
+  // don't dump it.
+  if (!cvars::dump_shaders.empty() && !ucode_data().empty()) {
+    DumpUcode(cvars::dump_shaders);
+  }
 }
 
 void Shader::GatherExecInformation(
