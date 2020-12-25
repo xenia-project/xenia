@@ -763,11 +763,11 @@ class Shader {
       host_disassembly_ = std::move(disassembly);
     }
 
-    // For dumping after translation. Dumps the shader's disassembled microcode,
-    // translated code, and, if available, translated disassembly, to a file in
-    // the given path based on ucode hash. Returns the name of the written file.
-    std::filesystem::path Dump(const std::filesystem::path& base_path,
-                               const char* path_prefix);
+    // For dumping after translation. Dumps the shader's translated code, and,
+    // if available, translated disassembly, to files in the given directory
+    // based on ucode hash. Returns {binary path, disassembly path if written}.
+    std::pair<std::filesystem::path, std::filesystem::path> Dump(
+        const std::filesystem::path& base_path, const char* path_prefix) const;
 
    protected:
     Translation(Shader& shader, uint64_t modification)
@@ -928,10 +928,12 @@ class Shader {
     ucode_storage_index_ = storage_index;
   }
 
-  // Dumps the shader's microcode binary to a file in the given path based on
-  // ucode hash. Returns the name of the written file. Can be called at any
-  // time, doesn't require the shader to be translated.
-  std::filesystem::path DumpUcodeBinary(const std::filesystem::path& base_path);
+  // Dumps the shader's microcode binary and, if analyzed, disassembly, to files
+  // in the given directory based on ucode hash. Returns the name of the written
+  // file. Can be called at any time, doesn't require the shader to be
+  // translated. Returns {binary path, disassembly path if written}.
+  std::pair<std::filesystem::path, std::filesystem::path> DumpUcode(
+      const std::filesystem::path& base_path) const;
 
  protected:
   friend class ShaderTranslator;
