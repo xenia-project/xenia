@@ -69,7 +69,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   }
 
  protected:
-  virtual uint32_t GetModificationRegisterCount() const {
+  uint32_t GetModificationRegisterCount() const override {
     return uint32_t(current_translation().modification());
   }
   void StartTranslation() override;
