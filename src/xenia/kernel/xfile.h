@@ -99,7 +99,7 @@ class XFile : public XObject {
   // critical region).
   X_STATUS Read(uint32_t buffer_guess_address, uint32_t buffer_length,
                 uint64_t byte_offset, uint32_t* out_bytes_read,
-                uint32_t apc_context);
+                uint32_t apc_context, bool notify_completion = true);
 
   X_STATUS Write(uint32_t buffer_guess_address, uint32_t buffer_length,
                  uint64_t byte_offset, uint32_t* out_bytes_written,
