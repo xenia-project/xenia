@@ -93,7 +93,7 @@ X_STATUS XFile::QueryDirectory(X_FILE_DIRECTORY_INFORMATION* out_info,
 
 X_STATUS XFile::Read(uint32_t buffer_guest_address, uint32_t buffer_length,
                      uint64_t byte_offset, uint32_t* out_bytes_read,
-                     uint32_t apc_context) {
+                     uint32_t apc_context, bool notify_completion) {
   if (byte_offset == uint64_t(-1)) {
     // Read from current position.
     byte_offset = position_;
@@ -160,18 +160,21 @@ X_STATUS XFile::Read(uint32_t buffer_guest_address, uint32_t buffer_length,
     }
   }
 
-  XIOCompletion::IONotification notify;
-  notify.apc_context = apc_context;
-  notify.num_bytes = uint32_t(bytes_read);
-  notify.status = result;
-
-  NotifyIOCompletionPorts(notify);
-
   if (out_bytes_read) {
     *out_bytes_read = uint32_t(bytes_read);
   }
 
-  async_event_->Set();
+  if (notify_completion) {
+    XIOCompletion::IONotification notify;
+    notify.apc_context = apc_context;
+    notify.num_bytes = uint32_t(bytes_read);
+    notify.status = result;
+
+    NotifyIOCompletionPorts(notify);
+
+    async_event_->Set();
+  }
+
   return result;
 }
 
