@@ -105,7 +105,8 @@ int shader_compiler_main(const std::vector<std::string>& args) {
   auto shader = std::make_unique<Shader>(
       shader_type, ucode_data_hash, ucode_dwords.data(), ucode_dwords.size());
 
-  shader->AnalyzeUcode(StringBuffer());
+  StringBuffer buffer;
+  shader->AnalyzeUcode(buffer);
 
   std::unique_ptr<ShaderTranslator> translator;
   if (cvars::shader_output_type == "spirv" ||
