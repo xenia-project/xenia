@@ -178,6 +178,62 @@ X_STATUS XFile::Read(uint32_t buffer_guest_address, uint32_t buffer_length,
   return result;
 }
 
+X_STATUS XFile::ReadScatter(uint32_t segments_guest_address, uint32_t length,
+                            uint64_t byte_offset, uint32_t* out_bytes_read,
+                            uint32_t apc_context) {
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  // segments points to an array of buffer pointers of type
+  // "FILE_SEGMENT_ELEMENT", but they can just be treated as normal pointers
+  xe::be<uint32_t>* segments = reinterpret_cast<xe::be<uint32_t>*>(
+      memory()->TranslateVirtual(segments_guest_address));
+
+  // TODO: not sure if this is meant to change depending on buffer address?
+  // (only game seen using this always seems to use 4096-byte buffers)
+  uint32_t page_size = 4096;
+
+  uint32_t read_total = 0;
+  uint32_t read_remain = length;
+  while (read_remain) {
+    uint32_t read_length = read_remain;
+    uint32_t read_buffer = *segments;
+    if (read_length > page_size) {
+      read_length = page_size;
+      segments++;
+    }
+
+    uint32_t bytes_read = 0;
+    result = Read(read_buffer, read_length,
+                  byte_offset ? ((byte_offset != -1 && byte_offset != -2)
+                                     ? byte_offset + read_total
+                                     : byte_offset)
+                              : -1,
+                  &bytes_read, apc_context, false);
+
+    if (result != X_STATUS_SUCCESS) {
+      break;
+    }
+
+    read_total += bytes_read;
+    read_remain -= read_length;
+  }
+
+  if (out_bytes_read) {
+    *out_bytes_read = uint32_t(read_total);
+  }
+
+  XIOCompletion::IONotification notify;
+  notify.apc_context = apc_context;
+  notify.num_bytes = uint32_t(read_total);
+  notify.status = result;
+
+  NotifyIOCompletionPorts(notify);
+
+  async_event_->Set();
+
+  return result;
+}
+
 X_STATUS XFile::Write(uint32_t buffer_guest_address, uint32_t buffer_length,
                       uint64_t byte_offset, uint32_t* out_bytes_written,
                       uint32_t apc_context) {
