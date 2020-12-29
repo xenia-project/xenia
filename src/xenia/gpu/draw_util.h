@@ -37,7 +37,10 @@ int32_t FloatToD3D11Fixed16p8(float f32);
 // Whether with the current state, any samples to rasterize (for any reason, not
 // only to write something to a render target, but also to do sample counting or
 // pixel shader memexport) can be generated. Finally dropping draw calls can
-// only be done if the vertex shader doesn't memexport.
+// only be done if the vertex shader doesn't memexport. Checks mostly special
+// cases (for both the guest and usual host implementations), not everything
+// like whether viewport / scissor are empty (until this truly matters in any
+// game, of course).
 bool IsRasterizationPotentiallyDone(const RegisterFile& regs,
                                     bool primitive_polygonal);
 

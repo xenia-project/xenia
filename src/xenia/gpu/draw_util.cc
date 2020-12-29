@@ -121,9 +121,9 @@ bool IsRasterizationPotentiallyDone(const RegisterFile& regs,
       edram_mode != xenos::ModeControl::kDepth) {
     return false;
   }
-  auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
-  if (sq_program_cntl.vs_export_mode ==
-      xenos::VertexShaderExportMode::kMultipass) {
+  if (regs.Get<reg::SQ_PROGRAM_CNTL>().vs_export_mode ==
+          xenos::VertexShaderExportMode::kMultipass ||
+      !regs.Get<reg::RB_SURFACE_INFO>().surface_pitch) {
     return false;
   }
   if (primitive_polygonal) {
@@ -390,6 +390,20 @@ void GetScissor(const RegisterFile& regs, Scissor& scissor_out) {
     br_y = uint32_t(std::max(
         int32_t(br_y) + pa_sc_window_offset.window_y_offset, int32_t(0)));
   }
+  // Clamp the horizontal scissor to surface_pitch for safety, in case that's
+  // not done by the guest for some reason (it's not when doing draws completely
+  // without a viewport, for instance), to prevent overflow - this is important
+  // for host implementations, both based on target-indepedent rasterization
+  // without render target width at all (pixel shader interlocks-based custom RB
+  // implementations) and using conventional render targets, but padded to EDRAM
+  // tiles.
+  uint32_t surface_pitch = regs.Get<reg::RB_SURFACE_INFO>().surface_pitch;
+  tl_x = std::min(tl_x, surface_pitch);
+  br_x = std::min(br_x, surface_pitch);
+  // Ensure the rectangle is non-negative, by collapsing it into a 0-sized one
+  // (not by reordering the bounds preserving the width / height, which would
+  // reveal samples not meant to be covered, unless TL > BR does that on a real
+  // console, but no evidence of such has ever been seen).
   br_x = std::max(br_x, tl_x);
   br_y = std::max(br_y, tl_y);
   scissor_out.left = tl_x;
