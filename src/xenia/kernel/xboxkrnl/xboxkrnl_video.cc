@@ -20,10 +20,13 @@
 #include "xenia/kernel/xboxkrnl/xboxkrnl_rtl.h"
 #include "xenia/xbox.h"
 
-DEFINE_int32(kernel_display_gamma_type, 1,
-             "Display gamma type: 0 - linear, 1 - sRGB, 2 - TV (BT.709), "
-             "3 - power specified via kernel_display_gamma_power.",
-             "Kernel");
+// BT.709 on modern monitors and TVs looks the closest to the Xbox 360 connected
+// to an HDTV.
+DEFINE_uint32(kernel_display_gamma_type, 2,
+              "Display gamma type: 0 - linear, 1 - sRGB (CRT), 2 - BT.709 "
+              "(HDTV), 3 - power specified via kernel_display_gamma_power.",
+              "Kernel");
+UPDATE_from_uint32(kernel_display_gamma_type, 2020, 12, 31, 13, 1);
 DEFINE_double(kernel_display_gamma_power, 2.22222233,
               "Display gamma to use with kernel_display_gamma_type 3.",
               "Kernel");
@@ -51,7 +54,7 @@ void VdGetCurrentDisplayGamma(lpdword_t type_ptr, lpfloat_t power_ptr) {
   // 3 - use the power written to *power_ptr.
   // Anything else - linear.
   // Used in D3D SetGammaRamp/SetPWLGamma to adjust the ramp for the display.
-  *type_ptr = uint32_t(cvars::kernel_display_gamma_type);
+  *type_ptr = cvars::kernel_display_gamma_type;
   *power_ptr = float(cvars::kernel_display_gamma_power);
 }
 DECLARE_XBOXKRNL_EXPORT1(VdGetCurrentDisplayGamma, kVideo, kStub);
