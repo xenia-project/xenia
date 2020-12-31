@@ -11,6 +11,7 @@
 
 #include "third_party/cpptoml/include/cpptoml.h"
 #include "third_party/fmt/include/fmt/format.h"
+#include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
@@ -29,6 +30,13 @@ std::shared_ptr<cpptoml::table> ParseFile(
 }
 
 CmdVar(config, "", "Specifies the target config to load.");
+
+DEFINE_uint32(
+    defaults_date, 0,
+    "Do not modify - internal version of the default values in the config, for "
+    "seamless updates if default value of any option is changed.",
+    "Config");
+
 namespace config {
 std::string config_name = "xenia.config.toml";
 std::filesystem::path config_folder;
@@ -46,8 +54,19 @@ std::shared_ptr<cpptoml::table> ParseConfig(
   }
 }
 
-void ReadConfig(const std::filesystem::path& file_path) {
+void ReadConfig(const std::filesystem::path& file_path,
+                bool update_if_no_version_stored) {
+  if (!cvar::ConfigVars) {
+    return;
+  }
   const auto config = ParseConfig(file_path);
+  // Loading an actual global config file that exists - if there's no
+  // defaults_date in it, it's very old (before updating was added at all, thus
+  // all defaults need to be updated).
+  auto defaults_date_cvar =
+      dynamic_cast<cvar::ConfigVar<uint32_t>*>(cv::cv_defaults_date);
+  assert_not_null(defaults_date_cvar);
+  defaults_date_cvar->SetConfigValue(0);
   for (auto& it : *cvar::ConfigVars) {
     auto config_var = static_cast<cvar::IConfigVar*>(it.second);
     auto config_key = config_var->category() + "." + config_var->name();
@@ -55,10 +74,17 @@ void ReadConfig(const std::filesystem::path& file_path) {
       config_var->LoadConfigValue(config->get_qualified(config_key));
     }
   }
+  uint32_t config_defaults_date = defaults_date_cvar->GetTypedConfigValue();
+  if (update_if_no_version_stored || config_defaults_date) {
+    cvar::IConfigVarUpdate::ApplyUpdates(config_defaults_date);
+  }
   XELOGI("Loaded config: {}", xe::path_to_utf8(file_path));
 }
 
 void ReadGameConfig(const std::filesystem::path& file_path) {
+  if (!cvar::ConfigVars) {
+    return;
+  }
   const auto config = ParseConfig(file_path);
   for (auto& it : *cvar::ConfigVars) {
     auto config_var = static_cast<cvar::IConfigVar*>(it.second);
@@ -71,9 +97,18 @@ void ReadGameConfig(const std::filesystem::path& file_path) {
 }
 
 void SaveConfig() {
+  // All cvar defaults have been updated on loading - store the current date.
+  auto defaults_date_cvar =
+      dynamic_cast<cvar::ConfigVar<uint32_t>*>(cv::cv_defaults_date);
+  assert_not_null(defaults_date_cvar);
+  defaults_date_cvar->SetConfigValue(
+      cvar::IConfigVarUpdate::GetLastUpdateDate());
+
   std::vector<cvar::IConfigVar*> vars;
-  for (const auto& s : *cvar::ConfigVars) {
-    vars.push_back(s.second);
+  if (cvar::ConfigVars) {
+    for (const auto& s : *cvar::ConfigVars) {
+      vars.push_back(s.second);
+    }
   }
   std::sort(vars.begin(), vars.end(), [](auto a, auto b) {
     if (a->category() < b->category()) return true;
@@ -167,7 +202,12 @@ void SetupConfig(const std::filesystem::path& config_folder) {
   if (!cvars::config.empty()) {
     config_path = xe::to_path(cvars::config);
     if (std::filesystem::exists(config_path)) {
-      ReadConfig(config_path);
+      // An external config file may contain only explicit overrides - in this
+      // case, it will likely not contain the defaults version; don't update
+      // from the version 0 in this case. Or, it may be a full config - in this
+      // case, if it's recent enough (created at least in 2021), it will contain
+      // the version number - updates the defaults in it.
+      ReadConfig(config_path, false);
       return;
     }
   }
@@ -176,10 +216,11 @@ void SetupConfig(const std::filesystem::path& config_folder) {
   if (!config_folder.empty()) {
     config_path = config_folder / config_name;
     if (std::filesystem::exists(config_path)) {
-      ReadConfig(config_path);
+      ReadConfig(config_path, true);
     }
-    // we only want to save the config if the user is using the default
-    // config, we don't want to override a user created specific config
+    // Re-save the loaded config to present the most up-to-date list of
+    // parameters to the user, if new options were added, descriptions were
+    // updated, or default values were changed.
     SaveConfig();
   }
 }
