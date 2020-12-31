@@ -257,7 +257,7 @@ void ConfigVar<T>::SetGameConfigValue(T val) {
 }
 template <class T>
 void ConfigVar<T>::ResetConfigValueToDefault() {
-  SetConfigValue(default_value_);
+  SetConfigValue(this->default_value_);
 }
 
 // CVars can be initialized before these, thus initialized on-demand using new.
