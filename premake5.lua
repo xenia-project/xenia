@@ -196,6 +196,7 @@ filter("platforms:Windows")
     "shcore",
     "shlwapi",
     "dxguid",
+    "bcrypt",
   })
 
 -- Create scratch/ path
