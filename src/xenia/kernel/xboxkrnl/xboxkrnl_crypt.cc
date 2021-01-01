@@ -216,12 +216,12 @@ void XeCryptSha256Final(pointer_t<XECRYPT_SHA256_STATE> sha_state,
 }
 DECLARE_XBOXKRNL_EXPORT1(XeCryptSha256Final, kNone, kImplemented);
 
-// Byteswap?
-dword_result_t XeCryptBnQw_SwapDwQwLeBe(lpqword_t qw_inp, lpqword_t qw_out,
-                                        dword_t size) {
-  return 0;
+// Byteswaps each 8 bytes
+void XeCryptBnQw_SwapDwQwLeBe(pointer_t<uint64_t> qw_inp,
+                              pointer_t<uint64_t> qw_out, dword_t size) {
+  xe::copy_and_swap<uint64_t>(qw_out, qw_inp, size);
 }
-DECLARE_XBOXKRNL_EXPORT1(XeCryptBnQw_SwapDwQwLeBe, kNone, kStub);
+DECLARE_XBOXKRNL_EXPORT1(XeCryptBnQw_SwapDwQwLeBe, kNone, kImplemented);
 
 dword_result_t XeCryptBnQwNeRsaPubCrypt(lpqword_t qw_a, lpqword_t qw_b,
                                         lpvoid_t rsa) {
