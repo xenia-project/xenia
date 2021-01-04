@@ -280,17 +280,24 @@ dword_result_t XamContentGetCreator(dword_t user_index,
   auto content_data =
       static_cast<ContentData>(*content_data_ptr.as<XCONTENT_DATA*>());
 
-  if (content_data.content_type == 1) {
-    // User always creates saves.
-    *is_creator_ptr = 1;
-    if (creator_xuid_ptr) {
-      *creator_xuid_ptr = kernel_state()->user_profile()->xuid();
+  bool content_exists =
+      kernel_state()->content_manager()->ContentExists(content_data);
+
+  if (content_exists) {
+    if (content_data.content_type == 1) {
+      // User always creates saves.
+      *is_creator_ptr = 1;
+      if (creator_xuid_ptr) {
+        *creator_xuid_ptr = kernel_state()->user_profile()->xuid();
+      }
+    } else {
+      *is_creator_ptr = 0;
+      if (creator_xuid_ptr) {
+        *creator_xuid_ptr = 0;
+      }
     }
   } else {
-    *is_creator_ptr = 0;
-    if (creator_xuid_ptr) {
-      *creator_xuid_ptr = 0;
-    }
+    result = X_ERROR_PATH_NOT_FOUND;
   }
 
   if (overlapped_ptr) {
