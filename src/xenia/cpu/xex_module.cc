@@ -299,6 +299,9 @@ int XexModule::ApplyPatch(XexModule* module) {
     module->xex_header_mem_.resize(header_target_size);
   }
 
+  // Update security info context with latest security info data
+  module->ReadSecurityInfo();
+
   uint32_t new_image_size = module->image_size();
 
   // Check if we need to alloc new memory for the patched xex
@@ -867,25 +870,7 @@ int XexModule::ReadPEHeaders() {
   return 0;
 }
 
-bool XexModule::Load(const std::string_view name, const std::string_view path,
-                     const void* xex_addr, size_t xex_length) {
-  auto src_header = reinterpret_cast<const xex2_header*>(xex_addr);
-
-  if (src_header->magic == 'XEX1') {
-    xex_format_ = kFormatXex1;
-  } else if (src_header->magic == 'XEX2') {
-    xex_format_ = kFormatXex2;
-  } else {
-    return false;
-  }
-
-  assert_false(loaded_);
-  loaded_ = true;
-
-  // Read in XEX headers
-  xex_header_mem_.resize(src_header->header_size);
-  std::memcpy(xex_header_mem_.data(), src_header, src_header->header_size);
-
+void XexModule::ReadSecurityInfo() {
   if (xex_format_ == kFormatXex1) {
     const xex1_security_info* xex1_sec_info =
         reinterpret_cast<const xex1_security_info*>(
@@ -913,6 +898,29 @@ bool XexModule::Load(const std::string_view name, const std::string_view path,
     security_info_.page_descriptor_count = xex2_sec_info->page_descriptor_count;
     security_info_.page_descriptors = xex2_sec_info->page_descriptors;
   }
+}
+
+bool XexModule::Load(const std::string_view name, const std::string_view path,
+                     const void* xex_addr, size_t xex_length) {
+  auto src_header = reinterpret_cast<const xex2_header*>(xex_addr);
+
+  if (src_header->magic == 'XEX1') {
+    xex_format_ = kFormatXex1;
+  } else if (src_header->magic == 'XEX2') {
+    xex_format_ = kFormatXex2;
+  } else {
+    return false;
+  }
+
+  assert_false(loaded_);
+  loaded_ = true;
+
+  // Read in XEX headers
+  xex_header_mem_.resize(src_header->header_size);
+  std::memcpy(xex_header_mem_.data(), src_header, src_header->header_size);
+
+  // Read/convert XEX1/XEX2 security info to a common format
+  ReadSecurityInfo();
 
   auto sec_header = xex_security_info();
 

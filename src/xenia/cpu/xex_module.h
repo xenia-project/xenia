@@ -170,6 +170,8 @@ class XexModule : public xe::cpu::Module {
   std::unique_ptr<Function> CreateFunction(uint32_t address) override;
 
  private:
+  void ReadSecurityInfo();
+
   int ReadImage(const void* xex_addr, size_t xex_length, bool use_dev_key);
   int ReadImageUncompressed(const void* xex_addr, size_t xex_length);
   int ReadImageBasicCompressed(const void* xex_addr, size_t xex_length);
