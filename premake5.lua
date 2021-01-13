@@ -136,10 +136,6 @@ filter({"platforms:Linux", "toolset:gcc"})
   end
 
 filter({"platforms:Linux", "language:C++", "toolset:clang"})
-  links({
-    "c++",
-    "c++abi"
-  })
   disablewarnings({
     "deprecated-register"
   })
