@@ -159,6 +159,7 @@ class ContentManager {
   X_RESULT DeleteContent(const ContentData& data);
   std::filesystem::path ResolveGameUserContentPath();
   bool IsContentOpen(const ContentData& data) const;
+  void CloseOpenedFilesFromContent(const std::string_view root_name);
 
  private:
   std::filesystem::path ResolvePackageRoot(uint32_t content_type);
