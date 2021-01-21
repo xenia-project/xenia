@@ -15,10 +15,13 @@
 #include <unordered_map>
 #include <vector>
 
+#include "xenia/base/cvar.h"
 #include "xenia/base/mutex.h"
 #include "xenia/vfs/device.h"
 #include "xenia/vfs/entry.h"
 #include "xenia/vfs/file.h"
+
+DECLARE_bool(mount_cache);
 
 namespace xe {
 namespace vfs {

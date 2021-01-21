@@ -13,6 +13,8 @@
 #include "xenia/base/string.h"
 #include "xenia/kernel/xfile.h"
 
+DEFINE_bool(mount_cache, false, "Enable cache mount", "Storage");
+
 namespace xe {
 namespace vfs {
 
