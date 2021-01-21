@@ -38,9 +38,11 @@ struct XTASK_MESSAGE {
 };
 static_assert_size(XTASK_MESSAGE, 0x1C);
 
+bool cache_task_scheduled_ = false;
+
 dword_result_t XamTaskSchedule(lpvoid_t callback,
                                pointer_t<XTASK_MESSAGE> message,
-                               dword_t unknown, lpdword_t handle_ptr) {
+                               lpdword_t unknown, lpdword_t handle_ptr) {
   assert_zero(unknown);
 
   // TODO(gibbed): figure out what this is for
@@ -54,6 +56,19 @@ dword_result_t XamTaskSchedule(lpvoid_t callback,
   uint64_t args[] = {message.guest_address()};
   auto result = kernel_state()->processor()->Execute(thread_state, callback,
                                                      args, xe::countof(args));
+
+  // Check if unknown param matches what XMountUtilityDrive uses
+  // (these are likely flags instead of an ID though, maybe has a chance of
+  // being used by something other than XMountUtilityDrive...)
+  if (unknown && *unknown == 0x2080002) {
+    // XMountUtilityDrive seems to check the event_handle field for result code
+    message->event_handle = X_STATUS_SUCCESS;
+
+    // Remember that cache was mounted so other code can act accordingly
+    // TODO: make sure to reset this when emulation starts!
+    cache_task_scheduled_ = true;
+  }
+
   return X_STATUS_SUCCESS;
 }
 DECLARE_XAM_EXPORT2(XamTaskSchedule, kNone, kImplemented, kSketchy);

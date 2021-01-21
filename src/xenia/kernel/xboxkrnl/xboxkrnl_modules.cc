@@ -17,11 +17,25 @@
 
 namespace xe {
 namespace kernel {
+namespace xam {
+extern bool cache_task_scheduled_;  // xam_task.cc
+};
 namespace xboxkrnl {
 
 dword_result_t XexCheckExecutablePrivilege(dword_t privilege) {
   // BOOL
   // DWORD Privilege
+
+  // XFlushUtilityDrive checks for privilege 0xB, if not set then it sets an
+  // event and waits for it to complete (which atm it never will, as we don't
+  // run any of the STFC handling code)
+
+  // However if the privilege is set then it'll skip over the event waiting code
+  // (some games may act differently if this privilege is always set though, so
+  // only start setting it once we know cache has been mounted by the game)
+  if (privilege == 0xB && xe::kernel::xam::cache_task_scheduled_) {
+    return 1;
+  }
 
   // Privilege is bit position in xe_xex2_system_flags enum - so:
   // Privilege=6 -> 0x00000040 -> XEX_SYSTEM_INSECURE_SOCKETS
