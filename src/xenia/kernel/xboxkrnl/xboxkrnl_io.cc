@@ -667,6 +667,24 @@ dword_result_t FscSetCacheElementCount(dword_t unk_0, dword_t unk_1) {
 }
 DECLARE_XBOXKRNL_EXPORT1(FscSetCacheElementCount, kFileSystem, kStub);
 
+dword_result_t NtDeviceIoControlFile(
+    dword_t handle, dword_t event_handle, dword_t apc_routine,
+    dword_t apc_context, dword_t io_status_block, dword_t io_control_code,
+    lpvoid_t input_buffer, dword_t input_buffer_len, lpvoid_t output_buffer,
+    dword_t output_buffer_len) {
+  // Called by STFS/cache code, seems to check the sanity of returned values -
+  // the values below appear to pass this check
+  if (io_control_code == 0x74004) {
+    xe::store_and_swap<uint64_t>(output_buffer, 0);
+    xe::store_and_swap<uint64_t>(output_buffer + 8, 0xFF000);
+  } else if (io_control_code == 0x70000) {
+    xe::store_and_swap<uint32_t>(output_buffer, 0xFF000 / 512);
+    xe::store_and_swap<uint32_t>(output_buffer + 4, 512);
+  }
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(NtDeviceIoControlFile, kFileSystem, kStub);
+
 void RegisterIoExports(xe::cpu::ExportResolver* export_resolver,
                        KernelState* kernel_state) {}
 
