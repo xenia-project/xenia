@@ -27,6 +27,8 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
+constexpr uint32_t kCachePartitionMagic = 0x4A6F7368;  // 'Josh'
+
 struct XTASK_MESSAGE {
   be<uint32_t> unknown_00;
   be<uint32_t> unknown_04;
@@ -43,8 +45,6 @@ bool cache_task_scheduled_ = false;
 dword_result_t XamTaskSchedule(lpvoid_t callback,
                                pointer_t<XTASK_MESSAGE> message,
                                lpdword_t unknown, lpdword_t handle_ptr) {
-  assert_zero(unknown);
-
   // TODO(gibbed): figure out what this is for
   *handle_ptr = 12345;
 
@@ -61,12 +61,27 @@ dword_result_t XamTaskSchedule(lpvoid_t callback,
   // (these are likely flags instead of an ID though, maybe has a chance of
   // being used by something other than XMountUtilityDrive...)
   if (unknown && *unknown == 0x2080002) {
-    // XMountUtilityDrive seems to check the event_handle field for result code
-    message->event_handle = X_STATUS_SUCCESS;
+    // If this is cache-partition-task game will set message[0x10 or 0x14] to
+    // 0x4A6F7368 ('Josh'), offset probably changes depending on revision of
+    // cache-mounting code?
 
-    // Remember that cache was mounted so other code can act accordingly
-    // TODO: make sure to reset this when emulation starts!
-    cache_task_scheduled_ = true;
+    if (message->unknown_14 == kCachePartitionMagic) {
+      // Later revision of cache-partition code
+      // Result at message[0x10]
+      message->event_handle = X_STATUS_SUCCESS;
+
+      // Remember that cache was mounted so other code can act accordingly
+      // TODO: make sure to reset this when emulation starts!
+      cache_task_scheduled_ = true;
+    } else if (message->event_handle == kCachePartitionMagic) {
+      // Earlier cache code
+      // Result at message[0xC]
+      message->callback_arg_ptr = X_STATUS_SUCCESS;
+
+      // Remember that cache was mounted so other code can act accordingly
+      // TODO: make sure to reset this when emulation starts!
+      cache_task_scheduled_ = true;
+    }
   }
 
   return X_STATUS_SUCCESS;
