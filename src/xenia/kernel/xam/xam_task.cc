@@ -23,6 +23,8 @@
 
 #include "third_party/fmt/include/fmt/format.h"
 
+DECLARE_bool(mount_cache);
+
 namespace xe {
 namespace kernel {
 namespace xam {
@@ -60,7 +62,7 @@ dword_result_t XamTaskSchedule(lpvoid_t callback,
   // Check if unknown param matches what XMountUtilityDrive uses
   // (these are likely flags instead of an ID though, maybe has a chance of
   // being used by something other than XMountUtilityDrive...)
-  if (unknown && *unknown == 0x2080002) {
+  if (cvars::mount_cache && unknown && *unknown == 0x2080002) {
     // If this is cache-partition-task game will set message[0x10 or 0x14] to
     // 0x4A6F7368 ('Josh'), offset probably changes depending on revision of
     // cache-mounting code?

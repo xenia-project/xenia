@@ -23,6 +23,8 @@
 #include "xenia/vfs/device.h"
 #include "xenia/xbox.h"
 
+DECLARE_bool(mount_cache);
+
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
@@ -674,12 +676,22 @@ dword_result_t NtDeviceIoControlFile(
     dword_t output_buffer_len) {
   // Called by STFS/cache code, seems to check the sanity of returned values -
   // the values below appear to pass this check
-  if (io_control_code == 0x74004) {
-    xe::store_and_swap<uint64_t>(output_buffer, 0);
-    xe::store_and_swap<uint64_t>(output_buffer + 8, 0xFF000);
-  } else if (io_control_code == 0x70000) {
-    xe::store_and_swap<uint32_t>(output_buffer, 0xFF000 / 512);
-    xe::store_and_swap<uint32_t>(output_buffer + 4, 512);
+  if (cvars::mount_cache) {
+    if (io_control_code == 0x74004) {  // IOCTL_DISK_GET_PARTITION_INFO
+      if (output_buffer_len < 0x10) {
+        assert_always();
+        return X_STATUS_BUFFER_TOO_SMALL;
+      }
+      xe::store_and_swap<uint64_t>(output_buffer, 0);
+      xe::store_and_swap<uint64_t>(output_buffer + 8, 0xFF000);
+    } else if (io_control_code == 0x70000) {  // IOCTL_DISK_GET_DRIVE_GEOMETRY
+      if (output_buffer_len < 0x8) {
+        assert_always();
+        return X_STATUS_BUFFER_TOO_SMALL;
+      }
+      xe::store_and_swap<uint32_t>(output_buffer, 0xFF000 / 512);
+      xe::store_and_swap<uint32_t>(output_buffer + 4, 512);
+    }
   }
   return X_STATUS_SUCCESS;
 }
