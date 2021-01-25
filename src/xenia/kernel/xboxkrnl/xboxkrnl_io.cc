@@ -697,6 +697,24 @@ dword_result_t NtDeviceIoControlFile(
 }
 DECLARE_XBOXKRNL_EXPORT1(NtDeviceIoControlFile, kFileSystem, kStub);
 
+dword_result_t IoCreateDevice(dword_t device_struct, dword_t r4, dword_t r5,
+                              dword_t r6, dword_t r7, lpdword_t out_struct) {
+  // 0x24 is guessed size from accesses to the output pointer
+  auto out_guest = kernel_memory()->SystemHeapAlloc(0x24);
+
+  auto out = kernel_memory()->TranslateVirtual<uint8_t*>(out_guest);
+  memset(out, 0, 0x24);
+
+  // STFC/cache code tries writing stuff (header?) to a pointer at out+0x18
+  // Alloc some scratch space for it so it doesn't cause an exception
+  auto out_guest2 = kernel_memory()->SystemHeapAlloc(0x1000);
+  xe::store_and_swap(out + 0x18, out_guest2);
+
+  *out_struct = out_guest;
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(IoCreateDevice, kFileSystem, kStub);
+
 void RegisterIoExports(xe::cpu::ExportResolver* export_resolver,
                        KernelState* kernel_state) {}
 

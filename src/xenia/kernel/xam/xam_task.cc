@@ -11,6 +11,7 @@
 #include "xenia/base/string_util.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xam/xam_private.h"
@@ -42,53 +43,38 @@ struct XTASK_MESSAGE {
 };
 static_assert_size(XTASK_MESSAGE, 0x1C);
 
-bool cache_task_scheduled_ = false;
-
 dword_result_t XamTaskSchedule(lpvoid_t callback,
                                pointer_t<XTASK_MESSAGE> message,
                                lpdword_t unknown, lpdword_t handle_ptr) {
   // TODO(gibbed): figure out what this is for
   *handle_ptr = 12345;
 
-  XELOGW("!! Executing scheduled task ({:08X}) synchronously, PROBABLY BAD !! ",
-         callback.guest_address());
+  uint32_t stack_size = kernel_state()->GetExecutableModule()->stack_size();
 
-  // TODO(gibbed): this is supposed to be async... let's cheat.
-  auto thread_state = XThread::GetCurrentThread()->thread_state();
-  uint64_t args[] = {message.guest_address()};
-  auto result = kernel_state()->processor()->Execute(thread_state, callback,
-                                                     args, xe::countof(args));
+  // Stack must be aligned to 16kb pages
+  stack_size = std::max((uint32_t)0x4000, ((stack_size + 0xFFF) & 0xFFFFF000));
 
-  // Check if unknown param matches what XMountUtilityDrive uses
-  // (these are likely flags instead of an ID though, maybe has a chance of
-  // being used by something other than XMountUtilityDrive...)
-  if (cvars::mount_cache && unknown && *unknown == 0x2080002) {
-    // If this is cache-partition-task game will set message[0x10 or 0x14] to
-    // 0x4A6F7368 ('Josh'), offset probably changes depending on revision of
-    // cache-mounting code?
+  auto thread =
+      object_ref<XThread>(new XThread(kernel_state(), stack_size, 0, callback,
+                                      message.guest_address(), 0, true));
 
-    if (message->unknown_14 == kCachePartitionMagic) {
-      // Later revision of cache-partition code
-      // Result at message[0x10]
-      message->event_handle = X_STATUS_SUCCESS;
+  X_STATUS result = thread->Create();
 
-      // Remember that cache was mounted so other code can act accordingly
-      // TODO: make sure to reset this when emulation starts!
-      cache_task_scheduled_ = true;
-    } else if (message->event_handle == kCachePartitionMagic) {
-      // Earlier cache code
-      // Result at message[0xC]
-      message->callback_arg_ptr = X_STATUS_SUCCESS;
-
-      // Remember that cache was mounted so other code can act accordingly
-      // TODO: make sure to reset this when emulation starts!
-      cache_task_scheduled_ = true;
-    }
+  if (XFAILED(result)) {
+    // Failed!
+    XELOGE("XAM task creation failed: {:08X}", result);
+    return result;
   }
+
+  XELOGW("XAM task scheduled ({:08X}) asynchronously",
+         callback.guest_address());
 
   return X_STATUS_SUCCESS;
 }
 DECLARE_XAM_EXPORT2(XamTaskSchedule, kNone, kImplemented, kSketchy);
+
+dword_result_t XamTaskShouldExit(dword_t r3) { return 0; }
+DECLARE_XAM_EXPORT2(XamTaskShouldExit, kNone, kStub, kSketchy);
 
 void RegisterTaskExports(xe::cpu::ExportResolver* export_resolver,
                          KernelState* kernel_state) {}

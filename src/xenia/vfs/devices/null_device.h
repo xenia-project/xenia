@@ -35,12 +35,14 @@ class NullDevice : public Device {
   uint32_t attributes() const override { return 0; }
   uint32_t component_name_max_length() const override { return 40; }
 
-  uint32_t total_allocation_units() const override { return 128 * 1024; }
-  uint32_t available_allocation_units() const override { return 128 * 1024; }
+  uint32_t total_allocation_units() const override { return 8 * 1024; }
+  uint32_t available_allocation_units() const override { return 8 * 1024; }
 
-  // STFC/cache code seems to require the product of these two to equal 0x10000!
-  uint32_t sectors_per_allocation_unit() const override { return 1; }
-  uint32_t bytes_per_sector() const override { return 0x10000; }
+  // STFC/cache code seems to require the product of these two to equal 0x10000
+  uint32_t sectors_per_allocation_unit() const override { return 0x10; }
+
+  // STFC requires <= 0x1000
+  uint32_t bytes_per_sector() const override { return 0x1000; }
 
  private:
   std::unique_ptr<Entry> root_entry_;

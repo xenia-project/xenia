@@ -577,13 +577,9 @@ void XThread::Reenter(uint32_t address) {
   throw reenter_exception(address);
 }
 
-void XThread::EnterCriticalRegion() {
-  xe::global_critical_region::mutex().lock();
-}
+void XThread::EnterCriticalRegion() { local_critical_region_.lock(); }
 
-void XThread::LeaveCriticalRegion() {
-  xe::global_critical_region::mutex().unlock();
-}
+void XThread::LeaveCriticalRegion() { local_critical_region_.unlock(); }
 
 uint32_t XThread::RaiseIrql(uint32_t new_irql) {
   return irql_.exchange(new_irql);
@@ -593,11 +589,11 @@ void XThread::LowerIrql(uint32_t new_irql) { irql_ = new_irql; }
 
 void XThread::CheckApcs() { DeliverAPCs(); }
 
-void XThread::LockApc() { EnterCriticalRegion(); }
+void XThread::LockApc() { global_critical_region_.mutex().lock(); }
 
 void XThread::UnlockApc(bool queue_delivery) {
   bool needs_apc = apc_list_.HasPending();
-  LeaveCriticalRegion();
+  global_critical_region_.mutex().unlock();
   if (needs_apc && queue_delivery) {
     thread_->QueueUserCallback([this]() { DeliverAPCs(); });
   }

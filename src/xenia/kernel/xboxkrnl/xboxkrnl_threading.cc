@@ -960,14 +960,17 @@ void KeReleaseSpinLockFromRaisedIrql(lpdword_t lock_ptr) {
 DECLARE_XBOXKRNL_EXPORT2(KeReleaseSpinLockFromRaisedIrql, kThreading,
                          kImplemented, kHighFrequency);
 
-void KeEnterCriticalRegion() { XThread::EnterCriticalRegion(); }
+void KeEnterCriticalRegion() {
+  XThread::GetCurrentThread()->EnterCriticalRegion();
+}
 DECLARE_XBOXKRNL_EXPORT2(KeEnterCriticalRegion, kThreading, kImplemented,
                          kHighFrequency);
 
 void KeLeaveCriticalRegion() {
-  XThread::LeaveCriticalRegion();
+  auto thread = XThread::GetCurrentThread();
+  thread->LeaveCriticalRegion();
 
-  XThread::GetCurrentThread()->CheckApcs();
+  thread->CheckApcs();
 }
 DECLARE_XBOXKRNL_EXPORT2(KeLeaveCriticalRegion, kThreading, kImplemented,
                          kHighFrequency);

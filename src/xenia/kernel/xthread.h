@@ -190,8 +190,8 @@ class XThread : public XObject, public cpu::Thread {
 
   virtual void Reenter(uint32_t address);
 
-  static void EnterCriticalRegion();
-  static void LeaveCriticalRegion();
+  void EnterCriticalRegion();
+  void LeaveCriticalRegion();
   uint32_t RaiseIrql(uint32_t new_irql);
   void LowerIrql(uint32_t new_irql);
 
@@ -269,6 +269,7 @@ class XThread : public XObject, public cpu::Thread {
   int32_t priority_ = 0;
 
   xe::global_critical_region global_critical_region_;
+  std::recursive_mutex local_critical_region_;
   std::atomic<uint32_t> irql_ = {0};
   util::NativeList apc_list_;
 };
