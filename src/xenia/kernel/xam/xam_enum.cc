@@ -57,7 +57,6 @@ uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, lpvoid_t buffer_ptr,
 
     result = X_ERROR_INSUFFICIENT_BUFFER;
     if (actual_buffer_size >= needed_buffer_size) {
-      buffer_ptr.Zero(actual_buffer_size);
       result =
           e->WriteItems(buffer_ptr.guest_address(), buffer_ptr.as<uint8_t*>(),
                         actual_buffer_size, &item_count);
