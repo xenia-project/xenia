@@ -458,7 +458,8 @@ dword_result_t NtSetIoCompletion(dword_t handle, dword_t key_context,
   port->QueueNotification(notification);
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT1(NtSetIoCompletion, kFileSystem, kImplemented);
+DECLARE_XBOXKRNL_EXPORT2(NtSetIoCompletion, kFileSystem, kImplemented,
+                         kHighFrequency);
 
 // Dequeues a packet from the completion port.
 dword_result_t NtRemoveIoCompletion(
@@ -473,7 +474,9 @@ dword_result_t NtRemoveIoCompletion(
     status = X_STATUS_INVALID_HANDLE;
   }
 
-  uint64_t timeout_ticks = timeout ? static_cast<uint32_t>(*timeout) : 0u;
+  uint64_t timeout_ticks =
+      timeout ? static_cast<uint32_t>(*timeout)
+              : static_cast<uint64_t>(std::numeric_limits<int64_t>::min());
   XIOCompletion::IONotification notification;
   if (port->WaitForNotification(timeout_ticks, &notification)) {
     if (key_context) {
@@ -493,7 +496,8 @@ dword_result_t NtRemoveIoCompletion(
 
   return status;
 }
-DECLARE_XBOXKRNL_EXPORT1(NtRemoveIoCompletion, kFileSystem, kImplemented);
+DECLARE_XBOXKRNL_EXPORT2(NtRemoveIoCompletion, kFileSystem, kImplemented,
+                         kHighFrequency);
 
 dword_result_t NtQueryFullAttributesFile(
     pointer_t<X_OBJECT_ATTRIBUTES> obj_attribs,
