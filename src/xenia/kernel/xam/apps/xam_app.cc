@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -56,7 +56,12 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       if (data->buffer_size) {
         std::memset(buffer, 0, data->buffer_size);
       }
-      if (e->WriteItem(buffer)) {
+      uint32_t item_count = 0;
+      auto result = e->WriteItems(data->buffer_ptr, buffer, data->buffer_size,
+                                  &item_count);
+      assert_true(XSUCCEEDED(result));
+      assert_true(item_count == 1);
+      if (XSUCCEEDED(result)) {
         auto content_data = reinterpret_cast<XCONTENT_AGGREGATE_DATA*>(buffer);
         // TODO(gibbed): WTF?
         *reinterpret_cast<be<uint32_t>*>(&buffer[0x140]) =
