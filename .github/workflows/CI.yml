@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches-ignore: [ gh-pages, master ]
+    paths-ignore:
+      - '.github/*'
+      - '.github/*_TEMPLATE/**'
+      - '*.md'
+      - '*.yml'
+      - 'docs/**'
+      - 'LICENSE'
+  pull_request:
+    branches-ignore: [ gh-pages, master ]
+    paths-ignore:
+      - '.github/*'
+      - '.github/*_TEMPLATE/**'
+      - '*.md'
+      - '*.yml'
+      - 'docs/**'
+      - 'LICENSE'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      POWERSHELL_TELEMETRY_OPTOUT: 1
+    strategy:
+      fail-fast: false
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: Setup
+      run: .\xb setup
+    - name: Build
+      run: .\xb build --config=Release --target=src\xenia-app --target=src\xenia-vfs-dump
+    - name: Prepare artifacts
+      id: prepare_artifacts
+      run: |
+        robocopy . build\bin\${{ runner.os }}\Release                                                                LICENSE /r:0 /w:0
+        robocopy   build\bin\${{ runner.os }}\Release artifacts\xenia_canary   xenia_canary.exe   xenia_canary.pdb   LICENSE /r:0 /w:0
+        robocopy   build\bin\${{ runner.os }}\Release artifacts\xenia-vfs-dump xenia-vfs-dump.exe xenia-vfs-dump.pdb LICENSE /r:0 /w:0
+        If ($LastExitCode -le 7) { echo "LastExitCode = $LastExitCode";$LastExitCode = 0 }
+        7z a xenia_canary.zip                       .\artifacts\xenia_canary\*.exe                                   LICENSE
+        echo "::set-output name=short_commit_sha::$(git rev-parse --short HEAD)"
+    - name: Upload xenia-vfs-dump artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: xenia-vfs-dump_canary
+        path: artifacts\xenia-vfs-dump
+        if-no-files-found: error
+    - name: Upload xenia artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: xenia_canary
+        path: artifacts\xenia_canary
+        if-no-files-found: error
+    - uses: softprops/action-gh-release@v1
+      if: |
+        github.repository == 'xenia-canary/xenia-canary' &&
+        github.event.action != 'pull_request' &&
+        contains(github.ref, 'refs/heads/canary')
+      with:
+        files: '*.zip'
+        tag_name: ${{ steps.prepare_artifacts.outputs.short_commit_sha }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

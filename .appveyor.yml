@@ -3,12 +3,14 @@ version: 1.0.{build}-{branch}
 branches:
   except:
     - gh-pages
+    - master
 
 skip_tags: true
 
 skip_commits:
   files:
     - .drone.star
+    - .azure-pipelines.yml
     - .github/**
     - android/**
     - docs/**
@@ -27,76 +29,17 @@ skip_branch_with_pr: true
 pull_requests:
   do_not_increment_build_number: true
 
-os: Visual Studio 2019
-
-init:
-  - ps: |
-      If (-Not $env:APPVEYOR_PULL_REQUEST_NUMBER) {
-        $env:is_not_pr = "true"
-      }
-      If (-Not $env:APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED) {
-        $env:APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED = " "
-      }
+image: Visual Studio 2019
 
 install:
-  - |
-    vcpkg integrate remove
-    xb setup
-
-platform: Windows
-
-configuration: [Release, Checked]
+  - xb setup
 
 build_script:
-  - xb build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-base-tests --target=tests\xenia-cpu-ppc-tests --target=src\xenia-vfs-dump
+  - xb build --config=Release --target=src\xenia-app --target=src\xenia-vfs-dump
 
 after_build:
   - |
-      IF NOT "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SUFFIX=%APPVEYOR_REPO_BRANCH%"
-      IF NOT "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SWITCHES=--"
-      IF     "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SUFFIX=%APPVEYOR_REPO_BRANCH%_FOR-DEVS-ONLY"
-      IF     "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SWITCHES="-pI know what I am doing." --"
-      7z a xenia_%ARCHIVE_SUFFIX%.zip          %ARCHIVE_SWITCHES% LICENSE "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.exe"          "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia.pdb"
-      7z a xenia-vfs-dump_%ARCHIVE_SUFFIX%.zip %ARCHIVE_SWITCHES% LICENSE "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.exe" "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.pdb"
-
-before_test:
-  - xb gentests
-
-test_script:
-  - xb test --config=%CONFIGURATION% --no_build
-
+      7z a xenia_canary.zip          ".\build\bin\Windows\Release\xenia_canary.exe"   ".\build\bin\Windows\Release\xenia_canary.pdb"   LICENSE
+      7z a xenia-vfs-dump_canary.zip ".\build\bin\Windows\Release\xenia-vfs-dump.exe" ".\build\bin\Windows\Release\xenia-vfs-dump.pdb" LICENSE
 artifacts:
   - path: '*.zip'
-  - path: xenia-cpu-ppc-test.log
-
-deploy:
-  - provider: Environment
-    name: xenia-master
-    release: xenia-$(appveyor_repo_branch)-v$(appveyor_build_version)
-    artifact: '*.zip'
-    draft: false
-    prerelease: true
-    on:
-      branch: master
-      configuration: release
-      appveyor_repo_tag: true
-      is_not_pr: true
-  - provider: GitHub
-    name: xenia-master
-    repository: xenia-project/release-builds-windows
-    auth_token:
-      secure: /8he47z1WnPN7LcCTe5T5KMxxX0SmqFj9QMpeWEa3aZ64kMsfupOT/jKakqTM8af
-    tag: v$(appveyor_build_version)
-    release: v$(appveyor_build_version)
-    description: |
-      Windows release build for https://github.com/xenia-project/xenia/commit/$(APPVEYOR_REPO_COMMIT).
-      
-      $(APPVEYOR_REPO_COMMIT_MESSAGE)
-      
-      $(APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED)
-    draft: false
-    prerelease: false
-    on:
-      branch: master
-      configuration: release
-      is_not_pr: true
