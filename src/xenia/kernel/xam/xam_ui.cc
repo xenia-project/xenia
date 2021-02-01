@@ -487,6 +487,16 @@ void XamShowDirtyDiscErrorUI(dword_t user_index) {
 }
 DECLARE_XAM_EXPORT1(XamShowDirtyDiscErrorUI, kUI, kImplemented);
 
+dword_result_t XamShowPartyUI(unknown_t r3, unknown_t r4) {
+  return X_ERROR_FUNCTION_FAILED;
+}
+DECLARE_XAM_EXPORT1(XamShowPartyUI, kNone, kStub);
+
+dword_result_t XamShowCommunitySessionsUI(unknown_t r3, unknown_t r4) {
+  return X_ERROR_FUNCTION_FAILED;
+}
+DECLARE_XAM_EXPORT1(XamShowCommunitySessionsUI, kNone, kStub);
+
 void RegisterUIExports(xe::cpu::ExportResolver* export_resolver,
                        KernelState* kernel_state) {}
 
