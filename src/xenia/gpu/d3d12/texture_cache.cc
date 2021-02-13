@@ -1248,7 +1248,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
           signed_key.signed_separate = 1;
           binding.texture_signed = FindOrCreateTexture(signed_key);
           binding.descriptor_index_signed =
-              binding.texture
+              binding.texture_signed
                   ? FindOrCreateTextureDescriptor(*binding.texture_signed, true,
                                                   binding.host_swizzle)
                   : UINT32_MAX;
