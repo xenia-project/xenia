@@ -157,7 +157,7 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
 
   // Submit commands and wait.
   if (status == VK_SUCCESS) {
-    std::lock_guard<std::mutex>(device_->primary_queue_mutex());
+    std::lock_guard<std::mutex> lock(device_->primary_queue_mutex());
     VkSubmitInfo submit_info = {
         VK_STRUCTURE_TYPE_SUBMIT_INFO,
         nullptr,
