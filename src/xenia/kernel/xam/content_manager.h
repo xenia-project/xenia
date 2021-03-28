@@ -64,6 +64,11 @@ struct ContentData {
 
   ContentData() = default;
 
+  bool operator==(const ContentData& rhs) const {
+    return device_id == rhs.device_id && content_type == rhs.content_type &&
+           file_name == rhs.file_name;
+  }
+
   explicit ContentData(const XCONTENT_DATA& data) {
     device_id = data.device_id;
     content_type = data.content_type;
@@ -120,10 +125,13 @@ class ContentPackage {
                  const std::filesystem::path& package_path);
   ~ContentPackage();
 
+  const ContentData& GetPackageContentData() const { return content_data_; }
+
  private:
   KernelState* kernel_state_;
   std::string root_name_;
   std::string device_path_;
+  ContentData content_data_;
 };
 
 class ContentManager {
@@ -150,6 +158,7 @@ class ContentManager {
                                std::vector<uint8_t> buffer);
   X_RESULT DeleteContent(const ContentData& data);
   std::filesystem::path ResolveGameUserContentPath();
+  bool IsContentOpen(const ContentData& data) const;
 
  private:
   std::filesystem::path ResolvePackageRoot(uint32_t content_type);
