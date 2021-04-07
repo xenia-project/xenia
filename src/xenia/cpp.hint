@@ -1,0 +1,16 @@
+// Hint files help the Visual Studio IDE interpret Visual C++ identifiers
+// such as names of functions and macros.
+// For more information see https://go.microsoft.com/fwlink/?linkid=865984
+
+#define DECLARE_XAM_EXPORT_(name, category, tags)
+#define DECLARE_XAM_EXPORT1(name, category, tag)
+#define DECLARE_XAM_EXPORT2(name, category, tag1, tag2)
+
+#define DECLARE_XBDM_EXPORT_(name, category, tags)
+#define DECLARE_XBDM_EXPORT1(name, category, tag)
+
+#define DECLARE_XBOXKRNL_EXPORT_(name, category, tags)
+#define DECLARE_XBOXKRNL_EXPORT1(name, category, tag)
+#define DECLARE_XBOXKRNL_EXPORT2(name, category, tag1, tag2)
+#define DECLARE_XBOXKRNL_EXPORT3(name, category, tag1, tag2, tag3)
+#define DECLARE_XBOXKRNL_EXPORT4(name, category, tag1, tag2, tag3, tag4)
