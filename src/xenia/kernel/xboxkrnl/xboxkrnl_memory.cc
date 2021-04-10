@@ -80,7 +80,7 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
   // it's simple today we could extend it to do better things in the future.
 
   // Must request a size.
-  if (!base_addr_ptr || !region_size_ptr) {
+  if (!base_addr_ptr || !region_size_ptr || !*region_size_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
   // Check allocation type.
@@ -198,7 +198,7 @@ dword_result_t NtProtectVirtualMemory(lpdword_t base_addr_ptr,
   assert_true(debug_memory == 0);
 
   // Must request a size.
-  if (!base_addr_ptr || !region_size_ptr) {
+  if (!base_addr_ptr || !region_size_ptr || !*region_size_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
 
