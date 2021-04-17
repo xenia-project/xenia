@@ -561,13 +561,10 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
   return Error::kSuccess;
 }
 
-size_t StfsContainerDevice::BlockToOffsetSTFS(uint64_t block_index) {
-  uint64_t block;
-  uint32_t block_shift = 0;
-  if (((header_.header.header_size + 0x0FFF) & 0xB000) == 0xB000 ||
-      !header_.metadata.stfs_volume_descriptor.flags.read_only_format) {
-    block_shift =
-        header_.header.magic == XContentPackageType::kPackageTypeCon ? 1 : 0;
+size_t StfsContainerDevice::BlockToOffsetSTFS(uint64_t block_index) const {
+  uint32_t blocks_per_hash_table = 1;
+  if (!header_.metadata.stfs_volume_descriptor.flags.read_only_format) {
+    blocks_per_hash_table = 2;
   }
 
   // For every level there is a hash table
@@ -576,9 +573,9 @@ size_t StfsContainerDevice::BlockToOffsetSTFS(uint64_t block_index) {
   // Level 2: hash table of next 170 level 1 hash tables
   // And so on...
   uint64_t base = kBlocksPerHashLevel[0];
-  block = block_index;
+  uint64_t block = block_index;
   for (uint32_t i = 0; i < 3; i++) {
-    block += (block_index + (base << block_shift)) / (base << block_shift);
+    block += ((block_index + base) / base) * blocks_per_hash_table;
     if (block_index < base) {
       break;
     }

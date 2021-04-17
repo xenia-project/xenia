@@ -462,7 +462,7 @@ class StfsContainerDevice : public Device {
   void BlockToOffsetSVOD(size_t sector, size_t* address, size_t* file_index);
 
   Error ReadSTFS();
-  size_t BlockToOffsetSTFS(uint64_t block);
+  size_t BlockToOffsetSTFS(uint64_t block_index) const;
 
   StfsHashEntry GetBlockHash(const uint8_t* map_ptr, uint32_t block_index,
                              uint32_t table_offset);
