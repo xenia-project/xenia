@@ -62,8 +62,7 @@ StfsContainerDevice::StfsContainerDevice(const std::string_view mount_path,
       base_offset_(),
       magic_offset_(),
       header_(),
-      svod_layout_(),
-      table_size_shift_() {}
+      svod_layout_() {}
 
 StfsContainerDevice::~StfsContainerDevice() = default;
 
@@ -194,11 +193,12 @@ StfsContainerDevice::Error StfsContainerDevice::ReadHeaderAndVerify(
   }
 
   // Pre-calculate some values used in block number calculations
-  if (((header_.header.header_size + 0x0FFF) & 0xB000) == 0xB000) {
-    table_size_shift_ = 0;
-  } else {
-    table_size_shift_ = 1;
-  }
+  blocks_per_hash_table_ =
+      header_.metadata.stfs_volume_descriptor.flags.read_only_format ? 1 : 2;
+
+  block_step[0] = kBlocksPerHashLevel[0] + blocks_per_hash_table_;
+  block_step[1] = kBlocksPerHashLevel[1] +
+                  ((kBlocksPerHashLevel[0] + 1) * blocks_per_hash_table_);
 
   return Error::kSuccess;
 }
@@ -537,22 +537,16 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
           size_t offset = BlockToOffsetSTFS(block_index);
           entry->block_list_.push_back({0, offset, block_size});
           remaining_size -= block_size;
-          auto block_hash = GetBlockHash(data, block_index, 0);
-          if (table_size_shift_) {
-            block_hash = GetBlockHash(data, block_index, 1);
-          }
-          block_index = block_hash.level0_next_block();
+          auto block_hash = GetBlockHash(data, block_index);
+          block_index = block_hash->level0_next_block();
         }
       }
 
       parent_entry->children_.emplace_back(std::move(entry));
     }
 
-    auto block_hash = GetBlockHash(data, table_block_index, 0);
-    if (table_size_shift_) {
-      block_hash = GetBlockHash(data, table_block_index, 1);
-    }
-    table_block_index = block_hash.level0_next_block();
+    auto block_hash = GetBlockHash(data, table_block_index);
+    table_block_index = block_hash->level0_next_block();
     if (table_block_index == 0xFFFFFF) {
       break;
     }
@@ -562,11 +556,6 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
 }
 
 size_t StfsContainerDevice::BlockToOffsetSTFS(uint64_t block_index) const {
-  uint32_t blocks_per_hash_table = 1;
-  if (!header_.metadata.stfs_volume_descriptor.flags.read_only_format) {
-    blocks_per_hash_table = 2;
-  }
-
   // For every level there is a hash table
   // Level 0: hash table of next 170 blocks
   // Level 1: hash table of next 170 hash tables
@@ -575,7 +564,7 @@ size_t StfsContainerDevice::BlockToOffsetSTFS(uint64_t block_index) const {
   uint64_t base = kBlocksPerHashLevel[0];
   uint64_t block = block_index;
   for (uint32_t i = 0; i < 3; i++) {
-    block += ((block_index + base) / base) * blocks_per_hash_table;
+    block += ((block_index + base) / base) * blocks_per_hash_table_;
     if (block_index < base) {
       break;
     }
@@ -588,43 +577,34 @@ size_t StfsContainerDevice::BlockToOffsetSTFS(uint64_t block_index) const {
 
 uint32_t StfsContainerDevice::BlockToHashBlockNumberSTFS(
     uint32_t block_index, uint32_t hash_level) const {
-  uint32_t blocks_per_hash_table = 1;
-  if (!header_.metadata.stfs_volume_descriptor.flags.read_only_format) {
-    blocks_per_hash_table = 2;
-  }
-
-  uint32_t blockStep0 = kBlocksPerHashLevel[0] + blocks_per_hash_table;
-  uint32_t blockStep1 = kBlocksPerHashLevel[1] +
-                        ((kBlocksPerHashLevel[0] + 1) * blocks_per_hash_table);
-
   uint32_t block = 0;
   if (hash_level == 0) {
     if (block_index < kBlocksPerHashLevel[0]) {
       return 0;
     }
 
-    block = (block_index / kBlocksPerHashLevel[0]) * blockStep0;
+    block = (block_index / kBlocksPerHashLevel[0]) * block_step[0];
     block +=
-        ((block_index / kBlocksPerHashLevel[1]) + 1) * blocks_per_hash_table;
+        ((block_index / kBlocksPerHashLevel[1]) + 1) * blocks_per_hash_table_;
 
     if (block_index < kBlocksPerHashLevel[1]) {
       return block;
     }
 
-    return block + blocks_per_hash_table;
+    return block + blocks_per_hash_table_;
   }
 
   if (hash_level == 1) {
     if (block_index < kBlocksPerHashLevel[1]) {
-      return blockStep0;
+      return block_step[0];
     }
 
-    block = (block_index / kBlocksPerHashLevel[1]) * blockStep1;
-    return block + blocks_per_hash_table;
+    block = (block_index / kBlocksPerHashLevel[1]) * block_step[1];
+    return block + blocks_per_hash_table_;
   }
 
   // Level 2 is always at blockStep1
-  return blockStep1;
+  return block_step[1];
 }
 
 size_t StfsContainerDevice::BlockToHashBlockOffsetSTFS(
@@ -633,18 +613,59 @@ size_t StfsContainerDevice::BlockToHashBlockOffsetSTFS(
   return xe::round_up(header_.header.header_size, kSectorSize) + (block << 12);
 }
 
-StfsHashEntry StfsContainerDevice::GetBlockHash(const uint8_t* map_ptr,
-                                                uint32_t block_index,
-                                                uint32_t table_offset) {
-  size_t hash_offset = BlockToHashBlockOffsetSTFS(block_index, 0);
-  const uint8_t* hash_data = map_ptr + hash_offset;
+const StfsHashEntry* StfsContainerDevice::GetBlockHash(const uint8_t* map_ptr,
+                                                       uint32_t block_index) {
+  // Offset for selecting the secondary hash block, in packages that have them
+  uint32_t secondary_table_offset =
+      header_.metadata.stfs_volume_descriptor.flags.root_active_index
+          ? kSectorSize
+          : 0;
 
-  uint32_t record = block_index % kBlocksPerHashLevel[0];
-  // table_index += table_offset - (1 << table_size_shift_);
-  const StfsHashEntry* record_data =
-      reinterpret_cast<const StfsHashEntry*>(hash_data + record * 0x18);
+  // If this is read_only_format then it doesn't contain secondary blocks, no
+  // need to check upper hash levels
+  if (header_.metadata.stfs_volume_descriptor.flags.read_only_format) {
+    secondary_table_offset = 0;
+  } else {
+    // Not a read-only package, need to check each levels active index flag to
+    // see if we need to use secondary block or not
 
-  return *record_data;
+    // Check L2 active index flag...
+    if (header_.metadata.stfs_volume_descriptor.allocated_block_count >
+        kBlocksPerHashLevel[1]) {
+      auto hash_offset = BlockToHashBlockOffsetSTFS(block_index, 2);
+      auto hash_table = map_ptr + hash_offset + secondary_table_offset;
+
+      auto record =
+          (block_index / kBlocksPerHashLevel[1]) % kBlocksPerHashLevel[0];
+      auto record_data =
+          reinterpret_cast<const StfsHashEntry*>(hash_table + record * 0x18);
+      secondary_table_offset =
+          record_data->levelN_activeindex() ? kSectorSize : 0;
+    }
+
+    // Check L1 active index flag...
+    if (header_.metadata.stfs_volume_descriptor.allocated_block_count >
+        kBlocksPerHashLevel[0]) {
+      auto hash_offset = BlockToHashBlockOffsetSTFS(block_index, 1);
+      auto hash_table = map_ptr + hash_offset + secondary_table_offset;
+
+      auto record =
+          (block_index / kBlocksPerHashLevel[0]) % kBlocksPerHashLevel[0];
+      auto record_data =
+          reinterpret_cast<const StfsHashEntry*>(hash_table + record * 0x18);
+      secondary_table_offset =
+          record_data->levelN_activeindex() ? kSectorSize : 0;
+    }
+  }
+
+  auto hash_offset = BlockToHashBlockOffsetSTFS(block_index, 0);
+  auto hash_table = map_ptr + hash_offset + secondary_table_offset;
+
+  auto record = block_index % kBlocksPerHashLevel[0];
+  auto record_data =
+      reinterpret_cast<const StfsHashEntry*>(hash_table + record * 0x18);
+
+  return record_data;
 }
 
 uint32_t StfsContainerDevice::ReadMagic(const std::filesystem::path& path) {

@@ -117,7 +117,7 @@ struct StfsHashEntry {
   uint8_t info3;
 
   // If this is a level0 entry, this points to the next block in the chain
-  uint32_t level0_next_block() {
+  uint32_t level0_next_block() const {
     return uint32_t(info3) | (uint32_t(info2) << 8) | (uint32_t(info1) << 16);
   }
 
@@ -129,9 +129,9 @@ struct StfsHashEntry {
 
   // If this is level 1 or 2, this says whether the hash table this entry refers
   // to is using the secondary block or not
-  bool levelN_activeindex() { return info0 & 0x40; }
+  bool levelN_activeindex() const { return info0 & 0x40; }
 
-  bool levelN_writeable() { return info0 & 0x80; }
+  bool levelN_writeable() const { return info0 & 0x80; }
 };
 static_assert_size(StfsHashEntry, 0x18);
 
@@ -468,8 +468,8 @@ class StfsContainerDevice : public Device {
   size_t BlockToHashBlockOffsetSTFS(uint32_t block_index,
                                     uint32_t hash_level) const;
 
-  StfsHashEntry GetBlockHash(const uint8_t* map_ptr, uint32_t block_index,
-                             uint32_t table_offset);
+  const StfsHashEntry* GetBlockHash(const uint8_t* map_ptr,
+                                    uint32_t block_index);
 
   std::string name_;
   std::filesystem::path host_path_;
@@ -481,7 +481,8 @@ class StfsContainerDevice : public Device {
   std::unique_ptr<Entry> root_entry_;
   StfsHeader header_;
   SvodLayoutType svod_layout_;
-  uint32_t table_size_shift_;
+  uint32_t blocks_per_hash_table_;
+  uint32_t block_step[2];
 };
 
 }  // namespace vfs
