@@ -463,6 +463,10 @@ class StfsContainerDevice : public Device {
 
   Error ReadSTFS();
   size_t BlockToOffsetSTFS(uint64_t block_index) const;
+  uint32_t BlockToHashBlockNumberSTFS(uint32_t block_index,
+                                      uint32_t hash_level) const;
+  size_t BlockToHashBlockOffsetSTFS(uint32_t block_index,
+                                    uint32_t hash_level) const;
 
   StfsHashEntry GetBlockHash(const uint8_t* map_ptr, uint32_t block_index,
                              uint32_t table_offset);
