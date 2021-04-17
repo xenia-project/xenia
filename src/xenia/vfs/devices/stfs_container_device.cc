@@ -586,19 +586,60 @@ size_t StfsContainerDevice::BlockToOffsetSTFS(uint64_t block_index) const {
   return xe::round_up(header_.header.header_size, kSectorSize) + (block << 12);
 }
 
+uint32_t StfsContainerDevice::BlockToHashBlockNumberSTFS(
+    uint32_t block_index, uint32_t hash_level) const {
+  uint32_t blocks_per_hash_table = 1;
+  if (!header_.metadata.stfs_volume_descriptor.flags.read_only_format) {
+    blocks_per_hash_table = 2;
+  }
+
+  uint32_t blockStep0 = kBlocksPerHashLevel[0] + blocks_per_hash_table;
+  uint32_t blockStep1 = kBlocksPerHashLevel[1] +
+                        ((kBlocksPerHashLevel[0] + 1) * blocks_per_hash_table);
+
+  uint32_t block = 0;
+  if (hash_level == 0) {
+    if (block_index < kBlocksPerHashLevel[0]) {
+      return 0;
+    }
+
+    block = (block_index / kBlocksPerHashLevel[0]) * blockStep0;
+    block +=
+        ((block_index / kBlocksPerHashLevel[1]) + 1) * blocks_per_hash_table;
+
+    if (block_index < kBlocksPerHashLevel[1]) {
+      return block;
+    }
+
+    return block + blocks_per_hash_table;
+  }
+
+  if (hash_level == 1) {
+    if (block_index < kBlocksPerHashLevel[1]) {
+      return blockStep0;
+    }
+
+    block = (block_index / kBlocksPerHashLevel[1]) * blockStep1;
+    return block + blocks_per_hash_table;
+  }
+
+  // Level 2 is always at blockStep1
+  return blockStep1;
+}
+
+size_t StfsContainerDevice::BlockToHashBlockOffsetSTFS(
+    uint32_t block_index, uint32_t hash_level) const {
+  uint64_t block = BlockToHashBlockNumberSTFS(block_index, hash_level);
+  return xe::round_up(header_.header.header_size, kSectorSize) + (block << 12);
+}
+
 StfsHashEntry StfsContainerDevice::GetBlockHash(const uint8_t* map_ptr,
                                                 uint32_t block_index,
                                                 uint32_t table_offset) {
-  uint32_t record = block_index % 0xAA;
-
-  // This is a bit hacky, but we'll get a pointer to the first block after the
-  // table and then subtract one sector to land on the table itself.
-  size_t hash_offset =
-      BlockToOffsetSTFS(xe::round_up(block_index + 1, kBlocksPerHashLevel[0]) -
-                        kBlocksPerHashLevel[0]);
-  hash_offset -= kSectorSize;
+  size_t hash_offset = BlockToHashBlockOffsetSTFS(block_index, 0);
   const uint8_t* hash_data = map_ptr + hash_offset;
 
+  uint32_t record = block_index % kBlocksPerHashLevel[0];
   // table_index += table_offset - (1 << table_size_shift_);
   const StfsHashEntry* record_data =
       reinterpret_cast<const StfsHashEntry*>(hash_data + record * 0x18);
