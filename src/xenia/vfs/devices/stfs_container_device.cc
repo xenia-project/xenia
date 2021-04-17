@@ -118,6 +118,8 @@ StfsContainerDevice::Error StfsContainerDevice::MapFiles() {
     return header_result;
   }
 
+  mmap_total_size_ = header_map->size();
+
   // If the STFS package is a single file, the header is self contained and
   // we don't need to map any extra files.
   // NOTE: data_file_count is 0 for STFS and 1 for SVOD
@@ -157,8 +159,10 @@ StfsContainerDevice::Error StfsContainerDevice::MapFiles() {
     if (!data) {
       XELOGI("Failed to map SVOD file {}.", xe::path_to_utf8(path));
       mmap_.clear();
+      mmap_total_size_ = 0;
       return Error::kErrorReadError;
     }
+    mmap_total_size_ += data->size();
     mmap_.emplace(std::make_pair(i, std::move(data)));
   }
   XELOGI("SVOD successfully mapped {} files.", fragment_files.size());
@@ -472,7 +476,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
   uint32_t table_block_index = volume_descriptor.file_table_block_number();
   for (size_t n = 0; n < volume_descriptor.file_table_block_count; n++) {
     const uint8_t* p = data + BlockToOffsetSTFS(table_block_index);
-    for (size_t m = 0; m < 0x1000 / 0x40; m++) {
+    for (size_t m = 0; m < kSectorSize / 0x40; m++) {
       const uint8_t* name_buffer = p;  // 0x28b
       if (name_buffer[0] == 0) {
         // Done.
@@ -529,7 +533,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
         size_t remaining_size = file_size;
         while (remaining_size && block_index) {
           size_t block_size =
-              std::min(static_cast<size_t>(0x1000), remaining_size);
+              std::min(static_cast<size_t>(kSectorSize), remaining_size);
           size_t offset = BlockToOffsetSTFS(block_index);
           entry->block_list_.push_back({0, offset, block_size});
           remaining_size -= block_size;
@@ -582,7 +586,7 @@ size_t StfsContainerDevice::BlockToOffsetSTFS(uint64_t block_index) {
     base *= kBlocksPerHashLevel[0];
   }
 
-  return xe::round_up(header_.header.header_size, 0x1000) + (block << 12);
+  return xe::round_up(header_.header.header_size, kSectorSize) + (block << 12);
 }
 
 StfsHashEntry StfsContainerDevice::GetBlockHash(const uint8_t* map_ptr,
