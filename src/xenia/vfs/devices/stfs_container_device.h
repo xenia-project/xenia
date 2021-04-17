@@ -15,6 +15,7 @@
 #include <string>
 
 #include "xenia/base/mapped_memory.h"
+#include "xenia/base/math.h"
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/util/xex2_info.h"
 #include "xenia/vfs/device.h"
@@ -413,12 +414,22 @@ class StfsContainerDevice : public Device {
   uint32_t component_name_max_length() const override { return 40; }
 
   uint32_t total_allocation_units() const override {
-    return uint32_t(mmap_total_size_ / sectors_per_allocation_unit() /
+    return uint32_t(data_size() / sectors_per_allocation_unit() /
                     bytes_per_sector());
   }
   uint32_t available_allocation_units() const override { return 0; }
   uint32_t sectors_per_allocation_unit() const override { return 8; }
   uint32_t bytes_per_sector() const override { return 0x200; }
+
+  // Gives rough estimate of the size of the data in this container
+  // TODO: use allocated_block_count inside volume-descriptor?
+  size_t data_size() const {
+    if (header_.header.header_size) {
+      return mmap_total_size_ -
+             xe::round_up(header_.header.header_size, kSectorSize);
+    }
+    return mmap_total_size_ - sizeof(StfsHeader);
+  }
 
  private:
   const uint32_t kSectorSize = 0x1000;
