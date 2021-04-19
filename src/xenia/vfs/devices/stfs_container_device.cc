@@ -624,55 +624,67 @@ size_t StfsContainerDevice::BlockToHashBlockOffsetSTFS(
 
 const StfsHashEntry* StfsContainerDevice::GetBlockHash(const uint8_t* map_ptr,
                                                        uint32_t block_index) {
+  auto& volume_descriptor = header_.metadata.stfs_volume_descriptor;
+
   // Offset for selecting the secondary hash block, in packages that have them
   uint32_t secondary_table_offset =
-      header_.metadata.stfs_volume_descriptor.flags.root_active_index
-          ? kSectorSize
-          : 0;
+      volume_descriptor.flags.root_active_index ? kSectorSize : 0;
 
-  // If this is read_only_format then it doesn't contain secondary blocks, no
-  // need to check upper hash levels
-  if (header_.metadata.stfs_volume_descriptor.flags.read_only_format) {
-    secondary_table_offset = 0;
-  } else {
-    // Not a read-only package, need to check each levels active index flag to
-    // see if we need to use secondary block or not
+  auto hash_offset_lv0 = BlockToHashBlockOffsetSTFS(block_index, 0);
+  if (!cached_hash_tables_.count(hash_offset_lv0)) {
+    // If this is read_only_format then it doesn't contain secondary blocks, no
+    // need to check upper hash levels
+    if (volume_descriptor.flags.read_only_format) {
+      secondary_table_offset = 0;
+    } else {
+      // Not a read-only package, need to check each levels active index flag to
+      // see if we need to use secondary block or not
 
-    // Check L2 active index flag...
-    if (header_.metadata.stfs_volume_descriptor.allocated_block_count >
-        kBlocksPerHashLevel[1]) {
-      auto hash_offset = BlockToHashBlockOffsetSTFS(block_index, 2);
-      auto hash_table = map_ptr + hash_offset + secondary_table_offset;
+      // Check level1 table if package has it
+      if (volume_descriptor.allocated_block_count > kBlocksPerHashLevel[0]) {
+        auto hash_offset_lv1 = BlockToHashBlockOffsetSTFS(block_index, 1);
 
-      auto record =
-          (block_index / kBlocksPerHashLevel[1]) % kBlocksPerHashLevel[0];
-      auto record_data =
-          reinterpret_cast<const StfsHashEntry*>(hash_table + record * 0x18);
-      secondary_table_offset =
-          record_data->levelN_activeindex() ? kSectorSize : 0;
+        if (!cached_hash_tables_.count(hash_offset_lv1)) {
+          // Check level2 table if package has it
+          if (volume_descriptor.allocated_block_count >
+              kBlocksPerHashLevel[1]) {
+            auto hash_offset_lv2 = BlockToHashBlockOffsetSTFS(block_index, 2);
+
+            if (!cached_hash_tables_.count(hash_offset_lv2)) {
+              cached_hash_tables_[hash_offset_lv2] =
+                  *reinterpret_cast<const StfsHashTable*>(
+                      map_ptr + hash_offset_lv2 + secondary_table_offset);
+            }
+
+            auto record =
+                (block_index / kBlocksPerHashLevel[1]) % kBlocksPerHashLevel[0];
+            auto record_data =
+                &cached_hash_tables_[hash_offset_lv2].entries[record];
+            secondary_table_offset =
+                record_data->levelN_activeindex() ? kSectorSize : 0;
+          }
+
+          cached_hash_tables_[hash_offset_lv1] =
+              *reinterpret_cast<const StfsHashTable*>(
+                  map_ptr + hash_offset_lv1 + secondary_table_offset);
+        }
+
+        auto record =
+            (block_index / kBlocksPerHashLevel[0]) % kBlocksPerHashLevel[0];
+        auto record_data =
+            &cached_hash_tables_[hash_offset_lv1].entries[record];
+        secondary_table_offset =
+            record_data->levelN_activeindex() ? kSectorSize : 0;
+      }
     }
 
-    // Check L1 active index flag...
-    if (header_.metadata.stfs_volume_descriptor.allocated_block_count >
-        kBlocksPerHashLevel[0]) {
-      auto hash_offset = BlockToHashBlockOffsetSTFS(block_index, 1);
-      auto hash_table = map_ptr + hash_offset + secondary_table_offset;
-
-      auto record =
-          (block_index / kBlocksPerHashLevel[0]) % kBlocksPerHashLevel[0];
-      auto record_data =
-          reinterpret_cast<const StfsHashEntry*>(hash_table + record * 0x18);
-      secondary_table_offset =
-          record_data->levelN_activeindex() ? kSectorSize : 0;
-    }
+    cached_hash_tables_[hash_offset_lv0] =
+        *reinterpret_cast<const StfsHashTable*>(map_ptr + hash_offset_lv0 +
+                                                secondary_table_offset);
   }
 
-  auto hash_offset = BlockToHashBlockOffsetSTFS(block_index, 0);
-  auto hash_table = map_ptr + hash_offset + secondary_table_offset;
-
   auto record = block_index % kBlocksPerHashLevel[0];
-  auto record_data =
-      reinterpret_cast<const StfsHashEntry*>(hash_table + record * 0x18);
+  auto record_data = &cached_hash_tables_[hash_offset_lv0].entries[record];
 
   return record_data;
 }
