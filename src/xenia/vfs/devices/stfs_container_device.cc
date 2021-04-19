@@ -483,8 +483,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
         break;
       }
       uint8_t name_length_flags = xe::load_and_swap<uint8_t>(p + 0x28);
-      // TODO(benvanik): use for allocation_size_?
-      // uint32_t allocated_block_count = load_uint24_le(p + 0x29);
+      uint32_t allocated_block_count = load_uint24_le(p + 0x2C);
       uint32_t start_block_index = load_uint24_le(p + 0x2F);
       uint16_t path_indicator = xe::load_and_swap<uint16_t>(p + 0x32);
       uint32_t file_size = xe::load_and_swap<uint32_t>(p + 0x34);
@@ -531,7 +530,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
       if (entry->attributes() & X_FILE_ATTRIBUTE_NORMAL) {
         uint32_t block_index = start_block_index;
         size_t remaining_size = file_size;
-        while (remaining_size && block_index) {
+        while (remaining_size && block_index != 0xFFFFFF) {
           size_t block_size =
               std::min(static_cast<size_t>(kSectorSize), remaining_size);
           size_t offset = BlockToOffsetSTFS(block_index);
@@ -539,6 +538,16 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
           remaining_size -= block_size;
           auto block_hash = GetBlockHash(data, block_index);
           block_index = block_hash->level0_next_block();
+        }
+
+        // Check that the number of blocks retrieved from hash entries matches
+        // the block count read from the file entry
+        if (entry->block_list_.size() != allocated_block_count) {
+          XELOGW(
+              "STFS failed to read correct block-chain for entry {}, read {} "
+              "blocks, expected {}",
+              entry->name_, entry->block_list_.size(), allocated_block_count);
+          assert_always();
         }
       }
 
