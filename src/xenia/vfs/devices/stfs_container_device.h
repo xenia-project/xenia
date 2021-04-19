@@ -135,6 +135,13 @@ struct StfsHashEntry {
 };
 static_assert_size(StfsHashEntry, 0x18);
 
+struct StfsHashTable {
+  StfsHashEntry entries[170];
+  xe::be<uint32_t> num_blocks;  // num L0 blocks covered by this table?
+  uint8_t padding[12];
+};
+static_assert_size(StfsHashTable, 0x1000);
+
 /* SVOD structures */
 struct SvodDeviceDescriptor {
   uint8_t descriptor_length;
@@ -483,6 +490,8 @@ class StfsContainerDevice : public Device {
   SvodLayoutType svod_layout_;
   uint32_t blocks_per_hash_table_;
   uint32_t block_step[2];
+
+  std::unordered_map<size_t, StfsHashTable> cached_hash_tables_;
 };
 
 }  // namespace vfs
