@@ -55,10 +55,10 @@ XdbfBlock XdbfWrapper::GetEntry(XdbfSection section, uint64_t id) const {
   return {0};
 }
 
-std::string XdbfWrapper::GetStringTableEntry(XdbfLocale locale,
+std::string XdbfWrapper::GetStringTableEntry(XLanguage language,
                                              uint16_t string_id) const {
   auto language_block =
-      GetEntry(XdbfSection::kStringTable, static_cast<uint64_t>(locale));
+      GetEntry(XdbfSection::kStringTable, static_cast<uint64_t>(language));
   if (!language_block) {
     return "";
   }
@@ -88,22 +88,22 @@ XdbfBlock XdbfGameData::icon() const {
   return GetEntry(XdbfSection::kImage, kXdbfIdTitle);
 }
 
-XdbfLocale XdbfGameData::default_language() const {
+XLanguage XdbfGameData::default_language() const {
   auto block = GetEntry(XdbfSection::kMetadata, kXdbfIdXstc);
   if (!block.buffer) {
-    return XdbfLocale::kEnglish;
+    return XLanguage::kEnglish;
   }
   auto xstc = reinterpret_cast<const XdbfXstc*>(block.buffer);
   assert_true(xstc->magic == kXdbfMagicXstc);
-  return static_cast<XdbfLocale>(static_cast<uint32_t>(xstc->default_language));
+  return static_cast<XLanguage>(static_cast<uint32_t>(xstc->default_language));
 }
 
 std::string XdbfGameData::title() const {
   return GetStringTableEntry(default_language(), kXdbfIdTitle);
 }
 
-std::string XdbfGameData::title(XdbfLocale locale) const {
-  return GetStringTableEntry(locale, kXdbfIdTitle);
+std::string XdbfGameData::title(XLanguage language) const {
+  return GetStringTableEntry(language, kXdbfIdTitle);
 }
 
 }  // namespace util

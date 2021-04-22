@@ -28,9 +28,6 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-constexpr uint32_t X_LANGUAGE_ENGLISH = 1;
-constexpr uint32_t X_LANGUAGE_JAPANESE = 2;
-
 dword_result_t XamFeatureEnabled(dword_t unk) { return 0; }
 DECLARE_XAM_EXPORT1(XamFeatureEnabled, kNone, kStub);
 
@@ -208,19 +205,19 @@ dword_result_t XGetGameRegion() { return xeXGetGameRegion(); }
 DECLARE_XAM_EXPORT1(XGetGameRegion, kNone, kStub);
 
 dword_result_t XGetLanguage() {
-  uint32_t desired_language = X_LANGUAGE_ENGLISH;
+  auto desired_language = XLanguage::kEnglish;
 
   // Switch the language based on game region.
   // TODO(benvanik): pull from xex header.
   uint32_t game_region = XEX_REGION_NTSCU;
   if (game_region & XEX_REGION_NTSCU) {
-    desired_language = X_LANGUAGE_ENGLISH;
+    desired_language = XLanguage::kEnglish;
   } else if (game_region & XEX_REGION_NTSCJ) {
-    desired_language = X_LANGUAGE_JAPANESE;
+    desired_language = XLanguage::kJapanese;
   }
   // Add more overrides?
 
-  return desired_language;
+  return uint32_t(desired_language);
 }
 DECLARE_XAM_EXPORT1(XGetLanguage, kNone, kImplemented);
 
