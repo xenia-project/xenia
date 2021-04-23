@@ -277,10 +277,10 @@ uint32_t XmaDecoder::ReadRegister(uint32_t addr) {
     default: {
       const auto register_info = register_file_.GetRegisterInfo(r);
       if (register_info) {
-        XELOGE("XMA: Read from unhandled register ({:04X}, {})", r,
+        XELOGW("XMA: Read from unhandled register ({:04X}, {})", r,
                register_info->name);
       } else {
-        XELOGE("XMA: Read from unknown register ({:04X})", r);
+        XELOGW("XMA: Read from unknown register ({:04X})", r);
       }
       break;
     }
@@ -348,10 +348,10 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
       default: {
         const auto register_info = register_file_.GetRegisterInfo(r);
         if (register_info) {
-          XELOGE("XMA: Write to unhandled register ({:04X}, {}): {:08X}", r,
+          XELOGW("XMA: Write to unhandled register ({:04X}, {}): {:08X}", r,
                  register_info->name, value);
         } else {
-          XELOGE("XMA: Write to unknown register ({:04X}): {:08X}", r, value);
+          XELOGW("XMA: Write to unknown register ({:04X}): {:08X}", r, value);
         }
         break;
       }
