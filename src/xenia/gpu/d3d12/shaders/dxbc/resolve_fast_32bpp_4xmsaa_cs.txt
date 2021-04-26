@@ -70,15 +70,13 @@ else
     mov r4.y, l(0)
   endif 
 endif 
-ishl r2.xz, r2.xxyx, l(1, 0, 1, 0)
+ishl r2.xy, r2.xyxx, l(1, 1, 0, 0)
 ushr r4.x, r4.y, l(1)
-bfi r2.xz, l(4, 0, 1, 0), l(0, 0, 0, 0), r4.xxyx, r2.xxzx
-udiv r2.w, null, r2.x, l(80)
-ubfe r2.y, l(28), l(3), r2.y
-imad r3.x, r2.y, r3.x, r2.w
+bfi r2.xy, l(4, 1, 0, 0), l(0, 0, 0, 0), r4.xyxx, r2.xyxx
+udiv r2.zw, null, r2.xxxy, l(0, 0, 80, 16)
+imad r3.x, r2.w, r3.x, r2.z
 iadd r1.w, r1.w, r3.x
-ineg r4.xy, r2.wyww
-imad r2.xy, r4.xyxx, l(80, 16, 0, 0), r2.xzxx
+imad r2.xy, -r2.zwzz, l(80, 16, 0, 0), r2.xyxx
 if_nz r3.y
   uge r2.z, r2.x, l(40)
   movc r2.z, r2.z, l(-40), l(40)
@@ -219,4 +217,4 @@ if_nz r0.z
 endif 
 store_uav_typed U0[0].xyzw, r0.xxxx, r4.xyzw
 ret 
-// Approximately 174 instruction slots used
+// Approximately 172 instruction slots used

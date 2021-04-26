@@ -7,6 +7,8 @@
  ******************************************************************************
  */
 
+#include "xenia/base/assert.h"
+#include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 
 namespace xe {
@@ -100,40 +102,94 @@ void DxbcShaderTranslator::ExportToMemory() {
 
   // Safety check if the shared memory is bound as UAV.
   system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-  a_.OpAnd(dxbc::Dest::R(control_temp, 0b0001),
-           dxbc::Src::CB(cbuffer_index_system_constants_,
-                         uint32_t(CbufferRegister::kSystemConstants),
-                         kSysConst_Flags_Vec)
-               .Select(kSysConst_Flags_Comp),
-           dxbc::Src::LU(kSysFlag_SharedMemoryIsUAV));
+  a_.OpUBFE(dxbc::Dest::R(control_temp, 0b0001), dxbc::Src::LU(1),
+            dxbc::Src::LU(kSysFlag_SharedMemoryIsUAV_Shift),
+            dxbc::Src::CB(cbuffer_index_system_constants_,
+                          uint32_t(CbufferRegister::kSystemConstants),
+                          kSysConst_Flags_Vec)
+                .Select(kSysConst_Flags_Comp));
+  // Open the `if` with the uniform condition for the shared memory buffer being
+  // bound as a UAV (more fine-grained checks are vector and likely divergent).
+  a_.OpIf(true, dxbc::Src::R(control_temp, dxbc::Src::kXXXX));
+
+  // Check more fine-grained limitations.
+  // The flag in control_temp.x can be 0 or 1 for simplicity, not necessarily
+  // 0 or 0xFFFFFFFF.
+  bool inner_condition_provided = false;
   if (is_pixel_shader()) {
-    // Disable memexport in pixel shaders with supersampling since VPOS is
-    // ambiguous.
-    if (edram_rov_used_) {
-      system_constants_used_ |= 1ull
-                                << kSysConst_EdramResolutionSquareScale_Index;
-      a_.OpULT(dxbc::Dest::R(control_temp, 0b0010),
-               dxbc::Src::CB(cbuffer_index_system_constants_,
-                             uint32_t(CbufferRegister::kSystemConstants),
-                             kSysConst_EdramResolutionSquareScale_Vec)
-                   .Select(kSysConst_EdramResolutionSquareScale_Comp),
-               dxbc::Src::LU(2));
-      a_.OpAnd(dxbc::Dest::R(control_temp, 0b0001),
-               dxbc::Src::R(control_temp, dxbc::Src::kXXXX),
-               dxbc::Src::R(control_temp, dxbc::Src::kYYYY));
-    } else {
-      // Enough to check just Y because it's scaled for both 2x and 4x.
-      system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-      a_.OpMovC(dxbc::Dest::R(control_temp, 0b0001),
-                dxbc::Src::CB(cbuffer_index_system_constants_,
-                              uint32_t(CbufferRegister::kSystemConstants),
-                              kSysConst_SampleCountLog2_Vec)
-                    .Select(kSysConst_SampleCountLog2_Comp + 1),
-                dxbc::Src::LU(0), dxbc::Src::R(control_temp, dxbc::Src::kXXXX));
+    if (draw_resolution_scale_ > 1) {
+      // Only do memexport for one host pixel in a guest pixel.
+      // For 2x - (1, 1) because it's covered with half-pixel offset that
+      // becomes full-pixel.
+      // For 3x - also (1, 1) because it's still covered with half-pixel offset,
+      // but close to the center.
+      in_position_used_ |= 0b0011;
+      a_.OpFToU(
+          dxbc::Dest::R(control_temp, 0b0110),
+          dxbc::Src::V(uint32_t(InOutRegister::kPSInPosition), 0b0100 << 2));
+      switch (draw_resolution_scale_) {
+        case 2:
+          a_.OpAnd(dxbc::Dest::R(control_temp, 0b0110),
+                   dxbc::Src::R(control_temp), dxbc::Src::LU(1));
+          // No need to do IEq - already 1 for right / bottom, 0 for left / top.
+          break;
+        case 3:
+          // xy % 3 == 1.
+          for (uint32_t i = 1; i <= 2; ++i) {
+            a_.OpUMul(dxbc::Dest::R(control_temp, 0b1000), dxbc::Dest::Null(),
+                      dxbc::Src::R(control_temp).Select(i),
+                      dxbc::Src::LU(draw_util::kDivideScale3));
+            a_.OpUShR(dxbc::Dest::R(control_temp, 0b1000),
+                      dxbc::Src::R(control_temp, dxbc::Src::kWWWW),
+                      dxbc::Src::LU(draw_util::kDivideUpperShift3));
+            a_.OpIMAd(dxbc::Dest::R(control_temp, 1 << i),
+                      dxbc::Src::R(control_temp, dxbc::Src::kWWWW),
+                      dxbc::Src::LI(-3), dxbc::Src::R(control_temp).Select(i));
+          }
+          a_.OpIEq(dxbc::Dest::R(control_temp, 0b0110),
+                   dxbc::Src::R(control_temp), dxbc::Src::LU(1));
+          break;
+        default:
+          assert_unhandled_case(draw_resolution_scale_);
+      }
+      a_.OpAnd(dxbc::Dest::R(control_temp,
+                             inner_condition_provided ? 0b0010 : 0b0001),
+               dxbc::Src::R(control_temp, dxbc::Src::kYYYY),
+               dxbc::Src::R(control_temp, dxbc::Src::kZZZZ));
+      if (inner_condition_provided) {
+        // Merge with the previous condition in control_temp.x.
+        a_.OpAnd(dxbc::Dest::R(control_temp, 0b0001),
+                 dxbc::Src::R(control_temp, dxbc::Src::kXXXX),
+                 dxbc::Src::R(control_temp, dxbc::Src::kYYYY));
+      }
+      inner_condition_provided = true;
+    }
+    // With sample-rate shading (with float24 conversion), only do memexport
+    // from one sample (as the shader is invoked multiple times for a pixel),
+    // if SV_SampleIndex == firstbit_lo(SV_Coverage). For zero coverage,
+    // firstbit_lo returns 0xFFFFFFFF.
+    if (IsSampleRate()) {
+      a_.OpFirstBitLo(dxbc::Dest::R(control_temp, 0b0010),
+                      dxbc::Src::VCoverage());
+      a_.OpIEq(
+          dxbc::Dest::R(control_temp,
+                        inner_condition_provided ? 0b0010 : 0b0001),
+          dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
+                       dxbc::Src::kYYYY),
+          dxbc::Src::R(control_temp, dxbc::Src::kYYYY));
+      if (inner_condition_provided) {
+        // Merge with the previous condition in control_temp.x.
+        a_.OpAnd(dxbc::Dest::R(control_temp, 0b0001),
+                 dxbc::Src::R(control_temp, dxbc::Src::kXXXX),
+                 dxbc::Src::R(control_temp, dxbc::Src::kYYYY));
+      }
+      inner_condition_provided = true;
     }
   }
-  // Check if memexport can be done.
-  a_.OpIf(true, dxbc::Src::R(control_temp, dxbc::Src::kXXXX));
+  // Open the inner (vector) conditional if needed.
+  if (inner_condition_provided) {
+    a_.OpIf(true, dxbc::Src::R(control_temp, dxbc::Src::kXXXX));
+  }
   // control_temp.x is now free.
 
   for (uint32_t i = 0; i < Shader::kMaxMemExports; ++i) {
@@ -462,7 +518,12 @@ void DxbcShaderTranslator::ExportToMemory() {
     // control_temp.y is now free.
   }
 
-  // Close the memexport possibility check.
+  // Close the inner memexport possibility conditional.
+  if (inner_condition_provided) {
+    a_.OpEndIf();
+  }
+
+  // Close the outer memexport possibility conditional.
   a_.OpEndIf();
 
   // Release control_temp.

@@ -67,17 +67,14 @@ ishl r1.xy, r1.xyxx, r1.zwzz
 ushr r4.x, r4.y, l(1)
 and r1.zw, r4.xxxy, l(0, 0, 1, 1)
 iadd r1.xy, r1.zwzz, r1.xyxx
-udiv r0.w, null, r1.x, l(80)
-ushr r1.z, r1.y, l(4)
-movc r1.w, r3.z, l(1), l(0)
-ishl r3.y, r0.w, r1.w
-imad r3.y, r1.z, r2.x, r3.y
+udiv r1.zw, null, r1.xxxy, l(0, 0, 80, 16)
+movc r0.w, r3.z, l(1), l(0)
+ishl r3.y, r1.z, r0.w
+imad r3.y, r1.w, r2.x, r3.y
 iadd r3.x, r3.y, r3.x
-ineg r4.x, r0.w
-ineg r4.y, r1.z
-imad r1.xy, r4.xyxx, l(80, 16, 0, 0), r1.xyxx
-imad r0.w, r1.y, l(80), r1.x
-ishl r0.w, r0.w, r1.w
+imad r1.xy, -r1.zwzz, l(80, 16, 0, 0), r1.xyxx
+imad r1.x, r1.y, l(80), r1.x
+ishl r0.w, r1.x, r0.w
 imad r0.w, r3.x, l(1280), r0.w
 ld r1.xyzw, r0.wwww, T0[0].xzyw
 if_nz r3.z
@@ -1279,4 +1276,4 @@ if_nz r0.z
 endif 
 store_uav_typed U0[0].xyzw, r0.xxxx, r1.zywx
 ret 
-// Approximately 1235 instruction slots used
+// Approximately 1232 instruction slots used

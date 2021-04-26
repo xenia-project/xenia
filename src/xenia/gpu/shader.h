@@ -836,6 +836,9 @@ class Shader {
   const std::set<uint32_t>& memexport_stream_constants() const {
     return memexport_stream_constants_;
   }
+  bool is_valid_memexport_used() const {
+    return !memexport_stream_constants_.empty();
+  }
 
   // Labels that jumps (explicit or from loops) can be done to.
   const std::set<uint32_t>& label_addresses() const { return label_addresses_; }
@@ -892,8 +895,7 @@ class Shader {
     // TODO(Triang3l): Investigate what happens to memexport when the pixel
     // fails the depth/stencil test, but in Direct3D 11 UAV writes disable early
     // depth/stencil.
-    return !kills_pixels() && !writes_depth() &&
-           memexport_stream_constants().empty();
+    return !kills_pixels() && !writes_depth() && !is_valid_memexport_used();
   }
 
   // Whether each color render target is written to on any execution path.

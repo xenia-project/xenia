@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
@@ -115,8 +116,8 @@ int shader_compiler_main(const std::vector<std::string>& args) {
   } else if (cvars::shader_output_type == "dxbc" ||
              cvars::shader_output_type == "dxbctext") {
     translator = std::make_unique<DxbcShaderTranslator>(
-        0, cvars::shader_output_bindless_resources,
-        cvars::shader_output_dxbc_rov);
+        ui::GraphicsProvider::GpuVendorID(0),
+        cvars::shader_output_bindless_resources, cvars::shader_output_dxbc_rov);
   } else {
     // Just output microcode disassembly generated during microcode information
     // gathering.
@@ -152,8 +153,19 @@ int shader_compiler_main(const std::vector<std::string>& args) {
           Shader::HostVertexShaderType::kQuadDomainPatchIndexed;
     }
   }
-  uint64_t modification = translator->GetDefaultModification(
-      shader_type, 64, host_vertex_shader_type);
+  uint64_t modification;
+  switch (shader_type) {
+    case xenos::ShaderType::kVertex:
+      modification = translator->GetDefaultVertexShaderModification(
+          64, host_vertex_shader_type);
+      break;
+    case xenos::ShaderType::kPixel:
+      modification = translator->GetDefaultPixelShaderModification(64);
+      break;
+    default:
+      assert_unhandled_case(shader_type);
+      return 1;
+  }
 
   Shader::Translation* translation =
       shader->GetOrCreateTranslation(modification);

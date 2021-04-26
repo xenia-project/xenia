@@ -300,14 +300,38 @@ constexpr bool IsColorRenderTargetFormat64bpp(ColorRenderTargetFormat format) {
 inline uint32_t GetColorRenderTargetFormatComponentCount(
     ColorRenderTargetFormat format) {
   switch (format) {
-    case ColorRenderTargetFormat::k_32_FLOAT:
-      return 1;
+    case ColorRenderTargetFormat::k_8_8_8_8:
+    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+    case ColorRenderTargetFormat::k_2_10_10_10:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case ColorRenderTargetFormat::k_16_16_16_16:
+    case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+      return 4;
     case ColorRenderTargetFormat::k_16_16:
     case ColorRenderTargetFormat::k_16_16_FLOAT:
     case ColorRenderTargetFormat::k_32_32_FLOAT:
       return 2;
+    case ColorRenderTargetFormat::k_32_FLOAT:
+      return 1;
     default:
-      return 4;
+      assert_unhandled_case(format);
+      return 0;
+  }
+}
+
+// Returns the version of the format with the same packing and meaning of values
+// stored in it, but without blending precision modifiers.
+constexpr ColorRenderTargetFormat GetStorageColorFormat(
+    ColorRenderTargetFormat format) {
+  switch (format) {
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
+      return ColorRenderTargetFormat::k_2_10_10_10;
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+      return ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
+    default:
+      return format;
   }
 }
 
@@ -319,12 +343,26 @@ enum class DepthRenderTargetFormat : uint32_t {
 
 const char* GetDepthRenderTargetFormatName(DepthRenderTargetFormat format);
 
+// Converts Xenos floating-point 7e3 color value in bits 0:9 (not clamping) to
+// an IEEE-754 32-bit floating-point number.
+float Float7e3To32(uint32_t f10);
+// Converts 24-bit unorm depth in the value (not clamping) to an IEEE-754 32-bit
+// floating-point number.
 // Converts an IEEE-754 32-bit floating-point number to Xenos floating-point
 // depth, rounding to the nearest even.
 uint32_t Float32To20e4(float f32);
 // Converts Xenos floating-point depth in bits 0:23 (not clamping) to an
 // IEEE-754 32-bit floating-point number.
 float Float20e4To32(uint32_t f24);
+// Converts 24-bit unorm depth in the value (not clamping) to an IEEE-754 32-bit
+// floating-point number.
+constexpr float UNorm24To32(uint32_t n24) {
+  // Not 1.0f / 16777215.0f as that gives an incorrect result (like for a very
+  // common 0xC00000 which clears 2_10_10_10 to 0001). Division by 2^24 is just
+  // an exponent shift though, thus exact.
+  // Division by 16777215.0f behaves this way.
+  return float(n24 + (n24 >> 23)) * (1.0f / float(1 << 24));
+}
 
 constexpr uint32_t kColorRenderTargetFormatBits = 4;
 constexpr uint32_t kDepthRenderTargetFormatBits = 1;
@@ -343,8 +381,9 @@ constexpr uint32_t kEdramPitchPixelsBits = 14;
 // Xbox 360 only 11 make sense, but to avoid bounds checks).
 constexpr uint32_t kEdramBaseTilesBits = 12;
 
-inline uint32_t GetSurfacePitchTiles(uint32_t pitch_pixels,
-                                     MsaaSamples msaa_samples, bool is_64bpp) {
+constexpr uint32_t GetSurfacePitchTiles(uint32_t pitch_pixels,
+                                        MsaaSamples msaa_samples,
+                                        bool is_64bpp) {
   uint32_t pitch_samples = pitch_pixels
                            << uint32_t(msaa_samples >= MsaaSamples::k4X);
   uint32_t pitch_tiles =
@@ -361,25 +400,6 @@ inline uint32_t GetSurfacePitchTiles(uint32_t pitch_pixels,
 // log2_ceil of 16383, multiplied by 2 for 4x MSAA, rounded to 80 samples,
 // multiplied by 2 for 64bpp.
 constexpr uint32_t kEdramPitchTilesBits = 10;
-
-// Returns the maximum height of a render target, in pixels, that may fit in the
-// EDRAM starting from the specified base address, until the end of the EDRAM or
-// the specified tile (for instance, until the next render target).
-inline uint32_t GetMaxRenderTargetHeight(
-    uint32_t base_tiles, uint32_t pitch_pixels, MsaaSamples msaa_samples,
-    bool is_64bpp, uint32_t until_tile = kEdramTileCount) {
-  if (base_tiles >= until_tile) {
-    return 0;
-  }
-  uint32_t pitch_tiles =
-      GetSurfacePitchTiles(pitch_pixels, msaa_samples, is_64bpp);
-  if (!pitch_tiles) {
-    return 0;
-  }
-  return ((until_tile - base_tiles) / pitch_tiles) *
-         (kEdramTileHeightSamples >>
-          uint32_t(msaa_samples >= MsaaSamples::k2X));
-}
 
 constexpr uint32_t kFormatBits = 6;
 

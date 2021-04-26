@@ -70,20 +70,17 @@ else
     mov r4.y, l(0)
   endif 
 endif 
-ishl r2.xz, r2.xxyx, l(1, 0, 1, 0)
+ishl r2.xy, r2.xyxx, l(1, 1, 0, 0)
 ushr r4.x, r4.y, l(1)
-bfi r2.xz, l(3, 0, 1, 0), l(0, 0, 0, 0), r4.xxyx, r2.xxzx
-udiv r1.y, null, r2.x, l(80)
-ubfe r2.y, l(28), l(3), r2.y
-ishl r2.w, r1.y, l(1)
-imad r2.w, r2.y, r3.x, r2.w
-iadd r1.w, r1.w, r2.w
-ineg r4.x, r1.y
-ineg r4.y, r2.y
-imad r2.xy, r4.xyxx, l(80, 16, 0, 0), r2.xzxx
-imad r1.y, r2.y, l(80), r2.x
-ishl r1.y, r1.y, l(1)
-imad r1.y, r1.w, l(1280), r1.y
+bfi r2.xy, l(3, 1, 0, 0), l(0, 0, 0, 0), r4.xyxx, r2.xyxx
+udiv r2.zw, null, r2.xxxy, l(0, 0, 80, 16)
+ishl r1.y, r2.z, l(1)
+imad r1.y, r2.w, r3.x, r1.y
+iadd r1.y, r1.y, r1.w
+imad r2.xy, -r2.zwzz, l(80, 16, 0, 0), r2.xyxx
+imad r1.w, r2.y, l(80), r2.x
+ishl r1.w, r1.w, l(1)
+imad r1.y, r1.y, l(1280), r1.w
 ushr r1.y, r1.y, l(1)
 ld r2.xy, r1.yyyy, T0[0].xywz
 iadd r4.xyz, r1.yyyy, l(2, 4, 6, 0)
@@ -91,7 +88,7 @@ ld r2.zw, r4.xxxx, T0[0].zwyx
 ld r5.xy, r4.yyyy, T0[0].xywz
 ld r5.zw, r4.zzzz, T0[0].zwyx
 if_nz r3.y
-  ubfe r1.y, l(6), l(7), CB0[0][0].z
+  ubfe r1.y, l(4), l(25), CB0[0][0].x
   ieq r1.yw, r1.yyyy, l(0, 5, 0, 7)
   or r1.y, r1.w, r1.y
   if_nz r1.y
@@ -201,4 +198,4 @@ if_nz r0.z
 endif 
 store_uav_typed U0[0].xyzw, r0.xxxx, r5.xywz
 ret 
-// Approximately 156 instruction slots used
+// Approximately 153 instruction slots used

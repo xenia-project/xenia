@@ -41,15 +41,16 @@ dcl_globalFlags refactoringAllowed
 dcl_input_ps_siv linear noperspective sample v18.z, position
 dcl_output oDepthLE
 dcl_temps 1
-mov_sat [precise(x)] r0.x, v18.z
+mul_sat [precise(x)] r0.x, v18.z, l(2.000000)
 uge [precise(y)] r0.y, r0.x, l(0x2e800000)
 if_nz r0.y
   ubfe [precise(y)] r0.y, l(8), l(23), r0.x
   iadd [precise(y)] r0.y, -r0.y, l(116)
   imax [precise(y)] r0.y, r0.y, l(3)
-  bfi [precise(x)] oDepthLE, r0.y, l(0), l(0), r0.x
+  bfi [precise(x)] r0.x, r0.y, l(0), l(0), r0.x
 else 
-  mov [precise(x)] oDepthLE, l(0)
+  mov [precise(x)] r0.x, l(0)
 endif 
+mul [precise(x)] oDepthLE, r0.x, l(0.500000)
 ret 
-// Approximately 11 instruction slots used
+// Approximately 12 instruction slots used

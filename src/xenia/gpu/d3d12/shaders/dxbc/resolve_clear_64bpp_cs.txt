@@ -58,13 +58,11 @@ mov r1.y, vThreadID.y
 iadd r0.xy, r0.xyxx, r1.xyxx
 ubfe r0.z, l(12), l(13), CB0[0][0].z
 and r0.w, CB0[0][0].z, l(1023)
-udiv r1.x, null, r0.x, l(80)
-ushr r1.y, r0.y, l(4)
+udiv r1.xy, null, r0.xyxx, l(80, 16, 0, 0)
 ishl r1.z, r1.x, l(1)
 imad r0.w, r1.y, r0.w, r1.z
 iadd r0.z, r0.w, r0.z
-ineg r2.xy, r1.xyxx
-imad r0.xy, r2.xyxx, l(80, 16, 0, 0), r0.xyxx
+imad r0.xy, -r1.xyxx, l(80, 16, 0, 0), r0.xyxx
 imad r0.x, r0.y, l(80), r0.x
 ishl r0.x, r0.x, l(1)
 imad r0.x, r0.z, l(1280), r0.x
@@ -76,4 +74,4 @@ iadd r0.y, r0.x, l(2)
 store_uav_typed U0[0].xyzw, r0.yyyy, CB0[0][0].xyxy
 store_uav_typed U0[0].xyzw, r0.zzzz, CB0[0][0].xyxy
 ret 
-// Approximately 35 instruction slots used
+// Approximately 33 instruction slots used

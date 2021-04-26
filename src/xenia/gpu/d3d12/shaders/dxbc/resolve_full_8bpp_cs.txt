@@ -43,7 +43,7 @@ dcl_constantbuffer CB0[0:0][2], immediateIndexed, space=0
 dcl_resource_raw T0[0:0], space=0
 dcl_uav_typed_buffer (uint,uint,uint,uint) U0[0:0], space=0
 dcl_input vThreadID.xy
-dcl_temps 16
+dcl_temps 17
 dcl_thread_group 8, 8, 1
 ubfe r0.x, l(11), l(7), CB0[0][0].y
 uge r0.x, vThreadID.x, r0.x
@@ -75,684 +75,530 @@ ishl r2.xy, r2.xyxx, r2.zwzz
 ushr r5.x, r5.y, l(1)
 and r5.xy, r5.xyxx, l(1, 1, 0, 0)
 iadd r2.xy, r2.xyxx, r5.xyxx
-udiv r1.w, null, r2.x, l(80)
-ushr r2.w, r2.y, l(4)
-movc r4.y, r4.z, l(1), l(0)
-ishl r5.x, r1.w, r4.y
-imad r5.x, r2.w, r3.x, r5.x
-iadd r4.x, r4.x, r5.x
-ineg r5.x, r1.w
-ineg r5.y, r2.w
-imad r2.xy, r5.xyxx, l(80, 16, 0, 0), r2.xyxx
-imad r1.w, r2.y, l(80), r2.x
-ishl r1.w, r1.w, r4.y
-imad r1.w, r4.x, l(1280), r1.w
+udiv r5.xy, null, r2.xyxx, l(80, 16, 0, 0)
+movc r1.w, r4.z, l(1), l(0)
+ishl r2.w, r5.x, r1.w
+imad r2.w, r5.y, r3.x, r2.w
+iadd r2.w, r2.w, r4.x
+imad r2.xy, -r5.xyxx, l(80, 16, 0, 0), r2.xyxx
+imad r2.x, r2.y, l(80), r2.x
+ishl r1.w, r2.x, r1.w
+imad r1.w, r2.w, l(1280), r1.w
 iadd r2.x, r2.z, r4.z
 ishl r2.y, l(4), r2.x
 ishl r1.w, r1.w, l(2)
+ine r2.z, r3.y, l(0)
+ine r2.w, r4.z, l(0)
+and r2.z, r2.z, r2.w
+if_nz r2.z
+  iadd r1.w, r1.w, l(4)
+endif 
+ieq r2.z, r2.y, l(4)
+if_nz r2.z
+  ld_raw r5.xyzw, r1.w, T0[0].xyzw
+  iadd r2.w, r1.w, l(16)
+  ld_raw r6.xyzw, r2.w, T0[0].xyzw
+else 
+  ld_raw r5.x, r1.w, T0[0].xxxx
+  iadd r2.w, r2.y, r1.w
+  ld_raw r5.y, r2.w, T0[0].xxxx
+  ishl r7.xyzw, l(8, 12, 16, 20), r2.xxxx
+  iadd r7.xyzw, r1.wwww, r7.xyzw
+  ld_raw r5.z, r7.x, T0[0].xxxx
+  ld_raw r5.w, r7.y, T0[0].xxxx
+  ld_raw r6.x, r7.z, T0[0].xxxx
+  ld_raw r6.y, r7.w, T0[0].xxxx
+  ishl r4.xy, l(24, 28, 0, 0), r2.xxxx
+  iadd r4.xy, r1.wwww, r4.xyxx
+  ld_raw r6.z, r4.x, T0[0].xxxx
+  ld_raw r6.w, r4.y, T0[0].xxxx
+endif 
 if_nz r4.z
-  ieq r2.z, r2.y, l(8)
-  if_nz r2.z
-    ld_raw r5.xyzw, r1.w, T0[0].ywxz
-    iadd r2.z, r1.w, l(16)
-    ld_raw r6.xyzw, r2.z, T0[0].xyzw
-    iadd r2.zw, r1.wwww, l(0, 0, 32, 48)
-    ld_raw r7.xyzw, r2.z, T0[0].ywxz
-    ld_raw r8.xyzw, r2.w, T0[0].xyzw
-    mov r11.xy, r5.zwzz
-    mov r11.zw, r6.xxxz
-    mov r5.zw, r6.yyyw
-    mov r6.xy, r7.zwzz
-    mov r6.zw, r8.xxxz
-    mov r7.zw, r8.yyyw
-  else 
-    ld_raw r5.xz, r1.w, T0[0].yxxx
-    iadd r2.z, r2.y, r1.w
-    ld_raw r5.yw, r2.z, T0[0].xyxx
-    ishl r9.xyzw, l(8, 12, 16, 20), r2.xxxx
-    iadd r9.xyzw, r1.wwww, r9.xyzw
-    ld_raw r10.xy, r9.x, T0[0].xyxx
-    ld_raw r10.zw, r9.y, T0[0].xxxy
-    ld_raw r7.xz, r9.z, T0[0].yxxx
-    ld_raw r7.yw, r9.w, T0[0].xyxx
-    ishl r2.zw, l(0, 0, 24, 28), r2.xxxx
-    iadd r2.zw, r1.wwww, r2.zzzw
-    ld_raw r9.xy, r2.z, T0[0].xyxx
-    ld_raw r9.zw, r2.w, T0[0].xxxy
-    mov r11.xy, r5.zwzz
-    mov r11.zw, r10.xxxz
-    mov r5.zw, r10.yyyw
-    mov r6.xy, r7.zwzz
-    mov r6.zw, r9.xxxz
-    mov r7.zw, r9.yyyw
-  endif 
   switch r4.w
     case l(5)
-    movc r8.xyzw, r3.yyyy, r5.xyzw, r11.xyzw
-    ibfe r8.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r8.xyzw
-    itof r8.xyzw, r8.xyzw
-    mul r8.xyzw, r8.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-    max r11.xyzw, r8.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
-    movc r8.xyzw, r3.yyyy, r7.xyzw, r6.xyzw
-    ibfe r8.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r8.xyzw
-    itof r8.xyzw, r8.xyzw
-    mul r8.xyzw, r8.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-    max r6.xyzw, r8.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+    ibfe r7.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r5.xyzw
+    itof r7.xyzw, r7.xyzw
+    mul r7.xyzw, r7.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+    max r5.xyzw, r7.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+    ibfe r7.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r6.xyzw
+    itof r7.xyzw, r7.xyzw
+    mul r7.xyzw, r7.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+    max r6.xyzw, r7.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
     break 
     case l(7)
-    movc r5.xyzw, r3.yyyy, r5.xyzw, r11.xyzw
-    f16tof32 r11.xyzw, r5.xyzw
-    movc r5.xyzw, r3.yyyy, r7.xyzw, r6.xyzw
-    f16tof32 r6.xyzw, r5.xyzw
+    f16tof32 r5.xyzw, r5.xyzw
+    f16tof32 r6.xyzw, r6.xyzw
     break 
     default 
     break 
   endswitch 
 else 
-  ieq r2.z, r2.y, l(4)
-  if_nz r2.z
-    ld_raw r11.xyzw, r1.w, T0[0].xyzw
-    iadd r2.z, r1.w, l(16)
-    ld_raw r6.xyzw, r2.z, T0[0].xyzw
-  else 
-    ld_raw r11.x, r1.w, T0[0].xxxx
-    iadd r2.z, r2.y, r1.w
-    ld_raw r11.y, r2.z, T0[0].xxxx
-    ishl r5.xyzw, l(8, 12, 16, 20), r2.xxxx
-    iadd r5.xyzw, r1.wwww, r5.xyzw
-    ld_raw r11.z, r5.x, T0[0].xxxx
-    ld_raw r11.w, r5.y, T0[0].xxxx
-    ld_raw r6.x, r5.z, T0[0].xxxx
-    ld_raw r6.y, r5.w, T0[0].xxxx
-    ishl r2.zw, l(0, 0, 24, 28), r2.xxxx
-    iadd r2.zw, r1.wwww, r2.zzzw
-    ld_raw r6.z, r2.z, T0[0].xxxx
-    ld_raw r6.w, r2.w, T0[0].xxxx
-  endif 
   switch r4.w
     case l(0)
     case l(1)
-    movc r2.z, r3.y, l(16), l(0)
-    ushr r5.xyzw, r11.xyzw, r2.zzzz
-    and r5.xyzw, r5.xyzw, l(255, 255, 255, 255)
-    utof r5.xyzw, r5.xyzw
-    mul r11.xyzw, r5.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
-    ushr r5.xyzw, r6.xyzw, r2.zzzz
-    and r5.xyzw, r5.xyzw, l(255, 255, 255, 255)
-    utof r5.xyzw, r5.xyzw
-    mul r6.xyzw, r5.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
+    movc r2.w, r3.y, l(16), l(0)
+    ushr r7.xyzw, r5.xyzw, r2.wwww
+    and r7.xyzw, r7.xyzw, l(255, 255, 255, 255)
+    utof r7.xyzw, r7.xyzw
+    mul r5.xyzw, r7.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
+    ushr r7.xyzw, r6.xyzw, r2.wwww
+    and r7.xyzw, r7.xyzw, l(255, 255, 255, 255)
+    utof r7.xyzw, r7.xyzw
+    mul r6.xyzw, r7.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
     break 
     case l(2)
     case l(10)
-    movc r2.z, r3.y, l(20), l(0)
-    ushr r5.xyzw, r11.xyzw, r2.zzzz
-    and r5.xyzw, r5.xyzw, l(1023, 1023, 1023, 1023)
-    utof r5.xyzw, r5.xyzw
-    mul r11.xyzw, r5.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
-    ushr r5.xyzw, r6.xyzw, r2.zzzz
-    and r5.xyzw, r5.xyzw, l(1023, 1023, 1023, 1023)
-    utof r5.xyzw, r5.xyzw
-    mul r6.xyzw, r5.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
+    movc r2.w, r3.y, l(20), l(0)
+    ushr r7.xyzw, r5.xyzw, r2.wwww
+    and r7.xyzw, r7.xyzw, l(1023, 1023, 1023, 1023)
+    utof r7.xyzw, r7.xyzw
+    mul r5.xyzw, r7.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
+    ushr r7.xyzw, r6.xyzw, r2.wwww
+    and r7.xyzw, r7.xyzw, l(1023, 1023, 1023, 1023)
+    utof r7.xyzw, r7.xyzw
+    mul r6.xyzw, r7.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
     break 
     case l(3)
     case l(12)
-    movc r2.z, r3.y, l(20), l(0)
-    ushr r5.xyzw, r11.xyzw, r2.zzzz
-    and r7.xyzw, r5.xyzw, l(1023, 1023, 1023, 1023)
-    and r8.xyzw, r5.xyzw, l(127, 127, 127, 127)
-    ubfe r9.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r5.xyzw
-    firstbit_hi r10.xyzw, r8.xyzw
-    iadd r10.xyzw, r10.xyzw, l(-24, -24, -24, -24)
-    movc r10.xyzw, r8.xyzw, r10.xyzw, l(8,8,8,8)
-    iadd r12.xyzw, -r10.xyzw, l(1, 1, 1, 1)
-    movc r12.xyzw, r9.xyzw, r9.xyzw, r12.xyzw
-    bfi r5.xyzw, l(7, 7, 7, 7), r10.xyzw, r5.xyzw, l(0, 0, 0, 0)
-    and r5.xyzw, r5.xyzw, l(127, 127, 127, 127)
-    movc r5.xyzw, r9.xyzw, r8.xyzw, r5.xyzw
-    ishl r8.xyzw, r12.xyzw, l(23, 23, 23, 23)
-    iadd r8.xyzw, r8.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
-    ishl r5.xyzw, r5.xyzw, l(16, 16, 16, 16)
-    iadd r5.xyzw, r8.xyzw, r5.xyzw
-    movc r11.xyzw, r7.xyzw, r5.xyzw, l(0,0,0,0)
-    ushr r5.xyzw, r6.xyzw, r2.zzzz
-    and r7.xyzw, r5.xyzw, l(1023, 1023, 1023, 1023)
-    and r8.xyzw, r5.xyzw, l(127, 127, 127, 127)
-    ubfe r9.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r5.xyzw
-    firstbit_hi r10.xyzw, r8.xyzw
-    iadd r10.xyzw, r10.xyzw, l(-24, -24, -24, -24)
-    movc r10.xyzw, r8.xyzw, r10.xyzw, l(8,8,8,8)
-    iadd r12.xyzw, -r10.xyzw, l(1, 1, 1, 1)
-    movc r12.xyzw, r9.xyzw, r9.xyzw, r12.xyzw
-    bfi r5.xyzw, l(7, 7, 7, 7), r10.xyzw, r5.xyzw, l(0, 0, 0, 0)
-    and r5.xyzw, r5.xyzw, l(127, 127, 127, 127)
-    movc r5.xyzw, r9.xyzw, r8.xyzw, r5.xyzw
-    ishl r8.xyzw, r12.xyzw, l(23, 23, 23, 23)
-    iadd r8.xyzw, r8.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
-    ishl r5.xyzw, r5.xyzw, l(16, 16, 16, 16)
-    iadd r5.xyzw, r8.xyzw, r5.xyzw
-    movc r6.xyzw, r7.xyzw, r5.xyzw, l(0,0,0,0)
+    movc r2.w, r3.y, l(20), l(0)
+    ushr r7.xyzw, r5.xyzw, r2.wwww
+    and r8.xyzw, r7.xyzw, l(1023, 1023, 1023, 1023)
+    and r9.xyzw, r7.xyzw, l(127, 127, 127, 127)
+    ubfe r10.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r7.xyzw
+    firstbit_hi r11.xyzw, r9.xyzw
+    iadd r11.xyzw, r11.xyzw, l(-24, -24, -24, -24)
+    movc r11.xyzw, r9.xyzw, r11.xyzw, l(8,8,8,8)
+    iadd r12.xyzw, -r11.xyzw, l(1, 1, 1, 1)
+    movc r12.xyzw, r10.xyzw, r10.xyzw, r12.xyzw
+    bfi r7.xyzw, l(7, 7, 7, 7), r11.xyzw, r7.xyzw, l(0, 0, 0, 0)
+    and r7.xyzw, r7.xyzw, l(127, 127, 127, 127)
+    movc r7.xyzw, r10.xyzw, r9.xyzw, r7.xyzw
+    ishl r9.xyzw, r12.xyzw, l(23, 23, 23, 23)
+    iadd r9.xyzw, r9.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
+    ishl r7.xyzw, r7.xyzw, l(16, 16, 16, 16)
+    iadd r7.xyzw, r9.xyzw, r7.xyzw
+    movc r5.xyzw, r8.xyzw, r7.xyzw, l(0,0,0,0)
+    ushr r7.xyzw, r6.xyzw, r2.wwww
+    and r8.xyzw, r7.xyzw, l(1023, 1023, 1023, 1023)
+    and r9.xyzw, r7.xyzw, l(127, 127, 127, 127)
+    ubfe r10.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r7.xyzw
+    firstbit_hi r11.xyzw, r9.xyzw
+    iadd r11.xyzw, r11.xyzw, l(-24, -24, -24, -24)
+    movc r11.xyzw, r9.xyzw, r11.xyzw, l(8,8,8,8)
+    iadd r12.xyzw, -r11.xyzw, l(1, 1, 1, 1)
+    movc r12.xyzw, r10.xyzw, r10.xyzw, r12.xyzw
+    bfi r7.xyzw, l(7, 7, 7, 7), r11.xyzw, r7.xyzw, l(0, 0, 0, 0)
+    and r7.xyzw, r7.xyzw, l(127, 127, 127, 127)
+    movc r7.xyzw, r10.xyzw, r9.xyzw, r7.xyzw
+    ishl r9.xyzw, r12.xyzw, l(23, 23, 23, 23)
+    iadd r9.xyzw, r9.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
+    ishl r7.xyzw, r7.xyzw, l(16, 16, 16, 16)
+    iadd r7.xyzw, r9.xyzw, r7.xyzw
+    movc r6.xyzw, r8.xyzw, r7.xyzw, l(0,0,0,0)
     break 
     case l(4)
-    ibfe r5.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r11.xyzw
-    itof r5.xyzw, r5.xyzw
-    mul r5.xyzw, r5.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-    max r11.xyzw, r5.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
-    ibfe r5.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r6.xyzw
-    itof r5.xyzw, r5.xyzw
-    mul r5.xyzw, r5.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-    max r6.xyzw, r5.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+    ibfe r7.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r5.xyzw
+    itof r7.xyzw, r7.xyzw
+    mul r7.xyzw, r7.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+    max r5.xyzw, r7.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+    ibfe r7.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r6.xyzw
+    itof r7.xyzw, r7.xyzw
+    mul r7.xyzw, r7.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+    max r6.xyzw, r7.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
     break 
     case l(6)
-    f16tof32 r11.xyzw, r11.xyzw
+    f16tof32 r5.xyzw, r5.xyzw
     f16tof32 r6.xyzw, r6.xyzw
     break 
     default 
     break 
   endswitch 
 endif 
-ibfe r2.z, l(6), l(16), CB0[0][0].z
-ishl r2.z, r2.z, l(23)
-iadd r2.z, r2.z, l(0x3f800000)
-uge r2.w, r1.y, l(4)
-if_nz r2.w
-  mul r2.w, r2.z, l(0.500000)
-  ishl r4.x, l(320), r4.z
-  iadd r4.x, r1.w, r4.x
+ibfe r2.w, l(6), l(16), CB0[0][0].z
+ishl r2.w, r2.w, l(23)
+iadd r2.w, r2.w, l(0x3f800000)
+uge r4.x, r1.y, l(4)
+if_nz r4.x
+  mul r4.x, r2.w, l(0.500000)
+  ishl r4.y, l(320), r4.z
+  iadd r4.y, r1.w, r4.y
+  if_nz r2.z
+    ld_raw r7.xyzw, r4.y, T0[0].xyzw
+    iadd r8.x, r4.y, l(16)
+    ld_raw r8.xyzw, r8.x, T0[0].xyzw
+  else 
+    ld_raw r7.x, r4.y, T0[0].xxxx
+    iadd r9.x, r2.y, r4.y
+    ld_raw r7.y, r9.x, T0[0].xxxx
+    ishl r9.xyzw, l(8, 12, 16, 20), r2.xxxx
+    iadd r9.xyzw, r4.yyyy, r9.xyzw
+    ld_raw r7.z, r9.x, T0[0].xxxx
+    ld_raw r7.w, r9.y, T0[0].xxxx
+    ld_raw r8.x, r9.z, T0[0].xxxx
+    ld_raw r8.y, r9.w, T0[0].xxxx
+    ishl r9.xy, l(24, 28, 0, 0), r2.xxxx
+    iadd r9.xy, r4.yyyy, r9.xyxx
+    ld_raw r8.z, r9.x, T0[0].xxxx
+    ld_raw r8.w, r9.y, T0[0].xxxx
+  endif 
   if_nz r4.z
-    ieq r4.y, r2.y, l(8)
-    if_nz r4.y
-      ld_raw r5.xyzw, r4.x, T0[0].ywxz
-      iadd r4.y, r4.x, l(16)
-      ld_raw r7.xyzw, r4.y, T0[0].xyzw
-      iadd r8.xy, r4.xxxx, l(32, 48, 0, 0)
-      ld_raw r9.xyzw, r8.x, T0[0].ywxz
-      ld_raw r8.xyzw, r8.y, T0[0].xyzw
-      mov r10.xy, r5.zwzz
-      mov r10.zw, r7.xxxz
-      mov r5.zw, r7.yyyw
-      mov r7.xy, r9.zwzz
-      mov r7.zw, r8.xxxz
-      mov r9.zw, r8.yyyw
-    else 
-      ld_raw r5.xz, r4.x, T0[0].yxxx
-      iadd r4.y, r2.y, r4.x
-      ld_raw r5.yw, r4.y, T0[0].xyxx
-      ishl r10.xyzw, l(8, 12, 16, 20), r2.xxxx
-      iadd r10.xyzw, r4.xxxx, r10.xyzw
-      ld_raw r12.xy, r10.x, T0[0].xyxx
-      ld_raw r12.zw, r10.y, T0[0].xxxy
-      ld_raw r9.xz, r10.z, T0[0].yxxx
-      ld_raw r9.yw, r10.w, T0[0].xyxx
-      ishl r10.xy, l(24, 28, 0, 0), r2.xxxx
-      iadd r10.xy, r4.xxxx, r10.xyxx
-      ld_raw r13.xy, r10.x, T0[0].xyxx
-      ld_raw r13.zw, r10.y, T0[0].xxxy
-      mov r10.xy, r5.zwzz
-      mov r10.zw, r12.xxxz
-      mov r5.zw, r12.yyyw
-      mov r7.xy, r9.zwzz
-      mov r7.zw, r13.xxxz
-      mov r9.zw, r13.yyyw
-    endif 
     switch r4.w
       case l(5)
-      movc r8.xyzw, r3.yyyy, r5.xyzw, r10.xyzw
-      ibfe r8.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r8.xyzw
-      itof r8.xyzw, r8.xyzw
-      mul r8.xyzw, r8.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-      max r10.xyzw, r8.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
-      movc r8.xyzw, r3.yyyy, r9.xyzw, r7.xyzw
-      ibfe r8.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r8.xyzw
-      itof r8.xyzw, r8.xyzw
-      mul r8.xyzw, r8.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-      max r7.xyzw, r8.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+      ibfe r9.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r7.xyzw
+      itof r9.xyzw, r9.xyzw
+      mul r9.xyzw, r9.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+      max r7.xyzw, r9.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+      ibfe r9.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r8.xyzw
+      itof r9.xyzw, r9.xyzw
+      mul r9.xyzw, r9.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+      max r8.xyzw, r9.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
       break 
       case l(7)
-      movc r5.xyzw, r3.yyyy, r5.xyzw, r10.xyzw
-      f16tof32 r10.xyzw, r5.xyzw
-      movc r5.xyzw, r3.yyyy, r9.xyzw, r7.xyzw
-      f16tof32 r7.xyzw, r5.xyzw
+      f16tof32 r7.xyzw, r7.xyzw
+      f16tof32 r8.xyzw, r8.xyzw
       break 
       default 
       break 
     endswitch 
   else 
-    ieq r4.y, r2.y, l(4)
-    if_nz r4.y
-      ld_raw r10.xyzw, r4.x, T0[0].xyzw
-      iadd r4.y, r4.x, l(16)
-      ld_raw r7.xyzw, r4.y, T0[0].xyzw
-    else 
-      ld_raw r10.x, r4.x, T0[0].xxxx
-      iadd r4.y, r2.y, r4.x
-      ld_raw r10.y, r4.y, T0[0].xxxx
-      ishl r5.xyzw, l(8, 12, 16, 20), r2.xxxx
-      iadd r5.xyzw, r4.xxxx, r5.xyzw
-      ld_raw r10.z, r5.x, T0[0].xxxx
-      ld_raw r10.w, r5.y, T0[0].xxxx
-      ld_raw r7.x, r5.z, T0[0].xxxx
-      ld_raw r7.y, r5.w, T0[0].xxxx
-      ishl r5.xy, l(24, 28, 0, 0), r2.xxxx
-      iadd r4.xy, r4.xxxx, r5.xyxx
-      ld_raw r7.z, r4.x, T0[0].xxxx
-      ld_raw r7.w, r4.y, T0[0].xxxx
-    endif 
     switch r4.w
       case l(0)
       case l(1)
-      movc r4.x, r3.y, l(16), l(0)
-      ushr r5.xyzw, r10.xyzw, r4.xxxx
-      and r5.xyzw, r5.xyzw, l(255, 255, 255, 255)
-      utof r5.xyzw, r5.xyzw
-      mul r10.xyzw, r5.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
-      ushr r5.xyzw, r7.xyzw, r4.xxxx
-      and r5.xyzw, r5.xyzw, l(255, 255, 255, 255)
-      utof r5.xyzw, r5.xyzw
-      mul r7.xyzw, r5.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
+      movc r4.y, r3.y, l(16), l(0)
+      ushr r9.xyzw, r7.xyzw, r4.yyyy
+      and r9.xyzw, r9.xyzw, l(255, 255, 255, 255)
+      utof r9.xyzw, r9.xyzw
+      mul r7.xyzw, r9.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
+      ushr r9.xyzw, r8.xyzw, r4.yyyy
+      and r9.xyzw, r9.xyzw, l(255, 255, 255, 255)
+      utof r9.xyzw, r9.xyzw
+      mul r8.xyzw, r9.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
       break 
       case l(2)
       case l(10)
-      movc r4.x, r3.y, l(20), l(0)
-      ushr r5.xyzw, r10.xyzw, r4.xxxx
-      and r5.xyzw, r5.xyzw, l(1023, 1023, 1023, 1023)
-      utof r5.xyzw, r5.xyzw
-      mul r10.xyzw, r5.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
-      ushr r5.xyzw, r7.xyzw, r4.xxxx
-      and r5.xyzw, r5.xyzw, l(1023, 1023, 1023, 1023)
-      utof r5.xyzw, r5.xyzw
-      mul r7.xyzw, r5.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
+      movc r4.y, r3.y, l(20), l(0)
+      ushr r9.xyzw, r7.xyzw, r4.yyyy
+      and r9.xyzw, r9.xyzw, l(1023, 1023, 1023, 1023)
+      utof r9.xyzw, r9.xyzw
+      mul r7.xyzw, r9.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
+      ushr r9.xyzw, r8.xyzw, r4.yyyy
+      and r9.xyzw, r9.xyzw, l(1023, 1023, 1023, 1023)
+      utof r9.xyzw, r9.xyzw
+      mul r8.xyzw, r9.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
       break 
       case l(3)
       case l(12)
-      movc r4.x, r3.y, l(20), l(0)
-      ushr r5.xyzw, r10.xyzw, r4.xxxx
-      and r8.xyzw, r5.xyzw, l(1023, 1023, 1023, 1023)
-      and r9.xyzw, r5.xyzw, l(127, 127, 127, 127)
-      ubfe r12.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r5.xyzw
-      firstbit_hi r13.xyzw, r9.xyzw
+      movc r4.y, r3.y, l(20), l(0)
+      ushr r9.xyzw, r7.xyzw, r4.yyyy
+      and r10.xyzw, r9.xyzw, l(1023, 1023, 1023, 1023)
+      and r11.xyzw, r9.xyzw, l(127, 127, 127, 127)
+      ubfe r12.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r9.xyzw
+      firstbit_hi r13.xyzw, r11.xyzw
       iadd r13.xyzw, r13.xyzw, l(-24, -24, -24, -24)
-      movc r13.xyzw, r9.xyzw, r13.xyzw, l(8,8,8,8)
+      movc r13.xyzw, r11.xyzw, r13.xyzw, l(8,8,8,8)
       iadd r14.xyzw, -r13.xyzw, l(1, 1, 1, 1)
       movc r14.xyzw, r12.xyzw, r12.xyzw, r14.xyzw
-      bfi r5.xyzw, l(7, 7, 7, 7), r13.xyzw, r5.xyzw, l(0, 0, 0, 0)
-      and r5.xyzw, r5.xyzw, l(127, 127, 127, 127)
-      movc r5.xyzw, r12.xyzw, r9.xyzw, r5.xyzw
-      ishl r9.xyzw, r14.xyzw, l(23, 23, 23, 23)
-      iadd r9.xyzw, r9.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
-      ishl r5.xyzw, r5.xyzw, l(16, 16, 16, 16)
-      iadd r5.xyzw, r9.xyzw, r5.xyzw
-      movc r10.xyzw, r8.xyzw, r5.xyzw, l(0,0,0,0)
-      ushr r5.xyzw, r7.xyzw, r4.xxxx
-      and r8.xyzw, r5.xyzw, l(1023, 1023, 1023, 1023)
-      and r9.xyzw, r5.xyzw, l(127, 127, 127, 127)
-      ubfe r12.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r5.xyzw
-      firstbit_hi r13.xyzw, r9.xyzw
+      bfi r9.xyzw, l(7, 7, 7, 7), r13.xyzw, r9.xyzw, l(0, 0, 0, 0)
+      and r9.xyzw, r9.xyzw, l(127, 127, 127, 127)
+      movc r9.xyzw, r12.xyzw, r11.xyzw, r9.xyzw
+      ishl r11.xyzw, r14.xyzw, l(23, 23, 23, 23)
+      iadd r11.xyzw, r11.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
+      ishl r9.xyzw, r9.xyzw, l(16, 16, 16, 16)
+      iadd r9.xyzw, r11.xyzw, r9.xyzw
+      movc r7.xyzw, r10.xyzw, r9.xyzw, l(0,0,0,0)
+      ushr r9.xyzw, r8.xyzw, r4.yyyy
+      and r10.xyzw, r9.xyzw, l(1023, 1023, 1023, 1023)
+      and r11.xyzw, r9.xyzw, l(127, 127, 127, 127)
+      ubfe r12.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r9.xyzw
+      firstbit_hi r13.xyzw, r11.xyzw
       iadd r13.xyzw, r13.xyzw, l(-24, -24, -24, -24)
-      movc r13.xyzw, r9.xyzw, r13.xyzw, l(8,8,8,8)
+      movc r13.xyzw, r11.xyzw, r13.xyzw, l(8,8,8,8)
       iadd r14.xyzw, -r13.xyzw, l(1, 1, 1, 1)
       movc r14.xyzw, r12.xyzw, r12.xyzw, r14.xyzw
-      bfi r5.xyzw, l(7, 7, 7, 7), r13.xyzw, r5.xyzw, l(0, 0, 0, 0)
-      and r5.xyzw, r5.xyzw, l(127, 127, 127, 127)
-      movc r5.xyzw, r12.xyzw, r9.xyzw, r5.xyzw
-      ishl r9.xyzw, r14.xyzw, l(23, 23, 23, 23)
-      iadd r9.xyzw, r9.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
-      ishl r5.xyzw, r5.xyzw, l(16, 16, 16, 16)
-      iadd r5.xyzw, r9.xyzw, r5.xyzw
-      movc r7.xyzw, r8.xyzw, r5.xyzw, l(0,0,0,0)
+      bfi r9.xyzw, l(7, 7, 7, 7), r13.xyzw, r9.xyzw, l(0, 0, 0, 0)
+      and r9.xyzw, r9.xyzw, l(127, 127, 127, 127)
+      movc r9.xyzw, r12.xyzw, r11.xyzw, r9.xyzw
+      ishl r11.xyzw, r14.xyzw, l(23, 23, 23, 23)
+      iadd r11.xyzw, r11.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
+      ishl r9.xyzw, r9.xyzw, l(16, 16, 16, 16)
+      iadd r9.xyzw, r11.xyzw, r9.xyzw
+      movc r8.xyzw, r10.xyzw, r9.xyzw, l(0,0,0,0)
       break 
       case l(4)
-      ibfe r5.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r10.xyzw
-      itof r5.xyzw, r5.xyzw
-      mul r5.xyzw, r5.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-      max r10.xyzw, r5.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
-      ibfe r5.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r7.xyzw
-      itof r5.xyzw, r5.xyzw
-      mul r5.xyzw, r5.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-      max r7.xyzw, r5.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+      ibfe r9.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r7.xyzw
+      itof r9.xyzw, r9.xyzw
+      mul r9.xyzw, r9.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+      max r7.xyzw, r9.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+      ibfe r9.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r8.xyzw
+      itof r9.xyzw, r9.xyzw
+      mul r9.xyzw, r9.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+      max r8.xyzw, r9.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
       break 
       case l(6)
-      f16tof32 r10.xyzw, r10.xyzw
       f16tof32 r7.xyzw, r7.xyzw
+      f16tof32 r8.xyzw, r8.xyzw
       break 
       default 
       break 
     endswitch 
   endif 
-  add r11.xyzw, r10.xyzw, r11.xyzw
-  add r6.xyzw, r6.xyzw, r7.xyzw
+  add r5.xyzw, r5.xyzw, r7.xyzw
+  add r6.xyzw, r6.xyzw, r8.xyzw
   uge r1.y, r1.y, l(6)
   if_nz r1.y
-    mul r2.z, r2.z, l(0.250000)
-    ishl r4.xy, l(4, 324, 0, 0), r4.zzzz
-    iadd r1.yw, r1.wwww, r4.xxxy
+    mul r2.w, r2.w, l(0.250000)
+    ishl r7.xy, l(4, 324, 0, 0), r4.zzzz
+    iadd r1.yw, r1.wwww, r7.xxxy
+    if_nz r2.z
+      ld_raw r7.xyzw, r1.y, T0[0].xyzw
+      iadd r4.y, r1.y, l(16)
+      ld_raw r8.xyzw, r4.y, T0[0].xyzw
+    else 
+      ld_raw r7.x, r1.y, T0[0].xxxx
+      iadd r4.y, r2.y, r1.y
+      ld_raw r7.y, r4.y, T0[0].xxxx
+      ishl r9.xyzw, l(8, 12, 16, 20), r2.xxxx
+      iadd r9.xyzw, r1.yyyy, r9.xyzw
+      ld_raw r7.z, r9.x, T0[0].xxxx
+      ld_raw r7.w, r9.y, T0[0].xxxx
+      ld_raw r8.x, r9.z, T0[0].xxxx
+      ld_raw r8.y, r9.w, T0[0].xxxx
+      ishl r9.xy, l(24, 28, 0, 0), r2.xxxx
+      iadd r9.xy, r1.yyyy, r9.xyxx
+      ld_raw r8.z, r9.x, T0[0].xxxx
+      ld_raw r8.w, r9.y, T0[0].xxxx
+    endif 
     if_nz r4.z
-      ieq r4.x, r2.y, l(8)
-      if_nz r4.x
-        ld_raw r5.xyzw, r1.y, T0[0].ywxz
-        iadd r7.xyz, r1.yyyy, l(16, 32, 48, 0)
-        ld_raw r8.xyzw, r7.x, T0[0].xyzw
-        ld_raw r9.xyzw, r7.y, T0[0].ywxz
-        ld_raw r7.xyzw, r7.z, T0[0].xyzw
-        mov r13.xy, r5.zwzz
-        mov r13.zw, r8.xxxz
-        mov r5.zw, r8.yyyw
-        mov r8.xy, r9.zwzz
-        mov r8.zw, r7.xxxz
-        mov r9.zw, r7.yyyw
-      else 
-        ld_raw r5.xz, r1.y, T0[0].yxxx
-        iadd r4.x, r2.y, r1.y
-        ld_raw r5.yw, r4.x, T0[0].xyxx
-        ishl r10.xyzw, l(8, 12, 16, 20), r2.xxxx
-        iadd r10.xyzw, r1.yyyy, r10.xyzw
-        ld_raw r12.xy, r10.x, T0[0].xyxx
-        ld_raw r12.zw, r10.y, T0[0].xxxy
-        ld_raw r9.xz, r10.z, T0[0].yxxx
-        ld_raw r9.yw, r10.w, T0[0].xyxx
-        ishl r4.xy, l(24, 28, 0, 0), r2.xxxx
-        iadd r4.xy, r1.yyyy, r4.xyxx
-        ld_raw r10.xy, r4.x, T0[0].xyxx
-        ld_raw r10.zw, r4.y, T0[0].xxxy
-        mov r13.xy, r5.zwzz
-        mov r13.zw, r12.xxxz
-        mov r5.zw, r12.yyyw
-        mov r8.xy, r9.zwzz
-        mov r8.zw, r10.xxxz
-        mov r9.zw, r10.yyyw
-      endif 
       switch r4.w
         case l(5)
-        movc r7.xyzw, r3.yyyy, r5.xyzw, r13.xyzw
-        ibfe r7.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r7.xyzw
-        itof r7.xyzw, r7.xyzw
-        mul r7.xyzw, r7.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-        max r13.xyzw, r7.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
-        movc r7.xyzw, r3.yyyy, r9.xyzw, r8.xyzw
-        ibfe r7.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r7.xyzw
-        itof r7.xyzw, r7.xyzw
-        mul r7.xyzw, r7.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-        max r8.xyzw, r7.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+        ibfe r9.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r7.xyzw
+        itof r9.xyzw, r9.xyzw
+        mul r9.xyzw, r9.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+        max r7.xyzw, r9.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+        ibfe r9.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r8.xyzw
+        itof r9.xyzw, r9.xyzw
+        mul r9.xyzw, r9.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+        max r8.xyzw, r9.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
         break 
         case l(7)
-        movc r5.xyzw, r3.yyyy, r5.xyzw, r13.xyzw
-        f16tof32 r13.xyzw, r5.xyzw
-        movc r5.xyzw, r3.yyyy, r9.xyzw, r8.xyzw
-        f16tof32 r8.xyzw, r5.xyzw
+        f16tof32 r7.xyzw, r7.xyzw
+        f16tof32 r8.xyzw, r8.xyzw
         break 
         default 
         break 
       endswitch 
     else 
-      ieq r4.x, r2.y, l(4)
-      if_nz r4.x
-        ld_raw r13.xyzw, r1.y, T0[0].xyzw
-        iadd r4.x, r1.y, l(16)
-        ld_raw r8.xyzw, r4.x, T0[0].xyzw
-      else 
-        ld_raw r13.x, r1.y, T0[0].xxxx
-        iadd r4.x, r2.y, r1.y
-        ld_raw r13.y, r4.x, T0[0].xxxx
-        ishl r5.xyzw, l(8, 12, 16, 20), r2.xxxx
-        iadd r5.xyzw, r1.yyyy, r5.xyzw
-        ld_raw r13.z, r5.x, T0[0].xxxx
-        ld_raw r13.w, r5.y, T0[0].xxxx
-        ld_raw r8.x, r5.z, T0[0].xxxx
-        ld_raw r8.y, r5.w, T0[0].xxxx
-        ishl r4.xy, l(24, 28, 0, 0), r2.xxxx
-        iadd r4.xy, r1.yyyy, r4.xyxx
-        ld_raw r8.z, r4.x, T0[0].xxxx
-        ld_raw r8.w, r4.y, T0[0].xxxx
-      endif 
       switch r4.w
         case l(0)
         case l(1)
         movc r1.y, r3.y, l(16), l(0)
-        ushr r5.xyzw, r13.xyzw, r1.yyyy
-        and r5.xyzw, r5.xyzw, l(255, 255, 255, 255)
-        utof r5.xyzw, r5.xyzw
-        mul r13.xyzw, r5.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
-        ushr r5.xyzw, r8.xyzw, r1.yyyy
-        and r5.xyzw, r5.xyzw, l(255, 255, 255, 255)
-        utof r5.xyzw, r5.xyzw
-        mul r8.xyzw, r5.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
+        ushr r9.xyzw, r7.xyzw, r1.yyyy
+        and r9.xyzw, r9.xyzw, l(255, 255, 255, 255)
+        utof r9.xyzw, r9.xyzw
+        mul r7.xyzw, r9.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
+        ushr r9.xyzw, r8.xyzw, r1.yyyy
+        and r9.xyzw, r9.xyzw, l(255, 255, 255, 255)
+        utof r9.xyzw, r9.xyzw
+        mul r8.xyzw, r9.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
         break 
         case l(2)
         case l(10)
         movc r1.y, r3.y, l(20), l(0)
-        ushr r5.xyzw, r13.xyzw, r1.yyyy
-        and r5.xyzw, r5.xyzw, l(1023, 1023, 1023, 1023)
-        utof r5.xyzw, r5.xyzw
-        mul r13.xyzw, r5.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
-        ushr r5.xyzw, r8.xyzw, r1.yyyy
-        and r5.xyzw, r5.xyzw, l(1023, 1023, 1023, 1023)
-        utof r5.xyzw, r5.xyzw
-        mul r8.xyzw, r5.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
+        ushr r9.xyzw, r7.xyzw, r1.yyyy
+        and r9.xyzw, r9.xyzw, l(1023, 1023, 1023, 1023)
+        utof r9.xyzw, r9.xyzw
+        mul r7.xyzw, r9.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
+        ushr r9.xyzw, r8.xyzw, r1.yyyy
+        and r9.xyzw, r9.xyzw, l(1023, 1023, 1023, 1023)
+        utof r9.xyzw, r9.xyzw
+        mul r8.xyzw, r9.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
         break 
         case l(3)
         case l(12)
         movc r1.y, r3.y, l(20), l(0)
-        ushr r5.xyzw, r13.xyzw, r1.yyyy
-        and r7.xyzw, r5.xyzw, l(1023, 1023, 1023, 1023)
-        and r9.xyzw, r5.xyzw, l(127, 127, 127, 127)
-        ubfe r10.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r5.xyzw
-        firstbit_hi r12.xyzw, r9.xyzw
-        iadd r12.xyzw, r12.xyzw, l(-24, -24, -24, -24)
-        movc r12.xyzw, r9.xyzw, r12.xyzw, l(8,8,8,8)
-        iadd r14.xyzw, -r12.xyzw, l(1, 1, 1, 1)
-        movc r14.xyzw, r10.xyzw, r10.xyzw, r14.xyzw
-        bfi r5.xyzw, l(7, 7, 7, 7), r12.xyzw, r5.xyzw, l(0, 0, 0, 0)
-        and r5.xyzw, r5.xyzw, l(127, 127, 127, 127)
-        movc r5.xyzw, r10.xyzw, r9.xyzw, r5.xyzw
-        ishl r9.xyzw, r14.xyzw, l(23, 23, 23, 23)
-        iadd r9.xyzw, r9.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
-        ishl r5.xyzw, r5.xyzw, l(16, 16, 16, 16)
-        iadd r5.xyzw, r9.xyzw, r5.xyzw
-        movc r13.xyzw, r7.xyzw, r5.xyzw, l(0,0,0,0)
-        ushr r5.xyzw, r8.xyzw, r1.yyyy
-        and r7.xyzw, r5.xyzw, l(1023, 1023, 1023, 1023)
-        and r9.xyzw, r5.xyzw, l(127, 127, 127, 127)
-        ubfe r10.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r5.xyzw
-        firstbit_hi r12.xyzw, r9.xyzw
-        iadd r12.xyzw, r12.xyzw, l(-24, -24, -24, -24)
-        movc r12.xyzw, r9.xyzw, r12.xyzw, l(8,8,8,8)
-        iadd r14.xyzw, -r12.xyzw, l(1, 1, 1, 1)
-        movc r14.xyzw, r10.xyzw, r10.xyzw, r14.xyzw
-        bfi r5.xyzw, l(7, 7, 7, 7), r12.xyzw, r5.xyzw, l(0, 0, 0, 0)
-        and r5.xyzw, r5.xyzw, l(127, 127, 127, 127)
-        movc r5.xyzw, r10.xyzw, r9.xyzw, r5.xyzw
-        ishl r9.xyzw, r14.xyzw, l(23, 23, 23, 23)
-        iadd r9.xyzw, r9.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
-        ishl r5.xyzw, r5.xyzw, l(16, 16, 16, 16)
-        iadd r5.xyzw, r9.xyzw, r5.xyzw
-        movc r8.xyzw, r7.xyzw, r5.xyzw, l(0,0,0,0)
+        ushr r9.xyzw, r7.xyzw, r1.yyyy
+        and r10.xyzw, r9.xyzw, l(1023, 1023, 1023, 1023)
+        and r11.xyzw, r9.xyzw, l(127, 127, 127, 127)
+        ubfe r12.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r9.xyzw
+        firstbit_hi r13.xyzw, r11.xyzw
+        iadd r13.xyzw, r13.xyzw, l(-24, -24, -24, -24)
+        movc r13.xyzw, r11.xyzw, r13.xyzw, l(8,8,8,8)
+        iadd r14.xyzw, -r13.xyzw, l(1, 1, 1, 1)
+        movc r14.xyzw, r12.xyzw, r12.xyzw, r14.xyzw
+        bfi r9.xyzw, l(7, 7, 7, 7), r13.xyzw, r9.xyzw, l(0, 0, 0, 0)
+        and r9.xyzw, r9.xyzw, l(127, 127, 127, 127)
+        movc r9.xyzw, r12.xyzw, r11.xyzw, r9.xyzw
+        ishl r11.xyzw, r14.xyzw, l(23, 23, 23, 23)
+        iadd r11.xyzw, r11.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
+        ishl r9.xyzw, r9.xyzw, l(16, 16, 16, 16)
+        iadd r9.xyzw, r11.xyzw, r9.xyzw
+        movc r7.xyzw, r10.xyzw, r9.xyzw, l(0,0,0,0)
+        ushr r9.xyzw, r8.xyzw, r1.yyyy
+        and r10.xyzw, r9.xyzw, l(1023, 1023, 1023, 1023)
+        and r11.xyzw, r9.xyzw, l(127, 127, 127, 127)
+        ubfe r12.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r9.xyzw
+        firstbit_hi r13.xyzw, r11.xyzw
+        iadd r13.xyzw, r13.xyzw, l(-24, -24, -24, -24)
+        movc r13.xyzw, r11.xyzw, r13.xyzw, l(8,8,8,8)
+        iadd r14.xyzw, -r13.xyzw, l(1, 1, 1, 1)
+        movc r14.xyzw, r12.xyzw, r12.xyzw, r14.xyzw
+        bfi r9.xyzw, l(7, 7, 7, 7), r13.xyzw, r9.xyzw, l(0, 0, 0, 0)
+        and r9.xyzw, r9.xyzw, l(127, 127, 127, 127)
+        movc r9.xyzw, r12.xyzw, r11.xyzw, r9.xyzw
+        ishl r11.xyzw, r14.xyzw, l(23, 23, 23, 23)
+        iadd r11.xyzw, r11.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
+        ishl r9.xyzw, r9.xyzw, l(16, 16, 16, 16)
+        iadd r9.xyzw, r11.xyzw, r9.xyzw
+        movc r8.xyzw, r10.xyzw, r9.xyzw, l(0,0,0,0)
         break 
         case l(4)
-        ibfe r5.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r13.xyzw
-        itof r5.xyzw, r5.xyzw
-        mul r5.xyzw, r5.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-        max r13.xyzw, r5.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
-        ibfe r5.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r8.xyzw
-        itof r5.xyzw, r5.xyzw
-        mul r5.xyzw, r5.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-        max r8.xyzw, r5.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+        ibfe r9.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r7.xyzw
+        itof r9.xyzw, r9.xyzw
+        mul r9.xyzw, r9.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+        max r7.xyzw, r9.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+        ibfe r9.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r8.xyzw
+        itof r9.xyzw, r9.xyzw
+        mul r9.xyzw, r9.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+        max r8.xyzw, r9.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
         break 
         case l(6)
-        f16tof32 r13.xyzw, r13.xyzw
+        f16tof32 r7.xyzw, r7.xyzw
         f16tof32 r8.xyzw, r8.xyzw
         break 
         default 
         break 
       endswitch 
     endif 
-    add r5.xyzw, r11.xyzw, r13.xyzw
-    add r7.xyzw, r6.xyzw, r8.xyzw
+    add r7.xyzw, r5.xyzw, r7.xyzw
+    add r8.xyzw, r6.xyzw, r8.xyzw
+    if_nz r2.z
+      ld_raw r9.xyzw, r1.w, T0[0].xyzw
+      iadd r1.y, r1.w, l(16)
+      ld_raw r10.xyzw, r1.y, T0[0].xyzw
+    else 
+      ld_raw r9.x, r1.w, T0[0].xxxx
+      iadd r1.y, r2.y, r1.w
+      ld_raw r9.y, r1.y, T0[0].xxxx
+      ishl r11.xyzw, l(8, 12, 16, 20), r2.xxxx
+      iadd r11.xyzw, r1.wwww, r11.xyzw
+      ld_raw r9.z, r11.x, T0[0].xxxx
+      ld_raw r9.w, r11.y, T0[0].xxxx
+      ld_raw r10.x, r11.z, T0[0].xxxx
+      ld_raw r10.y, r11.w, T0[0].xxxx
+      ishl r2.xy, l(24, 28, 0, 0), r2.xxxx
+      iadd r1.yw, r1.wwww, r2.xxxy
+      ld_raw r10.z, r1.y, T0[0].xxxx
+      ld_raw r10.w, r1.w, T0[0].xxxx
+    endif 
     if_nz r4.z
-      ieq r1.y, r2.y, l(8)
-      if_nz r1.y
-        ld_raw r8.xyzw, r1.w, T0[0].ywxz
-        iadd r4.xyz, r1.wwww, l(16, 32, 48, 0)
-        ld_raw r9.xyzw, r4.x, T0[0].xyzw
-        ld_raw r10.xyzw, r4.y, T0[0].ywxz
-        ld_raw r12.xyzw, r4.z, T0[0].xyzw
-        mov r15.xy, r8.zwzz
-        mov r15.zw, r9.xxxz
-        mov r8.zw, r9.yyyw
-        mov r9.xy, r10.zwzz
-        mov r9.zw, r12.xxxz
-        mov r10.zw, r12.yyyw
-      else 
-        ld_raw r8.xz, r1.w, T0[0].yxxx
-        iadd r1.y, r2.y, r1.w
-        ld_raw r8.yw, r1.y, T0[0].xyxx
-        ishl r13.xyzw, l(8, 12, 16, 20), r2.xxxx
-        iadd r13.xyzw, r1.wwww, r13.xyzw
-        ld_raw r14.xy, r13.x, T0[0].xyxx
-        ld_raw r14.zw, r13.y, T0[0].xxxy
-        ld_raw r10.xz, r13.z, T0[0].yxxx
-        ld_raw r10.yw, r13.w, T0[0].xyxx
-        ishl r4.xy, l(24, 28, 0, 0), r2.xxxx
-        iadd r4.xy, r1.wwww, r4.xyxx
-        ld_raw r13.xy, r4.x, T0[0].xyxx
-        ld_raw r13.zw, r4.y, T0[0].xxxy
-        mov r15.xy, r8.zwzz
-        mov r15.zw, r14.xxxz
-        mov r8.zw, r14.yyyw
-        mov r9.xy, r10.zwzz
-        mov r9.zw, r13.xxxz
-        mov r10.zw, r13.yyyw
-      endif 
       switch r4.w
         case l(5)
-        movc r12.xyzw, r3.yyyy, r8.xyzw, r15.xyzw
-        ibfe r12.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r12.xyzw
-        itof r12.xyzw, r12.xyzw
-        mul r12.xyzw, r12.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-        max r15.xyzw, r12.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
-        movc r12.xyzw, r3.yyyy, r10.xyzw, r9.xyzw
-        ibfe r12.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r12.xyzw
-        itof r12.xyzw, r12.xyzw
-        mul r12.xyzw, r12.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-        max r9.xyzw, r12.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+        ibfe r11.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r9.xyzw
+        itof r11.xyzw, r11.xyzw
+        mul r11.xyzw, r11.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+        max r9.xyzw, r11.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+        ibfe r11.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r10.xyzw
+        itof r11.xyzw, r11.xyzw
+        mul r11.xyzw, r11.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+        max r10.xyzw, r11.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
         break 
         case l(7)
-        movc r8.xyzw, r3.yyyy, r8.xyzw, r15.xyzw
-        f16tof32 r15.xyzw, r8.xyzw
-        movc r8.xyzw, r3.yyyy, r10.xyzw, r9.xyzw
-        f16tof32 r9.xyzw, r8.xyzw
+        f16tof32 r9.xyzw, r9.xyzw
+        f16tof32 r10.xyzw, r10.xyzw
         break 
         default 
         break 
       endswitch 
     else 
-      ieq r1.y, r2.y, l(4)
-      if_nz r1.y
-        ld_raw r15.xyzw, r1.w, T0[0].xyzw
-        iadd r1.y, r1.w, l(16)
-        ld_raw r9.xyzw, r1.y, T0[0].xyzw
-      else 
-        ld_raw r15.x, r1.w, T0[0].xxxx
-        iadd r1.y, r2.y, r1.w
-        ld_raw r15.y, r1.y, T0[0].xxxx
-        ishl r8.xyzw, l(8, 12, 16, 20), r2.xxxx
-        iadd r8.xyzw, r1.wwww, r8.xyzw
-        ld_raw r15.z, r8.x, T0[0].xxxx
-        ld_raw r15.w, r8.y, T0[0].xxxx
-        ld_raw r9.x, r8.z, T0[0].xxxx
-        ld_raw r9.y, r8.w, T0[0].xxxx
-        ishl r2.xy, l(24, 28, 0, 0), r2.xxxx
-        iadd r1.yw, r1.wwww, r2.xxxy
-        ld_raw r9.z, r1.y, T0[0].xxxx
-        ld_raw r9.w, r1.w, T0[0].xxxx
-      endif 
       switch r4.w
         case l(0)
         case l(1)
         movc r1.y, r3.y, l(16), l(0)
-        ushr r4.xyzw, r15.xyzw, r1.yyyy
-        and r4.xyzw, r4.xyzw, l(255, 255, 255, 255)
-        utof r4.xyzw, r4.xyzw
-        mul r15.xyzw, r4.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
-        ushr r4.xyzw, r9.xyzw, r1.yyyy
-        and r4.xyzw, r4.xyzw, l(255, 255, 255, 255)
-        utof r4.xyzw, r4.xyzw
-        mul r9.xyzw, r4.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
+        ushr r11.xyzw, r9.xyzw, r1.yyyy
+        and r11.xyzw, r11.xyzw, l(255, 255, 255, 255)
+        utof r11.xyzw, r11.xyzw
+        mul r9.xyzw, r11.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
+        ushr r11.xyzw, r10.xyzw, r1.yyyy
+        and r11.xyzw, r11.xyzw, l(255, 255, 255, 255)
+        utof r11.xyzw, r11.xyzw
+        mul r10.xyzw, r11.xyzw, l(0.003922, 0.003922, 0.003922, 0.003922)
         break 
         case l(2)
         case l(10)
         movc r1.y, r3.y, l(20), l(0)
-        ushr r4.xyzw, r15.xyzw, r1.yyyy
-        and r4.xyzw, r4.xyzw, l(1023, 1023, 1023, 1023)
-        utof r4.xyzw, r4.xyzw
-        mul r15.xyzw, r4.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
-        ushr r4.xyzw, r9.xyzw, r1.yyyy
-        and r4.xyzw, r4.xyzw, l(1023, 1023, 1023, 1023)
-        utof r4.xyzw, r4.xyzw
-        mul r9.xyzw, r4.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
+        ushr r11.xyzw, r9.xyzw, r1.yyyy
+        and r11.xyzw, r11.xyzw, l(1023, 1023, 1023, 1023)
+        utof r11.xyzw, r11.xyzw
+        mul r9.xyzw, r11.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
+        ushr r11.xyzw, r10.xyzw, r1.yyyy
+        and r11.xyzw, r11.xyzw, l(1023, 1023, 1023, 1023)
+        utof r11.xyzw, r11.xyzw
+        mul r10.xyzw, r11.xyzw, l(0.000978, 0.000978, 0.000978, 0.000978)
         break 
         case l(3)
         case l(12)
         movc r1.y, r3.y, l(20), l(0)
-        ushr r4.xyzw, r15.xyzw, r1.yyyy
-        and r8.xyzw, r4.xyzw, l(1023, 1023, 1023, 1023)
-        and r10.xyzw, r4.xyzw, l(127, 127, 127, 127)
-        ubfe r12.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r4.xyzw
-        firstbit_hi r13.xyzw, r10.xyzw
-        iadd r13.xyzw, r13.xyzw, l(-24, -24, -24, -24)
-        movc r13.xyzw, r10.xyzw, r13.xyzw, l(8,8,8,8)
-        iadd r14.xyzw, -r13.xyzw, l(1, 1, 1, 1)
-        movc r14.xyzw, r12.xyzw, r12.xyzw, r14.xyzw
-        bfi r4.xyzw, l(7, 7, 7, 7), r13.xyzw, r4.xyzw, l(0, 0, 0, 0)
-        and r4.xyzw, r4.xyzw, l(127, 127, 127, 127)
-        movc r4.xyzw, r12.xyzw, r10.xyzw, r4.xyzw
-        ishl r10.xyzw, r14.xyzw, l(23, 23, 23, 23)
-        iadd r10.xyzw, r10.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
-        ishl r4.xyzw, r4.xyzw, l(16, 16, 16, 16)
-        iadd r4.xyzw, r10.xyzw, r4.xyzw
-        movc r15.xyzw, r8.xyzw, r4.xyzw, l(0,0,0,0)
-        ushr r4.xyzw, r9.xyzw, r1.yyyy
-        and r8.xyzw, r4.xyzw, l(1023, 1023, 1023, 1023)
-        and r10.xyzw, r4.xyzw, l(127, 127, 127, 127)
-        ubfe r12.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r4.xyzw
-        firstbit_hi r13.xyzw, r10.xyzw
-        iadd r13.xyzw, r13.xyzw, l(-24, -24, -24, -24)
-        movc r13.xyzw, r10.xyzw, r13.xyzw, l(8,8,8,8)
-        iadd r14.xyzw, -r13.xyzw, l(1, 1, 1, 1)
-        movc r14.xyzw, r12.xyzw, r12.xyzw, r14.xyzw
-        bfi r4.xyzw, l(7, 7, 7, 7), r13.xyzw, r4.xyzw, l(0, 0, 0, 0)
-        and r4.xyzw, r4.xyzw, l(127, 127, 127, 127)
-        movc r4.xyzw, r12.xyzw, r10.xyzw, r4.xyzw
-        ishl r10.xyzw, r14.xyzw, l(23, 23, 23, 23)
-        iadd r10.xyzw, r10.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
-        ishl r4.xyzw, r4.xyzw, l(16, 16, 16, 16)
-        iadd r4.xyzw, r10.xyzw, r4.xyzw
-        movc r9.xyzw, r8.xyzw, r4.xyzw, l(0,0,0,0)
+        ushr r11.xyzw, r9.xyzw, r1.yyyy
+        and r12.xyzw, r11.xyzw, l(1023, 1023, 1023, 1023)
+        and r13.xyzw, r11.xyzw, l(127, 127, 127, 127)
+        ubfe r14.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r11.xyzw
+        firstbit_hi r15.xyzw, r13.xyzw
+        iadd r15.xyzw, r15.xyzw, l(-24, -24, -24, -24)
+        movc r15.xyzw, r13.xyzw, r15.xyzw, l(8,8,8,8)
+        iadd r16.xyzw, -r15.xyzw, l(1, 1, 1, 1)
+        movc r16.xyzw, r14.xyzw, r14.xyzw, r16.xyzw
+        bfi r11.xyzw, l(7, 7, 7, 7), r15.xyzw, r11.xyzw, l(0, 0, 0, 0)
+        and r11.xyzw, r11.xyzw, l(127, 127, 127, 127)
+        movc r11.xyzw, r14.xyzw, r13.xyzw, r11.xyzw
+        ishl r13.xyzw, r16.xyzw, l(23, 23, 23, 23)
+        iadd r13.xyzw, r13.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
+        ishl r11.xyzw, r11.xyzw, l(16, 16, 16, 16)
+        iadd r11.xyzw, r13.xyzw, r11.xyzw
+        movc r9.xyzw, r12.xyzw, r11.xyzw, l(0,0,0,0)
+        ushr r11.xyzw, r10.xyzw, r1.yyyy
+        and r12.xyzw, r11.xyzw, l(1023, 1023, 1023, 1023)
+        and r13.xyzw, r11.xyzw, l(127, 127, 127, 127)
+        ubfe r14.xyzw, l(3, 3, 3, 3), l(7, 7, 7, 7), r11.xyzw
+        firstbit_hi r15.xyzw, r13.xyzw
+        iadd r15.xyzw, r15.xyzw, l(-24, -24, -24, -24)
+        movc r15.xyzw, r13.xyzw, r15.xyzw, l(8,8,8,8)
+        iadd r16.xyzw, -r15.xyzw, l(1, 1, 1, 1)
+        movc r16.xyzw, r14.xyzw, r14.xyzw, r16.xyzw
+        bfi r11.xyzw, l(7, 7, 7, 7), r15.xyzw, r11.xyzw, l(0, 0, 0, 0)
+        and r11.xyzw, r11.xyzw, l(127, 127, 127, 127)
+        movc r11.xyzw, r14.xyzw, r13.xyzw, r11.xyzw
+        ishl r13.xyzw, r16.xyzw, l(23, 23, 23, 23)
+        iadd r13.xyzw, r13.xyzw, l(0x3e000000, 0x3e000000, 0x3e000000, 0x3e000000)
+        ishl r11.xyzw, r11.xyzw, l(16, 16, 16, 16)
+        iadd r11.xyzw, r13.xyzw, r11.xyzw
+        movc r10.xyzw, r12.xyzw, r11.xyzw, l(0,0,0,0)
         break 
         case l(4)
-        ibfe r4.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r15.xyzw
-        itof r4.xyzw, r4.xyzw
-        mul r4.xyzw, r4.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-        max r15.xyzw, r4.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
-        ibfe r4.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r9.xyzw
-        itof r4.xyzw, r4.xyzw
-        mul r4.xyzw, r4.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-        max r9.xyzw, r4.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+        ibfe r11.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r9.xyzw
+        itof r11.xyzw, r11.xyzw
+        mul r11.xyzw, r11.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+        max r9.xyzw, r11.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
+        ibfe r11.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r10.xyzw
+        itof r11.xyzw, r11.xyzw
+        mul r11.xyzw, r11.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+        max r10.xyzw, r11.xyzw, l(-1.000000, -1.000000, -1.000000, -1.000000)
         break 
         case l(6)
-        f16tof32 r15.xyzw, r15.xyzw
         f16tof32 r9.xyzw, r9.xyzw
+        f16tof32 r10.xyzw, r10.xyzw
         break 
         default 
         break 
       endswitch 
     endif 
-    add r11.xyzw, r5.xyzw, r15.xyzw
-    add r6.xyzw, r7.xyzw, r9.xyzw
+    add r5.xyzw, r7.xyzw, r9.xyzw
+    add r6.xyzw, r8.xyzw, r10.xyzw
   else 
-    mov r2.z, r2.w
+    mov r2.w, r4.x
   endif 
 endif 
-mul_sat r4.xyzw, r2.zzzz, r11.xyzw
-mul_sat r2.xyzw, r2.zzzz, r6.xyzw
+mul_sat r4.xyzw, r2.wwww, r5.xyzw
+mul_sat r2.xyzw, r2.wwww, r6.xyzw
 bfi r1.xyzw, l(2, 2, 2, 2), l(3, 3, 3, 3), r1.zxxz, l(0, 0, 0, 0)
 iadd r0.xyzw, r0.xyzw, r1.xyzw
 if_nz r3.w
@@ -823,4 +669,4 @@ imad r0.y, r2.z, l(0x00010000), r0.y
 imad r1.y, r2.w, l(0x01000000), r0.y
 store_uav_typed U0[0].xyzw, r0.xxxx, r1.xyzw
 ret 
-// Approximately 778 instruction slots used
+// Approximately 624 instruction slots used

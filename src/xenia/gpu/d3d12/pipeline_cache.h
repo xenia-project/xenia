@@ -25,8 +25,8 @@
 #include "xenia/base/platform.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/base/threading.h"
+#include "xenia/gpu/d3d12/d3d12_render_target_cache.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
-#include "xenia/gpu/d3d12/render_target_cache.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/register_file.h"
@@ -44,10 +44,9 @@ class PipelineCache {
   static constexpr size_t kLayoutUIDEmpty = 0;
 
   PipelineCache(D3D12CommandProcessor& command_processor,
-                const RegisterFile& register_file, bool bindless_resources_used,
-                bool edram_rov_used,
-                flags::DepthFloat24Conversion depth_float24_conversion,
-                uint32_t resolution_scale);
+                const RegisterFile& register_file,
+                const D3D12RenderTargetCache& render_target_cache,
+                bool bindless_resources_used);
   ~PipelineCache();
 
   bool Initialize();
@@ -80,7 +79,8 @@ class PipelineCache {
       D3D12Shader::D3D12Translation* vertex_shader,
       D3D12Shader::D3D12Translation* pixel_shader,
       xenos::PrimitiveType primitive_type, xenos::IndexFormat index_format,
-      const RenderTargetCache::PipelineRenderTarget render_targets[5],
+      uint32_t bound_depth_and_color_render_target_bits,
+      const uint32_t* bound_depth_and_color_render_targets_formats,
       void** pipeline_handle_out, ID3D12RootSignature** root_signature_out);
 
   // Returns a pipeline with deferred creation by its handle. May return nullptr
@@ -192,12 +192,12 @@ class PipelineCache {
     PipelineCullMode cull_mode : 2;                   // 9
     uint32_t front_counter_clockwise : 1;             // 10
     uint32_t depth_clip : 1;                          // 11
-    uint32_t rov_msaa : 1;                            // 12
-    xenos::DepthRenderTargetFormat depth_format : 1;  // 13
-    xenos::CompareFunction depth_func : 3;            // 16
-    uint32_t depth_write : 1;                         // 17
-    uint32_t stencil_enable : 1;                      // 18
-    uint32_t stencil_read_mask : 8;                   // 26
+    xenos::MsaaSamples host_msaa_samples : 2;         // 13
+    xenos::DepthRenderTargetFormat depth_format : 1;  // 14
+    xenos::CompareFunction depth_func : 3;            // 17
+    uint32_t depth_write : 1;                         // 18
+    uint32_t stencil_enable : 1;                      // 19
+    uint32_t stencil_read_mask : 8;                   // 27
 
     uint32_t stencil_write_mask : 8;                   // 8
     xenos::StencilOp stencil_front_fail_op : 3;        // 11
@@ -209,9 +209,9 @@ class PipelineCache {
     xenos::StencilOp stencil_back_pass_op : 3;         // 29
     xenos::CompareFunction stencil_back_func : 3;      // 32
 
-    PipelineRenderTarget render_targets[4];
+    PipelineRenderTarget render_targets[xenos::kMaxColorRenderTargets];
 
-    static constexpr uint32_t kVersion = 0x20201219;
+    static constexpr uint32_t kVersion = 0x20210425;
   });
 
   XEPACKEDSTRUCT(PipelineStoredDescription, {
@@ -247,7 +247,8 @@ class PipelineCache {
       D3D12Shader::D3D12Translation* vertex_shader,
       D3D12Shader::D3D12Translation* pixel_shader,
       xenos::PrimitiveType primitive_type, xenos::IndexFormat index_format,
-      const RenderTargetCache::PipelineRenderTarget render_targets[5],
+      uint32_t bound_depth_and_color_render_target_bits,
+      const uint32_t* bound_depth_and_color_render_target_formats,
       PipelineRuntimeDescription& runtime_description_out);
 
   ID3D12PipelineState* CreateD3D12Pipeline(
@@ -255,11 +256,8 @@ class PipelineCache {
 
   D3D12CommandProcessor& command_processor_;
   const RegisterFile& register_file_;
+  const D3D12RenderTargetCache& render_target_cache_;
   bool bindless_resources_used_;
-  bool edram_rov_used_;
-  // 20e4 depth conversion mode to use for non-ROV output.
-  flags::DepthFloat24Conversion depth_float24_conversion_;
-  uint32_t resolution_scale_;
 
   // Temporary storage for AnalyzeUcode calls on the processor thread.
   StringBuffer ucode_disasm_buffer_;

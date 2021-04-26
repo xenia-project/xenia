@@ -10,11 +10,14 @@
 #ifndef XENIA_GPU_D3D12_TEXTURE_CACHE_H_
 #define XENIA_GPU_D3D12_TEXTURE_CACHE_H_
 
+#include <array>
 #include <atomic>
 #include <cstring>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/mutex.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/d3d12/d3d12_shared_memory.h"
@@ -22,6 +25,7 @@
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
+#include "xenia/ui/d3d12/d3d12_provider.h"
 
 namespace xe {
 namespace gpu {
@@ -168,16 +172,18 @@ class TextureCache {
   };
 
   TextureCache(D3D12CommandProcessor& command_processor,
-               const RegisterFile& register_file, bool bindless_resources_used,
-               D3D12SharedMemory& shared_memory);
+               const RegisterFile& register_file,
+               D3D12SharedMemory& shared_memory, bool bindless_resources_used,
+               uint32_t draw_resolution_scale);
   ~TextureCache();
 
-  bool Initialize(bool edram_rov_used);
+  bool Initialize();
   void Shutdown();
   void ClearCache();
 
   void TextureFetchConstantWritten(uint32_t index);
 
+  void BeginSubmission();
   void BeginFrame();
   void EndFrame();
 
@@ -209,6 +215,16 @@ class TextureCache {
   uint8_t GetActiveTextureSwizzledSigns(uint32_t index) const {
     return texture_bindings_[index].swizzled_signs;
   }
+  bool IsActiveTextureResolved(uint32_t index) const {
+    const TextureBinding& binding = texture_bindings_[index];
+    if (binding.texture && binding.texture->IsResolved()) {
+      return true;
+    }
+    if (binding.texture_signed && binding.texture_signed->IsResolved()) {
+      return true;
+    }
+    return false;
+  }
   void WriteActiveTextureBindfulSRV(
       const D3D12Shader::TextureBinding& host_shader_binding,
       D3D12_CPU_DESCRIPTOR_HANDLE handle);
@@ -221,26 +237,37 @@ class TextureCache {
                     D3D12_CPU_DESCRIPTOR_HANDLE handle) const;
 
   void MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled);
-
-  bool IsResolutionScale2X() const { return scaled_resolve_buffer_ != nullptr; }
-  ID3D12Resource* GetScaledResolveBuffer() const {
-    return scaled_resolve_buffer_;
-  }
-  // Ensures the buffer tiles backing the range are resident.
-  bool EnsureScaledResolveBufferResident(uint32_t start_unscaled,
-                                         uint32_t length_unscaled);
-  void UseScaledResolveBufferForReading();
-  void UseScaledResolveBufferForWriting();
-  void MarkScaledResolveBufferUAVWritesCommitNeeded() {
-    if (scaled_resolve_buffer_state_ == D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
-      scaled_resolve_buffer_uav_writes_commit_needed_ = true;
+  static uint32_t GetMaxDrawResolutionScale(
+      const ui::d3d12::D3D12Provider& provider) {
+    // 31 because 2 GB buffers are used.
+    if (provider.GetTiledResourcesTier() < D3D12_TILED_RESOURCES_TIER_1 ||
+        provider.GetVirtualAddressBitsPerResource() < 31) {
+      return 1;
     }
+    return kMaxDrawResolutionScale;
   }
-  // Can't address more than 512 MB on Nvidia, so an offset is required.
-  void CreateScaledResolveBufferUintPow2UAV(D3D12_CPU_DESCRIPTOR_HANDLE handle,
-                                            uint32_t guest_address_bytes,
-                                            uint32_t guest_length_bytes,
-                                            uint32_t element_size_bytes_pow2);
+  uint32_t GetDrawResolutionScale() const { return draw_resolution_scale_; }
+  // Ensures the tiles backing the range in the buffers are allocated.
+  bool EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled,
+                                          uint32_t length_unscaled);
+  // Makes the specified range of up to 1-2 GB currently accessible on the GPU.
+  // One draw call can access only at most one range - the same memory is
+  // accessible through different buffers based on the range needed, so aliasing
+  // barriers are required.
+  bool MakeScaledResolveRangeCurrent(uint32_t start_unscaled,
+                                     uint32_t length_unscaled);
+  // These functions create a view of the range specified in the last successful
+  // MakeScaledResolveRangeCurrent call because that function must be called
+  // before this.
+  void CreateCurrentScaledResolveRangeUintPow2SRV(
+      D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t element_size_bytes_pow2);
+  void CreateCurrentScaledResolveRangeUintPow2UAV(
+      D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t element_size_bytes_pow2);
+  void TransitionCurrentScaledResolveRange(D3D12_RESOURCE_STATES new_state);
+  void MarkCurrentScaledResolveRangeUAVWritesCommitNeeded() {
+    assert_true(draw_resolution_scale_ > 1);
+    GetCurrentScaledResolveBuffer().SetUAVBarrierPending();
+  }
 
   // Returns the ID3D12Resource of the front buffer texture (in
   // PIXEL_SHADER_RESOURCE state), or nullptr in case of failure, and writes the
@@ -251,6 +278,8 @@ class TextureCache {
       xenos::TextureFormat& format_out);
 
  private:
+  static constexpr uint32_t kMaxDrawResolutionScale = 3;
+
   enum class LoadMode {
     k8bpb,
     k16bpb,
@@ -281,7 +310,7 @@ class TextureCache {
     kUnknown = kCount
   };
 
-  struct LoadModeInfo {
+  struct LoadShaderInfo {
     const void* shader;
     size_t shader_size;
     // Log2 of the sizes, in bytes, of the source (guest) SRV and the
@@ -289,11 +318,15 @@ class TextureCache {
     // may copy multiple blocks per one invocation.
     uint32_t srv_bpe_log2;
     uint32_t uav_bpe_log2;
-    // Optional shader for loading 2x-scaled resolve targets.
-    const void* shader_2x;
-    size_t shader_2x_size;
-    uint32_t srv_bpe_log2_2x;
-    uint32_t uav_bpe_log2_2x;
+    // Number of guest blocks (or texels for uncompressed) along X axis written
+    // by every compute shader thread - rows in the upload buffer are padded to
+    // at least this amount.
+    uint32_t host_x_blocks_per_thread;
+  };
+
+  struct LoadModeInfo {
+    // For different drawing resolution scales.
+    LoadShaderInfo shaders[kMaxDrawResolutionScale];
   };
 
   struct HostFormat {
@@ -341,6 +374,12 @@ class TextureCache {
     ID3D12Resource* resource;
     uint64_t resource_size;
     D3D12_RESOURCE_STATES state;
+    // Whether the most up-to-date base / mips contain pages with data from a
+    // resolve operation (rather than from the CPU or memexport), primarily for
+    // choosing between piecewise linear gamma and sRGB when the former is
+    // emulated with the latter.
+    bool base_resolved;
+    bool mips_resolved;
 
     uint64_t last_usage_frame;
     uint64_t last_usage_time;
@@ -375,6 +414,8 @@ class TextureCache {
     bool base_in_sync;
     // Whether the recent mip data has been loaded from the memory.
     bool mips_in_sync;
+
+    bool IsResolved() const { return base_resolved || mips_resolved; }
   };
 
   struct SRVDescriptorCachePage {
@@ -425,6 +466,66 @@ class TextureCache {
       std::memset(this, 0, sizeof(*this));
       descriptor_index = descriptor_index_signed = UINT32_MAX;
     }
+  };
+
+  static uint32_t GetMaxHostTextureWidthHeight(xenos::DataDimension dimension) {
+    switch (dimension) {
+      case xenos::DataDimension::k1D:
+      case xenos::DataDimension::k2DOrStacked:
+        // 1D and 2D are emulated as 2D arrays.
+        return D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+      case xenos::DataDimension::k3D:
+        return D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION;
+      case xenos::DataDimension::kCube:
+        return D3D12_REQ_TEXTURECUBE_DIMENSION;
+      default:
+        assert_unhandled_case(dimension);
+        return 0;
+    }
+  }
+  static uint32_t GetMaxHostTextureDepth(xenos::DataDimension dimension) {
+    switch (dimension) {
+      case xenos::DataDimension::k1D:
+      case xenos::DataDimension::k2DOrStacked:
+        // 1D and 2D are emulated as 2D arrays.
+        return D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION;
+      case xenos::DataDimension::k3D:
+        return D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION;
+      case xenos::DataDimension::kCube:
+        return D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION / 6 * 6;
+      default:
+        assert_unhandled_case(dimension);
+        return 0;
+    }
+  }
+
+  class ScaledResolveVirtualBuffer {
+   public:
+    ScaledResolveVirtualBuffer(ID3D12Resource* resource,
+                               D3D12_RESOURCE_STATES resource_state)
+        : resource_(resource), resource_state_(resource_state) {}
+    ID3D12Resource* resource() const { return resource_.Get(); }
+    D3D12_RESOURCE_STATES SetResourceState(D3D12_RESOURCE_STATES new_state) {
+      D3D12_RESOURCE_STATES old_state = resource_state_;
+      if (old_state == D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
+        uav_barrier_pending_ = false;
+      }
+      resource_state_ = new_state;
+      return old_state;
+    }
+    // After writing through a UAV.
+    void SetUAVBarrierPending() {
+      if (resource_state_ == D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
+        uav_barrier_pending_ = true;
+      }
+    }
+    // After an aliasing barrier (which is even stronger than an UAV barrier).
+    void ClearUAVBarrierPending() { uav_barrier_pending_ = false; }
+
+   private:
+    Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
+    D3D12_RESOURCE_STATES resource_state_;
+    bool uav_barrier_pending_ = false;
   };
 
   // Whether the signed version of the texture has a different representation on
@@ -522,6 +623,42 @@ class TextureCache {
   // an error.
   void ClearBindings();
 
+  size_t GetScaledResolveBufferCount() const {
+    assert_true(draw_resolution_scale_ > 1);
+    // Make sure any range up to 1 GB is accessible through 1 or 2 buffers.
+    // 2x2 scale buffers - just one 2 GB buffer for all 2 GB.
+    // 3x3 scale buffers - 4 buffers:
+    //  +0.0 +0.5 +1.0 +1.5 +2.0 +2.5 +3.0 +3.5 +4.0 +4.5
+    // |___________________|___________________|
+    //           |___________________|______________|
+    // Buffer N has an offset of N * 1 GB in the scaled resolve address space.
+    // The logic is:
+    // - 2 GB can be accessed through a [0 GB ... 2 GB) buffer - only need one.
+    // - 2.1 GB needs [0 GB ... 2 GB) and [1 GB ... 2.1 GB) - two buffers.
+    // - 3 GB needs [0 GB ... 2 GB) and [1 GB ... 3 GB) - two buffers.
+    // - 3.1 GB needs [0 GB ... 2 GB), [1 GB ... 3 GB) and [2 GB ... 3.1 GB) -
+    //   three buffers.
+    uint64_t address_space_size =
+        uint64_t(SharedMemory::kBufferSize) *
+        (draw_resolution_scale_ * draw_resolution_scale_);
+    return size_t((address_space_size - 1) >> 30);
+  }
+  // Returns indices of two scaled resolve virtual buffers that the location in
+  // memory may be accessible through. May be the same if it's a location near
+  // the beginning or the end of the address represented only by one buffer.
+  std::array<size_t, 2> GetPossibleScaledResolveBufferIndices(
+      uint64_t address_scaled) const {
+    assert_true(draw_resolution_scale_ > 1);
+    size_t address_gb = size_t(address_scaled >> 30);
+    size_t max_index = GetScaledResolveBufferCount() - 1;
+    // In different cases for 3x3:
+    //  +0.0 +0.5 +1.0 +1.5 +2.0 +2.5 +3.0 +3.5 +4.0 +4.5
+    // |12________2________|1_________2________|
+    //           |1_________2________|1_________12__|
+    return std::array<size_t, 2>{
+        std::min(address_gb, max_index),
+        std::min(std::max(address_gb, size_t(1)) - size_t(1), max_index)};
+  }
   // Checks if there are any pages that contain scaled resolve data within the
   // range.
   bool IsRangeScaledResolved(uint32_t start_unscaled, uint32_t length_unscaled);
@@ -534,6 +671,18 @@ class TextureCache {
   void ScaledResolveGlobalWatchCallback(uint32_t address_first,
                                         uint32_t address_last,
                                         bool invalidated_by_gpu);
+  // The index is also the gigabyte offset of the buffer from the start of the
+  // scaled physical memory address space.
+  size_t GetCurrentScaledResolveBufferIndex() const {
+    return scaled_resolve_1gb_buffer_indices_
+        [scaled_resolve_current_range_start_scaled_ >> 30];
+  }
+  ScaledResolveVirtualBuffer& GetCurrentScaledResolveBuffer() {
+    ScaledResolveVirtualBuffer* scaled_resolve_buffer =
+        scaled_resolve_2gb_buffers_[GetCurrentScaledResolveBufferIndex()];
+    assert_not_null(scaled_resolve_buffer);
+    return *scaled_resolve_buffer;
+  }
 
   static const HostFormat host_formats_[64];
 
@@ -541,14 +690,14 @@ class TextureCache {
 
   D3D12CommandProcessor& command_processor_;
   const RegisterFile& register_file_;
-  bool bindless_resources_used_;
   D3D12SharedMemory& shared_memory_;
+  bool bindless_resources_used_;
 
   static const LoadModeInfo load_mode_info_[];
   ID3D12RootSignature* load_root_signature_ = nullptr;
   ID3D12PipelineState* load_pipelines_[size_t(LoadMode::kCount)] = {};
-  // Load pipelines for 2x-scaled resolved targets.
-  ID3D12PipelineState* load_pipelines_2x_[size_t(LoadMode::kCount)] = {};
+  // Load pipelines for resolution-scaled resolve targets.
+  ID3D12PipelineState* load_pipelines_scaled_[size_t(LoadMode::kCount)] = {};
 
   std::unordered_multimap<uint64_t, Texture*> textures_;
   uint64_t textures_total_size_ = 0;
@@ -592,37 +741,73 @@ class TextureCache {
   };
   uint8_t unsupported_format_features_used_[64];
 
-  // The 2 GB tiled buffer for resolved data with 2x resolution scale.
-  static constexpr uint32_t kScaledResolveBufferSizeLog2 = 31;
-  static constexpr uint32_t kScaledResolveBufferSize =
-      1u << kScaledResolveBufferSizeLog2;
-  ID3D12Resource* scaled_resolve_buffer_ = nullptr;
-  D3D12_RESOURCE_STATES scaled_resolve_buffer_state_ =
-      D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-  bool scaled_resolve_buffer_uav_writes_commit_needed_ = false;
+  uint32_t draw_resolution_scale_ = 1;
+  // The tiled buffer for resolved data with resolution scaling.
+  // Because on Direct3D 12 (at least on Windows 10 2004) typed SRV or UAV
+  // creation fails for offsets above 4 GB, a single tiled 4.5 GB buffer can't
+  // be used for 3x resolution scaling.
+  // Instead, "sliding window" buffers allowing to access a single range of up
+  // to 1 GB (or up to 2 GB, depending on the low bits) at any moment are used.
+  // Parts of 4.5 GB address space can be accessed through 2 GB buffers as:
+  //  +0.0 +0.5 +1.0 +1.5 +2.0 +2.5 +3.0 +3.5 +4.0 +4.5
+  // |___________________|___________________|      or
+  //           |___________________|______________|
+  // (2 GB is also the amount of scaled physical memory with 2x resolution
+  // scale, and older Intel GPUs, while support tiled resources, only support 31
+  // virtual address bits per resource).
+  // Index is first gigabyte. Only including buffers containing over 1 GB
+  // (because otherwise the data will be fully contained in another).
+  // Size is calculated the same as in GetScaledResolveBufferCount.
+  ScaledResolveVirtualBuffer*
+      scaled_resolve_2gb_buffers_[(uint64_t(SharedMemory::kBufferSize) *
+                                       (kMaxDrawResolutionScale *
+                                        kMaxDrawResolutionScale) -
+                                   1) >>
+                                  30] = {};
   // Not very big heaps (16 MB) because they are needed pretty sparsely. One
-  // scaled 1280x720x32bpp texture is slighly bigger than 14 MB.
+  // 2x-scaled 1280x720x32bpp texture is slighly bigger than 14 MB.
   static constexpr uint32_t kScaledResolveHeapSizeLog2 = 24;
   static constexpr uint32_t kScaledResolveHeapSize =
-      1 << kScaledResolveHeapSizeLog2;
+      uint32_t(1) << kScaledResolveHeapSizeLog2;
   static_assert(
       (kScaledResolveHeapSize % D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES) == 0,
       "Scaled resolve heap size must be a multiple of Direct3D tile size");
+  static_assert(
+      kScaledResolveHeapSizeLog2 <= SharedMemory::kBufferSizeLog2,
+      "Scaled resolve heaps are assumed to be wholly mappable irrespective of "
+      "resolution scale, never truncated, for example, if the scaled resolve "
+      "address space is 4.5 GB, but the heap size is 1 GB");
+  static_assert(
+      kScaledResolveHeapSizeLog2 <= 30,
+      "Scaled resolve heaps are assumed to only be wholly mappable to up to "
+      "two 2 GB buffers");
   // Resident portions of the tiled buffer.
-  ID3D12Heap* scaled_resolve_heaps_[kScaledResolveBufferSize >>
-                                    kScaledResolveHeapSizeLog2] = {};
+  std::vector<ID3D12Heap*> scaled_resolve_heaps_;
   // Number of currently resident portions of the tiled buffer, for profiling.
   uint32_t scaled_resolve_heap_count_ = 0;
   // Global watch for scaled resolve data invalidation.
   SharedMemory::GlobalWatchHandle scaled_resolve_global_watch_handle_ = nullptr;
+  // Current scaled resolve state.
+  // For aliasing barrier placement, last owning buffer index for each of 1 GB.
+  size_t
+      scaled_resolve_1gb_buffer_indices_[(uint64_t(SharedMemory::kBufferSize) *
+                                              kMaxDrawResolutionScale *
+                                              kMaxDrawResolutionScale +
+                                          ((uint32_t(1) << 30) - 1)) >>
+                                         30];
+  // Range used in the last successful MakeScaledResolveRangeCurrent call.
+  uint64_t scaled_resolve_current_range_start_scaled_;
+  uint64_t scaled_resolve_current_range_length_scaled_;
 
   xe::global_critical_region global_critical_region_;
   // Bit vector storing whether each 4 KB physical memory page contains scaled
-  // resolve data. uint32_t rather than uint64_t because parts of it are sent to
-  // shaders.
+  // resolve data. uint32_t rather than uint64_t because parts of it can be sent
+  // to shaders.
   uint32_t* scaled_resolve_pages_ = nullptr;
   // Second level of the bit vector for faster rejection of non-scaled textures.
-  uint64_t scaled_resolve_pages_l2_[(512 << 20) >> (12 + 5 + 6)];
+  // >> 12 for 4 KB pages, >> 5 for uint32_t level 1 bits, >> 6 for uint64_t
+  // level 2 bits.
+  uint64_t scaled_resolve_pages_l2_[SharedMemory::kBufferSize >> (12 + 5 + 6)];
 };
 
 }  // namespace d3d12

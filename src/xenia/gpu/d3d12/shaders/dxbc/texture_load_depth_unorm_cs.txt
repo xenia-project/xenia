@@ -138,6 +138,8 @@ if_nz r2.y
   bfi r1.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r1.xyzw, r3.xyzw
 endif 
 ushr r1.xyzw, r1.xyzw, l(8, 8, 8, 8)
+ushr r3.xyzw, r1.xyzw, l(23, 23, 23, 23)
+iadd r1.xyzw, r1.xyzw, r3.xyzw
 utof r1.xyzw, r1.xyzw
 mul r1.xyzw, r1.xyzw, l(0.000000, 0.000000, 0.000000, 0.000000)
 store_uav_typed U0[0].xyzw, r0.yyyy, r1.xyzw
@@ -157,8 +159,10 @@ if_nz r2.y
   bfi r1.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r1.xyzw, r2.xyzw
 endif 
 ushr r1.xyzw, r1.xyzw, l(8, 8, 8, 8)
+ushr r2.xyzw, r1.xyzw, l(23, 23, 23, 23)
+iadd r1.xyzw, r1.xyzw, r2.xyzw
 utof r1.xyzw, r1.xyzw
 mul r1.xyzw, r1.xyzw, l(0.000000, 0.000000, 0.000000, 0.000000)
 store_uav_typed U0[0].xyzw, r0.wwww, r1.xyzw
 ret 
-// Approximately 113 instruction slots used
+// Approximately 117 instruction slots used

@@ -1071,8 +1071,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   VulkanShader::VulkanTranslation* vertex_shader_translation =
       static_cast<VulkanShader::VulkanTranslation*>(
           vertex_shader->GetOrCreateTranslation(
-              shader_translator_->GetDefaultModification(
-                  xenos::ShaderType::kVertex,
+              shader_translator_->GetDefaultVertexShaderModification(
                   vertex_shader->GetDynamicAddressableRegisterCount(
                       regs.sq_program_cntl.vs_num_reg))));
   if (!vertex_shader_translation->is_translated() &&
@@ -1085,8 +1084,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   if (pixel_shader) {
     pixel_shader_translation = static_cast<VulkanShader::VulkanTranslation*>(
         pixel_shader->GetOrCreateTranslation(
-            shader_translator_->GetDefaultModification(
-                xenos::ShaderType::kPixel,
+            shader_translator_->GetDefaultPixelShaderModification(
                 pixel_shader->GetDynamicAddressableRegisterCount(
                     regs.sq_program_cntl.ps_num_reg))));
     if (!pixel_shader_translation->is_translated() &&

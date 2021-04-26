@@ -29,11 +29,14 @@ class ShaderTranslator {
  public:
   virtual ~ShaderTranslator();
 
-  virtual uint64_t GetDefaultModification(
-      xenos::ShaderType shader_type,
+  virtual uint64_t GetDefaultVertexShaderModification(
       uint32_t dynamic_addressable_register_count,
       Shader::HostVertexShaderType host_vertex_shader_type =
           Shader::HostVertexShaderType::kVertex) const {
+    return 0;
+  }
+  virtual uint64_t GetDefaultPixelShaderModification(
+      uint32_t dynamic_addressable_register_count) const {
     return 0;
   }
 

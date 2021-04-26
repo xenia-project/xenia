@@ -192,6 +192,11 @@ void D3D12SharedMemory::CompletedSubmissionUpdated() {
   upload_buffer_pool_->Reclaim(command_processor_.GetCompletedSubmission());
 }
 
+void D3D12SharedMemory::BeginSubmission() {
+  // ExecuteCommandLists is a full UAV barrier.
+  buffer_uav_writes_commit_needed_ = false;
+}
+
 void D3D12SharedMemory::CommitUAVWritesAndTransitionBuffer(
     D3D12_RESOURCE_STATES new_state) {
   if (buffer_state_ == new_state) {
@@ -421,7 +426,7 @@ bool D3D12SharedMemory::UploadRanges(
         return false;
       }
       MakeRangeValid(upload_range_start << page_size_log2(),
-                     uint32_t(upload_buffer_size), false);
+                     uint32_t(upload_buffer_size), false, false);
       std::memcpy(
           upload_buffer_mapping,
           memory().TranslatePhysical(upload_range_start << page_size_log2()),

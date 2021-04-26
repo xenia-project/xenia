@@ -23,15 +23,13 @@ cbuffer xe_system_cbuffer : register(b0) {
 
   uint4 xe_texture_swizzled_signs[2];
 
+  uint xe_textures_resolved;
   uint2 xe_sample_count_log2;
   float xe_alpha_test_reference;
-  uint xe_alpha_to_mask;
 
   float4 xe_color_exp_bias;
 
-  uint4 xe_color_output_map;
-
-  uint xe_edram_resolution_square_scale;
+  uint xe_alpha_to_mask;
   uint xe_edram_pitch_tiles;
   float2 xe_edram_depth_range;
 

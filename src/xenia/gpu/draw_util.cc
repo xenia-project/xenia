@@ -157,7 +157,7 @@ bool IsPixelShaderNeededWithRasterization(const Shader& shader,
   //
   // Memory export is an obvious intentional side effect.
   if (shader.kills_pixels() || shader.writes_depth() ||
-      !shader.memexport_stream_constants().empty() ||
+      shader.is_valid_memexport_used() ||
       (shader.writes_color_target(0) &&
        DoesCoverageDependOnAlpha(regs.Get<reg::RB_COLORCONTROL>()))) {
     return true;
@@ -183,13 +183,12 @@ bool IsPixelShaderNeededWithRasterization(const Shader& shader,
   return false;
 }
 
-void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
-                         float pixel_size_y, bool origin_bottom_left,
-                         float x_max, float y_max, bool allow_reverse_z,
-                         bool convert_z_to_float24,
+void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale,
+                         bool origin_bottom_left, float x_max, float y_max,
+                         bool allow_reverse_z, bool convert_z_to_float24,
+                         bool full_float24_in_0_to_1,
                          ViewportInfo& viewport_info_out) {
-  assert_true(pixel_size_x >= 1.0f);
-  assert_true(pixel_size_y >= 1.0f);
+  assert_true(resolution_scale >= 1);
   assert_true(x_max >= 1.0f);
   assert_true(y_max >= 1.0f);
 
@@ -235,8 +234,9 @@ void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
 
   if (pa_cl_vte_cntl.vport_x_scale_ena) {
     float pa_cl_vport_xscale = regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32;
-    float viewport_scale_x_abs = std::abs(pa_cl_vport_xscale) * pixel_size_x;
-    viewport_left = viewport_offset_x * pixel_size_x - viewport_scale_x_abs;
+    float viewport_scale_x_abs =
+        std::abs(pa_cl_vport_xscale) * resolution_scale;
+    viewport_left = viewport_offset_x * resolution_scale - viewport_scale_x_abs;
     float viewport_right = viewport_left + viewport_scale_x_abs * 2.0f;
     // Keep the viewport in the positive quarter-plane for simplicity of
     // clamping to the maximum supported bounds.
@@ -268,15 +268,16 @@ void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
     // enabled, via the shader.
     viewport_left = 0.0f;
     viewport_width = std::min(
-        float(xenos::kTexture2DCubeMaxWidthHeight) * pixel_size_x, x_max);
-    ndc_scale_x = (2.0f * pixel_size_x) / viewport_width;
+        float(xenos::kTexture2DCubeMaxWidthHeight) * resolution_scale, x_max);
+    ndc_scale_x = (2.0f * resolution_scale) / viewport_width;
     ndc_offset_x = viewport_offset_x * ndc_scale_x - 1.0f;
   }
 
   if (pa_cl_vte_cntl.vport_y_scale_ena) {
     float pa_cl_vport_yscale = regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;
-    float viewport_scale_y_abs = std::abs(pa_cl_vport_yscale) * pixel_size_y;
-    viewport_top = viewport_offset_y * pixel_size_y - viewport_scale_y_abs;
+    float viewport_scale_y_abs =
+        std::abs(pa_cl_vport_yscale) * resolution_scale;
+    viewport_top = viewport_offset_y * resolution_scale - viewport_scale_y_abs;
     float viewport_bottom = viewport_top + viewport_scale_y_abs * 2.0f;
     float cutoff_top = std::fmax(-viewport_top, 0.0f);
     float cutoff_bottom = std::fmax(viewport_bottom - y_max, 0.0f);
@@ -302,17 +303,18 @@ void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
   } else {
     viewport_top = 0.0f;
     viewport_height = std::min(
-        float(xenos::kTexture2DCubeMaxWidthHeight) * pixel_size_y, y_max);
-    ndc_scale_y = (2.0f * pixel_size_y) / viewport_height;
+        float(xenos::kTexture2DCubeMaxWidthHeight) * resolution_scale, y_max);
+    ndc_scale_y = (2.0f * resolution_scale) / viewport_height;
     ndc_offset_y = viewport_offset_y * ndc_scale_y - 1.0f;
   }
 
   // Apply the vertex half-pixel offset via the shader (it must not affect
-  // clipping, otherwise with SSAA or resolution scale, samples in the left/top
-  // half will never be covered).
+  // clipping, otherwise with resolution scale, samples in the left/top half
+  // will never be covered).
   if (cvars::half_pixel_offset && !pa_su_vtx_cntl.pix_center) {
-    ndc_offset_x += (0.5f * 2.0f * pixel_size_x) / viewport_width;
-    ndc_offset_y += (0.5f * 2.0f * pixel_size_y) / viewport_height;
+    float half_pixel_offset_ndc_scale = 0.5f * 2.0f * resolution_scale;
+    ndc_offset_x += half_pixel_offset_ndc_scale / viewport_width;
+    ndc_offset_y += half_pixel_offset_ndc_scale / viewport_height;
   }
 
   if (origin_bottom_left) {
@@ -343,17 +345,27 @@ void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
     ndc_scale_z = -ndc_scale_z;
     ndc_offset_z = 1.0f - ndc_offset_z;
   }
-  if (convert_z_to_float24 &&
-      GetDepthControlForCurrentEdramMode(regs).z_enable &&
+  if (GetDepthControlForCurrentEdramMode(regs).z_enable &&
       regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
           xenos::DepthRenderTargetFormat::kD24FS8) {
-    // Need to adjust the bounds that the resulting depth values will be clamped
-    // to after the pixel shader. Preferring adding some error to interpolated Z
-    // instead if conversion can't be done exactly, without modifying clipping
-    // bounds by adjusting Z in vertex shaders, as that may cause polygons
-    // placed explicitly at Z = 0 or Z = W to be clipped.
-    viewport_z_min = xenos::Float20e4To32(xenos::Float32To20e4(viewport_z_min));
-    viewport_z_max = xenos::Float20e4To32(xenos::Float32To20e4(viewport_z_max));
+    if (convert_z_to_float24) {
+      // Need to adjust the bounds that the resulting depth values will be
+      // clamped to after the pixel shader. Preferring adding some error to
+      // interpolated Z instead if conversion can't be done exactly, without
+      // modifying clipping bounds by adjusting Z in vertex shaders, as that may
+      // cause polygons placed explicitly at Z = 0 or Z = W to be clipped.
+      viewport_z_min =
+          xenos::Float20e4To32(xenos::Float32To20e4(viewport_z_min));
+      viewport_z_max =
+          xenos::Float20e4To32(xenos::Float32To20e4(viewport_z_max));
+    }
+    if (full_float24_in_0_to_1) {
+      // Remap the full [0...2) float24 range to [0...1) support data round-trip
+      // during render target ownership transfer of EDRAM tiles through depth
+      // input without unrestricted depth range.
+      viewport_z_min *= 0.5f;
+      viewport_z_max *= 0.5f;
+    }
   }
 
   viewport_info_out.left = viewport_left;
@@ -373,6 +385,8 @@ void GetHostViewportInfo(const RegisterFile& regs, float pixel_size_x,
 void GetScissor(const RegisterFile& regs, Scissor& scissor_out) {
   // FIXME(Triang3l): Screen scissor isn't applied here, but it seems to be
   // unused on Xbox 360 Direct3D 9.
+  // TODO(Triang3l): Clamp X to RB_SURFACE_INFO::surface_pitch to prevent
+  // overflow with target-indepdent rasterization (with ROV).
   auto pa_sc_window_scissor_tl = regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>();
   auto pa_sc_window_scissor_br = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>();
   uint32_t tl_x = pa_sc_window_scissor_tl.tl_x;
@@ -455,29 +469,68 @@ xenos::CopySampleSelect SanitizeCopySampleSelect(
   return copy_sample_select;
 }
 
+void GetResolveEdramTileSpan(ResolveEdramPackedInfo edram_info,
+                             ResolveAddressPackedInfo address_info,
+                             uint32_t& base_out, uint32_t& row_length_used_out,
+                             uint32_t& rows_out) {
+  uint32_t x_scale_log2 =
+      3 + uint32_t(edram_info.msaa_samples >= xenos::MsaaSamples::k4X) +
+      edram_info.format_is_64bpp;
+  uint32_t x0 = (address_info.local_x_div_8 << x_scale_log2) /
+                xenos::kEdramTileWidthSamples;
+  uint32_t x1 = (((address_info.local_x_div_8 + address_info.width_div_8)
+                  << x_scale_log2) +
+                 (xenos::kEdramTileWidthSamples - 1)) /
+                xenos::kEdramTileWidthSamples;
+  uint32_t y_scale_log2 =
+      3 + uint32_t(edram_info.msaa_samples >= xenos::MsaaSamples::k2X);
+  uint32_t y0 = (address_info.local_y_div_8 << y_scale_log2) /
+                xenos::kEdramTileHeightSamples;
+  uint32_t y1 = (((address_info.local_y_div_8 + address_info.height_div_8)
+                  << y_scale_log2) +
+                 (xenos::kEdramTileHeightSamples - 1)) /
+                xenos::kEdramTileHeightSamples;
+  base_out = edram_info.base_tiles + y0 * edram_info.pitch_tiles + x0;
+  row_length_used_out = x1 - x0;
+  rows_out = y1 - y0;
+}
+
 const ResolveCopyShaderInfo
     resolve_copy_shader_info[size_t(ResolveCopyShaderIndex::kCount)] = {
         {"Resolve Copy Fast 32bpp 1x/2xMSAA", 1, false, 4, 4, 6, 3},
         {"Resolve Copy Fast 32bpp 4xMSAA", 1, false, 4, 4, 6, 3},
         {"Resolve Copy Fast 32bpp 2xRes", 2, false, 4, 4, 4, 3},
+        {"Resolve Copy Fast 32bpp 3xRes 1x/2xMSAA", 3, false, 3, 3, 4, 3},
+        {"Resolve Copy Fast 32bpp 3xRes 4xMSAA", 3, false, 3, 3, 4, 3},
         {"Resolve Copy Fast 64bpp 1x/2xMSAA", 1, false, 4, 4, 5, 3},
         {"Resolve Copy Fast 64bpp 4xMSAA", 1, false, 3, 4, 5, 3},
         {"Resolve Copy Fast 64bpp 2xRes", 2, false, 4, 4, 3, 3},
+        {"Resolve Copy Fast 64bpp 3xRes", 3, false, 3, 3, 3, 3},
         {"Resolve Copy Full 8bpp", 1, true, 2, 3, 6, 3},
         {"Resolve Copy Full 8bpp 2xRes", 2, false, 4, 3, 4, 3},
+        {"Resolve Copy Full 8bpp 3xRes", 3, true, 2, 3, 6, 3},
         {"Resolve Copy Full 16bpp", 1, true, 2, 3, 5, 3},
         {"Resolve Copy Full 16bpp 2xRes", 2, false, 4, 3, 3, 3},
+        {"Resolve Copy Full 16bpp from 32bpp 3xRes", 3, true, 2, 3, 5, 3},
+        {"Resolve Copy Full 16bpp from 64bpp 3xRes", 3, false, 3, 3, 5, 3},
         {"Resolve Copy Full 32bpp", 1, true, 2, 4, 5, 3},
         {"Resolve Copy Full 32bpp 2xRes", 2, false, 4, 4, 3, 3},
+        {"Resolve Copy Full 32bpp from 32bpp 3xRes", 3, true, 2, 3, 4, 3},
+        {"Resolve Copy Full 32bpp from 64bpp 3xRes", 3, false, 3, 3, 4, 3},
         {"Resolve Copy Full 64bpp", 1, true, 2, 4, 5, 3},
         {"Resolve Copy Full 64bpp 2xRes", 2, false, 4, 4, 3, 3},
+        {"Resolve Copy Full 64bpp from 32bpp 3xRes", 3, true, 2, 3, 3, 3},
+        {"Resolve Copy Full 64bpp from 64bpp 3xRes", 3, false, 3, 3, 3, 3},
         {"Resolve Copy Full 128bpp", 1, true, 2, 4, 4, 3},
         {"Resolve Copy Full 128bpp 2xRes", 2, false, 4, 4, 3, 3},
+        {"Resolve Copy Full 128bpp from 32bpp 3xRes", 3, true, 2, 4, 3, 3},
+        {"Resolve Copy Full 128bpp from 64bpp 3xRes", 3, false, 3, 4, 3, 3},
 };
 
 bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
                     TraceWriter& trace_writer, uint32_t resolution_scale,
-                    bool edram_16_as_minus_1_to_1, ResolveInfo& info_out) {
+                    bool fixed_16_truncated_to_minus_1_to_1,
+                    ResolveInfo& info_out) {
   auto rb_copy_control = regs.Get<reg::RB_COPY_CONTROL>();
   info_out.rb_copy_control = rb_copy_control;
 
@@ -582,6 +635,15 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   y1 = xe::align(y1, int32_t(xenos::kResolveAlignmentPixels));
 
   auto rb_surface_info = regs.Get<reg::RB_SURFACE_INFO>();
+  if (rb_surface_info.msaa_samples > xenos::MsaaSamples::k4X) {
+    // Safety check because a lot of code assumes up to 4x.
+    assert_always();
+    XELOGE(
+        "{}x MSAA requested by the guest in a resolve, Xenos only supports up "
+        "to 4x",
+        uint32_t(1) << uint32_t(rb_surface_info.msaa_samples));
+    return false;
+  }
 
   // Clamp to the EDRAM surface pitch (maximum possible surface pitch is also
   // assumed to be the largest resolvable size).
@@ -754,6 +816,22 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
       cvars::resolve_resolution_scale_duplicate_second_pixel &&
       cvars::half_pixel_offset && !regs.Get<reg::PA_SU_VTX_CNTL>().pix_center;
   int32_t exp_bias = is_depth ? 0 : rb_copy_dest_info.copy_dest_exp_bias;
+  ResolveEdramPackedInfo depth_edram_info;
+  depth_edram_info.packed = 0;
+  if (is_depth || rb_copy_control.depth_clear_enable) {
+    depth_edram_info.pitch_tiles = surface_pitch_tiles;
+    depth_edram_info.msaa_samples = rb_surface_info.msaa_samples;
+    depth_edram_info.is_depth = 1;
+    depth_edram_info.base_tiles =
+        rb_depth_info.depth_base + edram_base_offset_tiles;
+    depth_edram_info.format = uint32_t(rb_depth_info.depth_format);
+    depth_edram_info.format_is_64bpp = 0;
+    depth_edram_info.duplicate_second_pixel = uint32_t(duplicate_second_pixel);
+    info_out.depth_original_base = rb_depth_info.depth_base;
+  } else {
+    info_out.depth_original_base = 0;
+  }
+  info_out.depth_edram_info = depth_edram_info;
   ResolveEdramPackedInfo color_edram_info;
   color_edram_info.packed = 0;
   if (!is_depth) {
@@ -771,7 +849,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
     color_edram_info.format = uint32_t(color_info.color_format);
     color_edram_info.format_is_64bpp = is_64bpp;
     color_edram_info.duplicate_second_pixel = uint32_t(duplicate_second_pixel);
-    if (edram_16_as_minus_1_to_1 &&
+    if (fixed_16_truncated_to_minus_1_to_1 &&
         (color_info.color_format == xenos::ColorRenderTargetFormat::k_16_16 ||
          color_info.color_format ==
              xenos::ColorRenderTargetFormat::k_16_16_16_16)) {
@@ -781,21 +859,11 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
       // to create a new copy info structure with one more bit just for this).
       exp_bias = std::min(exp_bias + int32_t(5), int32_t(31));
     }
+    info_out.color_original_base = color_info.color_base;
+  } else {
+    info_out.color_original_base = 0;
   }
   info_out.color_edram_info = color_edram_info;
-  ResolveEdramPackedInfo depth_edram_info;
-  depth_edram_info.packed = 0;
-  if (is_depth || rb_copy_control.depth_clear_enable) {
-    depth_edram_info.pitch_tiles = surface_pitch_tiles;
-    depth_edram_info.msaa_samples = rb_surface_info.msaa_samples;
-    depth_edram_info.is_depth = 1;
-    depth_edram_info.base_tiles =
-        rb_depth_info.depth_base + edram_base_offset_tiles;
-    depth_edram_info.format = uint32_t(rb_depth_info.depth_format);
-    depth_edram_info.format_is_64bpp = 0;
-    depth_edram_info.duplicate_second_pixel = uint32_t(duplicate_second_pixel);
-  }
-  info_out.depth_edram_info = depth_edram_info;
 
   // Patch and write RB_COPY_DEST_INFO.
   info_out.rb_copy_dest_info = rb_copy_dest_info;
@@ -813,7 +881,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   info_out.rb_color_clear = regs[XE_GPU_REG_RB_COLOR_CLEAR].u32;
   info_out.rb_color_clear_lo = regs[XE_GPU_REG_RB_COLOR_CLEAR_LO].u32;
 
-  XELOGGPU(
+  XELOGD(
       "Resolve: {},{} <= x,y < {},{}, {} -> {} at 0x{:08X} (first tile at "
       "0x{:08X}, length 0x{:08X})",
       x0, y0, x1, y1,
@@ -834,64 +902,116 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(
   bool is_depth = IsCopyingDepth();
   ResolveEdramPackedInfo edram_info =
       is_depth ? depth_edram_info : color_edram_info;
+  bool source_is_64bpp = !is_depth && color_edram_info.format_is_64bpp != 0;
   if (is_depth ||
       (!rb_copy_dest_info.copy_dest_exp_bias &&
        xenos::IsSingleCopySampleSelected(address.copy_sample_select) &&
        xenos::IsColorResolveFormatBitwiseEquivalent(
            xenos::ColorRenderTargetFormat(color_edram_info.format),
            xenos::ColorFormat(rb_copy_dest_info.copy_dest_format)))) {
-    bool is_64bpp = is_depth ? false : (color_edram_info.format_is_64bpp != 0);
-    if (resolution_scale >= 2) {
-      shader = is_64bpp ? ResolveCopyShaderIndex::kFast64bpp2xRes
-                        : ResolveCopyShaderIndex::kFast32bpp2xRes;
-    } else {
-      if (edram_info.msaa_samples >= xenos::MsaaSamples::k4X) {
-        shader = is_64bpp ? ResolveCopyShaderIndex::kFast64bpp4xMSAA
-                          : ResolveCopyShaderIndex::kFast32bpp4xMSAA;
-      } else {
-        shader = is_64bpp ? ResolveCopyShaderIndex::kFast64bpp1x2xMSAA
-                          : ResolveCopyShaderIndex::kFast32bpp1x2xMSAA;
-      }
+    switch (resolution_scale) {
+      case 1:
+        if (edram_info.msaa_samples >= xenos::MsaaSamples::k4X) {
+          shader = source_is_64bpp ? ResolveCopyShaderIndex::kFast64bpp4xMSAA
+                                   : ResolveCopyShaderIndex::kFast32bpp4xMSAA;
+        } else {
+          shader = source_is_64bpp ? ResolveCopyShaderIndex::kFast64bpp1x2xMSAA
+                                   : ResolveCopyShaderIndex::kFast32bpp1x2xMSAA;
+        }
+        break;
+      case 2:
+        shader = source_is_64bpp ? ResolveCopyShaderIndex::kFast64bpp2xRes
+                                 : ResolveCopyShaderIndex::kFast32bpp2xRes;
+        break;
+      case 3:
+        if (source_is_64bpp) {
+          shader = ResolveCopyShaderIndex::kFast64bpp3xRes;
+        } else {
+          shader = edram_info.msaa_samples >= xenos::MsaaSamples::k4X
+                       ? ResolveCopyShaderIndex::kFast32bpp3xRes4xMSAA
+                       : ResolveCopyShaderIndex::kFast32bpp3xRes1x2xMSAA;
+        }
+        break;
+      default:
+        assert_unhandled_case(resolution_scale);
     }
   } else {
     const FormatInfo& dest_format_info = *FormatInfo::Get(
         xenos::TextureFormat(rb_copy_dest_info.copy_dest_format));
-    if (resolution_scale >= 2) {
-      switch (dest_format_info.bits_per_pixel) {
-        case 8:
-          shader = ResolveCopyShaderIndex::kFull8bpp2xRes;
-          break;
-        case 16:
-          shader = ResolveCopyShaderIndex::kFull16bpp2xRes;
-          break;
-        case 32:
-          shader = ResolveCopyShaderIndex::kFull32bpp2xRes;
-          break;
-        case 64:
-          shader = ResolveCopyShaderIndex::kFull64bpp2xRes;
-          break;
-        case 128:
-          shader = ResolveCopyShaderIndex::kFull128bpp2xRes;
-          break;
-      }
-    } else {
-      switch (dest_format_info.bits_per_pixel) {
-        case 8:
-          shader = ResolveCopyShaderIndex::kFull8bpp;
-          break;
-        case 16:
-          shader = ResolveCopyShaderIndex::kFull16bpp;
-          break;
-        case 32:
-          shader = ResolveCopyShaderIndex::kFull32bpp;
-          break;
-        case 64:
-          shader = ResolveCopyShaderIndex::kFull64bpp;
-          break;
-        case 128:
-          shader = ResolveCopyShaderIndex::kFull128bpp;
-          break;
-      }
+    switch (resolution_scale) {
+      case 1:
+        switch (dest_format_info.bits_per_pixel) {
+          case 8:
+            shader = ResolveCopyShaderIndex::kFull8bpp;
+            break;
+          case 16:
+            shader = ResolveCopyShaderIndex::kFull16bpp;
+            break;
+          case 32:
+            shader = ResolveCopyShaderIndex::kFull32bpp;
+            break;
+          case 64:
+            shader = ResolveCopyShaderIndex::kFull64bpp;
+            break;
+          case 128:
+            shader = ResolveCopyShaderIndex::kFull128bpp;
+            break;
+          default:
+            assert_unhandled_case(dest_format_info.bits_per_pixel);
+        }
+        break;
+      case 2:
+        switch (dest_format_info.bits_per_pixel) {
+          case 8:
+            shader = ResolveCopyShaderIndex::kFull8bpp2xRes;
+            break;
+          case 16:
+            shader = ResolveCopyShaderIndex::kFull16bpp2xRes;
+            break;
+          case 32:
+            shader = ResolveCopyShaderIndex::kFull32bpp2xRes;
+            break;
+          case 64:
+            shader = ResolveCopyShaderIndex::kFull64bpp2xRes;
+            break;
+          case 128:
+            shader = ResolveCopyShaderIndex::kFull128bpp2xRes;
+            break;
+          default:
+            assert_unhandled_case(dest_format_info.bits_per_pixel);
+        }
+        break;
+      case 3:
+        switch (dest_format_info.bits_per_pixel) {
+          case 8:
+            shader = ResolveCopyShaderIndex::kFull8bpp3xRes;
+            break;
+          case 16:
+            shader = source_is_64bpp
+                         ? ResolveCopyShaderIndex::kFull16bppFrom64bpp3xRes
+                         : ResolveCopyShaderIndex::kFull16bppFrom32bpp3xRes;
+            break;
+          case 32:
+            shader = source_is_64bpp
+                         ? ResolveCopyShaderIndex::kFull32bppFrom64bpp3xRes
+                         : ResolveCopyShaderIndex::kFull32bppFrom32bpp3xRes;
+            break;
+          case 64:
+            shader = source_is_64bpp
+                         ? ResolveCopyShaderIndex::kFull64bppFrom64bpp3xRes
+                         : ResolveCopyShaderIndex::kFull64bppFrom32bpp3xRes;
+            break;
+          case 128:
+            shader = source_is_64bpp
+                         ? ResolveCopyShaderIndex::kFull128bppFrom64bpp3xRes
+                         : ResolveCopyShaderIndex::kFull128bppFrom32bpp3xRes;
+            break;
+          default:
+            assert_unhandled_case(dest_format_info.bits_per_pixel);
+        }
+        break;
+      default:
+        assert_unhandled_case(resolution_scale);
     }
   }
 
