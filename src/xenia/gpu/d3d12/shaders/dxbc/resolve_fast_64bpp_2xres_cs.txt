@@ -73,13 +73,11 @@ ishl r0.yw, r1.xxxy, r0.yyyw
 ushr r3.x, r3.y, l(1)
 and r1.xy, r3.xyxx, l(1, 1, 0, 0)
 iadd r0.yw, r0.yyyw, r1.xxxy
-udiv r1.x, null, r0.y, l(80)
-ushr r1.y, r0.w, l(4)
+udiv r1.xy, null, r0.ywyy, l(80, 16, 0, 0)
 ishl r1.w, r1.x, l(1)
 imad r1.w, r1.y, r2.y, r1.w
 iadd r1.z, r1.w, r1.z
-ineg r3.xy, r1.xyxx
-imad r0.yw, r3.xxxy, l(0, 80, 0, 16), r0.yyyw
+imad r0.yw, -r1.xxxy, l(0, 80, 0, 16), r0.yyyw
 imad r0.y, r0.w, l(80), r0.y
 ishl r0.y, r0.y, l(1)
 imad r0.y, r1.z, l(1280), r0.y
@@ -88,34 +86,12 @@ iadd r0.y, r0.y, l(1)
 ld r3.xyzw, r0.yyyy, T0[0].xyzw
 if_nz r2.z
   ubfe r0.y, l(4), l(25), CB0[0][0].x
-  switch r0.y
-    case l(0)
-    case l(1)
-    and r4.xyzw, r1.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
-    bfi r4.xyzw, l(8, 8, 8, 8), l(16, 16, 16, 16), r1.xyzw, r4.xyzw
-    ubfe r5.xyzw, l(8, 8, 8, 8), l(16, 16, 16, 16), r1.xyzw
-    iadd r1.xyzw, r4.xyzw, r5.xyzw
-    and r4.xyzw, r3.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
-    bfi r4.xyzw, l(8, 8, 8, 8), l(16, 16, 16, 16), r3.xyzw, r4.xyzw
-    ubfe r5.xyzw, l(8, 8, 8, 8), l(16, 16, 16, 16), r3.xyzw
-    iadd r3.xyzw, r4.xyzw, r5.xyzw
-    break 
-    case l(2)
-    case l(3)
-    case l(10)
-    case l(12)
-    and r4.xyzw, r1.xyzw, l(0xc00ffc00, 0xc00ffc00, 0xc00ffc00, 0xc00ffc00)
-    bfi r4.xyzw, l(10, 10, 10, 10), l(20, 20, 20, 20), r1.xyzw, r4.xyzw
-    ubfe r5.xyzw, l(10, 10, 10, 10), l(20, 20, 20, 20), r1.xyzw
-    iadd r1.xyzw, r4.xyzw, r5.xyzw
-    and r4.xyzw, r3.xyzw, l(0xc00ffc00, 0xc00ffc00, 0xc00ffc00, 0xc00ffc00)
-    bfi r4.xyzw, l(10, 10, 10, 10), l(20, 20, 20, 20), r3.xyzw, r4.xyzw
-    ubfe r5.xyzw, l(10, 10, 10, 10), l(20, 20, 20, 20), r3.xyzw
-    iadd r3.xyzw, r4.xyzw, r5.xyzw
-    break 
-    default 
-    break 
-  endswitch 
+  ieq r0.yw, r0.yyyy, l(0, 5, 0, 7)
+  or r0.y, r0.w, r0.y
+  if_nz r0.y
+    bfi r1.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r1.yxwz, r1.xyzw
+    bfi r3.xyzw, l(16, 16, 16, 16), l(0, 0, 0, 0), r3.yxwz, r3.xyzw
+  endif 
 endif 
 if_nz r2.w
   if_z vThreadID.x
@@ -230,4 +206,4 @@ if_nz r0.w
 endif 
 store_uav_typed U0[0].xyzw, r0.zzzz, r3.xyzw
 ret 
-// Approximately 186 instruction slots used
+// Approximately 162 instruction slots used

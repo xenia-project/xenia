@@ -103,6 +103,16 @@ uint XePackR5G5B6UNorm(float3 f) {
   return n.r | (n.g << 5) | (n.b << 10);
 }
 
+uint XePackR8G8UNorm(float2 f) {
+  uint2 n = uint2(saturate(f) * 255.0f + 0.5f);
+  return n.r | (n.g << 8);
+}
+
+uint XePackR8G8B8UNorm(float3 f) {
+  uint3 n = uint3(saturate(f) * 255.0f + 0.5f);
+  return n.r | (n.g << 8) | (n.b << 16);
+}
+
 uint XePackR8G8B8A8UNorm(float4 f) {
   uint4 n = uint4(saturate(f) * 255.0f + 0.5f);
   return n.r | (n.g << 8) | (n.b << 16) | (n.a << 24);
@@ -142,8 +152,143 @@ uint2 XePackR16G16B16A16UNorm(float4 f) {
   return n.rb | (n.ga << 16);
 }
 
-uint2 XePack16bpp4Pixels(float4 pixel_0, float4 pixel_1, float4 pixel_2,
-                         float4 pixel_3, uint format) {
+uint4 XePack16bpp4PixelsInUInt4(float4 pixel_0, float4 pixel_1, float4 pixel_2,
+                                float4 pixel_3, uint format) {
+  uint4 packed;
+  switch (format) {
+    case kXenosFormat_1_5_5_5:
+      packed.x = XePackR5G5B5A1UNorm(pixel_0);
+      packed.y = XePackR5G5B5A1UNorm(pixel_1);
+      packed.z = XePackR5G5B5A1UNorm(pixel_2);
+      packed.w = XePackR5G5B5A1UNorm(pixel_3);
+      break;
+    case kXenosFormat_5_6_5:
+      packed.x = XePackR5G6B5UNorm(pixel_0.rgb);
+      packed.y = XePackR5G6B5UNorm(pixel_1.rgb);
+      packed.z = XePackR5G6B5UNorm(pixel_2.rgb);
+      packed.w = XePackR5G6B5UNorm(pixel_3.rgb);
+      break;
+    case kXenosFormat_6_5_5:
+      packed.x = XePackR5G5B6UNorm(pixel_0.rgb);
+      packed.y = XePackR5G5B6UNorm(pixel_1.rgb);
+      packed.z = XePackR5G5B6UNorm(pixel_2.rgb);
+      packed.w = XePackR5G5B6UNorm(pixel_3.rgb);
+      break;
+    case kXenosFormat_8_8:
+      packed.x = XePackR8G8UNorm(pixel_0.rg);
+      packed.y = XePackR8G8UNorm(pixel_1.rg);
+      packed.z = XePackR8G8UNorm(pixel_2.rg);
+      packed.w = XePackR8G8UNorm(pixel_3.rg);
+      break;
+    case kXenosFormat_4_4_4_4:
+      packed.x = XePackR4G4B4A4UNorm(pixel_0);
+      packed.y = XePackR4G4B4A4UNorm(pixel_1);
+      packed.z = XePackR4G4B4A4UNorm(pixel_2);
+      packed.w = XePackR4G4B4A4UNorm(pixel_3);
+      break;
+    case kXenosFormat_16:
+      packed.x = XePackR16UNorm(pixel_0.r);
+      packed.y = XePackR16UNorm(pixel_1.r);
+      packed.z = XePackR16UNorm(pixel_2.r);
+      packed.w = XePackR16UNorm(pixel_3.r);
+      break;
+    default:
+      // Treat as something (16_FLOAT).
+      packed = f32tof16(float4(pixel_0.r, pixel_1.r, pixel_2.r, pixel_3.r));
+      break;
+  }
+  return packed;
+}
+
+void XePack16bpp5PixelsInUInt41(float4 pixel_0, float4 pixel_1, float4 pixel_2,
+                                float4 pixel_3, float4 pixel_4, uint format,
+                                out uint4 packed, out uint packed_4) {
+  switch (format) {
+    case kXenosFormat_1_5_5_5:
+      packed.x = XePackR5G5B5A1UNorm(pixel_0);
+      packed.y = XePackR5G5B5A1UNorm(pixel_1);
+      packed.z = XePackR5G5B5A1UNorm(pixel_2);
+      packed.w = XePackR5G5B5A1UNorm(pixel_3);
+      packed_4 = XePackR5G5B5A1UNorm(pixel_4);
+      break;
+    case kXenosFormat_5_6_5:
+      packed.x = XePackR5G6B5UNorm(pixel_0.rgb);
+      packed.y = XePackR5G6B5UNorm(pixel_1.rgb);
+      packed.z = XePackR5G6B5UNorm(pixel_2.rgb);
+      packed.w = XePackR5G6B5UNorm(pixel_3.rgb);
+      packed_4 = XePackR5G6B5UNorm(pixel_4.rgb);
+      break;
+    case kXenosFormat_6_5_5:
+      packed.x = XePackR5G5B6UNorm(pixel_0.rgb);
+      packed.y = XePackR5G5B6UNorm(pixel_1.rgb);
+      packed.z = XePackR5G5B6UNorm(pixel_2.rgb);
+      packed.w = XePackR5G5B6UNorm(pixel_3.rgb);
+      packed_4 = XePackR5G5B6UNorm(pixel_4.rgb);
+      break;
+    case kXenosFormat_8_8:
+      packed.x = XePackR8G8UNorm(pixel_0.rg);
+      packed.y = XePackR8G8UNorm(pixel_1.rg);
+      packed.z = XePackR8G8UNorm(pixel_2.rg);
+      packed.w = XePackR8G8UNorm(pixel_3.rg);
+      packed_4 = XePackR8G8UNorm(pixel_4.rg);
+      break;
+    case kXenosFormat_4_4_4_4:
+      packed.x = XePackR4G4B4A4UNorm(pixel_0);
+      packed.y = XePackR4G4B4A4UNorm(pixel_1);
+      packed.z = XePackR4G4B4A4UNorm(pixel_2);
+      packed.w = XePackR4G4B4A4UNorm(pixel_3);
+      packed_4 = XePackR4G4B4A4UNorm(pixel_4);
+      break;
+    case kXenosFormat_16:
+      packed.x = XePackR16UNorm(pixel_0.r);
+      packed.y = XePackR16UNorm(pixel_1.r);
+      packed.z = XePackR16UNorm(pixel_2.r);
+      packed.w = XePackR16UNorm(pixel_3.r);
+      packed_4 = XePackR16UNorm(pixel_4.r);
+      break;
+    default:
+      // Treat as something (16_FLOAT).
+      packed = f32tof16(float4(pixel_0.r, pixel_1.r, pixel_2.r, pixel_3.r));
+      packed_4 = f32tof16(pixel_4.r);
+      break;
+  }
+}
+
+uint XePack16bpp2PixelsInUInt(float4 pixel_0, float4 pixel_1, uint format) {
+  uint packed;
+  switch (format) {
+    case kXenosFormat_1_5_5_5:
+      packed = XePackR5G5B5A1UNorm(pixel_0) |
+               (XePackR5G5B5A1UNorm(pixel_1) << 16u);
+      break;
+    case kXenosFormat_5_6_5:
+      packed = XePackR5G6B5UNorm(pixel_0.rgb) |
+               (XePackR5G6B5UNorm(pixel_1.rgb) << 16u);
+      break;
+    case kXenosFormat_6_5_5:
+      packed = XePackR5G5B6UNorm(pixel_0.rgb) |
+               (XePackR5G5B6UNorm(pixel_1.rgb) << 16u);
+      break;
+    case kXenosFormat_8_8:
+      packed = XePackR8G8B8A8UNorm(float4(pixel_0.rg, pixel_1.rg));
+      break;
+    case kXenosFormat_4_4_4_4:
+      packed = XePackR4G4B4A4UNorm(pixel_0) |
+               (XePackR4G4B4A4UNorm(pixel_1) << 16u);
+      break;
+    case kXenosFormat_16:
+      packed = XePackR16G16UNorm(float2(pixel_0.r, pixel_1.r));
+      break;
+    default:
+      // Treat as something (16_FLOAT).
+      packed = f32tof16(pixel_0.r) | (f32tof16(pixel_1.r) << 16u);
+      break;
+  }
+  return packed;
+}
+
+uint2 XePack16bpp4PixelsInUInt2(float4 pixel_0, float4 pixel_1, float4 pixel_2,
+                                float4 pixel_3, uint format) {
   uint2 packed;
   switch (format) {
     case kXenosFormat_1_5_5_5:
@@ -182,6 +327,48 @@ uint2 XePack16bpp4Pixels(float4 pixel_0, float4 pixel_1, float4 pixel_2,
       // Treat as something (16_FLOAT).
       packed = f32tof16(float2(pixel_0.r, pixel_2.r)) |
                (f32tof16(float2(pixel_1.r, pixel_3.r)) << 16u);
+      break;
+  }
+  return packed;
+}
+
+uint2 XePack32bpp2Pixels(float4 pixel_0, float4 pixel_1, uint format) {
+  uint2 packed;
+  switch (format) {
+    case kXenosFormat_8_8_8_8:
+    // TODO(Triang3l): Investigate 8_8_8_8_A.
+    case kXenosFormat_8_8_8_8_A:
+    case kXenosFormat_8_8_8_8_AS_16_16_16_16:
+      packed.x = XePackR8G8B8A8UNorm(pixel_0);
+      packed.y = XePackR8G8B8A8UNorm(pixel_1);
+      break;
+    case kXenosFormat_2_10_10_10:
+    case kXenosFormat_2_10_10_10_AS_16_16_16_16:
+      packed.x = XePackR10G10B10A2UNorm(pixel_0);
+      packed.y = XePackR10G10B10A2UNorm(pixel_1);
+      break;
+    case kXenosFormat_10_11_11:
+    case kXenosFormat_10_11_11_AS_16_16_16_16:
+      packed.x = XePackR11G11B10UNorm(pixel_0.rgb);
+      packed.y = XePackR11G11B10UNorm(pixel_1.rgb);
+      break;
+    case kXenosFormat_11_11_10:
+    case kXenosFormat_11_11_10_AS_16_16_16_16:
+      packed.x = XePackR10G11B11UNorm(pixel_0.rgb);
+      packed.y = XePackR10G11B11UNorm(pixel_1.rgb);
+      break;
+    case kXenosFormat_16_16:
+      packed.x = XePackR16G16UNorm(pixel_0.rg);
+      packed.y = XePackR16G16UNorm(pixel_1.rg);
+      break;
+    case kXenosFormat_16_16_FLOAT:
+      packed = f32tof16(float2(pixel_0.r, pixel_1.r)) |
+               (f32tof16(float2(pixel_0.g, pixel_1.g)) << 16u);
+      break;
+    default:
+      // Treat as 32_FLOAT.
+      packed.x = asuint(pixel_0.r);
+      packed.y = asuint(pixel_1.r);
       break;
   }
   return packed;
@@ -243,6 +430,85 @@ uint4 XePack32bpp4Pixels(float4 pixel_0, float4 pixel_1, float4 pixel_2,
   return packed;
 }
 
+void XePack32bpp5Pixels(float4 pixel_0, float4 pixel_1, float4 pixel_2,
+                        float4 pixel_3, float4 pixel_4, uint format,
+                        out uint4 packed, out uint packed_4) {
+  switch (format) {
+    case kXenosFormat_8_8_8_8:
+    // TODO(Triang3l): Investigate 8_8_8_8_A.
+    case kXenosFormat_8_8_8_8_A:
+    case kXenosFormat_8_8_8_8_AS_16_16_16_16:
+      packed.x = XePackR8G8B8A8UNorm(pixel_0);
+      packed.y = XePackR8G8B8A8UNorm(pixel_1);
+      packed.z = XePackR8G8B8A8UNorm(pixel_2);
+      packed.w = XePackR8G8B8A8UNorm(pixel_3);
+      packed_4 = XePackR8G8B8A8UNorm(pixel_4);
+      break;
+    case kXenosFormat_2_10_10_10:
+    case kXenosFormat_2_10_10_10_AS_16_16_16_16:
+      packed.x = XePackR10G10B10A2UNorm(pixel_0);
+      packed.y = XePackR10G10B10A2UNorm(pixel_1);
+      packed.z = XePackR10G10B10A2UNorm(pixel_2);
+      packed.w = XePackR10G10B10A2UNorm(pixel_3);
+      packed_4 = XePackR10G10B10A2UNorm(pixel_4);
+      break;
+    case kXenosFormat_10_11_11:
+    case kXenosFormat_10_11_11_AS_16_16_16_16:
+      packed.x = XePackR11G11B10UNorm(pixel_0.rgb);
+      packed.y = XePackR11G11B10UNorm(pixel_1.rgb);
+      packed.z = XePackR11G11B10UNorm(pixel_2.rgb);
+      packed.w = XePackR11G11B10UNorm(pixel_3.rgb);
+      packed_4 = XePackR11G11B10UNorm(pixel_4.rgb);
+      break;
+    case kXenosFormat_11_11_10:
+    case kXenosFormat_11_11_10_AS_16_16_16_16:
+      packed.x = XePackR10G11B11UNorm(pixel_0.rgb);
+      packed.y = XePackR10G11B11UNorm(pixel_1.rgb);
+      packed.z = XePackR10G11B11UNorm(pixel_2.rgb);
+      packed.w = XePackR10G11B11UNorm(pixel_3.rgb);
+      packed_4 = XePackR10G11B11UNorm(pixel_4.rgb);
+      break;
+    case kXenosFormat_16_16:
+      packed.x = XePackR16G16UNorm(pixel_0.rg);
+      packed.y = XePackR16G16UNorm(pixel_1.rg);
+      packed.z = XePackR16G16UNorm(pixel_2.rg);
+      packed.w = XePackR16G16UNorm(pixel_3.rg);
+      packed_4 = XePackR16G16UNorm(pixel_4.rg);
+      break;
+    case kXenosFormat_16_16_FLOAT:
+      packed =
+          f32tof16(float4(pixel_0.r, pixel_1.r, pixel_2.r, pixel_3.r)) |
+          (f32tof16(float4(pixel_0.g, pixel_1.g, pixel_2.g, pixel_3.g)) << 16u);
+      packed_4 = f32tof16(pixel_4.r) | (f32tof16(pixel_4.g) << 16u);
+      break;
+    default:
+      // Treat as 32_FLOAT.
+      packed.x = asuint(pixel_0.r);
+      packed.y = asuint(pixel_1.r);
+      packed.z = asuint(pixel_2.r);
+      packed.w = asuint(pixel_3.r);
+      packed_4 = asuint(pixel_4.r);
+      break;
+  }
+}
+
+uint2 XePack64bppPixel(float4 pixel, uint format) {
+  uint2 packed;
+  switch (format) {
+    case kXenosFormat_16_16_16_16:
+      packed = XePackR16G16B16A16UNorm(pixel);
+      break;
+    case kXenosFormat_16_16_16_16_FLOAT:
+      packed = f32tof16(pixel.rb) | (f32tof16(pixel.ga) << 16u);
+      break;
+    default:
+      // Treat as 32_32_FLOAT.
+      packed = asuint(pixel.rg);
+      break;
+  }
+  return packed;
+}
+
 void XePack64bpp4Pixels(float4 pixel_0, float4 pixel_1, float4 pixel_2,
                         float4 pixel_3, uint format, out uint4 packed_01,
                         out uint4 packed_23) {
@@ -269,29 +535,42 @@ void XePack64bpp4Pixels(float4 pixel_0, float4 pixel_1, float4 pixel_2,
   }
 }
 
-// EDRAM color format packing.
-
-uint XePackR10G10B10A2Float(float4 f) {
-  // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
-  // Keep only positive integers and saturate to 31.875 (also dropping NaNs).
-  // Was previously done with `asuint(clamp(asint(rgb_f32u32), 0, 0x41FF0000))`,
-  // but FXC decides to ignore the uint->int cast, and negative numbers become
-  // 0x41FF0000.
-  uint3 rgb_f32u32 = asuint(f.rgb);
-  rgb_f32u32 = min((rgb_f32u32 <= 0x7FFFFFFFu) ? rgb_f32u32 : (0u).xxx,
-                   0x41FF0000u);
-  uint3 denormalized = ((rgb_f32u32 & 0x7FFFFFu) | 0x800000u) >>
-                       min((125u).xxx - (rgb_f32u32 >> 23u), 24u);
-  uint3 rgb_f10u32 =
-      (rgb_f32u32 < 0x3E800000u) ? denormalized : (rgb_f32u32 + 0xC2000000u);
-  rgb_f10u32 =
-      ((rgb_f10u32 + 0x7FFFu + ((rgb_f10u32 >> 16u) & 1u)) >> 16u) & 0x3FFu;
-  // Rounding alpha to the nearest integer.
-  return rgb_f10u32.r | (rgb_f10u32.g << 10u) | (rgb_f10u32.b << 20u) |
-         (uint(saturate(f.a) * 3.0f + 0.5f) << 30u);
+void XePack64bpp5Pixels(float4 pixel_0, float4 pixel_1, float4 pixel_2,
+                        float4 pixel_3, float4 pixel_4, uint format,
+                        out uint4 packed_01, out uint4 packed_23,
+                        out uint2 packed_4) {
+  switch (format) {
+    case kXenosFormat_16_16_16_16:
+      packed_01.xy = XePackR16G16B16A16UNorm(pixel_0);
+      packed_01.zw = XePackR16G16B16A16UNorm(pixel_1);
+      packed_23.xy = XePackR16G16B16A16UNorm(pixel_2);
+      packed_23.zw = XePackR16G16B16A16UNorm(pixel_3);
+      packed_4 = XePackR16G16B16A16UNorm(pixel_4);
+      break;
+    case kXenosFormat_16_16_16_16_FLOAT:
+      packed_01 =
+          f32tof16(float4(pixel_0.r, pixel_0.b, pixel_1.r, pixel_1.b)) |
+          (f32tof16(float4(pixel_0.g, pixel_0.a, pixel_1.g, pixel_1.a)) << 16u);
+      packed_23 =
+          f32tof16(float4(pixel_2.r, pixel_2.b, pixel_3.r, pixel_3.b)) |
+          (f32tof16(float4(pixel_2.g, pixel_2.a, pixel_3.g, pixel_3.a)) << 16u);
+      packed_4 = f32tof16(float2(pixel_4.r, pixel_4.b)) |
+                 (f32tof16(float2(pixel_4.g, pixel_4.a)) << 16u);
+      break;
+    default:
+      // Treat as 32_32_FLOAT.
+      packed_01 = asuint(float4(pixel_0.rg, pixel_1.rg));
+      packed_23 = asuint(float4(pixel_2.rg, pixel_3.rg));
+      packed_4 = asuint(pixel_4.rg);
+      break;
+  }
 }
 
 // EDRAM color format unpacking.
+
+float XeUnpackR8UNorm(uint p) {
+  return float(p & 255u) * (1.0f / 255.0f);
+}
 
 float4 XeUnpackR8UNormX4(uint4 p) {
   return float4(p & 255u) * (1.0f / 255.0f);
@@ -299,6 +578,10 @@ float4 XeUnpackR8UNormX4(uint4 p) {
 
 float4 XeUnpackR8G8B8A8UNorm(uint p) {
   return float4((p >> uint4(0u, 8u, 16u, 24u)) & 255u) * (1.0f / 255.0f);
+}
+
+float XeUnpackR10UNorm(uint p) {
+  return float(p & 1023u) * (1.0f / 1023.0f);
 }
 
 float4 XeUnpackR10UNormX4(uint4 p) {
@@ -327,6 +610,10 @@ float4 XeUnpackR10FloatX4(uint4 p) {
   return asfloat(
       (f10u32 != 0u) ? (((exponent + 124u) << 23u) | (mantissa << 16u))
                      : (0u).xxxx);
+}
+
+float XeUnpackR10Float(uint p) {
+  return XeUnpackR10FloatX4(p.xxxx).x;
 }
 
 float4 XeUnpackR10G10B10A2Float(uint p) {
@@ -358,6 +645,12 @@ float4 XeUnpackR10G10B10A2Float(uint p) {
 //  to 1. When sampling from this texture in a shader, the results must be
 //  scaled to a 0 to 1 range."
 
+// Upper 16 bits are ignored by XeUnpackR16Edram.
+
+float XeUnpackR16Edram(uint p) {
+  return max(float(asint(p) << 16 >> 16) * (32.0f / 32767.0f), -1.0f);
+}
+
 float4 XeUnpackR16EdramX4(uint4 p) {
   return max(float4(asint(p) << 16 >> 16) * (32.0f / 32767.0f), -1.0f);
 }
@@ -379,21 +672,33 @@ uint4 XeR5G5B5A1ToB5G5R5A1(uint4 packed_texels) {
   return (packed_texels & 0x83E083E0u) | ((packed_texels & 0x001F001Fu) << 10) |
          ((packed_texels & 0x7C007C00u) >> 10);
 }
+uint2 XeR5G5B5A1ToB5G5R5A1(uint2 packed_texels) {
+  return XeR5G5B5A1ToB5G5R5A1(packed_texels.xyxx).xy;
+}
 
 uint4 XeR5G6B5ToB5G6R5(uint4 packed_texels) {
   return (packed_texels & 0x07E007E0u) | ((packed_texels & 0x001F001Fu) << 11) |
          ((packed_texels & 0xF800F800u) >> 11);
+}
+uint2 XeR5G6B5ToB5G6R5(uint2 packed_texels) {
+  return XeR5G6B5ToB5G6R5(packed_texels.xyxx).xy;
 }
 
 uint4 XeR4G4B4A4ToB4G4R4A4(uint4 packed_texels) {
   return (packed_texels & 0xF0F0F0F0u) | ((packed_texels & 0x000F000Fu) << 8) |
          ((packed_texels & 0x0F000F00u) >> 8);
 }
+uint2 XeR4G4B4A4ToB4G4R4A4(uint2 packed_texels) {
+  return XeR4G4B4A4ToB4G4R4A4(packed_texels.xyxx).xy;
+}
 
 // RRRRR GGGGG BBBBBB to GGGGG BBBBBB RRRRR (use RBGA swizzle when reading).
 uint4 XeR5G5B6ToB5G6R5WithRBGASwizzle(uint4 packed_texels) {
   return ((packed_texels & 0x001F001Fu) << 11) |
          ((packed_texels & 0xFFE0FFE0) >> 5);
+}
+uint2 XeR5G5B6ToB5G6R5WithRBGASwizzle(uint2 packed_texels) {
+  return XeR5G5B6ToB5G6R5WithRBGASwizzle(packed_texels.xyxx).xy;
 }
 
 uint4 XeR10G11B11UNormToRGBA16(uint2 packed_texels) {
@@ -410,7 +715,9 @@ uint4 XeR10G11B11UNormToRGBA16(uint2 packed_texels) {
   result.yw |= 0xFFFF0000u;
   return result;
 }
-
+uint2 XeR10G11B11UNormToRGBA16(uint packed_texel) {
+  return XeR10G11B11UNormToRGBA16(packed_texel.xx).xy;
+}
 void XeR10G11B11UNormToRGBA16(uint4 packed_texels, out uint4 out_01,
                               out uint4 out_23) {
   out_01 = XeR10G11B11UNormToRGBA16(packed_texels.xy);
@@ -431,7 +738,9 @@ uint4 XeR11G11B10UNormToRGBA16(uint2 packed_texels) {
   result.yw |= 0xFFFF0000u;
   return result;
 }
-
+uint2 XeR11G11B10UNormToRGBA16(uint packed_texel) {
+  return XeR11G11B10UNormToRGBA16(packed_texel.xx).xy;
+}
 void XeR11G11B10UNormToRGBA16(uint4 packed_texels, out uint4 out_01,
                               out uint4 out_23) {
   out_01 = XeR11G11B10UNormToRGBA16(packed_texels.xy);
@@ -470,7 +779,9 @@ uint4 XeR10G11B11SNormToRGBA16(uint2 packed_texels) {
                    (XeSNorm11To16((packed_texels >> 10u) & 2047u) << 16u),
                XeSNorm11To16(packed_texels >> 21u) | 0x7FFF0000u).xzyw;
 }
-
+uint2 XeR10G11B11SNormToRGBA16(uint packed_texel) {
+  return XeR10G11B11SNormToRGBA16(packed_texel.xx).xy;
+}
 void XeR10G11B11SNormToRGBA16(uint4 packed_texels, out uint4 out_01,
                               out uint4 out_23) {
   out_01 = XeR10G11B11SNormToRGBA16(packed_texels.xy);
@@ -483,7 +794,9 @@ uint4 XeR11G11B10SNormToRGBA16(uint2 packed_texels) {
                    (XeSNorm11To16((packed_texels >> 11u) & 2047u) << 16u),
                XeSNorm10To16(packed_texels >> 22u) | 0x7FFF0000u).xzyw;
 }
-
+uint2 XeR11G11B10SNormToRGBA16(uint packed_texel) {
+  return XeR11G11B10SNormToRGBA16(packed_texel.xx).xy;
+}
 void XeR11G11B10SNormToRGBA16(uint4 packed_texels, out uint4 out_01,
                               out uint4 out_23) {
   out_01 = XeR11G11B10SNormToRGBA16(packed_texels.xy);
@@ -505,17 +818,7 @@ uint XeFloat32To20e4(uint f32u32) {
   return ((f24u32 + 3u + ((f24u32 >> 3u) & 1u)) >> 3u) & 0xFFFFFFu;
 }
 
-uint4 XeFloat32To20e4(uint4 f32u32) {
-  // Keep only positive (high bit set means negative for both float and int) and
-  // saturate to the maximum representable value near 2 (also dropping NaNs).
-  f32u32 = min((f32u32 <= 0x7FFFFFFFu) ? f32u32 : (0u).xxxx, 0x3FFFFFF8u);
-  uint4 denormalized = ((f32u32 & 0x7FFFFFu) | 0x800000u) >>
-                       min((113u).xxxx - (f32u32 >> 23u), 24u);
-  uint4 f24u32 = (f32u32 < 0x38800000u) ? denormalized : (f32u32 + 0xC8000000u);
-  return ((f24u32 + 3u + ((f24u32 >> 3u) & 1u)) >> 3u) & 0xFFFFFFu;
-}
-
-uint XeFloat20e4To32(uint f24u32) {
+uint XeFloat20e4To32(uint f24u32, bool remap_to_0_to_0_5 = false) {
   uint mantissa = f24u32 & 0xFFFFFu;
   uint exponent = f24u32 >> 20u;
   // Normalize the values for the denormalized components.
@@ -526,8 +829,12 @@ uint XeFloat20e4To32(uint f24u32) {
   exponent = is_denormalized ? (1u - mantissa_lzcnt) : exponent;
   mantissa =
       is_denormalized ? ((mantissa << mantissa_lzcnt) & 0xFFFFFu) : mantissa;
-  // Combine into 32-bit float bits and clear zeros.
-  return (f24u32 != 0u) ? (((exponent + 112u) << 23u) | (mantissa << 3u)) : 0u;
+  // Combine into 32-bit float bits and clear zeros and, if needed, bias the
+  // exponent.
+  return (f24u32 != 0u)
+             ? ((exponent + (112u - uint(remap_to_0_to_0_5))) << 23u) |
+                (mantissa << 3u)
+             : 0u;
 }
 
 uint4 XeFloat20e4To32(uint4 f24u32) {
@@ -544,6 +851,22 @@ uint4 XeFloat20e4To32(uint4 f24u32) {
   // Combine into 32-bit float bits and clear zeros.
   return (f24u32 != 0u) ? (((exponent + 112u) << 23u) | (mantissa << 3u))
                         : (0u).xxxx;
+}
+
+uint2 XeFloat20e4To32(uint2 f24u32) {
+  return XeFloat20e4To32(f24u32.xyxx).xy;
+}
+
+float4 XeUNorm24To32(uint4 n24) {
+  // Not 1.0f / 16777215.0f as that gives an incorrect result (like for a very
+  // common 0xC00000 which clears 2_10_10_10 to 0001). Division by 2^24 is just
+  // an exponent shift though, thus exact.
+  // Division by 16777215.0f behaves this way.
+  return float4(n24 + (n24 >> 23u)) * (1.0f / 16777216.0f);
+}
+
+float2 XeUNorm24To32(uint2 n24) {
+  return XeUNorm24To32(n24.xyxx).xy;
 }
 
 // Converts endpoint BGR (first - X of the return value - in the low 16 bits,

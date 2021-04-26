@@ -17,7 +17,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/string.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
-#include "xenia/gpu/gpu_flags.h"
+#include "xenia/gpu/render_target_cache.h"
 
 namespace xe {
 namespace gpu {
@@ -480,7 +480,7 @@ uint32_t DxbcShaderTranslator::FindOrAddTextureBinding(
   } else {
     new_texture_binding.bindful_srv_index = kBindingIndexUnallocated;
   }
-  new_texture_binding.bindful_srv_rdef_name_offset = 0;
+  new_texture_binding.bindful_srv_rdef_name_ptr = 0;
   // Consistently 0 if not bindless as it may be used for hashing.
   new_texture_binding.bindless_descriptor_index =
       bindless_resources_used_ ? GetBindlessResourceCount() : 0;
@@ -653,26 +653,6 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     if (grad_operand_temp_pushed) {
       PopSystemTemp();
     }
-    if (!edram_rov_used_ && cvars::ssaa_scale_gradients) {
-      // Scale the gradients to guest pixels with SSAA.
-      uint32_t ssaa_scale_temp = PushSystemTemp();
-      system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-      a_.OpMovC(dxbc::Dest::R(ssaa_scale_temp,
-                              (used_result_nonzero_components & 0b0011) |
-                                  (used_result_nonzero_components >> 2)),
-                dxbc::Src::CB(cbuffer_index_system_constants_,
-                              uint32_t(CbufferRegister::kSystemConstants),
-                              kSysConst_SampleCountLog2_Vec,
-                              kSysConst_SampleCountLog2_Comp |
-                                  ((kSysConst_SampleCountLog2_Comp + 1) << 2)),
-                dxbc::Src::LF(2.0f), dxbc::Src::LF(1.0f));
-      a_.OpMul(
-          dxbc::Dest::R(system_temp_result_, used_result_nonzero_components),
-          dxbc::Src::R(system_temp_result_),
-          dxbc::Src::R(ssaa_scale_temp, 0b01000100));
-      // Release ssaa_scale_temp.
-      PopSystemTemp();
-    }
     StoreResult(instr.result, dxbc::Src::R(system_temp_result_));
     return;
   }
@@ -726,20 +706,22 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
   float offsets[4] = {};
   // MSDN doesn't list offsets as getCompTexLOD parameters.
   if (instr.opcode != FetchOpcode::kGetTextureComputedLod) {
-    // Add a small epsilon to the offset (1/4 the fixed-point texture coordinate
-    // ULP - shouldn't significantly effect the fixed-point conversion) to
-    // resolve ambiguity when fetching point-sampled textures between texels.
-    // This applies to both normalized (Banjo-Kazooie Xbox Live Arcade logo,
-    // coordinates interpolated between vertices with half-pixel offset) and
-    // unnormalized (Halo 3 lighting G-buffer reading, ps_param_gen pixels)
-    // coordinates. On Nvidia Pascal, without this adjustment, blockiness is
-    // visible in both cases. Possibly there is a better way, however, an
-    // attempt was made to error-correct division by adding the difference
-    // between original and re-denormalized coordinates, but on Nvidia, `mul`
-    // and internal multiplication in texture sampling apparently round
-    // differently, so `mul` gives a value that would be floored as expected,
-    // but the left/upper pixel is still sampled instead.
-    const float rounding_offset = 1.0f / 1024.0f;
+    // Add a small epsilon to the offset (1.5/4 the fixed-point texture
+    // coordinate ULP - shouldn't significantly effect the fixed-point
+    // conversion; 1/4 is also not enough with 3x resolution scaling very
+    // noticeably on the weapon in Halo 3) to resolve ambiguity when fetching
+    // point-sampled textures between texels. This applies to both normalized
+    // (Banjo-Kazooie Xbox Live Arcade logo, coordinates interpolated between
+    // vertices with half-pixel offset) and unnormalized (Halo 3 lighting
+    // G-buffer reading, ps_param_gen pixels) coordinates. On Nvidia Pascal,
+    // without this adjustment, blockiness is visible in both cases. Possibly
+    // there is a better way, however, an attempt was made to error-correct
+    // division by adding the difference between original and re-denormalized
+    // coordinates, but on Nvidia, `mul` and internal multiplication in texture
+    // sampling apparently round differently, so `mul` gives a value that would
+    // be floored as expected, but the left/upper pixel is still sampled
+    // instead.
+    const float rounding_offset = 1.5f / 1024.0f;
     switch (instr.dimension) {
       case xenos::FetchOpDimension::k1D:
         offsets[0] = instr.attributes.offset_x + rounding_offset;
@@ -916,6 +898,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           dxbc::Src::R(size_and_is_3d_temp));
     }
   }
+  bool revert_resolution_scale = draw_resolution_scale_ > 1 &&
+                                 cvars::draw_resolution_scaled_texture_offsets;
 
   if (instr.opcode == FetchOpcode::kGetTextureWeights) {
     // FIXME(Triang3l): Mip lerp factor needs to be calculated, and the
@@ -937,10 +921,59 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         LoadOperand(instr.operands[0], used_result_nonzero_components,
                     coord_operand_temp_pushed);
     dxbc::Src coord_src(coord_operand);
+    // If needed, apply the resolution scale to the width / height and the
+    // unnormalized coordinates.
+    uint32_t resolution_scaled_result_components =
+        revert_resolution_scale ? used_result_nonzero_components & 0b0011
+                                : 0b0000;
+    uint32_t resolution_scaled_coord_components =
+        instr.attributes.unnormalized_coordinates
+            ? resolution_scaled_result_components
+            : 0b0000;
+    uint32_t resolution_scaled_size_components =
+        size_needed_components & resolution_scaled_result_components;
+    if (resolution_scaled_coord_components ||
+        resolution_scaled_size_components) {
+      if (resolution_scaled_coord_components &&
+          (coord_src.type_ != dxbc::OperandType::kTemp ||
+           coord_src.index_1d_.index_ != system_temp_result_)) {
+        // Use system_temp_result_ as a temporary for conditionally
+        // resolution-scaled coordinates.
+        a_.OpMov(
+            dxbc::Dest::R(system_temp_result_, used_result_nonzero_components),
+            coord_src);
+        coord_src = dxbc::Src::R(system_temp_result_);
+      }
+      // Using system_temp_result_.w as a temporary for the flag indicating
+      // whether the texture was resolved - not involved in coordinate
+      // calculations.
+      assert_zero(used_result_nonzero_components & 0b1000);
+      a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b1000),
+               LoadSystemConstant(kSysConst_TexturesResolved_Index,
+                                  offsetof(SystemConstants, textures_resolved),
+                                  dxbc::Src::kXXXX),
+               dxbc::Src::LU(uint32_t(1) << tfetch_index));
+      a_.OpIf(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kWWWW));
+      // The texture is resolved - scale the coordinates and the size.
+      dxbc::Src resolution_scale_src(
+          dxbc::Src::LF(float(draw_resolution_scale_)));
+      if (resolution_scaled_coord_components) {
+        a_.OpMul(dxbc::Dest::R(system_temp_result_,
+                               resolution_scaled_coord_components),
+                 coord_src, resolution_scale_src);
+      }
+      if (resolution_scaled_size_components) {
+        a_.OpMul(dxbc::Dest::R(size_and_is_3d_temp,
+                               resolution_scaled_size_components),
+                 dxbc::Src::R(size_and_is_3d_temp), resolution_scale_src);
+      }
+      a_.OpEndIf();
+    }
     uint32_t offsets_needed = offsets_not_zero & used_result_nonzero_components;
     if (!instr.attributes.unnormalized_coordinates || offsets_needed) {
       // Using system_temp_result_ as a temporary for coordinate denormalization
-      // and offsetting.
+      // and offsetting. May already contain the coordinates loaded if
+      // resolution scaling was applied to the coordinates.
       coord_src = dxbc::Src::R(system_temp_result_);
       dxbc::Dest coord_dest(
           dxbc::Dest::R(system_temp_result_, used_result_nonzero_components));
@@ -1017,15 +1050,54 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         normalized_components = 0b0111;
         break;
     }
+    uint32_t normalized_components_with_offsets =
+        normalized_components & offsets_not_zero;
+    uint32_t normalized_components_with_scaled_offsets =
+        revert_resolution_scale ? normalized_components_with_offsets & 0b0011
+                                : 0;
+    uint32_t normalized_components_with_unscaled_offsets =
+        normalized_components_with_offsets &
+        ~normalized_components_with_scaled_offsets;
+    uint32_t normalized_components_without_offsets =
+        normalized_components & ~normalized_components_with_offsets;
     if (instr.attributes.unnormalized_coordinates) {
       // Unnormalized coordinates - normalize XY, and if 3D, normalize Z.
       assert_not_zero(normalized_components);
       assert_true((size_needed_components & normalized_components) ==
                   normalized_components);
-      if (offsets_not_zero & normalized_components) {
+      if (normalized_components_with_offsets) {
+        // Apply the offsets to components to normalize where needed, or just
+        // copy the components to coord_and_sampler_temp where not.
         // FIXME(Triang3l): Offsets need to be applied at the LOD being fetched.
-        a_.OpAdd(dxbc::Dest::R(coord_and_sampler_temp, normalized_components),
-                 coord_operand, dxbc::Src::LP(offsets));
+        if (normalized_components_with_scaled_offsets) {
+          // Using coord_and_sampler_temp.w as a temporary for the needed
+          // resolution scale inverse - sampler not loaded yet.
+          a_.OpAnd(
+              dxbc::Dest::R(coord_and_sampler_temp, 0b1000),
+              LoadSystemConstant(kSysConst_TexturesResolved_Index,
+                                 offsetof(SystemConstants, textures_resolved),
+                                 dxbc::Src::kXXXX),
+              dxbc::Src::LU(uint32_t(1) << tfetch_index));
+          a_.OpMovC(dxbc::Dest::R(coord_and_sampler_temp, 0b1000),
+                    dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kWWWW),
+                    dxbc::Src::LF(1.0f / draw_resolution_scale_),
+                    dxbc::Src::LF(1.0f));
+          a_.OpMAd(dxbc::Dest::R(coord_and_sampler_temp,
+                                 normalized_components_with_scaled_offsets),
+                   dxbc::Src::LP(offsets),
+                   dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kWWWW),
+                   coord_operand);
+        }
+        if (normalized_components_with_unscaled_offsets) {
+          a_.OpAdd(dxbc::Dest::R(coord_and_sampler_temp,
+                                 normalized_components_with_unscaled_offsets),
+                   coord_operand, dxbc::Src::LP(offsets));
+        }
+        if (normalized_components_without_offsets) {
+          a_.OpMov(dxbc::Dest::R(coord_and_sampler_temp,
+                                 normalized_components_without_offsets),
+                   coord_operand);
+        }
         assert_not_zero(normalized_components & 0b011);
         a_.OpDiv(dxbc::Dest::R(coord_and_sampler_temp,
                                normalized_components & 0b011),
@@ -1055,27 +1127,48 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     } else {
       // Normalized coordinates - apply offsets to XY or copy them to
       // coord_and_sampler_temp, and if stacked, denormalize Z.
-      uint32_t coords_with_offset = offsets_not_zero & normalized_components;
-      if (coords_with_offset) {
+      if (normalized_components_with_offsets) {
         // FIXME(Triang3l): Offsets need to be applied at the LOD being fetched.
-        assert_true((size_needed_components & coords_with_offset) ==
-                    coords_with_offset);
-        a_.OpDiv(dxbc::Dest::R(coord_and_sampler_temp, coords_with_offset),
+        assert_true(
+            (size_needed_components & normalized_components_with_offsets) ==
+            normalized_components_with_offsets);
+        a_.OpDiv(dxbc::Dest::R(coord_and_sampler_temp,
+                               normalized_components_with_offsets),
                  dxbc::Src::LP(offsets), dxbc::Src::R(size_and_is_3d_temp));
-        a_.OpAdd(dxbc::Dest::R(coord_and_sampler_temp, coords_with_offset),
-                 coord_operand, dxbc::Src::R(coord_and_sampler_temp));
+        if (normalized_components_with_scaled_offsets) {
+          // Using coord_and_sampler_temp.w as a temporary for the needed
+          // resolution scale inverse - sampler not loaded yet.
+          a_.OpAnd(
+              dxbc::Dest::R(coord_and_sampler_temp, 0b1000),
+              LoadSystemConstant(kSysConst_TexturesResolved_Index,
+                                 offsetof(SystemConstants, textures_resolved),
+                                 dxbc::Src::kXXXX),
+              dxbc::Src::LU(uint32_t(1) << tfetch_index));
+          a_.OpMovC(dxbc::Dest::R(coord_and_sampler_temp, 0b1000),
+                    dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kWWWW),
+                    dxbc::Src::LF(1.0f / draw_resolution_scale_),
+                    dxbc::Src::LF(1.0f));
+          a_.OpMAd(dxbc::Dest::R(coord_and_sampler_temp,
+                                 normalized_components_with_scaled_offsets),
+                   dxbc::Src::R(coord_and_sampler_temp),
+                   dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kWWWW),
+                   coord_operand);
+        }
+        if (normalized_components_with_unscaled_offsets) {
+          a_.OpAdd(dxbc::Dest::R(coord_and_sampler_temp,
+                                 normalized_components_with_unscaled_offsets),
+                   coord_operand, dxbc::Src::R(coord_and_sampler_temp));
+        }
       }
-      uint32_t coords_without_offset =
-          ~coords_with_offset & normalized_components;
       // 3D/stacked without offset is handled separately.
-      if (coords_without_offset & 0b011) {
+      if (normalized_components_without_offsets & 0b011) {
         a_.OpMov(dxbc::Dest::R(coord_and_sampler_temp,
-                               coords_without_offset & 0b011),
+                               normalized_components_without_offsets & 0b011),
                  coord_operand);
       }
       if (instr.dimension == xenos::FetchOpDimension::k3DOrStacked) {
         assert_true((size_needed_components & 0b1100) == 0b1100);
-        if (coords_with_offset & 0b100) {
+        if (normalized_components_with_offsets & 0b100) {
           // Denormalize and offset Z (re-apply the offset not to lose precision
           // as a result of division) if stacked.
           a_.OpIf(false, dxbc::Src::R(size_and_is_3d_temp, dxbc::Src::kWWWW));
@@ -1418,27 +1511,12 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           a_.OpExp(lod_dest, lod_src);
           // FIXME(Triang3l): Gradient exponent adjustment is currently not done
           // in getCompTexLOD, so don't do it here too.
-          bool ssaa_scale_gradients =
-              !instr.attributes.use_register_gradients && !edram_rov_used_ &&
-              cvars::ssaa_scale_gradients;
 #if 0
           // Extract gradient exponent biases from the fetch constant and merge
           // them with the LOD bias.
           a_.OpIBFE(dxbc::Dest::R(grad_h_lod_temp, 0b0011), dxbc::Src::LU(5),
                      dxbc::Src::LU(22, 27, 0, 0),
                      RequestTextureFetchConstantWord(tfetch_index, 4));
-          if (ssaa_scale_gradients) {
-            // Adjust the gradient scales to include the SSAA scale.
-            system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-            a_.OpIAdd(dxbc::Dest::R(grad_h_lod_temp, 0b0011),
-                       dxbc::Src::R(grad_h_lod_temp),
-                       dxbc::Src::CB(
-                           cbuffer_index_system_constants_,
-                           uint32_t(CbufferRegister::kSystemConstants),
-                           kSysConst_SampleCountLog2_Vec,
-                           kSysConst_SampleCountLog2_Comp |
-                               ((kSysConst_SampleCountLog2_Comp + 1) << 2)));
-          }
           a_.OpIMAd(dxbc::Dest::R(grad_h_lod_temp, 0b0011),
                      dxbc::Src::R(grad_h_lod_temp), dxbc::Src::LI(int32_t(1) << 23),
                      dxbc::Src::LF(1.0f));
@@ -1446,32 +1524,6 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
                     dxbc::Src::R(grad_h_lod_temp, dxbc::Src::kYYYY));
           a_.OpMul(lod_dest, lod_src,
                     dxbc::Src::R(grad_h_lod_temp, dxbc::Src::kXXXX));
-#else
-          if (ssaa_scale_gradients) {
-            // Adjust the gradient scales in each direction to include the SSAA
-            // scale - for ddy scale, grad_v_temp.w, not grad_h_lod_temp.w, must
-            // be used.
-            // ddy.
-            system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-            a_.OpMovC(dxbc::Dest::R(grad_v_temp, 0b1000),
-                      dxbc::Src::CB(cbuffer_index_system_constants_,
-                                    uint32_t(CbufferRegister::kSystemConstants),
-                                    kSysConst_SampleCountLog2_Vec)
-                          .Select(kSysConst_SampleCountLog2_Comp + 1),
-                      dxbc::Src::LF(2.0f), dxbc::Src::LF(1.0f));
-            a_.OpMul(dxbc::Dest::R(grad_v_temp, 0b1000), lod_src,
-                     dxbc::Src::R(grad_v_temp, dxbc::Src::kWWWW));
-            // ddx (after ddy handling, because the ddy code uses lod_src, and
-            // it's being overwritten now).
-            system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-            a_.OpIf(true,
-                    dxbc::Src::CB(cbuffer_index_system_constants_,
-                                  uint32_t(CbufferRegister::kSystemConstants),
-                                  kSysConst_SampleCountLog2_Vec)
-                        .Select(kSysConst_SampleCountLog2_Comp));
-            a_.OpMul(lod_dest, lod_src, dxbc::Src::LF(2.0f));
-            a_.OpEndIf();
-          }
 #endif
           // Obtain the gradients and apply biases to them.
           if (instr.attributes.use_register_gradients) {
@@ -1531,13 +1583,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
                       dxbc::Src::R(grad_v_temp),
                       dxbc::Src::R(grad_v_temp, dxbc::Src::kWWWW));
 #else
-            // With SSAA gradient scaling, the scale is separate in each
-            // direction.
             a_.OpMul(dxbc::Dest::R(grad_v_temp, grad_mask),
-                     dxbc::Src::R(grad_v_temp),
-                     ssaa_scale_gradients
-                         ? dxbc::Src::R(grad_v_temp, dxbc::Src::kWWWW)
-                         : lod_src);
+                     dxbc::Src::R(grad_v_temp), lod_src);
 #endif
           }
           if (instr.dimension == xenos::FetchOpDimension::k1D) {
@@ -2007,8 +2054,56 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         a_.OpBreak();
         a_.OpCase(dxbc::Src::LU(uint32_t(xenos::TextureSign::kGamma)));
         uint32_t gamma_temp = PushSystemTemp();
+        if (gamma_render_target_as_srgb_) {
+          // Check if the texture has sRGB rather that piecewise linear gamma.
+          // More likely that it's just a texture with PWL, put this case in the
+          // `if`, with `else` for sRGB resolved render targets.
+          a_.OpAnd(
+              dxbc::Dest::R(gamma_temp, 0b0001),
+              LoadSystemConstant(kSysConst_TexturesResolved_Index,
+                                 offsetof(SystemConstants, textures_resolved),
+                                 dxbc::Src::kXXXX),
+              dxbc::Src::LU(uint32_t(1) << tfetch_index));
+          a_.OpIf(false, dxbc::Src::R(gamma_temp, dxbc::Src::kXXXX));
+        }
+        // Convert from piecewise linear.
         ConvertPWLGamma(false, system_temp_result_, i, system_temp_result_, i,
                         gamma_temp, 0, gamma_temp, 1);
+        if (gamma_render_target_as_srgb_) {
+          a_.OpElse();
+          // Convert from sRGB.
+          a_.OpMov(component_dest, component_src, true);
+          a_.OpGE(dxbc::Dest::R(gamma_temp, 0b0001),
+                  dxbc::Src::LF(RenderTargetCache::kSrgbToLinearThreshold),
+                  component_src);
+          a_.OpIf(true, dxbc::Src::R(gamma_temp, dxbc::Src::kXXXX));
+          // sRGB <= kSrgbToLinearThreshold case - linear scale.
+          a_.OpMul(component_dest, component_src,
+                   dxbc::Src::LF(1.0f /
+                                 RenderTargetCache::kSrgbToLinearDenominator1));
+          a_.OpElse();
+          // sRGB > kSrgbToLinearThreshold case.
+          // 0 and 1 must be exactly achievable - only convert when the
+          // saturated value is < 1.
+          a_.OpLT(dxbc::Dest::R(gamma_temp, 0b0001), component_src,
+                  dxbc::Src::LF(1.0f));
+          a_.OpIf(true, dxbc::Src::R(gamma_temp, dxbc::Src::kXXXX));
+          a_.OpMAd(component_dest, component_src,
+                   dxbc::Src::LF(1.0f /
+                                 RenderTargetCache::kSrgbToLinearDenominator2),
+                   dxbc::Src::LF(RenderTargetCache::kSrgbToLinearOffset /
+                                 RenderTargetCache::kSrgbToLinearDenominator2));
+          a_.OpLog(component_dest, component_src);
+          a_.OpMul(component_dest, component_src,
+                   dxbc::Src::LF(RenderTargetCache::kSrgbToLinearExponent));
+          a_.OpExp(component_dest, component_src);
+          // Close the < 1 check.
+          a_.OpEndIf();
+          // Close the sRGB <= kSrgbToLinearThreshold check.
+          a_.OpEndIf();
+          // Close the PWL or sRGB check.
+          a_.OpEndIf();
+        }
         // Release gamma_temp.
         PopSystemTemp();
         a_.OpBreak();

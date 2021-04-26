@@ -41,33 +41,50 @@ class D3D12Provider : public GraphicsProvider {
   ID3D12Device* GetDevice() const { return device_; }
   ID3D12CommandQueue* GetDirectQueue() const { return direct_queue_; }
 
-  uint32_t GetViewDescriptorSize() const { return descriptor_size_view_; }
-  uint32_t GetSamplerDescriptorSize() const { return descriptor_size_sampler_; }
-  uint32_t GetRTVDescriptorSize() const { return descriptor_size_rtv_; }
-  uint32_t GetDSVDescriptorSize() const { return descriptor_size_dsv_; }
+  uint32_t GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE type) const {
+    return descriptor_sizes_[type];
+  }
+  uint32_t GetViewDescriptorSize() const {
+    return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+  }
+  uint32_t GetSamplerDescriptorSize() const {
+    return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+  }
+  uint32_t GetRTVDescriptorSize() const {
+    return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+  }
+  uint32_t GetDSVDescriptorSize() const {
+    return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+  }
+  template <typename T>
+  T OffsetDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE type, T start,
+                     uint32_t index) const {
+    start.ptr += index * GetDescriptorSize(type);
+    return start;
+  }
   template <typename T>
   T OffsetViewDescriptor(T start, uint32_t index) const {
-    start.ptr += index * descriptor_size_view_;
+    start.ptr += index * GetViewDescriptorSize();
     return start;
   }
   template <typename T>
   T OffsetSamplerDescriptor(T start, uint32_t index) const {
-    start.ptr += index * descriptor_size_sampler_;
+    start.ptr += index * GetSamplerDescriptorSize();
     return start;
   }
   template <typename T>
   T OffsetRTVDescriptor(T start, uint32_t index) const {
-    start.ptr += index * descriptor_size_rtv_;
+    start.ptr += index * GetRTVDescriptorSize();
     return start;
   }
   template <typename T>
   T OffsetDSVDescriptor(T start, uint32_t index) const {
-    start.ptr += index * descriptor_size_dsv_;
+    start.ptr += index * GetDSVDescriptorSize();
     return start;
   }
 
   // Adapter info.
-  uint32_t GetAdapterVendorID() const { return adapter_vendor_id_; }
+  GpuVendorID GetAdapterVendorID() const { return adapter_vendor_id_; }
 
   // Device features.
   D3D12_HEAP_FLAGS GetHeapFlagCreateNotZeroed() const {
@@ -76,6 +93,9 @@ class D3D12Provider : public GraphicsProvider {
   D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER
   GetProgrammableSamplePositionsTier() const {
     return programmable_sample_positions_tier_;
+  }
+  bool IsPSSpecifiedStencilReferenceSupported() const {
+    return ps_specified_stencil_reference_supported_;
   }
   bool AreRasterizerOrderedViewsSupported() const {
     return rasterizer_ordered_views_supported_;
@@ -155,15 +175,13 @@ class D3D12Provider : public GraphicsProvider {
   ID3D12Device* device_ = nullptr;
   ID3D12CommandQueue* direct_queue_ = nullptr;
 
-  uint32_t descriptor_size_view_;
-  uint32_t descriptor_size_sampler_;
-  uint32_t descriptor_size_rtv_;
-  uint32_t descriptor_size_dsv_;
+  uint32_t descriptor_sizes_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
 
-  uint32_t adapter_vendor_id_;
+  GpuVendorID adapter_vendor_id_;
 
   D3D12_HEAP_FLAGS heap_flag_create_not_zeroed_;
   D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER programmable_sample_positions_tier_;
+  bool ps_specified_stencil_reference_supported_;
   bool rasterizer_ordered_views_supported_;
   D3D12_RESOURCE_BINDING_TIER resource_binding_tier_;
   D3D12_TILED_RESOURCES_TIER tiled_resources_tier_;

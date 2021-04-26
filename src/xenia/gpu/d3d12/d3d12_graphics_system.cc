@@ -21,7 +21,7 @@ namespace gpu {
 namespace d3d12 {
 
 // Generated with `xb buildhlsl`.
-#include "xenia/gpu/d3d12/shaders/dxbc/fullscreen_vs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/fullscreen_tc_vs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/stretch_gamma_ps.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/stretch_ps.h"
 
@@ -138,8 +138,8 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
   // Create the stretch pipelines.
   D3D12_GRAPHICS_PIPELINE_STATE_DESC stretch_pipeline_desc = {};
   stretch_pipeline_desc.pRootSignature = stretch_root_signature_;
-  stretch_pipeline_desc.VS.pShaderBytecode = fullscreen_vs;
-  stretch_pipeline_desc.VS.BytecodeLength = sizeof(fullscreen_vs);
+  stretch_pipeline_desc.VS.pShaderBytecode = fullscreen_tc_vs;
+  stretch_pipeline_desc.VS.BytecodeLength = sizeof(fullscreen_tc_vs);
   stretch_pipeline_desc.PS.pShaderBytecode = stretch_ps;
   stretch_pipeline_desc.PS.BytecodeLength = sizeof(stretch_ps);
   // The shader will set alpha to 1, don't use output-merger to preserve it.

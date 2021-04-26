@@ -43,6 +43,7 @@ class D3D12SharedMemory : public SharedMemory {
   }
 
   void CompletedSubmissionUpdated();
+  void BeginSubmission();
 
   // RequestRange may transition the buffer to copy destination - call it before
   // UseForReading or UseForWriting.

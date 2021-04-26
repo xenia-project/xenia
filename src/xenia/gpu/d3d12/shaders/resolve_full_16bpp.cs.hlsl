@@ -19,7 +19,7 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
       xe_resolve_source, XeResolveColorCopySourcePixelAddressInts(pixel_index),
       pixel_0, pixel_1, pixel_2, pixel_3);
   xe_resolve_dest[XeResolveDestPixelAddress(pixel_index, 1u) >> 3u] =
-      XeEndianSwap16(XePack16bpp4Pixels(pixel_0, pixel_1, pixel_2, pixel_3,
-                                        XeResolveDestFormat()),
+      XeEndianSwap16(XePack16bpp4PixelsInUInt2(pixel_0, pixel_1, pixel_2,
+                                               pixel_3, XeResolveDestFormat()),
                      XeResolveDestEndian128());
 }

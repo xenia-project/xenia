@@ -23,6 +23,17 @@ class Window;
 // according to the rules of the backing graphics API.
 class GraphicsProvider {
  public:
+  enum class GpuVendorID {
+    kAMD = 0x1002,
+    kApple = 0x106B,
+    kArm = 0x13B5,
+    kImagination = 0x1010,
+    kIntel = 0x8086,
+    kMicrosoft = 0x1414,
+    kNvidia = 0x10DE,
+    kQualcomm = 0x5143,
+  };
+
   virtual ~GraphicsProvider() = default;
 
   // The 'main' window of an application, used to query provider information.

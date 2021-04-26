@@ -41,7 +41,7 @@ dcl_globalFlags refactoringAllowed
 dcl_input_ps_siv linear noperspective sample v18.z, position
 dcl_output oDepth
 dcl_temps 2
-mov_sat [precise(x)] r0.x, v18.z
+mul_sat [precise(x)] r0.x, v18.z, l(2.000000)
 uge [precise(y)] r0.y, l(0x7fffffff), r0.x
 and [precise(x)] r0.x, r0.x, r0.y
 umin [precise(x)] r0.x, r0.x, l(0x3ffffff8)
@@ -66,7 +66,7 @@ ishl [precise(w)] r0.w, r0.y, r0.w
 and [precise(w)] r0.w, r0.w, l(0x000fffff)
 movc [precise(y)] r0.y, r0.z, r0.y, r0.w
 ishl [precise(z)] r0.z, r1.x, l(23)
-iadd [precise(z)] r0.z, r0.z, l(0x38000000)
+iadd [precise(z)] r0.z, r0.z, l(0x37800000)
 ishl [precise(y)] r0.y, r0.y, l(3)
 iadd [precise(y)] r0.y, r0.z, r0.y
 movc [precise(x)] oDepth, r0.x, r0.y, l(0)

@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <vector>
 
 #include "xenia/base/assert.h"
@@ -22,6 +23,12 @@ namespace gpu {
 namespace dxbc {
 
 // Utilities for generating shader model 5_1 byte code (for Direct3D 12).
+//
+// This file contains only parts of DXBC used by Xenia currently or previously,
+// not all of DXBC. If an operation, operand, blob or something else is needed
+// for Xenia, but is not here, add it (after reproducing it with FXC to see what
+// dependencies - such as STAT fields being modified - and encoding specifics it
+// has).
 //
 // IMPORTANT CONTRIBUTION NOTES:
 //
@@ -92,11 +99,117 @@ namespace dxbc {
 // Clamping of non-negative values must be done first to the lower bound (using
 // max), then to the upper bound (using min), to match the saturate modifier
 // behavior, which results in 0 for NaN.
+//
+// Sources (apart from reverse engineering of compiled shaders):
+// - Hash:
+//   - DXBCChecksum from GPUOpen-Archive/common-src-ShaderUtils
+// - RDEF:
+//   - d3d12shader.h from the Windows SDK
+//   - D3D10ShaderObject.h from GPUOpen-Archive/common-src-ShaderUtils
+// - ISGN, PCSG, OSGN:
+//   - d3d12shader.h from the Windows SDK
+//   - DxbcSignatures.h from DXILConv
+// - SHEX:
+//   - d3d12TokenizedProgramFormat.hpp from the Windows Driver Kit
+// - SFI0:
+//   - DXBCUtils.h from the D3D12 Translation Layer
+// - STAT:
+//   - D3D10ShaderObject.h fromGPUOpen-Archive/common-src-ShaderUtils
+//   - d3dcompiler_parse_stat from Wine
+//   - d3d12shader.h from the Windows SDK
+// Note that d3d12shader.h contains structures for use with Direct3D reflection
+// interfaces, not the DXBC containers themselves. They may have fields removed,
+// reordered or added.
+//
+// Pointers in RDEF and signatures are offsets from the start of the blob (not
+// including the FourCC and the size), 0 pointer is considered null when
+// applicable.
+//
+// Even if DXIL emission is added to Xenia, it's still desirable to keep the
+// DXBC emitter as a usable option (unless supporting it becomes excessively
+// burdensome) - apart from much worse readability of the resulting DXIL code,
+// the UWP GPU driver on the Xbox One also doesn't support DXIL.
 
 constexpr uint8_t kAlignmentPadding = 0xAB;
 
+constexpr uint32_t MakeFourCC(uint32_t ch0, uint32_t ch1, uint32_t ch2,
+                              uint32_t ch3) {
+  return uint32_t(ch0) | (uint32_t(ch1) << 8) | (uint32_t(ch2) << 16) |
+         (uint32_t(ch3) << 24);
+}
+
+struct ContainerHeader {
+  static constexpr uint32_t kFourCC = MakeFourCC('D', 'X', 'B', 'C');
+  static constexpr uint16_t kVersionMajor = 1;
+  static constexpr uint16_t kVersionMinor = 0;
+  uint32_t fourcc;
+  // Of the entire DXBC container including this header, with this set to 0
+  // before hashing. Calculate using CalculateDXBCChecksum from
+  // GPUOpen-Archive/common-src-ShaderUtils.
+  uint32_t hash[4];
+  uint16_t version_major;
+  uint16_t version_minor;
+  uint32_t size_bytes;
+  uint32_t blob_count;
+  void InitializeIdentification() {
+    fourcc = kFourCC;
+    version_major = kVersionMajor;
+    version_minor = kVersionMinor;
+  }
+  // Followed by uint32_t[blob_count] offsets from the start of the container in
+  // bytes to the start of each blob's header.
+};
+static_assert(alignof(ContainerHeader) <= sizeof(uint32_t));
+
+struct BlobHeader {
+  enum class FourCC : uint32_t {
+    // In order of appearance in a container.
+    kResourceDefinition = MakeFourCC('R', 'D', 'E', 'F'),
+    kInputSignature = MakeFourCC('I', 'S', 'G', 'N'),
+    kPatchConstantSignature = MakeFourCC('P', 'C', 'S', 'G'),
+    kOutputSignature = MakeFourCC('O', 'S', 'G', 'N'),
+    kShaderEx = MakeFourCC('S', 'H', 'E', 'X'),
+    kShaderFeatureInfo = MakeFourCC('S', 'F', 'I', '0'),
+    kStatistics = MakeFourCC('S', 'T', 'A', 'T'),
+  };
+  FourCC fourcc;
+  uint32_t size_bytes;
+};
+static_assert(alignof(BlobHeader) <= sizeof(uint32_t));
+
+// Appends a string to a DWORD stream, returns the DWORD-aligned length.
+inline uint32_t AppendAlignedString(std::vector<uint32_t>& dest,
+                                    const char* source) {
+  size_t size = std::strlen(source) + 1;
+  size_t size_aligned = xe::align(size, sizeof(uint32_t));
+  size_t dest_position = dest.size();
+  dest.resize(dest_position + size_aligned / sizeof(uint32_t));
+  std::memcpy(&dest[dest_position], source, size);
+  // Don't leave uninitialized data, and make sure multiple uses of the
+  // assembler with the same input give the same DXBC for driver shader caching.
+  std::memset(reinterpret_cast<uint8_t*>(&dest[dest_position]) + size,
+              dxbc::kAlignmentPadding, size_aligned - size);
+  return uint32_t(size_aligned);
+}
+
+// Returns the length of a string as if it was appended to a DWORD stream, in
+// bytes.
+inline uint32_t GetAlignedStringLength(const char* source) {
+  return uint32_t(xe::align(std::strlen(source) + 1, sizeof(uint32_t)));
+}
+
+// D3DCOMPILE subset
+enum CompileFlags : uint32_t {
+  // NoPreshader and PreferFlowControl are set by default for shader model 5_1.
+  kCompileFlagNoPreshader = 1 << 8,
+  kCompileFlagPreferFlowControl = 1 << 10,
+  kCompileFlagIeeeStrictness = 1 << 13,
+  kCompileFlagEnableUnboundedDescriptorTables = 1 << 20,
+  kCompileFlagAllResourcesBound = 1 << 21,
+};
+
 // D3D_SHADER_VARIABLE_CLASS
-enum class RdefVariableClass : uint32_t {
+enum class RdefVariableClass : uint16_t {
   kScalar,
   kVector,
   kMatrixRows,
@@ -108,7 +221,7 @@ enum class RdefVariableClass : uint32_t {
 };
 
 // D3D_SHADER_VARIABLE_TYPE subset
-enum class RdefVariableType : uint32_t {
+enum class RdefVariableType : uint16_t {
   kInt = 2,
   kFloat = 3,
   kUInt = 19,
@@ -120,6 +233,11 @@ enum RdefVariableFlags : uint32_t {
   kRdefVariableFlagUsed = 1 << 1,
   kRdefVariableFlagInterfacePointer = 1 << 2,
   kRdefVariableFlagInterfaceParameter = 1 << 3,
+};
+
+// D3D_SHADER_CBUFFER_FLAGS
+enum RdefCbufferFlags : uint32_t {
+  kRdefCbufferFlagUserPacked = 1 << 0,
 };
 
 // D3D_CBUFFER_TYPE
@@ -146,8 +264,8 @@ enum class RdefInputType : uint32_t {
   kUAVRWStructuredWithCounter,
 };
 
-// D3D_RESOURCE_RETURN_TYPE
-enum class RdefReturnType : uint32_t {
+// D3D_RESOURCE_RETURN_TYPE / D3D10_SB_RESOURCE_RETURN_TYPE
+enum class ResourceReturnType : uint32_t {
   kVoid,
   kUNorm,
   kSNorm,
@@ -159,7 +277,7 @@ enum class RdefReturnType : uint32_t {
   kContinued,
 };
 
-// D3D12_SRV_DIMENSION/D3D12_UAV_DIMENSION
+// D3D12_SRV_DIMENSION / D3D12_UAV_DIMENSION
 enum class RdefDimension : uint32_t {
   kUnknown = 0,
 
@@ -187,15 +305,143 @@ enum RdefInputFlags : uint32_t {
   // For constant buffers, UserPacked is set if it was declared as `cbuffer`
   // rather than `ConstantBuffer<T>` (not dynamically indexable; though
   // non-uniform dynamic indexing of constant buffers also didn't work on AMD
-  // drivers in 2018).
+  // drivers in 2018) - not to be confused with kRdefCbufferFlagUserPacked,
+  // which is set in a different case.
   kRdefInputFlagUserPacked = 1 << 0,
   kRdefInputFlagComparisonSampler = 1 << 1,
-  kRdefInputFlagComponent0 = 1 << 2,
-  kRdefInputFlagComponent1 = 1 << 3,
-  kRdefInputFlagsComponents =
-      kRdefInputFlagComponent0 | kRdefInputFlagComponent1,
+  // Texture and typed buffer component count minus 1.
+  kRdefInputFlagsComponentsShift = 2,
+  kRdefInputFlags2Component = 1 << kRdefInputFlagsComponentsShift,
+  kRdefInputFlags3Component = 2 << kRdefInputFlagsComponentsShift,
+  kRdefInputFlags4Component = 3 << kRdefInputFlagsComponentsShift,
   kRdefInputFlagUnused = 1 << 4,
 };
+
+enum class RdefShaderModel : uint32_t {
+  kPixelShader5_1 = 0xFFFF0501u,
+  kVertexShader5_1 = 0xFFFE0501u,
+  kDomainShader5_1 = 0x44530501u,
+  kComputeShader5_1 = 0x43530501u,
+};
+
+// D3D12_SHADER_TYPE_DESC with some differences.
+struct RdefType {
+  RdefVariableClass variable_class;
+  RdefVariableType variable_type;
+  // Matrix rows, 1 for other numeric, 0 if not applicable.
+  uint16_t row_count;
+  // Vector and matrix columns, 1 for other numerics, 0 if not applicable.
+  uint16_t column_count;
+  // 0 if not an array, except for structures which have 1.
+  uint16_t element_count;
+  // 0 if not a structure.
+  uint16_t member_count;
+  // Null if not a structure.
+  uint32_t members_ptr;
+  // Zero.
+  uint32_t unknown_0[4];
+  // uint is called dword when it's scalar (but uint vectors are still uintN).
+  uint32_t name_ptr;
+};
+static_assert(alignof(RdefType) <= sizeof(uint32_t));
+
+struct RdefStructureMember {
+  uint32_t name_ptr;
+  uint32_t type_ptr;
+  uint32_t offset_bytes;
+};
+static_assert(alignof(RdefStructureMember) <= sizeof(uint32_t));
+
+// D3D12_SHADER_VARIABLE_DESC with some differences.
+// Used for constants in constant buffers primarily.
+struct RdefVariable {
+  uint32_t name_ptr;
+  uint32_t start_offset_bytes;
+  uint32_t size_bytes;
+  // RdefVariableFlags.
+  uint32_t flags;
+  uint32_t type_ptr;
+  uint32_t default_value_ptr;
+  // UINT32_MAX if no textures used.
+  uint32_t start_texture;
+  // Number of texture slots possibly used, 0 if no textures used.
+  uint32_t texture_size;
+  // UINT32_MAX if no textures used.
+  uint32_t start_sampler;
+  // Number of sampler slots possibly used, 0 if no textures used.
+  uint32_t sampler_size;
+};
+static_assert(alignof(RdefVariable) <= sizeof(uint32_t));
+
+// Sorted by ID.
+struct RdefCbuffer {
+  uint32_t name_ptr;
+  uint32_t variable_count;
+  uint32_t variables_ptr;
+  // 16-byte-aligned.
+  uint32_t size_vector_aligned_bytes;
+  RdefCbufferType type;
+  // RdefCbufferFlags.
+  uint32_t flags;
+};
+static_assert(alignof(RdefCbuffer) <= sizeof(uint32_t));
+
+// D3D12_SHADER_INPUT_BIND_DESC with some differences.
+// Placed in samplers, SRVs, UAVs, CBVs order, sorted by ID.
+struct RdefInputBind {
+  uint32_t name_ptr;
+  RdefInputType type;
+  ResourceReturnType return_type;
+  RdefDimension dimension;
+  // 0 for multisampled textures (the sample count is specified in the SRV
+  // descriptor), constant buffers, ByteAddressBuffers and samplers.
+  // UINT32_MAX for single-sampled textures and typed buffers.
+  uint32_t sample_count;
+  uint32_t bind_point;
+  // 0 for unbounded.
+  uint32_t bind_count;
+  // RdefInputFlags.
+  uint32_t flags;
+  // Bind point space and ID added in shader model 5_1.
+  uint32_t bind_point_space;
+  uint32_t id;
+};
+static_assert(alignof(RdefInputBind) <= sizeof(uint32_t));
+
+struct RdefHeader {
+  enum class FourCC : uint32_t {
+    // RD11 in Shader Model 5_0 shaders.
+    k5_0 = MakeFourCC('R', 'D', '1', '1'),
+    // RD11 with reversed nibbles in Shader Model 5_0 shaders.
+    k5_1 = 0x25441313u,
+  };
+  uint32_t cbuffer_count;
+  uint32_t cbuffers_ptr;
+  uint32_t input_bind_count;
+  uint32_t input_binds_ptr;
+  RdefShaderModel shader_model;
+  // CompileFlags.
+  uint32_t compile_flags;
+  uint32_t generator_name_ptr;
+  FourCC fourcc;
+  uint32_t sizeof_header_bytes;
+  uint32_t sizeof_cbuffer_bytes;
+  uint32_t sizeof_input_bind_bytes;
+  uint32_t sizeof_variable_bytes;
+  uint32_t sizeof_type_bytes;
+  uint32_t sizeof_structure_member_bytes;
+  // Zero.
+  uint32_t unknown_0;
+  void InitializeSizes() {
+    sizeof_header_bytes = sizeof(*this);
+    sizeof_cbuffer_bytes = sizeof(RdefCbuffer);
+    sizeof_input_bind_bytes = sizeof(RdefInputBind);
+    sizeof_variable_bytes = sizeof(RdefVariable);
+    sizeof_type_bytes = sizeof(RdefType);
+    sizeof_structure_member_bytes = sizeof(RdefStructureMember);
+  }
+};
+static_assert(alignof(RdefHeader) <= sizeof(uint32_t));
 
 // D3D_NAME subset
 enum class Name : uint32_t {
@@ -205,6 +451,7 @@ enum class Name : uint32_t {
   kCullDistance = 3,
   kVertexID = 6,
   kIsFrontFace = 9,
+  kSampleIndex = 10,
   kFinalQuadEdgeTessFactor = 11,
   kFinalQuadInsideTessFactor = 12,
   kFinalTriEdgeTessFactor = 13,
@@ -219,16 +466,27 @@ enum class SignatureRegisterComponentType : uint32_t {
   kFloat32,
 };
 
-// D3D10_INTERNALSHADER_PARAMETER
+// D3D_MIN_PRECISION
+enum class MinPrecision : uint8_t {
+  kDefault,
+  kFloat16,
+  kFloat2_8,
+  kSInt16 = 4,
+  kUInt16,
+  kAny16 = 0xF0,
+  kAny10,
+};
+
+// D3D11_INTERNALSHADER_PARAMETER_11_1
 struct SignatureParameter {
-  // Offset in bytes from the start of the chunk.
-  uint32_t semantic_name;
+  uint32_t semantic_name_ptr;
   uint32_t semantic_index;
   // kUndefined for pixel shader outputs - inferred from the component type and
   // what is used in the shader.
   Name system_value;
   SignatureRegisterComponentType component_type;
-  // o#/v# when there's linkage, SV_Target index or -1 in pixel shader output.
+  // o#/v# when there's linkage, SV_Target index or UINT32_MAX in pixel shader
+  // output.
   uint32_t register_index;
   uint8_t mask;
   union {
@@ -237,16 +495,44 @@ struct SignatureParameter {
     // For an input signature.
     uint8_t always_reads_mask;
   };
+  MinPrecision min_precision;
 };
 static_assert(alignof(SignatureParameter) <= sizeof(uint32_t));
 
 // D3D10_INTERNALSHADER_SIGNATURE
 struct Signature {
   uint32_t parameter_count;
-  // Offset in bytes from the start of the chunk.
-  uint32_t parameter_info_offset;
+  // If the signature is empty, this still points after the header.
+  uint32_t parameter_info_ptr;
 };
 static_assert(alignof(Signature) <= sizeof(uint32_t));
+
+// SHADER_FEATURE
+// Low 32 bits.
+enum ShaderFeature0 : uint32_t {
+  kShaderFeature0_Doubles = 1 << 0,
+  kShaderFeature0_ComputeShadersPlusRawAndStructuredBuffersViaShader_4_X = 1
+                                                                           << 1,
+  kShaderFeature0_UAVsAtEveryStage = 1 << 2,
+  kShaderFeature0_64UAVs = 1 << 3,
+  kShaderFeature0_MinimumPrecision = 1 << 4,
+  kShaderFeature0_11_1_DoubleExtensions = 1 << 5,
+  kShaderFeature0_11_1_ShaderExtensions = 1 << 6,
+  kShaderFeature0_Level9ComparisonFiltering = 1 << 7,
+  kShaderFeature0_TiledResources = 1 << 8,
+  kShaderFeature0_StencilRef = 1 << 9,
+  kShaderFeature0_InnerCoverage = 1 << 10,
+  kShaderFeature0_TypedUAVLoadAdditionalFormats = 1 << 11,
+  kShaderFeature0_ROVs = 1 << 12,
+  kShaderFeature0_ViewportAndRTArrayIndexFromAnyShaderFeedingRasterizer = 1
+                                                                          << 13,
+};
+
+struct ShaderFeatureInfo {
+  // UINT64 originally, but aligned to 4 rather than 8.
+  uint32_t feature_flags[2];
+};
+static_assert(alignof(ShaderFeatureInfo) <= sizeof(uint32_t));
 
 // D3D11_SB_TESSELLATOR_DOMAIN
 enum class TessellatorDomain : uint32_t {
@@ -256,57 +542,88 @@ enum class TessellatorDomain : uint32_t {
   kQuad,
 };
 
-// The STAT chunk (based on Wine d3dcompiler_parse_stat).
+// The STAT blob (based on Wine d3dcompiler_parse_stat).
 struct Statistics {
-  uint32_t instruction_count;
-  uint32_t temp_register_count;
+  // Not increased by declarations and labels.
+  uint32_t instruction_count;    // +0
+  uint32_t temp_register_count;  // +4
   // Unknown in Wine.
-  uint32_t def_count;
-  // Only inputs and outputs.
-  uint32_t dcl_count;
-  uint32_t float_instruction_count;
-  uint32_t int_instruction_count;
-  uint32_t uint_instruction_count;
+  uint32_t def_count;  // +8
+  // Only inputs and outputs, not CBVs, SRVs, UAVs and samplers.
+  uint32_t dcl_count;                // +C
+  uint32_t float_instruction_count;  // +10
+  uint32_t int_instruction_count;    // +14
+  uint32_t uint_instruction_count;   // +18
   // endif, ret.
-  uint32_t static_flow_control_count;
+  uint32_t static_flow_control_count;  // +1C
   // if (but not else).
-  uint32_t dynamic_flow_control_count;
+  uint32_t dynamic_flow_control_count;  // +20
   // Unknown in Wine.
-  uint32_t macro_instruction_count;
-  uint32_t temp_array_count;
-  uint32_t array_instruction_count;
-  uint32_t cut_instruction_count;
-  uint32_t emit_instruction_count;
-  uint32_t texture_normal_instructions;
-  uint32_t texture_load_instructions;
-  uint32_t texture_comp_instructions;
-  uint32_t texture_bias_instructions;
-  uint32_t texture_gradient_instructions;
+  uint32_t macro_instruction_count;        // +24
+  uint32_t temp_array_count;               // +28
+  uint32_t array_instruction_count;        // +2C
+  uint32_t cut_instruction_count;          // +30
+  uint32_t emit_instruction_count;         // +34
+  uint32_t texture_normal_instructions;    // +38
+  uint32_t texture_load_instructions;      // +3C
+  uint32_t texture_comp_instructions;      // +40
+  uint32_t texture_bias_instructions;      // +44
+  uint32_t texture_gradient_instructions;  // +48
   // Not including indexable temp load/store.
-  uint32_t mov_instruction_count;
+  uint32_t mov_instruction_count;  // +4C
   // Unknown in Wine.
-  uint32_t movc_instruction_count;
-  uint32_t conversion_instruction_count;
+  uint32_t movc_instruction_count;        // +50
+  uint32_t conversion_instruction_count;  // +54
   // Unknown in Wine.
-  uint32_t unknown_22;
-  uint32_t input_primitive;
-  uint32_t gs_output_topology;
-  uint32_t gs_max_output_vertex_count;
-  uint32_t unknown_26;
+  uint32_t unknown_22;                  // +58
+  uint32_t input_primitive;             // +5C
+  uint32_t gs_output_topology;          // +60
+  uint32_t gs_max_output_vertex_count;  // +64
+  uint32_t unknown_26;                  // +68
   // Unknown in Wine, but confirmed by testing.
-  uint32_t lod_instructions;
-  uint32_t unknown_28;
-  uint32_t unknown_29;
-  uint32_t c_control_points;
-  uint32_t hs_output_primitive;
-  uint32_t hs_partitioning;
-  TessellatorDomain tessellator_domain;
+  uint32_t lod_instructions;             // +6C
+  uint32_t unknown_28;                   // +70
+  uint32_t unknown_29;                   // +74
+  uint32_t c_control_points;             // +78
+  uint32_t hs_output_primitive;          // +7C
+  uint32_t hs_partitioning;              // +80
+  TessellatorDomain tessellator_domain;  // +84
   // Unknown in Wine.
-  uint32_t c_barrier_instructions;
+  uint32_t c_barrier_instructions;  // +88
   // Unknown in Wine.
-  uint32_t c_interlocked_instructions;
+  uint32_t c_interlocked_instructions;  // +8C
   // Unknown in Wine, but confirmed by testing.
-  uint32_t c_texture_store_instructions;
+  uint32_t c_texture_store_instructions;  // +90
+};
+static_assert(alignof(Statistics) <= sizeof(uint32_t));
+
+// A shader blob begins with a version token and the shader length in dwords
+// (including the version token and the length token itself).
+
+// D3D10_SB_TOKENIZED_PROGRAM_TYPE
+enum class ProgramType : uint32_t {
+  kPixelShader,
+  kVertexShader,
+  kGeometryShader,
+  kHullShader,
+  kDomainShader,
+  kComputeShader,
+};
+
+constexpr uint32_t VersionToken(ProgramType program_type,
+                                uint32_t major_version,
+                                uint32_t minor_version) {
+  return (uint32_t(program_type) << 16) | (major_version << 4) | minor_version;
+}
+
+// D3D10_SB_CUSTOMDATA_CLASS
+enum class CustomDataClass : uint32_t {
+  kComment,
+  kDebugInfo,
+  kOpaque,
+  kDclImmediateConstantBuffer,
+  kShaderMessage,
+  kShaderClipPlaneConstantMappingsForDX9,
 };
 
 // D3D10_SB_OPERAND_TYPE subset
@@ -325,27 +642,37 @@ enum class OperandType : uint32_t {
   kInputPrimitiveID = 11,
   kOutputDepth = 12,
   kNull = 13,
+  kOutputCoverageMask = 15,
   kInputControlPoint = 25,
   kInputDomainPoint = 28,
   kUnorderedAccessView = 30,
+  kInputThreadGroupID = 33,
+  kInputThreadIDInGroup = 34,
   kInputCoverageMask = 35,
   kOutputDepthLessEqual = 39,
+  kOutputStencilRef = 41,
 };
 
 // D3D10_SB_OPERAND_INDEX_DIMENSION
-constexpr uint32_t GetOperandIndexDimension(OperandType type) {
+constexpr uint32_t GetOperandIndexDimension(OperandType type,
+                                            bool in_dcl = false) {
   switch (type) {
     case OperandType::kTemp:
     case OperandType::kInput:
+      // FIXME(Triang3l): kInput has a dimensionality of 2 in the control point
+      // phase of hull shaders, however, currently the translator isn't used to
+      // emit them - if code where this matters is emitted by Xenia, the actual
+      // dimensionality will need to be stored in OperandAddress itself.
     case OperandType::kOutput:
     case OperandType::kLabel:
       return 1;
     case OperandType::kIndexableTemp:
+    case OperandType::kInputControlPoint:
+      return 2;
     case OperandType::kSampler:
     case OperandType::kResource:
-    case OperandType::kInputControlPoint:
     case OperandType::kUnorderedAccessView:
-      return 2;
+      return in_dcl ? 3 : 2;
     case OperandType::kConstantBuffer:
       return 3;
     default:
@@ -361,19 +688,21 @@ enum class OperandDimension : uint32_t {
 };
 
 constexpr OperandDimension GetOperandDimension(OperandType type,
-                                               bool dest_in_dcl = false) {
+                                               bool in_dcl = false) {
   switch (type) {
     case OperandType::kSampler:
+      return in_dcl ? OperandDimension::kVector : OperandDimension::kNoData;
     case OperandType::kLabel:
     case OperandType::kNull:
       return OperandDimension::kNoData;
     case OperandType::kInputPrimitiveID:
     case OperandType::kOutputDepth:
+    case OperandType::kOutputCoverageMask:
     case OperandType::kOutputDepthLessEqual:
+    case OperandType::kOutputStencilRef:
       return OperandDimension::kScalar;
     case OperandType::kInputCoverageMask:
-      return dest_in_dcl ? OperandDimension::kScalar
-                         : OperandDimension::kVector;
+      return in_dcl ? OperandDimension::kScalar : OperandDimension::kVector;
     default:
       return OperandDimension::kVector;
   }
@@ -444,12 +773,14 @@ struct OperandAddress {
         index_2d_(index_2d),
         index_3d_(index_3d) {}
 
-  OperandDimension GetDimension(bool dest_in_dcl = false) const {
-    return GetOperandDimension(type_, dest_in_dcl);
+  OperandDimension GetDimension(bool in_dcl = false) const {
+    return GetOperandDimension(type_, in_dcl);
   }
-  uint32_t GetIndexDimension() const { return GetOperandIndexDimension(type_); }
-  uint32_t GetOperandTokenTypeAndIndex() const {
-    uint32_t index_dimension = GetIndexDimension();
+  uint32_t GetIndexDimension(bool in_dcl = false) const {
+    return GetOperandIndexDimension(type_, in_dcl);
+  }
+  uint32_t GetOperandTokenTypeAndIndex(bool in_dcl = false) const {
+    uint32_t index_dimension = GetIndexDimension(in_dcl);
     uint32_t operand_token = (uint32_t(type_) << 12) | (index_dimension << 20);
     if (index_dimension > 0) {
       operand_token |= uint32_t(index_1d_.GetRepresentation()) << 22;
@@ -462,9 +793,9 @@ struct OperandAddress {
     }
     return operand_token;
   }
-  uint32_t GetLength() const {
+  uint32_t GetLength(bool in_dcl = false) const {
     uint32_t length = 0;
-    uint32_t index_dimension = GetIndexDimension();
+    uint32_t index_dimension = GetIndexDimension(in_dcl);
     if (index_dimension > 0) {
       length += index_1d_.GetLength();
       if (index_dimension > 1) {
@@ -476,8 +807,8 @@ struct OperandAddress {
     }
     return length;
   }
-  void Write(std::vector<uint32_t>& code) const {
-    uint32_t index_dimension = GetIndexDimension();
+  void Write(std::vector<uint32_t>& code, bool in_dcl = false) const {
+    uint32_t index_dimension = GetIndexDimension(in_dcl);
     if (index_dimension > 0) {
       index_1d_.Write(code);
       if (index_dimension > 1) {
@@ -508,6 +839,10 @@ struct Dest : OperandAddress {
   // Ignored for 0-component and 1-component operand types.
   uint32_t write_mask_;
 
+  // Input destinations (v*) are for use only in declarations. Vector input
+  // declarations use read masks instead of swizzle (resource declarations still
+  // use swizzle when they're vector, however).
+
   explicit Dest(OperandType type, uint32_t write_mask = 0b1111,
                 Index index_1d = Index(), Index index_2d = Index(),
                 Index index_3d = Index())
@@ -517,6 +852,9 @@ struct Dest : OperandAddress {
   static Dest R(uint32_t index, uint32_t write_mask = 0b1111) {
     return Dest(OperandType::kTemp, write_mask, index);
   }
+  static Dest V(uint32_t index, uint32_t read_mask = 0b1111) {
+    return Dest(OperandType::kInput, read_mask, index);
+  }
   static Dest O(Index index, uint32_t write_mask = 0b1111) {
     return Dest(OperandType::kOutput, write_mask, index);
   }
@@ -524,19 +862,42 @@ struct Dest : OperandAddress {
                 uint32_t write_mask = 0b1111) {
     return Dest(OperandType::kIndexableTemp, write_mask, index_1d, index_2d);
   }
+  static Dest VPrim() { return Dest(OperandType::kInputPrimitiveID, 0b0001); }
   static Dest ODepth() { return Dest(OperandType::kOutputDepth, 0b0001); }
   static Dest Null() { return Dest(OperandType::kNull, 0b0000); }
+  static Dest OMask() { return Dest(OperandType::kOutputCoverageMask, 0b0001); }
+  static Dest VICP(uint32_t control_point_count, uint32_t element,
+                   uint32_t read_mask = 0b1111) {
+    return Dest(OperandType::kInputControlPoint, read_mask, control_point_count,
+                element);
+  }
+  static Dest VDomain(uint32_t read_mask) {
+    return Dest(OperandType::kInputDomainPoint, read_mask);
+  }
   static Dest U(uint32_t index_1d, Index index_2d,
                 uint32_t write_mask = 0b1111) {
     return Dest(OperandType::kUnorderedAccessView, write_mask, index_1d,
                 index_2d);
   }
+  static Dest VThreadGroupID(uint32_t read_mask) {
+    return Dest(OperandType::kInputThreadGroupID, read_mask);
+  }
+  static Dest VThreadIDInGroup(uint32_t read_mask) {
+    return Dest(OperandType::kInputThreadIDInGroup, read_mask);
+  }
+  static Dest VCoverage() {
+    return Dest(OperandType::kInputCoverageMask, 0b0001);
+  }
   static Dest ODepthLE() {
     return Dest(OperandType::kOutputDepthLessEqual, 0b0001);
   }
+  static Dest OStencilRef() {
+    return Dest(OperandType::kOutputStencilRef, 0b0001);
+  }
 
-  uint32_t GetMask() const {
-    switch (GetDimension()) {
+  uint32_t GetMask(bool in_dcl = false) const {
+    OperandDimension dimension = GetDimension(in_dcl);
+    switch (dimension) {
       case OperandDimension::kNoData:
         return 0b0000;
       case OperandDimension::kScalar:
@@ -544,7 +905,7 @@ struct Dest : OperandAddress {
       case OperandDimension::kVector:
         return write_mask_;
       default:
-        assert_unhandled_case(GetDimension());
+        assert_unhandled_case(dimension);
         return 0b0000;
     }
   }
@@ -564,13 +925,15 @@ struct Dest : OperandAddress {
     }
     return UINT32_MAX;
   }
-  uint32_t GetMaskSingleComponent() const {
-    return GetMaskSingleComponent(GetMask());
+  uint32_t GetMaskSingleComponent(bool in_dcl = false) const {
+    return GetMaskSingleComponent(GetMask(in_dcl));
   }
 
-  uint32_t GetLength() const { return 1 + OperandAddress::GetLength(); }
+  uint32_t GetLength(bool in_dcl = false) const {
+    return 1 + OperandAddress::GetLength(in_dcl);
+  }
   void Write(std::vector<uint32_t>& code, bool in_dcl = false) const {
-    uint32_t operand_token = GetOperandTokenTypeAndIndex();
+    uint32_t operand_token = GetOperandTokenTypeAndIndex(in_dcl);
     OperandDimension dimension = GetDimension(in_dcl);
     operand_token |= uint32_t(dimension);
     if (dimension == OperandDimension::kVector) {
@@ -579,7 +942,7 @@ struct Dest : OperandAddress {
           (uint32_t(ComponentSelection::kMask) << 2) | (write_mask_ << 4);
     }
     code.push_back(operand_token);
-    OperandAddress::Write(code);
+    OperandAddress::Write(code, in_dcl);
   }
 };
 
@@ -606,6 +969,10 @@ struct Src : OperandAddress {
         swizzle_(swizzle),
         absolute_(false),
         negate_(false) {}
+
+  // For creating instances for use in declarations.
+  struct DclT {};
+  static constexpr DclT Dcl;
 
   static Src R(uint32_t index, uint32_t swizzle = kXYZW) {
     return Src(OperandType::kTemp, swizzle, index);
@@ -648,26 +1015,47 @@ struct Src : OperandAddress {
   static Src S(uint32_t index_1d, Index index_2d) {
     return Src(OperandType::kSampler, kXXXX, index_1d, index_2d);
   }
+  static Src S(DclT, uint32_t id, uint32_t lower_bound, uint32_t upper_bound) {
+    return Src(OperandType::kSampler, kXYZW, id, lower_bound, upper_bound);
+  }
   static Src T(uint32_t index_1d, Index index_2d, uint32_t swizzle = kXYZW) {
     return Src(OperandType::kResource, swizzle, index_1d, index_2d);
   }
-  static Src CB(uint32_t index_1d, Index index_2d, Index index_3d,
+  static Src T(DclT, uint32_t id, uint32_t lower_bound, uint32_t upper_bound) {
+    return Src(OperandType::kResource, kXYZW, id, lower_bound, upper_bound);
+  }
+  static Src CB(uint32_t id, Index index, Index location,
                 uint32_t swizzle = kXYZW) {
-    return Src(OperandType::kConstantBuffer, swizzle, index_1d, index_2d,
-               index_3d);
+    return Src(OperandType::kConstantBuffer, swizzle, id, index, location);
+  }
+  static Src CB(DclT, uint32_t id, uint32_t lower_bound, uint32_t upper_bound) {
+    return Src(OperandType::kConstantBuffer, kXYZW, id, lower_bound,
+               upper_bound);
   }
   static Src Label(uint32_t index) {
     return Src(OperandType::kLabel, kXXXX, index);
   }
   static Src VPrim() { return Src(OperandType::kInputPrimitiveID, kXXXX); }
-  static Src VICP(Index index_1d, Index index_2d, uint32_t swizzle = kXYZW) {
-    return Src(OperandType::kInputControlPoint, swizzle, index_1d, index_2d);
+  static Src VICP(Index control_point, Index element,
+                  uint32_t swizzle = kXYZW) {
+    return Src(OperandType::kInputControlPoint, swizzle, control_point,
+               element);
   }
   static Src VDomain(uint32_t swizzle = kXYZW) {
     return Src(OperandType::kInputDomainPoint, swizzle);
   }
   static Src U(uint32_t index_1d, Index index_2d, uint32_t swizzle = kXYZW) {
     return Src(OperandType::kUnorderedAccessView, swizzle, index_1d, index_2d);
+  }
+  static Src U(DclT, uint32_t id, uint32_t lower_bound, uint32_t upper_bound) {
+    return Src(OperandType::kUnorderedAccessView, kXYZW, id, lower_bound,
+               upper_bound);
+  }
+  static Src VThreadGroupID(uint32_t swizzle = kXYZW) {
+    return Src(OperandType::kInputThreadGroupID, swizzle);
+  }
+  static Src VThreadIDInGroup(uint32_t swizzle = kXYZW) {
+    return Src(OperandType::kInputThreadIDInGroup, swizzle);
   }
   static Src VCoverage() { return Src(OperandType::kInputCoverageMask, kXXXX); }
 
@@ -712,14 +1100,15 @@ struct Src : OperandAddress {
     return new_src;
   }
 
-  uint32_t GetLength(uint32_t mask, bool force_vector = false) const {
+  uint32_t GetLength(uint32_t mask, bool force_vector = false,
+                     bool in_dcl = false) const {
     bool is_vector =
         force_vector ||
         (mask != 0b0000 && Dest::GetMaskSingleComponent(mask) == UINT32_MAX);
     if (type_ == OperandType::kImmediate32) {
       return is_vector ? 5 : 2;
     }
-    return ((absolute_ || negate_) ? 2 : 1) + OperandAddress::GetLength();
+    return ((absolute_ || negate_) ? 2 : 1) + OperandAddress::GetLength(in_dcl);
   }
   static constexpr uint32_t GetModifiedImmediate(uint32_t value,
                                                  bool is_integer, bool absolute,
@@ -749,8 +1138,8 @@ struct Src : OperandAddress {
         absolute_, negate_);
   }
   void Write(std::vector<uint32_t>& code, bool is_integer, uint32_t mask,
-             bool force_vector = false) const {
-    uint32_t operand_token = GetOperandTokenTypeAndIndex();
+             bool force_vector = false, bool in_dcl = false) const {
+    uint32_t operand_token = GetOperandTokenTypeAndIndex(in_dcl);
     uint32_t mask_single_component = Dest::GetMaskSingleComponent(mask);
     uint32_t select_component =
         mask_single_component != UINT32_MAX ? mask_single_component : 0;
@@ -774,7 +1163,7 @@ struct Src : OperandAddress {
         code.push_back(GetModifiedImmediate(select_component, is_integer));
       }
     } else {
-      switch (GetDimension()) {
+      switch (GetDimension(in_dcl)) {
         case OperandDimension::kScalar:
           if (is_vector) {
             operand_token |= uint32_t(OperandDimension::kVector) |
@@ -823,9 +1212,79 @@ struct Src : OperandAddress {
         code.push_back(uint32_t(ExtendedOperandType::kModifier) |
                        (uint32_t(modifier) << 6));
       }
-      OperandAddress::Write(code);
+      OperandAddress::Write(code, in_dcl);
     }
   }
+};
+
+// D3D10_SB_GLOBAL_FLAGS_MASK
+enum GlobalFlags : uint32_t {
+  // Permit the driver to reorder arithmetic operations for optimization.
+  kGlobalFlagRefactoringAllowed = 1 << 11,
+  kGlobalFlagEnableDoublePrecisionFloatOps = 1 << 12,
+  kGlobalFlagForceEarlyDepthStencil = 1 << 13,
+  // Enable RAW and structured buffers in non-CS 4.x shaders. Not needed on 5.x.
+  kGlobalFlagEnableRawAndStructuredBuffers = 1 << 14,
+  // Direct3D 11.1.
+  // Skip optimizations of shader IL when translating to native code.
+  kGlobalFlagSkipOptimization = 1 << 15,
+  kGlobalFlagEnableMinimumPrecision = 1 << 16,
+  // Enable 11.1 double-precision floating-point instruction extensions. Not
+  // needed on 5.1.
+  kGlobalFlagEnableDoubleExtensions = 1 << 17,
+  // Enable 11.1 non-double instruction extensions. Not needed on 5.1.
+  kGlobalFlagEnableShaderExtensions = 1 << 18,
+  // Direct3D 12.
+  kGlobalFlagAllResourcesBound = 1 << 19,
+};
+
+// D3D10_SB_SAMPLER_MODE
+enum class SamplerMode : uint32_t {
+  kDefault,
+  kComparison,
+  kMono,
+};
+
+// D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN
+enum class ConstantBufferAccessPattern : uint32_t {
+  kImmediateIndexed,
+  kDynamicIndexed,
+};
+
+// D3D10_SB_INTERPOLATION_MODE
+enum class InterpolationMode : uint32_t {
+  kUndefined,
+  kConstant,
+  kLinear,
+  kLinearCentroid,
+  kLinearNoPerspective,
+  kLinearNoPerspectiveCentroid,
+  kLinearSample,
+  kLinearNoPerspectiveSample,
+};
+
+// D3D10_SB_RESOURCE_DIMENSION
+enum class ResourceDimension : uint32_t {
+  kUnknown,
+  kBuffer,
+  kTexture1D,
+  kTexture2D,
+  kTexture2DMS,
+  kTexture3D,
+  kTextureCube,
+  kTexture1DArray,
+  kTexture2DArray,
+  kTexture2DMSArray,
+  kTextureCubeArray,
+  kRawBuffer,
+  kStructuredBuffer,
+};
+
+// D3D11_SB_RESOURCE_FLAGS_MASK
+enum UAVFlags : uint32_t {
+  kUAVFlagGloballyCoherentAccess = 1 << 16,
+  kUAVFlagRasterizerOrderedAccess = 1 << 17,
+  kUAVFlagHasOrderPreservingCounter = 1 << 23,
 };
 
 // D3D10_SB_OPCODE_TYPE subset
@@ -866,12 +1325,15 @@ enum class Opcode : uint32_t {
   kIShL = 41,
   kIToF = 43,
   kLabel = 44,
+  kLd = 45,
+  kLdMS = 46,
   kLog = 47,
   kLoop = 48,
   kLT = 49,
   kMAd = 50,
   kMin = 51,
   kMax = 52,
+  kCustomData = 53,
   kMov = 54,
   kMovC = 55,
   kMul = 56,
@@ -889,6 +1351,7 @@ enum class Opcode : uint32_t {
   kSqRt = 75,
   kSwitch = 76,
   kSinCos = 77,
+  kUDiv = 78,
   kULT = 79,
   kUGE = 80,
   kUMul = 81,
@@ -898,6 +1361,19 @@ enum class Opcode : uint32_t {
   kUShR = 85,
   kUToF = 86,
   kXOr = 87,
+  kDclResource = 88,
+  kDclConstantBuffer = 89,
+  kDclSampler = 90,
+  kDclInput = 95,
+  kDclInputSGV = 96,
+  kDclInputPS = 98,
+  kDclInputPSSGV = 99,
+  kDclInputPSSIV = 100,
+  kDclOutput = 101,
+  kDclOutputSIV = 103,
+  kDclTemps = 104,
+  kDclIndexableTemp = 105,
+  kDclGlobalFlags = 106,
   kLOD = 108,
   kDerivRTXCoarse = 122,
   kDerivRTXFine = 123,
@@ -907,10 +1383,17 @@ enum class Opcode : uint32_t {
   kF32ToF16 = 130,
   kF16ToF32 = 131,
   kFirstBitHi = 135,
+  kFirstBitLo = 136,
   kUBFE = 138,
   kIBFE = 139,
   kBFI = 140,
   kBFRev = 141,
+  kDclInputControlPointCount = 147,
+  kDclTessDomain = 149,
+  kDclThreadGroup = 155,
+  kDclUnorderedAccessViewTyped = 156,
+  kDclUnorderedAccessViewRaw = 157,
+  kDclResourceRaw = 161,
   kLdUAVTyped = 163,
   kStoreUAVTyped = 164,
   kLdRaw = 165,
@@ -944,6 +1427,20 @@ constexpr uint32_t SampleControlsExtendedOpcodeToken(int32_t aoffimmi_u,
          ((uint32_t(aoffimmi_v) & uint32_t(0b1111)) << 13) |
          ((uint32_t(aoffimmi_w) & uint32_t(0b1111)) << 17) |
          (extended ? (uint32_t(1) << 31) : 0);
+}
+
+constexpr uint32_t ResourceReturnTypeToken(ResourceReturnType x,
+                                           ResourceReturnType y,
+                                           ResourceReturnType z,
+                                           ResourceReturnType w) {
+  return uint32_t(x) | (uint32_t(y) << 4) | (uint32_t(z) << 8) |
+         (uint32_t(w) << 12);
+}
+
+// Even if a texture or a typed buffer has less than 4 components, it has the
+// same return type specified for all 4 in its dcl instruction.
+constexpr uint32_t ResourceReturnTypeX4Token(ResourceReturnType xyzw) {
+  return ResourceReturnTypeToken(xyzw, xyzw, xyzw, xyzw);
 }
 
 // Assembler appending to the shader program code vector.
@@ -1129,6 +1626,58 @@ class Assembler {
     label.Write(code_, true, 0b0000);
     // Doesn't count towards stat_.instruction_count.
   }
+  void OpLd(const Dest& dest, const Src& address, uint32_t address_mask,
+            const Src& resource, int32_t aoffimmi_u = 0, int32_t aoffimmi_v = 0,
+            int32_t aoffimmi_w = 0) {
+    uint32_t dest_write_mask = dest.GetMask();
+    uint32_t sample_controls = 0;
+    if (aoffimmi_u || aoffimmi_v || aoffimmi_w) {
+      sample_controls =
+          SampleControlsExtendedOpcodeToken(aoffimmi_u, aoffimmi_v, aoffimmi_w);
+    }
+    uint32_t operands_length = dest.GetLength() +
+                               address.GetLength(address_mask, true) +
+                               resource.GetLength(dest_write_mask, true);
+    code_.reserve(code_.size() + 1 + (sample_controls ? 1 : 0) +
+                  operands_length);
+    code_.push_back(OpcodeToken(Opcode::kLd, operands_length, false,
+                                sample_controls ? 1 : 0));
+    if (sample_controls) {
+      code_.push_back(sample_controls);
+    }
+    dest.Write(code_);
+    address.Write(code_, false, address_mask, true);
+    resource.Write(code_, false, dest_write_mask, true);
+    ++stat_.instruction_count;
+    ++stat_.texture_load_instructions;
+  }
+  void OpLdMS(const Dest& dest, const Src& address, uint32_t address_mask,
+              const Src& resource, const Src& sample_index,
+              int32_t aoffimmi_u = 0, int32_t aoffimmi_v = 0) {
+    uint32_t dest_write_mask = dest.GetMask();
+    uint32_t sample_controls = 0;
+    if (aoffimmi_u || aoffimmi_v) {
+      sample_controls =
+          SampleControlsExtendedOpcodeToken(aoffimmi_u, aoffimmi_v, 0);
+    }
+    uint32_t operands_length = dest.GetLength() +
+                               address.GetLength(address_mask, true) +
+                               resource.GetLength(dest_write_mask, true) +
+                               sample_index.GetLength(0b0000);
+    code_.reserve(code_.size() + 1 + (sample_controls ? 1 : 0) +
+                  operands_length);
+    code_.push_back(OpcodeToken(Opcode::kLdMS, operands_length, false,
+                                sample_controls ? 1 : 0));
+    if (sample_controls) {
+      code_.push_back(sample_controls);
+    }
+    dest.Write(code_);
+    address.Write(code_, false, address_mask, true);
+    resource.Write(code_, false, dest_write_mask, true);
+    sample_index.Write(code_, true, 0b0000);
+    ++stat_.instruction_count;
+    ++stat_.texture_load_instructions;
+  }
   void OpLog(const Dest& dest, const Src& src, bool saturate = false) {
     EmitAluOp(Opcode::kLog, 0b0, dest, src, saturate);
     ++stat_.float_instruction_count;
@@ -1156,6 +1705,25 @@ class Assembler {
              bool saturate = false) {
     EmitAluOp(Opcode::kMax, 0b00, dest, src0, src1, saturate);
     ++stat_.float_instruction_count;
+  }
+  // Returns a pointer for writing the custom data to.
+  void* OpCustomData(CustomDataClass custom_data_class, uint32_t length_bytes) {
+    uint32_t length_bytes_aligned =
+        xe::align(length_bytes, uint32_t(sizeof(uint32_t)));
+    uint32_t total_length_dwords = length_bytes_aligned / sizeof(uint32_t) + 2;
+    size_t offset_dwords = code_.size();
+    code_.resize(offset_dwords + total_length_dwords);
+    uint32_t* data = code_.data() + offset_dwords;
+    // Different opcode encoding (no size).
+    *(data++) =
+        uint32_t(Opcode::kCustomData) | (uint32_t(custom_data_class) << 11);
+    *(data++) = total_length_dwords;
+    // Don't leave uninitialized data, and make sure multiple uses of the
+    // assembler with the same input give the same DXBC for driver shader
+    // caching.
+    std::memset(reinterpret_cast<uint8_t*>(data) + length_bytes,
+                dxbc::kAlignmentPadding, length_bytes_aligned - length_bytes);
+    return data;
   }
   void OpMov(const Dest& dest, const Src& src, bool saturate = false) {
     EmitAluOp(Opcode::kMov, 0b0, dest, src, saturate);
@@ -1294,6 +1862,11 @@ class Assembler {
     EmitAluOp(Opcode::kSinCos, 0b0, dest_sin, dest_cos, src, saturate);
     ++stat_.float_instruction_count;
   }
+  void OpUDiv(const Dest& dest_quotient, const Dest& dest_remainder,
+              const Src& src0, const Src& src1) {
+    EmitAluOp(Opcode::kUDiv, 0b11, dest_quotient, dest_remainder, src0, src1);
+    ++stat_.uint_instruction_count;
+  }
   void OpULT(const Dest& dest, const Src& src0, const Src& src1) {
     EmitAluOp(Opcode::kULT, 0b11, dest, src0, src1);
     ++stat_.uint_instruction_count;
@@ -1331,6 +1904,122 @@ class Assembler {
   void OpXOr(const Dest& dest, const Src& src0, const Src& src1) {
     EmitAluOp(Opcode::kXOr, 0b11, dest, src0, src1);
     ++stat_.uint_instruction_count;
+  }
+  void OpDclResource(ResourceDimension dimension, uint32_t return_type_token,
+                     const Src& operand, uint32_t space = 0) {
+    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    code_.reserve(code_.size() + 3 + operands_length);
+    code_.push_back(OpcodeToken(Opcode::kDclResource, 2 + operands_length) |
+                    (uint32_t(dimension) << 11));
+    operand.Write(code_, false, 0b1111, false, true);
+    code_.push_back(return_type_token);
+    code_.push_back(space);
+  }
+  // The order of constant buffer declarations in a shader indicates their
+  // relative priority from highest to lowest (hint to driver).
+  void OpDclConstantBuffer(const Src& operand, uint32_t size_vectors,
+                           ConstantBufferAccessPattern access_pattern =
+                               ConstantBufferAccessPattern::kImmediateIndexed,
+                           uint32_t space = 0) {
+    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    code_.reserve(code_.size() + 3 + operands_length);
+    code_.push_back(
+        OpcodeToken(Opcode::kDclConstantBuffer, 2 + operands_length) |
+        (uint32_t(access_pattern) << 11));
+    operand.Write(code_, false, 0b1111, false, true);
+    code_.push_back(size_vectors);
+    code_.push_back(space);
+  }
+  void OpDclSampler(const Src& operand,
+                    SamplerMode mode = SamplerMode::kDefault,
+                    uint32_t space = 0) {
+    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    code_.reserve(code_.size() + 2 + operands_length);
+    code_.push_back(OpcodeToken(Opcode::kDclSampler, 1 + operands_length) |
+                    (uint32_t(mode) << 11));
+    operand.Write(code_, false, 0b1111, false, true);
+    code_.push_back(space);
+  }
+  void OpDclInput(const Dest& operand) {
+    uint32_t operands_length = operand.GetLength(true);
+    code_.reserve(code_.size() + 1 + operands_length);
+    code_.push_back(OpcodeToken(Opcode::kDclInput, operands_length));
+    operand.Write(code_, true);
+    ++stat_.dcl_count;
+  }
+  void OpDclInputSGV(const Dest& operand, Name name) {
+    uint32_t operands_length = operand.GetLength(true);
+    code_.reserve(code_.size() + 2 + operands_length);
+    code_.push_back(OpcodeToken(Opcode::kDclInputSGV, 1 + operands_length));
+    operand.Write(code_, true);
+    code_.push_back(uint32_t(name));
+    ++stat_.dcl_count;
+  }
+  void OpDclInputPS(InterpolationMode interpolation_mode, const Dest& operand) {
+    uint32_t operands_length = operand.GetLength(true);
+    code_.reserve(code_.size() + 1 + operands_length);
+    code_.push_back(OpcodeToken(Opcode::kDclInputPS, operands_length) |
+                    (uint32_t(interpolation_mode) << 11));
+    operand.Write(code_, true);
+    ++stat_.dcl_count;
+  }
+  void OpDclInputPSSGV(const Dest& operand, Name name) {
+    uint32_t operands_length = operand.GetLength(true);
+    code_.reserve(code_.size() + 2 + operands_length);
+    // Constant interpolation mode is set in FXC output at least for
+    // SV_IsFrontFace, despite the comment in d3d12TokenizedProgramFormat.hpp
+    // saying bits 11:23 are ignored.
+    code_.push_back(OpcodeToken(Opcode::kDclInputPSSGV, 1 + operands_length) |
+                    (uint32_t(InterpolationMode::kConstant) << 11));
+    operand.Write(code_, true);
+    code_.push_back(uint32_t(name));
+    ++stat_.dcl_count;
+  }
+  void OpDclInputPSSIV(InterpolationMode interpolation_mode,
+                       const Dest& operand, Name name) {
+    uint32_t operands_length = operand.GetLength(true);
+    code_.reserve(code_.size() + 2 + operands_length);
+    code_.push_back(OpcodeToken(Opcode::kDclInputPSSIV, 1 + operands_length) |
+                    (uint32_t(interpolation_mode) << 11));
+    operand.Write(code_, true);
+    code_.push_back(uint32_t(name));
+    ++stat_.dcl_count;
+  }
+  void OpDclOutput(const Dest& operand) {
+    uint32_t operands_length = operand.GetLength(true);
+    code_.reserve(code_.size() + 1 + operands_length);
+    code_.push_back(OpcodeToken(Opcode::kDclOutput, operands_length));
+    operand.Write(code_, true);
+    ++stat_.dcl_count;
+  }
+  void OpDclOutputSIV(const Dest& operand, Name name) {
+    uint32_t operands_length = operand.GetLength(true);
+    code_.reserve(code_.size() + 2 + operands_length);
+    code_.push_back(OpcodeToken(Opcode::kDclOutputSIV, 1 + operands_length));
+    operand.Write(code_, true);
+    code_.push_back(uint32_t(name));
+    ++stat_.dcl_count;
+  }
+  // Returns the index of the count written in the code_ vector.
+  size_t OpDclTemps(uint32_t count) {
+    code_.reserve(code_.size() + 2);
+    code_.push_back(OpcodeToken(Opcode::kDclTemps, 1));
+    code_.push_back(count);
+    stat_.temp_register_count = count;
+    return code_.size() - 1;
+  }
+  void OpDclIndexableTemp(uint32_t index, uint32_t count,
+                          uint32_t component_count) {
+    code_.reserve(code_.size() + 4);
+    code_.push_back(OpcodeToken(Opcode::kDclIndexableTemp, 3));
+    code_.push_back(index);
+    code_.push_back(count);
+    code_.push_back(component_count);
+    stat_.temp_array_count += count;
+  }
+  // flags are GlobalFlags.
+  void OpDclGlobalFlags(uint32_t flags) {
+    code_.push_back(OpcodeToken(Opcode::kDclGlobalFlags, 0) | flags);
   }
   void OpLOD(const Dest& dest, const Src& address, uint32_t address_components,
              const Src& resource, const Src& sampler) {
@@ -1382,6 +2071,10 @@ class Assembler {
     EmitAluOp(Opcode::kFirstBitHi, 0b1, dest, src);
     ++stat_.uint_instruction_count;
   }
+  void OpFirstBitLo(const Dest& dest, const Src& src) {
+    EmitAluOp(Opcode::kFirstBitLo, 0b1, dest, src);
+    ++stat_.uint_instruction_count;
+  }
   void OpUBFE(const Dest& dest, const Src& width, const Src& offset,
               const Src& src) {
     EmitAluOp(Opcode::kUBFE, 0b111, dest, width, offset, src);
@@ -1400,6 +2093,56 @@ class Assembler {
   void OpBFRev(const Dest& dest, const Src& src) {
     EmitAluOp(Opcode::kBFRev, 0b1, dest, src);
     ++stat_.uint_instruction_count;
+  }
+  void OpDclInputControlPointCount(uint32_t count) {
+    code_.push_back(OpcodeToken(Opcode::kDclInputControlPointCount, 0) |
+                    (count << 11));
+    stat_.c_control_points = count;
+  }
+  void OpDclTessDomain(TessellatorDomain domain) {
+    code_.push_back(OpcodeToken(Opcode::kDclTessDomain, 0) |
+                    (uint32_t(domain) << 11));
+    stat_.tessellator_domain = domain;
+  }
+  void OpDclThreadGroup(uint32_t x, uint32_t y, uint32_t z) {
+    code_.reserve(code_.size() + 4);
+    code_.push_back(OpcodeToken(Opcode::kDclThreadGroup, 3));
+    code_.push_back(x);
+    code_.push_back(y);
+    code_.push_back(z);
+  }
+  // Possible flags are kUAVFlagGloballyCoherentAccess and
+  // kUAVFlagRasterizerOrderedAccess.
+  void OpDclUnorderedAccessViewTyped(ResourceDimension dimension,
+                                     uint32_t flags, uint32_t return_type_token,
+                                     const Src& operand, uint32_t space = 0) {
+    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    code_.reserve(code_.size() + 3 + operands_length);
+    code_.push_back(
+        OpcodeToken(Opcode::kDclUnorderedAccessViewTyped, 2 + operands_length) |
+        (uint32_t(dimension) << 11) | flags);
+    operand.Write(code_, false, 0b1111, false, true);
+    code_.push_back(return_type_token);
+    code_.push_back(space);
+  }
+  // Possible flags are kUAVFlagGloballyCoherentAccess and
+  // kUAVFlagRasterizerOrderedAccess.
+  void OpDclUnorderedAccessViewRaw(uint32_t flags, const Src& operand,
+                                   uint32_t space = 0) {
+    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    code_.reserve(code_.size() + 2 + operands_length);
+    code_.push_back(
+        OpcodeToken(Opcode::kDclUnorderedAccessViewRaw, 1 + operands_length) |
+        flags);
+    operand.Write(code_, true, 0b1111, false, true);
+    code_.push_back(space);
+  }
+  void OpDclResourceRaw(const Src& operand, uint32_t space = 0) {
+    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    code_.reserve(code_.size() + 2 + operands_length);
+    code_.push_back(OpcodeToken(Opcode::kDclResourceRaw, 1 + operands_length));
+    operand.Write(code_, true, 0b1111, false, true);
+    code_.push_back(space);
   }
   void OpLdUAVTyped(const Dest& dest, const Src& address,
                     uint32_t address_components, const Src& uav) {

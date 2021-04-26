@@ -163,11 +163,15 @@ else
   mov r2.zw, r5.zzzw
 endif 
 ushr r3.xyzw, r3.xyzw, l(8, 8, 8, 8)
+ushr r5.xyzw, r3.xyzw, l(23, 23, 23, 23)
+iadd r3.xyzw, r3.xyzw, r5.xyzw
 utof r3.xyzw, r3.xyzw
 mul r3.xyzw, r3.xyzw, l(0.000000, 0.000000, 0.000000, 0.000000)
 store_uav_typed U0[0].xyzw, r0.yyyy, r3.xyzw
 iadd r1.z, r0.z, r0.y
 ushr r2.xyzw, r2.xyzw, l(8, 8, 8, 8)
+ushr r3.xyzw, r2.xyzw, l(23, 23, 23, 23)
+iadd r2.xyzw, r2.xyzw, r3.xyzw
 utof r2.xyzw, r2.xyzw
 mul r2.xyzw, r2.xyzw, l(0.000000, 0.000000, 0.000000, 0.000000)
 store_uav_typed U0[0].xyzw, r1.zzzz, r2.xyzw
@@ -205,11 +209,15 @@ else
   mov r3.zw, r4.zzzw
 endif 
 ushr r4.xyzw, r5.xyzw, l(8, 8, 8, 8)
+ushr r5.xyzw, r4.xyzw, l(23, 23, 23, 23)
+iadd r4.xyzw, r4.xyzw, r5.xyzw
 utof r4.xyzw, r4.xyzw
 mul r4.xyzw, r4.xyzw, l(0.000000, 0.000000, 0.000000, 0.000000)
 store_uav_typed U0[0].xyzw, r2.xxxx, r4.xyzw
 iadd r4.xyz, r0.zzzz, r2.xyzx
 ushr r3.xyzw, r3.xyzw, l(8, 8, 8, 8)
+ushr r5.xyzw, r3.xyzw, l(23, 23, 23, 23)
+iadd r3.xyzw, r3.xyzw, r5.xyzw
 utof r3.xyzw, r3.xyzw
 mul r3.xyzw, r3.xyzw, l(0.000000, 0.000000, 0.000000, 0.000000)
 store_uav_typed U0[0].xyzw, r4.xxxx, r3.xyzw
@@ -252,10 +260,14 @@ else
   mov r3.zw, r6.zzzw
 endif 
 ushr r5.xyzw, r5.xyzw, l(8, 8, 8, 8)
+ushr r6.xyzw, r5.xyzw, l(23, 23, 23, 23)
+iadd r5.xyzw, r5.xyzw, r6.xyzw
 utof r5.xyzw, r5.xyzw
 mul r5.xyzw, r5.xyzw, l(0.000000, 0.000000, 0.000000, 0.000000)
 store_uav_typed U0[0].xyzw, r2.yyyy, r5.xyzw
 ushr r3.xyzw, r3.xyzw, l(8, 8, 8, 8)
+ushr r5.xyzw, r3.xyzw, l(23, 23, 23, 23)
+iadd r3.xyzw, r3.xyzw, r5.xyzw
 utof r3.xyzw, r3.xyzw
 mul r3.xyzw, r3.xyzw, l(0.000000, 0.000000, 0.000000, 0.000000)
 store_uav_typed U0[0].xyzw, r4.yyyy, r3.xyzw
@@ -292,12 +304,16 @@ else
   mov r3.zw, r0.zzzw
 endif 
 ushr r0.xyzw, r5.xyzw, l(8, 8, 8, 8)
+ushr r1.xyzw, r0.xyzw, l(23, 23, 23, 23)
+iadd r0.xyzw, r0.xyzw, r1.xyzw
 utof r0.xyzw, r0.xyzw
 mul r0.xyzw, r0.xyzw, l(0.000000, 0.000000, 0.000000, 0.000000)
 store_uav_typed U0[0].xyzw, r2.zzzz, r0.xyzw
 ushr r0.xyzw, r3.xyzw, l(8, 8, 8, 8)
+ushr r1.xyzw, r0.xyzw, l(23, 23, 23, 23)
+iadd r0.xyzw, r0.xyzw, r1.xyzw
 utof r0.xyzw, r0.xyzw
 mul r0.xyzw, r0.xyzw, l(0.000000, 0.000000, 0.000000, 0.000000)
 store_uav_typed U0[0].xyzw, r4.zzzz, r0.xyzw
 ret 
-// Approximately 252 instruction slots used
+// Approximately 268 instruction slots used
