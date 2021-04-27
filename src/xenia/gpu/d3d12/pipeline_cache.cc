@@ -1013,6 +1013,64 @@ bool PipelineCache::ConfigurePipeline(
   assert_not_null(pipeline_handle_out);
   assert_not_null(root_signature_out);
 
+  // Ensure shaders are translated - needed now for GetCurrentStateDescription.
+  // Edge flags are not supported yet (because polygon primitives are not).
+  assert_true(register_file_.Get<reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
+                  xenos::VertexShaderExportMode::kPosition2VectorsEdge &&
+              register_file_.Get<reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
+                  xenos::VertexShaderExportMode::kPosition2VectorsEdgeKill);
+  assert_false(register_file_.Get<reg::SQ_PROGRAM_CNTL>().gen_index_vtx);
+  if (!vertex_shader->is_translated()) {
+    vertex_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
+    if (!TranslateAnalyzedShader(*shader_translator_, *vertex_shader,
+                                 dxbc_converter_, dxc_utils_, dxc_compiler_)) {
+      XELOGE("Failed to translate the vertex shader!");
+      return false;
+    }
+    if (shader_storage_file_ && vertex_shader->shader().ucode_storage_index() !=
+                                    shader_storage_index_) {
+      vertex_shader->shader().set_ucode_storage_index(shader_storage_index_);
+      assert_not_null(storage_write_thread_);
+      shader_storage_file_flush_needed_ = true;
+      {
+        std::lock_guard<std::mutex> lock(storage_write_request_lock_);
+        storage_write_shader_queue_.push_back(&vertex_shader->shader());
+      }
+      storage_write_request_cond_.notify_all();
+    }
+  }
+  if (!vertex_shader->is_valid()) {
+    // Translation attempted previously, but not valid.
+    return false;
+  }
+  if (pixel_shader != nullptr) {
+    if (!pixel_shader->is_translated()) {
+      pixel_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
+      if (!TranslateAnalyzedShader(*shader_translator_, *pixel_shader,
+                                   dxbc_converter_, dxc_utils_,
+                                   dxc_compiler_)) {
+        XELOGE("Failed to translate the pixel shader!");
+        return false;
+      }
+      if (shader_storage_file_ &&
+          pixel_shader->shader().ucode_storage_index() !=
+              shader_storage_index_) {
+        pixel_shader->shader().set_ucode_storage_index(shader_storage_index_);
+        assert_not_null(storage_write_thread_);
+        shader_storage_file_flush_needed_ = true;
+        {
+          std::lock_guard<std::mutex> lock(storage_write_request_lock_);
+          storage_write_shader_queue_.push_back(&pixel_shader->shader());
+        }
+        storage_write_request_cond_.notify_all();
+      }
+    }
+    if (!pixel_shader->is_valid()) {
+      // Translation attempted previously, but not valid.
+      return false;
+    }
+  }
+
   PipelineRuntimeDescription runtime_description;
   if (!GetCurrentStateDescription(
           vertex_shader, pixel_shader, primitive_type, index_format,
@@ -1041,52 +1099,6 @@ bool PipelineCache::ConfigurePipeline(
       *pipeline_handle_out = found_pipeline;
       *root_signature_out = found_pipeline->description.root_signature;
       return true;
-    }
-  }
-
-  // Ensure shaders are translated.
-  // Edge flags are not supported yet (because polygon primitives are not).
-  assert_true(register_file_.Get<reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
-                  xenos::VertexShaderExportMode::kPosition2VectorsEdge &&
-              register_file_.Get<reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
-                  xenos::VertexShaderExportMode::kPosition2VectorsEdgeKill);
-  assert_false(register_file_.Get<reg::SQ_PROGRAM_CNTL>().gen_index_vtx);
-  if (!vertex_shader->is_translated()) {
-    vertex_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
-    if (!TranslateAnalyzedShader(*shader_translator_, *vertex_shader,
-                                 dxbc_converter_, dxc_utils_, dxc_compiler_)) {
-      XELOGE("Failed to translate the vertex shader!");
-      return false;
-    }
-    if (shader_storage_file_ && vertex_shader->shader().ucode_storage_index() !=
-                                    shader_storage_index_) {
-      vertex_shader->shader().set_ucode_storage_index(shader_storage_index_);
-      assert_not_null(storage_write_thread_);
-      shader_storage_file_flush_needed_ = true;
-      {
-        std::lock_guard<std::mutex> lock(storage_write_request_lock_);
-        storage_write_shader_queue_.push_back(&vertex_shader->shader());
-      }
-      storage_write_request_cond_.notify_all();
-    }
-  }
-  if (pixel_shader != nullptr && !pixel_shader->is_translated()) {
-    pixel_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
-    if (!TranslateAnalyzedShader(*shader_translator_, *pixel_shader,
-                                 dxbc_converter_, dxc_utils_, dxc_compiler_)) {
-      XELOGE("Failed to translate the pixel shader!");
-      return false;
-    }
-    if (shader_storage_file_ &&
-        pixel_shader->shader().ucode_storage_index() != shader_storage_index_) {
-      pixel_shader->shader().set_ucode_storage_index(shader_storage_index_);
-      assert_not_null(storage_write_thread_);
-      shader_storage_file_flush_needed_ = true;
-      {
-        std::lock_guard<std::mutex> lock(storage_write_request_lock_);
-        storage_write_shader_queue_.push_back(&pixel_shader->shader());
-      }
-      storage_write_request_cond_.notify_all();
     }
   }
 
@@ -1331,6 +1343,11 @@ bool PipelineCache::GetCurrentStateDescription(
     uint32_t bound_depth_and_color_render_target_bits,
     const uint32_t* bound_depth_and_color_render_target_formats,
     PipelineRuntimeDescription& runtime_description_out) {
+  // Translated shaders needed at least for the root signature.
+  assert_true(vertex_shader->is_translated() && vertex_shader->is_valid());
+  assert_true(!pixel_shader ||
+              (pixel_shader->is_translated() && pixel_shader->is_valid()));
+
   PipelineDescription& description_out = runtime_description_out.description;
 
   const auto& regs = register_file_;
