@@ -149,9 +149,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
           descriptor_load_separate_(std::move(descriptor_load_separate)),
           descriptor_srv_(std::move(descriptor_srv)),
           descriptor_srv_stencil_(std::move(descriptor_srv_stencil)),
-          resource_state_(resource_state) {
-      resource_->AddRef();
-    }
+          resource_state_(resource_state) {}
 
     ID3D12Resource* resource() const { return resource_.Get(); }
     const ui::d3d12::D3D12CpuDescriptorPool::Descriptor& descriptor_draw()
