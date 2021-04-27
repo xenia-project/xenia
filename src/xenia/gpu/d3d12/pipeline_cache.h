@@ -242,7 +242,8 @@ class PipelineCache {
                                IDxcCompiler* dxc_compiler = nullptr);
 
   // If draw_util::IsRasterizationPotentiallyDone is false, the pixel shader
-  // MUST be made nullptr BEFORE calling this!
+  // MUST be made nullptr BEFORE calling this! The shaders must be translated
+  // and valid.
   bool GetCurrentStateDescription(
       D3D12Shader::D3D12Translation* vertex_shader,
       D3D12Shader::D3D12Translation* pixel_shader,
