@@ -54,7 +54,7 @@ std::unique_ptr<D3D12Provider> D3D12Provider::Create(Window* main_window) {
         "Unable to initialize Direct3D 12 graphics subsystem.\n"
         "\n"
         "Ensure that you have the latest drivers for your GPU and it supports "
-        "Direct3D 12 feature level 11_0.\n"
+        "Direct3D 12 with the feature level of at least 11_0.\n"
         "\n"
         "See https://xenia.jp/faq/ for more information and a list of "
         "supported GPUs.");
@@ -270,7 +270,9 @@ bool D3D12Provider::Initialize() {
     ++adapter_index;
   }
   if (adapter == nullptr) {
-    XELOGE("Failed to get an adapter supporting Direct3D feature level 11_0");
+    XELOGE(
+        "Failed to get an adapter supporting Direct3D 12 with the feature "
+        "level of at least 11_0");
     dxgi_factory->Release();
     return false;
   }
