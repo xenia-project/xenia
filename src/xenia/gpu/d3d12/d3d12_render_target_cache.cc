@@ -1518,6 +1518,8 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
       case Path::kHostRenderTargets: {
         Transfer::Rectangle clear_rectangle;
         RenderTarget* clear_render_targets[2];
+        // If PrepareHostRenderTargetsResolveClear returns false, may be just an
+        // empty region (success) or an error - don't care.
         if (PrepareHostRenderTargetsResolveClear(
                 resolve_info, clear_rectangle, clear_render_targets[0],
                 clear_transfers_[0], clear_render_targets[1],
@@ -1529,10 +1531,8 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
           PerformTransfersAndResolveClears(2, clear_render_targets,
                                            clear_transfers_, clear_values,
                                            &clear_rectangle);
-        } else {
-          // May be just an empty region (success) or an error - don't care.
-          cleared = true;
         }
+        cleared = true;
       } break;
       case Path::kPixelShaderInterlock: {
         ui::d3d12::util::DescriptorCpuGpuHandlePair descriptor_edram;
