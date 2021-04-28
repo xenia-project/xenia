@@ -41,8 +41,8 @@ Let’s look at the way framebuffers (also known as “render targets”) are ma
 
 A simplified rendering pipeline with [deferred lighting](https://en.wikipedia.org/wiki/Deferred_shading) has two passes:
 
-1. G-buffer filling pass — writing normals, diffuse color and glossiness.
-2. Lighting and composition pass — reading normals and diffuse/glossiness, writing the final color.
+1. G-buffer filling pass — writing normals, diffuse color, glossiness and depth.
+2. Lighting and composition pass — reading normals, diffuse/glossiness and depth, writing the final color.
 
 On the PC Direct3D 9, setup and rendering is performed as follows:
 
