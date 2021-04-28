@@ -49,15 +49,18 @@ On the PC Direct3D 9, setup and rendering is performed as follows:
 1. Create the device with a back buffer 8-bits-per-channel (8.8.8.8) surface for final output.
 2. Create the normals 10-bits-per-channel (10.10.10.2) texture.
 3. Create the diffuse/glossiness 8-bits-per-channel (8.8.8.8) texture.
-4. When drawing a frame:
+4. Create the depth texture.
+5. When drawing a frame:
     1. Bind the normals texture’s surface as render target 0.
     2. Bind the diffuse/glossiness texture’s surface as render target 1.
-    3. Draw the geometry to fill the G-buffers.
-    4. Bind the back buffer surface as render target 0.
-    5. Bind the normals texture to the pixel shaders.
-    6. Bind the diffuse/glossiness texture to the pixel shaders.
-    7. Draw the lighting pass and things like UI.
-    8. Present the back buffer to the screen.
+    3. Bind the depth texture's surface as the depth render target.
+    4. Draw the geometry to fill the G-buffers.
+    5. Bind the back buffer surface as render target 0.
+    6. Bind the normals texture to the pixel shaders.
+    7. Bind the diffuse/glossiness texture to the pixel shaders.
+    8. Bind the depth texture to the pixel shaders.
+    9. Draw the lighting pass and things like UI.
+    10. Present the back buffer to the screen.
 
 Normally, when you create a texture on an older, high-level-of-abstraction PC graphics API like Direct3D 9, you only specify its properties such as format, size, mip count, usage purposes — but memory is allocated somewhere internally by the driver/OS for it. The app only gets an opaque handle — such as a IDirect3DTexture9 pointer — that can be used to reference the texture in various API operations, such as binding the texture to shaders for sampling from it, setting it as the current render target, copying between the texture and other textures of usually the same format or buffers, uploading new contents. However, the memory allocation behind the texture is hidden away from the app by the driver, and every texture gets its own, separate memory allocation, not sharing its contents with any other texture in existence.
 
@@ -95,25 +98,29 @@ On mobile GPUs, since those devices are battery-powered, tiling is done to maxim
 
 On the Xbox 360, however, there’s 10 megabytes of this memory. This is not enough for a full 1280x720 scene with MSAA — with 32 bits of color and 32 bits of depth/stencil data per pixel, 14 MB would be needed for 2x MSAA, and 28 MB for 4x — so HD games with MSAA used tile-based rendering too, albeit with much bigger tiles (1280x512 for 2x MSAA, or 1280x256 for 4x, in the above mentioned case, or smaller if multiple render targets are written). However, it’s enough for entire 1280x720 color and depth framebuffers without MSAA, or smaller render targets with 2x MSAA (such as 1024x600 in the Call of Duty: Modern Warfare series), or multiple smaller-sized render targets for whatever post-processing and composition the game wants to do. This gives games **a lot of flexibility** in management of framebuffers located in eDRAM, including control of lifetime of each eDRAM allocation and its purpose in each part of the frame.
 
-The deferred lighting example provided in the beginning of this section would look like this on the Xbox 360 — differences from the PC highlighted in _italics_:
+The deferred lighting example provided in the beginning of this section would look like this on the Xbox 360 — differences from the PC highlighted in _italics_ (using a framebuffer smaller than a full 3600 KB 1280x720 as an example, since three 1280x720 buffers can't fit in the 10 MB of eDRAM):
 
 1. Create the device with a back buffer surface for final output.
 2. Create the normals texture.
 3. Create the diffuse/glossiness texture.
-4. When drawing a frame:
-    1. _Bind the eDRAM 0–3600 KB range as 10.10.10.2 render target 0._
-    2. _Bind the eDRAM 3600–7200 KB range as 8.8.8.8 render target 1._
-    3. Draw the geometry to fill the G-buffers.
-    4. _Resolve the render target in the eDRAM 0–3600 KB range to the normals texture._
-    5. _Resolve the render target in the eDRAM 3600–7200 KB range to the diffuse/glossiness texture._
-    6. _Bind the eDRAM 0–3600 KB range as 8.8.8.8 render target 0._
-    7. Bind the normals texture to the pixel shaders.
-    8. Bind the diffuse/glossiness texture to the pixel shaders.
-    9. Draw the lighting pass and things like UI.
-    10. _Resolve the render target in the eDRAM 0–3600 KB range to the back buffer surface._
-    11. Present the back buffer to the screen.
+4. Create the depth texture.
+5. When drawing a frame:
+    1. _Bind the eDRAM 0–3000 KB range as 10.10.10.2 render target 0._
+    2. _Bind the eDRAM 3000–6000 KB range as 8.8.8.8 render target 1._
+    3. _Bind the eDRAM 6000-9000 KB range as the depth render target._
+    4. Draw the geometry to fill the G-buffers.
+    5. _Resolve the render target in the eDRAM 0–3000 KB range to the normals texture._
+    6. _Resolve the render target in the eDRAM 3000–6000 KB range to the diffuse/glossiness texture._
+    7. _Resolve the render target in the eDRAM 6000–9000 KB range to the depth texture._
+    8. _Bind the eDRAM 0–3000 KB range as 8.8.8.8 render target 0._
+    9. Bind the normals texture to the pixel shaders.
+    10. Bind the diffuse/glossiness texture to the pixel shaders.
+    11. Bind the depth texture to the pixel shaders.
+    12. Draw the lighting pass and things like UI.
+    13. _Resolve the render target in the eDRAM 0–3000 KB range to the back buffer surface._
+    14. Present the back buffer to the screen.
 
-See how now we draw first not to the textures directly, but to locations in eDRAM, and then we copy from it to textures in the main memory. And unlike on the PC, where each render target is located in a separate place, we’re now using the 0–3600 KB range of eDRAM for two purposes during the frame — first to write the normals, and then to shade and compose the final image.
+See how now we draw first not to the textures directly, but to locations in eDRAM, and then we copy from it to textures in the main memory. And unlike on the PC, where each render target is located in a separate place, we’re now using the 0–3000 KB range of eDRAM for two purposes during the frame — first to write the normals, and then to shade and compose the final image.
 
 In this usage pattern, the range is used for two entirely separate render targets just like on the PC. That’s what the **old** (Vulkan-based, but this is irrelevant as the differences are purely in the high-level emulation logic) **GPU subsystem of Xenia** was doing — to attempt managing eDRAM render targets in a way similar to how it’s done in PC graphics. There are **no handles of separate render targets** — like IDirect3DSurface9 objects, ID3D11Texture2D + ID3D11RenderTargetView pairs, OpenGL texture and framebuffer names — on hardware level in general, and even more prominently within the tight space of eDRAM designed for temporary use. So, the closest identifier to use was the properties of the render target — location in eDRAM, width (not height — it’s not required by the console and thus not specified directly in the registers, which is another significant issue), MSAA sample count and format. This was, of course, not the deliberate ultimate goal — there was actually a rough attempt to do the proper logic. Rather, it was a prototype implementation relatively quick to set up and to get a lot of games working to some extent, mainly cross-platform games not heavily utilizing Xbox 360-specific features — and it worked pretty fine in many cases, including the deferred lighting example above, more or less fulfilling the need for displaying the game world — sometimes enough for playing, sometimes at least just for observing how different parts of the emulator work.
 
