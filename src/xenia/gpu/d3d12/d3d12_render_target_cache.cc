@@ -65,7 +65,9 @@ DEFINE_string(
     "cases.\n"
     " Any other value:\n"
     "  Choose what is considered the most optimal for the system (currently "
-    "always RTV because the ROV path is much slower now).",
+    "always RTV because the ROV path is much slower now, except for Intel "
+    "GPUs, which have a bug in stencil testing that causes Xbox 360 Direct3D 9 "
+    "clears not to work).",
     "GPU");
 
 namespace xe {
@@ -253,12 +255,19 @@ bool D3D12RenderTargetCache::Initialize() {
   } else if (cvars::render_target_path_d3d12 == "rov") {
     path_ = Path::kPixelShaderInterlock;
   } else {
+    // As of April 2021 (driver version 27.20.0100.9316), on Intel (tested on
+    // UHD Graphics 630), the "always" stencil comparison function isn't working
+    // properly, so clears in the Xbox 360's Direct3D 9 don't work. Forcing ROV
+    // there.
 #if 1
     // The ROV path is currently much slower generally.
     // TODO(Triang3l): Make ROV the default when it's optimized better (for
     // instance, using static shader modifications to pass render target
     // parameters).
-    path_ = Path::kHostRenderTargets;
+    path_ = provider.GetAdapterVendorID() ==
+                    ui::GraphicsProvider::GpuVendorID::kIntel
+                ? Path::kPixelShaderInterlock
+                : Path::kHostRenderTargets;
 #else
     // The AMD shader compiler crashes very often with Xenia's custom
     // output-merger code as of March 2021.
