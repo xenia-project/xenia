@@ -48,7 +48,7 @@ class Window {
   virtual void DisableMainMenu() = 0;
 
   const std::string& title() const { return title_; }
-  virtual bool set_title(const std::string& title) {
+  virtual bool set_title(const std::string_view title) {
     if (title == title_) {
       return false;
     }
