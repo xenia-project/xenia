@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -252,7 +252,7 @@ class PrimitivePointerParam : public ParamBase<uint32_t> {
   }
   T value() const { return *host_ptr_; }
   operator T() const = delete;
-  operator xe::be<T>*() const { return host_ptr_; }
+  operator xe::be<T> *() const { return host_ptr_; }
   operator bool() const { return host_ptr_ != nullptr; }
   void Zero() const {
     assert_not_null(host_ptr_);
