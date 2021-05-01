@@ -435,7 +435,13 @@ void EmulatorWindow::UpdateTitle() {
 
   // Title information, if available
   if (emulator()->is_title_open()) {
-    sb.AppendFormat(u8" | [{:08X}]", emulator()->title_id());
+    sb.AppendFormat(u8" | [{:08X}", emulator()->title_id());
+    auto title_version = emulator()->title_version();
+    if (!title_version.empty()) {
+      sb.Append(u8" v");
+      sb.Append(title_version);
+    }
+    sb.Append(u8"]");
 
     auto title_name = emulator()->title_name();
     if (!title_name.empty()) {
