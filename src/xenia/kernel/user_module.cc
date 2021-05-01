@@ -511,11 +511,9 @@ void UserModule::Dump() {
           sb.AppendFormat("    {} - {} imports\n", name,
                           (uint16_t)library->count);
 
-          // Manually byteswap these because of the bitfields.
           xex2_version version, version_min;
-          version.value = xe::byte_swap<uint32_t>(library->version.value);
-          version_min.value =
-              xe::byte_swap<uint32_t>(library->version_min.value);
+          version = library->version();
+          version_min = library->version_min();
           sb.AppendFormat("      Version: {}.{}.{}.{}\n", version.major,
                           version.minor, version.build, version.qfe);
           sb.AppendFormat("      Min Version: {}.{}.{}.{}\n", version_min.major,

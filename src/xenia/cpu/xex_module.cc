@@ -449,14 +449,9 @@ int XexModule::ApplyPatch(XexModule* module) {
       }
     }
 
-    // byteswap versions because of bitfields...
     xex2_version source_ver, target_ver;
-    source_ver.value =
-        xe::byte_swap<uint32_t>(patch_header->source_version.value);
-
-    target_ver.value =
-        xe::byte_swap<uint32_t>(patch_header->target_version.value);
-
+    source_ver = patch_header->source_version();
+    target_ver = patch_header->target_version();
     XELOGI(
         "XEX patch applied successfully: base version: {}.{}.{}.{}, new "
         "version: {}.{}.{}.{}",
@@ -1112,8 +1107,8 @@ bool XexModule::SetupLibraryImports(const std::string_view name,
   ImportLibrary library_info;
   library_info.name = base_name;
   library_info.id = library->id;
-  library_info.version.value = library->version.value;
-  library_info.min_version.value = library->version_min.value;
+  library_info.version.value = library->version().value;
+  library_info.min_version.value = library->version_min().value;
 
   // Imports are stored as {import descriptor, thunk addr, import desc, ...}
   // Even thunks have an import descriptor (albeit unused/useless)
