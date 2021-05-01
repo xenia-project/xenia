@@ -99,11 +99,12 @@ void GTKWindow::OnClose() {
   super::OnClose();
 }
 
-bool GTKWindow::set_title(const std::string& title) {
+bool GTKWindow::set_title(const std::string_view title) {
   if (!super::set_title(title)) {
     return false;
   }
-  gtk_window_set_title(GTK_WINDOW(window_), (gchar*)title.c_str());
+  std::string titlez(title);
+  gtk_window_set_title(GTK_WINDOW(window_), (gchar*)titlez.c_str());
   return true;
 }
 
