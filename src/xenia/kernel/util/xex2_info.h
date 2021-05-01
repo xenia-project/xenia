@@ -372,7 +372,7 @@ struct xex2_opt_file_format_info {
 };
 
 union xex2_version {
-  xe::be<uint32_t> value;
+  uint32_t value;
   struct {
     uint32_t major : 4;
     uint32_t minor : 4;
@@ -446,8 +446,8 @@ struct xex2_delta_patch {
 
 struct xex2_opt_delta_patch_descriptor {
   xe::be<uint32_t> size;                         // 0x0
-  xex2_version target_version;                   // 0x4
-  xex2_version source_version;                   // 0x8
+  xe::be<uint32_t> target_version_value;         // 0x4
+  xe::be<uint32_t> source_version_value;         // 0x8
   uint8_t digest_source[0x14];                   // 0xC
   uint8_t image_key_source[0x10];                // 0x20
   xe::be<uint32_t> size_of_target_headers;       // 0x30
@@ -458,18 +458,44 @@ struct xex2_opt_delta_patch_descriptor {
   xe::be<uint32_t> delta_image_source_size;      // 0x44
   xe::be<uint32_t> delta_image_target_offset;    // 0x48
   xex2_delta_patch info;                         // 0x4C
+
+  xex2_version target_version() const {
+    return xex2_version{target_version_value};
+  }
+
+  void set_target_version(xex2_version version) {
+    target_version_value = version.value;
+  }
+
+  xex2_version source_version() const {
+    return xex2_version{source_version_value};
+  }
+
+  void set_source_version(xex2_version version) {
+    source_version_value = version.value;
+  }
 };
 
 struct xex2_opt_execution_info {
-  xe::be<uint32_t> media_id;          // 0x0
-  xe::be<xex2_version> version;       // 0x4
-  xe::be<xex2_version> base_version;  // 0x8
-  xe::be<uint32_t> title_id;          // 0xC
-  uint8_t platform;                   // 0x10
-  uint8_t executable_table;           // 0x11
-  uint8_t disc_number;                // 0x12
-  uint8_t disc_count;                 // 0x13
-  xe::be<uint32_t> savegame_id;       // 0x14
+  xe::be<uint32_t> media_id;            // 0x0
+  xe::be<uint32_t> version_value;       // 0x4
+  xe::be<uint32_t> base_version_value;  // 0x8
+  xe::be<uint32_t> title_id;            // 0xC
+  uint8_t platform;                     // 0x10
+  uint8_t executable_table;             // 0x11
+  uint8_t disc_number;                  // 0x12
+  uint8_t disc_count;                   // 0x13
+  xe::be<uint32_t> savegame_id;         // 0x14
+
+  xex2_version version() const { return xex2_version{version_value}; }
+
+  void set_version(xex2_version version) { version_value = version.value; }
+
+  xex2_version base_version() const { return xex2_version{base_version_value}; }
+
+  void set_base_version(xex2_version version) {
+    base_version_value = version.value;
+  }
 };
 static_assert_size(xex2_opt_execution_info, 0x18);
 
@@ -483,14 +509,24 @@ struct xex2_opt_import_libraries {
 };
 
 struct xex2_import_library {
-  xe::be<uint32_t> size;             // 0x0
-  char next_import_digest[0x14];     // 0x4
-  xe::be<uint32_t> id;               // 0x18
-  xex2_version version;              // 0x1C
-  xex2_version version_min;          // 0x20
-  xe::be<uint16_t> name_index;       // 0x24
-  xe::be<uint16_t> count;            // 0x26
-  xe::be<uint32_t> import_table[1];  // 0x28
+  xe::be<uint32_t> size;               // 0x0
+  char next_import_digest[0x14];       // 0x4
+  xe::be<uint32_t> id;                 // 0x18
+  xe::be<uint32_t> version_value;      // 0x1C
+  xe::be<uint32_t> version_min_value;  // 0x20
+  xe::be<uint16_t> name_index;         // 0x24
+  xe::be<uint16_t> count;              // 0x26
+  xe::be<uint32_t> import_table[1];    // 0x28
+
+  xex2_version version() const { return xex2_version{version_value}; }
+
+  void set_version(xex2_version version) { version_value = version.value; }
+
+  xex2_version version_min() const { return xex2_version{version_min_value}; }
+
+  void set_version_min(xex2_version version) {
+    version_min_value = version.value;
+  }
 };
 
 struct xex2_opt_header {
