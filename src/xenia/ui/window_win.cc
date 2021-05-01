@@ -66,7 +66,8 @@ bool Win32Window::OnCreate() {
       auto spda = (decltype(&SetProcessDpiAwareness))SetProcessDpiAwareness_;
       auto res = spda(PROCESS_PER_MONITOR_DPI_AWARE);
       if (res != S_OK) {
-        XELOGW("Failed to set process DPI awareness. (code = 0x{:08X})", res);
+        XELOGW("Failed to set process DPI awareness. (code = 0x{:08X})",
+               static_cast<uint32_t>(res));
       }
     }
 
