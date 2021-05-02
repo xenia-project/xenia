@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -732,7 +732,8 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   // playing before the video can be seen if doing this in parallel with the
   // main thread.
   on_shader_storage_initialization(true);
-  graphics_system_->InitializeShaderStorage(cache_root_, title_id_.value(), true);
+  graphics_system_->InitializeShaderStorage(cache_root_, title_id_.value(),
+                                            true);
   on_shader_storage_initialization(false);
 
   auto main_thread = kernel_state_->LaunchModule(module);
