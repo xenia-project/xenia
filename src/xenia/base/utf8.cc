@@ -589,7 +589,6 @@ std::string find_name_from_path(const std::string_view path,
       return std::string();
     }
     --it;
-    --end;
     padding = 1;
   }
 
