@@ -560,6 +560,9 @@ std::string find_name_from_path(const std::string_view path,
   // path is padded with separator
   size_t padding = 0;
   if (*it == uint32_t(separator)) {
+    if (it == begin) {
+      return std::string();
+    }
     --it;
     --end;
     padding = 1;
@@ -626,7 +629,11 @@ std::string find_base_path(const std::string_view path, char32_t separator) {
   auto it = end;
   --it;
 
+  // skip trailing separator
   if (*it == uint32_t(separator)) {
+    if (it == begin) {
+      return std::string();
+    }
     --it;
   }
 
