@@ -79,7 +79,7 @@ Emulator::Emulator(const std::filesystem::path& command_line,
       file_system_(),
       kernel_state_(),
       main_thread_(),
-      title_id_({}),
+      title_id_(std::nullopt),
       paused_(false),
       restoring_(false),
       restore_fence_() {}
@@ -247,7 +247,7 @@ X_STATUS Emulator::TerminateTitle() {
   }
 
   kernel_state_->TerminateTitle();
-  title_id_ = {};
+  title_id_ = std::nullopt;
   title_name_ = "";
   title_version_ = "";
   on_terminate();
@@ -673,7 +673,7 @@ static std::string format_version(xex2_version version) {
 X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
                                   const std::string_view module_path) {
   // Reset state.
-  title_id_ = {};
+  title_id_ = std::nullopt;
   title_name_ = "";
   title_version_ = "";
   display_window_->SetIcon(nullptr, 0);
