@@ -490,7 +490,20 @@ std::string join_paths(const std::string_view left_path,
   return result + std::string(right_path);
 }
 
-std::string join_paths(std::vector<std::string_view> paths,
+std::string join_paths(const std::vector<std::string>& paths,
+                       char32_t separator) {
+  std::string result;
+  auto it = paths.cbegin();
+  if (it != paths.cend()) {
+    result = *it++;
+    for (; it != paths.cend(); ++it) {
+      result = join_paths(result, *it, separator);
+    }
+  }
+  return result;
+}
+
+std::string join_paths(const std::vector<std::string_view>& paths,
                        char32_t separator) {
   std::string result;
   auto it = paths.cbegin();
