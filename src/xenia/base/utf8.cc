@@ -517,8 +517,20 @@ std::string fix_path_separators(const std::string_view path,
   std::string result;
   auto it = path_begin;
   auto last = it;
+
+  auto is_separator = [old_separator, new_separator](char32_t c) {
+    return c == uint32_t(old_separator) || c == uint32_t(new_separator);
+  };
+
+  // Begins with a separator
+  if (is_separator(*it)) {
+    utfcpp::append(new_separator, result);
+    ++it;
+    last = it;
+  }
+
   for (;;) {
-    it = std::find(it, path_end, uint32_t(old_separator));
+    it = std::find_if(it, path_end, is_separator);
     if (it == path_end) {
       break;
     }
