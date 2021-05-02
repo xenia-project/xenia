@@ -315,99 +315,168 @@ TEST_CASE("utf8::equal_case_z", "UTF-8 Equal Case Z") {
 // TODO(gibbed): ends_with_case
 // TODO(gibbed): split_path
 
+#define TEST_PATH(func, input, output)                                 \
+  do {                                                                 \
+    std::string input_value = input;                                   \
+    std::string output_value = output;                                 \
+    REQUIRE(func(input_value, '/') == output_value);                   \
+    std::replace(input_value.begin(), input_value.end(), '/', '\\');   \
+    std::replace(output_value.begin(), output_value.end(), '/', '\\'); \
+    REQUIRE(func(input_value, '\\') == output_value);                  \
+  } while (0)
+
+#define TEST_PATH_RAW(func, input, output)                             \
+  do {                                                                 \
+    std::string output_value = output;                                 \
+    REQUIRE(func(input, '/') == output_value);                         \
+    std::replace(output_value.begin(), output_value.end(), '/', '\\'); \
+    REQUIRE(func(input, '\\') == output_value);                        \
+  } while (0)
+
+#define TEST_PATHS(func, output, ...)                                      \
+  do {                                                                     \
+    std::vector<std::string> input_values = {__VA_ARGS__};                 \
+    std::string output_value = output;                                     \
+    REQUIRE(func(input_values, '/') == output_value);                      \
+    for (auto it = input_values.begin(); it != input_values.end(); ++it) { \
+      std::replace((*it).begin(), (*it).end(), '/', '\\');                 \
+    }                                                                      \
+    std::replace(output_value.begin(), output_value.end(), '/', '\\');     \
+    REQUIRE(func(input_values, '\\') == output_value);                     \
+  } while (0)
+
 TEST_CASE("utf8::join_paths", "UTF-8 Join Paths") {
-  REQUIRE(utf8::join_paths({u8"X:", u8"foo", u8"bar", u8"baz", u8"qux"},
-                           '\\') == "X:\\foo\\bar\\baz\\qux");
-  REQUIRE(utf8::join_paths({u8"X:", u8"foo", u8"bar", u8"baz", u8"qux"}, '/') ==
-          "X:/foo/bar/baz/qux");
+  TEST_PATHS(utf8::join_paths, u8"");
+  TEST_PATHS(utf8::join_paths, u8"foo", u8"foo");
+  TEST_PATHS(utf8::join_paths, u8"foo/bar", u8"foo", u8"bar");
+  TEST_PATHS(utf8::join_paths, "X:/foo/bar/baz/qux", u8"X:", u8"foo", u8"bar",
+             u8"baz", u8"qux");
 }
 
 // TODO(gibbed): join_guest_paths
 
 TEST_CASE("utf8::fix_path_separators", "UTF-8 Fix Path Separators") {
-  REQUIRE(utf8::fix_path_separators("X:\\foo/bar\\baz/qux", '\\') ==
-          "X:\\foo\\bar\\baz\\qux");
-  REQUIRE(utf8::fix_path_separators("X:\\foo/bar\\baz/qux", '/') ==
-          "X:/foo/bar/baz/qux");
+  TEST_PATH_RAW(utf8::fix_path_separators, "", "");
+  TEST_PATH_RAW(utf8::fix_path_separators, "\\", "/");
+  TEST_PATH_RAW(utf8::fix_path_separators, "/", "/");
+  TEST_PATH_RAW(utf8::fix_path_separators, "\\foo", "/foo");
+  TEST_PATH_RAW(utf8::fix_path_separators, "\\foo/", "/foo/");
+  TEST_PATH_RAW(utf8::fix_path_separators, "/foo", "/foo");
+  TEST_PATH_RAW(utf8::fix_path_separators, "\\foo/bar\\baz/qux",
+                "/foo/bar/baz/qux");
+  TEST_PATH_RAW(utf8::fix_path_separators, "\\\\foo//bar\\\\baz//qux",
+                "/foo/bar/baz/qux");
+  TEST_PATH_RAW(utf8::fix_path_separators, "foo", "foo");
+  TEST_PATH_RAW(utf8::fix_path_separators, "foo/", "foo/");
+  TEST_PATH_RAW(utf8::fix_path_separators, "foo/bar\\baz/qux",
+                "foo/bar/baz/qux");
+  TEST_PATH_RAW(utf8::fix_path_separators, "foo//bar\\\\baz//qux",
+                "foo/bar/baz/qux");
+  TEST_PATH_RAW(utf8::fix_path_separators, "X:", "X:");
+  TEST_PATH_RAW(utf8::fix_path_separators, "X:\\", "X:/");
+  TEST_PATH_RAW(utf8::fix_path_separators, "X:/", "X:/");
+  TEST_PATH_RAW(utf8::fix_path_separators, "X:\\foo", "X:/foo");
+  TEST_PATH_RAW(utf8::fix_path_separators, "X:\\foo/", "X:/foo/");
+  TEST_PATH_RAW(utf8::fix_path_separators, "X:/foo", "X:/foo");
+  TEST_PATH_RAW(utf8::fix_path_separators, "X:\\foo/bar\\baz/qux",
+                "X:/foo/bar/baz/qux");
+  TEST_PATH_RAW(utf8::fix_path_separators, "X:\\\\foo//bar\\\\baz//qux",
+                "X:/foo/bar/baz/qux");
 }
 
 // TODO(gibbed): fix_guest_path_separators
 
 TEST_CASE("utf8::find_name_from_path", "UTF-8 Find Name From Path") {
-  REQUIRE(utf8::find_name_from_path("X:\\foo\\bar\\baz\\qux.txt", '\\') ==
-          "qux.txt");
-  REQUIRE(utf8::find_name_from_path(
-              "X:\\ほげ\\ぴよ\\ふが\\ほげら\\ほげほげ.txt", '\\') ==
-          "ほげほげ.txt");
-  REQUIRE(utf8::find_name_from_path("X:\\ほげ\\ぴよ\\ふが\\ほげら.ほげほげ",
-                                    '\\') == "ほげら.ほげほげ");
-  REQUIRE(utf8::find_name_from_path("X:/foo/bar/baz/qux.txt", '/') ==
-          "qux.txt");
-  REQUIRE(utf8::find_name_from_path("X:/ほげ/ぴよ/ふが/ほげら/ほげほげ.txt",
-                                    '/') == "ほげほげ.txt");
-  REQUIRE(utf8::find_name_from_path("X:/ほげ/ぴよ/ふが/ほげら.ほげほげ", '/') ==
-          "ほげら.ほげほげ");
+  TEST_PATH(utf8::find_name_from_path, "/", "");
+  TEST_PATH(utf8::find_name_from_path, "foo/bar/baz/qux.txt", "qux.txt");
+  TEST_PATH(utf8::find_name_from_path, "ほげ/ぴよ/ふが/ほげら/ほげほげ.txt",
+            "ほげほげ.txt");
+  TEST_PATH(utf8::find_name_from_path, "/foo/bar/baz/qux.txt", "qux.txt");
+  TEST_PATH(utf8::find_name_from_path, "/ほげ/ぴよ/ふが/ほげら/ほげほげ.txt",
+            "ほげほげ.txt");
+  TEST_PATH(utf8::find_name_from_path, "X:/foo/bar/baz/qux.txt", "qux.txt");
+  TEST_PATH(utf8::find_name_from_path, "X:/ほげ/ぴよ/ふが/ほげら/ほげほげ.txt",
+            "ほげほげ.txt");
+  TEST_PATH(utf8::find_name_from_path, "X:/ほげ/ぴよ/ふが/ほげら.ほげほげ",
+            "ほげら.ほげほげ");
 }
 
 // TODO(gibbed): find_name_from_guest_path
 
 TEST_CASE("utf8::find_base_name_from_path", "UTF-8 Find Base Name From Path") {
-  REQUIRE(utf8::find_base_name_from_path("X:\\foo\\bar\\baz\\qux.txt", '\\') ==
-          "qux");
-  REQUIRE(utf8::find_base_name_from_path(
-              "X:\\ほげ\\ぴよ\\ふが\\ほげら\\ほげほげ.txt", '\\') ==
-          "ほげほげ");
-  REQUIRE(utf8::find_base_name_from_path(
-              "X:\\ほげ\\ぴよ\\ふが\\ほげら.ほげほげ", '\\') == "ほげら");
-  REQUIRE(utf8::find_base_name_from_path("X:/foo/bar/baz/qux.txt", '/') ==
-          "qux");
-  REQUIRE(utf8::find_base_name_from_path(
-              "X:/ほげ/ぴよ/ふが/ほげら/ほげほげ.txt", '/') == "ほげほげ");
-  REQUIRE(utf8::find_base_name_from_path("X:/ほげ/ぴよ/ふが/ほげら.ほげほげ",
-                                         '/') == "ほげら");
+  TEST_PATH(utf8::find_base_name_from_path, "foo/bar/baz/qux.txt", "qux");
+  TEST_PATH(utf8::find_base_name_from_path,
+            "ほげ/ぴよ/ふが/ほげら/ほげほげ.txt", "ほげほげ");
+  TEST_PATH(utf8::find_base_name_from_path, "ほげ/ぴよ/ふが/ほげら.ほげほげ",
+            "ほげら");
+  TEST_PATH(utf8::find_base_name_from_path, "/foo/bar/baz/qux.txt", "qux");
+  TEST_PATH(utf8::find_base_name_from_path,
+            "/ほげ/ぴよ/ふが/ほげら/ほげほげ.txt", "ほげほげ");
+  TEST_PATH(utf8::find_base_name_from_path, "/ほげ/ぴよ/ふが/ほげら.ほげほげ",
+            "ほげら");
+  TEST_PATH(utf8::find_base_name_from_path, "X:/foo/bar/baz/qux.txt", "qux");
+  TEST_PATH(utf8::find_base_name_from_path,
+            "X:/ほげ/ぴよ/ふが/ほげら/ほげほげ.txt", "ほげほげ");
+  TEST_PATH(utf8::find_base_name_from_path, "X:/ほげ/ぴよ/ふが/ほげら.ほげほげ",
+            "ほげら");
 }
 
 // TODO(gibbed): find_base_name_from_guest_path
 
 TEST_CASE("utf8::find_base_path", "UTF-8 Find Base Path") {
-  REQUIRE(utf8::find_base_path("X:\\foo\\bar\\baz\\qux", '\\') ==
-          "X:\\foo\\bar\\baz");
-  REQUIRE(utf8::find_base_path("X:/foo/bar/baz/qux", '/') == "X:/foo/bar/baz");
-  REQUIRE(utf8::find_base_path("X:/ほげ/ぴよ/ふが/ほげら/ほげほげ", '/') ==
-          "X:/ほげ/ぴよ/ふが/ほげら");
+  TEST_PATH(utf8::find_base_path, "", "");
+  TEST_PATH(utf8::find_base_path, "/", "");
+  TEST_PATH(utf8::find_base_path, "//", "");
+  TEST_PATH(utf8::find_base_path, "/foo", "");
+  TEST_PATH(utf8::find_base_path, "/foo/bar", "/foo");
+  TEST_PATH(utf8::find_base_path, "/foo/bar/baz/qux", "/foo/bar/baz");
+  TEST_PATH(utf8::find_base_path, "/ほげ/ぴよ/ふが/ほげら/ほげほげ",
+            "/ほげ/ぴよ/ふが/ほげら");
+  TEST_PATH(utf8::find_base_path, "foo", "");
+  TEST_PATH(utf8::find_base_path, "foo/bar", "foo");
+  TEST_PATH(utf8::find_base_path, "foo/bar/baz/qux", "foo/bar/baz");
+  TEST_PATH(utf8::find_base_path, "ほげ/ぴよ/ふが/ほげら/ほげほげ",
+            "ほげ/ぴよ/ふが/ほげら");
+  TEST_PATH(utf8::find_base_path, "X:", "");
+  TEST_PATH(utf8::find_base_path, "X:/", "");
+  TEST_PATH(utf8::find_base_path, "X:/foo", "X:");
+  TEST_PATH(utf8::find_base_path, "X:/foo/bar", "X:/foo");
+  TEST_PATH(utf8::find_base_path, "X:/foo/bar/baz/qux", "X:/foo/bar/baz");
+  TEST_PATH(utf8::find_base_path, "X:/ほげ/ぴよ/ふが/ほげら/ほげほげ",
+            "X:/ほげ/ぴよ/ふが/ほげら");
 }
 
 // TODO(gibbed): find_base_guest_path
 
 TEST_CASE("utf8::canonicalize_path", "UTF-8 Canonicalize Path") {
-  REQUIRE(utf8::canonicalize_path("X:\\foo\\bar\\baz\\qux", '\\') ==
-          "X:\\foo\\bar\\baz\\qux");
-  REQUIRE(utf8::canonicalize_path("X:\\foo\\.\\baz\\qux", '\\') ==
-          "X:\\foo\\baz\\qux");
-  REQUIRE(utf8::canonicalize_path("X:\\foo\\..\\baz\\qux", '\\') ==
-          "X:\\baz\\qux");
-  REQUIRE(utf8::canonicalize_path("X:\\foo\\.\\baz\\..\\qux", '\\') ==
-          "X:\\foo\\qux");
-  REQUIRE(utf8::canonicalize_path("X:\\foo\\.\\..\\baz\\qux", '\\') ==
-          "X:\\baz\\qux");
-  REQUIRE(utf8::canonicalize_path("X:\\.\\bar\\baz\\qux", '\\') ==
-          "X:\\bar\\baz\\qux");
-  REQUIRE(utf8::canonicalize_path("X:\\..\\bar\\baz\\qux", '\\') ==
-          "X:\\bar\\baz\\qux");
-  REQUIRE(utf8::canonicalize_path("X:/foo/bar/baz/qux", '/') ==
-          "X:/foo/bar/baz/qux");
-  REQUIRE(utf8::canonicalize_path(
-              "X:\\ほげ\\ぴよ\\.\\ふが\\..\\ほげら\\ほげほげ", '\\') ==
-          "X:\\ほげ\\ぴよ\\ほげら\\ほげほげ");
-  REQUIRE(utf8::canonicalize_path("X:/foo/./baz/qux", '/') == "X:/foo/baz/qux");
-  REQUIRE(utf8::canonicalize_path("X:/foo/../baz/qux", '/') == "X:/baz/qux");
-  REQUIRE(utf8::canonicalize_path("X:/foo/./baz/../qux", '/') == "X:/foo/qux");
-  REQUIRE(utf8::canonicalize_path("X:/foo/./../baz/qux", '/') == "X:/baz/qux");
-  REQUIRE(utf8::canonicalize_path("X:/./bar/baz/qux", '/') == "X:/bar/baz/qux");
-  REQUIRE(utf8::canonicalize_path("X:/../bar/baz/qux", '/') ==
-          "X:/bar/baz/qux");
-  REQUIRE(utf8::canonicalize_path("X:/ほげ/ぴよ/./ふが/../ほげら/ほげほげ",
-                                  '/') == "X:/ほげ/ぴよ/ほげら/ほげほげ");
+  TEST_PATH(utf8::canonicalize_path, "foo/bar/baz/qux", "foo/bar/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "foo/./baz/qux", "foo/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "foo/../baz/qux", "baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "foo/./baz/../qux", "foo/qux");
+  TEST_PATH(utf8::canonicalize_path, "foo/./../baz/qux", "baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "./bar/baz/qux", "bar/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "../bar/baz/qux", "bar/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "ほげ/ぴよ/./ふが/../ほげら/ほげほげ",
+            "ほげ/ぴよ/ほげら/ほげほげ");
+  TEST_PATH(utf8::canonicalize_path, "/foo/bar/baz/qux", "/foo/bar/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "/foo/./baz/qux", "/foo/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "/foo/../baz/qux", "/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "/foo/./baz/../qux", "/foo/qux");
+  TEST_PATH(utf8::canonicalize_path, "/foo/./../baz/qux", "/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "/./bar/baz/qux", "/bar/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "/../bar/baz/qux", "/bar/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "/ほげ/ぴよ/./ふが/../ほげら/ほげほげ",
+            "/ほげ/ぴよ/ほげら/ほげほげ");
+  TEST_PATH(utf8::canonicalize_path, "X:/foo/bar/baz/qux",
+            "X:/foo/bar/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "X:/foo/./baz/qux", "X:/foo/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "X:/foo/../baz/qux", "X:/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "X:/foo/./baz/../qux", "X:/foo/qux");
+  TEST_PATH(utf8::canonicalize_path, "X:/foo/./../baz/qux", "X:/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "X:/./bar/baz/qux", "X:/bar/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "X:/../bar/baz/qux", "X:/bar/baz/qux");
+  TEST_PATH(utf8::canonicalize_path, "X:/ほげ/ぴよ/./ふが/../ほげら/ほげほげ",
+            "X:/ほげ/ぴよ/ほげら/ほげほげ");
 }
 
 // TODO(gibbed): canonicalize_guest_path
