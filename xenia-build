@@ -294,7 +294,7 @@ def generate_source_class(path):
         # remove header if source file generation failed
         os.remove(os.path.join(source_root, header_path))
         return 1
-    
+
     return 0
 
 def generate_source_file(path):
@@ -318,10 +318,10 @@ def generate_source_file(path):
     except Exception as e:
         print('ERROR: Could not write to file [path {}]'.format(path))
         return 1
-    
+
     return 0
 
-    
+
 
 def git_get_head_info():
     """Queries the current branch and commit checksum from git.
@@ -1623,7 +1623,7 @@ class StubCommand(Command):
             status = generate_source_class(path)
             if status > 0:
                 return status
-            
+
             print('Created class \'{0}\' at {1}'.format(class_name, target_dir))
 
         elif args['file']:
@@ -1634,7 +1634,7 @@ class StubCommand(Command):
             status = generate_source_file(path)
             if status > 0:
                 return status
-            
+
             print('Created file \'{0}\' at {1}'.format(file_name, target_dir))
 
         else:
