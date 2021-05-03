@@ -12,7 +12,6 @@ project("dxbc")
     "dxbc",
   })
   files({
-    "dxbc/d3d12TokenizedProgramFormat.hpp",
     "dxbc/DXBCChecksum.cpp",
     "dxbc/DXBCChecksum.h",
   })
