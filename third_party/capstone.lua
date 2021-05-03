@@ -3,8 +3,6 @@ project("capstone")
   uuid("b3a89f7e-bb02-4945-ae75-219caed6afa2")
   kind("StaticLib")
   language("C")
-  links({
-  })
   defines({
     "CAPSTONE_X86_ATT_DISABLE",
     "CAPSTONE_DIET_NO",
@@ -43,13 +41,3 @@ project("capstone")
     "capstone/**.c",
     "capstone/arch/X86/**.c",
   })
-
-  filter("platforms:Linux")
-    -- Capstone code is... not fantastic.
-    buildoptions({
-      "-Wno-error=write-strings",
-      "-Wno-write-string",
-      "-Wno-deprecated",
-      "-w",
-    })
-  filter({})
