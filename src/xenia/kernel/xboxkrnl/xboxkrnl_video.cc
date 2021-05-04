@@ -228,19 +228,19 @@ void VdSetGraphicsInterruptCallback(function_t callback, lpvoid_t user_data) {
 }
 DECLARE_XBOXKRNL_EXPORT1(VdSetGraphicsInterruptCallback, kVideo, kImplemented);
 
-void VdInitializeRingBuffer(lpvoid_t ptr, int_t log2_size) {
+void VdInitializeRingBuffer(lpvoid_t ptr, int_t size_log2) {
   // r3 = result of MmGetPhysicalAddress
   // r4 = log2(size)
   // Buffer pointers are from MmAllocatePhysicalMemory with WRITE_COMBINE.
   auto graphics_system = kernel_state()->emulator()->graphics_system();
-  graphics_system->InitializeRingBuffer(ptr, log2_size);
+  graphics_system->InitializeRingBuffer(ptr, size_log2);
 }
 DECLARE_XBOXKRNL_EXPORT1(VdInitializeRingBuffer, kVideo, kImplemented);
 
-void VdEnableRingBufferRPtrWriteBack(lpvoid_t ptr, int_t block_size) {
-  // r4 = 6, usually --- <=19
+void VdEnableRingBufferRPtrWriteBack(lpvoid_t ptr, int_t block_size_log2) {
+  // r4 = log2(block size), 6, usually --- <=19
   auto graphics_system = kernel_state()->emulator()->graphics_system();
-  graphics_system->EnableReadPointerWriteBack(ptr, block_size);
+  graphics_system->EnableReadPointerWriteBack(ptr, block_size_log2);
 }
 DECLARE_XBOXKRNL_EXPORT1(VdEnableRingBufferRPtrWriteBack, kVideo, kImplemented);
 

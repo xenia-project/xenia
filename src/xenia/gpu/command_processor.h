@@ -144,8 +144,8 @@ class CommandProcessor {
 
   virtual void RestoreEdramSnapshot(const void* snapshot) = 0;
 
-  void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
-  void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
+  void InitializeRingBuffer(uint32_t ptr, uint32_t size_log2);
+  void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size_log2);
 
   void UpdateWritePointer(uint32_t value);
 
