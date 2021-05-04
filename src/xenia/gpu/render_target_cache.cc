@@ -22,6 +22,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/draw_util.h"
+#include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/registers.h"
 #include "xenia/gpu/xenos.h"
@@ -562,35 +563,32 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
       GetRenderTargetHeight(pitch_tiles_at_32bpp, msaa_samples);
   int32_t window_y_offset =
       regs.Get<reg::PA_SC_WINDOW_OFFSET>().window_y_offset;
-  auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
-  if (pa_cl_vte_cntl.vport_y_scale_ena) {
+  if (!regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable) {
+    auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
     float viewport_bottom = 0.0f;
-    if (pa_cl_vte_cntl.vport_y_offset_ena) {
-      viewport_bottom += regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32;
-    }
+    // First calculate all the integer.0 or integer.5 offsetting exactly at full
+    // precision.
     if (regs.Get<reg::PA_SU_SC_MODE_CNTL>().vtx_window_offset_enable) {
       viewport_bottom += float(window_y_offset);
     }
-    viewport_bottom += std::abs(regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32);
-    uint32_t viewport_bottom_fixed = uint32_t(std::max(
-        draw_util::FloatToD3D11Fixed16p8(viewport_bottom), int32_t(0)));
-    uint32_t viewport_bottom_pixels = viewport_bottom_fixed >> 8;
-    // Without MSAA, the center must be covered - according to the top-left
-    // rasterization rule, for the bottom, the test is exclusive. If the last
-    // row is included in the viewport only partially, check if its center is
-    // precisely potentially covered to round - to more safely catch, for
-    // example, if the game does something with the half-pixel offset through
-    // the viewport.
-    // With MSAA, it's less likely that the game will use the viewport to
-    // manipulate the half-pixel offset - different host implementations may
-    // also use different sample positions (up to the topmost row - possible to
-    // set such sample positions in PC APIs), so just check if the last row's
-    // area is at least slightly covered.
-    if ((viewport_bottom_fixed & uint32_t(0xFF)) >
-        uint32_t(msaa_samples != xenos::MsaaSamples::k1X ? 0 : 0x80)) {
-      ++viewport_bottom_pixels;
+    if (cvars::half_pixel_offset &&
+        !regs.Get<reg::PA_SU_VTX_CNTL>().pix_center) {
+      viewport_bottom += 0.5f;
     }
-    height_used = std::min(height_used, viewport_bottom_pixels);
+    // Then apply the floating-point viewport offset.
+    if (pa_cl_vte_cntl.vport_y_offset_ena) {
+      viewport_bottom += regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32;
+    }
+    viewport_bottom += pa_cl_vte_cntl.vport_y_scale_ena
+                           ? std::abs(regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32)
+                           : 1.0f;
+    // Using floor, or, rather, truncation (because maxing with zero anyway)
+    // similar to how viewport scissoring behaves on real AMD, Intel and Nvidia
+    // GPUs on Direct3D 12, also like in draw_util::GetHostViewportInfo.
+    // fmax to drop NaN and < 0, min as float (height_used is well below 2^24)
+    // to safely drop very large values.
+    height_used = uint32_t(
+        std::min(std::fmax(viewport_bottom, 0.0f), float(height_used)));
   }
   uint32_t scissor_bottom = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>().br_y;
   if (!regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>().window_offset_disable) {

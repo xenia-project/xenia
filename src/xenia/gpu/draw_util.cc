@@ -184,167 +184,353 @@ bool IsPixelShaderNeededWithRasterization(const Shader& shader,
 }
 
 void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale,
-                         bool origin_bottom_left, float x_max, float y_max,
-                         bool allow_reverse_z, bool convert_z_to_float24,
-                         bool full_float24_in_0_to_1,
+                         bool origin_bottom_left, uint32_t x_max,
+                         uint32_t y_max, bool allow_reverse_z,
+                         bool convert_z_to_float24, bool full_float24_in_0_to_1,
+                         bool pixel_shader_writes_depth,
                          ViewportInfo& viewport_info_out) {
-  assert_true(resolution_scale >= 1);
-  assert_true(x_max >= 1.0f);
-  assert_true(y_max >= 1.0f);
+  assert_not_zero(resolution_scale);
 
-  // PA_CL_VTE_CNTL contains whether offsets and scales are enabled.
-  // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
-  // In games, either all are enabled (for regular drawing) or none are (for
-  // rectangle lists usually).
+  // A vertex position goes the following path:
   //
-  // If scale/offset is enabled, the Xenos shader is writing (neglecting W
-  // division) position in the NDC (-1, -1, dx_clip_space_def - 1) -> (1, 1, 1)
-  // box. If it's not, the position is in screen space. Since we can only use
-  // the NDC in PC APIs, we use a viewport of the largest possible size, and
-  // divide the position by it in translated shaders.
+  // = Vertex shader output in clip space, (-w, -w, 0) ... (w, w, w) for
+  //   Direct3D or (-w, -w, -w) ... (w, w, w) for OpenGL.
+  // > Clipping to the boundaries of the clip space if enabled.
+  // > Division by W if not pre-divided.
+  // = Normalized device coordinates, (-1, -1, 0) ... (1, 1, 1) for Direct3D or
+  //   (-1, -1, -1) ... (1, 1, 1) for OpenGL.
+  // > Viewport scaling.
+  // > Viewport, window and half-pixel offsetting.
+  // = Actual position in render target pixels used for rasterization and depth
+  //   buffer coordinates.
+  //
+  // On modern PC graphics APIs, all drawing is done with clipping enabled (only
+  // Z clipping can be replaced with viewport depth range clamping).
+  //
+  // On the Xbox 360, however, there are two cases:
+  //
+  // - Clipping is enabled:
+  //
+  //   Drawing "as normal", primarily for the game world. Draws are clipped to
+  //   the (-w, -w, 0) ... (w, w, w) or (-w, -w, -w) ... (w, w, w) clip space.
+  //
+  //   Ideally all offsets in pixels (window offset, half-pixel offset) are
+  //   post-clip, and thus they would need to be applied via the host viewport
+  //   (also the Direct3D 11.3 specification defines this as the correct way of
+  //   reproducing the original Direct3D 9 half-pixel offset behavior).
+  //
+  //   However, in reality, only WARP actually truly clips to -W...W, with the
+  //   viewport fractional offset actually accurately making samples outside the
+  //   fractional rectangle unable to be covered. AMD, Intel and Nvidia, in
+  //   Direct3D 12, all don't truly clip even a really huge primitive to -W...W.
+  //   Instead, primitives still overflow the fractional rectangle and cover
+  //   samples outside of it. The actual viewport scissor is floor(TopLeftX,
+  //   TopLeftY) ... floor(TopLeftX + Width, TopLeftY + Height), with flooring
+  //   and addition in float32 (with 0x3F7FFFFF TopLeftXY, or 1.0f - ULP, all
+  //   the samples in the top row / left column can be covered, while with
+  //   0x3F800000, or 1.0f, none of them can be).
+  //
+  //   We are reproducing the same behavior here - what would happen if we'd be
+  //   passing the guest values directly to Direct3D 12. Also, for consistency
+  //   across hardware and APIs (especially Vulkan with viewportSubPixelBits
+  //   being 0 rather than at least 8 on some devices - Arm Mali, Imagination
+  //   PowerVR), and for simplicity of math, and also for exact calculations in
+  //   bounds checking in validation layers of the host APIs, we are returning
+  //   integer viewport coordinates, handling the fractional offset in the
+  //   vertex shaders instead, via ndc_scale and ndc_offset - it shouldn't
+  //   significantly affect precision that we will be doing the offsetting in
+  //   W-scaled rather than W-divided units, the ratios of exponents involved in
+  //   the calculations stay the same, and everything ends up being 16.8 anyway
+  //   on most hardware, so small precision differences are very unlikely to
+  //   affect coverage.
+  //
+  // FIXME(Triang3l): Overestimate or more properly round the viewport scissor
+  // boundaries if this flooring causes gaps on the bottom / right side in real
+  // games if any are found using fractional viewport coordinates. Viewport
+  // scissoring is not an inherent result of the viewport scale / offset, these
+  // are used merely for transformation of coordinates; rather, it's done by
+  // intersecting the viewport and scissor rectangles in the guest driver and
+  // writing the common portion to PA_SC_WINDOW_SCISSOR, so how the scissor is
+  // computed for a fractional viewport is entirely up to the guest.
+  //
+  //   Even though Xbox 360 games are designed for Direct3D, with 0...W range of
+  //   Z in clip space, the GPU also allows -W...W. Since Xenia is not targeting
+  //   OpenGL (where it would be toggled via glClipControl - or, on ES, it would
+  //   always be -W...W), this function always remaps it to 0...W, though
+  //   numerically not precisely (0 is moved to 0.5, locking the exponent near
+  //   what was the truly floating-point 0 originally). It is the guest
+  //   viewport's responsibility (haven't checked, but it's logical) to remap
+  //   from -1...1 in the NDC to glDepthRange within the 0...1 range. Also -Z
+  //   pointing forward in OpenGL doesn't matter here (the -W...W clip space is
+  //   symmetric).
+  //
+  // - Clipping is disabled:
+  //
+  //   The most common case of drawing without clipping in games is screen-space
+  //   draws, most prominently clears, directly in render target coordinates.
+  //
+  //   In this particular case (though all the general case arithmetic still
+  //   applies), the vertex shader returns a position in pixels, pre-divided by
+  //   W (though this doesn't matter if W is 1).
+  //
+  //   Because clipping is disabled, this huge polygon with, for example,
+  //   a (1280, 720, 0, 1) vertex, is not clipped to (-w, -w) ... (w, w), so the
+  //   vertex becomes (1280, 720) in the NDC as well (even though in regular 3D
+  //   draws with clipping, disregarding the guard band for simplicity, it can't
+  //   be bigger than (1, 1) after clipping and the division by W).
+  //
+  //   For these draws, the viewport is also usually disabled (though, again, it
+  //   doesn't have to be - an enabled viewport would likely still work as
+  //   usual) by disabling PA_CL_VTE_CNTL::VPORT_X/Y/Z_SCALE/OFFSET_ENA - which
+  //   equals to having a viewport scale of (1, 1, 1) and offset of (0, 0, 0).
+  //   This results in the NDC being treated directly as pixel coordinates.
+  //   Normally, with clipping, this would make only a tiny 1x1 area in the
+  //   corner of the render target being possible to cover (and 3 unreachable
+  //   pixels outside of the render target). The window offset is then applied,
+  //   if needed, as well as the half-pixel offset.
+  //
+  //   It's also possible (though not verified) that without clipping, Z (as a
+  //   result of, for instance, polygon offset, or explicit calculations in the
+  //   vertex shader) may end up outside the viewport Z range. Direct3D 10
+  //   requires clamping to the viewport Z bounds in all cases in the
+  //   output-merger according to the Direct3D 11.3 functional specification. A
+  //   different behavior is likely on the Xbox 360, however, because while
+  //   Direct3D 10-compatible AMD GPUs such as the R600 have
+  //   PA_SC_VPORT_ZMIN/ZMAX registers, the Adreno 200 doesn't seem to have any
+  //   equivalents, neither in PA nor in RB. This probably also applies to
+  //   shader depth output - possibly doesn't need to be clamped as well.
+  //
+  //   On the PC, we need to emulate disabled clipping by using a viewport at
+  //   least as large as the scissor region within the render target, as well as
+  //   the full viewport depth range (plus changing Z clipping to Z clamping on
+  //   the host if possible), and rescale from the guest clip space to the host
+  //   "no clip" clip space, as well as apply the viewport, the window offset,
+  //   and the half-pixel offset, in the vertex shader. Ideally, the host
+  //   viewport should have a power of 2 size - so scaling doesn't affect
+  //   precision, and is merely an exponent bias.
+  //
+  // NDC XY point towards +XY on the render target - the viewport scale sign
+  // handles the remapping from Direct3D 9 -Y towards +U to a generic
+  // transformation from the NDC to pixel coordinates.
+  //
+  // TODO(Triang3l): Investigate the need for clamping of oDepth to 0...1 for
+  // D24FS8 as well.
 
   auto pa_cl_clip_cntl = regs.Get<reg::PA_CL_CLIP_CNTL>();
   auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
   auto pa_su_vtx_cntl = regs.Get<reg::PA_SU_VTX_CNTL>();
 
-  float viewport_left, viewport_top;
-  float viewport_width, viewport_height;
-  float ndc_scale_x, ndc_scale_y;
-  float ndc_offset_x, ndc_offset_y;
-  // To avoid zero size viewports, which would harm division and aren't allowed
-  // on Vulkan. Nothing will ever be covered by a viewport of this size - this
-  // is 2 orders of magnitude smaller than a .8 subpixel, and thus shouldn't
-  // have any effect on rounding, n and n + 1 / 1024 would be rounded to the
-  // same .8 fixed-point value, thus in fixed-point, the viewport would have
-  // zero size.
-  const float size_min = 1.0f / 1024.0f;
-
-  float viewport_offset_x = pa_cl_vte_cntl.vport_x_offset_ena
-                                ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32
-                                : 0.0f;
-  float viewport_offset_y = pa_cl_vte_cntl.vport_y_offset_ena
-                                ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
-                                : 0.0f;
+  // Obtain the original viewport values in a normalized way.
+  float scale_xy[] = {
+      pa_cl_vte_cntl.vport_x_scale_ena ? regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32
+                                       : 1.0f,
+      pa_cl_vte_cntl.vport_y_scale_ena ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32
+                                       : 1.0f,
+  };
+  float scale_z = pa_cl_vte_cntl.vport_z_scale_ena
+                      ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32
+                      : 1.0f;
+  float offset_base_xy[] = {
+      pa_cl_vte_cntl.vport_x_offset_ena
+          ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32
+          : 0.0f,
+      pa_cl_vte_cntl.vport_y_offset_ena
+          ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
+          : 0.0f,
+  };
+  float offset_z = pa_cl_vte_cntl.vport_z_offset_ena
+                       ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32
+                       : 0.0f;
+  // Calculate all the integer.0 or integer.5 offsetting exactly at full
+  // precision, separately so it can be used in other integer calculations
+  // without double rounding if needed.
+  float offset_add_xy[2] = {};
   if (pa_su_sc_mode_cntl.vtx_window_offset_enable) {
     auto pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
-    viewport_offset_x += float(pa_sc_window_offset.window_x_offset);
-    viewport_offset_y += float(pa_sc_window_offset.window_y_offset);
+    offset_add_xy[0] += float(pa_sc_window_offset.window_x_offset);
+    offset_add_xy[1] += float(pa_sc_window_offset.window_y_offset);
   }
-
-  if (pa_cl_vte_cntl.vport_x_scale_ena) {
-    float pa_cl_vport_xscale = regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32;
-    float viewport_scale_x_abs =
-        std::abs(pa_cl_vport_xscale) * resolution_scale;
-    viewport_left = viewport_offset_x * resolution_scale - viewport_scale_x_abs;
-    float viewport_right = viewport_left + viewport_scale_x_abs * 2.0f;
-    // Keep the viewport in the positive quarter-plane for simplicity of
-    // clamping to the maximum supported bounds.
-    float cutoff_left = std::fmax(-viewport_left, 0.0f);
-    float cutoff_right = std::fmax(viewport_right - x_max, 0.0f);
-    viewport_left = std::fmax(viewport_left, 0.0f);
-    viewport_right = std::fmin(viewport_right, x_max);
-    viewport_width = viewport_right - viewport_left;
-    if (viewport_width > size_min) {
-      ndc_scale_x =
-          (viewport_width + cutoff_left + cutoff_right) / viewport_width;
-      if (pa_cl_vport_xscale < 0.0f) {
-        ndc_scale_x = -ndc_scale_x;
-      }
-      ndc_offset_x =
-          ((cutoff_right - cutoff_left) * (0.5f * 2.0f)) / viewport_width;
-    } else {
-      // Empty viewport, but don't pass 0 because that's against the Vulkan
-      // specification.
-      viewport_left = 0.0f;
-      viewport_width = size_min;
-      ndc_scale_x = 0.0f;
-      ndc_offset_x = 0.0f;
-    }
-  } else {
-    // Drawing without a viewport and without clipping to one - use a viewport
-    // covering the entire potential guest render target or the positive part of
-    // the host viewport area, whichever is smaller, and apply the offset, if
-    // enabled, via the shader.
-    viewport_left = 0.0f;
-    viewport_width = std::min(
-        float(xenos::kTexture2DCubeMaxWidthHeight) * resolution_scale, x_max);
-    ndc_scale_x = (2.0f * resolution_scale) / viewport_width;
-    ndc_offset_x = viewport_offset_x * ndc_scale_x - 1.0f;
-  }
-
-  if (pa_cl_vte_cntl.vport_y_scale_ena) {
-    float pa_cl_vport_yscale = regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;
-    float viewport_scale_y_abs =
-        std::abs(pa_cl_vport_yscale) * resolution_scale;
-    viewport_top = viewport_offset_y * resolution_scale - viewport_scale_y_abs;
-    float viewport_bottom = viewport_top + viewport_scale_y_abs * 2.0f;
-    float cutoff_top = std::fmax(-viewport_top, 0.0f);
-    float cutoff_bottom = std::fmax(viewport_bottom - y_max, 0.0f);
-    viewport_top = std::fmax(viewport_top, 0.0f);
-    viewport_bottom = std::fmin(viewport_bottom, y_max);
-    viewport_height = viewport_bottom - viewport_top;
-    if (viewport_height > size_min) {
-      ndc_scale_y =
-          (viewport_height + cutoff_top + cutoff_bottom) / viewport_height;
-      if (pa_cl_vport_yscale < 0.0f) {
-        ndc_scale_y = -ndc_scale_y;
-      }
-      ndc_offset_y =
-          ((cutoff_bottom - cutoff_top) * (0.5f * 2.0f)) / viewport_height;
-    } else {
-      // Empty viewport, but don't pass 0 because that's against the Vulkan
-      // specification.
-      viewport_top = 0.0f;
-      viewport_height = size_min;
-      ndc_scale_y = 0.0f;
-      ndc_offset_y = 0.0f;
-    }
-  } else {
-    viewport_top = 0.0f;
-    viewport_height = std::min(
-        float(xenos::kTexture2DCubeMaxWidthHeight) * resolution_scale, y_max);
-    ndc_scale_y = (2.0f * resolution_scale) / viewport_height;
-    ndc_offset_y = viewport_offset_y * ndc_scale_y - 1.0f;
-  }
-
-  // Apply the vertex half-pixel offset via the shader (it must not affect
-  // clipping, otherwise with resolution scale, samples in the left/top half
-  // will never be covered).
   if (cvars::half_pixel_offset && !pa_su_vtx_cntl.pix_center) {
-    float half_pixel_offset_ndc_scale = 0.5f * 2.0f * resolution_scale;
-    ndc_offset_x += half_pixel_offset_ndc_scale / viewport_width;
-    ndc_offset_y += half_pixel_offset_ndc_scale / viewport_height;
+    offset_add_xy[0] += 0.5f;
+    offset_add_xy[1] += 0.5f;
   }
 
-  if (origin_bottom_left) {
-    ndc_scale_y = -ndc_scale_y;
-    ndc_offset_y = -ndc_offset_y;
+  // The maximum value is at least the maximum host render target size anyway -
+  // and a guest pixel is always treated as a whole with resolution scaling.
+  uint32_t xy_max_unscaled[] = {x_max / resolution_scale,
+                                y_max / resolution_scale};
+  assert_not_zero(xy_max_unscaled[0]);
+  assert_not_zero(xy_max_unscaled[1]);
+
+  float z_min;
+  float z_max;
+  float ndc_scale[3];
+  float ndc_offset[3];
+
+  if (pa_cl_clip_cntl.clip_disable) {
+    // Clipping is disabled - use a huge host viewport, perform pixel and depth
+    // offsetting in the vertex shader.
+
+    // XY.
+    for (uint32_t i = 0; i < 2; ++i) {
+      viewport_info_out.xy_offset[i] = 0;
+      uint32_t extent_axis_unscaled =
+          std::min(xenos::kTexture2DCubeMaxWidthHeight, xy_max_unscaled[i]);
+      viewport_info_out.xy_extent[i] = extent_axis_unscaled * resolution_scale;
+      float extent_axis_unscaled_float = float(extent_axis_unscaled);
+      float pixels_to_ndc_axis = 2.0f / extent_axis_unscaled_float;
+      ndc_scale[i] = scale_xy[i] * pixels_to_ndc_axis;
+      ndc_offset[i] = (offset_base_xy[i] - extent_axis_unscaled_float * 0.5f +
+                       offset_add_xy[i]) *
+                      pixels_to_ndc_axis;
+    }
+
+    // Z.
+    z_min = 0.0f;
+    z_max = 1.0f;
+    ndc_scale[2] = scale_z;
+    ndc_offset[2] = offset_z;
+  } else {
+    // Clipping is enabled - perform pixel and depth offsetting via the host
+    // viewport.
+
+    // XY.
+    for (uint32_t i = 0; i < 2; ++i) {
+      // With resolution scaling, do all viewport XY scissoring in guest pixels
+      // if fractional and for the half-pixel offset - we treat guest pixels as
+      // a whole, and also the half-pixel offset would be irreversible in guest
+      // vertices if we did flooring in host pixels. Instead of flooring, also
+      // doing truncation for simplicity - since maxing with 0 is done anyway
+      // (we only return viewports in the positive quarter-plane).
+      float offset_axis = offset_base_xy[i] + offset_add_xy[i];
+      float scale_axis = scale_xy[i];
+      float scale_axis_abs = std::abs(scale_xy[i]);
+      float axis_0 = offset_axis - scale_axis_abs;
+      float axis_1 = offset_axis + scale_axis_abs;
+      float axis_max_unscaled_float = float(xy_max_unscaled[i]);
+      // fmax to drop NaN and < 0, min as float (axis_max_unscaled_float is well
+      // below 2^24) to safely drop very large values.
+      uint32_t axis_0_int =
+          uint32_t(std::min(std::fmax(axis_0, 0.0f), axis_max_unscaled_float));
+      uint32_t axis_1_int =
+          uint32_t(std::min(std::fmax(axis_1, 0.0f), axis_max_unscaled_float));
+      uint32_t axis_extent_int = axis_1_int - axis_0_int;
+      viewport_info_out.xy_offset[i] = axis_0_int * resolution_scale;
+      viewport_info_out.xy_extent[i] = axis_extent_int * resolution_scale;
+      float ndc_scale_axis;
+      float ndc_offset_axis;
+      if (axis_extent_int) {
+        // Rescale from the old bounds to the new ones, and also apply the sign.
+        // If the new bounds are smaller than the old, for instance, we're
+        // cropping - the new -W...W clip space is a subregion of the old one -
+        // the scale should be > 1 so the area being cut off ends up outside
+        // -W...W. If the new region should include more than the original clip
+        // space, a region previously outside -W...W should end up within it, so
+        // the scale should be < 1.
+        float axis_extent_rounded = float(axis_extent_int);
+        ndc_scale_axis = scale_axis * 2.0f / axis_extent_rounded;
+        // Move the origin of the snapped coordinates back to the original one.
+        ndc_offset_axis = (float(offset_axis) -
+                           (float(axis_0_int) + axis_extent_rounded * 0.5f)) *
+                          2.0f / axis_extent_rounded;
+      } else {
+        // Empty viewport (everything outside the viewport scissor).
+        ndc_scale_axis = 1.0f;
+        ndc_offset_axis = 0.0f;
+      }
+      ndc_scale[i] = ndc_scale_axis;
+      ndc_offset[i] = ndc_offset_axis;
+    }
+
+    // Z.
+    float host_clip_offset_z;
+    float host_clip_scale_z;
+    if (pa_cl_clip_cntl.dx_clip_space_def) {
+      host_clip_offset_z = offset_z;
+      host_clip_scale_z = scale_z;
+      ndc_scale[2] = 1.0f;
+      ndc_offset[2] = 0.0f;
+    } else {
+      // Normalizing both Direct3D / Vulkan 0...W and OpenGL -W...W clip spaces
+      // to 0...W. We are not targeting OpenGL, but there we could accept the
+      // wanted clip space (Direct3D, OpenGL, or any) and return the actual one
+      // (Direct3D or OpenGL).
+      //
+      // If the guest wants to use -W...W clip space (-1...1 NDC) and a 0...1
+      // depth range in the end, it's expected to use ZSCALE of 0.5 and ZOFFSET
+      // of 0.5.
+      //
+      // We are providing the near and the far (or offset and offset + scale)
+      // plane distances to the host API in a way that the near maps to Z = 0
+      // and the far maps to Z = W in clip space (or Z = 1 in NDC).
+      //
+      // With D3D offset and scale that we want, assuming D3D clip space input,
+      // the formula for the depth would be:
+      //
+      // depth = offset_d3d + scale_d3d * ndc_z_d3d
+      //
+      // We are remapping the incoming OpenGL Z from -W...W to 0...W by scaling
+      // it by 0.5 and adding 0.5 * W to the result. So, our depth formula would
+      // be:
+      //
+      // depth = offset_d3d + scale_d3d * (ndc_z_gl * 0.5 + 0.5)
+      //
+      // The guest registers, however, contain the offset and the scale for
+      // remapping not from 0...W to near...far, but from -W...W to near...far,
+      // or:
+      //
+      // depth = offset_gl + scale_gl * ndc_z_gl
+      //
+      // Knowing offset_gl, scale_gl and how ndc_z_d3d can be obtained from
+      // ndc_z_gl, we need to derive the formulas for the needed offset_d3d and
+      // scale_d3d to apply them to the incoming ndc_z_d3d.
+      //
+      // depth = offset_gl + scale_gl * (ndc_z_d3d * 2 - 1)
+      //
+      // Expanding:
+      //
+      // depth = offset_gl + (scale_gl * ndc_z_d3d * 2 - scale_gl)
+      //
+      // Reordering:
+      //
+      // depth = (offset_gl - scale_gl) + (scale_gl * 2) * ndc_z_d3d
+      // offset_d3d = offset_gl - scale_gl
+      // scale_d3d = scale_gl * 2
+      host_clip_offset_z = offset_z - scale_z;
+      host_clip_scale_z = scale_z * 2.0f;
+      // Need to remap -W...W clip space to 0...W via ndc_scale and ndc_offset -
+      // by scaling Z by 0.5 and adding 0.5 * W to it.
+      ndc_scale[2] = 0.5f;
+      ndc_offset[2] = 0.5f;
+    }
+    if (pixel_shader_writes_depth) {
+      // Allow the pixel shader to write any depth value since
+      // PA_SC_VPORT_ZMIN/ZMAX isn't present on the Adreno 200; guest pixel
+      // shaders don't have access to the original Z in the viewport space
+      // anyway and likely must write the depth on all execution paths.
+      z_min = 0.0f;
+      z_max = 1.0f;
+    } else {
+      // This clamping is not very correct, but just for safety. Direct3D
+      // doesn't allow an unrestricted depth range. Vulkan does, as an
+      // extension. But cases when this really matters are yet to be found -
+      // trying to fix this will result in more correct depth values, but
+      // incorrect clipping.
+      z_min = std::min(std::fmax(host_clip_offset_z, 0.0f), 1.0f);
+      z_max = std::min(std::fmax(host_clip_offset_z + host_clip_scale_z, 0.0f),
+                       1.0f);
+      // Direct3D 12 doesn't allow reverse depth range - on some drivers it
+      // works, on some drivers it doesn't, actually, but it was never
+      // explicitly allowed by the specification.
+      if (!allow_reverse_z && z_min > z_max) {
+        std::swap(z_min, z_max);
+        ndc_scale[2] = -ndc_scale[2];
+        ndc_offset[2] = 1.0f - ndc_offset[2];
+      }
+    }
   }
 
-  float viewport_scale_z = pa_cl_vte_cntl.vport_z_scale_ena
-                               ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32
-                               : 1.0f;
-  float viewport_offset_z = pa_cl_vte_cntl.vport_z_offset_ena
-                                ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32
-                                : 0.0f;
-  // Vulkan requires the depth bounds to be in the 0 to 1 range without
-  // VK_EXT_depth_range_unrestricted (which isn't used on the Xbox 360).
-  float viewport_z_min = std::min(std::fmax(viewport_offset_z, 0.0f), 1.0f);
-  float viewport_z_max =
-      std::min(std::fmax(viewport_offset_z + viewport_scale_z, 0.0f), 1.0f);
-  // When VPORT_Z_SCALE_ENA is disabled, Z/W is directly what is expected to be
-  // written to the depth buffer, and for some reason DX_CLIP_SPACE_DEF isn't
-  // set in this case in draws in games.
-  bool gl_clip_space_def =
-      !pa_cl_clip_cntl.dx_clip_space_def && pa_cl_vte_cntl.vport_z_scale_ena;
-  float ndc_scale_z = gl_clip_space_def ? 0.5f : 1.0f;
-  float ndc_offset_z = gl_clip_space_def ? 0.5f : 0.0f;
-  if (viewport_z_min > viewport_z_max && !allow_reverse_z) {
-    std::swap(viewport_z_min, viewport_z_max);
-    ndc_scale_z = -ndc_scale_z;
-    ndc_offset_z = 1.0f - ndc_offset_z;
-  }
   if (GetDepthControlForCurrentEdramMode(regs).z_enable &&
       regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
           xenos::DepthRenderTargetFormat::kD24FS8) {
@@ -352,34 +538,30 @@ void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale,
       // Need to adjust the bounds that the resulting depth values will be
       // clamped to after the pixel shader. Preferring adding some error to
       // interpolated Z instead if conversion can't be done exactly, without
-      // modifying clipping bounds by adjusting Z in vertex shaders, as that may
-      // cause polygons placed explicitly at Z = 0 or Z = W to be clipped.
-      viewport_z_min =
-          xenos::Float20e4To32(xenos::Float32To20e4(viewport_z_min));
-      viewport_z_max =
-          xenos::Float20e4To32(xenos::Float32To20e4(viewport_z_max));
+      // modifying clipping bounds by adjusting Z in vertex shaders, as that
+      // may cause polygons placed explicitly at Z = 0 or Z = W to be clipped.
+      z_min = xenos::Float20e4To32(xenos::Float32To20e4(z_min));
+      z_max = xenos::Float20e4To32(xenos::Float32To20e4(z_max));
     }
     if (full_float24_in_0_to_1) {
       // Remap the full [0...2) float24 range to [0...1) support data round-trip
       // during render target ownership transfer of EDRAM tiles through depth
       // input without unrestricted depth range.
-      viewport_z_min *= 0.5f;
-      viewport_z_max *= 0.5f;
+      z_min *= 0.5f;
+      z_max *= 0.5f;
     }
   }
+  viewport_info_out.z_min = z_min;
+  viewport_info_out.z_max = z_max;
 
-  viewport_info_out.left = viewport_left;
-  viewport_info_out.top = viewport_top;
-  viewport_info_out.width = viewport_width;
-  viewport_info_out.height = viewport_height;
-  viewport_info_out.z_min = viewport_z_min;
-  viewport_info_out.z_max = viewport_z_max;
-  viewport_info_out.ndc_scale[0] = ndc_scale_x;
-  viewport_info_out.ndc_scale[1] = ndc_scale_y;
-  viewport_info_out.ndc_scale[2] = ndc_scale_z;
-  viewport_info_out.ndc_offset[0] = ndc_offset_x;
-  viewport_info_out.ndc_offset[1] = ndc_offset_y;
-  viewport_info_out.ndc_offset[2] = ndc_offset_z;
+  if (origin_bottom_left) {
+    ndc_scale[1] = -ndc_scale[1];
+    ndc_offset[1] = -ndc_offset[1];
+  }
+  for (uint32_t i = 0; i < 3; ++i) {
+    viewport_info_out.ndc_scale[i] = ndc_scale[i];
+    viewport_info_out.ndc_offset[i] = ndc_offset[i];
+  }
 }
 
 void GetScissor(const RegisterFile& regs, Scissor& scissor_out) {
@@ -420,10 +602,10 @@ void GetScissor(const RegisterFile& regs, Scissor& scissor_out) {
   // console, but no evidence of such has ever been seen).
   br_x = std::max(br_x, tl_x);
   br_y = std::max(br_y, tl_y);
-  scissor_out.left = tl_x;
-  scissor_out.top = tl_y;
-  scissor_out.width = br_x - tl_x;
-  scissor_out.height = br_y - tl_y;
+  scissor_out.offset[0] = tl_x;
+  scissor_out.offset[1] = tl_y;
+  scissor_out.extent[0] = br_x - tl_x;
+  scissor_out.extent[1] = br_y - tl_y;
 }
 
 xenos::CopySampleSelect SanitizeCopySampleSelect(

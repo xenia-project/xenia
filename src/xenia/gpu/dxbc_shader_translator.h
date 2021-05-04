@@ -771,11 +771,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
     return !is_depth_only_pixel_shader_ && !current_shader().writes_depth() &&
            !current_shader().is_valid_memexport_used();
   }
-  // Converts the depth value to 24-bit (storing the result in bits 0:23 and
-  // zeros in 24:31, not creating room for stencil - since this may be involved
-  // in comparisons) according to the format specified in the system constants.
-  // Source and destination may be the same, temporary must be different than
-  // both.
+  // Converts the pre-clamped depth value to 24-bit (storing the result in bits
+  // 0:23 and zeros in 24:31, not creating room for stencil - since this may be
+  // involved in comparisons) according to the format specified in the system
+  // constants. Source and destination may be the same, temporary must be
+  // different than both.
   void ROV_DepthTo24Bit(uint32_t d24_temp, uint32_t d24_temp_component,
                         uint32_t d32_temp, uint32_t d32_temp_component,
                         uint32_t temp_temp, uint32_t temp_temp_component);

@@ -457,37 +457,10 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
 
     if (!i) {
       if (shader_writes_depth) {
-        // Clamp oDepth to the lower viewport depth bound (depth clamp happens
-        // after the pixel shader in the pipeline, at least on Direct3D 11 and
-        // Vulkan, thus applies to the shader's depth output too).
-        system_constants_used_ |= 1ull << kSysConst_EdramDepthRange_Index;
-        a_.OpMax(dxbc::Dest::R(system_temp_depth_stencil_, 0b0001),
-                 dxbc::Src::R(system_temp_depth_stencil_, dxbc::Src::kXXXX),
-                 dxbc::Src::CB(cbuffer_index_system_constants_,
-                               uint32_t(CbufferRegister::kSystemConstants),
-                               kSysConst_EdramDepthRange_Vec)
-                     .Select(kSysConst_EdramDepthRangeOffset_Comp));
-        // Calculate the upper Z range bound to temp.x for clamping after
-        // biasing.
-        // temp.x = viewport maximum depth
-        system_constants_used_ |= 1ull << kSysConst_EdramDepthRange_Index;
-        a_.OpAdd(temp_x_dest,
-                 dxbc::Src::CB(cbuffer_index_system_constants_,
-                               uint32_t(CbufferRegister::kSystemConstants),
-                               kSysConst_EdramDepthRange_Vec)
-                     .Select(kSysConst_EdramDepthRangeOffset_Comp),
-                 dxbc::Src::CB(cbuffer_index_system_constants_,
-                               uint32_t(CbufferRegister::kSystemConstants),
-                               kSysConst_EdramDepthRange_Vec)
-                     .Select(kSysConst_EdramDepthRangeScale_Comp));
-        // Clamp oDepth to the upper viewport depth bound (already not above 1,
-        // but saturate for total safety).
-        // temp.x = free
-        a_.OpMin(dxbc::Dest::R(system_temp_depth_stencil_, 0b0001),
-                 dxbc::Src::R(system_temp_depth_stencil_, dxbc::Src::kXXXX),
-                 temp_x_src, true);
         // Convert the shader-generated depth to 24-bit, using temp.x as
-        // temporary.
+        // temporary. oDepth is already written by StoreResult with saturation,
+        // no need to clamp here. Adreno 200 doesn't have PA_SC_VPORT_ZMIN/ZMAX,
+        // so likely there's no need to clamp to the viewport depth bounds.
         ROV_DepthTo24Bit(system_temp_depth_stencil_, 0,
                          system_temp_depth_stencil_, 0, temp, 0);
       } else {
