@@ -590,12 +590,15 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     height_used = uint32_t(
         std::min(std::fmax(viewport_bottom, 0.0f), float(height_used)));
   }
-  uint32_t scissor_bottom = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>().br_y;
+  int32_t scissor_bottom =
+      int32_t(regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>().br_y);
   if (!regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>().window_offset_disable) {
-    scissor_bottom = uint32_t(
-        std::max(int32_t(scissor_bottom) + window_y_offset, int32_t(0)));
+    scissor_bottom += window_y_offset;
   }
-  height_used = std::min(height_used, scissor_bottom);
+  scissor_bottom =
+      std::min(scissor_bottom, regs.Get<reg::PA_SC_SCREEN_SCISSOR_BR>().br_y);
+  height_used =
+      std::min(height_used, uint32_t(std::max(scissor_bottom, int32_t(0))));
 
   // Sorted by EDRAM base and then by index in the pipeline - for simplicity,
   // treat render targets placed closer to the end of the EDRAM as truncating

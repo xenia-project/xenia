@@ -349,6 +349,26 @@ union PA_CL_VTE_CNTL {
   static constexpr Register register_index = XE_GPU_REG_PA_CL_VTE_CNTL;
 };
 
+union PA_SC_SCREEN_SCISSOR_TL {
+  struct {
+    int32_t tl_x : 15;  // +0
+    uint32_t : 1;       // +15
+    int32_t tl_y : 15;  // +16
+  };
+  uint32_t value;
+  static constexpr Register register_index = XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL;
+};
+
+union PA_SC_SCREEN_SCISSOR_BR {
+  struct {
+    int32_t br_x : 15;  // +0
+    uint32_t : 1;       // +15
+    int32_t br_y : 15;  // +16
+  };
+  uint32_t value;
+  static constexpr Register register_index = XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR;
+};
+
 union PA_SC_WINDOW_OFFSET {
   struct {
     int32_t window_x_offset : 15;  // +0

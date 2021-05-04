@@ -118,7 +118,8 @@ struct Scissor {
   // Extent can be zero.
   uint32_t extent[2];
 };
-void GetScissor(const RegisterFile& regs, Scissor& scissor_out);
+void GetScissor(const RegisterFile& regs, Scissor& scissor_out,
+                bool clamp_to_surface_pitch = true);
 
 // Scales, and shift amounts of the upper 32 bits of the 32x32=64-bit
 // multiplication result, for fast division and multiplication by
