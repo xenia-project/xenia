@@ -77,15 +77,27 @@ bool IsPixelShaderNeededWithRasterization(const Shader& shader,
                                           const RegisterFile& regs);
 
 struct ViewportInfo {
-  // The returned viewport will always be in the positive quarter-plane for
-  // simplicity of clamping to the maximum size supported by the host, negative
-  // offset will be applied via ndc_offset.
-  float left;
-  float top;
-  float width;
-  float height;
+  // Offset from render target UV = 0 to +UV.
+  // For simplicity of cropping to the maximum size on the host; to match the
+  // Direct3D 12 clipping / scissoring behavior with a fractional viewport, to
+  // floor(TopLeftXY) ... floor(TopLeftXY + WidthHeight), on the real AMD, Intel
+  // and Nvidia hardware (not WARP); as well as to hide the differences between
+  // 0 and 8+ viewportSubPixelBits on Vulkan, and to prevent any numerical error
+  // in bound checking in host APIs, viewport bounds are returned as integers.
+  // Also they're returned as non-negative, also to make it easier to crop (so
+  // Vulkan maxViewportDimensions and viewportBoundsRange don't have to be
+  // handled separately - maxViewportDimensions is greater than or equal to the
+  // largest framebuffer image size, so it's safe, and viewportBoundsRange is
+  // always bigger than maxViewportDimensions. All fractional offsetting,
+  // including the half-pixel offset, and cropping are handled via ndc_scale and
+  // ndc_offset.
+  uint32_t xy_offset[2];
+  // Extent can be zero for an empty viewport - host APIs not supporting empty
+  // viewports need to use an empty scissor rectangle.
+  uint32_t xy_extent[2];
   float z_min;
   float z_max;
+  // The scale is applied before the offset (like using multiply-add).
   float ndc_scale[3];
   float ndc_offset[3];
 };
@@ -94,16 +106,17 @@ struct ViewportInfo {
 // host graphics APIs such as Direct3D 11+ and Vulkan, also forcing it to the
 // Direct3D clip space with 0...W Z rather than -W...W.
 void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale,
-                         bool origin_bottom_left, float x_max, float y_max,
-                         bool allow_reverse_z, bool convert_z_to_float24,
-                         bool full_float24_in_0_to_1,
+                         bool origin_bottom_left, uint32_t x_max,
+                         uint32_t y_max, bool allow_reverse_z,
+                         bool convert_z_to_float24, bool full_float24_in_0_to_1,
+                         bool pixel_shader_writes_depth,
                          ViewportInfo& viewport_info_out);
 
 struct Scissor {
-  uint32_t left;
-  uint32_t top;
-  uint32_t width;
-  uint32_t height;
+  // Offset from render target UV = 0 to +UV.
+  uint32_t offset[2];
+  // Extent can be zero.
+  uint32_t extent[2];
 };
 void GetScissor(const RegisterFile& regs, Scissor& scissor_out);
 

@@ -2026,20 +2026,21 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       render_target_cache_->depth_float24_conversion();
   draw_util::ViewportInfo viewport_info;
   draw_util::GetHostViewportInfo(
-      regs, resolution_scale, true, float(D3D12_VIEWPORT_BOUNDS_MAX),
-      float(D3D12_VIEWPORT_BOUNDS_MAX), false,
+      regs, resolution_scale, true, D3D12_VIEWPORT_BOUNDS_MAX,
+      D3D12_VIEWPORT_BOUNDS_MAX, false,
       host_render_targets_used &&
           (depth_float24_conversion ==
                RenderTargetCache::DepthFloat24Conversion::kOnOutputTruncating ||
            depth_float24_conversion ==
                RenderTargetCache::DepthFloat24Conversion::kOnOutputRounding),
-      host_render_targets_used, viewport_info);
+      host_render_targets_used, pixel_shader && pixel_shader->writes_depth(),
+      viewport_info);
   draw_util::Scissor scissor;
   draw_util::GetScissor(regs, scissor);
-  scissor.left *= resolution_scale;
-  scissor.top *= resolution_scale;
-  scissor.width *= resolution_scale;
-  scissor.height *= resolution_scale;
+  scissor.offset[0] *= resolution_scale;
+  scissor.offset[1] *= resolution_scale;
+  scissor.extent[0] *= resolution_scale;
+  scissor.extent[1] *= resolution_scale;
 
   // Update viewport, scissor, blend factor and stencil reference.
   UpdateFixedFunctionState(viewport_info, scissor, primitive_polygonal);
@@ -2811,20 +2812,20 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
 
   // Viewport.
   D3D12_VIEWPORT viewport;
-  viewport.TopLeftX = viewport_info.left;
-  viewport.TopLeftY = viewport_info.top;
-  viewport.Width = viewport_info.width;
-  viewport.Height = viewport_info.height;
+  viewport.TopLeftX = float(viewport_info.xy_offset[0]);
+  viewport.TopLeftY = float(viewport_info.xy_offset[1]);
+  viewport.Width = float(viewport_info.xy_extent[0]);
+  viewport.Height = float(viewport_info.xy_extent[1]);
   viewport.MinDepth = viewport_info.z_min;
   viewport.MaxDepth = viewport_info.z_max;
   SetViewport(viewport);
 
   // Scissor.
   D3D12_RECT scissor_rect;
-  scissor_rect.left = LONG(scissor.left);
-  scissor_rect.top = LONG(scissor.top);
-  scissor_rect.right = LONG(scissor.left + scissor.width);
-  scissor_rect.bottom = LONG(scissor.top + scissor.height);
+  scissor_rect.left = LONG(scissor.offset[0]);
+  scissor_rect.top = LONG(scissor.offset[1]);
+  scissor_rect.right = LONG(scissor.offset[0] + scissor.extent[0]);
+  scissor_rect.bottom = LONG(scissor.offset[1] + scissor.extent[1]);
   SetScissorRect(scissor_rect);
 
   if (render_target_cache_->GetPath() ==
@@ -3090,9 +3091,11 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   system_constants_.point_size_min_max[0] = point_size_min;
   system_constants_.point_size_min_max[1] = point_size_max;
   float point_screen_to_ndc_x =
-      (0.5f * 2.0f * resolution_scale) / viewport_info.width;
+      (/* 0.5f * 2.0f * */ float(resolution_scale)) /
+      std::max(viewport_info.xy_extent[0], uint32_t(1));
   float point_screen_to_ndc_y =
-      (0.5f * 2.0f * resolution_scale) / viewport_info.height;
+      (/* 0.5f * 2.0f * */ float(resolution_scale)) /
+      std::max(viewport_info.xy_extent[1], uint32_t(1));
   dirty |= system_constants_.point_screen_to_ndc[0] != point_screen_to_ndc_x;
   dirty |= system_constants_.point_screen_to_ndc[1] != point_screen_to_ndc_y;
   system_constants_.point_screen_to_ndc[0] = point_screen_to_ndc_x;

@@ -1511,8 +1511,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
       // 20e4-as-32 conversion and with 0...1 to 0...0.5 float24 remapping.
       // Though 20e4 float depth can store values between 1 and 2, it's a very
       // unusual case. Direct3D 10+ SV_Depth, however, can accept any values,
-      // including specials, when the depth buffer is floating-point; but depth
-      // is clamped to the viewport bounds anyway.
+      // including specials, when the depth buffer is floating-point.
       is_clamped = true;
       break;
   }
