@@ -564,48 +564,54 @@ void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale,
   }
 }
 
-void GetScissor(const RegisterFile& regs, Scissor& scissor_out) {
-  // FIXME(Triang3l): Screen scissor isn't applied here, but it seems to be
-  // unused on Xbox 360 Direct3D 9.
-  // TODO(Triang3l): Clamp X to RB_SURFACE_INFO::surface_pitch to prevent
-  // overflow with target-indepdent rasterization (with ROV).
+void GetScissor(const RegisterFile& regs, Scissor& scissor_out,
+                bool clamp_to_surface_pitch) {
   auto pa_sc_window_scissor_tl = regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>();
+  int32_t tl_x = int32_t(pa_sc_window_scissor_tl.tl_x);
+  int32_t tl_y = int32_t(pa_sc_window_scissor_tl.tl_y);
   auto pa_sc_window_scissor_br = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>();
-  uint32_t tl_x = pa_sc_window_scissor_tl.tl_x;
-  uint32_t tl_y = pa_sc_window_scissor_tl.tl_y;
-  uint32_t br_x = pa_sc_window_scissor_br.br_x;
-  uint32_t br_y = pa_sc_window_scissor_br.br_y;
+  int32_t br_x = int32_t(pa_sc_window_scissor_br.br_x);
+  int32_t br_y = int32_t(pa_sc_window_scissor_br.br_y);
   if (!pa_sc_window_scissor_tl.window_offset_disable) {
     auto pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
-    tl_x = uint32_t(std::max(
-        int32_t(tl_x) + pa_sc_window_offset.window_x_offset, int32_t(0)));
-    tl_y = uint32_t(std::max(
-        int32_t(tl_y) + pa_sc_window_offset.window_y_offset, int32_t(0)));
-    br_x = uint32_t(std::max(
-        int32_t(br_x) + pa_sc_window_offset.window_x_offset, int32_t(0)));
-    br_y = uint32_t(std::max(
-        int32_t(br_y) + pa_sc_window_offset.window_y_offset, int32_t(0)));
+    tl_x += pa_sc_window_offset.window_x_offset;
+    tl_y += pa_sc_window_offset.window_y_offset;
+    br_x += pa_sc_window_offset.window_x_offset;
+    br_y += pa_sc_window_offset.window_y_offset;
   }
-  // Clamp the horizontal scissor to surface_pitch for safety, in case that's
-  // not done by the guest for some reason (it's not when doing draws completely
-  // without a viewport, for instance), to prevent overflow - this is important
-  // for host implementations, both based on target-indepedent rasterization
-  // without render target width at all (pixel shader interlocks-based custom RB
-  // implementations) and using conventional render targets, but padded to EDRAM
-  // tiles.
-  uint32_t surface_pitch = regs.Get<reg::RB_SURFACE_INFO>().surface_pitch;
-  tl_x = std::min(tl_x, surface_pitch);
-  br_x = std::min(br_x, surface_pitch);
+  // Screen scissor is not used by Direct3D 9 (always 0, 0 to 8192, 8192), but
+  // still handled here for completeness.
+  auto pa_sc_screen_scissor_tl = regs.Get<reg::PA_SC_SCREEN_SCISSOR_TL>();
+  tl_x = std::max(tl_x, pa_sc_screen_scissor_tl.tl_x);
+  tl_y = std::max(tl_y, pa_sc_screen_scissor_tl.tl_y);
+  auto pa_sc_screen_scissor_br = regs.Get<reg::PA_SC_SCREEN_SCISSOR_BR>();
+  br_x = std::min(br_x, pa_sc_screen_scissor_br.br_x);
+  br_y = std::min(br_y, pa_sc_screen_scissor_br.br_y);
+  if (clamp_to_surface_pitch) {
+    // Clamp the horizontal scissor to surface_pitch for safety, in case that's
+    // not done by the guest for some reason (it's not when doing draws without
+    // clipping in Direct3D 9, for instance), to prevent overflow - this is
+    // important for host implementations, both based on target-indepedent
+    // rasterization without render target width at all (pixel shader
+    // interlock-based custom RB implementations) and using conventional render
+    // targets, but padded to EDRAM tiles.
+    uint32_t surface_pitch = regs.Get<reg::RB_SURFACE_INFO>().surface_pitch;
+    tl_x = std::min(tl_x, int32_t(surface_pitch));
+    br_x = std::min(br_x, int32_t(surface_pitch));
+  }
   // Ensure the rectangle is non-negative, by collapsing it into a 0-sized one
   // (not by reordering the bounds preserving the width / height, which would
   // reveal samples not meant to be covered, unless TL > BR does that on a real
-  // console, but no evidence of such has ever been seen).
+  // console, but no evidence of such has ever been seen), and also drop
+  // negative offsets.
+  tl_x = std::max(tl_x, int32_t(0));
+  tl_y = std::max(tl_y, int32_t(0));
   br_x = std::max(br_x, tl_x);
   br_y = std::max(br_y, tl_y);
-  scissor_out.offset[0] = tl_x;
-  scissor_out.offset[1] = tl_y;
-  scissor_out.extent[0] = br_x - tl_x;
-  scissor_out.extent[1] = br_y - tl_y;
+  scissor_out.offset[0] = uint32_t(tl_x);
+  scissor_out.offset[1] = uint32_t(tl_y);
+  scissor_out.extent[0] = uint32_t(br_x - tl_x);
+  scissor_out.extent[1] = uint32_t(br_y - tl_y);
 }
 
 xenos::CopySampleSelect SanitizeCopySampleSelect(
@@ -780,28 +786,17 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   }
 
   // Apply the scissor and prevent negative origin (behind the EDRAM base).
-  auto pa_sc_window_scissor_tl = regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>();
-  auto pa_sc_window_scissor_br = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>();
-  int32_t scissor_x0 = int32_t(pa_sc_window_scissor_tl.tl_x);
-  int32_t scissor_y0 = int32_t(pa_sc_window_scissor_tl.tl_y);
-  int32_t scissor_x1 =
-      std::max(int32_t(pa_sc_window_scissor_br.br_x), scissor_x0);
-  int32_t scissor_y1 =
-      std::max(int32_t(pa_sc_window_scissor_br.br_y), scissor_y0);
-  if (!pa_sc_window_scissor_tl.window_offset_disable) {
-    scissor_x0 =
-        std::max(scissor_x0 + pa_sc_window_offset.window_x_offset, int32_t(0));
-    scissor_y0 =
-        std::max(scissor_y0 + pa_sc_window_offset.window_y_offset, int32_t(0));
-    scissor_x1 =
-        std::max(scissor_x1 + pa_sc_window_offset.window_x_offset, int32_t(0));
-    scissor_y1 =
-        std::max(scissor_y1 + pa_sc_window_offset.window_y_offset, int32_t(0));
-  }
-  x0 = xe::clamp(x0, scissor_x0, scissor_x1);
-  y0 = xe::clamp(y0, scissor_y0, scissor_y1);
-  x1 = xe::clamp(x1, scissor_x0, scissor_x1);
-  y1 = xe::clamp(y1, scissor_y0, scissor_y1);
+  Scissor scissor;
+  // False because clamping to the surface pitch will be done later (it will be
+  // aligned to the resolve alignment here, for resolving from render targets
+  // with a pitch that is not a multiple of 8).
+  GetScissor(regs, scissor, false);
+  int32_t scissor_right = int32_t(scissor.offset[0] + scissor.extent[0]);
+  int32_t scissor_bottom = int32_t(scissor.offset[1] + scissor.extent[1]);
+  x0 = xe::clamp(x0, int32_t(scissor.offset[0]), scissor_right);
+  y0 = xe::clamp(y0, int32_t(scissor.offset[1]), scissor_bottom);
+  x1 = xe::clamp(x1, int32_t(scissor.offset[0]), scissor_right);
+  y1 = xe::clamp(y1, int32_t(scissor.offset[1]), scissor_bottom);
 
   assert_true(x0 <= x1 && y0 <= y1);
 
