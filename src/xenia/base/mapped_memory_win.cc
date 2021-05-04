@@ -18,6 +18,11 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/platform_win.h"
 
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | \
+                            WINAPI_PARTITION_SYSTEM | WINAPI_PARTITION_GAMES)
+#define XE_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
+#endif
+
 namespace xe {
 
 class Win32MappedMemory : public MappedMemory {
@@ -70,7 +75,7 @@ class Win32MappedMemory : public MappedMemory {
     size_t aligned_length = length + (offset - aligned_offset);
 
     UnmapViewOfFile(data_);
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#ifdef XE_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
     data_ = MapViewOfFile(mapping_handle, view_access_, aligned_offset >> 32,
                           aligned_offset & 0xFFFFFFFF, aligned_length);
 #else
@@ -139,7 +144,7 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(
     return nullptr;
   }
 
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#ifdef XE_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
   mm->mapping_handle = CreateFileMapping(
       mm->file_handle, nullptr, mapping_protect, DWORD(aligned_length >> 32),
       DWORD(aligned_length), nullptr);
@@ -152,7 +157,7 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(
     return nullptr;
   }
 
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#ifdef XE_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
   mm->data_ = reinterpret_cast<uint8_t*>(MapViewOfFile(
       mm->mapping_handle, view_access, DWORD(aligned_offset >> 32),
       DWORD(aligned_offset), aligned_length));
@@ -257,7 +262,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
         return false;
       }
 
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#ifdef XE_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
       mapping_handle_ =
           CreateFileMapping(file_handle_, nullptr, mapping_protect,
                             DWORD(capacity_ >> 32), DWORD(capacity_), nullptr);
@@ -275,11 +280,11 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
       if (low_address_space) {
         bool successful = false;
         data_ = reinterpret_cast<uint8_t*>(0x10000000);
-#if !WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#ifndef XE_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
         HANDLE process = GetCurrentProcess();
 #endif
         for (int i = 0; i < 1000; ++i) {
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#ifdef XE_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
           if (MapViewOfFileEx(mapping_handle_, view_access, 0, 0, capacity_,
                               data_)) {
             successful = true;
@@ -311,7 +316,7 @@ class Win32ChunkedMappedMemoryWriter : public ChunkedMappedMemoryWriter {
           }
         }
       } else {
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#ifdef XE_BASE_MAPPED_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
         data_ = reinterpret_cast<uint8_t*>(
             MapViewOfFile(mapping_handle_, view_access, 0, 0, capacity_));
 #else
