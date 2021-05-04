@@ -257,22 +257,21 @@ bool CommandProcessor::SetupContext() { return true; }
 
 void CommandProcessor::ShutdownContext() { context_.reset(); }
 
-void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
+void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t size_log2) {
   read_ptr_index_ = 0;
   primary_buffer_ptr_ = ptr;
-  primary_buffer_size_ = 1 << log2_size;
+  primary_buffer_size_ = uint32_t(1) << (size_log2 + 3);
 }
 
 void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
-                                                  uint32_t block_size) {
+                                                  uint32_t block_size_log2) {
   // CP_RB_RPTR_ADDR Ring Buffer Read Pointer Address 0x70C
   // ptr = RB_RPTR_ADDR, pointer to write back the address to.
   read_ptr_writeback_ptr_ = ptr;
   // CP_RB_CNTL Ring Buffer Control 0x704
-  // block_size = RB_BLKSZ, number of quadwords read between updates of the
-  //              read pointer.
-  read_ptr_update_freq_ =
-      static_cast<uint32_t>(pow(2.0, static_cast<double>(block_size)) / 4);
+  // block_size = RB_BLKSZ, log2 of number of quadwords read between updates of
+  //              the read pointer.
+  read_ptr_update_freq_ = uint32_t(1) << block_size_log2 >> 2;
 }
 
 void CommandProcessor::UpdateWritePointer(uint32_t value) {
