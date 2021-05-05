@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/hash.h"
 #include "xenia/base/mutex.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/d3d12/d3d12_shared_memory.h"
@@ -61,71 +62,53 @@ class D3D12CommandProcessor;
 //   MipAddress but no BaseAddress to save memory because textures are streamed
 //   this way anyway.
 class TextureCache {
-  union TextureKey {
-    struct {
-      // Physical 4 KB page with the base mip level, disregarding A/C/E address
-      // range prefix.
-      uint32_t base_page : 17;             // 17 total
-      xenos::DataDimension dimension : 2;  // 19
-      uint32_t width : 13;                 // 32
+  struct TextureKey {
+    // Physical 4 KB page with the base mip level, disregarding A/C/E address
+    // range prefix.
+    uint32_t base_page : 17;             // 17 total
+    xenos::DataDimension dimension : 2;  // 19
+    uint32_t width : 13;                 // 32
 
-      uint32_t height : 13;      // 45
-      uint32_t tiled : 1;        // 46
-      uint32_t packed_mips : 1;  // 47
-      // Physical 4 KB page with mip 1 and smaller.
-      uint32_t mip_page : 17;  // 64
+    uint32_t height : 13;      // 45
+    uint32_t tiled : 1;        // 46
+    uint32_t packed_mips : 1;  // 47
+    // Physical 4 KB page with mip 1 and smaller.
+    uint32_t mip_page : 17;  // 64
 
-      // Layers for stacked and 3D, 6 for cube, 1 for other dimensions.
-      uint32_t depth : 10;              // 74
-      uint32_t mip_max_level : 4;       // 78
-      xenos::TextureFormat format : 6;  // 84
-      xenos::Endian endianness : 2;     // 86
-      // Whether this texture is signed and has a different host representation
-      // than an unsigned view of the same guest texture.
-      uint32_t signed_separate : 1;  // 87
-      // Whether this texture is a 2x-scaled resolve target.
-      uint32_t scaled_resolve : 1;  // 88
-    };
-    struct {
-      // The key used for unordered_multimap lookup. Single uint32_t instead of
-      // a uint64_t so XXH hash can be calculated in a stable way due to no
-      // padding.
-      uint32_t map_key[2];
-      // The key used to identify one texture within unordered_multimap buckets.
-      uint32_t bucket_key;
-    };
+    // Layers for stacked and 3D, 6 for cube, 1 for other dimensions.
+    uint32_t depth : 10;              // 74
+    uint32_t mip_max_level : 4;       // 78
+    xenos::TextureFormat format : 6;  // 84
+    xenos::Endian endianness : 2;     // 86
+    // Whether this texture is signed and has a different host representation
+    // than an unsigned view of the same guest texture.
+    uint32_t signed_separate : 1;  // 87
+    // Whether this texture is a 2x-scaled resolve target.
+    uint32_t scaled_resolve : 1;  // 88
+
     TextureKey() { MakeInvalid(); }
     TextureKey(const TextureKey& key) {
-      SetMapKey(key.GetMapKey());
-      bucket_key = key.bucket_key;
+      std::memcpy(this, &key, sizeof(*this));
     }
     TextureKey& operator=(const TextureKey& key) {
-      SetMapKey(key.GetMapKey());
-      bucket_key = key.bucket_key;
+      std::memcpy(this, &key, sizeof(*this));
       return *this;
     }
-    bool operator==(const TextureKey& key) const {
-      return GetMapKey() == key.GetMapKey() && bucket_key == key.bucket_key;
-    }
-    bool operator!=(const TextureKey& key) const {
-      return GetMapKey() != key.GetMapKey() || bucket_key != key.bucket_key;
-    }
-    uint64_t GetMapKey() const {
-      return uint64_t(map_key[0]) | (uint64_t(map_key[1]) << 32);
-    }
-    void SetMapKey(uint64_t key) {
-      map_key[0] = uint32_t(key);
-      map_key[1] = uint32_t(key >> 32);
-    }
     bool IsInvalid() const {
-      // Zero base and zero width is enough for a binding to be invalid.
-      return map_key[0] == 0;
+      // Zero size is enough for a binding to be invalid (not possible on the
+      // real GPU since dimensions minus 1 are stored).
+      return !width;
     }
     void MakeInvalid() {
-      // Reset all for a stable hash.
-      SetMapKey(0);
-      bucket_key = 0;
+      // Zero everything, including the padding, for a stable hash.
+      std::memset(this, 0, sizeof(*this));
     }
+
+    using Hasher = xe::hash::XXHasher<TextureKey>;
+    bool operator==(const TextureKey& key) const {
+      return !std::memcmp(this, &key, sizeof(*this));
+    }
+    bool operator!=(const TextureKey& key) const { return !(*this == key); }
   };
 
  public:
@@ -699,7 +682,7 @@ class TextureCache {
   // Load pipelines for resolution-scaled resolve targets.
   ID3D12PipelineState* load_pipelines_scaled_[size_t(LoadMode::kCount)] = {};
 
-  std::unordered_multimap<uint64_t, Texture*> textures_;
+  std::unordered_map<TextureKey, Texture*, TextureKey::Hasher> textures_;
   uint64_t textures_total_size_ = 0;
   Texture* texture_used_first_ = nullptr;
   Texture* texture_used_last_ = nullptr;

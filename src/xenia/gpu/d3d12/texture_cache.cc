@@ -1215,12 +1215,11 @@ void TextureCache::BeginFrame() {
     }
     destroyed_any = true;
     // Remove the texture from the map.
-    auto found_range = textures_.equal_range(texture->key.GetMapKey());
-    for (auto iter = found_range.first; iter != found_range.second; ++iter) {
-      if (iter->second == texture) {
-        textures_.erase(iter);
-        break;
-      }
+    auto found_texture_it = textures_.find(texture->key);
+    assert_true(found_texture_it != textures_.end());
+    if (found_texture_it != textures_.end()) {
+      assert_true(found_texture_it->second == texture);
+      textures_.erase(found_texture_it);
     }
     // Unlink the texture.
     texture_used_first_ = texture->used_next;
@@ -2203,17 +2202,12 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
     return nullptr;
   }
 
-  uint64_t map_key = key.GetMapKey();
-
   // Try to find an existing texture.
   // TODO(Triang3l): Reuse a texture with mip_page unchanged, but base_page
   // previously 0, now not 0, to save memory - common case in streaming.
-  auto found_range = textures_.equal_range(map_key);
-  for (auto iter = found_range.first; iter != found_range.second; ++iter) {
-    Texture* found_texture = iter->second;
-    if (found_texture->key.bucket_key == key.bucket_key) {
-      return found_texture;
-    }
+  auto found_texture_it = textures_.find(key);
+  if (found_texture_it != textures_.end()) {
+    return found_texture_it->second;
   }
 
   // Create the resource. If failed to create one, don't create a texture object
@@ -2340,7 +2334,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   }
   texture->base_watch_handle = nullptr;
   texture->mip_watch_handle = nullptr;
-  textures_.emplace(map_key, texture);
+  textures_.emplace(key, texture);
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
   textures_total_size_ += texture->resource_size;
   COUNT_profile_set("gpu/texture_cache/total_size_mb",
