@@ -230,8 +230,8 @@ class RenderTargetCache {
     };
     uint32_t key = 0;
     struct Hasher {
-      size_t operator()(const RenderTargetKey& key) const {
-        return std::hash<uint32_t>{}(key.key);
+      size_t operator()(const RenderTargetKey& render_target_key) const {
+        return std::hash<uint32_t>{}(render_target_key.key);
       }
     };
     bool operator==(const RenderTargetKey& other_key) const {
