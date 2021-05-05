@@ -479,8 +479,6 @@ enum class TextureFormat : uint32_t {
   k_DXT3A_AS_1_1_1_1 = 61,
   k_8_8_8_8_GAMMA_EDRAM = 62,
   k_2_10_10_10_FLOAT_EDRAM = 63,
-
-  kUnknown = 0xFFFFFFFFu,
 };
 
 // Subset of a2xx_sq_surfaceformat - formats that RTs can be resolved to.
