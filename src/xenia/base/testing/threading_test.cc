@@ -154,7 +154,7 @@ TEST_CASE("HighResolutionTimer") {
   // Time the actual sleep duration
   {
     const auto interval = 50ms;
-    std::atomic<uint64_t> counter;
+    std::atomic<uint64_t> counter(0);
     auto start = std::chrono::steady_clock::now();
     auto cb = [&counter] { ++counter; };
     auto pTimer = HighResolutionTimer::CreateRepeating(interval, cb);
