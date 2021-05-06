@@ -11,6 +11,14 @@
 #define XENIA_BASE_BYTE_ORDER_H_
 
 #include <cstdint>
+#if defined __has_include
+#if __has_include(<version>)
+#include <version>
+#endif
+#endif
+#if __cpp_lib_endian
+#include <bit>
+#endif
 
 #include "xenia/base/assert.h"
 #include "xenia/base/platform.h"
