@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <functional>
 #include <string>
+#include <string_view>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
@@ -439,6 +440,26 @@ template <>
 inline void store_and_swap<std::u16string>(void* mem,
                                            const std::u16string& value) {
   return store_and_swap<std::u16string_view>(mem, value);
+}
+
+using fourcc_t = uint32_t;
+
+// Get FourCC in host byte order
+// make_fourcc('a', 'b', 'c', 'd') == 0x61626364
+constexpr inline fourcc_t make_fourcc(char a, char b, char c, char d) {
+  return fourcc_t((static_cast<fourcc_t>(a) << 24) |
+                  (static_cast<fourcc_t>(b) << 16) |
+                  (static_cast<fourcc_t>(c) << 8) | static_cast<fourcc_t>(d));
+}
+
+// Get FourCC in host byte order
+// This overload requires fourcc.length() == 4
+// make_fourcc("abcd") == 'abcd' == 0x61626364 for most compilers
+constexpr inline fourcc_t make_fourcc(const std::string_view fourcc) {
+  if (fourcc.length() != 4) {
+    throw std::runtime_error("Invalid fourcc length");
+  }
+  return make_fourcc(fourcc[0], fourcc[1], fourcc[2], fourcc[3]);
 }
 
 }  // namespace xe
