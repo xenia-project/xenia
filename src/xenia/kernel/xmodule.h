@@ -19,6 +19,8 @@
 namespace xe {
 namespace kernel {
 
+constexpr fourcc_t kModuleSaveSignature = make_fourcc("XMOD");
+
 // https://www.nirsoft.net/kernel_struct/vista/LDR_DATA_TABLE_ENTRY.html
 // HMODULE points to this struct!
 struct X_LDR_DATA_TABLE_ENTRY {

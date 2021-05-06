@@ -824,8 +824,8 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingBuffer* reader,
   // VdSwap will post this to tell us we need to swap the screen/fire an
   // interrupt.
   // 63 words here, but only the first has any data.
-  uint32_t magic = reader->ReadAndSwap<uint32_t>();
-  assert_true(magic == 'SWAP');
+  uint32_t magic = reader->ReadAndSwap<fourcc_t>();
+  assert_true(magic == kSwapSignature);
 
   // TODO(benvanik): only swap frontbuffer ptr.
   uint32_t frontbuffer_ptr = reader->ReadAndSwap<uint32_t>();

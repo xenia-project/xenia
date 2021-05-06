@@ -52,7 +52,7 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       if (!e || !buffer || !extra) {
         return X_E_INVALIDARG;
       }
-      assert_true(extra->magic == 'XEN\0');
+      assert_true(extra->magic == kXObjSignature);
       if (data->buffer_size) {
         std::memset(buffer, 0, data->buffer_size);
       }

@@ -41,6 +41,8 @@ class Processor;
 namespace xe {
 namespace kernel {
 
+constexpr fourcc_t kKernelSaveSignature = make_fourcc("KRNL");
+
 class Dispatcher;
 class XHostThread;
 class KernelModule;

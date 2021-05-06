@@ -15,6 +15,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 #include "xenia/base/platform.h"
 
 namespace xe {
@@ -26,6 +27,8 @@ namespace xenos {
 // different alignment than the previous one, so only 32-bit types must be used
 // in bit fields (registers are 32-bit, and the microcode consists of triples of
 // 32-bit words).
+
+constexpr fourcc_t kSwapSignature = make_fourcc("SWAP");
 
 enum class ShaderType : uint32_t {
   kVertex = 0,
