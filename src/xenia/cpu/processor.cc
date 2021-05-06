@@ -432,12 +432,12 @@ void Processor::LowerIrql(Irql old_value) {
 }
 
 bool Processor::Save(ByteStream* stream) {
-  stream->Write('PROC');
+  stream->Write(kProcessorSaveSignature);
   return true;
 }
 
 bool Processor::Restore(ByteStream* stream) {
-  if (stream->Read<uint32_t>() != 'PROC') {
+  if (stream->Read<uint32_t>() != kProcessorSaveSignature) {
     XELOGE("Processor::Restore - Invalid magic value!");
     return false;
   }

@@ -415,7 +415,7 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   dwords[offset++] = gpu_fetch.dword_5;
 
   dwords[offset++] = xenos::MakePacketType3(xenos::PM4_XE_SWAP, 4);
-  dwords[offset++] = 'SWAP';
+  dwords[offset++] = xe::gpu::xenos::kSwapSignature;
   dwords[offset++] = frontbuffer_physical_address;
 
   dwords[offset++] = *width;

@@ -420,7 +420,7 @@ bool Emulator::SaveToFile(const std::filesystem::path& path) {
 
   // Save the emulator state to a file
   ByteStream stream(map->data(), map->size());
-  stream.Write('XSAV');
+  stream.Write(kEmulatorSaveSignature);
   stream.Write(title_id_.has_value());
   if (title_id_.has_value()) {
     stream.Write(title_id_.value());
@@ -454,7 +454,7 @@ bool Emulator::RestoreFromFile(const std::filesystem::path& path) {
 
   auto lock = global_critical_region::AcquireDirect();
   ByteStream stream(map->data(), map->size());
-  if (stream.Read<uint32_t>() != 'XSAV') {
+  if (stream.Read<uint32_t>() != kEmulatorSaveSignature) {
     return false;
   }
 

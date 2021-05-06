@@ -915,7 +915,7 @@ bool XThread::Save(ByteStream* stream) {
     return false;
   }
 
-  stream->Write('THRD');
+  stream->Write(kThreadSaveSignature);
   stream->Write(thread_name_);
 
   ThreadSavedState state;
@@ -971,7 +971,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
     return nullptr;
   }
 
-  if (stream->Read<uint32_t>() != 'THRD') {
+  if (stream->Read<uint32_t>() != kThreadSaveSignature) {
     XELOGE("Could not restore XThread - invalid magic!");
     return nullptr;
   }

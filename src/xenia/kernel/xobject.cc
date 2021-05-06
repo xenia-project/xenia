@@ -381,7 +381,7 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
     as_type = header->type;
   }
 
-  if (header->wait_list_flink == 'XEN\0') {
+  if (header->wait_list_flink == kXObjSignature) {
     // Already initialized.
     // TODO: assert if the type of the object != as_type
     uint32_t handle = header->wait_list_blink;

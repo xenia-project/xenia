@@ -223,7 +223,7 @@ void AudioSystem::UnregisterClient(size_t index) {
 }
 
 bool AudioSystem::Save(ByteStream* stream) {
-  stream->Write('XAUD');
+  stream->Write(kAudioSaveSignature);
 
   // Count the number of used clients first.
   // Any gaps should be handled gracefully.
@@ -251,7 +251,7 @@ bool AudioSystem::Save(ByteStream* stream) {
 }
 
 bool AudioSystem::Restore(ByteStream* stream) {
-  if (stream->Read<uint32_t>() != 'XAUD') {
+  if (stream->Read<uint32_t>() != kAudioSaveSignature) {
     XELOGE("AudioSystem::Restore - Invalid magic value!");
     return false;
   }
