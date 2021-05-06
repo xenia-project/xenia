@@ -95,7 +95,7 @@ dword_result_t XamContentAggregateCreateEnumerator(qword_t xuid,
     return result;
   }
 
-  extra->magic = 'XEN\0';
+  extra->magic = kXObjSignature;
   extra->handle = e->handle();
 
   if (!device_info || device_info->device_type == DeviceType::HDD) {

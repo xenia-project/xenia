@@ -899,9 +899,9 @@ bool XexModule::Load(const std::string_view name, const std::string_view path,
                      const void* xex_addr, size_t xex_length) {
   auto src_header = reinterpret_cast<const xex2_header*>(xex_addr);
 
-  if (src_header->magic == 'XEX1') {
+  if (src_header->magic == kXEX1Signature) {
     xex_format_ = kFormatXex1;
-  } else if (src_header->magic == 'XEX2') {
+  } else if (src_header->magic == kXEX2Signature) {
     xex_format_ = kFormatXex2;
   } else {
     return false;

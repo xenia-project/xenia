@@ -27,6 +27,8 @@ class Emulator;
 namespace xe {
 namespace kernel {
 
+constexpr fourcc_t kXObjSignature = make_fourcc('X', 'E', 'N', '\0');
+
 class KernelState;
 
 template <typename T>
@@ -214,7 +216,7 @@ class XObject {
 
   // Stash native pointer into X_DISPATCH_HEADER
   static void StashHandle(X_DISPATCH_HEADER* header, uint32_t handle) {
-    header->wait_list_flink = 'XEN\0';
+    header->wait_list_flink = kXObjSignature;
     header->wait_list_blink = handle;
   }
 

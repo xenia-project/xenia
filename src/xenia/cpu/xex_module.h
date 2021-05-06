@@ -25,6 +25,10 @@ class KernelState;
 namespace xe {
 namespace cpu {
 
+constexpr fourcc_t kXEX1Signature = make_fourcc("XEX1");
+constexpr fourcc_t kXEX2Signature = make_fourcc("XEX2");
+constexpr fourcc_t kElfSignature = make_fourcc(0x7F, 'E', 'L', 'F');
+
 class Runtime;
 
 class XexModule : public xe::cpu::Module {
