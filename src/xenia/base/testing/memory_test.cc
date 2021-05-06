@@ -469,6 +469,40 @@ TEST_CASE("read_write_view", "Virtual Memory Mapping") {
   xe::memory::CloseFileMappingHandle(memory, path);
 }
 
+TEST_CASE("make_fourcc", "FourCC") {
+  SECTION("'1234'") {
+    const uint32_t fourcc_host = 0x31323334;
+    constexpr fourcc_t fourcc_1 = make_fourcc('1', '2', '3', '4');
+    constexpr fourcc_t fourcc_2 = make_fourcc("1234");
+    REQUIRE(fourcc_1 == fourcc_host);
+    REQUIRE(fourcc_2 == fourcc_host);
+    REQUIRE(fourcc_1 == fourcc_2);
+    REQUIRE(fourcc_2 == fourcc_1);
+  }
+
+  SECTION("'ABcd'") {
+    const uint32_t fourcc_host = 0x41426364;
+    constexpr fourcc_t fourcc_1 = make_fourcc('A', 'B', 'c', 'd');
+    constexpr fourcc_t fourcc_2 = make_fourcc("ABcd");
+    REQUIRE(fourcc_1 == fourcc_host);
+    REQUIRE(fourcc_2 == fourcc_host);
+    REQUIRE(fourcc_1 == fourcc_2);
+    REQUIRE(fourcc_2 == fourcc_1);
+  }
+
+  SECTION("'XEN\\0'") {
+    const uint32_t fourcc_host = 0x58454E00;
+    constexpr fourcc_t fourcc = make_fourcc('X', 'E', 'N', '\0');
+    REQUIRE(fourcc == fourcc_host);
+  }
+
+  SECTION("length()!=4") {
+    REQUIRE_THROWS(make_fourcc("AB\0\0"));
+    REQUIRE_THROWS(make_fourcc("AB\0\0AB"));
+    REQUIRE_THROWS(make_fourcc("ABCDEFGH"));
+  }
+}
+
 }  // namespace test
 }  // namespace base
 }  // namespace xe
