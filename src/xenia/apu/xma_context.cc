@@ -442,12 +442,17 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
     } else {
       if (data->input_buffer_read_offset % kBitsPerPacket == 0) {
         // Invalid offset. Go ahead and set it.
+        int packet_number =
+            GetFramePacketNumber(current_input_buffer, current_input_size,
+                                 data->input_buffer_read_offset);
+
+        if (packet_number == -1) {
+          return;
+        }
+
         auto offset =
-            xma::GetPacketFrameOffset(
-                current_input_buffer +
-                kBytesPerPacket * GetFramePacketNumber(
-                                      current_input_buffer, current_input_size,
-                                      data->input_buffer_read_offset)) +
+            xma::GetPacketFrameOffset(current_input_buffer +
+                                      kBytesPerPacket * packet_number) +
             data->input_buffer_read_offset;
         if (offset == -1) {
           // No more frames.
