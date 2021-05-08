@@ -38,6 +38,8 @@ uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, lpvoid_t buffer_ptr,
   auto e = kernel_state()->object_table()->LookupObject<XEnumerator>(handle);
   if (!e) {
     result = X_ERROR_INVALID_HANDLE;
+  } else if (!buffer_ptr) {
+    result = X_ERROR_INVALID_PARAMETER;
   } else {
     size_t needed_buffer_size = e->item_size() * e->items_per_enumerate();
 
