@@ -702,7 +702,7 @@ dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
     return result;
   }
 
-  uint32_t dummy_count = std::max(20u, uint32_t(count));
+  uint32_t dummy_count = std::min(20u, uint32_t(count));
   for (uint32_t i = 0; i < dummy_count; ++i) {
     auto item = XStaticAchievementEnumerator::AchievementDetails{
         i, u"Dummy Text", u"Dummy Text", u"Dummy Text"};
