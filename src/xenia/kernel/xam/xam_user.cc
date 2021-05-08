@@ -702,7 +702,7 @@ dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
     return result;
   }
 
-  for (uint8_t i = 0; i < count; ++i) {
+  for (uint32_t i = 0; i < count; ++i) {
     auto item = XStaticAchievementEnumerator::AchievementDetails{
         i, u"Dummy Text", u"Dummy Text", u"Dummy Text"};
     e->AppendItem(item);
