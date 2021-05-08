@@ -732,15 +732,11 @@ dword_result_t XamParseGamerTileKey(lpdword_t key_ptr, lpdword_t out1_ptr,
 }
 DECLARE_XAM_EXPORT1(XamParseGamerTileKey, kUserProfiles, kStub);
 
-dword_result_t XamReadTileToTexture(dword_t unk1, dword_t unk2, dword_t unk3,
-                                    dword_t unk4, lpvoid_t buffer_ptr,
-                                    dword_t stride, dword_t height,
-                                    dword_t overlapped_ptr) {
-  // unk1: const?
-  // unk2: out0 from XamParseGamerTileKey
-  // unk3: some variant of out1/out2
-  // unk4: const?
-
+dword_result_t XamReadTileToTexture(dword_t unknown, dword_t title_id,
+                                    qword_t tile_id, dword_t user_index,
+                                    lpvoid_t buffer_ptr, dword_t stride,
+                                    dword_t height, dword_t overlapped_ptr) {
+  // TODO(gibbed): unknown=0,2,3,9
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
                                                 X_ERROR_SUCCESS);
