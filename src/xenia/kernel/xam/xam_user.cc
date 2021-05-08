@@ -705,8 +705,15 @@ dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
   uint32_t dummy_count = std::min(100u, uint32_t(count));
   for (uint32_t i = 1; i <= dummy_count; ++i) {
     auto item = XStaticAchievementEnumerator::AchievementDetails{
-        i, fmt::format(u"Dummy {}", i), u"Dummy description",
-        u"Dummy unachieved"};
+        i,  // dummy achievement id
+        fmt::format(u"Dummy {}", i),
+        u"Dummy description",
+        u"Dummy unachieved",
+        i,  // dummy image id
+        0,
+        {0, 0},
+        8};  // flags=8 makes dummy achievements show up in Crackdown's
+             // achievements list.
     e->AppendItem(item);
   }
 
