@@ -60,8 +60,8 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       auto result = e->WriteItems(data->buffer_ptr, buffer, data->buffer_size,
                                   &item_count);
       assert_true(XSUCCEEDED(result));
-      assert_true(item_count == 1);
-      if (XSUCCEEDED(result)) {
+      assert_true(item_count <= 1);
+      if (XSUCCEEDED(result) && item_count == 1) {
         auto content_data = reinterpret_cast<XCONTENT_AGGREGATE_DATA*>(buffer);
         // TODO(gibbed): WTF?
         *reinterpret_cast<be<uint32_t>*>(&buffer[0x140]) =
