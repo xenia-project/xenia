@@ -19,18 +19,21 @@ namespace vfs {
 // Structs used for interchange between Xenia and actual Xbox360 kernel/XAM
 
 inline uint32_t load_uint24_be(const uint8_t* p) {
-  return (static_cast<uint32_t>(p[0]) << 16) |
-         (static_cast<uint32_t>(p[1]) << 8) | static_cast<uint32_t>(p[2]);
+  return (uint32_t(p[0]) << 16) | (uint32_t(p[1]) << 8) | uint32_t(p[2]);
 }
 inline uint32_t load_uint24_le(const uint8_t* p) {
-  return (static_cast<uint32_t>(p[2]) << 16) |
-         (static_cast<uint32_t>(p[1]) << 8) | static_cast<uint32_t>(p[0]);
+  return (uint32_t(p[2]) << 16) | (uint32_t(p[1]) << 8) | uint32_t(p[0]);
+}
+inline void store_uint24_le(uint8_t* p, uint32_t value) {
+  p[2] = uint8_t((value >> 16) & 0xFF);
+  p[1] = uint8_t((value >> 8) & 0xFF);
+  p[0] = uint8_t(value & 0xFF);
 }
 
-enum XContentPackageType : uint32_t {
-  kPackageTypeCon = 0x434F4E20,
-  kPackageTypePirs = 0x50495253,
-  kPackageTypeLive = 0x4C495645,
+enum class XContentPackageType : uint32_t {
+  kCon = 0x434F4E20,
+  kPirs = 0x50495253,
+  kLive = 0x4C495645,
 };
 
 enum XContentType : uint32_t {
@@ -76,7 +79,8 @@ enum class XContentVolumeType : uint32_t {
 };
 
 /* STFS structures */
-XEPACKEDSTRUCT(StfsVolumeDescriptor, {
+#pragma pack(push, 1)
+struct StfsVolumeDescriptor {
   uint8_t descriptor_length;
   uint8_t version;
   union {
@@ -86,52 +90,77 @@ XEPACKEDSTRUCT(StfsVolumeDescriptor, {
                                      // otherwise uses two
       uint8_t root_active_index : 1;  // if set, uses secondary backing-block
                                       // for the highest-level hash table
+
       uint8_t directory_overallocated : 1;
       uint8_t directory_index_bounds_valid : 1;
-    };
+    } bits;
     uint8_t as_byte;
   } flags;
   uint16_t file_table_block_count;
-  uint8_t file_table_block_number_0;
-  uint8_t file_table_block_number_1;
-  uint8_t file_table_block_number_2;
+  uint8_t file_table_block_number_raw[3];
   uint8_t top_hash_table_hash[0x14];
-  be<uint32_t> allocated_block_count;
+  be<uint32_t> total_block_count;
   be<uint32_t> free_block_count;
 
-  uint32_t file_table_block_number() {
-    return uint32_t(file_table_block_number_0) |
-           (uint32_t(file_table_block_number_1) << 8) |
-           (uint32_t(file_table_block_number_2) << 16);
+  uint32_t file_table_block_number() const {
+    return load_uint24_le(file_table_block_number_raw);
   }
-});
+
+  void set_file_table_block_number(uint32_t value) {
+    store_uint24_le(file_table_block_number_raw, value);
+  }
+
+  bool is_valid() const {
+    return descriptor_length == sizeof(StfsVolumeDescriptor);
+  }
+};
 static_assert_size(StfsVolumeDescriptor, 0x24);
+#pragma pack(pop)
+
+enum class StfsHashState : uint8_t {
+  kFree = 0,   // unallocated but doesn't exist in package (needs to expand)?
+  kFree2 = 1,  // unallocated but exists in package?
+  kInUse = 2,
+};
 
 struct StfsHashEntry {
   uint8_t sha1[0x14];
 
-  uint8_t info0;  // usually contains flags
+  xe::be<uint32_t> info_raw;
 
-  uint8_t info1;
-  uint8_t info2;
-  uint8_t info3;
-
-  // If this is a level0 entry, this points to the next block in the chain
-  uint32_t level0_next_block() const {
-    return uint32_t(info3) | (uint32_t(info2) << 8) | (uint32_t(info1) << 16);
+  uint32_t level0_next_block() const { return info_raw & 0xFFFFFF; }
+  void set_level0_next_block(uint32_t value) {
+    info_raw = (info_raw & ~0xFFFFFF) | (value & 0xFFFFFF);
   }
 
-  void level0_next_block(uint32_t value) {
-    info3 = uint8_t(value & 0xFF);
-    info2 = uint8_t((value >> 8) & 0xFF);
-    info1 = uint8_t((value >> 16) & 0xFF);
+  StfsHashState level0_allocation_state() const {
+    return StfsHashState(uint8_t(((info_raw & 0xC0000000) >> 30) & 0xFF));
+  }
+  void set_level0_allocation_state(StfsHashState value) {
+    info_raw = (info_raw & ~0xC0000000) | (uint32_t(value) << 30);
   }
 
-  // If this is level 1 or 2, this says whether the hash table this entry refers
-  // to is using the secondary block or not
-  bool levelN_activeindex() const { return info0 & 0x40; }
+  uint32_t levelN_num_blocks_free() const { return info_raw & 0x7FFF; }
+  void set_levelN_num_blocks_free(uint32_t value) {
+    info_raw = (info_raw & ~0x7FFF) | (value & 0x7FFF);
+  }
 
-  bool levelN_writeable() const { return info0 & 0x80; }
+  uint32_t levelN_num_blocks_unk() const {
+    return ((info_raw & 0x3FFF8000) >> 15) & 0x7FFF;
+  }
+  void set_levelN_num_blocks_unk(uint32_t value) {
+    info_raw = (info_raw & ~0x3FFF8000) | ((value & 0x7FFF) << 15);
+  }
+
+  bool levelN_active_index() const { return (info_raw & 0x40000000) != 0; }
+  void set_levelN_active_index(bool value) {
+    info_raw = (info_raw & ~0x40000000) | (value ? 0x40000000 : 0);
+  }
+
+  bool levelN_writeable() const { return (info_raw & 0x80000000) != 0; }
+  void set_levelN_writeable(bool value) {
+    info_raw = (info_raw & ~0x80000000) | (value ? 0x80000000 : 0);
+  }
 };
 static_assert_size(StfsHashEntry, 0x18);
 
@@ -154,30 +183,27 @@ struct SvodDeviceDescriptor {
       uint8_t must_be_zero_for_future_usage : 6;
       uint8_t enhanced_gdf_layout : 1;
       uint8_t zero_for_downlevel_clients : 1;
-    };
+    } bits;
     uint8_t as_byte;
   } features;
-  uint8_t num_data_blocks2;
-  uint8_t num_data_blocks1;
-  uint8_t num_data_blocks0;
-  uint8_t start_data_block0;
-  uint8_t start_data_block1;
-  uint8_t start_data_block2;
+  uint8_t num_data_blocks_raw[3];
+  uint8_t start_data_block_raw[3];
   uint8_t reserved[5];
 
-  uint32_t num_data_blocks() {
-    return uint32_t(num_data_blocks0) | (uint32_t(num_data_blocks1) << 8) |
-           (uint32_t(num_data_blocks2) << 16);
-  }
+  uint32_t num_data_blocks() { return load_uint24_le(num_data_blocks_raw); }
 
-  uint32_t start_data_block() {
-    return uint32_t(start_data_block0) | (uint32_t(start_data_block1) << 8) |
-           (uint32_t(start_data_block2) << 16);
-  }
+  uint32_t start_data_block() { return load_uint24_le(start_data_block_raw); }
 };
 static_assert_size(SvodDeviceDescriptor, 0x24);
 
 /* XContent structures */
+struct XContentLicense {
+  be<uint64_t> licensee_id;
+  be<uint32_t> license_bits;
+  be<uint32_t> license_flags;
+};
+static_assert_size(XContentLicense, 0x10);
+
 struct XContentMediaData {
   uint8_t series_id[0x10];
   uint8_t season_id[0x10];
@@ -206,7 +232,8 @@ struct XContentAttributes {
 };
 static_assert_size(XContentAttributes, 1);
 
-XEPACKEDSTRUCT(XContentMetadata, {
+#pragma pack(push, 1)
+struct XContentMetadata {
   static const uint32_t kThumbLengthV1 = 0x4000;
   static const uint32_t kThumbLengthV2 = 0x3D00;
 
@@ -221,9 +248,9 @@ XEPACKEDSTRUCT(XContentMetadata, {
   uint8_t console_id[5];
   be<uint64_t> profile_id;
   union {
-    StfsVolumeDescriptor stfs_volume_descriptor;
-    SvodDeviceDescriptor svod_volume_descriptor;
-  };
+    StfsVolumeDescriptor stfs;
+    SvodDeviceDescriptor svod;
+  } volume_descriptor;
   be<uint32_t> data_file_count;
   be<uint64_t> data_file_size;
   be<XContentVolumeType> volume_type;
@@ -233,24 +260,24 @@ XEPACKEDSTRUCT(XContentMetadata, {
   union {
     XContentMediaData media_data;
     XContentAvatarAssetData avatar_asset_data;
-  };
+  } metadata_v2;
   uint8_t device_id[0x14];
   union {
-    be<uint16_t> display_name_raw[kNumLanguagesV1][128];
-    char16_t display_name_chars[kNumLanguagesV1][128];
-  };
+    be<uint16_t> uint[kNumLanguagesV1][128];
+    char16_t chars[kNumLanguagesV1][128];
+  } display_name_raw;
   union {
-    be<uint16_t> description_raw[kNumLanguagesV1][128];
-    char16_t description_chars[kNumLanguagesV1][128];
-  };
+    be<uint16_t> uint[kNumLanguagesV1][128];
+    char16_t chars[kNumLanguagesV1][128];
+  } description_raw;
   union {
-    be<uint16_t> publisher_raw[64];
-    char16_t publisher_chars[64];
-  };
+    be<uint16_t> uint[64];
+    char16_t chars[64];
+  } publisher_raw;
   union {
-    be<uint16_t> title_name_raw[64];
-    char16_t title_name_chars[64];
-  };
+    be<uint16_t> uint[64];
+    char16_t chars[64];
+  } title_name_raw;
   union {
     XContentAttributes bits;
     uint8_t as_byte;
@@ -259,14 +286,14 @@ XEPACKEDSTRUCT(XContentMetadata, {
   be<uint32_t> title_thumbnail_size;
   uint8_t thumbnail[kThumbLengthV2];
   union {
-    be<uint16_t> display_name_ex_raw[kNumLanguagesV2 - kNumLanguagesV1][128];
-    char16_t display_name_ex_chars[kNumLanguagesV2 - kNumLanguagesV1][128];
-  };
+    be<uint16_t> uint[kNumLanguagesV2 - kNumLanguagesV1][128];
+    char16_t chars[kNumLanguagesV2 - kNumLanguagesV1][128];
+  } display_name_ex_raw;
   uint8_t title_thumbnail[kThumbLengthV2];
   union {
-    be<uint16_t> description_ex_raw[kNumLanguagesV2 - kNumLanguagesV1][128];
-    char16_t description_ex_chars[kNumLanguagesV2 - kNumLanguagesV1][128];
-  };
+    be<uint16_t> uint[kNumLanguagesV2 - kNumLanguagesV1][128];
+    char16_t chars[kNumLanguagesV2 - kNumLanguagesV1][128];
+  } description_ex_raw;
 
   std::u16string display_name(XLanguage language) const {
     uint32_t lang_id = uint32_t(language) - 1;
@@ -279,10 +306,10 @@ XEPACKEDSTRUCT(XContentMetadata, {
 
     const be<uint16_t>* str = 0;
     if (lang_id >= 0 && lang_id < kNumLanguagesV1) {
-      str = display_name_raw[lang_id];
+      str = display_name_raw.uint[lang_id];
     } else if (lang_id >= kNumLanguagesV1 && lang_id < kNumLanguagesV2 &&
                metadata_version >= 2) {
-      str = display_name_ex_raw[lang_id - kNumLanguagesV1];
+      str = display_name_ex_raw.uint[lang_id - kNumLanguagesV1];
     }
 
     if (!str) {
@@ -305,10 +332,10 @@ XEPACKEDSTRUCT(XContentMetadata, {
 
     const be<uint16_t>* str = 0;
     if (lang_id >= 0 && lang_id < kNumLanguagesV1) {
-      str = description_raw[lang_id];
+      str = description_raw.uint[lang_id];
     } else if (lang_id >= kNumLanguagesV1 && lang_id < kNumLanguagesV2 &&
                metadata_version >= 2) {
-      str = description_ex_raw[lang_id - kNumLanguagesV1];
+      str = description_ex_raw.uint[lang_id - kNumLanguagesV1];
     }
 
     if (!str) {
@@ -321,11 +348,11 @@ XEPACKEDSTRUCT(XContentMetadata, {
   }
 
   std::u16string publisher() const {
-    return load_and_swap<std::u16string>(publisher_raw);
+    return load_and_swap<std::u16string>(publisher_raw.uint);
   }
 
   std::u16string title_name() const {
-    return load_and_swap<std::u16string>(title_name_raw);
+    return load_and_swap<std::u16string>(title_name_raw.uint);
   }
 
   bool set_display_name(XLanguage language, const std::u16string_view value) {
@@ -339,10 +366,10 @@ XEPACKEDSTRUCT(XContentMetadata, {
 
     char16_t* str = 0;
     if (lang_id >= 0 && lang_id < kNumLanguagesV1) {
-      str = display_name_chars[lang_id];
+      str = display_name_raw.chars[lang_id];
     } else if (lang_id >= kNumLanguagesV1 && lang_id < kNumLanguagesV2 &&
                metadata_version >= 2) {
-      str = display_name_ex_chars[lang_id - kNumLanguagesV1];
+      str = display_name_ex_raw.chars[lang_id - kNumLanguagesV1];
     }
 
     if (!str) {
@@ -352,7 +379,7 @@ XEPACKEDSTRUCT(XContentMetadata, {
     }
 
     string_util::copy_and_swap_truncating(str, value,
-                                          countof(display_name_chars[0]));
+                                          countof(display_name_raw.chars[0]));
     return true;
   }
 
@@ -367,10 +394,10 @@ XEPACKEDSTRUCT(XContentMetadata, {
 
     char16_t* str = 0;
     if (lang_id >= 0 && lang_id < kNumLanguagesV1) {
-      str = description_chars[lang_id];
+      str = description_raw.chars[lang_id];
     } else if (lang_id >= kNumLanguagesV1 && lang_id < kNumLanguagesV2 &&
                metadata_version >= 2) {
-      str = description_ex_chars[lang_id - kNumLanguagesV1];
+      str = description_ex_raw.chars[lang_id - kNumLanguagesV1];
     }
 
     if (!str) {
@@ -380,39 +407,37 @@ XEPACKEDSTRUCT(XContentMetadata, {
     }
 
     string_util::copy_and_swap_truncating(str, value,
-                                          countof(description_chars[0]));
+                                          countof(description_raw.chars[0]));
     return true;
   }
 
-  bool set_publisher(const std::u16string_view value) {
-    string_util::copy_and_swap_truncating(publisher_chars, value,
-                                          countof(publisher_chars));
-    return true;
+  void set_publisher(const std::u16string_view value) {
+    string_util::copy_and_swap_truncating(publisher_raw.chars, value,
+                                          countof(publisher_raw.chars));
   }
 
-  bool set_title_name(const std::u16string_view value) {
-    string_util::copy_and_swap_truncating(title_name_chars, value,
-                                          countof(title_name_chars));
-    return true;
+  void set_title_name(const std::u16string_view value) {
+    string_util::copy_and_swap_truncating(title_name_raw.chars, value,
+                                          countof(title_name_raw.chars));
   }
-});
+};
 static_assert_size(XContentMetadata, 0x93D6);
 
-struct XContentLicense {
-  be<uint64_t> licensee_id;
-  be<uint32_t> license_bits;
-  be<uint32_t> license_flags;
-};
-static_assert_size(XContentLicense, 0x10);
-
-XEPACKEDSTRUCT(XContentHeader, {
+struct XContentHeader {
   be<XContentPackageType> magic;
   uint8_t signature[0x228];
   XContentLicense licenses[0x10];
   uint8_t content_id[0x14];
   be<uint32_t> header_size;
-});
+
+  bool is_magic_valid() const {
+    return magic == XContentPackageType::kCon ||
+           magic == XContentPackageType::kLive ||
+           magic == XContentPackageType::kPirs;
+  }
+};
 static_assert_size(XContentHeader, 0x344);
+#pragma pack(pop)
 
 struct StfsHeader {
   XContentHeader header;

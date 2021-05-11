@@ -79,7 +79,7 @@ class StfsContainerDevice : public Device {
     kSingleFile = 0x4,
   };
 
-  uint32_t ReadMagic(const std::filesystem::path& path);
+  XContentPackageType ReadMagic(const std::filesystem::path& path);
   bool ResolveFromFolder(const std::filesystem::path& path);
 
   Error MapFiles();

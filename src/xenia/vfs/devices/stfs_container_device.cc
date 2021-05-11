@@ -176,16 +176,15 @@ StfsContainerDevice::Error StfsContainerDevice::ReadHeaderAndVerify(
     const uint8_t* map_ptr, size_t map_size) {
   // Copy header & check signature
   memcpy(&header_, map_ptr, sizeof(StfsHeader));
-  if (header_.header.magic != XContentPackageType::kPackageTypeCon &&
-      header_.header.magic != XContentPackageType::kPackageTypeLive &&
-      header_.header.magic != XContentPackageType::kPackageTypePirs) {
+  if (!header_.header.is_magic_valid()) {
     // Unexpected format.
     return Error::kErrorFileMismatch;
   }
 
   // Pre-calculate some values used in block number calculations
   blocks_per_hash_table_ =
-      header_.metadata.stfs_volume_descriptor.flags.read_only_format ? 1 : 2;
+      header_.metadata.volume_descriptor.stfs.flags.bits.read_only_format ? 1
+                                                                          : 2;
 
   block_step[0] = kBlocksPerHashLevel[0] + blocks_per_hash_table_;
   block_step[1] = kBlocksPerHashLevel[1] +
@@ -202,7 +201,8 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSVOD() {
   const char* MEDIA_MAGIC = "MICROSOFT*XBOX*MEDIA";
 
   // Check for EDGF layout
-  if (header_.metadata.svod_volume_descriptor.features.enhanced_gdf_layout) {
+  if (header_.metadata.volume_descriptor.svod.features.bits
+          .enhanced_gdf_layout) {
     // The STFS header has specified that this SVOD system uses the EGDF layout.
     // We can expect the magic block to be located immediately after the hash
     // blocks. We also offset block address calculation by 0x1000 by shifting
@@ -414,7 +414,7 @@ void StfsContainerDevice::BlockToOffsetSVOD(size_t block, size_t* out_address,
   const size_t BLOCKS_PER_FILE = 0x14388;
   const size_t MAX_FILE_SIZE = 0xA290000;
   const size_t BLOCK_OFFSET =
-      header_.metadata.svod_volume_descriptor.start_data_block();
+      header_.metadata.volume_descriptor.svod.start_data_block();
 
   // Resolve the true block address and file index
   size_t true_block = block - (BLOCK_OFFSET * 2);
@@ -463,7 +463,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
   std::vector<StfsContainerEntry*> all_entries;
 
   // Load all listings.
-  auto& volume_descriptor = header_.metadata.stfs_volume_descriptor;
+  auto& volume_descriptor = header_.metadata.volume_descriptor.stfs;
   uint32_t table_block_index = volume_descriptor.file_table_block_number();
   for (size_t n = 0; n < volume_descriptor.file_table_block_count; n++) {
     const uint8_t* p = data + BlockToOffsetSTFS(table_block_index);
@@ -615,30 +615,29 @@ size_t StfsContainerDevice::BlockToHashBlockOffsetSTFS(
 
 const StfsHashEntry* StfsContainerDevice::GetBlockHash(const uint8_t* map_ptr,
                                                        uint32_t block_index) {
-  auto& volume_descriptor = header_.metadata.stfs_volume_descriptor;
+  auto& volume_descriptor = header_.metadata.volume_descriptor.stfs;
 
   // Offset for selecting the secondary hash block, in packages that have them
   uint32_t secondary_table_offset =
-      volume_descriptor.flags.root_active_index ? kSectorSize : 0;
+      volume_descriptor.flags.bits.root_active_index ? kSectorSize : 0;
 
   auto hash_offset_lv0 = BlockToHashBlockOffsetSTFS(block_index, 0);
   if (!cached_hash_tables_.count(hash_offset_lv0)) {
     // If this is read_only_format then it doesn't contain secondary blocks, no
     // need to check upper hash levels
-    if (volume_descriptor.flags.read_only_format) {
+    if (volume_descriptor.flags.bits.read_only_format) {
       secondary_table_offset = 0;
     } else {
       // Not a read-only package, need to check each levels active index flag to
       // see if we need to use secondary block or not
 
       // Check level1 table if package has it
-      if (volume_descriptor.allocated_block_count > kBlocksPerHashLevel[0]) {
+      if (volume_descriptor.total_block_count > kBlocksPerHashLevel[0]) {
         auto hash_offset_lv1 = BlockToHashBlockOffsetSTFS(block_index, 1);
 
         if (!cached_hash_tables_.count(hash_offset_lv1)) {
           // Check level2 table if package has it
-          if (volume_descriptor.allocated_block_count >
-              kBlocksPerHashLevel[1]) {
+          if (volume_descriptor.total_block_count > kBlocksPerHashLevel[1]) {
             auto hash_offset_lv2 = BlockToHashBlockOffsetSTFS(block_index, 2);
 
             if (!cached_hash_tables_.count(hash_offset_lv2)) {
@@ -652,7 +651,7 @@ const StfsHashEntry* StfsContainerDevice::GetBlockHash(const uint8_t* map_ptr,
             auto record_data =
                 &cached_hash_tables_[hash_offset_lv2].entries[record];
             secondary_table_offset =
-                record_data->levelN_activeindex() ? kSectorSize : 0;
+                record_data->levelN_active_index() ? kSectorSize : 0;
           }
 
           cached_hash_tables_[hash_offset_lv1] =
@@ -665,7 +664,7 @@ const StfsHashEntry* StfsContainerDevice::GetBlockHash(const uint8_t* map_ptr,
         auto record_data =
             &cached_hash_tables_[hash_offset_lv1].entries[record];
         secondary_table_offset =
-            record_data->levelN_activeindex() ? kSectorSize : 0;
+            record_data->levelN_active_index() ? kSectorSize : 0;
       }
     }
 
@@ -680,9 +679,10 @@ const StfsHashEntry* StfsContainerDevice::GetBlockHash(const uint8_t* map_ptr,
   return record_data;
 }
 
-uint32_t StfsContainerDevice::ReadMagic(const std::filesystem::path& path) {
+XContentPackageType StfsContainerDevice::ReadMagic(
+    const std::filesystem::path& path) {
   auto map = MappedMemory::Open(path, MappedMemory::Mode::kRead, 0, 4);
-  return xe::load_and_swap<uint32_t>(map->data());
+  return XContentPackageType(xe::load_and_swap<uint32_t>(map->data()));
 }
 
 bool StfsContainerDevice::ResolveFromFolder(const std::filesystem::path& path) {
@@ -708,9 +708,9 @@ bool StfsContainerDevice::ResolveFromFolder(const std::filesystem::path& path) {
       auto path = current_file.path / current_file.name;
       auto magic = ReadMagic(path);
 
-      if (magic == XContentPackageType::kPackageTypeCon ||
-          magic == XContentPackageType::kPackageTypeLive ||
-          magic == XContentPackageType::kPackageTypePirs) {
+      if (magic == XContentPackageType::kCon ||
+          magic == XContentPackageType::kLive ||
+          magic == XContentPackageType::kPirs) {
         host_path_ = current_file.path / current_file.name;
         XELOGI("STFS Package found: {}", xe::path_to_utf8(host_path_));
         return true;
