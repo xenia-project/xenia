@@ -47,13 +47,14 @@ X_STATUS StfsContainerFile::ReadSync(void* buffer, size_t buffer_length,
       continue;
     }
 
-    uint8_t* src = entry_->mmap()->at(record.file)->data();
-
     size_t read_offset =
         (byte_offset > src_offset) ? byte_offset - src_offset : 0;
     size_t read_length =
         std::min(record.length - read_offset, remaining_length);
-    std::memcpy(p, src + record.offset + read_offset, read_length);
+
+    auto& file = entry_->files()->at(record.file);
+    xe::filesystem::Seek(file, record.offset + read_offset, SEEK_SET);
+    fread(p, 1, read_length, file);
 
     p += read_length;
     src_offset += record.length;

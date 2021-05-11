@@ -15,7 +15,6 @@
 #include <string>
 #include <unordered_map>
 
-#include "xenia/base/mapped_memory.h"
 #include "xenia/base/math.h"
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/util/xex2_info.h"
@@ -55,10 +54,15 @@ class StfsContainerDevice : public Device {
   // TODO: use allocated_block_count inside volume-descriptor?
   size_t data_size() const {
     if (header_.header.header_size) {
-      return mmap_total_size_ -
+      if (header_.metadata.volume_type == XContentVolumeType::kStfs &&
+          header_.metadata.volume_descriptor.stfs.is_valid()) {
+        return header_.metadata.volume_descriptor.stfs.total_block_count *
+               kSectorSize;
+      }
+      return files_total_size_ -
              xe::round_up(header_.header.header_size, kSectorSize);
     }
-    return mmap_total_size_ - sizeof(StfsHeader);
+    return files_total_size_ - sizeof(StfsHeader);
   }
 
  private:
@@ -71,6 +75,7 @@ class StfsContainerDevice : public Device {
     kErrorReadError = -10,
     kErrorFileMismatch = -30,
     kErrorDamagedFile = -31,
+    kErrorTooSmall = -32,
   };
 
   enum class SvodLayoutType {
@@ -83,8 +88,10 @@ class StfsContainerDevice : public Device {
   XContentPackageType ReadMagic(const std::filesystem::path& path);
   bool ResolveFromFolder(const std::filesystem::path& path);
 
-  Error MapFiles();
-  Error ReadHeaderAndVerify(const uint8_t* map_ptr, size_t map_size);
+  Error OpenFiles();
+  void CloseFiles();
+
+  Error ReadHeaderAndVerify(FILE* header_file);
 
   Error ReadSVOD();
   Error ReadEntrySVOD(uint32_t sector, uint32_t ordinal,
@@ -98,13 +105,13 @@ class StfsContainerDevice : public Device {
   size_t BlockToHashBlockOffsetSTFS(uint32_t block_index,
                                     uint32_t hash_level) const;
 
-  const StfsHashEntry* GetBlockHash(const uint8_t* map_ptr,
-                                    uint32_t block_index);
+  const StfsHashEntry* GetBlockHash(uint32_t block_index);
 
   std::string name_;
   std::filesystem::path host_path_;
-  std::map<size_t, std::unique_ptr<MappedMemory>> mmap_;
-  size_t mmap_total_size_;
+
+  std::map<size_t, FILE*> files_;
+  size_t files_total_size_;
 
   size_t base_offset_;
   size_t magic_offset_;

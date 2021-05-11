@@ -14,28 +14,27 @@
 #include <string>
 #include <vector>
 
-#include "xenia/base/mapped_memory.h"
 #include "xenia/vfs/entry.h"
 #include "xenia/vfs/file.h"
 
 namespace xe {
 namespace vfs {
-typedef std::map<size_t, std::unique_ptr<MappedMemory>> MultifileMemoryMap;
+typedef std::map<size_t, FILE*> MultiFileHandles;
 
 class StfsContainerDevice;
 
 class StfsContainerEntry : public Entry {
  public:
   StfsContainerEntry(Device* device, Entry* parent, const std::string_view path,
-                     MultifileMemoryMap* mmap);
+                     MultiFileHandles* files);
   ~StfsContainerEntry() override;
 
   static std::unique_ptr<StfsContainerEntry> Create(Device* device,
                                                     Entry* parent,
                                                     const std::string_view name,
-                                                    MultifileMemoryMap* mmap);
+                                                    MultiFileHandles* files);
 
-  MultifileMemoryMap* mmap() const { return mmap_; }
+  MultiFileHandles* files() const { return files_; }
   size_t data_offset() const { return data_offset_; }
   size_t data_size() const { return data_size_; }
   size_t block() const { return block_; }
@@ -52,7 +51,7 @@ class StfsContainerEntry : public Entry {
  private:
   friend class StfsContainerDevice;
 
-  MultifileMemoryMap* mmap_;
+  MultiFileHandles* files_;
   size_t data_offset_;
   size_t data_size_;
   size_t block_;

@@ -49,13 +49,15 @@ StfsContainerDevice::StfsContainerDevice(const std::string_view mount_path,
     : Device(mount_path),
       name_("STFS"),
       host_path_(host_path),
-      mmap_total_size_(),
+      files_total_size_(),
       base_offset_(),
       magic_offset_(),
       header_(),
-      svod_layout_() {}
+      svod_layout_(),
+      blocks_per_hash_table_(1),
+      block_step{0, 0} {}
 
-StfsContainerDevice::~StfsContainerDevice() = default;
+StfsContainerDevice::~StfsContainerDevice() { CloseFiles(); }
 
 bool StfsContainerDevice::Initialize() {
   // Resolve a valid STFS file if a directory is given.
@@ -72,10 +74,10 @@ bool StfsContainerDevice::Initialize() {
     return false;
   }
 
-  // Map the data file(s)
-  auto map_result = MapFiles();
-  if (map_result != Error::kSuccess) {
-    XELOGE("Failed to map STFS container: {}", map_result);
+  // Open the data file(s)
+  auto open_result = OpenFiles();
+  if (open_result != Error::kSuccess) {
+    XELOGE("Failed to open STFS container: {}", open_result);
     return false;
   }
 
@@ -86,36 +88,36 @@ bool StfsContainerDevice::Initialize() {
     case XContentVolumeType::kSvod:
       return ReadSVOD() == Error::kSuccess;
     default:
-      XELOGE("Unknown STFS Descriptor Type: {}",
+      XELOGE("Unknown XContent volume type: {}",
              xe::byte_swap(uint32_t(header_.metadata.volume_type.value)));
       return false;
   }
 }
 
-StfsContainerDevice::Error StfsContainerDevice::MapFiles() {
+StfsContainerDevice::Error StfsContainerDevice::OpenFiles() {
   // Map the file containing the STFS Header and read it.
-  XELOGI("Mapping STFS Header file: {}", xe::path_to_utf8(host_path_));
-  auto header_map = MappedMemory::Open(host_path_, MappedMemory::Mode::kRead);
-  if (!header_map) {
-    XELOGE("Error mapping STFS Header file.");
+  XELOGI("Loading STFS header file: {}", xe::path_to_utf8(host_path_));
+
+  auto header_file = xe::filesystem::OpenFile(host_path_, "rb");
+  if (!header_file) {
+    XELOGE("Error opening STFS header file.");
     return Error::kErrorReadError;
   }
 
-  auto header_result =
-      ReadHeaderAndVerify(header_map->data(), header_map->size());
+  auto header_result = ReadHeaderAndVerify(header_file);
   if (header_result != Error::kSuccess) {
-    XELOGE("Error reading STFS Header: {}", header_result);
+    XELOGE("Error reading STFS header: {}", header_result);
+    fclose(header_file);
+    files_total_size_ = 0;
     return header_result;
   }
-
-  mmap_total_size_ = header_map->size();
 
   // If the STFS package is a single file, the header is self contained and
   // we don't need to map any extra files.
   // NOTE: data_file_count is 0 for STFS and 1 for SVOD
   if (header_.metadata.data_file_count <= 1) {
     XELOGI("STFS container is a single file.");
-    mmap_.emplace(std::make_pair(0, std::move(header_map)));
+    files_.emplace(std::make_pair(0, header_file));
     return Error::kSuccess;
   }
 
@@ -143,20 +145,30 @@ StfsContainerDevice::Error StfsContainerDevice::MapFiles() {
   }
 
   for (size_t i = 0; i < fragment_files.size(); i++) {
-    auto file = fragment_files.at(i);
-    auto path = file.path / file.name;
-    auto data = MappedMemory::Open(path, MappedMemory::Mode::kRead);
-    if (!data) {
+    auto& fragment = fragment_files.at(i);
+    auto path = fragment.path / fragment.name;
+    auto file = xe::filesystem::OpenFile(path, "rb");
+    if (!file) {
       XELOGI("Failed to map SVOD file {}.", xe::path_to_utf8(path));
-      mmap_.clear();
-      mmap_total_size_ = 0;
+      CloseFiles();
       return Error::kErrorReadError;
     }
-    mmap_total_size_ += data->size();
-    mmap_.emplace(std::make_pair(i, std::move(data)));
+
+    xe::filesystem::Seek(file, 0L, SEEK_END);
+    files_total_size_ += xe::filesystem::Tell(file);
+    // no need to seek back, any reads from this file will seek first anyway
+    files_.emplace(std::make_pair(i, file));
   }
   XELOGI("SVOD successfully mapped {} files.", fragment_files.size());
   return Error::kSuccess;
+}
+
+void StfsContainerDevice::CloseFiles() {
+  for (auto& file : files_) {
+    fclose(file.second);
+  }
+  files_.clear();
+  files_total_size_ = 0;
 }
 
 void StfsContainerDevice::Dump(StringBuffer* string_buffer) {
@@ -173,22 +185,34 @@ Entry* StfsContainerDevice::ResolvePath(const std::string_view path) {
 }
 
 StfsContainerDevice::Error StfsContainerDevice::ReadHeaderAndVerify(
-    const uint8_t* map_ptr, size_t map_size) {
-  // Copy header & check signature
-  memcpy(&header_, map_ptr, sizeof(StfsHeader));
+    FILE* header_file) {
+  // Check size of the file is enough to store an STFS header
+  xe::filesystem::Seek(header_file, 0L, SEEK_END);
+  files_total_size_ = xe::filesystem::Tell(header_file);
+  xe::filesystem::Seek(header_file, 0L, SEEK_SET);
+
+  if (sizeof(StfsHeader) > files_total_size_) {
+    return Error::kErrorTooSmall;
+  }
+
+  // Read header & check signature
+  fread(&header_, sizeof(StfsHeader), 1, header_file);
+
   if (!header_.header.is_magic_valid()) {
     // Unexpected format.
     return Error::kErrorFileMismatch;
   }
 
   // Pre-calculate some values used in block number calculations
-  blocks_per_hash_table_ =
-      header_.metadata.volume_descriptor.stfs.flags.bits.read_only_format ? 1
-                                                                          : 2;
+  if (header_.metadata.volume_type == XContentVolumeType::kStfs) {
+    blocks_per_hash_table_ =
+        header_.metadata.volume_descriptor.stfs.flags.bits.read_only_format ? 1
+                                                                            : 2;
 
-  block_step[0] = kBlocksPerHashLevel[0] + blocks_per_hash_table_;
-  block_step[1] = kBlocksPerHashLevel[1] +
-                  ((kBlocksPerHashLevel[0] + 1) * blocks_per_hash_table_);
+    block_step[0] = kBlocksPerHashLevel[0] + blocks_per_hash_table_;
+    block_step[1] = kBlocksPerHashLevel[1] +
+                    ((kBlocksPerHashLevel[0] + 1) * blocks_per_hash_table_);
+  }
 
   return Error::kSuccess;
 }
@@ -197,8 +221,10 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSVOD() {
   // SVOD Systems can have different layouts. The root block is
   // denoted by the magic "MICROSOFT*XBOX*MEDIA" and is always in
   // the first "actual" data fragment of the system.
-  auto data = mmap_.at(0)->data();
+  auto& svod_header = files_.at(0);
   const char* MEDIA_MAGIC = "MICROSOFT*XBOX*MEDIA";
+
+  uint8_t magic_buf[20];
 
   // Check for EDGF layout
   if (header_.metadata.volume_descriptor.svod.features.bits
@@ -207,7 +233,9 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSVOD() {
     // We can expect the magic block to be located immediately after the hash
     // blocks. We also offset block address calculation by 0x1000 by shifting
     // block indices by +0x2.
-    if (memcmp(data + 0x2000, MEDIA_MAGIC, 20) == 0) {
+    xe::filesystem::Seek(svod_header, 0x2000, SEEK_SET);
+    fread(magic_buf, 1, 20, svod_header);
+    if (std::memcmp(magic_buf, MEDIA_MAGIC, 20) == 0) {
       base_offset_ = 0x0000;
       magic_offset_ = 0x2000;
       svod_layout_ = SvodLayoutType::kEnhancedGDF;
@@ -216,58 +244,75 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSVOD() {
       XELOGE("SVOD uses an EGDF layout, but the magic block was not found.");
       return Error::kErrorFileMismatch;
     }
-  } else if (memcmp(data + 0x12000, MEDIA_MAGIC, 20) == 0) {
-    // If the SVOD's magic block is at 0x12000, it is likely using an XSF
-    // layout. This is usually due to converting the game using a third-party
-    // tool, as most of them use a nulled XSF as a template.
-
-    base_offset_ = 0x10000;
-    magic_offset_ = 0x12000;
-
-    // Check for XSF Header
-    const char* XSF_MAGIC = "XSF";
-    if (memcmp(data + 0x2000, XSF_MAGIC, 3) == 0) {
-      svod_layout_ = SvodLayoutType::kXSF;
-      XELOGI("SVOD uses an XSF layout. Magic block present at 0x12000.");
-      XELOGI("Game was likely converted using a third-party tool.");
-    } else {
-      svod_layout_ = SvodLayoutType::kUnknown;
-      XELOGI("SVOD appears to use an XSF layout, but no header is present.");
-      XELOGI("SVOD magic block found at 0x12000");
-    }
-  } else if (memcmp(data + 0xD000, MEDIA_MAGIC, 20) == 0) {
-    // If the SVOD's magic block is at 0xD000, it most likely means that it is
-    // a single-file system. The STFS Header is 0xB000 bytes , and the remaining
-    // 0x2000 is from hash tables. In most cases, these will be STFS, not SVOD.
-
-    base_offset_ = 0xB000;
-    magic_offset_ = 0xD000;
-
-    // Check for single file system
-    if (header_.metadata.data_file_count == 1) {
-      svod_layout_ = SvodLayoutType::kSingleFile;
-      XELOGI("SVOD is a single file. Magic block present at 0xD000.");
-    } else {
-      svod_layout_ = SvodLayoutType::kUnknown;
-      XELOGE(
-          "SVOD is not a single file, but the magic block was found at "
-          "0xD000.");
-    }
   } else {
-    XELOGE("Could not locate SVOD magic block.");
-    return Error::kErrorReadError;
+    xe::filesystem::Seek(svod_header, 0x12000, SEEK_SET);
+    fread(magic_buf, 1, 20, svod_header);
+    if (std::memcmp(magic_buf, MEDIA_MAGIC, 20) == 0) {
+      // If the SVOD's magic block is at 0x12000, it is likely using an XSF
+      // layout. This is usually due to converting the game using a third-party
+      // tool, as most of them use a nulled XSF as a template.
+
+      base_offset_ = 0x10000;
+      magic_offset_ = 0x12000;
+
+      // Check for XSF Header
+      const char* XSF_MAGIC = "XSF";
+      xe::filesystem::Seek(svod_header, 0x2000, SEEK_SET);
+      fread(magic_buf, 1, 3, svod_header);
+      if (std::memcmp(magic_buf, XSF_MAGIC, 3) == 0) {
+        svod_layout_ = SvodLayoutType::kXSF;
+        XELOGI("SVOD uses an XSF layout. Magic block present at 0x12000.");
+        XELOGI("Game was likely converted using a third-party tool.");
+      } else {
+        svod_layout_ = SvodLayoutType::kUnknown;
+        XELOGI("SVOD appears to use an XSF layout, but no header is present.");
+        XELOGI("SVOD magic block found at 0x12000");
+      }
+    } else {
+      xe::filesystem::Seek(svod_header, 0xD000, SEEK_SET);
+      fread(magic_buf, 1, 20, svod_header);
+      if (std::memcmp(magic_buf, MEDIA_MAGIC, 20) == 0) {
+        // If the SVOD's magic block is at 0xD000, it most likely means that it
+        // is a single-file system. The STFS Header is 0xB000 bytes , and the
+        // remaining 0x2000 is from hash tables. In most cases, these will be
+        // STFS, not SVOD.
+
+        base_offset_ = 0xB000;
+        magic_offset_ = 0xD000;
+
+        // Check for single file system
+        if (header_.metadata.data_file_count == 1) {
+          svod_layout_ = SvodLayoutType::kSingleFile;
+          XELOGI("SVOD is a single file. Magic block present at 0xD000.");
+        } else {
+          svod_layout_ = SvodLayoutType::kUnknown;
+          XELOGE(
+              "SVOD is not a single file, but the magic block was found at "
+              "0xD000.");
+        }
+      } else {
+        XELOGE("Could not locate SVOD magic block.");
+        return Error::kErrorReadError;
+      }
+    }
   }
 
   // Parse the root directory
-  uint8_t* magic_block = data + magic_offset_;
-  uint32_t root_block = xe::load<uint32_t>(magic_block + 0x14);
-  uint32_t root_size = xe::load<uint32_t>(magic_block + 0x18);
-  uint32_t root_creation_date = xe::load<uint32_t>(magic_block + 0x1C);
-  uint32_t root_creation_time = xe::load<uint32_t>(magic_block + 0x20);
+  xe::filesystem::Seek(svod_header, magic_offset_ + 0x14, SEEK_SET);
+
+  uint32_t root_block;
+  uint32_t root_size;
+  uint32_t root_creation_date;
+  uint32_t root_creation_time;
+  fread(&root_block, sizeof(uint32_t), 1, svod_header);
+  fread(&root_size, sizeof(uint32_t), 1, svod_header);
+  fread(&root_creation_date, sizeof(uint32_t), 1, svod_header);
+  fread(&root_creation_time, sizeof(uint32_t), 1, svod_header);
+
   uint64_t root_creation_timestamp =
       decode_fat_timestamp(root_creation_date, root_creation_time);
 
-  auto root_entry = new StfsContainerEntry(this, nullptr, "", &mmap_);
+  auto root_entry = new StfsContainerEntry(this, nullptr, "", &files_);
   root_entry->attributes_ = kFileAttributeDirectory;
   root_entry->access_timestamp_ = root_creation_timestamp;
   root_entry->create_timestamp_ = root_creation_timestamp;
@@ -292,16 +337,26 @@ StfsContainerDevice::Error StfsContainerDevice::ReadEntrySVOD(
   entry_address += true_ordinal_offset;
 
   // Read block's descriptor
-  auto data = mmap_.at(entry_file)->data() + entry_address;
+  auto& file = files_.at(entry_file);
+  xe::filesystem::Seek(file, entry_address, SEEK_SET);
 
-  uint16_t node_l = xe::load<uint16_t>(data + 0x00);
-  uint16_t node_r = xe::load<uint16_t>(data + 0x02);
-  uint32_t data_block = xe::load<uint32_t>(data + 0x04);
-  uint32_t length = xe::load<uint32_t>(data + 0x08);
-  uint8_t attributes = xe::load<uint8_t>(data + 0x0C);
-  uint8_t name_length = xe::load<uint8_t>(data + 0x0D);
-  auto name_buffer = reinterpret_cast<const char*>(data + 0x0E);
-  auto name = std::string(name_buffer, name_length);
+  uint16_t node_l;
+  uint16_t node_r;
+  uint32_t data_block;
+  uint32_t length;
+  uint8_t attributes;
+  uint8_t name_length;
+  fread(&node_l, sizeof(uint16_t), 1, file);
+  fread(&node_r, sizeof(uint16_t), 1, file);
+  fread(&data_block, sizeof(uint32_t), 1, file);
+  fread(&length, sizeof(uint32_t), 1, file);
+  fread(&attributes, sizeof(uint8_t), 1, file);
+  fread(&name_length, sizeof(uint8_t), 1, file);
+
+  auto name_buffer = std::make_unique<char[]>(name_length);
+  fread(name_buffer.get(), 1, name_length, file);
+
+  auto name = std::string(name_buffer.get(), name_length);
 
   // Read the left node
   if (node_l) {
@@ -319,7 +374,7 @@ StfsContainerDevice::Error StfsContainerDevice::ReadEntrySVOD(
   // NOTE: SVOD entries don't have timestamps for individual files, which can
   //       cause issues when decrypting games. Using the root entry's timestamp
   //       solves this issues.
-  auto entry = StfsContainerEntry::Create(this, parent, name, &mmap_);
+  auto entry = StfsContainerEntry::Create(this, parent, name, &files_);
   if (attributes & kFileAttributeDirectory) {
     // Entry is a directory
     entry->attributes_ = kFileAttributeDirectory | kFileAttributeReadOnly;
@@ -454,90 +509,98 @@ void StfsContainerDevice::BlockToOffsetSVOD(size_t block, size_t* out_address,
 }
 
 StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
-  auto data = mmap_.at(0)->data();
+  auto& file = files_.at(0);
 
-  auto root_entry = new StfsContainerEntry(this, nullptr, "", &mmap_);
+  auto root_entry = new StfsContainerEntry(this, nullptr, "", &files_);
   root_entry->attributes_ = kFileAttributeDirectory;
   root_entry_ = std::unique_ptr<Entry>(root_entry);
 
   std::vector<StfsContainerEntry*> all_entries;
 
   // Load all listings.
-  auto& volume_descriptor = header_.metadata.volume_descriptor.stfs;
-  uint32_t table_block_index = volume_descriptor.file_table_block_number();
-  for (size_t n = 0; n < volume_descriptor.file_table_block_count; n++) {
-    const uint8_t* p = data + BlockToOffsetSTFS(table_block_index);
+  StfsDirectoryBlock directory;
+
+  auto& descriptor = header_.metadata.volume_descriptor.stfs;
+  uint32_t table_block_index = descriptor.file_table_block_number();
+  size_t n = 0;
+  for (n = 0; n < descriptor.file_table_block_count; n++) {
+    auto offset = BlockToOffsetSTFS(table_block_index);
+    xe::filesystem::Seek(file, offset, SEEK_SET);
+
+    fread(&directory, sizeof(StfsDirectoryBlock), 1, file);
     for (size_t m = 0; m < kSectorSize / 0x40; m++) {
-      const uint8_t* name_buffer = p;  // 0x28b
-      if (name_buffer[0] == 0) {
+      auto& dir_entry = directory.entries[m];
+
+      if (dir_entry.name[0] == 0) {
         // Done.
         break;
       }
-      uint8_t name_length_flags = xe::load_and_swap<uint8_t>(p + 0x28);
-      uint32_t allocated_block_count = load_uint24_le(p + 0x2C);
-      uint32_t start_block_index = load_uint24_le(p + 0x2F);
-      uint16_t path_indicator = xe::load_and_swap<uint16_t>(p + 0x32);
-      uint32_t file_size = xe::load_and_swap<uint32_t>(p + 0x34);
-
-      // both date and time parts of the timestamp are big endian
-      uint16_t update_date = xe::load_and_swap<uint16_t>(p + 0x38);
-      uint16_t update_time = xe::load_and_swap<uint16_t>(p + 0x3A);
-      uint32_t access_date = xe::load_and_swap<uint16_t>(p + 0x3C);
-      uint32_t access_time = xe::load_and_swap<uint16_t>(p + 0x3E);
-      p += 0x40;
 
       StfsContainerEntry* parent_entry = nullptr;
-      if (path_indicator == 0xFFFF) {
+      if (dir_entry.directory_index == 0xFFFF) {
         parent_entry = root_entry;
       } else {
-        parent_entry = all_entries[path_indicator];
+        parent_entry = all_entries[dir_entry.directory_index];
       }
 
-      std::string name(reinterpret_cast<const char*>(name_buffer),
-                       name_length_flags & 0x3F);
-      auto entry = StfsContainerEntry::Create(this, parent_entry, name, &mmap_);
+      std::string name(reinterpret_cast<const char*>(dir_entry.name),
+                       dir_entry.flags.name_length & 0x3F);
+      auto entry =
+          StfsContainerEntry::Create(this, parent_entry, name, &files_);
 
-      // bit 0x40 = consecutive blocks (not fragmented?)
-      if (name_length_flags & 0x80) {
+      if (dir_entry.flags.directory) {
         entry->attributes_ = kFileAttributeDirectory;
       } else {
         entry->attributes_ = kFileAttributeNormal | kFileAttributeReadOnly;
-        entry->data_offset_ = BlockToOffsetSTFS(start_block_index);
-        entry->data_size_ = file_size;
+        entry->data_offset_ = BlockToOffsetSTFS(dir_entry.start_block_number());
+        entry->data_size_ = dir_entry.length;
       }
-      entry->size_ = file_size;
-      entry->allocation_size_ = xe::round_up(file_size, kSectorSize);
+      entry->size_ = dir_entry.length;
+      entry->allocation_size_ = xe::round_up(dir_entry.length, kSectorSize);
 
-      entry->create_timestamp_ = decode_fat_timestamp(update_date, update_time);
-      entry->access_timestamp_ = decode_fat_timestamp(access_date, access_time);
-      entry->write_timestamp_ = entry->create_timestamp_;
+      entry->create_timestamp_ =
+          decode_fat_timestamp(dir_entry.create_date, dir_entry.create_time);
+      entry->write_timestamp_ = decode_fat_timestamp(dir_entry.modified_date,
+                                                     dir_entry.modified_time);
+      entry->access_timestamp_ = entry->write_timestamp_;
 
       all_entries.push_back(entry.get());
 
       // Fill in all block records.
       // It's easier to do this now and just look them up later, at the cost
       // of some memory. Nasty chain walk.
-      // TODO(benvanik): optimize if flag 0x40 (consecutive) is set.
+      // TODO(benvanik): optimize if flags.contiguous is set.
       if (entry->attributes() & X_FILE_ATTRIBUTE_NORMAL) {
-        uint32_t block_index = start_block_index;
-        size_t remaining_size = file_size;
+        uint32_t block_index = dir_entry.start_block_number();
+        size_t remaining_size = dir_entry.length;
         while (remaining_size && block_index != 0xFFFFFF) {
           size_t block_size =
               std::min(static_cast<size_t>(kSectorSize), remaining_size);
           size_t offset = BlockToOffsetSTFS(block_index);
           entry->block_list_.push_back({0, offset, block_size});
           remaining_size -= block_size;
-          auto block_hash = GetBlockHash(data, block_index);
+          auto block_hash = GetBlockHash(block_index);
           block_index = block_hash->level0_next_block();
+        }
+
+        if (remaining_size) {
+          // Loop above must have exited prematurely, bad hash tables?
+          XELOGW(
+              "STFS file {} only found {} bytes for file, expected {} ({} "
+              "bytes missing)",
+              name, dir_entry.length - remaining_size, dir_entry.length,
+              remaining_size);
+          assert_always();
         }
 
         // Check that the number of blocks retrieved from hash entries matches
         // the block count read from the file entry
-        if (entry->block_list_.size() != allocated_block_count) {
+        if (entry->block_list_.size() != dir_entry.allocated_data_blocks()) {
           XELOGW(
               "STFS failed to read correct block-chain for entry {}, read {} "
               "blocks, expected {}",
-              entry->name_, entry->block_list_.size(), allocated_block_count);
+              entry->name_, entry->block_list_.size(),
+              dir_entry.allocated_data_blocks());
           assert_always();
         }
       }
@@ -545,11 +608,17 @@ StfsContainerDevice::Error StfsContainerDevice::ReadSTFS() {
       parent_entry->children_.emplace_back(std::move(entry));
     }
 
-    auto block_hash = GetBlockHash(data, table_block_index);
+    auto block_hash = GetBlockHash(table_block_index);
     table_block_index = block_hash->level0_next_block();
     if (table_block_index == 0xFFFFFF) {
       break;
     }
+  }
+
+  if (n + 1 != descriptor.file_table_block_count) {
+    XELOGW("STFS read {} file table blocks, but STFS headers expected {}!",
+           n + 1, descriptor.file_table_block_count);
+    assert_always();
   }
 
   return Error::kSuccess;
@@ -613,37 +682,41 @@ size_t StfsContainerDevice::BlockToHashBlockOffsetSTFS(
   return xe::round_up(header_.header.header_size, kSectorSize) + (block << 12);
 }
 
-const StfsHashEntry* StfsContainerDevice::GetBlockHash(const uint8_t* map_ptr,
-                                                       uint32_t block_index) {
-  auto& volume_descriptor = header_.metadata.volume_descriptor.stfs;
+const StfsHashEntry* StfsContainerDevice::GetBlockHash(uint32_t block_index) {
+  auto& file = files_.at(0);
+
+  auto& descriptor = header_.metadata.volume_descriptor.stfs;
 
   // Offset for selecting the secondary hash block, in packages that have them
   uint32_t secondary_table_offset =
-      volume_descriptor.flags.bits.root_active_index ? kSectorSize : 0;
+      descriptor.flags.bits.root_active_index ? kSectorSize : 0;
 
   auto hash_offset_lv0 = BlockToHashBlockOffsetSTFS(block_index, 0);
   if (!cached_hash_tables_.count(hash_offset_lv0)) {
     // If this is read_only_format then it doesn't contain secondary blocks, no
     // need to check upper hash levels
-    if (volume_descriptor.flags.bits.read_only_format) {
+    if (descriptor.flags.bits.read_only_format) {
       secondary_table_offset = 0;
     } else {
       // Not a read-only package, need to check each levels active index flag to
       // see if we need to use secondary block or not
 
       // Check level1 table if package has it
-      if (volume_descriptor.total_block_count > kBlocksPerHashLevel[0]) {
+      if (descriptor.total_block_count > kBlocksPerHashLevel[0]) {
         auto hash_offset_lv1 = BlockToHashBlockOffsetSTFS(block_index, 1);
 
         if (!cached_hash_tables_.count(hash_offset_lv1)) {
           // Check level2 table if package has it
-          if (volume_descriptor.total_block_count > kBlocksPerHashLevel[1]) {
+          if (descriptor.total_block_count > kBlocksPerHashLevel[1]) {
             auto hash_offset_lv2 = BlockToHashBlockOffsetSTFS(block_index, 2);
 
             if (!cached_hash_tables_.count(hash_offset_lv2)) {
-              cached_hash_tables_[hash_offset_lv2] =
-                  *reinterpret_cast<const StfsHashTable*>(
-                      map_ptr + hash_offset_lv2 + secondary_table_offset);
+              xe::filesystem::Seek(
+                  file, hash_offset_lv2 + secondary_table_offset, SEEK_SET);
+
+              StfsHashTable table_lv2;
+              fread(&table_lv2, sizeof(StfsHashTable), 1, file);
+              cached_hash_tables_[hash_offset_lv2] = table_lv2;
             }
 
             auto record =
@@ -654,9 +727,12 @@ const StfsHashEntry* StfsContainerDevice::GetBlockHash(const uint8_t* map_ptr,
                 record_data->levelN_active_index() ? kSectorSize : 0;
           }
 
-          cached_hash_tables_[hash_offset_lv1] =
-              *reinterpret_cast<const StfsHashTable*>(
-                  map_ptr + hash_offset_lv1 + secondary_table_offset);
+          xe::filesystem::Seek(file, hash_offset_lv1 + secondary_table_offset,
+                               SEEK_SET);
+
+          StfsHashTable table_lv1;
+          fread(&table_lv1, sizeof(StfsHashTable), 1, file);
+          cached_hash_tables_[hash_offset_lv1] = table_lv1;
         }
 
         auto record =
@@ -668,9 +744,12 @@ const StfsHashEntry* StfsContainerDevice::GetBlockHash(const uint8_t* map_ptr,
       }
     }
 
-    cached_hash_tables_[hash_offset_lv0] =
-        *reinterpret_cast<const StfsHashTable*>(map_ptr + hash_offset_lv0 +
-                                                secondary_table_offset);
+    xe::filesystem::Seek(file, hash_offset_lv0 + secondary_table_offset,
+                         SEEK_SET);
+
+    StfsHashTable table_lv0;
+    fread(&table_lv0, sizeof(StfsHashTable), 1, file);
+    cached_hash_tables_[hash_offset_lv0] = table_lv0;
   }
 
   auto record = block_index % kBlocksPerHashLevel[0];
