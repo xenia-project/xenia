@@ -18,9 +18,9 @@ namespace vfs {
 
 StfsContainerEntry::StfsContainerEntry(Device* device, Entry* parent,
                                        const std::string_view path,
-                                       MultifileMemoryMap* mmap)
+                                       MultiFileHandles* files)
     : Entry(device, parent, path),
-      mmap_(mmap),
+      files_(files),
       data_offset_(0),
       data_size_(0),
       block_(0) {}
@@ -29,9 +29,10 @@ StfsContainerEntry::~StfsContainerEntry() = default;
 
 std::unique_ptr<StfsContainerEntry> StfsContainerEntry::Create(
     Device* device, Entry* parent, const std::string_view name,
-    MultifileMemoryMap* mmap) {
+    MultiFileHandles* files) {
   auto path = xe::utf8::join_guest_paths(parent->path(), name);
-  auto entry = std::make_unique<StfsContainerEntry>(device, parent, path, mmap);
+  auto entry =
+      std::make_unique<StfsContainerEntry>(device, parent, path, files);
 
   return std::move(entry);
 }
