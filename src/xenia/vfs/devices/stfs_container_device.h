@@ -30,11 +30,19 @@ class StfsContainerEntry;
 
 class StfsContainerDevice : public Device {
  public:
+  const static uint32_t kBlockSize = 0x1000;
+
   StfsContainerDevice(const std::string_view mount_path,
                       const std::filesystem::path& host_path);
   ~StfsContainerDevice() override;
 
   bool Initialize() override;
+
+  bool is_read_only() const override {
+    return header_.metadata.volume_type != XContentVolumeType::kStfs ||
+           header_.metadata.volume_descriptor.stfs.flags.bits.read_only_format;
+  }
+
   void Dump(StringBuffer* string_buffer) override;
   Entry* ResolvePath(const std::string_view path) override;
 
@@ -43,31 +51,41 @@ class StfsContainerDevice : public Device {
   uint32_t component_name_max_length() const override { return 40; }
 
   uint32_t total_allocation_units() const override {
+    if (header_.metadata.volume_type == XContentVolumeType::kStfs) {
+      return header_.metadata.volume_descriptor.stfs.total_block_count;
+    }
+
     return uint32_t(data_size() / sectors_per_allocation_unit() /
                     bytes_per_sector());
   }
-  uint32_t available_allocation_units() const override { return 0; }
+  uint32_t available_allocation_units() const override {
+    if (!is_read_only()) {
+      auto& descriptor = header_.metadata.volume_descriptor.stfs;
+      return kBlocksPerHashLevel[2] -
+             (descriptor.total_block_count - descriptor.free_block_count);
+    }
+    return 0;
+  }
   uint32_t sectors_per_allocation_unit() const override { return 8; }
   uint32_t bytes_per_sector() const override { return 0x200; }
 
-  // Gives rough estimate of the size of the data in this container
-  // TODO: use allocated_block_count inside volume-descriptor?
   size_t data_size() const {
     if (header_.header.header_size) {
-      if (header_.metadata.volume_type == XContentVolumeType::kStfs &&
-          header_.metadata.volume_descriptor.stfs.is_valid()) {
+      if (header_.metadata.volume_type == XContentVolumeType::kStfs) {
         return header_.metadata.volume_descriptor.stfs.total_block_count *
-               kSectorSize;
+               kBlockSize;
       }
       return files_total_size_ -
-             xe::round_up(header_.header.header_size, kSectorSize);
+             xe::round_up(header_.header.header_size, kBlockSize);
     }
     return files_total_size_ - sizeof(StfsHeader);
   }
 
  private:
-  const uint32_t kSectorSize = 0x1000;
   const uint32_t kBlocksPerHashLevel[3] = {170, 28900, 4913000};
+  const uint32_t kEndOfChain = 0xFFFFFF;
+  const uint32_t kEntriesPerDirectoryBlock =
+      kBlockSize / sizeof(StfsDirectoryEntry);
 
   enum class Error {
     kSuccess = 0,
@@ -113,8 +131,8 @@ class StfsContainerDevice : public Device {
   std::map<size_t, FILE*> files_;
   size_t files_total_size_;
 
-  size_t base_offset_;
-  size_t magic_offset_;
+  size_t svod_base_offset_;
+
   std::unique_ptr<Entry> root_entry_;
   StfsHeader header_;
   SvodLayoutType svod_layout_;
