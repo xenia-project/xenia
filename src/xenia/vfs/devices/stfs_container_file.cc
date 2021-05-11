@@ -37,8 +37,8 @@ X_STATUS StfsContainerFile::ReadSync(void* buffer, size_t buffer_length,
   uint8_t* p = reinterpret_cast<uint8_t*>(buffer);
   size_t remaining_length =
       std::min(buffer_length, entry_->size() - byte_offset);
-  *out_bytes_read = remaining_length;
 
+  *out_bytes_read = 0;
   for (size_t i = 0; i < entry_->block_list().size(); i++) {
     auto& record = entry_->block_list()[i];
     if (src_offset + record.length <= byte_offset) {
@@ -54,9 +54,10 @@ X_STATUS StfsContainerFile::ReadSync(void* buffer, size_t buffer_length,
 
     auto& file = entry_->files()->at(record.file);
     xe::filesystem::Seek(file, record.offset + read_offset, SEEK_SET);
-    fread(p, 1, read_length, file);
+    auto num_read = fread(p, 1, read_length, file);
 
-    p += read_length;
+    *out_bytes_read += num_read;
+    p += num_read;
     src_offset += record.length;
     remaining_length -= read_length;
     if (remaining_length == 0) {
