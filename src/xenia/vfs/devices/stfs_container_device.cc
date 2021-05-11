@@ -25,15 +25,6 @@
 namespace xe {
 namespace vfs {
 
-uint32_t load_uint24_be(const uint8_t* p) {
-  return (static_cast<uint32_t>(p[0]) << 16) |
-         (static_cast<uint32_t>(p[1]) << 8) | static_cast<uint32_t>(p[2]);
-}
-uint32_t load_uint24_le(const uint8_t* p) {
-  return (static_cast<uint32_t>(p[2]) << 16) |
-         (static_cast<uint32_t>(p[1]) << 8) | static_cast<uint32_t>(p[0]);
-}
-
 // Convert FAT timestamp to 100-nanosecond intervals since January 1, 1601 (UTC)
 uint64_t decode_fat_timestamp(uint32_t date, uint32_t time) {
   struct tm tm = {0};
