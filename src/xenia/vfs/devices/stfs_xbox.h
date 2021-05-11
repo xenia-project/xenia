@@ -171,6 +171,59 @@ struct StfsHashTable {
 };
 static_assert_size(StfsHashTable, 0x1000);
 
+struct StfsDirectoryEntry {
+  char name[40];
+
+  struct {
+    uint8_t name_length : 6;
+    uint8_t contiguous : 1;
+    uint8_t directory : 1;
+  } flags;
+
+  uint8_t valid_data_blocks_raw[3];
+  uint8_t allocated_data_blocks_raw[3];
+  uint8_t start_block_number_raw[3];
+
+  be<uint16_t> directory_index;
+
+  be<uint32_t> length;
+
+  be<uint16_t> create_date;
+  be<uint16_t> create_time;
+  be<uint16_t> modified_date;
+  be<uint16_t> modified_time;
+
+  uint32_t valid_data_blocks() const {
+    return load_uint24_le(valid_data_blocks_raw);
+  }
+
+  void set_valid_data_blocks(uint32_t value) {
+    store_uint24_le(valid_data_blocks_raw, value);
+  }
+
+  uint32_t allocated_data_blocks() const {
+    return load_uint24_le(allocated_data_blocks_raw);
+  }
+
+  void set_allocated_data_blocks(uint32_t value) {
+    store_uint24_le(allocated_data_blocks_raw, value);
+  }
+
+  uint32_t start_block_number() const {
+    return load_uint24_le(start_block_number_raw);
+  }
+
+  void set_start_block_number(uint32_t value) {
+    store_uint24_le(start_block_number_raw, value);
+  }
+};
+static_assert_size(StfsDirectoryEntry, 0x40);
+
+struct StfsDirectoryBlock {
+  StfsDirectoryEntry entries[0x40];
+};
+static_assert_size(StfsDirectoryBlock, 0x1000);
+
 /* SVOD structures */
 struct SvodDeviceDescriptor {
   uint8_t descriptor_length;
