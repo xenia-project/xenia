@@ -621,12 +621,22 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
         std::make_pair(edram_bases[rt_index], rt_index);
   }
   std::sort(edram_bases_sorted, edram_bases_sorted + edram_bases_sorted_count);
-  uint32_t rt_max_distance_tiles = xenos::kEdramTileCount;
+  // "As if it was 64bpp" (contribution of 32bpp render targets multiplied by 2,
+  // and clamping for 32bpp render targets divides this by 2) because 32bpp
+  // render targets can be combined with twice as long 64bpp render targets. An
+  // example is the Dead Space 3 menu background (1-sample 1152x720, or 1200x720
+  // after rounding to tiles, with a 32bpp depth buffer at 0 requiring 675
+  // tiles, and a 64bpp color buffer at 675 requiring 1350 tiles, but the
+  // smallest distance between two render target bases is 675 tiles).
+  uint32_t rt_max_distance_tiles_at_64bpp = xenos::kEdramTileCount * 2;
   if (cvars::mrt_edram_used_range_clamp_to_min) {
     for (uint32_t i = 1; i < edram_bases_sorted_count; ++i) {
-      rt_max_distance_tiles =
-          std::min(rt_max_distance_tiles, edram_bases_sorted[i].first -
-                                              edram_bases_sorted[i - 1].first);
+      const std::pair<uint32_t, uint32_t>& rt_base_prev =
+          edram_bases_sorted[i - 1];
+      rt_max_distance_tiles_at_64bpp =
+          std::min(rt_max_distance_tiles_at_64bpp,
+                   (edram_bases_sorted[i].first - rt_base_prev.first)
+                       << (((rts_are_64bpp >> rt_base_prev.second) & 1) ^ 1));
     }
   }
 
@@ -656,10 +666,10 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
       }
       rts[rt_bit_index] = render_target;
     }
+    uint32_t rt_is_64bpp = (rts_are_64bpp >> rt_bit_index) & 1;
     rt_lengths_tiles[i] = std::min(
-        std::min(
-            length_used_tiles_at_32bpp << ((rts_are_64bpp >> rt_bit_index) & 1),
-            rt_max_distance_tiles),
+        std::min(length_used_tiles_at_32bpp << rt_is_64bpp,
+                 rt_max_distance_tiles_at_64bpp >> (rt_is_64bpp ^ 1)),
         ((i + 1 < edram_bases_sorted_count) ? edram_bases_sorted[i + 1].first
                                             : xenos::kEdramTileCount) -
             rt_base);
