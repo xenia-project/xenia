@@ -155,29 +155,36 @@ bool SetTlsValue(TlsHandle handle, uintptr_t value) {
 class PosixHighResolutionTimer : public HighResolutionTimer {
  public:
   explicit PosixHighResolutionTimer(std::function<void()> callback)
-      : callback_(std::move(callback)), timer_(nullptr) {}
+      : callback_(std::move(callback)), valid_(false) {}
   ~PosixHighResolutionTimer() override {
-    if (timer_) timer_delete(timer_);
+    if (valid_) timer_delete(timer_);
   }
 
   bool Initialize(std::chrono::milliseconds period) {
+    if (valid_) {
+      // Double initialization
+      assert_always();
+      return false;
+    }
     // Create timer
     sigevent sev{};
     sev.sigev_notify = SIGEV_SIGNAL;
     sev.sigev_signo = GetSystemSignal(SignalType::kHighResolutionTimer);
     sev.sigev_value.sival_ptr = (void*)&callback_;
-    if (timer_create(CLOCK_REALTIME, &sev, &timer_) == -1) return false;
+    if (timer_create(CLOCK_MONOTONIC, &sev, &timer_) == -1) return false;
 
     // Start timer
     itimerspec its{};
     its.it_value = DurationToTimeSpec(period);
     its.it_interval = its.it_value;
-    return timer_settime(timer_, 0, &its, nullptr) != -1;
+    valid_ = timer_settime(timer_, 0, &its, nullptr) != -1;
+    return valid_;
   }
 
  private:
   std::function<void()> callback_;
   timer_t timer_;
+  bool valid_;  // all values for timer_t are legal so we need this
 };
 
 std::unique_ptr<HighResolutionTimer> HighResolutionTimer::CreateRepeating(
@@ -187,7 +194,7 @@ std::unique_ptr<HighResolutionTimer> HighResolutionTimer::CreateRepeating(
   if (!timer->Initialize(period)) {
     return nullptr;
   }
-  return std::unique_ptr<HighResolutionTimer>(timer.release());
+  return std::move(timer);
 }
 
 class PosixConditionBase {
@@ -419,7 +426,7 @@ class PosixCondition<Timer> : public PosixConditionBase {
       sev.sigev_notify = SIGEV_SIGNAL;
       sev.sigev_signo = GetSystemSignal(SignalType::kTimer);
       sev.sigev_value.sival_ptr = this;
-      if (timer_create(CLOCK_REALTIME, &sev, &timer_) == -1) return false;
+      if (timer_create(CLOCK_MONOTONIC, &sev, &timer_) == -1) return false;
     }
 
     // Start timer
