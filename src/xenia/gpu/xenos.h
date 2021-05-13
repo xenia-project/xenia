@@ -1067,8 +1067,20 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     ClampMode clamp_z : 3;                               // +16
     SignedRepeatingFractionMode signed_rf_mode_all : 1;  // +19
     uint32_t dim_tbd : 2;                                // +20
-    uint32_t pitch : 9;                                  // +22 byte_pitch >> 5
-    uint32_t tiled : 1;                                  // +31
+    // Base row pitch in pixels (not blocks) >> 5. For linear textures, this is
+    // provided by Direct3D 9 in a way that every row of blocks ends up aligned
+    // to kTextureLinearRowAlignmentBytes (the GPU requires 256-byte alignment
+    // of linear texture block rows for all textures).
+    // Mips are always stored with padding to the `max(next_pow2(base width or
+    // height) >> level, 1)` or a 32x32x4 tile (whichever is larger), so this
+    // pitch is irrelevant to them (but the 256-byte alignment requirement still
+    // applies to linear textures).
+    // Examples of pitch > aligned width:
+    // - Plants vs. Zombies (loading screen and menu backgrounds, 1408 for a
+    //   1280x linear k_DXT4_5 texture, which corresponds to 22 * 256 bytes
+    //   rather than 20 * 256 for just 1280x).
+    uint32_t pitch : 9;  // +22
+    uint32_t tiled : 1;  // +31
 
     TextureFormat format : 6;           // +0 dword_1
     Endian endianness : 2;              // +6

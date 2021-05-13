@@ -116,6 +116,11 @@ class SharedMemory {
     return host_gpu_memory_sparse_granularity_log2_;
   }
 
+  // Allocations in the host buffer are aligned the same way as in the guest
+  // physical memory (for instance, if an allocation is 64 KB, it can represent
+  // 0-64 KB, 64-128 KB, 128-192 KB in the guest memory, and so on, but not
+  // something like 16-80 KB. This is assumed by the rules for texture data
+  // access in the texture cache.
   virtual bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
                                                 uint32_t length_allocations);
 

@@ -10,7 +10,7 @@
 //   uint xe_resolve_edram_info;        // Offset:    0 Size:     4
 //   uint xe_resolve_address_info;      // Offset:    4 Size:     4
 //   uint xe_resolve_dest_info;         // Offset:    8 Size:     4
-//   uint xe_resolve_dest_pitch;        // Offset:   12 Size:     4
+//   uint xe_resolve_dest_pitch_aligned;// Offset:   12 Size:     4
 //   uint xe_resolve_dest_base;         // Offset:   16 Size:     4
 //
 // }
@@ -124,40 +124,42 @@ if_nz r3.z
 endif 
 bfi r1.xyzw, l(2, 2, 2, 2), l(3, 3, 3, 3), r1.zxxz, l(0, 0, 0, 0)
 iadd r0.xyzw, r0.xyzw, r1.xyzw
-and r1.xy, CB0[0][0].wzww, l(0x00003fff, 8, 0, 0)
+bfi r1.x, l(10), l(5), CB0[0][0].w, l(0)
+and r1.y, CB0[0][0].z, l(8)
 if_nz r1.y
-  ubfe r1.zw, l(0, 0, 3, 14), l(0, 0, 4, 16), CB0[0][0].zzzw
-  iadd r1.yw, r1.wwwx, l(0, 31, 0, 31)
+  ubfe r1.y, l(3), l(4), CB0[0][0].z
+  ushr r1.z, CB0[0][0].w, l(10)
+  ishl r1.z, r1.z, l(5)
   ishr r5.xyzw, r0.zwzw, l(4, 5, 3, 3)
-  ishr r3.x, r1.z, l(2)
-  ushr r1.yw, r1.yyyw, l(0, 4, 0, 5)
-  and r1.y, r1.y, l(2046)
-  imad r1.y, r3.x, r1.y, r5.x
-  imad r1.y, r1.y, r1.w, r5.y
-  ishl r1.w, r0.z, l(10)
-  ishr r1.w, r1.w, l(6)
-  and r1.w, r1.w, l(96)
-  iadd r3.x, r3.x, r5.z
-  bfi r3.y, l(1), l(1), r3.x, l(0)
+  ishr r1.w, r1.y, l(2)
+  ushr r1.z, r1.z, l(4)
+  and r1.z, r1.z, l(0x00007ffe)
+  imad r1.z, r1.w, r1.z, r5.x
+  ushr r3.x, r1.x, l(5)
+  imad r1.z, r1.z, r3.x, r5.y
+  ishl r3.x, r0.z, l(10)
+  ishr r3.x, r3.x, l(6)
+  and r3.x, r3.x, l(96)
+  iadd r1.w, r1.w, r5.z
+  bfi r3.y, l(1), l(1), r1.w, l(0)
   iadd r3.y, r3.y, r5.w
   bfi r3.y, l(2), l(1), r3.y, l(0)
-  bfi r3.x, l(1), l(0), r3.x, r3.y
-  bfi r3.yz, l(0, 20, 20, 0), l(0, 10, 13, 0), r1.yyyy, l(0, 0, 0, 0)
-  imad r1.yw, r1.wwww, l(0, 2, 0, 16), r3.yyyz
-  bfi r1.yz, l(0, 2, 2, 0), l(0, 8, 11, 0), r1.zzzz, r1.yywy
-  bfi r1.w, l(1), l(4), r0.z, l(0)
+  bfi r1.w, l(1), l(0), r1.w, r3.y
+  bfi r3.yz, l(0, 20, 20, 0), l(0, 10, 13, 0), r1.zzzz, l(0, 0, 0, 0)
+  imad r3.xy, r3.xxxx, l(2, 16, 0, 0), r3.yzyy
+  bfi r1.yz, l(0, 2, 2, 0), l(0, 8, 11, 0), r1.yyyy, r3.xxyx
+  bfi r3.x, l(1), l(4), r0.z, l(0)
   ubfe r3.y, l(3), l(6), r1.y
-  and r3.z, r3.x, l(6)
-  bfi r3.x, l(1), l(8), r3.x, l(0)
-  imad r3.x, r3.y, l(32), r3.x
-  imad r3.x, r3.z, l(4), r3.x
-  bfi r1.yz, l(0, 6, 6, 0), l(0, 0, 3, 0), r1.wwww, r1.yyzy
-  bfi r1.z, l(9), l(3), r3.x, r1.z
+  and r3.z, r1.w, l(6)
+  bfi r1.w, l(1), l(8), r1.w, l(0)
+  imad r1.w, r3.y, l(32), r1.w
+  imad r1.w, r3.z, l(4), r1.w
+  bfi r1.yz, l(0, 6, 6, 0), l(0, 0, 3, 0), r3.xxxx, r1.yyzy
+  bfi r1.z, l(9), l(3), r1.w, r1.z
   bfi r1.y, l(6), l(0), r1.y, r1.z
 else 
   ishr r5.xyzw, r0.xyzw, l(5, 5, 2, 3)
-  iadd r0.x, r1.x, l(31)
-  ushr r0.x, r0.x, l(5)
+  ushr r0.x, r1.x, l(5)
   imad r0.x, r5.y, r0.x, r5.x
   ishl r0.yw, r0.zzzz, l(0, 5, 0, 7)
   and r0.yw, r0.yyyw, l(0, 448, 0, 2048)
@@ -206,4 +208,4 @@ if_nz r0.z
 endif 
 store_uav_typed U0[0].xyzw, r0.xxxx, r4.xyzw
 ret 
-// Approximately 161 instruction slots used
+// Approximately 163 instruction slots used

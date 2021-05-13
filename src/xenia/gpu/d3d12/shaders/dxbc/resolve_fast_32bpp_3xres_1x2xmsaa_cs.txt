@@ -10,7 +10,7 @@
 //   uint xe_resolve_edram_info;        // Offset:    0 Size:     4
 //   uint xe_resolve_address_info;      // Offset:    4 Size:     4
 //   uint xe_resolve_dest_info;         // Offset:    8 Size:     4
-//   uint xe_resolve_dest_pitch;        // Offset:   12 Size:     4
+//   uint xe_resolve_dest_pitch_aligned;// Offset:   12 Size:     4
 //
 // }
 //
@@ -174,53 +174,53 @@ if_nz r3.w
 endif 
 bfi r3.xyzw, l(2, 2, 2, 2), l(3, 3, 3, 3), r1.zxxz, l(0, 0, 0, 0)
 iadd r0.xyzw, r0.xyzw, r3.xyzw
-and r3.xyz, CB0[0][0].zwzz, l(7, 0x00003fff, 8, 0)
-if_nz r3.z
-  ubfe r1.xz, l(3, 0, 14, 0), l(4, 0, 16, 0), CB0[0][0].zzwz
-  mov r3.w, r1.z
-  iadd r3.zw, r3.wwwy, l(0, 0, 31, 31)
+bfi r1.x, l(10), l(5), CB0[0][0].w, l(0)
+and r3.xy, CB0[0][0].zzzz, l(7, 8, 0, 0)
+if_nz r3.y
+  ubfe r1.z, l(3), l(4), CB0[0][0].z
+  ushr r3.y, CB0[0][0].w, l(10)
+  ishl r3.y, r3.y, l(5)
   ishr r6.xyzw, r0.zwzw, l(4, 5, 3, 3)
-  ishr r1.z, r1.x, l(2)
-  ushr r3.zw, r3.zzzw, l(0, 0, 4, 5)
-  and r3.z, r3.z, l(2046)
-  imad r3.z, r1.z, r3.z, r6.x
-  imad r3.z, r3.z, r3.w, r6.y
+  ishr r3.z, r1.z, l(2)
+  ushr r3.y, r3.y, l(4)
+  and r3.y, r3.y, l(0x00007ffe)
+  imad r3.y, r3.z, r3.y, r6.x
+  ushr r3.w, r1.x, l(5)
+  imad r3.y, r3.y, r3.w, r6.y
   ishl r3.w, r0.z, l(10)
   and r3.w, r3.w, l(6144)
   bfi r3.w, l(3), l(8), r0.w, r3.w
   ishr r3.w, r3.w, l(6)
-  iadd r1.z, r1.z, r6.z
-  bfi r6.x, l(1), l(1), r1.z, l(0)
+  iadd r3.z, r3.z, r6.z
+  bfi r6.xyz, l(1, 20, 20, 0), l(1, 10, 13, 0), r3.zyyz, l(0, 0, 0, 0)
   iadd r6.x, r6.x, r6.w
   bfi r6.x, l(2), l(1), r6.x, l(0)
-  bfi r1.z, l(1), l(0), r1.z, r6.x
+  bfi r3.z, l(1), l(0), r3.z, r6.x
   and r6.x, r3.w, l(112)
-  bfi r6.yz, l(0, 20, 20, 0), l(0, 10, 13, 0), r3.zzzz, l(0, 0, 0, 0)
   imad r6.xy, r6.xxxx, l(2, 16, 0, 0), r6.yzyy
-  bfi r3.zw, l(0, 0, 4, 4), l(0, 0, 0, 3), r3.wwww, r6.xxxy
-  bfi r3.zw, l(0, 0, 2, 2), l(0, 0, 8, 11), r1.xxxx, r3.zzzw
-  ubfe r1.x, l(3), l(6), r3.z
-  and r6.x, r1.z, l(6)
-  bfi r1.z, l(1), l(8), r1.z, l(0)
-  imad r1.x, r1.x, l(32), r1.z
-  imad r1.x, r6.x, l(4), r1.x
-  bfi r3.zw, l(0, 0, 1, 1), l(0, 0, 4, 7), r0.zzzz, r3.zzzw
-  bfi r1.x, l(9), l(3), r1.x, r3.w
-  bfi r1.x, l(6), l(0), r3.z, r1.x
+  bfi r3.yw, l(0, 4, 0, 4), l(0, 0, 0, 3), r3.wwww, r6.xxxy
+  bfi r3.yw, l(0, 2, 0, 2), l(0, 8, 0, 11), r1.zzzz, r3.yyyw
+  ubfe r1.z, l(3), l(6), r3.y
+  and r6.x, r3.z, l(6)
+  bfi r3.z, l(1), l(8), r3.z, l(0)
+  imad r1.z, r1.z, l(32), r3.z
+  imad r1.z, r6.x, l(4), r1.z
+  bfi r3.yz, l(0, 1, 1, 0), l(0, 4, 7, 0), r0.zzzz, r3.yywy
+  bfi r1.z, l(9), l(3), r1.z, r3.z
+  bfi r1.z, l(6), l(0), r3.y, r1.z
 else 
   ishr r6.xyzw, r0.xyzw, l(5, 5, 2, 3)
-  iadd r0.x, r3.y, l(31)
-  ushr r0.x, r0.x, l(5)
+  ushr r0.x, r1.x, l(5)
   imad r0.x, r6.y, r0.x, r6.x
   ishl r3.yz, r0.zzzz, l(0, 4, 7, 0)
   and r3.yz, r3.yyzy, l(0, 224, 2048, 0)
   bfi r0.y, l(3), l(2), r0.w, r3.y
-  ishl r1.z, r3.y, l(1)
-  bfi r0.w, l(3), l(3), r0.w, r1.z
+  ishl r1.x, r3.y, l(1)
+  bfi r0.w, l(3), l(3), r0.w, r1.x
   and r0.w, r0.w, l(480)
-  bfi r1.z, l(23), l(9), r0.x, r0.w
-  bfi r1.z, l(4), l(0), r0.y, r1.z
-  bfi r1.z, l(1), l(4), r0.z, r1.z
+  bfi r1.x, l(23), l(9), r0.x, r0.w
+  bfi r1.x, l(4), l(0), r0.y, r1.x
+  bfi r1.x, l(1), l(4), r0.z, r1.x
   ishl r3.yw, r0.wwww, l(0, 3, 0, 2)
   bfi r0.xw, l(23, 0, 0, 23), l(12, 0, 0, 11), r0.xxxx, r3.yyyw
   bfi r0.xy, l(4, 4, 0, 0), l(3, 2, 0, 0), r0.yyyy, r0.xwxx
@@ -232,9 +232,9 @@ else
   iadd r0.y, r6.w, r0.y
   bfi r0.y, l(2), l(6), r0.y, l(0)
   iadd r0.x, r0.x, r0.y
-  bfi r1.x, l(6), l(0), r1.z, r0.x
+  bfi r1.z, l(6), l(0), r1.x, r0.x
 endif 
-imul null, r0.x, r1.x, l(9)
+imul null, r0.x, r1.z, l(9)
 ushr r0.x, r0.x, l(3)
 ieq r0.yzw, r3.xxxx, l(0, 1, 2, 3)
 or r0.yz, r0.zzwz, r0.yyzy

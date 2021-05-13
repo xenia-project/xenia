@@ -2111,6 +2111,7 @@ void TextureCache::BindingInfoFromFetchConstant(
   key_out.width = width;
   key_out.height = height;
   key_out.depth = depth_or_faces;
+  key_out.pitch = fetch.pitch;
   key_out.mip_max_level = mip_max_level;
   key_out.tiled = fetch.tiled;
   key_out.packed_mips = fetch.packed_mips;
@@ -2143,20 +2144,21 @@ void TextureCache::BindingInfoFromFetchConstant(
 void TextureCache::LogTextureKeyAction(TextureKey key, const char* action) {
   XELOGGPU(
       "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
-      "base at 0x{:08X}, mips at 0x{:08X}",
+      "base at 0x{:08X} (pitch {}), mips at 0x{:08X}",
       action, key.tiled ? "tiled" : "linear",
       key.scaled_resolve ? "scaled " : "", key.width, key.height, key.depth,
       dimension_names_[uint32_t(key.dimension)],
       FormatInfo::Get(key.format)->name, key.mip_max_level + 1,
       key.packed_mips ? "" : "un", key.mip_max_level != 0 ? "s" : "",
-      key.base_page << 12, key.mip_page << 12);
+      key.base_page << 12, key.pitch << 5, key.mip_page << 12);
 }
 
 void TextureCache::LogTextureAction(const Texture* texture,
                                     const char* action) {
   XELOGGPU(
       "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
-      "base at 0x{:08X} (size 0x{:08X}), mips at 0x{:08X} (size 0x{:08X})",
+      "base at 0x{:08X} (pitch {}, size 0x{:08X}), mips at 0x{:08X} (size "
+      "0x{:08X})",
       action, texture->key.tiled ? "tiled" : "linear",
       texture->key.scaled_resolve ? "scaled " : "", texture->key.width,
       texture->key.height, texture->key.depth,
@@ -2164,7 +2166,8 @@ void TextureCache::LogTextureAction(const Texture* texture,
       FormatInfo::Get(texture->key.format)->name,
       texture->key.mip_max_level + 1, texture->key.packed_mips ? "" : "un",
       texture->key.mip_max_level != 0 ? "s" : "", texture->key.base_page << 12,
-      texture->base_size, texture->key.mip_page << 12, texture->mip_size);
+      texture->key.pitch << 5, texture->GetGuestBaseSize(),
+      texture->key.mip_page << 12, texture->GetGuestMipsSize());
 }
 
 TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
@@ -2173,16 +2176,19 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
     LoadMode load_mode = GetLoadMode(key);
     if (load_mode != LoadMode::kUnknown &&
         load_pipelines_scaled_[uint32_t(load_mode)] != nullptr) {
-      uint32_t base_size = 0, mip_size = 0;
-      texture_util::GetTextureTotalSize(
-          key.dimension, key.width, key.height, key.depth, key.format,
-          key.tiled, key.packed_mips, key.mip_max_level,
-          key.base_page != 0 ? &base_size : nullptr,
-          key.mip_page != 0 ? &mip_size : nullptr);
-      if ((base_size != 0 &&
-           IsRangeScaledResolved(key.base_page << 12, base_size)) ||
-          (mip_size != 0 &&
-           IsRangeScaledResolved(key.mip_page << 12, mip_size))) {
+      texture_util::TextureGuestLayout scaled_resolve_guest_layout =
+          texture_util::GetGuestTextureLayout(
+              key.dimension, key.pitch, key.width, key.height, key.depth,
+              key.tiled, key.format, key.packed_mips, key.base_page != 0,
+              key.mip_max_level);
+      if ((scaled_resolve_guest_layout.base.level_data_extent_bytes &&
+           IsRangeScaledResolved(
+               key.base_page << 12,
+               scaled_resolve_guest_layout.base.level_data_extent_bytes)) ||
+          (scaled_resolve_guest_layout.mips_total_extent_bytes &&
+           IsRangeScaledResolved(
+               key.mip_page << 12,
+               scaled_resolve_guest_layout.mips_total_extent_bytes))) {
         key.scaled_resolve = 1;
       }
     }
@@ -2266,72 +2272,14 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
     texture_used_first_ = texture;
   }
   texture_used_last_ = texture;
-  texture->mip_offsets[0] = 0;
   texture->base_resolved = key.scaled_resolve;
   texture->mips_resolved = key.scaled_resolve;
-  uint32_t width_blocks, height_blocks, depth_blocks;
-  uint32_t array_size =
-      key.dimension != xenos::DataDimension::k3D ? key.depth : 1;
-  if (key.base_page != 0) {
-    texture_util::GetGuestMipBlocks(key.dimension, key.width, key.height,
-                                    key.depth, key.format, 0, width_blocks,
-                                    height_blocks, depth_blocks);
-    uint32_t slice_size = texture_util::GetGuestMipSliceStorageSize(
-        width_blocks, height_blocks, depth_blocks, key.tiled, key.format,
-        &texture->pitches[0]);
-    texture->slice_sizes[0] = slice_size;
-    texture->base_size = slice_size * array_size;
-    texture->base_in_sync = false;
-  } else {
-    texture->base_size = 0;
-    texture->slice_sizes[0] = 0;
-    texture->pitches[0] = 0;
-    // Never try to upload the base level if there is none.
-    texture->base_in_sync = true;
-  }
-  texture->mip_size = 0;
-  if (key.mip_page != 0) {
-    assert_not_zero(key.mip_max_level);
-    uint32_t mip_max_storage_level = key.mip_max_level;
-    if (key.packed_mips) {
-      mip_max_storage_level =
-          std::min(mip_max_storage_level,
-                   texture_util::GetPackedMipLevel(key.width, key.height));
-    }
-    // If the texture is very small, its packed mips may be stored at level 0,
-    // which will be mip_max_storage_level. For i == 0, this will produce the
-    // same values slice size and pitch as for the base, but will fill the
-    // fields even if the base doesn't need to be loaded.
-    for (uint32_t i = std::min(uint32_t(1), mip_max_storage_level);
-         i <= mip_max_storage_level; ++i) {
-      texture_util::GetGuestMipBlocks(key.dimension, key.width, key.height,
-                                      key.depth, key.format, i, width_blocks,
-                                      height_blocks, depth_blocks);
-      texture->mip_offsets[i] = texture->mip_size;
-      uint32_t slice_size = texture_util::GetGuestMipSliceStorageSize(
-          width_blocks, height_blocks, depth_blocks, key.tiled, key.format,
-          &texture->pitches[i]);
-      texture->slice_sizes[i] = slice_size;
-      texture->mip_size += slice_size * array_size;
-    }
-    // The rest are either packed levels or don't exist at all.
-    for (uint32_t i = mip_max_storage_level + 1;
-         i < xe::countof(texture->mip_offsets); ++i) {
-      texture->mip_offsets[i] = texture->mip_offsets[mip_max_storage_level];
-      texture->slice_sizes[i] = texture->slice_sizes[mip_max_storage_level];
-      texture->pitches[i] = texture->pitches[mip_max_storage_level];
-    }
-    texture->mips_in_sync = false;
-  } else {
-    std::memset(&texture->mip_offsets[1], 0,
-                (xe::countof(texture->mip_offsets) - 1) * sizeof(uint32_t));
-    std::memset(&texture->slice_sizes[1], 0,
-                (xe::countof(texture->slice_sizes) - 1) * sizeof(uint32_t));
-    std::memset(&texture->pitches[1], 0,
-                (xe::countof(texture->pitches) - 1) * sizeof(uint32_t));
-    // Never try to upload the mipmaps if there are none.
-    texture->mips_in_sync = true;
-  }
+  texture->guest_layout = texture_util::GetGuestTextureLayout(
+      key.dimension, key.pitch, key.width, key.height, key.depth, key.tiled,
+      key.format, key.packed_mips, key.base_page != 0, key.mip_max_level);
+  // Never try to upload data that doesn't exist.
+  texture->base_in_sync = !texture->guest_layout.base.level_data_extent_bytes;
+  texture->mips_in_sync = !texture->guest_layout.mips_total_extent_bytes;
   texture->base_watch_handle = nullptr;
   texture->mip_watch_handle = nullptr;
   textures_.emplace(key, texture);
@@ -2387,7 +2335,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   bool base_resolved = texture->base_resolved;
   if (!base_in_sync) {
     if (!shared_memory_.RequestRange(
-            texture->key.base_page << 12, texture->base_size,
+            texture->key.base_page << 12, texture->GetGuestBaseSize(),
             texture->key.scaled_resolve ? nullptr : &base_resolved)) {
       return false;
     }
@@ -2395,7 +2343,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   bool mips_resolved = texture->mips_resolved;
   if (!mips_in_sync) {
     if (!shared_memory_.RequestRange(
-            texture->key.mip_page << 12, texture->mip_size,
+            texture->key.mip_page << 12, texture->GetGuestMipsSize(),
             texture->key.scaled_resolve ? nullptr : &mips_resolved)) {
       return false;
     }
@@ -2403,11 +2351,11 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   if (texture_resolution_scale > 1) {
     // Make sure all heaps are created.
     if (!EnsureScaledResolveMemoryCommitted(texture->key.base_page << 12,
-                                            texture->base_size)) {
+                                            texture->GetGuestBaseSize())) {
       return false;
     }
     if (!EnsureScaledResolveMemoryCommitted(texture->key.mip_page << 12,
-                                            texture->mip_size)) {
+                                            texture->GetGuestMipsSize())) {
       return false;
     }
   }
@@ -2417,47 +2365,31 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   bool is_3d = dimension == xenos::DataDimension::k3D;
   uint32_t width = texture->key.width;
   uint32_t height = texture->key.height;
-  uint32_t depth = is_3d ? texture->key.depth : 1;
-  uint32_t slice_count = is_3d ? 1 : texture->key.depth;
+  uint32_t depth_or_array_size = texture->key.depth;
+  uint32_t depth = is_3d ? depth_or_array_size : 1;
+  uint32_t array_size = is_3d ? 1 : depth_or_array_size;
   xenos::TextureFormat guest_format = texture->key.format;
   const FormatInfo* guest_format_info = FormatInfo::Get(guest_format);
   uint32_t block_width = guest_format_info->block_width;
   uint32_t block_height = guest_format_info->block_height;
-  uint32_t mip_first = base_in_sync ? 1 : 0;
-  uint32_t mip_last = mips_in_sync ? 0 : texture->key.mip_max_level;
-  assert_true(mip_first <= mip_last);
-  uint32_t mip_packed = UINT32_MAX;
-  uint32_t mip_packed_width = 0;
-  uint32_t mip_packed_height = 0;
-  uint32_t mip_packed_depth = 0;
-  if (texture->key.packed_mips) {
-    mip_packed = texture_util::GetPackedMipLevel(width, height);
-    texture_util::GetGuestMipBlocks(dimension, width, height, depth,
-                                    guest_format, mip_packed, mip_packed_width,
-                                    mip_packed_height, mip_packed_depth);
-    mip_packed_width *= block_width;
-    mip_packed_height *= block_height;
-  }
+  uint32_t bytes_per_block = guest_format_info->bytes_per_block();
+  uint32_t level_first = base_in_sync ? 1 : 0;
+  uint32_t level_last = mips_in_sync ? 0 : texture->key.mip_max_level;
+  assert_true(level_first <= level_last);
+  uint32_t level_packed = texture->guest_layout.packed_level;
+  uint32_t level_stored_first = std::min(level_first, level_packed);
+  uint32_t level_stored_last = std::min(level_last, level_packed);
 
   // Get the host layout and the buffer.
-  // To let the load shaders copy multiple consecutive blocks at once without
-  // having to care about the alignment of the base, all packed mips are untiled
-  // at once, with offsets later applied in CopyTextureRegion.
-  // Array slices are within mips (similar to the guest addressing). All
-  // subresources, including the last one, have both offset and size aligned to
-  // D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT for simplicity of both array slice
-  // addressing and writing to the last row.
   UINT64 copy_buffer_size = 0;
+  D3D12_PLACED_SUBRESOURCE_FOOTPRINT host_slice_layout_base;
+  UINT64 host_slice_size_base;
+  // Indexing is the same as for guest stored mips:
+  // 1...min(level_last, level_packed) if level_packed is not 0, or only 0 if
+  // level_packed == 0.
   D3D12_PLACED_SUBRESOURCE_FOOTPRINT
-  host_unpacked_slice_0_layouts[D3D12_REQ_MIP_LEVELS];
-  UINT64 host_unpacked_slice_sizes[D3D12_REQ_MIP_LEVELS];
-  D3D12_PLACED_SUBRESOURCE_FOOTPRINT host_packed_slice_0_layout = {};
-  UINT64 host_packed_slice_size = 0;
-  UINT64 host_packed_mips_offset = 0;
-  // If need to load both base and mips, and both are in the packed mip tail,
-  // but base and mip addresses are different, host_packed_slice_0_layout and
-  // host_packed_slice_size are for the base level, and mips are at
-  // host_packed_slice_0_layout.Offset + host_packed_mips_offset.
+  host_slice_layouts_mips[xenos::kTexture2DCubeMaxWidthHeightLog2 + 1];
+  UINT64 host_slice_sizes_mips[xenos::kTexture2DCubeMaxWidthHeightLog2 + 1];
   {
     // Using custom calculations instead of GetCopyableFootprints because
     // shaders may copy multiple blocks per thread for simplicity. For 3x
@@ -2466,84 +2398,95 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     // not enough. GetCopyableFootprints would be needed to be called with an
     // overaligned width - but it may exceed 16384 (the maximum Direct3D 12
     // texture size) for 3x resolution scaling, and the function will fail.
-    DXGI_FORMAT copy_format;
-    uint32_t copy_block_width;
-    uint32_t copy_block_height;
-    uint32_t copy_bytes_per_block;
+    DXGI_FORMAT host_copy_format;
+    uint32_t host_block_width;
+    uint32_t host_block_height;
+    uint32_t host_bytes_per_block;
     ui::d3d12::util::GetFormatCopyInfo(
-        GetDXGIResourceFormat(guest_format, width, height), 0, copy_format,
-        copy_block_width, copy_block_height, copy_bytes_per_block);
-    if (mip_first < mip_packed) {
-      uint32_t width_scaled = width * texture_resolution_scale;
-      uint32_t height_scaled = height * texture_resolution_scale;
-      uint32_t host_layout_mip_count =
-          std::min(mip_packed, mip_last + uint32_t(1)) - mip_first;
-      for (uint32_t i = 0; i < host_layout_mip_count; ++i) {
-        D3D12_PLACED_SUBRESOURCE_FOOTPRINT& mip_layout =
-            host_unpacked_slice_0_layouts[i];
-        mip_layout.Offset = copy_buffer_size;
-        mip_layout.Footprint.Format = copy_format;
-        uint32_t mip = mip_first + i;
-        uint32_t mip_copy_width_blocks =
-            (std::max(width_scaled >> mip, uint32_t(1)) +
-             (copy_block_width - uint32_t(1))) /
-            copy_block_width;
-        uint32_t mip_copy_height_blocks =
-            (std::max(height_scaled >> mip, uint32_t(1)) +
-             (copy_block_height - uint32_t(1))) /
-            copy_block_height;
-        mip_layout.Footprint.Width = mip_copy_width_blocks * copy_block_width;
-        mip_layout.Footprint.Height =
-            mip_copy_height_blocks * copy_block_height;
-        mip_layout.Footprint.Depth = std::max(depth >> mip, uint32_t(1));
-        mip_layout.Footprint.RowPitch =
-            xe::align(xe::round_up(mip_copy_width_blocks,
-                                   load_shader_info.host_x_blocks_per_thread) *
-                          copy_bytes_per_block,
-                      uint32_t(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
-        UINT64 copy_slice_size =
-            xe::align(UINT64(mip_layout.Footprint.RowPitch) *
-                          mip_copy_height_blocks * mip_layout.Footprint.Depth,
-                      UINT64(D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT));
-        host_unpacked_slice_sizes[i] = copy_slice_size;
-        copy_buffer_size += copy_slice_size * slice_count;
+        GetDXGIResourceFormat(guest_format, width, height), 0, host_copy_format,
+        host_block_width, host_block_height, host_bytes_per_block);
+    if (!level_first) {
+      host_slice_layout_base.Offset = copy_buffer_size;
+      host_slice_layout_base.Footprint.Format = host_copy_format;
+      if (!level_packed) {
+        // Loading the packed tail for the base - load the whole tail to copy
+        // regions out of it.
+        const texture_util::TextureGuestLevelLayout& guest_layout_base =
+            texture->guest_layout.base;
+        host_slice_layout_base.Footprint.Width =
+            guest_layout_base.x_extent_blocks * block_width;
+        host_slice_layout_base.Footprint.Height =
+            guest_layout_base.y_extent_blocks * block_height;
+        host_slice_layout_base.Footprint.Depth = guest_layout_base.z_extent;
+      } else {
+        host_slice_layout_base.Footprint.Width = width;
+        host_slice_layout_base.Footprint.Height = height;
+        host_slice_layout_base.Footprint.Depth = depth;
       }
-    }
-    if (mip_last >= mip_packed) {
-      host_packed_slice_0_layout.Offset = copy_buffer_size;
-      host_packed_slice_0_layout.Footprint.Format = copy_format;
-      uint32_t mip_packed_copy_width_blocks =
-          (mip_packed_width * texture_resolution_scale +
-           (copy_block_width - uint32_t(1))) /
-          copy_block_width;
-      uint32_t mip_packed_copy_height_blocks =
-          (mip_packed_height * texture_resolution_scale +
-           (copy_block_height - uint32_t(1))) /
-          copy_block_height;
-      host_packed_slice_0_layout.Footprint.Width =
-          mip_packed_copy_width_blocks * copy_block_width;
-      host_packed_slice_0_layout.Footprint.Height =
-          mip_packed_copy_height_blocks * copy_block_height;
-      host_packed_slice_0_layout.Footprint.Depth = mip_packed_depth;
-      host_packed_slice_0_layout.Footprint.RowPitch =
-          xe::align(xe::round_up(mip_packed_copy_width_blocks,
+      host_slice_layout_base.Footprint.Width = xe::round_up(
+          host_slice_layout_base.Footprint.Width * texture_resolution_scale,
+          UINT(host_block_width));
+      host_slice_layout_base.Footprint.Height = xe::round_up(
+          host_slice_layout_base.Footprint.Height * texture_resolution_scale,
+          UINT(host_block_height));
+      host_slice_layout_base.Footprint.RowPitch =
+          xe::align(xe::round_up(host_slice_layout_base.Footprint.Width /
+                                     host_block_width,
                                  load_shader_info.host_x_blocks_per_thread) *
-                        copy_bytes_per_block,
+                        host_bytes_per_block,
                     uint32_t(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
-      host_packed_slice_size =
-          xe::align(UINT64(host_packed_slice_0_layout.Footprint.RowPitch) *
-                        mip_packed_copy_height_blocks * mip_packed_depth,
-                    UINT64(D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT));
-      UINT64 host_packed_total_size = host_packed_slice_size * slice_count;
-      copy_buffer_size += host_packed_total_size;
-      if (mip_packed == 0 && mip_first == 0 && mip_last != 0 &&
-          texture->key.base_page != texture->key.mip_page) {
-        // Base and mips are both small enough to be packed, but stored at
-        // different addresses - load different mip tails containing different
-        // data for the base and the mips. Allocate another area for the packed
-        // mips untiled from a different address.
-        host_packed_mips_offset = host_packed_total_size;
-        copy_buffer_size += host_packed_total_size;
+      host_slice_size_base = xe::align(
+          UINT64(host_slice_layout_base.Footprint.RowPitch) *
+              (host_slice_layout_base.Footprint.Height / host_block_height) *
+              host_slice_layout_base.Footprint.Depth,
+          UINT64(D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT));
+      copy_buffer_size += host_slice_size_base * array_size;
+    }
+    if (level_last) {
+      for (uint32_t level = level_stored_first; level <= level_stored_last;
+           ++level) {
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT& host_slice_layout_mip =
+            host_slice_layouts_mips[level];
+        host_slice_layout_mip.Offset = copy_buffer_size;
+        host_slice_layout_mip.Footprint.Format = host_copy_format;
+        if (level == level_packed) {
+          // Loading the packed tail for the mips - load the whole tail to copy
+          // regions out of it.
+          const texture_util::TextureGuestLevelLayout&
+              guest_layout_packed_mips = texture->guest_layout.mips[level];
+          host_slice_layout_mip.Footprint.Width =
+              guest_layout_packed_mips.x_extent_blocks * block_width;
+          host_slice_layout_mip.Footprint.Height =
+              guest_layout_packed_mips.y_extent_blocks * block_height;
+          host_slice_layout_mip.Footprint.Depth =
+              guest_layout_packed_mips.z_extent;
+        } else {
+          host_slice_layout_mip.Footprint.Width =
+              std::max(width >> level, uint32_t(1));
+          host_slice_layout_mip.Footprint.Height =
+              std::max(height >> level, uint32_t(1));
+          host_slice_layout_mip.Footprint.Depth =
+              std::max(depth >> level, uint32_t(1));
+        }
+        host_slice_layout_mip.Footprint.Width = xe::round_up(
+            host_slice_layout_mip.Footprint.Width * texture_resolution_scale,
+            UINT(host_block_width));
+        host_slice_layout_mip.Footprint.Height = xe::round_up(
+            host_slice_layout_mip.Footprint.Height * texture_resolution_scale,
+            UINT(host_block_height));
+        host_slice_layout_mip.Footprint.RowPitch =
+            xe::align(xe::round_up(host_slice_layout_mip.Footprint.Width /
+                                       host_block_width,
+                                   load_shader_info.host_x_blocks_per_thread) *
+                          host_bytes_per_block,
+                      uint32_t(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
+        UINT64 host_slice_sizes_mip = xe::align(
+            UINT64(host_slice_layout_mip.Footprint.RowPitch) *
+                (host_slice_layout_mip.Footprint.Height / host_block_height) *
+                host_slice_layout_mip.Footprint.Depth,
+            UINT64(D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT));
+        host_slice_sizes_mips[level] = host_slice_sizes_mip;
+        copy_buffer_size += host_slice_sizes_mip * array_size;
       }
     }
   }
@@ -2566,13 +2509,11 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   // May use different buffers for scaled base and mips, and also can't address
   // more than 128 megatexels directly on Nvidia - need two separate UAV
   // descriptors for base and mips.
-  bool separate_base_and_mips_descriptors =
-      texture_resolution_scale > 1 && mip_first == 0 && mip_last != 0;
   // Destination.
   uint32_t descriptor_count = 1;
   if (texture_resolution_scale > 1) {
-    // Source - base and mips.
-    descriptor_count += separate_base_and_mips_descriptors ? 2 : 1;
+    // Source - base and mips, one or both.
+    descriptor_count += (level_first == 0 && level_last != 0) ? 2 : 1;
   } else {
     // Source - shared memory.
     if (!bindless_resources_used_) {
@@ -2622,63 +2563,48 @@ bool TextureCache::LoadTextureData(Texture* texture) {
 
   auto& cbuffer_pool = command_processor_.GetConstantBufferPool();
   LoadConstants load_constants;
-  load_constants.is_3d_endian =
-      uint32_t(is_3d) | (uint32_t(texture->key.endianness) << 1);
+  load_constants.is_tiled_3d_endian = uint32_t(texture->key.tiled) |
+                                      (uint32_t(is_3d) << 1) |
+                                      (uint32_t(texture->key.endianness) << 2);
 
-  uint32_t loop_mip_first = std::min(mip_first, mip_packed);
-  uint32_t loop_mip_last = std::min(mip_last, mip_packed);
-  if (host_packed_mips_offset) {
-    assert_zero(mip_packed);
-    // Need to load two different packed mip tails for the base and the mips.
-    // loop_mip == 0 - packed base.
-    // loop_mip == 1 - packed mips.
-    loop_mip_last = 1;
+  // The loop counter can mean two things depending on whether the packed mip
+  // tail is stored as mip 0, because in this case, it would be ambiguous since
+  // both the base and the mips would be on "level 0", but stored in separate
+  // places.
+  uint32_t loop_level_first, loop_level_last;
+  if (level_packed == 0) {
+    // Packed mip tail is the level 0 - may need to load mip tails for the base,
+    // the mips, or both.
+    // Loop iteration 0 - base packed mip tail.
+    // Loop iteration 1 - mips packed mip tail.
+    loop_level_first = uint32_t(level_first != 0);
+    loop_level_last = uint32_t(level_last != 0);
+  } else {
+    // Packed mip tail is not the level 0.
+    // Loop iteration is the actual level being loaded.
+    loop_level_first = level_stored_first;
+    loop_level_last = level_stored_last;
   }
-  // The loop is slices within mips because the base and the mips may need
+  // The loop is slices within levels because the base and the levels may need
   // different portions of the scaled resolve virtual address space to be
   // available through buffers, and to create a descriptor, the buffer start
   // address is required - which may be different for base and mips.
   bool scaled_mips_source_set_up = false;
-  for (uint32_t loop_mip = loop_mip_first; loop_mip <= loop_mip_last;
-       ++loop_mip) {
-    // If need to load two different packed mip tails, there will be two
-    // iterations of the loop, but both images will have the size of mip 0.
-    uint32_t mip = (mip_packed != 0 ? loop_mip : 0);
-    bool is_base;
-    if (mip_packed == 0) {
-      is_base = (mip_first == 0 && loop_mip == 0);
-    } else {
-      is_base = (mip == 0);
-    }
+  for (uint32_t loop_level = loop_level_first; loop_level <= loop_level_last;
+       ++loop_level) {
+    bool is_base = loop_level == 0;
+    uint32_t level = (level_packed == 0) ? 0 : loop_level;
 
-    uint32_t descriptor_source_index = 0;
-    if (texture_resolution_scale > 1) {
-      // Offset already applied in the buffer because more than 512 MB can't be
-      // directly addresses on Nvidia as R32.
-      load_constants.guest_base = 0;
-      if (separate_base_and_mips_descriptors) {
-        descriptor_source_index = is_base ? 0 : 1;
-      }
-    } else {
-      load_constants.guest_base =
-          (is_base ? texture->key.base_page : texture->key.mip_page) << 12;
-    }
-    load_constants.guest_base += texture->mip_offsets[mip];
-    uint32_t guest_slice_size = texture->slice_sizes[mip];
-    load_constants.guest_pitch = texture->key.tiled
-                                     ? LoadConstants::kGuestPitchTiled
-                                     : texture->pitches[mip];
+    uint32_t guest_address =
+        (is_base ? texture->key.base_page : texture->key.mip_page) << 12;
 
     // Set up the base or mips source, also making it accessible if loading from
     // scaled resolve memory.
     if (texture_resolution_scale > 1 &&
         (is_base || !scaled_mips_source_set_up)) {
-      uint32_t source_page =
-          is_base ? texture->key.base_page : texture->key.mip_page;
-      uint32_t source_size_unscaled =
-          is_base ? texture->base_size : texture->mip_size;
-      if (!MakeScaledResolveRangeCurrent(source_page << 12,
-                                         source_size_unscaled)) {
+      uint32_t guest_size_unscaled =
+          is_base ? texture->GetGuestBaseSize() : texture->GetGuestMipsSize();
+      if (!MakeScaledResolveRangeCurrent(guest_address, guest_size_unscaled)) {
         command_processor_.ReleaseScratchGPUBuffer(copy_buffer,
                                                    copy_buffer_state);
         return false;
@@ -2697,53 +2623,64 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       }
     }
 
-    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& host_slice_0_layout =
-        mip == mip_packed ? host_packed_slice_0_layout
-                          : host_unpacked_slice_0_layouts[mip - mip_first];
-    uint32_t host_slice_size = uint32_t(
-        mip == mip_packed ? host_packed_slice_size
-                          : host_unpacked_slice_sizes[mip - mip_first]);
-    load_constants.host_base = uint32_t(host_slice_0_layout.Offset);
-    if (mip_packed == 0 && loop_mip) {
-      // Two packed mip tails, but this one is for the mips.
-      load_constants.host_base += uint32_t(host_packed_mips_offset);
-    }
-    load_constants.host_pitch = host_slice_0_layout.Footprint.RowPitch;
-
-    uint32_t mip_width, mip_height, mip_depth;
-    if (mip == mip_packed) {
-      // Force power of 2 for both the source and the destination if it's the
-      // mip tail, and it's not on level 0.
-      mip_width = mip_packed_width;
-      mip_height = mip_packed_height;
-      mip_depth = mip_packed_depth;
+    if (texture_resolution_scale > 1) {
+      // Offset already applied in the buffer because more than 512 MB can't be
+      // directly addresses on Nvidia as R32.
+      load_constants.guest_offset = 0;
     } else {
-      mip_width = std::max(width >> mip, uint32_t(1));
-      mip_height = std::max(height >> mip, uint32_t(1));
-      mip_depth = std::max(depth >> mip, uint32_t(1));
+      load_constants.guest_offset = guest_address;
+    }
+    if (!is_base) {
+      load_constants.guest_offset +=
+          texture->guest_layout.mip_offsets_bytes[level];
+    }
+    const texture_util::TextureGuestLevelLayout& level_guest_layout =
+        is_base ? texture->guest_layout.base
+                : texture->guest_layout.mips[level];
+    uint32_t level_guest_pitch = level_guest_layout.row_pitch_bytes;
+    if (texture->key.tiled) {
+      // Shaders expect pitch in blocks for tiled textures.
+      level_guest_pitch /= bytes_per_block;
+      assert_zero(level_guest_pitch & (xenos::kTextureTileWidthHeight - 1));
+    }
+    load_constants.guest_pitch_aligned = level_guest_pitch;
+    load_constants.guest_z_stride_block_rows_aligned =
+        level_guest_layout.z_slice_stride_block_rows;
+    assert_zero(load_constants.guest_z_stride_block_rows_aligned &
+                (xenos::kTextureTileWidthHeight - 1));
+
+    uint32_t level_width, level_height, level_depth;
+    if (level == level_packed) {
+      // This is the packed mip tail, containing not only the specified level,
+      // but also other levels at different offsets - load the entire needed
+      // extents.
+      level_width = level_guest_layout.x_extent_blocks * block_width;
+      level_height = level_guest_layout.y_extent_blocks * block_height;
+      level_depth = level_guest_layout.z_extent;
+    } else {
+      level_width = std::max(width >> level, uint32_t(1));
+      level_height = std::max(height >> level, uint32_t(1));
+      level_depth = std::max(depth >> level, uint32_t(1));
     }
     load_constants.size_blocks[0] =
-        (mip_width + (block_width - 1)) / block_width;
+        (level_width + (block_width - 1)) / block_width;
     load_constants.size_blocks[1] =
-        (mip_height + (block_height - 1)) / block_height;
-    load_constants.size_blocks[2] = mip_depth;
-    load_constants.height_texels = mip_height;
-    if (mip == 0) {
-      load_constants.guest_storage_width_height[0] =
-          xe::align(load_constants.size_blocks[0], uint32_t(32));
-      load_constants.guest_storage_width_height[1] =
-          xe::align(load_constants.size_blocks[1], uint32_t(32));
-    } else {
-      load_constants.guest_storage_width_height[0] =
-          xe::align(xe::next_pow2(load_constants.size_blocks[0]), uint32_t(32));
-      load_constants.guest_storage_width_height[1] =
-          xe::align(xe::next_pow2(load_constants.size_blocks[1]), uint32_t(32));
-    }
+        (level_height + (block_height - 1)) / block_height;
+    load_constants.size_blocks[2] = level_depth;
+    load_constants.height_texels = level_height;
+
     // Each thread group processes 32x32x1 guest blocks.
     uint32_t group_count_x = (load_constants.size_blocks[0] + 31) >> 5;
     uint32_t group_count_y = (load_constants.size_blocks[1] + 31) >> 5;
 
-    for (uint32_t slice = 0; slice < slice_count; ++slice) {
+    const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& host_slice_layout =
+        is_base ? host_slice_layout_base : host_slice_layouts_mips[level];
+    uint32_t host_slice_size =
+        uint32_t(is_base ? host_slice_size_base : host_slice_sizes_mips[level]);
+    load_constants.host_offset = uint32_t(host_slice_layout.Offset);
+    load_constants.host_pitch = host_slice_layout.Footprint.RowPitch;
+
+    for (uint32_t slice = 0; slice < array_size; ++slice) {
       D3D12_GPU_VIRTUAL_ADDRESS cbuffer_gpu_address;
       uint8_t* cbuffer_mapping = cbuffer_pool.Request(
           command_processor_.GetCurrentFrame(), sizeof(load_constants),
@@ -2760,8 +2697,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       command_processor_.SubmitBarriers();
       command_list.D3DDispatch(group_count_x, group_count_y,
                                load_constants.size_blocks[2]);
-      load_constants.guest_base += guest_slice_size;
-      load_constants.host_base += host_slice_size;
+      load_constants.guest_offset +=
+          level_guest_layout.array_slice_stride_bytes;
+      load_constants.host_offset += host_slice_size;
     }
   }
 
@@ -2776,49 +2714,45 @@ bool TextureCache::LoadTextureData(Texture* texture) {
                                            D3D12_RESOURCE_STATE_COPY_SOURCE);
   copy_buffer_state = D3D12_RESOURCE_STATE_COPY_SOURCE;
   command_processor_.SubmitBarriers();
-  uint32_t texture_mip_count = texture->key.mip_max_level + 1;
+  uint32_t texture_level_count = texture->key.mip_max_level + 1;
   D3D12_TEXTURE_COPY_LOCATION location_source, location_dest;
   location_source.pResource = copy_buffer;
   location_source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
   location_dest.pResource = texture->resource;
   location_dest.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-  for (uint32_t mip = mip_first; mip <= mip_last; ++mip) {
-    location_dest.SubresourceIndex = mip;
-    UINT64 host_slice_size;
+  for (uint32_t level = level_first; level <= level_last; ++level) {
+    uint32_t guest_level = std::min(level, level_packed);
+    location_source.PlacedFootprint =
+        level ? host_slice_layouts_mips[guest_level] : host_slice_layout_base;
+    location_dest.SubresourceIndex = level;
+    UINT64 host_slice_size =
+        level ? host_slice_sizes_mips[guest_level] : host_slice_size_base;
     D3D12_BOX source_box;
     const D3D12_BOX* source_box_ptr;
-    if (mip >= mip_packed) {
-      location_source.PlacedFootprint = host_packed_slice_0_layout;
-      if (mip != 0) {
-        location_source.PlacedFootprint.Offset += host_packed_mips_offset;
-      }
-      host_slice_size = host_packed_slice_size;
-      uint32_t mip_offset_blocks_x, mip_offset_blocks_y, mip_offset_z;
-      texture_util::GetPackedMipOffset(width, height, depth, guest_format, mip,
-                                       mip_offset_blocks_x, mip_offset_blocks_y,
-                                       mip_offset_z);
-      source_box.left = mip_offset_blocks_x * block_width;
-      source_box.top = mip_offset_blocks_y * block_height;
-      source_box.front = mip_offset_z;
+    if (level >= level_packed) {
+      uint32_t level_offset_blocks_x, level_offset_blocks_y, level_offset_z;
+      texture_util::GetPackedMipOffset(width, height, depth, guest_format,
+                                       level, level_offset_blocks_x,
+                                       level_offset_blocks_y, level_offset_z);
+      source_box.left = level_offset_blocks_x * block_width;
+      source_box.top = level_offset_blocks_y * block_height;
+      source_box.front = level_offset_z;
       source_box.right =
           source_box.left +
-          xe::align(std::max(width >> mip, uint32_t(1)), host_block_width);
+          xe::align(std::max(width >> level, uint32_t(1)), host_block_width);
       source_box.bottom =
           source_box.top +
-          xe::align(std::max(height >> mip, uint32_t(1)), host_block_height);
-      source_box.back = source_box.front + std::max(depth >> mip, uint32_t(1));
+          xe::align(std::max(height >> level, uint32_t(1)), host_block_height);
+      source_box.back =
+          source_box.front + std::max(depth >> level, uint32_t(1));
       source_box_ptr = &source_box;
     } else {
-      uint32_t host_layout_mip_index = mip - mip_first;
-      location_source.PlacedFootprint =
-          host_unpacked_slice_0_layouts[host_layout_mip_index];
-      host_slice_size = host_unpacked_slice_sizes[host_layout_mip_index];
       source_box_ptr = nullptr;
     }
-    for (uint32_t slice = 0; slice < slice_count; ++slice) {
+    for (uint32_t slice = 0; slice < array_size; ++slice) {
       command_list.D3DCopyTextureRegion(&location_dest, 0, 0, 0,
                                         &location_source, source_box_ptr);
-      location_dest.SubresourceIndex += texture_mip_count;
+      location_dest.SubresourceIndex += texture_level_count;
       location_source.PlacedFootprint.Offset += host_slice_size;
     }
   }
@@ -2841,13 +2775,13 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     texture->mips_in_sync = true;
     if (!base_in_sync) {
       texture->base_watch_handle = shared_memory_.WatchMemoryRange(
-          texture->key.base_page << 12, texture->base_size, WatchCallbackThunk,
-          this, texture, 0);
+          texture->key.base_page << 12, texture->GetGuestBaseSize(),
+          WatchCallbackThunk, this, texture, 0);
     }
     if (!mips_in_sync) {
       texture->mip_watch_handle = shared_memory_.WatchMemoryRange(
-          texture->key.mip_page << 12, texture->mip_size, WatchCallbackThunk,
-          this, texture, 1);
+          texture->key.mip_page << 12, texture->GetGuestMipsSize(),
+          WatchCallbackThunk, this, texture, 1);
     }
   }
 

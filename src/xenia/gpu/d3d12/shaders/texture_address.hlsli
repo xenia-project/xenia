@@ -1,11 +1,11 @@
 #ifndef XENIA_GPU_D3D12_SHADERS_TEXTURE_ADDRESS_HLSLI_
 #define XENIA_GPU_D3D12_SHADERS_TEXTURE_ADDRESS_HLSLI_
 
-int XeTextureTiledOffset2D(int2 p, uint width, uint bpb_log2) {
+int XeTextureTiledOffset2D(int2 p, uint pitch_aligned, uint bpb_log2) {
   // https://github.com/gildor2/UModel/blob/de8fbd3bc922427ea056b7340202dcdcc19ccff5/Unreal/UnTexture.cpp#L489
   // Top bits of coordinates.
   int macro =
-      ((p.x >> 5) + (p.y >> 5) * int((width + 31u) >> 5u)) << (bpb_log2 + 7);
+      ((p.x >> 5) + (p.y >> 5) * int(pitch_aligned >> 5u)) << (bpb_log2 + 7);
   // Lower bits of coordinates (result is 6-bit value).
   int micro = ((p.x & 7) + ((p.y & 0xE) << 2)) << bpb_log2;
   // Mix micro/macro + add few remaining x/y bits.
@@ -18,12 +18,11 @@ int XeTextureTiledOffset2D(int2 p, uint width, uint bpb_log2) {
          (offset & 0x3F);  // Lower 6 bits (offset bits [5-0]).
 }
 
-int XeTextureTiledOffset3D(int3 p, uint2 storage_width_height, uint bpb_log2) {
+int XeTextureTiledOffset3D(int3 p, uint pitch_aligned, uint height_aligned,
+                           uint bpb_log2) {
   // Reconstructed from disassembly of XGRAPHICS::TileVolume.
-  storage_width_height = (storage_width_height + 31u) & ~31u;
-  int macro_outer =
-      ((p.y >> 4) + (p.z >> 2) * int(storage_width_height.y >> 4u)) *
-      int(storage_width_height.x >> 5u);
+  int macro_outer = ((p.y >> 4) + (p.z >> 2) * int(height_aligned >> 4u)) *
+                    int(pitch_aligned >> 5u);
   int macro = ((((p.x >> 5) + macro_outer) << (bpb_log2 + 6)) & 0xFFFFFFF) << 1;
   int micro = (((p.x & 7) + ((p.y & 6) << 2)) << (bpb_log2 + 6)) >> 6;
   int offset_outer = ((p.y >> 3) + (p.z >> 2)) & 1;
@@ -41,11 +40,12 @@ int XeTextureTiledOffset3D(int3 p, uint2 storage_width_height, uint bpb_log2) {
   return address;
 }
 
-int XeTextureGuestLinearOffset(int3 p, uint height, uint pitch, uint bpb) {
-  return p.x * int(bpb) + (p.z * int((height + 31u) & ~31u) + p.y) * int(pitch);
+int XeTextureGuestLinearOffset(int3 p, uint pitch, uint height_aligned,
+                               uint bpb) {
+  return p.x * int(bpb) + (p.z * int(height_aligned) + p.y) * int(pitch);
 }
 
-int XeTextureHostLinearOffset(int3 p, uint height, uint pitch, uint bpb) {
+int XeTextureHostLinearOffset(int3 p, uint pitch, uint height, uint bpb) {
   return p.x * int(bpb) + (p.z * int(height) + p.y) * int(pitch);
 }
 

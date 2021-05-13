@@ -906,11 +906,21 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   uint32_t copy_dest_base_adjusted = rb_copy_dest_base;
   uint32_t copy_dest_length;
   auto rb_copy_dest_pitch = regs.Get<reg::RB_COPY_DEST_PITCH>();
-  info_out.rb_copy_dest_pitch = rb_copy_dest_pitch;
+  uint32_t copy_dest_pitch_aligned_div_32 =
+      (rb_copy_dest_pitch.copy_dest_pitch +
+       (xenos::kTextureTileWidthHeight - 1)) >>
+      xenos::kTextureTileWidthHeightLog2;
+  info_out.copy_dest_pitch_aligned.pitch_aligned_div_32 =
+      copy_dest_pitch_aligned_div_32;
+  info_out.copy_dest_pitch_aligned.height_aligned_div_32 =
+      (rb_copy_dest_pitch.copy_dest_height +
+       (xenos::kTextureTileWidthHeight - 1)) >>
+      xenos::kTextureTileWidthHeightLog2;
   const FormatInfo& dest_format_info = *FormatInfo::Get(dest_format);
   if (is_depth || dest_format_info.type == FormatType::kResolvable) {
     uint32_t bpp_log2 = xe::log2_floor(dest_format_info.bits_per_pixel >> 3);
-    uint32_t dest_width, dest_height, dest_depth;
+    xenos::DataDimension dest_dimension;
+    uint32_t dest_height, dest_depth;
     if (rb_copy_dest_info.copy_dest_array) {
       // The pointer is already adjusted to the Z / 8 (copy_dest_slice is
       // 3-bit).
@@ -919,6 +929,8 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
           y0 & ~int32_t(xenos::kTextureTileWidthHeight - 1), 0,
           rb_copy_dest_pitch.copy_dest_pitch,
           rb_copy_dest_pitch.copy_dest_height, bpp_log2);
+      dest_dimension = xenos::DataDimension::k3D;
+      dest_height = rb_copy_dest_pitch.copy_dest_height;
       // The pointer is only adjusted to Z / 8, but the texture may have a depth
       // of (N % 8) <= 4, like 4, 12, 20 when rounded up to 4
       // (xenos::kTextureTiledDepthGranularity), so provide Z + 1 to measure the
@@ -926,16 +938,13 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
       // bound (though this still may go out of bounds a bit probably if
       // resolving to non-zero XY, but not sure if that really happens and
       // actually causes issues).
-      texture_util::GetGuestMipBlocks(
-          xenos::DataDimension::k3D, rb_copy_dest_pitch.copy_dest_pitch,
-          rb_copy_dest_pitch.copy_dest_height,
-          rb_copy_dest_info.copy_dest_slice + 1, dest_format, 0, dest_width,
-          dest_height, dest_depth);
+      dest_depth = rb_copy_dest_info.copy_dest_slice + 1;
     } else {
       copy_dest_base_adjusted += texture_util::GetTiledOffset2D(
           x0 & ~int32_t(xenos::kTextureTileWidthHeight - 1),
           y0 & ~int32_t(xenos::kTextureTileWidthHeight - 1),
           rb_copy_dest_pitch.copy_dest_pitch, bpp_log2);
+      dest_dimension = xenos::DataDimension::k2DOrStacked;
       // RB_COPY_DEST_PITCH::copy_dest_height is the real texture height used
       // for 3D texture pitch, it's not relative to 0,0 of the coordinate space
       // (in Halo 3, the sniper rifle scope has copy_dest_height of 192, but the
@@ -945,13 +954,16 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
       // Redemption, a UI texture for the letterbox bars alpha is located within
       // the range of a 1280x720 resolve target, so with resolution scaling it's
       // also wrongly detected as scaled, while only 1280x208 is being resolved.
-      texture_util::GetGuestMipBlocks(xenos::DataDimension::k2DOrStacked,
-                                      rb_copy_dest_pitch.copy_dest_pitch,
-                                      uint32_t(y1 - y0), 1, dest_format, 0,
-                                      dest_width, dest_height, dest_depth);
+      dest_height = uint32_t(y1 - y0);
+      dest_depth = 1;
     }
-    copy_dest_length = texture_util::GetGuestMipSliceStorageSize(
-        dest_width, dest_height, dest_depth, true, dest_format, nullptr, false);
+    // Need a subregion size, not the full subresource size - thus not aligning
+    // to xenos::kTextureSubresourceAlignmentBytes.
+    copy_dest_length =
+        texture_util::GetGuestLevelLayout(
+            dest_dimension, copy_dest_pitch_aligned_div_32, uint32_t(x1 - x0),
+            dest_height, dest_depth, true, dest_format, false, 0, false)
+            .level_data_extent_bytes;
   } else {
     XELOGE("Tried to resolve to format {}, which is not a ColorFormat",
            dest_format_info.name);
@@ -1043,15 +1055,15 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   info_out.color_edram_info = color_edram_info;
 
   // Patch and write RB_COPY_DEST_INFO.
-  info_out.rb_copy_dest_info = rb_copy_dest_info;
+  info_out.copy_dest_info = rb_copy_dest_info;
   // Override with the depth format to make sure the shader doesn't have any
   // reason to try to do k_8_8_8_8 packing.
-  info_out.rb_copy_dest_info.copy_dest_format = xenos::ColorFormat(dest_format);
+  info_out.copy_dest_info.copy_dest_format = xenos::ColorFormat(dest_format);
   // Handle k_16_16 and k_16_16_16_16 range.
-  info_out.rb_copy_dest_info.copy_dest_exp_bias = exp_bias;
+  info_out.copy_dest_info.copy_dest_exp_bias = exp_bias;
   if (is_depth) {
     // Single component, nothing to swap.
-    info_out.rb_copy_dest_info.copy_dest_swap = false;
+    info_out.copy_dest_info.copy_dest_swap = false;
   }
 
   info_out.rb_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
@@ -1081,11 +1093,11 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(
       is_depth ? depth_edram_info : color_edram_info;
   bool source_is_64bpp = !is_depth && color_edram_info.format_is_64bpp != 0;
   if (is_depth ||
-      (!rb_copy_dest_info.copy_dest_exp_bias &&
+      (!copy_dest_info.copy_dest_exp_bias &&
        xenos::IsSingleCopySampleSelected(address.copy_sample_select) &&
        xenos::IsColorResolveFormatBitwiseEquivalent(
            xenos::ColorRenderTargetFormat(color_edram_info.format),
-           xenos::ColorFormat(rb_copy_dest_info.copy_dest_format)))) {
+           xenos::ColorFormat(copy_dest_info.copy_dest_format)))) {
     switch (resolution_scale) {
       case 1:
         if (edram_info.msaa_samples >= xenos::MsaaSamples::k4X) {
@@ -1113,8 +1125,8 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(
         assert_unhandled_case(resolution_scale);
     }
   } else {
-    const FormatInfo& dest_format_info = *FormatInfo::Get(
-        xenos::TextureFormat(rb_copy_dest_info.copy_dest_format));
+    const FormatInfo& dest_format_info =
+        *FormatInfo::Get(xenos::TextureFormat(copy_dest_info.copy_dest_format));
     switch (resolution_scale) {
       case 1:
         switch (dest_format_info.bits_per_pixel) {
@@ -1194,8 +1206,8 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(
 
   constants_out.dest_relative.edram_info = edram_info;
   constants_out.dest_relative.address_info = address;
-  constants_out.dest_relative.dest_info = rb_copy_dest_info;
-  constants_out.dest_relative.dest_pitch = rb_copy_dest_pitch;
+  constants_out.dest_relative.dest_info = copy_dest_info;
+  constants_out.dest_relative.dest_pitch_aligned = copy_dest_pitch_aligned;
   constants_out.dest_base = copy_dest_base;
 
   if (shader != ResolveCopyShaderIndex::kUnknown) {

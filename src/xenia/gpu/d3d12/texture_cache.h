@@ -24,6 +24,7 @@
 #include "xenia/gpu/d3d12/d3d12_shared_memory.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/texture_info.h"
+#include "xenia/gpu/texture_util.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
 #include "xenia/ui/d3d12/d3d12_provider.h"
@@ -42,7 +43,7 @@ class D3D12CommandProcessor;
 // found in game executables explaining the valid usage of BaseAddress when
 // streaming the largest LOD (it says games should not use 0 as the base address
 // when the largest LOD isn't loaded, but rather, either allocate a valid
-// address for it or make it the same as MipAddress):
+// address for it or make it the same as mip_address):
 // - If the texture has a base address, but no mip address, it's not mipmapped -
 //   the host texture has only the largest level too.
 // - If the texture has different non-zero base address and mip address, a host
@@ -56,11 +57,9 @@ class D3D12CommandProcessor;
 //   the mip address, a mipmapped texture is created, but min/max LOD is clamped
 //   to the lower bound of 1 - the game is expected to do that anyway until the
 //   largest LOD is loaded.
-//   TODO(Triang3l): Check if there are any games with BaseAddress==MipAddress
-//   but min or max LOD being 0, especially check Modern Warfare 2/3.
-//   TODO(Triang3l): Attach the largest LOD to existing textures with a valid
-//   MipAddress but no BaseAddress to save memory because textures are streamed
-//   this way anyway.
+// TODO(Triang3l): Attach the largest LOD to existing textures with a valid
+// mip_address but no base ever used yet (no base_address) to save memory
+// because textures are streamed this way anyway.
 class TextureCache {
   struct TextureKey {
     // Physical 4 KB page with the base mip level, disregarding A/C/E address
@@ -77,14 +76,16 @@ class TextureCache {
 
     // Layers for stacked and 3D, 6 for cube, 1 for other dimensions.
     uint32_t depth : 10;              // 74
-    uint32_t mip_max_level : 4;       // 78
-    xenos::TextureFormat format : 6;  // 84
-    xenos::Endian endianness : 2;     // 86
+    uint32_t pitch : 9;               // 83
+    uint32_t mip_max_level : 4;       // 87
+    xenos::TextureFormat format : 6;  // 93
+    xenos::Endian endianness : 2;     // 95
     // Whether this texture is signed and has a different host representation
     // than an unsigned view of the same guest texture.
-    uint32_t signed_separate : 1;  // 87
+    uint32_t signed_separate : 1;  // 96
+
     // Whether this texture is a 2x-scaled resolve target.
-    uint32_t scaled_resolve : 1;  // 88
+    uint32_t scaled_resolve : 1;  // 97
 
     TextureKey() { MakeInvalid(); }
     TextureKey(const TextureKey& key) {
@@ -294,6 +295,81 @@ class TextureCache {
   };
 
   struct LoadShaderInfo {
+    // Rules of data access in load shaders:
+    // - Source reading (from the shared memory or the scaled resolve buffer):
+    //   - Guest data may be stored in a sparsely-allocated buffer, or, in
+    //     Direct3D 12 terms, a tiled buffer. This means that some regions of
+    //     the buffer may not be mapped. On tiled resources tier 1 hardware,
+    //     accesing unmapped tiles results in undefined behavior, including a
+    //     GPU page fault and device removal. So, shaders must not try to access
+    //     potentially unmapped regions (that are outside the texture memory
+    //     extents calculated on the CPU, taking into account that Xenia can't
+    //     overestimate texture sizes freely since it must not try to upload
+    //     unallocated pages on the CPU).
+    //   - Buffer tiles have 64 KB size on Direct3D 12. Vulkan has its own
+    //     alignment requirements for sparse binding. But overall, we're
+    //     allocating pretty large regions.
+    //   - Resolution scaling disabled:
+    //     - Shared memory allocates regions of power of two sizes that map
+    //       directly to the same portions of the 512 MB of the console's
+    //       physical memory. So, a 64 KB-aligned host buffer region is also 64
+    //       KB-aligned in the guest address space.
+    //     - Tiled textures: 32x32x4-block tiles are always resident each as a
+    //       whole. If the width is bigger than the pitch, the overflowing
+    //       32x32x4 tiles are also loaded as entire tiles. We do not have
+    //       separate shaders for 2D and 3D. So, for tiled textures, it's safe
+    //       to consider that if any location within a 32x32-aligned portion is
+    //       within the texture bounds, the entire 32x32 portion also can be
+    //       read.
+    //     - Linear textures: Pitch is aligned to 256 bytes. Row count, however,
+    //       is not aligned to anything (unless the mip tail is being loaded).
+    //       The overflowing last row in case `width > pitch`, however, is made
+    //       resident up to the last texel in it. But row start alignment is
+    //       256, which is a power of two, and is smaller than the Direct3D 12
+    //       tile size of 64 KB. So, if any block within a 256-aligned region is
+    //       within the texture bounds, without resolution scaling, reading from
+    //       any location in that 256-aligned region is safe.
+    //     - Since we use the same shaders for tiled and linear textures (as
+    //       well as 1D textures), this means that without resolution scaling,
+    //       it's safe to access a min(256 bytes, 32 blocks)-aligned portion
+    //       along X, but only within the same row of blocks, with bounds
+    //       checking only for such portion as a whole, but without additional
+    //       bounds checking inside of it.
+    //     - Therefore, it's recommended that shaders read power-of-two amounts
+    //       of blocks (so there will naturally be some alignment to some power
+    //       of two), and this way, each thread may read at most 16 16bpb blocks
+    //       or at most 32 8bpb or smaller blocks with in a single
+    //       `if (x < width)` for the whole aligned range of the same length.
+    //   - Resolution scaling enabled:
+    //     - For simplicity, unlike in the shared memory, buffer tile boundaries
+    //       are not aligned to powers of 2 the same way as guest addresses are.
+    //       While for 2x resolution scaling it still happens to be the case
+    //       because `host address = guest address << 1`, for 3x, it's not - a
+    //       64 KB host tile would represent 7281.777 guest bytes (though we
+    //       scale texels, not bytes, but that's what it would be for k_8
+    //       textures).
+    //     - The above would affect the `width > pitch` case for linear
+    //       textures, requiring overestimating the width in calculation of the
+    //       range of the tiles to map, while not doing this overestimation on
+    //       the guest memory extent calculation side (otherwise it may result
+    //       in attempting to upload unallocated memory on the CPU). For
+    //       example, let's take look at an extreme case of a 369x28 k_8 texture
+    //       with pitch of 256 bytes. The last row, in guest memory, would be
+    //       loaded from the [7168, 7281) range, or, with 3x3 resolution
+    //       scaling, from bytes [64512, 65529). However, if we try to
+    //       unconditionally load 2 pixels, like the texture is 370x28, we will
+    //       be accessing the bytes [64512, 65538). But bytes 65536 and 65537
+    //       will be in another 64 KB tile, which may be not mapped yet.
+    //       However, none of this is an issue for one simple reason - resolving
+    //       is only possible to tiled textures, so linear textures will never
+    //       be resolution-scaled.
+    //     - Tiled textures have potentially referenced guest 32x32-block tiles
+    //       loaded in their entirety. So, just like for unscaled textures, if
+    //       any block within a tile is available, the entire tile is as well.
+    // - Destination writing (to the linear buffer):
+    //   - host_x_blocks_per_thread specifies how many pixels can be written
+    //     without bounds checking within increments of that amount - the pitch
+    //     of the destination buffer is manually overaligned if needed.
     const void* shader;
     size_t shader_size;
     // Log2 of the sizes, in bytes, of the source (guest) SRV and the
@@ -369,18 +445,7 @@ class TextureCache {
     Texture* used_previous;
     Texture* used_next;
 
-    // Byte size of the top guest mip level.
-    uint32_t base_size;
-    // Byte size of mips between 1 and key.mip_max_level, containing all array
-    // slices.
-    uint32_t mip_size;
-    // Offsets of all the array slices on a mip level relative to mips_address
-    // (0 for mip 0, it's relative to base_address then, and for mip 1).
-    uint32_t mip_offsets[14];
-    // Byte sizes of an array slice on each mip level.
-    uint32_t slice_sizes[14];
-    // Row pitches on each mip level (for linear layout mainly).
-    uint32_t pitches[14];
+    texture_util::TextureGuestLayout guest_layout;
 
     // For bindful - indices in the non-shader-visible descriptor cache for
     // copying to the shader-visible heap (much faster than recreating, which,
@@ -399,6 +464,12 @@ class TextureCache {
     bool mips_in_sync;
 
     bool IsResolved() const { return base_resolved || mips_resolved; }
+    uint32_t GetGuestBaseSize() const {
+      return guest_layout.base.level_data_extent_bytes;
+    }
+    uint32_t GetGuestMipsSize() const {
+      return guest_layout.mips_total_extent_bytes;
+    }
   };
 
   struct SRVDescriptorCachePage {
@@ -409,24 +480,24 @@ class TextureCache {
 
   struct LoadConstants {
     // vec4 0.
+    uint32_t is_tiled_3d_endian;
     // Base offset in bytes.
-    uint32_t guest_base;
-    // For linear textures - row byte pitch.
-    uint32_t guest_pitch;
-    // In blocks - and for mipmaps, it's also power-of-two-aligned.
-    uint32_t guest_storage_width_height[2];
+    uint32_t guest_offset;
+    // For tiled textures - row pitch in blocks, aligned to 32.
+    // For linear textures - row pitch in bytes.
+    uint32_t guest_pitch_aligned;
+    // Must be aligned to 32.
+    uint32_t guest_z_stride_block_rows_aligned;
 
     // vec4 1.
+    // If this is a packed mip tail, this is aligned to tile dimensions.
     uint32_t size_blocks[3];
-    uint32_t is_3d_endian;
+    // Base offset in bytes.
+    uint32_t host_offset;
 
     // vec4 2.
-    // Base offset in bytes.
-    uint32_t host_base;
     uint32_t host_pitch;
     uint32_t height_texels;
-
-    static constexpr uint32_t kGuestPitchTiled = UINT32_MAX;
   };
 
   struct TextureBinding {

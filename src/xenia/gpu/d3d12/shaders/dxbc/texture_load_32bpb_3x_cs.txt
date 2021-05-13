@@ -7,14 +7,14 @@
 // cbuffer XeTextureLoadConstants
 // {
 //
-//   uint xe_texture_load_guest_base;   // Offset:    0 Size:     4
-//   uint xe_texture_load_guest_pitch;  // Offset:    4 Size:     4
-//   uint2 xe_texture_load_guest_storage_width_height;// Offset:    8 Size:     8
+//   uint xe_texture_load_is_tiled_3d_endian;// Offset:    0 Size:     4
+//   uint xe_texture_load_guest_offset; // Offset:    4 Size:     4
+//   uint xe_texture_load_guest_pitch_aligned;// Offset:    8 Size:     4
+//   uint xe_texture_load_guest_z_stride_block_rows_aligned;// Offset:   12 Size:     4
 //   uint3 xe_texture_load_size_blocks; // Offset:   16 Size:    12
-//   uint xe_texture_load_is_3d_endian; // Offset:   28 Size:     4
-//   uint xe_texture_load_host_base;    // Offset:   32 Size:     4
-//   uint xe_texture_load_host_pitch;   // Offset:   36 Size:     4
-//   uint xe_texture_load_height_texels;// Offset:   40 Size:     4 [unused]
+//   uint xe_texture_load_host_offset;  // Offset:   28 Size:     4
+//   uint xe_texture_load_host_pitch;   // Offset:   32 Size:     4
+//   uint xe_texture_load_height_texels;// Offset:   36 Size:     4 [unused]
 //
 // }
 //
@@ -61,27 +61,25 @@ mov r1.z, CB0[0][1].y
 imul null, r0.yzw, r0.xxyz, r1.xxxz
 ishl r0.y, r0.y, l(2)
 imad r0.z, l(3), r0.w, r0.z
-imad r0.y, r0.z, CB0[0][2].y, r0.y
-iadd r0.y, r0.y, CB0[0][2].x
-ushr r0.z, CB0[0][2].y, l(3)
-ieq r0.w, CB0[0][0].y, l(-1)
+imad r0.y, r0.z, CB0[0][2].x, r0.y
+iadd r0.y, r0.y, CB0[0][1].w
+ushr r0.z, CB0[0][2].x, l(3)
+and r0.w, CB0[0][0].x, l(1)
 if_nz r0.w
-  and r0.w, CB0[0][1].w, l(1)
+  and r0.w, CB0[0][0].x, l(2)
   if_nz r0.w
-    iadd r1.xy, CB0[0][0].wzww, l(31, 31, 0, 0)
-    ishr r2.xyz, vThreadID.yzyy, l(4, 2, 3, 0)
-    ushr r1.xy, r1.xyxx, l(4, 5, 0, 0)
-    and r0.w, r1.x, l(0x0ffffffe)
-    imad r0.w, r2.y, r0.w, r2.x
-    ibfe r1.xz, l(27, 0, 29, 0), l(4, 0, 2, 0), vThreadID.xxxx
-    imad r0.w, r0.w, r1.y, r1.x
+    ishr r1.xyz, vThreadID.yzyy, l(4, 2, 3, 0)
+    ushr r2.xy, CB0[0][0].wzww, l(4, 5, 0, 0)
+    imad r0.w, r1.y, r2.x, r1.x
+    ibfe r1.xw, l(27, 0, 0, 29), l(4, 0, 0, 2), vThreadID.xxxx
+    imad r0.w, r0.w, r2.y, r1.x
     ishl r1.x, vThreadID.y, l(10)
     and r1.x, r1.x, l(6144)
     bfi r1.x, l(3), l(8), r0.x, r1.x
     ishr r1.x, r1.x, l(6)
-    iadd r1.y, r2.y, r2.z
-    bfi r1.w, l(1), l(1), r1.y, l(0)
-    iadd r1.z, r1.w, r1.z
+    iadd r1.y, r1.y, r1.z
+    bfi r1.z, l(1), l(1), r1.y, l(0)
+    iadd r1.z, r1.z, r1.w
     bfi r1.z, l(2), l(1), r1.z, l(0)
     bfi r1.y, l(1), l(0), r1.y, r1.z
     and r1.z, r1.x, l(112)
@@ -100,8 +98,7 @@ if_nz r0.w
   else 
     ibfe r1.xy, l(27, 29, 0, 0), l(4, 2, 0, 0), vThreadID.xxxx
     ishr r1.zw, vThreadID.yyyy, l(0, 0, 5, 2)
-    iadd r2.x, CB0[0][0].z, l(31)
-    ushr r2.x, r2.x, l(5)
+    ushr r2.x, CB0[0][0].z, l(5)
     imad r1.x, r1.z, r2.x, r1.x
     ishl r2.xy, vThreadID.yyyy, l(4, 7, 0, 0)
     and r2.xy, r2.xyxx, l(224, 2048, 0, 0)
@@ -127,15 +124,13 @@ if_nz r0.w
   endif 
 else 
   ishl r0.x, r0.x, l(2)
-  iadd r1.x, CB0[0][1].y, l(31)
-  and r1.x, r1.x, l(-32)
-  imad r1.x, vThreadID.z, r1.x, vThreadID.y
-  imad r0.w, r1.x, CB0[0][0].y, r0.x
+  imad r1.x, vThreadID.z, CB0[0][0].w, vThreadID.y
+  imad r0.w, r1.x, CB0[0][0].z, r0.x
 endif 
-iadd r0.x, r0.w, CB0[0][0].x
+iadd r0.x, r0.w, CB0[0][0].y
 imul null, r0.x, r0.x, l(9)
 ushr r0.xy, r0.xyxx, l(3, 3, 0, 0)
-ushr r0.w, CB0[0][1].w, l(1)
+ushr r0.w, CB0[0][0].x, l(2)
 ld r1.xy, r0.xxxx, T0[0].xyzw
 iadd r2.xyzw, r0.xxxx, l(1, 2, 3, 4)
 ld r1.zw, r2.xxxx, T0[0].zwxy
@@ -230,4 +225,4 @@ if_nz r3.y
 endif 
 store_uav_typed U0[0].xyzw, r0.yyyy, r0.xwxx
 ret 
-// Approximately 182 instruction slots used
+// Approximately 177 instruction slots used

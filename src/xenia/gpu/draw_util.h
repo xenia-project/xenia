@@ -196,6 +196,19 @@ void GetResolveEdramTileSpan(ResolveEdramPackedInfo edram_info,
                              uint32_t& base_out, uint32_t& row_length_used_out,
                              uint32_t& rows_out);
 
+union ResolveCopyDestPitchPackedInfo {
+  struct {
+    // 0...16384/32.
+    uint32_t pitch_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 +
+                                    2 - xenos::kTextureTileWidthHeightLog2;
+    uint32_t height_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 +
+                                     2 - xenos::kTextureTileWidthHeightLog2;
+  };
+  uint32_t packed;
+};
+static_assert(sizeof(ResolveCopyDestPitchPackedInfo) <= sizeof(uint32_t),
+              "ResolveAddressPackedInfo must be packable in uint32_t");
+
 // For backends with Shader Model 5-like compute, host shaders to use to perform
 // copying in resolve operations.
 enum class ResolveCopyShaderIndex {
@@ -268,7 +281,7 @@ struct ResolveCopyShaderConstants {
     ResolveEdramPackedInfo edram_info;
     ResolveAddressPackedInfo address_info;
     reg::RB_COPY_DEST_INFO dest_info;
-    reg::RB_COPY_DEST_PITCH dest_pitch;
+    ResolveCopyDestPitchPackedInfo dest_pitch_aligned;
   };
   DestRelative dest_relative;
   uint32_t dest_base;
@@ -303,8 +316,8 @@ struct ResolveInfo {
 
   ResolveAddressPackedInfo address;
 
-  reg::RB_COPY_DEST_INFO rb_copy_dest_info;
-  reg::RB_COPY_DEST_PITCH rb_copy_dest_pitch;
+  reg::RB_COPY_DEST_INFO copy_dest_info;
+  ResolveCopyDestPitchPackedInfo copy_dest_pitch_aligned;
 
   // Memory range that will potentially be modified by copying, with
   // address.local_x/y_div_8 & 31 being the origin relative to it.

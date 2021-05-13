@@ -16,8 +16,8 @@ cbuffer XeResolveConstants : register(b0) {
   #ifndef XE_RESOLVE_CLEAR
     // Sanitized RB_COPY_DEST_INFO.
     uint xe_resolve_dest_info;
-    // RB_COPY_DEST_PITCH.
-    uint xe_resolve_dest_pitch;
+    // xe::gpu::draw_util::ResolveCopyDestPitchPackedInfo.
+    uint xe_resolve_dest_pitch_aligned;
     #ifndef XE_RESOLVE_RESOLUTION_SCALED
       uint xe_resolve_dest_base;
     #endif
@@ -112,23 +112,30 @@ uint2 XeResolveSize() {
     return (xe_resolve_dest_info & (1u << 24u)) != 0u;
   }
 
-  uint XeResolveDestRowPitch() {
-    return xe_resolve_dest_pitch & ((1u << 14u) - 1u);
+  uint XeResolveDestRowPitchAlignedDiv32() {
+    return xe_resolve_dest_pitch_aligned & ((1u << 10u) - 1u);
   }
 
-  uint XeResolveDestSlicePitch() {
-    return (xe_resolve_dest_pitch >> 16u) & ((1u << 14u) - 1u);
+  uint XeResolveDestRowPitchAligned() {
+    return XeResolveDestRowPitchAlignedDiv32() << 5u;
+  }
+
+  uint XeResolveDestSlicePitchAlignedDiv32() {
+    return (xe_resolve_dest_pitch_aligned >> 10u) & ((1u << 14u) - 1u);
+  }
+
+  uint XeResolveDestSlicePitchAligned() {
+    return XeResolveDestSlicePitchAlignedDiv32() << 5u;
   }
 
   uint XeResolveDestPixelAddress(uint2 p, uint bpp_log2) {
     p += XeResolveOffset() & 31u;
     uint address;
-    uint row_pitch = XeResolveDestRowPitch();
+    uint row_pitch = XeResolveDestRowPitchAligned();
     [branch] if (XeResolveDestIsArray()) {
-      address = uint(XeTextureTiledOffset3D(int3(p, XeResolveDestSlice()),
-                                            uint2(row_pitch,
-                                                  XeResolveDestSlicePitch()),
-                                            bpp_log2));
+      address = uint(XeTextureTiledOffset3D(
+                         int3(p, XeResolveDestSlice()), row_pitch,
+                         XeResolveDestSlicePitchAligned(), bpp_log2));
     } else {
       address = uint(XeTextureTiledOffset2D(int2(p), row_pitch, bpp_log2));
     }

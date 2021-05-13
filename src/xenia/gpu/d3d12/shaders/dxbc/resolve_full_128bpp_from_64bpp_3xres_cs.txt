@@ -10,7 +10,7 @@
 //   uint xe_resolve_edram_info;        // Offset:    0 Size:     4
 //   uint xe_resolve_address_info;      // Offset:    4 Size:     4
 //   uint xe_resolve_dest_info;         // Offset:    8 Size:     4
-//   uint xe_resolve_dest_pitch;        // Offset:   12 Size:     4
+//   uint xe_resolve_dest_pitch_aligned;// Offset:   12 Size:     4
 //
 // }
 //
@@ -48,7 +48,7 @@ ushr r0.xy, CB0[0][0].yyyy, l(5, 29, 0, 0)
 mov r0.z, CB0[0][0].y
 bfi r1.xy, l(5, 2, 0, 0), l(3, 3, 0, 0), r0.zxzz, l(0, 0, 0, 0)
 iadd r1.xy, r1.xyxx, vThreadID.xyxx
-and r2.xyzw, CB0[0][0].xxwz, l(1023, 0x40000000, 0x00003fff, 7)
+and r2.xyzw, CB0[0][0].zxxz, l(7, 1023, 0x40000000, 8)
 ubfe r3.xyz, l(12, 2, 4, 0), l(13, 10, 25, 0), CB0[0][0].xxxx
 uge r0.w, l(3), r0.y
 if_nz r0.w
@@ -69,7 +69,7 @@ and r1.zw, r4.xxxy, l(0, 0, 1, 1)
 iadd r1.xy, r1.zwzz, r1.xyxx
 udiv r1.zw, null, r1.xxxy, l(0, 0, 80, 16)
 ishl r0.w, r1.z, l(1)
-imad r0.w, r1.w, r2.x, r0.w
+imad r0.w, r1.w, r2.y, r0.w
 iadd r0.w, r0.w, r3.x
 imad r1.xy, -r1.zwzz, l(80, 16, 0, 0), r1.xyxx
 imad r1.x, r1.y, l(80), r1.x
@@ -77,69 +77,70 @@ ishl r1.x, r1.x, l(1)
 imad r0.w, r0.w, l(1280), r1.x
 imul null, r0.w, r0.w, l(9)
 movc r1.xy, vThreadID.xyxx, l(0,0,0,0), l(1,1,0,0)
-movc r1.xy, r2.yyyy, r1.xyxx, l(0,0,0,0)
+movc r1.xy, r2.zzzz, r1.xyxx, l(0,0,0,0)
 bfi r4.xyzw, l(2, 2, 2, 2), l(3, 3, 3, 3), r0.zxxz, l(0, 0, 0, 0)
 iadd r4.xyzw, r4.xyzw, vThreadID.xyyx
-and r0.xz, CB0[0][0].zzzz, l(8, 0, 0x01000000, 0)
-if_nz r0.x
-  ubfe r2.xy, l(3, 14, 0, 0), l(4, 16, 0, 0), CB0[0][0].zwzz
-  iadd r1.zw, r2.yyyz, l(0, 0, 31, 31)
+bfi r0.x, l(10), l(5), CB0[0][0].w, l(0)
+if_nz r2.w
+  ubfe r0.z, l(3), l(4), CB0[0][0].z
+  ushr r1.z, CB0[0][0].w, l(10)
+  ishl r1.z, r1.z, l(5)
   ishr r5.xyzw, r4.zwzw, l(4, 5, 3, 3)
-  ishr r0.x, r2.x, l(2)
-  ushr r1.zw, r1.zzzw, l(0, 0, 4, 5)
-  and r1.z, r1.z, l(2046)
-  imad r1.z, r0.x, r1.z, r5.x
-  imad r1.z, r1.z, r1.w, r5.y
-  ishl r1.w, r4.z, l(12)
-  and r1.w, r1.w, l(0x00006000)
-  bfi r1.w, l(3), l(10), r4.w, r1.w
-  ishr r1.w, r1.w, l(6)
-  iadd r0.x, r0.x, r5.z
-  bfi r2.y, l(1), l(1), r0.x, l(0)
-  iadd r2.y, r2.y, r5.w
-  bfi r2.y, l(2), l(1), r2.y, l(0)
-  bfi r0.x, l(1), l(0), r0.x, r2.y
-  bfi r3.xy, l(18, 18, 0, 0), l(12, 15, 0, 0), r1.zzzz, l(0, 0, 0, 0)
-  imad r1.zw, r1.wwww, l(0, 0, 2, 16), r3.xxxy
-  bfi r1.zw, l(0, 0, 2, 2), l(0, 0, 10, 13), r2.xxxx, r1.zzzw
-  bfi r2.x, l(1), l(4), r4.z, l(0)
-  ubfe r2.y, l(3), l(6), r1.z
-  and r3.x, r0.x, l(6)
-  bfi r0.x, l(1), l(8), r0.x, l(0)
-  imad r0.x, r2.y, l(32), r0.x
-  imad r0.x, r3.x, l(4), r0.x
-  bfi r1.zw, l(0, 0, 5, 5), l(0, 0, 0, 3), r2.xxxx, r1.zzzw
-  bfi r0.x, l(9), l(3), r0.x, r1.w
-  bfi r0.x, l(6), l(0), r1.z, r0.x
+  ishr r1.w, r0.z, l(2)
+  ushr r1.z, r1.z, l(4)
+  and r1.z, r1.z, l(0x00007ffe)
+  imad r1.z, r1.w, r1.z, r5.x
+  ushr r2.y, r0.x, l(5)
+  imad r1.z, r1.z, r2.y, r5.y
+  ishl r2.y, r4.z, l(12)
+  and r2.y, r2.y, l(0x00006000)
+  bfi r2.y, l(3), l(10), r4.w, r2.y
+  ishr r2.y, r2.y, l(6)
+  iadd r1.w, r1.w, r5.z
+  bfi r2.z, l(1), l(1), r1.w, l(0)
+  iadd r2.z, r2.z, r5.w
+  bfi r2.z, l(2), l(1), r2.z, l(0)
+  bfi r1.w, l(1), l(0), r1.w, r2.z
+  bfi r2.zw, l(0, 0, 18, 18), l(0, 0, 12, 15), r1.zzzz, l(0, 0, 0, 0)
+  imad r2.yz, r2.yyyy, l(0, 2, 16, 0), r2.zzwz
+  bfi r2.yz, l(0, 2, 2, 0), l(0, 10, 13, 0), r0.zzzz, r2.yyzy
+  bfi r0.z, l(1), l(4), r4.z, l(0)
+  ubfe r1.z, l(3), l(6), r2.y
+  and r2.w, r1.w, l(6)
+  bfi r1.w, l(1), l(8), r1.w, l(0)
+  imad r1.z, r1.z, l(32), r1.w
+  imad r1.z, r2.w, l(4), r1.z
+  bfi r2.yz, l(0, 5, 5, 0), l(0, 0, 3, 0), r0.zzzz, r2.yyzy
+  bfi r0.z, l(9), l(3), r1.z, r2.z
+  bfi r0.z, l(6), l(0), r2.y, r0.z
 else 
   ishr r5.xyzw, r4.xyzw, l(5, 5, 2, 3)
-  iadd r1.z, r2.z, l(31)
-  ushr r1.z, r1.z, l(5)
-  imad r1.z, r5.y, r1.z, r5.x
-  ishl r1.w, r4.z, l(7)
-  and r2.xy, r1.wwww, l(1792, 2048, 0, 0)
-  bfi r1.w, l(3), l(5), r4.w, r2.x
-  bfi r1.w, l(21), l(11), r1.z, r1.w
+  ushr r0.x, r0.x, l(5)
+  imad r0.x, r5.y, r0.x, r5.x
+  ishl r1.z, r4.z, l(7)
+  and r1.zw, r1.zzzz, l(0, 0, 1792, 2048)
+  bfi r2.y, l(3), l(5), r4.w, r1.z
+  bfi r2.y, l(21), l(11), r0.x, r2.y
   bfi r2.z, l(1), l(4), r4.z, l(0)
-  iadd r1.w, r1.w, r2.z
-  ishl r3.xy, r2.xxxx, l(3, 2, 0, 0)
+  iadd r2.y, r2.y, r2.z
+  ishl r3.xy, r1.zzzz, l(3, 2, 0, 0)
   bfi r3.xy, l(3, 3, 0, 0), l(8, 7, 0, 0), r4.wwww, r3.xyxx
-  bfi r3.xy, l(21, 21, 0, 0), l(14, 13, 0, 0), r1.zzzz, r3.xyxx
-  imad r2.xz, r2.zzzz, l(8, 0, 4, 0), r3.xxyx
-  bfi r1.z, l(12), l(0), r2.y, r2.x
-  and r2.x, r2.z, l(1792)
-  iadd r1.z, r1.z, r2.x
-  and r2.x, r5.z, l(2)
-  iadd r2.x, r5.w, r2.x
-  bfi r2.x, l(2), l(6), r2.x, l(0)
-  iadd r1.z, r1.z, r2.x
-  bfi r0.x, l(6), l(0), r1.w, r1.z
+  bfi r3.xy, l(21, 21, 0, 0), l(14, 13, 0, 0), r0.xxxx, r3.xyxx
+  imad r2.zw, r2.zzzz, l(0, 0, 8, 4), r3.xxxy
+  bfi r0.x, l(12), l(0), r1.w, r2.z
+  and r1.z, r2.w, l(1792)
+  iadd r0.x, r0.x, r1.z
+  and r1.z, r5.z, l(2)
+  iadd r1.z, r5.w, r1.z
+  bfi r1.z, l(2), l(6), r1.z, l(0)
+  iadd r0.x, r0.x, r1.z
+  bfi r0.z, l(6), l(0), r2.y, r0.x
 endif 
-imul null, r0.x, r0.x, l(9)
+imul null, r0.x, r0.z, l(9)
 ushr r0.xw, r0.xxxw, l(4, 0, 0, 1)
-imad r1.y, r1.y, l(3), r0.w
-iadd r1.z, r1.x, r1.y
-ld r4.yw, r1.zzzz, T0[0].zxwy
+imad r0.z, r1.y, l(3), r0.w
+iadd r1.y, r1.x, r0.z
+ld r4.yw, r1.yyyy, T0[0].zxwy
 switch r3.z
   case l(5)
   ishl r4.xz, r4.yywy, l(16, 0, 16, 0)
@@ -149,21 +150,21 @@ switch r3.z
   max r4.xyzw, r5.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
   break 
   case l(7)
-  ushr r2.xy, r4.ywyy, l(16, 16, 0, 0)
+  ushr r1.zw, r4.yyyw, l(0, 0, 16, 16)
   f16tof32 r4.xy, r4.wyww
-  f16tof32 r4.zw, r2.yyyx
+  f16tof32 r4.zw, r1.wwwz
   break 
   default 
   mov r4.xz, l(0,0,0,0)
   break 
 endswitch 
-ibfe r1.w, l(6), l(16), CB0[0][0].z
-ishl r1.w, r1.w, l(23)
-iadd r1.w, r1.w, l(0x3f800000)
-uge r2.x, r0.y, l(4)
-if_nz r2.x
-  mul r2.y, r1.w, l(0.500000)
-  iadd r2.z, r1.z, l(720)
+ibfe r1.z, l(6), l(16), CB0[0][0].z
+ishl r1.z, r1.z, l(23)
+iadd r1.z, r1.z, l(0x3f800000)
+uge r1.w, r0.y, l(4)
+if_nz r1.w
+  mul r2.y, r1.z, l(0.500000)
+  iadd r2.z, r1.y, l(720)
   ld r5.yw, r2.zzzz, T0[0].zxwy
   switch r3.z
     case l(5)
@@ -174,9 +175,9 @@ if_nz r2.x
     max r5.xyzw, r6.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
     break 
     case l(7)
-    ushr r3.xy, r5.ywyy, l(16, 16, 0, 0)
+    ushr r2.zw, r5.yyyw, l(0, 0, 16, 16)
     f16tof32 r5.xy, r5.wyww
-    f16tof32 r5.zw, r3.yyyx
+    f16tof32 r5.zw, r2.wwwz
     break 
     default 
     mov r5.xz, l(0,0,0,0)
@@ -185,9 +186,9 @@ if_nz r2.x
   add r4.xyzw, r4.xyzw, r5.xyzw
   uge r2.z, r0.y, l(6)
   if_nz r2.z
-    mul r2.y, r1.w, l(0.250000)
-    iadd r3.xy, r1.zzzz, l(9, 729, 0, 0)
-    ld r5.yw, r3.xxxx, T0[0].zxwy
+    mul r2.y, r1.z, l(0.250000)
+    iadd r2.zw, r1.yyyy, l(0, 0, 9, 729)
+    ld r5.yw, r2.zzzz, T0[0].zxwy
     switch r3.z
       case l(5)
       ishl r5.xz, r5.yywy, l(16, 0, 16, 0)
@@ -197,16 +198,16 @@ if_nz r2.x
       max r5.xyzw, r6.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
       break 
       case l(7)
-      ushr r3.xw, r5.yyyw, l(16, 0, 0, 16)
+      ushr r3.xy, r5.ywyy, l(16, 16, 0, 0)
       f16tof32 r5.xy, r5.wyww
-      f16tof32 r5.zw, r3.wwwx
+      f16tof32 r5.zw, r3.yyyx
       break 
       default 
       mov r5.xz, l(0,0,0,0)
       break 
     endswitch 
     add r5.xyzw, r4.ywxz, r5.ywxz
-    ld r6.yw, r3.yyyy, T0[0].zxwy
+    ld r6.yw, r2.wwww, T0[0].zxwy
     switch r3.z
       case l(5)
       ishl r6.xz, r6.yywy, l(16, 0, 16, 0)
@@ -216,9 +217,9 @@ if_nz r2.x
       max r6.xyzw, r7.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
       break 
       case l(7)
-      ushr r3.xy, r6.ywyy, l(16, 16, 0, 0)
+      ushr r2.zw, r6.yyyw, l(0, 0, 16, 16)
       f16tof32 r6.xy, r6.wyww
-      f16tof32 r6.zw, r3.yyyx
+      f16tof32 r6.zw, r2.wwwz
       break 
       default 
       mov r6.xz, l(0,0,0,0)
@@ -227,42 +228,43 @@ if_nz r2.x
     add r4.xyzw, r5.zxwy, r6.xyzw
   endif 
 else 
-  mov r2.y, r1.w
+  mov r2.y, r1.z
 endif 
 mul r4.xyzw, r2.yyyy, r4.ywxz
-if_nz r0.z
+and r1.y, CB0[0][0].z, l(0x01000000)
+if_nz r1.y
   mov r4.xz, r4.zzxz
 endif 
-ieq r1.z, r2.w, l(5)
-if_nz r1.z
+ieq r2.y, r2.x, l(5)
+if_nz r2.y
   mov r4.yw, r4.wwwy
   mov r4.xyzw, r4.yzwx
-  mov r2.y, l(2)
+  mov r2.z, l(2)
 else 
-  mov r2.y, r2.w
+  mov r2.z, r2.x
 endif 
-ieq r2.z, r2.y, l(4)
-if_nz r2.z
+ieq r2.w, r2.z, l(4)
+if_nz r2.w
   mov r4.xyzw, r4.yxwz
-  mov r2.y, l(2)
+  mov r2.z, l(2)
 endif 
-ieq r3.xyw, r2.yyyy, l(1, 2, 0, 3)
-or r2.yz, r3.yywy, r3.xxyx
-if_nz r2.y
+ieq r3.xyw, r2.zzzz, l(1, 2, 0, 3)
+or r2.zw, r3.yyyw, r3.xxxy
+if_nz r2.z
   ishl r5.xyzw, r4.xyzw, l(8, 8, 8, 8)
   and r5.xyzw, r5.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
   ushr r6.xyzw, r4.xyzw, l(8, 8, 8, 8)
   and r6.xyzw, r6.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
   iadd r4.xyzw, r5.xyzw, r6.xyzw
 endif 
-if_nz r2.z
+if_nz r2.w
   ushr r5.xyzw, r4.xyzw, l(16, 16, 16, 16)
   bfi r4.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r4.xyzw, r5.xyzw
 endif 
 store_uav_typed U0[0].xyzw, r0.xxxx, r4.xyzw
 iadd r4.xyzw, r0.xxxx, l(1, 2, 3, 4)
-iadd r2.yz, r1.yyyy, l(0, 1, 2, 0)
-ld r5.yw, r2.yyyy, T0[0].zxwy
+iadd r2.zw, r0.zzzz, l(0, 0, 1, 2)
+ld r5.yw, r2.zzzz, T0[0].zxwy
 switch r3.z
   case l(5)
   ishl r5.xz, r5.yywy, l(16, 0, 16, 0)
@@ -280,9 +282,9 @@ switch r3.z
   mov r5.xz, l(0,0,0,0)
   break 
 endswitch 
-if_nz r2.x
-  mul r2.y, r1.w, l(0.500000)
-  iadd r3.x, r1.y, l(721)
+if_nz r1.w
+  mul r2.z, r1.z, l(0.500000)
+  iadd r3.x, r0.z, l(721)
   ld r6.yw, r3.xxxx, T0[0].zxwy
   switch r3.z
     case l(5)
@@ -304,8 +306,8 @@ if_nz r2.x
   add r5.xyzw, r5.xyzw, r6.xyzw
   uge r3.x, r0.y, l(6)
   if_nz r3.x
-    mul r2.y, r1.w, l(0.250000)
-    iadd r3.xy, r1.yyyy, l(10, 730, 0, 0)
+    mul r2.z, r1.z, l(0.250000)
+    iadd r3.xy, r0.zzzz, l(10, 730, 0, 0)
     ld r6.yw, r3.xxxx, T0[0].zxwy
     switch r3.z
       case l(5)
@@ -346,25 +348,25 @@ if_nz r2.x
     add r5.xyzw, r6.zxwy, r7.xyzw
   endif 
 else 
-  mov r2.y, r1.w
+  mov r2.z, r1.z
 endif 
-mul r5.xyzw, r2.yyyy, r5.ywxz
-if_nz r0.z
+mul r5.xyzw, r2.zzzz, r5.ywxz
+if_nz r1.y
   mov r5.xz, r5.zzxz
 endif 
-if_nz r1.z
+if_nz r2.y
   mov r5.yw, r5.wwwy
   mov r5.xyzw, r5.yzwx
-  mov r2.y, l(2)
+  mov r2.z, l(2)
 else 
-  mov r2.y, r2.w
+  mov r2.z, r2.x
 endif 
-ieq r3.x, r2.y, l(4)
+ieq r3.x, r2.z, l(4)
 if_nz r3.x
   mov r5.xyzw, r5.yxwz
-  mov r2.y, l(2)
+  mov r2.z, l(2)
 endif 
-ieq r3.xyw, r2.yyyy, l(1, 2, 0, 3)
+ieq r3.xyw, r2.zzzz, l(1, 2, 0, 3)
 or r3.xy, r3.ywyy, r3.xyxx
 if_nz r3.x
   ishl r6.xyzw, r5.xyzw, l(8, 8, 8, 8)
@@ -378,6 +380,124 @@ if_nz r3.y
   bfi r5.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r5.xyzw, r6.xyzw
 endif 
 store_uav_typed U0[0].xyzw, r4.xxxx, r5.xyzw
+ld r5.yw, r2.wwww, T0[0].zxwy
+switch r3.z
+  case l(5)
+  ishl r5.xz, r5.yywy, l(16, 0, 16, 0)
+  ishr r6.xyzw, r5.xyzw, l(16, 16, 16, 16)
+  itof r6.xyzw, r6.xyzw
+  mul r6.xyzw, r6.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+  max r5.xyzw, r6.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
+  break 
+  case l(7)
+  ushr r2.zw, r5.yyyw, l(0, 0, 16, 16)
+  f16tof32 r5.xy, r5.wyww
+  f16tof32 r5.zw, r2.wwwz
+  break 
+  default 
+  mov r5.xz, l(0,0,0,0)
+  break 
+endswitch 
+if_nz r1.w
+  mul r2.z, r1.z, l(0.500000)
+  iadd r2.w, r0.z, l(722)
+  ld r6.yw, r2.wwww, T0[0].zxwy
+  switch r3.z
+    case l(5)
+    ishl r6.xz, r6.yywy, l(16, 0, 16, 0)
+    ishr r7.xyzw, r6.xyzw, l(16, 16, 16, 16)
+    itof r7.xyzw, r7.xyzw
+    mul r7.xyzw, r7.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+    max r6.xyzw, r7.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
+    break 
+    case l(7)
+    ushr r3.xy, r6.ywyy, l(16, 16, 0, 0)
+    f16tof32 r6.xy, r6.wyww
+    f16tof32 r6.zw, r3.yyyx
+    break 
+    default 
+    mov r6.xz, l(0,0,0,0)
+    break 
+  endswitch 
+  add r5.xyzw, r5.xyzw, r6.xyzw
+  uge r2.w, r0.y, l(6)
+  if_nz r2.w
+    mul r2.z, r1.z, l(0.250000)
+    iadd r3.xy, r0.zzzz, l(11, 731, 0, 0)
+    ld r6.yw, r3.xxxx, T0[0].zxwy
+    switch r3.z
+      case l(5)
+      ishl r6.xz, r6.yywy, l(16, 0, 16, 0)
+      ishr r7.xyzw, r6.xyzw, l(16, 16, 16, 16)
+      itof r7.xyzw, r7.xyzw
+      mul r7.xyzw, r7.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+      max r6.xyzw, r7.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
+      break 
+      case l(7)
+      ushr r3.xw, r6.yyyw, l(16, 0, 0, 16)
+      f16tof32 r6.xy, r6.wyww
+      f16tof32 r6.zw, r3.wwwx
+      break 
+      default 
+      mov r6.xz, l(0,0,0,0)
+      break 
+    endswitch 
+    add r6.xyzw, r5.ywxz, r6.ywxz
+    ld r7.yw, r3.yyyy, T0[0].zxwy
+    switch r3.z
+      case l(5)
+      ishl r7.xz, r7.yywy, l(16, 0, 16, 0)
+      ishr r8.xyzw, r7.xyzw, l(16, 16, 16, 16)
+      itof r8.xyzw, r8.xyzw
+      mul r8.xyzw, r8.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
+      max r7.xyzw, r8.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
+      break 
+      case l(7)
+      ushr r3.xy, r7.ywyy, l(16, 16, 0, 0)
+      f16tof32 r7.xy, r7.wyww
+      f16tof32 r7.zw, r3.yyyx
+      break 
+      default 
+      mov r7.xz, l(0,0,0,0)
+      break 
+    endswitch 
+    add r5.xyzw, r6.zxwy, r7.xyzw
+  endif 
+else 
+  mov r2.z, r1.z
+endif 
+mul r5.xyzw, r2.zzzz, r5.ywxz
+if_nz r1.y
+  mov r5.xz, r5.zzxz
+endif 
+if_nz r2.y
+  mov r5.yw, r5.wwwy
+  mov r5.xyzw, r5.yzwx
+  mov r0.z, l(2)
+else 
+  mov r0.z, r2.x
+endif 
+ieq r2.z, r0.z, l(4)
+if_nz r2.z
+  mov r5.xyzw, r5.yxwz
+  mov r0.z, l(2)
+endif 
+ieq r3.xyw, r0.zzzz, l(1, 2, 0, 3)
+or r2.zw, r3.yyyw, r3.xxxy
+if_nz r2.z
+  ishl r6.xyzw, r5.xyzw, l(8, 8, 8, 8)
+  and r6.xyzw, r6.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
+  ushr r7.xyzw, r5.xyzw, l(8, 8, 8, 8)
+  and r7.xyzw, r7.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
+  iadd r5.xyzw, r6.xyzw, r7.xyzw
+endif 
+if_nz r2.w
+  ushr r6.xyzw, r5.xyzw, l(16, 16, 16, 16)
+  bfi r5.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r5.xyzw, r6.xyzw
+endif 
+store_uav_typed U0[0].xyzw, r4.yyyy, r5.xyzw
+iadd r0.z, r1.x, r0.w
+iadd r2.zw, r0.zzzz, l(0, 0, 3, 6)
 ld r5.yw, r2.zzzz, T0[0].zxwy
 switch r3.z
   case l(5)
@@ -388,17 +508,17 @@ switch r3.z
   max r5.xyzw, r6.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
   break 
   case l(7)
-  ushr r2.yz, r5.yywy, l(0, 16, 16, 0)
+  ushr r3.xy, r5.ywyy, l(16, 16, 0, 0)
   f16tof32 r5.xy, r5.wyww
-  f16tof32 r5.zw, r2.zzzy
+  f16tof32 r5.zw, r3.yyyx
   break 
   default 
   mov r5.xz, l(0,0,0,0)
   break 
 endswitch 
-if_nz r2.x
-  mul r2.y, r1.w, l(0.500000)
-  iadd r2.z, r1.y, l(722)
+if_nz r1.w
+  mul r1.x, r1.z, l(0.500000)
+  iadd r2.z, r0.z, l(723)
   ld r6.yw, r2.zzzz, T0[0].zxwy
   switch r3.z
     case l(5)
@@ -420,8 +540,8 @@ if_nz r2.x
   add r5.xyzw, r5.xyzw, r6.xyzw
   uge r2.z, r0.y, l(6)
   if_nz r2.z
-    mul r2.y, r1.w, l(0.250000)
-    iadd r3.xy, r1.yyyy, l(11, 731, 0, 0)
+    mul r1.x, r1.z, l(0.250000)
+    iadd r3.xy, r0.zzzz, l(12, 732, 0, 0)
     ld r6.yw, r3.xxxx, T0[0].zxwy
     switch r3.z
       case l(5)
@@ -462,143 +582,25 @@ if_nz r2.x
     add r5.xyzw, r6.zxwy, r7.xyzw
   endif 
 else 
-  mov r2.y, r1.w
+  mov r1.x, r1.z
 endif 
-mul r5.xyzw, r2.yyyy, r5.ywxz
-if_nz r0.z
+mul r5.xyzw, r1.xxxx, r5.ywxz
+if_nz r1.y
   mov r5.xz, r5.zzxz
 endif 
-if_nz r1.z
+if_nz r2.y
   mov r5.yw, r5.wwwy
   mov r5.xyzw, r5.yzwx
-  mov r1.y, l(2)
+  mov r1.x, l(2)
 else 
-  mov r1.y, r2.w
+  mov r1.x, r2.x
 endif 
-ieq r2.y, r1.y, l(4)
-if_nz r2.y
-  mov r5.xyzw, r5.yxwz
-  mov r1.y, l(2)
-endif 
-ieq r3.xyw, r1.yyyy, l(1, 2, 0, 3)
-or r2.yz, r3.yywy, r3.xxyx
-if_nz r2.y
-  ishl r6.xyzw, r5.xyzw, l(8, 8, 8, 8)
-  and r6.xyzw, r6.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
-  ushr r7.xyzw, r5.xyzw, l(8, 8, 8, 8)
-  and r7.xyzw, r7.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
-  iadd r5.xyzw, r6.xyzw, r7.xyzw
-endif 
+ieq r2.z, r1.x, l(4)
 if_nz r2.z
-  ushr r6.xyzw, r5.xyzw, l(16, 16, 16, 16)
-  bfi r5.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r5.xyzw, r6.xyzw
-endif 
-store_uav_typed U0[0].xyzw, r4.yyyy, r5.xyzw
-iadd r1.x, r1.x, r0.w
-iadd r2.yz, r1.xxxx, l(0, 3, 6, 0)
-ld r5.yw, r2.yyyy, T0[0].zxwy
-switch r3.z
-  case l(5)
-  ishl r5.xz, r5.yywy, l(16, 0, 16, 0)
-  ishr r6.xyzw, r5.xyzw, l(16, 16, 16, 16)
-  itof r6.xyzw, r6.xyzw
-  mul r6.xyzw, r6.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-  max r5.xyzw, r6.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
-  break 
-  case l(7)
-  ushr r3.xy, r5.ywyy, l(16, 16, 0, 0)
-  f16tof32 r5.xy, r5.wyww
-  f16tof32 r5.zw, r3.yyyx
-  break 
-  default 
-  mov r5.xz, l(0,0,0,0)
-  break 
-endswitch 
-if_nz r2.x
-  mul r1.y, r1.w, l(0.500000)
-  iadd r2.y, r1.x, l(723)
-  ld r6.yw, r2.yyyy, T0[0].zxwy
-  switch r3.z
-    case l(5)
-    ishl r6.xz, r6.yywy, l(16, 0, 16, 0)
-    ishr r7.xyzw, r6.xyzw, l(16, 16, 16, 16)
-    itof r7.xyzw, r7.xyzw
-    mul r7.xyzw, r7.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-    max r6.xyzw, r7.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
-    break 
-    case l(7)
-    ushr r3.xy, r6.ywyy, l(16, 16, 0, 0)
-    f16tof32 r6.xy, r6.wyww
-    f16tof32 r6.zw, r3.yyyx
-    break 
-    default 
-    mov r6.xz, l(0,0,0,0)
-    break 
-  endswitch 
-  add r5.xyzw, r5.xyzw, r6.xyzw
-  uge r2.y, r0.y, l(6)
-  if_nz r2.y
-    mul r1.y, r1.w, l(0.250000)
-    iadd r3.xy, r1.xxxx, l(12, 732, 0, 0)
-    ld r6.yw, r3.xxxx, T0[0].zxwy
-    switch r3.z
-      case l(5)
-      ishl r6.xz, r6.yywy, l(16, 0, 16, 0)
-      ishr r7.xyzw, r6.xyzw, l(16, 16, 16, 16)
-      itof r7.xyzw, r7.xyzw
-      mul r7.xyzw, r7.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-      max r6.xyzw, r7.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
-      break 
-      case l(7)
-      ushr r3.xw, r6.yyyw, l(16, 0, 0, 16)
-      f16tof32 r6.xy, r6.wyww
-      f16tof32 r6.zw, r3.wwwx
-      break 
-      default 
-      mov r6.xz, l(0,0,0,0)
-      break 
-    endswitch 
-    add r6.xyzw, r5.ywxz, r6.ywxz
-    ld r7.yw, r3.yyyy, T0[0].zxwy
-    switch r3.z
-      case l(5)
-      ishl r7.xz, r7.yywy, l(16, 0, 16, 0)
-      ishr r8.xyzw, r7.xyzw, l(16, 16, 16, 16)
-      itof r8.xyzw, r8.xyzw
-      mul r8.xyzw, r8.xyzw, l(0.000977, 0.000977, 0.000977, 0.000977)
-      max r7.xyzw, r8.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
-      break 
-      case l(7)
-      ushr r3.xy, r7.ywyy, l(16, 16, 0, 0)
-      f16tof32 r7.xy, r7.wyww
-      f16tof32 r7.zw, r3.yyyx
-      break 
-      default 
-      mov r7.xz, l(0,0,0,0)
-      break 
-    endswitch 
-    add r5.xyzw, r6.zxwy, r7.xyzw
-  endif 
-else 
-  mov r1.y, r1.w
-endif 
-mul r5.xyzw, r1.yyyy, r5.ywxz
-if_nz r0.z
-  mov r5.xz, r5.zzxz
-endif 
-if_nz r1.z
-  mov r5.yw, r5.wwwy
-  mov r5.xyzw, r5.yzwx
-  mov r1.y, l(2)
-else 
-  mov r1.y, r2.w
-endif 
-ieq r2.y, r1.y, l(4)
-if_nz r2.y
   mov r5.xyzw, r5.yxwz
-  mov r1.y, l(2)
+  mov r1.x, l(2)
 endif 
-ieq r3.xyw, r1.yyyy, l(1, 2, 0, 3)
+ieq r3.xyw, r1.xxxx, l(1, 2, 0, 3)
 or r3.xy, r3.ywyy, r3.xyxx
 if_nz r3.x
   ishl r6.xyzw, r5.xyzw, l(8, 8, 8, 8)
@@ -631,10 +633,10 @@ switch r3.z
   mov r6.xz, l(0,0,0,0)
   break 
 endswitch 
-if_nz r2.x
-  mul r1.y, r1.w, l(0.500000)
-  iadd r2.y, r0.w, l(724)
-  ld r7.yw, r2.yyyy, T0[0].zxwy
+if_nz r1.w
+  mul r1.x, r1.z, l(0.500000)
+  iadd r2.z, r0.w, l(724)
+  ld r7.yw, r2.zzzz, T0[0].zxwy
   switch r3.z
     case l(5)
     ishl r7.xz, r7.yywy, l(16, 0, 16, 0)
@@ -653,9 +655,9 @@ if_nz r2.x
     break 
   endswitch 
   add r6.xyzw, r6.xyzw, r7.xyzw
-  uge r2.y, r0.y, l(6)
-  if_nz r2.y
-    mul r1.y, r1.w, l(0.250000)
+  uge r2.z, r0.y, l(6)
+  if_nz r2.z
+    mul r1.x, r1.z, l(0.250000)
     iadd r3.xy, r0.wwww, l(13, 733, 0, 0)
     ld r7.yw, r3.xxxx, T0[0].zxwy
     switch r3.z
@@ -697,25 +699,25 @@ if_nz r2.x
     add r6.xyzw, r7.zxwy, r8.xyzw
   endif 
 else 
-  mov r1.y, r1.w
+  mov r1.x, r1.z
 endif 
-mul r6.xyzw, r1.yyyy, r6.ywxz
-if_nz r0.z
+mul r6.xyzw, r1.xxxx, r6.ywxz
+if_nz r1.y
   mov r6.xz, r6.zzxz
 endif 
-if_nz r1.z
+if_nz r2.y
   mov r6.yw, r6.wwwy
   mov r6.xyzw, r6.yzwx
-  mov r1.y, l(2)
+  mov r1.x, l(2)
 else 
-  mov r1.y, r2.w
+  mov r1.x, r2.x
 endif 
-ieq r2.y, r1.y, l(4)
-if_nz r2.y
+ieq r2.z, r1.x, l(4)
+if_nz r2.z
   mov r6.xyzw, r6.yxwz
-  mov r1.y, l(2)
+  mov r1.x, l(2)
 endif 
-ieq r3.xyw, r1.yyyy, l(1, 2, 0, 3)
+ieq r3.xyw, r1.xxxx, l(1, 2, 0, 3)
 or r3.xy, r3.ywyy, r3.xyxx
 if_nz r3.x
   ishl r7.xyzw, r6.xyzw, l(8, 8, 8, 8)
@@ -748,10 +750,10 @@ switch r3.z
   mov r6.xz, l(0,0,0,0)
   break 
 endswitch 
-if_nz r2.x
-  mul r1.y, r1.w, l(0.500000)
-  iadd r2.y, r0.w, l(725)
-  ld r7.yw, r2.yyyy, T0[0].zxwy
+if_nz r1.w
+  mul r1.x, r1.z, l(0.500000)
+  iadd r2.z, r0.w, l(725)
+  ld r7.yw, r2.zzzz, T0[0].zxwy
   switch r3.z
     case l(5)
     ishl r7.xz, r7.yywy, l(16, 0, 16, 0)
@@ -770,9 +772,9 @@ if_nz r2.x
     break 
   endswitch 
   add r6.xyzw, r6.xyzw, r7.xyzw
-  uge r2.y, r0.y, l(6)
-  if_nz r2.y
-    mul r1.y, r1.w, l(0.250000)
+  uge r2.z, r0.y, l(6)
+  if_nz r2.z
+    mul r1.x, r1.z, l(0.250000)
     iadd r3.xy, r0.wwww, l(14, 734, 0, 0)
     ld r7.yw, r3.xxxx, T0[0].zxwy
     switch r3.z
@@ -814,25 +816,25 @@ if_nz r2.x
     add r6.xyzw, r7.zxwy, r8.xyzw
   endif 
 else 
-  mov r1.y, r1.w
+  mov r1.x, r1.z
 endif 
-mul r6.xyzw, r1.yyyy, r6.ywxz
-if_nz r0.z
+mul r6.xyzw, r1.xxxx, r6.ywxz
+if_nz r1.y
   mov r6.xz, r6.zzxz
 endif 
-if_nz r1.z
+if_nz r2.y
   mov r6.yw, r6.wwwy
   mov r6.xyzw, r6.yzwx
-  mov r1.y, l(2)
+  mov r1.x, l(2)
 else 
-  mov r1.y, r2.w
+  mov r1.x, r2.x
 endif 
-ieq r2.y, r1.y, l(4)
-if_nz r2.y
+ieq r2.z, r1.x, l(4)
+if_nz r2.z
   mov r6.xyzw, r6.yxwz
-  mov r1.y, l(2)
+  mov r1.x, l(2)
 endif 
-ieq r3.xyw, r1.yyyy, l(1, 2, 0, 3)
+ieq r3.xyw, r1.xxxx, l(1, 2, 0, 3)
 or r3.xy, r3.ywyy, r3.xyxx
 if_nz r3.x
   ishl r7.xyzw, r6.xyzw, l(8, 8, 8, 8)
@@ -846,7 +848,7 @@ if_nz r3.y
   bfi r6.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r6.xyzw, r7.xyzw
 endif 
 store_uav_typed U0[0].xyzw, r4.xxxx, r6.xyzw
-ld r6.yw, r2.zzzz, T0[0].zxwy
+ld r6.yw, r2.wwww, T0[0].zxwy
 switch r3.z
   case l(5)
   ishl r6.xz, r6.yywy, l(16, 0, 16, 0)
@@ -856,18 +858,18 @@ switch r3.z
   max r6.xyzw, r7.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
   break 
   case l(7)
-  ushr r2.yz, r6.yywy, l(0, 16, 16, 0)
+  ushr r2.zw, r6.yyyw, l(0, 0, 16, 16)
   f16tof32 r6.xy, r6.wyww
-  f16tof32 r6.zw, r2.zzzy
+  f16tof32 r6.zw, r2.wwwz
   break 
   default 
   mov r6.xz, l(0,0,0,0)
   break 
 endswitch 
-if_nz r2.x
-  mul r1.y, r1.w, l(0.500000)
-  iadd r2.y, r1.x, l(726)
-  ld r7.yw, r2.yyyy, T0[0].zxwy
+if_nz r1.w
+  mul r1.x, r1.z, l(0.500000)
+  iadd r2.z, r0.z, l(726)
+  ld r7.yw, r2.zzzz, T0[0].zxwy
   switch r3.z
     case l(5)
     ishl r7.xz, r7.yywy, l(16, 0, 16, 0)
@@ -877,20 +879,20 @@ if_nz r2.x
     max r7.xyzw, r8.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
     break 
     case l(7)
-    ushr r2.yz, r7.yywy, l(0, 16, 16, 0)
+    ushr r2.zw, r7.yyyw, l(0, 0, 16, 16)
     f16tof32 r7.xy, r7.wyww
-    f16tof32 r7.zw, r2.zzzy
+    f16tof32 r7.zw, r2.wwwz
     break 
     default 
     mov r7.xz, l(0,0,0,0)
     break 
   endswitch 
   add r6.xyzw, r6.xyzw, r7.xyzw
-  uge r2.y, r0.y, l(6)
-  if_nz r2.y
-    mul r1.y, r1.w, l(0.250000)
-    iadd r2.yz, r1.xxxx, l(0, 15, 735, 0)
-    ld r7.yw, r2.yyyy, T0[0].zxwy
+  uge r2.z, r0.y, l(6)
+  if_nz r2.z
+    mul r1.x, r1.z, l(0.250000)
+    iadd r2.zw, r0.zzzz, l(0, 0, 15, 735)
+    ld r7.yw, r2.zzzz, T0[0].zxwy
     switch r3.z
       case l(5)
       ishl r7.xz, r7.yywy, l(16, 0, 16, 0)
@@ -909,7 +911,7 @@ if_nz r2.x
       break 
     endswitch 
     add r7.xyzw, r6.ywxz, r7.ywxz
-    ld r8.yw, r2.zzzz, T0[0].zxwy
+    ld r8.yw, r2.wwww, T0[0].zxwy
     switch r3.z
       case l(5)
       ishl r8.xz, r8.yywy, l(16, 0, 16, 0)
@@ -919,9 +921,9 @@ if_nz r2.x
       max r8.xyzw, r9.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
       break 
       case l(7)
-      ushr r2.yz, r8.yywy, l(0, 16, 16, 0)
+      ushr r2.zw, r8.yyyw, l(0, 0, 16, 16)
       f16tof32 r8.xy, r8.wyww
-      f16tof32 r8.zw, r2.zzzy
+      f16tof32 r8.zw, r2.wwwz
       break 
       default 
       mov r8.xz, l(0,0,0,0)
@@ -930,34 +932,34 @@ if_nz r2.x
     add r6.xyzw, r7.zxwy, r8.xyzw
   endif 
 else 
-  mov r1.y, r1.w
+  mov r1.x, r1.z
 endif 
-mul r6.xyzw, r1.yyyy, r6.ywxz
-if_nz r0.z
+mul r6.xyzw, r1.xxxx, r6.ywxz
+if_nz r1.y
   mov r6.xz, r6.zzxz
 endif 
-if_nz r1.z
+if_nz r2.y
   mov r6.yw, r6.wwwy
   mov r6.xyzw, r6.yzwx
-  mov r1.x, l(2)
+  mov r0.z, l(2)
 else 
-  mov r1.x, r2.w
+  mov r0.z, r2.x
 endif 
-ieq r1.y, r1.x, l(4)
-if_nz r1.y
-  mov r6.xyzw, r6.yxwz
-  mov r1.x, l(2)
-endif 
-ieq r3.xyw, r1.xxxx, l(1, 2, 0, 3)
-or r1.xy, r3.ywyy, r3.xyxx
+ieq r1.x, r0.z, l(4)
 if_nz r1.x
+  mov r6.xyzw, r6.yxwz
+  mov r0.z, l(2)
+endif 
+ieq r3.xyw, r0.zzzz, l(1, 2, 0, 3)
+or r2.zw, r3.yyyw, r3.xxxy
+if_nz r2.z
   ishl r7.xyzw, r6.xyzw, l(8, 8, 8, 8)
   and r7.xyzw, r7.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
   ushr r8.xyzw, r6.xyzw, l(8, 8, 8, 8)
   and r8.xyzw, r8.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
   iadd r6.xyzw, r7.xyzw, r8.xyzw
 endif 
-if_nz r1.y
+if_nz r2.w
   ushr r7.xyzw, r6.xyzw, l(16, 16, 16, 16)
   bfi r6.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r6.xyzw, r7.xyzw
 endif 
@@ -972,18 +974,18 @@ switch r3.z
   max r6.xyzw, r7.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
   break 
   case l(7)
-  ushr r1.xy, r6.ywyy, l(16, 16, 0, 0)
+  ushr r2.zw, r6.yyyw, l(0, 0, 16, 16)
   f16tof32 r6.xy, r6.wyww
-  f16tof32 r6.zw, r1.yyyx
+  f16tof32 r6.zw, r2.wwwz
   break 
   default 
   mov r6.xz, l(0,0,0,0)
   break 
 endswitch 
-if_nz r2.x
-  mul r1.x, r1.w, l(0.500000)
-  iadd r1.y, r0.w, l(727)
-  ld r7.yw, r1.yyyy, T0[0].zxwy
+if_nz r1.w
+  mul r0.z, r1.z, l(0.500000)
+  iadd r1.x, r0.w, l(727)
+  ld r7.yw, r1.xxxx, T0[0].zxwy
   switch r3.z
     case l(5)
     ishl r7.xz, r7.yywy, l(16, 0, 16, 0)
@@ -993,20 +995,20 @@ if_nz r2.x
     max r7.xyzw, r8.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
     break 
     case l(7)
-    ushr r2.yz, r7.yywy, l(0, 16, 16, 0)
+    ushr r2.zw, r7.yyyw, l(0, 0, 16, 16)
     f16tof32 r7.xy, r7.wyww
-    f16tof32 r7.zw, r2.zzzy
+    f16tof32 r7.zw, r2.wwwz
     break 
     default 
     mov r7.xz, l(0,0,0,0)
     break 
   endswitch 
   add r6.xyzw, r6.xyzw, r7.xyzw
-  uge r1.y, r0.y, l(6)
-  if_nz r1.y
-    mul r1.x, r1.w, l(0.250000)
-    iadd r2.yz, r0.wwww, l(0, 16, 736, 0)
-    ld r7.yw, r2.yyyy, T0[0].zxwy
+  uge r1.x, r0.y, l(6)
+  if_nz r1.x
+    mul r0.z, r1.z, l(0.250000)
+    iadd r2.zw, r0.wwww, l(0, 0, 16, 736)
+    ld r7.yw, r2.zzzz, T0[0].zxwy
     switch r3.z
       case l(5)
       ishl r7.xz, r7.yywy, l(16, 0, 16, 0)
@@ -1025,7 +1027,7 @@ if_nz r2.x
       break 
     endswitch 
     add r7.xyzw, r6.ywxz, r7.ywxz
-    ld r8.yw, r2.zzzz, T0[0].zxwy
+    ld r8.yw, r2.wwww, T0[0].zxwy
     switch r3.z
       case l(5)
       ishl r8.xz, r8.yywy, l(16, 0, 16, 0)
@@ -1035,9 +1037,9 @@ if_nz r2.x
       max r8.xyzw, r9.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
       break 
       case l(7)
-      ushr r2.yz, r8.yywy, l(0, 16, 16, 0)
+      ushr r2.zw, r8.yyyw, l(0, 0, 16, 16)
       f16tof32 r8.xy, r8.wyww
-      f16tof32 r8.zw, r2.zzzy
+      f16tof32 r8.zw, r2.wwwz
       break 
       default 
       mov r8.xz, l(0,0,0,0)
@@ -1046,34 +1048,34 @@ if_nz r2.x
     add r6.xyzw, r7.zxwy, r8.xyzw
   endif 
 else 
-  mov r1.x, r1.w
+  mov r0.z, r1.z
 endif 
-mul r6.xyzw, r1.xxxx, r6.ywxz
-if_nz r0.z
+mul r6.xyzw, r0.zzzz, r6.ywxz
+if_nz r1.y
   mov r6.xz, r6.zzxz
 endif 
-if_nz r1.z
+if_nz r2.y
   mov r6.yw, r6.wwwy
   mov r6.xyzw, r6.yzwx
-  mov r1.x, l(2)
+  mov r0.z, l(2)
 else 
-  mov r1.x, r2.w
+  mov r0.z, r2.x
 endif 
-ieq r1.y, r1.x, l(4)
-if_nz r1.y
-  mov r6.xyzw, r6.yxwz
-  mov r1.x, l(2)
-endif 
-ieq r3.xyw, r1.xxxx, l(1, 2, 0, 3)
-or r1.xy, r3.ywyy, r3.xyxx
+ieq r1.x, r0.z, l(4)
 if_nz r1.x
+  mov r6.xyzw, r6.yxwz
+  mov r0.z, l(2)
+endif 
+ieq r3.xyw, r0.zzzz, l(1, 2, 0, 3)
+or r2.zw, r3.yyyw, r3.xxxy
+if_nz r2.z
   ishl r7.xyzw, r6.xyzw, l(8, 8, 8, 8)
   and r7.xyzw, r7.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
   ushr r8.xyzw, r6.xyzw, l(8, 8, 8, 8)
   and r8.xyzw, r8.xyzw, l(0x00ff00ff, 0x00ff00ff, 0x00ff00ff, 0x00ff00ff)
   iadd r6.xyzw, r7.xyzw, r8.xyzw
 endif 
-if_nz r1.y
+if_nz r2.w
   ushr r7.xyzw, r6.xyzw, l(16, 16, 16, 16)
   bfi r6.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r6.xyzw, r7.xyzw
 endif 
@@ -1088,18 +1090,18 @@ switch r3.z
   max r5.xyzw, r6.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
   break 
   case l(7)
-  ushr r1.xy, r5.ywyy, l(16, 16, 0, 0)
+  ushr r2.zw, r5.yyyw, l(0, 0, 16, 16)
   f16tof32 r5.xy, r5.wyww
-  f16tof32 r5.zw, r1.yyyx
+  f16tof32 r5.zw, r2.wwwz
   break 
   default 
   mov r5.xz, l(0,0,0,0)
   break 
 endswitch 
-if_nz r2.x
-  mul r1.x, r1.w, l(0.500000)
-  iadd r1.y, r0.w, l(728)
-  ld r6.yw, r1.yyyy, T0[0].zxwy
+if_nz r1.w
+  mul r0.z, r1.z, l(0.500000)
+  iadd r1.x, r0.w, l(728)
+  ld r6.yw, r1.xxxx, T0[0].zxwy
   switch r3.z
     case l(5)
     ishl r6.xz, r6.yywy, l(16, 0, 16, 0)
@@ -1109,9 +1111,9 @@ if_nz r2.x
     max r6.xyzw, r7.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
     break 
     case l(7)
-    ushr r2.xy, r6.ywyy, l(16, 16, 0, 0)
+    ushr r1.xw, r6.yyyw, l(16, 0, 0, 16)
     f16tof32 r6.xy, r6.wyww
-    f16tof32 r6.zw, r2.yyyx
+    f16tof32 r6.zw, r1.wwwx
     break 
     default 
     mov r6.xz, l(0,0,0,0)
@@ -1120,7 +1122,7 @@ if_nz r2.x
   add r5.xyzw, r5.xyzw, r6.xyzw
   uge r0.y, r0.y, l(6)
   if_nz r0.y
-    mul r1.w, r1.w, l(0.250000)
+    mul r1.z, r1.z, l(0.250000)
     iadd r0.yw, r0.wwww, l(0, 17, 0, 737)
     ld r6.yw, r0.yyyy, T0[0].zxwy
     switch r3.z
@@ -1132,9 +1134,9 @@ if_nz r2.x
       max r6.xyzw, r7.zxwy, l(-1.000000, -1.000000, -1.000000, -1.000000)
       break 
       case l(7)
-      ushr r2.xy, r6.ywyy, l(16, 16, 0, 0)
+      ushr r1.xw, r6.yyyw, l(16, 0, 0, 16)
       f16tof32 r6.xy, r6.wyww
-      f16tof32 r6.zw, r2.yyyx
+      f16tof32 r6.zw, r1.wwwx
       break 
       default 
       mov r6.xz, l(0,0,0,0)
@@ -1161,24 +1163,24 @@ if_nz r2.x
     endswitch 
     add r5.xyzw, r6.zxwy, r7.xyzw
   else 
-    mov r1.w, r1.x
+    mov r1.z, r0.z
   endif 
 endif 
-mul r3.xyzw, r1.wwww, r5.ywxz
-if_nz r0.z
+mul r3.xyzw, r1.zzzz, r5.ywxz
+if_nz r1.y
   mov r3.xz, r3.zzxz
 endif 
-if_nz r1.z
+if_nz r2.y
   mov r3.yw, r3.wwwy
   mov r3.xyzw, r3.yzwx
-  mov r2.w, l(2)
+  mov r2.x, l(2)
 endif 
-ieq r0.y, r2.w, l(4)
+ieq r0.y, r2.x, l(4)
 if_nz r0.y
   mov r3.xyzw, r3.yxwz
-  mov r2.w, l(2)
+  mov r2.x, l(2)
 endif 
-ieq r0.yzw, r2.wwww, l(0, 1, 2, 3)
+ieq r0.yzw, r2.xxxx, l(0, 1, 2, 3)
 or r0.yz, r0.zzwz, r0.yyzy
 if_nz r0.y
   ishl r1.xyzw, r3.xyzw, l(8, 8, 8, 8)
@@ -1193,4 +1195,4 @@ if_nz r0.z
 endif 
 store_uav_typed U0[0].xyzw, r4.wwww, r3.xyzw
 ret 
-// Approximately 1149 instruction slots used
+// Approximately 1151 instruction slots used
