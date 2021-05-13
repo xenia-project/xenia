@@ -111,30 +111,34 @@ bool SetTlsValue(TlsHandle handle, uintptr_t value) {
 class Win32HighResolutionTimer : public HighResolutionTimer {
  public:
   Win32HighResolutionTimer(std::function<void()> callback)
-      : callback_(callback) {}
+      : callback_(std::move(callback)) {}
   ~Win32HighResolutionTimer() override {
-    if (handle_) {
+    if (valid_) {
       DeleteTimerQueueTimer(nullptr, handle_, INVALID_HANDLE_VALUE);
       handle_ = nullptr;
     }
   }
 
   bool Initialize(std::chrono::milliseconds period) {
-    return CreateTimerQueueTimer(
-               &handle_, nullptr,
-               [](PVOID param, BOOLEAN timer_or_wait_fired) {
-                 auto timer =
-                     reinterpret_cast<Win32HighResolutionTimer*>(param);
-                 timer->callback_();
-               },
-               this, 0, DWORD(period.count()), WT_EXECUTEINTIMERTHREAD)
-               ? true
-               : false;
+    if (valid_) {
+      // Double initialization
+      assert_always();
+      return false;
+    }
+    valid_ = !!CreateTimerQueueTimer(
+        &handle_, nullptr,
+        [](PVOID param, BOOLEAN timer_or_wait_fired) {
+          auto timer = reinterpret_cast<Win32HighResolutionTimer*>(param);
+          timer->callback_();
+        },
+        this, 0, DWORD(period.count()), WT_EXECUTEINTIMERTHREAD);
+    return valid_;
   }
 
  private:
-  HANDLE handle_ = nullptr;
   std::function<void()> callback_;
+  HANDLE handle_ = nullptr;
+  bool valid_ = false;  // Documentation does not state which HANDLE is invalid
 };
 
 std::unique_ptr<HighResolutionTimer> HighResolutionTimer::CreateRepeating(
@@ -143,7 +147,7 @@ std::unique_ptr<HighResolutionTimer> HighResolutionTimer::CreateRepeating(
   if (!timer->Initialize(period)) {
     return nullptr;
   }
-  return std::unique_ptr<HighResolutionTimer>(timer.release());
+  return std::move(timer);
 }
 
 template <typename T>
