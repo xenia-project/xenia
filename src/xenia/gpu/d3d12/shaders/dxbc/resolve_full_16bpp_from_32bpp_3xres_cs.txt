@@ -10,7 +10,7 @@
 //   uint xe_resolve_edram_info;        // Offset:    0 Size:     4
 //   uint xe_resolve_address_info;      // Offset:    4 Size:     4
 //   uint xe_resolve_dest_info;         // Offset:    8 Size:     4
-//   uint xe_resolve_dest_pitch;        // Offset:   12 Size:     4
+//   uint xe_resolve_dest_pitch_aligned;// Offset:   12 Size:     4
 //
 // }
 //
@@ -51,7 +51,7 @@ uge r0.z, r0.x, r0.z
 if_nz r0.z
   ret 
 endif 
-and r1.xyzw, CB0[0][0].xzwz, l(0x40000000, 7, 0x00003fff, 8)
+and r1.xyzw, CB0[0][0].xzzx, l(0x40000000, 7, 8, 1023)
 mov r0.y, vThreadID.y
 ieq r0.zw, r0.xxxy, l(0, 0, 0, 0)
 movc r0.zw, r1.xxxx, r0.zzzw, l(0,0,0,0)
@@ -59,77 +59,77 @@ ushr r2.xy, CB0[0][0].yyyy, l(5, 29, 0, 0)
 mov r2.z, CB0[0][0].y
 bfi r3.xyzw, l(2, 2, 2, 2), l(3, 3, 3, 3), r2.zxxz, l(0, 0, 0, 0)
 iadd r3.xyzw, r0.xyyx, r3.xyzw
-if_nz r1.w
-  ubfe r4.xy, l(3, 14, 0, 0), l(4, 16, 0, 0), CB0[0][0].zwzz
-  mov r4.z, r1.z
-  iadd r1.xw, r4.yyyz, l(31, 0, 0, 31)
-  ishr r5.xyzw, r3.zwzw, l(4, 5, 3, 3)
-  ishr r2.w, r4.x, l(2)
-  ushr r1.xw, r1.xxxw, l(4, 0, 0, 5)
-  and r1.x, r1.x, l(2046)
-  imad r1.x, r2.w, r1.x, r5.x
-  imad r1.x, r1.x, r1.w, r5.y
-  ishl r1.w, r3.z, l(9)
-  and r1.w, r1.w, l(3072)
-  bfi r1.w, l(3), l(7), r3.w, r1.w
-  ishr r1.w, r1.w, l(6)
-  iadd r2.w, r2.w, r5.z
-  bfi r4.y, l(1), l(1), r2.w, l(0)
-  iadd r4.y, r4.y, r5.w
-  bfi r4.y, l(2), l(1), r4.y, l(0)
-  bfi r2.w, l(1), l(0), r2.w, r4.y
-  and r4.y, r1.w, l(48)
-  bfi r4.zw, l(0, 0, 21, 21), l(0, 0, 9, 12), r1.xxxx, l(0, 0, 0, 0)
-  imad r4.yz, r4.yyyy, l(0, 2, 16, 0), r4.zzwz
-  bfi r1.xw, l(4, 0, 0, 4), l(0, 0, 0, 3), r1.wwww, r4.yyyz
-  bfi r1.xw, l(2, 0, 0, 2), l(7, 0, 0, 10), r4.xxxx, r1.xxxw
-  ubfe r4.x, l(3), l(6), r1.x
-  and r4.y, r2.w, l(6)
-  bfi r2.w, l(1), l(8), r2.w, l(0)
-  imad r2.w, r4.x, l(32), r2.w
-  imad r2.w, r4.y, l(4), r2.w
-  bfi r1.xw, l(1, 0, 0, 1), l(4, 0, 0, 7), r3.zzzz, r1.xxxw
-  bfi r1.w, l(9), l(3), r2.w, r1.w
-  bfi r1.x, l(6), l(0), r1.x, r1.w
+bfi r1.x, l(10), l(5), CB0[0][0].w, l(0)
+if_nz r1.z
+  ubfe r1.z, l(3), l(4), CB0[0][0].z
+  ushr r2.w, CB0[0][0].w, l(10)
+  ishl r2.w, r2.w, l(5)
+  ishr r4.xyzw, r3.zwzw, l(4, 5, 3, 3)
+  ishr r5.x, r1.z, l(2)
+  ushr r2.w, r2.w, l(4)
+  and r2.w, r2.w, l(0x00007ffe)
+  imad r2.w, r5.x, r2.w, r4.x
+  ushr r4.x, r1.x, l(5)
+  imad r2.w, r2.w, r4.x, r4.y
+  ishl r4.x, r3.z, l(9)
+  and r4.x, r4.x, l(3072)
+  bfi r4.x, l(3), l(7), r3.w, r4.x
+  ishr r4.x, r4.x, l(6)
+  iadd r4.y, r4.z, r5.x
+  bfi r4.z, l(1), l(1), r4.y, l(0)
+  iadd r4.z, r4.z, r4.w
+  bfi r4.z, l(2), l(1), r4.z, l(0)
+  bfi r4.y, l(1), l(0), r4.y, r4.z
+  and r4.z, r4.x, l(48)
+  bfi r5.xy, l(21, 21, 0, 0), l(9, 12, 0, 0), r2.wwww, l(0, 0, 0, 0)
+  imad r4.zw, r4.zzzz, l(0, 0, 2, 16), r5.xxxy
+  bfi r4.xz, l(4, 0, 4, 0), l(0, 0, 3, 0), r4.xxxx, r4.zzwz
+  bfi r4.xz, l(2, 0, 2, 0), l(7, 0, 10, 0), r1.zzzz, r4.xxzx
+  ubfe r1.z, l(3), l(6), r4.x
+  and r2.w, r4.y, l(6)
+  bfi r4.y, l(1), l(8), r4.y, l(0)
+  imad r1.z, r1.z, l(32), r4.y
+  imad r1.z, r2.w, l(4), r1.z
+  bfi r4.xy, l(1, 1, 0, 0), l(4, 7, 0, 0), r3.zzzz, r4.xzxx
+  bfi r1.z, l(9), l(3), r1.z, r4.y
+  bfi r1.z, l(6), l(0), r4.x, r1.z
 else 
   ishr r4.xyzw, r3.xyzw, l(5, 5, 2, 3)
-  iadd r1.z, r1.z, l(31)
-  ushr r1.z, r1.z, l(5)
-  imad r1.z, r4.y, r1.z, r4.x
+  ushr r1.x, r1.x, l(5)
+  imad r1.x, r4.y, r1.x, r4.x
   ishl r3.xy, r3.zzzz, l(3, 7, 0, 0)
   and r3.xy, r3.xyxx, l(112, 2048, 0, 0)
-  bfi r1.w, l(3), l(1), r3.w, r3.x
-  ishl r2.w, r3.x, l(1)
-  bfi r2.w, l(3), l(2), r3.w, r2.w
-  and r2.w, r2.w, l(224)
-  bfi r3.x, l(24), l(8), r1.z, r2.w
-  bfi r3.x, l(4), l(0), r1.w, r3.x
-  bfi r3.x, l(1), l(4), r3.z, r3.x
-  ishl r4.xy, r2.wwww, l(3, 2, 0, 0)
-  bfi r4.xy, l(24, 24, 0, 0), l(11, 10, 0, 0), r1.zzzz, r4.xyxx
-  bfi r1.zw, l(0, 0, 4, 4), l(0, 0, 3, 2), r1.wwww, r4.xxxy
-  bfi r1.zw, l(0, 0, 1, 1), l(0, 0, 7, 6), r3.zzzz, r1.zzzw
-  bfi r1.z, l(12), l(0), r3.y, r1.z
-  and r1.w, r1.w, l(1792)
-  iadd r1.z, r1.z, r1.w
-  and r1.w, r4.z, l(2)
-  iadd r1.w, r4.w, r1.w
-  bfi r1.w, l(2), l(6), r1.w, l(0)
-  iadd r1.z, r1.z, r1.w
-  bfi r1.x, l(6), l(0), r3.x, r1.z
+  bfi r2.w, l(3), l(1), r3.w, r3.x
+  ishl r3.x, r3.x, l(1)
+  bfi r3.x, l(3), l(2), r3.w, r3.x
+  and r3.x, r3.x, l(224)
+  bfi r3.w, l(24), l(8), r1.x, r3.x
+  bfi r3.w, l(4), l(0), r2.w, r3.w
+  bfi r3.w, l(1), l(4), r3.z, r3.w
+  ishl r4.xy, r3.xxxx, l(3, 2, 0, 0)
+  bfi r4.xy, l(24, 24, 0, 0), l(11, 10, 0, 0), r1.xxxx, r4.xyxx
+  bfi r4.xy, l(4, 4, 0, 0), l(3, 2, 0, 0), r2.wwww, r4.xyxx
+  bfi r3.xz, l(1, 0, 1, 0), l(7, 0, 6, 0), r3.zzzz, r4.xxyx
+  bfi r1.x, l(12), l(0), r3.y, r3.x
+  and r2.w, r3.z, l(1792)
+  iadd r1.x, r1.x, r2.w
+  and r2.w, r4.z, l(2)
+  iadd r2.w, r4.w, r2.w
+  bfi r2.w, l(2), l(6), r2.w, l(0)
+  iadd r1.x, r1.x, r2.w
+  bfi r1.z, l(6), l(0), r3.w, r1.x
 endif 
-imul null, r1.x, r1.x, l(9)
+imul null, r1.x, r1.z, l(9)
 ushr r1.x, r1.x, l(3)
-bfi r1.zw, l(0, 0, 5, 2), l(0, 0, 3, 3), r2.zzzx, l(0, 0, 0, 0)
-iadd r0.xy, r0.xyxx, r1.zwzz
-and r1.zw, CB0[0][0].xxxz, l(0, 0, 1023, 0x01000000)
+bfi r2.xz, l(5, 0, 2, 0), l(3, 0, 3, 0), r2.zzxz, l(0, 0, 0, 0)
+iadd r0.xy, r0.xyxx, r2.xzxx
 ubfe r3.xyzw, l(6, 12, 2, 1), l(7, 13, 10, 29), CB0[0][0].zxxx
-uge r2.x, l(3), r2.y
-if_nz r2.x
+uge r1.z, l(3), r2.y
+if_nz r1.z
   mov r4.y, r2.y
 else 
-  ieq r2.x, r2.y, l(5)
-  if_nz r2.x
+  ieq r1.z, r2.y, l(5)
+  if_nz r1.z
     mov r4.y, l(2)
   else 
     mov r4.y, l(0)
@@ -142,14 +142,14 @@ ushr r4.x, r4.y, l(1)
 and r2.zw, r4.xxxy, l(0, 0, 1, 1)
 iadd r0.xy, r0.xyxx, r2.zwzz
 udiv r2.zw, null, r0.xxxy, l(0, 0, 80, 16)
-movc r3.z, r3.w, l(1), l(0)
-ishl r3.w, r2.z, r3.z
-imad r1.z, r2.w, r1.z, r3.w
-iadd r1.z, r1.z, r3.y
+movc r1.z, r3.w, l(1), l(0)
+ishl r3.z, r2.z, r1.z
+imad r1.w, r2.w, r1.w, r3.z
+iadd r1.w, r1.w, r3.y
 imad r0.xy, -r2.zwzz, l(80, 16, 0, 0), r0.xyxx
 imad r0.x, r0.y, l(80), r0.x
-ishl r0.x, r0.x, r3.z
-imad r0.x, r1.z, l(1280), r0.x
+ishl r0.x, r0.x, r1.z
+imad r0.x, r1.w, l(1280), r0.x
 imul null, r0.y, r0.x, l(36)
 ubfe r1.z, l(4), l(25), CB0[0][0].x
 ld_raw r4.xyzw, r0.y, T0[0].wxyz
@@ -370,12 +370,12 @@ endswitch
 ibfe r0.y, l(6), l(16), CB0[0][0].z
 ishl r0.y, r0.y, l(23)
 iadd r0.y, r0.y, l(0x3f800000)
-uge r2.z, r2.y, l(4)
-if_nz r2.z
-  mul r3.y, r0.y, l(0.500000)
-  imad r3.zw, r0.xxxx, l(0, 0, 36, 36), l(0, 0, 2880, 2896)
-  ld_raw r9.xyzw, r3.z, T0[0].wxyz
-  ld_raw r10.x, r3.w, T0[0].xxxx
+uge r1.w, r2.y, l(4)
+if_nz r1.w
+  mul r2.z, r0.y, l(0.500000)
+  imad r3.yz, r0.xxxx, l(0, 36, 36, 0), l(0, 2880, 2896, 0)
+  ld_raw r9.xyzw, r3.y, T0[0].wxyz
+  ld_raw r10.x, r3.z, T0[0].xxxx
   switch r1.z
     case l(0)
     case l(1)
@@ -434,23 +434,23 @@ if_nz r2.z
     ushr r14.xyzw, r9.yyyz, l(10, 20, 30, 30)
     mov r15.x, r9.y
     mov r15.yz, r14.xxyx
-    and r16.xyz, r15.xyzx, l(1023, 1023, 1023, 0)
-    and r17.xyz, r15.xyzx, l(127, 127, 127, 0)
-    ubfe r18.xyz, l(3, 3, 3, 0), l(7, 7, 7, 0), r15.xyzx
-    firstbit_hi r19.xyz, r17.xyzx
-    iadd r19.xyz, r19.xyzx, l(-24, -24, -24, 0)
-    movc r19.xyz, r17.xyzx, r19.xyzx, l(8,8,8,0)
-    iadd r20.xyz, -r19.xyzx, l(1, 1, 1, 0)
-    movc r20.xyz, r18.xyzx, r18.xyzx, r20.xyzx
-    bfi r15.xyz, l(7, 7, 7, 0), r19.xyzx, r15.xyzx, l(0, 0, 0, 0)
+    and r3.yzw, r15.xxyz, l(0, 1023, 1023, 1023)
+    and r16.xyz, r15.xyzx, l(127, 127, 127, 0)
+    ubfe r17.xyz, l(3, 3, 3, 0), l(7, 7, 7, 0), r15.xyzx
+    firstbit_hi r18.xyz, r16.xyzx
+    iadd r18.xyz, r18.xyzx, l(-24, -24, -24, 0)
+    movc r18.xyz, r16.xyzx, r18.xyzx, l(8,8,8,0)
+    iadd r19.xyz, -r18.xyzx, l(1, 1, 1, 0)
+    movc r19.xyz, r17.xyzx, r17.xyzx, r19.xyzx
+    bfi r15.xyz, l(7, 7, 7, 0), r18.xyzx, r15.xyzx, l(0, 0, 0, 0)
     and r15.xyz, r15.xyzx, l(127, 127, 127, 0)
-    movc r15.xyz, r18.xyzx, r17.xyzx, r15.xyzx
-    ishl r17.xyz, r20.xyzx, l(23, 23, 23, 0)
-    iadd r17.xyz, r17.xyzx, l(0x3e000000, 0x3e000000, 0x3e000000, 0)
+    movc r15.xyz, r17.xyzx, r16.xyzx, r15.xyzx
+    ishl r16.xyz, r19.xyzx, l(23, 23, 23, 0)
+    iadd r16.xyz, r16.xyzx, l(0x3e000000, 0x3e000000, 0x3e000000, 0)
     ishl r15.xyz, r15.xyzx, l(16, 16, 16, 0)
-    iadd r15.xyz, r17.xyzx, r15.xyzx
-    movc r11.xyz, r16.xyzx, r15.xyzx, l(0,0,0,0)
-    utof r3.zw, r14.zzzw
+    iadd r15.xyz, r16.xyzx, r15.xyzx
+    movc r11.xyz, r3.yzwy, r15.xyzx, l(0,0,0,0)
+    utof r3.yz, r14.zzwz
     ushr r14.xyzw, r9.zwwz, l(10, 10, 20, 20)
     mov r15.x, r9.z
     mov r15.yz, r14.xxwx
@@ -470,7 +470,7 @@ if_nz r2.z
     ishl r15.xyz, r15.xyzx, l(16, 16, 16, 0)
     iadd r15.xyz, r17.xyzx, r15.xyzx
     movc r12.xyz, r16.xyzx, r15.xyzx, l(0,0,0,0)
-    mul r3.zw, r3.zzzw, l(0.000000, 0.000000, 0.333333, 0.333333)
+    mul r3.yz, r3.yyzy, l(0.000000, 0.333333, 0.333333, 0.000000)
     mov r14.x, r9.w
     and r15.xyz, r14.xyzx, l(1023, 1023, 1023, 0)
     and r16.xyz, r14.xyzx, l(127, 127, 127, 0)
@@ -525,10 +525,10 @@ if_nz r2.z
     ishl r16.xyz, r16.xyzx, l(16, 16, 16, 0)
     iadd r16.xyz, r17.xyzx, r16.xyzx
     movc r10.xyz, r15.xyzx, r16.xyzx, l(0,0,0,0)
-    utof r14.z, r10.w
-    mul r10.w, r14.z, l(0.333333)
-    mov r11.w, r3.z
-    mov r12.w, r3.w
+    utof r3.w, r10.w
+    mul r10.w, r3.w, l(0.333333)
+    mov r11.w, r3.y
+    mov r12.w, r3.z
     mov r13.w, r14.x
     mov r9.w, r14.y
     break 
@@ -548,10 +548,10 @@ if_nz r2.z
     max r13.xy, r14.xyxx, l(-1.000000, -1.000000, 0.000000, 0.000000)
     max r9.xy, r14.zwzz, l(-1.000000, -1.000000, 0.000000, 0.000000)
     ishl r10.y, r10.x, l(16)
-    ishr r3.zw, r10.yyyx, l(0, 0, 16, 16)
-    itof r3.zw, r3.zzzw
-    mul r3.zw, r3.zzzw, l(0.000000, 0.000000, 0.000977, 0.000977)
-    max r10.xy, r3.zwzz, l(-1.000000, -1.000000, 0.000000, 0.000000)
+    ishr r3.yz, r10.yyxy, l(0, 16, 16, 0)
+    itof r3.yz, r3.yyzy
+    mul r3.yz, r3.yyzy, l(0.000000, 0.000977, 0.000977, 0.000000)
+    max r10.xy, r3.yzyy, l(-1.000000, -1.000000, 0.000000, 0.000000)
     mov r11.zw, l(0,0,0,0)
     mov r12.zw, l(0,0,0,0)
     mov r13.zw, l(0,0,0,0)
@@ -568,9 +568,9 @@ if_nz r2.z
     f16tof32 r13.y, r14.z
     f16tof32 r9.x, r9.x
     f16tof32 r9.y, r14.w
-    ushr r3.z, r10.x, l(16)
+    ushr r3.y, r10.x, l(16)
     f16tof32 r10.x, r10.x
-    f16tof32 r10.y, r3.z
+    f16tof32 r10.y, r3.y
     mov r11.zw, l(0,0,0,0)
     mov r12.zw, l(0,0,0,0)
     mov r13.zw, l(0,0,0,0)
@@ -593,9 +593,9 @@ if_nz r2.z
   add r8.xyzw, r8.xyzw, r13.xyzw
   add r4.xyzw, r4.xyzw, r9.xyzw
   add r5.xyzw, r5.xyzw, r10.xyzw
-  uge r3.z, r2.y, l(6)
-  if_nz r3.z
-    mul r3.y, r0.y, l(0.250000)
+  uge r3.y, r2.y, l(6)
+  if_nz r3.y
+    mul r2.z, r0.y, l(0.250000)
     imad r9.xyzw, r0.xxxx, l(36, 36, 36, 36), l(36, 52, 2916, 2932)
     ld_raw r10.xyzw, r9.x, T0[0].wxyz
     ld_raw r11.x, r9.y, T0[0].xxxx
@@ -657,23 +657,23 @@ if_nz r2.z
       ushr r15.xyzw, r10.yyyz, l(10, 20, 30, 30)
       mov r16.x, r10.y
       mov r16.yz, r15.xxyx
-      and r17.xyz, r16.xyzx, l(1023, 1023, 1023, 0)
-      and r18.xyz, r16.xyzx, l(127, 127, 127, 0)
-      ubfe r19.xyz, l(3, 3, 3, 0), l(7, 7, 7, 0), r16.xyzx
-      firstbit_hi r20.xyz, r18.xyzx
-      iadd r20.xyz, r20.xyzx, l(-24, -24, -24, 0)
-      movc r20.xyz, r18.xyzx, r20.xyzx, l(8,8,8,0)
-      iadd r21.xyz, -r20.xyzx, l(1, 1, 1, 0)
-      movc r21.xyz, r19.xyzx, r19.xyzx, r21.xyzx
-      bfi r16.xyz, l(7, 7, 7, 0), r20.xyzx, r16.xyzx, l(0, 0, 0, 0)
+      and r3.yzw, r16.xxyz, l(0, 1023, 1023, 1023)
+      and r17.xyz, r16.xyzx, l(127, 127, 127, 0)
+      ubfe r18.xyz, l(3, 3, 3, 0), l(7, 7, 7, 0), r16.xyzx
+      firstbit_hi r19.xyz, r17.xyzx
+      iadd r19.xyz, r19.xyzx, l(-24, -24, -24, 0)
+      movc r19.xyz, r17.xyzx, r19.xyzx, l(8,8,8,0)
+      iadd r20.xyz, -r19.xyzx, l(1, 1, 1, 0)
+      movc r20.xyz, r18.xyzx, r18.xyzx, r20.xyzx
+      bfi r16.xyz, l(7, 7, 7, 0), r19.xyzx, r16.xyzx, l(0, 0, 0, 0)
       and r16.xyz, r16.xyzx, l(127, 127, 127, 0)
-      movc r16.xyz, r19.xyzx, r18.xyzx, r16.xyzx
-      ishl r18.xyz, r21.xyzx, l(23, 23, 23, 0)
-      iadd r18.xyz, r18.xyzx, l(0x3e000000, 0x3e000000, 0x3e000000, 0)
+      movc r16.xyz, r18.xyzx, r17.xyzx, r16.xyzx
+      ishl r17.xyz, r20.xyzx, l(23, 23, 23, 0)
+      iadd r17.xyz, r17.xyzx, l(0x3e000000, 0x3e000000, 0x3e000000, 0)
       ishl r16.xyz, r16.xyzx, l(16, 16, 16, 0)
-      iadd r16.xyz, r18.xyzx, r16.xyzx
-      movc r12.xyz, r17.xyzx, r16.xyzx, l(0,0,0,0)
-      utof r3.zw, r15.zzzw
+      iadd r16.xyz, r17.xyzx, r16.xyzx
+      movc r12.xyz, r3.yzwy, r16.xyzx, l(0,0,0,0)
+      utof r3.yz, r15.zzwz
       ushr r15.xyzw, r10.zwwz, l(10, 10, 20, 20)
       mov r16.x, r10.z
       mov r16.yz, r15.xxwx
@@ -693,7 +693,7 @@ if_nz r2.z
       ishl r16.xyz, r16.xyzx, l(16, 16, 16, 0)
       iadd r16.xyz, r18.xyzx, r16.xyzx
       movc r13.xyz, r17.xyzx, r16.xyzx, l(0,0,0,0)
-      mul r3.zw, r3.zzzw, l(0.000000, 0.000000, 0.333333, 0.333333)
+      mul r3.yz, r3.yyzy, l(0.000000, 0.333333, 0.333333, 0.000000)
       mov r15.x, r10.w
       and r16.xyz, r15.xyzx, l(1023, 1023, 1023, 0)
       and r17.xyz, r15.xyzx, l(127, 127, 127, 0)
@@ -748,10 +748,10 @@ if_nz r2.z
       ishl r16.xyz, r16.xyzx, l(16, 16, 16, 0)
       iadd r16.xyz, r17.xyzx, r16.xyzx
       movc r11.xyz, r15.xyzx, r16.xyzx, l(0,0,0,0)
-      utof r15.x, r11.w
-      mul r11.w, r15.x, l(0.333333)
-      mov r12.w, r3.z
-      mov r13.w, r3.w
+      utof r3.w, r11.w
+      mul r11.w, r3.w, l(0.333333)
+      mov r12.w, r3.y
+      mov r13.w, r3.z
       mov r14.w, r9.x
       mov r10.w, r9.y
       break 
@@ -771,10 +771,10 @@ if_nz r2.z
       max r14.xy, r15.xyxx, l(-1.000000, -1.000000, 0.000000, 0.000000)
       max r10.xy, r15.zwzz, l(-1.000000, -1.000000, 0.000000, 0.000000)
       ishl r11.y, r11.x, l(16)
-      ishr r3.zw, r11.yyyx, l(0, 0, 16, 16)
-      itof r3.zw, r3.zzzw
-      mul r3.zw, r3.zzzw, l(0.000000, 0.000000, 0.000977, 0.000977)
-      max r11.xy, r3.zwzz, l(-1.000000, -1.000000, 0.000000, 0.000000)
+      ishr r3.yz, r11.yyxy, l(0, 16, 16, 0)
+      itof r3.yz, r3.yyzy
+      mul r3.yz, r3.yyzy, l(0.000000, 0.000977, 0.000977, 0.000000)
+      max r11.xy, r3.yzyy, l(-1.000000, -1.000000, 0.000000, 0.000000)
       mov r12.zw, l(0,0,0,0)
       mov r13.zw, l(0,0,0,0)
       mov r14.zw, l(0,0,0,0)
@@ -791,9 +791,9 @@ if_nz r2.z
       f16tof32 r14.y, r15.z
       f16tof32 r10.x, r10.x
       f16tof32 r10.y, r15.w
-      ushr r3.z, r11.x, l(16)
+      ushr r3.y, r11.x, l(16)
       f16tof32 r11.x, r11.x
-      f16tof32 r11.y, r3.z
+      f16tof32 r11.y, r3.y
       mov r12.zw, l(0,0,0,0)
       mov r13.zw, l(0,0,0,0)
       mov r14.zw, l(0,0,0,0)
@@ -876,23 +876,23 @@ if_nz r2.z
       ushr r19.xyzw, r15.yyyz, l(10, 20, 30, 30)
       mov r20.x, r15.y
       mov r20.yz, r19.xxyx
-      and r21.xyz, r20.xyzx, l(1023, 1023, 1023, 0)
-      and r22.xyz, r20.xyzx, l(127, 127, 127, 0)
-      ubfe r23.xyz, l(3, 3, 3, 0), l(7, 7, 7, 0), r20.xyzx
-      firstbit_hi r24.xyz, r22.xyzx
-      iadd r24.xyz, r24.xyzx, l(-24, -24, -24, 0)
-      movc r24.xyz, r22.xyzx, r24.xyzx, l(8,8,8,0)
-      iadd r25.xyz, -r24.xyzx, l(1, 1, 1, 0)
-      movc r25.xyz, r23.xyzx, r23.xyzx, r25.xyzx
-      bfi r20.xyz, l(7, 7, 7, 0), r24.xyzx, r20.xyzx, l(0, 0, 0, 0)
+      and r3.yzw, r20.xxyz, l(0, 1023, 1023, 1023)
+      and r21.xyz, r20.xyzx, l(127, 127, 127, 0)
+      ubfe r22.xyz, l(3, 3, 3, 0), l(7, 7, 7, 0), r20.xyzx
+      firstbit_hi r23.xyz, r21.xyzx
+      iadd r23.xyz, r23.xyzx, l(-24, -24, -24, 0)
+      movc r23.xyz, r21.xyzx, r23.xyzx, l(8,8,8,0)
+      iadd r24.xyz, -r23.xyzx, l(1, 1, 1, 0)
+      movc r24.xyz, r22.xyzx, r22.xyzx, r24.xyzx
+      bfi r20.xyz, l(7, 7, 7, 0), r23.xyzx, r20.xyzx, l(0, 0, 0, 0)
       and r20.xyz, r20.xyzx, l(127, 127, 127, 0)
-      movc r20.xyz, r23.xyzx, r22.xyzx, r20.xyzx
-      ishl r22.xyz, r25.xyzx, l(23, 23, 23, 0)
-      iadd r22.xyz, r22.xyzx, l(0x3e000000, 0x3e000000, 0x3e000000, 0)
+      movc r20.xyz, r22.xyzx, r21.xyzx, r20.xyzx
+      ishl r21.xyz, r24.xyzx, l(23, 23, 23, 0)
+      iadd r21.xyz, r21.xyzx, l(0x3e000000, 0x3e000000, 0x3e000000, 0)
       ishl r20.xyz, r20.xyzx, l(16, 16, 16, 0)
-      iadd r20.xyz, r22.xyzx, r20.xyzx
-      movc r16.xyz, r21.xyzx, r20.xyzx, l(0,0,0,0)
-      utof r3.zw, r19.zzzw
+      iadd r20.xyz, r21.xyzx, r20.xyzx
+      movc r16.xyz, r3.yzwy, r20.xyzx, l(0,0,0,0)
+      utof r3.yz, r19.zzwz
       ushr r19.xyzw, r15.zwwz, l(10, 10, 20, 20)
       mov r20.x, r15.z
       mov r20.yz, r19.xxwx
@@ -912,7 +912,7 @@ if_nz r2.z
       ishl r20.xyz, r20.xyzx, l(16, 16, 16, 0)
       iadd r20.xyz, r22.xyzx, r20.xyzx
       movc r17.xyz, r21.xyzx, r20.xyzx, l(0,0,0,0)
-      mul r3.zw, r3.zzzw, l(0.000000, 0.000000, 0.333333, 0.333333)
+      mul r3.yz, r3.yyzy, l(0.000000, 0.333333, 0.333333, 0.000000)
       mov r19.x, r15.w
       and r20.xyz, r19.xyzx, l(1023, 1023, 1023, 0)
       and r21.xyz, r19.xyzx, l(127, 127, 127, 0)
@@ -967,10 +967,10 @@ if_nz r2.z
       ishl r21.xyz, r21.xyzx, l(16, 16, 16, 0)
       iadd r21.xyz, r22.xyzx, r21.xyzx
       movc r9.xyz, r20.xyzx, r21.xyzx, l(0,0,0,0)
-      utof r19.z, r9.w
-      mul r9.w, r19.z, l(0.333333)
-      mov r16.w, r3.z
-      mov r17.w, r3.w
+      utof r3.w, r9.w
+      mul r9.w, r3.w, l(0.333333)
+      mov r16.w, r3.y
+      mov r17.w, r3.z
       mov r18.w, r19.x
       mov r15.w, r19.y
       break 
@@ -990,10 +990,10 @@ if_nz r2.z
       max r18.xy, r19.xyxx, l(-1.000000, -1.000000, 0.000000, 0.000000)
       max r15.xy, r19.zwzz, l(-1.000000, -1.000000, 0.000000, 0.000000)
       ishl r9.y, r9.x, l(16)
-      ishr r3.zw, r9.yyyx, l(0, 0, 16, 16)
-      itof r3.zw, r3.zzzw
-      mul r3.zw, r3.zzzw, l(0.000000, 0.000000, 0.000977, 0.000977)
-      max r9.xy, r3.zwzz, l(-1.000000, -1.000000, 0.000000, 0.000000)
+      ishr r3.yz, r9.yyxy, l(0, 16, 16, 0)
+      itof r3.yz, r3.yyzy
+      mul r3.yz, r3.yyzy, l(0.000000, 0.000977, 0.000977, 0.000000)
+      max r9.xy, r3.yzyy, l(-1.000000, -1.000000, 0.000000, 0.000000)
       mov r16.zw, l(0,0,0,0)
       mov r17.zw, l(0,0,0,0)
       mov r18.zw, l(0,0,0,0)
@@ -1010,9 +1010,9 @@ if_nz r2.z
       f16tof32 r18.y, r19.z
       f16tof32 r15.x, r15.x
       f16tof32 r15.y, r19.w
-      ushr r3.z, r9.x, l(16)
+      ushr r3.y, r9.x, l(16)
       f16tof32 r9.x, r9.x
-      f16tof32 r9.y, r3.z
+      f16tof32 r9.y, r3.y
       mov r16.zw, l(0,0,0,0)
       mov r17.zw, l(0,0,0,0)
       mov r18.zw, l(0,0,0,0)
@@ -1037,14 +1037,15 @@ if_nz r2.z
     add r5.xyzw, r9.xyzw, r11.xyzw
   endif 
 else 
-  mov r3.y, r0.y
+  mov r2.z, r0.y
 endif 
-mul r6.xyzw, r3.yyyy, r6.xyzw
-mul r7.xyzw, r3.yyyy, r7.xyzw
-mul r8.xyzw, r3.yyyy, r8.xyzw
-mul r4.xyzw, r3.yyyy, r4.xyzw
-mul r5.xyzw, r3.yyyy, r5.xyzw
-if_nz r1.w
+mul r6.xyzw, r2.zzzz, r6.xyzw
+mul r7.xyzw, r2.zzzz, r7.xyzw
+mul r8.xyzw, r2.zzzz, r8.xyzw
+mul r4.xyzw, r2.zzzz, r4.xyzw
+mul r5.xyzw, r2.zzzz, r5.xyzw
+and r2.z, CB0[0][0].z, l(0x01000000)
+if_nz r2.z
   mov r6.xz, r6.zzxz
   mov r7.xz, r7.zzxz
   mov r8.xz, r8.zzxz
@@ -1406,7 +1407,7 @@ switch r1.z
   mov r5.yzw, l(0,0,0,0)
   break 
 endswitch 
-if_nz r2.z
+if_nz r1.w
   mul r2.w, r0.y, l(0.500000)
   imad r3.y, r0.x, l(36), l(2900)
   ld_raw r11.xyzw, r3.y, T0[0].wxyz
@@ -1958,7 +1959,7 @@ mul r6.xyzw, r2.wwww, r6.xyzw
 mul r7.xyzw, r2.wwww, r7.xyzw
 mul r8.xyzw, r2.wwww, r8.xyzw
 mul r5.xyzw, r2.wwww, r5.xyzw
-if_nz r1.w
+if_nz r2.z
   mov r6.xz, r6.zzxz
   mov r7.xz, r7.zzxz
   mov r8.xz, r8.zzxz
@@ -2341,7 +2342,7 @@ switch r1.z
   mov r6.yzw, l(0,0,0,0)
   break 
 endswitch 
-if_nz r2.z
+if_nz r1.w
   mul r2.x, r0.y, l(0.500000)
   iadd r3.yz, r0.xxxx, l(0, 2880, 2896, 0)
   ld_raw r10.xyzw, r3.y, T0[0].wxyz
@@ -3014,7 +3015,7 @@ mul r8.xyzw, r2.xxxx, r8.xyzw
 mul r9.xyzw, r2.xxxx, r9.xyzw
 mul r5.xyzw, r2.xxxx, r5.xyzw
 mul r6.xyzw, r2.xxxx, r6.xyzw
-if_nz r1.w
+if_nz r2.z
   mov r7.xz, r7.zzxz
   mov r8.xz, r8.zzxz
   mov r9.xz, r9.zzxz
@@ -3375,7 +3376,7 @@ switch r1.z
   mov r5.yzw, l(0,0,0,0)
   break 
 endswitch 
-if_nz r2.z
+if_nz r1.w
   mul r2.x, r0.y, l(0.500000)
   iadd r2.w, r0.x, l(2900)
   ld_raw r9.xyzw, r2.w, T0[0].wxyz
@@ -3927,7 +3928,7 @@ mul r6.xyzw, r2.xxxx, r6.xyzw
 mul r7.xyzw, r2.xxxx, r7.xyzw
 mul r8.xyzw, r2.xxxx, r8.xyzw
 mul r5.xyzw, r2.xxxx, r5.xyzw
-if_nz r1.w
+if_nz r2.z
   mov r6.xz, r6.zzxz
   mov r7.xz, r7.zzxz
   mov r8.xz, r8.zzxz
@@ -4304,7 +4305,7 @@ switch r1.z
   mov r7.yzw, l(0,0,0,0)
   break 
 endswitch 
-if_nz r2.z
+if_nz r1.w
   mul r2.x, r0.y, l(0.500000)
   iadd r3.yz, r0.xxxx, l(0, 2880, 2896, 0)
   ld_raw r11.xyzw, r3.y, T0[0].wxyz
@@ -4977,7 +4978,7 @@ mul r9.xyzw, r2.xxxx, r9.xyzw
 mul r10.xyzw, r2.xxxx, r10.xyzw
 mul r6.xyzw, r2.xxxx, r6.xyzw
 mul r7.xyzw, r2.xxxx, r7.xyzw
-if_nz r1.w
+if_nz r2.z
   mov r8.xz, r8.zzxz
   mov r9.xz, r9.zzxz
   mov r10.xz, r10.zzxz
@@ -5338,7 +5339,7 @@ switch r1.z
   mov r6.yzw, l(0,0,0,0)
   break 
 endswitch 
-if_nz r2.z
+if_nz r1.w
   mul r2.w, r0.y, l(0.500000)
   iadd r3.y, r0.x, l(2900)
   ld_raw r10.xyzw, r3.y, T0[0].wxyz
@@ -5890,7 +5891,7 @@ mul r7.xyzw, r2.wwww, r7.xyzw
 mul r8.xyzw, r2.wwww, r8.xyzw
 mul r9.xyzw, r2.wwww, r9.xyzw
 mul r6.xyzw, r2.wwww, r6.xyzw
-if_nz r1.w
+if_nz r2.z
   mov r7.xz, r7.zzxz
   mov r8.xz, r8.zzxz
   mov r9.xz, r9.zzxz
@@ -6267,7 +6268,7 @@ switch r1.z
   mov r7.yzw, l(0,0,0,0)
   break 
 endswitch 
-if_nz r2.z
+if_nz r1.w
   mul r0.z, r0.y, l(0.500000)
   iadd r3.yz, r0.xxxx, l(0, 2880, 2896, 0)
   ld_raw r12.xyzw, r3.y, T0[0].wxyz
@@ -6940,7 +6941,7 @@ mul r9.xyzw, r0.zzzz, r9.xyzw
 mul r11.xyzw, r0.zzzz, r11.xyzw
 mul r6.xyzw, r0.zzzz, r6.xyzw
 mul r7.xyzw, r0.zzzz, r7.xyzw
-if_nz r1.w
+if_nz r2.z
   mov r8.xz, r8.zzxz
   mov r9.xz, r9.zzxz
   mov r11.xz, r11.zzxz
@@ -7303,10 +7304,10 @@ switch r1.z
   mov r6.yzw, l(0,0,0,0)
   break 
 endswitch 
-if_nz r2.z
-  mul r2.x, r0.y, l(0.500000)
-  iadd r2.z, r0.x, l(2900)
-  ld_raw r11.xyzw, r2.z, T0[0].wxyz
+if_nz r1.w
+  mul r1.w, r0.y, l(0.500000)
+  iadd r2.x, r0.x, l(2900)
+  ld_raw r11.xyzw, r2.x, T0[0].wxyz
   switch r1.z
     case l(0)
     case l(1)
@@ -7373,7 +7374,7 @@ if_nz r2.z
     ishl r17.xyz, r17.xyzx, l(16, 16, 16, 0)
     iadd r17.xyz, r18.xyzx, r17.xyzx
     movc r13.xyz, r3.yzwy, r17.xyzx, l(0,0,0,0)
-    utof r2.zw, r16.zzzw
+    utof r2.xw, r16.zzzw
     ushr r16.xyzw, r11.zwwz, l(10, 10, 20, 20)
     mov r17.x, r11.z
     mov r17.yz, r16.xxwx
@@ -7393,7 +7394,7 @@ if_nz r2.z
     ishl r17.xyz, r17.xyzx, l(16, 16, 16, 0)
     iadd r17.xyz, r18.xyzx, r17.xyzx
     movc r14.xyz, r3.yzwy, r17.xyzx, l(0,0,0,0)
-    mul r2.zw, r2.zzzw, l(0.000000, 0.000000, 0.333333, 0.333333)
+    mul r2.xw, r2.xxxw, l(0.333333, 0.000000, 0.000000, 0.333333)
     mov r16.x, r11.w
     and r3.yzw, r16.xxyz, l(0, 1023, 1023, 1023)
     and r17.xyz, r16.xyzx, l(127, 127, 127, 0)
@@ -7431,7 +7432,7 @@ if_nz r2.z
     iadd r16.xyz, r18.xyzx, r16.xyzx
     movc r11.xyz, r17.xyzx, r16.xyzx, l(0,0,0,0)
     mul r3.yz, r3.yyzy, l(0.000000, 0.333333, 0.333333, 0.000000)
-    mov r13.w, r2.z
+    mov r13.w, r2.x
     mov r14.w, r2.w
     mov r15.w, r3.y
     mov r11.w, r3.z
@@ -7485,11 +7486,11 @@ if_nz r2.z
   add r8.xyzw, r8.xyzw, r14.xyzw
   add r9.xyzw, r9.xyzw, r15.xyzw
   add r6.xyzw, r6.xyzw, r11.xyzw
-  uge r2.y, r2.y, l(6)
-  if_nz r2.y
+  uge r2.x, r2.y, l(6)
+  if_nz r2.x
     mul r0.y, r0.y, l(0.250000)
-    iadd r2.yz, r0.xxxx, l(0, 56, 2936, 0)
-    ld_raw r11.xyzw, r2.y, T0[0].wxyz
+    iadd r2.xy, r0.xxxx, l(56, 2936, 0, 0)
+    ld_raw r11.xyzw, r2.x, T0[0].wxyz
     switch r1.z
       case l(0)
       case l(1)
@@ -7556,7 +7557,7 @@ if_nz r2.z
       ishl r17.xyz, r17.xyzx, l(16, 16, 16, 0)
       iadd r17.xyz, r18.xyzx, r17.xyzx
       movc r13.xyz, r3.yzwy, r17.xyzx, l(0,0,0,0)
-      utof r2.yw, r16.zzzw
+      utof r2.xw, r16.zzzw
       ushr r16.xyzw, r11.zwwz, l(10, 10, 20, 20)
       mov r17.x, r11.z
       mov r17.yz, r16.xxwx
@@ -7576,7 +7577,7 @@ if_nz r2.z
       ishl r17.xyz, r17.xyzx, l(16, 16, 16, 0)
       iadd r17.xyz, r18.xyzx, r17.xyzx
       movc r14.xyz, r3.yzwy, r17.xyzx, l(0,0,0,0)
-      mul r2.yw, r2.yyyw, l(0.000000, 0.333333, 0.000000, 0.333333)
+      mul r2.xw, r2.xxxw, l(0.333333, 0.000000, 0.000000, 0.333333)
       mov r16.x, r11.w
       and r3.yzw, r16.xxyz, l(0, 1023, 1023, 1023)
       and r17.xyz, r16.xyzx, l(127, 127, 127, 0)
@@ -7614,7 +7615,7 @@ if_nz r2.z
       iadd r16.xyz, r18.xyzx, r16.xyzx
       movc r11.xyz, r17.xyzx, r16.xyzx, l(0,0,0,0)
       mul r3.yz, r3.yyzy, l(0.000000, 0.333333, 0.333333, 0.000000)
-      mov r13.w, r2.y
+      mov r13.w, r2.x
       mov r14.w, r2.w
       mov r15.w, r3.y
       mov r11.w, r3.z
@@ -7668,7 +7669,7 @@ if_nz r2.z
     add r14.xyzw, r8.xyzw, r14.xyzw
     add r15.xyzw, r9.xyzw, r15.xyzw
     add r11.xyzw, r6.xyzw, r11.xyzw
-    ld_raw r16.xyzw, r2.z, T0[0].wxyz
+    ld_raw r16.xyzw, r2.y, T0[0].wxyz
     switch r1.z
       case l(0)
       case l(1)
@@ -7719,7 +7720,7 @@ if_nz r2.z
       ushr r20.xyzw, r16.yyyz, l(10, 20, 30, 30)
       mov r21.x, r16.y
       mov r21.yz, r20.xxyx
-      and r2.yzw, r21.xxyz, l(0, 1023, 1023, 1023)
+      and r2.xyw, r21.xyxz, l(1023, 1023, 0, 1023)
       and r3.yzw, r21.xxyz, l(0, 127, 127, 127)
       ubfe r22.xyz, l(3, 3, 3, 0), l(7, 7, 7, 0), r21.xyzx
       firstbit_hi r23.xyz, r3.yzwy
@@ -7734,8 +7735,8 @@ if_nz r2.z
       iadd r21.xyz, r21.xyzx, l(0x3e000000, 0x3e000000, 0x3e000000, 0)
       ishl r3.yzw, r3.yyzw, l(0, 16, 16, 16)
       iadd r3.yzw, r21.xxyz, r3.yyzw
-      movc r17.xyz, r2.yzwy, r3.yzwy, l(0,0,0,0)
-      utof r2.yz, r20.zzwz
+      movc r17.xyz, r2.xywx, r3.yzwy, l(0,0,0,0)
+      utof r2.xy, r20.zwzz
       ushr r20.xyzw, r16.zwwz, l(10, 10, 20, 20)
       mov r21.x, r16.z
       mov r21.yz, r20.xxwx
@@ -7755,7 +7756,7 @@ if_nz r2.z
       ishl r21.xyz, r21.xyzx, l(16, 16, 16, 0)
       iadd r21.xyz, r22.xyzx, r21.xyzx
       movc r18.xyz, r3.yzwy, r21.xyzx, l(0,0,0,0)
-      mul r2.yz, r2.yyzy, l(0.000000, 0.333333, 0.333333, 0.000000)
+      mul r2.xy, r2.xyxx, l(0.333333, 0.333333, 0.000000, 0.000000)
       mov r20.x, r16.w
       and r3.yzw, r20.xxyz, l(0, 1023, 1023, 1023)
       and r21.xyz, r20.xyzx, l(127, 127, 127, 0)
@@ -7793,8 +7794,8 @@ if_nz r2.z
       iadd r20.xyz, r22.xyzx, r20.xyzx
       movc r16.xyz, r21.xyzx, r20.xyzx, l(0,0,0,0)
       mul r3.yz, r3.yyzy, l(0.000000, 0.333333, 0.333333, 0.000000)
-      mov r17.w, r2.y
-      mov r18.w, r2.z
+      mov r17.w, r2.x
+      mov r18.w, r2.y
       mov r19.w, r3.y
       mov r16.w, r3.z
       break 
@@ -7848,170 +7849,170 @@ if_nz r2.z
     add r9.xyzw, r15.xyzw, r19.xyzw
     add r6.xyzw, r11.xyzw, r16.xyzw
   else 
-    mov r0.y, r2.x
+    mov r0.y, r1.w
   endif 
 endif 
-mul r2.xyzw, r0.yyyy, r7.xyzw
-mul r7.xyzw, r0.yyyy, r8.xyzw
-mul r8.xyzw, r0.yyyy, r9.xyzw
+mul r7.xyzw, r0.yyyy, r7.xyzw
+mul r8.xyzw, r0.yyyy, r8.xyzw
+mul r9.xyzw, r0.yyyy, r9.xyzw
 mul r6.xyzw, r0.yyyy, r6.xyzw
-if_nz r1.w
-  mov r2.xz, r2.zzxz
+if_nz r2.z
   mov r7.xz, r7.zzxz
   mov r8.xz, r8.zzxz
+  mov r9.xz, r9.zzxz
   mov r6.xz, r6.zzxz
 endif 
 switch r3.x
   case l(3)
-  mov_sat r2.xyzw, r2.xyzw
-  mad r9.xyzw, r2.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r9.xyzw, r9.xyzw
-  imad r0.x, r9.y, l(32), r9.x
-  imad r0.x, r9.z, l(1024), r0.x
-  imad r3.x, r9.w, l(0x00008000), r0.x
   mov_sat r7.xyzw, r7.xyzw
-  mad r9.xyzw, r7.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r9.xyzw, r9.xyzw
-  imad r0.x, r9.y, l(32), r9.x
-  imad r0.x, r9.z, l(1024), r0.x
-  imad r3.z, r9.w, l(0x00008000), r0.x
+  mad r3.xyzw, r7.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r3.xyzw, r3.xyzw
+  imad r0.x, r3.y, l(32), r3.x
+  imad r0.x, r3.z, l(1024), r0.x
+  imad r2.x, r3.w, l(0x00008000), r0.x
   mov_sat r8.xyzw, r8.xyzw
-  mad r9.xyzw, r8.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r9.xyzw, r9.xyzw
-  imad r0.x, r9.y, l(32), r9.x
-  imad r0.x, r9.z, l(1024), r0.x
-  imad r3.y, r9.w, l(0x00008000), r0.x
+  mad r3.xyzw, r8.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r3.xyzw, r3.xyzw
+  imad r0.x, r3.y, l(32), r3.x
+  imad r0.x, r3.z, l(1024), r0.x
+  imad r2.z, r3.w, l(0x00008000), r0.x
+  mov_sat r9.xyzw, r9.xyzw
+  mad r3.xyzw, r9.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r3.xyzw, r3.xyzw
+  imad r0.x, r3.y, l(32), r3.x
+  imad r0.x, r3.z, l(1024), r0.x
+  imad r2.y, r3.w, l(0x00008000), r0.x
   mov_sat r6.xyzw, r6.xyzw
-  mad r9.xyzw, r6.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r9.xyzw, r9.xyzw
-  imad r0.x, r9.y, l(32), r9.x
-  imad r0.x, r9.z, l(1024), r0.x
-  imad r3.w, r9.w, l(0x00008000), r0.x
+  mad r3.xyzw, r6.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r3.xyzw, r3.xyzw
+  imad r0.x, r3.y, l(32), r3.x
+  imad r0.x, r3.z, l(1024), r0.x
+  imad r2.w, r3.w, l(0x00008000), r0.x
   break 
   case l(4)
-  mov_sat r2.xyz, r2.xyzx
-  mad r9.xyz, r2.xyzx, l(31.000000, 63.000000, 31.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
-  ftou r9.xyz, r9.xyzx
-  imad r0.x, r9.y, l(32), r9.x
-  imad r3.x, r9.z, l(2048), r0.x
   mov_sat r7.xyz, r7.xyzx
-  mad r9.xyz, r7.xyzx, l(31.000000, 63.000000, 31.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
-  ftou r9.xyz, r9.xyzx
-  imad r0.x, r9.y, l(32), r9.x
-  imad r3.z, r9.z, l(2048), r0.x
+  mad r3.xyz, r7.xyzx, l(31.000000, 63.000000, 31.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r3.xyz, r3.xyzx
+  imad r0.x, r3.y, l(32), r3.x
+  imad r2.x, r3.z, l(2048), r0.x
   mov_sat r8.xyz, r8.xyzx
-  mad r9.xyz, r8.xyzx, l(31.000000, 63.000000, 31.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
-  ftou r9.xyz, r9.xyzx
-  imad r0.x, r9.y, l(32), r9.x
-  imad r3.y, r9.z, l(2048), r0.x
+  mad r3.xyz, r8.xyzx, l(31.000000, 63.000000, 31.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r3.xyz, r3.xyzx
+  imad r0.x, r3.y, l(32), r3.x
+  imad r2.z, r3.z, l(2048), r0.x
+  mov_sat r9.xyz, r9.xyzx
+  mad r3.xyz, r9.xyzx, l(31.000000, 63.000000, 31.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r3.xyz, r3.xyzx
+  imad r0.x, r3.y, l(32), r3.x
+  imad r2.y, r3.z, l(2048), r0.x
   mov_sat r6.xyz, r6.xyzx
-  mad r9.xyz, r6.xyzx, l(31.000000, 63.000000, 31.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
-  ftou r9.xyz, r9.xyzx
-  imad r0.x, r9.y, l(32), r9.x
-  imad r3.w, r9.z, l(2048), r0.x
+  mad r3.xyz, r6.xyzx, l(31.000000, 63.000000, 31.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r3.xyz, r3.xyzx
+  imad r0.x, r3.y, l(32), r3.x
+  imad r2.w, r3.z, l(2048), r0.x
   break 
   case l(5)
-  mov_sat r2.xyz, r2.xyzx
-  mad r9.xyz, r2.xyzx, l(31.000000, 31.000000, 63.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
-  ftou r9.xyz, r9.xyzx
-  imad r0.x, r9.y, l(32), r9.x
-  imad r3.x, r9.z, l(1024), r0.x
   mov_sat r7.xyz, r7.xyzx
-  mad r9.xyz, r7.xyzx, l(31.000000, 31.000000, 63.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
-  ftou r9.xyz, r9.xyzx
-  imad r0.x, r9.y, l(32), r9.x
-  imad r3.z, r9.z, l(1024), r0.x
+  mad r3.xyz, r7.xyzx, l(31.000000, 31.000000, 63.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r3.xyz, r3.xyzx
+  imad r0.x, r3.y, l(32), r3.x
+  imad r2.x, r3.z, l(1024), r0.x
   mov_sat r8.xyz, r8.xyzx
-  mad r9.xyz, r8.xyzx, l(31.000000, 31.000000, 63.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
-  ftou r9.xyz, r9.xyzx
-  imad r0.x, r9.y, l(32), r9.x
-  imad r3.y, r9.z, l(1024), r0.x
+  mad r3.xyz, r8.xyzx, l(31.000000, 31.000000, 63.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r3.xyz, r3.xyzx
+  imad r0.x, r3.y, l(32), r3.x
+  imad r2.z, r3.z, l(1024), r0.x
+  mov_sat r9.xyz, r9.xyzx
+  mad r3.xyz, r9.xyzx, l(31.000000, 31.000000, 63.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r3.xyz, r3.xyzx
+  imad r0.x, r3.y, l(32), r3.x
+  imad r2.y, r3.z, l(1024), r0.x
   mov_sat r6.xyz, r6.xyzx
-  mad r9.xyz, r6.xyzx, l(31.000000, 31.000000, 63.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
-  ftou r9.xyz, r9.xyzx
-  imad r0.x, r9.y, l(32), r9.x
-  imad r3.w, r9.z, l(1024), r0.x
+  mad r3.xyz, r6.xyzx, l(31.000000, 31.000000, 63.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r3.xyz, r3.xyzx
+  imad r0.x, r3.y, l(32), r3.x
+  imad r2.w, r3.z, l(1024), r0.x
   break 
   case l(10)
-  mov_sat r2.xy, r2.xyxx
-  mad r0.xy, r2.xyxx, l(255.000000, 255.000000, 0.000000, 0.000000), l(0.500000, 0.500000, 0.000000, 0.000000)
-  ftou r0.xy, r0.xyxx
-  imad r3.x, r0.y, l(256), r0.x
   mov_sat r7.xy, r7.xyxx
   mad r0.xy, r7.xyxx, l(255.000000, 255.000000, 0.000000, 0.000000), l(0.500000, 0.500000, 0.000000, 0.000000)
   ftou r0.xy, r0.xyxx
-  imad r3.z, r0.y, l(256), r0.x
+  imad r2.x, r0.y, l(256), r0.x
   mov_sat r8.xy, r8.xyxx
   mad r0.xy, r8.xyxx, l(255.000000, 255.000000, 0.000000, 0.000000), l(0.500000, 0.500000, 0.000000, 0.000000)
   ftou r0.xy, r0.xyxx
-  imad r3.y, r0.y, l(256), r0.x
+  imad r2.z, r0.y, l(256), r0.x
+  mov_sat r9.xy, r9.xyxx
+  mad r0.xy, r9.xyxx, l(255.000000, 255.000000, 0.000000, 0.000000), l(0.500000, 0.500000, 0.000000, 0.000000)
+  ftou r0.xy, r0.xyxx
+  imad r2.y, r0.y, l(256), r0.x
   mov_sat r6.xy, r6.xyxx
   mad r0.xy, r6.xyxx, l(255.000000, 255.000000, 0.000000, 0.000000), l(0.500000, 0.500000, 0.000000, 0.000000)
   ftou r0.xy, r0.xyxx
-  imad r3.w, r0.y, l(256), r0.x
+  imad r2.w, r0.y, l(256), r0.x
   break 
   case l(15)
-  mov_sat r2.xyzw, r2.xyzw
-  mad r9.xyzw, r2.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r9.xyzw, r9.xyzw
-  imad r0.x, r9.y, l(16), r9.x
-  imad r0.x, r9.z, l(256), r0.x
-  imad r3.x, r9.w, l(4096), r0.x
   mov_sat r7.xyzw, r7.xyzw
-  mad r9.xyzw, r7.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r9.xyzw, r9.xyzw
-  imad r0.x, r9.y, l(16), r9.x
-  imad r0.x, r9.z, l(256), r0.x
-  imad r3.z, r9.w, l(4096), r0.x
+  mad r3.xyzw, r7.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r3.xyzw, r3.xyzw
+  imad r0.x, r3.y, l(16), r3.x
+  imad r0.x, r3.z, l(256), r0.x
+  imad r2.x, r3.w, l(4096), r0.x
   mov_sat r8.xyzw, r8.xyzw
-  mad r9.xyzw, r8.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r9.xyzw, r9.xyzw
-  imad r0.x, r9.y, l(16), r9.x
-  imad r0.x, r9.z, l(256), r0.x
-  imad r3.y, r9.w, l(4096), r0.x
+  mad r3.xyzw, r8.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r3.xyzw, r3.xyzw
+  imad r0.x, r3.y, l(16), r3.x
+  imad r0.x, r3.z, l(256), r0.x
+  imad r2.z, r3.w, l(4096), r0.x
+  mov_sat r9.xyzw, r9.xyzw
+  mad r3.xyzw, r9.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r3.xyzw, r3.xyzw
+  imad r0.x, r3.y, l(16), r3.x
+  imad r0.x, r3.z, l(256), r0.x
+  imad r2.y, r3.w, l(4096), r0.x
   mov_sat r6.xyzw, r6.xyzw
-  mad r9.xyzw, r6.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r9.xyzw, r9.xyzw
-  imad r0.x, r9.y, l(16), r9.x
-  imad r0.x, r9.z, l(256), r0.x
-  imad r3.w, r9.w, l(4096), r0.x
+  mad r3.xyzw, r6.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r3.xyzw, r3.xyzw
+  imad r0.x, r3.y, l(16), r3.x
+  imad r0.x, r3.z, l(256), r0.x
+  imad r2.w, r3.w, l(4096), r0.x
   break 
   case l(24)
-  mov_sat r2.x, r2.x
-  mad r0.x, r2.x, l(65535.000000), l(0.500000)
-  ftou r3.x, r0.x
   mov_sat r7.x, r7.x
   mad r0.x, r7.x, l(65535.000000), l(0.500000)
-  ftou r3.z, r0.x
+  ftou r2.x, r0.x
   mov_sat r8.x, r8.x
   mad r0.x, r8.x, l(65535.000000), l(0.500000)
-  ftou r3.y, r0.x
+  ftou r2.z, r0.x
+  mov_sat r9.x, r9.x
+  mad r0.x, r9.x, l(65535.000000), l(0.500000)
+  ftou r2.y, r0.x
   mov_sat r6.x, r6.x
   mad r0.x, r6.x, l(65535.000000), l(0.500000)
-  ftou r3.w, r0.x
+  ftou r2.w, r0.x
   break 
   default 
-  f32tof16 r3.x, r2.x
-  f32tof16 r3.z, r7.x
-  f32tof16 r3.y, r8.x
-  f32tof16 r3.w, r6.x
+  f32tof16 r2.x, r7.x
+  f32tof16 r2.z, r8.x
+  f32tof16 r2.y, r9.x
+  f32tof16 r2.w, r6.x
   break 
 endswitch 
 if_nz r1.y
-  bfi r2.xyzw, l(8, 8, 8, 8), l(8, 8, 8, 8), r3.xzyw, l(0, 0, 0, 0)
-  ushr r6.xyzw, r3.xzyw, l(8, 8, 8, 8)
-  iadd r3.xyzw, r2.xzyw, r6.xzyw
+  bfi r3.xyzw, l(8, 8, 8, 8), l(8, 8, 8, 8), r2.xzyw, l(0, 0, 0, 0)
+  ushr r6.xyzw, r2.xzyw, l(8, 8, 8, 8)
+  iadd r2.xyzw, r3.xzyw, r6.xzyw
 endif 
 if_nz r0.w
   mov r0.z, r12.y
   mov r12.x, r10.y
-  mov r10.x, r3.x
+  mov r10.x, r2.x
 endif 
 imad r4.y, r0.z, l(0x00010000), r10.z
 store_uav_typed U0[0].xyzw, r5.yyyy, r4.xyzw
 imad r0.xyzw, r10.xyxx, l(0x00010000, 0x00010000, 0x00010000, 0x00010000), r12.xyxx
 store_uav_typed U0[0].xyzw, r5.zzzz, r0.xyzw
-imad r0.xyzw, r3.zwzz, l(0x00010000, 0x00010000, 0x00010000, 0x00010000), r3.xyxx
+imad r0.xyzw, r2.zwzz, l(0x00010000, 0x00010000, 0x00010000, 0x00010000), r2.xyxx
 store_uav_typed U0[0].xyzw, r5.wwww, r0.xyzw
 ret 
-// Approximately 7970 instruction slots used
+// Approximately 7971 instruction slots used
