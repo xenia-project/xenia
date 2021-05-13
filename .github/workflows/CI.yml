@@ -37,14 +37,12 @@ jobs:
     - name: Build
       run: .\xb build --config=Release --target=src\xenia-app --target=src\xenia-vfs-dump
     - name: Prepare artifacts
-      id: prepare_artifacts
       run: |
         robocopy . build\bin\${{ runner.os }}\Release                                                                LICENSE /r:0 /w:0
         robocopy   build\bin\${{ runner.os }}\Release artifacts\xenia_canary   xenia_canary.exe   xenia_canary.pdb   LICENSE /r:0 /w:0
         robocopy   build\bin\${{ runner.os }}\Release artifacts\xenia-vfs-dump xenia-vfs-dump.exe xenia-vfs-dump.pdb LICENSE /r:0 /w:0
         If ($LastExitCode -le 7) { echo "LastExitCode = $LastExitCode";$LastExitCode = 0 }
         7z a xenia_canary.zip                       .\artifacts\xenia_canary\*.exe                                   LICENSE
-        echo "::set-output name=short_commit_sha::$(git rev-parse --short HEAD)"
     - name: Upload xenia-vfs-dump artifacts
       uses: actions/upload-artifact@v2
       with:
@@ -57,13 +55,22 @@ jobs:
         name: xenia_canary
         path: artifacts\xenia_canary
         if-no-files-found: error
-    - uses: softprops/action-gh-release@v1
+    - name: Set release parameters
       if: |
         github.repository == 'xenia-canary/xenia-canary' &&
         github.event.action != 'pull_request' &&
         contains(github.ref, 'refs/heads/canary')
+      id: release_parameters
+      run: |
+        $tag_name=$env:GITHUB_SHA.SubString(0,7)
+        echo "::set-output name=name::$tag_name_$($env:GITHUB_REF -replace 'refs/heads/', '')"
+        echo "::set-output name=tag_name::$tag_name"
+    - uses: softprops/action-gh-release@9729932bfb75c05ad1f6e3a729294e05abaa7001
+      if: success()
       with:
         files: '*.zip'
-        tag_name: ${{ steps.prepare_artifacts.outputs.short_commit_sha }}
+        name: ${{ steps.release_parameters.outputs.name }}
+        tag_name: ${{ steps.release_parameters.outputs.tag_name }}
+        fail_on_unmatched_files: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
