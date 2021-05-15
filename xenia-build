@@ -85,7 +85,7 @@ def import_vs_environment():
         if 'VS140COMNTOOLS' in os.environ:
             version = 2015
             vcvars_path = os.environ['VS140COMNTOOLS']
-            vcvars_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
+            vcvars_path = os.path.join(vcvars_path, '..\\..\\vc\\vcvarsall.bat')
             env_tool_args = [vcvars_path, 'x64', '&&', 'set']
     else:
         vsdevcmd_path = os.path.join(install_path, 'Common7\\Tools\\VsDevCmd.bat')
