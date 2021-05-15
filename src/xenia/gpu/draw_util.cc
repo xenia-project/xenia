@@ -960,10 +960,10 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
     // Need a subregion size, not the full subresource size - thus not aligning
     // to xenos::kTextureSubresourceAlignmentBytes.
     copy_dest_length =
-        texture_util::GetGuestLevelLayout(
+        texture_util::GetGuestTextureLayout(
             dest_dimension, copy_dest_pitch_aligned_div_32, uint32_t(x1 - x0),
-            dest_height, dest_depth, true, dest_format, false, 0, false)
-            .level_data_extent_bytes;
+            dest_height, dest_depth, true, dest_format, false, true, 0)
+            .base.level_data_extent_bytes;
   } else {
     XELOGE("Tried to resolve to format {}, which is not a ColorFormat",
            dest_format_info.name);

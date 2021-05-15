@@ -97,18 +97,20 @@ bool GetPackedMipOffset(uint32_t width, uint32_t height, uint32_t depth,
 // disassembly, which only checks the flag whether the data is packed passed to
 // it, not the level, to see if it needs to calculate the offset in the mip
 // tail, and the offset calculation function doesn't have level == 0 checks in
-// it, only early-out if level < packed tail level (which can be 0).
+// it, only early-out if level < packed tail level (which can be 0). There are
+// examples of textures with packed base, for example, in the intro level of
+// Prey (8x8 linear DXT1 - pairs of orange lights in the bottom of gambling
+// machines).
 //
 // Linear texture rows are aligned to 256 bytes, for both the base and the mips
 // (for the base, Direct3D 9 writes an already 256-byte-aligned pitch to the
 // fetch constant).
 //
 // However, all the 32x32x4 padding, being just padding, is not necessarily
-// being actually accessed, especially for linear textures. Test Drive Unlimited
-// has a 2x2 k_8_8_8_8 linear texture, and allocates 4 KB for it (with accessing
-// the page beyond it triggering an access violation), while a 32x32 k_8_8_8_8
-// linear texture, with rows aligned to 256 bytes (so stored like 64x32) would
-// take 8 KB. So, while for stride calculations all the padding must be
+// being actually accessed, especially for linear textures. Ridge Racer
+// Unbounded has a 1280x720 k_8_8_8_8 linear texture, and allocates memory for
+// exactly 1280x720, so aligning the height to 32 to 1280x736 results in access
+// violations. So, while for stride calculations all the padding must be
 // respected, for actual memory loads it's better to avoid trying to access it
 // when possible:
 // - If the pitch is bigger than the width, it's better to calculate the last
@@ -116,86 +118,69 @@ bool GetPackedMipOffset(uint32_t width, uint32_t height, uint32_t depth,
 //   in the other direction though - pitch < width is a weird situation, but
 //   probably legal, and may lead to reading data from beyond the calculated
 //   subresource stride).
-// - For linear textures (like that 2x2 example from Test Drive Unlimited), it's
-//   easy to calculate the exact memory extent that may be accessed knowing the
-//   dimensions (unlike for tiled textures with complex addressing within
-//   32x32x4-block tiles), so there's no need to align them to 32x32x4 for
-//   memory extent calculation - that's what appears to cause that crash in Test
-//   Drive Unlimited.
-//   - The exception here is the packed mip tail for linear textures, as smaller
-//     mips are stored in the 32x32x4-texel padding. However, the packed mip
-//     tail needs to be aligned only to 32x32 texels, not to 32x32 blocks - so
-//     for compressed textures, the padding may be smaller, only to 8x8 blocks.
+// - For linear textures (like that 1280x720 example from Ridge Racer
+//   Unbounded), it's easy to calculate the exact memory extent that may be
+//   accessed knowing the dimensions (unlike for tiled textures with complex
+//   addressing within 32x32x4-block tiles), so there's no need to align them to
+//   32x32x4 for memory extent calculation.
+//   - For the linear packed mip tail, the extent can be calculated as max of
+//     (block offsets + block extents) of all levels stored in it.
 //
-// 1D textures are always linear.
+// 1D textures are always linear and likely can't have packed mips (for `width >
+// height` textures, mip offset calculation may result in packing along Y).
 //
 // Array slices are stored within levels (this is different than how Direct3D
 // 10+ builds subresource indices, for instance). Each array slice or level is
 // aligned to 4 KB (but this doesn't apply to 3D texture slices within one
 // level).
 
-struct TextureGuestLevelLayout {
-  // Number of array slices within the mip.
-  uint32_t array_size;
-
-  // Distance between each row of blocks in bytes, including all the needed
-  // power of two (for mips) and 256-byte (for linear textures) alignment.
-  uint32_t row_pitch_bytes;
-  // Distance between Z slices in block rows, aligned to power of two for mips,
-  // and to tile height.
-  uint32_t z_slice_stride_block_rows;
-  // Distance between each array slice within the level in bytes, aligned to
-  // kTextureSubresourceAlignmentBytes.
-  uint32_t array_slice_stride_bytes;
-  // Distance from the beginning of the level to the next stored one.
-  uint32_t next_level_distance_bytes() const {
-    return array_slice_stride_bytes * array_size;
-  }
-
-  // Estimated amount of memory this level occupies, and variables involved in
-  // its calculation. Not aligned to kTextureSubresourceAlignmentBytes. For
-  // tiled textures, this will be rounded to 32x32x4 blocks (or 32x32x1
-  // depending on the dimension), and for the linear packed mip tail, this will
-  // be rounded to the same amount of texels, but for the linear subresources
-  // that are not the packed mip tail, this may be significantly (including less
-  // 4 KB pages) smaller than the aligned size (like for Test Drive Unlimited
-  // allocating 4 KB for a 2x2 linear k_8_8_8_8 texture that would be stored
-  // like 64x32 and take 8 KB). If the width is bigger than the pitch, this will
-  // also be taken into account for the last row so all memory actually used by
-  // the texture will be loaded, and may be bigger than the distance between
-  // array slices or levels. The purpose of this parameter is to make the memory
-  // amount that needs to be resident as close to the real amount as possible,
-  // to make sure all the needed data will be read, but also, if possible,
-  // unneeded memory pages won't be accessed (since that may trigger an access
-  // violation on the CPU).
-  uint32_t x_extent_blocks;
-  uint32_t y_extent_blocks;
-  uint32_t z_extent;
-  uint32_t array_slice_data_extent_bytes;
-  uint32_t level_data_extent_bytes;
-};
-
-// is_base == true - level must be 0 (for the base_address part).
-// is_base == false - level may be 0 if is_packed_level is true (for the packed
-// tail of mip_address part if the texture is very small so the tail is stored
-// like mip 0).
-TextureGuestLevelLayout GetGuestLevelLayout(
-    xenos::DataDimension dimension, uint32_t base_pitch_texels_div_32,
-    uint32_t width_texels, uint32_t height_texels, uint32_t depth_or_array_size,
-    bool is_tiled, xenos::TextureFormat format, bool is_mip, uint32_t level,
-    bool is_packed_level);
-
 struct TextureGuestLayout {
-  TextureGuestLevelLayout base;
+  struct Level {
+    // Distance between each row of blocks in bytes, including all the needed
+    // power of two (for mips) and 256-byte (for linear textures) alignment.
+    uint32_t row_pitch_bytes;
+    // Distance between Z slices in block rows, aligned to power of two for
+    // mips, and to tile height.
+    uint32_t z_slice_stride_block_rows;
+    // Distance between each array slice within the level in bytes, aligned to
+    // kTextureSubresourceAlignmentBytes. The distance to the next level is this
+    // multiplied by the array slice count.
+    uint32_t array_slice_stride_bytes;
+
+    // Estimated amount of memory this level occupies, and variables involved in
+    // its calculation. Not aligned to kTextureSubresourceAlignmentBytes. For
+    // tiled textures, this will be rounded to 32x32x4 blocks (or 32x32x1
+    // depending on the dimension), but for the linear subresources, this may be
+    // significantly (including less 4 KB pages) smaller than the aligned size
+    // (like for Ridge Racer Unbounded where aligning the height of a 1280x720
+    // linear texture results in access violations). For the linear mip tail,
+    // this includes all the mip levels stored in it. If the width is bigger
+    // than the pitch, this will also be taken into account for the last row so
+    // all memory actually used by the texture will be loaded, and may be bigger
+    // than the distance between array slices or levels. The purpose of this
+    // parameter is to make the memory amount that needs to be resident as close
+    // to the real amount as possible, to make sure all the needed data will be
+    // read, but also, if possible, unneeded memory pages won't be accessed
+    // (since that may trigger an access violation on the CPU).
+    uint32_t x_extent_blocks;
+    uint32_t y_extent_blocks;
+    uint32_t z_extent;
+    uint32_t array_slice_data_extent_bytes;
+    // Including all array slices.
+    uint32_t level_data_extent_bytes;
+  };
+
+  Level base;
   // If mip_max_level specified at calculation time is at least 1, the stored
   // mips are min(1, packed_mip_level) through min(mip_max_level,
   // packed_mip_level).
-  TextureGuestLevelLayout mips[xenos::kTexture2DCubeMaxWidthHeightLog2 + 1];
+  Level mips[xenos::kTexture2DCubeMaxWidthHeightLog2 + 1];
   uint32_t mip_offsets_bytes[xenos::kTexture2DCubeMaxWidthHeightLog2 + 1];
   uint32_t mips_total_extent_bytes;
   uint32_t max_level;
   // UINT32_MAX if there's no packed mip tail.
   uint32_t packed_level;
+  uint32_t array_size;
 };
 
 TextureGuestLayout GetGuestTextureLayout(
