@@ -2093,14 +2093,35 @@ void TextureCache::BindingInfoFromFetchConstant(
     // No texture data at all.
     return;
   }
-  // TODO(Triang3l): Support long 1D textures.
-  if (fetch.dimension == xenos::DataDimension::k1D &&
-      width > xenos::kTexture2DCubeMaxWidthHeight) {
-    XELOGE(
-        "1D texture is too wide ({}) - ignoring! "
-        "Report the game to Xenia developers",
-        width);
-    return;
+  if (fetch.dimension == xenos::DataDimension::k1D) {
+    bool is_invalid_1d = false;
+    // TODO(Triang3l): Support long 1D textures.
+    if (width > xenos::kTexture2DCubeMaxWidthHeight) {
+      XELOGE(
+          "1D texture is too wide ({}) - ignoring! Report the game to Xenia "
+          "developers",
+          width);
+      is_invalid_1d = true;
+    }
+    assert_false(fetch.tiled);
+    if (fetch.tiled) {
+      XELOGE(
+          "1D texture has tiling enabled in the fetch constant, but this "
+          "appears to be completely wrong - ignoring! Report the game to Xenia "
+          "developers");
+      is_invalid_1d = true;
+    }
+    assert_false(fetch.packed_mips);
+    if (fetch.packed_mips) {
+      XELOGE(
+          "1D texture has packed mips enabled in the fetch constant, but this "
+          "appears to be completely wrong - ignoring! Report the game to Xenia "
+          "developers");
+      is_invalid_1d = true;
+    }
+    if (is_invalid_1d) {
+      return;
+    }
   }
 
   xenos::TextureFormat format = GetBaseFormat(fetch.format);
@@ -2411,7 +2432,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       if (!level_packed) {
         // Loading the packed tail for the base - load the whole tail to copy
         // regions out of it.
-        const texture_util::TextureGuestLevelLayout& guest_layout_base =
+        const texture_util::TextureGuestLayout::Level& guest_layout_base =
             texture->guest_layout.base;
         host_slice_layout_base.Footprint.Width =
             guest_layout_base.x_extent_blocks * block_width;
@@ -2452,7 +2473,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
         if (level == level_packed) {
           // Loading the packed tail for the mips - load the whole tail to copy
           // regions out of it.
-          const texture_util::TextureGuestLevelLayout&
+          const texture_util::TextureGuestLayout::Level&
               guest_layout_packed_mips = texture->guest_layout.mips[level];
           host_slice_layout_mip.Footprint.Width =
               guest_layout_packed_mips.x_extent_blocks * block_width;
@@ -2634,7 +2655,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       load_constants.guest_offset +=
           texture->guest_layout.mip_offsets_bytes[level];
     }
-    const texture_util::TextureGuestLevelLayout& level_guest_layout =
+    const texture_util::TextureGuestLayout::Level& level_guest_layout =
         is_base ? texture->guest_layout.base
                 : texture->guest_layout.mips[level];
     uint32_t level_guest_pitch = level_guest_layout.row_pitch_bytes;
