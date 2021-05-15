@@ -27,6 +27,27 @@
 #include <byteswap.h>
 #endif
 
+#if !__cpp_lib_endian
+// Polyfill
+#ifdef __BYTE_ORDER__
+namespace std {
+enum class endian {
+  little = __ORDER_LITTLE_ENDIAN__,
+  big = __ORDER_BIG_ENDIAN__,
+  native = __BYTE_ORDER__
+};
+}
+#else
+// Hardcode to little endian for now
+namespace std {
+enum class endian { little = 0, big = 1, native = 0 };
+}
+#endif
+#endif
+// Check for mixed endian
+static_assert((std::endian::native == std::endian::big) ||
+              (std::endian::native == std::endian::little));
+
 namespace xe {
 
 #if XE_PLATFORM_WIN32
@@ -88,40 +109,57 @@ inline T byte_swap(T value) {
   }
 }
 
-template <typename T>
-struct be {
-  be() = default;
-  be(const T& src) : value(xe::byte_swap(src)) {}  // NOLINT(runtime/explicit)
-  be(const be& other) { value = other.value; }     // NOLINT(runtime/explicit)
-  operator T() const { return xe::byte_swap(value); }
+template <typename T, std::endian E>
+struct endian_store {
+  endian_store() = default;
+  endian_store(const T& src) {
+    if constexpr (std::endian::native == E) {
+      value = src;
+    } else {
+      value = xe::byte_swap(src);
+    }
+  }
+  endian_store(const endian_store& other) { value = other.value; }
+  operator T() const {
+    if constexpr (std::endian::native == E) {
+      return value;
+    } else {
+      return xe::byte_swap(value);
+    }
+  }
 
-  be<T>& operator+=(int a) {
+  endian_store<T, E>& operator+=(int a) {
     *this = *this + a;
     return *this;
   }
-  be<T>& operator-=(int a) {
+  endian_store<T, E>& operator-=(int a) {
     *this = *this - a;
     return *this;
   }
-  be<T>& operator++() {
+  endian_store<T, E>& operator++() {
     *this += 1;
     return *this;
   }  // ++a
-  be<T> operator++(int) {
+  endian_store<T, E> operator++(int) {
     *this += 1;
     return (*this - 1);
   }  // a++
-  be<T>& operator--() {
+  endian_store<T, E>& operator--() {
     *this -= 1;
     return *this;
   }  // --a
-  be<T> operator--(int) {
+  endian_store<T, E> operator--(int) {
     *this -= 1;
     return (*this + 1);
   }  // a--
 
   T value;
 };
+
+template <typename T>
+using be = endian_store<T, std::endian::big>;
+template <typename T>
+using le = endian_store<T, std::endian::little>;
 
 }  // namespace xe
 
