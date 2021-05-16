@@ -242,7 +242,7 @@ inline bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {
   return i != 0;
 }
 inline bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
-  int i = ffsll(v);
+  int i = __builtin_ffsll(v);
   *out_first_set_index = i - 1;
   return i != 0;
 }
