@@ -222,14 +222,11 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   // Convert the position from pixels to samples.
   // system_temp_rov_params_.z = X guest sample 0 position
   // system_temp_rov_params_.w = Y guest sample 0 position
-  system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
   a_.OpIShL(dxbc::Dest::R(system_temp_rov_params_, 0b1100),
             dxbc::Src::R(system_temp_rov_params_),
-            dxbc::Src::CB(cbuffer_index_system_constants_,
-                          uint32_t(CbufferRegister::kSystemConstants),
-                          kSysConst_SampleCountLog2_Vec,
-                          (kSysConst_SampleCountLog2_Comp << 4) |
-                              ((kSysConst_SampleCountLog2_Comp + 1) << 6)));
+            LoadSystemConstant(SystemConstantIndex::kSampleCountLog2,
+                               offsetof(SystemConstants, sample_count_log2),
+                               0b0100 << 4));
   // Get 80x16 samples tile index - start dividing X by 80 by getting the high
   // part of the result of multiplication of X by kDivideScale5 into X.
   // system_temp_rov_params_.x = (X * kDivideScale5) >> 32
@@ -252,13 +249,11 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   // system_temp_rov_params_.y = tile index
   // system_temp_rov_params_.z = X guest sample 0 position
   // system_temp_rov_params_.w = Y guest sample 0 position
-  system_constants_used_ |= 1ull << kSysConst_EdramPitchTiles_Index;
   a_.OpUMAd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
             dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-            dxbc::Src::CB(cbuffer_index_system_constants_,
-                          uint32_t(CbufferRegister::kSystemConstants),
-                          kSysConst_EdramPitchTiles_Vec)
-                .Select(kSysConst_EdramPitchTiles_Comp),
+            LoadSystemConstant(SystemConstantIndex::kEdramPitchTiles,
+                               offsetof(SystemConstants, edram_pitch_tiles),
+                               dxbc::Src::kXXXX),
             dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX));
   // Convert the tile index into a tile offset.
   // system_temp_rov_params_.x = X tile position
@@ -332,13 +327,12 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   // Add the EDRAM base for depth/stencil.
   // system_temp_rov_params_.y = unscaled 32bpp depth/stencil address
   // system_temp_rov_params_.z = unscaled 32bpp color offset if needed
-  system_constants_used_ |= 1ull << kSysConst_EdramDepthBaseDwords_Index;
-  a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
-            dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-            dxbc::Src::CB(cbuffer_index_system_constants_,
-                          uint32_t(CbufferRegister::kSystemConstants),
-                          kSysConst_EdramDepthBaseDwords_Vec)
-                .Select(kSysConst_EdramDepthBaseDwords_Comp));
+  a_.OpIAdd(
+      dxbc::Dest::R(system_temp_rov_params_, 0b0010),
+      dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
+      LoadSystemConstant(SystemConstantIndex::kEdramDepthBaseDwords,
+                         offsetof(SystemConstants, edram_depth_base_dwords),
+                         dxbc::Src::kXXXX));
   if (draw_resolution_scale_ > 1) {
     assert_true(resolution_scale_host_pixel_temp != UINT32_MAX);
     // Apply the resolution scale and the host pixel offset within the guest
@@ -377,11 +371,9 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   // MSAA, handling samples 0 and 3 (upper-left and lower-right) as 0 and 1.
 
   // Check if 4x MSAA is enabled.
-  system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-  a_.OpIf(true, dxbc::Src::CB(cbuffer_index_system_constants_,
-                              uint32_t(CbufferRegister::kSystemConstants),
-                              kSysConst_SampleCountLog2_Vec)
-                    .Select(kSysConst_SampleCountLog2_Comp));
+  a_.OpIf(true, LoadSystemConstant(SystemConstantIndex::kSampleCountLog2,
+                                   offsetof(SystemConstants, sample_count_log2),
+                                   dxbc::Src::kXXXX));
   {
     // Copy the 4x AA coverage to system_temp_rov_params_.x, making top-right
     // the sample [2] and bottom-left the sample [1] (the opposite of Direct3D
@@ -428,12 +420,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
 
   // Check whether depth/stencil is enabled.
   // temp.x = kSysFlag_ROVDepthStencil
-  system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-  a_.OpAnd(temp_x_dest,
-           dxbc::Src::CB(cbuffer_index_system_constants_,
-                         uint32_t(CbufferRegister::kSystemConstants),
-                         kSysConst_Flags_Vec)
-               .Select(kSysConst_Flags_Comp),
+  a_.OpAnd(temp_x_dest, LoadFlagsSystemConstant(),
            dxbc::Src::LU(kSysFlag_ROVDepthStencil));
   // Open the depth/stencil enabled conditional.
   // temp.x = free
@@ -484,16 +471,15 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         // bias, also depth range clamping should be done after applying the
         // offset as well).
         // temp.x? = first sample's viewport space Z
-        system_constants_used_ |= 1ull << kSysConst_EdramDepthRange_Index;
         a_.OpMAd(sample_depth_stencil_dest, sample_depth_stencil_src,
-                 dxbc::Src::CB(cbuffer_index_system_constants_,
-                               uint32_t(CbufferRegister::kSystemConstants),
-                               kSysConst_EdramDepthRange_Vec)
-                     .Select(kSysConst_EdramDepthRangeScale_Comp),
-                 dxbc::Src::CB(cbuffer_index_system_constants_,
-                               uint32_t(CbufferRegister::kSystemConstants),
-                               kSysConst_EdramDepthRange_Vec)
-                     .Select(kSysConst_EdramDepthRangeOffset_Comp),
+                 LoadSystemConstant(
+                     SystemConstantIndex::kEdramDepthRange,
+                     offsetof(SystemConstants, edram_depth_range_scale),
+                     dxbc::Src::kXXXX),
+                 LoadSystemConstant(
+                     SystemConstantIndex::kEdramDepthRange,
+                     offsetof(SystemConstants, edram_depth_range_offset),
+                     dxbc::Src::kXXXX),
                  true);
         // Get the derivatives of a sample's depth, for the slope-scaled polygon
         // offset. Probably not very significant that it's for the sample 0
@@ -517,23 +503,18 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         // temp.z = polygon offset scale
         // temp.w = polygon offset bias
         in_front_face_used_ = true;
-        system_constants_used_ |=
-            (1ull << kSysConst_EdramPolyOffsetFront_Index) |
-            (1ull << kSysConst_EdramPolyOffsetBack_Index);
         a_.OpMovC(
             dxbc::Dest::R(temp, 0b1100),
             dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
                          dxbc::Src::kXXXX),
-            dxbc::Src::CB(cbuffer_index_system_constants_,
-                          uint32_t(CbufferRegister::kSystemConstants),
-                          kSysConst_EdramPolyOffsetFront_Vec,
-                          (kSysConst_EdramPolyOffsetFrontScale_Comp << 4) |
-                              (kSysConst_EdramPolyOffsetFrontOffset_Comp << 6)),
-            dxbc::Src::CB(cbuffer_index_system_constants_,
-                          uint32_t(CbufferRegister::kSystemConstants),
-                          kSysConst_EdramPolyOffsetBack_Vec,
-                          (kSysConst_EdramPolyOffsetBackScale_Comp << 4) |
-                              (kSysConst_EdramPolyOffsetBackOffset_Comp << 6)));
+            LoadSystemConstant(
+                SystemConstantIndex::kEdramPolyOffsetFront,
+                offsetof(SystemConstants, edram_poly_offset_front),
+                0b0100 << 4),
+            LoadSystemConstant(
+                SystemConstantIndex::kEdramPolyOffsetBack,
+                offsetof(SystemConstants, edram_poly_offset_back),
+                0b0100 << 4));
         // Apply the slope scale and the constant bias to the offset.
         // temp.x? = first sample's viewport space Z
         // temp.y = polygon offset
@@ -545,16 +526,15 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         // temp.x? = first sample's viewport space Z
         // temp.y = polygon offset
         // temp.z = viewport maximum depth
-        system_constants_used_ |= 1ull << kSysConst_EdramDepthRange_Index;
         a_.OpAdd(temp_z_dest,
-                 dxbc::Src::CB(cbuffer_index_system_constants_,
-                               uint32_t(CbufferRegister::kSystemConstants),
-                               kSysConst_EdramDepthRange_Vec)
-                     .Select(kSysConst_EdramDepthRangeOffset_Comp),
-                 dxbc::Src::CB(cbuffer_index_system_constants_,
-                               uint32_t(CbufferRegister::kSystemConstants),
-                               kSysConst_EdramDepthRange_Vec)
-                     .Select(kSysConst_EdramDepthRangeScale_Comp));
+                 LoadSystemConstant(
+                     SystemConstantIndex::kEdramDepthRange,
+                     offsetof(SystemConstants, edram_depth_range_offset),
+                     dxbc::Src::kXXXX),
+                 LoadSystemConstant(
+                     SystemConstantIndex::kEdramDepthRange,
+                     offsetof(SystemConstants, edram_depth_range_scale),
+                     dxbc::Src::kXXXX));
       }
     }
 
@@ -601,13 +581,12 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         // temp.z = viewport maximum depth if not writing to oDepth
         // temp.w = sample's clip space W
         if (i == 1) {
-          system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-          a_.OpMovC(sample_depth_stencil_dest,
-                    dxbc::Src::CB(cbuffer_index_system_constants_,
-                                  uint32_t(CbufferRegister::kSystemConstants),
-                                  kSysConst_SampleCountLog2_Vec)
-                        .Select(kSysConst_SampleCountLog2_Comp),
-                    dxbc::Src::LU(3), dxbc::Src::LU(2));
+          a_.OpMovC(
+              sample_depth_stencil_dest,
+              LoadSystemConstant(SystemConstantIndex::kSampleCountLog2,
+                                 offsetof(SystemConstants, sample_count_log2),
+                                 dxbc::Src::kXXXX),
+              dxbc::Src::LU(3), dxbc::Src::LU(2));
           a_.OpEvalSampleIndex(
               dxbc::Dest::R(temp, 0b1001),
               dxbc::Src::V(uint32_t(InOutRegister::kPSInClipSpaceZW),
@@ -630,16 +609,15 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         // temp.x? = sample's viewport space Z
         // temp.y = polygon offset if not writing to oDepth
         // temp.z = viewport maximum depth if not writing to oDepth
-        system_constants_used_ |= 1ull << kSysConst_EdramDepthRange_Index;
         a_.OpMAd(sample_depth_stencil_dest, sample_depth_stencil_src,
-                 dxbc::Src::CB(cbuffer_index_system_constants_,
-                               uint32_t(CbufferRegister::kSystemConstants),
-                               kSysConst_EdramDepthRange_Vec)
-                     .Select(kSysConst_EdramDepthRangeScale_Comp),
-                 dxbc::Src::CB(cbuffer_index_system_constants_,
-                               uint32_t(CbufferRegister::kSystemConstants),
-                               kSysConst_EdramDepthRange_Vec)
-                     .Select(kSysConst_EdramDepthRangeOffset_Comp),
+                 LoadSystemConstant(
+                     SystemConstantIndex::kEdramDepthRange,
+                     offsetof(SystemConstants, edram_depth_range_scale),
+                     dxbc::Src::kXXXX),
+                 LoadSystemConstant(
+                     SystemConstantIndex::kEdramDepthRange,
+                     offsetof(SystemConstants, edram_depth_range_offset),
+                     dxbc::Src::kXXXX),
                  true);
       }
       // Add the bias to the depth of the sample.
@@ -651,12 +629,11 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
       // temp.x? = sample's lower-clamped biased Z
       // temp.y = polygon offset if not writing to oDepth
       // temp.z = viewport maximum depth if not writing to oDepth
-      system_constants_used_ |= 1ull << kSysConst_EdramDepthRange_Index;
       a_.OpMax(sample_depth_stencil_dest, sample_depth_stencil_src,
-               dxbc::Src::CB(cbuffer_index_system_constants_,
-                             uint32_t(CbufferRegister::kSystemConstants),
-                             kSysConst_EdramDepthRange_Vec)
-                   .Select(kSysConst_EdramDepthRangeOffset_Comp));
+               LoadSystemConstant(
+                   SystemConstantIndex::kEdramDepthRange,
+                   offsetof(SystemConstants, edram_depth_range_offset),
+                   dxbc::Src::kXXXX));
       // Clamp the biased depth to the upper viewport depth bound.
       // temp.x? = sample's biased Z
       // temp.y = polygon offset if not writing to oDepth
@@ -725,12 +702,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     // sample_temp.x = old depth
     // sample_temp.y = masked depth function passed bits
     // sample_temp.z = free
-    system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-    a_.OpAnd(sample_temp_y_dest, sample_temp_y_src,
-             dxbc::Src::CB(cbuffer_index_system_constants_,
-                           uint32_t(CbufferRegister::kSystemConstants),
-                           kSysConst_Flags_Vec)
-                 .Select(kSysConst_Flags_Comp));
+    a_.OpAnd(sample_temp_y_dest, sample_temp_y_src, LoadFlagsSystemConstant());
     // Check if depth test has passed.
     // sample_temp.x = old depth
     // sample_temp.y = free
@@ -739,12 +711,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
       // Extract the depth write flag.
       // sample_temp.x = old depth
       // sample_temp.y = depth write mask
-      system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-      a_.OpAnd(sample_temp_y_dest,
-               dxbc::Src::CB(cbuffer_index_system_constants_,
-                             uint32_t(CbufferRegister::kSystemConstants),
-                             kSysConst_Flags_Vec)
-                   .Select(kSysConst_Flags_Comp),
+      a_.OpAnd(sample_temp_y_dest, LoadFlagsSystemConstant(),
                dxbc::Src::LU(kSysFlag_ROVDepthWrite));
       // If depth writing is disabled, don't change the depth.
       // temp.x? = resulting sample depth after the depth test
@@ -779,48 +746,41 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
 
     // Extract the stencil test bit.
     // sample_temp.x = stencil test enabled
-    system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-    a_.OpAnd(sample_temp_x_dest,
-             dxbc::Src::CB(cbuffer_index_system_constants_,
-                           uint32_t(CbufferRegister::kSystemConstants),
-                           kSysConst_Flags_Vec)
-                 .Select(kSysConst_Flags_Comp),
+    a_.OpAnd(sample_temp_x_dest, LoadFlagsSystemConstant(),
              dxbc::Src::LU(kSysFlag_ROVStencilTest));
     // Check if stencil test is enabled.
     // sample_temp.x = free
     a_.OpIf(true, sample_temp_x_src);
     {
-      dxbc::Src stencil_front_src(
-          dxbc::Src::CB(cbuffer_index_system_constants_,
-                        uint32_t(CbufferRegister::kSystemConstants),
-                        kSysConst_EdramStencil_Front_Vec));
-      dxbc::Src stencil_back_src(
-          dxbc::Src::CB(cbuffer_index_system_constants_,
-                        uint32_t(CbufferRegister::kSystemConstants),
-                        kSysConst_EdramStencil_Back_Vec));
-
       // Check the current face to get the reference and apply the read mask.
       in_front_face_used_ = true;
       a_.OpIf(true, dxbc::Src::V(
                         uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
                         dxbc::Src::kXXXX));
-      system_constants_used_ |= 1ull << kSysConst_EdramStencil_Index;
       for (uint32_t j = 0; j < 2; ++j) {
         if (j) {
           // Go to the back face.
           a_.OpElse();
         }
-        dxbc::Src stencil_side_src(j ? stencil_back_src : stencil_front_src);
+        dxbc::Src stencil_read_mask_src(LoadSystemConstant(
+            SystemConstantIndex::kEdramStencil,
+            j ? offsetof(SystemConstants, edram_stencil_back_read_mask)
+              : offsetof(SystemConstants, edram_stencil_front_read_mask),
+            dxbc::Src::kXXXX));
         // Read-mask the stencil reference.
         // sample_temp.x = read-masked stencil reference
-        a_.OpAnd(sample_temp_x_dest,
-                 stencil_side_src.Select(kSysConst_EdramStencil_Reference_Comp),
-                 stencil_side_src.Select(kSysConst_EdramStencil_ReadMask_Comp));
+        a_.OpAnd(
+            sample_temp_x_dest,
+            LoadSystemConstant(
+                SystemConstantIndex::kEdramStencil,
+                j ? offsetof(SystemConstants, edram_stencil_back_reference)
+                  : offsetof(SystemConstants, edram_stencil_front_reference),
+                dxbc::Src::kXXXX),
+            stencil_read_mask_src);
         // Read-mask the old stencil value (also dropping the depth bits).
         // sample_temp.x = read-masked stencil reference
         // sample_temp.y = read-masked old stencil
-        a_.OpAnd(sample_temp_y_dest, temp_w_src,
-                 stencil_side_src.Select(kSysConst_EdramStencil_ReadMask_Comp));
+        a_.OpAnd(sample_temp_y_dest, temp_w_src, stencil_read_mask_src);
       }
       // Close the face check.
       a_.OpEndIf();
@@ -848,13 +808,18 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
       // sample_temp.x = stencil function passed bits
       // sample_temp.y = stencil function and operations
       in_front_face_used_ = true;
-      system_constants_used_ |= 1ull << kSysConst_EdramStencil_Index;
       a_.OpMovC(
           sample_temp_y_dest,
           dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
                        dxbc::Src::kXXXX),
-          stencil_front_src.Select(kSysConst_EdramStencil_FuncOps_Comp),
-          stencil_back_src.Select(kSysConst_EdramStencil_FuncOps_Comp));
+          LoadSystemConstant(
+              SystemConstantIndex::kEdramStencil,
+              offsetof(SystemConstants, edram_stencil_front_func_ops),
+              dxbc::Src::kXXXX),
+          LoadSystemConstant(
+              SystemConstantIndex::kEdramStencil,
+              offsetof(SystemConstants, edram_stencil_back_func_ops),
+              dxbc::Src::kXXXX));
       // Mask the resulting bits with the ones that should pass (the comparison
       // function is in the low 3 bits of the constant, and only ANDing 3-bit
       // values with it, so safe not to UBFE the function).
@@ -915,13 +880,18 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         // Replace.
         a_.OpCase(dxbc::Src::LU(uint32_t(xenos::StencilOp::kReplace)));
         in_front_face_used_ = true;
-        system_constants_used_ |= 1ull << kSysConst_EdramStencil_Index;
         a_.OpMovC(
             sample_temp_x_dest,
             dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
                          dxbc::Src::kXXXX),
-            stencil_front_src.Select(kSysConst_EdramStencil_Reference_Comp),
-            stencil_back_src.Select(kSysConst_EdramStencil_Reference_Comp));
+            LoadSystemConstant(
+                SystemConstantIndex::kEdramStencil,
+                offsetof(SystemConstants, edram_stencil_front_reference),
+                dxbc::Src::kXXXX),
+            LoadSystemConstant(
+                SystemConstantIndex::kEdramStencil,
+                offsetof(SystemConstants, edram_stencil_back_reference),
+                dxbc::Src::kXXXX));
         a_.OpBreak();
         // Increment and clamp.
         a_.OpCase(dxbc::Src::LU(uint32_t(xenos::StencilOp::kIncrementClamp)));
@@ -970,13 +940,18 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
       // sample_temp.x = unmasked new stencil in 0:7 and junk above
       // sample_temp.y = stencil write mask
       in_front_face_used_ = true;
-      system_constants_used_ |= 1ull << kSysConst_EdramStencil_Index;
       a_.OpMovC(
           sample_temp_y_dest,
           dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
                        dxbc::Src::kXXXX),
-          stencil_front_src.Select(kSysConst_EdramStencil_WriteMask_Comp),
-          stencil_back_src.Select(kSysConst_EdramStencil_WriteMask_Comp));
+          LoadSystemConstant(
+              SystemConstantIndex::kEdramStencil,
+              offsetof(SystemConstants, edram_stencil_front_write_mask),
+              dxbc::Src::kXXXX),
+          LoadSystemConstant(
+              SystemConstantIndex::kEdramStencil,
+              offsetof(SystemConstants, edram_stencil_back_write_mask),
+              dxbc::Src::kXXXX));
       // Apply the write mask to the new stencil, also dropping the upper 24
       // bits.
       // sample_temp.x = masked new stencil
@@ -1049,12 +1024,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         if (depth_stencil_early) {
           // Get if early depth/stencil write is enabled to temp.w.
           // temp.w = whether early depth/stencil write is enabled
-          system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-          a_.OpAnd(temp_w_dest,
-                   dxbc::Src::CB(cbuffer_index_system_constants_,
-                                 uint32_t(CbufferRegister::kSystemConstants),
-                                 kSysConst_Flags_Vec)
-                       .Select(kSysConst_Flags_Comp),
+          a_.OpAnd(temp_w_dest, LoadFlagsSystemConstant(),
                    dxbc::Src::LU(kSysFlag_ROVDepthStencilEarlyWrite));
           // Check if need to write early.
           // temp.w = free
@@ -1167,11 +1137,11 @@ void DxbcShaderTranslator::ROV_UnpackColor(
            dxbc::Src::LF(0.0f, 0.0f, 0.0f, 1.0f));
 
   // Choose the packing based on the render target's format.
-  system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
-  a_.OpSwitch(dxbc::Src::CB(cbuffer_index_system_constants_,
-                            uint32_t(CbufferRegister::kSystemConstants),
-                            kSysConst_EdramRTFormatFlags_Vec)
-                  .Select(rt_index));
+  a_.OpSwitch(
+      LoadSystemConstant(SystemConstantIndex::kEdramRTFormatFlags,
+                         offsetof(SystemConstants, edram_rt_format_flags) +
+                             sizeof(uint32_t) * rt_index,
+                         dxbc::Src::kXXXX));
 
   // ***************************************************************************
   // k_8_8_8_8
@@ -1328,11 +1298,11 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
            dxbc::Src::LU(0));
 
   // Choose the packing based on the render target's format.
-  system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
-  a_.OpSwitch(dxbc::Src::CB(cbuffer_index_system_constants_,
-                            uint32_t(CbufferRegister::kSystemConstants),
-                            kSysConst_EdramRTFormatFlags_Vec)
-                  .Select(rt_index));
+  a_.OpSwitch(
+      LoadSystemConstant(SystemConstantIndex::kEdramRTFormatFlags,
+                         offsetof(SystemConstants, edram_rt_format_flags) +
+                             sizeof(uint32_t) * rt_index,
+                         dxbc::Src::kXXXX));
 
   // ***************************************************************************
   // k_8_8_8_8
@@ -1541,40 +1511,39 @@ void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(
   a_.OpBreak();
 
   // Factors involving the constant.
-  system_constants_used_ |= 1ull << kSysConst_EdramBlendConstant_Index;
 
   // kConstantColor
   a_.OpCase(dxbc::Src::LU(uint32_t(xenos::BlendFactor::kConstantColor)));
   a_.OpMov(factor_dest,
-           dxbc::Src::CB(cbuffer_index_system_constants_,
-                         uint32_t(CbufferRegister::kSystemConstants),
-                         kSysConst_EdramBlendConstant_Vec));
+           LoadSystemConstant(SystemConstantIndex::kEdramBlendConstant,
+                              offsetof(SystemConstants, edram_blend_constant),
+                              dxbc::Src::kXYZW));
   a_.OpBreak();
 
   // kOneMinusConstantColor
   a_.OpCase(
       dxbc::Src::LU(uint32_t(xenos::BlendFactor::kOneMinusConstantColor)));
   a_.OpAdd(factor_dest, one_src,
-           -dxbc::Src::CB(cbuffer_index_system_constants_,
-                          uint32_t(CbufferRegister::kSystemConstants),
-                          kSysConst_EdramBlendConstant_Vec));
+           -LoadSystemConstant(SystemConstantIndex::kEdramBlendConstant,
+                               offsetof(SystemConstants, edram_blend_constant),
+                               dxbc::Src::kXYZW));
   a_.OpBreak();
 
   // kConstantAlpha
   a_.OpCase(dxbc::Src::LU(uint32_t(xenos::BlendFactor::kConstantAlpha)));
   a_.OpMov(factor_dest,
-           dxbc::Src::CB(cbuffer_index_system_constants_,
-                         uint32_t(CbufferRegister::kSystemConstants),
-                         kSysConst_EdramBlendConstant_Vec, dxbc::Src::kWWWW));
+           LoadSystemConstant(SystemConstantIndex::kEdramBlendConstant,
+                              offsetof(SystemConstants, edram_blend_constant),
+                              dxbc::Src::kWWWW));
   a_.OpBreak();
 
   // kOneMinusConstantAlpha
   a_.OpCase(
       dxbc::Src::LU(uint32_t(xenos::BlendFactor::kOneMinusConstantAlpha)));
   a_.OpAdd(factor_dest, one_src,
-           -dxbc::Src::CB(cbuffer_index_system_constants_,
-                          uint32_t(CbufferRegister::kSystemConstants),
-                          kSysConst_EdramBlendConstant_Vec, dxbc::Src::kWWWW));
+           -LoadSystemConstant(SystemConstantIndex::kEdramBlendConstant,
+                               offsetof(SystemConstants, edram_blend_constant),
+                               dxbc::Src::kWWWW));
   a_.OpBreak();
 
   // kSrcAlphaSaturate
@@ -1632,15 +1601,14 @@ void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(
   a_.OpBreak();
 
   // Factors involving the constant.
-  system_constants_used_ |= 1ull << kSysConst_EdramBlendConstant_Index;
 
   // kConstantColor, kConstantAlpha.
   a_.OpCase(dxbc::Src::LU(uint32_t(xenos::BlendFactor::kConstantColor)));
   a_.OpCase(dxbc::Src::LU(uint32_t(xenos::BlendFactor::kConstantAlpha)));
   a_.OpMov(factor_dest,
-           dxbc::Src::CB(cbuffer_index_system_constants_,
-                         uint32_t(CbufferRegister::kSystemConstants),
-                         kSysConst_EdramBlendConstant_Vec, dxbc::Src::kWWWW));
+           LoadSystemConstant(SystemConstantIndex::kEdramBlendConstant,
+                              offsetof(SystemConstants, edram_blend_constant),
+                              dxbc::Src::kWWWW));
   a_.OpBreak();
 
   // kOneMinusConstantColor, kOneMinusConstantAlpha.
@@ -1649,9 +1617,9 @@ void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(
   a_.OpCase(
       dxbc::Src::LU(uint32_t(xenos::BlendFactor::kOneMinusConstantAlpha)));
   a_.OpAdd(factor_dest, one_src,
-           -dxbc::Src::CB(cbuffer_index_system_constants_,
-                          uint32_t(CbufferRegister::kSystemConstants),
-                          kSysConst_EdramBlendConstant_Vec, dxbc::Src::kWWWW));
+           -LoadSystemConstant(SystemConstantIndex::kEdramBlendConstant,
+                               offsetof(SystemConstants, edram_blend_constant),
+                               dxbc::Src::kWWWW));
   a_.OpBreak();
 
   // kZero default.
@@ -1674,23 +1642,17 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
     }
     // Apply the exponent bias after alpha to coverage because it needs the
     // unbiased alpha from the shader
-    system_constants_used_ |= 1ull << kSysConst_ColorExpBias_Index;
     a_.OpMul(dxbc::Dest::R(system_temps_color_[i]),
              dxbc::Src::R(system_temps_color_[i]),
-             dxbc::Src::CB(cbuffer_index_system_constants_,
-                           uint32_t(CbufferRegister::kSystemConstants),
-                           kSysConst_ColorExpBias_Vec)
-                 .Select(i));
+             LoadSystemConstant(SystemConstantIndex::kColorExpBias,
+                                offsetof(SystemConstants, color_exp_bias) +
+                                    sizeof(uint32_t) * i,
+                                dxbc::Src::kXXXX));
     if (!gamma_render_target_as_srgb_) {
       // Convert to gamma space - this is incorrect, since it must be done after
       // blending on the Xbox 360, but this is just one of many blending issues
       // in the RTV path.
-      system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-      a_.OpAnd(dxbc::Dest::R(gamma_temp, 0b0001),
-               dxbc::Src::CB(cbuffer_index_system_constants_,
-                             uint32_t(CbufferRegister::kSystemConstants),
-                             kSysConst_Flags_Vec)
-                   .Select(kSysConst_Flags_Comp),
+      a_.OpAnd(dxbc::Dest::R(gamma_temp, 0b0001), LoadFlagsSystemConstant(),
                dxbc::Src::LU(kSysFlag_ConvertColor0ToGamma << i));
       a_.OpIf(true, dxbc::Src::R(gamma_temp, dxbc::Src::kXXXX));
       for (uint32_t j = 0; j < 3; ++j) {
@@ -1715,13 +1677,8 @@ void DxbcShaderTranslator::CompletePixelShader_DSV_DepthTo24Bit() {
       // need to scale it from guest 0...1 to host 0...0.5 to support
       // reinterpretation round trips as viewport scaling doesn't apply to
       // oDepth.
-      system_constants_used_ |= 1ull << kSysConst_Flags_Index;
       a_.OpAnd(dxbc::Dest::R(system_temp_depth_stencil_, 0b0010),
-               dxbc::Src::CB(cbuffer_index_system_constants_,
-                             uint32_t(CbufferRegister::kSystemConstants),
-                             kSysConst_Flags_Vec)
-                   .Select(kSysConst_Flags_Comp),
-               dxbc::Src::LU(kSysFlag_DepthFloat24));
+               LoadFlagsSystemConstant(), dxbc::Src::LU(kSysFlag_DepthFloat24));
       a_.OpIf(true, dxbc::Src::R(system_temp_depth_stencil_, dxbc::Src::kYYYY));
       a_.OpMul(dxbc::Dest::R(system_temp_depth_stencil_, 0b0001),
                dxbc::Src::R(system_temp_depth_stencil_, dxbc::Src::kXXXX),
@@ -1876,11 +1833,10 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMask() {
   }
 
   // Check if alpha to coverage is enabled.
-  system_constants_used_ |= 1ull << kSysConst_AlphaToMask_Index;
-  a_.OpIf(true, dxbc::Src::CB(cbuffer_index_system_constants_,
-                              uint32_t(CbufferRegister::kSystemConstants),
-                              kSysConst_AlphaToMask_Vec)
-                    .Select(kSysConst_AlphaToMask_Comp));
+  dxbc::Src alpha_to_mask_constant_src(LoadSystemConstant(
+      SystemConstantIndex::kAlphaToMask,
+      offsetof(SystemConstants, alpha_to_mask), dxbc::Src::kXXXX));
+  a_.OpIf(true, alpha_to_mask_constant_src);
 
   uint32_t temp = PushSystemTemp();
   dxbc::Dest temp_x_dest(dxbc::Dest::R(temp, 0b0001));
@@ -1899,12 +1855,8 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMask() {
   a_.OpBFI(temp_x_dest, dxbc::Src::LU(1), dxbc::Src::LU(1), temp_x_src,
            dxbc::Src::R(temp, dxbc::Src::kYYYY));
   a_.OpIShL(temp_x_dest, temp_x_src, dxbc::Src::LU(1));
-  system_constants_used_ |= 1ull << kSysConst_AlphaToMask_Index;
   a_.OpUBFE(temp_x_dest, dxbc::Src::LU(2), temp_x_src,
-            dxbc::Src::CB(cbuffer_index_system_constants_,
-                          uint32_t(CbufferRegister::kSystemConstants),
-                          kSysConst_AlphaToMask_Vec)
-                .Select(kSysConst_AlphaToMask_Comp));
+            alpha_to_mask_constant_src);
   a_.OpUToF(temp_x_dest, temp_x_src);
 
   // Write the result to temp.z for RTV or to system_temp_rov_params_.x for ROV.
@@ -1914,18 +1866,15 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMask() {
   uint32_t coverage_temp_component = edram_rov_used_ ? 0 : 2;
 
   // Check if MSAA is enabled.
-  system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-  a_.OpIf(true, dxbc::Src::CB(cbuffer_index_system_constants_,
-                              uint32_t(CbufferRegister::kSystemConstants),
-                              kSysConst_SampleCountLog2_Vec)
-                    .Select(kSysConst_SampleCountLog2_Comp + 1));
+  a_.OpIf(true, LoadSystemConstant(SystemConstantIndex::kSampleCountLog2,
+                                   offsetof(SystemConstants, sample_count_log2),
+                                   dxbc::Src::kYYYY));
   {
     // Check if MSAA is 4x or 2x.
-    system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-    a_.OpIf(true, dxbc::Src::CB(cbuffer_index_system_constants_,
-                                uint32_t(CbufferRegister::kSystemConstants),
-                                kSysConst_SampleCountLog2_Vec)
-                      .Select(kSysConst_SampleCountLog2_Comp));
+    a_.OpIf(true,
+            LoadSystemConstant(SystemConstantIndex::kSampleCountLog2,
+                               offsetof(SystemConstants, sample_count_log2),
+                               dxbc::Src::kXXXX));
     // 4x MSAA.
     // Sample 0 must be checked first - CompletePixelShader_AlphaToMaskSample
     // initializes the result for sample index 0.
@@ -2058,12 +2007,13 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       continue;
     }
 
-    dxbc::Src keep_mask_vec_src(
-        dxbc::Src::CB(cbuffer_index_system_constants_,
-                      uint32_t(CbufferRegister::kSystemConstants),
-                      kSysConst_EdramRTKeepMask_Vec + (i >> 1)));
-    uint32_t keep_mask_component = (i & 1) * 2;
-    uint32_t keep_mask_swizzle = keep_mask_component * 0b0101 + 0b0100;
+    // This includes a swizzle to choose XY for even render targets or ZW for
+    // odd ones - use SelectFromSwizzled and SwizzleSwizzled.
+    dxbc::Src keep_mask_src(
+        LoadSystemConstant(SystemConstantIndex::kEdramRTKeepMask,
+                           offsetof(SystemConstants, edram_rt_keep_mask) +
+                               sizeof(uint32_t) * 2 * i,
+                           0b0100));
 
     // Check if color writing is disabled - special keep mask constant case,
     // both 32bpp parts are forced UINT32_MAX, but also check whether the shader
@@ -2071,9 +2021,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
     // Combine both parts of the keep mask to check if both are 0xFFFFFFFF.
     // temp.x = whether all bits need to be kept.
-    system_constants_used_ |= 1ull << kSysConst_EdramRTKeepMask_Index;
-    a_.OpAnd(temp_x_dest, keep_mask_vec_src.Select(keep_mask_component),
-             keep_mask_vec_src.Select(keep_mask_component + 1));
+    a_.OpAnd(temp_x_dest, keep_mask_src.SelectFromSwizzled(0),
+             keep_mask_src.SelectFromSwizzled(1));
     // Flip the bits so both UINT32_MAX would result in 0 - not writing.
     // temp.x = whether any bits need to be written.
     a_.OpNot(temp_x_dest, temp_x_src);
@@ -2093,35 +2042,37 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
     // Apply the exponent bias after alpha to coverage because it needs the
     // unbiased alpha from the shader.
-    system_constants_used_ |= 1ull << kSysConst_ColorExpBias_Index;
     a_.OpMul(dxbc::Dest::R(system_temps_color_[i]),
              dxbc::Src::R(system_temps_color_[i]),
-             dxbc::Src::CB(cbuffer_index_system_constants_,
-                           uint32_t(CbufferRegister::kSystemConstants),
-                           kSysConst_ColorExpBias_Vec)
-                 .Select(i));
+             LoadSystemConstant(SystemConstantIndex::kColorExpBias,
+                                offsetof(SystemConstants, color_exp_bias) +
+                                    sizeof(uint32_t) * i,
+                                dxbc::Src::kXXXX));
 
     // Add the EDRAM bases of the render target to system_temp_rov_params_.zw.
-    system_constants_used_ |= 1ull << kSysConst_EdramRTBaseDwordsScaled_Index;
     a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b1100),
               dxbc::Src::R(system_temp_rov_params_),
-              dxbc::Src::CB(cbuffer_index_system_constants_,
-                            uint32_t(CbufferRegister::kSystemConstants),
-                            kSysConst_EdramRTBaseDwordsScaled_Vec)
-                  .Select(i));
+              LoadSystemConstant(
+                  SystemConstantIndex::kEdramRTBaseDwordsScaled,
+                  offsetof(SystemConstants, edram_rt_base_dwords_scaled) +
+                      sizeof(uint32_t) * i,
+                  dxbc::Src::kXXXX));
 
-    dxbc::Src rt_blend_factors_ops_src(
-        dxbc::Src::CB(cbuffer_index_system_constants_,
-                      uint32_t(CbufferRegister::kSystemConstants),
-                      kSysConst_EdramRTBlendFactorsOps_Vec)
-            .Select(i));
-    dxbc::Src rt_clamp_vec_src(
-        dxbc::Src::CB(cbuffer_index_system_constants_,
-                      uint32_t(CbufferRegister::kSystemConstants),
-                      kSysConst_EdramRTClamp_Vec + i));
+    dxbc::Src rt_blend_factors_ops_src(LoadSystemConstant(
+        SystemConstantIndex::kEdramRTBlendFactorsOps,
+        offsetof(SystemConstants, edram_rt_blend_factors_ops) +
+            sizeof(uint32_t) * i,
+        dxbc::Src::kXXXX));
+    dxbc::Src rt_clamp_vec_src(LoadSystemConstant(
+        SystemConstantIndex::kEdramRTClamp,
+        offsetof(SystemConstants, edram_rt_clamp) + sizeof(uint32_t) * 4 * i,
+        dxbc::Src::kXYZW));
+    dxbc::Src rt_format_flags_src(LoadSystemConstant(
+        SystemConstantIndex::kEdramRTFormatFlags,
+        offsetof(SystemConstants, edram_rt_format_flags) + sizeof(uint32_t) * i,
+        dxbc::Src::kXXXX));
     // Get if not blending to pack the color once for all 4 samples.
     // temp.x = whether blending is disabled.
-    system_constants_used_ |= 1ull << kSysConst_EdramRTBlendFactorsOps_Index;
     a_.OpIEq(temp_x_dest, rt_blend_factors_ops_src, dxbc::Src::LU(0x00010001));
     // Check if not blending.
     // temp.x = free.
@@ -2129,7 +2080,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     {
       // Clamp the color to the render target's representable range - will be
       // packed.
-      system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
       a_.OpMax(dxbc::Dest::R(system_temps_color_[i]),
                dxbc::Src::R(system_temps_color_[i]),
                rt_clamp_vec_src.Swizzle(0b01000000));
@@ -2146,19 +2096,13 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     {
       // Get if the blending source color is fixed-point for clamping if it is.
       // temp.x = whether color is fixed-point.
-      system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
-      a_.OpAnd(temp_x_dest,
-               dxbc::Src::CB(cbuffer_index_system_constants_,
-                             uint32_t(CbufferRegister::kSystemConstants),
-                             kSysConst_EdramRTFormatFlags_Vec)
-                   .Select(i),
+      a_.OpAnd(temp_x_dest, rt_format_flags_src,
                dxbc::Src::LU(kRTFormatFlag_FixedPointColor));
       // Check if the blending source color is fixed-point and needs clamping.
       // temp.x = free.
       a_.OpIf(true, temp_x_src);
       {
         // Clamp the blending source color if needed.
-        system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
         a_.OpMax(dxbc::Dest::R(system_temps_color_[i], 0b0111),
                  dxbc::Src::R(system_temps_color_[i]),
                  rt_clamp_vec_src.Select(0));
@@ -2171,19 +2115,13 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
       // Get if the blending source alpha is fixed-point for clamping if it is.
       // temp.x = whether alpha is fixed-point.
-      system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
-      a_.OpAnd(temp_x_dest,
-               dxbc::Src::CB(cbuffer_index_system_constants_,
-                             uint32_t(CbufferRegister::kSystemConstants),
-                             kSysConst_EdramRTFormatFlags_Vec)
-                   .Select(i),
+      a_.OpAnd(temp_x_dest, rt_format_flags_src,
                dxbc::Src::LU(kRTFormatFlag_FixedPointAlpha));
       // Check if the blending source alpha is fixed-point and needs clamping.
       // temp.x = free.
       a_.OpIf(true, temp_x_src);
       {
         // Clamp the blending source alpha if needed.
-        system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
         a_.OpMax(dxbc::Dest::R(system_temps_color_[i], 0b1000),
                  dxbc::Src::R(system_temps_color_[i], dxbc::Src::kWWWW),
                  rt_clamp_vec_src.Select(1));
@@ -2198,12 +2136,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       a_.OpMov(dxbc::Dest::R(temp, 0b0011), dxbc::Src::LU(0));
     }
     a_.OpEndIf();
-
-    dxbc::Src rt_format_flags_src(
-        dxbc::Src::CB(cbuffer_index_system_constants_,
-                      uint32_t(CbufferRegister::kSystemConstants),
-                      kSysConst_EdramRTFormatFlags_Vec)
-            .Select(i));
 
     // Blend, mask and write all samples.
     for (uint32_t j = 0; j < 4; ++j) {
@@ -2231,15 +2163,13 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
       // Get if need to keep any components to temp.z.
       // temp.z = whether any components must be kept (OR of keep masks).
-      system_constants_used_ |= 1ull << kSysConst_EdramRTKeepMask_Index;
-      a_.OpOr(temp_z_dest, keep_mask_vec_src.Select(keep_mask_component),
-              keep_mask_vec_src.Select(keep_mask_component + 1));
+      a_.OpOr(temp_z_dest, keep_mask_src.SelectFromSwizzled(0),
+              keep_mask_src.SelectFromSwizzled(1));
       // Blending isn't done if it's 1 * source + 0 * destination. But since the
       // previous color also needs to be loaded if any original components need
       // to be kept, force the blend control to something with blending in this
       // case in temp.z.
       // temp.z = blending mode used to check if need to load.
-      system_constants_used_ |= 1ull << kSysConst_EdramRTBlendFactorsOps_Index;
       a_.OpMovC(temp_z_dest, temp_z_src, dxbc::Src::LU(0),
                 rt_blend_factors_ops_src);
       // Get if the blend control register requires loading the color to temp.z.
@@ -2255,7 +2185,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
         // Get if the format is 64bpp to temp.z.
         // temp.z = whether the render target is 64bpp.
-        system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
         a_.OpAnd(temp_z_dest, rt_format_flags_src,
                  dxbc::Src::LU(kRTFormatFlag_64bpp));
         // Check if the format is 64bpp.
@@ -2315,8 +2244,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
         // Get if blending is enabled to color_temp.x.
         // color_temp.x = whether blending is enabled.
-        system_constants_used_ |= 1ull
-                                  << kSysConst_EdramRTBlendFactorsOps_Index;
         a_.OpINE(dxbc::Dest::R(color_temp, 0b0001), rt_blend_factors_ops_src,
                  dxbc::Src::LU(0x00010001));
         // Check if need to blend.
@@ -2338,8 +2265,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
           // Extract the color min/max bit to temp.x.
           // temp.x = whether min/max should be used for color.
-          system_constants_used_ |= 1ull
-                                    << kSysConst_EdramRTBlendFactorsOps_Index;
           a_.OpAnd(temp_x_dest, rt_blend_factors_ops_src,
                    dxbc::Src::LU(1 << (5 + 1)));
           // Check if need to do blend the color with factors.
@@ -2353,8 +2278,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
             // Extract the source color factor to temp.x.
             // temp.x = source color factor index.
-            system_constants_used_ |= 1ull
-                                      << kSysConst_EdramRTBlendFactorsOps_Index;
             a_.OpAnd(temp_x_dest, rt_blend_factors_ops_src,
                      dxbc::Src::LU((1 << 5) - 1));
             // Check if the source color factor is not zero - if it is, the
@@ -2374,8 +2297,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               // Get if the render target color is fixed-point and the source
               // color factor needs clamping to temp.x.
               // temp.x = whether color is fixed-point.
-              system_constants_used_ |= 1ull
-                                        << kSysConst_EdramRTFormatFlags_Index;
               a_.OpAnd(temp_x_dest, rt_format_flags_src,
                        dxbc::Src::LU(kRTFormatFlag_FixedPointColor));
               // Check if the source color factor needs clamping.
@@ -2383,7 +2304,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               {
                 // Clamp the source color factor in blend_src_temp.xyz.
                 // blend_src_temp.xyz = source color factor.
-                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
                 a_.OpMax(blend_src_temp_rgb_dest, blend_src_temp_src,
                          rt_clamp_vec_src.Select(0));
                 a_.OpMin(blend_src_temp_rgb_dest, blend_src_temp_src,
@@ -2404,7 +2324,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               {
                 // Clamp the source color part.
                 // blend_src_temp.xyz = source color part without addition sign.
-                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
                 a_.OpMax(blend_src_temp_rgb_dest, blend_src_temp_src,
                          rt_clamp_vec_src.Select(0));
                 a_.OpMin(blend_src_temp_rgb_dest, blend_src_temp_src,
@@ -2414,8 +2333,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               a_.OpEndIf();
               // Extract the source color sign to temp.x.
               // temp.x = source color sign as zero for 1 and non-zero for -1.
-              system_constants_used_ |=
-                  1ull << kSysConst_EdramRTBlendFactorsOps_Index;
               a_.OpAnd(temp_x_dest, rt_blend_factors_ops_src,
                        dxbc::Src::LU(1 << (5 + 2)));
               // Apply the source color sign.
@@ -2437,8 +2354,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
             // Extract the destination color factor to temp.x.
             // temp.x = destination color factor index.
-            system_constants_used_ |= 1ull
-                                      << kSysConst_EdramRTBlendFactorsOps_Index;
             a_.OpUBFE(temp_x_dest, dxbc::Src::LU(5), dxbc::Src::LU(8),
                       rt_blend_factors_ops_src);
             // Check if the destination color factor is not zero.
@@ -2462,8 +2377,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               // Get if the render target color is fixed-point and the
               // destination color factor needs clamping to temp.x.
               // temp.x = whether color is fixed-point.
-              system_constants_used_ |= 1ull
-                                        << kSysConst_EdramRTFormatFlags_Index;
               a_.OpAnd(temp_x_dest, rt_format_flags_src,
                        dxbc::Src::LU(kRTFormatFlag_FixedPointColor));
               // Check if the destination color factor needs clamping.
@@ -2472,7 +2385,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                 // Clamp the destination color factor in
                 // blend_dest_factor_temp.xyz.
                 // blend_dest_factor_temp.xyz = destination color factor.
-                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
                 a_.OpMax(dxbc::Dest::R(blend_dest_factor_temp, 0b0111),
                          blend_dest_factor_temp_src,
                          rt_clamp_vec_src.Select(0));
@@ -2498,7 +2410,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                 // Clamp the destination color part.
                 // color_temp.xyz = destination color part without addition
                 // sign.
-                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
                 a_.OpMax(color_temp_rgb_dest, color_temp_src,
                          rt_clamp_vec_src.Select(0));
                 a_.OpMin(color_temp_rgb_dest, color_temp_src,
@@ -2509,8 +2420,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               // Extract the destination color sign to temp.x.
               // temp.x = destination color sign as zero for 1 and non-zero for
               //          -1.
-              system_constants_used_ |=
-                  1ull << kSysConst_EdramRTBlendFactorsOps_Index;
               a_.OpAnd(temp_x_dest, rt_blend_factors_ops_src,
                        dxbc::Src::LU(1 << 5));
               // Select the sign for destination multiply-add as 1.0 or -1.0 to
@@ -2543,7 +2452,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
             // Clamp the color in color_temp.xyz before packing.
             // color_temp.xyz = blended color.
-            system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
             a_.OpMax(color_temp_rgb_dest, color_temp_src,
                      rt_clamp_vec_src.Select(0));
             a_.OpMin(color_temp_rgb_dest, color_temp_src,
@@ -2554,8 +2462,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
           {
             // Extract the color min (0) or max (1) bit to temp.x
             // temp.x = whether min or max should be used for color.
-            system_constants_used_ |= 1ull
-                                      << kSysConst_EdramRTBlendFactorsOps_Index;
             a_.OpAnd(temp_x_dest, rt_blend_factors_ops_src,
                      dxbc::Src::LU(1 << 5));
             // Check if need to do min or max for color.
@@ -2589,8 +2495,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
           // Extract the alpha min/max bit to temp.x.
           // temp.x = whether min/max should be used for alpha.
-          system_constants_used_ |= 1ull
-                                    << kSysConst_EdramRTBlendFactorsOps_Index;
           a_.OpAnd(temp_x_dest, rt_blend_factors_ops_src,
                    dxbc::Src::LU(1 << (21 + 1)));
           // Check if need to do blend the color with factors.
@@ -2599,8 +2503,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
           {
             // Extract the source alpha factor to temp.x.
             // temp.x = source alpha factor index.
-            system_constants_used_ |= 1ull
-                                      << kSysConst_EdramRTBlendFactorsOps_Index;
             a_.OpUBFE(temp_x_dest, dxbc::Src::LU(5), dxbc::Src::LU(16),
                       rt_blend_factors_ops_src);
             // Check if the source alpha factor is not zero.
@@ -2618,8 +2520,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               // Get if the render target alpha is fixed-point and the source
               // alpha factor needs clamping to temp.y.
               // temp.y = whether alpha is fixed-point.
-              system_constants_used_ |= 1ull
-                                        << kSysConst_EdramRTFormatFlags_Index;
               a_.OpAnd(temp_y_dest, rt_format_flags_src,
                        dxbc::Src::LU(kRTFormatFlag_FixedPointAlpha));
               // Check if the source alpha factor needs clamping.
@@ -2627,7 +2527,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               {
                 // Clamp the source alpha factor in temp.x.
                 // temp.x = source alpha factor.
-                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
                 a_.OpMax(temp_x_dest, temp_x_src, rt_clamp_vec_src.Select(1));
                 a_.OpMin(temp_x_dest, temp_x_src, rt_clamp_vec_src.Select(3));
               }
@@ -2645,7 +2544,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               {
                 // Clamp the source alpha part.
                 // temp.x = source alpha part without addition sign.
-                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
                 a_.OpMax(temp_x_dest, temp_x_src, rt_clamp_vec_src.Select(1));
                 a_.OpMin(temp_x_dest, temp_x_src, rt_clamp_vec_src.Select(3));
               }
@@ -2653,8 +2551,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               a_.OpEndIf();
               // Extract the source alpha sign to temp.y.
               // temp.y = source alpha sign as zero for 1 and non-zero for -1.
-              system_constants_used_ |=
-                  1ull << kSysConst_EdramRTBlendFactorsOps_Index;
               a_.OpAnd(temp_y_dest, rt_blend_factors_ops_src,
                        dxbc::Src::LU(1 << (21 + 2)));
               // Apply the source alpha sign.
@@ -2673,8 +2569,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
             // Extract the destination alpha factor to temp.y.
             // temp.y = destination alpha factor index.
-            system_constants_used_ |= 1ull
-                                      << kSysConst_EdramRTBlendFactorsOps_Index;
             a_.OpUBFE(temp_y_dest, dxbc::Src::LU(5), dxbc::Src::LU(24),
                       rt_blend_factors_ops_src);
             // Check if the destination alpha factor is not zero.
@@ -2694,8 +2588,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               // destination alpha factor needs clamping.
               // alpha_is_fixed_temp.x = whether alpha is fixed-point.
               uint32_t alpha_is_fixed_temp = PushSystemTemp();
-              system_constants_used_ |= 1ull
-                                        << kSysConst_EdramRTFormatFlags_Index;
               a_.OpAnd(dxbc::Dest::R(alpha_is_fixed_temp, 0b0001),
                        rt_format_flags_src,
                        dxbc::Src::LU(kRTFormatFlag_FixedPointAlpha));
@@ -2705,7 +2597,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               {
                 // Clamp the destination alpha factor in temp.y.
                 // temp.y = destination alpha factor.
-                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
                 a_.OpMax(temp_y_dest, temp_y_src, rt_clamp_vec_src.Select(1));
                 a_.OpMin(temp_y_dest, temp_y_src, rt_clamp_vec_src.Select(3));
               }
@@ -2725,7 +2616,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               {
                 // Clamp the destination alpha part.
                 // color_temp.w = destination alpha part without addition sign.
-                system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
                 a_.OpMax(color_temp_a_dest, color_temp_a_src,
                          rt_clamp_vec_src.Select(1));
                 a_.OpMin(color_temp_a_dest, color_temp_a_src,
@@ -2736,8 +2626,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               // Extract the destination alpha sign to temp.y.
               // temp.y = destination alpha sign as zero for 1 and non-zero for
               //          -1.
-              system_constants_used_ |=
-                  1ull << kSysConst_EdramRTBlendFactorsOps_Index;
               a_.OpAnd(temp_y_dest, rt_blend_factors_ops_src,
                        dxbc::Src::LU(1 << 21));
               // Select the sign for destination multiply-add as 1.0 or -1.0 to
@@ -2765,7 +2653,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
             // Clamp the alpha in color_temp.w before packing.
             // color_temp.w = blended alpha.
-            system_constants_used_ |= 1ull << kSysConst_EdramRTClamp_Index;
             a_.OpMax(color_temp_a_dest, color_temp_a_src,
                      rt_clamp_vec_src.Select(1));
             a_.OpMin(color_temp_a_dest, color_temp_a_src,
@@ -2776,8 +2663,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
           {
             // Extract the alpha min (0) or max (1) bit to temp.x.
             // temp.x = whether min or max should be used for alpha.
-            system_constants_used_ |= 1ull
-                                      << kSysConst_EdramRTBlendFactorsOps_Index;
             a_.OpAnd(temp_x_dest, rt_blend_factors_ops_src,
                      dxbc::Src::LU(1 << 21));
             // Check if need to do min or max for alpha.
@@ -2824,14 +2709,11 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
         // Apply the keep mask to the previous packed color/alpha in temp.zw.
         // temp.zw = masked packed old color/alpha.
-        system_constants_used_ |= 1ull << kSysConst_EdramRTKeepMask_Index;
         a_.OpAnd(dxbc::Dest::R(temp, 0b1100), dxbc::Src::R(temp),
-                 keep_mask_vec_src.Swizzle(keep_mask_swizzle << 4));
+                 keep_mask_src.SwizzleSwizzled(0b0100 << 4));
         // Invert the keep mask into color_temp.xy.
         // color_temp.xy = inverted keep mask (write mask).
-        system_constants_used_ |= 1ull << kSysConst_EdramRTKeepMask_Index;
-        a_.OpNot(dxbc::Dest::R(color_temp, 0b0011),
-                 keep_mask_vec_src.Swizzle(keep_mask_swizzle));
+        a_.OpNot(dxbc::Dest::R(color_temp, 0b0011), keep_mask_src);
         // Release color_temp.
         PopSystemTemp();
         // Apply the write mask to the new color/alpha in temp.xy.
@@ -2853,7 +2735,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
       // Get if the format is 64bpp to temp.z.
       // temp.z = whether the render target is 64bpp.
-      system_constants_used_ |= 1ull << kSysConst_EdramRTFormatFlags_Index;
       a_.OpAnd(temp_z_dest, rt_format_flags_src,
                dxbc::Src::LU(kRTFormatFlag_64bpp));
       // Check if the format is 64bpp.
@@ -2916,13 +2797,13 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
 
     // Revert adding the EDRAM bases of the render target to
     // system_temp_rov_params_.zw.
-    system_constants_used_ |= 1ull << kSysConst_EdramRTBaseDwordsScaled_Index;
     a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b1100),
               dxbc::Src::R(system_temp_rov_params_),
-              -dxbc::Src::CB(cbuffer_index_system_constants_,
-                             uint32_t(CbufferRegister::kSystemConstants),
-                             kSysConst_EdramRTBaseDwordsScaled_Vec)
-                   .Select(i));
+              -LoadSystemConstant(
+                  SystemConstantIndex::kEdramRTBaseDwordsScaled,
+                  offsetof(SystemConstants, edram_rt_base_dwords_scaled) +
+                      sizeof(uint32_t) * i,
+                  dxbc::Src::kXXXX));
     // Close the render target write check.
     a_.OpEndIf();
   }
@@ -2956,13 +2837,9 @@ void DxbcShaderTranslator::CompletePixelShader() {
     // Extract the comparison mask to check if the test needs to be done at all.
     // Don't care about flow control being somewhat dynamic - early Z is forced
     // using a special version of the shader anyway.
-    system_constants_used_ |= 1ull << kSysConst_Flags_Index;
     a_.OpUBFE(alpha_test_mask_dest, dxbc::Src::LU(3),
               dxbc::Src::LU(kSysFlag_AlphaPassIfLess_Shift),
-              dxbc::Src::CB(cbuffer_index_system_constants_,
-                            uint32_t(CbufferRegister::kSystemConstants),
-                            kSysConst_Flags_Vec)
-                  .Select(kSysConst_Flags_Comp));
+              LoadFlagsSystemConstant());
     // Compare the mask to ALWAYS to check if the test shouldn't be done (will
     // pass even for NaNs, though the expected behavior in this case hasn't been
     // checked, but let's assume this means "always", not "less, equal or
@@ -2975,12 +2852,9 @@ void DxbcShaderTranslator::CompletePixelShader() {
       // Do the test. Can't use subtraction and sign because of float specials.
       dxbc::Src alpha_src(
           dxbc::Src::R(system_temps_color_[0], dxbc::Src::kWWWW));
-      system_constants_used_ |= 1ull << kSysConst_AlphaTestReference_Index;
-      dxbc::Src alpha_test_reference_src(
-          dxbc::Src::CB(cbuffer_index_system_constants_,
-                        uint32_t(CbufferRegister::kSystemConstants),
-                        kSysConst_AlphaTestReference_Vec)
-              .Select(kSysConst_AlphaTestReference_Comp));
+      dxbc::Src alpha_test_reference_src(LoadSystemConstant(
+          SystemConstantIndex::kAlphaTestReference,
+          offsetof(SystemConstants, alpha_test_reference), dxbc::Src::kXXXX));
       // Less than.
       a_.OpLT(alpha_test_op_dest, alpha_src, alpha_test_reference_src);
       a_.OpOr(alpha_test_op_dest, alpha_test_op_src,
@@ -3330,13 +3204,8 @@ void DxbcShaderTranslator::ROV_DepthTo24Bit(uint32_t d24_temp,
               temp_temp_component != d32_temp_component);
   // Source and destination may be the same.
 
-  system_constants_used_ |= 1ull << kSysConst_Flags_Index;
   a_.OpAnd(dxbc::Dest::R(temp_temp, 1 << temp_temp_component),
-           dxbc::Src::CB(cbuffer_index_system_constants_,
-                         uint32_t(CbufferRegister::kSystemConstants),
-                         kSysConst_Flags_Vec)
-               .Select(kSysConst_Flags_Comp),
-           dxbc::Src::LU(kSysFlag_DepthFloat24));
+           LoadFlagsSystemConstant(), dxbc::Src::LU(kSysFlag_DepthFloat24));
   // Convert according to the format.
   a_.OpIf(true, dxbc::Src::R(temp_temp).Select(temp_temp_component));
   {
