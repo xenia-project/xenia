@@ -202,7 +202,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   // IF SYSTEM CONSTANTS ARE CHANGED OR ADDED, THE FOLLOWING MUST BE UPDATED:
-  // - kSysConst enum (indices, registers and first components).
+  // - SystemConstantIndex enum.
   // - system_constant_rdef_.
   // - d3d12/shaders/xenos_draw.hlsli (for geometry shaders).
   struct SystemConstants {
@@ -507,150 +507,42 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
-  enum : uint32_t {
-    // Indices.
+  enum class SystemConstantIndex : uint32_t {
+    kFlags,
+    kTessellationFactorRange,
+    kLineLoopClosingIndex,
+    kVertexIndexEndian,
+    kVertexBaseIndex,
+    kPointSize,
+    kPointSizeMinMax,
+    kPointScreenToNDC,
+    kUserClipPlanes,
+    kNDCScale,
+    kInterpolatorSamplingPattern,
+    kNDCOffset,
+    kPSParamGen,
+    kTextureSwizzledSigns,
+    kTexturesResolved,
+    kSampleCountLog2,
+    kAlphaTestReference,
+    kColorExpBias,
+    kAlphaToMask,
+    kEdramPitchTiles,
+    kEdramDepthRange,
+    kEdramPolyOffsetFront,
+    kEdramPolyOffsetBack,
+    kEdramDepthBaseDwords,
+    kEdramStencil,
+    kEdramRTBaseDwordsScaled,
+    kEdramRTFormatFlags,
+    kEdramRTClamp,
+    kEdramRTKeepMask,
+    kEdramRTBlendFactorsOps,
+    kEdramBlendConstant,
 
-    kSysConst_Flags_Index,
-    kSysConst_TessellationFactorRange_Index,
-    kSysConst_LineLoopClosingIndex_Index,
-
-    kSysConst_VertexIndexEndian_Index,
-    kSysConst_VertexBaseIndex_Index,
-    kSysConst_PointSize_Index,
-
-    kSysConst_PointSizeMinMax_Index,
-    kSysConst_PointScreenToNDC_Index,
-
-    kSysConst_UserClipPlanes_Index,
-
-    kSysConst_NDCScale_Index,
-    kSysConst_InterpolatorSamplingPattern_Index,
-
-    kSysConst_NDCOffset_Index,
-    kSysConst_PSParamGen_Index,
-
-    kSysConst_TextureSwizzledSigns_Index,
-
-    kSysConst_TexturesResolved_Index,
-    kSysConst_SampleCountLog2_Index,
-    kSysConst_AlphaTestReference_Index,
-
-    kSysConst_ColorExpBias_Index,
-
-    kSysConst_AlphaToMask_Index,
-    kSysConst_EdramPitchTiles_Index,
-    kSysConst_EdramDepthRange_Index,
-
-    kSysConst_EdramPolyOffsetFront_Index,
-    kSysConst_EdramPolyOffsetBack_Index,
-
-    kSysConst_EdramDepthBaseDwords_Index,
-
-    kSysConst_EdramStencil_Index,
-
-    kSysConst_EdramRTBaseDwordsScaled_Index,
-
-    kSysConst_EdramRTFormatFlags_Index,
-
-    kSysConst_EdramRTClamp_Index,
-
-    kSysConst_EdramRTKeepMask_Index,
-
-    kSysConst_EdramRTBlendFactorsOps_Index,
-
-    kSysConst_EdramBlendConstant_Index,
-
-    kSysConst_Count,
-
-    // Vectors.
-
-    kSysConst_Flags_Vec = 0,
-    kSysConst_Flags_Comp = 0,
-    kSysConst_TessellationFactorRange_Vec = kSysConst_Flags_Vec,
-    kSysConst_TessellationFactorRange_Comp = 1,
-    kSysConst_LineLoopClosingIndex_Vec = kSysConst_Flags_Vec,
-    kSysConst_LineLoopClosingIndex_Comp = 3,
-
-    kSysConst_VertexIndexEndian_Vec = kSysConst_LineLoopClosingIndex_Vec + 1,
-    kSysConst_VertexIndexEndian_Comp = 0,
-    kSysConst_VertexBaseIndex_Vec = kSysConst_VertexIndexEndian_Vec,
-    kSysConst_VertexBaseIndex_Comp = 1,
-    kSysConst_PointSize_Vec = kSysConst_VertexIndexEndian_Vec,
-    kSysConst_PointSize_Comp = 2,
-
-    kSysConst_PointSizeMinMax_Vec = kSysConst_PointSize_Vec + 1,
-    kSysConst_PointSizeMinMax_Comp = 0,
-    kSysConst_PointScreenToNDC_Vec = kSysConst_PointSizeMinMax_Vec,
-    kSysConst_PointScreenToNDC_Comp = 2,
-
-    // 6 vectors.
-    kSysConst_UserClipPlanes_Vec = kSysConst_PointScreenToNDC_Vec + 1,
-
-    kSysConst_NDCScale_Vec = kSysConst_UserClipPlanes_Vec + 6,
-    kSysConst_NDCScale_Comp = 0,
-    kSysConst_InterpolatorSamplingPattern_Vec = kSysConst_NDCScale_Vec,
-    kSysConst_InterpolatorSamplingPattern_Comp = 3,
-
-    kSysConst_NDCOffset_Vec = kSysConst_InterpolatorSamplingPattern_Vec + 1,
-    kSysConst_NDCOffset_Comp = 0,
-    kSysConst_PSParamGen_Vec = kSysConst_NDCOffset_Vec,
-    kSysConst_PSParamGen_Comp = 3,
-
-    // 2 vectors.
-    kSysConst_TextureSwizzledSigns_Vec = kSysConst_PSParamGen_Vec + 1,
-
-    kSysConst_TexturesResolved_Vec = kSysConst_TextureSwizzledSigns_Vec + 2,
-    kSysConst_TexturesResolved_Comp = 0,
-    kSysConst_SampleCountLog2_Vec = kSysConst_TexturesResolved_Vec,
-    kSysConst_SampleCountLog2_Comp = 1,
-    kSysConst_AlphaTestReference_Vec = kSysConst_TexturesResolved_Vec,
-    kSysConst_AlphaTestReference_Comp = 3,
-
-    kSysConst_ColorExpBias_Vec = kSysConst_AlphaTestReference_Vec + 1,
-
-    kSysConst_AlphaToMask_Vec = kSysConst_ColorExpBias_Vec + 1,
-    kSysConst_AlphaToMask_Comp = 0,
-    kSysConst_EdramPitchTiles_Vec = kSysConst_AlphaToMask_Vec,
-    kSysConst_EdramPitchTiles_Comp = 1,
-    kSysConst_EdramDepthRange_Vec = kSysConst_AlphaToMask_Vec,
-    kSysConst_EdramDepthRangeScale_Comp = 2,
-    kSysConst_EdramDepthRangeOffset_Comp = 3,
-
-    kSysConst_EdramPolyOffsetFront_Vec = kSysConst_EdramDepthRange_Vec + 1,
-    kSysConst_EdramPolyOffsetFrontScale_Comp = 0,
-    kSysConst_EdramPolyOffsetFrontOffset_Comp = 1,
-    kSysConst_EdramPolyOffsetBack_Vec = kSysConst_EdramPolyOffsetFront_Vec,
-    kSysConst_EdramPolyOffsetBackScale_Comp = 2,
-    kSysConst_EdramPolyOffsetBackOffset_Comp = 3,
-
-    kSysConst_EdramDepthBaseDwords_Vec = kSysConst_EdramPolyOffsetBack_Vec + 1,
-    kSysConst_EdramDepthBaseDwords_Comp = 0,
-
-    // 2 vectors.
-    kSysConst_EdramStencil_Vec = kSysConst_EdramDepthBaseDwords_Vec + 1,
-    kSysConst_EdramStencil_Front_Vec = kSysConst_EdramStencil_Vec,
-    kSysConst_EdramStencil_Back_Vec,
-    kSysConst_EdramStencil_Reference_Comp = 0,
-    kSysConst_EdramStencil_ReadMask_Comp,
-    kSysConst_EdramStencil_WriteMask_Comp,
-    kSysConst_EdramStencil_FuncOps_Comp,
-
-    kSysConst_EdramRTBaseDwordsScaled_Vec = kSysConst_EdramStencil_Vec + 2,
-
-    kSysConst_EdramRTFormatFlags_Vec =
-        kSysConst_EdramRTBaseDwordsScaled_Vec + 1,
-
-    // 4 vectors.
-    kSysConst_EdramRTClamp_Vec = kSysConst_EdramRTFormatFlags_Vec + 1,
-
-    // 2 vectors (render targets 01 and 23).
-    kSysConst_EdramRTKeepMask_Vec = kSysConst_EdramRTClamp_Vec + 4,
-
-    kSysConst_EdramRTBlendFactorsOps_Vec = kSysConst_EdramRTKeepMask_Vec + 2,
-
-    kSysConst_EdramBlendConstant_Vec = kSysConst_EdramRTBlendFactorsOps_Vec + 1,
+    kCount,
   };
-  static_assert(kSysConst_Count <= 64,
+  static_assert(uint32_t(SystemConstantIndex::kCount) <= 64,
                 "Too many system constants, can't use uint64_t for usage bits");
 
   static constexpr uint32_t kPointParametersTexCoord = xenos::kMaxInterpolators;
@@ -685,19 +577,37 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kPSInFrontFaceAndSampleIndex,
   };
 
+  // GetSystemConstantSrc + MarkSystemConstantUsed is for special cases of
+  // building the source unconditionally - in general, LoadSystemConstant must
+  // be used instead.
+  void MarkSystemConstantUsed(SystemConstantIndex index) {
+    system_constants_used_ |= uint64_t(1) << uint32_t(index);
+  }
   // Offset should be offsetof(SystemConstants, field). Swizzle values are
   // relative to the first component in the vector according to offsetof - to
   // request a scalar, use XXXX swizzle, and if it's at +4 in its 16-byte
-  // vector, it will be turned into YYYY, and so on.
-  // TODO(Triang3l): Index to enum class.
-  dxbc::Src LoadSystemConstant(uint32_t index, size_t offset,
-                               uint32_t swizzle) {
-    system_constants_used_ |= uint64_t(1) << index;
+  // vector, it will be turned into YYYY, and so on. The swizzle may include
+  // out-of-bounds components of the vector for simplicity of use, assuming they
+  // will be dropped anyway later.
+  dxbc::Src GetSystemConstantSrc(size_t offset, uint32_t swizzle) {
     uint32_t first_component = uint32_t((offset >> 2) & 3);
-    return dxbc::Src::CB(cbuffer_index_system_constants_,
-                         uint32_t(CbufferRegister::kSystemConstants),
-                         uint32_t(offset >> 4),
-                         first_component * 0b01010101 + swizzle);
+    return dxbc::Src::CB(
+        cbuffer_index_system_constants_,
+        uint32_t(CbufferRegister::kSystemConstants), uint32_t(offset >> 4),
+        std::min((swizzle & 3) + first_component, uint32_t(3)) |
+            std::min(((swizzle >> 2) & 3) + first_component, uint32_t(3)) << 2 |
+            std::min(((swizzle >> 4) & 3) + first_component, uint32_t(3)) << 4 |
+            std::min(((swizzle >> 6) & 3) + first_component, uint32_t(3)) << 6);
+  }
+  dxbc::Src LoadSystemConstant(SystemConstantIndex index, size_t offset,
+                               uint32_t swizzle) {
+    MarkSystemConstantUsed(index);
+    return GetSystemConstantSrc(offset, swizzle);
+  }
+  dxbc::Src LoadFlagsSystemConstant() {
+    return LoadSystemConstant(SystemConstantIndex::kFlags,
+                              offsetof(SystemConstants, flags),
+                              dxbc::Src::kXXXX);
   }
 
   Modification GetDxbcShaderModification() const {
@@ -1071,8 +981,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t size;
     uint32_t padding_after;
   };
-  static const SystemConstantRdef system_constant_rdef_[kSysConst_Count];
-  // Mask of system constants (1 << kSysConst_#_Index) used in the shader, so
+  static const SystemConstantRdef
+      system_constant_rdef_[size_t(SystemConstantIndex::kCount)];
+  // Mask of system constants (1 << SystemConstantIndex) used in the shader, so
   // the remaining ones can be marked as unused in RDEF.
   uint64_t system_constants_used_;
 

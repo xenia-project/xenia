@@ -101,13 +101,9 @@ void DxbcShaderTranslator::ExportToMemory() {
   uint32_t control_temp = PushSystemTemp();
 
   // Safety check if the shared memory is bound as UAV.
-  system_constants_used_ |= 1ull << kSysConst_Flags_Index;
   a_.OpUBFE(dxbc::Dest::R(control_temp, 0b0001), dxbc::Src::LU(1),
             dxbc::Src::LU(kSysFlag_SharedMemoryIsUAV_Shift),
-            dxbc::Src::CB(cbuffer_index_system_constants_,
-                          uint32_t(CbufferRegister::kSystemConstants),
-                          kSysConst_Flags_Vec)
-                .Select(kSysConst_Flags_Comp));
+            LoadFlagsSystemConstant());
   // Open the `if` with the uniform condition for the shared memory buffer being
   // bound as a UAV (more fine-grained checks are vector and likely divergent).
   a_.OpIf(true, dxbc::Src::R(control_temp, dxbc::Src::kXXXX));
