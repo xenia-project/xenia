@@ -13,6 +13,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/math.h"
