@@ -73,7 +73,8 @@ namespace d3d12 {
 #include "xenia/gpu/d3d12/shaders/dxbc/primitive_point_list_gs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/primitive_quad_list_gs.h"
 #include "xenia/gpu/d3d12/shaders/dxbc/primitive_rectangle_list_gs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/tessellation_vs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/tessellation_adaptive_vs.h"
+#include "xenia/gpu/d3d12/shaders/dxbc/tessellation_indexed_vs.h"
 
 PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
                              const RegisterFile& register_file,
@@ -1841,11 +1842,16 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
         break;
     }
   } else {
-    state_desc.VS.pShaderBytecode = tessellation_vs;
-    state_desc.VS.BytecodeLength = sizeof(tessellation_vs);
     state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
     xenos::TessellationMode tessellation_mode = xenos::TessellationMode(
         description.primitive_topology_type_or_tessellation_mode);
+    if (tessellation_mode == xenos::TessellationMode::kAdaptive) {
+      state_desc.VS.pShaderBytecode = tessellation_adaptive_vs;
+      state_desc.VS.BytecodeLength = sizeof(tessellation_adaptive_vs);
+    } else {
+      state_desc.VS.pShaderBytecode = tessellation_indexed_vs;
+      state_desc.VS.BytecodeLength = sizeof(tessellation_indexed_vs);
+    }
     switch (tessellation_mode) {
       case xenos::TessellationMode::kDiscrete:
         switch (host_vertex_shader_type) {

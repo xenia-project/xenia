@@ -6,7 +6,7 @@ struct XeHSConstantDataOutput {
 };
 
 XeHSConstantDataOutput XePatchConstant(
-    InputPatch<XeHSControlPointInput, 4> xe_input_patch) {
+    InputPatch<XeHSControlPointInputAdaptive, 4> xe_input_patch) {
   XeHSConstantDataOutput output = (XeHSConstantDataOutput)0;
   uint i;
 
@@ -29,14 +29,7 @@ XeHSConstantDataOutput XePatchConstant(
   // [2] - between U1V1 and U0V1.
   // [3] - between U0V1 and U0V0.
   [unroll] for (i = 0u; i < 4u; ++i) {
-    // While Viva Pinata sets the factors to 0 for frustum-culled (quad)
-    // patches, in Halo 3 only allowing patches with factors above 0 makes
-    // distant (triangle) patches disappear - it appears that there are no
-    // special values for culled patches on the Xbox 360 (unlike 0 and NaN on
-    // Direct3D 11).
-    output.edges[i] = clamp(
-        asfloat(xe_input_patch[(i + 3u) & 3u].index_or_edge_factor) + 1.0f,
-        xe_tessellation_factor_range.x, xe_tessellation_factor_range.y);
+    output.edges[i] = xe_input_patch[(i + 3u) & 3u].edge_factor;
   }
 
   // On the Xbox 360, according to the presentation, the inside factor is the
@@ -56,7 +49,7 @@ XeHSConstantDataOutput XePatchConstant(
 [outputcontrolpoints(4)]
 [patchconstantfunc("XePatchConstant")]
 XeHSControlPointOutput main(
-    InputPatch<XeHSControlPointInput, 4> xe_input_patch) {
+    InputPatch<XeHSControlPointInputAdaptive, 4> xe_input_patch) {
   XeHSControlPointOutput output;
   // Not used with control point indices.
   output.index = 0.0f;

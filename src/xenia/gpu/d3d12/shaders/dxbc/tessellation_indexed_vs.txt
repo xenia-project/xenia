@@ -61,7 +61,7 @@
 //
 // Name                 Index   Mask Register SysValue  Format   Used
 // -------------------- ----- ------ -------- -------- ------- ------
-// XEVERTEXID               0   x           0     NONE     int   x   
+// XEVERTEXID               0   x           0     NONE   float   x   
 //
 vs_5_1
 dcl_globalFlags refactoringAllowed
@@ -83,6 +83,7 @@ if_nz r0.y
   ushr r0.y, r0.x, l(16)
   bfi r0.x, l(16), l(16), r0.x, r0.y
 endif 
-iadd o0.x, r0.x, CB0[0][1].y
+iadd r0.x, r0.x, CB0[0][1].y
+itof o0.x, r0.x
 ret 
-// Approximately 16 instruction slots used
+// Approximately 17 instruction slots used

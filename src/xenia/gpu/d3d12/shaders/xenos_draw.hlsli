@@ -53,8 +53,14 @@ cbuffer xe_system_cbuffer : register(b0) {
   float4 xe_edram_blend_constant;
 };
 
-struct XeHSControlPointInput {
-  int index_or_edge_factor : XEVERTEXID;
+struct XeHSControlPointInputIndexed {
+  float index : XEVERTEXID;
+};
+
+struct XeHSControlPointInputAdaptive {
+  // 1.0 added in the vertex shader to convert to Direct3D 11+, and clamped to
+  // the factor range in the vertex shader.
+  float edge_factor : XETESSFACTOR;
 };
 
 struct XeHSControlPointOutput {
