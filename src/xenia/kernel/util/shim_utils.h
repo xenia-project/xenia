@@ -252,7 +252,7 @@ class PrimitivePointerParam : public ParamBase<uint32_t> {
   }
   T value() const { return *host_ptr_; }
   operator T() const = delete;
-  operator xe::be<T> *() const { return host_ptr_; }
+  operator xe::be<T>*() const { return host_ptr_; }
   operator bool() const { return host_ptr_ != nullptr; }
   void Zero() const {
     assert_not_null(host_ptr_);
