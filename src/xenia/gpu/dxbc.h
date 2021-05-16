@@ -138,7 +138,7 @@ constexpr uint32_t MakeFourCC(uint32_t ch0, uint32_t ch1, uint32_t ch2,
          (uint32_t(ch3) << 24);
 }
 
-struct ContainerHeader {
+struct alignas(uint32_t) ContainerHeader {
   static constexpr uint32_t kFourCC = MakeFourCC('D', 'X', 'B', 'C');
   static constexpr uint16_t kVersionMajor = 1;
   static constexpr uint16_t kVersionMinor = 0;
@@ -159,9 +159,9 @@ struct ContainerHeader {
   // Followed by uint32_t[blob_count] offsets from the start of the container in
   // bytes to the start of each blob's header.
 };
-static_assert(alignof(ContainerHeader) <= sizeof(uint32_t));
+static_assert_size(ContainerHeader, sizeof(uint32_t) * 8);
 
-struct BlobHeader {
+struct alignas(uint32_t) BlobHeader {
   enum class FourCC : uint32_t {
     // In order of appearance in a container.
     kResourceDefinition = MakeFourCC('R', 'D', 'E', 'F'),
@@ -175,7 +175,7 @@ struct BlobHeader {
   FourCC fourcc;
   uint32_t size_bytes;
 };
-static_assert(alignof(BlobHeader) <= sizeof(uint32_t));
+static_assert_size(BlobHeader, sizeof(uint32_t) * 2);
 
 // Appends a string to a DWORD stream, returns the DWORD-aligned length.
 inline uint32_t AppendAlignedString(std::vector<uint32_t>& dest,
@@ -325,7 +325,7 @@ enum class RdefShaderModel : uint32_t {
 };
 
 // D3D12_SHADER_TYPE_DESC with some differences.
-struct RdefType {
+struct alignas(uint32_t) RdefType {
   RdefVariableClass variable_class;
   RdefVariableType variable_type;
   // Matrix rows, 1 for other numeric, 0 if not applicable.
@@ -343,18 +343,18 @@ struct RdefType {
   // uint is called dword when it's scalar (but uint vectors are still uintN).
   uint32_t name_ptr;
 };
-static_assert(alignof(RdefType) <= sizeof(uint32_t));
+static_assert_size(RdefType, sizeof(uint32_t) * 9);
 
-struct RdefStructureMember {
+struct alignas(uint32_t) RdefStructureMember {
   uint32_t name_ptr;
   uint32_t type_ptr;
   uint32_t offset_bytes;
 };
-static_assert(alignof(RdefStructureMember) <= sizeof(uint32_t));
+static_assert_size(RdefStructureMember, sizeof(uint32_t) * 3);
 
 // D3D12_SHADER_VARIABLE_DESC with some differences.
 // Used for constants in constant buffers primarily.
-struct RdefVariable {
+struct alignas(uint32_t) RdefVariable {
   uint32_t name_ptr;
   uint32_t start_offset_bytes;
   uint32_t size_bytes;
@@ -371,10 +371,10 @@ struct RdefVariable {
   // Number of sampler slots possibly used, 0 if no textures used.
   uint32_t sampler_size;
 };
-static_assert(alignof(RdefVariable) <= sizeof(uint32_t));
+static_assert_size(RdefVariable, sizeof(uint32_t) * 10);
 
 // Sorted by ID.
-struct RdefCbuffer {
+struct alignas(uint32_t) RdefCbuffer {
   uint32_t name_ptr;
   uint32_t variable_count;
   uint32_t variables_ptr;
@@ -384,11 +384,11 @@ struct RdefCbuffer {
   // RdefCbufferFlags.
   uint32_t flags;
 };
-static_assert(alignof(RdefCbuffer) <= sizeof(uint32_t));
+static_assert_size(RdefCbuffer, sizeof(uint32_t) * 6);
 
 // D3D12_SHADER_INPUT_BIND_DESC with some differences.
 // Placed in samplers, SRVs, UAVs, CBVs order, sorted by ID.
-struct RdefInputBind {
+struct alignas(uint32_t) RdefInputBind {
   uint32_t name_ptr;
   RdefInputType type;
   ResourceReturnType return_type;
@@ -406,9 +406,9 @@ struct RdefInputBind {
   uint32_t bind_point_space;
   uint32_t id;
 };
-static_assert(alignof(RdefInputBind) <= sizeof(uint32_t));
+static_assert_size(RdefInputBind, sizeof(uint32_t) * 10);
 
-struct RdefHeader {
+struct alignas(uint32_t) RdefHeader {
   enum class FourCC : uint32_t {
     // RD11 in Shader Model 5_0 shaders.
     k5_0 = MakeFourCC('R', 'D', '1', '1'),
@@ -441,7 +441,7 @@ struct RdefHeader {
     sizeof_structure_member_bytes = sizeof(RdefStructureMember);
   }
 };
-static_assert(alignof(RdefHeader) <= sizeof(uint32_t));
+static_assert_size(RdefHeader, sizeof(uint32_t) * 15);
 
 // D3D_NAME subset
 enum class Name : uint32_t {
@@ -467,6 +467,7 @@ enum class SignatureRegisterComponentType : uint32_t {
 };
 
 // D3D_MIN_PRECISION
+// uint8_t as it's used as one byte in SignatureParameter.
 enum class MinPrecision : uint8_t {
   kDefault,
   kFloat16,
@@ -478,7 +479,7 @@ enum class MinPrecision : uint8_t {
 };
 
 // D3D11_INTERNALSHADER_PARAMETER_11_1
-struct SignatureParameter {
+struct alignas(uint32_t) SignatureParameter {
   uint32_t semantic_name_ptr;
   uint32_t semantic_index;
   // kUndefined for pixel shader outputs - inferred from the component type and
@@ -497,15 +498,15 @@ struct SignatureParameter {
   };
   MinPrecision min_precision;
 };
-static_assert(alignof(SignatureParameter) <= sizeof(uint32_t));
+static_assert_size(SignatureParameter, sizeof(uint32_t) * 6);
 
 // D3D10_INTERNALSHADER_SIGNATURE
-struct Signature {
+struct alignas(uint32_t) Signature {
   uint32_t parameter_count;
   // If the signature is empty, this still points after the header.
   uint32_t parameter_info_ptr;
 };
-static_assert(alignof(Signature) <= sizeof(uint32_t));
+static_assert_size(Signature, sizeof(uint32_t) * 2);
 
 // SHADER_FEATURE
 // Low 32 bits.
@@ -528,11 +529,11 @@ enum ShaderFeature0 : uint32_t {
                                                                           << 13,
 };
 
-struct ShaderFeatureInfo {
+struct alignas(uint32_t) ShaderFeatureInfo {
   // UINT64 originally, but aligned to 4 rather than 8.
   uint32_t feature_flags[2];
 };
-static_assert(alignof(ShaderFeatureInfo) <= sizeof(uint32_t));
+static_assert_size(ShaderFeatureInfo, sizeof(uint32_t) * 2);
 
 // D3D11_SB_TESSELLATOR_DOMAIN
 enum class TessellatorDomain : uint32_t {
@@ -543,7 +544,7 @@ enum class TessellatorDomain : uint32_t {
 };
 
 // The STAT blob (based on Wine d3dcompiler_parse_stat).
-struct Statistics {
+struct alignas(uint32_t) Statistics {
   // Not increased by declarations and labels.
   uint32_t instruction_count;    // +0
   uint32_t temp_register_count;  // +4
@@ -595,7 +596,7 @@ struct Statistics {
   // Unknown in Wine, but confirmed by testing.
   uint32_t c_texture_store_instructions;  // +90
 };
-static_assert(alignof(Statistics) <= sizeof(uint32_t));
+static_assert_size(Statistics, sizeof(uint32_t) * 37);
 
 // A shader blob begins with a version token and the shader length in dwords
 // (including the version token and the length token itself).

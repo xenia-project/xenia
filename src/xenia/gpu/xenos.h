@@ -21,6 +21,12 @@ namespace xe {
 namespace gpu {
 namespace xenos {
 
+// enum types used in the GPU registers or the microcode must be : uint32_t or
+// : int32_t, as Visual C++ restarts bit field packing when a field requires
+// different alignment than the previous one, so only 32-bit types must be used
+// in bit fields (registers are 32-bit, and the microcode consists of triples of
+// 32-bit words).
+
 enum class ShaderType : uint32_t {
   kVertex = 0,
   kPixel = 1,
@@ -991,20 +997,21 @@ enum class FetchConstantType : uint32_t {
 };
 
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
-XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
-  XEPACKEDSTRUCTANONYMOUS({
+union alignas(uint32_t) xe_gpu_vertex_fetch_t {
+  struct {
     FetchConstantType type : 2;  // +0
     uint32_t address : 30;       // +2 address in dwords
 
     Endian endian : 2;   // +0
     uint32_t size : 24;  // +2 size in words
     uint32_t unk1 : 6;   // +26
-  });
-  XEPACKEDSTRUCTANONYMOUS({
+  };
+  struct {
     uint32_t dword_0;
     uint32_t dword_1;
-  });
-});
+  };
+};
+static_assert_size(xe_gpu_vertex_fetch_t, sizeof(uint32_t) * 2);
 
 // Byte alignment of texture subresources in memory - of each mip and stack
 // slice / cube face (and of textures themselves), this number of bits is also
@@ -1049,8 +1056,8 @@ constexpr uint32_t kTextureLinearRowAlignmentBytes =
     1 << kTextureLinearRowAlignmentBytesLog2;
 
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
-XEPACKEDUNION(xe_gpu_texture_fetch_t, {
-  XEPACKEDSTRUCTANONYMOUS({
+union alignas(uint32_t) xe_gpu_texture_fetch_t {
+  struct {
     FetchConstantType type : 2;  // +0 dword_0
     // Likely before the swizzle, seems logical from R5xx (SIGNED_COMP0/1/2/3
     // set the signedness of components 0/1/2/3, while SEL_ALPHA/RED/GREEN/BLUE
@@ -1140,34 +1147,35 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     DataDimension dimension : 2;  // +9
     uint32_t packed_mips : 1;     // +11
     uint32_t mip_address : 20;    // +12 mip address >> 12
-  });
-  XEPACKEDSTRUCTANONYMOUS({
+  };
+  struct {
     uint32_t dword_0;
     uint32_t dword_1;
     uint32_t dword_2;
     uint32_t dword_3;
     uint32_t dword_4;
     uint32_t dword_5;
-  });
-});
+  };
+};
+static_assert_size(xe_gpu_texture_fetch_t, sizeof(uint32_t) * 6);
 
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
-XEPACKEDUNION(xe_gpu_fetch_group_t, {
+union alignas(uint32_t) xe_gpu_fetch_group_t {
   xe_gpu_texture_fetch_t texture_fetch;
-  XEPACKEDSTRUCTANONYMOUS({
+  struct {
     xe_gpu_vertex_fetch_t vertex_fetch_0;
     xe_gpu_vertex_fetch_t vertex_fetch_1;
     xe_gpu_vertex_fetch_t vertex_fetch_2;
-  });
-  XEPACKEDSTRUCTANONYMOUS({
+  };
+  struct {
     uint32_t dword_0;
     uint32_t dword_1;
     uint32_t dword_2;
     uint32_t dword_3;
     uint32_t dword_4;
     uint32_t dword_5;
-  });
-  XEPACKEDSTRUCTANONYMOUS({
+  };
+  struct {
     uint32_t type_0 : 2;
     uint32_t data_0_a : 30;
     uint32_t data_0_b : 32;
@@ -1177,8 +1185,9 @@ XEPACKEDUNION(xe_gpu_fetch_group_t, {
     uint32_t type_2 : 2;
     uint32_t data_2_a : 30;
     uint32_t data_2_b : 32;
-  });
-});
+  };
+};
+static_assert_size(xe_gpu_fetch_group_t, sizeof(uint32_t) * 6);
 
 // GPU_MEMEXPORT_STREAM_CONSTANT from a game .pdb - float constant for memexport
 // stream configuration.
@@ -1188,8 +1197,8 @@ XEPACKEDUNION(xe_gpu_fetch_group_t, {
 // integers. dword_1 specifically is 2^23 because
 // powf(2.0f, 23.0f) + float(i) == 0x4B000000 | i
 // so mad can pack indices as integers in the lower bits.
-XEPACKEDUNION(xe_gpu_memexport_stream_t, {
-  XEPACKEDSTRUCTANONYMOUS({
+union alignas(uint32_t) xe_gpu_memexport_stream_t {
+  struct {
     uint32_t base_address : 30;  // +0 dword_0 physical address >> 2
     uint32_t const_0x1 : 2;      // +30
 
@@ -1205,16 +1214,17 @@ XEPACKEDUNION(xe_gpu_memexport_stream_t, {
 
     uint32_t index_count : 23;  // +0 dword_3
     uint32_t const_0x96 : 9;    // +23
-  });
-  XEPACKEDSTRUCTANONYMOUS({
+  };
+  struct {
     uint32_t dword_0;
     uint32_t dword_1;
     uint32_t dword_2;
     uint32_t dword_3;
-  });
-});
+  };
+};
+static_assert_size(xe_gpu_memexport_stream_t, sizeof(uint32_t) * 4);
 
-XEPACKEDSTRUCT(xe_gpu_depth_sample_counts, {
+struct alignas(uint32_t) xe_gpu_depth_sample_counts {
   // This is little endian as it is swapped in D3D code.
   // Corresponding A and B values are summed up by D3D.
   // Occlusion there is calculated by substracting begin from end struct.
@@ -1226,7 +1236,8 @@ XEPACKEDSTRUCT(xe_gpu_depth_sample_counts, {
   uint32_t ZPass_B;
   uint32_t StencilFail_A;
   uint32_t StencilFail_B;
-});
+};
+static_assert_size(xe_gpu_depth_sample_counts, sizeof(uint32_t) * 8);
 
 // Enum of event values used for VGT_EVENT_INITIATOR
 enum Event {
