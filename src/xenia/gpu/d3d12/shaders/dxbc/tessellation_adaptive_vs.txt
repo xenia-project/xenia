@@ -10,7 +10,7 @@
 //   uint xe_flags;                     // Offset:    0 Size:     4 [unused]
 //   float2 xe_tessellation_factor_range;// Offset:    4 Size:     8
 //   uint xe_line_loop_closing_index;   // Offset:   12 Size:     4 [unused]
-//   uint xe_vertex_index_endian;       // Offset:   16 Size:     4 [unused]
+//   uint xe_vertex_index_endian;       // Offset:   16 Size:     4
 //   int xe_vertex_base_index;          // Offset:   20 Size:     4 [unused]
 //   float2 xe_point_size;              // Offset:   24 Size:     8 [unused]
 //   float2 xe_point_size_min_max;      // Offset:   32 Size:     8 [unused]
@@ -50,59 +50,41 @@
 //
 //
 //
-// Patch Constant signature:
-//
-// Name                 Index   Mask Register SysValue  Format   Used
-// -------------------- ----- ------ -------- -------- ------- ------
-// SV_TessFactor            0   x           0  TRIEDGE   float   x   
-// SV_TessFactor            1   x           1  TRIEDGE   float   x   
-// SV_TessFactor            2   x           2  TRIEDGE   float   x   
-// SV_InsideTessFactor      0   x           3   TRIINT   float   x   
-//
-//
 // Input signature:
 //
 // Name                 Index   Mask Register SysValue  Format   Used
 // -------------------- ----- ------ -------- -------- ------- ------
-// XEVERTEXID               0   x           0     NONE   float   x   
+// SV_VertexID              0   x           0   VERTID    uint   x   
 //
 //
 // Output signature:
 //
 // Name                 Index   Mask Register SysValue  Format   Used
 // -------------------- ----- ------ -------- -------- ------- ------
-// XEVERTEXID               0   x           0     NONE   float   x   
+// XETESSFACTOR             0   x           0     NONE   float   x   
 //
-// Tessellation Domain   # of control points
-// -------------------- --------------------
-// Triangle                                3
-//
-// Tessellation Output Primitive  Partitioning Type 
-// ------------------------------ ------------------
-// Clockwise Triangles            Even Fractional   
-//
-hs_5_1
-hs_decls 
-dcl_input_control_point_count 3
-dcl_output_control_point_count 3
-dcl_tessellator_domain domain_tri
-dcl_tessellator_partitioning partitioning_fractional_even
-dcl_tessellator_output_primitive output_triangle_cw
+vs_5_1
 dcl_globalFlags refactoringAllowed
-dcl_constantbuffer CB0[0:0][1], immediateIndexed, space=0
-hs_fork_phase 
-dcl_hs_fork_phase_instance_count 3
-dcl_input vForkInstanceID
-dcl_output_siv o0.x, finalTriUeq0EdgeTessFactor
-dcl_output_siv o1.x, finalTriVeq0EdgeTessFactor
-dcl_output_siv o2.x, finalTriWeq0EdgeTessFactor
+dcl_constantbuffer CB0[0:0][2], immediateIndexed, space=0
+dcl_input_sgv v0.x, vertex_id
+dcl_output o0.x
 dcl_temps 1
-dcl_indexrange o0.x 3
-mov r0.x, vForkInstanceID.x
-mov o[r0.x + 0].x, CB0[0][0].z
+ieq r0.xyz, CB0[0][1].xxxx, l(1, 2, 3, 0)
+or r0.xy, r0.yzyy, r0.xyxx
+if_nz r0.x
+  ishl r0.x, v0.x, l(8)
+  ushr r0.z, v0.x, l(8)
+  and r0.xz, r0.xxzx, l(0xff00ff00, 0, 0x00ff00ff, 0)
+  iadd r0.x, r0.z, r0.x
+else 
+  mov r0.x, v0.x
+endif 
+if_nz r0.y
+  ushr r0.y, r0.x, l(16)
+  bfi r0.x, l(16), l(16), r0.x, r0.y
+endif 
+add r0.x, r0.x, l(1.000000)
+max r0.x, r0.x, CB0[0][0].y
+min o0.x, r0.x, CB0[0][0].z
 ret 
-hs_fork_phase 
-dcl_output_siv o3.x, finalTriInsideTessFactor
-mov o3.x, CB0[0][0].z
-ret 
-// Approximately 5 instruction slots used
+// Approximately 18 instruction slots used

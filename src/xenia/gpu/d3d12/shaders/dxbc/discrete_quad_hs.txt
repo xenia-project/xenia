@@ -66,7 +66,7 @@
 //
 // Name                 Index   Mask Register SysValue  Format   Used
 // -------------------- ----- ------ -------- -------- ------- ------
-// XEVERTEXID               0   x           0     NONE     int   x   
+// XEVERTEXID               0   x           0     NONE   float   x   
 //
 //
 // Output signature:
@@ -92,14 +92,6 @@ dcl_tessellator_partitioning partitioning_integer
 dcl_tessellator_output_primitive output_triangle_cw
 dcl_globalFlags refactoringAllowed
 dcl_constantbuffer CB0[0:0][1], immediateIndexed, space=0
-hs_control_point_phase 
-dcl_input vOutputControlPointID
-dcl_input v[4][0].x
-dcl_output o0.x
-dcl_temps 1
-mov r0.x, vOutputControlPointID
-itof o0.x, v[r0.x + 0][0].x
-ret 
 hs_fork_phase 
 dcl_hs_fork_phase_instance_count 4
 dcl_input vForkInstanceID
@@ -122,4 +114,4 @@ dcl_indexrange o4.x 2
 mov r0.x, vForkInstanceID.x
 mov o[r0.x + 4].x, CB0[0][0].z
 ret 
-// Approximately 9 instruction slots used
+// Approximately 6 instruction slots used

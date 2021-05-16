@@ -31,10 +31,9 @@ XeHSConstantDataOutput XePatchConstant() {
 [outputcontrolpoints(3)]
 [patchconstantfunc("XePatchConstant")]
 XeHSControlPointOutput main(
-    InputPatch<XeHSControlPointInput, 3> xe_input_patch,
+    InputPatch<XeHSControlPointInputIndexed, 3> xe_input_patch,
     uint xe_control_point_id : SV_OutputControlPointID) {
   XeHSControlPointOutput output;
-  output.index =
-      float(xe_input_patch[xe_control_point_id].index_or_edge_factor);
+  output.index = xe_input_patch[xe_control_point_id].index;
   return output;
 }
