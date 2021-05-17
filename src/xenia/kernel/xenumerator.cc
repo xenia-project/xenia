@@ -60,13 +60,16 @@ uint32_t XStaticEnumerator::WriteItems(uint32_t buffer_ptr,
                                        uint8_t* buffer_data,
                                        uint32_t buffer_size,
                                        uint32_t* written_count) {
+  memset(buffer_data, 0, buffer_size);
+
   size_t count = std::min(item_count_ - current_item_, items_per_enumerate());
   if (!count) {
     return X_ERROR_NO_MORE_FILES;
   }
 
   size_t size = count * item_size();
-  if (size > buffer_size) {
+  size_t needed_buffer_size = item_size() * items_per_enumerate();
+  if (size > buffer_size || buffer_size < needed_buffer_size) {
     return X_ERROR_INSUFFICIENT_BUFFER;
   }
 

@@ -41,27 +41,8 @@ uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, lpvoid_t buffer_ptr,
   } else if (!buffer_ptr) {
     result = X_ERROR_INVALID_PARAMETER;
   } else {
-    size_t needed_buffer_size = e->item_size() * e->items_per_enumerate();
-
-    uint32_t actual_buffer_size = buffer_size;
-    if (buffer_size == e->items_per_enumerate()) {
-      actual_buffer_size = static_cast<uint32_t>(needed_buffer_size);
-      // Known culprits:
-      //   Final Fight: Double Impact (saves)
-      XELOGW(
-          "Broken usage of XamEnumerate! buffer size={:X} vs actual "
-          "size={:X} (item size={:X}, items per enumerate={})",
-          buffer_size, actual_buffer_size, e->item_size(),
-          e->items_per_enumerate());
-    }
-
-    result = X_ERROR_INSUFFICIENT_BUFFER;
-    if (actual_buffer_size >= needed_buffer_size) {
-      buffer_ptr.Zero(actual_buffer_size);
-      result =
-          e->WriteItems(buffer_ptr.guest_address(), buffer_ptr.as<uint8_t*>(),
-                        actual_buffer_size, &item_count);
-    }
+    result = e->WriteItems(buffer_ptr.guest_address(),
+                           buffer_ptr.as<uint8_t*>(), buffer_size, &item_count);
   }
 
   if (items_returned) {

@@ -31,6 +31,58 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
+class XStaticContentEnumerator : public XEnumerator {
+ public:
+  XStaticContentEnumerator(KernelState* kernel_state,
+                           size_t items_per_enumerate)
+      : XEnumerator(kernel_state, items_per_enumerate, sizeof(XCONTENT_DATA)) {}
+
+  void AppendItem(ContentData item) { items_.push_back(item); }
+  size_t item_count() const { return items_.size(); }
+
+  uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
+                      uint32_t buffer_size, uint32_t* written_count) override {
+    size_t count =
+        std::min(items_.size() - current_item_, items_per_enumerate());
+
+    if (!count) {
+      return X_ERROR_NO_MORE_FILES;
+    }
+
+    size_t items_size = count * item_size();
+    size_t actual_buffer_size = buffer_size;
+
+    if (actual_buffer_size < item_size()) {
+      // Game provided max amount of items instead of used space
+      if (count * items_per_enumerate() > actual_buffer_size) {
+        return X_ERROR_INSUFFICIENT_BUFFER;
+      }
+      actual_buffer_size = items_size * items_per_enumerate();
+    }
+
+    if (items_size > actual_buffer_size) {
+      return X_ERROR_INSUFFICIENT_BUFFER;
+    }
+    memset(buffer_data, 0, items_size);
+
+    auto details = reinterpret_cast<XCONTENT_DATA*>(buffer_data);
+
+    for (size_t i = 0, o = current_item_; i < count; ++i, ++current_item_) {
+      const auto& item = items_[current_item_];
+      item.Write(&details[i]);
+    }
+
+    if (written_count) {
+      *written_count = static_cast<uint32_t>(count);
+    }
+    return X_ERROR_SUCCESS;
+  }
+
+ private:
+  std::vector<ContentData> items_;
+  size_t current_item_ = 0;
+};
+
 dword_result_t XamContentGetLicenseMask(lpdword_t mask_ptr,
                                         lpunknown_t overlapped_ptr) {
   // Each bit in the mask represents a granted license. Available licenses
@@ -86,8 +138,8 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
     *buffer_size_ptr = sizeof(XCONTENT_DATA) * items_per_enumerate;
   }
 
-  auto e = object_ref<XStaticEnumerator>(new XStaticEnumerator(
-      kernel_state(), items_per_enumerate, sizeof(XCONTENT_DATA)));
+  auto e = object_ref<XStaticContentEnumerator>(
+      new XStaticContentEnumerator(kernel_state(), items_per_enumerate));
   auto result = e->Initialize(0xFF, 0xFE, 0x20005, 0x20007, 0);
   if (XFAILED(result)) {
     return result;
@@ -98,9 +150,7 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
     auto content_datas = kernel_state()->content_manager()->ListContent(
         static_cast<uint32_t>(DummyDeviceId::HDD), content_type);
     for (const auto& content_data : content_datas) {
-      auto item = reinterpret_cast<XCONTENT_DATA*>(e->AppendItem());
-      assert_not_null(item);
-      content_data.Write(item);
+      e->AppendItem(content_data);
     }
   }
 
