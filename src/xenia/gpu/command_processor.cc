@@ -1145,6 +1145,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(RingBuffer* reader,
 bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(RingBuffer* reader,
                                                           uint32_t packet,
                                                           uint32_t count) {
+  const uint32_t kQueryFinished = xe::byte_swap(0xFFFFFEED);
   assert_true(count == 1);
   uint32_t initiator = reader->ReadAndSwap<uint32_t>();
   // Writeback initiator.
@@ -1160,10 +1161,13 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(RingBuffer* reader,
             register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR].u32);
     // 0xFFFFFEED is written to this two locations by D3D only on D3DISSUE_END
     // and used to detect a finished query.
-    bool isEnd = pSampleCounts->ZPass_A == xe::byte_swap(0xFFFFFEED) &&
-                 pSampleCounts->ZPass_B == xe::byte_swap(0xFFFFFEED);
+    bool is_end_via_z_pass = pSampleCounts->ZPass_A == kQueryFinished &&
+                             pSampleCounts->ZPass_B == kQueryFinished;
+    // Older versions of D3D also checks for ZFail (First Gears of War)
+    bool is_end_via_z_fail = pSampleCounts->ZFail_A == kQueryFinished &&
+                             pSampleCounts->ZFail_B == kQueryFinished;
     std::memset(pSampleCounts, 0, sizeof(xe_gpu_depth_sample_counts));
-    if (isEnd) {
+    if (is_end_via_z_pass || is_end_via_z_fail) {
       pSampleCounts->ZPass_A = fake_sample_count;
       pSampleCounts->Total_A = fake_sample_count;
     }
