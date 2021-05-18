@@ -737,6 +737,9 @@ dword_result_t XamReadTileToTexture(dword_t unknown, dword_t title_id,
                                     lpvoid_t buffer_ptr, dword_t stride,
                                     dword_t height, dword_t overlapped_ptr) {
   // TODO(gibbed): unknown=0,2,3,9
+  if (!tile_id) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
 
   size_t size = size_t(stride) * size_t(height);
   std::memset(buffer_ptr, 0xFF, size);
