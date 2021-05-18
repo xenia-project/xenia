@@ -406,9 +406,13 @@ TEST_CASE("Wait on Semaphore", "Semaphore") {
   sem = Semaphore::Create(5, 5);
   Sleep(10ms);
   // Occupy the semaphore with 5 threads
-  auto func = [&sem] {
+  std::atomic<int> wait_count(0);
+  volatile bool threads_terminate(false);
+  auto func = [&sem, &wait_count, &threads_terminate] {
     auto res = Wait(sem.get(), false, 100ms);
-    Sleep(500ms);
+    wait_count++;
+    while (!threads_terminate) {
+    }
     if (res == WaitResult::kSuccess) {
       sem->Release(1, nullptr);
     }
@@ -417,12 +421,14 @@ TEST_CASE("Wait on Semaphore", "Semaphore") {
       std::thread(func), std::thread(func), std::thread(func),
       std::thread(func), std::thread(func),
   };
-  // Give threads time to acquire semaphore
-  Sleep(10ms);
+  // Wait for threads to finish semaphore calls
+  while (wait_count != 5) {
+  }
   // Attempt to acquire full semaphore with current (6th) thread
   result = Wait(sem.get(), false, 20ms);
   REQUIRE(result == WaitResult::kTimeout);
   // Give threads time to release semaphore
+  threads_terminate = true;
   for (auto& t : threads) {
     t.join();
   }
