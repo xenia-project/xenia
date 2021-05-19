@@ -154,12 +154,12 @@ bool D3D12Provider::Initialize() {
     pfn_d3d_disassemble_ =
         pD3DDisassemble(GetProcAddress(library_d3dcompiler_, "D3DDisassemble"));
     if (pfn_d3d_disassemble_ == nullptr) {
-      XELOGW(
+      XELOGD(
           "Failed to get D3DDisassemble from D3DCompiler_47.dll, DXBC "
           "disassembly for debugging will be unavailable");
     }
   } else {
-    XELOGW(
+    XELOGD(
         "Failed to load D3DCompiler_47.dll, DXBC disassembly for debugging "
         "will be unavailable");
   }
@@ -171,12 +171,12 @@ bool D3D12Provider::Initialize() {
     pfn_dxilconv_dxc_create_instance_ = DxcCreateInstanceProc(
         GetProcAddress(library_dxilconv_, "DxcCreateInstance"));
     if (pfn_dxilconv_dxc_create_instance_ == nullptr) {
-      XELOGW(
+      XELOGD(
           "Failed to get DxcCreateInstance from dxilconv.dll, converted DXIL "
           "disassembly for debugging will be unavailable");
     }
   } else {
-    XELOGW(
+    XELOGD(
         "Failed to load dxilconv.dll, converted DXIL disassembly for debugging "
         "will be unavailable - DXIL may be unsupported by your OS version");
   }
@@ -188,12 +188,12 @@ bool D3D12Provider::Initialize() {
     pfn_dxcompiler_dxc_create_instance_ = DxcCreateInstanceProc(
         GetProcAddress(library_dxcompiler_, "DxcCreateInstance"));
     if (pfn_dxcompiler_dxc_create_instance_ == nullptr) {
-      XELOGW(
+      XELOGD(
           "Failed to get DxcCreateInstance from dxcompiler.dll, converted DXIL "
           "disassembly for debugging will be unavailable");
     }
   } else {
-    XELOGW(
+    XELOGD(
         "Failed to load dxcompiler.dll, converted DXIL disassembly for "
         "debugging will be unavailable - if needed, download the DirectX "
         "Shader Compiler from "
@@ -359,7 +359,7 @@ bool D3D12Provider::Initialize() {
   if (cvars::d3d12_queue_priority >= 2) {
     queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME;
     if (!EnableIncreaseBasePriorityPrivilege()) {
-      XELOGD3D(
+      XELOGW(
           "Failed to enable SeIncreaseBasePriorityPrivilege for global "
           "realtime Direct3D 12 command queue priority, falling back to high "
           "priority, try launching Xenia as administrator");
@@ -377,7 +377,7 @@ bool D3D12Provider::Initialize() {
                                         IID_PPV_ARGS(&direct_queue)))) {
     bool queue_created = false;
     if (queue_desc.Priority == D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME) {
-      XELOGD3D(
+      XELOGW(
           "Failed to create a Direct3D 12 direct command queue with global "
           "realtime priority, falling back to high priority, try launching "
           "Xenia as administrator");
