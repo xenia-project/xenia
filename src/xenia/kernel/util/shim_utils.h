@@ -12,6 +12,7 @@
 
 #include <cstring>
 #include <string>
+#include <type_traits>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/byte_order.h"
@@ -531,46 +532,19 @@ xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
            cvars::log_high_frequency_kernel_calls)) {
         PrintKernelCall(export_entry, params);
       }
-      auto result =
-          KernelTrampoline(FN, std::forward<std::tuple<Ps...>>(params),
-                           std::make_index_sequence<sizeof...(Ps)>());
-      result.Store(ppc_context);
-      if (export_entry->tags &
-          (xe::cpu::ExportTag::kLog | xe::cpu::ExportTag::kLogResult)) {
-        // TODO(benvanik): log result.
+      if constexpr (std::is_void<R>::value) {
+        KernelTrampoline(FN, std::forward<std::tuple<Ps...>>(params),
+                         std::make_index_sequence<sizeof...(Ps)>());
+      } else {
+        auto result =
+            KernelTrampoline(FN, std::forward<std::tuple<Ps...>>(params),
+                             std::make_index_sequence<sizeof...(Ps)>());
+        result.Store(ppc_context);
+        if (export_entry->tags &
+            (xe::cpu::ExportTag::kLog | xe::cpu::ExportTag::kLogResult)) {
+          // TODO(benvanik): log result.
+        }
       }
-    }
-  };
-  export_entry->function_data.trampoline = &X::Trampoline;
-  return export_entry;
-}
-
-template <KernelModuleId MODULE, uint16_t ORDINAL, typename... Ps>
-xe::cpu::Export* RegisterExport(void (*fn)(Ps&...), const char* name,
-                                xe::cpu::ExportTag::type tags) {
-  static const auto export_entry = new cpu::Export(
-      ORDINAL, xe::cpu::Export::Type::kFunction, name,
-      tags | xe::cpu::ExportTag::kImplemented | xe::cpu::ExportTag::kLog);
-  static void (*FN)(Ps & ...) = fn;
-  struct X {
-    static void Trampoline(PPCContext* ppc_context) {
-      ++export_entry->function_data.call_count;
-      Param::Init init = {
-          ppc_context,
-          0,
-      };
-      // Using braces initializer instead of make_tuple because braces
-      // enforce execution order across compilers.
-      // The make_tuple order is undefined per the C++ standard and
-      // cause inconsitencies between msvc and clang.
-      std::tuple<Ps...> params = {Ps(init)...};
-      if (export_entry->tags & xe::cpu::ExportTag::kLog &&
-          (!(export_entry->tags & xe::cpu::ExportTag::kHighFrequency) ||
-           cvars::log_high_frequency_kernel_calls)) {
-        PrintKernelCall(export_entry, params);
-      }
-      KernelTrampoline(FN, std::forward<std::tuple<Ps...>>(params),
-                       std::make_index_sequence<sizeof...(Ps)>());
     }
   };
   export_entry->function_data.trampoline = &X::Trampoline;
