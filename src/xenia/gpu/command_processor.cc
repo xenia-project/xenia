@@ -1145,6 +1145,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(RingBuffer* reader,
 bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(RingBuffer* reader,
                                                           uint32_t packet,
                                                           uint32_t count) {
+  // Set by D3D as BE but struct ABI is LE
   const uint32_t kQueryFinished = xe::byte_swap(0xFFFFFEED);
   assert_true(count == 1);
   uint32_t initiator = reader->ReadAndSwap<uint32_t>();
