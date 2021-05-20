@@ -107,9 +107,9 @@ struct XWSAOVERLAPPED {
   xe::be<uint32_t> internal_high;
   union {
     struct {
-      xe::be<uint32_t> offset;
-      xe::be<uint32_t> offset_high;
-    };
+      xe::be<uint32_t> low;
+      xe::be<uint32_t> high;
+    } offset;  // must be named to avoid GCC error
     xe::be<uint32_t> pointer;
   };
   xe::be<uint32_t> event_handle;
