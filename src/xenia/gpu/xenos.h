@@ -1229,14 +1229,14 @@ struct alignas(uint32_t) xe_gpu_depth_sample_counts {
   // This is little endian as it is swapped in D3D code.
   // Corresponding A and B values are summed up by D3D.
   // Occlusion there is calculated by substracting begin from end struct.
-  uint32_t Total_A;
-  uint32_t Total_B;
-  uint32_t ZFail_A;
-  uint32_t ZFail_B;
-  uint32_t ZPass_A;
-  uint32_t ZPass_B;
-  uint32_t StencilFail_A;
-  uint32_t StencilFail_B;
+  le<uint32_t> Total_A;
+  le<uint32_t> Total_B;
+  le<uint32_t> ZFail_A;
+  le<uint32_t> ZFail_B;
+  le<uint32_t> ZPass_A;
+  le<uint32_t> ZPass_B;
+  le<uint32_t> StencilFail_A;
+  le<uint32_t> StencilFail_B;
 };
 static_assert_size(xe_gpu_depth_sample_counts, sizeof(uint32_t) * 8);
 
