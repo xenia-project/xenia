@@ -29,7 +29,7 @@ namespace kernel {
 
 using PPCContext = xe::cpu::ppc::PPCContext;
 
-#define SHIM_CALL void __cdecl
+#define SHIM_CALL void
 #define SHIM_SET_MAPPING(library_name, export_name, shim_data) \
   export_resolver->SetFunctionMapping(                         \
       library_name, ordinals::export_name,                     \
