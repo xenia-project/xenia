@@ -99,17 +99,14 @@ filter("platforms:Linux")
   toolset("clang")
   buildoptions({
     -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
-    ({os.outputof("pkg-config --cflags gtk+-x11-3.0")})[1],
   })
+  pkg_config.all("gtk+-x11-3.0")
   links({
     "stdc++fs",
     "dl",
     "lz4",
     "pthread",
     "rt",
-  })
-  linkoptions({
-    ({os.outputof("pkg-config --libs gtk+-3.0")})[1],
   })
 
 filter({"platforms:Linux", "kind:*App"})
