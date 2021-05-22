@@ -23,10 +23,6 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/platform.h"
 
-#if XE_PLATFORM_LINUX
-#include <byteswap.h>
-#endif
-
 #if !__cpp_lib_endian
 // Polyfill
 #ifdef __BYTE_ORDER__
@@ -50,62 +46,35 @@ static_assert((std::endian::native == std::endian::big) ||
 
 namespace xe {
 
-#if XE_PLATFORM_WIN32
+#if XE_COMPILER_MSVC
 #define XENIA_BASE_BYTE_SWAP_16 _byteswap_ushort
 #define XENIA_BASE_BYTE_SWAP_32 _byteswap_ulong
 #define XENIA_BASE_BYTE_SWAP_64 _byteswap_uint64
-#elif XE_PLATFORM_MAC
-#define XENIA_BASE_BYTE_SWAP_16 OSSwapInt16
-#define XENIA_BASE_BYTE_SWAP_32 OSSwapInt32
-#define XENIA_BASE_BYTE_SWAP_64 OSSwapInt64
 #else
-#define XENIA_BASE_BYTE_SWAP_16 bswap_16
-#define XENIA_BASE_BYTE_SWAP_32 bswap_32
-#define XENIA_BASE_BYTE_SWAP_64 bswap_64
+#define XENIA_BASE_BYTE_SWAP_16 __builtin_bswap16
+#define XENIA_BASE_BYTE_SWAP_32 __builtin_bswap32
+#define XENIA_BASE_BYTE_SWAP_64 __builtin_bswap64
 #endif  // XE_PLATFORM_WIN32
 
-inline int8_t byte_swap(int8_t value) { return value; }
-inline uint8_t byte_swap(uint8_t value) { return value; }
-inline int16_t byte_swap(int16_t value) {
-  return static_cast<int16_t>(
-      XENIA_BASE_BYTE_SWAP_16(static_cast<int16_t>(value)));
-}
-inline uint16_t byte_swap(uint16_t value) {
-  return XENIA_BASE_BYTE_SWAP_16(value);
-}
-inline uint16_t byte_swap(char16_t value) {
-  return static_cast<char16_t>(XENIA_BASE_BYTE_SWAP_16(value));
-}
-inline int32_t byte_swap(int32_t value) {
-  return static_cast<int32_t>(
-      XENIA_BASE_BYTE_SWAP_32(static_cast<int32_t>(value)));
-}
-inline uint32_t byte_swap(uint32_t value) {
-  return XENIA_BASE_BYTE_SWAP_32(value);
-}
-inline int64_t byte_swap(int64_t value) {
-  return static_cast<int64_t>(
-      XENIA_BASE_BYTE_SWAP_64(static_cast<int64_t>(value)));
-}
-inline uint64_t byte_swap(uint64_t value) {
-  return XENIA_BASE_BYTE_SWAP_64(value);
-}
-inline float byte_swap(float value) {
-  uint32_t temp = byte_swap(*reinterpret_cast<uint32_t*>(&value));
-  return *reinterpret_cast<float*>(&temp);
-}
-inline double byte_swap(double value) {
-  uint64_t temp = byte_swap(*reinterpret_cast<uint64_t*>(&value));
-  return *reinterpret_cast<double*>(&temp);
-}
-template <typename T>
+template <class T>
 inline T byte_swap(T value) {
-  if (sizeof(T) == 4) {
-    return static_cast<T>(byte_swap(static_cast<uint32_t>(value)));
-  } else if (sizeof(T) == 2) {
-    return static_cast<T>(byte_swap(static_cast<uint16_t>(value)));
-  } else {
-    assert_always("not handled");
+  static_assert(
+      sizeof(T) == 8 || sizeof(T) == 4 || sizeof(T) == 2 || sizeof(T) == 1,
+      "byte_swap(T value): Type T has illegal size");
+  if constexpr (sizeof(T) == 8) {
+    uint64_t temp =
+        XENIA_BASE_BYTE_SWAP_64(*reinterpret_cast<uint64_t*>(&value));
+    return *reinterpret_cast<T*>(&temp);
+  } else if constexpr (sizeof(T) == 4) {
+    uint32_t temp =
+        XENIA_BASE_BYTE_SWAP_32(*reinterpret_cast<uint32_t*>(&value));
+    return *reinterpret_cast<T*>(&temp);
+  } else if constexpr (sizeof(T) == 2) {
+    uint16_t temp =
+        XENIA_BASE_BYTE_SWAP_16(*reinterpret_cast<uint16_t*>(&value));
+    return *reinterpret_cast<T*>(&temp);
+  } else if constexpr (sizeof(T) == 1) {
+    return value;
   }
 }
 
