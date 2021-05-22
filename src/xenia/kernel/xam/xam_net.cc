@@ -598,7 +598,18 @@ dword_result_t NetDll_XNetQosListen(dword_t caller, lpvoid_t id, lpvoid_t data,
 DECLARE_XAM_EXPORT1(NetDll_XNetQosListen, kNetworking, kStub);
 
 dword_result_t NetDll_inet_addr(lpstring_t addr_ptr) {
+  if (!addr_ptr) {
+    return -1;
+  }
+
   uint32_t addr = inet_addr(addr_ptr);
+  // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-inet_addr#return-value
+  // Based on console research it seems like x360 uses old version of inet_addr
+  // In case of empty string it return 0 instead of -1
+  if (addr == -1 && !addr_ptr.value().length()) {
+    return 0;
+  }
+
   return xe::byte_swap(addr);
 }
 DECLARE_XAM_EXPORT1(NetDll_inet_addr, kNetworking, kImplemented);
