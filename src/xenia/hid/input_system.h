@@ -44,10 +44,14 @@ class InputSystem {
   X_RESULT GetKeystroke(uint32_t user_index, uint32_t flags,
                         X_INPUT_KEYSTROKE* out_keystroke);
 
+  void ToggleVibration();
+
  private:
   xe::ui::Window* window_ = nullptr;
 
   std::vector<std::unique_ptr<InputDriver>> drivers_;
+
+  X_INPUT_VIBRATION ModifyVibrationLevel(X_INPUT_VIBRATION* vibration);
 };
 
 }  // namespace hid
