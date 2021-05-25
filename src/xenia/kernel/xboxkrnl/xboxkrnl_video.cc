@@ -344,7 +344,7 @@ dword_result_t VdRetrainEDRAM(unknown_t unk0, unknown_t unk1, unknown_t unk2,
 DECLARE_XBOXKRNL_EXPORT1(VdRetrainEDRAM, kVideo, kStub);
 
 void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
-            lpvoid_t fetch_ptr,   // frontbuffer texture fetch
+            lpvoid_t fetch_ptr,   // frontbuffer Direct3D 9 texture header fetch
             lpunknown_t unk2,     // system writeback ptr
             lpunknown_t unk3,     // buffer from VdGetSystemCommandBuffer
             lpunknown_t unk4,     // from VdGetSystemCommandBuffer (0xBEEF0001)
@@ -361,23 +361,29 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
 
   namespace xenos = xe::gpu::xenos;
 
-  xenos::xe_gpu_texture_fetch_t fetch;
+  xenos::xe_gpu_texture_fetch_t gpu_fetch;
   xe::copy_and_swap_32_unaligned(
-      &fetch, reinterpret_cast<uint32_t*>(fetch_ptr.host_address()), 6);
+      &gpu_fetch, reinterpret_cast<uint32_t*>(fetch_ptr.host_address()), 6);
 
-  // Kernel virtual -> GPU physical.
-  uint32_t frontbuffer_address = fetch.base_address << 12;
-  assert_true(*frontbuffer_ptr == frontbuffer_address);
-  frontbuffer_address =
-      kernel_memory()->GetPhysicalAddress(frontbuffer_address);
-  assert_true(frontbuffer_address != UINT32_MAX);
-  if (frontbuffer_address == UINT32_MAX) {
+  // The fetch constant passed is not a true GPU fetch constant, but rather, the
+  // fetch constant stored in the Direct3D 9 texture header, which contains the
+  // address in one of the virtual mappings of the physical memory rather than
+  // the physical address itself. We're emulating swapping in the GPU subsystem,
+  // which works with GPU memory addresses (physical addresses directly) from
+  // proper fetch constants like ones used to bind textures to shaders, not CPU
+  // MMU addresses, so translation from virtual to physical is needed.
+  uint32_t frontbuffer_virtual_address = gpu_fetch.base_address << 12;
+  assert_true(*frontbuffer_ptr == frontbuffer_virtual_address);
+  uint32_t frontbuffer_physical_address =
+      kernel_memory()->GetPhysicalAddress(frontbuffer_virtual_address);
+  assert_true(frontbuffer_physical_address != UINT32_MAX);
+  if (frontbuffer_physical_address == UINT32_MAX) {
     // Xenia-specific safety check.
     XELOGE("VdSwap: Invalid front buffer virtual address 0x{:08X}",
-           fetch.base_address << 12);
+           frontbuffer_virtual_address);
     return;
   }
-  fetch.base_address = frontbuffer_address >> 12;
+  gpu_fetch.base_address = frontbuffer_physical_address >> 12;
 
   auto texture_format = gpu::xenos::TextureFormat(texture_format_ptr.value());
   auto color_space = *color_space_ptr;
@@ -385,8 +391,8 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
               texture_format ==
                   gpu::xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16);
   assert_true(color_space == 0);  // RGB(0)
-  assert_true(*width == 1 + fetch.size_2d.width);
-  assert_true(*height == 1 + fetch.size_2d.height);
+  assert_true(*width == 1 + gpu_fetch.size_2d.width);
+  assert_true(*height == 1 + gpu_fetch.size_2d.height);
 
   // The caller seems to reserve 64 words (256b) in the primary ringbuffer
   // for this method to do what it needs. We just zero them out and send a
@@ -398,19 +404,19 @@ void VdSwap(lpvoid_t buffer_ptr,  // ptr into primary ringbuffer
   uint32_t offset = 0;
   auto dwords = buffer_ptr.as_array<uint32_t>();
 
-  // Write in the texture fetch.
+  // Write in the GPU texture fetch.
   dwords[offset++] =
       xenos::MakePacketType0(gpu::XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0, 6);
-  dwords[offset++] = fetch.dword_0;
-  dwords[offset++] = fetch.dword_1;
-  dwords[offset++] = fetch.dword_2;
-  dwords[offset++] = fetch.dword_3;
-  dwords[offset++] = fetch.dword_4;
-  dwords[offset++] = fetch.dword_5;
+  dwords[offset++] = gpu_fetch.dword_0;
+  dwords[offset++] = gpu_fetch.dword_1;
+  dwords[offset++] = gpu_fetch.dword_2;
+  dwords[offset++] = gpu_fetch.dword_3;
+  dwords[offset++] = gpu_fetch.dword_4;
+  dwords[offset++] = gpu_fetch.dword_5;
 
   dwords[offset++] = xenos::MakePacketType3(xenos::PM4_XE_SWAP, 4);
   dwords[offset++] = 'SWAP';
-  dwords[offset++] = frontbuffer_address;
+  dwords[offset++] = frontbuffer_physical_address;
 
   dwords[offset++] = *width;
   dwords[offset++] = *height;
