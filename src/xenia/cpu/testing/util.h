@@ -20,7 +20,7 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/test_module.h"
 
-#include "third_party/catch/single_include/catch.hpp"
+#include "third_party/catch/include/catch.hpp"
 
 #define XENIA_TEST_X64 1
 

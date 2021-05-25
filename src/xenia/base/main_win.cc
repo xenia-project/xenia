@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -104,8 +104,10 @@ static bool parse_launch_arguments(const xe::EntryInfo& entry_info,
 
   LocalFree(wargv);
 
-  cvar::ParseLaunchArguments(argc, argv, entry_info.positional_usage,
-                             entry_info.positional_options);
+  if (!entry_info.transparent_options) {
+    cvar::ParseLaunchArguments(argc, argv, entry_info.positional_usage.value(),
+                               entry_info.positional_options.value());
+  }
 
   args.clear();
   for (int n = 0; n < argc; n++) {
