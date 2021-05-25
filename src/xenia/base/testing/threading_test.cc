@@ -775,59 +775,64 @@ TEST_CASE("Create and Run Thread", "Thread") {
   Thread::CreationParameters params = {};
   auto func = [] { Sleep(20ms); };
 
-  // Create most basic case of thread
-  thread = Thread::Create(params, func);
-  REQUIRE(thread->native_handle() != nullptr);
-  REQUIRE_NOTHROW(thread->affinity_mask());
-  REQUIRE(thread->name().empty());
-  result = Wait(thread.get(), false, 50ms);
-  REQUIRE(result == WaitResult::kSuccess);
+  SECTION("Create most basic case of thread") {
+    thread = Thread::Create(params, func);
+    REQUIRE(thread->native_handle() != nullptr);
+    REQUIRE_NOTHROW(thread->affinity_mask());
+    REQUIRE(thread->name().empty());
+    result = Wait(thread.get(), false, 50ms);
+    REQUIRE(result == WaitResult::kSuccess);
+  }
 
-  // Add thread name
-  std::string new_name = "Test thread name";
-  thread = Thread::Create(params, func);
-  auto name = thread->name();
-  INFO(name.c_str());
-  REQUIRE(name.empty());
-  thread->set_name(new_name);
-  REQUIRE(thread->name() == new_name);
-  result = Wait(thread.get(), false, 50ms);
-  REQUIRE(result == WaitResult::kSuccess);
+  SECTION("Add thread name") {
+    std::string new_name = "Test thread name";
+    thread = Thread::Create(params, func);
+    auto name = thread->name();
+    INFO(name.c_str());
+    REQUIRE(name.empty());
+    thread->set_name(new_name);
+    REQUIRE(thread->name() == new_name);
+    result = Wait(thread.get(), false, 50ms);
+    REQUIRE(result == WaitResult::kSuccess);
+  }
 
-  // Use Terminate to end an infinitely looping thread
-  thread = Thread::Create(params, [] {
-    while (true) {
-      Sleep(1ms);
-    }
-  });
-  result = Wait(thread.get(), false, 50ms);
-  REQUIRE(result == WaitResult::kTimeout);
-  thread->Terminate(-1);
-  result = Wait(thread.get(), false, 50ms);
-  REQUIRE(result == WaitResult::kSuccess);
+  SECTION("Use Terminate to end an infinitely looping thread") {
+    thread = Thread::Create(params, [] {
+      while (true) {
+        Sleep(1ms);
+      }
+    });
+    result = Wait(thread.get(), false, 50ms);
+    REQUIRE(result == WaitResult::kTimeout);
+    thread->Terminate(-1);
+    result = Wait(thread.get(), false, 50ms);
+    REQUIRE(result == WaitResult::kSuccess);
+  }
 
-  // Call Exit from inside an infinitely looping thread
-  thread = Thread::Create(params, [] {
-    while (true) {
+  SECTION("Call Exit from inside an infinitely looping thread") {
+    thread = Thread::Create(params, [] {
       Thread::Exit(-1);
-    }
-  });
-  result = Wait(thread.get(), false, 50ms);
-  REQUIRE(result == WaitResult::kSuccess);
+      FAIL("Function must not return");
+    });
+    result = Wait(thread.get(), false, 50ms);
+    REQUIRE(result == WaitResult::kSuccess);
+  }
 
-  // Call timeout wait on self
-  result = Wait(Thread::GetCurrentThread(), false, 50ms);
-  REQUIRE(result == WaitResult::kTimeout);
+  SECTION("Call timeout wait on self") {
+    result = Wait(Thread::GetCurrentThread(), false, 50ms);
+    REQUIRE(result == WaitResult::kTimeout);
+  }
 
-  params.stack_size = 16 * 1024 * 1024;
-  thread = Thread::Create(params, [] {
-    while (true) {
+  SECTION("16kb stack size") {
+    params.stack_size = 16 * 1024 * 1024;
+    thread = Thread::Create(params, [] {
       Thread::Exit(-1);
-    }
-  });
-  REQUIRE(thread != nullptr);
-  result = Wait(thread.get(), false, 50ms);
-  REQUIRE(result == WaitResult::kSuccess);
+      FAIL("Function must not return");
+    });
+    REQUIRE(thread != nullptr);
+    result = Wait(thread.get(), false, 50ms);
+    REQUIRE(result == WaitResult::kSuccess);
+  }
 
   // TODO(bwrsandman): Test with different priorities
   // TODO(bwrsandman): Test setting and getting thread affinity

@@ -735,31 +735,44 @@ class PosixCondition<Thread> : public PosixConditionBase {
   }
 
   void Terminate(int exit_code) {
+    bool is_current_thread = pthread_self() == thread_;
     {
       std::unique_lock<std::mutex> lock(state_mutex_);
+      if (state_ == State::kFinished) {
+        if (is_current_thread) {
+          // This is really bad. Some thread must have called Terminate() on us
+          // just before we decided to terminate ourselves
+          assert_always();
+          for (;;) {
+            // Wait for pthread_cancel() to actually happen.
+          }
+        }
+        return;
+      }
       state_ = State::kFinished;
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
 
-    // Sometimes the thread can call terminate twice before stopping
-    if (thread_ == 0) return;
-    auto thread = thread_;
-
-    exit_code_ = exit_code;
-    signaled_ = true;
-    cond_.notify_all();
-
+      exit_code_ = exit_code;
+      signaled_ = true;
+      cond_.notify_all();
+    }
+    if (is_current_thread) {
+      pthread_exit(reinterpret_cast<void*>(exit_code));
+    } else {
 #ifdef XE_PLATFORM_ANDROID
-    if (pthread_kill(thread, GetSystemSignal(SignalType::kThreadTerminate)) !=
-        0) {
-      assert_always();
-    }
+      if (pthread_kill(thread_,
+                       GetSystemSignal(SignalType::kThreadTerminate)) != 0) {
+        assert_always();
+      }
 #else
-    if (pthread_cancel(thread) != 0) {
-      assert_always();
-    }
+      if (pthread_cancel(thread_) != 0) {
+        assert_always();
+      }
 #endif
+    }
   }
 
   void WaitStarted() const {
@@ -785,7 +798,6 @@ class PosixCondition<Thread> : public PosixConditionBase {
   inline void post_execution() override {
     if (thread_) {
       pthread_join(thread_, nullptr);
-      thread_ = 0;
     }
   }
   pthread_t thread_;
@@ -1122,13 +1134,12 @@ Thread* Thread::GetCurrentThread() {
 void Thread::Exit(int exit_code) {
   if (current_thread_) {
     current_thread_->Terminate(exit_code);
-    // Sometimes the current thread keeps running after being cancelled.
-    // Prevent other calls from this thread from using current_thread_.
-    current_thread_ = nullptr;
   } else {
     // Should only happen with the main thread
     pthread_exit(reinterpret_cast<void*>(exit_code));
   }
+  // Function must not return
+  assert_always();
 }
 
 void set_name(const std::string_view name) {
