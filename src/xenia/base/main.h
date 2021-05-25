@@ -10,6 +10,7 @@
 #ifndef XENIA_BASE_MAIN_H_
 #define XENIA_BASE_MAIN_H_
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -25,19 +26,26 @@ bool has_console_attached();
 // launch.
 struct EntryInfo {
   std::string name;
-  std::string positional_usage;
-  std::vector<std::string> positional_options;
   int (*entry_point)(const std::vector<std::string>& args);
+  bool transparent_options;  // no argument parsing
+  std::optional<std::string> positional_usage;
+  std::optional<std::vector<std::string>> positional_options;
 };
 EntryInfo GetEntryInfo();
 
 #define DEFINE_ENTRY_POINT(name, entry_point, positional_usage, ...)       \
   xe::EntryInfo xe::GetEntryInfo() {                                       \
     std::initializer_list<std::string> positional_options = {__VA_ARGS__}; \
-    return xe::EntryInfo(                                                  \
-        {name, positional_usage,                                           \
-         std::vector<std::string>(std::move(positional_options)),          \
-         entry_point});                                                    \
+    return xe::EntryInfo{                                                  \
+        name, entry_point, false, positional_usage,                        \
+        std::vector<std::string>(std::move(positional_options))};          \
+  }
+
+// TODO(Joel Linn): Add some way to filter consumed arguments in
+// cvar::ParseLaunchArguments()
+#define DEFINE_ENTRY_POINT_TRANSPARENT(name, entry_point)                      \
+  xe::EntryInfo xe::GetEntryInfo() {                                           \
+    return xe::EntryInfo{name, entry_point, true, std::nullopt, std::nullopt}; \
   }
 
 }  // namespace xe

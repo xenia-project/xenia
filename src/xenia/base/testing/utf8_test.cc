@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -194,7 +194,7 @@ struct example_results {
 };
 #undef TEST_EXAMPLE_RESULT
 
-TEST_CASE("utf8::count", "UTF-8 Count") {
+TEST_CASE("UTF-8 Count", "[utf8]") {
   example_results<size_t> results = {};
   results.Danish[0] = 88;
   results.German[0] = 58;
@@ -225,7 +225,7 @@ TEST_CASE("utf8::count", "UTF-8 Count") {
 // TODO(gibbed): hash_fnv1a
 // TODO(gibbed): hash_fnv1a_case
 
-TEST_CASE("utf8::split", "UTF-8 Split") {
+TEST_CASE("UTF-8 Split", "[utf8]") {
   std::vector<std::string_view> parts;
 
   // Danish
@@ -290,17 +290,17 @@ TEST_CASE("utf8::split", "UTF-8 Split") {
   // TODO(gibbed): Turkish
 }
 
-TEST_CASE("utf8::equal_z", "UTF-8 Equal Z") {
+TEST_CASE("UTF-8 Equal Z", "[utf8]") {
   REQUIRE(utf8::equal_z(u8"foo", u8"foo\0"));
   REQUIRE_FALSE(utf8::equal_z(u8"bar", u8"baz\0"));
 }
 
-TEST_CASE("utf8::equal_case", "UTF-8 Equal Case") {
+TEST_CASE("UTF-8 Equal Case", "[utf8]") {
   REQUIRE(utf8::equal_case(u8"foo", u8"foo\0"));
   REQUIRE_FALSE(utf8::equal_case(u8"bar", u8"baz\0"));
 }
 
-TEST_CASE("utf8::equal_case_z", "UTF-8 Equal Case Z") {
+TEST_CASE("UTF-8 Equal Case Z", "[utf8]") {
   REQUIRE(utf8::equal_case_z(u8"foo", u8"foo\0"));
   REQUIRE_FALSE(utf8::equal_case_z(u8"bar", u8"baz\0"));
 }
@@ -345,7 +345,7 @@ TEST_CASE("utf8::equal_case_z", "UTF-8 Equal Case Z") {
     REQUIRE(func(input_values, '\\') == output_value);                     \
   } while (0)
 
-TEST_CASE("utf8::join_paths", "UTF-8 Join Paths") {
+TEST_CASE("UTF-8 Join Paths", "[utf8]") {
   TEST_PATHS(utf8::join_paths, u8"");
   TEST_PATHS(utf8::join_paths, u8"foo", u8"foo");
   TEST_PATHS(utf8::join_paths, u8"foo/bar", u8"foo", u8"bar");
@@ -355,7 +355,7 @@ TEST_CASE("utf8::join_paths", "UTF-8 Join Paths") {
 
 // TODO(gibbed): join_guest_paths
 
-TEST_CASE("utf8::fix_path_separators", "UTF-8 Fix Path Separators") {
+TEST_CASE("UTF-8 Fix Path Separators", "[utf8]") {
   TEST_PATH_RAW(utf8::fix_path_separators, "", "");
   TEST_PATH_RAW(utf8::fix_path_separators, "\\", "/");
   TEST_PATH_RAW(utf8::fix_path_separators, "/", "/");
@@ -386,7 +386,7 @@ TEST_CASE("utf8::fix_path_separators", "UTF-8 Fix Path Separators") {
 
 // TODO(gibbed): fix_guest_path_separators
 
-TEST_CASE("utf8::find_name_from_path", "UTF-8 Find Name From Path") {
+TEST_CASE("UTF-8 Find Name From Path", "[utf8]") {
   TEST_PATH(utf8::find_name_from_path, "/", "");
   TEST_PATH(utf8::find_name_from_path, "foo/bar/baz/qux/", "qux");
   TEST_PATH(utf8::find_name_from_path, "foo/bar/baz/qux.txt", "qux.txt");
@@ -410,7 +410,7 @@ TEST_CASE("utf8::find_name_from_path", "UTF-8 Find Name From Path") {
 
 // TODO(gibbed): find_name_from_guest_path
 
-TEST_CASE("utf8::find_base_name_from_path", "UTF-8 Find Base Name From Path") {
+TEST_CASE("UTF-8 Find Base Name From Path", "[utf8]") {
   TEST_PATH(utf8::find_base_name_from_path, "foo/bar/baz/qux.txt", "qux");
   TEST_PATH(utf8::find_base_name_from_path, "foo/bar/baz/qux/", "qux");
   TEST_PATH(utf8::find_base_name_from_path,
@@ -439,7 +439,7 @@ TEST_CASE("utf8::find_base_name_from_path", "UTF-8 Find Base Name From Path") {
 
 // TODO(gibbed): find_base_name_from_guest_path
 
-TEST_CASE("utf8::find_base_path", "UTF-8 Find Base Path") {
+TEST_CASE("UTF-8 Find Base Path", "[utf8]") {
   TEST_PATH(utf8::find_base_path, "", "");
   TEST_PATH(utf8::find_base_path, "/", "");
   TEST_PATH(utf8::find_base_path, "//", "");
@@ -479,7 +479,7 @@ TEST_CASE("utf8::find_base_path", "UTF-8 Find Base Path") {
 
 // TODO(gibbed): find_base_guest_path
 
-TEST_CASE("utf8::canonicalize_path", "UTF-8 Canonicalize Path") {
+TEST_CASE("UTF-8 Canonicalize Path", "[utf8]") {
   TEST_PATH(utf8::canonicalize_path, "foo/bar/baz/qux", "foo/bar/baz/qux");
   TEST_PATH(utf8::canonicalize_path, "foo/bar/baz/qux/", "foo/bar/baz/qux");
   TEST_PATH(utf8::canonicalize_path, "foo/./baz/qux", "foo/baz/qux");
