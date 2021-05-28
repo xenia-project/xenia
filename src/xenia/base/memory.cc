@@ -43,6 +43,16 @@ void copy_128_aligned(void* dest, const void* src, size_t count) {
 }
 
 #if XE_ARCH_AMD64
+
+// This works around a GCC bug
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=100801
+// TODO(Joel Linn): Remove this when fixed GCC versions are common place.
+#if XE_COMPILER_GNUC
+#define XE_WORKAROUND_LOOP_KILL_MOD(x) \
+  if ((count % (x)) == 0) __builtin_unreachable();
+#else
+#define XE_WORKAROUND_LOOP_KILL_MOD(x)
+#endif
 void copy_and_swap_16_aligned(void* dest_ptr, const void* src_ptr,
                               size_t count) {
   assert_zero(reinterpret_cast<uintptr_t>(dest_ptr) & 0xF);
@@ -61,6 +71,7 @@ void copy_and_swap_16_aligned(void* dest_ptr, const void* src_ptr,
     _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
   for (; i < count; ++i) {  // handle residual elements
+    XE_WORKAROUND_LOOP_KILL_MOD(8);
     dest[i] = byte_swap(src[i]);
   }
 }
@@ -80,6 +91,7 @@ void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr,
     _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
   for (; i < count; ++i) {  // handle residual elements
+    XE_WORKAROUND_LOOP_KILL_MOD(8);
     dest[i] = byte_swap(src[i]);
   }
 }
@@ -102,6 +114,7 @@ void copy_and_swap_32_aligned(void* dest_ptr, const void* src_ptr,
     _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
   for (; i < count; ++i) {  // handle residual elements
+    XE_WORKAROUND_LOOP_KILL_MOD(4);
     dest[i] = byte_swap(src[i]);
   }
 }
@@ -121,6 +134,7 @@ void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
     _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
   for (; i < count; ++i) {  // handle residual elements
+    XE_WORKAROUND_LOOP_KILL_MOD(4);
     dest[i] = byte_swap(src[i]);
   }
 }
@@ -143,6 +157,7 @@ void copy_and_swap_64_aligned(void* dest_ptr, const void* src_ptr,
     _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
   for (; i < count; ++i) {  // handle residual elements
+    XE_WORKAROUND_LOOP_KILL_MOD(2);
     dest[i] = byte_swap(src[i]);
   }
 }
@@ -162,6 +177,7 @@ void copy_and_swap_64_unaligned(void* dest_ptr, const void* src_ptr,
     _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
   for (; i < count; ++i) {  // handle residual elements
+    XE_WORKAROUND_LOOP_KILL_MOD(2);
     dest[i] = byte_swap(src[i]);
   }
 }
@@ -178,6 +194,7 @@ void copy_and_swap_16_in_32_aligned(void* dest_ptr, const void* src_ptr,
     _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
   for (; i < count; ++i) {  // handle residual elements
+    XE_WORKAROUND_LOOP_KILL_MOD(4);
     dest[i] = (src[i] >> 16) | (src[i] << 16);
   }
 }
@@ -194,6 +211,7 @@ void copy_and_swap_16_in_32_unaligned(void* dest_ptr, const void* src_ptr,
     _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
   for (; i < count; ++i) {  // handle residual elements
+    XE_WORKAROUND_LOOP_KILL_MOD(4);
     dest[i] = (src[i] >> 16) | (src[i] << 16);
   }
 }
