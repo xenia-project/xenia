@@ -693,7 +693,7 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_SUB, VECTOR_SUB);
 // OPCODE_VECTOR_SHL
 // ============================================================================
 template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
-static __m128i EmulateVectorShl(void*, __m128i src1, __m128i src2) {
+static __m128i EmulateVectorShl(void*, __m128i& src1, __m128i& src2) {
   alignas(16) T value[16 / sizeof(T)];
   alignas(16) T shamt[16 / sizeof(T)];
 
@@ -882,7 +882,7 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_SHL, VECTOR_SHL_V128);
 // OPCODE_VECTOR_SHR
 // ============================================================================
 template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
-static __m128i EmulateVectorShr(void*, __m128i src1, __m128i src2) {
+static __m128i EmulateVectorShr(void*, __m128i& src1, __m128i& src2) {
   alignas(16) T value[16 / sizeof(T)];
   alignas(16) T shamt[16 / sizeof(T)];
 
@@ -1212,7 +1212,7 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_SHA, VECTOR_SHA_V128);
 // OPCODE_VECTOR_ROTATE_LEFT
 // ============================================================================
 template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
-static __m128i EmulateVectorRotateLeft(void*, __m128i src1, __m128i src2) {
+static __m128i EmulateVectorRotateLeft(void*, __m128i& src1, __m128i& src2) {
   alignas(16) T value[16 / sizeof(T)];
   alignas(16) T shamt[16 / sizeof(T)];
 
@@ -1305,7 +1305,7 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_ROTATE_LEFT, VECTOR_ROTATE_LEFT_V128);
 // OPCODE_VECTOR_AVERAGE
 // ============================================================================
 template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
-static __m128i EmulateVectorAverage(void*, __m128i src1, __m128i src2) {
+static __m128i EmulateVectorAverage(void*, __m128i& src1, __m128i& src2) {
   alignas(16) T src1v[16 / sizeof(T)];
   alignas(16) T src2v[16 / sizeof(T)];
   alignas(16) T value[16 / sizeof(T)];
@@ -1873,7 +1873,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     //     ((src1.uy & 0xFF) << 8) | (src1.uz & 0xFF)
     e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackD3DCOLOR));
   }
-  static __m128i EmulateFLOAT16_2(void*, __m128 src1) {
+  static __m128i EmulateFLOAT16_2(void*, __m128& src1) {
     alignas(16) float a[4];
     alignas(16) uint16_t b[8];
     _mm_store_ps(a, src1);
@@ -1912,7 +1912,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       e.vmovaps(i.dest, e.xmm0);
     }
   }
-  static __m128i EmulateFLOAT16_4(void*, __m128 src1) {
+  static __m128i EmulateFLOAT16_4(void*, __m128& src1) {
     alignas(16) float a[4];
     alignas(16) uint16_t b[8];
     _mm_store_ps(a, src1);
@@ -2043,8 +2043,8 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     // Merge XZ and YW.
     e.vorps(i.dest, e.xmm0);
   }
-  static __m128i EmulatePack8_IN_16_UN_UN_SAT(void*, __m128i src1,
-                                              __m128i src2) {
+  static __m128i EmulatePack8_IN_16_UN_UN_SAT(void*, __m128i& src1,
+                                              __m128i& src2) {
     alignas(16) uint16_t a[8];
     alignas(16) uint16_t b[8];
     alignas(16) uint8_t c[16];
@@ -2056,7 +2056,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     }
     return _mm_load_si128(reinterpret_cast<__m128i*>(c));
   }
-  static __m128i EmulatePack8_IN_16_UN_UN(void*, __m128i src1, __m128i src2) {
+  static __m128i EmulatePack8_IN_16_UN_UN(void*, __m128i& src1, __m128i& src2) {
     alignas(16) uint8_t a[16];
     alignas(16) uint8_t b[16];
     alignas(16) uint8_t c[16];
@@ -2289,7 +2289,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     e.vpor(i.dest, e.GetXmmConstPtr(XMMOne));
     // To convert to 0 to 1, games multiply by 0x47008081 and add 0xC7008081.
   }
-  static __m128 EmulateFLOAT16_2(void*, __m128i src1) {
+  static __m128 EmulateFLOAT16_2(void*, __m128i& src1) {
     alignas(16) uint16_t a[8];
     alignas(16) float b[4];
     _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
@@ -2346,7 +2346,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
       e.vmovaps(i.dest, e.xmm0);
     }
   }
-  static __m128 EmulateFLOAT16_4(void*, __m128i src1) {
+  static __m128 EmulateFLOAT16_4(void*, __m128i& src1) {
     alignas(16) uint16_t a[8];
     alignas(16) float b[4];
     _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);

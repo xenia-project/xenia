@@ -1101,7 +1101,10 @@ class GenTestsCommand(Command):
         print('Generating test binaries...')
         print('')
 
-        binutils_path = os.path.join('third_party', 'binutils-ppc-cygwin')
+        if sys.platform == 'win32':
+            binutils_path = os.path.join('third_party', 'binutils-ppc-cygwin')
+        else:
+            binutils_path = os.path.join('third_party', 'binutils', 'bin')
         ppc_as = os.path.join(binutils_path, 'powerpc-none-elf-as')
         ppc_ld = os.path.join(binutils_path, 'powerpc-none-elf-ld')
         ppc_objdump = os.path.join(binutils_path, 'powerpc-none-elf-objdump')

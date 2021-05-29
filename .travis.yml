@@ -53,6 +53,7 @@ before_script:
   - if [[ $BUILD == true ]]; then sudo dpkg -i libvulkan1_$LIBVULKAN_VERSION+dfsg1-1_amd64.deb libvulkan-dev_$LIBVULKAN_VERSION+dfsg1-1_amd64.deb; fi
   # Prepare environment (pull dependencies, build tools).
   - travis_retry ./xenia-build setup
+  - if [[ $BUILD == true ]]; then ./third_party/binutils/build.sh; fi
 
 script:
   # Run linter.
@@ -61,9 +62,13 @@ script:
   # Build and run base tests.
   - if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG --target=xenia-base-tests; fi
   - if [[ $BUILD == true ]]; then ./build/bin/Linux/$CONFIG/xenia-base-tests; fi
+  # Build and run cpu tests.
+  - if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG --target=xenia-cpu-tests; fi
+  - if [[ $BUILD == true ]]; then ./build/bin/Linux/$CONFIG/xenia-cpu-tests; fi
   # Build and run ppc tests.
+  - if [[ $BUILD == true ]]; then ./xenia-build gentests; fi
   - if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG --target=xenia-cpu-ppc-tests; fi
-  # - if [[ $BUILD == true ]]; then ./build/bin/Linux/$CONFIG/xenia-cpu-ppc-tests --log_file=stdout; fi
+  - if [[ $BUILD == true ]]; then ./build/bin/Linux/$CONFIG/xenia-cpu-ppc-tests --log_file=stdout; fi
 
   # Build all of xenia.
   - if [[ $BUILD == true ]]; then ./xenia-build build --config=$CONFIG; fi

@@ -403,9 +403,9 @@ X64ThunkEmitter::X64ThunkEmitter(X64Backend* backend, XbyakAllocator* allocator)
 X64ThunkEmitter::~X64ThunkEmitter() {}
 
 HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
-  // rcx = target
-  // rdx = arg0 (context)
-  // r8 = arg1 (guest return address)
+  // rcx (win), rdi (linux) = target
+  // rdx (win), rsi (linux) = arg0 (context)
+  // r8 (win), rdx (linux) = arg1 (guest return address)
 
   struct _code_offsets {
     size_t prolog;
@@ -420,9 +420,15 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   code_offsets.prolog = getSize();
 
   // rsp + 0 = return address
+#if XE_PLATFORM_LINUX
+  mov(qword[rsp + 8 * 3], rdx);
+  mov(qword[rsp + 8 * 2], rsi);
+  mov(qword[rsp + 8 * 1], rdi);
+#else
   mov(qword[rsp + 8 * 3], r8);
   mov(qword[rsp + 8 * 2], rdx);
   mov(qword[rsp + 8 * 1], rcx);
+#endif
   sub(rsp, stack_size);
 
   code_offsets.prolog_stack_alloc = getSize();
@@ -431,9 +437,15 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   // Save nonvolatile registers.
   EmitSaveNonvolatileRegs();
 
+#ifdef XE_PLATFORM_LINUX
+  mov(rax, rdi);
+  // context already in rsi
+  mov(rcx, rdx);  // return address
+#else
   mov(rax, rcx);
   mov(rsi, rdx);  // context
   mov(rcx, r8);   // return address
+#endif
   call(rax);
 
   EmitLoadNonvolatileRegs();
@@ -441,9 +453,15 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   code_offsets.epilog = getSize();
 
   add(rsp, stack_size);
+#if XE_PLATFORM_LINUX
+  mov(rdi, qword[rsp + 8 * 1]);
+  mov(rsi, qword[rsp + 8 * 2]);
+  mov(rdx, qword[rsp + 8 * 3]);
+#else
   mov(rcx, qword[rsp + 8 * 1]);
   mov(rdx, qword[rsp + 8 * 2]);
   mov(r8, qword[rsp + 8 * 3]);
+#endif
   ret();
 
   code_offsets.tail = getSize();
@@ -464,10 +482,12 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
 }
 
 GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
-  // rcx = target function
-  // rdx = arg0
-  // r8  = arg1
-  // r9  = arg2
+  // rcx (windows), rdi (linux) = target function
+  // rdx (windows), rsi (linux) = arg0
+  // r8  (windows), rdx (linux) = arg1
+  // r9  (windows), rcx (linux) = arg2
+  // --- (windows), r8  (linux) = arg3
+  // --- (windows), r9  (linux) = arg4
 
   struct _code_offsets {
     size_t prolog;
@@ -490,8 +510,13 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   // Save off volatile registers.
   EmitSaveVolatileRegs();
 
-  mov(rax, rcx);              // function
+  mov(rax, rcx);  // function
+#if XE_PLATFORM_LINUX
+  mov(rdi, GetContextReg());  // context
+  mov(rsi, rbx);
+#else
   mov(rcx, GetContextReg());  // context
+#endif
   call(rax);
 
   EmitLoadVolatileRegs();
@@ -546,8 +571,13 @@ ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
   // Save volatile registers
   EmitSaveVolatileRegs();
 
-  mov(rcx, rsi);  // context
+#if XE_PLATFORM_LINUX
+  mov(rdi, rsi);  // context
+  mov(rsi, rbx);
+#else
+  mov(rcx, rsi);              // context
   mov(rdx, rbx);
+#endif
   mov(rax, uint64_t(&ResolveFunction));
   call(rax);
 

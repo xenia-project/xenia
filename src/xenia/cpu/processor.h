@@ -29,6 +29,12 @@
 #include "xenia/cpu/thread_state.h"
 #include "xenia/memory.h"
 
+#if XE_COMPILER_MSVC
+#define NOINLINE
+#else
+#define NOINLINE __attribute__((noinline))
+#endif  // XE_COMPILER_MSVC
+
 DECLARE_bool(debug);
 
 namespace xe {
@@ -67,7 +73,9 @@ class Processor {
   Memory* memory() const { return memory_; }
   StackWalker* stack_walker() const { return stack_walker_.get(); }
   ppc::PPCFrontend* frontend() const { return frontend_.get(); }
-  backend::Backend* backend() const { return backend_.get(); }
+  // Clang 6 on release has issues with ppc instructions when this function is
+  // inlined
+  backend::Backend* backend() const NOINLINE { return backend_.get(); }
   ExportResolver* export_resolver() const { return export_resolver_; }
 
   bool Setup(std::unique_ptr<backend::Backend> backend);

@@ -499,14 +499,19 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
     if (builtin_function->handler()) {
       undefined = false;
       // rcx = target function
-      // rdx = arg0
-      // r8  = arg1
-      // r9  = arg2
+      // rdx (windows), r8 (linux) = arg0
+      // r8  (windows), rdx (linux) = arg1
+      // r9  (windows), rcx (linux) = arg2
       auto thunk = backend()->guest_to_host_thunk();
       mov(rax, reinterpret_cast<uint64_t>(thunk));
       mov(rcx, reinterpret_cast<uint64_t>(builtin_function->handler()));
+#if XE_PLATFORM_LINUX
+      mov(rbx, reinterpret_cast<uint64_t>(builtin_function->arg0()));
+      mov(rdx, reinterpret_cast<uint64_t>(builtin_function->arg1()));
+#else
       mov(rdx, reinterpret_cast<uint64_t>(builtin_function->arg0()));
       mov(r8, reinterpret_cast<uint64_t>(builtin_function->arg1()));
+#endif
       call(rax);
       // rax = host return
     }
@@ -515,9 +520,9 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
     if (extern_function->extern_handler()) {
       undefined = false;
       // rcx = target function
-      // rdx = arg0
-      // r8  = arg1
-      // r9  = arg2
+      // rdx (windows), r8 (linux) = arg0
+      // r8  (windows), rdx (linux) = arg1
+      // r9  (windows), rcx (linux) = arg2
       auto thunk = backend()->guest_to_host_thunk();
       mov(rax, reinterpret_cast<uint64_t>(thunk));
       mov(rcx, reinterpret_cast<uint64_t>(extern_function->extern_handler()));
@@ -550,9 +555,9 @@ void X64Emitter::CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0),
 
 void X64Emitter::CallNativeSafe(void* fn) {
   // rcx = target function
-  // rdx = arg0
-  // r8  = arg1
-  // r9  = arg2
+  // rdx (windows), r8 (linux) = arg0
+  // r8  (windows), rdx (linux) = arg1
+  // r9  (windows), rcx (linux) = arg2
   auto thunk = backend()->guest_to_host_thunk();
   mov(rax, reinterpret_cast<uint64_t>(thunk));
   mov(rcx, reinterpret_cast<uint64_t>(fn));
@@ -566,6 +571,17 @@ void X64Emitter::SetReturnAddress(uint64_t value) {
 }
 
 Xbyak::Reg64 X64Emitter::GetNativeParam(uint32_t param) {
+#if XE_PLATFORM_LINUX
+  if (param == 0)
+    return rbx;
+  else if (param == 1)
+    return rdx;
+  else if (param == 2)
+    return rcx;
+
+  assert_always();
+  return rcx;
+#else
   if (param == 0)
     return rdx;
   else if (param == 1)
@@ -575,6 +591,7 @@ Xbyak::Reg64 X64Emitter::GetNativeParam(uint32_t param) {
 
   assert_always();
   return r9;
+#endif
 }
 
 // Important: If you change these, you must update the thunks in x64_backend.cc!

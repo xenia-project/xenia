@@ -16,6 +16,12 @@
 #include "xenia/cpu/backend/machine_info.h"
 #include "xenia/cpu/hir/opcodes.h"
 
+#if XE_PLATFORM_LINUX
+#define OPTNONE __attribute__((optnone))
+#else
+#define OPTNONE
+#endif  // XE_PLATFORM_LINUX
+
 namespace xe {
 namespace cpu {
 namespace hir {
@@ -109,7 +115,9 @@ class Value {
   Use* AddUse(Arena* arena, Instr* instr);
   void RemoveUse(Use* use);
 
-  void set_zero(TypeName new_type) {
+  // Set optnone to prevent clang from vectorizing the assignment to 0 which
+  // would happen on different registers.
+  void set_zero(TypeName new_type) OPTNONE {
     type = new_type;
     flags |= VALUE_IS_CONSTANT;
     constant.v128.low = constant.v128.high = 0;

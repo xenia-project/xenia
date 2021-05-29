@@ -16,6 +16,12 @@
 #include "xenia/base/byte_order.h"
 #include "xenia/base/math.h"
 
+#if XE_COMPILER_MSVC
+#define OPTNONE
+#else
+#define OPTNONE __attribute__((optnone))
+#endif  // XE_COMPILER_MSVC
+
 namespace xe {
 namespace cpu {
 namespace hir {
@@ -440,12 +446,14 @@ void Value::MulHi(Value* other, bool is_unsigned) {
 #else
       if (is_unsigned) {
         constant.i64 = static_cast<uint64_t>(
-            static_cast<unsigned __int128>(constant.i64) *
-            static_cast<unsigned __int128>(other->constant.i64));
+            (static_cast<unsigned __int128>(constant.u64) *
+             static_cast<unsigned __int128>(other->constant.u64)) >>
+            64);
       } else {
-        constant.i64 =
-            static_cast<uint64_t>(static_cast<__int128>(constant.i64) *
-                                  static_cast<__int128>(other->constant.i64));
+        constant.i64 = static_cast<uint64_t>(
+            (static_cast<__int128>(constant.i64) *
+             static_cast<__int128>(other->constant.i64)) >>
+            64);
       }
 #endif  // XE_COMPILER_MSVC
       break;
@@ -755,8 +763,8 @@ void Value::Xor(Value* other) {
       break;
   }
 }
-
-void Value::Not() {
+// Set optnone to prevent clang 6 from optimizing and causing issues
+void Value::Not() OPTNONE {
   switch (type) {
     case INT8_TYPE:
       constant.i8 = ~constant.i8;
