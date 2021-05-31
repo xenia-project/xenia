@@ -390,6 +390,12 @@ TEST_CASE("UTF-8 Find Name From Path", "[utf8]") {
   TEST_PATH(utf8::find_name_from_path, "/", "");
   TEST_PATH(utf8::find_name_from_path, "//", "");
   TEST_PATH(utf8::find_name_from_path, "///", "");
+  TEST_PATH(utf8::find_name_from_path, "C/", "C");
+  TEST_PATH(utf8::find_name_from_path, "/C/", "C");
+  TEST_PATH(utf8::find_name_from_path, "C/D/", "D");
+  TEST_PATH(utf8::find_name_from_path, "/C/D/E/", "E");
+  TEST_PATH(utf8::find_name_from_path, "foo/bar/D/", "D");
+  TEST_PATH(utf8::find_name_from_path, "/foo/bar/E/qux/", "qux");
   TEST_PATH(utf8::find_name_from_path, "foo/bar/baz/qux/", "qux");
   TEST_PATH(utf8::find_name_from_path, "foo/bar/baz/qux//", "qux");
   TEST_PATH(utf8::find_name_from_path, "foo/bar/baz/qux///", "qux");
@@ -434,6 +440,11 @@ TEST_CASE("UTF-8 Find Base Name From Path", "[utf8]") {
   TEST_PATH(utf8::find_base_name_from_path, "foo/bar/baz/qux/", "qux");
   TEST_PATH(utf8::find_base_name_from_path, "foo/bar/baz/qux//", "qux");
   TEST_PATH(utf8::find_base_name_from_path, "foo/bar/baz/qux///", "qux");
+  TEST_PATH(utf8::find_base_name_from_path, "C/", "C");
+  TEST_PATH(utf8::find_base_name_from_path, "/C/", "C");
+  TEST_PATH(utf8::find_base_name_from_path, "C/D/", "D");
+  TEST_PATH(utf8::find_base_name_from_path, "/C/D/E/", "E");
+  TEST_PATH(utf8::find_base_name_from_path, "foo/bar/D/", "D");
   TEST_PATH(utf8::find_base_name_from_path,
             "ほげ/ぴよ/ふが/ほげら/ほげほげ.txt", "ほげほげ");
   TEST_PATH(utf8::find_base_name_from_path, "ほげ/ぴよ/ふが/ほげら/ほげほげ/",
