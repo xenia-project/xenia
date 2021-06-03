@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -45,7 +45,7 @@ bool FinalizationPass::Run(HIRBuilder* builder) {
     while (label) {
       if (!label->name) {
         const size_t label_len = 6 + 4;
-        char* name = reinterpret_cast<char*>(arena->Alloc(label_len + 1));
+        char* name = reinterpret_cast<char*>(arena->Alloc(label_len + 1, 1));
         assert_true(label->id <= 9999);
         auto end = fmt::format_to_n(name, label_len, "_label{}", label->id);
         name[end.size] = '\0';
