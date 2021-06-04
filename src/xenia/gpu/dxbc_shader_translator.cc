@@ -293,7 +293,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   a_.OpINE(
       index_dest,
       dxbc::Src::V(uint32_t(InOutRegister::kVSInVertexIndex), dxbc::Src::kXXXX),
-      LoadSystemConstant(SystemConstantIndex::kLineLoopClosingIndex,
+      LoadSystemConstant(SystemConstants::Index::kLineLoopClosingIndex,
                          offsetof(SystemConstants, line_loop_closing_index),
                          dxbc::Src::kXXXX));
   // Zero the index if processing the closing vertex of a line loop, or do
@@ -306,7 +306,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   {
     // Swap the vertex index's endianness.
     dxbc::Src endian_src(LoadSystemConstant(
-        SystemConstantIndex::kVertexIndexEndian,
+        SystemConstants::Index::kVertexIndexEndian,
         offsetof(SystemConstants, vertex_index_endian), dxbc::Src::kXXXX));
     dxbc::Dest swap_temp_dest(dxbc::Dest::R(reg, 0b0010));
     dxbc::Src swap_temp_src(dxbc::Src::R(reg, dxbc::Src::kYYYY));
@@ -346,12 +346,27 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
 
   // Add the base vertex index.
   a_.OpIAdd(index_dest, index_src,
-            LoadSystemConstant(SystemConstantIndex::kVertexBaseIndex,
-                               offsetof(SystemConstants, vertex_base_index),
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexOffset,
+                               offsetof(SystemConstants, vertex_index_offset),
+                               dxbc::Src::kXXXX));
+
+  // Mask since the GPU only uses the lower 24 bits of the vertex index (tested
+  // on an Adreno 200 phone). `((index & 0xFFFFFF) + offset) & 0xFFFFFF` is the
+  // same as `(index + offset) & 0xFFFFFF`.
+  a_.OpAnd(index_dest, index_src, dxbc::Src::LU(xenos::kVertexIndexMask));
+
+  // Clamp the vertex index after offsetting.
+  a_.OpUMax(index_dest, index_src,
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexMinMax,
+                               offsetof(SystemConstants, vertex_index_min),
+                               dxbc::Src::kXXXX));
+  a_.OpUMin(index_dest, index_src,
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexMinMax,
+                               offsetof(SystemConstants, vertex_index_max),
                                dxbc::Src::kXXXX));
 
   // Convert to float.
-  a_.OpIToF(index_dest, index_src);
+  a_.OpUToF(index_dest, index_src);
 
   if (uses_register_dynamic_addressing) {
     // Store to indexed GPR 0 in x0[0].
@@ -568,7 +583,7 @@ void DxbcShaderTranslator::StartPixelShader() {
     uint32_t centroid_temp =
         uses_register_dynamic_addressing ? PushSystemTemp() : UINT32_MAX;
     dxbc::Src sampling_pattern_src(LoadSystemConstant(
-        SystemConstantIndex::kInterpolatorSamplingPattern,
+        SystemConstants::Index::kInterpolatorSamplingPattern,
         offsetof(SystemConstants, interpolator_sampling_pattern),
         dxbc::Src::kXXXX));
     for (uint32_t i = 0; i < interpolator_count; ++i) {
@@ -606,7 +621,7 @@ void DxbcShaderTranslator::StartPixelShader() {
     // absolute value) coordinates, facing (X sign bit) - to the specified
     // interpolator register (ps_param_gen).
     dxbc::Src param_gen_index_src(LoadSystemConstant(
-        SystemConstantIndex::kPSParamGen,
+        SystemConstants::Index::kPSParamGen,
         offsetof(SystemConstants, ps_param_gen), dxbc::Src::kXXXX));
     uint32_t param_gen_temp = PushSystemTemp();
     // Check if pixel parameters need to be written.
@@ -660,7 +675,7 @@ void DxbcShaderTranslator::StartPixelShader() {
       a_.OpUBFE(dxbc::Dest::R(param_gen_temp, 0b0100), dxbc::Src::LU(1),
                 param_gen_index_src,
                 LoadSystemConstant(
-                    SystemConstantIndex::kInterpolatorSamplingPattern,
+                    SystemConstants::Index::kInterpolatorSamplingPattern,
                     offsetof(SystemConstants, interpolator_sampling_pattern),
                     dxbc::Src::kXXXX));
       a_.OpIf(bool(xenos::SampleLocation::kCenter),
@@ -896,7 +911,7 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
                  uint32_t(InOutRegister::kVSDSOutClipDistance0123) + (i >> 2),
                  1 << (i & 3)),
              dxbc::Src::R(system_temp_position_),
-             LoadSystemConstant(SystemConstantIndex::kUserClipPlanes,
+             LoadSystemConstant(SystemConstants::Index::kUserClipPlanes,
                                 offsetof(SystemConstants, user_clip_planes) +
                                     sizeof(float) * 4 * i,
                                 dxbc::Src::kXYZW));
@@ -908,12 +923,12 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
   // position to NaN to kill all primitives.
   a_.OpMul(dxbc::Dest::R(system_temp_position_, 0b0111),
            dxbc::Src::R(system_temp_position_),
-           LoadSystemConstant(SystemConstantIndex::kNDCScale,
+           LoadSystemConstant(SystemConstants::Index::kNDCScale,
                               offsetof(SystemConstants, ndc_scale), 0b100100));
 
   // Apply offset (multiplied by W) used for the same purposes.
   a_.OpMAd(dxbc::Dest::R(system_temp_position_, 0b0111),
-           LoadSystemConstant(SystemConstantIndex::kNDCOffset,
+           LoadSystemConstant(SystemConstants::Index::kNDCOffset,
                               offsetof(SystemConstants, ndc_offset), 0b100100),
            dxbc::Src::R(system_temp_position_, dxbc::Src::kWWWW),
            dxbc::Src::R(system_temp_position_));
@@ -1889,9 +1904,6 @@ const DxbcShaderTranslator::ShaderRdefType
         {"float4", dxbc::RdefVariableClass::kVector,
          dxbc::RdefVariableType::kFloat, 1, 4, 0,
          ShaderRdefTypeIndex::kUnknown},
-        // kInt
-        {"int", dxbc::RdefVariableClass::kScalar, dxbc::RdefVariableType::kInt,
-         1, 1, 0, ShaderRdefTypeIndex::kUnknown},
         // kUint
         {"dword", dxbc::RdefVariableClass::kScalar,
          dxbc::RdefVariableType::kUInt, 1, 1, 0, ShaderRdefTypeIndex::kUnknown},
@@ -1928,7 +1940,7 @@ const DxbcShaderTranslator::ShaderRdefType
 
 const DxbcShaderTranslator::SystemConstantRdef
     DxbcShaderTranslator::system_constant_rdef_[size_t(
-        DxbcShaderTranslator::SystemConstantIndex::kCount)] = {
+        DxbcShaderTranslator::SystemConstants::Index::kCount)] = {
         {"xe_flags", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
         {"xe_tessellation_factor_range", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
@@ -1937,46 +1949,49 @@ const DxbcShaderTranslator::SystemConstantRdef
 
         {"xe_vertex_index_endian", ShaderRdefTypeIndex::kUint,
          sizeof(uint32_t)},
-        {"xe_vertex_base_index", ShaderRdefTypeIndex::kInt, sizeof(int32_t)},
-        {"xe_point_size", ShaderRdefTypeIndex::kFloat2, sizeof(float) * 2},
+        {"xe_vertex_index_offset", ShaderRdefTypeIndex::kUint, sizeof(int32_t)},
+        {"xe_vertex_index_min_max", ShaderRdefTypeIndex::kUint2,
+         sizeof(uint32_t) * 2},
+
+        {"xe_user_clip_planes", ShaderRdefTypeIndex::kFloat4Array6,
+         sizeof(float) * 4 * 6},
+
+        {"xe_ndc_scale", ShaderRdefTypeIndex::kFloat3, sizeof(float) * 3},
+        {"xe_point_size_x", ShaderRdefTypeIndex::kFloat, sizeof(float)},
+
+        {"xe_ndc_offset", ShaderRdefTypeIndex::kFloat3, sizeof(float) * 3},
+        {"xe_point_size_y", ShaderRdefTypeIndex::kFloat, sizeof(float)},
 
         {"xe_point_size_min_max", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
         {"xe_point_screen_to_ndc", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
 
-        {"xe_user_clip_planes", ShaderRdefTypeIndex::kFloat4Array6,
-         sizeof(float) * 4 * 6},
-
-        {"xe_ndc_scale", ShaderRdefTypeIndex::kFloat3, sizeof(float) * 3},
         {"xe_interpolator_sampling_pattern", ShaderRdefTypeIndex::kUint,
          sizeof(uint32_t)},
-
-        {"xe_ndc_offset", ShaderRdefTypeIndex::kFloat3, sizeof(float) * 3},
         {"xe_ps_param_gen", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_sample_count_log2", ShaderRdefTypeIndex::kUint2,
+         sizeof(uint32_t) * 2},
 
         {"xe_texture_swizzled_signs", ShaderRdefTypeIndex::kUint4Array2,
          sizeof(uint32_t) * 4 * 2},
 
         {"xe_textures_resolved", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_sample_count_log2", ShaderRdefTypeIndex::kUint2,
-         sizeof(uint32_t) * 2},
         {"xe_alpha_test_reference", ShaderRdefTypeIndex::kFloat, sizeof(float)},
+        {"xe_alpha_to_mask", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_edram_pitch_tiles", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
 
         {"xe_color_exp_bias", ShaderRdefTypeIndex::kFloat4, sizeof(float) * 4},
 
-        {"xe_alpha_to_mask", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_edram_pitch_tiles", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
         {"xe_edram_depth_range", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
-
         {"xe_edram_poly_offset_front", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
+
         {"xe_edram_poly_offset_back", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
-
         {"xe_edram_depth_base_dwords", ShaderRdefTypeIndex::kUint,
-         sizeof(uint32_t), sizeof(float) * 3},
+         sizeof(uint32_t), sizeof(float)},
 
         {"xe_edram_stencil", ShaderRdefTypeIndex::kUint4Array2,
          sizeof(uint32_t) * 4 * 2},
@@ -2078,9 +2093,9 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
   // Names.
   name_ptr = (uint32_t(shader_object_.size()) - blob_position_dwords) *
              sizeof(uint32_t);
-  uint32_t constant_name_ptrs_system[size_t(SystemConstantIndex::kCount)];
+  uint32_t constant_name_ptrs_system[size_t(SystemConstants::Index::kCount)];
   if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
-    for (size_t i = 0; i < size_t(SystemConstantIndex::kCount); ++i) {
+    for (size_t i = 0; i < size_t(SystemConstants::Index::kCount); ++i) {
       constant_name_ptrs_system[i] = name_ptr;
       name_ptr += dxbc::AppendAlignedString(shader_object_,
                                             system_constant_rdef_[i].name);
@@ -2112,11 +2127,11 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
   if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
     shader_object_.resize(constant_position_dwords_system +
                           sizeof(dxbc::RdefVariable) / sizeof(uint32_t) *
-                              size_t(SystemConstantIndex::kCount));
+                              size_t(SystemConstants::Index::kCount));
     auto constants_system = reinterpret_cast<dxbc::RdefVariable*>(
         shader_object_.data() + constant_position_dwords_system);
     uint32_t constant_offset_system = 0;
-    for (size_t i = 0; i < size_t(SystemConstantIndex::kCount); ++i) {
+    for (size_t i = 0; i < size_t(SystemConstants::Index::kCount); ++i) {
       dxbc::RdefVariable& constant_system = constants_system[i];
       const SystemConstantRdef& translator_constant_system =
           system_constant_rdef_[i];
@@ -2271,7 +2286,7 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
       cbuffer.type = dxbc::RdefCbufferType::kCbuffer;
       if (i == cbuffer_index_system_constants_) {
         cbuffer.name_ptr = cbuffer_name_ptr_system;
-        cbuffer.variable_count = uint32_t(SystemConstantIndex::kCount);
+        cbuffer.variable_count = uint32_t(SystemConstants::Index::kCount);
         cbuffer.variables_ptr =
             (constant_position_dwords_system - blob_position_dwords) *
             sizeof(uint32_t);

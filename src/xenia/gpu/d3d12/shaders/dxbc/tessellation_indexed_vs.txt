@@ -11,26 +11,28 @@
 //   float2 xe_tessellation_factor_range;// Offset:    4 Size:     8 [unused]
 //   uint xe_line_loop_closing_index;   // Offset:   12 Size:     4 [unused]
 //   uint xe_vertex_index_endian;       // Offset:   16 Size:     4
-//   int xe_vertex_base_index;          // Offset:   20 Size:     4
-//   float2 xe_point_size;              // Offset:   24 Size:     8 [unused]
-//   float2 xe_point_size_min_max;      // Offset:   32 Size:     8 [unused]
-//   float2 xe_point_screen_to_ndc;     // Offset:   40 Size:     8 [unused]
-//   float4 xe_user_clip_planes[6];     // Offset:   48 Size:    96 [unused]
-//   float3 xe_ndc_scale;               // Offset:  144 Size:    12 [unused]
-//   uint xe_interpolator_sampling_pattern;// Offset:  156 Size:     4 [unused]
-//   float3 xe_ndc_offset;              // Offset:  160 Size:    12 [unused]
-//   uint xe_ps_param_gen;              // Offset:  172 Size:     4 [unused]
-//   uint4 xe_texture_swizzled_signs[2];// Offset:  176 Size:    32 [unused]
-//   uint xe_textures_resolved;         // Offset:  208 Size:     4 [unused]
-//   uint2 xe_sample_count_log2;        // Offset:  212 Size:     8 [unused]
-//   float xe_alpha_test_reference;     // Offset:  220 Size:     4 [unused]
-//   float4 xe_color_exp_bias;          // Offset:  224 Size:    16 [unused]
-//   uint xe_alpha_to_mask;             // Offset:  240 Size:     4 [unused]
-//   uint xe_edram_pitch_tiles;         // Offset:  244 Size:     4 [unused]
-//   float2 xe_edram_depth_range;       // Offset:  248 Size:     8 [unused]
-//   float2 xe_edram_poly_offset_front; // Offset:  256 Size:     8 [unused]
-//   float2 xe_edram_poly_offset_back;  // Offset:  264 Size:     8 [unused]
-//   uint xe_edram_depth_base_dwords;   // Offset:  272 Size:     4 [unused]
+//   uint xe_vertex_index_offset;       // Offset:   20 Size:     4
+//   uint2 xe_vertex_index_min_max;     // Offset:   24 Size:     8
+//   float4 xe_user_clip_planes[6];     // Offset:   32 Size:    96 [unused]
+//   float3 xe_ndc_scale;               // Offset:  128 Size:    12 [unused]
+//   float xe_point_size_x;             // Offset:  140 Size:     4 [unused]
+//   float3 xe_ndc_offset;              // Offset:  144 Size:    12 [unused]
+//   float xe_point_size_y;             // Offset:  156 Size:     4 [unused]
+//   float2 xe_point_size_min_max;      // Offset:  160 Size:     8 [unused]
+//   float2 xe_point_screen_to_ndc;     // Offset:  168 Size:     8 [unused]
+//   uint xe_interpolator_sampling_pattern;// Offset:  176 Size:     4 [unused]
+//   uint xe_ps_param_gen;              // Offset:  180 Size:     4 [unused]
+//   uint2 xe_sample_count_log2;        // Offset:  184 Size:     8 [unused]
+//   uint4 xe_texture_swizzled_signs[2];// Offset:  192 Size:    32 [unused]
+//   uint xe_textures_resolved;         // Offset:  224 Size:     4 [unused]
+//   float xe_alpha_test_reference;     // Offset:  228 Size:     4 [unused]
+//   uint xe_alpha_to_mask;             // Offset:  232 Size:     4 [unused]
+//   uint xe_edram_pitch_tiles;         // Offset:  236 Size:     4 [unused]
+//   float4 xe_color_exp_bias;          // Offset:  240 Size:    16 [unused]
+//   float2 xe_edram_depth_range;       // Offset:  256 Size:     8 [unused]
+//   float2 xe_edram_poly_offset_front; // Offset:  264 Size:     8 [unused]
+//   float2 xe_edram_poly_offset_back;  // Offset:  272 Size:     8 [unused]
+//   uint xe_edram_depth_base_dwords;   // Offset:  280 Size:     4 [unused]
 //   uint4 xe_edram_stencil[2];         // Offset:  288 Size:    32 [unused]
 //   uint4 xe_edram_rt_base_dwords_scaled;// Offset:  320 Size:    16 [unused]
 //   uint4 xe_edram_rt_format_flags;    // Offset:  336 Size:    16 [unused]
@@ -84,6 +86,9 @@ if_nz r0.y
   bfi r0.x, l(16), l(16), r0.x, r0.y
 endif 
 iadd r0.x, r0.x, CB0[0][1].y
-itof o0.x, r0.x
+and r0.x, r0.x, l(0x00ffffff)
+umax r0.x, r0.x, CB0[0][1].z
+umin r0.x, r0.x, CB0[0][1].w
+utof o0.x, r0.x
 ret 
-// Approximately 17 instruction slots used
+// Approximately 20 instruction slots used

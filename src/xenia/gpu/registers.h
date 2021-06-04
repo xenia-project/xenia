@@ -185,6 +185,16 @@ static_assert_size(SQ_INTERPOLATOR_CNTL, sizeof(uint32_t));
 
 *******************************************************************************/
 
+union alignas(uint32_t) VGT_DMA_SIZE {
+  struct {
+    uint32_t num_words : 24;      // +0
+    uint32_t : 6;                 // +24
+    xenos::Endian swap_mode : 2;  // +30
+  };
+  uint32_t value;
+  static constexpr Register register_index = XE_GPU_REG_VGT_DMA_SIZE;
+};
+
 union alignas(uint32_t) VGT_DRAW_INITIATOR {
   // Different than on A2xx and R6xx/R7xx.
   struct {
@@ -201,6 +211,69 @@ union alignas(uint32_t) VGT_DRAW_INITIATOR {
   static constexpr Register register_index = XE_GPU_REG_VGT_DRAW_INITIATOR;
 };
 static_assert_size(VGT_DRAW_INITIATOR, sizeof(uint32_t));
+
+// Unlike on R6xx (but closer to R5xx), and according to the Adreno 200 header,
+// the registers related to the vertex index are 24-bit. Vertex indices are
+// unsigned, and only the lower 24 bits of them are actually used by the GPU -
+// this has been verified on an Adreno 200 phone (LG Optimus L7) on OpenGL ES
+// using a GL_UNSIGNED_INT element array buffer with junk in the upper 8 bits
+// that had no effect on drawing.
+
+// The order of operations is primitive reset index checking -> offsetting ->
+// clamping.
+
+union alignas(uint32_t) VGT_MULTI_PRIM_IB_RESET_INDX {
+  struct {
+    // The upper 8 bits of the value from the index buffer are confirmed to be
+    // ignored. So, though this specifically is untested (because
+    // GL_PRIMITIVE_RESTART_FIXED_INDEX was added only in OpenGL ES 3.0, though
+    // it behaves conceptually close to our expectations anyway - uses the
+    // 0xFFFFFFFF restart index while GL_MAX_ELEMENT_INDEX may be 0xFFFFFF),
+    // the restart index check likely only involves the lower 24 bit of the
+    // vertex index - therefore, if reset_indx is 0xFFFFFF, likely 0xFFFFFF,
+    // 0x1FFFFFF, 0xFFFFFFFF all cause primitive reset.
+    uint32_t reset_indx : 24;
+  };
+  uint32_t value;
+  static constexpr Register register_index =
+      XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX;
+};
+static_assert_size(VGT_MULTI_PRIM_IB_RESET_INDX, sizeof(uint32_t));
+
+union alignas(uint32_t) VGT_INDX_OFFSET {
+  struct {
+    // Unlike R5xx's VAP_INDEX_OFFSET, which is signed 25-bit, this is 24-bit -
+    // and signedness doesn't matter as index calculations are done in 24-bit
+    // integers, and ((0xFFFFFE + 3) & 0xFFFFFF) == 1 anyway, just like
+    // ((0xFFFFFFFE + 3) & 0xFFFFFF) == 1 if we treated it as signed by
+    // sign-extending on the host. Direct3D 9 just writes BaseVertexIndex as a
+    // signed int32 to the entire register, but the upper 8 bits are ignored
+    // anyway, and that has no effect on offsets that fit in 24 bits.
+    uint32_t indx_offset : 24;
+  };
+  uint32_t value;
+  static constexpr Register register_index = XE_GPU_REG_VGT_INDX_OFFSET;
+};
+static_assert_size(VGT_INDX_OFFSET, sizeof(uint32_t));
+
+union alignas(uint32_t) VGT_MIN_VTX_INDX {
+  struct {
+    uint32_t min_indx : 24;
+  };
+  uint32_t value;
+  static constexpr Register register_index = XE_GPU_REG_VGT_MIN_VTX_INDX;
+};
+static_assert_size(VGT_MIN_VTX_INDX, sizeof(uint32_t));
+
+union alignas(uint32_t) VGT_MAX_VTX_INDX {
+  struct {
+    // Usually 0xFFFF or 0xFFFFFF.
+    uint32_t max_indx : 24;
+  };
+  uint32_t value;
+  static constexpr Register register_index = XE_GPU_REG_VGT_MAX_VTX_INDX;
+};
+static_assert_size(VGT_MAX_VTX_INDX, sizeof(uint32_t));
 
 union alignas(uint32_t) VGT_OUTPUT_PATH_CNTL {
   struct {

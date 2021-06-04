@@ -3,8 +3,8 @@
 
 XeHSControlPointInputAdaptive main(uint xe_edge_factor : SV_VertexID) {
   XeHSControlPointInputAdaptive output;
-  // The Xbox 360's GPU accepts the tessellation factors for edges through a
-  // special kind of an index buffer.
+  // The Xbox 360's GPU accepts the float32 tessellation factors for edges
+  // through a special kind of an index buffer.
   // While Viva Pinata sets the factors to 0 for frustum-culled (quad) patches,
   // in Halo 3 only allowing patches with factors above 0 makes distant
   // (triangle) patches disappear - it appears that there are no special values

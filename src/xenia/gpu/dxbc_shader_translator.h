@@ -202,7 +202,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   // IF SYSTEM CONSTANTS ARE CHANGED OR ADDED, THE FOLLOWING MUST BE UPDATED:
-  // - SystemConstantIndex enum.
+  // - SystemConstants::Index enum.
   // - system_constant_rdef_.
   // - d3d12/shaders/xenos_draw.hlsli (for geometry shaders).
   struct SystemConstants {
@@ -217,20 +217,38 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t line_loop_closing_index;
 
     xenos::Endian vertex_index_endian;
-    int32_t vertex_base_index;
-    float point_size[2];
-
-    float point_size_min_max[2];
-    // Screen point size * 2 (but not supersampled) -> size in NDC.
-    float point_screen_to_ndc[2];
+    uint32_t vertex_index_offset;
+    union {
+      struct {
+        uint32_t vertex_index_min;
+        uint32_t vertex_index_max;
+      };
+      uint32_t vertex_index_min_max[2];
+    };
 
     float user_clip_planes[6][4];
 
     float ndc_scale[3];
-    uint32_t interpolator_sampling_pattern;
+    float point_size_x;
 
     float ndc_offset[3];
+    float point_size_y;
+
+    union {
+      struct {
+        float point_size_min;
+        float point_size_max;
+      };
+      float point_size_min_max[2];
+    };
+    // Screen point size * 2 (but not supersampled) -> size in NDC.
+    float point_screen_to_ndc[2];
+
+    uint32_t interpolator_sampling_pattern;
     uint32_t ps_param_gen;
+    // Log2 of X and Y sample size. Used for alpha to mask, and for MSAA with
+    // ROV, this is used for EDRAM address calculation.
+    uint32_t sample_count_log2[2];
 
     // Each byte contains post-swizzle TextureSign values for each of the needed
     // components of each of the 32 used texture fetch constants.
@@ -239,18 +257,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // Whether the contents of each texture in fetch constants comes from a
     // resolve operation.
     uint32_t textures_resolved;
-    // Log2 of X and Y sample size. Used for alpha to mask, and for MSAA with
-    // ROV, this is used for EDRAM address calculation.
-    uint32_t sample_count_log2[2];
     float alpha_test_reference;
-
-    float color_exp_bias[4];
-
     // If alpha to mask is disabled, the entire alpha_to_mask value must be 0.
     // If alpha to mask is enabled, bits 0:7 are sample offsets, and bit 8 must
     // be 1.
     uint32_t alpha_to_mask;
     uint32_t edram_pitch_tiles;
+
+    float color_exp_bias[4];
+
     union {
       struct {
         float edram_depth_range_scale;
@@ -258,7 +273,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
       };
       float edram_depth_range[2];
     };
-
     union {
       struct {
         float edram_poly_offset_front_scale;
@@ -266,6 +280,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
       };
       float edram_poly_offset_front[2];
     };
+
     union {
       struct {
         float edram_poly_offset_back_scale;
@@ -273,9 +288,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
       };
       float edram_poly_offset_back[2];
     };
-
     uint32_t edram_depth_base_dwords;
-    uint32_t padding_edram_depth_base_dwords[3];
+    uint32_t padding_edram_depth_base_dwords;
 
     // In stencil function/operations (they match the layout of the
     // function/operations in RB_DEPTHCONTROL):
@@ -326,6 +340,68 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     // The constant blend factor for the respective modes.
     float edram_blend_constant[4];
+
+   private:
+    friend class DxbcShaderTranslator;
+
+    enum class Index : uint32_t {
+      kFlags,
+      kTessellationFactorRange,
+      kLineLoopClosingIndex,
+
+      kVertexIndexEndian,
+      kVertexIndexOffset,
+      kVertexIndexMinMax,
+
+      kUserClipPlanes,
+
+      kNDCScale,
+      kPointSizeX,
+
+      kNDCOffset,
+      kPointSizeY,
+
+      kPointSizeMinMax,
+      kPointScreenToNDC,
+
+      kInterpolatorSamplingPattern,
+      kPSParamGen,
+      kSampleCountLog2,
+
+      kTextureSwizzledSigns,
+
+      kTexturesResolved,
+      kAlphaTestReference,
+      kAlphaToMask,
+      kEdramPitchTiles,
+
+      kColorExpBias,
+
+      kEdramDepthRange,
+      kEdramPolyOffsetFront,
+
+      kEdramPolyOffsetBack,
+      kEdramDepthBaseDwords,
+
+      kEdramStencil,
+
+      kEdramRTBaseDwordsScaled,
+
+      kEdramRTFormatFlags,
+
+      kEdramRTClamp,
+
+      kEdramRTKeepMask,
+
+      kEdramRTBlendFactorsOps,
+
+      kEdramBlendConstant,
+
+      kCount,
+    };
+    static_assert(
+        uint32_t(Index::kCount) <= 64,
+        "Too many system constants, can't use uint64_t for usage bits");
   };
 
   // Shader resource view binding spaces.
@@ -507,44 +583,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
-  enum class SystemConstantIndex : uint32_t {
-    kFlags,
-    kTessellationFactorRange,
-    kLineLoopClosingIndex,
-    kVertexIndexEndian,
-    kVertexBaseIndex,
-    kPointSize,
-    kPointSizeMinMax,
-    kPointScreenToNDC,
-    kUserClipPlanes,
-    kNDCScale,
-    kInterpolatorSamplingPattern,
-    kNDCOffset,
-    kPSParamGen,
-    kTextureSwizzledSigns,
-    kTexturesResolved,
-    kSampleCountLog2,
-    kAlphaTestReference,
-    kColorExpBias,
-    kAlphaToMask,
-    kEdramPitchTiles,
-    kEdramDepthRange,
-    kEdramPolyOffsetFront,
-    kEdramPolyOffsetBack,
-    kEdramDepthBaseDwords,
-    kEdramStencil,
-    kEdramRTBaseDwordsScaled,
-    kEdramRTFormatFlags,
-    kEdramRTClamp,
-    kEdramRTKeepMask,
-    kEdramRTBlendFactorsOps,
-    kEdramBlendConstant,
-
-    kCount,
-  };
-  static_assert(uint32_t(SystemConstantIndex::kCount) <= 64,
-                "Too many system constants, can't use uint64_t for usage bits");
-
   static constexpr uint32_t kPointParametersTexCoord = xenos::kMaxInterpolators;
   static constexpr uint32_t kClipSpaceZWTexCoord = kPointParametersTexCoord + 1;
 
@@ -580,7 +618,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // GetSystemConstantSrc + MarkSystemConstantUsed is for special cases of
   // building the source unconditionally - in general, LoadSystemConstant must
   // be used instead.
-  void MarkSystemConstantUsed(SystemConstantIndex index) {
+  void MarkSystemConstantUsed(SystemConstants::Index index) {
     system_constants_used_ |= uint64_t(1) << uint32_t(index);
   }
   // Offset should be offsetof(SystemConstants, field). Swizzle values are
@@ -599,13 +637,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
             std::min(((swizzle >> 4) & 3) + first_component, uint32_t(3)) << 4 |
             std::min(((swizzle >> 6) & 3) + first_component, uint32_t(3)) << 6);
   }
-  dxbc::Src LoadSystemConstant(SystemConstantIndex index, size_t offset,
+  dxbc::Src LoadSystemConstant(SystemConstants::Index index, size_t offset,
                                uint32_t swizzle) {
     MarkSystemConstantUsed(index);
     return GetSystemConstantSrc(offset, swizzle);
   }
   dxbc::Src LoadFlagsSystemConstant() {
-    return LoadSystemConstant(SystemConstantIndex::kFlags,
+    return LoadSystemConstant(SystemConstants::Index::kFlags,
                               offsetof(SystemConstants, flags),
                               dxbc::Src::kXXXX);
   }
@@ -928,7 +966,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kFloat2,
     kFloat3,
     kFloat4,
-    kInt,
     kUint,
     kUint2,
     kUint4,
@@ -982,9 +1019,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t padding_after;
   };
   static const SystemConstantRdef
-      system_constant_rdef_[size_t(SystemConstantIndex::kCount)];
-  // Mask of system constants (1 << SystemConstantIndex) used in the shader, so
-  // the remaining ones can be marked as unused in RDEF.
+      system_constant_rdef_[size_t(SystemConstants::Index::kCount)];
+  // Mask of system constants (1 << SystemConstants::Index) used in the shader,
+  // so the remaining ones can be marked as unused in RDEF.
   uint64_t system_constants_used_;
 
   // Mask of domain location actually used in the domain shader.

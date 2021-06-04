@@ -28,7 +28,7 @@
 // SV_Position              0   xyzw       18      POS   float   xyzw
 // SV_ClipDistance          0   xyzw       19  CLIPDST   float   xyzw
 // SV_ClipDistance          1   xy         20  CLIPDST   float   xy  
-// SV_CullDistance          0     z        20  CULLDST   float     z 
+// SV_CullDistance          0     z        20  CULLDST   float       
 //
 //
 // Output signature:
@@ -81,7 +81,6 @@ dcl_input_siv v[4][18].xyzw, position
 dcl_input v[4][19].xyzw
 dcl_input v[4][20].xy
 dcl_input v[4][20].z
-dcl_temps 2
 dcl_inputprimitive lineadj 
 dcl_stream m0
 dcl_outputtopology trianglestrip 
@@ -107,29 +106,6 @@ dcl_output_siv o18.xyzw, position
 dcl_output_siv o19.xyzw, clip_distance
 dcl_output_siv o20.xy, clip_distance
 dcl_maxout 4
-max [precise(x)] r0.x, v[1][20].z, v[0][20].z
-max [precise(y)] r0.y, v[3][20].z, v[2][20].z
-max [precise(x)] r0.x, r0.y, r0.x
-lt [precise(x)] r0.x, r0.x, l(0.000000)
-ne [precise] r1.xyzw, v[0][18].xyzw, v[0][18].xyzw
-or [precise(yz)] r0.yz, r1.zzwz, r1.xxyx
-or [precise(y)] r0.y, r0.z, r0.y
-or [precise(x)] r0.x, r0.y, r0.x
-ne [precise] r1.xyzw, v[1][18].xyzw, v[1][18].xyzw
-or [precise(yz)] r0.yz, r1.zzwz, r1.xxyx
-or [precise(y)] r0.y, r0.z, r0.y
-or [precise(x)] r0.x, r0.y, r0.x
-ne [precise] r1.xyzw, v[2][18].xyzw, v[2][18].xyzw
-or [precise(yz)] r0.yz, r1.zzwz, r1.xxyx
-or [precise(y)] r0.y, r0.z, r0.y
-or [precise(x)] r0.x, r0.y, r0.x
-ne [precise] r1.xyzw, v[3][18].xyzw, v[3][18].xyzw
-or [precise(yz)] r0.yz, r1.zzwz, r1.xxyx
-or [precise(y)] r0.y, r0.z, r0.y
-or [precise(x)] r0.x, r0.y, r0.x
-if_nz r0.x
-  ret 
-endif 
 mov o0.xyzw, v[0][0].xyzw
 mov o1.xyzw, v[0][1].xyzw
 mov o2.xyzw, v[0][2].xyzw
@@ -220,4 +196,4 @@ mov o20.xy, v[2][20].xyxx
 emit_stream m0
 cut_stream m0
 ret 
-// Approximately 113 instruction slots used
+// Approximately 90 instruction slots used

@@ -224,7 +224,7 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   // system_temp_rov_params_.w = Y guest sample 0 position
   a_.OpIShL(dxbc::Dest::R(system_temp_rov_params_, 0b1100),
             dxbc::Src::R(system_temp_rov_params_),
-            LoadSystemConstant(SystemConstantIndex::kSampleCountLog2,
+            LoadSystemConstant(SystemConstants::Index::kSampleCountLog2,
                                offsetof(SystemConstants, sample_count_log2),
                                0b0100 << 4));
   // Get 80x16 samples tile index - start dividing X by 80 by getting the high
@@ -251,7 +251,7 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   // system_temp_rov_params_.w = Y guest sample 0 position
   a_.OpUMAd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
             dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-            LoadSystemConstant(SystemConstantIndex::kEdramPitchTiles,
+            LoadSystemConstant(SystemConstants::Index::kEdramPitchTiles,
                                offsetof(SystemConstants, edram_pitch_tiles),
                                dxbc::Src::kXXXX),
             dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX));
@@ -330,7 +330,7 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   a_.OpIAdd(
       dxbc::Dest::R(system_temp_rov_params_, 0b0010),
       dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-      LoadSystemConstant(SystemConstantIndex::kEdramDepthBaseDwords,
+      LoadSystemConstant(SystemConstants::Index::kEdramDepthBaseDwords,
                          offsetof(SystemConstants, edram_depth_base_dwords),
                          dxbc::Src::kXXXX));
   if (draw_resolution_scale_ > 1) {
@@ -371,7 +371,7 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   // MSAA, handling samples 0 and 3 (upper-left and lower-right) as 0 and 1.
 
   // Check if 4x MSAA is enabled.
-  a_.OpIf(true, LoadSystemConstant(SystemConstantIndex::kSampleCountLog2,
+  a_.OpIf(true, LoadSystemConstant(SystemConstants::Index::kSampleCountLog2,
                                    offsetof(SystemConstants, sample_count_log2),
                                    dxbc::Src::kXXXX));
   {
@@ -473,11 +473,11 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         // temp.x? = first sample's viewport space Z
         a_.OpMAd(sample_depth_stencil_dest, sample_depth_stencil_src,
                  LoadSystemConstant(
-                     SystemConstantIndex::kEdramDepthRange,
+                     SystemConstants::Index::kEdramDepthRange,
                      offsetof(SystemConstants, edram_depth_range_scale),
                      dxbc::Src::kXXXX),
                  LoadSystemConstant(
-                     SystemConstantIndex::kEdramDepthRange,
+                     SystemConstants::Index::kEdramDepthRange,
                      offsetof(SystemConstants, edram_depth_range_offset),
                      dxbc::Src::kXXXX),
                  true);
@@ -508,11 +508,11 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
             dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
                          dxbc::Src::kXXXX),
             LoadSystemConstant(
-                SystemConstantIndex::kEdramPolyOffsetFront,
+                SystemConstants::Index::kEdramPolyOffsetFront,
                 offsetof(SystemConstants, edram_poly_offset_front),
                 0b0100 << 4),
             LoadSystemConstant(
-                SystemConstantIndex::kEdramPolyOffsetBack,
+                SystemConstants::Index::kEdramPolyOffsetBack,
                 offsetof(SystemConstants, edram_poly_offset_back),
                 0b0100 << 4));
         // Apply the slope scale and the constant bias to the offset.
@@ -528,11 +528,11 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         // temp.z = viewport maximum depth
         a_.OpAdd(temp_z_dest,
                  LoadSystemConstant(
-                     SystemConstantIndex::kEdramDepthRange,
+                     SystemConstants::Index::kEdramDepthRange,
                      offsetof(SystemConstants, edram_depth_range_offset),
                      dxbc::Src::kXXXX),
                  LoadSystemConstant(
-                     SystemConstantIndex::kEdramDepthRange,
+                     SystemConstants::Index::kEdramDepthRange,
                      offsetof(SystemConstants, edram_depth_range_scale),
                      dxbc::Src::kXXXX));
       }
@@ -583,7 +583,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         if (i == 1) {
           a_.OpMovC(
               sample_depth_stencil_dest,
-              LoadSystemConstant(SystemConstantIndex::kSampleCountLog2,
+              LoadSystemConstant(SystemConstants::Index::kSampleCountLog2,
                                  offsetof(SystemConstants, sample_count_log2),
                                  dxbc::Src::kXXXX),
               dxbc::Src::LU(3), dxbc::Src::LU(2));
@@ -611,11 +611,11 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         // temp.z = viewport maximum depth if not writing to oDepth
         a_.OpMAd(sample_depth_stencil_dest, sample_depth_stencil_src,
                  LoadSystemConstant(
-                     SystemConstantIndex::kEdramDepthRange,
+                     SystemConstants::Index::kEdramDepthRange,
                      offsetof(SystemConstants, edram_depth_range_scale),
                      dxbc::Src::kXXXX),
                  LoadSystemConstant(
-                     SystemConstantIndex::kEdramDepthRange,
+                     SystemConstants::Index::kEdramDepthRange,
                      offsetof(SystemConstants, edram_depth_range_offset),
                      dxbc::Src::kXXXX),
                  true);
@@ -631,7 +631,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
       // temp.z = viewport maximum depth if not writing to oDepth
       a_.OpMax(sample_depth_stencil_dest, sample_depth_stencil_src,
                LoadSystemConstant(
-                   SystemConstantIndex::kEdramDepthRange,
+                   SystemConstants::Index::kEdramDepthRange,
                    offsetof(SystemConstants, edram_depth_range_offset),
                    dxbc::Src::kXXXX));
       // Clamp the biased depth to the upper viewport depth bound.
@@ -763,7 +763,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
           a_.OpElse();
         }
         dxbc::Src stencil_read_mask_src(LoadSystemConstant(
-            SystemConstantIndex::kEdramStencil,
+            SystemConstants::Index::kEdramStencil,
             j ? offsetof(SystemConstants, edram_stencil_back_read_mask)
               : offsetof(SystemConstants, edram_stencil_front_read_mask),
             dxbc::Src::kXXXX));
@@ -772,7 +772,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         a_.OpAnd(
             sample_temp_x_dest,
             LoadSystemConstant(
-                SystemConstantIndex::kEdramStencil,
+                SystemConstants::Index::kEdramStencil,
                 j ? offsetof(SystemConstants, edram_stencil_back_reference)
                   : offsetof(SystemConstants, edram_stencil_front_reference),
                 dxbc::Src::kXXXX),
@@ -813,11 +813,11 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
           dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
                        dxbc::Src::kXXXX),
           LoadSystemConstant(
-              SystemConstantIndex::kEdramStencil,
+              SystemConstants::Index::kEdramStencil,
               offsetof(SystemConstants, edram_stencil_front_func_ops),
               dxbc::Src::kXXXX),
           LoadSystemConstant(
-              SystemConstantIndex::kEdramStencil,
+              SystemConstants::Index::kEdramStencil,
               offsetof(SystemConstants, edram_stencil_back_func_ops),
               dxbc::Src::kXXXX));
       // Mask the resulting bits with the ones that should pass (the comparison
@@ -885,11 +885,11 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
             dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
                          dxbc::Src::kXXXX),
             LoadSystemConstant(
-                SystemConstantIndex::kEdramStencil,
+                SystemConstants::Index::kEdramStencil,
                 offsetof(SystemConstants, edram_stencil_front_reference),
                 dxbc::Src::kXXXX),
             LoadSystemConstant(
-                SystemConstantIndex::kEdramStencil,
+                SystemConstants::Index::kEdramStencil,
                 offsetof(SystemConstants, edram_stencil_back_reference),
                 dxbc::Src::kXXXX));
         a_.OpBreak();
@@ -945,11 +945,11 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
           dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
                        dxbc::Src::kXXXX),
           LoadSystemConstant(
-              SystemConstantIndex::kEdramStencil,
+              SystemConstants::Index::kEdramStencil,
               offsetof(SystemConstants, edram_stencil_front_write_mask),
               dxbc::Src::kXXXX),
           LoadSystemConstant(
-              SystemConstantIndex::kEdramStencil,
+              SystemConstants::Index::kEdramStencil,
               offsetof(SystemConstants, edram_stencil_back_write_mask),
               dxbc::Src::kXXXX));
       // Apply the write mask to the new stencil, also dropping the upper 24
@@ -1138,7 +1138,7 @@ void DxbcShaderTranslator::ROV_UnpackColor(
 
   // Choose the packing based on the render target's format.
   a_.OpSwitch(
-      LoadSystemConstant(SystemConstantIndex::kEdramRTFormatFlags,
+      LoadSystemConstant(SystemConstants::Index::kEdramRTFormatFlags,
                          offsetof(SystemConstants, edram_rt_format_flags) +
                              sizeof(uint32_t) * rt_index,
                          dxbc::Src::kXXXX));
@@ -1299,7 +1299,7 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
 
   // Choose the packing based on the render target's format.
   a_.OpSwitch(
-      LoadSystemConstant(SystemConstantIndex::kEdramRTFormatFlags,
+      LoadSystemConstant(SystemConstants::Index::kEdramRTFormatFlags,
                          offsetof(SystemConstants, edram_rt_format_flags) +
                              sizeof(uint32_t) * rt_index,
                          dxbc::Src::kXXXX));
@@ -1515,7 +1515,7 @@ void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(
   // kConstantColor
   a_.OpCase(dxbc::Src::LU(uint32_t(xenos::BlendFactor::kConstantColor)));
   a_.OpMov(factor_dest,
-           LoadSystemConstant(SystemConstantIndex::kEdramBlendConstant,
+           LoadSystemConstant(SystemConstants::Index::kEdramBlendConstant,
                               offsetof(SystemConstants, edram_blend_constant),
                               dxbc::Src::kXYZW));
   a_.OpBreak();
@@ -1524,7 +1524,7 @@ void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(
   a_.OpCase(
       dxbc::Src::LU(uint32_t(xenos::BlendFactor::kOneMinusConstantColor)));
   a_.OpAdd(factor_dest, one_src,
-           -LoadSystemConstant(SystemConstantIndex::kEdramBlendConstant,
+           -LoadSystemConstant(SystemConstants::Index::kEdramBlendConstant,
                                offsetof(SystemConstants, edram_blend_constant),
                                dxbc::Src::kXYZW));
   a_.OpBreak();
@@ -1532,7 +1532,7 @@ void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(
   // kConstantAlpha
   a_.OpCase(dxbc::Src::LU(uint32_t(xenos::BlendFactor::kConstantAlpha)));
   a_.OpMov(factor_dest,
-           LoadSystemConstant(SystemConstantIndex::kEdramBlendConstant,
+           LoadSystemConstant(SystemConstants::Index::kEdramBlendConstant,
                               offsetof(SystemConstants, edram_blend_constant),
                               dxbc::Src::kWWWW));
   a_.OpBreak();
@@ -1541,7 +1541,7 @@ void DxbcShaderTranslator::ROV_HandleColorBlendFactorCases(
   a_.OpCase(
       dxbc::Src::LU(uint32_t(xenos::BlendFactor::kOneMinusConstantAlpha)));
   a_.OpAdd(factor_dest, one_src,
-           -LoadSystemConstant(SystemConstantIndex::kEdramBlendConstant,
+           -LoadSystemConstant(SystemConstants::Index::kEdramBlendConstant,
                                offsetof(SystemConstants, edram_blend_constant),
                                dxbc::Src::kWWWW));
   a_.OpBreak();
@@ -1606,7 +1606,7 @@ void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(
   a_.OpCase(dxbc::Src::LU(uint32_t(xenos::BlendFactor::kConstantColor)));
   a_.OpCase(dxbc::Src::LU(uint32_t(xenos::BlendFactor::kConstantAlpha)));
   a_.OpMov(factor_dest,
-           LoadSystemConstant(SystemConstantIndex::kEdramBlendConstant,
+           LoadSystemConstant(SystemConstants::Index::kEdramBlendConstant,
                               offsetof(SystemConstants, edram_blend_constant),
                               dxbc::Src::kWWWW));
   a_.OpBreak();
@@ -1617,7 +1617,7 @@ void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(
   a_.OpCase(
       dxbc::Src::LU(uint32_t(xenos::BlendFactor::kOneMinusConstantAlpha)));
   a_.OpAdd(factor_dest, one_src,
-           -LoadSystemConstant(SystemConstantIndex::kEdramBlendConstant,
+           -LoadSystemConstant(SystemConstants::Index::kEdramBlendConstant,
                                offsetof(SystemConstants, edram_blend_constant),
                                dxbc::Src::kWWWW));
   a_.OpBreak();
@@ -1644,7 +1644,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
     // unbiased alpha from the shader
     a_.OpMul(dxbc::Dest::R(system_temps_color_[i]),
              dxbc::Src::R(system_temps_color_[i]),
-             LoadSystemConstant(SystemConstantIndex::kColorExpBias,
+             LoadSystemConstant(SystemConstants::Index::kColorExpBias,
                                 offsetof(SystemConstants, color_exp_bias) +
                                     sizeof(uint32_t) * i,
                                 dxbc::Src::kXXXX));
@@ -1834,7 +1834,7 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMask() {
 
   // Check if alpha to coverage is enabled.
   dxbc::Src alpha_to_mask_constant_src(LoadSystemConstant(
-      SystemConstantIndex::kAlphaToMask,
+      SystemConstants::Index::kAlphaToMask,
       offsetof(SystemConstants, alpha_to_mask), dxbc::Src::kXXXX));
   a_.OpIf(true, alpha_to_mask_constant_src);
 
@@ -1866,13 +1866,13 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMask() {
   uint32_t coverage_temp_component = edram_rov_used_ ? 0 : 2;
 
   // Check if MSAA is enabled.
-  a_.OpIf(true, LoadSystemConstant(SystemConstantIndex::kSampleCountLog2,
+  a_.OpIf(true, LoadSystemConstant(SystemConstants::Index::kSampleCountLog2,
                                    offsetof(SystemConstants, sample_count_log2),
                                    dxbc::Src::kYYYY));
   {
     // Check if MSAA is 4x or 2x.
     a_.OpIf(true,
-            LoadSystemConstant(SystemConstantIndex::kSampleCountLog2,
+            LoadSystemConstant(SystemConstants::Index::kSampleCountLog2,
                                offsetof(SystemConstants, sample_count_log2),
                                dxbc::Src::kXXXX));
     // 4x MSAA.
@@ -2010,7 +2010,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     // This includes a swizzle to choose XY for even render targets or ZW for
     // odd ones - use SelectFromSwizzled and SwizzleSwizzled.
     dxbc::Src keep_mask_src(
-        LoadSystemConstant(SystemConstantIndex::kEdramRTKeepMask,
+        LoadSystemConstant(SystemConstants::Index::kEdramRTKeepMask,
                            offsetof(SystemConstants, edram_rt_keep_mask) +
                                sizeof(uint32_t) * 2 * i,
                            0b0100));
@@ -2044,7 +2044,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     // unbiased alpha from the shader.
     a_.OpMul(dxbc::Dest::R(system_temps_color_[i]),
              dxbc::Src::R(system_temps_color_[i]),
-             LoadSystemConstant(SystemConstantIndex::kColorExpBias,
+             LoadSystemConstant(SystemConstants::Index::kColorExpBias,
                                 offsetof(SystemConstants, color_exp_bias) +
                                     sizeof(uint32_t) * i,
                                 dxbc::Src::kXXXX));
@@ -2053,22 +2053,22 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b1100),
               dxbc::Src::R(system_temp_rov_params_),
               LoadSystemConstant(
-                  SystemConstantIndex::kEdramRTBaseDwordsScaled,
+                  SystemConstants::Index::kEdramRTBaseDwordsScaled,
                   offsetof(SystemConstants, edram_rt_base_dwords_scaled) +
                       sizeof(uint32_t) * i,
                   dxbc::Src::kXXXX));
 
     dxbc::Src rt_blend_factors_ops_src(LoadSystemConstant(
-        SystemConstantIndex::kEdramRTBlendFactorsOps,
+        SystemConstants::Index::kEdramRTBlendFactorsOps,
         offsetof(SystemConstants, edram_rt_blend_factors_ops) +
             sizeof(uint32_t) * i,
         dxbc::Src::kXXXX));
     dxbc::Src rt_clamp_vec_src(LoadSystemConstant(
-        SystemConstantIndex::kEdramRTClamp,
+        SystemConstants::Index::kEdramRTClamp,
         offsetof(SystemConstants, edram_rt_clamp) + sizeof(uint32_t) * 4 * i,
         dxbc::Src::kXYZW));
     dxbc::Src rt_format_flags_src(LoadSystemConstant(
-        SystemConstantIndex::kEdramRTFormatFlags,
+        SystemConstants::Index::kEdramRTFormatFlags,
         offsetof(SystemConstants, edram_rt_format_flags) + sizeof(uint32_t) * i,
         dxbc::Src::kXXXX));
     // Get if not blending to pack the color once for all 4 samples.
@@ -2800,7 +2800,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b1100),
               dxbc::Src::R(system_temp_rov_params_),
               -LoadSystemConstant(
-                  SystemConstantIndex::kEdramRTBaseDwordsScaled,
+                  SystemConstants::Index::kEdramRTBaseDwordsScaled,
                   offsetof(SystemConstants, edram_rt_base_dwords_scaled) +
                       sizeof(uint32_t) * i,
                   dxbc::Src::kXXXX));
@@ -2853,7 +2853,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
       dxbc::Src alpha_src(
           dxbc::Src::R(system_temps_color_[0], dxbc::Src::kWWWW));
       dxbc::Src alpha_test_reference_src(LoadSystemConstant(
-          SystemConstantIndex::kAlphaTestReference,
+          SystemConstants::Index::kAlphaTestReference,
           offsetof(SystemConstants, alpha_test_reference), dxbc::Src::kXXXX));
       // Less than.
       a_.OpLT(alpha_test_op_dest, alpha_src, alpha_test_reference_src);

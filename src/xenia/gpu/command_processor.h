@@ -218,6 +218,10 @@ class CommandProcessor {
                                           uint32_t count);
   bool ExecutePacketType3_EVENT_WRITE_ZPD(RingBuffer* reader, uint32_t packet,
                                           uint32_t count);
+  bool ExecutePacketType3Draw(RingBuffer* reader, uint32_t packet,
+                              const char* opcode_name,
+                              uint32_t viz_query_condition,
+                              uint32_t count_remaining);
   bool ExecutePacketType3_DRAW_INDX(RingBuffer* reader, uint32_t packet,
                                     uint32_t count);
   bool ExecutePacketType3_DRAW_INDX_2(RingBuffer* reader, uint32_t packet,
