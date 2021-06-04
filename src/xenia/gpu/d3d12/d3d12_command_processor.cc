@@ -81,7 +81,7 @@ void D3D12CommandProcessor::RequestFrameTrace(
 void D3D12CommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
                                                      uint32_t length) {
   shared_memory_->MemoryInvalidationCallback(base_ptr, length, true);
-  primitive_converter_->MemoryInvalidationCallback(base_ptr, length, true);
+  primitive_processor_->MemoryInvalidationCallback(base_ptr, length, true);
 }
 
 void D3D12CommandProcessor::RestoreEdramSnapshot(const void* snapshot) {
@@ -1194,6 +1194,13 @@ bool D3D12CommandProcessor::SetupContext() {
     return false;
   }
 
+  primitive_processor_ = std::make_unique<D3D12PrimitiveProcessor>(
+      *register_file_, *memory_, trace_writer_, *shared_memory_, *this);
+  if (!primitive_processor_->Initialize()) {
+    XELOGE("Failed to initialize the geometric primitive processor");
+    return false;
+  }
+
   texture_cache_ = std::make_unique<TextureCache>(
       *this, *register_file_, *shared_memory_, bindless_resources_used_,
       render_target_cache_->GetResolutionScale());
@@ -1207,13 +1214,6 @@ bool D3D12CommandProcessor::SetupContext() {
                                                     bindless_resources_used_);
   if (!pipeline_cache_->Initialize()) {
     XELOGE("Failed to initialize the graphics pipeline cache");
-    return false;
-  }
-
-  primitive_converter_ = std::make_unique<PrimitiveConverter>(
-      *this, *register_file_, *memory_, trace_writer_);
-  if (!primitive_converter_->Initialize()) {
-    XELOGE("Failed to initialize the geometric primitive converter");
     return false;
   }
 
@@ -1529,11 +1529,11 @@ void D3D12CommandProcessor::ShutdownContext() {
   ui::d3d12::util::ReleaseAndNull(gamma_ramp_upload_);
   ui::d3d12::util::ReleaseAndNull(gamma_ramp_texture_);
 
-  primitive_converter_.reset();
-
   pipeline_cache_.reset();
 
   texture_cache_.reset();
+
+  primitive_processor_.reset();
 
   shared_memory_.reset();
 
@@ -1842,7 +1842,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     return true;
   }
 
-  // Vertex shader.
+  // Vertex shader analysis.
   auto vertex_shader = static_cast<D3D12Shader*>(active_vertex_shader());
   if (!vertex_shader) {
     // Always need a vertex shader.
@@ -1850,16 +1850,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   }
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
   bool memexport_used_vertex = vertex_shader->is_valid_memexport_used();
-  DxbcShaderTranslator::Modification vertex_shader_modification;
-  pipeline_cache_->GetCurrentShaderModification(*vertex_shader,
-                                                vertex_shader_modification);
-  bool tessellated =
-      vertex_shader_modification.vertex.host_vertex_shader_type !=
-      Shader::HostVertexShaderType::kVertex;
-  bool primitive_polygonal =
-      xenos::IsPrimitivePolygonal(tessellated, primitive_type);
 
-  // Pixel shader.
+  // Pixel shader analysis.
+  bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
   bool is_rasterization_done =
       draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
   D3D12Shader* pixel_shader = nullptr;
@@ -1884,22 +1877,30 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       return true;
     }
   }
-  bool memexport_used_pixel;
-  DxbcShaderTranslator::Modification pixel_shader_modification;
-  if (pixel_shader) {
-    memexport_used_pixel = pixel_shader->is_valid_memexport_used();
-    if (!pipeline_cache_->GetCurrentShaderModification(
-            *pixel_shader, pixel_shader_modification)) {
-      return false;
-    }
-  } else {
-    memexport_used_pixel = false;
-    pixel_shader_modification = DxbcShaderTranslator::Modification(0);
-  }
-
+  bool memexport_used_pixel =
+      pixel_shader && pixel_shader->is_valid_memexport_used();
   bool memexport_used = memexport_used_vertex || memexport_used_pixel;
 
   BeginSubmission(true);
+
+  // Process primitives.
+  PrimitiveProcessor::ProcessingResult primitive_processing_result;
+  if (!primitive_processor_->Process(primitive_processing_result)) {
+    return false;
+  }
+  if (!primitive_processing_result.host_draw_vertex_count) {
+    // Nothing to draw.
+    return true;
+  }
+
+  // Shader modifications.
+  DxbcShaderTranslator::Modification vertex_shader_modification =
+      pipeline_cache_->GetCurrentVertexShaderModification(
+          *vertex_shader, primitive_processing_result.host_vertex_shader_type);
+  DxbcShaderTranslator::Modification pixel_shader_modification =
+      pixel_shader
+          ? pipeline_cache_->GetCurrentPixelShaderModification(*pixel_shader)
+          : DxbcShaderTranslator::Modification(0);
 
   // Set up the render targets - this may perform dispatches and draws.
   uint32_t pixel_shader_writes_color_targets =
@@ -1907,66 +1908,6 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   if (!render_target_cache_->Update(is_rasterization_done,
                                     pixel_shader_writes_color_targets)) {
     return false;
-  }
-
-  // Set up primitive topology.
-  bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
-  xenos::PrimitiveType primitive_type_converted;
-  D3D_PRIMITIVE_TOPOLOGY primitive_topology;
-  if (tessellated) {
-    primitive_type_converted = primitive_type;
-    switch (primitive_type_converted) {
-      // TODO(Triang3l): Support all kinds of patches if found in games.
-      case xenos::PrimitiveType::kTriangleList:
-      case xenos::PrimitiveType::kTrianglePatch:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
-        break;
-      case xenos::PrimitiveType::kQuadList:
-      case xenos::PrimitiveType::kQuadPatch:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
-        break;
-      default:
-        return false;
-    }
-  } else {
-    primitive_type_converted =
-        PrimitiveConverter::GetReplacementPrimitiveType(primitive_type);
-    switch (primitive_type_converted) {
-      case xenos::PrimitiveType::kPointList:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
-        break;
-      case xenos::PrimitiveType::kLineList:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
-        break;
-      case xenos::PrimitiveType::kLineStrip:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
-        break;
-      case xenos::PrimitiveType::kTriangleList:
-      case xenos::PrimitiveType::kRectangleList:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-        break;
-      case xenos::PrimitiveType::kTriangleStrip:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
-        break;
-      case xenos::PrimitiveType::kQuadList:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST_ADJ;
-        break;
-      default:
-        return false;
-    }
-  }
-  SetPrimitiveTopology(primitive_topology);
-  uint32_t line_loop_closing_index;
-  if (primitive_type == xenos::PrimitiveType::kLineLoop && !indexed &&
-      index_count >= 3) {
-    // Add a vertex to close the loop, and make the vertex shader replace its
-    // index (before adding the offset) with 0 to fetch the first vertex again.
-    // For indexed line loops, the primitive converter will add the vertex.
-    line_loop_closing_index = index_count;
-    ++index_count;
-  } else {
-    // Replace index 0 with 0 (do nothing) otherwise.
-    line_loop_closing_index = 0;
   }
 
   // Translate the shaders and create the pipeline if needed.
@@ -1995,9 +1936,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   ID3D12RootSignature* root_signature;
   if (!pipeline_cache_->ConfigurePipeline(
           vertex_shader_translation, pixel_shader_translation,
-          primitive_type_converted,
-          indexed ? index_buffer_info->format : xenos::IndexFormat::kInt16,
-          bound_depth_and_color_render_target_bits,
+          primitive_processing_result, bound_depth_and_color_render_target_bits,
           bound_depth_and_color_render_target_formats, &pipeline_handle,
           &root_signature)) {
     return false;
@@ -2048,9 +1987,10 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   // Update system constants before uploading them.
   // TODO(Triang3l): With ROV, pass the disabled render target mask for safety.
   UpdateSystemConstantValues(
-      memexport_used, primitive_polygonal, line_loop_closing_index,
-      indexed ? index_buffer_info->endianness : xenos::Endian::kNone,
-      viewport_info, used_texture_mask,
+      memexport_used, primitive_polygonal,
+      primitive_processing_result.line_loop_closing_index,
+      primitive_processing_result.host_index_endian, viewport_info,
+      used_texture_mask,
       pixel_shader ? GetCurrentColorMask(pixel_shader->writes_color_targets())
                    : 0);
 
@@ -2206,111 +2146,138 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     }
   }
 
-  // Actually draw.
-  if (indexed) {
-    uint32_t index_size =
-        index_buffer_info->format == xenos::IndexFormat::kInt32
-            ? sizeof(uint32_t)
-            : sizeof(uint16_t);
-    assert_false(index_buffer_info->guest_base & (index_size - 1));
-    uint32_t index_base =
-        index_buffer_info->guest_base & 0x1FFFFFFF & ~(index_size - 1);
-    D3D12_INDEX_BUFFER_VIEW index_buffer_view;
-    index_buffer_view.Format =
-        index_buffer_info->format == xenos::IndexFormat::kInt32
-            ? DXGI_FORMAT_R32_UINT
-            : DXGI_FORMAT_R16_UINT;
-    PrimitiveConverter::ConversionResult conversion_result;
-    uint32_t converted_index_count;
-    if (tessellated) {
-      conversion_result =
-          PrimitiveConverter::ConversionResult::kConversionNotNeeded;
-    } else {
-      conversion_result = primitive_converter_->ConvertPrimitives(
-          primitive_type, index_buffer_info->guest_base, index_count,
-          index_buffer_info->format, index_buffer_info->endianness,
-          index_buffer_view.BufferLocation, converted_index_count);
-      if (conversion_result == PrimitiveConverter::ConversionResult::kFailed) {
-        return false;
-      }
-      if (conversion_result ==
-          PrimitiveConverter::ConversionResult::kPrimitiveEmpty) {
-        return true;
-      }
-    }
-    ID3D12Resource* scratch_index_buffer = nullptr;
-    if (conversion_result == PrimitiveConverter::ConversionResult::kConverted) {
-      index_buffer_view.SizeInBytes = converted_index_count * index_size;
-      index_count = converted_index_count;
-    } else {
-      uint32_t index_buffer_size = index_buffer_info->count * index_size;
-      if (!shared_memory_->RequestRange(index_base, index_buffer_size)) {
+  // Primitive topology.
+  D3D_PRIMITIVE_TOPOLOGY primitive_topology;
+  if (primitive_processing_result.IsTessellated()) {
+    switch (primitive_processing_result.host_primitive_type) {
+      // TODO(Triang3l): Support all primitive types.
+      case xenos::PrimitiveType::kTriangleList:
+      case xenos::PrimitiveType::kTrianglePatch:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
+        break;
+      case xenos::PrimitiveType::kQuadList:
+      case xenos::PrimitiveType::kQuadPatch:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
+        break;
+      default:
         XELOGE(
-            "Failed to request index buffer at 0x{:08X} (size {}) in the "
-            "shared memory",
-            index_base, index_buffer_size);
+            "Host tessellated primitive type {} returned by the primitive "
+            "processor is not supported by the Direct3D 12 command processor",
+            uint32_t(primitive_processing_result.host_primitive_type));
+        assert_unhandled_case(primitive_processing_result.host_primitive_type);
         return false;
-      }
-      if (memexport_used) {
-        // If the shared memory is a UAV, it can't be used as an index buffer
-        // (UAV is a read/write state, index buffer is a read-only state). Need
-        // to copy the indices to a buffer in the index buffer state.
-        scratch_index_buffer = RequestScratchGPUBuffer(
-            index_buffer_size, D3D12_RESOURCE_STATE_COPY_DEST);
-        if (scratch_index_buffer == nullptr) {
-          return false;
-        }
-        shared_memory_->UseAsCopySource();
-        SubmitBarriers();
-        deferred_command_list_.D3DCopyBufferRegion(
-            scratch_index_buffer, 0, shared_memory_->GetBuffer(), index_base,
-            index_buffer_size);
-        PushTransitionBarrier(scratch_index_buffer,
-                              D3D12_RESOURCE_STATE_COPY_DEST,
-                              D3D12_RESOURCE_STATE_INDEX_BUFFER);
-        index_buffer_view.BufferLocation =
-            scratch_index_buffer->GetGPUVirtualAddress();
-      } else {
-        index_buffer_view.BufferLocation =
-            shared_memory_->GetGPUAddress() + index_base;
-      }
-      index_buffer_view.SizeInBytes = index_buffer_size;
     }
+  } else {
+    switch (primitive_processing_result.host_primitive_type) {
+      case xenos::PrimitiveType::kPointList:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+        break;
+      case xenos::PrimitiveType::kLineList:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
+        break;
+      case xenos::PrimitiveType::kLineStrip:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
+        break;
+      case xenos::PrimitiveType::kTriangleList:
+      case xenos::PrimitiveType::kRectangleList:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        break;
+      case xenos::PrimitiveType::kTriangleStrip:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+        break;
+      case xenos::PrimitiveType::kQuadList:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST_ADJ;
+        break;
+      default:
+        XELOGE(
+            "Host primitive type {} returned by the primitive processor is not "
+            "supported by the Direct3D 12 command processor",
+            uint32_t(primitive_processing_result.host_primitive_type));
+        assert_unhandled_case(primitive_processing_result.host_primitive_type);
+        return false;
+    }
+  }
+  SetPrimitiveTopology(primitive_topology);
+  // Must not call anything that may change the primitive topology from now on!
+
+  // Draw.
+  if (primitive_processing_result.index_buffer_type ==
+      PrimitiveProcessor::ProcessedIndexBufferType::kNone) {
     if (memexport_used) {
       shared_memory_->UseForWriting();
     } else {
       shared_memory_->UseForReading();
     }
     SubmitBarriers();
+    deferred_command_list_.D3DDrawInstanced(
+        primitive_processing_result.host_draw_vertex_count, 1, 0, 0);
+  } else {
+    D3D12_INDEX_BUFFER_VIEW index_buffer_view;
+    index_buffer_view.SizeInBytes =
+        primitive_processing_result.host_draw_vertex_count;
+    if (primitive_processing_result.host_index_format ==
+        xenos::IndexFormat::kInt16) {
+      index_buffer_view.SizeInBytes *= sizeof(uint16_t);
+      index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
+    } else {
+      index_buffer_view.SizeInBytes *= sizeof(uint32_t);
+      index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
+    }
+    ID3D12Resource* scratch_index_buffer = nullptr;
+    switch (primitive_processing_result.index_buffer_type) {
+      case PrimitiveProcessor::ProcessedIndexBufferType::kGuest: {
+        if (memexport_used) {
+          // If the shared memory is a UAV, it can't be used as an index buffer
+          // (UAV is a read/write state, index buffer is a read-only state).
+          // Need to copy the indices to a buffer in the index buffer state.
+          scratch_index_buffer = RequestScratchGPUBuffer(
+              index_buffer_view.SizeInBytes, D3D12_RESOURCE_STATE_COPY_DEST);
+          if (scratch_index_buffer == nullptr) {
+            return false;
+          }
+          shared_memory_->UseAsCopySource();
+          SubmitBarriers();
+          deferred_command_list_.D3DCopyBufferRegion(
+              scratch_index_buffer, 0, shared_memory_->GetBuffer(),
+              primitive_processing_result.guest_index_base,
+              index_buffer_view.SizeInBytes);
+          PushTransitionBarrier(scratch_index_buffer,
+                                D3D12_RESOURCE_STATE_COPY_DEST,
+                                D3D12_RESOURCE_STATE_INDEX_BUFFER);
+          index_buffer_view.BufferLocation =
+              scratch_index_buffer->GetGPUVirtualAddress();
+        } else {
+          index_buffer_view.BufferLocation =
+              shared_memory_->GetGPUAddress() +
+              primitive_processing_result.guest_index_base;
+        }
+      } break;
+      case PrimitiveProcessor::ProcessedIndexBufferType::kHostConverted:
+        index_buffer_view.BufferLocation =
+            primitive_processor_->GetConvertedIndexBufferGpuAddress(
+                primitive_processing_result.host_index_buffer_handle);
+        break;
+      case PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltin:
+        index_buffer_view.BufferLocation =
+            primitive_processor_->GetBuiltinIndexBufferGpuAddress(
+                primitive_processing_result.host_index_buffer_handle);
+        break;
+      default:
+        assert_unhandled_case(primitive_processing_result.index_buffer_type);
+        return false;
+    }
     deferred_command_list_.D3DIASetIndexBuffer(&index_buffer_view);
-    deferred_command_list_.D3DDrawIndexedInstanced(index_count, 1, 0, 0, 0);
+    if (memexport_used) {
+      shared_memory_->UseForWriting();
+    } else {
+      shared_memory_->UseForReading();
+    }
+    SubmitBarriers();
+    deferred_command_list_.D3DDrawIndexedInstanced(
+        primitive_processing_result.host_draw_vertex_count, 1, 0, 0, 0);
     if (scratch_index_buffer != nullptr) {
       ReleaseScratchGPUBuffer(scratch_index_buffer,
                               D3D12_RESOURCE_STATE_INDEX_BUFFER);
-    }
-  } else {
-    // Check if need to draw using a conversion index buffer.
-    uint32_t converted_index_count = 0;
-    D3D12_GPU_VIRTUAL_ADDRESS conversion_gpu_address =
-        tessellated ? 0
-                    : primitive_converter_->GetStaticIndexBuffer(
-                          primitive_type, index_count, converted_index_count);
-    if (memexport_used) {
-      shared_memory_->UseForWriting();
-    } else {
-      shared_memory_->UseForReading();
-    }
-    SubmitBarriers();
-    if (conversion_gpu_address) {
-      D3D12_INDEX_BUFFER_VIEW index_buffer_view;
-      index_buffer_view.BufferLocation = conversion_gpu_address;
-      index_buffer_view.SizeInBytes = converted_index_count * sizeof(uint16_t);
-      index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
-      deferred_command_list_.D3DIASetIndexBuffer(&index_buffer_view);
-      deferred_command_list_.D3DDrawIndexedInstanced(converted_index_count, 1,
-                                                     0, 0, 0);
-    } else {
-      deferred_command_list_.D3DDrawInstanced(index_count, 1, 0, 0);
     }
   }
 
@@ -2526,9 +2493,9 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
 
   shared_memory_->CompletedSubmissionUpdated();
 
-  render_target_cache_->CompletedSubmissionUpdated();
+  primitive_processor_->CompletedSubmissionUpdated();
 
-  primitive_converter_->CompletedSubmissionUpdated();
+  render_target_cache_->CompletedSubmissionUpdated();
 }
 
 void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
@@ -2593,11 +2560,11 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
     }
     primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 
+    primitive_processor_->BeginSubmission();
+
     render_target_cache_->BeginSubmission();
 
     texture_cache_->BeginSubmission();
-
-    primitive_converter_->BeginSubmission();
   }
 
   if (is_opening_frame) {
@@ -2645,9 +2612,9 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
       }
     }
 
-    texture_cache_->BeginFrame();
+    primitive_processor_->BeginFrame();
 
-    primitive_converter_->BeginFrame();
+    texture_cache_->BeginFrame();
   }
 }
 
@@ -2676,6 +2643,8 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
 
   if (is_closing_frame) {
     texture_cache_->EndFrame();
+
+    primitive_processor_->EndFrame();
   }
 
   if (submission_open_) {
@@ -2762,8 +2731,6 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
       }
       constant_buffer_pool_->ClearCache();
 
-      primitive_converter_->ClearCache();
-
       pipeline_cache_->ClearCache();
 
       render_target_cache_->ClearCache();
@@ -2774,6 +2741,8 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
         it.second->Release();
       }
       root_signatures_bindful_.clear();
+
+      primitive_processor_->ClearCache();
 
       shared_memory_->ClearCache();
     }
@@ -2897,7 +2866,9 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   auto rb_surface_info = regs.Get<reg::RB_SURFACE_INFO>();
   auto sq_context_misc = regs.Get<reg::SQ_CONTEXT_MISC>();
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
-  int32_t vgt_indx_offset = int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
+  uint32_t vgt_indx_offset = regs.Get<reg::VGT_INDX_OFFSET>().indx_offset;
+  uint32_t vgt_max_vtx_indx = regs.Get<reg::VGT_MAX_VTX_INDX>().max_indx;
+  uint32_t vgt_min_vtx_indx = regs.Get<reg::VGT_MIN_VTX_INDX>().min_indx;
 
   bool edram_rov_used = render_target_cache_->GetPath() ==
                         RenderTargetCache::Path::kPixelShaderInterlock;
@@ -3050,8 +3021,14 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   system_constants_.vertex_index_endian = index_endian;
 
   // Vertex index offset.
-  dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
-  system_constants_.vertex_base_index = vgt_indx_offset;
+  dirty |= system_constants_.vertex_index_offset != vgt_indx_offset;
+  system_constants_.vertex_index_offset = vgt_indx_offset;
+
+  // Vertex index range.
+  dirty |= system_constants_.vertex_index_min != vgt_min_vtx_indx;
+  dirty |= system_constants_.vertex_index_max != vgt_max_vtx_indx;
+  system_constants_.vertex_index_min = vgt_min_vtx_indx;
+  system_constants_.vertex_index_max = vgt_max_vtx_indx;
 
   // User clip planes (UCP_ENA_#), when not CLIP_DISABLE.
   if (!pa_cl_clip_cntl.clip_disable) {
@@ -3082,14 +3059,14 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   float point_size_y = float(pa_su_point_size.height) * 0.125f;
   float point_size_min = float(pa_su_point_minmax.min_size) * 0.125f;
   float point_size_max = float(pa_su_point_minmax.max_size) * 0.125f;
-  dirty |= system_constants_.point_size[0] != point_size_x;
-  dirty |= system_constants_.point_size[1] != point_size_y;
-  dirty |= system_constants_.point_size_min_max[0] != point_size_min;
-  dirty |= system_constants_.point_size_min_max[1] != point_size_max;
-  system_constants_.point_size[0] = point_size_x;
-  system_constants_.point_size[1] = point_size_y;
-  system_constants_.point_size_min_max[0] = point_size_min;
-  system_constants_.point_size_min_max[1] = point_size_max;
+  dirty |= system_constants_.point_size_x != point_size_x;
+  dirty |= system_constants_.point_size_y != point_size_y;
+  dirty |= system_constants_.point_size_min != point_size_min;
+  dirty |= system_constants_.point_size_max != point_size_max;
+  system_constants_.point_size_x = point_size_x;
+  system_constants_.point_size_y = point_size_y;
+  system_constants_.point_size_min = point_size_min;
+  system_constants_.point_size_max = point_size_max;
   float point_screen_to_ndc_x =
       (/* 0.5f * 2.0f * */ float(resolution_scale)) /
       std::max(viewport_info.xy_extent[0], uint32_t(1));

@@ -35,6 +35,12 @@ enum class ShaderType : uint32_t {
   kPixel = 1,
 };
 
+// Only the lower 24 bits of the vertex index are used (tested on an Adreno 200
+// phone using a GL_UNSIGNED_INT element array buffer with junk in the upper 8
+// bits that had no effect on drawing).
+constexpr uint32_t kVertexIndexBits = 24;
+constexpr uint32_t kVertexIndexMask = (uint32_t(1) << kVertexIndexBits) - 1;
+
 enum class PrimitiveType : uint32_t {
   kNone = 0x00,
   kPointList = 0x01,
@@ -72,38 +78,6 @@ enum class PrimitiveType : uint32_t {
   kTrianglePatch = 0x11,
   kQuadPatch = 0x12,
 };
-
-// Polygonal primitive types (not including points and lines) are rasterized as
-// triangles, have front and back faces, and also support face culling and fill
-// modes (polymode_front_ptype, polymode_back_ptype). Other primitive types are
-// always "front" (but don't support front face and back face culling, according
-// to OpenGL and Vulkan specifications - even if glCullFace is
-// GL_FRONT_AND_BACK, points and lines are still drawn), and may in some cases
-// use the "para" registers instead of "front" or "back" (for "parallelogram" -
-// like poly_offset_para_enable).
-constexpr bool IsPrimitivePolygonal(bool tessellated, PrimitiveType type) {
-  if (tessellated && (type == PrimitiveType::kTrianglePatch ||
-                      type == PrimitiveType::kQuadPatch)) {
-    return true;
-  }
-  switch (type) {
-    case PrimitiveType::kTriangleList:
-    case PrimitiveType::kTriangleFan:
-    case PrimitiveType::kTriangleStrip:
-    case PrimitiveType::kTriangleWithWFlags:
-    case PrimitiveType::kQuadList:
-    case PrimitiveType::kQuadStrip:
-    case PrimitiveType::kPolygon:
-      return true;
-    default:
-      break;
-  }
-  // TODO(Triang3l): Investigate how kRectangleList should be treated - possibly
-  // actually drawn as two polygons on the console, however, the current
-  // geometry shader doesn't care about the winding order - allowing backface
-  // culling for rectangles currently breaks Gears of War 2.
-  return false;
-}
 
 // For the texture fetch constant (not the tfetch instruction), stacked stored
 // as 2D.

@@ -864,146 +864,66 @@ D3D12Shader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
   return shader;
 }
 
-bool PipelineCache::GetCurrentShaderModification(
+DxbcShaderTranslator::Modification
+PipelineCache::GetCurrentVertexShaderModification(
     const Shader& shader,
-    DxbcShaderTranslator::Modification& modification_out) const {
+    Shader::HostVertexShaderType host_vertex_shader_type) const {
+  assert_true(shader.type() == xenos::ShaderType::kVertex);
   assert_true(shader.is_ucode_analyzed());
   const auto& regs = register_file_;
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
-  if (shader.type() == xenos::ShaderType::kVertex) {
-    Shader::HostVertexShaderType host_vertex_shader_type =
-        GetCurrentHostVertexShaderTypeIfValid();
-    if (host_vertex_shader_type == Shader::HostVertexShaderType(-1)) {
-      return false;
-    }
-    modification_out = DxbcShaderTranslator::Modification(
-        shader_translator_->GetDefaultVertexShaderModification(
-            shader.GetDynamicAddressableRegisterCount(
-                sq_program_cntl.vs_num_reg),
-            host_vertex_shader_type));
-  } else {
-    assert_true(shader.type() == xenos::ShaderType::kPixel);
-    DxbcShaderTranslator::Modification pixel_shader_modification(
-        shader_translator_->GetDefaultPixelShaderModification(
-            shader.GetDynamicAddressableRegisterCount(
-                sq_program_cntl.ps_num_reg)));
-    if (render_target_cache_.GetPath() ==
-        RenderTargetCache::Path::kHostRenderTargets) {
-      using DepthStencilMode =
-          DxbcShaderTranslator::Modification::DepthStencilMode;
-      RenderTargetCache::DepthFloat24Conversion depth_float24_conversion =
-          render_target_cache_.depth_float24_conversion();
-      if ((depth_float24_conversion ==
-               RenderTargetCache::DepthFloat24Conversion::kOnOutputTruncating ||
-           depth_float24_conversion ==
-               RenderTargetCache::DepthFloat24Conversion::kOnOutputRounding) &&
-          draw_util::GetDepthControlForCurrentEdramMode(regs).z_enable &&
-          regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
-              xenos::DepthRenderTargetFormat::kD24FS8) {
-        pixel_shader_modification.pixel.depth_stencil_mode =
-            depth_float24_conversion ==
-                    RenderTargetCache::DepthFloat24Conversion::
-                        kOnOutputTruncating
-                ? DepthStencilMode::kFloat24Truncating
-                : DepthStencilMode::kFloat24Rounding;
-      } else {
-        if (shader.implicit_early_z_write_allowed() &&
-            (!shader.writes_color_target(0) ||
-             !draw_util::DoesCoverageDependOnAlpha(
-                 regs.Get<reg::RB_COLORCONTROL>()))) {
-          pixel_shader_modification.pixel.depth_stencil_mode =
-              DepthStencilMode::kEarlyHint;
-        } else {
-          pixel_shader_modification.pixel.depth_stencil_mode =
-              DepthStencilMode::kNoModifiers;
-        }
-      }
-    }
-    modification_out = pixel_shader_modification;
-  }
-  return true;
+  return DxbcShaderTranslator::Modification(
+      shader_translator_->GetDefaultVertexShaderModification(
+          shader.GetDynamicAddressableRegisterCount(sq_program_cntl.vs_num_reg),
+          host_vertex_shader_type));
 }
 
-Shader::HostVertexShaderType
-PipelineCache::GetCurrentHostVertexShaderTypeIfValid() const {
-  // If the values this functions returns are changed, INVALIDATE THE SHADER
-  // STORAGE (increase kVersion for BOTH shaders and pipelines)! The exception
-  // is when the function originally returned "unsupported", but started to
-  // return a valid value (in this case the shader wouldn't be cached in the
-  // first place). Otherwise games will not be able to locate shaders for draws
-  // for which the host vertex shader type has changed!
+DxbcShaderTranslator::Modification
+PipelineCache::GetCurrentPixelShaderModification(const Shader& shader) const {
+  assert_true(shader.type() == xenos::ShaderType::kPixel);
+  assert_true(shader.is_ucode_analyzed());
   const auto& regs = register_file_;
-  auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
-  if (!xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode,
-                                  vgt_draw_initiator.prim_type)) {
-    // VGT_OUTPUT_PATH_CNTL and HOS registers are ignored in implicit major
-    // mode.
-    return Shader::HostVertexShaderType::kVertex;
-  }
-  if (regs.Get<reg::VGT_OUTPUT_PATH_CNTL>().path_select !=
-      xenos::VGTOutputPath::kTessellationEnable) {
-    return Shader::HostVertexShaderType::kVertex;
-  }
-  xenos::TessellationMode tessellation_mode =
-      regs.Get<reg::VGT_HOS_CNTL>().tess_mode;
-  switch (vgt_draw_initiator.prim_type) {
-    case xenos::PrimitiveType::kTriangleList:
-      // Also supported by triangle strips and fans according to:
-      // https://www.khronos.org/registry/OpenGL/extensions/AMD/AMD_vertex_shader_tessellator.txt
-      // Would need to convert those to triangle lists, but haven't seen any
-      // games using tessellated strips/fans so far.
-      switch (tessellation_mode) {
-        case xenos::TessellationMode::kDiscrete:
-          // - Call of Duty 3 - nets above barrels in the beginning of the
-          //   first mission (turn right after the end of the intro) -
-          //   kTriangleList.
-        case xenos::TessellationMode::kContinuous:
-          // - Viva Pinata - tree building with a beehive in the beginning
-          //   (visible on the start screen behind the logo), waterfall in the
-          //   beginning - kTriangleList.
-          return Shader::HostVertexShaderType::kTriangleDomainCPIndexed;
-        default:
-          break;
+  auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
+  DxbcShaderTranslator::Modification modification(
+      shader_translator_->GetDefaultPixelShaderModification(
+          shader.GetDynamicAddressableRegisterCount(
+              sq_program_cntl.ps_num_reg)));
+  if (render_target_cache_.GetPath() ==
+      RenderTargetCache::Path::kHostRenderTargets) {
+    using DepthStencilMode =
+        DxbcShaderTranslator::Modification::DepthStencilMode;
+    RenderTargetCache::DepthFloat24Conversion depth_float24_conversion =
+        render_target_cache_.depth_float24_conversion();
+    if ((depth_float24_conversion ==
+             RenderTargetCache::DepthFloat24Conversion::kOnOutputTruncating ||
+         depth_float24_conversion ==
+             RenderTargetCache::DepthFloat24Conversion::kOnOutputRounding) &&
+        draw_util::GetDepthControlForCurrentEdramMode(regs).z_enable &&
+        regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
+            xenos::DepthRenderTargetFormat::kD24FS8) {
+      modification.pixel.depth_stencil_mode =
+          depth_float24_conversion ==
+                  RenderTargetCache::DepthFloat24Conversion::kOnOutputTruncating
+              ? DepthStencilMode::kFloat24Truncating
+              : DepthStencilMode::kFloat24Rounding;
+    } else {
+      if (shader.implicit_early_z_write_allowed() &&
+          (!shader.writes_color_target(0) ||
+           !draw_util::DoesCoverageDependOnAlpha(
+               regs.Get<reg::RB_COLORCONTROL>()))) {
+        modification.pixel.depth_stencil_mode = DepthStencilMode::kEarlyHint;
+      } else {
+        modification.pixel.depth_stencil_mode = DepthStencilMode::kNoModifiers;
       }
-      break;
-    case xenos::PrimitiveType::kQuadList:
-      switch (tessellation_mode) {
-        // Also supported by quad strips according to:
-        // https://www.khronos.org/registry/OpenGL/extensions/AMD/AMD_vertex_shader_tessellator.txt
-        // Would need to convert those to quad lists, but haven't seen any games
-        // using tessellated strips so far.
-        case xenos::TessellationMode::kDiscrete:
-          // Not seen in games so far.
-        case xenos::TessellationMode::kContinuous:
-          // - Defender - retro screen and beams in the main menu - kQuadList.
-          return Shader::HostVertexShaderType::kQuadDomainCPIndexed;
-        default:
-          break;
-      }
-      break;
-    case xenos::PrimitiveType::kTrianglePatch:
-      // - Banjo-Kazooie: Nuts & Bolts - water - adaptive.
-      // - Halo 3 - water - adaptive.
-      return Shader::HostVertexShaderType::kTriangleDomainPatchIndexed;
-    case xenos::PrimitiveType::kQuadPatch:
-      // - Fable II - continuous.
-      // - Viva Pinata - garden ground - adaptive.
-      return Shader::HostVertexShaderType::kQuadDomainPatchIndexed;
-    default:
-      // TODO(Triang3l): Support line patches.
-      break;
+    }
   }
-  XELOGE(
-      "Unsupported tessellation mode {} for primitive type {}. Report the game "
-      "to Xenia developers!",
-      uint32_t(tessellation_mode), uint32_t(vgt_draw_initiator.prim_type));
-  return Shader::HostVertexShaderType(-1);
+  return modification;
 }
 
 bool PipelineCache::ConfigurePipeline(
     D3D12Shader::D3D12Translation* vertex_shader,
     D3D12Shader::D3D12Translation* pixel_shader,
-    xenos::PrimitiveType primitive_type, xenos::IndexFormat index_format,
+    const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
     uint32_t bound_depth_and_color_render_target_bits,
     const uint32_t* bound_depth_and_color_render_target_formats,
     void** pipeline_handle_out, ID3D12RootSignature** root_signature_out) {
@@ -1074,7 +994,7 @@ bool PipelineCache::ConfigurePipeline(
 
   PipelineRuntimeDescription runtime_description;
   if (!GetCurrentStateDescription(
-          vertex_shader, pixel_shader, primitive_type, index_format,
+          vertex_shader, pixel_shader, primitive_processing_result,
           bound_depth_and_color_render_target_bits,
           bound_depth_and_color_render_target_formats, runtime_description)) {
     return false;
@@ -1340,7 +1260,7 @@ bool PipelineCache::TranslateAnalyzedShader(
 bool PipelineCache::GetCurrentStateDescription(
     D3D12Shader::D3D12Translation* vertex_shader,
     D3D12Shader::D3D12Translation* pixel_shader,
-    xenos::PrimitiveType primitive_type, xenos::IndexFormat index_format,
+    const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
     uint32_t bound_depth_and_color_render_target_bits,
     const uint32_t* bound_depth_and_color_render_target_formats,
     PipelineRuntimeDescription& runtime_description_out) {
@@ -1357,12 +1277,11 @@ bool PipelineCache::GetCurrentStateDescription(
   // Initialize all unused fields to zero for comparison/hashing.
   std::memset(&runtime_description_out, 0, sizeof(runtime_description_out));
 
-  bool tessellated =
-      DxbcShaderTranslator::Modification(vertex_shader->modification())
-          .vertex.host_vertex_shader_type !=
-      Shader::HostVertexShaderType::kVertex;
-  bool primitive_polygonal =
-      xenos::IsPrimitivePolygonal(tessellated, primitive_type);
+  assert_true(DxbcShaderTranslator::Modification(vertex_shader->modification())
+                  .vertex.host_vertex_shader_type ==
+              primitive_processing_result.host_vertex_shader_type);
+  bool tessellated = primitive_processing_result.IsTessellated();
+  bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
   bool rasterization_enabled =
       draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
   // In Direct3D, rasterization (along with pixel counting) is disabled by
@@ -1397,12 +1316,12 @@ bool PipelineCache::GetCurrentStateDescription(
   description_out.vertex_shader_modification = vertex_shader->modification();
 
   // Index buffer strip cut value.
-  if (pa_su_sc_mode_cntl.multi_prim_ib_ena) {
-    // Not using 0xFFFF with 32-bit indices because in index buffers it will be
-    // 0xFFFF0000 anyway due to endianness.
-    description_out.strip_cut_index = index_format == xenos::IndexFormat::kInt32
-                                          ? PipelineStripCutIndex::kFFFFFFFF
-                                          : PipelineStripCutIndex::kFFFF;
+  if (primitive_processing_result.host_primitive_reset_enabled) {
+    description_out.strip_cut_index =
+        primitive_processing_result.host_index_format ==
+                xenos::IndexFormat::kInt16
+            ? PipelineStripCutIndex::kFFFF
+            : PipelineStripCutIndex::kFFFFFFFF;
   } else {
     description_out.strip_cut_index = PipelineStripCutIndex::kNone;
   }
@@ -1410,9 +1329,9 @@ bool PipelineCache::GetCurrentStateDescription(
   // Host vertex shader type and primitive topology.
   if (tessellated) {
     description_out.primitive_topology_type_or_tessellation_mode =
-        uint32_t(regs.Get<reg::VGT_HOS_CNTL>().tess_mode);
+        uint32_t(primitive_processing_result.tessellation_mode);
   } else {
-    switch (primitive_type) {
+    switch (primitive_processing_result.host_primitive_type) {
       case xenos::PrimitiveType::kPointList:
         description_out.primitive_topology_type_or_tessellation_mode =
             uint32_t(PipelinePrimitiveTopologyType::kPoint);
@@ -1431,7 +1350,7 @@ bool PipelineCache::GetCurrentStateDescription(
             uint32_t(PipelinePrimitiveTopologyType::kTriangle);
         break;
     }
-    switch (primitive_type) {
+    switch (primitive_processing_result.host_primitive_type) {
       case xenos::PrimitiveType::kPointList:
         description_out.geometry_shader = PipelineGeometryShader::kPointList;
         break;

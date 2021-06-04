@@ -22,7 +22,7 @@ void main(point XeVertexPreGS xe_in[1],
   float2 point_size =
       xe_in[0].post_gs.pre_ps.point_params.z > 0.0f
            ? xe_in[0].post_gs.pre_ps.point_params.zz
-           : xe_point_size;
+           : float2(xe_point_size_x, xe_point_size_y);
   point_size =
       clamp(point_size, xe_point_size_min_max.xx, xe_point_size_min_max.yy) *
       xe_point_screen_to_ndc * xe_in[0].post_gs.position.w;

@@ -12,6 +12,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <unordered_map>
 #include <utility>
