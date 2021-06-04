@@ -16,6 +16,7 @@
 #include "xenia/apu/xma_helpers.h"
 #include "xenia/base/bit_stream.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/ring_buffer.h"
 
@@ -581,7 +582,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
 
       //			dump_raw(av_frame_, id());
       ConvertFrame((const uint8_t**)av_frame_->data, num_channels,
-                   kSamplesPerFrame, raw_frame_.data());
+                   raw_frame_.data());
       // decoded_consumed_samples_ += kSamplesPerFrame;
 
       auto byte_count = kBytesPerFrameChannel * num_channels;
@@ -806,25 +807,56 @@ int XmaContext::PrepareDecoder(uint8_t* packet, int sample_rate, int channels) {
 }
 
 bool XmaContext::ConvertFrame(const uint8_t** samples, int num_channels,
-                              int num_samples, uint8_t* output_buffer) {
+                              uint8_t* output_buffer) {
   // Loop through every sample, convert and drop it into the output array.
   // If more than one channel, we need to interleave the samples from each
-  // channel next to each other.
-  // TODO: This can definitely be optimized with AVX/SSE intrinsics!
-  uint32_t o = 0;
-  for (int i = 0; i < num_samples; i++) {
-    for (int j = 0; j < num_channels; j++) {
-      // Select the appropriate array based on the current channel.
-      auto sample_array = reinterpret_cast<const float*>(samples[j]);
+  // channel next to each other. Always saturate because FFmpeg output is
+  // not limited to [-1, 1] (for example 1.095 as seen in RDR)
+  constexpr float scale = (1 << 15) - 1;
+  auto out = reinterpret_cast<int16_t*>(output_buffer);
 
-      // Raw sample should be within [-1, 1].
-      // Clamp it, just in case.
-      float raw_sample = xe::saturate(sample_array[i]);
+#if XE_ARCH_AMD64
+  static_assert(kSamplesPerFrame % 8 == 0);
+  // Most audio is single channel, no need to optimize for the game music
+  if (num_channels == 1) {
+    const auto in = reinterpret_cast<const float*>(samples[0]);
+    const __m128 scale_mm = _mm_set1_ps(scale);
+    const __m128i shufmask =
+        _mm_set_epi8(14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1);
+    for (int i = 0; i < kSamplesPerFrame; i += 8) {
+      // load 8 samples
+      __m128 in_mm0 = _mm_loadu_ps(&in[i]);
+      __m128 in_mm1 = _mm_loadu_ps(&in[i + 4]);
+      // rescale
+      in_mm0 = _mm_mul_ps(in_mm0, scale_mm);
+      in_mm1 = _mm_mul_ps(in_mm1, scale_mm);
+      // cast to int32
+      __m128i out_mm0 = _mm_cvtps_epi32(in_mm0);
+      __m128i out_mm1 = _mm_cvtps_epi32(in_mm1);
+      // saturated cast and pack to int16
+      __m128i out_mm = _mm_packs_epi32(out_mm0, out_mm1);
+      // byte swap
+      out_mm = _mm_shuffle_epi8(out_mm, shufmask);
+      // store
+      _mm_storeu_si128(reinterpret_cast<__m128i*>(&out[i]), out_mm);
+    }
+  } else {
+#else
+  {
+#endif
+    uint32_t o = 0;
+    for (int i = 0; i < kSamplesPerFrame; i++) {
+      for (int j = 0; j < num_channels; j++) {
+        // Select the appropriate array based on the current channel.
+        auto in = reinterpret_cast<const float*>(samples[j]);
 
-      // Convert the sample and output it in big endian.
-      float scaled_sample = raw_sample * ((1 << 15) - 1);
-      int sample = static_cast<int>(scaled_sample);
-      xe::store_and_swap<uint16_t>(&output_buffer[o++ * 2], sample & 0xFFFF);
+        // Raw samples sometimes aren't within [-1, 1]
+        float scaled_sample = xe::saturate(in[i]) * scale;
+
+        // Convert the sample and output it in big endian.
+        auto sample = static_cast<int16_t>(scaled_sample);
+        out[o++] = xe::byte_swap(sample);
+      }
     }
   }
 

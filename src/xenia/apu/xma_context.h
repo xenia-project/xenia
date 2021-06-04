@@ -187,7 +187,7 @@ class XmaContext {
 
   // Convert sample format and swap bytes
   static bool ConvertFrame(const uint8_t** samples, int num_channels,
-                           int num_samples, uint8_t* output_buffer);
+                           uint8_t* output_buffer);
 
   bool ValidFrameOffset(uint8_t* block, size_t size_bytes,
                         size_t frame_offset_bits);
