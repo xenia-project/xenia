@@ -719,7 +719,7 @@ std::tuple<int, int> XmaContext::GetFrameNumber(uint8_t* block, size_t size,
   int frame_idx = 0;
   while (true) {
     if (stream.BitsRemaining() < 15) {
-      return {packet_idx, -1};
+      break;
     }
 
     if (stream.offset_bits() == bit_offset) {
