@@ -352,14 +352,12 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
   output_rb.set_read_offset(output_read_offset);
   output_rb.set_write_offset(output_write_offset);
 
-  int num_channels = data->is_stereo ? 2 : 1;
-
   // We can only decode an entire frame and write it out at a time, so
   // don't save any samples.
   // TODO(JoelLinn): subframes when looping
   size_t output_remaining_bytes = output_rb.write_count();
   output_remaining_bytes -=
-      output_remaining_bytes % (kBytesPerFrameChannel * num_channels);
+      output_remaining_bytes % (kBytesPerFrameChannel << data->is_stereo);
 
   // is_dirty_ = true; // TODO
   // is_dirty_ = false;  // TODO
@@ -487,7 +485,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       std::tie(frame_count, frame_last_split) = GetPacketFrameCount(packet);
       assert_true(frame_count >= 0);  // TODO end
 
-      PrepareDecoder(packet, data->sample_rate, num_channels);
+      PrepareDecoder(packet, data->sample_rate, bool(data->is_stereo));
 
       // Current frame is split to next packet:
       bool frame_is_split = frame_last_split && (frame_idx >= frame_count - 1);
@@ -581,11 +579,11 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       // assert_true(frame_is_split == (frame_idx == -1));
 
       //			dump_raw(av_frame_, id());
-      ConvertFrame((const uint8_t**)av_frame_->data, num_channels,
+      ConvertFrame((const uint8_t**)av_frame_->data, bool(data->is_stereo),
                    raw_frame_.data());
       // decoded_consumed_samples_ += kSamplesPerFrame;
 
-      auto byte_count = kBytesPerFrameChannel * num_channels;
+      auto byte_count = kBytesPerFrameChannel << data->is_stereo;
       assert_true(output_remaining_bytes >= byte_count);
       output_rb.Write(raw_frame_.data(), byte_count);
       output_remaining_bytes -= byte_count;
@@ -781,13 +779,15 @@ std::tuple<int, bool> XmaContext::GetPacketFrameCount(uint8_t* packet) {
   }
 }
 
-int XmaContext::PrepareDecoder(uint8_t* packet, int sample_rate, int channels) {
+int XmaContext::PrepareDecoder(uint8_t* packet, int sample_rate,
+                               bool is_two_channel) {
   // Sanity check: Packet metadata is always 1 for XMA2/0 for XMA
   assert_true((packet[2] & 0x7) == 1 || (packet[2] & 0x7) == 0);
 
   sample_rate = GetSampleRate(sample_rate);
 
   // Re-initialize the context with new sample rate and channels.
+  uint32_t channels = is_two_channel ? 2 : 1;
   if (av_context_->sample_rate != sample_rate ||
       av_context_->channels != channels) {
     // We have to reopen the codec so it'll realloc whatever data it needs.
@@ -806,7 +806,7 @@ int XmaContext::PrepareDecoder(uint8_t* packet, int sample_rate, int channels) {
   return 0;
 }
 
-bool XmaContext::ConvertFrame(const uint8_t** samples, int num_channels,
+bool XmaContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
                               uint8_t* output_buffer) {
   // Loop through every sample, convert and drop it into the output array.
   // If more than one channel, we need to interleave the samples from each
@@ -815,50 +815,71 @@ bool XmaContext::ConvertFrame(const uint8_t** samples, int num_channels,
   constexpr float scale = (1 << 15) - 1;
   auto out = reinterpret_cast<int16_t*>(output_buffer);
 
+  // For testing of vectorized versions, stereo audio is common in Halo 3, since
+  // the first menu frame; the intro cutscene also has more than 2 channels.
 #if XE_ARCH_AMD64
   static_assert(kSamplesPerFrame % 8 == 0);
-  // Most audio is single channel, no need to optimize for the game music
-  if (num_channels == 1) {
-    const auto in = reinterpret_cast<const float*>(samples[0]);
-    const __m128 scale_mm = _mm_set1_ps(scale);
+  const auto in_channel_0 = reinterpret_cast<const float*>(samples[0]);
+  const __m128 scale_mm = _mm_set1_ps(scale);
+  if (is_two_channel) {
+    const auto in_channel_1 = reinterpret_cast<const float*>(samples[1]);
     const __m128i shufmask =
-        _mm_set_epi8(14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1);
-    for (int i = 0; i < kSamplesPerFrame; i += 8) {
-      // load 8 samples
-      __m128 in_mm0 = _mm_loadu_ps(&in[i]);
-      __m128 in_mm1 = _mm_loadu_ps(&in[i + 4]);
-      // rescale
+        _mm_set_epi8(14, 15, 6, 7, 12, 13, 4, 5, 10, 11, 2, 3, 8, 9, 0, 1);
+    for (uint32_t i = 0; i < kSamplesPerFrame; i += 4) {
+      // Load 8 samples, 4 for each channel.
+      __m128 in_mm0 = _mm_loadu_ps(&in_channel_0[i]);
+      __m128 in_mm1 = _mm_loadu_ps(&in_channel_1[i]);
+      // Rescale.
       in_mm0 = _mm_mul_ps(in_mm0, scale_mm);
       in_mm1 = _mm_mul_ps(in_mm1, scale_mm);
-      // cast to int32
+      // Cast to int32.
       __m128i out_mm0 = _mm_cvtps_epi32(in_mm0);
       __m128i out_mm1 = _mm_cvtps_epi32(in_mm1);
-      // saturated cast and pack to int16
+      // Saturated cast and pack to int16.
       __m128i out_mm = _mm_packs_epi32(out_mm0, out_mm1);
-      // byte swap
+      // Interleave channels and byte swap.
       out_mm = _mm_shuffle_epi8(out_mm, shufmask);
-      // store
-      _mm_storeu_si128(reinterpret_cast<__m128i*>(&out[i]), out_mm);
+      // Store, as [out + i * 4] movqdu.
+      _mm_storeu_si128(reinterpret_cast<__m128i*>(&out[i * 2]), out_mm);
     }
   } else {
-#else
-  {
-#endif
-    uint32_t o = 0;
-    for (int i = 0; i < kSamplesPerFrame; i++) {
-      for (int j = 0; j < num_channels; j++) {
-        // Select the appropriate array based on the current channel.
-        auto in = reinterpret_cast<const float*>(samples[j]);
-
-        // Raw samples sometimes aren't within [-1, 1]
-        float scaled_sample = xe::saturate_signed(in[i]) * scale;
-
-        // Convert the sample and output it in big endian.
-        auto sample = static_cast<int16_t>(scaled_sample);
-        out[o++] = xe::byte_swap(sample);
-      }
+    const __m128i shufmask =
+        _mm_set_epi8(14, 15, 12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1);
+    for (uint32_t i = 0; i < kSamplesPerFrame; i += 8) {
+      // Load 8 samples, as [in_channel_0 + i * 4] and
+      // [in_channel_0 + i * 4 + 16] movups.
+      __m128 in_mm0 = _mm_loadu_ps(&in_channel_0[i]);
+      __m128 in_mm1 = _mm_loadu_ps(&in_channel_0[i + 4]);
+      // Rescale.
+      in_mm0 = _mm_mul_ps(in_mm0, scale_mm);
+      in_mm1 = _mm_mul_ps(in_mm1, scale_mm);
+      // Cast to int32.
+      __m128i out_mm0 = _mm_cvtps_epi32(in_mm0);
+      __m128i out_mm1 = _mm_cvtps_epi32(in_mm1);
+      // Saturated cast and pack to int16.
+      __m128i out_mm = _mm_packs_epi32(out_mm0, out_mm1);
+      // Byte swap.
+      out_mm = _mm_shuffle_epi8(out_mm, shufmask);
+      // Store, as [out + i * 2] movqdu.
+      _mm_storeu_si128(reinterpret_cast<__m128i*>(&out[i]), out_mm);
     }
   }
+#else
+  uint32_t o = 0;
+  for (uint32_t i = 0; i < kSamplesPerFrame; i++) {
+    for (uint32_t j = 0; j <= uint32_t(is_two_channel); j++) {
+      // Select the appropriate array based on the current channel.
+      auto in = reinterpret_cast<const float*>(samples[j]);
+
+      // Raw samples sometimes aren't within [-1, 1]
+      float scaled_sample = xe::saturate_signed(in[i]) * scale;
+
+      // Convert the sample and output it in big endian.
+      auto sample = static_cast<int16_t>(scaled_sample);
+      out[o++] = xe::byte_swap(sample);
+    }
+  }
+#endif
 
   return true;
 }
