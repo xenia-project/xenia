@@ -585,10 +585,11 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     // Using floor, or, rather, truncation (because maxing with zero anyway)
     // similar to how viewport scissoring behaves on real AMD, Intel and Nvidia
     // GPUs on Direct3D 12, also like in draw_util::GetHostViewportInfo.
-    // fmax to drop NaN and < 0, min as float (height_used is well below 2^24)
-    // to safely drop very large values.
-    height_used = uint32_t(
-        std::min(std::fmax(viewport_bottom, 0.0f), float(height_used)));
+    // max(0.0f, viewport_bottom) to drop NaN and < 0 - max picks the first
+    // argument in the !(a < b) case (always for NaN), min as float (height_used
+    // is well below 2^24) to safely drop very large values.
+    height_used =
+        uint32_t(std::min(float(height_used), std::max(0.0f, viewport_bottom)));
   }
   int32_t scissor_bottom =
       int32_t(regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>().br_y);
