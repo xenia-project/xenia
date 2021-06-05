@@ -806,7 +806,7 @@ int XmaContext::PrepareDecoder(uint8_t* packet, int sample_rate,
   return 0;
 }
 
-bool XmaContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
+void XmaContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
                               uint8_t* output_buffer) {
   // Loop through every sample, convert and drop it into the output array.
   // If more than one channel, we need to interleave the samples from each
@@ -880,8 +880,6 @@ bool XmaContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
     }
   }
 #endif
-
-  return true;
 }
 
 }  // namespace apu
