@@ -57,8 +57,16 @@ constexpr T round_up(T value, V multiple) {
   return value ? (((value + multiple - 1) / multiple) * multiple) : multiple;
 }
 
-constexpr float saturate(float value) {
-  return std::max(std::min(1.0f, value), -1.0f);
+// Using the same conventions as in shading languages, returning 0 for NaN.
+// std::max is `a < b ? b : a`, thus in case of NaN, the first argument is
+// always returned. Also -0 is not < +0, so +0 is also chosen for it.
+template <typename T>
+constexpr T saturate_unsigned(T value) {
+  return std::min(static_cast<T>(1.0f), std::max(static_cast<T>(0.0f), value));
+}
+template <typename T>
+constexpr T saturate_signed(T value) {
+  return std::min(static_cast<T>(1.0f), std::max(static_cast<T>(-1.0f), value));
 }
 
 // Gets the next power of two value that is greater than or equal to the given
