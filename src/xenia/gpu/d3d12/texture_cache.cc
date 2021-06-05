@@ -59,60 +59,62 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-// Generated with `xb buildhlsl`.
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_128bpb_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_128bpb_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_128bpb_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_16bpb_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_16bpb_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_16bpb_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_32bpb_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_32bpb_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_32bpb_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_64bpb_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_64bpb_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_64bpb_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_8bpb_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_8bpb_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_8bpb_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_ctx1_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_depth_float_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_depth_float_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_depth_float_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_depth_unorm_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_depth_unorm_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_depth_unorm_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxn_rg8_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt1_rgba8_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt3_rgba8_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt3a_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt3aas1111_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt5_rgba8_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_dxt5a_r8_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r10g11b11_rgba16_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r10g11b11_rgba16_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r10g11b11_rgba16_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r10g11b11_rgba16_snorm_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r10g11b11_rgba16_snorm_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r10g11b11_rgba16_snorm_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r11g11b10_rgba16_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r11g11b10_rgba16_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r11g11b10_rgba16_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r11g11b10_rgba16_snorm_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r11g11b10_rgba16_snorm_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r11g11b10_rgba16_snorm_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r4g4b4a4_b4g4r4a4_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r4g4b4a4_b4g4r4a4_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r4g4b4a4_b4g4r4a4_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g5b5a1_b5g5r5a1_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g5b5a1_b5g5r5a1_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g5b5a1_b5g5r5a1_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g5b6_b5g6r5_swizzle_rbga_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g5b6_b5g6r5_swizzle_rbga_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g6b5_b5g6r5_2x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g6b5_b5g6r5_3x_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/texture_load_r5g6b5_b5g6r5_cs.h"
+// Generated with `xb buildshaders`.
+namespace shaders {
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_128bpb_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_128bpb_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_128bpb_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_16bpb_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_16bpb_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_16bpb_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_32bpb_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_32bpb_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_32bpb_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_64bpb_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_64bpb_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_64bpb_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_8bpb_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_8bpb_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_8bpb_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_ctx1_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_float_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_float_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_float_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_unorm_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_unorm_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_unorm_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxn_rg8_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt1_rgba8_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt3_rgba8_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt3a_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt3aas1111_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt5_rgba8_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt5a_r8_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_snorm_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_snorm_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_snorm_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r11g11b10_rgba16_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r11g11b10_rgba16_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r11g11b10_rgba16_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r11g11b10_rgba16_snorm_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r11g11b10_rgba16_snorm_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r11g11b10_rgba16_snorm_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r4g4b4a4_b4g4r4a4_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r4g4b4a4_b4g4r4a4_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r4g4b4a4_b4g4r4a4_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g5b5a1_b5g5r5a1_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g5b5a1_b5g5r5a1_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g5b5a1_b5g5r5a1_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g5b6_b5g6r5_swizzle_rbga_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g5b6_b5g6r5_swizzle_rbga_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g6b5_b5g6r5_2x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g6b5_b5g6r5_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g6b5_b5g6r5_cs.h"
+}  // namespace shaders
 
 // For formats with less than 4 components, assuming the last component is
 // replicated into the non-existent ones, similar to what is done for unused
@@ -787,109 +789,132 @@ const char* const TextureCache::dimension_names_[4] = {"1D", "2D", "3D",
                                                        "cube"};
 
 const TextureCache::LoadModeInfo TextureCache::load_mode_info_[] = {
-    {{{texture_load_8bpb_cs, sizeof(texture_load_8bpb_cs), 3, 4, 16},
-      {texture_load_8bpb_2x_cs, sizeof(texture_load_8bpb_2x_cs), 4, 4, 16 * 2},
-      {texture_load_8bpb_3x_cs, sizeof(texture_load_8bpb_3x_cs), 3, 3,
-       16 * 3}}},
-    {{{texture_load_16bpb_cs, sizeof(texture_load_16bpb_cs), 4, 4, 16},
-      {texture_load_16bpb_2x_cs, sizeof(texture_load_16bpb_2x_cs), 4, 4,
-       16 * 2},
-      {texture_load_16bpb_3x_cs, sizeof(texture_load_16bpb_3x_cs), 3, 3,
-       16 * 3}}},
-    {{{texture_load_32bpb_cs, sizeof(texture_load_32bpb_cs), 4, 4, 8},
-      {texture_load_32bpb_2x_cs, sizeof(texture_load_32bpb_2x_cs), 4, 4, 8 * 2},
-      {texture_load_32bpb_3x_cs, sizeof(texture_load_32bpb_3x_cs), 3, 3,
-       2 * 3}}},
-    {{{texture_load_64bpb_cs, sizeof(texture_load_64bpb_cs), 4, 4, 4},
-      {texture_load_64bpb_2x_cs, sizeof(texture_load_64bpb_2x_cs), 4, 4, 4 * 2},
-      {texture_load_64bpb_3x_cs, sizeof(texture_load_64bpb_3x_cs), 3, 3,
-       4 * 3}}},
-    {{{texture_load_128bpb_cs, sizeof(texture_load_128bpb_cs), 4, 4, 2},
-      {texture_load_128bpb_2x_cs, sizeof(texture_load_128bpb_2x_cs), 4, 4,
-       2 * 2},
-      {texture_load_128bpb_3x_cs, sizeof(texture_load_128bpb_3x_cs), 4, 4,
-       2 * 3}}},
-    {{{texture_load_r5g5b5a1_b5g5r5a1_cs,
-       sizeof(texture_load_r5g5b5a1_b5g5r5a1_cs), 4, 4, 16},
-      {texture_load_r5g5b5a1_b5g5r5a1_2x_cs,
-       sizeof(texture_load_r5g5b5a1_b5g5r5a1_2x_cs), 4, 4, 16 * 2},
-      {texture_load_r5g5b5a1_b5g5r5a1_3x_cs,
-       sizeof(texture_load_r5g5b5a1_b5g5r5a1_3x_cs), 3, 3, 16 * 3}}},
-    {{{texture_load_r5g6b5_b5g6r5_cs, sizeof(texture_load_r5g6b5_b5g6r5_cs), 4,
+    {{{shaders::texture_load_8bpb_cs, sizeof(shaders::texture_load_8bpb_cs), 3,
        4, 16},
-      {texture_load_r5g6b5_b5g6r5_2x_cs,
-       sizeof(texture_load_r5g6b5_b5g6r5_2x_cs), 4, 4, 16 * 2},
-      {texture_load_r5g6b5_b5g6r5_3x_cs,
-       sizeof(texture_load_r5g6b5_b5g6r5_3x_cs), 3, 3, 16 * 3}}},
-    {{{texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs,
-       sizeof(texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs), 4, 4, 16},
-      {texture_load_r5g5b6_b5g6r5_swizzle_rbga_2x_cs,
-       sizeof(texture_load_r5g5b6_b5g6r5_swizzle_rbga_2x_cs), 4, 4, 16 * 2},
-      {texture_load_r5g5b6_b5g6r5_swizzle_rbga_3x_cs,
-       sizeof(texture_load_r5g5b6_b5g6r5_swizzle_rbga_3x_cs), 3, 3, 16 * 3}}},
-    {{{texture_load_r4g4b4a4_b4g4r4a4_cs,
-       sizeof(texture_load_r4g4b4a4_b4g4r4a4_cs), 4, 4, 16},
-      {texture_load_r4g4b4a4_b4g4r4a4_2x_cs,
-       sizeof(texture_load_r4g4b4a4_b4g4r4a4_2x_cs), 4, 4, 16 * 2},
-      {texture_load_r4g4b4a4_b4g4r4a4_3x_cs,
-       sizeof(texture_load_r4g4b4a4_b4g4r4a4_3x_cs), 3, 3, 16 * 3}}},
-    {{{texture_load_r10g11b11_rgba16_cs,
-       sizeof(texture_load_r10g11b11_rgba16_cs), 4, 4, 8},
-      {texture_load_r10g11b11_rgba16_2x_cs,
-       sizeof(texture_load_r10g11b11_rgba16_2x_cs), 4, 4, 8 * 2},
-      {texture_load_r10g11b11_rgba16_3x_cs,
-       sizeof(texture_load_r10g11b11_rgba16_3x_cs), 3, 3, 2 * 3}}},
-    {{{texture_load_r10g11b11_rgba16_snorm_cs,
-       sizeof(texture_load_r10g11b11_rgba16_snorm_cs), 4, 4, 8},
-      {texture_load_r10g11b11_rgba16_snorm_2x_cs,
-       sizeof(texture_load_r10g11b11_rgba16_snorm_2x_cs), 4, 4, 8 * 2},
-      {texture_load_r10g11b11_rgba16_snorm_3x_cs,
-       sizeof(texture_load_r10g11b11_rgba16_snorm_3x_cs), 3, 3, 2 * 3}}},
-    {{{texture_load_r11g11b10_rgba16_cs,
-       sizeof(texture_load_r11g11b10_rgba16_cs), 4, 4, 8},
-      {texture_load_r11g11b10_rgba16_2x_cs,
-       sizeof(texture_load_r11g11b10_rgba16_2x_cs), 4, 4, 8 * 2},
-      {texture_load_r11g11b10_rgba16_3x_cs,
-       sizeof(texture_load_r11g11b10_rgba16_3x_cs), 3, 3, 2 * 3}}},
-    {{{texture_load_r11g11b10_rgba16_snorm_cs,
-       sizeof(texture_load_r11g11b10_rgba16_snorm_cs), 4, 4, 8},
-      {texture_load_r11g11b10_rgba16_snorm_2x_cs,
-       sizeof(texture_load_r11g11b10_rgba16_snorm_2x_cs), 4, 4, 8 * 2},
-      {texture_load_r11g11b10_rgba16_snorm_3x_cs,
-       sizeof(texture_load_r11g11b10_rgba16_snorm_3x_cs), 3, 3, 2 * 3}}},
-    {{{texture_load_dxt1_rgba8_cs, sizeof(texture_load_dxt1_rgba8_cs), 4, 4, 4},
+      {shaders::texture_load_8bpb_2x_cs,
+       sizeof(shaders::texture_load_8bpb_2x_cs), 4, 4, 16 * 2},
+      {shaders::texture_load_8bpb_3x_cs,
+       sizeof(shaders::texture_load_8bpb_3x_cs), 3, 3, 16 * 3}}},
+    {{{shaders::texture_load_16bpb_cs, sizeof(shaders::texture_load_16bpb_cs),
+       4, 4, 16},
+      {shaders::texture_load_16bpb_2x_cs,
+       sizeof(shaders::texture_load_16bpb_2x_cs), 4, 4, 16 * 2},
+      {shaders::texture_load_16bpb_3x_cs,
+       sizeof(shaders::texture_load_16bpb_3x_cs), 3, 3, 16 * 3}}},
+    {{{shaders::texture_load_32bpb_cs, sizeof(shaders::texture_load_32bpb_cs),
+       4, 4, 8},
+      {shaders::texture_load_32bpb_2x_cs,
+       sizeof(shaders::texture_load_32bpb_2x_cs), 4, 4, 8 * 2},
+      {shaders::texture_load_32bpb_3x_cs,
+       sizeof(shaders::texture_load_32bpb_3x_cs), 3, 3, 2 * 3}}},
+    {{{shaders::texture_load_64bpb_cs, sizeof(shaders::texture_load_64bpb_cs),
+       4, 4, 4},
+      {shaders::texture_load_64bpb_2x_cs,
+       sizeof(shaders::texture_load_64bpb_2x_cs), 4, 4, 4 * 2},
+      {shaders::texture_load_64bpb_3x_cs,
+       sizeof(shaders::texture_load_64bpb_3x_cs), 3, 3, 4 * 3}}},
+    {{{shaders::texture_load_128bpb_cs, sizeof(shaders::texture_load_128bpb_cs),
+       4, 4, 2},
+      {shaders::texture_load_128bpb_2x_cs,
+       sizeof(shaders::texture_load_128bpb_2x_cs), 4, 4, 2 * 2},
+      {shaders::texture_load_128bpb_3x_cs,
+       sizeof(shaders::texture_load_128bpb_3x_cs), 4, 4, 2 * 3}}},
+    {{{shaders::texture_load_r5g5b5a1_b5g5r5a1_cs,
+       sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_cs), 4, 4, 16},
+      {shaders::texture_load_r5g5b5a1_b5g5r5a1_2x_cs,
+       sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_2x_cs), 4, 4, 16 * 2},
+      {shaders::texture_load_r5g5b5a1_b5g5r5a1_3x_cs,
+       sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_3x_cs), 3, 3, 16 * 3}}},
+    {{{shaders::texture_load_r5g6b5_b5g6r5_cs,
+       sizeof(shaders::texture_load_r5g6b5_b5g6r5_cs), 4, 4, 16},
+      {shaders::texture_load_r5g6b5_b5g6r5_2x_cs,
+       sizeof(shaders::texture_load_r5g6b5_b5g6r5_2x_cs), 4, 4, 16 * 2},
+      {shaders::texture_load_r5g6b5_b5g6r5_3x_cs,
+       sizeof(shaders::texture_load_r5g6b5_b5g6r5_3x_cs), 3, 3, 16 * 3}}},
+    {{{shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs,
+       sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs), 4, 4, 16},
+      {shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_2x_cs,
+       sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_2x_cs), 4, 4,
+       16 * 2},
+      {shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_3x_cs,
+       sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_3x_cs), 3, 3,
+       16 * 3}}},
+    {{{shaders::texture_load_r4g4b4a4_b4g4r4a4_cs,
+       sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_cs), 4, 4, 16},
+      {shaders::texture_load_r4g4b4a4_b4g4r4a4_2x_cs,
+       sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_2x_cs), 4, 4, 16 * 2},
+      {shaders::texture_load_r4g4b4a4_b4g4r4a4_3x_cs,
+       sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_3x_cs), 3, 3, 16 * 3}}},
+    {{{shaders::texture_load_r10g11b11_rgba16_cs,
+       sizeof(shaders::texture_load_r10g11b11_rgba16_cs), 4, 4, 8},
+      {shaders::texture_load_r10g11b11_rgba16_2x_cs,
+       sizeof(shaders::texture_load_r10g11b11_rgba16_2x_cs), 4, 4, 8 * 2},
+      {shaders::texture_load_r10g11b11_rgba16_3x_cs,
+       sizeof(shaders::texture_load_r10g11b11_rgba16_3x_cs), 3, 3, 2 * 3}}},
+    {{{shaders::texture_load_r10g11b11_rgba16_snorm_cs,
+       sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_cs), 4, 4, 8},
+      {shaders::texture_load_r10g11b11_rgba16_snorm_2x_cs,
+       sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_2x_cs), 4, 4, 8 * 2},
+      {shaders::texture_load_r10g11b11_rgba16_snorm_3x_cs,
+       sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_3x_cs), 3, 3,
+       2 * 3}}},
+    {{{shaders::texture_load_r11g11b10_rgba16_cs,
+       sizeof(shaders::texture_load_r11g11b10_rgba16_cs), 4, 4, 8},
+      {shaders::texture_load_r11g11b10_rgba16_2x_cs,
+       sizeof(shaders::texture_load_r11g11b10_rgba16_2x_cs), 4, 4, 8 * 2},
+      {shaders::texture_load_r11g11b10_rgba16_3x_cs,
+       sizeof(shaders::texture_load_r11g11b10_rgba16_3x_cs), 3, 3, 2 * 3}}},
+    {{{shaders::texture_load_r11g11b10_rgba16_snorm_cs,
+       sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_cs), 4, 4, 8},
+      {shaders::texture_load_r11g11b10_rgba16_snorm_2x_cs,
+       sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_2x_cs), 4, 4, 8 * 2},
+      {shaders::texture_load_r11g11b10_rgba16_snorm_3x_cs,
+       sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_3x_cs), 3, 3,
+       2 * 3}}},
+    {{{shaders::texture_load_dxt1_rgba8_cs,
+       sizeof(shaders::texture_load_dxt1_rgba8_cs), 4, 4, 4},
       {},
       {}}},
-    {{{texture_load_dxt3_rgba8_cs, sizeof(texture_load_dxt3_rgba8_cs), 4, 4, 2},
+    {{{shaders::texture_load_dxt3_rgba8_cs,
+       sizeof(shaders::texture_load_dxt3_rgba8_cs), 4, 4, 2},
       {},
       {}}},
-    {{{texture_load_dxt5_rgba8_cs, sizeof(texture_load_dxt5_rgba8_cs), 4, 4, 2},
+    {{{shaders::texture_load_dxt5_rgba8_cs,
+       sizeof(shaders::texture_load_dxt5_rgba8_cs), 4, 4, 2},
       {},
       {}}},
-    {{{texture_load_dxn_rg8_cs, sizeof(texture_load_dxn_rg8_cs), 4, 4, 2},
+    {{{shaders::texture_load_dxn_rg8_cs,
+       sizeof(shaders::texture_load_dxn_rg8_cs), 4, 4, 2},
       {},
       {}}},
-    {{{texture_load_dxt3a_cs, sizeof(texture_load_dxt3a_cs), 4, 4, 4}, {}, {}}},
-    {{{texture_load_dxt3aas1111_cs, sizeof(texture_load_dxt3aas1111_cs), 4, 4,
-       4},
+    {{{shaders::texture_load_dxt3a_cs, sizeof(shaders::texture_load_dxt3a_cs),
+       4, 4, 4},
       {},
       {}}},
-    {{{texture_load_dxt5a_r8_cs, sizeof(texture_load_dxt5a_r8_cs), 4, 4, 4},
+    {{{shaders::texture_load_dxt3aas1111_cs,
+       sizeof(shaders::texture_load_dxt3aas1111_cs), 4, 4, 4},
       {},
       {}}},
-    {{{texture_load_ctx1_cs, sizeof(texture_load_ctx1_cs), 4, 4, 4}, {}, {}}},
-    {{{texture_load_depth_unorm_cs, sizeof(texture_load_depth_unorm_cs), 4, 4,
-       8},
-      {texture_load_depth_unorm_2x_cs, sizeof(texture_load_depth_unorm_2x_cs),
-       4, 4, 8 * 2},
-      {texture_load_depth_unorm_3x_cs, sizeof(texture_load_depth_unorm_3x_cs),
-       3, 3, 2 * 3}}},
-    {{{texture_load_depth_float_cs, sizeof(texture_load_depth_float_cs), 4, 4,
-       8},
-      {texture_load_depth_float_2x_cs, sizeof(texture_load_depth_float_2x_cs),
-       4, 4, 8 * 2},
-      {texture_load_depth_float_3x_cs, sizeof(texture_load_depth_float_3x_cs),
-       3, 3, 2 * 3}}},
+    {{{shaders::texture_load_dxt5a_r8_cs,
+       sizeof(shaders::texture_load_dxt5a_r8_cs), 4, 4, 4},
+      {},
+      {}}},
+    {{{shaders::texture_load_ctx1_cs, sizeof(shaders::texture_load_ctx1_cs), 4,
+       4, 4},
+      {},
+      {}}},
+    {{{shaders::texture_load_depth_unorm_cs,
+       sizeof(shaders::texture_load_depth_unorm_cs), 4, 4, 8},
+      {shaders::texture_load_depth_unorm_2x_cs,
+       sizeof(shaders::texture_load_depth_unorm_2x_cs), 4, 4, 8 * 2},
+      {shaders::texture_load_depth_unorm_3x_cs,
+       sizeof(shaders::texture_load_depth_unorm_3x_cs), 3, 3, 2 * 3}}},
+    {{{shaders::texture_load_depth_float_cs,
+       sizeof(shaders::texture_load_depth_float_cs), 4, 4, 8},
+      {shaders::texture_load_depth_float_2x_cs,
+       sizeof(shaders::texture_load_depth_float_2x_cs), 4, 4, 8 * 2},
+      {shaders::texture_load_depth_float_3x_cs,
+       sizeof(shaders::texture_load_depth_float_3x_cs), 3, 3, 2 * 3}}},
 };
 
 TextureCache::TextureCache(D3D12CommandProcessor& command_processor,

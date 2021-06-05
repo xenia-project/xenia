@@ -61,20 +61,22 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-// Generated with `xb buildhlsl`.
-#include "xenia/gpu/d3d12/shaders/dxbc/adaptive_quad_hs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/adaptive_triangle_hs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/continuous_quad_hs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/continuous_triangle_hs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/discrete_quad_hs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/discrete_triangle_hs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/float24_round_ps.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/float24_truncate_ps.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/primitive_point_list_gs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/primitive_quad_list_gs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/primitive_rectangle_list_gs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/tessellation_adaptive_vs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/tessellation_indexed_vs.h"
+// Generated with `xb buildshaders`.
+namespace shaders {
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/adaptive_quad_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/adaptive_triangle_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/continuous_quad_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/continuous_triangle_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/discrete_quad_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/discrete_triangle_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/float24_round_ps.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/float24_truncate_ps.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/primitive_point_list_gs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/primitive_quad_list_gs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/primitive_rectangle_list_gs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/tessellation_adaptive_vs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/tessellation_indexed_vs.h"
+}  // namespace shaders
 
 PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
                              const RegisterFile& register_file,
@@ -1746,16 +1748,17 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
     }
     switch (description.geometry_shader) {
       case PipelineGeometryShader::kPointList:
-        state_desc.GS.pShaderBytecode = primitive_point_list_gs;
-        state_desc.GS.BytecodeLength = sizeof(primitive_point_list_gs);
+        state_desc.GS.pShaderBytecode = shaders::primitive_point_list_gs;
+        state_desc.GS.BytecodeLength = sizeof(shaders::primitive_point_list_gs);
         break;
       case PipelineGeometryShader::kRectangleList:
-        state_desc.GS.pShaderBytecode = primitive_rectangle_list_gs;
-        state_desc.GS.BytecodeLength = sizeof(primitive_rectangle_list_gs);
+        state_desc.GS.pShaderBytecode = shaders::primitive_rectangle_list_gs;
+        state_desc.GS.BytecodeLength =
+            sizeof(shaders::primitive_rectangle_list_gs);
         break;
       case PipelineGeometryShader::kQuadList:
-        state_desc.GS.pShaderBytecode = primitive_quad_list_gs;
-        state_desc.GS.BytecodeLength = sizeof(primitive_quad_list_gs);
+        state_desc.GS.pShaderBytecode = shaders::primitive_quad_list_gs;
+        state_desc.GS.BytecodeLength = sizeof(shaders::primitive_quad_list_gs);
         break;
       default:
         break;
@@ -1765,24 +1768,25 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
     xenos::TessellationMode tessellation_mode = xenos::TessellationMode(
         description.primitive_topology_type_or_tessellation_mode);
     if (tessellation_mode == xenos::TessellationMode::kAdaptive) {
-      state_desc.VS.pShaderBytecode = tessellation_adaptive_vs;
-      state_desc.VS.BytecodeLength = sizeof(tessellation_adaptive_vs);
+      state_desc.VS.pShaderBytecode = shaders::tessellation_adaptive_vs;
+      state_desc.VS.BytecodeLength = sizeof(shaders::tessellation_adaptive_vs);
     } else {
-      state_desc.VS.pShaderBytecode = tessellation_indexed_vs;
-      state_desc.VS.BytecodeLength = sizeof(tessellation_indexed_vs);
+      state_desc.VS.pShaderBytecode = shaders::tessellation_indexed_vs;
+      state_desc.VS.BytecodeLength = sizeof(shaders::tessellation_indexed_vs);
     }
     switch (tessellation_mode) {
       case xenos::TessellationMode::kDiscrete:
         switch (host_vertex_shader_type) {
           case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
           case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
-            state_desc.HS.pShaderBytecode = discrete_triangle_hs;
-            state_desc.HS.BytecodeLength = sizeof(discrete_triangle_hs);
+            state_desc.HS.pShaderBytecode = shaders::discrete_triangle_hs;
+            state_desc.HS.BytecodeLength =
+                sizeof(shaders::discrete_triangle_hs);
             break;
           case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
           case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
-            state_desc.HS.pShaderBytecode = discrete_quad_hs;
-            state_desc.HS.BytecodeLength = sizeof(discrete_quad_hs);
+            state_desc.HS.pShaderBytecode = shaders::discrete_quad_hs;
+            state_desc.HS.BytecodeLength = sizeof(shaders::discrete_quad_hs);
             break;
           default:
             assert_unhandled_case(host_vertex_shader_type);
@@ -1793,13 +1797,14 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
         switch (host_vertex_shader_type) {
           case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
           case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
-            state_desc.HS.pShaderBytecode = continuous_triangle_hs;
-            state_desc.HS.BytecodeLength = sizeof(continuous_triangle_hs);
+            state_desc.HS.pShaderBytecode = shaders::continuous_triangle_hs;
+            state_desc.HS.BytecodeLength =
+                sizeof(shaders::continuous_triangle_hs);
             break;
           case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
           case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
-            state_desc.HS.pShaderBytecode = continuous_quad_hs;
-            state_desc.HS.BytecodeLength = sizeof(continuous_quad_hs);
+            state_desc.HS.pShaderBytecode = shaders::continuous_quad_hs;
+            state_desc.HS.BytecodeLength = sizeof(shaders::continuous_quad_hs);
             break;
           default:
             assert_unhandled_case(host_vertex_shader_type);
@@ -1809,12 +1814,13 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       case xenos::TessellationMode::kAdaptive:
         switch (host_vertex_shader_type) {
           case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
-            state_desc.HS.pShaderBytecode = adaptive_triangle_hs;
-            state_desc.HS.BytecodeLength = sizeof(adaptive_triangle_hs);
+            state_desc.HS.pShaderBytecode = shaders::adaptive_triangle_hs;
+            state_desc.HS.BytecodeLength =
+                sizeof(shaders::adaptive_triangle_hs);
             break;
           case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
-            state_desc.HS.pShaderBytecode = adaptive_quad_hs;
-            state_desc.HS.BytecodeLength = sizeof(adaptive_quad_hs);
+            state_desc.HS.pShaderBytecode = shaders::adaptive_quad_hs;
+            state_desc.HS.BytecodeLength = sizeof(shaders::adaptive_quad_hs);
             break;
           default:
             assert_unhandled_case(host_vertex_shader_type);
@@ -1852,12 +1858,12 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
         description.depth_format == xenos::DepthRenderTargetFormat::kD24FS8) {
       switch (render_target_cache_.depth_float24_conversion()) {
         case RenderTargetCache::DepthFloat24Conversion::kOnOutputTruncating:
-          state_desc.PS.pShaderBytecode = float24_truncate_ps;
-          state_desc.PS.BytecodeLength = sizeof(float24_truncate_ps);
+          state_desc.PS.pShaderBytecode = shaders::float24_truncate_ps;
+          state_desc.PS.BytecodeLength = sizeof(shaders::float24_truncate_ps);
           break;
         case RenderTargetCache::DepthFloat24Conversion::kOnOutputRounding:
-          state_desc.PS.pShaderBytecode = float24_round_ps;
-          state_desc.PS.BytecodeLength = sizeof(float24_round_ps);
+          state_desc.PS.pShaderBytecode = shaders::float24_round_ps;
+          state_desc.PS.BytecodeLength = sizeof(shaders::float24_round_ps);
           break;
         default:
           break;

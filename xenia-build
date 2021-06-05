@@ -562,6 +562,7 @@ def discover_commands(subparsers):
         'pull': PullCommand(subparsers),
         'premake': PremakeCommand(subparsers),
         'build': BuildCommand(subparsers),
+        'buildshaders': BuildShadersCommand(subparsers),
         'devenv': DevenvCommand(subparsers),
         'genspirv': GenSpirvCommand(subparsers),
         'gentests': GenTestsCommand(subparsers),
@@ -575,8 +576,6 @@ def discover_commands(subparsers):
         'tidy': TidyCommand(subparsers),
         'stub': StubCommand(subparsers),
         }
-    if sys.platform == 'win32':
-        commands['buildhlsl'] = BuildHlslCommand(subparsers)
     return commands
 
 
@@ -829,6 +828,84 @@ class BuildCommand(BaseBuildCommand):
         return result
 
 
+class BuildShadersCommand(Command):
+    """'buildshaders' command."""
+
+    def __init__(self, subparsers, *args, **kwargs):
+        super(BuildShadersCommand, self).__init__(
+            subparsers,
+            name='buildshaders',
+            help_short='Generates shader binaries for inclusion in C++ files.',
+            help_long='''
+            Generates the shader binaries under src/*/shaders/bytecode/.
+            Run after modifying any .hs/vs/ds/gs/ps/cs.hlsl files.
+            Direct3D shaders can be built only on a Windows host.
+            ''',
+            *args, **kwargs)
+        self.parser.add_argument(
+            '--target', action='append', choices=['dxbc'], default=[],
+            help='Builds only the given target(s).')
+
+    def execute(self, args, pass_args, cwd):
+        src_paths = [os.path.join(root, name)
+                     for root, dirs, files in os.walk('src')
+                     for name in files
+                     if (name.endswith('.hs.hlsl') or
+                         name.endswith('.vs.hlsl') or
+                         name.endswith('.ds.hlsl') or
+                         name.endswith('.gs.hlsl') or
+                         name.endswith('.ps.hlsl') or
+                         name.endswith('.cs.hlsl'))]
+        targets = args['target']
+        all_targets = len(targets) == 0
+
+        # Direct3D DXBC.
+        if all_targets or 'dxbc' in targets:
+            if sys.platform == 'win32':
+                print('Building Direct3D 12 Shader Model 5.1 DXBC shaders...')
+                windows_sdk_bin_path = os.path.join(
+                    os.environ['ProgramFiles(x86)'], 'Windows Kits/10/bin/x64')
+                fxc = os.path.join(windows_sdk_bin_path, 'fxc')
+                # Ensure we have the tools.
+                if not os.path.exists(windows_sdk_bin_path):
+                    print('ERROR: could not find Windows 10 SDK binaries')
+                    return 1
+                elif not has_bin(fxc):
+                    print('ERROR: could not find fxc')
+                    return 1
+                # Build DXBC.
+                for src_path in src_paths:
+                    print('- %s > d3d12_5_1' % (src_path))
+                    dxbc_identifier = \
+                        os.path.basename(src_path)[:-5].replace('.', '_')
+                    dxbc_dir_path = os.path.join(os.path.dirname(src_path),
+                                                 'bytecode/d3d12_5_1')
+                    os.makedirs(dxbc_dir_path, exist_ok=True)
+                    dxbc_file_path_base = os.path.join(dxbc_dir_path,
+                                                       dxbc_identifier)
+                    if subprocess.call([
+                           fxc,
+                           '/Fh', dxbc_file_path_base + '.h',
+                           '/T', dxbc_identifier[-2:] + '_5_1',
+                           '/Vn', dxbc_identifier,
+                           '/WX',
+                           '/nologo',
+                           src_path
+                           ], stdout=subprocess.DEVNULL):
+                        print('ERROR: failed to build a DXBC shader')
+                        return 1
+            else:
+                if all_targets:
+                    print('WARNING: Direct3D DXBC shader building is supported '
+                          'only on Windows')
+                else:
+                    print('ERROR: Direct3D DXBC shader building is supported '
+                          'only on Windows')
+                    return 1
+
+        return 0
+
+
 class GenSpirvCommand(Command):
     """'genspirv' command."""
 
@@ -921,95 +998,6 @@ class GenSpirvCommand(Command):
 
         if any_errors:
             print('ERROR: failed to build one or more SPIR-V files.')
-            return 1
-
-        return 0
-
-
-class BuildHlslCommand(Command):
-    """'buildhlsl' command."""
-
-    def __init__(self, subparsers, *args, **kwargs):
-        super(BuildHlslCommand, self).__init__(
-            subparsers,
-            name='buildhlsl',
-            help_short='Generates Direct3D shader binaries and header files.',
-            help_long='''
-            Generates the .cso/.h binaries under src/xenia/*/d3d12/shaders/dxbc/.
-            Run after modifying any .hs/vs/ds/gs/ps/cs.hlsl files.
-            ''',
-            *args, **kwargs)
-
-    def execute(self, args, pass_args, cwd):
-        print('Building Direct3D shaders...')
-        print('')
-
-        windows_sdk_bin_path = os.path.join(os.environ['ProgramFiles(x86)'],
-                                            'Windows Kits/10/bin/x64')
-        fxc = os.path.join(windows_sdk_bin_path, 'fxc')
-
-        # Ensure we have the tools.
-        if not os.path.exists(windows_sdk_bin_path):
-            print('ERROR: could not find Windows 10 SDK binaries')
-            return 1
-        elif not has_bin(fxc):
-            print('ERROR: could not find fxc')
-            return 1
-
-        src_files = [os.path.join(root, name)
-                     for root, dirs, files in os.walk('src')
-                     for name in files
-                     if (name.endswith('.hs.hlsl') or
-                         name.endswith('.vs.hlsl') or
-                         name.endswith('.ds.hlsl') or
-                         name.endswith('.gs.hlsl') or
-                         name.endswith('.ps.hlsl') or
-                         name.endswith('.cs.hlsl'))]
-
-        # TODO(Triang3l): Handle any_errors.
-        any_errors = False
-        for src_file in src_files:
-            print('- %s' % (src_file))
-            src_name = os.path.splitext(os.path.basename(src_file))[0]
-            identifier = os.path.basename(src_file)[:-5].replace('.', '_')
-
-            bin_path = os.path.join(os.path.dirname(src_file), 'dxbc')
-            if not os.path.exists(bin_path):
-                os.mkdir(bin_path)
-            cso_file = os.path.join(bin_path, identifier) + '.cso'
-            txt_file = os.path.join(bin_path, identifier) + '.txt'
-            h_file = os.path.join(bin_path, identifier) + '.h'
-
-            # HLSL source -> .cso binary and DXBC disassembly.
-            shell_call([
-                fxc,
-                '/nologo',
-                '/T', identifier[-2:] + '_5_1',
-                '/Fo', cso_file,
-                '/Fc', txt_file,
-                src_file,
-                ])
-
-            # bin2c so we get a header file we can compile in.
-            with open(h_file, 'w') as out_file:
-                out_file.write('// generated from `xb buildhlsl`\n')
-                out_file.write('// source: %s\n' % os.path.basename(src_file))
-                out_file.write('const uint8_t %s[] = {' % (identifier))
-                with open(cso_file, 'rb') as in_file:
-                    index = 0
-                    c = in_file.read(1)
-                    while len(c) != 0:
-                        if index % 12 == 0:
-                            out_file.write('\n    ')
-                        else:
-                            out_file.write(' ')
-                        index += 1
-                        out_file.write('0x%02X,' % ord(c))
-                        c = in_file.read(1)
-                out_file.write('\n};\n')
-
-        if any_errors:
-            print('ERROR: failed to build one or more shaders.')
             return 1
 
         return 0
