@@ -74,91 +74,108 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-// Generated with `xb buildhlsl`.
-#include "xenia/gpu/d3d12/shaders/dxbc/clear_uint2_ps.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/fullscreen_vs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/host_depth_store_1xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/host_depth_store_2xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/host_depth_store_4xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/passthrough_position_xy_vs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_clear_32bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_clear_32bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_clear_32bpp_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_clear_64bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_clear_64bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_clear_64bpp_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_32bpp_1x2xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_32bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_32bpp_3xres_1x2xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_32bpp_3xres_4xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_32bpp_4xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_64bpp_1x2xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_64bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_64bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_64bpp_4xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_128bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_128bpp_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_128bpp_from_32bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_128bpp_from_64bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_16bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_16bpp_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_16bpp_from_32bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_16bpp_from_64bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_32bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_32bpp_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_32bpp_from_32bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_32bpp_from_64bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_64bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_64bpp_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_64bpp_from_32bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_64bpp_from_64bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_8bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_8bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_8bpp_cs.h"
+// Generated with `xb buildshaders`.
+namespace shaders {
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/clear_uint2_ps.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/fullscreen_vs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/host_depth_store_1xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/host_depth_store_2xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/host_depth_store_4xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/passthrough_position_xy_vs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_clear_32bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_clear_32bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_clear_32bpp_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_clear_64bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_clear_64bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_clear_64bpp_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_32bpp_1x2xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_32bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_32bpp_3xres_1x2xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_32bpp_3xres_4xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_32bpp_4xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_64bpp_1x2xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_64bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_64bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_64bpp_4xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_128bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_128bpp_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_128bpp_from_32bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_128bpp_from_64bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_16bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_16bpp_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_16bpp_from_32bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_16bpp_from_64bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_32bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_32bpp_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_32bpp_from_32bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_32bpp_from_64bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_64bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_64bpp_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_64bpp_from_32bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_64bpp_from_64bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_8bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_8bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_8bpp_cs.h"
+}  // namespace shaders
 
-const std::pair<const uint8_t*, size_t>
+const std::pair<const void*, size_t>
     D3D12RenderTargetCache::kResolveCopyShaders[size_t(
         draw_util::ResolveCopyShaderIndex::kCount)] = {
-        {resolve_fast_32bpp_1x2xmsaa_cs,
-         sizeof(resolve_fast_32bpp_1x2xmsaa_cs)},
-        {resolve_fast_32bpp_4xmsaa_cs, sizeof(resolve_fast_32bpp_4xmsaa_cs)},
-        {resolve_fast_32bpp_2xres_cs, sizeof(resolve_fast_32bpp_2xres_cs)},
-        {resolve_fast_32bpp_3xres_1x2xmsaa_cs,
-         sizeof(resolve_fast_32bpp_3xres_1x2xmsaa_cs)},
-        {resolve_fast_32bpp_3xres_4xmsaa_cs,
-         sizeof(resolve_fast_32bpp_3xres_4xmsaa_cs)},
-        {resolve_fast_64bpp_1x2xmsaa_cs,
-         sizeof(resolve_fast_64bpp_1x2xmsaa_cs)},
-        {resolve_fast_64bpp_4xmsaa_cs, sizeof(resolve_fast_64bpp_4xmsaa_cs)},
-        {resolve_fast_64bpp_2xres_cs, sizeof(resolve_fast_64bpp_2xres_cs)},
-        {resolve_fast_64bpp_3xres_cs, sizeof(resolve_fast_64bpp_3xres_cs)},
-        {resolve_full_8bpp_cs, sizeof(resolve_full_8bpp_cs)},
-        {resolve_full_8bpp_2xres_cs, sizeof(resolve_full_8bpp_2xres_cs)},
-        {resolve_full_8bpp_3xres_cs, sizeof(resolve_full_8bpp_3xres_cs)},
-        {resolve_full_16bpp_cs, sizeof(resolve_full_16bpp_cs)},
-        {resolve_full_16bpp_2xres_cs, sizeof(resolve_full_16bpp_2xres_cs)},
-        {resolve_full_16bpp_from_32bpp_3xres_cs,
-         sizeof(resolve_full_16bpp_from_32bpp_3xres_cs)},
-        {resolve_full_16bpp_from_64bpp_3xres_cs,
-         sizeof(resolve_full_16bpp_from_64bpp_3xres_cs)},
-        {resolve_full_32bpp_cs, sizeof(resolve_full_32bpp_cs)},
-        {resolve_full_32bpp_2xres_cs, sizeof(resolve_full_32bpp_2xres_cs)},
-        {resolve_full_32bpp_from_32bpp_3xres_cs,
-         sizeof(resolve_full_32bpp_from_32bpp_3xres_cs)},
-        {resolve_full_32bpp_from_64bpp_3xres_cs,
-         sizeof(resolve_full_32bpp_from_64bpp_3xres_cs)},
-        {resolve_full_64bpp_cs, sizeof(resolve_full_64bpp_cs)},
-        {resolve_full_64bpp_2xres_cs, sizeof(resolve_full_64bpp_2xres_cs)},
-        {resolve_full_64bpp_from_32bpp_3xres_cs,
-         sizeof(resolve_full_64bpp_from_32bpp_3xres_cs)},
-        {resolve_full_64bpp_from_64bpp_3xres_cs,
-         sizeof(resolve_full_64bpp_from_64bpp_3xres_cs)},
-        {resolve_full_128bpp_cs, sizeof(resolve_full_128bpp_cs)},
-        {resolve_full_128bpp_2xres_cs, sizeof(resolve_full_128bpp_2xres_cs)},
-        {resolve_full_128bpp_from_32bpp_3xres_cs,
-         sizeof(resolve_full_128bpp_from_32bpp_3xres_cs)},
-        {resolve_full_128bpp_from_64bpp_3xres_cs,
-         sizeof(resolve_full_128bpp_from_64bpp_3xres_cs)},
+        {shaders::resolve_fast_32bpp_1x2xmsaa_cs,
+         sizeof(shaders::resolve_fast_32bpp_1x2xmsaa_cs)},
+        {shaders::resolve_fast_32bpp_4xmsaa_cs,
+         sizeof(shaders::resolve_fast_32bpp_4xmsaa_cs)},
+        {shaders::resolve_fast_32bpp_2xres_cs,
+         sizeof(shaders::resolve_fast_32bpp_2xres_cs)},
+        {shaders::resolve_fast_32bpp_3xres_1x2xmsaa_cs,
+         sizeof(shaders::resolve_fast_32bpp_3xres_1x2xmsaa_cs)},
+        {shaders::resolve_fast_32bpp_3xres_4xmsaa_cs,
+         sizeof(shaders::resolve_fast_32bpp_3xres_4xmsaa_cs)},
+        {shaders::resolve_fast_64bpp_1x2xmsaa_cs,
+         sizeof(shaders::resolve_fast_64bpp_1x2xmsaa_cs)},
+        {shaders::resolve_fast_64bpp_4xmsaa_cs,
+         sizeof(shaders::resolve_fast_64bpp_4xmsaa_cs)},
+        {shaders::resolve_fast_64bpp_2xres_cs,
+         sizeof(shaders::resolve_fast_64bpp_2xres_cs)},
+        {shaders::resolve_fast_64bpp_3xres_cs,
+         sizeof(shaders::resolve_fast_64bpp_3xres_cs)},
+        {shaders::resolve_full_8bpp_cs, sizeof(shaders::resolve_full_8bpp_cs)},
+        {shaders::resolve_full_8bpp_2xres_cs,
+         sizeof(shaders::resolve_full_8bpp_2xres_cs)},
+        {shaders::resolve_full_8bpp_3xres_cs,
+         sizeof(shaders::resolve_full_8bpp_3xres_cs)},
+        {shaders::resolve_full_16bpp_cs,
+         sizeof(shaders::resolve_full_16bpp_cs)},
+        {shaders::resolve_full_16bpp_2xres_cs,
+         sizeof(shaders::resolve_full_16bpp_2xres_cs)},
+        {shaders::resolve_full_16bpp_from_32bpp_3xres_cs,
+         sizeof(shaders::resolve_full_16bpp_from_32bpp_3xres_cs)},
+        {shaders::resolve_full_16bpp_from_64bpp_3xres_cs,
+         sizeof(shaders::resolve_full_16bpp_from_64bpp_3xres_cs)},
+        {shaders::resolve_full_32bpp_cs,
+         sizeof(shaders::resolve_full_32bpp_cs)},
+        {shaders::resolve_full_32bpp_2xres_cs,
+         sizeof(shaders::resolve_full_32bpp_2xres_cs)},
+        {shaders::resolve_full_32bpp_from_32bpp_3xres_cs,
+         sizeof(shaders::resolve_full_32bpp_from_32bpp_3xres_cs)},
+        {shaders::resolve_full_32bpp_from_64bpp_3xres_cs,
+         sizeof(shaders::resolve_full_32bpp_from_64bpp_3xres_cs)},
+        {shaders::resolve_full_64bpp_cs,
+         sizeof(shaders::resolve_full_64bpp_cs)},
+        {shaders::resolve_full_64bpp_2xres_cs,
+         sizeof(shaders::resolve_full_64bpp_2xres_cs)},
+        {shaders::resolve_full_64bpp_from_32bpp_3xres_cs,
+         sizeof(shaders::resolve_full_64bpp_from_32bpp_3xres_cs)},
+        {shaders::resolve_full_64bpp_from_64bpp_3xres_cs,
+         sizeof(shaders::resolve_full_64bpp_from_64bpp_3xres_cs)},
+        {shaders::resolve_full_128bpp_cs,
+         sizeof(shaders::resolve_full_128bpp_cs)},
+        {shaders::resolve_full_128bpp_2xres_cs,
+         sizeof(shaders::resolve_full_128bpp_2xres_cs)},
+        {shaders::resolve_full_128bpp_from_32bpp_3xres_cs,
+         sizeof(shaders::resolve_full_128bpp_from_32bpp_3xres_cs)},
+        {shaders::resolve_full_128bpp_from_64bpp_3xres_cs,
+         sizeof(shaders::resolve_full_128bpp_from_64bpp_3xres_cs)},
 };
 
 const uint32_t D3D12RenderTargetCache::kTransferUsedRootParameters[size_t(
@@ -231,16 +248,22 @@ const D3D12RenderTargetCache::TransferModeInfo
 
 const std::pair<const void*, size_t>
     D3D12RenderTargetCache::kResolveROVClear32bppShaders[3] = {
-        {resolve_clear_32bpp_cs, sizeof(resolve_clear_32bpp_cs)},
-        {resolve_clear_32bpp_2xres_cs, sizeof(resolve_clear_32bpp_2xres_cs)},
-        {resolve_clear_32bpp_3xres_cs, sizeof(resolve_clear_32bpp_3xres_cs)},
+        {shaders::resolve_clear_32bpp_cs,
+         sizeof(shaders::resolve_clear_32bpp_cs)},
+        {shaders::resolve_clear_32bpp_2xres_cs,
+         sizeof(shaders::resolve_clear_32bpp_2xres_cs)},
+        {shaders::resolve_clear_32bpp_3xres_cs,
+         sizeof(shaders::resolve_clear_32bpp_3xres_cs)},
 };
 
 const std::pair<const void*, size_t>
     D3D12RenderTargetCache::kResolveROVClear64bppShaders[3] = {
-        {resolve_clear_64bpp_cs, sizeof(resolve_clear_64bpp_cs)},
-        {resolve_clear_64bpp_2xres_cs, sizeof(resolve_clear_64bpp_2xres_cs)},
-        {resolve_clear_64bpp_3xres_cs, sizeof(resolve_clear_64bpp_3xres_cs)},
+        {shaders::resolve_clear_64bpp_cs,
+         sizeof(shaders::resolve_clear_64bpp_cs)},
+        {shaders::resolve_clear_64bpp_2xres_cs,
+         sizeof(shaders::resolve_clear_64bpp_2xres_cs)},
+        {shaders::resolve_clear_64bpp_3xres_cs,
+         sizeof(shaders::resolve_clear_64bpp_3xres_cs)},
 };
 
 D3D12RenderTargetCache::~D3D12RenderTargetCache() { Shutdown(true); }
@@ -459,7 +482,7 @@ bool D3D12RenderTargetCache::Initialize() {
     if (resolve_copy_shader_info.resolution_scale != resolution_scale_) {
       continue;
     }
-    const std::pair<const uint8_t*, size_t>& resolve_copy_shader =
+    const std::pair<const void*, size_t>& resolve_copy_shader =
         kResolveCopyShaders[i];
     ID3D12PipelineState* resolve_copy_pipeline =
         ui::d3d12::util::CreateComputePipeline(
@@ -655,8 +678,8 @@ bool D3D12RenderTargetCache::Initialize() {
     // 1 sample.
     host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k1X)] =
         ui::d3d12::util::CreateComputePipeline(
-            device, host_depth_store_1xmsaa_cs,
-            sizeof(host_depth_store_1xmsaa_cs),
+            device, shaders::host_depth_store_1xmsaa_cs,
+            sizeof(shaders::host_depth_store_1xmsaa_cs),
             host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k1X)]) {
       XELOGE(
@@ -670,8 +693,8 @@ bool D3D12RenderTargetCache::Initialize() {
     // 2 samples.
     host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k2X)] =
         ui::d3d12::util::CreateComputePipeline(
-            device, host_depth_store_2xmsaa_cs,
-            sizeof(host_depth_store_2xmsaa_cs),
+            device, shaders::host_depth_store_2xmsaa_cs,
+            sizeof(shaders::host_depth_store_2xmsaa_cs),
             host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k2X)]) {
       XELOGE(
@@ -685,8 +708,8 @@ bool D3D12RenderTargetCache::Initialize() {
     // 4 samples.
     host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k4X)] =
         ui::d3d12::util::CreateComputePipeline(
-            device, host_depth_store_4xmsaa_cs,
-            sizeof(host_depth_store_4xmsaa_cs),
+            device, shaders::host_depth_store_4xmsaa_cs,
+            sizeof(shaders::host_depth_store_4xmsaa_cs),
             host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k4X)]) {
       XELOGE(
@@ -1001,10 +1024,12 @@ bool D3D12RenderTargetCache::Initialize() {
     D3D12_GRAPHICS_PIPELINE_STATE_DESC uint32_rtv_clear_pipeline_desc = {};
     uint32_rtv_clear_pipeline_desc.pRootSignature =
         uint32_rtv_clear_root_signature_;
-    uint32_rtv_clear_pipeline_desc.VS.pShaderBytecode = fullscreen_vs;
-    uint32_rtv_clear_pipeline_desc.VS.BytecodeLength = sizeof(fullscreen_vs);
-    uint32_rtv_clear_pipeline_desc.PS.pShaderBytecode = clear_uint2_ps;
-    uint32_rtv_clear_pipeline_desc.PS.BytecodeLength = sizeof(clear_uint2_ps);
+    uint32_rtv_clear_pipeline_desc.VS.pShaderBytecode = shaders::fullscreen_vs;
+    uint32_rtv_clear_pipeline_desc.VS.BytecodeLength =
+        sizeof(shaders::fullscreen_vs);
+    uint32_rtv_clear_pipeline_desc.PS.pShaderBytecode = shaders::clear_uint2_ps;
+    uint32_rtv_clear_pipeline_desc.PS.BytecodeLength =
+        sizeof(shaders::clear_uint2_ps);
     uint32_rtv_clear_pipeline_desc.BlendState.RenderTarget[0]
         .RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
     uint32_rtv_clear_pipeline_desc.RasterizerState.FillMode =
@@ -4315,8 +4340,8 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   pipeline_desc.pRootSignature = transfer_root_signatures_[size_t(
       use_stencil_reference_output_ ? mode.root_signature_with_stencil_ref
                                     : mode.root_signature_no_stencil_ref)];
-  pipeline_desc.VS.pShaderBytecode = passthrough_position_xy_vs;
-  pipeline_desc.VS.BytecodeLength = sizeof(passthrough_position_xy_vs);
+  pipeline_desc.VS.pShaderBytecode = shaders::passthrough_position_xy_vs;
+  pipeline_desc.VS.BytecodeLength = sizeof(shaders::passthrough_position_xy_vs);
   pipeline_desc.PS.pShaderBytecode = built_shader_.data();
   pipeline_desc.PS.BytecodeLength = built_shader_size_bytes;
   if (key.dest_msaa_samples == xenos::MsaaSamples::k2X && !msaa_2x_supported_) {
