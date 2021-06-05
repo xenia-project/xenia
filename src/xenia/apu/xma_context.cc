@@ -839,7 +839,7 @@ void XmaContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
       __m128i out_mm = _mm_packs_epi32(out_mm0, out_mm1);
       // Interleave channels and byte swap.
       out_mm = _mm_shuffle_epi8(out_mm, shufmask);
-      // Store, as [out + i * 4] movqdu.
+      // Store, as [out + i * 4] movdqu.
       _mm_storeu_si128(reinterpret_cast<__m128i*>(&out[i * 2]), out_mm);
     }
   } else {
@@ -860,7 +860,7 @@ void XmaContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
       __m128i out_mm = _mm_packs_epi32(out_mm0, out_mm1);
       // Byte swap.
       out_mm = _mm_shuffle_epi8(out_mm, shufmask);
-      // Store, as [out + i * 2] movqdu.
+      // Store, as [out + i * 2] movdqu.
       _mm_storeu_si128(reinterpret_cast<__m128i*>(&out[i]), out_mm);
     }
   }
