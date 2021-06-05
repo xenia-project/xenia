@@ -186,7 +186,7 @@ class XmaContext {
   static std::tuple<int, bool> GetPacketFrameCount(uint8_t* packet);
 
   // Convert sample format and swap bytes
-  static bool ConvertFrame(const uint8_t** samples, bool is_two_channel,
+  static void ConvertFrame(const uint8_t** samples, bool is_two_channel,
                            uint8_t* output_buffer);
 
   bool ValidFrameOffset(uint8_t* block, size_t size_bytes,
