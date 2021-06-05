@@ -64,6 +64,10 @@ template <typename T>
 constexpr T saturate_unsigned(T value) {
   return std::min(static_cast<T>(1.0f), std::max(static_cast<T>(0.0f), value));
 }
+
+// This diverges from the GPU NaN rules for signed normalized formats (NaN
+// should be converted to 0, not to -1), but this expectation is not needed most
+// of time, and cannot be met for free (unlike for 0...1 clamping).
 template <typename T>
 constexpr T saturate_signed(T value) {
   return std::min(static_cast<T>(1.0f), std::max(static_cast<T>(-1.0f), value));
