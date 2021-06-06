@@ -1828,9 +1828,10 @@ void DxbcShaderTranslator::CompletePixelShader_DSV_DepthTo24Bit() {
 }
 
 void DxbcShaderTranslator::CompletePixelShader_AlphaToMaskSample(
-    uint32_t sample_index, float threshold_base, dxbc::Src threshold_offset,
-    float threshold_offset_scale, uint32_t coverage_temp,
-    uint32_t coverage_temp_component, uint32_t temp, uint32_t temp_component) {
+    bool initialize, uint32_t sample_index, float threshold_base,
+    dxbc::Src threshold_offset, float threshold_offset_scale,
+    uint32_t coverage_temp, uint32_t coverage_temp_component, uint32_t temp,
+    uint32_t temp_component) {
   dxbc::Dest temp_dest(dxbc::Dest::R(temp, 1 << temp_component));
   dxbc::Src temp_src(dxbc::Src::R(temp).Select(temp_component));
   // Calculate the threshold.
@@ -1858,16 +1859,16 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMaskSample(
     // Clear the coverage for samples that have failed the test.
     a_.OpAnd(coverage_dest, coverage_src, temp_src);
   } else {
-    if (sample_index) {
-      // Not first sample - add.
-      a_.OpAnd(temp_dest, temp_src, dxbc::Src::LU(uint32_t(1) << sample_index));
-      a_.OpOr(coverage_dest, coverage_src, temp_src);
-    } else {
-      // First sample - initialize.
+    if (initialize) {
+      // First sample tested - initialize.
       assert_true(coverage_temp != temp ||
                   coverage_temp_component != temp_component);
       a_.OpAnd(coverage_dest, temp_src,
                dxbc::Src::LU(uint32_t(1) << sample_index));
+    } else {
+      // Not first sample tested - add.
+      a_.OpAnd(temp_dest, temp_src, dxbc::Src::LU(uint32_t(1) << sample_index));
+      a_.OpOr(coverage_dest, coverage_src, temp_src);
     }
   }
 }
@@ -1930,32 +1931,38 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMask() {
     // 4x MSAA.
     // Sample 0 must be checked first - CompletePixelShader_AlphaToMaskSample
     // initializes the result for sample index 0.
-    CompletePixelShader_AlphaToMaskSample(0, 0.75f, temp_x_src, 1.0f / 16.0f,
-                                          coverage_temp,
+    CompletePixelShader_AlphaToMaskSample(true, 0, 0.75f, temp_x_src,
+                                          1.0f / 16.0f, coverage_temp,
                                           coverage_temp_component, temp, 1);
-    CompletePixelShader_AlphaToMaskSample(1, 0.25f, temp_x_src, 1.0f / 16.0f,
-                                          coverage_temp,
+    CompletePixelShader_AlphaToMaskSample(false, 1, 0.25f, temp_x_src,
+                                          1.0f / 16.0f, coverage_temp,
                                           coverage_temp_component, temp, 1);
-    CompletePixelShader_AlphaToMaskSample(2, 0.5f, temp_x_src, 1.0f / 16.0f,
-                                          coverage_temp,
+    CompletePixelShader_AlphaToMaskSample(false, 2, 0.5f, temp_x_src,
+                                          1.0f / 16.0f, coverage_temp,
                                           coverage_temp_component, temp, 1);
-    CompletePixelShader_AlphaToMaskSample(3, 1.0f, temp_x_src, 1.0f / 16.0f,
-                                          coverage_temp,
+    CompletePixelShader_AlphaToMaskSample(false, 3, 1.0f, temp_x_src,
+                                          1.0f / 16.0f, coverage_temp,
                                           coverage_temp_component, temp, 1);
-    // 2x MSAA (as 2x or samples 0 and 3 of 4x).
+    // 2x MSAA.
+    // With ROV, using guest sample indices.
+    // Without ROV:
+    // - Native 2x: top (0 in Xenia) is 1 in D3D10.1+, bottom (1 in Xenia) is 0.
+    // - 2x as 4x: top is 0, bottom is 3.
     a_.OpElse();
-    CompletePixelShader_AlphaToMaskSample(0, 0.5f, temp_x_src, 1.0f / 8.0f,
-                                          coverage_temp,
-                                          coverage_temp_component, temp, 1);
     CompletePixelShader_AlphaToMaskSample(
-        (!edram_rov_used_ && !msaa_2x_supported_) ? 3 : 1, 1.0f, temp_x_src,
-        1.0f / 8.0f, coverage_temp, coverage_temp_component, temp, 1);
+        true, (!edram_rov_used_ && msaa_2x_supported_) ? 1 : 0, 0.5f,
+        temp_x_src, 1.0f / 8.0f, coverage_temp, coverage_temp_component, temp,
+        1);
+    CompletePixelShader_AlphaToMaskSample(
+        false, edram_rov_used_ ? 1 : (msaa_2x_supported_ ? 0 : 3), 1.0f,
+        temp_x_src, 1.0f / 8.0f, coverage_temp, coverage_temp_component, temp,
+        1);
     // Close the 4x check.
     a_.OpEndIf();
   }
   // MSAA is disabled.
   a_.OpElse();
-  CompletePixelShader_AlphaToMaskSample(0, 1.0f, temp_x_src, 1.0f / 4.0f,
+  CompletePixelShader_AlphaToMaskSample(true, 0, 1.0f, temp_x_src, 1.0f / 4.0f,
                                         coverage_temp, coverage_temp_component,
                                         temp, 1);
   // Close the 2x/4x check.

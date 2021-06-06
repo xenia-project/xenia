@@ -768,15 +768,16 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void ExportToMemory();
   void CompleteVertexOrDomainShader();
   // For RTV, adds the sample to coverage_temp.coverage_temp_component if it
-  // passes alpha to mask (except for sample 0, which overwrites the output to
-  // initialize it).
+  // passes alpha to mask (or, if initialize == true (for the first sample
+  // tested), overwrites the output to initialize it).
   // For ROV, masks the sample away from coverage_temp.coverage_temp_component
   // if it doesn't pass alpha to mask.
   // threshold_offset and temp.temp_component can be the same if needed.
   void CompletePixelShader_AlphaToMaskSample(
-      uint32_t sample_index, float threshold_base, dxbc::Src threshold_offset,
-      float threshold_offset_scale, uint32_t coverage_temp,
-      uint32_t coverage_temp_component, uint32_t temp, uint32_t temp_component);
+      bool initialize, uint32_t sample_index, float threshold_base,
+      dxbc::Src threshold_offset, float threshold_offset_scale,
+      uint32_t coverage_temp, uint32_t coverage_temp_component, uint32_t temp,
+      uint32_t temp_component);
   // Performs alpha to coverage if necessary, for RTV, writing to oMask, and for
   // ROV, updating the low (coverage) bits of system_temp_rov_params_.x. Done
   // manually even for RTV to maintain the guest dithering pattern and because
