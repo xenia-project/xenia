@@ -423,6 +423,8 @@ XE_GPU_REGISTER(0x2325, kDword, RB_SAMPLE_COUNT_ADDR)
 
 // Polygon offset scales and offsets are 32-bit floating-point.
 // "slope computed in subpixels (1/12 or 1/16)" - R5xx Acceleration.
+// But the correct scale for conversion of the slope scale (FRONT_BACK/SCALE)
+// from subpixels to pixels is likely 1/16 according to:
 // https://github.com/mesa3d/mesa/blob/54ad9b444c8e73da498211870e785239ad3ff1aa/src/gallium/drivers/radeonsi/si_state.c#L946
 XE_GPU_REGISTER(0x2380, kFloat, PA_SU_POLY_OFFSET_FRONT_SCALE)
 XE_GPU_REGISTER(0x2381, kFloat, PA_SU_POLY_OFFSET_FRONT_OFFSET)
