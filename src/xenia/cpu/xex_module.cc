@@ -249,12 +249,11 @@ int XexModule::ApplyPatch(XexModule* module) {
 
   // Patch base XEX header
   uint32_t original_image_size = module->image_size();
-  uint32_t header_target_size = patch_header->delta_headers_target_offset +
-                                patch_header->delta_headers_source_size;
+  uint32_t header_target_size = patch_header->size_of_target_headers;
 
   if (!header_target_size) {
-    header_target_size =
-        patch_header->size_of_target_headers;  // unsure which is more correct..
+    header_target_size = patch_header->delta_headers_target_offset +
+                         patch_header->delta_headers_source_size;
   }
 
   size_t mem_size = module->xex_header_mem_.size();
