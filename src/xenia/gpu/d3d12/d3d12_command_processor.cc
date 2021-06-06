@@ -3213,12 +3213,6 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     dirty |= system_constants_.edram_depth_base_dwords != depth_base_dwords;
     system_constants_.edram_depth_base_dwords = depth_base_dwords;
 
-    float depth_range_scale = viewport_info.z_max - viewport_info.z_min;
-    dirty |= system_constants_.edram_depth_range_scale != depth_range_scale;
-    system_constants_.edram_depth_range_scale = depth_range_scale;
-    dirty |= system_constants_.edram_depth_range_offset != viewport_info.z_min;
-    system_constants_.edram_depth_range_offset = viewport_info.z_min;
-
     // For non-polygons, front polygon offset is used, and it's enabled if
     // POLY_OFFSET_PARA_ENABLED is set, for polygons, separate front and back
     // are used.
@@ -3247,8 +3241,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         poly_offset_back_offset = poly_offset_front_offset;
       }
     }
-    // "slope computed in subpixels (1/12 or 1/16)" - R5xx Acceleration. Also:
-    // https://github.com/mesa3d/mesa/blob/54ad9b444c8e73da498211870e785239ad3ff1aa/src/gallium/drivers/radeonsi/si_state.c#L943
+    // "slope computed in subpixels ([...] 1/16)" - R5xx Acceleration.
     poly_offset_front_scale *= (1.0f / 16.0f) * resolution_scale;
     poly_offset_back_scale *= (1.0f / 16.0f) * resolution_scale;
     dirty |= system_constants_.edram_poly_offset_front_scale !=
