@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -426,8 +426,99 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
   // temp.x = free
   a_.OpIf(true, temp_x_src);
 
-  bool depth_stencil_early = ROV_IsDepthStencilEarly();
   bool shader_writes_depth = current_shader().writes_depth();
+  bool depth_stencil_early = ROV_IsDepthStencilEarly();
+
+  dxbc::Src z_ddx_src(dxbc::Src::LF(0.0f)), z_ddy_src(dxbc::Src::LF(0.0f));
+
+  if (shader_writes_depth) {
+    // Convert the shader-generated depth to 24-bit, using temp.x as
+    // temporary. oDepth is already written by StoreResult with saturation,
+    // no need to clamp here. Adreno 200 doesn't have PA_SC_VPORT_ZMIN/ZMAX,
+    // so likely there's no need to clamp to the viewport depth bounds.
+    ROV_DepthTo24Bit(system_temp_depth_stencil_, 0, system_temp_depth_stencil_,
+                     0, temp, 0);
+  } else {
+    dxbc::Src in_position_z(
+        dxbc::Src::V(uint32_t(InOutRegister::kPSInPosition), dxbc::Src::kZZZZ));
+    // Get the derivatives of the screen-space (but not clamped to the viewport
+    // depth bounds yet - this happens after the pixel shader in Direct3D 11+;
+    // also linear within the triangle - thus constant derivatives along the
+    // triangle) Z for calculating per-sample depth values and the slope-scaled
+    // polygon offset.
+    // We're using derivatives instead of eval_sample_index for various reasons:
+    // - eval_sample_index doesn't work with SV_Position - need to use an
+    //   additional interpolant.
+    // - On AMD, eval_sample_index is actually implemented via calculation and
+    //   scaling of derivatives of barycentric coordinates, therefore there's no
+    //   advantage of using it there.
+    // - eval_sample_index is (inconsistently, but often) one of the sources of
+    //   the infamous AMD shader compiler crashes when ROV is used in Xenia, in
+    //   addition to shader compiler crashes on WARP.
+    if (depth_stencil_early) {
+      z_ddx_src = dxbc::Src::R(temp, dxbc::Src::kXXXX);
+      z_ddy_src = dxbc::Src::R(temp, dxbc::Src::kYYYY);
+      // temp.x = ddx(z)
+      // temp.y = ddy(z)
+      in_position_used_ |= 0b0100;
+      a_.OpDerivRTXCoarse(temp_x_dest, in_position_z);
+      a_.OpDerivRTYCoarse(temp_y_dest, in_position_z);
+    } else {
+      // For late depth / stencil testing, derivatives are calculated in the
+      // beginning of the shader before any return statement is possibly
+      // reached, and written to system_temp_depth_stencil_.xy.
+      assert_true(system_temp_depth_stencil_ != UINT32_MAX);
+      z_ddx_src = dxbc::Src::R(system_temp_depth_stencil_, dxbc::Src::kXXXX);
+      z_ddy_src = dxbc::Src::R(system_temp_depth_stencil_, dxbc::Src::kYYYY);
+    }
+    // Get the maximum depth slope for polygon offset.
+    // https://docs.microsoft.com/en-us/windows/desktop/direct3d9/depth-bias
+    // temp.x if early = ddx(z)
+    // temp.y if early = ddy(z)
+    // temp.z = max(|ddx(z)|, |ddy(z)|)
+    a_.OpMax(temp_z_dest, z_ddx_src.Abs(), z_ddy_src.Abs());
+    // Calculate the depth bias for the needed faceness.
+    in_front_face_used_ = true;
+    a_.OpIf(true,
+            dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
+                         dxbc::Src::kXXXX));
+    // temp.x if early = ddx(z)
+    // temp.y if early = ddy(z)
+    // temp.z = front face polygon offset
+    // temp.w = free
+    a_.OpMAd(
+        temp_z_dest, temp_z_src,
+        LoadSystemConstant(SystemConstants::Index::kEdramPolyOffsetFront,
+                           offsetof(SystemConstants, edram_poly_offset_front),
+                           dxbc::Src::kXXXX),
+        LoadSystemConstant(SystemConstants::Index::kEdramPolyOffsetFront,
+                           offsetof(SystemConstants, edram_poly_offset_front),
+                           dxbc::Src::kYYYY));
+    a_.OpElse();
+    // temp.x if early = ddx(z)
+    // temp.y if early = ddy(z)
+    // temp.z = back face polygon offset
+    // temp.w = free
+    a_.OpMAd(
+        temp_z_dest, temp_z_src,
+        LoadSystemConstant(SystemConstants::Index::kEdramPolyOffsetBack,
+                           offsetof(SystemConstants, edram_poly_offset_back),
+                           dxbc::Src::kXXXX),
+        LoadSystemConstant(SystemConstants::Index::kEdramPolyOffsetBack,
+                           offsetof(SystemConstants, edram_poly_offset_back),
+                           dxbc::Src::kYYYY));
+    a_.OpEndIf();
+    // Apply the post-clip and post-viewport polygon offset to the fragment's
+    // depth. Not clamping yet as this is at the center, which is not
+    // necessarily covered and not necessarily inside the bounds - derivatives
+    // scaled by sample positions will be added to this value, and it must be
+    // linear.
+    // temp.x if early = ddx(z)
+    // temp.y if early = ddy(z)
+    // temp.z = biased depth in the center
+    in_position_used_ |= 0b0100;
+    a_.OpAdd(temp_z_dest, temp_z_src, in_position_z);
+  }
 
   for (uint32_t i = 0; i < 4; ++i) {
     // With early depth/stencil, depth/stencil writing may be deferred to the
@@ -437,230 +528,25 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     // temporary register.
     dxbc::Dest sample_depth_stencil_dest(
         depth_stencil_early ? dxbc::Dest::R(system_temp_depth_stencil_, 1 << i)
-                            : temp_x_dest);
+                            : temp_w_dest);
     dxbc::Src sample_depth_stencil_src(
         depth_stencil_early ? dxbc::Src::R(system_temp_depth_stencil_).Select(i)
-                            : temp_x_src);
+                            : temp_w_src);
 
-    if (!i) {
-      if (shader_writes_depth) {
-        // Convert the shader-generated depth to 24-bit, using temp.x as
-        // temporary. oDepth is already written by StoreResult with saturation,
-        // no need to clamp here. Adreno 200 doesn't have PA_SC_VPORT_ZMIN/ZMAX,
-        // so likely there's no need to clamp to the viewport depth bounds.
-        ROV_DepthTo24Bit(system_temp_depth_stencil_, 0,
-                         system_temp_depth_stencil_, 0, temp, 0);
-      } else {
-        // Load the first sample's Z*W and W to temp.xy - need this regardless
-        // of coverage for polygon offset.
-        // temp.x = first sample's clip space Z*W
-        // temp.y = first sample's clip space W
-        a_.OpEvalSampleIndex(
-            dxbc::Dest::R(temp, 0b0011),
-            dxbc::Src::V(uint32_t(InOutRegister::kPSInClipSpaceZW)),
-            dxbc::Src::LU(0));
-        // Calculate the first sample's Z/W to temp.x for conversion to 24-bit
-        // and depth test.
-        // temp.x? = first sample's clip space Z
-        // temp.y = free
-        a_.OpDiv(sample_depth_stencil_dest, temp_x_src, temp_y_src, true);
-        // Apply viewport Z range to the first sample because this would affect
-        // the slope-scaled depth bias (tested on PC on Direct3D 12, by
-        // comparing the fraction of the polygon's area with depth clamped -
-        // affected by the constant bias, but not affected by the slope-scaled
-        // bias, also depth range clamping should be done after applying the
-        // offset as well).
-        // temp.x? = first sample's viewport space Z
-        a_.OpMAd(sample_depth_stencil_dest, sample_depth_stencil_src,
-                 LoadSystemConstant(
-                     SystemConstants::Index::kEdramDepthRange,
-                     offsetof(SystemConstants, edram_depth_range_scale),
-                     dxbc::Src::kXXXX),
-                 LoadSystemConstant(
-                     SystemConstants::Index::kEdramDepthRange,
-                     offsetof(SystemConstants, edram_depth_range_offset),
-                     dxbc::Src::kXXXX),
-                 true);
-        // Get the derivatives of a sample's depth, for the slope-scaled polygon
-        // offset. Probably not very significant that it's for the sample 0
-        // rather than for the center, likely neither is accurate because Xenos
-        // probably calculates the slope between 16ths of a pixel according to
-        // the meaning of the slope-scaled polygon offset in R5xx Acceleration.
-        // temp.x? = first sample's viewport space Z
-        // temp.y = ddx(z)
-        // temp.z = ddy(z)
-        a_.OpDerivRTXCoarse(temp_y_dest, sample_depth_stencil_src);
-        a_.OpDerivRTYCoarse(temp_z_dest, sample_depth_stencil_src);
-        // Get the maximum depth slope for polygon offset to temp.y.
-        // https://docs.microsoft.com/en-us/windows/desktop/direct3d9/depth-bias
-        // temp.x? = first sample's viewport space Z
-        // temp.y = max(|ddx(z)|, |ddy(z)|)
-        // temp.z = free
-        a_.OpMax(temp_y_dest, temp_y_src.Abs(), temp_z_src.Abs());
-        // Copy the needed polygon offset values to temp.zw.
-        // temp.x? = first sample's viewport space Z
-        // temp.y = max(|ddx(z)|, |ddy(z)|)
-        // temp.z = polygon offset scale
-        // temp.w = polygon offset bias
-        in_front_face_used_ = true;
-        a_.OpMovC(
-            dxbc::Dest::R(temp, 0b1100),
-            dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
-                         dxbc::Src::kXXXX),
-            LoadSystemConstant(
-                SystemConstants::Index::kEdramPolyOffsetFront,
-                offsetof(SystemConstants, edram_poly_offset_front),
-                0b0100 << 4),
-            LoadSystemConstant(
-                SystemConstants::Index::kEdramPolyOffsetBack,
-                offsetof(SystemConstants, edram_poly_offset_back),
-                0b0100 << 4));
-        // Apply the slope scale and the constant bias to the offset.
-        // temp.x? = first sample's viewport space Z
-        // temp.y = polygon offset
-        // temp.z = free
-        // temp.w = free
-        a_.OpMAd(temp_y_dest, temp_y_src, temp_z_src, temp_w_src);
-        // Calculate the upper Z range bound to temp.z for clamping after
-        // biasing.
-        // temp.x? = first sample's viewport space Z
-        // temp.y = polygon offset
-        // temp.z = viewport maximum depth
-        a_.OpAdd(temp_z_dest,
-                 LoadSystemConstant(
-                     SystemConstants::Index::kEdramDepthRange,
-                     offsetof(SystemConstants, edram_depth_range_offset),
-                     dxbc::Src::kXXXX),
-                 LoadSystemConstant(
-                     SystemConstants::Index::kEdramDepthRange,
-                     offsetof(SystemConstants, edram_depth_range_scale),
-                     dxbc::Src::kXXXX));
-      }
-    }
-
-    // Get if the current sample is covered to temp.w.
-    // temp.x = first sample's viewport space Z if not writing to oDepth
-    // temp.y = polygon offset if not writing to oDepth
-    // temp.z = viewport maximum depth if not writing to oDepth
+    // Get if the current sample is covered.
+    // temp.x if no oDepth and early = ddx(z)
+    // temp.y if no oDepth and early = ddy(z)
+    // temp.z if no oDepth = biased depth in the center
     // temp.w = coverage of the current sample
     a_.OpAnd(temp_w_dest,
              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
              dxbc::Src::LU(1 << i));
-    // Check if the current sample is covered. Release 1 VGPR.
-    // temp.x = first sample's viewport space Z if not writing to oDepth
-    // temp.y = polygon offset if not writing to oDepth
-    // temp.z = viewport maximum depth if not writing to oDepth
+    // Check if the current sample is covered.
+    // temp.x if no oDepth and early = ddx(z)
+    // temp.y if no oDepth and early = ddy(z)
+    // temp.z if no oDepth = biased depth in the center
     // temp.w = free
     a_.OpIf(true, temp_w_src);
-
-    if (shader_writes_depth) {
-      // Copy the 24-bit depth common to all samples to sample_depth_stencil.
-      // temp.x = shader-generated 24-bit depth
-      a_.OpMov(sample_depth_stencil_dest,
-               dxbc::Src::R(system_temp_depth_stencil_, dxbc::Src::kXXXX));
-    } else {
-      if (i) {
-        // Sample's depth precalculated for sample 0 (for slope-scaled depth
-        // bias calculation), but need to calculate it for other samples.
-        //
-        // Reusing temp.x because it may contain the depth value for the first
-        // sample, but it has been written already.
-        //
-        // For 2x:
-        // Using ForcedSampleCount of 4 (2 is not supported on Nvidia), so for
-        // 2x MSAA, handling samples 0 and 3 (upper-left and lower-right) as 0
-        // and 1. Thus, evaluating Z/W at sample 3 when 4x is not enabled.
-        //
-        // For 4x:
-        // Direct3D 12's sample pattern has 1 as top-right, 2 as bottom-left.
-        // Xbox 360's render targets are 2x taller with 2x MSAA, 2x wider with
-        // 4x, thus, likely 1 is bottom-left, 2 is top-right - swapping these.
-        //
-        // temp.x = sample's clip space Z*W
-        // temp.y = polygon offset if not writing to oDepth
-        // temp.z = viewport maximum depth if not writing to oDepth
-        // temp.w = sample's clip space W
-        if (i == 1) {
-          a_.OpMovC(
-              sample_depth_stencil_dest,
-              LoadSystemConstant(SystemConstants::Index::kSampleCountLog2,
-                                 offsetof(SystemConstants, sample_count_log2),
-                                 dxbc::Src::kXXXX),
-              dxbc::Src::LU(3), dxbc::Src::LU(2));
-          a_.OpEvalSampleIndex(
-              dxbc::Dest::R(temp, 0b1001),
-              dxbc::Src::V(uint32_t(InOutRegister::kPSInClipSpaceZW),
-                           0b01000000),
-              sample_depth_stencil_src);
-        } else {
-          a_.OpEvalSampleIndex(
-              dxbc::Dest::R(temp, 0b1001),
-              dxbc::Src::V(uint32_t(InOutRegister::kPSInClipSpaceZW),
-                           0b01000000),
-              dxbc::Src::LU(i == 2 ? 1 : i));
-        }
-        // Calculate Z/W for the current sample from the evaluated Z*W and W.
-        // temp.x? = sample's clip space Z
-        // temp.y = polygon offset if not writing to oDepth
-        // temp.z = viewport maximum depth if not writing to oDepth
-        // temp.w = free
-        a_.OpDiv(sample_depth_stencil_dest, temp_x_src, temp_w_src, true);
-        // Apply viewport Z range the same way as it was applied to sample 0.
-        // temp.x? = sample's viewport space Z
-        // temp.y = polygon offset if not writing to oDepth
-        // temp.z = viewport maximum depth if not writing to oDepth
-        a_.OpMAd(sample_depth_stencil_dest, sample_depth_stencil_src,
-                 LoadSystemConstant(
-                     SystemConstants::Index::kEdramDepthRange,
-                     offsetof(SystemConstants, edram_depth_range_scale),
-                     dxbc::Src::kXXXX),
-                 LoadSystemConstant(
-                     SystemConstants::Index::kEdramDepthRange,
-                     offsetof(SystemConstants, edram_depth_range_offset),
-                     dxbc::Src::kXXXX),
-                 true);
-      }
-      // Add the bias to the depth of the sample.
-      // temp.x? = sample's unclamped biased Z
-      // temp.y = polygon offset if not writing to oDepth
-      // temp.z = viewport maximum depth if not writing to oDepth
-      a_.OpAdd(sample_depth_stencil_dest, sample_depth_stencil_src, temp_y_src);
-      // Clamp the biased depth to the lower viewport depth bound.
-      // temp.x? = sample's lower-clamped biased Z
-      // temp.y = polygon offset if not writing to oDepth
-      // temp.z = viewport maximum depth if not writing to oDepth
-      a_.OpMax(sample_depth_stencil_dest, sample_depth_stencil_src,
-               LoadSystemConstant(
-                   SystemConstants::Index::kEdramDepthRange,
-                   offsetof(SystemConstants, edram_depth_range_offset),
-                   dxbc::Src::kXXXX));
-      // Clamp the biased depth to the upper viewport depth bound.
-      // temp.x? = sample's biased Z
-      // temp.y = polygon offset if not writing to oDepth
-      // temp.z = viewport maximum depth if not writing to oDepth
-      a_.OpMin(sample_depth_stencil_dest, sample_depth_stencil_src, temp_z_src,
-               true);
-      // Convert the sample's depth to 24-bit, using temp.w as a temporary.
-      // temp.x? = sample's 24-bit Z
-      // temp.y = polygon offset if not writing to oDepth
-      // temp.z = viewport maximum depth if not writing to oDepth
-      ROV_DepthTo24Bit(sample_depth_stencil_src.index_1d_.index_,
-                       sample_depth_stencil_src.swizzle_ & 3,
-                       sample_depth_stencil_src.index_1d_.index_,
-                       sample_depth_stencil_src.swizzle_ & 3, temp, 3);
-    }
-    // Load the old depth/stencil value to temp.w.
-    // temp.x? = sample's 24-bit Z
-    // temp.y = polygon offset if not writing to oDepth
-    // temp.z = viewport maximum depth if not writing to oDepth
-    // temp.w = old depth/stencil
-    if (uav_index_edram_ == kBindingIndexUnallocated) {
-      uav_index_edram_ = uav_count_++;
-    }
-    a_.OpLdUAVTyped(
-        temp_w_dest, dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY), 1,
-        dxbc::Src::U(uav_index_edram_, uint32_t(UAVRegister::kEdram),
-                     dxbc::Src::kXXXX));
 
     uint32_t sample_temp = PushSystemTemp();
     dxbc::Dest sample_temp_x_dest(dxbc::Dest::R(sample_temp, 0b0001));
@@ -669,65 +555,205 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     dxbc::Src sample_temp_y_src(dxbc::Src::R(sample_temp, dxbc::Src::kYYYY));
     dxbc::Dest sample_temp_z_dest(dxbc::Dest::R(sample_temp, 0b0100));
     dxbc::Src sample_temp_z_src(dxbc::Src::R(sample_temp, dxbc::Src::kZZZZ));
+    dxbc::Dest sample_temp_w_dest(dxbc::Dest::R(sample_temp, 0b1000));
+    dxbc::Src sample_temp_w_src(dxbc::Src::R(sample_temp, dxbc::Src::kWWWW));
+
+    if (shader_writes_depth) {
+      // Copy the 24-bit depth common to all samples to sample_depth_stencil.
+      // temp.w = shader-generated 24-bit depth
+      assert_false(depth_stencil_early);
+      a_.OpMov(sample_depth_stencil_dest,
+               dxbc::Src::R(system_temp_depth_stencil_, dxbc::Src::kXXXX));
+    } else {
+      // Adreno 200 doesn't have PA_SC_VPORT_ZMIN/ZMAX, so likely there's no
+      // need to clamp to the viewport depth bounds, just to 0...1 - thus only
+      // saturating in the end of the per-sample depth calculation.
+      switch (i) {
+        case 0:
+          // First sample - off-center for MSAA, in the center without it.
+          // Using ForcedSampleCount 4 for both 2x and 4x MSAA because
+          // ForcedSampleCount 2 is not supported on Nvidia, thus the position
+          // of the top-left sample (0 in Xenia) is always that of the top-left
+          // sample of host 4x MSAA.
+          // Calculate the depth in the sample 0 for 2x or 4x MSAA.
+          // temp.x if early = ddx(z)
+          // temp.y if early = ddy(z)
+          // temp.z = biased depth in the center
+          // temp.w if late = unsaturated sample 0 depth at 4x MSAA
+          a_.OpMAd(
+              sample_depth_stencil_dest, z_ddx_src,
+              dxbc::Src::LF(draw_util::kD3D10StandardSamplePositions4x[0][0] *
+                            (1.0f / 16.0f)),
+              temp_z_src);
+          a_.OpMAd(
+              sample_depth_stencil_dest, z_ddy_src,
+              dxbc::Src::LF(draw_util::kD3D10StandardSamplePositions4x[0][1] *
+                            (1.0f / 16.0f)),
+              sample_depth_stencil_src);
+          // Choose between the sample and the center depth depending on whether
+          // at least 2x MSAA is enabled and saturate.
+          // temp.x if early = ddx(z)
+          // temp.y if early = ddy(z)
+          // temp.z = biased depth in the center
+          // temp.w if late = sample 0 depth
+          a_.OpMovC(
+              sample_depth_stencil_dest,
+              LoadSystemConstant(SystemConstants::Index::kSampleCountLog2,
+                                 offsetof(SystemConstants, sample_count_log2),
+                                 dxbc::Src::kYYYY),
+              sample_depth_stencil_src, temp_z_src, true);
+          break;
+        case 1:
+          // - 2x MSAA: Bottom sample -> bottom-right (3) with Direct3D 11's
+          //   ForcedSampleCount 4.
+          // - 4x MSAA: Bottom-left Xenia sample -> Direct3D 11 sample 2.
+          // Check if 4x MSAA is used.
+          a_.OpIf(true, LoadSystemConstant(
+                            SystemConstants::Index::kSampleCountLog2,
+                            offsetof(SystemConstants, sample_count_log2),
+                            dxbc::Src::kXXXX));
+          // 4x MSAA.
+          // temp.x if early = ddx(z)
+          // temp.y if early = ddy(z)
+          // temp.z = biased depth in the center
+          // temp.w if late = saturated sample 1 depth at 4x MSAA
+          a_.OpMAd(
+              sample_depth_stencil_dest, z_ddx_src,
+              dxbc::Src::LF(draw_util::kD3D10StandardSamplePositions4x[2][0] *
+                            (1.0f / 16.0f)),
+              temp_z_src);
+          a_.OpMAd(
+              sample_depth_stencil_dest, z_ddy_src,
+              dxbc::Src::LF(draw_util::kD3D10StandardSamplePositions4x[2][1] *
+                            (1.0f / 16.0f)),
+              sample_depth_stencil_src, true);
+          a_.OpElse();
+          // 2x MSAA as ForcedSampleCount 4 on the host.
+          // temp.x if early = ddx(z)
+          // temp.y if early = ddy(z)
+          // temp.z = biased depth in the center
+          // temp.w if late = saturated sample 1 depth at 2x MSAA
+          a_.OpMAd(
+              sample_depth_stencil_dest, z_ddx_src,
+              dxbc::Src::LF(draw_util::kD3D10StandardSamplePositions4x[3][0] *
+                            (1.0f / 16.0f)),
+              temp_z_src);
+          a_.OpMAd(
+              sample_depth_stencil_dest, z_ddy_src,
+              dxbc::Src::LF(draw_util::kD3D10StandardSamplePositions4x[3][1] *
+                            (1.0f / 16.0f)),
+              sample_depth_stencil_src, true);
+          a_.OpEndIf();
+          break;
+        default: {
+          // Xenia samples 2 and 3 (top-right and bottom-right) -> Direct3D 11
+          // samples 1 and 3.
+          // temp.x if early = ddx(z)
+          // temp.y if early = ddy(z)
+          // temp.z = biased depth in the center
+          // temp.w if late = saturated sample 2 or 3 depth
+          const int8_t* sample_position =
+              draw_util::kD3D10StandardSamplePositions4x[i ^
+                                                         (((i & 1) ^ (i >> 1)) *
+                                                          0b11)];
+          a_.OpMAd(sample_depth_stencil_dest, z_ddx_src,
+                   dxbc::Src::LF(sample_position[0] * (1.0f / 16.0f)),
+                   temp_z_src);
+          a_.OpMAd(sample_depth_stencil_dest, z_ddy_src,
+                   dxbc::Src::LF(sample_position[1] * (1.0f / 16.0f)),
+                   sample_depth_stencil_src, true);
+        } break;
+      }
+      // Convert the sample's depth to 24-bit, using sample_temp.x as a
+      // temporary.
+      // temp.x if early = ddx(z)
+      // temp.y if early = ddy(z)
+      // temp.z = biased depth in the center
+      // temp.w if late = sample's 24-bit Z
+      ROV_DepthTo24Bit(sample_depth_stencil_src.index_1d_.index_,
+                       sample_depth_stencil_src.swizzle_ & 3,
+                       sample_depth_stencil_src.index_1d_.index_,
+                       sample_depth_stencil_src.swizzle_ & 3, sample_temp, 0);
+    }
+
+    // Load the old depth/stencil value.
+    // sample_temp.x = old depth/stencil
+    if (uav_index_edram_ == kBindingIndexUnallocated) {
+      uav_index_edram_ = uav_count_++;
+    }
+    a_.OpLdUAVTyped(
+        sample_temp_x_dest,
+        dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY), 1,
+        dxbc::Src::U(uav_index_edram_, uint32_t(UAVRegister::kEdram),
+                     dxbc::Src::kXXXX));
 
     // Depth test.
 
     // Extract the old depth part to sample_depth_stencil.
-    // sample_temp.x = old depth
-    a_.OpUShR(sample_temp_x_dest, temp_w_src, dxbc::Src::LU(8));
+    // sample_temp.x = old depth/stencil
+    // sample_temp.y = old depth
+    a_.OpUShR(sample_temp_y_dest, sample_temp_x_src, dxbc::Src::LU(8));
     // Get the difference between the new and the old depth, > 0 - greater,
     // == 0 - equal, < 0 - less.
-    // sample_temp.x = old depth
-    // sample_temp.y = depth difference
-    a_.OpIAdd(sample_temp_y_dest, sample_depth_stencil_src, -sample_temp_x_src);
+    // sample_temp.x = old depth/stencil
+    // sample_temp.y = old depth
+    // sample_temp.z = depth difference
+    a_.OpIAdd(sample_temp_z_dest, sample_depth_stencil_src, -sample_temp_y_src);
     // Check if the depth is "less" or "greater or equal".
-    // sample_temp.x = old depth
-    // sample_temp.y = depth difference
-    // sample_temp.z = depth difference less than 0
-    a_.OpILT(sample_temp_z_dest, sample_temp_y_src, dxbc::Src::LI(0));
+    // sample_temp.x = old depth/stencil
+    // sample_temp.y = old depth
+    // sample_temp.z = depth difference
+    // sample_temp.w = depth difference less than 0
+    a_.OpILT(sample_temp_w_dest, sample_temp_z_src, dxbc::Src::LI(0));
     // Choose the passed depth function bits for "less" or for "greater".
-    // sample_temp.x = old depth
-    // sample_temp.y = depth difference
-    // sample_temp.z = depth function passed bits for "less" or "greater"
-    a_.OpMovC(sample_temp_z_dest, sample_temp_z_src,
+    // sample_temp.x = old depth/stencil
+    // sample_temp.y = old depth
+    // sample_temp.z = depth difference
+    // sample_temp.w = depth function passed bits for "less" or "greater"
+    a_.OpMovC(sample_temp_w_dest, sample_temp_w_src,
               dxbc::Src::LU(kSysFlag_ROVDepthPassIfLess),
               dxbc::Src::LU(kSysFlag_ROVDepthPassIfGreater));
     // Do the "equal" testing.
-    // sample_temp.x = old depth
-    // sample_temp.y = depth function passed bits
-    // sample_temp.z = free
-    a_.OpMovC(sample_temp_y_dest, sample_temp_y_src, sample_temp_z_src,
+    // sample_temp.x = old depth/stencil
+    // sample_temp.y = old depth
+    // sample_temp.z = depth function passed bits
+    // sample_temp.w = free
+    a_.OpMovC(sample_temp_z_dest, sample_temp_z_src, sample_temp_w_src,
               dxbc::Src::LU(kSysFlag_ROVDepthPassIfEqual));
     // Mask the resulting bits with the ones that should pass.
-    // sample_temp.x = old depth
-    // sample_temp.y = masked depth function passed bits
-    // sample_temp.z = free
-    a_.OpAnd(sample_temp_y_dest, sample_temp_y_src, LoadFlagsSystemConstant());
+    // sample_temp.x = old depth/stencil
+    // sample_temp.y = old depth
+    // sample_temp.z = masked depth function passed bits
+    a_.OpAnd(sample_temp_z_dest, sample_temp_z_src, LoadFlagsSystemConstant());
     // Check if depth test has passed.
-    // sample_temp.x = old depth
-    // sample_temp.y = free
-    a_.OpIf(true, sample_temp_y_src);
+    // sample_temp.x = old depth/stencil
+    // sample_temp.y = old depth
+    // sample_temp.z = free
+    a_.OpIf(true, sample_temp_z_src);
     {
       // Extract the depth write flag.
-      // sample_temp.x = old depth
-      // sample_temp.y = depth write mask
-      a_.OpAnd(sample_temp_y_dest, LoadFlagsSystemConstant(),
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = old depth
+      // sample_temp.z = depth write mask
+      a_.OpAnd(sample_temp_z_dest, LoadFlagsSystemConstant(),
                dxbc::Src::LU(kSysFlag_ROVDepthWrite));
       // If depth writing is disabled, don't change the depth.
-      // temp.x? = resulting sample depth after the depth test
-      // temp.y = polygon offset if not writing to oDepth
-      // temp.z = viewport maximum depth if not writing to oDepth
-      // temp.w = old depth/stencil
-      // sample_temp.x = free
+      // temp.x if no oDepth and early = ddx(z)
+      // temp.y if no oDepth and early = ddy(z)
+      // temp.z if no oDepth = biased depth in the center
+      // temp.w if late = resulting sample depth after the depth test
+      // sample_temp.x = old depth/stencil
       // sample_temp.y = free
-      a_.OpMovC(sample_depth_stencil_dest, sample_temp_y_src,
-                sample_depth_stencil_src, sample_temp_x_src);
+      // sample_temp.z = free
+      a_.OpMovC(sample_depth_stencil_dest, sample_temp_z_src,
+                sample_depth_stencil_src, sample_temp_y_src);
     }
     // Depth test has failed.
     a_.OpElse();
     {
       // Exclude the bit from the covered sample mask.
-      // sample_temp.x = old depth
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = old depth
       a_.OpAnd(dxbc::Dest::R(system_temp_rov_params_, 0b0001),
                dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
                dxbc::Src::LU(~uint32_t(1 << i)));
@@ -735,22 +761,25 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     a_.OpEndIf();
     // Create packed depth/stencil, with the stencil value unchanged at this
     // point.
-    // temp.x? = resulting sample depth, current resulting stencil
-    // temp.y = polygon offset if not writing to oDepth
-    // temp.z = viewport maximum depth if not writing to oDepth
-    // temp.w = old depth/stencil
+    // temp.x if no oDepth and early = ddx(z)
+    // temp.y if no oDepth and early = ddy(z)
+    // temp.z if no oDepth = biased depth in the center
+    // temp.w if late = resulting sample depth, current resulting stencil
+    // sample_temp.x = old depth/stencil
     a_.OpBFI(sample_depth_stencil_dest, dxbc::Src::LU(24), dxbc::Src::LU(8),
-             sample_depth_stencil_src, temp_w_src);
+             sample_depth_stencil_src, sample_temp_x_src);
 
     // Stencil test.
 
     // Extract the stencil test bit.
-    // sample_temp.x = stencil test enabled
-    a_.OpAnd(sample_temp_x_dest, LoadFlagsSystemConstant(),
+    // sample_temp.x = old depth/stencil
+    // sample_temp.y = stencil test enabled
+    a_.OpAnd(sample_temp_y_dest, LoadFlagsSystemConstant(),
              dxbc::Src::LU(kSysFlag_ROVStencilTest));
     // Check if stencil test is enabled.
-    // sample_temp.x = free
-    a_.OpIf(true, sample_temp_x_src);
+    // sample_temp.x = old depth/stencil
+    // sample_temp.y = free
+    a_.OpIf(true, sample_temp_y_src);
     {
       // Check the current face to get the reference and apply the read mask.
       in_front_face_used_ = true;
@@ -768,9 +797,10 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
               : offsetof(SystemConstants, edram_stencil_front_read_mask),
             dxbc::Src::kXXXX));
         // Read-mask the stencil reference.
-        // sample_temp.x = read-masked stencil reference
+        // sample_temp.x = old depth/stencil
+        // sample_temp.y = read-masked stencil reference
         a_.OpAnd(
-            sample_temp_x_dest,
+            sample_temp_y_dest,
             LoadSystemConstant(
                 SystemConstants::Index::kEdramStencil,
                 j ? offsetof(SystemConstants, edram_stencil_back_reference)
@@ -778,38 +808,44 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
                 dxbc::Src::kXXXX),
             stencil_read_mask_src);
         // Read-mask the old stencil value (also dropping the depth bits).
-        // sample_temp.x = read-masked stencil reference
-        // sample_temp.y = read-masked old stencil
-        a_.OpAnd(sample_temp_y_dest, temp_w_src, stencil_read_mask_src);
+        // sample_temp.x = old depth/stencil
+        // sample_temp.y = read-masked stencil reference
+        // sample_temp.z = read-masked old stencil
+        a_.OpAnd(sample_temp_z_dest, sample_temp_x_src, stencil_read_mask_src);
       }
       // Close the face check.
       a_.OpEndIf();
       // Get the difference between the stencil reference and the old stencil,
       // > 0 - greater, == 0 - equal, < 0 - less.
-      // sample_temp.x = stencil difference
-      // sample_temp.y = free
-      a_.OpIAdd(sample_temp_x_dest, sample_temp_x_src, -sample_temp_y_src);
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = stencil difference
+      // sample_temp.z = free
+      a_.OpIAdd(sample_temp_y_dest, sample_temp_y_src, -sample_temp_z_src);
       // Check if the stencil is "less" or "greater or equal".
-      // sample_temp.x = stencil difference
-      // sample_temp.y = stencil difference less than 0
-      a_.OpILT(sample_temp_y_dest, sample_temp_x_src, dxbc::Src::LI(0));
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = stencil difference
+      // sample_temp.z = stencil difference less than 0
+      a_.OpILT(sample_temp_z_dest, sample_temp_y_src, dxbc::Src::LI(0));
       // Choose the passed depth function bits for "less" or for "greater".
-      // sample_temp.x = stencil difference
-      // sample_temp.y = stencil function passed bits for "less" or "greater"
-      a_.OpMovC(sample_temp_y_dest, sample_temp_y_src,
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = stencil difference
+      // sample_temp.z = stencil function passed bits for "less" or "greater"
+      a_.OpMovC(sample_temp_z_dest, sample_temp_z_src,
                 dxbc::Src::LU(uint32_t(xenos::CompareFunction::kLess)),
                 dxbc::Src::LU(uint32_t(xenos::CompareFunction::kGreater)));
       // Do the "equal" testing.
-      // sample_temp.x = stencil function passed bits
-      // sample_temp.y = free
-      a_.OpMovC(sample_temp_x_dest, sample_temp_x_src, sample_temp_y_src,
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = stencil function passed bits
+      // sample_temp.z = free
+      a_.OpMovC(sample_temp_y_dest, sample_temp_y_src, sample_temp_z_src,
                 dxbc::Src::LU(uint32_t(xenos::CompareFunction::kEqual)));
       // Get the comparison function and the operations for the current face.
-      // sample_temp.x = stencil function passed bits
-      // sample_temp.y = stencil function and operations
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = stencil function passed bits
+      // sample_temp.z = stencil function and operations
       in_front_face_used_ = true;
       a_.OpMovC(
-          sample_temp_y_dest,
+          sample_temp_z_dest,
           dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
                        dxbc::Src::kXXXX),
           LoadSystemConstant(
@@ -823,44 +859,51 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
       // Mask the resulting bits with the ones that should pass (the comparison
       // function is in the low 3 bits of the constant, and only ANDing 3-bit
       // values with it, so safe not to UBFE the function).
-      // sample_temp.x = stencil test result
-      // sample_temp.y = stencil function and operations
-      a_.OpAnd(sample_temp_x_dest, sample_temp_x_src, sample_temp_y_src);
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = stencil test result
+      // sample_temp.z = stencil function and operations
+      a_.OpAnd(sample_temp_y_dest, sample_temp_y_src, sample_temp_z_src);
       // Handle passing and failure of the stencil test, to choose the operation
       // and to discard the sample.
-      // sample_temp.x = free
-      // sample_temp.y = stencil function and operations
-      a_.OpIf(true, sample_temp_x_src);
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = free
+      // sample_temp.z = stencil function and operations
+      a_.OpIf(true, sample_temp_y_src);
       {
-        // Check if depth test has passed for this sample to sample_temp.y (the
-        // sample will only be processed if it's covered, so the only thing that
-        // could unset the bit at this point that matters is the depth test).
-        // sample_temp.x = depth test result
-        // sample_temp.y = stencil function and operations
-        a_.OpAnd(sample_temp_x_dest,
+        // Check if depth test has passed for this sample (the sample will only
+        // be processed if it's covered, so the only thing that could unset the
+        // bit at this point that matters is the depth test).
+        // sample_temp.x = old depth/stencil
+        // sample_temp.y = depth test result
+        // sample_temp.z = stencil function and operations
+        a_.OpAnd(sample_temp_y_dest,
                  dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
                  dxbc::Src::LU(1 << i));
         // Choose the bit offset of the stencil operation.
-        // sample_temp.x = sample operation offset
-        // sample_temp.y = stencil function and operations
-        a_.OpMovC(sample_temp_x_dest, sample_temp_x_src, dxbc::Src::LU(6),
+        // sample_temp.x = old depth/stencil
+        // sample_temp.y = sample operation offset
+        // sample_temp.z = stencil function and operations
+        a_.OpMovC(sample_temp_y_dest, sample_temp_y_src, dxbc::Src::LU(6),
                   dxbc::Src::LU(9));
         // Extract the stencil operation.
-        // sample_temp.x = stencil operation
-        // sample_temp.y = free
-        a_.OpUBFE(sample_temp_x_dest, dxbc::Src::LU(3), sample_temp_x_src,
-                  sample_temp_y_src);
+        // sample_temp.x = old depth/stencil
+        // sample_temp.y = stencil operation
+        // sample_temp.z = free
+        a_.OpUBFE(sample_temp_y_dest, dxbc::Src::LU(3), sample_temp_y_src,
+                  sample_temp_z_src);
       }
       // Stencil test has failed.
       a_.OpElse();
       {
         // Extract the stencil fail operation.
-        // sample_temp.x = stencil operation
-        // sample_temp.y = free
-        a_.OpUBFE(sample_temp_x_dest, dxbc::Src::LU(3), dxbc::Src::LU(3),
-                  sample_temp_y_src);
+        // sample_temp.x = old depth/stencil
+        // sample_temp.y = stencil operation
+        // sample_temp.z = free
+        a_.OpUBFE(sample_temp_y_dest, dxbc::Src::LU(3), dxbc::Src::LU(3),
+                  sample_temp_z_src);
         // Exclude the bit from the covered sample mask.
-        // sample_temp.x = stencil operation
+        // sample_temp.x = old depth/stencil
+        // sample_temp.y = stencil operation
         a_.OpAnd(dxbc::Dest::R(system_temp_rov_params_, 0b0001),
                  dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
                  dxbc::Src::LU(~uint32_t(1 << i)));
@@ -870,18 +913,19 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
 
       // Open the stencil operation switch for writing the new stencil (not
       // caring about bits 8:31).
-      // sample_temp.x = will contain unmasked new stencil in 0:7 and junk above
-      a_.OpSwitch(sample_temp_x_src);
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = will contain unmasked new stencil in 0:7 and junk above
+      a_.OpSwitch(sample_temp_y_src);
       {
         // Zero.
         a_.OpCase(dxbc::Src::LU(uint32_t(xenos::StencilOp::kZero)));
-        a_.OpMov(sample_temp_x_dest, dxbc::Src::LU(0));
+        a_.OpMov(sample_temp_y_dest, dxbc::Src::LU(0));
         a_.OpBreak();
         // Replace.
         a_.OpCase(dxbc::Src::LU(uint32_t(xenos::StencilOp::kReplace)));
         in_front_face_used_ = true;
         a_.OpMovC(
-            sample_temp_x_dest,
+            sample_temp_y_dest,
             dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
                          dxbc::Src::kXXXX),
             LoadSystemConstant(
@@ -897,11 +941,12 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         a_.OpCase(dxbc::Src::LU(uint32_t(xenos::StencilOp::kIncrementClamp)));
         {
           // Clear the upper bits for saturation.
-          a_.OpAnd(sample_temp_x_dest, temp_w_src, dxbc::Src::LU(UINT8_MAX));
+          a_.OpAnd(sample_temp_y_dest, sample_temp_x_src,
+                   dxbc::Src::LU(UINT8_MAX));
           // Increment.
-          a_.OpIAdd(sample_temp_x_dest, sample_temp_x_src, dxbc::Src::LI(1));
+          a_.OpIAdd(sample_temp_y_dest, sample_temp_y_src, dxbc::Src::LI(1));
           // Clamp.
-          a_.OpIMin(sample_temp_x_dest, sample_temp_x_src,
+          a_.OpIMin(sample_temp_y_dest, sample_temp_y_src,
                     dxbc::Src::LI(UINT8_MAX));
         }
         a_.OpBreak();
@@ -909,39 +954,41 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         a_.OpCase(dxbc::Src::LU(uint32_t(xenos::StencilOp::kDecrementClamp)));
         {
           // Clear the upper bits for saturation.
-          a_.OpAnd(sample_temp_x_dest, temp_w_src, dxbc::Src::LU(UINT8_MAX));
+          a_.OpAnd(sample_temp_y_dest, sample_temp_x_src,
+                   dxbc::Src::LU(UINT8_MAX));
           // Increment.
-          a_.OpIAdd(sample_temp_x_dest, sample_temp_x_src, dxbc::Src::LI(-1));
+          a_.OpIAdd(sample_temp_y_dest, sample_temp_y_src, dxbc::Src::LI(-1));
           // Clamp.
-          a_.OpIMax(sample_temp_x_dest, sample_temp_x_src, dxbc::Src::LI(0));
+          a_.OpIMax(sample_temp_y_dest, sample_temp_y_src, dxbc::Src::LI(0));
         }
         a_.OpBreak();
         // Invert.
         a_.OpCase(dxbc::Src::LU(uint32_t(xenos::StencilOp::kInvert)));
-        a_.OpNot(sample_temp_x_dest, temp_w_src);
+        a_.OpNot(sample_temp_y_dest, sample_temp_x_src);
         a_.OpBreak();
         // Increment and wrap.
         a_.OpCase(dxbc::Src::LU(uint32_t(xenos::StencilOp::kIncrementWrap)));
-        a_.OpIAdd(sample_temp_x_dest, temp_w_src, dxbc::Src::LI(1));
+        a_.OpIAdd(sample_temp_y_dest, sample_temp_x_src, dxbc::Src::LI(1));
         a_.OpBreak();
         // Decrement and wrap.
         a_.OpCase(dxbc::Src::LU(uint32_t(xenos::StencilOp::kDecrementWrap)));
-        a_.OpIAdd(sample_temp_x_dest, temp_w_src, dxbc::Src::LI(-1));
+        a_.OpIAdd(sample_temp_y_dest, sample_temp_x_src, dxbc::Src::LI(-1));
         a_.OpBreak();
         // Keep.
         a_.OpDefault();
-        a_.OpMov(sample_temp_x_dest, temp_w_src);
+        a_.OpMov(sample_temp_y_dest, sample_temp_x_src);
         a_.OpBreak();
       }
       // Close the new stencil switch.
       a_.OpEndSwitch();
 
       // Select the stencil write mask for the face.
-      // sample_temp.x = unmasked new stencil in 0:7 and junk above
-      // sample_temp.y = stencil write mask
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = unmasked new stencil in 0:7 and junk above
+      // sample_temp.z = stencil write mask
       in_front_face_used_ = true;
       a_.OpMovC(
-          sample_temp_y_dest,
+          sample_temp_z_dest,
           dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
                        dxbc::Src::kXXXX),
           LoadSystemConstant(
@@ -954,81 +1001,86 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
               dxbc::Src::kXXXX));
       // Apply the write mask to the new stencil, also dropping the upper 24
       // bits.
-      // sample_temp.x = masked new stencil
-      // sample_temp.y = stencil write mask
-      a_.OpAnd(sample_temp_x_dest, sample_temp_x_src, sample_temp_y_src);
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = masked new stencil
+      // sample_temp.z = stencil write mask
+      a_.OpAnd(sample_temp_y_dest, sample_temp_y_src, sample_temp_z_src);
       // Invert the write mask for keeping the old stencil and the depth bits.
-      // sample_temp.x = masked new stencil
-      // sample_temp.y = inverted stencil write mask
-      a_.OpNot(sample_temp_y_dest, sample_temp_y_src);
-      // Remove the bits that will be replaced from the new combined
-      // depth/stencil.
-      // sample_temp.x = masked new stencil
-      // sample_temp.y = free
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = masked new stencil
+      // sample_temp.z = inverted stencil write mask
+      a_.OpNot(sample_temp_z_dest, sample_temp_z_src);
+      // Remove the bits that will be replaced from the combined depth/stencil
+      // before inserting their new values.
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = masked new stencil
+      // sample_temp.z = free
+      // temp.x if no oDepth and early = ddx(z)
+      // temp.y if no oDepth and early = ddy(z)
+      // temp.z if no oDepth = biased depth in the center
+      // temp.w if late = resulting sample depth, inverse-write-masked old
+      //                  stencil
       a_.OpAnd(sample_depth_stencil_dest, sample_depth_stencil_src,
-               sample_temp_y_src);
+               sample_temp_z_src);
       // Merge the old and the new stencil.
-      // temp.x? = resulting sample depth/stencil
-      // temp.y = polygon offset if not writing to oDepth
-      // temp.z = viewport maximum depth if not writing to oDepth
-      // temp.w = old depth/stencil
-      // sample_temp.x = free
+      // temp.x if no oDepth and early = ddx(z)
+      // temp.y if no oDepth and early = ddy(z)
+      // temp.z if no oDepth = biased depth in the center
+      // temp.w if late = resulting sample depth/stencil
+      // sample_temp.x = old depth/stencil
+      // sample_temp.y = free
       a_.OpOr(sample_depth_stencil_dest, sample_depth_stencil_src,
-              sample_temp_x_src);
+              sample_temp_y_src);
     }
     // Close the stencil test check.
     a_.OpEndIf();
 
     // Check if the depth/stencil has failed not to modify the depth if it has.
-    // sample_temp.x = whether depth/stencil has passed for this sample
-    a_.OpAnd(sample_temp_x_dest,
+    // sample_temp.x = old depth/stencil
+    // sample_temp.y = whether depth/stencil has passed for this sample
+    a_.OpAnd(sample_temp_y_dest,
              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
              dxbc::Src::LU(1 << i));
     // If the depth/stencil test has failed, don't change the depth.
-    // sample_temp.x = free
-    a_.OpIf(false, sample_temp_x_src);
+    // sample_temp.x = old depth/stencil
+    // sample_temp.y = free
+    a_.OpIf(false, sample_temp_y_src);
     {
       // Copy the new stencil over the old depth.
-      // temp.x? = resulting sample depth/stencil
-      // temp.y = polygon offset if not writing to oDepth
-      // temp.z = viewport maximum depth if not writing to oDepth
-      // temp.w = old depth/stencil
+      // temp.x if no oDepth and early = ddx(z)
+      // temp.y if no oDepth and early = ddy(z)
+      // temp.z if no oDepth = biased depth in the center
+      // temp.w if late = resulting sample depth/stencil
       a_.OpBFI(sample_depth_stencil_dest, dxbc::Src::LU(8), dxbc::Src::LU(0),
-               sample_depth_stencil_src, temp_w_src);
+               sample_depth_stencil_src, sample_temp_x_src);
     }
     // Close the depth/stencil passing check.
     a_.OpEndIf();
     // Check if the new depth/stencil is different, and thus needs to be
-    // written, to temp.w.
-    // temp.x? = resulting sample depth/stencil
-    // temp.y = polygon offset if not writing to oDepth
-    // temp.z = viewport maximum depth if not writing to oDepth
-    // temp.w = whether depth/stencil has been modified
-    a_.OpINE(temp_w_dest, sample_depth_stencil_src, temp_w_src);
+    // written.
+    // sample_temp.x = old depth/stencil
+    a_.OpINE(sample_temp_x_dest, sample_depth_stencil_src, sample_temp_x_src);
     if (depth_stencil_early &&
         !current_shader().implicit_early_z_write_allowed()) {
       // Set the sample bit in bits 4:7 of system_temp_rov_params_.x - always
       // need to write late in this shader, as it may do something like
       // explicitly killing pixels.
       a_.OpBFI(dxbc::Dest::R(system_temp_rov_params_, 0b0001), dxbc::Src::LU(1),
-               dxbc::Src::LU(4 + i), temp_w_src,
+               dxbc::Src::LU(4 + i), sample_temp_x_src,
                dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX));
     } else {
       // Check if need to write.
-      // temp.x? = resulting sample depth/stencil
-      // temp.y = polygon offset if not writing to oDepth
-      // temp.z = viewport maximum depth if not writing to oDepth
-      // temp.w = free
-      a_.OpIf(true, temp_w_src);
+      // sample_temp.x = free
+      a_.OpIf(true, sample_temp_x_src);
       {
         if (depth_stencil_early) {
-          // Get if early depth/stencil write is enabled to temp.w.
-          // temp.w = whether early depth/stencil write is enabled
-          a_.OpAnd(temp_w_dest, LoadFlagsSystemConstant(),
+          // Get if early depth/stencil write is enabled.
+          // sample_temp.x = whether early depth/stencil write is enabled
+          a_.OpAnd(sample_temp_x_dest, LoadFlagsSystemConstant(),
                    dxbc::Src::LU(kSysFlag_ROVDepthStencilEarlyWrite));
           // Check if need to write early.
-          // temp.w = free
-          a_.OpIf(true, temp_w_src);
+          // sample_temp.x = free
+          a_.OpIf(true, sample_temp_x_src);
         }
         // Write the new depth/stencil.
         if (uav_index_edram_ == kBindingIndexUnallocated) {
@@ -1644,10 +1696,10 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
     // unbiased alpha from the shader
     a_.OpMul(dxbc::Dest::R(system_temps_color_[i]),
              dxbc::Src::R(system_temps_color_[i]),
-             LoadSystemConstant(SystemConstants::Index::kColorExpBias,
-                                offsetof(SystemConstants, color_exp_bias) +
-                                    sizeof(uint32_t) * i,
-                                dxbc::Src::kXXXX));
+             LoadSystemConstant(
+                 SystemConstants::Index::kColorExpBias,
+                 offsetof(SystemConstants, color_exp_bias) + sizeof(float) * i,
+                 dxbc::Src::kXXXX));
     if (!gamma_render_target_as_srgb_) {
       // Convert to gamma space - this is incorrect, since it must be done after
       // blending on the Xbox 360, but this is just one of many blending issues
@@ -2044,10 +2096,10 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     // unbiased alpha from the shader.
     a_.OpMul(dxbc::Dest::R(system_temps_color_[i]),
              dxbc::Src::R(system_temps_color_[i]),
-             LoadSystemConstant(SystemConstants::Index::kColorExpBias,
-                                offsetof(SystemConstants, color_exp_bias) +
-                                    sizeof(uint32_t) * i,
-                                dxbc::Src::kXXXX));
+             LoadSystemConstant(
+                 SystemConstants::Index::kColorExpBias,
+                 offsetof(SystemConstants, color_exp_bias) + sizeof(float) * i,
+                 dxbc::Src::kXXXX));
 
     // Add the EDRAM bases of the render target to system_temp_rov_params_.zw.
     a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b1100),
@@ -2065,7 +2117,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
         dxbc::Src::kXXXX));
     dxbc::Src rt_clamp_vec_src(LoadSystemConstant(
         SystemConstants::Index::kEdramRTClamp,
-        offsetof(SystemConstants, edram_rt_clamp) + sizeof(uint32_t) * 4 * i,
+        offsetof(SystemConstants, edram_rt_clamp) + sizeof(float) * 4 * i,
         dxbc::Src::kXYZW));
     dxbc::Src rt_format_flags_src(LoadSystemConstant(
         SystemConstants::Index::kEdramRTFormatFlags,

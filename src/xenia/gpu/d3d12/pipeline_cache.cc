@@ -1457,31 +1457,16 @@ bool PipelineCache::GetCurrentStateDescription(
     }
   }
   if (!edram_rov_used) {
-    // Conversion based on the calculations in Call of Duty 4 and the values it
-    // writes to the registers, and also on:
-    // https://github.com/mesa3d/mesa/blob/54ad9b444c8e73da498211870e785239ad3ff1aa/src/gallium/drivers/radeonsi/si_state.c#L943
-    // Dividing the scale by 2 - Call of Duty 4 sets the constant bias of
-    // 1/32768 for decals, however, it's done in two steps in separate places:
-    // first it's divided by 65536, and then it's multiplied by 2 (which is
-    // consistent with what si_create_rs_state does, which multiplies the offset
-    // by 2 if it comes from a non-D3D9 API for 24-bit depth buffers) - and
-    // multiplying by 2 to the number of significand bits. Tested mostly in Call
-    // of Duty 4 (vehicledamage map explosion decals) and Red Dead Redemption
-    // (shadows - 2^17 is not enough, 2^18 hasn't been tested, but 2^19
-    // eliminates the acne).
-    if (regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
-        xenos::DepthRenderTargetFormat::kD24FS8) {
-      poly_offset *= float(1 << 19);
-    } else {
-      poly_offset *= float(1 << 23);
-    }
+    float poly_offset_host_scale = draw_util::GetD3D10PolygonOffsetScale(
+        regs.Get<reg::RB_DEPTH_INFO>().depth_format, true);
     // Using ceil here just in case a game wants the offset but passes a value
     // that is too small - it's better to apply more offset than to make depth
     // fighting worse or to disable the offset completely (Direct3D 12 takes an
     // integer value).
-    description_out.depth_bias = int32_t(std::ceil(std::abs(poly_offset))) *
-                                 (poly_offset < 0.0f ? -1 : 1);
-    // "slope computed in subpixels (1/12 or 1/16)" - R5xx Acceleration.
+    description_out.depth_bias =
+        int32_t(std::ceil(std::abs(poly_offset * poly_offset_host_scale))) *
+        (poly_offset < 0.0f ? -1 : 1);
+    // "slope computed in subpixels ([...] 1/16)" - R5xx Acceleration.
     description_out.depth_bias_slope_scaled =
         poly_offset_scale * (1.0f / 16.0f);
   }

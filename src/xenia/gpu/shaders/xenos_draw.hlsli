@@ -34,10 +34,9 @@ cbuffer xe_system_cbuffer : register(b0) {
 
   float4 xe_color_exp_bias;
 
-  float2 xe_edram_depth_range;
   float2 xe_edram_poly_offset_front;
-
   float2 xe_edram_poly_offset_back;
+
   uint xe_edram_depth_base_dwords;
 
   uint4 xe_edram_stencil[2];
@@ -72,7 +71,6 @@ struct XeHSControlPointOutput {
 struct XeVertexPrePS {
   float4 interpolators[16] : TEXCOORD0;
   float3 point_params : TEXCOORD16;
-  float2 clip_space_zw : TEXCOORD17;
 };
 
 struct XeVertexPostGS {

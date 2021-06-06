@@ -268,19 +268,11 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     union {
       struct {
-        float edram_depth_range_scale;
-        float edram_depth_range_offset;
-      };
-      float edram_depth_range[2];
-    };
-    union {
-      struct {
         float edram_poly_offset_front_scale;
         float edram_poly_offset_front_offset;
       };
       float edram_poly_offset_front[2];
     };
-
     union {
       struct {
         float edram_poly_offset_back_scale;
@@ -288,8 +280,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
       };
       float edram_poly_offset_back[2];
     };
+
     uint32_t edram_depth_base_dwords;
-    uint32_t padding_edram_depth_base_dwords;
+    uint32_t padding_edram_depth_base_dwords[3];
 
     // In stencil function/operations (they match the layout of the
     // function/operations in RB_DEPTHCONTROL):
@@ -377,10 +370,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
       kColorExpBias,
 
-      kEdramDepthRange,
       kEdramPolyOffsetFront,
-
       kEdramPolyOffsetBack,
+
       kEdramDepthBaseDwords,
 
       kEdramStencil,
@@ -584,7 +576,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
  private:
   static constexpr uint32_t kPointParametersTexCoord = xenos::kMaxInterpolators;
-  static constexpr uint32_t kClipSpaceZWTexCoord = kPointParametersTexCoord + 1;
 
   enum class InOutRegister : uint32_t {
     // IF ANY OF THESE ARE CHANGED, WriteInputSignature and WriteOutputSignature
@@ -595,7 +586,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     kVSDSOutInterpolators = 0,
     kVSDSOutPointParameters = kVSDSOutInterpolators + xenos::kMaxInterpolators,
-    kVSDSOutClipSpaceZW,
     kVSDSOutPosition,
     // Clip and cull distances must be tightly packed in Direct3D!
     kVSDSOutClipDistance0123,
@@ -607,7 +597,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     kPSInInterpolators = 0,
     kPSInPointParameters = kPSInInterpolators + xenos::kMaxInterpolators,
-    kPSInClipSpaceZW,
     kPSInPosition,
     // nointerpolation inputs. SV_IsFrontFace (X) is always present for
     // ps_param_gen, SV_SampleIndex (Y) is conditional (only for memexport when
@@ -627,7 +616,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // vector, it will be turned into YYYY, and so on. The swizzle may include
   // out-of-bounds components of the vector for simplicity of use, assuming they
   // will be dropped anyway later.
-  dxbc::Src GetSystemConstantSrc(size_t offset, uint32_t swizzle) {
+  dxbc::Src GetSystemConstantSrc(size_t offset, uint32_t swizzle) const {
     uint32_t first_component = uint32_t((offset >> 2) & 3);
     return dxbc::Src::CB(
         cbuffer_index_system_constants_,
@@ -688,15 +677,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
   }
   bool IsDepthStencilSystemTempUsed() const {
     // See system_temp_depth_stencil_ documentation for explanation of cases.
+    if (edram_rov_used_) {
+      // Needed for all cases (early, late, late with oDepth).
+      return true;
+    }
     if (current_shader().writes_depth()) {
       // With host render targets, the depth format may be float24, in this
       // case, need to multiply it by 0.5 since 0...1 of the guest is stored as
       // 0...0.5 on the host, and also to convert it.
       // With ROV, need to store it to write later.
-      return true;
-    }
-    if (edram_rov_used_ && ROV_IsDepthStencilEarly()) {
-      // Calculated in the beginning, written possibly in the end.
       return true;
     }
     return false;
@@ -1069,15 +1058,18 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // W - Base-relative resolution-scaled EDRAM offset for 64bpp color data, in
   //     dwords.
   uint32_t system_temp_rov_params_;
-  // Two purposes:
+  // Different purposes:
   // - When writing to oDepth: X also used to hold the depth written by the
   //   shader, which, for host render targets, if the depth buffer is float24,
   //   needs to be remapped from guest 0...1 to host 0...0.5 and, if needed,
   //   converted to float24 precision; and for ROV, needs to be written in the
   //   end of the shader.
-  // - Otherwise, when using ROV output with ROV_IsDepthStencilEarly being true:
-  //   New per-sample depth / stencil values, generated during early
-  //   depth / stencil test (actual writing checks coverage bits).
+  // - When not writing to oDepth, but using ROV:
+  //   - ROV_IsDepthStencilEarly: New per-sample depth / stencil values,
+  //     generated during early depth / stencil test (actual writing checks
+  //     the remaining coverage bits).
+  //   - Not ROV_IsDepthStencilEarly: Z gradients in .xy taken in the beginning
+  //     of the shader before any return statement is possibly reached.
   uint32_t system_temp_depth_stencil_;
   // Up to 4 color outputs in pixel shaders (needs to be readable, because of
   // alpha test, alpha to coverage, exponent bias, gamma, and also for ROV

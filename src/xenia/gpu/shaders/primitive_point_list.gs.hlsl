@@ -12,7 +12,6 @@ void main(point XeVertexPreGS xe_in[1],
   XeVertexPostGS xe_out;
   xe_out.pre_ps.interpolators = xe_in[0].post_gs.pre_ps.interpolators;
   xe_out.pre_ps.point_params.z = xe_in[0].post_gs.pre_ps.point_params.z;
-  xe_out.pre_ps.clip_space_zw = xe_in[0].post_gs.pre_ps.clip_space_zw;
   xe_out.position.zw = xe_in[0].post_gs.position.zw;
   xe_out.clip_distance_0123 = xe_in[0].post_gs.clip_distance_0123;
   xe_out.clip_distance_45 = xe_in[0].post_gs.clip_distance_45;

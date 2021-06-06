@@ -88,6 +88,11 @@ inline bool IsPrimitivePolygonal(const RegisterFile& regs) {
 bool IsRasterizationPotentiallyDone(const RegisterFile& regs,
                                     bool primitive_polygonal);
 
+// Direct3D 10.1+ standard sample positions, also used in Vulkan, for
+// calculations related to host MSAA, in 1/16th of a pixel.
+extern const int8_t kD3D10StandardSamplePositions2x[2][2];
+extern const int8_t kD3D10StandardSamplePositions4x[4][2];
+
 inline reg::RB_DEPTHCONTROL GetDepthControlForCurrentEdramMode(
     const RegisterFile& regs) {
   xenos::ModeControl edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
@@ -99,6 +104,31 @@ inline reg::RB_DEPTHCONTROL GetDepthControlForCurrentEdramMode(
     return disabled;
   }
   return regs.Get<reg::RB_DEPTHCONTROL>();
+}
+
+constexpr float GetD3D10PolygonOffsetScale(
+    xenos::DepthRenderTargetFormat depth_format, bool float24_as_0_to_0_5) {
+  if (depth_format == xenos::DepthRenderTargetFormat::kD24S8) {
+    return float(1 << 24);
+  }
+  // 20 explicit + 1 implicit (1.) mantissa bits.
+  // 2^20 is not enough for Call of Duty 4 retail version's first mission F.N.G.
+  // shooting range floor (with the number 1) on Direct3D 12. Tested on Nvidia
+  // GeForce GTX 1070, the exact formula (taking into account the 0...1 to
+  // 0...0.5 remapping described below) used for testing is
+  // `int(ceil(offset * 2^20 * 0.5)) * sign(offset)`. With 2^20 * 0.5, there
+  // are various kinds of stripes dependending on the view angle in that
+  // location. With 2^21 * 0.5, the issue is not present.
+  constexpr float kFloat24Scale = float(1 << 21);
+  // 0...0.5 range may be used on the host to represent the 0...1 guest depth
+  // range to be able to copy all possible encodings, which are [0, 2), via a
+  // [0, 1] depth output variable, during EDRAM contents reinterpretation.
+  // This is done by scaling the viewport depth bounds by 0.5. However, the
+  // depth bias is applied after the viewport. This adjustment is only needed
+  // for the constant bias - for slope-scaled, the derivatives of Z are
+  // calculated after the viewport as well, and will already include the 0.5
+  // scaling from the viewport.
+  return float24_as_0_to_0_5 ? kFloat24Scale * 0.5f : kFloat24Scale;
 }
 
 inline bool DoesCoverageDependOnAlpha(reg::RB_COLORCONTROL rb_colorcontrol) {
