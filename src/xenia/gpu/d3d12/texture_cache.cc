@@ -2692,8 +2692,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     load_constants.guest_pitch_aligned = level_guest_pitch;
     load_constants.guest_z_stride_block_rows_aligned =
         level_guest_layout.z_slice_stride_block_rows;
-    assert_zero(load_constants.guest_z_stride_block_rows_aligned &
-                (xenos::kTextureTileWidthHeight - 1));
+    assert_true(dimension != xenos::DataDimension::k3D ||
+                !(load_constants.guest_z_stride_block_rows_aligned &
+                  (xenos::kTextureTileWidthHeight - 1)));
 
     uint32_t level_width, level_height, level_depth;
     if (level == level_packed) {

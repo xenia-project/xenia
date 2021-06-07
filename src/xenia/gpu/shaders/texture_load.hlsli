@@ -11,7 +11,7 @@ cbuffer XeTextureLoadConstants : register(b0) {
   // For tiled textures - row pitch in blocks, aligned to 32.
   // For linear textures - row pitch in bytes.
   uint xe_texture_load_guest_pitch_aligned;
-  // Must be aligned to 32.
+  // For 3D textures only (ignored otherwise) - aligned to 32.
   uint xe_texture_load_guest_z_stride_block_rows_aligned;
 
   // If this is a packed mip tail, this is aligned to tile dimensions.
