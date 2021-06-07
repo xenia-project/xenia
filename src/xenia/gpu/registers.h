@@ -334,7 +334,11 @@ union alignas(uint32_t) PA_SU_SC_MODE_CNTL {
     uint32_t cull_front : 1;  // +0
     uint32_t cull_back : 1;   // +1
     // 0 - front is CCW, 1 - front is CW.
-    uint32_t face : 1;                            // +2
+    uint32_t face : 1;  // +2
+    // The game Fuse uses poly_mode 2 for triangles, which is "reserved" on R6xx
+    // and not defined on Adreno 2xx, but polymode_front/back_ptype are 0
+    // (points) in this case in Fuse, which should not be respected for
+    // non-kDualMode as the game wants to draw filled triangles.
     xenos::PolygonModeEnable poly_mode : 2;       // +3
     xenos::PolygonType polymode_front_ptype : 3;  // +5
     xenos::PolygonType polymode_back_ptype : 3;   // +8

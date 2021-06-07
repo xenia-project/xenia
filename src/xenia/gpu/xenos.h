@@ -753,6 +753,10 @@ enum class TessellationMode : uint32_t {
 enum class PolygonModeEnable : uint32_t {
   kDisabled = 0,  // Render triangles.
   kDualMode = 1,  // Send 2 sets of 3 polygons with the specified polygon type.
+  // The game Fuse uses 2 for triangles, which is "reserved" on R6xx and not
+  // defined on Adreno 2xx, but polymode_front/back_ptype are 0 (points) in this
+  // case in Fuse, which should not be respected for non-kDualMode as the game
+  // wants to draw filled triangles.
 };
 
 enum class PolygonType : uint32_t {
