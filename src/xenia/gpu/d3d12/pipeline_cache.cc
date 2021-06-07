@@ -1444,7 +1444,7 @@ bool PipelineCache::GetCurrentStateDescription(
         poly_offset_scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
       }
     }
-    if (pa_su_sc_mode_cntl.poly_mode == xenos::PolygonModeEnable::kDisabled) {
+    if (pa_su_sc_mode_cntl.poly_mode != xenos::PolygonModeEnable::kDualMode) {
       description_out.fill_mode_wireframe = 0;
     }
   } else {
