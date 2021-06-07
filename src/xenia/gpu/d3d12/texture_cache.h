@@ -486,7 +486,7 @@ class TextureCache {
     // For tiled textures - row pitch in blocks, aligned to 32.
     // For linear textures - row pitch in bytes.
     uint32_t guest_pitch_aligned;
-    // Must be aligned to 32.
+    // For 3D textures only (ignored otherwise) - aligned to 32.
     uint32_t guest_z_stride_block_rows_aligned;
 
     // vec4 1.
