@@ -13,6 +13,7 @@
 #include "xenia/base/platform_win.h"
 
 #include "xenia/apu/apu_flags.h"
+#include "xenia/apu/conversion.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 
@@ -208,12 +209,8 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
   auto interleave_channels = frame_channels_;
 
   // interleave the data
-  for (uint32_t index = 0, o = 0; index < channel_samples_; ++index) {
-    for (uint32_t channel = 0, table = 0; channel < interleave_channels;
-         ++channel, table += channel_samples_) {
-      output_frame[o++] = xe::byte_swap(input_frame[table + index]);
-    }
-  }
+  conversion::sequential_6_BE_to_interleaved_6_LE(output_frame, input_frame,
+                                                  channel_samples_);
 
   api::XAUDIO2_BUFFER buffer;
   buffer.Flags = 0;
