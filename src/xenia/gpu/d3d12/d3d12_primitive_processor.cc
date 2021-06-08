@@ -40,6 +40,7 @@ bool D3D12PrimitiveProcessor::Initialize() {
 }
 
 void D3D12PrimitiveProcessor::Shutdown(bool from_destructor) {
+  frame_index_buffers_.clear();
   frame_index_buffer_pool_.reset();
   builtin_index_buffer_upload_.Reset();
   builtin_index_buffer_gpu_address_ = 0;
