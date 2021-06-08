@@ -34,6 +34,8 @@ DECLARE_bool(debug);
 namespace xe {
 namespace cpu {
 
+constexpr fourcc_t kProcessorSaveSignature = make_fourcc("PROC");
+
 class Breakpoint;
 class StackWalker;
 class XexModule;

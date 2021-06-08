@@ -40,6 +40,23 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
     stream += kCommandHeaderSizeElements;
     stream_remaining -= kCommandHeaderSizeElements;
     switch (header.command) {
+      case Command::kD3DClearDepthStencilView: {
+        auto& args =
+            *reinterpret_cast<const ClearDepthStencilViewHeader*>(stream);
+        command_list->ClearDepthStencilView(
+            args.depth_stencil_view, args.clear_flags, args.depth, args.stencil,
+            args.num_rects,
+            args.num_rects ? reinterpret_cast<const D3D12_RECT*>(&args + 1)
+                           : nullptr);
+      } break;
+      case Command::kD3DClearRenderTargetView: {
+        auto& args =
+            *reinterpret_cast<const ClearRenderTargetViewHeader*>(stream);
+        command_list->ClearRenderTargetView(
+            args.render_target_view, args.color_rgba, args.num_rects,
+            args.num_rects ? reinterpret_cast<const D3D12_RECT*>(&args + 1)
+                           : nullptr);
+      } break;
       case Command::kD3DClearUnorderedAccessViewUint: {
         auto& args =
             *reinterpret_cast<const ClearUnorderedAccessViewHeader*>(stream);
@@ -64,11 +81,12 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
         auto& args = *reinterpret_cast<const CopyTextureArguments*>(stream);
         command_list->CopyTextureRegion(&args.dst, 0, 0, 0, &args.src, nullptr);
       } break;
-      case Command::kCopyTextureRegion: {
+      case Command::kD3DCopyTextureRegion: {
         auto& args =
-            *reinterpret_cast<const CopyTextureRegionArguments*>(stream);
-        command_list->CopyTextureRegion(&args.dst, args.dst_x, args.dst_y,
-                                        args.dst_z, &args.src, &args.src_box);
+            *reinterpret_cast<const D3DCopyTextureRegionArguments*>(stream);
+        command_list->CopyTextureRegion(
+            &args.dst, args.dst_x, args.dst_y, args.dst_z, &args.src,
+            args.has_src_box ? &args.src_box : nullptr);
       } break;
       case Command::kD3DDispatch: {
         if (current_pipeline_state != nullptr) {
@@ -106,6 +124,17 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
       case Command::kD3DIASetPrimitiveTopology: {
         command_list->IASetPrimitiveTopology(
             *reinterpret_cast<const D3D12_PRIMITIVE_TOPOLOGY*>(stream));
+      } break;
+      case Command::kD3DIASetVertexBuffers: {
+        static_assert(alignof(D3D12_VERTEX_BUFFER_VIEW) <= alignof(uintmax_t));
+        auto& args =
+            *reinterpret_cast<const D3DIASetVertexBuffersHeader*>(stream);
+        command_list->IASetVertexBuffers(
+            args.start_slot, args.num_views,
+            reinterpret_cast<const D3D12_VERTEX_BUFFER_VIEW*>(
+                reinterpret_cast<const uint8_t*>(stream) +
+                xe::align(sizeof(D3DIASetVertexBuffersHeader),
+                          alignof(D3D12_VERTEX_BUFFER_VIEW))));
       } break;
       case Command::kD3DOMSetBlendFactor: {
         command_list->OMSetBlendFactor(reinterpret_cast<const FLOAT*>(stream));

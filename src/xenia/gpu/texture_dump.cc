@@ -30,7 +30,7 @@ void TextureDump(const TextureInfo& src, void* buffer, size_t length) {
     struct {
       uint32_t size;
       uint32_t flags;
-      uint32_t fourcc;
+      be<fourcc_t> fourcc;
       uint32_t rgb_bit_count;
       uint32_t r_bit_mask;
       uint32_t g_bit_mask;
@@ -59,17 +59,17 @@ void TextureDump(const TextureInfo& src, void* buffer, size_t length) {
   switch (src.format) {
     case xenos::TextureFormat::k_DXT1: {
       dds_header.pixel_format.flags = 0x4u;
-      dds_header.pixel_format.fourcc = '1TXD';
+      dds_header.pixel_format.fourcc = make_fourcc("DXT1");
       break;
     }
     case xenos::TextureFormat::k_DXT2_3: {
       dds_header.pixel_format.flags = 0x4u;
-      dds_header.pixel_format.fourcc = '3TXD';
+      dds_header.pixel_format.fourcc = make_fourcc("DXT3");
       break;
     }
     case xenos::TextureFormat::k_DXT4_5: {
       dds_header.pixel_format.flags = 0x4u;
-      dds_header.pixel_format.fourcc = '5TXD';
+      dds_header.pixel_format.fourcc = make_fourcc("DXT5");
       break;
     }
     case xenos::TextureFormat::k_8_8_8_8: {
@@ -100,7 +100,7 @@ void TextureDump(const TextureInfo& src, void* buffer, size_t length) {
 
   FILE* handle = filesystem::OpenFile(path, "wb");
   if (handle) {
-    const uint32_t signature = ' SDD';
+    const char signature[4] = {'D', 'D', 'S', ' '};
     fwrite(&signature, sizeof(signature), 1, handle);
     fwrite(&dds_header, sizeof(dds_header), 1, handle);
     fwrite(buffer, 1, length, handle);

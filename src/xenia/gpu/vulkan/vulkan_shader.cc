@@ -58,7 +58,7 @@ VulkanShader::VulkanShader(xenos::ShaderType shader_type, uint64_t data_hash,
       provider_(provider) {}
 
 Shader::Translation* VulkanShader::CreateTranslationInstance(
-    uint32_t modification) {
+    uint64_t modification) {
   return new VulkanTranslation(*this, modification);
 }
 

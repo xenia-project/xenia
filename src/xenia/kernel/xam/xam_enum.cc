@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -27,8 +27,8 @@ namespace kernel {
 namespace xam {
 
 // https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L518
-uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, void* buffer,
-                        uint32_t buffer_length, uint32_t* items_returned,
+uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, lpvoid_t buffer_ptr,
+                        uint32_t buffer_size, uint32_t* items_returned,
                         uint32_t overlapped_ptr) {
   assert_true(flags == 0);
 
@@ -38,37 +38,29 @@ uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, void* buffer,
   auto e = kernel_state()->object_table()->LookupObject<XEnumerator>(handle);
   if (!e) {
     result = X_ERROR_INVALID_HANDLE;
+  } else if (!buffer_ptr) {
+    result = X_ERROR_INVALID_PARAMETER;
   } else {
-    size_t actual_buffer_length = buffer_length;
-    if (buffer_length == e->items_per_enumerate()) {
-      actual_buffer_length = e->item_size() * e->items_per_enumerate();
+    size_t needed_buffer_size = e->item_size() * e->items_per_enumerate();
+
+    uint32_t actual_buffer_size = buffer_size;
+    if (buffer_size == e->items_per_enumerate()) {
+      actual_buffer_size = static_cast<uint32_t>(needed_buffer_size);
       // Known culprits:
       //   Final Fight: Double Impact (saves)
       XELOGW(
-          "Broken usage of XamEnumerate! buffer length={:X} vs actual "
-          "length={:X} "
-          "(item size={:X}, items per enumerate={})",
-          (uint32_t)buffer_length, actual_buffer_length, e->item_size(),
+          "Broken usage of XamEnumerate! buffer size={:X} vs actual "
+          "size={:X} (item size={:X}, items per enumerate={})",
+          buffer_size, actual_buffer_size, e->item_size(),
           e->items_per_enumerate());
     }
 
-    std::memset(buffer, 0, actual_buffer_length);
-
-    if (actual_buffer_length < e->item_size()) {
-      result = X_ERROR_INSUFFICIENT_BUFFER;
-    } else if (e->current_item() >= e->item_count()) {
-      result = X_ERROR_NO_MORE_FILES;
-    } else {
-      auto item_buffer = static_cast<uint8_t*>(buffer);
-      auto max_items = actual_buffer_length / e->item_size();
-      while (max_items--) {
-        if (!e->WriteItem(item_buffer)) {
-          break;
-        }
-        item_buffer += e->item_size();
-        item_count++;
-      }
-      result = X_ERROR_SUCCESS;
+    result = X_ERROR_INSUFFICIENT_BUFFER;
+    if (actual_buffer_size >= needed_buffer_size) {
+      buffer_ptr.Zero(actual_buffer_size);
+      result =
+          e->WriteItems(buffer_ptr.guest_address(), buffer_ptr.as<uint8_t*>(),
+                        actual_buffer_size, &item_count);
     }
   }
 

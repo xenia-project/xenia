@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -75,7 +75,7 @@ class HIRBuilder {
   template <typename... Args>
   void CommentFormat(const std::string_view format, const Args&... args) {
     static const uint32_t kMaxCommentSize = 1024;
-    char* p = reinterpret_cast<char*>(arena_->Alloc(kMaxCommentSize));
+    char* p = reinterpret_cast<char*>(arena_->Alloc(kMaxCommentSize, 1));
     auto result = fmt::format_to_n(p, kMaxCommentSize - 1, format, args...);
     p[result.size] = '\0';
     size_t rewind = kMaxCommentSize - 1 - result.size;

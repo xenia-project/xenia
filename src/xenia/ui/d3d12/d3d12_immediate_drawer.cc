@@ -24,9 +24,11 @@ namespace xe {
 namespace ui {
 namespace d3d12 {
 
-// Generated with `xb gendxbc`.
+// Generated with `xb buildshaders`.
+namespace shaders {
 #include "xenia/ui/shaders/bytecode/d3d12_5_1/immediate_ps.h"
 #include "xenia/ui/shaders/bytecode/d3d12_5_1/immediate_vs.h"
+}  // namespace shaders
 
 D3D12ImmediateDrawer::D3D12ImmediateTexture::D3D12ImmediateTexture(
     uint32_t width, uint32_t height, ID3D12Resource* resource,
@@ -121,10 +123,10 @@ bool D3D12ImmediateDrawer::Initialize() {
   // Create the pipelines.
   D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc = {};
   pipeline_desc.pRootSignature = root_signature_;
-  pipeline_desc.VS.pShaderBytecode = immediate_vs;
-  pipeline_desc.VS.BytecodeLength = sizeof(immediate_vs);
-  pipeline_desc.PS.pShaderBytecode = immediate_ps;
-  pipeline_desc.PS.BytecodeLength = sizeof(immediate_ps);
+  pipeline_desc.VS.pShaderBytecode = shaders::immediate_vs;
+  pipeline_desc.VS.BytecodeLength = sizeof(shaders::immediate_vs);
+  pipeline_desc.PS.pShaderBytecode = shaders::immediate_ps;
+  pipeline_desc.PS.BytecodeLength = sizeof(shaders::immediate_ps);
   D3D12_RENDER_TARGET_BLEND_DESC& pipeline_blend_desc =
       pipeline_desc.BlendState.RenderTarget[0];
   pipeline_blend_desc.BlendEnable = TRUE;

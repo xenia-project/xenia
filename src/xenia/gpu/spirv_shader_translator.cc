@@ -66,22 +66,26 @@ SpirvShaderTranslator::Features::Features(
 SpirvShaderTranslator::SpirvShaderTranslator(const Features& features)
     : features_(features) {}
 
-uint32_t SpirvShaderTranslator::GetDefaultModification(
-    xenos::ShaderType shader_type,
+uint64_t SpirvShaderTranslator::GetDefaultVertexShaderModification(
+    uint32_t dynamic_addressable_register_count,
     Shader::HostVertexShaderType host_vertex_shader_type) const {
   Modification shader_modification;
-  switch (shader_type) {
-    case xenos::ShaderType::kVertex:
-      shader_modification.host_vertex_shader_type = host_vertex_shader_type;
-      break;
-    case xenos::ShaderType::kPixel:
-      break;
-  }
+  shader_modification.vertex.dynamic_addressable_register_count =
+      dynamic_addressable_register_count;
+  shader_modification.vertex.host_vertex_shader_type = host_vertex_shader_type;
   return shader_modification.value;
 }
 
-void SpirvShaderTranslator::Reset(xenos::ShaderType shader_type) {
-  ShaderTranslator::Reset(shader_type);
+uint64_t SpirvShaderTranslator::GetDefaultPixelShaderModification(
+    uint32_t dynamic_addressable_register_count) const {
+  Modification shader_modification;
+  shader_modification.pixel.dynamic_addressable_register_count =
+      dynamic_addressable_register_count;
+  return shader_modification.value;
+}
+
+void SpirvShaderTranslator::Reset() {
+  ShaderTranslator::Reset();
 
   builder_.reset();
 
@@ -95,6 +99,13 @@ void SpirvShaderTranslator::Reset(xenos::ShaderType shader_type) {
 
   cf_exec_conditional_merge_ = nullptr;
   cf_instruction_predicate_merge_ = nullptr;
+}
+
+uint32_t SpirvShaderTranslator::GetModificationRegisterCount() const {
+  Modification modification = GetSpirvShaderModification();
+  return is_vertex_shader()
+             ? modification.vertex.dynamic_addressable_register_count
+             : modification.pixel.dynamic_addressable_register_count;
 }
 
 void SpirvShaderTranslator::StartTranslation() {
@@ -218,7 +229,8 @@ void SpirvShaderTranslator::StartTranslation() {
   }
 
   // Common uniform buffer - float constants.
-  uint32_t float_constant_count = constant_register_map().float_count;
+  uint32_t float_constant_count =
+      current_shader().constant_register_map().float_count;
   if (float_constant_count) {
     id_vector_temp_.clear();
     id_vector_temp_.push_back(builder_->makeArrayType(
@@ -416,7 +428,7 @@ void SpirvShaderTranslator::StartTranslation() {
 
   // If no jumps, don't create a switch, but still create a loop so exece can
   // break.
-  bool has_main_switch = !label_addresses().empty();
+  bool has_main_switch = !current_shader().label_addresses().empty();
 
   // Main loop header - based on whether it's the first iteration (entered from
   // the function or from the continuation), choose the program counter.
@@ -471,7 +483,7 @@ void SpirvShaderTranslator::StartTranslation() {
 std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
   // Close flow control within the last switch case.
   CloseExecConditionals();
-  bool has_main_switch = !label_addresses().empty();
+  bool has_main_switch = !current_shader().label_addresses().empty();
   // After the final exec (if it happened to be not exece, which would already
   // have a break branch), break from the switch if it exists, or from the
   // loop it doesn't.
@@ -579,7 +591,7 @@ void SpirvShaderTranslator::ProcessLabel(uint32_t cf_index) {
     return;
   }
 
-  assert_false(label_addresses().empty());
+  assert_false(current_shader().label_addresses().empty());
 
   // Close flow control within the previous switch case.
   CloseExecConditionals();
@@ -612,8 +624,9 @@ void SpirvShaderTranslator::ProcessExecInstructionEnd(
     // Break out of the main switch (if exists) and the main loop.
     CloseInstructionPredication();
     if (!builder_->getBuildPoint()->isTerminated()) {
-      builder_->createBranch(label_addresses().empty() ? main_loop_merge_
-                                                       : main_switch_merge_);
+      builder_->createBranch(current_shader().label_addresses().empty()
+                                 ? main_loop_merge_
+                                 : main_switch_merge_);
     }
   }
   UpdateExecConditionals(instr.type, instr.bool_constant_index,
@@ -1307,6 +1320,8 @@ void SpirvShaderTranslator::CloseExecConditionals() {
 spv::Id SpirvShaderTranslator::GetStorageAddressingIndex(
     InstructionStorageAddressingMode addressing_mode, uint32_t storage_index,
     bool is_float_constant) {
+  const Shader::ConstantRegisterMap& constant_register_map =
+      current_shader().constant_register_map();
   EnsureBuildPointAvailable();
   spv::Id base_pointer = spv::NoResult;
   switch (addressing_mode) {
@@ -1314,7 +1329,7 @@ spv::Id SpirvShaderTranslator::GetStorageAddressingIndex(
       uint32_t static_storage_index = storage_index;
       if (is_float_constant) {
         static_storage_index =
-            constant_register_map().GetPackedFloatConstantIndex(storage_index);
+            constant_register_map.GetPackedFloatConstantIndex(storage_index);
         assert_true(static_storage_index != UINT32_MAX);
         if (static_storage_index == UINT32_MAX) {
           static_storage_index = 0;
@@ -1335,7 +1350,7 @@ spv::Id SpirvShaderTranslator::GetStorageAddressingIndex(
       break;
   }
   assert_true(!is_float_constant ||
-              constant_register_map().float_dynamic_addressing);
+              constant_register_map.float_dynamic_addressing);
   assert_true(base_pointer != spv::NoResult);
   spv::Id index = builder_->createLoad(base_pointer, spv::NoPrecision);
   if (storage_index) {

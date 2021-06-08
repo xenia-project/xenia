@@ -18,6 +18,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/xxhash.h"
+#include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/registers.h"
@@ -82,7 +83,6 @@ void VulkanPipelineCache::ClearCache() {
 }
 
 VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
-                                              uint32_t guest_address,
                                               const uint32_t* host_address,
                                               uint32_t dword_count) {
   // Hash the input memory and lookup the shader.
@@ -93,7 +93,6 @@ VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
     // Shader has been previously loaded.
     return it->second;
   }
-
   // Always create the shader and stash it away.
   // We need to track it even if it fails translation so we know not to try
   // again.
@@ -101,53 +100,34 @@ VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
       shader_type, data_hash, host_address, dword_count,
       command_processor_.GetVulkanContext().GetVulkanProvider());
   shaders_.emplace(data_hash, shader);
-  if (!cvars::dump_shaders.empty()) {
-    shader->DumpUcodeBinary(cvars::dump_shaders);
-  }
-
   return shader;
 }
 
-bool VulkanPipelineCache::GetCurrentShaderModifications(
-    SpirvShaderTranslator::Modification& vertex_shader_modification_out,
-    SpirvShaderTranslator::Modification& pixel_shader_modification_out) const {
-  // TODO(Triang3l): Tessellation, depth output.
-  vertex_shader_modification_out = SpirvShaderTranslator::Modification(
-      shader_translator_->GetDefaultModification(xenos::ShaderType::kVertex));
-  pixel_shader_modification_out = SpirvShaderTranslator::Modification(
-      shader_translator_->GetDefaultModification(xenos::ShaderType::kPixel));
-  return true;
+SpirvShaderTranslator::Modification
+VulkanPipelineCache::GetCurrentVertexShaderModification(
+    const Shader& shader,
+    Shader::HostVertexShaderType host_vertex_shader_type) const {
+  assert_true(shader.type() == xenos::ShaderType::kVertex);
+  assert_true(shader.is_ucode_analyzed());
+  const auto& regs = register_file_;
+  auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
+  return SpirvShaderTranslator::Modification(
+      shader_translator_->GetDefaultVertexShaderModification(
+          shader.GetDynamicAddressableRegisterCount(sq_program_cntl.vs_num_reg),
+          host_vertex_shader_type));
 }
 
-bool VulkanPipelineCache::EnsureShadersTranslated(
-    VulkanShader::VulkanTranslation* vertex_shader,
-    VulkanShader::VulkanTranslation* pixel_shader) {
-  const RegisterFile& regs = register_file_;
+SpirvShaderTranslator::Modification
+VulkanPipelineCache::GetCurrentPixelShaderModification(
+    const Shader& shader) const {
+  assert_true(shader.type() == xenos::ShaderType::kPixel);
+  assert_true(shader.is_ucode_analyzed());
+  const auto& regs = register_file_;
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
-
-  // Edge flags are not supported yet (because polygon primitives are not).
-  assert_true(sq_program_cntl.vs_export_mode !=
-                  xenos::VertexShaderExportMode::kPosition2VectorsEdge &&
-              sq_program_cntl.vs_export_mode !=
-                  xenos::VertexShaderExportMode::kPosition2VectorsEdgeKill);
-  assert_false(sq_program_cntl.gen_index_vtx);
-
-  if (!vertex_shader->is_translated()) {
-    if (!TranslateShader(*shader_translator_, *vertex_shader,
-                         sq_program_cntl)) {
-      XELOGE("Failed to translate the vertex shader!");
-      return false;
-    }
-  }
-
-  if (pixel_shader != nullptr && !pixel_shader->is_translated()) {
-    if (!TranslateShader(*shader_translator_, *pixel_shader, sq_program_cntl)) {
-      XELOGE("Failed to translate the pixel shader!");
-      return false;
-    }
-  }
-
-  return true;
+  return SpirvShaderTranslator::Modification(
+      shader_translator_->GetDefaultPixelShaderModification(
+          shader.GetDynamicAddressableRegisterCount(
+              sq_program_cntl.ps_num_reg)));
 }
 
 bool VulkanPipelineCache::ConfigurePipeline(
@@ -159,6 +139,38 @@ bool VulkanPipelineCache::ConfigurePipeline(
 #if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
+
+  // Ensure shaders are translated - needed now for GetCurrentStateDescription.
+  // Edge flags are not supported yet (because polygon primitives are not).
+  assert_true(register_file_.Get<reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
+                  xenos::VertexShaderExportMode::kPosition2VectorsEdge &&
+              register_file_.Get<reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
+                  xenos::VertexShaderExportMode::kPosition2VectorsEdgeKill);
+  assert_false(register_file_.Get<reg::SQ_PROGRAM_CNTL>().gen_index_vtx);
+  if (!vertex_shader->is_translated()) {
+    vertex_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
+    if (!TranslateAnalyzedShader(*shader_translator_, *vertex_shader)) {
+      XELOGE("Failed to translate the vertex shader!");
+      return false;
+    }
+  }
+  if (!vertex_shader->is_valid()) {
+    // Translation attempted previously, but not valid.
+    return false;
+  }
+  if (pixel_shader != nullptr) {
+    if (!pixel_shader->is_translated()) {
+      pixel_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
+      if (!TranslateAnalyzedShader(*shader_translator_, *pixel_shader)) {
+        XELOGE("Failed to translate the pixel shader!");
+        return false;
+      }
+    }
+    if (!pixel_shader->is_valid()) {
+      // Translation attempted previously, but not valid.
+      return false;
+    }
+  }
 
   PipelineDescription description;
   if (!GetCurrentStateDescription(vertex_shader, pixel_shader, render_pass_key,
@@ -179,9 +191,6 @@ bool VulkanPipelineCache::ConfigurePipeline(
   }
 
   // Create the pipeline if not the latest and not already existing.
-  if (!EnsureShadersTranslated(vertex_shader, pixel_shader)) {
-    return false;
-  }
   const PipelineLayoutProvider* pipeline_layout =
       command_processor_.GetPipelineLayout(0, 0);
   if (!pipeline_layout) {
@@ -207,12 +216,12 @@ bool VulkanPipelineCache::ConfigurePipeline(
   return true;
 }
 
-bool VulkanPipelineCache::TranslateShader(
+bool VulkanPipelineCache::TranslateAnalyzedShader(
     SpirvShaderTranslator& translator,
-    VulkanShader::VulkanTranslation& translation, reg::SQ_PROGRAM_CNTL cntl) {
+    VulkanShader::VulkanTranslation& translation) {
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
-  if (!translator.Translate(translation, cntl)) {
+  if (!translator.TranslateAnalyzedShader(translation)) {
     XELOGE("Shader {:016X} translation failed; marking as ignored",
            translation.shader().ucode_data_hash());
     return false;
@@ -283,7 +292,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       primitive_restart_allowed && pa_su_sc_mode_cntl.multi_prim_ib_ena;
 
   // TODO(Triang3l): Tessellation.
-  bool primitive_polygonal = xenos::IsPrimitivePolygonal(false, primitive_type);
+  bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
   if (primitive_polygonal) {
     // Vulkan only allows the polygon mode to be set for both faces - pick the
     // most special one (more likely to represent the developer's deliberate

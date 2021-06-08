@@ -6,7 +6,7 @@ struct XeHSConstantDataOutput {
 };
 
 XeHSConstantDataOutput XePatchConstant(
-    InputPatch<XeHSControlPointInput, 3> xe_input_patch) {
+    InputPatch<XeHSControlPointInputAdaptive, 3> xe_input_patch) {
   XeHSConstantDataOutput output = (XeHSConstantDataOutput)0;
   uint i;
 
@@ -38,18 +38,12 @@ XeHSConstantDataOutput XePatchConstant(
   // 3) r0.z * v0 + r0.y * v1 + r0.x * v2 by the guest.
   // With this order, there are no cracks in Halo 3 water.
   [unroll] for (i = 0u; i < 3u; ++i) {
-    // While Viva Pinata sets the factors to 0 for frustum-culled (quad)
-    // patches, in Halo 3 only allowing patches with factors above 0 makes
-    // distant (triangle) patches disappear - it appears that there are no
-    // special values for culled patches on the Xbox 360 (unlike 0 and NaN on
-    // Direct3D 11).
-    output.edges[i] = clamp(
-        asfloat(xe_input_patch[(i + 1u) % 3u].index_or_edge_factor) + 1.0f,
-        xe_tessellation_factor_range.x, xe_tessellation_factor_range.y);
+    output.edges[i] = xe_input_patch[(i + 1u) % 3u].edge_factor;
   }
 
   // Join phase. vpc0, vpc1, vpc2 taken as inputs.
-  output.inside = min(min(output.edges[0], output.edges[1]), output.edges[2]);
+  output.inside =
+      min(min(output.edges[0u], output.edges[1u]), output.edges[2u]);
 
   return output;
 }
@@ -60,7 +54,7 @@ XeHSConstantDataOutput XePatchConstant(
 [outputcontrolpoints(3)]
 [patchconstantfunc("XePatchConstant")]
 XeHSControlPointOutput main(
-    InputPatch<XeHSControlPointInput, 3> xe_input_patch) {
+    InputPatch<XeHSControlPointInputAdaptive, 3> xe_input_patch) {
   XeHSControlPointOutput output;
   // Not used with control point indices.
   output.index = 0.0f;

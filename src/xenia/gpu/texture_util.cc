@@ -10,6 +10,7 @@
 #include "xenia/gpu/texture_util.h"
 
 #include <algorithm>
+#include <cstring>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
@@ -86,14 +87,6 @@ void GetSubresourcesFromFetchConstant(
                              mip_min_level);
   }
   if (mip_max_level != 0) {
-    // Special case for streaming. Games such as Banjo-Kazooie: Nuts & Bolts
-    // specify the same address for both the base level and the mips and set
-    // mip_min_index to 1 until the texture is actually loaded - this is the way
-    // recommended by a GPU hang error message found in game executables. In
-    // this case we assume that the base level is not loaded yet.
-    if (base_page == mip_page) {
-      base_page = 0;
-    }
     if (base_page == 0) {
       mip_min_level = std::max(mip_min_level, uint32_t(1));
     }
@@ -116,64 +109,6 @@ void GetSubresourcesFromFetchConstant(
   if (mip_max_level_out) {
     *mip_max_level_out = mip_max_level;
   }
-}
-
-void GetGuestMipBlocks(xenos::DataDimension dimension, uint32_t width,
-                       uint32_t height, uint32_t depth,
-                       xenos::TextureFormat format, uint32_t mip,
-                       uint32_t& width_blocks_out, uint32_t& height_blocks_out,
-                       uint32_t& depth_blocks_out) {
-  // Get mipmap size.
-  if (mip != 0) {
-    width = std::max(xe::next_pow2(width) >> mip, uint32_t(1));
-    if (dimension != xenos::DataDimension::k1D) {
-      height = std::max(xe::next_pow2(height) >> mip, uint32_t(1));
-      if (dimension == xenos::DataDimension::k3D) {
-        depth = std::max(xe::next_pow2(depth) >> mip, uint32_t(1));
-      }
-    }
-  }
-
-  // Get the size in blocks rather than in pixels.
-  const FormatInfo* format_info = FormatInfo::Get(format);
-  width = xe::align(width, format_info->block_width) / format_info->block_width;
-  height =
-      xe::align(height, format_info->block_height) / format_info->block_height;
-
-  // Align to tiles.
-  width_blocks_out = xe::align(width, xenos::kTextureTileWidthHeight);
-  if (dimension != xenos::DataDimension::k1D) {
-    height_blocks_out = xe::align(height, xenos::kTextureTileWidthHeight);
-  } else {
-    height_blocks_out = 1;
-  }
-  if (dimension == xenos::DataDimension::k3D) {
-    depth_blocks_out = xe::align(depth, xenos::kTextureTiledDepthGranularity);
-  } else {
-    depth_blocks_out = 1;
-  }
-}
-
-uint32_t GetGuestMipSliceStorageSize(uint32_t width_blocks,
-                                     uint32_t height_blocks,
-                                     uint32_t depth_blocks, bool is_tiled,
-                                     xenos::TextureFormat format,
-                                     uint32_t* row_pitch_out, bool align_4kb) {
-  const FormatInfo* format_info = FormatInfo::Get(format);
-  uint32_t row_pitch = width_blocks * format_info->block_width *
-                       format_info->block_height * format_info->bits_per_pixel /
-                       8;
-  if (!is_tiled) {
-    row_pitch = xe::align(row_pitch, xenos::kTextureLinearRowAlignmentBytes);
-  }
-  if (row_pitch_out != nullptr) {
-    *row_pitch_out = row_pitch;
-  }
-  uint32_t size = row_pitch * height_blocks * depth_blocks;
-  if (align_4kb) {
-    size = xe::align(size, xenos::kTextureSubresourceAlignmentBytes);
-  }
-  return size;
 }
 
 bool GetPackedMipOffset(uint32_t width, uint32_t height, uint32_t depth,
@@ -269,59 +204,271 @@ bool GetPackedMipOffset(uint32_t width, uint32_t height, uint32_t depth,
   return true;
 }
 
-void GetTextureTotalSize(xenos::DataDimension dimension, uint32_t width,
-                         uint32_t height, uint32_t depth,
-                         xenos::TextureFormat format, bool is_tiled,
-                         bool packed_mips, uint32_t mip_max_level,
-                         uint32_t* base_size_out, uint32_t* mip_size_out) {
-  bool is_3d = dimension == xenos::DataDimension::k3D;
-  uint32_t width_blocks, height_blocks, depth_blocks;
-  if (base_size_out) {
-    GetGuestMipBlocks(dimension, width, height, depth, format, 0, width_blocks,
-                      height_blocks, depth_blocks);
-    uint32_t size = GetGuestMipSliceStorageSize(
-        width_blocks, height_blocks, depth_blocks, is_tiled, format, nullptr);
-    if (!is_3d) {
-      size *= depth;
-    }
-    *base_size_out = size;
+TextureGuestLayout GetGuestTextureLayout(
+    xenos::DataDimension dimension, uint32_t base_pitch_texels_div_32,
+    uint32_t width_texels, uint32_t height_texels, uint32_t depth_or_array_size,
+    bool is_tiled, xenos::TextureFormat format, bool has_packed_levels,
+    bool has_base, uint32_t max_level) {
+  TextureGuestLayout layout;
+
+  if (dimension == xenos::DataDimension::k1D) {
+    assert_false(is_tiled);
+    // GetPackedMipOffset may result in packing along Y for `width > height`
+    // textures.
+    assert_false(has_packed_levels);
+    height_texels = 1;
   }
-  if (mip_size_out) {
-    uint32_t size = 0;
-    uint32_t longest_axis = std::max(width, height);
-    if (is_3d) {
-      longest_axis = std::max(longest_axis, depth);
+  uint32_t depth =
+      dimension == xenos::DataDimension::k3D ? depth_or_array_size : 1;
+  switch (dimension) {
+    case xenos::DataDimension::k2DOrStacked:
+      layout.array_size = depth_or_array_size;
+      break;
+    case xenos::DataDimension::kCube:
+      layout.array_size = 6;
+      break;
+    default:
+      layout.array_size = 1;
+  }
+
+  // For safety, for instance, with empty resolve regions (extents calculation
+  // may overflow otherwise due to the assumption of at least one row, for
+  // example, but an empty texture is empty anyway).
+  if (!width_texels || !height_texels || !depth || !layout.array_size) {
+    std::memset(&layout, 0, sizeof(layout));
+    return layout;
+  }
+
+  // For safety, clamp the maximum level.
+  uint32_t max_level_for_dimensions =
+      xe::log2_floor(std::max(std::max(width_texels, height_texels), depth));
+  assert_true(max_level <= max_level_for_dimensions);
+  max_level = std::min(max_level, max_level_for_dimensions);
+  layout.max_level = max_level;
+
+  layout.packed_level = has_packed_levels
+                            ? GetPackedMipLevel(width_texels, height_texels)
+                            : UINT32_MAX;
+
+  // Clear unused level layouts to zero strides/sizes.
+  if (!has_base) {
+    std::memset(&layout.base, 0, sizeof(layout.base));
+  }
+  if (layout.packed_level != 0) {
+    std::memset(&layout.mips[0], 0, sizeof(layout.mips[0]));
+  }
+  uint32_t max_stored_level = std::min(max_level, layout.packed_level);
+  {
+    uint32_t mips_end = max_stored_level + 1;
+    assert_true(mips_end <= xe::countof(layout.mips));
+    uint32_t mips_unused_count = uint32_t(xe::countof(layout.mips)) - mips_end;
+    if (mips_unused_count) {
+      std::memset(&layout.mips[mips_end], 0,
+                  sizeof(layout.mips[0]) * mips_unused_count);
+      std::memset(&layout.mip_offsets_bytes[mips_end], 0,
+                  sizeof(layout.mip_offsets_bytes[0]) * mips_unused_count);
     }
-    mip_max_level = std::min(mip_max_level, xe::log2_floor(longest_axis));
-    if (mip_max_level) {
-      // If the texture is very small, its packed mips may be stored at level 0.
-      uint32_t mip_packed =
-          packed_mips ? GetPackedMipLevel(width, height) : UINT32_MAX;
-      for (uint32_t i = std::min(uint32_t(1), mip_packed);
-           i <= std::min(mip_max_level, mip_packed); ++i) {
-        GetGuestMipBlocks(dimension, width, height, depth, format, i,
-                          width_blocks, height_blocks, depth_blocks);
-        uint32_t level_size = GetGuestMipSliceStorageSize(
-            width_blocks, height_blocks, depth_blocks, is_tiled, format,
-            nullptr);
-        if (!is_3d) {
-          level_size *= depth;
-        }
-        size += level_size;
+  }
+  layout.mips_total_extent_bytes = 0;
+
+  const FormatInfo* format_info = FormatInfo::Get(format);
+  uint32_t bytes_per_block = format_info->bytes_per_block();
+
+  // The loop counter can mean two things depending on whether the packed mip
+  // tail is stored as mip 0, because in this case, it would be ambiguous since
+  // both the base and the mips would be on "level 0", but stored separately and
+  // possibly with a different layout.
+  uint32_t loop_level_last;
+  if (layout.packed_level == 0) {
+    // Packed mip tail is the level 0 - may need to load mip tails for the base,
+    // the mips, or both.
+    // Loop iteration 0 - base packed mip tail.
+    // Loop iteration 1 - mips packed mip tail.
+    loop_level_last = uint32_t(max_level != 0);
+  } else {
+    // Packed mip tail is not the level 0.
+    // Loop iteration is the actual level being loaded.
+    loop_level_last = max_stored_level;
+  }
+  uint32_t mip_offset_bytes = 0;
+  for (uint32_t loop_level = has_base ? 0 : 1; loop_level <= loop_level_last;
+       ++loop_level) {
+    bool is_base = loop_level == 0;
+    uint32_t level = (layout.packed_level == 0) ? 0 : loop_level;
+    TextureGuestLayout::Level& level_layout =
+        is_base ? layout.base : layout.mips[level];
+
+    // Calculate the strides.
+    // Mips have row / depth slice strides calculated from a mip of a texture
+    // whose base size is a power of two.
+    // The base mip has tightly packed depth slices, and takes the row pitch
+    // from the fetch constant.
+    // For stride calculation purposes, mip dimensions are always aligned to
+    // 32x32x4 blocks (or x1 for the missing dimensions), including for linear
+    // textures.
+    // Linear texture rows are 256-byte-aligned.
+    uint32_t row_pitch_texels_unaligned;
+    uint32_t z_slice_stride_texel_rows_unaligned;
+    if (is_base) {
+      row_pitch_texels_unaligned = base_pitch_texels_div_32 << 5;
+      z_slice_stride_texel_rows_unaligned = height_texels;
+    } else {
+      row_pitch_texels_unaligned =
+          std::max(xe::next_pow2(width_texels) >> level, uint32_t(1));
+      z_slice_stride_texel_rows_unaligned =
+          std::max(xe::next_pow2(height_texels) >> level, uint32_t(1));
+    }
+    uint32_t row_pitch_blocks_tile_aligned = xe::align(
+        xe::align(row_pitch_texels_unaligned, format_info->block_width) /
+            format_info->block_width,
+        xenos::kTextureTileWidthHeight);
+    level_layout.row_pitch_bytes =
+        row_pitch_blocks_tile_aligned * bytes_per_block;
+    // Assuming the provided pitch is already 256-byte-aligned for linear, but
+    // considering the guest-provided pitch more important (no information about
+    // how the GPU actually handles unaligned rows).
+    if (!is_tiled && !is_base) {
+      level_layout.row_pitch_bytes = xe::align(
+          level_layout.row_pitch_bytes, xenos::kTextureLinearRowAlignmentBytes);
+    }
+    level_layout.z_slice_stride_block_rows =
+        dimension != xenos::DataDimension::k1D
+            ? xe::align(xe::align(z_slice_stride_texel_rows_unaligned,
+                                  format_info->block_height) /
+                            format_info->block_height,
+                        xenos::kTextureTileWidthHeight)
+            : 1;
+    level_layout.array_slice_stride_bytes =
+        level_layout.row_pitch_bytes * level_layout.z_slice_stride_block_rows;
+    uint32_t z_stride_bytes = level_layout.array_slice_stride_bytes;
+    if (dimension == xenos::DataDimension::k3D) {
+      level_layout.array_slice_stride_bytes *=
+          xe::align(depth_or_array_size, xenos::kTextureTiledDepthGranularity);
+    }
+    uint32_t array_slice_stride_bytes_non_4kb_aligned =
+        level_layout.array_slice_stride_bytes;
+    level_layout.array_slice_stride_bytes =
+        xe::align(array_slice_stride_bytes_non_4kb_aligned,
+                  xenos::kTextureSubresourceAlignmentBytes);
+
+    // Estimate the memory amount actually referenced by the texture, which may
+    // be smaller (especially in the 1280x720 linear k_8_8_8_8 case in Ridge
+    // Racer Unbounded, for which memory exactly for 1280x720 is allocated, and
+    // aligning the height to 32 would cause access of an unallocated page) or
+    // bigger than the stride. For tiled textures, this is the dimensions
+    // aligned to 32x32x4 blocks (or x1 for the missing dimensions).
+    uint32_t level_width_blocks =
+        xe::align(std::max(width_texels >> level, uint32_t(1)),
+                  format_info->block_width) /
+        format_info->block_width;
+    uint32_t level_height_blocks =
+        xe::align(std::max(height_texels >> level, uint32_t(1)),
+                  format_info->block_height) /
+        format_info->block_height;
+    uint32_t level_depth = std::max(depth >> level, uint32_t(1));
+    if (is_tiled) {
+      level_layout.x_extent_blocks =
+          xe::align(level_width_blocks, xenos::kTextureTileWidthHeight);
+      level_layout.y_extent_blocks =
+          xe::align(level_height_blocks, xenos::kTextureTileWidthHeight);
+      if (dimension == xenos::DataDimension::k3D) {
+        level_layout.z_extent =
+            xe::align(level_depth, xenos::kTextureTiledDepthGranularity);
+        // 3D texture addressing is pretty complex, so it's hard to determine
+        // the memory extent of a subregion - just use `pitch_tiles *
+        // height_tiles * depth_tiles * bytes_per_tile` at least for now, until
+        // we find a case where it causes issues. `width > pitch` is a very
+        // weird edge case anyway, and is extremely unlikely.
+        assert_true(level_layout.x_extent_blocks <=
+                    row_pitch_blocks_tile_aligned);
+        level_layout.array_slice_data_extent_bytes =
+            array_slice_stride_bytes_non_4kb_aligned;
+      } else {
+        level_layout.z_extent = 1;
+        // 2D 32x32-block tiles are laid out linearly in the texture.
+        // Calculate the extent as ((all rows except for the last * pitch in
+        // tiles + last row length in tiles) * bytes per tile).
+        level_layout.array_slice_data_extent_bytes =
+            (level_layout.y_extent_blocks - xenos::kTextureTileWidthHeight) *
+                level_layout.row_pitch_bytes +
+            bytes_per_block * level_layout.x_extent_blocks *
+                xenos::kTextureTileWidthHeight;
       }
+    } else {
+      if (level == layout.packed_level) {
+        // Calculate the portion of the mip tail actually used by the needed
+        // mips. The actually used region may be significantly smaller than the
+        // full 32x32-texel-aligned tail. A 2x2 texture (for example, in Test
+        // Drive Unlimited, there's a 2x2 k_8_8_8_8 linear texture with packed
+        // mips), for instance, would have its 2x2 base at (16, 0) and its 1x1
+        // mip at (8, 0) - and we need 2 or 1 rows in these cases, not 32.
+        level_layout.x_extent_blocks = 0;
+        level_layout.y_extent_blocks = 0;
+        level_layout.z_extent = 0;
+        uint32_t packed_sublevel_last = is_base ? 0 : max_level;
+        for (uint32_t packed_sublevel = layout.packed_level;
+             packed_sublevel <= packed_sublevel_last; ++packed_sublevel) {
+          uint32_t packed_sublevel_x_blocks;
+          uint32_t packed_sublevel_y_blocks;
+          uint32_t packed_sublevel_z;
+          GetPackedMipOffset(width_texels, height_texels, depth, format,
+                             packed_sublevel, packed_sublevel_x_blocks,
+                             packed_sublevel_y_blocks, packed_sublevel_z);
+          level_layout.x_extent_blocks = std::max(
+              level_layout.x_extent_blocks,
+              packed_sublevel_x_blocks +
+                  xe::align(
+                      std::max(width_texels >> packed_sublevel, uint32_t(1)),
+                      format_info->block_width) /
+                      format_info->block_width);
+          level_layout.y_extent_blocks = std::max(
+              level_layout.y_extent_blocks,
+              packed_sublevel_y_blocks +
+                  xe::align(
+                      std::max(height_texels >> packed_sublevel, uint32_t(1)),
+                      format_info->block_height) /
+                      format_info->block_height);
+          level_layout.z_extent =
+              std::max(level_layout.z_extent,
+                       packed_sublevel_z +
+                           std::max(depth >> packed_sublevel, uint32_t(1)));
+        }
+      } else {
+        level_layout.x_extent_blocks = level_width_blocks;
+        level_layout.y_extent_blocks = level_height_blocks;
+        level_layout.z_extent = level_depth;
+      }
+      level_layout.array_slice_data_extent_bytes =
+          z_stride_bytes * (level_layout.z_extent - 1) +
+          level_layout.row_pitch_bytes * (level_layout.y_extent_blocks - 1) +
+          bytes_per_block * level_layout.x_extent_blocks;
     }
-    *mip_size_out = size;
+    level_layout.level_data_extent_bytes =
+        level_layout.array_slice_stride_bytes * (layout.array_size - 1) +
+        level_layout.array_slice_data_extent_bytes;
+
+    if (!is_base) {
+      layout.mip_offsets_bytes[level] = mip_offset_bytes;
+      layout.mips_total_extent_bytes =
+          std::max(layout.mips_total_extent_bytes,
+                   mip_offset_bytes + level_layout.level_data_extent_bytes);
+      mip_offset_bytes +=
+          level_layout.array_slice_stride_bytes * layout.array_size;
+    }
   }
+
+  return layout;
 }
 
-int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t width,
-                         uint32_t bpb_log2) {
+int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t pitch,
+                         uint32_t bytes_per_block_log2) {
   // https://github.com/gildor2/UModel/blob/de8fbd3bc922427ea056b7340202dcdcc19ccff5/Unreal/UnTexture.cpp#L489
-  width = xe::align(width, xenos::kTextureTileWidthHeight);
+  pitch = xe::align(pitch, xenos::kTextureTileWidthHeight);
   // Top bits of coordinates.
-  int32_t macro = ((x >> 5) + (y >> 5) * int32_t(width >> 5)) << (bpb_log2 + 7);
+  int32_t macro = ((x >> 5) + (y >> 5) * int32_t(pitch >> 5))
+                  << (bytes_per_block_log2 + 7);
   // Lower bits of coordinates (result is 6-bit value).
-  int32_t micro = ((x & 7) + ((y & 0xE) << 2)) << bpb_log2;
+  int32_t micro = ((x & 7) + ((y & 0xE) << 2)) << bytes_per_block_log2;
   // Mix micro/macro + add few remaining x/y bits.
   int32_t offset =
       macro + ((micro & ~0xF) << 1) + (micro & 0xF) + ((y & 1) << 4);
@@ -330,21 +477,23 @@ int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t width,
          (((((y & 8) >> 2) + (x >> 3)) & 3) << 6) + (offset & 0x3F);
 }
 
-int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t width,
-                         uint32_t height, uint32_t bpb_log2) {
+int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t pitch,
+                         uint32_t height, uint32_t bytes_per_block_log2) {
   // Reconstructed from disassembly of XGRAPHICS::TileVolume.
-  width = xe::align(width, xenos::kTextureTileWidthHeight);
+  pitch = xe::align(pitch, xenos::kTextureTileWidthHeight);
   height = xe::align(height, xenos::kTextureTileWidthHeight);
   int32_t macro_outer =
-      ((y >> 4) + (z >> 2) * int32_t(height >> 4)) * int32_t(width >> 5);
-  int32_t macro = ((((x >> 5) + macro_outer) << (bpb_log2 + 6)) & 0xFFFFFFF)
-                  << 1;
-  int32_t micro = (((x & 7) + ((y & 6) << 2)) << (bpb_log2 + 6)) >> 6;
+      ((y >> 4) + (z >> 2) * int32_t(height >> 4)) * int32_t(pitch >> 5);
+  int32_t macro =
+      ((((x >> 5) + macro_outer) << (bytes_per_block_log2 + 6)) & 0xFFFFFFF)
+      << 1;
+  int32_t micro =
+      (((x & 7) + ((y & 6) << 2)) << (bytes_per_block_log2 + 6)) >> 6;
   int32_t offset_outer = ((y >> 3) + (z >> 2)) & 1;
   int32_t offset1 =
       offset_outer + ((((x >> 3) + (offset_outer << 1)) & 3) << 1);
   int32_t offset2 = ((macro + (micro & ~15)) << 1) + (micro & 15) +
-                    ((z & 3) << (bpb_log2 + 6)) + ((y & 1) << 4);
+                    ((z & 3) << (bytes_per_block_log2 + 6)) + ((y & 1) << 4);
   int32_t address = (offset1 & 1) << 3;
   address += (offset2 >> 6) & 7;
   address <<= 3;

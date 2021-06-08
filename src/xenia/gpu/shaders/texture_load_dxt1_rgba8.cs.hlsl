@@ -13,10 +13,9 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   }
   int3 texel_index_host = int3(block_index) << int3(2, 2, 0);
   int block_offset_host =
-      (XeTextureHostLinearOffset(texel_index_host,
-                                 xe_texture_load_height_texels,
-                                 xe_texture_load_host_pitch, 4u) +
-       xe_texture_load_host_base) >> 4;
+      (XeTextureHostLinearOffset(texel_index_host, xe_texture_load_host_pitch,
+                                 xe_texture_load_height_texels, 4u) +
+       xe_texture_load_host_offset) >> 4;
   int elements_pitch_host = xe_texture_load_host_pitch >> 4;
   int block_offset_guest =
       XeTextureLoadGuestBlockOffset(int3(block_index), 8u, 3u) >> 4;

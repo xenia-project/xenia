@@ -11,6 +11,7 @@
 
 #include <cinttypes>
 #include <cstring>
+#include <utility>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/filesystem.h"
@@ -45,40 +46,53 @@ std::string Shader::Translation::GetTranslatedBinaryString() const {
   return result;
 }
 
-std::filesystem::path Shader::Translation::Dump(
-    const std::filesystem::path& base_path, const char* path_prefix) {
+std::pair<std::filesystem::path, std::filesystem::path>
+Shader::Translation::Dump(const std::filesystem::path& base_path,
+                          const char* path_prefix) const {
+  if (!is_valid()) {
+    return std::make_pair(std::filesystem::path(), std::filesystem::path());
+  }
+
   std::filesystem::path path = base_path;
   // Ensure target path exists.
-  if (!path.empty()) {
-    path = std::filesystem::absolute(path);
-    std::filesystem::create_directories(path);
+  std::filesystem::path target_path = base_path;
+  if (!target_path.empty()) {
+    target_path = std::filesystem::absolute(target_path);
+    std::filesystem::create_directories(target_path);
   }
-  path = path /
-         fmt::format(
-             "shader_{:016X}_{:08X}.{}.{}", shader().ucode_data_hash(),
-             modification(), path_prefix,
-             shader().type() == xenos::ShaderType::kVertex ? "vert" : "frag");
-  FILE* f = filesystem::OpenFile(path, "wb");
-  if (f) {
-    fwrite(translated_binary_.data(), 1, translated_binary_.size(), f);
-    fprintf(f, "\n\n");
-    auto ucode_disasm_ptr = shader().ucode_disassembly().c_str();
-    while (*ucode_disasm_ptr) {
-      auto line_end = std::strchr(ucode_disasm_ptr, '\n');
-      fprintf(f, "// ");
-      fwrite(ucode_disasm_ptr, 1, line_end - ucode_disasm_ptr + 1, f);
-      ucode_disasm_ptr = line_end + 1;
-    }
-    fprintf(f, "\n\n");
-    if (!host_disassembly_.empty()) {
-      fprintf(f, "\n\n/*\n%s\n*/\n", host_disassembly_.c_str());
-    }
-    fclose(f);
+
+  const char* type_extension =
+      shader().type() == xenos::ShaderType::kVertex ? "vert" : "frag";
+
+  std::filesystem::path binary_path =
+      target_path / fmt::format("shader_{:016X}_{:016X}.{}.bin.{}",
+                                shader().ucode_data_hash(), modification(),
+                                path_prefix, type_extension);
+  FILE* binary_file = filesystem::OpenFile(binary_path, "wb");
+  if (binary_file) {
+    fwrite(translated_binary_.data(), sizeof(*translated_binary_.data()),
+           translated_binary_.size(), binary_file);
+    fclose(binary_file);
   }
-  return std::move(path);
+
+  std::filesystem::path disasm_path;
+  if (!host_disassembly_.empty()) {
+    disasm_path =
+        target_path / fmt::format("shader_{:016X}_{:016X}.{}.{}",
+                                  shader().ucode_data_hash(), modification(),
+                                  path_prefix, type_extension);
+    FILE* disasm_file = filesystem::OpenFile(disasm_path, "w");
+    if (disasm_file) {
+      fwrite(host_disassembly_.data(), sizeof(*host_disassembly_.data()),
+             host_disassembly_.size(), disasm_file);
+      fclose(disasm_file);
+    }
+  }
+
+  return std::make_pair(std::move(binary_path), std::move(disasm_path));
 }
 
-Shader::Translation* Shader::GetOrCreateTranslation(uint32_t modification,
+Shader::Translation* Shader::GetOrCreateTranslation(uint64_t modification,
                                                     bool* is_new) {
   auto it = translations_.find(modification);
   if (it != translations_.end()) {
@@ -95,7 +109,7 @@ Shader::Translation* Shader::GetOrCreateTranslation(uint32_t modification,
   return translation;
 }
 
-void Shader::DestroyTranslation(uint32_t modification) {
+void Shader::DestroyTranslation(uint64_t modification) {
   auto it = translations_.find(modification);
   if (it == translations_.end()) {
     return;
@@ -104,27 +118,44 @@ void Shader::DestroyTranslation(uint32_t modification) {
   translations_.erase(it);
 }
 
-std::filesystem::path Shader::DumpUcodeBinary(
-    const std::filesystem::path& base_path) {
+std::pair<std::filesystem::path, std::filesystem::path> Shader::DumpUcode(
+    const std::filesystem::path& base_path) const {
   // Ensure target path exists.
-  std::filesystem::path path = base_path;
-  if (!path.empty()) {
-    path = std::filesystem::absolute(path);
-    std::filesystem::create_directories(path);
+  std::filesystem::path target_path = base_path;
+  if (!target_path.empty()) {
+    target_path = std::filesystem::absolute(target_path);
+    std::filesystem::create_directories(target_path);
   }
-  path = path /
-         fmt::format("shader_{:016X}.ucode.bin.{}", ucode_data_hash(),
-                     type() == xenos::ShaderType::kVertex ? "vert" : "frag");
 
-  FILE* f = filesystem::OpenFile(path, "wb");
-  if (f) {
-    fwrite(ucode_data().data(), 4, ucode_data().size(), f);
-    fclose(f);
+  const char* type_extension =
+      type() == xenos::ShaderType::kVertex ? "vert" : "frag";
+
+  std::filesystem::path binary_path =
+      target_path / fmt::format("shader_{:016X}.ucode.bin.{}",
+                                ucode_data_hash(), type_extension);
+  FILE* binary_file = filesystem::OpenFile(binary_path, "wb");
+  if (binary_file) {
+    fwrite(ucode_data().data(), sizeof(*ucode_data().data()),
+           ucode_data().size(), binary_file);
+    fclose(binary_file);
   }
-  return std::move(path);
+
+  std::filesystem::path disasm_path;
+  if (is_ucode_analyzed()) {
+    disasm_path = target_path / fmt::format("shader_{:016X}.ucode.{}",
+                                            ucode_data_hash(), type_extension);
+    FILE* disasm_file = filesystem::OpenFile(disasm_path, "w");
+    if (disasm_file) {
+      fwrite(ucode_disassembly().data(), sizeof(*ucode_disassembly().data()),
+             ucode_disassembly().size(), disasm_file);
+      fclose(disasm_file);
+    }
+  }
+
+  return std::make_pair(std::move(binary_path), std::move(disasm_path));
 }
 
-Shader::Translation* Shader::CreateTranslationInstance(uint32_t modification) {
+Shader::Translation* Shader::CreateTranslationInstance(uint64_t modification) {
   // Default implementation for simple cases like ucode disassembly.
   return new Translation(*this, modification);
 }

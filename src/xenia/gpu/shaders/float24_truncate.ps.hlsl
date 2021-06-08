@@ -17,7 +17,10 @@ precise float main(XePSInput xe_input) : SV_DepthLessEqual {
   // at -34.
   // Anything smaller than 2^-34 becomes 0.
   // Input Z may be outside the viewport range (it's clamped after the shader).
-  precise uint depth = asuint(saturate(xe_input.position.z));
+  // Assuming that 0...0.5 on the host corresponds to 0...1 on the guest, to
+  // allow for safe reinterpretation of any 24-bit value to and from float24
+  // depth using depth output without unrestricted depth range.
+  precise uint depth = asuint(saturate(xe_input.position.z * 2.0f));
   // Check if the number is representable as a float24 after truncation - the
   // exponent is at least -34.
   if (depth >= 0x2E800000u) {
@@ -34,5 +37,5 @@ precise float main(XePSInput xe_input) : SV_DepthLessEqual {
     // The number is not representable as float24 after truncation - zero.
     depth = 0u;
   }
-  return asfloat(depth);
+  return asfloat(depth) * 0.5f;
 }

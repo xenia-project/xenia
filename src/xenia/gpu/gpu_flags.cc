@@ -40,63 +40,9 @@ DEFINE_bool(
     "be fully covered when MSAA is used with fullscreen passes.",
     "GPU");
 
-DEFINE_string(
-    depth_float24_conversion, "",
-    "Method for converting 32-bit Z values to 20e4 floating point when using "
-    "host depth buffers without native 20e4 support (when not using rasterizer-"
-    "ordered views / fragment shader interlocks to perform depth testing "
-    "manually).\n"
-    "Use: [any, on_copy, truncate, round]\n"
-    " on_copy:\n"
-    "  Do depth testing at host precision, converting when copying between "
-    "host depth buffers and the EDRAM buffer to support reinterpretation, "
-    "maintaining two copies, in both host and 20e4 formats, for reloading data "
-    "to host depth buffers when it wasn't overwritten.\n"
-    "  + Highest performance, allows early depth test and writing.\n"
-    "  + Host MSAA is possible with pixel-rate shading where supported.\n"
-    "  - EDRAM > RAM > EDRAM depth buffer round trip done in certain games "
-    "(such as GTA IV) destroys precision irreparably, causing artifacts if "
-    "another rendering pass is done after the EDRAM reupload.\n"
-    " truncate:\n"
-    "  Convert to 20e4 directly in pixel shaders, always rounding down.\n"
-    "  + Good performance, conservative early depth test is possible.\n"
-    "  + No precision loss when anything changes in the storage of the depth "
-    "buffer, EDRAM > RAM > EDRAM copying preserves precision.\n"
-    "  - Rounding mode is incorrect, sometimes giving results smaller than "
-    "they should be - may cause inaccuracy especially in edge cases when the "
-    "game wants to write an exact value.\n"
-    "  - Host MSAA is only possible at SSAA speed, with per-sample shading.\n"
-    " round:\n"
-    "  Convert to 20e4 directly in pixel shaders, correctly rounding to the "
-    "nearest even.\n"
-    "  + Highest accuracy.\n"
-    "  - Significantly limited performance, early depth test is not possible.\n"
-    "  - Host MSAA is only possible at SSAA speed, with per-sample shading.\n"
-    " Any other value:\n"
-    "  Choose what is considered the most optimal (currently \"on_copy\").",
-    "GPU");
-
 DEFINE_int32(query_occlusion_fake_sample_count, 1000,
              "If set to -1 no sample counts are written, games may hang. Else, "
              "the sample count of every tile will be incremented on every "
              "EVENT_WRITE_ZPD by this number. Setting this to 0 means "
              "everything is reported as occluded.",
              "GPU");
-
-namespace xe {
-namespace gpu {
-namespace flags {
-
-DepthFloat24Conversion GetDepthFloat24Conversion() {
-  if (cvars::depth_float24_conversion == "truncate") {
-    return DepthFloat24Conversion::kOnOutputTruncating;
-  }
-  if (cvars::depth_float24_conversion == "round") {
-    return DepthFloat24Conversion::kOnOutputRounding;
-  }
-  return DepthFloat24Conversion::kOnCopy;
-}
-
-}  // namespace flags
-}  // namespace gpu
-}  // namespace xe

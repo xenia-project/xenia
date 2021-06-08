@@ -7,9 +7,6 @@
 [submodule "third_party/binutils-ppc-cygwin"]
 	path = third_party/binutils-ppc-cygwin
 	url = https://github.com/benvanik/binutils-ppc-cygwin.git
-[submodule "third_party/libav"]
-	path = third_party/libav
-	url = https://github.com/xenia-project/libav.git
 [submodule "third_party/catch"]
 	path = third_party/catch
 	url = https://github.com/catchorg/Catch2.git
@@ -42,7 +39,7 @@
 	url = https://github.com/jarro2783/cxxopts.git
 [submodule "third_party/SDL2"]
 	path = third_party/SDL2
-	url = https://github.com/spurious/SDL-mirror.git
+	url = https://github.com/JoelLinn/SDL.git
 [submodule "third_party/utfcpp"]
 	path = third_party/utfcpp
 	url = https://github.com/xenia-project/utfcpp.git
@@ -67,6 +64,9 @@
 [submodule "third_party/xxhash"]
 	path = third_party/xxhash
 	url = https://github.com/Cyan4973/xxHash.git
+[submodule "third_party/FFmpeg"]
+	path = third_party/FFmpeg
+	url = https://github.com/xenia-project/FFmpeg.git
 [submodule "third_party/glslang"]
 	path = third_party/glslang
 	url = https://github.com/KhronosGroup/glslang.git

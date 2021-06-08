@@ -23,6 +23,7 @@ namespace cvar {
 cxxopts::Options options("xenia", "Xbox 360 Emulator");
 std::map<std::string, ICommandVar*>* CmdVars;
 std::map<std::string, IConfigVar*>* ConfigVars;
+std::multimap<uint32_t, const IConfigVarUpdate*>* IConfigVarUpdate::updates_;
 
 void PrintHelpAndExit() {
   std::cout << options.help({""}) << std::endl;

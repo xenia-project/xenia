@@ -758,7 +758,7 @@ void KernelState::CompleteOverlappedDeferredEx(
 
 bool KernelState::Save(ByteStream* stream) {
   XELOGD("Serializing the kernel...");
-  stream->Write('KRNL');
+  stream->Write(kKernelSaveSignature);
 
   // Save the object table
   object_table_.Save(stream);
@@ -828,7 +828,7 @@ bool KernelState::Save(ByteStream* stream) {
 
 bool KernelState::Restore(ByteStream* stream) {
   // Check the magic value.
-  if (stream->Read<uint32_t>() != 'KRNL') {
+  if (stream->Read<uint32_t>() != kKernelSaveSignature) {
     return false;
   }
 

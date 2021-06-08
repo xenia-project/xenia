@@ -15,9 +15,9 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
       xe_resolve_source,
       XeResolveColorCopySourcePixelAddressInts(xe_thread_id.xy),
       host_pixel_y0x0, host_pixel_y0x1, host_pixel_y1x0, host_pixel_y1x1);
-  uint2 packed = XePack16bpp4Pixels(host_pixel_y0x0, host_pixel_y0x1,
-                                    host_pixel_y1x0, host_pixel_y1x1,
-                                    XeResolveDestFormat());
+  uint2 packed = XePack16bpp4PixelsInUInt2(host_pixel_y0x0, host_pixel_y0x1,
+                                           host_pixel_y1x0, host_pixel_y1x1,
+                                           XeResolveDestFormat());
   [branch] if (XeResolveEdramDuplicateSecondHostPixel()) {
     if (xe_thread_id.x == 0u) {
       packed = (packed & 0xFFFF0000u) | (packed >> 16u);

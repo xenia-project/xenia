@@ -11,6 +11,11 @@
 
 #include "xenia/base/platform_win.h"
 
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | \
+                            WINAPI_PARTITION_SYSTEM | WINAPI_PARTITION_GAMES)
+#define XE_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
+#endif
+
 namespace xe {
 namespace memory {
 
@@ -75,12 +80,11 @@ PageAccess ToXeniaProtectFlags(DWORD access) {
 }
 
 bool IsWritableExecutableMemorySupported() {
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#ifdef XE_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
   return true;
 #else
-  // To test FromApp functions on desktop, replace
-  // WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP) with 0 in the #ifs and
-  // link to WindowsApp.lib.
+  // To test FromApp functions on desktop, undefine
+  // XE_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS and link to WindowsApp.lib.
   return false;
 #endif
 }
@@ -103,7 +107,7 @@ void* AllocFixed(void* base_address, size_t length,
       break;
   }
   DWORD protect = ToWin32ProtectFlags(access);
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#ifdef XE_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
   return VirtualAlloc(base_address, length, alloc_type, protect);
 #else
   return VirtualAllocFromApp(base_address, length, ULONG(alloc_type),
@@ -135,7 +139,7 @@ bool Protect(void* base_address, size_t length, PageAccess access,
     *out_old_access = PageAccess::kNoAccess;
   }
   DWORD new_protect = ToWin32ProtectFlags(access);
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#ifdef XE_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
   DWORD old_protect = 0;
   BOOL result = VirtualProtect(base_address, length, new_protect, &old_protect);
 #else
@@ -174,7 +178,7 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
   DWORD protect =
       ToWin32ProtectFlags(access) | (commit ? SEC_COMMIT : SEC_RESERVE);
   auto full_path = "Local" / path;
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#ifdef XE_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
   return CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, protect,
                             static_cast<DWORD>(length >> 32),
                             static_cast<DWORD>(length), full_path.c_str());
@@ -191,7 +195,7 @@ void CloseFileMappingHandle(FileMappingHandle handle,
 
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
                   PageAccess access, size_t file_offset) {
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#ifdef XE_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
   DWORD target_address_low = static_cast<DWORD>(file_offset);
   DWORD target_address_high = static_cast<DWORD>(file_offset >> 32);
   DWORD file_access = 0;

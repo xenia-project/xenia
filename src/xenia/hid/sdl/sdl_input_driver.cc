@@ -76,52 +76,29 @@ X_STATUS SDLInputDriver::Setup() {
     }
     sdl_events_initialized_ = true;
 
-    SDL_EventFilter event_filter{[](void* userdata, SDL_Event* event) -> int {
-      if (!userdata || !event) {
-        assert_always();
-        return 0;
-      }
-
-      // Event queue should never be (this) full
-      assert(SDL_PeepEvents(nullptr, 0, SDL_PEEKEVENT, SDL_FIRSTEVENT,
-                            SDL_LASTEVENT) < 0xFFFF);
-
-      const auto type = event->type;
-      if (type < SDL_JOYAXISMOTION || type > SDL_CONTROLLERDEVICEREMAPPED) {
-        return 0;
-      }
-
-      // If another part of xenia uses another SDL subsystem that generates
-      // events, this may seem like a bad idea. They will however not subscribe
-      // to controller events so we get away with that.
-      const auto driver = static_cast<SDLInputDriver*>(userdata);
-      // The queue could grow up to 3.5MB since it is never polled.
-      if (++driver->sdl_events_unflushed_ > 64) {
-        SDL_FlushEvents(SDL_JOYAXISMOTION, SDL_CONTROLLERDEVICEREMAPPED);
-        driver->sdl_events_unflushed_ = 0;
-      }
-      switch (type) {
-        case SDL_CONTROLLERDEVICEADDED:
-          driver->OnControllerDeviceAdded(*event);
-          break;
-        case SDL_CONTROLLERDEVICEREMOVED:
-          driver->OnControllerDeviceRemoved(*event);
-          break;
-        case SDL_CONTROLLERAXISMOTION:
-          driver->OnControllerDeviceAxisMotion(*event);
-          break;
-        case SDL_CONTROLLERBUTTONDOWN:
-        case SDL_CONTROLLERBUTTONUP:
-          driver->OnControllerDeviceButtonChanged(*event);
-          break;
-        default:
-          break;
-      }
-      return 0;
-    }};
     // With an event watch we will always get notified, even if the event queue
     // is full, which can happen if another subsystem does not clear its events.
-    SDL_AddEventWatch(event_filter, this);
+    SDL_AddEventWatch(
+        [](void* userdata, SDL_Event* event) -> int {
+          if (!userdata || !event) {
+            assert_always();
+            return 0;
+          }
+
+          const auto type = event->type;
+          if (type < SDL_JOYAXISMOTION || type >= SDL_FINGERDOWN) {
+            return 0;
+          }
+
+          // If another part of xenia uses another SDL subsystem that generates
+          // events, this may seem like a bad idea. They will however not
+          // subscribe to controller events so we get away with that.
+          const auto driver = static_cast<SDLInputDriver*>(userdata);
+          driver->HandleEvent(*event);
+
+          return 0;
+        },
+        this);
 
     if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) < 0) {
       return;
@@ -157,7 +134,7 @@ X_STATUS SDLInputDriver::Setup() {
 X_RESULT SDLInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
                                          X_INPUT_CAPABILITIES* out_caps) {
   assert(sdl_events_initialized_ && sdl_gamecontroller_initialized_);
-  if (user_index >= HID_SDL_USER_COUNT) {
+  if (user_index >= HID_SDL_USER_COUNT || !out_caps) {
     return X_ERROR_BAD_ARGUMENTS;
   }
 
@@ -170,19 +147,12 @@ X_RESULT SDLInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  out_caps->type = 0x01;      // XINPUT_DEVTYPE_GAMEPAD
-  out_caps->sub_type = 0x01;  // XINPUT_DEVSUBTYPE_GAMEPAD
-  out_caps->flags = 0;
-  out_caps->gamepad.buttons =
-      0xF3FF | (cvars::guide_button ? X_INPUT_GAMEPAD_GUIDE : 0x0);
-  out_caps->gamepad.left_trigger = 0xFF;
-  out_caps->gamepad.right_trigger = 0xFF;
-  out_caps->gamepad.thumb_lx = static_cast<int16_t>(0xFFFFu);
-  out_caps->gamepad.thumb_ly = static_cast<int16_t>(0xFFFFu);
-  out_caps->gamepad.thumb_rx = static_cast<int16_t>(0xFFFFu);
-  out_caps->gamepad.thumb_ry = static_cast<int16_t>(0xFFFFu);
-  out_caps->vibration.left_motor_speed = 0xFFFFu;
-  out_caps->vibration.right_motor_speed = 0xFFFFu;
+  // Unfortunately drivers can't present all information immediately (e.g.
+  // battery information) so this needs to be refreshed every time.
+  UpdateXCapabilities(*controller);
+
+  std::memcpy(out_caps, &controller->caps, sizeof(*out_caps));
+
   return X_ERROR_SUCCESS;
 }
 
@@ -268,7 +238,8 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
   // The order of this list is also the order in which events are send if
   // multiple buttons change at once.
   static_assert(sizeof(X_INPUT_GAMEPAD::buttons) == 2);
-  static const std::array<std::underlying_type<X_INPUT_GAMEPAD_VK>::type, 34>
+  static constexpr std::array<std::underlying_type<X_INPUT_GAMEPAD_VK>::type,
+                              34>
       vk_lookup = {
           // 00 - True buttons from xinput button field
           X_INPUT_GAMEPAD_VK_DPAD_UP,
@@ -407,8 +378,40 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
   return X_ERROR_EMPTY;
 }
 
+void SDLInputDriver::HandleEvent(const SDL_Event& event) {
+  // This callback will likely run on the thread that posts the event, which
+  // may be a dedicated thread SDL has created for the joystick subsystem.
+
+  // Event queue should never be (this) full
+  assert(SDL_PeepEvents(nullptr, 0, SDL_PEEKEVENT, SDL_FIRSTEVENT,
+                        SDL_LASTEVENT) < 0xFFFF);
+
+  // The queue could grow up to 3.5MB since it is never polled.
+  if (++sdl_events_unflushed_ > 64) {
+    SDL_FlushEvents(SDL_JOYAXISMOTION, SDL_FINGERDOWN - 1);
+    sdl_events_unflushed_ = 0;
+  }
+  switch (event.type) {
+    case SDL_CONTROLLERDEVICEADDED:
+      OnControllerDeviceAdded(event);
+      break;
+    case SDL_CONTROLLERDEVICEREMOVED:
+      OnControllerDeviceRemoved(event);
+      break;
+    case SDL_CONTROLLERAXISMOTION:
+      OnControllerDeviceAxisMotion(event);
+      break;
+    case SDL_CONTROLLERBUTTONDOWN:
+    case SDL_CONTROLLERBUTTONUP:
+      OnControllerDeviceButtonChanged(event);
+      break;
+    default:
+      break;
+  }
+  return;
+}
+
 void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
-  assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   // Open the controller.
@@ -417,6 +420,25 @@ void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
     assert_always();
     return;
   }
+  XELOGI(
+      "SDL OnControllerDeviceAdded: \"{}\", "
+      "JoystickType({}), "
+      "GameControllerType({}), "
+      "VendorID(0x{:04X}), "
+      "ProductID(0x{:04X})",
+      SDL_GameControllerName(controller),
+      SDL_JoystickGetType(SDL_GameControllerGetJoystick(controller)),
+#if SDL_VERSION_ATLEAST(2, 0, 12)
+      SDL_GameControllerGetType(controller),
+#else
+      "?",
+#endif
+#if SDL_VERSION_ATLEAST(2, 0, 6)
+      SDL_GameControllerGetVendor(controller),
+      SDL_GameControllerGetProduct(controller));
+#else
+      "?", "?");
+#endif
   int user_id = -1;
 #if SDL_VERSION_ATLEAST(2, 0, 9)
   // Check if the controller has a player index LED.
@@ -432,34 +454,45 @@ void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
     for (size_t i = 0; i < controllers_.size(); i++) {
       if (!controllers_.at(i).sdl) {
         user_id = static_cast<int>(i);
+#if SDL_VERSION_ATLEAST(2, 0, 12)
+        SDL_GameControllerSetPlayerIndex(controller, user_id);
+#endif
         break;
       }
     }
   }
   if (user_id >= 0) {
-    controllers_.at(user_id) = {controller, {}};
+    auto& state = controllers_.at(user_id);
+    state = {controller, {}};
     // XInput seems to start with packet_number = 1 .
-    controllers_.at(user_id).state_changed = true;
+    state.state_changed = true;
+    UpdateXCapabilities(state);
+
+    XELOGI("SDL OnControllerDeviceAdded: Added at index {}.", user_id);
   } else {
     // No more controllers needed, close it.
     SDL_GameControllerClose(controller);
+    XELOGW("SDL OnControllerDeviceAdded: Ignored. No free slots.");
   }
 }
 
 void SDLInputDriver::OnControllerDeviceRemoved(const SDL_Event& event) {
-  assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   // Find the disconnected gamecontroller and close it.
   auto idx = GetControllerIndexFromInstanceID(event.cdevice.which);
-  assert(idx);
-  SDL_GameControllerClose(controllers_.at(*idx).sdl);
-  controllers_.at(*idx) = {};
-  keystroke_states_.at(*idx) = {};
+  if (idx) {
+    SDL_GameControllerClose(controllers_.at(*idx).sdl);
+    controllers_.at(*idx) = {};
+    keystroke_states_.at(*idx) = {};
+    XELOGI("SDL OnControllerDeviceRemoved: Removed at player index {}.", *idx);
+  } else {
+    // Can happen in case all slots where full previously.
+    XELOGW("SDL OnControllerDeviceRemoved: Ignored. Unused device.");
+  }
 }
 
 void SDLInputDriver::OnControllerDeviceAxisMotion(const SDL_Event& event) {
-  assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   auto idx = GetControllerIndexFromInstanceID(event.caxis.which);
@@ -492,28 +525,43 @@ void SDLInputDriver::OnControllerDeviceAxisMotion(const SDL_Event& event) {
 }
 
 void SDLInputDriver::OnControllerDeviceButtonChanged(const SDL_Event& event) {
-  assert(window()->loop()->is_on_loop_thread());
   std::unique_lock<std::mutex> guard(controllers_mutex_);
 
   // Define a lookup table to map between SDL and XInput button codes.
   // These need to be in the order of the SDL_GameControllerButton enum.
-  static const std::array<std::underlying_type<X_INPUT_GAMEPAD_BUTTON>::type,
-                          SDL_CONTROLLER_BUTTON_MAX>
-      xbutton_lookup = {X_INPUT_GAMEPAD_A,
-                        X_INPUT_GAMEPAD_B,
-                        X_INPUT_GAMEPAD_X,
-                        X_INPUT_GAMEPAD_Y,
-                        X_INPUT_GAMEPAD_BACK,
-                        X_INPUT_GAMEPAD_GUIDE,
-                        X_INPUT_GAMEPAD_START,
-                        X_INPUT_GAMEPAD_LEFT_THUMB,
-                        X_INPUT_GAMEPAD_RIGHT_THUMB,
-                        X_INPUT_GAMEPAD_LEFT_SHOULDER,
-                        X_INPUT_GAMEPAD_RIGHT_SHOULDER,
-                        X_INPUT_GAMEPAD_DPAD_UP,
-                        X_INPUT_GAMEPAD_DPAD_DOWN,
-                        X_INPUT_GAMEPAD_DPAD_LEFT,
-                        X_INPUT_GAMEPAD_DPAD_RIGHT};
+  static constexpr std::array<
+      std::underlying_type<X_INPUT_GAMEPAD_BUTTON>::type, 21>
+      xbutton_lookup = {
+          // Standard buttons:
+          X_INPUT_GAMEPAD_A,
+          X_INPUT_GAMEPAD_B,
+          X_INPUT_GAMEPAD_X,
+          X_INPUT_GAMEPAD_Y,
+          X_INPUT_GAMEPAD_BACK,
+          X_INPUT_GAMEPAD_GUIDE,
+          X_INPUT_GAMEPAD_START,
+          X_INPUT_GAMEPAD_LEFT_THUMB,
+          X_INPUT_GAMEPAD_RIGHT_THUMB,
+          X_INPUT_GAMEPAD_LEFT_SHOULDER,
+          X_INPUT_GAMEPAD_RIGHT_SHOULDER,
+          X_INPUT_GAMEPAD_DPAD_UP,
+          X_INPUT_GAMEPAD_DPAD_DOWN,
+          X_INPUT_GAMEPAD_DPAD_LEFT,
+          X_INPUT_GAMEPAD_DPAD_RIGHT,
+          // There are additional buttons only available on some controllers.
+          // For now just assign sensible defaults
+          // Misc:
+          X_INPUT_GAMEPAD_GUIDE,
+          // Xbox Elite paddles:
+          X_INPUT_GAMEPAD_Y,
+          X_INPUT_GAMEPAD_B,
+          X_INPUT_GAMEPAD_X,
+          X_INPUT_GAMEPAD_A,
+          // PS touchpad button
+          X_INPUT_GAMEPAD_GUIDE,
+      };
+  static_assert(SDL_CONTROLLER_BUTTON_A == 0);
+  static_assert(SDL_CONTROLLER_BUTTON_DPAD_RIGHT == 14);
 
   auto idx = GetControllerIndexFromInstanceID(event.cbutton.which);
   assert(idx);
@@ -521,6 +569,11 @@ void SDLInputDriver::OnControllerDeviceButtonChanged(const SDL_Event& event) {
 
   uint16_t xbuttons = controller.state.gamepad.buttons;
   // Lookup the XInput button code.
+  if (event.cbutton.button >= xbutton_lookup.size()) {
+    // A newer SDL Version may have added new buttons.
+    XELOGI("SDL HID: Unknown button was pressed: {}.", event.cbutton.button);
+    return;
+  }
   auto xbutton = xbutton_lookup.at(event.cbutton.button);
   // Pressed or released?
   if (event.cbutton.state == SDL_PRESSED) {
@@ -584,6 +637,55 @@ bool SDLInputDriver::TestSDLVersion() const {
     return false;
   }
   return true;
+}
+
+void SDLInputDriver::UpdateXCapabilities(ControllerState& state) {
+  assert(state.sdl);
+  uint16_t cap_flags = 0x0;
+
+  // The RAWINPUT driver combines and enhances input from different APIs. For
+  // details, see `SDL_rawinputjoystick.c`. This correlation however has latency
+  // which might confuse games calling `GetCapabilities()` (The power level is
+  // only available after the controller has been "touched"). Generally that
+  // should not be a problem, when in doubt disable the RAWINPUT driver via hint
+  // (env var).
+
+  // Guess if we are wireless
+  auto power_level =
+      SDL_JoystickCurrentPowerLevel(SDL_GameControllerGetJoystick(state.sdl));
+  if (power_level >= SDL_JOYSTICK_POWER_EMPTY &&
+      power_level <= SDL_JOYSTICK_POWER_FULL) {
+    cap_flags |= X_INPUT_CAPS_WIRELESS;
+  }
+
+  // Check if all navigational buttons are present
+  static constexpr std::array<SDL_GameControllerButton, 6> nav_buttons = {
+      SDL_CONTROLLER_BUTTON_START,     SDL_CONTROLLER_BUTTON_BACK,
+      SDL_CONTROLLER_BUTTON_DPAD_UP,   SDL_CONTROLLER_BUTTON_DPAD_DOWN,
+      SDL_CONTROLLER_BUTTON_DPAD_LEFT, SDL_CONTROLLER_BUTTON_DPAD_RIGHT,
+  };
+  for (auto it = nav_buttons.begin(); it < nav_buttons.end(); it++) {
+    auto bind = SDL_GameControllerGetBindForButton(state.sdl, *it);
+    if (bind.bindType == SDL_CONTROLLER_BINDTYPE_NONE) {
+      cap_flags |= X_INPUT_CAPS_NO_NAVIGATION;
+      break;
+    }
+  }
+
+  auto& c = state.caps;
+  c.type = 0x01;      // XINPUT_DEVTYPE_GAMEPAD
+  c.sub_type = 0x01;  // XINPUT_DEVSUBTYPE_GAMEPAD
+  c.flags = cap_flags;
+  c.gamepad.buttons =
+      0xF3FF | (cvars::guide_button ? X_INPUT_GAMEPAD_GUIDE : 0x0);
+  c.gamepad.left_trigger = 0xFF;
+  c.gamepad.right_trigger = 0xFF;
+  c.gamepad.thumb_lx = static_cast<int16_t>(0xFFFFu);
+  c.gamepad.thumb_ly = static_cast<int16_t>(0xFFFFu);
+  c.gamepad.thumb_rx = static_cast<int16_t>(0xFFFFu);
+  c.gamepad.thumb_ry = static_cast<int16_t>(0xFFFFu);
+  c.vibration.left_motor_speed = 0xFFFFu;
+  c.vibration.right_motor_speed = 0xFFFFu;
 }
 
 void SDLInputDriver::QueueControllerUpdate() {

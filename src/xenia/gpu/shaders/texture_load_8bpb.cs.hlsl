@@ -11,10 +11,9 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
     return;
   }
   int block_offset_host =
-      (XeTextureHostLinearOffset(int3(block_index),
-                                 xe_texture_load_size_blocks.y,
-                                 xe_texture_load_host_pitch, 1u) +
-       xe_texture_load_host_base) >> 4;
+      (XeTextureHostLinearOffset(int3(block_index), xe_texture_load_host_pitch,
+                                 xe_texture_load_size_blocks.y, 1u) +
+       xe_texture_load_host_offset) >> 4;
   int block_offset_guest =
       XeTextureLoadGuestBlockOffset(int3(block_index), 1u, 0u) >> 3;
   // Odd 8 blocks = even 8 blocks + 64 bytes when tiled.

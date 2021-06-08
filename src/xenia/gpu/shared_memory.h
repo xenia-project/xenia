@@ -74,7 +74,8 @@ class SharedMemory {
   // Checks if the range has been updated, uploads new data if needed and
   // ensures the host GPU memory backing the range are resident. Returns true if
   // the range has been fully updated and is usable.
-  bool RequestRange(uint32_t start, uint32_t length);
+  bool RequestRange(uint32_t start, uint32_t length,
+                    bool* any_data_resolved_out = nullptr);
 
   // Marks the range and, if not exact_range, potentially its surroundings
   // (to up to the first GPU-written page, as an access violation exception
@@ -90,7 +91,7 @@ class SharedMemory {
   // be called, to make sure, if the GPU writes don't overwrite *everything* in
   // the pages they touch, the CPU data is properly loaded to the unmodified
   // regions in those pages.
-  void RangeWrittenByGpu(uint32_t start, uint32_t length);
+  void RangeWrittenByGpu(uint32_t start, uint32_t length, bool is_resolve);
 
  protected:
   SharedMemory(Memory& memory);
@@ -115,18 +116,24 @@ class SharedMemory {
     return host_gpu_memory_sparse_granularity_log2_;
   }
 
+  // Allocations in the host buffer are aligned the same way as in the guest
+  // physical memory (for instance, if an allocation is 64 KB, it can represent
+  // 0-64 KB, 64-128 KB, 128-192 KB in the guest memory, and so on, but not
+  // something like 16-80 KB. This is assumed by the rules for texture data
+  // access in the texture cache.
   virtual bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
                                                 uint32_t length_allocations);
 
   // Mark the memory range as updated and protect it.
-  void MakeRangeValid(uint32_t start, uint32_t length, bool written_by_gpu);
+  void MakeRangeValid(uint32_t start, uint32_t length, bool written_by_gpu,
+                      bool written_by_gpu_resolve);
 
   // Uploads a range of host pages - only called if host GPU sparse memory
-  // allocation succeeded if needed. While uploading, MarkRangeValid must be
+  // allocation succeeded if needed. While uploading, MakeRangeValid must be
   // called for each successfully uploaded range as early as possible, before
   // the memcpy, to make sure invalidation that happened during the CPU -> GPU
   // memcpy isn't missed (upload_page_ranges is in pages because of this -
-  // MarkRangeValid has page granularity). upload_page_ranges are sorted in
+  // MakeRangeValid has page granularity). upload_page_ranges are sorted in
   // ascending address order, so front and back can be used to determine the
   // overall bounds of pages to be uploaded.
   virtual bool UploadRanges(
@@ -188,6 +195,9 @@ class SharedMemory {
     // Subset of valid pages - whether each page in the GPU buffer contains data
     // that was written on the GPU, thus should not be invalidated spuriously.
     uint64_t valid_and_gpu_written;
+    // Subset of valid_and_gpu_written - whether each page in the GPU buffer
+    // contains data written specifically by resolving from EDRAM.
+    uint64_t valid_and_gpu_resolved;
   };
   // Flags for each 64 system pages, interleaved as blocks, so bit scan can be
   // used to quickly extract ranges.

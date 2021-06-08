@@ -25,6 +25,10 @@ class KernelState;
 namespace xe {
 namespace cpu {
 
+constexpr fourcc_t kXEX1Signature = make_fourcc("XEX1");
+constexpr fourcc_t kXEX2Signature = make_fourcc("XEX2");
+constexpr fourcc_t kElfSignature = make_fourcc(0x7F, 'E', 'L', 'F');
+
 class Runtime;
 
 class XexModule : public xe::cpu::Module {
@@ -170,6 +174,8 @@ class XexModule : public xe::cpu::Module {
   std::unique_ptr<Function> CreateFunction(uint32_t address) override;
 
  private:
+  void ReadSecurityInfo();
+
   int ReadImage(const void* xex_addr, size_t xex_length, bool use_dev_key);
   int ReadImageUncompressed(const void* xex_addr, size_t xex_length);
   int ReadImageBasicCompressed(const void* xex_addr, size_t xex_length);

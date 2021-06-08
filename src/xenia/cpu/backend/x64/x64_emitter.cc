@@ -382,15 +382,14 @@ void X64Emitter::UnimplementedInstr(const hir::Instr* i) {
 }
 
 // This is used by the X64ThunkEmitter's ResolveFunctionThunk.
-extern "C" uint64_t ResolveFunction(void* raw_context,
-                                    uint64_t target_address) {
+uint64_t ResolveFunction(void* raw_context, uint64_t target_address) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
 
   // TODO(benvanik): required?
   assert_not_zero(target_address);
 
-  auto fn =
-      thread_state->processor()->ResolveFunction((uint32_t)target_address);
+  auto fn = thread_state->processor()->ResolveFunction(
+      static_cast<uint32_t>(target_address));
   assert_not_null(fn);
   auto x64_fn = static_cast<X64Function*>(fn);
   uint64_t addr = reinterpret_cast<uint64_t>(x64_fn->machine_code());
@@ -801,7 +800,7 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {
   if (!v.low && !v.high) {
     // 0000...
     vpxor(dest, dest);
-  } else if (v.low == ~0ull && v.high == ~0ull) {
+  } else if (v.low == ~uint64_t(0) && v.high == ~uint64_t(0)) {
     // 1111...
     vpcmpeqb(dest, dest);
   } else {
@@ -818,10 +817,10 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, float v) {
     float f;
     uint32_t i;
   } x = {v};
-  if (!v) {
-    // 0
+  if (!x.i) {
+    // +0.0f (but not -0.0f because it may be used to flip the sign via xor).
     vpxor(dest, dest);
-  } else if (x.i == ~0U) {
+  } else if (x.i == ~uint32_t(0)) {
     // 1111...
     vpcmpeqb(dest, dest);
   } else {
@@ -837,10 +836,10 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, double v) {
     double d;
     uint64_t i;
   } x = {v};
-  if (!v) {
-    // 0
+  if (!x.i) {
+    // +0.0 (but not -0.0 because it may be used to flip the sign via xor).
     vpxor(dest, dest);
-  } else if (x.i == ~0ULL) {
+  } else if (x.i == ~uint64_t(0)) {
     // 1111...
     vpcmpeqb(dest, dest);
   } else {

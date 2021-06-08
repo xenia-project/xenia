@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -47,6 +47,39 @@ X_STATUS XEnumerator::Initialize(uint32_t user_index, uint32_t app_id,
                                  uint32_t message, uint32_t message2,
                                  uint32_t flags) {
   return Initialize(user_index, app_id, message, message2, flags, 0, nullptr);
+}
+
+uint8_t* XStaticEnumerator::AppendItem() {
+  buffer_.resize(++item_count_ * item_size());
+  auto ptr =
+      const_cast<uint8_t*>(buffer_.data() + (item_count_ - 1) * item_size());
+  return ptr;
+}
+
+uint32_t XStaticEnumerator::WriteItems(uint32_t buffer_ptr,
+                                       uint8_t* buffer_data,
+                                       uint32_t buffer_size,
+                                       uint32_t* written_count) {
+  size_t count = std::min(item_count_ - current_item_, items_per_enumerate());
+  if (!count) {
+    return X_ERROR_NO_MORE_FILES;
+  }
+
+  size_t size = count * item_size();
+  if (size > buffer_size) {
+    return X_ERROR_INSUFFICIENT_BUFFER;
+  }
+
+  size_t offset = current_item_ * item_size();
+  std::memcpy(buffer_data, buffer_.data() + offset, size);
+
+  current_item_ += count;
+
+  if (written_count) {
+    *written_count = static_cast<uint32_t>(count);
+  }
+
+  return X_ERROR_SUCCESS;
 }
 
 }  // namespace kernel

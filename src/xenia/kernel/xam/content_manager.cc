@@ -15,6 +15,7 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/string.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/xfile.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/vfs/devices/host_path_device.h"
 
@@ -34,6 +35,7 @@ ContentPackage::ContentPackage(KernelState* kernel_state,
                                const std::filesystem::path& package_path)
     : kernel_state_(kernel_state), root_name_(root_name) {
   device_path_ = fmt::format("\\Device\\Content\\{0}\\", ++content_device_id_);
+  content_data_ = data;
 
   auto fs = kernel_state_->file_system();
   auto device =
@@ -196,6 +198,7 @@ X_RESULT ContentManager::CloseContent(const std::string_view root_name) {
   if (it == open_packages_.end()) {
     return X_ERROR_FILE_NOT_FOUND;
   }
+  CloseOpenedFilesFromContent(root_name);
 
   auto package = it->second;
   open_packages_.erase(it);
@@ -242,6 +245,11 @@ X_RESULT ContentManager::SetContentThumbnail(const ContentData& data,
 X_RESULT ContentManager::DeleteContent(const ContentData& data) {
   auto global_lock = global_critical_region_.Acquire();
 
+  if (IsContentOpen(data)) {
+    // TODO(Gliniak): Get real error code for this case.
+    return X_ERROR_ACCESS_DENIED;
+  }
+
   auto package_path = ResolvePackagePath(data);
   if (std::filesystem::remove_all(package_path) > 0) {
     return X_ERROR_SUCCESS;
@@ -257,6 +265,35 @@ std::filesystem::path ContentManager::ResolveGameUserContentPath() {
   // Per-game per-profile data location:
   // content_root/title_id/profile/user_name
   return root_path_ / title_id / kGameUserContentDirName / user_name;
+}
+
+bool ContentManager::IsContentOpen(const ContentData& data) const {
+  return std::any_of(open_packages_.cbegin(), open_packages_.cend(),
+                     [data](std::pair<string_key, ContentPackage*> content) {
+                       return data == content.second->GetPackageContentData();
+                     });
+}
+
+void ContentManager::CloseOpenedFilesFromContent(
+    const std::string_view root_name) {
+  // TODO(Gliniak): Cleanup this code to care only about handles
+  // related to provided content
+  const std::vector<object_ref<XFile>> all_files_handles =
+      kernel_state_->object_table()->GetObjectsByType<XFile>(
+          XObject::Type::File);
+
+  std::string resolved_path = "";
+  kernel_state_->file_system()->FindSymbolicLink(std::string(root_name) + ':',
+                                                 resolved_path);
+
+  for (const object_ref<XFile>& file : all_files_handles) {
+    std::string file_path = file->entry()->absolute_path();
+    bool is_file_inside_content = utf8::starts_with(file_path, resolved_path);
+
+    if (is_file_inside_content) {
+      file->ReleaseHandle();
+    }
+  }
 }
 
 }  // namespace xam

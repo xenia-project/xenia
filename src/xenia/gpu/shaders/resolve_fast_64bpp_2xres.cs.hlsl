@@ -21,7 +21,7 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
                         XeResolveFirstSampleIndex());
   uint4 guest_pixel_y0 = xe_resolve_source[guest_source_address_ints];
   uint4 guest_pixel_y1 = xe_resolve_source[guest_source_address_ints + 1u];
-  XeResolveSwap8PixelsRedBlue32bpp(guest_pixel_y0, guest_pixel_y1);
+  XeResolveSwap4PixelsRedBlue64bpp(guest_pixel_y0, guest_pixel_y1);
   [branch] if (XeResolveEdramDuplicateSecondHostPixel()) {
     if (xe_thread_id.x == 0u) {
       guest_pixel_y0.xy = guest_pixel_y0.zw;

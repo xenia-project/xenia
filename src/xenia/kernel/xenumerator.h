@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,6 +10,7 @@
 #ifndef XENIA_KERNEL_XENUMERATOR_H_
 #define XENIA_KERNEL_XENUMERATOR_H_
 
+#include <algorithm>
 #include <cstring>
 #include <vector>
 
@@ -61,18 +62,16 @@ class XEnumerator : public XObject {
     return result;
   }
 
-  virtual uint32_t item_count() const = 0;
-  virtual void WriteItems(uint8_t* buffer) = 0;
-  virtual bool WriteItem(uint8_t* buffer) = 0;
+  virtual uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
+                              uint32_t buffer_size,
+                              uint32_t* written_count) = 0;
 
   size_t item_size() const { return item_size_; }
   size_t items_per_enumerate() const { return items_per_enumerate_; }
-  size_t current_item() const { return current_item_; }
 
- protected:
-  size_t items_per_enumerate_ = 0;
-  size_t item_size_ = 0;
-  size_t current_item_ = 0;
+ private:
+  size_t items_per_enumerate_;
+  size_t item_size_;
 };
 
 class XStaticEnumerator : public XEnumerator {
@@ -80,35 +79,19 @@ class XStaticEnumerator : public XEnumerator {
   XStaticEnumerator(KernelState* kernel_state, size_t items_per_enumerate,
                     size_t item_size)
       : XEnumerator(kernel_state, items_per_enumerate, item_size),
-        item_count_(0) {}
+        item_count_(0),
+        current_item_(0) {}
 
-  uint32_t item_count() const override { return item_count_; }
+  size_t item_count() const { return item_count_; }
 
-  uint8_t* AppendItem() {
-    buffer_.resize(++item_count_ * item_size_);
-    auto ptr =
-        const_cast<uint8_t*>(buffer_.data() + (item_count_ - 1) * item_size_);
-    return ptr;
-  }
+  uint8_t* AppendItem();
 
-  void WriteItems(uint8_t* buffer) override {
-    std::memcpy(buffer, buffer_.data(), item_count_ * item_size_);
-  }
-
-  bool WriteItem(uint8_t* buffer) override {
-    if (current_item_ >= item_count_) {
-      return false;
-    }
-
-    std::memcpy(buffer, buffer_.data() + current_item_ * item_size_,
-                item_size_);
-    current_item_++;
-
-    return true;
-  }
+  uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
+                      uint32_t buffer_size, uint32_t* written_count) override;
 
  private:
-  uint32_t item_count_;
+  size_t item_count_;
+  size_t current_item_;
   std::vector<uint8_t> buffer_;
 };
 

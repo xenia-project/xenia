@@ -13,9 +13,9 @@ namespace xe {
 namespace kernel {
 namespace util {
 
-constexpr uint32_t kGameInfoExecMagic = 'EXEC';
-constexpr uint32_t kGameInfoCommMagic = 'COMM';
-constexpr uint32_t kGameInfoTitlMagic = 'TITL';
+constexpr fourcc_t kGameInfoExecSignature = make_fourcc("EXEC");
+constexpr fourcc_t kGameInfoCommSignature = make_fourcc("COMM");
+constexpr fourcc_t kGameInfoTitlSignature = make_fourcc("TITL");
 
 GameInfoWrapper::GameInfoWrapper(const uint8_t* data, size_t data_size)
     : data_(data), data_size_(data_size) {
@@ -31,7 +31,7 @@ GameInfoWrapper::GameInfoWrapper(const uint8_t* data, size_t data_size)
     data_offset += sizeof(GameInfoBlockHeader);
 
     switch (block_header->magic) {
-      case kGameInfoExecMagic:
+      case kGameInfoExecSignature:
         exec_.virtual_titleid =
             reinterpret_cast<const char*>(data_ + data_offset);
         data_offset += exec_.VirtualTitleIdLength + 1;
@@ -41,12 +41,12 @@ GameInfoWrapper::GameInfoWrapper(const uint8_t* data, size_t data_size)
             reinterpret_cast<const char*>(data_ + data_offset);
         data_offset += exec_.BuildDescriptionLength + 1;
         break;
-      case kGameInfoCommMagic:
+      case kGameInfoCommSignature:
         assert_true(block_header->block_size == sizeof(GameInfoBlockComm));
         comm_ = reinterpret_cast<const GameInfoBlockComm*>(data_ + data_offset);
         data_offset += block_header->block_size;
         break;
-      case kGameInfoTitlMagic:
+      case kGameInfoTitlSignature:
         assert_true(block_header->block_size == sizeof(GameInfoBlockTitl));
         titl_ = reinterpret_cast<const GameInfoBlockTitl*>(data_ + data_offset);
         data_offset += block_header->block_size;

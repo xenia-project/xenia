@@ -265,6 +265,93 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
 }
 DECLARE_XBOXKRNL_EXPORT2(NtReadFile, kFileSystem, kImplemented, kHighFrequency);
 
+dword_result_t NtReadFileScatter(dword_t file_handle, dword_t event_handle,
+                                 lpvoid_t apc_routine_ptr, lpvoid_t apc_context,
+                                 pointer_t<X_IO_STATUS_BLOCK> io_status_block,
+                                 lpdword_t segment_array, dword_t length,
+                                 lpqword_t byte_offset_ptr) {
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  bool signal_event = false;
+  auto ev = kernel_state()->object_table()->LookupObject<XEvent>(event_handle);
+  if (event_handle && !ev) {
+    result = X_STATUS_INVALID_HANDLE;
+  }
+
+  auto file = kernel_state()->object_table()->LookupObject<XFile>(file_handle);
+  if (!file) {
+    result = X_STATUS_INVALID_HANDLE;
+  }
+
+  if (XSUCCEEDED(result)) {
+    if (true || file->is_synchronous()) {
+      // Synchronous.
+      uint32_t bytes_read = 0;
+      result = file->ReadScatter(
+          segment_array.guest_address(), length,
+          byte_offset_ptr ? static_cast<uint64_t>(*byte_offset_ptr) : -1,
+          &bytes_read, apc_context);
+      if (io_status_block) {
+        io_status_block->status = result;
+        io_status_block->information = bytes_read;
+      }
+
+      // Queue the APC callback. It must be delivered via the APC mechanism even
+      // though were are completing immediately.
+      // Low bit probably means do not queue to IO ports.
+      if ((uint32_t)apc_routine_ptr & ~1) {
+        if (apc_context) {
+          auto thread = XThread::GetCurrentThread();
+          thread->EnqueueApc(static_cast<uint32_t>(apc_routine_ptr) & ~1u,
+                             apc_context, io_status_block, 0);
+        }
+      }
+
+      if (!file->is_synchronous()) {
+        result = X_STATUS_PENDING;
+      }
+
+      // Mark that we should signal the event now. We do this after
+      // we have written the info out.
+      signal_event = true;
+    } else {
+      // TODO(benvanik): async.
+
+      // TODO: On Windows it might be worth trying to use Win32 ReadFileScatter
+      // here instead of handling it ourselves
+
+      // X_STATUS_PENDING if not returning immediately.
+      // XFile is waitable and signalled after each async req completes.
+      // reset the input event (->Reset())
+      /*xeNtReadFileState* call_state = new xeNtReadFileState();
+      XAsyncRequest* request = new XAsyncRequest(
+      state, file,
+      (XAsyncRequest::CompletionCallback)xeNtReadFileCompleted,
+      call_state);*/
+      // result = file->Read(buffer.guest_address(), buffer_length, byte_offset,
+      //                     request);
+      if (io_status_block) {
+        io_status_block->status = X_STATUS_PENDING;
+        io_status_block->information = 0;
+      }
+
+      result = X_STATUS_PENDING;
+    }
+  }
+
+  if (XFAILED(result) && io_status_block) {
+    io_status_block->status = result;
+    io_status_block->information = 0;
+  }
+
+  if (ev && signal_event) {
+    ev->Set(0, false);
+  }
+
+  return result;
+}
+DECLARE_XBOXKRNL_EXPORT1(NtReadFileScatter, kFileSystem, kImplemented);
+
 dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
                            function_t apc_routine, lpvoid_t apc_context,
                            pointer_t<X_IO_STATUS_BLOCK> io_status_block,
@@ -352,6 +439,26 @@ dword_result_t NtCreateIoCompletion(lpdword_t out_handle,
   return X_STATUS_SUCCESS;
 }
 DECLARE_XBOXKRNL_EXPORT1(NtCreateIoCompletion, kFileSystem, kImplemented);
+
+dword_result_t NtSetIoCompletion(dword_t handle, dword_t key_context,
+                                 dword_t apc_context, dword_t completion_status,
+                                 dword_t num_bytes) {
+  auto port =
+      kernel_state()->object_table()->LookupObject<XIOCompletion>(handle);
+  if (!port) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+
+  XIOCompletion::IONotification notification;
+  notification.key_context = key_context;
+  notification.apc_context = apc_context;
+  notification.num_bytes = num_bytes;
+  notification.status = completion_status;
+
+  port->QueueNotification(notification);
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(NtSetIoCompletion, kFileSystem, kImplemented);
 
 // Dequeues a packet from the completion port.
 dword_result_t NtRemoveIoCompletion(

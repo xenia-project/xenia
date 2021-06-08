@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "xenia/base/memory.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
@@ -26,19 +27,6 @@ enum class XdbfSection : uint16_t {
   kMetadata = 0x0001,
   kImage = 0x0002,
   kStringTable = 0x0003,
-};
-
-// Found by dumping the kSectionStringTable sections of various games:
-enum class XdbfLocale : uint32_t {
-  kUnknown = 0,
-  kEnglish = 1,
-  kJapanese = 2,
-  kGerman = 3,
-  kFrench = 4,
-  kSpanish = 5,
-  kItalian = 6,
-  kKorean = 7,
-  kChinese = 8,
 };
 
 struct XdbfBlock {
@@ -63,7 +51,7 @@ class XdbfWrapper {
 
   // Gets a string from the string table in the given language.
   // Returns the empty string if the entry is not found.
-  std::string GetStringTableEntry(XdbfLocale locale, uint16_t string_id) const;
+  std::string GetStringTableEntry(XLanguage language, uint16_t string_id) const;
 
  protected:
 #pragma pack(push, 1)
@@ -133,10 +121,12 @@ class XdbfGameData : public XdbfWrapper {
   XdbfBlock icon() const;
 
   // The game's default language.
-  XdbfLocale default_language() const;
+  XLanguage default_language() const;
 
   // The game's title in its default language.
   std::string title() const;
+
+  std::string title(XLanguage language) const;
 };
 
 }  // namespace util

@@ -99,37 +99,6 @@ inline xenos::TextureFormat ColorFormatToTextureFormat(
   return static_cast<xenos::TextureFormat>(color_format);
 }
 
-inline xenos::TextureFormat ColorRenderTargetToTextureFormat(
-    xenos::ColorRenderTargetFormat color_format) {
-  switch (color_format) {
-    case xenos::ColorRenderTargetFormat::k_8_8_8_8:
-      return xenos::TextureFormat::k_8_8_8_8;
-    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      return xenos::TextureFormat::k_8_8_8_8_GAMMA_EDRAM;
-    case xenos::ColorRenderTargetFormat::k_2_10_10_10:
-    case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
-      return xenos::TextureFormat::k_2_10_10_10;
-    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-      return xenos::TextureFormat::k_2_10_10_10_FLOAT_EDRAM;
-    case xenos::ColorRenderTargetFormat::k_16_16:
-      return xenos::TextureFormat::k_16_16_EDRAM;
-    case xenos::ColorRenderTargetFormat::k_16_16_16_16:
-      return xenos::TextureFormat::k_16_16_16_16_EDRAM;
-    case xenos::ColorRenderTargetFormat::k_16_16_FLOAT:
-      return xenos::TextureFormat::k_16_16_FLOAT;
-    case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
-      return xenos::TextureFormat::k_16_16_16_16_FLOAT;
-    case xenos::ColorRenderTargetFormat::k_32_FLOAT:
-      return xenos::TextureFormat::k_32_FLOAT;
-    case xenos::ColorRenderTargetFormat::k_32_32_FLOAT:
-      return xenos::TextureFormat::k_32_32_FLOAT;
-    default:
-      assert_unhandled_case(color_format);
-      return xenos::TextureFormat::kUnknown;
-  }
-}
-
 inline xenos::TextureFormat DepthRenderTargetToTextureFormat(
     xenos::DepthRenderTargetFormat depth_format) {
   switch (depth_format) {
@@ -139,7 +108,7 @@ inline xenos::TextureFormat DepthRenderTargetToTextureFormat(
       return xenos::TextureFormat::k_24_8_FLOAT;
     default:
       assert_unhandled_case(depth_format);
-      return xenos::TextureFormat::kUnknown;
+      return xenos::TextureFormat(~0);
   }
 }
 

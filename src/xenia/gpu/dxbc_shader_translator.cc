@@ -10,16 +10,18 @@
 #include "xenia/gpu/dxbc_shader_translator.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <memory>
 
 #include "third_party/dxbc/DXBCChecksum.h"
-#include "third_party/dxbc/d3d12TokenizedProgramFormat.hpp"
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/dxbc_shader.h"
+#include "xenia/gpu/xenos.h"
+#include "xenia/ui/graphics_provider.h"
 
 DEFINE_bool(dxbc_switch, true,
             "Use switch rather than if for flow control. Turning this off or "
@@ -63,14 +65,22 @@ using namespace ucode;
 //   S#/T#/U# binding index, and the second is the s#/t#/u# register index
 //   within its space.
 
-DxbcShaderTranslator::DxbcShaderTranslator(uint32_t vendor_id,
-                                           bool bindless_resources_used,
-                                           bool edram_rov_used,
-                                           bool force_emit_source_map)
-    : vendor_id_(vendor_id),
+DxbcShaderTranslator::DxbcShaderTranslator(
+    ui::GraphicsProvider::GpuVendorID vendor_id, bool bindless_resources_used,
+    bool edram_rov_used, bool gamma_render_target_as_srgb,
+    bool msaa_2x_supported, uint32_t draw_resolution_scale,
+    bool force_emit_source_map)
+    : a_(shader_code_, statistics_),
+      ao_(shader_object_, statistics_),
+      vendor_id_(vendor_id),
       bindless_resources_used_(bindless_resources_used),
-      edram_rov_used_(edram_rov_used) {
-  emit_source_map_ = force_emit_source_map || cvars::dxbc_source_map;
+      edram_rov_used_(edram_rov_used),
+      gamma_render_target_as_srgb_(gamma_render_target_as_srgb),
+      msaa_2x_supported_(msaa_2x_supported),
+      draw_resolution_scale_(draw_resolution_scale),
+      emit_source_map_(force_emit_source_map || cvars::dxbc_source_map) {
+  assert_true(draw_resolution_scale >= 1);
+  assert_true(draw_resolution_scale <= 3);
   // Don't allocate again and again for the first shader.
   shader_code_.reserve(8192);
   shader_object_.reserve(16384);
@@ -78,34 +88,41 @@ DxbcShaderTranslator::DxbcShaderTranslator(uint32_t vendor_id,
 DxbcShaderTranslator::~DxbcShaderTranslator() = default;
 
 std::vector<uint8_t> DxbcShaderTranslator::CreateDepthOnlyPixelShader() {
-  Reset(xenos::ShaderType::kPixel);
   is_depth_only_pixel_shader_ = true;
-  StartTranslation();
-  return std::move(CompleteTranslation());
+  // TODO(Triang3l): Handle in a nicer way (is_depth_only_pixel_shader_ is a
+  // leftover from when a Shader object wasn't used during translation).
+  Shader shader(xenos::ShaderType::kPixel, 0, nullptr, 0);
+  shader.AnalyzeUcode(instruction_disassembly_buffer_);
+  Shader::Translation& translation = *shader.GetOrCreateTranslation(0);
+  TranslateAnalyzedShader(translation);
+  is_depth_only_pixel_shader_ = false;
+  return translation.translated_binary();
 }
 
-uint32_t DxbcShaderTranslator::GetDefaultModification(
-    xenos::ShaderType shader_type,
+uint64_t DxbcShaderTranslator::GetDefaultVertexShaderModification(
+    uint32_t dynamic_addressable_register_count,
     Shader::HostVertexShaderType host_vertex_shader_type) const {
   Modification shader_modification;
-  switch (shader_type) {
-    case xenos::ShaderType::kVertex:
-      shader_modification.host_vertex_shader_type = host_vertex_shader_type;
-      break;
-    case xenos::ShaderType::kPixel:
-      shader_modification.depth_stencil_mode =
-          Modification::DepthStencilMode::kNoModifiers;
-      break;
-  }
+  shader_modification.vertex.dynamic_addressable_register_count =
+      dynamic_addressable_register_count;
+  shader_modification.vertex.host_vertex_shader_type = host_vertex_shader_type;
   return shader_modification.value;
 }
 
-void DxbcShaderTranslator::Reset(xenos::ShaderType shader_type) {
-  ShaderTranslator::Reset(shader_type);
+uint64_t DxbcShaderTranslator::GetDefaultPixelShaderModification(
+    uint32_t dynamic_addressable_register_count) const {
+  Modification shader_modification;
+  shader_modification.pixel.dynamic_addressable_register_count =
+      dynamic_addressable_register_count;
+  shader_modification.pixel.depth_stencil_mode =
+      Modification::DepthStencilMode::kNoModifiers;
+  return shader_modification.value;
+}
+
+void DxbcShaderTranslator::Reset() {
+  ShaderTranslator::Reset();
 
   shader_code_.clear();
-
-  is_depth_only_pixel_shader_ = false;
 
   cbuffer_count_ = 0;
   // System constants always used in prologues/epilogues.
@@ -148,98 +165,28 @@ void DxbcShaderTranslator::Reset(xenos::ShaderType shader_type) {
 
   memexport_alloc_current_count_ = 0;
 
-  std::memset(&stat_, 0, sizeof(stat_));
+  std::memset(&shader_feature_info_, 0, sizeof(shader_feature_info_));
+  std::memset(&statistics_, 0, sizeof(statistics_));
 }
 
-void DxbcShaderTranslator::DxbcSrc::Write(std::vector<uint32_t>& code,
-                                          bool is_integer, uint32_t mask,
-                                          bool force_vector) const {
-  uint32_t operand_token = GetOperandTokenTypeAndIndex();
-  uint32_t mask_single_component = DxbcDest::GetMaskSingleComponent(mask);
-  uint32_t select_component =
-      mask_single_component != UINT32_MAX ? mask_single_component : 0;
-  bool is_vector =
-      force_vector || (mask != 0b0000 && mask_single_component == UINT32_MAX);
-  if (type_ == DxbcOperandType::kImmediate32) {
-    if (is_vector) {
-      operand_token |= uint32_t(DxbcOperandDimension::kVector) |
-                       (uint32_t(DxbcComponentSelection::kSwizzle) << 2) |
-                       (DxbcSrc::kXYZW << 4);
-    } else {
-      operand_token |= uint32_t(DxbcOperandDimension::kScalar);
-    }
-    code.push_back(operand_token);
-    if (is_vector) {
-      for (uint32_t i = 0; i < 4; ++i) {
-        code.push_back((mask & (1 << i)) ? GetModifiedImmediate(i, is_integer)
-                                         : 0);
-      }
-    } else {
-      code.push_back(GetModifiedImmediate(select_component, is_integer));
-    }
-  } else {
-    switch (GetDimension()) {
-      case DxbcOperandDimension::kScalar:
-        if (is_vector) {
-          operand_token |= uint32_t(DxbcOperandDimension::kVector) |
-                           (uint32_t(DxbcComponentSelection::kSwizzle) << 2) |
-                           (DxbcSrc::kXXXX << 4);
-        } else {
-          operand_token |= uint32_t(DxbcOperandDimension::kScalar);
-        }
-        break;
-      case DxbcOperandDimension::kVector:
-        operand_token |= uint32_t(DxbcOperandDimension::kVector);
-        if (is_vector) {
-          operand_token |= uint32_t(DxbcComponentSelection::kSwizzle) << 2;
-          // Clear swizzle of unused components to a used value to avoid
-          // referencing potentially uninitialized register components.
-          uint32_t used_component;
-          if (!xe::bit_scan_forward(mask, &used_component)) {
-            used_component = 0;
-          }
-          for (uint32_t i = 0; i < 4; ++i) {
-            uint32_t swizzle_index = (mask & (1 << i)) ? i : used_component;
-            operand_token |=
-                (((swizzle_ >> (swizzle_index * 2)) & 3) << (4 + i * 2));
-          }
-        } else {
-          operand_token |= (uint32_t(DxbcComponentSelection::kSelect1) << 2) |
-                           (((swizzle_ >> (select_component * 2)) & 3) << 4);
-        }
-        break;
-      default:
-        break;
-    }
-    DxbcOperandModifier modifier = DxbcOperandModifier::kNone;
-    if (absolute_ && negate_) {
-      modifier = DxbcOperandModifier::kAbsoluteNegate;
-    } else if (absolute_) {
-      modifier = DxbcOperandModifier::kAbsolute;
-    } else if (negate_) {
-      modifier = DxbcOperandModifier::kNegate;
-    }
-    if (modifier != DxbcOperandModifier::kNone) {
-      operand_token |= uint32_t(1) << 31;
-    }
-    code.push_back(operand_token);
-    if (modifier != DxbcOperandModifier::kNone) {
-      code.push_back(uint32_t(DxbcExtendedOperandType::kModifier) |
-                     (uint32_t(modifier) << 6));
-    }
-    DxbcOperandAddress::Write(code);
-  }
+uint32_t DxbcShaderTranslator::GetModificationRegisterCount() const {
+  Modification modification = GetDxbcShaderModification();
+  return is_vertex_shader()
+             ? modification.vertex.dynamic_addressable_register_count
+             : modification.pixel.dynamic_addressable_register_count;
 }
 
 bool DxbcShaderTranslator::UseSwitchForControlFlow() const {
   // Xenia crashes on Intel HD Graphics 4000 with switch.
-  return cvars::dxbc_switch && vendor_id_ != 0x8086;
+  return cvars::dxbc_switch &&
+         vendor_id_ != ui::GraphicsProvider::GpuVendorID::kIntel;
 }
 
 uint32_t DxbcShaderTranslator::PushSystemTemp(uint32_t zero_mask,
                                               uint32_t count) {
   uint32_t register_index = system_temp_count_current_;
-  if (!uses_register_dynamic_addressing() && !is_depth_only_pixel_shader_) {
+  if (!is_depth_only_pixel_shader_ &&
+      !current_shader().uses_register_dynamic_addressing()) {
     // Guest shader registers first if they're not in x0. Depth-only pixel
     // shader is a special case of the DXBC translator usage, where there are no
     // GPRs because there's no shader to translate, and a guest shader is not
@@ -252,7 +199,7 @@ uint32_t DxbcShaderTranslator::PushSystemTemp(uint32_t zero_mask,
   zero_mask &= 0b1111;
   if (zero_mask) {
     for (uint32_t i = 0; i < count; ++i) {
-      DxbcOpMov(DxbcDest::R(register_index + i, zero_mask), DxbcSrc::LU(0));
+      a_.OpMov(dxbc::Dest::R(register_index + i, zero_mask), dxbc::Src::LU(0));
     }
   }
   return register_index;
@@ -280,46 +227,46 @@ void DxbcShaderTranslator::ConvertPWLGamma(
               accumulator_temp_component != source_temp_component);
   assert_true(piece_temp != accumulator_temp ||
               piece_temp_component != accumulator_temp_component);
-  DxbcSrc source_src(DxbcSrc::R(source_temp).Select(source_temp_component));
-  DxbcDest piece_dest(DxbcDest::R(piece_temp, 1 << piece_temp_component));
-  DxbcSrc piece_src(DxbcSrc::R(piece_temp).Select(piece_temp_component));
-  DxbcDest accumulator_dest(
-      DxbcDest::R(accumulator_temp, 1 << accumulator_temp_component));
-  DxbcSrc accumulator_src(
-      DxbcSrc::R(accumulator_temp).Select(accumulator_temp_component));
+  dxbc::Src source_src(dxbc::Src::R(source_temp).Select(source_temp_component));
+  dxbc::Dest piece_dest(dxbc::Dest::R(piece_temp, 1 << piece_temp_component));
+  dxbc::Src piece_src(dxbc::Src::R(piece_temp).Select(piece_temp_component));
+  dxbc::Dest accumulator_dest(
+      dxbc::Dest::R(accumulator_temp, 1 << accumulator_temp_component));
+  dxbc::Src accumulator_src(
+      dxbc::Src::R(accumulator_temp).Select(accumulator_temp_component));
   // For each piece:
   // 1) Calculate how far we are on it. Multiply by 1/width, subtract
   //    start/width and saturate.
   // 2) Add the contribution of the piece - multiply the position on the piece
   //    by its slope*width and accumulate.
   // Piece 1.
-  DxbcOpMul(piece_dest, source_src,
-            DxbcSrc::LF(to_gamma ? (1.0f / 0.0625f) : (1.0f / 0.25f)), true);
-  DxbcOpMul(accumulator_dest, piece_src,
-            DxbcSrc::LF(to_gamma ? (4.0f * 0.0625f) : (0.25f * 0.25f)));
+  a_.OpMul(piece_dest, source_src,
+           dxbc::Src::LF(to_gamma ? (1.0f / 0.0625f) : (1.0f / 0.25f)), true);
+  a_.OpMul(accumulator_dest, piece_src,
+           dxbc::Src::LF(to_gamma ? (4.0f * 0.0625f) : (0.25f * 0.25f)));
   // Piece 2.
-  DxbcOpMAd(piece_dest, source_src,
-            DxbcSrc::LF(to_gamma ? (1.0f / 0.0625f) : (1.0f / 0.125f)),
-            DxbcSrc::LF(to_gamma ? (-0.0625f / 0.0625f) : (-0.25f / 0.125f)),
-            true);
-  DxbcOpMAd(accumulator_dest, piece_src,
-            DxbcSrc::LF(to_gamma ? (2.0f * 0.0625f) : (0.5f * 0.125f)),
-            accumulator_src);
+  a_.OpMAd(piece_dest, source_src,
+           dxbc::Src::LF(to_gamma ? (1.0f / 0.0625f) : (1.0f / 0.125f)),
+           dxbc::Src::LF(to_gamma ? (-0.0625f / 0.0625f) : (-0.25f / 0.125f)),
+           true);
+  a_.OpMAd(accumulator_dest, piece_src,
+           dxbc::Src::LF(to_gamma ? (2.0f * 0.0625f) : (0.5f * 0.125f)),
+           accumulator_src);
   // Piece 3.
-  DxbcOpMAd(piece_dest, source_src,
-            DxbcSrc::LF(to_gamma ? (1.0f / 0.375f) : (1.0f / 0.375f)),
-            DxbcSrc::LF(to_gamma ? (-0.125f / 0.375f) : (-0.375f / 0.375f)),
-            true);
-  DxbcOpMAd(accumulator_dest, piece_src,
-            DxbcSrc::LF(to_gamma ? (1.0f * 0.375f) : (1.0f * 0.375f)),
-            accumulator_src);
+  a_.OpMAd(piece_dest, source_src,
+           dxbc::Src::LF(to_gamma ? (1.0f / 0.375f) : (1.0f / 0.375f)),
+           dxbc::Src::LF(to_gamma ? (-0.125f / 0.375f) : (-0.375f / 0.375f)),
+           true);
+  a_.OpMAd(accumulator_dest, piece_src,
+           dxbc::Src::LF(to_gamma ? (1.0f * 0.375f) : (1.0f * 0.375f)),
+           accumulator_src);
   // Piece 4.
-  DxbcOpMAd(piece_dest, source_src,
-            DxbcSrc::LF(to_gamma ? (1.0f / 0.5f) : (1.0f / 0.25f)),
-            DxbcSrc::LF(to_gamma ? (-0.5f / 0.5f) : (-0.75f / 0.25f)), true);
-  DxbcOpMAd(DxbcDest::R(target_temp, 1 << target_temp_component), piece_src,
-            DxbcSrc::LF(to_gamma ? (0.5f * 0.5f) : (2.0f * 0.25f)),
-            accumulator_src);
+  a_.OpMAd(piece_dest, source_src,
+           dxbc::Src::LF(to_gamma ? (1.0f / 0.5f) : (1.0f / 0.25f)),
+           dxbc::Src::LF(to_gamma ? (-0.5f / 0.5f) : (-0.75f / 0.25f)), true);
+  a_.OpMAd(dxbc::Dest::R(target_temp, 1 << target_temp_component), piece_src,
+           dxbc::Src::LF(to_gamma ? (0.5f * 0.5f) : (2.0f * 0.25f)),
+           accumulator_src);
 }
 
 void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
@@ -327,106 +274,121 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
     return;
   }
 
+  bool uses_register_dynamic_addressing =
+      current_shader().uses_register_dynamic_addressing();
+
   // Writing the index to X of GPR 0 - either directly if not using indexable
   // registers, or via a system temporary register.
   uint32_t reg;
-  if (uses_register_dynamic_addressing()) {
+  if (uses_register_dynamic_addressing) {
     reg = PushSystemTemp();
   } else {
     reg = 0;
   }
 
-  DxbcDest index_dest(DxbcDest::R(reg, 0b0001));
-  DxbcSrc index_src(DxbcSrc::R(reg, DxbcSrc::kXXXX));
+  dxbc::Dest index_dest(dxbc::Dest::R(reg, 0b0001));
+  dxbc::Src index_src(dxbc::Src::R(reg, dxbc::Src::kXXXX));
 
   // Check if the closing vertex of a non-indexed line loop is being processed.
-  system_constants_used_ |= 1ull << kSysConst_LineLoopClosingIndex_Index;
-  DxbcOpINE(
+  a_.OpINE(
       index_dest,
-      DxbcSrc::V(uint32_t(InOutRegister::kVSInVertexIndex), DxbcSrc::kXXXX),
-      DxbcSrc::CB(cbuffer_index_system_constants_,
-                  uint32_t(CbufferRegister::kSystemConstants),
-                  kSysConst_LineLoopClosingIndex_Vec)
-          .Select(kSysConst_LineLoopClosingIndex_Comp));
+      dxbc::Src::V(uint32_t(InOutRegister::kVSInVertexIndex), dxbc::Src::kXXXX),
+      LoadSystemConstant(SystemConstants::Index::kLineLoopClosingIndex,
+                         offsetof(SystemConstants, line_loop_closing_index),
+                         dxbc::Src::kXXXX));
   // Zero the index if processing the closing vertex of a line loop, or do
   // nothing (replace 0 with 0) if not needed.
-  DxbcOpAnd(
+  a_.OpAnd(
       index_dest,
-      DxbcSrc::V(uint32_t(InOutRegister::kVSInVertexIndex), DxbcSrc::kXXXX),
+      dxbc::Src::V(uint32_t(InOutRegister::kVSInVertexIndex), dxbc::Src::kXXXX),
       index_src);
 
   {
     // Swap the vertex index's endianness.
-    system_constants_used_ |= 1ull << kSysConst_VertexIndexEndian_Index;
-    DxbcSrc endian_src(DxbcSrc::CB(cbuffer_index_system_constants_,
-                                   uint32_t(CbufferRegister::kSystemConstants),
-                                   kSysConst_VertexIndexEndian_Vec)
-                           .Select(kSysConst_VertexIndexEndian_Comp));
-    DxbcDest swap_temp_dest(DxbcDest::R(reg, 0b0010));
-    DxbcSrc swap_temp_src(DxbcSrc::R(reg, DxbcSrc::kYYYY));
+    dxbc::Src endian_src(LoadSystemConstant(
+        SystemConstants::Index::kVertexIndexEndian,
+        offsetof(SystemConstants, vertex_index_endian), dxbc::Src::kXXXX));
+    dxbc::Dest swap_temp_dest(dxbc::Dest::R(reg, 0b0010));
+    dxbc::Src swap_temp_src(dxbc::Src::R(reg, dxbc::Src::kYYYY));
 
     // 8-in-16 or one half of 8-in-32.
-    DxbcOpSwitch(endian_src);
-    DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::Endian::k8in16)));
-    DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::Endian::k8in32)));
+    a_.OpSwitch(endian_src);
+    a_.OpCase(dxbc::Src::LU(uint32_t(xenos::Endian::k8in16)));
+    a_.OpCase(dxbc::Src::LU(uint32_t(xenos::Endian::k8in32)));
     // Temp = X0Z0.
-    DxbcOpAnd(swap_temp_dest, index_src, DxbcSrc::LU(0x00FF00FF));
+    a_.OpAnd(swap_temp_dest, index_src, dxbc::Src::LU(0x00FF00FF));
     // Index = YZW0.
-    DxbcOpUShR(index_dest, index_src, DxbcSrc::LU(8));
+    a_.OpUShR(index_dest, index_src, dxbc::Src::LU(8));
     // Index = Y0W0.
-    DxbcOpAnd(index_dest, index_src, DxbcSrc::LU(0x00FF00FF));
+    a_.OpAnd(index_dest, index_src, dxbc::Src::LU(0x00FF00FF));
     // Index = YXWZ.
-    DxbcOpUMAd(index_dest, swap_temp_src, DxbcSrc::LU(256), index_src);
-    DxbcOpBreak();
-    DxbcOpEndSwitch();
+    a_.OpUMAd(index_dest, swap_temp_src, dxbc::Src::LU(256), index_src);
+    a_.OpBreak();
+    a_.OpEndSwitch();
 
     // 16-in-32 or another half of 8-in-32.
-    DxbcOpSwitch(endian_src);
-    DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::Endian::k8in32)));
-    DxbcOpCase(DxbcSrc::LU(uint32_t(xenos::Endian::k16in32)));
+    a_.OpSwitch(endian_src);
+    a_.OpCase(dxbc::Src::LU(uint32_t(xenos::Endian::k8in32)));
+    a_.OpCase(dxbc::Src::LU(uint32_t(xenos::Endian::k16in32)));
     // Temp = ZW00.
-    DxbcOpUShR(swap_temp_dest, index_src, DxbcSrc::LU(16));
+    a_.OpUShR(swap_temp_dest, index_src, dxbc::Src::LU(16));
     // Index = ZWXY.
-    DxbcOpBFI(index_dest, DxbcSrc::LU(16), DxbcSrc::LU(16), index_src,
-              swap_temp_src);
-    DxbcOpBreak();
-    DxbcOpEndSwitch();
+    a_.OpBFI(index_dest, dxbc::Src::LU(16), dxbc::Src::LU(16), index_src,
+             swap_temp_src);
+    a_.OpBreak();
+    a_.OpEndSwitch();
 
-    if (!uses_register_dynamic_addressing()) {
+    if (!uses_register_dynamic_addressing) {
       // Break register dependency.
-      DxbcOpMov(swap_temp_dest, DxbcSrc::LF(0.0f));
+      a_.OpMov(swap_temp_dest, dxbc::Src::LF(0.0f));
     }
   }
 
   // Add the base vertex index.
-  system_constants_used_ |= 1ull << kSysConst_VertexBaseIndex_Index;
-  DxbcOpIAdd(index_dest, index_src,
-             DxbcSrc::CB(cbuffer_index_system_constants_,
-                         uint32_t(CbufferRegister::kSystemConstants),
-                         kSysConst_VertexBaseIndex_Vec)
-                 .Select(kSysConst_VertexBaseIndex_Comp));
+  a_.OpIAdd(index_dest, index_src,
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexOffset,
+                               offsetof(SystemConstants, vertex_index_offset),
+                               dxbc::Src::kXXXX));
+
+  // Mask since the GPU only uses the lower 24 bits of the vertex index (tested
+  // on an Adreno 200 phone). `((index & 0xFFFFFF) + offset) & 0xFFFFFF` is the
+  // same as `(index + offset) & 0xFFFFFF`.
+  a_.OpAnd(index_dest, index_src, dxbc::Src::LU(xenos::kVertexIndexMask));
+
+  // Clamp the vertex index after offsetting.
+  a_.OpUMax(index_dest, index_src,
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexMinMax,
+                               offsetof(SystemConstants, vertex_index_min),
+                               dxbc::Src::kXXXX));
+  a_.OpUMin(index_dest, index_src,
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexMinMax,
+                               offsetof(SystemConstants, vertex_index_max),
+                               dxbc::Src::kXXXX));
 
   // Convert to float.
-  DxbcOpIToF(index_dest, index_src);
+  a_.OpUToF(index_dest, index_src);
 
-  if (uses_register_dynamic_addressing()) {
+  if (uses_register_dynamic_addressing) {
     // Store to indexed GPR 0 in x0[0].
-    DxbcOpMov(DxbcDest::X(0, 0, 0b0001), index_src);
+    a_.OpMov(dxbc::Dest::X(0, 0, 0b0001), index_src);
     PopSystemTemp();
   }
 }
 
 void DxbcShaderTranslator::StartVertexOrDomainShader() {
+  bool uses_register_dynamic_addressing =
+      current_shader().uses_register_dynamic_addressing();
+
   // Zero the interpolators.
   for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
-    DxbcOpMov(DxbcDest::O(uint32_t(InOutRegister::kVSDSOutInterpolators) + i),
-              DxbcSrc::LF(0.0f));
+    a_.OpMov(dxbc::Dest::O(uint32_t(InOutRegister::kVSDSOutInterpolators) + i),
+             dxbc::Src::LF(0.0f));
   }
 
   // Remember that x# are only accessible via mov load or store - use a
   // temporary variable if need to do any computations!
   Shader::HostVertexShaderType host_vertex_shader_type =
-      GetDxbcShaderModification().host_vertex_shader_type;
+      GetDxbcShaderModification().vertex.host_vertex_shader_type;
   switch (host_vertex_shader_type) {
     case Shader::HostVertexShaderType::kVertex:
       StartVertexShader_LoadVertexIndex();
@@ -438,21 +400,21 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         // Copy the domain location to r0.xyz.
         // ZYX swizzle according to Call of Duty 3 and Viva Pinata.
         in_domain_location_used_ |= 0b0111;
-        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0111)
-                                                     : DxbcDest::R(0, 0b0111),
-                  DxbcSrc::VDomain(0b000110));
+        a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 0, 0b0111)
+                                                  : dxbc::Dest::R(0, 0b0111),
+                 dxbc::Src::VDomain(0b000110));
         if (register_count() >= 2) {
           // Copy the control point indices (already swapped and converted to
           // float by the host vertex and hull shaders) to r1.xyz.
-          DxbcDest control_point_index_dest(uses_register_dynamic_addressing()
-                                                ? DxbcDest::X(0, 1)
-                                                : DxbcDest::R(1));
+          dxbc::Dest control_point_index_dest(uses_register_dynamic_addressing
+                                                  ? dxbc::Dest::X(0, 1)
+                                                  : dxbc::Dest::R(1));
           in_control_point_index_used_ = true;
           for (uint32_t i = 0; i < 3; ++i) {
-            DxbcOpMov(control_point_index_dest.Mask(1 << i),
-                      DxbcSrc::VICP(
-                          i, uint32_t(InOutRegister::kDSInControlPointIndex),
-                          DxbcSrc::kXXXX));
+            a_.OpMov(control_point_index_dest.Mask(1 << i),
+                     dxbc::Src::VICP(
+                         i, uint32_t(InOutRegister::kDSInControlPointIndex),
+                         dxbc::Src::kXXXX));
           }
         }
       }
@@ -465,18 +427,19 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         // ZYX swizzle with r1.y == 0, according to the water shader in
         // Banjo-Kazooie: Nuts & Bolts.
         in_domain_location_used_ |= 0b0111;
-        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0111)
-                                                     : DxbcDest::R(0, 0b0111),
-                  DxbcSrc::VDomain(0b000110));
+        a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 0, 0b0111)
+                                                  : dxbc::Dest::R(0, 0b0111),
+                 dxbc::Src::VDomain(0b000110));
         if (register_count() >= 2) {
           // Copy the primitive index to r1.x as a float.
           uint32_t primitive_id_temp =
-              uses_register_dynamic_addressing() ? PushSystemTemp() : 1;
+              uses_register_dynamic_addressing ? PushSystemTemp() : 1;
           in_primitive_id_used_ = true;
-          DxbcOpUToF(DxbcDest::R(primitive_id_temp, 0b0001), DxbcSrc::VPrim());
-          if (uses_register_dynamic_addressing()) {
-            DxbcOpMov(DxbcDest::X(0, 1, 0b0001),
-                      DxbcSrc::R(primitive_id_temp, DxbcSrc::kXXXX));
+          a_.OpUToF(dxbc::Dest::R(primitive_id_temp, 0b0001),
+                    dxbc::Src::VPrim());
+          if (uses_register_dynamic_addressing) {
+            a_.OpMov(dxbc::Dest::X(0, 1, 0b0001),
+                     dxbc::Src::R(primitive_id_temp, dxbc::Src::kXXXX));
             // Release primitive_id_temp.
             PopSystemTemp();
           }
@@ -499,10 +462,10 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
           //
           // Direct3D 12 passes the coordinates in a consistent order, so can
           // just use the identity swizzle.
-          DxbcOpMov(uses_register_dynamic_addressing()
-                        ? DxbcDest::X(0, 1, 0b0010)
-                        : DxbcDest::R(1, 0b0010),
-                    DxbcSrc::LF(0.0f));
+          a_.OpMov(uses_register_dynamic_addressing
+                       ? dxbc::Dest::X(0, 1, 0b0010)
+                       : dxbc::Dest::R(1, 0b0010),
+                   dxbc::Src::LF(0.0f));
         }
       }
       break;
@@ -512,9 +475,9 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       if (register_count() >= 1) {
         // Copy the domain location to r0.xy.
         in_domain_location_used_ |= 0b0011;
-        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0011)
-                                                     : DxbcDest::R(0, 0b0011),
-                  DxbcSrc::VDomain());
+        a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 0, 0b0011)
+                                                  : dxbc::Dest::R(0, 0b0011),
+                 dxbc::Src::VDomain());
         // Control point indices according to the shader from the main menu of
         // Defender, which starts from `cndeq r2, c255.xxxy, r1.xyzz, r0.zzzz`,
         // where c255.x is 0, and c255.y is 1.
@@ -523,21 +486,20 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         // r1.y for r0.x * r0.y
         // r1.z for (1 - r0.x) * r0.y
         in_control_point_index_used_ = true;
-        DxbcOpMov(
-            uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0100)
-                                               : DxbcDest::R(0, 0b0100),
-            DxbcSrc::VICP(0, uint32_t(InOutRegister::kDSInControlPointIndex),
-                          DxbcSrc::kXXXX));
+        a_.OpMov(
+            uses_register_dynamic_addressing ? dxbc::Dest::X(0, 0, 0b0100)
+                                             : dxbc::Dest::R(0, 0b0100),
+            dxbc::Src::VICP(0, uint32_t(InOutRegister::kDSInControlPointIndex),
+                            dxbc::Src::kXXXX));
         if (register_count() >= 2) {
-          DxbcDest r1_dest(uses_register_dynamic_addressing()
-                               ? DxbcDest::X(0, 1)
-                               : DxbcDest::R(1));
+          dxbc::Dest r1_dest(uses_register_dynamic_addressing
+                                 ? dxbc::Dest::X(0, 1)
+                                 : dxbc::Dest::R(1));
           for (uint32_t i = 0; i < 3; ++i) {
-            DxbcOpMov(
-                r1_dest.Mask(1 << i),
-                DxbcSrc::VICP(1 + i,
-                              uint32_t(InOutRegister::kDSInControlPointIndex),
-                              DxbcSrc::kXXXX));
+            a_.OpMov(r1_dest.Mask(1 << i),
+                     dxbc::Src::VICP(
+                         1 + i, uint32_t(InOutRegister::kDSInControlPointIndex),
+                         dxbc::Src::kXXXX));
           }
         }
       }
@@ -549,17 +511,17 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         // Copy the domain location to r0.yz.
         // XY swizzle according to the ground shader in Viva Pinata.
         in_domain_location_used_ |= 0b0011;
-        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, 0, 0b0110)
-                                                     : DxbcDest::R(0, 0b0110),
-                  DxbcSrc::VDomain(0b010000));
+        a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 0, 0b0110)
+                                                  : dxbc::Dest::R(0, 0b0110),
+                 dxbc::Src::VDomain(0b010000));
         // Copy the primitive index to r0.x as a float.
         uint32_t primitive_id_temp =
-            uses_register_dynamic_addressing() ? PushSystemTemp() : 0;
+            uses_register_dynamic_addressing ? PushSystemTemp() : 0;
         in_primitive_id_used_ = true;
-        DxbcOpUToF(DxbcDest::R(primitive_id_temp, 0b0001), DxbcSrc::VPrim());
-        if (uses_register_dynamic_addressing()) {
-          DxbcOpMov(DxbcDest::X(0, 0, 0b0001),
-                    DxbcSrc::R(primitive_id_temp, DxbcSrc::kXXXX));
+        a_.OpUToF(dxbc::Dest::R(primitive_id_temp, 0b0001), dxbc::Src::VPrim());
+        if (uses_register_dynamic_addressing) {
+          a_.OpMov(dxbc::Dest::X(0, 0, 0b0001),
+                   dxbc::Src::R(primitive_id_temp, dxbc::Src::kXXXX));
           // Release primitive_id_temp.
           PopSystemTemp();
         }
@@ -578,10 +540,10 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
           //
           // Direct3D 12 passes the coordinates in a consistent order, so can
           // just use the identity swizzle.
-          DxbcOpMov(uses_register_dynamic_addressing()
-                        ? DxbcDest::X(0, 1, 0b0001)
-                        : DxbcDest::R(1, 0b0001),
-                    DxbcSrc::LF(0.0f));
+          a_.OpMov(uses_register_dynamic_addressing
+                       ? dxbc::Dest::X(0, 1, 0b0001)
+                       : dxbc::Dest::R(1, 0b0001),
+                   dxbc::Src::LF(0.0f));
         }
       }
       break;
@@ -600,9 +562,27 @@ void DxbcShaderTranslator::StartPixelShader() {
     // Load the EDRAM addresses and the coverage.
     StartPixelShader_LoadROVParameters();
 
-    // Do early 2x2 quad rejection if it makes sense.
     if (ROV_IsDepthStencilEarly()) {
+      // Do early 2x2 quad rejection if it's safe.
       ROV_DepthStencilTest();
+    } else {
+      if (!current_shader().writes_depth()) {
+        // Get the derivatives of the screen-space (but not clamped to the
+        // viewport depth bounds yet - this happens after the pixel shader in
+        // Direct3D 11+; also linear within the triangle - thus constant
+        // derivatives along the triangle) Z for calculating per-sample depth
+        // values and the slope-scaled polygon offset to
+        // system_temp_depth_stencil_ before any return statement is possibly
+        // reached.
+        assert_true(system_temp_depth_stencil_ != UINT32_MAX);
+        dxbc::Src in_position_z(dxbc::Src::V(
+            uint32_t(InOutRegister::kPSInPosition), dxbc::Src::kZZZZ));
+        in_position_used_ |= 0b0100;
+        a_.OpDerivRTXCoarse(dxbc::Dest::R(system_temp_depth_stencil_, 0b0001),
+                            in_position_z);
+        a_.OpDerivRTYCoarse(dxbc::Dest::R(system_temp_depth_stencil_, 0b0010),
+                            in_position_z);
+      }
     }
   }
 
@@ -611,192 +591,134 @@ void DxbcShaderTranslator::StartPixelShader() {
     return;
   }
 
-  if (!edram_rov_used_ && writes_depth()) {
-    // Initialize the depth output if used, which must be written to regardless
-    // of the taken execution path.
-    DxbcOpMov(DxbcDest::ODepth(), DxbcSrc::LF(0.0f));
-  }
+  bool uses_register_dynamic_addressing =
+      current_shader().uses_register_dynamic_addressing();
 
   uint32_t interpolator_count =
       std::min(xenos::kMaxInterpolators, register_count());
   if (interpolator_count != 0) {
     // Copy interpolants to GPRs.
-    if (edram_rov_used_) {
-      uint32_t centroid_temp =
-          uses_register_dynamic_addressing() ? PushSystemTemp() : UINT32_MAX;
-      system_constants_used_ |= 1ull
-                                << kSysConst_InterpolatorSamplingPattern_Index;
-      DxbcSrc sampling_pattern_src(
-          DxbcSrc::CB(cbuffer_index_system_constants_,
-                      uint32_t(CbufferRegister::kSystemConstants),
-                      kSysConst_InterpolatorSamplingPattern_Vec)
-              .Select(kSysConst_InterpolatorSamplingPattern_Comp));
-      for (uint32_t i = 0; i < interpolator_count; ++i) {
-        // With GPR dynamic addressing, first evaluate to centroid_temp r#, then
-        // store to the x#.
-        uint32_t centroid_register =
-            uses_register_dynamic_addressing() ? centroid_temp : i;
-        // Check if the input needs to be interpolated at center (if the bit is
-        // set).
-        DxbcOpAnd(DxbcDest::R(centroid_register, 0b0001), sampling_pattern_src,
-                  DxbcSrc::LU(uint32_t(1) << i));
-        DxbcOpIf(bool(xenos::SampleLocation::kCenter),
-                 DxbcSrc::R(centroid_register, DxbcSrc::kXXXX));
-        // At center.
-        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, i)
-                                                     : DxbcDest::R(i),
-                  DxbcSrc::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
-        DxbcOpElse();
-        // At centroid. Not really important that 2x MSAA is emulated using
-        // ForcedSampleCount 4 - what matters is that the sample position will
-        // be within the primitive, and the value will not be extrapolated.
-        DxbcOpEvalCentroid(
-            DxbcDest::R(centroid_register),
-            DxbcSrc::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
-        if (uses_register_dynamic_addressing()) {
-          DxbcOpMov(DxbcDest::X(0, i), DxbcSrc::R(centroid_register));
-        }
-        DxbcOpEndIf();
+    uint32_t centroid_temp =
+        uses_register_dynamic_addressing ? PushSystemTemp() : UINT32_MAX;
+    dxbc::Src sampling_pattern_src(LoadSystemConstant(
+        SystemConstants::Index::kInterpolatorSamplingPattern,
+        offsetof(SystemConstants, interpolator_sampling_pattern),
+        dxbc::Src::kXXXX));
+    for (uint32_t i = 0; i < interpolator_count; ++i) {
+      // With GPR dynamic addressing, first evaluate to centroid_temp r#, then
+      // store to the x#.
+      uint32_t centroid_register =
+          uses_register_dynamic_addressing ? centroid_temp : i;
+      // Check if the input needs to be interpolated at center (if the bit is
+      // set).
+      a_.OpAnd(dxbc::Dest::R(centroid_register, 0b0001), sampling_pattern_src,
+               dxbc::Src::LU(uint32_t(1) << i));
+      a_.OpIf(bool(xenos::SampleLocation::kCenter),
+              dxbc::Src::R(centroid_register, dxbc::Src::kXXXX));
+      // At center.
+      a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, i)
+                                                : dxbc::Dest::R(i),
+               dxbc::Src::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
+      a_.OpElse();
+      // At centroid. Not really important that 2x MSAA is emulated using
+      // ForcedSampleCount 4 - what matters is that the sample position will
+      // be within the primitive, and the value will not be extrapolated.
+      a_.OpEvalCentroid(
+          dxbc::Dest::R(centroid_register),
+          dxbc::Src::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
+      if (uses_register_dynamic_addressing) {
+        a_.OpMov(dxbc::Dest::X(0, i), dxbc::Src::R(centroid_register));
       }
-      if (centroid_temp != UINT32_MAX) {
-        PopSystemTemp();
-      }
-    } else {
-      // SSAA instead of MSAA without ROV - everything is interpolated at
-      // samples, can't extrapolate.
-      for (uint32_t i = 0; i < interpolator_count; ++i) {
-        DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, i)
-                                                     : DxbcDest::R(i),
-                  DxbcSrc::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
-      }
+      a_.OpEndIf();
+    }
+    if (centroid_temp != UINT32_MAX) {
+      PopSystemTemp();
     }
 
     // Write pixel parameters - screen (XY absolute value) and point sprite (ZW
     // absolute value) coordinates, facing (X sign bit) - to the specified
     // interpolator register (ps_param_gen).
-    system_constants_used_ |= 1ull << kSysConst_PSParamGen_Index;
-    DxbcSrc param_gen_index_src(
-        DxbcSrc::CB(cbuffer_index_system_constants_,
-                    uint32_t(CbufferRegister::kSystemConstants),
-                    kSysConst_PSParamGen_Vec)
-            .Select(kSysConst_PSParamGen_Comp));
+    dxbc::Src param_gen_index_src(LoadSystemConstant(
+        SystemConstants::Index::kPSParamGen,
+        offsetof(SystemConstants, ps_param_gen), dxbc::Src::kXXXX));
     uint32_t param_gen_temp = PushSystemTemp();
     // Check if pixel parameters need to be written.
-    DxbcOpULT(DxbcDest::R(param_gen_temp, 0b0001), param_gen_index_src,
-              DxbcSrc::LU(interpolator_count));
-    DxbcOpIf(true, DxbcSrc::R(param_gen_temp, DxbcSrc::kXXXX));
+    a_.OpULT(dxbc::Dest::R(param_gen_temp, 0b0001), param_gen_index_src,
+             dxbc::Src::LU(interpolator_count));
+    a_.OpIf(true, dxbc::Src::R(param_gen_temp, dxbc::Src::kXXXX));
     {
       // XY - floored pixel position (Direct3D VPOS) in the absolute value,
       // faceness as X sign bit. Using Z as scratch register now.
-      if (edram_rov_used_) {
-        // Get XY address of the current host pixel as float.
-        in_position_used_ |= 0b0011;
-        DxbcOpRoundZ(DxbcDest::R(param_gen_temp, 0b0011),
-                     DxbcSrc::V(uint32_t(InOutRegister::kPSInPosition)));
+      // Get XY address of the current host pixel as float (no matter whether
+      // the position is pixel-rate or sample-rate also due to float24 depth
+      // conversion requirements, it will be rounded the same). Rounding down,
+      // and taking the absolute value (because the sign bit of X stores the
+      // faceness), so in case the host GPU for some reason has quads used for
+      // derivative calculation at odd locations, the left and top edges will
+      // have correct derivative magnitude and LODs.
+      in_position_used_ |= 0b0011;
+      a_.OpRoundNI(dxbc::Dest::R(param_gen_temp, 0b0011),
+                   dxbc::Src::V(uint32_t(InOutRegister::kPSInPosition)));
+      if (draw_resolution_scale_ > 1) {
         // Revert resolution scale - after truncating, so if the pixel position
         // is passed to tfetch (assuming the game doesn't round it by itself),
         // it will be sampled with higher resolution too.
-        // Check if resolution scale is 2x2 and multiply by 0.5 in this case.
-        system_constants_used_ |= 1ull
-                                  << kSysConst_EdramResolutionSquareScale_Index;
-        DxbcOpIEq(DxbcDest::R(param_gen_temp, 0b0100),
-                  DxbcSrc::CB(cbuffer_index_system_constants_,
-                              uint32_t(CbufferRegister::kSystemConstants),
-                              kSysConst_EdramResolutionSquareScale_Vec)
-                      .Select(kSysConst_EdramResolutionSquareScale_Comp),
-                  DxbcSrc::LU(4));
-        DxbcOpIf(true, DxbcSrc::R(param_gen_temp, DxbcSrc::kZZZZ));
-        {
-          DxbcOpMul(DxbcDest::R(param_gen_temp, 0b0011),
-                    DxbcSrc::R(param_gen_temp), DxbcSrc::LF(0.5f));
-        }
-        DxbcOpEndIf();
-      } else {
-        // Get XY address of the current SSAA sample by converting
-        // SV_Position.xy to an integer.
-        in_position_used_ |= 0b0011;
-        DxbcOpFToU(DxbcDest::R(param_gen_temp, 0b0011),
-                   DxbcSrc::V(uint32_t(InOutRegister::kPSInPosition)));
-        // Undo SSAA that is used instead of MSAA - since it's used as a
-        // workaround for MSAA emulation, guest pixel position must be the same
-        // for all samples, so this should be done is integers (or before
-        // truncating).
-        system_constants_used_ |= 1ull << kSysConst_SampleCountLog2_Index;
-        DxbcOpUShR(
-            DxbcDest::R(param_gen_temp, 0b0011), DxbcSrc::R(param_gen_temp),
-            DxbcSrc::CB(cbuffer_index_system_constants_,
-                        uint32_t(CbufferRegister::kSystemConstants),
-                        kSysConst_SampleCountLog2_Vec,
-                        kSysConst_SampleCountLog2_Comp |
-                            ((kSysConst_SampleCountLog2_Comp + 1) << 2)));
-        // Convert the integer position to float Direct3D 9 VPOS.
-        DxbcOpUToF(DxbcDest::R(param_gen_temp, 0b0011),
-                   DxbcSrc::R(param_gen_temp));
+        a_.OpMul(dxbc::Dest::R(param_gen_temp, 0b0011),
+                 dxbc::Src::R(param_gen_temp),
+                 dxbc::Src::LF(1.0f / draw_resolution_scale_));
       }
+      a_.OpMov(dxbc::Dest::R(param_gen_temp, 0b0011),
+               dxbc::Src::R(param_gen_temp).Abs());
       // Check if faceness applies to the current primitive type.
-      system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-      DxbcOpAnd(DxbcDest::R(param_gen_temp, 0b0100),
-                DxbcSrc::CB(cbuffer_index_system_constants_,
-                            uint32_t(CbufferRegister::kSystemConstants),
-                            kSysConst_Flags_Vec)
-                    .Select(kSysConst_Flags_Comp),
-                DxbcSrc::LU(kSysFlag_PrimitivePolygonal));
-      DxbcOpIf(true, DxbcSrc::R(param_gen_temp, DxbcSrc::kZZZZ));
+      a_.OpAnd(dxbc::Dest::R(param_gen_temp, 0b0100), LoadFlagsSystemConstant(),
+               dxbc::Src::LU(kSysFlag_PrimitivePolygonal));
+      a_.OpIf(true, dxbc::Src::R(param_gen_temp, dxbc::Src::kZZZZ));
       {
         // Negate modifier flips the sign bit even for 0 - set it to minus for
         // backfaces.
         in_front_face_used_ = true;
-        DxbcOpMovC(
-            DxbcDest::R(param_gen_temp, 0b0001),
-            DxbcSrc::V(uint32_t(InOutRegister::kPSInFrontFace), DxbcSrc::kXXXX),
-            DxbcSrc::R(param_gen_temp, DxbcSrc::kXXXX),
-            -DxbcSrc::R(param_gen_temp, DxbcSrc::kXXXX));
+        a_.OpMovC(
+            dxbc::Dest::R(param_gen_temp, 0b0001),
+            dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
+                         dxbc::Src::kXXXX),
+            dxbc::Src::R(param_gen_temp, dxbc::Src::kXXXX),
+            -dxbc::Src::R(param_gen_temp, dxbc::Src::kXXXX));
       }
-      DxbcOpEndIf();
+      a_.OpEndIf();
       // ZW - UV within a point sprite in the absolute value, at centroid if
       // requested for the interpolator.
-      DxbcDest point_coord_r_zw_dest(DxbcDest::R(param_gen_temp, 0b1100));
-      DxbcSrc point_coord_v_xxxy_src(DxbcSrc::V(
+      dxbc::Dest point_coord_r_zw_dest(dxbc::Dest::R(param_gen_temp, 0b1100));
+      dxbc::Src point_coord_v_xxxy_src(dxbc::Src::V(
           uint32_t(InOutRegister::kPSInPointParameters), 0b01000000));
-      if (edram_rov_used_) {
-        system_constants_used_ |=
-            1ull << kSysConst_InterpolatorSamplingPattern_Index;
-        DxbcOpUBFE(DxbcDest::R(param_gen_temp, 0b0100), DxbcSrc::LU(1),
-                   param_gen_index_src,
-                   DxbcSrc::CB(cbuffer_index_system_constants_,
-                               uint32_t(CbufferRegister::kSystemConstants),
-                               kSysConst_InterpolatorSamplingPattern_Vec)
-                       .Select(kSysConst_InterpolatorSamplingPattern_Comp));
-        DxbcOpIf(bool(xenos::SampleLocation::kCenter),
-                 DxbcSrc::R(param_gen_temp, DxbcSrc::kZZZZ));
-        // At center.
-        DxbcOpMov(point_coord_r_zw_dest, point_coord_v_xxxy_src);
-        DxbcOpElse();
-        // At centroid.
-        DxbcOpEvalCentroid(point_coord_r_zw_dest, point_coord_v_xxxy_src);
-        DxbcOpEndIf();
-      } else {
-        // At the SSAA sample.
-        DxbcOpMov(point_coord_r_zw_dest, point_coord_v_xxxy_src);
-      }
+      a_.OpUBFE(dxbc::Dest::R(param_gen_temp, 0b0100), dxbc::Src::LU(1),
+                param_gen_index_src,
+                LoadSystemConstant(
+                    SystemConstants::Index::kInterpolatorSamplingPattern,
+                    offsetof(SystemConstants, interpolator_sampling_pattern),
+                    dxbc::Src::kXXXX));
+      a_.OpIf(bool(xenos::SampleLocation::kCenter),
+              dxbc::Src::R(param_gen_temp, dxbc::Src::kZZZZ));
+      // At center.
+      a_.OpMov(point_coord_r_zw_dest, point_coord_v_xxxy_src);
+      a_.OpElse();
+      // At centroid.
+      a_.OpEvalCentroid(point_coord_r_zw_dest, point_coord_v_xxxy_src);
+      a_.OpEndIf();
       // Write ps_param_gen to the specified GPR.
-      DxbcSrc param_gen_src(DxbcSrc::R(param_gen_temp));
-      if (uses_register_dynamic_addressing()) {
+      dxbc::Src param_gen_src(dxbc::Src::R(param_gen_temp));
+      if (uses_register_dynamic_addressing) {
         // Copy the GPR number to r# for relative addressing.
         uint32_t param_gen_copy_temp = PushSystemTemp();
-        DxbcOpMov(DxbcDest::R(param_gen_copy_temp, 0b0001),
-                  DxbcSrc::CB(cbuffer_index_system_constants_,
-                              uint32_t(CbufferRegister::kSystemConstants),
-                              kSysConst_PSParamGen_Vec)
-                      .Select(kSysConst_PSParamGen_Comp));
+        a_.OpMov(dxbc::Dest::R(param_gen_copy_temp, 0b0001),
+                 param_gen_index_src);
         // Write to the GPR.
-        DxbcOpMov(DxbcDest::X(0, DxbcIndex(param_gen_copy_temp, 0)),
-                  param_gen_src);
+        a_.OpMov(dxbc::Dest::X(0, dxbc::Index(param_gen_copy_temp, 0)),
+                 param_gen_src);
         // Release param_gen_copy_temp.
         PopSystemTemp();
       } else {
         if (interpolator_count == 1) {
-          DxbcOpMov(DxbcDest::R(0), param_gen_src);
+          a_.OpMov(dxbc::Dest::R(0), param_gen_src);
         } else {
           // Write to the r# using binary search.
           uint32_t param_gen_copy_temp = PushSystemTemp();
@@ -804,25 +726,25 @@ void DxbcShaderTranslator::StartPixelShader() {
                                          const auto& self) -> void {
             assert_true(low < high);
             uint32_t mid = low + (high - low + 1) / 2;
-            DxbcOpULT(DxbcDest::R(param_gen_copy_temp, 0b0001),
-                      param_gen_index_src, DxbcSrc::LU(mid));
-            DxbcOpIf(true, DxbcSrc::R(param_gen_copy_temp, DxbcSrc::kXXXX));
+            a_.OpULT(dxbc::Dest::R(param_gen_copy_temp, 0b0001),
+                     param_gen_index_src, dxbc::Src::LU(mid));
+            a_.OpIf(true, dxbc::Src::R(param_gen_copy_temp, dxbc::Src::kXXXX));
             {
               if (low + 1 == mid) {
-                DxbcOpMov(DxbcDest::R(low), param_gen_src);
+                a_.OpMov(dxbc::Dest::R(low), param_gen_src);
               } else {
                 self(low, mid - 1, self);
               }
             }
-            DxbcOpElse();
+            a_.OpElse();
             {
               if (mid == high) {
-                DxbcOpMov(DxbcDest::R(mid), param_gen_src);
+                a_.OpMov(dxbc::Dest::R(mid), param_gen_src);
               } else {
                 self(mid, high, self);
               }
             }
-            DxbcOpEndIf();
+            a_.OpEndIf();
           };
           param_gen_copy_node(0, interpolator_count - 1, param_gen_copy_node);
           // Release param_gen_copy_temp.
@@ -831,7 +753,7 @@ void DxbcShaderTranslator::StartPixelShader() {
       }
     }
     // Close the ps_param_gen check.
-    DxbcOpEndIf();
+    a_.OpEndIf();
     // Release param_gen_temp.
     PopSystemTemp();
   }
@@ -846,27 +768,38 @@ void DxbcShaderTranslator::StartTranslation() {
     // Set the point size to a negative value to tell the geometry shader that
     // it should use the global point size if the vertex shader does not
     // override it.
-    DxbcOpMov(
-        DxbcDest::R(system_temp_point_size_edge_flag_kill_vertex_, 0b0001),
-        DxbcSrc::LF(-1.0f));
+    a_.OpMov(
+        dxbc::Dest::R(system_temp_point_size_edge_flag_kill_vertex_, 0b0001),
+        dxbc::Src::LF(-1.0f));
   } else if (is_pixel_shader()) {
     if (edram_rov_used_) {
       // Will be initialized unconditionally.
       system_temp_rov_params_ = PushSystemTemp();
     }
     if (IsDepthStencilSystemTempUsed()) {
-      // If the shader doesn't write to oDepth, and ROV is used, each
-      // component will be written to if depth/stencil is enabled and the
-      // respective sample is covered - so need to initialize now because the
-      // first writes will be conditional.
-      // If the shader writes to oDepth, this is oDepth of the shader, written
-      // by the guest code, so initialize because assumptions can't be made
-      // about the integrity of the guest code.
-      system_temp_depth_stencil_ =
-          PushSystemTemp(writes_depth() ? 0b0001 : 0b1111);
+      uint32_t depth_stencil_temp_zero_mask;
+      if (current_shader().writes_depth()) {
+        // X holds the guest oDepth - make sure it's always initialized because
+        // assumptions can't be made about the integrity of the guest code.
+        depth_stencil_temp_zero_mask = 0b0001;
+      } else {
+        assert_true(edram_rov_used_);
+        if (ROV_IsDepthStencilEarly()) {
+          // XYZW hold per-sample depth / stencil after the early test - written
+          // conditionally based on the coverage, ensure registers are
+          // initialized unconditionally for safety.
+          depth_stencil_temp_zero_mask = 0b1111;
+        } else {
+          // XY hold Z gradients, written unconditionally in the beginning.
+          depth_stencil_temp_zero_mask = 0b0000;
+        }
+      }
+      system_temp_depth_stencil_ = PushSystemTemp(depth_stencil_temp_zero_mask);
     }
+    uint32_t shader_writes_color_targets =
+        current_shader().writes_color_targets();
     for (uint32_t i = 0; i < 4; ++i) {
-      if (writes_color_target(i)) {
+      if (shader_writes_color_targets & (1 << i)) {
         system_temps_color_[i] = PushSystemTemp(0b1111);
       }
     }
@@ -879,8 +812,8 @@ void DxbcShaderTranslator::StartTranslation() {
     std::memset(system_temps_memexport_data_, 0xFF,
                 sizeof(system_temps_memexport_data_));
     system_temp_memexport_written_ = UINT32_MAX;
-    const uint8_t* memexports_written = memexport_eM_written();
-    for (uint32_t i = 0; i < kMaxMemExports; ++i) {
+    const uint8_t* memexports_written = current_shader().memexport_eM_written();
+    for (uint32_t i = 0; i < Shader::kMaxMemExports; ++i) {
       uint32_t memexport_alloc_written = memexports_written[i];
       if (memexport_alloc_written == 0) {
         continue;
@@ -915,9 +848,10 @@ void DxbcShaderTranslator::StartTranslation() {
     // references them after only initializing them conditionally.
     for (uint32_t i = is_pixel_shader() ? xenos::kMaxInterpolators : 0;
          i < register_count(); ++i) {
-      DxbcOpMov(uses_register_dynamic_addressing() ? DxbcDest::X(0, i)
-                                                   : DxbcDest::R(i),
-                DxbcSrc::LF(0.0f));
+      a_.OpMov(current_shader().uses_register_dynamic_addressing()
+                   ? dxbc::Dest::X(0, i)
+                   : dxbc::Dest::R(i),
+               dxbc::Src::LF(0.0f));
     }
   }
 
@@ -934,158 +868,143 @@ void DxbcShaderTranslator::StartTranslation() {
   }
 
   // Start the main loop (for jumping to labels by setting pc and continuing).
-  DxbcOpLoop();
+  a_.OpLoop();
   // Switch and the first label (pc == 0).
   if (UseSwitchForControlFlow()) {
-    DxbcOpSwitch(DxbcSrc::R(system_temp_ps_pc_p0_a0_, DxbcSrc::kYYYY));
-    DxbcOpCase(DxbcSrc::LU(0));
+    a_.OpSwitch(dxbc::Src::R(system_temp_ps_pc_p0_a0_, dxbc::Src::kYYYY));
+    a_.OpCase(dxbc::Src::LU(0));
   } else {
-    DxbcOpIf(false, DxbcSrc::R(system_temp_ps_pc_p0_a0_, DxbcSrc::kYYYY));
+    a_.OpIf(false, dxbc::Src::R(system_temp_ps_pc_p0_a0_, dxbc::Src::kYYYY));
   }
 }
 
 void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
   uint32_t temp = PushSystemTemp();
-  DxbcDest temp_x_dest(DxbcDest::R(temp, 0b0001));
-  DxbcSrc temp_x_src(DxbcSrc::R(temp, DxbcSrc::kXXXX));
+  dxbc::Dest temp_x_dest(dxbc::Dest::R(temp, 0b0001));
+  dxbc::Src temp_x_src(dxbc::Src::R(temp, dxbc::Src::kXXXX));
 
-  system_constants_used_ |= 1ull << kSysConst_Flags_Index;
-  DxbcSrc flags_src(DxbcSrc::CB(cbuffer_index_system_constants_,
-                                uint32_t(CbufferRegister::kSystemConstants),
-                                kSysConst_Flags_Vec)
-                        .Select(kSysConst_Flags_Comp));
+  dxbc::Src flags_src(LoadFlagsSystemConstant());
 
   // Check if the shader already returns W, not 1/W, and if it doesn't, turn 1/W
   // into W. Using div rather than relaxed-precision rcp for safety.
-  DxbcOpAnd(temp_x_dest, flags_src, DxbcSrc::LU(kSysFlag_WNotReciprocal));
-  DxbcOpIf(false, temp_x_src);
-  DxbcOpDiv(DxbcDest::R(system_temp_position_, 0b1000), DxbcSrc::LF(1.0f),
-            DxbcSrc::R(system_temp_position_, DxbcSrc::kWWWW));
-  DxbcOpEndIf();
+  a_.OpAnd(temp_x_dest, flags_src, dxbc::Src::LU(kSysFlag_WNotReciprocal));
+  a_.OpIf(false, temp_x_src);
+  a_.OpDiv(dxbc::Dest::R(system_temp_position_, 0b1000), dxbc::Src::LF(1.0f),
+           dxbc::Src::R(system_temp_position_, dxbc::Src::kWWWW));
+  a_.OpEndIf();
 
   // Check if the shader returns XY/W rather than XY, and if it does, revert
   // that.
   // TODO(Triang3l): Check if having XY or Z pre-divided by W should result in
   // affine interpolation.
-  DxbcOpAnd(temp_x_dest, flags_src, DxbcSrc::LU(kSysFlag_XYDividedByW));
-  DxbcOpIf(true, temp_x_src);
-  DxbcOpMul(DxbcDest::R(system_temp_position_, 0b0011),
-            DxbcSrc::R(system_temp_position_),
-            DxbcSrc::R(system_temp_position_, DxbcSrc::kWWWW));
-  DxbcOpEndIf();
+  a_.OpAnd(temp_x_dest, flags_src, dxbc::Src::LU(kSysFlag_XYDividedByW));
+  a_.OpIf(true, temp_x_src);
+  a_.OpMul(dxbc::Dest::R(system_temp_position_, 0b0011),
+           dxbc::Src::R(system_temp_position_),
+           dxbc::Src::R(system_temp_position_, dxbc::Src::kWWWW));
+  a_.OpEndIf();
 
   // Check if the shader returns Z/W rather than Z, and if it does, revert that.
   // TODO(Triang3l): Check if having XY or Z pre-divided by W should result in
   // affine interpolation.
-  DxbcOpAnd(temp_x_dest, flags_src, DxbcSrc::LU(kSysFlag_ZDividedByW));
-  DxbcOpIf(true, temp_x_src);
-  DxbcOpMul(DxbcDest::R(system_temp_position_, 0b0100),
-            DxbcSrc::R(system_temp_position_, DxbcSrc::kZZZZ),
-            DxbcSrc::R(system_temp_position_, DxbcSrc::kWWWW));
-  DxbcOpEndIf();
+  a_.OpAnd(temp_x_dest, flags_src, dxbc::Src::LU(kSysFlag_ZDividedByW));
+  a_.OpIf(true, temp_x_src);
+  a_.OpMul(dxbc::Dest::R(system_temp_position_, 0b0100),
+           dxbc::Src::R(system_temp_position_, dxbc::Src::kZZZZ),
+           dxbc::Src::R(system_temp_position_, dxbc::Src::kWWWW));
+  a_.OpEndIf();
 
   // Zero-initialize SV_ClipDistance# (for user clip planes) and SV_CullDistance
   // (for vertex kill) in case they're not needed.
-  DxbcOpMov(DxbcDest::O(uint32_t(InOutRegister::kVSDSOutClipDistance0123)),
-            DxbcSrc::LF(0.0f));
-  DxbcOpMov(DxbcDest::O(
-                uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance),
-                0b0111),
-            DxbcSrc::LF(0.0f));
+  a_.OpMov(dxbc::Dest::O(uint32_t(InOutRegister::kVSDSOutClipDistance0123)),
+           dxbc::Src::LF(0.0f));
+  a_.OpMov(dxbc::Dest::O(
+               uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance),
+               0b0111),
+           dxbc::Src::LF(0.0f));
   // Clip against user clip planes.
   // Not possible to handle UCP_CULL_ONLY_ENA with the same shader though, since
   // there can be only 8 SV_ClipDistance + SV_CullDistance values at most, but
   // 12 would be needed.
-  system_constants_used_ |= 1ull << kSysConst_UserClipPlanes_Index;
   for (uint32_t i = 0; i < 6; ++i) {
     // Check if the clip plane is enabled - this `if` is needed, as opposed to
     // just zeroing the clip planes in the constants, so Infinity and NaN in the
     // position won't have any effect caused by this if clip planes are
     // disabled.
-    DxbcOpAnd(temp_x_dest, flags_src,
-              DxbcSrc::LU(kSysFlag_UserClipPlane0 << i));
-    DxbcOpIf(true, temp_x_src);
-    DxbcOpDP4(DxbcDest::O(
-                  uint32_t(InOutRegister::kVSDSOutClipDistance0123) + (i >> 2),
-                  1 << (i & 3)),
-              DxbcSrc::R(system_temp_position_),
-              DxbcSrc::CB(cbuffer_index_system_constants_,
-                          uint32_t(CbufferRegister::kSystemConstants),
-                          kSysConst_UserClipPlanes_Vec + i));
-    DxbcOpEndIf();
+    a_.OpAnd(temp_x_dest, flags_src,
+             dxbc::Src::LU(kSysFlag_UserClipPlane0 << i));
+    a_.OpIf(true, temp_x_src);
+    a_.OpDP4(dxbc::Dest::O(
+                 uint32_t(InOutRegister::kVSDSOutClipDistance0123) + (i >> 2),
+                 1 << (i & 3)),
+             dxbc::Src::R(system_temp_position_),
+             LoadSystemConstant(SystemConstants::Index::kUserClipPlanes,
+                                offsetof(SystemConstants, user_clip_planes) +
+                                    sizeof(float) * 4 * i,
+                                dxbc::Src::kXYZW));
+    a_.OpEndIf();
   }
 
   // Apply scale for guest to host viewport and clip space conversion. Also, if
   // the vertex shader is multipass, the NDC scale constant can be used to set
   // position to NaN to kill all primitives.
-  system_constants_used_ |= 1ull << kSysConst_NDCScale_Index;
-  DxbcOpMul(DxbcDest::R(system_temp_position_, 0b0111),
-            DxbcSrc::R(system_temp_position_),
-            DxbcSrc::CB(cbuffer_index_system_constants_,
-                        uint32_t(CbufferRegister::kSystemConstants),
-                        kSysConst_NDCScale_Vec,
-                        kSysConst_NDCScale_Comp * 0b010101 + 0b100100));
+  a_.OpMul(dxbc::Dest::R(system_temp_position_, 0b0111),
+           dxbc::Src::R(system_temp_position_),
+           LoadSystemConstant(SystemConstants::Index::kNDCScale,
+                              offsetof(SystemConstants, ndc_scale), 0b100100));
 
   // Apply offset (multiplied by W) used for the same purposes.
-  system_constants_used_ |= 1ull << kSysConst_NDCOffset_Index;
-  DxbcOpMAd(DxbcDest::R(system_temp_position_, 0b0111),
-            DxbcSrc::CB(cbuffer_index_system_constants_,
-                        uint32_t(CbufferRegister::kSystemConstants),
-                        kSysConst_NDCOffset_Vec,
-                        kSysConst_NDCOffset_Comp * 0b010101 + 0b100100),
-            DxbcSrc::R(system_temp_position_, DxbcSrc::kWWWW),
-            DxbcSrc::R(system_temp_position_));
-
-  // Write Z and W of the position to a separate attribute so ROV output can get
-  // per-sample depth.
-  DxbcOpMov(DxbcDest::O(uint32_t(InOutRegister::kVSDSOutClipSpaceZW), 0b0011),
-            DxbcSrc::R(system_temp_position_, 0b1110));
+  a_.OpMAd(dxbc::Dest::R(system_temp_position_, 0b0111),
+           LoadSystemConstant(SystemConstants::Index::kNDCOffset,
+                              offsetof(SystemConstants, ndc_offset), 0b100100),
+           dxbc::Src::R(system_temp_position_, dxbc::Src::kWWWW),
+           dxbc::Src::R(system_temp_position_));
 
   // Assuming SV_CullDistance was zeroed earlier in this function.
   // Kill the primitive if needed - check if the shader wants to kill.
   // TODO(Triang3l): Find if the condition is actually the flag being non-zero.
-  DxbcOpNE(
-      temp_x_dest,
-      DxbcSrc::R(system_temp_point_size_edge_flag_kill_vertex_, DxbcSrc::kZZZZ),
-      DxbcSrc::LF(0.0f));
-  DxbcOpIf(true, temp_x_src);
+  a_.OpNE(temp_x_dest,
+          dxbc::Src::R(system_temp_point_size_edge_flag_kill_vertex_,
+                       dxbc::Src::kZZZZ),
+          dxbc::Src::LF(0.0f));
+  a_.OpIf(true, temp_x_src);
   {
     // Extract the killing condition.
-    DxbcOpAnd(temp_x_dest, flags_src,
-              DxbcSrc::LU(kSysFlag_KillIfAnyVertexKilled));
-    DxbcOpIf(true, temp_x_src);
+    a_.OpAnd(temp_x_dest, flags_src,
+             dxbc::Src::LU(kSysFlag_KillIfAnyVertexKilled));
+    a_.OpIf(true, temp_x_src);
     {
       // Kill the primitive if any vertex is killed - write NaN to position.
-      DxbcOpMov(DxbcDest::R(system_temp_position_, 0b1000),
-                DxbcSrc::LF(std::nanf("")));
+      a_.OpMov(dxbc::Dest::R(system_temp_position_, 0b1000),
+               dxbc::Src::LF(std::nanf("")));
     }
-    DxbcOpElse();
+    a_.OpElse();
     {
       // Kill the primitive if all vertices are killed - set SV_CullDistance to
       // negative.
-      DxbcOpMov(
-          DxbcDest::O(
+      a_.OpMov(
+          dxbc::Dest::O(
               uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance),
               0b0100),
-          DxbcSrc::LF(-1.0f));
+          dxbc::Src::LF(-1.0f));
     }
-    DxbcOpEndIf();
+    a_.OpEndIf();
   }
-  DxbcOpEndIf();
+  a_.OpEndIf();
 
   // Write the position to the output.
-  DxbcOpMov(DxbcDest::O(uint32_t(InOutRegister::kVSDSOutPosition)),
-            DxbcSrc::R(system_temp_position_));
+  a_.OpMov(dxbc::Dest::O(uint32_t(InOutRegister::kVSDSOutPosition)),
+           dxbc::Src::R(system_temp_position_));
 
   // Zero the point coordinate (will be set in the geometry shader if needed)
   // and write the point size.
-  DxbcOpMov(
-      DxbcDest::O(uint32_t(InOutRegister::kVSDSOutPointParameters), 0b0011),
-      DxbcSrc::LF(0.0f));
-  DxbcOpMov(
-      DxbcDest::O(uint32_t(InOutRegister::kVSDSOutPointParameters), 0b0100),
-      DxbcSrc::R(system_temp_point_size_edge_flag_kill_vertex_,
-                 DxbcSrc::kXXXX));
+  a_.OpMov(
+      dxbc::Dest::O(uint32_t(InOutRegister::kVSDSOutPointParameters), 0b0011),
+      dxbc::Src::LF(0.0f));
+  a_.OpMov(
+      dxbc::Dest::O(uint32_t(InOutRegister::kVSDSOutPointParameters), 0b0100),
+      dxbc::Src::R(system_temp_point_size_edge_flag_kill_vertex_,
+                   dxbc::Src::kXXXX));
 
   // Release temp.
   PopSystemTemp();
@@ -1098,14 +1017,14 @@ void DxbcShaderTranslator::CompleteShaderCode() {
     CloseExecConditionals();
     // Close the last label and the switch.
     if (UseSwitchForControlFlow()) {
-      DxbcOpBreak();
-      DxbcOpEndSwitch();
+      a_.OpBreak();
+      a_.OpEndSwitch();
     } else {
-      DxbcOpEndIf();
+      a_.OpEndIf();
     }
     // End the main loop.
-    DxbcOpBreak();
-    DxbcOpEndLoop();
+    a_.OpBreak();
+    a_.OpEndLoop();
 
     // Release the following system temporary values so epilogue can reuse them:
     // - system_temp_result_.
@@ -1120,7 +1039,7 @@ void DxbcShaderTranslator::CompleteShaderCode() {
     ExportToMemory();
 
     // Release memexport temporary registers.
-    for (int i = kMaxMemExports - 1; i >= 0; --i) {
+    for (int i = Shader::kMaxMemExports - 1; i >= 0; --i) {
       if (system_temps_memexport_address_[i] == UINT32_MAX) {
         continue;
       }
@@ -1146,7 +1065,7 @@ void DxbcShaderTranslator::CompleteShaderCode() {
   }
 
   // Return from `main`.
-  DxbcOpRet();
+  a_.OpRet();
 
   if (is_vertex_shader()) {
     // Release system_temp_position_ and
@@ -1154,8 +1073,10 @@ void DxbcShaderTranslator::CompleteShaderCode() {
     PopSystemTemp(2);
   } else if (is_pixel_shader()) {
     // Release system_temps_color_.
+    uint32_t shader_writes_color_targets =
+        current_shader().writes_color_targets();
     for (int32_t i = 3; i >= 0; --i) {
-      if (writes_color_target(i)) {
+      if (shader_writes_color_targets & (1 << i)) {
         PopSystemTemp();
       }
     }
@@ -1171,143 +1092,199 @@ void DxbcShaderTranslator::CompleteShaderCode() {
 }
 
 std::vector<uint8_t> DxbcShaderTranslator::CompleteTranslation() {
+  // Because of shader_object_.resize(), pointers can't be kept persistently
+  // here! Resizing also zeroes the memory.
+
   // Write the code epilogue.
   CompleteShaderCode();
 
   shader_object_.clear();
 
-  uint32_t has_pcsg = IsDxbcDomainShader() ? 1 : 0;
+  // 6 or 7 blobs - RDEF, ISGN, optionally PCSG, OSGN, SHEX, SFI0, STAT.
+  // Whether SFI0 is needed at this point is not known, always writing it.
+  uint32_t blob_count = 6 + uint32_t(IsDxbcDomainShader());
+  // Allocate space for the header and the blob offsets.
+  shader_object_.resize(sizeof(dxbc::ContainerHeader) / sizeof(uint32_t) +
+                        blob_count);
 
-  // Write the shader object header.
-  shader_object_.push_back('CBXD');
-  // Checksum (set later).
-  for (uint32_t i = 0; i < 4; ++i) {
-    shader_object_.push_back(0);
+  uint32_t blob_offset_position_dwords =
+      sizeof(dxbc::ContainerHeader) / sizeof(uint32_t);
+  uint32_t blob_position_dwords = uint32_t(shader_object_.size());
+  constexpr uint32_t kBlobHeaderSizeDwords =
+      sizeof(dxbc::BlobHeader) / sizeof(uint32_t);
+
+  // Resource definition.
+  shader_object_[blob_offset_position_dwords] =
+      uint32_t(blob_position_dwords * sizeof(uint32_t));
+  shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
+  WriteResourceDefinition();
+  {
+    auto& blob_header = *reinterpret_cast<dxbc::BlobHeader*>(
+        shader_object_.data() + blob_position_dwords);
+    blob_header.fourcc = dxbc::BlobHeader::FourCC::kResourceDefinition;
+    blob_position_dwords = uint32_t(shader_object_.size());
+    blob_header.size_bytes =
+        (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+        shader_object_[blob_offset_position_dwords++];
   }
-  shader_object_.push_back(1);
-  // Size (set later).
-  shader_object_.push_back(0);
-  // 5 or 6 chunks - RDEF, ISGN, optionally PCSG, OSGN, SHEX, STAT.
-  shader_object_.push_back(5 + has_pcsg);
-  // Chunk offsets (set later).
-  for (uint32_t i = 0; i < shader_object_[7]; ++i) {
-    shader_object_.push_back(0);
-  }
 
-  uint32_t chunk_position_dwords;
-
-  // Write Resource DEFinitions.
-  chunk_position_dwords = uint32_t(shader_object_.size());
-  shader_object_[8] = chunk_position_dwords * sizeof(uint32_t);
-  shader_object_.push_back('FEDR');
-  shader_object_.push_back(0);
-  WriteResourceDefinitions();
-  shader_object_[chunk_position_dwords + 1] =
-      (uint32_t(shader_object_.size()) - chunk_position_dwords - 2) *
-      sizeof(uint32_t);
-
-  // Write Input SiGNature.
-  chunk_position_dwords = uint32_t(shader_object_.size());
-  shader_object_[9] = chunk_position_dwords * sizeof(uint32_t);
-  shader_object_.push_back('NGSI');
-  shader_object_.push_back(0);
+  // Input signature.
+  shader_object_[blob_offset_position_dwords] =
+      uint32_t(blob_position_dwords * sizeof(uint32_t));
+  shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
   WriteInputSignature();
-  shader_object_[chunk_position_dwords + 1] =
-      (uint32_t(shader_object_.size()) - chunk_position_dwords - 2) *
-      sizeof(uint32_t);
-
-  // Write Patch Constant SiGnature.
-  if (has_pcsg) {
-    chunk_position_dwords = uint32_t(shader_object_.size());
-    shader_object_[10] = chunk_position_dwords * sizeof(uint32_t);
-    shader_object_.push_back('GSCP');
-    shader_object_.push_back(0);
-    WritePatchConstantSignature();
-    shader_object_[chunk_position_dwords + 1] =
-        (uint32_t(shader_object_.size()) - chunk_position_dwords - 2) *
-        sizeof(uint32_t);
+  {
+    auto& blob_header = *reinterpret_cast<dxbc::BlobHeader*>(
+        shader_object_.data() + blob_position_dwords);
+    blob_header.fourcc = dxbc::BlobHeader::FourCC::kInputSignature;
+    blob_position_dwords = uint32_t(shader_object_.size());
+    blob_header.size_bytes =
+        (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+        shader_object_[blob_offset_position_dwords++];
   }
 
-  // Write Output SiGNature.
-  chunk_position_dwords = uint32_t(shader_object_.size());
-  shader_object_[10 + has_pcsg] = chunk_position_dwords * sizeof(uint32_t);
-  shader_object_.push_back('NGSO');
-  shader_object_.push_back(0);
+  // Patch constant signature.
+  if (IsDxbcDomainShader()) {
+    shader_object_[blob_offset_position_dwords] =
+        uint32_t(blob_position_dwords * sizeof(uint32_t));
+    shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
+    WritePatchConstantSignature();
+    {
+      auto& blob_header = *reinterpret_cast<dxbc::BlobHeader*>(
+          shader_object_.data() + blob_position_dwords);
+      blob_header.fourcc = dxbc::BlobHeader::FourCC::kPatchConstantSignature;
+      blob_position_dwords = uint32_t(shader_object_.size());
+      blob_header.size_bytes =
+          (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+          shader_object_[blob_offset_position_dwords++];
+    }
+  }
+
+  // Output signature.
+  shader_object_[blob_offset_position_dwords] =
+      uint32_t(blob_position_dwords * sizeof(uint32_t));
+  shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
   WriteOutputSignature();
-  shader_object_[chunk_position_dwords + 1] =
-      (uint32_t(shader_object_.size()) - chunk_position_dwords - 2) *
-      sizeof(uint32_t);
+  {
+    auto& blob_header = *reinterpret_cast<dxbc::BlobHeader*>(
+        shader_object_.data() + blob_position_dwords);
+    blob_header.fourcc = dxbc::BlobHeader::FourCC::kOutputSignature;
+    blob_position_dwords = uint32_t(shader_object_.size());
+    blob_header.size_bytes =
+        (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+        shader_object_[blob_offset_position_dwords++];
+  }
 
-  // Write SHader EXtended.
-  chunk_position_dwords = uint32_t(shader_object_.size());
-  shader_object_[11 + has_pcsg] = chunk_position_dwords * sizeof(uint32_t);
-  shader_object_.push_back('XEHS');
-  shader_object_.push_back(0);
+  // Shader program.
+  shader_object_[blob_offset_position_dwords] =
+      uint32_t(blob_position_dwords * sizeof(uint32_t));
+  shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords);
   WriteShaderCode();
-  shader_object_[chunk_position_dwords + 1] =
-      (uint32_t(shader_object_.size()) - chunk_position_dwords - 2) *
-      sizeof(uint32_t);
+  {
+    auto& blob_header = *reinterpret_cast<dxbc::BlobHeader*>(
+        shader_object_.data() + blob_position_dwords);
+    blob_header.fourcc = dxbc::BlobHeader::FourCC::kShaderEx;
+    blob_position_dwords = uint32_t(shader_object_.size());
+    blob_header.size_bytes =
+        (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+        shader_object_[blob_offset_position_dwords++];
+  }
 
-  // Write STATistics.
-  chunk_position_dwords = uint32_t(shader_object_.size());
-  shader_object_[12 + has_pcsg] = chunk_position_dwords * sizeof(uint32_t);
-  shader_object_.push_back('TATS');
-  shader_object_.push_back(sizeof(stat_));
-  shader_object_.resize(shader_object_.size() +
-                        sizeof(stat_) / sizeof(uint32_t));
-  std::memcpy(&shader_object_[chunk_position_dwords + 2], &stat_,
-              sizeof(stat_));
+  // Shader feature info.
+  shader_object_[blob_offset_position_dwords] =
+      uint32_t(blob_position_dwords * sizeof(uint32_t));
+  shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords +
+                        sizeof(dxbc::ShaderFeatureInfo) / sizeof(uint32_t));
+  std::memcpy(
+      shader_object_.data() + blob_position_dwords + kBlobHeaderSizeDwords,
+      &shader_feature_info_, sizeof(shader_feature_info_));
+  {
+    auto& blob_header = *reinterpret_cast<dxbc::BlobHeader*>(
+        shader_object_.data() + blob_position_dwords);
+    blob_header.fourcc = dxbc::BlobHeader::FourCC::kShaderFeatureInfo;
+    blob_position_dwords = uint32_t(shader_object_.size());
+    blob_header.size_bytes =
+        (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+        shader_object_[blob_offset_position_dwords++];
+  }
 
-  // Fill the remaining fields of the header and copy bytes out.
-  uint32_t shader_object_size =
+  // Statistics.
+  shader_object_[blob_offset_position_dwords] =
+      uint32_t(blob_position_dwords * sizeof(uint32_t));
+  shader_object_.resize(blob_position_dwords + kBlobHeaderSizeDwords +
+                        sizeof(dxbc::Statistics) / sizeof(uint32_t));
+  std::memcpy(
+      shader_object_.data() + blob_position_dwords + kBlobHeaderSizeDwords,
+      &statistics_, sizeof(statistics_));
+  {
+    auto& blob_header = *reinterpret_cast<dxbc::BlobHeader*>(
+        shader_object_.data() + blob_position_dwords);
+    blob_header.fourcc = dxbc::BlobHeader::FourCC::kStatistics;
+    blob_position_dwords = uint32_t(shader_object_.size());
+    blob_header.size_bytes =
+        (blob_position_dwords - kBlobHeaderSizeDwords) * sizeof(uint32_t) -
+        shader_object_[blob_offset_position_dwords++];
+  }
+
+  // Header.
+  uint32_t shader_object_size_bytes =
       uint32_t(shader_object_.size() * sizeof(uint32_t));
-  shader_object_[6] = shader_object_size;
-  // The checksum includes the size field, so it must be the last.
-  CalculateDXBCChecksum(reinterpret_cast<unsigned char*>(shader_object_.data()),
-                        shader_object_size,
-                        reinterpret_cast<unsigned int*>(&shader_object_[1]));
+  {
+    auto& container_header =
+        *reinterpret_cast<dxbc::ContainerHeader*>(shader_object_.data());
+    container_header.InitializeIdentification();
+    container_header.size_bytes = shader_object_size_bytes;
+    container_header.blob_count = blob_count;
+    CalculateDXBCChecksum(
+        reinterpret_cast<unsigned char*>(shader_object_.data()),
+        static_cast<unsigned int>(shader_object_size_bytes),
+        reinterpret_cast<unsigned int*>(&container_header.hash));
+  }
+
   // TODO(Triang3l): Avoid copy?
   std::vector<uint8_t> shader_object_bytes;
-  shader_object_bytes.resize(shader_object_size);
+  shader_object_bytes.resize(shader_object_size_bytes);
   std::memcpy(shader_object_bytes.data(), shader_object_.data(),
-              shader_object_size);
+              shader_object_size_bytes);
   return shader_object_bytes;
 }
 
-void DxbcShaderTranslator::PostTranslation(
-    Shader::Translation& translation, bool setup_shader_post_translation_info) {
-  if (setup_shader_post_translation_info) {
-    DxbcShader* dxbc_shader = dynamic_cast<DxbcShader*>(&translation.shader());
-    if (dxbc_shader) {
-      dxbc_shader->texture_bindings_.clear();
-      dxbc_shader->texture_bindings_.reserve(texture_bindings_.size());
-      dxbc_shader->used_texture_mask_ = 0;
-      for (const TextureBinding& translator_binding : texture_bindings_) {
-        DxbcShader::TextureBinding& shader_binding =
-            dxbc_shader->texture_bindings_.emplace_back();
-        // For a stable hash.
-        std::memset(&shader_binding, 0, sizeof(shader_binding));
-        shader_binding.bindless_descriptor_index =
-            translator_binding.bindless_descriptor_index;
-        shader_binding.fetch_constant = translator_binding.fetch_constant;
-        shader_binding.dimension = translator_binding.dimension;
-        shader_binding.is_signed = translator_binding.is_signed;
-        dxbc_shader->used_texture_mask_ |= 1u
-                                           << translator_binding.fetch_constant;
-      }
-      dxbc_shader->sampler_bindings_.clear();
-      dxbc_shader->sampler_bindings_.reserve(sampler_bindings_.size());
-      for (const SamplerBinding& translator_binding : sampler_bindings_) {
-        DxbcShader::SamplerBinding& shader_binding =
-            dxbc_shader->sampler_bindings_.emplace_back();
-        shader_binding.bindless_descriptor_index =
-            translator_binding.bindless_descriptor_index;
-        shader_binding.fetch_constant = translator_binding.fetch_constant;
-        shader_binding.mag_filter = translator_binding.mag_filter;
-        shader_binding.min_filter = translator_binding.min_filter;
-        shader_binding.mip_filter = translator_binding.mip_filter;
-        shader_binding.aniso_filter = translator_binding.aniso_filter;
-      }
+void DxbcShaderTranslator::PostTranslation() {
+  Shader::Translation& translation = current_translation();
+  if (!translation.is_valid()) {
+    return;
+  }
+  DxbcShader* dxbc_shader = dynamic_cast<DxbcShader*>(&translation.shader());
+  if (dxbc_shader && !dxbc_shader->bindings_setup_entered_.test_and_set(
+                         std::memory_order_relaxed)) {
+    dxbc_shader->texture_bindings_.clear();
+    dxbc_shader->texture_bindings_.reserve(texture_bindings_.size());
+    dxbc_shader->used_texture_mask_ = 0;
+    for (const TextureBinding& translator_binding : texture_bindings_) {
+      DxbcShader::TextureBinding& shader_binding =
+          dxbc_shader->texture_bindings_.emplace_back();
+      // For a stable hash.
+      std::memset(&shader_binding, 0, sizeof(shader_binding));
+      shader_binding.bindless_descriptor_index =
+          translator_binding.bindless_descriptor_index;
+      shader_binding.fetch_constant = translator_binding.fetch_constant;
+      shader_binding.dimension = translator_binding.dimension;
+      shader_binding.is_signed = translator_binding.is_signed;
+      dxbc_shader->used_texture_mask_ |= 1u
+                                         << translator_binding.fetch_constant;
+    }
+    dxbc_shader->sampler_bindings_.clear();
+    dxbc_shader->sampler_bindings_.reserve(sampler_bindings_.size());
+    for (const SamplerBinding& translator_binding : sampler_bindings_) {
+      DxbcShader::SamplerBinding& shader_binding =
+          dxbc_shader->sampler_bindings_.emplace_back();
+      shader_binding.bindless_descriptor_index =
+          translator_binding.bindless_descriptor_index;
+      shader_binding.fetch_constant = translator_binding.fetch_constant;
+      shader_binding.mag_filter = translator_binding.mag_filter;
+      shader_binding.min_filter = translator_binding.min_filter;
+      shader_binding.mip_filter = translator_binding.mip_filter;
+      shader_binding.aniso_filter = translator_binding.aniso_filter;
     }
   }
 }
@@ -1316,7 +1293,6 @@ void DxbcShaderTranslator::EmitInstructionDisassembly() {
   if (!emit_source_map_) {
     return;
   }
-
   const char* source = instruction_disassembly_buffer_.buffer();
   uint32_t length = uint32_t(instruction_disassembly_buffer_.length());
   // Trim leading spaces and trailing new line.
@@ -1330,50 +1306,38 @@ void DxbcShaderTranslator::EmitInstructionDisassembly() {
   if (length == 0) {
     return;
   }
-
-  uint32_t length_dwords =
-      (length + 1 + (sizeof(uint32_t) - 1)) / sizeof(uint32_t);
-  shader_code_.push_back(
-      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_CUSTOMDATA) |
-      ENCODE_D3D10_SB_CUSTOMDATA_CLASS(D3D10_SB_CUSTOMDATA_COMMENT));
-  shader_code_.push_back(2 + length_dwords);
-  size_t offset_dwords = shader_code_.size();
-  shader_code_.resize(offset_dwords + length_dwords);
-  char* target = reinterpret_cast<char*>(&shader_code_[offset_dwords]);
-  std::memcpy(target, source, length);
-  target[length] = '\0';
-  // Don't leave uninitialized data, and make sure multiple invocations of the
-  // translator for the same Xenos shader give the same DXBC.
-  std::memset(target + length + 1, 0xAB,
-              length_dwords * sizeof(uint32_t) - length - 1);
+  char* dest = reinterpret_cast<char*>(
+      a_.OpCustomData(dxbc::CustomDataClass::kComment, length + 1));
+  std::memcpy(dest, source, length);
+  dest[length] = '\0';
 }
 
-DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::LoadOperand(
-    const InstructionOperand& operand, uint32_t needed_components,
-    bool& temp_pushed_out) {
+dxbc::Src DxbcShaderTranslator::LoadOperand(const InstructionOperand& operand,
+                                            uint32_t needed_components,
+                                            bool& temp_pushed_out) {
   temp_pushed_out = false;
 
   uint32_t first_needed_component;
   if (!xe::bit_scan_forward(needed_components, &first_needed_component)) {
-    return DxbcSrc::LF(0.0f);
+    return dxbc::Src::LF(0.0f);
   }
 
-  DxbcIndex index(operand.storage_index);
+  dxbc::Index index(operand.storage_index);
   switch (operand.storage_addressing_mode) {
     case InstructionStorageAddressingMode::kStatic:
       break;
     case InstructionStorageAddressingMode::kAddressAbsolute:
-      index = DxbcIndex(system_temp_ps_pc_p0_a0_, 3, operand.storage_index);
+      index = dxbc::Index(system_temp_ps_pc_p0_a0_, 3, operand.storage_index);
       break;
     case InstructionStorageAddressingMode::kAddressRelative:
-      index = DxbcIndex(system_temp_aL_, 0, operand.storage_index);
+      index = dxbc::Index(system_temp_aL_, 0, operand.storage_index);
       break;
   }
 
-  DxbcSrc src(DxbcSrc::LF(0.0f));
+  dxbc::Src src(dxbc::Src::LF(0.0f));
   switch (operand.storage_source) {
     case InstructionStorageSource::kRegister: {
-      if (uses_register_dynamic_addressing()) {
+      if (current_shader().uses_register_dynamic_addressing()) {
         // Load x#[#] to r# because x#[#] can be used only with mov.
         uint32_t temp = PushSystemTemp();
         temp_pushed_out = true;
@@ -1389,38 +1353,40 @@ DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::LoadOperand(
               1 << (uint32_t(component) - uint32_t(SwizzleSource::kX));
         }
         assert_not_zero(used_swizzle_components);
-        DxbcOpMov(DxbcDest::R(temp, used_swizzle_components),
-                  DxbcSrc::X(0, index));
-        src = DxbcSrc::R(temp);
+        a_.OpMov(dxbc::Dest::R(temp, used_swizzle_components),
+                 dxbc::Src::X(0, index));
+        src = dxbc::Src::R(temp);
       } else {
         assert_true(operand.storage_addressing_mode ==
                     InstructionStorageAddressingMode::kStatic);
-        src = DxbcSrc::R(index.index_);
+        src = dxbc::Src::R(index.index_);
       }
     } break;
     case InstructionStorageSource::kConstantFloat: {
       if (cbuffer_index_float_constants_ == kBindingIndexUnallocated) {
         cbuffer_index_float_constants_ = cbuffer_count_++;
       }
+      const Shader::ConstantRegisterMap& constant_register_map =
+          current_shader().constant_register_map();
       if (operand.storage_addressing_mode ==
           InstructionStorageAddressingMode::kStatic) {
         uint32_t float_constant_index =
-            constant_register_map().GetPackedFloatConstantIndex(
+            constant_register_map.GetPackedFloatConstantIndex(
                 operand.storage_index);
         assert_true(float_constant_index != UINT32_MAX);
         if (float_constant_index == UINT32_MAX) {
-          return DxbcSrc::LF(0.0f);
+          return dxbc::Src::LF(0.0f);
         }
         index.index_ = float_constant_index;
       } else {
-        assert_true(constant_register_map().float_dynamic_addressing);
+        assert_true(constant_register_map.float_dynamic_addressing);
       }
-      src = DxbcSrc::CB(cbuffer_index_float_constants_,
-                        uint32_t(CbufferRegister::kFloatConstants), index);
+      src = dxbc::Src::CB(cbuffer_index_float_constants_,
+                          uint32_t(CbufferRegister::kFloatConstants), index);
     } break;
     default:
       assert_unhandled_case(operand.storage_source);
-      return DxbcSrc::LF(0.0f);
+      return dxbc::Src::LF(0.0f);
   }
 
   // Swizzle, skipping unneeded components similar to how FXC skips components,
@@ -1439,7 +1405,7 @@ DxbcShaderTranslator::DxbcSrc DxbcShaderTranslator::LoadOperand(
 }
 
 void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
-                                       const DxbcSrc& src,
+                                       const dxbc::Src& src,
                                        bool can_store_memexport_address) {
   uint32_t used_write_mask = result.GetUsedWriteMask();
   if (!used_write_mask) {
@@ -1447,80 +1413,80 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
   }
 
   // Get the destination address and type.
-  DxbcDest dest(DxbcDest::Null());
+  dxbc::Dest dest(dxbc::Dest::Null());
   bool is_clamped = result.is_clamped;
   switch (result.storage_target) {
     case InstructionStorageTarget::kNone:
       return;
     case InstructionStorageTarget::kRegister:
-      if (uses_register_dynamic_addressing()) {
-        DxbcIndex register_index(result.storage_index);
+      if (current_shader().uses_register_dynamic_addressing()) {
+        dxbc::Index register_index(result.storage_index);
         switch (result.storage_addressing_mode) {
           case InstructionStorageAddressingMode::kStatic:
             break;
           case InstructionStorageAddressingMode::kAddressAbsolute:
             register_index =
-                DxbcIndex(system_temp_ps_pc_p0_a0_, 3, result.storage_index);
+                dxbc::Index(system_temp_ps_pc_p0_a0_, 3, result.storage_index);
             break;
           case InstructionStorageAddressingMode::kAddressRelative:
             register_index =
-                DxbcIndex(system_temp_aL_, 0, result.storage_index);
+                dxbc::Index(system_temp_aL_, 0, result.storage_index);
             break;
         }
-        dest = DxbcDest::X(0, register_index);
+        dest = dxbc::Dest::X(0, register_index);
       } else {
         assert_true(result.storage_addressing_mode ==
                     InstructionStorageAddressingMode::kStatic);
-        dest = DxbcDest::R(result.storage_index);
+        dest = dxbc::Dest::R(result.storage_index);
       }
       break;
     case InstructionStorageTarget::kInterpolator:
-      dest = DxbcDest::O(uint32_t(InOutRegister::kVSDSOutInterpolators) +
-                         result.storage_index);
+      dest = dxbc::Dest::O(uint32_t(InOutRegister::kVSDSOutInterpolators) +
+                           result.storage_index);
       break;
     case InstructionStorageTarget::kPosition:
-      dest = DxbcDest::R(system_temp_position_);
+      dest = dxbc::Dest::R(system_temp_position_);
       break;
     case InstructionStorageTarget::kPointSizeEdgeFlagKillVertex:
       assert_zero(used_write_mask & 0b1000);
-      dest = DxbcDest::R(system_temp_point_size_edge_flag_kill_vertex_);
+      dest = dxbc::Dest::R(system_temp_point_size_edge_flag_kill_vertex_);
       break;
     case InstructionStorageTarget::kExportAddress:
       // Validate memexport writes (Halo 3 has some weird invalid ones).
       if (!can_store_memexport_address || memexport_alloc_current_count_ == 0 ||
-          memexport_alloc_current_count_ > kMaxMemExports ||
+          memexport_alloc_current_count_ > Shader::kMaxMemExports ||
           system_temps_memexport_address_[memexport_alloc_current_count_ - 1] ==
               UINT32_MAX) {
         return;
       }
-      dest = DxbcDest::R(
+      dest = dxbc::Dest::R(
           system_temps_memexport_address_[memexport_alloc_current_count_ - 1]);
       break;
     case InstructionStorageTarget::kExportData: {
       // Validate memexport writes (Halo 3 has some weird invalid ones).
       if (memexport_alloc_current_count_ == 0 ||
-          memexport_alloc_current_count_ > kMaxMemExports ||
+          memexport_alloc_current_count_ > Shader::kMaxMemExports ||
           system_temps_memexport_data_[memexport_alloc_current_count_ - 1]
                                       [result.storage_index] == UINT32_MAX) {
         return;
       }
-      dest = DxbcDest::R(
+      dest = dxbc::Dest::R(
           system_temps_memexport_data_[memexport_alloc_current_count_ - 1]
                                       [result.storage_index]);
       // Mark that the eM# has been written to and needs to be exported.
       assert_not_zero(used_write_mask);
       uint32_t memexport_index = memexport_alloc_current_count_ - 1;
-      DxbcOpOr(DxbcDest::R(system_temp_memexport_written_,
-                           1 << (memexport_index >> 2)),
-               DxbcSrc::R(system_temp_memexport_written_)
-                   .Select(memexport_index >> 2),
-               DxbcSrc::LU(uint32_t(1) << (result.storage_index +
-                                           ((memexport_index & 3) << 3))));
+      a_.OpOr(dxbc::Dest::R(system_temp_memexport_written_,
+                            1 << (memexport_index >> 2)),
+              dxbc::Src::R(system_temp_memexport_written_)
+                  .Select(memexport_index >> 2),
+              dxbc::Src::LU(uint32_t(1) << (result.storage_index +
+                                            ((memexport_index & 3) << 3))));
     } break;
     case InstructionStorageTarget::kColor:
       assert_not_zero(used_write_mask);
-      assert_true(writes_color_target(result.storage_index));
-      dest = DxbcDest::R(system_temps_color_[result.storage_index]);
+      assert_true(current_shader().writes_color_target(result.storage_index));
+      dest = dxbc::Dest::R(system_temps_color_[result.storage_index]);
       if (edram_rov_used_) {
         // For ROV output, mark that the color has been written to.
         // According to:
@@ -1530,30 +1496,30 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
         // components of a written target are undefined, not sure if this
         // behavior is respected on the real GPU, but the ROV code currently
         // doesn't preserve unmodified components).
-        DxbcOpOr(DxbcDest::R(system_temp_rov_params_, 0b0001),
-                 DxbcSrc::R(system_temp_rov_params_, DxbcSrc::kXXXX),
-                 DxbcSrc::LU(uint32_t(1) << (8 + result.storage_index)));
+        a_.OpOr(dxbc::Dest::R(system_temp_rov_params_, 0b0001),
+                dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
+                dxbc::Src::LU(uint32_t(1) << (8 + result.storage_index)));
       }
       break;
     case InstructionStorageTarget::kDepth:
       // Writes X to scalar oDepth or to X of system_temp_depth_stencil_, no
       // additional swizzling needed.
       assert_true(used_write_mask == 0b0001);
-      assert_true(writes_depth());
+      assert_true(current_shader().writes_depth());
       if (IsDepthStencilSystemTempUsed()) {
-        dest = DxbcDest::R(system_temp_depth_stencil_);
+        dest = dxbc::Dest::R(system_temp_depth_stencil_);
       } else {
-        dest = DxbcDest::ODepth();
+        dest = dxbc::Dest::ODepth();
       }
-      // Depth outside [0, 1] is not safe for use with the ROV code and with
-      // 20e4-as-32 conversion. Though 20e4 float depth can store values between
-      // 1 and 2, it's a very unusual case. Direct3D 10+ SV_Depth, however, can
-      // accept any values, including specials, when the depth buffer is
-      // floating-point; but depth is clamped to the viewport bounds anyway.
+      // Depth outside [0, 1] is not safe for use with the ROV code, with
+      // 20e4-as-32 conversion and with 0...1 to 0...0.5 float24 remapping.
+      // Though 20e4 float depth can store values between 1 and 2, it's a very
+      // unusual case. Direct3D 10+ SV_Depth, however, can accept any values,
+      // including specials, when the depth buffer is floating-point.
       is_clamped = true;
       break;
   }
-  if (dest.type_ == DxbcOperandType::kNull) {
+  if (dest.type_ == dxbc::OperandType::kNull) {
     return;
   }
 
@@ -1576,15 +1542,15 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
     }
   }
   if (used_write_mask != constant_mask) {
-    DxbcOpMov(dest.Mask(used_write_mask & ~constant_mask),
-              src.SwizzleSwizzled(src_additional_swizzle), is_clamped);
+    a_.OpMov(dest.Mask(used_write_mask & ~constant_mask),
+             src.SwizzleSwizzled(src_additional_swizzle), is_clamped);
   }
   if (constant_mask) {
-    DxbcOpMov(dest.Mask(constant_mask),
-              DxbcSrc::LF(float(constant_1_mask & 1),
-                          float((constant_1_mask >> 1) & 1),
-                          float((constant_1_mask >> 2) & 1),
-                          float((constant_1_mask >> 3) & 1)));
+    a_.OpMov(dest.Mask(constant_mask),
+             dxbc::Src::LF(float(constant_1_mask & 1),
+                           float((constant_1_mask >> 1) & 1),
+                           float((constant_1_mask >> 2) & 1),
+                           float((constant_1_mask >> 3) & 1)));
   }
 }
 
@@ -1634,20 +1600,21 @@ void DxbcShaderTranslator::UpdateExecConditionalsAndEmitDisassembly(
     if (cbuffer_index_bool_loop_constants_ == kBindingIndexUnallocated) {
       cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
     }
-    DxbcOpAnd(DxbcDest::R(bool_constant_test_temp, 0b0001),
-              DxbcSrc::CB(cbuffer_index_bool_loop_constants_,
-                          uint32_t(CbufferRegister::kBoolLoopConstants),
-                          bool_constant_index >> 7)
-                  .Select((bool_constant_index >> 5) & 3),
-              DxbcSrc::LU(uint32_t(1) << (bool_constant_index & 31)));
+    a_.OpAnd(dxbc::Dest::R(bool_constant_test_temp, 0b0001),
+             dxbc::Src::CB(cbuffer_index_bool_loop_constants_,
+                           uint32_t(CbufferRegister::kBoolLoopConstants),
+                           bool_constant_index >> 7)
+                 .Select((bool_constant_index >> 5) & 3),
+             dxbc::Src::LU(uint32_t(1) << (bool_constant_index & 31)));
     // Open the new `if`.
-    DxbcOpIf(condition, DxbcSrc::R(bool_constant_test_temp, DxbcSrc::kXXXX));
+    a_.OpIf(condition, dxbc::Src::R(bool_constant_test_temp, dxbc::Src::kXXXX));
     // Release bool_constant_test_temp.
     PopSystemTemp();
     cf_exec_bool_constant_ = bool_constant_index;
     cf_exec_bool_constant_condition_ = condition;
   } else if (type == ParsedExecInstruction::Type::kPredicated) {
-    DxbcOpIf(condition, DxbcSrc::R(system_temp_ps_pc_p0_a0_, DxbcSrc::kZZZZ));
+    a_.OpIf(condition,
+            dxbc::Src::R(system_temp_ps_pc_p0_a0_, dxbc::Src::kZZZZ));
     cf_exec_predicated_ = true;
     cf_exec_predicate_condition_ = condition;
   }
@@ -1659,7 +1626,7 @@ void DxbcShaderTranslator::CloseExecConditionals() {
   // Exec level.
   if (cf_exec_bool_constant_ != kCfExecBoolConstantNone ||
       cf_exec_predicated_) {
-    DxbcOpEndIf();
+    a_.OpEndIf();
     cf_exec_bool_constant_ = kCfExecBoolConstantNone;
     cf_exec_predicated_ = false;
   }
@@ -1696,22 +1663,22 @@ void DxbcShaderTranslator::UpdateInstructionPredicationAndEmitDisassembly(
     return;
   }
 
-  DxbcOpIf(condition, DxbcSrc::R(system_temp_ps_pc_p0_a0_, DxbcSrc::kZZZZ));
+  a_.OpIf(condition, dxbc::Src::R(system_temp_ps_pc_p0_a0_, dxbc::Src::kZZZZ));
   cf_instruction_predicate_if_open_ = true;
   cf_instruction_predicate_condition_ = condition;
 }
 
 void DxbcShaderTranslator::CloseInstructionPredication() {
   if (cf_instruction_predicate_if_open_) {
-    DxbcOpEndIf();
+    a_.OpEndIf();
     cf_instruction_predicate_if_open_ = false;
   }
 }
 
 void DxbcShaderTranslator::JumpToLabel(uint32_t address) {
-  DxbcOpMov(DxbcDest::R(system_temp_ps_pc_p0_a0_, 0b0010),
-            DxbcSrc::LU(address));
-  DxbcOpContinue();
+  a_.OpMov(dxbc::Dest::R(system_temp_ps_pc_p0_a0_, 0b0010),
+           dxbc::Src::LU(address));
+  a_.OpContinue();
 }
 
 void DxbcShaderTranslator::ProcessLabel(uint32_t cf_index) {
@@ -1728,17 +1695,17 @@ void DxbcShaderTranslator::ProcessLabel(uint32_t cf_index) {
     // non-empty switch case must end with a break.
     JumpToLabel(cf_index);
     // Close the previous label.
-    DxbcOpBreak();
+    a_.OpBreak();
     // Go to the next label.
-    DxbcOpCase(DxbcSrc::LU(cf_index));
+    a_.OpCase(dxbc::Src::LU(cf_index));
   } else {
     // Close the previous label.
-    DxbcOpEndIf();
+    a_.OpEndIf();
     // if (pc <= cf_index)
     uint32_t test_temp = PushSystemTemp();
-    DxbcOpUGE(DxbcDest::R(test_temp, 0b0001), DxbcSrc::LU(cf_index),
-              DxbcSrc::R(system_temp_ps_pc_p0_a0_, DxbcSrc::kYYYY));
-    DxbcOpIf(true, DxbcSrc::R(test_temp, DxbcSrc::kXXXX));
+    a_.OpUGE(dxbc::Dest::R(test_temp, 0b0001), dxbc::Src::LU(cf_index),
+             dxbc::Src::R(system_temp_ps_pc_p0_a0_, dxbc::Src::kYYYY));
+    a_.OpIf(true, dxbc::Src::R(test_temp, dxbc::Src::kXXXX));
     // Release test_temp.
     PopSystemTemp();
   }
@@ -1761,12 +1728,12 @@ void DxbcShaderTranslator::ProcessExecInstructionEnd(
     CloseInstructionPredication();
     if (UseSwitchForControlFlow()) {
       // Write an invalid value to pc.
-      DxbcOpMov(DxbcDest::R(system_temp_ps_pc_p0_a0_, 0b0010),
-                DxbcSrc::LU(UINT32_MAX));
+      a_.OpMov(dxbc::Dest::R(system_temp_ps_pc_p0_a0_, 0b0010),
+               dxbc::Src::LU(UINT32_MAX));
       // Go to the next iteration, where switch cases won't be reached.
-      DxbcOpContinue();
+      a_.OpContinue();
     } else {
-      DxbcOpBreak();
+      a_.OpBreak();
     }
   }
 }
@@ -1789,32 +1756,32 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
   if (cbuffer_index_bool_loop_constants_ == kBindingIndexUnallocated) {
     cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
   }
-  DxbcSrc loop_constant_src(
-      DxbcSrc::CB(cbuffer_index_bool_loop_constants_,
-                  uint32_t(CbufferRegister::kBoolLoopConstants),
-                  2 + (instr.loop_constant_index >> 2))
+  dxbc::Src loop_constant_src(
+      dxbc::Src::CB(cbuffer_index_bool_loop_constants_,
+                    uint32_t(CbufferRegister::kBoolLoopConstants),
+                    2 + (instr.loop_constant_index >> 2))
           .Select(instr.loop_constant_index & 3));
 
   // Push the count to the loop count stack - move XYZ to YZW and set X to this
   // loop count.
-  DxbcOpMov(DxbcDest::R(system_temp_loop_count_, 0b1110),
-            DxbcSrc::R(system_temp_loop_count_, 0b10010000));
-  DxbcOpAnd(DxbcDest::R(system_temp_loop_count_, 0b0001), loop_constant_src,
-            DxbcSrc::LU(UINT8_MAX));
+  a_.OpMov(dxbc::Dest::R(system_temp_loop_count_, 0b1110),
+           dxbc::Src::R(system_temp_loop_count_, 0b10010000));
+  a_.OpAnd(dxbc::Dest::R(system_temp_loop_count_, 0b0001), loop_constant_src,
+           dxbc::Src::LU(UINT8_MAX));
 
   // Push aL - keep the same value as in the previous loop if repeating, or the
   // new one otherwise.
-  DxbcOpMov(DxbcDest::R(system_temp_aL_, instr.is_repeat ? 0b1111 : 0b1110),
-            DxbcSrc::R(system_temp_aL_, 0b10010000));
+  a_.OpMov(dxbc::Dest::R(system_temp_aL_, instr.is_repeat ? 0b1111 : 0b1110),
+           dxbc::Src::R(system_temp_aL_, 0b10010000));
   if (!instr.is_repeat) {
-    DxbcOpUBFE(DxbcDest::R(system_temp_aL_, 0b0001), DxbcSrc::LU(8),
-               DxbcSrc::LU(8), loop_constant_src);
+    a_.OpUBFE(dxbc::Dest::R(system_temp_aL_, 0b0001), dxbc::Src::LU(8),
+              dxbc::Src::LU(8), loop_constant_src);
   }
 
   // Break if the loop counter is 0 (since the condition is checked in the end).
-  DxbcOpIf(false, DxbcSrc::R(system_temp_loop_count_, DxbcSrc::kXXXX));
+  a_.OpIf(false, dxbc::Src::R(system_temp_loop_count_, dxbc::Src::kXXXX));
   JumpToLabel(instr.loop_skip_address);
-  DxbcOpEndIf();
+  a_.OpEndIf();
 }
 
 void DxbcShaderTranslator::ProcessLoopEndInstruction(
@@ -1831,9 +1798,9 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
   }
 
   // Subtract 1 from the loop counter.
-  DxbcOpIAdd(DxbcDest::R(system_temp_loop_count_, 0b0001),
-             DxbcSrc::R(system_temp_loop_count_, DxbcSrc::kXXXX),
-             DxbcSrc::LI(-1));
+  a_.OpIAdd(dxbc::Dest::R(system_temp_loop_count_, 0b0001),
+            dxbc::Src::R(system_temp_loop_count_, dxbc::Src::kXXXX),
+            dxbc::Src::LI(-1));
 
   if (instr.is_predicated_break) {
     // if (loop_count.x == 0 || [!]p0)
@@ -1841,38 +1808,38 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
     if (instr.predicate_condition) {
       // If p0 is non-zero, set the test value to 0 (since if_z is used,
       // otherwise check if the loop counter is zero).
-      DxbcOpMovC(DxbcDest::R(break_case_temp, 0b0001),
-                 DxbcSrc::R(system_temp_ps_pc_p0_a0_, DxbcSrc::kZZZZ),
-                 DxbcSrc::LU(0),
-                 DxbcSrc::R(system_temp_loop_count_, DxbcSrc::kXXXX));
+      a_.OpMovC(dxbc::Dest::R(break_case_temp, 0b0001),
+                dxbc::Src::R(system_temp_ps_pc_p0_a0_, dxbc::Src::kZZZZ),
+                dxbc::Src::LU(0),
+                dxbc::Src::R(system_temp_loop_count_, dxbc::Src::kXXXX));
     } else {
       // If p0 is zero, set the test value to 0 (since if_z is used, otherwise
       // check if the loop counter is zero).
-      DxbcOpMovC(DxbcDest::R(break_case_temp, 0b0001),
-                 DxbcSrc::R(system_temp_ps_pc_p0_a0_, DxbcSrc::kZZZZ),
-                 DxbcSrc::R(system_temp_loop_count_, DxbcSrc::kXXXX),
-                 DxbcSrc::LU(0));
+      a_.OpMovC(dxbc::Dest::R(break_case_temp, 0b0001),
+                dxbc::Src::R(system_temp_ps_pc_p0_a0_, dxbc::Src::kZZZZ),
+                dxbc::Src::R(system_temp_loop_count_, dxbc::Src::kXXXX),
+                dxbc::Src::LU(0));
     }
-    DxbcOpIf(false, DxbcSrc::R(break_case_temp, DxbcSrc::kXXXX));
+    a_.OpIf(false, dxbc::Src::R(break_case_temp, dxbc::Src::kXXXX));
     // Release break_case_temp.
     PopSystemTemp();
   } else {
     // if (loop_count.x == 0)
-    DxbcOpIf(false, DxbcSrc::R(system_temp_loop_count_, DxbcSrc::kXXXX));
+    a_.OpIf(false, dxbc::Src::R(system_temp_loop_count_, dxbc::Src::kXXXX));
   }
   {
     // Break case.
     // Pop the current loop off the loop counter and the relative address
     // stacks - move YZW to XYZ and set W to 0.
-    DxbcOpMov(DxbcDest::R(system_temp_loop_count_, 0b0111),
-              DxbcSrc::R(system_temp_loop_count_, 0b111001));
-    DxbcOpMov(DxbcDest::R(system_temp_loop_count_, 0b1000), DxbcSrc::LU(0));
-    DxbcOpMov(DxbcDest::R(system_temp_aL_, 0b0111),
-              DxbcSrc::R(system_temp_aL_, 0b111001));
-    DxbcOpMov(DxbcDest::R(system_temp_aL_, 0b1000), DxbcSrc::LI(0));
+    a_.OpMov(dxbc::Dest::R(system_temp_loop_count_, 0b0111),
+             dxbc::Src::R(system_temp_loop_count_, 0b111001));
+    a_.OpMov(dxbc::Dest::R(system_temp_loop_count_, 0b1000), dxbc::Src::LU(0));
+    a_.OpMov(dxbc::Dest::R(system_temp_aL_, 0b0111),
+             dxbc::Src::R(system_temp_aL_, 0b111001));
+    a_.OpMov(dxbc::Dest::R(system_temp_aL_, 0b1000), dxbc::Src::LI(0));
     // Now going to fall through to the next exec (no need to jump).
   }
-  DxbcOpElse();
+  a_.OpElse();
   {
     // Continue case.
     uint32_t aL_add_temp = PushSystemTemp();
@@ -1881,22 +1848,22 @@ void DxbcShaderTranslator::ProcessLoopEndInstruction(
     if (cbuffer_index_bool_loop_constants_ == kBindingIndexUnallocated) {
       cbuffer_index_bool_loop_constants_ = cbuffer_count_++;
     }
-    DxbcOpIBFE(DxbcDest::R(aL_add_temp, 0b0001), DxbcSrc::LU(8),
-               DxbcSrc::LU(16),
-               DxbcSrc::CB(cbuffer_index_bool_loop_constants_,
-                           uint32_t(CbufferRegister::kBoolLoopConstants),
-                           2 + (instr.loop_constant_index >> 2))
-                   .Select(instr.loop_constant_index & 3));
+    a_.OpIBFE(dxbc::Dest::R(aL_add_temp, 0b0001), dxbc::Src::LU(8),
+              dxbc::Src::LU(16),
+              dxbc::Src::CB(cbuffer_index_bool_loop_constants_,
+                            uint32_t(CbufferRegister::kBoolLoopConstants),
+                            2 + (instr.loop_constant_index >> 2))
+                  .Select(instr.loop_constant_index & 3));
     // Add the needed value to aL.
-    DxbcOpIAdd(DxbcDest::R(system_temp_aL_, 0b0001),
-               DxbcSrc::R(system_temp_aL_, DxbcSrc::kXXXX),
-               DxbcSrc::R(aL_add_temp, DxbcSrc::kXXXX));
+    a_.OpIAdd(dxbc::Dest::R(system_temp_aL_, 0b0001),
+              dxbc::Src::R(system_temp_aL_, dxbc::Src::kXXXX),
+              dxbc::Src::R(aL_add_temp, dxbc::Src::kXXXX));
     // Release aL_add_temp.
     PopSystemTemp();
     // Jump back to the beginning of the loop body.
     JumpToLabel(instr.loop_body_address);
   }
-  DxbcOpEndIf();
+  a_.OpEndIf();
 }
 
 void DxbcShaderTranslator::ProcessJumpInstruction(
@@ -1940,506 +1907,447 @@ void DxbcShaderTranslator::ProcessAllocInstruction(
   }
 }
 
-uint32_t DxbcShaderTranslator::AppendString(std::vector<uint32_t>& dest,
-                                            const char* source) {
-  size_t size = std::strlen(source) + 1;
-  size_t size_aligned = xe::align(size, sizeof(uint32_t));
-  size_t dest_position = dest.size();
-  dest.resize(dest_position + size_aligned / sizeof(uint32_t));
-  std::memcpy(&dest[dest_position], source, size);
-  // Don't leave uninitialized data, and make sure multiple invocations of the
-  // translator for the same Xenos shader give the same DXBC.
-  std::memset(reinterpret_cast<uint8_t*>(&dest[dest_position]) + size, 0xAB,
-              size_aligned - size);
-  return uint32_t(size_aligned);
-}
-
-const DxbcShaderTranslator::RdefType DxbcShaderTranslator::rdef_types_[size_t(
-    DxbcShaderTranslator::RdefTypeIndex::kCount)] = {
-    // kFloat
-    {"float", DxbcRdefVariableClass::kScalar, DxbcRdefVariableType::kFloat, 1,
-     1, 0, 0, RdefTypeIndex::kUnknown, nullptr},
-    // kFloat2
-    {"float2", DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kFloat, 1,
-     2, 0, 0, RdefTypeIndex::kUnknown, nullptr},
-    // kFloat3
-    {"float3", DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kFloat, 1,
-     3, 0, 0, RdefTypeIndex::kUnknown, nullptr},
-    // kFloat4
-    {"float4", DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kFloat, 1,
-     4, 0, 0, RdefTypeIndex::kUnknown, nullptr},
-    // kInt
-    {"int", DxbcRdefVariableClass::kScalar, DxbcRdefVariableType::kInt, 1, 1, 0,
-     0, RdefTypeIndex::kUnknown, nullptr},
-    // kUint
-    {"uint", DxbcRdefVariableClass::kScalar, DxbcRdefVariableType::kUInt, 1, 1,
-     0, 0, RdefTypeIndex::kUnknown, nullptr},
-    // kUint2
-    {"uint2", DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kUInt, 1, 2,
-     0, 0, RdefTypeIndex::kUnknown, nullptr},
-    // kUint4
-    {"uint4", DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kUInt, 1, 4,
-     0, 0, RdefTypeIndex::kUnknown, nullptr},
-    // kFloat4Array4
-    {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kFloat, 1,
-     4, 4, 0, RdefTypeIndex::kFloat4, nullptr},
-    // kFloat4Array6
-    {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kFloat, 1,
-     4, 6, 0, RdefTypeIndex::kFloat4, nullptr},
-    // kFloat4ConstantArray - float constants - size written dynamically.
-    {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kFloat, 1,
-     4, 0, 0, RdefTypeIndex::kFloat4, nullptr},
-    // kUint4Array2
-    {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kUInt, 1, 4,
-     2, 0, RdefTypeIndex::kUint4, nullptr},
-    // kUint4Array8
-    {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kUInt, 1, 4,
-     8, 0, RdefTypeIndex::kUint4, nullptr},
-    // kUint4Array48
-    {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kUInt, 1, 4,
-     48, 0, RdefTypeIndex::kUint4, nullptr},
-    // kUint4DescriptorIndexArray - bindless descriptor indices - size written
-    // dynamically.
-    {nullptr, DxbcRdefVariableClass::kVector, DxbcRdefVariableType::kUInt, 1, 4,
-     0, 0, RdefTypeIndex::kUint4, nullptr},
+const DxbcShaderTranslator::ShaderRdefType
+    DxbcShaderTranslator::rdef_types_[size_t(
+        DxbcShaderTranslator::ShaderRdefTypeIndex::kCount)] = {
+        // kFloat
+        {"float", dxbc::RdefVariableClass::kScalar,
+         dxbc::RdefVariableType::kFloat, 1, 1, 0,
+         ShaderRdefTypeIndex::kUnknown},
+        // kFloat2
+        {"float2", dxbc::RdefVariableClass::kVector,
+         dxbc::RdefVariableType::kFloat, 1, 2, 0,
+         ShaderRdefTypeIndex::kUnknown},
+        // kFloat3
+        {"float3", dxbc::RdefVariableClass::kVector,
+         dxbc::RdefVariableType::kFloat, 1, 3, 0,
+         ShaderRdefTypeIndex::kUnknown},
+        // kFloat4
+        {"float4", dxbc::RdefVariableClass::kVector,
+         dxbc::RdefVariableType::kFloat, 1, 4, 0,
+         ShaderRdefTypeIndex::kUnknown},
+        // kUint
+        {"dword", dxbc::RdefVariableClass::kScalar,
+         dxbc::RdefVariableType::kUInt, 1, 1, 0, ShaderRdefTypeIndex::kUnknown},
+        // kUint2
+        {"uint2", dxbc::RdefVariableClass::kVector,
+         dxbc::RdefVariableType::kUInt, 1, 2, 0, ShaderRdefTypeIndex::kUnknown},
+        // kUint4
+        {"uint4", dxbc::RdefVariableClass::kVector,
+         dxbc::RdefVariableType::kUInt, 1, 4, 0, ShaderRdefTypeIndex::kUnknown},
+        // kFloat4Array4
+        {nullptr, dxbc::RdefVariableClass::kVector,
+         dxbc::RdefVariableType::kFloat, 1, 4, 4, ShaderRdefTypeIndex::kFloat4},
+        // kFloat4Array6
+        {nullptr, dxbc::RdefVariableClass::kVector,
+         dxbc::RdefVariableType::kFloat, 1, 4, 6, ShaderRdefTypeIndex::kFloat4},
+        // kFloat4ConstantArray - float constants - size written dynamically.
+        {nullptr, dxbc::RdefVariableClass::kVector,
+         dxbc::RdefVariableType::kFloat, 1, 4, 0, ShaderRdefTypeIndex::kFloat4},
+        // kUint4Array2
+        {nullptr, dxbc::RdefVariableClass::kVector,
+         dxbc::RdefVariableType::kUInt, 1, 4, 2, ShaderRdefTypeIndex::kUint4},
+        // kUint4Array8
+        {nullptr, dxbc::RdefVariableClass::kVector,
+         dxbc::RdefVariableType::kUInt, 1, 4, 8, ShaderRdefTypeIndex::kUint4},
+        // kUint4Array48
+        {nullptr, dxbc::RdefVariableClass::kVector,
+         dxbc::RdefVariableType::kUInt, 1, 4, 48, ShaderRdefTypeIndex::kUint4},
+        // kUint4DescriptorIndexArray - bindless descriptor indices - size
+        // written
+        // dynamically.
+        {nullptr, dxbc::RdefVariableClass::kVector,
+         dxbc::RdefVariableType::kUInt, 1, 4, 0, ShaderRdefTypeIndex::kUint4},
 };
 
-const DxbcShaderTranslator::SystemConstantRdef DxbcShaderTranslator::
-    system_constant_rdef_[DxbcShaderTranslator::kSysConst_Count] = {
-        {"xe_flags", RdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_tessellation_factor_range", RdefTypeIndex::kFloat2,
+const DxbcShaderTranslator::SystemConstantRdef
+    DxbcShaderTranslator::system_constant_rdef_[size_t(
+        DxbcShaderTranslator::SystemConstants::Index::kCount)] = {
+        {"xe_flags", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_tessellation_factor_range", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
-        {"xe_line_loop_closing_index", RdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_line_loop_closing_index", ShaderRdefTypeIndex::kUint,
+         sizeof(uint32_t)},
 
-        {"xe_vertex_index_endian", RdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_vertex_base_index", RdefTypeIndex::kInt, sizeof(int32_t)},
-        {"xe_point_size", RdefTypeIndex::kFloat2, sizeof(float) * 2},
+        {"xe_vertex_index_endian", ShaderRdefTypeIndex::kUint,
+         sizeof(uint32_t)},
+        {"xe_vertex_index_offset", ShaderRdefTypeIndex::kUint, sizeof(int32_t)},
+        {"xe_vertex_index_min_max", ShaderRdefTypeIndex::kUint2,
+         sizeof(uint32_t) * 2},
 
-        {"xe_point_size_min_max", RdefTypeIndex::kFloat2, sizeof(float) * 2},
-        {"xe_point_screen_to_ndc", RdefTypeIndex::kFloat2, sizeof(float) * 2},
-
-        {"xe_user_clip_planes", RdefTypeIndex::kFloat4Array6,
+        {"xe_user_clip_planes", ShaderRdefTypeIndex::kFloat4Array6,
          sizeof(float) * 4 * 6},
 
-        {"xe_ndc_scale", RdefTypeIndex::kFloat3, sizeof(float) * 3},
-        {"xe_interpolator_sampling_pattern", RdefTypeIndex::kUint,
-         sizeof(uint32_t)},
+        {"xe_ndc_scale", ShaderRdefTypeIndex::kFloat3, sizeof(float) * 3},
+        {"xe_point_size_x", ShaderRdefTypeIndex::kFloat, sizeof(float)},
 
-        {"xe_ndc_offset", RdefTypeIndex::kFloat3, sizeof(float) * 3},
-        {"xe_ps_param_gen", RdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_ndc_offset", ShaderRdefTypeIndex::kFloat3, sizeof(float) * 3},
+        {"xe_point_size_y", ShaderRdefTypeIndex::kFloat, sizeof(float)},
 
-        {"xe_texture_swizzled_signs", RdefTypeIndex::kUint4Array2,
-         sizeof(uint32_t) * 4 * 2},
-
-        {"xe_sample_count_log2", RdefTypeIndex::kUint2, sizeof(uint32_t) * 2},
-        {"xe_alpha_test_reference", RdefTypeIndex::kFloat, sizeof(float)},
-        {"xe_alpha_to_mask", RdefTypeIndex::kUint, sizeof(uint32_t)},
-
-        {"xe_color_exp_bias", RdefTypeIndex::kFloat4, sizeof(float) * 4},
-
-        {"xe_color_output_map", RdefTypeIndex::kUint4, sizeof(uint32_t) * 4},
-
-        {"xe_edram_resolution_square_scale", RdefTypeIndex::kUint,
-         sizeof(uint32_t)},
-        {"xe_edram_pitch_tiles", RdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_edram_depth_range", RdefTypeIndex::kFloat2, sizeof(float) * 2},
-
-        {"xe_edram_poly_offset_front", RdefTypeIndex::kFloat2,
+        {"xe_point_size_min_max", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
-        {"xe_edram_poly_offset_back", RdefTypeIndex::kFloat2,
+        {"xe_point_screen_to_ndc", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
 
-        {"xe_edram_depth_base_dwords", RdefTypeIndex::kUint, sizeof(uint32_t),
-         sizeof(float) * 3},
+        {"xe_interpolator_sampling_pattern", ShaderRdefTypeIndex::kUint,
+         sizeof(uint32_t)},
+        {"xe_ps_param_gen", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_sample_count_log2", ShaderRdefTypeIndex::kUint2,
+         sizeof(uint32_t) * 2},
 
-        {"xe_edram_stencil", RdefTypeIndex::kUint4Array2,
+        {"xe_texture_swizzled_signs", ShaderRdefTypeIndex::kUint4Array2,
          sizeof(uint32_t) * 4 * 2},
 
-        {"xe_edram_rt_base_dwords_scaled", RdefTypeIndex::kUint4,
+        {"xe_textures_resolved", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_alpha_test_reference", ShaderRdefTypeIndex::kFloat, sizeof(float)},
+        {"xe_alpha_to_mask", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_edram_pitch_tiles", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
+
+        {"xe_color_exp_bias", ShaderRdefTypeIndex::kFloat4, sizeof(float) * 4},
+
+        {"xe_edram_poly_offset_front", ShaderRdefTypeIndex::kFloat2,
+         sizeof(float) * 2},
+        {"xe_edram_poly_offset_back", ShaderRdefTypeIndex::kFloat2,
+         sizeof(float) * 2},
+
+        {"xe_edram_depth_base_dwords", ShaderRdefTypeIndex::kUint,
+         sizeof(uint32_t), sizeof(float) * 3},
+
+        {"xe_edram_stencil", ShaderRdefTypeIndex::kUint4Array2,
+         sizeof(uint32_t) * 4 * 2},
+
+        {"xe_edram_rt_base_dwords_scaled", ShaderRdefTypeIndex::kUint4,
          sizeof(uint32_t) * 4},
 
-        {"xe_edram_rt_format_flags", RdefTypeIndex::kUint4,
+        {"xe_edram_rt_format_flags", ShaderRdefTypeIndex::kUint4,
          sizeof(uint32_t) * 4},
 
-        {"xe_edram_rt_clamp", RdefTypeIndex::kFloat4Array4,
+        {"xe_edram_rt_clamp", ShaderRdefTypeIndex::kFloat4Array4,
          sizeof(float) * 4 * 4},
 
-        {"xe_edram_rt_keep_mask", RdefTypeIndex::kUint4Array2,
+        {"xe_edram_rt_keep_mask", ShaderRdefTypeIndex::kUint4Array2,
          sizeof(uint32_t) * 4 * 2},
 
-        {"xe_edram_rt_blend_factors_ops", RdefTypeIndex::kUint4,
+        {"xe_edram_rt_blend_factors_ops", ShaderRdefTypeIndex::kUint4,
          sizeof(uint32_t) * 4},
 
-        {"xe_edram_blend_constant", RdefTypeIndex::kFloat4, sizeof(float) * 4},
+        {"xe_edram_blend_constant", ShaderRdefTypeIndex::kFloat4,
+         sizeof(float) * 4},
 };
 
-void DxbcShaderTranslator::WriteResourceDefinitions() {
-  uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
-  uint32_t new_offset;
+void DxbcShaderTranslator::WriteResourceDefinition() {
+  // Because of shader_object_.resize(), pointers can't be kept persistently
+  // here! Resizing also zeroes the memory.
 
-  // ***************************************************************************
-  // Header
-  // ***************************************************************************
+  uint32_t blob_position_dwords = uint32_t(shader_object_.size());
+  uint32_t name_ptr;
 
-  // Constant buffer count.
-  shader_object_.push_back(cbuffer_count_);
-  // Constant buffer offset (set later).
-  shader_object_.push_back(0);
-  // Bindful resource count.
-  uint32_t resource_count = srv_count_ + uav_count_ + cbuffer_count_;
-  if (!sampler_bindings_.empty()) {
-    if (bindless_resources_used_) {
-      ++resource_count;
-    } else {
-      resource_count += uint32_t(sampler_bindings_.size());
-    }
-  }
-  shader_object_.push_back(resource_count);
-  // Bindful resource buffer offset (set later).
-  shader_object_.push_back(0);
-  if (IsDxbcVertexShader()) {
-    // vs_5_1
-    shader_object_.push_back(0xFFFE0501u);
-  } else if (IsDxbcDomainShader()) {
-    // ds_5_1
-    shader_object_.push_back(0x44530501u);
-  } else {
-    assert_true(is_pixel_shader());
-    // ps_5_1
-    shader_object_.push_back(0xFFFF0501u);
-  }
-  // Compiler flags - default for SM 5.1 (no preshader, prefer flow control),
-  // and also skip optimization and IEEE strictness.
-  shader_object_.push_back(0x2504);
-  // Generator offset (directly after the RDEF header in our case).
-  shader_object_.push_back(60);
-  // RD11, but with nibbles inverted (unlike in SM 5.0).
-  shader_object_.push_back(0x25441313);
-  // Unknown fields.
-  shader_object_.push_back(60);
-  shader_object_.push_back(24);
-  // Was 32 in SM 5.0.
-  shader_object_.push_back(40);
-  shader_object_.push_back(40);
-  shader_object_.push_back(36);
-  shader_object_.push_back(12);
-  shader_object_.push_back(0);
+  const Shader::ConstantRegisterMap& constant_register_map =
+      current_shader().constant_register_map();
+
+  // Allocate space for the header, will fill when all pointers and counts are
+  // known.
+  shader_object_.resize(shader_object_.size() +
+                        sizeof(dxbc::RdefHeader) / sizeof(uint32_t));
   // Generator name.
-  AppendString(shader_object_, "Xenia");
+  dxbc::AppendAlignedString(shader_object_, "Xenia");
 
   // ***************************************************************************
   // Constant types
   // ***************************************************************************
 
   // Type names.
-  new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
-               sizeof(uint32_t);
-  uint32_t type_name_offsets[size_t(RdefTypeIndex::kCount)];
-  for (uint32_t i = 0; i < uint32_t(RdefTypeIndex::kCount); ++i) {
-    const RdefType& type = rdef_types_[i];
+  name_ptr = (uint32_t(shader_object_.size()) - blob_position_dwords) *
+             sizeof(uint32_t);
+  uint32_t type_name_ptrs[size_t(ShaderRdefTypeIndex::kCount)];
+  for (uint32_t i = 0; i < uint32_t(ShaderRdefTypeIndex::kCount); ++i) {
+    const ShaderRdefType& type = rdef_types_[i];
     if (type.name == nullptr) {
       // Array - use the name of the element type.
-      type_name_offsets[i] =
-          type_name_offsets[uint32_t(type.array_element_type)];
+      assert_true(uint32_t(type.array_element_type) < i);
+      type_name_ptrs[i] = type_name_ptrs[uint32_t(type.array_element_type)];
       continue;
     }
-    type_name_offsets[i] = new_offset;
-    new_offset += AppendString(shader_object_, type.name);
+    type_name_ptrs[i] = name_ptr;
+    name_ptr += dxbc::AppendAlignedString(shader_object_, type.name);
   }
   // Types.
   uint32_t types_position_dwords = uint32_t(shader_object_.size());
-  const uint32_t type_size_dwords = 9;
-  uint32_t types_offset =
-      (types_position_dwords - chunk_position_dwords) * sizeof(uint32_t);
-  const uint32_t type_size = type_size_dwords * sizeof(uint32_t);
-  for (uint32_t i = 0; i < uint32_t(RdefTypeIndex::kCount); ++i) {
-    const RdefType& type = rdef_types_[i];
-    shader_object_.push_back(uint32_t(type.variable_class) |
-                             (uint32_t(type.variable_type) << 16));
-    shader_object_.push_back(type.row_count | (type.column_count << 16));
-    switch (RdefTypeIndex(i)) {
-      case RdefTypeIndex::kFloat4ConstantArray:
-        // Declaring a 0-sized array may not be safe, so write something valid
-        // even if they aren't used.
-        shader_object_.push_back(
-            std::max(constant_register_map().float_count, uint32_t(1)));
-        break;
-      case RdefTypeIndex::kUint4DescriptorIndexArray:
-        shader_object_.push_back(std::max(
-            uint32_t((GetBindlessResourceCount() + 3) >> 2), uint32_t(1)));
-        break;
-      default:
-        shader_object_.push_back(type.element_count |
-                                 (type.struct_member_count << 16));
-    }
-    // Struct member offset (set later).
-    shader_object_.push_back(0);
-    // Unknown.
-    shader_object_.push_back(0);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0);
-    shader_object_.push_back(type_name_offsets[i]);
-  }
-
-#if 0
-  // Structure members. Structures are not used currently, but were used in the
-  // past, so the code is kept here.
-  for (uint32_t i = 0; i < uint32_t(RdefTypeIndex::kCount); ++i) {
-    const RdefType& type = rdef_types_[i];
-    const RdefStructMember* struct_members = type.struct_members;
-    if (struct_members == nullptr) {
-      continue;
-    }
-    uint32_t struct_member_position_dwords = uint32_t(shader_object_.size());
-    shader_object_[types_position_dwords + i * type_size_dwords + 3] =
-        (struct_member_position_dwords - chunk_position_dwords) *
-        sizeof(uint32_t);
-    uint32_t struct_member_count = type.struct_member_count;
-    // Reserve space for names and write types and offsets.
-    for (uint32_t j = 0; j < struct_member_count; ++j) {
-      shader_object_.push_back(0);
-      shader_object_.push_back(types_offset +
-                               uint32_t(struct_members[j].type) * type_size);
-      shader_object_.push_back(struct_members[j].offset);
-    }
-    // Write member names.
-    new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
-                 sizeof(uint32_t);
-    for (uint32_t j = 0; j < struct_member_count; ++j) {
-      shader_object_[struct_member_position_dwords + j * 3] = new_offset;
-      new_offset += AppendString(shader_object_, struct_members[j].name);
+  uint32_t types_ptr =
+      (types_position_dwords - blob_position_dwords) * sizeof(uint32_t);
+  shader_object_.resize(types_position_dwords +
+                        sizeof(dxbc::RdefType) / sizeof(uint32_t) *
+                            uint32_t(ShaderRdefTypeIndex::kCount));
+  {
+    auto types = reinterpret_cast<dxbc::RdefType*>(shader_object_.data() +
+                                                   types_position_dwords);
+    for (uint32_t i = 0; i < uint32_t(ShaderRdefTypeIndex::kCount); ++i) {
+      dxbc::RdefType& type = types[i];
+      const ShaderRdefType& translator_type = rdef_types_[i];
+      type.variable_class = translator_type.variable_class;
+      type.variable_type = translator_type.variable_type;
+      type.row_count = translator_type.row_count;
+      type.column_count = translator_type.column_count;
+      switch (ShaderRdefTypeIndex(i)) {
+        case ShaderRdefTypeIndex::kFloat4ConstantArray:
+          // Declaring a 0-sized array may not be safe, so write something valid
+          // even if they aren't used.
+          type.element_count = std::max(
+              uint16_t(constant_register_map.float_count), uint16_t(1));
+          break;
+        case ShaderRdefTypeIndex::kUint4DescriptorIndexArray:
+          type.element_count = std::max(
+              uint16_t((GetBindlessResourceCount() + 3) >> 2), uint16_t(1));
+          break;
+        default:
+          type.element_count = translator_type.element_count;
+      }
+      type.name_ptr = type_name_ptrs[i];
     }
   }
-#endif
 
   // ***************************************************************************
   // Constants
   // ***************************************************************************
 
   // Names.
-  new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
-               sizeof(uint32_t);
-  uint32_t constant_name_offsets_system[kSysConst_Count];
+  name_ptr = (uint32_t(shader_object_.size()) - blob_position_dwords) *
+             sizeof(uint32_t);
+  uint32_t constant_name_ptrs_system[size_t(SystemConstants::Index::kCount)];
   if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
-    for (uint32_t i = 0; i < kSysConst_Count; ++i) {
-      constant_name_offsets_system[i] = new_offset;
-      new_offset += AppendString(shader_object_, system_constant_rdef_[i].name);
+    for (size_t i = 0; i < size_t(SystemConstants::Index::kCount); ++i) {
+      constant_name_ptrs_system[i] = name_ptr;
+      name_ptr += dxbc::AppendAlignedString(shader_object_,
+                                            system_constant_rdef_[i].name);
     }
   }
-  uint32_t constant_name_offset_float = new_offset;
+  uint32_t constant_name_ptr_float = name_ptr;
   if (cbuffer_index_float_constants_ != kBindingIndexUnallocated) {
-    new_offset += AppendString(shader_object_, "xe_float_constants");
+    name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_float_constants");
   }
-  uint32_t constant_name_offset_bool = new_offset;
-  uint32_t constant_name_offset_loop = new_offset;
+  uint32_t constant_name_ptr_bool = name_ptr;
+  uint32_t constant_name_ptr_loop = name_ptr;
   if (cbuffer_index_bool_loop_constants_ != kBindingIndexUnallocated) {
-    new_offset += AppendString(shader_object_, "xe_bool_constants");
-    constant_name_offset_loop = new_offset;
-    new_offset += AppendString(shader_object_, "xe_loop_constants");
+    name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_bool_constants");
+    constant_name_ptr_loop = name_ptr;
+    name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_loop_constants");
   }
-  uint32_t constant_name_offset_fetch = new_offset;
+  uint32_t constant_name_ptr_fetch = name_ptr;
   if (cbuffer_index_fetch_constants_ != kBindingIndexUnallocated) {
-    new_offset += AppendString(shader_object_, "xe_fetch_constants");
+    name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_fetch_constants");
   }
-  uint32_t constant_name_offset_descriptor_indices = new_offset;
+  uint32_t constant_name_ptr_descriptor_indices = name_ptr;
   if (cbuffer_index_descriptor_indices_ != kBindingIndexUnallocated) {
-    new_offset += AppendString(shader_object_, "xe_descriptor_indices");
+    name_ptr +=
+        dxbc::AppendAlignedString(shader_object_, "xe_descriptor_indices");
   }
-
-  const uint32_t constant_size = 10 * sizeof(uint32_t);
 
   // System constants.
-  uint32_t constant_offset_system = new_offset;
+  uint32_t constant_position_dwords_system = uint32_t(shader_object_.size());
   if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
-    uint32_t system_cbuffer_constant_offset = 0;
-    for (uint32_t i = 0; i < kSysConst_Count; ++i) {
-      const SystemConstantRdef& constant = system_constant_rdef_[i];
-      shader_object_.push_back(constant_name_offsets_system[i]);
-      shader_object_.push_back(system_cbuffer_constant_offset);
-      shader_object_.push_back(constant.size);
-      shader_object_.push_back((system_constants_used_ & (1ull << i))
-                                   ? kDxbcRdefVariableFlagUsed
-                                   : 0);
-      shader_object_.push_back(types_offset +
-                               uint32_t(constant.type) * type_size);
-      // Default value (always 0).
-      shader_object_.push_back(0);
-      // Unknown.
-      shader_object_.push_back(0xFFFFFFFFu);
-      shader_object_.push_back(0);
-      shader_object_.push_back(0xFFFFFFFFu);
-      shader_object_.push_back(0);
-      system_cbuffer_constant_offset += constant.size + constant.padding_after;
-      new_offset += constant_size;
+    shader_object_.resize(constant_position_dwords_system +
+                          sizeof(dxbc::RdefVariable) / sizeof(uint32_t) *
+                              size_t(SystemConstants::Index::kCount));
+    auto constants_system = reinterpret_cast<dxbc::RdefVariable*>(
+        shader_object_.data() + constant_position_dwords_system);
+    uint32_t constant_offset_system = 0;
+    for (size_t i = 0; i < size_t(SystemConstants::Index::kCount); ++i) {
+      dxbc::RdefVariable& constant_system = constants_system[i];
+      const SystemConstantRdef& translator_constant_system =
+          system_constant_rdef_[i];
+      constant_system.name_ptr = constant_name_ptrs_system[i];
+      constant_system.start_offset_bytes = constant_offset_system;
+      constant_system.size_bytes = translator_constant_system.size;
+      constant_system.flags = (system_constants_used_ & (uint64_t(1) << i))
+                                  ? dxbc::kRdefVariableFlagUsed
+                                  : 0;
+      constant_system.type_ptr =
+          types_ptr +
+          sizeof(dxbc::RdefType) * uint32_t(translator_constant_system.type);
+      constant_system.start_texture = UINT32_MAX;
+      constant_system.start_sampler = UINT32_MAX;
+      constant_offset_system += translator_constant_system.size +
+                                translator_constant_system.padding_after;
     }
   }
 
   // Float constants.
-  uint32_t constant_offset_float = new_offset;
+  uint32_t constant_position_dwords_float = uint32_t(shader_object_.size());
   if (cbuffer_index_float_constants_ != kBindingIndexUnallocated) {
-    assert_not_zero(constant_register_map().float_count);
-    shader_object_.push_back(constant_name_offset_float);
-    shader_object_.push_back(0);
-    shader_object_.push_back(constant_register_map().float_count * 4 *
-                             sizeof(float));
-    shader_object_.push_back(kDxbcRdefVariableFlagUsed);
-    shader_object_.push_back(types_offset +
-                             uint32_t(RdefTypeIndex::kFloat4ConstantArray) *
-                                 type_size);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0xFFFFFFFFu);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0xFFFFFFFFu);
-    shader_object_.push_back(0);
-    new_offset += constant_size;
+    assert_not_zero(constant_register_map.float_count);
+    shader_object_.resize(constant_position_dwords_float +
+                          sizeof(dxbc::RdefVariable) / sizeof(uint32_t));
+    auto& constant_float = *reinterpret_cast<dxbc::RdefVariable*>(
+        shader_object_.data() + constant_position_dwords_float);
+    constant_float.name_ptr = constant_name_ptr_float;
+    constant_float.size_bytes =
+        sizeof(float) * 4 * constant_register_map.float_count;
+    constant_float.flags = dxbc::kRdefVariableFlagUsed;
+    constant_float.type_ptr =
+        types_ptr + sizeof(dxbc::RdefType) *
+                        uint32_t(ShaderRdefTypeIndex::kFloat4ConstantArray);
+    constant_float.start_texture = UINT32_MAX;
+    constant_float.start_sampler = UINT32_MAX;
   }
 
   // Bool and loop constants.
-  uint32_t constant_offset_bool_loop = new_offset;
+  uint32_t constant_position_dwords_bool_loop = uint32_t(shader_object_.size());
   if (cbuffer_index_bool_loop_constants_ != kBindingIndexUnallocated) {
-    shader_object_.push_back(constant_name_offset_bool);
-    shader_object_.push_back(0);
-    shader_object_.push_back(2 * 4 * sizeof(uint32_t));
-    shader_object_.push_back(kDxbcRdefVariableFlagUsed);
-    shader_object_.push_back(types_offset +
-                             uint32_t(RdefTypeIndex::kUint4Array2) * type_size);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0xFFFFFFFFu);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0xFFFFFFFFu);
-    shader_object_.push_back(0);
-    new_offset += constant_size;
+    shader_object_.resize(constant_position_dwords_bool_loop +
+                          sizeof(dxbc::RdefVariable) / sizeof(uint32_t) * 2);
+    auto constants_bool_loop = reinterpret_cast<dxbc::RdefVariable*>(
+        shader_object_.data() + constant_position_dwords_bool_loop);
 
-    shader_object_.push_back(constant_name_offset_loop);
-    shader_object_.push_back(2 * 4 * sizeof(uint32_t));
-    shader_object_.push_back(8 * 4 * sizeof(uint32_t));
-    shader_object_.push_back(kDxbcRdefVariableFlagUsed);
-    shader_object_.push_back(types_offset +
-                             uint32_t(RdefTypeIndex::kUint4Array8) * type_size);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0xFFFFFFFFu);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0xFFFFFFFFu);
-    shader_object_.push_back(0);
-    new_offset += constant_size;
+    constants_bool_loop[0].name_ptr = constant_name_ptr_bool;
+    constants_bool_loop[0].size_bytes = sizeof(uint32_t) * 4 * 2;
+    for (size_t i = 0; i < xe::countof(constant_register_map.bool_bitmap);
+         ++i) {
+      if (constant_register_map.bool_bitmap[i]) {
+        constants_bool_loop[0].flags |= dxbc::kRdefVariableFlagUsed;
+        break;
+      }
+    }
+    constants_bool_loop[0].type_ptr =
+        types_ptr +
+        sizeof(dxbc::RdefType) * uint32_t(ShaderRdefTypeIndex::kUint4Array2);
+    constants_bool_loop[0].start_texture = UINT32_MAX;
+    constants_bool_loop[0].start_sampler = UINT32_MAX;
+
+    constants_bool_loop[1].name_ptr = constant_name_ptr_loop;
+    constants_bool_loop[1].start_offset_bytes = sizeof(uint32_t) * 4 * 2;
+    constants_bool_loop[1].size_bytes = sizeof(uint32_t) * 4 * 8;
+    constants_bool_loop[1].flags =
+        constant_register_map.loop_bitmap ? dxbc::kRdefVariableFlagUsed : 0;
+    constants_bool_loop[1].type_ptr =
+        types_ptr +
+        sizeof(dxbc::RdefType) * uint32_t(ShaderRdefTypeIndex::kUint4Array8);
+    constants_bool_loop[1].start_texture = UINT32_MAX;
+    constants_bool_loop[1].start_sampler = UINT32_MAX;
   }
 
   // Fetch constants.
-  uint32_t constant_offset_fetch = new_offset;
+  uint32_t constant_position_dwords_fetch = uint32_t(shader_object_.size());
   if (cbuffer_index_fetch_constants_ != kBindingIndexUnallocated) {
-    shader_object_.push_back(constant_name_offset_fetch);
-    shader_object_.push_back(0);
-    shader_object_.push_back(32 * 6 * sizeof(uint32_t));
-    shader_object_.push_back(kDxbcRdefVariableFlagUsed);
-    shader_object_.push_back(
-        types_offset + uint32_t(RdefTypeIndex::kUint4Array48) * type_size);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0xFFFFFFFFu);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0xFFFFFFFFu);
-    shader_object_.push_back(0);
-    new_offset += constant_size;
+    shader_object_.resize(constant_position_dwords_fetch +
+                          sizeof(dxbc::RdefVariable) / sizeof(uint32_t));
+    auto& constant_fetch = *reinterpret_cast<dxbc::RdefVariable*>(
+        shader_object_.data() + constant_position_dwords_fetch);
+    constant_fetch.name_ptr = constant_name_ptr_fetch;
+    constant_fetch.size_bytes = sizeof(uint32_t) * 6 * 32;
+    constant_fetch.flags = dxbc::kRdefVariableFlagUsed;
+    constant_fetch.type_ptr =
+        types_ptr +
+        sizeof(dxbc::RdefType) * uint32_t(ShaderRdefTypeIndex::kUint4Array48);
+    constant_fetch.start_texture = UINT32_MAX;
+    constant_fetch.start_sampler = UINT32_MAX;
   }
 
   // Bindless description indices.
-  uint32_t constant_offset_descriptor_indices = new_offset;
+  uint32_t constant_position_dwords_descriptor_indices =
+      uint32_t(shader_object_.size());
   if (cbuffer_index_descriptor_indices_ != kBindingIndexUnallocated) {
     assert_not_zero(GetBindlessResourceCount());
-    shader_object_.push_back(constant_name_offset_descriptor_indices);
-    shader_object_.push_back(0);
-    shader_object_.push_back(
-        xe::align(GetBindlessResourceCount(), uint32_t(4)) * sizeof(uint32_t));
-    shader_object_.push_back(kDxbcRdefVariableFlagUsed);
-    shader_object_.push_back(
-        types_offset +
-        uint32_t(RdefTypeIndex::kUint4DescriptorIndexArray) * type_size);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0xFFFFFFFFu);
-    shader_object_.push_back(0);
-    shader_object_.push_back(0xFFFFFFFFu);
-    shader_object_.push_back(0);
-    new_offset += constant_size;
+    shader_object_.resize(constant_position_dwords_descriptor_indices +
+                          sizeof(dxbc::RdefVariable) / sizeof(uint32_t));
+    auto& constant_descriptor_indices = *reinterpret_cast<dxbc::RdefVariable*>(
+        shader_object_.data() + constant_position_dwords_descriptor_indices);
+    constant_descriptor_indices.name_ptr = constant_name_ptr_descriptor_indices;
+    constant_descriptor_indices.size_bytes =
+        sizeof(uint32_t) * xe::align(GetBindlessResourceCount(), uint32_t(4));
+    constant_descriptor_indices.flags = dxbc::kRdefVariableFlagUsed;
+    constant_descriptor_indices.type_ptr =
+        types_ptr +
+        sizeof(dxbc::RdefType) *
+            uint32_t(ShaderRdefTypeIndex::kUint4DescriptorIndexArray);
+    constant_descriptor_indices.start_texture = UINT32_MAX;
+    constant_descriptor_indices.start_sampler = UINT32_MAX;
   }
 
   // ***************************************************************************
   // Constant buffers
   // ***************************************************************************
 
-  // Write the names.
-  new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
-               sizeof(uint32_t);
-  uint32_t cbuffer_name_offset_system = new_offset;
+  // Names.
+  name_ptr = (uint32_t(shader_object_.size()) - blob_position_dwords) *
+             sizeof(uint32_t);
+  uint32_t cbuffer_name_ptr_system = name_ptr;
   if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
-    new_offset += AppendString(shader_object_, "xe_system_cbuffer");
+    name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_system_cbuffer");
   }
-  uint32_t cbuffer_name_offset_float = new_offset;
+  uint32_t cbuffer_name_ptr_float = name_ptr;
   if (cbuffer_index_float_constants_ != kBindingIndexUnallocated) {
-    new_offset += AppendString(shader_object_, "xe_float_cbuffer");
+    name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_float_cbuffer");
   }
-  uint32_t cbuffer_name_offset_bool_loop = new_offset;
+  uint32_t cbuffer_name_ptr_bool_loop = name_ptr;
   if (cbuffer_index_bool_loop_constants_ != kBindingIndexUnallocated) {
-    new_offset += AppendString(shader_object_, "xe_bool_loop_cbuffer");
+    name_ptr +=
+        dxbc::AppendAlignedString(shader_object_, "xe_bool_loop_cbuffer");
   }
-  uint32_t cbuffer_name_offset_fetch = new_offset;
+  uint32_t cbuffer_name_ptr_fetch = name_ptr;
   if (cbuffer_index_fetch_constants_ != kBindingIndexUnallocated) {
-    new_offset += AppendString(shader_object_, "xe_fetch_cbuffer");
+    name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_fetch_cbuffer");
   }
-  uint32_t cbuffer_name_offset_descriptor_indices = new_offset;
+  uint32_t cbuffer_name_ptr_descriptor_indices = name_ptr;
   if (cbuffer_index_descriptor_indices_ != kBindingIndexUnallocated) {
-    new_offset += AppendString(shader_object_, "xe_descriptor_indices_cbuffer");
+    name_ptr += dxbc::AppendAlignedString(shader_object_,
+                                          "xe_descriptor_indices_cbuffer");
   }
 
-  // Write the offset to the header.
-  shader_object_[chunk_position_dwords + 1] = new_offset;
-
-  // Write all the constant buffers, sorted by their binding index.
-  for (uint32_t i = 0; i < cbuffer_count_; ++i) {
-    if (i == cbuffer_index_system_constants_) {
-      shader_object_.push_back(cbuffer_name_offset_system);
-      shader_object_.push_back(kSysConst_Count);
-      shader_object_.push_back(constant_offset_system);
-      shader_object_.push_back(
-          uint32_t(xe::align(sizeof(SystemConstants), 4 * sizeof(uint32_t))));
-      shader_object_.push_back(uint32_t(DxbcRdefCbufferType::kCbuffer));
-      // No D3D_SHADER_CBUFFER_FLAGS.
-      shader_object_.push_back(0);
-    } else if (i == cbuffer_index_float_constants_) {
-      assert_not_zero(constant_register_map().float_count);
-      shader_object_.push_back(cbuffer_name_offset_float);
-      shader_object_.push_back(1);
-      shader_object_.push_back(constant_offset_float);
-      shader_object_.push_back(constant_register_map().float_count * 4 *
-                               sizeof(float));
-      shader_object_.push_back(uint32_t(DxbcRdefCbufferType::kCbuffer));
-      shader_object_.push_back(0);
-    } else if (i == cbuffer_index_bool_loop_constants_) {
-      shader_object_.push_back(cbuffer_name_offset_bool_loop);
-      // Bool constants and loop constants are separate for easier debugging.
-      shader_object_.push_back(2);
-      shader_object_.push_back(constant_offset_bool_loop);
-      shader_object_.push_back((2 + 8) * 4 * sizeof(uint32_t));
-      shader_object_.push_back(uint32_t(DxbcRdefCbufferType::kCbuffer));
-      shader_object_.push_back(0);
-    } else if (i == cbuffer_index_fetch_constants_) {
-      shader_object_.push_back(cbuffer_name_offset_fetch);
-      shader_object_.push_back(1);
-      shader_object_.push_back(constant_offset_fetch);
-      shader_object_.push_back(32 * 6 * sizeof(uint32_t));
-      shader_object_.push_back(uint32_t(DxbcRdefCbufferType::kCbuffer));
-      shader_object_.push_back(0);
-    } else if (i == cbuffer_index_descriptor_indices_) {
-      assert_not_zero(GetBindlessResourceCount());
-      shader_object_.push_back(cbuffer_name_offset_descriptor_indices);
-      shader_object_.push_back(1);
-      shader_object_.push_back(constant_offset_descriptor_indices);
-      shader_object_.push_back(
-          xe::align(GetBindlessResourceCount(), uint32_t(4)) *
-          sizeof(uint32_t));
-      shader_object_.push_back(uint32_t(DxbcRdefCbufferType::kCbuffer));
-      shader_object_.push_back(0);
-    } else {
-      assert_unhandled_case(i);
+  // All the constant buffers, sorted by their binding index.
+  uint32_t cbuffers_position_dwords = uint32_t(shader_object_.size());
+  shader_object_.resize(cbuffers_position_dwords + sizeof(dxbc::RdefCbuffer) /
+                                                       sizeof(uint32_t) *
+                                                       cbuffer_count_);
+  {
+    auto cbuffers = reinterpret_cast<dxbc::RdefCbuffer*>(
+        shader_object_.data() + cbuffers_position_dwords);
+    for (uint32_t i = 0; i < cbuffer_count_; ++i) {
+      dxbc::RdefCbuffer& cbuffer = cbuffers[i];
+      cbuffer.type = dxbc::RdefCbufferType::kCbuffer;
+      if (i == cbuffer_index_system_constants_) {
+        cbuffer.name_ptr = cbuffer_name_ptr_system;
+        cbuffer.variable_count = uint32_t(SystemConstants::Index::kCount);
+        cbuffer.variables_ptr =
+            (constant_position_dwords_system - blob_position_dwords) *
+            sizeof(uint32_t);
+        cbuffer.size_vector_aligned_bytes =
+            uint32_t(xe::align(sizeof(SystemConstants), sizeof(uint32_t) * 4));
+      } else if (i == cbuffer_index_float_constants_) {
+        assert_not_zero(constant_register_map.float_count);
+        cbuffer.name_ptr = cbuffer_name_ptr_float;
+        cbuffer.variable_count = 1;
+        cbuffer.variables_ptr =
+            (constant_position_dwords_float - blob_position_dwords) *
+            sizeof(uint32_t);
+        cbuffer.size_vector_aligned_bytes =
+            sizeof(float) * 4 * constant_register_map.float_count;
+      } else if (i == cbuffer_index_bool_loop_constants_) {
+        cbuffer.name_ptr = cbuffer_name_ptr_bool_loop;
+        cbuffer.variable_count = 2;
+        cbuffer.variables_ptr =
+            (constant_position_dwords_bool_loop - blob_position_dwords) *
+            sizeof(uint32_t);
+        cbuffer.size_vector_aligned_bytes = sizeof(uint32_t) * 4 * (2 + 8);
+      } else if (i == cbuffer_index_fetch_constants_) {
+        cbuffer.name_ptr = cbuffer_name_ptr_fetch;
+        cbuffer.variable_count = 1;
+        cbuffer.variables_ptr =
+            (constant_position_dwords_fetch - blob_position_dwords) *
+            sizeof(uint32_t);
+        cbuffer.size_vector_aligned_bytes = sizeof(uint32_t) * 6 * 32;
+      } else if (i == cbuffer_index_descriptor_indices_) {
+        assert_not_zero(GetBindlessResourceCount());
+        cbuffer.name_ptr = cbuffer_name_ptr_descriptor_indices;
+        cbuffer.variable_count = 1;
+        cbuffer.variables_ptr = (constant_position_dwords_descriptor_indices -
+                                 blob_position_dwords) *
+                                sizeof(uint32_t);
+        cbuffer.size_vector_aligned_bytes =
+            sizeof(uint32_t) *
+            xe::align(GetBindlessResourceCount(), uint32_t(4));
+      } else {
+        assert_unhandled_case(i);
+      }
     }
   }
 
@@ -2447,274 +2355,277 @@ void DxbcShaderTranslator::WriteResourceDefinitions() {
   // Bindings, in s#, t#, u#, cb# order
   // ***************************************************************************
 
-  // Write used resource names, except for constant buffers because we have
-  // their names already.
-  new_offset = (uint32_t(shader_object_.size()) - chunk_position_dwords) *
-               sizeof(uint32_t);
-  uint32_t sampler_name_offset = new_offset;
+  // Names, except for constant buffers because their names are written already.
+  name_ptr = (uint32_t(shader_object_.size()) - blob_position_dwords) *
+             sizeof(uint32_t);
+  uint32_t sampler_name_ptr = name_ptr;
   if (!sampler_bindings_.empty()) {
     if (bindless_resources_used_) {
-      new_offset += AppendString(shader_object_, "xe_samplers");
+      name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_samplers");
     } else {
       for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
-        new_offset +=
-            AppendString(shader_object_, sampler_bindings_[i].name.c_str());
+        name_ptr += dxbc::AppendAlignedString(
+            shader_object_, sampler_bindings_[i].name.c_str());
       }
     }
   }
-  uint32_t shared_memory_srv_name_offset = new_offset;
+  uint32_t shared_memory_srv_name_ptr = name_ptr;
   if (srv_index_shared_memory_ != kBindingIndexUnallocated) {
-    new_offset += AppendString(shader_object_, "xe_shared_memory_srv");
+    name_ptr +=
+        dxbc::AppendAlignedString(shader_object_, "xe_shared_memory_srv");
   }
-  uint32_t bindless_textures_2d_name_offset = new_offset;
-  uint32_t bindless_textures_3d_name_offset = new_offset;
-  uint32_t bindless_textures_cube_name_offset = new_offset;
+  uint32_t bindless_textures_2d_name_ptr = name_ptr;
+  uint32_t bindless_textures_3d_name_ptr = name_ptr;
+  uint32_t bindless_textures_cube_name_ptr = name_ptr;
   if (bindless_resources_used_) {
     if (srv_index_bindless_textures_2d_ != kBindingIndexUnallocated) {
-      bindless_textures_2d_name_offset = new_offset;
-      new_offset += AppendString(shader_object_, "xe_textures_2d");
+      bindless_textures_2d_name_ptr = name_ptr;
+      name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_textures_2d");
     }
     if (srv_index_bindless_textures_3d_ != kBindingIndexUnallocated) {
-      bindless_textures_3d_name_offset = new_offset;
-      new_offset += AppendString(shader_object_, "xe_textures_3d");
+      bindless_textures_3d_name_ptr = name_ptr;
+      name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_textures_3d");
     }
     if (srv_index_bindless_textures_cube_ != kBindingIndexUnallocated) {
-      bindless_textures_cube_name_offset = new_offset;
-      new_offset += AppendString(shader_object_, "xe_textures_cube");
+      bindless_textures_cube_name_ptr = name_ptr;
+      name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_textures_cube");
     }
   } else {
     for (TextureBinding& texture_binding : texture_bindings_) {
-      texture_binding.bindful_srv_rdef_name_offset = new_offset;
-      new_offset += AppendString(shader_object_, texture_binding.name.c_str());
+      texture_binding.bindful_srv_rdef_name_ptr = name_ptr;
+      name_ptr += dxbc::AppendAlignedString(shader_object_,
+                                            texture_binding.name.c_str());
     }
   }
-  uint32_t shared_memory_uav_name_offset = new_offset;
+  uint32_t shared_memory_uav_name_ptr = name_ptr;
   if (uav_index_shared_memory_ != kBindingIndexUnallocated) {
-    new_offset += AppendString(shader_object_, "xe_shared_memory_uav");
+    name_ptr +=
+        dxbc::AppendAlignedString(shader_object_, "xe_shared_memory_uav");
   }
-  uint32_t edram_name_offset = new_offset;
+  uint32_t edram_name_ptr = name_ptr;
   if (uav_index_edram_ != kBindingIndexUnallocated) {
-    new_offset += AppendString(shader_object_, "xe_edram");
+    name_ptr += dxbc::AppendAlignedString(shader_object_, "xe_edram");
   }
 
-  // Write the offset to the header.
-  shader_object_[chunk_position_dwords + 3] = new_offset;
+  uint32_t bindings_position_dwords = uint32_t(shader_object_.size());
 
   // Samplers.
   if (!sampler_bindings_.empty()) {
+    uint32_t samplers_position_dwords = uint32_t(shader_object_.size());
+    shader_object_.resize(
+        samplers_position_dwords +
+        sizeof(dxbc::RdefInputBind) / sizeof(uint32_t) *
+            (bindless_resources_used_ ? 1 : sampler_bindings_.size()));
+    auto samplers = reinterpret_cast<dxbc::RdefInputBind*>(
+        shader_object_.data() + samplers_position_dwords);
     if (bindless_resources_used_) {
       // Bindless sampler heap.
-      shader_object_.push_back(sampler_name_offset);
-      shader_object_.push_back(uint32_t(DxbcRdefInputType::kSampler));
-      shader_object_.push_back(uint32_t(DxbcRdefReturnType::kVoid));
-      shader_object_.push_back(uint32_t(DxbcRdefDimension::kUnknown));
-      // Multisampling not applicable.
-      shader_object_.push_back(0);
-      // Registers s0:*.
-      shader_object_.push_back(0);
-      // Unbounded number of bindings.
-      shader_object_.push_back(0);
-      // No DxbcRdefInputFlags.
-      shader_object_.push_back(0);
-      // Register space 0.
-      shader_object_.push_back(0);
-      // Sampler ID S0.
-      shader_object_.push_back(0);
+      samplers[0].name_ptr = sampler_name_ptr;
+      samplers[0].type = dxbc::RdefInputType::kSampler;
     } else {
       // Bindful samplers.
-      uint32_t sampler_current_name_offset = sampler_name_offset;
-      for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
-        const SamplerBinding& sampler_binding = sampler_bindings_[i];
-        shader_object_.push_back(sampler_current_name_offset);
-        shader_object_.push_back(uint32_t(DxbcRdefInputType::kSampler));
-        shader_object_.push_back(uint32_t(DxbcRdefReturnType::kVoid));
-        shader_object_.push_back(uint32_t(DxbcRdefDimension::kUnknown));
-        // Multisampling not applicable.
-        shader_object_.push_back(0);
-        // Register s[i].
-        shader_object_.push_back(i);
-        // One binding.
-        shader_object_.push_back(1);
-        // No DxbcRdefInputFlags.
-        shader_object_.push_back(0);
-        // Register space 0.
-        shader_object_.push_back(0);
-        // Sampler ID S[i].
-        shader_object_.push_back(i);
-        sampler_current_name_offset +=
-            GetStringLength(sampler_binding.name.c_str());
+      uint32_t sampler_current_name_ptr = sampler_name_ptr;
+      for (size_t i = 0; i < sampler_bindings_.size(); ++i) {
+        dxbc::RdefInputBind& sampler = samplers[i];
+        sampler.name_ptr = sampler_current_name_ptr;
+        sampler.type = dxbc::RdefInputType::kSampler;
+        sampler.bind_point = uint32_t(i);
+        sampler.bind_count = 1;
+        sampler.id = uint32_t(i);
+        sampler_current_name_ptr +=
+            dxbc::GetAlignedStringLength(sampler_bindings_[i].name.c_str());
       }
     }
   }
 
   // Shader resource views, sorted by binding index.
-  for (uint32_t i = 0; i < srv_count_; ++i) {
-    if (i == srv_index_shared_memory_) {
-      // Shared memory (when memexport isn't used in the pipeline).
-      shader_object_.push_back(shared_memory_srv_name_offset);
-      shader_object_.push_back(uint32_t(DxbcRdefInputType::kByteAddress));
-      shader_object_.push_back(uint32_t(DxbcRdefReturnType::kMixed));
-      shader_object_.push_back(uint32_t(DxbcRdefDimension::kSRVBuffer));
-      // Multisampling not applicable.
-      shader_object_.push_back(0);
-      shader_object_.push_back(uint32_t(SRVMainRegister::kSharedMemory));
-      // One binding.
-      shader_object_.push_back(1);
-      // No DxbcRdefInputFlags.
-      shader_object_.push_back(0);
-      shader_object_.push_back(uint32_t(SRVSpace::kMain));
-    } else {
-      uint32_t texture_name_offset;
-      DxbcRdefDimension texture_dimension;
-      uint32_t texture_register;
-      uint32_t texture_register_count;
-      SRVSpace texture_register_space;
-      if (bindless_resources_used_) {
-        // Bindless texture heap.
-        if (i == srv_index_bindless_textures_3d_) {
-          texture_name_offset = bindless_textures_3d_name_offset;
-          texture_dimension = DxbcRdefDimension::kSRVTexture3D;
-          texture_register_space = SRVSpace::kBindlessTextures3D;
-        } else if (i == srv_index_bindless_textures_cube_) {
-          texture_name_offset = bindless_textures_cube_name_offset;
-          texture_dimension = DxbcRdefDimension::kSRVTextureCube;
-          texture_register_space = SRVSpace::kBindlessTexturesCube;
-        } else {
-          assert_true(i == srv_index_bindless_textures_2d_);
-          texture_name_offset = bindless_textures_2d_name_offset;
-          texture_dimension = DxbcRdefDimension::kSRVTexture2DArray;
-          texture_register_space = SRVSpace::kBindlessTextures2DArray;
-        }
-        texture_register = 0;
-        texture_register_count = 0;
+  uint32_t srvs_position_dwords = uint32_t(shader_object_.size());
+  shader_object_.resize(srvs_position_dwords + sizeof(dxbc::RdefInputBind) /
+                                                   sizeof(uint32_t) *
+                                                   srv_count_);
+  {
+    auto srvs = reinterpret_cast<dxbc::RdefInputBind*>(shader_object_.data() +
+                                                       srvs_position_dwords);
+    for (uint32_t i = 0; i < srv_count_; ++i) {
+      dxbc::RdefInputBind& srv = srvs[i];
+      srv.id = i;
+      if (i == srv_index_shared_memory_) {
+        // Shared memory (when memexport isn't used in the pipeline).
+        srv.name_ptr = shared_memory_srv_name_ptr;
+        srv.type = dxbc::RdefInputType::kByteAddress;
+        srv.return_type = dxbc::ResourceReturnType::kMixed;
+        srv.dimension = dxbc::RdefDimension::kSRVBuffer;
+        srv.bind_point = uint32_t(SRVMainRegister::kSharedMemory);
+        srv.bind_count = 1;
+        srv.bind_point_space = uint32_t(SRVSpace::kMain);
       } else {
-        // Bindful texture.
-        auto it = texture_bindings_for_bindful_srv_indices_.find(i);
-        assert_true(it != texture_bindings_for_bindful_srv_indices_.end());
-        uint32_t texture_binding_index = it->second;
-        const TextureBinding& texture_binding =
-            texture_bindings_[texture_binding_index];
-        texture_name_offset = texture_binding.bindful_srv_rdef_name_offset;
-        switch (texture_binding.dimension) {
-          case xenos::FetchOpDimension::k3DOrStacked:
-            texture_dimension = DxbcRdefDimension::kSRVTexture3D;
-            break;
-          case xenos::FetchOpDimension::kCube:
-            texture_dimension = DxbcRdefDimension::kSRVTextureCube;
-            break;
-          default:
-            assert_true(texture_binding.dimension ==
-                        xenos::FetchOpDimension::k2D);
-            texture_dimension = DxbcRdefDimension::kSRVTexture2DArray;
-        }
-        texture_register = uint32_t(SRVMainRegister::kBindfulTexturesStart) +
+        // Bindful texture or bindless textures.
+        srv.type = dxbc::RdefInputType::kTexture;
+        srv.return_type = dxbc::ResourceReturnType::kFloat;
+        srv.sample_count = UINT32_MAX;
+        srv.flags = dxbc::kRdefInputFlags4Component;
+        if (bindless_resources_used_) {
+          // Bindless texture heap.
+          if (i == srv_index_bindless_textures_3d_) {
+            srv.name_ptr = bindless_textures_3d_name_ptr;
+            srv.dimension = dxbc::RdefDimension::kSRVTexture3D;
+            srv.bind_point_space = uint32_t(SRVSpace::kBindlessTextures3D);
+          } else if (i == srv_index_bindless_textures_cube_) {
+            srv.name_ptr = bindless_textures_cube_name_ptr;
+            srv.dimension = dxbc::RdefDimension::kSRVTextureCube;
+            srv.bind_point_space = uint32_t(SRVSpace::kBindlessTexturesCube);
+          } else {
+            assert_true(i == srv_index_bindless_textures_2d_);
+            srv.name_ptr = bindless_textures_2d_name_ptr;
+            srv.dimension = dxbc::RdefDimension::kSRVTexture2DArray;
+            srv.bind_point_space = uint32_t(SRVSpace::kBindlessTextures2DArray);
+          }
+        } else {
+          // Bindful texture.
+          auto it = texture_bindings_for_bindful_srv_indices_.find(i);
+          assert_true(it != texture_bindings_for_bindful_srv_indices_.end());
+          uint32_t texture_binding_index = it->second;
+          const TextureBinding& texture_binding =
+              texture_bindings_[texture_binding_index];
+          srv.name_ptr = texture_binding.bindful_srv_rdef_name_ptr;
+          switch (texture_binding.dimension) {
+            case xenos::FetchOpDimension::k3DOrStacked:
+              srv.dimension = dxbc::RdefDimension::kSRVTexture3D;
+              break;
+            case xenos::FetchOpDimension::kCube:
+              srv.dimension = dxbc::RdefDimension::kSRVTextureCube;
+              break;
+            default:
+              assert_true(texture_binding.dimension ==
+                          xenos::FetchOpDimension::k2D);
+              srv.dimension = dxbc::RdefDimension::kSRVTexture2DArray;
+          }
+          srv.bind_point = uint32_t(SRVMainRegister::kBindfulTexturesStart) +
                            texture_binding_index;
-        texture_register_count = 1;
-        texture_register_space = SRVSpace::kMain;
+          srv.bind_count = 1;
+          srv.bind_point_space = uint32_t(SRVSpace::kMain);
+        }
       }
-      shader_object_.push_back(texture_name_offset);
-      shader_object_.push_back(uint32_t(DxbcRdefInputType::kTexture));
-      shader_object_.push_back(uint32_t(DxbcRdefReturnType::kFloat));
-      shader_object_.push_back(uint32_t(texture_dimension));
-      // Not multisampled.
-      shader_object_.push_back(0xFFFFFFFFu);
-      shader_object_.push_back(texture_register);
-      shader_object_.push_back(texture_register_count);
-      // 4-component.
-      shader_object_.push_back(DxbcRdefInputFlagsComponents);
-      shader_object_.push_back(uint32_t(texture_register_space));
     }
-    // SRV ID T[i].
-    shader_object_.push_back(i);
   }
 
   // Unordered access views, sorted by binding index.
-  for (uint32_t i = 0; i < uav_count_; ++i) {
-    if (i == uav_index_shared_memory_) {
-      // Shared memory (when memexport is used in the pipeline).
-      shader_object_.push_back(shared_memory_uav_name_offset);
-      shader_object_.push_back(uint32_t(DxbcRdefInputType::kUAVRWByteAddress));
-      shader_object_.push_back(uint32_t(DxbcRdefReturnType::kMixed));
-      shader_object_.push_back(uint32_t(DxbcRdefDimension::kUAVBuffer));
-      // Multisampling not applicable.
-      shader_object_.push_back(0);
-      shader_object_.push_back(uint32_t(UAVRegister::kSharedMemory));
-      // One binding.
-      shader_object_.push_back(1);
-      // No DxbcRdefInputFlags.
-      shader_object_.push_back(0);
-      // Register space 0.
-      shader_object_.push_back(0);
-    } else if (i == uav_index_edram_) {
-      // EDRAM R32_UINT buffer.
-      shader_object_.push_back(edram_name_offset);
-      shader_object_.push_back(uint32_t(DxbcRdefInputType::kUAVRWTyped));
-      shader_object_.push_back(uint32_t(DxbcRdefReturnType::kUInt));
-      shader_object_.push_back(uint32_t(DxbcRdefDimension::kUAVBuffer));
-      // Not multisampled.
-      shader_object_.push_back(0xFFFFFFFFu);
-      shader_object_.push_back(uint32_t(UAVRegister::kEdram));
-      // One binding.
-      shader_object_.push_back(1);
-      // No DxbcRdefInputFlags.
-      shader_object_.push_back(0);
-      // Register space 0.
-      shader_object_.push_back(0);
-    } else {
-      assert_unhandled_case(i);
+  uint32_t uavs_position_dwords = uint32_t(shader_object_.size());
+  shader_object_.resize(uavs_position_dwords + sizeof(dxbc::RdefInputBind) /
+                                                   sizeof(uint32_t) *
+                                                   uav_count_);
+  {
+    auto uavs = reinterpret_cast<dxbc::RdefInputBind*>(shader_object_.data() +
+                                                       uavs_position_dwords);
+    for (uint32_t i = 0; i < uav_count_; ++i) {
+      dxbc::RdefInputBind& uav = uavs[i];
+      uav.bind_count = 1;
+      uav.id = i;
+      if (i == uav_index_shared_memory_) {
+        // Shared memory (when memexport is used in the pipeline).
+        uav.name_ptr = shared_memory_uav_name_ptr;
+        uav.type = dxbc::RdefInputType::kUAVRWByteAddress;
+        uav.return_type = dxbc::ResourceReturnType::kMixed;
+        uav.dimension = dxbc::RdefDimension::kUAVBuffer;
+        uav.bind_point = uint32_t(UAVRegister::kSharedMemory);
+      } else if (i == uav_index_edram_) {
+        // EDRAM R32_UINT buffer.
+        uav.name_ptr = edram_name_ptr;
+        uav.type = dxbc::RdefInputType::kUAVRWTyped;
+        uav.return_type = dxbc::ResourceReturnType::kUInt;
+        uav.dimension = dxbc::RdefDimension::kUAVBuffer;
+        uav.sample_count = UINT32_MAX;
+        uav.bind_point = uint32_t(UAVRegister::kEdram);
+      } else {
+        assert_unhandled_case(i);
+      }
     }
-    // UAV ID U[i].
-    shader_object_.push_back(i);
   }
 
   // Constant buffers.
-  for (uint32_t i = 0; i < cbuffer_count_; ++i) {
-    uint32_t register_index = 0;
-    if (i == cbuffer_index_system_constants_) {
-      shader_object_.push_back(cbuffer_name_offset_system);
-      register_index = uint32_t(CbufferRegister::kSystemConstants);
-    } else if (i == cbuffer_index_float_constants_) {
-      shader_object_.push_back(cbuffer_name_offset_float);
-      register_index = uint32_t(CbufferRegister::kFloatConstants);
-    } else if (i == cbuffer_index_bool_loop_constants_) {
-      shader_object_.push_back(cbuffer_name_offset_bool_loop);
-      register_index = uint32_t(CbufferRegister::kBoolLoopConstants);
-    } else if (i == cbuffer_index_fetch_constants_) {
-      shader_object_.push_back(cbuffer_name_offset_fetch);
-      register_index = uint32_t(CbufferRegister::kFetchConstants);
-    } else if (i == cbuffer_index_descriptor_indices_) {
-      shader_object_.push_back(cbuffer_name_offset_descriptor_indices);
-      register_index = uint32_t(CbufferRegister::kDescriptorIndices);
-    } else {
-      assert_unhandled_case(i);
+  uint32_t cbuffer_binding_position_dwords = uint32_t(shader_object_.size());
+  shader_object_.resize(cbuffer_binding_position_dwords +
+                        sizeof(dxbc::RdefInputBind) / sizeof(uint32_t) *
+                            cbuffer_count_);
+  {
+    auto cbuffers = reinterpret_cast<dxbc::RdefInputBind*>(
+        shader_object_.data() + cbuffer_binding_position_dwords);
+    for (uint32_t i = 0; i < cbuffer_count_; ++i) {
+      dxbc::RdefInputBind& cbuffer = cbuffers[i];
+      cbuffer.type = dxbc::RdefInputType::kCbuffer;
+      cbuffer.bind_count = 1;
+      // Like `cbuffer`, don't need `ConstantBuffer<T>` properties.
+      cbuffer.flags = dxbc::kRdefInputFlagUserPacked;
+      cbuffer.id = i;
+      if (i == cbuffer_index_system_constants_) {
+        cbuffer.name_ptr = cbuffer_name_ptr_system;
+        cbuffer.bind_point = uint32_t(CbufferRegister::kSystemConstants);
+      } else if (i == cbuffer_index_float_constants_) {
+        cbuffer.name_ptr = cbuffer_name_ptr_float;
+        cbuffer.bind_point = uint32_t(CbufferRegister::kFloatConstants);
+      } else if (i == cbuffer_index_bool_loop_constants_) {
+        cbuffer.name_ptr = cbuffer_name_ptr_bool_loop;
+        cbuffer.bind_point = uint32_t(CbufferRegister::kBoolLoopConstants);
+      } else if (i == cbuffer_index_fetch_constants_) {
+        cbuffer.name_ptr = cbuffer_name_ptr_fetch;
+        cbuffer.bind_point = uint32_t(CbufferRegister::kFetchConstants);
+      } else if (i == cbuffer_index_descriptor_indices_) {
+        cbuffer.name_ptr = cbuffer_name_ptr_descriptor_indices;
+        cbuffer.bind_point = uint32_t(CbufferRegister::kDescriptorIndices);
+      } else {
+        assert_unhandled_case(i);
+      }
     }
-    shader_object_.push_back(uint32_t(DxbcRdefInputType::kCbuffer));
-    shader_object_.push_back(uint32_t(DxbcRdefReturnType::kVoid));
-    shader_object_.push_back(uint32_t(DxbcRdefDimension::kUnknown));
-    // Multisampling not applicable.
-    shader_object_.push_back(0);
-    shader_object_.push_back(register_index);
-    // One binding.
-    shader_object_.push_back(1);
-    // Like `cbuffer`, don't need `ConstantBuffer<T>` properties.
-    shader_object_.push_back(DxbcRdefInputFlagUserPacked);
-    // Register space 0.
-    shader_object_.push_back(0);
-    // CBV ID CB[i].
-    shader_object_.push_back(i);
+  }
+
+  uint32_t bindings_end_position_dwords = uint32_t(shader_object_.size());
+
+  // ***************************************************************************
+  // Header
+  // ***************************************************************************
+
+  {
+    auto& header = *reinterpret_cast<dxbc::RdefHeader*>(shader_object_.data() +
+                                                        blob_position_dwords);
+    header.cbuffer_count = cbuffer_count_;
+    header.cbuffers_ptr =
+        (cbuffers_position_dwords - blob_position_dwords) * sizeof(uint32_t);
+    header.input_bind_count =
+        (bindings_end_position_dwords - bindings_position_dwords) *
+        sizeof(uint32_t) / sizeof(dxbc::RdefInputBind);
+    header.input_binds_ptr =
+        (bindings_position_dwords - blob_position_dwords) * sizeof(uint32_t);
+    if (IsDxbcVertexShader()) {
+      header.shader_model = dxbc::RdefShaderModel::kVertexShader5_1;
+    } else if (IsDxbcDomainShader()) {
+      header.shader_model = dxbc::RdefShaderModel::kDomainShader5_1;
+    } else {
+      assert_true(is_pixel_shader());
+      header.shader_model = dxbc::RdefShaderModel::kPixelShader5_1;
+    }
+    header.compile_flags = dxbc::kCompileFlagNoPreshader |
+                           dxbc::kCompileFlagPreferFlowControl |
+                           dxbc::kCompileFlagIeeeStrictness;
+    if (bindless_resources_used_) {
+      header.compile_flags |= dxbc::kCompileFlagEnableUnboundedDescriptorTables;
+    }
+    // Generator name placed directly after the header.
+    header.generator_name_ptr = sizeof(dxbc::RdefHeader);
+    header.fourcc = dxbc::RdefHeader::FourCC::k5_1;
+    header.InitializeSizes();
   }
 }
 
 void DxbcShaderTranslator::WriteInputSignature() {
   // Because of shader_object_.resize(), pointers can't be kept persistently
-  // here! Resize also zeroes the memory.
-  uint32_t chunk_position = uint32_t(shader_object_.size());
+  // here! Resizing also zeroes the memory.
+  uint32_t blob_position = uint32_t(shader_object_.size());
   // Reserve space for the header.
   shader_object_.resize(shader_object_.size() +
-                        sizeof(DxbcSignature) / sizeof(uint32_t));
+                        sizeof(dxbc::Signature) / sizeof(uint32_t));
   uint32_t parameter_count = 0;
   constexpr size_t kParameterDwords =
-      sizeof(DxbcSignatureParameter) / sizeof(uint32_t);
+      sizeof(dxbc::SignatureParameter) / sizeof(uint32_t);
 
   if (IsDxbcVertexShader()) {
     // Unswapped vertex index (SV_VertexID).
@@ -2722,11 +2633,10 @@ void DxbcShaderTranslator::WriteInputSignature() {
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
     {
-      DxbcSignatureParameter& vertex_id =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     vertex_id_position);
-      vertex_id.system_value = DxbcName::kVertexID;
-      vertex_id.component_type = DxbcSignatureRegisterComponentType::kUInt32;
+      auto& vertex_id = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + vertex_id_position);
+      vertex_id.system_value = dxbc::Name::kVertexID;
+      vertex_id.component_type = dxbc::SignatureRegisterComponentType::kUInt32;
       vertex_id.register_index = uint32_t(InOutRegister::kVSInVertexIndex);
       vertex_id.mask = 0b0001;
       vertex_id.always_reads_mask = (register_count() >= 1) ? 0b0001 : 0b0000;
@@ -2734,14 +2644,13 @@ void DxbcShaderTranslator::WriteInputSignature() {
 
     // Semantic names.
     uint32_t semantic_offset =
-        uint32_t((shader_object_.size() - chunk_position) * sizeof(uint32_t));
+        uint32_t((shader_object_.size() - blob_position) * sizeof(uint32_t));
     {
-      DxbcSignatureParameter& vertex_id =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     vertex_id_position);
-      vertex_id.semantic_name = semantic_offset;
+      auto& vertex_id = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + vertex_id_position);
+      vertex_id.semantic_name_ptr = semantic_offset;
     }
-    semantic_offset += AppendString(shader_object_, "SV_VertexID");
+    semantic_offset += dxbc::AppendAlignedString(shader_object_, "SV_VertexID");
   } else if (IsDxbcDomainShader()) {
     // Control point indices, byte-swapped, biased according to the base index
     // and converted to float by the host vertex and hull shaders
@@ -2753,11 +2662,10 @@ void DxbcShaderTranslator::WriteInputSignature() {
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
     {
-      DxbcSignatureParameter& control_point_index =
-          *reinterpret_cast<DxbcSignatureParameter*>(
-              shader_object_.data() + control_point_index_position);
+      auto& control_point_index = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + control_point_index_position);
       control_point_index.component_type =
-          DxbcSignatureRegisterComponentType::kFloat32;
+          dxbc::SignatureRegisterComponentType::kFloat32;
       control_point_index.register_index =
           uint32_t(InOutRegister::kDSInControlPointIndex);
       control_point_index.mask = 0b0001;
@@ -2767,14 +2675,13 @@ void DxbcShaderTranslator::WriteInputSignature() {
 
     // Semantic names.
     uint32_t semantic_offset =
-        uint32_t((shader_object_.size() - chunk_position) * sizeof(uint32_t));
+        uint32_t((shader_object_.size() - blob_position) * sizeof(uint32_t));
     {
-      DxbcSignatureParameter& control_point_index =
-          *reinterpret_cast<DxbcSignatureParameter*>(
-              shader_object_.data() + control_point_index_position);
-      control_point_index.semantic_name = semantic_offset;
+      auto& control_point_index = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + control_point_index_position);
+      control_point_index.semantic_name_ptr = semantic_offset;
     }
-    semantic_offset += AppendString(shader_object_, "XEVERTEXID");
+    semantic_offset += dxbc::AppendAlignedString(shader_object_, "XEVERTEXID");
   } else if (is_pixel_shader()) {
     // Written dynamically, so assume it's always used if it can be written to
     // any interpolator register.
@@ -2786,14 +2693,13 @@ void DxbcShaderTranslator::WriteInputSignature() {
                           xenos::kMaxInterpolators * kParameterDwords);
     parameter_count += xenos::kMaxInterpolators;
     {
-      DxbcSignatureParameter* interpolators =
-          reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                    interpolator_position);
+      auto interpolators = reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + interpolator_position);
       for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
-        DxbcSignatureParameter& interpolator = interpolators[i];
+        dxbc::SignatureParameter& interpolator = interpolators[i];
         interpolator.semantic_index = i;
         interpolator.component_type =
-            DxbcSignatureRegisterComponentType::kFloat32;
+            dxbc::SignatureRegisterComponentType::kFloat32;
         interpolator.register_index =
             uint32_t(InOutRegister::kPSInInterpolators) + i;
         interpolator.mask = 0b1111;
@@ -2811,46 +2717,26 @@ void DxbcShaderTranslator::WriteInputSignature() {
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
     {
-      DxbcSignatureParameter& point_parameters =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     point_parameters_position);
+      auto& point_parameters = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + point_parameters_position);
       point_parameters.semantic_index = kPointParametersTexCoord;
       point_parameters.component_type =
-          DxbcSignatureRegisterComponentType::kFloat32;
+          dxbc::SignatureRegisterComponentType::kFloat32;
       point_parameters.register_index =
           uint32_t(InOutRegister::kPSInPointParameters);
       point_parameters.mask = 0b0111;
       point_parameters.always_reads_mask = param_gen_used ? 0b0011 : 0b0000;
     }
 
-    // Z and W in clip space, for getting per-sample depth with ROV (TEXCOORD#).
-    size_t clip_space_zw_position = shader_object_.size();
-    shader_object_.resize(shader_object_.size() + kParameterDwords);
-    ++parameter_count;
-    {
-      DxbcSignatureParameter& clip_space_zw =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     clip_space_zw_position);
-      clip_space_zw.semantic_index = kClipSpaceZWTexCoord;
-      clip_space_zw.component_type =
-          DxbcSignatureRegisterComponentType::kFloat32;
-      clip_space_zw.register_index = uint32_t(InOutRegister::kPSInClipSpaceZW);
-      clip_space_zw.mask = 0b0011;
-      clip_space_zw.always_reads_mask = edram_rov_used_ ? 0b0011 : 0b0000;
-    }
-
-    // Pixel position. Z is not needed - ROV depth testing calculates the depth
-    // from the clip space Z/W texcoord, and if oDepth is used, it must be
-    // written to on every execution path anyway (SV_Position).
+    // Pixel position (SV_Position).
     size_t position_position = shader_object_.size();
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
     {
-      DxbcSignatureParameter& position =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     position_position);
-      position.system_value = DxbcName::kPosition;
-      position.component_type = DxbcSignatureRegisterComponentType::kFloat32;
+      auto& position = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + position_position);
+      position.system_value = dxbc::Name::kPosition;
+      position.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
       position.register_index = uint32_t(InOutRegister::kPSInPosition);
       position.mask = 0b1111;
       position.always_reads_mask = in_position_used_;
@@ -2861,98 +2747,120 @@ void DxbcShaderTranslator::WriteInputSignature() {
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
     {
-      DxbcSignatureParameter& is_front_face =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     is_front_face_position);
-      is_front_face.system_value = DxbcName::kIsFrontFace;
+      auto& is_front_face = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + is_front_face_position);
+      is_front_face.system_value = dxbc::Name::kIsFrontFace;
       is_front_face.component_type =
-          DxbcSignatureRegisterComponentType::kUInt32;
-      is_front_face.register_index = uint32_t(InOutRegister::kPSInFrontFace);
+          dxbc::SignatureRegisterComponentType::kUInt32;
+      is_front_face.register_index =
+          uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex);
       is_front_face.mask = 0b0001;
       is_front_face.always_reads_mask = in_front_face_used_ ? 0b0001 : 0b0000;
     }
 
+    // Sample index (SV_SampleIndex) for safe memexport with sample-rate
+    // shading.
+    size_t sample_index_position = SIZE_MAX;
+    if (current_shader().is_valid_memexport_used() && IsSampleRate()) {
+      size_t sample_index_position = shader_object_.size();
+      shader_object_.resize(shader_object_.size() + kParameterDwords);
+      ++parameter_count;
+      {
+        auto& sample_index = *reinterpret_cast<dxbc::SignatureParameter*>(
+            shader_object_.data() + sample_index_position);
+        sample_index.system_value = dxbc::Name::kSampleIndex;
+        sample_index.component_type =
+            dxbc::SignatureRegisterComponentType::kUInt32;
+        sample_index.register_index =
+            uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex);
+        sample_index.mask = 0b0010;
+        sample_index.always_reads_mask = 0b0010;
+      }
+    }
+
     // Semantic names.
     uint32_t semantic_offset =
-        uint32_t((shader_object_.size() - chunk_position) * sizeof(uint32_t));
+        uint32_t((shader_object_.size() - blob_position) * sizeof(uint32_t));
     {
-      DxbcSignatureParameter* interpolators =
-          reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                    interpolator_position);
+      auto interpolators = reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + interpolator_position);
       for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
-        interpolators[i].semantic_name = semantic_offset;
+        interpolators[i].semantic_name_ptr = semantic_offset;
       }
-      DxbcSignatureParameter& point_parameters =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     point_parameters_position);
-      point_parameters.semantic_name = semantic_offset;
-      DxbcSignatureParameter& clip_space_zw =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     clip_space_zw_position);
-      clip_space_zw.semantic_name = semantic_offset;
+      auto& point_parameters = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + point_parameters_position);
+      point_parameters.semantic_name_ptr = semantic_offset;
     }
-    semantic_offset += AppendString(shader_object_, "TEXCOORD");
+    semantic_offset += dxbc::AppendAlignedString(shader_object_, "TEXCOORD");
     {
-      DxbcSignatureParameter& position =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     position_position);
-      position.semantic_name = semantic_offset;
+      auto& position = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + position_position);
+      position.semantic_name_ptr = semantic_offset;
     }
-    semantic_offset += AppendString(shader_object_, "SV_Position");
+    semantic_offset += dxbc::AppendAlignedString(shader_object_, "SV_Position");
     {
-      DxbcSignatureParameter& is_front_face =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     is_front_face_position);
-      is_front_face.semantic_name = semantic_offset;
+      auto& is_front_face = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + is_front_face_position);
+      is_front_face.semantic_name_ptr = semantic_offset;
     }
-    semantic_offset += AppendString(shader_object_, "SV_IsFrontFace");
+    semantic_offset +=
+        dxbc::AppendAlignedString(shader_object_, "SV_IsFrontFace");
+    if (sample_index_position != SIZE_MAX) {
+      {
+        auto& sample_index = *reinterpret_cast<dxbc::SignatureParameter*>(
+            shader_object_.data() + sample_index_position);
+        sample_index.semantic_name_ptr = semantic_offset;
+      }
+      semantic_offset +=
+          dxbc::AppendAlignedString(shader_object_, "SV_SampleIndex");
+    }
   }
 
   // Header.
   {
-    DxbcSignature& header = *reinterpret_cast<DxbcSignature*>(
-        shader_object_.data() + chunk_position);
+    auto& header = *reinterpret_cast<dxbc::Signature*>(shader_object_.data() +
+                                                       blob_position);
     header.parameter_count = parameter_count;
-    header.parameter_info_offset = sizeof(DxbcSignature);
+    header.parameter_info_ptr = sizeof(dxbc::Signature);
   }
 }
 
 void DxbcShaderTranslator::WritePatchConstantSignature() {
   assert_true(IsDxbcDomainShader());
   // Because of shader_object_.resize(), pointers can't be kept persistently
-  // here! Resize also zeroes the memory.
-  uint32_t chunk_position = uint32_t(shader_object_.size());
+  // here! Resizing also zeroes the memory.
+  uint32_t blob_position = uint32_t(shader_object_.size());
   // Reserve space for the header.
   shader_object_.resize(shader_object_.size() +
-                        sizeof(DxbcSignature) / sizeof(uint32_t));
+                        sizeof(dxbc::Signature) / sizeof(uint32_t));
   uint32_t parameter_count = 0;
   constexpr size_t kParameterDwords =
-      sizeof(DxbcSignatureParameter) / sizeof(uint32_t);
+      sizeof(dxbc::SignatureParameter) / sizeof(uint32_t);
 
   // FXC always compiles with SV_TessFactor and SV_InsideTessFactor input, so
   // this is required even if not referenced (HS and DS have very strict
   // linkage, by the way, everything that HS outputs must be listed in DS
   // inputs).
   uint32_t tess_factor_edge_count = 0;
-  DxbcName tess_factor_edge_system_value = DxbcName::kUndefined;
+  dxbc::Name tess_factor_edge_system_value = dxbc::Name::kUndefined;
   uint32_t tess_factor_inside_count = 0;
-  DxbcName tess_factor_inside_system_value = DxbcName::kUndefined;
+  dxbc::Name tess_factor_inside_system_value = dxbc::Name::kUndefined;
   Shader::HostVertexShaderType host_vertex_shader_type =
-      GetDxbcShaderModification().host_vertex_shader_type;
+      GetDxbcShaderModification().vertex.host_vertex_shader_type;
   switch (host_vertex_shader_type) {
     case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
     case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
       tess_factor_edge_count = 3;
-      tess_factor_edge_system_value = DxbcName::kFinalTriEdgeTessFactor;
+      tess_factor_edge_system_value = dxbc::Name::kFinalTriEdgeTessFactor;
       tess_factor_inside_count = 1;
-      tess_factor_inside_system_value = DxbcName::kFinalTriInsideTessFactor;
+      tess_factor_inside_system_value = dxbc::Name::kFinalTriInsideTessFactor;
       break;
     case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
     case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
       tess_factor_edge_count = 4;
-      tess_factor_edge_system_value = DxbcName::kFinalQuadEdgeTessFactor;
+      tess_factor_edge_system_value = dxbc::Name::kFinalQuadEdgeTessFactor;
       tess_factor_inside_count = 2;
-      tess_factor_inside_system_value = DxbcName::kFinalQuadInsideTessFactor;
+      tess_factor_inside_system_value = dxbc::Name::kFinalQuadInsideTessFactor;
       break;
     default:
       // TODO(Triang3l): Support line patches.
@@ -2967,15 +2875,14 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
                         tess_factor_edge_count * kParameterDwords);
   parameter_count += tess_factor_edge_count;
   {
-    DxbcSignatureParameter* tess_factors_edge =
-        reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                  tess_factor_edge_position);
+    auto tess_factors_edge = reinterpret_cast<dxbc::SignatureParameter*>(
+        shader_object_.data() + tess_factor_edge_position);
     for (uint32_t i = 0; i < tess_factor_edge_count; ++i) {
-      DxbcSignatureParameter& tess_factor_edge = tess_factors_edge[i];
+      dxbc::SignatureParameter& tess_factor_edge = tess_factors_edge[i];
       tess_factor_edge.semantic_index = i;
       tess_factor_edge.system_value = tess_factor_edge_system_value;
       tess_factor_edge.component_type =
-          DxbcSignatureRegisterComponentType::kFloat32;
+          dxbc::SignatureRegisterComponentType::kFloat32;
       // Not using any of these, just assigning consecutive registers.
       tess_factor_edge.register_index = i;
       tess_factor_edge.mask = 0b0001;
@@ -2988,15 +2895,14 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
                         tess_factor_inside_count * kParameterDwords);
   parameter_count += tess_factor_inside_count;
   {
-    DxbcSignatureParameter* tess_factors_inside =
-        reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                  tess_factor_inside_position);
+    auto tess_factors_inside = reinterpret_cast<dxbc::SignatureParameter*>(
+        shader_object_.data() + tess_factor_inside_position);
     for (uint32_t i = 0; i < tess_factor_inside_count; ++i) {
-      DxbcSignatureParameter& tess_factor_inside = tess_factors_inside[i];
+      dxbc::SignatureParameter& tess_factor_inside = tess_factors_inside[i];
       tess_factor_inside.semantic_index = i;
       tess_factor_inside.system_value = tess_factor_inside_system_value;
       tess_factor_inside.component_type =
-          DxbcSignatureRegisterComponentType::kFloat32;
+          dxbc::SignatureRegisterComponentType::kFloat32;
       // Not using any of these, just assigning consecutive registers.
       tess_factor_inside.register_index = tess_factor_edge_count + i;
       tess_factor_inside.mask = 0b0001;
@@ -3005,45 +2911,44 @@ void DxbcShaderTranslator::WritePatchConstantSignature() {
 
   // Semantic names.
   uint32_t semantic_offset =
-      uint32_t((shader_object_.size() - chunk_position) * sizeof(uint32_t));
+      uint32_t((shader_object_.size() - blob_position) * sizeof(uint32_t));
   {
-    DxbcSignatureParameter* tess_factors_edge =
-        reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                  tess_factor_edge_position);
+    auto tess_factors_edge = reinterpret_cast<dxbc::SignatureParameter*>(
+        shader_object_.data() + tess_factor_edge_position);
     for (uint32_t i = 0; i < tess_factor_edge_count; ++i) {
-      tess_factors_edge[i].semantic_name = semantic_offset;
+      tess_factors_edge[i].semantic_name_ptr = semantic_offset;
     }
   }
-  semantic_offset += AppendString(shader_object_, "SV_TessFactor");
+  semantic_offset += dxbc::AppendAlignedString(shader_object_, "SV_TessFactor");
   {
-    DxbcSignatureParameter* tess_factors_inside =
-        reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                  tess_factor_inside_position);
+    auto tess_factors_inside = reinterpret_cast<dxbc::SignatureParameter*>(
+        shader_object_.data() + tess_factor_inside_position);
     for (uint32_t i = 0; i < tess_factor_inside_count; ++i) {
-      tess_factors_inside[i].semantic_name = semantic_offset;
+      tess_factors_inside[i].semantic_name_ptr = semantic_offset;
     }
   }
-  semantic_offset += AppendString(shader_object_, "SV_InsideTessFactor");
+  semantic_offset +=
+      dxbc::AppendAlignedString(shader_object_, "SV_InsideTessFactor");
 
   // Header.
   {
-    DxbcSignature& header = *reinterpret_cast<DxbcSignature*>(
-        shader_object_.data() + chunk_position);
+    auto& header = *reinterpret_cast<dxbc::Signature*>(shader_object_.data() +
+                                                       blob_position);
     header.parameter_count = parameter_count;
-    header.parameter_info_offset = sizeof(DxbcSignature);
+    header.parameter_info_ptr = sizeof(dxbc::Signature);
   }
 }
 
 void DxbcShaderTranslator::WriteOutputSignature() {
   // Because of shader_object_.resize(), pointers can't be kept persistently
-  // here! Resize also zeroes the memory.
-  uint32_t chunk_position = uint32_t(shader_object_.size());
+  // here! Resizing also zeroes the memory.
+  uint32_t blob_position = uint32_t(shader_object_.size());
   // Reserve space for the header.
   shader_object_.resize(shader_object_.size() +
-                        sizeof(DxbcSignature) / sizeof(uint32_t));
+                        sizeof(dxbc::Signature) / sizeof(uint32_t));
   uint32_t parameter_count = 0;
   constexpr size_t kParameterDwords =
-      sizeof(DxbcSignatureParameter) / sizeof(uint32_t);
+      sizeof(dxbc::SignatureParameter) / sizeof(uint32_t);
 
   if (is_vertex_shader()) {
     // Intepolators (TEXCOORD#).
@@ -3052,14 +2957,13 @@ void DxbcShaderTranslator::WriteOutputSignature() {
                           xenos::kMaxInterpolators * kParameterDwords);
     parameter_count += xenos::kMaxInterpolators;
     {
-      DxbcSignatureParameter* interpolators =
-          reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                    interpolator_position);
+      auto interpolators = reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + interpolator_position);
       for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
-        DxbcSignatureParameter& interpolator = interpolators[i];
+        dxbc::SignatureParameter& interpolator = interpolators[i];
         interpolator.semantic_index = i;
         interpolator.component_type =
-            DxbcSignatureRegisterComponentType::kFloat32;
+            dxbc::SignatureRegisterComponentType::kFloat32;
         interpolator.register_index =
             uint32_t(InOutRegister::kVSDSOutInterpolators) + i;
         interpolator.mask = 0b1111;
@@ -3072,33 +2976,15 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
     {
-      DxbcSignatureParameter& point_parameters =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     point_parameters_position);
+      auto& point_parameters = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + point_parameters_position);
       point_parameters.semantic_index = kPointParametersTexCoord;
       point_parameters.component_type =
-          DxbcSignatureRegisterComponentType::kFloat32;
+          dxbc::SignatureRegisterComponentType::kFloat32;
       point_parameters.register_index =
           uint32_t(InOutRegister::kVSDSOutPointParameters);
       point_parameters.mask = 0b0111;
       point_parameters.never_writes_mask = 0b1000;
-    }
-
-    // Z and W in clip space, for getting per-sample depth with ROV (TEXCOORD#).
-    size_t clip_space_zw_position = shader_object_.size();
-    shader_object_.resize(shader_object_.size() + kParameterDwords);
-    ++parameter_count;
-    {
-      DxbcSignatureParameter& clip_space_zw =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     clip_space_zw_position);
-      clip_space_zw.semantic_index = kClipSpaceZWTexCoord;
-      clip_space_zw.component_type =
-          DxbcSignatureRegisterComponentType::kFloat32;
-      clip_space_zw.register_index =
-          uint32_t(InOutRegister::kVSDSOutClipSpaceZW);
-      clip_space_zw.mask = 0b0011;
-      clip_space_zw.never_writes_mask = 0b1100;
     }
 
     // Position (SV_Position).
@@ -3106,11 +2992,10 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
     {
-      DxbcSignatureParameter& position =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     position_position);
-      position.system_value = DxbcName::kPosition;
-      position.component_type = DxbcSignatureRegisterComponentType::kFloat32;
+      auto& position = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + position_position);
+      position.system_value = dxbc::Name::kPosition;
+      position.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
       position.register_index = uint32_t(InOutRegister::kVSDSOutPosition);
       position.mask = 0b1111;
     }
@@ -3120,12 +3005,11 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
     {
-      DxbcSignatureParameter& clip_distance_0123 =
-          *reinterpret_cast<DxbcSignatureParameter*>(
-              shader_object_.data() + clip_distance_0123_position);
-      clip_distance_0123.system_value = DxbcName::kClipDistance;
+      auto& clip_distance_0123 = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + clip_distance_0123_position);
+      clip_distance_0123.system_value = dxbc::Name::kClipDistance;
       clip_distance_0123.component_type =
-          DxbcSignatureRegisterComponentType::kFloat32;
+          dxbc::SignatureRegisterComponentType::kFloat32;
       clip_distance_0123.register_index =
           uint32_t(InOutRegister::kVSDSOutClipDistance0123);
       clip_distance_0123.mask = 0b1111;
@@ -3134,13 +3018,12 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
     {
-      DxbcSignatureParameter& clip_distance_45 =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     clip_distance_45_position);
+      auto& clip_distance_45 = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + clip_distance_45_position);
       clip_distance_45.semantic_index = 1;
-      clip_distance_45.system_value = DxbcName::kClipDistance;
+      clip_distance_45.system_value = dxbc::Name::kClipDistance;
       clip_distance_45.component_type =
-          DxbcSignatureRegisterComponentType::kFloat32;
+          dxbc::SignatureRegisterComponentType::kFloat32;
       clip_distance_45.register_index =
           uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance);
       clip_distance_45.mask = 0b0011;
@@ -3150,12 +3033,11 @@ void DxbcShaderTranslator::WriteOutputSignature() {
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
     {
-      DxbcSignatureParameter& cull_distance =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     cull_distance_position);
-      cull_distance.system_value = DxbcName::kCullDistance;
+      auto& cull_distance = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + cull_distance_position);
+      cull_distance.system_value = dxbc::Name::kCullDistance;
       cull_distance.component_type =
-          DxbcSignatureRegisterComponentType::kFloat32;
+          dxbc::SignatureRegisterComponentType::kFloat32;
       cull_distance.register_index =
           uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance);
       cull_distance.mask = 0b0100;
@@ -3164,83 +3046,95 @@ void DxbcShaderTranslator::WriteOutputSignature() {
 
     // Semantic names.
     uint32_t semantic_offset =
-        uint32_t((shader_object_.size() - chunk_position) * sizeof(uint32_t));
+        uint32_t((shader_object_.size() - blob_position) * sizeof(uint32_t));
     {
-      DxbcSignatureParameter* interpolators =
-          reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                    interpolator_position);
+      auto interpolators = reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + interpolator_position);
       for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
-        interpolators[i].semantic_name = semantic_offset;
+        interpolators[i].semantic_name_ptr = semantic_offset;
       }
-      DxbcSignatureParameter& point_parameters =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     point_parameters_position);
-      point_parameters.semantic_name = semantic_offset;
-      DxbcSignatureParameter& clip_space_zw =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     clip_space_zw_position);
-      clip_space_zw.semantic_name = semantic_offset;
+      auto& point_parameters = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + point_parameters_position);
+      point_parameters.semantic_name_ptr = semantic_offset;
     }
-    semantic_offset += AppendString(shader_object_, "TEXCOORD");
+    semantic_offset += dxbc::AppendAlignedString(shader_object_, "TEXCOORD");
     {
-      DxbcSignatureParameter& position =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     position_position);
-      position.semantic_name = semantic_offset;
+      auto& position = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + position_position);
+      position.semantic_name_ptr = semantic_offset;
     }
-    semantic_offset += AppendString(shader_object_, "SV_Position");
+    semantic_offset += dxbc::AppendAlignedString(shader_object_, "SV_Position");
     {
-      DxbcSignatureParameter& clip_distance_0123 =
-          *reinterpret_cast<DxbcSignatureParameter*>(
-              shader_object_.data() + clip_distance_0123_position);
-      clip_distance_0123.semantic_name = semantic_offset;
-      DxbcSignatureParameter& clip_distance_45 =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     clip_distance_45_position);
-      clip_distance_45.semantic_name = semantic_offset;
+      auto& clip_distance_0123 = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + clip_distance_0123_position);
+      clip_distance_0123.semantic_name_ptr = semantic_offset;
+      auto& clip_distance_45 = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + clip_distance_45_position);
+      clip_distance_45.semantic_name_ptr = semantic_offset;
     }
-    semantic_offset += AppendString(shader_object_, "SV_ClipDistance");
+    semantic_offset +=
+        dxbc::AppendAlignedString(shader_object_, "SV_ClipDistance");
     {
-      DxbcSignatureParameter& cull_distance =
-          *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                     cull_distance_position);
-      cull_distance.semantic_name = semantic_offset;
+      auto& cull_distance = *reinterpret_cast<dxbc::SignatureParameter*>(
+          shader_object_.data() + cull_distance_position);
+      cull_distance.semantic_name_ptr = semantic_offset;
     }
-    semantic_offset += AppendString(shader_object_, "SV_CullDistance");
+    semantic_offset +=
+        dxbc::AppendAlignedString(shader_object_, "SV_CullDistance");
   } else if (is_pixel_shader()) {
     if (!edram_rov_used_) {
+      uint32_t color_targets_written = current_shader().writes_color_targets();
+
       // Color render targets (SV_Target#).
       size_t target_position = SIZE_MAX;
-      if (writes_any_color_target()) {
+      uint32_t color_targets_written_count =
+          xe::bit_count(color_targets_written);
+      if (color_targets_written) {
         target_position = shader_object_.size();
-        shader_object_.resize(shader_object_.size() + 4 * kParameterDwords);
-        parameter_count += 4;
-        DxbcSignatureParameter* targets =
-            reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                      target_position);
-        for (uint32_t i = 0; i < 4; ++i) {
-          DxbcSignatureParameter& target = targets[i];
+        shader_object_.resize(shader_object_.size() +
+                              color_targets_written_count * kParameterDwords);
+        parameter_count += color_targets_written_count;
+        auto targets = reinterpret_cast<dxbc::SignatureParameter*>(
+            shader_object_.data() + target_position);
+        uint32_t target_index = 0;
+        for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+          if (!(color_targets_written & (uint32_t(1) << i))) {
+            continue;
+          }
+          dxbc::SignatureParameter& target = targets[target_index++];
           target.semantic_index = i;
-          target.component_type = DxbcSignatureRegisterComponentType::kFloat32;
+          target.component_type =
+              dxbc::SignatureRegisterComponentType::kFloat32;
           target.register_index = i;
           target.mask = 0b1111;
-          // All are always written because X360 RTs are dynamically remapped to
-          // D3D12 RTs to make RT indices consecutive.
         }
+      }
+
+      // Coverage output for alpha to mask (SV_Coverage).
+      size_t coverage_position = SIZE_MAX;
+      if (color_targets_written & 0b1) {
+        coverage_position = shader_object_.size();
+        shader_object_.resize(shader_object_.size() + kParameterDwords);
+        ++parameter_count;
+        auto& coverage = *reinterpret_cast<dxbc::SignatureParameter*>(
+            shader_object_.data() + coverage_position);
+        coverage.component_type = dxbc::SignatureRegisterComponentType::kUInt32;
+        coverage.register_index = UINT32_MAX;
+        coverage.mask = 0b0001;
+        coverage.never_writes_mask = 0b1110;
       }
 
       // Depth (SV_Depth or SV_DepthLessEqual).
       Modification::DepthStencilMode depth_stencil_mode =
-          GetDxbcShaderModification().depth_stencil_mode;
+          GetDxbcShaderModification().pixel.depth_stencil_mode;
       size_t depth_position = SIZE_MAX;
-      if (writes_depth() || DSV_IsWritingFloat24Depth()) {
+      if (current_shader().writes_depth() || DSV_IsWritingFloat24Depth()) {
         depth_position = shader_object_.size();
         shader_object_.resize(shader_object_.size() + kParameterDwords);
         ++parameter_count;
-        DxbcSignatureParameter& depth =
-            *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                       depth_position);
-        depth.component_type = DxbcSignatureRegisterComponentType::kFloat32;
+        auto& depth = *reinterpret_cast<dxbc::SignatureParameter*>(
+            shader_object_.data() + depth_position);
+        depth.component_type = dxbc::SignatureRegisterComponentType::kFloat32;
         depth.register_index = UINT32_MAX;
         depth.mask = 0b0001;
         depth.never_writes_mask = 0b1110;
@@ -3248,229 +3142,168 @@ void DxbcShaderTranslator::WriteOutputSignature() {
 
       // Semantic names.
       uint32_t semantic_offset =
-          uint32_t((shader_object_.size() - chunk_position) * sizeof(uint32_t));
+          uint32_t((shader_object_.size() - blob_position) * sizeof(uint32_t));
       if (target_position != SIZE_MAX) {
         {
-          DxbcSignatureParameter* targets =
-              reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                        target_position);
-          for (uint32_t i = 0; i < 4; ++i) {
-            targets[i].semantic_name = semantic_offset;
+          auto targets = reinterpret_cast<dxbc::SignatureParameter*>(
+              shader_object_.data() + target_position);
+          for (uint32_t i = 0; i < color_targets_written_count; ++i) {
+            targets[i].semantic_name_ptr = semantic_offset;
           }
         }
-        semantic_offset += AppendString(shader_object_, "SV_Target");
+        semantic_offset +=
+            dxbc::AppendAlignedString(shader_object_, "SV_Target");
+      }
+      if (coverage_position != SIZE_MAX) {
+        {
+          auto& coverage = *reinterpret_cast<dxbc::SignatureParameter*>(
+              shader_object_.data() + coverage_position);
+          coverage.semantic_name_ptr = semantic_offset;
+        }
+        semantic_offset +=
+            dxbc::AppendAlignedString(shader_object_, "SV_Coverage");
       }
       if (depth_position != SIZE_MAX) {
         {
-          DxbcSignatureParameter& depth =
-              *reinterpret_cast<DxbcSignatureParameter*>(shader_object_.data() +
-                                                         depth_position);
-          depth.semantic_name = semantic_offset;
+          auto& depth = *reinterpret_cast<dxbc::SignatureParameter*>(
+              shader_object_.data() + depth_position);
+          depth.semantic_name_ptr = semantic_offset;
         }
         const char* depth_semantic_name;
-        if (!writes_depth() &&
-            GetDxbcShaderModification().depth_stencil_mode ==
+        if (!current_shader().writes_depth() &&
+            GetDxbcShaderModification().pixel.depth_stencil_mode ==
                 Modification::DepthStencilMode::kFloat24Truncating) {
           depth_semantic_name = "SV_DepthLessEqual";
         } else {
           depth_semantic_name = "SV_Depth";
         }
-        semantic_offset += AppendString(shader_object_, depth_semantic_name);
+        semantic_offset +=
+            dxbc::AppendAlignedString(shader_object_, depth_semantic_name);
       }
     }
   }
 
   // Header.
   {
-    DxbcSignature& header = *reinterpret_cast<DxbcSignature*>(
-        shader_object_.data() + chunk_position);
+    auto& header = *reinterpret_cast<dxbc::Signature*>(shader_object_.data() +
+                                                       blob_position);
     header.parameter_count = parameter_count;
-    header.parameter_info_offset = sizeof(DxbcSignature);
+    header.parameter_info_ptr = sizeof(dxbc::Signature);
   }
 }
 
 void DxbcShaderTranslator::WriteShaderCode() {
-  uint32_t chunk_position_dwords = uint32_t(shader_object_.size());
+  uint32_t blob_position_dwords = uint32_t(shader_object_.size());
 
-  uint32_t shader_type;
+  dxbc::ProgramType program_type;
   if (IsDxbcVertexShader()) {
-    shader_type = D3D10_SB_VERTEX_SHADER;
+    program_type = dxbc::ProgramType::kVertexShader;
   } else if (IsDxbcDomainShader()) {
-    shader_type = D3D11_SB_DOMAIN_SHADER;
+    program_type = dxbc::ProgramType::kDomainShader;
   } else {
     assert_true(is_pixel_shader());
-    shader_type = D3D10_SB_PIXEL_SHADER;
+    program_type = dxbc::ProgramType::kPixelShader;
   }
-  shader_object_.push_back(
-      ENCODE_D3D10_SB_TOKENIZED_PROGRAM_VERSION_TOKEN(shader_type, 5, 1));
+  shader_object_.push_back(dxbc::VersionToken(program_type, 5, 1));
   // Reserve space for the length token.
   shader_object_.push_back(0);
-
-  // Declarations (don't increase the instruction count stat, and only inputs
-  // and outputs are counted in dcl_count).
-  //
-  // Binding declarations have 3D-indexed operands with XYZW swizzle, the first
-  // index being the binding ID (local to the shader), the second being the
-  // lower register index bound, and the third being the highest register index
-  // bound. Also dcl_ instructions for bindings are followed by the register
-  // space index.
-  //
-  // Inputs/outputs have 1D-indexed operands with a component mask and a
-  // register index.
 
   Modification shader_modification = GetDxbcShaderModification();
 
   if (IsDxbcDomainShader()) {
     // Not using control point data since Xenos only has a vertex shader acting
     // as both vertex shader and domain shader.
-    stat_.c_control_points = 3;
-    stat_.tessellator_domain = DxbcTessellatorDomain::kTriangle;
-    switch (shader_modification.host_vertex_shader_type) {
+    uint32_t control_point_count = 3;
+    dxbc::TessellatorDomain tessellator_domain =
+        dxbc::TessellatorDomain::kTriangle;
+    switch (shader_modification.vertex.host_vertex_shader_type) {
       case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
       case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
-        stat_.c_control_points = 3;
-        stat_.tessellator_domain = DxbcTessellatorDomain::kTriangle;
+        control_point_count = 3;
+        tessellator_domain = dxbc::TessellatorDomain::kTriangle;
         break;
       case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
       case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
-        stat_.c_control_points = 4;
-        stat_.tessellator_domain = DxbcTessellatorDomain::kQuad;
+        control_point_count = 4;
+        tessellator_domain = dxbc::TessellatorDomain::kQuad;
         break;
       default:
         // TODO(Triang3l): Support line patches.
-        assert_unhandled_case(shader_modification.host_vertex_shader_type);
+        assert_unhandled_case(
+            shader_modification.vertex.host_vertex_shader_type);
         EmitTranslationError(
             "Unsupported host vertex shader type in WriteShaderCode");
     }
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(
-            D3D11_SB_OPCODE_DCL_INPUT_CONTROL_POINT_COUNT) |
-        ENCODE_D3D11_SB_INPUT_CONTROL_POINT_COUNT(stat_.c_control_points) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DCL_TESS_DOMAIN) |
-        ENCODE_D3D11_SB_TESS_DOMAIN(uint32_t(stat_.tessellator_domain)) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1));
+    ao_.OpDclInputControlPointCount(control_point_count);
+    ao_.OpDclTessDomain(tessellator_domain);
   }
 
   // Don't allow refactoring when converting to native code to maintain position
   // invariance (needed even in pixel shaders for oDepth invariance).
-  uint32_t global_flags_opcode =
-      ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_GLOBAL_FLAGS) |
-      ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(1);
+  uint32_t global_flags = 0;
   if (is_pixel_shader() &&
-      GetDxbcShaderModification().depth_stencil_mode ==
+      GetDxbcShaderModification().pixel.depth_stencil_mode ==
           Modification::DepthStencilMode::kEarlyHint &&
-      !edram_rov_used_ && CanWriteZEarly()) {
-    global_flags_opcode |= D3D11_SB_GLOBAL_FLAG_FORCE_EARLY_DEPTH_STENCIL;
+      !edram_rov_used_ && current_shader().implicit_early_z_write_allowed()) {
+    global_flags |= dxbc::kGlobalFlagForceEarlyDepthStencil;
   }
-  shader_object_.push_back(global_flags_opcode);
+  ao_.OpDclGlobalFlags(global_flags);
 
   // Constant buffers, from most frequenly accessed to least frequently accessed
   // (the order is a hint to the driver according to the DXBC header).
   if (cbuffer_index_float_constants_ != kBindingIndexUnallocated) {
-    assert_not_zero(constant_register_map().float_count);
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
-        ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
-            constant_register_map().float_dynamic_addressing
-                ? D3D10_SB_CONSTANT_BUFFER_DYNAMIC_INDEXED
-                : D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_object_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
-    shader_object_.push_back(cbuffer_index_float_constants_);
-    shader_object_.push_back(uint32_t(CbufferRegister::kFloatConstants));
-    shader_object_.push_back(uint32_t(CbufferRegister::kFloatConstants));
-    shader_object_.push_back(constant_register_map().float_count);
-    shader_object_.push_back(0);
+    const Shader::ConstantRegisterMap& constant_register_map =
+        current_shader().constant_register_map();
+    assert_not_zero(constant_register_map.float_count);
+    ao_.OpDclConstantBuffer(
+        dxbc::Src::CB(dxbc::Src::Dcl, cbuffer_index_float_constants_,
+                      uint32_t(CbufferRegister::kFloatConstants),
+                      uint32_t(CbufferRegister::kFloatConstants)),
+        constant_register_map.float_count,
+        constant_register_map.float_dynamic_addressing
+            ? dxbc::ConstantBufferAccessPattern::kDynamicIndexed
+            : dxbc::ConstantBufferAccessPattern::kImmediateIndexed);
   }
   if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
-        ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
-            D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_object_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
-    shader_object_.push_back(cbuffer_index_system_constants_);
-    shader_object_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_object_.push_back(uint32_t(CbufferRegister::kSystemConstants));
-    shader_object_.push_back((sizeof(SystemConstants) + 15) >> 4);
-    shader_object_.push_back(0);
+    ao_.OpDclConstantBuffer(
+        dxbc::Src::CB(dxbc::Src::Dcl, cbuffer_index_system_constants_,
+                      uint32_t(CbufferRegister::kSystemConstants),
+                      uint32_t(CbufferRegister::kSystemConstants)),
+        (sizeof(SystemConstants) + 15) >> 4);
   }
   if (cbuffer_index_fetch_constants_ != kBindingIndexUnallocated) {
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
-        ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
-            D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_object_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
-    shader_object_.push_back(cbuffer_index_fetch_constants_);
-    shader_object_.push_back(uint32_t(CbufferRegister::kFetchConstants));
-    shader_object_.push_back(uint32_t(CbufferRegister::kFetchConstants));
-    shader_object_.push_back(48);
-    shader_object_.push_back(0);
+    ao_.OpDclConstantBuffer(
+        dxbc::Src::CB(dxbc::Src::Dcl, cbuffer_index_fetch_constants_,
+                      uint32_t(CbufferRegister::kFetchConstants),
+                      uint32_t(CbufferRegister::kFetchConstants)),
+        48);
   }
   if (cbuffer_index_descriptor_indices_ != kBindingIndexUnallocated) {
     assert_not_zero(GetBindlessResourceCount());
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
-        ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
-            D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_object_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
-    shader_object_.push_back(cbuffer_index_descriptor_indices_);
-    shader_object_.push_back(uint32_t(CbufferRegister::kDescriptorIndices));
-    shader_object_.push_back(uint32_t(CbufferRegister::kDescriptorIndices));
-    shader_object_.push_back((GetBindlessResourceCount() + 3) >> 2);
-    shader_object_.push_back(0);
+    ao_.OpDclConstantBuffer(
+        dxbc::Src::CB(dxbc::Src::Dcl, cbuffer_index_descriptor_indices_,
+                      uint32_t(CbufferRegister::kDescriptorIndices),
+                      uint32_t(CbufferRegister::kDescriptorIndices)),
+        (GetBindlessResourceCount() + 3) >> 2);
   }
   if (cbuffer_index_bool_loop_constants_ != kBindingIndexUnallocated) {
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_CONSTANT_BUFFER) |
-        ENCODE_D3D10_SB_D3D10_SB_CONSTANT_BUFFER_ACCESS_PATTERN(
-            D3D10_SB_CONSTANT_BUFFER_IMMEDIATE_INDEXED) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-    shader_object_.push_back(EncodeVectorSwizzledOperand(
-        D3D10_SB_OPERAND_TYPE_CONSTANT_BUFFER, kSwizzleXYZW, 3));
-    shader_object_.push_back(cbuffer_index_bool_loop_constants_);
-    shader_object_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
-    shader_object_.push_back(uint32_t(CbufferRegister::kBoolLoopConstants));
-    shader_object_.push_back(10);
-    shader_object_.push_back(0);
+    ao_.OpDclConstantBuffer(
+        dxbc::Src::CB(dxbc::Src::Dcl, cbuffer_index_bool_loop_constants_,
+                      uint32_t(CbufferRegister::kBoolLoopConstants),
+                      uint32_t(CbufferRegister::kBoolLoopConstants)),
+        2 + 8);
   }
 
   // Samplers.
   if (!sampler_bindings_.empty()) {
     if (bindless_resources_used_) {
       // Bindless sampler heap.
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_SAMPLER) |
-          ENCODE_D3D10_SB_SAMPLER_MODE(D3D10_SB_SAMPLER_MODE_DEFAULT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-      shader_object_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_SAMPLER, kSwizzleXYZW, 3));
-      shader_object_.push_back(0);
-      shader_object_.push_back(0);
-      shader_object_.push_back(UINT32_MAX);
-      shader_object_.push_back(0);
+      ao_.OpDclSampler(dxbc::Src::S(dxbc::Src::Dcl, 0, 0, UINT32_MAX));
     } else {
       // Bindful samplers.
       for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
         const SamplerBinding& sampler_binding = sampler_bindings_[i];
-        shader_object_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_SAMPLER) |
-            ENCODE_D3D10_SB_SAMPLER_MODE(D3D10_SB_SAMPLER_MODE_DEFAULT) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-        shader_object_.push_back(EncodeVectorSwizzledOperand(
-            D3D10_SB_OPERAND_TYPE_SAMPLER, kSwizzleXYZW, 3));
-        shader_object_.push_back(i);
-        shader_object_.push_back(i);
-        shader_object_.push_back(i);
-        shader_object_.push_back(0);
+        ao_.OpDclSampler(dxbc::Src::S(dxbc::Src::Dcl, i, i, i));
       }
     }
   }
@@ -3479,33 +3312,29 @@ void DxbcShaderTranslator::WriteShaderCode() {
   for (uint32_t i = 0; i < srv_count_; ++i) {
     if (i == srv_index_shared_memory_) {
       // Shared memory ByteAddressBuffer.
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D11_SB_OPCODE_DCL_RESOURCE_RAW) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-      shader_object_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
-      shader_object_.push_back(srv_index_shared_memory_);
-      shader_object_.push_back(uint32_t(SRVMainRegister::kSharedMemory));
-      shader_object_.push_back(uint32_t(SRVMainRegister::kSharedMemory));
-      shader_object_.push_back(uint32_t(SRVSpace::kMain));
+      ao_.OpDclResourceRaw(
+          dxbc::Src::T(dxbc::Src::Dcl, srv_index_shared_memory_,
+                       uint32_t(SRVMainRegister::kSharedMemory),
+                       uint32_t(SRVMainRegister::kSharedMemory)),
+          uint32_t(SRVSpace::kMain));
     } else {
       // Texture or texture heap.
-      D3D10_SB_RESOURCE_DIMENSION texture_srv_dimension;
-      uint32_t texture_register_first, texture_register_last;
+      dxbc::ResourceDimension texture_dimension;
+      uint32_t texture_register_lower_bound, texture_register_upper_bound;
       SRVSpace texture_register_space;
       if (bindless_resources_used_) {
         // Bindless texture heap.
-        texture_register_first = 0;
-        texture_register_last = UINT32_MAX;
+        texture_register_lower_bound = 0;
+        texture_register_upper_bound = UINT32_MAX;
         if (i == srv_index_bindless_textures_3d_) {
-          texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE3D;
+          texture_dimension = dxbc::ResourceDimension::kTexture3D;
           texture_register_space = SRVSpace::kBindlessTextures3D;
         } else if (i == srv_index_bindless_textures_cube_) {
-          texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURECUBE;
+          texture_dimension = dxbc::ResourceDimension::kTextureCube;
           texture_register_space = SRVSpace::kBindlessTexturesCube;
         } else {
           assert_true(i == srv_index_bindless_textures_2d_);
-          texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE2DARRAY;
+          texture_dimension = dxbc::ResourceDimension::kTexture2DArray;
           texture_register_space = SRVSpace::kBindlessTextures2DArray;
         }
       } else {
@@ -3517,36 +3346,28 @@ void DxbcShaderTranslator::WriteShaderCode() {
             texture_bindings_[texture_binding_index];
         switch (texture_binding.dimension) {
           case xenos::FetchOpDimension::k3DOrStacked:
-            texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE3D;
+            texture_dimension = dxbc::ResourceDimension::kTexture3D;
             break;
           case xenos::FetchOpDimension::kCube:
-            texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURECUBE;
+            texture_dimension = dxbc::ResourceDimension::kTextureCube;
             break;
           default:
             assert_true(texture_binding.dimension ==
                         xenos::FetchOpDimension::k2D);
-            texture_srv_dimension = D3D10_SB_RESOURCE_DIMENSION_TEXTURE2DARRAY;
+            texture_dimension = dxbc::ResourceDimension::kTexture2DArray;
         }
-        texture_register_first = texture_register_last =
+        texture_register_lower_bound =
             uint32_t(SRVMainRegister::kBindfulTexturesStart) +
             texture_binding_index;
+        texture_register_upper_bound = texture_register_lower_bound;
         texture_register_space = SRVSpace::kMain;
       }
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_RESOURCE) |
-          ENCODE_D3D10_SB_RESOURCE_DIMENSION(texture_srv_dimension) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-      shader_object_.push_back(EncodeVectorSwizzledOperand(
-          D3D10_SB_OPERAND_TYPE_RESOURCE, kSwizzleXYZW, 3));
-      shader_object_.push_back(i);
-      shader_object_.push_back(texture_register_first);
-      shader_object_.push_back(texture_register_last);
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 0) |
-          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 1) |
-          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 2) |
-          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_FLOAT, 3));
-      shader_object_.push_back(uint32_t(texture_register_space));
+      ao_.OpDclResource(
+          texture_dimension,
+          dxbc::ResourceReturnTypeX4Token(dxbc::ResourceReturnType::kFloat),
+          dxbc::Src::T(dxbc::Src::Dcl, i, texture_register_lower_bound,
+                       texture_register_upper_bound),
+          uint32_t(texture_register_space));
     }
   }
 
@@ -3554,36 +3375,24 @@ void DxbcShaderTranslator::WriteShaderCode() {
   for (uint32_t i = 0; i < uav_count_; ++i) {
     if (i == uav_index_shared_memory_) {
       // Shared memory RWByteAddressBuffer.
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(
-              D3D11_SB_OPCODE_DCL_UNORDERED_ACCESS_VIEW_RAW) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(6));
-      shader_object_.push_back(EncodeVectorSwizzledOperand(
-          D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 3));
-      shader_object_.push_back(uav_index_shared_memory_);
-      shader_object_.push_back(uint32_t(UAVRegister::kSharedMemory));
-      shader_object_.push_back(uint32_t(UAVRegister::kSharedMemory));
-      shader_object_.push_back(0);
+      if (!is_pixel_shader()) {
+        shader_feature_info_.feature_flags[0] |=
+            dxbc::kShaderFeature0_UAVsAtEveryStage;
+      }
+      ao_.OpDclUnorderedAccessViewRaw(
+          0, dxbc::Src::U(dxbc::Src::Dcl, uav_index_shared_memory_,
+                          uint32_t(UAVRegister::kSharedMemory),
+                          uint32_t(UAVRegister::kSharedMemory)));
     } else if (i == uav_index_edram_) {
       // EDRAM buffer R32_UINT rasterizer-ordered view.
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(
-              D3D11_SB_OPCODE_DCL_UNORDERED_ACCESS_VIEW_TYPED) |
-          ENCODE_D3D10_SB_RESOURCE_DIMENSION(
-              D3D10_SB_RESOURCE_DIMENSION_BUFFER) |
-          D3D11_SB_RASTERIZER_ORDERED_ACCESS |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(7));
-      shader_object_.push_back(EncodeVectorSwizzledOperand(
-          D3D11_SB_OPERAND_TYPE_UNORDERED_ACCESS_VIEW, kSwizzleXYZW, 3));
-      shader_object_.push_back(uav_index_edram_);
-      shader_object_.push_back(uint32_t(UAVRegister::kEdram));
-      shader_object_.push_back(uint32_t(UAVRegister::kEdram));
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 0) |
-          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 1) |
-          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 2) |
-          ENCODE_D3D10_SB_RESOURCE_RETURN_TYPE(D3D10_SB_RETURN_TYPE_UINT, 3));
-      shader_object_.push_back(0);
+      shader_feature_info_.feature_flags[0] |= dxbc::kShaderFeature0_ROVs;
+      ao_.OpDclUnorderedAccessViewTyped(
+          dxbc::ResourceDimension::kBuffer,
+          dxbc::kUAVFlagRasterizerOrderedAccess,
+          dxbc::ResourceReturnTypeX4Token(dxbc::ResourceReturnType::kUInt),
+          dxbc::Src::U(dxbc::Src::Dcl, uav_index_edram_,
+                       uint32_t(UAVRegister::kEdram),
+                       uint32_t(UAVRegister::kEdram)));
     } else {
       assert_unhandled_case(i);
     }
@@ -3594,27 +3403,16 @@ void DxbcShaderTranslator::WriteShaderCode() {
     if (IsDxbcDomainShader()) {
       if (in_domain_location_used_) {
         // Domain location input.
-        shader_object_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
-        shader_object_.push_back(
-            EncodeVectorMaskedOperand(D3D11_SB_OPERAND_TYPE_INPUT_DOMAIN_POINT,
-                                      in_domain_location_used_, 0));
-        ++stat_.dcl_count;
+        ao_.OpDclInput(dxbc::Dest::VDomain(in_domain_location_used_));
       }
       if (in_primitive_id_used_) {
         // Primitive (patch) index input.
-        shader_object_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
-        shader_object_.push_back(
-            EncodeScalarOperand(D3D10_SB_OPERAND_TYPE_INPUT_PRIMITIVEID, 0));
-        ++stat_.dcl_count;
+        ao_.OpDclInput(dxbc::Dest::VPrim());
       }
       if (in_control_point_index_used_) {
         // Control point indices as float input.
-        uint32_t control_point_array_size;
-        switch (shader_modification.host_vertex_shader_type) {
+        uint32_t control_point_array_size = 3;
+        switch (shader_modification.vertex.host_vertex_shader_type) {
           case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
             control_point_array_size = 3;
             break;
@@ -3623,138 +3421,67 @@ void DxbcShaderTranslator::WriteShaderCode() {
             break;
           default:
             // TODO(Triang3l): Support line patches.
-            assert_unhandled_case(shader_modification.host_vertex_shader_type);
+            assert_unhandled_case(
+                shader_modification.vertex.host_vertex_shader_type);
             EmitTranslationError(
                 "Unsupported host vertex shader type in "
                 "StartVertexOrDomainShader");
-            control_point_array_size = 0;
         }
-        if (control_point_array_size) {
-          shader_object_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-          shader_object_.push_back(EncodeVectorMaskedOperand(
-              D3D11_SB_OPERAND_TYPE_INPUT_CONTROL_POINT, 0b0001, 2));
-          shader_object_.push_back(control_point_array_size);
-          shader_object_.push_back(
-              uint32_t(InOutRegister::kDSInControlPointIndex));
-          ++stat_.dcl_count;
-        }
+        ao_.OpDclInput(dxbc::Dest::VICP(
+            control_point_array_size,
+            uint32_t(InOutRegister::kDSInControlPointIndex), 0b0001));
       }
     } else {
       if (register_count()) {
         // Unswapped vertex index input (only X component).
-        shader_object_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_SGV) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-        shader_object_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0001, 1));
-        shader_object_.push_back(uint32_t(InOutRegister::kVSInVertexIndex));
-        shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_VERTEX_ID));
-        ++stat_.dcl_count;
+        ao_.OpDclInputSGV(
+            dxbc::Dest::V(uint32_t(InOutRegister::kVSInVertexIndex), 0b0001),
+            dxbc::Name::kVertexID);
       }
     }
     // Interpolator output.
     for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-      shader_object_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
-      shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutInterpolators) +
-                               i);
-      ++stat_.dcl_count;
+      ao_.OpDclOutput(
+          dxbc::Dest::O(uint32_t(InOutRegister::kVSDSOutInterpolators) + i));
     }
     // Point parameters output.
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_object_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b0111, 1));
-    shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutPointParameters));
-    ++stat_.dcl_count;
-    // Clip space Z and W output.
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-    shader_object_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b0011, 1));
-    shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutClipSpaceZW));
-    ++stat_.dcl_count;
+    ao_.OpDclOutput(dxbc::Dest::O(
+        uint32_t(InOutRegister::kVSDSOutPointParameters), 0b0111));
     // Position output.
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT_SIV) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-    shader_object_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
-    shader_object_.push_back(uint32_t(InOutRegister::kVSDSOutPosition));
-    shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
-    ++stat_.dcl_count;
+    ao_.OpDclOutputSIV(dxbc::Dest::O(uint32_t(InOutRegister::kVSDSOutPosition)),
+                       dxbc::Name::kPosition);
     // Clip distance outputs.
     for (uint32_t i = 0; i < 2; ++i) {
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT_SIV) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-      shader_object_.push_back(EncodeVectorMaskedOperand(
-          D3D10_SB_OPERAND_TYPE_OUTPUT, i ? 0b0011 : 0b1111, 1));
-      shader_object_.push_back(
-          uint32_t(InOutRegister::kVSDSOutClipDistance0123) + i);
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_CLIP_DISTANCE));
-      ++stat_.dcl_count;
+      ao_.OpDclOutputSIV(
+          dxbc::Dest::O(uint32_t(InOutRegister::kVSDSOutClipDistance0123) + i,
+                        i ? 0b0011 : 0b1111),
+          dxbc::Name::kClipDistance);
     }
     // Cull distance output.
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT_SIV) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-    shader_object_.push_back(
-        EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_OUTPUT, 0b0100, 1));
-    shader_object_.push_back(
-        uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance));
-    shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_CULL_DISTANCE));
-    ++stat_.dcl_count;
+    ao_.OpDclOutputSIV(
+        dxbc::Dest::O(
+            uint32_t(InOutRegister::kVSDSOutClipDistance45AndCullDistance),
+            0b0100),
+        dxbc::Name::kCullDistance);
   } else if (is_pixel_shader()) {
     bool is_writing_float24_depth = DSV_IsWritingFloat24Depth();
+    bool shader_writes_depth = current_shader().writes_depth();
     // Interpolator input.
     if (!is_depth_only_pixel_shader_) {
       uint32_t interpolator_count =
           std::min(xenos::kMaxInterpolators, register_count());
       for (uint32_t i = 0; i < interpolator_count; ++i) {
-        shader_object_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS) |
-            ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
-                D3D10_SB_INTERPOLATION_LINEAR) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-        shader_object_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b1111, 1));
-        shader_object_.push_back(uint32_t(InOutRegister::kPSInInterpolators) +
-                                 i);
-        ++stat_.dcl_count;
+        ao_.OpDclInputPS(
+            dxbc::InterpolationMode::kLinear,
+            dxbc::Dest::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
       }
       if (register_count()) {
         // Point parameters input (only coordinates, not size, needed).
-        shader_object_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS) |
-            ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
-                D3D10_SB_INTERPOLATION_LINEAR) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-        shader_object_.push_back(
-            EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0011, 1));
-        shader_object_.push_back(uint32_t(InOutRegister::kPSInPointParameters));
-        ++stat_.dcl_count;
+        ao_.OpDclInputPS(
+            dxbc::InterpolationMode::kLinear,
+            dxbc::Dest::V(uint32_t(InOutRegister::kPSInPointParameters),
+                          0b0011));
       }
-    }
-    if (edram_rov_used_) {
-      // Z and W in clip space, for per-sample depth.
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS) |
-          ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
-              D3D10_SB_INTERPOLATION_LINEAR) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-      shader_object_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0011, 1));
-      shader_object_.push_back(uint32_t(InOutRegister::kPSInClipSpaceZW));
-      ++stat_.dcl_count;
     }
     if (in_position_used_) {
       // Position input (XY needed for ps_param_gen, Z needed for non-ROV
@@ -3765,117 +3492,90 @@ void DxbcShaderTranslator::WriteShaderCode() {
       // with SV_DepthLessEqual, per-sample (or centroid, but this isn't
       // applicable here) position is mandatory. However, with depth output, on
       // the guest, there's only one depth value for the whole pixel.
-      D3D10_SB_INTERPOLATION_MODE position_interpolation_mode =
-          is_writing_float24_depth && !writes_depth()
-              ? D3D10_SB_INTERPOLATION_LINEAR_NOPERSPECTIVE_SAMPLE
-              : D3D10_SB_INTERPOLATION_LINEAR_NOPERSPECTIVE;
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS_SIV) |
-          ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
-              position_interpolation_mode) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-      shader_object_.push_back(EncodeVectorMaskedOperand(
-          D3D10_SB_OPERAND_TYPE_INPUT, in_position_used_, 1));
-      shader_object_.push_back(uint32_t(InOutRegister::kPSInPosition));
-      shader_object_.push_back(ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_POSITION));
-      ++stat_.dcl_count;
+      ao_.OpDclInputPSSIV(
+          (is_writing_float24_depth && !shader_writes_depth)
+              ? dxbc::InterpolationMode::kLinearNoPerspectiveSample
+              : dxbc::InterpolationMode::kLinearNoPerspective,
+          dxbc::Dest::V(uint32_t(InOutRegister::kPSInPosition),
+                        in_position_used_),
+          dxbc::Name::kPosition);
     }
-    if (in_front_face_used_) {
-      // Is front face.
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT_PS_SGV) |
-          // This needs to be set according to FXC output, despite the
-          // description in d3d12TokenizedProgramFormat.hpp saying bits 11:23
-          // are ignored.
-          ENCODE_D3D10_SB_INPUT_INTERPOLATION_MODE(
-              D3D10_SB_INTERPOLATION_CONSTANT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-      shader_object_.push_back(
-          EncodeVectorMaskedOperand(D3D10_SB_OPERAND_TYPE_INPUT, 0b0001, 1));
-      shader_object_.push_back(uint32_t(InOutRegister::kPSInFrontFace));
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_NAME(D3D10_SB_NAME_IS_FRONT_FACE));
-      ++stat_.dcl_count;
+    bool sample_rate_memexport =
+        current_shader().is_valid_memexport_used() && IsSampleRate();
+    // Sample-rate shading can't be done with UAV-only rendering (sample-rate
+    // shading is only needed for float24 depth conversion when using a float32
+    // host depth buffer).
+    assert_false(sample_rate_memexport && edram_rov_used_);
+    uint32_t front_face_and_sample_index_mask =
+        uint32_t(in_front_face_used_) | (uint32_t(sample_rate_memexport) << 1);
+    if (front_face_and_sample_index_mask) {
+      // Is front face, sample index.
+      ao_.OpDclInputPSSGV(
+          dxbc::Dest::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
+                        front_face_and_sample_index_mask),
+          dxbc::Name::kIsFrontFace);
     }
     if (edram_rov_used_) {
       // Sample coverage input.
-      shader_object_.push_back(
-          ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INPUT) |
-          ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
-      shader_object_.push_back(
-          EncodeScalarOperand(D3D11_SB_OPERAND_TYPE_INPUT_COVERAGE_MASK, 0));
-      ++stat_.dcl_count;
+      ao_.OpDclInput(dxbc::Dest::VCoverage());
     } else {
-      if (writes_any_color_target()) {
-        // Color output.
-        for (uint32_t i = 0; i < 4; ++i) {
-          shader_object_.push_back(
-              ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
-              ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(3));
-          shader_object_.push_back(EncodeVectorMaskedOperand(
-              D3D10_SB_OPERAND_TYPE_OUTPUT, 0b1111, 1));
-          shader_object_.push_back(i);
-          ++stat_.dcl_count;
+      if (sample_rate_memexport) {
+        // Sample coverage input.
+        ao_.OpDclInput(dxbc::Dest::VCoverage());
+      }
+      // Color output.
+      uint32_t color_targets_written = current_shader().writes_color_targets();
+      for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+        if (color_targets_written & (uint32_t(1) << i)) {
+          ao_.OpDclOutput(dxbc::Dest::O(i));
         }
       }
+      // Coverage output for alpha to mask.
+      if (color_targets_written & 0b1) {
+        ao_.OpDclOutput(dxbc::Dest::OMask());
+      }
       // Depth output.
-      if (is_writing_float24_depth || writes_depth()) {
-        D3D10_SB_OPERAND_TYPE depth_operand_type;
-        if (!writes_depth() &&
-            GetDxbcShaderModification().depth_stencil_mode ==
+      if (is_writing_float24_depth || shader_writes_depth) {
+        if (!shader_writes_depth &&
+            GetDxbcShaderModification().pixel.depth_stencil_mode ==
                 Modification::DepthStencilMode::kFloat24Truncating) {
-          depth_operand_type = D3D11_SB_OPERAND_TYPE_OUTPUT_DEPTH_LESS_EQUAL;
+          ao_.OpDclOutput(dxbc::Dest::ODepthLE());
         } else {
-          depth_operand_type = D3D10_SB_OPERAND_TYPE_OUTPUT_DEPTH;
+          ao_.OpDclOutput(dxbc::Dest::ODepth());
         }
-        shader_object_.push_back(
-            ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_OUTPUT) |
-            ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
-        shader_object_.push_back(EncodeScalarOperand(depth_operand_type, 0));
-        ++stat_.dcl_count;
       }
     }
   }
 
   // Temporary registers - guest general-purpose registers if not using dynamic
   // indexing and Xenia internal registers.
-  stat_.temp_register_count = system_temp_count_max_;
-  if (!is_depth_only_pixel_shader_ && !uses_register_dynamic_addressing()) {
-    stat_.temp_register_count += register_count();
+  uint32_t temp_register_count = system_temp_count_max_;
+  if (!is_depth_only_pixel_shader_ &&
+      !current_shader().uses_register_dynamic_addressing()) {
+    temp_register_count += register_count();
   }
-  if (stat_.temp_register_count != 0) {
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_TEMPS) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(2));
-    shader_object_.push_back(stat_.temp_register_count);
+  if (temp_register_count) {
+    ao_.OpDclTemps(temp_register_count);
   }
-
   // General-purpose registers if using dynamic indexing (x0).
-  if (!is_depth_only_pixel_shader_ && uses_register_dynamic_addressing()) {
-    assert_true(register_count() != 0);
-    shader_object_.push_back(
-        ENCODE_D3D10_SB_OPCODE_TYPE(D3D10_SB_OPCODE_DCL_INDEXABLE_TEMP) |
-        ENCODE_D3D10_SB_TOKENIZED_INSTRUCTION_LENGTH(4));
-    // x0.
-    shader_object_.push_back(0);
-    shader_object_.push_back(register_count());
-    // 4 components in each.
-    shader_object_.push_back(4);
-    stat_.temp_array_count += register_count();
+  if (!is_depth_only_pixel_shader_ &&
+      current_shader().uses_register_dynamic_addressing()) {
+    assert_not_zero(register_count());
+    ao_.OpDclIndexableTemp(0, register_count(), 4);
   }
 
   // Write the translated shader code.
   size_t code_size_dwords = shader_code_.size();
-  // So [] won't crash in case the size is zero somehow.
-  if (code_size_dwords != 0) {
+  if (code_size_dwords) {
     shader_object_.resize(shader_object_.size() + code_size_dwords);
-    std::memcpy(&shader_object_[shader_object_.size() - code_size_dwords],
-                shader_code_.data(), code_size_dwords * sizeof(uint32_t));
+    std::memcpy(
+        shader_object_.data() + (shader_object_.size() - code_size_dwords),
+        shader_code_.data(), code_size_dwords * sizeof(uint32_t));
   }
 
   // Write the length.
-  shader_object_[chunk_position_dwords + 1] =
-      uint32_t(shader_object_.size()) - chunk_position_dwords;
+  shader_object_[blob_position_dwords + 1] =
+      uint32_t(shader_object_.size()) - blob_position_dwords;
 }
 
 }  // namespace gpu

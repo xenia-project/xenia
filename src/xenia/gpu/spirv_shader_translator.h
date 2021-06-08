@@ -32,16 +32,22 @@ class SpirvShaderTranslator : public ShaderTranslator {
     // TODO(Triang3l): Change to 0xYYYYMMDD once it's out of the rapid
     // prototyping stage (easier to do small granular updates with an
     // incremental counter).
-    static constexpr uint32_t kVersion = 1;
+    static constexpr uint32_t kVersion = 2;
 
     struct {
-      // VS - pipeline stage and input configuration.
+      // Dynamically indexable register count from SQ_PROGRAM_CNTL.
+      uint32_t dynamic_addressable_register_count : 8;
+      // Pipeline stage and input configuration.
       Shader::HostVertexShaderType host_vertex_shader_type
           : Shader::kHostVertexShaderTypeBitCount;
-    };
-    uint32_t value = 0;
+    } vertex;
+    struct PixelShaderModification {
+      // Dynamically indexable register count from SQ_PROGRAM_CNTL.
+      uint32_t dynamic_addressable_register_count : 8;
+    } pixel;
+    uint64_t value = 0;
 
-    Modification(uint32_t modification_value = 0) : value(modification_value) {}
+    Modification(uint64_t modification_value = 0) : value(modification_value) {}
   };
 
   enum : uint32_t {
@@ -137,10 +143,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
   };
   SpirvShaderTranslator(const Features& features);
 
-  uint32_t GetDefaultModification(
-      xenos::ShaderType shader_type,
+  uint64_t GetDefaultVertexShaderModification(
+      uint32_t dynamic_addressable_register_count,
       Shader::HostVertexShaderType host_vertex_shader_type =
           Shader::HostVertexShaderType::kVertex) const override;
+  uint64_t GetDefaultPixelShaderModification(
+      uint32_t dynamic_addressable_register_count) const override;
 
   static constexpr uint32_t GetSharedMemoryStorageBufferCountLog2(
       uint32_t max_storage_buffer_range) {
@@ -158,7 +166,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
   }
 
  protected:
-  void Reset(xenos::ShaderType shader_type) override;
+  void Reset() override;
+
+  uint32_t GetModificationRegisterCount() const override;
 
   void StartTranslation() override;
 
@@ -191,18 +201,17 @@ class SpirvShaderTranslator : public ShaderTranslator {
   }
 
   Modification GetSpirvShaderModification() const {
-    return Modification(modification());
+    return Modification(current_translation().modification());
   }
 
-  // TODO(Triang3l): Depth-only pixel shader.
   bool IsSpirvVertexShader() const {
     return is_vertex_shader() &&
-           GetSpirvShaderModification().host_vertex_shader_type ==
+           GetSpirvShaderModification().vertex.host_vertex_shader_type ==
                Shader::HostVertexShaderType::kVertex;
   }
   bool IsSpirvTessEvalShader() const {
     return is_vertex_shader() &&
-           GetSpirvShaderModification().host_vertex_shader_type !=
+           GetSpirvShaderModification().vertex.host_vertex_shader_type !=
                Shader::HostVertexShaderType::kVertex;
   }
 

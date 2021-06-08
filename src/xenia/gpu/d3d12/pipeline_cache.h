@@ -23,11 +23,13 @@
 
 #include "xenia/base/hash.h"
 #include "xenia/base/platform.h"
+#include "xenia/base/string_buffer.h"
 #include "xenia/base/threading.h"
+#include "xenia/gpu/d3d12/d3d12_render_target_cache.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
-#include "xenia/gpu/d3d12/render_target_cache.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/gpu_flags.h"
+#include "xenia/gpu/primitive_processor.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
@@ -43,10 +45,9 @@ class PipelineCache {
   static constexpr size_t kLayoutUIDEmpty = 0;
 
   PipelineCache(D3D12CommandProcessor& command_processor,
-                const RegisterFile& register_file, bool bindless_resources_used,
-                bool edram_rov_used,
-                flags::DepthFloat24Conversion depth_float24_conversion,
-                uint32_t resolution_scale);
+                const RegisterFile& register_file,
+                const D3D12RenderTargetCache& render_target_cache,
+                bool bindless_resources_used);
   ~PipelineCache();
 
   bool Initialize();
@@ -62,22 +63,28 @@ class PipelineCache {
 
   D3D12Shader* LoadShader(xenos::ShaderType shader_type,
                           const uint32_t* host_address, uint32_t dword_count);
+  // Analyze shader microcode on the translator thread.
+  void AnalyzeShaderUcode(Shader& shader) {
+    shader.AnalyzeUcode(ucode_disasm_buffer_);
+  }
 
-  // Retrieves the shader modifications for the current state, and returns
-  // whether they are valid.
-  bool GetCurrentShaderModifications(
-      DxbcShaderTranslator::Modification& vertex_shader_modification_out,
-      DxbcShaderTranslator::Modification& pixel_shader_modification_out) const;
+  // Retrieves the shader modification for the current state. The shader must
+  // have microcode analyzed.
+  DxbcShaderTranslator::Modification
+  PipelineCache::GetCurrentVertexShaderModification(
+      const Shader& shader,
+      Shader::HostVertexShaderType host_vertex_shader_type) const;
+  DxbcShaderTranslator::Modification
+  PipelineCache::GetCurrentPixelShaderModification(const Shader& shader) const;
 
-  // Translates shaders if needed, also making shader info up to date.
-  bool EnsureShadersTranslated(D3D12Shader::D3D12Translation* vertex_shader,
-                               D3D12Shader::D3D12Translation* pixel_shader);
-
+  // If draw_util::IsRasterizationPotentiallyDone is false, the pixel shader
+  // MUST be made nullptr BEFORE calling this!
   bool ConfigurePipeline(
       D3D12Shader::D3D12Translation* vertex_shader,
       D3D12Shader::D3D12Translation* pixel_shader,
-      xenos::PrimitiveType primitive_type, xenos::IndexFormat index_format,
-      const RenderTargetCache::PipelineRenderTarget render_targets[5],
+      const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+      uint32_t bound_depth_and_color_render_target_bits,
+      const uint32_t* bound_depth_and_color_render_targets_formats,
       void** pipeline_handle_out, ID3D12RootSignature** root_signature_out);
 
   // Returns a pipeline with deferred creation by its handle. May return nullptr
@@ -93,9 +100,7 @@ class PipelineCache {
     uint32_t ucode_dword_count : 31;
     xenos::ShaderType type : 1;
 
-    reg::SQ_PROGRAM_CNTL sq_program_cntl;
-
-    static constexpr uint32_t kVersion = 0x20201207;
+    static constexpr uint32_t kVersion = 0x20201219;
   });
 
   // Update PipelineDescription::kVersion if any of the Pipeline* enums are
@@ -138,6 +143,8 @@ class PipelineCache {
     kNone,
     kFront,
     kBack,
+    // Special case, handled via disabling the pixel shader and depth / stencil.
+    kDisableRasterization,
   };
 
   enum class PipelineBlendFactor : uint32_t {
@@ -171,10 +178,10 @@ class PipelineCache {
 
   XEPACKEDSTRUCT(PipelineDescription, {
     uint64_t vertex_shader_hash;
+    uint64_t vertex_shader_modification;
     // 0 if drawing without a pixel shader.
     uint64_t pixel_shader_hash;
-    uint32_t vertex_shader_modification;
-    uint32_t pixel_shader_modification;
+    uint64_t pixel_shader_modification;
 
     int32_t depth_bias;
     float depth_bias_slope_scaled;
@@ -189,12 +196,12 @@ class PipelineCache {
     PipelineCullMode cull_mode : 2;                   // 9
     uint32_t front_counter_clockwise : 1;             // 10
     uint32_t depth_clip : 1;                          // 11
-    uint32_t rov_msaa : 1;                            // 12
-    xenos::DepthRenderTargetFormat depth_format : 1;  // 13
-    xenos::CompareFunction depth_func : 3;            // 16
-    uint32_t depth_write : 1;                         // 17
-    uint32_t stencil_enable : 1;                      // 18
-    uint32_t stencil_read_mask : 8;                   // 26
+    xenos::MsaaSamples host_msaa_samples : 2;         // 13
+    xenos::DepthRenderTargetFormat depth_format : 1;  // 14
+    xenos::CompareFunction depth_func : 3;            // 17
+    uint32_t depth_write : 1;                         // 18
+    uint32_t stencil_enable : 1;                      // 19
+    uint32_t stencil_read_mask : 8;                   // 27
 
     uint32_t stencil_write_mask : 8;                   // 8
     xenos::StencilOp stencil_front_fail_op : 3;        // 11
@@ -206,9 +213,9 @@ class PipelineCache {
     xenos::StencilOp stencil_back_pass_op : 3;         // 29
     xenos::CompareFunction stencil_back_func : 3;      // 32
 
-    PipelineRenderTarget render_targets[4];
+    PipelineRenderTarget render_targets[xenos::kMaxColorRenderTargets];
 
-    static constexpr uint32_t kVersion = 0x20201207;
+    static constexpr uint32_t kVersion = 0x20210425;
   });
 
   XEPACKEDSTRUCT(PipelineStoredDescription, {
@@ -223,27 +230,26 @@ class PipelineCache {
     PipelineDescription description;
   };
 
-  // Returns the host vertex shader type for the current draw if it's valid and
-  // supported, or Shader::HostVertexShaderType(-1) if not.
-  Shader::HostVertexShaderType GetCurrentHostVertexShaderTypeIfValid() const;
-
   D3D12Shader* LoadShader(xenos::ShaderType shader_type,
                           const uint32_t* host_address, uint32_t dword_count,
                           uint64_t data_hash);
 
   // Can be called from multiple threads.
-  bool TranslateShader(DxbcShaderTranslator& translator,
-                       D3D12Shader::D3D12Translation& translation,
-                       reg::SQ_PROGRAM_CNTL cntl,
-                       IDxbcConverter* dxbc_converter = nullptr,
-                       IDxcUtils* dxc_utils = nullptr,
-                       IDxcCompiler* dxc_compiler = nullptr);
+  bool TranslateAnalyzedShader(DxbcShaderTranslator& translator,
+                               D3D12Shader::D3D12Translation& translation,
+                               IDxbcConverter* dxbc_converter = nullptr,
+                               IDxcUtils* dxc_utils = nullptr,
+                               IDxcCompiler* dxc_compiler = nullptr);
 
+  // If draw_util::IsRasterizationPotentiallyDone is false, the pixel shader
+  // MUST be made nullptr BEFORE calling this! The shaders must be translated
+  // and valid.
   bool GetCurrentStateDescription(
       D3D12Shader::D3D12Translation* vertex_shader,
       D3D12Shader::D3D12Translation* pixel_shader,
-      xenos::PrimitiveType primitive_type, xenos::IndexFormat index_format,
-      const RenderTargetCache::PipelineRenderTarget render_targets[5],
+      const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+      uint32_t bound_depth_and_color_render_target_bits,
+      const uint32_t* bound_depth_and_color_render_target_formats,
       PipelineRuntimeDescription& runtime_description_out);
 
   ID3D12PipelineState* CreateD3D12Pipeline(
@@ -251,13 +257,12 @@ class PipelineCache {
 
   D3D12CommandProcessor& command_processor_;
   const RegisterFile& register_file_;
+  const D3D12RenderTargetCache& render_target_cache_;
   bool bindless_resources_used_;
-  bool edram_rov_used_;
-  // 20e4 depth conversion mode to use for non-ROV output.
-  flags::DepthFloat24Conversion depth_float24_conversion_;
-  uint32_t resolution_scale_;
 
-  // Reusable shader translator.
+  // Temporary storage for AnalyzeUcode calls on the processor thread.
+  StringBuffer ucode_disasm_buffer_;
+  // Reusable shader translator for the processor thread.
   std::unique_ptr<DxbcShaderTranslator> shader_translator_;
 
   // Command processor thread DXIL conversion/disassembly interfaces, if DXIL
@@ -332,8 +337,7 @@ class PipelineCache {
   std::condition_variable storage_write_request_cond_;
   // Storage thread input is protected with storage_write_request_lock_, and the
   // thread is notified about its change via storage_write_request_cond_.
-  std::deque<std::pair<const Shader*, reg::SQ_PROGRAM_CNTL>>
-      storage_write_shader_queue_;
+  std::deque<const Shader*> storage_write_shader_queue_;
   std::deque<PipelineStoredDescription> storage_write_pipeline_queue_;
   bool storage_write_flush_shaders_ = false;
   bool storage_write_flush_pipelines_ = false;
