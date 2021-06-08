@@ -430,31 +430,46 @@ void EmulatorWindow::ShowCommitID() {
 }
 
 void EmulatorWindow::UpdateTitle() {
-  std::string title(base_title_);
+  xe::StringBuffer sb;
+  sb.Append(base_title_);
 
+  // Title information, if available
   if (emulator()->is_title_open()) {
-    auto game_title = emulator()->game_title();
-    title += fmt::format(" | [{:08X}] {}", emulator()->title_id(), game_title);
+    sb.AppendFormat(u8" | [{:08X}", emulator()->title_id());
+    auto title_version = emulator()->title_version();
+    if (!title_version.empty()) {
+      sb.Append(u8" v");
+      sb.Append(title_version);
+    }
+    sb.Append(u8"]");
+
+    auto title_name = emulator()->title_name();
+    if (!title_name.empty()) {
+      sb.Append(u8" ");
+      sb.Append(title_name);
+    }
   }
 
+  // Graphics system name, if available
   auto graphics_system = emulator()->graphics_system();
   if (graphics_system) {
     auto graphics_name = graphics_system->name();
-    title += fmt::format(" <{}>", graphics_name);
+    if (!graphics_name.empty()) {
+      sb.Append(u8" <");
+      sb.Append(graphics_name);
+      sb.Append(u8">");
+    }
   }
 
   if (Clock::guest_time_scalar() != 1.0) {
-    title += fmt::format(" (@{:.2f}x)", Clock::guest_time_scalar());
+    sb.AppendFormat(u8" (@{:.2f}x)", Clock::guest_time_scalar());
   }
 
   if (initializing_shader_storage_) {
-    title +=
-        " (Preloading shaders"
-        u8"\u2026"
-        ")";
+    sb.Append(u8" (Preloading shaders\u2026)");
   }
 
-  window_->set_title(title);
+  window_->set_title(sb.to_string_view());
 }
 
 void EmulatorWindow::SetInitializingShaderStorage(bool initializing) {

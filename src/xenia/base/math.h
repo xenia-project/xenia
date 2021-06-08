@@ -17,6 +17,16 @@
 #include <limits>
 #include <numeric>
 #include <type_traits>
+
+#if defined __has_include
+#if __has_include(<version>)
+#include <version>
+#endif
+#endif
+#if __cpp_lib_bitops
+#include <bit>
+#endif
+
 #include "xenia/base/platform.h"
 
 #if XE_ARCH_AMD64
@@ -50,8 +60,20 @@ constexpr T round_up(T value, V multiple, bool force_non_zero = true) {
   return (value + multiple - 1) / multiple * multiple;
 }
 
-constexpr float saturate(float value) {
-  return std::max(std::min(1.0f, value), -1.0f);
+// Using the same conventions as in shading languages, returning 0 for NaN.
+// std::max is `a < b ? b : a`, thus in case of NaN, the first argument is
+// always returned. Also -0 is not < +0, so +0 is also chosen for it.
+template <typename T>
+constexpr T saturate_unsigned(T value) {
+  return std::min(static_cast<T>(1.0f), std::max(static_cast<T>(0.0f), value));
+}
+
+// This diverges from the GPU NaN rules for signed normalized formats (NaN
+// should be converted to 0, not to -1), but this expectation is not needed most
+// of time, and cannot be met for free (unlike for 0...1 clamping).
+template <typename T>
+constexpr T saturate_signed(T value) {
+  return std::min(static_cast<T>(1.0f), std::max(static_cast<T>(-1.0f), value));
 }
 
 // Gets the next power of two value that is greater than or equal to the given
@@ -104,6 +126,23 @@ constexpr uint32_t select_bits(uint32_t value, uint32_t a, uint32_t b) {
   return (value & make_bitmask(a, b)) >> a;
 }
 
+#if __cpp_lib_bitops
+template <class T>
+constexpr inline uint32_t bit_count(T v) {
+  return static_cast<uint32_t>(std::popcount(v));
+}
+#else
+#if XE_COMPILER_MSVC || XE_COMPILER_INTEL
+inline uint32_t bit_count(uint32_t v) { return __popcnt(v); }
+inline uint32_t bit_count(uint64_t v) {
+  return static_cast<uint32_t>(__popcnt64(v));
+}
+#elif XE_COMPILER_GCC || XE_COMPILER_CLANG
+static_assert(sizeof(unsigned int) == sizeof(uint32_t));
+static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
+inline uint32_t bit_count(uint32_t v) { return __builtin_popcount(v); }
+inline uint32_t bit_count(uint64_t v) { return __builtin_popcountll(v); }
+#else
 inline uint32_t bit_count(uint32_t v) {
   v = v - ((v >> 1) & 0x55555555);
   v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
@@ -119,6 +158,8 @@ inline uint32_t bit_count(uint64_t v) {
   v = v + (v >> 32) & 0x0000007F;
   return static_cast<uint32_t>(v);
 }
+#endif
+#endif
 
 // lzcnt instruction, typed for integers of all sizes.
 // The number of leading zero bits in the value parameter. If value is zero, the
@@ -245,7 +286,7 @@ inline bool bit_scan_forward(uint32_t v, uint32_t* out_first_set_index) {
   return i != 0;
 }
 inline bool bit_scan_forward(uint64_t v, uint32_t* out_first_set_index) {
-  int i = ffsll(v);
+  int i = __builtin_ffsll(v);
   *out_first_set_index = i - 1;
   return i != 0;
 }

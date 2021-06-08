@@ -11,6 +11,7 @@
 #define XENIA_EMULATOR_H_
 
 #include <functional>
+#include <optional>
 #include <string>
 
 #include "xenia/base/delegate.h"
@@ -43,6 +44,8 @@ class Window;
 
 namespace xe {
 
+constexpr fourcc_t kEmulatorSaveSignature = make_fourcc("XSAV");
+
 // The main type that runs the whole emulator.
 // This is responsible for initializing and managing all the various subsystems.
 class Emulator {
@@ -65,14 +68,19 @@ class Emulator {
   // Folder files safe to remove without significant side effects are stored in.
   const std::filesystem::path& cache_root() const { return cache_root_; }
 
-  // Title of the game in the default language.
-  const std::string& game_title() const { return game_title_; }
+  // Name of the title in the default language.
+  const std::string& title_name() const { return title_name_; }
+
+  // Version of the title as a string.
+  const std::string& title_version() const { return title_version_; }
 
   // Currently running title ID
-  uint32_t title_id() const { return title_id_; }
+  uint32_t title_id() const {
+    return !title_id_.has_value() ? 0 : title_id_.value();
+  }
 
   // Are we currently running a title?
-  bool is_title_open() const { return title_id_ != 0; }
+  bool is_title_open() const { return title_id_.has_value(); }
 
   // Window used for displaying graphical output.
   ui::Window* display_window() const { return display_window_; }
@@ -172,7 +180,8 @@ class Emulator {
   std::filesystem::path content_root_;
   std::filesystem::path cache_root_;
 
-  std::string game_title_;
+  std::string title_name_;
+  std::string title_version_;
 
   ui::Window* display_window_;
 
@@ -188,7 +197,7 @@ class Emulator {
 
   std::unique_ptr<kernel::KernelState> kernel_state_;
   kernel::object_ref<kernel::XThread> main_thread_;
-  uint32_t title_id_;  // Currently running title ID
+  std::optional<uint32_t> title_id_;  // Currently running title ID
 
   bool paused_;
   bool restoring_;

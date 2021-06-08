@@ -606,8 +606,7 @@ Shader* VulkanCommandProcessor::LoadShader(xenos::ShaderType shader_type,
                                            uint32_t guest_address,
                                            const uint32_t* host_address,
                                            uint32_t dword_count) {
-  return pipeline_cache_->LoadShader(shader_type, guest_address, host_address,
-                                     dword_count);
+  return pipeline_cache_->LoadShader(shader_type, host_address, dword_count);
 }
 
 bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
@@ -620,24 +619,23 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
 
   BeginSubmission(true);
 
+  // Vertex shader analysis.
   auto vertex_shader = static_cast<VulkanShader*>(active_vertex_shader());
   if (!vertex_shader) {
     // Always need a vertex shader.
     return false;
   }
+  pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
+
   // TODO(Triang3l): Get a pixel shader.
   VulkanShader* pixel_shader = nullptr;
-  SpirvShaderTranslator::Modification vertex_shader_modification;
-  SpirvShaderTranslator::Modification pixel_shader_modification;
-  if (!pipeline_cache_->GetCurrentShaderModifications(
-          vertex_shader_modification, pixel_shader_modification)) {
-    return false;
-  }
-  VulkanShader::VulkanTranslation* vertex_shader_translation =
-      static_cast<VulkanShader::VulkanTranslation*>(
-          vertex_shader->GetOrCreateTranslation(
-              vertex_shader_modification.value));
-  VulkanShader::VulkanTranslation* pixel_shader_translation = nullptr;
+
+  // Shader modifications.
+  SpirvShaderTranslator::Modification vertex_shader_modification =
+      pipeline_cache_->GetCurrentVertexShaderModification(
+          *vertex_shader, Shader::HostVertexShaderType::kVertex);
+  SpirvShaderTranslator::Modification pixel_shader_modification =
+      SpirvShaderTranslator::Modification(0);
 
   VulkanRenderTargetCache::FramebufferKey framebuffer_key;
   if (!render_target_cache_->UpdateRenderTargets(framebuffer_key)) {
@@ -653,6 +651,13 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   if (render_pass == VK_NULL_HANDLE) {
     return false;
   }
+
+  // Translate the shaders.
+  VulkanShader::VulkanTranslation* vertex_shader_translation =
+      static_cast<VulkanShader::VulkanTranslation*>(
+          vertex_shader->GetOrCreateTranslation(
+              vertex_shader_modification.value));
+  VulkanShader::VulkanTranslation* pixel_shader_translation = nullptr;
 
   // Update the graphics pipeline, and if the new graphics pipeline has a
   // different layout, invalidate incompatible descriptor sets before updating
@@ -723,10 +728,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // interlocks case completely - apply the viewport and the scissor offset
   // directly to pixel address and to things like ps_param_gen.
   draw_util::GetHostViewportInfo(
-      regs, 1.0f, 1.0f, false,
-      float(device_properties.limits.maxViewportDimensions[0]),
-      float(device_properties.limits.maxViewportDimensions[1]), true, false,
-      viewport_info);
+      regs, 1, false, device_properties.limits.maxViewportDimensions[0],
+      device_properties.limits.maxViewportDimensions[1], true, false, false,
+      false, viewport_info);
 
   // Update fixed-function dynamic state.
   UpdateFixedFunctionState(viewport_info);
@@ -1288,10 +1292,17 @@ void VulkanCommandProcessor::UpdateFixedFunctionState(
 
   // Viewport.
   VkViewport viewport;
-  viewport.x = viewport_info.left;
-  viewport.y = viewport_info.top;
-  viewport.width = viewport_info.width;
-  viewport.height = viewport_info.height;
+  if (!viewport_info.xy_extent[0] || !viewport_info.xy_extent[1]) {
+    viewport.x = -1;
+    viewport.y = -1;
+    viewport.width = 1;
+    viewport.height = 1;
+  } else {
+    viewport.x = float(viewport_info.xy_offset[0]);
+    viewport.y = float(viewport_info.xy_offset[1]);
+    viewport.width = float(viewport_info.xy_extent[0]);
+    viewport.height = float(viewport_info.xy_extent[1]);
+  }
   viewport.minDepth = viewport_info.z_min;
   viewport.maxDepth = viewport_info.z_max;
   ff_viewport_update_needed_ |= ff_viewport_.x != viewport.x;
@@ -1310,10 +1321,10 @@ void VulkanCommandProcessor::UpdateFixedFunctionState(
   draw_util::Scissor scissor;
   draw_util::GetScissor(regs, scissor);
   VkRect2D scissor_rect;
-  scissor_rect.offset.x = int32_t(scissor.left * pixel_size_x);
-  scissor_rect.offset.y = int32_t(scissor.top * pixel_size_y);
-  scissor_rect.extent.width = scissor.width * pixel_size_x;
-  scissor_rect.extent.height = scissor.height * pixel_size_y;
+  scissor_rect.offset.x = int32_t(scissor.offset[0]);
+  scissor_rect.offset.y = int32_t(scissor.offset[1]);
+  scissor_rect.extent.width = scissor.extent[0];
+  scissor_rect.extent.height = scissor.extent[1];
   ff_scissor_update_needed_ |= ff_scissor_.offset.x != scissor_rect.offset.x;
   ff_scissor_update_needed_ |= ff_scissor_.offset.y != scissor_rect.offset.y;
   ff_scissor_update_needed_ |=

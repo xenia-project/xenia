@@ -257,22 +257,21 @@ bool CommandProcessor::SetupContext() { return true; }
 
 void CommandProcessor::ShutdownContext() { context_.reset(); }
 
-void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
+void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t size_log2) {
   read_ptr_index_ = 0;
   primary_buffer_ptr_ = ptr;
-  primary_buffer_size_ = 1 << log2_size;
+  primary_buffer_size_ = uint32_t(1) << (size_log2 + 3);
 }
 
 void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
-                                                  uint32_t block_size) {
+                                                  uint32_t block_size_log2) {
   // CP_RB_RPTR_ADDR Ring Buffer Read Pointer Address 0x70C
   // ptr = RB_RPTR_ADDR, pointer to write back the address to.
   read_ptr_writeback_ptr_ = ptr;
   // CP_RB_CNTL Ring Buffer Control 0x704
-  // block_size = RB_BLKSZ, number of quadwords read between updates of the
-  //              read pointer.
-  read_ptr_update_freq_ =
-      static_cast<uint32_t>(pow(2.0, static_cast<double>(block_size)) / 4);
+  // block_size = RB_BLKSZ, log2 of number of quadwords read between updates of
+  //              the read pointer.
+  read_ptr_update_freq_ = uint32_t(1) << block_size_log2 >> 2;
 }
 
 void CommandProcessor::UpdateWritePointer(uint32_t value) {
@@ -825,8 +824,8 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingBuffer* reader,
   // VdSwap will post this to tell us we need to swap the screen/fire an
   // interrupt.
   // 63 words here, but only the first has any data.
-  uint32_t magic = reader->ReadAndSwap<uint32_t>();
-  assert_true(magic == 'SWAP');
+  uint32_t magic = reader->ReadAndSwap<fourcc_t>();
+  assert_true(magic == kSwapSignature);
 
   // TODO(benvanik): only swap frontbuffer ptr.
   uint32_t frontbuffer_ptr = reader->ReadAndSwap<uint32_t>();
@@ -1146,6 +1145,8 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(RingBuffer* reader,
 bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(RingBuffer* reader,
                                                           uint32_t packet,
                                                           uint32_t count) {
+  // Set by D3D as BE but struct ABI is LE
+  const uint32_t kQueryFinished = xe::byte_swap(0xFFFFFEED);
   assert_true(count == 1);
   uint32_t initiator = reader->ReadAndSwap<uint32_t>();
   // Writeback initiator.
@@ -1161,10 +1162,13 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(RingBuffer* reader,
             register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR].u32);
     // 0xFFFFFEED is written to this two locations by D3D only on D3DISSUE_END
     // and used to detect a finished query.
-    bool isEnd = pSampleCounts->ZPass_A == xe::byte_swap(0xFFFFFEED) &&
-                 pSampleCounts->ZPass_B == xe::byte_swap(0xFFFFFEED);
+    bool is_end_via_z_pass = pSampleCounts->ZPass_A == kQueryFinished &&
+                             pSampleCounts->ZPass_B == kQueryFinished;
+    // Older versions of D3D also checks for ZFail (First Gears of War)
+    bool is_end_via_z_fail = pSampleCounts->ZFail_A == kQueryFinished &&
+                             pSampleCounts->ZFail_B == kQueryFinished;
     std::memset(pSampleCounts, 0, sizeof(xe_gpu_depth_sample_counts));
-    if (isEnd) {
+    if (is_end_via_z_pass || is_end_via_z_fail) {
       pSampleCounts->ZPass_A = fake_sample_count;
       pSampleCounts->Total_A = fake_sample_count;
     }
@@ -1173,40 +1177,77 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(RingBuffer* reader,
   return true;
 }
 
-bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
-                                                    uint32_t packet,
-                                                    uint32_t count) {
-  // initiate fetch of index buffer and draw
-  // if dword0 != 0, this is a conditional draw based on viz query.
+bool CommandProcessor::ExecutePacketType3Draw(RingBuffer* reader,
+                                              uint32_t packet,
+                                              const char* opcode_name,
+                                              uint32_t viz_query_condition,
+                                              uint32_t count_remaining) {
+  // if viz_query_condition != 0, this is a conditional draw based on viz query.
   // This ID matches the one issued in PM4_VIZ_QUERY
-  uint32_t dword0 = reader->ReadAndSwap<uint32_t>();  // viz query info
-  // uint32_t viz_id = dword0 & 0x3F;
+  // uint32_t viz_id = viz_query_condition & 0x3F;
   // when true, render conditionally based on query result
-  // uint32_t viz_use = dword0 & 0x100;
+  // uint32_t viz_use = viz_query_condition & 0x100;
 
+  assert_not_zero(count_remaining);
+  if (!count_remaining) {
+    XELOGE("{}: Packet too small, can't read VGT_DRAW_INITIATOR", opcode_name);
+    return false;
+  }
   reg::VGT_DRAW_INITIATOR vgt_draw_initiator;
   vgt_draw_initiator.value = reader->ReadAndSwap<uint32_t>();
+  --count_remaining;
   WriteRegister(XE_GPU_REG_VGT_DRAW_INITIATOR, vgt_draw_initiator.value);
 
+  bool success = true;
+  // TODO(Triang3l): Remove IndexBufferInfo and replace handling of all this
+  // with PrimitiveProcessor when the old Vulkan renderer is removed.
   bool is_indexed = false;
   IndexBufferInfo index_buffer_info;
   switch (vgt_draw_initiator.source_select) {
     case xenos::SourceSelect::kDMA: {
       // Indexed draw.
       is_indexed = true;
-      index_buffer_info.guest_base = reader->ReadAndSwap<uint32_t>();
-      uint32_t index_size = reader->ReadAndSwap<uint32_t>();
-      index_buffer_info.endianness =
-          static_cast<xenos::Endian>(index_size >> 30);
-      index_size &= 0x00FFFFFF;
+
+      // Two separate bounds checks so if there's only one missing register
+      // value out of two, one uint32_t will be skipped in the command buffer,
+      // not two.
+      assert_not_zero(count_remaining);
+      if (!count_remaining) {
+        XELOGE("{}: Packet too small, can't read VGT_DMA_BASE", opcode_name);
+        return false;
+      }
+      uint32_t vgt_dma_base = reader->ReadAndSwap<uint32_t>();
+      --count_remaining;
+      WriteRegister(XE_GPU_REG_VGT_DMA_BASE, vgt_dma_base);
+      reg::VGT_DMA_SIZE vgt_dma_size;
+      assert_not_zero(count_remaining);
+      if (!count_remaining) {
+        XELOGE("{}: Packet too small, can't read VGT_DMA_SIZE", opcode_name);
+        return false;
+      }
+      vgt_dma_size.value = reader->ReadAndSwap<uint32_t>();
+      --count_remaining;
+      WriteRegister(XE_GPU_REG_VGT_DMA_SIZE, vgt_dma_size.value);
+
+      uint32_t index_size_bytes =
+          vgt_draw_initiator.index_size == xenos::IndexFormat::kInt16
+              ? sizeof(uint16_t)
+              : sizeof(uint32_t);
+      // The base address must already be word-aligned according to the R6xx
+      // documentation, but for safety.
+      index_buffer_info.guest_base = vgt_dma_base & ~(index_size_bytes - 1);
+      index_buffer_info.endianness = vgt_dma_size.swap_mode;
       index_buffer_info.format = vgt_draw_initiator.index_size;
-      index_size *=
-          (vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32) ? 4 : 2;
-      index_buffer_info.length = index_size;
+      index_buffer_info.length = vgt_dma_size.num_words * index_size_bytes;
       index_buffer_info.count = vgt_draw_initiator.num_indices;
     } break;
     case xenos::SourceSelect::kImmediate: {
       // TODO(Triang3l): VGT_IMMED_DATA.
+      XELOGE(
+          "{}: Using immediate vertex indices, which are not supported yet. "
+          "Report the game to Xenia developers!",
+          opcode_name, uint32_t(vgt_draw_initiator.source_select));
+      success = false;
       assert_always();
     } break;
     case xenos::SourceSelect::kAutoIndex: {
@@ -1215,71 +1256,65 @@ bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
       index_buffer_info.length = 0;
     } break;
     default: {
-      // Invalid source select.
-      assert_always();
+      // Invalid source selection.
+      success = false;
+      assert_unhandled_case(vgt_draw_initiator.source_select);
     } break;
   }
 
-  auto viz_query = register_file_->Get<reg::PA_SC_VIZ_QUERY>();
-  if (viz_query.viz_query_ena && viz_query.kill_pix_post_hi_z) {
-    // TODO(Triang3l): Don't drop the draw call completely if the vertex shader
-    // has memexport.
-    // TODO(Triang3l || JoelLinn): Handle this properly in the render backends.
-    return true;
+  // Skip to the next command, for example, if there are immediate indexes that
+  // we don't support yet.
+  reader->AdvanceRead(count_remaining * sizeof(uint32_t));
+
+  if (success) {
+    auto viz_query = register_file_->Get<reg::PA_SC_VIZ_QUERY>();
+    if (!(viz_query.viz_query_ena && viz_query.kill_pix_post_hi_z)) {
+      // TODO(Triang3l): Don't drop the draw call completely if the vertex
+      // shader has memexport.
+      // TODO(Triang3l || JoelLinn): Handle this properly in the render
+      // backends.
+      success = IssueDraw(
+          vgt_draw_initiator.prim_type, vgt_draw_initiator.num_indices,
+          is_indexed ? &index_buffer_info : nullptr,
+          xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode,
+                                     vgt_draw_initiator.prim_type));
+      if (!success) {
+        XELOGE("{}({}, {}, {}): Failed in backend", opcode_name,
+               vgt_draw_initiator.num_indices,
+               uint32_t(vgt_draw_initiator.prim_type),
+               uint32_t(vgt_draw_initiator.source_select));
+      }
+    }
   }
 
-  bool success =
-      IssueDraw(vgt_draw_initiator.prim_type, vgt_draw_initiator.num_indices,
-                is_indexed ? &index_buffer_info : nullptr,
-                xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode,
-                                           vgt_draw_initiator.prim_type));
-  if (!success) {
-    XELOGE("PM4_DRAW_INDX({}, {}, {}): Failed in backend",
-           vgt_draw_initiator.num_indices,
-           uint32_t(vgt_draw_initiator.prim_type),
-           uint32_t(vgt_draw_initiator.source_select));
-  }
+  return success;
+}
 
-  return true;
+bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
+                                                    uint32_t packet,
+                                                    uint32_t count) {
+  // "initiate fetch of index buffer and draw"
+  // Generally used by Xbox 360 Direct3D 9 for kDMA and kAutoIndex sources.
+  // With a viz query token as the first one.
+  uint32_t count_remaining = count;
+  assert_not_zero(count_remaining);
+  if (!count_remaining) {
+    XELOGE("PM4_DRAW_INDX: Packet too small, can't read the viz query token");
+    return false;
+  }
+  uint32_t viz_query_condition = reader->ReadAndSwap<uint32_t>();
+  --count_remaining;
+  return ExecutePacketType3Draw(reader, packet, "PM4_DRAW_INDX",
+                                viz_query_condition, count_remaining);
 }
 
 bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingBuffer* reader,
                                                       uint32_t packet,
                                                       uint32_t count) {
-  // draw using supplied indices in packet
-  reg::VGT_DRAW_INITIATOR vgt_draw_initiator;
-  vgt_draw_initiator.value = reader->ReadAndSwap<uint32_t>();
-  WriteRegister(XE_GPU_REG_VGT_DRAW_INITIATOR, vgt_draw_initiator.value);
-  assert_true(vgt_draw_initiator.source_select ==
-              xenos::SourceSelect::kAutoIndex);
-  // Index buffer unused as automatic.
-  // uint32_t indices_size =
-  //     vgt_draw_initiator.num_indices *
-  //         (vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32 ? 4
-  //                                                                      : 2);
-  // uint32_t index_ptr = reader->ptr();
-  // TODO(Triang3l): VGT_IMMED_DATA.
-  reader->AdvanceRead((count - 1) * sizeof(uint32_t));
-
-  auto viz_query = register_file_->Get<reg::PA_SC_VIZ_QUERY>();
-  if (viz_query.viz_query_ena && viz_query.kill_pix_post_hi_z) {
-    // TODO(Triang3l): Don't drop the draw call completely if the vertex shader
-    // has memexport.
-    // TODO(Triang3l || JoelLinn): Handle this properly in the render backends.
-    return true;
-  }
-
-  bool success = IssueDraw(
-      vgt_draw_initiator.prim_type, vgt_draw_initiator.num_indices, nullptr,
-      xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode,
-                                 vgt_draw_initiator.prim_type));
-  if (!success) {
-    XELOGE("PM4_DRAW_INDX_IMM({}, {}): Failed in backend",
-           vgt_draw_initiator.num_indices,
-           uint32_t(vgt_draw_initiator.prim_type));
-  }
-
-  return true;
+  // "draw using supplied indices in packet"
+  // Generally used by Xbox 360 Direct3D 9 for kAutoIndex source.
+  // No viz query token.
+  return ExecutePacketType3Draw(reader, packet, "PM4_DRAW_INDX_2", 0, count);
 }
 
 bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(RingBuffer* reader,

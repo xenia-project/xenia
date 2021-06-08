@@ -52,18 +52,21 @@ class VulkanPipelineCache {
   void ClearCache();
 
   VulkanShader* LoadShader(xenos::ShaderType shader_type,
-                           uint32_t guest_address, const uint32_t* host_address,
-                           uint32_t dword_count);
+                           const uint32_t* host_address, uint32_t dword_count);
+  // Analyze shader microcode on the translator thread.
+  void AnalyzeShaderUcode(Shader& shader) {
+    shader.AnalyzeUcode(ucode_disasm_buffer_);
+  }
 
-  // Retrieves the shader modifications for the current state, and returns
-  // whether they are valid.
-  bool GetCurrentShaderModifications(
-      SpirvShaderTranslator::Modification& vertex_shader_modification_out,
-      SpirvShaderTranslator::Modification& pixel_shader_modification_out) const;
-
-  // Translates shaders if needed, also making shader info up to date.
-  bool EnsureShadersTranslated(VulkanShader::VulkanTranslation* vertex_shader,
-                               VulkanShader::VulkanTranslation* pixel_shader);
+  // Retrieves the shader modification for the current state. The shader must
+  // have microcode analyzed.
+  SpirvShaderTranslator::Modification
+  VulkanPipelineCache::GetCurrentVertexShaderModification(
+      const Shader& shader,
+      Shader::HostVertexShaderType host_vertex_shader_type) const;
+  SpirvShaderTranslator::Modification
+  VulkanPipelineCache::GetCurrentPixelShaderModification(
+      const Shader& shader) const;
 
   // TODO(Triang3l): Return a deferred creation handle.
   bool ConfigurePipeline(VulkanShader::VulkanTranslation* vertex_shader,
@@ -105,10 +108,10 @@ class VulkanPipelineCache {
 
   XEPACKEDSTRUCT(PipelineDescription, {
     uint64_t vertex_shader_hash;
+    uint64_t vertex_shader_modification;
     // 0 if no pixel shader.
     uint64_t pixel_shader_hash;
-    uint32_t vertex_shader_modification;
-    uint32_t pixel_shader_modification;
+    uint64_t pixel_shader_modification;
     VulkanRenderTargetCache::RenderPassKey render_pass_key;
 
     // Input assembly.
@@ -159,9 +162,8 @@ class VulkanPipelineCache {
   };
 
   // Can be called from multiple threads.
-  bool TranslateShader(SpirvShaderTranslator& translator,
-                       VulkanShader::VulkanTranslation& translation,
-                       reg::SQ_PROGRAM_CNTL cntl);
+  bool TranslateAnalyzedShader(SpirvShaderTranslator& translator,
+                               VulkanShader::VulkanTranslation& translation);
 
   bool GetCurrentStateDescription(
       const VulkanShader::VulkanTranslation* vertex_shader,
@@ -181,6 +183,8 @@ class VulkanPipelineCache {
 
   DevicePipelineFeatures device_pipeline_features_;
 
+  // Temporary storage for AnalyzeUcode calls on the processor thread.
+  StringBuffer ucode_disasm_buffer_;
   // Reusable shader translator on the command processor thread.
   std::unique_ptr<SpirvShaderTranslator> shader_translator_;
 

@@ -21,6 +21,8 @@ DEFINE_bool(d3d12_debug, false, "Enable Direct3D 12 and DXGI debug layer.",
             "D3D12");
 DEFINE_bool(d3d12_break_on_error, false,
             "Break on Direct3D 12 validation errors.", "D3D12");
+DEFINE_bool(d3d12_break_on_warning, false,
+            "Break on Direct3D 12 validation warnings.", "D3D12");
 DEFINE_int32(d3d12_adapter, -1,
              "Index of the DXGI adapter to use. "
              "-1 for any physical adapter, -2 for WARP software rendering.",
@@ -52,7 +54,7 @@ std::unique_ptr<D3D12Provider> D3D12Provider::Create(Window* main_window) {
         "Unable to initialize Direct3D 12 graphics subsystem.\n"
         "\n"
         "Ensure that you have the latest drivers for your GPU and it supports "
-        "Direct3D 12 feature level 11_0.\n"
+        "Direct3D 12 with the feature level of at least 11_0.\n"
         "\n"
         "See https://xenia.jp/faq/ for more information and a list of "
         "supported GPUs.");
@@ -152,12 +154,12 @@ bool D3D12Provider::Initialize() {
     pfn_d3d_disassemble_ =
         pD3DDisassemble(GetProcAddress(library_d3dcompiler_, "D3DDisassemble"));
     if (pfn_d3d_disassemble_ == nullptr) {
-      XELOGW(
+      XELOGD(
           "Failed to get D3DDisassemble from D3DCompiler_47.dll, DXBC "
           "disassembly for debugging will be unavailable");
     }
   } else {
-    XELOGW(
+    XELOGD(
         "Failed to load D3DCompiler_47.dll, DXBC disassembly for debugging "
         "will be unavailable");
   }
@@ -169,12 +171,12 @@ bool D3D12Provider::Initialize() {
     pfn_dxilconv_dxc_create_instance_ = DxcCreateInstanceProc(
         GetProcAddress(library_dxilconv_, "DxcCreateInstance"));
     if (pfn_dxilconv_dxc_create_instance_ == nullptr) {
-      XELOGW(
+      XELOGD(
           "Failed to get DxcCreateInstance from dxilconv.dll, converted DXIL "
           "disassembly for debugging will be unavailable");
     }
   } else {
-    XELOGW(
+    XELOGD(
         "Failed to load dxilconv.dll, converted DXIL disassembly for debugging "
         "will be unavailable - DXIL may be unsupported by your OS version");
   }
@@ -186,12 +188,12 @@ bool D3D12Provider::Initialize() {
     pfn_dxcompiler_dxc_create_instance_ = DxcCreateInstanceProc(
         GetProcAddress(library_dxcompiler_, "DxcCreateInstance"));
     if (pfn_dxcompiler_dxc_create_instance_ == nullptr) {
-      XELOGW(
+      XELOGD(
           "Failed to get DxcCreateInstance from dxcompiler.dll, converted DXIL "
           "disassembly for debugging will be unavailable");
     }
   } else {
-    XELOGW(
+    XELOGD(
         "Failed to load dxcompiler.dll, converted DXIL disassembly for "
         "debugging will be unavailable - if needed, download the DirectX "
         "Shader Compiler from "
@@ -200,14 +202,20 @@ bool D3D12Provider::Initialize() {
   }
 
   // Configure the DXGI debug info queue.
-  if (cvars::d3d12_break_on_error) {
+  if (cvars::d3d12_break_on_error || cvars::d3d12_break_on_warning) {
     IDXGIInfoQueue* dxgi_info_queue;
     if (SUCCEEDED(pfn_dxgi_get_debug_interface1_(
             0, IID_PPV_ARGS(&dxgi_info_queue)))) {
-      dxgi_info_queue->SetBreakOnSeverity(
-          DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, TRUE);
-      dxgi_info_queue->SetBreakOnSeverity(
-          DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, TRUE);
+      if (cvars::d3d12_break_on_error) {
+        dxgi_info_queue->SetBreakOnSeverity(
+            DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+        dxgi_info_queue->SetBreakOnSeverity(
+            DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, TRUE);
+      }
+      if (cvars::d3d12_break_on_warning) {
+        dxgi_info_queue->SetBreakOnSeverity(
+            DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_WARNING, TRUE);
+      }
       dxgi_info_queue->Release();
     }
   }
@@ -262,7 +270,9 @@ bool D3D12Provider::Initialize() {
     ++adapter_index;
   }
   if (adapter == nullptr) {
-    XELOGE("Failed to get an adapter supporting Direct3D feature level 11_0");
+    XELOGE(
+        "Failed to get an adapter supporting Direct3D 12 with the feature "
+        "level of at least 11_0");
     dxgi_factory->Release();
     return false;
   }
@@ -273,7 +283,7 @@ bool D3D12Provider::Initialize() {
     dxgi_factory->Release();
     return false;
   }
-  adapter_vendor_id_ = adapter_desc.VendorId;
+  adapter_vendor_id_ = GpuVendorID(adapter_desc.VendorId);
   int adapter_name_mb_size = WideCharToMultiByte(
       CP_UTF8, 0, adapter_desc.Description, -1, nullptr, 0, nullptr, nullptr);
   if (adapter_name_mb_size != 0) {
@@ -282,7 +292,7 @@ bool D3D12Provider::Initialize() {
     if (WideCharToMultiByte(CP_UTF8, 0, adapter_desc.Description, -1,
                             adapter_name_mb, adapter_name_mb_size, nullptr,
                             nullptr) != 0) {
-      XELOGD3D("DXGI adapter: {} (vendor {:04X}, device {:04X})",
+      XELOGD3D("DXGI adapter: {} (vendor 0x{:04X}, device 0x{:04X})",
                adapter_name_mb, adapter_desc.VendorId, adapter_desc.DeviceId);
     }
   }
@@ -307,9 +317,20 @@ bool D3D12Provider::Initialize() {
     D3D12_MESSAGE_ID d3d12_info_queue_denied_messages[] = {
         // Xbox 360 vertex fetch is explicit in shaders.
         D3D12_MESSAGE_ID_CREATEINPUTLAYOUT_EMPTY_LAYOUT,
+        // Bug in the debug layer (fixed in some version of Windows) - gaps in
+        // render target bindings must be represented with a fully typed RTV
+        // descriptor and DXGI_FORMAT_UNKNOWN in the pipeline state, but older
+        // debug layer versions give a format mismatch error in this case.
+        D3D12_MESSAGE_ID_RENDER_TARGET_FORMAT_MISMATCH_PIPELINE_STATE,
         // Render targets and shader exports don't have to match on the Xbox
         // 360.
         D3D12_MESSAGE_ID_CREATEGRAPHICSPIPELINESTATE_RENDERTARGETVIEW_NOT_SET,
+        // Arbitrary scissor can be specified by the guest, also it can be
+        // explicitly used to disable drawing.
+        D3D12_MESSAGE_ID_DRAW_EMPTY_SCISSOR_RECTANGLE,
+        // Arbitrary clear values can be specified by the guest.
+        D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
+        D3D12_MESSAGE_ID_CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE,
     };
     D3D12_INFO_QUEUE_FILTER d3d12_info_queue_filter = {};
     d3d12_info_queue_filter.DenyList.NumSeverities =
@@ -325,6 +346,10 @@ bool D3D12Provider::Initialize() {
                                            TRUE);
       d3d12_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
     }
+    if (cvars::d3d12_break_on_warning) {
+      d3d12_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING,
+                                           TRUE);
+    }
     d3d12_info_queue->Release();
   }
 
@@ -334,7 +359,7 @@ bool D3D12Provider::Initialize() {
   if (cvars::d3d12_queue_priority >= 2) {
     queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME;
     if (!EnableIncreaseBasePriorityPrivilege()) {
-      XELOGD3D(
+      XELOGW(
           "Failed to enable SeIncreaseBasePriorityPrivilege for global "
           "realtime Direct3D 12 command queue priority, falling back to high "
           "priority, try launching Xenia as administrator");
@@ -352,7 +377,7 @@ bool D3D12Provider::Initialize() {
                                         IID_PPV_ARGS(&direct_queue)))) {
     bool queue_created = false;
     if (queue_desc.Priority == D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME) {
-      XELOGD3D(
+      XELOGW(
           "Failed to create a Direct3D 12 direct command queue with global "
           "realtime priority, falling back to high priority, try launching "
           "Xenia as administrator");
@@ -373,14 +398,10 @@ bool D3D12Provider::Initialize() {
   direct_queue_ = direct_queue;
 
   // Get descriptor sizes for each type.
-  descriptor_size_view_ = device->GetDescriptorHandleIncrementSize(
-      D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-  descriptor_size_sampler_ = device->GetDescriptorHandleIncrementSize(
-      D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
-  descriptor_size_rtv_ =
-      device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-  descriptor_size_dsv_ =
-      device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+  for (uint32_t i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i) {
+    descriptor_sizes_[i] =
+        device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE(i));
+  }
 
   // Check if optional features are supported.
   // D3D12_HEAP_FLAG_CREATE_NOT_ZEROED requires Windows 10 2004 (indicated by
@@ -391,13 +412,16 @@ bool D3D12Provider::Initialize() {
                                             &options7, sizeof(options7)))) {
     heap_flag_create_not_zeroed_ = D3D12_HEAP_FLAG_CREATE_NOT_ZEROED;
   }
+  ps_specified_stencil_reference_supported_ = false;
   rasterizer_ordered_views_supported_ = false;
   resource_binding_tier_ = D3D12_RESOURCE_BINDING_TIER_1;
   tiled_resources_tier_ = D3D12_TILED_RESOURCES_TIER_NOT_SUPPORTED;
   D3D12_FEATURE_DATA_D3D12_OPTIONS options;
   if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS,
                                             &options, sizeof(options)))) {
-    rasterizer_ordered_views_supported_ = options.ROVsSupported ? true : false;
+    ps_specified_stencil_reference_supported_ =
+        bool(options.PSSpecifiedStencilRefSupported);
+    rasterizer_ordered_views_supported_ = bool(options.ROVsSupported);
     resource_binding_tier_ = options.ResourceBindingTier;
     tiled_resources_tier_ = options.TiledResourcesTier;
   }
@@ -421,6 +445,7 @@ bool D3D12Provider::Initialize() {
       "Direct3D 12 device and OS features:\n"
       "* Max GPU virtual address bits per resource: {}\n"
       "* Non-zeroed heap creation: {}\n"
+      "* Pixel-shader-specified stencil reference: {}\n"
       "* Programmable sample positions: tier {}\n"
       "* Rasterizer-ordered views: {}\n"
       "* Resource binding: tier {}\n"
@@ -428,6 +453,7 @@ bool D3D12Provider::Initialize() {
       virtual_address_bits_per_resource_,
       (heap_flag_create_not_zeroed_ & D3D12_HEAP_FLAG_CREATE_NOT_ZEROED) ? "yes"
                                                                          : "no",
+      ps_specified_stencil_reference_supported_ ? "yes" : "no",
       uint32_t(programmable_sample_positions_tier_),
       rasterizer_ordered_views_supported_ ? "yes" : "no",
       uint32_t(resource_binding_tier_), uint32_t(tiled_resources_tier_));

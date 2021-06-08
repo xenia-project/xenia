@@ -8,6 +8,7 @@
  */
 
 #include "xenia/kernel/xam/apps/xmp_app.h"
+#include "xenia/kernel/xthread.h"
 
 #include "xenia/base/logging.h"
 #include "xenia/base/threading.h"
@@ -31,9 +32,11 @@ XmpApp::XmpApp(KernelState* kernel_state)
       next_song_handle_(1) {}
 
 X_HRESULT XmpApp::XMPGetStatus(uint32_t state_ptr) {
-  // Some stupid games will hammer this on a thread - induce a delay
-  // here to keep from starving real threads.
-  xe::threading::Sleep(std::chrono::milliseconds(1));
+  if (!XThread::GetCurrentThread()->main_thread()) {
+    // Some stupid games will hammer this on a thread - induce a delay
+    // here to keep from starving real threads.
+    xe::threading::Sleep(std::chrono::milliseconds(1));
+  }
 
   XELOGD("XMPGetStatus({:08X})", state_ptr);
   xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(state_ptr),
@@ -428,8 +431,11 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(args->locked_ptr),
                                    0);
 
-      // Atrain spawns a thread 82437FD0 to call this in a tight loop forever.
-      xe::threading::Sleep(std::chrono::milliseconds(10));
+      if (!XThread::GetCurrentThread()->main_thread()) {
+        // Atrain spawns a thread 82437FD0 to call this in a tight loop forever.
+        xe::threading::Sleep(std::chrono::milliseconds(10));
+      }
+
       return X_E_SUCCESS;
     }
     case 0x00070029: {

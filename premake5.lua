@@ -42,7 +42,6 @@ end
 
 characterset("Unicode")
 flags({
-  --"ExtraWarnings",        -- Sets the compiler's maximum warning level.
   "FatalWarnings",        -- Treat warnings as errors.
 })
 
@@ -100,8 +99,8 @@ filter("platforms:Linux")
   toolset("clang")
   buildoptions({
     -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
-    ({os.outputof("pkg-config --cflags gtk+-x11-3.0")})[1],
   })
+  pkg_config.all("gtk+-x11-3.0")
   links({
     "stdc++fs",
     "dl",
@@ -109,16 +108,11 @@ filter("platforms:Linux")
     "pthread",
     "rt",
   })
-  linkoptions({
-    ({os.outputof("pkg-config --libs gtk+-3.0")})[1],
-  })
 
 filter({"platforms:Linux", "kind:*App"})
   linkgroups("On")
 
 filter({"platforms:Linux", "language:C++", "toolset:gcc"})
-  links({
-  })
   disablewarnings({
     "unused-result"
   })
@@ -136,10 +130,6 @@ filter({"platforms:Linux", "toolset:gcc"})
   end
 
 filter({"platforms:Linux", "language:C++", "toolset:clang"})
-  links({
-    "c++",
-    "c++abi"
-  })
   disablewarnings({
     "deprecated-register"
   })
@@ -196,6 +186,7 @@ filter("platforms:Windows")
     "shcore",
     "shlwapi",
     "dxguid",
+    "bcrypt",
   })
 
 -- Create scratch/ path
@@ -203,7 +194,7 @@ if not os.isdir("scratch") then
   os.mkdir("scratch")
 end
 
-solution("xenia")
+workspace("xenia")
   uuid("931ef4b0-6170-4f7a-aaf2-0fece7632747")
   startproject("xenia-app")
   if os.istarget("android") then
@@ -233,13 +224,31 @@ solution("xenia")
   include("third_party/discord-rpc.lua")
   include("third_party/cxxopts.lua")
   include("third_party/cpptoml.lua")
+  include("third_party/FFmpeg/premake5.lua")
   include("third_party/fmt.lua")
   include("third_party/glslang-spirv.lua")
   include("third_party/imgui.lua")
-  include("third_party/libav.lua")
   include("third_party/mspack.lua")
   include("third_party/snappy.lua")
   include("third_party/xxhash.lua")
+
+  if not os.istarget("android") then
+    -- SDL2 requires sdl2-config, and as of November 2020 isn't high-quality on
+    -- Android yet, most importantly in game controllers - the keycode and axis
+    -- enums are being ruined during conversion to SDL2 enums resulting in only
+    -- one controller (Nvidia Shield) being supported, digital triggers are also
+    -- not supported; lifecycle management (especially surface loss) is also
+    -- complicated.
+    include("third_party/SDL2.lua")
+  end
+
+  -- Disable treating warnings as fatal errors for all third party projects:
+  for _, prj in ipairs(premake.api.scope.current.solution.projects) do
+    project(prj.name)
+    removeflags({
+      "FatalWarnings",
+    })
+  end
 
   include("src/xenia")
   include("src/xenia/app/discord")
@@ -260,14 +269,6 @@ solution("xenia")
   include("src/xenia/vfs")
 
   if not os.istarget("android") then
-    -- SDL2 requires sdl2-config, and as of November 2020 isn't high-quality on
-    -- Android yet, most importantly in game controllers - the keycode and axis
-    -- enums are being ruined during conversion to SDL2 enums resulting in only
-    -- one controller (Nvidia Shield) being supported, digital triggers are also
-    -- not supported; lifecycle management (especially surface loss) is also
-    -- complicated.
-    include("third_party/SDL2.lua")
-
     include("src/xenia/apu/sdl")
     include("src/xenia/helper/sdl")
     include("src/xenia/hid/sdl")

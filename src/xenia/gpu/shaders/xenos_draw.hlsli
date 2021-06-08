@@ -7,33 +7,32 @@ cbuffer xe_system_cbuffer : register(b0) {
   uint xe_line_loop_closing_index;
 
   uint xe_vertex_index_endian;
-  int xe_vertex_base_index;
-  float2 xe_point_size;
-
-  float2 xe_point_size_min_max;
-  float2 xe_point_screen_to_ndc;
+  uint xe_vertex_index_offset;
+  uint2 xe_vertex_index_min_max;
 
   float4 xe_user_clip_planes[6];
 
   float3 xe_ndc_scale;
-  uint xe_interpolator_sampling_pattern;
+  float xe_point_size_x;
 
   float3 xe_ndc_offset;
+  float xe_point_size_y;
+
+  float2 xe_point_size_min_max;
+  float2 xe_point_screen_to_ndc;
+
+  uint xe_interpolator_sampling_pattern;
   uint xe_ps_param_gen;
+  uint2 xe_sample_count_log2;
 
   uint4 xe_texture_swizzled_signs[2];
 
-  uint2 xe_sample_count_log2;
+  uint xe_textures_resolved;
   float xe_alpha_test_reference;
   uint xe_alpha_to_mask;
+  uint xe_edram_pitch_tiles;
 
   float4 xe_color_exp_bias;
-
-  uint4 xe_color_output_map;
-
-  uint xe_edram_resolution_square_scale;
-  uint xe_edram_pitch_tiles;
-  float2 xe_edram_depth_range;
 
   float2 xe_edram_poly_offset_front;
   float2 xe_edram_poly_offset_back;
@@ -55,8 +54,14 @@ cbuffer xe_system_cbuffer : register(b0) {
   float4 xe_edram_blend_constant;
 };
 
-struct XeHSControlPointInput {
-  int index_or_edge_factor : XEVERTEXID;
+struct XeHSControlPointInputIndexed {
+  float index : XEVERTEXID;
+};
+
+struct XeHSControlPointInputAdaptive {
+  // 1.0 added in the vertex shader to convert to Direct3D 11+, and clamped to
+  // the factor range in the vertex shader.
+  float edge_factor : XETESSFACTOR;
 };
 
 struct XeHSControlPointOutput {
@@ -66,7 +71,6 @@ struct XeHSControlPointOutput {
 struct XeVertexPrePS {
   float4 interpolators[16] : TEXCOORD0;
   float3 point_params : TEXCOORD16;
-  float2 clip_space_zw : TEXCOORD17;
 };
 
 struct XeVertexPostGS {

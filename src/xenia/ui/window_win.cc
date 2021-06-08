@@ -66,7 +66,8 @@ bool Win32Window::OnCreate() {
       auto spda = (decltype(&SetProcessDpiAwareness))SetProcessDpiAwareness_;
       auto res = spda(PROCESS_PER_MONITOR_DPI_AWARE);
       if (res != S_OK) {
-        XELOGW("Failed to set process DPI awareness. (code = 0x{:08X})", res);
+        XELOGW("Failed to set process DPI awareness. (code = 0x{:08X})",
+               static_cast<uint32_t>(res));
       }
     }
 
@@ -198,11 +199,12 @@ void Win32Window::DisableMainMenu() {
   }
 }
 
-bool Win32Window::set_title(const std::string& title) {
+bool Win32Window::set_title(const std::string_view title) {
   if (!super::set_title(title)) {
     return false;
   }
-  SetWindowTextW(hwnd_, reinterpret_cast<LPCWSTR>(xe::to_utf16(title).c_str()));
+  auto wide_title = xe::to_utf16(title);
+  SetWindowTextW(hwnd_, reinterpret_cast<LPCWSTR>(wide_title.c_str()));
   return true;
 }
 

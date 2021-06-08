@@ -221,13 +221,13 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
   register_file_.values[r].u32 = value;
 }
 
-void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t log2_size) {
-  command_processor_->InitializeRingBuffer(ptr, log2_size + 0x3);
+void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t size_log2) {
+  command_processor_->InitializeRingBuffer(ptr, size_log2);
 }
 
 void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
-                                                uint32_t block_size) {
-  command_processor_->EnableReadPointerWriteBack(ptr, block_size);
+                                                uint32_t block_size_log2) {
+  command_processor_->EnableReadPointerWriteBack(ptr, block_size_log2);
 }
 
 void GraphicsSystem::SetInterruptCallback(uint32_t callback,

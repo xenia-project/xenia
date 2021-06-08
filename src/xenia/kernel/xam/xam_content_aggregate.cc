@@ -95,7 +95,7 @@ dword_result_t XamContentAggregateCreateEnumerator(qword_t xuid,
     return result;
   }
 
-  extra->magic = 'XEN\0';
+  extra->magic = kXObjSignature;
   extra->handle = e->handle();
 
   if (!device_info || device_info->device_type == DeviceType::HDD) {
@@ -110,7 +110,7 @@ dword_result_t XamContentAggregateCreateEnumerator(qword_t xuid,
       content_aggregate_data.content_type = content_data.content_type;
       content_aggregate_data.display_name = content_data.display_name;
       content_aggregate_data.file_name = content_data.file_name;
-      content_aggregate_data.title_id = 1u;
+      content_aggregate_data.title_id = kernel_state()->title_id();
       content_aggregate_data.Write(item);
     }
   }

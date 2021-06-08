@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_DXBC_SHADER_H_
 #define XENIA_GPU_DXBC_SHADER_H_
 
+#include <atomic>
 #include <vector>
 
 #include "xenia/gpu/dxbc_shader_translator.h"
@@ -23,12 +24,16 @@ class DxbcShader : public Shader {
  public:
   class DxbcTranslation : public Translation {
    public:
-    DxbcTranslation(DxbcShader& shader, uint32_t modification)
+    DxbcTranslation(DxbcShader& shader, uint64_t modification)
         : Translation(shader, modification) {}
   };
 
   DxbcShader(xenos::ShaderType shader_type, uint64_t data_hash,
              const uint32_t* dword_ptr, uint32_t dword_count);
+
+  // Resource bindings are gathered after the successful translation of any
+  // modification for simplicity of translation (and they don't depend on
+  // modification bits).
 
   static constexpr uint32_t kMaxTextureBindingIndexBits =
       DxbcShaderTranslator::kMaxTextureBindingIndexBits;
@@ -43,11 +48,13 @@ class DxbcShader : public Shader {
     bool is_signed;
   };
   // Safe to hash and compare with memcmp for layout hashing.
-  const TextureBinding* GetTextureBindings(uint32_t& count_out) const {
-    count_out = uint32_t(texture_bindings_.size());
-    return texture_bindings_.data();
+  const std::vector<TextureBinding>& GetTextureBindingsAfterTranslation()
+      const {
+    return texture_bindings_;
   }
-  const uint32_t GetUsedTextureMask() const { return used_texture_mask_; }
+  const uint32_t GetUsedTextureMaskAfterTranslation() const {
+    return used_texture_mask_;
+  }
 
   static constexpr uint32_t kMaxSamplerBindingIndexBits =
       DxbcShaderTranslator::kMaxSamplerBindingIndexBits;
@@ -61,17 +68,18 @@ class DxbcShader : public Shader {
     xenos::TextureFilter mip_filter;
     xenos::AnisoFilter aniso_filter;
   };
-  const SamplerBinding* GetSamplerBindings(uint32_t& count_out) const {
-    count_out = uint32_t(sampler_bindings_.size());
-    return sampler_bindings_.data();
+  const std::vector<SamplerBinding>& GetSamplerBindingsAfterTranslation()
+      const {
+    return sampler_bindings_;
   }
 
  protected:
-  Translation* CreateTranslationInstance(uint32_t modification) override;
+  Translation* CreateTranslationInstance(uint64_t modification) override;
 
  private:
   friend class DxbcShaderTranslator;
 
+  std::atomic_flag bindings_setup_entered_ = ATOMIC_FLAG_INIT;
   std::vector<TextureBinding> texture_bindings_;
   std::vector<SamplerBinding> sampler_bindings_;
   uint32_t used_texture_mask_ = 0;

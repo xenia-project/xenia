@@ -15,16 +15,31 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 #include "xenia/base/platform.h"
 
 namespace xe {
 namespace gpu {
 namespace xenos {
 
+// enum types used in the GPU registers or the microcode must be : uint32_t or
+// : int32_t, as Visual C++ restarts bit field packing when a field requires
+// different alignment than the previous one, so only 32-bit types must be used
+// in bit fields (registers are 32-bit, and the microcode consists of triples of
+// 32-bit words).
+
+constexpr fourcc_t kSwapSignature = make_fourcc("SWAP");
+
 enum class ShaderType : uint32_t {
   kVertex = 0,
   kPixel = 1,
 };
+
+// Only the lower 24 bits of the vertex index are used (tested on an Adreno 200
+// phone using a GL_UNSIGNED_INT element array buffer with junk in the upper 8
+// bits that had no effect on drawing).
+constexpr uint32_t kVertexIndexBits = 24;
+constexpr uint32_t kVertexIndexMask = (uint32_t(1) << kVertexIndexBits) - 1;
 
 enum class PrimitiveType : uint32_t {
   kNone = 0x00,
@@ -63,38 +78,6 @@ enum class PrimitiveType : uint32_t {
   kTrianglePatch = 0x11,
   kQuadPatch = 0x12,
 };
-
-// Polygonal primitive types (not including points and lines) are rasterized as
-// triangles, have front and back faces, and also support face culling and fill
-// modes (polymode_front_ptype, polymode_back_ptype). Other primitive types are
-// always "front" (but don't support front face and back face culling, according
-// to OpenGL and Vulkan specifications - even if glCullFace is
-// GL_FRONT_AND_BACK, points and lines are still drawn), and may in some cases
-// use the "para" registers instead of "front" or "back" (for "parallelogram" -
-// like poly_offset_para_enable).
-constexpr bool IsPrimitivePolygonal(bool tessellated, PrimitiveType type) {
-  if (tessellated && (type == PrimitiveType::kTrianglePatch ||
-                      type == PrimitiveType::kQuadPatch)) {
-    return true;
-  }
-  switch (type) {
-    case PrimitiveType::kTriangleList:
-    case PrimitiveType::kTriangleFan:
-    case PrimitiveType::kTriangleStrip:
-    case PrimitiveType::kTriangleWithWFlags:
-    case PrimitiveType::kQuadList:
-    case PrimitiveType::kQuadStrip:
-    case PrimitiveType::kPolygon:
-      return true;
-    default:
-      break;
-  }
-  // TODO(Triang3l): Investigate how kRectangleList should be treated - possibly
-  // actually drawn as two polygons on the console, however, the current
-  // geometry shader doesn't care about the winding order - allowing backface
-  // culling for rectangles currently breaks Gears of War 2.
-  return false;
-}
 
 // For the texture fetch constant (not the tfetch instruction), stacked stored
 // as 2D.
@@ -297,6 +280,44 @@ constexpr bool IsColorRenderTargetFormat64bpp(ColorRenderTargetFormat format) {
          format == ColorRenderTargetFormat::k_32_32_FLOAT;
 }
 
+inline uint32_t GetColorRenderTargetFormatComponentCount(
+    ColorRenderTargetFormat format) {
+  switch (format) {
+    case ColorRenderTargetFormat::k_8_8_8_8:
+    case ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+    case ColorRenderTargetFormat::k_2_10_10_10:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case ColorRenderTargetFormat::k_16_16_16_16:
+    case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+      return 4;
+    case ColorRenderTargetFormat::k_16_16:
+    case ColorRenderTargetFormat::k_16_16_FLOAT:
+    case ColorRenderTargetFormat::k_32_32_FLOAT:
+      return 2;
+    case ColorRenderTargetFormat::k_32_FLOAT:
+      return 1;
+    default:
+      assert_unhandled_case(format);
+      return 0;
+  }
+}
+
+// Returns the version of the format with the same packing and meaning of values
+// stored in it, but without blending precision modifiers.
+constexpr ColorRenderTargetFormat GetStorageColorFormat(
+    ColorRenderTargetFormat format) {
+  switch (format) {
+    case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
+      return ColorRenderTargetFormat::k_2_10_10_10;
+    case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
+      return ColorRenderTargetFormat::k_2_10_10_10_FLOAT;
+    default:
+      return format;
+  }
+}
+
 enum class DepthRenderTargetFormat : uint32_t {
   kD24S8 = 0,
   // 20e4 [0, 2).
@@ -305,12 +326,26 @@ enum class DepthRenderTargetFormat : uint32_t {
 
 const char* GetDepthRenderTargetFormatName(DepthRenderTargetFormat format);
 
+// Converts Xenos floating-point 7e3 color value in bits 0:9 (not clamping) to
+// an IEEE-754 32-bit floating-point number.
+float Float7e3To32(uint32_t f10);
+// Converts 24-bit unorm depth in the value (not clamping) to an IEEE-754 32-bit
+// floating-point number.
 // Converts an IEEE-754 32-bit floating-point number to Xenos floating-point
 // depth, rounding to the nearest even.
 uint32_t Float32To20e4(float f32);
 // Converts Xenos floating-point depth in bits 0:23 (not clamping) to an
 // IEEE-754 32-bit floating-point number.
 float Float20e4To32(uint32_t f24);
+// Converts 24-bit unorm depth in the value (not clamping) to an IEEE-754 32-bit
+// floating-point number.
+constexpr float UNorm24To32(uint32_t n24) {
+  // Not 1.0f / 16777215.0f as that gives an incorrect result (like for a very
+  // common 0xC00000 which clears 2_10_10_10 to 0001). Division by 2^24 is just
+  // an exponent shift though, thus exact.
+  // Division by 16777215.0f behaves this way.
+  return float(n24 + (n24 >> 23)) * (1.0f / float(1 << 24));
+}
 
 constexpr uint32_t kColorRenderTargetFormatBits = 4;
 constexpr uint32_t kDepthRenderTargetFormatBits = 1;
@@ -329,8 +364,9 @@ constexpr uint32_t kEdramPitchPixelsBits = 14;
 // Xbox 360 only 11 make sense, but to avoid bounds checks).
 constexpr uint32_t kEdramBaseTilesBits = 12;
 
-inline uint32_t GetSurfacePitchTiles(uint32_t pitch_pixels,
-                                     MsaaSamples msaa_samples, bool is_64bpp) {
+constexpr uint32_t GetSurfacePitchTiles(uint32_t pitch_pixels,
+                                        MsaaSamples msaa_samples,
+                                        bool is_64bpp) {
   uint32_t pitch_samples = pitch_pixels
                            << uint32_t(msaa_samples >= MsaaSamples::k4X);
   uint32_t pitch_tiles =
@@ -347,25 +383,6 @@ inline uint32_t GetSurfacePitchTiles(uint32_t pitch_pixels,
 // log2_ceil of 16383, multiplied by 2 for 4x MSAA, rounded to 80 samples,
 // multiplied by 2 for 64bpp.
 constexpr uint32_t kEdramPitchTilesBits = 10;
-
-// Returns the maximum height of a render target, in pixels, that may fit in the
-// EDRAM starting from the specified base address, until the end of the EDRAM or
-// the specified tile (for instance, until the next render target).
-inline uint32_t GetMaxRenderTargetHeight(
-    uint32_t base_tiles, uint32_t pitch_pixels, MsaaSamples msaa_samples,
-    bool is_64bpp, uint32_t until_tile = kEdramTileCount) {
-  if (base_tiles >= until_tile) {
-    return 0;
-  }
-  uint32_t pitch_tiles =
-      GetSurfacePitchTiles(pitch_pixels, msaa_samples, is_64bpp);
-  if (!pitch_tiles) {
-    return 0;
-  }
-  return ((until_tile - base_tiles) / pitch_tiles) *
-         (kEdramTileHeightSamples >>
-          uint32_t(msaa_samples >= MsaaSamples::k2X));
-}
 
 constexpr uint32_t kFormatBits = 6;
 
@@ -436,8 +453,6 @@ enum class TextureFormat : uint32_t {
   k_DXT3A_AS_1_1_1_1 = 61,
   k_8_8_8_8_GAMMA_EDRAM = 62,
   k_2_10_10_10_FLOAT_EDRAM = 63,
-
-  kUnknown = 0xFFFFFFFFu,
 };
 
 // Subset of a2xx_sq_surfaceformat - formats that RTs can be resolved to.
@@ -543,33 +558,6 @@ inline int GetVertexFormatComponentCount(VertexFormat format) {
     default:
       assert_unhandled_case(format);
       return 0;
-  }
-}
-
-inline int GetVertexFormatSizeInWords(VertexFormat format) {
-  switch (format) {
-    case VertexFormat::k_8_8_8_8:
-    case VertexFormat::k_2_10_10_10:
-    case VertexFormat::k_10_11_11:
-    case VertexFormat::k_11_11_10:
-    case VertexFormat::k_16_16:
-    case VertexFormat::k_16_16_FLOAT:
-    case VertexFormat::k_32:
-    case VertexFormat::k_32_FLOAT:
-      return 1;
-    case VertexFormat::k_16_16_16_16:
-    case VertexFormat::k_16_16_16_16_FLOAT:
-    case VertexFormat::k_32_32:
-    case VertexFormat::k_32_32_FLOAT:
-      return 2;
-    case VertexFormat::k_32_32_32_FLOAT:
-      return 3;
-    case VertexFormat::k_32_32_32_32:
-    case VertexFormat::k_32_32_32_32_FLOAT:
-      return 4;
-    default:
-      assert_unhandled_case(format);
-      return 1;
   }
 }
 
@@ -765,6 +753,10 @@ enum class TessellationMode : uint32_t {
 enum class PolygonModeEnable : uint32_t {
   kDisabled = 0,  // Render triangles.
   kDualMode = 1,  // Send 2 sets of 3 polygons with the specified polygon type.
+  // The game Fuse uses 2 for triangles, which is "reserved" on R6xx and not
+  // defined on Adreno 2xx, but polymode_front/back_ptype are 0 (points) in this
+  // case in Fuse, which should not be respected for non-kDualMode as the game
+  // wants to draw filled triangles.
 };
 
 enum class PolygonType : uint32_t {
@@ -776,6 +768,26 @@ enum class PolygonType : uint32_t {
 enum class ModeControl : uint32_t {
   kIgnore = 0,
   kColorDepth = 4,
+  // TODO(Triang3l): Verify whether kDepth means the pixel shader is ignored
+  // completely even if it writes depth, exports to memory or kills pixels.
+  // Hints suggesting that it should be completely ignored (which is desirable
+  // on real hardware to avoid scheduling the pixel shader at all and waiting
+  // for it especially since the Xbox 360 doesn't have early per-sample depth /
+  // stencil, only early hi-Z / hi-stencil, and other registers possibly
+  // toggling pixel shader execution are yet to be found):
+  // - Most of depth pre-pass draws in Call of Duty 4 use the kDepth more with
+  //   a `oC0 = tfetch2D(tf0, r0.xy) * r1` shader, some use `oC0 = r0` though.
+  //   However, when alphatested surfaces are drawn, kColorDepth is explicitly
+  //   used with the same shader performing the texture fetch.
+  // - Red Dead Redemption has some kDepth draws with alphatest enabled, but the
+  //   shader is `oC0 = r0`, which makes no sense (alphatest based on an
+  //   interpolant from the vertex shader) as no texture alpha cutout is
+  //   involved.
+  // - Red Dead Redemption also has kDepth draws with pretty complex shaders
+  //   clearly for use only in the color pass - even fetching and filtering a
+  //   shadowmap.
+  // For now, based on these, let's assume the pixel shader is never used with
+  // kDepth.
   kDepth = 5,
   kCopy = 6,
 };
@@ -964,20 +976,21 @@ enum class FetchConstantType : uint32_t {
 };
 
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
-XEPACKEDUNION(xe_gpu_vertex_fetch_t, {
-  XEPACKEDSTRUCTANONYMOUS({
+union alignas(uint32_t) xe_gpu_vertex_fetch_t {
+  struct {
     FetchConstantType type : 2;  // +0
     uint32_t address : 30;       // +2 address in dwords
 
     Endian endian : 2;   // +0
     uint32_t size : 24;  // +2 size in words
     uint32_t unk1 : 6;   // +26
-  });
-  XEPACKEDSTRUCTANONYMOUS({
+  };
+  struct {
     uint32_t dword_0;
     uint32_t dword_1;
-  });
-});
+  };
+};
+static_assert_size(xe_gpu_vertex_fetch_t, sizeof(uint32_t) * 2);
 
 // Byte alignment of texture subresources in memory - of each mip and stack
 // slice / cube face (and of textures themselves), this number of bits is also
@@ -1022,8 +1035,8 @@ constexpr uint32_t kTextureLinearRowAlignmentBytes =
     1 << kTextureLinearRowAlignmentBytesLog2;
 
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
-XEPACKEDUNION(xe_gpu_texture_fetch_t, {
-  XEPACKEDSTRUCTANONYMOUS({
+union alignas(uint32_t) xe_gpu_texture_fetch_t {
+  struct {
     FetchConstantType type : 2;  // +0 dword_0
     // Likely before the swizzle, seems logical from R5xx (SIGNED_COMP0/1/2/3
     // set the signedness of components 0/1/2/3, while SEL_ALPHA/RED/GREEN/BLUE
@@ -1040,8 +1053,20 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     ClampMode clamp_z : 3;                               // +16
     SignedRepeatingFractionMode signed_rf_mode_all : 1;  // +19
     uint32_t dim_tbd : 2;                                // +20
-    uint32_t pitch : 9;                                  // +22 byte_pitch >> 5
-    uint32_t tiled : 1;                                  // +31
+    // Base row pitch in pixels (not blocks) >> 5. For linear textures, this is
+    // provided by Direct3D 9 in a way that every row of blocks ends up aligned
+    // to kTextureLinearRowAlignmentBytes (the GPU requires 256-byte alignment
+    // of linear texture block rows for all textures).
+    // Mips are always stored with padding to the `max(next_pow2(base width or
+    // height) >> level, 1)` or a 32x32x4 tile (whichever is larger), so this
+    // pitch is irrelevant to them (but the 256-byte alignment requirement still
+    // applies to linear textures).
+    // Examples of pitch > aligned width:
+    // - Plants vs. Zombies (loading screen and menu backgrounds, 1408 for a
+    //   1280x linear k_DXT4_5 texture, which corresponds to 22 * 256 bytes
+    //   rather than 20 * 256 for just 1280x).
+    uint32_t pitch : 9;  // +22
+    uint32_t tiled : 1;  // +31
 
     TextureFormat format : 6;           // +0 dword_1
     Endian endianness : 2;              // +6
@@ -1101,34 +1126,35 @@ XEPACKEDUNION(xe_gpu_texture_fetch_t, {
     DataDimension dimension : 2;  // +9
     uint32_t packed_mips : 1;     // +11
     uint32_t mip_address : 20;    // +12 mip address >> 12
-  });
-  XEPACKEDSTRUCTANONYMOUS({
+  };
+  struct {
     uint32_t dword_0;
     uint32_t dword_1;
     uint32_t dword_2;
     uint32_t dword_3;
     uint32_t dword_4;
     uint32_t dword_5;
-  });
-});
+  };
+};
+static_assert_size(xe_gpu_texture_fetch_t, sizeof(uint32_t) * 6);
 
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
-XEPACKEDUNION(xe_gpu_fetch_group_t, {
+union alignas(uint32_t) xe_gpu_fetch_group_t {
   xe_gpu_texture_fetch_t texture_fetch;
-  XEPACKEDSTRUCTANONYMOUS({
+  struct {
     xe_gpu_vertex_fetch_t vertex_fetch_0;
     xe_gpu_vertex_fetch_t vertex_fetch_1;
     xe_gpu_vertex_fetch_t vertex_fetch_2;
-  });
-  XEPACKEDSTRUCTANONYMOUS({
+  };
+  struct {
     uint32_t dword_0;
     uint32_t dword_1;
     uint32_t dword_2;
     uint32_t dword_3;
     uint32_t dword_4;
     uint32_t dword_5;
-  });
-  XEPACKEDSTRUCTANONYMOUS({
+  };
+  struct {
     uint32_t type_0 : 2;
     uint32_t data_0_a : 30;
     uint32_t data_0_b : 32;
@@ -1138,8 +1164,9 @@ XEPACKEDUNION(xe_gpu_fetch_group_t, {
     uint32_t type_2 : 2;
     uint32_t data_2_a : 30;
     uint32_t data_2_b : 32;
-  });
-});
+  };
+};
+static_assert_size(xe_gpu_fetch_group_t, sizeof(uint32_t) * 6);
 
 // GPU_MEMEXPORT_STREAM_CONSTANT from a game .pdb - float constant for memexport
 // stream configuration.
@@ -1149,8 +1176,8 @@ XEPACKEDUNION(xe_gpu_fetch_group_t, {
 // integers. dword_1 specifically is 2^23 because
 // powf(2.0f, 23.0f) + float(i) == 0x4B000000 | i
 // so mad can pack indices as integers in the lower bits.
-XEPACKEDUNION(xe_gpu_memexport_stream_t, {
-  XEPACKEDSTRUCTANONYMOUS({
+union alignas(uint32_t) xe_gpu_memexport_stream_t {
+  struct {
     uint32_t base_address : 30;  // +0 dword_0 physical address >> 2
     uint32_t const_0x1 : 2;      // +30
 
@@ -1166,28 +1193,30 @@ XEPACKEDUNION(xe_gpu_memexport_stream_t, {
 
     uint32_t index_count : 23;  // +0 dword_3
     uint32_t const_0x96 : 9;    // +23
-  });
-  XEPACKEDSTRUCTANONYMOUS({
+  };
+  struct {
     uint32_t dword_0;
     uint32_t dword_1;
     uint32_t dword_2;
     uint32_t dword_3;
-  });
-});
+  };
+};
+static_assert_size(xe_gpu_memexport_stream_t, sizeof(uint32_t) * 4);
 
-XEPACKEDSTRUCT(xe_gpu_depth_sample_counts, {
+struct alignas(uint32_t) xe_gpu_depth_sample_counts {
   // This is little endian as it is swapped in D3D code.
   // Corresponding A and B values are summed up by D3D.
   // Occlusion there is calculated by substracting begin from end struct.
-  uint32_t Total_A;
-  uint32_t Total_B;
-  uint32_t ZFail_A;
-  uint32_t ZFail_B;
-  uint32_t ZPass_A;
-  uint32_t ZPass_B;
-  uint32_t StencilFail_A;
-  uint32_t StencilFail_B;
-});
+  le<uint32_t> Total_A;
+  le<uint32_t> Total_B;
+  le<uint32_t> ZFail_A;
+  le<uint32_t> ZFail_B;
+  le<uint32_t> ZPass_A;
+  le<uint32_t> ZPass_B;
+  le<uint32_t> StencilFail_A;
+  le<uint32_t> StencilFail_B;
+};
+static_assert_size(xe_gpu_depth_sample_counts, sizeof(uint32_t) * 8);
 
 // Enum of event values used for VGT_EVENT_INITIATOR
 enum Event {

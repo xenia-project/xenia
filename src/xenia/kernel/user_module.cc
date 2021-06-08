@@ -134,13 +134,15 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
 X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
   auto processor = kernel_state()->processor();
 
-  auto magic = xe::load_and_swap<uint32_t>(addr);
-  if (magic == 'XEX2' || magic == 'XEX1') {
+  be<fourcc_t> magic;
+  magic.value = xe::load<fourcc_t>(addr);
+  if (magic == xe::cpu::kXEX2Signature || magic == xe::cpu::kXEX1Signature) {
     module_format_ = kModuleFormatXex;
-  } else if (magic == 0x7F454C46 /* 0x7F 'ELF' */) {
+  } else if (magic == xe::cpu::kElfSignature) {
     module_format_ = kModuleFormatElf;
   } else {
-    auto magic16 = xe::load_and_swap<uint16_t>(addr);
+    be<uint16_t> magic16;
+    magic16.value = xe::load<uint16_t>(addr);
     if (magic16 == 0x4D5A) {
       XELOGE("XNA executables are not yet implemented");
       return X_STATUS_NOT_IMPLEMENTED;
@@ -511,11 +513,9 @@ void UserModule::Dump() {
           sb.AppendFormat("    {} - {} imports\n", name,
                           (uint16_t)library->count);
 
-          // Manually byteswap these because of the bitfields.
           xex2_version version, version_min;
-          version.value = xe::byte_swap<uint32_t>(library->version.value);
-          version_min.value =
-              xe::byte_swap<uint32_t>(library->version_min.value);
+          version = library->version();
+          version_min = library->version_min();
           sb.AppendFormat("      Version: {}.{}.{}.{}\n", version.major,
                           version.minor, version.build, version.qfe);
           sb.AppendFormat("      Min Version: {}.{}.{}.{}\n", version_min.major,

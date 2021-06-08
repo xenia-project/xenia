@@ -34,7 +34,7 @@ class Win32Window : public Window {
   void EnableMainMenu() override;
   void DisableMainMenu() override;
 
-  bool set_title(const std::string& title) override;
+  bool set_title(const std::string_view title) override;
 
   bool SetIcon(const void* buffer, size_t size) override;
 

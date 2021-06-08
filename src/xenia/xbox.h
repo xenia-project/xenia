@@ -323,6 +323,27 @@ static_assert_size(X_EXCEPTION_RECORD, 0x50);
 
 #pragma pack(pop)
 
+// Found by dumping the kSectionStringTable sections of various games:
+// and the language list at
+// https://free60project.github.io/wiki/Profile_Account/
+enum class XLanguage : uint32_t {
+  kInvalid = 0,
+  kEnglish = 1,
+  kJapanese = 2,
+  kGerman = 3,
+  kFrench = 4,
+  kSpanish = 5,
+  kItalian = 6,
+  kKorean = 7,
+  kTChinese = 8,
+  kPortuguese = 9,
+  kSChinese = 10,
+  kPolish = 11,
+  kRussian = 12,
+  // STFS headers can't support any more languages than these
+  kMaxLanguages = 13
+};
+
 }  // namespace xe
 
 // clang-format on

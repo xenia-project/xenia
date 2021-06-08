@@ -25,6 +25,8 @@
 namespace xe {
 namespace kernel {
 
+constexpr fourcc_t kThreadSaveSignature = make_fourcc("THRD");
+
 class XEvent;
 
 constexpr uint32_t X_CREATE_SUSPENDED = 0x00000001;

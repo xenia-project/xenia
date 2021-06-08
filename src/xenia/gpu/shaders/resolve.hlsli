@@ -16,8 +16,8 @@ cbuffer XeResolveConstants : register(b0) {
   #ifndef XE_RESOLVE_CLEAR
     // Sanitized RB_COPY_DEST_INFO.
     uint xe_resolve_dest_info;
-    // RB_COPY_DEST_PITCH.
-    uint xe_resolve_dest_pitch;
+    // xe::gpu::draw_util::ResolveCopyDestPitchPackedInfo.
+    uint xe_resolve_dest_pitch_aligned;
     #ifndef XE_RESOLVE_RESOLUTION_SCALED
       uint xe_resolve_dest_base;
     #endif
@@ -112,23 +112,30 @@ uint2 XeResolveSize() {
     return (xe_resolve_dest_info & (1u << 24u)) != 0u;
   }
 
-  uint XeResolveDestRowPitch() {
-    return xe_resolve_dest_pitch & ((1u << 14u) - 1u);
+  uint XeResolveDestRowPitchAlignedDiv32() {
+    return xe_resolve_dest_pitch_aligned & ((1u << 10u) - 1u);
   }
 
-  uint XeResolveDestSlicePitch() {
-    return (xe_resolve_dest_pitch >> 16u) & ((1u << 14u) - 1u);
+  uint XeResolveDestRowPitchAligned() {
+    return XeResolveDestRowPitchAlignedDiv32() << 5u;
+  }
+
+  uint XeResolveDestSlicePitchAlignedDiv32() {
+    return (xe_resolve_dest_pitch_aligned >> 10u) & ((1u << 14u) - 1u);
+  }
+
+  uint XeResolveDestSlicePitchAligned() {
+    return XeResolveDestSlicePitchAlignedDiv32() << 5u;
   }
 
   uint XeResolveDestPixelAddress(uint2 p, uint bpp_log2) {
     p += XeResolveOffset() & 31u;
     uint address;
-    uint row_pitch = XeResolveDestRowPitch();
+    uint row_pitch = XeResolveDestRowPitchAligned();
     [branch] if (XeResolveDestIsArray()) {
-      address = uint(XeTextureTiledOffset3D(int3(p, XeResolveDestSlice()),
-                                            uint2(row_pitch,
-                                                  XeResolveDestSlicePitch()),
-                                            bpp_log2));
+      address = uint(XeTextureTiledOffset3D(
+                         int3(p, XeResolveDestSlice()), row_pitch,
+                         XeResolveDestSlicePitchAligned(), bpp_log2));
     } else {
       address = uint(XeTextureTiledOffset2D(int2(p), row_pitch, bpp_log2));
     }
@@ -258,6 +265,60 @@ uint2 XeResolveSize() {
     }
   }
 
+  void XeResolveUnpack32bpp5Samples(uint4 packed, uint packed_4, uint format,
+                                    out float4 sample_0, out float4 sample_1,
+                                    out float4 sample_2, out float4 sample_3,
+                                    out float4 sample_4) {
+    switch (format) {
+      case kXenosColorRenderTargetFormat_8_8_8_8:
+      case kXenosColorRenderTargetFormat_8_8_8_8_GAMMA:
+        sample_0 = XeUnpackR8G8B8A8UNorm(packed.x);
+        sample_1 = XeUnpackR8G8B8A8UNorm(packed.y);
+        sample_2 = XeUnpackR8G8B8A8UNorm(packed.z);
+        sample_3 = XeUnpackR8G8B8A8UNorm(packed.w);
+        sample_4 = XeUnpackR8G8B8A8UNorm(packed_4);
+        break;
+      case kXenosColorRenderTargetFormat_2_10_10_10:
+      case kXenosColorRenderTargetFormat_2_10_10_10_AS_10_10_10_10:
+        sample_0 = XeUnpackR10G10B10A2UNorm(packed.x);
+        sample_1 = XeUnpackR10G10B10A2UNorm(packed.y);
+        sample_2 = XeUnpackR10G10B10A2UNorm(packed.z);
+        sample_3 = XeUnpackR10G10B10A2UNorm(packed.w);
+        sample_4 = XeUnpackR10G10B10A2UNorm(packed_4);
+        break;
+      case kXenosColorRenderTargetFormat_2_10_10_10_FLOAT:
+      case kXenosColorRenderTargetFormat_2_10_10_10_FLOAT_AS_16_16_16_16:
+        sample_0 = XeUnpackR10G10B10A2Float(packed.x);
+        sample_1 = XeUnpackR10G10B10A2Float(packed.y);
+        sample_2 = XeUnpackR10G10B10A2Float(packed.z);
+        sample_3 = XeUnpackR10G10B10A2Float(packed.w);
+        sample_4 = XeUnpackR10G10B10A2Float(packed_4);
+        break;
+      case kXenosColorRenderTargetFormat_16_16:
+        sample_0 = float4(XeUnpackR16G16Edram(packed.x), 0.0f, 0.0f);
+        sample_1 = float4(XeUnpackR16G16Edram(packed.y), 0.0f, 0.0f);
+        sample_2 = float4(XeUnpackR16G16Edram(packed.z), 0.0f, 0.0f);
+        sample_3 = float4(XeUnpackR16G16Edram(packed.w), 0.0f, 0.0f);
+        sample_4 = float4(XeUnpackR16G16Edram(packed_4), 0.0f, 0.0f);
+        break;
+      case kXenosColorRenderTargetFormat_16_16_FLOAT:
+        sample_0 = float4(f16tof32(packed.x >> uint2(0u, 16u)), 0.0f, 0.0f);
+        sample_1 = float4(f16tof32(packed.y >> uint2(0u, 16u)), 0.0f, 0.0f);
+        sample_2 = float4(f16tof32(packed.z >> uint2(0u, 16u)), 0.0f, 0.0f);
+        sample_3 = float4(f16tof32(packed.w >> uint2(0u, 16u)), 0.0f, 0.0f);
+        sample_4 = float4(f16tof32(packed_4 >> uint2(0u, 16u)), 0.0f, 0.0f);
+        break;
+      default:
+        // Treat as 32_FLOAT.
+        sample_0 = float2(asfloat(packed.x), 0.0f).xyyy;
+        sample_1 = float2(asfloat(packed.y), 0.0f).xyyy;
+        sample_2 = float2(asfloat(packed.z), 0.0f).xyyy;
+        sample_3 = float2(asfloat(packed.w), 0.0f).xyyy;
+        sample_4 = float2(asfloat(packed_4), 0.0f).xyyy;
+        break;
+    }
+  }
+
   void XeResolveUnpack32bpp8RedSamples(uint4 packed_0123, uint4 packed_4567,
                                        uint format, bool swap,
                                        out float4 samples_0123,
@@ -295,6 +356,69 @@ uint2 XeResolveSize() {
         samples_4567 = asfloat(packed_4567);
         break;
     }
+  }
+
+  void XeResolveUnpack32bpp9RedSamples(uint4 packed_0123, uint4 packed_4567,
+                                       uint packed_8, uint format, bool swap,
+                                       out float4 samples_0123,
+                                       out float4 samples_4567,
+                                       out float samples_8) {
+    switch (format) {
+      case kXenosColorRenderTargetFormat_8_8_8_8:
+      case kXenosColorRenderTargetFormat_8_8_8_8_GAMMA: {
+        uint shift = swap ? 16u : 0u;
+        samples_0123 = XeUnpackR8UNormX4(packed_0123 >> shift);
+        samples_4567 = XeUnpackR8UNormX4(packed_4567 >> shift);
+        samples_8 = XeUnpackR8UNorm(packed_8 >> shift);
+      } break;
+      case kXenosColorRenderTargetFormat_2_10_10_10:
+      case kXenosColorRenderTargetFormat_2_10_10_10_AS_10_10_10_10: {
+        uint shift = swap ? 20u : 0u;
+        samples_0123 = XeUnpackR10UNormX4(packed_0123 >> shift);
+        samples_4567 = XeUnpackR10UNormX4(packed_4567 >> shift);
+        samples_8 = XeUnpackR10UNorm(packed_8 >> shift);
+      } break;
+      case kXenosColorRenderTargetFormat_2_10_10_10_FLOAT:
+      case kXenosColorRenderTargetFormat_2_10_10_10_FLOAT_AS_16_16_16_16: {
+        uint shift = swap ? 20u : 0u;
+        samples_0123 = XeUnpackR10FloatX4(packed_0123 >> shift);
+        samples_4567 = XeUnpackR10FloatX4(packed_4567 >> shift);
+        samples_8 = XeUnpackR10Float(packed_8 >> shift);
+      } break;
+      case kXenosColorRenderTargetFormat_16_16:
+        samples_0123 = XeUnpackR16EdramX4(packed_0123);
+        samples_4567 = XeUnpackR16EdramX4(packed_4567);
+        samples_8 = XeUnpackR16Edram(packed_8);
+        break;
+      case kXenosColorRenderTargetFormat_16_16_FLOAT:
+        samples_0123 = f16tof32(packed_0123);
+        samples_4567 = f16tof32(packed_4567);
+        samples_8 = f16tof32(packed_8);
+        break;
+      default:
+        // Treat as 32_FLOAT.
+        samples_0123 = asfloat(packed_0123);
+        samples_4567 = asfloat(packed_4567);
+        samples_8 = asfloat(packed_8);
+        break;
+    }
+  }
+
+  float4 XeResolveUnpack64bppSample(uint2 packed, uint format) {
+    float4 value;
+    switch (format) {
+      case kXenosColorRenderTargetFormat_16_16_16_16:
+        value = XeUnpackR16G16B16A16Edram(packed);
+        break;
+      case kXenosColorRenderTargetFormat_16_16_16_16_FLOAT:
+        value = f16tof32(packed.xxyy >> uint2(0u, 16u).xyxy);
+        break;
+      default:
+        // Treat as 32_32_FLOAT.
+        value = float4(asfloat(packed), 0.0f, 0.0f);
+        break;
+    }
+    return value;
   }
 
   void XeResolveUnpack64bpp2Samples(uint4 packed, uint format,
@@ -339,6 +463,49 @@ uint2 XeResolveSize() {
         sample_1 = float4(asfloat(packed_01.zw), 0.0f, 0.0f);
         sample_2 = float4(asfloat(packed_23.xy), 0.0f, 0.0f);
         sample_3 = float4(asfloat(packed_23.zw), 0.0f, 0.0f);
+        break;
+    }
+  }
+
+  void XeResolveUnpack64bpp8RedUnswappedSamples(
+      uint4 packed_0123, uint4 packed_4567, uint format,
+      out float4 samples_0123, out float4 samples_4567) {
+    switch (format) {
+      case kXenosColorRenderTargetFormat_16_16_16_16:
+        samples_0123 = XeUnpackR16EdramX4(packed_0123);
+        samples_4567 = XeUnpackR16EdramX4(packed_4567);
+        break;
+      case kXenosColorRenderTargetFormat_16_16_16_16_FLOAT:
+        samples_0123 = f16tof32(packed_0123);
+        samples_4567 = f16tof32(packed_4567);
+        break;
+      default:
+        // Treat as 32_32_FLOAT.
+        samples_0123 = asfloat(packed_0123);
+        samples_4567 = asfloat(packed_4567);
+        break;
+    }
+  }
+
+  void XeResolveUnpack64bpp9RedUnswappedSamples(
+      uint4 packed_0123, uint4 packed_4567, uint packed_8, uint format,
+      out float4 samples_0123, out float4 samples_4567, out float samples_8) {
+    switch (format) {
+      case kXenosColorRenderTargetFormat_16_16_16_16:
+        samples_0123 = XeUnpackR16EdramX4(packed_0123);
+        samples_4567 = XeUnpackR16EdramX4(packed_4567);
+        samples_8 = XeUnpackR16Edram(packed_8);
+        break;
+      case kXenosColorRenderTargetFormat_16_16_16_16_FLOAT:
+        samples_0123 = f16tof32(packed_0123);
+        samples_4567 = f16tof32(packed_4567);
+        samples_8 = f16tof32(packed_8);
+        break;
+      default:
+        // Treat as 32_32_FLOAT.
+        samples_0123 = asfloat(packed_0123);
+        samples_4567 = asfloat(packed_4567);
+        samples_8 = asfloat(packed_8);
         break;
     }
   }
@@ -431,66 +598,73 @@ uint2 XeResolveSize() {
     }
   }
 
-  void XeResolveLoad8RedSwappedPixelSamplesFromRaw(
+  // For red/blue swapping for 64bpp, pre-add 4 to sample_address_bytes.
+  void XeResolveLoad8RedPixelSamplesFromRaw(
       ByteAddressBuffer source, uint sample_address_bytes,
-      uint pixel_stride_bytes, uint format_ints_log2, uint format, bool swap,
-      out float4 pixels_0123, out float4 pixels_4567) {
-    [branch] if (format_ints_log2) {
-      uint4 packed_01, packed_23, packed_45, packed_67;
-      [branch] if (pixel_stride_bytes == 8u) {
-        packed_01 = source.Load4(sample_address_bytes);
-        packed_23 = source.Load4(sample_address_bytes + 16u);
-        packed_45 = source.Load4(sample_address_bytes + 32u);
-        packed_67 = source.Load4(sample_address_bytes + 48u);
-      } else {
-        packed_01.xy = source.Load2(sample_address_bytes);
-        packed_01.zw = source.Load2(sample_address_bytes + pixel_stride_bytes);
-        packed_23.xy =
-            source.Load2(sample_address_bytes + 2u * pixel_stride_bytes);
-        packed_23.zw =
-            source.Load2(sample_address_bytes + 3u * pixel_stride_bytes);
-        packed_45.xy =
-            source.Load2(sample_address_bytes + 4u * pixel_stride_bytes);
-        packed_45.zw =
-            source.Load2(sample_address_bytes + 5u * pixel_stride_bytes);
-        packed_67.xy =
-            source.Load2(sample_address_bytes + 6u * pixel_stride_bytes);
-        packed_67.zw =
-            source.Load2(sample_address_bytes + 7u * pixel_stride_bytes);
-      }
-      XeResolveUnpack64bpp8RedSamples(packed_01, packed_23, packed_45,
-                                      packed_67, format, swap, pixels_0123,
-                                      pixels_4567);
+      uint pixel_stride_bytes, uint format_ints_log2, uint format,
+      bool swap_32bpp, out float4 pixels_0123, out float4 pixels_4567) {
+    uint4 packed_0123, packed_4567;
+    [branch] if (pixel_stride_bytes == 4u) {
+      packed_0123 = source.Load4(sample_address_bytes);
+      packed_4567 = source.Load4(sample_address_bytes + 16u);
     } else {
-      uint4 packed_0123, packed_4567;
-      [branch] if (pixel_stride_bytes == 4u) {
-        packed_0123 = source.Load4(sample_address_bytes);
-        packed_4567 = source.Load4(sample_address_bytes + 16u);
-      } else {
-        packed_0123.x = source.Load(sample_address_bytes);
-        packed_0123.y = source.Load(sample_address_bytes + pixel_stride_bytes);
-        packed_0123.z =
-            source.Load(sample_address_bytes + 2u * pixel_stride_bytes);
-        packed_0123.w =
-            source.Load(sample_address_bytes + 3u * pixel_stride_bytes);
-        packed_4567.x =
-            source.Load(sample_address_bytes + 4u * pixel_stride_bytes);
-        packed_4567.y =
-            source.Load(sample_address_bytes + 5u * pixel_stride_bytes);
-        packed_4567.z =
-            source.Load(sample_address_bytes + 6u * pixel_stride_bytes);
-        packed_4567.w =
-            source.Load(sample_address_bytes + 7u * pixel_stride_bytes);
-      }
-      XeResolveUnpack32bpp8RedSamples(packed_0123, packed_4567, format, swap,
-                                      pixels_0123, pixels_4567);
+      packed_0123.x = source.Load(sample_address_bytes);
+      packed_0123.y = source.Load(sample_address_bytes + pixel_stride_bytes);
+      packed_0123.z =
+          source.Load(sample_address_bytes + 2u * pixel_stride_bytes);
+      packed_0123.w =
+          source.Load(sample_address_bytes + 3u * pixel_stride_bytes);
+      packed_4567.x =
+          source.Load(sample_address_bytes + 4u * pixel_stride_bytes);
+      packed_4567.y =
+          source.Load(sample_address_bytes + 5u * pixel_stride_bytes);
+      packed_4567.z =
+          source.Load(sample_address_bytes + 6u * pixel_stride_bytes);
+      packed_4567.w =
+          source.Load(sample_address_bytes + 7u * pixel_stride_bytes);
+    }
+    [branch] if (format_ints_log2) {
+      XeResolveUnpack64bpp8RedUnswappedSamples(packed_0123, packed_4567, format,
+                                               pixels_0123, pixels_4567);
+    } else {
+      XeResolveUnpack32bpp8RedSamples(packed_0123, packed_4567, format,
+                                      swap_32bpp, pixels_0123, pixels_4567);
+    }
+  }
+
+  // For red/blue swapping for 64bpp, pre-add 4 to sample_address_bytes.
+  void XeResolveLoad9RedHostPixelSamplesFromRaw(
+      ByteAddressBuffer source, uint sample_address_bytes,
+      uint format_ints_log2, uint format, bool swap_32bpp,
+      out float4 pixels_0123, out float4 pixels_4567, out float pixels_8) {
+    uint4 packed_0123, packed_4567;
+    uint packed_8;
+    [branch] if (!format_ints_log2) {
+      packed_0123 = source.Load4(sample_address_bytes);
+      packed_4567 = source.Load4(sample_address_bytes + 4u * 4u);
+      packed_8 = source.Load(sample_address_bytes + 8u * 4u);
+      XeResolveUnpack32bpp9RedSamples(
+          packed_0123, packed_4567, packed_8, format, swap_32bpp, pixels_0123,
+          pixels_4567, pixels_8);
+    } else {
+      packed_0123.x = source.Load(sample_address_bytes);
+      packed_0123.y = source.Load(sample_address_bytes + 8u);
+      packed_0123.z = source.Load(sample_address_bytes + 2u * 8u);
+      packed_0123.w = source.Load(sample_address_bytes + 3u * 8u);
+      packed_4567.x = source.Load(sample_address_bytes + 4u * 8u);
+      packed_4567.y = source.Load(sample_address_bytes + 5u * 8u);
+      packed_4567.z = source.Load(sample_address_bytes + 6u * 8u);
+      packed_4567.w = source.Load(sample_address_bytes + 7u * 8u);
+      packed_8 = source.Load(sample_address_bytes + 8u * 8u);
+      XeResolveUnpack64bpp9RedUnswappedSamples(
+          packed_0123, packed_4567, packed_8, format, pixels_0123, pixels_4567,
+          pixels_8);
     }
   }
 
   void XeResolveLoad2RGBAColorsX1(ByteAddressBuffer source, uint address_ints,
                                   out float4 pixel_0, out float4 pixel_1) {
     uint format_ints_log2 = XeResolveEdramFormatIntsLog2();
-    uint msaa_samples = XeResolveEdramMsaaSamples();
     uint pixel_stride_bytes = XeResolveEdramPixelStrideInts() << 2u;
     uint address_bytes = address_ints << 2u;
     uint format = XeResolveEdramFormat();
@@ -538,7 +712,6 @@ uint2 XeResolveSize() {
                                   out float4 pixel_0, out float4 pixel_1,
                                   out float4 pixel_2, out float4 pixel_3) {
     uint format_ints_log2 = XeResolveEdramFormatIntsLog2();
-    uint msaa_samples = XeResolveEdramMsaaSamples();
     uint pixel_stride_bytes = XeResolveEdramPixelStrideInts() << 2u;
     uint address_bytes = address_ints << 2u;
     uint format = XeResolveEdramFormat();
@@ -600,22 +773,25 @@ uint2 XeResolveSize() {
                                  out float4 pixels_0123,
                                  out float4 pixels_4567) {
     uint format_ints_log2 = XeResolveEdramFormatIntsLog2();
-    uint msaa_samples = XeResolveEdramMsaaSamples();
     uint pixel_stride_bytes = XeResolveEdramPixelStrideInts() << 2u;
     uint address_bytes = address_ints << 2u;
     uint format = XeResolveEdramFormat();
     bool swap = XeResolveDestSwap();
-    XeResolveLoad8RedSwappedPixelSamplesFromRaw(source, address_bytes,
-                                                pixel_stride_bytes,
-                                                format_ints_log2, format, swap,
-                                                pixels_0123, pixels_4567);
+    [branch] if (format_ints_log2 && swap) {
+      // Likely want to load the blue part from the right half.
+      address_bytes += 4u;
+    }
+    XeResolveLoad8RedPixelSamplesFromRaw(source, address_bytes,
+                                         pixel_stride_bytes, format_ints_log2,
+                                         format, swap, pixels_0123,
+                                         pixels_4567);
     uint sample_select = XeResolveSampleSelect();
     float exp_bias = XeResolveDestExpBiasFactor();
     [branch] if (sample_select >= kXenosCopySampleSelect_01) {
       // TODO(Triang3l): Gamma-correct resolve for 8_8_8_8_GAMMA.
       exp_bias *= 0.5f;
       float4 msaa_resolve_pixels_0123, msaa_resolve_pixels_4567;
-      XeResolveLoad8RedSwappedPixelSamplesFromRaw(
+      XeResolveLoad8RedPixelSamplesFromRaw(
           source, address_bytes + (320u << format_ints_log2),
           pixel_stride_bytes, format_ints_log2, format, swap,
           msaa_resolve_pixels_0123, msaa_resolve_pixels_4567);
@@ -623,13 +799,13 @@ uint2 XeResolveSize() {
       pixels_4567 += msaa_resolve_pixels_4567;
       [branch] if (sample_select >= kXenosCopySampleSelect_0123) {
         exp_bias *= 0.5f;
-        XeResolveLoad8RedSwappedPixelSamplesFromRaw(
+        XeResolveLoad8RedPixelSamplesFromRaw(
             source, address_bytes + (4u << format_ints_log2),
             pixel_stride_bytes, format_ints_log2, format, swap,
             msaa_resolve_pixels_0123, msaa_resolve_pixels_4567);
         pixels_0123 += msaa_resolve_pixels_0123;
         pixels_4567 += msaa_resolve_pixels_4567;
-        XeResolveLoad8RedSwappedPixelSamplesFromRaw(
+        XeResolveLoad8RedPixelSamplesFromRaw(
             source, address_bytes + (324u << format_ints_log2),
             pixel_stride_bytes, format_ints_log2, format, swap,
             msaa_resolve_pixels_0123, msaa_resolve_pixels_4567);
@@ -648,7 +824,6 @@ uint2 XeResolveSize() {
                                            out float4 host_pixel_y1x0,
                                            out float4 host_pixel_y1x1) {
     uint format_ints_log2 = XeResolveEdramFormatIntsLog2();
-    uint msaa_samples = XeResolveEdramMsaaSamples();
     uint format = XeResolveEdramFormat();
     // 1 host uint4 == 1 guest uint.
     uint4 packed = source[guest_address_ints];
@@ -744,7 +919,6 @@ uint2 XeResolveSize() {
                                             out float4 guest_pixel_0,
                                             out float4 guest_pixel_1) {
     uint format_ints_log2 = XeResolveEdramFormatIntsLog2();
-    uint msaa_samples = XeResolveEdramMsaaSamples();
     uint guest_address_ints_1 =
         guest_address_ints + XeResolveEdramPixelStrideInts();
     uint format = XeResolveEdramFormat();
@@ -819,20 +993,250 @@ uint2 XeResolveSize() {
     guest_pixel_1 *= exp_bias;
   }
 
+  void XeResolveLoad9RedColorsX3(ByteAddressBuffer source,
+                                 uint address_bytes, out float4 pixels_0123,
+                                 out float4 pixels_4567, out float pixels_8) {
+    uint format_ints_log2 = XeResolveEdramFormatIntsLog2();
+    uint format = XeResolveEdramFormat();
+    bool swap = XeResolveDestSwap();
+    [branch] if (format_ints_log2 && swap) {
+      // Likely want to load the blue part from the right half.
+      address_bytes += 4u;
+    }
+    XeResolveLoad9RedHostPixelSamplesFromRaw(source, address_bytes,
+                                             format_ints_log2, format, swap,
+                                             pixels_0123, pixels_4567,
+                                             pixels_8);
+    uint sample_select = XeResolveSampleSelect();
+    float exp_bias = XeResolveDestExpBiasFactor();
+    [branch] if (sample_select >= kXenosCopySampleSelect_01) {
+      // TODO(Triang3l): Gamma-correct resolve for 8_8_8_8_GAMMA.
+      exp_bias *= 0.5f;
+      float4 msaa_resolve_pixels_0123, msaa_resolve_pixels_4567;
+      float msaa_resolve_pixels_8;
+      XeResolveLoad9RedHostPixelSamplesFromRaw(
+          source, address_bytes + ((320u * 9u) << format_ints_log2),
+          format_ints_log2, format, swap, msaa_resolve_pixels_0123,
+          msaa_resolve_pixels_4567, msaa_resolve_pixels_8);
+      pixels_0123 += msaa_resolve_pixels_0123;
+      pixels_4567 += msaa_resolve_pixels_4567;
+      pixels_8 += msaa_resolve_pixels_8;
+      [branch] if (sample_select >= kXenosCopySampleSelect_0123) {
+        exp_bias *= 0.5f;
+        XeResolveLoad9RedHostPixelSamplesFromRaw(
+            source, address_bytes + ((4u * 9u) << format_ints_log2),
+            format_ints_log2, format, swap, msaa_resolve_pixels_0123,
+            msaa_resolve_pixels_4567, msaa_resolve_pixels_8);
+        pixels_0123 += msaa_resolve_pixels_0123;
+        pixels_4567 += msaa_resolve_pixels_4567;
+        pixels_8 += msaa_resolve_pixels_8;
+        XeResolveLoad9RedHostPixelSamplesFromRaw(
+            source, address_bytes + ((324u * 9u) << format_ints_log2),
+            format_ints_log2, format, swap, msaa_resolve_pixels_0123,
+            msaa_resolve_pixels_4567, msaa_resolve_pixels_8);
+        pixels_0123 += msaa_resolve_pixels_0123;
+        pixels_4567 += msaa_resolve_pixels_4567;
+        pixels_8 += msaa_resolve_pixels_8;
+      }
+    }
+    pixels_0123 *= exp_bias;
+    pixels_4567 *= exp_bias;
+    pixels_8 *= exp_bias;
+  }
+
+  void XeResolveLoad4Host32bppPixels(ByteAddressBuffer source,
+                                     uint resolution_scale_square,
+                                     uint host_address_bytes,
+                                     out float4 host_pixel_0,
+                                     out float4 host_pixel_1,
+                                     out float4 host_pixel_2,
+                                     out float4 host_pixel_3) {
+    uint format = XeResolveEdramFormat();
+    uint4 packed = source.Load4(host_address_bytes);
+    XeResolveUnpack32bpp4Samples(packed, format, host_pixel_0, host_pixel_1,
+                                 host_pixel_2, host_pixel_3);
+    uint sample_select = XeResolveSampleSelect();
+    float exp_bias = XeResolveDestExpBiasFactor();
+    [branch] if (sample_select >= kXenosCopySampleSelect_01) {
+      // TODO(Triang3l): Gamma-correct resolve for 8_8_8_8_GAMMA.
+      exp_bias *= 0.5f;
+      float4 msaa_resolve_pixel_0;
+      float4 msaa_resolve_pixel_1;
+      float4 msaa_resolve_pixel_2;
+      float4 msaa_resolve_pixel_3;
+      packed =
+          source.Load4(host_address_bytes + (320u * resolution_scale_square));
+      XeResolveUnpack32bpp4Samples(packed, format, msaa_resolve_pixel_0,
+                                   msaa_resolve_pixel_1, msaa_resolve_pixel_2,
+                                   msaa_resolve_pixel_3);
+      host_pixel_0 += msaa_resolve_pixel_0;
+      host_pixel_1 += msaa_resolve_pixel_1;
+      host_pixel_2 += msaa_resolve_pixel_2;
+      host_pixel_3 += msaa_resolve_pixel_3;
+      [branch] if (sample_select >= kXenosCopySampleSelect_0123) {
+        exp_bias *= 0.5f;
+        packed =
+            source.Load4(host_address_bytes + (4u * resolution_scale_square));
+        XeResolveUnpack32bpp4Samples(packed, format, msaa_resolve_pixel_0,
+                                     msaa_resolve_pixel_1, msaa_resolve_pixel_2,
+                                     msaa_resolve_pixel_3);
+        host_pixel_0 += msaa_resolve_pixel_0;
+        host_pixel_1 += msaa_resolve_pixel_1;
+        host_pixel_2 += msaa_resolve_pixel_2;
+        host_pixel_3 += msaa_resolve_pixel_3;
+        packed =
+            source.Load4(host_address_bytes + (324u * resolution_scale_square));
+        XeResolveUnpack32bpp4Samples(packed, format, msaa_resolve_pixel_0,
+                                     msaa_resolve_pixel_1, msaa_resolve_pixel_2,
+                                     msaa_resolve_pixel_3);
+        host_pixel_0 += msaa_resolve_pixel_0;
+        host_pixel_1 += msaa_resolve_pixel_1;
+        host_pixel_2 += msaa_resolve_pixel_2;
+        host_pixel_3 += msaa_resolve_pixel_3;
+      }
+    }
+    host_pixel_0 *= exp_bias;
+    host_pixel_1 *= exp_bias;
+    host_pixel_2 *= exp_bias;
+    host_pixel_3 *= exp_bias;
+    [branch] if (XeResolveDestSwap()) {
+      host_pixel_0 = host_pixel_0.bgra;
+      host_pixel_1 = host_pixel_1.bgra;
+      host_pixel_2 = host_pixel_2.bgra;
+      host_pixel_3 = host_pixel_3.bgra;
+    }
+  }
+
+  void XeResolveLoad5Host32bppPixels(ByteAddressBuffer source,
+                                     uint resolution_scale_square,
+                                     uint host_address_bytes,
+                                     out float4 host_pixel_0,
+                                     out float4 host_pixel_1,
+                                     out float4 host_pixel_2,
+                                     out float4 host_pixel_3,
+                                     out float4 host_pixel_4) {
+    uint format = XeResolveEdramFormat();
+    uint4 packed = source.Load4(host_address_bytes);
+    uint packed_4 = source.Load(host_address_bytes + 16u);
+    XeResolveUnpack32bpp5Samples(packed, packed_4, format, host_pixel_0,
+                                 host_pixel_1, host_pixel_2, host_pixel_3,
+                                 host_pixel_4);
+    uint sample_select = XeResolveSampleSelect();
+    float exp_bias = XeResolveDestExpBiasFactor();
+    [branch] if (sample_select >= kXenosCopySampleSelect_01) {
+      // TODO(Triang3l): Gamma-correct resolve for 8_8_8_8_GAMMA.
+      exp_bias *= 0.5f;
+      float4 msaa_resolve_pixel_0;
+      float4 msaa_resolve_pixel_1;
+      float4 msaa_resolve_pixel_2;
+      float4 msaa_resolve_pixel_3;
+      float4 msaa_resolve_pixel_4;
+      uint sample_host_address_bytes =
+          host_address_bytes + (320u * resolution_scale_square);
+      packed = source.Load4(sample_host_address_bytes);
+      packed_4 = source.Load(sample_host_address_bytes + 16u);
+      XeResolveUnpack32bpp5Samples(packed, packed_4, format,
+                                   msaa_resolve_pixel_0, msaa_resolve_pixel_1,
+                                   msaa_resolve_pixel_2, msaa_resolve_pixel_3,
+                                   msaa_resolve_pixel_4);
+      host_pixel_0 += msaa_resolve_pixel_0;
+      host_pixel_1 += msaa_resolve_pixel_1;
+      host_pixel_2 += msaa_resolve_pixel_2;
+      host_pixel_3 += msaa_resolve_pixel_3;
+      host_pixel_4 += msaa_resolve_pixel_4;
+      [branch] if (sample_select >= kXenosCopySampleSelect_0123) {
+        exp_bias *= 0.5f;
+        uint sample_host_address_bytes =
+            host_address_bytes + (4u * resolution_scale_square);
+        packed = source.Load4(sample_host_address_bytes);
+        packed_4 = source.Load(sample_host_address_bytes + 16u);
+        XeResolveUnpack32bpp5Samples(packed, packed_4, format,
+                                     msaa_resolve_pixel_0, msaa_resolve_pixel_1,
+                                     msaa_resolve_pixel_2, msaa_resolve_pixel_3,
+                                     msaa_resolve_pixel_4);
+        host_pixel_0 += msaa_resolve_pixel_0;
+        host_pixel_1 += msaa_resolve_pixel_1;
+        host_pixel_2 += msaa_resolve_pixel_2;
+        host_pixel_3 += msaa_resolve_pixel_3;
+        host_pixel_4 += msaa_resolve_pixel_4;
+        sample_host_address_bytes =
+            host_address_bytes + (324u * resolution_scale_square);
+        packed = source.Load4(sample_host_address_bytes);
+        packed_4 = source.Load(sample_host_address_bytes + 16u);
+        XeResolveUnpack32bpp5Samples(packed, packed_4, format,
+                                     msaa_resolve_pixel_0, msaa_resolve_pixel_1,
+                                     msaa_resolve_pixel_2, msaa_resolve_pixel_3,
+                                     msaa_resolve_pixel_4);
+        host_pixel_0 += msaa_resolve_pixel_0;
+        host_pixel_1 += msaa_resolve_pixel_1;
+        host_pixel_2 += msaa_resolve_pixel_2;
+        host_pixel_3 += msaa_resolve_pixel_3;
+        host_pixel_4 += msaa_resolve_pixel_4;
+      }
+    }
+    host_pixel_0 *= exp_bias;
+    host_pixel_1 *= exp_bias;
+    host_pixel_2 *= exp_bias;
+    host_pixel_3 *= exp_bias;
+    host_pixel_4 *= exp_bias;
+    [branch] if (XeResolveDestSwap()) {
+      host_pixel_0 = host_pixel_0.bgra;
+      host_pixel_1 = host_pixel_1.bgra;
+      host_pixel_2 = host_pixel_2.bgra;
+      host_pixel_3 = host_pixel_3.bgra;
+      host_pixel_4 = host_pixel_4.bgra;
+    }
+  }
+
+  float4 XeResolveLoadHost64bppPixelFromUInt2(Buffer<uint2> source,
+                                              uint resolution_scale_square,
+                                              uint host_address_int2s) {
+    uint format = XeResolveEdramFormat();
+    float4 host_pixel =
+        XeResolveUnpack64bppSample(source[host_address_int2s], format);
+    uint sample_select = XeResolveSampleSelect();
+    float exp_bias = XeResolveDestExpBiasFactor();
+    [branch] if (sample_select >= kXenosCopySampleSelect_01) {
+      exp_bias *= 0.5f;
+      host_pixel += XeResolveUnpack64bppSample(
+          source[host_address_int2s + 80u * resolution_scale_square], format);
+      [branch] if (sample_select >= kXenosCopySampleSelect_0123) {
+        exp_bias *= 0.5f;
+        host_pixel += XeResolveUnpack64bppSample(
+            source[host_address_int2s + 1u * resolution_scale_square], format);
+        host_pixel += XeResolveUnpack64bppSample(
+            source[host_address_int2s + 81u * resolution_scale_square], format);
+      }
+    }
+    host_pixel *= exp_bias;
+    [branch] if (XeResolveDestSwap()) {
+      host_pixel = host_pixel.bgra;
+    }
+    return host_pixel;
+  }
+
+  uint4 XeResolveSwapRedBlue_8_8_8_8(uint4 pixels) {
+    return (pixels & ~0xFF00FFu) | ((pixels & 0xFFu) << 16u) |
+           ((pixels >> 16u) & 0xFFu);
+  }
+
+  uint4 XeResolveSwapRedBlue_2_10_10_10(uint4 pixels) {
+    return (pixels & ~0x3FF003FF) | ((pixels & 0x3FFu) << 20u) |
+           ((pixels >> 20u) & 0x3FFu);
+  }
+
   uint4 XeResolveSwap4PixelsRedBlue32bpp(uint4 pixels) {
     [branch] if (XeResolveDestSwap()) {
       switch (XeResolveEdramFormat()) {
         case kXenosColorRenderTargetFormat_8_8_8_8:
         case kXenosColorRenderTargetFormat_8_8_8_8_GAMMA:
-          pixels = (pixels & ~0xFF00FFu) | ((pixels & 0xFFu) << 16u) |
-                   ((pixels >> 16u) & 0xFFu);
+          pixels = XeResolveSwapRedBlue_8_8_8_8(pixels);
           break;
         case kXenosColorRenderTargetFormat_2_10_10_10:
         case kXenosColorRenderTargetFormat_2_10_10_10_FLOAT:
         case kXenosColorRenderTargetFormat_2_10_10_10_AS_10_10_10_10:
         case kXenosColorRenderTargetFormat_2_10_10_10_FLOAT_AS_16_16_16_16:
-          pixels = (pixels & ~0x3FF003FF) | ((pixels & 0x3FFu) << 20u) |
-                   ((pixels >> 20u) & 0x3FFu);
+          pixels = XeResolveSwapRedBlue_2_10_10_10(pixels);
           break;
       }
     }
@@ -845,32 +1249,64 @@ uint2 XeResolveSize() {
       switch (XeResolveEdramFormat()) {
         case kXenosColorRenderTargetFormat_8_8_8_8:
         case kXenosColorRenderTargetFormat_8_8_8_8_GAMMA:
-          pixels_0123 = (pixels_0123 & ~0xFF00FFu) |
-                        ((pixels_0123 & 0xFFu) << 16u) |
-                        ((pixels_0123 >> 16u) & 0xFFu);
-          pixels_4567 = (pixels_4567 & ~0xFF00FFu) |
-                        ((pixels_4567 & 0xFFu) << 16u) |
-                        ((pixels_4567 >> 16u) & 0xFFu);
+          pixels_0123 = XeResolveSwapRedBlue_8_8_8_8(pixels_0123);
+          pixels_4567 = XeResolveSwapRedBlue_8_8_8_8(pixels_4567);
           break;
         case kXenosColorRenderTargetFormat_2_10_10_10:
         case kXenosColorRenderTargetFormat_2_10_10_10_FLOAT:
         case kXenosColorRenderTargetFormat_2_10_10_10_AS_10_10_10_10:
         case kXenosColorRenderTargetFormat_2_10_10_10_FLOAT_AS_16_16_16_16:
-          pixels_0123 = (pixels_0123 & ~0x3FF003FF) |
-                        ((pixels_0123 & 0x3FFu) << 20u) |
-                        ((pixels_0123 >> 20u) & 0x3FFu);
-          pixels_4567 = (pixels_4567 & ~0x3FF003FF) |
-                        ((pixels_4567 & 0x3FFu) << 20u) |
-                        ((pixels_4567 >> 20u) & 0x3FFu);
+          pixels_0123 = XeResolveSwapRedBlue_2_10_10_10(pixels_0123);
+          pixels_4567 = XeResolveSwapRedBlue_2_10_10_10(pixels_4567);
           break;
       }
     }
   }
 
+  void XeResolveSwap18PixelsRedBlue32bpp(inout uint4 pixels_abcd,
+                                         inout uint4 pixels_efgh,
+                                         inout uint4 pixels_ijkl,
+                                         inout uint4 pixels_mnop,
+                                         inout uint2 pixels_qr) {
+    [branch] if (XeResolveDestSwap()) {
+      switch (XeResolveEdramFormat()) {
+        case kXenosColorRenderTargetFormat_8_8_8_8:
+        case kXenosColorRenderTargetFormat_8_8_8_8_GAMMA:
+          pixels_abcd = XeResolveSwapRedBlue_8_8_8_8(pixels_abcd);
+          pixels_efgh = XeResolveSwapRedBlue_8_8_8_8(pixels_efgh);
+          pixels_ijkl = XeResolveSwapRedBlue_8_8_8_8(pixels_ijkl);
+          pixels_mnop = XeResolveSwapRedBlue_8_8_8_8(pixels_mnop);
+          pixels_qr = XeResolveSwapRedBlue_8_8_8_8(pixels_qr.xyxx).xy;
+          break;
+        case kXenosColorRenderTargetFormat_2_10_10_10:
+        case kXenosColorRenderTargetFormat_2_10_10_10_FLOAT:
+        case kXenosColorRenderTargetFormat_2_10_10_10_AS_10_10_10_10:
+        case kXenosColorRenderTargetFormat_2_10_10_10_FLOAT_AS_16_16_16_16:
+          pixels_abcd = XeResolveSwapRedBlue_2_10_10_10(pixels_abcd);
+          pixels_efgh = XeResolveSwapRedBlue_2_10_10_10(pixels_efgh);
+          pixels_ijkl = XeResolveSwapRedBlue_2_10_10_10(pixels_ijkl);
+          pixels_mnop = XeResolveSwapRedBlue_2_10_10_10(pixels_mnop);
+          pixels_qr = XeResolveSwapRedBlue_2_10_10_10(pixels_qr.xyxx).xy;
+          break;
+      }
+    }
+  }
+
+  uint2 XeResolveSwapPixelRedBlue64bpp(uint2 pixel) {
+    [branch] if (XeResolveDestSwap()) {
+      uint format = XeResolveEdramFormat();
+      [branch] if (format == kXenosColorRenderTargetFormat_16_16_16_16 ||
+                   format == kXenosColorRenderTargetFormat_16_16_16_16_FLOAT) {
+        pixel = (pixel & ~0xFFFFu) | (pixel.yx & 0xFFFFu);
+      }
+    }
+    return pixel;
+  }
+
   void XeResolveSwap4PixelsRedBlue64bpp(inout uint4 pixels_01,
                                         inout uint4 pixels_23) {
     [branch] if (XeResolveDestSwap()) {
-      uint format = XeResolveDestFormat();
+      uint format = XeResolveEdramFormat();
       [branch] if (format == kXenosColorRenderTargetFormat_16_16_16_16 ||
                    format == kXenosColorRenderTargetFormat_16_16_16_16_FLOAT) {
         pixels_01 = (pixels_01 & ~0xFFFFu) | (pixels_01.yxwz & 0xFFFFu);

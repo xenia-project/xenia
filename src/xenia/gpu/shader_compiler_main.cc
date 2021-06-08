@@ -15,11 +15,13 @@
 #include <vector>
 
 #include "third_party/glslang/SPIRV/disassemble.h"
+#include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/string.h"
+#include "xenia/base/string_buffer.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/shader_translator.h"
 #include "xenia/gpu/spirv_shader_translator.h"
@@ -107,6 +109,9 @@ int shader_compiler_main(const std::vector<std::string>& args) {
   auto shader = std::make_unique<Shader>(
       shader_type, ucode_data_hash, ucode_dwords.data(), ucode_dwords.size());
 
+  StringBuffer ucode_disasm_buffer;
+  shader->AnalyzeUcode(ucode_disasm_buffer);
+
   std::unique_ptr<ShaderTranslator> translator;
   SpirvShaderTranslator::Features spirv_features(true);
   if (cvars::shader_output_type == "spirv" ||
@@ -115,10 +120,18 @@ int shader_compiler_main(const std::vector<std::string>& args) {
   } else if (cvars::shader_output_type == "dxbc" ||
              cvars::shader_output_type == "dxbctext") {
     translator = std::make_unique<DxbcShaderTranslator>(
-        0, cvars::shader_output_bindless_resources,
-        cvars::shader_output_dxbc_rov);
+        ui::GraphicsProvider::GpuVendorID(0),
+        cvars::shader_output_bindless_resources, cvars::shader_output_dxbc_rov);
   } else {
-    translator = std::make_unique<UcodeShaderTranslator>();
+    // Just output microcode disassembly generated during microcode information
+    // gathering.
+    if (!cvars::shader_output.empty()) {
+      auto output_file = filesystem::OpenFile(cvars::shader_output, "wb");
+      fwrite(shader->ucode_disassembly().c_str(), 1,
+             shader->ucode_disassembly().length(), output_file);
+      fclose(output_file);
+    }
+    return 0;
   }
 
   Shader::HostVertexShaderType host_vertex_shader_type =
@@ -144,12 +157,23 @@ int shader_compiler_main(const std::vector<std::string>& args) {
           Shader::HostVertexShaderType::kQuadDomainPatchIndexed;
     }
   }
-  uint32_t modification =
-      translator->GetDefaultModification(shader_type, host_vertex_shader_type);
+  uint64_t modification;
+  switch (shader_type) {
+    case xenos::ShaderType::kVertex:
+      modification = translator->GetDefaultVertexShaderModification(
+          64, host_vertex_shader_type);
+      break;
+    case xenos::ShaderType::kPixel:
+      modification = translator->GetDefaultPixelShaderModification(64);
+      break;
+    default:
+      assert_unhandled_case(shader_type);
+      return 1;
+  }
 
   Shader::Translation* translation =
       shader->GetOrCreateTranslation(modification);
-  translator->Translate(*translation);
+  translator->TranslateAnalyzedShader(*translation);
 
   const void* source_data = translation->translated_binary().data();
   size_t source_data_size = translation->translated_binary().size();
