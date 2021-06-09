@@ -3241,9 +3241,10 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         poly_offset_back_offset = poly_offset_front_offset;
       }
     }
-    // "slope computed in subpixels ([...] 1/16)" - R5xx Acceleration.
-    poly_offset_front_scale *= (1.0f / 16.0f) * resolution_scale;
-    poly_offset_back_scale *= (1.0f / 16.0f) * resolution_scale;
+    float poly_offset_scale_factor =
+        xenos::kPolygonOffsetScaleSubpixelUnit * resolution_scale;
+    poly_offset_front_scale *= poly_offset_scale_factor;
+    poly_offset_back_scale *= poly_offset_scale_factor;
     dirty |= system_constants_.edram_poly_offset_front_scale !=
              poly_offset_front_scale;
     system_constants_.edram_poly_offset_front_scale = poly_offset_front_scale;
