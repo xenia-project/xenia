@@ -770,12 +770,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // Update fixed-function dynamic state.
   UpdateFixedFunctionState(viewport_info);
 
-  bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
-
   // Update system constants before uploading them.
-  UpdateSystemConstantValues(
-      indexed ? index_buffer_info->endianness : xenos::Endian::kNone,
-      viewport_info);
+  UpdateSystemConstantValues(primitive_processing_result.host_index_endian,
+                             viewport_info);
 
   // Update uniform buffers and descriptor sets after binding the pipeline with
   // the new layout.
@@ -882,10 +879,12 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     }
     deferred_command_buffer_.CmdVkBindIndexBuffer(
         index_buffer.first, index_buffer.second,
-        index_buffer_info->format == xenos::IndexFormat::kInt16
+        primitive_processing_result.host_index_format ==
+                xenos::IndexFormat::kInt16
             ? VK_INDEX_TYPE_UINT16
             : VK_INDEX_TYPE_UINT32);
-    deferred_command_buffer_.CmdVkDrawIndexed(index_count, 1, 0, 0, 0);
+    deferred_command_buffer_.CmdVkDrawIndexed(
+        primitive_processing_result.host_draw_vertex_count, 1, 0, 0, 0);
   }
 
   return true;
