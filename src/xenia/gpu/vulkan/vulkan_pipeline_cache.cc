@@ -133,6 +133,7 @@ VulkanPipelineCache::GetCurrentPixelShaderModification(
 bool VulkanPipelineCache::ConfigurePipeline(
     VulkanShader::VulkanTranslation* vertex_shader,
     VulkanShader::VulkanTranslation* pixel_shader,
+    const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
     VulkanRenderTargetCache::RenderPassKey render_pass_key,
     VkPipeline& pipeline_out,
     const PipelineLayoutProvider*& pipeline_layout_out) {
@@ -173,7 +174,8 @@ bool VulkanPipelineCache::ConfigurePipeline(
   }
 
   PipelineDescription description;
-  if (!GetCurrentStateDescription(vertex_shader, pixel_shader, render_pass_key,
+  if (!GetCurrentStateDescription(vertex_shader, pixel_shader,
+                                  primitive_processing_result, render_pass_key,
                                   description)) {
     return false;
   }
@@ -232,13 +234,13 @@ bool VulkanPipelineCache::TranslateAnalyzedShader(
 bool VulkanPipelineCache::GetCurrentStateDescription(
     const VulkanShader::VulkanTranslation* vertex_shader,
     const VulkanShader::VulkanTranslation* pixel_shader,
+    const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
     VulkanRenderTargetCache::RenderPassKey render_pass_key,
     PipelineDescription& description_out) const {
   description_out.Reset();
 
   const RegisterFile& regs = register_file_;
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
-  auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
 
   description_out.vertex_shader_hash =
       vertex_shader->shader().ucode_data_hash();
@@ -250,13 +252,8 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   }
   description_out.render_pass_key = render_pass_key;
 
-  xenos::PrimitiveType primitive_type = vgt_draw_initiator.prim_type;
   PipelinePrimitiveTopology primitive_topology;
-  // Vulkan explicitly allows primitive restart only for specific primitive
-  // types, unlike Direct3D where it's valid for non-strips, but has
-  // implementation-defined behavior.
-  bool primitive_restart_allowed = false;
-  switch (primitive_type) {
+  switch (primitive_processing_result.host_primitive_type) {
     case xenos::PrimitiveType::kPointList:
       primitive_topology = PipelinePrimitiveTopology::kPointList;
       break;
@@ -265,23 +262,19 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       break;
     case xenos::PrimitiveType::kLineStrip:
       primitive_topology = PipelinePrimitiveTopology::kLineStrip;
-      primitive_restart_allowed = true;
       break;
     case xenos::PrimitiveType::kTriangleList:
     case xenos::PrimitiveType::kRectangleList:
       primitive_topology = PipelinePrimitiveTopology::kTriangleList;
       break;
     case xenos::PrimitiveType::kTriangleFan:
-      if (device_pipeline_features_.triangle_fans) {
-        primitive_topology = PipelinePrimitiveTopology::kTriangleFan;
-        primitive_restart_allowed = true;
-      } else {
-        primitive_topology = PipelinePrimitiveTopology::kTriangleList;
-      }
+      primitive_topology = PipelinePrimitiveTopology::kTriangleFan;
       break;
     case xenos::PrimitiveType::kTriangleStrip:
       primitive_topology = PipelinePrimitiveTopology::kTriangleStrip;
-      primitive_restart_allowed = true;
+      break;
+    case xenos::PrimitiveType::kQuadList:
+      primitive_topology = PipelinePrimitiveTopology::kLineListWithAdjacency;
       break;
     default:
       // TODO(Triang3l): All primitive types and tessellation.
@@ -289,7 +282,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   }
   description_out.primitive_topology = primitive_topology;
   description_out.primitive_restart =
-      primitive_restart_allowed && pa_su_sc_mode_cntl.multi_prim_ib_ena;
+      primitive_processing_result.host_primitive_reset_enabled;
 
   // TODO(Triang3l): Tessellation.
   bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
@@ -312,6 +305,9 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     if (!cull_back) {
       polygon_type =
           std::min(polygon_type, pa_su_sc_mode_cntl.polymode_back_ptype);
+    }
+    if (pa_su_sc_mode_cntl.poly_mode != xenos::PolygonModeEnable::kDualMode) {
+      polygon_type = xenos::PolygonType::kTriangles;
     }
     switch (polygon_type) {
       case xenos::PolygonType::kPoints:
@@ -418,15 +414,27 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   switch (description.primitive_topology) {
     case PipelinePrimitiveTopology::kPointList:
       input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+      assert_false(description.primitive_restart);
+      if (description.primitive_restart) {
+        return false;
+      }
       break;
     case PipelinePrimitiveTopology::kLineList:
       input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+      assert_false(description.primitive_restart);
+      if (description.primitive_restart) {
+        return false;
+      }
       break;
     case PipelinePrimitiveTopology::kLineStrip:
       input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
       break;
     case PipelinePrimitiveTopology::kTriangleList:
       input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+      assert_false(description.primitive_restart);
+      if (description.primitive_restart) {
+        return false;
+      }
       break;
     case PipelinePrimitiveTopology::kTriangleStrip:
       input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
@@ -441,9 +449,17 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
     case PipelinePrimitiveTopology::kLineListWithAdjacency:
       input_assembly_state.topology =
           VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
+      assert_false(description.primitive_restart);
+      if (description.primitive_restart) {
+        return false;
+      }
       break;
     case PipelinePrimitiveTopology::kPatchList:
       input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
+      assert_false(description.primitive_restart);
+      if (description.primitive_restart) {
+        return false;
+      }
       break;
     default:
       assert_unhandled_case(description.primitive_topology);

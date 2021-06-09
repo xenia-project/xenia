@@ -19,6 +19,7 @@
 #include "xenia/base/hash.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/xxhash.h"
+#include "xenia/gpu/primitive_processor.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/gpu/vulkan/vulkan_render_target_cache.h"
@@ -69,11 +70,13 @@ class VulkanPipelineCache {
       const Shader& shader) const;
 
   // TODO(Triang3l): Return a deferred creation handle.
-  bool ConfigurePipeline(VulkanShader::VulkanTranslation* vertex_shader,
-                         VulkanShader::VulkanTranslation* pixel_shader,
-                         VulkanRenderTargetCache::RenderPassKey render_pass_key,
-                         VkPipeline& pipeline_out,
-                         const PipelineLayoutProvider*& pipeline_layout_out);
+  bool ConfigurePipeline(
+      VulkanShader::VulkanTranslation* vertex_shader,
+      VulkanShader::VulkanTranslation* pixel_shader,
+      const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+      VulkanRenderTargetCache::RenderPassKey render_pass_key,
+      VkPipeline& pipeline_out,
+      const PipelineLayoutProvider*& pipeline_layout_out);
 
  private:
   // Can only load pipeline storage if features of the device it was created on
@@ -168,6 +171,7 @@ class VulkanPipelineCache {
   bool GetCurrentStateDescription(
       const VulkanShader::VulkanTranslation* vertex_shader,
       const VulkanShader::VulkanTranslation* pixel_shader,
+      const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
       VulkanRenderTargetCache::RenderPassKey render_pass_key,
       PipelineDescription& description_out) const;
 
