@@ -110,13 +110,18 @@ class D3D12Provider : public GraphicsProvider {
     return virtual_address_bits_per_resource_;
   }
 
-  // Proxies for Direct3D 12 functions since they are loaded dynamically.
+  // Proxies for DirectX functions since they are loaded dynamically.
   HRESULT SerializeRootSignature(const D3D12_ROOT_SIGNATURE_DESC* desc,
                                  D3D_ROOT_SIGNATURE_VERSION version,
                                  ID3DBlob** blob_out,
                                  ID3DBlob** error_blob_out) const {
     return pfn_d3d12_serialize_root_signature_(desc, version, blob_out,
                                                error_blob_out);
+  }
+  HRESULT CreateDCompositionDevice(IDXGIDevice* dxgi_device, const IID& iid,
+                                   void** dcomposition_device_out) const {
+    return pfn_dcomposition_create_device_(dxgi_device, iid,
+                                           dcomposition_device_out);
   }
   HRESULT Disassemble(const void* src_data, size_t src_data_size, UINT flags,
                       const char* comments, ID3DBlob** disassembly_out) const {
@@ -151,6 +156,9 @@ class D3D12Provider : public GraphicsProvider {
                                                  _COM_Outptr_ void** ppFactory);
   typedef HRESULT(WINAPI* PFNDXGIGetDebugInterface1)(
       UINT Flags, REFIID riid, _COM_Outptr_ void** pDebug);
+  typedef HRESULT(WINAPI* PFNDCompositionCreateDevice)(
+      _In_opt_ IDXGIDevice* dxgiDevice, _In_ REFIID iid,
+      _Outptr_ void** dcompositionDevice);
 
   HMODULE library_dxgi_ = nullptr;
   PFNCreateDXGIFactory2 pfn_create_dxgi_factory2_;
@@ -160,6 +168,9 @@ class D3D12Provider : public GraphicsProvider {
   PFN_D3D12_GET_DEBUG_INTERFACE pfn_d3d12_get_debug_interface_;
   PFN_D3D12_CREATE_DEVICE pfn_d3d12_create_device_;
   PFN_D3D12_SERIALIZE_ROOT_SIGNATURE pfn_d3d12_serialize_root_signature_;
+
+  HMODULE library_dcomp_ = nullptr;
+  PFNDCompositionCreateDevice pfn_dcomposition_create_device_;
 
   HMODULE library_d3dcompiler_ = nullptr;
   pD3DDisassemble pfn_d3d_disassemble_ = nullptr;

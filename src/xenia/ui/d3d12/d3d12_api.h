@@ -17,6 +17,7 @@
 #include <d3d12.h>
 #include <d3d12sdklayers.h>
 #include <d3dcompiler.h>
+#include <dcomp.h>
 #include <dxgi1_4.h>
 #include <dxgidebug.h>
 // For Microsoft::WRL::ComPtr.
