@@ -138,7 +138,8 @@ class PrimitiveProcessor {
     xenos::IndexFormat host_index_format;
     xenos::Endian host_index_endian;
     // The reset index, if enabled, is always 0xFFFF for host_index_format
-    // kInt16 and 0xFFFFFFFF for kInt32.
+    // kInt16 and 0xFFFFFFFF for kInt32. Never enabled for "list" primitive
+    // types, thus safe for direct usage on Vulkan.
     bool host_primitive_reset_enabled;
     // Backend-specific handle for the index buffer valid for the current draw,
     // only valid for index_buffer_type kHostConverted and kHostBuiltin.
