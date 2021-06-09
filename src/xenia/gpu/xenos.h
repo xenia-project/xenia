@@ -347,6 +347,16 @@ constexpr float UNorm24To32(uint32_t n24) {
   return float(n24 + (n24 >> 23)) * (1.0f / float(1 << 24));
 }
 
+// Scale for conversion of slope scales from PA_SU_POLY_OFFSET_FRONT/BACK_SCALE
+// units to those used when the slope is computed from the difference between
+// adjacent pixels, for conversion from the guest to common host APIs or to
+// calculation using max(|ddx(z)|, |ddy(z)|).
+// "slope computed in subpixels (1/12 or 1/16)" - R5xx Acceleration.
+// But the correct scale for conversion of the slope scale from subpixels to
+// pixels is likely 1/16 according to:
+// https://github.com/mesa3d/mesa/blob/54ad9b444c8e73da498211870e785239ad3ff1aa/src/gallium/drivers/radeonsi/si_state.c#L946
+constexpr float kPolygonOffsetScaleSubpixelUnit = 1.0f / 16.0f;
+
 constexpr uint32_t kColorRenderTargetFormatBits = 4;
 constexpr uint32_t kDepthRenderTargetFormatBits = 1;
 constexpr uint32_t kRenderTargetFormatBits =

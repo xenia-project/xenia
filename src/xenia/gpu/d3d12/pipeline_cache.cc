@@ -36,6 +36,7 @@
 #include "xenia/gpu/d3d12/d3d12_render_target_cache.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/gpu_flags.h"
+#include "xenia/gpu/xenos.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
 DEFINE_bool(d3d12_dxbc_disasm, false,
@@ -1456,7 +1457,7 @@ bool PipelineCache::GetCurrentStateDescription(
     }
   }
   if (!edram_rov_used) {
-    float poly_offset_host_scale = draw_util::GetD3D10PolygonOffsetScale(
+    float poly_offset_host_scale = draw_util::GetD3D10PolygonOffsetFactor(
         regs.Get<reg::RB_DEPTH_INFO>().depth_format, true);
     // Using ceil here just in case a game wants the offset but passes a value
     // that is too small - it's better to apply more offset than to make depth
@@ -1467,7 +1468,7 @@ bool PipelineCache::GetCurrentStateDescription(
         (poly_offset < 0.0f ? -1 : 1);
     // "slope computed in subpixels ([...] 1/16)" - R5xx Acceleration.
     description_out.depth_bias_slope_scaled =
-        poly_offset_scale * (1.0f / 16.0f);
+        poly_offset_scale * xenos::kPolygonOffsetScaleSubpixelUnit;
   }
   if (tessellated && cvars::d3d12_tessellation_wireframe) {
     description_out.fill_mode_wireframe = 1;

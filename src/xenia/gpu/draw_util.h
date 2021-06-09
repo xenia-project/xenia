@@ -106,7 +106,7 @@ inline reg::RB_DEPTHCONTROL GetDepthControlForCurrentEdramMode(
   return regs.Get<reg::RB_DEPTHCONTROL>();
 }
 
-constexpr float GetD3D10PolygonOffsetScale(
+constexpr float GetD3D10PolygonOffsetFactor(
     xenos::DepthRenderTargetFormat depth_format, bool float24_as_0_to_0_5) {
   if (depth_format == xenos::DepthRenderTargetFormat::kD24S8) {
     return float(1 << 24);
