@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iterator>
+#include <utility>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
@@ -44,7 +45,10 @@ VulkanCommandProcessor::VulkanCommandProcessor(
 VulkanCommandProcessor::~VulkanCommandProcessor() = default;
 
 void VulkanCommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
-                                                      uint32_t length) {}
+                                                      uint32_t length) {
+  shared_memory_->MemoryInvalidationCallback(base_ptr, length, true);
+  primitive_processor_->MemoryInvalidationCallback(base_ptr, length, true);
+}
 
 void VulkanCommandProcessor::RestoreEdramSnapshot(const void* snapshot) {}
 
@@ -182,6 +186,13 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
+  primitive_processor_ = std::make_unique<VulkanPrimitiveProcessor>(
+      *register_file_, *memory_, trace_writer_, *shared_memory_, *this);
+  if (!primitive_processor_->Initialize()) {
+    XELOGE("Failed to initialize the geometric primitive processor");
+    return false;
+  }
+
   render_target_cache_ =
       std::make_unique<VulkanRenderTargetCache>(*this, *register_file_);
   if (!render_target_cache_->Initialize()) {
@@ -284,6 +295,8 @@ void VulkanCommandProcessor::ShutdownContext() {
   pipeline_cache_.reset();
 
   render_target_cache_.reset();
+
+  primitive_processor_.reset();
 
   shared_memory_.reset();
 
@@ -617,7 +630,13 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
 
-  BeginSubmission(true);
+  const RegisterFile& regs = *register_file_;
+
+  xenos::ModeControl edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
+  if (edram_mode == xenos::ModeControl::kCopy) {
+    // Special copy handling.
+    return IssueCopy();
+  }
 
   // Vertex shader analysis.
   auto vertex_shader = static_cast<VulkanShader*>(active_vertex_shader());
@@ -627,13 +646,30 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   }
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
 
+  BeginSubmission(true);
+
+  // Process primitives.
+  PrimitiveProcessor::ProcessingResult primitive_processing_result;
+  if (!primitive_processor_->Process(primitive_processing_result)) {
+    return false;
+  }
+  if (!primitive_processing_result.host_draw_vertex_count) {
+    // Nothing to draw.
+    return true;
+  }
+  // TODO(Triang3l): Tessellation.
+  if (primitive_processing_result.host_vertex_shader_type !=
+      Shader::HostVertexShaderType::kVertex) {
+    return false;
+  }
+
   // TODO(Triang3l): Get a pixel shader.
   VulkanShader* pixel_shader = nullptr;
 
   // Shader modifications.
   SpirvShaderTranslator::Modification vertex_shader_modification =
       pipeline_cache_->GetCurrentVertexShaderModification(
-          *vertex_shader, Shader::HostVertexShaderType::kVertex);
+          *vertex_shader, primitive_processing_result.host_vertex_shader_type);
   SpirvShaderTranslator::Modification pixel_shader_modification =
       SpirvShaderTranslator::Modification(0);
 
@@ -664,10 +700,10 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // current_graphics_pipeline_layout_.
   VkPipeline pipeline;
   const VulkanPipelineCache::PipelineLayoutProvider* pipeline_layout_provider;
-  if (!pipeline_cache_->ConfigurePipeline(vertex_shader_translation,
-                                          pixel_shader_translation,
-                                          framebuffer_key.render_pass_key,
-                                          pipeline, pipeline_layout_provider)) {
+  if (!pipeline_cache_->ConfigurePipeline(
+          vertex_shader_translation, pixel_shader_translation,
+          primitive_processing_result, framebuffer_key.render_pass_key,
+          pipeline, pipeline_layout_provider)) {
     return false;
   }
   deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -703,7 +739,6 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     current_graphics_pipeline_layout_ = pipeline_layout;
   }
 
-  const RegisterFile& regs = *register_file_;
   const ui::vulkan::VulkanProvider& provider =
       GetVulkanContext().GetVulkanProvider();
   const VkPhysicalDeviceProperties& device_properties =
@@ -718,7 +753,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // offset and is between maxViewportDimensions and viewportBoundsRange[1],
   // GetHostViewportInfo will adjust ndc_scale/ndc_offset to clamp it, and the
   // clamped range will be outside the largest possible framebuffer anyway.
-  // TODO(Triang3l): Possibly handle maxViewportDimensions and
+  // FIXME(Triang3l): Possibly handle maxViewportDimensions and
   // viewportBoundsRange separately because when using fragment shader
   // interlocks, framebuffers are not used, while the range may be wider than
   // dimensions? Though viewport bigger than 4096 - the smallest possible
@@ -793,29 +828,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                                                   << (vfetch_index & 63);
   }
 
-  // Set up the geometry.
-  if (indexed) {
-    uint32_t index_size =
-        index_buffer_info->format == xenos::IndexFormat::kInt32
-            ? sizeof(uint32_t)
-            : sizeof(uint16_t);
-    assert_false(index_buffer_info->guest_base & (index_size - 1));
-    uint32_t index_base =
-        index_buffer_info->guest_base & 0x1FFFFFFF & ~(index_size - 1);
-    uint32_t index_buffer_size = index_buffer_info->count * index_size;
-    if (!shared_memory_->RequestRange(index_base, index_buffer_size)) {
-      XELOGE(
-          "Failed to request index buffer at 0x{:08X} (size {}) in the shared "
-          "memory",
-          index_base, index_buffer_size);
-      return false;
-    }
-    deferred_command_buffer_.CmdVkBindIndexBuffer(
-        shared_memory_->buffer(), index_base,
-        index_buffer_info->format == xenos::IndexFormat::kInt32
-            ? VK_INDEX_TYPE_UINT32
-            : VK_INDEX_TYPE_UINT16);
-  }
+  // Insert the shared memory barrier if needed.
+  // TODO(Triang3l): Memory export.
   shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
 
   // After all commands that may dispatch or copy, enter the render pass before
@@ -843,10 +857,35 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   }
 
   // Draw.
-  if (indexed) {
-    deferred_command_buffer_.CmdVkDrawIndexed(index_count, 1, 0, 0, 0);
+  if (primitive_processing_result.index_buffer_type ==
+      PrimitiveProcessor::ProcessedIndexBufferType::kNone) {
+    deferred_command_buffer_.CmdVkDraw(
+        primitive_processing_result.host_draw_vertex_count, 1, 0, 0);
   } else {
-    deferred_command_buffer_.CmdVkDraw(index_count, 1, 0, 0);
+    std::pair<VkBuffer, VkDeviceSize> index_buffer;
+    switch (primitive_processing_result.index_buffer_type) {
+      case PrimitiveProcessor::ProcessedIndexBufferType::kGuest:
+        index_buffer.first = shared_memory_->buffer();
+        index_buffer.second = primitive_processing_result.guest_index_base;
+        break;
+      case PrimitiveProcessor::ProcessedIndexBufferType::kHostConverted:
+        index_buffer = primitive_processor_->GetConvertedIndexBuffer(
+            primitive_processing_result.host_index_buffer_handle);
+        break;
+      case PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltin:
+        index_buffer = primitive_processor_->GetBuiltinIndexBuffer(
+            primitive_processing_result.host_index_buffer_handle);
+        break;
+      default:
+        assert_unhandled_case(primitive_processing_result.index_buffer_type);
+        return false;
+    }
+    deferred_command_buffer_.CmdVkBindIndexBuffer(
+        index_buffer.first, index_buffer.second,
+        index_buffer_info->format == xenos::IndexFormat::kInt16
+            ? VK_INDEX_TYPE_UINT16
+            : VK_INDEX_TYPE_UINT32);
+    deferred_command_buffer_.CmdVkDrawIndexed(index_count, 1, 0, 0, 0);
   }
 
   return true;
@@ -952,6 +991,8 @@ void VulkanCommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
   }
 
   shared_memory_->CompletedSubmissionUpdated();
+
+  primitive_processor_->CompletedSubmissionUpdated();
 }
 
 void VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
@@ -1006,6 +1047,8 @@ void VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
     current_graphics_pipeline_ = VK_NULL_HANDLE;
     current_graphics_pipeline_layout_ = nullptr;
     current_graphics_descriptor_sets_bound_up_to_date_ = 0;
+
+    primitive_processor_->BeginSubmission();
   }
 
   if (is_opening_frame) {
@@ -1029,6 +1072,8 @@ void VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
     // may be reused.
     transient_descriptor_pool_uniform_buffers_->Reclaim(frame_completed_);
     uniform_buffer_pool_->Reclaim(frame_completed_);
+
+    primitive_processor_->BeginFrame();
   }
 }
 
@@ -1100,8 +1145,14 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
 
   bool is_closing_frame = is_swap && frame_open_;
 
+  if (is_closing_frame) {
+    primitive_processor_->EndFrame();
+  }
+
   if (submission_open_) {
     EndRenderPass();
+
+    primitive_processor_->EndSubmission();
 
     shared_memory_->EndSubmission();
 
@@ -1255,6 +1306,8 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
             device, descriptor_set_layout_pair.second, nullptr);
       }
       descriptor_set_layouts_textures_.clear();
+
+      primitive_processor_->ClearCache();
     }
   }
 
@@ -1288,20 +1341,21 @@ void VulkanCommandProcessor::UpdateFixedFunctionState(
   // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
   auto pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
 
-  uint32_t pixel_size_x = 1, pixel_size_y = 1;
-
   // Viewport.
   VkViewport viewport;
-  if (!viewport_info.xy_extent[0] || !viewport_info.xy_extent[1]) {
-    viewport.x = -1;
-    viewport.y = -1;
-    viewport.width = 1;
-    viewport.height = 1;
-  } else {
+  if (viewport_info.xy_extent[0] && viewport_info.xy_extent[1]) {
     viewport.x = float(viewport_info.xy_offset[0]);
     viewport.y = float(viewport_info.xy_offset[1]);
     viewport.width = float(viewport_info.xy_extent[0]);
     viewport.height = float(viewport_info.xy_extent[1]);
+  } else {
+    // Vulkan viewport width must be greater than 0.0f, but the Xenia  viewport
+    // may be empty for various reasons - set the viewport to outside the
+    // framebuffer.
+    viewport.x = -1.0f;
+    viewport.y = -1.0f;
+    viewport.width = 1.0f;
+    viewport.height = 1.0f;
   }
   viewport.minDepth = viewport_info.z_min;
   viewport.maxDepth = viewport_info.z_max;

@@ -24,6 +24,7 @@
 #include "xenia/gpu/vulkan/deferred_command_buffer.h"
 #include "xenia/gpu/vulkan/vulkan_graphics_system.h"
 #include "xenia/gpu/vulkan/vulkan_pipeline_cache.h"
+#include "xenia/gpu/vulkan/vulkan_primitive_processor.h"
 #include "xenia/gpu/vulkan/vulkan_render_target_cache.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/vulkan/vulkan_shared_memory.h"
@@ -73,6 +74,9 @@ class VulkanCommandProcessor : public CommandProcessor {
   void SparseBindBuffer(VkBuffer buffer, uint32_t bind_count,
                         const VkSparseMemoryBind* binds,
                         VkPipelineStageFlags wait_stage_mask);
+
+  uint64_t GetCurrentFrame() const { return frame_current_; }
+  uint64_t GetCompletedFrame() const { return frame_completed_; }
 
   // Must be called before doing anything outside the render pass scope,
   // including adding pipeline barriers that are not a part of the render pass
@@ -246,6 +250,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::unordered_map<uint32_t, PipelineLayout> pipeline_layouts_;
 
   std::unique_ptr<VulkanSharedMemory> shared_memory_;
+
+  std::unique_ptr<VulkanPrimitiveProcessor> primitive_processor_;
 
   std::unique_ptr<VulkanPipelineCache> pipeline_cache_;
 
