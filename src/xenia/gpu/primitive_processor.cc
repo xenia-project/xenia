@@ -458,16 +458,34 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       }
     } else {
       if (regs.Get<reg::PA_SU_SC_MODE_CNTL>().multi_prim_ib_ena) {
-        guest_primitive_reset_index_guest_endian = xenos::GpuSwap(
-            regs.Get<reg::VGT_MULTI_PRIM_IB_RESET_INDX>().reset_indx,
-            guest_index_endian);
-        // - VGT, what does the guest say about its primitive reset index?
-        // - It's over 0xFFFF!!!
-        // - What!? 0xFFFF!? There's no way that can be stored in 16 bits!
-        guest_primitive_reset_enabled =
-            guest_index_format == xenos::IndexFormat::kInt16
-                ? guest_primitive_reset_index_guest_endian <= UINT16_MAX
-                : true;
+        switch (guest_primitive_type) {
+          case xenos::PrimitiveType::kLineStrip:
+          case xenos::PrimitiveType::kTriangleFan:
+          case xenos::PrimitiveType::kTriangleStrip:
+          case xenos::PrimitiveType::kLineLoop:
+          case xenos::PrimitiveType::kQuadStrip:
+          case xenos::PrimitiveType::kPolygon:
+          case xenos::PrimitiveType::k2DLineStrip:
+          case xenos::PrimitiveType::k2DTriStrip:
+            guest_primitive_reset_index_guest_endian = xenos::GpuSwap(
+                regs.Get<reg::VGT_MULTI_PRIM_IB_RESET_INDX>().reset_indx,
+                guest_index_endian);
+            // - VGT, what does the guest say about its primitive reset index?
+            // - It's over 0xFFFF!!!
+            // - What!? 0xFFFF!? There's no way that can be stored in 16 bits!
+            guest_primitive_reset_enabled =
+                guest_index_format == xenos::IndexFormat::kInt16
+                    ? guest_primitive_reset_index_guest_endian <= UINT16_MAX
+                    : true;
+            break;
+          default:
+            // Vulkan explicitly disallows primitive restart index for "list"
+            // topologies. In Direct3D 12, it's valid for non-strips, but has
+            // implementation-defined behavior. Make backend usage simpler by
+            // explicitly filtering lists out, and hope the guest never uses
+            // primitive reset for lists.
+            break;
+        }
       }
     }
 

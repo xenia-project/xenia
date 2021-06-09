@@ -1822,12 +1822,12 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
                                       uint32_t index_count,
                                       IndexBufferInfo* index_buffer_info,
                                       bool major_mode_explicit) {
-  auto device = GetD3D12Context().GetD3D12Provider().GetDevice();
-  auto& regs = *register_file_;
-
 #if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+
+  ID3D12Device* device = GetD3D12Context().GetD3D12Provider().GetDevice();
+  const RegisterFile& regs = *register_file_;
 
   xenos::ModeControl edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
   if (edram_mode == xenos::ModeControl::kCopy) {
@@ -3241,9 +3241,10 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         poly_offset_back_offset = poly_offset_front_offset;
       }
     }
-    // "slope computed in subpixels ([...] 1/16)" - R5xx Acceleration.
-    poly_offset_front_scale *= (1.0f / 16.0f) * resolution_scale;
-    poly_offset_back_scale *= (1.0f / 16.0f) * resolution_scale;
+    float poly_offset_scale_factor =
+        xenos::kPolygonOffsetScaleSubpixelUnit * resolution_scale;
+    poly_offset_front_scale *= poly_offset_scale_factor;
+    poly_offset_back_scale *= poly_offset_scale_factor;
     dirty |= system_constants_.edram_poly_offset_front_scale !=
              poly_offset_front_scale;
     system_constants_.edram_poly_offset_front_scale = poly_offset_front_scale;
