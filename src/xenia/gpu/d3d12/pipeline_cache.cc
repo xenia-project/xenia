@@ -1340,7 +1340,6 @@ bool PipelineCache::GetCurrentStateDescription(
         break;
       case xenos::PrimitiveType::kLineList:
       case xenos::PrimitiveType::kLineStrip:
-      case xenos::PrimitiveType::kLineLoop:
       // Quads are emulated as line lists with adjacency.
       case xenos::PrimitiveType::kQuadList:
       case xenos::PrimitiveType::k2DLineStrip:
