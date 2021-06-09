@@ -89,6 +89,9 @@ D3D12Provider::~D3D12Provider() {
   if (library_d3dcompiler_ != nullptr) {
     FreeLibrary(library_d3dcompiler_);
   }
+  if (library_dcomp_ != nullptr) {
+    FreeLibrary(library_dcomp_);
+  }
   if (library_d3d12_ != nullptr) {
     FreeLibrary(library_d3d12_);
   }
@@ -120,8 +123,9 @@ bool D3D12Provider::Initialize() {
   // Load the core libraries.
   library_dxgi_ = LoadLibraryW(L"dxgi.dll");
   library_d3d12_ = LoadLibraryW(L"D3D12.dll");
-  if (library_dxgi_ == nullptr || library_d3d12_ == nullptr) {
-    XELOGE("Failed to load dxgi.dll or D3D12.dll");
+  library_dcomp_ = LoadLibraryW(L"dcomp.dll");
+  if (!library_dxgi_ || !library_d3d12_ || !library_dcomp_) {
+    XELOGE("Failed to load dxgi.dll, D3D12.dll or dcomp.dll");
     return false;
   }
   bool libraries_loaded = true;
@@ -142,8 +146,12 @@ bool D3D12Provider::Initialize() {
       (pfn_d3d12_serialize_root_signature_ = PFN_D3D12_SERIALIZE_ROOT_SIGNATURE(
            GetProcAddress(library_d3d12_, "D3D12SerializeRootSignature"))) !=
       nullptr;
+  libraries_loaded &=
+      (pfn_dcomposition_create_device_ = PFNDCompositionCreateDevice(
+           GetProcAddress(library_dcomp_, "DCompositionCreateDevice"))) !=
+      nullptr;
   if (!libraries_loaded) {
-    XELOGE("Failed to get DXGI or Direct3D 12 functions");
+    XELOGE("Failed to get DXGI, Direct3D 12 or DirectComposition functions");
     return false;
   }
 
