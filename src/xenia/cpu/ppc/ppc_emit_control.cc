@@ -416,8 +416,12 @@ int InstrEmit_crxor(PPCHIRBuilder& f, const InstrData& i) {
 }
 
 int InstrEmit_mcrf(PPCHIRBuilder& f, const InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  uint32_t crfd = i.XL.BO >> 2;
+  Value* bi = f.LoadCR(i.XL.BI >> 2);
+
+  f.StoreCR(crfd, bi);
+  f.UpdateCR(crfd, bi);
+  return 0;
 }
 
 // System linkage (A-24)
