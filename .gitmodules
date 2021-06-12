@@ -39,7 +39,7 @@
 	url = https://github.com/jarro2783/cxxopts.git
 [submodule "third_party/SDL2"]
 	path = third_party/SDL2
-	url = https://github.com/JoelLinn/SDL.git
+	url = https://github.com/libsdl-org/SDL.git
 [submodule "third_party/utfcpp"]
 	path = third_party/utfcpp
 	url = https://github.com/xenia-project/utfcpp.git
