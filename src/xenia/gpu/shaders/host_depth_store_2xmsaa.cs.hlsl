@@ -21,8 +21,11 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
                         kXenosMsaaSamples_2X, false, 0u, dest_sample_index,
                         resolution_scale)
       >> 2u;
+  // Top and bottom to Direct3D 10.1+ top 1 and bottom 0 (for 2x) or top-left 0
+  // and bottom-right 3 (for 4x).
   int source_sample_index =
-      int(dest_sample_index != 0u ? XeHostDepthStoreSecondSampleIndex() : 0u);
+      XeHostDepthStoreMsaa2xSupported() ? (dest_sample_index ? 0u : 1u)
+                                        : (dest_sample_index ? 3u : 0u);
   xe_host_depth_store_dest[edram_address_int4s] = asuint(float4(
       xe_host_depth_store_source.Load(int2(pixel_index), source_sample_index),
       xe_host_depth_store_source.Load(int2(pixel_index) + int2(1, 0),

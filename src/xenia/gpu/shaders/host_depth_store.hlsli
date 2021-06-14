@@ -30,8 +30,8 @@ uint XeHostDepthStoreResolutionScale() {
   return (xe_host_depth_store_render_target >> 10u) & 0x3u;
 }
 
-uint XeHostDepthStoreSecondSampleIndex() {
-  return (xe_host_depth_store_render_target >> 12u) & 0x3u;
+bool XeHostDepthStoreMsaa2xSupported() {
+  return bool((xe_host_depth_store_render_target >> 12u) & 0x1u);
 }
 
 // 40-sample columns are not swapped for addressing simplicity (because this is
