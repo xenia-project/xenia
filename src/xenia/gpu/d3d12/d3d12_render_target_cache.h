@@ -536,8 +536,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       uint32_t pitch_tiles : xenos::kEdramPitchTilesBits;
       // 1 to 3.
       uint32_t resolution_scale : 2;
-      // For native 2x MSAA vs. 2x over 4x.
-      uint32_t second_sample_index : 2;
+      // Whether 2x MSAA is supported natively rather than through 4x.
+      uint32_t msaa_2x_supported : 1;
     };
     uint32_t constant = 0;
   };

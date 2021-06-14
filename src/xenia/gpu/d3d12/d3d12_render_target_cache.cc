@@ -4604,11 +4604,8 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
             dest_rt_key.pitch_tiles_at_32bpp;
         host_depth_store_render_target_constant.resolution_scale =
             resolution_scale_;
-        host_depth_store_render_target_constant.second_sample_index =
-            (dest_rt_key.msaa_samples == xenos::MsaaSamples::k2X &&
-             !msaa_2x_supported_)
-                ? 3
-                : 1;
+        host_depth_store_render_target_constant.msaa_2x_supported =
+            uint32_t(msaa_2x_supported_);
         command_list.D3DSetComputeRoot32BitConstants(
             kHostDepthStoreRootParameterRenderTargetConstant,
             sizeof(host_depth_store_render_target_constant) / sizeof(uint32_t),
