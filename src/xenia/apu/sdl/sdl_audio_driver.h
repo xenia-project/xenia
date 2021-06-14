@@ -32,10 +32,13 @@ class SDLAudioDriver : public AudioDriver {
   void Shutdown();
 
  protected:
+  static void SDLCallback(void* userdata, Uint8* stream, int len);
+
   xe::threading::Semaphore* semaphore_ = nullptr;
 
   SDL_AudioDeviceID sdl_device_id_ = -1;
   bool sdl_initialized_ = false;
+  uint8_t sdl_device_channels_ = 0;
 
   static const uint32_t frame_frequency_ = 48000;
   static const uint32_t frame_channels_ = 6;
