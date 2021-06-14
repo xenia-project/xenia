@@ -801,10 +801,10 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
 
 uint32_t RenderTargetCache::GetLastUpdateBoundRenderTargets(
     bool distinguish_gamma_formats,
-    uint32_t* depth_and_color_resource_formats_out) const {
+    uint32_t* depth_and_color_formats_out) const {
   if (GetPath() != Path::kHostRenderTargets) {
-    if (depth_and_color_resource_formats_out) {
-      std::memset(depth_and_color_resource_formats_out, 0,
+    if (depth_and_color_formats_out) {
+      std::memset(depth_and_color_formats_out, 0,
                   sizeof(uint32_t) * (1 + xenos::kMaxColorRenderTargets));
     }
     return 0;
@@ -814,14 +814,14 @@ uint32_t RenderTargetCache::GetLastUpdateBoundRenderTargets(
     const RenderTarget* render_target =
         last_update_accumulated_render_targets_[i];
     if (!render_target) {
-      if (depth_and_color_resource_formats_out) {
-        depth_and_color_resource_formats_out[i] = 0;
+      if (depth_and_color_formats_out) {
+        depth_and_color_formats_out[i] = 0;
       }
       continue;
     }
     rts_used |= uint32_t(1) << i;
-    if (depth_and_color_resource_formats_out) {
-      depth_and_color_resource_formats_out[i] =
+    if (depth_and_color_formats_out) {
+      depth_and_color_formats_out[i] =
           (distinguish_gamma_formats && i &&
            (last_update_accumulated_color_targets_are_gamma_ &
             (uint32_t(1) << (i - 1))))
