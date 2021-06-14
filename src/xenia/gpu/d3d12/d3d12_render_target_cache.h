@@ -224,9 +224,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     return D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
   }
 
-  xenos::ColorRenderTargetFormat GetHostRelevantColorFormat(
-      xenos::ColorRenderTargetFormat format) const override;
-
   RenderTarget* CreateRenderTarget(RenderTargetKey key) override;
 
   bool IsHostDepthEncodingDifferent(
@@ -418,14 +415,14 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   union TransferShaderKey {
     struct {
       xenos::MsaaSamples dest_msaa_samples : xenos::kMsaaSamplesBits;
-      uint32_t dest_host_relevant_format : xenos::kRenderTargetFormatBits;
+      uint32_t dest_resource_format : xenos::kRenderTargetFormatBits;
       xenos::MsaaSamples source_msaa_samples : xenos::kMsaaSamplesBits;
       // Always 1x when host_depth_source_is_copy is true not to create the same
       // pipeline for different MSAA sample counts as it doesn't matter in this
       // case.
       xenos::MsaaSamples host_depth_source_msaa_samples
           : xenos::kMsaaSamplesBits;
-      uint32_t source_host_relevant_format : xenos::kRenderTargetFormatBits;
+      uint32_t source_resource_format : xenos::kRenderTargetFormatBits;
       // If host depth is also fetched, whether it's pre-copied to the EDRAM
       // buffer (but since it's just a scratch buffer, with tiles laid out
       // linearly with the same pitch as in the original render target; also no
@@ -557,7 +554,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   union DumpPipelineKey {
     struct {
       xenos::MsaaSamples msaa_samples : 2;
-      uint32_t host_relevant_format : 4;
+      uint32_t resource_format : 4;
       // Last bit because this affects the root signature - after sorting, only
       // change it at most once. Depth buffers have an additional stencil SRV.
       uint32_t is_depth : 1;
@@ -580,11 +577,11 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
     xenos::ColorRenderTargetFormat GetColorFormat() const {
       assert_false(is_depth);
-      return xenos::ColorRenderTargetFormat(host_relevant_format);
+      return xenos::ColorRenderTargetFormat(resource_format);
     }
     xenos::DepthRenderTargetFormat GetDepthFormat() const {
       assert_true(is_depth);
-      return xenos::DepthRenderTargetFormat(host_relevant_format);
+      return xenos::DepthRenderTargetFormat(resource_format);
     }
   };
 

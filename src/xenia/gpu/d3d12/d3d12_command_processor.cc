@@ -1928,6 +1928,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   if (host_render_targets_used) {
     bound_depth_and_color_render_target_bits =
         render_target_cache_->GetLastUpdateBoundRenderTargets(
+            render_target_cache_->gamma_render_target_as_srgb(),
             bound_depth_and_color_render_target_formats);
   } else {
     bound_depth_and_color_render_target_bits = 0;
