@@ -10,9 +10,13 @@
 #include "xenia/apu/sdl/sdl_audio_driver.h"
 
 #include <array>
+#include <cstring>
 
 #include "xenia/apu/apu_flags.h"
+#include "xenia/apu/conversion.h"
+#include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/profiling.h"
 #include "xenia/helper/sdl/sdl_helper.h"
 
 namespace xe {
@@ -46,41 +50,37 @@ bool SDLAudioDriver::Initialize() {
   }
   sdl_initialized_ = true;
 
-  SDL_AudioCallback audio_callback = [](void* userdata, Uint8* stream,
-                                        int len) -> void {
-    assert_true(len == frame_size_);
-    const auto driver = static_cast<SDLAudioDriver*>(userdata);
-
-    std::unique_lock<std::mutex> guard(driver->frames_mutex_);
-    if (driver->frames_queued_.empty()) {
-      memset(stream, 0, len);
-    } else {
-      auto buffer = driver->frames_queued_.front();
-      driver->frames_queued_.pop();
-      if (cvars::mute) {
-        memset(stream, 0, len);
-      } else {
-        memcpy(stream, buffer, len);
-      }
-      driver->frames_unused_.push(buffer);
-
-      auto ret = driver->semaphore_->Release(1, nullptr);
-      assert_true(ret);
+  SDL_AudioSpec desired_spec = {};
+  SDL_AudioSpec obtained_spec;
+  desired_spec.freq = frame_frequency_;
+  desired_spec.format = AUDIO_F32;
+  desired_spec.channels = frame_channels_;
+  desired_spec.samples = channel_samples_;
+  desired_spec.callback = SDLCallback;
+  desired_spec.userdata = this;
+  // Allow the hardware to decide between 5.1 and stereo
+  int allowed_change = SDL_AUDIO_ALLOW_CHANNELS_CHANGE;
+  for (int i = 0; i < 2; i++) {
+    sdl_device_id_ = SDL_OpenAudioDevice(nullptr, 0, &desired_spec,
+                                         &obtained_spec, allowed_change);
+    if (sdl_device_id_ <= 0) {
+      XELOGE("SDL_OpenAudioDevice() failed.");
+      return false;
     }
-  };
-
-  SDL_AudioSpec wanted_spec = {};
-  wanted_spec.freq = frame_frequency_;
-  wanted_spec.format = AUDIO_F32;
-  wanted_spec.channels = frame_channels_;
-  wanted_spec.samples = channel_samples_;
-  wanted_spec.callback = audio_callback;
-  wanted_spec.userdata = this;
-  sdl_device_id_ = SDL_OpenAudioDevice(nullptr, 0, &wanted_spec, nullptr, 0);
+    if (obtained_spec.channels == 2 || obtained_spec.channels == 6) {
+      break;
+    }
+    // If the system is 4 or 7.1, let SDL convert
+    allowed_change = 0;
+    SDL_CloseAudioDevice(sdl_device_id_);
+    sdl_device_id_ = -1;
+  }
   if (sdl_device_id_ <= 0) {
-    XELOGE("SDL_OpenAudioDevice() failed.");
+    XELOGE("Failed to get a compatible SDL Audio Device.");
     return false;
   }
+  sdl_device_channels_ = obtained_spec.channels;
+
   SDL_PauseAudioDevice(sdl_device_id_, 0);
 
   return true;
@@ -99,13 +99,7 @@ void SDLAudioDriver::SubmitFrame(uint32_t frame_ptr) {
     }
   }
 
-  // interleave the data
-  for (size_t index = 0, o = 0; index < channel_samples_; ++index) {
-    for (size_t channel = 0, table = 0; channel < frame_channels_;
-         ++channel, table += channel_samples_) {
-      output_frame[o++] = xe::byte_swap(input_frame[table + index]);
-    }
-  }
+  std::memcpy(output_frame, input_frame, frame_samples_ * sizeof(float));
 
   {
     std::unique_lock<std::mutex> guard(frames_mutex_);
@@ -133,6 +127,45 @@ void SDLAudioDriver::Shutdown() {
   };
 }
 
+void SDLAudioDriver::SDLCallback(void* userdata, Uint8* stream, int len) {
+  SCOPE_profile_cpu_f("apu");
+  if (!userdata || !stream) {
+    XELOGE("SDLAudioDriver::sdl_callback called with nullptr.");
+    return;
+  }
+  const auto driver = static_cast<SDLAudioDriver*>(userdata);
+  assert_true(len ==
+              sizeof(float) * channel_samples_ * driver->sdl_device_channels_);
+
+  std::unique_lock<std::mutex> guard(driver->frames_mutex_);
+  if (driver->frames_queued_.empty()) {
+    std::memset(stream, 0, len);
+  } else {
+    auto buffer = driver->frames_queued_.front();
+    driver->frames_queued_.pop();
+    if (cvars::mute) {
+      std::memset(stream, 0, len);
+    } else {
+      switch (driver->sdl_device_channels_) {
+        case 2:
+          conversion::sequential_6_BE_to_interleaved_2_LE(
+              reinterpret_cast<float*>(stream), buffer, channel_samples_);
+          break;
+        case 6:
+          conversion::sequential_6_BE_to_interleaved_6_LE(
+              reinterpret_cast<float*>(stream), buffer, channel_samples_);
+          break;
+        default:
+          assert_unhandled_case(driver->sdl_device_channels_);
+          break;
+      }
+    }
+    driver->frames_unused_.push(buffer);
+
+    auto ret = driver->semaphore_->Release(1, nullptr);
+    assert_true(ret);
+  }
+};
 }  // namespace sdl
 }  // namespace apu
 }  // namespace xe
