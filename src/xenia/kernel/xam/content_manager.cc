@@ -31,7 +31,7 @@ static int content_device_id_ = 0;
 
 ContentPackage::ContentPackage(KernelState* kernel_state,
                                const std::string_view root_name,
-                               const ContentData& data,
+                               const XCONTENT_DATA& data,
                                const std::filesystem::path& package_path)
     : kernel_state_(kernel_state), root_name_(root_name) {
   device_path_ = fmt::format("\\Device\\Content\\{0}\\", ++content_device_id_);
@@ -58,48 +58,26 @@ ContentManager::ContentManager(KernelState* kernel_state,
 ContentManager::~ContentManager() = default;
 
 std::filesystem::path ContentManager::ResolvePackageRoot(
-    uint32_t content_type) {
-  auto title_id = fmt::format("{:8X}", kernel_state_->title_id());
-
-  std::string type_name;
-  switch (content_type) {
-    case 1:
-      // Save games.
-      type_name = "00000001";
-      break;
-    case 2:
-      // DLC from the marketplace.
-      type_name = "00000002";
-      break;
-    case 3:
-      // Publisher content?
-      type_name = "00000003";
-      break;
-    case 0x000D0000:
-      // ???
-      type_name = "000D0000";
-      break;
-    default:
-      assert_unhandled_case(data.content_type);
-      return std::filesystem::path();
-  }
+    XContentType content_type) {
+  auto title_id_str = fmt::format("{:8X}", kernel_state_->title_id());
+  auto content_type_str = fmt::format("{:08X}", uint32_t(content_type));
 
   // Package root path:
-  // content_root/title_id/type_name/
-  return root_path_ / title_id / type_name;
+  // content_root/title_id/content_type/
+  return root_path_ / title_id_str / content_type_str;
 }
 
 std::filesystem::path ContentManager::ResolvePackagePath(
-    const ContentData& data) {
+    const XCONTENT_DATA& data) {
   // Content path:
-  // content_root/title_id/type_name/data_file_name/
+  // content_root/title_id/content_type/data_file_name/
   auto package_root = ResolvePackageRoot(data.content_type);
-  return package_root / xe::to_path(data.file_name);
+  return package_root / xe::to_path(data.file_name());
 }
 
-std::vector<ContentData> ContentManager::ListContent(uint32_t device_id,
-                                                     uint32_t content_type) {
-  std::vector<ContentData> result;
+std::vector<XCONTENT_DATA> ContentManager::ListContent(
+    uint32_t device_id, XContentType content_type) {
+  std::vector<XCONTENT_DATA> result;
 
   // Search path:
   // content_root/title_id/type_name/*
@@ -110,11 +88,11 @@ std::vector<ContentData> ContentManager::ListContent(uint32_t device_id,
       // Directories only.
       continue;
     }
-    ContentData content_data;
+    XCONTENT_DATA content_data;
     content_data.device_id = device_id;
     content_data.content_type = content_type;
-    content_data.display_name = xe::path_to_utf16(file_info.name);
-    content_data.file_name = xe::path_to_utf8(file_info.name);
+    content_data.set_display_name(xe::path_to_utf16(file_info.name));
+    content_data.set_file_name(xe::path_to_utf8(file_info.name));
     result.emplace_back(std::move(content_data));
   }
 
@@ -122,7 +100,7 @@ std::vector<ContentData> ContentManager::ListContent(uint32_t device_id,
 }
 
 std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
-    const std::string_view root_name, const ContentData& data) {
+    const std::string_view root_name, const XCONTENT_DATA& data) {
   auto package_path = ResolvePackagePath(data);
   if (!std::filesystem::exists(package_path)) {
     return nullptr;
@@ -135,13 +113,13 @@ std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
   return package;
 }
 
-bool ContentManager::ContentExists(const ContentData& data) {
+bool ContentManager::ContentExists(const XCONTENT_DATA& data) {
   auto path = ResolvePackagePath(data);
   return std::filesystem::exists(path);
 }
 
 X_RESULT ContentManager::CreateContent(const std::string_view root_name,
-                                       const ContentData& data) {
+                                       const XCONTENT_DATA& data) {
   auto global_lock = global_critical_region_.Acquire();
 
   if (open_packages_.count(string_key(root_name))) {
@@ -168,7 +146,7 @@ X_RESULT ContentManager::CreateContent(const std::string_view root_name,
 }
 
 X_RESULT ContentManager::OpenContent(const std::string_view root_name,
-                                     const ContentData& data) {
+                                     const XCONTENT_DATA& data) {
   auto global_lock = global_critical_region_.Acquire();
 
   if (open_packages_.count(string_key(root_name))) {
@@ -207,7 +185,7 @@ X_RESULT ContentManager::CloseContent(const std::string_view root_name) {
   return X_ERROR_SUCCESS;
 }
 
-X_RESULT ContentManager::GetContentThumbnail(const ContentData& data,
+X_RESULT ContentManager::GetContentThumbnail(const XCONTENT_DATA& data,
                                              std::vector<uint8_t>* buffer) {
   auto global_lock = global_critical_region_.Acquire();
   auto package_path = ResolvePackagePath(data);
@@ -226,7 +204,7 @@ X_RESULT ContentManager::GetContentThumbnail(const ContentData& data,
   }
 }
 
-X_RESULT ContentManager::SetContentThumbnail(const ContentData& data,
+X_RESULT ContentManager::SetContentThumbnail(const XCONTENT_DATA& data,
                                              std::vector<uint8_t> buffer) {
   auto global_lock = global_critical_region_.Acquire();
   auto package_path = ResolvePackagePath(data);
@@ -242,7 +220,7 @@ X_RESULT ContentManager::SetContentThumbnail(const ContentData& data,
   }
 }
 
-X_RESULT ContentManager::DeleteContent(const ContentData& data) {
+X_RESULT ContentManager::DeleteContent(const XCONTENT_DATA& data) {
   auto global_lock = global_critical_region_.Acquire();
 
   if (IsContentOpen(data)) {
@@ -267,7 +245,7 @@ std::filesystem::path ContentManager::ResolveGameUserContentPath() {
   return root_path_ / title_id / kGameUserContentDirName / user_name;
 }
 
-bool ContentManager::IsContentOpen(const ContentData& data) const {
+bool ContentManager::IsContentOpen(const XCONTENT_DATA& data) const {
   return std::any_of(open_packages_.cbegin(), open_packages_.cend(),
                      [data](std::pair<string_key, ContentPackage*> content) {
                        return data == content.second->GetPackageContentData();
