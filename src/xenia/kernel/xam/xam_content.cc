@@ -117,14 +117,23 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
 }
 DECLARE_XAM_EXPORT1(XamContentCreateEnumerator, kContent, kImplemented);
 
-dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
-                                  lpvoid_t content_data_ptr, dword_t flags,
+dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
+                                  lpvoid_t content_data_ptr,
+                                  dword_t content_data_size, dword_t flags,
                                   lpdword_t disposition_ptr,
                                   lpdword_t license_mask_ptr,
                                   dword_t cache_size, qword_t content_size,
                                   lpvoid_t overlapped_ptr) {
   X_RESULT result = X_ERROR_INVALID_PARAMETER;
-  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
+  XCONTENT_AGGREGATE_DATA content_data;
+  if (content_data_size == sizeof(XCONTENT_DATA)) {
+    content_data = *content_data_ptr.as<XCONTENT_DATA*>();
+  } else if (content_data_size == sizeof(XCONTENT_AGGREGATE_DATA)) {
+    content_data = *content_data_ptr.as<XCONTENT_AGGREGATE_DATA*>();
+  } else {
+    assert_always();
+    return result;
+  }
 
   auto content_manager = kernel_state()->content_manager();
   bool create = false;
@@ -210,6 +219,18 @@ dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
     return result;
   }
 }
+
+dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
+                                  lpvoid_t content_data_ptr, dword_t flags,
+                                  lpdword_t disposition_ptr,
+                                  lpdword_t license_mask_ptr,
+                                  dword_t cache_size, qword_t content_size,
+                                  lpvoid_t overlapped_ptr) {
+  return xeXamContentCreate(user_index, root_name, content_data_ptr,
+                            sizeof(XCONTENT_DATA), flags, disposition_ptr,
+                            license_mask_ptr, cache_size, content_size,
+                            overlapped_ptr);
+}
 DECLARE_XAM_EXPORT1(XamContentCreateEx, kContent, kImplemented);
 
 dword_result_t XamContentCreate(dword_t user_index, lpstring_t root_name,
@@ -217,9 +238,9 @@ dword_result_t XamContentCreate(dword_t user_index, lpstring_t root_name,
                                 lpdword_t disposition_ptr,
                                 lpdword_t license_mask_ptr,
                                 lpvoid_t overlapped_ptr) {
-  return XamContentCreateEx(user_index, root_name, content_data_ptr, flags,
-                            disposition_ptr, license_mask_ptr, 0, 0,
-                            overlapped_ptr);
+  return xeXamContentCreate(user_index, root_name, content_data_ptr,
+                            sizeof(XCONTENT_DATA), flags, disposition_ptr,
+                            license_mask_ptr, 0, 0, overlapped_ptr);
 }
 DECLARE_XAM_EXPORT1(XamContentCreate, kContent, kImplemented);
 
@@ -227,7 +248,8 @@ dword_result_t XamContentCreateInternal(
     lpstring_t root_name, lpvoid_t content_data_ptr, dword_t flags,
     lpdword_t disposition_ptr, lpdword_t license_mask_ptr, dword_t cache_size,
     qword_t content_size, lpvoid_t overlapped_ptr) {
-  return XamContentCreateEx(0xFE, root_name, content_data_ptr, flags,
+  return xeXamContentCreate(0xFE, root_name, content_data_ptr,
+                            sizeof(XCONTENT_AGGREGATE_DATA), flags,
                             disposition_ptr, license_mask_ptr, cache_size,
                             content_size, overlapped_ptr);
 }
