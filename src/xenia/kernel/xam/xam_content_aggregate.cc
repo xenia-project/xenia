@@ -105,8 +105,7 @@ dword_result_t XamContentAggregateCreateEnumerator(qword_t xuid,
     for (const auto& content_data : content_datas) {
       auto item = reinterpret_cast<XCONTENT_AGGREGATE_DATA*>(e->AppendItem());
       assert_not_null(item);
-      *item = {content_data};
-      item->title_id = kernel_state()->title_id();
+      *item = content_data;
     }
   }
 

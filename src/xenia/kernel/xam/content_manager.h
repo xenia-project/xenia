@@ -31,6 +31,11 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
+// If set in XCONTENT_AGGREGATE_DATA, will be substituted with the running
+// titles ID
+// TODO: check if actual x360 kernel/xam has a value similar to this
+constexpr uint32_t kCurrentlyRunningTitleId = 0xFFFFFFFF;
+
 struct XCONTENT_DATA {
   be<uint32_t> device_id;
   be<XContentType> content_type;
@@ -90,6 +95,16 @@ static_assert_size(XCONTENT_DATA, 0x134);
 struct XCONTENT_AGGREGATE_DATA : XCONTENT_DATA {
   be<uint32_t> title_id;
 
+  XCONTENT_AGGREGATE_DATA() = default;
+  XCONTENT_AGGREGATE_DATA(const XCONTENT_DATA& other) {
+    device_id = other.device_id;
+    content_type = other.content_type;
+    set_display_name(other.display_name());
+    set_file_name(other.file_name());
+    padding[0] = padding[1] = 0;
+    title_id = kCurrentlyRunningTitleId;
+  }
+
   bool operator==(const XCONTENT_AGGREGATE_DATA& other) const {
     // Package is located via device_id/title_id/content_type/file_name, so only
     // need to compare those
@@ -103,17 +118,19 @@ static_assert_size(XCONTENT_AGGREGATE_DATA, 0x138);
 class ContentPackage {
  public:
   ContentPackage(KernelState* kernel_state, const std::string_view root_name,
-                 const XCONTENT_DATA& data,
+                 const XCONTENT_AGGREGATE_DATA& data,
                  const std::filesystem::path& package_path);
   ~ContentPackage();
 
-  const XCONTENT_DATA& GetPackageContentData() const { return content_data_; }
+  const XCONTENT_AGGREGATE_DATA& GetPackageContentData() const {
+    return content_data_;
+  }
 
  private:
   KernelState* kernel_state_;
   std::string root_name_;
   std::string device_path_;
-  XCONTENT_DATA content_data_;
+  XCONTENT_AGGREGATE_DATA content_data_;
 };
 
 class ContentManager {
@@ -122,30 +139,32 @@ class ContentManager {
                  const std::filesystem::path& root_path);
   ~ContentManager();
 
-  std::vector<XCONTENT_DATA> ListContent(uint32_t device_id,
-                                         XContentType content_type);
+  std::vector<XCONTENT_AGGREGATE_DATA> ListContent(uint32_t device_id,
+                                                   XContentType content_type,
+                                                   uint32_t title_id = -1);
 
   std::unique_ptr<ContentPackage> ResolvePackage(
-      const std::string_view root_name, const XCONTENT_DATA& data);
+      const std::string_view root_name, const XCONTENT_AGGREGATE_DATA& data);
 
-  bool ContentExists(const XCONTENT_DATA& data);
+  bool ContentExists(const XCONTENT_AGGREGATE_DATA& data);
   X_RESULT CreateContent(const std::string_view root_name,
-                         const XCONTENT_DATA& data);
+                         const XCONTENT_AGGREGATE_DATA& data);
   X_RESULT OpenContent(const std::string_view root_name,
-                       const XCONTENT_DATA& data);
+                       const XCONTENT_AGGREGATE_DATA& data);
   X_RESULT CloseContent(const std::string_view root_name);
-  X_RESULT GetContentThumbnail(const XCONTENT_DATA& data,
+  X_RESULT GetContentThumbnail(const XCONTENT_AGGREGATE_DATA& data,
                                std::vector<uint8_t>* buffer);
-  X_RESULT SetContentThumbnail(const XCONTENT_DATA& data,
+  X_RESULT SetContentThumbnail(const XCONTENT_AGGREGATE_DATA& data,
                                std::vector<uint8_t> buffer);
-  X_RESULT DeleteContent(const XCONTENT_DATA& data);
+  X_RESULT DeleteContent(const XCONTENT_AGGREGATE_DATA& data);
   std::filesystem::path ResolveGameUserContentPath();
-  bool IsContentOpen(const XCONTENT_DATA& data) const;
+  bool IsContentOpen(const XCONTENT_AGGREGATE_DATA& data) const;
   void CloseOpenedFilesFromContent(const std::string_view root_name);
 
  private:
-  std::filesystem::path ResolvePackageRoot(XContentType content_type);
-  std::filesystem::path ResolvePackagePath(const XCONTENT_DATA& data);
+  std::filesystem::path ResolvePackageRoot(XContentType content_type,
+                                           uint32_t title_id = -1);
+  std::filesystem::path ResolvePackagePath(const XCONTENT_AGGREGATE_DATA& data);
 
   KernelState* kernel_state_;
   std::filesystem::path root_path_;
