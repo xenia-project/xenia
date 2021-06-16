@@ -1858,9 +1858,10 @@ DXGI_FORMAT D3D12RenderTargetCache::GetColorDrawDXGIFormat(
     xenos::ColorRenderTargetFormat format) const {
   switch (format) {
     case xenos::ColorRenderTargetFormat::k_8_8_8_8:
-    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      // sRGB is handled in a different way, not via the RenderTargetKey format.
       return DXGI_FORMAT_R8G8B8A8_UNORM;
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+      return gamma_render_target_as_srgb_ ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+                                          : DXGI_FORMAT_R8G8B8A8_UNORM;
     case xenos::ColorRenderTargetFormat::k_16_16:
       return DXGI_FORMAT_R16G16_SNORM;
     case xenos::ColorRenderTargetFormat::k_16_16_16_16:
@@ -1954,20 +1955,6 @@ DXGI_FORMAT D3D12RenderTargetCache::GetDepthSRVStencilDXGIFormat(
   }
 }
 
-xenos::ColorRenderTargetFormat
-D3D12RenderTargetCache::GetHostRelevantColorFormat(
-    xenos::ColorRenderTargetFormat format) const {
-  switch (format) {
-    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      // Currently handled in the shader (with incorrect blending), but even if
-      // handling is changed (to true sRGB), it will still be able to alias it
-      // with R8G8B8A8_UNORM.
-      return xenos::ColorRenderTargetFormat::k_8_8_8_8;
-    default:
-      return format;
-  }
-}
-
 RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(
     RenderTargetKey key) {
   ID3D12Device* device =
@@ -1990,7 +1977,7 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(
   assert_true(resource_desc.Format != DXGI_FORMAT_UNKNOWN);
   if (resource_desc.Format == DXGI_FORMAT_UNKNOWN) {
     XELOGE("D3D12RenderTargetCache: Unknown {} render target format {}",
-           key.is_depth ? "depth" : "color", key.host_relevant_format);
+           key.is_depth ? "depth" : "color", key.resource_format);
     return nullptr;
   }
   if (key.msaa_samples == xenos::MsaaSamples::k2X && !msaa_2x_supported()) {
@@ -2228,16 +2215,16 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   bool dest_is_color = (mode.output == TransferOutput::kColor);
 
   xenos::ColorRenderTargetFormat dest_color_format =
-      xenos::ColorRenderTargetFormat(key.dest_host_relevant_format);
+      xenos::ColorRenderTargetFormat(key.dest_resource_format);
   xenos::DepthRenderTargetFormat dest_depth_format =
-      xenos::DepthRenderTargetFormat(key.dest_host_relevant_format);
+      xenos::DepthRenderTargetFormat(key.dest_resource_format);
   bool dest_is_64bpp =
       dest_is_color && xenos::IsColorRenderTargetFormat64bpp(dest_color_format);
 
   xenos::ColorRenderTargetFormat source_color_format =
-      xenos::ColorRenderTargetFormat(key.source_host_relevant_format);
+      xenos::ColorRenderTargetFormat(key.source_resource_format);
   xenos::DepthRenderTargetFormat source_depth_format =
-      xenos::DepthRenderTargetFormat(key.source_host_relevant_format);
+      xenos::DepthRenderTargetFormat(key.source_resource_format);
   // If not source_is_color, it's depth / stencil - 40-sample columns are
   // swapped as opposed to color destination.
   bool source_is_color = (rs & kTransferUsedRootParameterColorSRVBit) != 0;
@@ -4617,11 +4604,8 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
             dest_rt_key.pitch_tiles_at_32bpp;
         host_depth_store_render_target_constant.resolution_scale =
             resolution_scale_;
-        host_depth_store_render_target_constant.second_sample_index =
-            (dest_rt_key.msaa_samples == xenos::MsaaSamples::k2X &&
-             !msaa_2x_supported_)
-                ? 3
-                : 1;
+        host_depth_store_render_target_constant.msaa_2x_supported =
+            uint32_t(msaa_2x_supported_);
         command_list.D3DSetComputeRoot32BitConstants(
             kHostDepthStoreRootParameterRenderTargetConstant,
             sizeof(host_depth_store_render_target_constant) / sizeof(uint32_t),
@@ -4920,8 +4904,8 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
       uint32_t rt_sort_index = 0;
       TransferShaderKey new_transfer_shader_key;
       new_transfer_shader_key.dest_msaa_samples = dest_rt_key.msaa_samples;
-      new_transfer_shader_key.dest_host_relevant_format =
-          dest_rt_key.host_relevant_format;
+      new_transfer_shader_key.dest_resource_format =
+          dest_rt_key.resource_format;
       uint32_t stencil_clear_rectangle_count = 0;
       for (uint32_t j = 0; j <= uint32_t(need_stencil_bit_draws); ++j) {
         // j == 0 - color or depth.
@@ -4958,8 +4942,8 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
           RenderTargetKey source_rt_key = source_d3d12_rt.key();
           new_transfer_shader_key.source_msaa_samples =
               source_rt_key.msaa_samples;
-          new_transfer_shader_key.source_host_relevant_format =
-              source_rt_key.host_relevant_format;
+          new_transfer_shader_key.source_resource_format =
+              source_rt_key.resource_format;
           bool host_depth_source_is_copy =
               host_depth_source_d3d12_rt == &dest_d3d12_rt;
           new_transfer_shader_key.host_depth_source_is_copy =
@@ -6492,7 +6476,7 @@ void D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base,
     any_sources_32bpp_64bpp[size_t(rt_key.Is64bpp())] = true;
     DumpPipelineKey pipeline_key;
     pipeline_key.msaa_samples = rt_key.msaa_samples;
-    pipeline_key.host_relevant_format = rt_key.host_relevant_format;
+    pipeline_key.resource_format = rt_key.resource_format;
     pipeline_key.is_depth = rt_key.is_depth;
     dump_invocations_.emplace_back(rectangle, pipeline_key);
   }
