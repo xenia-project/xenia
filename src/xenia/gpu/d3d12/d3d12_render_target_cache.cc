@@ -2131,7 +2131,7 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(
                                    descriptor_srv.GetHandle());
 
   return new D3D12RenderTarget(
-      key, *this, resource.Get(), std::move(descriptor_draw),
+      key, resource.Get(), std::move(descriptor_draw),
       std::move(descriptor_draw_srgb), std::move(descriptor_load_separate),
       std::move(descriptor_srv), std::move(descriptor_srv_stencil),
       resource_state);
