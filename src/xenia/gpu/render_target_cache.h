@@ -265,10 +265,14 @@ class RenderTargetCache {
     uint32_t GetPitchTiles() const {
       return pitch_tiles_at_32bpp << uint32_t(Is64bpp());
     }
-    uint32_t GetWidth() const {
+    static constexpr uint32_t GetWidth(uint32_t pitch_tiles_at_32bpp,
+                                       xenos::MsaaSamples msaa_samples) {
       return pitch_tiles_at_32bpp *
              (xenos::kEdramTileWidthSamples >>
               uint32_t(msaa_samples >= xenos::MsaaSamples::k4X));
+    }
+    uint32_t GetWidth() const {
+      return GetWidth(pitch_tiles_at_32bpp, msaa_samples);
     }
 
     std::string GetDebugName() const {
