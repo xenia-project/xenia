@@ -845,7 +845,9 @@ RenderTargetCache::GetConfigDepthFloat24Conversion() {
 
 uint32_t RenderTargetCache::GetRenderTargetHeight(
     uint32_t pitch_tiles_at_32bpp, xenos::MsaaSamples msaa_samples) const {
-  assert_not_zero(pitch_tiles_at_32bpp);
+  if (!pitch_tiles_at_32bpp) {
+    return 0;
+  }
   // Down to the end of EDRAM.
   uint32_t tile_rows = (xenos::kEdramTileCount + (pitch_tiles_at_32bpp - 1)) /
                        pitch_tiles_at_32bpp;
