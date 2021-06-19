@@ -834,8 +834,6 @@ bool VulkanImmediateDrawer::CreateTextureResource(
   const VulkanProvider& provider = context_.GetVulkanProvider();
   const VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
-  bool dedicated_allocation_supported =
-      provider.device_extensions().khr_dedicated_allocation;
 
   // Create the image and the descriptor.
 
@@ -882,7 +880,7 @@ bool VulkanImmediateDrawer::CreateTextureResource(
   }
   image_memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
   VkMemoryDedicatedAllocateInfoKHR image_memory_dedicated_allocate_info;
-  if (dedicated_allocation_supported) {
+  if (provider.device_extensions().khr_dedicated_allocation) {
     image_memory_dedicated_allocate_info.sType =
         VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
     image_memory_dedicated_allocate_info.pNext = nullptr;
