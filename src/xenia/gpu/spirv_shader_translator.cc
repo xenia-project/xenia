@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -62,6 +63,9 @@ SpirvShaderTranslator::Features::Features(
     denorm_flush_to_zero_float32 = false;
   }
 }
+
+const std::string SpirvShaderTranslator::kInterpolatorNamePrefix =
+    "xe_interpolator_";
 
 SpirvShaderTranslator::SpirvShaderTranslator(const Features& features)
     : features_(features) {}
@@ -363,6 +367,8 @@ void SpirvShaderTranslator::StartTranslation() {
 
   if (is_vertex_shader()) {
     StartVertexOrTessEvalShaderBeforeMain();
+  } else if (is_pixel_shader()) {
+    StartFragmentShaderBeforeMain();
   }
 
   // Begin the main function.
@@ -394,8 +400,9 @@ void SpirvShaderTranslator::StartTranslation() {
   if (register_array_size) {
     id_vector_temp_.clear();
     id_vector_temp_.reserve(register_array_size);
-    // TODO(Triang3l): In PS, only initialize starting from the interpolators,
-    // probably manually. But not very important.
+    // TODO(Triang3l): In PS, only need to initialize starting from the
+    // interpolators, probably manually. But likely not very important - the
+    // compiler in the driver will likely eliminate that write.
     for (uint32_t i = 0; i < register_array_size; ++i) {
       id_vector_temp_.push_back(const_float4_0_);
     }
@@ -411,6 +418,8 @@ void SpirvShaderTranslator::StartTranslation() {
   // main function.
   if (is_vertex_shader()) {
     StartVertexOrTessEvalShaderInMain();
+  } else if (is_pixel_shader()) {
+    StartFragmentShaderInMain();
   }
 
   // Open the main loop.
@@ -921,6 +930,16 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
     main_interface_.push_back(input_vertex_index_);
   }
 
+  // Create the Xenia-specific outputs.
+  for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
+    spv::Id interpolator = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassOutput, type_float4_,
+        (kInterpolatorNamePrefix + std::to_string(i)).c_str());
+    input_output_interpolators_[i] = interpolator;
+    builder_->addDecoration(interpolator, spv::DecorationLocation, int(i));
+    main_interface_.push_back(interpolator);
+  }
+
   // Create the entire GLSL 4.50 gl_PerVertex output similar to what glslang
   // does. Members (like gl_PointSize) don't need to be used, and also
   // ClipDistance and CullDistance may exist even if the device doesn't support
@@ -977,6 +996,11 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
   var_main_point_size_edge_flag_kill_vertex_ = builder_->createVariable(
       spv::NoPrecision, spv::StorageClassFunction, type_float3_,
       "xe_var_point_size_edge_flag_kill_vertex");
+
+  // Zero the interpolators.
+  for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
+    builder_->createStore(const_float4_0_, input_output_interpolators_[i]);
+  }
 
   // Load the vertex index or the tessellation parameters.
   if (register_count()) {
@@ -1165,6 +1189,73 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
       const_float_1_,
       builder_->createAccessChain(spv::StorageClassOutput, output_per_vertex_,
                                   id_vector_temp_));
+}
+
+void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
+  // Interpolator inputs.
+  uint32_t interpolator_count =
+      std::min(xenos::kMaxInterpolators, register_count());
+  for (uint32_t i = 0; i < interpolator_count; ++i) {
+    spv::Id interpolator = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassInput, type_float4_,
+        (kInterpolatorNamePrefix + std::to_string(i)).c_str());
+    input_output_interpolators_[i] = interpolator;
+    builder_->addDecoration(interpolator, spv::DecorationLocation, int(i));
+    main_interface_.push_back(interpolator);
+  }
+
+  // Framebuffer attachment outputs.
+  std::fill(output_fragment_data_.begin(), output_fragment_data_.end(),
+            spv::NoResult);
+  static const char* const kFragmentDataNames[] = {
+      "xe_out_fragment_data_0",
+      "xe_out_fragment_data_1",
+      "xe_out_fragment_data_2",
+      "xe_out_fragment_data_3",
+  };
+  uint32_t shader_writes_color_targets =
+      current_shader().writes_color_targets();
+  for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+    if (!(shader_writes_color_targets & (uint32_t(1) << i))) {
+      continue;
+    }
+    spv::Id output_fragment_data_rt =
+        builder_->createVariable(spv::NoPrecision, spv::StorageClassOutput,
+                                 type_float4_, kFragmentDataNames[i]);
+    output_fragment_data_[i] = output_fragment_data_rt;
+    builder_->addDecoration(output_fragment_data_rt, spv::DecorationLocation,
+                            int(i));
+    // Make invariant as pixel shaders may be used for various precise
+    // computations.
+    builder_->addDecoration(output_fragment_data_rt, spv::DecorationInvariant);
+    main_interface_.push_back(output_fragment_data_rt);
+  }
+}
+
+void SpirvShaderTranslator::StartFragmentShaderInMain() {
+  // Copy the interpolators to general-purpose registers.
+  // TODO(Triang3l): Centroid.
+  // TODO(Triang3l): ps_param_gen.
+  uint32_t interpolator_count =
+      std::min(xenos::kMaxInterpolators, register_count());
+  for (uint32_t i = 0; i < interpolator_count; ++i) {
+    id_vector_temp_.clear();
+    // Register array element.
+    id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
+    builder_->createStore(
+        builder_->createLoad(input_output_interpolators_[i], spv::NoPrecision),
+        builder_->createAccessChain(spv::StorageClassFunction,
+                                    var_main_registers_, id_vector_temp_));
+  }
+
+  // Initialize the colors for safety.
+  uint32_t shader_writes_color_targets =
+      current_shader().writes_color_targets();
+  for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+    if (shader_writes_color_targets & (uint32_t(1) << i)) {
+      builder_->createStore(const_float4_0_, output_fragment_data_[i]);
+    }
+  }
 }
 
 void SpirvShaderTranslator::UpdateExecConditionals(
@@ -1507,6 +1598,10 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
       target_pointer = builder_->createAccessChain(
           spv::StorageClassFunction, var_main_registers_, id_vector_temp_util_);
     } break;
+    case InstructionStorageTarget::kInterpolator:
+      assert_true(is_vertex_shader());
+      target_pointer = input_output_interpolators_[result.storage_index];
+      break;
     case InstructionStorageTarget::kPosition:
       assert_true(is_vertex_shader());
       id_vector_temp_util_.clear();
@@ -1514,6 +1609,13 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
           builder_->makeIntConstant(kOutputPerVertexMemberPosition));
       target_pointer = builder_->createAccessChain(
           spv::StorageClassOutput, output_per_vertex_, id_vector_temp_util_);
+      break;
+    case InstructionStorageTarget::kColor:
+      assert_true(is_pixel_shader());
+      assert_not_zero(used_write_mask);
+      assert_true(current_shader().writes_color_target(result.storage_index));
+      target_pointer = output_fragment_data_[result.storage_index];
+      assert_true(target_pointer != spv::NoResult);
       break;
     default:
       // TODO(Triang3l): All storage targets.

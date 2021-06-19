@@ -113,6 +113,7 @@ void VulkanPrimitiveProcessor::BeginSubmission() {
     builtin_index_buffer_memory_barrier.buffer = builtin_index_buffer_;
     builtin_index_buffer_memory_barrier.offset = 0;
     builtin_index_buffer_memory_barrier.size = VK_WHOLE_SIZE;
+    command_processor_.EndRenderPass();
     command_buffer.CmdVkPipelineBarrier(
         VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0,
         0, nullptr, 1, &builtin_index_buffer_memory_barrier, 0, nullptr);

@@ -513,7 +513,34 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   VkPipelineMultisampleStateCreateInfo multisample_state = {};
   multisample_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-  multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+  multisample_state.rasterizationSamples = VkSampleCountFlagBits(
+      uint32_t(1) << uint32_t(description.render_pass_key.msaa_samples));
+
+  // TODO(Triang3l): Depth / stencil state.
+  VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {};
+  depth_stencil_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depth_stencil_state.pNext = nullptr;
+
+  // TODO(Triang3l): Color blend state.
+  // TODO(Triang3l): Handle disabled separate blending.
+  VkPipelineColorBlendAttachmentState
+      color_blend_attachments[xenos::kMaxColorRenderTargets] = {};
+  for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+    if (!(description.render_pass_key.depth_and_color_used & (1 << (1 + i)))) {
+      continue;
+    }
+    color_blend_attachments[i].colorWriteMask =
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  }
+  VkPipelineColorBlendStateCreateInfo color_blend_state = {};
+  color_blend_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  color_blend_state.attachmentCount =
+      32 - xe::lzcnt(
+               uint32_t(description.render_pass_key.depth_and_color_used >> 1));
+  color_blend_state.pAttachments = color_blend_attachments;
 
   static const VkDynamicState dynamic_states[] = {
       VK_DYNAMIC_STATE_VIEWPORT,
@@ -538,8 +565,8 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   pipeline_create_info.pViewportState = &viewport_state;
   pipeline_create_info.pRasterizationState = &rasterization_state;
   pipeline_create_info.pMultisampleState = &multisample_state;
-  pipeline_create_info.pDepthStencilState = nullptr;
-  pipeline_create_info.pColorBlendState = nullptr;
+  pipeline_create_info.pDepthStencilState = &depth_stencil_state;
+  pipeline_create_info.pColorBlendState = &color_blend_state;
   pipeline_create_info.pDynamicState = &dynamic_state;
   pipeline_create_info.layout =
       creation_arguments.pipeline->second.pipeline_layout->GetPipelineLayout();

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,8 +10,10 @@
 #ifndef XENIA_GPU_SPIRV_SHADER_TRANSLATOR_H_
 #define XENIA_GPU_SPIRV_SHADER_TRANSLATOR_H_
 
+#include <array>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -225,6 +227,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
   void StartVertexOrTessEvalShaderInMain();
   void CompleteVertexOrTessEvalShaderInMain();
 
+  void StartFragmentShaderBeforeMain();
+  void StartFragmentShaderInMain();
+
   // Updates the current flow control condition (to be called in the beginning
   // of exec and in jumps), closing the previous conditionals if needed.
   // However, if the condition is not different, the instruction-level predicate
@@ -405,6 +410,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // VS as TES only - int.
   spv::Id input_primitive_id_;
 
+  // In vertex or tessellation evaluation shaders - outputs, always
+  // xenos::kMaxInterpolators.
+  // In pixel shaders - inputs, min(xenos::kMaxInterpolators, register_count()).
+  spv::Id input_output_interpolators_[xenos::kMaxInterpolators];
+  static const std::string kInterpolatorNamePrefix;
+
   enum OutputPerVertexMember : unsigned int {
     kOutputPerVertexMemberPosition,
     kOutputPerVertexMemberPointSize,
@@ -413,6 +424,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kOutputPerVertexMemberCount,
   };
   spv::Id output_per_vertex_;
+
+  std::array<spv::Id, xenos::kMaxColorRenderTargets> output_fragment_data_;
 
   std::vector<spv::Id> main_interface_;
   spv::Function* function_main_;

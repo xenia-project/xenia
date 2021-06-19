@@ -645,6 +645,35 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     return false;
   }
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
+  bool memexport_used_vertex = vertex_shader->is_valid_memexport_used();
+
+  // Pixel shader analysis.
+  bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
+  bool is_rasterization_done =
+      draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
+  VulkanShader* pixel_shader = nullptr;
+  if (is_rasterization_done) {
+    // See xenos::ModeControl for explanation why the pixel shader is only used
+    // when it's kColorDepth here.
+    if (edram_mode == xenos::ModeControl::kColorDepth) {
+      pixel_shader = static_cast<VulkanShader*>(active_pixel_shader());
+      if (pixel_shader) {
+        pipeline_cache_->AnalyzeShaderUcode(*pixel_shader);
+        if (!draw_util::IsPixelShaderNeededWithRasterization(*pixel_shader,
+                                                             regs)) {
+          pixel_shader = nullptr;
+        }
+      }
+    }
+  } else {
+    // Disabling pixel shader for this case is also required by the pipeline
+    // cache.
+    if (!memexport_used_vertex) {
+      // This draw has no effect.
+      return true;
+    }
+  }
+  // TODO(Triang3l): Memory export.
 
   BeginSubmission(true);
 
@@ -663,28 +692,20 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     return false;
   }
 
-  // TODO(Triang3l): Get a pixel shader.
-  VulkanShader* pixel_shader = nullptr;
-
   // Shader modifications.
   SpirvShaderTranslator::Modification vertex_shader_modification =
       pipeline_cache_->GetCurrentVertexShaderModification(
           *vertex_shader, primitive_processing_result.host_vertex_shader_type);
   SpirvShaderTranslator::Modification pixel_shader_modification =
-      SpirvShaderTranslator::Modification(0);
+      pixel_shader
+          ? pipeline_cache_->GetCurrentPixelShaderModification(*pixel_shader)
+          : SpirvShaderTranslator::Modification(0);
 
-  VulkanRenderTargetCache::FramebufferKey framebuffer_key;
-  if (!render_target_cache_->UpdateRenderTargets(framebuffer_key)) {
-    return false;
-  }
-  VkFramebuffer framebuffer =
-      render_target_cache_->GetFramebuffer(framebuffer_key);
-  if (framebuffer == VK_NULL_HANDLE) {
-    return false;
-  }
-  VkRenderPass render_pass =
-      render_target_cache_->GetRenderPass(framebuffer_key.render_pass_key);
-  if (render_pass == VK_NULL_HANDLE) {
+  // Set up the render targets - this may perform dispatches and draws.
+  uint32_t pixel_shader_writes_color_targets =
+      pixel_shader ? pixel_shader->writes_color_targets() : 0;
+  if (!render_target_cache_->Update(is_rasterization_done,
+                                    pixel_shader_writes_color_targets)) {
     return false;
   }
 
@@ -693,7 +714,11 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
       static_cast<VulkanShader::VulkanTranslation*>(
           vertex_shader->GetOrCreateTranslation(
               vertex_shader_modification.value));
-  VulkanShader::VulkanTranslation* pixel_shader_translation = nullptr;
+  VulkanShader::VulkanTranslation* pixel_shader_translation =
+      pixel_shader ? static_cast<VulkanShader::VulkanTranslation*>(
+                         pixel_shader->GetOrCreateTranslation(
+                             pixel_shader_modification.value))
+                   : nullptr;
 
   // Update the graphics pipeline, and if the new graphics pipeline has a
   // different layout, invalidate incompatible descriptor sets before updating
@@ -702,8 +727,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   const VulkanPipelineCache::PipelineLayoutProvider* pipeline_layout_provider;
   if (!pipeline_cache_->ConfigurePipeline(
           vertex_shader_translation, pixel_shader_translation,
-          primitive_processing_result, framebuffer_key.render_pass_key,
-          pipeline, pipeline_layout_provider)) {
+          primitive_processing_result,
+          render_target_cache_->last_update_render_pass_key(), pipeline,
+          pipeline_layout_provider)) {
     return false;
   }
   deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -829,24 +855,28 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // TODO(Triang3l): Memory export.
   shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
 
-  // After all commands that may dispatch or copy, enter the render pass before
-  // drawing.
+  // After all commands that may dispatch, copy or insert barriers, enter the
+  // render pass before drawing.
+  VkRenderPass render_pass = render_target_cache_->last_update_render_pass();
+  const VulkanRenderTargetCache::Framebuffer* framebuffer =
+      render_target_cache_->last_update_framebuffer();
   if (current_render_pass_ != render_pass ||
-      current_framebuffer_ != framebuffer) {
+      current_framebuffer_ != framebuffer->framebuffer) {
     if (current_render_pass_ != VK_NULL_HANDLE) {
       deferred_command_buffer_.CmdVkEndRenderPass();
     }
     current_render_pass_ = render_pass;
-    current_framebuffer_ = framebuffer;
+    current_framebuffer_ = framebuffer->framebuffer;
     VkRenderPassBeginInfo render_pass_begin_info;
     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     render_pass_begin_info.pNext = nullptr;
     render_pass_begin_info.renderPass = render_pass;
-    render_pass_begin_info.framebuffer = framebuffer;
+    render_pass_begin_info.framebuffer = framebuffer->framebuffer;
     render_pass_begin_info.renderArea.offset.x = 0;
     render_pass_begin_info.renderArea.offset.y = 0;
-    render_pass_begin_info.renderArea.extent.width = 1280;
-    render_pass_begin_info.renderArea.extent.height = 720;
+    // TODO(Triang3l): Actual dirty width / height in the deferred command
+    // buffer.
+    render_pass_begin_info.renderArea.extent = framebuffer->host_extent;
     render_pass_begin_info.clearValueCount = 0;
     render_pass_begin_info.pClearValues = nullptr;
     deferred_command_buffer_.CmdVkBeginRenderPass(&render_pass_begin_info,
