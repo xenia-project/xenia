@@ -107,6 +107,8 @@ filter("platforms:Linux")
     "lz4",
     "pthread",
     "rt",
+    "unwind",
+    "iberty",
   })
 
 filter({"platforms:Linux", "kind:*App"})
