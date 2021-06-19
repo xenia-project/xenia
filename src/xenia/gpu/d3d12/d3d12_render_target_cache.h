@@ -134,8 +134,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     // floating-point formats, and to distinguish between two -1 representations
     // in snorm formats).
     D3D12RenderTarget(
-        RenderTargetKey key, D3D12RenderTargetCache& render_target_cache,
-        ID3D12Resource* resource,
+        RenderTargetKey key, ID3D12Resource* resource,
         ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_draw,
         ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_draw_srgb,
         ui::d3d12::D3D12CpuDescriptorPool::Descriptor&&
@@ -144,7 +143,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
         ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_srv_stencil,
         D3D12_RESOURCE_STATES resource_state)
         : RenderTarget(key),
-          render_target_cache_(render_target_cache),
           resource_(resource),
           descriptor_draw_(std::move(descriptor_draw)),
           descriptor_draw_srgb_(std::move(descriptor_draw_srgb)),
@@ -199,7 +197,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     }
 
    private:
-    D3D12RenderTargetCache& render_target_cache_;
     Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
     ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_draw_;
     ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_draw_srgb_;
