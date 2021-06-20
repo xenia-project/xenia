@@ -277,8 +277,9 @@ uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
     auto setting = user_profile->GetSetting(setting_id);
 
     std::memset(out_setting, 0, sizeof(X_USER_READ_PROFILE_SETTING));
-    out_setting->from =
-        !setting || !setting->is_set ? 0 : setting->is_title_specific() ? 2 : 1;
+    out_setting->from = !setting || !setting->is_set   ? 0
+                        : setting->is_title_specific() ? 2
+                                                       : 1;
     out_setting->user_index = static_cast<uint32_t>(user_index);
     out_setting->setting_id = setting_id;
 
