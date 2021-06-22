@@ -476,7 +476,7 @@ void CommandProcessor::ExecutePacket(uint32_t ptr, uint32_t count) {
 bool CommandProcessor::ExecutePacket(RingBuffer* reader) {
   const uint32_t packet = reader->ReadAndSwap<uint32_t>();
   const uint32_t packet_type = packet >> 30;
-  if (packet == 0) {
+  if (packet == 0 || packet == 0x0BADF00D) {
     trace_writer_.WritePacketStart(uint32_t(reader->read_ptr() - 4), 1);
     trace_writer_.WritePacketEnd();
     return true;
