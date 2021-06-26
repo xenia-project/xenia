@@ -226,7 +226,7 @@ void XThread::InitializeGuestObject() {
 }
 
 bool XThread::AllocateStack(uint32_t size) {
-  auto heap = memory()->LookupHeap(0x40000000);
+  auto heap = memory()->LookupHeap(kStackAddressRangeBegin);
 
   auto alignment = heap->page_size();
   auto padding = heap->page_size() * 2;  // Guard page size * 2
@@ -234,10 +234,10 @@ bool XThread::AllocateStack(uint32_t size) {
   auto actual_size = size + padding;
 
   uint32_t address = 0;
-  if (!heap->AllocRange(0x40000000, 0x7F000000, actual_size, alignment,
-                        kMemoryAllocationReserve | kMemoryAllocationCommit,
-                        kMemoryProtectRead | kMemoryProtectWrite, false,
-                        &address)) {
+  if (!heap->AllocRange(
+          kStackAddressRangeBegin, kStackAddressRangeEnd, actual_size,
+          alignment, kMemoryAllocationReserve | kMemoryAllocationCommit,
+          kMemoryProtectRead | kMemoryProtectWrite, false, &address)) {
     return false;
   }
 
@@ -258,7 +258,7 @@ bool XThread::AllocateStack(uint32_t size) {
 
 void XThread::FreeStack() {
   if (stack_alloc_base_) {
-    auto heap = memory()->LookupHeap(0x40000000);
+    auto heap = memory()->LookupHeap(kStackAddressRangeBegin);
     heap->Release(stack_alloc_base_);
 
     stack_alloc_base_ = 0;
@@ -578,11 +578,15 @@ void XThread::Reenter(uint32_t address) {
 }
 
 void XThread::EnterCriticalRegion() {
-  xe::global_critical_region::mutex().lock();
+  guest_object<X_KTHREAD>()->apc_disable_count--;
 }
 
 void XThread::LeaveCriticalRegion() {
-  xe::global_critical_region::mutex().unlock();
+  auto kthread = guest_object<X_KTHREAD>();
+  auto apc_disable_count = ++kthread->apc_disable_count;
+  if (apc_disable_count == 0) {
+    CheckApcs();
+  }
 }
 
 uint32_t XThread::RaiseIrql(uint32_t new_irql) {
@@ -593,11 +597,11 @@ void XThread::LowerIrql(uint32_t new_irql) { irql_ = new_irql; }
 
 void XThread::CheckApcs() { DeliverAPCs(); }
 
-void XThread::LockApc() { EnterCriticalRegion(); }
+void XThread::LockApc() { global_critical_region_.mutex().lock(); }
 
 void XThread::UnlockApc(bool queue_delivery) {
   bool needs_apc = apc_list_.HasPending();
-  LeaveCriticalRegion();
+  global_critical_region_.mutex().unlock();
   if (needs_apc && queue_delivery) {
     thread_->QueueUserCallback([this]() { DeliverAPCs(); });
   }
@@ -632,7 +636,8 @@ void XThread::DeliverAPCs() {
   // https://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=7
   auto processor = kernel_state()->processor();
   LockApc();
-  while (apc_list_.HasPending()) {
+  auto kthread = guest_object<X_KTHREAD>();
+  while (apc_list_.HasPending() && kthread->apc_disable_count == 0) {
     // Get APC entry (offset for LIST_ENTRY offset) and cache what we need.
     // Calling the routine may delete the memory/overwrite it.
     uint32_t apc_ptr = apc_list_.Shift() - 8;

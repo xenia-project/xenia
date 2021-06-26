@@ -966,6 +966,16 @@ bool XexModule::LoadContinue() {
     return false;
   }
 
+  // Parse any "unsafe" headers into safer variants
+  xex2_opt_generic_u32* alternate_titleids;
+  if (GetOptHeader(xex2_header_keys::XEX_HEADER_ALTERNATE_TITLE_IDS,
+                   &alternate_titleids)) {
+    auto count = alternate_titleids->count();
+    for (uint32_t i = 0; i < count; i++) {
+      opt_alternate_title_ids_.push_back(alternate_titleids->values[i]);
+    }
+  }
+
   // Scan and find the low/high addresses.
   // All code sections are continuous, so this should be easy.
   auto heap = memory()->LookupHeap(base_address_);

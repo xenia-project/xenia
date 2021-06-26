@@ -113,7 +113,9 @@ struct X_KTHREAD {
   uint8_t unk_8B;                     // 0x8B
   uint8_t unk_8C[0x10];               // 0x8C
   xe::be<uint32_t> unk_9C;            // 0x9C
-  uint8_t unk_A0[0x1C];               // 0xA0
+  uint8_t unk_A0[0x10];               // 0xA0
+  int32_t apc_disable_count;          // 0xB0
+  uint8_t unk_B4[0x8];                // 0xB4
   uint8_t suspend_count;              // 0xBC
   uint8_t unk_BD;                     // 0xBD
   uint8_t unk_BE;                     // 0xBE
@@ -146,6 +148,9 @@ static_assert_size(X_KTHREAD, 0xAB0);
 class XThread : public XObject, public cpu::Thread {
  public:
   static const XObject::Type kObjectType = XObject::Type::Thread;
+
+  static constexpr uint32_t kStackAddressRangeBegin = 0x70000000;
+  static constexpr uint32_t kStackAddressRangeEnd = 0x7F000000;
 
   struct CreationParams {
     uint32_t stack_size;
@@ -192,8 +197,8 @@ class XThread : public XObject, public cpu::Thread {
 
   virtual void Reenter(uint32_t address);
 
-  static void EnterCriticalRegion();
-  static void LeaveCriticalRegion();
+  void EnterCriticalRegion();
+  void LeaveCriticalRegion();
   uint32_t RaiseIrql(uint32_t new_irql);
   void LowerIrql(uint32_t new_irql);
 
