@@ -152,88 +152,85 @@ class Logger {
           next_range.last(), last_sequence);
 
       size_t read_count = 0;
+      auto available_range = next_range;
+      auto available_count = available_range.size();
 
-      {
-        auto available_range = next_range;
-        auto available_count = available_range.size();
+      rb.set_write_offset(BlockOffset(available_range.end()));
 
-        rb.set_write_offset(BlockOffset(available_range.end()));
+      bool terminate = false;
+      for (size_t i = available_range.first(); i != available_range.end();) {
+        rb.set_read_offset(BlockOffset(i));
 
-        bool terminate = false;
-        for (size_t i = available_range.first(); i != available_range.end();) {
-          rb.set_read_offset(BlockOffset(i));
+        LogLine line;
+        rb.Read(&line, sizeof(line));
 
-          LogLine line;
-          rb.Read(&line, sizeof(line));
+        auto needed_count = BlockCount(sizeof(LogLine) + line.buffer_length);
+        if (read_count + needed_count > available_count) {
+          // More blocks are needed for a complete line.
+          desired_count = needed_count;
+          break;
+        } else {
+          // Enough blocks to read this log line, advance by that many.
+          read_count += needed_count;
+          i += needed_count;
 
-          auto needed_count = BlockCount(sizeof(LogLine) + line.buffer_length);
-          if (read_count + needed_count > available_count) {
-            // More blocks are needed for a complete line.
-            desired_count = needed_count;
-            break;
-          } else {
-            // Enough blocks to read this log line, advance by that many.
-            read_count += needed_count;
-            i += needed_count;
+          if (line.prefix_char) {
+            char prefix[] = {
+                line.prefix_char,
+                '>',
+                ' ',
+                '?',  // Thread ID gets placed here (8 chars).
+                '?',
+                '?',
+                '?',
+                '?',
+                '?',
+                '?',
+                '?',
+                ' ',
+                0,
+            };
+            fmt::format_to_n(prefix + 3, sizeof(prefix) - 3, "{:08X}",
+                             line.thread_id);
+            Write(prefix, sizeof(prefix) - 1);
+          }
 
-            if (line.prefix_char) {
-              char prefix[] = {
-                  line.prefix_char,
-                  '>',
-                  ' ',
-                  '?',  // Thread ID gets placed here (8 chars).
-                  '?',
-                  '?',
-                  '?',
-                  '?',
-                  '?',
-                  '?',
-                  '?',
-                  ' ',
-                  0,
-              };
-              fmt::format_to_n(prefix + 3, sizeof(prefix) - 3, "{:08X}",
-                               line.thread_id);
-              Write(prefix, sizeof(prefix) - 1);
+          if (line.buffer_length) {
+            // Get access to the line data - which may be split in the ring
+            // buffer - and write it out in parts.
+            auto line_range = rb.BeginRead(line.buffer_length);
+            Write(reinterpret_cast<const char*>(line_range.first),
+                  line_range.first_length);
+            if (line_range.second_length) {
+              Write(reinterpret_cast<const char*>(line_range.second),
+                    line_range.second_length);
             }
 
-            if (line.buffer_length) {
-              // Get access to the line data - which may be split in the ring
-              // buffer - and write it out in parts.
-              auto line_range = rb.BeginRead(line.buffer_length);
-              Write(reinterpret_cast<const char*>(line_range.first),
-                    line_range.first_length);
-              if (line_range.second_length) {
-                Write(reinterpret_cast<const char*>(line_range.second),
-                      line_range.second_length);
-              }
-
-              // Always ensure there is a newline.
-              char last_char =
-                  line_range.second
-                      ? line_range.second[line_range.second_length - 1]
-                      : line_range.first[line_range.first_length - 1];
-              if (last_char != '\n') {
-                const char suffix[1] = {'\n'};
-                Write(suffix, 1);
-              }
-
-              rb.EndRead(std::move(line_range));
-            } else {
-              // Always ensure there is a newline.
+            // Always ensure there is a newline.
+            char last_char =
+                line_range.second
+                    ? line_range.second[line_range.second_length - 1]
+                    : line_range.first[line_range.first_length - 1];
+            if (last_char != '\n') {
               const char suffix[1] = {'\n'};
               Write(suffix, 1);
             }
 
-            if (line.terminate) {
-              terminate = true;
-            }
+            rb.EndRead(std::move(line_range));
+          } else {
+            // Always ensure there is a newline.
+            const char suffix[1] = {'\n'};
+            Write(suffix, 1);
+          }
+
+          if (line.terminate) {
+            terminate = true;
           }
         }
+      }
 
-        if (terminate) {
-          break;
-        }
+      if (terminate) {
+        break;
       }
 
       if (read_count) {
