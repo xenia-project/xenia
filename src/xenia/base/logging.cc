@@ -225,6 +225,7 @@ class Logger {
 
           if (line.terminate) {
             terminate = true;
+            break;
           }
         }
       }
