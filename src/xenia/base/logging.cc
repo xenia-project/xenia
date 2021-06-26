@@ -58,7 +58,7 @@ struct LogLine {
   size_t buffer_length;
   uint32_t thread_id;
   uint16_t _pad_0;  // (2b) padding
-  uint8_t _pad_1;   // (1b) padding
+  bool terminate;
   char prefix_char;
 };
 
@@ -81,8 +81,7 @@ class Logger {
   explicit Logger(const std::string_view app_name)
       : wait_strategy_(),
         claim_strategy_(kBlockCount, wait_strategy_),
-        consumed_(wait_strategy_),
-        running_(true) {
+        consumed_(wait_strategy_) {
     claim_strategy_.add_claim_barrier(consumed_);
 
     write_thread_ =
@@ -91,7 +90,7 @@ class Logger {
   }
 
   ~Logger() {
-    running_ = false;
+    AppendLine(0, '\0', nullptr, 0, true);  // append a terminator
     xe::threading::Wait(write_thread_.get(), true);
   }
 
@@ -124,7 +123,6 @@ class Logger {
 
   std::vector<std::unique_ptr<LogSink>> sinks_;
 
-  std::atomic<bool> running_;
   std::unique_ptr<xe::threading::Thread> write_thread_;
 
   void Write(const char* buf, size_t size) {
@@ -153,19 +151,15 @@ class Logger {
       auto available_sequence = claim_strategy_.wait_until_published(
           next_range.last(), last_sequence);
 
-      auto available_difference =
-          dp::difference(available_sequence, next_sequence);
-
       size_t read_count = 0;
 
-      if (available_difference > 0 &&
-          static_cast<size_t>(available_difference) >= desired_count) {
-        auto available_range = dp::sequence_range(
-            next_sequence, static_cast<size_t>(available_difference));
+      {
+        auto available_range = next_range;
         auto available_count = available_range.size();
 
         rb.set_write_offset(BlockOffset(available_range.end()));
 
+        bool terminate = false;
         for (size_t i = available_range.first(); i != available_range.end();) {
           rb.set_read_offset(BlockOffset(i));
 
@@ -182,24 +176,26 @@ class Logger {
             read_count += needed_count;
             i += needed_count;
 
-            char prefix[] = {
-                line.prefix_char,
-                '>',
-                ' ',
-                '?',  // Thread ID gets placed here (8 chars).
-                '?',
-                '?',
-                '?',
-                '?',
-                '?',
-                '?',
-                '?',
-                ' ',
-                0,
-            };
-            fmt::format_to_n(prefix + 3, sizeof(prefix) - 3, "{:08X}",
-                             line.thread_id);
-            Write(prefix, sizeof(prefix) - 1);
+            if (line.prefix_char) {
+              char prefix[] = {
+                  line.prefix_char,
+                  '>',
+                  ' ',
+                  '?',  // Thread ID gets placed here (8 chars).
+                  '?',
+                  '?',
+                  '?',
+                  '?',
+                  '?',
+                  '?',
+                  '?',
+                  ' ',
+                  0,
+              };
+              fmt::format_to_n(prefix + 3, sizeof(prefix) - 3, "{:08X}",
+                               line.thread_id);
+              Write(prefix, sizeof(prefix) - 1);
+            }
 
             if (line.buffer_length) {
               // Get access to the line data - which may be split in the ring
@@ -228,7 +224,15 @@ class Logger {
               const char suffix[1] = {'\n'};
               Write(suffix, 1);
             }
+
+            if (line.terminate) {
+              terminate = true;
+            }
           }
+        }
+
+        if (terminate) {
+          break;
         }
       }
 
@@ -237,7 +241,7 @@ class Logger {
         auto read_range = dp::sequence_range(next_sequence, read_count);
         next_sequence = read_range.end();
         last_sequence = read_range.last();
-        consumed_.publish(read_range.last());
+        consumed_.publish(last_sequence);
 
         desired_count = 1;
 
@@ -249,9 +253,6 @@ class Logger {
 
         idle_loops = 0;
       } else {
-        if (!running_) {
-          break;
-        }
         if (idle_loops >= 1000) {
           // Introduce a waiting period.
           xe::threading::Sleep(std::chrono::milliseconds(50));
@@ -264,7 +265,8 @@ class Logger {
 
  public:
   void AppendLine(uint32_t thread_id, const char prefix_char,
-                  const char* buffer_data, size_t buffer_length) {
+                  const char* buffer_data, size_t buffer_length,
+                  bool terminate = false) {
     size_t count = BlockCount(sizeof(LogLine) + buffer_length);
 
     auto range = claim_strategy_.claim(count);
@@ -278,9 +280,12 @@ class Logger {
     line.buffer_length = buffer_length;
     line.thread_id = thread_id;
     line.prefix_char = prefix_char;
+    line.terminate = terminate;
 
     rb.Write(&line, sizeof(LogLine));
-    rb.Write(buffer_data, buffer_length);
+    if (buffer_length) {
+      rb.Write(buffer_data, buffer_length);
+    }
 
     claim_strategy_.publish(range);
   }
