@@ -99,7 +99,7 @@ Clang-9 or newer should be available from system repositories on all up to date 
 You will also need some development libraries. To get them on an Ubuntu system:
 
 ```bash
-sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libx11-dev libvulkan-dev libsdl2-dev libiberty-dev libunwind-dev libc++-dev libc++abi-dev
+sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libx11-dev libx11-xcb-dev libvulkan-dev libsdl2-dev libiberty-dev libunwind-dev libc++-dev libc++abi-dev
 ```
 
 In addition, you will need up to date Vulkan libraries and drivers for your hardware, which most distributions have in their standard repositories nowadays.

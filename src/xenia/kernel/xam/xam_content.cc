@@ -96,11 +96,12 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
   if (!device_info || device_info->device_id == DummyDeviceId::HDD) {
     // Get all content data.
     auto content_datas = kernel_state()->content_manager()->ListContent(
-        static_cast<uint32_t>(DummyDeviceId::HDD), content_type);
+        static_cast<uint32_t>(DummyDeviceId::HDD),
+        XContentType(uint32_t(content_type)));
     for (const auto& content_data : content_datas) {
       auto item = reinterpret_cast<XCONTENT_DATA*>(e->AppendItem());
       assert_not_null(item);
-      content_data.Write(item);
+      *item = content_data;
     }
   }
 
@@ -116,15 +117,23 @@ dword_result_t XamContentCreateEnumerator(dword_t user_index, dword_t device_id,
 }
 DECLARE_XAM_EXPORT1(XamContentCreateEnumerator, kContent, kImplemented);
 
-dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
-                                  lpvoid_t content_data_ptr, dword_t flags,
+dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
+                                  lpvoid_t content_data_ptr,
+                                  dword_t content_data_size, dword_t flags,
                                   lpdword_t disposition_ptr,
                                   lpdword_t license_mask_ptr,
                                   dword_t cache_size, qword_t content_size,
                                   lpvoid_t overlapped_ptr) {
   X_RESULT result = X_ERROR_INVALID_PARAMETER;
-  auto content_data =
-      static_cast<ContentData>(*content_data_ptr.as<XCONTENT_DATA*>());
+  XCONTENT_AGGREGATE_DATA content_data;
+  if (content_data_size == sizeof(XCONTENT_DATA)) {
+    content_data = *content_data_ptr.as<XCONTENT_DATA*>();
+  } else if (content_data_size == sizeof(XCONTENT_AGGREGATE_DATA)) {
+    content_data = *content_data_ptr.as<XCONTENT_AGGREGATE_DATA*>();
+  } else {
+    assert_always();
+    return result;
+  }
 
   auto content_manager = kernel_state()->content_manager();
   bool create = false;
@@ -210,6 +219,18 @@ dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
     return result;
   }
 }
+
+dword_result_t XamContentCreateEx(dword_t user_index, lpstring_t root_name,
+                                  lpvoid_t content_data_ptr, dword_t flags,
+                                  lpdword_t disposition_ptr,
+                                  lpdword_t license_mask_ptr,
+                                  dword_t cache_size, qword_t content_size,
+                                  lpvoid_t overlapped_ptr) {
+  return xeXamContentCreate(user_index, root_name, content_data_ptr,
+                            sizeof(XCONTENT_DATA), flags, disposition_ptr,
+                            license_mask_ptr, cache_size, content_size,
+                            overlapped_ptr);
+}
 DECLARE_XAM_EXPORT1(XamContentCreateEx, kContent, kImplemented);
 
 dword_result_t XamContentCreate(dword_t user_index, lpstring_t root_name,
@@ -217,9 +238,9 @@ dword_result_t XamContentCreate(dword_t user_index, lpstring_t root_name,
                                 lpdword_t disposition_ptr,
                                 lpdword_t license_mask_ptr,
                                 lpvoid_t overlapped_ptr) {
-  return XamContentCreateEx(user_index, root_name, content_data_ptr, flags,
-                            disposition_ptr, license_mask_ptr, 0, 0,
-                            overlapped_ptr);
+  return xeXamContentCreate(user_index, root_name, content_data_ptr,
+                            sizeof(XCONTENT_DATA), flags, disposition_ptr,
+                            license_mask_ptr, 0, 0, overlapped_ptr);
 }
 DECLARE_XAM_EXPORT1(XamContentCreate, kContent, kImplemented);
 
@@ -227,7 +248,8 @@ dword_result_t XamContentCreateInternal(
     lpstring_t root_name, lpvoid_t content_data_ptr, dword_t flags,
     lpdword_t disposition_ptr, lpdword_t license_mask_ptr, dword_t cache_size,
     qword_t content_size, lpvoid_t overlapped_ptr) {
-  return XamContentCreateEx(0xFE, root_name, content_data_ptr, flags,
+  return xeXamContentCreate(0xFE, root_name, content_data_ptr,
+                            sizeof(XCONTENT_AGGREGATE_DATA), flags,
                             disposition_ptr, license_mask_ptr, cache_size,
                             content_size, overlapped_ptr);
 }
@@ -277,14 +299,13 @@ dword_result_t XamContentGetCreator(dword_t user_index,
                                     lpunknown_t overlapped_ptr) {
   auto result = X_ERROR_SUCCESS;
 
-  auto content_data =
-      static_cast<ContentData>(*content_data_ptr.as<XCONTENT_DATA*>());
+  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
   bool content_exists =
       kernel_state()->content_manager()->ContentExists(content_data);
 
   if (content_exists) {
-    if (content_data.content_type == 1) {
+    if (content_data.content_type == XContentType::kSavedGame) {
       // User always creates saves.
       *is_creator_ptr = 1;
       if (creator_xuid_ptr) {
@@ -316,8 +337,7 @@ dword_result_t XamContentGetThumbnail(dword_t user_index,
                                       lpunknown_t overlapped_ptr) {
   assert_not_null(buffer_size_ptr);
   uint32_t buffer_size = *buffer_size_ptr;
-  auto content_data =
-      static_cast<ContentData>(*content_data_ptr.as<XCONTENT_DATA*>());
+  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
   // Get thumbnail (if it exists).
   std::vector<uint8_t> buffer;
@@ -353,8 +373,7 @@ dword_result_t XamContentSetThumbnail(dword_t user_index,
                                       lpvoid_t content_data_ptr,
                                       lpvoid_t buffer_ptr, dword_t buffer_size,
                                       lpunknown_t overlapped_ptr) {
-  auto content_data =
-      static_cast<ContentData>(*content_data_ptr.as<XCONTENT_DATA*>());
+  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
   // Buffer is PNG data.
   auto buffer = std::vector<uint8_t>((uint8_t*)buffer_ptr,
@@ -373,8 +392,7 @@ DECLARE_XAM_EXPORT1(XamContentSetThumbnail, kContent, kImplemented);
 
 dword_result_t XamContentDelete(dword_t user_index, lpvoid_t content_data_ptr,
                                 lpunknown_t overlapped_ptr) {
-  auto content_data =
-      static_cast<ContentData>(*content_data_ptr.as<XCONTENT_DATA*>());
+  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
   auto result = kernel_state()->content_manager()->DeleteContent(content_data);
 

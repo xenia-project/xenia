@@ -529,6 +529,13 @@ struct xex2_import_library {
   }
 };
 
+struct xex2_opt_generic_u32 {
+  xe::be<uint32_t> size;
+  xe::be<uint32_t> values[1];
+
+  uint32_t count() const { return (size - 4) / 4; }
+};
+
 struct xex2_opt_header {
   xe::be<uint32_t> key;  // 0x0
 

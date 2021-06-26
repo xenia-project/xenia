@@ -205,6 +205,10 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
 
     XELOGI("Removed handle:{:08X} for {}", handle, typeid(*object).name());
 
+    // Remove object name from mapping to prevent naming collision.
+    if (!object->name().empty()) {
+      RemoveNameMapping(object->name());
+    }
     // Release now that the object has been removed from the table.
     object->Release();
   }
