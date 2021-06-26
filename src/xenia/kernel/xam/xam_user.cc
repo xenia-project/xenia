@@ -547,7 +547,8 @@ DECLARE_XAM_EXPORT1(XamUserAreUsersFriends, kUserProfiles, kStub);
 dword_result_t XamShowSigninUI(dword_t unk, dword_t unk_mask) {
   // Mask values vary. Probably matching user types? Local/remote?
 
-  // To fix game modes that display a 4 profile signin UI (even if playing alone):
+  // To fix game modes that display a 4 profile signin UI (even if playing
+  // alone):
   // XN_SYS_SIGNINCHANGED
   kernel_state()->BroadcastNotification(0x0000000A, 1);
   // Games seem to sit and loop until we trigger this notification:
