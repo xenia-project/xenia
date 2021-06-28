@@ -13,9 +13,9 @@
 
 namespace xe {
 
-void LaunchWebBrowser(const std::string& url) {
-  auto temp = xe::to_utf16(url);
-  ShellExecuteW(nullptr, L"open", reinterpret_cast<LPCWSTR>(temp.c_str()),
+void LaunchWebBrowser(const std::string_view url) {
+  auto wide_url = xe::to_utf16(url);
+  ShellExecuteW(nullptr, L"open", reinterpret_cast<LPCWSTR>(wide_url.c_str()),
                 nullptr, nullptr, SW_SHOWNORMAL);
 }
 
