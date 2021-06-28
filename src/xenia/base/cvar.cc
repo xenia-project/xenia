@@ -16,6 +16,7 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
+#include "xenia/base/system.h"
 
 namespace utfcpp = utf8;
 
@@ -67,7 +68,8 @@ void ParseLaunchArguments(int& argc, char**& argv,
       if (xe::has_console_attached()) {
         PrintHelpAndExit();
       } else {
-        xe::ShowInfoMessageBox(options.help({""}));
+        xe::ShowSimpleMessageBox(xe::SimpleMessageBoxType::Help,
+                                 options.help({""}));
         exit(0);
       }
     }
@@ -92,7 +94,7 @@ void ParseLaunchArguments(int& argc, char**& argv,
     } else {
       std::string m =
           "Invalid launch options were given.\n" + options.help({""});
-      xe::ShowErrorMessageBox(m);
+      xe::ShowSimpleMessageBox(xe::SimpleMessageBoxType::Error, m);
       exit(0);
     }
   }

@@ -26,6 +26,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/string.h"
+#include "xenia/base/system.h"
 #include "xenia/base/threading.h"
 
 // For MessageBox:
@@ -353,28 +354,12 @@ void logging::AppendLogLine(LogLevel log_level, const char prefix_char,
 void FatalError(const std::string_view str) {
   logging::AppendLogLine(LogLevel::Error, 'X', str);
 
-#if XE_PLATFORM_WIN32
   if (!xe::has_console_attached()) {
-    MessageBoxW(NULL, (LPCWSTR)xe::to_utf16(str).c_str(), L"Xenia Error",
-                MB_OK | MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
+    ShowSimpleMessageBox(SimpleMessageBoxType::Error, str);
   }
-#endif  // WIN32
+
   ShutdownLogging();
   std::exit(1);
-}
-
-void ShowInfoMessageBox(std::string m) {
-#if XE_PLATFORM_WIN32
-  MessageBoxW(NULL, (LPCWSTR)xe::to_utf16(m).c_str(), L"Xenia Help",
-              MB_OK | MB_ICONINFORMATION | MB_APPLMODAL | MB_SETFOREGROUND);
-#endif  // WIN32
-}
-
-void ShowErrorMessageBox(std::string m) {
-#if XE_PLATFORM_WIN32
-  MessageBoxW(NULL, (LPCWSTR)xe::path_to_utf16(m).c_str(), L"Xenia Error",
-              MB_OK | MB_ICONERROR | MB_APPLMODAL | MB_SETFOREGROUND);
-#endif  // WIN32
 }
 
 }  // namespace xe

@@ -20,6 +20,15 @@ namespace xe {
 void LaunchWebBrowser(const std::string& url);
 void LaunchFileExplorer(const std::filesystem::path& path);
 
+enum class SimpleMessageBoxType {
+  Help,
+  Warning,
+  Error,
+};
+
+// This is expected to block the caller until the message box is closed.
+void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message);
+
 }  // namespace xe
 
 #endif  // XENIA_BASE_SYSTEM_H_
