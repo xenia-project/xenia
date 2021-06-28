@@ -517,6 +517,10 @@ bool CommandProcessor::ExecutePacket(RingBuffer* reader) {
     return true;
   }
 
+  if (packet == 0xCDCDCDCD) {
+    XELOGW("GPU packet is CDCDCDCD - probably read uninitialized memory!");
+  }
+
   switch (packet_type) {
     case 0x00:
       return ExecutePacketType0(reader, packet);
