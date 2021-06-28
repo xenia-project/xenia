@@ -357,11 +357,7 @@ dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
                            pointer_t<X_IO_STATUS_BLOCK> io_status_block,
                            lpvoid_t buffer, dword_t buffer_length,
                            lpqword_t byte_offset_ptr) {
-  // Async not supported yet.
-  assert_zero(apc_routine);
-
   X_STATUS result = X_STATUS_SUCCESS;
-  uint32_t info = 0;
 
   // Grab event to signal.
   bool signal_event = false;
@@ -386,17 +382,25 @@ dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
           buffer.guest_address(), buffer_length,
           byte_offset_ptr ? static_cast<uint64_t>(*byte_offset_ptr) : -1,
           &bytes_written, apc_context);
-      if (XSUCCEEDED(result)) {
-        info = bytes_written;
+
+      if (io_status_block) {
+        io_status_block->status = result;
+        io_status_block->information = static_cast<uint32_t>(bytes_written);
+      }
+
+      // Queue the APC callback. It must be delivered via the APC mechanism even
+      // though were are completing immediately.
+      // Low bit probably means do not queue to IO ports.
+      if ((uint32_t)apc_routine & ~1) {
+        if (apc_context) {
+          auto thread = XThread::GetCurrentThread();
+          thread->EnqueueApc(static_cast<uint32_t>(apc_routine) & ~1u,
+                             apc_context, io_status_block, 0);
+        }
       }
 
       if (!file->is_synchronous()) {
         result = X_STATUS_PENDING;
-      }
-
-      if (io_status_block) {
-        io_status_block->status = X_STATUS_SUCCESS;
-        io_status_block->information = info;
       }
 
       // Mark that we should signal the event now. We do this after
@@ -405,11 +409,10 @@ dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
     } else {
       // X_STATUS_PENDING if not returning immediately.
       result = X_STATUS_PENDING;
-      info = 0;
 
       if (io_status_block) {
-        io_status_block->status = X_STATUS_SUCCESS;
-        io_status_block->information = info;
+        io_status_block->status = X_STATUS_PENDING;
+        io_status_block->information = 0;
       }
     }
   }
