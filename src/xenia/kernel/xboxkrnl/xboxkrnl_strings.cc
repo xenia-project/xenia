@@ -830,7 +830,7 @@ SHIM_CALL DbgPrint_shim(PPCContext* ppc_context, KernelState* kernel_state) {
     return;
   }
 
-  XELOGD("(DbgPrint) {}", data.str());
+  XELOGI("(DbgPrint) {}", data.str());
 
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
