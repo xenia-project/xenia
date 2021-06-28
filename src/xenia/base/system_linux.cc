@@ -18,8 +18,9 @@
 
 namespace xe {
 
-void LaunchWebBrowser(const std::string& url) {
-  auto cmd = "xdg-open " + url;
+void LaunchWebBrowser(const std::string_view url) {
+  auto cmd = std::string("xdg-open ");
+  cmd.append(url);
   system(cmd.c_str());
 }
 
