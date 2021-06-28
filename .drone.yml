@@ -8,6 +8,7 @@ steps:
 - name: lint
   image: xeniaproject/buildenv:2021-06-21
   commands:
+  - clang-format --version
   - ./xenia-build lint --all
 
 ---
