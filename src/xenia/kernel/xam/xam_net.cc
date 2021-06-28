@@ -310,7 +310,7 @@ dword_result_t NetDll_WSARecvFrom(dword_t caller, dword_t socket,
   // return error so we don't wait on that - Cancerous
   return -1;
 }
-DECLARE_XAM_EXPORT1(NetDll_WSARecvFrom, kNetworking, kStub);
+DECLARE_XAM_EXPORT2(NetDll_WSARecvFrom, kNetworking, kStub, kHighFrequency);
 
 // If the socket is a VDP socket, buffer 0 is the game data length, and buffer 1
 // is the unencrypted game data.
