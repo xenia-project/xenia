@@ -426,6 +426,10 @@ int InstrEmit_sc(PPCHIRBuilder& f, const InstrData& i) {
   // Game code should only ever use LEV=0.
   // LEV=2 is to signify 'call import' from Xenia.
   // TODO(gibbed): syscalls!
+  if (i.SC.LEV == 0) {
+    f.CallExtern(f.builtins()->syscall_handler);
+    return 0;
+  }
   if (i.SC.LEV == 2) {
     f.CallExtern(f.function());
     return 0;
