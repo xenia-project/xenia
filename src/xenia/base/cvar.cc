@@ -65,6 +65,7 @@ void ParseLaunchArguments(int& argc, char**& argv,
 
     auto result = options.parse(argc, argv);
     if (result.count("help")) {
+      xe::AttachConsole();
       if (xe::has_console_attached()) {
         PrintHelpAndExit();
       } else {
@@ -88,6 +89,7 @@ void ParseLaunchArguments(int& argc, char**& argv,
       }
     }
   } catch (const cxxopts::OptionException& e) {
+    xe::AttachConsole();
     if (xe::has_console_attached()) {
       std::cout << e.what() << std::endl;
       PrintHelpAndExit();

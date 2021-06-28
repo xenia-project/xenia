@@ -18,6 +18,8 @@ namespace xe {
 
 bool has_console_attached() { return true; }
 
+void AttachConsole() {}
+
 }  // namespace xe
 
 extern "C" int main(int argc, char** argv) {
