@@ -50,10 +50,6 @@ bool has_shell_environment_variable() {
 }
 
 void AttachConsole() {
-  if (!cvars::enable_console) {
-    return;
-  }
-
   bool has_console = ::AttachConsole(ATTACH_PARENT_PROCESS) == TRUE;
   if (!has_console || !has_shell_environment_variable()) {
     // We weren't launched from a console, so just return.
@@ -145,7 +141,9 @@ int Main() {
 
   // Attach a console so we can write output to stdout. If the user hasn't
   // redirected output themselves it'll pop up a window.
-  xe::AttachConsole();
+  if (cvars::enable_console) {
+    xe::AttachConsole();
+  }
 
   // Setup COM on the main thread.
   // NOTE: this may fail if COM has already been initialized - that's OK.

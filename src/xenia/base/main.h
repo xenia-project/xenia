@@ -22,6 +22,8 @@ namespace xe {
 // Returns true if there is a user-visible console attached to receive stdout.
 bool has_console_attached();
 
+void AttachConsole();
+
 // Extern defined by user code. This must be present for the application to
 // launch.
 struct EntryInfo {
