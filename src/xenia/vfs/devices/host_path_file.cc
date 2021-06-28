@@ -25,7 +25,8 @@ void HostPathFile::Destroy() { delete this; }
 
 X_STATUS HostPathFile::ReadSync(void* buffer, size_t buffer_length,
                                 size_t byte_offset, size_t* out_bytes_read) {
-  if (!(file_access_ & FileAccess::kFileReadData)) {
+  if (!(file_access_ &
+        (FileAccess::kGenericRead | FileAccess::kFileReadData))) {
     return X_STATUS_ACCESS_DENIED;
   }
 
@@ -39,8 +40,8 @@ X_STATUS HostPathFile::ReadSync(void* buffer, size_t buffer_length,
 X_STATUS HostPathFile::WriteSync(const void* buffer, size_t buffer_length,
                                  size_t byte_offset,
                                  size_t* out_bytes_written) {
-  if (!(file_access_ &
-        (FileAccess::kFileWriteData | FileAccess::kFileAppendData))) {
+  if (!(file_access_ & (FileAccess::kGenericWrite | FileAccess::kFileWriteData |
+                        FileAccess::kFileAppendData))) {
     return X_STATUS_ACCESS_DENIED;
   }
 
@@ -53,7 +54,8 @@ X_STATUS HostPathFile::WriteSync(const void* buffer, size_t buffer_length,
 }
 
 X_STATUS HostPathFile::SetLength(size_t length) {
-  if (!(file_access_ & FileAccess::kFileWriteData)) {
+  if (!(file_access_ &
+        (FileAccess::kGenericWrite | FileAccess::kFileWriteData))) {
     return X_STATUS_ACCESS_DENIED;
   }
 
