@@ -25,4 +25,8 @@ void LaunchWebBrowser(const std::string& url) {
 
 void LaunchFileExplorer(const std::filesystem::path& path) { assert_always(); }
 
+void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message) {
+  assert_always();
+}
+
 }  // namespace xe
