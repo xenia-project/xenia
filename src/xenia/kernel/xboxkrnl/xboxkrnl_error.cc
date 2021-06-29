@@ -997,7 +997,7 @@ uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
       if (!result) {
         break;
       }
-      XELOGI("RtlNtStatusToDosError {:X} => {:X}", status, result);
+      XELOGI("xeRtlNtStatusToDosError {:X} => {:X}", status, result);
       return result;
     }
     ++error_table;
@@ -1007,7 +1007,7 @@ uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
     return status & 0xFFFF;
   }
 
-  XELOGE("RtlNtStatusToDosError lookup NOT IMPLEMENTED");
+  XELOGE("xeRtlNtStatusToDosError lookup NOT IMPLEMENTED");
   return 317;  // ERROR_MR_MID_NOT_FOUND
 }
 
