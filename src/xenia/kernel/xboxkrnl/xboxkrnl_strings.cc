@@ -833,7 +833,14 @@ SHIM_CALL DbgPrint_shim(PPCContext* ppc_context, KernelState* kernel_state) {
     return;
   }
 
-  XELOGI("(DbgPrint) {}", data.str());
+  // trim whitespace from end of message
+  auto str = data.str();
+  str.erase(std::find_if(str.rbegin(), str.rend(),
+                         [](uint8_t c) { return !std::isspace(c); })
+                .base(),
+            str.end());
+
+  XELOGI("(DbgPrint) {}", str);
 
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
