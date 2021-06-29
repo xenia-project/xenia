@@ -11,7 +11,7 @@
 #define XENIA_BASE_SYSTEM_H_
 
 #include <filesystem>
-#include <string>
+#include <string_view>
 
 #include "xenia/base/string.h"
 
