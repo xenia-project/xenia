@@ -7,27 +7,10 @@
  ******************************************************************************
  */
 
-#include <cstdlib>
-
-#include <string>
-
-#include "xenia/base/assert.h"
-#include "xenia/base/platform_linux.h"
-#include "xenia/base/string.h"
-#include "xenia/base/system.h"
+#include "xenia/base/demangle.h"
 
 namespace xe {
 
-void LaunchWebBrowser(const std::string_view url) {
-  auto cmd = std::string("xdg-open ");
-  cmd.append(url);
-  system(cmd.c_str());
-}
-
-void LaunchFileExplorer(const std::filesystem::path& path) { assert_always(); }
-
-void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message) {
-  assert_always();
-}
+std::string Demangle(const std::string& name) { return name; }
 
 }  // namespace xe

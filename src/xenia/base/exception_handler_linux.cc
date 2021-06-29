@@ -11,7 +11,6 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
-#include "xenia/base/platform_linux.h"
 
 namespace xe {
 
