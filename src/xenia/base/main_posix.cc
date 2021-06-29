@@ -7,6 +7,9 @@
  ******************************************************************************
  */
 
+#include <stdio.h>
+#include <unistd.h>
+
 #include "xenia/base/cvar.h"
 #include "xenia/base/main.h"
 
@@ -16,7 +19,7 @@
 
 namespace xe {
 
-bool has_console_attached() { return true; }
+bool has_console_attached() { return isatty(fileno(stdin)) == 1; }
 
 void AttachConsole() {}
 
