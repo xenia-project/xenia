@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -37,7 +37,7 @@ class XmaDecoder {
   void Shutdown();
 
   uint32_t context_array_ptr() const {
-    return register_file_.values[XE_XMA_REG_CONTEXT_ARRAY_ADDRESS].u32;
+    return register_file_[XmaRegister::ContextArrayAddress];
   }
 
   uint32_t AllocateContext();
