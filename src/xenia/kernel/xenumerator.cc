@@ -53,6 +53,7 @@ X_STATUS XEnumerator::Initialize(uint32_t user_index, uint32_t app_id,
 uint8_t* XStaticUntypedEnumerator::AppendItem() {
   size_t offset = buffer_.size();
   buffer_.resize(offset + item_size());
+  item_count_++;
   return const_cast<uint8_t*>(&buffer_.data()[offset]);
 }
 
