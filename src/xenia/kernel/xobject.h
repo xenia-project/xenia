@@ -348,6 +348,12 @@ bool operator!=(std::nullptr_t _Left, const object_ref<_Ty>& _Right) noexcept {
   return (!(_Left == _Right));
 }
 
+template <class T, class... Args>
+std::enable_if_t<!std::is_array<T>::value, object_ref<T>> make_object(
+    Args&&... args) {
+  return object_ref<T>(new T(std::forward<Args>(args)...));
+}
+
 template <typename T>
 object_ref<T> retain_object(T* ptr) {
   if (ptr) ptr->Retain();
