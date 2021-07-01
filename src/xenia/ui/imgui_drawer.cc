@@ -12,6 +12,7 @@
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/ui/window.h"
 
 namespace xe {
@@ -107,23 +108,23 @@ void ImGuiDrawer::Initialize() {
   style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.00f, 1.00f, 0.00f, 0.21f);
   style.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
 
-  io.KeyMap[ImGuiKey_Tab] = 0x09;  // VK_TAB;
-  io.KeyMap[ImGuiKey_LeftArrow] = 0x25;
-  io.KeyMap[ImGuiKey_RightArrow] = 0x27;
-  io.KeyMap[ImGuiKey_UpArrow] = 0x26;
-  io.KeyMap[ImGuiKey_DownArrow] = 0x28;
-  io.KeyMap[ImGuiKey_Home] = 0x24;
-  io.KeyMap[ImGuiKey_End] = 0x23;
-  io.KeyMap[ImGuiKey_Delete] = 0x2E;
-  io.KeyMap[ImGuiKey_Backspace] = 0x08;
-  io.KeyMap[ImGuiKey_Enter] = 0x0D;
-  io.KeyMap[ImGuiKey_Escape] = 0x1B;
-  io.KeyMap[ImGuiKey_A] = 'A';
-  io.KeyMap[ImGuiKey_C] = 'C';
-  io.KeyMap[ImGuiKey_V] = 'V';
-  io.KeyMap[ImGuiKey_X] = 'X';
-  io.KeyMap[ImGuiKey_Y] = 'Y';
-  io.KeyMap[ImGuiKey_Z] = 'Z';
+  io.KeyMap[ImGuiKey_Tab] = int(ui::VirtualKey::kTab);
+  io.KeyMap[ImGuiKey_LeftArrow] = int(ui::VirtualKey::kLeft);
+  io.KeyMap[ImGuiKey_RightArrow] = int(ui::VirtualKey::kRight);
+  io.KeyMap[ImGuiKey_UpArrow] = int(ui::VirtualKey::kUp);
+  io.KeyMap[ImGuiKey_DownArrow] = int(ui::VirtualKey::kDown);
+  io.KeyMap[ImGuiKey_Home] = int(ui::VirtualKey::kHome);
+  io.KeyMap[ImGuiKey_End] = int(ui::VirtualKey::kEnd);
+  io.KeyMap[ImGuiKey_Delete] = int(ui::VirtualKey::kDelete);
+  io.KeyMap[ImGuiKey_Backspace] = int(ui::VirtualKey::kBack);
+  io.KeyMap[ImGuiKey_Enter] = int(ui::VirtualKey::kReturn);
+  io.KeyMap[ImGuiKey_Escape] = int(ui::VirtualKey::kEscape);
+  io.KeyMap[ImGuiKey_A] = int(ui::VirtualKey::kA);
+  io.KeyMap[ImGuiKey_C] = int(ui::VirtualKey::kC);
+  io.KeyMap[ImGuiKey_V] = int(ui::VirtualKey::kV);
+  io.KeyMap[ImGuiKey_X] = int(ui::VirtualKey::kX);
+  io.KeyMap[ImGuiKey_Y] = int(ui::VirtualKey::kY);
+  io.KeyMap[ImGuiKey_Z] = int(ui::VirtualKey::kZ);
 }
 
 void ImGuiDrawer::SetupFont() {
@@ -228,36 +229,16 @@ void ImGuiDrawer::RenderDrawLists() {
   }
 }
 
-void ImGuiDrawer::OnKeyDown(KeyEvent* e) {
-  auto& io = GetIO();
-  io.KeysDown[e->key_code()] = true;
-  switch (e->key_code()) {
-    case 16: {
-      io.KeyShift = true;
-    } break;
-    case 17: {
-      io.KeyCtrl = true;
-    } break;
-  }
-}
+void ImGuiDrawer::OnKeyDown(KeyEvent* e) { OnKey(e, true); }
 
-void ImGuiDrawer::OnKeyUp(KeyEvent* e) {
-  auto& io = GetIO();
-  io.KeysDown[e->key_code()] = false;
-  switch (e->key_code()) {
-    case 16: {
-      io.KeyShift = false;
-    } break;
-    case 17: {
-      io.KeyCtrl = false;
-    } break;
-  }
-}
+void ImGuiDrawer::OnKeyUp(KeyEvent* e) { OnKey(e, false); }
 
 void ImGuiDrawer::OnKeyChar(KeyEvent* e) {
   auto& io = GetIO();
-  if (e->key_code() > 0 && e->key_code() < 0x10000) {
-    io.AddInputCharacter(e->key_code());
+  // TODO(Triang3l): Accept the Unicode character.
+  unsigned int character = static_cast<unsigned int>(e->virtual_key());
+  if (character > 0 && character < 0x10000) {
+    io.AddInputCharacter(character);
     e->set_handled(true);
   }
 }
@@ -325,6 +306,31 @@ void ImGuiDrawer::OnMouseWheel(MouseEvent* e) {
   auto& io = GetIO();
   io.MousePos = ImVec2(float(e->x()), float(e->y()));
   io.MouseWheel += float(e->dy() / 120.0f);
+}
+
+void ImGuiDrawer::OnKey(KeyEvent* e, bool is_down) {
+  auto& io = GetIO();
+  VirtualKey virtual_key = e->virtual_key();
+  if (size_t(virtual_key) < xe::countof(io.KeysDown)) {
+    io.KeysDown[size_t(virtual_key)] = is_down;
+  }
+  switch (virtual_key) {
+    case VirtualKey::kShift:
+      io.KeyShift = is_down;
+      break;
+    case VirtualKey::kControl:
+      io.KeyCtrl = is_down;
+      break;
+    case VirtualKey::kMenu:
+      // FIXME(Triang3l): Doesn't work in xenia-ui-window-demo.
+      io.KeyAlt = is_down;
+      break;
+    case VirtualKey::kLWin:
+      io.KeySuper = is_down;
+      break;
+    default:
+      break;
+  }
 }
 
 }  // namespace ui

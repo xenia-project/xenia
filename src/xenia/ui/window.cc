@@ -259,19 +259,20 @@ void Window::OnLostFocus(UIEvent* e) {
 
 void Window::OnKeyPress(KeyEvent* e, bool is_down, bool is_char) {
   if (!is_char) {
-    switch (e->key_code()) {
-      case 16:
+    switch (e->virtual_key()) {
+      case VirtualKey::kShift:
         modifier_shift_pressed_ = is_down;
         break;
-      case 17:
+      case VirtualKey::kControl:
         modifier_cntrl_pressed_ = is_down;
         break;
-      // case xx:
-      //  // alt ??
-      //  modifier_alt_pressed_ = is_down;
-      //  break;
-      case 91:
+      case VirtualKey::kMenu:
+        modifier_alt_pressed_ = is_down;
+        break;
+      case VirtualKey::kLWin:
         modifier_super_pressed_ = is_down;
+        break;
+      default:
         break;
     }
   }
