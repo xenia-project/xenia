@@ -194,10 +194,10 @@ enum class SurfaceNumFormat : uint32_t {
   kFloat = 7,
 };
 
-// The EDRAM is an opaque block of memory accessible by the RB pipeline stage of
-// the GPU, which performs output-merger functionality (color render target
-// writing and blending, depth and stencil testing) and resolve (copy)
-// operations.
+// The EDRAM is an opaque block of memory accessible by the RB (render backend)
+// pipeline stage of the GPU, which performs output-merger functionality (color
+// render target writing and blending, depth and stencil testing) and resolve
+// (copy) operations.
 //
 // Data in the 10 MiB of EDRAM is laid out as 2048 tiles on 80x16 32bpp MSAA
 // samples. With 2x MSAA, one pixel consists of 1x2 samples, and with 4x, it
