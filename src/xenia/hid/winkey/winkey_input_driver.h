@@ -14,6 +14,7 @@
 
 #include "xenia/base/mutex.h"
 #include "xenia/hid/input_driver.h"
+#include "xenia/ui/virtual_key.h"
 
 namespace xe {
 namespace hid {
@@ -35,7 +36,7 @@ class WinKeyInputDriver : public InputDriver {
 
  protected:
   struct KeyEvent {
-    int vkey = 0;
+    ui::VirtualKey virtual_key = ui::VirtualKey::kNone;
     int repeat_count = 0;
     bool transition = false;  // going up(false) or going down(true)
     bool prev_state = false;  // down(true) or up(false)

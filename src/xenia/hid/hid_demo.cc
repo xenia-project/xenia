@@ -10,8 +10,8 @@
 #include <array>
 #include <cstring>
 #include <forward_list>
-#include <map>
 #include <tuple>
+#include <unordered_map>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "third_party/imgui/imgui.h"
@@ -23,6 +23,7 @@
 #include "xenia/hid/hid_flags.h"
 #include "xenia/hid/input_system.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/virtual_key.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/window.h"
 
@@ -281,44 +282,42 @@ void DrawInputGetState() {
   ImGui::EndChild();
 }
 
-static const std::map<std::underlying_type<X_INPUT_GAMEPAD_VK>::type,
-                      const std::string>
-    vk_pretty = {
-        {X_INPUT_GAMEPAD_VK_A, "A"},
-        {X_INPUT_GAMEPAD_VK_B, "B"},
-        {X_INPUT_GAMEPAD_VK_X, "X"},
-        {X_INPUT_GAMEPAD_VK_Y, "Y"},
-        {X_INPUT_GAMEPAD_VK_RSHOULDER, "R Shoulder"},
-        {X_INPUT_GAMEPAD_VK_LSHOULDER, "L Shoulder"},
-        {X_INPUT_GAMEPAD_VK_LTRIGGER, "L Trigger"},
-        {X_INPUT_GAMEPAD_VK_RTRIGGER, "R Trigger"},
+static const std::unordered_map<ui::VirtualKey, const std::string> kVkPretty = {
+    {ui::VirtualKey::kXInputPadA, "A"},
+    {ui::VirtualKey::kXInputPadB, "B"},
+    {ui::VirtualKey::kXInputPadX, "X"},
+    {ui::VirtualKey::kXInputPadY, "Y"},
+    {ui::VirtualKey::kXInputPadRShoulder, "R Shoulder"},
+    {ui::VirtualKey::kXInputPadLShoulder, "L Shoulder"},
+    {ui::VirtualKey::kXInputPadLTrigger, "L Trigger"},
+    {ui::VirtualKey::kXInputPadRTrigger, "R Trigger"},
 
-        {X_INPUT_GAMEPAD_VK_DPAD_UP, "DPad up"},
-        {X_INPUT_GAMEPAD_VK_DPAD_DOWN, "DPad down"},
-        {X_INPUT_GAMEPAD_VK_DPAD_LEFT, "DPad left"},
-        {X_INPUT_GAMEPAD_VK_DPAD_RIGHT, "DPad right"},
-        {X_INPUT_GAMEPAD_VK_START, "Start"},
-        {X_INPUT_GAMEPAD_VK_BACK, "Back"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_PRESS, "L Thumb press"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_PRESS, "R Thumb press"},
+    {ui::VirtualKey::kXInputPadDpadUp, "DPad up"},
+    {ui::VirtualKey::kXInputPadDpadDown, "DPad down"},
+    {ui::VirtualKey::kXInputPadDpadLeft, "DPad left"},
+    {ui::VirtualKey::kXInputPadDpadRight, "DPad right"},
+    {ui::VirtualKey::kXInputPadStart, "Start"},
+    {ui::VirtualKey::kXInputPadBack, "Back"},
+    {ui::VirtualKey::kXInputPadLThumbPress, "L Thumb press"},
+    {ui::VirtualKey::kXInputPadRThumbPress, "R Thumb press"},
 
-        {X_INPUT_GAMEPAD_VK_LTHUMB_UP, "L Thumb up"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_DOWN, "L Thumb down"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_RIGHT, "L Thumb right"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_LEFT, "L Thumb left"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_UPLEFT, "L Thumb up & left"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_UPRIGHT, "L Thumb up & right"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_DOWNRIGHT, "L Thumb down & right"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_DOWNLEFT, "L Thumb down & left"},
+    {ui::VirtualKey::kXInputPadLThumbUp, "L Thumb up"},
+    {ui::VirtualKey::kXInputPadLThumbDown, "L Thumb down"},
+    {ui::VirtualKey::kXInputPadLThumbRight, "L Thumb right"},
+    {ui::VirtualKey::kXInputPadLThumbLeft, "L Thumb left"},
+    {ui::VirtualKey::kXInputPadLThumbUpLeft, "L Thumb up & left"},
+    {ui::VirtualKey::kXInputPadLThumbUpRight, "L Thumb up & right"},
+    {ui::VirtualKey::kXInputPadLThumbDownRight, "L Thumb down & right"},
+    {ui::VirtualKey::kXInputPadLThumbDownLeft, "L Thumb down & left"},
 
-        {X_INPUT_GAMEPAD_VK_RTHUMB_UP, "R Thumb up"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_DOWN, "R Thumb down"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_RIGHT, "R Thumb right"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_LEFT, "R Thumb left"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_UPLEFT, "R Thumb up & left"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_UPRIGHT, "R Thumb up & right"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_DOWNRIGHT, "R Thumb down & right"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_DOWNLEFT, "R Thumb down & left"},
+    {ui::VirtualKey::kXInputPadRThumbUp, "R Thumb up"},
+    {ui::VirtualKey::kXInputPadRThumbDown, "R Thumb down"},
+    {ui::VirtualKey::kXInputPadRThumbRight, "R Thumb right"},
+    {ui::VirtualKey::kXInputPadRThumbLeft, "R Thumb left"},
+    {ui::VirtualKey::kXInputPadRThumbUpLeft, "R Thumb up & left"},
+    {ui::VirtualKey::kXInputPadRThumbUpRight, "R Thumb up & right"},
+    {ui::VirtualKey::kXInputPadRThumbDownRight, "R Thumb down & right"},
+    {ui::VirtualKey::kXInputPadRThumbDownLeft, "R Thumb down & left"},
 };
 
 void DrawUserInputGetKeystroke(uint32_t user_index, bool poll,
@@ -354,10 +353,12 @@ void DrawUserInputGetKeystroke(uint32_t user_index, bool poll,
             break;
           }
 
-          const auto key_search = vk_pretty.find(stroke.virtual_key);
-          const auto key = key_search != vk_pretty.end()
-                               ? key_search->second
-                               : fmt::format("0x{:04x}", stroke.virtual_key);
+          ui::VirtualKey virtual_key = ui::VirtualKey(stroke.virtual_key.get());
+          const auto key_search = kVkPretty.find(virtual_key);
+          std::string key =
+              key_search != kVkPretty.cend()
+                  ? key_search->second
+                  : fmt::format("0x{:04x}", uint16_t(virtual_key));
           event_log.emplace_front(fmt::format(
               "{:>6} {:>9}ms    {:<20}    {} {} {}", ImGui::GetFrameCount(),
               dur, key,
