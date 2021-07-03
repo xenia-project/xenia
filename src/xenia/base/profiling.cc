@@ -30,6 +30,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/profiling.h"
+#include "xenia/ui/virtual_key.h"
 #include "xenia/ui/window.h"
 
 #if XE_OPTION_PROFILING
@@ -112,31 +113,35 @@ void Profiler::ThreadEnter(const char* name) {
 
 void Profiler::ThreadExit() { MicroProfileOnThreadExit(); }
 
-bool Profiler::OnKeyDown(int key_code) {
+bool Profiler::OnKeyDown(ui::VirtualKey virtual_key) {
   // https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
-  switch (key_code) {
-    case VK_OEM_3:  // `
+  switch (virtual_key) {
+    case ui::VirtualKey::kOem3:  // `
       MicroProfileTogglePause();
       return true;
 #if XE_OPTION_PROFILING_UI
-    case VK_TAB:
+    case ui::VirtualKey::kTab:
       MicroProfileToggleDisplayMode();
       return true;
-    case 0x31:  // 1
+    case ui::VirtualKey::k1:
       MicroProfileModKey(1);
       return true;
 #endif  // XE_OPTION_PROFILING_UI
+    default:
+      break;
   }
   return false;
 }
 
-bool Profiler::OnKeyUp(int key_code) {
-  switch (key_code) {
+bool Profiler::OnKeyUp(ui::VirtualKey virtual_key) {
+  switch (virtual_key) {
 #if XE_OPTION_PROFILING_UI
-    case 0x31:  // 1
+    case ui::VirtualKey::k1:
       MicroProfileModKey(0);
       return true;
 #endif  // XE_OPTION_PROFILING_UI
+    default:
+      break;
   }
   return false;
 }
@@ -219,14 +224,14 @@ void Profiler::set_window(ui::Window* window) {
   // Watch for toggle/mode keys and such.
   window_->on_key_down.AddListener([](ui::KeyEvent* e) {
     if (Profiler::is_visible()) {
-      Profiler::OnKeyDown(e->key_code());
+      Profiler::OnKeyDown(e->virtual_key());
       e->set_handled(true);
       window_->Invalidate();
     }
   });
   window_->on_key_up.AddListener([](ui::KeyEvent* e) {
     if (Profiler::is_visible()) {
-      Profiler::OnKeyUp(e->key_code());
+      Profiler::OnKeyUp(e->virtual_key());
       e->set_handled(true);
       window_->Invalidate();
     }
@@ -257,8 +262,8 @@ void Profiler::Shutdown() {}
 uint32_t Profiler::GetColor(const char* str) { return 0; }
 void Profiler::ThreadEnter(const char* name) {}
 void Profiler::ThreadExit() {}
-bool Profiler::OnKeyDown(int key_code) { return false; }
-bool Profiler::OnKeyUp(int key_code) { return false; }
+bool Profiler::OnKeyDown(ui::VirtualKey virtual_key) { return false; }
+bool Profiler::OnKeyUp(ui::VirtualKey virtual_key) { return false; }
 void Profiler::OnMouseDown(bool left_button, bool right_button) {}
 void Profiler::OnMouseUp() {}
 void Profiler::OnMouseMove(int x, int y) {}

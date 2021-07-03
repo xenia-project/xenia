@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -426,6 +426,10 @@ int InstrEmit_sc(PPCHIRBuilder& f, const InstrData& i) {
   // Game code should only ever use LEV=0.
   // LEV=2 is to signify 'call import' from Xenia.
   // TODO(gibbed): syscalls!
+  if (i.SC.LEV == 0) {
+    f.CallExtern(f.builtins()->syscall_handler);
+    return 0;
+  }
   if (i.SC.LEV == 2) {
     f.CallExtern(f.function());
     return 0;
@@ -806,6 +810,6 @@ void RegisterEmitCategoryControl() {
   XEREGISTERINSTR(mtmsrd);
 }
 
+}  // namespace ppc
 }  // namespace cpu
-}  // namespace xe
 }  // namespace xe

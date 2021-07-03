@@ -20,6 +20,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/helper/sdl/sdl_helper.h"
 #include "xenia/hid/hid_flags.h"
+#include "xenia/ui/virtual_key.h"
 #include "xenia/ui/window.h"
 
 // TODO(joellinn) make this path relative to the config folder.
@@ -238,48 +239,46 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
   // The order of this list is also the order in which events are send if
   // multiple buttons change at once.
   static_assert(sizeof(X_INPUT_GAMEPAD::buttons) == 2);
-  static constexpr std::array<std::underlying_type<X_INPUT_GAMEPAD_VK>::type,
-                              34>
-      vk_lookup = {
-          // 00 - True buttons from xinput button field
-          X_INPUT_GAMEPAD_VK_DPAD_UP,
-          X_INPUT_GAMEPAD_VK_DPAD_DOWN,
-          X_INPUT_GAMEPAD_VK_DPAD_LEFT,
-          X_INPUT_GAMEPAD_VK_DPAD_RIGHT,
-          X_INPUT_GAMEPAD_VK_START,
-          X_INPUT_GAMEPAD_VK_BACK,
-          X_INPUT_GAMEPAD_VK_LTHUMB_PRESS,
-          X_INPUT_GAMEPAD_VK_RTHUMB_PRESS,
-          X_INPUT_GAMEPAD_VK_LSHOULDER,
-          X_INPUT_GAMEPAD_VK_RSHOULDER,
-          0, /* Guide has no VK */
-          0, /* Unknown */
-          X_INPUT_GAMEPAD_VK_A,
-          X_INPUT_GAMEPAD_VK_B,
-          X_INPUT_GAMEPAD_VK_X,
-          X_INPUT_GAMEPAD_VK_Y,
-          // 16 - Fake buttons generated from analog inputs
-          X_INPUT_GAMEPAD_VK_LTRIGGER,
-          X_INPUT_GAMEPAD_VK_RTRIGGER,
-          // 18
-          X_INPUT_GAMEPAD_VK_LTHUMB_UP,
-          X_INPUT_GAMEPAD_VK_LTHUMB_DOWN,
-          X_INPUT_GAMEPAD_VK_LTHUMB_RIGHT,
-          X_INPUT_GAMEPAD_VK_LTHUMB_LEFT,
-          X_INPUT_GAMEPAD_VK_LTHUMB_UPLEFT,
-          X_INPUT_GAMEPAD_VK_LTHUMB_UPRIGHT,
-          X_INPUT_GAMEPAD_VK_LTHUMB_DOWNRIGHT,
-          X_INPUT_GAMEPAD_VK_LTHUMB_DOWNLEFT,
-          // 26
-          X_INPUT_GAMEPAD_VK_RTHUMB_UP,
-          X_INPUT_GAMEPAD_VK_RTHUMB_DOWN,
-          X_INPUT_GAMEPAD_VK_RTHUMB_RIGHT,
-          X_INPUT_GAMEPAD_VK_RTHUMB_LEFT,
-          X_INPUT_GAMEPAD_VK_RTHUMB_UPLEFT,
-          X_INPUT_GAMEPAD_VK_RTHUMB_UPRIGHT,
-          X_INPUT_GAMEPAD_VK_RTHUMB_DOWNRIGHT,
-          X_INPUT_GAMEPAD_VK_RTHUMB_DOWNLEFT,
-      };
+  static constexpr std::array<ui::VirtualKey, 34> kVkLookup = {
+      // 00 - True buttons from xinput button field
+      ui::VirtualKey::kXInputPadDpadUp,
+      ui::VirtualKey::kXInputPadDpadDown,
+      ui::VirtualKey::kXInputPadDpadLeft,
+      ui::VirtualKey::kXInputPadDpadRight,
+      ui::VirtualKey::kXInputPadStart,
+      ui::VirtualKey::kXInputPadBack,
+      ui::VirtualKey::kXInputPadLThumbPress,
+      ui::VirtualKey::kXInputPadRThumbPress,
+      ui::VirtualKey::kXInputPadLShoulder,
+      ui::VirtualKey::kXInputPadRShoulder,
+      ui::VirtualKey::kNone, /* Guide has no VK */
+      ui::VirtualKey::kNone, /* Unknown */
+      ui::VirtualKey::kXInputPadA,
+      ui::VirtualKey::kXInputPadB,
+      ui::VirtualKey::kXInputPadX,
+      ui::VirtualKey::kXInputPadY,
+      // 16 - Fake buttons generated from analog inputs
+      ui::VirtualKey::kXInputPadLTrigger,
+      ui::VirtualKey::kXInputPadRTrigger,
+      // 18
+      ui::VirtualKey::kXInputPadLThumbUp,
+      ui::VirtualKey::kXInputPadLThumbDown,
+      ui::VirtualKey::kXInputPadLThumbRight,
+      ui::VirtualKey::kXInputPadLThumbLeft,
+      ui::VirtualKey::kXInputPadLThumbUpLeft,
+      ui::VirtualKey::kXInputPadLThumbUpRight,
+      ui::VirtualKey::kXInputPadLThumbDownRight,
+      ui::VirtualKey::kXInputPadLThumbDownLeft,
+      // 26
+      ui::VirtualKey::kXInputPadRThumbUp,
+      ui::VirtualKey::kXInputPadRThumbDown,
+      ui::VirtualKey::kXInputPadRThumbRight,
+      ui::VirtualKey::kXInputPadRThumbLeft,
+      ui::VirtualKey::kXInputPadRThumbUpLeft,
+      ui::VirtualKey::kXInputPadRThumbUpRight,
+      ui::VirtualKey::kXInputPadRThumbDownRight,
+      ui::VirtualKey::kXInputPadRThumbDownLeft,
+  };
 
   auto is_active = this->is_active();
 
@@ -319,9 +318,9 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
     if (last.repeat_state == RepeatState::Repeating &&
         (last.repeat_time + HID_SDL_REPEAT_RATE < guest_now)) {
       last.repeat_time = guest_now;
-      auto vk = vk_lookup.at(last.repeat_butt_idx);
-      assert_not_zero(vk);
-      out_keystroke->virtual_key = vk;
+      ui::VirtualKey vk = kVkLookup.at(last.repeat_butt_idx);
+      assert_true(vk != ui::VirtualKey::kNone);
+      out_keystroke->virtual_key = uint16_t(vk);
       out_keystroke->unicode = 0;
       out_keystroke->user_index = user_index;
       out_keystroke->hid_code = 0;
@@ -340,17 +339,17 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
     // up before THUMB_LEFT is down.
     for (auto [clear_pass, i] = std::tuple{true, 0}; i < 2;
          clear_pass = false, i++) {
-      for (uint8_t i = 0; i < std::size(vk_lookup); i++) {
+      for (uint8_t i = 0; i < uint8_t(std::size(kVkLookup)); i++) {
         auto fbutton = uint64_t(1) << i;
         if (!(butts_changed & fbutton)) {
           continue;
         }
-        auto vk = vk_lookup.at(i);
-        if (!vk) {
+        ui::VirtualKey vk = kVkLookup.at(last.repeat_butt_idx);
+        if (vk == ui::VirtualKey::kNone) {
           continue;
         }
 
-        out_keystroke->virtual_key = vk;
+        out_keystroke->virtual_key = uint16_t(vk);
         out_keystroke->unicode = 0;
         out_keystroke->user_index = user_index;
         out_keystroke->hid_code = 0;

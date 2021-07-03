@@ -1321,7 +1321,7 @@ def find_xenia_source_files():
     return [os.path.join(root, name)
             for root, dirs, files in os.walk('src')
             for name in files
-            if name.endswith(('.cc', '.c', '.h', '.inl'))]
+            if name.endswith(('.cc', '.c', '.h', '.inl', '.inc'))]
 
 
 def find_all_source_files():

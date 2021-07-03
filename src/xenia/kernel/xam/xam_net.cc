@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -306,9 +306,11 @@ dword_result_t NetDll_WSARecvFrom(dword_t caller, dword_t socket,
     //}
   }
 
-  return 0;
+  // we're not going to be receiving packets any time soon
+  // return error so we don't wait on that - Cancerous
+  return -1;
 }
-DECLARE_XAM_EXPORT1(NetDll_WSARecvFrom, kNetworking, kStub);
+DECLARE_XAM_EXPORT2(NetDll_WSARecvFrom, kNetworking, kStub, kHighFrequency);
 
 // If the socket is a VDP socket, buffer 0 is the game data length, and buffer 1
 // is the unencrypted game data.
