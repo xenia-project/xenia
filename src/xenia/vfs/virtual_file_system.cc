@@ -117,7 +117,11 @@ Entry* VirtualFileSystem::ResolvePath(const std::string_view path) {
         return xe::utf8::starts_with(normalized_path, d->mount_path());
       });
   if (it == devices_.cend()) {
-    XELOGE("ResolvePath({}) failed - device not found", path);
+    // Supress logging the error for ShaderDumpxe:\CompareBackEnds as this is
+    // not an actual problem nor something we care about.
+    if (path != "ShaderDumpxe:\\CompareBackEnds") {
+      XELOGE("ResolvePath({}) failed - device not found", path);
+    }
     return nullptr;
   }
 

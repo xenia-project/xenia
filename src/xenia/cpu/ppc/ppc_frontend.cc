@@ -10,6 +10,7 @@
 #include "xenia/cpu/ppc/ppc_frontend.h"
 
 #include "xenia/base/atomic.h"
+#include "xenia/base/logging.h"
 #include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/ppc/ppc_emit.h"
 #include "xenia/cpu/ppc/ppc_opcode_info.h"
@@ -78,6 +79,17 @@ void LeaveGlobalLock(PPCContext* ppc_context, void* arg0, void* arg1) {
   global_mutex->unlock();
 }
 
+void SyscallHandler(PPCContext* ppc_context, void* arg0, void* arg1) {
+  uint64_t syscall_number = ppc_context->r[0];
+  switch (syscall_number) {
+    default:
+      assert_unhandled_case(syscall_number);
+      XELOGE("Unhandled syscall {}!", syscall_number);
+      break;
+#pragma warning(suppress : 4065)
+  }
+}
+
 bool PPCFrontend::Initialize() {
   void* arg0 = reinterpret_cast<void*>(&xe::global_critical_region::mutex());
   void* arg1 = reinterpret_cast<void*>(&builtins_.global_lock_count);
@@ -87,6 +99,8 @@ bool PPCFrontend::Initialize() {
       processor_->DefineBuiltin("EnterGlobalLock", EnterGlobalLock, arg0, arg1);
   builtins_.leave_global_lock =
       processor_->DefineBuiltin("LeaveGlobalLock", LeaveGlobalLock, arg0, arg1);
+  builtins_.syscall_handler = processor_->DefineBuiltin(
+      "SyscallHandler", SyscallHandler, nullptr, nullptr);
   return true;
 }
 

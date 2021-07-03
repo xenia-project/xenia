@@ -81,20 +81,23 @@ inline T byte_swap(T value) {
 template <typename T, std::endian E>
 struct endian_store {
   endian_store() = default;
-  endian_store(const T& src) {
+  endian_store(const T& src) { set(src); }
+  endian_store(const endian_store& other) { set(other); }
+  operator T() const { return get(); }
+
+  void set(const T& src) {
     if constexpr (std::endian::native == E) {
       value = src;
     } else {
       value = xe::byte_swap(src);
     }
   }
-  endian_store(const endian_store& other) { value = other.value; }
-  operator T() const {
+  void set(const endian_store& other) { value = other.value; }
+  T get() const {
     if constexpr (std::endian::native == E) {
       return value;
-    } else {
-      return xe::byte_swap(value);
     }
+    return xe::byte_swap(value);
   }
 
   endian_store<T, E>& operator+=(int a) {

@@ -38,8 +38,22 @@ bool has_console_attached_ = true;
 
 bool has_console_attached() { return has_console_attached_; }
 
+bool has_shell_environment_variable() {
+  size_t size = 0;
+  // Check if SHELL exists
+  // If it doesn't, then we are in a Windows Terminal
+  auto error = getenv_s(&size, nullptr, 0, "SHELL");
+  if (error) {
+    return false;
+  }
+  return !!size;
+}
+
 void AttachConsole() {
-  if (!cvars::enable_console) {
+  bool has_console = ::AttachConsole(ATTACH_PARENT_PROCESS) == TRUE;
+  if (!has_console || !has_shell_environment_variable()) {
+    // We weren't launched from a console, so just return.
+    has_console_attached_ = false;
     return;
   }
 
@@ -127,7 +141,9 @@ int Main() {
 
   // Attach a console so we can write output to stdout. If the user hasn't
   // redirected output themselves it'll pop up a window.
-  xe::AttachConsole();
+  if (cvars::enable_console) {
+    xe::AttachConsole();
+  }
 
   // Setup COM on the main thread.
   // NOTE: this may fail if COM has already been initialized - that's OK.
