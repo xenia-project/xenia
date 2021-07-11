@@ -26,39 +26,37 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
-#define VK_SAFE_DESTROY(fn, dev, obj, alloc) \
-                                             \
-  do {                                       \
-    if (obj) {                               \
-      fn(dev, obj, alloc);                   \
-      obj = nullptr;                         \
-    }                                        \
-                                             \
-  } while (0)
-
-class Fence {
- public:
-  Fence(VkDevice device) : device_(device) {
-    VkFenceCreateInfo fence_info;
-    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fence_info.pNext = nullptr;
-    fence_info.flags = 0;
-    vkCreateFence(device, &fence_info, nullptr, &fence_);
+template <typename F, typename T>
+inline bool DestroyAndNullHandle(F* destroy_function, T& handle) {
+  if (handle != VK_NULL_HANDLE) {
+    destroy_function(handle, nullptr);
+    handle = VK_NULL_HANDLE;
+    return true;
   }
-  ~Fence() {
-    vkDestroyFence(device_, fence_, nullptr);
-    fence_ = nullptr;
+  return false;
+}
+
+template <typename F, typename T>
+inline bool DestroyAndNullHandle(F* destroy_function, VkInstance parent,
+                                 T& handle) {
+  if (handle != VK_NULL_HANDLE) {
+    destroy_function(parent, handle, nullptr);
+    handle = VK_NULL_HANDLE;
+    return true;
   }
+  return false;
+}
 
-  VkResult status() const { return vkGetFenceStatus(device_, fence_); }
-
-  VkFence fence() const { return fence_; }
-  operator VkFence() const { return fence_; }
-
- private:
-  VkDevice device_;
-  VkFence fence_ = nullptr;
-};
+template <typename F, typename T>
+inline bool DestroyAndNullHandle(F* destroy_function, VkDevice parent,
+                                 T& handle) {
+  if (handle != VK_NULL_HANDLE) {
+    destroy_function(parent, handle, nullptr);
+    handle = VK_NULL_HANDLE;
+    return true;
+  }
+  return false;
+}
 
 struct Version {
   uint32_t major;

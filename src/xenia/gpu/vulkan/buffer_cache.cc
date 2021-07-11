@@ -120,7 +120,7 @@ VkResult BufferCache::Initialize() {
 
   // Create a memory allocator for textures.
   VmaVulkanFunctions vulkan_funcs = {};
-  ui::vulkan::FillVMAVulkanFunctions(&vulkan_funcs);
+  ui::vulkan::FillVMAVulkanFunctions(&vulkan_funcs, *device_);
 
   VmaAllocatorCreateInfo alloc_info = {
       0, *device_, *device_, 0, 0, nullptr, nullptr, 0, nullptr, &vulkan_funcs,
@@ -144,7 +144,8 @@ VkResult BufferCache::Initialize() {
   return VK_SUCCESS;
 }
 
-VkResult xe::gpu::vulkan::BufferCache::CreateVertexDescriptorPool() {
+VkResult BufferCache::CreateVertexDescriptorPool() {
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   VkResult status;
 
   std::vector<VkDescriptorPoolSize> pool_sizes;
@@ -170,8 +171,8 @@ VkResult xe::gpu::vulkan::BufferCache::CreateVertexDescriptorPool() {
       1,
       &binding,
   };
-  status = vkCreateDescriptorSetLayout(*device_, &layout_info, nullptr,
-                                       &vertex_descriptor_set_layout_);
+  status = dfn.vkCreateDescriptorSetLayout(*device_, &layout_info, nullptr,
+                                           &vertex_descriptor_set_layout_);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -179,14 +180,16 @@ VkResult xe::gpu::vulkan::BufferCache::CreateVertexDescriptorPool() {
   return VK_SUCCESS;
 }
 
-void xe::gpu::vulkan::BufferCache::FreeVertexDescriptorPool() {
+void BufferCache::FreeVertexDescriptorPool() {
   vertex_descriptor_pool_.reset();
 
-  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
-                  vertex_descriptor_set_layout_, nullptr);
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  ui::vulkan::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, *device_,
+                                   vertex_descriptor_set_layout_);
 }
 
 VkResult BufferCache::CreateConstantDescriptorSet() {
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   VkResult status = VK_SUCCESS;
 
   // Descriptor pool used for all of our cached descriptors.
@@ -204,8 +207,8 @@ VkResult BufferCache::CreateConstantDescriptorSet() {
   pool_sizes[0].descriptorCount = 2;
   transient_descriptor_pool_info.poolSizeCount = 1;
   transient_descriptor_pool_info.pPoolSizes = pool_sizes;
-  status = vkCreateDescriptorPool(*device_, &transient_descriptor_pool_info,
-                                  nullptr, &constant_descriptor_pool_);
+  status = dfn.vkCreateDescriptorPool(*device_, &transient_descriptor_pool_info,
+                                      nullptr, &constant_descriptor_pool_);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -237,9 +240,9 @@ VkResult BufferCache::CreateConstantDescriptorSet() {
   descriptor_set_layout_info.bindingCount =
       static_cast<uint32_t>(xe::countof(bindings));
   descriptor_set_layout_info.pBindings = bindings;
-  status =
-      vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
-                                  nullptr, &constant_descriptor_set_layout_);
+  status = dfn.vkCreateDescriptorSetLayout(*device_,
+                                           &descriptor_set_layout_info, nullptr,
+                                           &constant_descriptor_set_layout_);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -253,8 +256,8 @@ VkResult BufferCache::CreateConstantDescriptorSet() {
   set_alloc_info.descriptorPool = constant_descriptor_pool_;
   set_alloc_info.descriptorSetCount = 1;
   set_alloc_info.pSetLayouts = &constant_descriptor_set_layout_;
-  status = vkAllocateDescriptorSets(*device_, &set_alloc_info,
-                                    &constant_descriptor_set_);
+  status = dfn.vkAllocateDescriptorSets(*device_, &set_alloc_info,
+                                        &constant_descriptor_set_);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -286,22 +289,24 @@ VkResult BufferCache::CreateConstantDescriptorSet() {
   fragment_uniform_binding_write.descriptorType =
       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
   fragment_uniform_binding_write.pBufferInfo = &buffer_info;
-  vkUpdateDescriptorSets(*device_, 2, descriptor_writes, 0, nullptr);
+  dfn.vkUpdateDescriptorSets(*device_, 2, descriptor_writes, 0, nullptr);
 
   return VK_SUCCESS;
 }
 
 void BufferCache::FreeConstantDescriptorSet() {
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+
   if (constant_descriptor_set_) {
-    vkFreeDescriptorSets(*device_, constant_descriptor_pool_, 1,
-                         &constant_descriptor_set_);
+    dfn.vkFreeDescriptorSets(*device_, constant_descriptor_pool_, 1,
+                             &constant_descriptor_set_);
     constant_descriptor_set_ = nullptr;
   }
 
-  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device_,
-                  constant_descriptor_set_layout_, nullptr);
-  VK_SAFE_DESTROY(vkDestroyDescriptorPool, *device_, constant_descriptor_pool_,
-                  nullptr);
+  ui::vulkan::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, *device_,
+                                   constant_descriptor_set_layout_);
+  ui::vulkan::DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, *device_,
+                                   constant_descriptor_pool_);
 }
 
 void BufferCache::Shutdown() {
@@ -314,7 +319,9 @@ void BufferCache::Shutdown() {
   FreeVertexDescriptorPool();
 
   transient_buffer_->Shutdown();
-  VK_SAFE_DESTROY(vkFreeMemory, *device_, gpu_memory_pool_, nullptr);
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  ui::vulkan::DestroyAndNullHandle(dfn.vkFreeMemory, *device_,
+                                   gpu_memory_pool_);
 }
 
 std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
@@ -361,9 +368,10 @@ std::pair<VkDeviceSize, VkDeviceSize> BufferCache::UploadConstantRegisters(
       offset,
       kConstantRegisterUniformRange,
   };
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_HOST_BIT,
-                       VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 1,
-                       &barrier, 0, nullptr);
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  dfn.vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_HOST_BIT,
+                           VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 1,
+                           &barrier, 0, nullptr);
 
   return {offset, offset};
 
@@ -476,9 +484,10 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadIndexBuffer(
       offset,
       source_length,
   };
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_HOST_BIT,
-                       VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1,
-                       &barrier, 0, nullptr);
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  dfn.vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_HOST_BIT,
+                           VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1,
+                           &barrier, 0, nullptr);
 
   return {transient_buffer_->gpu_buffer(), offset};
 }
@@ -543,9 +552,10 @@ std::pair<VkBuffer, VkDeviceSize> BufferCache::UploadVertexBuffer(
       offset,
       upload_size,
   };
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_HOST_BIT,
-                       VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr, 1,
-                       &barrier, 0, nullptr);
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  dfn.vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_HOST_BIT,
+                           VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr,
+                           1, &barrier, 0, nullptr);
 
   CacheTransientData(upload_base, upload_size, offset);
   return {transient_buffer_->gpu_buffer(), offset + source_offset};
@@ -687,7 +697,8 @@ VkDescriptorSet BufferCache::PrepareVertexSet(
     };
   }
 
-  vkUpdateDescriptorSets(*device_, 1, &descriptor_write, 0, nullptr);
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  dfn.vkUpdateDescriptorSets(*device_, 1, &descriptor_write, 0, nullptr);
   vertex_sets_[hash] = set;
   return set;
 }
@@ -760,13 +771,15 @@ void BufferCache::CacheTransientData(uint32_t guest_address,
 }
 
 void BufferCache::Flush(VkCommandBuffer command_buffer) {
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+
   // If we are flushing a big enough chunk queue up an event.
   // We don't want to do this for everything but often enough so that we won't
   // run out of space.
   if (true) {
     // VkEvent finish_event;
-    // vkCmdSetEvent(cmd_buffer, finish_event,
-    //              VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+    // dfn.vkCmdSetEvent(cmd_buffer, finish_event,
+    //                   VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
   }
 
   // Flush memory.
@@ -777,7 +790,7 @@ void BufferCache::Flush(VkCommandBuffer command_buffer) {
   dirty_range.memory = transient_buffer_->gpu_memory();
   dirty_range.offset = 0;
   dirty_range.size = transient_buffer_->capacity();
-  vkFlushMappedMemoryRanges(*device_, 1, &dirty_range);
+  dfn.vkFlushMappedMemoryRanges(*device_, 1, &dirty_range);
 }
 
 void BufferCache::InvalidateCache() {

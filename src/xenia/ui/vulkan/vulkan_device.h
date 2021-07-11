@@ -32,10 +32,22 @@ class VulkanDevice {
   VulkanDevice(VulkanInstance* instance);
   ~VulkanDevice();
 
+  VulkanInstance* instance() const { return instance_; }
+
   VkDevice handle = nullptr;
 
   operator VkDevice() const { return handle; }
   operator VkPhysicalDevice() const { return device_info_.handle; }
+
+  struct DeviceFunctions {
+#define XE_UI_VULKAN_FUNCTION(name) PFN_##name name;
+#include "xenia/ui/vulkan/functions/device_1_0.inc"
+#include "xenia/ui/vulkan/functions/device_amd_shader_info.inc"
+#include "xenia/ui/vulkan/functions/device_ext_debug_marker.inc"
+#include "xenia/ui/vulkan/functions/device_khr_swapchain.inc"
+#undef XE_UI_VULKAN_FUNCTION
+  };
+  const DeviceFunctions& dfn() const { return dfn_; }
 
   // Declares a layer to verify and enable upon initialization.
   // Must be called before Initialize.
@@ -78,16 +90,16 @@ class VulkanDevice {
   void ReleaseQueue(VkQueue queue, uint32_t queue_family_index);
 
   void DbgSetObjectName(uint64_t object, VkDebugReportObjectTypeEXT object_type,
-                        std::string name);
+                        const std::string& name) const;
 
   void DbgMarkerBegin(VkCommandBuffer command_buffer, std::string name,
                       float r = 0.0f, float g = 0.0f, float b = 0.0f,
-                      float a = 0.0f);
-  void DbgMarkerEnd(VkCommandBuffer command_buffer);
+                      float a = 0.0f) const;
+  void DbgMarkerEnd(VkCommandBuffer command_buffer) const;
 
   void DbgMarkerInsert(VkCommandBuffer command_buffer, std::string name,
                        float r = 0.0f, float g = 0.0f, float b = 0.0f,
-                       float a = 0.0f);
+                       float a = 0.0f) const;
 
   // True if RenderDoc is attached and available for use.
   bool is_renderdoc_attached() const;
@@ -101,7 +113,7 @@ class VulkanDevice {
   // Allocates memory of the given size matching the required properties.
   VkDeviceMemory AllocateMemory(
       const VkMemoryRequirements& requirements,
-      VkFlags required_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+      VkFlags required_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) const;
 
  private:
   VulkanInstance* instance_ = nullptr;
@@ -109,6 +121,8 @@ class VulkanDevice {
   std::vector<Requirement> required_layers_;
   std::vector<Requirement> required_extensions_;
   std::vector<const char*> enabled_extensions_;
+
+  DeviceFunctions dfn_ = {};
 
   bool debug_marker_ena_ = false;
   PFN_vkDebugMarkerSetObjectNameEXT pfn_vkDebugMarkerSetObjectNameEXT_ =

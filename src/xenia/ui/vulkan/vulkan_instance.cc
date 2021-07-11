@@ -10,20 +10,27 @@
 #include "xenia/ui/vulkan/vulkan_instance.h"
 
 #include <cinttypes>
+#include <cstring>
 #include <mutex>
 #include <string>
 
 #include "third_party/renderdoc/renderdoc_app.h"
-#include "third_party/volk/volk.h"
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/profiling.h"
 #include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_immediate_drawer.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
 #include "xenia/ui/window.h"
+
+#if XE_PLATFORM_LINUX
+#include <dlfcn.h>
+#elif XE_PLATFORM_WIN32
+#include "xenia/base/platform_win.h"
+#endif
 
 #if XE_PLATFORM_LINUX
 #include "xenia/ui/window_gtk.h"
@@ -71,8 +78,61 @@ VulkanInstance::~VulkanInstance() { DestroyInstance(); }
 bool VulkanInstance::Initialize() {
   auto version = Version::Parse(VK_API_VERSION);
   XELOGVK("Initializing Vulkan {}...", version.pretty_string);
-  if (volkInitialize() != VK_SUCCESS) {
-    XELOGE("volkInitialize() failed!");
+
+  // Load the library.
+  bool library_functions_loaded = true;
+#if XE_PLATFORM_LINUX
+#if XE_PLATFORM_ANDROID
+  const char* libvulkan_name = "libvulkan.so";
+#else
+  const char* libvulkan_name = "libvulkan.so.1";
+#endif
+  // http://developer.download.nvidia.com/mobile/shield/assets/Vulkan/UsingtheVulkanAPI.pdf
+  library_ = dlopen(libvulkan_name, RTLD_NOW | RTLD_LOCAL);
+  if (!library_) {
+    XELOGE("Failed to load {}", libvulkan_name);
+    return false;
+  }
+#define XE_VULKAN_LOAD_MODULE_LFN(name) \
+  library_functions_loaded &=           \
+      (lfn_.name = PFN_##name(dlsym(library_, #name))) != nullptr;
+#elif XE_PLATFORM_WIN32
+  library_ = LoadLibraryA("vulkan-1.dll");
+  if (!library_) {
+    XELOGE("Failed to load vulkan-1.dll");
+    return false;
+  }
+#define XE_VULKAN_LOAD_MODULE_LFN(name) \
+  library_functions_loaded &=           \
+      (lfn_.name = PFN_##name(GetProcAddress(library_, #name))) != nullptr;
+#else
+#error No Vulkan library loading provided for the target platform.
+#endif
+  XE_VULKAN_LOAD_MODULE_LFN(vkGetInstanceProcAddr);
+  XE_VULKAN_LOAD_MODULE_LFN(vkDestroyInstance);
+#undef XE_VULKAN_LOAD_MODULE_LFN
+  if (!library_functions_loaded) {
+    XELOGE("Failed to get Vulkan library function pointers");
+    return false;
+  }
+  library_functions_loaded &=
+      (lfn_.vkCreateInstance = PFN_vkCreateInstance(lfn_.vkGetInstanceProcAddr(
+           VK_NULL_HANDLE, "vkCreateInstance"))) != nullptr;
+  library_functions_loaded &=
+      (lfn_.vkEnumerateInstanceExtensionProperties =
+           PFN_vkEnumerateInstanceExtensionProperties(
+               lfn_.vkGetInstanceProcAddr(
+                   VK_NULL_HANDLE,
+                   "vkEnumerateInstanceExtensionProperties"))) != nullptr;
+  library_functions_loaded &=
+      (lfn_.vkEnumerateInstanceLayerProperties =
+           PFN_vkEnumerateInstanceLayerProperties(lfn_.vkGetInstanceProcAddr(
+               VK_NULL_HANDLE, "vkEnumerateInstanceLayerProperties"))) !=
+      nullptr;
+  if (!library_functions_loaded) {
+    XELOGE(
+        "Failed to get Vulkan library function pointers via "
+        "vkGetInstanceProcAddr");
     return false;
   }
 
@@ -149,11 +209,11 @@ bool VulkanInstance::QueryGlobals() {
   std::vector<VkLayerProperties> global_layer_properties;
   VkResult err;
   do {
-    err = vkEnumerateInstanceLayerProperties(&count, nullptr);
+    err = lfn_.vkEnumerateInstanceLayerProperties(&count, nullptr);
     CheckResult(err, "vkEnumerateInstanceLayerProperties");
     global_layer_properties.resize(count);
-    err = vkEnumerateInstanceLayerProperties(&count,
-                                             global_layer_properties.data());
+    err = lfn_.vkEnumerateInstanceLayerProperties(
+        &count, global_layer_properties.data());
   } while (err == VK_INCOMPLETE);
   CheckResult(err, "vkEnumerateInstanceLayerProperties");
   global_layers_.resize(count);
@@ -163,11 +223,11 @@ bool VulkanInstance::QueryGlobals() {
 
     // Get all extensions available for the layer.
     do {
-      err = vkEnumerateInstanceExtensionProperties(
+      err = lfn_.vkEnumerateInstanceExtensionProperties(
           global_layer.properties.layerName, &count, nullptr);
       CheckResult(err, "vkEnumerateInstanceExtensionProperties");
       global_layer.extensions.resize(count);
-      err = vkEnumerateInstanceExtensionProperties(
+      err = lfn_.vkEnumerateInstanceExtensionProperties(
           global_layer.properties.layerName, &count,
           global_layer.extensions.data());
     } while (err == VK_INCOMPLETE);
@@ -190,11 +250,11 @@ bool VulkanInstance::QueryGlobals() {
 
   // Scan global extensions.
   do {
-    err = vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
+    err = lfn_.vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
     CheckResult(err, "vkEnumerateInstanceExtensionProperties");
     global_extensions_.resize(count);
-    err = vkEnumerateInstanceExtensionProperties(nullptr, &count,
-                                                 global_extensions_.data());
+    err = lfn_.vkEnumerateInstanceExtensionProperties(
+        nullptr, &count, global_extensions_.data());
   } while (err == VK_INCOMPLETE);
   CheckResult(err, "vkEnumerateInstanceExtensionProperties");
   XELOGVK("Found {} global extensions:", global_extensions_.size());
@@ -246,7 +306,7 @@ bool VulkanInstance::CreateInstance() {
       static_cast<uint32_t>(enabled_extensions.size());
   instance_info.ppEnabledExtensionNames = enabled_extensions.data();
 
-  auto err = vkCreateInstance(&instance_info, nullptr, &handle);
+  auto err = lfn_.vkCreateInstance(&instance_info, nullptr, &handle);
   if (err != VK_SUCCESS) {
     XELOGE("vkCreateInstance returned {}", to_string(err));
   }
@@ -273,8 +333,39 @@ bool VulkanInstance::CreateInstance() {
       return false;
   }
 
-  // Load Vulkan entrypoints and extensions.
-  volkLoadInstance(handle);
+  // Check if extensions are enabled.
+  dbg_report_ena_ = false;
+  for (const char* enabled_extension : enabled_extensions) {
+    if (!dbg_report_ena_ &&
+        !std::strcmp(enabled_extension, VK_EXT_DEBUG_REPORT_EXTENSION_NAME)) {
+      dbg_report_ena_ = true;
+    }
+  }
+
+  // Get instance functions.
+  std::memset(&ifn_, 0, sizeof(ifn_));
+  bool instance_functions_loaded = true;
+#define XE_UI_VULKAN_FUNCTION(name)                                          \
+  instance_functions_loaded &=                                               \
+      (ifn_.name = PFN_##name(lfn_.vkGetInstanceProcAddr(handle, #name))) != \
+      nullptr;
+#include "xenia/ui/vulkan/functions/instance_1_0.inc"
+#include "xenia/ui/vulkan/functions/instance_khr_surface.inc"
+#if XE_PLATFORM_ANDROID
+#include "xenia/ui/vulkan/functions/instance_khr_android_surface.inc"
+#elif XE_PLATFORM_GNULINUX
+#include "xenia/ui/vulkan/functions/instance_khr_xcb_surface.inc"
+#elif XE_PLATFORM_WIN32
+#include "xenia/ui/vulkan/functions/instance_khr_win32_surface.inc"
+#endif
+  if (dbg_report_ena_) {
+#include "xenia/ui/vulkan/functions/instance_ext_debug_report.inc"
+  }
+#undef XE_VULKAN_LOAD_IFN
+  if (!instance_functions_loaded) {
+    XELOGE("Failed to get Vulkan instance function pointers");
+    return false;
+  }
 
   // Enable debug validation, if needed.
   EnableDebugValidation();
@@ -283,12 +374,23 @@ bool VulkanInstance::CreateInstance() {
 }
 
 void VulkanInstance::DestroyInstance() {
-  if (!handle) {
-    return;
+  if (handle) {
+    DisableDebugValidation();
+    lfn_.vkDestroyInstance(handle, nullptr);
+    handle = nullptr;
   }
-  DisableDebugValidation();
-  vkDestroyInstance(handle, nullptr);
-  handle = nullptr;
+
+#if XE_PLATFORM_LINUX
+  if (library_) {
+    dlclose(library_);
+    library_ = nullptr;
+  }
+#elif XE_PLATFORM_WIN32
+  if (library_) {
+    FreeLibrary(library_);
+    library_ = nullptr;
+  }
+#endif
 }
 
 VkBool32 VKAPI_PTR DebugMessageCallback(VkDebugReportFlagsEXT flags,
@@ -329,15 +431,12 @@ VkBool32 VKAPI_PTR DebugMessageCallback(VkDebugReportFlagsEXT flags,
 }
 
 void VulkanInstance::EnableDebugValidation() {
-  if (dbg_report_callback_) {
-    DisableDebugValidation();
-  }
-  auto vk_create_debug_report_callback_ext =
-      reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>(
-          vkGetInstanceProcAddr(handle, "vkCreateDebugReportCallbackEXT"));
-  if (!vk_create_debug_report_callback_ext) {
+  if (!dbg_report_ena_) {
     XELOGVK("Debug validation layer not installed; ignoring");
     return;
+  }
+  if (dbg_report_callback_) {
+    DisableDebugValidation();
   }
   VkDebugReportCallbackCreateInfoEXT create_info;
   create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT;
@@ -349,7 +448,7 @@ void VulkanInstance::EnableDebugValidation() {
       VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
   create_info.pfnCallback = &DebugMessageCallback;
   create_info.pUserData = this;
-  auto status = vk_create_debug_report_callback_ext(
+  auto status = ifn_.vkCreateDebugReportCallbackEXT(
       handle, &create_info, nullptr, &dbg_report_callback_);
   if (status == VK_SUCCESS) {
     XELOGVK("Debug validation layer enabled");
@@ -360,16 +459,10 @@ void VulkanInstance::EnableDebugValidation() {
 }
 
 void VulkanInstance::DisableDebugValidation() {
-  if (!dbg_report_callback_) {
+  if (!dbg_report_ena_ || !dbg_report_callback_) {
     return;
   }
-  auto vk_destroy_debug_report_callback_ext =
-      reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(
-          vkGetInstanceProcAddr(handle, "vkDestroyDebugReportCallbackEXT"));
-  if (!vk_destroy_debug_report_callback_ext) {
-    return;
-  }
-  vk_destroy_debug_report_callback_ext(handle, dbg_report_callback_, nullptr);
+  ifn_.vkDestroyDebugReportCallbackEXT(handle, dbg_report_callback_, nullptr);
   dbg_report_callback_ = nullptr;
 }
 
@@ -377,11 +470,11 @@ bool VulkanInstance::QueryDevices() {
   // Get handles to all devices.
   uint32_t count = 0;
   std::vector<VkPhysicalDevice> device_handles;
-  auto err = vkEnumeratePhysicalDevices(handle, &count, nullptr);
+  auto err = ifn_.vkEnumeratePhysicalDevices(handle, &count, nullptr);
   CheckResult(err, "vkEnumeratePhysicalDevices");
 
   device_handles.resize(count);
-  err = vkEnumeratePhysicalDevices(handle, &count, device_handles.data());
+  err = ifn_.vkEnumeratePhysicalDevices(handle, &count, device_handles.data());
   CheckResult(err, "vkEnumeratePhysicalDevices");
 
   // Query device info.
@@ -391,33 +484,34 @@ bool VulkanInstance::QueryDevices() {
     device_info.handle = device_handle;
 
     // Query general attributes.
-    vkGetPhysicalDeviceProperties(device_handle, &device_info.properties);
-    vkGetPhysicalDeviceFeatures(device_handle, &device_info.features);
-    vkGetPhysicalDeviceMemoryProperties(device_handle,
-                                        &device_info.memory_properties);
+    ifn_.vkGetPhysicalDeviceProperties(device_handle, &device_info.properties);
+    ifn_.vkGetPhysicalDeviceFeatures(device_handle, &device_info.features);
+    ifn_.vkGetPhysicalDeviceMemoryProperties(device_handle,
+                                             &device_info.memory_properties);
 
     // Gather queue family properties.
-    vkGetPhysicalDeviceQueueFamilyProperties(device_handle, &count, nullptr);
+    ifn_.vkGetPhysicalDeviceQueueFamilyProperties(device_handle, &count,
+                                                  nullptr);
     device_info.queue_family_properties.resize(count);
-    vkGetPhysicalDeviceQueueFamilyProperties(
+    ifn_.vkGetPhysicalDeviceQueueFamilyProperties(
         device_handle, &count, device_info.queue_family_properties.data());
 
     // Gather layers.
     std::vector<VkLayerProperties> layer_properties;
-    err = vkEnumerateDeviceLayerProperties(device_handle, &count, nullptr);
+    err = ifn_.vkEnumerateDeviceLayerProperties(device_handle, &count, nullptr);
     CheckResult(err, "vkEnumerateDeviceLayerProperties");
     layer_properties.resize(count);
-    err = vkEnumerateDeviceLayerProperties(device_handle, &count,
-                                           layer_properties.data());
+    err = ifn_.vkEnumerateDeviceLayerProperties(device_handle, &count,
+                                                layer_properties.data());
     CheckResult(err, "vkEnumerateDeviceLayerProperties");
     for (size_t j = 0; j < layer_properties.size(); ++j) {
       LayerInfo layer_info;
       layer_info.properties = layer_properties[j];
-      err = vkEnumerateDeviceExtensionProperties(
+      err = ifn_.vkEnumerateDeviceExtensionProperties(
           device_handle, layer_info.properties.layerName, &count, nullptr);
       CheckResult(err, "vkEnumerateDeviceExtensionProperties");
       layer_info.extensions.resize(count);
-      err = vkEnumerateDeviceExtensionProperties(
+      err = ifn_.vkEnumerateDeviceExtensionProperties(
           device_handle, layer_info.properties.layerName, &count,
           layer_info.extensions.data());
       CheckResult(err, "vkEnumerateDeviceExtensionProperties");
@@ -425,12 +519,12 @@ bool VulkanInstance::QueryDevices() {
     }
 
     // Gather extensions.
-    err = vkEnumerateDeviceExtensionProperties(device_handle, nullptr, &count,
-                                               nullptr);
+    err = ifn_.vkEnumerateDeviceExtensionProperties(device_handle, nullptr,
+                                                    &count, nullptr);
     CheckResult(err, "vkEnumerateDeviceExtensionProperties");
     device_info.extensions.resize(count);
-    err = vkEnumerateDeviceExtensionProperties(device_handle, nullptr, &count,
-                                               device_info.extensions.data());
+    err = ifn_.vkEnumerateDeviceExtensionProperties(
+        device_handle, nullptr, &count, device_info.extensions.data());
     CheckResult(err, "vkEnumerateDeviceExtensionProperties");
 
     available_devices_.push_back(std::move(device_info));
