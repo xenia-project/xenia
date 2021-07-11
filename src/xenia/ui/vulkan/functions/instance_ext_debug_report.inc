@@ -1,0 +1,3 @@
+// VK_EXT_debug_report functions used in Xenia.
+XE_UI_VULKAN_FUNCTION(vkCreateDebugReportCallbackEXT)
+XE_UI_VULKAN_FUNCTION(vkDestroyDebugReportCallbackEXT)

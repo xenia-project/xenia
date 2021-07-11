@@ -30,7 +30,9 @@ VulkanShader::VulkanShader(ui::vulkan::VulkanDevice* device,
 VulkanShader::VulkanTranslation::~VulkanTranslation() {
   if (shader_module_) {
     const VulkanShader& vulkan_shader = static_cast<VulkanShader&>(shader());
-    vkDestroyShaderModule(*vulkan_shader.device_, shader_module_, nullptr);
+    const ui::vulkan::VulkanDevice* device = vulkan_shader.device_;
+    const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device->dfn();
+    dfn.vkDestroyShaderModule(*device, shader_module_, nullptr);
     shader_module_ = nullptr;
   }
 }
@@ -40,7 +42,8 @@ bool VulkanShader::VulkanTranslation::Prepare() {
   assert_true(is_valid());
 
   const VulkanShader& vulkan_shader = static_cast<VulkanShader&>(shader());
-  ui::vulkan::VulkanDevice* device = vulkan_shader.device_;
+  const ui::vulkan::VulkanDevice* device = vulkan_shader.device_;
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device->dfn();
 
   // Create the shader module.
   VkShaderModuleCreateInfo shader_info;
@@ -51,7 +54,7 @@ bool VulkanShader::VulkanTranslation::Prepare() {
   shader_info.pCode =
       reinterpret_cast<const uint32_t*>(translated_binary().data());
   auto status =
-      vkCreateShaderModule(*device, &shader_info, nullptr, &shader_module_);
+      dfn.vkCreateShaderModule(*device, &shader_info, nullptr, &shader_module_);
   CheckResult(status, "vkCreateShaderModule");
 
   char type_char;

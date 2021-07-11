@@ -22,7 +22,6 @@ project("xenia-hid-demo")
   links({
     "fmt",
     "imgui",
-    "volk",
     "xenia-base",
     "xenia-helper-sdl",
     "xenia-hid",

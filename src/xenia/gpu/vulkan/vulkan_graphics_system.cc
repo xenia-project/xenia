@@ -59,8 +59,9 @@ X_STATUS VulkanGraphicsSystem::Setup(cpu::Processor* processor,
           VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
       device_->queue_family_index(),
   };
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   auto status =
-      vkCreateCommandPool(*device_, &create_info, nullptr, &command_pool_);
+      dfn.vkCreateCommandPool(*device_, &create_info, nullptr, &command_pool_);
   CheckResult(status, "vkCreateCommandPool");
 
   return X_STATUS_SUCCESS;
@@ -69,7 +70,11 @@ X_STATUS VulkanGraphicsSystem::Setup(cpu::Processor* processor,
 void VulkanGraphicsSystem::Shutdown() {
   GraphicsSystem::Shutdown();
 
-  vkDestroyCommandPool(*device_, command_pool_, nullptr);
+  if (command_pool_ != VK_NULL_HANDLE) {
+    const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+    dfn.vkDestroyCommandPool(*device_, command_pool_, nullptr);
+    command_pool_ = VK_NULL_HANDLE;
+  }
 }
 
 std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
@@ -79,6 +84,7 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
     return nullptr;
   }
 
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   VkResult status = VK_SUCCESS;
 
   VkCommandBufferAllocateInfo alloc_info = {
@@ -90,7 +96,7 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
   };
 
   VkCommandBuffer cmd = nullptr;
-  status = vkAllocateCommandBuffers(*device_, &alloc_info, &cmd);
+  status = dfn.vkAllocateCommandBuffers(*device_, &alloc_info, &cmd);
   CheckResult(status, "vkAllocateCommandBuffers");
   if (status != VK_SUCCESS) {
     return nullptr;
@@ -102,14 +108,14 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
       VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
       nullptr,
   };
-  vkBeginCommandBuffer(cmd, &begin_info);
+  dfn.vkBeginCommandBuffer(cmd, &begin_info);
 
   auto front_buffer =
       reinterpret_cast<VkImage>(swap_state.front_buffer_texture);
 
   status = CreateCaptureBuffer(cmd, {swap_state.width, swap_state.height});
   if (status != VK_SUCCESS) {
-    vkFreeCommandBuffers(*device_, command_pool_, 1, &cmd);
+    dfn.vkFreeCommandBuffers(*device_, command_pool_, 1, &cmd);
     return nullptr;
   }
 
@@ -124,9 +130,9 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
   barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   barrier.image = front_buffer;
   barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-  vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &barrier);
+  dfn.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                           nullptr, 1, &barrier);
 
   // Copy front buffer into capture image.
   VkBufferImageCopy region = {
@@ -135,8 +141,8 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
       {0, 0, 0}, {swap_state.width, swap_state.height, 1},
   };
 
-  vkCmdCopyImageToBuffer(cmd, front_buffer, VK_IMAGE_LAYOUT_GENERAL,
-                         capture_buffer_, 1, &region);
+  dfn.vkCmdCopyImageToBuffer(cmd, front_buffer, VK_IMAGE_LAYOUT_GENERAL,
+                             capture_buffer_, 1, &region);
 
   VkBufferMemoryBarrier memory_barrier = {
       VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -149,11 +155,11 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
       0,
       VK_WHOLE_SIZE,
   };
-  vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                       VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 1,
-                       &memory_barrier, 0, nullptr);
+  dfn.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                           VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr,
+                           1, &memory_barrier, 0, nullptr);
 
-  status = vkEndCommandBuffer(cmd);
+  status = dfn.vkEndCommandBuffer(cmd);
 
   // Submit commands and wait.
   if (status == VK_SUCCESS) {
@@ -169,21 +175,22 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
         0,
         nullptr,
     };
-    status = vkQueueSubmit(device_->primary_queue(), 1, &submit_info, nullptr);
+    status =
+        dfn.vkQueueSubmit(device_->primary_queue(), 1, &submit_info, nullptr);
     CheckResult(status, "vkQueueSubmit");
 
     if (status == VK_SUCCESS) {
-      status = vkQueueWaitIdle(device_->primary_queue());
+      status = dfn.vkQueueWaitIdle(device_->primary_queue());
       CheckResult(status, "vkQueueWaitIdle");
     }
   }
 
-  vkFreeCommandBuffers(*device_, command_pool_, 1, &cmd);
+  dfn.vkFreeCommandBuffers(*device_, command_pool_, 1, &cmd);
 
   void* data;
   if (status == VK_SUCCESS) {
-    status = vkMapMemory(*device_, capture_buffer_memory_, 0, VK_WHOLE_SIZE, 0,
-                         &data);
+    status = dfn.vkMapMemory(*device_, capture_buffer_memory_, 0, VK_WHOLE_SIZE,
+                             0, &data);
     CheckResult(status, "vkMapMemory");
   }
 
@@ -197,7 +204,7 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
     std::memcpy(raw_image->data.data(), data,
                 raw_image->stride * raw_image->height);
 
-    vkUnmapMemory(*device_, capture_buffer_memory_);
+    dfn.vkUnmapMemory(*device_, capture_buffer_memory_);
     DestroyCaptureBuffer();
     return raw_image;
   }
@@ -208,6 +215,7 @@ std::unique_ptr<RawImage> VulkanGraphicsSystem::Capture() {
 
 VkResult VulkanGraphicsSystem::CreateCaptureBuffer(VkCommandBuffer cmd,
                                                    VkExtent2D extents) {
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   VkResult status = VK_SUCCESS;
 
   VkBufferCreateInfo buffer_info = {
@@ -220,7 +228,8 @@ VkResult VulkanGraphicsSystem::CreateCaptureBuffer(VkCommandBuffer cmd,
       0,
       nullptr,
   };
-  status = vkCreateBuffer(*device_, &buffer_info, nullptr, &capture_buffer_);
+  status =
+      dfn.vkCreateBuffer(*device_, &buffer_info, nullptr, &capture_buffer_);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -229,17 +238,18 @@ VkResult VulkanGraphicsSystem::CreateCaptureBuffer(VkCommandBuffer cmd,
 
   // Bind memory to buffer.
   VkMemoryRequirements mem_requirements;
-  vkGetBufferMemoryRequirements(*device_, capture_buffer_, &mem_requirements);
+  dfn.vkGetBufferMemoryRequirements(*device_, capture_buffer_,
+                                    &mem_requirements);
   capture_buffer_memory_ = device_->AllocateMemory(
       mem_requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
   assert_not_null(capture_buffer_memory_);
 
-  status =
-      vkBindBufferMemory(*device_, capture_buffer_, capture_buffer_memory_, 0);
+  status = dfn.vkBindBufferMemory(*device_, capture_buffer_,
+                                  capture_buffer_memory_, 0);
   CheckResult(status, "vkBindImageMemory");
   if (status != VK_SUCCESS) {
-    vkDestroyBuffer(*device_, capture_buffer_, nullptr);
+    dfn.vkDestroyBuffer(*device_, capture_buffer_, nullptr);
     return status;
   }
 
@@ -247,8 +257,9 @@ VkResult VulkanGraphicsSystem::CreateCaptureBuffer(VkCommandBuffer cmd,
 }
 
 void VulkanGraphicsSystem::DestroyCaptureBuffer() {
-  vkDestroyBuffer(*device_, capture_buffer_, nullptr);
-  vkFreeMemory(*device_, capture_buffer_memory_, nullptr);
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  dfn.vkDestroyBuffer(*device_, capture_buffer_, nullptr);
+  dfn.vkFreeMemory(*device_, capture_buffer_memory_, nullptr);
   capture_buffer_ = nullptr;
   capture_buffer_memory_ = nullptr;
   capture_buffer_size_ = 0;
@@ -286,6 +297,7 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
     return;
   }
 
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   auto swap_chain = display_context_->swap_chain();
   auto copy_cmd_buffer = swap_chain->copy_cmd_buffer();
   auto front_buffer =
@@ -302,9 +314,9 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
   barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   barrier.image = front_buffer;
   barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-  vkCmdPipelineBarrier(copy_cmd_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                       VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &barrier);
+  dfn.vkCmdPipelineBarrier(copy_cmd_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                           VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+                           nullptr, 1, &barrier);
 
   VkImageBlit region;
   region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
@@ -317,10 +329,10 @@ void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
   region.dstOffsets[1] = {static_cast<int32_t>(swap_chain->surface_width()),
                           static_cast<int32_t>(swap_chain->surface_height()),
                           1};
-  vkCmdBlitImage(copy_cmd_buffer, front_buffer, VK_IMAGE_LAYOUT_GENERAL,
-                 swap_chain->surface_image(),
-                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region,
-                 VK_FILTER_LINEAR);
+  dfn.vkCmdBlitImage(copy_cmd_buffer, front_buffer, VK_IMAGE_LAYOUT_GENERAL,
+                     swap_chain->surface_image(),
+                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region,
+                     VK_FILTER_LINEAR);
 }
 
 }  // namespace vulkan
