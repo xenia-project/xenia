@@ -353,7 +353,7 @@ bool VulkanInstance::CreateInstance() {
 #include "xenia/ui/vulkan/functions/instance_khr_surface.inc"
 #if XE_PLATFORM_ANDROID
 #include "xenia/ui/vulkan/functions/instance_khr_android_surface.inc"
-#elif XE_PLATFORM_GNULINUX
+#elif XE_PLATFORM_GNU_LINUX
 #include "xenia/ui/vulkan/functions/instance_khr_xcb_surface.inc"
 #elif XE_PLATFORM_WIN32
 #include "xenia/ui/vulkan/functions/instance_khr_win32_surface.inc"
