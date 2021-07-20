@@ -3,7 +3,7 @@
 pkg_config = {}
 
 function pkg_config.cflags(lib)
-  if os.istarget("windows") then
+  if not os.istarget("linux") then
     return
   end
   buildoptions({
@@ -12,7 +12,7 @@ function pkg_config.cflags(lib)
 end
 
 function pkg_config.lflags(lib)
-  if os.istarget("windows") then
+  if not os.istarget("linux") then
     return
   end
   linkoptions({
