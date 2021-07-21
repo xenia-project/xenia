@@ -24,7 +24,9 @@ function pkg_config.lflags(lib)
   local output = ({os.outputof("pkg-config --libs-only-l "..lib)})[1]
   for k, flag in next, string.explode(output, " ") do
     -- remove "-l"
-    links(string.sub(flag, 3))
+    if flag ~= "" then
+        links(string.sub(flag, 3))
+    end
   end
 end
 
