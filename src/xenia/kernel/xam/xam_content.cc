@@ -139,9 +139,9 @@ dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
     *disposition_ptr = 0;
   }
 
-  auto run = [content_manager, root_name, flags, content_data, disposition_ptr,
-              license_mask_ptr](uint32_t& extended_error,
-                                uint32_t& length) -> X_RESULT {
+  auto run = [content_manager, root_name = root_name.value(), flags,
+              content_data, disposition_ptr, license_mask_ptr](
+                 uint32_t& extended_error, uint32_t& length) -> X_RESULT {
     X_RESULT result = X_ERROR_INVALID_PARAMETER;
     bool create = false;
     bool open = false;
@@ -203,9 +203,9 @@ dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
     }
 
     if (create) {
-      result = content_manager->CreateContent(root_name.value(), content_data);
+      result = content_manager->CreateContent(root_name, content_data);
     } else if (open) {
-      result = content_manager->OpenContent(root_name.value(), content_data);
+      result = content_manager->OpenContent(root_name, content_data);
     }
 
     if (license_mask_ptr && XSUCCEEDED(result)) {
