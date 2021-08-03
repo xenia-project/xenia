@@ -603,6 +603,9 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
     */
     if (ret < 0) {
       XELOGE("XmaContext {}: Error during decoding", id());
+      data->input_buffer_0_valid = 0;
+      data->input_buffer_1_valid = 0;
+
       assert_always();
       return;  // TODO bail out
     }
