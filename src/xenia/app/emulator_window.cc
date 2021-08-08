@@ -54,7 +54,12 @@ EmulatorWindow::EmulatorWindow(Emulator* emulator)
                 " CHECKED"
 #endif
 #endif
-                " (" XE_BUILD_BRANCH "/" XE_BUILD_COMMIT_SHORT "/" XE_BUILD_DATE
+                " ("
+#ifdef XE_BUILD_IS_PR
+                "PR#" XE_BUILD_PR_NUMBER " " XE_BUILD_PR_REPO
+                " " XE_BUILD_PR_BRANCH "@" XE_BUILD_PR_COMMIT_SHORT " against "
+#endif
+                XE_BUILD_BRANCH "@" XE_BUILD_COMMIT_SHORT " on " XE_BUILD_DATE
                 ")";
 }
 
@@ -426,8 +431,13 @@ void EmulatorWindow::ToggleFullscreen() {
 void EmulatorWindow::ShowHelpWebsite() { LaunchWebBrowser("https://xenia.jp"); }
 
 void EmulatorWindow::ShowCommitID() {
+#ifdef XE_BUILD_IS_PR
+  LaunchWebBrowser(
+      "https://github.com/xenia-project/xenia/pull/" XE_BUILD_PR_NUMBER);
+#else
   LaunchWebBrowser(
       "https://github.com/xenia-project/xenia/commit/" XE_BUILD_COMMIT "/");
+#endif
 }
 
 void EmulatorWindow::UpdateTitle() {
