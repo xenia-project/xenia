@@ -872,7 +872,7 @@ void XmaContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
   static_assert(kSamplesPerFrame % 8 == 0);
   const auto in_channel_0 = reinterpret_cast<const float*>(samples[0]);
   const __m128 scale_mm = _mm_set1_ps(scale);
-  if (is_two_channel) {
+  if (is_two_channel && samples[1] != nullptr) {
     const auto in_channel_1 = reinterpret_cast<const float*>(samples[1]);
     const __m128i shufmask =
         _mm_set_epi8(14, 15, 6, 7, 12, 13, 4, 5, 10, 11, 2, 3, 8, 9, 0, 1);
