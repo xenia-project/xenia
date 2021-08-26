@@ -22,6 +22,7 @@ namespace vulkan {
 CircularBuffer::CircularBuffer(VulkanDevice* device, VkBufferUsageFlags usage,
                                VkDeviceSize capacity, VkDeviceSize alignment)
     : device_(device), capacity_(capacity) {
+  const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   VkResult status = VK_SUCCESS;
 
   // Create our internal buffer.
@@ -34,14 +35,14 @@ CircularBuffer::CircularBuffer(VulkanDevice* device, VkBufferUsageFlags usage,
   buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   buffer_info.queueFamilyIndexCount = 0;
   buffer_info.pQueueFamilyIndices = nullptr;
-  status = vkCreateBuffer(*device_, &buffer_info, nullptr, &gpu_buffer_);
+  status = dfn.vkCreateBuffer(*device_, &buffer_info, nullptr, &gpu_buffer_);
   CheckResult(status, "vkCreateBuffer");
   if (status != VK_SUCCESS) {
     assert_always();
   }
 
   VkMemoryRequirements reqs;
-  vkGetBufferMemoryRequirements(*device_, gpu_buffer_, &reqs);
+  dfn.vkGetBufferMemoryRequirements(*device_, gpu_buffer_, &reqs);
   alignment_ = xe::round_up(alignment, reqs.alignment);
 }
 CircularBuffer::~CircularBuffer() { Shutdown(); }
@@ -52,10 +53,12 @@ VkResult CircularBuffer::Initialize(VkDeviceMemory memory,
   gpu_memory_ = memory;
   gpu_base_ = offset;
 
+  const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   VkResult status = VK_SUCCESS;
 
   // Bind the buffer to its backing memory.
-  status = vkBindBufferMemory(*device_, gpu_buffer_, gpu_memory_, gpu_base_);
+  status =
+      dfn.vkBindBufferMemory(*device_, gpu_buffer_, gpu_memory_, gpu_base_);
   CheckResult(status, "vkBindBufferMemory");
   if (status != VK_SUCCESS) {
     XELOGE("CircularBuffer::Initialize - Failed to bind memory!");
@@ -64,8 +67,8 @@ VkResult CircularBuffer::Initialize(VkDeviceMemory memory,
   }
 
   // Map the memory so we can access it.
-  status = vkMapMemory(*device_, gpu_memory_, gpu_base_, capacity_, 0,
-                       reinterpret_cast<void**>(&host_base_));
+  status = dfn.vkMapMemory(*device_, gpu_memory_, gpu_base_, capacity_, 0,
+                           reinterpret_cast<void**>(&host_base_));
   CheckResult(status, "vkMapMemory");
   if (status != VK_SUCCESS) {
     XELOGE("CircularBuffer::Initialize - Failed to map memory!");
@@ -77,10 +80,11 @@ VkResult CircularBuffer::Initialize(VkDeviceMemory memory,
 }
 
 VkResult CircularBuffer::Initialize() {
+  const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   VkResult status = VK_SUCCESS;
 
   VkMemoryRequirements reqs;
-  vkGetBufferMemoryRequirements(*device_, gpu_buffer_, &reqs);
+  dfn.vkGetBufferMemoryRequirements(*device_, gpu_buffer_, &reqs);
 
   // Allocate memory from the device to back the buffer.
   owns_gpu_memory_ = true;
@@ -95,7 +99,8 @@ VkResult CircularBuffer::Initialize() {
   gpu_base_ = 0;
 
   // Bind the buffer to its backing memory.
-  status = vkBindBufferMemory(*device_, gpu_buffer_, gpu_memory_, gpu_base_);
+  status =
+      dfn.vkBindBufferMemory(*device_, gpu_buffer_, gpu_memory_, gpu_base_);
   CheckResult(status, "vkBindBufferMemory");
   if (status != VK_SUCCESS) {
     XELOGE("CircularBuffer::Initialize - Failed to bind memory!");
@@ -104,8 +109,8 @@ VkResult CircularBuffer::Initialize() {
   }
 
   // Map the memory so we can access it.
-  status = vkMapMemory(*device_, gpu_memory_, gpu_base_, capacity_, 0,
-                       reinterpret_cast<void**>(&host_base_));
+  status = dfn.vkMapMemory(*device_, gpu_memory_, gpu_base_, capacity_, 0,
+                           reinterpret_cast<void**>(&host_base_));
   CheckResult(status, "vkMapMemory");
   if (status != VK_SUCCESS) {
     XELOGE("CircularBuffer::Initialize - Failed to map memory!");
@@ -118,22 +123,24 @@ VkResult CircularBuffer::Initialize() {
 
 void CircularBuffer::Shutdown() {
   Clear();
+  const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   if (host_base_) {
-    vkUnmapMemory(*device_, gpu_memory_);
+    dfn.vkUnmapMemory(*device_, gpu_memory_);
     host_base_ = nullptr;
   }
   if (gpu_buffer_) {
-    vkDestroyBuffer(*device_, gpu_buffer_, nullptr);
+    dfn.vkDestroyBuffer(*device_, gpu_buffer_, nullptr);
     gpu_buffer_ = nullptr;
   }
   if (gpu_memory_ && owns_gpu_memory_) {
-    vkFreeMemory(*device_, gpu_memory_, nullptr);
+    dfn.vkFreeMemory(*device_, gpu_memory_, nullptr);
     gpu_memory_ = nullptr;
   }
 }
 
 void CircularBuffer::GetBufferMemoryRequirements(VkMemoryRequirements* reqs) {
-  vkGetBufferMemoryRequirements(*device_, gpu_buffer_, reqs);
+  const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  dfn.vkGetBufferMemoryRequirements(*device_, gpu_buffer_, reqs);
 }
 
 bool CircularBuffer::CanAcquire(VkDeviceSize length) {
@@ -224,23 +231,25 @@ CircularBuffer::Allocation* CircularBuffer::Acquire(VkDeviceSize length,
 }
 
 void CircularBuffer::Flush(Allocation* allocation) {
+  const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   VkMappedMemoryRange range;
   range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
   range.pNext = nullptr;
   range.memory = gpu_memory_;
   range.offset = gpu_base_ + allocation->offset;
   range.size = allocation->length;
-  vkFlushMappedMemoryRanges(*device_, 1, &range);
+  dfn.vkFlushMappedMemoryRanges(*device_, 1, &range);
 }
 
 void CircularBuffer::Flush(VkDeviceSize offset, VkDeviceSize length) {
+  const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   VkMappedMemoryRange range;
   range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
   range.pNext = nullptr;
   range.memory = gpu_memory_;
   range.offset = gpu_base_ + offset;
   range.size = length;
-  vkFlushMappedMemoryRanges(*device_, 1, &range);
+  dfn.vkFlushMappedMemoryRanges(*device_, 1, &range);
 }
 
 void CircularBuffer::Clear() {
@@ -249,12 +258,14 @@ void CircularBuffer::Clear() {
 }
 
 void CircularBuffer::Scavenge() {
+  const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+
   // Stash the last signalled fence
   VkFence fence = nullptr;
   while (!allocations_.empty()) {
     Allocation& alloc = allocations_.front();
     if (fence != alloc.fence &&
-        vkGetFenceStatus(*device_, alloc.fence) != VK_SUCCESS) {
+        dfn.vkGetFenceStatus(*device_, alloc.fence) != VK_SUCCESS) {
       // Don't bother freeing following allocations to ensure proper ordering.
       break;
     }

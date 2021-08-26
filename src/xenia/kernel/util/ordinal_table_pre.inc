@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -21,7 +21,4 @@
  * #include "xenia/kernel/util/ordinal_table_post.inc"
  */
 
-
-#define XE_EXPORT(module, ordinal, name, type) \
-  name = ordinal
-
+#define XE_EXPORT(module, ordinal, name, type) name = ordinal

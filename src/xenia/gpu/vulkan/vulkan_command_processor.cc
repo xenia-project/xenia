@@ -237,6 +237,8 @@ void VulkanCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
 
 void VulkanCommandProcessor::CreateSwapImage(VkCommandBuffer setup_buffer,
                                              VkExtent2D extents) {
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+
   VkImageCreateInfo image_info;
   std::memset(&image_info, 0, sizeof(VkImageCreateInfo));
   image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -255,16 +257,16 @@ void VulkanCommandProcessor::CreateSwapImage(VkCommandBuffer setup_buffer,
   image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
   VkImage image_fb;
-  auto status = vkCreateImage(*device_, &image_info, nullptr, &image_fb);
+  auto status = dfn.vkCreateImage(*device_, &image_info, nullptr, &image_fb);
   CheckResult(status, "vkCreateImage");
 
   // Bind memory to image.
   VkMemoryRequirements mem_requirements;
-  vkGetImageMemoryRequirements(*device_, image_fb, &mem_requirements);
+  dfn.vkGetImageMemoryRequirements(*device_, image_fb, &mem_requirements);
   fb_memory_ = device_->AllocateMemory(mem_requirements, 0);
   assert_not_null(fb_memory_);
 
-  status = vkBindImageMemory(*device_, image_fb, fb_memory_, 0);
+  status = dfn.vkBindImageMemory(*device_, image_fb, fb_memory_, 0);
   CheckResult(status, "vkBindImageMemory");
 
   std::lock_guard<std::mutex> lock(swap_state_.mutex);
@@ -281,8 +283,8 @@ void VulkanCommandProcessor::CreateSwapImage(VkCommandBuffer setup_buffer,
        VK_COMPONENT_SWIZZLE_A},
       {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
   };
-  status =
-      vkCreateImageView(*device_, &view_create_info, nullptr, &fb_image_view_);
+  status = dfn.vkCreateImageView(*device_, &view_create_info, nullptr,
+                                 &fb_image_view_);
   CheckResult(status, "vkCreateImageView");
 
   VkFramebufferCreateInfo framebuffer_create_info = {
@@ -296,8 +298,8 @@ void VulkanCommandProcessor::CreateSwapImage(VkCommandBuffer setup_buffer,
       extents.height,
       1,
   };
-  status = vkCreateFramebuffer(*device_, &framebuffer_create_info, nullptr,
-                               &fb_framebuffer_);
+  status = dfn.vkCreateFramebuffer(*device_, &framebuffer_create_info, nullptr,
+                                   &fb_framebuffer_);
   CheckResult(status, "vkCreateFramebuffer");
 
   // Transition image to general layout.
@@ -313,20 +315,22 @@ void VulkanCommandProcessor::CreateSwapImage(VkCommandBuffer setup_buffer,
   barrier.image = image_fb;
   barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
-  vkCmdPipelineBarrier(setup_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
-                       nullptr, 0, nullptr, 1, &barrier);
+  dfn.vkCmdPipelineBarrier(setup_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                           VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
+                           nullptr, 0, nullptr, 1, &barrier);
 }
 
 void VulkanCommandProcessor::DestroySwapImage() {
-  vkDestroyFramebuffer(*device_, fb_framebuffer_, nullptr);
-  vkDestroyImageView(*device_, fb_image_view_, nullptr);
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+
+  dfn.vkDestroyFramebuffer(*device_, fb_framebuffer_, nullptr);
+  dfn.vkDestroyImageView(*device_, fb_image_view_, nullptr);
 
   std::lock_guard<std::mutex> lock(swap_state_.mutex);
-  vkDestroyImage(*device_,
-                 reinterpret_cast<VkImage>(swap_state_.front_buffer_texture),
-                 nullptr);
-  vkFreeMemory(*device_, fb_memory_, nullptr);
+  dfn.vkDestroyImage(
+      *device_, reinterpret_cast<VkImage>(swap_state_.front_buffer_texture),
+      nullptr);
+  dfn.vkFreeMemory(*device_, fb_memory_, nullptr);
 
   swap_state_.front_buffer_texture = 0;
   fb_memory_ = nullptr;
@@ -345,17 +349,19 @@ void VulkanCommandProcessor::BeginFrame() {
   current_command_buffer_ = command_buffer_pool_->AcquireEntry();
   current_setup_buffer_ = command_buffer_pool_->AcquireEntry();
 
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+
   VkCommandBufferBeginInfo command_buffer_begin_info;
   command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   command_buffer_begin_info.pNext = nullptr;
   command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
   command_buffer_begin_info.pInheritanceInfo = nullptr;
-  auto status =
-      vkBeginCommandBuffer(current_command_buffer_, &command_buffer_begin_info);
+  auto status = dfn.vkBeginCommandBuffer(current_command_buffer_,
+                                         &command_buffer_begin_info);
   CheckResult(status, "vkBeginCommandBuffer");
 
-  status =
-      vkBeginCommandBuffer(current_setup_buffer_, &command_buffer_begin_info);
+  status = dfn.vkBeginCommandBuffer(current_setup_buffer_,
+                                    &command_buffer_begin_info);
   CheckResult(status, "vkBeginCommandBuffer");
 
   // Flag renderdoc down to start a capture if requested.
@@ -385,10 +391,11 @@ void VulkanCommandProcessor::EndFrame() {
     current_render_state_ = nullptr;
   }
 
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   VkResult status = VK_SUCCESS;
-  status = vkEndCommandBuffer(current_setup_buffer_);
+  status = dfn.vkEndCommandBuffer(current_setup_buffer_);
   CheckResult(status, "vkEndCommandBuffer");
-  status = vkEndCommandBuffer(current_command_buffer_);
+  status = dfn.vkEndCommandBuffer(current_command_buffer_);
   CheckResult(status, "vkEndCommandBuffer");
 
   current_command_buffer_ = nullptr;
@@ -402,6 +409,8 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
                                          uint32_t frontbuffer_width,
                                          uint32_t frontbuffer_height) {
   SCOPE_profile_cpu_f("gpu");
+
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
 
   // Build a final command buffer that copies the game's frontbuffer texture
   // into our backbuffer texture.
@@ -420,7 +429,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
   std::memset(&begin_info, 0, sizeof(begin_info));
   begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-  auto status = vkBeginCommandBuffer(copy_commands, &begin_info);
+  auto status = dfn.vkBeginCommandBuffer(copy_commands, &begin_info);
   CheckResult(status, "vkBeginCommandBuffer");
 
   if (!frontbuffer_ptr) {
@@ -463,20 +472,20 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     barrier.image = texture->image;
     barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
-    vkCmdPipelineBarrier(copy_commands,
-                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-                             VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr,
-                         0, nullptr, 1, &barrier);
+    dfn.vkCmdPipelineBarrier(copy_commands,
+                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
+                             nullptr, 0, nullptr, 1, &barrier);
 
     barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
     barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     barrier.image = swap_fb;
-    vkCmdPipelineBarrier(copy_commands, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
-                         nullptr, 0, nullptr, 1, &barrier);
+    dfn.vkCmdPipelineBarrier(copy_commands, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
+                             0, nullptr, 0, nullptr, 1, &barrier);
 
     // Part of the source image that we want to blit from.
     VkRect2D src_rect = {
@@ -502,7 +511,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     std::swap(barrier.oldLayout, barrier.newLayout);
     barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    vkCmdPipelineBarrier(
+    dfn.vkCmdPipelineBarrier(
         copy_commands, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
@@ -511,7 +520,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     swap_state_.height = frontbuffer_height;
   }
 
-  status = vkEndCommandBuffer(copy_commands);
+  status = dfn.vkEndCommandBuffer(copy_commands);
   CheckResult(status, "vkEndCommandBuffer");
 
   // Queue up current command buffers.
@@ -549,7 +558,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     submit_info.signalSemaphoreCount = 0;
     submit_info.pSignalSemaphores = nullptr;
 
-    status = vkQueueSubmit(queue_, 1, &submit_info, current_batch_fence_);
+    status = dfn.vkQueueSubmit(queue_, 1, &submit_info, current_batch_fence_);
     if (device_->is_renderdoc_attached() && capturing_) {
       device_->EndRenderDocFrameCapture();
       capturing_ = false;
@@ -559,7 +568,7 @@ void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
     }
   }
 
-  vkWaitForFences(*device_, 1, &current_batch_fence_, VK_TRUE, -1);
+  dfn.vkWaitForFences(*device_, 1, &current_batch_fence_, VK_TRUE, -1);
   if (cache_clear_requested_) {
     cache_clear_requested_ = false;
 
@@ -664,6 +673,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     }
   }
 
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+
   // Configure the pipeline for drawing.
   // This encodes all render state (blend, depth, etc), our shader stages,
   // and our vertex input layout.
@@ -675,8 +686,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     return false;
   } else if (pipeline_status == PipelineCache::UpdateStatus::kMismatch ||
              full_update) {
-    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      pipeline);
+    dfn.vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipeline);
   }
   pipeline_cache_->SetDynamicState(command_buffer, full_update);
 
@@ -710,8 +721,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     uint32_t first_vertex =
         register_file_->values[XE_GPU_REG_VGT_INDX_OFFSET].u32;
     uint32_t first_instance = 0;
-    vkCmdDraw(command_buffer, index_count, instance_count, first_vertex,
-              first_instance);
+    dfn.vkCmdDraw(command_buffer, index_count, instance_count, first_vertex,
+                  first_instance);
   } else {
     // Index buffer draw.
     uint32_t instance_count = 1;
@@ -719,8 +730,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     uint32_t vertex_offset =
         register_file_->values[XE_GPU_REG_VGT_INDX_OFFSET].u32;
     uint32_t first_instance = 0;
-    vkCmdDrawIndexed(command_buffer, index_count, instance_count, first_index,
-                     vertex_offset, first_instance);
+    dfn.vkCmdDrawIndexed(command_buffer, index_count, instance_count,
+                         first_index, vertex_offset, first_instance);
   }
 
   return true;
@@ -754,7 +765,8 @@ bool VulkanCommandProcessor::PopulateConstants(VkCommandBuffer command_buffer,
   uint32_t set_constant_offsets[2] = {
       static_cast<uint32_t>(constant_offsets.first),
       static_cast<uint32_t>(constant_offsets.second)};
-  vkCmdBindDescriptorSets(
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  dfn.vkCmdBindDescriptorSets(
       command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1,
       &constant_descriptor_set,
       static_cast<uint32_t>(xe::countof(set_constant_offsets)),
@@ -806,8 +818,9 @@ bool VulkanCommandProcessor::PopulateIndexBuffer(
   VkIndexType index_type = info.format == xenos::IndexFormat::kInt32
                                ? VK_INDEX_TYPE_UINT32
                                : VK_INDEX_TYPE_UINT16;
-  vkCmdBindIndexBuffer(command_buffer, buffer_ref.first, buffer_ref.second,
-                       index_type);
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  dfn.vkCmdBindIndexBuffer(command_buffer, buffer_ref.first, buffer_ref.second,
+                           index_type);
 
   return true;
 }
@@ -835,9 +848,10 @@ bool VulkanCommandProcessor::PopulateVertexBuffers(
     return false;
   }
 
-  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          pipeline_cache_->pipeline_layout(), 2, 1,
-                          &descriptor_set, 0, nullptr);
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  dfn.vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              pipeline_cache_->pipeline_layout(), 2, 1,
+                              &descriptor_set, 0, nullptr);
   return true;
 }
 
@@ -859,9 +873,10 @@ bool VulkanCommandProcessor::PopulateSamplers(VkCommandBuffer command_buffer,
     return false;
   }
 
-  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          pipeline_cache_->pipeline_layout(), 1, 1,
-                          &descriptor_set, 0, nullptr);
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  dfn.vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              pipeline_cache_->pipeline_layout(), 1, 1,
+                              &descriptor_set, 0, nullptr);
 
   return true;
 }
@@ -1066,6 +1081,7 @@ bool VulkanCommandProcessor::IssueCopy() {
     render_cache_->EndRenderPass();
     current_render_state_ = nullptr;
   }
+  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   auto command_buffer = current_command_buffer_;
 
   if (texture->image_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
@@ -1087,9 +1103,9 @@ bool VulkanCommandProcessor::IssueCopy() {
             : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
     texture->image_layout = VK_IMAGE_LAYOUT_GENERAL;
 
-    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                         nullptr, 1, &image_barrier);
+    dfn.vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                             VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0,
+                             nullptr, 0, nullptr, 1, &image_barrier);
   }
 
   // Transition the image into a transfer destination layout, if needed.
@@ -1113,9 +1129,9 @@ bool VulkanCommandProcessor::IssueCopy() {
       is_color_source ? VK_IMAGE_ASPECT_COLOR_BIT
                       : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 
-  vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                       VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &image_barrier);
+  dfn.vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                           VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0,
+                           nullptr, 1, &image_barrier);
 
   // Ask the render cache to copy to the resolve texture.
   auto edram_base = is_color_source ? color_edram_base : depth_edram_base;
@@ -1176,10 +1192,11 @@ bool VulkanCommandProcessor::IssueCopy() {
           is_color_source
               ? VK_IMAGE_ASPECT_COLOR_BIT
               : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-      vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
-                           VK_PIPELINE_STAGE_TRANSFER_BIT |
-                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                           0, 0, nullptr, 0, nullptr, 1, &tile_image_barrier);
+      dfn.vkCmdPipelineBarrier(
+          command_buffer, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+          VK_PIPELINE_STAGE_TRANSFER_BIT |
+              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+          0, 0, nullptr, 0, nullptr, 1, &tile_image_barrier);
 
       auto render_pass =
           blitter_->GetRenderPass(texture->format, is_color_source);
@@ -1200,8 +1217,8 @@ bool VulkanCommandProcessor::IssueCopy() {
             1,
         };
 
-        VkResult res = vkCreateFramebuffer(*device_, &fb_create_info, nullptr,
-                                           &texture->framebuffer);
+        VkResult res = dfn.vkCreateFramebuffer(*device_, &fb_create_info,
+                                               nullptr, &texture->framebuffer);
         CheckResult(res, "vkCreateFramebuffer");
       }
 
@@ -1268,11 +1285,11 @@ bool VulkanCommandProcessor::IssueCopy() {
       std::swap(tile_image_barrier.srcAccessMask,
                 tile_image_barrier.dstAccessMask);
       std::swap(tile_image_barrier.oldLayout, tile_image_barrier.newLayout);
-      vkCmdPipelineBarrier(command_buffer,
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-                               VK_PIPELINE_STAGE_TRANSFER_BIT,
-                           VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, nullptr, 0,
-                           nullptr, 1, &tile_image_barrier);
+      dfn.vkCmdPipelineBarrier(command_buffer,
+                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                                   VK_PIPELINE_STAGE_TRANSFER_BIT,
+                               VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0,
+                               nullptr, 0, nullptr, 1, &tile_image_barrier);
     } break;
 
     case CopyCommand::kConstantOne:
@@ -1286,14 +1303,14 @@ bool VulkanCommandProcessor::IssueCopy() {
   image_barrier.dstAccessMask =
       VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT;
   std::swap(image_barrier.newLayout, image_barrier.oldLayout);
-  vkCmdPipelineBarrier(command_buffer,
-                       is_color_source
-                           ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                           : VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-                       VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
-                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-                           VK_PIPELINE_STAGE_TRANSFER_BIT,
-                       0, 0, nullptr, 0, nullptr, 1, &image_barrier);
+  dfn.vkCmdPipelineBarrier(command_buffer,
+                           is_color_source
+                               ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                               : VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                           VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                               VK_PIPELINE_STAGE_TRANSFER_BIT,
+                           0, 0, nullptr, 0, nullptr, 1, &image_barrier);
 
   // Perform any requested clears.
   uint32_t copy_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;

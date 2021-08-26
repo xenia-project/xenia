@@ -293,7 +293,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   a_.OpINE(
       index_dest,
       dxbc::Src::V(uint32_t(InOutRegister::kVSInVertexIndex), dxbc::Src::kXXXX),
-      LoadSystemConstant(SystemConstantIndex::kLineLoopClosingIndex,
+      LoadSystemConstant(SystemConstants::Index::kLineLoopClosingIndex,
                          offsetof(SystemConstants, line_loop_closing_index),
                          dxbc::Src::kXXXX));
   // Zero the index if processing the closing vertex of a line loop, or do
@@ -306,7 +306,7 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   {
     // Swap the vertex index's endianness.
     dxbc::Src endian_src(LoadSystemConstant(
-        SystemConstantIndex::kVertexIndexEndian,
+        SystemConstants::Index::kVertexIndexEndian,
         offsetof(SystemConstants, vertex_index_endian), dxbc::Src::kXXXX));
     dxbc::Dest swap_temp_dest(dxbc::Dest::R(reg, 0b0010));
     dxbc::Src swap_temp_src(dxbc::Src::R(reg, dxbc::Src::kYYYY));
@@ -346,12 +346,27 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
 
   // Add the base vertex index.
   a_.OpIAdd(index_dest, index_src,
-            LoadSystemConstant(SystemConstantIndex::kVertexBaseIndex,
-                               offsetof(SystemConstants, vertex_base_index),
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexOffset,
+                               offsetof(SystemConstants, vertex_index_offset),
+                               dxbc::Src::kXXXX));
+
+  // Mask since the GPU only uses the lower 24 bits of the vertex index (tested
+  // on an Adreno 200 phone). `((index & 0xFFFFFF) + offset) & 0xFFFFFF` is the
+  // same as `(index + offset) & 0xFFFFFF`.
+  a_.OpAnd(index_dest, index_src, dxbc::Src::LU(xenos::kVertexIndexMask));
+
+  // Clamp the vertex index after offsetting.
+  a_.OpUMax(index_dest, index_src,
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexMinMax,
+                               offsetof(SystemConstants, vertex_index_min),
+                               dxbc::Src::kXXXX));
+  a_.OpUMin(index_dest, index_src,
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexMinMax,
+                               offsetof(SystemConstants, vertex_index_max),
                                dxbc::Src::kXXXX));
 
   // Convert to float.
-  a_.OpIToF(index_dest, index_src);
+  a_.OpUToF(index_dest, index_src);
 
   if (uses_register_dynamic_addressing) {
     // Store to indexed GPR 0 in x0[0].
@@ -547,9 +562,27 @@ void DxbcShaderTranslator::StartPixelShader() {
     // Load the EDRAM addresses and the coverage.
     StartPixelShader_LoadROVParameters();
 
-    // Do early 2x2 quad rejection if it makes sense.
     if (ROV_IsDepthStencilEarly()) {
+      // Do early 2x2 quad rejection if it's safe.
       ROV_DepthStencilTest();
+    } else {
+      if (!current_shader().writes_depth()) {
+        // Get the derivatives of the screen-space (but not clamped to the
+        // viewport depth bounds yet - this happens after the pixel shader in
+        // Direct3D 11+; also linear within the triangle - thus constant
+        // derivatives along the triangle) Z for calculating per-sample depth
+        // values and the slope-scaled polygon offset to
+        // system_temp_depth_stencil_ before any return statement is possibly
+        // reached.
+        assert_true(system_temp_depth_stencil_ != UINT32_MAX);
+        dxbc::Src in_position_z(dxbc::Src::V(
+            uint32_t(InOutRegister::kPSInPosition), dxbc::Src::kZZZZ));
+        in_position_used_ |= 0b0100;
+        a_.OpDerivRTXCoarse(dxbc::Dest::R(system_temp_depth_stencil_, 0b0001),
+                            in_position_z);
+        a_.OpDerivRTYCoarse(dxbc::Dest::R(system_temp_depth_stencil_, 0b0010),
+                            in_position_z);
+      }
     }
   }
 
@@ -568,7 +601,7 @@ void DxbcShaderTranslator::StartPixelShader() {
     uint32_t centroid_temp =
         uses_register_dynamic_addressing ? PushSystemTemp() : UINT32_MAX;
     dxbc::Src sampling_pattern_src(LoadSystemConstant(
-        SystemConstantIndex::kInterpolatorSamplingPattern,
+        SystemConstants::Index::kInterpolatorSamplingPattern,
         offsetof(SystemConstants, interpolator_sampling_pattern),
         dxbc::Src::kXXXX));
     for (uint32_t i = 0; i < interpolator_count; ++i) {
@@ -606,7 +639,7 @@ void DxbcShaderTranslator::StartPixelShader() {
     // absolute value) coordinates, facing (X sign bit) - to the specified
     // interpolator register (ps_param_gen).
     dxbc::Src param_gen_index_src(LoadSystemConstant(
-        SystemConstantIndex::kPSParamGen,
+        SystemConstants::Index::kPSParamGen,
         offsetof(SystemConstants, ps_param_gen), dxbc::Src::kXXXX));
     uint32_t param_gen_temp = PushSystemTemp();
     // Check if pixel parameters need to be written.
@@ -660,7 +693,7 @@ void DxbcShaderTranslator::StartPixelShader() {
       a_.OpUBFE(dxbc::Dest::R(param_gen_temp, 0b0100), dxbc::Src::LU(1),
                 param_gen_index_src,
                 LoadSystemConstant(
-                    SystemConstantIndex::kInterpolatorSamplingPattern,
+                    SystemConstants::Index::kInterpolatorSamplingPattern,
                     offsetof(SystemConstants, interpolator_sampling_pattern),
                     dxbc::Src::kXXXX));
       a_.OpIf(bool(xenos::SampleLocation::kCenter),
@@ -744,15 +777,24 @@ void DxbcShaderTranslator::StartTranslation() {
       system_temp_rov_params_ = PushSystemTemp();
     }
     if (IsDepthStencilSystemTempUsed()) {
-      // If the shader doesn't write to oDepth, and ROV is used, each
-      // component will be written to if depth/stencil is enabled and the
-      // respective sample is covered - so need to initialize now because the
-      // first writes will be conditional.
-      // If the shader writes to oDepth, this is oDepth of the shader, written
-      // by the guest code, so initialize because assumptions can't be made
-      // about the integrity of the guest code.
-      system_temp_depth_stencil_ =
-          PushSystemTemp(current_shader().writes_depth() ? 0b0001 : 0b1111);
+      uint32_t depth_stencil_temp_zero_mask;
+      if (current_shader().writes_depth()) {
+        // X holds the guest oDepth - make sure it's always initialized because
+        // assumptions can't be made about the integrity of the guest code.
+        depth_stencil_temp_zero_mask = 0b0001;
+      } else {
+        assert_true(edram_rov_used_);
+        if (ROV_IsDepthStencilEarly()) {
+          // XYZW hold per-sample depth / stencil after the early test - written
+          // conditionally based on the coverage, ensure registers are
+          // initialized unconditionally for safety.
+          depth_stencil_temp_zero_mask = 0b1111;
+        } else {
+          // XY hold Z gradients, written unconditionally in the beginning.
+          depth_stencil_temp_zero_mask = 0b0000;
+        }
+      }
+      system_temp_depth_stencil_ = PushSystemTemp(depth_stencil_temp_zero_mask);
     }
     uint32_t shader_writes_color_targets =
         current_shader().writes_color_targets();
@@ -896,7 +938,7 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
                  uint32_t(InOutRegister::kVSDSOutClipDistance0123) + (i >> 2),
                  1 << (i & 3)),
              dxbc::Src::R(system_temp_position_),
-             LoadSystemConstant(SystemConstantIndex::kUserClipPlanes,
+             LoadSystemConstant(SystemConstants::Index::kUserClipPlanes,
                                 offsetof(SystemConstants, user_clip_planes) +
                                     sizeof(float) * 4 * i,
                                 dxbc::Src::kXYZW));
@@ -908,20 +950,15 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
   // position to NaN to kill all primitives.
   a_.OpMul(dxbc::Dest::R(system_temp_position_, 0b0111),
            dxbc::Src::R(system_temp_position_),
-           LoadSystemConstant(SystemConstantIndex::kNDCScale,
+           LoadSystemConstant(SystemConstants::Index::kNDCScale,
                               offsetof(SystemConstants, ndc_scale), 0b100100));
 
   // Apply offset (multiplied by W) used for the same purposes.
   a_.OpMAd(dxbc::Dest::R(system_temp_position_, 0b0111),
-           LoadSystemConstant(SystemConstantIndex::kNDCOffset,
+           LoadSystemConstant(SystemConstants::Index::kNDCOffset,
                               offsetof(SystemConstants, ndc_offset), 0b100100),
            dxbc::Src::R(system_temp_position_, dxbc::Src::kWWWW),
            dxbc::Src::R(system_temp_position_));
-
-  // Write Z and W of the position to a separate attribute so ROV output can get
-  // per-sample depth.
-  a_.OpMov(dxbc::Dest::O(uint32_t(InOutRegister::kVSDSOutClipSpaceZW), 0b0011),
-           dxbc::Src::R(system_temp_position_, 0b1110));
 
   // Assuming SV_CullDistance was zeroed earlier in this function.
   // Kill the primitive if needed - check if the shader wants to kill.
@@ -1889,9 +1926,6 @@ const DxbcShaderTranslator::ShaderRdefType
         {"float4", dxbc::RdefVariableClass::kVector,
          dxbc::RdefVariableType::kFloat, 1, 4, 0,
          ShaderRdefTypeIndex::kUnknown},
-        // kInt
-        {"int", dxbc::RdefVariableClass::kScalar, dxbc::RdefVariableType::kInt,
-         1, 1, 0, ShaderRdefTypeIndex::kUnknown},
         // kUint
         {"dword", dxbc::RdefVariableClass::kScalar,
          dxbc::RdefVariableType::kUInt, 1, 1, 0, ShaderRdefTypeIndex::kUnknown},
@@ -1928,7 +1962,7 @@ const DxbcShaderTranslator::ShaderRdefType
 
 const DxbcShaderTranslator::SystemConstantRdef
     DxbcShaderTranslator::system_constant_rdef_[size_t(
-        DxbcShaderTranslator::SystemConstantIndex::kCount)] = {
+        DxbcShaderTranslator::SystemConstants::Index::kCount)] = {
         {"xe_flags", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
         {"xe_tessellation_factor_range", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
@@ -1937,38 +1971,39 @@ const DxbcShaderTranslator::SystemConstantRdef
 
         {"xe_vertex_index_endian", ShaderRdefTypeIndex::kUint,
          sizeof(uint32_t)},
-        {"xe_vertex_base_index", ShaderRdefTypeIndex::kInt, sizeof(int32_t)},
-        {"xe_point_size", ShaderRdefTypeIndex::kFloat2, sizeof(float) * 2},
+        {"xe_vertex_index_offset", ShaderRdefTypeIndex::kUint, sizeof(int32_t)},
+        {"xe_vertex_index_min_max", ShaderRdefTypeIndex::kUint2,
+         sizeof(uint32_t) * 2},
+
+        {"xe_user_clip_planes", ShaderRdefTypeIndex::kFloat4Array6,
+         sizeof(float) * 4 * 6},
+
+        {"xe_ndc_scale", ShaderRdefTypeIndex::kFloat3, sizeof(float) * 3},
+        {"xe_point_size_x", ShaderRdefTypeIndex::kFloat, sizeof(float)},
+
+        {"xe_ndc_offset", ShaderRdefTypeIndex::kFloat3, sizeof(float) * 3},
+        {"xe_point_size_y", ShaderRdefTypeIndex::kFloat, sizeof(float)},
 
         {"xe_point_size_min_max", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
         {"xe_point_screen_to_ndc", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
 
-        {"xe_user_clip_planes", ShaderRdefTypeIndex::kFloat4Array6,
-         sizeof(float) * 4 * 6},
-
-        {"xe_ndc_scale", ShaderRdefTypeIndex::kFloat3, sizeof(float) * 3},
         {"xe_interpolator_sampling_pattern", ShaderRdefTypeIndex::kUint,
          sizeof(uint32_t)},
-
-        {"xe_ndc_offset", ShaderRdefTypeIndex::kFloat3, sizeof(float) * 3},
         {"xe_ps_param_gen", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_sample_count_log2", ShaderRdefTypeIndex::kUint2,
+         sizeof(uint32_t) * 2},
 
         {"xe_texture_swizzled_signs", ShaderRdefTypeIndex::kUint4Array2,
          sizeof(uint32_t) * 4 * 2},
 
         {"xe_textures_resolved", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_sample_count_log2", ShaderRdefTypeIndex::kUint2,
-         sizeof(uint32_t) * 2},
         {"xe_alpha_test_reference", ShaderRdefTypeIndex::kFloat, sizeof(float)},
-
-        {"xe_color_exp_bias", ShaderRdefTypeIndex::kFloat4, sizeof(float) * 4},
-
         {"xe_alpha_to_mask", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
         {"xe_edram_pitch_tiles", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_edram_depth_range", ShaderRdefTypeIndex::kFloat2,
-         sizeof(float) * 2},
+
+        {"xe_color_exp_bias", ShaderRdefTypeIndex::kFloat4, sizeof(float) * 4},
 
         {"xe_edram_poly_offset_front", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
@@ -2078,9 +2113,9 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
   // Names.
   name_ptr = (uint32_t(shader_object_.size()) - blob_position_dwords) *
              sizeof(uint32_t);
-  uint32_t constant_name_ptrs_system[size_t(SystemConstantIndex::kCount)];
+  uint32_t constant_name_ptrs_system[size_t(SystemConstants::Index::kCount)];
   if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
-    for (size_t i = 0; i < size_t(SystemConstantIndex::kCount); ++i) {
+    for (size_t i = 0; i < size_t(SystemConstants::Index::kCount); ++i) {
       constant_name_ptrs_system[i] = name_ptr;
       name_ptr += dxbc::AppendAlignedString(shader_object_,
                                             system_constant_rdef_[i].name);
@@ -2112,11 +2147,11 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
   if (cbuffer_index_system_constants_ != kBindingIndexUnallocated) {
     shader_object_.resize(constant_position_dwords_system +
                           sizeof(dxbc::RdefVariable) / sizeof(uint32_t) *
-                              size_t(SystemConstantIndex::kCount));
+                              size_t(SystemConstants::Index::kCount));
     auto constants_system = reinterpret_cast<dxbc::RdefVariable*>(
         shader_object_.data() + constant_position_dwords_system);
     uint32_t constant_offset_system = 0;
-    for (size_t i = 0; i < size_t(SystemConstantIndex::kCount); ++i) {
+    for (size_t i = 0; i < size_t(SystemConstants::Index::kCount); ++i) {
       dxbc::RdefVariable& constant_system = constants_system[i];
       const SystemConstantRdef& translator_constant_system =
           system_constant_rdef_[i];
@@ -2271,7 +2306,7 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
       cbuffer.type = dxbc::RdefCbufferType::kCbuffer;
       if (i == cbuffer_index_system_constants_) {
         cbuffer.name_ptr = cbuffer_name_ptr_system;
-        cbuffer.variable_count = uint32_t(SystemConstantIndex::kCount);
+        cbuffer.variable_count = uint32_t(SystemConstants::Index::kCount);
         cbuffer.variables_ptr =
             (constant_position_dwords_system - blob_position_dwords) *
             sizeof(uint32_t);
@@ -2693,24 +2728,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
       point_parameters.always_reads_mask = param_gen_used ? 0b0011 : 0b0000;
     }
 
-    // Z and W in clip space, for getting per-sample depth with ROV (TEXCOORD#).
-    size_t clip_space_zw_position = shader_object_.size();
-    shader_object_.resize(shader_object_.size() + kParameterDwords);
-    ++parameter_count;
-    {
-      auto& clip_space_zw = *reinterpret_cast<dxbc::SignatureParameter*>(
-          shader_object_.data() + clip_space_zw_position);
-      clip_space_zw.semantic_index = kClipSpaceZWTexCoord;
-      clip_space_zw.component_type =
-          dxbc::SignatureRegisterComponentType::kFloat32;
-      clip_space_zw.register_index = uint32_t(InOutRegister::kPSInClipSpaceZW);
-      clip_space_zw.mask = 0b0011;
-      clip_space_zw.always_reads_mask = edram_rov_used_ ? 0b0011 : 0b0000;
-    }
-
-    // Pixel position. Z is not needed - ROV depth testing calculates the depth
-    // from the clip space Z/W texcoord, and if oDepth is used, it must be
-    // written to on every execution path anyway (SV_Position).
+    // Pixel position (SV_Position).
     size_t position_position = shader_object_.size();
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
@@ -2772,9 +2790,6 @@ void DxbcShaderTranslator::WriteInputSignature() {
       auto& point_parameters = *reinterpret_cast<dxbc::SignatureParameter*>(
           shader_object_.data() + point_parameters_position);
       point_parameters.semantic_name_ptr = semantic_offset;
-      auto& clip_space_zw = *reinterpret_cast<dxbc::SignatureParameter*>(
-          shader_object_.data() + clip_space_zw_position);
-      clip_space_zw.semantic_name_ptr = semantic_offset;
     }
     semantic_offset += dxbc::AppendAlignedString(shader_object_, "TEXCOORD");
     {
@@ -2972,22 +2987,6 @@ void DxbcShaderTranslator::WriteOutputSignature() {
       point_parameters.never_writes_mask = 0b1000;
     }
 
-    // Z and W in clip space, for getting per-sample depth with ROV (TEXCOORD#).
-    size_t clip_space_zw_position = shader_object_.size();
-    shader_object_.resize(shader_object_.size() + kParameterDwords);
-    ++parameter_count;
-    {
-      auto& clip_space_zw = *reinterpret_cast<dxbc::SignatureParameter*>(
-          shader_object_.data() + clip_space_zw_position);
-      clip_space_zw.semantic_index = kClipSpaceZWTexCoord;
-      clip_space_zw.component_type =
-          dxbc::SignatureRegisterComponentType::kFloat32;
-      clip_space_zw.register_index =
-          uint32_t(InOutRegister::kVSDSOutClipSpaceZW);
-      clip_space_zw.mask = 0b0011;
-      clip_space_zw.never_writes_mask = 0b1100;
-    }
-
     // Position (SV_Position).
     size_t position_position = shader_object_.size();
     shader_object_.resize(shader_object_.size() + kParameterDwords);
@@ -3057,9 +3056,6 @@ void DxbcShaderTranslator::WriteOutputSignature() {
       auto& point_parameters = *reinterpret_cast<dxbc::SignatureParameter*>(
           shader_object_.data() + point_parameters_position);
       point_parameters.semantic_name_ptr = semantic_offset;
-      auto& clip_space_zw = *reinterpret_cast<dxbc::SignatureParameter*>(
-          shader_object_.data() + clip_space_zw_position);
-      clip_space_zw.semantic_name_ptr = semantic_offset;
     }
     semantic_offset += dxbc::AppendAlignedString(shader_object_, "TEXCOORD");
     {
@@ -3451,9 +3447,6 @@ void DxbcShaderTranslator::WriteShaderCode() {
     // Point parameters output.
     ao_.OpDclOutput(dxbc::Dest::O(
         uint32_t(InOutRegister::kVSDSOutPointParameters), 0b0111));
-    // Clip space Z and W output.
-    ao_.OpDclOutput(
-        dxbc::Dest::O(uint32_t(InOutRegister::kVSDSOutClipSpaceZW), 0b0011));
     // Position output.
     ao_.OpDclOutputSIV(dxbc::Dest::O(uint32_t(InOutRegister::kVSDSOutPosition)),
                        dxbc::Name::kPosition);
@@ -3489,12 +3482,6 @@ void DxbcShaderTranslator::WriteShaderCode() {
             dxbc::Dest::V(uint32_t(InOutRegister::kPSInPointParameters),
                           0b0011));
       }
-    }
-    if (edram_rov_used_) {
-      // Z and W in clip space, for per-sample depth.
-      ao_.OpDclInputPS(
-          dxbc::InterpolationMode::kLinear,
-          dxbc::Dest::V(uint32_t(InOutRegister::kPSInClipSpaceZW), 0b0011));
     }
     if (in_position_used_) {
       // Position input (XY needed for ps_param_gen, Z needed for non-ROV

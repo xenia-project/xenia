@@ -52,20 +52,14 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       if (!e || !buffer || !extra) {
         return X_E_INVALIDARG;
       }
-      assert_true(extra->magic == 'XEN\0');
+      assert_true(extra->magic == kXObjSignature);
       if (data->buffer_size) {
         std::memset(buffer, 0, data->buffer_size);
       }
       uint32_t item_count = 0;
-      auto result = e->WriteItems(data->buffer_ptr, buffer, data->buffer_size,
-                                  &item_count);
-      assert_true(XSUCCEEDED(result));
-      assert_true(item_count <= 1);
-      if (XSUCCEEDED(result) && item_count == 1) {
-        auto content_data = reinterpret_cast<XCONTENT_AGGREGATE_DATA*>(buffer);
-        // TODO(gibbed): WTF?
-        *reinterpret_cast<be<uint32_t>*>(&buffer[0x140]) =
-            content_data->title_id;
+      auto result = e->WriteItems(data->buffer_ptr, buffer, &item_count);
+
+      if (result == X_ERROR_SUCCESS && item_count >= 1) {
         if (data->length_ptr) {
           auto length_ptr =
               memory_->TranslateVirtual<be<uint32_t>*>(data->length_ptr);

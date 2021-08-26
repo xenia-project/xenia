@@ -13,9 +13,9 @@ namespace xe {
 namespace kernel {
 namespace util {
 
-constexpr uint32_t kXdbfMagicXdbf = 'XDBF';
-constexpr uint32_t kXdbfMagicXstc = 'XSTC';
-constexpr uint32_t kXdbfMagicXstr = 'XSTR';
+constexpr fourcc_t kXdbfSignatureXdbf = make_fourcc("XDBF");
+constexpr fourcc_t kXdbfSignatureXstc = make_fourcc("XSTC");
+constexpr fourcc_t kXdbfSignatureXstr = make_fourcc("XSTR");
 
 XdbfWrapper::XdbfWrapper(const uint8_t* data, size_t data_size)
     : data_(data), data_size_(data_size) {
@@ -28,7 +28,7 @@ XdbfWrapper::XdbfWrapper(const uint8_t* data, size_t data_size)
 
   header_ = reinterpret_cast<const XbdfHeader*>(ptr);
   ptr += sizeof(XbdfHeader);
-  if (header_->magic != kXdbfMagicXdbf) {
+  if (header_->magic != kXdbfSignatureXdbf) {
     data_ = nullptr;
     return;
   }
@@ -65,7 +65,7 @@ std::string XdbfWrapper::GetStringTableEntry(XLanguage language,
 
   auto xstr_head =
       reinterpret_cast<const XdbfXstrHeader*>(language_block.buffer);
-  assert_true(xstr_head->magic == kXdbfMagicXstr);
+  assert_true(xstr_head->magic == kXdbfSignatureXstr);
   assert_true(xstr_head->version == 1);
 
   const uint8_t* ptr = language_block.buffer + sizeof(XdbfXstrHeader);
@@ -94,7 +94,7 @@ XLanguage XdbfGameData::default_language() const {
     return XLanguage::kEnglish;
   }
   auto xstc = reinterpret_cast<const XdbfXstc*>(block.buffer);
-  assert_true(xstc->magic == kXdbfMagicXstc);
+  assert_true(xstc->magic == kXdbfSignatureXstc);
   return static_cast<XLanguage>(static_cast<uint32_t>(xstc->default_language));
 }
 

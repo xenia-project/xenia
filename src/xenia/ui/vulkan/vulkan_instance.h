@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/platform.h"
 #include "xenia/ui/vulkan/vulkan.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
 #include "xenia/ui/window.h"
@@ -28,9 +29,37 @@ class VulkanInstance {
   VulkanInstance();
   ~VulkanInstance();
 
+  struct LibraryFunctions {
+    // From the module.
+    PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
+    PFN_vkDestroyInstance vkDestroyInstance;
+    // From vkGetInstanceProcAddr.
+    PFN_vkCreateInstance vkCreateInstance;
+    PFN_vkEnumerateInstanceExtensionProperties
+        vkEnumerateInstanceExtensionProperties;
+    PFN_vkEnumerateInstanceLayerProperties vkEnumerateInstanceLayerProperties;
+  };
+  const LibraryFunctions& lfn() const { return lfn_; }
+
   VkInstance handle = nullptr;
 
   operator VkInstance() const { return handle; }
+
+  struct InstanceFunctions {
+#define XE_UI_VULKAN_FUNCTION(name) PFN_##name name;
+#include "xenia/ui/vulkan/functions/instance_1_0.inc"
+#include "xenia/ui/vulkan/functions/instance_ext_debug_report.inc"
+#include "xenia/ui/vulkan/functions/instance_khr_surface.inc"
+#if XE_PLATFORM_ANDROID
+#include "xenia/ui/vulkan/functions/instance_khr_android_surface.inc"
+#elif XE_PLATFORM_GNU_LINUX
+#include "xenia/ui/vulkan/functions/instance_khr_xcb_surface.inc"
+#elif XE_PLATFORM_WIN32
+#include "xenia/ui/vulkan/functions/instance_khr_win32_surface.inc"
+#endif
+#undef XE_UI_VULKAN_FUNCTION
+  };
+  const InstanceFunctions& ifn() const { return ifn_; }
 
   // Declares a layer to verify and enable upon initialization.
   // Must be called before Initialize.
@@ -85,13 +114,24 @@ class VulkanInstance {
                       const char* indent);
   void DumpDeviceInfo(const DeviceInfo& device_info);
 
+#if XE_PLATFORM_LINUX
+  void* library_ = nullptr;
+#elif XE_PLATFORM_WIN32
+  HMODULE library_ = nullptr;
+#endif
+
+  LibraryFunctions lfn_ = {};
+
   std::vector<Requirement> required_layers_;
   std::vector<Requirement> required_extensions_;
+
+  InstanceFunctions ifn_ = {};
 
   std::vector<LayerInfo> global_layers_;
   std::vector<VkExtensionProperties> global_extensions_;
   std::vector<DeviceInfo> available_devices_;
 
+  bool dbg_report_ena_ = false;
   VkDebugReportCallbackEXT dbg_report_callback_ = nullptr;
 
   void* renderdoc_api_ = nullptr;

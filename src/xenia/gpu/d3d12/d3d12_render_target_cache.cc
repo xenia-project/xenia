@@ -74,91 +74,108 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-// Generated with `xb buildhlsl`.
-#include "xenia/gpu/d3d12/shaders/dxbc/clear_uint2_ps.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/fullscreen_vs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/host_depth_store_1xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/host_depth_store_2xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/host_depth_store_4xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/passthrough_position_xy_vs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_clear_32bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_clear_32bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_clear_32bpp_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_clear_64bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_clear_64bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_clear_64bpp_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_32bpp_1x2xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_32bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_32bpp_3xres_1x2xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_32bpp_3xres_4xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_32bpp_4xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_64bpp_1x2xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_64bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_64bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_fast_64bpp_4xmsaa_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_128bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_128bpp_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_128bpp_from_32bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_128bpp_from_64bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_16bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_16bpp_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_16bpp_from_32bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_16bpp_from_64bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_32bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_32bpp_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_32bpp_from_32bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_32bpp_from_64bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_64bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_64bpp_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_64bpp_from_32bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_64bpp_from_64bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_8bpp_2xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_8bpp_3xres_cs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/resolve_full_8bpp_cs.h"
+// Generated with `xb buildshaders`.
+namespace shaders {
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/clear_uint2_ps.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/fullscreen_vs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/host_depth_store_1xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/host_depth_store_2xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/host_depth_store_4xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/passthrough_position_xy_vs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_clear_32bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_clear_32bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_clear_32bpp_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_clear_64bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_clear_64bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_clear_64bpp_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_32bpp_1x2xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_32bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_32bpp_3xres_1x2xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_32bpp_3xres_4xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_32bpp_4xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_64bpp_1x2xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_64bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_64bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_fast_64bpp_4xmsaa_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_128bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_128bpp_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_128bpp_from_32bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_128bpp_from_64bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_16bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_16bpp_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_16bpp_from_32bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_16bpp_from_64bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_32bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_32bpp_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_32bpp_from_32bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_32bpp_from_64bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_64bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_64bpp_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_64bpp_from_32bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_64bpp_from_64bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_8bpp_2xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_8bpp_3xres_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_8bpp_cs.h"
+}  // namespace shaders
 
-const std::pair<const uint8_t*, size_t>
+const std::pair<const void*, size_t>
     D3D12RenderTargetCache::kResolveCopyShaders[size_t(
         draw_util::ResolveCopyShaderIndex::kCount)] = {
-        {resolve_fast_32bpp_1x2xmsaa_cs,
-         sizeof(resolve_fast_32bpp_1x2xmsaa_cs)},
-        {resolve_fast_32bpp_4xmsaa_cs, sizeof(resolve_fast_32bpp_4xmsaa_cs)},
-        {resolve_fast_32bpp_2xres_cs, sizeof(resolve_fast_32bpp_2xres_cs)},
-        {resolve_fast_32bpp_3xres_1x2xmsaa_cs,
-         sizeof(resolve_fast_32bpp_3xres_1x2xmsaa_cs)},
-        {resolve_fast_32bpp_3xres_4xmsaa_cs,
-         sizeof(resolve_fast_32bpp_3xres_4xmsaa_cs)},
-        {resolve_fast_64bpp_1x2xmsaa_cs,
-         sizeof(resolve_fast_64bpp_1x2xmsaa_cs)},
-        {resolve_fast_64bpp_4xmsaa_cs, sizeof(resolve_fast_64bpp_4xmsaa_cs)},
-        {resolve_fast_64bpp_2xres_cs, sizeof(resolve_fast_64bpp_2xres_cs)},
-        {resolve_fast_64bpp_3xres_cs, sizeof(resolve_fast_64bpp_3xres_cs)},
-        {resolve_full_8bpp_cs, sizeof(resolve_full_8bpp_cs)},
-        {resolve_full_8bpp_2xres_cs, sizeof(resolve_full_8bpp_2xres_cs)},
-        {resolve_full_8bpp_3xres_cs, sizeof(resolve_full_8bpp_3xres_cs)},
-        {resolve_full_16bpp_cs, sizeof(resolve_full_16bpp_cs)},
-        {resolve_full_16bpp_2xres_cs, sizeof(resolve_full_16bpp_2xres_cs)},
-        {resolve_full_16bpp_from_32bpp_3xres_cs,
-         sizeof(resolve_full_16bpp_from_32bpp_3xres_cs)},
-        {resolve_full_16bpp_from_64bpp_3xres_cs,
-         sizeof(resolve_full_16bpp_from_64bpp_3xres_cs)},
-        {resolve_full_32bpp_cs, sizeof(resolve_full_32bpp_cs)},
-        {resolve_full_32bpp_2xres_cs, sizeof(resolve_full_32bpp_2xres_cs)},
-        {resolve_full_32bpp_from_32bpp_3xres_cs,
-         sizeof(resolve_full_32bpp_from_32bpp_3xres_cs)},
-        {resolve_full_32bpp_from_64bpp_3xres_cs,
-         sizeof(resolve_full_32bpp_from_64bpp_3xres_cs)},
-        {resolve_full_64bpp_cs, sizeof(resolve_full_64bpp_cs)},
-        {resolve_full_64bpp_2xres_cs, sizeof(resolve_full_64bpp_2xres_cs)},
-        {resolve_full_64bpp_from_32bpp_3xres_cs,
-         sizeof(resolve_full_64bpp_from_32bpp_3xres_cs)},
-        {resolve_full_64bpp_from_64bpp_3xres_cs,
-         sizeof(resolve_full_64bpp_from_64bpp_3xres_cs)},
-        {resolve_full_128bpp_cs, sizeof(resolve_full_128bpp_cs)},
-        {resolve_full_128bpp_2xres_cs, sizeof(resolve_full_128bpp_2xres_cs)},
-        {resolve_full_128bpp_from_32bpp_3xres_cs,
-         sizeof(resolve_full_128bpp_from_32bpp_3xres_cs)},
-        {resolve_full_128bpp_from_64bpp_3xres_cs,
-         sizeof(resolve_full_128bpp_from_64bpp_3xres_cs)},
+        {shaders::resolve_fast_32bpp_1x2xmsaa_cs,
+         sizeof(shaders::resolve_fast_32bpp_1x2xmsaa_cs)},
+        {shaders::resolve_fast_32bpp_4xmsaa_cs,
+         sizeof(shaders::resolve_fast_32bpp_4xmsaa_cs)},
+        {shaders::resolve_fast_32bpp_2xres_cs,
+         sizeof(shaders::resolve_fast_32bpp_2xres_cs)},
+        {shaders::resolve_fast_32bpp_3xres_1x2xmsaa_cs,
+         sizeof(shaders::resolve_fast_32bpp_3xres_1x2xmsaa_cs)},
+        {shaders::resolve_fast_32bpp_3xres_4xmsaa_cs,
+         sizeof(shaders::resolve_fast_32bpp_3xres_4xmsaa_cs)},
+        {shaders::resolve_fast_64bpp_1x2xmsaa_cs,
+         sizeof(shaders::resolve_fast_64bpp_1x2xmsaa_cs)},
+        {shaders::resolve_fast_64bpp_4xmsaa_cs,
+         sizeof(shaders::resolve_fast_64bpp_4xmsaa_cs)},
+        {shaders::resolve_fast_64bpp_2xres_cs,
+         sizeof(shaders::resolve_fast_64bpp_2xres_cs)},
+        {shaders::resolve_fast_64bpp_3xres_cs,
+         sizeof(shaders::resolve_fast_64bpp_3xres_cs)},
+        {shaders::resolve_full_8bpp_cs, sizeof(shaders::resolve_full_8bpp_cs)},
+        {shaders::resolve_full_8bpp_2xres_cs,
+         sizeof(shaders::resolve_full_8bpp_2xres_cs)},
+        {shaders::resolve_full_8bpp_3xres_cs,
+         sizeof(shaders::resolve_full_8bpp_3xres_cs)},
+        {shaders::resolve_full_16bpp_cs,
+         sizeof(shaders::resolve_full_16bpp_cs)},
+        {shaders::resolve_full_16bpp_2xres_cs,
+         sizeof(shaders::resolve_full_16bpp_2xres_cs)},
+        {shaders::resolve_full_16bpp_from_32bpp_3xres_cs,
+         sizeof(shaders::resolve_full_16bpp_from_32bpp_3xres_cs)},
+        {shaders::resolve_full_16bpp_from_64bpp_3xres_cs,
+         sizeof(shaders::resolve_full_16bpp_from_64bpp_3xres_cs)},
+        {shaders::resolve_full_32bpp_cs,
+         sizeof(shaders::resolve_full_32bpp_cs)},
+        {shaders::resolve_full_32bpp_2xres_cs,
+         sizeof(shaders::resolve_full_32bpp_2xres_cs)},
+        {shaders::resolve_full_32bpp_from_32bpp_3xres_cs,
+         sizeof(shaders::resolve_full_32bpp_from_32bpp_3xres_cs)},
+        {shaders::resolve_full_32bpp_from_64bpp_3xres_cs,
+         sizeof(shaders::resolve_full_32bpp_from_64bpp_3xres_cs)},
+        {shaders::resolve_full_64bpp_cs,
+         sizeof(shaders::resolve_full_64bpp_cs)},
+        {shaders::resolve_full_64bpp_2xres_cs,
+         sizeof(shaders::resolve_full_64bpp_2xres_cs)},
+        {shaders::resolve_full_64bpp_from_32bpp_3xres_cs,
+         sizeof(shaders::resolve_full_64bpp_from_32bpp_3xres_cs)},
+        {shaders::resolve_full_64bpp_from_64bpp_3xres_cs,
+         sizeof(shaders::resolve_full_64bpp_from_64bpp_3xres_cs)},
+        {shaders::resolve_full_128bpp_cs,
+         sizeof(shaders::resolve_full_128bpp_cs)},
+        {shaders::resolve_full_128bpp_2xres_cs,
+         sizeof(shaders::resolve_full_128bpp_2xres_cs)},
+        {shaders::resolve_full_128bpp_from_32bpp_3xres_cs,
+         sizeof(shaders::resolve_full_128bpp_from_32bpp_3xres_cs)},
+        {shaders::resolve_full_128bpp_from_64bpp_3xres_cs,
+         sizeof(shaders::resolve_full_128bpp_from_64bpp_3xres_cs)},
 };
 
 const uint32_t D3D12RenderTargetCache::kTransferUsedRootParameters[size_t(
@@ -231,16 +248,22 @@ const D3D12RenderTargetCache::TransferModeInfo
 
 const std::pair<const void*, size_t>
     D3D12RenderTargetCache::kResolveROVClear32bppShaders[3] = {
-        {resolve_clear_32bpp_cs, sizeof(resolve_clear_32bpp_cs)},
-        {resolve_clear_32bpp_2xres_cs, sizeof(resolve_clear_32bpp_2xres_cs)},
-        {resolve_clear_32bpp_3xres_cs, sizeof(resolve_clear_32bpp_3xres_cs)},
+        {shaders::resolve_clear_32bpp_cs,
+         sizeof(shaders::resolve_clear_32bpp_cs)},
+        {shaders::resolve_clear_32bpp_2xres_cs,
+         sizeof(shaders::resolve_clear_32bpp_2xres_cs)},
+        {shaders::resolve_clear_32bpp_3xres_cs,
+         sizeof(shaders::resolve_clear_32bpp_3xres_cs)},
 };
 
 const std::pair<const void*, size_t>
     D3D12RenderTargetCache::kResolveROVClear64bppShaders[3] = {
-        {resolve_clear_64bpp_cs, sizeof(resolve_clear_64bpp_cs)},
-        {resolve_clear_64bpp_2xres_cs, sizeof(resolve_clear_64bpp_2xres_cs)},
-        {resolve_clear_64bpp_3xres_cs, sizeof(resolve_clear_64bpp_3xres_cs)},
+        {shaders::resolve_clear_64bpp_cs,
+         sizeof(shaders::resolve_clear_64bpp_cs)},
+        {shaders::resolve_clear_64bpp_2xres_cs,
+         sizeof(shaders::resolve_clear_64bpp_2xres_cs)},
+        {shaders::resolve_clear_64bpp_3xres_cs,
+         sizeof(shaders::resolve_clear_64bpp_3xres_cs)},
 };
 
 D3D12RenderTargetCache::~D3D12RenderTargetCache() { Shutdown(true); }
@@ -459,7 +482,7 @@ bool D3D12RenderTargetCache::Initialize() {
     if (resolve_copy_shader_info.resolution_scale != resolution_scale_) {
       continue;
     }
-    const std::pair<const uint8_t*, size_t>& resolve_copy_shader =
+    const std::pair<const void*, size_t>& resolve_copy_shader =
         kResolveCopyShaders[i];
     ID3D12PipelineState* resolve_copy_pipeline =
         ui::d3d12::util::CreateComputePipeline(
@@ -655,8 +678,8 @@ bool D3D12RenderTargetCache::Initialize() {
     // 1 sample.
     host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k1X)] =
         ui::d3d12::util::CreateComputePipeline(
-            device, host_depth_store_1xmsaa_cs,
-            sizeof(host_depth_store_1xmsaa_cs),
+            device, shaders::host_depth_store_1xmsaa_cs,
+            sizeof(shaders::host_depth_store_1xmsaa_cs),
             host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k1X)]) {
       XELOGE(
@@ -670,8 +693,8 @@ bool D3D12RenderTargetCache::Initialize() {
     // 2 samples.
     host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k2X)] =
         ui::d3d12::util::CreateComputePipeline(
-            device, host_depth_store_2xmsaa_cs,
-            sizeof(host_depth_store_2xmsaa_cs),
+            device, shaders::host_depth_store_2xmsaa_cs,
+            sizeof(shaders::host_depth_store_2xmsaa_cs),
             host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k2X)]) {
       XELOGE(
@@ -685,8 +708,8 @@ bool D3D12RenderTargetCache::Initialize() {
     // 4 samples.
     host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k4X)] =
         ui::d3d12::util::CreateComputePipeline(
-            device, host_depth_store_4xmsaa_cs,
-            sizeof(host_depth_store_4xmsaa_cs),
+            device, shaders::host_depth_store_4xmsaa_cs,
+            sizeof(shaders::host_depth_store_4xmsaa_cs),
             host_depth_store_root_signature_);
     if (!host_depth_store_pipelines_[size_t(xenos::MsaaSamples::k4X)]) {
       XELOGE(
@@ -1001,10 +1024,12 @@ bool D3D12RenderTargetCache::Initialize() {
     D3D12_GRAPHICS_PIPELINE_STATE_DESC uint32_rtv_clear_pipeline_desc = {};
     uint32_rtv_clear_pipeline_desc.pRootSignature =
         uint32_rtv_clear_root_signature_;
-    uint32_rtv_clear_pipeline_desc.VS.pShaderBytecode = fullscreen_vs;
-    uint32_rtv_clear_pipeline_desc.VS.BytecodeLength = sizeof(fullscreen_vs);
-    uint32_rtv_clear_pipeline_desc.PS.pShaderBytecode = clear_uint2_ps;
-    uint32_rtv_clear_pipeline_desc.PS.BytecodeLength = sizeof(clear_uint2_ps);
+    uint32_rtv_clear_pipeline_desc.VS.pShaderBytecode = shaders::fullscreen_vs;
+    uint32_rtv_clear_pipeline_desc.VS.BytecodeLength =
+        sizeof(shaders::fullscreen_vs);
+    uint32_rtv_clear_pipeline_desc.PS.pShaderBytecode = shaders::clear_uint2_ps;
+    uint32_rtv_clear_pipeline_desc.PS.BytecodeLength =
+        sizeof(shaders::clear_uint2_ps);
     uint32_rtv_clear_pipeline_desc.BlendState.RenderTarget[0]
         .RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
     uint32_rtv_clear_pipeline_desc.RasterizerState.FillMode =
@@ -1833,9 +1858,10 @@ DXGI_FORMAT D3D12RenderTargetCache::GetColorDrawDXGIFormat(
     xenos::ColorRenderTargetFormat format) const {
   switch (format) {
     case xenos::ColorRenderTargetFormat::k_8_8_8_8:
-    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      // sRGB is handled in a different way, not via the RenderTargetKey format.
       return DXGI_FORMAT_R8G8B8A8_UNORM;
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+      return gamma_render_target_as_srgb_ ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+                                          : DXGI_FORMAT_R8G8B8A8_UNORM;
     case xenos::ColorRenderTargetFormat::k_16_16:
       return DXGI_FORMAT_R16G16_SNORM;
     case xenos::ColorRenderTargetFormat::k_16_16_16_16:
@@ -1929,20 +1955,6 @@ DXGI_FORMAT D3D12RenderTargetCache::GetDepthSRVStencilDXGIFormat(
   }
 }
 
-xenos::ColorRenderTargetFormat
-D3D12RenderTargetCache::GetHostRelevantColorFormat(
-    xenos::ColorRenderTargetFormat format) const {
-  switch (format) {
-    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
-      // Currently handled in the shader (with incorrect blending), but even if
-      // handling is changed (to true sRGB), it will still be able to alias it
-      // with R8G8B8A8_UNORM.
-      return xenos::ColorRenderTargetFormat::k_8_8_8_8;
-    default:
-      return format;
-  }
-}
-
 RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(
     RenderTargetKey key) {
   ID3D12Device* device =
@@ -1965,7 +1977,7 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(
   assert_true(resource_desc.Format != DXGI_FORMAT_UNKNOWN);
   if (resource_desc.Format == DXGI_FORMAT_UNKNOWN) {
     XELOGE("D3D12RenderTargetCache: Unknown {} render target format {}",
-           key.is_depth ? "depth" : "color", key.host_relevant_format);
+           key.is_depth ? "depth" : "color", key.resource_format);
     return nullptr;
   }
   if (key.msaa_samples == xenos::MsaaSamples::k2X && !msaa_2x_supported()) {
@@ -2119,7 +2131,7 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(
                                    descriptor_srv.GetHandle());
 
   return new D3D12RenderTarget(
-      key, *this, resource.Get(), std::move(descriptor_draw),
+      key, resource.Get(), std::move(descriptor_draw),
       std::move(descriptor_draw_srgb), std::move(descriptor_load_separate),
       std::move(descriptor_srv), std::move(descriptor_srv_stencil),
       resource_state);
@@ -2203,16 +2215,16 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   bool dest_is_color = (mode.output == TransferOutput::kColor);
 
   xenos::ColorRenderTargetFormat dest_color_format =
-      xenos::ColorRenderTargetFormat(key.dest_host_relevant_format);
+      xenos::ColorRenderTargetFormat(key.dest_resource_format);
   xenos::DepthRenderTargetFormat dest_depth_format =
-      xenos::DepthRenderTargetFormat(key.dest_host_relevant_format);
+      xenos::DepthRenderTargetFormat(key.dest_resource_format);
   bool dest_is_64bpp =
       dest_is_color && xenos::IsColorRenderTargetFormat64bpp(dest_color_format);
 
   xenos::ColorRenderTargetFormat source_color_format =
-      xenos::ColorRenderTargetFormat(key.source_host_relevant_format);
+      xenos::ColorRenderTargetFormat(key.source_resource_format);
   xenos::DepthRenderTargetFormat source_depth_format =
-      xenos::DepthRenderTargetFormat(key.source_host_relevant_format);
+      xenos::DepthRenderTargetFormat(key.source_resource_format);
   // If not source_is_color, it's depth / stencil - 40-sample columns are
   // swapped as opposed to color destination.
   bool source_is_color = (rs & kTransferUsedRootParameterColorSRVBit) != 0;
@@ -3056,10 +3068,11 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   uint32_t source_tile_pixel_x_reg = 0;
   uint32_t source_tile_pixel_y_reg = 0;
 
-  // First sample bit at 4x - horizontal sample.
-  // Second sample bit at 4x - vertical sample.
-  // At 2x, the vertical sample is either the first or the second bit
-  // depending on whether 2x is emulated as 4x.
+  // First sample bit at 4x in Direct3D 10.1+ - horizontal sample.
+  // Second sample bit at 4x in Direct3D 10.1+ - vertical sample.
+  // At 2x:
+  // - Native 2x: top is 1 in Direct3D 10.1+, bottom is 0.
+  // - 2x as 4x: top is 0, bottom is 3.
 
   if (!source_is_64bpp && dest_is_64bpp) {
     // 32bpp -> 64bpp, need two samples of the source.
@@ -3088,14 +3101,15 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
         // D p0,0 s1 = S p0,0 s0,1 | S p0,0 s1,1
         // D p1,0 s0 = S p1,0 s0,0 | S p1,0 s1,0
         // D p1,0 s1 = S p1,0 s0,1 | S p1,0 s1,1
-        // Pixel index can be reused. Sample 0 should become samples 01,
-        // sample 1 or 3 should become samples 23.
+        // Pixel index can be reused. Sample 1 (for native 2x) or 0 (for 2x as
+        // 4x) should become samples 01, sample 0 or 3 should become samples 23.
+        source_sample = dxbc::Src::R(1, dxbc::Src::kZZZZ);
         if (msaa_2x_supported_) {
-          a.OpIShL(dxbc::Dest::R(1, 0b0100), dest_sample, dxbc::Src::LU(1));
+          a.OpXOr(dxbc::Dest::R(1, 0b0100), dest_sample, dxbc::Src::LU(1));
+          a.OpIShL(dxbc::Dest::R(1, 0b0100), source_sample, dxbc::Src::LU(1));
         } else {
           a.OpAnd(dxbc::Dest::R(1, 0b0100), dest_sample, dxbc::Src::LU(0b10));
         }
-        source_sample = dxbc::Src::R(1, dxbc::Src::kZZZZ);
       } else {
         // 32bpp -> 64bpp, 4x -> 1x.
         // 1 destination horizontal pixel = 2 source horizontal samples.
@@ -3176,11 +3190,14 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
         source_sample = dxbc::Src::R(1, dxbc::Src::kZZZZ);
         if (key.dest_msaa_samples == xenos::MsaaSamples::k2X) {
           // 64bpp -> 32bpp, 4x -> 2x.
-          // Destination vertical samples (first or second bit, depending on
-          // support) = source vertical samples (second bit).
+          // Destination vertical samples (1/0 in the first bit for native 2x or
+          // 0/1 in the second bit for 2x as 4x) = source vertical samples
+          // (second bit).
           if (msaa_2x_supported_) {
             a.OpBFI(dxbc::Dest::R(1, 0b0100), dxbc::Src::LU(1),
                     dxbc::Src::LU(1), dest_sample, source_sample);
+            a.OpXOr(dxbc::Dest::R(1, 0b0100), source_sample,
+                    dxbc::Src::LU(1 << 1));
           } else {
             a.OpBFI(dxbc::Dest::R(1, 0b0100), dxbc::Src::LU(1),
                     dxbc::Src::LU(0), source_sample, dest_sample);
@@ -3219,18 +3236,21 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
         // Same BPP, 4x -> 1x/2x.
         if (key.dest_msaa_samples == xenos::MsaaSamples::k2X) {
           // Same BPP, 4x -> 2x.
-          // Horizontal pixels to samples. Vertical sample (first or second bit,
-          // depending on support) to second sample bit.
+          // Horizontal pixels to samples. Vertical sample (1/0 in the first bit
+          // for native 2x or 0/1 in the second bit for 2x as 4x) to second
+          // sample bit.
+          source_sample = dxbc::Src::R(1, dxbc::Src::kZZZZ);
           if (msaa_2x_supported_) {
             a.OpBFI(dxbc::Dest::R(1, 0b0100), dxbc::Src::LU(31),
                     dxbc::Src::LU(1), dest_sample,
                     dxbc::Src::R(0, dxbc::Src::kXXXX));
+            a.OpXOr(dxbc::Dest::R(1, 0b0100), source_sample,
+                    dxbc::Src::LU(1 << 1));
           } else {
             a.OpBFI(dxbc::Dest::R(1, 0b0100), dxbc::Src::LU(1),
                     dxbc::Src::LU(0), dxbc::Src::R(0, dxbc::Src::kXXXX),
                     dest_sample);
           }
-          source_sample = dxbc::Src::R(1, dxbc::Src::kZZZZ);
           a.OpUShR(dxbc::Dest::R(1, 0b0001), dxbc::Src::R(0, dxbc::Src::kXXXX),
                    dxbc::Src::LU(1));
           source_tile_pixel_x_reg = 1;
@@ -3267,10 +3287,12 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
       if (key.source_msaa_samples == xenos::MsaaSamples::k2X) {
         // 2x -> 4x.
         // Vertical samples (second bit) of 4x destination to vertical sample
-        // (01 or 03, depending on support) of 2x source.
+        // (1, 0 for native 2x, or 0, 3 for 2x as 4x) of 2x source.
         a.OpUShR(dxbc::Dest::R(1, 0b0100), dest_sample, dxbc::Src::LU(1));
         source_sample = dxbc::Src::R(1, dxbc::Src::kZZZZ);
-        if (!msaa_2x_supported_) {
+        if (msaa_2x_supported_) {
+          a.OpXOr(dxbc::Dest::R(1, 0b0100), source_sample, dxbc::Src::LU(1));
+        } else {
           a.OpBFI(dxbc::Dest::R(1, 0b0100), dxbc::Src::LU(1), dxbc::Src::LU(1),
                   source_sample, source_sample);
         }
@@ -3287,12 +3309,14 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
       // 1x/2x -> different 1x/2x.
       if (key.source_msaa_samples == xenos::MsaaSamples::k2X) {
         // 2x -> 1x.
-        // Vertical pixels of 2x destination to vertical samples (01 or 03,
-        // depending on support) of 1x source.
+        // Vertical pixels of 2x destination to vertical samples (1, 0 for
+        // native 2x, or 0, 3 for 2x as 4x) of 1x source.
         a.OpAnd(dxbc::Dest::R(1, 0b0100), dxbc::Src::R(0, dxbc::Src::kYYYY),
                 dxbc::Src::LU(1));
         source_sample = dxbc::Src::R(1, dxbc::Src::kZZZZ);
-        if (!msaa_2x_supported_) {
+        if (msaa_2x_supported_) {
+          a.OpXOr(dxbc::Dest::R(1, 0b0100), source_sample, dxbc::Src::LU(1));
+        } else {
           a.OpBFI(dxbc::Dest::R(1, 0b0100), dxbc::Src::LU(1), dxbc::Src::LU(1),
                   source_sample, source_sample);
         }
@@ -3301,15 +3325,20 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
         source_tile_pixel_y_reg = 1;
       } else {
         // 1x -> 2x.
-        // Vertical samples (first or second bit, depending on support) of 2x
-        // destination to vertical pixels of 1x source.
-        if (!msaa_2x_supported_) {
+        // Vertical samples (1/0 in the first bit for native 2x or 0/1 in the
+        // second bit for 2x as 4x) of 2x destination to vertical pixels of 1x
+        // source.
+        if (msaa_2x_supported_) {
+          a.OpBFI(dxbc::Dest::R(1, 0b0010), dxbc::Src::LU(31), dxbc::Src::LU(1),
+                  dxbc::Src::R(0, dxbc::Src::kYYYY), dest_sample);
+          a.OpXOr(dxbc::Dest::R(1, 0b0010), dxbc::Src::R(1, dxbc::Src::kYYYY),
+                  dxbc::Src::LU(1));
+        } else {
           a.OpUShR(dxbc::Dest::R(1, 0b0010), dest_sample, dxbc::Src::LU(1));
+          a.OpBFI(dxbc::Dest::R(1, 0b0010), dxbc::Src::LU(31), dxbc::Src::LU(1),
+                  dxbc::Src::R(0, dxbc::Src::kYYYY),
+                  dxbc::Src::R(1, dxbc::Src::kYYYY));
         }
-        a.OpBFI(dxbc::Dest::R(1, 0b0010), dxbc::Src::LU(31), dxbc::Src::LU(1),
-                dxbc::Src::R(0, dxbc::Src::kYYYY),
-                msaa_2x_supported_ ? dest_sample
-                                   : dxbc::Src::R(1, dxbc::Src::kYYYY));
         source_tile_pixel_y_reg = 1;
       }
     }
@@ -3910,13 +3939,15 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
                           dxbc::Src::LU(1), dxbc::Src::R(0, dxbc::Src::kXXXX),
                           dest_sample);
                 }
-                // Vertical sample index in bit 0 for true 2x or in bit 1 for
-                // 4x or for 2x emulated as 4x.
+                // Vertical sample index as 1 or 0 in bit 0 for true 2x or as 0
+                // or 1 in bit 1 for 4x or for 2x emulated as 4x.
                 if (key.dest_msaa_samples == xenos::MsaaSamples::k2X &&
                     msaa_2x_supported_) {
                   a.OpBFI(dxbc::Dest::R(0, 0b0010), dxbc::Src::LU(31),
                           dxbc::Src::LU(1), dxbc::Src::R(0, dxbc::Src::kYYYY),
                           dest_sample);
+                  a.OpXOr(dxbc::Dest::R(0, 0b0010),
+                          dxbc::Src::R(0, dxbc::Src::kYYYY), dxbc::Src::LU(1));
                 } else {
                   // Using r0.w as a temporary.
                   a.OpUShR(dxbc::Dest::R(0, 0b1000), dest_sample,
@@ -3968,19 +3999,22 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
                   // 4x -> 1x/2x.
                   if (key.dest_msaa_samples == xenos::MsaaSamples::k2X) {
                     // 4x -> 2x.
-                    // Horizontal pixels to samples. Vertical sample (first or
-                    // second bit, depending on support) to second sample bit.
+                    // Horizontal pixels to samples. Vertical sample (1, 0 in
+                    // the first bit for native 2x or 0, 1 in the second bit for
+                    // 2x as 4x) to second sample bit.
+                    host_depth_source_sample =
+                        dxbc::Src::R(0, dxbc::Src::kWWWW);
                     if (msaa_2x_supported_) {
                       a.OpBFI(dxbc::Dest::R(0, 0b1000), dxbc::Src::LU(31),
                               dxbc::Src::LU(1), dest_sample,
                               dxbc::Src::R(0, dxbc::Src::kXXXX));
+                      a.OpXOr(dxbc::Dest::R(0, 0b1000),
+                              host_depth_source_sample, dxbc::Src::LU(1 << 1));
                     } else {
                       a.OpBFI(dxbc::Dest::R(0, 0b1000), dxbc::Src::LU(1),
                               dxbc::Src::LU(0),
                               dxbc::Src::R(0, dxbc::Src::kXXXX), dest_sample);
                     }
-                    host_depth_source_sample =
-                        dxbc::Src::R(0, dxbc::Src::kWWWW);
                     a.OpUShR(dxbc::Dest::R(0, 0b0001),
                              dxbc::Src::R(0, dxbc::Src::kXXXX),
                              dxbc::Src::LU(1));
@@ -4017,13 +4051,16 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
                         xenos::MsaaSamples::k2X) {
                       // 2x -> 4x.
                       // Vertical samples (second bit) of 4x destination to
-                      // vertical sample (01 or 03, depending on support) of 2x
-                      // source.
+                      // vertical sample (1, 0 for native 2x, or 0, 3 for 2x as
+                      // 4x) of 2x source.
                       a.OpUShR(dxbc::Dest::R(0, 0b1000), dest_sample,
                                dxbc::Src::LU(1));
                       host_depth_source_sample =
                           dxbc::Src::R(0, dxbc::Src::kWWWW);
-                      if (!msaa_2x_supported_) {
+                      if (msaa_2x_supported_) {
+                        a.OpXOr(dxbc::Dest::R(0, 0b1000),
+                                host_depth_source_sample, dxbc::Src::LU(1));
+                      } else {
                         a.OpBFI(dxbc::Dest::R(0, 0b1000), dxbc::Src::LU(1),
                                 dxbc::Src::LU(1), host_depth_source_sample,
                                 host_depth_source_sample);
@@ -4045,13 +4082,17 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
                         xenos::MsaaSamples::k2X) {
                       // 2x -> 1x.
                       // Vertical pixels of 2x destination to vertical samples
-                      // (01 or 03, depending on support) of 1x source.
+                      // (1, 0 for native 2x, or 0, 3 for 2x as 4x) of 1x
+                      // source.
                       a.OpAnd(dxbc::Dest::R(0, 0b1000),
                               dxbc::Src::R(0, dxbc::Src::kYYYY),
                               dxbc::Src::LU(1));
                       host_depth_source_sample =
                           dxbc::Src::R(0, dxbc::Src::kWWWW);
-                      if (!msaa_2x_supported_) {
+                      if (msaa_2x_supported_) {
+                        a.OpXOr(dxbc::Dest::R(0, 0b1000),
+                                host_depth_source_sample, dxbc::Src::LU(1));
+                      } else {
                         a.OpBFI(dxbc::Dest::R(0, 0b1000), dxbc::Src::LU(1),
                                 dxbc::Src::LU(1), host_depth_source_sample,
                                 host_depth_source_sample);
@@ -4061,21 +4102,26 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
                                dxbc::Src::LU(1));
                     } else {
                       // 1x -> 2x.
-                      // Vertical samples (first or second bit, depending on
-                      // support) of 2x destination to vertical pixels of 1x
-                      // source.
+                      // Vertical samples (1, 0 in the first bit for native 2x
+                      // or 0, 1 in the second bit for 2x as 4x) of 2x
+                      // destination to vertical pixels of 1x source.
                       // Using r0.w (not needed without source MSAA) as a
                       // temporary.
-                      if (!msaa_2x_supported_) {
+                      if (msaa_2x_supported_) {
+                        a.OpBFI(dxbc::Dest::R(0, 0b0010), dxbc::Src::LU(31),
+                                dxbc::Src::LU(1),
+                                dxbc::Src::R(0, dxbc::Src::kYYYY), dest_sample);
+                        a.OpXOr(dxbc::Dest::R(0, 0b0010),
+                                dxbc::Src::R(0, dxbc::Src::kYYYY),
+                                dxbc::Src::LU(1));
+                      } else {
                         a.OpUShR(dxbc::Dest::R(0, 0b1000), dest_sample,
                                  dxbc::Src::LU(1));
+                        a.OpBFI(dxbc::Dest::R(0, 0b0010), dxbc::Src::LU(31),
+                                dxbc::Src::LU(1),
+                                dxbc::Src::R(0, dxbc::Src::kYYYY),
+                                dxbc::Src::R(0, dxbc::Src::kWWWW));
                       }
-                      a.OpBFI(dxbc::Dest::R(0, 0b0010), dxbc::Src::LU(31),
-                              dxbc::Src::LU(1),
-                              dxbc::Src::R(0, dxbc::Src::kYYYY),
-                              msaa_2x_supported_
-                                  ? dest_sample
-                                  : dxbc::Src::R(0, dxbc::Src::kWWWW));
                     }
                   }
                 }
@@ -4315,8 +4361,8 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   pipeline_desc.pRootSignature = transfer_root_signatures_[size_t(
       use_stencil_reference_output_ ? mode.root_signature_with_stencil_ref
                                     : mode.root_signature_no_stencil_ref)];
-  pipeline_desc.VS.pShaderBytecode = passthrough_position_xy_vs;
-  pipeline_desc.VS.BytecodeLength = sizeof(passthrough_position_xy_vs);
+  pipeline_desc.VS.pShaderBytecode = shaders::passthrough_position_xy_vs;
+  pipeline_desc.VS.BytecodeLength = sizeof(shaders::passthrough_position_xy_vs);
   pipeline_desc.PS.pShaderBytecode = built_shader_.data();
   pipeline_desc.PS.BytecodeLength = built_shader_size_bytes;
   if (key.dest_msaa_samples == xenos::MsaaSamples::k2X && !msaa_2x_supported_) {
@@ -4558,11 +4604,8 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
             dest_rt_key.pitch_tiles_at_32bpp;
         host_depth_store_render_target_constant.resolution_scale =
             resolution_scale_;
-        host_depth_store_render_target_constant.second_sample_index =
-            (dest_rt_key.msaa_samples == xenos::MsaaSamples::k2X &&
-             !msaa_2x_supported_)
-                ? 3
-                : 1;
+        host_depth_store_render_target_constant.msaa_2x_supported =
+            uint32_t(msaa_2x_supported_);
         command_list.D3DSetComputeRoot32BitConstants(
             kHostDepthStoreRootParameterRenderTargetConstant,
             sizeof(host_depth_store_render_target_constant) / sizeof(uint32_t),
@@ -4861,8 +4904,8 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
       uint32_t rt_sort_index = 0;
       TransferShaderKey new_transfer_shader_key;
       new_transfer_shader_key.dest_msaa_samples = dest_rt_key.msaa_samples;
-      new_transfer_shader_key.dest_host_relevant_format =
-          dest_rt_key.host_relevant_format;
+      new_transfer_shader_key.dest_resource_format =
+          dest_rt_key.resource_format;
       uint32_t stencil_clear_rectangle_count = 0;
       for (uint32_t j = 0; j <= uint32_t(need_stencil_bit_draws); ++j) {
         // j == 0 - color or depth.
@@ -4899,8 +4942,8 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
           RenderTargetKey source_rt_key = source_d3d12_rt.key();
           new_transfer_shader_key.source_msaa_samples =
               source_rt_key.msaa_samples;
-          new_transfer_shader_key.source_host_relevant_format =
-              source_rt_key.host_relevant_format;
+          new_transfer_shader_key.source_resource_format =
+              source_rt_key.resource_format;
           bool host_depth_source_is_copy =
               host_depth_source_d3d12_rt == &dest_d3d12_rt;
           new_transfer_shader_key.host_depth_source_is_copy =
@@ -6013,7 +6056,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
              dxbc::Src::LU(xenos::kEdramTileWidthSamples >>
                            uint32_t(format_is_64bpp)),
              dxbc::Src::VThreadIDInGroup(dxbc::Src::kXXXX));
-    // r0.w for 4x MSAA = pixel Y in the group
+    // r0.w for 2x MSAA = pixel Y in the group
     a.OpUShR(dxbc::Dest::R(0, 0b1000),
              dxbc::Src::VThreadIDInGroup(dxbc::Src::kYYYY), dxbc::Src::LU(1));
     // r0.w = free
@@ -6042,7 +6085,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
   if (key.msaa_samples != xenos::MsaaSamples::k1X) {
     // Sample index.
     // For 4x, bit 0 for horizontal, bit 1 for vertical.
-    // For 2x, only vertical - but 0 or 1 for true 2x MSAA or 0 or 3 for 2x MSAA
+    // For 2x, only vertical - but 1 or 0 for true 2x MSAA or 0 or 3 for 2x MSAA
     // via two samples of 4x.
     // r0.w = vertical sample index
     a.OpAnd(dxbc::Dest::R(0, 0b1000),
@@ -6052,11 +6095,17 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
       a.OpBFI(dxbc::Dest::R(0, 0b1000), dxbc::Src::LU(31), dxbc::Src::LU(1),
               dxbc::Src::R(0, dxbc::Src::kWWWW),
               dxbc::Src::VThreadIDInGroup(dxbc::Src::kXXXX));
-    } else if (!msaa_2x_supported_) {
-      // r0.w = source sample 0 or 3 for 2x MSAA emulated via 4x
-      a.OpBFI(dxbc::Dest::R(0, 0b1000), dxbc::Src::LU(1), dxbc::Src::LU(1),
-              dxbc::Src::R(0, dxbc::Src::kWWWW),
-              dxbc::Src::R(0, dxbc::Src::kWWWW));
+    } else {
+      if (msaa_2x_supported_) {
+        // r0.w = source sample 1 or 0 for native 2x MSAA
+        a.OpXOr(dxbc::Dest::R(0, 0b1000), dxbc::Src::R(0, dxbc::Src::kWWWW),
+                dxbc::Src::LU(1));
+      } else {
+        // r0.w = source sample 0 or 3 for 2x MSAA emulated via 4x
+        a.OpBFI(dxbc::Dest::R(0, 0b1000), dxbc::Src::LU(1), dxbc::Src::LU(1),
+                dxbc::Src::R(0, dxbc::Src::kWWWW),
+                dxbc::Src::R(0, dxbc::Src::kWWWW));
+      }
     }
   }
 
@@ -6427,7 +6476,7 @@ void D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base,
     any_sources_32bpp_64bpp[size_t(rt_key.Is64bpp())] = true;
     DumpPipelineKey pipeline_key;
     pipeline_key.msaa_samples = rt_key.msaa_samples;
-    pipeline_key.host_relevant_format = rt_key.host_relevant_format;
+    pipeline_key.resource_format = rt_key.resource_format;
     pipeline_key.is_depth = rt_key.is_depth;
     dump_invocations_.emplace_back(rectangle, pipeline_key);
   }

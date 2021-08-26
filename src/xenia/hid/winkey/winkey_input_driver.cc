@@ -12,6 +12,7 @@
 #include "xenia/base/platform_win.h"
 #include "xenia/hid/hid_flags.h"
 #include "xenia/hid/input_system.h"
+#include "xenia/ui/virtual_key.h"
 #include "xenia/ui/window.h"
 
 namespace xe {
@@ -29,7 +30,7 @@ WinKeyInputDriver::WinKeyInputDriver(xe::ui::Window* window)
     auto global_lock = global_critical_region_.Acquire();
 
     KeyEvent key;
-    key.vkey = evt->key_code();
+    key.virtual_key = evt->virtual_key();
     key.transition = true;
     key.prev_state = evt->prev_state();
     key.repeat_count = evt->repeat_count();
@@ -43,7 +44,7 @@ WinKeyInputDriver::WinKeyInputDriver(xe::ui::Window* window)
     auto global_lock = global_critical_region_.Acquire();
 
     KeyEvent key;
-    key.vkey = evt->key_code();
+    key.virtual_key = evt->virtual_key();
     key.transition = false;
     key.prev_state = evt->prev_state();
     key.repeat_count = evt->repeat_count();
@@ -241,7 +242,7 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
 
   X_RESULT result = X_ERROR_EMPTY;
 
-  uint16_t virtual_key = 0;
+  ui::VirtualKey xinput_virtual_key = ui::VirtualKey::kNone;
   uint16_t unicode = 0;
   uint16_t keystroke_flags = 0;
   uint8_t hid_code = 0;
@@ -258,100 +259,93 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
     key_events_.pop();
   }
 
-  // TODO(DrChat): Some other way to toggle this...
-  if (IS_KEY_TOGGLED(VK_CAPITAL)) {
-    // dpad toggled
-    if (evt.vkey == (0x41)) {
-      // A
-      virtual_key = 0x5812;  // VK_PAD_DPAD_LEFT
-    } else if (evt.vkey == (0x44)) {
-      // D
-      virtual_key = 0x5813;  // VK_PAD_DPAD_RIGHT
-    } else if (evt.vkey == (0x53)) {
-      // S
-      virtual_key = 0x5811;  // VK_PAD_DPAD_DOWN
-    } else if (evt.vkey == (0x57)) {
-      // W
-      virtual_key = 0x5810;  // VK_PAD_DPAD_UP
-    }
-  } else {
-    // left stick
-    if (evt.vkey == (0x57)) {
-      // W
-      virtual_key = 0x5820;  // VK_PAD_LTHUMB_UP
-    }
-    if (evt.vkey == (0x53)) {
-      // S
-      virtual_key = 0x5821;  // VK_PAD_LTHUMB_DOWN
-    }
-    if (evt.vkey == (0x44)) {
-      // D
-      virtual_key = 0x5822;  // VK_PAD_LTHUMB_RIGHT
-    }
-    if (evt.vkey == (0x41)) {
-      // A
-      virtual_key = 0x5823;  // VK_PAD_LTHUMB_LEFT
-    }
+  switch (evt.virtual_key) {
+    case ui::VirtualKey::kOem1:  // ;
+      xinput_virtual_key = ui::VirtualKey::kXInputPadA;
+      break;
+    case ui::VirtualKey::kOem7:  // '
+      xinput_virtual_key = ui::VirtualKey::kXInputPadB;
+      break;
+    case ui::VirtualKey::kL:
+      xinput_virtual_key = ui::VirtualKey::kXInputPadX;
+      break;
+    case ui::VirtualKey::kP:
+      xinput_virtual_key = ui::VirtualKey::kXInputPadY;
+      break;
+    case ui::VirtualKey::k3:
+      xinput_virtual_key = ui::VirtualKey::kXInputPadRShoulder;
+      break;
+    case ui::VirtualKey::k1:
+      xinput_virtual_key = ui::VirtualKey::kXInputPadLShoulder;
+      break;
+    case ui::VirtualKey::kQ:
+    case ui::VirtualKey::kI:
+      xinput_virtual_key = ui::VirtualKey::kXInputPadLTrigger;
+      break;
+    case ui::VirtualKey::kE:
+    case ui::VirtualKey::kO:
+      xinput_virtual_key = ui::VirtualKey::kXInputPadRTrigger;
+      break;
+    case ui::VirtualKey::kX:
+      xinput_virtual_key = ui::VirtualKey::kXInputPadStart;
+      break;
+    case ui::VirtualKey::kZ:
+      xinput_virtual_key = ui::VirtualKey::kXInputPadBack;
+      break;
+    case ui::VirtualKey::kUp:
+      xinput_virtual_key = ui::VirtualKey::kXInputPadRThumbUp;
+      break;
+    case ui::VirtualKey::kDown:
+      xinput_virtual_key = ui::VirtualKey::kXInputPadRThumbDown;
+      break;
+    case ui::VirtualKey::kRight:
+      xinput_virtual_key = ui::VirtualKey::kXInputPadRThumbRight;
+      break;
+    case ui::VirtualKey::kLeft:
+      xinput_virtual_key = ui::VirtualKey::kXInputPadRThumbLeft;
+      break;
+    default:
+      // TODO(DrChat): Some other way to toggle this...
+      if (IS_KEY_TOGGLED(VK_CAPITAL) || IS_KEY_DOWN(VK_SHIFT)) {
+        // D-pad toggled.
+        switch (evt.virtual_key) {
+          case ui::VirtualKey::kW:
+            xinput_virtual_key = ui::VirtualKey::kXInputPadDpadUp;
+            break;
+          case ui::VirtualKey::kS:
+            xinput_virtual_key = ui::VirtualKey::kXInputPadDpadDown;
+            break;
+          case ui::VirtualKey::kA:
+            xinput_virtual_key = ui::VirtualKey::kXInputPadDpadLeft;
+            break;
+          case ui::VirtualKey::kD:
+            xinput_virtual_key = ui::VirtualKey::kXInputPadDpadRight;
+            break;
+          default:
+            break;
+        }
+      } else {
+        // Left thumbstick.
+        switch (evt.virtual_key) {
+          case ui::VirtualKey::kW:
+            xinput_virtual_key = ui::VirtualKey::kXInputPadLThumbUp;
+            break;
+          case ui::VirtualKey::kS:
+            xinput_virtual_key = ui::VirtualKey::kXInputPadLThumbDown;
+            break;
+          case ui::VirtualKey::kA:
+            xinput_virtual_key = ui::VirtualKey::kXInputPadLThumbLeft;
+            break;
+          case ui::VirtualKey::kD:
+            xinput_virtual_key = ui::VirtualKey::kXInputPadLThumbRight;
+            break;
+          default:
+            break;
+        }
+      }
   }
 
-  // Right stick
-  if (evt.vkey == (0x26)) {
-    // Up
-    virtual_key = 0x5830;
-  }
-  if (evt.vkey == (0x28)) {
-    // Down
-    virtual_key = 0x5831;
-  }
-  if (evt.vkey == (0x27)) {
-    // Right
-    virtual_key = 0x5832;
-  }
-  if (evt.vkey == (0x25)) {
-    // Left
-    virtual_key = 0x5833;
-  }
-
-  if (evt.vkey == (0x4C)) {
-    // L
-    virtual_key = 0x5802;  // VK_PAD_X
-  } else if (evt.vkey == (VK_OEM_7)) {
-    // '
-    virtual_key = 0x5801;  // VK_PAD_B
-  } else if (evt.vkey == (VK_OEM_1)) {
-    // ;
-    virtual_key = 0x5800;  // VK_PAD_A
-  } else if (evt.vkey == (0x50)) {
-    // P
-    virtual_key = 0x5803;  // VK_PAD_Y
-  }
-
-  if (evt.vkey == (0x58)) {
-    // X
-    virtual_key = 0x5814;  // VK_PAD_START
-  }
-  if (evt.vkey == (0x5A)) {
-    // Z
-    virtual_key = 0x5815;  // VK_PAD_BACK
-  }
-  if (evt.vkey == (0x51) || evt.vkey == (0x49)) {
-    // Q / I
-    virtual_key = 0x5806;  // VK_PAD_LTRIGGER
-  }
-  if (evt.vkey == (0x45) || evt.vkey == (0x4F)) {
-    // E / O
-    virtual_key = 0x5807;  // VK_PAD_RTRIGGER
-  }
-  if (evt.vkey == (0x31)) {
-    // 1
-    virtual_key = 0x5805;  // VK_PAD_LSHOULDER
-  }
-  if (evt.vkey == (0x33)) {
-    // 3
-    virtual_key = 0x5804;  // VK_PAD_RSHOULDER
-  }
-
-  if (virtual_key != 0) {
+  if (xinput_virtual_key != ui::VirtualKey::kNone) {
     if (evt.transition == true) {
       keystroke_flags |= 0x0001;  // XINPUT_KEYSTROKE_KEYDOWN
     } else if (evt.transition == false) {
@@ -365,7 +359,7 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
     result = X_ERROR_SUCCESS;
   }
 
-  out_keystroke->virtual_key = virtual_key;
+  out_keystroke->virtual_key = uint16_t(xinput_virtual_key);
   out_keystroke->unicode = unicode;
   out_keystroke->flags = keystroke_flags;
   out_keystroke->user_index = 0;

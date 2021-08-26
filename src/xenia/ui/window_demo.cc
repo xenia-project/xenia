@@ -18,6 +18,7 @@
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/virtual_key.h"
 #include "xenia/ui/window.h"
 
 namespace xe {
@@ -92,10 +93,12 @@ int window_demo_main(const std::vector<std::string>& args) {
   loop->on_quit.AddListener([&window](xe::ui::UIEvent* e) { window.reset(); });
 
   window->on_key_down.AddListener([](xe::ui::KeyEvent* e) {
-    switch (e->key_code()) {
-      case 0x72: {  // F3
+    switch (e->virtual_key()) {
+      case VirtualKey::kF3:
         Profiler::ToggleDisplay();
-      } break;
+        break;
+      default:
+        break;
     }
   });
 

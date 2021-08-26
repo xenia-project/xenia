@@ -17,6 +17,7 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform_win.h"
+#include "xenia/ui/virtual_key.h"
 
 namespace xe {
 namespace ui {
@@ -446,7 +447,7 @@ void Win32Window::Close() {
   closing_ = true;
   OnClose();
   DestroyWindow(hwnd_);
-  hwnd_ = 0;
+  hwnd_ = nullptr;
 }
 
 void Win32Window::OnMainMenuChange() {
@@ -707,7 +708,7 @@ bool Win32Window::HandleMouse(UINT message, WPARAM wParam, LPARAM lParam) {
 
 bool Win32Window::HandleKeyboard(UINT message, WPARAM wParam, LPARAM lParam) {
   auto e = KeyEvent(
-      this, static_cast<int>(wParam), lParam & 0xFFFF0000, !!(lParam & 0x2),
+      this, VirtualKey(wParam), lParam & 0xFFFF0000, !!(lParam & 0x2),
       !!(GetKeyState(VK_SHIFT) & 0x80), !!(GetKeyState(VK_CONTROL) & 0x80),
       !!(GetKeyState(VK_MENU) & 0x80), !!(GetKeyState(VK_LWIN) & 0x80));
   switch (message) {

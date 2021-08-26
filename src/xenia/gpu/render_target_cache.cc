@@ -424,7 +424,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   uint32_t depth_and_color_rts_used_bits = 0;
   // depth_and_color_rts_used_bits -> EDRAM base.
   uint32_t edram_bases[1 + xenos::kMaxColorRenderTargets];
-  uint32_t host_relevant_formats[1 + xenos::kMaxColorRenderTargets];
+  uint32_t resource_formats[1 + xenos::kMaxColorRenderTargets];
   uint32_t rts_are_64bpp = 0;
   uint32_t color_rts_are_gamma = 0;
   if (is_rasterization_done) {
@@ -438,7 +438,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
           std::min(rb_depth_info.depth_base, xenos::kEdramTileCount);
       // With pixel shader interlock, always the same addressing disregarding
       // the format.
-      host_relevant_formats[0] =
+      resource_formats[0] =
           interlock_barrier_only ? 0 : uint32_t(rb_depth_info.depth_format);
     }
     if (regs.Get<reg::RB_MODECONTROL>().edram_mode ==
@@ -468,20 +468,19 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
           if (color_format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
             color_rts_are_gamma |= uint32_t(1) << rt_index;
           }
-          xenos::ColorRenderTargetFormat color_host_relevant_format;
+          xenos::ColorRenderTargetFormat color_resource_format;
           if (interlock_barrier_only) {
             // Only changes in mapping between coordinates and addresses are
             // interesting (along with access overlap between draw calls), thus
             // only pixel size is relevant.
-            color_host_relevant_format =
+            color_resource_format =
                 is_64bpp ? xenos::ColorRenderTargetFormat::k_16_16_16_16
                          : xenos::ColorRenderTargetFormat::k_8_8_8_8;
           } else {
-            color_host_relevant_format = GetHostRelevantColorFormat(
+            color_resource_format = GetColorResourceFormat(
                 xenos::GetStorageColorFormat(color_format));
           }
-          host_relevant_formats[rt_bit_index] =
-              uint32_t(color_host_relevant_format);
+          resource_formats[rt_bit_index] = uint32_t(color_resource_format);
         }
       }
     }
@@ -585,10 +584,11 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     // Using floor, or, rather, truncation (because maxing with zero anyway)
     // similar to how viewport scissoring behaves on real AMD, Intel and Nvidia
     // GPUs on Direct3D 12, also like in draw_util::GetHostViewportInfo.
-    // fmax to drop NaN and < 0, min as float (height_used is well below 2^24)
-    // to safely drop very large values.
-    height_used = uint32_t(
-        std::min(std::fmax(viewport_bottom, 0.0f), float(height_used)));
+    // max(0.0f, viewport_bottom) to drop NaN and < 0 - max picks the first
+    // argument in the !(a < b) case (always for NaN), min as float (height_used
+    // is well below 2^24) to safely drop very large values.
+    height_used =
+        uint32_t(std::min(float(height_used), std::max(0.0f, viewport_bottom)));
   }
   int32_t scissor_bottom =
       int32_t(regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>().br_y);
@@ -658,7 +658,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     rt_key.pitch_tiles_at_32bpp = pitch_tiles_at_32bpp;
     rt_key.msaa_samples = msaa_samples;
     rt_key.is_depth = rt_bit_index == 0;
-    rt_key.host_relevant_format = host_relevant_formats[rt_bit_index];
+    rt_key.resource_format = resource_formats[rt_bit_index];
     if (!interlock_barrier_only) {
       RenderTarget* render_target = GetOrCreateRenderTarget(rt_key);
       if (!render_target) {
@@ -800,6 +800,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
 }
 
 uint32_t RenderTargetCache::GetLastUpdateBoundRenderTargets(
+    bool distinguish_gamma_formats,
     uint32_t* depth_and_color_formats_out) const {
   if (GetPath() != Path::kHostRenderTargets) {
     if (depth_and_color_formats_out) {
@@ -821,7 +822,11 @@ uint32_t RenderTargetCache::GetLastUpdateBoundRenderTargets(
     rts_used |= uint32_t(1) << i;
     if (depth_and_color_formats_out) {
       depth_and_color_formats_out[i] =
-          render_target->key().host_relevant_format;
+          (distinguish_gamma_formats && i &&
+           (last_update_accumulated_color_targets_are_gamma_ &
+            (uint32_t(1) << (i - 1))))
+              ? uint32_t(xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA)
+              : render_target->key().resource_format;
     }
   }
   return rts_used;
@@ -840,7 +845,9 @@ RenderTargetCache::GetConfigDepthFloat24Conversion() {
 
 uint32_t RenderTargetCache::GetRenderTargetHeight(
     uint32_t pitch_tiles_at_32bpp, xenos::MsaaSamples msaa_samples) const {
-  assert_not_zero(pitch_tiles_at_32bpp);
+  if (!pitch_tiles_at_32bpp) {
+    return 0;
+  }
   // Down to the end of EDRAM.
   uint32_t tile_rows = (xenos::kEdramTileCount + (pitch_tiles_at_32bpp - 1)) /
                        pitch_tiles_at_32bpp;
@@ -1082,7 +1089,7 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
     depth_render_target_key.pitch_tiles_at_32bpp = pitch_tiles_at_32bpp;
     depth_render_target_key.msaa_samples = msaa_samples;
     depth_render_target_key.is_depth = 1;
-    depth_render_target_key.host_relevant_format =
+    depth_render_target_key.resource_format =
         resolve_info.depth_edram_info.format;
     depth_render_target = GetOrCreateRenderTarget(depth_render_target_key);
     if (!depth_render_target) {
@@ -1097,9 +1104,8 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
     color_render_target_key.pitch_tiles_at_32bpp = pitch_tiles_at_32bpp;
     color_render_target_key.msaa_samples = msaa_samples;
     color_render_target_key.is_depth = 0;
-    color_render_target_key.host_relevant_format =
-        uint32_t(GetHostRelevantColorFormat(xenos::ColorRenderTargetFormat(
-            resolve_info.color_edram_info.format)));
+    color_render_target_key.resource_format = uint32_t(GetColorResourceFormat(
+        xenos::ColorRenderTargetFormat(resolve_info.color_edram_info.format)));
     color_render_target = GetOrCreateRenderTarget(color_render_target_key);
     if (!color_render_target) {
       color_render_target_key = RenderTargetKey();
@@ -1160,8 +1166,8 @@ RenderTargetCache::PrepareFullEdram1280xRenderTargetForSnapshotRestoration(
   }
   RenderTargetKey render_target_key;
   render_target_key.pitch_tiles_at_32bpp = kPitchTilesAt32bpp;
-  render_target_key.host_relevant_format = uint32_t(
-      GetHostRelevantColorFormat(xenos::GetStorageColorFormat(color_format)));
+  render_target_key.resource_format =
+      uint32_t(GetColorResourceFormat(color_format));
   RenderTarget* render_target = GetOrCreateRenderTarget(render_target_key);
   if (!render_target) {
     return nullptr;
@@ -1213,14 +1219,14 @@ RenderTargetCache::RenderTarget* RenderTargetCache::GetOrCreateRenderTarget(
           "Created a {}x{} {}xMSAA {} render target with guest format {} at "
           "EDRAM base {}",
           width, height, uint32_t(1) << uint32_t(key.msaa_samples),
-          key.is_depth ? "depth" : "color", key.host_relevant_format,
+          key.is_depth ? "depth" : "color", key.resource_format,
           key.base_tiles);
     } else {
       XELOGE(
           "Failed to create a {}x{} {}xMSAA {} render target with guest format "
           "{} at EDRAM base {}",
           width, height, uint32_t(1) << uint32_t(key.msaa_samples),
-          key.is_depth ? "depth" : "color", key.host_relevant_format,
+          key.is_depth ? "depth" : "color", key.resource_format,
           key.base_tiles);
     }
     // Insert even if failed to create, not to try to create again.
@@ -1338,8 +1344,7 @@ void RenderTargetCache::ChangeOwnership(
                                          nullptr, resolve_clear_cutout)) {
           RenderTargetKey transfer_host_depth_source =
               host_depth_encoding_different
-                  ? it->second
-                        .host_depth_render_targets[dest.host_relevant_format]
+                  ? it->second.host_depth_render_targets[dest.resource_format]
                   : RenderTargetKey();
           if (transfer_host_depth_source == transfer_source) {
             // Same render target, don't provide a separate host depth source.
@@ -1384,7 +1389,7 @@ void RenderTargetCache::ChangeOwnership(
     // Claim the current range.
     it->second.render_target = dest;
     if (host_depth_encoding_different) {
-      it->second.host_depth_render_targets[dest.host_relevant_format] = dest;
+      it->second.host_depth_render_targets[dest.resource_format] = dest;
     }
     // Check if can merge with the next range after claiming.
     std::map<uint32_t, OwnershipRange>::iterator it_next;

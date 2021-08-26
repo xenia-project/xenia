@@ -29,6 +29,7 @@
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/gpu_flags.h"
+#include "xenia/gpu/primitive_processor.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
@@ -67,18 +68,21 @@ class PipelineCache {
     shader.AnalyzeUcode(ucode_disasm_buffer_);
   }
 
-  // Retrieves the shader modification for the current state, and returns
-  // whether it is valid. The shader must have microcode analyzed.
-  bool PipelineCache::GetCurrentShaderModification(
+  // Retrieves the shader modification for the current state. The shader must
+  // have microcode analyzed.
+  DxbcShaderTranslator::Modification
+  PipelineCache::GetCurrentVertexShaderModification(
       const Shader& shader,
-      DxbcShaderTranslator::Modification& modification_out) const;
+      Shader::HostVertexShaderType host_vertex_shader_type) const;
+  DxbcShaderTranslator::Modification
+  PipelineCache::GetCurrentPixelShaderModification(const Shader& shader) const;
 
   // If draw_util::IsRasterizationPotentiallyDone is false, the pixel shader
   // MUST be made nullptr BEFORE calling this!
   bool ConfigurePipeline(
       D3D12Shader::D3D12Translation* vertex_shader,
       D3D12Shader::D3D12Translation* pixel_shader,
-      xenos::PrimitiveType primitive_type, xenos::IndexFormat index_format,
+      const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
       uint32_t bound_depth_and_color_render_target_bits,
       const uint32_t* bound_depth_and_color_render_targets_formats,
       void** pipeline_handle_out, ID3D12RootSignature** root_signature_out);
@@ -226,10 +230,6 @@ class PipelineCache {
     PipelineDescription description;
   };
 
-  // Returns the host vertex shader type for the current draw if it's valid and
-  // supported, or Shader::HostVertexShaderType(-1) if not.
-  Shader::HostVertexShaderType GetCurrentHostVertexShaderTypeIfValid() const;
-
   D3D12Shader* LoadShader(xenos::ShaderType shader_type,
                           const uint32_t* host_address, uint32_t dword_count,
                           uint64_t data_hash);
@@ -247,7 +247,7 @@ class PipelineCache {
   bool GetCurrentStateDescription(
       D3D12Shader::D3D12Translation* vertex_shader,
       D3D12Shader::D3D12Translation* pixel_shader,
-      xenos::PrimitiveType primitive_type, xenos::IndexFormat index_format,
+      const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
       uint32_t bound_depth_and_color_render_target_bits,
       const uint32_t* bound_depth_and_color_render_target_formats,
       PipelineRuntimeDescription& runtime_description_out);

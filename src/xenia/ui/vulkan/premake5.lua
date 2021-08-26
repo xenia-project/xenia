@@ -18,6 +18,7 @@ project("xenia-ui-vulkan")
     project_root.."/third_party/vulkan/",
   })
   local_platform_files()
+  local_platform_files("functions")
   files({
     "shaders/bin/*.h",
   })
@@ -31,7 +32,6 @@ project("xenia-ui-window-vulkan-demo")
   links({
     "fmt",
     "imgui",
-    "volk",
     "xenia-base",
     "xenia-ui",
     "xenia-ui-spirv",

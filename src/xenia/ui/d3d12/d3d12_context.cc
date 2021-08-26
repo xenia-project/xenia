@@ -32,10 +32,10 @@ bool D3D12Context::Initialize() {
     return true;
   }
 
-  auto& provider = GetD3D12Provider();
-  auto dxgi_factory = provider.GetDXGIFactory();
-  auto device = provider.GetDevice();
-  auto direct_queue = provider.GetDirectQueue();
+  const D3D12Provider& provider = GetD3D12Provider();
+  IDXGIFactory2* dxgi_factory = provider.GetDXGIFactory();
+  ID3D12Device* device = provider.GetDevice();
+  ID3D12CommandQueue* direct_queue = provider.GetDirectQueue();
 
   swap_fence_current_value_ = 1;
   swap_fence_completed_value_ = 0;
@@ -70,11 +70,10 @@ bool D3D12Context::Initialize() {
   swap_chain_desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
   swap_chain_desc.Flags = 0;
   IDXGISwapChain1* swap_chain_1;
-  if (FAILED(dxgi_factory->CreateSwapChainForHwnd(
-          provider.GetDirectQueue(),
-          reinterpret_cast<HWND>(target_window_->native_handle()),
-          &swap_chain_desc, nullptr, nullptr, &swap_chain_1))) {
-    XELOGE("Failed to create a DXGI swap chain");
+  if (FAILED(dxgi_factory->CreateSwapChainForComposition(
+          provider.GetDirectQueue(), &swap_chain_desc, nullptr,
+          &swap_chain_1))) {
+    XELOGE("Failed to create a DXGI swap chain for composition");
     Shutdown();
     return false;
   }
@@ -117,15 +116,54 @@ bool D3D12Context::Initialize() {
       return false;
     }
   }
-  if (FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT,
-                                       swap_command_allocators_[0], nullptr,
-                                       IID_PPV_ARGS(&swap_command_list_)))) {
+  if (FAILED(device->CreateCommandList(
+          0, D3D12_COMMAND_LIST_TYPE_DIRECT, swap_command_allocators_[0].Get(),
+          nullptr, IID_PPV_ARGS(&swap_command_list_)))) {
     XELOGE("Failed to create the composition graphics command list");
     Shutdown();
     return false;
   }
   // Initially in open state, wait until BeginSwap.
   swap_command_list_->Close();
+
+  // Associate the swap chain with the window via DirectComposition.
+  if (FAILED(provider.CreateDCompositionDevice(nullptr,
+                                               IID_PPV_ARGS(&dcomp_device_)))) {
+    XELOGE("Failed to create a DirectComposition device");
+    Shutdown();
+    return false;
+  }
+  if (FAILED(dcomp_device_->CreateTargetForHwnd(
+          reinterpret_cast<HWND>(target_window_->native_handle()), TRUE,
+          &dcomp_target_))) {
+    XELOGE("Failed to create a DirectComposition target for the window");
+    Shutdown();
+    return false;
+  }
+  if (FAILED(dcomp_device_->CreateVisual(&dcomp_visual_))) {
+    XELOGE("Failed to create a DirectComposition visual");
+    Shutdown();
+    return false;
+  }
+  if (FAILED(dcomp_visual_->SetContent(swap_chain_.Get()))) {
+    XELOGE(
+        "Failed to set the content of the DirectComposition visual to the swap "
+        "chain");
+    Shutdown();
+    return false;
+  }
+  if (FAILED(dcomp_target_->SetRoot(dcomp_visual_.Get()))) {
+    XELOGE(
+        "Failed to set the root of the DirectComposition target to the swap "
+        "chain visual");
+    Shutdown();
+    return false;
+  }
+  if (FAILED(dcomp_device_->Commit())) {
+    XELOGE("Failed to commit DirectComposition commands");
+    Shutdown();
+    return false;
+  }
 
   // Initialize the immediate mode drawer if not offscreen.
   immediate_drawer_ = std::make_unique<D3D12ImmediateDrawer>(*this);
@@ -151,14 +189,14 @@ bool D3D12Context::InitializeSwapChainBuffers() {
   swap_chain_back_buffer_index_ = swap_chain_->GetCurrentBackBufferIndex();
 
   // Create RTV descriptors for the swap chain buffers.
-  auto device = GetD3D12Provider().GetDevice();
+  ID3D12Device* device = GetD3D12Provider().GetDevice();
   D3D12_RENDER_TARGET_VIEW_DESC rtv_desc;
   rtv_desc.Format = kSwapChainFormat;
   rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
   rtv_desc.Texture2D.MipSlice = 0;
   rtv_desc.Texture2D.PlaneSlice = 0;
   for (uint32_t i = 0; i < kSwapChainBufferCount; ++i) {
-    device->CreateRenderTargetView(swap_chain_buffers_[i], &rtv_desc,
+    device->CreateRenderTargetView(swap_chain_buffers_[i].Get(), &rtv_desc,
                                    GetSwapChainBufferRTV(i));
   }
 
@@ -179,34 +217,23 @@ void D3D12Context::Shutdown() {
 
   immediate_drawer_.reset();
 
-  util::ReleaseAndNull(swap_command_list_);
+  dcomp_visual_.Reset();
+  dcomp_target_.Reset();
+  dcomp_device_.Reset();
+
+  swap_command_list_.Reset();
   for (uint32_t i = 0; i < kSwapCommandAllocatorCount; ++i) {
-    auto& swap_command_allocator = swap_command_allocators_[i];
-    if (!swap_command_allocator) {
-      break;
-    }
-    swap_command_allocator->Release();
-    swap_command_allocator = nullptr;
+    swap_command_allocators_[i].Reset();
   }
 
-  if (swap_chain_) {
-    for (uint32_t i = 0; i < kSwapChainBufferCount; ++i) {
-      auto& swap_chain_buffer = swap_chain_buffers_[i];
-      if (!swap_chain_buffer) {
-        break;
-      }
-      swap_chain_buffer->Release();
-      swap_chain_buffer = nullptr;
-    }
-
-    util::ReleaseAndNull(swap_chain_rtv_heap_);
-
-    swap_chain_->Release();
-    swap_chain_ = nullptr;
+  for (uint32_t i = 0; i < kSwapChainBufferCount; ++i) {
+    swap_chain_buffers_[i].Reset();
   }
+  swap_chain_rtv_heap_.Reset();
+  swap_chain_.Reset();
 
   // First release the fence since it may reference the event.
-  util::ReleaseAndNull(swap_fence_);
+  swap_fence_.Reset();
   if (swap_fence_completion_event_) {
     CloseHandle(swap_fence_completion_event_);
     swap_fence_completion_event_ = nullptr;
@@ -243,8 +270,7 @@ bool D3D12Context::BeginSwap() {
     }
     // All buffer references must be released before resizing.
     for (uint32_t i = 0; i < kSwapChainBufferCount; ++i) {
-      swap_chain_buffers_[i]->Release();
-      swap_chain_buffers_[i] = nullptr;
+      swap_chain_buffers_[i].Reset();
     }
     if (FAILED(swap_chain_->ResizeBuffers(
             kSwapChainBufferCount, target_window_width, target_window_height,
@@ -276,7 +302,8 @@ bool D3D12Context::BeginSwap() {
   uint32_t command_allocator_index =
       uint32_t((swap_fence_current_value_ + (kSwapCommandAllocatorCount - 1)) %
                kSwapCommandAllocatorCount);
-  auto command_allocator = swap_command_allocators_[command_allocator_index];
+  ID3D12CommandAllocator* command_allocator =
+      swap_command_allocators_[command_allocator_index].Get();
   command_allocator->Reset();
   swap_command_list_->Reset(command_allocator, nullptr);
 
@@ -285,7 +312,7 @@ bool D3D12Context::BeginSwap() {
   barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
   barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
   barrier.Transition.pResource =
-      swap_chain_buffers_[swap_chain_back_buffer_index_];
+      swap_chain_buffers_[swap_chain_back_buffer_index_].Get();
   barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
   barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
   barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -305,14 +332,14 @@ void D3D12Context::EndSwap() {
     return;
   }
 
-  auto direct_queue = GetD3D12Provider().GetDirectQueue();
+  ID3D12CommandQueue* direct_queue = GetD3D12Provider().GetDirectQueue();
 
   // Switch the back buffer to presentation state.
   D3D12_RESOURCE_BARRIER barrier;
   barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
   barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
   barrier.Transition.pResource =
-      swap_chain_buffers_[swap_chain_back_buffer_index_];
+      swap_chain_buffers_[swap_chain_back_buffer_index_].Get();
   barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
   barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
   barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
@@ -320,7 +347,7 @@ void D3D12Context::EndSwap() {
 
   // Submit the command list.
   swap_command_list_->Close();
-  ID3D12CommandList* execute_command_lists[] = {swap_command_list_};
+  ID3D12CommandList* execute_command_lists[] = {swap_command_list_.Get()};
   direct_queue->ExecuteCommandLists(1, execute_command_lists);
 
   // Present and check if the context was lost.
@@ -330,7 +357,7 @@ void D3D12Context::EndSwap() {
   }
 
   // Signal the fence to wait for frame resources to become free again.
-  direct_queue->Signal(swap_fence_, swap_fence_current_value_++);
+  direct_queue->Signal(swap_fence_.Get(), swap_fence_current_value_++);
 
   // Get the back buffer index for the next frame.
   swap_chain_back_buffer_index_ = swap_chain_->GetCurrentBackBufferIndex();

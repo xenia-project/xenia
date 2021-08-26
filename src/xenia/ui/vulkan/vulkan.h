@@ -10,20 +10,30 @@
 #ifndef XENIA_UI_VULKAN_VULKAN_H_
 #define XENIA_UI_VULKAN_VULKAN_H_
 
+#include "xenia/base/cvar.h"
 #include "xenia/base/platform.h"
 
-#if XE_PLATFORM_WIN32
-#define VK_USE_PLATFORM_WIN32_KHR 1
-#elif XE_PLATFORM_LINUX
+#if XE_PLATFORM_ANDROID
+#ifndef VK_USE_PLATFORM_ANDROID_KHR
+#define VK_USE_PLATFORM_ANDROID_KHR 1
+#endif
+#elif XE_PLATFORM_GNU_LINUX
+#ifndef VK_USE_PLATFORM_XCB_KHR
 #define VK_USE_PLATFORM_XCB_KHR 1
-#else
-#error Platform not yet supported.
-#endif  // XE_PLATFORM_WIN32
+#endif
+#elif XE_PLATFORM_WIN32
+// Must be included before vulkan.h with VK_USE_PLATFORM_WIN32_KHR because it
+// includes Windows.h too.
+#include "xenia/base/platform_win.h"
+#ifndef VK_USE_PLATFORM_WIN32_KHR
+#define VK_USE_PLATFORM_WIN32_KHR 1
+#endif
+#endif
 
-// We use a loader with its own function prototypes.
-#include "third_party/volk/volk.h"
+#ifndef VK_NO_PROTOTYPES
+#define VK_NO_PROTOTYPES 1
+#endif
 #include "third_party/vulkan/vulkan.h"
-#include "xenia/base/cvar.h"
 
 #define XELOGVK XELOGI
 

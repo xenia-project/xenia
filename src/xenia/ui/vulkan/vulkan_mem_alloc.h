@@ -10,31 +10,35 @@
 #ifndef XENIA_UI_VULKAN_VULKAN_MEM_ALLOC_H_
 #define XENIA_UI_VULKAN_VULKAN_MEM_ALLOC_H_
 
-#include "third_party/volk/volk.h"
-
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #include "third_party/vulkan/vk_mem_alloc.h"
+
+#include "xenia/ui/vulkan/vulkan_device.h"
+#include "xenia/ui/vulkan/vulkan_instance.h"
 
 namespace xe {
 namespace ui {
 namespace vulkan {
 
-inline void FillVMAVulkanFunctions(VmaVulkanFunctions* vma_funcs) {
-  vma_funcs->vkGetPhysicalDeviceProperties = vkGetPhysicalDeviceProperties;
+inline void FillVMAVulkanFunctions(VmaVulkanFunctions* vma_funcs,
+                                   const VulkanDevice& device) {
+  const VulkanInstance::InstanceFunctions& ifn = device.instance()->ifn();
+  const VulkanDevice::DeviceFunctions& dfn = device.dfn();
+  vma_funcs->vkGetPhysicalDeviceProperties = ifn.vkGetPhysicalDeviceProperties;
   vma_funcs->vkGetPhysicalDeviceMemoryProperties =
-      vkGetPhysicalDeviceMemoryProperties;
-  vma_funcs->vkAllocateMemory = vkAllocateMemory;
-  vma_funcs->vkFreeMemory = vkFreeMemory;
-  vma_funcs->vkMapMemory = vkMapMemory;
-  vma_funcs->vkUnmapMemory = vkUnmapMemory;
-  vma_funcs->vkBindBufferMemory = vkBindBufferMemory;
-  vma_funcs->vkBindImageMemory = vkBindImageMemory;
-  vma_funcs->vkGetBufferMemoryRequirements = vkGetBufferMemoryRequirements;
-  vma_funcs->vkGetImageMemoryRequirements = vkGetImageMemoryRequirements;
-  vma_funcs->vkCreateBuffer = vkCreateBuffer;
-  vma_funcs->vkDestroyBuffer = vkDestroyBuffer;
-  vma_funcs->vkCreateImage = vkCreateImage;
-  vma_funcs->vkDestroyImage = vkDestroyImage;
+      ifn.vkGetPhysicalDeviceMemoryProperties;
+  vma_funcs->vkAllocateMemory = dfn.vkAllocateMemory;
+  vma_funcs->vkFreeMemory = dfn.vkFreeMemory;
+  vma_funcs->vkMapMemory = dfn.vkMapMemory;
+  vma_funcs->vkUnmapMemory = dfn.vkUnmapMemory;
+  vma_funcs->vkBindBufferMemory = dfn.vkBindBufferMemory;
+  vma_funcs->vkBindImageMemory = dfn.vkBindImageMemory;
+  vma_funcs->vkGetBufferMemoryRequirements = dfn.vkGetBufferMemoryRequirements;
+  vma_funcs->vkGetImageMemoryRequirements = dfn.vkGetImageMemoryRequirements;
+  vma_funcs->vkCreateBuffer = dfn.vkCreateBuffer;
+  vma_funcs->vkDestroyBuffer = dfn.vkDestroyBuffer;
+  vma_funcs->vkCreateImage = dfn.vkCreateImage;
+  vma_funcs->vkDestroyImage = dfn.vkDestroyImage;
 }
 
 }  // namespace vulkan

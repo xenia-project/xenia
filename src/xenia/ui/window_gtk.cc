@@ -16,6 +16,7 @@
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform_linux.h"
+#include "xenia/ui/virtual_key.h"
 #include "xenia/ui/window_gtk.h"
 
 namespace xe {
@@ -31,7 +32,9 @@ GTKWindow::GTKWindow(Loop* loop, const std::string& title)
 GTKWindow::~GTKWindow() {
   OnDestroy();
   if (window_) {
-    if (GTK_IS_WIDGET(window_)) gtk_widget_destroy(window_);
+    if (GTK_IS_WIDGET(window_)) {
+      gtk_widget_destroy(window_);
+    }
     window_ = nullptr;
   }
 }
@@ -406,9 +409,10 @@ bool GTKWindow::HandleKeyboard(GdkEventKey* event) {
   bool alt_pressed = modifiers & GDK_META_MASK;
   bool super_pressed = modifiers & GDK_SUPER_MASK;
   uint32_t key_char = gdk_keyval_to_unicode(event->keyval);
-  auto e =
-      KeyEvent(this, event->hardware_keycode, 1, event->type == GDK_KEY_RELEASE,
-               shift_pressed, ctrl_pressed, alt_pressed, super_pressed);
+  // TODO(Triang3l): event->hardware_keycode to VirtualKey translation.
+  auto e = KeyEvent(this, VirtualKey(event->hardware_keycode), 1,
+                    event->type == GDK_KEY_RELEASE, shift_pressed, ctrl_pressed,
+                    alt_pressed, super_pressed);
   switch (event->type) {
     case GDK_KEY_PRESS:
       OnKeyDown(&e);

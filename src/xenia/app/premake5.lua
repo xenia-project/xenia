@@ -43,7 +43,6 @@ project("xenia-app")
     "mspack",
     "snappy",
     "spirv-tools",
-    "volk",
     "xxhash",
   })
   defines({

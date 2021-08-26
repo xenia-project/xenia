@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -20,10 +20,9 @@ XmaRegisterFile::XmaRegisterFile() { std::memset(values, 0, sizeof(values)); }
 
 const XmaRegisterInfo* XmaRegisterFile::GetRegisterInfo(uint32_t index) {
   switch (index) {
-#define XE_XMA_REGISTER(index, type, name)    \
+#define XE_XMA_REGISTER(index, name)          \
   case index: {                               \
     static const XmaRegisterInfo reg_info = { \
-        XmaRegisterInfo::Type::type,          \
         #name,                                \
     };                                        \
     return &reg_info;                         \

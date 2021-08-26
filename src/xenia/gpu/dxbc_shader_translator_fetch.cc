@@ -945,7 +945,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       // calculations.
       assert_zero(used_result_nonzero_components & 0b1000);
       a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b1000),
-               LoadSystemConstant(SystemConstantIndex::kTexturesResolved,
+               LoadSystemConstant(SystemConstants::Index::kTexturesResolved,
                                   offsetof(SystemConstants, textures_resolved),
                                   dxbc::Src::kXXXX),
                dxbc::Src::LU(uint32_t(1) << tfetch_index));
@@ -1006,7 +1006,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     uint32_t signs_temp = UINT32_MAX;
     if (instr.opcode == FetchOpcode::kTextureFetch) {
       signs_temp = PushSystemTemp();
-      MarkSystemConstantUsed(SystemConstantIndex::kTextureSwizzledSigns);
+      MarkSystemConstantUsed(SystemConstants::Index::kTextureSwizzledSigns);
       a_.OpUBFE(dxbc::Dest::R(signs_temp, used_result_nonzero_components),
                 dxbc::Src::LU(2),
                 dxbc::Src::LU(signs_shift, signs_shift + 2, signs_shift + 4,
@@ -1069,7 +1069,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           // resolution scale inverse - sampler not loaded yet.
           a_.OpAnd(
               dxbc::Dest::R(coord_and_sampler_temp, 0b1000),
-              LoadSystemConstant(SystemConstantIndex::kTexturesResolved,
+              LoadSystemConstant(SystemConstants::Index::kTexturesResolved,
                                  offsetof(SystemConstants, textures_resolved),
                                  dxbc::Src::kXXXX),
               dxbc::Src::LU(uint32_t(1) << tfetch_index));
@@ -1135,7 +1135,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           // resolution scale inverse - sampler not loaded yet.
           a_.OpAnd(
               dxbc::Dest::R(coord_and_sampler_temp, 0b1000),
-              LoadSystemConstant(SystemConstantIndex::kTexturesResolved,
+              LoadSystemConstant(SystemConstants::Index::kTexturesResolved,
                                  offsetof(SystemConstants, textures_resolved),
                                  dxbc::Src::kXXXX),
               dxbc::Src::LU(uint32_t(1) << tfetch_index));
@@ -1312,7 +1312,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       // Check which SRV needs to be accessed - signed or unsigned. If there is
       // at least one non-signed component, will be using the unsigned one.
       uint32_t is_unsigned_temp = PushSystemTemp();
-      MarkSystemConstantUsed(SystemConstantIndex::kTextureSwizzledSigns);
+      MarkSystemConstantUsed(SystemConstants::Index::kTextureSwizzledSigns);
       a_.OpUBFE(dxbc::Dest::R(is_unsigned_temp, 0b0001), dxbc::Src::LU(8),
                 dxbc::Src::LU(signs_shift), signs_uint_src);
       a_.OpINE(
@@ -2055,7 +2055,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           // `if`, with `else` for sRGB resolved render targets.
           a_.OpAnd(
               dxbc::Dest::R(gamma_temp, 0b0001),
-              LoadSystemConstant(SystemConstantIndex::kTexturesResolved,
+              LoadSystemConstant(SystemConstants::Index::kTexturesResolved,
                                  offsetof(SystemConstants, textures_resolved),
                                  dxbc::Src::kXXXX),
               dxbc::Src::LU(uint32_t(1) << tfetch_index));

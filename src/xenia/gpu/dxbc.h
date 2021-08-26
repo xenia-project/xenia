@@ -973,7 +973,7 @@ struct Src : OperandAddress {
 
   // For creating instances for use in declarations.
   struct DclT {};
-  static constexpr DclT Dcl;
+  static constexpr DclT Dcl = {};
 
   static Src R(uint32_t index, uint32_t swizzle = kXYZW) {
     return Src(OperandType::kTemp, swizzle, index);

@@ -11,14 +11,23 @@
 #define XENIA_BASE_SYSTEM_H_
 
 #include <filesystem>
-#include <string>
+#include <string_view>
 
 #include "xenia/base/string.h"
 
 namespace xe {
 
-void LaunchWebBrowser(const std::string& url);
+void LaunchWebBrowser(const std::string_view url);
 void LaunchFileExplorer(const std::filesystem::path& path);
+
+enum class SimpleMessageBoxType {
+  Help,
+  Warning,
+  Error,
+};
+
+// This is expected to block the caller until the message box is closed.
+void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message);
 
 }  // namespace xe
 

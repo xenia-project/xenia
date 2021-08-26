@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 
+#include <algorithm>
+
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
@@ -20,10 +22,12 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-// Generated with `xb buildhlsl`.
-#include "xenia/gpu/d3d12/shaders/dxbc/fullscreen_tc_vs.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/stretch_gamma_ps.h"
-#include "xenia/gpu/d3d12/shaders/dxbc/stretch_ps.h"
+// Generated with `xb buildshaders`.
+namespace shaders {
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/fullscreen_tc_vs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/stretch_gamma_ps.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/stretch_ps.h"
+}  // namespace shaders
 
 D3D12GraphicsSystem::D3D12GraphicsSystem() {}
 
@@ -138,10 +142,10 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
   // Create the stretch pipelines.
   D3D12_GRAPHICS_PIPELINE_STATE_DESC stretch_pipeline_desc = {};
   stretch_pipeline_desc.pRootSignature = stretch_root_signature_;
-  stretch_pipeline_desc.VS.pShaderBytecode = fullscreen_tc_vs;
-  stretch_pipeline_desc.VS.BytecodeLength = sizeof(fullscreen_tc_vs);
-  stretch_pipeline_desc.PS.pShaderBytecode = stretch_ps;
-  stretch_pipeline_desc.PS.BytecodeLength = sizeof(stretch_ps);
+  stretch_pipeline_desc.VS.pShaderBytecode = shaders::fullscreen_tc_vs;
+  stretch_pipeline_desc.VS.BytecodeLength = sizeof(shaders::fullscreen_tc_vs);
+  stretch_pipeline_desc.PS.pShaderBytecode = shaders::stretch_ps;
+  stretch_pipeline_desc.PS.BytecodeLength = sizeof(shaders::stretch_ps);
   // The shader will set alpha to 1, don't use output-merger to preserve it.
   stretch_pipeline_desc.BlendState.RenderTarget[0].RenderTargetWriteMask =
       D3D12_COLOR_WRITE_ENABLE_ALL;
@@ -165,8 +169,8 @@ X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
     return X_STATUS_UNSUCCESSFUL;
   }
   stretch_pipeline_desc.pRootSignature = stretch_gamma_root_signature_;
-  stretch_pipeline_desc.PS.pShaderBytecode = stretch_gamma_ps;
-  stretch_pipeline_desc.PS.BytecodeLength = sizeof(stretch_gamma_ps);
+  stretch_pipeline_desc.PS.pShaderBytecode = shaders::stretch_gamma_ps;
+  stretch_pipeline_desc.PS.BytecodeLength = sizeof(shaders::stretch_gamma_ps);
   if (FAILED(device->CreateGraphicsPipelineState(
           &stretch_pipeline_desc, IID_PPV_ARGS(&stretch_gamma_pipeline_)))) {
     XELOGE(

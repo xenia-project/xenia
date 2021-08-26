@@ -202,7 +202,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
 
   // IF SYSTEM CONSTANTS ARE CHANGED OR ADDED, THE FOLLOWING MUST BE UPDATED:
-  // - SystemConstantIndex enum.
+  // - SystemConstants::Index enum.
   // - system_constant_rdef_.
   // - d3d12/shaders/xenos_draw.hlsli (for geometry shaders).
   struct SystemConstants {
@@ -217,20 +217,38 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t line_loop_closing_index;
 
     xenos::Endian vertex_index_endian;
-    int32_t vertex_base_index;
-    float point_size[2];
-
-    float point_size_min_max[2];
-    // Screen point size * 2 (but not supersampled) -> size in NDC.
-    float point_screen_to_ndc[2];
+    uint32_t vertex_index_offset;
+    union {
+      struct {
+        uint32_t vertex_index_min;
+        uint32_t vertex_index_max;
+      };
+      uint32_t vertex_index_min_max[2];
+    };
 
     float user_clip_planes[6][4];
 
     float ndc_scale[3];
-    uint32_t interpolator_sampling_pattern;
+    float point_size_x;
 
     float ndc_offset[3];
+    float point_size_y;
+
+    union {
+      struct {
+        float point_size_min;
+        float point_size_max;
+      };
+      float point_size_min_max[2];
+    };
+    // Screen point size * 2 (but not supersampled) -> size in NDC.
+    float point_screen_to_ndc[2];
+
+    uint32_t interpolator_sampling_pattern;
     uint32_t ps_param_gen;
+    // Log2 of X and Y sample size. Used for alpha to mask, and for MSAA with
+    // ROV, this is used for EDRAM address calculation.
+    uint32_t sample_count_log2[2];
 
     // Each byte contains post-swizzle TextureSign values for each of the needed
     // components of each of the 32 used texture fetch constants.
@@ -239,25 +257,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // Whether the contents of each texture in fetch constants comes from a
     // resolve operation.
     uint32_t textures_resolved;
-    // Log2 of X and Y sample size. Used for alpha to mask, and for MSAA with
-    // ROV, this is used for EDRAM address calculation.
-    uint32_t sample_count_log2[2];
     float alpha_test_reference;
-
-    float color_exp_bias[4];
-
     // If alpha to mask is disabled, the entire alpha_to_mask value must be 0.
     // If alpha to mask is enabled, bits 0:7 are sample offsets, and bit 8 must
     // be 1.
     uint32_t alpha_to_mask;
     uint32_t edram_pitch_tiles;
-    union {
-      struct {
-        float edram_depth_range_scale;
-        float edram_depth_range_offset;
-      };
-      float edram_depth_range[2];
-    };
+
+    float color_exp_bias[4];
 
     union {
       struct {
@@ -326,6 +333,67 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     // The constant blend factor for the respective modes.
     float edram_blend_constant[4];
+
+   private:
+    friend class DxbcShaderTranslator;
+
+    enum class Index : uint32_t {
+      kFlags,
+      kTessellationFactorRange,
+      kLineLoopClosingIndex,
+
+      kVertexIndexEndian,
+      kVertexIndexOffset,
+      kVertexIndexMinMax,
+
+      kUserClipPlanes,
+
+      kNDCScale,
+      kPointSizeX,
+
+      kNDCOffset,
+      kPointSizeY,
+
+      kPointSizeMinMax,
+      kPointScreenToNDC,
+
+      kInterpolatorSamplingPattern,
+      kPSParamGen,
+      kSampleCountLog2,
+
+      kTextureSwizzledSigns,
+
+      kTexturesResolved,
+      kAlphaTestReference,
+      kAlphaToMask,
+      kEdramPitchTiles,
+
+      kColorExpBias,
+
+      kEdramPolyOffsetFront,
+      kEdramPolyOffsetBack,
+
+      kEdramDepthBaseDwords,
+
+      kEdramStencil,
+
+      kEdramRTBaseDwordsScaled,
+
+      kEdramRTFormatFlags,
+
+      kEdramRTClamp,
+
+      kEdramRTKeepMask,
+
+      kEdramRTBlendFactorsOps,
+
+      kEdramBlendConstant,
+
+      kCount,
+    };
+    static_assert(
+        uint32_t(Index::kCount) <= 64,
+        "Too many system constants, can't use uint64_t for usage bits");
   };
 
   // Shader resource view binding spaces.
@@ -507,46 +575,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
-  enum class SystemConstantIndex : uint32_t {
-    kFlags,
-    kTessellationFactorRange,
-    kLineLoopClosingIndex,
-    kVertexIndexEndian,
-    kVertexBaseIndex,
-    kPointSize,
-    kPointSizeMinMax,
-    kPointScreenToNDC,
-    kUserClipPlanes,
-    kNDCScale,
-    kInterpolatorSamplingPattern,
-    kNDCOffset,
-    kPSParamGen,
-    kTextureSwizzledSigns,
-    kTexturesResolved,
-    kSampleCountLog2,
-    kAlphaTestReference,
-    kColorExpBias,
-    kAlphaToMask,
-    kEdramPitchTiles,
-    kEdramDepthRange,
-    kEdramPolyOffsetFront,
-    kEdramPolyOffsetBack,
-    kEdramDepthBaseDwords,
-    kEdramStencil,
-    kEdramRTBaseDwordsScaled,
-    kEdramRTFormatFlags,
-    kEdramRTClamp,
-    kEdramRTKeepMask,
-    kEdramRTBlendFactorsOps,
-    kEdramBlendConstant,
-
-    kCount,
-  };
-  static_assert(uint32_t(SystemConstantIndex::kCount) <= 64,
-                "Too many system constants, can't use uint64_t for usage bits");
-
   static constexpr uint32_t kPointParametersTexCoord = xenos::kMaxInterpolators;
-  static constexpr uint32_t kClipSpaceZWTexCoord = kPointParametersTexCoord + 1;
 
   enum class InOutRegister : uint32_t {
     // IF ANY OF THESE ARE CHANGED, WriteInputSignature and WriteOutputSignature
@@ -557,7 +586,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     kVSDSOutInterpolators = 0,
     kVSDSOutPointParameters = kVSDSOutInterpolators + xenos::kMaxInterpolators,
-    kVSDSOutClipSpaceZW,
     kVSDSOutPosition,
     // Clip and cull distances must be tightly packed in Direct3D!
     kVSDSOutClipDistance0123,
@@ -569,7 +597,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     kPSInInterpolators = 0,
     kPSInPointParameters = kPSInInterpolators + xenos::kMaxInterpolators,
-    kPSInClipSpaceZW,
     kPSInPosition,
     // nointerpolation inputs. SV_IsFrontFace (X) is always present for
     // ps_param_gen, SV_SampleIndex (Y) is conditional (only for memexport when
@@ -580,7 +607,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // GetSystemConstantSrc + MarkSystemConstantUsed is for special cases of
   // building the source unconditionally - in general, LoadSystemConstant must
   // be used instead.
-  void MarkSystemConstantUsed(SystemConstantIndex index) {
+  void MarkSystemConstantUsed(SystemConstants::Index index) {
     system_constants_used_ |= uint64_t(1) << uint32_t(index);
   }
   // Offset should be offsetof(SystemConstants, field). Swizzle values are
@@ -589,7 +616,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // vector, it will be turned into YYYY, and so on. The swizzle may include
   // out-of-bounds components of the vector for simplicity of use, assuming they
   // will be dropped anyway later.
-  dxbc::Src GetSystemConstantSrc(size_t offset, uint32_t swizzle) {
+  dxbc::Src GetSystemConstantSrc(size_t offset, uint32_t swizzle) const {
     uint32_t first_component = uint32_t((offset >> 2) & 3);
     return dxbc::Src::CB(
         cbuffer_index_system_constants_,
@@ -599,13 +626,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
             std::min(((swizzle >> 4) & 3) + first_component, uint32_t(3)) << 4 |
             std::min(((swizzle >> 6) & 3) + first_component, uint32_t(3)) << 6);
   }
-  dxbc::Src LoadSystemConstant(SystemConstantIndex index, size_t offset,
+  dxbc::Src LoadSystemConstant(SystemConstants::Index index, size_t offset,
                                uint32_t swizzle) {
     MarkSystemConstantUsed(index);
     return GetSystemConstantSrc(offset, swizzle);
   }
   dxbc::Src LoadFlagsSystemConstant() {
-    return LoadSystemConstant(SystemConstantIndex::kFlags,
+    return LoadSystemConstant(SystemConstants::Index::kFlags,
                               offsetof(SystemConstants, flags),
                               dxbc::Src::kXXXX);
   }
@@ -650,15 +677,15 @@ class DxbcShaderTranslator : public ShaderTranslator {
   }
   bool IsDepthStencilSystemTempUsed() const {
     // See system_temp_depth_stencil_ documentation for explanation of cases.
+    if (edram_rov_used_) {
+      // Needed for all cases (early, late, late with oDepth).
+      return true;
+    }
     if (current_shader().writes_depth()) {
       // With host render targets, the depth format may be float24, in this
       // case, need to multiply it by 0.5 since 0...1 of the guest is stored as
       // 0...0.5 on the host, and also to convert it.
       // With ROV, need to store it to write later.
-      return true;
-    }
-    if (edram_rov_used_ && ROV_IsDepthStencilEarly()) {
-      // Calculated in the beginning, written possibly in the end.
       return true;
     }
     return false;
@@ -741,15 +768,16 @@ class DxbcShaderTranslator : public ShaderTranslator {
   void ExportToMemory();
   void CompleteVertexOrDomainShader();
   // For RTV, adds the sample to coverage_temp.coverage_temp_component if it
-  // passes alpha to mask (except for sample 0, which overwrites the output to
-  // initialize it).
+  // passes alpha to mask (or, if initialize == true (for the first sample
+  // tested), overwrites the output to initialize it).
   // For ROV, masks the sample away from coverage_temp.coverage_temp_component
   // if it doesn't pass alpha to mask.
   // threshold_offset and temp.temp_component can be the same if needed.
   void CompletePixelShader_AlphaToMaskSample(
-      uint32_t sample_index, float threshold_base, dxbc::Src threshold_offset,
-      float threshold_offset_scale, uint32_t coverage_temp,
-      uint32_t coverage_temp_component, uint32_t temp, uint32_t temp_component);
+      bool initialize, uint32_t sample_index, float threshold_base,
+      dxbc::Src threshold_offset, float threshold_offset_scale,
+      uint32_t coverage_temp, uint32_t coverage_temp_component, uint32_t temp,
+      uint32_t temp_component);
   // Performs alpha to coverage if necessary, for RTV, writing to oMask, and for
   // ROV, updating the low (coverage) bits of system_temp_rov_params_.x. Done
   // manually even for RTV to maintain the guest dithering pattern and because
@@ -928,7 +956,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kFloat2,
     kFloat3,
     kFloat4,
-    kInt,
     kUint,
     kUint2,
     kUint4,
@@ -982,9 +1009,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
     uint32_t padding_after;
   };
   static const SystemConstantRdef
-      system_constant_rdef_[size_t(SystemConstantIndex::kCount)];
-  // Mask of system constants (1 << SystemConstantIndex) used in the shader, so
-  // the remaining ones can be marked as unused in RDEF.
+      system_constant_rdef_[size_t(SystemConstants::Index::kCount)];
+  // Mask of system constants (1 << SystemConstants::Index) used in the shader,
+  // so the remaining ones can be marked as unused in RDEF.
   uint64_t system_constants_used_;
 
   // Mask of domain location actually used in the domain shader.
@@ -1032,15 +1059,18 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // W - Base-relative resolution-scaled EDRAM offset for 64bpp color data, in
   //     dwords.
   uint32_t system_temp_rov_params_;
-  // Two purposes:
+  // Different purposes:
   // - When writing to oDepth: X also used to hold the depth written by the
   //   shader, which, for host render targets, if the depth buffer is float24,
   //   needs to be remapped from guest 0...1 to host 0...0.5 and, if needed,
   //   converted to float24 precision; and for ROV, needs to be written in the
   //   end of the shader.
-  // - Otherwise, when using ROV output with ROV_IsDepthStencilEarly being true:
-  //   New per-sample depth / stencil values, generated during early
-  //   depth / stencil test (actual writing checks coverage bits).
+  // - When not writing to oDepth, but using ROV:
+  //   - ROV_IsDepthStencilEarly: New per-sample depth / stencil values,
+  //     generated during early depth / stencil test (actual writing checks
+  //     the remaining coverage bits).
+  //   - Not ROV_IsDepthStencilEarly: Z gradients in .xy taken in the beginning
+  //     of the shader before any return statement is possibly reached.
   uint32_t system_temp_depth_stencil_;
   // Up to 4 color outputs in pixel shaders (needs to be readable, because of
   // alpha test, alpha to coverage, exponent bias, gamma, and also for ROV

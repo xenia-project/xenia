@@ -23,6 +23,8 @@
 namespace xe {
 namespace apu {
 
+constexpr fourcc_t kAudioSaveSignature = make_fourcc("XAUD");
+
 class AudioDriver;
 class XmaDecoder;
 

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -38,8 +38,22 @@ bool has_console_attached_ = true;
 
 bool has_console_attached() { return has_console_attached_; }
 
+bool has_shell_environment_variable() {
+  size_t size = 0;
+  // Check if SHELL exists
+  // If it doesn't, then we are in a Windows Terminal
+  auto error = getenv_s(&size, nullptr, 0, "SHELL");
+  if (error) {
+    return false;
+  }
+  return !!size;
+}
+
 void AttachConsole() {
-  if (!cvars::enable_console) {
+  bool has_console = ::AttachConsole(ATTACH_PARENT_PROCESS) == TRUE;
+  if (!has_console || !has_shell_environment_variable()) {
+    // We weren't launched from a console, so just return.
+    has_console_attached_ = false;
     return;
   }
 
@@ -104,8 +118,10 @@ static bool parse_launch_arguments(const xe::EntryInfo& entry_info,
 
   LocalFree(wargv);
 
-  cvar::ParseLaunchArguments(argc, argv, entry_info.positional_usage,
-                             entry_info.positional_options);
+  if (!entry_info.transparent_options) {
+    cvar::ParseLaunchArguments(argc, argv, entry_info.positional_usage.value(),
+                               entry_info.positional_options.value());
+  }
 
   args.clear();
   for (int n = 0; n < argc; n++) {
@@ -125,7 +141,9 @@ int Main() {
 
   // Attach a console so we can write output to stdout. If the user hasn't
   // redirected output themselves it'll pop up a window.
-  xe::AttachConsole();
+  if (cvars::enable_console) {
+    xe::AttachConsole();
+  }
 
   // Setup COM on the main thread.
   // NOTE: this may fail if COM has already been initialized - that's OK.
@@ -144,7 +162,13 @@ int Main() {
   }
 
   // Print version info.
-  XELOGI("Build: " XE_BUILD_BRANCH " / " XE_BUILD_COMMIT " on " XE_BUILD_DATE);
+  XELOGI(
+      "Build: "
+#ifdef XE_BUILD_IS_PR
+      "PR#" XE_BUILD_PR_NUMBER " " XE_BUILD_PR_REPO " " XE_BUILD_PR_BRANCH
+      "@" XE_BUILD_PR_COMMIT_SHORT " against "
+#endif
+      XE_BUILD_BRANCH "@" XE_BUILD_COMMIT_SHORT " on " XE_BUILD_DATE);
 
   // Request high performance timing.
   if (cvars::win32_high_freq) {

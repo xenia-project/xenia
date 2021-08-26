@@ -28,6 +28,7 @@
 #include "xenia/memory.h"
 #include "xenia/ui/file_picker.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/virtual_key.h"
 #include "xenia/ui/window.h"
 #include "xenia/xbox.h"
 
@@ -135,7 +136,7 @@ bool TraceViewer::Setup() {
   window_->set_imgui_input_enabled(true);
 
   window_->on_key_char.AddListener([&](xe::ui::KeyEvent* e) {
-    if (e->key_code() == 0x74 /* VK_F5 */) {
+    if (e->virtual_key() == xe::ui::VirtualKey::kF5) {
       graphics_system_->ClearCaches();
       e->set_handled(true);
     }
@@ -1031,7 +1032,7 @@ void ProgressBar(float frac, float width, float height = 0,
   if (height == 0) {
     height = ImGui::GetTextLineHeightWithSpacing();
   }
-  frac = xe::saturate(frac);
+  frac = xe::saturate_unsigned(frac);
 
   const auto fontAtlas = ImGui::GetIO().Fonts;
 

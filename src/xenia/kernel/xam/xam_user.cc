@@ -546,7 +546,13 @@ DECLARE_XAM_EXPORT1(XamUserAreUsersFriends, kUserProfiles, kStub);
 
 dword_result_t XamShowSigninUI(dword_t unk, dword_t unk_mask) {
   // Mask values vary. Probably matching user types? Local/remote?
-  // Games seem to sit and loop until we trigger this notification.
+
+  // To fix game modes that display a 4 profile signin UI (even if playing
+  // alone):
+  // XN_SYS_SIGNINCHANGED
+  kernel_state()->BroadcastNotification(0x0000000A, 1);
+  // Games seem to sit and loop until we trigger this notification:
+  // XN_SYS_UI (off)
   kernel_state()->BroadcastNotification(0x00000009, 0);
   return X_ERROR_SUCCESS;
 }
@@ -601,7 +607,7 @@ class XStaticAchievementEnumerator : public XEnumerator {
   }
 
   uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
-                      uint32_t buffer_size, uint32_t* written_count) override {
+                      uint32_t* written_count) override {
     size_t count =
         std::min(items_.size() - current_item_, items_per_enumerate());
     if (!count) {
@@ -609,9 +615,6 @@ class XStaticAchievementEnumerator : public XEnumerator {
     }
 
     size_t size = count * item_size();
-    if (size > buffer_size) {
-      return X_ERROR_INSUFFICIENT_BUFFER;
-    }
 
     auto details = reinterpret_cast<X_ACHIEVEMENT_DETAILS*>(buffer_data);
     size_t string_offset =
@@ -737,6 +740,9 @@ dword_result_t XamReadTileToTexture(dword_t unknown, dword_t title_id,
                                     lpvoid_t buffer_ptr, dword_t stride,
                                     dword_t height, dword_t overlapped_ptr) {
   // TODO(gibbed): unknown=0,2,3,9
+  if (!tile_id) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
 
   size_t size = size_t(stride) * size_t(height);
   std::memset(buffer_ptr, 0xFF, size);
@@ -770,8 +776,10 @@ DECLARE_XAM_EXPORT1(XamSessionCreateHandle, kUserProfiles, kStub);
 
 dword_result_t XamSessionRefObjByHandle(dword_t handle, lpdword_t obj_ptr) {
   assert_true(handle == 0xCAFEDEAD);
-  *obj_ptr = 0;
-  return X_ERROR_FUNCTION_FAILED;
+  // TODO(PermaNull): Implement this properly,
+  // For the time being returning 0xDEADF00D will prevent crashing.
+  *obj_ptr = 0xDEADF00D;
+  return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamSessionRefObjByHandle, kUserProfiles, kStub);
 

@@ -1,0 +1,6 @@
+// VK_KHR_surface functions used in Xenia.
+XE_UI_VULKAN_FUNCTION(vkDestroySurfaceKHR)
+XE_UI_VULKAN_FUNCTION(vkGetPhysicalDeviceSurfaceCapabilitiesKHR)
+XE_UI_VULKAN_FUNCTION(vkGetPhysicalDeviceSurfaceFormatsKHR)
+XE_UI_VULKAN_FUNCTION(vkGetPhysicalDeviceSurfacePresentModesKHR)
+XE_UI_VULKAN_FUNCTION(vkGetPhysicalDeviceSurfaceSupportKHR)

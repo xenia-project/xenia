@@ -87,12 +87,12 @@ struct string_key_case : internal::string_key_base {
 
 namespace std {
 template <>
-struct std::hash<xe::string_key> {
+struct hash<xe::string_key> {
   std::size_t operator()(const xe::string_key& t) const { return t.hash(); }
 };
 
 template <>
-struct std::hash<xe::string_key_case> {
+struct hash<xe::string_key_case> {
   std::size_t operator()(const xe::string_key_case& t) const {
     return t.hash();
   }
