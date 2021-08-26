@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -107,9 +107,9 @@ struct XWSAOVERLAPPED {
   xe::be<uint32_t> internal_high;
   union {
     struct {
-      xe::be<uint32_t> offset;
-      xe::be<uint32_t> offset_high;
-    };
+      xe::be<uint32_t> low;
+      xe::be<uint32_t> high;
+    } offset;  // must be named to avoid GCC error
     xe::be<uint32_t> pointer;
   };
   xe::be<uint32_t> event_handle;
@@ -306,9 +306,11 @@ dword_result_t NetDll_WSARecvFrom(dword_t caller, dword_t socket,
     //}
   }
 
-  return 0;
+  // we're not going to be receiving packets any time soon
+  // return error so we don't wait on that - Cancerous
+  return -1;
 }
-DECLARE_XAM_EXPORT1(NetDll_WSARecvFrom, kNetworking, kStub);
+DECLARE_XAM_EXPORT2(NetDll_WSARecvFrom, kNetworking, kStub, kHighFrequency);
 
 // If the socket is a VDP socket, buffer 0 is the game data length, and buffer 1
 // is the unencrypted game data.
@@ -598,7 +600,18 @@ dword_result_t NetDll_XNetQosListen(dword_t caller, lpvoid_t id, lpvoid_t data,
 DECLARE_XAM_EXPORT1(NetDll_XNetQosListen, kNetworking, kStub);
 
 dword_result_t NetDll_inet_addr(lpstring_t addr_ptr) {
+  if (!addr_ptr) {
+    return -1;
+  }
+
   uint32_t addr = inet_addr(addr_ptr);
+  // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-inet_addr#return-value
+  // Based on console research it seems like x360 uses old version of inet_addr
+  // In case of empty string it return 0 instead of -1
+  if (addr == -1 && !addr_ptr.value().length()) {
+    return 0;
+  }
+
   return xe::byte_swap(addr);
 }
 DECLARE_XAM_EXPORT1(NetDll_inet_addr, kNetworking, kImplemented);

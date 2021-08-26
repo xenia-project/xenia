@@ -316,6 +316,17 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
     *variable_ptr = executable_module_->hmodule_ptr();
   }
 
+  // Setup the kernel's ExLoadedImageName field
+  export_entry = processor()->export_resolver()->GetExportByOrdinal(
+      "xboxkrnl.exe", ordinals::ExLoadedImageName);
+
+  if (export_entry) {
+    char* variable_ptr =
+        memory()->TranslateVirtual<char*>(export_entry->variable_ptr);
+    xe::string_util::copy_truncating(
+        variable_ptr, executable_module_->path(),
+        xboxkrnl::XboxkrnlModule::kExLoadedImageNameSize);
+  }
   // Spin up deferred dispatch worker.
   // TODO(benvanik): move someplace more appropriate (out of ctor, but around
   // here).
@@ -758,7 +769,7 @@ void KernelState::CompleteOverlappedDeferredEx(
 
 bool KernelState::Save(ByteStream* stream) {
   XELOGD("Serializing the kernel...");
-  stream->Write('KRNL');
+  stream->Write(kKernelSaveSignature);
 
   // Save the object table
   object_table_.Save(stream);
@@ -828,7 +839,7 @@ bool KernelState::Save(ByteStream* stream) {
 
 bool KernelState::Restore(ByteStream* stream) {
   // Check the magic value.
-  if (stream->Read<uint32_t>() != 'KRNL') {
+  if (stream->Read<uint32_t>() != kKernelSaveSignature) {
     return false;
   }
 

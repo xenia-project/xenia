@@ -136,6 +136,11 @@ bool IsRasterizationPotentiallyDone(const RegisterFile& regs,
   return true;
 }
 
+// https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_standard_multisample_quality_levels
+const int8_t kD3D10StandardSamplePositions2x[2][2] = {{4, 4}, {-4, -4}};
+const int8_t kD3D10StandardSamplePositions4x[4][2] = {
+    {-2, -6}, {6, -2}, {-6, 2}, {2, 6}};
+
 bool IsPixelShaderNeededWithRasterization(const Shader& shader,
                                           const RegisterFile& regs) {
   assert_true(shader.type() == xenos::ShaderType::kPixel);
@@ -409,12 +414,13 @@ void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale,
       float axis_0 = offset_axis - scale_axis_abs;
       float axis_1 = offset_axis + scale_axis_abs;
       float axis_max_unscaled_float = float(xy_max_unscaled[i]);
-      // fmax to drop NaN and < 0, min as float (axis_max_unscaled_float is well
-      // below 2^24) to safely drop very large values.
+      // max(0.0f, xy) drops NaN and < 0 - max picks the first argument in the
+      // !(a < b) case (always for NaN), min as float (axis_max_unscaled_float
+      // is well below 2^24) to safely drop very large values.
       uint32_t axis_0_int =
-          uint32_t(std::min(std::fmax(axis_0, 0.0f), axis_max_unscaled_float));
+          uint32_t(std::min(axis_max_unscaled_float, std::max(0.0f, axis_0)));
       uint32_t axis_1_int =
-          uint32_t(std::min(std::fmax(axis_1, 0.0f), axis_max_unscaled_float));
+          uint32_t(std::min(axis_max_unscaled_float, std::max(0.0f, axis_1)));
       uint32_t axis_extent_int = axis_1_int - axis_0_int;
       viewport_info_out.xy_offset[i] = axis_0_int * resolution_scale;
       viewport_info_out.xy_extent[i] = axis_extent_int * resolution_scale;
@@ -517,9 +523,8 @@ void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale,
       // extension. But cases when this really matters are yet to be found -
       // trying to fix this will result in more correct depth values, but
       // incorrect clipping.
-      z_min = std::min(std::fmax(host_clip_offset_z, 0.0f), 1.0f);
-      z_max = std::min(std::fmax(host_clip_offset_z + host_clip_scale_z, 0.0f),
-                       1.0f);
+      z_min = xe::saturate_unsigned(host_clip_offset_z);
+      z_max = xe::saturate_unsigned(host_clip_offset_z + host_clip_scale_z);
       // Direct3D 12 doesn't allow reverse depth range - on some drivers it
       // works, on some drivers it doesn't, actually, but it was never
       // explicitly allowed by the specification.

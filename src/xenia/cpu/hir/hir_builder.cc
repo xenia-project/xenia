@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -739,7 +739,7 @@ void HIRBuilder::Comment(std::string_view value) {
     return;
   }
   auto size = value.size();
-  auto p = reinterpret_cast<char*>(arena_->Alloc(size + 1));
+  auto p = reinterpret_cast<char*>(arena_->Alloc(size + 1, 1));
   std::memcpy(p, value.data(), size);
   p[size] = '\0';
   Instr* i = AppendInstr(OPCODE_COMMENT_info, 0);
@@ -752,7 +752,7 @@ void HIRBuilder::Comment(const StringBuffer& value) {
     return;
   }
   auto size = value.length();
-  auto p = reinterpret_cast<char*>(arena_->Alloc(size + 1));
+  auto p = reinterpret_cast<char*>(arena_->Alloc(size + 1, 1));
   std::memcpy(p, value.buffer(), size);
   p[size] = '\0';
   Instr* i = AppendInstr(OPCODE_COMMENT_info, 0);

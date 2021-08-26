@@ -34,6 +34,50 @@ namespace draw_util {
 // for use with the top-left rasterization rule later.
 int32_t FloatToD3D11Fixed16p8(float f32);
 
+// Polygonal primitive types (not including points and lines) are rasterized as
+// triangles, have front and back faces, and also support face culling and fill
+// modes (polymode_front_ptype, polymode_back_ptype). Other primitive types are
+// always "front" (but don't support front face and back face culling, according
+// to OpenGL and Vulkan specifications - even if glCullFace is
+// GL_FRONT_AND_BACK, points and lines are still drawn), and may in some cases
+// use the "para" registers instead of "front" or "back" (for "parallelogram" -
+// like poly_offset_para_enable).
+constexpr bool IsPrimitivePolygonal(bool vgt_output_path_is_tessellation_enable,
+                                    xenos::PrimitiveType type) {
+  if (vgt_output_path_is_tessellation_enable &&
+      (type == xenos::PrimitiveType::kTrianglePatch ||
+       type == xenos::PrimitiveType::kQuadPatch)) {
+    // For patch primitive types, the major mode is always explicit, so just
+    // checking if VGT_OUTPUT_PATH_CNTL::path_select is kTessellationEnable is
+    // enough.
+    return true;
+  }
+  switch (type) {
+    case xenos::PrimitiveType::kTriangleList:
+    case xenos::PrimitiveType::kTriangleFan:
+    case xenos::PrimitiveType::kTriangleStrip:
+    case xenos::PrimitiveType::kTriangleWithWFlags:
+    case xenos::PrimitiveType::kQuadList:
+    case xenos::PrimitiveType::kQuadStrip:
+    case xenos::PrimitiveType::kPolygon:
+      return true;
+    default:
+      break;
+  }
+  // TODO(Triang3l): Investigate how kRectangleList should be treated - possibly
+  // actually drawn as two polygons on the console, however, the current
+  // geometry shader doesn't care about the winding order - allowing backface
+  // culling for rectangles currently breaks Gears of War 2.
+  return false;
+}
+
+inline bool IsPrimitivePolygonal(const RegisterFile& regs) {
+  return IsPrimitivePolygonal(
+      regs.Get<reg::VGT_OUTPUT_PATH_CNTL>().path_select ==
+          xenos::VGTOutputPath::kTessellationEnable,
+      regs.Get<reg::VGT_DRAW_INITIATOR>().prim_type);
+}
+
 // Whether with the current state, any samples to rasterize (for any reason, not
 // only to write something to a render target, but also to do sample counting or
 // pixel shader memexport) can be generated. Finally dropping draw calls can
@@ -43,6 +87,11 @@ int32_t FloatToD3D11Fixed16p8(float f32);
 // game, of course).
 bool IsRasterizationPotentiallyDone(const RegisterFile& regs,
                                     bool primitive_polygonal);
+
+// Direct3D 10.1+ standard sample positions, also used in Vulkan, for
+// calculations related to host MSAA, in 1/16th of a pixel.
+extern const int8_t kD3D10StandardSamplePositions2x[2][2];
+extern const int8_t kD3D10StandardSamplePositions4x[4][2];
 
 inline reg::RB_DEPTHCONTROL GetDepthControlForCurrentEdramMode(
     const RegisterFile& regs) {
@@ -55,6 +104,31 @@ inline reg::RB_DEPTHCONTROL GetDepthControlForCurrentEdramMode(
     return disabled;
   }
   return regs.Get<reg::RB_DEPTHCONTROL>();
+}
+
+constexpr float GetD3D10PolygonOffsetFactor(
+    xenos::DepthRenderTargetFormat depth_format, bool float24_as_0_to_0_5) {
+  if (depth_format == xenos::DepthRenderTargetFormat::kD24S8) {
+    return float(1 << 24);
+  }
+  // 20 explicit + 1 implicit (1.) mantissa bits.
+  // 2^20 is not enough for Call of Duty 4 retail version's first mission F.N.G.
+  // shooting range floor (with the number 1) on Direct3D 12. Tested on Nvidia
+  // GeForce GTX 1070, the exact formula (taking into account the 0...1 to
+  // 0...0.5 remapping described below) used for testing is
+  // `int(ceil(offset * 2^20 * 0.5)) * sign(offset)`. With 2^20 * 0.5, there
+  // are various kinds of stripes dependending on the view angle in that
+  // location. With 2^21 * 0.5, the issue is not present.
+  constexpr float kFloat24Scale = float(1 << 21);
+  // 0...0.5 range may be used on the host to represent the 0...1 guest depth
+  // range to be able to copy all possible encodings, which are [0, 2), via a
+  // [0, 1] depth output variable, during EDRAM contents reinterpretation.
+  // This is done by scaling the viewport depth bounds by 0.5. However, the
+  // depth bias is applied after the viewport. This adjustment is only needed
+  // for the constant bias - for slope-scaled, the derivatives of Z are
+  // calculated after the viewport as well, and will already include the 0.5
+  // scaling from the viewport.
+  return float24_as_0_to_0_5 ? kFloat24Scale * 0.5f : kFloat24Scale;
 }
 
 inline bool DoesCoverageDependOnAlpha(reg::RB_COLORCONTROL rb_colorcontrol) {

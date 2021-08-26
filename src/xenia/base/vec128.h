@@ -106,18 +106,6 @@ typedef struct alignas(16) vec128_s {
     };
   };
 
-  vec128_s() = default;
-  vec128_s(const vec128_s& other) {
-    high = other.high;
-    low = other.low;
-  }
-
-  vec128_s& operator=(const vec128_s& b) {
-    high = b.high;
-    low = b.low;
-    return *this;
-  }
-
   bool operator==(const vec128_s& b) const {
     return low == b.low && high == b.high;
   }

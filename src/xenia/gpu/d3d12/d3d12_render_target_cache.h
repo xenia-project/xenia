@@ -15,7 +15,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <memory>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -132,8 +134,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     // floating-point formats, and to distinguish between two -1 representations
     // in snorm formats).
     D3D12RenderTarget(
-        RenderTargetKey key, D3D12RenderTargetCache& render_target_cache,
-        ID3D12Resource* resource,
+        RenderTargetKey key, ID3D12Resource* resource,
         ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_draw,
         ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_draw_srgb,
         ui::d3d12::D3D12CpuDescriptorPool::Descriptor&&
@@ -142,7 +143,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
         ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_srv_stencil,
         D3D12_RESOURCE_STATES resource_state)
         : RenderTarget(key),
-          render_target_cache_(render_target_cache),
           resource_(resource),
           descriptor_draw_(std::move(descriptor_draw)),
           descriptor_draw_srgb_(std::move(descriptor_draw_srgb)),
@@ -197,7 +197,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     }
 
    private:
-    D3D12RenderTargetCache& render_target_cache_;
     Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
     ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_draw_;
     ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_draw_srgb_;
@@ -221,9 +220,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   uint32_t GetMaxRenderTargetHeight() const override {
     return D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
   }
-
-  xenos::ColorRenderTargetFormat GetHostRelevantColorFormat(
-      xenos::ColorRenderTargetFormat format) const override;
 
   RenderTarget* CreateRenderTarget(RenderTargetKey key) override;
 
@@ -294,7 +290,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   // Parameter 1 - destination (shared memory or a part of it).
   // Parameter 2 - source (EDRAM).
   ID3D12RootSignature* resolve_copy_root_signature_ = nullptr;
-  static const std::pair<const uint8_t*, size_t>
+  static const std::pair<const void*, size_t>
       kResolveCopyShaders[size_t(draw_util::ResolveCopyShaderIndex::kCount)];
   ID3D12PipelineState* resolve_copy_pipelines_[size_t(
       draw_util::ResolveCopyShaderIndex::kCount)] = {};
@@ -416,14 +412,14 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   union TransferShaderKey {
     struct {
       xenos::MsaaSamples dest_msaa_samples : xenos::kMsaaSamplesBits;
-      uint32_t dest_host_relevant_format : xenos::kRenderTargetFormatBits;
+      uint32_t dest_resource_format : xenos::kRenderTargetFormatBits;
       xenos::MsaaSamples source_msaa_samples : xenos::kMsaaSamplesBits;
       // Always 1x when host_depth_source_is_copy is true not to create the same
       // pipeline for different MSAA sample counts as it doesn't matter in this
       // case.
       xenos::MsaaSamples host_depth_source_msaa_samples
           : xenos::kMsaaSamplesBits;
-      uint32_t source_host_relevant_format : xenos::kRenderTargetFormatBits;
+      uint32_t source_resource_format : xenos::kRenderTargetFormatBits;
       // If host depth is also fetched, whether it's pre-copied to the EDRAM
       // buffer (but since it's just a scratch buffer, with tiles laid out
       // linearly with the same pitch as in the original render target; also no
@@ -537,8 +533,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       uint32_t pitch_tiles : xenos::kEdramPitchTilesBits;
       // 1 to 3.
       uint32_t resolution_scale : 2;
-      // For native 2x MSAA vs. 2x over 4x.
-      uint32_t second_sample_index : 2;
+      // Whether 2x MSAA is supported natively rather than through 4x.
+      uint32_t msaa_2x_supported : 1;
     };
     uint32_t constant = 0;
   };
@@ -555,7 +551,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   union DumpPipelineKey {
     struct {
       xenos::MsaaSamples msaa_samples : 2;
-      uint32_t host_relevant_format : 4;
+      uint32_t resource_format : 4;
       // Last bit because this affects the root signature - after sorting, only
       // change it at most once. Depth buffers have an additional stencil SRV.
       uint32_t is_depth : 1;
@@ -578,11 +574,11 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
     xenos::ColorRenderTargetFormat GetColorFormat() const {
       assert_false(is_depth);
-      return xenos::ColorRenderTargetFormat(host_relevant_format);
+      return xenos::ColorRenderTargetFormat(resource_format);
     }
     xenos::DepthRenderTargetFormat GetDepthFormat() const {
       assert_true(is_depth);
-      return xenos::DepthRenderTargetFormat(host_relevant_format);
+      return xenos::DepthRenderTargetFormat(resource_format);
     }
   };
 

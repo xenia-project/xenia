@@ -7,3 +7,5 @@
 *.csproj    text eol=crlf -whitespace merge=union
 *.vcxproj   text eol=crlf -whitespace merge=union
 *.props     text eol=crlf -whitespace merge=union
+
+src/**/shaders/bytecode/** linguist-generated=true

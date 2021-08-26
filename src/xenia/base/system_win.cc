@@ -13,15 +13,39 @@
 
 namespace xe {
 
-void LaunchWebBrowser(const std::string& url) {
-  auto temp = xe::to_utf16(url);
-  ShellExecuteW(nullptr, L"open", reinterpret_cast<LPCWSTR>(temp.c_str()),
+void LaunchWebBrowser(const std::string_view url) {
+  auto wide_url = xe::to_utf16(url);
+  ShellExecuteW(nullptr, L"open", reinterpret_cast<LPCWSTR>(wide_url.c_str()),
                 nullptr, nullptr, SW_SHOWNORMAL);
 }
 
 void LaunchFileExplorer(const std::filesystem::path& url) {
   ShellExecuteW(nullptr, L"explore", url.c_str(), nullptr, nullptr,
                 SW_SHOWNORMAL);
+}
+
+void ShowSimpleMessageBox(SimpleMessageBoxType type,
+                          const std::string_view message) {
+  const wchar_t* title;
+  std::u16string wide_message = xe::to_utf16(message);
+  DWORD type_flags = MB_OK | MB_APPLMODAL | MB_SETFOREGROUND;
+  switch (type) {
+    default:
+    case SimpleMessageBoxType::Help:
+      title = L"Xenia Help";
+      type_flags |= MB_ICONINFORMATION;
+      break;
+    case SimpleMessageBoxType::Warning:
+      title = L"Xenia Warning";
+      type_flags |= MB_ICONWARNING;
+      break;
+    case SimpleMessageBoxType::Error:
+      title = L"Xenia Error";
+      type_flags |= MB_ICONERROR;
+      break;
+  }
+  MessageBoxW(nullptr, reinterpret_cast<LPCWSTR>(wide_message.c_str()), title,
+              type_flags);
 }
 
 }  // namespace xe

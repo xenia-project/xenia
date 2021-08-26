@@ -12,6 +12,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <unordered_map>
 #include <utility>
@@ -180,8 +181,10 @@ class RenderTargetCache {
 
   // Returns bits where 0 is whether a depth render target is currently bound on
   // the host and 1... are whether the same applies to color render targets, and
-  // "host-relevant" formats of each.
+  // formats (resource formats, but if needed, with gamma taken into account) of
+  // each.
   uint32_t GetLastUpdateBoundRenderTargets(
+      bool distinguish_gamma_formats,
       uint32_t* depth_and_color_formats_out = nullptr) const;
 
  protected:
@@ -222,16 +225,13 @@ class RenderTargetCache {
       uint32_t pitch_tiles_at_32bpp : 8;                          // 19
       xenos::MsaaSamples msaa_samples : xenos::kMsaaSamplesBits;  // 21
       uint32_t is_depth : 1;                                      // 22
-      // Not always the original format - blending precision ignored, formats
-      // handled through the same render targets on the host are normalized, and
-      // with pixel shader interlock, replaced with some single 32bpp or 64bpp
-      // format because it's only needed for addressing.
-      uint32_t host_relevant_format : xenos::kRenderTargetFormatBits;  // 26
+      // Ignoring the blending precision and sRGB.
+      uint32_t resource_format : xenos::kRenderTargetFormatBits;  // 26
     };
     uint32_t key = 0;
     struct Hasher {
-      size_t operator()(const RenderTargetKey& key) const {
-        return std::hash<uint32_t>{}(key.key);
+      size_t operator()(const RenderTargetKey& render_target_key) const {
+        return std::hash<uint32_t>{}(render_target_key.key);
       }
     };
     bool operator==(const RenderTargetKey& other_key) const {
@@ -249,11 +249,11 @@ class RenderTargetCache {
 
     xenos::ColorRenderTargetFormat GetColorFormat() const {
       assert_false(is_depth);
-      return xenos::ColorRenderTargetFormat(host_relevant_format);
+      return xenos::ColorRenderTargetFormat(resource_format);
     }
     xenos::DepthRenderTargetFormat GetDepthFormat() const {
       assert_true(is_depth);
-      return xenos::DepthRenderTargetFormat(host_relevant_format);
+      return xenos::DepthRenderTargetFormat(resource_format);
     }
     bool Is64bpp() const {
       if (is_depth) {
@@ -265,10 +265,14 @@ class RenderTargetCache {
     uint32_t GetPitchTiles() const {
       return pitch_tiles_at_32bpp << uint32_t(Is64bpp());
     }
-    uint32_t GetWidth() const {
+    static constexpr uint32_t GetWidth(uint32_t pitch_tiles_at_32bpp,
+                                       xenos::MsaaSamples msaa_samples) {
       return pitch_tiles_at_32bpp *
              (xenos::kEdramTileWidthSamples >>
               uint32_t(msaa_samples >= xenos::MsaaSamples::k4X));
+    }
+    uint32_t GetWidth() const {
+      return GetWidth(pitch_tiles_at_32bpp, msaa_samples);
     }
 
     std::string GetDebugName() const {
@@ -435,15 +439,6 @@ class RenderTargetCache {
   uint32_t GetRenderTargetHeight(uint32_t pitch_tiles_at_32bpp,
                                  xenos::MsaaSamples msaa_samples) const;
 
-  // Normalizes the format if it's fine to use the same render target textures
-  // for the provided and the returned guest formats.
-  // xenos::GetStorageColorFormat is supposed to be done before calling, so
-  // redoing what it does in the implementations is not needed.
-  virtual xenos::ColorRenderTargetFormat GetHostRelevantColorFormat(
-      xenos::ColorRenderTargetFormat format) const {
-    return format;
-  }
-
   virtual RenderTarget* CreateRenderTarget(RenderTargetKey key) = 0;
 
   // Whether depth buffer is encoded differently on the host, thus after
@@ -566,7 +561,7 @@ class RenderTargetCache {
         return false;
       }
       if (host_depth_encoding_different && !key.is_depth &&
-          host_depth_render_targets[key.host_relevant_format] != key) {
+          host_depth_render_targets[key.resource_format] != key) {
         // Depth encoding is the same, but different addressing is needed.
         return false;
       }
@@ -580,6 +575,16 @@ class RenderTargetCache {
                  other_range.host_depth_render_target_float24;
     }
   };
+
+  static constexpr xenos::ColorRenderTargetFormat GetColorResourceFormat(
+      xenos::ColorRenderTargetFormat format) {
+    // sRGB, if used on the host, is a view property or global state - linear
+    // and sRGB host render targets can share data directly without transfers.
+    if (format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
+      return xenos::ColorRenderTargetFormat::k_8_8_8_8;
+    }
+    return xenos::GetStorageColorFormat(format);
+  }
 
   RenderTarget* GetOrCreateRenderTarget(RenderTargetKey key);
 

@@ -29,8 +29,10 @@ constexpr uint32_t kCircularBufferCapacity = 2 * 1024 * 1024;
 
 class LightweightCircularBuffer {
  public:
-  LightweightCircularBuffer(VulkanDevice* device) : device_(*device) {
+  LightweightCircularBuffer(const VulkanDevice* device) : device_(*device) {
     buffer_capacity_ = xe::round_up(kCircularBufferCapacity, 4096);
+
+    const VulkanDevice::DeviceFunctions& dfn = device->dfn();
 
     // Index buffer.
     VkBufferCreateInfo index_buffer_info;
@@ -42,8 +44,8 @@ class LightweightCircularBuffer {
     index_buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     index_buffer_info.queueFamilyIndexCount = 0;
     index_buffer_info.pQueueFamilyIndices = nullptr;
-    auto status =
-        vkCreateBuffer(device_, &index_buffer_info, nullptr, &index_buffer_);
+    auto status = dfn.vkCreateBuffer(device_, &index_buffer_info, nullptr,
+                                     &index_buffer_);
     CheckResult(status, "vkCreateBuffer");
 
     // Vertex buffer.
@@ -56,34 +58,37 @@ class LightweightCircularBuffer {
     vertex_buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     vertex_buffer_info.queueFamilyIndexCount = 0;
     vertex_buffer_info.pQueueFamilyIndices = nullptr;
-    status =
-        vkCreateBuffer(*device, &vertex_buffer_info, nullptr, &vertex_buffer_);
+    status = dfn.vkCreateBuffer(*device, &vertex_buffer_info, nullptr,
+                                &vertex_buffer_);
     CheckResult(status, "vkCreateBuffer");
 
     // Allocate underlying buffer.
     // We alias it for both vertices and indices.
     VkMemoryRequirements buffer_requirements;
-    vkGetBufferMemoryRequirements(device_, index_buffer_, &buffer_requirements);
+    dfn.vkGetBufferMemoryRequirements(device_, index_buffer_,
+                                      &buffer_requirements);
     buffer_memory_ = device->AllocateMemory(
         buffer_requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-    vkBindBufferMemory(*device, index_buffer_, buffer_memory_, 0);
-    vkBindBufferMemory(*device, vertex_buffer_, buffer_memory_, 0);
+    dfn.vkBindBufferMemory(*device, index_buffer_, buffer_memory_, 0);
+    dfn.vkBindBufferMemory(*device, vertex_buffer_, buffer_memory_, 0);
 
     // Persistent mapping.
-    status = vkMapMemory(device_, buffer_memory_, 0, VK_WHOLE_SIZE, 0,
-                         &buffer_data_);
+    status = dfn.vkMapMemory(device_, buffer_memory_, 0, VK_WHOLE_SIZE, 0,
+                             &buffer_data_);
     CheckResult(status, "vkMapMemory");
   }
 
   ~LightweightCircularBuffer() {
+    const VulkanDevice::DeviceFunctions& dfn = device_.dfn();
+
     if (buffer_memory_) {
-      vkUnmapMemory(device_, buffer_memory_);
+      dfn.vkUnmapMemory(device_, buffer_memory_);
       buffer_memory_ = nullptr;
     }
 
-    VK_SAFE_DESTROY(vkDestroyBuffer, device_, index_buffer_, nullptr);
-    VK_SAFE_DESTROY(vkDestroyBuffer, device_, vertex_buffer_, nullptr);
-    VK_SAFE_DESTROY(vkFreeMemory, device_, buffer_memory_, nullptr);
+    DestroyAndNullHandle(dfn.vkDestroyBuffer, device_, index_buffer_);
+    DestroyAndNullHandle(dfn.vkDestroyBuffer, device_, vertex_buffer_);
+    DestroyAndNullHandle(dfn.vkFreeMemory, device_, buffer_memory_);
   }
 
   VkBuffer vertex_buffer() const { return vertex_buffer_; }
@@ -118,18 +123,19 @@ class LightweightCircularBuffer {
 
     // Flush memory.
     // TODO(benvanik): do only in large batches? can barrier it.
+    const VulkanDevice::DeviceFunctions& dfn = device_.dfn();
     VkMappedMemoryRange dirty_range;
     dirty_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     dirty_range.pNext = nullptr;
     dirty_range.memory = buffer_memory_;
     dirty_range.offset = offset;
     dirty_range.size = source_length;
-    vkFlushMappedMemoryRanges(device_, 1, &dirty_range);
+    dfn.vkFlushMappedMemoryRanges(device_, 1, &dirty_range);
     return offset;
   }
 
  private:
-  VkDevice device_ = nullptr;
+  const VulkanDevice& device_;
 
   VkBuffer index_buffer_ = nullptr;
   VkBuffer vertex_buffer_ = nullptr;
@@ -153,6 +159,7 @@ class VulkanImmediateTexture : public ImmediateTexture {
   VkResult Initialize(VkDescriptorSetLayout descriptor_set_layout,
                       VkImageView image_view) {
     image_view_ = image_view;
+    const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
     VkResult status;
 
     // Create descriptor set used just for this texture.
@@ -163,8 +170,8 @@ class VulkanImmediateTexture : public ImmediateTexture {
     set_alloc_info.descriptorPool = descriptor_pool_;
     set_alloc_info.descriptorSetCount = 1;
     set_alloc_info.pSetLayouts = &descriptor_set_layout;
-    status =
-        vkAllocateDescriptorSets(*device_, &set_alloc_info, &descriptor_set_);
+    status = dfn.vkAllocateDescriptorSets(*device_, &set_alloc_info,
+                                          &descriptor_set_);
     CheckResult(status, "vkAllocateDescriptorSets");
     if (status != VK_SUCCESS) {
       return status;
@@ -184,12 +191,13 @@ class VulkanImmediateTexture : public ImmediateTexture {
     descriptor_write.descriptorCount = 1;
     descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     descriptor_write.pImageInfo = &texture_info;
-    vkUpdateDescriptorSets(*device_, 1, &descriptor_write, 0, nullptr);
+    dfn.vkUpdateDescriptorSets(*device_, 1, &descriptor_write, 0, nullptr);
 
     return VK_SUCCESS;
   }
 
   VkResult Initialize(VkDescriptorSetLayout descriptor_set_layout) {
+    const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
     VkResult status;
 
     // Create image object.
@@ -209,7 +217,7 @@ class VulkanImmediateTexture : public ImmediateTexture {
     image_info.queueFamilyIndexCount = 0;
     image_info.pQueueFamilyIndices = nullptr;
     image_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
-    status = vkCreateImage(*device_, &image_info, nullptr, &image_);
+    status = dfn.vkCreateImage(*device_, &image_info, nullptr, &image_);
     CheckResult(status, "vkCreateImage");
     if (status != VK_SUCCESS) {
       return status;
@@ -217,7 +225,7 @@ class VulkanImmediateTexture : public ImmediateTexture {
 
     // Allocate memory for the image.
     VkMemoryRequirements memory_requirements;
-    vkGetImageMemoryRequirements(*device_, image_, &memory_requirements);
+    dfn.vkGetImageMemoryRequirements(*device_, image_, &memory_requirements);
     device_memory_ = device_->AllocateMemory(
         memory_requirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     if (!device_memory_) {
@@ -225,7 +233,7 @@ class VulkanImmediateTexture : public ImmediateTexture {
     }
 
     // Bind memory and the image together.
-    status = vkBindImageMemory(*device_, image_, device_memory_, 0);
+    status = dfn.vkBindImageMemory(*device_, image_, device_memory_, 0);
     CheckResult(status, "vkBindImageMemory");
     if (status != VK_SUCCESS) {
       return status;
@@ -246,7 +254,7 @@ class VulkanImmediateTexture : public ImmediateTexture {
         VK_COMPONENT_SWIZZLE_A,
     };
     view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-    status = vkCreateImageView(*device_, &view_info, nullptr, &image_view_);
+    status = dfn.vkCreateImageView(*device_, &view_info, nullptr, &image_view_);
     CheckResult(status, "vkCreateImageView");
     if (status != VK_SUCCESS) {
       return status;
@@ -260,8 +268,8 @@ class VulkanImmediateTexture : public ImmediateTexture {
     set_alloc_info.descriptorPool = descriptor_pool_;
     set_alloc_info.descriptorSetCount = 1;
     set_alloc_info.pSetLayouts = &descriptor_set_layout;
-    status =
-        vkAllocateDescriptorSets(*device_, &set_alloc_info, &descriptor_set_);
+    status = dfn.vkAllocateDescriptorSets(*device_, &set_alloc_info,
+                                          &descriptor_set_);
     CheckResult(status, "vkAllocateDescriptorSets");
     if (status != VK_SUCCESS) {
       return status;
@@ -281,24 +289,28 @@ class VulkanImmediateTexture : public ImmediateTexture {
     descriptor_write.descriptorCount = 1;
     descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     descriptor_write.pImageInfo = &texture_info;
-    vkUpdateDescriptorSets(*device_, 1, &descriptor_write, 0, nullptr);
+    dfn.vkUpdateDescriptorSets(*device_, 1, &descriptor_write, 0, nullptr);
 
     return VK_SUCCESS;
   }
 
   void Shutdown() {
+    const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+
     if (descriptor_set_) {
-      vkFreeDescriptorSets(*device_, descriptor_pool_, 1, &descriptor_set_);
+      dfn.vkFreeDescriptorSets(*device_, descriptor_pool_, 1, &descriptor_set_);
       descriptor_set_ = nullptr;
     }
 
-    VK_SAFE_DESTROY(vkDestroyImageView, *device_, image_view_, nullptr);
-    VK_SAFE_DESTROY(vkDestroyImage, *device_, image_, nullptr);
-    VK_SAFE_DESTROY(vkFreeMemory, *device_, device_memory_, nullptr);
+    DestroyAndNullHandle(dfn.vkDestroyImageView, *device_, image_view_);
+    DestroyAndNullHandle(dfn.vkDestroyImage, *device_, image_);
+    DestroyAndNullHandle(dfn.vkFreeMemory, *device_, device_memory_);
   }
 
   VkResult Upload(const uint8_t* src_data) {
     // TODO(benvanik): assert not in use? textures aren't dynamic right now.
+
+    const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
 
     // Get device image layout.
     VkImageSubresource subresource;
@@ -306,19 +318,19 @@ class VulkanImmediateTexture : public ImmediateTexture {
     subresource.mipLevel = 0;
     subresource.arrayLayer = 0;
     VkSubresourceLayout layout;
-    vkGetImageSubresourceLayout(*device_, image_, &subresource, &layout);
+    dfn.vkGetImageSubresourceLayout(*device_, image_, &subresource, &layout);
 
     // Map memory for upload.
     uint8_t* gpu_data = nullptr;
-    auto status = vkMapMemory(*device_, device_memory_, 0, layout.size, 0,
-                              reinterpret_cast<void**>(&gpu_data));
+    auto status = dfn.vkMapMemory(*device_, device_memory_, 0, layout.size, 0,
+                                  reinterpret_cast<void**>(&gpu_data));
     CheckResult(status, "vkMapMemory");
 
     if (status == VK_SUCCESS) {
       // Copy the entire texture, hoping its layout matches what we expect.
       std::memcpy(gpu_data + layout.offset, src_data, layout.size);
 
-      vkUnmapMemory(*device_, device_memory_);
+      dfn.vkUnmapMemory(*device_, device_memory_);
     }
 
     return status;
@@ -328,6 +340,8 @@ class VulkanImmediateTexture : public ImmediateTexture {
   // the command buffer WILL be queued and executed by the device.
   void TransitionLayout(VkCommandBuffer command_buffer,
                         VkImageLayout new_layout) {
+    const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+
     VkImageMemoryBarrier image_barrier;
     image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     image_barrier.pNext = nullptr;
@@ -342,16 +356,16 @@ class VulkanImmediateTexture : public ImmediateTexture {
     image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     image_layout_ = new_layout;
 
-    vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                         nullptr, 1, &image_barrier);
+    dfn.vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr,
+                             0, nullptr, 1, &image_barrier);
   }
 
   VkDescriptorSet descriptor_set() const { return descriptor_set_; }
   VkImageLayout layout() const { return image_layout_; }
 
  private:
-  ui::vulkan::VulkanDevice* device_ = nullptr;
+  VulkanDevice* device_ = nullptr;
   VkDescriptorPool descriptor_pool_ = nullptr;
   VkSampler sampler_ = nullptr;  // Not owned.
   VkImage image_ = nullptr;
@@ -367,7 +381,8 @@ VulkanImmediateDrawer::VulkanImmediateDrawer(VulkanContext* graphics_context)
 VulkanImmediateDrawer::~VulkanImmediateDrawer() { Shutdown(); }
 
 VkResult VulkanImmediateDrawer::Initialize() {
-  auto device = context_->device();
+  const VulkanDevice* device = context_->device();
+  const VulkanDevice::DeviceFunctions& dfn = device->dfn();
 
   // NEAREST + CLAMP
   VkSamplerCreateInfo sampler_info;
@@ -389,8 +404,8 @@ VkResult VulkanImmediateDrawer::Initialize() {
   sampler_info.maxLod = 0.0f;
   sampler_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
   sampler_info.unnormalizedCoordinates = VK_FALSE;
-  auto status = vkCreateSampler(*device, &sampler_info, nullptr,
-                                &samplers_.nearest_clamp);
+  auto status = dfn.vkCreateSampler(*device, &sampler_info, nullptr,
+                                    &samplers_.nearest_clamp);
   CheckResult(status, "vkCreateSampler");
   if (status != VK_SUCCESS) {
     return status;
@@ -400,8 +415,8 @@ VkResult VulkanImmediateDrawer::Initialize() {
   sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  status = vkCreateSampler(*device, &sampler_info, nullptr,
-                           &samplers_.nearest_repeat);
+  status = dfn.vkCreateSampler(*device, &sampler_info, nullptr,
+                               &samplers_.nearest_repeat);
   CheckResult(status, "vkCreateSampler");
   if (status != VK_SUCCESS) {
     return status;
@@ -413,8 +428,8 @@ VkResult VulkanImmediateDrawer::Initialize() {
   sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
   sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
   sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-  status =
-      vkCreateSampler(*device, &sampler_info, nullptr, &samplers_.linear_clamp);
+  status = dfn.vkCreateSampler(*device, &sampler_info, nullptr,
+                               &samplers_.linear_clamp);
   CheckResult(status, "vkCreateSampler");
   if (status != VK_SUCCESS) {
     return status;
@@ -424,8 +439,8 @@ VkResult VulkanImmediateDrawer::Initialize() {
   sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  status = vkCreateSampler(*device, &sampler_info, nullptr,
-                           &samplers_.linear_repeat);
+  status = dfn.vkCreateSampler(*device, &sampler_info, nullptr,
+                               &samplers_.linear_repeat);
   CheckResult(status, "vkCreateSampler");
   if (status != VK_SUCCESS) {
     return status;
@@ -447,8 +462,8 @@ VkResult VulkanImmediateDrawer::Initialize() {
   texture_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
   texture_binding.pImmutableSamplers = nullptr;
   texture_set_layout_info.pBindings = &texture_binding;
-  status = vkCreateDescriptorSetLayout(*device, &texture_set_layout_info,
-                                       nullptr, &texture_set_layout_);
+  status = dfn.vkCreateDescriptorSetLayout(*device, &texture_set_layout_info,
+                                           nullptr, &texture_set_layout_);
   CheckResult(status, "vkCreateDescriptorSetLayout");
   if (status != VK_SUCCESS) {
     return status;
@@ -468,8 +483,8 @@ VkResult VulkanImmediateDrawer::Initialize() {
   pool_sizes[0].descriptorCount = 128;
   descriptor_pool_info.poolSizeCount = 1;
   descriptor_pool_info.pPoolSizes = pool_sizes;
-  status = vkCreateDescriptorPool(*device, &descriptor_pool_info, nullptr,
-                                  &descriptor_pool_);
+  status = dfn.vkCreateDescriptorPool(*device, &descriptor_pool_info, nullptr,
+                                      &descriptor_pool_);
   CheckResult(status, "vkCreateDescriptorPool");
   if (status != VK_SUCCESS) {
     return status;
@@ -495,8 +510,8 @@ VkResult VulkanImmediateDrawer::Initialize() {
   pipeline_layout_info.pushConstantRangeCount =
       static_cast<uint32_t>(xe::countof(push_constant_ranges));
   pipeline_layout_info.pPushConstantRanges = push_constant_ranges;
-  status = vkCreatePipelineLayout(*device, &pipeline_layout_info, nullptr,
-                                  &pipeline_layout_);
+  status = dfn.vkCreatePipelineLayout(*device, &pipeline_layout_info, nullptr,
+                                      &pipeline_layout_);
   CheckResult(status, "vkCreatePipelineLayout");
   if (status != VK_SUCCESS) {
     return status;
@@ -510,8 +525,8 @@ VkResult VulkanImmediateDrawer::Initialize() {
   vertex_shader_info.codeSize = sizeof(immediate_vert);
   vertex_shader_info.pCode = reinterpret_cast<const uint32_t*>(immediate_vert);
   VkShaderModule vertex_shader;
-  status = vkCreateShaderModule(*device, &vertex_shader_info, nullptr,
-                                &vertex_shader);
+  status = dfn.vkCreateShaderModule(*device, &vertex_shader_info, nullptr,
+                                    &vertex_shader);
   CheckResult(status, "vkCreateShaderModule");
   VkShaderModuleCreateInfo fragment_shader_info;
   fragment_shader_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -521,8 +536,8 @@ VkResult VulkanImmediateDrawer::Initialize() {
   fragment_shader_info.pCode =
       reinterpret_cast<const uint32_t*>(immediate_frag);
   VkShaderModule fragment_shader;
-  status = vkCreateShaderModule(*device, &fragment_shader_info, nullptr,
-                                &fragment_shader);
+  status = dfn.vkCreateShaderModule(*device, &fragment_shader_info, nullptr,
+                                    &fragment_shader);
   CheckResult(status, "vkCreateShaderModule");
 
   // Pipeline used when rendering triangles.
@@ -667,8 +682,8 @@ VkResult VulkanImmediateDrawer::Initialize() {
   pipeline_info.basePipelineHandle = nullptr;
   pipeline_info.basePipelineIndex = -1;
   if (status == VK_SUCCESS) {
-    status = vkCreateGraphicsPipelines(*device, nullptr, 1, &pipeline_info,
-                                       nullptr, &triangle_pipeline_);
+    status = dfn.vkCreateGraphicsPipelines(*device, nullptr, 1, &pipeline_info,
+                                           nullptr, &triangle_pipeline_);
     CheckResult(status, "vkCreateGraphicsPipelines");
   }
 
@@ -678,13 +693,13 @@ VkResult VulkanImmediateDrawer::Initialize() {
   pipeline_info.basePipelineHandle = triangle_pipeline_;
   pipeline_info.basePipelineIndex = -1;
   if (status == VK_SUCCESS) {
-    status = vkCreateGraphicsPipelines(*device, nullptr, 1, &pipeline_info,
-                                       nullptr, &line_pipeline_);
+    status = dfn.vkCreateGraphicsPipelines(*device, nullptr, 1, &pipeline_info,
+                                           nullptr, &line_pipeline_);
     CheckResult(status, "vkCreateGraphicsPipelines");
   }
 
-  VK_SAFE_DESTROY(vkDestroyShaderModule, *device, vertex_shader, nullptr);
-  VK_SAFE_DESTROY(vkDestroyShaderModule, *device, fragment_shader, nullptr);
+  DestroyAndNullHandle(dfn.vkDestroyShaderModule, *device, vertex_shader);
+  DestroyAndNullHandle(dfn.vkDestroyShaderModule, *device, fragment_shader);
 
   // Allocate the buffer we'll use for our vertex and index data.
   circular_buffer_ = std::make_unique<LightweightCircularBuffer>(device);
@@ -693,22 +708,23 @@ VkResult VulkanImmediateDrawer::Initialize() {
 }
 
 void VulkanImmediateDrawer::Shutdown() {
-  auto device = context_->device();
+  const VulkanDevice* device = context_->device();
+  const VulkanDevice::DeviceFunctions& dfn = device->dfn();
 
   circular_buffer_.reset();
 
-  VK_SAFE_DESTROY(vkDestroyPipeline, *device, line_pipeline_, nullptr);
-  VK_SAFE_DESTROY(vkDestroyPipeline, *device, triangle_pipeline_, nullptr);
-  VK_SAFE_DESTROY(vkDestroyPipelineLayout, *device, pipeline_layout_, nullptr);
+  DestroyAndNullHandle(dfn.vkDestroyPipeline, *device, line_pipeline_);
+  DestroyAndNullHandle(dfn.vkDestroyPipeline, *device, triangle_pipeline_);
+  DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, *device, pipeline_layout_);
 
-  VK_SAFE_DESTROY(vkDestroyDescriptorPool, *device, descriptor_pool_, nullptr);
-  VK_SAFE_DESTROY(vkDestroyDescriptorSetLayout, *device, texture_set_layout_,
-                  nullptr);
+  DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, *device, descriptor_pool_);
+  DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout, *device,
+                       texture_set_layout_);
 
-  VK_SAFE_DESTROY(vkDestroySampler, *device, samplers_.nearest_clamp, nullptr);
-  VK_SAFE_DESTROY(vkDestroySampler, *device, samplers_.nearest_repeat, nullptr);
-  VK_SAFE_DESTROY(vkDestroySampler, *device, samplers_.linear_clamp, nullptr);
-  VK_SAFE_DESTROY(vkDestroySampler, *device, samplers_.linear_repeat, nullptr);
+  DestroyAndNullHandle(dfn.vkDestroySampler, *device, samplers_.nearest_clamp);
+  DestroyAndNullHandle(dfn.vkDestroySampler, *device, samplers_.nearest_repeat);
+  DestroyAndNullHandle(dfn.vkDestroySampler, *device, samplers_.linear_clamp);
+  DestroyAndNullHandle(dfn.vkDestroySampler, *device, samplers_.linear_repeat);
 }
 
 std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::CreateTexture(
@@ -751,7 +767,8 @@ std::unique_ptr<ImmediateTexture> VulkanImmediateDrawer::WrapTexture(
 
 void VulkanImmediateDrawer::Begin(int render_target_width,
                                   int render_target_height) {
-  auto device = context_->device();
+  const VulkanDevice* device = context_->device();
+  const VulkanDevice::DeviceFunctions& dfn = device->dfn();
   auto swap_chain = context_->swap_chain();
   assert_null(current_cmd_buffer_);
   current_cmd_buffer_ = swap_chain->render_cmd_buffer();
@@ -766,7 +783,7 @@ void VulkanImmediateDrawer::Begin(int render_target_width,
   viewport.height = static_cast<float>(render_target_height);
   viewport.minDepth = 0.0f;
   viewport.maxDepth = 1.0f;
-  vkCmdSetViewport(current_cmd_buffer_, 0, 1, &viewport);
+  dfn.vkCmdSetViewport(current_cmd_buffer_, 0, 1, &viewport);
 
   // Update projection matrix.
   const float ortho_projection[4][4] = {
@@ -775,13 +792,14 @@ void VulkanImmediateDrawer::Begin(int render_target_width,
       {0.0f, 0.0f, -1.0f, 0.0f},
       {-1.0f, 1.0f, 0.0f, 1.0f},
   };
-  vkCmdPushConstants(current_cmd_buffer_, pipeline_layout_,
-                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16,
-                     ortho_projection);
+  dfn.vkCmdPushConstants(current_cmd_buffer_, pipeline_layout_,
+                         VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 16,
+                         ortho_projection);
 }
 
 void VulkanImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
-  auto device = context_->device();
+  const VulkanDevice* device = context_->device();
+  const VulkanDevice::DeviceFunctions& dfn = device->dfn();
 
   // Upload vertices.
   VkDeviceSize vertices_offset = circular_buffer_->Emplace(
@@ -791,8 +809,8 @@ void VulkanImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
     return;
   }
   auto vertex_buffer = circular_buffer_->vertex_buffer();
-  vkCmdBindVertexBuffers(current_cmd_buffer_, 0, 1, &vertex_buffer,
-                         &vertices_offset);
+  dfn.vkCmdBindVertexBuffers(current_cmd_buffer_, 0, 1, &vertex_buffer,
+                             &vertices_offset);
 
   // Upload indices.
   if (batch.indices) {
@@ -802,22 +820,27 @@ void VulkanImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
       // TODO(benvanik): die?
       return;
     }
-    vkCmdBindIndexBuffer(current_cmd_buffer_, circular_buffer_->index_buffer(),
-                         indices_offset, VK_INDEX_TYPE_UINT16);
+    dfn.vkCmdBindIndexBuffer(current_cmd_buffer_,
+                             circular_buffer_->index_buffer(), indices_offset,
+                             VK_INDEX_TYPE_UINT16);
   }
 
   batch_has_index_buffer_ = !!batch.indices;
 }
 
 void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
+  const VulkanDevice* device = context_->device();
+  const VulkanDevice::DeviceFunctions& dfn = device->dfn();
+
   switch (draw.primitive_type) {
     case ImmediatePrimitiveType::kLines:
-      vkCmdBindPipeline(current_cmd_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        line_pipeline_);
+      dfn.vkCmdBindPipeline(current_cmd_buffer_,
+                            VK_PIPELINE_BIND_POINT_GRAPHICS, line_pipeline_);
       break;
     case ImmediatePrimitiveType::kTriangles:
-      vkCmdBindPipeline(current_cmd_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        triangle_pipeline_);
+      dfn.vkCmdBindPipeline(current_cmd_buffer_,
+                            VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            triangle_pipeline_);
       break;
   }
 
@@ -833,18 +856,18 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
       XELOGW("Failed to acquire texture descriptor set for immediate drawer!");
     }
 
-    vkCmdBindDescriptorSets(current_cmd_buffer_,
-                            VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_,
-                            0, 1, &texture_set, 0, nullptr);
+    dfn.vkCmdBindDescriptorSets(
+        current_cmd_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_,
+        0, 1, &texture_set, 0, nullptr);
   }
 
   // Use push constants for our per-draw changes.
   // Here, the restrict_texture_samples uniform (was used before September 26,
   // 2020, now deleted).
   int restrict_texture_samples = 0;
-  vkCmdPushConstants(current_cmd_buffer_, pipeline_layout_,
-                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 16,
-                     sizeof(int), &restrict_texture_samples);
+  dfn.vkCmdPushConstants(current_cmd_buffer_, pipeline_layout_,
+                         VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 16,
+                         sizeof(int), &restrict_texture_samples);
 
   // Scissor, if enabled.
   // Scissor can be disabled by making it the full screen.
@@ -861,14 +884,14 @@ void VulkanImmediateDrawer::Draw(const ImmediateDraw& draw) {
     scissor.extent.width = current_render_target_width_;
     scissor.extent.height = current_render_target_height_;
   }
-  vkCmdSetScissor(current_cmd_buffer_, 0, 1, &scissor);
+  dfn.vkCmdSetScissor(current_cmd_buffer_, 0, 1, &scissor);
 
   // Issue draw.
   if (batch_has_index_buffer_) {
-    vkCmdDrawIndexed(current_cmd_buffer_, draw.count, 1, draw.index_offset,
-                     draw.base_vertex, 0);
+    dfn.vkCmdDrawIndexed(current_cmd_buffer_, draw.count, 1, draw.index_offset,
+                         draw.base_vertex, 0);
   } else {
-    vkCmdDraw(current_cmd_buffer_, draw.count, 1, draw.base_vertex, 0);
+    dfn.vkCmdDraw(current_cmd_buffer_, draw.count, 1, draw.base_vertex, 0);
   }
 }
 

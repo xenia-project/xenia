@@ -15,6 +15,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 #include "xenia/base/platform.h"
 
 namespace xe {
@@ -27,10 +28,18 @@ namespace xenos {
 // in bit fields (registers are 32-bit, and the microcode consists of triples of
 // 32-bit words).
 
+constexpr fourcc_t kSwapSignature = make_fourcc("SWAP");
+
 enum class ShaderType : uint32_t {
   kVertex = 0,
   kPixel = 1,
 };
+
+// Only the lower 24 bits of the vertex index are used (tested on an Adreno 200
+// phone using a GL_UNSIGNED_INT element array buffer with junk in the upper 8
+// bits that had no effect on drawing).
+constexpr uint32_t kVertexIndexBits = 24;
+constexpr uint32_t kVertexIndexMask = (uint32_t(1) << kVertexIndexBits) - 1;
 
 enum class PrimitiveType : uint32_t {
   kNone = 0x00,
@@ -69,38 +78,6 @@ enum class PrimitiveType : uint32_t {
   kTrianglePatch = 0x11,
   kQuadPatch = 0x12,
 };
-
-// Polygonal primitive types (not including points and lines) are rasterized as
-// triangles, have front and back faces, and also support face culling and fill
-// modes (polymode_front_ptype, polymode_back_ptype). Other primitive types are
-// always "front" (but don't support front face and back face culling, according
-// to OpenGL and Vulkan specifications - even if glCullFace is
-// GL_FRONT_AND_BACK, points and lines are still drawn), and may in some cases
-// use the "para" registers instead of "front" or "back" (for "parallelogram" -
-// like poly_offset_para_enable).
-constexpr bool IsPrimitivePolygonal(bool tessellated, PrimitiveType type) {
-  if (tessellated && (type == PrimitiveType::kTrianglePatch ||
-                      type == PrimitiveType::kQuadPatch)) {
-    return true;
-  }
-  switch (type) {
-    case PrimitiveType::kTriangleList:
-    case PrimitiveType::kTriangleFan:
-    case PrimitiveType::kTriangleStrip:
-    case PrimitiveType::kTriangleWithWFlags:
-    case PrimitiveType::kQuadList:
-    case PrimitiveType::kQuadStrip:
-    case PrimitiveType::kPolygon:
-      return true;
-    default:
-      break;
-  }
-  // TODO(Triang3l): Investigate how kRectangleList should be treated - possibly
-  // actually drawn as two polygons on the console, however, the current
-  // geometry shader doesn't care about the winding order - allowing backface
-  // culling for rectangles currently breaks Gears of War 2.
-  return false;
-}
 
 // For the texture fetch constant (not the tfetch instruction), stacked stored
 // as 2D.
@@ -217,10 +194,10 @@ enum class SurfaceNumFormat : uint32_t {
   kFloat = 7,
 };
 
-// The EDRAM is an opaque block of memory accessible by the RB pipeline stage of
-// the GPU, which performs output-merger functionality (color render target
-// writing and blending, depth and stencil testing) and resolve (copy)
-// operations.
+// The EDRAM is an opaque block of memory accessible by the RB (render backend)
+// pipeline stage of the GPU, which performs output-merger functionality (color
+// render target writing and blending, depth and stencil testing) and resolve
+// (copy) operations.
 //
 // Data in the 10 MiB of EDRAM is laid out as 2048 tiles on 80x16 32bpp MSAA
 // samples. With 2x MSAA, one pixel consists of 1x2 samples, and with 4x, it
@@ -370,6 +347,16 @@ constexpr float UNorm24To32(uint32_t n24) {
   return float(n24 + (n24 >> 23)) * (1.0f / float(1 << 24));
 }
 
+// Scale for conversion of slope scales from PA_SU_POLY_OFFSET_FRONT/BACK_SCALE
+// units to those used when the slope is computed from the difference between
+// adjacent pixels, for conversion from the guest to common host APIs or to
+// calculation using max(|ddx(z)|, |ddy(z)|).
+// "slope computed in subpixels (1/12 or 1/16)" - R5xx Acceleration.
+// But the correct scale for conversion of the slope scale from subpixels to
+// pixels is likely 1/16 according to:
+// https://github.com/mesa3d/mesa/blob/54ad9b444c8e73da498211870e785239ad3ff1aa/src/gallium/drivers/radeonsi/si_state.c#L946
+constexpr float kPolygonOffsetScaleSubpixelUnit = 1.0f / 16.0f;
+
 constexpr uint32_t kColorRenderTargetFormatBits = 4;
 constexpr uint32_t kDepthRenderTargetFormatBits = 1;
 constexpr uint32_t kRenderTargetFormatBits =
@@ -476,8 +463,6 @@ enum class TextureFormat : uint32_t {
   k_DXT3A_AS_1_1_1_1 = 61,
   k_8_8_8_8_GAMMA_EDRAM = 62,
   k_2_10_10_10_FLOAT_EDRAM = 63,
-
-  kUnknown = 0xFFFFFFFFu,
 };
 
 // Subset of a2xx_sq_surfaceformat - formats that RTs can be resolved to.
@@ -778,6 +763,10 @@ enum class TessellationMode : uint32_t {
 enum class PolygonModeEnable : uint32_t {
   kDisabled = 0,  // Render triangles.
   kDualMode = 1,  // Send 2 sets of 3 polygons with the specified polygon type.
+  // The game Fuse uses 2 for triangles, which is "reserved" on R6xx and not
+  // defined on Adreno 2xx, but polymode_front/back_ptype are 0 (points) in this
+  // case in Fuse, which should not be respected for non-kDualMode as the game
+  // wants to draw filled triangles.
 };
 
 enum class PolygonType : uint32_t {
@@ -1228,14 +1217,14 @@ struct alignas(uint32_t) xe_gpu_depth_sample_counts {
   // This is little endian as it is swapped in D3D code.
   // Corresponding A and B values are summed up by D3D.
   // Occlusion there is calculated by substracting begin from end struct.
-  uint32_t Total_A;
-  uint32_t Total_B;
-  uint32_t ZFail_A;
-  uint32_t ZFail_B;
-  uint32_t ZPass_A;
-  uint32_t ZPass_B;
-  uint32_t StencilFail_A;
-  uint32_t StencilFail_B;
+  le<uint32_t> Total_A;
+  le<uint32_t> Total_B;
+  le<uint32_t> ZFail_A;
+  le<uint32_t> ZFail_B;
+  le<uint32_t> ZPass_A;
+  le<uint32_t> ZPass_B;
+  le<uint32_t> StencilFail_A;
+  le<uint32_t> StencilFail_B;
 };
 static_assert_size(xe_gpu_depth_sample_counts, sizeof(uint32_t) * 8);
 

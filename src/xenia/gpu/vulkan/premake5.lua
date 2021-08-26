@@ -8,7 +8,6 @@ project("xenia-gpu-vulkan")
   language("C++")
   links({
     "fmt",
-    "volk",
     "xenia-base",
     "xenia-gpu",
     "xenia-ui",
@@ -57,7 +56,6 @@ project("xenia-gpu-vulkan-trace-viewer")
     "mspack",
     "snappy",
     "spirv-tools",
-    "volk",
     "xxhash",
   })
   defines({
@@ -124,7 +122,6 @@ project("xenia-gpu-vulkan-trace-dump")
     "mspack",
     "snappy",
     "spirv-tools",
-    "volk",
     "xxhash",
   })
   defines({

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
 
-  <!-- Automatically convert endianness for xe::be -->
-  <Type Name="xe::be&lt;unsigned __int64&gt;">
+  <!-- Automatically convert endianness for xe::endian_store<,1> -->
+  <Type Name="xe::endian_store&lt;unsigned __int64, 1&gt;">
     <DisplayString>
       {(((value &amp; 0xFF00000000000000) &gt;&gt; 56) |
         ((value &amp; 0x00FF000000000000) &gt;&gt; 40) |
@@ -14,7 +14,7 @@
         ((value &amp; 0x00000000000000FF) &lt;&lt; 56))}
     </DisplayString>
   </Type>
-  <Type Name="xe::be&lt;__int64&gt;">
+  <Type Name="xe::endian_store&lt;__int64, 1&gt;">
     <DisplayString>
       {(((value &amp; 0xFF00000000000000) &gt;&gt; 56) |
         ((value &amp; 0x00FF000000000000) &gt;&gt; 40) |
@@ -27,7 +27,7 @@
     </DisplayString>
   </Type>
 
-  <Type Name="xe::be&lt;unsigned int&gt;">
+  <Type Name="xe::endian_store&lt;unsigned int, 1&gt;">
     <DisplayString>
       {(((value &amp; 0xFF000000) &gt;&gt; 24) |
         ((value &amp; 0x00FF0000) &gt;&gt;  8) |
@@ -35,7 +35,7 @@
         ((value &amp; 0x000000FF) &lt;&lt; 24))}
     </DisplayString>
   </Type>
-  <Type Name="xe::be&lt;int&gt;">
+  <Type Name="xe::endian_store&lt;int, 1&gt;">
     <DisplayString>
       {(((value &amp; 0xFF000000) &gt;&gt; 24) |
         ((value &amp; 0x00FF0000) &gt;&gt;  8) |
@@ -44,25 +44,25 @@
     </DisplayString>
   </Type>
 
-  <Type Name="xe::be&lt;unsigned short&gt;">
+  <Type Name="xe::endian_store&lt;unsigned short, 1&gt;">
     <DisplayString>
       {(((value &amp; 0xFF00) &gt;&gt;  8) |
         ((value &amp; 0x00FF) &lt;&lt;  8))}
     </DisplayString>
   </Type>
-  <Type Name="xe::be&lt;short&gt;">
+  <Type Name="xe::endian_store&lt;short, 1&gt;">
     <DisplayString>
       {(((value &amp; 0xFF00) &gt;&gt;  8) |
         ((value &amp; 0x00FF) &lt;&lt;  8))}
     </DisplayString>
   </Type>
 
-  <Type Name="xe::be&lt;unsigned char&gt;">
+  <Type Name="xe::endian_store&lt;unsigned char, 1&gt;">
     <DisplayString>
       {value}
     </DisplayString>
   </Type>
-  <Type Name="xe::be&lt;char&gt;">
+  <Type Name="xe::endian_store&lt;char, 1&gt;">
     <DisplayString>
       {value}
     </DisplayString>

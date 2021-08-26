@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -245,65 +245,34 @@ void Value::Convert(TypeName target_type, RoundMode round_mode) {
   }
 }
 
+template <typename T>
+T __inline RoundValue(RoundMode round_mode, T value) {
+  switch (round_mode) {
+    case ROUND_TO_ZERO:
+      return std::trunc(value);
+    case ROUND_TO_NEAREST:
+      return std::round(value);
+    case ROUND_TO_MINUS_INFINITY:
+      return std::floor(value);
+    case ROUND_TO_POSITIVE_INFINITY:
+      return std::ceil(value);
+    default:
+      assert_unhandled_case(round_mode);
+      return value;
+  }
+}
+
 void Value::Round(RoundMode round_mode) {
   switch (type) {
     case FLOAT32_TYPE:
-      switch (round_mode) {
-        case ROUND_TO_ZERO:
-          constant.f32 = std::trunc(constant.f32);
-          break;
-        case ROUND_TO_NEAREST:
-          constant.f32 = std::round(constant.f32);
-          return;
-        case ROUND_TO_MINUS_INFINITY:
-          constant.f32 = std::floor(constant.f32);
-          break;
-        case ROUND_TO_POSITIVE_INFINITY:
-          constant.f32 = std::ceil(constant.f32);
-          break;
-        default:
-          assert_unhandled_case(round_mode);
-          return;
-      }
+      constant.f32 = RoundValue(round_mode, constant.f32);
       return;
     case FLOAT64_TYPE:
-      switch (round_mode) {
-        case ROUND_TO_ZERO:
-          constant.f64 = std::trunc(constant.f64);
-          break;
-        case ROUND_TO_NEAREST:
-          constant.f64 = std::round(constant.f64);
-          return;
-        case ROUND_TO_MINUS_INFINITY:
-          constant.f64 = std::floor(constant.f64);
-          break;
-        case ROUND_TO_POSITIVE_INFINITY:
-          constant.f64 = std::ceil(constant.f64);
-          break;
-        default:
-          assert_unhandled_case(round_mode);
-          return;
-      }
+      constant.f64 = RoundValue(round_mode, constant.f64);
       return;
     case VEC128_TYPE:
       for (int i = 0; i < 4; i++) {
-        switch (round_mode) {
-          case ROUND_TO_ZERO:
-            constant.v128.f32[i] = std::trunc(constant.v128.f32[i]);
-            break;
-          case ROUND_TO_NEAREST:
-            constant.v128.f32[i] = std::round(constant.v128.f32[i]);
-            break;
-          case ROUND_TO_MINUS_INFINITY:
-            constant.v128.f32[i] = std::floor(constant.v128.f32[i]);
-            break;
-          case ROUND_TO_POSITIVE_INFINITY:
-            constant.v128.f32[i] = std::ceil(constant.v128.f32[i]);
-            break;
-          default:
-            assert_unhandled_case(round_mode);
-            return;
-        }
+        constant.v128.f32[i] = RoundValue(round_mode, constant.v128.f32[i]);
       }
       return;
     default:

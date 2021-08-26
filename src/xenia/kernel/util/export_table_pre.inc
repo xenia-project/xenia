@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -22,8 +22,7 @@
  *     my_module_export_table, xe::countof(my_module_export_table));
  */
 
-
 #define XE_EXPORT(module, ordinal, name, type) \
   xe::cpu::Export(ordinal, xe::cpu::Export::Type::type, #name)
 
-#define FLAG(t)             kXEKernelExportFlag##t
+#define FLAG(t) kXEKernelExportFlag##t

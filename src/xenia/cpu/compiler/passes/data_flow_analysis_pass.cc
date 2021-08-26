@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -73,14 +73,14 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
   // Stash for value map. We may want to maintain this during building.
   auto arena = builder->arena();
   auto value_map = reinterpret_cast<Value**>(
-      arena->Alloc(sizeof(Value*) * max_value_estimate));
+      arena->Alloc(sizeof(Value*) * max_value_estimate, alignof(Value)));
 
   // Allocate incoming bitvectors for use by blocks. We don't need outgoing
   // because they are only used during the block iteration.
   // Mapped by block ordinal.
   // TODO(benvanik): cache this list, grow as needed, etc.
-  auto incoming_bitvectors =
-      (llvm::BitVector**)arena->Alloc(sizeof(llvm::BitVector*) * block_count);
+  auto incoming_bitvectors = (llvm::BitVector**)arena->Alloc(
+      sizeof(llvm::BitVector*) * block_count, alignof(llvm::BitVector));
   for (auto n = 0u; n < block_count; n++) {
     incoming_bitvectors[n] = new llvm::BitVector(max_value_estimate);
   }

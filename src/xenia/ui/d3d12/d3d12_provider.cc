@@ -89,6 +89,9 @@ D3D12Provider::~D3D12Provider() {
   if (library_d3dcompiler_ != nullptr) {
     FreeLibrary(library_d3dcompiler_);
   }
+  if (library_dcomp_ != nullptr) {
+    FreeLibrary(library_dcomp_);
+  }
   if (library_d3d12_ != nullptr) {
     FreeLibrary(library_d3d12_);
   }
@@ -120,8 +123,9 @@ bool D3D12Provider::Initialize() {
   // Load the core libraries.
   library_dxgi_ = LoadLibraryW(L"dxgi.dll");
   library_d3d12_ = LoadLibraryW(L"D3D12.dll");
-  if (library_dxgi_ == nullptr || library_d3d12_ == nullptr) {
-    XELOGE("Failed to load dxgi.dll or D3D12.dll");
+  library_dcomp_ = LoadLibraryW(L"dcomp.dll");
+  if (!library_dxgi_ || !library_d3d12_ || !library_dcomp_) {
+    XELOGE("Failed to load dxgi.dll, D3D12.dll or dcomp.dll");
     return false;
   }
   bool libraries_loaded = true;
@@ -142,8 +146,12 @@ bool D3D12Provider::Initialize() {
       (pfn_d3d12_serialize_root_signature_ = PFN_D3D12_SERIALIZE_ROOT_SIGNATURE(
            GetProcAddress(library_d3d12_, "D3D12SerializeRootSignature"))) !=
       nullptr;
+  libraries_loaded &=
+      (pfn_dcomposition_create_device_ = PFNDCompositionCreateDevice(
+           GetProcAddress(library_dcomp_, "DCompositionCreateDevice"))) !=
+      nullptr;
   if (!libraries_loaded) {
-    XELOGE("Failed to get DXGI or Direct3D 12 functions");
+    XELOGE("Failed to get DXGI, Direct3D 12 or DirectComposition functions");
     return false;
   }
 
@@ -154,12 +162,12 @@ bool D3D12Provider::Initialize() {
     pfn_d3d_disassemble_ =
         pD3DDisassemble(GetProcAddress(library_d3dcompiler_, "D3DDisassemble"));
     if (pfn_d3d_disassemble_ == nullptr) {
-      XELOGW(
+      XELOGD(
           "Failed to get D3DDisassemble from D3DCompiler_47.dll, DXBC "
           "disassembly for debugging will be unavailable");
     }
   } else {
-    XELOGW(
+    XELOGD(
         "Failed to load D3DCompiler_47.dll, DXBC disassembly for debugging "
         "will be unavailable");
   }
@@ -171,12 +179,12 @@ bool D3D12Provider::Initialize() {
     pfn_dxilconv_dxc_create_instance_ = DxcCreateInstanceProc(
         GetProcAddress(library_dxilconv_, "DxcCreateInstance"));
     if (pfn_dxilconv_dxc_create_instance_ == nullptr) {
-      XELOGW(
+      XELOGD(
           "Failed to get DxcCreateInstance from dxilconv.dll, converted DXIL "
           "disassembly for debugging will be unavailable");
     }
   } else {
-    XELOGW(
+    XELOGD(
         "Failed to load dxilconv.dll, converted DXIL disassembly for debugging "
         "will be unavailable - DXIL may be unsupported by your OS version");
   }
@@ -188,12 +196,12 @@ bool D3D12Provider::Initialize() {
     pfn_dxcompiler_dxc_create_instance_ = DxcCreateInstanceProc(
         GetProcAddress(library_dxcompiler_, "DxcCreateInstance"));
     if (pfn_dxcompiler_dxc_create_instance_ == nullptr) {
-      XELOGW(
+      XELOGD(
           "Failed to get DxcCreateInstance from dxcompiler.dll, converted DXIL "
           "disassembly for debugging will be unavailable");
     }
   } else {
-    XELOGW(
+    XELOGD(
         "Failed to load dxcompiler.dll, converted DXIL disassembly for "
         "debugging will be unavailable - if needed, download the DirectX "
         "Shader Compiler from "
@@ -359,7 +367,7 @@ bool D3D12Provider::Initialize() {
   if (cvars::d3d12_queue_priority >= 2) {
     queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME;
     if (!EnableIncreaseBasePriorityPrivilege()) {
-      XELOGD3D(
+      XELOGW(
           "Failed to enable SeIncreaseBasePriorityPrivilege for global "
           "realtime Direct3D 12 command queue priority, falling back to high "
           "priority, try launching Xenia as administrator");
@@ -377,7 +385,7 @@ bool D3D12Provider::Initialize() {
                                         IID_PPV_ARGS(&direct_queue)))) {
     bool queue_created = false;
     if (queue_desc.Priority == D3D12_COMMAND_QUEUE_PRIORITY_GLOBAL_REALTIME) {
-      XELOGD3D(
+      XELOGW(
           "Failed to create a Direct3D 12 direct command queue with global "
           "realtime priority, falling back to high priority, try launching "
           "Xenia as administrator");

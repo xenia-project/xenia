@@ -57,6 +57,9 @@ class ImGuiDrawer : public WindowListener {
 
   ImGuiContext* internal_state_ = nullptr;
   std::unique_ptr<ImmediateTexture> font_texture_;
+
+ private:
+  void OnKey(KeyEvent* e, bool is_down);
 };
 
 }  // namespace ui

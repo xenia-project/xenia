@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,6 +13,7 @@
 #include <memory>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/math.h"
 
 namespace xe {
 
@@ -45,12 +46,25 @@ void Arena::DebugFill() {
   }
 }
 
-void* Arena::Alloc(size_t size) {
+void* Arena::Alloc(size_t size, size_t align) {
+  assert_true(
+      xe::bit_count(align) == 1 && align <= 16,
+      "align needs to be a power of 2 and not greater than Chunk alignment");
+
+  // for alignment
+  const auto get_padding = [this, align]() -> size_t {
+    const size_t mask = align - 1;
+    size_t deviation = active_chunk_->offset & mask;
+    return (align - deviation) & mask;
+  };
+
   if (active_chunk_) {
-    if (active_chunk_->capacity - active_chunk_->offset < size + 4096) {
+    if (active_chunk_->capacity - active_chunk_->offset <
+        size + get_padding() + 4096) {
       Chunk* next = active_chunk_->next;
       if (!next) {
-        assert_true(size < chunk_size_, "need to support larger chunks");
+        assert_true(size + get_padding() < chunk_size_,
+                    "need to support larger chunks");
         next = new Chunk(chunk_size_);
         active_chunk_->next = next;
       }
@@ -61,8 +75,11 @@ void* Arena::Alloc(size_t size) {
     head_chunk_ = active_chunk_ = new Chunk(chunk_size_);
   }
 
+  active_chunk_->offset += get_padding();
   uint8_t* p = active_chunk_->buffer + active_chunk_->offset;
   active_chunk_->offset += size;
+  assert_true((reinterpret_cast<size_t>(p) & (align - 1)) == 0,
+              "alignment failed");
   return p;
 }
 
@@ -113,6 +130,8 @@ void Arena::CloneContents(void* buffer, size_t buffer_length) {
 Arena::Chunk::Chunk(size_t chunk_size)
     : next(nullptr), capacity(chunk_size), buffer(0), offset(0) {
   buffer = reinterpret_cast<uint8_t*>(malloc(capacity));
+  assert_true((reinterpret_cast<size_t>(buffer) & size_t(15)) == 0,
+              "16 byte alignment required");
 }
 
 Arena::Chunk::~Chunk() {

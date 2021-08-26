@@ -25,6 +25,10 @@ class KernelState;
 namespace xe {
 namespace cpu {
 
+constexpr fourcc_t kXEX1Signature = make_fourcc("XEX1");
+constexpr fourcc_t kXEX2Signature = make_fourcc("XEX2");
+constexpr fourcc_t kElfSignature = make_fourcc(0x7F, 'E', 'L', 'F');
+
 class Runtime;
 
 class XexModule : public xe::cpu::Module {
@@ -101,6 +105,10 @@ class XexModule : public xe::cpu::Module {
     xex2_opt_file_format_info* retval = nullptr;
     GetOptHeader(XEX_HEADER_FILE_FORMAT_INFO, &retval);
     return retval;
+  }
+
+  std::vector<uint32_t> opt_alternate_title_ids() const {
+    return opt_alternate_title_ids_;
   }
 
   const uint32_t base_address() const { return base_address_; }
@@ -193,6 +201,9 @@ class XexModule : public xe::cpu::Module {
   std::vector<ImportLibrary>
       import_libs_;  // pre-loaded import libraries for ease of use
   std::vector<PESection> pe_sections_;
+
+  // XEX_HEADER_ALTERNATE_TITLE_IDS loaded into a safe std::vector
+  std::vector<uint32_t> opt_alternate_title_ids_;
 
   uint8_t session_key_[0x10];
   bool is_dev_kit_ = false;

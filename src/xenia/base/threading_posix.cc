@@ -155,29 +155,36 @@ bool SetTlsValue(TlsHandle handle, uintptr_t value) {
 class PosixHighResolutionTimer : public HighResolutionTimer {
  public:
   explicit PosixHighResolutionTimer(std::function<void()> callback)
-      : callback_(std::move(callback)), timer_(nullptr) {}
+      : callback_(std::move(callback)), valid_(false) {}
   ~PosixHighResolutionTimer() override {
-    if (timer_) timer_delete(timer_);
+    if (valid_) timer_delete(timer_);
   }
 
   bool Initialize(std::chrono::milliseconds period) {
+    if (valid_) {
+      // Double initialization
+      assert_always();
+      return false;
+    }
     // Create timer
     sigevent sev{};
     sev.sigev_notify = SIGEV_SIGNAL;
     sev.sigev_signo = GetSystemSignal(SignalType::kHighResolutionTimer);
     sev.sigev_value.sival_ptr = (void*)&callback_;
-    if (timer_create(CLOCK_REALTIME, &sev, &timer_) == -1) return false;
+    if (timer_create(CLOCK_MONOTONIC, &sev, &timer_) == -1) return false;
 
     // Start timer
     itimerspec its{};
     its.it_value = DurationToTimeSpec(period);
     its.it_interval = its.it_value;
-    return timer_settime(timer_, 0, &its, nullptr) != -1;
+    valid_ = timer_settime(timer_, 0, &its, nullptr) != -1;
+    return valid_;
   }
 
  private:
   std::function<void()> callback_;
   timer_t timer_;
+  bool valid_;  // all values for timer_t are legal so we need this
 };
 
 std::unique_ptr<HighResolutionTimer> HighResolutionTimer::CreateRepeating(
@@ -187,7 +194,7 @@ std::unique_ptr<HighResolutionTimer> HighResolutionTimer::CreateRepeating(
   if (!timer->Initialize(period)) {
     return nullptr;
   }
-  return std::unique_ptr<HighResolutionTimer>(timer.release());
+  return std::move(timer);
 }
 
 class PosixConditionBase {
@@ -419,7 +426,7 @@ class PosixCondition<Timer> : public PosixConditionBase {
       sev.sigev_notify = SIGEV_SIGNAL;
       sev.sigev_signo = GetSystemSignal(SignalType::kTimer);
       sev.sigev_value.sival_ptr = this;
-      if (timer_create(CLOCK_REALTIME, &sev, &timer_) == -1) return false;
+      if (timer_create(CLOCK_MONOTONIC, &sev, &timer_) == -1) return false;
     }
 
     // Start timer
@@ -728,31 +735,44 @@ class PosixCondition<Thread> : public PosixConditionBase {
   }
 
   void Terminate(int exit_code) {
+    bool is_current_thread = pthread_self() == thread_;
     {
       std::unique_lock<std::mutex> lock(state_mutex_);
+      if (state_ == State::kFinished) {
+        if (is_current_thread) {
+          // This is really bad. Some thread must have called Terminate() on us
+          // just before we decided to terminate ourselves
+          assert_always();
+          for (;;) {
+            // Wait for pthread_cancel() to actually happen.
+          }
+        }
+        return;
+      }
       state_ = State::kFinished;
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
 
-    // Sometimes the thread can call terminate twice before stopping
-    if (thread_ == 0) return;
-    auto thread = thread_;
-
-    exit_code_ = exit_code;
-    signaled_ = true;
-    cond_.notify_all();
-
+      exit_code_ = exit_code;
+      signaled_ = true;
+      cond_.notify_all();
+    }
+    if (is_current_thread) {
+      pthread_exit(reinterpret_cast<void*>(exit_code));
+    } else {
 #ifdef XE_PLATFORM_ANDROID
-    if (pthread_kill(thread, GetSystemSignal(SignalType::kThreadTerminate)) !=
-        0) {
-      assert_always();
-    }
+      if (pthread_kill(thread_,
+                       GetSystemSignal(SignalType::kThreadTerminate)) != 0) {
+        assert_always();
+      }
 #else
-    if (pthread_cancel(thread) != 0) {
-      assert_always();
-    }
+      if (pthread_cancel(thread_) != 0) {
+        assert_always();
+      }
 #endif
+    }
   }
 
   void WaitStarted() const {
@@ -778,7 +798,6 @@ class PosixCondition<Thread> : public PosixConditionBase {
   inline void post_execution() override {
     if (thread_) {
       pthread_join(thread_, nullptr);
-      thread_ = 0;
     }
   }
   pthread_t thread_;
@@ -1115,13 +1134,12 @@ Thread* Thread::GetCurrentThread() {
 void Thread::Exit(int exit_code) {
   if (current_thread_) {
     current_thread_->Terminate(exit_code);
-    // Sometimes the current thread keeps running after being cancelled.
-    // Prevent other calls from this thread from using current_thread_.
-    current_thread_ = nullptr;
   } else {
     // Should only happen with the main thread
     pthread_exit(reinterpret_cast<void*>(exit_code));
   }
+  // Function must not return
+  assert_always();
 }
 
 void set_name(const std::string_view name) {
