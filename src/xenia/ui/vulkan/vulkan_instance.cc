@@ -32,7 +32,7 @@
 #include "xenia/base/platform_win.h"
 #endif
 
-#if XE_PLATFORM_LINUX
+#if XE_PLATFORM_GNU_LINUX
 #include "xenia/ui/window_gtk.h"
 #endif
 

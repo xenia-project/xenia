@@ -14,6 +14,7 @@
 #include <string>
 
 #include "xenia/base/delegate.h"
+#include "xenia/base/platform.h"
 #include "xenia/ui/graphics_context.h"
 #include "xenia/ui/loop.h"
 #include "xenia/ui/menu_item.h"
@@ -172,8 +173,16 @@ class Window {
   Loop* loop_ = nullptr;
   std::unique_ptr<MenuItem> main_menu_;
   std::string title_;
+#ifdef XE_PLATFORM_GNU_LINUX
+  // GTK must have a default value here that isn't 0
+  // TODO(Triang3l): Cleanup and unify this. May need to get the first resize
+  // message on various platforms.
+  int32_t width_ = 1280;
+  int32_t height_ = 720;
+#else
   int32_t width_ = 0;
   int32_t height_ = 0;
+#endif
   bool has_focus_ = true;
   bool is_cursor_visible_ = true;
   bool is_imgui_input_enabled_ = false;

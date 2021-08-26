@@ -73,7 +73,6 @@ project("xenia-app")
       "X11",
       "xcb",
       "X11-xcb",
-      "vulkan",
       "SDL2",
     })
 
