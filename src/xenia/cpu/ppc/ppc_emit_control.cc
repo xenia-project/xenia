@@ -810,6 +810,6 @@ void RegisterEmitCategoryControl() {
   XEREGISTERINSTR(mtmsrd);
 }
 
-}  // namespace cpu
+}  // namespace ppc
 }  // namespace cpu
 }  // namespace xe

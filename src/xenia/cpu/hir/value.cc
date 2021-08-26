@@ -395,8 +395,9 @@ void Value::MulHi(Value* other, bool is_unsigned) {
                                   (uint32_t)other->constant.i32) >>
                                  32);
       } else {
-        constant.i32 = (int32_t)(
-            ((int64_t)constant.i32 * (int64_t)other->constant.i32) >> 32);
+        constant.i32 =
+            (int32_t)(((int64_t)constant.i32 * (int64_t)other->constant.i32) >>
+                      32);
       }
       break;
     case INT64_TYPE:
