@@ -832,10 +832,9 @@ int XexModule::ReadPEHeaders() {
 // offsetof seems to be unable to find OptionalHeader.
 #define offsetof1(type, member) ((std::size_t) & (((type*)0)->member))
 #define IMAGE_FIRST_SECTION1(ntheader)                                   \
-  ((PIMAGE_SECTION_HEADER)((uint8_t*)ntheader +                          \
-                           offsetof1(IMAGE_NT_HEADERS, OptionalHeader) + \
-                           ((PIMAGE_NT_HEADERS)(ntheader))               \
-                               ->FileHeader.SizeOfOptionalHeader))
+  ((PIMAGE_SECTION_HEADER)(                                              \
+      (uint8_t*)ntheader + offsetof1(IMAGE_NT_HEADERS, OptionalHeader) + \
+      ((PIMAGE_NT_HEADERS)(ntheader))->FileHeader.SizeOfOptionalHeader))
 
   // Quick scan to determine bounds of sections.
   size_t upper_address = 0;
