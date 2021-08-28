@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/base/main.h"
+#include "xenia/base/console_app_main.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/cpu.h"
 #include "xenia/cpu/ppc/ppc_context.h"
@@ -23,10 +23,10 @@ using xe::cpu::ppc::PPCContext;
 
 // TODO(benvanik): simple memory? move more into core?
 
-int main(std::vector<std::wstring>& args) {
+int main(std::vector<std::string>& args) {
 #if XE_OPTION_PROFILING
   xe::Profiler::Initialize();
-  xe::Profiler::ThreadEnter("main");
+  xe::Profiler::ThreadEnter("Main");
 #endif  // XE_OPTION_PROFILING
 
   size_t memory_size = 16 * 1024 * 1024;
@@ -79,4 +79,4 @@ int main(std::vector<std::wstring>& args) {
 }  // namespace cpu
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-cpu-sandbox", L"?", xe::cpu::sandbox::main);
+XE_DEFINE_CONSOLE_APP("xenia-cpu-sandbox", xe::cpu::sandbox::main, "");

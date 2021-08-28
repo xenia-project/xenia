@@ -24,8 +24,8 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
-std::unique_ptr<VulkanProvider> VulkanProvider::Create(Window* main_window) {
-  std::unique_ptr<VulkanProvider> provider(new VulkanProvider(main_window));
+std::unique_ptr<VulkanProvider> VulkanProvider::Create() {
+  std::unique_ptr<VulkanProvider> provider(new VulkanProvider);
   if (!provider->Initialize()) {
     xe::FatalError(
         "Unable to initialize Vulkan graphics subsystem.\n"
@@ -39,9 +39,6 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(Window* main_window) {
   }
   return provider;
 }
-
-VulkanProvider::VulkanProvider(Window* main_window)
-    : GraphicsProvider(main_window) {}
 
 VulkanProvider::~VulkanProvider() {
   device_.reset();

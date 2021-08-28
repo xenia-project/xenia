@@ -25,7 +25,7 @@ class VulkanProvider : public GraphicsProvider {
  public:
   ~VulkanProvider() override;
 
-  static std::unique_ptr<VulkanProvider> Create(Window* main_window);
+  static std::unique_ptr<VulkanProvider> Create();
 
   VulkanInstance* instance() const { return instance_.get(); }
   VulkanDevice* device() const { return device_.get(); }
@@ -35,7 +35,7 @@ class VulkanProvider : public GraphicsProvider {
   std::unique_ptr<GraphicsContext> CreateOffscreenContext() override;
 
  protected:
-  explicit VulkanProvider(Window* main_window);
+  VulkanProvider() = default;
 
   bool Initialize();
 

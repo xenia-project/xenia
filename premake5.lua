@@ -189,6 +189,12 @@ filter("platforms:Windows")
     "bcrypt",
   })
 
+-- Embed the manifest for things like dependencies and DPI awareness.
+filter({"platforms:Windows", "kind:ConsoleApp or WindowedApp"})
+  files({
+    "src/xenia/base/app_win32.manifest"
+  })
+
 -- Create scratch/ path
 if not os.isdir("scratch") then
   os.mkdir("scratch")
@@ -243,9 +249,13 @@ workspace("xenia")
     include("third_party/SDL2.lua")
   end
 
-  -- Disable treating warnings as fatal errors for all third party projects:
+  -- Disable treating warnings as fatal errors for all third party projects, as
+  -- well as other things relevant only to Xenia itself.
   for _, prj in ipairs(premake.api.scope.current.solution.projects) do
     project(prj.name)
+    removefiles({
+      "src/xenia/base/app_win32.manifest"
+    })
     removeflags({
       "FatalWarnings",
     })

@@ -18,7 +18,8 @@
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/ui/graphics_provider.h"
-#include "xenia/ui/loop.h"
+#include "xenia/ui/window.h"
+#include "xenia/ui/windowed_app_context.h"
 
 DEFINE_bool(
     store_shaders, true,
@@ -57,22 +58,24 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
   // This must happen on the UI thread.
   std::unique_ptr<xe::ui::GraphicsContext> processor_context = nullptr;
   if (provider_) {
-    if (target_window_) {
-      target_window_->loop()->PostSynchronous([&]() {
-        // Create the context used for presentation.
-        assert_null(target_window->context());
-        target_window_->set_context(provider_->CreateContext(target_window_));
-
-        // Setup the context the command processor will do all its drawing in.
-        // It's shared with the display context so that we can resolve
-        // framebuffers from it.
-        processor_context = provider()->CreateOffscreenContext();
-      });
+    // Setup the context the command processor will do all its drawing in.
+    bool contexts_initialized = true;
+    processor_context = provider()->CreateOffscreenContext();
+    if (processor_context) {
+      if (target_window_) {
+        if (!target_window_->app_context().CallInUIThreadSynchronous([&]() {
+              // Create the context used for presentation.
+              assert_null(target_window->context());
+              target_window_->set_context(
+                  provider_->CreateContext(target_window_));
+            })) {
+          contexts_initialized = false;
+        }
+      }
     } else {
-      processor_context = provider()->CreateOffscreenContext();
+      contexts_initialized = false;
     }
-
-    if (!processor_context) {
+    if (!contexts_initialized) {
       xe::FatalError(
           "Unable to initialize graphics context. Xenia requires Vulkan "
           "support.\n"

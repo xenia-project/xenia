@@ -11,6 +11,7 @@
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "third_party/imgui/imgui.h"
+#include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/debugging.h"
@@ -42,10 +43,11 @@ using xe::ui::UIEvent;
 
 const std::string kBaseTitle = "xenia";
 
-EmulatorWindow::EmulatorWindow(Emulator* emulator)
+EmulatorWindow::EmulatorWindow(Emulator* emulator,
+                               ui::WindowedAppContext& app_context)
     : emulator_(emulator),
-      loop_(ui::Loop::Create()),
-      window_(ui::Window::Create(loop_.get(), kBaseTitle)) {
+      app_context_(app_context),
+      window_(ui::Window::Create(app_context, kBaseTitle)) {
   base_title_ = kBaseTitle +
 #ifdef DEBUG
 #if _NO_DEBUG_HEAP == 1
@@ -63,23 +65,14 @@ EmulatorWindow::EmulatorWindow(Emulator* emulator)
                 ")";
 }
 
-EmulatorWindow::~EmulatorWindow() {
-  loop_->PostSynchronous([this]() { window_.reset(); });
-}
-
-std::unique_ptr<EmulatorWindow> EmulatorWindow::Create(Emulator* emulator) {
-  std::unique_ptr<EmulatorWindow> emulator_window(new EmulatorWindow(emulator));
-
-  emulator_window->loop()->PostSynchronous([&emulator_window]() {
-    xe::threading::set_name("Windowing Loop");
-    xe::Profiler::ThreadEnter("Windowing Loop");
-
-    if (!emulator_window->Initialize()) {
-      xe::FatalError("Failed to initialize main window");
-      return;
-    }
-  });
-
+std::unique_ptr<EmulatorWindow> EmulatorWindow::Create(
+    Emulator* emulator, ui::WindowedAppContext& app_context) {
+  assert_true(app_context.IsInUIThread());
+  std::unique_ptr<EmulatorWindow> emulator_window(
+      new EmulatorWindow(emulator, app_context));
+  if (!emulator_window->Initialize()) {
+    return nullptr;
+  }
   return emulator_window;
 }
 
@@ -91,8 +84,8 @@ bool EmulatorWindow::Initialize() {
 
   UpdateTitle();
 
-  window_->on_closed.AddListener([this](UIEvent* e) { loop_->Quit(); });
-  loop_->on_quit.AddListener([this](UIEvent* e) { window_.reset(); });
+  window_->on_closed.AddListener(
+      [this](UIEvent* e) { app_context_.QuitFromUIThread(); });
 
   window_->on_file_drop.AddListener(
       [this](FileDropEvent* e) { FileDrop(e->filename()); });
@@ -313,7 +306,7 @@ void EmulatorWindow::FileOpen() {
   file_picker->set_multi_selection(false);
   file_picker->set_title("Select Content Package");
   file_picker->set_extensions({
-      {"Supported Files", "*.iso;*.xex;*.xcp;*.*"},
+      {"Supported Files", "*.iso;*.xex;*.*"},
       {"Disc Image (*.iso)", "*.iso"},
       {"Xbox Executable (*.xex)", "*.xex"},
       //{"Content Package (*.xcp)", "*.xcp" },

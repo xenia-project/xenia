@@ -62,7 +62,7 @@ project("xenia-gpu-vulkan-trace-viewer")
   })
   files({
     "vulkan_trace_viewer_main.cc",
-    "../../base/main_"..platform_suffix..".cc",
+    "../../ui/windowed_app_main_"..platform_suffix..".cc",
   })
 
   filter("platforms:Linux")
@@ -128,7 +128,7 @@ project("xenia-gpu-vulkan-trace-dump")
   })
   files({
     "vulkan_trace_dump_main.cc",
-    "../../base/main_"..platform_suffix..".cc",
+    "../../base/console_app_main_"..platform_suffix..".cc",
   })
 
   filter("platforms:Linux")
