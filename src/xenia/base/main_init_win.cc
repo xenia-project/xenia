@@ -7,10 +7,11 @@
  ******************************************************************************
  */
 
-#include "xenia/base/main.h"
+#include "xenia/base/platform_win.h"
 
 #include <cstdlib>
 
+// Includes Windows headers, so it goes after platform_win.h.
 #include "third_party/xbyak/xbyak/xbyak_util.h"
 
 class StartupAvxCheck {

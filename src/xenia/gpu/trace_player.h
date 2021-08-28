@@ -16,7 +16,6 @@
 #include "xenia/base/threading.h"
 #include "xenia/gpu/trace_protocol.h"
 #include "xenia/gpu/trace_reader.h"
-#include "xenia/ui/loop.h"
 
 namespace xe {
 namespace gpu {
@@ -30,7 +29,7 @@ enum class TracePlaybackMode {
 
 class TracePlayer : public TraceReader {
  public:
-  TracePlayer(xe::ui::Loop* loop, GraphicsSystem* graphics_system);
+  TracePlayer(GraphicsSystem* graphics_system);
   ~TracePlayer() override;
 
   GraphicsSystem* graphics_system() const { return graphics_system_; }
@@ -54,7 +53,6 @@ class TracePlayer : public TraceReader {
   void PlayTraceOnThread(const uint8_t* trace_data, size_t trace_size,
                          TracePlaybackMode playback_mode, bool clear_caches);
 
-  xe::ui::Loop* loop_;
   GraphicsSystem* graphics_system_;
   int current_frame_index_;
   int current_command_index_;

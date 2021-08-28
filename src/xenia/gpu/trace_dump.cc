@@ -100,7 +100,7 @@ bool TraceDump::Setup() {
     return false;
   }
   graphics_system_ = emulator_->graphics_system();
-  player_ = std::make_unique<TracePlayer>(nullptr, graphics_system_);
+  player_ = std::make_unique<TracePlayer>(graphics_system_);
   return true;
 }
 

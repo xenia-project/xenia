@@ -40,6 +40,8 @@
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/memory.h"
 #include "xenia/ui/imgui_dialog.h"
+#include "xenia/ui/window.h"
+#include "xenia/ui/windowed_app_context.h"
 #include "xenia/vfs/devices/disc_image_device.h"
 #include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/vfs/devices/null_device.h"
@@ -233,7 +235,7 @@ X_STATUS Emulator::Setup(
 
   if (display_window_) {
     // Finish initializing the display.
-    display_window_->loop()->PostSynchronous([this]() {
+    display_window_->app_context().CallInUIThreadSynchronous([this]() {
       xe::ui::GraphicsContextLock context_lock(display_window_->context());
       Profiler::set_window(display_window_);
     });
@@ -583,7 +585,7 @@ bool Emulator::ExceptionCallback(Exception* ex) {
   }
 
   // Display a dialog telling the user the guest has crashed.
-  display_window()->loop()->PostSynchronous([&]() {
+  display_window()->app_context().CallInUIThreadSynchronous([this]() {
     xe::ui::ImGuiDialog::ShowMessageBox(
         display_window(), "Uh-oh!",
         "The guest has crashed.\n\n"

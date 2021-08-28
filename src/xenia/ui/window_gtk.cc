@@ -22,12 +22,13 @@
 namespace xe {
 namespace ui {
 
-std::unique_ptr<Window> Window::Create(Loop* loop, const std::string& title) {
-  return std::make_unique<GTKWindow>(loop, title);
+std::unique_ptr<Window> Window::Create(WindowedAppContext& app_context,
+                                       const std::string& title) {
+  return std::make_unique<GTKWindow>(app_context, title);
 }
 
-GTKWindow::GTKWindow(Loop* loop, const std::string& title)
-    : Window(loop, title) {}
+GTKWindow::GTKWindow(WindowedAppContext& app_context, const std::string& title)
+    : Window(app_context, title) {}
 
 GTKWindow::~GTKWindow() {
   OnDestroy();
@@ -92,7 +93,7 @@ gboolean close_callback(GtkWidget* widget, gpointer data) {
   return G_SOURCE_CONTINUE;
 }
 
-void GTKWindow::Create() {
+bool GTKWindow::OnCreate() {
   // GTK optionally allows passing argv and argc here for parsing gtk specific
   // options. We won't bother
   window_ = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -129,10 +130,7 @@ void GTKWindow::Create() {
   gtk_box_pack_end(GTK_BOX(box_), drawing_area_, TRUE, TRUE, 0);
   gtk_container_add(GTK_CONTAINER(window_), box_);
   gtk_widget_show_all(window_);
-}
 
-bool GTKWindow::OnCreate() {
-  loop()->PostSynchronous([this]() { this->Create(); });
   return super::OnCreate();
 }
 

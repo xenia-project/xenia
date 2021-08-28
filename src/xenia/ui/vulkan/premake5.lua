@@ -45,7 +45,7 @@ project("xenia-ui-window-vulkan-demo")
   files({
     "../window_demo.cc",
     "vulkan_window_demo.cc",
-    project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
+    project_root.."/src/xenia/ui/windowed_app_main_"..platform_suffix..".cc",
   })
   resincludedirs({
     project_root,

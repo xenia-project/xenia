@@ -17,7 +17,7 @@ project("xenia-cpu-ppc-tests")
   })
   files({
     "ppc_testing_main.cc",
-    "../../../base/main_"..platform_suffix..".cc",
+    "../../../base/console_app_main_"..platform_suffix..".cc",
   })
   files({
     "*.s",
@@ -46,7 +46,7 @@ project("xenia-cpu-ppc-nativetests")
   })
   files({
     "ppc_testing_native_main.cc",
-    "../../../base/main_"..platform_suffix..".cc",
+    "../../../base/console_app_main_"..platform_suffix..".cc",
   })
   files({
     "instr_*.s",

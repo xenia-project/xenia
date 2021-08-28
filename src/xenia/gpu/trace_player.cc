@@ -17,9 +17,8 @@
 namespace xe {
 namespace gpu {
 
-TracePlayer::TracePlayer(xe::ui::Loop* loop, GraphicsSystem* graphics_system)
-    : loop_(loop),
-      graphics_system_(graphics_system),
+TracePlayer::TracePlayer(GraphicsSystem* graphics_system)
+    : graphics_system_(graphics_system),
       current_frame_index_(0),
       current_command_index_(-1) {
   // Need to allocate all of physical memory so that we can write to it during

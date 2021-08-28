@@ -31,8 +31,8 @@ constexpr double kDoubleClickDistance = 5;
 
 constexpr int32_t kMouseWheelDetent = 120;
 
-Window::Window(Loop* loop, const std::string& title)
-    : loop_(loop), title_(title) {}
+Window::Window(WindowedAppContext& app_context, const std::string& title)
+    : app_context_(app_context), title_(title) {}
 
 Window::~Window() {
   // Context must have been cleaned up already in OnDestroy.

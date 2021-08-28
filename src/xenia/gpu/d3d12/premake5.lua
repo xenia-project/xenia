@@ -54,7 +54,7 @@ project("xenia-gpu-d3d12-trace-viewer")
   })
   files({
     "d3d12_trace_viewer_main.cc",
-    "../../base/main_"..platform_suffix..".cc",
+    "../../ui/windowed_app_main_"..platform_suffix..".cc",
   })
   -- Only create the .user file if it doesn't already exist.
   local user_file = project_root.."/build/xenia-gpu-d3d12-trace-viewer.vcxproj.user"
@@ -101,7 +101,7 @@ project("xenia-gpu-d3d12-trace-dump")
   })
   files({
     "d3d12_trace_dump_main.cc",
-    "../../base/main_"..platform_suffix..".cc",
+    "../../base/console_app_main_"..platform_suffix..".cc",
   })
   -- Only create the .user file if it doesn't already exist.
   local user_file = project_root.."/build/xenia-gpu-d3d12-trace-dump.vcxproj.user"

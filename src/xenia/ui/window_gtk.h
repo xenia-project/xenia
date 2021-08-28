@@ -28,7 +28,7 @@ class GTKWindow : public Window {
   using super = Window;
 
  public:
-  GTKWindow(Loop* loop, const std::string& title);
+  GTKWindow(WindowedAppContext& app_context, const std::string& title);
   ~GTKWindow() override;
 
   NativePlatformHandle native_platform_handle() const override {
@@ -74,7 +74,6 @@ class GTKWindow : public Window {
   void OnResize(UIEvent* e) override;
 
  private:
-  void Create();
   GtkWidget* window_;
   GtkWidget* box_;
   GtkWidget* drawing_area_;

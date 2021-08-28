@@ -7,17 +7,25 @@
  ******************************************************************************
  */
 
-#include "api_scanner_loader.h"
+#include <cstdio>
+#include <string>
+#include <vector>
+
+#include "xenia/base/console_app_main.h"
+#include "xenia/base/cvar.h"
+#include "xenia/base/string.h"
+#include "xenia/tools/api_scanner_loader.h"
 
 namespace xe {
 namespace tools {
 
-DEFINE_string(target, "", "List of file to extract imports from");
+DEFINE_transient_string(target, "", "List of file to extract imports from");
 
+// TODO(Triang3l): Change to std::string (currently doesn't even compile).
 int api_scanner_main(std::vector<std::wstring>& args) {
   // XXX we need gflags to split multiple flags into arrays for us
 
-  if (args.size() == 2 || !FLAGS_target.empty()) {
+  if (args.size() == 2 || !cvars::target.empty()) {
     apiscanner_loader loader_;
     std::wstring target(cvars::target.empty() ? args[1]
                                               : xe::to_wstring(cvars::target));
@@ -41,5 +49,5 @@ int api_scanner_main(std::vector<std::wstring>& args) {
 }  // namespace tools
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"api-scanner", L"api-scanner --target=<target file>",
-                   xe::tools::api_scanner_main);
+XE_DEFINE_CONSOLE_APP("api-scanner", xe::tools::api_scanner_main,
+                      "[target file]", "target");

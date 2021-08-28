@@ -24,7 +24,7 @@ class Win32Window : public Window {
   using super = Window;
 
  public:
-  Win32Window(Loop* loop, const std::string& title);
+  Win32Window(WindowedAppContext& app_context, const std::string& title);
   ~Win32Window() override;
 
   NativePlatformHandle native_platform_handle() const override;
@@ -90,7 +90,6 @@ class Win32Window : public Window {
   WINDOWPLACEMENT windowed_pos_ = {0};
   POINT last_mouse_pos_ = {0};
 
-  void* SetProcessDpiAwareness_ = nullptr;
   void* GetDpiForMonitor_ = nullptr;
 };
 

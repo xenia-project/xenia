@@ -37,7 +37,7 @@ X_STATUS VulkanGraphicsSystem::Setup(cpu::Processor* processor,
                                      kernel::KernelState* kernel_state,
                                      ui::Window* target_window) {
   // Must create the provider so we can create contexts.
-  auto provider = xe::ui::vulkan::VulkanProvider::Create(target_window);
+  auto provider = xe::ui::vulkan::VulkanProvider::Create();
   device_ = provider->device();
   provider_ = std::move(provider);
 

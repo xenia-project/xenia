@@ -13,9 +13,9 @@
 #include <vector>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/console_app_main.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/main.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/string.h"
 #include "xenia/base/string_buffer.h"
@@ -229,5 +229,6 @@ int shader_compiler_main(const std::vector<std::string>& args) {
 }  // namespace gpu
 }  // namespace xe
 
-DEFINE_ENTRY_POINT("xenia-gpu-shader-compiler", xe::gpu::shader_compiler_main,
-                   "shader.bin", "shader_input");
+XE_DEFINE_CONSOLE_APP("xenia-gpu-shader-compiler",
+                      xe::gpu::shader_compiler_main, "shader.bin",
+                      "shader_input");
