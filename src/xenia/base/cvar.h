@@ -15,8 +15,9 @@
 #include <string>
 #include <vector>
 
-#include "cpptoml/include/cpptoml.h"
-#include "cxxopts/include/cxxopts.hpp"
+#include "third_party/cpptoml/include/cpptoml.h"
+#include "third_party/cxxopts/include/cxxopts.hpp"
+#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/string_util.h"
@@ -216,7 +217,10 @@ inline std::string CommandVar<std::filesystem::path>::ToString(
 
 template <class T>
 std::string CommandVar<T>::ToString(T val) {
-  return std::to_string(val);
+  // Use fmt::format instead of std::to_string for locale-neutral formatting of
+  // floats, always with a period rather than a comma, which is treated as an
+  // unidentified trailing character by cpptoml.
+  return fmt::format("{}", val);
 }
 
 template <class T>
