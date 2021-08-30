@@ -704,6 +704,7 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
 
   XELOGI("Launching module {}", module_path);
+  XELOGI("[OS]: " + getOsName());
   auto module = kernel_state_->LoadUserModule(module_path);
   if (!module) {
     XELOGE("Failed to load user module {}", xe::path_to_utf8(path));
