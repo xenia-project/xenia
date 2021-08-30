@@ -324,24 +324,6 @@ void ShutdownLogging() {
   logger->~Logger();
   memory::AlignedFree(logger);
 }
-
-std::string getOsName() {
-    #ifdef _WIN32
-    return "Windows 32-bit";
-    #elif _WIN64
-    return "Windows 64-bit";
-    #elif _APPLE_ || _MACH_
-    return "Mac OSX";
-    #elif _linux_
-    return "Linux";
-    #elif _FreeBSD_
-    return "FreeBSD";
-    #elif _unix || __unix_
-    return "Unix";
-    #else
-    return "Other";
-    #endif
-}
             
 bool logging::internal::ShouldLog(LogLevel log_level) {
   return logger_ != nullptr &&
