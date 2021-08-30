@@ -8,6 +8,8 @@
  */
 
 #include "xenia/emulator.h"
+#include <Qstring>
+#include <QOperatingSystemVersion>
 
 #include <cinttypes>
 
@@ -704,7 +706,7 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
 
   XELOGI("Launching module {}", module_path);
-  XELOGI("[OS]: " + getOsName());
+  XELOGI("[OS] : ", QOperatingSystemVersion::current().name());
   auto module = kernel_state_->LoadUserModule(module_path);
   if (!module) {
     XELOGE("Failed to load user module {}", xe::path_to_utf8(path));
