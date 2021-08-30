@@ -89,6 +89,7 @@ class Logger {
         xe::threading::Thread::Create({}, [this]() { WriteThread(); });
     write_thread_->set_name("Logging Writer");
   }
+    
 
   ~Logger() {
     AppendLine(0, '\0', nullptr, 0, true);  // append a terminator
@@ -324,6 +325,24 @@ void ShutdownLogging() {
   memory::AlignedFree(logger);
 }
 
+std::string getOsName() {
+    #ifdef _WIN32
+    return "Windows 32-bit";
+    #elif _WIN64
+    return "Windows 64-bit";
+    #elif _APPLE_ || _MACH_
+    return "Mac OSX";
+    #elif _linux_
+    return "Linux";
+    #elif _FreeBSD_
+    return "FreeBSD";
+    #elif _unix || __unix_
+    return "Unix";
+    #else
+    return "Other";
+    #endif
+}
+            
 bool logging::internal::ShouldLog(LogLevel log_level) {
   return logger_ != nullptr &&
          static_cast<int32_t>(log_level) <= cvars::log_level;
@@ -332,7 +351,7 @@ bool logging::internal::ShouldLog(LogLevel log_level) {
 std::pair<char*, size_t> logging::internal::GetThreadBuffer() {
   return {thread_log_buffer_, sizeof(thread_log_buffer_)};
 }
-
+            
 void logging::internal::AppendLogLine(LogLevel log_level,
                                       const char prefix_char, size_t written) {
   if (!ShouldLog(log_level) || !written) {
