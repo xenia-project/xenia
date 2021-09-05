@@ -249,8 +249,10 @@ dword_result_t NetDll_WSAStartup(dword_t caller, word_t version,
     data_ptr->max_sockets = wsaData.iMaxSockets;
     data_ptr->max_udpdg = wsaData.iMaxUdpDg;
 
-    // Some games (PoG) want this value round-tripped - they'll compare if it
-    // changes and bugcheck if it does.
+    // Some games (5841099F) want this value round-tripped - they'll compare if
+    // it changes and bugcheck if it does.
+    // TODO(Triang3l): Verify if the title ID in the comment is correct - added
+    // by benvanik as an acronym initially.
     uint32_t vendor_ptr = xe::load_and_swap<uint32_t>(data_out + 0x190);
     xe::store_and_swap<uint32_t>(data_out + 0x190, vendor_ptr);
   }
@@ -459,7 +461,7 @@ dword_result_t NetDll_XNetGetTitleXnAddr(dword_t caller,
   // TODO(gibbed): A proper mac address.
   // RakNet's 360 version appears to depend on abEnet to create "random" 64-bit
   // numbers. A zero value will cause RakPeer::Startup to fail. This causes
-  // Peggle 2 to crash on startup.
+  // 58411436 to crash on startup.
   // The 360-specific code is scrubbed from the RakNet repo, but there's still
   // traces of what it's doing which match the game code.
   // https://github.com/facebookarchive/RakNet/blob/master/Source/RakPeer.cpp#L382

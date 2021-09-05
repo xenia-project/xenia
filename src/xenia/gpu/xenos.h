@@ -235,10 +235,10 @@ enum class SurfaceNumFormat : uint32_t {
 //
 // Depth surfaces are also stored as 32bpp tiles, however, as opposed to color
 // surfaces, 40x16-sample halves of each tile are swapped - game shaders (for
-// example, in GTA IV, Halo 3) perform this swapping when writing specific
-// depth/stencil values by drawing to a depth buffer's memory through a color
-// render target (to reupload a depth/stencil surface previously evicted from
-// the EDRAM to the main memory, for instance).
+// example, in 4D5307E6 main menu, 545407F2) perform this swapping when writing
+// specific depth/stencil values by drawing to a depth buffer's memory through a
+// color render target (to reupload a depth/stencil surface previously evicted
+// from the EDRAM to the main memory, for instance).
 
 enum class MsaaSamples : uint32_t {
   k1X = 0,
@@ -728,12 +728,12 @@ enum class SampleControl : uint32_t {
 // - sample_control is SQ_CONTEXT_MISC::sc_sample_cntl.
 // - interpolator_control_sampling_pattern is
 //   SQ_INTERPOLATOR_CNTL::sampling_pattern.
-// Centroid interpolation can be tested in Red Dead Redemption. If the GPU host
-// backend implements guest MSAA properly, using host MSAA, with everything
-// interpolated at centers, the Diez Coronas start screen background may have
-// a few distinctly bright pixels on the mesas/buttes, where extrapolation
-// happens. Interpolating certain values (ones that aren't used for gradient
-// calculation, not texture coordinates) at centroids fixes this issue.
+// Centroid interpolation can be tested in 5454082B. If the GPU host backend
+// implements guest MSAA properly, using host MSAA, with everything interpolated
+// at centers, the Monument Valley start screen background may have a few
+// distinctly bright pixels on the mesas/buttes, where extrapolation happens.
+// Interpolating certain values (ones that aren't used for gradient calculation,
+// not texture coordinates) at centroids fixes this issue.
 inline uint32_t GetInterpolatorSamplingPattern(
     MsaaSamples msaa_samples, SampleControl sample_control,
     uint32_t interpolator_control_sampling_pattern) {
@@ -763,9 +763,9 @@ enum class TessellationMode : uint32_t {
 enum class PolygonModeEnable : uint32_t {
   kDisabled = 0,  // Render triangles.
   kDualMode = 1,  // Send 2 sets of 3 polygons with the specified polygon type.
-  // The game Fuse uses 2 for triangles, which is "reserved" on R6xx and not
-  // defined on Adreno 2xx, but polymode_front/back_ptype are 0 (points) in this
-  // case in Fuse, which should not be respected for non-kDualMode as the game
+  // 4541096E uses 2 for triangles, which is "reserved" on R6xx and not defined
+  // on Adreno 2xx, but polymode_front/back_ptype are 0 (points) in this case in
+  // 4541096E, which should not be respected for non-kDualMode as the title
   // wants to draw filled triangles.
 };
 
@@ -785,17 +785,15 @@ enum class ModeControl : uint32_t {
   // for it especially since the Xbox 360 doesn't have early per-sample depth /
   // stencil, only early hi-Z / hi-stencil, and other registers possibly
   // toggling pixel shader execution are yet to be found):
-  // - Most of depth pre-pass draws in Call of Duty 4 use the kDepth more with
-  //   a `oC0 = tfetch2D(tf0, r0.xy) * r1` shader, some use `oC0 = r0` though.
+  // - Most of depth pre-pass draws in 415607E6 use the kDepth more with a
+  //   `oC0 = tfetch2D(tf0, r0.xy) * r1` shader, some use `oC0 = r0` though.
   //   However, when alphatested surfaces are drawn, kColorDepth is explicitly
   //   used with the same shader performing the texture fetch.
-  // - Red Dead Redemption has some kDepth draws with alphatest enabled, but the
-  //   shader is `oC0 = r0`, which makes no sense (alphatest based on an
-  //   interpolant from the vertex shader) as no texture alpha cutout is
-  //   involved.
-  // - Red Dead Redemption also has kDepth draws with pretty complex shaders
-  //   clearly for use only in the color pass - even fetching and filtering a
-  //   shadowmap.
+  // - 5454082B has some kDepth draws with alphatest enabled, but the shader is
+  //   `oC0 = r0`, which makes no sense (alphatest based on an interpolant from
+  //   the vertex shader) as no texture alpha cutout is involved.
+  // - 5454082B also has kDepth draws with pretty complex shaders clearly for
+  //   use only in the color pass - even fetching and filtering a shadowmap.
   // For now, based on these, let's assume the pixel shader is never used with
   // kDepth.
   kDepth = 5,
@@ -833,10 +831,10 @@ enum class ModeControl : uint32_t {
 // coordinates of the corners).
 //
 // The rectangle is used for both the source render target and the destination
-// texture, according to how it's used in Tales of Vesperia.
+// texture, according to how it's used in 4E4D07E9.
 //
 // Direct3D 9 gives the rectangle in source render target coordinates (for
-// example, in Halo 3, the sniper rifle scope has a (128,64)->(448,256)
+// example, in 4D5307E6, the sniper rifle scope has a (128,64)->(448,256)
 // rectangle). It doesn't adjust the EDRAM base pointer, otherwise (taking into
 // account that 4x MSAA is used for the scope) it would have been
 // (8,0)->(328,192), but it's not. However, it adjusts the destination texture
@@ -851,7 +849,7 @@ enum class ModeControl : uint32_t {
 // RB_COPY_DEST_PITCH's purpose appears to be not clamping or something like
 // that, but just specifying pitch for going between rows, and height for going
 // between 3D texture slices. copy_dest_pitch is rounded to 32 by Direct3D 9,
-// copy_dest_height is not. In the Halo 3 sniper rifle scope example,
+// copy_dest_height is not. In the 4D5307E6 sniper rifle scope example,
 // copy_dest_pitch is 320, and copy_dest_height is 192 - the same as the resolve
 // rectangle size (resolving from a 320x192 portion of the surface at 128,64 to
 // the whole texture, at 0,0). Relative to RB_COPY_DEST_BASE, the height should
@@ -860,17 +858,17 @@ enum class ModeControl : uint32_t {
 // of the register) that it exists purely to be able to go between 3D texture
 // slices.
 //
-// Window scissor must also be applied - in the jigsaw puzzle in Banjo-Tooie,
-// there are 1280x720 resolve rectangles, but only the scissored 1280x256
-// needs to be copied, otherwise it overflows even beyond the EDRAM, and the
-// depth buffer is visible on the screen. It also ensures the coordinates are
-// not negative (in F.E.A.R., for example, the right tile is resolved with
-// vertices (-640,0)->(640,720), however, the destination texture pointer is
-// adjusted properly to the right half of the texture, and the source render
-// target has a pitch of 800).
+// Window scissor must also be applied - in the jigsaw puzzle in 58410955, there
+// are 1280x720 resolve rectangles, but only the scissored 1280x256 needs to be
+// copied, otherwise it overflows even beyond the EDRAM, and the depth buffer is
+// visible on the screen. It also ensures the coordinates are not negative (in
+// 565507D9, for example, the right tile is resolved with vertices
+// (-640,0)->(640,720), however, the destination texture pointer is adjusted
+// properly to the right half of the texture, and the source render target has a
+// pitch of 800).
 
 // Granularity of offset and size in resolve operations is 8x8 pixels
-// (GPU_RESOLVE_ALIGNMENT - for example, Halo 3 resolves a 24x16 region for a
+// (GPU_RESOLVE_ALIGNMENT - for example, 4D5307E6 resolves a 24x16 region for a
 // 18x10 texture, 8x8 region for a 1x1 texture).
 // https://github.com/jmfauvel/CSGO-SDK/blob/master/game/client/view.cpp#L944
 // https://github.com/stanriders/hl2-asw-port/blob/master/src/game/client/vgui_int.cpp#L901
@@ -1072,9 +1070,9 @@ union alignas(uint32_t) xe_gpu_texture_fetch_t {
     // pitch is irrelevant to them (but the 256-byte alignment requirement still
     // applies to linear textures).
     // Examples of pitch > aligned width:
-    // - Plants vs. Zombies (loading screen and menu backgrounds, 1408 for a
-    //   1280x linear k_DXT4_5 texture, which corresponds to 22 * 256 bytes
-    //   rather than 20 * 256 for just 1280x).
+    // - 584109FF (loading screen and menu backgrounds, 1408 for a 1280x linear
+    //   k_DXT4_5 texture, which corresponds to 22 * 256 bytes rather than
+    //   20 * 256 for just 1280x).
     uint32_t pitch : 9;  // +22
     uint32_t tiled : 1;  // +31
 

@@ -67,7 +67,7 @@ constexpr bool IsPrimitivePolygonal(bool vgt_output_path_is_tessellation_enable,
   // TODO(Triang3l): Investigate how kRectangleList should be treated - possibly
   // actually drawn as two polygons on the console, however, the current
   // geometry shader doesn't care about the winding order - allowing backface
-  // culling for rectangles currently breaks Gears of War 2.
+  // culling for rectangles currently breaks 4D53082D.
   return false;
 }
 
@@ -112,10 +112,10 @@ constexpr float GetD3D10PolygonOffsetFactor(
     return float(1 << 24);
   }
   // 20 explicit + 1 implicit (1.) mantissa bits.
-  // 2^20 is not enough for Call of Duty 4 retail version's first mission F.N.G.
-  // shooting range floor (with the number 1) on Direct3D 12. Tested on Nvidia
-  // GeForce GTX 1070, the exact formula (taking into account the 0...1 to
-  // 0...0.5 remapping described below) used for testing is
+  // 2^20 is not enough for 415607E6 retail version's training mission shooting
+  // range floor (with the number 1) on Direct3D 12. Tested on Nvidia GeForce
+  // GTX 1070, the exact formula (taking into account the 0...1 to 0...0.5
+  // remapping described below) used for testing is
   // `int(ceil(offset * 2^20 * 0.5)) * sign(offset)`. With 2^20 * 0.5, there
   // are various kinds of stripes dependending on the view angle in that
   // location. With 2^21 * 0.5, the issue is not present.
@@ -141,7 +141,7 @@ inline bool DoesCoverageDependOnAlpha(reg::RB_COLORCONTROL rb_colorcontrol) {
 // pre-passes and shadowmaps. The shader must have its ucode analyzed. If
 // IsRasterizationPotentiallyDone, this shouldn't be called, and assumed false
 // instead. Helps reject the pixel shader in some cases - memexport draws in
-// Halo 3, and also most of some 1-point draws not covering anything done for
+// 4D5307E6, and also most of some 1-point draws not covering anything done for
 // some reason in different games with a leftover pixel shader from the previous
 // draw, but with SQ_PROGRAM_CNTL destroyed, reducing the number of
 // unpredictable unneeded translations of random shaders with different host

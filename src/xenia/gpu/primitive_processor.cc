@@ -57,7 +57,7 @@ DEFINE_bool(
 // TODO(Triang3l): More investigation of the cache threshold as cache lookups
 // and insertions require global critical region locking, and insertions also
 // require protecting pages. At 1024, the cache only made the performance worse
-// (Tony Hawk's American Wasteland, 16-bit primitive reset index replacement).
+// (415607D4, 16-bit primitive reset index replacement).
 DEFINE_int32(
     primitive_processor_cache_min_indices, 4096,
     "Smallest number of guest indices to store in the cache to try reusing "
@@ -247,14 +247,14 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         // games using tessellated strips / fans so far.
         switch (tessellation_mode) {
           case xenos::TessellationMode::kDiscrete:
-            // - Call of Duty 3 - nets above barrels in the beginning of the
-            //   first mission (turn right after the end of the intro) -
+            // - 415607E1 - nets above barrels in the beginning of the first
+            //   mission (turn right after the end of the intro) -
             //   kTriangleList.
             host_vertex_shader_type =
                 Shader::HostVertexShaderType::kTriangleDomainCPIndexed;
             break;
           case xenos::TessellationMode::kContinuous:
-            // - Viva Pinata - tree building with a beehive in the beginning
+            // - 4D5307F2 - tree building with a beehive in the beginning
             //   (visible on the start screen behind the logo), waterfall in the
             //   beginning - kTriangleList.
             host_vertex_shader_type =
@@ -276,7 +276,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                 Shader::HostVertexShaderType::kQuadDomainCPIndexed;
             break;
           case xenos::TessellationMode::kContinuous:
-            // - Defender - retro screen and beams in the main menu - kQuadList.
+            // - 58410823 - retro screen and beams in the main menu - kQuadList.
             host_vertex_shader_type =
                 Shader::HostVertexShaderType::kQuadDomainCPIndexed;
             break;
@@ -285,14 +285,14 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         }
         break;
       case xenos::PrimitiveType::kTrianglePatch:
-        // - Banjo-Kazooie: Nuts & Bolts - water - adaptive.
-        // - Halo 3 - water - adaptive.
+        // - 4D5307E6 - water - adaptive.
+        // - 4D5307ED - water - adaptive.
         host_vertex_shader_type =
             Shader::HostVertexShaderType::kTriangleDomainPatchIndexed;
         break;
       case xenos::PrimitiveType::kQuadPatch:
-        // - Fable II - continuous.
-        // - Viva Pinata - garden ground - adaptive.
+        // - 4D5307F1 - continuous.
+        // - 4D5307F2 - garden ground - adaptive.
         host_vertex_shader_type =
             Shader::HostVertexShaderType::kQuadDomainPatchIndexed;
         break;

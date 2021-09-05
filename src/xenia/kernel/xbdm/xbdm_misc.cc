@@ -34,7 +34,7 @@ DECLARE_XBDM_EXPORT1(DmCloseLoadedModules, kDebug, kStub);
 MAKE_DUMMY_STUB_STATUS(DmFreePool);
 
 dword_result_t DmGetXbeInfo() {
-  // TODO(gibbed): Crackdown appears to expect this as success?
+  // TODO(gibbed): 4D5307DC appears to expect this as success?
   // Unknown arguments -- let's hope things don't explode.
   return 0x02DA0000;
 }

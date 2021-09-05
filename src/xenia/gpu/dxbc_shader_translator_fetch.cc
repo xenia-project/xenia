@@ -705,10 +705,10 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     // Add a small epsilon to the offset (1.5/4 the fixed-point texture
     // coordinate ULP - shouldn't significantly effect the fixed-point
     // conversion; 1/4 is also not enough with 3x resolution scaling very
-    // noticeably on the weapon in Halo 3) to resolve ambiguity when fetching
+    // noticeably on the weapon in 4D5307E6) to resolve ambiguity when fetching
     // point-sampled textures between texels. This applies to both normalized
-    // (Banjo-Kazooie Xbox Live Arcade logo, coordinates interpolated between
-    // vertices with half-pixel offset) and unnormalized (Halo 3 lighting
+    // (58410954 Xbox Live Arcade logo, coordinates interpolated between
+    // vertices with half-pixel offset) and unnormalized (4D5307E6 lighting
     // G-buffer reading, ps_param_gen pixels) coordinates. On Nvidia Pascal,
     // without this adjustment, blockiness is visible in both cases. Possibly
     // there is a better way, however, an attempt was made to error-correct
@@ -1595,13 +1595,12 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
 
       // - Data.
 
-      // Viva Pinata uses vertex displacement map textures for tessellated
-      // models like the beehive tree with explicit LOD with point sampling
-      // (they store values packed in two components), however, the fetch
-      // constant has anisotropic filtering enabled. However, Direct3D 12
-      // doesn't allow mixing anisotropic and point filtering. Possibly
-      // anistropic filtering should be disabled when explicit LOD is used - do
-      // this here.
+      // 4D5307F2 uses vertex displacement map textures for tessellated models
+      // like the beehive tree with explicit LOD with point sampling (they store
+      // values packed in two components), however, the fetch constant has
+      // anisotropic filtering enabled. However, Direct3D 12 doesn't allow
+      // mixing anisotropic and point filtering. Possibly anistropic filtering
+      // should be disabled when explicit LOD is used - do this here.
       uint32_t sampler_binding_index = FindOrAddSamplerBinding(
           tfetch_index, instr.attributes.mag_filter,
           instr.attributes.min_filter, instr.attributes.mip_filter,

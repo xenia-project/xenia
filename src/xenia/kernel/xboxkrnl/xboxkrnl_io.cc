@@ -49,10 +49,10 @@ static bool IsValidPath(const std::string_view s, bool is_pattern) {
     if (got_asterisk) {
       // * must be followed by a . (*.)
       //
-      // Viva Piñata: Party Animals (4D530819) has a bug in its game code where
-      // it attempts to FindFirstFile() with filters of "Game:\\*_X3.rkv",
-      // "Game:\\m*_X3.rkv", and "Game:\\w*_X3.rkv" and will infinite loop if
-      // the path filter is allowed.
+      // 4D530819 has a bug in its game code where it attempts to
+      // FindFirstFile() with filters of "Game:\\*_X3.rkv", "Game:\\m*_X3.rkv",
+      // and "Game:\\w*_X3.rkv" and will infinite loop if the path filter is
+      // allowed.
       if (c != '.') {
         return false;
       }

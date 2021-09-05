@@ -352,11 +352,11 @@ TextureGuestLayout GetGuestTextureLayout(
                   xenos::kTextureSubresourceAlignmentBytes);
 
     // Estimate the memory amount actually referenced by the texture, which may
-    // be smaller (especially in the 1280x720 linear k_8_8_8_8 case in Ridge
-    // Racer Unbounded, for which memory exactly for 1280x720 is allocated, and
-    // aligning the height to 32 would cause access of an unallocated page) or
-    // bigger than the stride. For tiled textures, this is the dimensions
-    // aligned to 32x32x4 blocks (or x1 for the missing dimensions).
+    // be smaller (especially in the 1280x720 linear k_8_8_8_8 case in 4E4D083E,
+    // for which memory exactly for 1280x720 is allocated, and aligning the
+    // height to 32 would cause access of an unallocated page) or bigger than
+    // the stride. For tiled textures, this is the dimensions aligned to 32x32x4
+    // blocks (or x1 for the missing dimensions).
     uint32_t level_width_blocks =
         xe::align(std::max(width_texels >> level, uint32_t(1)),
                   format_info->block_width) /

@@ -551,7 +551,7 @@ struct ParsedAluInstruction {
   InstructionResult scalar_result;
   // Both operations must be executed before any result is stored if vector and
   // scalar operations are paired. There are cases of vector result being used
-  // as scalar operand or vice versa (the halo on Avalanche in Halo 3, for
+  // as scalar operand or vice versa (the ring on Avalanche in 4D5307E6, for
   // example), in this case there must be no dependency between the two
   // operations.
 
@@ -851,11 +851,11 @@ class Shader {
   // highest static register address + 1, or 0 if no registers referenced this
   // way. SQ_PROGRAM_CNTL is not always reliable - some draws (like single point
   // draws with oPos = 0001 that are done by Xbox 360's Direct3D 9 sometimes;
-  // can be reproduced by launching Arrival in Halo 3 from the campaign lobby)
-  // that aren't supposed to cover any pixels use an invalid (zero)
-  // SQ_PROGRAM_CNTL, but with an outdated pixel shader loaded, in this case
-  // SQ_PROGRAM_CNTL may contain a number smaller than actually needed by the
-  // pixel shader - SQ_PROGRAM_CNTL should be used to go above this count if
+  // can be reproduced by launching the intro mission in 4D5307E6 from the
+  // campaign lobby) that aren't supposed to cover any pixels use an invalid
+  // (zero) SQ_PROGRAM_CNTL, but with an outdated pixel shader loaded, in this
+  // case SQ_PROGRAM_CNTL may contain a number smaller than actually needed by
+  // the pixel shader - SQ_PROGRAM_CNTL should be used to go above this count if
   // uses_register_dynamic_addressing is true.
   uint32_t register_static_address_bound() const {
     return register_static_address_bound_;

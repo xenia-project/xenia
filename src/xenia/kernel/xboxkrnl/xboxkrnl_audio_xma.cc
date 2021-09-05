@@ -119,7 +119,7 @@ static_assert_size(XMA_CONTEXT_INIT, 56);
 
 dword_result_t XMAInitializeContext(lpvoid_t context_ptr,
                                     pointer_t<XMA_CONTEXT_INIT> context_init) {
-  // Input buffers may be null (buffer 1 in Tony Hawk's American Wasteland).
+  // Input buffers may be null (buffer 1 in 415607D4).
   // Convert to host endianness.
   uint32_t input_buffer_0_guest_ptr = context_init->input_buffer_0_ptr;
   uint32_t input_buffer_0_physical_address = 0;
