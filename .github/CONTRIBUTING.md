@@ -69,7 +69,10 @@ traceable sources helps solve multiple issues:
 If you have verified your code by checking the correctness of the behavior of a
 game, **do not** refer to it by its title trademark. To avoid unnecessary
 dependencies on third parties, instead, use the hexadecimal title ID number
-displayed in the title bar beside the name of the game.
+displayed in the title bar beside the name of the game. It's also recommended to
+avoid using proper names of game content if they can be replaced with easily
+understandable pointers not including them, such as "first mission",
+"protagonist", "enemy aircraft".
 
 Do not leave any hard-coded references to specific games, even in title ID form,
 in any part of the user interface, including the configuration file. If you want
