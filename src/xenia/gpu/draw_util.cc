@@ -24,12 +24,13 @@
 #include "xenia/gpu/texture_util.h"
 #include "xenia/gpu/xenos.h"
 
+// Very prominent in 545407F2.
 DEFINE_bool(
     resolve_resolution_scale_duplicate_second_pixel, true,
     "When using resolution scale, apply the hack that duplicates the "
     "right/lower host pixel in the left and top sides of render target resolve "
     "areas to eliminate the gap caused by half-pixel offset (this is necessary "
-    "for certain games like GTA IV to work).",
+    "for certain games to display the scene graphics).",
     "GPU");
 
 DEFINE_bool(
@@ -952,11 +953,11 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
       dest_dimension = xenos::DataDimension::k2DOrStacked;
       // RB_COPY_DEST_PITCH::copy_dest_height is the real texture height used
       // for 3D texture pitch, it's not relative to 0,0 of the coordinate space
-      // (in Halo 3, the sniper rifle scope has copy_dest_height of 192, but the
-      // rectangle's Y is 64...256) - provide the real height of the rectangle
-      // since 32x32 tiles are stored linearly anyway. In addition, the height
-      // in RB_COPY_DEST_PITCH may be larger than needed - in Red Dead
-      // Redemption, a UI texture for the letterbox bars alpha is located within
+      // (in 4D5307E6, the sniper rifle scope has copy_dest_height of 192, but
+      // the rectangle's Y is 64...256) - provide the real height of the
+      // rectangle since 32x32 tiles are stored linearly anyway. In addition,
+      // the height in RB_COPY_DEST_PITCH may be larger than needed - in
+      // 5454082B, a UI texture for the letterbox bars alpha is located within
       // the range of a 1280x720 resolve target, so with resolution scaling it's
       // also wrongly detected as scaled, while only 1280x208 is being resolved.
       dest_height = uint32_t(y1 - y0);

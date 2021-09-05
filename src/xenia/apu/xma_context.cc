@@ -811,12 +811,13 @@ void XmaContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
   // Loop through every sample, convert and drop it into the output array.
   // If more than one channel, we need to interleave the samples from each
   // channel next to each other. Always saturate because FFmpeg output is
-  // not limited to [-1, 1] (for example 1.095 as seen in RDR)
+  // not limited to [-1, 1] (for example 1.095 as seen in 5454082B).
   constexpr float scale = (1 << 15) - 1;
   auto out = reinterpret_cast<int16_t*>(output_buffer);
 
-  // For testing of vectorized versions, stereo audio is common in Halo 3, since
-  // the first menu frame; the intro cutscene also has more than 2 channels.
+  // For testing of vectorized versions, stereo audio is common in 4D5307E6,
+  // since the first menu frame; the intro cutscene also has more than 2
+  // channels.
 #if XE_ARCH_AMD64
   static_assert(kSamplesPerFrame % 8 == 0);
   const auto in_channel_0 = reinterpret_cast<const float*>(samples[0]);

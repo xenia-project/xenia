@@ -121,8 +121,8 @@ namespace shaders {
 // components of operands in shaders.
 // For DXT3A and DXT5A, RRRR swizzle is specified in:
 // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
-// Halo 3 also expects replicated components in k_8 sprites.
-// DXN is read as RG in Halo 3, but as RA in Call of Duty.
+// 4D5307E6 also expects replicated components in k_8 sprites.
+// DXN is read as RG in 4D5307E6, but as RA in 415607E6.
 // TODO(Triang3l): Find out the correct contents of unused texture components.
 const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_1_REVERSE
@@ -250,9 +250,9 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
      LoadMode::kUnknown,
      {2, 1, 0, 3}},
     // k_Y1_Cr_Y0_Cb_REP
-    // Used for videos in NBA 2K9. Red and blue must be swapped.
+    // Used for videos in 54540829. Red and blue must be swapped.
     // TODO(Triang3l): D3DFMT_G8R8_G8B8 is DXGI_FORMAT_R8G8_B8G8_UNORM * 255.0f,
-    // watch out for num_format int, division in shaders, etc., in NBA 2K9 it
+    // watch out for num_format int, division in shaders, etc., in 54540829 it
     // works as is. Also need to decompress if the size is uneven, but should be
     // a very rare case.
     {DXGI_FORMAT_R8G8_B8G8_UNORM,
@@ -1309,7 +1309,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
     // Clear the bindings not only for this draw call, but entirely, because
     // loading may be needed in some draw call later, which may have the same
     // key for some binding as before the invalidation, but texture_invalidated_
-    // being false (menu background in Halo 3).
+    // being false (menu background in 4D5307E6).
     for (size_t i = 0; i < xe::countof(texture_bindings_); ++i) {
       texture_bindings_[i].Clear();
     }

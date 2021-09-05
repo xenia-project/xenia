@@ -335,10 +335,10 @@ union alignas(uint32_t) PA_SU_SC_MODE_CNTL {
     uint32_t cull_back : 1;   // +1
     // 0 - front is CCW, 1 - front is CW.
     uint32_t face : 1;  // +2
-    // The game Fuse uses poly_mode 2 for triangles, which is "reserved" on R6xx
-    // and not defined on Adreno 2xx, but polymode_front/back_ptype are 0
-    // (points) in this case in Fuse, which should not be respected for
-    // non-kDualMode as the game wants to draw filled triangles.
+    // 4541096E uses poly_mode 2 for triangles, which is "reserved" on R6xx and
+    // not defined on Adreno 2xx, but polymode_front/back_ptype are 0 (points)
+    // in this case in 4541096E, which should not be respected for non-kDualMode
+    // as the title wants to draw filled triangles.
     xenos::PolygonModeEnable poly_mode : 2;       // +3
     xenos::PolygonType polymode_front_ptype : 3;  // +5
     xenos::PolygonType polymode_back_ptype : 3;   // +8
@@ -559,16 +559,16 @@ union alignas(uint32_t) RB_COLORCONTROL {
     // (gl_FragCoord.y near 0 in the top, near 1 in the bottom here - D3D-like.)
     // For 2 samples, the top sample (closer to gl_FragCoord.y 0) is covered
     // when alpha is in [0.5, 1), the bottom sample is covered when the alpha is
-    // [1. With these thresholds, however, in Red Dead Redemption, almost all
-    // distant trees are transparent, this is asymmetric - fully transparent for
-    // a quarter of the range (or even half of the range for 2x and almost the
-    // entire range for 1x), but fully opaque only in one value.
+    // [1. With these thresholds, however, in 5454082B, almost all distant trees
+    // are transparent, this is asymmetric - fully transparent for a quarter of
+    // the range (or even half of the range for 2x and almost the entire range
+    // for 1x), but fully opaque only in one value.
     // Though, 2, 2, 2, 2 offset values are commonly used for undithered alpha
-    // to coverage (in games such as Red Dead Redemption, and overall in AMD
-    // driver implementations) - it appears that 2, 2, 2, 2 offsets are supposed
-    // to make this symmetric.
-    // Both Red Dead Redemption and RADV (which used AMDVLK as a reference) use
-    // 3, 1, 0, 2 offsets for dithered alpha to mask.
+    // to coverage (in games such as 5454082B, and overall in AMD driver
+    // implementations) - it appears that 2, 2, 2, 2 offsets are supposed to
+    // make this symmetric.
+    // Both 5454082B and RADV (which used AMDVLK as a reference) use 3, 1, 0, 2
+    // offsets for dithered alpha to mask.
     // https://gitlab.freedesktop.org/nchery/mesa/commit/8a52e4cc4fad4f1c75acc0badd624778f9dfe202
     // It appears that the offsets lower the thresholds by (offset / 4 /
     // sample count). That's consistent with both 2, 2, 2, 2 making the test

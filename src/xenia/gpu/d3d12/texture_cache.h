@@ -418,7 +418,7 @@ class TextureCache {
     // Uncompression info for when the regular host format for this texture is
     // block-compressed, but the size is not block-aligned, and thus such
     // texture cannot be created in Direct3D on PC and needs decompression,
-    // however, such textures are common, for instance, in Halo 3. This only
+    // however, such textures are common, for instance, in 4D5307E6. This only
     // supports unsigned normalized formats - let's hope GPUSIGN_SIGNED was not
     // used for DXN and DXT5A.
     DXGI_FORMAT dxgi_format_uncompressed;

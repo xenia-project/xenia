@@ -40,6 +40,7 @@ DEFINE_bool(
     "reduce bandwidth usage during transfers as the previous depth won't need "
     "to be read.",
     "GPU");
+// The round trip is done, in particular, in 545407F2.
 DEFINE_string(
     depth_float24_conversion, "",
     "Method for converting 32-bit Z values to 20e4 floating point when using "
@@ -56,8 +57,8 @@ DEFINE_string(
     "  + Highest performance, allows early depth test and writing.\n"
     "  + Host MSAA is possible with pixel-rate shading where supported.\n"
     "  - EDRAM > RAM > EDRAM depth buffer round trip done in certain games "
-    "(such as GTA IV) destroys precision irreparably, causing artifacts if "
-    "another rendering pass is done after the EDRAM reupload.\n"
+    "destroys precision irreparably, causing artifacts if another rendering "
+    "pass is done after the EDRAM reupload.\n"
     " truncate:\n"
     "  Convert to 20e4 directly in pixel shaders, always rounding down.\n"
     "  + Average performance, conservative early depth test is possible.\n"
@@ -96,18 +97,15 @@ DEFINE_bool(
     "bloom, etc., in some cases.",
     "GPU");
 // Disabled by default because of full-screen effects that occur when game
-// shaders assume piecewise linear, much more severe than blending-related
-// issues.
+// shaders assume piecewise linear (4541080F), much more severe than
+// blending-related issues.
 DEFINE_bool(
     gamma_render_target_as_srgb, false,
     "When the host can't write piecewise linear gamma directly with correct "
     "blending, use sRGB output on the host for conceptually correct blending "
-    "in linear color space (to prevent issues such as bright squares around "
-    "bullet holes and overly dark lighting in Halo 3) while having slightly "
-    "different precision distribution in the render target and severely "
-    "incorrect values if the game accesses the resulting colors directly as "
-    "raw data (the whole screen in The Orange Box, for instance, since when "
-    "the first loading bar appears).",
+    "in linear color space while having slightly different precision "
+    "distribution in the render target and severely incorrect values if the "
+    "game accesses the resulting colors directly as raw data.",
     "GPU");
 DEFINE_bool(
     mrt_edram_used_range_clamp_to_min, true,
@@ -493,9 +491,9 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   // (issues caused by color and depth render target collisions haven't been
   // found yet), but render targets with smaller index are considered more
   // important - specifically, because of the usage in the lighting pass of
-  // Halo 3, which can be checked in the vertical look calibration sequence in
+  // 4D5307E6, which can be checked in the vertical look calibration sequence in
   // the beginning of the game: if render target 0 is removed in favor of 1, the
-  // UNSC servicemen and the world will be too dark, like fully in shadow -
+  // characters and the world will be too dark, like fully in shadow -
   // especially prominent on the helmet. This happens because the shader picks
   // between two render targets to write dynamically (though with a static, bool
   // constant condition), but all other state is set up in a way that implies
@@ -624,7 +622,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   // "As if it was 64bpp" (contribution of 32bpp render targets multiplied by 2,
   // and clamping for 32bpp render targets divides this by 2) because 32bpp
   // render targets can be combined with twice as long 64bpp render targets. An
-  // example is the Dead Space 3 menu background (1-sample 1152x720, or 1200x720
+  // example is the 4541099D menu background (1-sample 1152x720, or 1200x720
   // after rounding to tiles, with a 32bpp depth buffer at 0 requiring 675
   // tiles, and a 64bpp color buffer at 675 requiring 1350 tiles, but the
   // smallest distance between two render target bases is 675 tiles).

@@ -758,7 +758,7 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
       depth_bias_scale = depth_bias_scales[1];
       depth_bias_offset = depth_bias_offsets[1];
     }
-    // Convert to Vulkan units based on the values in Call of Duty 4:
+    // Convert to Vulkan units based on the values in 415607E6:
     // r_polygonOffsetScale is -1 there, but 32 in the register.
     // r_polygonOffsetBias is -1 also, but passing 2/65536.
     // 1/65536 and 2 scales are applied separately, however, and for shadow maps
