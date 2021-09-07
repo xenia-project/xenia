@@ -251,8 +251,6 @@ dword_result_t NetDll_WSAStartup(dword_t caller, word_t version,
 
     // Some games (5841099F) want this value round-tripped - they'll compare if
     // it changes and bugcheck if it does.
-    // TODO(Triang3l): Verify if the title ID in the comment is correct - added
-    // by benvanik as an acronym initially.
     uint32_t vendor_ptr = xe::load_and_swap<uint32_t>(data_out + 0x190);
     xe::store_and_swap<uint32_t>(data_out + 0x190, vendor_ptr);
   }
