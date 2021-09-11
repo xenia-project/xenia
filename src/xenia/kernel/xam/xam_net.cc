@@ -950,7 +950,7 @@ dword_result_t NetDll_recvfrom(dword_t caller, dword_t socket_handle,
     from_ptr->sin_family = native_from.sin_family;
     from_ptr->sin_port = native_from.sin_port;
     from_ptr->sin_addr = native_from.sin_addr;
-    memset(from_ptr->sin_zero, 0, 8);
+    std::memset(from_ptr->x_sin_zero, 0, sizeof(from_ptr->x_sin_zero));
   }
   if (fromlen_ptr) {
     *fromlen_ptr = native_fromlen;
