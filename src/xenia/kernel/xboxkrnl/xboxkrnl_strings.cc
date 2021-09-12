@@ -10,6 +10,7 @@
 #include <cstring>
 #include <iomanip>
 #include <sstream>
+#include <string>
 
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
@@ -737,15 +738,15 @@ class StringFormatData : public FormatData {
     if (c >= 0x100) {
       return false;
     }
-    output_ << (char)c;
+    output_.push_back(char(c));
     return true;
   }
 
-  std::string str() const { return output_.str(); }
+  const std::string& str() const { return output_; }
 
  private:
   const uint8_t* input_;
-  std::ostringstream output_;
+  std::string output_;
 };
 
 class WideStringFormatData : public FormatData {
@@ -771,15 +772,15 @@ class WideStringFormatData : public FormatData {
   }
 
   bool put(uint16_t c) {
-    output_ << (char16_t)c;
+    output_.push_back(char16_t(c));
     return true;
   }
 
-  std::u16string wstr() const { return output_.str(); }
+  const std::u16string& wstr() const { return output_; }
 
  private:
   const uint16_t* input_;
-  std::basic_stringstream<char16_t> output_;
+  std::u16string output_;
 };
 
 class WideCountFormatData : public FormatData {
