@@ -98,7 +98,7 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_E_SUCCESS;
     }
     case 0x000B0014: {
-      // Gets Jetpac XBLA in game
+      // Gets 584107FB in game.
       // get high score table?
       XELOGD("XGI_unknown");
       return X_STATUS_SUCCESS;

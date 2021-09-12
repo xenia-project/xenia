@@ -3619,7 +3619,7 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
           case xenos::DepthRenderTargetFormat::kD24S8:
             // Round to the nearest even integer. This seems to be the correct,
             // adding +0.5 and rounding towards zero results in red instead of
-            // black in GTA IV and Halo 3 clear shaders.
+            // black in the 4D5307E6 clear shader.
             a.OpMul(dxbc::Dest::R(i, 0b1000), dxbc::Src::R(i, dxbc::Src::kWWWW),
                     dxbc::Src::LF(float(0xFFFFFF)));
             a.OpRoundNE(dxbc::Dest::R(i, 0b1000),
@@ -3804,7 +3804,7 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
           case xenos::DepthRenderTargetFormat::kD24S8:
             // Round to the nearest even integer. This seems to be the correct,
             // adding +0.5 and rounding towards zero results in red instead of
-            // black in GTA IV and Halo 3 clear shaders.
+            // black in the 4D5307E6 clear shader.
             a.OpMul(dxbc::Dest::R(1, 0b1000), dxbc::Src::R(1, dxbc::Src::kWWWW),
                     dxbc::Src::LF(float(0xFFFFFF)));
             a.OpRoundNE(dxbc::Dest::R(1, 0b1000),
@@ -4181,7 +4181,7 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
               case xenos::DepthRenderTargetFormat::kD24S8:
                 // Round to the nearest even integer. This seems to be the
                 // correct, adding +0.5 and rounding towards zero results in red
-                // instead of black in GTA IV and Halo 3 clear shaders.
+                // instead of black in the 4D5307E6 clear shader.
                 a.OpMul(dxbc::Dest::R(0, 0b0010),
                         dxbc::Src::R(0, dxbc::Src::kXXXX),
                         dxbc::Src::LF(float(0xFFFFFF)));
@@ -6228,7 +6228,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
           case xenos::DepthRenderTargetFormat::kD24S8:
             // Round to the nearest even integer. This seems to be the correct,
             // adding +0.5 and rounding towards zero results in red instead of
-            // black in GTA IV and Halo 3 clear shaders.
+            // black in the 4D5307E6 clear shader.
             a.OpMul(dxbc::Dest::R(1, 0b0001), dxbc::Src::R(1, dxbc::Src::kXXXX),
                     dxbc::Src::LF(float(0xFFFFFF)));
             a.OpRoundNE(dxbc::Dest::R(1, 0b0001),

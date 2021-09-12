@@ -986,11 +986,11 @@ uint4 XeDXT3AAs1111TwoBlocksRowToBGRA4(uint2 halfblocks) {
   // DXT1/DXT3/DXT5 color components and CTX1 X/Y are ordered in:
   // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
   // (LSB on the right, MSB on the left.)
-  // TODO(Triang3l): Investigate this better, Halo: Reach is the only known game
+  // TODO(Triang3l): Investigate this better, 4D53085B is the only known game
   // that uses it (for lighting in certain places - one of easy to notice usages
-  // is the T-shaped (or somewhat H-shaped) metal beams in the beginning of
-  // Winter Contingency), however the contents don't say anything about the
-  // channel order.
+  // is the T-shaped (or somewhat H-shaped) metal beams in the beginning of the
+  // first mission), however the contents don't say anything about the channel
+  // order.
   uint4 row = (((halfblocks.xxyy >> uint2(3u, 11u).xyxy) & 1u) << 8u) |
                 (((halfblocks.xxyy >> uint2(7u, 15u).xyxy) & 1u) << 24u) |
                 (((halfblocks.xxyy >> uint2(2u, 10u).xyxy) & 1u) << 4u) |

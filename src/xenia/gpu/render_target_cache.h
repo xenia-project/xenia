@@ -70,10 +70,10 @@ class RenderTargetCache {
     // Significant differences:
     // - 8_8_8_8_GAMMA - the piecewise linear gamma curve is very different than
     //   sRGB, one possible path is conversion in shaders (resulting in
-    //   incorrect blending, especially visible on decals in Halo 3), another is
-    //   using sRGB render targets and either conversion on resolve or reading
-    //   the resolved data as a true sRGB texture (incorrect when the game
-    //   accesses the data directly, like The Orange Box).
+    //   incorrect blending, especially visible on decals in 4D5307E6), another
+    //   is using sRGB render targets and either conversion on resolve or
+    //   reading the resolved data as a true sRGB texture (incorrect when the
+    //   game accesses the data directly, like 4541080F).
     // - 2_10_10_10_FLOAT - ranges significantly different than in float16, much
     //   smaller RGB range, and alpha is fixed-point and has only 2 bits.
     // - 16_16, 16_16_16_16 - has -32 to 32 range, not -1 to 1 - need either to
@@ -445,9 +445,9 @@ class RenderTargetCache {
   // aliasing naively, precision may be lost - host depth must only be
   // overwritten if the new guest value is different than the current host depth
   // when converted to the guest format (this catches the usual case of
-  // overwriting the depth buffer for clearing it mostly). Sonic the Hedgehog's
-  // intro cutscene, for example, has a good example of corruption that happens
-  // if this is not handled - the upper 1280x384 pixels are rendered in a very
+  // overwriting the depth buffer for clearing it mostly). 534507D6 intro
+  // cutscene, for example, has a good example of corruption that happens if
+  // this is not handled - the upper 1280x384 pixels are rendered in a very
   // "striped" way if the depth precision is lost (if this is made always return
   // false).
   virtual bool IsHostDepthEncodingDifferent(
@@ -627,7 +627,7 @@ class RenderTargetCache {
   // surface info was changed), to avoid unneeded render target switching (which
   // is especially undesirable on tile-based GPUs) in the implementation if
   // simply disabling depth / stencil test or color writes and then re-enabling
-  // (Banjo-Kazooie does this often with color). Must also be used to determine
+  // (58410954 does this often with color). Must also be used to determine
   // whether it's safe to enable depth / stencil or writing to a specific color
   // render target in the pipeline for this draw call.
   // Only valid for non-pixel-shader-interlock paths.

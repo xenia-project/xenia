@@ -11,7 +11,7 @@ RWBuffer<uint4> xe_texture_load_dest : register(u0);
 // Dword 1:
 // rrrrrrrrgggggggg
 // RRRRRRRRGGGGGGGG
-// (R is in the higher bits, according to how this format is used in Halo 3).
+// (R is in the higher bits, according to how this format is used in 4D5307E6).
 // Dword 2:
 // AA BB CC DD
 // EE FF GG HH

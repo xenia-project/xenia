@@ -221,7 +221,7 @@ inline T fpfs(const std::string_view value, bool force_hex) {
   } else {
 #if XE_COMPILER_CLANG || XE_COMPILER_GNUC
     auto temp = std::string(range);
-    result = std::strtof(temp.c_str(), nullptr);
+    result = std::strtod(temp.c_str(), nullptr);
 #else
     auto [p, error] = std::from_chars(range.data(), range.data() + range.size(),
                                       result, std::chars_format::general);

@@ -36,7 +36,7 @@ XeHSConstantDataOutput XePatchConstant(
   // 2) r0.zyx -> r0.zyx by the guest (because r1.y is set to 0 by Xenia, which
   //    apparently means identity swizzle to games).
   // 3) r0.z * v0 + r0.y * v1 + r0.x * v2 by the guest.
-  // With this order, there are no cracks in Halo 3 water.
+  // With this order, there are no cracks in 4D5307E6 water.
   [unroll] for (i = 0u; i < 3u; ++i) {
     output.edges[i] = xe_input_patch[(i + 1u) % 3u].edge_factor;
   }

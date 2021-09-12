@@ -30,7 +30,7 @@ project("xenia-ui-window-d3d12-demo")
   files({
     "../window_demo.cc",
     "d3d12_window_demo.cc",
-    project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
+    project_root.."/src/xenia/ui/windowed_app_main_"..platform_suffix..".cc",
   })
   resincludedirs({
     project_root,

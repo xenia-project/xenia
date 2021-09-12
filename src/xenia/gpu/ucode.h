@@ -483,7 +483,7 @@ enum class FetchOpcode : uint32_t {
   // - 3D (used for both 3D and stacked 2D texture): U, V, W (normalized or
   //   unnormalized - same for both 3D W and stack layer; also VolMagFilter /
   //   VolMinFilter between stack layers is supported, used for color correction
-  //   in Burnout Revenge).
+  //   in 454107DC).
   // - Cube: SC, TC (between 1 and 2 for normalized), face ID (0.0 to 5.0), the
   //   cube vector ALU instruction is used to calculate them.
   // https://gpuopen.com/learn/fetching-from-cubes-and-octahedrons/
@@ -495,9 +495,9 @@ enum class FetchOpcode : uint32_t {
   // The total LOD for a sample is additive and is based on what is enabled.
   //
   // For cube maps, according to what texCUBEgrad compiles to in a modified
-  // HLSL shader of Brave: A Warrior's Tale and to XNA assembler output for PC
-  // SM3 texldd, register gradients are in cube space (not in SC/TC space,
-  // unlike the coordinates themselves). This isn't true for the GCN, however.
+  // HLSL shader of 455607D1 and to XNA assembler output for PC SM3 texldd,
+  // register gradients are in cube space (not in SC/TC space, unlike the
+  // coordinates themselves). This isn't true for the GCN, however.
   //
   // TODO(Triang3l): Find if gradients are unnormalized for cube maps if
   // coordinates are unnormalized. Since texldd doesn't perform any
@@ -814,8 +814,8 @@ static_assert_size(TextureFetchInstruction, sizeof(uint32_t) * 3);
 //   (mul, mad, dp, etc.) and for NaN in min/max. It's very important to respect
 //   this rule for multiplication, as games often rely on it in vector
 //   normalization (rcp and mul), Infinity * 0 resulting in NaN breaks a lot of
-//   things in games - causes white screen in Halo 3, white specular on
-//   characters in GTA IV. The result is always positive zero in this case, no
+//   things in games - causes white screen in 4D5307E6, white specular on
+//   characters in 545407F2. The result is always positive zero in this case, no
 //   matter what the signs of the other operands are, according to R5xx
 //   Acceleration section 8.7.5 "Legacy multiply behavior" and testing on
 //   Adreno 200. This means that the following need to be taken into account
@@ -1628,8 +1628,8 @@ enum class ExportRegister : uint32_t {
   // X - PSIZE (gl_PointSize).
   // Y - EDGEFLAG (glEdgeFlag) for PrimitiveType::kPolygon wireframe/point
   //     drawing.
-  // Z - KILLVERTEX flag (used in Banjo-Kazooie: Nuts & Bolts for grass), set
-  //     for killing primitives based on PA_CL_CLIP_CNTL::VTX_KILL_OR condition.
+  // Z - KILLVERTEX flag (used in 4D5307ED for grass), set for killing
+  //     primitives based on PA_CL_CLIP_CNTL::VTX_KILL_OR condition.
   kVSPointSizeEdgeFlagKillVertex = 63,
 
   kPSColor0 = 0,

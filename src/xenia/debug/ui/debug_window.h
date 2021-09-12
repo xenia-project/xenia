@@ -18,9 +18,9 @@
 #include "xenia/cpu/debug_listener.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
-#include "xenia/ui/loop.h"
 #include "xenia/ui/menu_item.h"
 #include "xenia/ui/window.h"
+#include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -31,11 +31,11 @@ class DebugWindow : public cpu::DebugListener {
  public:
   ~DebugWindow();
 
-  static std::unique_ptr<DebugWindow> Create(Emulator* emulator,
-                                             xe::ui::Loop* loop);
+  static std::unique_ptr<DebugWindow> Create(
+      Emulator* emulator, xe::ui::WindowedAppContext& app_context);
 
   Emulator* emulator() const { return emulator_; }
-  xe::ui::Loop* loop() const { return loop_; }
+  xe::ui::WindowedAppContext& app_context() const { return app_context_; }
   xe::ui::Window* window() const { return window_.get(); }
 
   void OnFocus() override;
@@ -48,7 +48,8 @@ class DebugWindow : public cpu::DebugListener {
                        cpu::ThreadDebugInfo* thread_info) override;
 
  private:
-  explicit DebugWindow(Emulator* emulator, xe::ui::Loop* loop);
+  explicit DebugWindow(Emulator* emulator,
+                       xe::ui::WindowedAppContext& app_context);
   bool Initialize();
 
   void DrawFrame();
@@ -86,9 +87,11 @@ class DebugWindow : public cpu::DebugListener {
   cpu::Breakpoint* LookupBreakpointAtAddress(
       cpu::Breakpoint::AddressType address_type, uint64_t address);
 
+  void Focus() const;
+
   Emulator* emulator_ = nullptr;
   cpu::Processor* processor_ = nullptr;
-  xe::ui::Loop* loop_ = nullptr;
+  xe::ui::WindowedAppContext& app_context_;
   std::unique_ptr<xe::ui::Window> window_;
   uint64_t last_draw_tick_count_ = 0;
 

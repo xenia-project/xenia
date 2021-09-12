@@ -64,14 +64,14 @@ bool GetPackedMipOffset(uint32_t width, uint32_t height, uint32_t depth,
 //   implies 32-block alignment for both uncompressed and compressed textures)
 //   stored in the fetch constant, and height aligned to 32 blocks for Z slice
 //   and array layer stride calculation purposes. The pitch can be different
-//   from the actual width - an example is Plants vs. Zombies, using 1408 pitch
-//   for a 1280x menu background).
+//   from the actual width - an example is 584109FF, using 1408 pitch for a
+//   1280x menu background).
 // - The mip levels use `max(next_pow2(width or height in texels) >> level, 1)`
 //   aligned to 32 blocks for the same purpose, likely disregarding the pitch
 //   from the fetch constant.
 //
 // There is also mip tail packing if the fetch constant specifies that packed
-// mips are enabled, for both tiled and linear textures (Prey uses linear
+// mips are enabled, for both tiled and linear textures (545407E0 uses linear
 // DXT-compressed textures with packed mips very extensively for the game world
 // materials). In this case, mips with width or height of 16 or smaller are
 // stored not individually, but instead, in 32-texel (note: not 32-block - mip
@@ -99,7 +99,7 @@ bool GetPackedMipOffset(uint32_t width, uint32_t height, uint32_t depth,
 // tail, and the offset calculation function doesn't have level == 0 checks in
 // it, only early-out if level < packed tail level (which can be 0). There are
 // examples of textures with packed base, for example, in the intro level of
-// Prey (8x8 linear DXT1 - pairs of orange lights in the bottom of gambling
+// 545407E0 (8x8 linear DXT1 - pairs of orange lights in the bottom of gambling
 // machines).
 //
 // Linear texture rows are aligned to 256 bytes, for both the base and the mips
@@ -107,22 +107,21 @@ bool GetPackedMipOffset(uint32_t width, uint32_t height, uint32_t depth,
 // fetch constant).
 //
 // However, all the 32x32x4 padding, being just padding, is not necessarily
-// being actually accessed, especially for linear textures. Ridge Racer
-// Unbounded has a 1280x720 k_8_8_8_8 linear texture, and allocates memory for
-// exactly 1280x720, so aligning the height to 32 to 1280x736 results in access
-// violations. So, while for stride calculations all the padding must be
-// respected, for actual memory loads it's better to avoid trying to access it
-// when possible:
+// being actually accessed, especially for linear textures. 4E4D083E has a
+// 1280x720 k_8_8_8_8 linear texture, and allocates memory for exactly 1280x720,
+// so aligning the height to 32 to 1280x736 results in access violations. So,
+// while for stride calculations all the padding must be respected, for actual
+// memory loads it's better to avoid trying to access it when possible:
 // - If the pitch is bigger than the width, it's better to calculate the last
 //   row's length from the width rather than the pitch (this also possibly works
 //   in the other direction though - pitch < width is a weird situation, but
 //   probably legal, and may lead to reading data from beyond the calculated
 //   subresource stride).
-// - For linear textures (like that 1280x720 example from Ridge Racer
-//   Unbounded), it's easy to calculate the exact memory extent that may be
-//   accessed knowing the dimensions (unlike for tiled textures with complex
-//   addressing within 32x32x4-block tiles), so there's no need to align them to
-//   32x32x4 for memory extent calculation.
+// - For linear textures (like that 1280x720 example from 4E4D083E), it's easy
+//   to calculate the exact memory extent that may be accessed knowing the
+//   dimensions (unlike for tiled textures with complex addressing within
+//   32x32x4-block tiles), so there's no need to align them to 32x32x4 for
+//   memory extent calculation.
 //   - For the linear packed mip tail, the extent can be calculated as max of
 //     (block offsets + block extents) of all levels stored in it.
 //
@@ -152,16 +151,16 @@ struct TextureGuestLayout {
     // tiled textures, this will be rounded to 32x32x4 blocks (or 32x32x1
     // depending on the dimension), but for the linear subresources, this may be
     // significantly (including less 4 KB pages) smaller than the aligned size
-    // (like for Ridge Racer Unbounded where aligning the height of a 1280x720
-    // linear texture results in access violations). For the linear mip tail,
-    // this includes all the mip levels stored in it. If the width is bigger
-    // than the pitch, this will also be taken into account for the last row so
-    // all memory actually used by the texture will be loaded, and may be bigger
-    // than the distance between array slices or levels. The purpose of this
-    // parameter is to make the memory amount that needs to be resident as close
-    // to the real amount as possible, to make sure all the needed data will be
-    // read, but also, if possible, unneeded memory pages won't be accessed
-    // (since that may trigger an access violation on the CPU).
+    // (like for 4E4D083E where aligning the height of a 1280x720 linear texture
+    // results in access violations). For the linear mip tail, this includes all
+    // the mip levels stored in it. If the width is bigger than the pitch, this
+    // will also be taken into account for the last row so all memory actually
+    // used by the texture will be loaded, and may be bigger than the distance
+    // between array slices or levels. The purpose of this parameter is to make
+    // the memory amount that needs to be resident as close to the real amount
+    // as possible, to make sure all the needed data will be read, but also, if
+    // possible, unneeded memory pages won't be accessed (since that may trigger
+    // an access violation on the CPU).
     uint32_t x_extent_blocks;
     uint32_t y_extent_blocks;
     uint32_t z_extent;

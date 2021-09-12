@@ -49,7 +49,7 @@ std::string D3D12GraphicsSystem::name() const {
 X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
                                     kernel::KernelState* kernel_state,
                                     ui::Window* target_window) {
-  provider_ = xe::ui::d3d12::D3D12Provider::Create(target_window);
+  provider_ = xe::ui::d3d12::D3D12Provider::Create();
   auto d3d12_provider = static_cast<xe::ui::d3d12::D3D12Provider*>(provider());
   auto device = d3d12_provider->GetDevice();
 

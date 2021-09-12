@@ -49,7 +49,7 @@ class VulkanProvider : public GraphicsProvider {
  public:
   ~VulkanProvider() override;
 
-  static std::unique_ptr<VulkanProvider> Create(Window* main_window);
+  static std::unique_ptr<VulkanProvider> Create();
 
   std::unique_ptr<GraphicsContext> CreateHostContext(
       Window* target_window) override;
@@ -269,7 +269,7 @@ class VulkanProvider : public GraphicsProvider {
   }
 
  private:
-  explicit VulkanProvider(Window* main_window);
+  VulkanProvider() = default;
 
   bool Initialize();
 

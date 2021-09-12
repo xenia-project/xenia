@@ -32,6 +32,7 @@
 #include "xenia/kernel/xthread.h"
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/windowed_app_context.h"
 
 DEFINE_bool(imgui_debug, false, "Show ImGui debugging tools.", "UI");
 
@@ -50,11 +51,12 @@ using xe::ui::UIEvent;
 
 const std::string kBaseTitle = "Xenia Debugger";
 
-DebugWindow::DebugWindow(Emulator* emulator, xe::ui::Loop* loop)
+DebugWindow::DebugWindow(Emulator* emulator,
+                         xe::ui::WindowedAppContext& app_context)
     : emulator_(emulator),
       processor_(emulator->processor()),
-      loop_(loop),
-      window_(xe::ui::Window::Create(loop_, kBaseTitle)) {
+      app_context_(app_context),
+      window_(xe::ui::Window::Create(app_context_, kBaseTitle)) {
   if (cs_open(CS_ARCH_X86, CS_MODE_64, &capstone_handle_) != CS_ERR_OK) {
     assert_always("Failed to initialize capstone");
   }
@@ -63,16 +65,18 @@ DebugWindow::DebugWindow(Emulator* emulator, xe::ui::Loop* loop)
 }
 
 DebugWindow::~DebugWindow() {
-  loop_->PostSynchronous([this]() { window_.reset(); });
+  // Make sure pending functions referencing the DebugWindow are executed.
+  app_context_.ExecutePendingFunctionsFromUIThread();
 
   if (capstone_handle_) {
     cs_close(&capstone_handle_);
   }
 }
 
-std::unique_ptr<DebugWindow> DebugWindow::Create(Emulator* emulator,
-                                                 xe::ui::Loop* loop) {
-  std::unique_ptr<DebugWindow> debug_window(new DebugWindow(emulator, loop));
+std::unique_ptr<DebugWindow> DebugWindow::Create(
+    Emulator* emulator, xe::ui::WindowedAppContext& app_context) {
+  std::unique_ptr<DebugWindow> debug_window(
+      new DebugWindow(emulator, app_context));
   if (!debug_window->Initialize()) {
     xe::FatalError("Failed to initialize debug window");
     return nullptr;
@@ -86,8 +90,6 @@ bool DebugWindow::Initialize() {
     XELOGE("Failed to initialize platform window");
     return false;
   }
-
-  loop_->on_quit.AddListener([this](UIEvent* e) { window_.reset(); });
 
   // Main menu.
   auto main_menu = MenuItem::Create(MenuItem::Type::kNormal);
@@ -1425,7 +1427,7 @@ void DebugWindow::UpdateCache() {
   auto kernel_state = emulator_->kernel_state();
   auto object_table = kernel_state->object_table();
 
-  loop_->Post([this]() {
+  app_context_.CallInUIThread([this]() {
     std::string title = kBaseTitle;
     switch (processor_->execution_state()) {
       case cpu::ExecutionState::kEnded:
@@ -1531,9 +1533,7 @@ Breakpoint* DebugWindow::LookupBreakpointAtAddress(
   }
 }
 
-void DebugWindow::OnFocus() {
-  loop_->Post([this]() { window_->set_focus(true); });
-}
+void DebugWindow::OnFocus() { Focus(); }
 
 void DebugWindow::OnDetached() {
   UpdateCache();
@@ -1546,30 +1546,34 @@ void DebugWindow::OnDetached() {
 
 void DebugWindow::OnExecutionPaused() {
   UpdateCache();
-  loop_->Post([this]() { window_->set_focus(true); });
+  Focus();
 }
 
 void DebugWindow::OnExecutionContinued() {
   UpdateCache();
-  loop_->Post([this]() { window_->set_focus(true); });
+  Focus();
 }
 
 void DebugWindow::OnExecutionEnded() {
   UpdateCache();
-  loop_->Post([this]() { window_->set_focus(true); });
+  Focus();
 }
 
 void DebugWindow::OnStepCompleted(cpu::ThreadDebugInfo* thread_info) {
   UpdateCache();
   SelectThreadStackFrame(thread_info, 0, true);
-  loop_->Post([this]() { window_->set_focus(true); });
+  Focus();
 }
 
 void DebugWindow::OnBreakpointHit(Breakpoint* breakpoint,
                                   cpu::ThreadDebugInfo* thread_info) {
   UpdateCache();
   SelectThreadStackFrame(thread_info, 0, true);
-  loop_->Post([this]() { window_->set_focus(true); });
+  Focus();
+}
+
+void DebugWindow::Focus() const {
+  app_context_.CallInUIThread([this]() { window_->set_focus(true); });
 }
 
 }  // namespace ui

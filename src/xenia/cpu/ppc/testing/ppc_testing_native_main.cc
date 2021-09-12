@@ -7,6 +7,8 @@
  ******************************************************************************
  */
 
+#include "xenia/base/console_app_main.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main.h"
@@ -23,6 +25,7 @@ DEFINE_string(test_path, "src/xenia/cpu/ppc/testing/",
               "Directory scanned for test files.");
 DEFINE_string(test_bin_path, "src/xenia/cpu/ppc/testing/bin/",
               "Directory with binary outputs of the test files.");
+DEFINE_transient_string(test_name, "", "Test suite name.", "General");
 
 extern "C" void xe_call_native(void* context, void* fn);
 
@@ -505,19 +508,13 @@ bool RunTests(const std::wstring& test_name) {
   return failed_count ? false : true;
 }
 
-int main(const std::vector<std::wstring>& args) {
-  // Grab test name, if present.
-  std::wstring test_name;
-  if (args.size() >= 2) {
-    test_name = args[1];
-  }
-
-  return RunTests(test_name) ? 0 : 1;
+int main(const std::vector<std::string>& args) {
+  return RunTests(cvars::test_name) ? 0 : 1;
 }
 
 }  // namespace test
 }  // namespace cpu
 }  // namespace xe
 
-DEFINE_ENTRY_POINT(L"xenia-cpu-ppc-test", L"xenia-cpu-ppc-test [test name]",
-                   xe::cpu::test::main);
+XE_DEFINE_CONSOLE_APP("xenia-cpu-ppc-test", xe::cpu::test::main, "[test name]",
+                      "test_name");

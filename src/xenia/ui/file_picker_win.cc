@@ -12,6 +12,9 @@
 #include "xenia/base/string.h"
 #include "xenia/ui/file_picker.h"
 
+// Microsoft headers after platform_win.h.
+#include <wrl/client.h>
+
 namespace xe {
 namespace ui {
 
@@ -106,32 +109,16 @@ Win32FilePicker::Win32FilePicker() = default;
 
 Win32FilePicker::~Win32FilePicker() = default;
 
-template <typename T>
-struct com_ptr {
-  com_ptr() : value(nullptr) {}
-  ~com_ptr() { reset(); }
-  void reset() {
-    if (value) {
-      value->Release();
-      value = nullptr;
-    }
-  }
-  operator T*() { return value; }
-  T* operator->() const { return value; }
-  T** addressof() { return &value; }
-  T* value;
-};
-
 bool Win32FilePicker::Show(void* parent_window_handle) {
   // TODO(benvanik): FileSaveDialog.
   assert_true(mode() == Mode::kOpen);
   // TODO(benvanik): folder dialogs.
   assert_true(type() == Type::kFile);
 
-  com_ptr<IFileDialog> file_dialog;
+  Microsoft::WRL::ComPtr<IFileDialog> file_dialog;
   HRESULT hr =
       CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER,
-                       IID_PPV_ARGS(file_dialog.addressof()));
+                       IID_PPV_ARGS(&file_dialog));
   if (!SUCCEEDED(hr)) {
     return false;
   }
@@ -180,14 +167,13 @@ bool Win32FilePicker::Show(void* parent_window_handle) {
   }
 
   // Create an event handling object, and hook it up to the dialog.
-  com_ptr<IFileDialogEvents> file_dialog_events;
-  hr = CDialogEventHandler_CreateInstance(
-      IID_PPV_ARGS(file_dialog_events.addressof()));
+  Microsoft::WRL::ComPtr<IFileDialogEvents> file_dialog_events;
+  hr = CDialogEventHandler_CreateInstance(IID_PPV_ARGS(&file_dialog_events));
   if (!SUCCEEDED(hr)) {
     return false;
   }
   DWORD cookie;
-  hr = file_dialog->Advise(file_dialog_events, &cookie);
+  hr = file_dialog->Advise(file_dialog_events.Get(), &cookie);
   if (!SUCCEEDED(hr)) {
     return false;
   }
@@ -201,8 +187,8 @@ bool Win32FilePicker::Show(void* parent_window_handle) {
 
   // Obtain the result once the user clicks the 'Open' button.
   // The result is an IShellItem object.
-  com_ptr<IShellItem> shell_item;
-  hr = file_dialog->GetResult(shell_item.addressof());
+  Microsoft::WRL::ComPtr<IShellItem> shell_item;
+  hr = file_dialog->GetResult(&shell_item);
   if (!SUCCEEDED(hr)) {
     return false;
   }

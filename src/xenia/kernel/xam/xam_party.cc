@@ -17,8 +17,7 @@ namespace kernel {
 namespace xam {
 
 dword_result_t XamPartyGetUserList(dword_t player_count, lpdword_t party_list) {
-  // Sonic & All-Stars Racing Transformed want specificly this code
-  // to skip loading party data.
+  // 5345085D wants specifically this code to skip loading party data.
   // This code is not documented in NT_STATUS code list
   return 0x807D0003;
 }

@@ -716,7 +716,7 @@ dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
         i,  // dummy image id
         0,
         {0, 0},
-        8};  // flags=8 makes dummy achievements show up in Crackdown's
+        8};  // flags=8 makes dummy achievements show up in 4D5307DC
              // achievements list.
     e->AppendItem(item);
   }

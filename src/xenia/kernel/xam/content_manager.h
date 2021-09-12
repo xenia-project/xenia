@@ -73,8 +73,8 @@ struct XCONTENT_DATA {
   }
 
   void set_display_name(const std::u16string_view value) {
-    // Some games (eg Goldeneye XBLA) require multiple null-terminators for it
-    // to read the string properly, blanking the array should take care of that
+    // Some games (e.g. 584108A9) require multiple null-terminators for it to
+    // read the string properly, blanking the array should take care of that
 
     std::fill_n(display_name_raw.chars, countof(display_name_raw.chars), 0);
     string_util::copy_and_swap_truncating(display_name_raw.chars, value,

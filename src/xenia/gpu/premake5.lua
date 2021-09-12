@@ -36,7 +36,7 @@ project("xenia-gpu-shader-compiler")
   })
   files({
     "shader_compiler_main.cc",
-    "../base/main_"..platform_suffix..".cc",
+    "../base/console_app_main_"..platform_suffix..".cc",
   })
 
   filter("platforms:Windows")
