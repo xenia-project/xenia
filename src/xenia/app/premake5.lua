@@ -50,8 +50,8 @@ project("xenia-app")
   local_platform_files()
   files({
     "xenia_main.cc",
-    "../base/main_"..platform_suffix..".cc",
     "../base/main_init_"..platform_suffix..".cc",
+    "../ui/windowed_app_main_"..platform_suffix..".cc",
   })
 
   resincludedirs({
@@ -71,7 +71,6 @@ project("xenia-app")
       "X11",
       "xcb",
       "X11-xcb",
-      "vulkan",
       "SDL2",
     })
 

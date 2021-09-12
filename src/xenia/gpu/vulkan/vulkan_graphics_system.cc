@@ -24,7 +24,7 @@ VulkanGraphicsSystem::~VulkanGraphicsSystem() {}
 X_STATUS VulkanGraphicsSystem::Setup(cpu::Processor* processor,
                                      kernel::KernelState* kernel_state,
                                      ui::Window* target_window) {
-  provider_ = xe::ui::vulkan::VulkanProvider::Create(target_window);
+  provider_ = xe::ui::vulkan::VulkanProvider::Create();
 
   return GraphicsSystem::Setup(processor, kernel_state, target_window);
 }

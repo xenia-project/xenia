@@ -47,8 +47,8 @@ void HandleSetThreadName(pointer_t<X_EXCEPTION_RECORD> record) {
     return;
   }
 
-  // Shadowrun (and its demo) has a bug where it ends up passing freed memory
-  // for the name, so at the point of SetThreadName it's filled with junk.
+  // 4D5307D6 (and its demo) has a bug where it ends up passing freed memory for
+  // the name, so at the point of SetThreadName it's filled with junk.
 
   // TODO(gibbed): cvar for thread name encoding for conversion, some games use
   // SJIS and there's no way to automatically know this.

@@ -2069,7 +2069,8 @@ int InstrEmit_vpkd3d128(PPCHIRBuilder& f, const InstrData& i) {
       v = f.Pack(v, PACK_TYPE_FLOAT16_4);
       break;
     case 6:  // VPACK_NORMPACKED64 4_20_20_20 w_z_y_x
-      // Used in 2K games like NBA 2K9, pretty rarely in general.
+      // Used in 54540829 and other installments in the series, pretty rarely in
+      // general.
       v = f.Pack(v, PACK_TYPE_ULONG_4202020);
       break;
     default:

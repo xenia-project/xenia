@@ -7,10 +7,10 @@
  ******************************************************************************
  */
 
+#include "xenia/base/console_app_main.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/main.h"
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/string_buffer.h"
@@ -483,5 +483,5 @@ int main(const std::vector<std::string>& args) {
 }  // namespace cpu
 }  // namespace xe
 
-DEFINE_ENTRY_POINT("xenia-cpu-ppc-test", xe::cpu::test::main, "[test name]",
-                   "test_name");
+XE_DEFINE_CONSOLE_APP("xenia-cpu-ppc-test", xe::cpu::test::main, "[test name]",
+                      "test_name");

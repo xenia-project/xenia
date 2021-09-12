@@ -388,8 +388,8 @@ void Shader::GatherAluInstructionInformation(
   // allocation in shader translator implementations.
   // eA is (hopefully) always written to using:
   // mad eA, r#, const0100, c#
-  // (though there are some exceptions, shaders in Halo 3 for some reason set eA
-  // to zeros, but the swizzle of the constant is not .xyzw in this case, and
+  // (though there are some exceptions, shaders in 4D5307E6 for some reason set
+  // eA to zeros, but the swizzle of the constant is not .xyzw in this case, and
   // they don't write to eM#).
   // Export is done to vector_dest of the ucode instruction for both vector and
   // scalar operations - no need to check separately.

@@ -287,8 +287,7 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
             dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY));
   // Choose in which 40-sample half of the tile the pixel is, for swapping
   // 40-sample columns when accessing the depth buffer - games expect this
-  // behavior when writing depth back to the EDRAM via color writing (GTA IV,
-  // Halo 3).
+  // behavior when writing depth back to the EDRAM via color writing (4D5307E6).
   // system_temp_rov_params_.x = tile-local sample 0 X >= 40
   // system_temp_rov_params_.y = row offset
   // system_temp_rov_params_.z = X sample 0 position within the tile
@@ -3282,7 +3281,7 @@ void DxbcShaderTranslator::ROV_DepthTo24Bit(uint32_t d24_temp,
              dxbc::Src::LF(float(0xFFFFFF)));
     // Round to the nearest even integer. This seems to be the correct way:
     // rounding towards zero gives 0xFF instead of 0x100 in clear shaders in,
-    // for instance, Halo 3, but other clear shaders in it are also broken if
+    // for instance, 4D5307E6, but other clear shaders in it are also broken if
     // 0.5 is added before ftou instead of round_ne.
     a_.OpRoundNE(d24_dest, d24_src);
     // Convert to fixed-point.

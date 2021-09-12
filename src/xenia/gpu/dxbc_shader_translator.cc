@@ -23,11 +23,12 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/graphics_provider.h"
 
+// The test case for AMD is 4D5307E6 (checked in 2018).
 DEFINE_bool(dxbc_switch, true,
             "Use switch rather than if for flow control. Turning this off or "
             "on may improve stability, though this heavily depends on the "
             "driver - on AMD, it's recommended to have this set to true, as "
-            "Halo 3 appears to crash when if is used for flow control "
+            "some titles appear to crash when if is used for flow control "
             "(possibly the shader compiler tries to flatten them). On Intel "
             "HD Graphics, this is ignored because of a crash with the switch "
             "instruction.",
@@ -398,7 +399,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       assert_true(register_count() >= 2);
       if (register_count() >= 1) {
         // Copy the domain location to r0.xyz.
-        // ZYX swizzle according to Call of Duty 3 and Viva Pinata.
+        // ZYX swizzle according to 415607E1 and 4D5307F2.
         in_domain_location_used_ |= 0b0111;
         a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 0, 0b0111)
                                                   : dxbc::Dest::R(0, 0b0111),
@@ -425,7 +426,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       if (register_count() >= 1) {
         // Copy the domain location to r0.xyz.
         // ZYX swizzle with r1.y == 0, according to the water shader in
-        // Banjo-Kazooie: Nuts & Bolts.
+        // 4D5307ED.
         in_domain_location_used_ |= 0b0111;
         a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 0, 0b0111)
                                                   : dxbc::Dest::R(0, 0b0111),
@@ -447,10 +448,10 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
           // appears that the tessellator offloads the reordering of coordinates
           // for edges to game shaders.
           //
-          // In Banjo-Kazooie: Nuts & Bolts, the water shader multiplies the
-          // first control point's position by r0.z, the second CP's by r0.y,
-          // and the third CP's by r0.x. But before doing that it swizzles
-          // r0.xyz the following way depending on the value in r1.y:
+          // In 4D5307ED, the water shader multiplies the first control point's
+          // position by r0.z, the second CP's by r0.y, and the third CP's by
+          // r0.x. But before doing that it swizzles r0.xyz the following way
+          // depending on the value in r1.y:
           // - ZXY for 1.0.
           // - YZX for 2.0.
           // - XZY for 4.0.
@@ -478,9 +479,9 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 0, 0b0011)
                                                   : dxbc::Dest::R(0, 0b0011),
                  dxbc::Src::VDomain());
-        // Control point indices according to the shader from the main menu of
-        // Defender, which starts from `cndeq r2, c255.xxxy, r1.xyzz, r0.zzzz`,
-        // where c255.x is 0, and c255.y is 1.
+        // Control point indices according the main menu of 58410823, with
+        // `cndeq r2, c255.xxxy, r1.xyzz, r0.zzzz` in the prologue of the
+        // shader, where c255.x is 0, and c255.y is 1.
         // r0.z for (1 - r0.x) * (1 - r0.y)
         // r1.x for r0.x * (1 - r0.y)
         // r1.y for r0.x * r0.y
@@ -509,7 +510,7 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
       assert_true(register_count() >= 2);
       if (register_count() >= 1) {
         // Copy the domain location to r0.yz.
-        // XY swizzle according to the ground shader in Viva Pinata.
+        // XY swizzle according to the ground shader in 4D5307F2.
         in_domain_location_used_ |= 0b0011;
         a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 0, 0b0110)
                                                   : dxbc::Dest::R(0, 0b0110),
@@ -530,9 +531,8 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
           // the tessellator offloads the reordering of coordinates for edges to
           // game shaders.
           //
-          // In Viva Pinata, if we assume that r0.y is U and r0.z is V, the
-          // factors each control point value is multiplied by are the
-          // following:
+          // In 4D5307F2, if we assume that r0.y is U and r0.z is V, the factors
+          // each control point value is multiplied by are the following:
           // - (1-u)*(1-v), u*(1-v), (1-u)*v, u*v for 0.0 (identity swizzle).
           // - u*(1-v), (1-u)*(1-v), u*v, (1-u)*v for 1.0 (YXWZ).
           // - u*v, (1-u)*v, u*(1-v), (1-u)*(1-v) for 2.0 (WZYX).
@@ -1452,7 +1452,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
       dest = dxbc::Dest::R(system_temp_point_size_edge_flag_kill_vertex_);
       break;
     case InstructionStorageTarget::kExportAddress:
-      // Validate memexport writes (Halo 3 has some weird invalid ones).
+      // Validate memexport writes (4D5307E6 has some completely invalid ones).
       if (!can_store_memexport_address || memexport_alloc_current_count_ == 0 ||
           memexport_alloc_current_count_ > Shader::kMaxMemExports ||
           system_temps_memexport_address_[memexport_alloc_current_count_ - 1] ==
@@ -1463,7 +1463,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
           system_temps_memexport_address_[memexport_alloc_current_count_ - 1]);
       break;
     case InstructionStorageTarget::kExportData: {
-      // Validate memexport writes (Halo 3 has some weird invalid ones).
+      // Validate memexport writes (4D5307E6 has some completely invalid ones).
       if (memexport_alloc_current_count_ == 0 ||
           memexport_alloc_current_count_ > Shader::kMaxMemExports ||
           system_temps_memexport_data_[memexport_alloc_current_count_ - 1]

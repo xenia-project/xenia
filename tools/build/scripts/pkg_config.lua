@@ -3,7 +3,7 @@
 pkg_config = {}
 
 function pkg_config.cflags(lib)
-  if os.istarget("windows") then
+  if not os.istarget("linux") then
     return
   end
   buildoptions({
@@ -12,7 +12,7 @@ function pkg_config.cflags(lib)
 end
 
 function pkg_config.lflags(lib)
-  if os.istarget("windows") then
+  if not os.istarget("linux") then
     return
   end
   linkoptions({
@@ -24,7 +24,9 @@ function pkg_config.lflags(lib)
   local output = ({os.outputof("pkg-config --libs-only-l "..lib)})[1]
   for k, flag in next, string.explode(output, " ") do
     -- remove "-l"
-    links(string.sub(flag, 3))
+    if flag ~= "" then
+        links(string.sub(flag, 3))
+    end
   end
 end
 

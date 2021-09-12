@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -12,7 +12,6 @@
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/main.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
 #include "xenia/ui/graphics_provider.h"
@@ -20,28 +19,29 @@
 #include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/virtual_key.h"
 #include "xenia/ui/window.h"
+#include "xenia/ui/window_demo.h"
 
 namespace xe {
 namespace ui {
 
-// Implemented in one of the window_*_demo.cc files under a subdir.
-std::unique_ptr<GraphicsProvider> CreateDemoGraphicsProvider(Window* window);
+WindowDemoApp::~WindowDemoApp() { Profiler::Shutdown(); }
 
-int window_demo_main(const std::vector<std::string>& args) {
+bool WindowDemoApp::OnInitialize() {
   Profiler::Initialize();
-  Profiler::ThreadEnter("main");
+  Profiler::ThreadEnter("Main");
 
-  // Create run loop and the window.
-  auto loop = ui::Loop::Create();
-  auto window = xe::ui::Window::Create(loop.get(), GetEntryInfo().name);
-  loop->PostSynchronous([&window]() {
-    xe::threading::set_name("Win32 Loop");
-    xe::Profiler::ThreadEnter("Win32 Loop");
-    if (!window->Initialize()) {
-      FatalError("Failed to initialize main window");
-      return;
-    }
-  });
+  // Create graphics provider that provides the context for the window.
+  graphics_provider_ = CreateGraphicsProvider();
+  if (!graphics_provider_) {
+    return false;
+  }
+
+  // Create the window.
+  window_ = xe::ui::Window::Create(app_context(), GetName());
+  if (!window_->Initialize()) {
+    XELOGE("Failed to initialize main window");
+    return false;
+  }
 
   // Main menu.
   auto main_menu = MenuItem::Create(MenuItem::Type::kNormal);
@@ -49,7 +49,7 @@ int window_demo_main(const std::vector<std::string>& args) {
   {
     file_menu->AddChild(MenuItem::Create(MenuItem::Type::kString, "&Close",
                                          "Alt+F4",
-                                         [&window]() { window->Close(); }));
+                                         [this]() { window_->Close(); }));
   }
   main_menu->AddChild(std::move(file_menu));
   auto debug_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Debug");
@@ -62,37 +62,28 @@ int window_demo_main(const std::vector<std::string>& args) {
                                           []() { Profiler::TogglePause(); }));
   }
   main_menu->AddChild(std::move(debug_menu));
-  window->set_main_menu(std::move(main_menu));
+  window_->set_main_menu(std::move(main_menu));
 
   // Initial size setting, done here so that it knows the menu exists.
-  window->Resize(1920, 1200);
+  window_->Resize(1920, 1200);
 
-  // Create the graphics context used for drawing and setup the window.
-  std::unique_ptr<GraphicsProvider> graphics_provider;
-  loop->PostSynchronous([&window, &graphics_provider]() {
-    // Create graphics provider and an initial context for the window.
-    // The window will finish initialization wtih the context (loading
-    // resources, etc).
-    graphics_provider = CreateDemoGraphicsProvider(window.get());
-    window->set_context(graphics_provider->CreateHostContext(window.get()));
+  // Create the graphics context for the window. The window will finish
+  // initialization with the context (loading resources, etc).
+  window_->set_context(graphics_provider_->CreateHostContext(window_.get()));
 
-    // Setup the profiler display.
-    GraphicsContextLock context_lock(window->context());
-    Profiler::set_window(window.get());
+  // Setup the profiler display.
+  GraphicsContextLock context_lock(window_->context());
+  Profiler::set_window(window_.get());
 
-    // Enable imgui input.
-    window->set_imgui_input_enabled(true);
+  // Enable imgui input.
+  window_->set_imgui_input_enabled(true);
+
+  window_->on_closed.AddListener([this](xe::ui::UIEvent* e) {
+    XELOGI("User-initiated death!");
+    app_context().QuitFromUIThread();
   });
 
-  window->on_closed.AddListener(
-      [&loop, &window, &graphics_provider](xe::ui::UIEvent* e) {
-        loop->Quit();
-        Profiler::Shutdown();
-        XELOGI("User-initiated death!");
-      });
-  loop->on_quit.AddListener([&window](xe::ui::UIEvent* e) { window.reset(); });
-
-  window->on_key_down.AddListener([](xe::ui::KeyEvent* e) {
+  window_->on_key_down.AddListener([](xe::ui::KeyEvent* e) {
     switch (e->virtual_key()) {
       case VirtualKey::kF3:
         Profiler::ToggleDisplay();
@@ -102,23 +93,19 @@ int window_demo_main(const std::vector<std::string>& args) {
     }
   });
 
-  window->on_painting.AddListener([&](xe::ui::UIEvent* e) {
-    auto& io = window->imgui_drawer()->GetIO();
+  window_->on_painting.AddListener([this](xe::ui::UIEvent* e) {
+    auto& io = window_->imgui_drawer()->GetIO();
 
     ImGui::ShowDemoWindow();
     ImGui::ShowMetricsWindow();
 
+    Profiler::Flip();
+
     // Continuous paint.
-    window->Invalidate();
+    window_->Invalidate();
   });
 
-  // Wait until we are exited.
-  loop->AwaitQuit();
-
-  window.reset();
-  loop.reset();
-  graphics_provider.reset();
-  return 0;
+  return true;
 }
 
 }  // namespace ui

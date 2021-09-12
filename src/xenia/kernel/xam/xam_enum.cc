@@ -40,10 +40,9 @@ uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, lpvoid_t buffer_ptr,
   auto run = [e, buffer_ptr](uint32_t& extended_error,
                              uint32_t& length) -> X_RESULT {
     X_RESULT result;
-    uint32_t item_count;
+    uint32_t item_count = 0;
     if (!buffer_ptr) {
       result = X_ERROR_INVALID_PARAMETER;
-      item_count = 0;
     } else {
       result = e->WriteItems(buffer_ptr.guest_address(),
                              buffer_ptr.as<uint8_t*>(), &item_count);

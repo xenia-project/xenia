@@ -738,7 +738,7 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
       break;
     }
     case PM4_WAIT_FOR_IDLE: {
-      // This opcode is used by "Duke Nukem Forever" while going/being ingame
+      // This opcode is used by 5454084E while going / being ingame.
       assert_true(count == 1);
       uint32_t value = reader->ReadAndSwap<uint32_t>();
       XELOGGPU("GPU wait for idle = {:08X}", value);
@@ -1168,7 +1168,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(RingBuffer* reader,
     // and used to detect a finished query.
     bool is_end_via_z_pass = pSampleCounts->ZPass_A == kQueryFinished &&
                              pSampleCounts->ZPass_B == kQueryFinished;
-    // Older versions of D3D also checks for ZFail (First Gears of War)
+    // Older versions of D3D also checks for ZFail (4D5307D5).
     bool is_end_via_z_fail = pSampleCounts->ZFail_A == kQueryFinished &&
                              pSampleCounts->ZFail_B == kQueryFinished;
     std::memset(pSampleCounts, 0, sizeof(xe_gpu_depth_sample_counts));

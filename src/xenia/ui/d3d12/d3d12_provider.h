@@ -27,7 +27,7 @@ class D3D12Provider : public GraphicsProvider {
 
   static bool IsD3D12APIAvailable();
 
-  static std::unique_ptr<D3D12Provider> Create(Window* main_window);
+  static std::unique_ptr<D3D12Provider> Create();
 
   std::unique_ptr<GraphicsContext> CreateHostContext(
       Window* target_window) override;
@@ -147,7 +147,7 @@ class D3D12Provider : public GraphicsProvider {
   }
 
  private:
-  explicit D3D12Provider(Window* main_window);
+  D3D12Provider() = default;
 
   static bool EnableIncreaseBasePriorityPrivilege();
   bool Initialize();

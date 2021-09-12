@@ -47,8 +47,8 @@ bool D3D12Provider::IsD3D12APIAvailable() {
   return true;
 }
 
-std::unique_ptr<D3D12Provider> D3D12Provider::Create(Window* main_window) {
-  std::unique_ptr<D3D12Provider> provider(new D3D12Provider(main_window));
+std::unique_ptr<D3D12Provider> D3D12Provider::Create() {
+  std::unique_ptr<D3D12Provider> provider(new D3D12Provider);
   if (!provider->Initialize()) {
     xe::FatalError(
         "Unable to initialize Direct3D 12 graphics subsystem.\n"
@@ -62,9 +62,6 @@ std::unique_ptr<D3D12Provider> D3D12Provider::Create(Window* main_window) {
   }
   return provider;
 }
-
-D3D12Provider::D3D12Provider(Window* main_window)
-    : GraphicsProvider(main_window) {}
 
 D3D12Provider::~D3D12Provider() {
   if (graphics_analysis_ != nullptr) {

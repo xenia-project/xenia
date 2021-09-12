@@ -26,7 +26,7 @@ X_STATUS NullGraphicsSystem::Setup(cpu::Processor* processor,
                                    ui::Window* target_window) {
   // This is a null graphics system, but we still setup vulkan because UI needs
   // it through us :|
-  provider_ = xe::ui::vulkan::VulkanProvider::Create(target_window);
+  provider_ = xe::ui::vulkan::VulkanProvider::Create();
 
   return GraphicsSystem::Setup(processor, kernel_state, target_window);
 }

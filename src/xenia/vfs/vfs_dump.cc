@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -11,8 +11,9 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/console_app_main.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/main.h"
 #include "xenia/base/math.h"
 
 #include "xenia/vfs/devices/stfs_container_device.h"
@@ -113,5 +114,5 @@ int vfs_dump_main(const std::vector<std::string>& args) {
 }  // namespace vfs
 }  // namespace xe
 
-DEFINE_ENTRY_POINT("xenia-vfs-dump", xe::vfs::vfs_dump_main,
-                   "[source] [dump_path]", "source", "dump_path");
+XE_DEFINE_CONSOLE_APP("xenia-vfs-dump", xe::vfs::vfs_dump_main,
+                      "[source] [dump_path]", "source", "dump_path");

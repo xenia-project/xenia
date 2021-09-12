@@ -18,16 +18,19 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/platform_win.h"
 #include "xenia/ui/virtual_key.h"
+#include "xenia/ui/windowed_app_context_win.h"
 
 namespace xe {
 namespace ui {
 
-std::unique_ptr<Window> Window::Create(Loop* loop, const std::string& title) {
-  return std::make_unique<Win32Window>(loop, title);
+std::unique_ptr<Window> Window::Create(WindowedAppContext& app_context,
+                                       const std::string& title) {
+  return std::make_unique<Win32Window>(app_context, title);
 }
 
-Win32Window::Win32Window(Loop* loop, const std::string& title)
-    : Window(loop, title) {}
+Win32Window::Win32Window(WindowedAppContext& app_context,
+                         const std::string& title)
+    : Window(app_context, title) {}
 
 Win32Window::~Win32Window() {
   OnDestroy();
@@ -43,37 +46,32 @@ Win32Window::~Win32Window() {
 }
 
 NativePlatformHandle Win32Window::native_platform_handle() const {
-  return ::GetModuleHandle(nullptr);
+  return static_cast<const Win32WindowedAppContext&>(app_context()).hinstance();
 }
 
 bool Win32Window::Initialize() { return OnCreate(); }
 
 bool Win32Window::OnCreate() {
-  HINSTANCE hInstance = GetModuleHandle(nullptr);
+  HINSTANCE hInstance =
+      static_cast<const Win32WindowedAppContext&>(app_context()).hinstance();
 
-  if (!SetProcessDpiAwareness_ || !GetDpiForMonitor_) {
+  // Per-monitor DPI awareness is expected to be enabled via the manifest, as
+  // that's the recommended way, which also doesn't require calling
+  // SetProcessDpiAwareness before doing anything that may depend on DPI
+  // awareness (so it's safe to use any Windows APIs before this code).
+  // TODO(Triang3l): Safe handling of per-monitor DPI awareness v2, with
+  // automatic scaling on DPI change.
+  if (!GetDpiForMonitor_) {
     auto shcore = GetModuleHandleW(L"shcore.dll");
     if (shcore) {
-      SetProcessDpiAwareness_ =
-          GetProcAddress(shcore, "SetProcessDpiAwareness");
       GetDpiForMonitor_ = GetProcAddress(shcore, "GetDpiForMonitor");
     }
   }
 
   static bool has_registered_class = false;
   if (!has_registered_class) {
-    // Tell Windows that we're DPI aware.
-    if (SetProcessDpiAwareness_) {
-      auto spda = (decltype(&SetProcessDpiAwareness))SetProcessDpiAwareness_;
-      auto res = spda(PROCESS_PER_MONITOR_DPI_AWARE);
-      if (res != S_OK) {
-        XELOGW("Failed to set process DPI awareness. (code = 0x{:08X})",
-               static_cast<uint32_t>(res));
-      }
-    }
-
-    WNDCLASSEX wcex;
-    wcex.cbSize = sizeof(WNDCLASSEX);
+    WNDCLASSEXW wcex;
+    wcex.cbSize = sizeof(wcex);
     wcex.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
     wcex.lpfnWndProc = Win32Window::WndProcThunk;
     wcex.cbClsExtra = 0;
@@ -85,7 +83,7 @@ bool Win32Window::OnCreate() {
     wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wcex.lpszMenuName = nullptr;
     wcex.lpszClassName = L"XeniaWindowClass";
-    if (!RegisterClassEx(&wcex)) {
+    if (!RegisterClassExW(&wcex)) {
       XELOGE("RegisterClassEx failed");
       return false;
     }
@@ -216,7 +214,9 @@ bool Win32Window::SetIcon(const void* buffer, size_t size) {
   }
 
   // Reset icon to default.
-  auto default_icon = LoadIconW(GetModuleHandle(nullptr), L"MAINICON");
+  auto default_icon = LoadIconW(
+      static_cast<const Win32WindowedAppContext&>(app_context()).hinstance(),
+      L"MAINICON");
   SendMessageW(hwnd_, WM_SETICON, ICON_BIG,
                reinterpret_cast<LPARAM>(default_icon));
   SendMessageW(hwnd_, WM_SETICON, ICON_SMALL,
@@ -316,13 +316,22 @@ void Win32Window::set_bordered(bool enabled) {
 }
 
 int Win32Window::get_dpi() const {
+  // TODO(Triang3l): Cache until WM_DPICHANGED is received (which, with
+  // per-monitor awareness v2 will also receive the new suggested window size).
+  // According to MSDN, x and y are identical.
+
   if (!GetDpiForMonitor_) {
-    return 96;
+    HDC screen_hdc = GetDC(nullptr);
+    if (!screen_hdc) {
+      return get_medium_dpi();
+    }
+    int logical_pixels_x = GetDeviceCaps(screen_hdc, LOGPIXELSX);
+    ReleaseDC(nullptr, screen_hdc);
+    return logical_pixels_x;
   }
 
   HMONITOR monitor = MonitorFromWindow(hwnd_, MONITOR_DEFAULTTOPRIMARY);
 
-  // According to msdn, x and y are identical...
   UINT dpi_x, dpi_y;
   auto gdfm = (decltype(&GetDpiForMonitor))GetDpiForMonitor_;
   gdfm(monitor, MDT_DEFAULT, &dpi_x, &dpi_y);
@@ -447,6 +456,7 @@ void Win32Window::Close() {
   closing_ = true;
   OnClose();
   DestroyWindow(hwnd_);
+  hwnd_ = nullptr;
 }
 
 void Win32Window::OnMainMenuChange() {

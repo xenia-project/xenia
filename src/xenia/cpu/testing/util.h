@@ -12,7 +12,6 @@
 
 #include <vector>
 
-#include "xenia/base/main.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/ppc/ppc_context.h"

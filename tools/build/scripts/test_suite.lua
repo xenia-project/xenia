@@ -31,7 +31,7 @@ local function combined_test_suite(test_suite_name, project_root, base_path, con
     })
     files({
       project_root.."/"..build_tools_src.."/test_suite_main.cc",
-      project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
+      project_root.."/src/xenia/base/console_app_main_"..platform_suffix..".cc",
       base_path.."/**_test.cc",
     })
     filter("toolset:msc")

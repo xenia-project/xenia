@@ -13,9 +13,9 @@
 #include <memory>
 #include <string>
 
-#include "xenia/ui/loop.h"
 #include "xenia/ui/menu_item.h"
 #include "xenia/ui/window.h"
+#include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -27,12 +27,11 @@ namespace app {
 
 class EmulatorWindow {
  public:
-  virtual ~EmulatorWindow();
-
-  static std::unique_ptr<EmulatorWindow> Create(Emulator* emulator);
+  static std::unique_ptr<EmulatorWindow> Create(
+      Emulator* emulator, ui::WindowedAppContext& app_context);
 
   Emulator* emulator() const { return emulator_; }
-  ui::Loop* loop() const { return loop_.get(); }
+  ui::WindowedAppContext& app_context() const { return app_context_; }
   ui::Window* window() const { return window_.get(); }
 
   void UpdateTitle();
@@ -40,7 +39,8 @@ class EmulatorWindow {
   void SetInitializingShaderStorage(bool initializing);
 
  private:
-  explicit EmulatorWindow(Emulator* emulator);
+  explicit EmulatorWindow(Emulator* emulator,
+                          ui::WindowedAppContext& app_context);
 
   bool Initialize();
 
@@ -60,7 +60,7 @@ class EmulatorWindow {
   void ShowCommitID();
 
   Emulator* emulator_;
-  std::unique_ptr<ui::Loop> loop_;
+  ui::WindowedAppContext& app_context_;
   std::unique_ptr<ui::Window> window_;
   std::string base_title_;
   uint64_t cursor_hide_time_ = 0;

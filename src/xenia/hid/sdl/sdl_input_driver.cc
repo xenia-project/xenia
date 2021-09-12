@@ -22,6 +22,7 @@
 #include "xenia/hid/hid_flags.h"
 #include "xenia/ui/virtual_key.h"
 #include "xenia/ui/window.h"
+#include "xenia/ui/windowed_app_context.h"
 
 // TODO(joellinn) make this path relative to the config folder.
 DEFINE_path(mappings_file, "gamecontrollerdb.txt",
@@ -43,6 +44,12 @@ SDLInputDriver::SDLInputDriver(xe::ui::Window* window)
       keystroke_states_() {}
 
 SDLInputDriver::~SDLInputDriver() {
+  // Make sure the CallInUIThread is executed before destroying the references.
+  if (sdl_pumpevents_queued_) {
+    window()->app_context().CallInUIThreadSynchronous([this]() {
+      window()->app_context().ExecutePendingFunctionsFromUIThread();
+    });
+  }
   for (size_t i = 0; i < controllers_.size(); i++) {
     if (controllers_.at(i).sdl) {
       SDL_GameControllerClose(controllers_.at(i).sdl);
@@ -65,8 +72,9 @@ X_STATUS SDLInputDriver::Setup() {
   }
 
   // SDL_PumpEvents should only be run in the thread that initialized SDL - we
-  // are hijacking the window loop thread for that.
-  window()->loop()->PostSynchronous([&]() {
+  // are hijacking the UI thread for that. If this function fails to be queued,
+  // the "initialized" variables will be false - that's handled safely.
+  window()->app_context().CallInUIThreadSynchronous([this]() {
     if (!xe::helper::sdl::SDLHelper::Prepare()) {
       return;
     }
@@ -129,7 +137,9 @@ X_STATUS SDLInputDriver::Setup() {
       }
     }
   });
-  return sdl_events_initialized_ && sdl_gamecontroller_initialized_;
+  return (sdl_events_initialized_ && sdl_gamecontroller_initialized_)
+             ? X_STATUS_SUCCESS
+             : X_STATUS_UNSUCCESSFUL;
 }
 
 X_RESULT SDLInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
@@ -344,7 +354,7 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
         if (!(butts_changed & fbutton)) {
           continue;
         }
-        ui::VirtualKey vk = kVkLookup.at(last.repeat_butt_idx);
+        ui::VirtualKey vk = kVkLookup.at(i);
         if (vk == ui::VirtualKey::kNone) {
           continue;
         }
@@ -693,7 +703,7 @@ void SDLInputDriver::QueueControllerUpdate() {
   bool is_queued = false;
   sdl_pumpevents_queued_.compare_exchange_strong(is_queued, true);
   if (!is_queued) {
-    window()->loop()->Post([this]() {
+    window()->app_context().CallInUIThread([this]() {
       SDL_PumpEvents();
       sdl_pumpevents_queued_ = false;
     });

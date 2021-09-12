@@ -1567,7 +1567,8 @@ bool PipelineCache::GetCurrentStateDescription(
         /* 16 */ PipelineBlendFactor::kSrcAlphaSat,
     };
     // Like kBlendFactorMap, but with color modes changed to alpha. Some
-    // pipelines aren't created in Prey because a color mode is used for alpha.
+    // pipelines aren't created in 545407E0 because a color mode is used for
+    // alpha.
     static const PipelineBlendFactor kBlendFactorAlphaMap[32] = {
         /*  0 */ PipelineBlendFactor::kZero,
         /*  1 */ PipelineBlendFactor::kOne,
@@ -1599,7 +1600,7 @@ bool PipelineCache::GetCurrentStateDescription(
     // have their sample count matching the one set in the pipeline - however if
     // we set NumRenderTargets to 0 and also disable depth / stencil, the sample
     // count must be set to 1 - while the command list may still have
-    // multisampled render targets bound (happens in Halo 3 main menu).
+    // multisampled render targets bound (happens in 4D5307E6 main menu).
     // TODO(Triang3l): Investigate interaction of OMSetRenderTargets with
     // non-null depth and DSVFormat DXGI_FORMAT_UNKNOWN in the same case.
     for (uint32_t i = 0; i < 4; ++i) {
@@ -2005,7 +2006,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
           state_desc.BlendState.RenderTarget[i];
       // Treat 1 * src + 0 * dest as disabled blending (there are opaque
       // surfaces drawn with blending enabled, but it's 1 * src + 0 * dest, in
-      // Call of Duty 4 - GPU performance is better when not blending.
+      // 415607E6 - GPU performance is better when not blending.
       if (rt.src_blend != PipelineBlendFactor::kOne ||
           rt.dest_blend != PipelineBlendFactor::kZero ||
           rt.blend_op != xenos::BlendOp::kAdd ||

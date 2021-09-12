@@ -7,11 +7,12 @@
  ******************************************************************************
  */
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <vector>
 
-#include "xenia/base/main.h"
 #include "xenia/base/math.h"
-#include "xenia/base/string.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/fs/filesystem.h"
 #include "xenia/kernel/objects/xfile.h"

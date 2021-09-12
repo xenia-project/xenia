@@ -14,8 +14,8 @@
 #define UTF_CPP_CPLUSPLUS 201703L
 #include "third_party/utfcpp/source/utf8.h"
 
+#include "xenia/base/console.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/main.h"
 #include "xenia/base/system.h"
 
 namespace utfcpp = utf8;

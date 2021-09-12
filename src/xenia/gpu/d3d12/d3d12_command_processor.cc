@@ -1662,7 +1662,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
         gamma_ramp_upload_mapping_ + gamma_ramp_footprint.Offset);
     for (uint32_t i = 0; i < 256; ++i) {
       uint32_t value = gamma_ramp_.normal[i].value;
-      // Swap red and blue (Project Sylpheed has settings allowing separate
+      // Swap red and blue (535107D4 has settings allowing separate
       // configuration).
       mapping[i] = ((value & 1023) << 20) | (value & (1023 << 10)) |
                    ((value >> 20) & 1023);
@@ -2076,7 +2076,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
           memexport_stream.index_count * memexport_format_size;
       // Try to reduce the number of shared memory operations when writing
       // different elements into the same buffer through different exports
-      // (happens in Halo 3).
+      // (happens in 4D5307E6).
       bool memexport_range_reused = false;
       for (uint32_t i = 0; i < memexport_range_count; ++i) {
         MemExportRange& memexport_range = memexport_ranges[i];
@@ -2878,8 +2878,9 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   // Get the color info register values for each render target. Also, for ROV,
   // exclude components that don't exist in the format from the write mask.
   // Don't exclude fully overlapping render targets, however - two render
-  // targets with the same base address are used in the lighting pass of Halo 3,
-  // for example, with the needed one picked with dynamic control flow.
+  // targets with the same base address are used in the lighting pass of
+  // 4D5307E6, for example, with the needed one picked with dynamic control
+  // flow.
   reg::RB_COLOR_INFO color_infos[4];
   float rt_clamp[4][4];
   uint32_t rt_keep_masks[4][2];
@@ -2898,8 +2899,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   }
 
   // Disable depth and stencil if it aliases a color render target (for
-  // instance, during the XBLA logo in Banjo-Kazooie, though depth writing is
-  // already disabled there).
+  // instance, during the XBLA logo in 58410954, though depth writing is already
+  // disabled there).
   bool depth_stencil_enabled =
       rb_depthcontrol.stencil_enable || rb_depthcontrol.z_enable;
   if (edram_rov_used && depth_stencil_enabled) {

@@ -36,9 +36,6 @@ class GraphicsProvider {
 
   virtual ~GraphicsProvider() = default;
 
-  // The 'main' window of an application, used to query provider information.
-  Window* main_window() const { return main_window_; }
-
   // Creates a new host-side graphics context and swapchain, possibly presenting
   // to a window and using the immediate drawer.
   virtual std::unique_ptr<GraphicsContext> CreateHostContext(
@@ -48,9 +45,7 @@ class GraphicsProvider {
   virtual std::unique_ptr<GraphicsContext> CreateEmulationContext() = 0;
 
  protected:
-  explicit GraphicsProvider(Window* main_window) : main_window_(main_window) {}
-
-  Window* main_window_ = nullptr;
+  GraphicsProvider() = default;
 };
 
 }  // namespace ui
