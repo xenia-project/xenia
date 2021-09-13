@@ -7,11 +7,11 @@
  ******************************************************************************
  */
 
+#include "xenia/base/clock.h"
 #include "xenia/base/platform.h"
 
-#if XE_ARCH_AMD64
+#if XE_ARCH_AMD64 && XE_CLOCK_RAW_AVAILABLE
 
-#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 
 // Wrap all these different cpu compiler intrinsics.

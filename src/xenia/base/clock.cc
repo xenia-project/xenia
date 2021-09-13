@@ -109,18 +109,20 @@ inline uint64_t QueryGuestSystemTimeOffset() {
 }
 
 uint64_t Clock::QueryHostTickFrequency() {
+#if XE_CLOCK_RAW_AVAILABLE
   if (cvars::clock_source_raw) {
     return host_tick_frequency_raw();
-  } else {
-    return host_tick_frequency_platform();
   }
+#endif
+  return host_tick_frequency_platform();
 }
 uint64_t Clock::QueryHostTickCount() {
+#if XE_CLOCK_RAW_AVAILABLE
   if (cvars::clock_source_raw) {
     return host_tick_count_raw();
-  } else {
-    return host_tick_count_platform();
   }
+#endif
+  return host_tick_count_platform();
 }
 
 double Clock::guest_time_scalar() { return guest_time_scalar_; }
