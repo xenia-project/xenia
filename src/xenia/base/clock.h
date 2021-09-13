@@ -13,6 +13,11 @@
 #include <cstdint>
 
 #include "xenia/base/cvar.h"
+#include "xenia/base/platform.h"
+
+#if XE_ARCH_AMD64
+#define XE_CLOCK_RAW_AVAILABLE 1
+#endif
 
 DECLARE_bool(clock_no_scaling);
 DECLARE_bool(clock_source_raw);
@@ -24,10 +29,14 @@ class Clock {
   // Host ticks-per-second. Generally QueryHostTickFrequency should be used.
   // Either from platform suplied time source or from hardware directly.
   static uint64_t host_tick_frequency_platform();
+#if XE_CLOCK_RAW_AVAILABLE
   static uint64_t host_tick_frequency_raw();
+#endif
   // Host tick count. Generally QueryHostTickCount() should be used.
   static uint64_t host_tick_count_platform();
+#if XE_CLOCK_RAW_AVAILABLE
   static uint64_t host_tick_count_raw();
+#endif
 
   // Queries the host tick frequency.
   static uint64_t QueryHostTickFrequency();
