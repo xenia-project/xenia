@@ -25,9 +25,15 @@
 #include <vector>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/platform.h"
 
 namespace xe {
 namespace threading {
+
+#if XE_PLATFORM_ANDROID
+void AndroidInitialize();
+void AndroidShutdown();
+#endif
 
 // This is more like an Event with self-reset when returning from Wait()
 class Fence {

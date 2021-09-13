@@ -12,21 +12,51 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <cstddef>
 
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/string.h"
 
 #if XE_PLATFORM_ANDROID
+#include <dlfcn.h>
 #include <linux/ashmem.h>
 #include <string.h>
 #include <sys/ioctl.h>
 
-#include "xenia/base/platform_android.h"
+#include "xenia/base/main_android.h"
 #endif
 
 namespace xe {
 namespace memory {
+
+#if XE_PLATFORM_ANDROID
+// May be null if no dynamically loaded functions are required.
+static void* libandroid_;
+// API 26+.
+static int (*android_ASharedMemory_create_)(const char* name, size_t size);
+
+void AndroidInitialize() {
+  if (xe::GetAndroidApiLevel() >= 26) {
+    libandroid_ = dlopen("libandroid.so", RTLD_NOW);
+    assert_not_null(libandroid_);
+    if (libandroid_) {
+      android_ASharedMemory_create_ =
+          reinterpret_cast<decltype(android_ASharedMemory_create_)>(
+              dlsym(libandroid_, "ASharedMemory_create"));
+      assert_not_null(android_ASharedMemory_create_);
+    }
+  }
+}
+
+void AndroidShutdown() {
+  android_ASharedMemory_create_ = nullptr;
+  if (libandroid_) {
+    dlclose(libandroid_);
+    libandroid_ = nullptr;
+  }
+}
+#endif
 
 size_t page_size() { return getpagesize(); }
 size_t allocation_granularity() { return page_size(); }
@@ -86,11 +116,9 @@ FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
                                           size_t length, PageAccess access,
                                           bool commit) {
 #if XE_PLATFORM_ANDROID
-  if (xe::platform::android::api_level() >= 26) {
-    // TODO(Triang3l): Check if memfd can be used instead on API 30+.
-    int sharedmem_fd =
-        xe::platform::android::api_functions().api_26.ASharedMemory_create(
-            path.c_str(), length);
+  // TODO(Triang3l): Check if memfd can be used instead on API 30+.
+  if (android_ASharedMemory_create_) {
+    int sharedmem_fd = android_ASharedMemory_create_(path.c_str(), length);
     return sharedmem_fd >= 0 ? sharedmem_fd : kFileMappingHandleInvalid;
   }
 
