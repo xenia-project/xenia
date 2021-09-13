@@ -18,6 +18,7 @@
 namespace xe {
 namespace ui {
 
+class AndroidWindow;
 class WindowedApp;
 
 class AndroidWindowedAppContext final : public WindowedAppContext {
@@ -39,6 +40,13 @@ class AndroidWindowedAppContext final : public WindowedAppContext {
 
   void PlatformQuitFromUIThread() override;
 
+  // The single Window instance that will be receiving window callbacks.
+  // Multiple windows cannot be created as one activity or fragment can have
+  // only one layout. This window acts purely as a proxy between the activity
+  // and the Xenia logic.
+  AndroidWindow* GetActivityWindow() const { return activity_window_; }
+  void SetActivityWindow(AndroidWindow* window) { activity_window_ = window; }
+
  private:
   explicit AndroidWindowedAppContext(ANativeActivity* activity);
   bool InitializeApp(std::unique_ptr<WindowedApp> (*app_creator)(
@@ -49,6 +57,8 @@ class AndroidWindowedAppContext final : public WindowedAppContext {
   // anymore as its functionality is heavily limited.
   ANativeActivity* activity_;
   std::unique_ptr<WindowedApp> app_;
+
+  AndroidWindow* activity_window_ = nullptr;
 
   // TODO(Triang3l): The rest of the context, including quit handler (and the
   // destructor) calling `finish` on the activity, UI looper notification

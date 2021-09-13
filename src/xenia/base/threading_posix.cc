@@ -21,19 +21,50 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <array>
+#include <cstddef>
 #include <cstring>
 #include <ctime>
 #include <memory>
 
 #if XE_PLATFORM_ANDROID
+#include <dlfcn.h>
 #include <sched.h>
 
-#include "xenia/base/platform_android.h"
+#include "xenia/base/main_android.h"
 #include "xenia/base/string_util.h"
 #endif
 
 namespace xe {
 namespace threading {
+
+#if XE_PLATFORM_ANDROID
+// May be null if no dynamically loaded functions are required.
+static void* android_libc_;
+// API 26+.
+static int (*android_pthread_getname_np_)(pthread_t pthread, char* buf,
+                                          size_t n);
+
+void AndroidInitialize() {
+  if (xe::GetAndroidApiLevel() >= 26) {
+    android_libc_ = dlopen("libc.so", RTLD_NOW);
+    assert_not_null(android_libc_);
+    if (android_libc_) {
+      android_pthread_getname_np_ =
+          reinterpret_cast<decltype(android_pthread_getname_np_)>(
+              dlsym(android_libc_, "pthread_getname_np"));
+      assert_not_null(android_pthread_getname_np_);
+    }
+  }
+}
+
+void AndroidShutdown() {
+  android_pthread_getname_np_ = nullptr;
+  if (android_libc_) {
+    dlclose(android_libc_);
+    android_libc_ = nullptr;
+  }
+}
+#endif
 
 template <typename _Rep, typename _Period>
 inline timespec DurationToTimeSpec(
@@ -577,9 +608,9 @@ class PosixCondition<Thread> : public PosixConditionBase {
       // pthread_getname_np was added in API 26 - below that, store the name in
       // this object, which may be only modified through Xenia threading, but
       // should be enough in most cases.
-      if (xe::platform::android::api_level() >= 26) {
-        if (xe::platform::android::api_functions().api_26.pthread_getname_np(
-                thread_, result.data(), result.size() - 1) != 0) {
+      if (android_pthread_getname_np_) {
+        if (android_pthread_getname_np_(thread_, result.data(),
+                                        result.size() - 1) != 0) {
           assert_always();
         }
       } else {
@@ -608,7 +639,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
 #if XE_PLATFORM_ANDROID
   void SetAndroidPreApi26Name(const std::string_view name) {
-    if (xe::platform::android::api_level() >= 26) {
+    if (android_pthread_getname_np_) {
       return;
     }
     std::lock_guard<std::mutex> lock(android_pre_api_26_name_mutex_);
@@ -1145,7 +1176,7 @@ void Thread::Exit(int exit_code) {
 void set_name(const std::string_view name) {
   pthread_setname_np(pthread_self(), std::string(name).c_str());
 #if XE_PLATFORM_ANDROID
-  if (xe::platform::android::api_level() < 26 && current_thread_) {
+  if (!android_pthread_getname_np_ && current_thread_) {
     current_thread_->condition().SetAndroidPreApi26Name(name);
   }
 #endif
