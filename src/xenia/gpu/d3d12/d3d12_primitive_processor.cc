@@ -156,7 +156,7 @@ void* D3D12PrimitiveProcessor::RequestHostConvertedIndexBufferForCurrentFrame(
           (coalign_for_simd ? XE_GPU_PRIMITIVE_PROCESSOR_SIMD_SIZE : 0),
       index_size, nullptr, nullptr, &gpu_address);
   if (!mapping) {
-    return false;
+    return nullptr;
   }
   if (coalign_for_simd) {
     ptrdiff_t coalignment_offset =

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -44,19 +44,24 @@ class LogSink {
 
 class FileLogSink final : public LogSink {
  public:
-  explicit FileLogSink(FILE* file) : file_(file) {}
-  virtual ~FileLogSink() {
-    if (file_) {
-      fflush(file_);
-      fclose(file_);
-    }
-  }
+  explicit FileLogSink(FILE* file, bool own_file)
+      : file_(file), owns_file_(own_file) {}
+  ~FileLogSink();
 
   void Write(const char* buf, size_t size) override;
   void Flush() override;
 
  private:
   FILE* file_;
+  bool owns_file_;
+};
+
+class DebugPrintLogSink final : public LogSink {
+ public:
+  DebugPrintLogSink() = default;
+
+  void Write(const char* buf, size_t size) override;
+  void Flush() override {}
 };
 
 // Initializes the logging system and any outputs requested.

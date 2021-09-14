@@ -24,6 +24,11 @@
 namespace xe {
 namespace memory {
 
+#if XE_PLATFORM_ANDROID
+void AndroidInitialize();
+void AndroidShutdown();
+#endif
+
 // Returns the native page size of the system, in bytes.
 // This should be ~4KiB.
 size_t page_size();
