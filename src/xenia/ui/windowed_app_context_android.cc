@@ -9,9 +9,12 @@
 
 #include "xenia/ui/windowed_app_context_android.h"
 
+#include <android/configuration.h>
 #include <android/native_activity.h>
+#include <cstdint>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/main_android.h"
 #include "xenia/ui/windowed_app.h"
 
 namespace xe {
@@ -22,6 +25,8 @@ void AndroidWindowedAppContext::StartAppOnNativeActivityCreate(
     [[maybe_unused]] size_t saved_state_size,
     std::unique_ptr<WindowedApp> (*app_creator)(
         WindowedAppContext& app_context)) {
+  // TODO(Triang3l): Pass the launch options from the Intent or the saved
+  // instance state.
   AndroidWindowedAppContext* app_context =
       new AndroidWindowedAppContext(activity);
   // The pointer is now held by the Activity as its ANativeActivity::instance,
@@ -35,6 +40,8 @@ void AndroidWindowedAppContext::StartAppOnNativeActivityCreate(
 AndroidWindowedAppContext::~AndroidWindowedAppContext() {
   // TODO(Triang3l): Unregister activity callbacks.
   activity_->instance = nullptr;
+
+  xe::ShutdownAndroidAppFromMainThread();
 }
 
 void AndroidWindowedAppContext::NotifyUILoopOfPendingFunctions() {
@@ -42,11 +49,21 @@ void AndroidWindowedAppContext::NotifyUILoopOfPendingFunctions() {
 }
 
 void AndroidWindowedAppContext::PlatformQuitFromUIThread() {
-  ANativeActivity_finish(activity);
+  ANativeActivity_finish(activity_);
 }
 
 AndroidWindowedAppContext::AndroidWindowedAppContext(ANativeActivity* activity)
     : activity_(activity) {
+  int32_t api_level;
+  {
+    AConfiguration* configuration = AConfiguration_new();
+    AConfiguration_fromAssetManager(configuration, activity->assetManager);
+    api_level = AConfiguration_getSdkVersion(configuration);
+    AConfiguration_delete(configuration);
+  }
+
+  xe::InitializeAndroidAppFromMainThread(api_level);
+
   activity_->instance = this;
   // TODO(Triang3l): Register activity callbacks.
 }
@@ -54,7 +71,7 @@ AndroidWindowedAppContext::AndroidWindowedAppContext(ANativeActivity* activity)
 bool AndroidWindowedAppContext::InitializeApp(std::unique_ptr<WindowedApp> (
     *app_creator)(WindowedAppContext& app_context)) {
   assert_null(app_);
-  app_ = app_creator(this);
+  app_ = app_creator(*this);
   if (!app_->OnInitialize()) {
     app_->InvokeOnDestroy();
     app_.reset();

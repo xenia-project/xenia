@@ -2,14 +2,16 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/base/logging.h"
 
+#include <algorithm>
 #include <atomic>
+#include <cstring>
 #include <mutex>
 #include <vector>
 
@@ -17,6 +19,7 @@
 #include "third_party/disruptorplus/include/disruptorplus/ring_buffer.hpp"
 #include "third_party/disruptorplus/include/disruptorplus/sequence_barrier.hpp"
 #include "third_party/disruptorplus/include/disruptorplus/spin_wait_strategy.hpp"
+#include "xenia/base/assert.h"
 #include "xenia/base/atomic.h"
 #include "xenia/base/console.h"
 #include "xenia/base/cvar.h"
@@ -24,22 +27,30 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/string.h"
 #include "xenia/base/system.h"
 #include "xenia/base/threading.h"
 
-// For MessageBox:
 // TODO(benvanik): generic API? logging_win.cc?
-#if XE_PLATFORM_WIN32
+#if XE_PLATFORM_ANDROID
+#include <android/log.h>
+#elif XE_PLATFORM_WIN32
+// For MessageBox:
 #include "xenia/base/platform_win.h"
-#endif  // XE_PLATFORM_WIN32
+#endif  // XE_PLATFORM
 
 #include "third_party/fmt/include/fmt/format.h"
 
+#if XE_PLATFORM_ANDROID
+DEFINE_bool(log_to_logcat, true, "Write log output to Android Logcat.",
+            "Logging");
+#else
 DEFINE_path(log_file, "", "Logs are written to the given file", "Logging");
 DEFINE_bool(log_to_stdout, true, "Write log output to stdout", "Logging");
 DEFINE_bool(log_to_debugprint, false, "Dump the log to DebugPrint.", "Logging");
+#endif  // XE_PLATFORM_ANDROID
 DEFINE_bool(flush_log, true, "Flush log file after each log line batch.",
             "Logging");
 DEFINE_int32(
@@ -65,6 +76,15 @@ struct LogLine {
 
 thread_local char thread_log_buffer_[64 * 1024];
 
+FileLogSink::~FileLogSink() {
+  if (file_) {
+    fflush(file_);
+    if (owns_file_) {
+      fclose(file_);
+    }
+  }
+}
+
 void FileLogSink::Write(const char* buf, size_t size) {
   if (file_) {
     fwrite(buf, 1, size, file_);
@@ -76,6 +96,120 @@ void FileLogSink::Flush() {
     fflush(file_);
   }
 }
+
+void DebugPrintLogSink::Write(const char* buf, size_t size) {
+  debugging::DebugPrint("{}", std::string_view(buf, size));
+}
+
+#if XE_PLATFORM_ANDROID
+class AndroidLogSink final : public LogSink {
+ public:
+  explicit AndroidLogSink(const std::string_view tag) : tag_(tag) {}
+
+  void Write(const char* buf, size_t size) override;
+  void Flush() override;
+
+ private:
+  // May be called with an empty line_buffer_ to write an empty log message (if
+  // the original message contains a blank line as a separator, for instance).
+  void WriteLineBuffer();
+
+  const std::string tag_;
+  android_LogPriority current_priority_ = ANDROID_LOG_INFO;
+  bool is_line_continuation_ = false;
+  size_t line_buffer_used_ = 0;
+  // LOGGER_ENTRY_MAX_PAYLOAD is defined as 4076 on older Android versions and
+  // as 4068 on newer ones. An attempt to write more than that amount to the
+  // kernel logger will result in a truncated log entry. 4000 is the commonly
+  // used limit considered safe.
+  // However, "Log message text may be truncated to less than an
+  // implementation-specific limit (1023 bytes)" - android/log.h.
+  char line_buffer_[1023 + 1];
+};
+
+void AndroidLogSink::Write(const char* buf, size_t size) {
+  // A null character, if appears, is fine - it will just truncate a single
+  // line, but since every message ends with a newline, and WriteLineBuffer is
+  // done after every line, it won't have lasting effects.
+  // Using memchr and memcpy as they are vectorized in Bionic.
+  while (size) {
+    const void* newline = std::memchr(buf, '\n', size);
+    size_t line_remaining =
+        newline ? size_t(static_cast<const char*>(newline) - buf) : size;
+    while (line_remaining) {
+      assert_true(line_buffer_used_ < xe::countof(line_buffer_));
+      size_t append_count =
+          std::min(line_remaining,
+                   xe::countof(line_buffer_) - size_t(1) - line_buffer_used_);
+      std::memcpy(line_buffer_ + line_buffer_used_, buf, append_count);
+      buf += append_count;
+      size -= append_count;
+      line_remaining -= append_count;
+      line_buffer_used_ += append_count;
+      if (line_buffer_used_ >= xe::countof(line_buffer_) - size_t(1)) {
+        WriteLineBuffer();
+        // The next WriteLineBuffer belongs to the same line.
+        is_line_continuation_ = true;
+      }
+    }
+    if (newline) {
+      // If the end of the buffer was reached right before a newline character,
+      // so line_buffer_used_ is 0, and is_line_continuation_ has been set, the
+      // line break has already been done by Android itself - don't write an
+      // empty message. However, if the message intentionally contains blank
+      // lines, write them.
+      if (line_buffer_used_ || !is_line_continuation_) {
+        WriteLineBuffer();
+      }
+      is_line_continuation_ = false;
+      ++buf;
+      --size;
+    }
+  }
+}
+
+void AndroidLogSink::Flush() {
+  if (line_buffer_used_) {
+    WriteLineBuffer();
+  }
+}
+
+void AndroidLogSink::WriteLineBuffer() {
+  // If this is a new line, check if it's a new log message, and if it is,
+  // update the priority based on the prefix.
+  if (!is_line_continuation_ && line_buffer_used_ >= 3 &&
+      line_buffer_[1] == '>' && line_buffer_[2] == ' ') {
+    switch (line_buffer_[0]) {
+      case 'd':
+        current_priority_ = ANDROID_LOG_DEBUG;
+        break;
+      case 'w':
+        current_priority_ = ANDROID_LOG_WARN;
+        break;
+      case '!':
+        current_priority_ = ANDROID_LOG_ERROR;
+        break;
+      case 'x':
+        current_priority_ = ANDROID_LOG_FATAL;
+        break;
+      default:
+        current_priority_ = ANDROID_LOG_INFO;
+        break;
+    }
+  }
+  // Android skips blank lines, but if writing a blank line was requested
+  // explicitly for formatting, write a non-newline character.
+  if (!line_buffer_used_) {
+    line_buffer_[line_buffer_used_++] = ' ';
+  }
+  // Terminate the text.
+  assert_true(line_buffer_used_ < xe::countof(line_buffer_));
+  line_buffer_[line_buffer_used_] = '\0';
+  // Write.
+  __android_log_write(current_priority_, tag_.c_str(), line_buffer_);
+  line_buffer_used_ = 0;
+}
+#endif  // XE_PLATFORM_ANDROID
 
 class Logger {
  public:
@@ -129,9 +263,6 @@ class Logger {
   void Write(const char* buf, size_t size) {
     for (const auto& sink : sinks_) {
       sink->Write(buf, size);
-    }
-    if (cvars::log_to_debugprint) {
-      debugging::DebugPrint("{}", std::string_view(buf, size));
     }
   }
 
@@ -294,8 +425,14 @@ void InitializeLogging(const std::string_view app_name) {
   auto mem = memory::AlignedAlloc<Logger>(0x10);
   logger_ = new (mem) Logger(app_name);
 
+#if XE_PLATFORM_ANDROID
+  // TODO(Triang3l): Enable file logging, but not by default as logs may be
+  // huge.
+  if (cvars::log_to_logcat) {
+    logger_->AddLogSink(std::make_unique<AndroidLogSink>(app_name));
+  }
+#else
   FILE* log_file = nullptr;
-
   if (cvars::log_file.empty()) {
     // Default to app name.
     auto file_name = fmt::format("{}.log", app_name);
@@ -307,13 +444,16 @@ void InitializeLogging(const std::string_view app_name) {
     xe::filesystem::CreateParentFolder(cvars::log_file);
     log_file = xe::filesystem::OpenFile(cvars::log_file, "wt");
   }
-  auto sink = std::make_unique<FileLogSink>(log_file);
-  logger_->AddLogSink(std::move(sink));
+  logger_->AddLogSink(std::make_unique<FileLogSink>(log_file, true));
 
   if (cvars::log_to_stdout) {
-    auto stdout_sink = std::make_unique<FileLogSink>(stdout);
-    logger_->AddLogSink(std::move(stdout_sink));
+    logger_->AddLogSink(std::make_unique<FileLogSink>(stdout, false));
   }
+
+  if (cvars::log_to_debugprint) {
+    logger_->AddLogSink(std::make_unique<DebugPrintLogSink>());
+  }
+#endif  // XE_PLATFORM_ANDROID
 }
 
 void ShutdownLogging() {
@@ -352,7 +492,7 @@ void logging::AppendLogLine(LogLevel log_level, const char prefix_char,
 }
 
 void FatalError(const std::string_view str) {
-  logging::AppendLogLine(LogLevel::Error, 'X', str);
+  logging::AppendLogLine(LogLevel::Error, 'x', str);
 
   if (!xe::has_console_attached()) {
     ShowSimpleMessageBox(SimpleMessageBoxType::Error, str);

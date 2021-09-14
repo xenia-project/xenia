@@ -70,12 +70,11 @@ class PipelineCache {
 
   // Retrieves the shader modification for the current state. The shader must
   // have microcode analyzed.
-  DxbcShaderTranslator::Modification
-  PipelineCache::GetCurrentVertexShaderModification(
+  DxbcShaderTranslator::Modification GetCurrentVertexShaderModification(
       const Shader& shader,
       Shader::HostVertexShaderType host_vertex_shader_type) const;
-  DxbcShaderTranslator::Modification
-  PipelineCache::GetCurrentPixelShaderModification(const Shader& shader) const;
+  DxbcShaderTranslator::Modification GetCurrentPixelShaderModification(
+      const Shader& shader) const;
 
   // If draw_util::IsRasterizationPotentiallyDone is false, the pixel shader
   // MUST be made nullptr BEFORE calling this!

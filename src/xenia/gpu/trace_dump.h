@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -18,13 +18,6 @@
 #include "xenia/gpu/trace_protocol.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
-
-namespace xe {
-namespace ui {
-class Loop;
-class Window;
-}  // namespace ui
-}  // namespace xe
 
 namespace xe {
 namespace gpu {
