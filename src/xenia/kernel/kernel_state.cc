@@ -52,7 +52,9 @@ KernelState::KernelState(Emulator* emulator)
   user_profile_ = std::make_unique<xam::UserProfile>();
 
   auto content_root = emulator_->content_root();
-  content_root = std::filesystem::absolute(content_root);
+  if (!content_root.empty()) {
+    content_root = std::filesystem::absolute(content_root);
+  }
   content_manager_ = std::make_unique<xam::ContentManager>(this, content_root);
 
   assert_null(shared_kernel_state_);
