@@ -109,7 +109,7 @@ class WindowedApp {
 #define XE_DEFINE_WINDOWED_APP(export_name, creator)                           \
   __attribute__((visibility("default"))) extern "C" void export_name(          \
       ANativeActivity* activity, void* saved_state, size_t saved_state_size) { \
-    xe::ui::AndroidWindowedAppContext::StartAppOnNativeActivityCreate(         \
+    xe::ui::AndroidWindowedAppContext::StartAppOnActivityCreate(               \
         activity, saved_state, saved_state_size, creator);                     \
   }
 #else
