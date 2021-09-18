@@ -13,15 +13,17 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/platform.h"
 #include "xenia/ui/windowed_app_context.h"
 
 #if XE_PLATFORM_ANDROID
-#include <android/native_activity.h>
-
-#include "xenia/ui/windowed_app_context_android.h"
+// Multiple apps in a single library instead of separate executables.
+#define XE_UI_WINDOWED_APPS_IN_LIBRARY 1
 #endif
 
 namespace xe {
@@ -35,6 +37,9 @@ class WindowedApp {
   // creating an instance of the class (which may be called before
   // initialization of platform-specific parts, should preferably be as simple
   // as possible).
+
+  using Creator = std::unique_ptr<xe::ui::WindowedApp> (*)(
+      xe::ui::WindowedAppContext& app_context);
 
   WindowedApp(const WindowedApp& app) = delete;
   WindowedApp& operator=(const WindowedApp& app) = delete;
@@ -101,27 +106,67 @@ class WindowedApp {
   std::string name_;
   std::string positional_options_usage_;
   std::vector<std::string> positional_options_;
+
+#if XE_UI_WINDOWED_APPS_IN_LIBRARY
+ public:
+  class CreatorRegistration {
+   public:
+    CreatorRegistration(const std::string_view identifier, Creator creator) {
+      if (!creators_) {
+        // Will be deleted by the last creator registration's destructor, no
+        // need for a library destructor.
+        creators_ = new std::unordered_map<std::string, WindowedApp::Creator>;
+      }
+      iterator_inserted_ = creators_->emplace(identifier, creator);
+      assert_true(iterator_inserted_.second);
+    }
+
+    ~CreatorRegistration() {
+      if (iterator_inserted_.second) {
+        creators_->erase(iterator_inserted_.first);
+        if (creators_->empty()) {
+          delete creators_;
+        }
+      }
+    }
+
+   private:
+    std::pair<std::unordered_map<std::string, Creator>::iterator, bool>
+        iterator_inserted_;
+  };
+
+  static Creator GetCreator(const std::string& identifier) {
+    if (!creators_) {
+      return nullptr;
+    }
+    auto it = creators_->find(identifier);
+    return it != creators_->end() ? it->second : nullptr;
+  }
+
+ private:
+  static std::unordered_map<std::string, Creator>* creators_;
+#endif  // XE_UI_WINDOWED_APPS_IN_LIBRARY
 };
 
-#if XE_PLATFORM_ANDROID
-// Multiple apps in a single library. ANativeActivity_onCreate chosen via
-// android.app.func_name of the NativeActivity of each app.
-#define XE_DEFINE_WINDOWED_APP(export_name, creator)                           \
-  __attribute__((visibility("default"))) extern "C" void export_name(          \
-      ANativeActivity* activity, void* saved_state, size_t saved_state_size) { \
-    xe::ui::AndroidWindowedAppContext::StartAppOnActivityCreate(               \
-        activity, saved_state, saved_state_size, creator);                     \
+#if XE_UI_WINDOWED_APPS_IN_LIBRARY
+// Multiple apps in a single library.
+#define XE_DEFINE_WINDOWED_APP(identifier, creator)                          \
+  namespace xe {                                                             \
+  namespace ui {                                                             \
+  namespace windowed_app_creator_registrations {                             \
+  xe::ui::WindowedApp::CreatorRegistration identifier(#identifier, creator); \
+  }                                                                          \
+  }                                                                          \
   }
 #else
 // Separate executables for each app.
 std::unique_ptr<WindowedApp> (*GetWindowedAppCreator())(
     WindowedAppContext& app_context);
-#define XE_DEFINE_WINDOWED_APP(export_name, creator)                       \
-  std::unique_ptr<xe::ui::WindowedApp> (*xe::ui::GetWindowedAppCreator())( \
-      xe::ui::WindowedAppContext & app_context) {                          \
-    return creator;                                                        \
+#define XE_DEFINE_WINDOWED_APP(identifier, creator)              \
+  xe::ui::WindowedApp::Creator xe::ui::GetWindowedAppCreator() { \
+    return creator;                                              \
   }
-#endif
+#endif  // XE_UI_WINDOWED_APPS_IN_LIBRARY
 
 }  // namespace ui
 }  // namespace xe

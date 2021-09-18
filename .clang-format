@@ -6,3 +6,8 @@ SortIncludes: true
 
 # Regroup causes unnecessary noise due to clang-format bug.
 IncludeBlocks: Preserve
+
+---
+Language: Java
+DisableFormat: true
+SortIncludes: false
