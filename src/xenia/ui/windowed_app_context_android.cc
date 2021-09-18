@@ -9,10 +9,12 @@
 
 #include "xenia/ui/windowed_app_context_android.h"
 
+#include <android/asset_manager_jni.h>
 #include <android/configuration.h>
+#include <android/log.h>
 #include <android/looper.h>
-#include <android/native_activity.h>
 #include <fcntl.h>
+#include <jni.h>
 #include <unistd.h>
 #include <array>
 #include <cstdint>
@@ -24,30 +26,6 @@
 
 namespace xe {
 namespace ui {
-
-void AndroidWindowedAppContext::StartAppOnActivityCreate(
-    ANativeActivity* activity, [[maybe_unused]] void* saved_state,
-    [[maybe_unused]] size_t saved_state_size,
-    std::unique_ptr<WindowedApp> (*app_creator)(
-        WindowedAppContext& app_context)) {
-  // TODO(Triang3l): Pass the launch options from the Intent or the saved
-  // instance state.
-  AndroidWindowedAppContext* app_context = new AndroidWindowedAppContext;
-  if (!app_context->Initialize(activity)) {
-    delete app_context;
-    ANativeActivity_finish(activity);
-    return;
-  }
-  // The pointer is now held by the Activity as its ANativeActivity::instance,
-  // until the destruction.
-  if (!app_context->InitializeApp(app_creator)) {
-    // InitializeApp might have sent commands to the UI thread looper callback
-    // pipe, perform deferred destruction.
-    app_context->RequestDestruction();
-    ANativeActivity_finish(activity);
-    return;
-  }
-}
 
 void AndroidWindowedAppContext::NotifyUILoopOfPendingFunctions() {
   // Don't check ui_thread_looper_callback_registered_, as it's owned
@@ -69,21 +47,144 @@ void AndroidWindowedAppContext::NotifyUILoopOfPendingFunctions() {
 
 void AndroidWindowedAppContext::PlatformQuitFromUIThread() {
   // All the shutdown will be done in onDestroy of the activity.
-  ANativeActivity_finish(activity_);
+  if (activity_ && activity_method_finish_) {
+    ui_thread_jni_env_->CallVoidMethod(activity_, activity_method_finish_);
+  }
+}
+
+AndroidWindowedAppContext*
+AndroidWindowedAppContext::JniActivityInitializeWindowedAppOnCreate(
+    JNIEnv* jni_env, jobject activity, jstring windowed_app_identifier,
+    jobject asset_manager) {
+  WindowedApp::Creator app_creator;
+  {
+    const char* windowed_app_identifier_c_str =
+        jni_env->GetStringUTFChars(windowed_app_identifier, nullptr);
+    if (!windowed_app_identifier_c_str) {
+      __android_log_write(
+          ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
+          "Failed to get the UTF-8 string for the windowed app identifier");
+      return nullptr;
+    }
+    app_creator = WindowedApp::GetCreator(windowed_app_identifier_c_str);
+    if (!app_creator) {
+      __android_log_print(ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
+                          "Failed to get the creator for the windowed app %s",
+                          windowed_app_identifier_c_str);
+      jni_env->ReleaseStringUTFChars(windowed_app_identifier,
+                                     windowed_app_identifier_c_str);
+      return nullptr;
+    }
+    jni_env->ReleaseStringUTFChars(windowed_app_identifier,
+                                   windowed_app_identifier_c_str);
+  }
+
+  AndroidWindowedAppContext* app_context = new AndroidWindowedAppContext;
+  if (!app_context->Initialize(jni_env, activity, asset_manager)) {
+    delete app_context;
+    return nullptr;
+  }
+
+  if (!app_context->InitializeApp(app_creator)) {
+    // InitializeApp might have sent commands to the UI thread looper callback
+    // pipe, perform deferred destruction.
+    app_context->RequestDestruction();
+    return nullptr;
+  }
+
+  return app_context;
+}
+
+void AndroidWindowedAppContext::JniActivityOnDestroy() {
+  if (app_) {
+    app_->InvokeOnDestroy();
+    app_.reset();
+  }
+  RequestDestruction();
 }
 
 AndroidWindowedAppContext::~AndroidWindowedAppContext() { Shutdown(); }
 
-bool AndroidWindowedAppContext::Initialize(ANativeActivity* activity) {
-  int32_t api_level;
-  {
-    AConfiguration* configuration = AConfiguration_new();
-    AConfiguration_fromAssetManager(configuration, activity->assetManager);
-    api_level = AConfiguration_getSdkVersion(configuration);
-    AConfiguration_delete(configuration);
+bool AndroidWindowedAppContext::Initialize(JNIEnv* ui_thread_jni_env,
+                                           jobject activity,
+                                           jobject asset_manager) {
+  // Xenia logging is not initialized yet - use __android_log_write or
+  // __android_log_print until InitializeAndroidAppFromMainThread is done.
+
+  ui_thread_jni_env_ = ui_thread_jni_env;
+
+  // Initialize the asset manager for retrieving the current configuration.
+  asset_manager_jobject_ = ui_thread_jni_env_->NewGlobalRef(asset_manager);
+  if (!asset_manager_jobject_) {
+    __android_log_write(
+        ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
+        "Failed to create a global reference to the asset manager");
+    Shutdown();
+    return false;
   }
-  xe::InitializeAndroidAppFromMainThread(api_level);
+  asset_manager_ =
+      AAssetManager_fromJava(ui_thread_jni_env_, asset_manager_jobject_);
+  if (!asset_manager_) {
+    __android_log_write(ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
+                        "Failed to create get the AAssetManager");
+    Shutdown();
+    return false;
+  }
+
+  // Get the initial configuration.
+  configuration_ = AConfiguration_new();
+  if (!configuration_) {
+    __android_log_write(ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
+                        "Failed to create an AConfiguration");
+    Shutdown();
+    return false;
+  }
+  AConfiguration_fromAssetManager(configuration_, asset_manager_);
+
+  // Initialize Xenia globals that may depend on the API level, as well as
+  // logging.
+  xe::InitializeAndroidAppFromMainThread(
+      AConfiguration_getSdkVersion(configuration_));
   android_base_initialized_ = true;
+
+  // Initialize interfacing with the WindowedAppActivity.
+  activity_ = ui_thread_jni_env_->NewGlobalRef(activity);
+  if (!activity_) {
+    XELOGE(
+        "AndroidWindowedAppContext: Failed to create a global reference to the "
+        "activity");
+    Shutdown();
+    return false;
+  }
+  {
+    jclass activity_class_local_ref =
+        ui_thread_jni_env_->GetObjectClass(activity);
+    if (!activity_class_local_ref) {
+      XELOGE("AndroidWindowedAppContext: Failed to get the activity class");
+      Shutdown();
+      return false;
+    }
+    activity_class_ = reinterpret_cast<jclass>(ui_thread_jni_env_->NewGlobalRef(
+        reinterpret_cast<jobject>(activity_class_local_ref)));
+    ui_thread_jni_env_->DeleteLocalRef(
+        reinterpret_cast<jobject>(activity_class_local_ref));
+  }
+  if (!activity_class_) {
+    XELOGE(
+        "AndroidWindowedAppContext: Failed to create a global reference to the "
+        "activity class");
+    Shutdown();
+    return false;
+  }
+  bool activity_ids_obtained = true;
+  activity_ids_obtained &=
+      (activity_method_finish_ = ui_thread_jni_env_->GetMethodID(
+           activity_class_, "finish", "()V")) != nullptr;
+  if (!activity_ids_obtained) {
+    XELOGE("AndroidWindowedAppContext: Failed to get the activity class IDs");
+    Shutdown();
+    return false;
+  }
 
   // Initialize sending commands to the UI thread looper callback, for
   // requesting function calls in the UI thread.
@@ -117,10 +218,6 @@ bool AndroidWindowedAppContext::Initialize(ANativeActivity* activity) {
   }
   ui_thread_looper_callback_registered_ = true;
 
-  activity_ = activity;
-  activity_->instance = this;
-  activity_->callbacks->onDestroy = OnActivityDestroy;
-
   return true;
 }
 
@@ -134,12 +231,6 @@ void AndroidWindowedAppContext::Shutdown() {
   // anyway.
   assert_null(activity_window_);
   activity_window_ = nullptr;
-
-  if (activity_) {
-    activity_->callbacks->onDestroy = nullptr;
-    activity_->instance = nullptr;
-    activity_ = nullptr;
-  }
 
   if (ui_thread_looper_callback_registered_) {
     ALooper_removeFd(ui_thread_looper_, ui_thread_looper_callback_pipe_[0]);
@@ -157,10 +248,34 @@ void AndroidWindowedAppContext::Shutdown() {
     ui_thread_looper_ = nullptr;
   }
 
+  activity_method_finish_ = nullptr;
+  if (activity_class_) {
+    ui_thread_jni_env_->DeleteGlobalRef(
+        reinterpret_cast<jobject>(activity_class_));
+    activity_class_ = nullptr;
+  }
+  if (activity_) {
+    ui_thread_jni_env_->DeleteGlobalRef(activity_);
+    activity_ = nullptr;
+  }
+
   if (android_base_initialized_) {
     xe::ShutdownAndroidAppFromMainThread();
     android_base_initialized_ = false;
   }
+
+  if (configuration_) {
+    AConfiguration_delete(configuration_);
+    configuration_ = nullptr;
+  }
+
+  asset_manager_ = nullptr;
+  if (asset_manager_jobject_) {
+    ui_thread_jni_env_->DeleteGlobalRef(asset_manager_jobject_);
+    asset_manager_jobject_ = nullptr;
+  }
+
+  ui_thread_jni_env_ = nullptr;
 }
 
 void AndroidWindowedAppContext::RequestDestruction() {
@@ -260,15 +375,26 @@ bool AndroidWindowedAppContext::InitializeApp(std::unique_ptr<WindowedApp> (
   return true;
 }
 
-void AndroidWindowedAppContext::OnActivityDestroy(ANativeActivity* activity) {
-  auto& app_context =
-      *static_cast<AndroidWindowedAppContext*>(activity->instance);
-  if (app_context.app_) {
-    app_context.app_->InvokeOnDestroy();
-    app_context.app_.reset();
-  }
-  app_context.RequestDestruction();
-}
-
 }  // namespace ui
 }  // namespace xe
+
+extern "C" {
+
+JNIEXPORT jlong JNICALL
+Java_jp_xenia_emulator_WindowedAppActivity_initializeWindowedAppOnCreateNative(
+    JNIEnv* jni_env, jobject activity, jstring windowed_app_identifier,
+    jobject asset_manager) {
+  return reinterpret_cast<jlong>(
+      xe::ui::AndroidWindowedAppContext ::
+          JniActivityInitializeWindowedAppOnCreate(
+              jni_env, activity, windowed_app_identifier, asset_manager));
+}
+
+JNIEXPORT void JNICALL
+Java_jp_xenia_emulator_WindowedAppActivity_onDestroyNative(
+    JNIEnv* jni_env, jobject activity, jlong app_context_ptr) {
+  reinterpret_cast<xe::ui::AndroidWindowedAppContext*>(app_context_ptr)
+      ->JniActivityOnDestroy();
+}
+
+}  // extern "C"
