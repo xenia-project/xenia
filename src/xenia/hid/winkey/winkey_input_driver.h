@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -42,10 +42,22 @@ class WinKeyInputDriver : public InputDriver {
     bool prev_state = false;  // down(true) or up(false)
   };
 
+  struct KeyBinding {
+    ui::VirtualKey input_key = ui::VirtualKey::kNone;
+    ui::VirtualKey output_key = ui::VirtualKey::kNone;
+    bool uppercase = false;
+    bool lowercase = false;
+  };
+
   xe::global_critical_region global_critical_region_;
   std::queue<KeyEvent> key_events_;
+  std::vector<KeyBinding> key_bindings_;
 
   uint32_t packet_number_;
+
+  void ParseKeyBinding(ui::VirtualKey virtual_key,
+                       const std::string_view description,
+                       const std::string_view binding);
 };
 
 }  // namespace winkey
