@@ -48,10 +48,10 @@ void copy_128_aligned(void* dest, const void* src, size_t count) {
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=100801
 // TODO(Joel Linn): Remove this when fixed GCC versions are common place.
 #if XE_COMPILER_GNUC
-#define XE_WORKAROUND_LOOP_KILL_MOD(x) \
-  if ((count % (x)) == 0) __builtin_unreachable();
+#define XE_WORKAROUND_CONSTANT_RETURN_IF(x) \
+  if (__builtin_constant_p(x) && (x)) return;
 #else
-#define XE_WORKAROUND_LOOP_KILL_MOD(x)
+#define XE_WORKAROUND_CONSTANT_RETURN_IF(x)
 #endif
 void copy_and_swap_16_aligned(void* dest_ptr, const void* src_ptr,
                               size_t count) {
@@ -70,8 +70,8 @@ void copy_and_swap_16_aligned(void* dest_ptr, const void* src_ptr,
     __m128i output = _mm_shuffle_epi8(input, shufmask);
     _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
+  XE_WORKAROUND_CONSTANT_RETURN_IF(count % 8 == 0);
   for (; i < count; ++i) {  // handle residual elements
-    XE_WORKAROUND_LOOP_KILL_MOD(8);
     dest[i] = byte_swap(src[i]);
   }
 }
@@ -90,8 +90,8 @@ void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr,
     __m128i output = _mm_shuffle_epi8(input, shufmask);
     _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
+  XE_WORKAROUND_CONSTANT_RETURN_IF(count % 8 == 0);
   for (; i < count; ++i) {  // handle residual elements
-    XE_WORKAROUND_LOOP_KILL_MOD(8);
     dest[i] = byte_swap(src[i]);
   }
 }
@@ -113,8 +113,8 @@ void copy_and_swap_32_aligned(void* dest_ptr, const void* src_ptr,
     __m128i output = _mm_shuffle_epi8(input, shufmask);
     _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
+  XE_WORKAROUND_CONSTANT_RETURN_IF(count % 4 == 0);
   for (; i < count; ++i) {  // handle residual elements
-    XE_WORKAROUND_LOOP_KILL_MOD(4);
     dest[i] = byte_swap(src[i]);
   }
 }
@@ -133,8 +133,8 @@ void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
     __m128i output = _mm_shuffle_epi8(input, shufmask);
     _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
+  XE_WORKAROUND_CONSTANT_RETURN_IF(count % 4 == 0);
   for (; i < count; ++i) {  // handle residual elements
-    XE_WORKAROUND_LOOP_KILL_MOD(4);
     dest[i] = byte_swap(src[i]);
   }
 }
@@ -156,8 +156,8 @@ void copy_and_swap_64_aligned(void* dest_ptr, const void* src_ptr,
     __m128i output = _mm_shuffle_epi8(input, shufmask);
     _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
+  XE_WORKAROUND_CONSTANT_RETURN_IF(count % 2 == 0);
   for (; i < count; ++i) {  // handle residual elements
-    XE_WORKAROUND_LOOP_KILL_MOD(2);
     dest[i] = byte_swap(src[i]);
   }
 }
@@ -176,8 +176,8 @@ void copy_and_swap_64_unaligned(void* dest_ptr, const void* src_ptr,
     __m128i output = _mm_shuffle_epi8(input, shufmask);
     _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
+  XE_WORKAROUND_CONSTANT_RETURN_IF(count % 2 == 0);
   for (; i < count; ++i) {  // handle residual elements
-    XE_WORKAROUND_LOOP_KILL_MOD(2);
     dest[i] = byte_swap(src[i]);
   }
 }
@@ -193,8 +193,8 @@ void copy_and_swap_16_in_32_aligned(void* dest_ptr, const void* src_ptr,
         _mm_or_si128(_mm_slli_epi32(input, 16), _mm_srli_epi32(input, 16));
     _mm_store_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
+  XE_WORKAROUND_CONSTANT_RETURN_IF(count % 4 == 0);
   for (; i < count; ++i) {  // handle residual elements
-    XE_WORKAROUND_LOOP_KILL_MOD(4);
     dest[i] = (src[i] >> 16) | (src[i] << 16);
   }
 }
@@ -210,8 +210,8 @@ void copy_and_swap_16_in_32_unaligned(void* dest_ptr, const void* src_ptr,
         _mm_or_si128(_mm_slli_epi32(input, 16), _mm_srli_epi32(input, 16));
     _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
   }
+  XE_WORKAROUND_CONSTANT_RETURN_IF(count % 4 == 0);
   for (; i < count; ++i) {  // handle residual elements
-    XE_WORKAROUND_LOOP_KILL_MOD(4);
     dest[i] = (src[i] >> 16) | (src[i] << 16);
   }
 }
