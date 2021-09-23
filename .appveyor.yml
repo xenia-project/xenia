@@ -8,9 +8,8 @@ skip_tags: true
 
 skip_commits:
   files:
-    - .drone.yml
+    - .drone.star
     - .github/**
-    - .travis.yml
     - docs/**
     - src/**/*_posix.*
     - src/**/*_linux.*
