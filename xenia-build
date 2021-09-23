@@ -430,7 +430,7 @@ def get_clang_format_binary():
     attempts = [
         'C:\\Program Files\\LLVM\\bin\\clang-format.exe',
         'C:\\Program Files (x86)\\LLVM\\bin\\clang-format.exe',
-        'clang-format-9',
+        'clang-format-13',
         'clang-format',
         ]
     for binary in attempts:
@@ -438,7 +438,7 @@ def get_clang_format_binary():
             return binary
     print('ERROR: clang-format is not on PATH')
     print('LLVM is available from https://llvm.org/releases/download.html')
-    print('At least version 9 is required.')
+    print('At least version 13 is required.')
     print('See docs/style_guide.md for instructions on how to get it.')
     sys.exit(1)
 
