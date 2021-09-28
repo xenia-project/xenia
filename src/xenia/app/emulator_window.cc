@@ -429,7 +429,7 @@ void EmulatorWindow::ShowCommitID() {
       "https://github.com/xenia-project/xenia/pull/" XE_BUILD_PR_NUMBER);
 #else
   LaunchWebBrowser(
-      "https://github.com/xenia-project/xenia/commit/" XE_BUILD_COMMIT "/");
+      "https://github.com/xenia-project/xenia/commit/" XE_BUILD_COMMIT);
 #endif
 }
 
