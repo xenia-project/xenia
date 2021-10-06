@@ -48,7 +48,7 @@ void Arena::DebugFill() {
 
 void* Arena::Alloc(size_t size, size_t align) {
   assert_true(
-      xe::bit_count(align) == 1 && align <= 16,
+      align > 0 && xe::is_pow2(align) && align <= 16,
       "align needs to be a power of 2 and not greater than Chunk alignment");
 
   // for alignment
