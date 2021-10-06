@@ -280,8 +280,7 @@ class Logger {
       // many blocks needed for at least one log line.
       auto next_range = dp::sequence_range(next_sequence, desired_count);
 
-      auto available_sequence = claim_strategy_.wait_until_published(
-          next_range.last(), last_sequence);
+      claim_strategy_.wait_until_published(next_range.last(), last_sequence);
 
       size_t read_count = 0;
       auto available_range = next_range;

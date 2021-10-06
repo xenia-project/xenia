@@ -211,6 +211,11 @@ workspace("xenia")
     architecture("x86_64")
     if os.istarget("linux") then
       platforms({"Linux"})
+    elseif os.istarget("macosx") then
+      platforms({"Mac"})
+      xcodebuildsettings({           
+        ["ARCHS"] = "x86_64"
+      })
     elseif os.istarget("windows") then
       platforms({"Windows"})
       -- 10.0.15063.0: ID3D12GraphicsCommandList1::SetSamplePositions.

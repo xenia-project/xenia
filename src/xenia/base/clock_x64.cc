@@ -80,7 +80,7 @@ uint64_t Clock::host_tick_frequency_raw() {
     // For some CPUs, Crystal frequency is not reported.
     if (ratio_num && ratio_den && cryst_freq) {
       // If it is, calculate the TSC frequency
-      auto tsc_freq = cryst_freq * ratio_num / ratio_den;
+      return cryst_freq * ratio_num / ratio_den;
     }
   }
 
