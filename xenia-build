@@ -822,9 +822,16 @@ class BaseBuildCommand(Command):
                     ] + ([targets] if targets is not None else []) + pass_args,
                     shell=False)
         elif sys.platform == 'darwin':
-            # TODO(benvanik): other platforms.
-            print('ERROR: don\'t know how to build on this platform.')
-            result = 1
+            schemes = args['target'] if len(args['target']) else ['xenia-app']
+            nested_args = [['-scheme', scheme] for scheme in schemes]
+            scheme_args = [arg for pair in nested_args for arg in pair]
+            result = subprocess.call([
+                'xcodebuild',
+                '-workspace',
+                'build/xenia.xcworkspace',
+                '-configuration',
+                args['config']
+            ] + scheme_args + pass_args, shell=False, env=dict(os.environ))
         else:
             result = subprocess.call([
                 'make',
@@ -1690,6 +1697,9 @@ class DevenvCommand(Command):
                 print('ERROR: Visual Studio is not installed.');
                 return 1
             print('Launching Visual Studio...')
+        elif sys.platform == 'darwin':
+            print('Launching Xcode...')
+            devenv = 'xcode4'
         elif has_bin('clion') or has_bin('clion.sh'):
             print('Launching CLion...')
             show_reload_prompt = create_clion_workspace()
@@ -1710,6 +1720,11 @@ class DevenvCommand(Command):
             shell_call([
                 'devenv',
                 'build\\xenia.sln',
+            ])
+        elif sys.platform == 'darwin':
+            shell_call([
+                'xed',
+                'build/xenia.xcworkspace',
             ])
         elif has_bin('clion'):
             shell_call([
