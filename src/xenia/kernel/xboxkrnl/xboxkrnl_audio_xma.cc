@@ -385,6 +385,9 @@ dword_result_t XMABlockWhileInUse_entry(lpvoid_t context_ptr) {
     if (!context.input_buffer_0_valid && !context.input_buffer_1_valid) {
       break;
     }
+    if (!context.work_buffer_ptr) {
+      break;
+    }
     xe::threading::Sleep(std::chrono::milliseconds(1));
   } while (true);
   return 0;
