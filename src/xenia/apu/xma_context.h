@@ -134,7 +134,7 @@ class XmaContext {
  public:
   static const uint32_t kBytesPerPacket = 2048;
   static const uint32_t kBitsPerPacket = kBytesPerPacket * 8;
-  static const uint32_t kBitsPerHeader = 33;
+  static const uint32_t kBitsPerHeader = 32;
 
   static const uint32_t kBytesPerSample = 2;
   static const uint32_t kSamplesPerFrame = 512;
