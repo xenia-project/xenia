@@ -185,7 +185,7 @@ enum class IndexFormat : uint32_t {
 };
 
 // SurfaceNumberX from yamato_enum.h.
-enum class SurfaceNumFormat : uint32_t {
+enum class SurfaceNumberFormat : uint32_t {
   kUnsignedRepeatingFraction = 0,
   // Microsoft-style, scale factor (2^(n-1))-1.
   kSignedRepeatingFraction = 1,
@@ -1176,14 +1176,120 @@ union alignas(uint32_t) xe_gpu_fetch_group_t {
 };
 static_assert_size(xe_gpu_fetch_group_t, sizeof(uint32_t) * 6);
 
-// GPU_MEMEXPORT_STREAM_CONSTANT from a game .pdb - float constant for memexport
-// stream configuration.
-// This is used with the floating-point ALU in shaders (written to eA using
-// mad), so the dwords have a normalized exponent when reinterpreted as floats
-// (otherwise they would be flushed to zero), but actually these are packed
-// integers. dword_1 specifically is 2^23 because
-// powf(2.0f, 23.0f) + float(i) == 0x4B000000 | i
-// so mad can pack indices as integers in the lower bits.
+// Shader memory export (memexport) allows for writing of arbitrary formatted
+// data with random access / scatter capabilities. It provides functionality
+// largely similar to resolving - format packing, supporting arbitrary color
+// formats, from sub-dword ones such as k_8 in 58410B86, to 128-bit ones, with
+// endian swap similar to how it's performed in resolves (up to 128-bit);
+// specifying the number format, swapping red and blue channels - though with no
+// exponent biasing. Unlike resolving, however, instead of writing to tiled
+// textures, it exports the data to up to 5 elements (the eM# shader registers,
+// each corresponding to `base address + element size * (offset + 0...4)`) in a
+// stream defined by a stream constant and an offset in elements written to eA -
+// a shader, however, can write to multiple streams with different or the same
+// stream constants, by performing `alloc export` multiple times. It's used
+// mostly in vertex shaders (most commonly in improvised "compute shaders" done
+// by executing a vertex shader for a number of point-type primitives covering
+// nothing), though usage in pixel shaders is also possible - an example is
+// provided in the "Advanced Screenspace Antialiasing" presentation by Arne
+// Schober.
+// https://ubm-twvideo01.s3.amazonaws.com/o1/vault/gdceurope2010/slides/A_Schober_Advanced_Screenspace_Antialiasing.pdf
+//
+// Unlike fetch constants, which are passed via special registers, a memory
+// export stream is configured by writing the stream constant and the offset to
+// a shader export register (eA) allocated by the shader - similar to more
+// conventional exports like oPos, o#, oC#. Therefore, in general, it's not
+// possible to know what its value will be without running the shader. For
+// emulation, this means that the memory range referenced by an export - that
+// needs to be validated - requires running the shader on the CPU in general.
+// Thankfully, however, the usual way of setting up eA is by executing:
+// `mad eA, r#, const0100, c#`
+// where c# is the stream float4 constant from the float constant registers, and
+// const0100 is a literal (0.0f, 1.0f, 0.0f, 0.0f) constant, also from the float
+// constant registers, used for placing the element index (r#) in the correct
+// component of eA. This allows for easy gathering of memexport stream
+// constants, which contain both the base address and the size of the
+// destination buffer for bounds checking, from the shader code and the float
+// constant registers, as long as the guest uses this instruction pattern to
+// write to eA.
+//
+// The Xenos doesn't have an integer ALU, and denormals are treated as zero and
+// are flushed. However, eA contains integers and bit fields. A stream constant
+// is thus structured in a way that allows for packing integers in normalized
+// floating-point numbers.
+//
+// X contains the base address of the stream in dwords as integer bits in the
+// lower 30 bits, and bits 0b01 in the top. The 0b01 bits make the exponent
+// nonzero, so the number is considered normalized, and therefore isn't flushed
+// to zero. With only 512 MB of the physical memory on the Xbox 360, the
+// exponent can't become 0b11111111, so X also won't be NaN for any valid Xbox
+// 360 physical address (though in general the GPU supports 32-bit addresses,
+// but this is originally an Xbox 360-specific feature, that was later, however,
+// likely reused for GL_QCOM_writeonly_rendering).
+//
+// TODO(Triang3l): Verify whether GL_QCOM_writeonly_rendering is actually
+// memexport on the Adreno 2xx using GL_OES_get_program_binary - it's also
+// interesting to see how alphatest interacts with it, whether it's still true
+// fixed-function alphatest, as it's claimed to be supported as usual by the
+// extension specification - it's likely, however, that memory exports are
+// discarded alongside other exports such as oC# and oDepth this way.
+//
+// Y of eA contains the offset in elements - this is what shaders are supposed
+// to calculate from something like the vertex index. Again, it's specified as
+// an integer in the low bits, not as a truly floating-point number. For this
+// purpose, stream constants contain the value 2^23 - when a whole
+// floating-point number smaller than 2^23 is added as floating-point to 2^23,
+// its integer representation becomes the mantissa bits of a number with an
+// exponent of 23. Via multiply-add, `offset * 1.0f + exp2f(23)` is written here
+// by the shader, allowing for element offsets of up to 2^23 - 1.
+//
+// Z is a bit field with the information about the formatting of the data. It's
+// also packed as a normalized floating-point number, but in a cleaner way than
+// X because not as many bits are required - just like Y, it has an exponent of
+// 23 (possibly to let shaders build these values manually using floating-point
+// multiply-add like integer shift-or, and finally to add 2^23, though that's
+// not a case easy to handle in emulation, unlike prebuilt stream constants).
+//
+// W contains the number of elements in the stream. It's also packed with the
+// full 23 exponent just like Y and Z, there's no way to index more than 2^23
+// elements using packing via addition to 2^23, so this field also doesn't need
+// more bits than that.
+//
+// Examples of setup in titles (Z from MSB to LSB):
+//
+// 4D5307E6 particles (different VS invocation counts, like 1, 2, 4):
+// There is a passthrough shader - useful for verification as it simply writes
+// directly what it reads via vfetch of various formats. Another shader (with
+// different c# numbers, but same formats) does complicated math to process the
+// particles.
+// c152:           Z = 010010110000|0|111|00|100110|00000|010, count = 35840
+//   8in32, 32_32_32_32_FLOAT, float, RGBA - from 32_32_32_32_FLOAT vfetch
+// c154, 162:      Z = 010010110000|0|111|00|100000|00000|001, count = 71680
+//   8in16, 16_16_16_16_FLOAT, float, RGBA - from 16_16_16_16_FLOAT vfetch
+// c156, 158, 160: Z = 010010110000|0|000|00|011010|00000|001, count = 71680
+//   8in16, 16_16_16_16, unorm, RGBA - from 16_16_16_16 unorm vfetch
+// c164:           Z = 010010110000|0|111|00|011111|00000|001, count = 143360
+//   8in16, 16_16_FLOAT, float, RGBA - from 16_16_FLOAT vfetch
+// c166:           Z = 010010110000|0|000|00|011001|00000|001, count = 143360
+//   8in16, 16_16, unorm, RGBA - from 16_16 unorm vfetch
+// c168:           Z = 010010110000|0|001|00|000111|00000|010, count = 143360
+//   8in32, 2_10_10_10, snorm, RGBA - from 2_10_10_10 snorm vfetch
+// c170, c172:     Z = 010010110000|1|000|00|000110|00000|010, count = 143360
+//   8in32, 8_8_8_8, unorm, BGRA - from 8_8_8_8 unorm vfetch with .zyxw swizzle
+//
+// 4D5307E6 water simulation (2048 VS invocations):
+// c130: Z = 010010110000|0|111|00|100110|00000|010, count = 16384
+//   8in32, 32_32_32_32_FLOAT, float, RGBA
+//   The shader has 5 memexports of this kind and 6 32_32_32_32_FLOAT vfetches.
+//
+// 4D5307E6 water tessellation factors (1 VS invocation per triangle patch):
+// c130: Z = 010010110000|0|111|11|100100|11111|010, count = patch count * 3
+//   8in32, 32_FLOAT, float, RGBA
+//
+// 41560817 texture memory copying (64 bytes per invocation, two eA, eight eM#):
+// c0: Z = 010010110000|0|010|11|011010|00011|001
+//   8in16, 16_16_16_16, uint, RGBA - from 16_16_16_16 uint vfetch
+//   (16_16_16_16 is the largest color format without special values)
 union alignas(uint32_t) xe_gpu_memexport_stream_t {
   struct {
     uint32_t base_address : 30;  // +0 dword_0 physical address >> 2
@@ -1191,13 +1297,13 @@ union alignas(uint32_t) xe_gpu_memexport_stream_t {
 
     uint32_t const_0x4b000000;  // +0 dword_1
 
-    Endian128 endianness : 3;         // +0 dword_2
-    uint32_t unused_0 : 5;            // +3
-    ColorFormat format : 6;           // +8
-    uint32_t unused_1 : 2;            // +14
-    SurfaceNumFormat num_format : 3;  // +16
-    uint32_t red_blue_swap : 1;       // +19
-    uint32_t const_0x4b0 : 12;        // +20
+    Endian128 endianness : 3;            // +0 dword_2
+    uint32_t unused_0 : 5;               // +3
+    ColorFormat format : 6;              // +8
+    uint32_t unused_1 : 2;               // +14
+    SurfaceNumberFormat num_format : 3;  // +16
+    uint32_t red_blue_swap : 1;          // +19
+    uint32_t const_0x4b0 : 12;           // +20
 
     uint32_t index_count : 23;  // +0 dword_3
     uint32_t const_0x96 : 9;    // +23
