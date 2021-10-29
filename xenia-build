@@ -514,7 +514,7 @@ def run_platform_premake(target_os_override=None, cc='clang', devenv=None):
                 vs_version = os.environ['VSVERSION']
             devenv = 'vs' + vs_version
         elif target_os == 'android':
-            devenv = 'androidmk'
+            devenv = 'androidndk'
         else:
             devenv = 'gmake2'
     if target_os != 'linux':
