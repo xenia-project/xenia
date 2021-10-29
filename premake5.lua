@@ -1,9 +1,7 @@
 include("tools/build")
 require("third_party/premake-export-compile-commands/export-compile-commands")
+require("third_party/premake-androidndk/androidndk")
 require("third_party/premake-cmake/cmake")
--- gmake required for androidmk.
-require("gmake")
-require("third_party/premake-androidmk/androidmk")
 
 location(build_root)
 targetdir(build_bin)
@@ -138,11 +136,15 @@ filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp
     "-stdlib=libstdc++",
   })
 
-filter("platforms:Android")
+filter("platforms:Android-*")
   system("android")
+  systemversion("24")
+  cppstl("c++")
+  staticruntime("On")
   links({
     "android",
     "dl",
+    "log",
   })
 
 filter("platforms:Windows")
@@ -204,9 +206,12 @@ workspace("xenia")
   uuid("931ef4b0-6170-4f7a-aaf2-0fece7632747")
   startproject("xenia-app")
   if os.istarget("android") then
-    -- Not setting architecture as that's handled by ndk-build itself.
-    platforms({"Android"})
-    ndkstl("c++_static")
+    platforms({"Android-ARM64", "Android-x86_64"})
+    filter("platforms:Android-ARM64")
+      architecture("ARM64")
+    filter("platforms:Android-x86_64")
+      architecture("x86_64")
+    filter({})
   else
     architecture("x86_64")
     if os.istarget("linux") then

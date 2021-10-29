@@ -64,9 +64,6 @@
 [submodule "third_party/premake-cmake"]
 	path = third_party/premake-cmake
 	url = https://github.com/Enhex/premake-cmake.git
-[submodule "third_party/premake-androidmk"]
-	path = third_party/premake-androidmk
-	url = https://github.com/Triang3l/premake-androidmk.git
 [submodule "third_party/date"]
 	path = third_party/date
 	url = https://github.com/HowardHinnant/date.git
@@ -76,3 +73,6 @@
 [submodule "third_party/FFmpeg"]
 	path = third_party/FFmpeg
 	url = https://github.com/xenia-project/FFmpeg.git
+[submodule "third_party/premake-androidndk"]
+	path = third_party/premake-androidndk
+	url = https://github.com/Triang3l/premake-androidndk.git
