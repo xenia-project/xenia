@@ -372,6 +372,12 @@ dword_result_t MmAllocatePhysicalMemoryEx_entry(
   // min_addr_range/max_addr_range are bounds in physical memory, not virtual.
   uint32_t heap_base = heap->heap_base();
   uint32_t heap_physical_address_offset = heap->GetPhysicalAddress(heap_base);
+  // TODO(Gliniak): Games like 545108B4 compares min_addr_range with value returned.
+  // 0x1000 offset causes it to go below that minimal range and goes haywire
+  if (min_addr_range && max_addr_range) {
+    heap_physical_address_offset = 0;
+  }
+
   uint32_t heap_min_addr =
       xe::sat_sub(min_addr_range.value(), heap_physical_address_offset);
   uint32_t heap_max_addr =
