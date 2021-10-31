@@ -22,14 +22,8 @@ GTKWindowedAppContext::~GTKWindowedAppContext() {
   if (quit_idle_pending_) {
     g_source_remove(quit_idle_pending_);
   }
-  {
-    // Lock the mutex for a pending_functions_idle_pending_ access memory
-    // barrier, even though no other threads can access this object anymore.
-    std::lock_guard<std::mutex> pending_functions_idle_pending_lock(
-        pending_functions_idle_pending_mutex_);
-    if (pending_functions_idle_pending_) {
-      g_source_remove(pending_functions_idle_pending_);
-    }
+  if (pending_functions_idle_pending_) {
+    g_source_remove(pending_functions_idle_pending_);
   }
 }
 
