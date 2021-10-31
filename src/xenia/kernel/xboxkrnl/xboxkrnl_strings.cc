@@ -290,6 +290,13 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
           }
           state = FS_Type;
           continue;
+        } else if (c == 'L') {
+          // 58410826 incorrectly uses 'L' instead of 'l'.
+          // TODO(gibbed): L appears to be treated as an invalid token by
+          // xboxkrnl, investigate how invalid tokens are processed in xboxkrnl
+          // formatting when state FF_Type is reached.
+          state = FS_Type;
+          continue;
         } else if (c == 'h') {
           flags |= FF_IsShort;
           state = FS_Type;

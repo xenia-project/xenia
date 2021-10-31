@@ -538,13 +538,8 @@ class RenderTargetCache {
     // float32 value to that of an unorm24 with a totally wrong value). If the
     // range hasn't been used yet (render_target.IsEmpty() == true), these are
     // empty too.
-    union {
-      struct {
-        RenderTargetKey host_depth_render_target_unorm24;
-        RenderTargetKey host_depth_render_target_float24;
-      };
-      RenderTargetKey host_depth_render_targets[2];
-    };
+    RenderTargetKey host_depth_render_target_unorm24;
+    RenderTargetKey host_depth_render_target_float24;
     OwnershipRange(uint32_t end_tiles, RenderTargetKey render_target,
                    RenderTargetKey host_depth_render_target_unorm24,
                    RenderTargetKey host_depth_render_target_float24)
@@ -552,6 +547,22 @@ class RenderTargetCache {
           render_target(render_target),
           host_depth_render_target_unorm24(host_depth_render_target_unorm24),
           host_depth_render_target_float24(host_depth_render_target_float24) {}
+    const RenderTargetKey& GetHostDepthRenderTarget(
+        xenos::DepthRenderTargetFormat resource_format) const {
+      assert_true(
+          resource_format == xenos::DepthRenderTargetFormat::kD24S8 ||
+              resource_format == xenos::DepthRenderTargetFormat::kD24FS8,
+          "Illegal resource format");
+      return resource_format == xenos::DepthRenderTargetFormat::kD24S8
+                 ? host_depth_render_target_unorm24
+                 : host_depth_render_target_float24;
+    }
+    RenderTargetKey& GetHostDepthRenderTarget(
+        xenos::DepthRenderTargetFormat resource_format) {
+      return const_cast<RenderTargetKey&>(
+          const_cast<const OwnershipRange*>(this)->GetHostDepthRenderTarget(
+              resource_format));
+    }
     bool IsOwnedBy(RenderTargetKey key,
                    bool host_depth_encoding_different) const {
       if (render_target != key) {
@@ -561,7 +572,7 @@ class RenderTargetCache {
         return false;
       }
       if (host_depth_encoding_different && !key.is_depth &&
-          host_depth_render_targets[key.resource_format] != key) {
+          GetHostDepthRenderTarget(key.GetDepthFormat()) != key) {
         // Depth encoding is the same, but different addressing is needed.
         return false;
       }

@@ -712,14 +712,14 @@ static_assert_size(RB_COPY_CONTROL, sizeof(uint32_t));
 
 union alignas(uint32_t) RB_COPY_DEST_INFO {
   struct {
-    xenos::Endian128 copy_dest_endian : 3;    // +0
-    uint32_t copy_dest_array : 1;             // +3
-    uint32_t copy_dest_slice : 3;             // +4
-    xenos::ColorFormat copy_dest_format : 6;  // +7
-    uint32_t copy_dest_number : 3;            // +13
-    int32_t copy_dest_exp_bias : 6;           // +16
-    uint32_t : 2;                             // +22
-    uint32_t copy_dest_swap : 1;              // +24
+    xenos::Endian128 copy_dest_endian : 3;            // +0
+    uint32_t copy_dest_array : 1;                     // +3
+    uint32_t copy_dest_slice : 3;                     // +4
+    xenos::ColorFormat copy_dest_format : 6;          // +7
+    xenos::SurfaceNumberFormat copy_dest_number : 3;  // +13
+    int32_t copy_dest_exp_bias : 6;                   // +16
+    uint32_t : 2;                                     // +22
+    uint32_t copy_dest_swap : 1;                      // +24
   };
   uint32_t value;
   static constexpr Register register_index = XE_GPU_REG_RB_COPY_DEST_INFO;
