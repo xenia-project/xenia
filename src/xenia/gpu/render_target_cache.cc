@@ -1342,7 +1342,7 @@ void RenderTargetCache::ChangeOwnership(
                                          nullptr, resolve_clear_cutout)) {
           RenderTargetKey transfer_host_depth_source =
               host_depth_encoding_different
-                  ? it->second.host_depth_render_targets[dest.resource_format]
+                  ? it->second.GetHostDepthRenderTarget(dest.GetDepthFormat())
                   : RenderTargetKey();
           if (transfer_host_depth_source == transfer_source) {
             // Same render target, don't provide a separate host depth source.
@@ -1387,7 +1387,7 @@ void RenderTargetCache::ChangeOwnership(
     // Claim the current range.
     it->second.render_target = dest;
     if (host_depth_encoding_different) {
-      it->second.host_depth_render_targets[dest.resource_format] = dest;
+      it->second.GetHostDepthRenderTarget(dest.GetDepthFormat()) = dest;
     }
     // Check if can merge with the next range after claiming.
     std::map<uint32_t, OwnershipRange>::iterator it_next;

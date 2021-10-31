@@ -876,8 +876,9 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   }
   info_out.address.copy_sample_select = sample_select;
   // Get the format to pass to the shader in a unified way - for depth (for
-  // which Direct3D 9 specifies the k_8_8_8_8 destination format), make sure the
-  // shader won't try to do conversion - pass proper k_24_8 or k_24_8_FLOAT.
+  // which Direct3D 9 specifies the k_8_8_8_8 uint destination format), make
+  // sure the shader won't try to do conversion - pass proper k_24_8 or
+  // k_24_8_FLOAT.
   auto rb_copy_dest_info = regs.Get<reg::RB_COPY_DEST_INFO>();
   xenos::TextureFormat dest_format;
   auto rb_depth_info = regs.Get<reg::RB_DEPTH_INFO>();
