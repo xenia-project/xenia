@@ -47,6 +47,7 @@ struct StfsVolumeDescriptor {
   uint8_t descriptor_length;
   uint8_t version;
   union {
+    uint8_t as_byte;
     struct {
       uint8_t read_only_format : 1;  // if set, only uses a single backing-block
                                      // per hash table (no resiliency),
@@ -57,7 +58,6 @@ struct StfsVolumeDescriptor {
       uint8_t directory_overallocated : 1;
       uint8_t directory_index_bounds_valid : 1;
     } bits;
-    uint8_t as_byte;
   } flags;
   uint16_t file_table_block_count;
   uint8_t file_table_block_number_raw[3];
@@ -195,12 +195,12 @@ struct SvodDeviceDescriptor {
   uint8_t worker_thread_priority;
   uint8_t first_fragment_hash_entry[0x14];
   union {
+    uint8_t as_byte;
     struct {
       uint8_t must_be_zero_for_future_usage : 6;
       uint8_t enhanced_gdf_layout : 1;
       uint8_t zero_for_downlevel_clients : 1;
     } bits;
-    uint8_t as_byte;
   } features;
   uint8_t num_data_blocks_raw[3];
   uint8_t start_data_block_raw[3];
@@ -295,8 +295,8 @@ struct XContentMetadata {
     char16_t chars[64];
   } title_name_raw;
   union {
-    XContentAttributes bits;
     uint8_t as_byte;
+    XContentAttributes bits;
   } flags;
   be<uint32_t> thumbnail_size;
   be<uint32_t> title_thumbnail_size;

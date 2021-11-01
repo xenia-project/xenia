@@ -217,6 +217,7 @@ class RenderTargetCache {
   // rest of the EDRAM is transferred.
 
   union RenderTargetKey {
+    uint32_t key;
     struct {
       // [0, 2047].
       uint32_t base_tiles : xenos::kEdramBaseTilesBits - 1;  // 11
@@ -228,7 +229,9 @@ class RenderTargetCache {
       // Ignoring the blending precision and sRGB.
       uint32_t resource_format : xenos::kRenderTargetFormatBits;  // 26
     };
-    uint32_t key = 0;
+
+    RenderTargetKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+
     struct Hasher {
       size_t operator()(const RenderTargetKey& render_target_key) const {
         return std::hash<uint32_t>{}(render_target_key.key);

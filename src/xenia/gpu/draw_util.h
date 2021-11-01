@@ -215,6 +215,7 @@ xenos::CopySampleSelect SanitizeCopySampleSelect(
 // constants.
 
 union ResolveEdramPackedInfo {
+  uint32_t packed;
   struct {
     // With 32bpp/64bpp taken into account.
     uint32_t pitch_tiles : xenos::kEdramPitchTilesBits;
@@ -228,12 +229,15 @@ union ResolveEdramPackedInfo {
     // the impact of the half-pixel offset with resolution scaling.
     uint32_t duplicate_second_pixel : 1;
   };
-  uint32_t packed;
+  ResolveEdramPackedInfo() : packed(0) {
+    static_assert_size(*this, sizeof(packed));
+  }
 };
 static_assert(sizeof(ResolveEdramPackedInfo) <= sizeof(uint32_t),
               "ResolveEdramPackedInfo must be packable in uint32_t");
 
 union ResolveAddressPackedInfo {
+  uint32_t packed;
   struct {
     // 160x32 is divisible by both the EDRAM tile size (80x16 samples, but for
     // simplicity, this is in pixels) and the texture tile size (32x32), so
@@ -258,7 +262,9 @@ union ResolveAddressPackedInfo {
 
     xenos::CopySampleSelect copy_sample_select : 3;
   };
-  uint32_t packed;
+  ResolveAddressPackedInfo() : packed(0) {
+    static_assert_size(*this, sizeof(packed));
+  }
 };
 static_assert(sizeof(ResolveAddressPackedInfo) <= sizeof(uint32_t),
               "ResolveAddressPackedInfo must be packable in uint32_t");
@@ -271,6 +277,7 @@ void GetResolveEdramTileSpan(ResolveEdramPackedInfo edram_info,
                              uint32_t& rows_out);
 
 union ResolveCopyDestPitchPackedInfo {
+  uint32_t packed;
   struct {
     // 0...16384/32.
     uint32_t pitch_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 +
@@ -278,10 +285,10 @@ union ResolveCopyDestPitchPackedInfo {
     uint32_t height_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 +
                                      2 - xenos::kTextureTileWidthHeightLog2;
   };
-  uint32_t packed;
+  ResolveCopyDestPitchPackedInfo() : packed(0) {
+    static_assert_size(*this, sizeof(packed));
+  }
 };
-static_assert(sizeof(ResolveCopyDestPitchPackedInfo) <= sizeof(uint32_t),
-              "ResolveAddressPackedInfo must be packable in uint32_t");
 
 // For backends with Shader Model 5-like compute, host shaders to use to perform
 // copying in resolve operations.

@@ -65,6 +65,7 @@ class TextureCache {
     VkImageView view;
 
     union {
+      uint16_t swizzle;
       struct {
         // FIXME: This only applies on little-endian platforms!
         uint16_t swiz_x : 3;
@@ -73,8 +74,6 @@ class TextureCache {
         uint16_t swiz_w : 3;
         uint16_t : 4;
       };
-
-      uint16_t swizzle;
     };
   };
 

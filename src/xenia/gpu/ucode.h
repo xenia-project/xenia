@@ -423,13 +423,13 @@ union ControlFlowInstruction {
   ControlFlowAllocInstruction alloc;                  // kAlloc
 
   struct {
+    uint32_t dword_0;
+    uint32_t dword_1;
+  };
+  struct {
     uint32_t unused_0 : 32;
     uint32_t unused_1 : 12;
     ControlFlowOpcode opcode_value : 4;
-  };
-  struct {
-    uint32_t dword_0;
-    uint32_t dword_1;
   };
 };
 static_assert_size(ControlFlowInstruction, sizeof(uint32_t) * 2);
