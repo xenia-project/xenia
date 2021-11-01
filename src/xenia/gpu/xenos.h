@@ -986,16 +986,16 @@ enum class FetchConstantType : uint32_t {
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
 union alignas(uint32_t) xe_gpu_vertex_fetch_t {
   struct {
+    uint32_t dword_0;
+    uint32_t dword_1;
+  };
+  struct {
     FetchConstantType type : 2;  // +0
     uint32_t address : 30;       // +2 address in dwords
 
     Endian endian : 2;   // +0
     uint32_t size : 24;  // +2 size in words
     uint32_t unk1 : 6;   // +26
-  };
-  struct {
-    uint32_t dword_0;
-    uint32_t dword_1;
   };
 };
 static_assert_size(xe_gpu_vertex_fetch_t, sizeof(uint32_t) * 2);
@@ -1044,6 +1044,14 @@ constexpr uint32_t kTextureLinearRowAlignmentBytes =
 
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
 union alignas(uint32_t) xe_gpu_texture_fetch_t {
+  struct {
+    uint32_t dword_0;
+    uint32_t dword_1;
+    uint32_t dword_2;
+    uint32_t dword_3;
+    uint32_t dword_4;
+    uint32_t dword_5;
+  };
   struct {
     FetchConstantType type : 2;  // +0 dword_0
     // Likely before the swizzle, seems logical from R5xx (SIGNED_COMP0/1/2/3
@@ -1135,25 +1143,11 @@ union alignas(uint32_t) xe_gpu_texture_fetch_t {
     uint32_t packed_mips : 1;     // +11
     uint32_t mip_address : 20;    // +12 mip address >> 12
   };
-  struct {
-    uint32_t dword_0;
-    uint32_t dword_1;
-    uint32_t dword_2;
-    uint32_t dword_3;
-    uint32_t dword_4;
-    uint32_t dword_5;
-  };
 };
 static_assert_size(xe_gpu_texture_fetch_t, sizeof(uint32_t) * 6);
 
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
 union alignas(uint32_t) xe_gpu_fetch_group_t {
-  xe_gpu_texture_fetch_t texture_fetch;
-  struct {
-    xe_gpu_vertex_fetch_t vertex_fetch_0;
-    xe_gpu_vertex_fetch_t vertex_fetch_1;
-    xe_gpu_vertex_fetch_t vertex_fetch_2;
-  };
   struct {
     uint32_t dword_0;
     uint32_t dword_1;
@@ -1161,6 +1155,12 @@ union alignas(uint32_t) xe_gpu_fetch_group_t {
     uint32_t dword_3;
     uint32_t dword_4;
     uint32_t dword_5;
+  };
+  xe_gpu_texture_fetch_t texture_fetch;
+  struct {
+    xe_gpu_vertex_fetch_t vertex_fetch_0;
+    xe_gpu_vertex_fetch_t vertex_fetch_1;
+    xe_gpu_vertex_fetch_t vertex_fetch_2;
   };
   struct {
     uint32_t type_0 : 2;
@@ -1292,6 +1292,12 @@ static_assert_size(xe_gpu_fetch_group_t, sizeof(uint32_t) * 6);
 //   (16_16_16_16 is the largest color format without special values)
 union alignas(uint32_t) xe_gpu_memexport_stream_t {
   struct {
+    uint32_t dword_0;
+    uint32_t dword_1;
+    uint32_t dword_2;
+    uint32_t dword_3;
+  };
+  struct {
     uint32_t base_address : 30;  // +0 dword_0 physical address >> 2
     uint32_t const_0x1 : 2;      // +30
 
@@ -1307,12 +1313,6 @@ union alignas(uint32_t) xe_gpu_memexport_stream_t {
 
     uint32_t index_count : 23;  // +0 dword_3
     uint32_t const_0x96 : 9;    // +23
-  };
-  struct {
-    uint32_t dword_0;
-    uint32_t dword_1;
-    uint32_t dword_2;
-    uint32_t dword_3;
   };
 };
 static_assert_size(xe_gpu_memexport_stream_t, sizeof(uint32_t) * 4);
