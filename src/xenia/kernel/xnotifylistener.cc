@@ -32,7 +32,7 @@ void XNotifyListener::Initialize(uint64_t mask, uint32_t max_version) {
 }
 
 void XNotifyListener::EnqueueNotification(XNotificationID id, uint32_t data) {
-  auto key = XNotificationKey{id};
+  auto key = XNotificationKey(id);
   // Ignore if the notification doesn't match our mask.
   if ((mask_ & uint64_t(1ULL << key.mask_index)) == 0) {
     return;

@@ -30,13 +30,8 @@ union XNotificationKey {
   };
   XNotificationID id;
 
-  static constexpr XNotificationID get_id(uint8_t mask_index,
-                                          uint16_t local_id) {
-    XNotificationKey key = {};
-    key.mask_index = mask_index;
-    key.local_id = local_id;
-    return key.id;
-  }
+  constexpr XNotificationKey(XNotificationID notification_id)
+      : id(notification_id){};
 };
 
 class XNotifyListener : public XObject {
