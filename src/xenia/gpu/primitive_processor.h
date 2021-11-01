@@ -685,6 +685,7 @@ class PrimitiveProcessor {
       kCacheBucketSizeBytes;
 
   union CacheKey {
+    uint64_t key;
     struct {
       uint32_t base;                  // 32 total
       uint32_t count : 16;            // 48
@@ -694,19 +695,23 @@ class PrimitiveProcessor {
       // kNone if not changing the type (like only processing the reset index).
       xenos::PrimitiveType conversion_guest_primitive_type : 6;  // 59
     };
-    uint64_t key = 0;
 
-    CacheKey() = default;
+    CacheKey() : key(0) { static_assert_size(*this, sizeof(key)); }
     CacheKey(uint32_t base, uint32_t count, xenos::IndexFormat format,
              xenos::Endian endian, bool is_reset_enabled,
              xenos::PrimitiveType conversion_guest_primitive_type =
-                 xenos::PrimitiveType::kNone)
-        : base(base),
-          count(count),
-          format(format),
-          endian(endian),
-          is_reset_enabled(is_reset_enabled),
-          conversion_guest_primitive_type(conversion_guest_primitive_type) {}
+                 xenos::PrimitiveType::kNone) {
+      // Clear unused bits, then set each field explicitly, not via the
+      // initializer list (which causes `uint64_t key = 0;` to be ignored, and
+      // also can't contain initializers for aliasing union members).
+      key = 0;
+      this->base = base;
+      this->count = count;
+      this->format = format;
+      this->endian = endian;
+      this->is_reset_enabled = is_reset_enabled;
+      this->conversion_guest_primitive_type = conversion_guest_primitive_type;
+    }
 
     struct Hasher {
       size_t operator()(const CacheKey& key) const {

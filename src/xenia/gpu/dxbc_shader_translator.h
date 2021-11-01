@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/math.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/gpu/dxbc.h"
@@ -85,6 +86,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
       kFloat24Rounding,
     };
 
+    uint64_t value;
     struct VertexShaderModification {
       // Dynamically indexable register count from SQ_PROGRAM_CNTL.
       uint32_t dynamic_addressable_register_count : 8;
@@ -98,9 +100,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
       // Non-ROV - depth / stencil output mode.
       DepthStencilMode depth_stencil_mode : 2;
     } pixel;
-    uint64_t value = 0;
 
-    Modification(uint64_t modification_value = 0) : value(modification_value) {}
+    Modification(uint64_t modification_value = 0) : value(modification_value) {
+      static_assert_size(*this, sizeof(value));
+    }
   };
 
   // Constant buffer bindings in space 0.

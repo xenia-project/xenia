@@ -124,6 +124,7 @@ class TextureCache {
   // Sampler parameters that can be directly converted to a host sampler or used
   // for binding checking validity whether samplers are up to date.
   union SamplerParameters {
+    uint32_t value;
     struct {
       xenos::ClampMode clamp_x : 3;         // 3
       xenos::ClampMode clamp_y : 3;         // 6
@@ -137,16 +138,8 @@ class TextureCache {
       uint32_t mip_min_level : 4;           // 21
       // Maximum mip level is in the texture resource itself.
     };
-    uint32_t value;
 
-    // Clearing the unused bits.
-    SamplerParameters() : value(0) {}
-    SamplerParameters(const SamplerParameters& parameters)
-        : value(parameters.value) {}
-    SamplerParameters& operator=(const SamplerParameters& parameters) {
-      value = parameters.value;
-      return *this;
-    }
+    SamplerParameters() : value(0) { static_assert_size(*this, sizeof(value)); }
     bool operator==(const SamplerParameters& parameters) const {
       return value == parameters.value;
     }

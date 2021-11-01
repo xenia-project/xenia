@@ -410,6 +410,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   static const TransferModeInfo kTransferModes[size_t(TransferMode::kCount)];
 
   union TransferShaderKey {
+    uint32_t key;
     struct {
       xenos::MsaaSamples dest_msaa_samples : xenos::kMsaaSamplesBits;
       uint32_t dest_resource_format : xenos::kRenderTargetFormatBits;
@@ -433,7 +434,9 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       static_assert(size_t(TransferMode::kCount) <= (size_t(1) << 3));
       TransferMode mode : 3;
     };
-    uint32_t key = 0;
+
+    TransferShaderKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+
     struct Hasher {
       size_t operator()(const TransferShaderKey& key) const {
         return std::hash<uint32_t>{}(key.key);
@@ -451,6 +454,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   };
 
   union TransferAddressConstant {
+    uint32_t constant;
     struct {
       // All in tiles.
       uint32_t dest_pitch : xenos::kEdramPitchTilesBits;
@@ -466,7 +470,9 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       // destination == source anyway).
       int32_t source_to_dest : xenos::kEdramBaseTilesBits;
     };
-    uint32_t constant = 0;
+    TransferAddressConstant() : constant(0) {
+      static_assert_size(*this, sizeof(constant));
+    }
     bool operator==(const TransferAddressConstant& other_constant) const {
       return constant == other_constant.constant;
     }
@@ -474,7 +480,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       return !(*this == other_constant);
     }
   };
-  static_assert(sizeof(TransferAddressConstant) == sizeof(uint32_t));
 
   struct TransferInvocation {
     Transfer transfer;
@@ -515,6 +520,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   };
 
   union HostDepthStoreRectangleConstant {
+    uint32_t constant;
     struct {
       // - 1 because the maximum is 0x1FFF / 8, not 0x2000 / 8.
       uint32_t x_pixels_div_8 : xenos::kResolveSizeBits - 1 -
@@ -524,11 +530,13 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       uint32_t width_pixels_div_8_minus_1 : xenos::kResolveSizeBits - 1 -
                                             xenos::kResolveAlignmentPixelsLog2;
     };
-    uint32_t constant = 0;
+    HostDepthStoreRectangleConstant() : constant(0) {
+      static_assert_size(*this, sizeof(constant));
+    }
   };
-  static_assert(sizeof(HostDepthStoreRectangleConstant) == sizeof(uint32_t));
 
   union HostDepthStoreRenderTargetConstant {
+    uint32_t constant;
     struct {
       uint32_t pitch_tiles : xenos::kEdramPitchTilesBits;
       // 1 to 3.
@@ -536,9 +544,10 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       // Whether 2x MSAA is supported natively rather than through 4x.
       uint32_t msaa_2x_supported : 1;
     };
-    uint32_t constant = 0;
+    HostDepthStoreRenderTargetConstant() : constant(0) {
+      static_assert_size(*this, sizeof(constant));
+    }
   };
-  static_assert(sizeof(HostDepthStoreRenderTargetConstant) == sizeof(uint32_t));
 
   enum {
     kHostDepthStoreRootParameterRectangleConstant,
@@ -549,6 +558,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   };
 
   union DumpPipelineKey {
+    uint32_t key;
     struct {
       xenos::MsaaSamples msaa_samples : 2;
       uint32_t resource_format : 4;
@@ -556,7 +566,9 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       // change it at most once. Depth buffers have an additional stencil SRV.
       uint32_t is_depth : 1;
     };
-    uint32_t key = 0;
+
+    DumpPipelineKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+
     struct Hasher {
       size_t operator()(const DumpPipelineKey& key) const {
         return std::hash<uint32_t>{}(key.key);
@@ -583,13 +595,14 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   };
 
   union DumpOffsets {
+    uint32_t offsets;
     struct {
       // Absolute index of the first thread group's tile within the source
       // texture.
       uint32_t first_group_tile_source_relative : xenos::kEdramBaseTilesBits;
       uint32_t source_base_tiles : xenos::kEdramBaseTilesBits;
     };
-    uint32_t offsets = 0;
+    DumpOffsets() : offsets(0) { static_assert_size(*this, sizeof(offsets)); }
     bool operator==(const DumpOffsets& other_offsets) const {
       return offsets == other_offsets.offsets;
     }
@@ -597,15 +610,15 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       return !(*this == other_offsets);
     }
   };
-  static_assert(sizeof(DumpOffsets) == sizeof(uint32_t));
 
   union DumpPitches {
+    uint32_t pitches;
     struct {
       // Both in tiles.
       uint32_t source_pitch : xenos::kEdramPitchTilesBits;
       uint32_t dest_pitch : xenos::kEdramPitchTilesBits;
     };
-    uint32_t pitches = 0;
+    DumpPitches() : pitches(0) { static_assert_size(*this, sizeof(pitches)); }
     bool operator==(const DumpPitches& other_pitches) const {
       return pitches == other_pitches.pitches;
     }
@@ -613,7 +626,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       return !(*this == other_pitches);
     }
   };
-  static_assert(sizeof(DumpPitches) == sizeof(uint32_t));
 
   enum DumpCbuffer : uint32_t {
     kDumpCbufferOffsets,
