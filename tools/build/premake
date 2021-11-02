@@ -44,7 +44,7 @@ def setup_premake_path_override():
         if (os.path.isfile(xb_file) and not os.access(xb_file, os.X_OK) and
             'HOME' in os.environ):
           premake_path = os.path.join(
-              os.environ['HOME'], 'xenia', 'third_party', 'premake-core')
+              os.environ['HOME'], '.xenia-build', 'premake-core')
     except Exception:
       pass
 
