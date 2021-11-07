@@ -406,9 +406,6 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
              uint32_t(args->controller), uint32_t(args->locked));
 
       disabled_ = args->locked;
-      if (disabled_) {
-        XMPStop(0);
-      }
       kernel_state_->BroadcastNotification(kMsgDisableChanged, disabled_);
       return X_E_SUCCESS;
     }
