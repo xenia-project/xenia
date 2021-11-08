@@ -21,11 +21,11 @@ namespace apps {
 XmpApp::XmpApp(KernelState* kernel_state)
     : App(kernel_state, 0xFA),
       state_(State::kIdle),
-      disabled_(0),
+      playback_client_(PlaybackClient::kTitle),
       playback_mode_(PlaybackMode::kUnknown),
       repeat_mode_(RepeatMode::kUnknown),
       unknown_flags_(0),
-      volume_(0.0f),
+      volume_(1.0f),
       active_playlist_(nullptr),
       active_song_index_(0),
       next_playlist_handle_(1),
@@ -131,9 +131,8 @@ X_HRESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle,
     playlist = it->second;
   }
 
-  if (disabled_) {
-    // Ignored because we aren't enabled?
-    XELOGW("Ignoring XMPPlayTitlePlaylist because disabled");
+  if (playback_client_ == PlaybackClient::kSystem) {
+    XELOGW("XMPPlayTitlePlaylist: System playback is enabled!");
     return X_E_SUCCESS;
   }
 
@@ -395,7 +394,7 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       struct {
         xe::be<uint32_t> xmp_client;
         xe::be<uint32_t> controller;
-        xe::be<uint32_t> locked;
+        xe::be<uint32_t> playback_client;
       }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
       static_assert_size(decltype(*args), 12);
 
@@ -403,10 +402,11 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
           (args->xmp_client == 0x00000002 && args->controller == 0x00000000) ||
           (args->xmp_client == 0x00000000 && args->controller == 0x00000001));
       XELOGD("XMPSetPlaybackController({:08X}, {:08X})",
-             uint32_t(args->controller), uint32_t(args->locked));
+             uint32_t(args->controller), uint32_t(args->playback_client));
 
-      disabled_ = args->locked;
-      kernel_state_->BroadcastNotification(kMsgDisableChanged, disabled_);
+      playback_client_ = PlaybackClient(uint32_t(args->playback_client));
+      kernel_state_->BroadcastNotification(kMsgPlaybackControllerChanged,
+                                           !args->playback_client);
       return X_E_SUCCESS;
     }
     case 0x0007001B: {
