@@ -140,7 +140,7 @@ dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
   }
 
   auto run = [content_manager, root_name = root_name.value(), flags,
-              content_data, disposition_ptr, license_mask_ptr](
+              content_data, disposition_ptr, license_mask_ptr, overlapped_ptr](
                  uint32_t& extended_error, uint32_t& length) -> X_RESULT {
     X_RESULT result = X_ERROR_INVALID_PARAMETER;
     bool create = false;
@@ -214,6 +214,11 @@ dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
 
     extended_error = X_HRESULT_FROM_WIN32(result);
     length = disposition;
+
+    if (result && overlapped_ptr) {
+      result = X_ERROR_FUNCTION_FAILED;
+    }
+
     return result;
   };
 
