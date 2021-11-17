@@ -19,6 +19,14 @@
 
 namespace xe {
 namespace kernel {
+enum class X_WSAError : uint32_t {
+  X_WSA_INVALID_PARAMETER = 0x0057,
+  X_WSAEFAULT = 0x271E,
+  X_WSAEINVAL = 0x2726,
+  X_WSAENOTSOCK = 0x2736,
+  X_WSAEMSGSIZE = 0x2738,
+};
+
 struct XSOCKADDR {
   xe::be<uint16_t> address_family;
   char sa_data[14];
