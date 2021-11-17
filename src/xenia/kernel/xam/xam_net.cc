@@ -862,7 +862,7 @@ struct host_set {
   }
 };
 
-int_result_t NetDll_select_entry(int_t caller, int_t nfds,
+int_result_t NetDll_select_entry(dword_t caller, dword_t nfds,
                                  pointer_t<x_fd_set> readfds,
                                  pointer_t<x_fd_set> writefds,
                                  pointer_t<x_fd_set> exceptfds,
