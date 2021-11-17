@@ -257,5 +257,17 @@ bool XSocket::QueuePacket(uint32_t src_ip, uint16_t src_port,
   return true;
 }
 
+X_STATUS XSocket::GetSockName(uint8_t* buf, int* buf_len) {
+  struct sockaddr sa = {};
+
+  int ret = getsockname(native_handle_, &sa, (socklen_t*)buf_len);
+  if (ret < 0) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  std::memcpy(buf, &sa, *buf_len);
+  return X_STATUS_SUCCESS;
+}
+
 }  // namespace kernel
 }  // namespace xe
