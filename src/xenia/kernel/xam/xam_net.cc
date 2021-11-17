@@ -633,8 +633,7 @@ dword_result_t NetDll_socket_entry(dword_t caller, dword_t af, dword_t type,
   if (XFAILED(result)) {
     socket->Release();
 
-    uint32_t error = xboxkrnl::xeRtlNtStatusToDosError(result);
-    XThread::SetLastError(error);
+    XThread::SetLastError(socket->GetLastWSAError());
     return -1;
   }
 
@@ -671,12 +670,7 @@ int_result_t NetDll_shutdown_entry(dword_t caller, dword_t socket_handle,
 
   auto ret = socket->Shutdown(how);
   if (ret == -1) {
-#ifdef XE_PLATFORM_WIN32
-    uint32_t error_code = WSAGetLastError();
-    XThread::SetLastError(error_code);
-#else
-    XThread::SetLastError(0x0);
-#endif
+    XThread::SetLastError(socket->GetLastWSAError());
   }
   return ret;
 }
@@ -710,7 +704,7 @@ dword_result_t NetDll_ioctlsocket_entry(dword_t caller, dword_t socket_handle,
 
   X_STATUS status = socket->IOControl(cmd, arg_ptr);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
+    XThread::SetLastError(socket->GetLastWSAError());
     return -1;
   }
 
@@ -733,7 +727,7 @@ dword_result_t NetDll_bind_entry(dword_t caller, dword_t socket_handle,
   N_XSOCKADDR_IN native_name(name);
   X_STATUS status = socket->Bind(&native_name, namelen);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
+    XThread::SetLastError(socket->GetLastWSAError());
     return -1;
   }
 
@@ -755,7 +749,7 @@ dword_result_t NetDll_connect_entry(dword_t caller, dword_t socket_handle,
   N_XSOCKADDR native_name(name);
   X_STATUS status = socket->Connect(&native_name, namelen);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
+    XThread::SetLastError(socket->GetLastWSAError());
     return -1;
   }
 
@@ -775,7 +769,7 @@ dword_result_t NetDll_listen_entry(dword_t caller, dword_t socket_handle,
 
   X_STATUS status = socket->Listen(backlog);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
+    XThread::SetLastError(socket->GetLastWSAError());
     return -1;
   }
 
@@ -969,13 +963,7 @@ dword_result_t NetDll_recvfrom_entry(dword_t caller, dword_t socket_handle,
   }
 
   if (ret == -1) {
-// TODO: Better way of getting the error code
-#ifdef XE_PLATFORM_WIN32
-    uint32_t error_code = WSAGetLastError();
-    XThread::SetLastError(error_code);
-#else
-    XThread::SetLastError(0x0);
-#endif
+    XThread::SetLastError(socket->GetLastWSAError());
   }
 
   return ret;
@@ -1045,7 +1033,7 @@ dword_result_t NetDll_getsockname_entry(dword_t caller, dword_t socket_handle,
 
   X_STATUS status = socket->GetSockName(buf_ptr, &buffer_len);
   if (XFAILED(status)) {
-    XThread::SetLastError(xboxkrnl::xeRtlNtStatusToDosError(status));
+    XThread::SetLastError(socket->GetLastWSAError());
     return -1;
   }
 
