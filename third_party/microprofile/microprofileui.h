@@ -2948,7 +2948,8 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 		float fMs = fToMs * (S.nFlipTicks);
 		float fAverageMs = fToMs * (S.nFlipAggregateDisplay / nAggregateFrames);
 		float fMaxMs = fToMs * S.nFlipMaxDisplay;
-		int nLen = snprintf(FrameTimeMessage, sizeof(FrameTimeMessage)-1, "Time[%6.2f] Avg[%6.2f] Max[%6.2f]", fMs, fAverageMs, fMaxMs);
+		float fps = 1000 / fMs; // maybe fAverageMs is better cuz it's averages?
+		int nLen = snprintf(FrameTimeMessage, sizeof(FrameTimeMessage)-1, "FPS [%6.2f] Time [%6.2f] Avg [%6.2f] Max [%6.2f]", fps, fMs, fAverageMs, fMaxMs);
 		pMenuText[nNumMenuItems++] = &FrameTimeMessage[0];
 		MicroProfileDrawText(nWidth - nLen * (MICROPROFILE_TEXT_WIDTH+1), 0, -1, FrameTimeMessage, nLen);
 	}
