@@ -96,7 +96,8 @@ PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
       provider.GetAdapterVendorID(), bindless_resources_used_, edram_rov_used,
       render_target_cache_.gamma_render_target_as_srgb(),
       render_target_cache_.msaa_2x_supported(),
-      render_target_cache_.GetResolutionScale(),
+      render_target_cache_.GetResolutionScaleX(),
+      render_target_cache_.GetResolutionScaleY(),
       provider.GetGraphicsAnalysis() != nullptr);
 
   if (edram_rov_used) {
@@ -419,7 +420,8 @@ void PipelineCache::InitializeShaderStorage(
           provider.GetAdapterVendorID(), bindless_resources_used_,
           edram_rov_used, render_target_cache_.gamma_render_target_as_srgb(),
           render_target_cache_.msaa_2x_supported(),
-          render_target_cache_.GetResolutionScale(),
+          render_target_cache_.GetResolutionScaleX(),
+          render_target_cache_.GetResolutionScaleY(),
           provider.GetGraphicsAnalysis() != nullptr);
       // If needed and possible, create objects needed for DXIL conversion and
       // disassembly on this thread.
@@ -1879,9 +1881,14 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       description.front_counter_clockwise ? TRUE : FALSE;
   state_desc.RasterizerState.DepthBias = description.depth_bias;
   state_desc.RasterizerState.DepthBiasClamp = 0.0f;
+  // With non-square resolution scaling, make sure the worst-case impact is
+  // reverted (slope only along the scaled axis), thus max. More bias is better
+  // than less bias, because less bias means Z fighting with the background is
+  // more likely.
   state_desc.RasterizerState.SlopeScaledDepthBias =
       description.depth_bias_slope_scaled *
-      float(render_target_cache_.GetResolutionScale());
+      float(std::max(render_target_cache_.GetResolutionScaleX(),
+                     render_target_cache_.GetResolutionScaleY()));
   state_desc.RasterizerState.DepthClipEnable =
       description.depth_clip ? TRUE : FALSE;
   uint32_t msaa_sample_count = uint32_t(1)

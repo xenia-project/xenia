@@ -26,7 +26,8 @@
 #include "xenia/gpu/xenos.h"
 
 DECLARE_bool(depth_transfer_not_equal_test);
-DECLARE_int32(draw_resolution_scale);
+DECLARE_int32(draw_resolution_scale_x);
+DECLARE_int32(draw_resolution_scale_y);
 DECLARE_bool(draw_resolution_scaled_texture_offsets);
 DECLARE_bool(gamma_render_target_as_srgb);
 DECLARE_bool(native_2x_msaa);
@@ -167,7 +168,13 @@ class RenderTargetCache {
 
   virtual Path GetPath() const = 0;
 
-  virtual uint32_t GetResolutionScale() const = 0;
+  // Resolution scaling on the EDRAM side is performed by multiplying the EDRAM
+  // tile size by the resolution scale.
+  virtual uint32_t GetResolutionScaleX() const = 0;
+  virtual uint32_t GetResolutionScaleY() const = 0;
+  bool IsResolutionScaled() const {
+    return GetResolutionScaleX() > 1 || GetResolutionScaleY() > 1;
+  }
 
   // Virtual (both the common code and the implementation may do something
   // here), don't call from destructors (does work not needed for shutdown

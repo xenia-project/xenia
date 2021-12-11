@@ -30,14 +30,14 @@ cbuffer xe_system_cbuffer : register(b0) {
   uint xe_textures_resolved;
   float xe_alpha_test_reference;
   uint xe_alpha_to_mask;
-  uint xe_edram_pitch_tiles;
+  uint xe_edram_32bpp_tile_pitch_dwords_scaled;
 
   float4 xe_color_exp_bias;
 
   float2 xe_edram_poly_offset_front;
   float2 xe_edram_poly_offset_back;
 
-  uint xe_edram_depth_base_dwords;
+  uint xe_edram_depth_base_dwords_scaled;
 
   uint4 xe_edram_stencil[2];
 

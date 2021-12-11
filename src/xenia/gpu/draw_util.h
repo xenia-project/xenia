@@ -179,9 +179,9 @@ struct ViewportInfo {
 // a viewport, plus values to multiply-add the returned position by, usable on
 // host graphics APIs such as Direct3D 11+ and Vulkan, also forcing it to the
 // Direct3D clip space with 0...W Z rather than -W...W.
-void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale,
-                         bool origin_bottom_left, uint32_t x_max,
-                         uint32_t y_max, bool allow_reverse_z,
+void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale_x,
+                         uint32_t resolution_scale_y, bool origin_bottom_left,
+                         uint32_t x_max, uint32_t y_max, bool allow_reverse_z,
                          bool convert_z_to_float24, bool full_float24_in_0_to_1,
                          bool pixel_shader_writes_depth,
                          ViewportInfo& viewport_info_out);
@@ -204,6 +204,46 @@ constexpr uint32_t kDivideScale5 = 0xCCCCCCCDu;
 constexpr uint32_t kDivideUpperShift5 = 2;
 constexpr uint32_t kDivideScale15 = 0x88888889u;
 constexpr uint32_t kDivideUpperShift15 = 3;
+
+inline void GetEdramTileWidthDivideScaleAndUpperShift(
+    uint32_t resolution_scale_x, uint32_t& divide_scale,
+    uint32_t& divide_upper_shift) {
+  switch (resolution_scale_x) {
+    case 1:
+      divide_scale = kDivideScale5;
+      divide_upper_shift = kDivideUpperShift5 + 4;
+      break;
+    case 2:
+      divide_scale = kDivideScale5;
+      divide_upper_shift = kDivideUpperShift5 + 5;
+      break;
+    case 3:
+      divide_scale = kDivideScale15;
+      divide_upper_shift = kDivideUpperShift15 + 4;
+      break;
+    default:
+      assert_unhandled_case(resolution_scale_x);
+  }
+}
+
+// Never an identity conversion - can always write conditional move instructions
+// to shaders that will be no-ops for conversion from guest to host samples.
+// While we don't know the exact guest sample pattern, due to the way
+// multisampled render targets are stored in the memory (like 1x2 single-sampled
+// pixels with 2x MSAA, or like 2x2 single-sampled pixels with 4x), assuming
+// that the sample 0 is the top sample, and the sample 1 is the bottom one.
+inline uint32_t GetD3D10SampleIndexForGuest2xMSAA(
+    uint32_t guest_sample_index, bool native_2x_msaa_supported) {
+  assert(guest_sample_index <= 1);
+  if (native_2x_msaa_supported) {
+    // On Direct3D 10.1 with native 2x MSAA, the top-left sample is 1, and the
+    // bottom-right sample is 0.
+    return guest_sample_index ? 0 : 1;
+  }
+  // When native 2x MSAA is not supported, using the top-left (0) and the
+  // bottom-right (3) samples of the guaranteed 4x MSAA.
+  return guest_sample_index ? 3 : 0;
+}
 
 // To avoid passing values that the shader won't understand (even though
 // Direct3D 9 shouldn't pass them anyway).
@@ -295,33 +335,14 @@ union ResolveCopyDestPitchPackedInfo {
 enum class ResolveCopyShaderIndex {
   kFast32bpp1x2xMSAA,
   kFast32bpp4xMSAA,
-  kFast32bpp2xRes,
-  kFast32bpp3xRes1x2xMSAA,
-  kFast32bpp3xRes4xMSAA,
   kFast64bpp1x2xMSAA,
   kFast64bpp4xMSAA,
-  kFast64bpp2xRes,
-  kFast64bpp3xRes,
 
   kFull8bpp,
-  kFull8bpp2xRes,
-  kFull8bpp3xRes,
   kFull16bpp,
-  kFull16bpp2xRes,
-  kFull16bppFrom32bpp3xRes,
-  kFull16bppFrom64bpp3xRes,
   kFull32bpp,
-  kFull32bpp2xRes,
-  kFull32bppFrom32bpp3xRes,
-  kFull32bppFrom64bpp3xRes,
   kFull64bpp,
-  kFull64bpp2xRes,
-  kFull64bppFrom32bpp3xRes,
-  kFull64bppFrom64bpp3xRes,
   kFull128bpp,
-  kFull128bpp2xRes,
-  kFull128bppFrom32bpp3xRes,
-  kFull128bppFrom64bpp3xRes,
 
   kCount,
   kUnknown = kCount,
@@ -330,9 +351,6 @@ enum class ResolveCopyShaderIndex {
 struct ResolveCopyShaderInfo {
   // Debug name of the pipeline state object with this shader.
   const char* debug_name;
-  // Only need to load this shader if the emulator resolution scale == this
-  // value.
-  uint32_t resolution_scale;
   // Whether the EDRAM source needs be bound as a raw buffer (ByteAddressBuffer
   // in Direct3D) since it can load different numbers of 32-bit values at once
   // on some hardware. If the host API doesn't support raw buffers, a typed
@@ -427,8 +445,9 @@ struct ResolveInfo {
   }
 
   ResolveCopyShaderIndex GetCopyShader(
-      uint32_t resolution_scale, ResolveCopyShaderConstants& constants_out,
-      uint32_t& group_count_x_out, uint32_t& group_count_y_out) const;
+      uint32_t resolution_scale_x, uint32_t resolution_scale_y,
+      ResolveCopyShaderConstants& constants_out, uint32_t& group_count_x_out,
+      uint32_t& group_count_y_out) const;
 
   bool IsClearingDepth() const {
     return rb_copy_control.depth_clear_enable != 0;
@@ -460,7 +479,8 @@ struct ResolveInfo {
     constants_out.address_info = address;
   }
 
-  std::pair<uint32_t, uint32_t> GetClearShaderGroupCount() const {
+  std::pair<uint32_t, uint32_t> GetClearShaderGroupCount(
+      uint32_t resolution_scale_x, uint32_t resolution_scale_y) const {
     // 8 guest MSAA samples per invocation.
     uint32_t width_samples_div_8 = address.width_div_8;
     uint32_t height_samples_div_8 = address.height_div_8;
@@ -473,6 +493,8 @@ struct ResolveInfo {
         width_samples_div_8 <<= 1;
       }
     }
+    width_samples_div_8 *= resolution_scale_x;
+    height_samples_div_8 *= resolution_scale_y;
     return std::make_pair((width_samples_div_8 + uint32_t(7)) >> 3,
                           height_samples_div_8);
   }
@@ -484,9 +506,21 @@ struct ResolveInfo {
 // emulated as snorm, with range limited to -1...1, but with correct blending
 // within that range.
 bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
-                    TraceWriter& trace_writer, uint32_t resolution_scale,
+                    TraceWriter& trace_writer, bool is_resolution_scaled,
                     bool fixed_16_truncated_to_minus_1_to_1,
                     ResolveInfo& info_out);
+
+union ResolveResolutionScaleConstant {
+  uint32_t packed;
+  struct {
+    // 1 to 3.
+    uint32_t resolution_scale_x : 2;
+    uint32_t resolution_scale_y : 2;
+  };
+  ResolveResolutionScaleConstant() : packed(0) {
+    static_assert_size(*this, sizeof(packed));
+  }
+};
 
 // Taking user configuration - stretching or letterboxing, overscan region to
 // crop to fill while maintaining the aspect ratio - into account, returns the

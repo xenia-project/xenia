@@ -647,6 +647,7 @@ enum class OperandType : uint32_t {
   kInputControlPoint = 25,
   kInputDomainPoint = 28,
   kUnorderedAccessView = 30,
+  kInputThreadID = 32,
   kInputThreadGroupID = 33,
   kInputThreadIDInGroup = 34,
   kInputCoverageMask = 35,
@@ -880,6 +881,9 @@ struct Dest : OperandAddress {
     return Dest(OperandType::kUnorderedAccessView, write_mask, index_1d,
                 index_2d);
   }
+  static Dest VThreadID(uint32_t read_mask) {
+    return Dest(OperandType::kInputThreadID, read_mask);
+  }
   static Dest VThreadGroupID(uint32_t read_mask) {
     return Dest(OperandType::kInputThreadGroupID, read_mask);
   }
@@ -1051,6 +1055,9 @@ struct Src : OperandAddress {
   static Src U(DclT, uint32_t id, uint32_t lower_bound, uint32_t upper_bound) {
     return Src(OperandType::kUnorderedAccessView, kXYZW, id, lower_bound,
                upper_bound);
+  }
+  static Src VThreadID(uint32_t swizzle = kXYZW) {
+    return Src(OperandType::kInputThreadID, swizzle);
   }
   static Src VThreadGroupID(uint32_t swizzle = kXYZW) {
     return Src(OperandType::kInputThreadGroupID, swizzle);

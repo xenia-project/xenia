@@ -50,7 +50,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
                        bool bindless_resources_used, bool edram_rov_used,
                        bool gamma_render_target_as_srgb = false,
                        bool msaa_2x_supported = true,
-                       uint32_t draw_resolution_scale = 1,
+                       uint32_t draw_resolution_scale_x = 1,
+                       uint32_t draw_resolution_scale_y = 1,
                        bool force_emit_source_map = false);
   ~DxbcShaderTranslator() override;
 
@@ -265,7 +266,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // If alpha to mask is enabled, bits 0:7 are sample offsets, and bit 8 must
     // be 1.
     uint32_t alpha_to_mask;
-    uint32_t edram_pitch_tiles;
+    uint32_t edram_32bpp_tile_pitch_dwords_scaled;
 
     float color_exp_bias[4];
 
@@ -284,8 +285,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
       float edram_poly_offset_back[2];
     };
 
-    uint32_t edram_depth_base_dwords;
-    uint32_t padding_edram_depth_base_dwords[3];
+    uint32_t edram_depth_base_dwords_scaled;
+    uint32_t padding_edram_depth_base_dwords_scaled[3];
 
     // In stencil function/operations (they match the layout of the
     // function/operations in RB_DEPTHCONTROL):
@@ -369,14 +370,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
       kTexturesResolved,
       kAlphaTestReference,
       kAlphaToMask,
-      kEdramPitchTiles,
+      kEdram32bppTilePitchDwordsScaled,
 
       kColorExpBias,
 
       kEdramPolyOffsetFront,
       kEdramPolyOffsetBack,
 
-      kEdramDepthBaseDwords,
+      kEdramDepthBaseDwordsScaled,
 
       kEdramStencil,
 
@@ -947,7 +948,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   bool msaa_2x_supported_;
 
   // Guest pixel host width / height.
-  uint32_t draw_resolution_scale_;
+  uint32_t draw_resolution_scale_x_;
+  uint32_t draw_resolution_scale_y_;
 
   // Is currently writing the empty depth-only pixel shader, for
   // CompleteTranslation.

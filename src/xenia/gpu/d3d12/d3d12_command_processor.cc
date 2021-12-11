@@ -778,11 +778,10 @@ std::string D3D12CommandProcessor::GetWindowTitleText() const {
       default:
         break;
     }
-    uint32_t resolution_scale = render_target_cache_->GetResolutionScale();
-    if (resolution_scale > 1) {
-      title.put(' ');
-      title << resolution_scale;
-      title.put('x');
+    uint32_t resolution_scale_x = texture_cache_->GetDrawResolutionScaleX();
+    uint32_t resolution_scale_y = texture_cache_->GetDrawResolutionScaleY();
+    if (resolution_scale_x > 1 || resolution_scale_y > 1) {
+      title << ' ' << resolution_scale_x << 'x' << resolution_scale_y;
     }
   }
   return title.str();
@@ -1203,7 +1202,8 @@ bool D3D12CommandProcessor::SetupContext() {
 
   texture_cache_ = std::make_unique<TextureCache>(
       *this, *register_file_, *shared_memory_, bindless_resources_used_,
-      render_target_cache_->GetResolutionScale());
+      render_target_cache_->GetResolutionScaleX(),
+      render_target_cache_->GetResolutionScaleY());
   if (!texture_cache_->Initialize()) {
     XELOGE("Failed to initialize the texture cache");
     return false;
@@ -1791,10 +1791,11 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       PushTransitionBarrier(swap_texture_, D3D12_RESOURCE_STATE_RENDER_TARGET,
                             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
       // Don't care about graphics state because the frame is ending anyway.
+      auto swap_screen_size = GetSwapScreenSize();
       {
         std::lock_guard<std::mutex> lock(swap_state_.mutex);
-        swap_state_.width = swap_texture_size.first;
-        swap_state_.height = swap_texture_size.second;
+        swap_state_.width = swap_screen_size.first;
+        swap_state_.height = swap_screen_size.second;
         swap_state_.front_buffer_texture =
             reinterpret_cast<uintptr_t>(swap_texture_srv_descriptor_heap_);
       }
@@ -1961,13 +1962,14 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   }
 
   // Get dynamic rasterizer state.
-  uint32_t resolution_scale = texture_cache_->GetDrawResolutionScale();
+  uint32_t resolution_scale_x = texture_cache_->GetDrawResolutionScaleX();
+  uint32_t resolution_scale_y = texture_cache_->GetDrawResolutionScaleY();
   RenderTargetCache::DepthFloat24Conversion depth_float24_conversion =
       render_target_cache_->depth_float24_conversion();
   draw_util::ViewportInfo viewport_info;
   draw_util::GetHostViewportInfo(
-      regs, resolution_scale, true, D3D12_VIEWPORT_BOUNDS_MAX,
-      D3D12_VIEWPORT_BOUNDS_MAX, false,
+      regs, resolution_scale_x, resolution_scale_y, true,
+      D3D12_VIEWPORT_BOUNDS_MAX, D3D12_VIEWPORT_BOUNDS_MAX, false,
       host_render_targets_used &&
           (depth_float24_conversion ==
                RenderTargetCache::DepthFloat24Conversion::kOnOutputTruncating ||
@@ -1977,10 +1979,10 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       viewport_info);
   draw_util::Scissor scissor;
   draw_util::GetScissor(regs, scissor);
-  scissor.offset[0] *= resolution_scale;
-  scissor.offset[1] *= resolution_scale;
-  scissor.extent[0] *= resolution_scale;
-  scissor.extent[1] *= resolution_scale;
+  scissor.offset[0] *= resolution_scale_x;
+  scissor.offset[1] *= resolution_scale_y;
+  scissor.extent[0] *= resolution_scale_x;
+  scissor.extent[1] *= resolution_scale_y;
 
   // Update viewport, scissor, blend factor and stencil reference.
   UpdateFixedFunctionState(viewport_info, scissor, primitive_polygonal);
@@ -2374,7 +2376,7 @@ bool D3D12CommandProcessor::IssueCopy() {
     return false;
   }
   if (cvars::d3d12_readback_resolve &&
-      texture_cache_->GetDrawResolutionScale() <= 1 && written_length) {
+      !texture_cache_->IsDrawResolutionScaled() && written_length) {
     // Read the resolved data on the CPU.
     ID3D12Resource* readback_buffer = RequestReadbackBuffer(written_length);
     if (readback_buffer != nullptr) {
@@ -2873,7 +2875,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
 
   bool edram_rov_used = render_target_cache_->GetPath() ==
                         RenderTargetCache::Path::kPixelShaderInterlock;
-  uint32_t resolution_scale = texture_cache_->GetDrawResolutionScale();
+  uint32_t resolution_scale_x = texture_cache_->GetDrawResolutionScaleX();
+  uint32_t resolution_scale_y = texture_cache_->GetDrawResolutionScaleY();
 
   // Get the color info register values for each render target. Also, for ROV,
   // exclude components that don't exist in the format from the write mask.
@@ -3070,10 +3073,10 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   system_constants_.point_size_min = point_size_min;
   system_constants_.point_size_max = point_size_max;
   float point_screen_to_ndc_x =
-      (/* 0.5f * 2.0f * */ float(resolution_scale)) /
+      (/* 0.5f * 2.0f * */ float(resolution_scale_x)) /
       std::max(viewport_info.xy_extent[0], uint32_t(1));
   float point_screen_to_ndc_y =
-      (/* 0.5f * 2.0f * */ float(resolution_scale)) /
+      (/* 0.5f * 2.0f * */ float(resolution_scale_y)) /
       std::max(viewport_info.xy_extent[1], uint32_t(1));
   dirty |= system_constants_.point_screen_to_ndc[0] != point_screen_to_ndc_x;
   dirty |= system_constants_.point_screen_to_ndc[1] != point_screen_to_ndc_y;
@@ -3142,15 +3145,22 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   dirty |= system_constants_.alpha_to_mask != alpha_to_mask;
   system_constants_.alpha_to_mask = alpha_to_mask;
 
+  uint32_t edram_tile_dwords_scaled = xenos::kEdramTileWidthSamples *
+                                      xenos::kEdramTileHeightSamples *
+                                      (resolution_scale_x * resolution_scale_y);
+
   // EDRAM pitch for ROV writing.
   if (edram_rov_used) {
-    uint32_t edram_pitch_tiles =
+    // Align, then multiply by 32bpp tile size in dwords.
+    uint32_t edram_32bpp_tile_pitch_dwords_scaled =
         ((rb_surface_info.surface_pitch *
           (rb_surface_info.msaa_samples >= xenos::MsaaSamples::k4X ? 2 : 1)) +
-         79) /
-        80;
-    dirty |= system_constants_.edram_pitch_tiles != edram_pitch_tiles;
-    system_constants_.edram_pitch_tiles = edram_pitch_tiles;
+         (xenos::kEdramTileWidthSamples - 1)) /
+        xenos::kEdramTileWidthSamples * edram_tile_dwords_scaled;
+    dirty |= system_constants_.edram_32bpp_tile_pitch_dwords_scaled !=
+             edram_32bpp_tile_pitch_dwords_scaled;
+    system_constants_.edram_32bpp_tile_pitch_dwords_scaled =
+        edram_32bpp_tile_pitch_dwords_scaled;
   }
 
   // Color exponent bias and output index mapping or ROV render target writing.
@@ -3184,7 +3194,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       if (rt_keep_masks[i][0] != UINT32_MAX ||
           rt_keep_masks[i][1] != UINT32_MAX) {
         uint32_t rt_base_dwords_scaled =
-            color_info.color_base * 1280 * resolution_scale * resolution_scale;
+            color_info.color_base * edram_tile_dwords_scaled;
         dirty |= system_constants_.edram_rt_base_dwords_scaled[i] !=
                  rt_base_dwords_scaled;
         system_constants_.edram_rt_base_dwords_scaled[i] =
@@ -3208,12 +3218,12 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     }
   }
 
-  // Interpolator sampling pattern, resolution scale, depth/stencil testing and
-  // blend constant for ROV.
   if (edram_rov_used) {
-    uint32_t depth_base_dwords = rb_depth_info.depth_base * 1280;
-    dirty |= system_constants_.edram_depth_base_dwords != depth_base_dwords;
-    system_constants_.edram_depth_base_dwords = depth_base_dwords;
+    uint32_t depth_base_dwords_scaled =
+        rb_depth_info.depth_base * edram_tile_dwords_scaled;
+    dirty |= system_constants_.edram_depth_base_dwords_scaled !=
+             depth_base_dwords_scaled;
+    system_constants_.edram_depth_base_dwords_scaled = depth_base_dwords_scaled;
 
     // For non-polygons, front polygon offset is used, and it's enabled if
     // POLY_OFFSET_PARA_ENABLED is set, for polygons, separate front and back
@@ -3243,8 +3253,13 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         poly_offset_back_offset = poly_offset_front_offset;
       }
     }
+    // With non-square resolution scaling, make sure the worst-case impact is
+    // reverted (slope only along the scaled axis), thus max. More bias is
+    // better than less bias, because less bias means Z fighting with the
+    // background is more likely.
     float poly_offset_scale_factor =
-        xenos::kPolygonOffsetScaleSubpixelUnit * resolution_scale;
+        xenos::kPolygonOffsetScaleSubpixelUnit *
+        std::max(resolution_scale_x, resolution_scale_y);
     poly_offset_front_scale *= poly_offset_scale_factor;
     poly_offset_back_scale *= poly_offset_scale_factor;
     dirty |= system_constants_.edram_poly_offset_front_scale !=
