@@ -84,7 +84,7 @@ class TextureCache {
     // than an unsigned view of the same guest texture.
     uint32_t signed_separate : 1;  // 96
 
-    // Whether this texture is a 2x-scaled resolve target.
+    // Whether this texture is a resolution-scaled resolve target.
     uint32_t scaled_resolve : 1;  // 97
 
     TextureKey() { MakeInvalid(); }
@@ -151,7 +151,8 @@ class TextureCache {
   TextureCache(D3D12CommandProcessor& command_processor,
                const RegisterFile& register_file,
                D3D12SharedMemory& shared_memory, bool bindless_resources_used,
-               uint32_t draw_resolution_scale);
+               uint32_t draw_resolution_scale_x,
+               uint32_t draw_resolution_scale_y);
   ~TextureCache();
 
   bool Initialize();
@@ -214,16 +215,20 @@ class TextureCache {
                     D3D12_CPU_DESCRIPTOR_HANDLE handle) const;
 
   void MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled);
-  static uint32_t GetMaxDrawResolutionScale(
-      const ui::d3d12::D3D12Provider& provider) {
-    // 31 because 2 GB buffers are used.
-    if (provider.GetTiledResourcesTier() < D3D12_TILED_RESOURCES_TIER_1 ||
-        provider.GetVirtualAddressBitsPerResource() < 31) {
-      return 1;
-    }
-    return kMaxDrawResolutionScale;
+  // In textures, resolution scaling is done for 8-byte portions of memory for
+  // 8bpp textures, and for 16-byte portions for textures of higher bit depths
+  // (these are the sizes of regions where contiguous texels in memory are also
+  // contiguous in the texture along the horizontal axis, so 64-bit and 128-bit
+  // loads / stores, for 8bpp and 16bpp+ respectively, can be used for untiling
+  // regardless of the resolution scale).
+  static void ClampDrawResolutionScaleToSupportedRange(
+      uint32_t& scale_x, uint32_t& scale_y,
+      const ui::d3d12::D3D12Provider& provider);
+  uint32_t GetDrawResolutionScaleX() const { return draw_resolution_scale_x_; }
+  uint32_t GetDrawResolutionScaleY() const { return draw_resolution_scale_y_; }
+  bool IsDrawResolutionScaled() const {
+    return draw_resolution_scale_x_ > 1 || draw_resolution_scale_y_ > 1;
   }
-  uint32_t GetDrawResolutionScale() const { return draw_resolution_scale_; }
   // Ensures the tiles backing the range in the buffers are allocated.
   bool EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled,
                                           uint32_t length_unscaled);
@@ -242,7 +247,7 @@ class TextureCache {
       D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t element_size_bytes_pow2);
   void TransitionCurrentScaledResolveRange(D3D12_RESOURCE_STATES new_state);
   void MarkCurrentScaledResolveRangeUAVWritesCommitNeeded() {
-    assert_true(draw_resolution_scale_ > 1);
+    assert_true(IsDrawResolutionScaled());
     GetCurrentScaledResolveBuffer().SetUAVBarrierPending();
   }
 
@@ -255,7 +260,11 @@ class TextureCache {
       xenos::TextureFormat& format_out);
 
  private:
-  static constexpr uint32_t kMaxDrawResolutionScale = 3;
+  // Hard limit, originating from the half-pixel offset (two-pixel offset is too
+  // much, the resolve shaders, being generic for different scales, only
+  // duplicate the second pixel into the first, not the third), and also due to
+  // the bit counts used for passing the scale to shaders.
+  static constexpr uint32_t kMaxDrawResolutionScaleAlongAxis = 3;
 
   enum class LoadMode {
     k8bpb,
@@ -287,7 +296,7 @@ class TextureCache {
     kUnknown = kCount
   };
 
-  struct LoadShaderInfo {
+  struct LoadModeInfo {
     // Rules of data access in load shaders:
     // - Source reading (from the shared memory or the scaled resolve buffer):
     //   - Guest data may be stored in a sparsely-allocated buffer, or, in
@@ -336,11 +345,13 @@ class TextureCache {
     //   - Resolution scaling enabled:
     //     - For simplicity, unlike in the shared memory, buffer tile boundaries
     //       are not aligned to powers of 2 the same way as guest addresses are.
-    //       While for 2x resolution scaling it still happens to be the case
-    //       because `host address = guest address << 1`, for 3x, it's not - a
-    //       64 KB host tile would represent 7281.777 guest bytes (though we
-    //       scale texels, not bytes, but that's what it would be for k_8
-    //       textures).
+    //       While for 2x2 resolution scaling it still happens to be the case
+    //       because `host scaling unit address = guest scaling unit
+    //       address << 2` (similarly for 2x1 and 1x2), for 3x or x3, it's not -
+    //       a 64 KB host tile would represent 7281.777 guest bytes with 3x3
+    //       (disregarding that sequences of texels that are adjacent in memory
+    //       alongside the horizontal axis, not individual bytes, are scaled,
+    //       but even in that case it's not scaling by 2^n still).
     //     - The above would affect the `width > pitch` case for linear
     //       textures, requiring overestimating the width in calculation of the
     //       range of the tiles to map, while not doing this overestimation on
@@ -363,22 +374,24 @@ class TextureCache {
     //   - host_x_blocks_per_thread specifies how many pixels can be written
     //     without bounds checking within increments of that amount - the pitch
     //     of the destination buffer is manually overaligned if needed.
+    // Shader without resolution scaling.
     const void* shader;
     size_t shader_size;
+    // Shader with resolution scaling, if available. These shaders are separate
+    // so the majority of the textures are not affected by the code needed for
+    // resolution scale support, and also to check if the format allows
+    // resolution scaling.
+    const void* shader_scaled;
+    size_t shader_scaled_size;
     // Log2 of the sizes, in bytes, of the source (guest) SRV and the
     // destination (host) UAV accessed by the copying shader, since the shader
     // may copy multiple blocks per one invocation.
     uint32_t srv_bpe_log2;
     uint32_t uav_bpe_log2;
-    // Number of guest blocks (or texels for uncompressed) along X axis written
+    // Number of host blocks (or texels for uncompressed) along X axis written
     // by every compute shader thread - rows in the upload buffer are padded to
     // at least this amount.
     uint32_t host_x_blocks_per_thread;
-  };
-
-  struct LoadModeInfo {
-    // For different drawing resolution scales.
-    LoadShaderInfo shaders[kMaxDrawResolutionScale];
   };
 
   struct HostFormat {
@@ -473,17 +486,18 @@ class TextureCache {
 
   struct LoadConstants {
     // vec4 0.
-    uint32_t is_tiled_3d_endian;
-    // Base offset in bytes.
+    uint32_t is_tiled_3d_endian_scale;
+    // Base offset in bytes, resolution-scaled.
     uint32_t guest_offset;
-    // For tiled textures - row pitch in blocks, aligned to 32.
+    // For tiled textures - row pitch in blocks, aligned to 32, unscaled.
     // For linear textures - row pitch in bytes.
     uint32_t guest_pitch_aligned;
-    // For 3D textures only (ignored otherwise) - aligned to 32.
+    // For 3D textures only (ignored otherwise) - aligned to 32, unscaled.
     uint32_t guest_z_stride_block_rows_aligned;
 
     // vec4 1.
     // If this is a packed mip tail, this is aligned to tile dimensions.
+    // Resolution-scaled.
     uint32_t size_blocks[3];
     // Base offset in bytes.
     uint32_t host_offset;
@@ -671,7 +685,7 @@ class TextureCache {
   void ClearBindings();
 
   size_t GetScaledResolveBufferCount() const {
-    assert_true(draw_resolution_scale_ > 1);
+    assert_true(IsDrawResolutionScaled());
     // Make sure any range up to 1 GB is accessible through 1 or 2 buffers.
     // 2x2 scale buffers - just one 2 GB buffer for all 2 GB.
     // 3x3 scale buffers - 4 buffers:
@@ -687,7 +701,7 @@ class TextureCache {
     //   three buffers.
     uint64_t address_space_size =
         uint64_t(SharedMemory::kBufferSize) *
-        (draw_resolution_scale_ * draw_resolution_scale_);
+        (draw_resolution_scale_x_ * draw_resolution_scale_y_);
     return size_t((address_space_size - 1) >> 30);
   }
   // Returns indices of two scaled resolve virtual buffers that the location in
@@ -695,7 +709,7 @@ class TextureCache {
   // the beginning or the end of the address represented only by one buffer.
   std::array<size_t, 2> GetPossibleScaledResolveBufferIndices(
       uint64_t address_scaled) const {
-    assert_true(draw_resolution_scale_ > 1);
+    assert_true(IsDrawResolutionScaled());
     size_t address_gb = size_t(address_scaled >> 30);
     size_t max_index = GetScaledResolveBufferCount() - 1;
     // In different cases for 3x3:
@@ -788,11 +802,12 @@ class TextureCache {
   };
   uint8_t unsupported_format_features_used_[64];
 
-  uint32_t draw_resolution_scale_ = 1;
+  uint32_t draw_resolution_scale_x_ = 1;
+  uint32_t draw_resolution_scale_y_ = 1;
   // The tiled buffer for resolved data with resolution scaling.
   // Because on Direct3D 12 (at least on Windows 10 2004) typed SRV or UAV
   // creation fails for offsets above 4 GB, a single tiled 4.5 GB buffer can't
-  // be used for 3x resolution scaling.
+  // be used for 3x3 resolution scaling.
   // Instead, "sliding window" buffers allowing to access a single range of up
   // to 1 GB (or up to 2 GB, depending on the low bits) at any moment are used.
   // Parts of 4.5 GB address space can be accessed through 2 GB buffers as:
@@ -807,8 +822,8 @@ class TextureCache {
   // Size is calculated the same as in GetScaledResolveBufferCount.
   ScaledResolveVirtualBuffer*
       scaled_resolve_2gb_buffers_[(uint64_t(SharedMemory::kBufferSize) *
-                                       (kMaxDrawResolutionScale *
-                                        kMaxDrawResolutionScale) -
+                                       (kMaxDrawResolutionScaleAlongAxis *
+                                        kMaxDrawResolutionScaleAlongAxis) -
                                    1) >>
                                   30] = {};
   // Not very big heaps (16 MB) because they are needed pretty sparsely. One
@@ -838,8 +853,8 @@ class TextureCache {
   // For aliasing barrier placement, last owning buffer index for each of 1 GB.
   size_t
       scaled_resolve_1gb_buffer_indices_[(uint64_t(SharedMemory::kBufferSize) *
-                                              kMaxDrawResolutionScale *
-                                              kMaxDrawResolutionScale +
+                                              kMaxDrawResolutionScaleAlongAxis *
+                                              kMaxDrawResolutionScaleAlongAxis +
                                           ((uint32_t(1) << 30) - 1)) >>
                                          30];
   // Range used in the last successful MakeScaledResolveRangeCurrent call.

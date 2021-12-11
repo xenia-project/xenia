@@ -40,6 +40,116 @@ int XeTextureTiledOffset3D(int3 p, uint pitch_aligned, uint height_aligned,
   return address;
 }
 
+// Log2 of the number of blocks always laid out consecutively in memory along
+// the horizontal axis.
+uint XeTextureTiledConsecutiveBlocksLog2(uint bpb_log2) {
+  // 1bpb and 2bpb - 8.
+  // 4bpb - 4.
+  // 8bpb - 2.
+  // 16bpb - 1.
+  return min(4u - bpb_log2, 3u);
+}
+
+// Odd sequences of consecutive blocks along the horizontal axis are placed at a
+// fixed offset in memory from the preceding even ones. Returns the distance
+// between the beginnings of the even and its corresponding odd sequences.
+uint XeTextureTiledOddConsecutiveBlocksOffset(uint bpb_log2) {
+  return bpb_log2 >= 2u ? 32u : 64u;
+}
+
+// For shaders to be able to copy multiple horizontally adjacent pixels in the
+// same way regardless of the resolution scale chosen, scaling is done at Nx1
+// granularity where N matches the number of pixels that are consecutive with
+// guest tiling, rather than within individual guest pixels:
+// - 1bpp - 8x1 host pixels (can copy via R32G32_UINT)
+// - 2bpp - 8x1 host pixels (can copy via R32G32B32A32_UINT)
+// - 4bpp - 4x1 host pixels
+// - 8bpp - 2x1 host pixels
+// - 16bpp - 1x1 host pixels
+// For better access locality, because compute shaders in Xenia usually have 2D
+// thread groups, host Nx1 sub-units are scaled within guest Nx1 units in a
+// column-major way.
+// So, for example, in a 2bpp texture with 2x2 resolution scale, 16 guest bytes,
+// or 64 host bytes, contain:
+// - 16 host bytes - 8x1 top-left portion
+// - 16 host bytes - 8x1 bottom-left portion
+// - 16 host bytes - 8x1 top-right portion
+// - 16 host bytes - 8x1 bottom-right portion
+// This function is used only for non-negative positions within a texture, so
+// for simplicity, especially of the division involved, assuming everything is
+// unsigned.
+uint XeTextureScaledTiledOffset(bool is_3d, uint3 p, uint pitch_aligned,
+                                uint height_aligned, uint bpb_log2,
+                                uint2 scale) {
+  uint unit_width_log2 = XeTextureTiledConsecutiveBlocksLog2(bpb_log2);
+  // Global host X coordinate in host Nx1 sub-units.
+  uint x_subunits = p.x >> unit_width_log2;
+  // Global guest XY coordinate in guest Nx1 units.
+  uint2 xy_unit_guest = uint2(x_subunits, p.y) / scale;
+  // Global guest XYZ coordinate of the beginning of the Nx1 unit.
+  uint3 unit_guest_origin =
+      uint3(xy_unit_guest.x << unit_width_log2, xy_unit_guest.y, p.z);
+  // Global guest linear address of the beginning of Nx1 unit in bytes.
+  uint unit_guest_address;
+  [branch] if (is_3d) {
+    unit_guest_address =
+        uint(XeTextureTiledOffset3D(int3(unit_guest_origin), pitch_aligned,
+                                    height_aligned, bpb_log2));
+  } else {
+    unit_guest_address =
+        uint(XeTextureTiledOffset2D(int2(unit_guest_origin.xy), pitch_aligned,
+                                    bpb_log2));
+  }
+  // Unit-local host XY index of the host Nx1 sub-unit.
+  // Also see XeTextureScaledRightSubUnitOffsetInConsecutivePair for common
+  // subexpression elimination information as this remainder calculation is done
+  // there too.
+  uint2 unit_subunit = uint2(x_subunits, p.y) - xy_unit_guest * scale;
+  // Combine:
+  // - Guest global unit address.
+  // - Host unit-local sub-unit index.
+  // - Host pixel within a sub-unit (if the offset is requested at a smaller
+  //   granularity than a whole sub-unit).
+  return unit_guest_address * (scale.x * scale.y) +
+         ((((unit_subunit.x * scale.y + unit_subunit.y) << unit_width_log2) +
+           (p.x & ((1u << unit_width_log2) - 1u)))
+          << bpb_log2);
+}
+
+// Offset of the beginning of next host sub-unit along the horizontal axis
+// within a pair of guest units.
+// x must be a multiple of 1 << (XeTextureTiledConsecutiveBlocksLog2 + 1) - to
+// go from one pair of consecutive blocks to another, full tiled offset
+// recalculation is required.
+uint XeTextureScaledRightSubUnitOffsetInConsecutivePair(uint x, uint bpb_log2,
+                                                        uint2 scale) {
+  uint right_sub_unit_offset_columns;
+  uint tiled_consecutive_offset =
+      XeTextureTiledOddConsecutiveBlocksOffset(bpb_log2);
+  [branch] if (scale.x > 1u) {
+    uint subunit_width_log2 = XeTextureTiledConsecutiveBlocksLog2(bpb_log2);
+    uint subunit_size_log2 = subunit_width_log2 + bpb_log2;
+    // While % can be used here to take the modulo, for better common
+    // subexpression elimination between this function and
+    // XeTextureScaledTiledOffset when both are used, taking the remainder the
+    // same way.
+    uint x_subunits = x >> subunit_width_log2;
+    uint unit_subunit_x = x_subunits - (x_subunits / scale.x) * scale.x;
+    if (unit_subunit_x + 1u == scale.x) {
+      // The next host sub-unit is in the other, odd guest unit.
+      right_sub_unit_offset_columns = tiled_consecutive_offset * scale.x -
+                                      (unit_subunit_x << subunit_size_log2);
+    } else {
+      // The next host sub-unit is in the same guest unit.
+      right_sub_unit_offset_columns = 1u << subunit_size_log2;
+    }
+  } else {
+    right_sub_unit_offset_columns = tiled_consecutive_offset;
+  }
+  // The layout of sub-units within one unit is column-major.
+  return right_sub_unit_offset_columns * scale.y;
+}
+
 int XeTextureGuestLinearOffset(int3 p, uint pitch, uint height_aligned,
                                uint bpb) {
   return p.x * int(bpb) + (p.z * int(height_aligned) + p.y) * int(pitch);

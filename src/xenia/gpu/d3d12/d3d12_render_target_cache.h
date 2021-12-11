@@ -60,7 +60,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
   Path GetPath() const override { return path_; }
 
-  uint32_t GetResolutionScale() const override { return resolution_scale_; }
+  uint32_t GetResolutionScaleX() const override { return resolution_scale_x_; }
+  uint32_t GetResolutionScaleY() const override { return resolution_scale_y_; }
 
   bool Update(bool is_rasterization_done,
               uint32_t shader_writes_color_targets) override;
@@ -249,7 +250,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   bool bindless_resources_used_;
 
   Path path_ = Path::kHostRenderTargets;
-  uint32_t resolution_scale_ = 1;
+  uint32_t resolution_scale_x_ = 1;
+  uint32_t resolution_scale_y_ = 1;
 
   // For host render targets, an EDRAM-sized scratch buffer for:
   // - Guest render target data copied from host render targets during copying
@@ -290,7 +292,13 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   // Parameter 1 - destination (shared memory or a part of it).
   // Parameter 2 - source (EDRAM).
   ID3D12RootSignature* resolve_copy_root_signature_ = nullptr;
-  static const std::pair<const void*, size_t>
+  struct ResolveCopyShaderCode {
+    const void* unscaled;
+    size_t unscaled_size;
+    const void* scaled;
+    size_t scaled_size;
+  };
+  static const ResolveCopyShaderCode
       kResolveCopyShaders[size_t(draw_util::ResolveCopyShaderIndex::kCount)];
   ID3D12PipelineState* resolve_copy_pipelines_[size_t(
       draw_util::ResolveCopyShaderIndex::kCount)] = {};
@@ -539,8 +547,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     uint32_t constant;
     struct {
       uint32_t pitch_tiles : xenos::kEdramPitchTilesBits;
-      // 1 to 3.
-      uint32_t resolution_scale : 2;
+      uint32_t resolution_scale_x : 2;
+      uint32_t resolution_scale_y : 2;
       // Whether 2x MSAA is supported natively rather than through 4x.
       uint32_t msaa_2x_supported : 1;
     };
@@ -597,9 +605,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   union DumpOffsets {
     uint32_t offsets;
     struct {
-      // Absolute index of the first thread group's tile within the source
-      // texture.
-      uint32_t first_group_tile_source_relative : xenos::kEdramBaseTilesBits;
+      uint32_t dispatch_first_tile : xenos::kEdramBaseTilesBits;
       uint32_t source_base_tiles : xenos::kEdramBaseTilesBits;
     };
     DumpOffsets() : offsets(0) { static_assert_size(*this, sizeof(offsets)); }
@@ -615,8 +621,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     uint32_t pitches;
     struct {
       // Both in tiles.
-      uint32_t source_pitch : xenos::kEdramPitchTilesBits;
       uint32_t dest_pitch : xenos::kEdramPitchTilesBits;
+      uint32_t source_pitch : xenos::kEdramPitchTilesBits;
     };
     DumpPitches() : pitches(0) { static_assert_size(*this, sizeof(pitches)); }
     bool operator==(const DumpPitches& other_pitches) const {
@@ -829,9 +835,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   std::vector<uint32_t> built_shader_;
 
   // For rasterizer-ordered view (pixel shader interlock).
-
-  static const std::pair<const void*, size_t> kResolveROVClear32bppShaders[3];
-  static const std::pair<const void*, size_t> kResolveROVClear64bppShaders[3];
 
   ID3D12RootSignature* resolve_rov_clear_root_signature_ = nullptr;
   // Clearing 32bpp color or depth.
