@@ -33,7 +33,7 @@ class XAudio2AudioDriver : public AudioDriver {
   ~XAudio2AudioDriver() override;
 
   bool Initialize();
-  // Must not be called from COM STA threads as MTA XAudio 2.7 may be used. It's
+  // Must not be called from COM STA threads as MTA XAudio2 will be used. It's
   // fine to call this from threads that have never initialized COM as
   // initializing MTA for any thread implicitly initializes it for all threads
   // not explicitly requesting STA (until COM is uninitialized all threads that
@@ -49,8 +49,8 @@ class XAudio2AudioDriver : public AudioDriver {
   // even beyond the 6 guest cores.
   api::XAUDIO2_PROCESSOR kProcessor = 0x00000001;
 
-  // For XAudio 2.7, InitializeObjects and ShutdownObjects must be called only
-  // in the lifecycle management thread with COM MTA initialized.
+  // InitializeObjects and ShutdownObjects must be called only in the lifecycle
+  // management thread with COM MTA initialized.
   template <typename Objects>
   bool InitializeObjects(Objects& objects);
   template <typename Objects>
@@ -59,6 +59,11 @@ class XAudio2AudioDriver : public AudioDriver {
   void MTAThread();
 
   void* xaudio2_module_ = nullptr;
+  // clang-format off
+  HRESULT (__stdcall* xaudio2_create_)(
+      api::IXAudio2_8** xaudio2_out, UINT32 flags,
+      api::XAUDIO2_PROCESSOR xaudio2_processor) = nullptr;
+  // clang-format on
   uint32_t api_minor_version_ = 7;
 
   bool mta_thread_initialization_completion_result_;

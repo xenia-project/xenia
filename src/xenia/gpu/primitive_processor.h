@@ -509,6 +509,14 @@ class PrimitiveProcessor {
     }
   };
 
+  // Triangle fan test cases:
+  // - 4D5307E6 - main menu - game logo, developer logo, backgrounds of the menu
+  //   item list (the whole menu and individual items) - no index buffer.
+  // - 4E4D87E6 - terrain - with an index buffer and primitive reset (note that
+  //   there, vfetch indices are computed in the vertex shader, involving
+  //   floating-point reciprocal, so this case is very sensitive to rounding,
+  //   and incorrect geometry may occur not because of vertex grouping issues,
+  //   but also due to the behavior of the vertex shader).
   // Triangle fans as triangle lists.
   // Ordered as (v1, v2, v0), (v2, v3, v0) in Direct3D.
   // https://docs.microsoft.com/en-us/windows/desktop/direct3d9/triangle-fans
@@ -565,6 +573,8 @@ class PrimitiveProcessor {
                               uint32_t source_index_count,
                               const PassthroughIndexTransform& index_transform);
 
+  // Quad list test cases:
+  // - 4D5307E6 - main menu - flying dust on the road - no index buffer.
   static constexpr uint32_t GetQuadListTriangleListIndexCount(
       uint32_t quad_list_index_count) {
     return (quad_list_index_count / 4) * 6;
@@ -685,6 +695,7 @@ class PrimitiveProcessor {
       kCacheBucketSizeBytes;
 
   union CacheKey {
+    uint64_t key;
     struct {
       uint32_t base;                  // 32 total
       uint32_t count : 16;            // 48
@@ -694,19 +705,23 @@ class PrimitiveProcessor {
       // kNone if not changing the type (like only processing the reset index).
       xenos::PrimitiveType conversion_guest_primitive_type : 6;  // 59
     };
-    uint64_t key = 0;
 
-    CacheKey() = default;
+    CacheKey() : key(0) { static_assert_size(*this, sizeof(key)); }
     CacheKey(uint32_t base, uint32_t count, xenos::IndexFormat format,
              xenos::Endian endian, bool is_reset_enabled,
              xenos::PrimitiveType conversion_guest_primitive_type =
-                 xenos::PrimitiveType::kNone)
-        : base(base),
-          count(count),
-          format(format),
-          endian(endian),
-          is_reset_enabled(is_reset_enabled),
-          conversion_guest_primitive_type(conversion_guest_primitive_type) {}
+                 xenos::PrimitiveType::kNone) {
+      // Clear unused bits, then set each field explicitly, not via the
+      // initializer list (which causes `uint64_t key = 0;` to be ignored, and
+      // also can't contain initializers for aliasing union members).
+      key = 0;
+      this->base = base;
+      this->count = count;
+      this->format = format;
+      this->endian = endian;
+      this->is_reset_enabled = is_reset_enabled;
+      this->conversion_guest_primitive_type = conversion_guest_primitive_type;
+    }
 
     struct Hasher {
       size_t operator()(const CacheKey& key) const {

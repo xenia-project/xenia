@@ -27,10 +27,10 @@ namespace texture_util {
 // mip range based on real presence of the base level and mips. Returns 6 faces
 // for cube textures.
 void GetSubresourcesFromFetchConstant(
-    const xenos::xe_gpu_texture_fetch_t& fetch, uint32_t* width_out,
-    uint32_t* height_out, uint32_t* depth_or_faces_out, uint32_t* base_page_out,
-    uint32_t* mip_page_out, uint32_t* mip_min_level_out,
-    uint32_t* mip_max_level_out,
+    const xenos::xe_gpu_texture_fetch_t& fetch, uint32_t* width_minus_1_out,
+    uint32_t* height_minus_1_out, uint32_t* depth_or_array_size_minus_1_out,
+    uint32_t* base_page_out, uint32_t* mip_page_out,
+    uint32_t* mip_min_level_out, uint32_t* mip_max_level_out,
     xenos::TextureFilter sampler_mip_filter =
         xenos::TextureFilter::kUseFetchConst);
 

@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_D3D12_D3D12_COMMAND_PROCESSOR_H_
 #define XENIA_GPU_D3D12_D3D12_COMMAND_PROCESSOR_H_
 
+#include <algorithm>
 #include <atomic>
 #include <deque>
 #include <memory>
@@ -509,7 +510,14 @@ class D3D12CommandProcessor : public CommandProcessor {
   static constexpr uint32_t kSwapTextureWidth = 1280;
   static constexpr uint32_t kSwapTextureHeight = 720;
   std::pair<uint32_t, uint32_t> GetSwapTextureSize() const {
-    uint32_t resolution_scale = texture_cache_->GetDrawResolutionScale();
+    return std::make_pair(
+        kSwapTextureWidth * texture_cache_->GetDrawResolutionScaleX(),
+        kSwapTextureHeight * texture_cache_->GetDrawResolutionScaleY());
+  }
+  std::pair<uint32_t, uint32_t> GetSwapScreenSize() const {
+    uint32_t resolution_scale =
+        std::max(texture_cache_->GetDrawResolutionScaleX(),
+                 texture_cache_->GetDrawResolutionScaleY());
     return std::make_pair(kSwapTextureWidth * resolution_scale,
                           kSwapTextureHeight * resolution_scale);
   }

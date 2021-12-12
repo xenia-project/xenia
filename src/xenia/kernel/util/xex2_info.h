@@ -558,11 +558,11 @@ struct xex2_header {
 
 struct xex2_page_descriptor {
   union {
+    xe::be<uint32_t> value;  // 0x0
     struct {
       xex2_section_type info : 4;
       uint32_t page_count : 28;
     };
-    xe::be<uint32_t> value;  // 0x0
   };
   char data_digest[0x14];  // 0x4
 };

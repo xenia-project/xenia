@@ -20,55 +20,58 @@ namespace gpu {
 namespace texture_util {
 
 void GetSubresourcesFromFetchConstant(
-    const xenos::xe_gpu_texture_fetch_t& fetch, uint32_t* width_out,
-    uint32_t* height_out, uint32_t* depth_or_faces_out, uint32_t* base_page_out,
-    uint32_t* mip_page_out, uint32_t* mip_min_level_out,
-    uint32_t* mip_max_level_out, xenos::TextureFilter sampler_mip_filter) {
-  uint32_t width = 0, height = 0, depth_or_faces = 0;
+    const xenos::xe_gpu_texture_fetch_t& fetch, uint32_t* width_minus_1_out,
+    uint32_t* height_minus_1_out, uint32_t* depth_or_array_size_minus_1_out,
+    uint32_t* base_page_out, uint32_t* mip_page_out,
+    uint32_t* mip_min_level_out, uint32_t* mip_max_level_out,
+    xenos::TextureFilter sampler_mip_filter) {
+  uint32_t width_minus_1 = 0;
+  uint32_t height_minus_1 = 0;
+  uint32_t depth_or_array_size_minus_1 = 0;
   switch (fetch.dimension) {
     case xenos::DataDimension::k1D:
       assert_false(fetch.stacked);
       assert_false(fetch.tiled);
       assert_false(fetch.packed_mips);
-      width = fetch.size_1d.width;
+      width_minus_1 = fetch.size_1d.width;
       break;
     case xenos::DataDimension::k2DOrStacked:
-      width = fetch.size_2d.width;
-      height = fetch.size_2d.height;
-      depth_or_faces = fetch.stacked ? fetch.size_2d.stack_depth : 0;
+      width_minus_1 = fetch.size_2d.width;
+      height_minus_1 = fetch.size_2d.height;
+      depth_or_array_size_minus_1 =
+          fetch.stacked ? fetch.size_2d.stack_depth : 0;
       break;
     case xenos::DataDimension::k3D:
       assert_false(fetch.stacked);
-      width = fetch.size_3d.width;
-      height = fetch.size_3d.height;
-      depth_or_faces = fetch.size_3d.depth;
+      width_minus_1 = fetch.size_3d.width;
+      height_minus_1 = fetch.size_3d.height;
+      depth_or_array_size_minus_1 = fetch.size_3d.depth;
       break;
     case xenos::DataDimension::kCube:
       assert_false(fetch.stacked);
       assert_true(fetch.size_2d.stack_depth == 5);
-      width = fetch.size_2d.width;
-      height = fetch.size_2d.height;
-      depth_or_faces = 5;
+      width_minus_1 = fetch.size_2d.width;
+      height_minus_1 = fetch.size_2d.height;
+      depth_or_array_size_minus_1 = 5;
       break;
   }
-  ++width;
-  ++height;
-  ++depth_or_faces;
-  if (width_out) {
-    *width_out = width;
+  if (width_minus_1_out) {
+    *width_minus_1_out = width_minus_1;
   }
-  if (height_out) {
-    *height_out = height;
+  if (height_minus_1_out) {
+    *height_minus_1_out = height_minus_1;
   }
-  if (depth_or_faces_out) {
-    *depth_or_faces_out = depth_or_faces;
+  if (depth_or_array_size_minus_1_out) {
+    *depth_or_array_size_minus_1_out = depth_or_array_size_minus_1;
   }
 
-  uint32_t longest_axis = std::max(width, height);
+  uint32_t longest_axis_minus_1 = std::max(width_minus_1, height_minus_1);
   if (fetch.dimension == xenos::DataDimension::k3D) {
-    longest_axis = std::max(longest_axis, depth_or_faces);
+    longest_axis_minus_1 =
+        std::max(longest_axis_minus_1, depth_or_array_size_minus_1);
   }
-  uint32_t size_mip_max_level = xe::log2_floor(longest_axis);
+  uint32_t size_mip_max_level =
+      xe::log2_floor(longest_axis_minus_1 + uint32_t(1));
   xenos::TextureFilter mip_filter =
       sampler_mip_filter == xenos::TextureFilter::kUseFetchConst
           ? fetch.mip_filter

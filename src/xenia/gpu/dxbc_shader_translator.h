@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/math.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/gpu/dxbc.h"
@@ -49,7 +50,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
                        bool bindless_resources_used, bool edram_rov_used,
                        bool gamma_render_target_as_srgb = false,
                        bool msaa_2x_supported = true,
-                       uint32_t draw_resolution_scale = 1,
+                       uint32_t draw_resolution_scale_x = 1,
+                       uint32_t draw_resolution_scale_y = 1,
                        bool force_emit_source_map = false);
   ~DxbcShaderTranslator() override;
 
@@ -85,6 +87,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
       kFloat24Rounding,
     };
 
+    uint64_t value;
     struct VertexShaderModification {
       // Dynamically indexable register count from SQ_PROGRAM_CNTL.
       uint32_t dynamic_addressable_register_count : 8;
@@ -98,9 +101,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
       // Non-ROV - depth / stencil output mode.
       DepthStencilMode depth_stencil_mode : 2;
     } pixel;
-    uint64_t value = 0;
 
-    Modification(uint64_t modification_value = 0) : value(modification_value) {}
+    Modification(uint64_t modification_value = 0) : value(modification_value) {
+      static_assert_size(*this, sizeof(value));
+    }
   };
 
   // Constant buffer bindings in space 0.
@@ -262,7 +266,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // If alpha to mask is enabled, bits 0:7 are sample offsets, and bit 8 must
     // be 1.
     uint32_t alpha_to_mask;
-    uint32_t edram_pitch_tiles;
+    uint32_t edram_32bpp_tile_pitch_dwords_scaled;
 
     float color_exp_bias[4];
 
@@ -281,8 +285,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
       float edram_poly_offset_back[2];
     };
 
-    uint32_t edram_depth_base_dwords;
-    uint32_t padding_edram_depth_base_dwords[3];
+    uint32_t edram_depth_base_dwords_scaled;
+    uint32_t padding_edram_depth_base_dwords_scaled[3];
 
     // In stencil function/operations (they match the layout of the
     // function/operations in RB_DEPTHCONTROL):
@@ -366,14 +370,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
       kTexturesResolved,
       kAlphaTestReference,
       kAlphaToMask,
-      kEdramPitchTiles,
+      kEdram32bppTilePitchDwordsScaled,
 
       kColorExpBias,
 
       kEdramPolyOffsetFront,
       kEdramPolyOffsetBack,
 
-      kEdramDepthBaseDwords,
+      kEdramDepthBaseDwordsScaled,
 
       kEdramStencil,
 
@@ -944,7 +948,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
   bool msaa_2x_supported_;
 
   // Guest pixel host width / height.
-  uint32_t draw_resolution_scale_;
+  uint32_t draw_resolution_scale_x_;
+  uint32_t draw_resolution_scale_y_;
 
   // Is currently writing the empty depth-only pixel shader, for
   // CompleteTranslation.

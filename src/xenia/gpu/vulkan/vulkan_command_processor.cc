@@ -789,7 +789,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // interlocks case completely - apply the viewport and the scissor offset
   // directly to pixel address and to things like ps_param_gen.
   draw_util::GetHostViewportInfo(
-      regs, 1, false, device_properties.limits.maxViewportDimensions[0],
+      regs, 1, 1, false, device_properties.limits.maxViewportDimensions[0],
       device_properties.limits.maxViewportDimensions[1], true, false, false,
       false, viewport_info);
 
