@@ -331,7 +331,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         break;
       case xenos::PrimitiveType::kQuadList:
         if (convert_quad_lists_to_triangle_lists_) {
-          host_primitive_type = xenos::PrimitiveType::kQuadList;
+          host_primitive_type = xenos::PrimitiveType::kTriangleList;
         }
         break;
       default:
