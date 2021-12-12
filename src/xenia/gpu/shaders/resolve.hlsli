@@ -61,7 +61,8 @@ bool XeResolveEdramFormatIs64bpp() {
 }
 
 uint XeResolveEdramPixelStrideInts() {
-  return 1u << uint(XeResolveEdramMsaaSamples() >= kXenosMsaaSamples_4X);
+  return 1u << (XeResolveEdramFormatIntsLog2() +
+                uint(XeResolveEdramMsaaSamples() >= kXenosMsaaSamples_4X));
 }
 
 uint2 XeResolveResolutionScale() {
