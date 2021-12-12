@@ -170,6 +170,37 @@ class RenderTargetCache {
 
   // Resolution scaling on the EDRAM side is performed by multiplying the EDRAM
   // tile size by the resolution scale.
+  // Note: Only integer scaling factors are provided because fractional ones,
+  // even with 0.5 granularity, cause significant issues in addition to the ones
+  // already present with integer scaling. 1.5 (from 1280x720 to 1920x1080) may
+  // be useful, but it would cause pixel coverage issues with odd dimensions of
+  // screen-space geometry, most importantly 1x1 that is often the final step in
+  // reduction algorithms such as average luminance computation in HDR. A
+  // single-pixel quad, either 0...1 without half-pixel offset or 0.5...1.5 with
+  // it (covers only the first pixel according the top-left rule), with 1.5x
+  // resolution scaling, would become 0...1.5 (only the first pixel covered) or
+  // 0.75...2.25 (only the second). The workaround used in Xenia for 2x and 3x
+  // resolution scaling for filling the gap caused by the half-pixel offset
+  // becoming whole-pixel - stretching the second column / row of pixels into
+  // the first - will not work in this case, as for one-pixel primitives without
+  // half-pixel offset (covering only the first pixel, but not the second, with
+  // 1.5x), it will actually cause the pixel to be erased with 1.5x scaling. As
+  // within one pass there can be geometry both with and without the half-pixel
+  // offset (not only depending on PA_SU_VTX_CNTL::PIX_CENTER, but also with the
+  // half-pixel offset possibly reverted manually), the emulator can't decide
+  // whether the stretching workaround actually needs to be used. So, with 1.5x,
+  // depending on how the game draws its screen-space effects and on whether the
+  // workaround is used, in some cases, nothing will just be drawn to the first
+  // pixel, while in other cases, the effect will be drawn to it, but the
+  // stretching workaround will replace it with the undefined value in the
+  // second pixel. Also, with 1.5x, rounding of integer coordinates becomes
+  // complicated, also in part due to the half-pixel offset. Odd texture sizes
+  // would need to be rounded down, as according to the top-left rule, a 1.5x1.5
+  // quad at the 0 or 0.75 origin (after the scaling) will cover only 1 pixel -
+  // so, if the resulting texture was 2x2 rather than 1x1, undefined pixels
+  // would participate in filtering. However, 1x1 scissor rounded to 1x1, with
+  // the half-pixel offset of vertices, would cause the entire 0.75...2.25 quad
+  // to be discarded.
   virtual uint32_t GetResolutionScaleX() const = 0;
   virtual uint32_t GetResolutionScaleY() const = 0;
   bool IsResolutionScaled() const {
