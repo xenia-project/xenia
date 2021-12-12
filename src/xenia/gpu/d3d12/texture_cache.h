@@ -62,30 +62,36 @@ class D3D12CommandProcessor;
 // because textures are streamed this way anyway.
 class TextureCache {
   struct TextureKey {
+    // Dimensions minus 1 are stored similarly to how they're stored in fetch
+    // constants so fewer bits can be used, while the maximum size (8192 for 2D)
+    // can still be encoded (a 8192x sky texture is used in 4D530910).
+
     // Physical 4 KB page with the base mip level, disregarding A/C/E address
     // range prefix.
     uint32_t base_page : 17;             // 17 total
     xenos::DataDimension dimension : 2;  // 19
-    uint32_t width : 13;                 // 32
+    uint32_t width_minus_1 : 13;         // 32
 
-    uint32_t height : 13;      // 45
-    uint32_t tiled : 1;        // 46
-    uint32_t packed_mips : 1;  // 47
+    uint32_t height_minus_1 : 13;  // 45
+    uint32_t tiled : 1;            // 46
+    uint32_t packed_mips : 1;      // 47
     // Physical 4 KB page with mip 1 and smaller.
     uint32_t mip_page : 17;  // 64
 
-    // Layers for stacked and 3D, 6 for cube, 1 for other dimensions.
-    uint32_t depth : 10;              // 74
-    uint32_t pitch : 9;               // 83
-    uint32_t mip_max_level : 4;       // 87
-    xenos::TextureFormat format : 6;  // 93
-    xenos::Endian endianness : 2;     // 95
+    // (Layers for stacked and 3D, 6 for cube, 1 for other dimensions) - 1.
+    uint32_t depth_or_array_size_minus_1 : 10;  // 74
+    uint32_t pitch : 9;                         // 83
+    uint32_t mip_max_level : 4;                 // 87
+    xenos::TextureFormat format : 6;            // 93
+    xenos::Endian endianness : 2;               // 95
     // Whether this texture is signed and has a different host representation
     // than an unsigned view of the same guest texture.
     uint32_t signed_separate : 1;  // 96
 
     // Whether this texture is a resolution-scaled resolve target.
     uint32_t scaled_resolve : 1;  // 97
+    // Least important in ==, so placed last.
+    uint32_t is_valid : 1;  // 98
 
     TextureKey() { MakeInvalid(); }
     TextureKey(const TextureKey& key) {
@@ -95,14 +101,15 @@ class TextureCache {
       std::memcpy(this, &key, sizeof(*this));
       return *this;
     }
-    bool IsInvalid() const {
-      // Zero size is enough for a binding to be invalid (not possible on the
-      // real GPU since dimensions minus 1 are stored).
-      return !width;
-    }
     void MakeInvalid() {
       // Zero everything, including the padding, for a stable hash.
       std::memset(this, 0, sizeof(*this));
+    }
+
+    uint32_t GetWidth() const { return width_minus_1 + 1; }
+    uint32_t GetHeight() const { return height_minus_1 + 1; }
+    uint32_t GetDepthOrArraySize() const {
+      return depth_or_array_size_minus_1 + 1;
     }
 
     using Hasher = xe::hash::XXHasher<TextureKey>;
@@ -544,7 +551,8 @@ class TextureCache {
         return 0;
     }
   }
-  static uint32_t GetMaxHostTextureDepth(xenos::DataDimension dimension) {
+  static uint32_t GetMaxHostTextureDepthOrArraySize(
+      xenos::DataDimension dimension) {
     switch (dimension) {
       case xenos::DataDimension::k1D:
       case xenos::DataDimension::k2DOrStacked:
@@ -609,7 +617,7 @@ class TextureCache {
                : host_format.dxgi_format_resource;
   }
   static DXGI_FORMAT GetDXGIResourceFormat(TextureKey key) {
-    return GetDXGIResourceFormat(key.format, key.width, key.height);
+    return GetDXGIResourceFormat(key.format, key.GetWidth(), key.GetHeight());
   }
   static DXGI_FORMAT GetDXGIUnormFormat(xenos::TextureFormat format,
                                         uint32_t width, uint32_t height) {
@@ -619,7 +627,7 @@ class TextureCache {
                : host_format.dxgi_format_unorm;
   }
   static DXGI_FORMAT GetDXGIUnormFormat(TextureKey key) {
-    return GetDXGIUnormFormat(key.format, key.width, key.height);
+    return GetDXGIUnormFormat(key.format, key.GetWidth(), key.GetHeight());
   }
 
   static LoadMode GetLoadMode(TextureKey key);

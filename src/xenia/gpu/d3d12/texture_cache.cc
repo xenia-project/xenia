@@ -1263,7 +1263,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
     BindingInfoFromFetchConstant(fetch, binding.key, &binding.host_swizzle,
                                  &binding.swizzled_signs);
     texture_bindings_in_sync_ |= index_bit;
-    if (binding.key.IsInvalid()) {
+    if (!binding.key.is_valid) {
       binding.texture = nullptr;
       binding.texture_signed = nullptr;
       binding.descriptor_index = UINT32_MAX;
@@ -1425,7 +1425,7 @@ void TextureCache::WriteActiveTextureBindfulSRV(
       texture_bindings_[host_shader_binding.fetch_constant];
   uint32_t descriptor_index = UINT32_MAX;
   Texture* texture = nullptr;
-  if (!binding.key.IsInvalid() &&
+  if (binding.key.is_valid &&
       AreDimensionsCompatible(host_shader_binding.dimension,
                               binding.key.dimension)) {
     if (host_shader_binding.is_signed) {
@@ -1487,7 +1487,7 @@ uint32_t TextureCache::GetActiveTextureBindlessSRVIndex(
   uint32_t descriptor_index = UINT32_MAX;
   const TextureBinding& binding =
       texture_bindings_[host_shader_binding.fetch_constant];
-  if (!binding.key.IsInvalid() &&
+  if (binding.key.is_valid &&
       AreDimensionsCompatible(host_shader_binding.dimension,
                               binding.key.dimension)) {
     descriptor_index = host_shader_binding.is_signed
@@ -2026,7 +2026,7 @@ TextureCache::LoadMode TextureCache::GetLoadMode(TextureKey key) {
   if (key.signed_separate) {
     return host_format.load_mode_snorm;
   }
-  if (IsDecompressionNeeded(key.format, key.width, key.height)) {
+  if (IsDecompressionNeeded(key.format, key.GetWidth(), key.GetHeight())) {
     return host_format.decompress_mode;
   }
   return host_format.load_mode;
@@ -2071,11 +2071,11 @@ void TextureCache::BindingInfoFromFetchConstant(
       return;
   }
 
-  uint32_t width, height, depth_or_faces;
+  uint32_t width_minus_1, height_minus_1, depth_or_array_size_minus_1;
   uint32_t base_page, mip_page, mip_max_level;
   texture_util::GetSubresourcesFromFetchConstant(
-      fetch, &width, &height, &depth_or_faces, &base_page, &mip_page, nullptr,
-      &mip_max_level);
+      fetch, &width_minus_1, &height_minus_1, &depth_or_array_size_minus_1,
+      &base_page, &mip_page, nullptr, &mip_max_level);
   if (base_page == 0 && mip_page == 0) {
     // No texture data at all.
     return;
@@ -2083,11 +2083,11 @@ void TextureCache::BindingInfoFromFetchConstant(
   if (fetch.dimension == xenos::DataDimension::k1D) {
     bool is_invalid_1d = false;
     // TODO(Triang3l): Support long 1D textures.
-    if (width > xenos::kTexture2DCubeMaxWidthHeight) {
+    if (width_minus_1 >= xenos::kTexture2DCubeMaxWidthHeight) {
       XELOGE(
           "1D texture is too wide ({}) - ignoring! Report the game to Xenia "
           "developers",
-          width);
+          width_minus_1 + 1);
       is_invalid_1d = true;
     }
     assert_false(fetch.tiled);
@@ -2116,15 +2116,17 @@ void TextureCache::BindingInfoFromFetchConstant(
   key_out.base_page = base_page;
   key_out.mip_page = mip_page;
   key_out.dimension = fetch.dimension;
-  key_out.width = width;
-  key_out.height = height;
-  key_out.depth = depth_or_faces;
+  key_out.width_minus_1 = width_minus_1;
+  key_out.height_minus_1 = height_minus_1;
+  key_out.depth_or_array_size_minus_1 = depth_or_array_size_minus_1;
   key_out.pitch = fetch.pitch;
   key_out.mip_max_level = mip_max_level;
   key_out.tiled = fetch.tiled;
   key_out.packed_mips = fetch.packed_mips;
   key_out.format = format;
   key_out.endianness = fetch.endianness;
+
+  key_out.is_valid = 1;
 
   if (host_swizzle_out != nullptr) {
     uint32_t host_swizzle = 0;
@@ -2154,8 +2156,8 @@ void TextureCache::LogTextureKeyAction(TextureKey key, const char* action) {
       "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
       "base at 0x{:08X} (pitch {}), mips at 0x{:08X}",
       action, key.tiled ? "tiled" : "linear",
-      key.scaled_resolve ? "scaled " : "", key.width, key.height, key.depth,
-      dimension_names_[uint32_t(key.dimension)],
+      key.scaled_resolve ? "scaled " : "", key.GetWidth(), key.GetHeight(),
+      key.GetDepthOrArraySize(), dimension_names_[uint32_t(key.dimension)],
       FormatInfo::Get(key.format)->name, key.mip_max_level + 1,
       key.packed_mips ? "" : "un", key.mip_max_level != 0 ? "s" : "",
       key.base_page << 12, key.pitch << 5, key.mip_page << 12);
@@ -2168,8 +2170,8 @@ void TextureCache::LogTextureAction(const Texture* texture,
       "base at 0x{:08X} (pitch {}, size 0x{:08X}), mips at 0x{:08X} (size "
       "0x{:08X})",
       action, texture->key.tiled ? "tiled" : "linear",
-      texture->key.scaled_resolve ? "scaled " : "", texture->key.width,
-      texture->key.height, texture->key.depth,
+      texture->key.scaled_resolve ? "scaled " : "", texture->key.GetWidth(),
+      texture->key.GetHeight(), texture->key.GetDepthOrArraySize(),
       dimension_names_[uint32_t(texture->key.dimension)],
       FormatInfo::Get(texture->key.format)->name,
       texture->key.mip_max_level + 1, texture->key.packed_mips ? "" : "un",
@@ -2186,9 +2188,9 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
         load_pipelines_scaled_[uint32_t(load_mode)] != nullptr) {
       texture_util::TextureGuestLayout scaled_resolve_guest_layout =
           texture_util::GetGuestTextureLayout(
-              key.dimension, key.pitch, key.width, key.height, key.depth,
-              key.tiled, key.format, key.packed_mips, key.base_page != 0,
-              key.mip_max_level);
+              key.dimension, key.pitch, key.GetWidth(), key.GetHeight(),
+              key.GetDepthOrArraySize(), key.tiled, key.format, key.packed_mips,
+              key.base_page != 0, key.mip_max_level);
       if ((scaled_resolve_guest_layout.base.level_data_extent_bytes &&
            IsRangeScaledResolved(
                key.base_page << 12,
@@ -2201,8 +2203,8 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
       }
     }
   }
-  uint32_t host_width = key.width;
-  uint32_t host_height = key.height;
+  uint32_t host_width = key.GetWidth();
+  uint32_t host_height = key.GetHeight();
   if (key.scaled_resolve) {
     host_width *= draw_resolution_scale_x_;
     host_height *= draw_resolution_scale_y_;
@@ -2210,9 +2212,11 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   // With 3x resolution scaling, a 2D texture may become bigger than the
   // Direct3D 11 limit, and with 2x, a 3D one as well.
   uint32_t max_host_width_height = GetMaxHostTextureWidthHeight(key.dimension);
-  uint32_t max_host_depth = GetMaxHostTextureDepth(key.dimension);
+  uint32_t max_host_depth_or_array_size =
+      GetMaxHostTextureDepthOrArraySize(key.dimension);
   if (host_width > max_host_width_height ||
-      host_height > max_host_width_height || key.depth > max_host_depth) {
+      host_height > max_host_width_height ||
+      key.GetDepthOrArraySize() > max_host_depth_or_array_size) {
     return nullptr;
   }
 
@@ -2242,7 +2246,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   desc.Alignment = 0;
   desc.Width = host_width;
   desc.Height = host_height;
-  desc.DepthOrArraySize = key.depth;
+  desc.DepthOrArraySize = key.GetDepthOrArraySize();
   desc.MipLevels = key.mip_max_level + 1;
   desc.SampleDesc.Count = 1;
   desc.SampleDesc.Quality = 0;
@@ -2283,8 +2287,9 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   texture->base_resolved = key.scaled_resolve;
   texture->mips_resolved = key.scaled_resolve;
   texture->guest_layout = texture_util::GetGuestTextureLayout(
-      key.dimension, key.pitch, key.width, key.height, key.depth, key.tiled,
-      key.format, key.packed_mips, key.base_page != 0, key.mip_max_level);
+      key.dimension, key.pitch, key.GetWidth(), key.GetHeight(),
+      key.GetDepthOrArraySize(), key.tiled, key.format, key.packed_mips,
+      key.base_page != 0, key.mip_max_level);
   // Never try to upload data that doesn't exist.
   texture->base_in_sync = !texture->guest_layout.base.level_data_extent_bytes;
   texture->mips_in_sync = !texture->guest_layout.mips_total_extent_bytes;
@@ -2368,9 +2373,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   // Get the guest layout.
   xenos::DataDimension dimension = texture->key.dimension;
   bool is_3d = dimension == xenos::DataDimension::k3D;
-  uint32_t width = texture->key.width;
-  uint32_t height = texture->key.height;
-  uint32_t depth_or_array_size = texture->key.depth;
+  uint32_t width = texture->key.GetWidth();
+  uint32_t height = texture->key.GetHeight();
+  uint32_t depth_or_array_size = texture->key.GetDepthOrArraySize();
   uint32_t depth = is_3d ? depth_or_array_size : 1;
   uint32_t array_size = is_3d ? 1 : depth_or_array_size;
   xenos::TextureFormat guest_format = texture->key.format;
@@ -2845,7 +2850,7 @@ uint32_t TextureCache::FindOrCreateTextureDescriptor(Texture& texture,
       desc.Texture2DArray.MostDetailedMip = 0;
       desc.Texture2DArray.MipLevels = mip_levels;
       desc.Texture2DArray.FirstArraySlice = 0;
-      desc.Texture2DArray.ArraySize = texture.key.depth;
+      desc.Texture2DArray.ArraySize = texture.key.GetDepthOrArraySize();
       desc.Texture2DArray.PlaneSlice = 0;
       desc.Texture2DArray.ResourceMinLODClamp = 0.0f;
       break;
