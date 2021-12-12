@@ -50,8 +50,6 @@ XAudio2AudioDriver::XAudio2AudioDriver(Memory* memory,
 XAudio2AudioDriver::~XAudio2AudioDriver() = default;
 
 bool XAudio2AudioDriver::Initialize() {
-  HRESULT hr;
-
   voice_callback_ = new VoiceCallback(semaphore_);
 
   // Load the XAudio2 DLL dynamically. Needed both for 2.7 and for
@@ -60,77 +58,63 @@ bool XAudio2AudioDriver::Initialize() {
   // Windows 10 SDK references XAudio2_9.dll in it, which is only available in
   // Windows 10, and XAudio2_8.dll is linked through a different .lib -
   // xaudio2_8.lib, so easier not to link the .lib at all.
-  xaudio2_module_ = reinterpret_cast<void*>(LoadLibraryW(L"XAudio2_8.dll"));
+  xaudio2_module_ = static_cast<void*>(LoadLibraryW(L"XAudio2_8.dll"));
   if (xaudio2_module_) {
-    api_minor_version_ = 8;
-  } else {
-    xaudio2_module_ = reinterpret_cast<void*>(LoadLibraryW(L"XAudio2_7.dll"));
+    xaudio2_create_ = reinterpret_cast<decltype(xaudio2_create_)>(
+        GetProcAddress(static_cast<HMODULE>(xaudio2_module_), "XAudio2Create"));
+    if (xaudio2_create_) {
+      api_minor_version_ = 8;
+    } else {
+      XELOGE("XAudio2Create not found in XAudio2_8.dll");
+      FreeLibrary(static_cast<HMODULE>(xaudio2_module_));
+      xaudio2_module_ = nullptr;
+    }
+  }
+  if (!xaudio2_module_) {
+    xaudio2_module_ = static_cast<void*>(LoadLibraryW(L"XAudio2_7.dll"));
     if (xaudio2_module_) {
       api_minor_version_ = 7;
     } else {
       XELOGE("Failed to load XAudio 2.8 or 2.7 library DLL");
-      assert_always();
       return false;
     }
   }
 
-  if (api_minor_version_ >= 8) {
-    union {
-      // clang-format off
-      HRESULT (__stdcall* xaudio2_create)(
-          api::IXAudio2_8** xaudio2_out, UINT32 flags,
-          api::XAUDIO2_PROCESSOR xaudio2_processor);
-      // clang-format on
-      FARPROC xaudio2_create_ptr;
-    };
-    xaudio2_create_ptr = GetProcAddress(
-        reinterpret_cast<HMODULE>(xaudio2_module_), "XAudio2Create");
-    if (!xaudio2_create_ptr) {
-      XELOGE("XAudio2Create not found in XAudio2_8.dll");
-      assert_always();
-      return false;
-    }
-    hr = xaudio2_create(&objects_.api_2_8.audio, 0, kProcessor);
-    if (FAILED(hr)) {
-      XELOGE("XAudio2Create failed with {:08X}", hr);
-      assert_always();
-      return false;
-    }
-    return InitializeObjects(objects_.api_2_8);
-  } else {
-    // We need to be able to accept frames from any non-STA thread - primarily
-    // from any guest thread, so MTA needs to be used. The AudioDriver, however,
-    // may be initialized from the UI thread, which has the STA concurrency
-    // model, or from another thread regardless of its concurrency model. So,
-    // all management of the objects needs to be performed in MTA. Launch the
-    // lifecycle management thread, which will handle initialization and
-    // shutdown, and also provide a scope for implicit MTA in threads that have
-    // never initialized COM explicitly, which lasts until all threads that have
-    // initialized MTA explicitly have uninitialized it - the thread that holds
-    // the MTA scope needs to be running while other threads are able to submit
-    // frames as they might have not initialized MTA explicitly.
-    // https://devblogs.microsoft.com/oldnewthing/?p=4613
-    assert_false(mta_thread_.joinable());
-    mta_thread_initialization_attempt_completed_ = false;
-    mta_thread_shutdown_requested_ = false;
-    mta_thread_ = std::thread(&XAudio2AudioDriver::MTAThread, this);
-    {
-      std::unique_lock<std::mutex> mta_thread_initialization_completion_lock(
-          mta_thread_initialization_completion_mutex_);
-      while (true) {
-        if (mta_thread_initialization_attempt_completed_) {
-          break;
-        }
-        mta_thread_initialization_completion_cond_.wait(
-            mta_thread_initialization_completion_lock);
+  // We need to be able to accept frames from any non-STA thread - primarily
+  // from any guest thread, so MTA needs to be used. The AudioDriver, however,
+  // may be initialized from the UI thread, which has the STA concurrency model,
+  // or from another thread regardless of its concurrency model. So, all
+  // management of the objects needs to be performed in MTA. Launch the
+  // lifecycle management thread, which will handle initialization and shutdown,
+  // and also provide a scope for implicit MTA in threads that have never
+  // initialized COM explicitly, which lasts until all threads that have
+  // initialized MTA explicitly have uninitialized it - the thread that holds
+  // the MTA scope needs to be running while other threads are able to submit
+  // frames as they might have not initialized MTA explicitly.
+  // https://devblogs.microsoft.com/oldnewthing/?p=4613
+  // This is needed for both XAudio 2.7 (created via explicit CoCreateInstance)
+  // and 2.8 (using XAudio2Create, but still requiring CoInitializeEx).
+  // https://docs.microsoft.com/en-us/windows/win32/xaudio2/how-to--initialize-xaudio2
+  assert_false(mta_thread_.joinable());
+  mta_thread_initialization_attempt_completed_ = false;
+  mta_thread_shutdown_requested_ = false;
+  mta_thread_ = std::thread(&XAudio2AudioDriver::MTAThread, this);
+  {
+    std::unique_lock<std::mutex> mta_thread_initialization_completion_lock(
+        mta_thread_initialization_completion_mutex_);
+    while (true) {
+      if (mta_thread_initialization_attempt_completed_) {
+        break;
       }
+      mta_thread_initialization_completion_cond_.wait(
+          mta_thread_initialization_completion_lock);
     }
-    if (!mta_thread_initialization_completion_result_) {
-      mta_thread_.join();
-      return false;
-    }
-    return true;
   }
+  if (!mta_thread_initialization_completion_result_) {
+    mta_thread_.join();
+    return false;
+  }
+  return true;
 }
 
 template <typename Objects>
@@ -148,8 +132,8 @@ bool XAudio2AudioDriver::InitializeObjects(Objects& objects) {
 
   hr = objects.audio->CreateMasteringVoice(&objects.mastering_voice);
   if (FAILED(hr)) {
-    XELOGE("IXAudio2::CreateMasteringVoice failed with {:08X}", hr);
-    assert_always();
+    XELOGE("IXAudio2::CreateMasteringVoice failed with 0x{:08X}", hr);
+    ShutdownObjects(objects);
     return false;
   }
 
@@ -186,15 +170,15 @@ bool XAudio2AudioDriver::InitializeObjects(Objects& objects) {
       0,  // api::XE_XAUDIO2_VOICE_NOSRC | api::XE_XAUDIO2_VOICE_NOPITCH,
       api::XE_XAUDIO2_MAX_FREQ_RATIO, voice_callback_);
   if (FAILED(hr)) {
-    XELOGE("IXAudio2::CreateSourceVoice failed with {:08X}", hr);
-    assert_always();
+    XELOGE("IXAudio2::CreateSourceVoice failed with 0x{:08X}", hr);
+    ShutdownObjects(objects);
     return false;
   }
 
   hr = objects.pcm_voice->Start();
   if (FAILED(hr)) {
-    XELOGE("IXAudio2SourceVoice::Start failed with {:08X}", hr);
-    assert_always();
+    XELOGE("IXAudio2SourceVoice::Start failed with 0x{:08X}", hr);
+    ShutdownObjects(objects);
     return false;
   }
 
@@ -242,8 +226,7 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
     hr = objects_.api_2_7.pcm_voice->SubmitSourceBuffer(&buffer);
   }
   if (FAILED(hr)) {
-    XELOGE("SubmitSourceBuffer failed with {:08X}", hr);
-    assert_always();
+    XELOGE("SubmitSourceBuffer failed with 0x{:08X}", hr);
     return;
   }
 
@@ -260,23 +243,20 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
 }
 
 void XAudio2AudioDriver::Shutdown() {
-  if (api_minor_version_ >= 8) {
-    ShutdownObjects(objects_.api_2_8);
-  } else {
-    // XAudio 2.7 lifecycle is managed by the MTA thread.
-    if (mta_thread_.joinable()) {
-      {
-        std::unique_lock<std::mutex> mta_thread_shutdown_request_lock(
-            mta_thread_shutdown_request_mutex_);
-        mta_thread_shutdown_requested_ = true;
-      }
-      mta_thread_shutdown_request_cond_.notify_all();
-      mta_thread_.join();
+  // XAudio2 lifecycle is managed by the MTA thread.
+  if (mta_thread_.joinable()) {
+    {
+      std::unique_lock<std::mutex> mta_thread_shutdown_request_lock(
+          mta_thread_shutdown_request_mutex_);
+      mta_thread_shutdown_requested_ = true;
     }
+    mta_thread_shutdown_request_cond_.notify_all();
+    mta_thread_.join();
   }
 
+  xaudio2_create_ = nullptr;
   if (xaudio2_module_) {
-    FreeLibrary(reinterpret_cast<HMODULE>(xaudio2_module_));
+    FreeLibrary(static_cast<HMODULE>(xaudio2_module_));
     xaudio2_module_ = nullptr;
   }
 
@@ -307,7 +287,7 @@ void XAudio2AudioDriver::ShutdownObjects(Objects& objects) {
 }
 
 void XAudio2AudioDriver::MTAThread() {
-  xe::threading::set_name("XAudio 2.7 MTA");
+  xe::threading::set_name("XAudio2 MTA");
 
   assert_false(mta_thread_initialization_attempt_completed_);
 
@@ -315,70 +295,72 @@ void XAudio2AudioDriver::MTAThread() {
 
   // Initializing MTA COM in this thread, as well making other (guest) threads
   // that don't explicitly call CoInitializeEx implicitly MTA for the period of
-  // time when they can interact with XAudio 2.7 through the XAudio2AudioDriver,
+  // time when they can interact with XAudio through the XAudio2AudioDriver,
   // until the CoUninitialize (to be more precise, the CoUninitialize for the
   // last remaining MTA thread, but we need implicit MTA for the audio here).
   // https://devblogs.microsoft.com/oldnewthing/?p=4613
   HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-  if (FAILED(hr)) {
-    XELOGE("XAudio 2.7 MTA thread CoInitializeEx failed with {:08X}", hr);
+  bool com_initialized = SUCCEEDED(hr);
+  if (!com_initialized) {
+    XELOGE("XAudio2 MTA thread CoInitializeEx failed with 0x{:08X}", hr);
   } else {
-    hr = CoCreateInstance(__uuidof(api::XAudio2_7), nullptr,
-                          CLSCTX_INPROC_SERVER,
-                          IID_PPV_ARGS(&objects_.api_2_7.audio));
-    if (FAILED(hr)) {
-      XELOGE("CoCreateInstance for XAudio2 failed with {:08X}", hr);
-    } else {
-      hr = objects_.api_2_7.audio->Initialize(0, kProcessor);
+    if (api_minor_version_ >= 8) {
+      hr = xaudio2_create_(&objects_.api_2_8.audio, 0, kProcessor);
       if (FAILED(hr)) {
-        XELOGE("IXAudio2::Initialize failed with {:08X}", hr);
+        XELOGE("XAudio2Create failed with 0x{:08X}", hr);
       } else {
-        if (InitializeObjects(objects_.api_2_7)) {
-          initialized = true;
-
-          // Initialized successfully, await a shutdown request while keeping an
-          // implicit COM MTA scope.
-
-          mta_thread_initialization_completion_result_ = true;
-          {
-            std::unique_lock<std::mutex>
-                mta_thread_initialization_completion_lock(
-                    mta_thread_initialization_completion_mutex_);
-            mta_thread_initialization_attempt_completed_ = true;
-          }
-          mta_thread_initialization_completion_cond_.notify_all();
-
-          {
-            std::unique_lock<std::mutex> mta_thread_shutdown_request_lock(
-                mta_thread_shutdown_request_mutex_);
-            while (true) {
-              if (mta_thread_shutdown_requested_) {
-                break;
-              }
-              mta_thread_shutdown_request_cond_.wait(
-                  mta_thread_shutdown_request_lock);
-            }
-          }
+        initialized = InitializeObjects(objects_.api_2_8);
+      }
+    } else {
+      hr = CoCreateInstance(__uuidof(api::XAudio2_7), nullptr,
+                            CLSCTX_INPROC_SERVER,
+                            IID_PPV_ARGS(&objects_.api_2_7.audio));
+      if (FAILED(hr)) {
+        XELOGE("CoCreateInstance for XAudio2 failed with 0x{:08X}", hr);
+      } else {
+        hr = objects_.api_2_7.audio->Initialize(0, kProcessor);
+        if (FAILED(hr)) {
+          XELOGE("IXAudio2::Initialize failed with 0x{:08X}", hr);
+        } else {
+          initialized = InitializeObjects(objects_.api_2_7);
         }
-
-        // Even if InitializeObjects has failed, need to clean up with
-        // ShutdownObjects.
-        ShutdownObjects(objects_.api_2_7);
       }
     }
-    CoUninitialize();
   }
 
-  if (!initialized) {
-    mta_thread_initialization_completion_result_ = false;
+  // Notify the threads waiting for the initialization of the result.
+  mta_thread_initialization_completion_result_ = initialized;
+  {
+    std::unique_lock<std::mutex> mta_thread_initialization_completion_lock(
+        mta_thread_initialization_completion_mutex_);
+    mta_thread_initialization_attempt_completed_ = true;
+  }
+  mta_thread_initialization_completion_cond_.notify_all();
+
+  if (initialized) {
+    // Initialized successfully, await a shutdown request while keeping an
+    // implicit COM MTA scope.
     {
-      // Failed to initialize - notify the threads waiting for the
-      // initialization.
-      std::unique_lock<std::mutex> mta_thread_initialization_completion_lock(
-          mta_thread_initialization_completion_mutex_);
-      mta_thread_initialization_attempt_completed_ = true;
+      std::unique_lock<std::mutex> mta_thread_shutdown_request_lock(
+          mta_thread_shutdown_request_mutex_);
+      while (true) {
+        if (mta_thread_shutdown_requested_) {
+          break;
+        }
+        mta_thread_shutdown_request_cond_.wait(
+            mta_thread_shutdown_request_lock);
+      }
     }
-    mta_thread_initialization_completion_cond_.notify_all();
+
+    if (api_minor_version_ >= 8) {
+      ShutdownObjects(objects_.api_2_8);
+    } else {
+      ShutdownObjects(objects_.api_2_7);
+    }
+  }
+
+  if (com_initialized) {
+    CoUninitialize();
   }
 }
 

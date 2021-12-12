@@ -80,6 +80,7 @@ struct HeapAllocationInfo {
 
 // Describes a single page in the page table.
 union PageEntry {
+  uint64_t qword;
   struct {
     // Base address of the allocated region in 4k pages.
     uint32_t base_address : 20;
@@ -95,7 +96,6 @@ union PageEntry {
     uint32_t state : 2;
     uint32_t reserved : 14;
   };
-  uint64_t qword;
 };
 
 // Heap abstraction for page-based allocation.

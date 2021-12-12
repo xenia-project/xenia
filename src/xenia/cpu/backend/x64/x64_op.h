@@ -46,6 +46,7 @@ enum KeyType {
 
 #pragma pack(push, 1)
 union InstrKey {
+  uint32_t value;
   struct {
     uint32_t opcode : 8;
     uint32_t dest : 5;
@@ -54,11 +55,10 @@ union InstrKey {
     uint32_t src3 : 5;
     uint32_t reserved : 4;
   };
-  uint32_t value;
 
   operator uint32_t() const { return value; }
 
-  InstrKey() : value(0) {}
+  InstrKey() : value(0) { static_assert_size(*this, sizeof(value)); }
   InstrKey(uint32_t v) : value(v) {}
   InstrKey(const Instr* i) : value(0) {
     opcode = i->opcode->num;

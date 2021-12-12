@@ -69,8 +69,8 @@ using namespace ucode;
 DxbcShaderTranslator::DxbcShaderTranslator(
     ui::GraphicsProvider::GpuVendorID vendor_id, bool bindless_resources_used,
     bool edram_rov_used, bool gamma_render_target_as_srgb,
-    bool msaa_2x_supported, uint32_t draw_resolution_scale,
-    bool force_emit_source_map)
+    bool msaa_2x_supported, uint32_t draw_resolution_scale_x,
+    uint32_t draw_resolution_scale_y, bool force_emit_source_map)
     : a_(shader_code_, statistics_),
       ao_(shader_object_, statistics_),
       vendor_id_(vendor_id),
@@ -78,10 +78,13 @@ DxbcShaderTranslator::DxbcShaderTranslator(
       edram_rov_used_(edram_rov_used),
       gamma_render_target_as_srgb_(gamma_render_target_as_srgb),
       msaa_2x_supported_(msaa_2x_supported),
-      draw_resolution_scale_(draw_resolution_scale),
+      draw_resolution_scale_x_(draw_resolution_scale_x),
+      draw_resolution_scale_y_(draw_resolution_scale_y),
       emit_source_map_(force_emit_source_map || cvars::dxbc_source_map) {
-  assert_true(draw_resolution_scale >= 1);
-  assert_true(draw_resolution_scale <= 3);
+  assert_true(draw_resolution_scale_x >= 1);
+  assert_true(draw_resolution_scale_x <= 3);
+  assert_true(draw_resolution_scale_y >= 1);
+  assert_true(draw_resolution_scale_y <= 3);
   // Don't allocate again and again for the first shader.
   shader_code_.reserve(8192);
   shader_object_.reserve(16384);
@@ -659,13 +662,17 @@ void DxbcShaderTranslator::StartPixelShader() {
       in_position_used_ |= 0b0011;
       a_.OpRoundNI(dxbc::Dest::R(param_gen_temp, 0b0011),
                    dxbc::Src::V(uint32_t(InOutRegister::kPSInPosition)));
-      if (draw_resolution_scale_ > 1) {
+      uint32_t resolution_scaled_axes =
+          uint32_t(draw_resolution_scale_x_ > 1) |
+          (uint32_t(draw_resolution_scale_y_ > 1) << 1);
+      if (resolution_scaled_axes) {
         // Revert resolution scale - after truncating, so if the pixel position
         // is passed to tfetch (assuming the game doesn't round it by itself),
         // it will be sampled with higher resolution too.
-        a_.OpMul(dxbc::Dest::R(param_gen_temp, 0b0011),
+        a_.OpMul(dxbc::Dest::R(param_gen_temp, resolution_scaled_axes),
                  dxbc::Src::R(param_gen_temp),
-                 dxbc::Src::LF(1.0f / draw_resolution_scale_));
+                 dxbc::Src::LF(1.0f / draw_resolution_scale_x_,
+                               1.0f / draw_resolution_scale_y_, 1.0f, 1.0f));
       }
       a_.OpMov(dxbc::Dest::R(param_gen_temp, 0b0011),
                dxbc::Src::R(param_gen_temp).Abs());
@@ -2001,7 +2008,8 @@ const DxbcShaderTranslator::SystemConstantRdef
         {"xe_textures_resolved", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
         {"xe_alpha_test_reference", ShaderRdefTypeIndex::kFloat, sizeof(float)},
         {"xe_alpha_to_mask", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
-        {"xe_edram_pitch_tiles", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},
+        {"xe_edram_32bpp_tile_pitch_dwords_scaled", ShaderRdefTypeIndex::kUint,
+         sizeof(uint32_t)},
 
         {"xe_color_exp_bias", ShaderRdefTypeIndex::kFloat4, sizeof(float) * 4},
 
@@ -2010,7 +2018,7 @@ const DxbcShaderTranslator::SystemConstantRdef
         {"xe_edram_poly_offset_back", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
 
-        {"xe_edram_depth_base_dwords", ShaderRdefTypeIndex::kUint,
+        {"xe_edram_depth_base_dwords_scaled", ShaderRdefTypeIndex::kUint,
          sizeof(uint32_t), sizeof(float) * 3},
 
         {"xe_edram_stencil", ShaderRdefTypeIndex::kUint4Array2,

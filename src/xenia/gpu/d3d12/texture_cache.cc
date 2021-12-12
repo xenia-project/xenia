@@ -51,8 +51,8 @@ DEFINE_uint32(
     "If texture_cache_memory_limit_soft, for instance, is 384, and this is 24, "
     "it will be assumed that the game will be using roughly 24 MB of "
     "render-to-texture (resolve) targets and 384 - 24 = 360 MB of regular "
-    "textures - so with 2x resolution scaling, the soft limit will be 360 + 96 "
-    "MB, and with 3x, it will be 360 + 216 MB.",
+    "textures - so with 2x2 resolution scaling, the soft limit will be 360 + "
+    "96 MB, and with 3x3, it will be 360 + 216 MB.",
     "GPU");
 
 namespace xe {
@@ -61,28 +61,21 @@ namespace d3d12 {
 
 // Generated with `xb buildshaders`.
 namespace shaders {
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_128bpb_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_128bpb_3x_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_128bpb_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_16bpb_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_16bpb_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_128bpb_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_16bpb_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_32bpb_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_32bpb_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_16bpb_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_32bpb_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_64bpb_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_64bpb_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_32bpb_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_64bpb_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_8bpb_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_8bpb_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_64bpb_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_8bpb_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_8bpb_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_ctx1_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_float_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_float_3x_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_float_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_unorm_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_unorm_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_float_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_unorm_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_unorm_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxn_rg8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt1_rgba8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt3_rgba8_cs.h"
@@ -90,30 +83,22 @@ namespace shaders {
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt3aas1111_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt5_rgba8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt5a_r8_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_3x_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_snorm_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_snorm_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_snorm_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r11g11b10_rgba16_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r11g11b10_rgba16_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_snorm_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r11g11b10_rgba16_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r11g11b10_rgba16_snorm_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r11g11b10_rgba16_snorm_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r11g11b10_rgba16_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r11g11b10_rgba16_snorm_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r4g4b4a4_b4g4r4a4_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r4g4b4a4_b4g4r4a4_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r11g11b10_rgba16_snorm_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r4g4b4a4_b4g4r4a4_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g5b5a1_b5g5r5a1_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g5b5a1_b5g5r5a1_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r4g4b4a4_b4g4r4a4_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g5b5a1_b5g5r5a1_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g5b6_b5g6r5_swizzle_rbga_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g5b6_b5g6r5_swizzle_rbga_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g5b5a1_b5g5r5a1_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g6b5_b5g6r5_2x_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g6b5_b5g6r5_3x_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g5b6_b5g6r5_swizzle_rbga_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g6b5_b5g6r5_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r5g6b5_b5g6r5_scaled_cs.h"
 }  // namespace shaders
 
 // For formats with less than 4 components, assuming the last component is
@@ -789,146 +774,96 @@ const char* const TextureCache::dimension_names_[4] = {"1D", "2D", "3D",
                                                        "cube"};
 
 const TextureCache::LoadModeInfo TextureCache::load_mode_info_[] = {
-    {{{shaders::texture_load_8bpb_cs, sizeof(shaders::texture_load_8bpb_cs), 3,
-       4, 16},
-      {shaders::texture_load_8bpb_2x_cs,
-       sizeof(shaders::texture_load_8bpb_2x_cs), 4, 4, 16 * 2},
-      {shaders::texture_load_8bpb_3x_cs,
-       sizeof(shaders::texture_load_8bpb_3x_cs), 3, 3, 16 * 3}}},
-    {{{shaders::texture_load_16bpb_cs, sizeof(shaders::texture_load_16bpb_cs),
-       4, 4, 16},
-      {shaders::texture_load_16bpb_2x_cs,
-       sizeof(shaders::texture_load_16bpb_2x_cs), 4, 4, 16 * 2},
-      {shaders::texture_load_16bpb_3x_cs,
-       sizeof(shaders::texture_load_16bpb_3x_cs), 3, 3, 16 * 3}}},
-    {{{shaders::texture_load_32bpb_cs, sizeof(shaders::texture_load_32bpb_cs),
-       4, 4, 8},
-      {shaders::texture_load_32bpb_2x_cs,
-       sizeof(shaders::texture_load_32bpb_2x_cs), 4, 4, 8 * 2},
-      {shaders::texture_load_32bpb_3x_cs,
-       sizeof(shaders::texture_load_32bpb_3x_cs), 3, 3, 2 * 3}}},
-    {{{shaders::texture_load_64bpb_cs, sizeof(shaders::texture_load_64bpb_cs),
-       4, 4, 4},
-      {shaders::texture_load_64bpb_2x_cs,
-       sizeof(shaders::texture_load_64bpb_2x_cs), 4, 4, 4 * 2},
-      {shaders::texture_load_64bpb_3x_cs,
-       sizeof(shaders::texture_load_64bpb_3x_cs), 3, 3, 4 * 3}}},
-    {{{shaders::texture_load_128bpb_cs, sizeof(shaders::texture_load_128bpb_cs),
-       4, 4, 2},
-      {shaders::texture_load_128bpb_2x_cs,
-       sizeof(shaders::texture_load_128bpb_2x_cs), 4, 4, 2 * 2},
-      {shaders::texture_load_128bpb_3x_cs,
-       sizeof(shaders::texture_load_128bpb_3x_cs), 4, 4, 2 * 3}}},
-    {{{shaders::texture_load_r5g5b5a1_b5g5r5a1_cs,
-       sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_cs), 4, 4, 16},
-      {shaders::texture_load_r5g5b5a1_b5g5r5a1_2x_cs,
-       sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_2x_cs), 4, 4, 16 * 2},
-      {shaders::texture_load_r5g5b5a1_b5g5r5a1_3x_cs,
-       sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_3x_cs), 3, 3, 16 * 3}}},
-    {{{shaders::texture_load_r5g6b5_b5g6r5_cs,
-       sizeof(shaders::texture_load_r5g6b5_b5g6r5_cs), 4, 4, 16},
-      {shaders::texture_load_r5g6b5_b5g6r5_2x_cs,
-       sizeof(shaders::texture_load_r5g6b5_b5g6r5_2x_cs), 4, 4, 16 * 2},
-      {shaders::texture_load_r5g6b5_b5g6r5_3x_cs,
-       sizeof(shaders::texture_load_r5g6b5_b5g6r5_3x_cs), 3, 3, 16 * 3}}},
-    {{{shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs,
-       sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs), 4, 4, 16},
-      {shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_2x_cs,
-       sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_2x_cs), 4, 4,
-       16 * 2},
-      {shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_3x_cs,
-       sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_3x_cs), 3, 3,
-       16 * 3}}},
-    {{{shaders::texture_load_r4g4b4a4_b4g4r4a4_cs,
-       sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_cs), 4, 4, 16},
-      {shaders::texture_load_r4g4b4a4_b4g4r4a4_2x_cs,
-       sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_2x_cs), 4, 4, 16 * 2},
-      {shaders::texture_load_r4g4b4a4_b4g4r4a4_3x_cs,
-       sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_3x_cs), 3, 3, 16 * 3}}},
-    {{{shaders::texture_load_r10g11b11_rgba16_cs,
-       sizeof(shaders::texture_load_r10g11b11_rgba16_cs), 4, 4, 8},
-      {shaders::texture_load_r10g11b11_rgba16_2x_cs,
-       sizeof(shaders::texture_load_r10g11b11_rgba16_2x_cs), 4, 4, 8 * 2},
-      {shaders::texture_load_r10g11b11_rgba16_3x_cs,
-       sizeof(shaders::texture_load_r10g11b11_rgba16_3x_cs), 3, 3, 2 * 3}}},
-    {{{shaders::texture_load_r10g11b11_rgba16_snorm_cs,
-       sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_cs), 4, 4, 8},
-      {shaders::texture_load_r10g11b11_rgba16_snorm_2x_cs,
-       sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_2x_cs), 4, 4, 8 * 2},
-      {shaders::texture_load_r10g11b11_rgba16_snorm_3x_cs,
-       sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_3x_cs), 3, 3,
-       2 * 3}}},
-    {{{shaders::texture_load_r11g11b10_rgba16_cs,
-       sizeof(shaders::texture_load_r11g11b10_rgba16_cs), 4, 4, 8},
-      {shaders::texture_load_r11g11b10_rgba16_2x_cs,
-       sizeof(shaders::texture_load_r11g11b10_rgba16_2x_cs), 4, 4, 8 * 2},
-      {shaders::texture_load_r11g11b10_rgba16_3x_cs,
-       sizeof(shaders::texture_load_r11g11b10_rgba16_3x_cs), 3, 3, 2 * 3}}},
-    {{{shaders::texture_load_r11g11b10_rgba16_snorm_cs,
-       sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_cs), 4, 4, 8},
-      {shaders::texture_load_r11g11b10_rgba16_snorm_2x_cs,
-       sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_2x_cs), 4, 4, 8 * 2},
-      {shaders::texture_load_r11g11b10_rgba16_snorm_3x_cs,
-       sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_3x_cs), 3, 3,
-       2 * 3}}},
-    {{{shaders::texture_load_dxt1_rgba8_cs,
-       sizeof(shaders::texture_load_dxt1_rgba8_cs), 4, 4, 4},
-      {},
-      {}}},
-    {{{shaders::texture_load_dxt3_rgba8_cs,
-       sizeof(shaders::texture_load_dxt3_rgba8_cs), 4, 4, 2},
-      {},
-      {}}},
-    {{{shaders::texture_load_dxt5_rgba8_cs,
-       sizeof(shaders::texture_load_dxt5_rgba8_cs), 4, 4, 2},
-      {},
-      {}}},
-    {{{shaders::texture_load_dxn_rg8_cs,
-       sizeof(shaders::texture_load_dxn_rg8_cs), 4, 4, 2},
-      {},
-      {}}},
-    {{{shaders::texture_load_dxt3a_cs, sizeof(shaders::texture_load_dxt3a_cs),
-       4, 4, 4},
-      {},
-      {}}},
-    {{{shaders::texture_load_dxt3aas1111_cs,
-       sizeof(shaders::texture_load_dxt3aas1111_cs), 4, 4, 4},
-      {},
-      {}}},
-    {{{shaders::texture_load_dxt5a_r8_cs,
-       sizeof(shaders::texture_load_dxt5a_r8_cs), 4, 4, 4},
-      {},
-      {}}},
-    {{{shaders::texture_load_ctx1_cs, sizeof(shaders::texture_load_ctx1_cs), 4,
-       4, 4},
-      {},
-      {}}},
-    {{{shaders::texture_load_depth_unorm_cs,
-       sizeof(shaders::texture_load_depth_unorm_cs), 4, 4, 8},
-      {shaders::texture_load_depth_unorm_2x_cs,
-       sizeof(shaders::texture_load_depth_unorm_2x_cs), 4, 4, 8 * 2},
-      {shaders::texture_load_depth_unorm_3x_cs,
-       sizeof(shaders::texture_load_depth_unorm_3x_cs), 3, 3, 2 * 3}}},
-    {{{shaders::texture_load_depth_float_cs,
-       sizeof(shaders::texture_load_depth_float_cs), 4, 4, 8},
-      {shaders::texture_load_depth_float_2x_cs,
-       sizeof(shaders::texture_load_depth_float_2x_cs), 4, 4, 8 * 2},
-      {shaders::texture_load_depth_float_3x_cs,
-       sizeof(shaders::texture_load_depth_float_3x_cs), 3, 3, 2 * 3}}},
+    {shaders::texture_load_8bpb_cs, sizeof(shaders::texture_load_8bpb_cs),
+     shaders::texture_load_8bpb_scaled_cs,
+     sizeof(shaders::texture_load_8bpb_scaled_cs), 3, 4, 16},
+    {shaders::texture_load_16bpb_cs, sizeof(shaders::texture_load_16bpb_cs),
+     shaders::texture_load_16bpb_scaled_cs,
+     sizeof(shaders::texture_load_16bpb_scaled_cs), 4, 4, 16},
+    {shaders::texture_load_32bpb_cs, sizeof(shaders::texture_load_32bpb_cs),
+     shaders::texture_load_32bpb_scaled_cs,
+     sizeof(shaders::texture_load_32bpb_scaled_cs), 4, 4, 8},
+    {shaders::texture_load_64bpb_cs, sizeof(shaders::texture_load_64bpb_cs),
+     shaders::texture_load_64bpb_scaled_cs,
+     sizeof(shaders::texture_load_64bpb_scaled_cs), 4, 4, 4},
+    {shaders::texture_load_128bpb_cs, sizeof(shaders::texture_load_128bpb_cs),
+     shaders::texture_load_128bpb_scaled_cs,
+     sizeof(shaders::texture_load_128bpb_scaled_cs), 4, 4, 2},
+    {shaders::texture_load_r5g5b5a1_b5g5r5a1_cs,
+     sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_cs),
+     shaders::texture_load_r5g5b5a1_b5g5r5a1_scaled_cs,
+     sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_scaled_cs), 4, 4, 16},
+    {shaders::texture_load_r5g6b5_b5g6r5_cs,
+     sizeof(shaders::texture_load_r5g6b5_b5g6r5_cs),
+     shaders::texture_load_r5g6b5_b5g6r5_scaled_cs,
+     sizeof(shaders::texture_load_r5g6b5_b5g6r5_scaled_cs), 4, 4, 16},
+    {shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs,
+     sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs),
+     shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_scaled_cs,
+     sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_scaled_cs), 4, 4,
+     16},
+    {shaders::texture_load_r4g4b4a4_b4g4r4a4_cs,
+     sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_cs),
+     shaders::texture_load_r4g4b4a4_b4g4r4a4_scaled_cs,
+     sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_scaled_cs), 4, 4, 16},
+    {shaders::texture_load_r10g11b11_rgba16_cs,
+     sizeof(shaders::texture_load_r10g11b11_rgba16_cs),
+     shaders::texture_load_r10g11b11_rgba16_scaled_cs,
+     sizeof(shaders::texture_load_r10g11b11_rgba16_scaled_cs), 4, 4, 8},
+    {shaders::texture_load_r10g11b11_rgba16_snorm_cs,
+     sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_cs),
+     shaders::texture_load_r10g11b11_rgba16_snorm_scaled_cs,
+     sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_scaled_cs), 4, 4, 8},
+    {shaders::texture_load_r11g11b10_rgba16_cs,
+     sizeof(shaders::texture_load_r11g11b10_rgba16_cs),
+     shaders::texture_load_r11g11b10_rgba16_scaled_cs,
+     sizeof(shaders::texture_load_r11g11b10_rgba16_scaled_cs), 4, 4, 8},
+    {shaders::texture_load_r11g11b10_rgba16_snorm_cs,
+     sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_cs),
+     shaders::texture_load_r11g11b10_rgba16_snorm_scaled_cs,
+     sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_scaled_cs), 4, 4, 8},
+    {shaders::texture_load_dxt1_rgba8_cs,
+     sizeof(shaders::texture_load_dxt1_rgba8_cs), nullptr, 0, 4, 4, 4},
+    {shaders::texture_load_dxt3_rgba8_cs,
+     sizeof(shaders::texture_load_dxt3_rgba8_cs), nullptr, 0, 4, 4, 2},
+    {shaders::texture_load_dxt5_rgba8_cs,
+     sizeof(shaders::texture_load_dxt5_rgba8_cs), nullptr, 0, 4, 4, 2},
+    {shaders::texture_load_dxn_rg8_cs, sizeof(shaders::texture_load_dxn_rg8_cs),
+     nullptr, 0, 4, 4, 2},
+    {shaders::texture_load_dxt3a_cs, sizeof(shaders::texture_load_dxt3a_cs),
+     nullptr, 0, 4, 4, 4},
+    {shaders::texture_load_dxt3aas1111_cs,
+     sizeof(shaders::texture_load_dxt3aas1111_cs), nullptr, 0, 4, 4, 4},
+    {shaders::texture_load_dxt5a_r8_cs,
+     sizeof(shaders::texture_load_dxt5a_r8_cs), nullptr, 0, 4, 4, 4},
+    {shaders::texture_load_ctx1_cs, sizeof(shaders::texture_load_ctx1_cs),
+     nullptr, 0, 4, 4, 4},
+    {shaders::texture_load_depth_unorm_cs,
+     sizeof(shaders::texture_load_depth_unorm_cs),
+     shaders::texture_load_depth_unorm_scaled_cs,
+     sizeof(shaders::texture_load_depth_unorm_scaled_cs), 4, 4, 8},
+    {shaders::texture_load_depth_float_cs,
+     sizeof(shaders::texture_load_depth_float_cs),
+     shaders::texture_load_depth_float_scaled_cs,
+     sizeof(shaders::texture_load_depth_float_scaled_cs), 4, 4, 8},
 };
 
 TextureCache::TextureCache(D3D12CommandProcessor& command_processor,
                            const RegisterFile& register_file,
                            D3D12SharedMemory& shared_memory,
                            bool bindless_resources_used,
-                           uint32_t draw_resolution_scale)
+                           uint32_t draw_resolution_scale_x,
+                           uint32_t draw_resolution_scale_y)
     : command_processor_(command_processor),
       register_file_(register_file),
       shared_memory_(shared_memory),
       bindless_resources_used_(bindless_resources_used),
-      draw_resolution_scale_(draw_resolution_scale) {
-  assert_true(draw_resolution_scale >= 1);
-  assert_true(draw_resolution_scale <= 3);
+      draw_resolution_scale_x_(draw_resolution_scale_x),
+      draw_resolution_scale_y_(draw_resolution_scale_y) {
+  assert_true(draw_resolution_scale_x >= 1);
+  assert_true(draw_resolution_scale_x <= kMaxDrawResolutionScaleAlongAxis);
+  assert_true(draw_resolution_scale_y >= 1);
+  assert_true(draw_resolution_scale_y <= kMaxDrawResolutionScaleAlongAxis);
 }
 
 TextureCache::~TextureCache() { Shutdown(); }
@@ -937,8 +872,7 @@ bool TextureCache::Initialize() {
   auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
   auto device = provider.GetDevice();
 
-  if (draw_resolution_scale_ > 1) {
-    assert_true(draw_resolution_scale_ <= GetMaxDrawResolutionScale(provider));
+  if (IsDrawResolutionScaled()) {
     // Buffers not used yet - no need aliasing barriers to change ownership of
     // gigabytes between even and odd buffers.
     std::memset(scaled_resolve_1gb_buffer_indices_, UINT8_MAX,
@@ -946,7 +880,7 @@ bool TextureCache::Initialize() {
     assert_true(scaled_resolve_heaps_.empty());
     uint64_t scaled_resolve_address_space_size =
         uint64_t(SharedMemory::kBufferSize) *
-        (draw_resolution_scale_ * draw_resolution_scale_);
+        (draw_resolution_scale_x_ * draw_resolution_scale_y_);
     scaled_resolve_heaps_.resize(size_t(scaled_resolve_address_space_size >>
                                         kScaledResolveHeapSizeLog2));
     constexpr uint32_t kScaledResolvePageDwordCount =
@@ -1006,9 +940,9 @@ bool TextureCache::Initialize() {
 
   // Create the loading pipelines.
   for (uint32_t i = 0; i < uint32_t(LoadMode::kCount); ++i) {
-    const LoadModeInfo& mode_info = load_mode_info_[i];
+    const LoadModeInfo& load_mode_info = load_mode_info_[i];
     load_pipelines_[i] = ui::d3d12::util::CreateComputePipeline(
-        device, mode_info.shaders[0].shader, mode_info.shaders[0].shader_size,
+        device, load_mode_info.shader, load_mode_info.shader_size,
         load_root_signature_);
     if (load_pipelines_[i] == nullptr) {
       XELOGE(
@@ -1018,21 +952,17 @@ bool TextureCache::Initialize() {
       Shutdown();
       return false;
     }
-    if (draw_resolution_scale_ > 1) {
-      const LoadShaderInfo& scaled_load_shader_info =
-          mode_info.shaders[draw_resolution_scale_ - 1];
-      if (scaled_load_shader_info.shader) {
-        load_pipelines_scaled_[i] = ui::d3d12::util::CreateComputePipeline(
-            device, scaled_load_shader_info.shader,
-            scaled_load_shader_info.shader_size, load_root_signature_);
-        if (load_pipelines_scaled_[i] == nullptr) {
-          XELOGE(
-              "D3D12TextureCache: Failed to create the resolution-scaled "
-              "texture loading pipeline for mode {}",
-              i);
-          Shutdown();
-          return false;
-        }
+    if (IsDrawResolutionScaled() && load_mode_info.shader_scaled) {
+      load_pipelines_scaled_[i] = ui::d3d12::util::CreateComputePipeline(
+          device, load_mode_info.shader_scaled,
+          load_mode_info.shader_scaled_size, load_root_signature_);
+      if (load_pipelines_scaled_[i] == nullptr) {
+        XELOGE(
+            "D3D12TextureCache: Failed to create the resolution-scaled texture "
+            "loading pipeline for mode {}",
+            i);
+        Shutdown();
+        return false;
       }
     }
   }
@@ -1096,7 +1026,7 @@ bool TextureCache::Initialize() {
       provider.OffsetViewDescriptor(null_srv_descriptor_heap_start_,
                                     uint32_t(NullSRVDescriptorIndex::kCube)));
 
-  if (draw_resolution_scale_ > 1) {
+  if (IsDrawResolutionScaled()) {
     scaled_resolve_global_watch_handle_ = shared_memory_.RegisterGlobalWatch(
         ScaledResolveGlobalWatchCallbackThunk, this);
   }
@@ -1183,7 +1113,7 @@ void TextureCache::TextureFetchConstantWritten(uint32_t index) {
 
 void TextureCache::BeginSubmission() {
   // ExecuteCommandLists is a full UAV and aliasing barrier.
-  if (draw_resolution_scale_ > 1) {
+  if (IsDrawResolutionScaled()) {
     size_t scaled_resolve_buffer_count = GetScaledResolveBufferCount();
     for (size_t i = 0; i < scaled_resolve_buffer_count; ++i) {
       ScaledResolveVirtualBuffer* scaled_resolve_buffer =
@@ -1215,7 +1145,7 @@ void TextureCache::BeginFrame() {
   // so subtracting 1 from the scale.
   uint32_t limit_scaled_resolve_add_mb =
       cvars::texture_cache_memory_limit_render_to_texture *
-      (draw_resolution_scale_ * draw_resolution_scale_ - 1);
+      (draw_resolution_scale_x_ * draw_resolution_scale_y_ - 1);
   uint32_t limit_soft_mb =
       cvars::texture_cache_memory_limit_soft + limit_scaled_resolve_add_mb;
   uint32_t limit_hard_mb =
@@ -1333,7 +1263,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
     BindingInfoFromFetchConstant(fetch, binding.key, &binding.host_swizzle,
                                  &binding.swizzled_signs);
     texture_bindings_in_sync_ |= index_bit;
-    if (binding.key.IsInvalid()) {
+    if (!binding.key.is_valid) {
       binding.texture = nullptr;
       binding.texture_signed = nullptr;
       binding.descriptor_index = UINT32_MAX;
@@ -1495,7 +1425,7 @@ void TextureCache::WriteActiveTextureBindfulSRV(
       texture_bindings_[host_shader_binding.fetch_constant];
   uint32_t descriptor_index = UINT32_MAX;
   Texture* texture = nullptr;
-  if (!binding.key.IsInvalid() &&
+  if (binding.key.is_valid &&
       AreDimensionsCompatible(host_shader_binding.dimension,
                               binding.key.dimension)) {
     if (host_shader_binding.is_signed) {
@@ -1557,7 +1487,7 @@ uint32_t TextureCache::GetActiveTextureBindlessSRVIndex(
   uint32_t descriptor_index = UINT32_MAX;
   const TextureBinding& binding =
       texture_bindings_[host_shader_binding.fetch_constant];
-  if (!binding.key.IsInvalid() &&
+  if (binding.key.is_valid &&
       AreDimensionsCompatible(host_shader_binding.dimension,
                               binding.key.dimension)) {
     descriptor_index = host_shader_binding.is_signed
@@ -1705,7 +1635,7 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled,
   start_unscaled &= 0x1FFFFFFF;
   length_unscaled = std::min(length_unscaled, 0x20000000 - start_unscaled);
 
-  if (draw_resolution_scale_ > 1) {
+  if (IsDrawResolutionScaled()) {
     uint32_t page_first = start_unscaled >> 12;
     uint32_t page_last = (start_unscaled + length_unscaled - 1) >> 12;
     uint32_t block_first = page_first >> 5;
@@ -1729,9 +1659,43 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled,
   shared_memory_.RangeWrittenByGpu(start_unscaled, length_unscaled, true);
 }
 
+void TextureCache::ClampDrawResolutionScaleToSupportedRange(
+    uint32_t& scale_x, uint32_t& scale_y,
+    const ui::d3d12::D3D12Provider& provider) {
+  if (provider.GetTiledResourcesTier() < D3D12_TILED_RESOURCES_TIER_1) {
+    scale_x = 1;
+    scale_y = 1;
+    return;
+  }
+  // Ensure it's not zero.
+  scale_x = std::max(scale_x, uint32_t(1));
+  scale_y = std::max(scale_y, uint32_t(1));
+  scale_x = std::min(scale_x, kMaxDrawResolutionScaleAlongAxis);
+  scale_y = std::min(scale_y, kMaxDrawResolutionScaleAlongAxis);
+  // Limit to the virtual address space available for a resource.
+  uint32_t virtual_address_bits_per_resource =
+      provider.GetVirtualAddressBitsPerResource();
+  while (scale_x > 1 || scale_y > 1) {
+    uint64_t highest_scaled_address =
+        uint64_t(SharedMemory::kBufferSize) * (scale_x * scale_y) - 1;
+    if (uint32_t(64) - xe::lzcnt(highest_scaled_address) <=
+        virtual_address_bits_per_resource) {
+      break;
+    }
+    // When reducing from a square size, prefer decreasing the horizontal
+    // resolution as vertical resolution difference is visible more clearly in
+    // perspective.
+    if (scale_x >= scale_y) {
+      --scale_x;
+    } else {
+      --scale_y;
+    }
+  }
+}
+
 bool TextureCache::EnsureScaledResolveMemoryCommitted(
     uint32_t start_unscaled, uint32_t length_unscaled) {
-  assert_true(draw_resolution_scale_ > 1);
+  assert_true(IsDrawResolutionScaled());
 
   if (length_unscaled == 0) {
     return true;
@@ -1742,12 +1706,11 @@ bool TextureCache::EnsureScaledResolveMemoryCommitted(
     return false;
   }
 
-  uint32_t draw_resolution_scale_square =
-      draw_resolution_scale_ * draw_resolution_scale_;
-  uint64_t first_scaled =
-      uint64_t(start_unscaled) * draw_resolution_scale_square;
+  uint32_t draw_resolution_scale_area =
+      draw_resolution_scale_x_ * draw_resolution_scale_y_;
+  uint64_t first_scaled = uint64_t(start_unscaled) * draw_resolution_scale_area;
   uint64_t last_scaled = uint64_t(start_unscaled + (length_unscaled - 1)) *
-                         draw_resolution_scale_square;
+                         draw_resolution_scale_area;
 
   auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
   auto device = provider.GetDevice();
@@ -1773,7 +1736,7 @@ bool TextureCache::EnsureScaledResolveMemoryCommitted(
     ui::d3d12::util::FillBufferResourceDesc(
         scaled_resolve_buffer_desc,
         std::min(uint64_t(1) << 31, uint64_t(SharedMemory::kBufferSize) *
-                                            draw_resolution_scale_square -
+                                            draw_resolution_scale_area -
                                         (uint64_t(i) << 30)),
         D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
     // The first access will be a resolve.
@@ -1855,7 +1818,7 @@ bool TextureCache::EnsureScaledResolveMemoryCommitted(
 
 bool TextureCache::MakeScaledResolveRangeCurrent(uint32_t start_unscaled,
                                                  uint32_t length_unscaled) {
-  assert_true(draw_resolution_scale_ > 1);
+  assert_true(IsDrawResolutionScaled());
 
   if (!length_unscaled || start_unscaled >= SharedMemory::kBufferSize ||
       (SharedMemory::kBufferSize - start_unscaled) < length_unscaled) {
@@ -1864,12 +1827,11 @@ bool TextureCache::MakeScaledResolveRangeCurrent(uint32_t start_unscaled,
     return false;
   }
 
-  uint32_t draw_resolution_scale_square =
-      draw_resolution_scale_ * draw_resolution_scale_;
-  uint64_t start_scaled =
-      uint64_t(start_unscaled) * draw_resolution_scale_square;
+  uint32_t draw_resolution_scale_area =
+      draw_resolution_scale_x_ * draw_resolution_scale_y_;
+  uint64_t start_scaled = uint64_t(start_unscaled) * draw_resolution_scale_area;
   uint64_t length_scaled =
-      uint64_t(length_unscaled) * draw_resolution_scale_square;
+      uint64_t(length_unscaled) * draw_resolution_scale_area;
   uint64_t last_scaled = start_scaled + (length_scaled - 1);
 
   // Get one or two buffers that can hold the whole range.
@@ -1967,7 +1929,7 @@ bool TextureCache::MakeScaledResolveRangeCurrent(uint32_t start_unscaled,
 
 void TextureCache::TransitionCurrentScaledResolveRange(
     D3D12_RESOURCE_STATES new_state) {
-  assert_true(draw_resolution_scale_ > 1);
+  assert_true(IsDrawResolutionScaled());
   ScaledResolveVirtualBuffer& buffer = GetCurrentScaledResolveBuffer();
   command_processor_.PushTransitionBarrier(
       buffer.resource(), buffer.SetResourceState(new_state), new_state);
@@ -1975,7 +1937,7 @@ void TextureCache::TransitionCurrentScaledResolveRange(
 
 void TextureCache::CreateCurrentScaledResolveRangeUintPow2SRV(
     D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t element_size_bytes_pow2) {
-  assert_true(draw_resolution_scale_ > 1);
+  assert_true(IsDrawResolutionScaled());
   size_t buffer_index = GetCurrentScaledResolveBufferIndex();
   const ScaledResolveVirtualBuffer* buffer =
       scaled_resolve_2gb_buffers_[buffer_index];
@@ -1993,7 +1955,7 @@ void TextureCache::CreateCurrentScaledResolveRangeUintPow2SRV(
 
 void TextureCache::CreateCurrentScaledResolveRangeUintPow2UAV(
     D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t element_size_bytes_pow2) {
-  assert_true(draw_resolution_scale_ > 1);
+  assert_true(IsDrawResolutionScaled());
   size_t buffer_index = GetCurrentScaledResolveBufferIndex();
   const ScaledResolveVirtualBuffer* buffer =
       scaled_resolve_2gb_buffers_[buffer_index];
@@ -2064,7 +2026,7 @@ TextureCache::LoadMode TextureCache::GetLoadMode(TextureKey key) {
   if (key.signed_separate) {
     return host_format.load_mode_snorm;
   }
-  if (IsDecompressionNeeded(key.format, key.width, key.height)) {
+  if (IsDecompressionNeeded(key.format, key.GetWidth(), key.GetHeight())) {
     return host_format.decompress_mode;
   }
   return host_format.load_mode;
@@ -2109,11 +2071,11 @@ void TextureCache::BindingInfoFromFetchConstant(
       return;
   }
 
-  uint32_t width, height, depth_or_faces;
+  uint32_t width_minus_1, height_minus_1, depth_or_array_size_minus_1;
   uint32_t base_page, mip_page, mip_max_level;
   texture_util::GetSubresourcesFromFetchConstant(
-      fetch, &width, &height, &depth_or_faces, &base_page, &mip_page, nullptr,
-      &mip_max_level);
+      fetch, &width_minus_1, &height_minus_1, &depth_or_array_size_minus_1,
+      &base_page, &mip_page, nullptr, &mip_max_level);
   if (base_page == 0 && mip_page == 0) {
     // No texture data at all.
     return;
@@ -2121,11 +2083,11 @@ void TextureCache::BindingInfoFromFetchConstant(
   if (fetch.dimension == xenos::DataDimension::k1D) {
     bool is_invalid_1d = false;
     // TODO(Triang3l): Support long 1D textures.
-    if (width > xenos::kTexture2DCubeMaxWidthHeight) {
+    if (width_minus_1 >= xenos::kTexture2DCubeMaxWidthHeight) {
       XELOGE(
           "1D texture is too wide ({}) - ignoring! Report the game to Xenia "
           "developers",
-          width);
+          width_minus_1 + 1);
       is_invalid_1d = true;
     }
     assert_false(fetch.tiled);
@@ -2154,15 +2116,17 @@ void TextureCache::BindingInfoFromFetchConstant(
   key_out.base_page = base_page;
   key_out.mip_page = mip_page;
   key_out.dimension = fetch.dimension;
-  key_out.width = width;
-  key_out.height = height;
-  key_out.depth = depth_or_faces;
+  key_out.width_minus_1 = width_minus_1;
+  key_out.height_minus_1 = height_minus_1;
+  key_out.depth_or_array_size_minus_1 = depth_or_array_size_minus_1;
   key_out.pitch = fetch.pitch;
   key_out.mip_max_level = mip_max_level;
   key_out.tiled = fetch.tiled;
   key_out.packed_mips = fetch.packed_mips;
   key_out.format = format;
   key_out.endianness = fetch.endianness;
+
+  key_out.is_valid = 1;
 
   if (host_swizzle_out != nullptr) {
     uint32_t host_swizzle = 0;
@@ -2192,8 +2156,8 @@ void TextureCache::LogTextureKeyAction(TextureKey key, const char* action) {
       "{} {} {}{}x{}x{} {} {} texture with {} {}packed mip level{}, "
       "base at 0x{:08X} (pitch {}), mips at 0x{:08X}",
       action, key.tiled ? "tiled" : "linear",
-      key.scaled_resolve ? "scaled " : "", key.width, key.height, key.depth,
-      dimension_names_[uint32_t(key.dimension)],
+      key.scaled_resolve ? "scaled " : "", key.GetWidth(), key.GetHeight(),
+      key.GetDepthOrArraySize(), dimension_names_[uint32_t(key.dimension)],
       FormatInfo::Get(key.format)->name, key.mip_max_level + 1,
       key.packed_mips ? "" : "un", key.mip_max_level != 0 ? "s" : "",
       key.base_page << 12, key.pitch << 5, key.mip_page << 12);
@@ -2206,8 +2170,8 @@ void TextureCache::LogTextureAction(const Texture* texture,
       "base at 0x{:08X} (pitch {}, size 0x{:08X}), mips at 0x{:08X} (size "
       "0x{:08X})",
       action, texture->key.tiled ? "tiled" : "linear",
-      texture->key.scaled_resolve ? "scaled " : "", texture->key.width,
-      texture->key.height, texture->key.depth,
+      texture->key.scaled_resolve ? "scaled " : "", texture->key.GetWidth(),
+      texture->key.GetHeight(), texture->key.GetDepthOrArraySize(),
       dimension_names_[uint32_t(texture->key.dimension)],
       FormatInfo::Get(texture->key.format)->name,
       texture->key.mip_max_level + 1, texture->key.packed_mips ? "" : "un",
@@ -2218,15 +2182,15 @@ void TextureCache::LogTextureAction(const Texture* texture,
 
 TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   // Check if the texture is a scaled resolve texture.
-  if (draw_resolution_scale_ > 1 && key.tiled) {
+  if (IsDrawResolutionScaled() && key.tiled) {
     LoadMode load_mode = GetLoadMode(key);
     if (load_mode != LoadMode::kUnknown &&
         load_pipelines_scaled_[uint32_t(load_mode)] != nullptr) {
       texture_util::TextureGuestLayout scaled_resolve_guest_layout =
           texture_util::GetGuestTextureLayout(
-              key.dimension, key.pitch, key.width, key.height, key.depth,
-              key.tiled, key.format, key.packed_mips, key.base_page != 0,
-              key.mip_max_level);
+              key.dimension, key.pitch, key.GetWidth(), key.GetHeight(),
+              key.GetDepthOrArraySize(), key.tiled, key.format, key.packed_mips,
+              key.base_page != 0, key.mip_max_level);
       if ((scaled_resolve_guest_layout.base.level_data_extent_bytes &&
            IsRangeScaledResolved(
                key.base_page << 12,
@@ -2239,18 +2203,20 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
       }
     }
   }
-  uint32_t host_width = key.width;
-  uint32_t host_height = key.height;
+  uint32_t host_width = key.GetWidth();
+  uint32_t host_height = key.GetHeight();
   if (key.scaled_resolve) {
-    host_width *= draw_resolution_scale_;
-    host_height *= draw_resolution_scale_;
+    host_width *= draw_resolution_scale_x_;
+    host_height *= draw_resolution_scale_y_;
   }
   // With 3x resolution scaling, a 2D texture may become bigger than the
   // Direct3D 11 limit, and with 2x, a 3D one as well.
   uint32_t max_host_width_height = GetMaxHostTextureWidthHeight(key.dimension);
-  uint32_t max_host_depth = GetMaxHostTextureDepth(key.dimension);
+  uint32_t max_host_depth_or_array_size =
+      GetMaxHostTextureDepthOrArraySize(key.dimension);
   if (host_width > max_host_width_height ||
-      host_height > max_host_width_height || key.depth > max_host_depth) {
+      host_height > max_host_width_height ||
+      key.GetDepthOrArraySize() > max_host_depth_or_array_size) {
     return nullptr;
   }
 
@@ -2280,7 +2246,7 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   desc.Alignment = 0;
   desc.Width = host_width;
   desc.Height = host_height;
-  desc.DepthOrArraySize = key.depth;
+  desc.DepthOrArraySize = key.GetDepthOrArraySize();
   desc.MipLevels = key.mip_max_level + 1;
   desc.SampleDesc.Count = 1;
   desc.SampleDesc.Quality = 0;
@@ -2321,8 +2287,9 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   texture->base_resolved = key.scaled_resolve;
   texture->mips_resolved = key.scaled_resolve;
   texture->guest_layout = texture_util::GetGuestTextureLayout(
-      key.dimension, key.pitch, key.width, key.height, key.depth, key.tiled,
-      key.format, key.packed_mips, key.base_page != 0, key.mip_max_level);
+      key.dimension, key.pitch, key.GetWidth(), key.GetHeight(),
+      key.GetDepthOrArraySize(), key.tiled, key.format, key.packed_mips,
+      key.base_page != 0, key.mip_max_level);
   // Never try to upload data that doesn't exist.
   texture->base_in_sync = !texture->guest_layout.base.level_data_extent_bytes;
   texture->mips_in_sync = !texture->guest_layout.mips_total_extent_bytes;
@@ -2359,17 +2326,14 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   if (load_mode == LoadMode::kUnknown) {
     return false;
   }
-  uint32_t texture_resolution_scale =
-      texture->key.scaled_resolve ? draw_resolution_scale_ : 1;
+  bool texture_resolution_scaled = texture->key.scaled_resolve;
   ID3D12PipelineState* pipeline =
-      texture_resolution_scale > 1 ? load_pipelines_scaled_[uint32_t(load_mode)]
-                                   : load_pipelines_[uint32_t(load_mode)];
+      texture_resolution_scaled ? load_pipelines_scaled_[uint32_t(load_mode)]
+                                : load_pipelines_[uint32_t(load_mode)];
   if (pipeline == nullptr) {
     return false;
   }
   const LoadModeInfo& load_mode_info = load_mode_info_[uint32_t(load_mode)];
-  const LoadShaderInfo& load_shader_info =
-      load_mode_info.shaders[texture_resolution_scale - 1];
 
   // Request uploading of the texture data to the shared memory.
   // This is also necessary when resolution scale is used - the texture cache
@@ -2382,7 +2346,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   if (!base_in_sync) {
     if (!shared_memory_.RequestRange(
             texture->key.base_page << 12, texture->GetGuestBaseSize(),
-            texture->key.scaled_resolve ? nullptr : &base_resolved)) {
+            texture_resolution_scaled ? nullptr : &base_resolved)) {
       return false;
     }
   }
@@ -2390,11 +2354,11 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   if (!mips_in_sync) {
     if (!shared_memory_.RequestRange(
             texture->key.mip_page << 12, texture->GetGuestMipsSize(),
-            texture->key.scaled_resolve ? nullptr : &mips_resolved)) {
+            texture_resolution_scaled ? nullptr : &mips_resolved)) {
       return false;
     }
   }
-  if (texture_resolution_scale > 1) {
+  if (texture_resolution_scaled) {
     // Make sure all heaps are created.
     if (!EnsureScaledResolveMemoryCommitted(texture->key.base_page << 12,
                                             texture->GetGuestBaseSize())) {
@@ -2409,9 +2373,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   // Get the guest layout.
   xenos::DataDimension dimension = texture->key.dimension;
   bool is_3d = dimension == xenos::DataDimension::k3D;
-  uint32_t width = texture->key.width;
-  uint32_t height = texture->key.height;
-  uint32_t depth_or_array_size = texture->key.depth;
+  uint32_t width = texture->key.GetWidth();
+  uint32_t height = texture->key.GetHeight();
+  uint32_t depth_or_array_size = texture->key.GetDepthOrArraySize();
   uint32_t depth = is_3d ? depth_or_array_size : 1;
   uint32_t array_size = is_3d ? 1 : depth_or_array_size;
   xenos::TextureFormat guest_format = texture->key.format;
@@ -2425,6 +2389,10 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   uint32_t level_packed = texture->guest_layout.packed_level;
   uint32_t level_stored_first = std::min(level_first, level_packed);
   uint32_t level_stored_last = std::min(level_last, level_packed);
+  uint32_t texture_resolution_scale_x =
+      texture_resolution_scaled ? draw_resolution_scale_x_ : 1;
+  uint32_t texture_resolution_scale_y =
+      texture_resolution_scaled ? draw_resolution_scale_y_ : 1;
 
   // Get the host layout and the buffer.
   UINT64 copy_buffer_size = 0;
@@ -2470,15 +2438,16 @@ bool TextureCache::LoadTextureData(Texture* texture) {
         host_slice_layout_base.Footprint.Depth = depth;
       }
       host_slice_layout_base.Footprint.Width = xe::round_up(
-          host_slice_layout_base.Footprint.Width * texture_resolution_scale,
+          host_slice_layout_base.Footprint.Width * texture_resolution_scale_x,
           UINT(host_block_width));
       host_slice_layout_base.Footprint.Height = xe::round_up(
-          host_slice_layout_base.Footprint.Height * texture_resolution_scale,
+          host_slice_layout_base.Footprint.Height * texture_resolution_scale_y,
           UINT(host_block_height));
       host_slice_layout_base.Footprint.RowPitch =
           xe::align(xe::round_up(host_slice_layout_base.Footprint.Width /
                                      host_block_width,
-                                 load_shader_info.host_x_blocks_per_thread) *
+                                 load_mode_info.host_x_blocks_per_thread *
+                                     texture_resolution_scale_x) *
                         host_bytes_per_block,
                     uint32_t(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
       host_slice_size_base = xe::align(
@@ -2515,15 +2484,16 @@ bool TextureCache::LoadTextureData(Texture* texture) {
               std::max(depth >> level, uint32_t(1));
         }
         host_slice_layout_mip.Footprint.Width = xe::round_up(
-            host_slice_layout_mip.Footprint.Width * texture_resolution_scale,
+            host_slice_layout_mip.Footprint.Width * texture_resolution_scale_x,
             UINT(host_block_width));
         host_slice_layout_mip.Footprint.Height = xe::round_up(
-            host_slice_layout_mip.Footprint.Height * texture_resolution_scale,
+            host_slice_layout_mip.Footprint.Height * texture_resolution_scale_y,
             UINT(host_block_height));
         host_slice_layout_mip.Footprint.RowPitch =
             xe::align(xe::round_up(host_slice_layout_mip.Footprint.Width /
                                        host_block_width,
-                                   load_shader_info.host_x_blocks_per_thread) *
+                                   load_mode_info.host_x_blocks_per_thread *
+                                       texture_resolution_scale_x) *
                           host_bytes_per_block,
                       uint32_t(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
         UINT64 host_slice_sizes_mip = xe::align(
@@ -2557,7 +2527,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
   // descriptors for base and mips.
   // Destination.
   uint32_t descriptor_count = 1;
-  if (texture_resolution_scale > 1) {
+  if (texture_resolution_scaled) {
     // Source - base and mips, one or both.
     descriptor_count += (level_first == 0 && level_last != 0) ? 2 : 1;
   } else {
@@ -2581,25 +2551,25 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       descriptors_allocated[descriptor_write_index++];
   ui::d3d12::util::CreateBufferTypedUAV(
       device, descriptor_dest.first, copy_buffer,
-      ui::d3d12::util::GetUintPow2DXGIFormat(load_shader_info.uav_bpe_log2),
-      uint32_t(copy_buffer_size) >> load_shader_info.uav_bpe_log2);
+      ui::d3d12::util::GetUintPow2DXGIFormat(load_mode_info.uav_bpe_log2),
+      uint32_t(copy_buffer_size) >> load_mode_info.uav_bpe_log2);
   command_list.D3DSetComputeRootDescriptorTable(2, descriptor_dest.second);
   // Set up the unscaled source descriptor (scaled needs two descriptors that
   // depend on the buffer being current, so they will be set later - for mips,
   // after loading the base is done).
-  if (texture_resolution_scale <= 1) {
+  if (!texture_resolution_scaled) {
     shared_memory_.UseForReading();
     ui::d3d12::util::DescriptorCpuGpuHandlePair descriptor_unscaled_source;
     if (bindless_resources_used_) {
       descriptor_unscaled_source =
           command_processor_.GetSharedMemoryUintPow2BindlessSRVHandlePair(
-              load_shader_info.srv_bpe_log2);
+              load_mode_info.srv_bpe_log2);
     } else {
       assert_true(descriptor_write_index < descriptor_count);
       descriptor_unscaled_source =
           descriptors_allocated[descriptor_write_index++];
       shared_memory_.WriteUintPow2SRVDescriptor(
-          descriptor_unscaled_source.first, load_shader_info.srv_bpe_log2);
+          descriptor_unscaled_source.first, load_mode_info.srv_bpe_log2);
     }
     command_list.D3DSetComputeRootDescriptorTable(
         1, descriptor_unscaled_source.second);
@@ -2609,9 +2579,10 @@ bool TextureCache::LoadTextureData(Texture* texture) {
 
   auto& cbuffer_pool = command_processor_.GetConstantBufferPool();
   LoadConstants load_constants;
-  load_constants.is_tiled_3d_endian = uint32_t(texture->key.tiled) |
-                                      (uint32_t(is_3d) << 1) |
-                                      (uint32_t(texture->key.endianness) << 2);
+  load_constants.is_tiled_3d_endian_scale =
+      uint32_t(texture->key.tiled) | (uint32_t(is_3d) << 1) |
+      (uint32_t(texture->key.endianness) << 2) |
+      (texture_resolution_scale_x << 4) | (texture_resolution_scale_y << 6);
 
   // The loop counter can mean two things depending on whether the packed mip
   // tail is stored as mip 0, because in this case, it would be ambiguous since
@@ -2646,8 +2617,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
 
     // Set up the base or mips source, also making it accessible if loading from
     // scaled resolve memory.
-    if (texture_resolution_scale > 1 &&
-        (is_base || !scaled_mips_source_set_up)) {
+    if (texture_resolution_scaled && (is_base || !scaled_mips_source_set_up)) {
       uint32_t guest_size_unscaled =
           is_base ? texture->GetGuestBaseSize() : texture->GetGuestMipsSize();
       if (!MakeScaledResolveRangeCurrent(guest_address, guest_size_unscaled)) {
@@ -2661,7 +2631,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       ui::d3d12::util::DescriptorCpuGpuHandlePair descriptor_scaled_source =
           descriptors_allocated[descriptor_write_index++];
       CreateCurrentScaledResolveRangeUintPow2SRV(descriptor_scaled_source.first,
-                                                 load_shader_info.srv_bpe_log2);
+                                                 load_mode_info.srv_bpe_log2);
       command_list.D3DSetComputeRootDescriptorTable(
           1, descriptor_scaled_source.second);
       if (!is_base) {
@@ -2669,7 +2639,7 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       }
     }
 
-    if (texture_resolution_scale > 1) {
+    if (texture_resolution_scaled) {
       // Offset already applied in the buffer because more than 512 MB can't be
       // directly addresses on Nvidia as R32.
       load_constants.guest_offset = 0;
@@ -2678,7 +2648,8 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     }
     if (!is_base) {
       load_constants.guest_offset +=
-          texture->guest_layout.mip_offsets_bytes[level];
+          texture->guest_layout.mip_offsets_bytes[level] *
+          (texture_resolution_scale_x * texture_resolution_scale_y);
     }
     const texture_util::TextureGuestLayout::Level& level_guest_layout =
         is_base ? texture->guest_layout.base
@@ -2709,14 +2680,15 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       level_height = std::max(height >> level, uint32_t(1));
       level_depth = std::max(depth >> level, uint32_t(1));
     }
-    load_constants.size_blocks[0] =
-        (level_width + (block_width - 1)) / block_width;
-    load_constants.size_blocks[1] =
-        (level_height + (block_height - 1)) / block_height;
+    load_constants.size_blocks[0] = (level_width + (block_width - 1)) /
+                                    block_width * texture_resolution_scale_x;
+    load_constants.size_blocks[1] = (level_height + (block_height - 1)) /
+                                    block_height * texture_resolution_scale_y;
     load_constants.size_blocks[2] = level_depth;
     load_constants.height_texels = level_height;
 
-    // Each thread group processes 32x32x1 guest blocks.
+    // Each thread group processes 32x32x1 source blocks (resolution-scaled, but
+    // still compressed if the host needs decompression).
     uint32_t group_count_x = (load_constants.size_blocks[0] + 31) >> 5;
     uint32_t group_count_y = (load_constants.size_blocks[1] + 31) >> 5;
 
@@ -2745,7 +2717,8 @@ bool TextureCache::LoadTextureData(Texture* texture) {
       command_list.D3DDispatch(group_count_x, group_count_y,
                                load_constants.size_blocks[2]);
       load_constants.guest_offset +=
-          level_guest_layout.array_slice_stride_bytes;
+          level_guest_layout.array_slice_stride_bytes *
+          (texture_resolution_scale_x * texture_resolution_scale_y);
       load_constants.host_offset += host_slice_size;
     }
   }
@@ -2877,7 +2850,7 @@ uint32_t TextureCache::FindOrCreateTextureDescriptor(Texture& texture,
       desc.Texture2DArray.MostDetailedMip = 0;
       desc.Texture2DArray.MipLevels = mip_levels;
       desc.Texture2DArray.FirstArraySlice = 0;
-      desc.Texture2DArray.ArraySize = texture.key.depth;
+      desc.Texture2DArray.ArraySize = texture.key.GetDepthOrArraySize();
       desc.Texture2DArray.PlaneSlice = 0;
       desc.Texture2DArray.ResourceMinLODClamp = 0.0f;
       break;
@@ -3023,7 +2996,7 @@ void TextureCache::ClearBindings() {
 
 bool TextureCache::IsRangeScaledResolved(uint32_t start_unscaled,
                                          uint32_t length_unscaled) {
-  if (draw_resolution_scale_ <= 1) {
+  if (!IsDrawResolutionScaled()) {
     return false;
   }
 
@@ -3083,7 +3056,7 @@ void TextureCache::ScaledResolveGlobalWatchCallbackThunk(
 void TextureCache::ScaledResolveGlobalWatchCallback(uint32_t address_first,
                                                     uint32_t address_last,
                                                     bool invalidated_by_gpu) {
-  assert_true(draw_resolution_scale_ > 1);
+  assert_true(IsDrawResolutionScaled());
   if (invalidated_by_gpu) {
     // Resolves themselves do exactly the opposite of what this should do.
     return;

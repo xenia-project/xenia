@@ -82,7 +82,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   Path GetPath() const override { return Path::kHostRenderTargets; }
 
   // TODO(Triang3l): Resolution scaling.
-  uint32_t GetResolutionScale() const override { return 1; }
+  uint32_t GetResolutionScaleX() const override { return 1; }
+  uint32_t GetResolutionScaleY() const override { return 1; }
 
   bool Update(bool is_rasterization_done,
               uint32_t shader_writes_color_targets) override;

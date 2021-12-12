@@ -67,34 +67,34 @@ enum class GammaRampType {
 struct GammaRamp {
   struct NormalEntry {
     union {
+      uint32_t value;
       struct {
         uint32_t b : 10;
         uint32_t g : 10;
         uint32_t r : 10;
         uint32_t : 2;
       };
-      uint32_t value;
     };
   };
 
   struct PWLValue {
     union {
+      uint32_t value;
       struct {
         uint16_t base;
         uint16_t delta;
       };
-      uint32_t value;
     };
   };
 
   struct PWLEntry {
     union {
+      PWLValue values[3];
       struct {
         PWLValue r;
         PWLValue g;
         PWLValue b;
       };
-      PWLValue values[3];
     };
   };
 
