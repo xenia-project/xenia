@@ -778,8 +778,10 @@ std::string D3D12CommandProcessor::GetWindowTitleText() const {
       default:
         break;
     }
-    uint32_t resolution_scale_x = texture_cache_->GetDrawResolutionScaleX();
-    uint32_t resolution_scale_y = texture_cache_->GetDrawResolutionScaleY();
+    uint32_t resolution_scale_x =
+        texture_cache_ ? texture_cache_->GetDrawResolutionScaleX() : 1;
+    uint32_t resolution_scale_y =
+        texture_cache_ ? texture_cache_->GetDrawResolutionScaleY() : 1;
     if (resolution_scale_x > 1 || resolution_scale_y > 1) {
       title << ' ' << resolution_scale_x << 'x' << resolution_scale_y;
     }
