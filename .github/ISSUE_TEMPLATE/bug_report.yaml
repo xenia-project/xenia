@@ -1,0 +1,54 @@
+name: Bug report
+description: Template for bug reports.
+title: 'Bug: '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Try to create a very concise title that's straight to the point.
+
+        **THIS IS NOT A SUPPORT FORUM!** For support, first read the wiki: https://github.com/xenia-project/xenia/wiki
+        If your question wasn't answered there or you need help, proceed to #help in the Discord server: https://discord.gg/Q9mxZf9
+
+        DO NOT CREATE ISSUES ABOUT SPECIFIC GAMES IN THIS REPOSITORY!
+        A game specific issue would be e.g. "Game X crashes after you hit a character a certain way"
+        A Xenia issue would be e.g. "Kernel export NtDoSomething does nothing"
+        For specific games, visit https://github.com/xenia-project/game-compatibility#game-compatibility
+  - type: checkboxes
+    id: validation
+    attributes:
+      label: Validation
+      options:
+      - label: I've read the [FAQ](https://github.com/xenia-project/xenia/wiki/FAQ).
+        required: true
+      - label: The Xenia build used is from the master branch (not MLBS/AlexVS/Canary/pull requests, etc.)
+        required: true
+      - label: This issue isn't for tech support (help with Xenia).
+        required: true
+      - label: If this issue occurs in a specific game, I've done analysis to locate the faulty subsystem of the emulator and a potential reason in it.
+        required: true
+      - label: I've checked if this issue hasn't already been reported.
+        required: true
+      - label: 'My device meets the minimum requirements: https://github.com/xenia-project/xenia/wiki/Quickstart#system-requirements'
+        required: true
+      - label: '(If building) I have read the building doc: https://github.com/xenia-project/xenia/blob/master/docs/building.md'
+  - type: textarea
+    id: problem
+    attributes:
+      label: Describe what's going wrong
+    validations:
+      required: true
+  - type: textarea
+    id: what-should-happen
+    attributes:
+      label: Describe what should happen
+    validations:
+      required: true
+  - type: textarea
+    id: callstack
+    attributes:
+      label: If applicable, provide a callstack here, especially for crashes
+  - type: textarea
+    id: logfile
+    attributes:
+      label: If applicable, upload a logfile and link it here
