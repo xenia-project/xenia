@@ -26,24 +26,20 @@ pull_requests:
 
 os: Visual Studio 2019
 
-init:
-  - git config --global core.autocrlf input
-
 install:
-  - cmd: vcpkg integrate remove
-  - cmd: xb setup
+  - |
+    vcpkg integrate remove
+    xb setup
 
 platform: Windows
 
-configuration:
-  - Release
-  - Checked
+configuration: [Release, Checked]
 
 build_script:
-  - cmd: xb build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-base-tests --target=tests\xenia-cpu-ppc-tests --target=src\xenia-vfs-dump
+  - xb build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-base-tests --target=tests\xenia-cpu-ppc-tests --target=src\xenia-vfs-dump
 
 after_build:
-  - cmd: |
+  - |
       IF NOT "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SUFFIX=%APPVEYOR_REPO_BRANCH%"
       IF NOT "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SWITCHES=--"
       IF     "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SUFFIX=%APPVEYOR_REPO_BRANCH%_FOR-DEVS-ONLY"
@@ -52,10 +48,10 @@ after_build:
       7z a xenia-vfs-dump_%ARCHIVE_SUFFIX%.zip %ARCHIVE_SWITCHES% LICENSE "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.exe" "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.pdb"
 
 before_test:
-  - cmd: xb gentests
+  - xb gentests
 
 test_script:
-  - cmd: xb test --config=%CONFIGURATION% --no_build
+  - xb test --config=%CONFIGURATION% --no_build
 
 artifacts:
   - path: '*.zip'
