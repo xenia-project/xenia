@@ -7,6 +7,8 @@
  ******************************************************************************
  */
 
+#include <algorithm>
+
 #include "xenia/gpu/graphics_system.h"
 
 #include "xenia/base/byte_stream.h"
@@ -122,7 +124,8 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
   vsync_worker_running_ = true;
   vsync_worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
-        uint64_t vsync_duration = cvars::vsync ? 16 : 1;
+        uint64_t vsync_duration =
+            cvars::vsync ? std::max<uint64_t>(5, cvars::vsync_interval) : 1;
         uint64_t last_frame_time = Clock::QueryGuestTickCount();
         while (vsync_worker_running_) {
           uint64_t current_time = Clock::QueryGuestTickCount();
