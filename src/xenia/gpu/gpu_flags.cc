@@ -20,6 +20,9 @@ DEFINE_path(
 
 DEFINE_bool(vsync, true, "Enable VSYNC.", "GPU");
 
+DEFINE_uint64(vsync_interval, 16,
+              "VSYNC interval. Value is frametime in milliseconds.", "GPU");
+
 DEFINE_bool(
     gpu_allow_invalid_fetch_constants, false,
     "Allow texture and vertex fetch constants with invalid type - generally "
