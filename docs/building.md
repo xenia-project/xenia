@@ -103,7 +103,7 @@ To get them on an Ubuntu system:
 sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libx11-dev libx11-xcb-dev libvulkan-dev libsdl2-dev libiberty-dev libunwind-dev libc++-dev libc++abi-dev
 ```
 
-Arch:
+#### Arch
 ```bash
 sudo pacman -Syu
 sudo pacman -S glew gtk3 libx11 lz4 clang git python vulkan-headers
