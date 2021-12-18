@@ -110,7 +110,7 @@ sudo pacman -S glew gtk3 libx11 lz4 clang git python vulkan-headers
 ```
 libpthread-stubs needs to be compiled from the AUR:
 https://aur.archlinux.org/packages/libpthread-stubs/
-Fedora(not tested):
+#### Fedora (untested)
 ```bash
 sudo dnf update
 sudo dnf install libX11 libX11-devel gtk3 gtk3-devel clang clang-devel glew lz4 git python vulkan-headers
