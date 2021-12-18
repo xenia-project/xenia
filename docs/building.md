@@ -98,7 +98,7 @@ interchangeable right now.
 Clang-9 or newer should be available from system repositories on all up to date distributions.
 You will also need some development libraries. 
 
-To get them on an Ubuntu system:
+##### Ubuntu
 ```bash
 sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libx11-dev libx11-xcb-dev libvulkan-dev libsdl2-dev libiberty-dev libunwind-dev libc++-dev libc++abi-dev
 ```
