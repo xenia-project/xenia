@@ -529,7 +529,7 @@ dword_result_t XamShowSigninUI_entry(dword_t unk, dword_t unk_mask) {
   // Mask values vary. Probably matching user types? Local/remote?
   // Games seem to sit and loop until we trigger this notification:
 
-  for (uint8_t i = 1; i < 4; i++) {
+  for (uint8_t i = 0; i < 4; i++) {
     if (kernel_state()->IsUserSignedIn(i)) {
       // XN_SYS_SIGNINCHANGED
       kernel_state()->BroadcastNotification(0xA, i);
