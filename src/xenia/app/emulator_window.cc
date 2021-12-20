@@ -118,6 +118,7 @@ bool EmulatorWindow::Initialize() {
       case ui::VirtualKey::kF5: {
         GpuClearCaches();
       } break;
+#ifdef DEBUG
       case ui::VirtualKey::kF7: {
         // Save to file
         // TODO: Choose path based on user input, or from options
@@ -130,6 +131,7 @@ bool EmulatorWindow::Initialize() {
         // TODO: Spawn a new thread to do this.
         emulator()->RestoreFromFile("test.sav");
       } break;
+#endif  // #ifdef DEBUG
       case ui::VirtualKey::kF11: {
         ToggleFullscreen();
       } break;
@@ -186,9 +188,11 @@ bool EmulatorWindow::Initialize() {
     file_menu->AddChild(
         MenuItem::Create(MenuItem::Type::kString, "&Open...", "Ctrl+O",
                          std::bind(&EmulatorWindow::FileOpen, this)));
+#ifdef DEBUG
     file_menu->AddChild(
         MenuItem::Create(MenuItem::Type::kString, "Close",
                          std::bind(&EmulatorWindow::FileClose, this)));
+#endif  // #ifdef DEBUG
     file_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
     file_menu->AddChild(MenuItem::Create(
         MenuItem::Type::kString, "Show content directory...",
