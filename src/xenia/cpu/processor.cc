@@ -167,6 +167,27 @@ bool Processor::AddModule(std::unique_ptr<Module> module) {
   return true;
 }
 
+void Processor::RemoveModule(const std::string_view name) {
+  auto global_lock = global_critical_region_.Acquire();
+
+  auto itr =
+      std::find_if(modules_.cbegin(), modules_.cend(),
+                   [name](std::unique_ptr<xe::cpu::Module> const& module) {
+                     return module->name() == name;
+                   });
+
+  if (itr != modules_.cend()) {
+    const std::vector<uint32_t> addressed_functions =
+        (*itr)->GetAddressedFunctions();
+
+    modules_.erase(itr);
+
+    for (const uint32_t entry : addressed_functions) {
+      RemoveFunctionByAddress(entry);
+    }
+  }
+}
+
 Module* Processor::GetModule(const std::string_view name) {
   auto global_lock = global_critical_region_.Acquire();
   for (const auto& module : modules_) {
@@ -214,6 +235,10 @@ Function* Processor::QueryFunction(uint32_t address) {
 
 std::vector<Function*> Processor::FindFunctionsWithAddress(uint32_t address) {
   return entry_table_.FindWithAddress(address);
+}
+
+void Processor::RemoveFunctionByAddress(uint32_t address) {
+  entry_table_.Delete(address);
 }
 
 Function* Processor::ResolveFunction(uint32_t address) {
