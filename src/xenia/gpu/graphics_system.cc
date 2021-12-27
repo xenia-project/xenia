@@ -118,6 +118,20 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
       reinterpret_cast<cpu::MMIOReadCallback>(ReadRegisterThunk),
       reinterpret_cast<cpu::MMIOWriteCallback>(WriteRegisterThunk));
 
+  // GPU counters update thread
+  auto counters_worker_thread = kernel::object_ref<kernel::XHostThread>(
+      new kernel::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
+        while (1) {
+          WriteRegister(
+              XE_GPU_REG_R500_D1MODE_V_COUNTER << 2,
+              ReadRegister(XE_GPU_REG_R500_D1MODE_V_COUNTER << 2) + 1);
+        }
+        return 0;
+      }));
+  counters_worker_thread->set_can_debugger_suspend(true);
+  counters_worker_thread->set_name("GPU RTC Counters");
+  counters_worker_thread->Create();
+
   // 60hz vsync timer.
   vsync_worker_running_ = true;
   vsync_worker_thread_ = kernel::object_ref<kernel::XHostThread>(
@@ -187,8 +201,6 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
       return 0x08100748;
     case 0x0F01:  // RB_BC_CONTROL
       return 0x0000200E;
-    case 0x194C:  // R500_D1MODE_V_COUNTER
-      return 0x000002D0;
     case 0x1951:  // interrupt status
       return 1;   // vblank
     case 0x1961:  // AVIVO_D1MODE_VIEWPORT_SIZE
@@ -213,6 +225,7 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
       command_processor_->UpdateWritePointer(value);
       break;
     case 0x1844:  // AVIVO_D1GRPH_PRIMARY_SURFACE_ADDRESS
+    case 0x194C:  // R500_D1MODE_V_COUNTER
       break;
     default:
       XELOGW("Unknown GPU register {:04X} write: {:08X}", r, value);
