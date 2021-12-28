@@ -70,7 +70,7 @@ void copy_cmp_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
   }
 }
 #else
-void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr,
+void copy_cmp_swap_16_unaligned(void* dest_ptr, const void* src_ptr,
                                 uint16_t cmp_value, size_t count) {
   auto dest = reinterpret_cast<uint16_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint16_t*>(src_ptr);
@@ -80,7 +80,7 @@ void copy_and_swap_16_unaligned(void* dest_ptr, const void* src_ptr,
   }
 }
 
-void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
+void copy_cmp_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
                                 uint32_t cmp_value, size_t count) {
   auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint32_t*>(src_ptr);
