@@ -221,7 +221,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   Xbyak::Address StashConstantXmm(int index, const vec128_t& v);
 
   bool IsFeatureEnabled(uint32_t feature_flag) const {
-    return (feature_flags_ & feature_flag) != 0;
+    return (feature_flags_ & feature_flag) == feature_flag;
   }
 
   FunctionDebugInfo* debug_info() const { return debug_info_; }
