@@ -1084,6 +1084,28 @@ struct VECTOR_SHA_V128
   static void EmitInt8(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): native version (with shift magic).
     if (i.src2.is_constant) {
+      if (e.IsFeatureEnabled(kX64EmitGFNI)) {
+        const auto& shamt = i.src2.constant();
+        bool all_same = true;
+        for (size_t n = 0; n < 8 - n; ++n) {
+          if (shamt.u16[n] != shamt.u16[n + 1]) {
+            all_same = false;
+            break;
+          }
+        }
+        if (all_same) {
+          // Every count is the same, so we can use gf2p8affineqb.
+          const uint8_t shift_amount = shamt.u8[0];
+          const uint64_t shift_matrix =
+              shift_amount < 8
+                  ? (0x0102040810204080ULL << (shift_amount * 8)) |
+                        (0x8080808080808080ULL >> (64 - shift_amount * 8))
+                  : 0x8080808080808080ULL;
+          e.vgf2p8affineqb(i.dest, i.src1,
+                           e.StashConstantXmm(0, vec128q(shift_matrix)), 0);
+          return;
+        }
+      }
       e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
     } else {
       e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
