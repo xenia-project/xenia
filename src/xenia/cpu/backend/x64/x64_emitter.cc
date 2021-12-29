@@ -79,6 +79,14 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tBMI2) ? kX64EmitBMI2 : 0;
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tF16C) ? kX64EmitF16C : 0;
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tMOVBE) ? kX64EmitMovbe : 0;
+    feature_flags_ |=
+        cpu_.has(Xbyak::util::Cpu::tAVX512F) ? kX64EmitAVX512F : 0;
+    feature_flags_ |=
+        cpu_.has(Xbyak::util::Cpu::tAVX512VL) ? kX64EmitAVX512VL : 0;
+    feature_flags_ |=
+        cpu_.has(Xbyak::util::Cpu::tAVX512BW) ? kX64EmitAVX512BW : 0;
+    feature_flags_ |=
+        cpu_.has(Xbyak::util::Cpu::tAVX512DQ) ? kX64EmitAVX512DQ : 0;
   }
 
   if (!cpu_.has(Xbyak::util::Cpu::tAVX)) {
