@@ -88,6 +88,8 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tF16C) ? kX64EmitF16C : 0;
   if (cvars::x64_extension_mask & kX64EmitMovbe)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tMOVBE) ? kX64EmitMovbe : 0;
+  if (cvars::x64_extension_mask & kX64EmitGFNI)
+    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tGFNI) ? kX64EmitGFNI : 0;
   if (cvars::x64_extension_mask & kX64EmitAVX512F)
     feature_flags_ |=
         cpu_.has(Xbyak::util::Cpu::tAVX512F) ? kX64EmitAVX512F : 0;

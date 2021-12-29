@@ -37,10 +37,11 @@ DEFINE_int32(x64_extension_mask, -1,
              "   16 = BMI2\n"
              "   32 = F16C\n"
              "   64 = Movbe\n"
-             "  128 = AVX512F\n"
-             "  256 = AVX512VL\n"
-             "  512 = AVX512BW\n"
-             " 1024 = AVX512DQ\n"
+             "  128 = GFNI\n"
+             "  256 = AVX512F\n"
+             "  512 = AVX512VL\n"
+             " 1024 = AVX512BW\n"
+             " 2048 = AVX512DQ\n"
              "   -1 = Detect and utilize all possible processor features\n",
              "x64");
 
