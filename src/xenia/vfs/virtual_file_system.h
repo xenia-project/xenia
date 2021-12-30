@@ -27,6 +27,7 @@ class VirtualFileSystem {
  public:
   VirtualFileSystem();
   ~VirtualFileSystem();
+  static bool IsValidPath(const std::string_view s, bool is_pattern);
 
   bool RegisterDevice(std::unique_ptr<Device> device);
   bool UnregisterDevice(const std::string_view path);

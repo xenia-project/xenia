@@ -244,6 +244,26 @@ dword_result_t NtSetInformationFile(
       }
       break;
     }
+    case XFileRenameInformation: {
+      auto info = info_ptr.as<X_FILE_RENAME_INFORMATION*>();
+
+      // Compute path, possibly attrs relative.
+      std::filesystem::path target_path =
+          util::TranslateAnsiString(kernel_memory(), &info->ansi_string);
+
+      // Place IsValidPath in path from where it can be accessed everywhere
+      if (!xe::vfs::VirtualFileSystem::IsValidPath(target_path.string(), false)) {
+       return X_STATUS_OBJECT_NAME_INVALID;
+      }
+
+      if (target_path.has_filename()) {
+        file->SetName(target_path.filename().string());
+      } else {
+        result = X_STATUS_INVALID_PARAMETER;
+      }
+      out_length = sizeof(*info);
+      break;
+    }
     default:
       // Unsupported, for now.
       assert_always();
