@@ -1254,7 +1254,8 @@ bool BaseHeap::QueryRegionInfo(uint32_t base_address,
   out_info->protect = 0;
   if (start_page_entry.state) {
     // Committed/reserved region.
-    out_info->allocation_base = start_page_entry.base_address * page_size_;
+    out_info->allocation_base =
+        heap_base_ + start_page_entry.base_address * page_size_;
     out_info->allocation_protect = start_page_entry.allocation_protect;
     out_info->allocation_size = start_page_entry.region_page_count * page_size_;
     out_info->state = start_page_entry.state;
