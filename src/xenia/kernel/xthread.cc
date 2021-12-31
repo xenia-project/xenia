@@ -14,6 +14,7 @@
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
@@ -40,6 +41,8 @@ const uint32_t XAPC::kDummyKernelRoutine;
 const uint32_t XAPC::kDummyRundownRoutine;
 
 using xe::cpu::ppc::PPCOpcode;
+
+using namespace xe::literals;
 
 uint32_t next_xthread_id_ = 0;
 
@@ -370,7 +373,7 @@ X_STATUS XThread::Create() {
   RetainHandle();
 
   xe::threading::Thread::CreationParameters params;
-  params.stack_size = 16 * 1024 * 1024;  // Allocate a big host stack.
+  params.stack_size = 16_MiB;  // Allocate a big host stack.
   params.create_suspended = true;
   thread_ = xe::threading::Thread::Create(params, [this]() {
     // Set thread ID override. This is used by logging.
@@ -1018,7 +1021,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
 
     xe::threading::Thread::CreationParameters params;
     params.create_suspended = true;  // Not done restoring yet.
-    params.stack_size = 16 * 1024 * 1024;
+    params.stack_size = 16_MiB;
     thread->thread_ = xe::threading::Thread::Create(params, [thread, state]() {
       // Set thread ID override. This is used by logging.
       xe::threading::set_current_thread_id(thread->handle());

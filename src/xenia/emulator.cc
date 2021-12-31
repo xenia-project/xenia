@@ -20,6 +20,7 @@
 #include "xenia/base/cvar.h"
 #include "xenia/base/debugging.h"
 #include "xenia/base/exception_handler.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/profiling.h"
@@ -59,6 +60,8 @@ DEFINE_string(
     "General");
 
 namespace xe {
+
+using namespace xe::literals;
 
 Emulator::Emulator(const std::filesystem::path& command_line,
                    const std::filesystem::path& storage_root,
@@ -415,8 +418,7 @@ bool Emulator::SaveToFile(const std::filesystem::path& path) {
   Pause();
 
   filesystem::CreateFile(path);
-  auto map = MappedMemory::Open(path, MappedMemory::Mode::kReadWrite, 0,
-                                1024ull * 1024ull * 1024ull * 2ull);
+  auto map = MappedMemory::Open(path, MappedMemory::Mode::kReadWrite, 0, 2_GiB);
   if (!map) {
     return false;
   }

@@ -60,7 +60,7 @@ void* Arena::Alloc(size_t size, size_t align) {
 
   if (active_chunk_) {
     if (active_chunk_->capacity - active_chunk_->offset <
-        size + get_padding() + 4096) {
+        size + get_padding() + 4_KiB) {
       Chunk* next = active_chunk_->next;
       if (!next) {
         assert_true(size + get_padding() < chunk_size_,

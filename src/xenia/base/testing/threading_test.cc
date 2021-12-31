@@ -824,7 +824,7 @@ TEST_CASE("Create and Run Thread", "[thread]") {
   }
 
   SECTION("16kb stack size") {
-    params.stack_size = 16 * 1024 * 1024;
+    params.stack_size = 16_MiB;
     thread = Thread::Create(params, [] {
       Thread::Exit(-1);
       FAIL("Function must not return");
