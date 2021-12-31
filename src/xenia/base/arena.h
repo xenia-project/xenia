@@ -14,11 +14,15 @@
 #include <cstdint>
 #include <vector>
 
+#include "xenia/base/literals.h"
+
 namespace xe {
+
+using namespace xe::literals;
 
 class Arena {
  public:
-  explicit Arena(size_t chunk_size = 4 * 1024 * 1024);
+  explicit Arena(size_t chunk_size = 4_MiB);
   ~Arena();
 
   void Reset();

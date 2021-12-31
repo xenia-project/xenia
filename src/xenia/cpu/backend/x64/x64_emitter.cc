@@ -18,6 +18,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/atomic.h"
 #include "xenia/base/debugging.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
@@ -50,8 +51,9 @@ namespace x64 {
 
 using xe::cpu::hir::HIRBuilder;
 using xe::cpu::hir::Instr;
+using namespace xe::literals;
 
-static const size_t kMaxCodeSize = 1 * 1024 * 1024;
+static const size_t kMaxCodeSize = 1_MiB;
 
 static const size_t kStashOffset = 32;
 // static const size_t kStashOffsetHigh = 32 + 32;

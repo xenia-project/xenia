@@ -20,6 +20,7 @@
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
@@ -30,6 +31,8 @@ namespace xe {
 namespace cpu {
 namespace backend {
 namespace x64 {
+
+using namespace xe::literals;
 
 X64CodeCache::X64CodeCache() = default;
 
@@ -227,7 +230,7 @@ void X64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
       old_commit_mark = generated_code_commit_mark_;
       if (high_mark <= old_commit_mark) break;
 
-      new_commit_mark = old_commit_mark + 16 * 1024 * 1024;
+      new_commit_mark = old_commit_mark + 16_MiB;
       if (generated_code_execute_base_ == generated_code_write_base_) {
         xe::memory::AllocFixed(generated_code_execute_base_, new_commit_mark,
                                xe::memory::AllocationType::kCommit,
@@ -310,7 +313,7 @@ uint32_t X64CodeCache::PlaceData(const void* data, size_t length) {
     old_commit_mark = generated_code_commit_mark_;
     if (high_mark <= old_commit_mark) break;
 
-    new_commit_mark = old_commit_mark + 16 * 1024 * 1024;
+    new_commit_mark = old_commit_mark + 16_MiB;
     if (generated_code_execute_base_ == generated_code_write_base_) {
       xe::memory::AllocFixed(generated_code_execute_base_, new_commit_mark,
                              xe::memory::AllocationType::kCommit,

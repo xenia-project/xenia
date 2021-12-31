@@ -16,6 +16,7 @@
 #include "xenia/base/cvar.h"
 #include "xenia/base/debugging.h"
 #include "xenia/base/exception_handler.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
@@ -56,6 +57,8 @@ namespace cpu {
 
 using xe::cpu::ppc::PPCOpcode;
 using xe::kernel::XThread;
+
+using namespace xe::literals;
 
 class BuiltinModule : public Module {
  public:
@@ -142,8 +145,8 @@ bool Processor::Setup(std::unique_ptr<backend::Backend> backend) {
   // Open the trace data path, if requested.
   functions_trace_path_ = cvars::trace_function_data_path;
   if (!functions_trace_path_.empty()) {
-    functions_trace_file_ = ChunkedMappedMemoryWriter::Open(
-        functions_trace_path_, 32 * 1024 * 1024, true);
+    functions_trace_file_ =
+        ChunkedMappedMemoryWriter::Open(functions_trace_path_, 32_MiB, true);
   }
 
   return true;
