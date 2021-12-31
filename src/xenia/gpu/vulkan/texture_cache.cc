@@ -12,6 +12,7 @@
 #include <algorithm>
 
 #include "third_party/fmt/include/fmt/format.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
@@ -36,8 +37,10 @@ namespace vulkan {
 
 using xe::ui::vulkan::CheckResult;
 
+using namespace xe::literals;
+
 constexpr uint32_t kMaxTextureSamplers = 32;
-constexpr VkDeviceSize kStagingBufferSize = 64 * 1024 * 1024;
+constexpr VkDeviceSize kStagingBufferSize = 64_MiB;
 
 const char* get_dimension_name(xenos::DataDimension dimension) {
   static const char* names[] = {

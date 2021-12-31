@@ -10,6 +10,7 @@
 #include "xenia/base/console_app_main.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/filesystem.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
@@ -36,6 +37,7 @@ namespace cpu {
 namespace test {
 
 using xe::cpu::ppc::PPCContext;
+using namespace xe::literals;
 
 typedef std::vector<std::pair<std::string, std::string>> AnnotationList;
 
@@ -177,7 +179,7 @@ class TestSuite {
 
 class TestRunner {
  public:
-  TestRunner() : memory_size_(64 * 1024 * 1024) {
+  TestRunner() : memory_size_(64_MiB) {
     memory_.reset(new Memory());
     memory_->Initialize();
   }
