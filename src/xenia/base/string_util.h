@@ -134,7 +134,7 @@ inline std::string to_hex_string(double value) {
 }
 
 inline std::string to_hex_string(const vec128_t& value) {
-  return fmt::format("[{:08X} {:08X} {:08X} {:08X} {:08X}]", value.u32[0],
+  return fmt::format("[{:08X} {:08X} {:08X} {:08X}]", value.u32[0],
                      value.u32[1], value.u32[2], value.u32[3]);
 }
 
