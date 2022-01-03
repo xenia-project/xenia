@@ -657,7 +657,7 @@ int InstrEmit_andx(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_andcx(PPCHIRBuilder& f, const InstrData& i) {
   // RA <- (RS) & ¬(RB)
-  Value* ra = f.And(f.LoadGPR(i.X.RT), f.Not(f.LoadGPR(i.X.RB)));
+  Value* ra = f.AndNot(f.LoadGPR(i.X.RT), f.LoadGPR(i.X.RB));
   f.StoreGPR(i.X.RA, ra);
   if (i.X.Rc) {
     f.UpdateCR(0, ra);
