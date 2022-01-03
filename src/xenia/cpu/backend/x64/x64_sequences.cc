@@ -2656,13 +2656,23 @@ void EmitAndNotXX(X64Emitter& e, const ARGS& i) {
     }
   } else {
     // neither are constant
-    if (i.dest == i.src2) {
-      e.not_(i.dest);
-      e.and_(i.dest, i.src1);
+    if (e.IsFeatureEnabled(kX64EmitBMI1)) {
+      if (i.dest.reg().getBit() == 64) {
+        e.andn(i.dest.reg().cvt64(), i.src2.reg().cvt64(),
+               i.src1.reg().cvt64());
+      } else {
+        e.andn(i.dest.reg().cvt32(), i.src2.reg().cvt32(),
+               i.src1.reg().cvt32());
+      }
     } else {
-      e.mov(i.dest, i.src2);
-      e.not_(i.dest);
-      e.and_(i.dest, i.src1);
+      if (i.dest == i.src2) {
+        e.not_(i.dest);
+        e.and_(i.dest, i.src1);
+      } else {
+        e.mov(i.dest, i.src2);
+        e.not_(i.dest);
+        e.and_(i.dest, i.src1);
+      }
     }
   }
 }
