@@ -104,7 +104,17 @@ class KernelState {
   xam::ContentManager* content_manager() const {
     return content_manager_.get();
   }
-  xam::UserProfile* user_profile() const { return user_profile_.get(); }
+
+  uint8_t GetConnectedUsers() const;
+  void UpdateUsedUserProfiles();
+
+  bool IsUserSignedIn(uint8_t index) const {
+    return user_profiles_.find(index) != user_profiles_.cend();
+  }
+
+  xam::UserProfile* user_profile(uint8_t index) const {
+    return user_profiles_.at(index).get();
+  }
 
   // Access must be guarded by the global critical region.
   util::ObjectTable* object_table() { return &object_table_; }
@@ -206,7 +216,7 @@ class KernelState {
 
   std::unique_ptr<xam::AppManager> app_manager_;
   std::unique_ptr<xam::ContentManager> content_manager_;
-  std::unique_ptr<xam::UserProfile> user_profile_;
+  std::map<uint8_t, std::unique_ptr<xam::UserProfile>> user_profiles_;
 
   xe::global_critical_region global_critical_region_;
 
