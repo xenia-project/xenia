@@ -68,7 +68,10 @@ std::string join_paths(const std::string_view left_path,
                        const std::string_view right_path,
                        char32_t separator = kPathSeparator);
 
-std::string join_paths(std::vector<std::string_view> paths,
+std::string join_paths(const std::vector<std::string>& paths,
+                       char32_t separator = kPathSeparator);
+
+std::string join_paths(const std::vector<std::string_view>& paths,
                        char32_t separator = kPathSeparator);
 
 inline std::string join_paths(
@@ -86,7 +89,12 @@ inline std::string join_guest_paths(const std::string_view left_path,
   return join_paths(left_path, right_path, kGuestPathSeparator);
 }
 
-inline std::string join_guest_paths(std::vector<std::string_view> paths) {
+inline std::string join_guest_paths(const std::vector<std::string>& paths) {
+  return join_paths(paths, kGuestPathSeparator);
+}
+
+inline std::string join_guest_paths(
+    const std::vector<std::string_view>& paths) {
   return join_paths(paths, kGuestPathSeparator);
 }
 

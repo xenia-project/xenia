@@ -10,6 +10,7 @@
 #include <cstring>
 #include <iomanip>
 #include <sstream>
+#include <string>
 
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
@@ -18,6 +19,9 @@
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
+
+DEFINE_bool(log_string_format_kernel_calls, false,
+            "Log kernel calls with the kHighFrequency tag.", "Logging");
 
 namespace xe {
 namespace kernel {
@@ -284,6 +288,13 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
           } else {
             flags |= FF_IsLong;
           }
+          state = FS_Type;
+          continue;
+        } else if (c == 'L') {
+          // 58410826 incorrectly uses 'L' instead of 'l'.
+          // TODO(gibbed): L appears to be treated as an invalid token by
+          // xboxkrnl, investigate how invalid tokens are processed in xboxkrnl
+          // formatting when state FF_Type is reached.
           state = FS_Type;
           continue;
         } else if (c == 'h') {
@@ -734,15 +745,15 @@ class StringFormatData : public FormatData {
     if (c >= 0x100) {
       return false;
     }
-    output_ << (char)c;
+    output_.push_back(char(c));
     return true;
   }
 
-  std::string str() const { return output_.str(); }
+  const std::string& str() const { return output_; }
 
  private:
   const uint8_t* input_;
-  std::ostringstream output_;
+  std::string output_;
 };
 
 class WideStringFormatData : public FormatData {
@@ -768,15 +779,15 @@ class WideStringFormatData : public FormatData {
   }
 
   bool put(uint16_t c) {
-    output_ << (char16_t)c;
+    output_.push_back(char16_t(c));
     return true;
   }
 
-  std::u16string wstr() const { return output_.str(); }
+  const std::u16string& wstr() const { return output_; }
 
  private:
   const uint16_t* input_;
-  std::basic_stringstream<char16_t> output_;
+  std::u16string output_;
 };
 
 class WideCountFormatData : public FormatData {
@@ -830,7 +841,14 @@ SHIM_CALL DbgPrint_shim(PPCContext* ppc_context, KernelState* kernel_state) {
     return;
   }
 
-  XELOGD("(DbgPrint) {}", data.str());
+  // trim whitespace from end of message
+  auto str = data.str();
+  str.erase(std::find_if(str.rbegin(), str.rend(),
+                         [](uint8_t c) { return !std::isspace(c); })
+                .base(),
+            str.end());
+
+  XELOGI("(DbgPrint) {}", str);
 
   SHIM_SET_RETURN_32(X_STATUS_SUCCESS);
 }
@@ -841,8 +859,11 @@ SHIM_CALL _snprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   int32_t buffer_count = SHIM_GET_ARG_32(1);
   uint32_t format_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD("_snprintf({:08X}, {}, {:08X}, ...)", buffer_ptr, buffer_count,
-         format_ptr);
+  if (cvars::log_high_frequency_kernel_calls) {
+    XELOGD("_snprintf({:08X}, {}, {:08X}({}), ...)", buffer_ptr, buffer_count,
+           format_ptr,
+           xe::load_and_swap<std::string>(SHIM_MEM_ADDR(format_ptr)));
+  }
 
   if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
@@ -877,7 +898,10 @@ SHIM_CALL sprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
 
-  XELOGD("sprintf({:08X}, {:08X}, ...)", buffer_ptr, format_ptr);
+  if (cvars::log_high_frequency_kernel_calls) {
+    XELOGD("sprintf({:08X}, {:08X}({}), ...)", buffer_ptr, format_ptr,
+           xe::load_and_swap<std::string>(SHIM_MEM_ADDR(format_ptr)));
+  }
 
   if (buffer_ptr == 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
@@ -906,8 +930,12 @@ SHIM_CALL _snwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   int32_t buffer_count = SHIM_GET_ARG_32(1);
   uint32_t format_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD("_snwprintf({:08X}, {}, {:08X}, ...)", buffer_ptr, buffer_count,
-         format_ptr);
+  if (cvars::log_high_frequency_kernel_calls) {
+    XELOGD("_snwprintf({:08X}, {}, {:08X}({}), ...)", buffer_ptr, buffer_count,
+           format_ptr,
+           xe::to_utf8(
+               xe::load_and_swap<std::u16string>(SHIM_MEM_ADDR(format_ptr))));
+  }
 
   if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
@@ -942,7 +970,11 @@ SHIM_CALL swprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
 
-  XELOGD("swprintf({:08X}, {:08X}, ...)", buffer_ptr, format_ptr);
+  if (cvars::log_high_frequency_kernel_calls) {
+    XELOGD("swprintf({:08X}, {:08X}({}), ...)", buffer_ptr, format_ptr,
+           xe::to_utf8(
+               xe::load_and_swap<std::u16string>(SHIM_MEM_ADDR(format_ptr))));
+  }
 
   if (buffer_ptr == 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
@@ -972,8 +1004,11 @@ SHIM_CALL _vsnprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(2);
   uint32_t arg_ptr = SHIM_GET_ARG_32(3);
 
-  XELOGD("_vsnprintf({:08X}, {}, {:08X}, {:08X})", buffer_ptr, buffer_count,
-         format_ptr, arg_ptr);
+  if (cvars::log_high_frequency_kernel_calls) {
+    XELOGD("_vsnprintf({:08X}, {}, {:08X}({}), {:08X})", buffer_ptr,
+           buffer_count, format_ptr,
+           xe::load_and_swap<std::string>(SHIM_MEM_ADDR(format_ptr)), arg_ptr);
+  }
 
   if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
@@ -1012,8 +1047,13 @@ SHIM_CALL _vsnwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(2);
   uint32_t arg_ptr = SHIM_GET_ARG_32(3);
 
-  XELOGD("_vsnwprintf({:08X}, {}, {:08X}, {:08X})", buffer_ptr, buffer_count,
-         format_ptr, arg_ptr);
+  if (cvars::log_high_frequency_kernel_calls) {
+    XELOGD("_vsnwprintf({:08X}, {}, {:08X}({}), {:08X})", buffer_ptr,
+           buffer_count, format_ptr,
+           xe::to_utf8(
+               xe::load_and_swap<std::u16string>(SHIM_MEM_ADDR(format_ptr))),
+           arg_ptr);
+  }
 
   if (buffer_ptr == 0 || buffer_count <= 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
@@ -1051,7 +1091,10 @@ SHIM_CALL vsprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
   uint32_t arg_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD("vsprintf({:08X}, {:08X}, {:08X})", buffer_ptr, format_ptr, arg_ptr);
+  if (cvars::log_high_frequency_kernel_calls) {
+    XELOGD("vsprintf({:08X}, {:08X}({}), {:08X})", buffer_ptr, format_ptr,
+           xe::load_and_swap<std::string>(SHIM_MEM_ADDR(format_ptr)), arg_ptr);
+  }
 
   if (buffer_ptr == 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
@@ -1079,7 +1122,12 @@ SHIM_CALL _vscwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(0);
   uint32_t arg_ptr = SHIM_GET_ARG_32(1);
 
-  XELOGD("_vscwprintf({:08X}, {:08X})", format_ptr, arg_ptr);
+  if (cvars::log_high_frequency_kernel_calls) {
+    XELOGD("_vscwprintf({:08X}({}), {:08X})", format_ptr,
+           xe::to_utf8(
+               xe::load_and_swap<std::u16string>(SHIM_MEM_ADDR(format_ptr))),
+           arg_ptr);
+  }
 
   if (format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);
@@ -1102,7 +1150,12 @@ SHIM_CALL vswprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
   uint32_t arg_ptr = SHIM_GET_ARG_32(2);
 
-  XELOGD("vswprintf({:08X}, {:08X}, {:08X})", buffer_ptr, format_ptr, arg_ptr);
+  if (cvars::log_high_frequency_kernel_calls) {
+    XELOGD("vswprintf({:08X}, {:08X}({}), {:08X})", buffer_ptr, format_ptr,
+           xe::to_utf8(
+               xe::load_and_swap<std::u16string>(SHIM_MEM_ADDR(format_ptr))),
+           arg_ptr);
+  }
 
   if (buffer_ptr == 0 || format_ptr == 0) {
     SHIM_SET_RETURN_32(-1);

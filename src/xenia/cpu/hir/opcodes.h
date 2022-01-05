@@ -143,6 +143,55 @@ enum Opcode {
   OPCODE_TRUNCATE,
   OPCODE_CONVERT,
   OPCODE_ROUND,
+  // Note that 2147483648.0 + (src & 0x7FFFFFFF) is not a correct way of
+  // performing the uint -> float conversion for large numbers on backends where
+  // only sint -> float is available.
+  //
+  // Take 0b11000000000000000000000101000001 as an example,
+  // or 1.1000000000000000000000101000001 * 2^31.
+  // This one has 31 mantissa bits (excluding the implicit 1.), and needs to be
+  // rounded to 23 bits - 8 mantissa bits need to be dropped:
+  // 10000000000000000000001_01000001
+  //
+  // Rounding to the nearest even (the only rounding mode that exists on
+  // AltiVec, and the likely rounding mode in the implementations) should be
+  // done downwards - 01000001 of 1_01000001 is in [00000000, 01111111].
+  // The correct mantissa in this case is:
+  // 1.10000000000000000000001 * 2^31.
+  //
+  // With a two-step conversion, rounding is done twice instead, which gives an
+  // incorrect result.
+  //
+  // First, converting the low 31 bits to float:
+  // The number is 0.1000000000000000000000101000001 * 2^31.
+  // Normalizing it, we get 1.000000000000000000000101000001 (30 significand
+  // bits).
+  // We need to round 30 bits to 23 - 7 bits need to be dropped:
+  // 00000000000000000000010_1000001
+  //
+  // Rounding to the nearest even is done upwards in this case - 1000001 of
+  // 0_1000001 is in [1000001, 1111111].
+  // The result of the sint -> float conversion is:
+  // 1.00000000000000000000011 * 2^30.
+  //
+  // Now 2147483648.0 (1 * 2^31) needs to be added. Aligning the exponents, we
+  // get:
+  //   0.|10000000000000000000001|1 * 2^31
+  // + 1.|00000000000000000000000|  * 2^31
+  // = 1.|10000000000000000000001|1 * 2^31
+  //
+  // At "infinite precision", the result has 24 significand bits, but only 23
+  // can be stored, thus rounding to the nearest even needs to be done. 1_1 is
+  // (odd + 0.5). 0.5 is ambiguous, thus tie-breaking to the nearest even -
+  // which is above in this case - is done. The result is:
+  // 1.10000000000000000000010 * 2^31.
+  //
+  // This is incorrect - larger than the correctly rounded result, which is:
+  // 1.10000000000000000000001 * 2^31.
+  //
+  // Test cases checked on real hardware via vcfux: 0xFFFDFF7E, 0xFFFCFF7D -
+  // should be 0x4F7FFDFF and 0x4F7FFCFF respectively, not 0x4F7FFE00 and
+  // 0x4F7FFD00.
   OPCODE_VECTOR_CONVERT_I2F,
   OPCODE_VECTOR_CONVERT_F2I,
   OPCODE_LOAD_VECTOR_SHL,
@@ -206,6 +255,7 @@ enum Opcode {
   OPCODE_DOT_PRODUCT_3,
   OPCODE_DOT_PRODUCT_4,
   OPCODE_AND,
+  OPCODE_AND_NOT,
   OPCODE_OR,
   OPCODE_XOR,
   OPCODE_NOT,

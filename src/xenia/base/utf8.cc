@@ -19,9 +19,7 @@
 namespace utfcpp = utf8;
 
 using citer = std::string_view::const_iterator;
-using criter = std::string_view::const_reverse_iterator;
 using utf8_citer = utfcpp::iterator<std::string_view::const_iterator>;
-using utf8_criter = utfcpp::iterator<std::string_view::const_reverse_iterator>;
 
 namespace xe::utf8 {
 
@@ -54,22 +52,7 @@ std::pair<utf8_citer, utf8_citer> make_citer(const utf8_citer begin,
           utf8_citer(end.base(), begin.base(), end.base())};
 }
 
-std::pair<utf8_criter, utf8_criter> make_criter(const std::string_view view) {
-  return {utf8_criter(view.crbegin(), view.crbegin(), view.crend()),
-          utf8_criter(view.crend(), view.crbegin(), view.crend())};
-}
-
-std::pair<utf8_criter, utf8_criter> make_criter(const utf8_criter begin,
-                                                const utf8_criter end) {
-  return {utf8_criter(begin.base(), begin.base(), end.base()),
-          utf8_criter(end.base(), begin.base(), end.base())};
-}
-
 size_t byte_length(utf8_citer begin, utf8_citer end) {
-  return size_t(std::distance(begin.base(), end.base()));
-}
-
-size_t byte_length(utf8_criter begin, utf8_criter end) {
   return size_t(std::distance(begin.base(), end.base()));
 }
 
@@ -258,7 +241,6 @@ std::string_view::size_type find_any_of(const std::string_view haystack,
 
   auto [haystack_begin, haystack_end] = make_citer(haystack);
   auto [needle_begin, needle_end] = make_citer(needles);
-  auto needle_count = count(needles);
 
   auto it = find_needle(haystack_begin, haystack_end, needle_begin, needle_end);
   if (it == haystack_end) {
@@ -278,7 +260,6 @@ std::string_view::size_type find_any_of_case(const std::string_view haystack,
 
   auto [haystack_begin, haystack_end] = make_citer(haystack);
   auto [needle_begin, needle_end] = make_citer(needles);
-  auto needle_count = count(needles);
 
   auto it =
       find_needle_case(haystack_begin, haystack_end, needle_begin, needle_end);
@@ -435,21 +416,23 @@ bool ends_with(const std::string_view haystack, const std::string_view needle) {
     return false;
   }
 
-  auto [haystack_begin, haystack_end] = make_criter(haystack);
-  auto [needle_begin, needle_end] = make_criter(needle);
+  auto [haystack_begin, haystack_end] = make_citer(haystack);
+  auto [needle_begin, needle_end] = make_citer(needle);
   auto needle_count = count(needle);
 
-  auto it = haystack_begin;
+  auto it = haystack_end;
   auto end = it;
-  for (size_t i = 0; i < needle_count; ++i) {
-    if (end == haystack_end) {
+  --it;
+
+  for (size_t i = 1; i < needle_count; ++i) {
+    if (it == haystack_begin) {
       // not enough room in target for search
       return false;
     }
-    ++end;
+    --it;
   }
 
-  auto [sub_start, sub_end] = make_criter(it, end);
+  auto [sub_start, sub_end] = make_citer(it, end);
   return std::equal(needle_begin, needle_end, sub_start, sub_end);
 }
 
@@ -461,21 +444,23 @@ bool ends_with_case(const std::string_view haystack,
     return false;
   }
 
-  auto [haystack_begin, haystack_end] = make_criter(haystack);
-  auto [needle_begin, needle_end] = make_criter(needle);
+  auto [haystack_begin, haystack_end] = make_citer(haystack);
+  auto [needle_begin, needle_end] = make_citer(needle);
   auto needle_count = count(needle);
 
-  auto it = haystack_begin;
+  auto it = haystack_end;
   auto end = it;
+  --it;
+
   for (size_t i = 0; i < needle_count; ++i) {
-    if (end == haystack_end) {
+    if (it == haystack_begin) {
       // not enough room in target for search
       return false;
     }
-    ++end;
+    --it;
   }
 
-  auto [sub_start, sub_end] = make_criter(it, end);
+  auto [sub_start, sub_end] = make_citer(it, end);
   return std::equal(needle_begin, needle_end, sub_start, sub_end,
                     equal_ascii_case);
 }
@@ -492,7 +477,9 @@ std::string join_paths(const std::string_view left_path,
     return std::string(left_path);
   }
 
-  auto [it, end] = make_criter(left_path);
+  utf8_citer it;
+  std::tie(std::ignore, it) = make_citer(left_path);
+  --it;
 
   std::string result = std::string(left_path);
   if (*it != static_cast<uint32_t>(separator)) {
@@ -501,7 +488,20 @@ std::string join_paths(const std::string_view left_path,
   return result + std::string(right_path);
 }
 
-std::string join_paths(std::vector<std::string_view> paths,
+std::string join_paths(const std::vector<std::string>& paths,
+                       char32_t separator) {
+  std::string result;
+  auto it = paths.cbegin();
+  if (it != paths.cend()) {
+    result = *it++;
+    for (; it != paths.cend(); ++it) {
+      result = join_paths(result, *it, separator);
+    }
+  }
+  return result;
+}
+
+std::string join_paths(const std::vector<std::string_view>& paths,
                        char32_t separator) {
   std::string result;
   auto it = paths.cbegin();
@@ -528,8 +528,20 @@ std::string fix_path_separators(const std::string_view path,
   std::string result;
   auto it = path_begin;
   auto last = it;
+
+  auto is_separator = [old_separator, new_separator](char32_t c) {
+    return c == uint32_t(old_separator) || c == uint32_t(new_separator);
+  };
+
+  // Begins with a separator
+  if (is_separator(*it)) {
+    utfcpp::append(new_separator, result);
+    ++it;
+    last = it;
+  }
+
   for (;;) {
-    it = std::find(it, path_end, uint32_t(old_separator));
+    it = std::find_if(it, path_end, is_separator);
     if (it == path_end) {
       break;
     }
@@ -563,50 +575,67 @@ std::string find_name_from_path(const std::string_view path,
     return std::string();
   }
 
-  auto [begin, end] = make_criter(path);
+  auto [begin, end] = make_citer(path);
 
-  auto it = begin;
-  size_t padding = 0;
+  auto it = end;
+  --it;
+
+  // skip trailing separators at the end of the path
+  while (*it == uint32_t(separator)) {
+    if (it == begin) {
+      // path is all separators, name is empty
+      return std::string();
+    }
+    --it;
+  }
+
+  // update end so it is before any trailing separators
+  end = std::next(it);
+
+  // skip non-separators
+  while (*it != uint32_t(separator)) {
+    if (it == begin) {
+      break;
+    }
+    --it;
+  }
+
+  // if the iterator is on a separator, advance
   if (*it == uint32_t(separator)) {
     ++it;
-    padding = 1;
   }
 
-  if (it == end) {
-    return std::string();
-  }
-
-  it = std::find(it, end, uint32_t(separator));
-  if (it == end) {
-    return std::string(path.substr(0, path.size() - padding));
-  }
-
-  auto length = byte_length(begin, it);
-  auto offset = path.length() - length;
-  return std::string(path.substr(offset, length - padding));
+  auto offset = byte_length(begin, it);
+  auto length = byte_length(it, end);
+  return std::string(path.substr(offset, length));
 }
 
 std::string find_base_name_from_path(const std::string_view path,
                                      char32_t separator) {
   auto name = find_name_from_path(path, separator);
-  if (!name.size()) {
+  if (!name.length()) {
     return std::string();
   }
 
-  auto [begin, end] = make_criter(name);
+  auto [begin, end] = make_citer(name);
 
-  auto it = std::find(begin, end, uint32_t('.'));
-  if (it == end) {
+  auto it = end;
+  --it;
+
+  while (it != begin) {
+    if (*it == uint32_t('.')) {
+      break;
+    }
+    --it;
+  }
+
+  if (it == begin) {
     return name;
   }
 
-  it++;
-  if (it == end) {
-    return std::string();
-  }
-
-  auto length = name.length() - byte_length(begin, it);
-  return std::string(name.substr(0, length));
+  auto length = byte_length(it, end);
+  auto offset = name.length() - length;
+  return std::string(name.substr(0, offset));
 }
 
 std::string find_base_path(const std::string_view path, char32_t separator) {
@@ -614,24 +643,38 @@ std::string find_base_path(const std::string_view path, char32_t separator) {
     return std::string();
   }
 
-  auto [begin, end] = make_criter(path);
+  auto [begin, end] = make_citer(path);
 
-  auto it = begin;
-  if (*it == uint32_t(separator)) {
-    ++it;
+  auto it = end;
+  --it;
+
+  // skip trailing separators at the end of the path
+  while (*it == uint32_t(separator)) {
+    if (it == begin) {
+      return std::string();
+    }
+    --it;
   }
 
-  it = std::find(it, end, uint32_t(separator));
-  if (it == end) {
-    return std::string();
+  // skip non-separators
+  while (*it != uint32_t(separator)) {
+    if (it == begin) {
+      // there are no separators, base path is empty
+      return std::string();
+    }
+    --it;
   }
 
-  ++it;
-  if (it == end) {
-    return std::string();
+  // skip trailing separators at the end of the base path
+  while (*it == uint32_t(separator)) {
+    if (it == begin) {
+      // base path is all separators, base path is empty
+      return std::string();
+    }
+    --it;
   }
 
-  auto length = path.length() - byte_length(begin, it);
+  auto length = byte_length(begin, std::next(it));
   return std::string(path.substr(0, length));
 }
 

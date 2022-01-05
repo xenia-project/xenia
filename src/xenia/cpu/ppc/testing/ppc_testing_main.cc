@@ -7,9 +7,11 @@
  ******************************************************************************
  */
 
+#include "xenia/base/console_app_main.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/filesystem.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/main.h"
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/string_buffer.h"
@@ -28,13 +30,14 @@ DEFINE_path(test_path, "src/xenia/cpu/ppc/testing/",
             "Directory scanned for test files.", "Other");
 DEFINE_path(test_bin_path, "src/xenia/cpu/ppc/testing/bin/",
             "Directory with binary outputs of the test files.", "Other");
-DEFINE_transient_string(test_name, "", "Specifies test name.", "General");
+DEFINE_transient_string(test_name, "", "Test suite name.", "General");
 
 namespace xe {
 namespace cpu {
 namespace test {
 
 using xe::cpu::ppc::PPCContext;
+using namespace xe::literals;
 
 typedef std::vector<std::pair<std::string, std::string>> AnnotationList;
 
@@ -176,7 +179,7 @@ class TestSuite {
 
 class TestRunner {
  public:
-  TestRunner() : memory_size_(64 * 1024 * 1024) {
+  TestRunner() : memory_size_(64_MiB) {
     memory_.reset(new Memory());
     memory_->Initialize();
   }
@@ -475,18 +478,12 @@ bool RunTests(const std::string_view test_name) {
 }
 
 int main(const std::vector<std::string>& args) {
-  // Grab test name, if present.
-  std::string test_name;
-  if (args.size() >= 2) {
-    test_name = args[1];
-  }
-
-  return RunTests(test_name) ? 0 : 1;
+  return RunTests(cvars::test_name) ? 0 : 1;
 }
 
 }  // namespace test
 }  // namespace cpu
 }  // namespace xe
 
-DEFINE_ENTRY_POINT("xenia-cpu-ppc-test", xe::cpu::test::main, "[test name]",
-                   "test_name");
+XE_DEFINE_CONSOLE_APP("xenia-cpu-ppc-test", xe::cpu::test::main, "[test name]",
+                      "test_name");

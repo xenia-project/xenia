@@ -203,7 +203,9 @@ void SpirvShaderTranslator::StartTranslation() {
   push_consts_ = b.createVariable(spv::StorageClass::StorageClassPushConstant,
                                   push_constants_type, "push_consts");
 
-  if (!texture_bindings().empty()) {
+  const std::vector<Shader::TextureBinding>& texture_bindings =
+      current_shader().texture_bindings();
+  if (!texture_bindings.empty()) {
     image_2d_type_ =
         b.makeImageType(float_type_, spv::Dim::Dim2D, false, false, false, 1,
                         spv::ImageFormat::ImageFormatUnknown);
@@ -220,7 +222,7 @@ void SpirvShaderTranslator::StartTranslation() {
                   b.makeSampledImageType(image_cube_type_)};
 
     uint32_t num_tex_bindings = 0;
-    for (const auto& binding : texture_bindings()) {
+    for (const auto& binding : texture_bindings) {
       // Calculate the highest binding index.
       num_tex_bindings =
           std::max(num_tex_bindings, uint32_t(binding.binding_index + 1));
@@ -241,7 +243,7 @@ void SpirvShaderTranslator::StartTranslation() {
     }
 
     // Set up the map from binding -> ssbo index
-    for (const auto& binding : texture_bindings()) {
+    for (const auto& binding : texture_bindings) {
       tex_binding_map_[binding.fetch_constant] =
           uint32_t(binding.binding_index);
     }
@@ -254,7 +256,9 @@ void SpirvShaderTranslator::StartTranslation() {
     // Vertex inputs/outputs
     // Inputs: 32 SSBOs on DS 2 binding 0
 
-    if (!vertex_bindings().empty()) {
+    const std::vector<Shader::VertexBinding>& vertex_bindings =
+        current_shader().vertex_bindings();
+    if (!vertex_bindings.empty()) {
       // Runtime array for vertex data
       Id vtx_t = b.makeRuntimeArray(uint_type_);
       b.addDecoration(vtx_t, spv::Decoration::DecorationArrayStride,
@@ -269,7 +273,7 @@ void SpirvShaderTranslator::StartTranslation() {
 
       // Create the vertex bindings variable.
       Id vtx_a_t = b.makeArrayType(
-          vtx_s, b.makeUintConstant(uint32_t(vertex_bindings().size())), 0);
+          vtx_s, b.makeUintConstant(uint32_t(vertex_bindings.size())), 0);
       vtx_ = b.createVariable(spv::StorageClass::StorageClassUniform, vtx_a_t,
                               "vertex_bindings");
 
@@ -279,7 +283,7 @@ void SpirvShaderTranslator::StartTranslation() {
       b.addDecoration(vtx_, spv::Decoration::DecorationNonWritable);
 
       // Set up the map from binding -> ssbo index
-      for (const auto& binding : vertex_bindings()) {
+      for (const auto& binding : vertex_bindings) {
         vtx_binding_map_[binding.fetch_constant] = binding.binding_index;
       }
     }
@@ -494,7 +498,7 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     b.addExecutionMode(mainFn, spv::ExecutionModeOriginUpperLeft);
 
     // If we write a new depth value, we must declare this mode!
-    if (writes_depth()) {
+    if (current_shader().writes_depth()) {
       b.addExecutionMode(mainFn, spv::ExecutionModeDepthReplacing);
     }
 
@@ -667,8 +671,12 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
   return spirv_bytes;
 }
 
-void SpirvShaderTranslator::PostTranslation(
-    Shader::Translation& translation, bool setup_shader_post_translation_info) {
+void SpirvShaderTranslator::PostTranslation() {
+  Shader::Translation& translation = current_translation();
+  if (!translation.is_valid()) {
+    return;
+  }
+
   // Validation.
   if (cvars::spv_validate) {
     auto validation = validator_.Validate(

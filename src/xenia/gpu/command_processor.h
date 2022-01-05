@@ -67,34 +67,34 @@ enum class GammaRampType {
 struct GammaRamp {
   struct NormalEntry {
     union {
+      uint32_t value;
       struct {
         uint32_t b : 10;
         uint32_t g : 10;
         uint32_t r : 10;
         uint32_t : 2;
       };
-      uint32_t value;
     };
   };
 
   struct PWLValue {
     union {
+      uint32_t value;
       struct {
         uint16_t base;
         uint16_t delta;
       };
-      uint32_t value;
     };
   };
 
   struct PWLEntry {
     union {
+      PWLValue values[3];
       struct {
         PWLValue r;
         PWLValue g;
         PWLValue b;
       };
-      PWLValue values[3];
     };
   };
 
@@ -144,8 +144,8 @@ class CommandProcessor {
 
   virtual void RestoreEdramSnapshot(const void* snapshot) = 0;
 
-  void InitializeRingBuffer(uint32_t ptr, uint32_t page_count);
-  void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size);
+  void InitializeRingBuffer(uint32_t ptr, uint32_t size_log2);
+  void EnableReadPointerWriteBack(uint32_t ptr, uint32_t block_size_log2);
 
   void UpdateWritePointer(uint32_t value);
 
@@ -218,6 +218,10 @@ class CommandProcessor {
                                           uint32_t count);
   bool ExecutePacketType3_EVENT_WRITE_ZPD(RingBuffer* reader, uint32_t packet,
                                           uint32_t count);
+  bool ExecutePacketType3Draw(RingBuffer* reader, uint32_t packet,
+                              const char* opcode_name,
+                              uint32_t viz_query_condition,
+                              uint32_t count_remaining);
   bool ExecutePacketType3_DRAW_INDX(RingBuffer* reader, uint32_t packet,
                                     uint32_t count);
   bool ExecutePacketType3_DRAW_INDX_2(RingBuffer* reader, uint32_t packet,

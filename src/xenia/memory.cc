@@ -1531,12 +1531,11 @@ bool PhysicalHeap::Release(uint32_t base_address, uint32_t* out_region_size) {
   // Must invalidate here because the range being released may be reused in
   // another mapping of physical memory - but callback flags are set in each
   // heap separately (https://github.com/xenia-project/xenia/issues/1559 -
-  // dynamic vertices in Viva Pinata start screen and menu allocated in
-  // 0xA0000000 at addresses that overlap intro video textures in 0xE0000000,
-  // with the state of the allocator as of February 24th, 2020). If memory is
-  // invalidated in Alloc instead, Alloc won't be aware of callbacks enabled in
-  // other heaps, thus callback handlers will keep considering this range valid
-  // forever.
+  // dynamic vertices in 4D5307F2 start screen and menu allocated in 0xA0000000
+  // at addresses that overlap intro video textures in 0xE0000000, with the
+  // state of the allocator as of February 24th, 2020). If memory is invalidated
+  // in Alloc instead, Alloc won't be aware of callbacks enabled in other heaps,
+  // thus callback handlers will keep considering this range valid forever.
   uint32_t region_size;
   if (QuerySize(base_address, &region_size)) {
     TriggerCallbacks(std::move(global_lock), base_address, region_size, true,

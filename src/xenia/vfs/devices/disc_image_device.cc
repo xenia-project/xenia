@@ -9,6 +9,7 @@
 
 #include "xenia/vfs/devices/disc_image_device.h"
 
+#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/vfs/devices/disc_image_entry.h"
@@ -16,7 +17,9 @@
 namespace xe {
 namespace vfs {
 
-const size_t kXESectorSize = 2048;
+using namespace xe::literals;
+
+const size_t kXESectorSize = 2_KiB;
 
 DiscImageDevice::DiscImageDevice(const std::string_view mount_path,
                                  const std::filesystem::path& host_path)
@@ -89,7 +92,7 @@ DiscImageDevice::Error DiscImageDevice::Verify(ParseState* state) {
   state->root_size = xe::load<uint32_t>(fs_ptr + 24);
   state->root_offset =
       state->game_offset + (state->root_sector * kXESectorSize);
-  if (state->root_size < 13 || state->root_size > 32 * 1024 * 1024) {
+  if (state->root_size < 13 || state->root_size > 32_MiB) {
     return Error::kErrorDamagedFile;
   }
 

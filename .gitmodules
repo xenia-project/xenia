@@ -7,9 +7,6 @@
 [submodule "third_party/binutils-ppc-cygwin"]
 	path = third_party/binutils-ppc-cygwin
 	url = https://github.com/benvanik/binutils-ppc-cygwin.git
-[submodule "third_party/libav"]
-	path = third_party/libav
-	url = https://github.com/xenia-project/libav.git
 [submodule "third_party/spirv-tools"]
 	path = third_party/spirv-tools
 	url = https://github.com/xenia-project/SPIRV-Tools.git
@@ -51,7 +48,7 @@
 	url = https://github.com/jarro2783/cxxopts.git
 [submodule "third_party/SDL2"]
 	path = third_party/SDL2
-	url = https://github.com/spurious/SDL-mirror.git
+	url = https://github.com/libsdl-org/SDL.git
 [submodule "third_party/utfcpp"]
 	path = third_party/utfcpp
 	url = https://github.com/xenia-project/utfcpp.git
@@ -67,12 +64,15 @@
 [submodule "third_party/premake-cmake"]
 	path = third_party/premake-cmake
 	url = https://github.com/Enhex/premake-cmake.git
-[submodule "third_party/premake-androidmk"]
-	path = third_party/premake-androidmk
-	url = https://github.com/Triang3l/premake-androidmk.git
 [submodule "third_party/date"]
 	path = third_party/date
 	url = https://github.com/HowardHinnant/date.git
 [submodule "third_party/xxhash"]
 	path = third_party/xxhash
 	url = https://github.com/Cyan4973/xxHash.git
+[submodule "third_party/FFmpeg"]
+	path = third_party/FFmpeg
+	url = https://github.com/xenia-project/FFmpeg.git
+[submodule "third_party/premake-androidndk"]
+	path = third_party/premake-androidndk
+	url = https://github.com/Triang3l/premake-androidndk.git

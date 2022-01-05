@@ -16,46 +16,7 @@
 
 namespace xe {
 
-// These functions are modeled off of the Apple OSAtomic routines
-// https://developer.apple.com/documentation/kernel/osatomic_h (?)
-// Original link (dead):
-// https://developer.apple.com/library/mac/#documentation/DriversKernelHardware/Reference/libkern_ref/OSAtomic_h/
-
-#if XE_PLATFORM_MAC
-
-inline int32_t atomic_inc(volatile int32_t* value) {
-  return OSAtomicIncrement32Barrier(reinterpret_cast<volatile int32_t*>(value));
-}
-inline int32_t atomic_dec(volatile int32_t* value) {
-  return OSAtomicDecrement32Barrier(reinterpret_cast<volatile int32_t*>(value));
-}
-
-inline int32_t atomic_exchange(int32_t new_value, volatile int32_t* value) {
-  return OSAtomicCompareAndSwap32Barrier(*value, new_value, value);
-}
-inline int64_t atomic_exchange(int64_t new_value, volatile int64_t* value) {
-  return OSAtomicCompareAndSwap64Barrier(*value, new_value, value);
-}
-
-inline int32_t atomic_exchange_add(int32_t amount, volatile int32_t* value) {
-  return OSAtomicAdd32Barrier(amount, value) - amount;
-}
-inline int64_t atomic_exchange_add(int64_t amount, volatile int64_t* value) {
-  return OSAtomicAdd64Barrier(amount, value) - amount;
-}
-
-inline bool atomic_cas(int32_t old_value, int32_t new_value,
-                       volatile int32_t* value) {
-  return OSAtomicCompareAndSwap32Barrier(
-      old_value, new_value, reinterpret_cast<volatile int32_t*>(value));
-}
-inline bool atomic_cas(int64_t old_value, int64_t new_value,
-                       volatile int64_t* value) {
-  return OSAtomicCompareAndSwap64Barrier(
-      old_value, new_value, reinterpret_cast<volatile int64_t*>(value));
-}
-
-#elif XE_PLATFORM_WIN32
+#if XE_PLATFORM_WIN32
 
 inline int32_t atomic_inc(volatile int32_t* value) {
   return _InterlockedIncrement(reinterpret_cast<volatile long*>(value));
@@ -94,7 +55,7 @@ inline bool atomic_cas(int64_t old_value, int64_t new_value,
              old_value) == old_value;
 }
 
-#elif XE_PLATFORM_LINUX
+#elif XE_PLATFORM_LINUX || XE_PLATFORM_MAC
 
 inline int32_t atomic_inc(volatile int32_t* value) {
   return __sync_add_and_fetch(value, 1);
@@ -132,7 +93,7 @@ inline bool atomic_cas(int64_t old_value, int64_t new_value,
 
 #error No atomic primitives defined for this platform/cpu combination.
 
-#endif  // OSX
+#endif  // XE_PLATFORM
 
 inline uint32_t atomic_inc(volatile uint32_t* value) {
   return static_cast<uint32_t>(

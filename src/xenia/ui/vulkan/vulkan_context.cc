@@ -25,7 +25,7 @@
 #include "xenia/ui/vulkan/vulkan_util.h"
 #include "xenia/ui/window.h"
 
-#if XE_PLATFORM_LINUX
+#if XE_PLATFORM_GNU_LINUX
 #include "xenia/ui/window_gtk.h"
 
 #include <X11/Xlib-xcb.h>
@@ -41,10 +41,11 @@ VulkanContext::VulkanContext(VulkanProvider* provider, Window* target_window)
 VulkanContext::~VulkanContext() {
   VkResult status;
   auto provider = static_cast<VulkanProvider*>(provider_);
-  auto device = provider->device();
+  VulkanDevice* device = provider->device();
+  const VulkanDevice::DeviceFunctions& dfn = device->dfn();
   {
     std::lock_guard<std::mutex> queue_lock(device->primary_queue_mutex());
-    status = vkQueueWaitIdle(device->primary_queue());
+    status = dfn.vkQueueWaitIdle(device->primary_queue());
   }
   immediate_drawer_.reset();
   swap_chain_.reset();
@@ -52,7 +53,8 @@ VulkanContext::~VulkanContext() {
 
 bool VulkanContext::Initialize() {
   auto provider = static_cast<VulkanProvider*>(provider_);
-  auto device = provider->device();
+  VulkanInstance* instance = provider->instance();
+  const VulkanInstance::InstanceFunctions& ifn = instance->ifn();
 
   if (target_window_) {
     // Create swap chain used to present to the window.
@@ -66,17 +68,13 @@ bool VulkanContext::Initialize() {
     create_info.hinstance =
         static_cast<HINSTANCE>(target_window_->native_platform_handle());
     create_info.hwnd = static_cast<HWND>(target_window_->native_handle());
-    status = vkCreateWin32SurfaceKHR(*provider->instance(), &create_info,
-                                     nullptr, &surface);
+    status = ifn.vkCreateWin32SurfaceKHR(*provider->instance(), &create_info,
+                                         nullptr, &surface);
     CheckResult(status, "vkCreateWin32SurfaceKHR");
-#elif XE_PLATFORM_LINUX
+#elif XE_PLATFORM_GNU_LINUX
 #ifdef GDK_WINDOWING_X11
     GtkWidget* window_handle =
-        static_cast<GtkWidget*>(target_window_->native_handle());
-    GdkDisplay* gdk_display = gtk_widget_get_display(window_handle);
-    assert(GDK_IS_X11_DISPLAY(gdk_display));
-    xcb_connection_t* connection =
-        XGetXCBConnection(gdk_x11_display_get_xdisplay(gdk_display));
+        dynamic_cast<GTKWindow*>(target_window_)->native_window_handle();
     xcb_window_t window =
         gdk_x11_window_get_xid(gtk_widget_get_window(window_handle));
     VkXcbSurfaceCreateInfoKHR create_info;
@@ -86,8 +84,8 @@ bool VulkanContext::Initialize() {
     create_info.connection = static_cast<xcb_connection_t*>(
         target_window_->native_platform_handle());
     create_info.window = static_cast<xcb_window_t>(window);
-    status = vkCreateXcbSurfaceKHR(*provider->instance(), &create_info, nullptr,
-                                   &surface);
+    status = ifn.vkCreateXcbSurfaceKHR(*provider->instance(), &create_info,
+                                       nullptr, &surface);
     CheckResult(status, "vkCreateXcbSurfaceKHR");
 #else
 #error Unsupported GDK Backend on Linux.
@@ -100,8 +98,8 @@ bool VulkanContext::Initialize() {
       return false;
     }
 
-    swap_chain_ = std::make_unique<VulkanSwapChain>(provider->instance(),
-                                                    provider->device());
+    swap_chain_ =
+        std::make_unique<VulkanSwapChain>(instance, provider->device());
     if (swap_chain_->Initialize(surface) != VK_SUCCESS) {
       XELOGE("Unable to initialize swap chain");
       return false;
@@ -144,7 +142,8 @@ void VulkanContext::ClearCurrent() {}
 bool VulkanContext::BeginSwap() {
   SCOPE_profile_cpu_f("gpu");
   auto provider = static_cast<VulkanProvider*>(provider_);
-  auto device = provider->device();
+  VulkanDevice* device = provider->device();
+  const VulkanDevice::DeviceFunctions& dfn = device->dfn();
 
   VkResult status;
 
@@ -169,15 +168,16 @@ bool VulkanContext::BeginSwap() {
 
   // TODO(benvanik): use a fence instead? May not be possible with target image.
   std::lock_guard<std::mutex> queue_lock(device->primary_queue_mutex());
-  status = vkQueueWaitIdle(device->primary_queue());
+  status = dfn.vkQueueWaitIdle(device->primary_queue());
 
   return true;
 }
 
 void VulkanContext::EndSwap() {
   SCOPE_profile_cpu_f("gpu");
-  auto provider = static_cast<VulkanProvider*>(provider_);
-  auto device = provider->device();
+  auto provider = static_cast<const VulkanProvider*>(provider_);
+  VulkanDevice* device = provider->device();
+  const VulkanDevice::DeviceFunctions& dfn = device->dfn();
 
   VkResult status;
 
@@ -193,7 +193,7 @@ void VulkanContext::EndSwap() {
   // Wait until the queue is idle.
   // TODO(benvanik): is this required?
   std::lock_guard<std::mutex> queue_lock(device->primary_queue_mutex());
-  status = vkQueueWaitIdle(device->primary_queue());
+  status = dfn.vkQueueWaitIdle(device->primary_queue());
 }
 
 std::unique_ptr<RawImage> VulkanContext::Capture() {

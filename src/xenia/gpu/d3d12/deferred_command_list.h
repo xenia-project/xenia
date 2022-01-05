@@ -15,6 +15,8 @@
 #include <cstring>
 #include <vector>
 
+#include "xenia/base/assert.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/math.h"
 #include "xenia/ui/d3d12/d3d12_api.h"
 
@@ -22,16 +24,59 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
+using namespace xe::literals;
+
 class D3D12CommandProcessor;
 
 class DeferredCommandList {
  public:
   DeferredCommandList(const D3D12CommandProcessor& command_processor,
-                      size_t initial_size_bytes = 1024 * 1024);
+                      size_t initial_size_bytes = 1_MiB);
 
   void Reset();
   void Execute(ID3D12GraphicsCommandList* command_list,
                ID3D12GraphicsCommandList1* command_list_1);
+
+  D3D12_RECT* ClearDepthStencilViewAllocatedRects(
+      D3D12_CPU_DESCRIPTOR_HANDLE depth_stencil_view,
+      D3D12_CLEAR_FLAGS clear_flags, FLOAT depth, UINT8 stencil,
+      UINT num_rects) {
+    auto args = reinterpret_cast<ClearDepthStencilViewHeader*>(WriteCommand(
+        Command::kD3DClearDepthStencilView,
+        sizeof(ClearDepthStencilViewHeader) + num_rects * sizeof(D3D12_RECT)));
+    args->depth_stencil_view = depth_stencil_view;
+    args->clear_flags = clear_flags;
+    args->depth = depth;
+    args->stencil = stencil;
+    args->num_rects = num_rects;
+    return num_rects ? reinterpret_cast<D3D12_RECT*>(args + 1) : nullptr;
+  }
+
+  void D3DClearDepthStencilView(D3D12_CPU_DESCRIPTOR_HANDLE depth_stencil_view,
+                                D3D12_CLEAR_FLAGS clear_flags, FLOAT depth,
+                                UINT8 stencil, UINT num_rects,
+                                const D3D12_RECT* rects) {
+    D3D12_RECT* allocated_rects = ClearDepthStencilViewAllocatedRects(
+        depth_stencil_view, clear_flags, depth, stencil, num_rects);
+    if (num_rects) {
+      assert_not_null(allocated_rects);
+      std::memcpy(allocated_rects, rects, num_rects * sizeof(D3D12_RECT));
+    }
+  }
+
+  void D3DClearRenderTargetView(D3D12_CPU_DESCRIPTOR_HANDLE render_target_view,
+                                const FLOAT color_rgba[4], UINT num_rects,
+                                const D3D12_RECT* rects) {
+    auto args = reinterpret_cast<ClearRenderTargetViewHeader*>(WriteCommand(
+        Command::kD3DClearRenderTargetView,
+        sizeof(ClearRenderTargetViewHeader) + num_rects * sizeof(D3D12_RECT)));
+    args->render_target_view = render_target_view;
+    std::memcpy(args->color_rgba, color_rgba, 4 * sizeof(FLOAT));
+    args->num_rects = num_rects;
+    if (num_rects != 0) {
+      std::memcpy(args + 1, rects, num_rects * sizeof(D3D12_RECT));
+    }
+  }
 
   void D3DClearUnorderedAccessViewUint(
       D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle_in_current_heap,
@@ -79,18 +124,25 @@ class DeferredCommandList {
     std::memcpy(&args.src, &src, sizeof(D3D12_TEXTURE_COPY_LOCATION));
   }
 
-  void CopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION& dst, UINT dst_x,
-                         UINT dst_y, UINT dst_z,
-                         const D3D12_TEXTURE_COPY_LOCATION& src,
-                         const D3D12_BOX& src_box) {
-    auto& args = *reinterpret_cast<CopyTextureRegionArguments*>(WriteCommand(
-        Command::kCopyTextureRegion, sizeof(CopyTextureRegionArguments)));
-    std::memcpy(&args.dst, &dst, sizeof(D3D12_TEXTURE_COPY_LOCATION));
+  void D3DCopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION* dst, UINT dst_x,
+                            UINT dst_y, UINT dst_z,
+                            const D3D12_TEXTURE_COPY_LOCATION* src,
+                            const D3D12_BOX* src_box) {
+    assert_not_null(dst);
+    assert_not_null(src);
+    auto& args = *reinterpret_cast<D3DCopyTextureRegionArguments*>(WriteCommand(
+        Command::kD3DCopyTextureRegion, sizeof(D3DCopyTextureRegionArguments)));
+    std::memcpy(&args.dst, dst, sizeof(D3D12_TEXTURE_COPY_LOCATION));
     args.dst_x = dst_x;
     args.dst_y = dst_y;
     args.dst_z = dst_z;
-    std::memcpy(&args.src, &src, sizeof(D3D12_TEXTURE_COPY_LOCATION));
-    args.src_box = src_box;
+    std::memcpy(&args.src, src, sizeof(D3D12_TEXTURE_COPY_LOCATION));
+    if (src_box) {
+      args.has_src_box = true;
+      args.src_box = *src_box;
+    } else {
+      args.has_src_box = false;
+    }
   }
 
   void D3DDispatch(UINT thread_group_count_x, UINT thread_group_count_y,
@@ -145,6 +197,23 @@ class DeferredCommandList {
     auto& arg = *reinterpret_cast<D3D12_PRIMITIVE_TOPOLOGY*>(WriteCommand(
         Command::kD3DIASetPrimitiveTopology, sizeof(D3D12_PRIMITIVE_TOPOLOGY)));
     arg = primitive_topology;
+  }
+
+  void D3DIASetVertexBuffers(UINT start_slot, UINT num_views,
+                             const D3D12_VERTEX_BUFFER_VIEW* views) {
+    if (num_views == 0) {
+      return;
+    }
+    static_assert(alignof(D3D12_VERTEX_BUFFER_VIEW) <= alignof(uintmax_t));
+    const size_t header_size = xe::align(sizeof(D3DIASetVertexBuffersHeader),
+                                         alignof(D3D12_VERTEX_BUFFER_VIEW));
+    auto args = reinterpret_cast<D3DIASetVertexBuffersHeader*>(WriteCommand(
+        Command::kD3DIASetVertexBuffers,
+        header_size + num_views * sizeof(D3D12_VERTEX_BUFFER_VIEW)));
+    args->start_slot = start_slot;
+    args->num_views = num_views;
+    std::memcpy(reinterpret_cast<uint8_t*>(args) + header_size, views,
+                sizeof(D3D12_VERTEX_BUFFER_VIEW) * num_views);
   }
 
   void D3DOMSetBlendFactor(const FLOAT blend_factor[4]) {
@@ -333,16 +402,19 @@ class DeferredCommandList {
 
  private:
   enum class Command {
+    kD3DClearDepthStencilView,
+    kD3DClearRenderTargetView,
     kD3DClearUnorderedAccessViewUint,
     kD3DCopyBufferRegion,
     kD3DCopyResource,
     kCopyTexture,
-    kCopyTextureRegion,
+    kD3DCopyTextureRegion,
     kD3DDispatch,
     kD3DDrawIndexedInstanced,
     kD3DDrawInstanced,
     kD3DIASetIndexBuffer,
     kD3DIASetPrimitiveTopology,
+    kD3DIASetVertexBuffers,
     kD3DOMSetBlendFactor,
     kD3DOMSetRenderTargets,
     kD3DOMSetStencilRef,
@@ -370,12 +442,26 @@ class DeferredCommandList {
   static constexpr size_t kCommandHeaderSizeElements =
       (sizeof(CommandHeader) + sizeof(uintmax_t) - 1) / sizeof(uintmax_t);
 
+  struct ClearDepthStencilViewHeader {
+    D3D12_CPU_DESCRIPTOR_HANDLE depth_stencil_view;
+    D3D12_CLEAR_FLAGS clear_flags;
+    FLOAT depth;
+    UINT8 stencil;
+    UINT num_rects;
+  };
+
+  struct ClearRenderTargetViewHeader {
+    D3D12_CPU_DESCRIPTOR_HANDLE render_target_view;
+    FLOAT color_rgba[4];
+    UINT num_rects;
+  };
+
   struct ClearUnorderedAccessViewHeader {
     D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle_in_current_heap;
     D3D12_CPU_DESCRIPTOR_HANDLE view_cpu_handle;
     ID3D12Resource* resource;
     union {
-      float values_float[4];
+      FLOAT values_float[4];
       UINT values_uint[4];
     };
     UINT num_rects;
@@ -399,13 +485,14 @@ class DeferredCommandList {
     D3D12_TEXTURE_COPY_LOCATION src;
   };
 
-  struct CopyTextureRegionArguments {
+  struct D3DCopyTextureRegionArguments {
     D3D12_TEXTURE_COPY_LOCATION dst;
     UINT dst_x;
     UINT dst_y;
     UINT dst_z;
     D3D12_TEXTURE_COPY_LOCATION src;
     D3D12_BOX src_box;
+    bool has_src_box;
   };
 
   struct D3DDispatchArguments {
@@ -427,6 +514,11 @@ class DeferredCommandList {
     UINT instance_count;
     UINT start_vertex_location;
     UINT start_instance_location;
+  };
+
+  struct D3DIASetVertexBuffersHeader {
+    UINT start_slot;
+    UINT num_views;
   };
 
   struct D3DOMSetRenderTargetsArguments {

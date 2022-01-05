@@ -46,6 +46,7 @@ enum KeyType {
 
 #pragma pack(push, 1)
 union InstrKey {
+  uint32_t value;
   struct {
     uint32_t opcode : 8;
     uint32_t dest : 5;
@@ -54,11 +55,10 @@ union InstrKey {
     uint32_t src3 : 5;
     uint32_t reserved : 4;
   };
-  uint32_t value;
 
   operator uint32_t() const { return value; }
 
-  InstrKey() : value(0) {}
+  InstrKey() : value(0) { static_assert_size(*this, sizeof(value)); }
   InstrKey(uint32_t v) : value(v) {}
   InstrKey(const Instr* i) : value(0) {
     opcode = i->opcode->num;
@@ -105,8 +105,7 @@ struct Op : OpBase {
 
 struct VoidOp : Op<VoidOp, KEY_TYPE_X> {
  protected:
-  template <typename T, KeyType KEY_TYPE>
-  friend struct Op;
+  friend struct Op<VoidOp, KEY_TYPE_X>;
   template <hir::Opcode OPCODE, typename... Ts>
   friend struct I;
   void Load(const Instr::Op& op) {}
@@ -116,8 +115,7 @@ struct OffsetOp : Op<OffsetOp, KEY_TYPE_O> {
   uint64_t value;
 
  protected:
-  template <typename T, KeyType KEY_TYPE>
-  friend struct Op;
+  friend struct Op<OffsetOp, KEY_TYPE_O>;
   template <hir::Opcode OPCODE, typename... Ts>
   friend struct I;
   void Load(const Instr::Op& op) { this->value = op.offset; }
@@ -127,8 +125,7 @@ struct SymbolOp : Op<SymbolOp, KEY_TYPE_S> {
   Function* value;
 
  protected:
-  template <typename T, KeyType KEY_TYPE>
-  friend struct Op;
+  friend struct Op<SymbolOp, KEY_TYPE_S>;
   template <hir::Opcode OPCODE, typename... Ts>
   friend struct I;
   bool Load(const Instr::Op& op) {
@@ -141,8 +138,7 @@ struct LabelOp : Op<LabelOp, KEY_TYPE_L> {
   hir::Label* value;
 
  protected:
-  template <typename T, KeyType KEY_TYPE>
-  friend struct Op;
+  friend struct Op<LabelOp, KEY_TYPE_L>;
   template <hir::Opcode OPCODE, typename... Ts>
   friend struct I;
   void Load(const Instr::Op& op) { this->value = op.label; }

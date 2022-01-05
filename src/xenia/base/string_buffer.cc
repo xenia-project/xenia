@@ -13,12 +13,15 @@
 #include <cstdarg>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/math.h"
 
 namespace xe {
 
+using namespace xe::literals;
+
 StringBuffer::StringBuffer(size_t initial_capacity) {
-  buffer_capacity_ = std::max(initial_capacity, static_cast<size_t>(16 * 1024));
+  buffer_capacity_ = std::max(initial_capacity, static_cast<size_t>(16_KiB));
   buffer_ = reinterpret_cast<char*>(std::malloc(buffer_capacity_));
   assert_not_null(buffer_);
   buffer_[0] = 0;
@@ -40,7 +43,7 @@ void StringBuffer::Grow(size_t additional_length) {
   }
   size_t old_capacity = buffer_capacity_;
   size_t new_capacity =
-      std::max(xe::round_up(buffer_offset_ + additional_length, 16 * 1024),
+      std::max(xe::round_up(buffer_offset_ + additional_length, 16_KiB),
                old_capacity * 2);
   auto new_buffer = std::realloc(buffer_, new_capacity);
   assert_not_null(new_buffer);

@@ -15,8 +15,10 @@
 #include <string>
 #include <vector>
 
-#include "cpptoml/include/cpptoml.h"
-#include "cxxopts/include/cxxopts.hpp"
+#include "third_party/cpptoml/include/cpptoml.h"
+#include "third_party/cxxopts/include/cxxopts.hpp"
+#include "third_party/fmt/include/fmt/format.h"
+#include "xenia/base/assert.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/string_util.h"
 
@@ -43,6 +45,7 @@ class IConfigVar : virtual public ICommandVar {
   virtual std::string config_value() const = 0;
   virtual void LoadConfigValue(std::shared_ptr<cpptoml::base> result) = 0;
   virtual void LoadGameConfigValue(std::shared_ptr<cpptoml::base> result) = 0;
+  virtual void ResetConfigValueToDefault() = 0;
 };
 
 template <class T>
@@ -75,6 +78,7 @@ class ConfigVar : public CommandVar<T>, virtual public IConfigVar {
   ConfigVar<T>(const char* name, T* default_value, const char* description,
                const char* category, bool is_transient);
   std::string config_value() const override;
+  const T& GetTypedConfigValue() const;
   const std::string& category() const override;
   bool is_transient() const override;
   void AddToLaunchOptions(cxxopts::Options* options) override;
@@ -89,6 +93,7 @@ class ConfigVar : public CommandVar<T>, virtual public IConfigVar {
   std::unique_ptr<T> config_value_ = nullptr;
   std::unique_ptr<T> game_config_value_ = nullptr;
   void UpdateValue() override;
+  void ResetConfigValueToDefault() override;
 };
 
 #pragma warning(pop)
@@ -212,7 +217,10 @@ inline std::string CommandVar<std::filesystem::path>::ToString(
 
 template <class T>
 std::string CommandVar<T>::ToString(T val) {
-  return std::to_string(val);
+  // Use fmt::format instead of std::to_string for locale-neutral formatting of
+  // floats, always with a period rather than a comma, which is treated as an
+  // unidentified trailing character by cpptoml.
+  return fmt::format("{}", val);
 }
 
 template <class T>
@@ -233,6 +241,10 @@ std::string ConfigVar<T>::config_value() const {
   return this->ToString(this->default_value_);
 }
 template <class T>
+const T& ConfigVar<T>::GetTypedConfigValue() const {
+  return config_value_ ? *config_value_ : this->default_value_;
+}
+template <class T>
 void CommandVar<T>::SetCommandLineValue(const T val) {
   commandline_value_ = std::make_unique<T>(val);
   UpdateValue();
@@ -247,36 +259,47 @@ void ConfigVar<T>::SetGameConfigValue(T val) {
   game_config_value_ = std::make_unique<T>(val);
   UpdateValue();
 }
+template <class T>
+void ConfigVar<T>::ResetConfigValueToDefault() {
+  SetConfigValue(this->default_value_);
+}
 
+// CVars can be initialized before these, thus initialized on-demand using new.
 extern std::map<std::string, ICommandVar*>* CmdVars;
 extern std::map<std::string, IConfigVar*>* ConfigVars;
 
 inline void AddConfigVar(IConfigVar* cv) {
-  if (!ConfigVars) ConfigVars = new std::map<std::string, IConfigVar*>();
-  ConfigVars->insert(std::pair<std::string, IConfigVar*>(cv->name(), cv));
+  if (!ConfigVars) {
+    ConfigVars = new std::map<std::string, IConfigVar*>;
+  }
+  ConfigVars->emplace(cv->name(), cv);
 }
 inline void AddCommandVar(ICommandVar* cv) {
-  if (!CmdVars) CmdVars = new std::map<std::string, ICommandVar*>();
-  CmdVars->insert(std::pair<std::string, ICommandVar*>(cv->name(), cv));
+  if (!CmdVars) {
+    CmdVars = new std::map<std::string, ICommandVar*>;
+  }
+  CmdVars->emplace(cv->name(), cv);
 }
 void ParseLaunchArguments(int& argc, char**& argv,
                           const std::string_view positional_help,
                           const std::vector<std::string>& positional_options);
 
 template <typename T>
-T* define_configvar(const char* name, T* default_value, const char* description,
-                    const char* category, bool is_transient) {
-  IConfigVar* cfgVar = new ConfigVar<T>(name, default_value, description,
+IConfigVar* define_configvar(const char* name, T* default_value,
+                             const char* description, const char* category,
+                             bool is_transient) {
+  IConfigVar* cfgvar = new ConfigVar<T>(name, default_value, description,
                                         category, is_transient);
-  AddConfigVar(cfgVar);
-  return default_value;
+  AddConfigVar(cfgvar);
+  return cfgvar;
 }
 
 template <typename T>
-T* define_cmdvar(const char* name, T* default_value, const char* description) {
-  ICommandVar* cmdVar = new CommandVar<T>(name, default_value, description);
-  AddCommandVar(cmdVar);
-  return default_value;
+ICommandVar* define_cmdvar(const char* name, T* default_value,
+                           const char* description) {
+  ICommandVar* cmdvar = new CommandVar<T>(name, default_value, description);
+  AddCommandVar(cmdvar);
+  return cmdvar;
 }
 
 #define DEFINE_bool(name, default_value, description, category) \
@@ -284,6 +307,9 @@ T* define_cmdvar(const char* name, T* default_value, const char* description) {
 
 #define DEFINE_int32(name, default_value, description, category) \
   DEFINE_CVar(name, default_value, description, category, false, int32_t)
+
+#define DEFINE_uint32(name, default_value, description, category) \
+  DEFINE_CVar(name, default_value, description, category, false, uint32_t)
 
 #define DEFINE_uint64(name, default_value, description, category) \
   DEFINE_CVar(name, default_value, description, category, false, uint64_t)
@@ -314,7 +340,7 @@ T* define_cmdvar(const char* name, T* default_value, const char* description) {
   type name = default_value;                                                  \
   }                                                                           \
   namespace cv {                                                              \
-  static auto cv_##name = cvar::define_configvar(                             \
+  static cvar::IConfigVar* const cv_##name = cvar::define_configvar(          \
       #name, &cvars::name, description, category, is_transient);              \
   }
 
@@ -324,13 +350,15 @@ T* define_cmdvar(const char* name, T* default_value, const char* description) {
   std::string name = default_value;                          \
   }                                                          \
   namespace cv {                                             \
-  static auto cv_##name =                                    \
+  static cvar::ICommandVar* const cv_##name =                \
       cvar::define_cmdvar(#name, &cvars::name, description); \
   }
 
 #define DECLARE_bool(name) DECLARE_CVar(name, bool)
 
 #define DECLARE_int32(name) DECLARE_CVar(name, int32_t)
+
+#define DECLARE_uint32(name) DECLARE_CVar(name, uint32_t)
 
 #define DECLARE_uint64(name) DECLARE_CVar(name, uint64_t)
 
@@ -344,6 +372,212 @@ T* define_cmdvar(const char* name, T* default_value, const char* description) {
   namespace cvars {              \
   extern type name;              \
   }
+
+// Interface for changing the default value of a variable with auto-upgrading of
+// users' configs (to distinguish between a leftover old default and an explicit
+// override), without having to rename the variable.
+//
+// Two types of updates are supported:
+// - Changing the value of the variable (UPDATE_from_type) from an explicitly
+//   specified previous default value to a new one, but keeping the
+//   user-specified value if it was not the default, and thus explicitly
+//   overridden.
+// - Changing the meaning / domain of the variable (UPDATE_from_any), when
+//   previous user-specified overrides also stop making sense. Config variable
+//   type changes are also considered this type of updates (though
+//   UPDATE_from_type, if the new type doesn't match the previous one, is also
+//   safe to use - it behaves like UPDATE_from_any in this case).
+//
+// Rules of using UPDATE_:
+// - Do not remove previous UPDATE_ entries (both typed and from-any) if you're
+//   adding a new UPDATE_from_type.
+//   This ensures that if the default was changed from 1 to 2 and then to 3,
+//   both users who last launched Xenia when it was 1 and when it was 2 receive
+//   the update (however, those who have explicitly changed it from 2 to 1 when
+//   2 was the default will have it kept at 1).
+//   It's safe to remove the history before a new UPDATE_from_any, however.
+// - The date should preferably be in UTC+0 timezone.
+// - No other pull recent pull requests should have the same date (since builds
+//   are made after every commit).
+// - IConfigVarUpdate::kLastCommittedUpdateDate must be updated - see the
+//   comment near its declaration.
+
+constexpr uint32_t MakeConfigVarUpdateDate(uint32_t year, uint32_t month,
+                                           uint32_t day, uint32_t utc_hour) {
+  // Written to the config as a decimal number - pack as decimal for user
+  // readability.
+  // Using 31 bits in the 3rd millennium already - don't add more digits.
+  return utc_hour + day * 100 + month * 10000 + year * 1000000;
+}
+
+class IConfigVarUpdate {
+ public:
+  // This global highest version constant is used to ensure that version (which
+  // is stored as one value for the whole config file) is monotonically
+  // increased when commits - primarily pull requests - are pushed to the main
+  // branch.
+  //
+  // This is to prevent the following situation:
+  // - Pull request #1 created on day 1.
+  // - Pull request #2 created on day 2.
+  // - Pull request #2 from day 2 merged on day 3.
+  // - User launches the latest version on day 4.
+  //   CVar default changes from PR #2 (day 2) applied because the user's config
+  //   version is day 0, which is < 2.
+  //   User's config has day 2 version now.
+  // - Pull request #1 from day 1 merged on day 5.
+  // - User launches the latest version on day 5.
+  //   CVar default changes from PR #1 (day 1) IGNORED because the user's config
+  //   version is day 2, which is >= 1.
+  //
+  // If this constant is not updated, static_assert will be triggered for a new
+  // DEFINE_, requiring this constant to be raised. But changing this will
+  // result in merge conflicts in all other pull requests also changing cvar
+  // defaults - before they're merged, they will need to be updated, which will
+  // ensure monotonic growth of the versions of all cvars on the main branch. In
+  // the example above, PR #1 will need to be updated before it's merged.
+  //
+  // If you've encountered a merge conflict here in your pull request:
+  //   1) Update any UPDATE_s you've added in the pull request to the current
+  //      date.
+  //   2) Change this value to the same date.
+  // If you're reviewing a pull request with a change here, check if 1) has been
+  // done by the submitter before merging.
+  static constexpr uint32_t kLastCommittedUpdateDate =
+      MakeConfigVarUpdateDate(2020, 12, 31, 13);
+
+  virtual ~IConfigVarUpdate() = default;
+
+  virtual void Apply() const = 0;
+
+  static void ApplyUpdates(uint32_t config_date) {
+    if (!updates_) {
+      return;
+    }
+    auto it_end = updates_->end();
+    for (auto it = updates_->upper_bound(config_date); it != it_end; ++it) {
+      it->second->Apply();
+    }
+  }
+
+  // More reliable than kLastCommittedUpdateDate for actual usage
+  // (kLastCommittedUpdateDate is just a pull request merge order guard), though
+  // usually should be the same, but kLastCommittedUpdateDate may not include
+  // removal of cvars.
+  static uint32_t GetLastUpdateDate() {
+    return (updates_ && !updates_->empty()) ? updates_->crbegin()->first : 0;
+  }
+
+ protected:
+  IConfigVarUpdate(IConfigVar* const& config_var, uint32_t year, uint32_t month,
+                   uint32_t day, uint32_t utc_hour)
+      : config_var_(config_var) {
+    if (!updates_) {
+      updates_ = new std::multimap<uint32_t, const IConfigVarUpdate*>;
+    }
+    updates_->emplace(MakeConfigVarUpdateDate(year, month, day, utc_hour),
+                      this);
+  }
+
+  IConfigVar& config_var() const {
+    assert_not_null(config_var_);
+    return *config_var_;
+  }
+
+ private:
+  // Reference to pointer to loosen initialization order requirements.
+  IConfigVar* const& config_var_;
+
+  // Updates can be initialized before these, thus initialized on demand using
+  // `new`.
+  static std::multimap<uint32_t, const IConfigVarUpdate*>* updates_;
+};
+
+class ConfigVarUpdateFromAny : public IConfigVarUpdate {
+ public:
+  ConfigVarUpdateFromAny(IConfigVar* const& config_var, uint32_t year,
+                         uint32_t month, uint32_t day, uint32_t utc_hour)
+      : IConfigVarUpdate(config_var, year, month, day, utc_hour) {}
+  void Apply() const override { config_var().ResetConfigValueToDefault(); }
+};
+
+template <typename T>
+class ConfigVarUpdate : public IConfigVarUpdate {
+ public:
+  ConfigVarUpdate(IConfigVar* const& config_var, uint32_t year, uint32_t month,
+                  uint32_t day, uint32_t utc_hour, const T& old_default_value)
+      : IConfigVarUpdate(config_var, year, month, day, utc_hour),
+        old_default_value_(old_default_value) {}
+  void Apply() const override {
+    IConfigVar& config_var_untyped = config_var();
+    ConfigVar<T>* config_var_typed =
+        dynamic_cast<ConfigVar<T>*>(&config_var_untyped);
+    // Update only from the previous default value if the same type,
+    // unconditionally reset if the type has been changed.
+    if (!config_var_typed ||
+        config_var_typed->GetTypedConfigValue() == old_default_value_) {
+      config_var_untyped.ResetConfigValueToDefault();
+    }
+  }
+
+ private:
+  T old_default_value_;
+};
+
+#define UPDATE_from_any(name, year, month, day, utc_hour)                     \
+  static_assert(                                                              \
+      cvar::MakeConfigVarUpdateDate(year, month, day, utc_hour) <=            \
+          cvar::IConfigVarUpdate::kLastCommittedUpdateDate,                   \
+      "A new config variable default value update was added - raise "         \
+      "cvar::IConfigVarUpdate::kLastCommittedUpdateDate to the same date in " \
+      "base/cvar.h to ensure coherence between different pull requests "      \
+      "updating config variable defaults.");                                  \
+  namespace cv {                                                              \
+  static const cvar::ConfigVarUpdateFromAny                                   \
+      update_##name_##year_##month_##day_##utc_hour(cv_##name, year, month,   \
+                                                    day, utc_hour);           \
+  }
+
+#define UPDATE_CVar(name, year, month, day, utc_hour, old_default_value, type) \
+  static_assert(                                                               \
+      cvar::MakeConfigVarUpdateDate(year, month, day, utc_hour) <=             \
+          cvar::IConfigVarUpdate::kLastCommittedUpdateDate,                    \
+      "A new config variable default value update was added - raise "          \
+      "cvar::IConfigVarUpdate::kLastCommittedUpdateDate to the same date in "  \
+      "base/cvar.h to ensure coherence between different pull requests "       \
+      "updating config variable defaults.");                                   \
+  namespace cv {                                                               \
+  static const cvar::ConfigVarUpdate<type>                                     \
+      update_##name_##year_##month_##day_##utc_hour(cv_##name, year, month,    \
+                                                    day, utc_hour,             \
+                                                    old_default_value);        \
+  }
+
+#define UPDATE_from_bool(name, year, month, day, utc_hour, old_default_value) \
+  UPDATE_CVar(name, year, month, day, utc_hour, old_default_value, bool)
+
+#define UPDATE_from_int32(name, year, month, day, utc_hour, old_default_value) \
+  UPDATE_CVar(name, year, month, day, utc_hour, old_default_value, int32_t)
+
+#define UPDATE_from_uint32(name, year, month, day, utc_hour, \
+                           old_default_value)                \
+  UPDATE_CVar(name, year, month, day, utc_hour, old_default_value, uint32_t)
+
+#define UPDATE_from_uint64(name, year, month, day, utc_hour, \
+                           old_default_value)                \
+  UPDATE_CVar(name, year, month, day, utc_hour, old_default_value, uint64_t)
+
+#define UPDATE_from_double(name, year, month, day, utc_hour, \
+                           old_default_value)                \
+  UPDATE_CVar(name, year, month, day, utc_hour, old_default_value, double)
+
+#define UPDATE_from_string(name, year, month, day, utc_hour, \
+                           old_default_value)                \
+  UPDATE_CVar(name, year, month, day, utc_hour, old_default_value, std::string)
+
+#define UPDATE_from_path(name, year, month, day, utc_hour, old_default_value) \
+  UPDATE_CVar(name, year, month, day, utc_hour, old_default_value,            \
+              std::filesystem::path)
 
 }  // namespace cvar
 

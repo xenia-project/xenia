@@ -519,7 +519,7 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
 }
 
 // X64Emitter handles actually resolving functions.
-extern "C" uint64_t ResolveFunction(void* raw_context, uint32_t target_address);
+uint64_t ResolveFunction(void* raw_context, uint64_t target_address);
 
 ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
   // ebx = target PPC address
@@ -548,7 +548,7 @@ ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
 
   mov(rcx, rsi);  // context
   mov(rdx, rbx);
-  mov(rax, uint64_t(&ResolveFunction));
+  mov(rax, reinterpret_cast<uint64_t>(&ResolveFunction));
   call(rax);
 
   EmitLoadVolatileRegs();

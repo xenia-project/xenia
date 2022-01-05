@@ -14,6 +14,10 @@
 #define UTF_CPP_CPLUSPLUS 201703L
 #include "third_party/utfcpp/source/utf8.h"
 
+#include "xenia/base/console.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/system.h"
+
 namespace utfcpp = utf8;
 
 using u8_citer = utfcpp::iterator<std::string_view::const_iterator>;
@@ -23,6 +27,7 @@ namespace cvar {
 cxxopts::Options options("xenia", "Xbox 360 Emulator");
 std::map<std::string, ICommandVar*>* CmdVars;
 std::map<std::string, IConfigVar*>* ConfigVars;
+std::multimap<uint32_t, const IConfigVarUpdate*>* IConfigVarUpdate::updates_;
 
 void PrintHelpAndExit() {
   std::cout << options.help({""}) << std::endl;
@@ -60,7 +65,14 @@ void ParseLaunchArguments(int& argc, char**& argv,
 
     auto result = options.parse(argc, argv);
     if (result.count("help")) {
-      PrintHelpAndExit();
+      xe::AttachConsole();
+      if (xe::has_console_attached()) {
+        PrintHelpAndExit();
+      } else {
+        xe::ShowSimpleMessageBox(xe::SimpleMessageBoxType::Help,
+                                 options.help({""}));
+        exit(0);
+      }
     }
 
     for (auto& it : *CmdVars) {
@@ -77,8 +89,16 @@ void ParseLaunchArguments(int& argc, char**& argv,
       }
     }
   } catch (const cxxopts::OptionException& e) {
-    std::cout << e.what() << std::endl;
-    PrintHelpAndExit();
+    xe::AttachConsole();
+    if (xe::has_console_attached()) {
+      std::cout << e.what() << std::endl;
+      PrintHelpAndExit();
+    } else {
+      std::string m =
+          "Invalid launch options were given.\n" + options.help({""});
+      xe::ShowSimpleMessageBox(xe::SimpleMessageBoxType::Error, m);
+      exit(0);
+    }
   }
 }
 

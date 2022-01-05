@@ -27,7 +27,7 @@ project("xenia-vfs-dump")
 
   files({
     "vfs_dump.cc",
-    project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
+    project_root.."/src/xenia/base/console_app_main_"..platform_suffix..".cc",
   })
   resincludedirs({
     project_root,

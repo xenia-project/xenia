@@ -529,9 +529,10 @@ DECLARE_XBOXKRNL_EXPORT1(RtlTimeToTimeFields, kNone, kImplemented);
 dword_result_t RtlTimeFieldsToTime(pointer_t<X_TIME_FIELDS> time_fields_ptr,
                                    lpqword_t time_ptr) {
   if (time_fields_ptr->year < 1601 || time_fields_ptr->month < 1 ||
-      time_fields_ptr->month > 11 || time_fields_ptr->day < 1 ||
-      time_fields_ptr->hour > 23 || time_fields_ptr->minute > 59 ||
-      time_fields_ptr->second > 59 || time_fields_ptr->milliseconds > 999) {
+      time_fields_ptr->month > 12 || time_fields_ptr->day < 1 ||
+      time_fields_ptr->day > 31 || time_fields_ptr->hour > 23 ||
+      time_fields_ptr->minute > 59 || time_fields_ptr->second > 59 ||
+      time_fields_ptr->milliseconds > 999) {
     return 0;
   }
   auto year = date::year{time_fields_ptr->year};

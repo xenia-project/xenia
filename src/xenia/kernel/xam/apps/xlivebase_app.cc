@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -41,22 +41,32 @@ X_HRESULT XLiveBaseApp::DispatchMessageSync(uint32_t message,
       xe::store_and_swap<uint32_t>(buffer + 0, 1);  // XONLINE_NAT_OPEN
       return X_E_SUCCESS;
     }
+    case 0x00058007: {
+      // Occurs if title calls XOnlineGetServiceInfo, expects dwServiceId
+      // and pServiceInfo. pServiceInfo should contain pointer to
+      // XONLINE_SERVICE_INFO structure.
+      XELOGD("CXLiveLogon::GetServiceInfo({:08X}, {:08X})", buffer_ptr,
+             buffer_length);
+      return 0x80151802;  // ERROR_CONNECTION_INVALID
+    }
     case 0x00058020: {
       // 0x00058004 is called right before this.
       // We should create a XamEnumerate-able empty list here, but I'm not
       // sure of the format.
       // buffer_length seems to be the same ptr sent to 0x00058004.
-      XELOGD("XLiveBaseFriendsCreateEnumerator({:08X}, {:08X}) unimplemented",
+      XELOGD("CXLiveFriends::Enumerate({:08X}, {:08X}) unimplemented",
              buffer_ptr, buffer_length);
       return X_E_FAIL;
     }
     case 0x00058023: {
-      XELOGD("XliveBaseUnk58023({:08X}, {:08X}) unimplemented", buffer_ptr,
-             buffer_length);
+      XELOGD(
+          "CXLiveMessaging::XMessageGameInviteGetAcceptedInfo({:08X}, {:08X}) "
+          "unimplemented",
+          buffer_ptr, buffer_length);
       return X_E_FAIL;
     }
     case 0x00058046: {
-      // Required to be successful for Forza 4 to detect signed-in profile
+      // Required to be successful for 4D530910 to detect signed-in profile
       // Doesn't seem to set anything in the given buffer, probably only takes
       // input
       XELOGD("XLiveBaseUnk58046({:08X}, {:08X}) unimplemented", buffer_ptr,

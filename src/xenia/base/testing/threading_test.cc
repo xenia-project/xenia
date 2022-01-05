@@ -2,7 +2,7 @@
 ******************************************************************************
 * Xenia : Xbox 360 Emulator Research Project                                 *
 ******************************************************************************
-* Copyright 2018 Ben Vanik. All rights reserved.                             *
+* Copyright 2021 Ben Vanik. All rights reserved.                             *
 * Released under the BSD license - see LICENSE in the root for more details. *
 ******************************************************************************
 */
@@ -84,17 +84,17 @@ TEST_CASE("Enable process to set thread affinity") {
   EnableAffinityConfiguration();
 }
 
-TEST_CASE("Yield Current Thread", "MaybeYield") {
+TEST_CASE("Yield Current Thread", "[maybe_yield]") {
   // Run to see if there are any errors
   MaybeYield();
 }
 
-TEST_CASE("Sync with Memory Barrier", "SyncMemory") {
+TEST_CASE("Sync with Memory Barrier", "[sync_memory]") {
   // Run to see if there are any errors
   SyncMemory();
 }
 
-TEST_CASE("Sleep Current Thread", "Sleep") {
+TEST_CASE("Sleep Current Thread", "[sleep]") {
   auto wait_time = 50ms;
   auto start = std::chrono::steady_clock::now();
   Sleep(wait_time);
@@ -102,7 +102,7 @@ TEST_CASE("Sleep Current Thread", "Sleep") {
   REQUIRE(duration >= wait_time);
 }
 
-TEST_CASE("Sleep Current Thread in Alertable State", "Sleep") {
+TEST_CASE("Sleep Current Thread in Alertable State", "[sleep]") {
   auto wait_time = 50ms;
   auto start = std::chrono::steady_clock::now();
   auto result = threading::AlertableSleep(wait_time);
@@ -154,7 +154,7 @@ TEST_CASE("HighResolutionTimer") {
   // Time the actual sleep duration
   {
     const auto interval = 50ms;
-    std::atomic<uint64_t> counter;
+    std::atomic<uint64_t> counter(0);
     auto start = std::chrono::steady_clock::now();
     auto cb = [&counter] { ++counter; };
     auto pTimer = HighResolutionTimer::CreateRepeating(interval, cb);
@@ -201,7 +201,7 @@ TEST_CASE("HighResolutionTimer") {
   // spawned from differing threads
 }
 
-TEST_CASE("Wait on Multiple Handles", "Wait") {
+TEST_CASE("Wait on Multiple Handles", "[wait]") {
   auto mutant = Mutant::Create(true);
   auto semaphore = Semaphore::Create(10, 10);
   auto event_ = Event::CreateManualResetEvent(false);
@@ -244,7 +244,7 @@ TEST_CASE("Signal and Wait") {
   REQUIRE(result == WaitResult::kSuccess);
 }
 
-TEST_CASE("Wait on Event", "Event") {
+TEST_CASE("Wait on Event", "[event]") {
   auto evt = Event::CreateAutoResetEvent(false);
   WaitResult result;
 
@@ -262,7 +262,7 @@ TEST_CASE("Wait on Event", "Event") {
   REQUIRE(result == WaitResult::kTimeout);
 }
 
-TEST_CASE("Reset Event", "Event") {
+TEST_CASE("Reset Event", "[event]") {
   auto evt = Event::CreateAutoResetEvent(false);
   WaitResult result;
 
@@ -283,7 +283,7 @@ TEST_CASE("Reset Event", "Event") {
   REQUIRE(result == WaitResult::kSuccess);
 }
 
-TEST_CASE("Wait on Multiple Events", "Event") {
+TEST_CASE("Wait on Multiple Events", "[event]") {
   auto events = std::array<std::unique_ptr<Event>, 4>{
       Event::CreateAutoResetEvent(false),
       Event::CreateAutoResetEvent(false),
@@ -348,7 +348,7 @@ TEST_CASE("Wait on Multiple Events", "Event") {
   // REQUIRE(order[3] == '3');
 }
 
-TEST_CASE("Wait on Semaphore", "Semaphore") {
+TEST_CASE("Wait on Semaphore", "[semaphore]") {
   WaitResult result;
   std::unique_ptr<Semaphore> sem;
   int previous_count = 0;
@@ -406,9 +406,13 @@ TEST_CASE("Wait on Semaphore", "Semaphore") {
   sem = Semaphore::Create(5, 5);
   Sleep(10ms);
   // Occupy the semaphore with 5 threads
-  auto func = [&sem] {
+  std::atomic<int> wait_count(0);
+  volatile bool threads_terminate(false);
+  auto func = [&sem, &wait_count, &threads_terminate] {
     auto res = Wait(sem.get(), false, 100ms);
-    Sleep(500ms);
+    wait_count++;
+    while (!threads_terminate) {
+    }
     if (res == WaitResult::kSuccess) {
       sem->Release(1, nullptr);
     }
@@ -417,12 +421,14 @@ TEST_CASE("Wait on Semaphore", "Semaphore") {
       std::thread(func), std::thread(func), std::thread(func),
       std::thread(func), std::thread(func),
   };
-  // Give threads time to acquire semaphore
-  Sleep(10ms);
+  // Wait for threads to finish semaphore calls
+  while (wait_count != 5) {
+  }
   // Attempt to acquire full semaphore with current (6th) thread
   result = Wait(sem.get(), false, 20ms);
   REQUIRE(result == WaitResult::kTimeout);
   // Give threads time to release semaphore
+  threads_terminate = true;
   for (auto& t : threads) {
     t.join();
   }
@@ -444,7 +450,7 @@ TEST_CASE("Wait on Semaphore", "Semaphore") {
   // REQUIRE(sem.get() == nullptr);
 }
 
-TEST_CASE("Wait on Multiple Semaphores", "Semaphore") {
+TEST_CASE("Wait on Multiple Semaphores", "[semaphore]") {
   WaitResult all_result;
   std::pair<WaitResult, size_t> any_result;
   int previous_count;
@@ -501,7 +507,7 @@ TEST_CASE("Wait on Multiple Semaphores", "Semaphore") {
   REQUIRE(previous_count == 4);
 }
 
-TEST_CASE("Wait on Mutant", "Mutant") {
+TEST_CASE("Wait on Mutant", "[mutant]") {
   WaitResult result;
   std::unique_ptr<Mutant> mut;
 
@@ -558,7 +564,7 @@ TEST_CASE("Wait on Mutant", "Mutant") {
   REQUIRE(mut->Release());
 }
 
-TEST_CASE("Wait on Multiple Mutants", "Mutant") {
+TEST_CASE("Wait on Multiple Mutants", "[mutant]") {
   WaitResult all_result;
   std::pair<WaitResult, size_t> any_result;
   std::unique_ptr<Mutant> mut0, mut1;
@@ -621,7 +627,7 @@ TEST_CASE("Wait on Multiple Mutants", "Mutant") {
   thread2.join();
 }
 
-TEST_CASE("Wait on Timer", "Timer") {
+TEST_CASE("Wait on Timer", "[timer]") {
   WaitResult result;
   std::unique_ptr<Timer> timer;
 
@@ -686,7 +692,7 @@ TEST_CASE("Wait on Timer", "Timer") {
   REQUIRE(result == WaitResult::kTimeout);  // No more signals from repeating
 }
 
-TEST_CASE("Wait on Multiple Timers", "Timer") {
+TEST_CASE("Wait on Multiple Timers", "[timer]") {
   WaitResult all_result;
   std::pair<WaitResult, size_t> any_result;
 
@@ -724,13 +730,13 @@ TEST_CASE("Wait on Multiple Timers", "Timer") {
   REQUIRE(any_result.second == 1);
 }
 
-TEST_CASE("Create and Trigger Timer Callbacks", "Timer") {
+TEST_CASE("Create and Trigger Timer Callbacks", "[timer]") {
   // TODO(bwrsandman): Check which thread performs callback and timing of
   // callback
   REQUIRE(true);
 }
 
-TEST_CASE("Set and Test Current Thread ID", "Thread") {
+TEST_CASE("Set and Test Current Thread ID", "[thread]") {
   // System ID
   auto system_id = current_thread_system_id();
   REQUIRE(system_id > 0);
@@ -763,71 +769,76 @@ TEST_CASE("Set and Test Current Thread Name", "Thread") {
   REQUIRE_NOTHROW(set_name(old_thread_name));
 }
 
-TEST_CASE("Create and Run Thread", "Thread") {
+TEST_CASE("Create and Run Thread", "[thread]") {
   std::unique_ptr<Thread> thread;
   WaitResult result;
   Thread::CreationParameters params = {};
   auto func = [] { Sleep(20ms); };
 
-  // Create most basic case of thread
-  thread = Thread::Create(params, func);
-  REQUIRE(thread->native_handle() != nullptr);
-  REQUIRE_NOTHROW(thread->affinity_mask());
-  REQUIRE(thread->name().empty());
-  result = Wait(thread.get(), false, 50ms);
-  REQUIRE(result == WaitResult::kSuccess);
+  SECTION("Create most basic case of thread") {
+    thread = Thread::Create(params, func);
+    REQUIRE(thread->native_handle() != nullptr);
+    REQUIRE_NOTHROW(thread->affinity_mask());
+    REQUIRE(thread->name().empty());
+    result = Wait(thread.get(), false, 50ms);
+    REQUIRE(result == WaitResult::kSuccess);
+  }
 
-  // Add thread name
-  std::string new_name = "Test thread name";
-  thread = Thread::Create(params, func);
-  auto name = thread->name();
-  INFO(name.c_str());
-  REQUIRE(name.empty());
-  thread->set_name(new_name);
-  REQUIRE(thread->name() == new_name);
-  result = Wait(thread.get(), false, 50ms);
-  REQUIRE(result == WaitResult::kSuccess);
+  SECTION("Add thread name") {
+    std::string new_name = "Test thread name";
+    thread = Thread::Create(params, func);
+    auto name = thread->name();
+    INFO(name.c_str());
+    REQUIRE(name.empty());
+    thread->set_name(new_name);
+    REQUIRE(thread->name() == new_name);
+    result = Wait(thread.get(), false, 50ms);
+    REQUIRE(result == WaitResult::kSuccess);
+  }
 
-  // Use Terminate to end an infinitely looping thread
-  thread = Thread::Create(params, [] {
-    while (true) {
-      Sleep(1ms);
-    }
-  });
-  result = Wait(thread.get(), false, 50ms);
-  REQUIRE(result == WaitResult::kTimeout);
-  thread->Terminate(-1);
-  result = Wait(thread.get(), false, 50ms);
-  REQUIRE(result == WaitResult::kSuccess);
+  SECTION("Use Terminate to end an infinitely looping thread") {
+    thread = Thread::Create(params, [] {
+      while (true) {
+        Sleep(1ms);
+      }
+    });
+    result = Wait(thread.get(), false, 50ms);
+    REQUIRE(result == WaitResult::kTimeout);
+    thread->Terminate(-1);
+    result = Wait(thread.get(), false, 50ms);
+    REQUIRE(result == WaitResult::kSuccess);
+  }
 
-  // Call Exit from inside an infinitely looping thread
-  thread = Thread::Create(params, [] {
-    while (true) {
+  SECTION("Call Exit from inside an infinitely looping thread") {
+    thread = Thread::Create(params, [] {
       Thread::Exit(-1);
-    }
-  });
-  result = Wait(thread.get(), false, 50ms);
-  REQUIRE(result == WaitResult::kSuccess);
+      FAIL("Function must not return");
+    });
+    result = Wait(thread.get(), false, 50ms);
+    REQUIRE(result == WaitResult::kSuccess);
+  }
 
-  // Call timeout wait on self
-  result = Wait(Thread::GetCurrentThread(), false, 50ms);
-  REQUIRE(result == WaitResult::kTimeout);
+  SECTION("Call timeout wait on self") {
+    result = Wait(Thread::GetCurrentThread(), false, 50ms);
+    REQUIRE(result == WaitResult::kTimeout);
+  }
 
-  params.stack_size = 16 * 1024 * 1024;
-  thread = Thread::Create(params, [] {
-    while (true) {
+  SECTION("16kb stack size") {
+    params.stack_size = 16_MiB;
+    thread = Thread::Create(params, [] {
       Thread::Exit(-1);
-    }
-  });
-  REQUIRE(thread != nullptr);
-  result = Wait(thread.get(), false, 50ms);
-  REQUIRE(result == WaitResult::kSuccess);
+      FAIL("Function must not return");
+    });
+    REQUIRE(thread != nullptr);
+    result = Wait(thread.get(), false, 50ms);
+    REQUIRE(result == WaitResult::kSuccess);
+  }
 
   // TODO(bwrsandman): Test with different priorities
   // TODO(bwrsandman): Test setting and getting thread affinity
 }
 
-TEST_CASE("Test Suspending Thread", "Thread") {
+TEST_CASE("Test Suspending Thread", "[thread]") {
   std::unique_ptr<Thread> thread;
   WaitResult result;
   Thread::CreationParameters params = {};
@@ -888,7 +899,7 @@ TEST_CASE("Test Suspending Thread", "Thread") {
   REQUIRE(result == threading::WaitResult::kSuccess);
 }
 
-TEST_CASE("Test Thread QueueUserCallback", "Thread") {
+TEST_CASE("Test Thread QueueUserCallback", "[thread]") {
   std::unique_ptr<Thread> thread;
   WaitResult result;
   Thread::CreationParameters params = {};

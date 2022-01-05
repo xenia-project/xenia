@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -22,6 +22,7 @@ XE_MODULE_EXPORT_GROUP(xam, Msg)
 XE_MODULE_EXPORT_GROUP(xam, Net)
 XE_MODULE_EXPORT_GROUP(xam, Notify)
 XE_MODULE_EXPORT_GROUP(xam, NUI)
+XE_MODULE_EXPORT_GROUP(xam, Party)
 XE_MODULE_EXPORT_GROUP(xam, Task)
 XE_MODULE_EXPORT_GROUP(xam, UI)
 XE_MODULE_EXPORT_GROUP(xam, User)

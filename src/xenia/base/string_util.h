@@ -134,7 +134,7 @@ inline std::string to_hex_string(double value) {
 }
 
 inline std::string to_hex_string(const vec128_t& value) {
-  return fmt::format("[{:08X} {:08X} {:08X} {:08X} {:08X}]", value.u32[0],
+  return fmt::format("[{:08X} {:08X} {:08X} {:08X}]", value.u32[0],
                      value.u32[1], value.u32[2], value.u32[3]);
 }
 
@@ -221,7 +221,7 @@ inline T fpfs(const std::string_view value, bool force_hex) {
   } else {
 #if XE_COMPILER_CLANG || XE_COMPILER_GNUC
     auto temp = std::string(range);
-    result = std::strtof(temp.c_str(), nullptr);
+    result = std::strtod(temp.c_str(), nullptr);
 #else
     auto [p, error] = std::from_chars(range.data(), range.data() + range.size(),
                                       result, std::chars_format::general);

@@ -34,7 +34,7 @@ DECLARE_XBDM_EXPORT1(DmCloseLoadedModules, kDebug, kStub);
 MAKE_DUMMY_STUB_STATUS(DmFreePool);
 
 dword_result_t DmGetXbeInfo() {
-  // TODO(gibbed): Crackdown appears to expect this as success?
+  // TODO(gibbed): 4D5307DC appears to expect this as success?
   // Unknown arguments -- let's hope things don't explode.
   return 0x02DA0000;
 }
@@ -50,7 +50,14 @@ MAKE_DUMMY_STUB_STATUS(DmRegisterCommandProcessor);
 void DmSendNotificationString(lpdword_t unk0_ptr) {}
 DECLARE_XBDM_EXPORT1(DmSendNotificationString, kDebug, kStub);
 
-MAKE_DUMMY_STUB_STATUS(DmRegisterCommandProcessorEx);
+dword_result_t DmRegisterCommandProcessorEx(lpdword_t name_ptr,
+                                            lpdword_t handler_fn,
+                                            dword_t unk3) {
+  // Return success to prevent some games from stalling
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBDM_EXPORT1(DmRegisterCommandProcessorEx, kDebug, kStub);
+
 MAKE_DUMMY_STUB_STATUS(DmStartProfiling);
 MAKE_DUMMY_STUB_STATUS(DmStopProfiling);
 
@@ -63,7 +70,8 @@ MAKE_DUMMY_STUB_STATUS(DmGetThreadInfoEx);
 MAKE_DUMMY_STUB_STATUS(DmSetProfilingOptions);
 
 dword_result_t DmWalkLoadedModules(lpdword_t unk0_ptr, lpdword_t unk1_ptr) {
-  return X_STATUS_INVALID_PARAMETER;
+  // Some games will loop forever unless this code is returned
+  return 0x82DA0104;
 }
 DECLARE_XBDM_EXPORT1(DmWalkLoadedModules, kDebug, kStub);
 

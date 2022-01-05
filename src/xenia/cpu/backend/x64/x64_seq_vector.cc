@@ -33,19 +33,41 @@ struct VECTOR_CONVERT_I2F
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // flags = ARITHMETIC_UNSIGNED
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-      // xmm0 = mask of positive values
-      e.vpcmpgtd(e.xmm0, i.src1, e.GetXmmConstPtr(XMMFFFF));
+      // Round manually to (1.stored mantissa bits * 2^31) or to 2^32 to the
+      // nearest even (the only rounding mode used on AltiVec) if the number is
+      // 0x80000000 or greater, instead of converting src & 0x7FFFFFFF and then
+      // adding 2147483648.0f, which results in double rounding that can give a
+      // result larger than needed - see OPCODE_VECTOR_CONVERT_I2F notes.
 
-      // scale any values >= (unsigned)INT_MIN back to [0, INT_MAX]
-      e.vpsubd(e.xmm1, i.src1, e.GetXmmConstPtr(XMMSignMaskI32));
-      e.vblendvps(e.xmm1, e.xmm1, i.src1, e.xmm0);
+      // [0x80000000, 0xFFFFFFFF] case:
 
-      // xmm1 = [0, INT_MAX]
-      e.vcvtdq2ps(i.dest, e.xmm1);
+      // Round to the nearest even, from (0x80000000 | 31 stored mantissa bits)
+      // to ((-1 << 23) | 23 stored mantissa bits), or to 0 if the result should
+      // be 4294967296.0f.
+      // xmm0 = src + 0b01111111 + ((src >> 8) & 1)
+      // (xmm1 also used to launch reg + mem early and to require it late)
+      e.vpaddd(e.xmm1, i.src1, e.GetXmmConstPtr(XMMInt127));
+      e.vpslld(e.xmm0, i.src1, 31 - 8);
+      e.vpsrld(e.xmm0, e.xmm0, 31);
+      e.vpaddd(e.xmm0, e.xmm0, e.xmm1);
+      // xmm0 = (0xFF800000 | 23 explicit mantissa bits), or 0 if overflowed
+      e.vpsrad(e.xmm0, e.xmm0, 8);
+      // Calculate the result for the [0x80000000, 0xFFFFFFFF] case - take the
+      // rounded mantissa, and add -1 or 0 to the exponent of 32, depending on
+      // whether the number should be (1.stored mantissa bits * 2^31) or 2^32.
+      // xmm0 = [0x80000000, 0xFFFFFFFF] case result
+      e.vpaddd(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMM2To32));
 
-      // scale values back above [INT_MIN, UINT_MAX]
-      e.vpandn(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMPosIntMinPS));
-      e.vaddps(i.dest, i.dest, e.xmm0);
+      // [0x00000000, 0x7FFFFFFF] case
+      // (during vblendvps reg -> vpaddd reg -> vpaddd mem dependency):
+
+      // Convert from signed integer to float.
+      // xmm1 = [0x00000000, 0x7FFFFFFF] case result
+      e.vcvtdq2ps(e.xmm1, i.src1);
+
+      // Merge the two ways depending on whether the number is >= 0x80000000
+      // (has high bit set).
+      e.vblendvps(i.dest, e.xmm1, e.xmm0, i.src1);
     } else {
       e.vcvtdq2ps(i.dest, i.src1);
     }
@@ -1840,8 +1862,8 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       src = i.src1;
     }
     // Saturate to [3,3....] so that only values between 3...[00] and 3...[FF]
-    // are valid - max before min to pack NaN as zero (Red Dead Redemption is
-    // heavily affected by the order - packs 0xFFFFFFFF in matrix code to get 0
+    // are valid - max before min to pack NaN as zero (5454082B is heavily
+    // affected by the order - packs 0xFFFFFFFF in matrix code to get a 0
     // constant).
     e.vmaxps(i.dest, src, e.GetXmmConstPtr(XMM3333));
     e.vminps(i.dest, i.dest, e.GetXmmConstPtr(XMMPackD3DCOLORSat));

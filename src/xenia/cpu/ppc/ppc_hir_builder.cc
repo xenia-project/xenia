@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -104,8 +104,8 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
   // instruction may have a label assigned to it if it hasn't been hit
   // yet.
   size_t list_size = instr_count_ * sizeof(void*);
-  instr_offset_list_ = (Instr**)arena_->Alloc(list_size);
-  label_list_ = (Label**)arena_->Alloc(list_size);
+  instr_offset_list_ = (Instr**)arena_->Alloc(list_size, alignof(void*));
+  label_list_ = (Label**)arena_->Alloc(list_size, alignof(void*));
   std::memset(instr_offset_list_, 0, list_size);
   std::memset(label_list_, 0, list_size);
 
@@ -244,7 +244,7 @@ void PPCHIRBuilder::AnnotateLabel(uint32_t address, Label* label) {
   char name_buffer[13];
   auto format_result = fmt::format_to_n(name_buffer, 12, "loc_{:08X}", address);
   name_buffer[format_result.size] = '\0';
-  label->name = (char*)arena_->Alloc(sizeof(name_buffer));
+  label->name = (char*)arena_->Alloc(sizeof(name_buffer), 1);
   memcpy(label->name, name_buffer, sizeof(name_buffer));
 }
 

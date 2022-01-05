@@ -24,8 +24,8 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
-std::unique_ptr<VulkanProvider> VulkanProvider::Create(Window* main_window) {
-  std::unique_ptr<VulkanProvider> provider(new VulkanProvider(main_window));
+std::unique_ptr<VulkanProvider> VulkanProvider::Create() {
+  std::unique_ptr<VulkanProvider> provider(new VulkanProvider);
   if (!provider->Initialize()) {
     xe::FatalError(
         "Unable to initialize Vulkan graphics subsystem.\n"
@@ -40,9 +40,6 @@ std::unique_ptr<VulkanProvider> VulkanProvider::Create(Window* main_window) {
   return provider;
 }
 
-VulkanProvider::VulkanProvider(Window* main_window)
-    : GraphicsProvider(main_window) {}
-
 VulkanProvider::~VulkanProvider() {
   device_.reset();
   instance_.reset();
@@ -52,11 +49,16 @@ bool VulkanProvider::Initialize() {
   instance_ = std::make_unique<VulkanInstance>();
 
   // Always enable the swapchain.
-#if XE_PLATFORM_WIN32
+#if XE_PLATFORM_GNU_LINUX || XE_PLATFORM_WIN32
   instance_->DeclareRequiredExtension("VK_KHR_surface", Version::Make(0, 0, 0),
                                       false);
+#if XE_PLATFORM_GNU_LINUX
+  instance_->DeclareRequiredExtension("VK_KHR_xcb_surface",
+                                      Version::Make(0, 0, 0), false);
+#elif XE_PLATFORM_WIN32
   instance_->DeclareRequiredExtension("VK_KHR_win32_surface",
                                       Version::Make(0, 0, 0), false);
+#endif
 #endif
 
   // Attempt initialization and device query.

@@ -13,9 +13,13 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 
-#include "xenia/base/mapped_memory.h"
+#include "xenia/base/math.h"
+#include "xenia/base/string_util.h"
+#include "xenia/kernel/util/xex2_info.h"
 #include "xenia/vfs/device.h"
+#include "xenia/vfs/devices/stfs_xbox.h"
 
 namespace xe {
 namespace vfs {
@@ -24,152 +28,21 @@ namespace vfs {
 
 class StfsContainerEntry;
 
-enum class StfsPackageType {
-  kCon,
-  kPirs,
-  kLive,
-};
-
-enum class StfsContentType : uint32_t {
-  kArcadeTitle = 0x000D0000,
-  kAvatarItem = 0x00009000,
-  kCacheFile = 0x00040000,
-  kCommunityGame = 0x02000000,
-  kGamesOnDemand = 0x00007000,
-  kGameDemo = 0x00080000,
-  kGamerPicture = 0x00020000,
-  kGameTitle = 0x000A0000,
-  kGameTrailer = 0x000C0000,
-  kGameVideo = 0x00400000,
-  kInstalledGame = 0x00004000,
-  kInstaller = 0x000B0000,
-  kIptvPauseBuffer = 0x00002000,
-  kLicenseStore = 0x000F0000,
-  kMarketplaceContent = 0x00000002,
-  kMovie = 0x00100000,
-  kMusicVideo = 0x00300000,
-  kPodcastVideo = 0x00500000,
-  kProfile = 0x00010000,
-  kPublisher = 0x00000003,
-  kSavedGame = 0x00000001,
-  kStorageDownload = 0x00050000,
-  kTheme = 0x00030000,
-  kTV = 0x00200000,
-  kVideo = 0x00090000,
-  kViralVideo = 0x00600000,
-  kXboxDownload = 0x00070000,
-  kXboxOriginalGame = 0x00005000,
-  kXboxSavedGame = 0x00060000,
-  kXbox360Title = 0x00001000,
-  kXboxTitle = 0x00005000,
-  kXNA = 0x000E0000,
-};
-
-enum class StfsPlatform : uint8_t {
-  kXbox360 = 0x02,
-  kPc = 0x04,
-};
-
-enum class StfsDescriptorType : uint32_t {
-  kStfs = 0,
-  kSvod = 1,
-};
-
-struct StfsVolumeDescriptor {
-  bool Read(const uint8_t* p);
-
-  uint8_t descriptor_size;
-  uint8_t version;
-  uint8_t flags;
-  uint16_t file_table_block_count;
-  uint32_t file_table_block_number;
-  uint8_t top_hash_table_hash[0x14];
-  uint32_t total_allocated_block_count;
-  uint32_t total_unallocated_block_count;
-};
-
-enum SvodDeviceFeatures {
-  kFeatureHasEnhancedGDFLayout = 0x40,
-};
-
-enum SvodLayoutType {
-  kUnknownLayout = 0x0,
-  kEnhancedGDFLayout = 0x1,
-  kXSFLayout = 0x2,
-  kSingleFileLayout = 0x4,
-};
-
-struct SvodVolumeDescriptor {
-  bool Read(const uint8_t* p);
-
-  uint8_t descriptor_size;
-  uint8_t block_cache_element_count;
-  uint8_t worker_thread_processor;
-  uint8_t worker_thread_priority;
-  uint8_t hash[0x14];
-  uint8_t device_features;
-  uint32_t data_block_count;
-  uint32_t data_block_offset;
-  // 0x5 padding bytes...
-
-  SvodLayoutType layout_type;
-};
-
-class StfsHeader {
- public:
-  bool Read(const uint8_t* p);
-
-  uint8_t license_entries[0x100];
-  uint8_t header_hash[0x14];
-  uint32_t header_size;
-  StfsContentType content_type;
-  uint32_t metadata_version;
-  uint64_t content_size;
-  uint32_t media_id;
-  uint32_t version;
-  uint32_t base_version;
-  uint32_t title_id;
-  StfsPlatform platform;
-  uint8_t executable_type;
-  uint8_t disc_number;
-  uint8_t disc_in_set;
-  uint32_t save_game_id;
-  uint8_t console_id[0x5];
-  uint8_t profile_id[0x8];
-  union {
-    StfsVolumeDescriptor stfs_volume_descriptor;
-    SvodVolumeDescriptor svod_volume_descriptor;
-  };
-  uint32_t data_file_count;
-  uint64_t data_file_combined_size;
-  StfsDescriptorType descriptor_type;
-  uint8_t device_id[0x14];
-  char16_t display_names[0x900 / 2];
-  char16_t display_descs[0x900 / 2];
-  char16_t publisher_name[0x80 / 2];
-  char16_t title_name[0x80 / 2];
-  uint8_t transfer_flags;
-  uint32_t thumbnail_image_size;
-  uint32_t title_thumbnail_image_size;
-  uint8_t thumbnail_image[0x4000];
-  uint8_t title_thumbnail_image[0x4000];
-
-  // Metadata v2 Fields
-  uint8_t series_id[0x10];
-  uint8_t season_id[0x10];
-  int16_t season_number;
-  int16_t episode_number;
-  char16_t additonal_display_names[0x300 / 2];
-  char16_t additional_display_descriptions[0x300 / 2];
-};
-
 class StfsContainerDevice : public Device {
  public:
+  const static uint32_t kBlockSize = 0x1000;
+
   StfsContainerDevice(const std::string_view mount_path,
                       const std::filesystem::path& host_path);
   ~StfsContainerDevice() override;
 
   bool Initialize() override;
+
+  bool is_read_only() const override {
+    return header_.metadata.volume_type != XContentVolumeType::kStfs ||
+           header_.metadata.volume_descriptor.stfs.flags.bits.read_only_format;
+  }
+
   void Dump(StringBuffer* string_buffer) override;
   Entry* ResolvePath(const std::string_view path) override;
 
@@ -178,15 +51,41 @@ class StfsContainerDevice : public Device {
   uint32_t component_name_max_length() const override { return 40; }
 
   uint32_t total_allocation_units() const override {
-    return uint32_t(mmap_total_size_ / sectors_per_allocation_unit() /
+    if (header_.metadata.volume_type == XContentVolumeType::kStfs) {
+      return header_.metadata.volume_descriptor.stfs.total_block_count;
+    }
+
+    return uint32_t(data_size() / sectors_per_allocation_unit() /
                     bytes_per_sector());
   }
-  uint32_t available_allocation_units() const override { return 0; }
+  uint32_t available_allocation_units() const override {
+    if (!is_read_only()) {
+      auto& descriptor = header_.metadata.volume_descriptor.stfs;
+      return kBlocksPerHashLevel[2] -
+             (descriptor.total_block_count - descriptor.free_block_count);
+    }
+    return 0;
+  }
   uint32_t sectors_per_allocation_unit() const override { return 8; }
   uint32_t bytes_per_sector() const override { return 0x200; }
 
+  size_t data_size() const {
+    if (header_.header.header_size) {
+      if (header_.metadata.volume_type == XContentVolumeType::kStfs) {
+        return header_.metadata.volume_descriptor.stfs.total_block_count *
+               kBlockSize;
+      }
+      return files_total_size_ -
+             xe::round_up(header_.header.header_size, kBlockSize);
+    }
+    return files_total_size_ - sizeof(StfsHeader);
+  }
+
  private:
-  const uint32_t kSectorSize = 0x1000;
+  const uint32_t kBlocksPerHashLevel[3] = {170, 28900, 4913000};
+  const uint32_t kEndOfChain = 0xFFFFFF;
+  const uint32_t kEntriesPerDirectoryBlock =
+      kBlockSize / sizeof(StfsDirectoryEntry);
 
   enum class Error {
     kSuccess = 0,
@@ -194,21 +93,23 @@ class StfsContainerDevice : public Device {
     kErrorReadError = -10,
     kErrorFileMismatch = -30,
     kErrorDamagedFile = -31,
+    kErrorTooSmall = -32,
   };
 
-  struct BlockHash {
-    uint32_t next_block_index;
-    uint32_t info;
+  enum class SvodLayoutType {
+    kUnknown = 0x0,
+    kEnhancedGDF = 0x1,
+    kXSF = 0x2,
+    kSingleFile = 0x4,
   };
 
-  const uint32_t kSTFSHashSpacing = 170;
-
+  XContentPackageType ReadMagic(const std::filesystem::path& path);
   bool ResolveFromFolder(const std::filesystem::path& path);
 
-  Error MapFiles();
-  static Error ReadPackageType(const uint8_t* map_ptr, size_t map_size,
-                               StfsPackageType* package_type_out);
-  Error ReadHeaderAndVerify(const uint8_t* map_ptr, size_t map_size);
+  Error OpenFiles();
+  void CloseFiles();
+
+  Error ReadHeaderAndVerify(FILE* header_file);
 
   Error ReadSVOD();
   Error ReadEntrySVOD(uint32_t sector, uint32_t ordinal,
@@ -216,22 +117,29 @@ class StfsContainerDevice : public Device {
   void BlockToOffsetSVOD(size_t sector, size_t* address, size_t* file_index);
 
   Error ReadSTFS();
-  size_t BlockToOffsetSTFS(uint64_t block);
+  size_t BlockToOffsetSTFS(uint64_t block_index) const;
+  uint32_t BlockToHashBlockNumberSTFS(uint32_t block_index,
+                                      uint32_t hash_level) const;
+  size_t BlockToHashBlockOffsetSTFS(uint32_t block_index,
+                                    uint32_t hash_level) const;
 
-  BlockHash GetBlockHash(const uint8_t* map_ptr, uint32_t block_index,
-                         uint32_t table_offset);
+  const StfsHashEntry* GetBlockHash(uint32_t block_index);
 
   std::string name_;
   std::filesystem::path host_path_;
-  std::map<size_t, std::unique_ptr<MappedMemory>> mmap_;
-  size_t mmap_total_size_;
 
-  size_t base_offset_;
-  size_t magic_offset_;
+  std::map<size_t, FILE*> files_;
+  size_t files_total_size_;
+
+  size_t svod_base_offset_;
+
   std::unique_ptr<Entry> root_entry_;
-  StfsPackageType package_type_;
   StfsHeader header_;
-  uint32_t table_size_shift_;
+  SvodLayoutType svod_layout_;
+  uint32_t blocks_per_hash_table_;
+  uint32_t block_step[2];
+
+  std::unordered_map<size_t, StfsHashTable> cached_hash_tables_;
 };
 
 }  // namespace vfs

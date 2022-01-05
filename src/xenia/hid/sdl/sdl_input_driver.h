@@ -45,6 +45,7 @@ class SDLInputDriver : public InputDriver {
  protected:
   struct ControllerState {
     SDL_GameController* sdl;
+    X_INPUT_CAPABILITIES caps;
     X_INPUT_STATE state;
     bool state_changed;
     bool is_active;
@@ -65,16 +66,19 @@ class SDLInputDriver : public InputDriver {
   };
 
  protected:
+  void HandleEvent(const SDL_Event& event);
   void OnControllerDeviceAdded(const SDL_Event& event);
   void OnControllerDeviceRemoved(const SDL_Event& event);
   void OnControllerDeviceAxisMotion(const SDL_Event& event);
   void OnControllerDeviceButtonChanged(const SDL_Event& event);
+
+  inline uint64_t AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const;
   std::optional<size_t> GetControllerIndexFromInstanceID(
       SDL_JoystickID instance_id);
   ControllerState* GetControllerState(uint32_t user_index);
   bool TestSDLVersion() const;
+  void UpdateXCapabilities(ControllerState& state);
   void QueueControllerUpdate();
-  inline uint64_t AnalogToKeyfield(const X_INPUT_GAMEPAD& gamepad) const;
 
  protected:
   bool sdl_events_initialized_;

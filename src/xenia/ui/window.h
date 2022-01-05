@@ -14,11 +14,12 @@
 #include <string>
 
 #include "xenia/base/delegate.h"
+#include "xenia/base/platform.h"
 #include "xenia/ui/graphics_context.h"
-#include "xenia/ui/loop.h"
 #include "xenia/ui/menu_item.h"
 #include "xenia/ui/ui_event.h"
 #include "xenia/ui/window_listener.h"
+#include "xenia/ui/windowed_app_context.h"
 
 namespace xe {
 namespace ui {
@@ -30,11 +31,13 @@ class ImGuiDrawer;
 
 class Window {
  public:
-  static std::unique_ptr<Window> Create(Loop* loop, const std::string& title);
+  static std::unique_ptr<Window> Create(WindowedAppContext& app_context_,
+                                        const std::string& title);
 
   virtual ~Window();
 
-  Loop* loop() const { return loop_; }
+  WindowedAppContext& app_context() const { return app_context_; }
+
   virtual NativePlatformHandle native_platform_handle() const = 0;
   virtual NativeWindowHandle native_handle() const = 0;
 
@@ -48,7 +51,7 @@ class Window {
   virtual void DisableMainMenu() = 0;
 
   const std::string& title() const { return title_; }
-  virtual bool set_title(const std::string& title) {
+  virtual bool set_title(const std::string_view title) {
     if (title == title_) {
       return false;
     }
@@ -68,8 +71,11 @@ class Window {
   virtual bool is_bordered() const { return false; }
   virtual void set_bordered(bool enabled) {}
 
-  virtual int get_dpi() const { return 96; }
-  virtual float get_dpi_scale() const { return get_dpi() / 96.f; }
+  virtual int get_medium_dpi() const { return 96; }
+  virtual int get_dpi() const { return get_medium_dpi(); }
+  virtual float get_dpi_scale() const {
+    return float(get_dpi()) / float(get_medium_dpi());
+  }
 
   bool has_focus() const { return has_focus_; }
   virtual void set_focus(bool value) { has_focus_ = value; }
@@ -77,6 +83,8 @@ class Window {
   bool is_cursor_visible() const { return is_cursor_visible_; }
   virtual void set_cursor_visible(bool value) { is_cursor_visible_ = value; }
 
+  // TODO(Triang3l): Don't scale for guest output - use physical pixels. Use
+  // logical pixels only for the immediate drawer.
   int32_t width() const { return width_; }
   int32_t height() const { return height_; }
   int32_t scaled_width() const { return int32_t(width_ * get_dpi_scale()); }
@@ -134,7 +142,7 @@ class Window {
   Delegate<MouseEvent*> on_mouse_wheel;
 
  protected:
-  Window(Loop* loop, const std::string& title);
+  Window(WindowedAppContext& app_context, const std::string& title);
 
   void ForEachListener(std::function<void(WindowListener*)> fn);
   void TryForEachListener(std::function<bool(WindowListener*)> fn);
@@ -169,11 +177,19 @@ class Window {
 
   void OnKeyPress(KeyEvent* e, bool is_down, bool is_char);
 
-  Loop* loop_ = nullptr;
+  WindowedAppContext& app_context_;
   std::unique_ptr<MenuItem> main_menu_;
   std::string title_;
+#ifdef XE_PLATFORM_GNU_LINUX
+  // GTK must have a default value here that isn't 0
+  // TODO(Triang3l): Cleanup and unify this. May need to get the first resize
+  // message on various platforms.
+  int32_t width_ = 1280;
+  int32_t height_ = 720;
+#else
   int32_t width_ = 0;
   int32_t height_ = 0;
+#endif
   bool has_focus_ = true;
   bool is_cursor_visible_ = true;
   bool is_imgui_input_enabled_ = false;

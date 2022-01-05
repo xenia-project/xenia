@@ -27,7 +27,7 @@ class D3D12Provider : public GraphicsProvider {
 
   static bool IsD3D12APIAvailable();
 
-  static std::unique_ptr<D3D12Provider> Create(Window* main_window);
+  static std::unique_ptr<D3D12Provider> Create();
 
   std::unique_ptr<GraphicsContext> CreateContext(
       Window* target_window) override;
@@ -41,33 +41,50 @@ class D3D12Provider : public GraphicsProvider {
   ID3D12Device* GetDevice() const { return device_; }
   ID3D12CommandQueue* GetDirectQueue() const { return direct_queue_; }
 
-  uint32_t GetViewDescriptorSize() const { return descriptor_size_view_; }
-  uint32_t GetSamplerDescriptorSize() const { return descriptor_size_sampler_; }
-  uint32_t GetRTVDescriptorSize() const { return descriptor_size_rtv_; }
-  uint32_t GetDSVDescriptorSize() const { return descriptor_size_dsv_; }
+  uint32_t GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE type) const {
+    return descriptor_sizes_[type];
+  }
+  uint32_t GetViewDescriptorSize() const {
+    return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+  }
+  uint32_t GetSamplerDescriptorSize() const {
+    return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+  }
+  uint32_t GetRTVDescriptorSize() const {
+    return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+  }
+  uint32_t GetDSVDescriptorSize() const {
+    return GetDescriptorSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+  }
+  template <typename T>
+  T OffsetDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE type, T start,
+                     uint32_t index) const {
+    start.ptr += index * GetDescriptorSize(type);
+    return start;
+  }
   template <typename T>
   T OffsetViewDescriptor(T start, uint32_t index) const {
-    start.ptr += index * descriptor_size_view_;
+    start.ptr += index * GetViewDescriptorSize();
     return start;
   }
   template <typename T>
   T OffsetSamplerDescriptor(T start, uint32_t index) const {
-    start.ptr += index * descriptor_size_sampler_;
+    start.ptr += index * GetSamplerDescriptorSize();
     return start;
   }
   template <typename T>
   T OffsetRTVDescriptor(T start, uint32_t index) const {
-    start.ptr += index * descriptor_size_rtv_;
+    start.ptr += index * GetRTVDescriptorSize();
     return start;
   }
   template <typename T>
   T OffsetDSVDescriptor(T start, uint32_t index) const {
-    start.ptr += index * descriptor_size_dsv_;
+    start.ptr += index * GetDSVDescriptorSize();
     return start;
   }
 
   // Adapter info.
-  uint32_t GetAdapterVendorID() const { return adapter_vendor_id_; }
+  GpuVendorID GetAdapterVendorID() const { return adapter_vendor_id_; }
 
   // Device features.
   D3D12_HEAP_FLAGS GetHeapFlagCreateNotZeroed() const {
@@ -76,6 +93,9 @@ class D3D12Provider : public GraphicsProvider {
   D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER
   GetProgrammableSamplePositionsTier() const {
     return programmable_sample_positions_tier_;
+  }
+  bool IsPSSpecifiedStencilReferenceSupported() const {
+    return ps_specified_stencil_reference_supported_;
   }
   bool AreRasterizerOrderedViewsSupported() const {
     return rasterizer_ordered_views_supported_;
@@ -90,13 +110,18 @@ class D3D12Provider : public GraphicsProvider {
     return virtual_address_bits_per_resource_;
   }
 
-  // Proxies for Direct3D 12 functions since they are loaded dynamically.
+  // Proxies for DirectX functions since they are loaded dynamically.
   HRESULT SerializeRootSignature(const D3D12_ROOT_SIGNATURE_DESC* desc,
                                  D3D_ROOT_SIGNATURE_VERSION version,
                                  ID3DBlob** blob_out,
                                  ID3DBlob** error_blob_out) const {
     return pfn_d3d12_serialize_root_signature_(desc, version, blob_out,
                                                error_blob_out);
+  }
+  HRESULT CreateDCompositionDevice(IDXGIDevice* dxgi_device, const IID& iid,
+                                   void** dcomposition_device_out) const {
+    return pfn_dcomposition_create_device_(dxgi_device, iid,
+                                           dcomposition_device_out);
   }
   HRESULT Disassemble(const void* src_data, size_t src_data_size, UINT flags,
                       const char* comments, ID3DBlob** disassembly_out) const {
@@ -122,7 +147,7 @@ class D3D12Provider : public GraphicsProvider {
   }
 
  private:
-  explicit D3D12Provider(Window* main_window);
+  D3D12Provider() = default;
 
   static bool EnableIncreaseBasePriorityPrivilege();
   bool Initialize();
@@ -131,6 +156,9 @@ class D3D12Provider : public GraphicsProvider {
                                                  _COM_Outptr_ void** ppFactory);
   typedef HRESULT(WINAPI* PFNDXGIGetDebugInterface1)(
       UINT Flags, REFIID riid, _COM_Outptr_ void** pDebug);
+  typedef HRESULT(WINAPI* PFNDCompositionCreateDevice)(
+      _In_opt_ IDXGIDevice* dxgiDevice, _In_ REFIID iid,
+      _Outptr_ void** dcompositionDevice);
 
   HMODULE library_dxgi_ = nullptr;
   PFNCreateDXGIFactory2 pfn_create_dxgi_factory2_;
@@ -140,6 +168,9 @@ class D3D12Provider : public GraphicsProvider {
   PFN_D3D12_GET_DEBUG_INTERFACE pfn_d3d12_get_debug_interface_;
   PFN_D3D12_CREATE_DEVICE pfn_d3d12_create_device_;
   PFN_D3D12_SERIALIZE_ROOT_SIGNATURE pfn_d3d12_serialize_root_signature_;
+
+  HMODULE library_dcomp_ = nullptr;
+  PFNDCompositionCreateDevice pfn_dcomposition_create_device_;
 
   HMODULE library_d3dcompiler_ = nullptr;
   pD3DDisassemble pfn_d3d_disassemble_ = nullptr;
@@ -155,15 +186,13 @@ class D3D12Provider : public GraphicsProvider {
   ID3D12Device* device_ = nullptr;
   ID3D12CommandQueue* direct_queue_ = nullptr;
 
-  uint32_t descriptor_size_view_;
-  uint32_t descriptor_size_sampler_;
-  uint32_t descriptor_size_rtv_;
-  uint32_t descriptor_size_dsv_;
+  uint32_t descriptor_sizes_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
 
-  uint32_t adapter_vendor_id_;
+  GpuVendorID adapter_vendor_id_;
 
   D3D12_HEAP_FLAGS heap_flag_create_not_zeroed_;
   D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER programmable_sample_positions_tier_;
+  bool ps_specified_stencil_reference_supported_;
   bool rasterizer_ordered_views_supported_;
   D3D12_RESOURCE_BINDING_TIER resource_binding_tier_;
   D3D12_TILED_RESOURCES_TIER tiled_resources_tier_;

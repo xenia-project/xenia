@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
+#include "xenia/base/console_app_main.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/main.h"
 #include "xenia/gpu/trace_dump.h"
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 #include "xenia/gpu/vulkan/vulkan_graphics_system.h"
@@ -55,6 +55,6 @@ int trace_dump_main(const std::vector<std::string>& args) {
 }  // namespace gpu
 }  // namespace xe
 
-DEFINE_ENTRY_POINT("xenia-gpu-vulkan-trace-dump",
-                   xe::gpu::vulkan::trace_dump_main, "some.trace",
-                   "target_trace_file");
+XE_DEFINE_CONSOLE_APP("xenia-gpu-vulkan-trace-dump",
+                      xe::gpu::vulkan::trace_dump_main, "some.trace",
+                      "target_trace_file");

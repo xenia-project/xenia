@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_D3D12_D3D12_COMMAND_PROCESSOR_H_
 #define XENIA_GPU_D3D12_D3D12_COMMAND_PROCESSOR_H_
 
+#include <algorithm>
 #include <atomic>
 #include <deque>
 #include <memory>
@@ -20,11 +21,11 @@
 #include "xenia/base/assert.h"
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
+#include "xenia/gpu/d3d12/d3d12_primitive_processor.h"
+#include "xenia/gpu/d3d12/d3d12_render_target_cache.h"
 #include "xenia/gpu/d3d12/d3d12_shared_memory.h"
 #include "xenia/gpu/d3d12/deferred_command_list.h"
 #include "xenia/gpu/d3d12/pipeline_cache.h"
-#include "xenia/gpu/d3d12/primitive_converter.h"
-#include "xenia/gpu/d3d12/render_target_cache.h"
 #include "xenia/gpu/d3d12/texture_cache.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/dxbc_shader.h"
@@ -83,13 +84,13 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   // Gets the current color write mask, taking the pixel shader's write mask
   // into account. If a shader doesn't write to a render target, it shouldn't be
-  // written to and it shouldn't be even bound - otherwise, in Halo 3, one
+  // written to and it shouldn't be even bound - otherwise, in 4D5307E6, one
   // render target is being destroyed by a shader not writing anything, and in
-  // Banjo-Tooie, the result of clearing the top tile is being ignored because
+  // 58410955, the result of clearing the top tile is being ignored because
   // there are 4 render targets bound with the same EDRAM base (clearly not
   // correct usage), but the shader only clears 1, and then EDRAM buffer stores
   // conflict with each other.
-  uint32_t GetCurrentColorMask(const Shader* pixel_shader) const;
+  uint32_t GetCurrentColorMask(uint32_t shader_writes_color_targets) const;
 
   void PushTransitionBarrier(
       ID3D12Resource* resource, D3D12_RESOURCE_STATES old_state,
@@ -131,7 +132,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   // descriptors, this must only be used to allocate SRVs, otherwise it won't
   // work on Nvidia Fermi (root signature creation will fail)!
   bool RequestOneUseSingleViewDescriptors(
-      uint32_t count, ui::d3d12::util::DescriptorCPUGPUHandlePair* handles_out);
+      uint32_t count, ui::d3d12::util::DescriptorCpuGpuHandlePair* handles_out);
   // These are needed often, so they are always allocated.
   enum class SystemBindlessView : uint32_t {
     kSharedMemoryRawSRV,
@@ -149,6 +150,7 @@ class D3D12CommandProcessor : public CommandProcessor {
     kEdramR32G32B32A32UintSRV,
     kEdramRawUAV,
     kEdramR32UintUAV,
+    kEdramR32G32UintUAV,
     kEdramR32G32B32A32UintUAV,
 
     kGammaRampNormalSRV,
@@ -164,16 +166,18 @@ class D3D12CommandProcessor : public CommandProcessor {
 
     kCount,
   };
-  ui::d3d12::util::DescriptorCPUGPUHandlePair GetSystemBindlessViewHandlePair(
+  ui::d3d12::util::DescriptorCpuGpuHandlePair GetSystemBindlessViewHandlePair(
       SystemBindlessView view) const;
-  ui::d3d12::util::DescriptorCPUGPUHandlePair
+  ui::d3d12::util::DescriptorCpuGpuHandlePair
   GetSharedMemoryUintPow2BindlessSRVHandlePair(
       uint32_t element_size_bytes_pow2) const;
-  ui::d3d12::util::DescriptorCPUGPUHandlePair
+  ui::d3d12::util::DescriptorCpuGpuHandlePair
   GetSharedMemoryUintPow2BindlessUAVHandlePair(
       uint32_t element_size_bytes_pow2) const;
-  ui::d3d12::util::DescriptorCPUGPUHandlePair
+  ui::d3d12::util::DescriptorCpuGpuHandlePair
   GetEdramUintPow2BindlessSRVHandlePair(uint32_t element_size_bytes_pow2) const;
+  ui::d3d12::util::DescriptorCpuGpuHandlePair
+  GetEdramUintPow2BindlessUAVHandlePair(uint32_t element_size_bytes_pow2) const;
 
   // Returns a single temporary GPU-side buffer within a submission for tasks
   // like texture untiling and resolving.
@@ -185,19 +189,20 @@ class D3D12CommandProcessor : public CommandProcessor {
   void ReleaseScratchGPUBuffer(ID3D12Resource* buffer,
                                D3D12_RESOURCE_STATES new_state);
 
-  // Sets the current SSAA sample positions, needs to be done before setting
-  // render targets or copying to depth render targets.
-  void SetSamplePositions(xenos::MsaaSamples sample_positions);
-
   // Returns a pipeline with deferred creation by its handle. May return nullptr
   // if failed to create the pipeline.
   ID3D12PipelineState* GetD3D12PipelineByHandle(void* handle) const {
     return pipeline_cache_->GetD3D12PipelineByHandle(handle);
   }
 
-  // Sets the current pipeline to a compute one. This is for cache invalidation
-  // primarily. A submission must be open.
-  void SetComputePipeline(ID3D12PipelineState* pipeline);
+  // Sets the current cached values to external ones. This is for cache
+  // invalidation primarily. A submission must be open.
+  void SetExternalPipeline(ID3D12PipelineState* pipeline);
+  void SetExternalGraphicsRootSignature(ID3D12RootSignature* root_signature);
+  void SetViewport(const D3D12_VIEWPORT& viewport);
+  void SetScissorRect(const D3D12_RECT& scissor_rect);
+  void SetStencilReference(uint32_t stencil_ref);
+  void SetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY primitive_topology);
 
   // For the pipeline cache to call when binding layout UIDs may be reused.
   void NotifyShaderBindingsLayoutUIDsInvalidated();
@@ -351,12 +356,13 @@ class D3D12CommandProcessor : public CommandProcessor {
   void UpdateFixedFunctionState(const draw_util::ViewportInfo& viewport_info,
                                 const draw_util::Scissor& scissor,
                                 bool primitive_polygonal);
-  void UpdateSystemConstantValues(
-      bool shared_memory_is_uav, bool primitive_polygonal,
-      uint32_t line_loop_closing_index, xenos::Endian index_endian,
-      const draw_util::ViewportInfo& viewport_info, uint32_t pixel_size_x,
-      uint32_t pixel_size_y, uint32_t used_texture_mask, uint32_t color_mask,
-      const RenderTargetCache::PipelineRenderTarget render_targets[4]);
+  void UpdateSystemConstantValues(bool shared_memory_is_uav,
+                                  bool primitive_polygonal,
+                                  uint32_t line_loop_closing_index,
+                                  xenos::Endian index_endian,
+                                  const draw_util::ViewportInfo& viewport_info,
+                                  uint32_t used_texture_mask,
+                                  uint32_t color_mask);
   bool UpdateBindings(const D3D12Shader* vertex_shader,
                       const D3D12Shader* pixel_shader,
                       ID3D12RootSignature* root_signature);
@@ -418,10 +424,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   // bindful - mainly because of CopyDescriptorsSimple, which takes the majority
   // of UpdateBindings time, and that's outside the emulator's control even).
   bool bindless_resources_used_ = false;
-  // Should a rasterizer-ordered UAV of the EDRAM buffer with format conversion
-  // and blending performed in pixel shaders be used instead of host render
-  // targets.
-  bool edram_rov_used_ = false;
+
+  std::unique_ptr<D3D12RenderTargetCache> render_target_cache_;
 
   std::unique_ptr<ui::d3d12::D3D12UploadBufferPool> constant_buffer_pool_;
 
@@ -487,13 +491,11 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   std::unique_ptr<D3D12SharedMemory> shared_memory_;
 
+  std::unique_ptr<D3D12PrimitiveProcessor> primitive_processor_;
+
   std::unique_ptr<PipelineCache> pipeline_cache_;
 
   std::unique_ptr<TextureCache> texture_cache_;
-
-  std::unique_ptr<RenderTargetCache> render_target_cache_;
-
-  std::unique_ptr<PrimitiveConverter> primitive_converter_;
 
   // Mip 0 contains the normal gamma ramp (256 entries), mip 1 contains the PWL
   // ramp (128 entries). DXGI_FORMAT_R10G10B10A2_UNORM 1D.
@@ -508,10 +510,16 @@ class D3D12CommandProcessor : public CommandProcessor {
   static constexpr uint32_t kSwapTextureWidth = 1280;
   static constexpr uint32_t kSwapTextureHeight = 720;
   std::pair<uint32_t, uint32_t> GetSwapTextureSize() const {
-    if (texture_cache_->IsResolutionScale2X()) {
-      return std::make_pair(kSwapTextureWidth * 2, kSwapTextureHeight * 2);
-    }
-    return std::make_pair(kSwapTextureWidth, kSwapTextureHeight);
+    return std::make_pair(
+        kSwapTextureWidth * texture_cache_->GetDrawResolutionScaleX(),
+        kSwapTextureHeight * texture_cache_->GetDrawResolutionScaleY());
+  }
+  std::pair<uint32_t, uint32_t> GetSwapScreenSize() const {
+    uint32_t resolution_scale =
+        std::max(texture_cache_->GetDrawResolutionScaleX(),
+                 texture_cache_->GetDrawResolutionScaleY());
+    return std::make_pair(kSwapTextureWidth * resolution_scale,
+                          kSwapTextureHeight * resolution_scale);
   }
   ID3D12Resource* swap_texture_ = nullptr;
   D3D12_PLACED_SUBRESOURCE_FOOTPRINT swap_texture_copy_footprint_;
@@ -548,9 +556,6 @@ class D3D12CommandProcessor : public CommandProcessor {
   bool ff_scissor_update_needed_;
   bool ff_blend_factor_update_needed_;
   bool ff_stencil_ref_update_needed_;
-
-  // Current SSAA sample positions (to be updated by the render target cache).
-  xenos::MsaaSamples current_sample_positions_;
 
   // Currently bound pipeline, either a graphics pipeline from the pipeline
   // cache (with potentially deferred creation - current_external_pipeline_ is

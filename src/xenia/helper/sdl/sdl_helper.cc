@@ -9,6 +9,12 @@
 
 #include "xenia/helper/sdl/sdl_helper.h"
 
+// On linux we likely build on an "outdated" system but still want to control
+// these features when available on a newer system.
+#if !SDL_VERSION_ATLEAST(2, 0, 14)
+#define SDL_HINT_AUDIO_DEVICE_APP_NAME "SDL_AUDIO_DEVICE_APP_NAME"
+#endif
+
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 
@@ -32,12 +38,35 @@ bool SDLHelper::Prepare() {
 bool SDLHelper::SetHints() {
   bool suc = true;
 
+  const auto setHint = [](const char* name, const char* value,
+                          bool override_ = false) -> bool {
+    // Setting hints with normal priority fails when the hint is set via env
+    // vars or a hint with override priority is set, which does not conclude a
+    // failure.
+    if (SDL_FALSE ==
+        SDL_SetHintWithPriority(
+            name, value, override_ ? SDL_HINT_OVERRIDE : SDL_HINT_NORMAL)) {
+      const char* msg_fmt =
+          "SDLHelper: Unable to set hint \"{}\" to value \"{}\".";
+      if (override_) {
+        XELOGE(msg_fmt, name, value);
+        return false;
+      } else {
+        XELOGI(msg_fmt, name, value);
+      }
+    }
+    return true;
+  };
+
   // SDL calls timeBeginPeriod(1) but xenia sets this to a lower value before
   // using NtSetTimerResolution(). Having that value overwritten causes overall
   // fps drops. Use override priority as timer resolution should always be
   // managed by xenia. https://bugzilla.libsdl.org/show_bug.cgi?id=5104
-  suc &= SDL_SetHintWithPriority(SDL_HINT_TIMER_RESOLUTION, "0",
-                                 SDL_HINT_OVERRIDE) == SDL_TRUE;
+  suc &= setHint(SDL_HINT_TIMER_RESOLUTION, "0", true);
+
+  suc &= setHint(SDL_HINT_AUDIO_CATEGORY, "playback");
+
+  suc &= setHint(SDL_HINT_AUDIO_DEVICE_APP_NAME, "xenia emulator");
 
   return suc;
 }

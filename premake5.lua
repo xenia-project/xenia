@@ -1,9 +1,7 @@
 include("tools/build")
 require("third_party/premake-export-compile-commands/export-compile-commands")
+require("third_party/premake-androidndk/androidndk")
 require("third_party/premake-cmake/cmake")
--- gmake required for androidmk.
-require("gmake")
-require("third_party/premake-androidmk/androidmk")
 
 location(build_root)
 targetdir(build_bin)
@@ -42,7 +40,6 @@ end
 
 characterset("Unicode")
 flags({
-  --"ExtraWarnings",        -- Sets the compiler's maximum warning level.
   "FatalWarnings",        -- Treat warnings as errors.
 })
 
@@ -100,8 +97,8 @@ filter("platforms:Linux")
   toolset("clang")
   buildoptions({
     -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
-    ({os.outputof("pkg-config --cflags gtk+-x11-3.0")})[1],
   })
+  pkg_config.all("gtk+-x11-3.0")
   links({
     "stdc++fs",
     "dl",
@@ -109,16 +106,11 @@ filter("platforms:Linux")
     "pthread",
     "rt",
   })
-  linkoptions({
-    ({os.outputof("pkg-config --libs gtk+-3.0")})[1],
-  })
 
 filter({"platforms:Linux", "kind:*App"})
   linkgroups("On")
 
 filter({"platforms:Linux", "language:C++", "toolset:gcc"})
-  links({
-  })
   disablewarnings({
     "unused-result"
   })
@@ -136,10 +128,6 @@ filter({"platforms:Linux", "toolset:gcc"})
   end
 
 filter({"platforms:Linux", "language:C++", "toolset:clang"})
-  links({
-    "c++",
-    "c++abi"
-  })
   disablewarnings({
     "deprecated-register"
   })
@@ -148,11 +136,15 @@ filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp
     "-stdlib=libstdc++",
   })
 
-filter("platforms:Android")
+filter("platforms:Android-*")
   system("android")
+  systemversion("24")
+  cppstl("c++")
+  staticruntime("On")
   links({
     "android",
     "dl",
+    "log",
   })
 
 filter("platforms:Windows")
@@ -196,6 +188,13 @@ filter("platforms:Windows")
     "shcore",
     "shlwapi",
     "dxguid",
+    "bcrypt",
+  })
+
+-- Embed the manifest for things like dependencies and DPI awareness.
+filter({"platforms:Windows", "kind:ConsoleApp or WindowedApp"})
+  files({
+    "src/xenia/base/app_win32.manifest"
   })
 
 -- Create scratch/ path
@@ -203,17 +202,25 @@ if not os.isdir("scratch") then
   os.mkdir("scratch")
 end
 
-solution("xenia")
+workspace("xenia")
   uuid("931ef4b0-6170-4f7a-aaf2-0fece7632747")
   startproject("xenia-app")
   if os.istarget("android") then
-    -- Not setting architecture as that's handled by ndk-build itself.
-    platforms({"Android"})
-    ndkstl("c++_static")
+    platforms({"Android-ARM64", "Android-x86_64"})
+    filter("platforms:Android-ARM64")
+      architecture("ARM64")
+    filter("platforms:Android-x86_64")
+      architecture("x86_64")
+    filter({})
   else
     architecture("x86_64")
     if os.istarget("linux") then
       platforms({"Linux"})
+    elseif os.istarget("macosx") then
+      platforms({"Mac"})
+      xcodebuildsettings({           
+        ["ARCHS"] = "x86_64"
+      })
     elseif os.istarget("windows") then
       platforms({"Windows"})
       -- 10.0.15063.0: ID3D12GraphicsCommandList1::SetSamplePositions.
@@ -233,15 +240,36 @@ solution("xenia")
   include("third_party/discord-rpc.lua")
   include("third_party/cxxopts.lua")
   include("third_party/cpptoml.lua")
+  include("third_party/FFmpeg/premake5.lua")
   include("third_party/fmt.lua")
   include("third_party/glslang-spirv.lua")
   include("third_party/imgui.lua")
-  include("third_party/libav.lua")
   include("third_party/mspack.lua")
   include("third_party/snappy.lua")
   include("third_party/spirv-tools.lua")
-  include("third_party/volk.lua")
   include("third_party/xxhash.lua")
+
+  if not os.istarget("android") then
+    -- SDL2 requires sdl2-config, and as of November 2020 isn't high-quality on
+    -- Android yet, most importantly in game controllers - the keycode and axis
+    -- enums are being ruined during conversion to SDL2 enums resulting in only
+    -- one controller (Nvidia Shield) being supported, digital triggers are also
+    -- not supported; lifecycle management (especially surface loss) is also
+    -- complicated.
+    include("third_party/SDL2.lua")
+  end
+
+  -- Disable treating warnings as fatal errors for all third party projects, as
+  -- well as other things relevant only to Xenia itself.
+  for _, prj in ipairs(premake.api.scope.current.solution.projects) do
+    project(prj.name)
+    removefiles({
+      "src/xenia/base/app_win32.manifest"
+    })
+    removeflags({
+      "FatalWarnings",
+    })
+  end
 
   include("src/xenia")
   include("src/xenia/app/discord")
@@ -263,14 +291,6 @@ solution("xenia")
   include("src/xenia/vfs")
 
   if not os.istarget("android") then
-    -- SDL2 requires sdl2-config, and as of November 2020 isn't high-quality on
-    -- Android yet, most importantly in game controllers - the keycode and axis
-    -- enums are being ruined during conversion to SDL2 enums resulting in only
-    -- one controller (Nvidia Shield) being supported, digital triggers are also
-    -- not supported; lifecycle management (especially surface loss) is also
-    -- complicated.
-    include("third_party/SDL2.lua")
-
     include("src/xenia/apu/sdl")
     include("src/xenia/helper/sdl")
     include("src/xenia/hid/sdl")

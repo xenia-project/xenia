@@ -23,10 +23,18 @@ class Window;
 // according to the rules of the backing graphics API.
 class GraphicsProvider {
  public:
-  virtual ~GraphicsProvider() = default;
+  enum class GpuVendorID {
+    kAMD = 0x1002,
+    kApple = 0x106B,
+    kArm = 0x13B5,
+    kImagination = 0x1010,
+    kIntel = 0x8086,
+    kMicrosoft = 0x1414,
+    kNvidia = 0x10DE,
+    kQualcomm = 0x5143,
+  };
 
-  // The 'main' window of an application, used to query provider information.
-  Window* main_window() const { return main_window_; }
+  virtual ~GraphicsProvider() = default;
 
   // Creates a new graphics context and swapchain for presenting to a window.
   virtual std::unique_ptr<GraphicsContext> CreateContext(
@@ -37,9 +45,7 @@ class GraphicsProvider {
   virtual std::unique_ptr<GraphicsContext> CreateOffscreenContext() = 0;
 
  protected:
-  explicit GraphicsProvider(Window* main_window) : main_window_(main_window) {}
-
-  Window* main_window_ = nullptr;
+  GraphicsProvider() = default;
 };
 
 }  // namespace ui

@@ -10,9 +10,9 @@
 #ifndef XENIA_GPU_VULKAN_TEXTURE_CONFIG_H_
 #define XENIA_GPU_VULKAN_TEXTURE_CONFIG_H_
 
-#include "third_party/volk/volk.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/ui/vulkan/vulkan.h"
 
 namespace xe {
 namespace gpu {

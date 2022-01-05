@@ -4,23 +4,29 @@ plugins {
 
 android {
     compileSdkVersion 30
-    buildToolsVersion "30.0.2"
-    ndkVersion '22.0.6917172 rc1'
+    buildToolsVersion '30.0.2'
+    ndkVersion '23.0.7599858'
 
     defaultConfig {
-        applicationId "jp.xenia.emulator"
+        applicationId 'jp.xenia.emulator'
         // 24 (7.0) - Vulkan.
         minSdkVersion 24
         targetSdkVersion 30
         versionCode 1
-        versionName "Prototype"
+        versionName 'Prototype'
         externalNativeBuild {
             ndkBuild {
-                arguments "NDK_APPLICATION_MK:=../../../build/xenia_Application.mk"
+                arguments 'NDK_APPLICATION_MK:=../../../build/xenia.Application.mk',
+                        'PREMAKE_ANDROIDNDK_PLATFORMS:=Android-ARM64',
+                        'PREMAKE_ANDROIDNDK_PLATFORMS+=Android-x86_64',
+                        // Work around "Bad file descriptor" on Windows on NDK r22+.
+                        '--output-sync=none'
             }
         }
         ndk {
-            abiFilters 'arm64-v8a'
+            abiFilters 'arm64-v8a', 'x86_64'
+            jobs Runtime.runtime.availableProcessors()
+            stl 'c++_static'
         }
     }
 
@@ -28,40 +34,40 @@ android {
         release {
             externalNativeBuild {
                 ndkBuild {
-                    arguments "PM5_CONFIG:=release_android"
+                    arguments 'PREMAKE_ANDROIDNDK_CONFIGURATIONS:=Release'
                 }
             }
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
-            applicationIdSuffix ".debug"
+            applicationIdSuffix '.debug'
             debuggable true
             externalNativeBuild {
                 ndkBuild {
-                    arguments "PM5_CONFIG:=debug_android"
+                    arguments 'PREMAKE_ANDROIDNDK_CONFIGURATIONS:=Debug'
                 }
             }
         }
         checked {
-            applicationIdSuffix ".checked"
+            applicationIdSuffix '.checked'
             debuggable true
             externalNativeBuild {
                 ndkBuild {
-                    arguments "PM5_CONFIG:=checked_android"
+                    arguments 'PREMAKE_ANDROIDNDK_CONFIGURATIONS:=Checked'
                 }
             }
         }
     }
 
-    flavorDimensions "distribution"
+    flavorDimensions 'distribution'
     productFlavors {
         github {
-            dimension "distribution"
-            applicationIdSuffix ".github"
+            dimension 'distribution'
+            applicationIdSuffix '.github'
         }
         googlePlay {
-            dimension "distribution"
+            dimension 'distribution'
             // TODO(Triang3l): Provide a signing config for core contributors only.
         }
     }
@@ -73,7 +79,7 @@ android {
 
     externalNativeBuild {
         ndkBuild {
-            path file('../../../build/xenia_Android.mk')
+            path file('../../../build/xenia.wks.Android.mk')
         }
     }
 }

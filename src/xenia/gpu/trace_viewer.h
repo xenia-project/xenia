@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -18,13 +18,8 @@
 #include "xenia/gpu/trace_protocol.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
-
-namespace xe {
-namespace ui {
-class Loop;
-class Window;
-}  // namespace ui
-}  // namespace xe
+#include "xenia/ui/window.h"
+#include "xenia/ui/windowed_app.h"
 
 namespace xe {
 namespace gpu {
@@ -32,14 +27,15 @@ namespace gpu {
 struct SamplerInfo;
 struct TextureInfo;
 
-class TraceViewer {
+class TraceViewer : public xe::ui::WindowedApp {
  public:
   virtual ~TraceViewer();
 
-  int Main(const std::vector<std::string>& args);
+  bool OnInitialize() override;
 
  protected:
-  TraceViewer();
+  explicit TraceViewer(xe::ui::WindowedAppContext& app_context,
+                       const std::string_view name);
 
   virtual std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() = 0;
 
@@ -60,7 +56,6 @@ class TraceViewer {
 
   virtual bool Setup();
 
-  std::unique_ptr<xe::ui::Loop> loop_;
   std::unique_ptr<xe::ui::Window> window_;
   std::unique_ptr<Emulator> emulator_;
   Memory* memory_ = nullptr;
@@ -75,7 +70,6 @@ class TraceViewer {
   };
 
   bool Load(const std::filesystem::path& trace_file_path);
-  void Run();
 
   void DrawUI();
   void DrawControllerUI();

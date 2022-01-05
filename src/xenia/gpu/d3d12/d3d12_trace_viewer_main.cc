@@ -2,13 +2,15 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
+#include <memory>
+#include <string>
+
 #include "xenia/base/logging.h"
-#include "xenia/base/main.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/trace_viewer.h"
@@ -17,10 +19,13 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-using namespace xe::gpu::xenos;
-
-class D3D12TraceViewer : public TraceViewer {
+class D3D12TraceViewer final : public TraceViewer {
  public:
+  static std::unique_ptr<WindowedApp> Create(
+      xe::ui::WindowedAppContext& app_context) {
+    return std::unique_ptr<WindowedApp>(new D3D12TraceViewer(app_context));
+  }
+
   std::unique_ptr<gpu::GraphicsSystem> CreateGraphicsSystem() override {
     return std::unique_ptr<gpu::GraphicsSystem>(new D3D12GraphicsSystem());
   }
@@ -45,17 +50,15 @@ class D3D12TraceViewer : public TraceViewer {
     // TextureInfo/SamplerInfo which are going away.
     return 0;
   }
-};
 
-int trace_viewer_main(const std::vector<std::string>& args) {
-  D3D12TraceViewer trace_viewer;
-  return trace_viewer.Main(args);
-}
+ private:
+  explicit D3D12TraceViewer(xe::ui::WindowedAppContext& app_context)
+      : TraceViewer(app_context, "xenia-gpu-d3d12-trace-viewer") {}
+};
 
 }  // namespace d3d12
 }  // namespace gpu
 }  // namespace xe
 
-DEFINE_ENTRY_POINT("xenia-gpu-d3d12-trace-viewer",
-                   xe::gpu::d3d12::trace_viewer_main, "some.trace",
-                   "target_trace_file");
+XE_DEFINE_WINDOWED_APP(xenia_gpu_d3d12_trace_viewer,
+                       xe::gpu::d3d12::D3D12TraceViewer::Create);

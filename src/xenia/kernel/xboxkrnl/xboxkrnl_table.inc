@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,6 +10,7 @@
 // This is a partial file designed to be included by other files when
 // constructing various tables.
 
+// clang-format off
 
 XE_EXPORT(xboxkrnl, 0x00000001, DbgBreakPoint,                                              kFunction),
 XE_EXPORT(xboxkrnl, 0x00000002, DbgBreakPointWithStatus,                                    kFunction),

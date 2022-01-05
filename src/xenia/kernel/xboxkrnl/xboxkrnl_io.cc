@@ -49,10 +49,10 @@ static bool IsValidPath(const std::string_view s, bool is_pattern) {
     if (got_asterisk) {
       // * must be followed by a . (*.)
       //
-      // Viva Piñata: Party Animals (4D530819) has a bug in its game code where
-      // it attempts to FindFirstFile() with filters of "Game:\\*_X3.rkv",
-      // "Game:\\m*_X3.rkv", and "Game:\\w*_X3.rkv" and will infinite loop if
-      // the path filter is allowed.
+      // 4D530819 has a bug in its game code where it attempts to
+      // FindFirstFile() with filters of "Game:\\*_X3.rkv", "Game:\\m*_X3.rkv",
+      // and "Game:\\w*_X3.rkv" and will infinite loop if the path filter is
+      // allowed.
       if (c != '.') {
         return false;
       }
@@ -265,16 +265,99 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
 }
 DECLARE_XBOXKRNL_EXPORT2(NtReadFile, kFileSystem, kImplemented, kHighFrequency);
 
+dword_result_t NtReadFileScatter(dword_t file_handle, dword_t event_handle,
+                                 lpvoid_t apc_routine_ptr, lpvoid_t apc_context,
+                                 pointer_t<X_IO_STATUS_BLOCK> io_status_block,
+                                 lpdword_t segment_array, dword_t length,
+                                 lpqword_t byte_offset_ptr) {
+  X_STATUS result = X_STATUS_SUCCESS;
+
+  bool signal_event = false;
+  auto ev = kernel_state()->object_table()->LookupObject<XEvent>(event_handle);
+  if (event_handle && !ev) {
+    result = X_STATUS_INVALID_HANDLE;
+  }
+
+  auto file = kernel_state()->object_table()->LookupObject<XFile>(file_handle);
+  if (!file) {
+    result = X_STATUS_INVALID_HANDLE;
+  }
+
+  if (XSUCCEEDED(result)) {
+    if (true || file->is_synchronous()) {
+      // Synchronous.
+      uint32_t bytes_read = 0;
+      result = file->ReadScatter(
+          segment_array.guest_address(), length,
+          byte_offset_ptr ? static_cast<uint64_t>(*byte_offset_ptr) : -1,
+          &bytes_read, apc_context);
+      if (io_status_block) {
+        io_status_block->status = result;
+        io_status_block->information = bytes_read;
+      }
+
+      // Queue the APC callback. It must be delivered via the APC mechanism even
+      // though were are completing immediately.
+      // Low bit probably means do not queue to IO ports.
+      if ((uint32_t)apc_routine_ptr & ~1) {
+        if (apc_context) {
+          auto thread = XThread::GetCurrentThread();
+          thread->EnqueueApc(static_cast<uint32_t>(apc_routine_ptr) & ~1u,
+                             apc_context, io_status_block, 0);
+        }
+      }
+
+      if (!file->is_synchronous()) {
+        result = X_STATUS_PENDING;
+      }
+
+      // Mark that we should signal the event now. We do this after
+      // we have written the info out.
+      signal_event = true;
+    } else {
+      // TODO(benvanik): async.
+
+      // TODO: On Windows it might be worth trying to use Win32 ReadFileScatter
+      // here instead of handling it ourselves
+
+      // X_STATUS_PENDING if not returning immediately.
+      // XFile is waitable and signalled after each async req completes.
+      // reset the input event (->Reset())
+      /*xeNtReadFileState* call_state = new xeNtReadFileState();
+      XAsyncRequest* request = new XAsyncRequest(
+      state, file,
+      (XAsyncRequest::CompletionCallback)xeNtReadFileCompleted,
+      call_state);*/
+      // result = file->Read(buffer.guest_address(), buffer_length, byte_offset,
+      //                     request);
+      if (io_status_block) {
+        io_status_block->status = X_STATUS_PENDING;
+        io_status_block->information = 0;
+      }
+
+      result = X_STATUS_PENDING;
+    }
+  }
+
+  if (XFAILED(result) && io_status_block) {
+    io_status_block->status = result;
+    io_status_block->information = 0;
+  }
+
+  if (ev && signal_event) {
+    ev->Set(0, false);
+  }
+
+  return result;
+}
+DECLARE_XBOXKRNL_EXPORT1(NtReadFileScatter, kFileSystem, kImplemented);
+
 dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
                            function_t apc_routine, lpvoid_t apc_context,
                            pointer_t<X_IO_STATUS_BLOCK> io_status_block,
                            lpvoid_t buffer, dword_t buffer_length,
                            lpqword_t byte_offset_ptr) {
-  // Async not supported yet.
-  assert_zero(apc_routine);
-
   X_STATUS result = X_STATUS_SUCCESS;
-  uint32_t info = 0;
 
   // Grab event to signal.
   bool signal_event = false;
@@ -299,17 +382,25 @@ dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
           buffer.guest_address(), buffer_length,
           byte_offset_ptr ? static_cast<uint64_t>(*byte_offset_ptr) : -1,
           &bytes_written, apc_context);
-      if (XSUCCEEDED(result)) {
-        info = bytes_written;
+
+      if (io_status_block) {
+        io_status_block->status = result;
+        io_status_block->information = static_cast<uint32_t>(bytes_written);
+      }
+
+      // Queue the APC callback. It must be delivered via the APC mechanism even
+      // though were are completing immediately.
+      // Low bit probably means do not queue to IO ports.
+      if ((uint32_t)apc_routine & ~1) {
+        if (apc_context) {
+          auto thread = XThread::GetCurrentThread();
+          thread->EnqueueApc(static_cast<uint32_t>(apc_routine) & ~1u,
+                             apc_context, io_status_block, 0);
+        }
       }
 
       if (!file->is_synchronous()) {
         result = X_STATUS_PENDING;
-      }
-
-      if (io_status_block) {
-        io_status_block->status = X_STATUS_SUCCESS;
-        io_status_block->information = info;
       }
 
       // Mark that we should signal the event now. We do this after
@@ -318,11 +409,10 @@ dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
     } else {
       // X_STATUS_PENDING if not returning immediately.
       result = X_STATUS_PENDING;
-      info = 0;
 
       if (io_status_block) {
-        io_status_block->status = X_STATUS_SUCCESS;
-        io_status_block->information = info;
+        io_status_block->status = X_STATUS_PENDING;
+        io_status_block->information = 0;
       }
     }
   }
@@ -353,6 +443,27 @@ dword_result_t NtCreateIoCompletion(lpdword_t out_handle,
 }
 DECLARE_XBOXKRNL_EXPORT1(NtCreateIoCompletion, kFileSystem, kImplemented);
 
+dword_result_t NtSetIoCompletion(dword_t handle, dword_t key_context,
+                                 dword_t apc_context, dword_t completion_status,
+                                 dword_t num_bytes) {
+  auto port =
+      kernel_state()->object_table()->LookupObject<XIOCompletion>(handle);
+  if (!port) {
+    return X_STATUS_INVALID_HANDLE;
+  }
+
+  XIOCompletion::IONotification notification;
+  notification.key_context = key_context;
+  notification.apc_context = apc_context;
+  notification.num_bytes = num_bytes;
+  notification.status = completion_status;
+
+  port->QueueNotification(notification);
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT2(NtSetIoCompletion, kFileSystem, kImplemented,
+                         kHighFrequency);
+
 // Dequeues a packet from the completion port.
 dword_result_t NtRemoveIoCompletion(
     dword_t handle, lpdword_t key_context, lpdword_t apc_context,
@@ -366,7 +477,9 @@ dword_result_t NtRemoveIoCompletion(
     status = X_STATUS_INVALID_HANDLE;
   }
 
-  uint64_t timeout_ticks = timeout ? static_cast<uint32_t>(*timeout) : 0u;
+  uint64_t timeout_ticks =
+      timeout ? static_cast<uint32_t>(*timeout)
+              : static_cast<uint64_t>(std::numeric_limits<int64_t>::min());
   XIOCompletion::IONotification notification;
   if (port->WaitForNotification(timeout_ticks, &notification)) {
     if (key_context) {
@@ -386,7 +499,8 @@ dword_result_t NtRemoveIoCompletion(
 
   return status;
 }
-DECLARE_XBOXKRNL_EXPORT1(NtRemoveIoCompletion, kFileSystem, kImplemented);
+DECLARE_XBOXKRNL_EXPORT2(NtRemoveIoCompletion, kFileSystem, kImplemented,
+                         kHighFrequency);
 
 dword_result_t NtQueryFullAttributesFile(
     pointer_t<X_OBJECT_ATTRIBUTES> obj_attribs,
@@ -559,6 +673,66 @@ dword_result_t FscSetCacheElementCount(dword_t unk_0, dword_t unk_1) {
   return X_STATUS_SUCCESS;
 }
 DECLARE_XBOXKRNL_EXPORT1(FscSetCacheElementCount, kFileSystem, kStub);
+
+dword_result_t NtDeviceIoControlFile(
+    dword_t handle, dword_t event_handle, dword_t apc_routine,
+    dword_t apc_context, dword_t io_status_block, dword_t io_control_code,
+    lpvoid_t input_buffer, dword_t input_buffer_len, lpvoid_t output_buffer,
+    dword_t output_buffer_len) {
+  // Called by XMountUtilityDrive cache-mounting code
+  // (checks if the returned values look valid, values below seem to pass the
+  // checks)
+  const uint32_t cache_size = 0xFF000;
+
+  const uint32_t X_IOCTL_DISK_GET_DRIVE_GEOMETRY = 0x70000;
+  const uint32_t X_IOCTL_DISK_GET_PARTITION_INFO = 0x74004;
+
+  if (io_control_code == X_IOCTL_DISK_GET_DRIVE_GEOMETRY) {
+    if (output_buffer_len < 0x8) {
+      assert_always();
+      return X_STATUS_BUFFER_TOO_SMALL;
+    }
+    xe::store_and_swap<uint32_t>(output_buffer, cache_size / 512);
+    xe::store_and_swap<uint32_t>(output_buffer + 4, 512);
+  } else if (io_control_code == X_IOCTL_DISK_GET_PARTITION_INFO) {
+    if (output_buffer_len < 0x10) {
+      assert_always();
+      return X_STATUS_BUFFER_TOO_SMALL;
+    }
+    xe::store_and_swap<uint64_t>(output_buffer, 0);
+    xe::store_and_swap<uint64_t>(output_buffer + 8, cache_size);
+  } else {
+    XELOGD("NtDeviceIoControlFile(0x{:X}) - unhandled IOCTL!",
+           uint32_t(io_control_code));
+    assert_always();
+    return X_STATUS_INVALID_PARAMETER;
+  }
+
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(NtDeviceIoControlFile, kFileSystem, kStub);
+
+dword_result_t IoCreateDevice(dword_t device_struct, dword_t r4, dword_t r5,
+                              dword_t r6, dword_t r7, lpdword_t out_struct) {
+  // Called from XMountUtilityDrive XAM-task code
+  // That code tries writing things to a pointer at out_struct+0x18
+  // We'll alloc some scratch space for it so it doesn't cause any exceptions
+
+  // 0x24 is guessed size from accesses to out_struct - likely incorrect
+  auto out_guest = kernel_memory()->SystemHeapAlloc(0x24);
+
+  auto out = kernel_memory()->TranslateVirtual<uint8_t*>(out_guest);
+  memset(out, 0, 0x24);
+
+  // XMountUtilityDrive writes some kind of header here
+  // 0x1000 bytes should be enough to store it
+  auto out_guest2 = kernel_memory()->SystemHeapAlloc(0x1000);
+  xe::store_and_swap(out + 0x18, out_guest2);
+
+  *out_struct = out_guest;
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(IoCreateDevice, kFileSystem, kStub);
 
 void RegisterIoExports(xe::cpu::ExportResolver* export_resolver,
                        KernelState* kernel_state) {}

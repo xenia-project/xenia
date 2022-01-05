@@ -17,6 +17,7 @@
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/window.h"
+#include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -76,11 +77,16 @@ X_RESULT xeXamDispatchDialog(T* dialog,
       result = close_callback(dialog);
     });
     xe::threading::Fence fence;
-    kernel_state()->emulator()->display_window()->loop()->PostSynchronous(
-        [&dialog, &fence]() { dialog->Then(&fence); });
-    ++xam_dialogs_shown_;
-    fence.Wait();
-    --xam_dialogs_shown_;
+    xe::ui::WindowedAppContext& app_context =
+        kernel_state()->emulator()->display_window()->app_context();
+    if (app_context.CallInUIThreadSynchronous(
+            [&dialog, &fence]() { dialog->Then(&fence); })) {
+      ++xam_dialogs_shown_;
+      fence.Wait();
+      --xam_dialogs_shown_;
+    } else {
+      delete dialog;
+    }
     // dialog should be deleted at this point!
     return result;
   };
@@ -117,11 +123,14 @@ X_RESULT xeXamDispatchDialogEx(
           result = close_callback(dialog, extended_error, length);
         });
     xe::threading::Fence fence;
-    display_window->loop()->PostSynchronous(
-        [&dialog, &fence]() { dialog->Then(&fence); });
-    ++xam_dialogs_shown_;
-    fence.Wait();
-    --xam_dialogs_shown_;
+    if (display_window->app_context().CallInUIThreadSynchronous(
+            [&dialog, &fence]() { dialog->Then(&fence); })) {
+      ++xam_dialogs_shown_;
+      fence.Wait();
+      --xam_dialogs_shown_;
+    } else {
+      delete dialog;
+    }
     // dialog should be deleted at this point!
     return result;
   };
@@ -486,6 +495,16 @@ void XamShowDirtyDiscErrorUI(dword_t user_index) {
   exit(1);
 }
 DECLARE_XAM_EXPORT1(XamShowDirtyDiscErrorUI, kUI, kImplemented);
+
+dword_result_t XamShowPartyUI(unknown_t r3, unknown_t r4) {
+  return X_ERROR_FUNCTION_FAILED;
+}
+DECLARE_XAM_EXPORT1(XamShowPartyUI, kNone, kStub);
+
+dword_result_t XamShowCommunitySessionsUI(unknown_t r3, unknown_t r4) {
+  return X_ERROR_FUNCTION_FAILED;
+}
+DECLARE_XAM_EXPORT1(XamShowCommunitySessionsUI, kNone, kStub);
 
 void RegisterUIExports(xe::cpu::ExportResolver* export_resolver,
                        KernelState* kernel_state) {}

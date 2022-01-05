@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,11 +13,11 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/console_app_main.h"
 #include "xenia/base/cvar.h"
-#include "xenia/base/main.h"
 
 #define CATCH_CONFIG_RUNNER
-#include "third_party/catch/include/catch.hpp"
+#include "third_party/catch/single_include/catch2/catch.hpp"
 
 namespace xe {
 namespace test_suite {
@@ -43,4 +43,5 @@ int test_suite_main(const std::vector<std::string>& args) {
 #error XE_TEST_SUITE_NAME is undefined!
 #endif
 
-DEFINE_ENTRY_POINT(XE_TEST_SUITE_NAME, xe::test_suite::test_suite_main, "");
+XE_DEFINE_CONSOLE_APP_TRANSPARENT(XE_TEST_SUITE_NAME,
+                                  xe::test_suite::test_suite_main);

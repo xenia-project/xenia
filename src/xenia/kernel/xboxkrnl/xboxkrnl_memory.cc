@@ -80,7 +80,7 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
   // it's simple today we could extend it to do better things in the future.
 
   // Must request a size.
-  if (!base_addr_ptr || !region_size_ptr) {
+  if (!base_addr_ptr || !region_size_ptr || !*region_size_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
   // Check allocation type.
@@ -136,6 +136,8 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
   uint32_t protect = FromXdkProtectFlags(protect_bits);
   uint32_t address = 0;
   BaseHeap* heap;
+  HeapAllocationInfo prev_alloc_info = {};
+  bool was_commited = false;
 
   if (adjusted_base != 0) {
     heap = kernel_memory()->LookupHeap(adjusted_base);
@@ -143,6 +145,8 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
       // Specified the wrong page size for the wrong heap.
       return X_STATUS_ACCESS_DENIED;
     }
+    was_commited = heap->QueryRegionInfo(adjusted_base, &prev_alloc_info) &&
+                   (prev_alloc_info.state & kMemoryAllocationCommit) != 0;
 
     if (heap->AllocFixed(adjusted_base, adjusted_size, page_size,
                          allocation_type, protect)) {
@@ -166,7 +170,9 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
         heap->Protect(address, adjusted_size,
                       kMemoryProtectRead | kMemoryProtectWrite);
       }
-      kernel_memory()->Zero(address, adjusted_size);
+      if (!was_commited) {
+        kernel_memory()->Zero(address, adjusted_size);
+      }
       if (!(protect & kMemoryProtectWrite)) {
         heap->Protect(address, adjusted_size, protect);
       }
@@ -192,7 +198,7 @@ dword_result_t NtProtectVirtualMemory(lpdword_t base_addr_ptr,
   assert_true(debug_memory == 0);
 
   // Must request a size.
-  if (!base_addr_ptr || !region_size_ptr) {
+  if (!base_addr_ptr || !region_size_ptr || !*region_size_ptr) {
     return X_STATUS_INVALID_PARAMETER;
   }
 

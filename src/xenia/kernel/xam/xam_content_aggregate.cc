@@ -11,6 +11,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_content_device.h"
 #include "xenia/kernel/xam/xam_private.h"
@@ -22,14 +23,15 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-void AddODDContentTest(object_ref<XStaticEnumerator> e, uint32_t content_type) {
+void AddODDContentTest(object_ref<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>> e,
+                       XContentType content_type) {
   auto root_entry = kernel_state()->file_system()->ResolvePath(
       "game:\\Content\\0000000000000000");
   if (!root_entry) {
     return;
   }
 
-  auto content_type_path = fmt::format("{:08X}", content_type);
+  auto content_type_path = fmt::format("{:08X}", uint32_t(content_type));
 
   xe::filesystem::WildcardEngine title_find_engine;
   title_find_engine.SetRule("????????");
@@ -60,16 +62,15 @@ void AddODDContentTest(object_ref<XStaticEnumerator> e, uint32_t content_type) {
           break;
         }
 
-        auto item = reinterpret_cast<XCONTENT_AGGREGATE_DATA*>(e->AppendItem());
+        auto item = e->AppendItem();
         assert_not_null(item);
-        ContentAggregateData content_aggregate_data = {};
-        content_aggregate_data.device_id =
-            static_cast<uint32_t>(DummyDeviceId::ODD);
-        content_aggregate_data.content_type = content_type;
-        content_aggregate_data.display_name = to_utf16(content_entry->name());
-        content_aggregate_data.file_name = content_entry->name();
-        content_aggregate_data.title_id = title_id;
-        content_aggregate_data.Write(item);
+        if (item) {
+          item->device_id = static_cast<uint32_t>(DummyDeviceId::ODD);
+          item->content_type = content_type;
+          item->set_display_name(to_utf16(content_entry->name()));
+          item->set_file_name(content_entry->name());
+          item->title_id = title_id;
+        }
       }
     }
   }
@@ -87,36 +88,47 @@ dword_result_t XamContentAggregateCreateEnumerator(qword_t xuid,
     return X_E_INVALIDARG;
   }
 
-  auto e = object_ref<XStaticEnumerator>(new XStaticEnumerator(
-      kernel_state(), 1, sizeof(XCONTENT_AGGREGATE_DATA)));
+  auto e = make_object<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>>(
+      kernel_state(), 1);
   X_KENUMERATOR_CONTENT_AGGREGATE* extra;
   auto result = e->Initialize(0xFF, 0xFE, 0x2000E, 0x20010, 0, &extra);
   if (XFAILED(result)) {
     return result;
   }
 
-  extra->magic = 'XEN\0';
+  extra->magic = kXObjSignature;
   extra->handle = e->handle();
 
+  auto content_type_enum = XContentType(uint32_t(content_type));
+
   if (!device_info || device_info->device_type == DeviceType::HDD) {
-    // Get all content data.
-    auto content_datas = kernel_state()->content_manager()->ListContent(
-        static_cast<uint32_t>(DummyDeviceId::HDD), content_type);
-    for (const auto& content_data : content_datas) {
-      auto item = reinterpret_cast<XCONTENT_AGGREGATE_DATA*>(e->AppendItem());
-      assert_not_null(item);
-      ContentAggregateData content_aggregate_data = {};
-      content_aggregate_data.device_id = content_data.device_id;
-      content_aggregate_data.content_type = content_data.content_type;
-      content_aggregate_data.display_name = content_data.display_name;
-      content_aggregate_data.file_name = content_data.file_name;
-      content_aggregate_data.title_id = 1u;
-      content_aggregate_data.Write(item);
+    // Fetch any alternate title IDs defined in the XEX header
+    // (used by games to load saves from other titles, etc)
+    std::vector<uint32_t> title_ids{kCurrentlyRunningTitleId};
+    auto exe_module = kernel_state()->GetExecutableModule();
+    if (exe_module && exe_module->xex_module()) {
+      const auto& alt_ids = exe_module->xex_module()->opt_alternate_title_ids();
+      std::copy(alt_ids.cbegin(), alt_ids.cend(),
+                std::back_inserter(title_ids));
+    }
+
+    for (auto& title_id : title_ids) {
+      // Get all content data.
+      auto content_datas = kernel_state()->content_manager()->ListContent(
+          static_cast<uint32_t>(DummyDeviceId::HDD), content_type_enum,
+          title_id);
+      for (const auto& content_data : content_datas) {
+        auto item = e->AppendItem();
+        assert_not_null(item);
+        if (item) {
+          *item = content_data;
+        }
+      }
     }
   }
 
   if (!device_info || device_info->device_type == DeviceType::ODD) {
-    AddODDContentTest(e, content_type);
+    AddODDContentTest(e, content_type_enum);
   }
 
   XELOGD("XamContentAggregateCreateEnumerator: added {} items to enumerator",

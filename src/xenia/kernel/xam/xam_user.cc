@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -277,8 +277,9 @@ uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
     auto setting = user_profile->GetSetting(setting_id);
 
     std::memset(out_setting, 0, sizeof(X_USER_READ_PROFILE_SETTING));
-    out_setting->from =
-        !setting || !setting->is_set ? 0 : setting->is_title_specific() ? 2 : 1;
+    out_setting->from = !setting || !setting->is_set   ? 0
+                        : setting->is_title_specific() ? 2
+                                                       : 1;
     out_setting->user_index = static_cast<uint32_t>(user_index);
     out_setting->setting_id = setting_id;
 
@@ -546,11 +547,134 @@ DECLARE_XAM_EXPORT1(XamUserAreUsersFriends, kUserProfiles, kStub);
 
 dword_result_t XamShowSigninUI(dword_t unk, dword_t unk_mask) {
   // Mask values vary. Probably matching user types? Local/remote?
-  // Games seem to sit and loop until we trigger this notification.
+
+  // To fix game modes that display a 4 profile signin UI (even if playing
+  // alone):
+  // XN_SYS_SIGNINCHANGED
+  kernel_state()->BroadcastNotification(0x0000000A, 1);
+  // Games seem to sit and loop until we trigger this notification:
+  // XN_SYS_UI (off)
   kernel_state()->BroadcastNotification(0x00000009, 0);
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamShowSigninUI, kUserProfiles, kStub);
+
+// TODO(gibbed): probably a FILETIME/LARGE_INTEGER, unknown currently
+struct X_ACHIEVEMENT_UNLOCK_TIME {
+  xe::be<uint32_t> unk_0;
+  xe::be<uint32_t> unk_4;
+};
+
+struct X_ACHIEVEMENT_DETAILS {
+  xe::be<uint32_t> id;
+  xe::be<uint32_t> label_ptr;
+  xe::be<uint32_t> description_ptr;
+  xe::be<uint32_t> unachieved_ptr;
+  xe::be<uint32_t> image_id;
+  xe::be<uint32_t> gamerscore;
+  X_ACHIEVEMENT_UNLOCK_TIME unlock_time;
+  xe::be<uint32_t> flags;
+
+  static const size_t kStringBufferSize = 464;
+};
+static_assert_size(X_ACHIEVEMENT_DETAILS, 36);
+
+class XStaticAchievementEnumerator : public XEnumerator {
+ public:
+  struct AchievementDetails {
+    uint32_t id;
+    std::u16string label;
+    std::u16string description;
+    std::u16string unachieved;
+    uint32_t image_id;
+    uint32_t gamerscore;
+    struct {
+      uint32_t unk_0;
+      uint32_t unk_4;
+    } unlock_time;
+    uint32_t flags;
+  };
+
+  XStaticAchievementEnumerator(KernelState* kernel_state,
+                               size_t items_per_enumerate, uint32_t flags)
+      : XEnumerator(
+            kernel_state, items_per_enumerate,
+            sizeof(X_ACHIEVEMENT_DETAILS) +
+                (!!(flags & 7) ? X_ACHIEVEMENT_DETAILS::kStringBufferSize : 0)),
+        flags_(flags) {}
+
+  void AppendItem(AchievementDetails item) {
+    items_.push_back(std::move(item));
+  }
+
+  uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
+                      uint32_t* written_count) override {
+    size_t count =
+        std::min(items_.size() - current_item_, items_per_enumerate());
+    if (!count) {
+      return X_ERROR_NO_MORE_FILES;
+    }
+
+    size_t size = count * item_size();
+
+    auto details = reinterpret_cast<X_ACHIEVEMENT_DETAILS*>(buffer_data);
+    size_t string_offset =
+        items_per_enumerate() * sizeof(X_ACHIEVEMENT_DETAILS);
+    auto string_buffer =
+        StringBuffer{buffer_ptr + static_cast<uint32_t>(string_offset),
+                     &buffer_data[string_offset],
+                     count * X_ACHIEVEMENT_DETAILS::kStringBufferSize};
+    for (size_t i = 0, o = current_item_; i < count; ++i, ++current_item_) {
+      const auto& item = items_[current_item_];
+      details[i].id = item.id;
+      details[i].label_ptr =
+          !!(flags_ & 1) ? AppendString(string_buffer, item.label) : 0;
+      details[i].description_ptr =
+          !!(flags_ & 2) ? AppendString(string_buffer, item.description) : 0;
+      details[i].unachieved_ptr =
+          !!(flags_ & 4) ? AppendString(string_buffer, item.unachieved) : 0;
+      details[i].image_id = item.image_id;
+      details[i].gamerscore = item.gamerscore;
+      details[i].unlock_time.unk_0 = item.unlock_time.unk_0;
+      details[i].unlock_time.unk_4 = item.unlock_time.unk_4;
+      details[i].flags = item.flags;
+    }
+
+    if (written_count) {
+      *written_count = static_cast<uint32_t>(count);
+    }
+
+    return X_ERROR_SUCCESS;
+  }
+
+ private:
+  struct StringBuffer {
+    uint32_t ptr;
+    uint8_t* data;
+    size_t remaining_bytes;
+  };
+
+  uint32_t AppendString(StringBuffer& sb, const std::u16string_view string) {
+    size_t count = string.length() + 1;
+    size_t size = count * sizeof(char16_t);
+    if (size > sb.remaining_bytes) {
+      assert_always();
+      return 0;
+    }
+    auto ptr = sb.ptr;
+    string_util::copy_and_swap_truncating(reinterpret_cast<char16_t*>(sb.data),
+                                          string, count);
+    sb.ptr += static_cast<uint32_t>(size);
+    sb.data += size;
+    sb.remaining_bytes -= size;
+    return ptr;
+  }
+
+ private:
+  uint32_t flags_;
+  std::vector<AchievementDetails> items_;
+  size_t current_item_ = 0;
+};
 
 dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
                                                   dword_t user_index,
@@ -558,15 +682,43 @@ dword_result_t XamUserCreateAchievementEnumerator(dword_t title_id,
                                                   dword_t offset, dword_t count,
                                                   lpdword_t buffer_size_ptr,
                                                   lpdword_t handle_ptr) {
-  if (buffer_size_ptr) {
-    *buffer_size_ptr = 500 * count;
+  if (!count || !buffer_size_ptr || !handle_ptr) {
+    return X_ERROR_INVALID_PARAMETER;
   }
 
-  auto e = object_ref<XStaticEnumerator>(
-      new XStaticEnumerator(kernel_state(), count, 500));
+  if (user_index >= 4) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  size_t entry_size = sizeof(X_ACHIEVEMENT_DETAILS);
+  if (flags & 7) {
+    entry_size += X_ACHIEVEMENT_DETAILS::kStringBufferSize;
+  }
+
+  if (buffer_size_ptr) {
+    *buffer_size_ptr = static_cast<uint32_t>(entry_size) * count;
+  }
+
+  auto e = object_ref<XStaticAchievementEnumerator>(
+      new XStaticAchievementEnumerator(kernel_state(), count, flags));
   auto result = e->Initialize(user_index, 0xFB, 0xB000A, 0xB000B, 0);
   if (XFAILED(result)) {
     return result;
+  }
+
+  uint32_t dummy_count = std::min(100u, uint32_t(count));
+  for (uint32_t i = 1; i <= dummy_count; ++i) {
+    auto item = XStaticAchievementEnumerator::AchievementDetails{
+        i,  // dummy achievement id
+        fmt::format(u"Dummy {}", i),
+        u"Dummy description",
+        u"Dummy unachieved",
+        i,  // dummy image id
+        0,
+        {0, 0},
+        8};  // flags=8 makes dummy achievements show up in 4D5307DC
+             // achievements list.
+    e->AppendItem(item);
   }
 
   *handle_ptr = e->handle();
@@ -584,14 +736,17 @@ dword_result_t XamParseGamerTileKey(lpdword_t key_ptr, lpdword_t out1_ptr,
 }
 DECLARE_XAM_EXPORT1(XamParseGamerTileKey, kUserProfiles, kStub);
 
-dword_result_t XamReadTileToTexture(dword_t unk1, dword_t unk2, dword_t unk3,
-                                    dword_t unk4, lpvoid_t buffer_ptr,
-                                    dword_t stride, dword_t height,
-                                    dword_t overlapped_ptr) {
-  // unk1: const?
-  // unk2: out0 from XamParseGamerTileKey
-  // unk3: some variant of out1/out2
-  // unk4: const?
+dword_result_t XamReadTileToTexture(dword_t unknown, dword_t title_id,
+                                    qword_t tile_id, dword_t user_index,
+                                    lpvoid_t buffer_ptr, dword_t stride,
+                                    dword_t height, dword_t overlapped_ptr) {
+  // TODO(gibbed): unknown=0,2,3,9
+  if (!tile_id) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  size_t size = size_t(stride) * size_t(height);
+  std::memset(buffer_ptr, 0xFF, size);
 
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
@@ -622,8 +777,10 @@ DECLARE_XAM_EXPORT1(XamSessionCreateHandle, kUserProfiles, kStub);
 
 dword_result_t XamSessionRefObjByHandle(dword_t handle, lpdword_t obj_ptr) {
   assert_true(handle == 0xCAFEDEAD);
-  *obj_ptr = 0;
-  return X_ERROR_FUNCTION_FAILED;
+  // TODO(PermaNull): Implement this properly,
+  // For the time being returning 0xDEADF00D will prevent crashing.
+  *obj_ptr = 0xDEADF00D;
+  return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamSessionRefObjByHandle, kUserProfiles, kStub);
 

@@ -20,18 +20,19 @@ ByteStream::ByteStream(uint8_t* data, size_t data_length, size_t offset)
 
 ByteStream::~ByteStream() = default;
 
-void ByteStream::Advance(size_t num_bytes) { offset_ += num_bytes; }
+void ByteStream::Advance(size_t num_bytes) {
+  assert_true(offset_ + num_bytes <= data_length_);
+  offset_ += num_bytes;
+}
 
 void ByteStream::Read(uint8_t* buf, size_t len) {
-  assert_true(offset_ < data_length_);
-
+  assert_true(offset_ + len <= data_length_);
   std::memcpy(buf, data_ + offset_, len);
   Advance(len);
 }
 
 void ByteStream::Write(const uint8_t* buf, size_t len) {
-  assert_true(offset_ < data_length_);
-
+  assert_true(offset_ + len <= data_length_);
   std::memcpy(data_ + offset_, buf, len);
   Advance(len);
 }
@@ -41,7 +42,6 @@ std::string ByteStream::Read() {
   std::string str;
   uint32_t len = Read<uint32_t>();
   str.resize(len);
-
   Read(reinterpret_cast<uint8_t*>(&str[0]), len);
   return str;
 }
@@ -49,9 +49,8 @@ std::string ByteStream::Read() {
 template <>
 std::u16string ByteStream::Read() {
   std::u16string str;
-  uint32_t len = Read<uint32_t>();
+  size_t len = Read<uint32_t>();
   str.resize(len);
-
   Read(reinterpret_cast<uint8_t*>(&str[0]), len * 2);
   return str;
 }
