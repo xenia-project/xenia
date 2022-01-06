@@ -2638,9 +2638,29 @@ void EmitAndNotXX(X64Emitter& e, const ARGS& i) {
       e.mov(i.dest, i.src1.constant() & ~i.src2.constant());
     } else {
       // src1 constant.
-      e.mov(i.dest, i.src2.constant());
-      e.not_(i.dest);
-      e.and_(i.dest, i.src1);
+
+      // `and` instruction only supports up to 32-bit immediate constants
+      // 64-bit constants will need a temp register
+      if (i.dest.reg().getBit() == 64) {
+        auto temp = GetTempReg<typename decltype(i.src1)::reg_type>(e);
+        e.mov(temp, i.src1.constant());
+
+        if (e.IsFeatureEnabled(kX64EmitBMI1)) {
+          if (i.dest.reg().getBit() == 64) {
+            e.andn(i.dest.reg().cvt64(), i.src2.reg().cvt64(), temp.cvt64());
+          } else {
+            e.andn(i.dest.reg().cvt32(), i.src2.reg().cvt32(), temp.cvt32());
+          }
+        } else {
+          e.mov(i.dest, i.src2);
+          e.not_(i.dest);
+          e.and_(i.dest, temp);
+        }
+      } else {
+        e.mov(i.dest, i.src2);
+        e.not_(i.dest);
+        e.and_(i.dest, uint32_t(i.src1.constant()));
+      }
     }
   } else if (i.src2.is_constant) {
     // src2 constant.
