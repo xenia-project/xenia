@@ -1217,6 +1217,25 @@ dword_result_t ExTryToAcquireReadWriteLockExclusive(
 DECLARE_XBOXKRNL_EXPORT1(ExTryToAcquireReadWriteLockExclusive, kThreading,
                          kImplemented);
 
+void ExAcquireReadWriteLockShared(pointer_t<X_ERWLOCK> lock_ptr) {
+  auto old_irql = xeKeKfAcquireSpinLock(&lock_ptr->spin_lock);
+
+  int32_t lock_count = ++lock_ptr->lock_count;
+  if (!lock_count ||
+      (lock_ptr->readers_entry_count && !lock_ptr->writers_waiting_count)) {
+    lock_ptr->readers_entry_count++;
+    xeKeKfReleaseSpinLock(&lock_ptr->spin_lock, old_irql);
+    return;
+  }
+
+  lock_ptr->readers_waiting_count++;
+
+  xeKeKfReleaseSpinLock(&lock_ptr->spin_lock, old_irql);
+  xeKeWaitForSingleObject(&lock_ptr->reader_semaphore, 7, 0, 0, nullptr);
+}
+DECLARE_XBOXKRNL_EXPORT2(ExAcquireReadWriteLockShared, kThreading, kImplemented,
+                         kBlocking);
+
 void ExReleaseReadWriteLock(pointer_t<X_ERWLOCK> lock_ptr) {
   auto old_irql = xeKeKfAcquireSpinLock(&lock_ptr->spin_lock);
 
