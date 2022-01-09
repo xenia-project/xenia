@@ -102,9 +102,8 @@ void XNotifyPositionUI_entry(dword_t position) {
 }
 DECLARE_XAM_EXPORT1(XNotifyPositionUI, kNone, kStub);
 
-void RegisterNotifyExports(xe::cpu::ExportResolver* export_resolver,
-                           KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Notify);

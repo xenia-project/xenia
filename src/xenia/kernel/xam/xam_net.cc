@@ -1031,9 +1031,8 @@ void NetDll_WSASetLastError_entry(dword_t error_code) {
 }
 DECLARE_XAM_EXPORT1(NetDll_WSASetLastError, kNetworking, kImplemented);
 
-void RegisterNetExports(xe::cpu::ExportResolver* export_resolver,
-                        KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Net);

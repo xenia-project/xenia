@@ -436,5 +436,4 @@ DECLARE_XAM_EXPORT1(XamGetLocaleEx, kLocale, kImplemented);
 }  // namespace kernel
 }  // namespace xe
 
-void xe::kernel::xam::RegisterLocaleExports(
-    xe::cpu::ExportResolver* export_resolver, KernelState* kernel_state) {}
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Locale);

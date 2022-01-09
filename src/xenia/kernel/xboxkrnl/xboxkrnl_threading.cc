@@ -1383,9 +1383,8 @@ pointer_result_t InterlockedFlushSList_entry(
 }
 DECLARE_XBOXKRNL_EXPORT1(InterlockedFlushSList, kThreading, kImplemented);
 
-void RegisterThreadingExports(xe::cpu::ExportResolver* export_resolver,
-                              KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(Threading);

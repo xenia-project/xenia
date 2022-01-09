@@ -420,9 +420,8 @@ dword_result_t XamContentDeleteInternal_entry(lpvoid_t content_data_ptr,
 }
 DECLARE_XAM_EXPORT1(XamContentDeleteInternal, kContent, kImplemented);
 
-void RegisterContentExports(xe::cpu::ExportResolver* export_resolver,
-                            KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Content);

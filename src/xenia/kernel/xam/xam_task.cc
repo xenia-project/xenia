@@ -72,9 +72,8 @@ DECLARE_XAM_EXPORT2(XamTaskSchedule, kNone, kImplemented, kSketchy);
 dword_result_t XamTaskShouldExit_entry(dword_t r3) { return 0; }
 DECLARE_XAM_EXPORT2(XamTaskShouldExit, kNone, kStub, kSketchy);
 
-void RegisterTaskExports(xe::cpu::ExportResolver* export_resolver,
-                         KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Task);

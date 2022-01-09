@@ -194,9 +194,8 @@ X_HRESULT_result_t XamUserGetDeviceContext_entry(dword_t user_index,
 }
 DECLARE_XAM_EXPORT1(XamUserGetDeviceContext, kInput, kStub);
 
-void RegisterInputExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Input);

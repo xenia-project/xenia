@@ -201,9 +201,8 @@ dword_result_t NtClose_entry(dword_t handle) {
 }
 DECLARE_XBOXKRNL_EXPORT1(NtClose, kNone, kImplemented);
 
-void RegisterObExports(xe::cpu::ExportResolver* export_resolver,
-                       KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(Ob);

@@ -649,9 +649,8 @@ dword_result_t MmDeleteKernelStack_entry(lpvoid_t stack_base,
 }
 DECLARE_XBOXKRNL_EXPORT1(MmDeleteKernelStack, kMemory, kImplemented);
 
-void RegisterMemoryExports(xe::cpu::ExportResolver* export_resolver,
-                           KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(Memory);

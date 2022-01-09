@@ -110,9 +110,8 @@ dword_result_t XamGetPrivateEnumStructureFromHandle_entry(
 }
 DECLARE_XAM_EXPORT1(XamGetPrivateEnumStructureFromHandle, kNone, kStub);
 
-void RegisterEnumExports(xe::cpu::ExportResolver* export_resolver,
-                         KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Enum);

@@ -624,9 +624,8 @@ dword_result_t RtlComputeCrc32_entry(dword_t seed, lpvoid_t buffer,
 }
 DECLARE_XBOXKRNL_EXPORT1(RtlComputeCrc32, kNone, kImplemented);
 
-void RegisterRtlExports(xe::cpu::ExportResolver* export_resolver,
-                        KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(Rtl);

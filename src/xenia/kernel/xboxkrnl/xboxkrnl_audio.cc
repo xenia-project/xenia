@@ -96,11 +96,8 @@ dword_result_t XAudioSubmitRenderDriverFrame_entry(lpunknown_t driver_ptr,
 DECLARE_XBOXKRNL_EXPORT2(XAudioSubmitRenderDriverFrame, kAudio, kImplemented,
                          kHighFrequency);
 
-void RegisterAudioExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* kernel_state) {
-  // Additional XMA* methods are in xboxkrnl_audio_xma.cc.
-}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(Audio);

@@ -135,9 +135,8 @@ dword_result_t XamGetOverlappedResult_entry(
 }
 DECLARE_XAM_EXPORT2(XamGetOverlappedResult, kNone, kImplemented, kSketchy);
 
-void RegisterMsgExports(xe::cpu::ExportResolver* export_resolver,
-                        KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Msg);
