@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -57,10 +57,11 @@ uint32_t FromXdkProtectFlags(uint32_t protect) {
   return result;
 }
 
-dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
-                                       lpdword_t region_size_ptr,
-                                       dword_t alloc_type, dword_t protect_bits,
-                                       dword_t debug_memory) {
+dword_result_t NtAllocateVirtualMemory_entry(lpdword_t base_addr_ptr,
+                                             lpdword_t region_size_ptr,
+                                             dword_t alloc_type,
+                                             dword_t protect_bits,
+                                             dword_t debug_memory) {
   // NTSTATUS
   // _Inout_  PVOID *BaseAddress,
   // _Inout_  PSIZE_T RegionSize,
@@ -189,11 +190,11 @@ dword_result_t NtAllocateVirtualMemory(lpdword_t base_addr_ptr,
 }
 DECLARE_XBOXKRNL_EXPORT1(NtAllocateVirtualMemory, kMemory, kImplemented);
 
-dword_result_t NtProtectVirtualMemory(lpdword_t base_addr_ptr,
-                                      lpdword_t region_size_ptr,
-                                      dword_t protect_bits,
-                                      lpdword_t old_protect,
-                                      dword_t debug_memory) {
+dword_result_t NtProtectVirtualMemory_entry(lpdword_t base_addr_ptr,
+                                            lpdword_t region_size_ptr,
+                                            dword_t protect_bits,
+                                            lpdword_t old_protect,
+                                            dword_t debug_memory) {
   // Set to TRUE when this memory refers to devkit memory area.
   assert_true(debug_memory == 0);
 
@@ -239,9 +240,10 @@ dword_result_t NtProtectVirtualMemory(lpdword_t base_addr_ptr,
 }
 DECLARE_XBOXKRNL_EXPORT1(NtProtectVirtualMemory, kMemory, kImplemented);
 
-dword_result_t NtFreeVirtualMemory(lpdword_t base_addr_ptr,
-                                   lpdword_t region_size_ptr, dword_t free_type,
-                                   dword_t debug_memory) {
+dword_result_t NtFreeVirtualMemory_entry(lpdword_t base_addr_ptr,
+                                         lpdword_t region_size_ptr,
+                                         dword_t free_type,
+                                         dword_t debug_memory) {
   uint32_t base_addr_value = *base_addr_ptr;
   uint32_t region_size_value = *region_size_ptr;
   // X_MEM_DECOMMIT | X_MEM_RELEASE
@@ -293,7 +295,7 @@ struct X_MEMORY_BASIC_INFORMATION {
   be<uint32_t> type;
 };
 
-dword_result_t NtQueryVirtualMemory(
+dword_result_t NtQueryVirtualMemory_entry(
     dword_t base_address,
     pointer_t<X_MEMORY_BASIC_INFORMATION> memory_basic_information_ptr) {
   auto heap = kernel_state()->memory()->LookupHeap(base_address);
@@ -328,11 +330,9 @@ dword_result_t NtQueryVirtualMemory(
 }
 DECLARE_XBOXKRNL_EXPORT1(NtQueryVirtualMemory, kMemory, kImplemented);
 
-dword_result_t MmAllocatePhysicalMemoryEx(dword_t flags, dword_t region_size,
-                                          dword_t protect_bits,
-                                          dword_t min_addr_range,
-                                          dword_t max_addr_range,
-                                          dword_t alignment) {
+dword_result_t MmAllocatePhysicalMemoryEx_entry(
+    dword_t flags, dword_t region_size, dword_t protect_bits,
+    dword_t min_addr_range, dword_t max_addr_range, dword_t alignment) {
   // Type will usually be 0 (user request?), where 1 and 2 are sometimes made
   // by D3D/etc.
 
@@ -392,14 +392,15 @@ dword_result_t MmAllocatePhysicalMemoryEx(dword_t flags, dword_t region_size,
 }
 DECLARE_XBOXKRNL_EXPORT1(MmAllocatePhysicalMemoryEx, kMemory, kImplemented);
 
-dword_result_t MmAllocatePhysicalMemory(dword_t flags, dword_t region_size,
-                                        dword_t protect_bits) {
-  return MmAllocatePhysicalMemoryEx(flags, region_size, protect_bits, 0,
-                                    0xFFFFFFFFu, 0);
+dword_result_t MmAllocatePhysicalMemory_entry(dword_t flags,
+                                              dword_t region_size,
+                                              dword_t protect_bits) {
+  return MmAllocatePhysicalMemoryEx_entry(flags, region_size, protect_bits, 0,
+                                          0xFFFFFFFFu, 0);
 }
 DECLARE_XBOXKRNL_EXPORT1(MmAllocatePhysicalMemory, kMemory, kImplemented);
 
-void MmFreePhysicalMemory(dword_t type, dword_t base_address) {
+void MmFreePhysicalMemory_entry(dword_t type, dword_t base_address) {
   // base_address = result of MmAllocatePhysicalMemory.
 
   assert_true((base_address & 0x1F) == 0);
@@ -409,7 +410,7 @@ void MmFreePhysicalMemory(dword_t type, dword_t base_address) {
 }
 DECLARE_XBOXKRNL_EXPORT1(MmFreePhysicalMemory, kMemory, kImplemented);
 
-dword_result_t MmQueryAddressProtect(dword_t base_address) {
+dword_result_t MmQueryAddressProtect_entry(dword_t base_address) {
   auto heap = kernel_state()->memory()->LookupHeap(base_address);
   uint32_t access;
   if (!heap->QueryProtect(base_address, &access)) {
@@ -422,8 +423,8 @@ dword_result_t MmQueryAddressProtect(dword_t base_address) {
 DECLARE_XBOXKRNL_EXPORT2(MmQueryAddressProtect, kMemory, kImplemented,
                          kHighFrequency);
 
-void MmSetAddressProtect(lpvoid_t base_address, dword_t region_size,
-                         dword_t protect_bits) {
+void MmSetAddressProtect_entry(lpvoid_t base_address, dword_t region_size,
+                               dword_t protect_bits) {
   if (!protect_bits) {
     XELOGE("MmSetAddressProtect: Failed due to incorrect protect_bits");
     return;
@@ -435,7 +436,7 @@ void MmSetAddressProtect(lpvoid_t base_address, dword_t region_size,
 }
 DECLARE_XBOXKRNL_EXPORT1(MmSetAddressProtect, kMemory, kImplemented);
 
-dword_result_t MmQueryAllocationSize(lpvoid_t base_address) {
+dword_result_t MmQueryAllocationSize_entry(lpvoid_t base_address) {
   auto heap = kernel_state()->memory()->LookupHeap(base_address);
   uint32_t size;
   if (!heap->QuerySize(base_address, &size)) {
@@ -471,7 +472,7 @@ struct X_MM_QUERY_STATISTICS_RESULT {
 };
 static_assert_size(X_MM_QUERY_STATISTICS_RESULT, 104);
 
-dword_result_t MmQueryStatistics(
+dword_result_t MmQueryStatistics_entry(
     pointer_t<X_MM_QUERY_STATISTICS_RESULT> stats_ptr) {
   if (!stats_ptr) {
     return X_STATUS_INVALID_PARAMETER;
@@ -550,7 +551,7 @@ dword_result_t MmQueryStatistics(
 DECLARE_XBOXKRNL_EXPORT1(MmQueryStatistics, kMemory, kImplemented);
 
 // https://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
-dword_result_t MmGetPhysicalAddress(dword_t base_address) {
+dword_result_t MmGetPhysicalAddress_entry(dword_t base_address) {
   // PHYSICAL_ADDRESS MmGetPhysicalAddress(
   //   _In_  PVOID BaseAddress
   // );
@@ -564,8 +565,8 @@ dword_result_t MmGetPhysicalAddress(dword_t base_address) {
 }
 DECLARE_XBOXKRNL_EXPORT1(MmGetPhysicalAddress, kMemory, kImplemented);
 
-dword_result_t MmMapIoSpace(dword_t unk0, lpvoid_t src_address, dword_t size,
-                            dword_t flags) {
+dword_result_t MmMapIoSpace_entry(dword_t unk0, lpvoid_t src_address,
+                                  dword_t size, dword_t flags) {
   // I've only seen this used to map XMA audio contexts.
   // The code seems fine with taking the src address, so this just returns that.
   // If others start using it there could be problems.
@@ -577,8 +578,8 @@ dword_result_t MmMapIoSpace(dword_t unk0, lpvoid_t src_address, dword_t size,
 }
 DECLARE_XBOXKRNL_EXPORT1(MmMapIoSpace, kMemory, kImplemented);
 
-dword_result_t ExAllocatePoolTypeWithTag(dword_t size, dword_t tag,
-                                         dword_t zero) {
+dword_result_t ExAllocatePoolTypeWithTag_entry(dword_t size, dword_t tag,
+                                               dword_t zero) {
   uint32_t alignment = 8;
   uint32_t adjusted_size = size;
   if (adjusted_size < 4 * 1024) {
@@ -594,33 +595,33 @@ dword_result_t ExAllocatePoolTypeWithTag(dword_t size, dword_t tag,
 }
 DECLARE_XBOXKRNL_EXPORT1(ExAllocatePoolTypeWithTag, kMemory, kImplemented);
 
-dword_result_t ExAllocatePool(dword_t size) {
+dword_result_t ExAllocatePool_entry(dword_t size) {
   const uint32_t none = 0x656E6F4E;  // 'None'
-  return ExAllocatePoolTypeWithTag(size, none, 0);
+  return ExAllocatePoolTypeWithTag_entry(size, none, 0);
 }
 DECLARE_XBOXKRNL_EXPORT1(ExAllocatePool, kMemory, kImplemented);
 
-void ExFreePool(lpvoid_t base_address) {
+void ExFreePool_entry(lpvoid_t base_address) {
   kernel_state()->memory()->SystemHeapFree(base_address);
 }
 DECLARE_XBOXKRNL_EXPORT1(ExFreePool, kMemory, kImplemented);
 
-dword_result_t KeGetImagePageTableEntry(lpvoid_t address) {
+dword_result_t KeGetImagePageTableEntry_entry(lpvoid_t address) {
   // Unknown
   return 1;
 }
 DECLARE_XBOXKRNL_EXPORT1(KeGetImagePageTableEntry, kMemory, kStub);
 
-dword_result_t KeLockL2() {
+dword_result_t KeLockL2_entry() {
   // TODO
   return 0;
 }
 DECLARE_XBOXKRNL_EXPORT1(KeLockL2, kMemory, kStub);
 
-void KeUnlockL2() {}
+void KeUnlockL2_entry() {}
 DECLARE_XBOXKRNL_EXPORT1(KeUnlockL2, kMemory, kStub);
 
-dword_result_t MmCreateKernelStack(dword_t stack_size, dword_t r4) {
+dword_result_t MmCreateKernelStack_entry(dword_t stack_size, dword_t r4) {
   assert_zero(r4);  // Unknown argument.
 
   auto stack_size_aligned = (stack_size + 0xFFF) & 0xFFFFF000;
@@ -637,7 +638,8 @@ dword_result_t MmCreateKernelStack(dword_t stack_size, dword_t r4) {
 }
 DECLARE_XBOXKRNL_EXPORT1(MmCreateKernelStack, kMemory, kImplemented);
 
-dword_result_t MmDeleteKernelStack(lpvoid_t stack_base, lpvoid_t stack_end) {
+dword_result_t MmDeleteKernelStack_entry(lpvoid_t stack_base,
+                                         lpvoid_t stack_end) {
   // Release the stack (where stack_end is the low address)
   if (kernel_memory()->LookupHeap(0x70000000)->Release(stack_end)) {
     return X_STATUS_SUCCESS;

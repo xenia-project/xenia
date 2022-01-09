@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -59,9 +59,9 @@ const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id) {
   return it == end ? nullptr : *it;
 }
 
-dword_result_t XamContentGetDeviceName(dword_t device_id,
-                                       lpu16string_t name_buffer,
-                                       dword_t name_capacity) {
+dword_result_t XamContentGetDeviceName_entry(dword_t device_id,
+                                             lpu16string_t name_buffer,
+                                             dword_t name_capacity) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
@@ -75,8 +75,8 @@ dword_result_t XamContentGetDeviceName(dword_t device_id,
 }
 DECLARE_XAM_EXPORT1(XamContentGetDeviceName, kContent, kImplemented);
 
-dword_result_t XamContentGetDeviceState(dword_t device_id,
-                                        lpunknown_t overlapped_ptr) {
+dword_result_t XamContentGetDeviceState_entry(dword_t device_id,
+                                              lpunknown_t overlapped_ptr) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
     if (overlapped_ptr) {
@@ -110,7 +110,7 @@ typedef struct {
 } X_CONTENT_DEVICE_DATA;
 static_assert_size(X_CONTENT_DEVICE_DATA, 0x50);
 
-dword_result_t XamContentGetDeviceData(
+dword_result_t XamContentGetDeviceData_entry(
     dword_t device_id, pointer_t<X_CONTENT_DEVICE_DATA> device_data) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
@@ -128,11 +128,11 @@ dword_result_t XamContentGetDeviceData(
 }
 DECLARE_XAM_EXPORT1(XamContentGetDeviceData, kContent, kImplemented);
 
-dword_result_t XamContentCreateDeviceEnumerator(dword_t content_type,
-                                                dword_t content_flags,
-                                                dword_t max_count,
-                                                lpdword_t buffer_size_ptr,
-                                                lpdword_t handle_out) {
+dword_result_t XamContentCreateDeviceEnumerator_entry(dword_t content_type,
+                                                      dword_t content_flags,
+                                                      dword_t max_count,
+                                                      lpdword_t buffer_size_ptr,
+                                                      lpdword_t handle_out) {
   assert_not_null(handle_out);
 
   if (buffer_size_ptr) {

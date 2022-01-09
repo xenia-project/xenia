@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -17,7 +17,7 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-dword_result_t HidReadKeys(dword_t unk1, unknown_t unk2, unknown_t unk3) {
+dword_result_t HidReadKeys_entry(dword_t unk1, unknown_t unk2, unknown_t unk3) {
   /* TODO(gibbed):
    * Games check for the following errors:
    *   0xC000009D - translated to 0x48F  - ERROR_DEVICE_NOT_CONNECTED

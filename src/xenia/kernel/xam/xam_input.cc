@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -28,19 +28,20 @@ using xe::hid::X_INPUT_VIBRATION;
 constexpr uint32_t XINPUT_FLAG_GAMEPAD = 0x01;
 constexpr uint32_t XINPUT_FLAG_ANY_USER = 1 << 30;
 
-void XamResetInactivity() {
+void XamResetInactivity_entry() {
   // Do we need to do anything?
 }
 DECLARE_XAM_EXPORT1(XamResetInactivity, kInput, kStub);
 
-dword_result_t XamEnableInactivityProcessing(dword_t unk, dword_t enable) {
+dword_result_t XamEnableInactivityProcessing_entry(dword_t unk,
+                                                   dword_t enable) {
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamEnableInactivityProcessing, kInput, kStub);
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
-dword_result_t XamInputGetCapabilities(dword_t user_index, dword_t flags,
-                                       pointer_t<X_INPUT_CAPABILITIES> caps) {
+dword_result_t XamInputGetCapabilities_entry(
+    dword_t user_index, dword_t flags, pointer_t<X_INPUT_CAPABILITIES> caps) {
   if (!caps) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -61,9 +62,9 @@ dword_result_t XamInputGetCapabilities(dword_t user_index, dword_t flags,
 }
 DECLARE_XAM_EXPORT1(XamInputGetCapabilities, kInput, kSketchy);
 
-dword_result_t XamInputGetCapabilitiesEx(dword_t unk, dword_t user_index,
-                                         dword_t flags,
-                                         pointer_t<X_INPUT_CAPABILITIES> caps) {
+dword_result_t XamInputGetCapabilitiesEx_entry(
+    dword_t unk, dword_t user_index, dword_t flags,
+    pointer_t<X_INPUT_CAPABILITIES> caps) {
   if (!caps) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -85,8 +86,8 @@ dword_result_t XamInputGetCapabilitiesEx(dword_t unk, dword_t user_index,
 DECLARE_XAM_EXPORT1(XamInputGetCapabilitiesEx, kInput, kSketchy);
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetstate(v=vs.85).aspx
-dword_result_t XamInputGetState(dword_t user_index, dword_t flags,
-                                pointer_t<X_INPUT_STATE> input_state) {
+dword_result_t XamInputGetState_entry(dword_t user_index, dword_t flags,
+                                      pointer_t<X_INPUT_STATE> input_state) {
   // Games call this with a NULL state ptr, probably as a query.
 
   if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
@@ -103,11 +104,11 @@ dword_result_t XamInputGetState(dword_t user_index, dword_t flags,
   auto input_system = kernel_state()->emulator()->input_system();
   return input_system->GetState(user_index, input_state);
 }
-DECLARE_XAM_EXPORT1(XamInputGetState, kInput, kImplemented);
+DECLARE_XAM_EXPORT2(XamInputGetState, kInput, kImplemented, kHighFrequency);
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputsetstate(v=vs.85).aspx
-dword_result_t XamInputSetState(dword_t user_index, dword_t unk,
-                                pointer_t<X_INPUT_VIBRATION> vibration) {
+dword_result_t XamInputSetState_entry(dword_t user_index, dword_t unk,
+                                      pointer_t<X_INPUT_VIBRATION> vibration) {
   if (!vibration) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -124,8 +125,8 @@ dword_result_t XamInputSetState(dword_t user_index, dword_t unk,
 DECLARE_XAM_EXPORT1(XamInputSetState, kInput, kImplemented);
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetkeystroke(v=vs.85).aspx
-dword_result_t XamInputGetKeystroke(dword_t user_index, dword_t flags,
-                                    pointer_t<X_INPUT_KEYSTROKE> keystroke) {
+dword_result_t XamInputGetKeystroke_entry(
+    dword_t user_index, dword_t flags, pointer_t<X_INPUT_KEYSTROKE> keystroke) {
   // https://github.com/CodeAsm/ffplay360/blob/master/Common/AtgXime.cpp
   // user index = index or XUSER_INDEX_ANY
   // flags = XINPUT_FLAG_GAMEPAD (| _ANYUSER | _ANYDEVICE)
@@ -151,8 +152,9 @@ dword_result_t XamInputGetKeystroke(dword_t user_index, dword_t flags,
 DECLARE_XAM_EXPORT1(XamInputGetKeystroke, kInput, kImplemented);
 
 // Same as non-ex, just takes a pointer to user index.
-dword_result_t XamInputGetKeystrokeEx(lpdword_t user_index_ptr, dword_t flags,
-                                      pointer_t<X_INPUT_KEYSTROKE> keystroke) {
+dword_result_t XamInputGetKeystrokeEx_entry(
+    lpdword_t user_index_ptr, dword_t flags,
+    pointer_t<X_INPUT_KEYSTROKE> keystroke) {
   if (!keystroke) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -177,8 +179,9 @@ dword_result_t XamInputGetKeystrokeEx(lpdword_t user_index_ptr, dword_t flags,
 }
 DECLARE_XAM_EXPORT1(XamInputGetKeystrokeEx, kInput, kImplemented);
 
-X_HRESULT_result_t XamUserGetDeviceContext(dword_t user_index, dword_t unk,
-                                           lpdword_t out_ptr) {
+X_HRESULT_result_t XamUserGetDeviceContext_entry(dword_t user_index,
+                                                 dword_t unk,
+                                                 lpdword_t out_ptr) {
   // Games check the result - usually with some masking.
   // If this function fails they assume zero, so let's fail AND
   // set zero just to be safe.
