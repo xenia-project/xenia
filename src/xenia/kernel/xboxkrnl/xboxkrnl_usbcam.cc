@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -17,9 +17,9 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-dword_result_t XUsbcamCreate(dword_t buffer,
-                             dword_t buffer_size,  // 0x4B000 640x480?
-                             lpunknown_t unk3_ptr) {
+dword_result_t XUsbcamCreate_entry(dword_t buffer,
+                                   dword_t buffer_size,  // 0x4B000 640x480?
+                                   lpunknown_t unk3_ptr) {
   // This function should return success.
   // It looks like it only allocates space for usbcam support.
   // returning error code might cause games to initialize incorrectly.
@@ -31,7 +31,7 @@ dword_result_t XUsbcamCreate(dword_t buffer,
 }
 DECLARE_XBOXKRNL_EXPORT1(XUsbcamCreate, kNone, kStub);
 
-dword_result_t XUsbcamGetState() {
+dword_result_t XUsbcamGetState_entry() {
   // 0 = not connected.
   return 0;
 }

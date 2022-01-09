@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -20,8 +20,8 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-dword_result_t XMsgInProcessCall(dword_t app, dword_t message, dword_t arg1,
-                                 dword_t arg2) {
+dword_result_t XMsgInProcessCall_entry(dword_t app, dword_t message,
+                                       dword_t arg1, dword_t arg2) {
   auto result = kernel_state()->app_manager()->DispatchMessageSync(app, message,
                                                                    arg1, arg2);
   if (result == X_ERROR_NOT_FOUND) {
@@ -31,8 +31,9 @@ dword_result_t XMsgInProcessCall(dword_t app, dword_t message, dword_t arg1,
 }
 DECLARE_XAM_EXPORT1(XMsgInProcessCall, kNone, kImplemented);
 
-dword_result_t XMsgSystemProcessCall(dword_t app, dword_t message,
-                                     dword_t buffer, dword_t buffer_length) {
+dword_result_t XMsgSystemProcessCall_entry(dword_t app, dword_t message,
+                                           dword_t buffer,
+                                           dword_t buffer_length) {
   auto result = kernel_state()->app_manager()->DispatchMessageAsync(
       app, message, buffer, buffer_length);
   if (result == X_ERROR_NOT_FOUND) {
@@ -68,7 +69,7 @@ X_HRESULT xeXMsgStartIORequestEx(uint32_t app, uint32_t message,
   return result;
 }
 
-dword_result_t XMsgStartIORequestEx(
+dword_result_t XMsgStartIORequestEx_entry(
     dword_t app, dword_t message, pointer_t<XAM_OVERLAPPED> overlapped_ptr,
     dword_t buffer_ptr, dword_t buffer_length,
     pointer_t<XMSGSTARTIOREQUEST_UNKNOWNARG> unknown_ptr) {
@@ -77,16 +78,16 @@ dword_result_t XMsgStartIORequestEx(
 }
 DECLARE_XAM_EXPORT1(XMsgStartIORequestEx, kNone, kImplemented);
 
-dword_result_t XMsgStartIORequest(dword_t app, dword_t message,
-                                  pointer_t<XAM_OVERLAPPED> overlapped_ptr,
-                                  dword_t buffer_ptr, dword_t buffer_length) {
+dword_result_t XMsgStartIORequest_entry(
+    dword_t app, dword_t message, pointer_t<XAM_OVERLAPPED> overlapped_ptr,
+    dword_t buffer_ptr, dword_t buffer_length) {
   return xeXMsgStartIORequestEx(app, message, overlapped_ptr, buffer_ptr,
                                 buffer_length, nullptr);
 }
 DECLARE_XAM_EXPORT1(XMsgStartIORequest, kNone, kImplemented);
 
-dword_result_t XMsgCancelIORequest(pointer_t<XAM_OVERLAPPED> overlapped_ptr,
-                                   dword_t wait) {
+dword_result_t XMsgCancelIORequest_entry(
+    pointer_t<XAM_OVERLAPPED> overlapped_ptr, dword_t wait) {
   X_HANDLE event_handle = XOverlappedGetEvent(overlapped_ptr);
   if (event_handle && wait) {
     auto ev =
@@ -100,17 +101,18 @@ dword_result_t XMsgCancelIORequest(pointer_t<XAM_OVERLAPPED> overlapped_ptr,
 }
 DECLARE_XAM_EXPORT1(XMsgCancelIORequest, kNone, kImplemented);
 
-dword_result_t XMsgCompleteIORequest(pointer_t<XAM_OVERLAPPED> overlapped_ptr,
-                                     dword_t result, dword_t extended_error,
-                                     dword_t length) {
+dword_result_t XMsgCompleteIORequest_entry(
+    pointer_t<XAM_OVERLAPPED> overlapped_ptr, dword_t result,
+    dword_t extended_error, dword_t length) {
   kernel_state()->CompleteOverlappedImmediateEx(overlapped_ptr, result,
                                                 extended_error, length);
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT2(XMsgCompleteIORequest, kNone, kImplemented, kSketchy);
 
-dword_result_t XamGetOverlappedResult(pointer_t<XAM_OVERLAPPED> overlapped_ptr,
-                                      lpdword_t length_ptr, dword_t unknown) {
+dword_result_t XamGetOverlappedResult_entry(
+    pointer_t<XAM_OVERLAPPED> overlapped_ptr, lpdword_t length_ptr,
+    dword_t unknown) {
   uint32_t result;
   if (overlapped_ptr->result != X_ERROR_IO_PENDING) {
     result = overlapped_ptr->result;

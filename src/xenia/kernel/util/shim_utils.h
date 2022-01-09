@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -33,7 +33,7 @@ using PPCContext = xe::cpu::ppc::PPCContext;
 #define SHIM_SET_MAPPING(library_name, export_name, shim_data) \
   export_resolver->SetFunctionMapping(                         \
       library_name, ordinals::export_name,                     \
-      (xe::cpu::xe_kernel_export_shim_fn)export_name##_shim);
+      (xe::cpu::xe_kernel_export_shim_fn)export_name##_entry);
 
 #define SHIM_MEM_ADDR(a) \
   ((a) ? ppc_context->kernel_state->memory()->TranslateVirtual(a) : nullptr)
@@ -559,7 +559,7 @@ using xe::cpu::ExportTag;
   const auto EXPORT_##module_name##_##name = RegisterExport_##module_name( \
       xe::kernel::shim::RegisterExport<                                    \
           xe::kernel::shim::KernelModuleId::module_name, ordinals::name>(  \
-          &name, #name,                                                    \
+          &name##_entry, #name,                                            \
           tags | (static_cast<xe::cpu::ExportTag::type>(                   \
                       xe::cpu::ExportCategory::category)                   \
                   << xe::cpu::ExportTag::CategoryShift)));
