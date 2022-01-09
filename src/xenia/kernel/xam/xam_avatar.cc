@@ -35,9 +35,6 @@ void XamAvatarShutdown_entry() {
 }
 DECLARE_XAM_EXPORT1(XamAvatarShutdown, kAvatars, kStub);
 
-void RegisterAvatarExports(xe::cpu::ExportResolver* export_resolver,
-                           KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
