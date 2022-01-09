@@ -440,6 +440,13 @@ struct ParsedVertexFetchInstruction {
   // Number of source operands.
   size_t operand_count = 0;
   // Describes each source operand.
+  // Note that for vfetch_mini, which inherits the operands from vfetch_full,
+  // the index operand register may been overwritten between the vfetch_full and
+  // the vfetch_mini (happens in 4D530910 for wheels), but that should have no
+  // effect on the index actually used for fetching. A copy of the index
+  // therefore must be stored by vfetch_full (the base address, stride and
+  // rounding may be pre-applied to it since they will be the same in the
+  // vfetch_full and all its vfetch_mini instructions).
   InstructionOperand operands[2];
 
   struct Attributes {

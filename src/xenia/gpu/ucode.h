@@ -599,6 +599,8 @@ struct alignas(uint32_t) VertexFetchInstruction {
   // Required condition value of the comparision (true or false).
   bool predicate_condition() const { return data_.pred_condition == 1; }
   // Vertex fetch constant index [0-95].
+  // Applicable only to vfetch_full (the address from vfetch_full is reused in
+  // vfetch_mini).
   uint32_t fetch_constant_index() const {
     return data_.const_index * 3 + data_.const_index_sel;
   }
@@ -606,6 +608,8 @@ struct alignas(uint32_t) VertexFetchInstruction {
   uint32_t dest() const { return data_.dst_reg; }
   uint32_t dest_swizzle() const { return data_.dst_swiz; }
   bool is_dest_relative() const { return data_.dst_reg_am; }
+  // The source is applicable only to vfetch_full (the address from vfetch_full
+  // is reused in vfetch_mini).
   uint32_t src() const { return data_.src_reg; }
   uint32_t src_swizzle() const { return data_.src_swiz; }
   bool is_src_relative() const { return data_.src_reg_am; }
@@ -644,17 +648,20 @@ struct alignas(uint32_t) VertexFetchInstruction {
   xenos::SignedRepeatingFractionMode signed_rf_mode() const {
     return data_.signed_rf_mode_all;
   }
+  // If true, the floating-point index is rounded to the nearest integer (likely
+  // as floor(index + 0.5) because rounding to the nearest even makes no sense
+  // for addressing, both 1.5 and 2.5 would be 2).
+  // Otherwise, it's floored (rounded towards negative infinity).
+  // Applicable only to vfetch_full (the address from vfetch_full is reused in
+  // vfetch_mini).
+  // http://web.archive.org/web/20090914055358/http://msdn.microsoft.com/en-us/library/bb313960.aspx
   bool is_index_rounded() const { return data_.is_index_rounded == 1; }
   // Dword stride, [0, 255].
+  // Applicable only to vfetch_full (the address from vfetch_full is reused in
+  // vfetch_mini).
   uint32_t stride() const { return data_.stride; }
   // Dword offset, [-4194304, 4194303].
   int32_t offset() const { return data_.offset; }
-
-  void AssignFromFull(const VertexFetchInstruction& full) {
-    data_.stride = full.data_.stride;
-    data_.const_index = full.data_.const_index;
-    data_.const_index_sel = full.data_.const_index_sel;
-  }
 
  private:
   struct Data {
