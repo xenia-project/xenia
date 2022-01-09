@@ -282,13 +282,19 @@ void Shader::GatherVertexFetchInformation(
 
   GatherFetchResultInformation(fetch_instr.result);
 
-  // Don't bother setting up a binding for an instruction that fetches nothing.
-  if (!fetch_instr.result.GetUsedResultComponents()) {
-    return;
+  // Mini-fetches inherit the operands from full fetches.
+  if (!fetch_instr.is_mini_fetch) {
+    for (size_t i = 0; i < fetch_instr.operand_count; ++i) {
+      GatherOperandInformation(fetch_instr.operands[i]);
+    }
   }
 
-  for (size_t i = 0; i < fetch_instr.operand_count; ++i) {
-    GatherOperandInformation(fetch_instr.operands[i]);
+  // Don't bother setting up a binding for an instruction that fetches nothing.
+  // In case of vfetch_full, however, it may still be used to set up addressing
+  // for the subsequent vfetch_mini, so operand information must still be
+  // gathered.
+  if (!fetch_instr.result.GetUsedResultComponents()) {
+    return;
   }
 
   // Try to allocate an attribute on an existing binding.
@@ -433,6 +439,10 @@ void Shader::GatherOperandInformation(const InstructionOperand& operand) {
       } else {
         constant_register_map_.float_dynamic_addressing = true;
       }
+      break;
+    case InstructionStorageSource::kVertexFetchConstant:
+      constant_register_map_.vertex_fetch_bitmap[operand.storage_index >> 5] |=
+          uint32_t(1) << (operand.storage_index & 31);
       break;
     default:
       break;

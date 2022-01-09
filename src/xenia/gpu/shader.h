@@ -435,6 +435,11 @@ struct ParsedVertexFetchInstruction {
   bool predicate_condition = false;
 
   // Describes how the instruction result is stored.
+  // Note that if the result doesn't have any components to write the fetched
+  // value to, the address calculation in vfetch_full must still be performed
+  // because such a vfetch_full may be used to setup addressing for vfetch_mini
+  // (wires in the color pass of 5454082B do vfetch_full to r2.000_, and then a
+  // true vfetch_mini).
   InstructionResult result;
 
   // Number of source operands.
@@ -696,6 +701,9 @@ class Shader {
     // Bitmap of all bool constants read by the shader.
     // Each bit corresponds to a storage index [0-255].
     uint32_t bool_bitmap[256 / 32];
+    // Bitmap of all vertex fetch constants read by the shader.
+    // Each bit corresponds to a storage index [0-95].
+    uint32_t vertex_fetch_bitmap[96 / 32];
 
     // Total number of kConstantFloat registers read by the shader.
     uint32_t float_count;

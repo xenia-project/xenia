@@ -35,7 +35,9 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   uint32_t used_result_components = instr.result.GetUsedResultComponents();
   uint32_t needed_words = xenos::GetVertexFormatNeededWords(
       instr.attributes.data_format, used_result_components);
-  if (!needed_words) {
+  // If this is vfetch_full, the address may still be needed for vfetch_mini -
+  // don't exit before calculating the address.
+  if (!needed_words && instr.is_mini_fetch) {
     // Nothing to load - just constant 0/1 writes, or the swizzle includes only
     // components that don't exist in the format (writing zero instead of them).
     // Unpacking assumes at least some word is needed.
@@ -105,6 +107,13 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
       a_.OpAnd(address_dest, fetch_constant_src.SelectFromSwizzled(0),
                dxbc::Src::LU(~uint32_t(3)));
     }
+  }
+
+  if (!needed_words) {
+    // The vfetch_full address has been loaded for the subsequent vfetch_mini,
+    // but there's no data to load.
+    StoreResult(instr.result, dxbc::Src::LF(0.0f));
+    return;
   }
 
   dxbc::Dest address_temp_dest(dxbc::Dest::R(system_temp_result_, 0b1000));
