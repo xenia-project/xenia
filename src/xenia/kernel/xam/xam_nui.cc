@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -34,14 +34,14 @@ struct X_NUI_DEVICE_STATUS {
 };
 static_assert(sizeof(X_NUI_DEVICE_STATUS) == 24, "Size matters");
 
-void XamNuiGetDeviceStatus(pointer_t<X_NUI_DEVICE_STATUS> status_ptr) {
+void XamNuiGetDeviceStatus_entry(pointer_t<X_NUI_DEVICE_STATUS> status_ptr) {
   status_ptr.Zero();
   status_ptr->status = 0;  // Not connected.
 }
 DECLARE_XAM_EXPORT1(XamNuiGetDeviceStatus, kNone, kStub);
 
-dword_result_t XamShowNuiTroubleshooterUI(unknown_t unk1, unknown_t unk2,
-                                          unknown_t unk3) {
+dword_result_t XamShowNuiTroubleshooterUI_entry(unknown_t unk1, unknown_t unk2,
+                                                unknown_t unk3) {
   // unk1 is 0xFF - possibly user index?
   // unk2, unk3 appear to always be zero.
 

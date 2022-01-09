@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -95,13 +95,13 @@ static bool IsValidPath(const std::string_view s, bool is_pattern) {
   return true;
 }
 
-dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
-                            pointer_t<X_OBJECT_ATTRIBUTES> object_attrs,
-                            pointer_t<X_IO_STATUS_BLOCK> io_status_block,
-                            lpqword_t allocation_size_ptr,
-                            dword_t file_attributes, dword_t share_access,
-                            dword_t creation_disposition,
-                            dword_t create_options) {
+dword_result_t NtCreateFile_entry(lpdword_t handle_out, dword_t desired_access,
+                                  pointer_t<X_OBJECT_ATTRIBUTES> object_attrs,
+                                  pointer_t<X_IO_STATUS_BLOCK> io_status_block,
+                                  lpqword_t allocation_size_ptr,
+                                  dword_t file_attributes, dword_t share_access,
+                                  dword_t creation_disposition,
+                                  dword_t create_options) {
   uint64_t allocation_size = 0;  // is this correct???
   if (allocation_size_ptr) {
     allocation_size = *allocation_size_ptr;
@@ -170,22 +170,22 @@ dword_result_t NtCreateFile(lpdword_t handle_out, dword_t desired_access,
 }
 DECLARE_XBOXKRNL_EXPORT1(NtCreateFile, kFileSystem, kImplemented);
 
-dword_result_t NtOpenFile(lpdword_t handle_out, dword_t desired_access,
-                          pointer_t<X_OBJECT_ATTRIBUTES> object_attributes,
-                          pointer_t<X_IO_STATUS_BLOCK> io_status_block,
-                          dword_t open_options) {
-  return NtCreateFile(handle_out, desired_access, object_attributes,
-                      io_status_block, nullptr, 0, 0,
-                      static_cast<uint32_t>(xe::vfs::FileDisposition::kOpen),
-                      open_options);
+dword_result_t NtOpenFile_entry(
+    lpdword_t handle_out, dword_t desired_access,
+    pointer_t<X_OBJECT_ATTRIBUTES> object_attributes,
+    pointer_t<X_IO_STATUS_BLOCK> io_status_block, dword_t open_options) {
+  return NtCreateFile_entry(
+      handle_out, desired_access, object_attributes, io_status_block, nullptr,
+      0, 0, static_cast<uint32_t>(xe::vfs::FileDisposition::kOpen),
+      open_options);
 }
 DECLARE_XBOXKRNL_EXPORT1(NtOpenFile, kFileSystem, kImplemented);
 
-dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
-                          lpvoid_t apc_routine_ptr, lpvoid_t apc_context,
-                          pointer_t<X_IO_STATUS_BLOCK> io_status_block,
-                          lpvoid_t buffer, dword_t buffer_length,
-                          lpqword_t byte_offset_ptr) {
+dword_result_t NtReadFile_entry(dword_t file_handle, dword_t event_handle,
+                                lpvoid_t apc_routine_ptr, lpvoid_t apc_context,
+                                pointer_t<X_IO_STATUS_BLOCK> io_status_block,
+                                lpvoid_t buffer, dword_t buffer_length,
+                                lpqword_t byte_offset_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   bool signal_event = false;
@@ -265,11 +265,10 @@ dword_result_t NtReadFile(dword_t file_handle, dword_t event_handle,
 }
 DECLARE_XBOXKRNL_EXPORT2(NtReadFile, kFileSystem, kImplemented, kHighFrequency);
 
-dword_result_t NtReadFileScatter(dword_t file_handle, dword_t event_handle,
-                                 lpvoid_t apc_routine_ptr, lpvoid_t apc_context,
-                                 pointer_t<X_IO_STATUS_BLOCK> io_status_block,
-                                 lpdword_t segment_array, dword_t length,
-                                 lpqword_t byte_offset_ptr) {
+dword_result_t NtReadFileScatter_entry(
+    dword_t file_handle, dword_t event_handle, lpvoid_t apc_routine_ptr,
+    lpvoid_t apc_context, pointer_t<X_IO_STATUS_BLOCK> io_status_block,
+    lpdword_t segment_array, dword_t length, lpqword_t byte_offset_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   bool signal_event = false;
@@ -352,11 +351,11 @@ dword_result_t NtReadFileScatter(dword_t file_handle, dword_t event_handle,
 }
 DECLARE_XBOXKRNL_EXPORT1(NtReadFileScatter, kFileSystem, kImplemented);
 
-dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
-                           function_t apc_routine, lpvoid_t apc_context,
-                           pointer_t<X_IO_STATUS_BLOCK> io_status_block,
-                           lpvoid_t buffer, dword_t buffer_length,
-                           lpqword_t byte_offset_ptr) {
+dword_result_t NtWriteFile_entry(dword_t file_handle, dword_t event_handle,
+                                 function_t apc_routine, lpvoid_t apc_context,
+                                 pointer_t<X_IO_STATUS_BLOCK> io_status_block,
+                                 lpvoid_t buffer, dword_t buffer_length,
+                                 lpqword_t byte_offset_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   // Grab event to signal.
@@ -430,10 +429,10 @@ dword_result_t NtWriteFile(dword_t file_handle, dword_t event_handle,
 }
 DECLARE_XBOXKRNL_EXPORT1(NtWriteFile, kFileSystem, kImplemented);
 
-dword_result_t NtCreateIoCompletion(lpdword_t out_handle,
-                                    dword_t desired_access,
-                                    lpvoid_t object_attribs,
-                                    dword_t num_concurrent_threads) {
+dword_result_t NtCreateIoCompletion_entry(lpdword_t out_handle,
+                                          dword_t desired_access,
+                                          lpvoid_t object_attribs,
+                                          dword_t num_concurrent_threads) {
   auto completion = new XIOCompletion(kernel_state());
   if (out_handle) {
     *out_handle = completion->handle();
@@ -443,9 +442,10 @@ dword_result_t NtCreateIoCompletion(lpdword_t out_handle,
 }
 DECLARE_XBOXKRNL_EXPORT1(NtCreateIoCompletion, kFileSystem, kImplemented);
 
-dword_result_t NtSetIoCompletion(dword_t handle, dword_t key_context,
-                                 dword_t apc_context, dword_t completion_status,
-                                 dword_t num_bytes) {
+dword_result_t NtSetIoCompletion_entry(dword_t handle, dword_t key_context,
+                                       dword_t apc_context,
+                                       dword_t completion_status,
+                                       dword_t num_bytes) {
   auto port =
       kernel_state()->object_table()->LookupObject<XIOCompletion>(handle);
   if (!port) {
@@ -465,7 +465,7 @@ DECLARE_XBOXKRNL_EXPORT2(NtSetIoCompletion, kFileSystem, kImplemented,
                          kHighFrequency);
 
 // Dequeues a packet from the completion port.
-dword_result_t NtRemoveIoCompletion(
+dword_result_t NtRemoveIoCompletion_entry(
     dword_t handle, lpdword_t key_context, lpdword_t apc_context,
     pointer_t<X_IO_STATUS_BLOCK> io_status_block, lpqword_t timeout) {
   X_STATUS status = X_STATUS_SUCCESS;
@@ -502,7 +502,7 @@ dword_result_t NtRemoveIoCompletion(
 DECLARE_XBOXKRNL_EXPORT2(NtRemoveIoCompletion, kFileSystem, kImplemented,
                          kHighFrequency);
 
-dword_result_t NtQueryFullAttributesFile(
+dword_result_t NtQueryFullAttributesFile_entry(
     pointer_t<X_OBJECT_ATTRIBUTES> obj_attribs,
     pointer_t<X_FILE_NETWORK_OPEN_INFORMATION> file_info) {
   auto object_name =
@@ -544,7 +544,7 @@ dword_result_t NtQueryFullAttributesFile(
 }
 DECLARE_XBOXKRNL_EXPORT1(NtQueryFullAttributesFile, kFileSystem, kImplemented);
 
-dword_result_t NtQueryDirectoryFile(
+dword_result_t NtQueryDirectoryFile_entry(
     dword_t file_handle, dword_t event_handle, function_t apc_routine,
     lpvoid_t apc_context, pointer_t<X_IO_STATUS_BLOCK> io_status_block,
     pointer_t<X_FILE_DIRECTORY_INFORMATION> file_info_ptr, dword_t length,
@@ -588,7 +588,7 @@ dword_result_t NtQueryDirectoryFile(
 }
 DECLARE_XBOXKRNL_EXPORT1(NtQueryDirectoryFile, kFileSystem, kImplemented);
 
-dword_result_t NtFlushBuffersFile(
+dword_result_t NtFlushBuffersFile_entry(
     dword_t file_handle, pointer_t<X_IO_STATUS_BLOCK> io_status_block_ptr) {
   auto result = X_STATUS_SUCCESS;
 
@@ -602,7 +602,7 @@ dword_result_t NtFlushBuffersFile(
 DECLARE_XBOXKRNL_EXPORT1(NtFlushBuffersFile, kFileSystem, kStub);
 
 // https://docs.microsoft.com/en-us/windows/win32/devnotes/ntopensymboliclinkobject
-dword_result_t NtOpenSymbolicLinkObject(
+dword_result_t NtOpenSymbolicLinkObject_entry(
     lpdword_t handle_out, pointer_t<X_OBJECT_ATTRIBUTES> object_attrs) {
   if (!object_attrs) {
     return X_STATUS_INVALID_PARAMETER;
@@ -646,8 +646,8 @@ dword_result_t NtOpenSymbolicLinkObject(
 DECLARE_XBOXKRNL_EXPORT1(NtOpenSymbolicLinkObject, kFileSystem, kImplemented);
 
 // https://docs.microsoft.com/en-us/windows/win32/devnotes/ntquerysymboliclinkobject
-dword_result_t NtQuerySymbolicLinkObject(dword_t handle,
-                                         pointer_t<X_ANSI_STRING> target) {
+dword_result_t NtQuerySymbolicLinkObject_entry(
+    dword_t handle, pointer_t<X_ANSI_STRING> target) {
   auto symlink =
       kernel_state()->object_table()->LookupObject<XSymbolicLink>(handle);
   if (!symlink) {
@@ -664,17 +664,17 @@ dword_result_t NtQuerySymbolicLinkObject(dword_t handle,
 }
 DECLARE_XBOXKRNL_EXPORT1(NtQuerySymbolicLinkObject, kFileSystem, kImplemented);
 
-dword_result_t FscGetCacheElementCount(dword_t r3) { return 0; }
+dword_result_t FscGetCacheElementCount_entry(dword_t r3) { return 0; }
 DECLARE_XBOXKRNL_EXPORT1(FscGetCacheElementCount, kFileSystem, kStub);
 
-dword_result_t FscSetCacheElementCount(dword_t unk_0, dword_t unk_1) {
+dword_result_t FscSetCacheElementCount_entry(dword_t unk_0, dword_t unk_1) {
   // unk_0 = 0
   // unk_1 looks like a count? in what units? 256 is a common value
   return X_STATUS_SUCCESS;
 }
 DECLARE_XBOXKRNL_EXPORT1(FscSetCacheElementCount, kFileSystem, kStub);
 
-dword_result_t NtDeviceIoControlFile(
+dword_result_t NtDeviceIoControlFile_entry(
     dword_t handle, dword_t event_handle, dword_t apc_routine,
     dword_t apc_context, dword_t io_status_block, dword_t io_control_code,
     lpvoid_t input_buffer, dword_t input_buffer_len, lpvoid_t output_buffer,
@@ -712,8 +712,9 @@ dword_result_t NtDeviceIoControlFile(
 }
 DECLARE_XBOXKRNL_EXPORT1(NtDeviceIoControlFile, kFileSystem, kStub);
 
-dword_result_t IoCreateDevice(dword_t device_struct, dword_t r4, dword_t r5,
-                              dword_t r6, dword_t r7, lpdword_t out_struct) {
+dword_result_t IoCreateDevice_entry(dword_t device_struct, dword_t r4,
+                                    dword_t r5, dword_t r6, dword_t r7,
+                                    lpdword_t out_struct) {
   // Called from XMountUtilityDrive XAM-task code
   // That code tries writing things to a pointer at out_struct+0x18
   // We'll alloc some scratch space for it so it doesn't cause any exceptions

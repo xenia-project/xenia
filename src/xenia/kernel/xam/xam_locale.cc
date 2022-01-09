@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -226,16 +226,19 @@ uint8_t xeXamGetLocale() { return xeXamGetLocaleEx(111, 43); }
 
 // Exports.
 
-dword_result_t XamGetLocale() { return xeXamGetLocale(); }
+dword_result_t XamGetLocale_entry() {
+  return static_cast<uint8_t>(xeXamGetLocale());
+}
 DECLARE_XAM_EXPORT1(XamGetLocale, kLocale, kImplemented);
 
-dword_result_t XamGetOnlineCountryFromLocale(dword_t id) {
+dword_result_t XamGetOnlineCountryFromLocale_entry(dword_t id) {
   return xeXamGetOnlineCountryFromLocale(id);
 }
 DECLARE_XAM_EXPORT1(XamGetOnlineCountryFromLocale, kLocale, kImplemented);
 
-dword_result_t XamGetOnlineCountryString(dword_t id, dword_t buffer_length,
-                                         lpu16string_t buffer) {
+dword_result_t XamGetOnlineCountryString_entry(dword_t id,
+                                               dword_t buffer_length,
+                                               lpu16string_t buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -256,8 +259,8 @@ dword_result_t XamGetOnlineCountryString(dword_t id, dword_t buffer_length,
 }
 DECLARE_XAM_EXPORT1(XamGetOnlineCountryString, kLocale, kImplemented);
 
-dword_result_t XamGetCountryString(dword_t id, dword_t buffer_length,
-                                   lpu16string_t buffer) {
+dword_result_t XamGetCountryString_entry(dword_t id, dword_t buffer_length,
+                                         lpu16string_t buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -278,8 +281,8 @@ dword_result_t XamGetCountryString(dword_t id, dword_t buffer_length,
 }
 DECLARE_XAM_EXPORT1(XamGetCountryString, kLocale, kImplemented);
 
-dword_result_t XamGetLanguageString(dword_t id, dword_t buffer_length,
-                                    lpu16string_t buffer) {
+dword_result_t XamGetLanguageString_entry(dword_t id, dword_t buffer_length,
+                                          lpu16string_t buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -300,10 +303,10 @@ dword_result_t XamGetLanguageString(dword_t id, dword_t buffer_length,
 }
 DECLARE_XAM_EXPORT1(XamGetLanguageString, kLocale, kImplemented);
 
-dword_result_t XamGetLanguageLocaleString(dword_t language_id,
-                                          dword_t locale_id,
-                                          dword_t buffer_length,
-                                          lpu16string_t buffer) {
+dword_result_t XamGetLanguageLocaleString_entry(dword_t language_id,
+                                                dword_t locale_id,
+                                                dword_t buffer_length,
+                                                lpu16string_t buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -330,10 +333,9 @@ dword_result_t XamGetLanguageLocaleString(dword_t language_id,
 }
 DECLARE_XAM_EXPORT1(XamGetLanguageLocaleString, kLocale, kImplemented);
 
-dword_result_t XamGetOnlineLanguageAndCountryString(dword_t language_id,
-                                                    dword_t country_id,
-                                                    dword_t buffer_length,
-                                                    lpu16string_t buffer) {
+dword_result_t XamGetOnlineLanguageAndCountryString_entry(
+    dword_t language_id, dword_t country_id, dword_t buffer_length,
+    lpu16string_t buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -363,8 +365,8 @@ dword_result_t XamGetOnlineLanguageAndCountryString(dword_t language_id,
 DECLARE_XAM_EXPORT1(XamGetOnlineLanguageAndCountryString, kLocale,
                     kImplemented);
 
-dword_result_t XamGetLocaleString(dword_t id, dword_t buffer_length,
-                                  lpu16string_t buffer) {
+dword_result_t XamGetLocaleString_entry(dword_t id, dword_t buffer_length,
+                                        lpu16string_t buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -385,18 +387,19 @@ dword_result_t XamGetLocaleString(dword_t id, dword_t buffer_length,
 }
 DECLARE_XAM_EXPORT1(XamGetLocaleString, kLocale, kImplemented);
 
-dword_result_t XamGetLocaleFromOnlineCountry(dword_t id) {
+dword_result_t XamGetLocaleFromOnlineCountry_entry(dword_t id) {
   return xeXamGetLocaleFromOnlineCountry(static_cast<uint8_t>(id));
 }
 DECLARE_XAM_EXPORT1(XamGetLocaleFromOnlineCountry, kLocale, kImplemented);
 
-dword_result_t XamGetLanguageFromOnlineLanguage(dword_t id) {
+dword_result_t XamGetLanguageFromOnlineLanguage_entry(dword_t id) {
   return xeXamGetLanguageFromOnlineLanguage(static_cast<uint8_t>(id));
 }
 DECLARE_XAM_EXPORT1(XamGetLanguageFromOnlineLanguage, kLocale, kImplemented);
 
-dword_result_t XamGetOnlineLanguageString(dword_t id, dword_t buffer_length,
-                                          lpu16string_t buffer) {
+dword_result_t XamGetOnlineLanguageString_entry(dword_t id,
+                                                dword_t buffer_length,
+                                                lpu16string_t buffer) {
   if (buffer_length >= 0x80000000u) {
     return X_E_INVALIDARG;
   }
@@ -417,12 +420,13 @@ dword_result_t XamGetOnlineLanguageString(dword_t id, dword_t buffer_length,
 }
 DECLARE_XAM_EXPORT1(XamGetOnlineLanguageString, kLocale, kImplemented);
 
-dword_result_t XamGetCountryFromOnlineCountry(dword_t id) {
+dword_result_t XamGetCountryFromOnlineCountry_entry(dword_t id) {
   return xeXamGetCountryFromOnlineCountry(static_cast<uint8_t>(id));
 }
 DECLARE_XAM_EXPORT1(XamGetCountryFromOnlineCountry, kLocale, kImplemented);
 
-dword_result_t XamGetLocaleEx(dword_t max_country_id, dword_t max_locale_id) {
+dword_result_t XamGetLocaleEx_entry(dword_t max_country_id,
+                                    dword_t max_locale_id) {
   return xeXamGetLocaleEx(static_cast<uint8_t>(max_country_id),
                           static_cast<uint8_t>(max_locale_id));
 }

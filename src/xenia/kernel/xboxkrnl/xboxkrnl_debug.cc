@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -19,7 +19,7 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-void DbgBreakPoint() { xe::debugging::Break(); }
+void DbgBreakPoint_entry() { xe::debugging::Break(); }
 DECLARE_XBOXKRNL_EXPORT2(DbgBreakPoint, kDebug, kStub, kImportant);
 
 // https://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx
@@ -123,7 +123,7 @@ void HandleCppException(pointer_t<X_EXCEPTION_RECORD> record) {
   xe::debugging::Break();
 }
 
-void RtlRaiseException(pointer_t<X_EXCEPTION_RECORD> record) {
+void RtlRaiseException_entry(pointer_t<X_EXCEPTION_RECORD> record) {
   switch (record->exception_code) {
     case 0x406D1388: {
       HandleSetThreadName(record);
@@ -141,8 +141,8 @@ void RtlRaiseException(pointer_t<X_EXCEPTION_RECORD> record) {
 }
 DECLARE_XBOXKRNL_EXPORT2(RtlRaiseException, kDebug, kStub, kImportant);
 
-void KeBugCheckEx(dword_t code, dword_t param1, dword_t param2, dword_t param3,
-                  dword_t param4) {
+void KeBugCheckEx_entry(dword_t code, dword_t param1, dword_t param2,
+                        dword_t param3, dword_t param4) {
   XELOGD("*** STOP: 0x{:08X} (0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X})", code,
          param1, param2, param3, param4);
   fflush(stdout);
@@ -151,7 +151,7 @@ void KeBugCheckEx(dword_t code, dword_t param1, dword_t param2, dword_t param3,
 }
 DECLARE_XBOXKRNL_EXPORT2(KeBugCheckEx, kDebug, kStub, kImportant);
 
-void KeBugCheck(dword_t code) { KeBugCheckEx(code, 0, 0, 0, 0); }
+void KeBugCheck_entry(dword_t code) { KeBugCheckEx_entry(code, 0, 0, 0, 0); }
 DECLARE_XBOXKRNL_EXPORT2(KeBugCheck, kDebug, kImplemented, kImportant);
 
 void RegisterDebugExports(xe::cpu::ExportResolver* export_resolver,
