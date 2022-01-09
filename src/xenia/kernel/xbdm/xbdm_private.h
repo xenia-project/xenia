@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -21,8 +21,11 @@ namespace xbdm {
 xe::cpu::Export* RegisterExport_xbdm(xe::cpu::Export* export_entry);
 
 // Registration functions, one per file.
-void RegisterMiscExports(xe::cpu::ExportResolver* export_resolver,
-                         KernelState* kernel_state);
+#define XE_MODULE_EXPORT_GROUP(m, n)                                  \
+  void Register##n##Exports(xe::cpu::ExportResolver* export_resolver, \
+                            KernelState* kernel_state);
+#include "xbdm_module_export_groups.inc"
+#undef XE_MODULE_EXPORT_GROUP
 
 }  // namespace xbdm
 }  // namespace kernel

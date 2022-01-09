@@ -1017,9 +1017,8 @@ dword_result_t RtlNtStatusToDosError_entry(dword_t source_status) {
 DECLARE_XBOXKRNL_EXPORT3(RtlNtStatusToDosError, kNone, kImportant,
                          kHighFrequency, kLogResult);
 
-void RegisterErrorExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(Error);

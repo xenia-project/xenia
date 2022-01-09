@@ -23,9 +23,8 @@ void KeEnableFpuExceptions_entry(dword_t enabled) {
 }
 DECLARE_XBOXKRNL_EXPORT1(KeEnableFpuExceptions, kNone, kStub);
 
-void RegisterMiscExports(xe::cpu::ExportResolver* export_resolver,
-                         KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(Misc);

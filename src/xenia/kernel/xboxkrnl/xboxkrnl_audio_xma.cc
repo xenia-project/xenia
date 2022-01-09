@@ -392,9 +392,8 @@ dword_result_t XMABlockWhileInUse_entry(lpvoid_t context_ptr) {
 DECLARE_XBOXKRNL_EXPORT2(XMABlockWhileInUse, kAudio, kImplemented,
                          kHighFrequency);
 
-void RegisterAudioXmaExports(xe::cpu::ExportResolver* export_resolver,
-                             KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(AudioXma);

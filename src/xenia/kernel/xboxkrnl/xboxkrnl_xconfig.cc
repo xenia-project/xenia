@@ -138,9 +138,8 @@ dword_result_t ExGetXConfigSetting_entry(word_t category, word_t setting,
 }
 DECLARE_XBOXKRNL_EXPORT1(ExGetXConfigSetting, kModules, kImplemented);
 
-void RegisterXConfigExports(xe::cpu::ExportResolver* export_resolver,
-                            KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(XConfig);

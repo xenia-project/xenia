@@ -41,3 +41,5 @@ void RegisterAvatarExports(xe::cpu::ExportResolver* export_resolver,
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Avatar);

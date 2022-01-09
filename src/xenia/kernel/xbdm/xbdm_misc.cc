@@ -86,9 +86,8 @@ dword_result_t DmFindPdbSignature_entry(lpdword_t unk0_ptr,
 }
 DECLARE_XBDM_EXPORT1(DmFindPdbSignature, kDebug, kStub);
 
-void RegisterMiscExports(xe::cpu::ExportResolver* export_resolver,
-                         KernelState* kernel_state) {}
-
 }  // namespace xbdm
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBDM_EMPTY_REGISTER_EXPORTS(Misc);
