@@ -1104,7 +1104,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   uint32_t system_temp_loop_count_;
   // Explicitly set texture gradients and LOD.
   uint32_t system_temp_grad_h_lod_;
-  uint32_t system_temp_grad_v_;
+  // .w stores `base + index * stride` in bytes from the last vfetch_full as it
+  // may be needed by vfetch_mini.
+  uint32_t system_temp_grad_v_vfetch_address_;
 
   // The bool constant number containing the condition for the currently
   // processed exec (or the last - unless a label has reset this), or

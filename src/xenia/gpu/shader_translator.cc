@@ -876,7 +876,7 @@ bool ParseVertexFetchInstruction(const VertexFetchInstruction& op,
   instr.attributes.stride = full_op.stride();
   instr.attributes.exp_adjust = op.exp_adjust();
   instr.attributes.prefetch_count = op.prefetch_count();
-  instr.attributes.is_index_rounded = op.is_index_rounded();
+  instr.attributes.is_index_rounded = full_op.is_index_rounded();
   instr.attributes.is_signed = op.is_signed();
   instr.attributes.is_integer = !op.is_normalized();
   instr.attributes.signed_rf_mode = op.signed_rf_mode();

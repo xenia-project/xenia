@@ -328,13 +328,12 @@ void ParsedVertexFetchInstruction::Disassemble(StringBuffer* out) const {
   if (!is_mini_fetch) {
     out->Append(", ");
     DisassembleSourceOperand(operands[0], out);
-    out->Append(", ");
-    out->AppendFormat("vf{}", 95 - operands[1].storage_index);
+    out->AppendFormat(", vf{}", 95 - operands[1].storage_index);
+    if (attributes.is_index_rounded) {
+      out->Append(", RoundIndex=true");
+    }
   }
 
-  if (attributes.is_index_rounded) {
-    out->Append(", RoundIndex=true");
-  }
   if (attributes.exp_adjust) {
     out->AppendFormat(", ExpAdjust={}", attributes.exp_adjust);
   }
