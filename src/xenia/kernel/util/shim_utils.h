@@ -324,15 +324,20 @@ class TypedPointerParam : public ParamBase<uint32_t> {
   T* host_ptr_;
 };
 
-template <typename T>
 class Result {
  public:
-  Result(T value) : value_(value) {}
+  virtual void Store(PPCContext* ppc_context) = 0;
+};
+
+template <typename T>
+class ResultBase : public Result {
+ public:
+  ResultBase(T value) : value_(value) {}
   void Store(PPCContext* ppc_context) {
     ppc_context->r[3] = uint64_t(int32_t(value_));
   }
-  Result() = delete;
-  Result& operator=(const Result&) = delete;
+  ResultBase() = delete;
+  ResultBase& operator=(const ResultBase&) = delete;
   operator T() const { return value_; }
 
  private:
@@ -361,10 +366,10 @@ using lpunknown_t = const shim::PointerParam&;
 template <typename T>
 using pointer_t = const shim::TypedPointerParam<T>&;
 
-using int_result_t = shim::Result<int32_t>;
-using dword_result_t = shim::Result<uint32_t>;
-using pointer_result_t = shim::Result<uint32_t>;
-using X_HRESULT_result_t = shim::Result<X_HRESULT>;
+using int_result_t = shim::ResultBase<int32_t>;
+using dword_result_t = shim::ResultBase<uint32_t>;
+using pointer_result_t = shim::ResultBase<uint32_t>;
+using X_HRESULT_result_t = shim::ResultBase<X_HRESULT>;
 
 // Exported from kernel_state.cc.
 KernelState* kernel_state();
@@ -511,6 +516,11 @@ auto KernelTrampoline(F&& f, Tuple&& t, std::index_sequence<I...>) {
 template <KernelModuleId MODULE, uint16_t ORDINAL, typename R, typename... Ps>
 xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
                                 xe::cpu::ExportTag::type tags) {
+  static_assert(
+      std::is_void<R>::value || std::is_base_of<shim::Result, R>::value,
+      "R must be void or derive from shim::Result");
+  static_assert((std::is_base_of_v<shim::Param, Ps> && ...),
+                "Ps must derive from shim::Param");
   static const auto export_entry = new cpu::Export(
       ORDINAL, xe::cpu::Export::Type::kFunction, name,
       tags | xe::cpu::ExportTag::kImplemented | xe::cpu::ExportTag::kLog);
