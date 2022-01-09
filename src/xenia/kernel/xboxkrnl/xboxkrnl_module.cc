@@ -83,25 +83,10 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   RegisterExportTable(export_resolver_);
 
   // Register all exported functions.
-  RegisterAudioExports(export_resolver_, kernel_state_);
-  RegisterAudioXmaExports(export_resolver_, kernel_state_);
-  RegisterCryptExports(export_resolver_, kernel_state_);
-  RegisterDebugExports(export_resolver_, kernel_state_);
-  RegisterErrorExports(export_resolver_, kernel_state_);
-  RegisterHalExports(export_resolver_, kernel_state_);
-  RegisterHidExports(export_resolver_, kernel_state_);
-  RegisterIoExports(export_resolver_, kernel_state_);
-  RegisterIoInfoExports(export_resolver_, kernel_state_);
-  RegisterMemoryExports(export_resolver_, kernel_state_);
-  RegisterMiscExports(export_resolver_, kernel_state_);
-  RegisterModuleExports(export_resolver_, kernel_state_);
-  RegisterObExports(export_resolver_, kernel_state_);
-  RegisterRtlExports(export_resolver_, kernel_state_);
-  RegisterStringExports(export_resolver_, kernel_state_);
-  RegisterThreadingExports(export_resolver_, kernel_state_);
-  RegisterUsbcamExports(export_resolver_, kernel_state_);
-  RegisterVideoExports(export_resolver_, kernel_state_);
-  RegisterXConfigExports(export_resolver_, kernel_state_);
+#define XE_MODULE_EXPORT_GROUP(m, n) \
+  Register##n##Exports(export_resolver_, kernel_state_);
+#include "xboxkrnl_module_export_groups.inc"
+#undef XE_MODULE_EXPORT_GROUP
 
   // KeDebugMonitorData (?*)
   // Set to a valid value when a remote debugger is attached.

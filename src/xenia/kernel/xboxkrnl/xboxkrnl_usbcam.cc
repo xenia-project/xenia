@@ -37,9 +37,8 @@ dword_result_t XUsbcamGetState_entry() {
 }
 DECLARE_XBOXKRNL_EXPORT1(XUsbcamGetState, kNone, kStub);
 
-void RegisterUsbcamExports(xe::cpu::ExportResolver* export_resolver,
-                           KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(Usbcam);

@@ -27,9 +27,8 @@ DECLARE_XAM_EXPORT1(XGetVideoMode, kVideo, ExportTag::kSketchy);
 dword_result_t XGetVideoCapabilities_entry() { return 0; }
 DECLARE_XAM_EXPORT1(XGetVideoCapabilities, kVideo, kStub);
 
-void RegisterVideoExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Video);

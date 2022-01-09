@@ -38,9 +38,8 @@ DECLARE_XAM_EXPORT1(XamVoiceClose, kNone, kStub);
 dword_result_t XamVoiceHeadsetPresent_entry(lpunknown_t voice_ptr) { return 0; }
 DECLARE_XAM_EXPORT1(XamVoiceHeadsetPresent, kNone, kStub);
 
-void RegisterVoiceExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Voice);

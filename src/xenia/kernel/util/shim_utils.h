@@ -564,6 +564,11 @@ using xe::cpu::ExportTag;
                       xe::cpu::ExportCategory::category)                   \
                   << xe::cpu::ExportTag::CategoryShift)));
 
+#define DECLARE_EMPTY_REGISTER_EXPORTS(module_name, group_name) \
+  void xe::kernel::module_name::Register##group_name##Exports(  \
+      xe::cpu::ExportResolver* export_resolver,                 \
+      xe::kernel::KernelState* kernel_state) {}
+
 #define DECLARE_XAM_EXPORT_(name, category, tags) \
   DECLARE_EXPORT(xam, name, category, tags)
 #define DECLARE_XAM_EXPORT1(name, category, tag) \
@@ -572,10 +577,16 @@ using xe::cpu::ExportTag;
   DECLARE_EXPORT(xam, name, category,                   \
                  xe::cpu::ExportTag::tag1 | xe::cpu::ExportTag::tag2)
 
+#define DECLARE_XAM_EMPTY_REGISTER_EXPORTS(group_name) \
+  DECLARE_EMPTY_REGISTER_EXPORTS(xam, group_name)
+
 #define DECLARE_XBDM_EXPORT_(name, category, tags) \
   DECLARE_EXPORT(xbdm, name, category, tags)
 #define DECLARE_XBDM_EXPORT1(name, category, tag) \
   DECLARE_EXPORT(xbdm, name, category, xe::cpu::ExportTag::tag)
+
+#define DECLARE_XBDM_EMPTY_REGISTER_EXPORTS(group_name) \
+  DECLARE_EMPTY_REGISTER_EXPORTS(xbdm, group_name)
 
 #define DECLARE_XBOXKRNL_EXPORT_(name, category, tags) \
   DECLARE_EXPORT(xboxkrnl, name, category, tags)
@@ -592,6 +603,9 @@ using xe::cpu::ExportTag;
   DECLARE_EXPORT(xboxkrnl, name, category,                               \
                  xe::cpu::ExportTag::tag1 | xe::cpu::ExportTag::tag2 |   \
                      xe::cpu::ExportTag::tag3 | xe::cpu::ExportTag::tag4)
+
+#define DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(group_name) \
+  DECLARE_EMPTY_REGISTER_EXPORTS(xboxkrnl, group_name)
 
 }  // namespace kernel
 }  // namespace xe

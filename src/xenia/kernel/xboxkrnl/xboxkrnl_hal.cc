@@ -31,9 +31,8 @@ void HalReturnToFirmware_entry(dword_t routine) {
 }
 DECLARE_XBOXKRNL_EXPORT2(HalReturnToFirmware, kNone, kStub, kImportant);
 
-void RegisterHalExports(xe::cpu::ExportResolver* export_resolver,
-                        KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(Hal);

@@ -139,9 +139,8 @@ dword_result_t XamContentAggregateCreateEnumerator_entry(qword_t xuid,
 }
 DECLARE_XAM_EXPORT1(XamContentAggregateCreateEnumerator, kContent, kStub);
 
-void RegisterContentAggregateExports(xe::cpu::ExportResolver* export_resolver,
-                                     KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(ContentAggregate);

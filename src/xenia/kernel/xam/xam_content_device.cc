@@ -167,9 +167,8 @@ dword_result_t XamContentCreateDeviceEnumerator_entry(dword_t content_type,
 }
 DECLARE_XAM_EXPORT1(XamContentCreateDeviceEnumerator, kNone, kImplemented);
 
-void RegisterContentDeviceExports(xe::cpu::ExportResolver* export_resolver,
-                                  KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(ContentDevice);
