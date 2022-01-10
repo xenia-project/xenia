@@ -2688,6 +2688,11 @@ void EmitAndNotXX(X64Emitter& e, const ARGS& i) {
       if (i.dest == i.src2) {
         e.not_(i.dest);
         e.and_(i.dest, i.src1);
+      } else if (i.dest == i.src1) {
+        auto temp = GetTempReg<typename decltype(i.dest)::reg_type>(e);
+        e.mov(temp, i.src2);
+        e.not_(temp);
+        e.and_(i.dest, temp);
       } else {
         e.mov(i.dest, i.src2);
         e.not_(i.dest);
