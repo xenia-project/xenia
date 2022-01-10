@@ -13,6 +13,8 @@
 // XELOGI.
 #include "xenia/base/logging.h"
 
+#include "third_party/fmt/include/fmt/printf.h"
+
 // NOTE: microprofile must be setup first, before profiling.h is included.
 #define MICROPROFILE_ENABLED 1
 #define MICROPROFILEUI_ENABLED 1
@@ -21,7 +23,11 @@
 #define MICROPROFILE_PER_THREAD_BUFFER_SIZE (1024 * 1024 * 10)
 #define MICROPROFILE_USE_THREAD_NAME_CALLBACK 1
 #define MICROPROFILE_WEBSERVER_MAXFRAMES 3
-#define MICROPROFILE_PRINTF XELOGI
+#define MICROPROFILE_PRINTF(...)                               \
+  do {                                                         \
+    auto xenia_profiler_formatted = fmt::sprintf(__VA_ARGS__); \
+    XELOGI("{}", xenia_profiler_formatted);                    \
+  } while (false);
 #define MICROPROFILE_WEBSERVER 0
 #define MICROPROFILE_DEBUG 0
 #define MICROPROFILE_MAX_THREADS 128
