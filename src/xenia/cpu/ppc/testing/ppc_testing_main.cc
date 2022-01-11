@@ -422,8 +422,7 @@ bool RunTests(const std::string_view test_name) {
   int failed_count = 0;
   int passed_count = 0;
 
-  XELOGI("Haswell instruction usage {}.",
-         cvars::use_haswell_instructions ? "enabled" : "disabled");
+  XELOGI("Instruction feature mask {}.", cvars::x64_extension_mask);
 
   auto test_path_root = cvars::test_path;
   std::vector<std::filesystem::path> test_files;

@@ -74,23 +74,32 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
       backend_(backend),
       code_cache_(backend->code_cache()),
       allocator_(allocator) {
-  if (cvars::use_haswell_instructions) {
+  if (cvars::x64_extension_mask & kX64EmitAVX2)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tAVX2) ? kX64EmitAVX2 : 0;
+  if (cvars::x64_extension_mask & kX64EmitFMA)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tFMA) ? kX64EmitFMA : 0;
+  if (cvars::x64_extension_mask & kX64EmitLZCNT)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tLZCNT) ? kX64EmitLZCNT : 0;
+  if (cvars::x64_extension_mask & kX64EmitBMI1)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tBMI1) ? kX64EmitBMI1 : 0;
+  if (cvars::x64_extension_mask & kX64EmitBMI2)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tBMI2) ? kX64EmitBMI2 : 0;
+  if (cvars::x64_extension_mask & kX64EmitF16C)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tF16C) ? kX64EmitF16C : 0;
+  if (cvars::x64_extension_mask & kX64EmitMovbe)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tMOVBE) ? kX64EmitMovbe : 0;
+  if (cvars::x64_extension_mask & kX64EmitAVX512F)
     feature_flags_ |=
         cpu_.has(Xbyak::util::Cpu::tAVX512F) ? kX64EmitAVX512F : 0;
+  if (cvars::x64_extension_mask & kX64EmitAVX512VL)
     feature_flags_ |=
         cpu_.has(Xbyak::util::Cpu::tAVX512VL) ? kX64EmitAVX512VL : 0;
+  if (cvars::x64_extension_mask & kX64EmitAVX512BW)
     feature_flags_ |=
         cpu_.has(Xbyak::util::Cpu::tAVX512BW) ? kX64EmitAVX512BW : 0;
+  if (cvars::x64_extension_mask & kX64EmitAVX512DQ)
     feature_flags_ |=
         cpu_.has(Xbyak::util::Cpu::tAVX512DQ) ? kX64EmitAVX512DQ : 0;
-  }
 
   if (!cpu_.has(Xbyak::util::Cpu::tAVX)) {
     xe::FatalError(
