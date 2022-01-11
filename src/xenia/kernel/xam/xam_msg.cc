@@ -63,7 +63,7 @@ X_HRESULT xeXMsgStartIORequestEx(uint32_t app, uint32_t message,
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);
     result = X_ERROR_IO_PENDING;
   }
-  if (result == X_ERROR_SUCCESS || X_ERROR_IO_PENDING) {
+  if (result == X_ERROR_SUCCESS || result == X_ERROR_IO_PENDING) {
     XThread::SetLastError(0);
   }
   return result;
