@@ -18,6 +18,10 @@
 #include "xenia/ui/windowed_app_context_gtk.h"
 
 extern "C" int main(int argc_pre_gtk, char** argv_pre_gtk) {
+  // Before touching anything GTK+, make sure that when running on Wayland,
+  // we'll still get an X11 (Xwayland) window
+  setenv("GDK_BACKEND", "x11", 1);
+
   // Initialize GTK+, which will handle and remove its own arguments from argv.
   // Both GTK+ and Xenia use --option=value argument format (see man
   // gtk-options), however, it's meaningless to try to parse the same argument
