@@ -74,41 +74,31 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
       backend_(backend),
       code_cache_(backend->code_cache()),
       allocator_(allocator) {
-  if (cvars::x64_extension_mask & kX64EmitAVX2)
-    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tAVX2) ? kX64EmitAVX2 : 0;
-  if (cvars::x64_extension_mask & kX64EmitFMA)
-    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tFMA) ? kX64EmitFMA : 0;
-  if (cvars::x64_extension_mask & kX64EmitLZCNT)
-    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tLZCNT) ? kX64EmitLZCNT : 0;
-  if (cvars::x64_extension_mask & kX64EmitBMI1)
-    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tBMI1) ? kX64EmitBMI1 : 0;
-  if (cvars::x64_extension_mask & kX64EmitBMI2)
-    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tBMI2) ? kX64EmitBMI2 : 0;
-  if (cvars::x64_extension_mask & kX64EmitF16C)
-    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tF16C) ? kX64EmitF16C : 0;
-  if (cvars::x64_extension_mask & kX64EmitMovbe)
-    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tMOVBE) ? kX64EmitMovbe : 0;
-  if (cvars::x64_extension_mask & kX64EmitGFNI)
-    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tGFNI) ? kX64EmitGFNI : 0;
-  if (cvars::x64_extension_mask & kX64EmitAVX512F)
-    feature_flags_ |=
-        cpu_.has(Xbyak::util::Cpu::tAVX512F) ? kX64EmitAVX512F : 0;
-  if (cvars::x64_extension_mask & kX64EmitAVX512VL)
-    feature_flags_ |=
-        cpu_.has(Xbyak::util::Cpu::tAVX512VL) ? kX64EmitAVX512VL : 0;
-  if (cvars::x64_extension_mask & kX64EmitAVX512BW)
-    feature_flags_ |=
-        cpu_.has(Xbyak::util::Cpu::tAVX512BW) ? kX64EmitAVX512BW : 0;
-  if (cvars::x64_extension_mask & kX64EmitAVX512DQ)
-    feature_flags_ |=
-        cpu_.has(Xbyak::util::Cpu::tAVX512DQ) ? kX64EmitAVX512DQ : 0;
-
   if (!cpu_.has(Xbyak::util::Cpu::tAVX)) {
     xe::FatalError(
         "Your CPU does not support AVX, which is required by Xenia. See the "
         "FAQ for system requirements at https://xenia.jp");
     return;
   }
+
+#define TEST_EMIT_FEATURE(emit, ext)                \
+  if ((cvars::x64_extension_mask & emit) == emit) { \
+    feature_flags_ |= (cpu_.has(ext) ? emit : 0);   \
+  }
+
+  TEST_EMIT_FEATURE(kX64EmitAVX2, Xbyak::util::Cpu::tAVX2);
+  TEST_EMIT_FEATURE(kX64EmitFMA, Xbyak::util::Cpu::tFMA);
+  TEST_EMIT_FEATURE(kX64EmitLZCNT, Xbyak::util::Cpu::tLZCNT);
+  TEST_EMIT_FEATURE(kX64EmitBMI1, Xbyak::util::Cpu::tBMI1);
+  TEST_EMIT_FEATURE(kX64EmitF16C, Xbyak::util::Cpu::tF16C);
+  TEST_EMIT_FEATURE(kX64EmitMovbe, Xbyak::util::Cpu::tMOVBE);
+  TEST_EMIT_FEATURE(kX64EmitGFNI, Xbyak::util::Cpu::tGFNI);
+  TEST_EMIT_FEATURE(kX64EmitAVX512F, Xbyak::util::Cpu::tAVX512F);
+  TEST_EMIT_FEATURE(kX64EmitAVX512VL, Xbyak::util::Cpu::tAVX512VL);
+  TEST_EMIT_FEATURE(kX64EmitAVX512BW, Xbyak::util::Cpu::tAVX512BW);
+  TEST_EMIT_FEATURE(kX64EmitAVX512DQ, Xbyak::util::Cpu::tAVX512DQ);
+
+#undef TEST_EMIT_FEATURE
 }
 
 X64Emitter::~X64Emitter() = default;
