@@ -21,7 +21,7 @@ XE_HID_WINKEY_BINDING(LThumbDown,  "LEFT_THUMB_DOWN"    , keybind_left_thumb_dow
 XE_HID_WINKEY_BINDING(LThumbUp,    "LEFT_THUMB_UP"      , keybind_left_thumb_up    , "_W"  )
 XE_HID_WINKEY_BINDING(LThumbPress, "LEFT_THUMB_PRESSED" , keybind_left_thumb       , "F"   )
 XE_HID_WINKEY_BINDING(RThumbUp,    "RIGHT_THUMB_UP"     , keybind_right_thumb_up   , "0x26")
-XE_HID_WINKEY_BINDING(RThumbLeft,  "RIGHT_THUMB_DOWN"   , keybind_right_thumb_down , "0x28")
+XE_HID_WINKEY_BINDING(RThumbDown,  "RIGHT_THUMB_DOWN"   , keybind_right_thumb_down , "0x28")
 XE_HID_WINKEY_BINDING(RThumbRight, "RIGHT_THUMB_RIGHT"  , keybind_right_thumb_right, "0x27")
 XE_HID_WINKEY_BINDING(RThumbLeft,  "RIGHT_THUMB_LEFT"   , keybind_right_thumb_left , "0x25")
 XE_HID_WINKEY_BINDING(RThumbPress, "RIGHT_THUMB_PRESSED", keybind_right_thumb      , "K"   )
