@@ -129,11 +129,11 @@ class SharedMemory {
                       bool written_by_gpu_resolve);
 
   // Uploads a range of host pages - only called if host GPU sparse memory
-  // allocation succeeded if needed. While uploading, MarkRangeValid must be
+  // allocation succeeded if needed. While uploading, MakeRangeValid must be
   // called for each successfully uploaded range as early as possible, before
   // the memcpy, to make sure invalidation that happened during the CPU -> GPU
   // memcpy isn't missed (upload_page_ranges is in pages because of this -
-  // MarkRangeValid has page granularity). upload_page_ranges are sorted in
+  // MakeRangeValid has page granularity). upload_page_ranges are sorted in
   // ascending address order, so front and back can be used to determine the
   // overall bounds of pages to be uploaded.
   virtual bool UploadRanges(

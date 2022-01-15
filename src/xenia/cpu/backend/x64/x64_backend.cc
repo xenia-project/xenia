@@ -26,10 +26,23 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/stack_walker.h"
 
-DEFINE_bool(
-    use_haswell_instructions, true,
-    "Uses the AVX2/FMA/etc instructions on Haswell processors when available.",
-    "CPU");
+DEFINE_int32(x64_extension_mask, -1,
+             "Allow the detection and utilization of specific instruction set "
+             "features.\n"
+             "    0 = x86_64 + AVX1\n"
+             "    1 = AVX2\n"
+             "    2 = FMA\n"
+             "    4 = LZCNT\n"
+             "    8 = BMI1\n"
+             "   16 = BMI2\n"
+             "   32 = F16C\n"
+             "   64 = Movbe\n"
+             "  128 = AVX512F\n"
+             "  256 = AVX512VL\n"
+             "  512 = AVX512BW\n"
+             " 1024 = AVX512DQ\n"
+             "   -1 = Detect and utilize all possible processor features\n",
+             "x64");
 
 namespace xe {
 namespace cpu {
@@ -84,7 +97,7 @@ bool X64Backend::Initialize(Processor* processor) {
   }
 
   // Need movbe to do advanced LOAD/STORE tricks.
-  if (cvars::use_haswell_instructions) {
+  if (cvars::x64_extension_mask & kX64EmitMovbe) {
     machine_info_.supports_extended_load_store =
         cpu.has(Xbyak::util::Cpu::tMOVBE);
   } else {
@@ -519,7 +532,7 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
 }
 
 // X64Emitter handles actually resolving functions.
-extern "C" uint64_t ResolveFunction(void* raw_context, uint32_t target_address);
+uint64_t ResolveFunction(void* raw_context, uint64_t target_address);
 
 ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
   // ebx = target PPC address
@@ -548,7 +561,7 @@ ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
 
   mov(rcx, rsi);  // context
   mov(rdx, rbx);
-  mov(rax, uint64_t(&ResolveFunction));
+  mov(rax, reinterpret_cast<uint64_t>(&ResolveFunction));
   call(rax);
 
   EmitLoadVolatileRegs();

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -11,6 +11,7 @@
 #include "xenia/base/string_util.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xam/xam_private.h"
@@ -38,29 +39,41 @@ struct XTASK_MESSAGE {
 };
 static_assert_size(XTASK_MESSAGE, 0x1C);
 
-dword_result_t XamTaskSchedule(lpvoid_t callback,
-                               pointer_t<XTASK_MESSAGE> message,
-                               dword_t unknown, lpdword_t handle_ptr) {
-  assert_zero(unknown);
-
+dword_result_t XamTaskSchedule_entry(lpvoid_t callback,
+                                     pointer_t<XTASK_MESSAGE> message,
+                                     lpdword_t unknown, lpdword_t handle_ptr) {
   // TODO(gibbed): figure out what this is for
   *handle_ptr = 12345;
 
-  XELOGW("!! Executing scheduled task ({:08X}) synchronously, PROBABLY BAD !! ",
+  uint32_t stack_size = kernel_state()->GetExecutableModule()->stack_size();
+
+  // Stack must be aligned to 16kb pages
+  stack_size = std::max((uint32_t)0x4000, ((stack_size + 0xFFF) & 0xFFFFF000));
+
+  auto thread =
+      object_ref<XThread>(new XThread(kernel_state(), stack_size, 0, callback,
+                                      message.guest_address(), 0, true));
+
+  X_STATUS result = thread->Create();
+
+  if (XFAILED(result)) {
+    // Failed!
+    XELOGE("XAM task creation failed: {:08X}", result);
+    return result;
+  }
+
+  XELOGD("XAM task ({:08X}) scheduled asynchronously",
          callback.guest_address());
 
-  // TODO(gibbed): this is supposed to be async... let's cheat.
-  auto thread_state = XThread::GetCurrentThread()->thread_state();
-  uint64_t args[] = {message.guest_address()};
-  auto result = kernel_state()->processor()->Execute(thread_state, callback,
-                                                     args, xe::countof(args));
   return X_STATUS_SUCCESS;
 }
 DECLARE_XAM_EXPORT2(XamTaskSchedule, kNone, kImplemented, kSketchy);
 
-void RegisterTaskExports(xe::cpu::ExportResolver* export_resolver,
-                         KernelState* kernel_state) {}
+dword_result_t XamTaskShouldExit_entry(dword_t r3) { return 0; }
+DECLARE_XAM_EXPORT2(XamTaskShouldExit, kNone, kStub, kSketchy);
 
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Task);

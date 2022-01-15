@@ -435,11 +435,23 @@ struct ParsedVertexFetchInstruction {
   bool predicate_condition = false;
 
   // Describes how the instruction result is stored.
+  // Note that if the result doesn't have any components to write the fetched
+  // value to, the address calculation in vfetch_full must still be performed
+  // because such a vfetch_full may be used to setup addressing for vfetch_mini
+  // (wires in the color pass of 5454082B do vfetch_full to r2.000_, and then a
+  // true vfetch_mini).
   InstructionResult result;
 
   // Number of source operands.
   size_t operand_count = 0;
   // Describes each source operand.
+  // Note that for vfetch_mini, which inherits the operands from vfetch_full,
+  // the index operand register may been overwritten between the vfetch_full and
+  // the vfetch_mini (happens in 4D530910 for wheels), but that should have no
+  // effect on the index actually used for fetching. A copy of the index
+  // therefore must be stored by vfetch_full (the base address, stride and
+  // rounding may be pre-applied to it since they will be the same in the
+  // vfetch_full and all its vfetch_mini instructions).
   InstructionOperand operands[2];
 
   struct Attributes {
@@ -551,7 +563,7 @@ struct ParsedAluInstruction {
   InstructionResult scalar_result;
   // Both operations must be executed before any result is stored if vector and
   // scalar operations are paired. There are cases of vector result being used
-  // as scalar operand or vice versa (the halo on Avalanche in Halo 3, for
+  // as scalar operand or vice versa (the ring on Avalanche in 4D5307E6, for
   // example), in this case there must be no dependency between the two
   // operations.
 
@@ -689,6 +701,9 @@ class Shader {
     // Bitmap of all bool constants read by the shader.
     // Each bit corresponds to a storage index [0-255].
     uint32_t bool_bitmap[256 / 32];
+    // Bitmap of all vertex fetch constants read by the shader.
+    // Each bit corresponds to a storage index [0-95].
+    uint32_t vertex_fetch_bitmap[96 / 32];
 
     // Total number of kConstantFloat registers read by the shader.
     uint32_t float_count;
@@ -851,11 +866,11 @@ class Shader {
   // highest static register address + 1, or 0 if no registers referenced this
   // way. SQ_PROGRAM_CNTL is not always reliable - some draws (like single point
   // draws with oPos = 0001 that are done by Xbox 360's Direct3D 9 sometimes;
-  // can be reproduced by launching Arrival in Halo 3 from the campaign lobby)
-  // that aren't supposed to cover any pixels use an invalid (zero)
-  // SQ_PROGRAM_CNTL, but with an outdated pixel shader loaded, in this case
-  // SQ_PROGRAM_CNTL may contain a number smaller than actually needed by the
-  // pixel shader - SQ_PROGRAM_CNTL should be used to go above this count if
+  // can be reproduced by launching the intro mission in 4D5307E6 from the
+  // campaign lobby) that aren't supposed to cover any pixels use an invalid
+  // (zero) SQ_PROGRAM_CNTL, but with an outdated pixel shader loaded, in this
+  // case SQ_PROGRAM_CNTL may contain a number smaller than actually needed by
+  // the pixel shader - SQ_PROGRAM_CNTL should be used to go above this count if
   // uses_register_dynamic_addressing is true.
   uint32_t register_static_address_bound() const {
     return register_static_address_bound_;

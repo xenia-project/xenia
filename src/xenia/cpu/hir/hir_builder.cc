@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -739,7 +739,7 @@ void HIRBuilder::Comment(std::string_view value) {
     return;
   }
   auto size = value.size();
-  auto p = reinterpret_cast<char*>(arena_->Alloc(size + 1));
+  auto p = reinterpret_cast<char*>(arena_->Alloc(size + 1, 1));
   std::memcpy(p, value.data(), size);
   p[size] = '\0';
   Instr* i = AppendInstr(OPCODE_COMMENT_info, 0);
@@ -752,7 +752,7 @@ void HIRBuilder::Comment(const StringBuffer& value) {
     return;
   }
   auto size = value.length();
-  auto p = reinterpret_cast<char*>(arena_->Alloc(size + 1));
+  auto p = reinterpret_cast<char*>(arena_->Alloc(size + 1, 1));
   std::memcpy(p, value.buffer(), size);
   p[size] = '\0';
   Instr* i = AppendInstr(OPCODE_COMMENT_info, 0);
@@ -1753,6 +1753,26 @@ Value* HIRBuilder::And(Value* value1, Value* value2) {
   }
 
   Instr* i = AppendInstr(OPCODE_AND_info, 0, AllocValue(value1->type));
+  i->set_src1(value1);
+  i->set_src2(value2);
+  i->src3.value = NULL;
+  return i->dest;
+}
+
+Value* HIRBuilder::AndNot(Value* value1, Value* value2) {
+  ASSERT_NON_FLOAT_TYPE(value1);
+  ASSERT_NON_FLOAT_TYPE(value2);
+  ASSERT_TYPES_EQUAL(value1, value2);
+
+  if (value1 == value2) {
+    return LoadZero(value1->type);
+  } else if (value1->IsConstantZero()) {
+    return value1;
+  } else if (value2->IsConstantZero()) {
+    return value1;
+  }
+
+  Instr* i = AppendInstr(OPCODE_AND_NOT_info, 0, AllocValue(value1->type));
   i->set_src1(value1);
   i->set_src2(value2);
   i->src3.value = NULL;

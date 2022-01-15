@@ -40,7 +40,7 @@ class D3D12Context : public GraphicsContext {
   // The format used by DWM.
   static constexpr DXGI_FORMAT kSwapChainFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
   ID3D12Resource* GetSwapChainBuffer(uint32_t buffer_index) const {
-    return swap_chain_buffers_[buffer_index];
+    return swap_chain_buffers_[buffer_index].Get();
   }
   uint32_t GetSwapChainBackBufferIndex() const {
     return swap_chain_back_buffer_index_;
@@ -62,7 +62,7 @@ class D3D12Context : public GraphicsContext {
     return swap_fence_completed_value_;
   }
   ID3D12GraphicsCommandList* GetSwapCommandList() const {
-    return swap_command_list_;
+    return swap_command_list_.Get();
   }
 
  private:
@@ -77,25 +77,30 @@ class D3D12Context : public GraphicsContext {
   bool context_lost_ = false;
 
   static constexpr uint32_t kSwapChainBufferCount = 3;
-  IDXGISwapChain3* swap_chain_ = nullptr;
+  Microsoft::WRL::ComPtr<IDXGISwapChain3> swap_chain_;
   uint32_t swap_chain_width_ = 0, swap_chain_height_ = 0;
-  ID3D12Resource* swap_chain_buffers_[kSwapChainBufferCount] = {};
+  Microsoft::WRL::ComPtr<ID3D12Resource>
+      swap_chain_buffers_[kSwapChainBufferCount];
   uint32_t swap_chain_back_buffer_index_ = 0;
-  ID3D12DescriptorHeap* swap_chain_rtv_heap_ = nullptr;
+  Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> swap_chain_rtv_heap_;
   D3D12_CPU_DESCRIPTOR_HANDLE swap_chain_rtv_heap_start_;
 
   uint64_t swap_fence_current_value_ = 1;
   uint64_t swap_fence_completed_value_ = 0;
   HANDLE swap_fence_completion_event_ = nullptr;
-  ID3D12Fence* swap_fence_ = nullptr;
+  Microsoft::WRL::ComPtr<ID3D12Fence> swap_fence_;
 
   static constexpr uint32_t kSwapCommandAllocatorCount = 3;
-  ID3D12CommandAllocator* swap_command_allocators_[kSwapCommandAllocatorCount] =
-      {};
+  Microsoft::WRL::ComPtr<ID3D12CommandAllocator>
+      swap_command_allocators_[kSwapCommandAllocatorCount];
   // Current command allocator is:
   // ((swap_fence_current_value_ + (kSwapCommandAllocatorCount - 1))) %
   //     kSwapCommandAllocatorCount.
-  ID3D12GraphicsCommandList* swap_command_list_ = nullptr;
+  Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> swap_command_list_;
+
+  Microsoft::WRL::ComPtr<IDCompositionDevice> dcomp_device_;
+  Microsoft::WRL::ComPtr<IDCompositionTarget> dcomp_target_;
+  Microsoft::WRL::ComPtr<IDCompositionVisual> dcomp_visual_;
 
   std::unique_ptr<D3D12ImmediateDrawer> immediate_drawer_;
 };

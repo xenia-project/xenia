@@ -529,6 +529,13 @@ struct xex2_import_library {
   }
 };
 
+struct xex2_opt_generic_u32 {
+  xe::be<uint32_t> size;
+  xe::be<uint32_t> values[1];
+
+  uint32_t count() const { return (size - 4) / 4; }
+};
+
 struct xex2_opt_header {
   xe::be<uint32_t> key;  // 0x0
 
@@ -551,11 +558,11 @@ struct xex2_header {
 
 struct xex2_page_descriptor {
   union {
+    xe::be<uint32_t> value;  // 0x0
     struct {
       xex2_section_type info : 4;
       uint32_t page_count : 28;
     };
-    xe::be<uint32_t> value;  // 0x0
   };
   char data_digest[0x14];  // 0x4
 };

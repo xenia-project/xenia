@@ -7,10 +7,11 @@
  ******************************************************************************
  */
 
+#include "xenia/base/console_app_main.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/filesystem.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/main.h"
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/string_buffer.h"
@@ -36,6 +37,7 @@ namespace cpu {
 namespace test {
 
 using xe::cpu::ppc::PPCContext;
+using namespace xe::literals;
 
 typedef std::vector<std::pair<std::string, std::string>> AnnotationList;
 
@@ -177,7 +179,7 @@ class TestSuite {
 
 class TestRunner {
  public:
-  TestRunner() : memory_size_(64 * 1024 * 1024) {
+  TestRunner() : memory_size_(64_MiB) {
     memory_.reset(new Memory());
     memory_->Initialize();
   }
@@ -420,8 +422,7 @@ bool RunTests(const std::string_view test_name) {
   int failed_count = 0;
   int passed_count = 0;
 
-  XELOGI("Haswell instruction usage {}.",
-         cvars::use_haswell_instructions ? "enabled" : "disabled");
+  XELOGI("Instruction feature mask {}.", cvars::x64_extension_mask);
 
   auto test_path_root = cvars::test_path;
   std::vector<std::filesystem::path> test_files;
@@ -483,5 +484,5 @@ int main(const std::vector<std::string>& args) {
 }  // namespace cpu
 }  // namespace xe
 
-DEFINE_ENTRY_POINT("xenia-cpu-ppc-test", xe::cpu::test::main, "[test name]",
-                   "test_name");
+XE_DEFINE_CONSOLE_APP("xenia-cpu-ppc-test", xe::cpu::test::main, "[test name]",
+                      "test_name");

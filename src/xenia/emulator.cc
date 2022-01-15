@@ -20,6 +20,7 @@
 #include "xenia/base/cvar.h"
 #include "xenia/base/debugging.h"
 #include "xenia/base/exception_handler.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/profiling.h"
@@ -40,8 +41,11 @@
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/memory.h"
 #include "xenia/ui/imgui_dialog.h"
+#include "xenia/ui/window.h"
+#include "xenia/ui/windowed_app_context.h"
 #include "xenia/vfs/devices/disc_image_device.h"
 #include "xenia/vfs/devices/host_path_device.h"
+#include "xenia/vfs/devices/null_device.h"
 #include "xenia/vfs/devices/stfs_container_device.h"
 #include "xenia/vfs/virtual_file_system.h"
 
@@ -56,6 +60,8 @@ DEFINE_string(
     "General");
 
 namespace xe {
+
+using namespace xe::literals;
 
 Emulator::Emulator(const std::filesystem::path& command_line,
                    const std::filesystem::path& storage_root,
@@ -232,7 +238,7 @@ X_STATUS Emulator::Setup(
 
   if (display_window_) {
     // Finish initializing the display.
-    display_window_->loop()->PostSynchronous([this]() {
+    display_window_->app_context().CallInUIThreadSynchronous([this]() {
       xe::ui::GraphicsContextLock context_lock(display_window_->context());
       Profiler::set_window(display_window_);
     });
@@ -279,7 +285,7 @@ X_STATUS Emulator::LaunchXexFile(const std::filesystem::path& path) {
   // and then get that symlinked to game:\, so
   // -> game:\foo.xex
 
-  auto mount_path = "\\Device\\Harddisk0\\Partition0";
+  auto mount_path = "\\Device\\Harddisk0\\Partition1";
 
   // Register the local directory in the virtual filesystem.
   auto parent_path = path.parent_path();
@@ -412,15 +418,14 @@ bool Emulator::SaveToFile(const std::filesystem::path& path) {
   Pause();
 
   filesystem::CreateFile(path);
-  auto map = MappedMemory::Open(path, MappedMemory::Mode::kReadWrite, 0,
-                                1024ull * 1024ull * 1024ull * 2ull);
+  auto map = MappedMemory::Open(path, MappedMemory::Mode::kReadWrite, 0, 2_GiB);
   if (!map) {
     return false;
   }
 
   // Save the emulator state to a file
   ByteStream stream(map->data(), map->size());
-  stream.Write('XSAV');
+  stream.Write(kEmulatorSaveSignature);
   stream.Write(title_id_.has_value());
   if (title_id_.has_value()) {
     stream.Write(title_id_.value());
@@ -454,7 +459,7 @@ bool Emulator::RestoreFromFile(const std::filesystem::path& path) {
 
   auto lock = global_critical_region::AcquireDirect();
   ByteStream stream(map->data(), map->size());
-  if (stream.Read<uint32_t>() != 'XSAV') {
+  if (stream.Read<uint32_t>() != kEmulatorSaveSignature) {
     return false;
   }
 
@@ -582,7 +587,7 @@ bool Emulator::ExceptionCallback(Exception* ex) {
   }
 
   // Display a dialog telling the user the guest has crashed.
-  display_window()->loop()->PostSynchronous([&]() {
+  display_window()->app_context().CallInUIThreadSynchronous([this]() {
     xe::ui::ImGuiDialog::ShowMessageBox(
         display_window(), "Uh-oh!",
         "The guest has crashed.\n\n"
@@ -672,6 +677,25 @@ static std::string format_version(xex2_version version) {
 
 X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
                                   const std::string_view module_path) {
+  // Setup NullDevices for raw HDD partition accesses
+  // Cache/STFC code baked into games tries reading/writing to these
+  // By using a NullDevice that just returns success to all IO requests it
+  // should allow games to believe cache/raw disk was accessed successfully
+
+  // NOTE: this should probably be moved to xenia_main.cc, but right now we need
+  // to register the \Device\Harddisk0\ NullDevice _after_ the
+  // \Device\Harddisk0\Partition1 HostPathDevice, otherwise requests to
+  // Partition1 will go to this. Registering during CompleteLaunch allows us to
+  // make sure any HostPathDevices are ready beforehand.
+  // (see comment above cache:\ device registration for more info about why)
+  auto null_paths = {std::string("\\Partition0"), std::string("\\Cache0"),
+                     std::string("\\Cache1")};
+  auto null_device =
+      std::make_unique<vfs::NullDevice>("\\Device\\Harddisk0", null_paths);
+  if (null_device->Initialize()) {
+    file_system_->RegisterDevice(std::move(null_device));
+  }
+
   // Reset state.
   title_id_ = std::nullopt;
   title_name_ = "";

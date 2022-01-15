@@ -81,7 +81,7 @@ void D3D12CommandProcessor::RequestFrameTrace(
 void D3D12CommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
                                                      uint32_t length) {
   shared_memory_->MemoryInvalidationCallback(base_ptr, length, true);
-  primitive_converter_->MemoryInvalidationCallback(base_ptr, length, true);
+  primitive_processor_->MemoryInvalidationCallback(base_ptr, length, true);
 }
 
 void D3D12CommandProcessor::RestoreEdramSnapshot(const void* snapshot) {
@@ -778,11 +778,12 @@ std::string D3D12CommandProcessor::GetWindowTitleText() const {
       default:
         break;
     }
-    uint32_t resolution_scale = render_target_cache_->GetResolutionScale();
-    if (resolution_scale > 1) {
-      title.put(' ');
-      title << resolution_scale;
-      title.put('x');
+    uint32_t resolution_scale_x =
+        texture_cache_ ? texture_cache_->GetDrawResolutionScaleX() : 1;
+    uint32_t resolution_scale_y =
+        texture_cache_ ? texture_cache_->GetDrawResolutionScaleY() : 1;
+    if (resolution_scale_x > 1 || resolution_scale_y > 1) {
+      title << ' ' << resolution_scale_x << 'x' << resolution_scale_y;
     }
   }
   return title.str();
@@ -1194,9 +1195,17 @@ bool D3D12CommandProcessor::SetupContext() {
     return false;
   }
 
+  primitive_processor_ = std::make_unique<D3D12PrimitiveProcessor>(
+      *register_file_, *memory_, trace_writer_, *shared_memory_, *this);
+  if (!primitive_processor_->Initialize()) {
+    XELOGE("Failed to initialize the geometric primitive processor");
+    return false;
+  }
+
   texture_cache_ = std::make_unique<TextureCache>(
       *this, *register_file_, *shared_memory_, bindless_resources_used_,
-      render_target_cache_->GetResolutionScale());
+      render_target_cache_->GetResolutionScaleX(),
+      render_target_cache_->GetResolutionScaleY());
   if (!texture_cache_->Initialize()) {
     XELOGE("Failed to initialize the texture cache");
     return false;
@@ -1207,13 +1216,6 @@ bool D3D12CommandProcessor::SetupContext() {
                                                     bindless_resources_used_);
   if (!pipeline_cache_->Initialize()) {
     XELOGE("Failed to initialize the graphics pipeline cache");
-    return false;
-  }
-
-  primitive_converter_ = std::make_unique<PrimitiveConverter>(
-      *this, *register_file_, *memory_, trace_writer_);
-  if (!primitive_converter_->Initialize()) {
-    XELOGE("Failed to initialize the geometric primitive converter");
     return false;
   }
 
@@ -1529,11 +1531,11 @@ void D3D12CommandProcessor::ShutdownContext() {
   ui::d3d12::util::ReleaseAndNull(gamma_ramp_upload_);
   ui::d3d12::util::ReleaseAndNull(gamma_ramp_texture_);
 
-  primitive_converter_.reset();
-
   pipeline_cache_.reset();
 
   texture_cache_.reset();
+
+  primitive_processor_.reset();
 
   shared_memory_.reset();
 
@@ -1662,7 +1664,7 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
         gamma_ramp_upload_mapping_ + gamma_ramp_footprint.Offset);
     for (uint32_t i = 0; i < 256; ++i) {
       uint32_t value = gamma_ramp_.normal[i].value;
-      // Swap red and blue (Project Sylpheed has settings allowing separate
+      // Swap red and blue (535107D4 has settings allowing separate
       // configuration).
       mapping[i] = ((value & 1023) << 20) | (value & (1023 << 10)) |
                    ((value >> 20) & 1023);
@@ -1791,10 +1793,11 @@ void D3D12CommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
       PushTransitionBarrier(swap_texture_, D3D12_RESOURCE_STATE_RENDER_TARGET,
                             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
       // Don't care about graphics state because the frame is ending anyway.
+      auto swap_screen_size = GetSwapScreenSize();
       {
         std::lock_guard<std::mutex> lock(swap_state_.mutex);
-        swap_state_.width = swap_texture_size.first;
-        swap_state_.height = swap_texture_size.second;
+        swap_state_.width = swap_screen_size.first;
+        swap_state_.height = swap_screen_size.second;
         swap_state_.front_buffer_texture =
             reinterpret_cast<uintptr_t>(swap_texture_srv_descriptor_heap_);
       }
@@ -1822,12 +1825,12 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
                                       uint32_t index_count,
                                       IndexBufferInfo* index_buffer_info,
                                       bool major_mode_explicit) {
-  auto device = GetD3D12Context().GetD3D12Provider().GetDevice();
-  auto& regs = *register_file_;
-
 #if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+
+  ID3D12Device* device = GetD3D12Context().GetD3D12Provider().GetDevice();
+  const RegisterFile& regs = *register_file_;
 
   xenos::ModeControl edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
   if (edram_mode == xenos::ModeControl::kCopy) {
@@ -1842,7 +1845,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     return true;
   }
 
-  // Vertex shader.
+  // Vertex shader analysis.
   auto vertex_shader = static_cast<D3D12Shader*>(active_vertex_shader());
   if (!vertex_shader) {
     // Always need a vertex shader.
@@ -1850,16 +1853,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   }
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
   bool memexport_used_vertex = vertex_shader->is_valid_memexport_used();
-  DxbcShaderTranslator::Modification vertex_shader_modification;
-  pipeline_cache_->GetCurrentShaderModification(*vertex_shader,
-                                                vertex_shader_modification);
-  bool tessellated =
-      vertex_shader_modification.vertex.host_vertex_shader_type !=
-      Shader::HostVertexShaderType::kVertex;
-  bool primitive_polygonal =
-      xenos::IsPrimitivePolygonal(tessellated, primitive_type);
 
-  // Pixel shader.
+  // Pixel shader analysis.
+  bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
   bool is_rasterization_done =
       draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
   D3D12Shader* pixel_shader = nullptr;
@@ -1884,22 +1880,30 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       return true;
     }
   }
-  bool memexport_used_pixel;
-  DxbcShaderTranslator::Modification pixel_shader_modification;
-  if (pixel_shader) {
-    memexport_used_pixel = pixel_shader->is_valid_memexport_used();
-    if (!pipeline_cache_->GetCurrentShaderModification(
-            *pixel_shader, pixel_shader_modification)) {
-      return false;
-    }
-  } else {
-    memexport_used_pixel = false;
-    pixel_shader_modification = DxbcShaderTranslator::Modification(0);
-  }
-
+  bool memexport_used_pixel =
+      pixel_shader && pixel_shader->is_valid_memexport_used();
   bool memexport_used = memexport_used_vertex || memexport_used_pixel;
 
   BeginSubmission(true);
+
+  // Process primitives.
+  PrimitiveProcessor::ProcessingResult primitive_processing_result;
+  if (!primitive_processor_->Process(primitive_processing_result)) {
+    return false;
+  }
+  if (!primitive_processing_result.host_draw_vertex_count) {
+    // Nothing to draw.
+    return true;
+  }
+
+  // Shader modifications.
+  DxbcShaderTranslator::Modification vertex_shader_modification =
+      pipeline_cache_->GetCurrentVertexShaderModification(
+          *vertex_shader, primitive_processing_result.host_vertex_shader_type);
+  DxbcShaderTranslator::Modification pixel_shader_modification =
+      pixel_shader
+          ? pipeline_cache_->GetCurrentPixelShaderModification(*pixel_shader)
+          : DxbcShaderTranslator::Modification(0);
 
   // Set up the render targets - this may perform dispatches and draws.
   uint32_t pixel_shader_writes_color_targets =
@@ -1907,66 +1911,6 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   if (!render_target_cache_->Update(is_rasterization_done,
                                     pixel_shader_writes_color_targets)) {
     return false;
-  }
-
-  // Set up primitive topology.
-  bool indexed = index_buffer_info != nullptr && index_buffer_info->guest_base;
-  xenos::PrimitiveType primitive_type_converted;
-  D3D_PRIMITIVE_TOPOLOGY primitive_topology;
-  if (tessellated) {
-    primitive_type_converted = primitive_type;
-    switch (primitive_type_converted) {
-      // TODO(Triang3l): Support all kinds of patches if found in games.
-      case xenos::PrimitiveType::kTriangleList:
-      case xenos::PrimitiveType::kTrianglePatch:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
-        break;
-      case xenos::PrimitiveType::kQuadList:
-      case xenos::PrimitiveType::kQuadPatch:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
-        break;
-      default:
-        return false;
-    }
-  } else {
-    primitive_type_converted =
-        PrimitiveConverter::GetReplacementPrimitiveType(primitive_type);
-    switch (primitive_type_converted) {
-      case xenos::PrimitiveType::kPointList:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
-        break;
-      case xenos::PrimitiveType::kLineList:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
-        break;
-      case xenos::PrimitiveType::kLineStrip:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
-        break;
-      case xenos::PrimitiveType::kTriangleList:
-      case xenos::PrimitiveType::kRectangleList:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-        break;
-      case xenos::PrimitiveType::kTriangleStrip:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
-        break;
-      case xenos::PrimitiveType::kQuadList:
-        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST_ADJ;
-        break;
-      default:
-        return false;
-    }
-  }
-  SetPrimitiveTopology(primitive_topology);
-  uint32_t line_loop_closing_index;
-  if (primitive_type == xenos::PrimitiveType::kLineLoop && !indexed &&
-      index_count >= 3) {
-    // Add a vertex to close the loop, and make the vertex shader replace its
-    // index (before adding the offset) with 0 to fetch the first vertex again.
-    // For indexed line loops, the primitive converter will add the vertex.
-    line_loop_closing_index = index_count;
-    ++index_count;
-  } else {
-    // Replace index 0 with 0 (do nothing) otherwise.
-    line_loop_closing_index = 0;
   }
 
   // Translate the shaders and create the pipeline if needed.
@@ -1987,6 +1931,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   if (host_render_targets_used) {
     bound_depth_and_color_render_target_bits =
         render_target_cache_->GetLastUpdateBoundRenderTargets(
+            render_target_cache_->gamma_render_target_as_srgb(),
             bound_depth_and_color_render_target_formats);
   } else {
     bound_depth_and_color_render_target_bits = 0;
@@ -1995,9 +1940,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   ID3D12RootSignature* root_signature;
   if (!pipeline_cache_->ConfigurePipeline(
           vertex_shader_translation, pixel_shader_translation,
-          primitive_type_converted,
-          indexed ? index_buffer_info->format : xenos::IndexFormat::kInt16,
-          bound_depth_and_color_render_target_bits,
+          primitive_processing_result, bound_depth_and_color_render_target_bits,
           bound_depth_and_color_render_target_formats, &pipeline_handle,
           &root_signature)) {
     return false;
@@ -2021,13 +1964,14 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   }
 
   // Get dynamic rasterizer state.
-  uint32_t resolution_scale = texture_cache_->GetDrawResolutionScale();
+  uint32_t resolution_scale_x = texture_cache_->GetDrawResolutionScaleX();
+  uint32_t resolution_scale_y = texture_cache_->GetDrawResolutionScaleY();
   RenderTargetCache::DepthFloat24Conversion depth_float24_conversion =
       render_target_cache_->depth_float24_conversion();
   draw_util::ViewportInfo viewport_info;
   draw_util::GetHostViewportInfo(
-      regs, resolution_scale, true, D3D12_VIEWPORT_BOUNDS_MAX,
-      D3D12_VIEWPORT_BOUNDS_MAX, false,
+      regs, resolution_scale_x, resolution_scale_y, true,
+      D3D12_VIEWPORT_BOUNDS_MAX, D3D12_VIEWPORT_BOUNDS_MAX, false,
       host_render_targets_used &&
           (depth_float24_conversion ==
                RenderTargetCache::DepthFloat24Conversion::kOnOutputTruncating ||
@@ -2037,10 +1981,10 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       viewport_info);
   draw_util::Scissor scissor;
   draw_util::GetScissor(regs, scissor);
-  scissor.offset[0] *= resolution_scale;
-  scissor.offset[1] *= resolution_scale;
-  scissor.extent[0] *= resolution_scale;
-  scissor.extent[1] *= resolution_scale;
+  scissor.offset[0] *= resolution_scale_x;
+  scissor.offset[1] *= resolution_scale_y;
+  scissor.extent[0] *= resolution_scale_x;
+  scissor.extent[1] *= resolution_scale_y;
 
   // Update viewport, scissor, blend factor and stencil reference.
   UpdateFixedFunctionState(viewport_info, scissor, primitive_polygonal);
@@ -2048,9 +1992,10 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   // Update system constants before uploading them.
   // TODO(Triang3l): With ROV, pass the disabled render target mask for safety.
   UpdateSystemConstantValues(
-      memexport_used, primitive_polygonal, line_loop_closing_index,
-      indexed ? index_buffer_info->endianness : xenos::Endian::kNone,
-      viewport_info, used_texture_mask,
+      memexport_used, primitive_polygonal,
+      primitive_processing_result.line_loop_closing_index,
+      primitive_processing_result.host_index_endian, viewport_info,
+      used_texture_mask,
       pixel_shader ? GetCurrentColorMask(pixel_shader->writes_color_targets())
                    : 0);
 
@@ -2063,46 +2008,45 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   // Ensure vertex buffers are resident.
   // TODO(Triang3l): Cache residency for ranges in a way similar to how texture
   // validity is tracked.
-  uint64_t vertex_buffers_resident[2] = {};
-  for (const Shader::VertexBinding& vertex_binding :
-       vertex_shader->vertex_bindings()) {
-    uint32_t vfetch_index = vertex_binding.fetch_constant;
-    if (vertex_buffers_resident[vfetch_index >> 6] &
-        (uint64_t(1) << (vfetch_index & 63))) {
-      continue;
-    }
-    const auto& vfetch_constant = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
-        XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2);
-    switch (vfetch_constant.type) {
-      case xenos::FetchConstantType::kVertex:
-        break;
-      case xenos::FetchConstantType::kInvalidVertex:
-        if (cvars::gpu_allow_invalid_fetch_constants) {
+  const Shader::ConstantRegisterMap& constant_map_vertex =
+      vertex_shader->constant_register_map();
+  for (uint32_t i = 0; i < xe::countof(constant_map_vertex.vertex_fetch_bitmap);
+       ++i) {
+    uint32_t vfetch_bits_remaining = constant_map_vertex.vertex_fetch_bitmap[i];
+    uint32_t j;
+    while (xe::bit_scan_forward(vfetch_bits_remaining, &j)) {
+      vfetch_bits_remaining &= ~(uint32_t(1) << j);
+      uint32_t vfetch_index = i * 32 + j;
+      const auto& vfetch_constant = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
+          XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2);
+      switch (vfetch_constant.type) {
+        case xenos::FetchConstantType::kVertex:
           break;
-        }
-        XELOGW(
-            "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" type! "
-            "This "
-            "is incorrect behavior, but you can try bypassing this by "
-            "launching Xenia with --gpu_allow_invalid_fetch_constants=true.",
-            vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+        case xenos::FetchConstantType::kInvalidVertex:
+          if (cvars::gpu_allow_invalid_fetch_constants) {
+            break;
+          }
+          XELOGW(
+              "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" type! "
+              "This is incorrect behavior, but you can try bypassing this by "
+              "launching Xenia with --gpu_allow_invalid_fetch_constants=true.",
+              vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+          return false;
+        default:
+          XELOGW(
+              "Vertex fetch constant {} ({:08X} {:08X}) is completely invalid!",
+              vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+          return false;
+      }
+      if (!shared_memory_->RequestRange(vfetch_constant.address << 2,
+                                        vfetch_constant.size << 2)) {
+        XELOGE(
+            "Failed to request vertex buffer at 0x{:08X} (size {}) in the "
+            "shared memory",
+            vfetch_constant.address << 2, vfetch_constant.size << 2);
         return false;
-      default:
-        XELOGW(
-            "Vertex fetch constant {} ({:08X} {:08X}) is completely invalid!",
-            vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
-        return false;
+      }
     }
-    if (!shared_memory_->RequestRange(vfetch_constant.address << 2,
-                                      vfetch_constant.size << 2)) {
-      XELOGE(
-          "Failed to request vertex buffer at 0x{:08X} (size {}) in the shared "
-          "memory",
-          vfetch_constant.address << 2, vfetch_constant.size << 2);
-      return false;
-    }
-    vertex_buffers_resident[vfetch_index >> 6] |= uint64_t(1)
-                                                  << (vfetch_index & 63);
   }
 
   // Gather memexport ranges and ensure the heaps for them are resident, and
@@ -2135,7 +2079,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
           memexport_stream.index_count * memexport_format_size;
       // Try to reduce the number of shared memory operations when writing
       // different elements into the same buffer through different exports
-      // (happens in Halo 3).
+      // (happens in 4D5307E6).
       bool memexport_range_reused = false;
       for (uint32_t i = 0; i < memexport_range_count; ++i) {
         MemExportRange& memexport_range = memexport_ranges[i];
@@ -2206,111 +2150,138 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     }
   }
 
-  // Actually draw.
-  if (indexed) {
-    uint32_t index_size =
-        index_buffer_info->format == xenos::IndexFormat::kInt32
-            ? sizeof(uint32_t)
-            : sizeof(uint16_t);
-    assert_false(index_buffer_info->guest_base & (index_size - 1));
-    uint32_t index_base =
-        index_buffer_info->guest_base & 0x1FFFFFFF & ~(index_size - 1);
-    D3D12_INDEX_BUFFER_VIEW index_buffer_view;
-    index_buffer_view.Format =
-        index_buffer_info->format == xenos::IndexFormat::kInt32
-            ? DXGI_FORMAT_R32_UINT
-            : DXGI_FORMAT_R16_UINT;
-    PrimitiveConverter::ConversionResult conversion_result;
-    uint32_t converted_index_count;
-    if (tessellated) {
-      conversion_result =
-          PrimitiveConverter::ConversionResult::kConversionNotNeeded;
-    } else {
-      conversion_result = primitive_converter_->ConvertPrimitives(
-          primitive_type, index_buffer_info->guest_base, index_count,
-          index_buffer_info->format, index_buffer_info->endianness,
-          index_buffer_view.BufferLocation, converted_index_count);
-      if (conversion_result == PrimitiveConverter::ConversionResult::kFailed) {
-        return false;
-      }
-      if (conversion_result ==
-          PrimitiveConverter::ConversionResult::kPrimitiveEmpty) {
-        return true;
-      }
-    }
-    ID3D12Resource* scratch_index_buffer = nullptr;
-    if (conversion_result == PrimitiveConverter::ConversionResult::kConverted) {
-      index_buffer_view.SizeInBytes = converted_index_count * index_size;
-      index_count = converted_index_count;
-    } else {
-      uint32_t index_buffer_size = index_buffer_info->count * index_size;
-      if (!shared_memory_->RequestRange(index_base, index_buffer_size)) {
+  // Primitive topology.
+  D3D_PRIMITIVE_TOPOLOGY primitive_topology;
+  if (primitive_processing_result.IsTessellated()) {
+    switch (primitive_processing_result.host_primitive_type) {
+      // TODO(Triang3l): Support all primitive types.
+      case xenos::PrimitiveType::kTriangleList:
+      case xenos::PrimitiveType::kTrianglePatch:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
+        break;
+      case xenos::PrimitiveType::kQuadList:
+      case xenos::PrimitiveType::kQuadPatch:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
+        break;
+      default:
         XELOGE(
-            "Failed to request index buffer at 0x{:08X} (size {}) in the "
-            "shared memory",
-            index_base, index_buffer_size);
+            "Host tessellated primitive type {} returned by the primitive "
+            "processor is not supported by the Direct3D 12 command processor",
+            uint32_t(primitive_processing_result.host_primitive_type));
+        assert_unhandled_case(primitive_processing_result.host_primitive_type);
         return false;
-      }
-      if (memexport_used) {
-        // If the shared memory is a UAV, it can't be used as an index buffer
-        // (UAV is a read/write state, index buffer is a read-only state). Need
-        // to copy the indices to a buffer in the index buffer state.
-        scratch_index_buffer = RequestScratchGPUBuffer(
-            index_buffer_size, D3D12_RESOURCE_STATE_COPY_DEST);
-        if (scratch_index_buffer == nullptr) {
-          return false;
-        }
-        shared_memory_->UseAsCopySource();
-        SubmitBarriers();
-        deferred_command_list_.D3DCopyBufferRegion(
-            scratch_index_buffer, 0, shared_memory_->GetBuffer(), index_base,
-            index_buffer_size);
-        PushTransitionBarrier(scratch_index_buffer,
-                              D3D12_RESOURCE_STATE_COPY_DEST,
-                              D3D12_RESOURCE_STATE_INDEX_BUFFER);
-        index_buffer_view.BufferLocation =
-            scratch_index_buffer->GetGPUVirtualAddress();
-      } else {
-        index_buffer_view.BufferLocation =
-            shared_memory_->GetGPUAddress() + index_base;
-      }
-      index_buffer_view.SizeInBytes = index_buffer_size;
     }
+  } else {
+    switch (primitive_processing_result.host_primitive_type) {
+      case xenos::PrimitiveType::kPointList:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+        break;
+      case xenos::PrimitiveType::kLineList:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
+        break;
+      case xenos::PrimitiveType::kLineStrip:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
+        break;
+      case xenos::PrimitiveType::kTriangleList:
+      case xenos::PrimitiveType::kRectangleList:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+        break;
+      case xenos::PrimitiveType::kTriangleStrip:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+        break;
+      case xenos::PrimitiveType::kQuadList:
+        primitive_topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST_ADJ;
+        break;
+      default:
+        XELOGE(
+            "Host primitive type {} returned by the primitive processor is not "
+            "supported by the Direct3D 12 command processor",
+            uint32_t(primitive_processing_result.host_primitive_type));
+        assert_unhandled_case(primitive_processing_result.host_primitive_type);
+        return false;
+    }
+  }
+  SetPrimitiveTopology(primitive_topology);
+  // Must not call anything that may change the primitive topology from now on!
+
+  // Draw.
+  if (primitive_processing_result.index_buffer_type ==
+      PrimitiveProcessor::ProcessedIndexBufferType::kNone) {
     if (memexport_used) {
       shared_memory_->UseForWriting();
     } else {
       shared_memory_->UseForReading();
     }
     SubmitBarriers();
+    deferred_command_list_.D3DDrawInstanced(
+        primitive_processing_result.host_draw_vertex_count, 1, 0, 0);
+  } else {
+    D3D12_INDEX_BUFFER_VIEW index_buffer_view;
+    index_buffer_view.SizeInBytes =
+        primitive_processing_result.host_draw_vertex_count;
+    if (primitive_processing_result.host_index_format ==
+        xenos::IndexFormat::kInt16) {
+      index_buffer_view.SizeInBytes *= sizeof(uint16_t);
+      index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
+    } else {
+      index_buffer_view.SizeInBytes *= sizeof(uint32_t);
+      index_buffer_view.Format = DXGI_FORMAT_R32_UINT;
+    }
+    ID3D12Resource* scratch_index_buffer = nullptr;
+    switch (primitive_processing_result.index_buffer_type) {
+      case PrimitiveProcessor::ProcessedIndexBufferType::kGuest: {
+        if (memexport_used) {
+          // If the shared memory is a UAV, it can't be used as an index buffer
+          // (UAV is a read/write state, index buffer is a read-only state).
+          // Need to copy the indices to a buffer in the index buffer state.
+          scratch_index_buffer = RequestScratchGPUBuffer(
+              index_buffer_view.SizeInBytes, D3D12_RESOURCE_STATE_COPY_DEST);
+          if (scratch_index_buffer == nullptr) {
+            return false;
+          }
+          shared_memory_->UseAsCopySource();
+          SubmitBarriers();
+          deferred_command_list_.D3DCopyBufferRegion(
+              scratch_index_buffer, 0, shared_memory_->GetBuffer(),
+              primitive_processing_result.guest_index_base,
+              index_buffer_view.SizeInBytes);
+          PushTransitionBarrier(scratch_index_buffer,
+                                D3D12_RESOURCE_STATE_COPY_DEST,
+                                D3D12_RESOURCE_STATE_INDEX_BUFFER);
+          index_buffer_view.BufferLocation =
+              scratch_index_buffer->GetGPUVirtualAddress();
+        } else {
+          index_buffer_view.BufferLocation =
+              shared_memory_->GetGPUAddress() +
+              primitive_processing_result.guest_index_base;
+        }
+      } break;
+      case PrimitiveProcessor::ProcessedIndexBufferType::kHostConverted:
+        index_buffer_view.BufferLocation =
+            primitive_processor_->GetConvertedIndexBufferGpuAddress(
+                primitive_processing_result.host_index_buffer_handle);
+        break;
+      case PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltin:
+        index_buffer_view.BufferLocation =
+            primitive_processor_->GetBuiltinIndexBufferGpuAddress(
+                primitive_processing_result.host_index_buffer_handle);
+        break;
+      default:
+        assert_unhandled_case(primitive_processing_result.index_buffer_type);
+        return false;
+    }
     deferred_command_list_.D3DIASetIndexBuffer(&index_buffer_view);
-    deferred_command_list_.D3DDrawIndexedInstanced(index_count, 1, 0, 0, 0);
+    if (memexport_used) {
+      shared_memory_->UseForWriting();
+    } else {
+      shared_memory_->UseForReading();
+    }
+    SubmitBarriers();
+    deferred_command_list_.D3DDrawIndexedInstanced(
+        primitive_processing_result.host_draw_vertex_count, 1, 0, 0, 0);
     if (scratch_index_buffer != nullptr) {
       ReleaseScratchGPUBuffer(scratch_index_buffer,
                               D3D12_RESOURCE_STATE_INDEX_BUFFER);
-    }
-  } else {
-    // Check if need to draw using a conversion index buffer.
-    uint32_t converted_index_count = 0;
-    D3D12_GPU_VIRTUAL_ADDRESS conversion_gpu_address =
-        tessellated ? 0
-                    : primitive_converter_->GetStaticIndexBuffer(
-                          primitive_type, index_count, converted_index_count);
-    if (memexport_used) {
-      shared_memory_->UseForWriting();
-    } else {
-      shared_memory_->UseForReading();
-    }
-    SubmitBarriers();
-    if (conversion_gpu_address) {
-      D3D12_INDEX_BUFFER_VIEW index_buffer_view;
-      index_buffer_view.BufferLocation = conversion_gpu_address;
-      index_buffer_view.SizeInBytes = converted_index_count * sizeof(uint16_t);
-      index_buffer_view.Format = DXGI_FORMAT_R16_UINT;
-      deferred_command_list_.D3DIASetIndexBuffer(&index_buffer_view);
-      deferred_command_list_.D3DDrawIndexedInstanced(converted_index_count, 1,
-                                                     0, 0, 0);
-    } else {
-      deferred_command_list_.D3DDrawInstanced(index_count, 1, 0, 0);
     }
   }
 
@@ -2406,7 +2377,7 @@ bool D3D12CommandProcessor::IssueCopy() {
     return false;
   }
   if (cvars::d3d12_readback_resolve &&
-      texture_cache_->GetDrawResolutionScale() <= 1 && written_length) {
+      !texture_cache_->IsDrawResolutionScaled() && written_length) {
     // Read the resolved data on the CPU.
     ID3D12Resource* readback_buffer = RequestReadbackBuffer(written_length);
     if (readback_buffer != nullptr) {
@@ -2526,9 +2497,9 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
 
   shared_memory_->CompletedSubmissionUpdated();
 
-  render_target_cache_->CompletedSubmissionUpdated();
+  primitive_processor_->CompletedSubmissionUpdated();
 
-  primitive_converter_->CompletedSubmissionUpdated();
+  render_target_cache_->CompletedSubmissionUpdated();
 }
 
 void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
@@ -2593,11 +2564,11 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
     }
     primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 
+    primitive_processor_->BeginSubmission();
+
     render_target_cache_->BeginSubmission();
 
     texture_cache_->BeginSubmission();
-
-    primitive_converter_->BeginSubmission();
   }
 
   if (is_opening_frame) {
@@ -2645,9 +2616,9 @@ void D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
       }
     }
 
-    texture_cache_->BeginFrame();
+    primitive_processor_->BeginFrame();
 
-    primitive_converter_->BeginFrame();
+    texture_cache_->BeginFrame();
   }
 }
 
@@ -2676,6 +2647,8 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
 
   if (is_closing_frame) {
     texture_cache_->EndFrame();
+
+    primitive_processor_->EndFrame();
   }
 
   if (submission_open_) {
@@ -2762,8 +2735,6 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
       }
       constant_buffer_pool_->ClearCache();
 
-      primitive_converter_->ClearCache();
-
       pipeline_cache_->ClearCache();
 
       render_target_cache_->ClearCache();
@@ -2774,6 +2745,8 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
         it.second->Release();
       }
       root_signatures_bindful_.clear();
+
+      primitive_processor_->ClearCache();
 
       shared_memory_->ClearCache();
     }
@@ -2897,17 +2870,21 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   auto rb_surface_info = regs.Get<reg::RB_SURFACE_INFO>();
   auto sq_context_misc = regs.Get<reg::SQ_CONTEXT_MISC>();
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
-  int32_t vgt_indx_offset = int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
+  uint32_t vgt_indx_offset = regs.Get<reg::VGT_INDX_OFFSET>().indx_offset;
+  uint32_t vgt_max_vtx_indx = regs.Get<reg::VGT_MAX_VTX_INDX>().max_indx;
+  uint32_t vgt_min_vtx_indx = regs.Get<reg::VGT_MIN_VTX_INDX>().min_indx;
 
   bool edram_rov_used = render_target_cache_->GetPath() ==
                         RenderTargetCache::Path::kPixelShaderInterlock;
-  uint32_t resolution_scale = texture_cache_->GetDrawResolutionScale();
+  uint32_t resolution_scale_x = texture_cache_->GetDrawResolutionScaleX();
+  uint32_t resolution_scale_y = texture_cache_->GetDrawResolutionScaleY();
 
   // Get the color info register values for each render target. Also, for ROV,
   // exclude components that don't exist in the format from the write mask.
   // Don't exclude fully overlapping render targets, however - two render
-  // targets with the same base address are used in the lighting pass of Halo 3,
-  // for example, with the needed one picked with dynamic control flow.
+  // targets with the same base address are used in the lighting pass of
+  // 4D5307E6, for example, with the needed one picked with dynamic control
+  // flow.
   reg::RB_COLOR_INFO color_infos[4];
   float rt_clamp[4][4];
   uint32_t rt_keep_masks[4][2];
@@ -2926,8 +2903,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   }
 
   // Disable depth and stencil if it aliases a color render target (for
-  // instance, during the XBLA logo in Banjo-Kazooie, though depth writing is
-  // already disabled there).
+  // instance, during the XBLA logo in 58410954, though depth writing is already
+  // disabled there).
   bool depth_stencil_enabled =
       rb_depthcontrol.stencil_enable || rb_depthcontrol.z_enable;
   if (edram_rov_used && depth_stencil_enabled) {
@@ -3050,8 +3027,14 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   system_constants_.vertex_index_endian = index_endian;
 
   // Vertex index offset.
-  dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
-  system_constants_.vertex_base_index = vgt_indx_offset;
+  dirty |= system_constants_.vertex_index_offset != vgt_indx_offset;
+  system_constants_.vertex_index_offset = vgt_indx_offset;
+
+  // Vertex index range.
+  dirty |= system_constants_.vertex_index_min != vgt_min_vtx_indx;
+  dirty |= system_constants_.vertex_index_max != vgt_max_vtx_indx;
+  system_constants_.vertex_index_min = vgt_min_vtx_indx;
+  system_constants_.vertex_index_max = vgt_max_vtx_indx;
 
   // User clip planes (UCP_ENA_#), when not CLIP_DISABLE.
   if (!pa_cl_clip_cntl.clip_disable) {
@@ -3082,19 +3065,19 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   float point_size_y = float(pa_su_point_size.height) * 0.125f;
   float point_size_min = float(pa_su_point_minmax.min_size) * 0.125f;
   float point_size_max = float(pa_su_point_minmax.max_size) * 0.125f;
-  dirty |= system_constants_.point_size[0] != point_size_x;
-  dirty |= system_constants_.point_size[1] != point_size_y;
-  dirty |= system_constants_.point_size_min_max[0] != point_size_min;
-  dirty |= system_constants_.point_size_min_max[1] != point_size_max;
-  system_constants_.point_size[0] = point_size_x;
-  system_constants_.point_size[1] = point_size_y;
-  system_constants_.point_size_min_max[0] = point_size_min;
-  system_constants_.point_size_min_max[1] = point_size_max;
+  dirty |= system_constants_.point_size_x != point_size_x;
+  dirty |= system_constants_.point_size_y != point_size_y;
+  dirty |= system_constants_.point_size_min != point_size_min;
+  dirty |= system_constants_.point_size_max != point_size_max;
+  system_constants_.point_size_x = point_size_x;
+  system_constants_.point_size_y = point_size_y;
+  system_constants_.point_size_min = point_size_min;
+  system_constants_.point_size_max = point_size_max;
   float point_screen_to_ndc_x =
-      (/* 0.5f * 2.0f * */ float(resolution_scale)) /
+      (/* 0.5f * 2.0f * */ float(resolution_scale_x)) /
       std::max(viewport_info.xy_extent[0], uint32_t(1));
   float point_screen_to_ndc_y =
-      (/* 0.5f * 2.0f * */ float(resolution_scale)) /
+      (/* 0.5f * 2.0f * */ float(resolution_scale_y)) /
       std::max(viewport_info.xy_extent[1], uint32_t(1));
   dirty |= system_constants_.point_screen_to_ndc[0] != point_screen_to_ndc_x;
   dirty |= system_constants_.point_screen_to_ndc[1] != point_screen_to_ndc_y;
@@ -3163,15 +3146,22 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   dirty |= system_constants_.alpha_to_mask != alpha_to_mask;
   system_constants_.alpha_to_mask = alpha_to_mask;
 
+  uint32_t edram_tile_dwords_scaled = xenos::kEdramTileWidthSamples *
+                                      xenos::kEdramTileHeightSamples *
+                                      (resolution_scale_x * resolution_scale_y);
+
   // EDRAM pitch for ROV writing.
   if (edram_rov_used) {
-    uint32_t edram_pitch_tiles =
+    // Align, then multiply by 32bpp tile size in dwords.
+    uint32_t edram_32bpp_tile_pitch_dwords_scaled =
         ((rb_surface_info.surface_pitch *
           (rb_surface_info.msaa_samples >= xenos::MsaaSamples::k4X ? 2 : 1)) +
-         79) /
-        80;
-    dirty |= system_constants_.edram_pitch_tiles != edram_pitch_tiles;
-    system_constants_.edram_pitch_tiles = edram_pitch_tiles;
+         (xenos::kEdramTileWidthSamples - 1)) /
+        xenos::kEdramTileWidthSamples * edram_tile_dwords_scaled;
+    dirty |= system_constants_.edram_32bpp_tile_pitch_dwords_scaled !=
+             edram_32bpp_tile_pitch_dwords_scaled;
+    system_constants_.edram_32bpp_tile_pitch_dwords_scaled =
+        edram_32bpp_tile_pitch_dwords_scaled;
   }
 
   // Color exponent bias and output index mapping or ROV render target writing.
@@ -3205,7 +3195,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       if (rt_keep_masks[i][0] != UINT32_MAX ||
           rt_keep_masks[i][1] != UINT32_MAX) {
         uint32_t rt_base_dwords_scaled =
-            color_info.color_base * 1280 * resolution_scale * resolution_scale;
+            color_info.color_base * edram_tile_dwords_scaled;
         dirty |= system_constants_.edram_rt_base_dwords_scaled[i] !=
                  rt_base_dwords_scaled;
         system_constants_.edram_rt_base_dwords_scaled[i] =
@@ -3229,18 +3219,12 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     }
   }
 
-  // Interpolator sampling pattern, resolution scale, depth/stencil testing and
-  // blend constant for ROV.
   if (edram_rov_used) {
-    uint32_t depth_base_dwords = rb_depth_info.depth_base * 1280;
-    dirty |= system_constants_.edram_depth_base_dwords != depth_base_dwords;
-    system_constants_.edram_depth_base_dwords = depth_base_dwords;
-
-    float depth_range_scale = viewport_info.z_max - viewport_info.z_min;
-    dirty |= system_constants_.edram_depth_range_scale != depth_range_scale;
-    system_constants_.edram_depth_range_scale = depth_range_scale;
-    dirty |= system_constants_.edram_depth_range_offset != viewport_info.z_min;
-    system_constants_.edram_depth_range_offset = viewport_info.z_min;
+    uint32_t depth_base_dwords_scaled =
+        rb_depth_info.depth_base * edram_tile_dwords_scaled;
+    dirty |= system_constants_.edram_depth_base_dwords_scaled !=
+             depth_base_dwords_scaled;
+    system_constants_.edram_depth_base_dwords_scaled = depth_base_dwords_scaled;
 
     // For non-polygons, front polygon offset is used, and it's enabled if
     // POLY_OFFSET_PARA_ENABLED is set, for polygons, separate front and back
@@ -3270,10 +3254,15 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         poly_offset_back_offset = poly_offset_front_offset;
       }
     }
-    // "slope computed in subpixels (1/12 or 1/16)" - R5xx Acceleration. Also:
-    // https://github.com/mesa3d/mesa/blob/54ad9b444c8e73da498211870e785239ad3ff1aa/src/gallium/drivers/radeonsi/si_state.c#L943
-    poly_offset_front_scale *= (1.0f / 16.0f) * resolution_scale;
-    poly_offset_back_scale *= (1.0f / 16.0f) * resolution_scale;
+    // With non-square resolution scaling, make sure the worst-case impact is
+    // reverted (slope only along the scaled axis), thus max. More bias is
+    // better than less bias, because less bias means Z fighting with the
+    // background is more likely.
+    float poly_offset_scale_factor =
+        xenos::kPolygonOffsetScaleSubpixelUnit *
+        std::max(resolution_scale_x, resolution_scale_y);
+    poly_offset_front_scale *= poly_offset_scale_factor;
+    poly_offset_back_scale *= poly_offset_scale_factor;
     dirty |= system_constants_.edram_poly_offset_front_scale !=
              poly_offset_front_scale;
     system_constants_.edram_poly_offset_front_scale = poly_offset_front_scale;

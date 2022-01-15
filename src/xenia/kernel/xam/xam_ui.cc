@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -17,6 +17,7 @@
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/window.h"
+#include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -76,11 +77,16 @@ X_RESULT xeXamDispatchDialog(T* dialog,
       result = close_callback(dialog);
     });
     xe::threading::Fence fence;
-    kernel_state()->emulator()->display_window()->loop()->PostSynchronous(
-        [&dialog, &fence]() { dialog->Then(&fence); });
-    ++xam_dialogs_shown_;
-    fence.Wait();
-    --xam_dialogs_shown_;
+    xe::ui::WindowedAppContext& app_context =
+        kernel_state()->emulator()->display_window()->app_context();
+    if (app_context.CallInUIThreadSynchronous(
+            [&dialog, &fence]() { dialog->Then(&fence); })) {
+      ++xam_dialogs_shown_;
+      fence.Wait();
+      --xam_dialogs_shown_;
+    } else {
+      delete dialog;
+    }
     // dialog should be deleted at this point!
     return result;
   };
@@ -117,11 +123,14 @@ X_RESULT xeXamDispatchDialogEx(
           result = close_callback(dialog, extended_error, length);
         });
     xe::threading::Fence fence;
-    display_window->loop()->PostSynchronous(
-        [&dialog, &fence]() { dialog->Then(&fence); });
-    ++xam_dialogs_shown_;
-    fence.Wait();
-    --xam_dialogs_shown_;
+    if (display_window->app_context().CallInUIThreadSynchronous(
+            [&dialog, &fence]() { dialog->Then(&fence); })) {
+      ++xam_dialogs_shown_;
+      fence.Wait();
+      --xam_dialogs_shown_;
+    } else {
+      delete dialog;
+    }
     // dialog should be deleted at this point!
     return result;
   };
@@ -192,7 +201,7 @@ X_RESULT xeXamDispatchHeadlessEx(
   }
 }
 
-dword_result_t XamIsUIActive() { return xeXamIsUIActive(); }
+dword_result_t XamIsUIActive_entry() { return xeXamIsUIActive(); }
 DECLARE_XAM_EXPORT2(XamIsUIActive, kUI, kImplemented, kHighFrequency);
 
 class MessageBoxDialog : public XamDialog {
@@ -254,11 +263,10 @@ class MessageBoxDialog : public XamDialog {
 };
 
 // https://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/
-dword_result_t XamShowMessageBoxUI(dword_t user_index, lpu16string_t title_ptr,
-                                   lpu16string_t text_ptr, dword_t button_count,
-                                   lpdword_t button_ptrs, dword_t active_button,
-                                   dword_t flags, lpdword_t result_ptr,
-                                   pointer_t<XAM_OVERLAPPED> overlapped) {
+dword_result_t XamShowMessageBoxUI_entry(
+    dword_t user_index, lpu16string_t title_ptr, lpu16string_t text_ptr,
+    dword_t button_count, lpdword_t button_ptrs, dword_t active_button,
+    dword_t flags, lpdword_t result_ptr, pointer_t<XAM_OVERLAPPED> overlapped) {
   std::string title;
   if (title_ptr) {
     title = xe::to_utf8(title_ptr.value());
@@ -395,11 +403,10 @@ class KeyboardInputDialog : public XamDialog {
 };
 
 // https://www.se7ensins.com/forums/threads/release-how-to-use-xshowkeyboardui-release.906568/
-dword_result_t XamShowKeyboardUI(dword_t user_index, dword_t flags,
-                                 lpu16string_t default_text,
-                                 lpu16string_t title, lpu16string_t description,
-                                 lpu16string_t buffer, dword_t buffer_length,
-                                 pointer_t<XAM_OVERLAPPED> overlapped) {
+dword_result_t XamShowKeyboardUI_entry(
+    dword_t user_index, dword_t flags, lpu16string_t default_text,
+    lpu16string_t title, lpu16string_t description, lpu16string_t buffer,
+    dword_t buffer_length, pointer_t<XAM_OVERLAPPED> overlapped) {
   if (!buffer) {
     return X_ERROR_INVALID_PARAMETER;
   }
@@ -452,11 +459,10 @@ dword_result_t XamShowKeyboardUI(dword_t user_index, dword_t flags,
 }
 DECLARE_XAM_EXPORT1(XamShowKeyboardUI, kUI, kImplemented);
 
-dword_result_t XamShowDeviceSelectorUI(dword_t user_index, dword_t content_type,
-                                       dword_t content_flags,
-                                       qword_t total_requested,
-                                       lpdword_t device_id_ptr,
-                                       pointer_t<XAM_OVERLAPPED> overlapped) {
+dword_result_t XamShowDeviceSelectorUI_entry(
+    dword_t user_index, dword_t content_type, dword_t content_flags,
+    qword_t total_requested, lpdword_t device_id_ptr,
+    pointer_t<XAM_OVERLAPPED> overlapped) {
   return xeXamDispatchHeadless(
       [device_id_ptr]() -> X_RESULT {
         // NOTE: 0x00000001 is our dummy device ID from xam_content.cc
@@ -467,7 +473,7 @@ dword_result_t XamShowDeviceSelectorUI(dword_t user_index, dword_t content_type,
 }
 DECLARE_XAM_EXPORT1(XamShowDeviceSelectorUI, kUI, kImplemented);
 
-void XamShowDirtyDiscErrorUI(dword_t user_index) {
+void XamShowDirtyDiscErrorUI_entry(dword_t user_index) {
   if (cvars::headless) {
     assert_always();
     exit(1);
@@ -487,19 +493,18 @@ void XamShowDirtyDiscErrorUI(dword_t user_index) {
 }
 DECLARE_XAM_EXPORT1(XamShowDirtyDiscErrorUI, kUI, kImplemented);
 
-dword_result_t XamShowPartyUI(unknown_t r3, unknown_t r4) {
+dword_result_t XamShowPartyUI_entry(unknown_t r3, unknown_t r4) {
   return X_ERROR_FUNCTION_FAILED;
 }
 DECLARE_XAM_EXPORT1(XamShowPartyUI, kNone, kStub);
 
-dword_result_t XamShowCommunitySessionsUI(unknown_t r3, unknown_t r4) {
+dword_result_t XamShowCommunitySessionsUI_entry(unknown_t r3, unknown_t r4) {
   return X_ERROR_FUNCTION_FAILED;
 }
 DECLARE_XAM_EXPORT1(XamShowCommunitySessionsUI, kNone, kStub);
 
-void RegisterUIExports(xe::cpu::ExportResolver* export_resolver,
-                       KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(UI);

@@ -12,7 +12,6 @@
 
 #include <vector>
 
-#include "xenia/base/main.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/ppc/ppc_context.h"
@@ -20,7 +19,7 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/test_module.h"
 
-#include "third_party/catch/single_include/catch.hpp"
+#include "third_party/catch/include/catch.hpp"
 
 #define XENIA_TEST_X64 1
 

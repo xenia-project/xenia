@@ -10,6 +10,7 @@
 #ifndef XENIA_KERNEL_XSOCKET_H_
 #define XENIA_KERNEL_XSOCKET_H_
 
+#include <cstring>
 #include <queue>
 
 #include "xenia/base/byte_order.h"
@@ -42,7 +43,8 @@ struct XSOCKADDR_IN {
   // Always big-endian!
   xe::be<uint16_t> sin_port;
   xe::be<uint32_t> sin_addr;
-  char sin_zero[8];
+  // sin_zero is defined as __pad on Android, so prefixed here.
+  char x_sin_zero[8];
 };
 
 // Xenia native sockaddr_in
@@ -53,7 +55,7 @@ struct N_XSOCKADDR_IN {
     sin_family = other.sin_family;
     sin_port = other.sin_port;
     sin_addr = other.sin_addr;
-    std::memset(sin_zero, 0, 8);
+    std::memset(x_sin_zero, 0, sizeof(x_sin_zero));
 
     return *this;
   }
@@ -61,7 +63,8 @@ struct N_XSOCKADDR_IN {
   uint16_t sin_family;
   xe::be<uint16_t> sin_port;
   xe::be<uint32_t> sin_addr;
-  char sin_zero[8];
+  // sin_zero is defined as __pad on Android, so prefixed here.
+  char x_sin_zero[8];
 };
 
 class XSocket : public XObject {

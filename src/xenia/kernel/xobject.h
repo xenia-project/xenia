@@ -27,6 +27,8 @@ class Emulator;
 namespace xe {
 namespace kernel {
 
+constexpr fourcc_t kXObjSignature = make_fourcc('X', 'E', 'N', '\0');
+
 class KernelState;
 
 template <typename T>
@@ -109,7 +111,7 @@ struct X_OBJECT_TYPE {
 
 class XObject {
  public:
-  // Burnout Paradise needs proper handle value for certain calculations
+  // 45410806 needs proper handle value for certain calculations
   // It gets handle value from TLS (without base handle value is 0x88)
   // and substract 0xF8000088. Without base we're receiving wrong address
   // Instead of receiving address that starts with 0x82... we're receiving
@@ -214,7 +216,7 @@ class XObject {
 
   // Stash native pointer into X_DISPATCH_HEADER
   static void StashHandle(X_DISPATCH_HEADER* header, uint32_t handle) {
-    header->wait_list_flink = 'XEN\0';
+    header->wait_list_flink = kXObjSignature;
     header->wait_list_blink = handle;
   }
 
@@ -344,6 +346,12 @@ bool operator!=(const object_ref<_Ty>& _Left, std::nullptr_t _Right) noexcept {
 template <class _Ty>
 bool operator!=(std::nullptr_t _Left, const object_ref<_Ty>& _Right) noexcept {
   return (!(_Left == _Right));
+}
+
+template <class T, class... Args>
+std::enable_if_t<!std::is_array<T>::value, object_ref<T>> make_object(
+    Args&&... args) {
+  return object_ref<T>(new T(std::forward<Args>(args)...));
 }
 
 template <typename T>

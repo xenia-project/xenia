@@ -24,12 +24,13 @@
 #include "xenia/gpu/texture_util.h"
 #include "xenia/gpu/xenos.h"
 
+// Very prominent in 545407F2.
 DEFINE_bool(
     resolve_resolution_scale_duplicate_second_pixel, true,
     "When using resolution scale, apply the hack that duplicates the "
     "right/lower host pixel in the left and top sides of render target resolve "
     "areas to eliminate the gap caused by half-pixel offset (this is necessary "
-    "for certain games like GTA IV to work).",
+    "for certain games to display the scene graphics).",
     "GPU");
 
 DEFINE_bool(
@@ -136,6 +137,11 @@ bool IsRasterizationPotentiallyDone(const RegisterFile& regs,
   return true;
 }
 
+// https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_standard_multisample_quality_levels
+const int8_t kD3D10StandardSamplePositions2x[2][2] = {{4, 4}, {-4, -4}};
+const int8_t kD3D10StandardSamplePositions4x[4][2] = {
+    {-2, -6}, {6, -2}, {-6, 2}, {2, 6}};
+
 bool IsPixelShaderNeededWithRasterization(const Shader& shader,
                                           const RegisterFile& regs) {
   assert_true(shader.type() == xenos::ShaderType::kPixel);
@@ -183,13 +189,14 @@ bool IsPixelShaderNeededWithRasterization(const Shader& shader,
   return false;
 }
 
-void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale,
-                         bool origin_bottom_left, uint32_t x_max,
-                         uint32_t y_max, bool allow_reverse_z,
+void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale_x,
+                         uint32_t resolution_scale_y, bool origin_bottom_left,
+                         uint32_t x_max, uint32_t y_max, bool allow_reverse_z,
                          bool convert_z_to_float24, bool full_float24_in_0_to_1,
                          bool pixel_shader_writes_depth,
                          ViewportInfo& viewport_info_out) {
-  assert_not_zero(resolution_scale);
+  assert_not_zero(resolution_scale_x);
+  assert_not_zero(resolution_scale_y);
 
   // A vertex position goes the following path:
   //
@@ -358,8 +365,8 @@ void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale,
 
   // The maximum value is at least the maximum host render target size anyway -
   // and a guest pixel is always treated as a whole with resolution scaling.
-  uint32_t xy_max_unscaled[] = {x_max / resolution_scale,
-                                y_max / resolution_scale};
+  uint32_t xy_max_unscaled[] = {x_max / resolution_scale_x,
+                                y_max / resolution_scale_y};
   assert_not_zero(xy_max_unscaled[0]);
   assert_not_zero(xy_max_unscaled[1]);
 
@@ -377,7 +384,8 @@ void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale,
       viewport_info_out.xy_offset[i] = 0;
       uint32_t extent_axis_unscaled =
           std::min(xenos::kTexture2DCubeMaxWidthHeight, xy_max_unscaled[i]);
-      viewport_info_out.xy_extent[i] = extent_axis_unscaled * resolution_scale;
+      viewport_info_out.xy_extent[i] =
+          extent_axis_unscaled * (i ? resolution_scale_y : resolution_scale_x);
       float extent_axis_unscaled_float = float(extent_axis_unscaled);
       float pixels_to_ndc_axis = 2.0f / extent_axis_unscaled_float;
       ndc_scale[i] = scale_xy[i] * pixels_to_ndc_axis;
@@ -403,21 +411,24 @@ void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale,
       // vertices if we did flooring in host pixels. Instead of flooring, also
       // doing truncation for simplicity - since maxing with 0 is done anyway
       // (we only return viewports in the positive quarter-plane).
+      uint32_t axis_resolution_scale =
+          i ? resolution_scale_y : resolution_scale_x;
       float offset_axis = offset_base_xy[i] + offset_add_xy[i];
       float scale_axis = scale_xy[i];
       float scale_axis_abs = std::abs(scale_xy[i]);
       float axis_0 = offset_axis - scale_axis_abs;
       float axis_1 = offset_axis + scale_axis_abs;
       float axis_max_unscaled_float = float(xy_max_unscaled[i]);
-      // fmax to drop NaN and < 0, min as float (axis_max_unscaled_float is well
-      // below 2^24) to safely drop very large values.
+      // max(0.0f, xy) drops NaN and < 0 - max picks the first argument in the
+      // !(a < b) case (always for NaN), min as float (axis_max_unscaled_float
+      // is well below 2^24) to safely drop very large values.
       uint32_t axis_0_int =
-          uint32_t(std::min(std::fmax(axis_0, 0.0f), axis_max_unscaled_float));
+          uint32_t(std::min(axis_max_unscaled_float, std::max(0.0f, axis_0)));
       uint32_t axis_1_int =
-          uint32_t(std::min(std::fmax(axis_1, 0.0f), axis_max_unscaled_float));
+          uint32_t(std::min(axis_max_unscaled_float, std::max(0.0f, axis_1)));
       uint32_t axis_extent_int = axis_1_int - axis_0_int;
-      viewport_info_out.xy_offset[i] = axis_0_int * resolution_scale;
-      viewport_info_out.xy_extent[i] = axis_extent_int * resolution_scale;
+      viewport_info_out.xy_offset[i] = axis_0_int * axis_resolution_scale;
+      viewport_info_out.xy_extent[i] = axis_extent_int * axis_resolution_scale;
       float ndc_scale_axis;
       float ndc_offset_axis;
       if (axis_extent_int) {
@@ -517,9 +528,8 @@ void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale,
       // extension. But cases when this really matters are yet to be found -
       // trying to fix this will result in more correct depth values, but
       // incorrect clipping.
-      z_min = std::min(std::fmax(host_clip_offset_z, 0.0f), 1.0f);
-      z_max = std::min(std::fmax(host_clip_offset_z + host_clip_scale_z, 0.0f),
-                       1.0f);
+      z_min = xe::saturate_unsigned(host_clip_offset_z);
+      z_max = xe::saturate_unsigned(host_clip_offset_z + host_clip_scale_z);
       // Direct3D 12 doesn't allow reverse depth range - on some drivers it
       // works, on some drivers it doesn't, actually, but it was never
       // explicitly allowed by the specification.
@@ -685,38 +695,19 @@ void GetResolveEdramTileSpan(ResolveEdramPackedInfo edram_info,
 
 const ResolveCopyShaderInfo
     resolve_copy_shader_info[size_t(ResolveCopyShaderIndex::kCount)] = {
-        {"Resolve Copy Fast 32bpp 1x/2xMSAA", 1, false, 4, 4, 6, 3},
-        {"Resolve Copy Fast 32bpp 4xMSAA", 1, false, 4, 4, 6, 3},
-        {"Resolve Copy Fast 32bpp 2xRes", 2, false, 4, 4, 4, 3},
-        {"Resolve Copy Fast 32bpp 3xRes 1x/2xMSAA", 3, false, 3, 3, 4, 3},
-        {"Resolve Copy Fast 32bpp 3xRes 4xMSAA", 3, false, 3, 3, 4, 3},
-        {"Resolve Copy Fast 64bpp 1x/2xMSAA", 1, false, 4, 4, 5, 3},
-        {"Resolve Copy Fast 64bpp 4xMSAA", 1, false, 3, 4, 5, 3},
-        {"Resolve Copy Fast 64bpp 2xRes", 2, false, 4, 4, 3, 3},
-        {"Resolve Copy Fast 64bpp 3xRes", 3, false, 3, 3, 3, 3},
-        {"Resolve Copy Full 8bpp", 1, true, 2, 3, 6, 3},
-        {"Resolve Copy Full 8bpp 2xRes", 2, false, 4, 3, 4, 3},
-        {"Resolve Copy Full 8bpp 3xRes", 3, true, 2, 3, 6, 3},
-        {"Resolve Copy Full 16bpp", 1, true, 2, 3, 5, 3},
-        {"Resolve Copy Full 16bpp 2xRes", 2, false, 4, 3, 3, 3},
-        {"Resolve Copy Full 16bpp from 32bpp 3xRes", 3, true, 2, 3, 5, 3},
-        {"Resolve Copy Full 16bpp from 64bpp 3xRes", 3, false, 3, 3, 5, 3},
-        {"Resolve Copy Full 32bpp", 1, true, 2, 4, 5, 3},
-        {"Resolve Copy Full 32bpp 2xRes", 2, false, 4, 4, 3, 3},
-        {"Resolve Copy Full 32bpp from 32bpp 3xRes", 3, true, 2, 3, 4, 3},
-        {"Resolve Copy Full 32bpp from 64bpp 3xRes", 3, false, 3, 3, 4, 3},
-        {"Resolve Copy Full 64bpp", 1, true, 2, 4, 5, 3},
-        {"Resolve Copy Full 64bpp 2xRes", 2, false, 4, 4, 3, 3},
-        {"Resolve Copy Full 64bpp from 32bpp 3xRes", 3, true, 2, 3, 3, 3},
-        {"Resolve Copy Full 64bpp from 64bpp 3xRes", 3, false, 3, 3, 3, 3},
-        {"Resolve Copy Full 128bpp", 1, true, 2, 4, 4, 3},
-        {"Resolve Copy Full 128bpp 2xRes", 2, false, 4, 4, 3, 3},
-        {"Resolve Copy Full 128bpp from 32bpp 3xRes", 3, true, 2, 4, 3, 3},
-        {"Resolve Copy Full 128bpp from 64bpp 3xRes", 3, false, 3, 4, 3, 3},
+        {"Resolve Copy Fast 32bpp 1x/2xMSAA", false, 4, 4, 6, 3},
+        {"Resolve Copy Fast 32bpp 4xMSAA", false, 4, 4, 6, 3},
+        {"Resolve Copy Fast 64bpp 1x/2xMSAA", false, 4, 4, 5, 3},
+        {"Resolve Copy Fast 64bpp 4xMSAA", false, 3, 4, 5, 3},
+        {"Resolve Copy Full 8bpp", true, 2, 3, 6, 3},
+        {"Resolve Copy Full 16bpp", true, 2, 3, 5, 3},
+        {"Resolve Copy Full 32bpp", true, 2, 4, 5, 3},
+        {"Resolve Copy Full 64bpp", true, 2, 4, 5, 3},
+        {"Resolve Copy Full 128bpp", true, 2, 4, 4, 3},
 };
 
 bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
-                    TraceWriter& trace_writer, uint32_t resolution_scale,
+                    TraceWriter& trace_writer, bool is_resolution_scaled,
                     bool fixed_16_truncated_to_minus_1_to_1,
                     ResolveInfo& info_out) {
   auto rb_copy_control = regs.Get<reg::RB_COPY_CONTROL>();
@@ -870,8 +861,9 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   }
   info_out.address.copy_sample_select = sample_select;
   // Get the format to pass to the shader in a unified way - for depth (for
-  // which Direct3D 9 specifies the k_8_8_8_8 destination format), make sure the
-  // shader won't try to do conversion - pass proper k_24_8 or k_24_8_FLOAT.
+  // which Direct3D 9 specifies the k_8_8_8_8 uint destination format), make
+  // sure the shader won't try to do conversion - pass proper k_24_8 or
+  // k_24_8_FLOAT.
   auto rb_copy_dest_info = regs.Get<reg::RB_COPY_DEST_INFO>();
   xenos::TextureFormat dest_format;
   auto rb_depth_info = regs.Get<reg::RB_DEPTH_INFO>();
@@ -947,11 +939,11 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
       dest_dimension = xenos::DataDimension::k2DOrStacked;
       // RB_COPY_DEST_PITCH::copy_dest_height is the real texture height used
       // for 3D texture pitch, it's not relative to 0,0 of the coordinate space
-      // (in Halo 3, the sniper rifle scope has copy_dest_height of 192, but the
-      // rectangle's Y is 64...256) - provide the real height of the rectangle
-      // since 32x32 tiles are stored linearly anyway. In addition, the height
-      // in RB_COPY_DEST_PITCH may be larger than needed - in Red Dead
-      // Redemption, a UI texture for the letterbox bars alpha is located within
+      // (in 4D5307E6, the sniper rifle scope has copy_dest_height of 192, but
+      // the rectangle's Y is 64...256) - provide the real height of the
+      // rectangle since 32x32 tiles are stored linearly anyway. In addition,
+      // the height in RB_COPY_DEST_PITCH may be larger than needed - in
+      // 5454082B, a UI texture for the letterbox bars alpha is located within
       // the range of a 1280x720 resolve target, so with resolution scaling it's
       // also wrongly detected as scaled, while only 1280x208 is being resolved.
       dest_height = uint32_t(y1 - y0);
@@ -1001,7 +993,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
 
   // Write the color/depth EDRAM info.
   bool duplicate_second_pixel =
-      resolution_scale > 1 &&
+      is_resolution_scaled &&
       cvars::resolve_resolution_scale_duplicate_second_pixel &&
       cvars::half_pixel_offset && !regs.Get<reg::PA_SU_VTX_CNTL>().pix_center;
   int32_t exp_bias = is_depth ? 0 : rb_copy_dest_info.copy_dest_exp_bias;
@@ -1085,8 +1077,9 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
 }
 
 ResolveCopyShaderIndex ResolveInfo::GetCopyShader(
-    uint32_t resolution_scale, ResolveCopyShaderConstants& constants_out,
-    uint32_t& group_count_x_out, uint32_t& group_count_y_out) const {
+    uint32_t resolution_scale_x, uint32_t resolution_scale_y,
+    ResolveCopyShaderConstants& constants_out, uint32_t& group_count_x_out,
+    uint32_t& group_count_y_out) const {
   ResolveCopyShaderIndex shader = ResolveCopyShaderIndex::kUnknown;
   bool is_depth = IsCopyingDepth();
   ResolveEdramPackedInfo edram_info =
@@ -1098,109 +1091,34 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(
        xenos::IsColorResolveFormatBitwiseEquivalent(
            xenos::ColorRenderTargetFormat(color_edram_info.format),
            xenos::ColorFormat(copy_dest_info.copy_dest_format)))) {
-    switch (resolution_scale) {
-      case 1:
-        if (edram_info.msaa_samples >= xenos::MsaaSamples::k4X) {
-          shader = source_is_64bpp ? ResolveCopyShaderIndex::kFast64bpp4xMSAA
-                                   : ResolveCopyShaderIndex::kFast32bpp4xMSAA;
-        } else {
-          shader = source_is_64bpp ? ResolveCopyShaderIndex::kFast64bpp1x2xMSAA
-                                   : ResolveCopyShaderIndex::kFast32bpp1x2xMSAA;
-        }
-        break;
-      case 2:
-        shader = source_is_64bpp ? ResolveCopyShaderIndex::kFast64bpp2xRes
-                                 : ResolveCopyShaderIndex::kFast32bpp2xRes;
-        break;
-      case 3:
-        if (source_is_64bpp) {
-          shader = ResolveCopyShaderIndex::kFast64bpp3xRes;
-        } else {
-          shader = edram_info.msaa_samples >= xenos::MsaaSamples::k4X
-                       ? ResolveCopyShaderIndex::kFast32bpp3xRes4xMSAA
-                       : ResolveCopyShaderIndex::kFast32bpp3xRes1x2xMSAA;
-        }
-        break;
-      default:
-        assert_unhandled_case(resolution_scale);
+    if (edram_info.msaa_samples >= xenos::MsaaSamples::k4X) {
+      shader = source_is_64bpp ? ResolveCopyShaderIndex::kFast64bpp4xMSAA
+                               : ResolveCopyShaderIndex::kFast32bpp4xMSAA;
+    } else {
+      shader = source_is_64bpp ? ResolveCopyShaderIndex::kFast64bpp1x2xMSAA
+                               : ResolveCopyShaderIndex::kFast32bpp1x2xMSAA;
     }
   } else {
     const FormatInfo& dest_format_info =
         *FormatInfo::Get(xenos::TextureFormat(copy_dest_info.copy_dest_format));
-    switch (resolution_scale) {
-      case 1:
-        switch (dest_format_info.bits_per_pixel) {
-          case 8:
-            shader = ResolveCopyShaderIndex::kFull8bpp;
-            break;
-          case 16:
-            shader = ResolveCopyShaderIndex::kFull16bpp;
-            break;
-          case 32:
-            shader = ResolveCopyShaderIndex::kFull32bpp;
-            break;
-          case 64:
-            shader = ResolveCopyShaderIndex::kFull64bpp;
-            break;
-          case 128:
-            shader = ResolveCopyShaderIndex::kFull128bpp;
-            break;
-          default:
-            assert_unhandled_case(dest_format_info.bits_per_pixel);
-        }
+    switch (dest_format_info.bits_per_pixel) {
+      case 8:
+        shader = ResolveCopyShaderIndex::kFull8bpp;
         break;
-      case 2:
-        switch (dest_format_info.bits_per_pixel) {
-          case 8:
-            shader = ResolveCopyShaderIndex::kFull8bpp2xRes;
-            break;
-          case 16:
-            shader = ResolveCopyShaderIndex::kFull16bpp2xRes;
-            break;
-          case 32:
-            shader = ResolveCopyShaderIndex::kFull32bpp2xRes;
-            break;
-          case 64:
-            shader = ResolveCopyShaderIndex::kFull64bpp2xRes;
-            break;
-          case 128:
-            shader = ResolveCopyShaderIndex::kFull128bpp2xRes;
-            break;
-          default:
-            assert_unhandled_case(dest_format_info.bits_per_pixel);
-        }
+      case 16:
+        shader = ResolveCopyShaderIndex::kFull16bpp;
         break;
-      case 3:
-        switch (dest_format_info.bits_per_pixel) {
-          case 8:
-            shader = ResolveCopyShaderIndex::kFull8bpp3xRes;
-            break;
-          case 16:
-            shader = source_is_64bpp
-                         ? ResolveCopyShaderIndex::kFull16bppFrom64bpp3xRes
-                         : ResolveCopyShaderIndex::kFull16bppFrom32bpp3xRes;
-            break;
-          case 32:
-            shader = source_is_64bpp
-                         ? ResolveCopyShaderIndex::kFull32bppFrom64bpp3xRes
-                         : ResolveCopyShaderIndex::kFull32bppFrom32bpp3xRes;
-            break;
-          case 64:
-            shader = source_is_64bpp
-                         ? ResolveCopyShaderIndex::kFull64bppFrom64bpp3xRes
-                         : ResolveCopyShaderIndex::kFull64bppFrom32bpp3xRes;
-            break;
-          case 128:
-            shader = source_is_64bpp
-                         ? ResolveCopyShaderIndex::kFull128bppFrom64bpp3xRes
-                         : ResolveCopyShaderIndex::kFull128bppFrom32bpp3xRes;
-            break;
-          default:
-            assert_unhandled_case(dest_format_info.bits_per_pixel);
-        }
+      case 32:
+        shader = ResolveCopyShaderIndex::kFull32bpp;
+        break;
+      case 64:
+        shader = ResolveCopyShaderIndex::kFull64bpp;
+        break;
+      case 128:
+        shader = ResolveCopyShaderIndex::kFull128bpp;
         break;
       default:
-        assert_unhandled_case(resolution_scale);
+        assert_unhandled_case(dest_format_info.bits_per_pixel);
     }
   }
 
@@ -1211,9 +1129,12 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(
   constants_out.dest_base = copy_dest_base;
 
   if (shader != ResolveCopyShaderIndex::kUnknown) {
-    uint32_t width = address.width_div_8 << xenos::kResolveAlignmentPixelsLog2;
-    uint32_t height = address.height_div_8
-                      << xenos::kResolveAlignmentPixelsLog2;
+    uint32_t width =
+        (address.width_div_8 << xenos::kResolveAlignmentPixelsLog2) *
+        resolution_scale_x;
+    uint32_t height =
+        (address.height_div_8 << xenos::kResolveAlignmentPixelsLog2) *
+        resolution_scale_y;
     const ResolveCopyShaderInfo& shader_info =
         resolve_copy_shader_info[size_t(shader)];
     group_count_x_out = (width + ((1 << shader_info.group_size_x_log2) - 1)) >>

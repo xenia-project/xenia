@@ -11,7 +11,8 @@ project("xenia-base")
   defines({
   })
   local_platform_files()
-  removefiles({"main_*.cc"})
+  removefiles({"console_app_main_*.cc"})
+  removefiles({"main_init_*.cc"})
   files({
     "debug_visualizers.natvis",
   })

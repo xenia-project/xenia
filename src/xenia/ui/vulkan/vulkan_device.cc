@@ -11,6 +11,7 @@
 
 #include <cinttypes>
 #include <climits>
+#include <cstring>
 #include <mutex>
 #include <string>
 
@@ -68,7 +69,8 @@ VulkanDevice::VulkanDevice(VulkanInstance* instance) : instance_(instance) {
 
 VulkanDevice::~VulkanDevice() {
   if (handle) {
-    vkDestroyDevice(handle, nullptr);
+    const VulkanInstance::InstanceFunctions& ifn = instance_->ifn();
+    ifn.vkDestroyDevice(handle, nullptr);
     handle = nullptr;
   }
 }
@@ -91,9 +93,11 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
     return false;
   }
 
+  const VulkanInstance::InstanceFunctions& ifn = instance_->ifn();
+
   // Query supported features so we can make sure we have what we need.
   VkPhysicalDeviceFeatures supported_features;
-  vkGetPhysicalDeviceFeatures(device_info.handle, &supported_features);
+  ifn.vkGetPhysicalDeviceFeatures(device_info.handle, &supported_features);
   VkPhysicalDeviceFeatures enabled_features = {0};
   bool any_features_missing = false;
 #define ENABLE_AND_EXPECT(name)                                  \
@@ -189,7 +193,8 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
   create_info.ppEnabledExtensionNames = enabled_extensions_.data();
   create_info.pEnabledFeatures = &enabled_features;
 
-  auto err = vkCreateDevice(device_info.handle, &create_info, nullptr, &handle);
+  auto err =
+      ifn.vkCreateDevice(device_info.handle, &create_info, nullptr, &handle);
   switch (err) {
     case VK_SUCCESS:
       // Ok!
@@ -211,30 +216,34 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
       return false;
   }
 
-  // Set flags so we can track enabled extensions easily.
-  for (auto& ext : enabled_extensions_) {
-    if (!std::strcmp(ext, VK_EXT_DEBUG_MARKER_EXTENSION_NAME)) {
-      debug_marker_ena_ = true;
-      pfn_vkDebugMarkerSetObjectNameEXT_ =
-          (PFN_vkDebugMarkerSetObjectNameEXT)vkGetDeviceProcAddr(
-              *this, "vkDebugMarkerSetObjectNameEXT");
-      pfn_vkCmdDebugMarkerBeginEXT_ =
-          (PFN_vkCmdDebugMarkerBeginEXT)vkGetDeviceProcAddr(
-              *this, "vkCmdDebugMarkerBeginEXT");
-      pfn_vkCmdDebugMarkerEndEXT_ =
-          (PFN_vkCmdDebugMarkerEndEXT)vkGetDeviceProcAddr(
-              *this, "vkCmdDebugMarkerEndEXT");
-      pfn_vkCmdDebugMarkerInsertEXT_ =
-          (PFN_vkCmdDebugMarkerInsertEXT)vkGetDeviceProcAddr(
-              *this, "vkCmdDebugMarkerInsertEXT");
-    }
+  // Get device functions.
+  std::memset(&dfn_, 0, sizeof(dfn_));
+  bool device_functions_loaded = true;
+  debug_marker_ena_ = false;
+#define XE_UI_VULKAN_FUNCTION(name)                                       \
+  device_functions_loaded &=                                              \
+      (dfn_.name = PFN_##name(ifn.vkGetDeviceProcAddr(handle, #name))) != \
+      nullptr;
+#include "xenia/ui/vulkan/functions/device_1_0.inc"
+#include "xenia/ui/vulkan/functions/device_khr_swapchain.inc"
+  if (HasEnabledExtension(VK_AMD_SHADER_INFO_EXTENSION_NAME)) {
+#include "xenia/ui/vulkan/functions/device_amd_shader_info.inc"
+  }
+  debug_marker_ena_ = HasEnabledExtension(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
+  if (debug_marker_ena_) {
+#include "xenia/ui/vulkan/functions/device_ext_debug_marker.inc"
+  }
+#undef XE_UI_VULKAN_FUNCTION
+  if (!device_functions_loaded) {
+    XELOGE("Failed to get Vulkan device function pointers");
+    return false;
   }
 
   device_info_ = std::move(device_info);
   queue_family_index_ = ideal_queue_family_index;
 
   // Get the primary queue used for most submissions/etc.
-  vkGetDeviceQueue(handle, queue_family_index_, 0, &primary_queue_);
+  dfn_.vkGetDeviceQueue(handle, queue_family_index_, 0, &primary_queue_);
   if (!primary_queue_) {
     XELOGE("vkGetDeviceQueue returned nullptr!");
     return false;
@@ -253,7 +262,7 @@ bool VulkanDevice::Initialize(DeviceInfo device_info) {
         continue;
       }
 
-      vkGetDeviceQueue(handle, i, j, &queue);
+      dfn_.vkGetDeviceQueue(handle, i, j, &queue);
       if (queue) {
         free_queues_[i].push_back(queue);
       }
@@ -292,8 +301,8 @@ void VulkanDevice::ReleaseQueue(VkQueue queue, uint32_t queue_family_index) {
 
 void VulkanDevice::DbgSetObjectName(uint64_t object,
                                     VkDebugReportObjectTypeEXT object_type,
-                                    std::string name) {
-  if (!debug_marker_ena_ || pfn_vkDebugMarkerSetObjectNameEXT_ == nullptr) {
+                                    const std::string& name) const {
+  if (!debug_marker_ena_) {
     // Extension disabled.
     return;
   }
@@ -304,13 +313,13 @@ void VulkanDevice::DbgSetObjectName(uint64_t object,
   info.objectType = object_type;
   info.object = object;
   info.pObjectName = name.c_str();
-  pfn_vkDebugMarkerSetObjectNameEXT_(*this, &info);
+  dfn_.vkDebugMarkerSetObjectNameEXT(*this, &info);
 }
 
 void VulkanDevice::DbgMarkerBegin(VkCommandBuffer command_buffer,
                                   std::string name, float r, float g, float b,
-                                  float a) {
-  if (!debug_marker_ena_ || pfn_vkCmdDebugMarkerBeginEXT_ == nullptr) {
+                                  float a) const {
+  if (!debug_marker_ena_) {
     // Extension disabled.
     return;
   }
@@ -323,22 +332,22 @@ void VulkanDevice::DbgMarkerBegin(VkCommandBuffer command_buffer,
   info.color[1] = g;
   info.color[2] = b;
   info.color[3] = a;
-  pfn_vkCmdDebugMarkerBeginEXT_(command_buffer, &info);
+  dfn_.vkCmdDebugMarkerBeginEXT(command_buffer, &info);
 }
 
-void VulkanDevice::DbgMarkerEnd(VkCommandBuffer command_buffer) {
-  if (!debug_marker_ena_ || pfn_vkCmdDebugMarkerEndEXT_ == nullptr) {
+void VulkanDevice::DbgMarkerEnd(VkCommandBuffer command_buffer) const {
+  if (!debug_marker_ena_) {
     // Extension disabled.
     return;
   }
 
-  pfn_vkCmdDebugMarkerEndEXT_(command_buffer);
+  dfn_.vkCmdDebugMarkerEndEXT(command_buffer);
 }
 
 void VulkanDevice::DbgMarkerInsert(VkCommandBuffer command_buffer,
                                    std::string name, float r, float g, float b,
-                                   float a) {
-  if (!debug_marker_ena_ || pfn_vkCmdDebugMarkerInsertEXT_ == nullptr) {
+                                   float a) const {
+  if (!debug_marker_ena_) {
     // Extension disabled.
     return;
   }
@@ -351,7 +360,7 @@ void VulkanDevice::DbgMarkerInsert(VkCommandBuffer command_buffer,
   info.color[1] = g;
   info.color[2] = g;
   info.color[3] = b;
-  pfn_vkCmdDebugMarkerInsertEXT_(command_buffer, &info);
+  dfn_.vkCmdDebugMarkerInsertEXT(command_buffer, &info);
 }
 
 bool VulkanDevice::is_renderdoc_attached() const {
@@ -379,7 +388,8 @@ void VulkanDevice::EndRenderDocFrameCapture() {
 }
 
 VkDeviceMemory VulkanDevice::AllocateMemory(
-    const VkMemoryRequirements& requirements, VkFlags required_properties) {
+    const VkMemoryRequirements& requirements,
+    VkFlags required_properties) const {
   // Search memory types to find one matching our requirements and our
   // properties.
   uint32_t type_index = UINT_MAX;
@@ -407,7 +417,7 @@ VkDeviceMemory VulkanDevice::AllocateMemory(
   memory_info.allocationSize = requirements.size;
   memory_info.memoryTypeIndex = type_index;
   VkDeviceMemory memory = nullptr;
-  auto err = vkAllocateMemory(handle, &memory_info, nullptr, &memory);
+  auto err = dfn_.vkAllocateMemory(handle, &memory_info, nullptr, &memory);
   CheckResult(err, "vkAllocateMemory");
   return memory;
 }

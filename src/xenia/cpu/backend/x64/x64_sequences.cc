@@ -2628,6 +2628,115 @@ struct AND_V128 : Sequence<AND_V128, I<OPCODE_AND, V128Op, V128Op, V128Op>> {
 EMITTER_OPCODE_TABLE(OPCODE_AND, AND_I8, AND_I16, AND_I32, AND_I64, AND_V128);
 
 // ============================================================================
+// OPCODE_AND_NOT
+// ============================================================================
+template <typename SEQ, typename REG, typename ARGS>
+void EmitAndNotXX(X64Emitter& e, const ARGS& i) {
+  if (i.src1.is_constant) {
+    if (i.src2.is_constant) {
+      // Both constants.
+      e.mov(i.dest, i.src1.constant() & ~i.src2.constant());
+    } else {
+      // src1 constant.
+
+      // `and` instruction only supports up to 32-bit immediate constants
+      // 64-bit constants will need a temp register
+      if (i.dest.reg().getBit() == 64) {
+        auto temp = GetTempReg<typename decltype(i.src1)::reg_type>(e);
+        e.mov(temp, i.src1.constant());
+
+        if (e.IsFeatureEnabled(kX64EmitBMI1)) {
+          if (i.dest.reg().getBit() == 64) {
+            e.andn(i.dest.reg().cvt64(), i.src2.reg().cvt64(), temp.cvt64());
+          } else {
+            e.andn(i.dest.reg().cvt32(), i.src2.reg().cvt32(), temp.cvt32());
+          }
+        } else {
+          e.mov(i.dest, i.src2);
+          e.not_(i.dest);
+          e.and_(i.dest, temp);
+        }
+      } else {
+        e.mov(i.dest, i.src2);
+        e.not_(i.dest);
+        e.and_(i.dest, uint32_t(i.src1.constant()));
+      }
+    }
+  } else if (i.src2.is_constant) {
+    // src2 constant.
+    if (i.dest == i.src1) {
+      auto temp = GetTempReg<typename decltype(i.src2)::reg_type>(e);
+      e.mov(temp, ~i.src2.constant());
+      e.and_(i.dest, temp);
+    } else {
+      e.mov(i.dest, i.src1);
+      auto temp = GetTempReg<typename decltype(i.src2)::reg_type>(e);
+      e.mov(temp, ~i.src2.constant());
+      e.and_(i.dest, temp);
+    }
+  } else {
+    // neither are constant
+    if (e.IsFeatureEnabled(kX64EmitBMI1)) {
+      if (i.dest.reg().getBit() == 64) {
+        e.andn(i.dest.reg().cvt64(), i.src2.reg().cvt64(),
+               i.src1.reg().cvt64());
+      } else {
+        e.andn(i.dest.reg().cvt32(), i.src2.reg().cvt32(),
+               i.src1.reg().cvt32());
+      }
+    } else {
+      if (i.dest == i.src2) {
+        e.not_(i.dest);
+        e.and_(i.dest, i.src1);
+      } else if (i.dest == i.src1) {
+        auto temp = GetTempReg<typename decltype(i.dest)::reg_type>(e);
+        e.mov(temp, i.src2);
+        e.not_(temp);
+        e.and_(i.dest, temp);
+      } else {
+        e.mov(i.dest, i.src2);
+        e.not_(i.dest);
+        e.and_(i.dest, i.src1);
+      }
+    }
+  }
+}
+struct AND_NOT_I8 : Sequence<AND_NOT_I8, I<OPCODE_AND_NOT, I8Op, I8Op, I8Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    EmitAndNotXX<AND_NOT_I8, Reg8>(e, i);
+  }
+};
+struct AND_NOT_I16
+    : Sequence<AND_NOT_I16, I<OPCODE_AND_NOT, I16Op, I16Op, I16Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    EmitAndNotXX<AND_NOT_I16, Reg16>(e, i);
+  }
+};
+struct AND_NOT_I32
+    : Sequence<AND_NOT_I32, I<OPCODE_AND_NOT, I32Op, I32Op, I32Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    EmitAndNotXX<AND_NOT_I32, Reg32>(e, i);
+  }
+};
+struct AND_NOT_I64
+    : Sequence<AND_NOT_I64, I<OPCODE_AND_NOT, I64Op, I64Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    EmitAndNotXX<AND_NOT_I64, Reg64>(e, i);
+  }
+};
+struct AND_NOT_V128
+    : Sequence<AND_NOT_V128, I<OPCODE_AND_NOT, V128Op, V128Op, V128Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    EmitCommutativeBinaryXmmOp(e, i,
+                               [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+                                 e.vpandn(dest, src2, src1);
+                               });
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_AND_NOT, AND_NOT_I8, AND_NOT_I16, AND_NOT_I32,
+                     AND_NOT_I64, AND_NOT_V128);
+
+// ============================================================================
 // OPCODE_OR
 // ============================================================================
 // TODO(benvanik): put dest/src1|2 together.

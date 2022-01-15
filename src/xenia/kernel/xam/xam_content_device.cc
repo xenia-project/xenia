@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -59,9 +59,9 @@ const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id) {
   return it == end ? nullptr : *it;
 }
 
-dword_result_t XamContentGetDeviceName(dword_t device_id,
-                                       lpu16string_t name_buffer,
-                                       dword_t name_capacity) {
+dword_result_t XamContentGetDeviceName_entry(dword_t device_id,
+                                             lpu16string_t name_buffer,
+                                             dword_t name_capacity) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
@@ -75,8 +75,8 @@ dword_result_t XamContentGetDeviceName(dword_t device_id,
 }
 DECLARE_XAM_EXPORT1(XamContentGetDeviceName, kContent, kImplemented);
 
-dword_result_t XamContentGetDeviceState(dword_t device_id,
-                                        lpunknown_t overlapped_ptr) {
+dword_result_t XamContentGetDeviceState_entry(dword_t device_id,
+                                              lpunknown_t overlapped_ptr) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
     if (overlapped_ptr) {
@@ -110,7 +110,7 @@ typedef struct {
 } X_CONTENT_DEVICE_DATA;
 static_assert_size(X_CONTENT_DEVICE_DATA, 0x50);
 
-dword_result_t XamContentGetDeviceData(
+dword_result_t XamContentGetDeviceData_entry(
     dword_t device_id, pointer_t<X_CONTENT_DEVICE_DATA> device_data) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
@@ -128,19 +128,19 @@ dword_result_t XamContentGetDeviceData(
 }
 DECLARE_XAM_EXPORT1(XamContentGetDeviceData, kContent, kImplemented);
 
-dword_result_t XamContentCreateDeviceEnumerator(dword_t content_type,
-                                                dword_t content_flags,
-                                                dword_t max_count,
-                                                lpdword_t buffer_size_ptr,
-                                                lpdword_t handle_out) {
+dword_result_t XamContentCreateDeviceEnumerator_entry(dword_t content_type,
+                                                      dword_t content_flags,
+                                                      dword_t max_count,
+                                                      lpdword_t buffer_size_ptr,
+                                                      lpdword_t handle_out) {
   assert_not_null(handle_out);
 
   if (buffer_size_ptr) {
     *buffer_size_ptr = sizeof(X_CONTENT_DEVICE_DATA) * max_count;
   }
 
-  auto e = object_ref<XStaticEnumerator>(new XStaticEnumerator(
-      kernel_state(), max_count, sizeof(X_CONTENT_DEVICE_DATA)));
+  auto e = make_object<XStaticEnumerator<X_CONTENT_DEVICE_DATA>>(kernel_state(),
+                                                                 max_count);
   auto result = e->Initialize(0xFE, 0xFE, 0x2000A, 0x20009, 0);
   if (XFAILED(result)) {
     return result;
@@ -148,7 +148,8 @@ dword_result_t XamContentCreateDeviceEnumerator(dword_t content_type,
 
   for (const auto& device_info : dummy_device_infos_) {
     // Copy our dummy device into the enumerator
-    auto device_data = (X_CONTENT_DEVICE_DATA*)e->AppendItem();
+    auto device_data = e->AppendItem();
+    assert_not_null(device_data);
     if (device_data) {
       device_data->device_id = static_cast<uint32_t>(device_info->device_id);
       device_data->device_type =
@@ -166,9 +167,8 @@ dword_result_t XamContentCreateDeviceEnumerator(dword_t content_type,
 }
 DECLARE_XAM_EXPORT1(XamContentCreateDeviceEnumerator, kNone, kImplemented);
 
-void RegisterContentDeviceExports(xe::cpu::ExportResolver* export_resolver,
-                                  KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(ContentDevice);

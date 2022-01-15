@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -14,6 +14,7 @@
 
 #include "xenia/base/mutex.h"
 #include "xenia/hid/input_driver.h"
+#include "xenia/ui/virtual_key.h"
 
 namespace xe {
 namespace hid {
@@ -35,16 +36,28 @@ class WinKeyInputDriver : public InputDriver {
 
  protected:
   struct KeyEvent {
-    int vkey = 0;
+    ui::VirtualKey virtual_key = ui::VirtualKey::kNone;
     int repeat_count = 0;
     bool transition = false;  // going up(false) or going down(true)
     bool prev_state = false;  // down(true) or up(false)
   };
 
+  struct KeyBinding {
+    ui::VirtualKey input_key = ui::VirtualKey::kNone;
+    ui::VirtualKey output_key = ui::VirtualKey::kNone;
+    bool uppercase = false;
+    bool lowercase = false;
+  };
+
   xe::global_critical_region global_critical_region_;
   std::queue<KeyEvent> key_events_;
+  std::vector<KeyBinding> key_bindings_;
 
   uint32_t packet_number_;
+
+  void ParseKeyBinding(ui::VirtualKey virtual_key,
+                       const std::string_view description,
+                       const std::string_view binding);
 };
 
 }  // namespace winkey

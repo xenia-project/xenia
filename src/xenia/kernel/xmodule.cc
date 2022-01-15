@@ -71,7 +71,7 @@ uint32_t XModule::GetHandleFromHModule(void* hmodule) {
 bool XModule::Save(ByteStream* stream) {
   XELOGD("XModule {:08X} ({})", handle(), path());
 
-  stream->Write('XMOD');
+  stream->Write(kModuleSaveSignature);
 
   stream->Write(path());
   stream->Write(hmodule_ptr_);
@@ -85,7 +85,7 @@ bool XModule::Save(ByteStream* stream) {
 
 object_ref<XModule> XModule::Restore(KernelState* kernel_state,
                                      ByteStream* stream) {
-  if (stream->Read<uint32_t>() != 'XMOD') {
+  if (stream->Read<uint32_t>() != kModuleSaveSignature) {
     return nullptr;
   }
 

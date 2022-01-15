@@ -10,8 +10,13 @@
 #ifndef XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_DRIVER_H_
 #define XENIA_APU_XAUDIO2_XAUDIO2_AUDIO_DRIVER_H_
 
+#include <condition_variable>
+#include <mutex>
+#include <thread>
+
 #include "xenia/apu/audio_driver.h"
 #include "xenia/apu/xaudio2/xaudio2_api.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/threading.h"
 
 struct IXAudio2;
@@ -28,17 +33,50 @@ class XAudio2AudioDriver : public AudioDriver {
   ~XAudio2AudioDriver() override;
 
   bool Initialize();
+  // Must not be called from COM STA threads as MTA XAudio2 will be used. It's
+  // fine to call this from threads that have never initialized COM as
+  // initializing MTA for any thread implicitly initializes it for all threads
+  // not explicitly requesting STA (until COM is uninitialized all threads that
+  // have initialized MTA).
+  // https://devblogs.microsoft.com/oldnewthing/?p=4613
   void SubmitFrame(uint32_t frame_ptr) override;
   void Shutdown();
 
  private:
+  // First CPU (2.8 default). XAUDIO2_ANY_PROCESSOR (2.7 default) steals too
+  // much time from other things. Ideally should process audio on what roughly
+  // represents thread 4 (5th) on the Xbox 360 (2.7 default on the console), or
+  // even beyond the 6 guest cores.
+  api::XAUDIO2_PROCESSOR kProcessor = 0x00000001;
+
+  // InitializeObjects and ShutdownObjects must be called only in the lifecycle
+  // management thread with COM MTA initialized.
   template <typename Objects>
   bool InitializeObjects(Objects& objects);
   template <typename Objects>
   void ShutdownObjects(Objects& objects);
 
+  void MTAThread();
+
   void* xaudio2_module_ = nullptr;
+  // clang-format off
+  HRESULT (__stdcall* xaudio2_create_)(
+      api::IXAudio2_8** xaudio2_out, UINT32 flags,
+      api::XAUDIO2_PROCESSOR xaudio2_processor) = nullptr;
+  // clang-format on
   uint32_t api_minor_version_ = 7;
+
+  bool mta_thread_initialization_completion_result_;
+  std::mutex mta_thread_initialization_completion_mutex_;
+  std::condition_variable mta_thread_initialization_completion_cond_;
+  bool mta_thread_initialization_attempt_completed_;
+
+  std::mutex mta_thread_shutdown_request_mutex_;
+  std::condition_variable mta_thread_shutdown_request_cond_;
+  bool mta_thread_shutdown_requested_;
+
+  std::thread mta_thread_;
+
   union {
     struct {
       api::IXAudio2_7* audio;

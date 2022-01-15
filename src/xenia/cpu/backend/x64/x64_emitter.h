@@ -125,12 +125,22 @@ class XbyakAllocator : public Xbyak::Allocator {
 };
 
 enum X64EmitterFeatureFlags {
-  kX64EmitAVX2 = 1 << 1,
-  kX64EmitFMA = 1 << 2,
-  kX64EmitLZCNT = 1 << 3,
+  kX64EmitAVX2 = 1 << 0,
+  kX64EmitFMA = 1 << 1,
+  kX64EmitLZCNT = 1 << 2,
+  kX64EmitBMI1 = 1 << 3,
   kX64EmitBMI2 = 1 << 4,
   kX64EmitF16C = 1 << 5,
   kX64EmitMovbe = 1 << 6,
+
+  kX64EmitAVX512F = 1 << 7,
+  kX64EmitAVX512VL = 1 << 8,
+
+  kX64EmitAVX512BW = 1 << 9,
+  kX64EmitAVX512DQ = 1 << 10,
+
+  kX64EmitAVX512Ortho = kX64EmitAVX512F | kX64EmitAVX512VL,
+  kX64EmitAVX512Ortho64 = kX64EmitAVX512Ortho | kX64EmitAVX512DQ
 };
 
 class X64Emitter : public Xbyak::CodeGenerator {
@@ -221,7 +231,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   Xbyak::Address StashConstantXmm(int index, const vec128_t& v);
 
   bool IsFeatureEnabled(uint32_t feature_flag) const {
-    return (feature_flags_ & feature_flag) != 0;
+    return (feature_flags_ & feature_flag) == feature_flag;
   }
 
   FunctionDebugInfo* debug_info() const { return debug_info_; }

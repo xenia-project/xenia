@@ -11,13 +11,10 @@
 
 #include <cstring>
 
-#ifdef XE_PLATFORM_WIN32
-#include <objbase.h>
-#endif
-
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
@@ -44,6 +41,8 @@ const uint32_t XAPC::kDummyKernelRoutine;
 const uint32_t XAPC::kDummyRundownRoutine;
 
 using xe::cpu::ppc::PPCOpcode;
+
+using namespace xe::literals;
 
 uint32_t next_xthread_id_ = 0;
 
@@ -226,7 +225,7 @@ void XThread::InitializeGuestObject() {
 }
 
 bool XThread::AllocateStack(uint32_t size) {
-  auto heap = memory()->LookupHeap(0x40000000);
+  auto heap = memory()->LookupHeap(kStackAddressRangeBegin);
 
   auto alignment = heap->page_size();
   auto padding = heap->page_size() * 2;  // Guard page size * 2
@@ -234,10 +233,10 @@ bool XThread::AllocateStack(uint32_t size) {
   auto actual_size = size + padding;
 
   uint32_t address = 0;
-  if (!heap->AllocRange(0x40000000, 0x7F000000, actual_size, alignment,
-                        kMemoryAllocationReserve | kMemoryAllocationCommit,
-                        kMemoryProtectRead | kMemoryProtectWrite, false,
-                        &address)) {
+  if (!heap->AllocRange(
+          kStackAddressRangeBegin, kStackAddressRangeEnd, actual_size,
+          alignment, kMemoryAllocationReserve | kMemoryAllocationCommit,
+          kMemoryProtectRead | kMemoryProtectWrite, false, &address)) {
     return false;
   }
 
@@ -258,7 +257,7 @@ bool XThread::AllocateStack(uint32_t size) {
 
 void XThread::FreeStack() {
   if (stack_alloc_base_) {
-    auto heap = memory()->LookupHeap(0x40000000);
+    auto heap = memory()->LookupHeap(kStackAddressRangeBegin);
     heap->Release(stack_alloc_base_);
 
     stack_alloc_base_ = 0;
@@ -374,7 +373,7 @@ X_STATUS XThread::Create() {
   RetainHandle();
 
   xe::threading::Thread::CreationParameters params;
-  params.stack_size = 16 * 1024 * 1024;  // Allocate a big host stack.
+  params.stack_size = 16_MiB;  // Allocate a big host stack.
   params.create_suspended = true;
   thread_ = xe::threading::Thread::Create(params, [this]() {
     // Set thread ID override. This is used by logging.
@@ -382,20 +381,6 @@ X_STATUS XThread::Create() {
 
     // Set name immediately, if we have one.
     thread_->set_name(thread_name_);
-
-#ifdef XE_PLATFORM_WIN32
-    // Setup COM on this thread.
-    //
-    // https://devblogs.microsoft.com/oldnewthing/?p=4613
-    //
-    // "If any thread in the process calls CoInitialize[Ex] with the
-    // COINIT_MULTITHREADED flag, then that not only initializes the current
-    // thread as a member of the multi-threaded apartment, but it also says,
-    // "Any thread which has never called CoInitialize[Ex] is also part of the
-    // multi-threaded apartment."
-#pragma warning(suppress : 6031)
-    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-#endif
 
     // Profiler needs to know about the thread.
     xe::Profiler::ThreadEnter(thread_name_.c_str());
@@ -578,11 +563,15 @@ void XThread::Reenter(uint32_t address) {
 }
 
 void XThread::EnterCriticalRegion() {
-  xe::global_critical_region::mutex().lock();
+  guest_object<X_KTHREAD>()->apc_disable_count--;
 }
 
 void XThread::LeaveCriticalRegion() {
-  xe::global_critical_region::mutex().unlock();
+  auto kthread = guest_object<X_KTHREAD>();
+  auto apc_disable_count = ++kthread->apc_disable_count;
+  if (apc_disable_count == 0) {
+    CheckApcs();
+  }
 }
 
 uint32_t XThread::RaiseIrql(uint32_t new_irql) {
@@ -593,11 +582,11 @@ void XThread::LowerIrql(uint32_t new_irql) { irql_ = new_irql; }
 
 void XThread::CheckApcs() { DeliverAPCs(); }
 
-void XThread::LockApc() { EnterCriticalRegion(); }
+void XThread::LockApc() { global_critical_region_.mutex().lock(); }
 
 void XThread::UnlockApc(bool queue_delivery) {
   bool needs_apc = apc_list_.HasPending();
-  LeaveCriticalRegion();
+  global_critical_region_.mutex().unlock();
   if (needs_apc && queue_delivery) {
     thread_->QueueUserCallback([this]() { DeliverAPCs(); });
   }
@@ -632,7 +621,8 @@ void XThread::DeliverAPCs() {
   // https://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=7
   auto processor = kernel_state()->processor();
   LockApc();
-  while (apc_list_.HasPending()) {
+  auto kthread = guest_object<X_KTHREAD>();
+  while (apc_list_.HasPending() && kthread->apc_disable_count == 0) {
     // Get APC entry (offset for LIST_ENTRY offset) and cache what we need.
     // Calling the routine may delete the memory/overwrite it.
     uint32_t apc_ptr = apc_list_.Shift() - 8;
@@ -915,7 +905,7 @@ bool XThread::Save(ByteStream* stream) {
     return false;
   }
 
-  stream->Write('THRD');
+  stream->Write(kThreadSaveSignature);
   stream->Write(thread_name_);
 
   ThreadSavedState state;
@@ -971,7 +961,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
     return nullptr;
   }
 
-  if (stream->Read<uint32_t>() != 'THRD') {
+  if (stream->Read<uint32_t>() != kThreadSaveSignature) {
     XELOGE("Could not restore XThread - invalid magic!");
     return nullptr;
   }
@@ -1031,7 +1021,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
 
     xe::threading::Thread::CreationParameters params;
     params.create_suspended = true;  // Not done restoring yet.
-    params.stack_size = 16 * 1024 * 1024;
+    params.stack_size = 16_MiB;
     thread->thread_ = xe::threading::Thread::Create(params, [thread, state]() {
       // Set thread ID override. This is used by logging.
       xe::threading::set_current_thread_id(thread->handle());

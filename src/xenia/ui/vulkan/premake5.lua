@@ -18,6 +18,7 @@ project("xenia-ui-vulkan")
     project_root.."/third_party/vulkan/",
   })
   local_platform_files()
+  local_platform_files("functions")
   files({
     "shaders/bin/*.h",
   })
@@ -31,7 +32,6 @@ project("xenia-ui-window-vulkan-demo")
   links({
     "fmt",
     "imgui",
-    "volk",
     "xenia-base",
     "xenia-ui",
     "xenia-ui-spirv",
@@ -45,7 +45,7 @@ project("xenia-ui-window-vulkan-demo")
   files({
     "../window_demo.cc",
     "vulkan_window_demo.cc",
-    project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
+    project_root.."/src/xenia/ui/windowed_app_main_"..platform_suffix..".cc",
   })
   resincludedirs({
     project_root,
@@ -56,6 +56,4 @@ project("xenia-ui-window-vulkan-demo")
       "X11",
       "xcb",
       "X11-xcb",
-      "GL",
-      "vulkan",
     })

@@ -13,6 +13,7 @@
 #include <memory>
 #include <unordered_map>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/mutex.h"
 #include "xenia/base/threading.h"
 #include "xenia/kernel/xobject.h"
@@ -22,21 +23,21 @@ namespace xe {
 namespace kernel {
 
 union XNotificationKey {
+  XNotificationID id;
   struct {
     uint32_t local_id : 16;
     uint32_t version : 9;
     uint32_t mask_index : 6;
     uint32_t : 1;
   };
-  XNotificationID id;
 
-  static constexpr XNotificationID get_id(uint8_t mask_index,
-                                          uint16_t local_id) {
-    XNotificationKey key = {};
-    key.mask_index = mask_index;
-    key.local_id = local_id;
-    return key.id;
+  constexpr XNotificationKey(
+      XNotificationID notification_id = XNotificationID(0))
+      : id(notification_id) {
+    static_assert_size(*this, sizeof(id));
   }
+
+  constexpr operator XNotificationID() { return id; }
 };
 
 class XNotifyListener : public XObject {

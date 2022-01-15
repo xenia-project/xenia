@@ -39,7 +39,7 @@ enum class ExportCategory : uint8_t {
 };
 
 struct ExportTag {
-  typedef uint32_t type;
+  using type = uint32_t;
 
   // packed like so:
   // ll...... cccccccc ........ ..bihssi

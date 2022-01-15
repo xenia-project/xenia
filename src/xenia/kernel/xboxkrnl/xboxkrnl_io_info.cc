@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -54,7 +54,7 @@ uint32_t GetQueryFileInfoMinimumLength(uint32_t info_class) {
   }
 }
 
-dword_result_t NtQueryInformationFile(
+dword_result_t NtQueryInformationFile_entry(
     dword_t file_handle, pointer_t<X_IO_STATUS_BLOCK> io_status_block_ptr,
     lpvoid_t info_ptr, dword_t info_length, dword_t info_class) {
   uint32_t minimum_length = GetQueryFileInfoMinimumLength(info_class);
@@ -126,6 +126,13 @@ dword_result_t NtQueryInformationFile(
       out_length = sizeof(*info);
       break;
     }
+    case XFileAlignmentInformation: {
+      // Requested by XMountUtilityDrive XAM-task
+      auto info = info_ptr.as<uint32_t*>();
+      *info = 0;  // FILE_BYTE_ALIGNMENT?
+      out_length = sizeof(*info);
+      break;
+    }
     default: {
       // Unsupported, for now.
       assert_always();
@@ -172,7 +179,7 @@ uint32_t GetSetFileInfoMinimumLength(uint32_t info_class) {
   }
 }
 
-dword_result_t NtSetInformationFile(
+dword_result_t NtSetInformationFile_entry(
     dword_t file_handle, pointer_t<X_IO_STATUS_BLOCK> io_status_block,
     lpvoid_t info_ptr, dword_t info_length, dword_t info_class) {
   uint32_t minimum_length = GetSetFileInfoMinimumLength(info_class);
@@ -270,7 +277,7 @@ uint32_t GetQueryVolumeInfoMinimumLength(uint32_t info_class) {
   }
 }
 
-dword_result_t NtQueryVolumeInformationFile(
+dword_result_t NtQueryVolumeInformationFile_entry(
     dword_t file_handle, pointer_t<X_IO_STATUS_BLOCK> io_status_block_ptr,
     lpvoid_t info_ptr, dword_t info_length, dword_t info_class) {
   uint32_t minimum_length = GetQueryVolumeInfoMinimumLength(info_class);
@@ -350,9 +357,8 @@ dword_result_t NtQueryVolumeInformationFile(
 DECLARE_XBOXKRNL_EXPORT1(NtQueryVolumeInformationFile, kFileSystem,
                          kImplemented);
 
-void RegisterIoInfoExports(xe::cpu::ExportResolver* export_resolver,
-                           KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(IoInfo);

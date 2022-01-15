@@ -12,6 +12,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <unordered_map>
 #include <utility>
@@ -25,7 +26,8 @@
 #include "xenia/gpu/xenos.h"
 
 DECLARE_bool(depth_transfer_not_equal_test);
-DECLARE_int32(draw_resolution_scale);
+DECLARE_int32(draw_resolution_scale_x);
+DECLARE_int32(draw_resolution_scale_y);
 DECLARE_bool(draw_resolution_scaled_texture_offsets);
 DECLARE_bool(gamma_render_target_as_srgb);
 DECLARE_bool(native_2x_msaa);
@@ -69,10 +71,10 @@ class RenderTargetCache {
     // Significant differences:
     // - 8_8_8_8_GAMMA - the piecewise linear gamma curve is very different than
     //   sRGB, one possible path is conversion in shaders (resulting in
-    //   incorrect blending, especially visible on decals in Halo 3), another is
-    //   using sRGB render targets and either conversion on resolve or reading
-    //   the resolved data as a true sRGB texture (incorrect when the game
-    //   accesses the data directly, like The Orange Box).
+    //   incorrect blending, especially visible on decals in 4D5307E6), another
+    //   is using sRGB render targets and either conversion on resolve or
+    //   reading the resolved data as a true sRGB texture (incorrect when the
+    //   game accesses the data directly, like 4541080F).
     // - 2_10_10_10_FLOAT - ranges significantly different than in float16, much
     //   smaller RGB range, and alpha is fixed-point and has only 2 bits.
     // - 16_16, 16_16_16_16 - has -32 to 32 range, not -1 to 1 - need either to
@@ -166,7 +168,44 @@ class RenderTargetCache {
 
   virtual Path GetPath() const = 0;
 
-  virtual uint32_t GetResolutionScale() const = 0;
+  // Resolution scaling on the EDRAM side is performed by multiplying the EDRAM
+  // tile size by the resolution scale.
+  // Note: Only integer scaling factors are provided because fractional ones,
+  // even with 0.5 granularity, cause significant issues in addition to the ones
+  // already present with integer scaling. 1.5 (from 1280x720 to 1920x1080) may
+  // be useful, but it would cause pixel coverage issues with odd dimensions of
+  // screen-space geometry, most importantly 1x1 that is often the final step in
+  // reduction algorithms such as average luminance computation in HDR. A
+  // single-pixel quad, either 0...1 without half-pixel offset or 0.5...1.5 with
+  // it (covers only the first pixel according the top-left rule), with 1.5x
+  // resolution scaling, would become 0...1.5 (only the first pixel covered) or
+  // 0.75...2.25 (only the second). The workaround used in Xenia for 2x and 3x
+  // resolution scaling for filling the gap caused by the half-pixel offset
+  // becoming whole-pixel - stretching the second column / row of pixels into
+  // the first - will not work in this case, as for one-pixel primitives without
+  // half-pixel offset (covering only the first pixel, but not the second, with
+  // 1.5x), it will actually cause the pixel to be erased with 1.5x scaling. As
+  // within one pass there can be geometry both with and without the half-pixel
+  // offset (not only depending on PA_SU_VTX_CNTL::PIX_CENTER, but also with the
+  // half-pixel offset possibly reverted manually), the emulator can't decide
+  // whether the stretching workaround actually needs to be used. So, with 1.5x,
+  // depending on how the game draws its screen-space effects and on whether the
+  // workaround is used, in some cases, nothing will just be drawn to the first
+  // pixel, while in other cases, the effect will be drawn to it, but the
+  // stretching workaround will replace it with the undefined value in the
+  // second pixel. Also, with 1.5x, rounding of integer coordinates becomes
+  // complicated, also in part due to the half-pixel offset. Odd texture sizes
+  // would need to be rounded down, as according to the top-left rule, a 1.5x1.5
+  // quad at the 0 or 0.75 origin (after the scaling) will cover only 1 pixel -
+  // so, if the resulting texture was 2x2 rather than 1x1, undefined pixels
+  // would participate in filtering. However, 1x1 scissor rounded to 1x1, with
+  // the half-pixel offset of vertices, would cause the entire 0.75...2.25 quad
+  // to be discarded.
+  virtual uint32_t GetResolutionScaleX() const = 0;
+  virtual uint32_t GetResolutionScaleY() const = 0;
+  bool IsResolutionScaled() const {
+    return GetResolutionScaleX() > 1 || GetResolutionScaleY() > 1;
+  }
 
   // Virtual (both the common code and the implementation may do something
   // here), don't call from destructors (does work not needed for shutdown
@@ -180,8 +219,10 @@ class RenderTargetCache {
 
   // Returns bits where 0 is whether a depth render target is currently bound on
   // the host and 1... are whether the same applies to color render targets, and
-  // "host-relevant" formats of each.
+  // formats (resource formats, but if needed, with gamma taken into account) of
+  // each.
   uint32_t GetLastUpdateBoundRenderTargets(
+      bool distinguish_gamma_formats,
       uint32_t* depth_and_color_formats_out = nullptr) const;
 
  protected:
@@ -214,6 +255,7 @@ class RenderTargetCache {
   // rest of the EDRAM is transferred.
 
   union RenderTargetKey {
+    uint32_t key;
     struct {
       // [0, 2047].
       uint32_t base_tiles : xenos::kEdramBaseTilesBits - 1;  // 11
@@ -222,16 +264,15 @@ class RenderTargetCache {
       uint32_t pitch_tiles_at_32bpp : 8;                          // 19
       xenos::MsaaSamples msaa_samples : xenos::kMsaaSamplesBits;  // 21
       uint32_t is_depth : 1;                                      // 22
-      // Not always the original format - blending precision ignored, formats
-      // handled through the same render targets on the host are normalized, and
-      // with pixel shader interlock, replaced with some single 32bpp or 64bpp
-      // format because it's only needed for addressing.
-      uint32_t host_relevant_format : xenos::kRenderTargetFormatBits;  // 26
+      // Ignoring the blending precision and sRGB.
+      uint32_t resource_format : xenos::kRenderTargetFormatBits;  // 26
     };
-    uint32_t key = 0;
+
+    RenderTargetKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+
     struct Hasher {
-      size_t operator()(const RenderTargetKey& key) const {
-        return std::hash<uint32_t>{}(key.key);
+      size_t operator()(const RenderTargetKey& render_target_key) const {
+        return std::hash<uint32_t>{}(render_target_key.key);
       }
     };
     bool operator==(const RenderTargetKey& other_key) const {
@@ -249,11 +290,11 @@ class RenderTargetCache {
 
     xenos::ColorRenderTargetFormat GetColorFormat() const {
       assert_false(is_depth);
-      return xenos::ColorRenderTargetFormat(host_relevant_format);
+      return xenos::ColorRenderTargetFormat(resource_format);
     }
     xenos::DepthRenderTargetFormat GetDepthFormat() const {
       assert_true(is_depth);
-      return xenos::DepthRenderTargetFormat(host_relevant_format);
+      return xenos::DepthRenderTargetFormat(resource_format);
     }
     bool Is64bpp() const {
       if (is_depth) {
@@ -265,10 +306,14 @@ class RenderTargetCache {
     uint32_t GetPitchTiles() const {
       return pitch_tiles_at_32bpp << uint32_t(Is64bpp());
     }
-    uint32_t GetWidth() const {
+    static constexpr uint32_t GetWidth(uint32_t pitch_tiles_at_32bpp,
+                                       xenos::MsaaSamples msaa_samples) {
       return pitch_tiles_at_32bpp *
              (xenos::kEdramTileWidthSamples >>
               uint32_t(msaa_samples >= xenos::MsaaSamples::k4X));
+    }
+    uint32_t GetWidth() const {
+      return GetWidth(pitch_tiles_at_32bpp, msaa_samples);
     }
 
     std::string GetDebugName() const {
@@ -435,24 +480,15 @@ class RenderTargetCache {
   uint32_t GetRenderTargetHeight(uint32_t pitch_tiles_at_32bpp,
                                  xenos::MsaaSamples msaa_samples) const;
 
-  // Normalizes the format if it's fine to use the same render target textures
-  // for the provided and the returned guest formats.
-  // xenos::GetStorageColorFormat is supposed to be done before calling, so
-  // redoing what it does in the implementations is not needed.
-  virtual xenos::ColorRenderTargetFormat GetHostRelevantColorFormat(
-      xenos::ColorRenderTargetFormat format) const {
-    return format;
-  }
-
   virtual RenderTarget* CreateRenderTarget(RenderTargetKey key) = 0;
 
   // Whether depth buffer is encoded differently on the host, thus after
   // aliasing naively, precision may be lost - host depth must only be
   // overwritten if the new guest value is different than the current host depth
   // when converted to the guest format (this catches the usual case of
-  // overwriting the depth buffer for clearing it mostly). Sonic the Hedgehog's
-  // intro cutscene, for example, has a good example of corruption that happens
-  // if this is not handled - the upper 1280x384 pixels are rendered in a very
+  // overwriting the depth buffer for clearing it mostly). 534507D6 intro
+  // cutscene, for example, has a good example of corruption that happens if
+  // this is not handled - the upper 1280x384 pixels are rendered in a very
   // "striped" way if the depth precision is lost (if this is made always return
   // false).
   virtual bool IsHostDepthEncodingDifferent(
@@ -543,13 +579,8 @@ class RenderTargetCache {
     // float32 value to that of an unorm24 with a totally wrong value). If the
     // range hasn't been used yet (render_target.IsEmpty() == true), these are
     // empty too.
-    union {
-      struct {
-        RenderTargetKey host_depth_render_target_unorm24;
-        RenderTargetKey host_depth_render_target_float24;
-      };
-      RenderTargetKey host_depth_render_targets[2];
-    };
+    RenderTargetKey host_depth_render_target_unorm24;
+    RenderTargetKey host_depth_render_target_float24;
     OwnershipRange(uint32_t end_tiles, RenderTargetKey render_target,
                    RenderTargetKey host_depth_render_target_unorm24,
                    RenderTargetKey host_depth_render_target_float24)
@@ -557,6 +588,22 @@ class RenderTargetCache {
           render_target(render_target),
           host_depth_render_target_unorm24(host_depth_render_target_unorm24),
           host_depth_render_target_float24(host_depth_render_target_float24) {}
+    const RenderTargetKey& GetHostDepthRenderTarget(
+        xenos::DepthRenderTargetFormat resource_format) const {
+      assert_true(
+          resource_format == xenos::DepthRenderTargetFormat::kD24S8 ||
+              resource_format == xenos::DepthRenderTargetFormat::kD24FS8,
+          "Illegal resource format");
+      return resource_format == xenos::DepthRenderTargetFormat::kD24S8
+                 ? host_depth_render_target_unorm24
+                 : host_depth_render_target_float24;
+    }
+    RenderTargetKey& GetHostDepthRenderTarget(
+        xenos::DepthRenderTargetFormat resource_format) {
+      return const_cast<RenderTargetKey&>(
+          const_cast<const OwnershipRange*>(this)->GetHostDepthRenderTarget(
+              resource_format));
+    }
     bool IsOwnedBy(RenderTargetKey key,
                    bool host_depth_encoding_different) const {
       if (render_target != key) {
@@ -566,7 +613,7 @@ class RenderTargetCache {
         return false;
       }
       if (host_depth_encoding_different && !key.is_depth &&
-          host_depth_render_targets[key.host_relevant_format] != key) {
+          GetHostDepthRenderTarget(key.GetDepthFormat()) != key) {
         // Depth encoding is the same, but different addressing is needed.
         return false;
       }
@@ -580,6 +627,16 @@ class RenderTargetCache {
                  other_range.host_depth_render_target_float24;
     }
   };
+
+  static constexpr xenos::ColorRenderTargetFormat GetColorResourceFormat(
+      xenos::ColorRenderTargetFormat format) {
+    // sRGB, if used on the host, is a view property or global state - linear
+    // and sRGB host render targets can share data directly without transfers.
+    if (format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
+      return xenos::ColorRenderTargetFormat::k_8_8_8_8;
+    }
+    return xenos::GetStorageColorFormat(format);
+  }
 
   RenderTarget* GetOrCreateRenderTarget(RenderTargetKey key);
 
@@ -622,7 +679,7 @@ class RenderTargetCache {
   // surface info was changed), to avoid unneeded render target switching (which
   // is especially undesirable on tile-based GPUs) in the implementation if
   // simply disabling depth / stencil test or color writes and then re-enabling
-  // (Banjo-Kazooie does this often with color). Must also be used to determine
+  // (58410954 does this often with color). Must also be used to determine
   // whether it's safe to enable depth / stencil or writing to a specific color
   // render target in the pipeline for this draw call.
   // Only valid for non-pixel-shader-interlock paths.

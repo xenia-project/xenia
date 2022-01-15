@@ -10,21 +10,25 @@
 #include <array>
 #include <cstring>
 #include <forward_list>
-#include <map>
+#include <memory>
+#include <string>
 #include <tuple>
+#include <unordered_map>
+#include <vector>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/main.h"
 #include "xenia/base/threading.h"
 #include "xenia/hid/hid_flags.h"
 #include "xenia/hid/input_system.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/virtual_key.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/window.h"
+#include "xenia/ui/windowed_app.h"
 
 // Available input drivers:
 #include "xenia/hid/nop/nop_hid.h"
@@ -45,10 +49,36 @@ DEFINE_string(hid, "any", "Input system. Use: [any, nop, sdl, winkey, xinput]",
 namespace xe {
 namespace hid {
 
-std::unique_ptr<xe::hid::InputSystem> input_system_;
-bool is_active = true;
+class HidDemoApp final : public ui::WindowedApp {
+ public:
+  static std::unique_ptr<ui::WindowedApp> Create(
+      ui::WindowedAppContext& app_context) {
+    return std::unique_ptr<ui::WindowedApp>(new HidDemoApp(app_context));
+  }
 
-std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
+  bool OnInitialize() override;
+
+ private:
+  explicit HidDemoApp(ui::WindowedAppContext& app_context)
+      : ui::WindowedApp(app_context, "xenia-hid-demo") {}
+
+  static std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
+      ui::Window* window);
+
+  void DrawUserInputGetState(uint32_t user_index) const;
+  void DrawInputGetState() const;
+  void DrawUserInputGetKeystroke(uint32_t user_index, bool poll,
+                                 bool hide_repeats, bool clear_log) const;
+  void DrawInputGetKeystroke(bool poll, bool hide_repeats,
+                             bool clear_log) const;
+
+  std::unique_ptr<ui::GraphicsProvider> graphics_provider_;
+  std::unique_ptr<ui::Window> window_;
+  std::unique_ptr<InputSystem> input_system_;
+  bool is_active_ = true;
+};
+
+std::vector<std::unique_ptr<hid::InputDriver>> HidDemoApp::CreateInputDrivers(
     ui::Window* window) {
   std::vector<std::unique_ptr<hid::InputDriver>> drivers;
   if (cvars::hid.compare("nop") == 0) {
@@ -93,60 +123,46 @@ std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
   return drivers;
 }
 
-std::unique_ptr<xe::ui::GraphicsProvider> CreateDemoGraphicsProvider(
-    xe::ui::Window* window) {
-  return xe::ui::vulkan::VulkanProvider::Create(window);
-}
+bool HidDemoApp::OnInitialize() {
+  // Create graphics provider that provides the context for the window.
+  graphics_provider_ = xe::ui::vulkan::VulkanProvider::Create();
+  if (!graphics_provider_) {
+    return false;
+  }
 
-void DrawInputGetState();
-void DrawInputGetKeystroke(bool poll, bool hide_repeats, bool clear_log);
-
-int hid_demo_main(const std::vector<std::string>& args) {
-  // Create run loop and the window.
-  auto loop = ui::Loop::Create();
-  auto window = xe::ui::Window::Create(loop.get(), GetEntryInfo().name);
-  loop->PostSynchronous([&window]() {
-    xe::threading::set_name("Win32 Loop");
-    if (!window->Initialize()) {
-      FatalError("Failed to initialize main window");
-      return;
-    }
-  });
-  window->on_closed.AddListener([&loop](xe::ui::UIEvent* e) {
-    loop->Quit();
+  // Create the window.
+  window_ = xe::ui::Window::Create(app_context(), GetName());
+  if (!window_->Initialize()) {
+    XELOGE("Failed to initialize main window");
+    return false;
+  }
+  window_->on_closed.AddListener([this](xe::ui::UIEvent* e) {
     XELOGI("User-initiated death!");
-    exit(1);
+    app_context().QuitFromUIThread();
   });
-  loop->on_quit.AddListener([&window](xe::ui::UIEvent* e) { window.reset(); });
 
   // Initial size setting, done here so that it knows the menu exists.
-  window->Resize(COL_WIDTH_STATE + COL_WIDTH_STROKE, ROW_HEIGHT_GENERAL + 500);
+  window_->Resize(COL_WIDTH_STATE + COL_WIDTH_STROKE, ROW_HEIGHT_GENERAL + 500);
 
-  // Create the graphics context used for drawing and setup the window.
-  std::unique_ptr<xe::ui::GraphicsProvider> graphics_provider;
-  loop->PostSynchronous([&window, &graphics_provider]() {
-    // Create context and give it to the window.
-    // The window will finish initialization wtih the context (loading
-    // resources, etc).
-    graphics_provider = CreateDemoGraphicsProvider(window.get());
-    window->set_context(graphics_provider->CreateContext(window.get()));
+  // Create the graphics context for the window. The window will finish
+  // initialization with the context (loading resources, etc).
+  window_->set_context(graphics_provider_->CreateContext(window_.get()));
 
-    // Initialize input system and all drivers.
-    input_system_ = std::make_unique<xe::hid::InputSystem>(window.get());
-    auto drivers = CreateInputDrivers(window.get());
-    for (size_t i = 0; i < drivers.size(); ++i) {
-      auto& driver = drivers[i];
-      driver->set_is_active_callback([]() -> bool { return is_active; });
-      input_system_->AddDriver(std::move(driver));
-    }
+  // Initialize input system and all drivers.
+  input_system_ = std::make_unique<xe::hid::InputSystem>(window_.get());
+  auto drivers = CreateInputDrivers(window_.get());
+  for (size_t i = 0; i < drivers.size(); ++i) {
+    auto& driver = drivers[i];
+    driver->set_is_active_callback([this]() -> bool { return is_active_; });
+    input_system_->AddDriver(std::move(driver));
+  }
 
-    window->Invalidate();
-  });
+  window_->Invalidate();
 
-  window->set_imgui_input_enabled(true);
+  window_->set_imgui_input_enabled(true);
 
-  window->on_painting.AddListener([&](xe::ui::UIEvent* e) {
-    auto& io = window->imgui_drawer()->GetIO();
+  window_->on_painting.AddListener([this](xe::ui::UIEvent* e) {
+    auto& io = window_->imgui_drawer()->GetIO();
 
     const ImGuiWindowFlags wflags =
         ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -160,7 +176,7 @@ int hid_demo_main(const std::vector<std::string>& args) {
           ImVec2(COL_WIDTH_STATE + COL_WIDTH_STROKE, ROW_HEIGHT_GENERAL));
 
       ImGui::Text("Input System (hid) = \"%s\"", cvars::hid.c_str());
-      ImGui::Checkbox("is_active", &is_active);
+      ImGui::Checkbox("is_active", &is_active_);
     }
     ImGui::End();
 
@@ -200,21 +216,13 @@ int hid_demo_main(const std::vector<std::string>& args) {
     ImGui::End();
 
     // Continuous paint.
-    window->Invalidate();
+    window_->Invalidate();
   });
 
-  // Wait until we are exited.
-  loop->AwaitQuit();
-
-  input_system_.reset();
-
-  loop->PostSynchronous([&graphics_provider]() { graphics_provider.reset(); });
-  window.reset();
-  loop.reset();
-  return 0;
+  return true;
 }
 
-void DrawUserInputGetState(uint32_t user_index) {
+void HidDemoApp::DrawUserInputGetState(uint32_t user_index) const {
   ImGui::Text("User %u:", user_index);
 
   X_INPUT_STATE state;
@@ -273,7 +281,7 @@ void DrawUserInputGetState(uint32_t user_index) {
   ImGui::Text(" ");
 }
 
-void DrawInputGetState() {
+void HidDemoApp::DrawInputGetState() const {
   ImGui::BeginChild("##input_get_state_scroll");
   for (uint32_t user_index = 0; user_index < MAX_USERS; ++user_index) {
     DrawUserInputGetState(user_index);
@@ -281,48 +289,48 @@ void DrawInputGetState() {
   ImGui::EndChild();
 }
 
-static const std::map<std::underlying_type<X_INPUT_GAMEPAD_VK>::type,
-                      const std::string>
-    vk_pretty = {
-        {X_INPUT_GAMEPAD_VK_A, "A"},
-        {X_INPUT_GAMEPAD_VK_B, "B"},
-        {X_INPUT_GAMEPAD_VK_X, "X"},
-        {X_INPUT_GAMEPAD_VK_Y, "Y"},
-        {X_INPUT_GAMEPAD_VK_RSHOULDER, "R Shoulder"},
-        {X_INPUT_GAMEPAD_VK_LSHOULDER, "L Shoulder"},
-        {X_INPUT_GAMEPAD_VK_LTRIGGER, "L Trigger"},
-        {X_INPUT_GAMEPAD_VK_RTRIGGER, "R Trigger"},
+void HidDemoApp::DrawUserInputGetKeystroke(uint32_t user_index, bool poll,
+                                           bool hide_repeats,
+                                           bool clear_log) const {
+  static const std::unordered_map<ui::VirtualKey, const std::string> kVkPretty =
+      {
+          {ui::VirtualKey::kXInputPadA, "A"},
+          {ui::VirtualKey::kXInputPadB, "B"},
+          {ui::VirtualKey::kXInputPadX, "X"},
+          {ui::VirtualKey::kXInputPadY, "Y"},
+          {ui::VirtualKey::kXInputPadRShoulder, "R Shoulder"},
+          {ui::VirtualKey::kXInputPadLShoulder, "L Shoulder"},
+          {ui::VirtualKey::kXInputPadLTrigger, "L Trigger"},
+          {ui::VirtualKey::kXInputPadRTrigger, "R Trigger"},
 
-        {X_INPUT_GAMEPAD_VK_DPAD_UP, "DPad up"},
-        {X_INPUT_GAMEPAD_VK_DPAD_DOWN, "DPad down"},
-        {X_INPUT_GAMEPAD_VK_DPAD_LEFT, "DPad left"},
-        {X_INPUT_GAMEPAD_VK_DPAD_RIGHT, "DPad right"},
-        {X_INPUT_GAMEPAD_VK_START, "Start"},
-        {X_INPUT_GAMEPAD_VK_BACK, "Back"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_PRESS, "L Thumb press"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_PRESS, "R Thumb press"},
+          {ui::VirtualKey::kXInputPadDpadUp, "DPad up"},
+          {ui::VirtualKey::kXInputPadDpadDown, "DPad down"},
+          {ui::VirtualKey::kXInputPadDpadLeft, "DPad left"},
+          {ui::VirtualKey::kXInputPadDpadRight, "DPad right"},
+          {ui::VirtualKey::kXInputPadStart, "Start"},
+          {ui::VirtualKey::kXInputPadBack, "Back"},
+          {ui::VirtualKey::kXInputPadLThumbPress, "L Thumb press"},
+          {ui::VirtualKey::kXInputPadRThumbPress, "R Thumb press"},
 
-        {X_INPUT_GAMEPAD_VK_LTHUMB_UP, "L Thumb up"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_DOWN, "L Thumb down"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_RIGHT, "L Thumb right"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_LEFT, "L Thumb left"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_UPLEFT, "L Thumb up & left"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_UPRIGHT, "L Thumb up & right"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_DOWNRIGHT, "L Thumb down & right"},
-        {X_INPUT_GAMEPAD_VK_LTHUMB_DOWNLEFT, "L Thumb down & left"},
+          {ui::VirtualKey::kXInputPadLThumbUp, "L Thumb up"},
+          {ui::VirtualKey::kXInputPadLThumbDown, "L Thumb down"},
+          {ui::VirtualKey::kXInputPadLThumbRight, "L Thumb right"},
+          {ui::VirtualKey::kXInputPadLThumbLeft, "L Thumb left"},
+          {ui::VirtualKey::kXInputPadLThumbUpLeft, "L Thumb up & left"},
+          {ui::VirtualKey::kXInputPadLThumbUpRight, "L Thumb up & right"},
+          {ui::VirtualKey::kXInputPadLThumbDownRight, "L Thumb down & right"},
+          {ui::VirtualKey::kXInputPadLThumbDownLeft, "L Thumb down & left"},
 
-        {X_INPUT_GAMEPAD_VK_RTHUMB_UP, "R Thumb up"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_DOWN, "R Thumb down"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_RIGHT, "R Thumb right"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_LEFT, "R Thumb left"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_UPLEFT, "R Thumb up & left"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_UPRIGHT, "R Thumb up & right"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_DOWNRIGHT, "R Thumb down & right"},
-        {X_INPUT_GAMEPAD_VK_RTHUMB_DOWNLEFT, "R Thumb down & left"},
-};
+          {ui::VirtualKey::kXInputPadRThumbUp, "R Thumb up"},
+          {ui::VirtualKey::kXInputPadRThumbDown, "R Thumb down"},
+          {ui::VirtualKey::kXInputPadRThumbRight, "R Thumb right"},
+          {ui::VirtualKey::kXInputPadRThumbLeft, "R Thumb left"},
+          {ui::VirtualKey::kXInputPadRThumbUpLeft, "R Thumb up & left"},
+          {ui::VirtualKey::kXInputPadRThumbUpRight, "R Thumb up & right"},
+          {ui::VirtualKey::kXInputPadRThumbDownRight, "R Thumb down & right"},
+          {ui::VirtualKey::kXInputPadRThumbDownLeft, "R Thumb down & left"},
+      };
 
-void DrawUserInputGetKeystroke(uint32_t user_index, bool poll,
-                               bool hide_repeats, bool clear_log) {
   const size_t maxLog = 128;
   static std::array<std::forward_list<std::string>, MAX_USERS> event_logs;
   static std::array<uint64_t, MAX_USERS> last_event_times = {};
@@ -354,10 +362,12 @@ void DrawUserInputGetKeystroke(uint32_t user_index, bool poll,
             break;
           }
 
-          const auto key_search = vk_pretty.find(stroke.virtual_key);
-          const auto key = key_search != vk_pretty.end()
-                               ? key_search->second
-                               : fmt::format("0x{:04x}", stroke.virtual_key);
+          ui::VirtualKey virtual_key = ui::VirtualKey(stroke.virtual_key.get());
+          const auto key_search = kVkPretty.find(virtual_key);
+          std::string key =
+              key_search != kVkPretty.cend()
+                  ? key_search->second
+                  : fmt::format("0x{:04x}", uint16_t(virtual_key));
           event_log.emplace_front(fmt::format(
               "{:>6} {:>9}ms    {:<20}    {} {} {}", ImGui::GetFrameCount(),
               dur, key,
@@ -399,7 +409,8 @@ void DrawUserInputGetKeystroke(uint32_t user_index, bool poll,
   }
 }
 
-void DrawInputGetKeystroke(bool poll, bool hide_repeats, bool clear_log) {
+void HidDemoApp::DrawInputGetKeystroke(bool poll, bool hide_repeats,
+                                       bool clear_log) const {
   bool tab_bar = ImGui::BeginTabBar("DrawInputGetKeystroke");
   for (uint32_t user_index = 0; user_index < MAX_USERS; ++user_index) {
     DrawUserInputGetKeystroke(user_index, poll, hide_repeats, clear_log);
@@ -410,4 +421,4 @@ void DrawInputGetKeystroke(bool poll, bool hide_repeats, bool clear_log) {
 }  // namespace hid
 }  // namespace xe
 
-DEFINE_ENTRY_POINT("xenia-hid-demo", xe::hid::hid_demo_main, "");
+XE_DEFINE_WINDOWED_APP(xenia_hid_demo, xe::hid::HidDemoApp::Create);

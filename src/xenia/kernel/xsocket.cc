@@ -9,6 +9,8 @@
 
 #include "src/xenia/kernel/xsocket.h"
 
+#include <cstring>
+
 #include "xenia/base/platform.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xam/xam_module.h"
@@ -200,7 +202,7 @@ int XSocket::RecvFrom(uint8_t* buf, uint32_t buf_len, uint32_t flags,
     from->sin_family = nfrom.sin_family;
     from->sin_addr = ntohl(nfrom.sin_addr.s_addr);  // BE <- BE
     from->sin_port = nfrom.sin_port;
-    memset(&from->sin_zero, 0, 8);
+    std::memset(from->x_sin_zero, 0, sizeof(from->x_sin_zero));
   }
 
   if (from_len) {

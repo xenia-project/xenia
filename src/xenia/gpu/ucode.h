@@ -45,6 +45,10 @@
  * SOFTWARE.
  */
 
+// Only 32-bit types (uint32_t, int32_t or enums with uint32_t / int32_t as the
+// underlying type) are allowed in the bit fields here, as Visual C++ restarts
+// packing when a field requires different alignment than the previous one.
+
 namespace xe {
 namespace gpu {
 namespace ucode {
@@ -175,7 +179,7 @@ struct ControlFlowExecInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowExecInstruction, 8);
+static_assert_size(ControlFlowExecInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kCondExec and kCondExecEnd.
 struct ControlFlowCondExecInstruction {
@@ -209,7 +213,7 @@ struct ControlFlowCondExecInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowCondExecInstruction, 8);
+static_assert_size(ControlFlowCondExecInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kCondExecPred, kCondExecPredEnd,
 // kCondExecPredClean, kCondExecPredCleanEnd.
@@ -245,7 +249,7 @@ struct ControlFlowCondExecPredInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowCondExecPredInstruction, 8);
+static_assert_size(ControlFlowCondExecPredInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kLoopStart.
 struct ControlFlowLoopStartInstruction {
@@ -272,7 +276,7 @@ struct ControlFlowLoopStartInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowLoopStartInstruction, 8);
+static_assert_size(ControlFlowLoopStartInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kLoopEnd.
 struct ControlFlowLoopEndInstruction {
@@ -302,7 +306,7 @@ struct ControlFlowLoopEndInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowLoopEndInstruction, 8);
+static_assert_size(ControlFlowLoopEndInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kCondCall.
 struct ControlFlowCondCallInstruction {
@@ -333,7 +337,7 @@ struct ControlFlowCondCallInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowCondCallInstruction, 8);
+static_assert_size(ControlFlowCondCallInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kReturn.
 struct ControlFlowReturnInstruction {
@@ -349,7 +353,7 @@ struct ControlFlowReturnInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowReturnInstruction, 8);
+static_assert_size(ControlFlowReturnInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kCondJmp.
 struct ControlFlowCondJmpInstruction {
@@ -381,7 +385,7 @@ struct ControlFlowCondJmpInstruction {
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowCondJmpInstruction, 8);
+static_assert_size(ControlFlowCondJmpInstruction, sizeof(uint32_t) * 2);
 
 // Instruction data for ControlFlowOpcode::kAlloc.
 struct ControlFlowAllocInstruction {
@@ -403,9 +407,9 @@ struct ControlFlowAllocInstruction {
   uint32_t : 1;
   ControlFlowOpcode opcode_ : 4;
 };
-static_assert_size(ControlFlowAllocInstruction, 8);
+static_assert_size(ControlFlowAllocInstruction, sizeof(uint32_t) * 2);
 
-XEPACKEDUNION(ControlFlowInstruction, {
+union ControlFlowInstruction {
   ControlFlowOpcode opcode() const { return opcode_value; }
 
   ControlFlowExecInstruction exec;                    // kExec*
@@ -418,17 +422,17 @@ XEPACKEDUNION(ControlFlowInstruction, {
   ControlFlowCondJmpInstruction cond_jmp;             // kCondJmp
   ControlFlowAllocInstruction alloc;                  // kAlloc
 
-  XEPACKEDSTRUCTANONYMOUS({
+  struct {
+    uint32_t dword_0;
+    uint32_t dword_1;
+  };
+  struct {
     uint32_t unused_0 : 32;
     uint32_t unused_1 : 12;
     ControlFlowOpcode opcode_value : 4;
-  });
-  XEPACKEDSTRUCTANONYMOUS({
-    uint32_t dword_0;
-    uint32_t dword_1;
-  });
-});
-static_assert_size(ControlFlowInstruction, 8);
+  };
+};
+static_assert_size(ControlFlowInstruction, sizeof(uint32_t) * 2);
 
 inline void UnpackControlFlowInstructions(const uint32_t* dwords,
                                           ControlFlowInstruction* out_ab) {
@@ -479,7 +483,7 @@ enum class FetchOpcode : uint32_t {
   // - 3D (used for both 3D and stacked 2D texture): U, V, W (normalized or
   //   unnormalized - same for both 3D W and stack layer; also VolMagFilter /
   //   VolMinFilter between stack layers is supported, used for color correction
-  //   in Burnout Revenge).
+  //   in 454107DC).
   // - Cube: SC, TC (between 1 and 2 for normalized), face ID (0.0 to 5.0), the
   //   cube vector ALU instruction is used to calculate them.
   // https://gpuopen.com/learn/fetching-from-cubes-and-octahedrons/
@@ -491,9 +495,9 @@ enum class FetchOpcode : uint32_t {
   // The total LOD for a sample is additive and is based on what is enabled.
   //
   // For cube maps, according to what texCUBEgrad compiles to in a modified
-  // HLSL shader of Brave: A Warrior's Tale and to XNA assembler output for PC
-  // SM3 texldd, register gradients are in cube space (not in SC/TC space,
-  // unlike the coordinates themselves). This isn't true for the GCN, however.
+  // HLSL shader of 455607D1 and to XNA assembler output for PC SM3 texldd,
+  // register gradients are in cube space (not in SC/TC space, unlike the
+  // coordinates themselves). This isn't true for the GCN, however.
   //
   // TODO(Triang3l): Find if gradients are unnormalized for cube maps if
   // coordinates are unnormalized. Since texldd doesn't perform any
@@ -587,7 +591,7 @@ enum class FetchOpcode : uint32_t {
   kSetTextureGradientsVert = 26,
 };
 
-struct VertexFetchInstruction {
+struct alignas(uint32_t) VertexFetchInstruction {
   FetchOpcode opcode() const { return data_.opcode_value; }
 
   // Whether the jump is predicated (or conditional).
@@ -595,6 +599,8 @@ struct VertexFetchInstruction {
   // Required condition value of the comparision (true or false).
   bool predicate_condition() const { return data_.pred_condition == 1; }
   // Vertex fetch constant index [0-95].
+  // Applicable only to vfetch_full (the address from vfetch_full is reused in
+  // vfetch_mini).
   uint32_t fetch_constant_index() const {
     return data_.const_index * 3 + data_.const_index_sel;
   }
@@ -602,6 +608,8 @@ struct VertexFetchInstruction {
   uint32_t dest() const { return data_.dst_reg; }
   uint32_t dest_swizzle() const { return data_.dst_swiz; }
   bool is_dest_relative() const { return data_.dst_reg_am; }
+  // The source is applicable only to vfetch_full (the address from vfetch_full
+  // is reused in vfetch_mini).
   uint32_t src() const { return data_.src_reg; }
   uint32_t src_swizzle() const { return data_.src_swiz; }
   bool is_src_relative() const { return data_.src_reg_am; }
@@ -640,21 +648,24 @@ struct VertexFetchInstruction {
   xenos::SignedRepeatingFractionMode signed_rf_mode() const {
     return data_.signed_rf_mode_all;
   }
+  // If true, the floating-point index is rounded to the nearest integer (likely
+  // as floor(index + 0.5) because rounding to the nearest even makes no sense
+  // for addressing, both 1.5 and 2.5 would be 2).
+  // Otherwise, it's floored (rounded towards negative infinity).
+  // Applicable only to vfetch_full (the address from vfetch_full is reused in
+  // vfetch_mini).
+  // http://web.archive.org/web/20090914055358/http://msdn.microsoft.com/en-us/library/bb313960.aspx
   bool is_index_rounded() const { return data_.is_index_rounded == 1; }
   // Dword stride, [0, 255].
+  // Applicable only to vfetch_full (the address from vfetch_full is reused in
+  // vfetch_mini).
   uint32_t stride() const { return data_.stride; }
   // Dword offset, [-4194304, 4194303].
   int32_t offset() const { return data_.offset; }
 
-  void AssignFromFull(const VertexFetchInstruction& full) {
-    data_.stride = full.data_.stride;
-    data_.const_index = full.data_.const_index;
-    data_.const_index_sel = full.data_.const_index_sel;
-  }
-
  private:
-  XEPACKEDSTRUCT(Data, {
-    XEPACKEDSTRUCTANONYMOUS({
+  struct Data {
+    struct {
       FetchOpcode opcode_value : 5;
       uint32_t src_reg : 6;
       uint32_t src_reg_am : 1;
@@ -666,8 +677,8 @@ struct VertexFetchInstruction {
       // Prefetch count minus 1.
       uint32_t prefetch_count : 3;
       uint32_t src_swiz : 2;
-    });
-    XEPACKEDSTRUCTANONYMOUS({
+    };
+    struct {
       uint32_t dst_swiz : 12;
       uint32_t fomat_comp_all : 1;
       uint32_t num_format_all : 1;
@@ -678,17 +689,18 @@ struct VertexFetchInstruction {
       int32_t exp_adjust : 6;
       uint32_t is_mini_fetch : 1;
       uint32_t is_predicated : 1;
-    });
-    XEPACKEDSTRUCTANONYMOUS({
+    };
+    struct {
       uint32_t stride : 8;
       int32_t offset : 23;
       uint32_t pred_condition : 1;
-    });
-  });
+    };
+  };
   Data data_;
 };
+static_assert_size(VertexFetchInstruction, sizeof(uint32_t) * 3);
 
-struct TextureFetchInstruction {
+struct alignas(uint32_t) TextureFetchInstruction {
   FetchOpcode opcode() const { return data_.opcode_value; }
 
   // Whether the jump is predicated (or conditional).
@@ -747,8 +759,8 @@ struct TextureFetchInstruction {
   float offset_z() const { return data_.offset_z * 0.5f; }
 
  private:
-  XEPACKEDSTRUCT(Data, {
-    XEPACKEDSTRUCTANONYMOUS({
+  struct Data {
+    struct {
       FetchOpcode opcode_value : 5;
       uint32_t src_reg : 6;
       uint32_t src_reg_am : 1;
@@ -758,8 +770,8 @@ struct TextureFetchInstruction {
       uint32_t const_index : 5;
       uint32_t tx_coord_denorm : 1;
       uint32_t src_swiz : 6;  // xyz
-    });
-    XEPACKEDSTRUCTANONYMOUS({
+    };
+    struct {
       uint32_t dst_swiz : 12;  // xyzw
       xenos::TextureFilter mag_filter : 2;
       xenos::TextureFilter min_filter : 2;
@@ -772,8 +784,8 @@ struct TextureFetchInstruction {
       uint32_t use_reg_lod : 1;
       uint32_t unk : 1;
       uint32_t is_predicated : 1;
-    });
-    XEPACKEDSTRUCTANONYMOUS({
+    };
+    struct {
       uint32_t use_reg_gradients : 1;
       xenos::SampleLocation sample_location : 1;
       int32_t lod_bias : 7;
@@ -783,11 +795,11 @@ struct TextureFetchInstruction {
       int32_t offset_y : 5;
       int32_t offset_z : 5;
       uint32_t pred_condition : 1;
-    });
-  });
+    };
+  };
   Data data_;
 };
-static_assert_size(TextureFetchInstruction, 12);
+static_assert_size(TextureFetchInstruction, sizeof(uint32_t) * 3);
 
 // What follows is largely a mash up of the microcode assembly naming and the
 // R600 docs that have a near 1:1 with the instructions available in the xenos
@@ -809,8 +821,8 @@ static_assert_size(TextureFetchInstruction, 12);
 //   (mul, mad, dp, etc.) and for NaN in min/max. It's very important to respect
 //   this rule for multiplication, as games often rely on it in vector
 //   normalization (rcp and mul), Infinity * 0 resulting in NaN breaks a lot of
-//   things in games - causes white screen in Halo 3, white specular on
-//   characters in GTA IV. The result is always positive zero in this case, no
+//   things in games - causes white screen in 4D5307E6, white specular on
+//   characters in 545407F2. The result is always positive zero in this case, no
 //   matter what the signs of the other operands are, according to R5xx
 //   Acceleration section 8.7.5 "Legacy multiply behavior" and testing on
 //   Adreno 200. This means that the following need to be taken into account
@@ -1623,8 +1635,8 @@ enum class ExportRegister : uint32_t {
   // X - PSIZE (gl_PointSize).
   // Y - EDGEFLAG (glEdgeFlag) for PrimitiveType::kPolygon wireframe/point
   //     drawing.
-  // Z - KILLVERTEX flag (used in Banjo-Kazooie: Nuts & Bolts for grass), set
-  //     for killing primitives based on PA_CL_CLIP_CNTL::VTX_KILL_OR condition.
+  // Z - KILLVERTEX flag (used in 4D5307ED for grass), set for killing
+  //     primitives based on PA_CL_CLIP_CNTL::VTX_KILL_OR condition.
   kVSPointSizeEdgeFlagKillVertex = 63,
 
   kPSColor0 = 0,
@@ -1645,7 +1657,7 @@ enum class ExportRegister : uint32_t {
   kExportData4,
 };
 
-struct AluInstruction {
+struct alignas(uint32_t) AluInstruction {
   // Raw accessors.
 
   // Whether data is being exported (or written to local registers).
@@ -1762,8 +1774,8 @@ struct AluInstruction {
   }
 
  private:
-  XEPACKEDSTRUCT(Data, {
-    XEPACKEDSTRUCTANONYMOUS({
+  struct Data {
+    struct {
       // If exporting, both vector and scalar operations use the vector
       // destination (which can't be relative in this case).
       // Not very important note: If both scalar and vector operations exporting
@@ -1789,8 +1801,8 @@ struct AluInstruction {
       uint32_t vector_clamp : 1;
       uint32_t scalar_clamp : 1;
       AluScalarOpcode scalar_opc : 6;
-    });
-    XEPACKEDSTRUCTANONYMOUS({
+    };
+    struct {
       uint32_t src3_swiz : 8;
       uint32_t src2_swiz : 8;
       uint32_t src1_swiz : 8;
@@ -1802,8 +1814,8 @@ struct AluInstruction {
       uint32_t address_absolute : 1;
       uint32_t const_1_rel_abs : 1;
       uint32_t const_0_rel_abs : 1;
-    });
-    XEPACKEDSTRUCTANONYMOUS({
+    };
+    struct {
       uint32_t src3_reg : 8;
       uint32_t src2_reg : 8;
       uint32_t src1_reg : 8;
@@ -1811,11 +1823,11 @@ struct AluInstruction {
       uint32_t src3_sel : 1;
       uint32_t src2_sel : 1;
       uint32_t src1_sel : 1;
-    });
-  });
+    };
+  };
   Data data_;
 };
-static_assert_size(AluInstruction, 12);
+static_assert_size(AluInstruction, sizeof(uint32_t) * 3);
 
 }  // namespace ucode
 }  // namespace gpu

@@ -34,6 +34,10 @@ class XmpApp : public App {
     kPlaying = 1,
     kPaused = 2,
   };
+  enum class PlaybackClient : uint32_t {
+    kSystem = 0,
+    kTitle = 1,
+  };
   enum class PlaybackMode : uint32_t {
     // kInOrder = ?,
     kUnknown = 0,
@@ -90,12 +94,12 @@ class XmpApp : public App {
  private:
   static const uint32_t kMsgStateChanged = 0x0A000001;
   static const uint32_t kMsgPlaybackBehaviorChanged = 0x0A000002;
-  static const uint32_t kMsgDisableChanged = 0x0A000003;
+  static const uint32_t kMsgPlaybackControllerChanged = 0x0A000003;
 
   void OnStateChanged();
 
   State state_;
-  uint32_t disabled_;
+  PlaybackClient playback_client_;
   PlaybackMode playback_mode_;
   RepeatMode repeat_mode_;
   uint32_t unknown_flags_;

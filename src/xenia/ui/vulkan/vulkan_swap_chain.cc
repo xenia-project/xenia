@@ -35,6 +35,8 @@ VulkanSwapChain::~VulkanSwapChain() { Shutdown(); }
 
 VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   surface_ = surface;
+  const VulkanInstance::InstanceFunctions& ifn = instance_->ifn();
+  const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   VkResult status;
 
   // Find a queue family that supports presentation.
@@ -49,8 +51,8 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
       continue;
     }
 
-    status = vkGetPhysicalDeviceSurfaceSupportKHR(*device_, i, surface,
-                                                  &surface_supported);
+    status = ifn.vkGetPhysicalDeviceSurfaceSupportKHR(*device_, i, surface,
+                                                      &surface_supported);
     if (status == VK_SUCCESS && surface_supported == VK_TRUE) {
       queue_family_index = i;
       break;
@@ -80,13 +82,13 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
 
   // Query supported target formats.
   uint32_t count = 0;
-  status =
-      vkGetPhysicalDeviceSurfaceFormatsKHR(*device_, surface_, &count, nullptr);
+  status = ifn.vkGetPhysicalDeviceSurfaceFormatsKHR(*device_, surface_, &count,
+                                                    nullptr);
   CheckResult(status, "vkGetPhysicalDeviceSurfaceFormatsKHR");
   std::vector<VkSurfaceFormatKHR> surface_formats;
   surface_formats.resize(count);
-  status = vkGetPhysicalDeviceSurfaceFormatsKHR(*device_, surface_, &count,
-                                                surface_formats.data());
+  status = ifn.vkGetPhysicalDeviceSurfaceFormatsKHR(*device_, surface_, &count,
+                                                    surface_formats.data());
   CheckResult(status, "vkGetPhysicalDeviceSurfaceFormatsKHR");
   if (status != VK_SUCCESS) {
     return status;
@@ -107,8 +109,8 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
 
   // Query surface min/max/caps.
   VkSurfaceCapabilitiesKHR surface_caps;
-  status = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(*device_, surface_,
-                                                     &surface_caps);
+  status = ifn.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(*device_, surface_,
+                                                         &surface_caps);
   CheckResult(status, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
   if (status != VK_SUCCESS) {
     return status;
@@ -116,16 +118,16 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
 
   // Query surface properties so we can configure ourselves within bounds.
   std::vector<VkPresentModeKHR> present_modes;
-  status = vkGetPhysicalDeviceSurfacePresentModesKHR(*device_, surface_, &count,
-                                                     nullptr);
+  status = ifn.vkGetPhysicalDeviceSurfacePresentModesKHR(*device_, surface_,
+                                                         &count, nullptr);
   CheckResult(status, "vkGetPhysicalDeviceSurfacePresentModesKHR");
   if (status != VK_SUCCESS) {
     return status;
   }
 
   present_modes.resize(count);
-  status = vkGetPhysicalDeviceSurfacePresentModesKHR(*device_, surface_, &count,
-                                                     present_modes.data());
+  status = ifn.vkGetPhysicalDeviceSurfacePresentModesKHR(
+      *device_, surface_, &count, present_modes.data());
   CheckResult(status, "vkGetPhysicalDeviceSurfacePresentModesKHR");
   if (status != VK_SUCCESS) {
     return status;
@@ -210,7 +212,7 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   XELOGVK("  imageSharingMode = {}", to_string(create_info.imageSharingMode));
   XELOGVK("  queueFamilyCount = {}", create_info.queueFamilyIndexCount);
 
-  status = vkCreateSwapchainKHR(*device_, &create_info, nullptr, &handle);
+  status = dfn.vkCreateSwapchainKHR(*device_, &create_info, nullptr, &handle);
   if (status != VK_SUCCESS) {
     XELOGE("Failed to create swapchain: {}", to_string(status));
     return status;
@@ -223,7 +225,8 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   cmd_pool_info.pNext = nullptr;
   cmd_pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
   cmd_pool_info.queueFamilyIndex = presentation_queue_family_;
-  status = vkCreateCommandPool(*device_, &cmd_pool_info, nullptr, &cmd_pool_);
+  status =
+      dfn.vkCreateCommandPool(*device_, &cmd_pool_info, nullptr, &cmd_pool_);
   CheckResult(status, "vkCreateCommandPool");
   if (status != VK_SUCCESS) {
     return status;
@@ -236,7 +239,8 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   cmd_buffer_info.commandPool = cmd_pool_;
   cmd_buffer_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   cmd_buffer_info.commandBufferCount = 2;
-  status = vkAllocateCommandBuffers(*device_, &cmd_buffer_info, &cmd_buffer_);
+  status =
+      dfn.vkAllocateCommandBuffers(*device_, &cmd_buffer_info, &cmd_buffer_);
   CheckResult(status, "vkCreateCommandBuffer");
   if (status != VK_SUCCESS) {
     return status;
@@ -247,7 +251,7 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   cmd_buffer_info.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
   cmd_buffer_info.commandBufferCount = 2;
   status =
-      vkAllocateCommandBuffers(*device_, &cmd_buffer_info, command_buffers);
+      dfn.vkAllocateCommandBuffers(*device_, &cmd_buffer_info, command_buffers);
   CheckResult(status, "vkCreateCommandBuffer");
   if (status != VK_SUCCESS) {
     return status;
@@ -296,8 +300,8 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   render_pass_info.pSubpasses = &render_subpass;
   render_pass_info.dependencyCount = 0;
   render_pass_info.pDependencies = nullptr;
-  status =
-      vkCreateRenderPass(*device_, &render_pass_info, nullptr, &render_pass_);
+  status = dfn.vkCreateRenderPass(*device_, &render_pass_info, nullptr,
+                                  &render_pass_);
   CheckResult(status, "vkCreateRenderPass");
   if (status != VK_SUCCESS) {
     return status;
@@ -308,16 +312,16 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
   semaphore_info.pNext = nullptr;
   semaphore_info.flags = 0;
-  status = vkCreateSemaphore(*device_, &semaphore_info, nullptr,
-                             &image_available_semaphore_);
+  status = dfn.vkCreateSemaphore(*device_, &semaphore_info, nullptr,
+                                 &image_available_semaphore_);
   CheckResult(status, "vkCreateSemaphore");
   if (status != VK_SUCCESS) {
     return status;
   }
 
   // Create another semaphore used to synchronize writes to the swap image.
-  status = vkCreateSemaphore(*device_, &semaphore_info, nullptr,
-                             &image_usage_semaphore_);
+  status = dfn.vkCreateSemaphore(*device_, &semaphore_info, nullptr,
+                                 &image_usage_semaphore_);
   CheckResult(status, "vkCreateSemaphore");
   if (status != VK_SUCCESS) {
     return status;
@@ -327,16 +331,16 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
   // Note that this may differ from our requested amount.
   uint32_t actual_image_count = 0;
   std::vector<VkImage> images;
-  status =
-      vkGetSwapchainImagesKHR(*device_, handle, &actual_image_count, nullptr);
+  status = dfn.vkGetSwapchainImagesKHR(*device_, handle, &actual_image_count,
+                                       nullptr);
   CheckResult(status, "vkGetSwapchainImagesKHR");
   if (status != VK_SUCCESS) {
     return status;
   }
 
   images.resize(actual_image_count);
-  status = vkGetSwapchainImagesKHR(*device_, handle, &actual_image_count,
-                                   images.data());
+  status = dfn.vkGetSwapchainImagesKHR(*device_, handle, &actual_image_count,
+                                       images.data());
   CheckResult(status, "vkGetSwapchainImagesKHR");
   if (status != VK_SUCCESS) {
     return status;
@@ -360,8 +364,8 @@ VkResult VulkanSwapChain::Initialize(VkSurfaceKHR surface) {
       nullptr,
       VK_FENCE_CREATE_SIGNALED_BIT,
   };
-  status = vkCreateFence(*device_, &fence_create_info, nullptr,
-                         &synchronization_fence_);
+  status = dfn.vkCreateFence(*device_, &fence_create_info, nullptr,
+                             &synchronization_fence_);
   CheckResult(status, "vkGetSwapchainImagesKHR");
   if (status != VK_SUCCESS) {
     return status;
@@ -376,6 +380,7 @@ VkResult VulkanSwapChain::InitializeBuffer(Buffer* buffer,
   DestroyBuffer(buffer);
   buffer->image = target_image;
 
+  const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   VkResult status;
 
   // Create an image view for the presentation image.
@@ -396,8 +401,8 @@ VkResult VulkanSwapChain::InitializeBuffer(Buffer* buffer,
   image_view_info.subresourceRange.levelCount = 1;
   image_view_info.subresourceRange.baseArrayLayer = 0;
   image_view_info.subresourceRange.layerCount = 1;
-  status = vkCreateImageView(*device_, &image_view_info, nullptr,
-                             &buffer->image_view);
+  status = dfn.vkCreateImageView(*device_, &image_view_info, nullptr,
+                                 &buffer->image_view);
   CheckResult(status, "vkCreateImageView");
   if (status != VK_SUCCESS) {
     return status;
@@ -416,8 +421,8 @@ VkResult VulkanSwapChain::InitializeBuffer(Buffer* buffer,
   framebuffer_info.width = surface_width_;
   framebuffer_info.height = surface_height_;
   framebuffer_info.layers = 1;
-  status = vkCreateFramebuffer(*device_, &framebuffer_info, nullptr,
-                               &buffer->framebuffer);
+  status = dfn.vkCreateFramebuffer(*device_, &framebuffer_info, nullptr,
+                                   &buffer->framebuffer);
   CheckResult(status, "vkCreateFramebuffer");
   if (status != VK_SUCCESS) {
     return status;
@@ -427,12 +432,13 @@ VkResult VulkanSwapChain::InitializeBuffer(Buffer* buffer,
 }
 
 void VulkanSwapChain::DestroyBuffer(Buffer* buffer) {
+  const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   if (buffer->framebuffer) {
-    vkDestroyFramebuffer(*device_, buffer->framebuffer, nullptr);
+    dfn.vkDestroyFramebuffer(*device_, buffer->framebuffer, nullptr);
     buffer->framebuffer = nullptr;
   }
   if (buffer->image_view) {
-    vkDestroyImageView(*device_, buffer->image_view, nullptr);
+    dfn.vkDestroyImageView(*device_, buffer->image_view, nullptr);
     buffer->image_view = nullptr;
   }
   // Image is taken care of by the presentation engine.
@@ -458,19 +464,21 @@ void VulkanSwapChain::Shutdown() {
   }
   buffers_.clear();
 
-  VK_SAFE_DESTROY(vkDestroySemaphore, *device_, image_available_semaphore_,
-                  nullptr);
-  VK_SAFE_DESTROY(vkDestroyRenderPass, *device_, render_pass_, nullptr);
+  const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+
+  DestroyAndNullHandle(dfn.vkDestroySemaphore, *device_,
+                       image_available_semaphore_);
+  DestroyAndNullHandle(dfn.vkDestroyRenderPass, *device_, render_pass_);
 
   if (copy_cmd_buffer_) {
-    vkFreeCommandBuffers(*device_, cmd_pool_, 1, &copy_cmd_buffer_);
+    dfn.vkFreeCommandBuffers(*device_, cmd_pool_, 1, &copy_cmd_buffer_);
     copy_cmd_buffer_ = nullptr;
   }
   if (render_cmd_buffer_) {
-    vkFreeCommandBuffers(*device_, cmd_pool_, 1, &render_cmd_buffer_);
+    dfn.vkFreeCommandBuffers(*device_, cmd_pool_, 1, &render_cmd_buffer_);
     render_cmd_buffer_ = nullptr;
   }
-  VK_SAFE_DESTROY(vkDestroyCommandPool, *device_, cmd_pool_, nullptr);
+  DestroyAndNullHandle(dfn.vkDestroyCommandPool, *device_, cmd_pool_);
 
   if (presentation_queue_) {
     if (!presentation_queue_mutex_) {
@@ -482,33 +490,36 @@ void VulkanSwapChain::Shutdown() {
     presentation_queue_family_ = -1;
   }
 
-  VK_SAFE_DESTROY(vkDestroyFence, *device_, synchronization_fence_, nullptr);
+  DestroyAndNullHandle(dfn.vkDestroyFence, *device_, synchronization_fence_);
 
   // images_ doesn't need to be cleaned up as the swapchain does it implicitly.
-  VK_SAFE_DESTROY(vkDestroySwapchainKHR, *device_, handle, nullptr);
-  VK_SAFE_DESTROY(vkDestroySurfaceKHR, *instance_, surface_, nullptr);
+  DestroyAndNullHandle(dfn.vkDestroySwapchainKHR, *device_, handle);
+  const VulkanInstance::InstanceFunctions& ifn = instance_->ifn();
+  DestroyAndNullHandle(ifn.vkDestroySurfaceKHR, *instance_, surface_);
 }
 
 VkResult VulkanSwapChain::Begin() {
   wait_semaphores_.clear();
 
+  const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   VkResult status;
 
   // Wait for the last swap to finish.
-  status = vkWaitForFences(*device_, 1, &synchronization_fence_, VK_TRUE, -1);
+  status =
+      dfn.vkWaitForFences(*device_, 1, &synchronization_fence_, VK_TRUE, -1);
   if (status != VK_SUCCESS) {
     return status;
   }
 
-  status = vkResetFences(*device_, 1, &synchronization_fence_);
+  status = dfn.vkResetFences(*device_, 1, &synchronization_fence_);
   if (status != VK_SUCCESS) {
     return status;
   }
 
   // Get the index of the next available swapchain image.
   status =
-      vkAcquireNextImageKHR(*device_, handle, 0, image_available_semaphore_,
-                            nullptr, &current_buffer_index_);
+      dfn.vkAcquireNextImageKHR(*device_, handle, 0, image_available_semaphore_,
+                                nullptr, &current_buffer_index_);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -531,7 +542,8 @@ VkResult VulkanSwapChain::Begin() {
   if (presentation_queue_mutex_) {
     presentation_queue_mutex_->lock();
   }
-  status = vkQueueSubmit(presentation_queue_, 1, &wait_submit_info, nullptr);
+  status =
+      dfn.vkQueueSubmit(presentation_queue_, 1, &wait_submit_info, nullptr);
   if (presentation_queue_mutex_) {
     presentation_queue_mutex_->unlock();
   }
@@ -540,8 +552,8 @@ VkResult VulkanSwapChain::Begin() {
   }
 
   // Reset all command buffers.
-  vkResetCommandBuffer(render_cmd_buffer_, 0);
-  vkResetCommandBuffer(copy_cmd_buffer_, 0);
+  dfn.vkResetCommandBuffer(render_cmd_buffer_, 0);
+  dfn.vkResetCommandBuffer(copy_cmd_buffer_, 0);
   auto& current_buffer = buffers_[current_buffer_index_];
 
   // Build the command buffer that will execute all queued rendering buffers.
@@ -561,7 +573,7 @@ VkResult VulkanSwapChain::Begin() {
   begin_info.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT |
                      VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
   begin_info.pInheritanceInfo = &inherit_info;
-  status = vkBeginCommandBuffer(render_cmd_buffer_, &begin_info);
+  status = dfn.vkBeginCommandBuffer(render_cmd_buffer_, &begin_info);
   CheckResult(status, "vkBeginCommandBuffer");
   if (status != VK_SUCCESS) {
     return status;
@@ -569,7 +581,7 @@ VkResult VulkanSwapChain::Begin() {
 
   // Start recording the copy command buffer as well.
   begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-  status = vkBeginCommandBuffer(copy_cmd_buffer_, &begin_info);
+  status = dfn.vkBeginCommandBuffer(copy_cmd_buffer_, &begin_info);
   CheckResult(status, "vkBeginCommandBuffer");
   if (status != VK_SUCCESS) {
     return status;
@@ -588,31 +600,32 @@ VkResult VulkanSwapChain::Begin() {
     clear_color.float32[1] = 1.0f;
     clear_color.float32[2] = 0.0f;
   }
-  vkCmdClearColorImage(copy_cmd_buffer_, current_buffer.image,
-                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_color, 1,
-                       &clear_range);
+  dfn.vkCmdClearColorImage(copy_cmd_buffer_, current_buffer.image,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_color,
+                           1, &clear_range);
 
   return VK_SUCCESS;
 }
 
 VkResult VulkanSwapChain::End() {
   auto& current_buffer = buffers_[current_buffer_index_];
+  const VulkanDevice::DeviceFunctions& dfn = device_->dfn();
   VkResult status;
 
-  status = vkEndCommandBuffer(render_cmd_buffer_);
+  status = dfn.vkEndCommandBuffer(render_cmd_buffer_);
   CheckResult(status, "vkEndCommandBuffer");
   if (status != VK_SUCCESS) {
     return status;
   }
 
-  status = vkEndCommandBuffer(copy_cmd_buffer_);
+  status = dfn.vkEndCommandBuffer(copy_cmd_buffer_);
   CheckResult(status, "vkEndCommandBuffer");
   if (status != VK_SUCCESS) {
     return status;
   }
 
   // Build primary command buffer.
-  status = vkResetCommandBuffer(cmd_buffer_, 0);
+  status = dfn.vkResetCommandBuffer(cmd_buffer_, 0);
   CheckResult(status, "vkResetCommandBuffer");
   if (status != VK_SUCCESS) {
     return status;
@@ -623,7 +636,7 @@ VkResult VulkanSwapChain::End() {
   begin_info.pNext = nullptr;
   begin_info.flags = 0;
   begin_info.pInheritanceInfo = nullptr;
-  status = vkBeginCommandBuffer(cmd_buffer_, &begin_info);
+  status = dfn.vkBeginCommandBuffer(cmd_buffer_, &begin_info);
   CheckResult(status, "vkBeginCommandBuffer");
   if (status != VK_SUCCESS) {
     return status;
@@ -642,14 +655,14 @@ VkResult VulkanSwapChain::End() {
   pre_image_copy_barrier.image = current_buffer.image;
   pre_image_copy_barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0,
                                              1};
-  vkCmdPipelineBarrier(cmd_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                       VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &pre_image_copy_barrier);
+  dfn.vkCmdPipelineBarrier(cmd_buffer_, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                           VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+                           nullptr, 1, &pre_image_copy_barrier);
 
   current_buffer.image_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 
   // Execute copy commands
-  vkCmdExecuteCommands(cmd_buffer_, 1, &copy_cmd_buffer_);
+  dfn.vkCmdExecuteCommands(cmd_buffer_, 1, &copy_cmd_buffer_);
 
   // Transition the image to a color attachment target for drawing.
   VkImageMemoryBarrier pre_image_memory_barrier;
@@ -669,9 +682,9 @@ VkResult VulkanSwapChain::End() {
   pre_image_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
   pre_image_memory_barrier.oldLayout = current_buffer.image_layout;
   pre_image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-  vkCmdPipelineBarrier(cmd_buffer_, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
-                       nullptr, 0, nullptr, 1, &pre_image_memory_barrier);
+  dfn.vkCmdPipelineBarrier(cmd_buffer_, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                           VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
+                           nullptr, 0, nullptr, 1, &pre_image_memory_barrier);
 
   current_buffer.image_layout = pre_image_memory_barrier.newLayout;
 
@@ -687,14 +700,14 @@ VkResult VulkanSwapChain::End() {
   render_pass_begin_info.renderArea.extent.height = surface_height_;
   render_pass_begin_info.clearValueCount = 0;
   render_pass_begin_info.pClearValues = nullptr;
-  vkCmdBeginRenderPass(cmd_buffer_, &render_pass_begin_info,
-                       VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+  dfn.vkCmdBeginRenderPass(cmd_buffer_, &render_pass_begin_info,
+                           VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
 
   // Render commands.
-  vkCmdExecuteCommands(cmd_buffer_, 1, &render_cmd_buffer_);
+  dfn.vkCmdExecuteCommands(cmd_buffer_, 1, &render_cmd_buffer_);
 
   // End render pass.
-  vkCmdEndRenderPass(cmd_buffer_);
+  dfn.vkCmdEndRenderPass(cmd_buffer_);
 
   // Transition the image to a format the presentation engine can source from.
   // FIXME: Do we need more synchronization here between the copy buffer?
@@ -715,14 +728,14 @@ VkResult VulkanSwapChain::End() {
   post_image_memory_barrier.subresourceRange.levelCount = 1;
   post_image_memory_barrier.subresourceRange.baseArrayLayer = 0;
   post_image_memory_barrier.subresourceRange.layerCount = 1;
-  vkCmdPipelineBarrier(cmd_buffer_,
-                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                       VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
-                       nullptr, 1, &post_image_memory_barrier);
+  dfn.vkCmdPipelineBarrier(cmd_buffer_,
+                           VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                           nullptr, 1, &post_image_memory_barrier);
 
   current_buffer.image_layout = post_image_memory_barrier.newLayout;
 
-  status = vkEndCommandBuffer(cmd_buffer_);
+  status = dfn.vkEndCommandBuffer(cmd_buffer_);
   CheckResult(status, "vkEndCommandBuffer");
   if (status != VK_SUCCESS) {
     return status;
@@ -752,8 +765,8 @@ VkResult VulkanSwapChain::End() {
   if (presentation_queue_mutex_) {
     presentation_queue_mutex_->lock();
   }
-  status = vkQueueSubmit(presentation_queue_, 1, &render_submit_info,
-                         synchronization_fence_);
+  status = dfn.vkQueueSubmit(presentation_queue_, 1, &render_submit_info,
+                             synchronization_fence_);
   if (presentation_queue_mutex_) {
     presentation_queue_mutex_->unlock();
   }
@@ -777,7 +790,7 @@ VkResult VulkanSwapChain::End() {
   if (presentation_queue_mutex_) {
     presentation_queue_mutex_->lock();
   }
-  status = vkQueuePresentKHR(presentation_queue_, &present_info);
+  status = dfn.vkQueuePresentKHR(presentation_queue_, &present_info);
   if (presentation_queue_mutex_) {
     presentation_queue_mutex_->unlock();
   }

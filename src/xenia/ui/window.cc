@@ -31,8 +31,8 @@ constexpr double kDoubleClickDistance = 5;
 
 constexpr int32_t kMouseWheelDetent = 120;
 
-Window::Window(Loop* loop, const std::string& title)
-    : loop_(loop), title_(title) {}
+Window::Window(WindowedAppContext& app_context, const std::string& title)
+    : app_context_(app_context), title_(title) {}
 
 Window::~Window() {
   // Context must have been cleaned up already in OnDestroy.
@@ -259,19 +259,20 @@ void Window::OnLostFocus(UIEvent* e) {
 
 void Window::OnKeyPress(KeyEvent* e, bool is_down, bool is_char) {
   if (!is_char) {
-    switch (e->key_code()) {
-      case 16:
+    switch (e->virtual_key()) {
+      case VirtualKey::kShift:
         modifier_shift_pressed_ = is_down;
         break;
-      case 17:
+      case VirtualKey::kControl:
         modifier_cntrl_pressed_ = is_down;
         break;
-      // case xx:
-      //  // alt ??
-      //  modifier_alt_pressed_ = is_down;
-      //  break;
-      case 91:
+      case VirtualKey::kMenu:
+        modifier_alt_pressed_ = is_down;
+        break;
+      case VirtualKey::kLWin:
         modifier_super_pressed_ = is_down;
+        break;
+      default:
         break;
     }
   }

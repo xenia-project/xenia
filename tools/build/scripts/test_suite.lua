@@ -31,9 +31,14 @@ local function combined_test_suite(test_suite_name, project_root, base_path, con
     })
     files({
       project_root.."/"..build_tools_src.."/test_suite_main.cc",
-      project_root.."/src/xenia/base/main_"..platform_suffix..".cc",
+      project_root.."/src/xenia/base/console_app_main_"..platform_suffix..".cc",
       base_path.."/**_test.cc",
     })
+    filter("toolset:msc")
+      -- Edit and Continue in MSVC can cause the __LINE__ macro to produce
+      -- invalid values, which breaks the usability of Catch2 output on
+      -- failed tests.
+      editAndContinue("Off")
 end
 
 local function split_test_suite(test_suite_name, project_root, base_path, config)
@@ -58,6 +63,11 @@ local function split_test_suite(test_suite_name, project_root, base_path, config
         project_root.."/"..build_tools_src.."/test_suite_main.cc",
         file_path,
       })
+      filter("toolset:msc")
+        -- Edit and Continue in MSVC can cause the __LINE__ macro to produce
+        -- invalid values, which breaks the usability of Catch2 output on
+        -- failed tests.
+        editAndContinue("Off")
   end
 end
 

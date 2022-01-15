@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -18,18 +18,17 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-void XGetVideoMode(pointer_t<X_VIDEO_MODE> video_mode) {
+void XGetVideoMode_entry(pointer_t<X_VIDEO_MODE> video_mode) {
   // TODO(benvanik): actually check to see if these are the same.
   xboxkrnl::VdQueryVideoMode(std::move(video_mode));
 }
 DECLARE_XAM_EXPORT1(XGetVideoMode, kVideo, ExportTag::kSketchy);
 
-dword_result_t XGetVideoCapabilities() { return 0; }
+dword_result_t XGetVideoCapabilities_entry() { return 0; }
 DECLARE_XAM_EXPORT1(XGetVideoCapabilities, kVideo, kStub);
-
-void RegisterVideoExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* kernel_state) {}
 
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Video);

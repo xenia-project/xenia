@@ -286,7 +286,7 @@ int InstrEmit_stvlx_(PPCHIRBuilder& f, const InstrData& i, uint32_t vd,
   // mask = FFFF... >> eb
   Value* mask = f.Permute(f.LoadVectorShr(eb), f.LoadZeroVec128(),
                           f.Not(f.LoadZeroVec128()), INT8_TYPE);
-  Value* v = f.Or(f.And(old_value, f.Not(mask)), f.And(new_value, mask));
+  Value* v = f.Or(f.AndNot(old_value, mask), f.And(new_value, mask));
   // ea &= ~0xF (handled above)
   f.Store(ea, f.ByteSwap(v));
   return 0;
@@ -328,7 +328,7 @@ int InstrEmit_stvrx_(PPCHIRBuilder& f, const InstrData& i, uint32_t vd,
   // mask = ~FFFF... >> eb
   Value* mask = f.Permute(f.LoadVectorShr(eb), f.Not(f.LoadZeroVec128()),
                           f.LoadZeroVec128(), INT8_TYPE);
-  Value* v = f.Or(f.And(old_value, f.Not(mask)), f.And(new_value, mask));
+  Value* v = f.Or(f.AndNot(old_value, mask), f.And(new_value, mask));
   // ea &= ~0xF (handled above)
   f.Store(ea, f.ByteSwap(v));
   f.MarkLabel(skip_label);
@@ -459,7 +459,7 @@ int InstrEmit_vand128(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_vandc_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
   // VD <- (VA) & ¬(VB)
-  Value* v = f.And(f.LoadVR(va), f.Not(f.LoadVR(vb)));
+  Value* v = f.AndNot(f.LoadVR(va), f.LoadVR(vb));
   f.StoreVR(vd, v);
   return 0;
 }
@@ -2069,7 +2069,8 @@ int InstrEmit_vpkd3d128(PPCHIRBuilder& f, const InstrData& i) {
       v = f.Pack(v, PACK_TYPE_FLOAT16_4);
       break;
     case 6:  // VPACK_NORMPACKED64 4_20_20_20 w_z_y_x
-      // Used in 2K games like NBA 2K9, pretty rarely in general.
+      // Used in 54540829 and other installments in the series, pretty rarely in
+      // general.
       v = f.Pack(v, PACK_TYPE_ULONG_4202020);
       break;
     default:

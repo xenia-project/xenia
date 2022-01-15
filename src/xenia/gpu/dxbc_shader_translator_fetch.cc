@@ -35,7 +35,9 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   uint32_t used_result_components = instr.result.GetUsedResultComponents();
   uint32_t needed_words = xenos::GetVertexFormatNeededWords(
       instr.attributes.data_format, used_result_components);
-  if (!needed_words) {
+  // If this is vfetch_full, the address may still be needed for vfetch_mini -
+  // don't exit before calculating the address.
+  if (!needed_words && instr.is_mini_fetch) {
     // Nothing to load - just constant 0/1 writes, or the swizzle includes only
     // components that don't exist in the format (writing zero instead of them).
     // Unpacking assumes at least some word is needed.
@@ -59,47 +61,74 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   // fetch constants on the CPU when proper bound checks are added - vfetch may
   // be conditional, so fetch constants may also be used conditionally.
 
-  // - Load the byte address in physical memory to system_temp_result_.w (so
-  //   it's not overwritten by data loads until the last one).
+  // - Load the part of the byte address in the physical memory that is the same
+  //   in vfetch_full and vfetch_mini to system_temp_grad_v_vfetch_address_.w
+  //   (the index operand GPR must not be reloaded in vfetch_mini because it
+  //   might have been overwritten previously, but that shouldn't have effect on
+  //   vfetch_mini).
 
-  dxbc::Dest address_dest(dxbc::Dest::R(system_temp_result_, 0b1000));
-  dxbc::Src address_src(dxbc::Src::R(system_temp_result_, dxbc::Src::kWWWW));
-  if (instr.attributes.stride) {
-    // Convert the index to an integer by flooring or by rounding to the nearest
-    // (as floor(index + 0.5) because rounding to the nearest even makes no
-    // sense for addressing, both 1.5 and 2.5 would be 2).
-    // http://web.archive.org/web/20100302145413/http://msdn.microsoft.com:80/en-us/library/bb313960.aspx
-    {
-      bool index_operand_temp_pushed = false;
-      dxbc::Src index_operand(
-          LoadOperand(instr.operands[0], 0b0001, index_operand_temp_pushed)
-              .SelectFromSwizzled(0));
-      if (instr.attributes.is_index_rounded) {
-        a_.OpAdd(address_dest, index_operand, dxbc::Src::LF(0.5f));
-        a_.OpRoundNI(address_dest, address_src);
-      } else {
-        a_.OpRoundNI(address_dest, index_operand);
+  dxbc::Src address_src(
+      dxbc::Src::R(system_temp_grad_v_vfetch_address_, dxbc::Src::kWWWW));
+  if (!instr.is_mini_fetch) {
+    dxbc::Dest address_dest(
+        dxbc::Dest::R(system_temp_grad_v_vfetch_address_, 0b1000));
+    if (instr.attributes.stride) {
+      // Convert the index to an integer by flooring or by rounding to the
+      // nearest (as floor(index + 0.5) because rounding to the nearest even
+      // makes no sense for addressing, both 1.5 and 2.5 would be 2).
+      {
+        bool index_operand_temp_pushed = false;
+        dxbc::Src index_operand(
+            LoadOperand(instr.operands[0], 0b0001, index_operand_temp_pushed)
+                .SelectFromSwizzled(0));
+        if (instr.attributes.is_index_rounded) {
+          a_.OpAdd(address_dest, index_operand, dxbc::Src::LF(0.5f));
+          a_.OpRoundNI(address_dest, address_src);
+        } else {
+          a_.OpRoundNI(address_dest, index_operand);
+        }
+        if (index_operand_temp_pushed) {
+          PopSystemTemp();
+        }
       }
-      if (index_operand_temp_pushed) {
-        PopSystemTemp();
-      }
+      a_.OpFToI(address_dest, address_src);
+      // Extract the byte address from the fetch constant to
+      // system_temp_result_.w (which is not used yet).
+      a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b1000),
+               fetch_constant_src.SelectFromSwizzled(0),
+               dxbc::Src::LU(~uint32_t(3)));
+      // Merge the index and the base address.
+      a_.OpIMAd(address_dest, address_src,
+                dxbc::Src::LU(instr.attributes.stride * sizeof(uint32_t)),
+                dxbc::Src::R(system_temp_result_, dxbc::Src::kWWWW));
+    } else {
+      // Fetching from the same location - extract the byte address of the
+      // beginning of the buffer.
+      a_.OpAnd(address_dest, fetch_constant_src.SelectFromSwizzled(0),
+               dxbc::Src::LU(~uint32_t(3)));
     }
-    a_.OpFToI(address_dest, address_src);
-    // Extract the byte address from the fetch constant to
-    // system_temp_result_.z.
-    a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b0100),
-             fetch_constant_src.SelectFromSwizzled(0),
-             dxbc::Src::LU(~uint32_t(3)));
-    // Merge the index and the base address.
-    a_.OpIMAd(address_dest, address_src,
-              dxbc::Src::LU(instr.attributes.stride * sizeof(uint32_t)),
-              dxbc::Src::R(system_temp_result_, dxbc::Src::kZZZZ));
-  } else {
-    // Fetching from the same location - extract the byte address of the
-    // beginning of the buffer.
-    a_.OpAnd(address_dest, fetch_constant_src.SelectFromSwizzled(0),
-             dxbc::Src::LU(~uint32_t(3)));
   }
+
+  if (!needed_words) {
+    // The vfetch_full address has been loaded for the subsequent vfetch_mini,
+    // but there's no data to load.
+    StoreResult(instr.result, dxbc::Src::LF(0.0f));
+    return;
+  }
+
+  dxbc::Dest address_temp_dest(dxbc::Dest::R(system_temp_result_, 0b1000));
+  dxbc::Src address_temp_src(
+      dxbc::Src::R(system_temp_result_, dxbc::Src::kWWWW));
+
+  // - From now on, if any additional offset must be applied to the
+  //   `base + index * stride` part of the address, it must be done by writing
+  //   to system_temp_result_.w (address_temp_dest) instead of
+  //   system_temp_grad_v_vfetch_address_.w (since it must stay the same for the
+  //   vfetch_full and all its vfetch_mini invocations), and changing
+  //   address_src to address_temp_src afterwards. system_temp_result_.w can be
+  //   used for this purpose safely because it won't be overwritten until the
+  //   last dword is loaded (after which the address won't be needed anymore).
+
   // Add the word offset from the instruction (signed), plus the offset of the
   // first needed word within the element.
   uint32_t first_word_index;
@@ -108,8 +137,9 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
       instr.attributes.offset + int32_t(first_word_index);
   if (first_word_buffer_offset) {
     // Add the constant word offset.
-    a_.OpIAdd(address_dest, address_src,
+    a_.OpIAdd(address_temp_dest, address_src,
               dxbc::Src::LI(first_word_buffer_offset * sizeof(uint32_t)));
+    address_src = address_temp_src;
   }
 
   // - Load needed words to system_temp_result_, words 0, 1, 2, 3 to X, Y, Z, W
@@ -128,12 +158,8 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   // memexport is used), fetch from the appropriate binding. Extract whether
   // shared memory is a UAV to system_temp_result_.x and check. In the `if`, put
   // the more likely case (SRV), in the `else`, the less likely one (UAV).
-  system_constants_used_ |= 1ull << kSysConst_Flags_Index;
   a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b0001),
-           dxbc::Src::CB(cbuffer_index_system_constants_,
-                         uint32_t(CbufferRegister::kSystemConstants),
-                         kSysConst_Flags_Vec)
-               .Select(kSysConst_Flags_Comp),
+           LoadFlagsSystemConstant(),
            dxbc::Src::LU(kSysFlag_SharedMemoryIsUAV));
   a_.OpIf(false, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
   if (srv_index_shared_memory_ == kBindingIndexUnallocated) {
@@ -163,9 +189,10 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
           ~((uint32_t(1) << (word_index + word_count)) - uint32_t(1));
       if (word_index != word_index_previous) {
         // Go to the word in the buffer.
-        a_.OpIAdd(address_dest, address_src,
+        a_.OpIAdd(address_temp_dest, address_src,
                   dxbc::Src::LU((word_index - word_index_previous) *
                                 sizeof(uint32_t)));
+        address_src = address_temp_src;
         word_index_previous = word_index;
       }
       // Can ld_raw either to the first multiple components, or to any scalar
@@ -596,7 +623,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     case FetchOpcode::kSetTextureGradientsVert: {
       bool grad_operand_temp_pushed = false;
       a_.OpMov(
-          dxbc::Dest::R(system_temp_grad_v_, 0b0111),
+          dxbc::Dest::R(system_temp_grad_v_vfetch_address_, 0b0111),
           LoadOperand(instr.operands[0], 0b0111, grad_operand_temp_pushed));
       if (grad_operand_temp_pushed) {
         PopSystemTemp();
@@ -697,22 +724,23 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
   }
 
   // Get offsets applied to the coordinates before sampling.
+  // `offsets` is used for float4 literal construction,
   // FIXME(Triang3l): Offsets need to be applied at the LOD being fetched, not
   // at LOD 0. However, since offsets have granularity of 0.5, not 1, on the
   // Xbox 360, they can't be passed directly as AOffImmI to the `sample`
   // instruction (plus-minus 0.5 offsets are very common in games). But
   // offsetting at mip levels is a rare usage case, mostly offsets are used for
   // things like shadow maps and blur, where there are no mips.
-  float offsets[4] = {};
+  float offsets[3] = {};
   // MSDN doesn't list offsets as getCompTexLOD parameters.
   if (instr.opcode != FetchOpcode::kGetTextureComputedLod) {
     // Add a small epsilon to the offset (1.5/4 the fixed-point texture
     // coordinate ULP - shouldn't significantly effect the fixed-point
     // conversion; 1/4 is also not enough with 3x resolution scaling very
-    // noticeably on the weapon in Halo 3) to resolve ambiguity when fetching
+    // noticeably on the weapon in 4D5307E6) to resolve ambiguity when fetching
     // point-sampled textures between texels. This applies to both normalized
-    // (Banjo-Kazooie Xbox Live Arcade logo, coordinates interpolated between
-    // vertices with half-pixel offset) and unnormalized (Halo 3 lighting
+    // (58410954 Xbox Live Arcade logo, coordinates interpolated between
+    // vertices with half-pixel offset) and unnormalized (4D5307E6 lighting
     // G-buffer reading, ps_param_gen pixels) coordinates. On Nvidia Pascal,
     // without this adjustment, blockiness is visible in both cases. Possibly
     // there is a better way, however, an attempt was made to error-correct
@@ -774,6 +802,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       offsets_not_zero |= 1 << i;
     }
   }
+  dxbc::Src offsets_src(
+      dxbc::Src::LF(offsets[0], offsets[1], offsets[2], 0.0f));
 
   // Load the texture size if needed.
   // 1D: X - width.
@@ -898,8 +928,11 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           dxbc::Src::R(size_and_is_3d_temp));
     }
   }
-  bool revert_resolution_scale = draw_resolution_scale_ > 1 &&
-                                 cvars::draw_resolution_scaled_texture_offsets;
+  uint32_t revert_resolution_scale_axes =
+      cvars::draw_resolution_scaled_texture_offsets
+          ? uint32_t(draw_resolution_scale_x_ > 1) |
+                (uint32_t(draw_resolution_scale_y_ > 1) << 1)
+          : 0;
 
   if (instr.opcode == FetchOpcode::kGetTextureWeights) {
     // FIXME(Triang3l): Mip lerp factor needs to be calculated, and the
@@ -924,8 +957,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     // If needed, apply the resolution scale to the width / height and the
     // unnormalized coordinates.
     uint32_t resolution_scaled_result_components =
-        revert_resolution_scale ? used_result_nonzero_components & 0b0011
-                                : 0b0000;
+        used_result_nonzero_components & revert_resolution_scale_axes;
     uint32_t resolution_scaled_coord_components =
         instr.attributes.unnormalized_coordinates
             ? resolution_scaled_result_components
@@ -949,14 +981,15 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       // calculations.
       assert_zero(used_result_nonzero_components & 0b1000);
       a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b1000),
-               LoadSystemConstant(kSysConst_TexturesResolved_Index,
+               LoadSystemConstant(SystemConstants::Index::kTexturesResolved,
                                   offsetof(SystemConstants, textures_resolved),
                                   dxbc::Src::kXXXX),
                dxbc::Src::LU(uint32_t(1) << tfetch_index));
       a_.OpIf(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kWWWW));
       // The texture is resolved - scale the coordinates and the size.
       dxbc::Src resolution_scale_src(
-          dxbc::Src::LF(float(draw_resolution_scale_)));
+          dxbc::Src::LF(float(draw_resolution_scale_x_),
+                        float(draw_resolution_scale_y_), 1.0f, 1.0f));
       if (resolution_scaled_coord_components) {
         a_.OpMul(dxbc::Dest::R(system_temp_result_,
                                resolution_scaled_coord_components),
@@ -979,14 +1012,14 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           dxbc::Dest::R(system_temp_result_, used_result_nonzero_components));
       if (instr.attributes.unnormalized_coordinates) {
         if (offsets_needed) {
-          a_.OpAdd(coord_dest, coord_operand, dxbc::Src::LP(offsets));
+          a_.OpAdd(coord_dest, coord_operand, offsets_src);
         }
       } else {
         assert_true((size_needed_components & used_result_nonzero_components) ==
                     used_result_nonzero_components);
         if (offsets_needed) {
           a_.OpMAd(coord_dest, coord_operand, dxbc::Src::R(size_and_is_3d_temp),
-                   dxbc::Src::LP(offsets));
+                   offsets_src);
         } else {
           a_.OpMul(coord_dest, coord_operand,
                    dxbc::Src::R(size_and_is_3d_temp));
@@ -1003,15 +1036,14 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     // - Component signedness, for selecting the SRV, and if data is needed.
 
     dxbc::Src signs_uint_src(
-        dxbc::Src::CB(cbuffer_index_system_constants_,
-                      uint32_t(CbufferRegister::kSystemConstants),
-                      kSysConst_TextureSwizzledSigns_Vec + (tfetch_index >> 4))
-            .Select((tfetch_index >> 2) & 3));
+        GetSystemConstantSrc(offsetof(SystemConstants, texture_swizzled_signs) +
+                                 sizeof(uint32_t) * (tfetch_index >> 2),
+                             dxbc::Src::kXXXX));
     uint32_t signs_shift = (tfetch_index & 3) * 8;
     uint32_t signs_temp = UINT32_MAX;
     if (instr.opcode == FetchOpcode::kTextureFetch) {
       signs_temp = PushSystemTemp();
-      system_constants_used_ |= 1ull << kSysConst_TextureSwizzledSigns_Index;
+      MarkSystemConstantUsed(SystemConstants::Index::kTextureSwizzledSigns);
       a_.OpUBFE(dxbc::Dest::R(signs_temp, used_result_nonzero_components),
                 dxbc::Src::LU(2),
                 dxbc::Src::LU(signs_shift, signs_shift + 2, signs_shift + 4,
@@ -1053,8 +1085,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     uint32_t normalized_components_with_offsets =
         normalized_components & offsets_not_zero;
     uint32_t normalized_components_with_scaled_offsets =
-        revert_resolution_scale ? normalized_components_with_offsets & 0b0011
-                                : 0;
+        normalized_components_with_offsets & revert_resolution_scale_axes;
     uint32_t normalized_components_with_unscaled_offsets =
         normalized_components_with_offsets &
         ~normalized_components_with_scaled_offsets;
@@ -1074,24 +1105,27 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           // resolution scale inverse - sampler not loaded yet.
           a_.OpAnd(
               dxbc::Dest::R(coord_and_sampler_temp, 0b1000),
-              LoadSystemConstant(kSysConst_TexturesResolved_Index,
+              LoadSystemConstant(SystemConstants::Index::kTexturesResolved,
                                  offsetof(SystemConstants, textures_resolved),
                                  dxbc::Src::kXXXX),
               dxbc::Src::LU(uint32_t(1) << tfetch_index));
-          a_.OpMovC(dxbc::Dest::R(coord_and_sampler_temp, 0b1000),
-                    dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kWWWW),
-                    dxbc::Src::LF(1.0f / draw_resolution_scale_),
-                    dxbc::Src::LF(1.0f));
-          a_.OpMAd(dxbc::Dest::R(coord_and_sampler_temp,
+          a_.OpIf(true, dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kWWWW));
+          a_.OpAdd(
+              dxbc::Dest::R(coord_and_sampler_temp,
+                            normalized_components_with_scaled_offsets),
+              coord_operand,
+              dxbc::Src::LF(offsets[0] / draw_resolution_scale_x_,
+                            offsets[1] / draw_resolution_scale_y_, 0.0f, 0.0f));
+          a_.OpElse();
+          a_.OpAdd(dxbc::Dest::R(coord_and_sampler_temp,
                                  normalized_components_with_scaled_offsets),
-                   dxbc::Src::LP(offsets),
-                   dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kWWWW),
-                   coord_operand);
+                   coord_operand, offsets_src);
+          a_.OpEndIf();
         }
         if (normalized_components_with_unscaled_offsets) {
           a_.OpAdd(dxbc::Dest::R(coord_and_sampler_temp,
                                  normalized_components_with_unscaled_offsets),
-                   coord_operand, dxbc::Src::LP(offsets));
+                   coord_operand, offsets_src);
         }
         if (normalized_components_without_offsets) {
           a_.OpMov(dxbc::Dest::R(coord_and_sampler_temp,
@@ -1134,25 +1168,28 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
             normalized_components_with_offsets);
         a_.OpDiv(dxbc::Dest::R(coord_and_sampler_temp,
                                normalized_components_with_offsets),
-                 dxbc::Src::LP(offsets), dxbc::Src::R(size_and_is_3d_temp));
+                 offsets_src, dxbc::Src::R(size_and_is_3d_temp));
         if (normalized_components_with_scaled_offsets) {
           // Using coord_and_sampler_temp.w as a temporary for the needed
           // resolution scale inverse - sampler not loaded yet.
           a_.OpAnd(
               dxbc::Dest::R(coord_and_sampler_temp, 0b1000),
-              LoadSystemConstant(kSysConst_TexturesResolved_Index,
+              LoadSystemConstant(SystemConstants::Index::kTexturesResolved,
                                  offsetof(SystemConstants, textures_resolved),
                                  dxbc::Src::kXXXX),
               dxbc::Src::LU(uint32_t(1) << tfetch_index));
-          a_.OpMovC(dxbc::Dest::R(coord_and_sampler_temp, 0b1000),
-                    dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kWWWW),
-                    dxbc::Src::LF(1.0f / draw_resolution_scale_),
-                    dxbc::Src::LF(1.0f));
+          a_.OpIf(true, dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kWWWW));
           a_.OpMAd(dxbc::Dest::R(coord_and_sampler_temp,
                                  normalized_components_with_scaled_offsets),
                    dxbc::Src::R(coord_and_sampler_temp),
-                   dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kWWWW),
+                   dxbc::Src::LF(1.0f / draw_resolution_scale_x_,
+                                 1.0f / draw_resolution_scale_y_, 1.0f, 1.0f),
                    coord_operand);
+          a_.OpElse();
+          a_.OpAdd(dxbc::Dest::R(coord_and_sampler_temp,
+                                 normalized_components_with_scaled_offsets),
+                   coord_operand, dxbc::Src::R(coord_and_sampler_temp));
+          a_.OpEndIf();
         }
         if (normalized_components_with_unscaled_offsets) {
           a_.OpAdd(dxbc::Dest::R(coord_and_sampler_temp,
@@ -1317,7 +1354,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
       // Check which SRV needs to be accessed - signed or unsigned. If there is
       // at least one non-signed component, will be using the unsigned one.
       uint32_t is_unsigned_temp = PushSystemTemp();
-      system_constants_used_ |= 1ull << kSysConst_TextureSwizzledSigns_Index;
+      MarkSystemConstantUsed(SystemConstants::Index::kTextureSwizzledSigns);
       a_.OpUBFE(dxbc::Dest::R(is_unsigned_temp, 0b0001), dxbc::Src::LU(8),
                 dxbc::Src::LU(signs_shift), signs_uint_src);
       a_.OpINE(
@@ -1515,15 +1552,15 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           // Extract gradient exponent biases from the fetch constant and merge
           // them with the LOD bias.
           a_.OpIBFE(dxbc::Dest::R(grad_h_lod_temp, 0b0011), dxbc::Src::LU(5),
-                     dxbc::Src::LU(22, 27, 0, 0),
-                     RequestTextureFetchConstantWord(tfetch_index, 4));
+                    dxbc::Src::LU(22, 27, 0, 0),
+                    RequestTextureFetchConstantWord(tfetch_index, 4));
           a_.OpIMAd(dxbc::Dest::R(grad_h_lod_temp, 0b0011),
-                     dxbc::Src::R(grad_h_lod_temp), dxbc::Src::LI(int32_t(1) << 23),
-                     dxbc::Src::LF(1.0f));
+                    dxbc::Src::R(grad_h_lod_temp),
+                    dxbc::Src::LI(int32_t(1) << 23), dxbc::Src::LF(1.0f));
           a_.OpMul(dxbc::Dest::R(grad_v_temp, 0b1000), lod_src,
-                    dxbc::Src::R(grad_h_lod_temp, dxbc::Src::kYYYY));
+                   dxbc::Src::R(grad_h_lod_temp, dxbc::Src::kYYYY));
           a_.OpMul(lod_dest, lod_src,
-                    dxbc::Src::R(grad_h_lod_temp, dxbc::Src::kXXXX));
+                   dxbc::Src::R(grad_h_lod_temp, dxbc::Src::kXXXX));
 #endif
           // Obtain the gradients and apply biases to them.
           if (instr.attributes.use_register_gradients) {
@@ -1534,11 +1571,11 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
             // done in getCompTexLOD, so don't do it here too.
 #if 0
             a_.OpMul(dxbc::Dest::R(grad_v_temp, grad_mask),
-                      dxbc::Src::R(system_temp_grad_v_),
-                      dxbc::Src::R(grad_v_temp, dxbc::Src::kWWWW));
+                     dxbc::Src::R(system_temp_grad_v_vfetch_address_),
+                     dxbc::Src::R(grad_v_temp, dxbc::Src::kWWWW));
 #else
             a_.OpMul(dxbc::Dest::R(grad_v_temp, grad_mask),
-                     dxbc::Src::R(system_temp_grad_v_), lod_src);
+                     dxbc::Src::R(system_temp_grad_v_vfetch_address_), lod_src);
 #endif
             // TODO(Triang3l): Are cube map register gradients unnormalized if
             // the coordinates themselves are unnormalized?
@@ -1580,8 +1617,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
             // done in getCompTexLOD, so don't do it here too.
 #if 0
             a_.OpMul(dxbc::Dest::R(grad_v_temp, grad_mask),
-                      dxbc::Src::R(grad_v_temp),
-                      dxbc::Src::R(grad_v_temp, dxbc::Src::kWWWW));
+                     dxbc::Src::R(grad_v_temp),
+                     dxbc::Src::R(grad_v_temp, dxbc::Src::kWWWW));
 #else
             a_.OpMul(dxbc::Dest::R(grad_v_temp, grad_mask),
                      dxbc::Src::R(grad_v_temp), lod_src);
@@ -1600,13 +1637,12 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
 
       // - Data.
 
-      // Viva Pinata uses vertex displacement map textures for tessellated
-      // models like the beehive tree with explicit LOD with point sampling
-      // (they store values packed in two components), however, the fetch
-      // constant has anisotropic filtering enabled. However, Direct3D 12
-      // doesn't allow mixing anisotropic and point filtering. Possibly
-      // anistropic filtering should be disabled when explicit LOD is used - do
-      // this here.
+      // 4D5307F2 uses vertex displacement map textures for tessellated models
+      // like the beehive tree with explicit LOD with point sampling (they store
+      // values packed in two components), however, the fetch constant has
+      // anisotropic filtering enabled. However, Direct3D 12 doesn't allow
+      // mixing anisotropic and point filtering. Possibly anistropic filtering
+      // should be disabled when explicit LOD is used - do this here.
       uint32_t sampler_binding_index = FindOrAddSamplerBinding(
           tfetch_index, instr.attributes.mag_filter,
           instr.attributes.min_filter, instr.attributes.mip_filter,
@@ -2060,7 +2096,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           // `if`, with `else` for sRGB resolved render targets.
           a_.OpAnd(
               dxbc::Dest::R(gamma_temp, 0b0001),
-              LoadSystemConstant(kSysConst_TexturesResolved_Index,
+              LoadSystemConstant(SystemConstants::Index::kTexturesResolved,
                                  offsetof(SystemConstants, textures_resolved),
                                  dxbc::Src::kXXXX),
               dxbc::Src::LU(uint32_t(1) << tfetch_index));

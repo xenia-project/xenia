@@ -465,9 +465,10 @@ std::pair<uint32_t, uint32_t> SharedMemory::MemoryInvalidationCallback(
     // invalidated - if no GPU-written data nearby that was not intended to be
     // invalidated since it's not in sync with CPU memory and can't be
     // reuploaded. It's a lot cheaper to upload some excess data than to catch
-    // access violations - with 4 KB callbacks, the original Doom runs at 4 FPS
-    // on Intel Core i7-3770, with 64 KB the CPU game code takes 3 ms to run per
-    // frame, but with 256 KB it's 0.7 ms.
+    // access violations - with 4 KB callbacks, 58410824 (being a
+    // software-rendered game) runs at 4 FPS on Intel Core i7-3770, with 64 KB,
+    // the CPU game code takes 3 ms to run per frame, but with 256 KB, it's
+    // 0.7 ms.
     if (page_first & 63) {
       uint64_t gpu_written_start =
           system_page_flags_[block_first].valid_and_gpu_written;

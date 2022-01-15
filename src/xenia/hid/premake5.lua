@@ -22,7 +22,6 @@ project("xenia-hid-demo")
   links({
     "fmt",
     "imgui",
-    "volk",
     "xenia-base",
     "xenia-helper-sdl",
     "xenia-hid",
@@ -33,7 +32,7 @@ project("xenia-hid-demo")
   })
   files({
     "hid_demo.cc",
-    "../base/main_"..platform_suffix..".cc",
+    "../ui/windowed_app_main_"..platform_suffix..".cc",
   })
   resincludedirs({
     project_root,

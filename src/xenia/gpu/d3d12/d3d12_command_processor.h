@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_D3D12_D3D12_COMMAND_PROCESSOR_H_
 #define XENIA_GPU_D3D12_D3D12_COMMAND_PROCESSOR_H_
 
+#include <algorithm>
 #include <atomic>
 #include <deque>
 #include <memory>
@@ -20,11 +21,11 @@
 #include "xenia/base/assert.h"
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
+#include "xenia/gpu/d3d12/d3d12_primitive_processor.h"
 #include "xenia/gpu/d3d12/d3d12_render_target_cache.h"
 #include "xenia/gpu/d3d12/d3d12_shared_memory.h"
 #include "xenia/gpu/d3d12/deferred_command_list.h"
 #include "xenia/gpu/d3d12/pipeline_cache.h"
-#include "xenia/gpu/d3d12/primitive_converter.h"
 #include "xenia/gpu/d3d12/texture_cache.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/dxbc_shader.h"
@@ -83,9 +84,9 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   // Gets the current color write mask, taking the pixel shader's write mask
   // into account. If a shader doesn't write to a render target, it shouldn't be
-  // written to and it shouldn't be even bound - otherwise, in Halo 3, one
+  // written to and it shouldn't be even bound - otherwise, in 4D5307E6, one
   // render target is being destroyed by a shader not writing anything, and in
-  // Banjo-Tooie, the result of clearing the top tile is being ignored because
+  // 58410955, the result of clearing the top tile is being ignored because
   // there are 4 render targets bound with the same EDRAM base (clearly not
   // correct usage), but the shader only clears 1, and then EDRAM buffer stores
   // conflict with each other.
@@ -490,11 +491,11 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   std::unique_ptr<D3D12SharedMemory> shared_memory_;
 
+  std::unique_ptr<D3D12PrimitiveProcessor> primitive_processor_;
+
   std::unique_ptr<PipelineCache> pipeline_cache_;
 
   std::unique_ptr<TextureCache> texture_cache_;
-
-  std::unique_ptr<PrimitiveConverter> primitive_converter_;
 
   // Mip 0 contains the normal gamma ramp (256 entries), mip 1 contains the PWL
   // ramp (128 entries). DXGI_FORMAT_R10G10B10A2_UNORM 1D.
@@ -509,7 +510,14 @@ class D3D12CommandProcessor : public CommandProcessor {
   static constexpr uint32_t kSwapTextureWidth = 1280;
   static constexpr uint32_t kSwapTextureHeight = 720;
   std::pair<uint32_t, uint32_t> GetSwapTextureSize() const {
-    uint32_t resolution_scale = texture_cache_->GetDrawResolutionScale();
+    return std::make_pair(
+        kSwapTextureWidth * texture_cache_->GetDrawResolutionScaleX(),
+        kSwapTextureHeight * texture_cache_->GetDrawResolutionScaleY());
+  }
+  std::pair<uint32_t, uint32_t> GetSwapScreenSize() const {
+    uint32_t resolution_scale =
+        std::max(texture_cache_->GetDrawResolutionScaleX(),
+                 texture_cache_->GetDrawResolutionScaleY());
     return std::make_pair(kSwapTextureWidth * resolution_scale,
                           kSwapTextureHeight * resolution_scale);
   }

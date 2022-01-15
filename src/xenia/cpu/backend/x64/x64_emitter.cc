@@ -18,6 +18,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/atomic.h"
 #include "xenia/base/debugging.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
@@ -50,8 +51,9 @@ namespace x64 {
 
 using xe::cpu::hir::HIRBuilder;
 using xe::cpu::hir::Instr;
+using namespace xe::literals;
 
-static const size_t kMaxCodeSize = 1 * 1024 * 1024;
+static const size_t kMaxCodeSize = 1_MiB;
 
 static const size_t kStashOffset = 32;
 // static const size_t kStashOffsetHigh = 32 + 32;
@@ -72,14 +74,32 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
       backend_(backend),
       code_cache_(backend->code_cache()),
       allocator_(allocator) {
-  if (cvars::use_haswell_instructions) {
+  if (cvars::x64_extension_mask & kX64EmitAVX2)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tAVX2) ? kX64EmitAVX2 : 0;
+  if (cvars::x64_extension_mask & kX64EmitFMA)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tFMA) ? kX64EmitFMA : 0;
+  if (cvars::x64_extension_mask & kX64EmitLZCNT)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tLZCNT) ? kX64EmitLZCNT : 0;
+  if (cvars::x64_extension_mask & kX64EmitBMI1)
+    feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tBMI1) ? kX64EmitBMI1 : 0;
+  if (cvars::x64_extension_mask & kX64EmitBMI2)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tBMI2) ? kX64EmitBMI2 : 0;
+  if (cvars::x64_extension_mask & kX64EmitF16C)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tF16C) ? kX64EmitF16C : 0;
+  if (cvars::x64_extension_mask & kX64EmitMovbe)
     feature_flags_ |= cpu_.has(Xbyak::util::Cpu::tMOVBE) ? kX64EmitMovbe : 0;
-  }
+  if (cvars::x64_extension_mask & kX64EmitAVX512F)
+    feature_flags_ |=
+        cpu_.has(Xbyak::util::Cpu::tAVX512F) ? kX64EmitAVX512F : 0;
+  if (cvars::x64_extension_mask & kX64EmitAVX512VL)
+    feature_flags_ |=
+        cpu_.has(Xbyak::util::Cpu::tAVX512VL) ? kX64EmitAVX512VL : 0;
+  if (cvars::x64_extension_mask & kX64EmitAVX512BW)
+    feature_flags_ |=
+        cpu_.has(Xbyak::util::Cpu::tAVX512BW) ? kX64EmitAVX512BW : 0;
+  if (cvars::x64_extension_mask & kX64EmitAVX512DQ)
+    feature_flags_ |=
+        cpu_.has(Xbyak::util::Cpu::tAVX512DQ) ? kX64EmitAVX512DQ : 0;
 
   if (!cpu_.has(Xbyak::util::Cpu::tAVX)) {
     xe::FatalError(
@@ -382,15 +402,14 @@ void X64Emitter::UnimplementedInstr(const hir::Instr* i) {
 }
 
 // This is used by the X64ThunkEmitter's ResolveFunctionThunk.
-extern "C" uint64_t ResolveFunction(void* raw_context,
-                                    uint64_t target_address) {
+uint64_t ResolveFunction(void* raw_context, uint64_t target_address) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
 
   // TODO(benvanik): required?
   assert_not_zero(target_address);
 
-  auto fn =
-      thread_state->processor()->ResolveFunction((uint32_t)target_address);
+  auto fn = thread_state->processor()->ResolveFunction(
+      static_cast<uint32_t>(target_address));
   assert_not_null(fn);
   auto x64_fn = static_cast<X64Function*>(fn);
   uint64_t addr = reinterpret_cast<uint64_t>(x64_fn->machine_code());
@@ -801,7 +820,7 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {
   if (!v.low && !v.high) {
     // 0000...
     vpxor(dest, dest);
-  } else if (v.low == ~0ull && v.high == ~0ull) {
+  } else if (v.low == ~uint64_t(0) && v.high == ~uint64_t(0)) {
     // 1111...
     vpcmpeqb(dest, dest);
   } else {
@@ -818,10 +837,10 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, float v) {
     float f;
     uint32_t i;
   } x = {v};
-  if (!v) {
-    // 0
+  if (!x.i) {
+    // +0.0f (but not -0.0f because it may be used to flip the sign via xor).
     vpxor(dest, dest);
-  } else if (x.i == ~0U) {
+  } else if (x.i == ~uint32_t(0)) {
     // 1111...
     vpcmpeqb(dest, dest);
   } else {
@@ -837,10 +856,10 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, double v) {
     double d;
     uint64_t i;
   } x = {v};
-  if (!v) {
-    // 0
+  if (!x.i) {
+    // +0.0 (but not -0.0 because it may be used to flip the sign via xor).
     vpxor(dest, dest);
-  } else if (x.i == ~0ULL) {
+  } else if (x.i == ~uint64_t(0)) {
     // 1111...
     vpcmpeqb(dest, dest);
   } else {

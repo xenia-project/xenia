@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2021 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -14,21 +14,27 @@
 #include <cstdint>
 #include <vector>
 
+#include "xenia/base/literals.h"
+
 namespace xe {
+
+using namespace xe::literals;
 
 class Arena {
  public:
-  explicit Arena(size_t chunk_size = 4 * 1024 * 1024);
+  explicit Arena(size_t chunk_size = 4_MiB);
   ~Arena();
 
   void Reset();
   void DebugFill();
 
-  void* Alloc(size_t size);
+  void* Alloc(size_t size, size_t align);
   template <typename T>
   T* Alloc() {
-    return reinterpret_cast<T*>(Alloc(sizeof(T)));
+    return reinterpret_cast<T*>(Alloc(sizeof(T), alignof(T)));
   }
+  // When rewinding aligned allocations, any padding that was applied during
+  // allocation will be leaked
   void Rewind(size_t size);
 
   void* CloneContents();

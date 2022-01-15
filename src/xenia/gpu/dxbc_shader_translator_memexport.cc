@@ -8,12 +8,21 @@
  */
 
 #include "xenia/base/assert.h"
+#include "xenia/base/math.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 
 namespace xe {
 namespace gpu {
 using namespace ucode;
+
+// TODO(Triang3l): Support sub-dword memexports (like k_8 in 58410B86). This
+// would require four 128 MB R8_UINT UAVs due to the Nvidia addressing limit.
+// Need to be careful with resource binding tiers, however. Resource binding
+// tier 1 on feature level 11_0 allows only 8 UAVs _across all stages_.
+// RWByteAddressBuffer + 4 typed buffers is 5 per stage already, would need 10
+// for both VS and PS, or even 11 with the eDRAM ROV. Need to drop draw commands
+// doing memexport in both VS and PS on FL 11_0 resource binding tier 1.
 
 void DxbcShaderTranslator::ExportToMemory_PackFixed32(
     const uint32_t* eM_temps, uint32_t eM_count, const uint32_t bits[4],
@@ -101,13 +110,9 @@ void DxbcShaderTranslator::ExportToMemory() {
   uint32_t control_temp = PushSystemTemp();
 
   // Safety check if the shared memory is bound as UAV.
-  system_constants_used_ |= 1ull << kSysConst_Flags_Index;
   a_.OpUBFE(dxbc::Dest::R(control_temp, 0b0001), dxbc::Src::LU(1),
             dxbc::Src::LU(kSysFlag_SharedMemoryIsUAV_Shift),
-            dxbc::Src::CB(cbuffer_index_system_constants_,
-                          uint32_t(CbufferRegister::kSystemConstants),
-                          kSysConst_Flags_Vec)
-                .Select(kSysConst_Flags_Comp));
+            LoadFlagsSystemConstant());
   // Open the `if` with the uniform condition for the shared memory buffer being
   // bound as a UAV (more fine-grained checks are vector and likely divergent).
   a_.OpIf(true, dxbc::Src::R(control_temp, dxbc::Src::kXXXX));
@@ -117,52 +122,74 @@ void DxbcShaderTranslator::ExportToMemory() {
   // 0 or 0xFFFFFFFF.
   bool inner_condition_provided = false;
   if (is_pixel_shader()) {
-    if (draw_resolution_scale_ > 1) {
+    uint32_t resolution_scaled_axes =
+        uint32_t(draw_resolution_scale_x_ > 1) |
+        (uint32_t(draw_resolution_scale_y_ > 1) << 1);
+    if (resolution_scaled_axes) {
       // Only do memexport for one host pixel in a guest pixel.
-      // For 2x - (1, 1) because it's covered with half-pixel offset that
+      // For 2x - pixel 1 because it's covered with half-pixel offset that
       // becomes full-pixel.
-      // For 3x - also (1, 1) because it's still covered with half-pixel offset,
-      // but close to the center.
-      in_position_used_ |= 0b0011;
+      // For 3x - also pixel 1 because it's still covered with half-pixel
+      // offset, but close to the center.
+      // If X needs resolution scaling, writing 1 or 0 - whether the column is
+      // the one where memexport should be done - to control_temp.y.
+      // For Y, doing that to control_temp.z.
+      // Then, if both axes are resolution-scaled, merging the conditions for
+      // the two.
+      in_position_used_ |= resolution_scaled_axes;
       a_.OpFToU(
-          dxbc::Dest::R(control_temp, 0b0110),
+          dxbc::Dest::R(control_temp, resolution_scaled_axes << 1),
           dxbc::Src::V(uint32_t(InOutRegister::kPSInPosition), 0b0100 << 2));
-      switch (draw_resolution_scale_) {
-        case 2:
-          a_.OpAnd(dxbc::Dest::R(control_temp, 0b0110),
-                   dxbc::Src::R(control_temp), dxbc::Src::LU(1));
-          // No need to do IEq - already 1 for right / bottom, 0 for left / top.
-          break;
-        case 3:
-          // xy % 3 == 1.
-          for (uint32_t i = 1; i <= 2; ++i) {
-            a_.OpUMul(dxbc::Dest::R(control_temp, 0b1000), dxbc::Dest::Null(),
-                      dxbc::Src::R(control_temp).Select(i),
+      dxbc::Dest resolution_scaling_temp_dest(
+          dxbc::Dest::R(control_temp, 0b1000));
+      dxbc::Src resolution_scaling_temp_src(
+          dxbc::Src::R(control_temp, dxbc::Src::kWWWW));
+      for (uint32_t i = 0; i < 2; ++i) {
+        if (!(resolution_scaled_axes & (1 << i))) {
+          continue;
+        }
+        // If there's no inner condition in control_temp.x yet, the condition
+        // for the current axis can go directly to it. Otherwise, need to merge
+        // with the previous condition, using control_temp.w as an intermediate
+        // variable.
+        dxbc::Dest resolution_scaled_axis_result(
+            inner_condition_provided ? resolution_scaling_temp_dest
+                                     : dxbc::Dest::R(control_temp, 0b0001));
+        dxbc::Src resolution_scaled_axis_src(
+            dxbc::Src::R(control_temp).Select(1 + i));
+        uint32_t axis_resolution_scale =
+            i ? draw_resolution_scale_y_ : draw_resolution_scale_x_;
+        switch (axis_resolution_scale) {
+          case 2:
+            // xy & 1 == 1.
+            a_.OpAnd(resolution_scaled_axis_result, resolution_scaled_axis_src,
+                     dxbc::Src::LU(1));
+            // No need to do IEq - already 1 for right / bottom, 0 for left /
+            // top.
+            break;
+          case 3:
+            // xy % 3 == 1.
+            a_.OpUMul(resolution_scaling_temp_dest, dxbc::Dest::Null(),
+                      resolution_scaled_axis_src,
                       dxbc::Src::LU(draw_util::kDivideScale3));
-            a_.OpUShR(dxbc::Dest::R(control_temp, 0b1000),
-                      dxbc::Src::R(control_temp, dxbc::Src::kWWWW),
+            a_.OpUShR(resolution_scaling_temp_dest, resolution_scaling_temp_src,
                       dxbc::Src::LU(draw_util::kDivideUpperShift3));
-            a_.OpIMAd(dxbc::Dest::R(control_temp, 1 << i),
-                      dxbc::Src::R(control_temp, dxbc::Src::kWWWW),
-                      dxbc::Src::LI(-3), dxbc::Src::R(control_temp).Select(i));
-          }
-          a_.OpIEq(dxbc::Dest::R(control_temp, 0b0110),
-                   dxbc::Src::R(control_temp), dxbc::Src::LU(1));
-          break;
-        default:
-          assert_unhandled_case(draw_resolution_scale_);
+            a_.OpIMAd(resolution_scaling_temp_dest, resolution_scaling_temp_src,
+                      dxbc::Src::LI(-3), resolution_scaled_axis_src);
+            a_.OpIEq(resolution_scaled_axis_result, resolution_scaling_temp_src,
+                     dxbc::Src::LU(1));
+            break;
+          default:
+            assert_unhandled_case(axis_resolution_scale);
+        }
+        if (inner_condition_provided) {
+          // Merge with the previous condition in control_temp.x.
+          a_.OpAnd(dxbc::Dest::R(control_temp, 0b0001),
+                   dxbc::Src::R(control_temp, dxbc::Src::kXXXX),
+                   resolution_scaling_temp_src);
+        }
+        inner_condition_provided = true;
       }
-      a_.OpAnd(dxbc::Dest::R(control_temp,
-                             inner_condition_provided ? 0b0010 : 0b0001),
-               dxbc::Src::R(control_temp, dxbc::Src::kYYYY),
-               dxbc::Src::R(control_temp, dxbc::Src::kZZZZ));
-      if (inner_condition_provided) {
-        // Merge with the previous condition in control_temp.x.
-        a_.OpAnd(dxbc::Dest::R(control_temp, 0b0001),
-                 dxbc::Src::R(control_temp, dxbc::Src::kXXXX),
-                 dxbc::Src::R(control_temp, dxbc::Src::kYYYY));
-      }
-      inner_condition_provided = true;
     }
     // With sample-rate shading (with float24 conversion), only do memexport
     // from one sample (as the shader is invoked multiple times for a pixel),

@@ -241,7 +241,6 @@ std::string_view::size_type find_any_of(const std::string_view haystack,
 
   auto [haystack_begin, haystack_end] = make_citer(haystack);
   auto [needle_begin, needle_end] = make_citer(needles);
-  auto needle_count = count(needles);
 
   auto it = find_needle(haystack_begin, haystack_end, needle_begin, needle_end);
   if (it == haystack_end) {
@@ -261,7 +260,6 @@ std::string_view::size_type find_any_of_case(const std::string_view haystack,
 
   auto [haystack_begin, haystack_end] = make_citer(haystack);
   auto [needle_begin, needle_end] = make_citer(needles);
-  auto needle_count = count(needles);
 
   auto it =
       find_needle_case(haystack_begin, haystack_end, needle_begin, needle_end);
@@ -582,43 +580,40 @@ std::string find_name_from_path(const std::string_view path,
   auto it = end;
   --it;
 
-  // path is padded with separator
-  size_t padding = 0;
-  if (*it == uint32_t(separator)) {
+  // skip trailing separators at the end of the path
+  while (*it == uint32_t(separator)) {
     if (it == begin) {
+      // path is all separators, name is empty
       return std::string();
     }
     --it;
-    padding = 1;
   }
 
-  // path is just separator
-  if (it == begin) {
-    return std::string();
-  }
+  // update end so it is before any trailing separators
+  end = std::next(it);
 
-  // search for separator
-  while (it != begin) {
-    if (*it == uint32_t(separator)) {
+  // skip non-separators
+  while (*it != uint32_t(separator)) {
+    if (it == begin) {
       break;
     }
     --it;
   }
 
-  // no separator -- copy entire string (except trailing separator)
-  if (it == begin) {
-    return std::string(path.substr(0, path.size() - padding));
+  // if the iterator is on a separator, advance
+  if (*it == uint32_t(separator)) {
+    ++it;
   }
 
-  auto length = byte_length(std::next(it), end);
-  auto offset = path.length() - length;
-  return std::string(path.substr(offset, length - padding));
+  auto offset = byte_length(begin, it);
+  auto length = byte_length(it, end);
+  return std::string(path.substr(offset, length));
 }
 
 std::string find_base_name_from_path(const std::string_view path,
                                      char32_t separator) {
   auto name = find_name_from_path(path, separator);
-  if (!name.size()) {
+  if (!name.length()) {
     return std::string();
   }
 
@@ -653,28 +648,34 @@ std::string find_base_path(const std::string_view path, char32_t separator) {
   auto it = end;
   --it;
 
-  // skip trailing separator
-  if (*it == uint32_t(separator)) {
+  // skip trailing separators at the end of the path
+  while (*it == uint32_t(separator)) {
     if (it == begin) {
       return std::string();
     }
     --it;
   }
 
-  while (it != begin) {
-    if (*it == uint32_t(separator)) {
-      break;
+  // skip non-separators
+  while (*it != uint32_t(separator)) {
+    if (it == begin) {
+      // there are no separators, base path is empty
+      return std::string();
     }
     --it;
   }
 
-  if (it == begin) {
-    return std::string();
+  // skip trailing separators at the end of the base path
+  while (*it == uint32_t(separator)) {
+    if (it == begin) {
+      // base path is all separators, base path is empty
+      return std::string();
+    }
+    --it;
   }
 
-  auto length = byte_length(it, end);
-  auto offset = path.length() - length;
-  return std::string(path.substr(0, offset));
+  auto length = byte_length(begin, std::next(it));
+  return std::string(path.substr(0, length));
 }
 
 std::string canonicalize_path(const std::string_view path, char32_t separator) {
