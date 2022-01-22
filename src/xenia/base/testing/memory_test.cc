@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,6 +13,8 @@
 #include "third_party/fmt/include/fmt/format.h"
 
 #include "xenia/base/clock.h"
+
+#include <array>
 
 namespace xe {
 namespace base {
@@ -112,6 +114,24 @@ TEST_CASE("copy_and_swap_16_unaligned", "[copy_and_swap]") {
   REQUIRE(c[1] == 0x6745);
   REQUIRE(c[2] == 0xAB89);
   REQUIRE(c[3] == 0xEFCD);
+
+  {
+    constexpr size_t count = 100;
+    std::array<uint8_t, count * 2> src{};
+    std::array<uint8_t, count * 2> dst{};
+    for (size_t i = 0; i < src.size(); ++i) {
+      src[i] = static_cast<uint8_t>(i) + 1;  // no zero in array
+    }
+    copy_and_swap_16_unaligned(dst.data(), src.data(), count);
+    for (size_t i = 0; i < src.size(); i += 2) {
+      // Check src is untouched
+      REQUIRE(static_cast<size_t>(src[i + 0]) == i + 1);
+      REQUIRE(static_cast<size_t>(src[i + 1]) == i + 2);
+      // Check swapped bytes
+      REQUIRE(static_cast<size_t>(dst[i]) == static_cast<size_t>(src[i + 1]));
+      REQUIRE(static_cast<size_t>(dst[i + 1]) == static_cast<size_t>(src[i]));
+    }
+  }
 
   uint64_t e;
   copy_and_swap_16_unaligned(&e, d, 4);
@@ -220,6 +240,32 @@ TEST_CASE("copy_and_swap_32_unaligned", "[copy_and_swap]") {
   REQUIRE(c[1] == 0xEFCDAB89);
   REQUIRE(c[2] == 0xEDEE87E8);
   REQUIRE(c[3] == 0x994151D8);
+
+  {
+    constexpr size_t count = 17;
+    std::array<uint8_t, count * 4> src{};
+    std::array<uint8_t, count * 4> dst{};
+    for (size_t i = 0; i < src.size(); ++i) {
+      src[i] = static_cast<uint8_t>(i) + 1;  // no zero in array
+    }
+    copy_and_swap_32_unaligned(dst.data(), src.data(), count);
+    for (size_t i = 0; i < src.size(); i += 4) {
+      // Check src is untouched
+      REQUIRE(static_cast<size_t>(src[i + 0]) == i + 1);
+      REQUIRE(static_cast<size_t>(src[i + 1]) == i + 2);
+      REQUIRE(static_cast<size_t>(src[i + 2]) == i + 3);
+      REQUIRE(static_cast<size_t>(src[i + 3]) == i + 4);
+      // Check swapped bytes
+      REQUIRE(static_cast<size_t>(dst[i + 0]) ==
+              static_cast<size_t>(src[i + 3]));
+      REQUIRE(static_cast<size_t>(dst[i + 1]) ==
+              static_cast<size_t>(src[i + 2]));
+      REQUIRE(static_cast<size_t>(dst[i + 2]) ==
+              static_cast<size_t>(src[i + 1]));
+      REQUIRE(static_cast<size_t>(dst[i + 3]) ==
+              static_cast<size_t>(src[i + 0]));
+    }
+  }
 
   uint64_t e;
   copy_and_swap_32_unaligned(&e, d, 2);
