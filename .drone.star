@@ -1,8 +1,8 @@
 def main(ctx):
     return [
         pipeline_lint(),
-        pipeline_linux_desktop('x86_64-linux-clang', image_linux_x86_64(), 'amd64', 'clang'),
-        pipeline_linux_desktop('x86_64-linux-gcc', image_linux_x86_64(), 'amd64', 'gcc'),
+        pipeline_linux_desktop('x86_64-linux-clang', image_linux_x86_64(), 'amd64', 'clang', True),
+        pipeline_linux_desktop('x86_64-linux-gcc', image_linux_x86_64(), 'amd64', 'gcc', False), # GCC release linking is really slow
         pipeline_android('x86_64-android', image_linux_x86_64(), 'amd64', 'Android-x86_64'),
         pipeline_android('aarch64-android', image_linux_x86_64(), 'amd64', 'Android-ARM64'),
     ]
@@ -104,7 +104,7 @@ def pipeline_lint():
         ],
     }
 
-def pipeline_linux_desktop(name, image, arch, cc):
+def pipeline_linux_desktop(name, image, arch, cc, build_release_all):
     return {
         'kind': 'pipeline',
         'type': 'docker',
@@ -217,6 +217,7 @@ def pipeline_linux_desktop(name, image, arch, cc):
                 ],
                 'depends_on': ['toolchain-premake'],
             },
+        ] + ([
             {
                 'name': 'build-premake-release-all',
                 'image': image,
@@ -227,6 +228,7 @@ def pipeline_linux_desktop(name, image, arch, cc):
                 ],
                 'depends_on': ['build-premake-release-tests'],
             },
+        ] if build_release_all else []) + [
 
             {
                 'name': 'build-cmake-debug-all',
@@ -251,6 +253,7 @@ def pipeline_linux_desktop(name, image, arch, cc):
                 ],
                 'depends_on': ['toolchain-cmake'],
             },
+        ] + ([
             {
                 'name': 'build-cmake-release-all',
                 'image': image,
@@ -262,6 +265,7 @@ def pipeline_linux_desktop(name, image, arch, cc):
                 ],
                 'depends_on': ['build-cmake-release-tests'],
             },
+        ] if build_release_all else []) + [
 
 
             #
@@ -333,11 +337,15 @@ def pipeline_linux_desktop(name, image, arch, cc):
                     '''
                 ],
                 'depends_on': [
-                  'build-premake-debug-all',
-                  'build-premake-release-all',
-                  'build-cmake-debug-all',
-                  'build-cmake-release-all',
-                ],
+                    'build-premake-debug-all',
+                    'build-cmake-debug-all',
+                ] + ([
+                    'build-premake-release-all',
+                    'build-cmake-release-all',
+                ] if build_release_all else [
+                    'build-premake-release-tests',
+                    'build-cmake-release-tests',
+                ]),
             },
         ],
     }
