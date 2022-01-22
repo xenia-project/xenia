@@ -454,13 +454,56 @@ TEST_CASE("copy_and_swap_64_unaligned", "[copy_and_swap]") {
 }
 
 TEST_CASE("copy_and_swap_16_in_32_aligned", "[copy_and_swap]") {
-  // TODO(bwrsandman): test once properly understood.
-  REQUIRE(true == true);
+  constexpr size_t count = 17;
+  std::array<uint8_t, count * 4> src{};
+  std::array<uint8_t, count * 4> dst{};
+
+  // Check alignment (if this fails, adjust allocation)
+  REQUIRE((reinterpret_cast<uintptr_t>(src.data()) & 0xF) == 0);
+  REQUIRE((reinterpret_cast<uintptr_t>(dst.data()) & 0xF) == 0);
+
+  for (size_t i = 0; i < src.size(); ++i) {
+    src[i] = static_cast<uint8_t>(i) + 1;  // no zero in array
+  }
+
+  copy_and_swap_16_in_32_aligned(dst.data(), src.data(), count);
+
+  for (size_t i = 0; i < src.size(); i += 4) {
+    // Check src is untouched
+    REQUIRE(static_cast<size_t>(src[i + 0]) == i + 1);
+    REQUIRE(static_cast<size_t>(src[i + 1]) == i + 2);
+    REQUIRE(static_cast<size_t>(src[i + 2]) == i + 3);
+    REQUIRE(static_cast<size_t>(src[i + 3]) == i + 4);
+    // Check swapped bytes
+    REQUIRE(static_cast<size_t>(dst[i + 0]) == static_cast<size_t>(src[i + 2]));
+    REQUIRE(static_cast<size_t>(dst[i + 1]) == static_cast<size_t>(src[i + 3]));
+    REQUIRE(static_cast<size_t>(dst[i + 2]) == static_cast<size_t>(src[i + 0]));
+    REQUIRE(static_cast<size_t>(dst[i + 3]) == static_cast<size_t>(src[i + 1]));
+  }
 }
 
 TEST_CASE("copy_and_swap_16_in_32_unaligned", "[copy_and_swap]") {
-  // TODO(bwrsandman): test once properly understood.
-  REQUIRE(true == true);
+  constexpr size_t count = 17;
+  std::array<uint8_t, count * 4> src{};
+  std::array<uint8_t, count * 4> dst{};
+  for (size_t i = 0; i < src.size(); ++i) {
+    src[i] = static_cast<uint8_t>(i) + 1;  // no zero in array
+  }
+
+  copy_and_swap_16_in_32_unaligned(dst.data(), src.data(), count);
+
+  for (size_t i = 0; i < src.size(); i += 4) {
+    // Check src is untouched
+    REQUIRE(static_cast<size_t>(src[i + 0]) == i + 1);
+    REQUIRE(static_cast<size_t>(src[i + 1]) == i + 2);
+    REQUIRE(static_cast<size_t>(src[i + 2]) == i + 3);
+    REQUIRE(static_cast<size_t>(src[i + 3]) == i + 4);
+    // Check swapped bytes
+    REQUIRE(static_cast<size_t>(dst[i + 0]) == static_cast<size_t>(src[i + 2]));
+    REQUIRE(static_cast<size_t>(dst[i + 1]) == static_cast<size_t>(src[i + 3]));
+    REQUIRE(static_cast<size_t>(dst[i + 2]) == static_cast<size_t>(src[i + 0]));
+    REQUIRE(static_cast<size_t>(dst[i + 3]) == static_cast<size_t>(src[i + 1]));
+  }
 }
 
 TEST_CASE("create_and_close_file_mapping", "Virtual Memory Mapping") {
