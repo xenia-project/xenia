@@ -188,8 +188,8 @@ void copy_and_swap_64_unaligned(void* dest_ptr, const void* src_ptr,
 
 void copy_and_swap_16_in_32_aligned(void* dest_ptr, const void* src_ptr,
                                     size_t count) {
-  auto dest = reinterpret_cast<uint64_t*>(dest_ptr);
-  auto src = reinterpret_cast<const uint64_t*>(src_ptr);
+  auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
+  auto src = reinterpret_cast<const uint32_t*>(src_ptr);
   size_t i;
   for (i = 0; i + 4 <= count; i += 4) {
     __m128i input = _mm_load_si128(reinterpret_cast<const __m128i*>(&src[i]));
@@ -205,8 +205,8 @@ void copy_and_swap_16_in_32_aligned(void* dest_ptr, const void* src_ptr,
 
 void copy_and_swap_16_in_32_unaligned(void* dest_ptr, const void* src_ptr,
                                       size_t count) {
-  auto dest = reinterpret_cast<uint64_t*>(dest_ptr);
-  auto src = reinterpret_cast<const uint64_t*>(src_ptr);
+  auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
+  auto src = reinterpret_cast<const uint32_t*>(src_ptr);
   size_t i;
   for (i = 0; i + 4 <= count; i += 4) {
     __m128i input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
@@ -332,10 +332,15 @@ void copy_and_swap_16_in_32_aligned(void* dst, const void* src, size_t count) {
 
 void copy_and_swap_16_in_32_unaligned(void* dst_ptr, const void* src_ptr,
                                       size_t count) {
-  auto dst = reinterpret_cast<uint64_t*>(dst_ptr);
-  auto src = reinterpret_cast<const uint64_t*>(src_ptr);
-  for (size_t i = 0; i < count; ++i) {
-    dst[i] = (src[i] >> 16) | (src[i] << 16);
+  auto dst = reinterpret_cast<uint16_t*>(dst_ptr);
+  auto src = reinterpret_cast<const uint16_t*>(src_ptr);
+  while (count > 0) {
+    uint16_t word0 = *src++;
+    uint16_t word1 = *src++;
+    *dst++ = word1;
+    *dst++ = word0;
+
+    count--;
   }
 }
 
@@ -385,12 +390,17 @@ void copy_and_swap_16_in_32_aligned(void* dest, const void* src, size_t count) {
   return copy_and_swap_16_in_32_unaligned(dest, src, count);
 }
 
-void copy_and_swap_16_in_32_unaligned(void* dest_ptr, const void* src_ptr,
+void copy_and_swap_16_in_32_unaligned(void* dst_ptr, const void* src_ptr,
                                       size_t count) {
-  auto dest = reinterpret_cast<uint64_t*>(dest_ptr);
-  auto src = reinterpret_cast<const uint64_t*>(src_ptr);
-  for (size_t i = 0; i < count; ++i) {
-    dest[i] = (src[i] >> 16) | (src[i] << 16);
+  auto dst = reinterpret_cast<uint16_t*>(dst_ptr);
+  auto src = reinterpret_cast<const uint16_t*>(src_ptr);
+  while (count > 0) {
+    uint16_t word0 = *src++;
+    uint16_t word1 = *src++;
+    *dst++ = word1;
+    *dst++ = word0;
+
+    count--;
   }
 }
 
