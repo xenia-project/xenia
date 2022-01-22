@@ -185,6 +185,17 @@ def pipeline_linux_desktop(name, image, arch, cc):
             #
             # Building
             #
+
+            {
+                'name': 'build-premake-debug-tests',
+                'image': image,
+                'volumes': [volume_build('premake')],
+                'commands': [
+                    command_cc(cc),
+                    './xenia-build build --no_premake -j$(nproc) --config=Debug --target=xenia-base-tests',
+                ],
+                'depends_on': ['toolchain-premake'],
+            },
             {
                 'name': 'build-premake-debug-all',
                 'image': image,
@@ -193,7 +204,7 @@ def pipeline_linux_desktop(name, image, arch, cc):
                     command_cc(cc),
                     './xenia-build build --no_premake -j$(nproc) --config=Debug',
                 ],
-                'depends_on': ['toolchain-premake'],
+                'depends_on': ['build-premake-debug-tests'],
             },
 
             {
@@ -206,7 +217,6 @@ def pipeline_linux_desktop(name, image, arch, cc):
                 ],
                 'depends_on': ['toolchain-premake'],
             },
-
             {
                 'name': 'build-premake-release-all',
                 'image': image,
@@ -241,7 +251,6 @@ def pipeline_linux_desktop(name, image, arch, cc):
                 ],
                 'depends_on': ['toolchain-cmake'],
             },
-
             {
                 'name': 'build-cmake-release-all',
                 'image': image,
@@ -258,8 +267,19 @@ def pipeline_linux_desktop(name, image, arch, cc):
             #
             # Tests
             #
+
             {
-                'name': 'test-premake',
+                'name': 'test-premake-debug-valgrind',
+                'image': image,
+                'volumes': [volume_build('premake')],
+                'commands': [
+                    'valgrind --error-exitcode=99 ./build/bin/Linux/Debug/xenia-base-tests',
+                ],
+                'depends_on': ['build-premake-debug-tests'],
+            },
+
+            {
+                'name': 'test-premake-release',
                 'image': image,
                 'volumes': [volume_build('premake')],
                 'commands': [
@@ -269,7 +289,7 @@ def pipeline_linux_desktop(name, image, arch, cc):
             },
 
             {
-                'name': 'test-cmake',
+                'name': 'test-cmake-release',
                 'image': image,
                 'volumes': [volume_build('cmake')],
                 'commands': [
@@ -282,6 +302,7 @@ def pipeline_linux_desktop(name, image, arch, cc):
             #
             # Stat
             #
+
             {
                 'name': 'stat',
                 'image': image,
