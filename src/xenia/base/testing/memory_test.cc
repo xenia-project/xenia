@@ -455,8 +455,8 @@ TEST_CASE("copy_and_swap_64_unaligned", "[copy_and_swap]") {
 
 TEST_CASE("copy_and_swap_16_in_32_aligned", "[copy_and_swap]") {
   constexpr size_t count = 17;
-  std::array<uint8_t, count * 4> src{};
-  std::array<uint8_t, count * 4> dst{};
+  alignas(16) std::array<uint8_t, count * 4> src{};
+  alignas(16) std::array<uint8_t, count * 4> dst{};
 
   // Check alignment (if this fails, adjust allocation)
   REQUIRE((reinterpret_cast<uintptr_t>(src.data()) & 0xF) == 0);
