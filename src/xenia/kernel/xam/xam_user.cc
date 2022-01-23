@@ -14,6 +14,7 @@
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
+#include "xenia/kernel/xam/user_profile.h"
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/kernel/xthread.h"
@@ -146,25 +147,14 @@ typedef struct {
 } X_USER_READ_PROFILE_SETTINGS;
 static_assert_size(X_USER_READ_PROFILE_SETTINGS, 8);
 
-typedef struct {
-  xe::be<uint32_t> from;
-  xe::be<uint32_t> unk04;
-  xe::be<uint32_t> user_index;
-  xe::be<uint32_t> unk0C;
-  xe::be<uint32_t> setting_id;
-  xe::be<uint32_t> unk14;
-  uint8_t setting_data[16];
-} X_USER_READ_PROFILE_SETTING;
-static_assert_size(X_USER_READ_PROFILE_SETTING, 40);
-
 // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/xboxtools.cpp
-uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
-                                        uint32_t xuid_count, lpqword_t xuids,
-                                        uint32_t setting_count,
-                                        lpdword_t setting_ids, uint32_t unk,
-                                        lpdword_t buffer_size_ptr,
-                                        lpvoid_t buffer_ptr,
-                                        uint32_t overlapped_ptr) {
+uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
+                                      uint32_t xuid_count, be<uint64_t>* xuids,
+                                      uint32_t setting_count,
+                                      be<uint32_t>* setting_ids, uint32_t unk,
+                                      be<uint32_t>* buffer_size_ptr,
+                                      uint8_t* buffer,
+                                      XAM_OVERLAPPED* overlapped) {
   if (!xuid_count) {
     assert_null(xuids);
   } else {
@@ -173,8 +163,11 @@ uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
     // TODO(gibbed): allow proper lookup of arbitrary XUIDs
     const auto& user_profile = kernel_state()->user_profile();
     assert_true(static_cast<uint64_t>(xuids[0]) == user_profile->xuid());
+    // TODO(gibbed): we assert here, but in case a title passes xuid_count > 1
+    // until it's implemented for release builds...
+    xuid_count = 1;
   }
-  assert_zero(unk);
+  assert_zero(unk);  // probably flags
 
   // must have at least 1 to 32 settings
   if (setting_count < 1 || setting_count > 32) {
@@ -188,35 +181,33 @@ uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
 
   // if buffer size is non-zero, buffer pointer must be valid
   auto buffer_size = static_cast<uint32_t>(*buffer_size_ptr);
-  if (buffer_size && !buffer_ptr) {
+  if (buffer_size && !buffer) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
   uint32_t needed_header_size = 0;
-  uint32_t needed_extra_size = 0;
+  uint32_t needed_data_size = 0;
   for (uint32_t i = 0; i < setting_count; ++i) {
-    needed_header_size += sizeof(X_USER_READ_PROFILE_SETTING);
+    needed_header_size += sizeof(X_USER_PROFILE_SETTING);
     UserProfile::Setting::Key setting_key;
     setting_key.value = static_cast<uint32_t>(setting_ids[i]);
     switch (static_cast<UserProfile::Setting::Type>(setting_key.type)) {
       case UserProfile::Setting::Type::WSTRING:
-      case UserProfile::Setting::Type::BINARY: {
-        needed_extra_size += setting_key.size;
+      case UserProfile::Setting::Type::BINARY:
+        needed_data_size += setting_key.size;
         break;
-      }
-      default: {
+      default:
         break;
-      }
     }
   }
   if (xuids) {
-    // needed_header_size *= xuid_count;
-    // needed_extra_size *= !xuid_count;
+    needed_header_size *= xuid_count;
+    needed_data_size *= xuid_count;
   }
   needed_header_size += sizeof(X_USER_READ_PROFILE_SETTINGS);
 
-  uint32_t needed_size = needed_header_size + needed_extra_size;
-  if (!buffer_ptr || buffer_size < needed_size) {
+  uint32_t needed_size = needed_header_size + needed_data_size;
+  if (!buffer || buffer_size < needed_size) {
     if (!buffer_size) {
       *buffer_size_ptr = needed_size;
     }
@@ -226,11 +217,12 @@ uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
   // Title ID = 0 means us.
   // 0xfffe07d1 = profile?
 
-  if (user_index) {
+  if (!xuids && user_index) {
     // Only support user 0.
-    if (overlapped_ptr) {
-      kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
-                                                  X_ERROR_NO_SUCH_USER);
+    if (overlapped) {
+      kernel_state()->CompleteOverlappedImmediate(
+          kernel_state()->memory()->HostToGuestVirtual(overlapped),
+          X_ERROR_NO_SUCH_USER);
       return X_ERROR_IO_PENDING;
     }
     return X_ERROR_NO_SUCH_USER;
@@ -257,49 +249,49 @@ uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
   }
   if (any_missing) {
     // TODO(benvanik): don't fail? most games don't even check!
-    if (overlapped_ptr) {
-      kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
-                                                  X_ERROR_INVALID_PARAMETER);
+    if (overlapped) {
+      kernel_state()->CompleteOverlappedImmediate(
+          kernel_state()->memory()->HostToGuestVirtual(overlapped),
+          X_ERROR_INVALID_PARAMETER);
       return X_ERROR_IO_PENDING;
     }
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  auto out_header = buffer_ptr.as<X_USER_READ_PROFILE_SETTINGS*>();
+  auto out_header = reinterpret_cast<X_USER_READ_PROFILE_SETTINGS*>(buffer);
+  auto out_setting = reinterpret_cast<X_USER_PROFILE_SETTING*>(&out_header[1]);
   out_header->setting_count = static_cast<uint32_t>(setting_count);
-  out_header->settings_ptr = buffer_ptr.guest_address() + 8;
+  out_header->settings_ptr =
+      kernel_state()->memory()->HostToGuestVirtual(out_setting);
 
-  auto out_setting =
-      reinterpret_cast<X_USER_READ_PROFILE_SETTING*>(&out_header[1]);
-
-  size_t buffer_offset = needed_header_size;
+  UserProfile::SettingByteStream out_stream(
+      kernel_state()->memory()->HostToGuestVirtual(buffer), buffer, buffer_size,
+      needed_header_size);
   for (uint32_t n = 0; n < setting_count; ++n) {
     uint32_t setting_id = setting_ids[n];
     auto setting = user_profile->GetSetting(setting_id);
 
-    std::memset(out_setting, 0, sizeof(X_USER_READ_PROFILE_SETTING));
+    std::memset(out_setting, 0, sizeof(X_USER_PROFILE_SETTING));
     out_setting->from = !setting || !setting->is_set   ? 0
                         : setting->is_title_specific() ? 2
                                                        : 1;
-    out_setting->user_index = static_cast<uint32_t>(user_index);
+    if (xuids) {
+      out_setting->xuid = user_profile->xuid();
+    } else {
+      out_setting->user_index = static_cast<uint32_t>(user_index);
+    }
     out_setting->setting_id = setting_id;
 
     if (setting && setting->is_set) {
-      buffer_offset =
-          setting->Append(&out_setting->setting_data[0], buffer_ptr,
-                          buffer_ptr.guest_address(), buffer_offset);
+      setting->Append(&out_setting->data, &out_stream);
     }
-    // TODO(benvanik): why did I do this?
-    /*else {
-      std::memset(&out_setting->setting_data[0], 0,
-                  sizeof(out_setting->setting_data));
-    }*/
     ++out_setting;
   }
 
-  if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
-                                                X_ERROR_SUCCESS);
+  if (overlapped) {
+    kernel_state()->CompleteOverlappedImmediate(
+        kernel_state()->memory()->HostToGuestVirtual(overlapped),
+        X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;
   }
   return X_ERROR_SUCCESS;
@@ -308,57 +300,35 @@ uint32_t xeXamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
 dword_result_t XamUserReadProfileSettings_entry(
     dword_t title_id, dword_t user_index, dword_t xuid_count, lpqword_t xuids,
     dword_t setting_count, lpdword_t setting_ids, lpdword_t buffer_size_ptr,
-    lpvoid_t buffer_ptr, dword_t overlapped_ptr) {
-  return xeXamUserReadProfileSettingsEx(
-      title_id, user_index, xuid_count, xuids, setting_count, setting_ids, 0,
-      buffer_size_ptr, buffer_ptr, overlapped_ptr);
+    lpvoid_t buffer_ptr, pointer_t<XAM_OVERLAPPED> overlapped) {
+  return XamUserReadProfileSettingsEx(title_id, user_index, xuid_count, xuids,
+                                      setting_count, setting_ids, 0,
+                                      buffer_size_ptr, buffer_ptr, overlapped);
 }
 DECLARE_XAM_EXPORT1(XamUserReadProfileSettings, kUserProfiles, kImplemented);
 
 dword_result_t XamUserReadProfileSettingsEx_entry(
     dword_t title_id, dword_t user_index, dword_t xuid_count, lpqword_t xuids,
     dword_t setting_count, lpdword_t setting_ids, lpdword_t buffer_size_ptr,
-    dword_t unk_2, lpvoid_t buffer_ptr, dword_t overlapped_ptr) {
-  return xeXamUserReadProfileSettingsEx(
-      title_id, user_index, xuid_count, xuids, setting_count, setting_ids,
-      unk_2, buffer_size_ptr, buffer_ptr, overlapped_ptr);
+    dword_t unk_2, lpvoid_t buffer_ptr, pointer_t<XAM_OVERLAPPED> overlapped) {
+  return XamUserReadProfileSettingsEx(title_id, user_index, xuid_count, xuids,
+                                      setting_count, setting_ids, unk_2,
+                                      buffer_size_ptr, buffer_ptr, overlapped);
 }
 DECLARE_XAM_EXPORT1(XamUserReadProfileSettingsEx, kUserProfiles, kImplemented);
 
-typedef struct {
-  xe::be<uint32_t> from;
-  xe::be<uint32_t> unk_04;
-  xe::be<uint32_t> unk_08;
-  xe::be<uint32_t> unk_0c;
-  xe::be<uint32_t> setting_id;
-  xe::be<uint32_t> unk_14;
-
-  // UserProfile::Setting::Type. Appears to be 8-in-32 field, and the upper 24
-  // are not always zeroed by the game.
-  uint8_t type;
-
-  xe::be<uint32_t> unk_1c;
-  // TODO(sabretooth): not sure if this is a union, but it seems likely.
-  // Haven't run into cases other than "binary data" yet.
-  union {
-    struct {
-      xe::be<uint32_t> length;
-      xe::be<uint32_t> ptr;
-    } binary;
-  };
-} X_USER_WRITE_PROFILE_SETTING;
-
 dword_result_t XamUserWriteProfileSettings_entry(
     dword_t title_id, dword_t user_index, dword_t setting_count,
-    pointer_t<X_USER_WRITE_PROFILE_SETTING> settings, dword_t overlapped_ptr) {
+    pointer_t<X_USER_PROFILE_SETTING> settings,
+    pointer_t<XAM_OVERLAPPED> overlapped) {
   if (!setting_count || !settings) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
   if (user_index) {
     // Only support user 0.
-    if (overlapped_ptr) {
-      kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
+    if (overlapped) {
+      kernel_state()->CompleteOverlappedImmediate(overlapped,
                                                   X_ERROR_NO_SUCH_USER);
       return X_ERROR_IO_PENDING;
     }
@@ -369,39 +339,39 @@ dword_result_t XamUserWriteProfileSettings_entry(
   const auto& user_profile = kernel_state()->user_profile();
 
   for (uint32_t n = 0; n < setting_count; ++n) {
-    const X_USER_WRITE_PROFILE_SETTING& settings_data = settings[n];
+    const X_USER_PROFILE_SETTING& setting = settings[n];
+
+    auto setting_type =
+        static_cast<UserProfile::Setting::Type>(setting.data.type);
+    if (setting_type == UserProfile::Setting::Type::UNSET) {
+      continue;
+    }
+
     XELOGD(
         "XamUserWriteProfileSettings: setting index [{}]:"
         " from={} setting_id={:08X} data.type={}",
-        n, (uint32_t)settings_data.from, (uint32_t)settings_data.setting_id,
-        settings_data.type);
+        n, (uint32_t)setting.from, (uint32_t)setting.setting_id,
+        setting.data.type);
 
-    xam::UserProfile::Setting::Type settingType =
-        static_cast<xam::UserProfile::Setting::Type>(settings_data.type);
-
-    switch (settingType) {
+    switch (setting_type) {
       case UserProfile::Setting::Type::CONTENT:
       case UserProfile::Setting::Type::BINARY: {
-        uint8_t* settings_data_ptr = kernel_state()->memory()->TranslateVirtual(
-            settings_data.binary.ptr);
-        size_t settings_data_len = settings_data.binary.length;
-        std::vector<uint8_t> data_vec;
-
-        if (settings_data.binary.ptr) {
+        uint8_t* binary_ptr =
+            kernel_state()->memory()->TranslateVirtual(setting.data.binary.ptr);
+        size_t binary_size = setting.data.binary.size;
+        std::vector<uint8_t> bytes;
+        if (setting.data.binary.ptr) {
           // Copy provided data
-          data_vec.resize(settings_data_len);
-          std::memcpy(data_vec.data(), settings_data_ptr, settings_data_len);
+          bytes.resize(binary_size);
+          std::memcpy(bytes.data(), binary_ptr, binary_size);
         } else {
           // Data pointer was NULL, so just fill with zeroes
-          data_vec.resize(settings_data_len, 0);
+          bytes.resize(binary_size, 0);
         }
-
         user_profile->AddSetting(
             std::make_unique<xam::UserProfile::BinarySetting>(
-                settings_data.setting_id, data_vec));
-
+                setting.setting_id, bytes));
       } break;
-
       case UserProfile::Setting::Type::WSTRING:
       case UserProfile::Setting::Type::DOUBLE:
       case UserProfile::Setting::Type::FLOAT:
@@ -410,14 +380,13 @@ dword_result_t XamUserWriteProfileSettings_entry(
       case UserProfile::Setting::Type::DATETIME:
       default: {
         XELOGE("XamUserWriteProfileSettings: Unimplemented data type {}",
-               settingType);
+               setting_type);
       } break;
     };
   }
 
-  if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
-                                                X_ERROR_SUCCESS);
+  if (overlapped) {
+    kernel_state()->CompleteOverlappedImmediate(overlapped, X_ERROR_SUCCESS);
     return X_ERROR_IO_PENDING;
   }
   return X_ERROR_SUCCESS;

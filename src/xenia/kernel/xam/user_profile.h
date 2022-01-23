@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -15,14 +15,69 @@
 #include <unordered_map>
 #include <vector>
 
+#include "xenia/base/byte_stream.h"
 #include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
 namespace xam {
 
+struct X_USER_PROFILE_SETTING_DATA {
+  // UserProfile::Setting::Type. Appears to be 8-in-32 field, and the upper 24
+  // are not always zeroed by the game.
+  uint8_t type;
+  uint8_t unk_1[3];
+  xe::be<uint32_t> unk_4;
+  // TODO(sabretooth): not sure if this is a union, but it seems likely.
+  // Haven't run into cases other than "binary data" yet.
+  union {
+    xe::be<int32_t> s32;
+    xe::be<int64_t> s64;
+    xe::be<uint32_t> u32;
+    xe::be<double> f64;
+    struct {
+      xe::be<uint32_t> size;
+      xe::be<uint32_t> ptr;
+    } unicode;
+    xe::be<float> f32;
+    struct {
+      xe::be<uint32_t> size;
+      xe::be<uint32_t> ptr;
+    } binary;
+    xe::be<uint64_t> filetime;
+  };
+};
+static_assert_size(X_USER_PROFILE_SETTING_DATA, 16);
+
+struct X_USER_PROFILE_SETTING {
+  xe::be<uint32_t> from;
+  xe::be<uint32_t> unk04;
+  union {
+    xe::be<uint32_t> user_index;
+    xe::be<uint64_t> xuid;
+  };
+  xe::be<uint32_t> setting_id;
+  xe::be<uint32_t> unk14;
+  union {
+    uint8_t data_bytes[sizeof(X_USER_PROFILE_SETTING_DATA)];
+    X_USER_PROFILE_SETTING_DATA data;
+  };
+};
+static_assert_size(X_USER_PROFILE_SETTING, 40);
+
 class UserProfile {
  public:
+  class SettingByteStream : public ByteStream {
+   public:
+    SettingByteStream(uint32_t ptr, uint8_t* data, size_t data_length,
+                      size_t offset = 0)
+        : ByteStream(data, data_length, offset), ptr_(ptr) {}
+
+    uint32_t ptr() const { return static_cast<uint32_t>(ptr_ + offset()); }
+
+   private:
+    uint32_t ptr_;
+  };
   struct Setting {
     enum class Type {
       CONTENT = 0,
@@ -33,7 +88,7 @@ class UserProfile {
       FLOAT = 5,
       BINARY = 6,
       DATETIME = 7,
-      INVALID = 0xFF,
+      UNSET = 0xFF,
     };
     union Key {
       uint32_t value;
@@ -55,97 +110,77 @@ class UserProfile {
           size(size),
           is_set(is_set),
           loaded_title_id(0) {}
-    virtual size_t extra_size() const { return 0; }
-    virtual size_t Append(uint8_t* user_data, uint8_t* buffer,
-                          uint32_t buffer_ptr, size_t buffer_offset) {
-      xe::store_and_swap<uint8_t>(user_data + kTypeOffset,
-                                  static_cast<uint8_t>(type));
-      return buffer_offset;
+    virtual void Append(X_USER_PROFILE_SETTING_DATA* data,
+                        SettingByteStream* stream) {
+      data->type = static_cast<uint8_t>(type);
     }
     virtual std::vector<uint8_t> Serialize() const {
       return std::vector<uint8_t>();
     }
     virtual void Deserialize(std::vector<uint8_t>) {}
     bool is_title_specific() const { return (setting_id & 0x3F00) == 0x3F00; }
-
-   protected:
-    const size_t kTypeOffset = 0;
-    const size_t kValueOffset = 8;
-    const size_t kPointerOffset = 12;
   };
   struct Int32Setting : public Setting {
     Int32Setting(uint32_t setting_id, int32_t value)
         : Setting(setting_id, Type::INT32, 4, true), value(value) {}
     int32_t value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer, uint32_t buffer_ptr,
-                  size_t buffer_offset) override {
-      buffer_offset =
-          Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
-      xe::store_and_swap<int32_t>(user_data + kValueOffset, value);
-      return buffer_offset;
+    void Append(X_USER_PROFILE_SETTING_DATA* data,
+                SettingByteStream* stream) override {
+      Setting::Append(data, stream);
+      data->s32 = value;
     }
   };
   struct Int64Setting : public Setting {
     Int64Setting(uint32_t setting_id, int64_t value)
         : Setting(setting_id, Type::INT64, 8, true), value(value) {}
     int64_t value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer, uint32_t buffer_ptr,
-                  size_t buffer_offset) override {
-      buffer_offset =
-          Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
-      xe::store_and_swap<int64_t>(user_data + kValueOffset, value);
-      return buffer_offset;
+    void Append(X_USER_PROFILE_SETTING_DATA* data,
+                SettingByteStream* stream) override {
+      Setting::Append(data, stream);
+      data->s64 = value;
     }
   };
   struct DoubleSetting : public Setting {
     DoubleSetting(uint32_t setting_id, double value)
         : Setting(setting_id, Type::DOUBLE, 8, true), value(value) {}
     double value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer, uint32_t buffer_ptr,
-                  size_t buffer_offset) override {
-      buffer_offset =
-          Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
-      xe::store_and_swap<double>(user_data + kValueOffset, value);
-      return buffer_offset;
+    void Append(X_USER_PROFILE_SETTING_DATA* data,
+                SettingByteStream* stream) override {
+      Setting::Append(data, stream);
+      data->f64 = value;
     }
   };
   struct UnicodeSetting : public Setting {
     UnicodeSetting(uint32_t setting_id, const std::u16string& value)
         : Setting(setting_id, Type::WSTRING, 8, true), value(value) {}
     std::u16string value;
-    size_t extra_size() const override {
-      return value.empty() ? 0 : 2 * (static_cast<int32_t>(value.size()) + 1);
-    }
-    size_t Append(uint8_t* user_data, uint8_t* buffer, uint32_t buffer_ptr,
-                  size_t buffer_offset) override {
-      buffer_offset =
-          Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
-      int32_t length;
+    void Append(X_USER_PROFILE_SETTING_DATA* data,
+                SettingByteStream* stream) override {
+      Setting::Append(data, stream);
       if (value.empty()) {
-        length = 0;
-        xe::store_and_swap<int32_t>(user_data + kValueOffset, 0);
-        xe::store_and_swap<uint32_t>(user_data + kPointerOffset, 0);
+        data->unicode.size = 0;
+        data->unicode.ptr = 0;
       } else {
-        length = 2 * (static_cast<int32_t>(value.size()) + 1);
-        xe::store_and_swap<int32_t>(user_data + kValueOffset, length);
-        xe::store_and_swap<uint32_t>(
-            user_data + kPointerOffset,
-            buffer_ptr + static_cast<uint32_t>(buffer_offset));
-        memcpy(buffer + buffer_offset, value.data(), length);
+        size_t count = value.size() + 1;
+        size_t size = 2 * count;
+        assert_true(size <= std::numeric_limits<uint32_t>::max());
+        data->unicode.size = static_cast<uint32_t>(size);
+        data->unicode.ptr = stream->ptr();
+        auto buffer =
+            reinterpret_cast<uint16_t*>(&stream->data()[stream->offset()]);
+        stream->Advance(size);
+        xe::copy_and_swap(buffer, (uint16_t*)value.data(), count);
       }
-      return buffer_offset + length;
     }
   };
   struct FloatSetting : public Setting {
     FloatSetting(uint32_t setting_id, float value)
         : Setting(setting_id, Type::FLOAT, 4, true), value(value) {}
     float value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer, uint32_t buffer_ptr,
-                  size_t buffer_offset) override {
-      buffer_offset =
-          Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
-      xe::store_and_swap<float>(user_data + kValueOffset, value);
-      return buffer_offset;
+    void Append(X_USER_PROFILE_SETTING_DATA* data,
+                SettingByteStream* stream) override {
+      Setting::Append(data, stream);
+      data->f32 = value;
     }
   };
   struct BinarySetting : public Setting {
@@ -154,27 +189,19 @@ class UserProfile {
     BinarySetting(uint32_t setting_id, const std::vector<uint8_t>& value)
         : Setting(setting_id, Type::BINARY, 8, true), value(value) {}
     std::vector<uint8_t> value;
-    size_t extra_size() const override {
-      return static_cast<int32_t>(value.size());
-    }
-    size_t Append(uint8_t* user_data, uint8_t* buffer, uint32_t buffer_ptr,
-                  size_t buffer_offset) override {
-      buffer_offset =
-          Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
-      int32_t length;
+    void Append(X_USER_PROFILE_SETTING_DATA* data,
+                SettingByteStream* stream) override {
+      Setting::Append(data, stream);
       if (value.empty()) {
-        length = 0;
-        xe::store_and_swap<int32_t>(user_data + kValueOffset, 0);
-        xe::store_and_swap<int32_t>(user_data + kPointerOffset, 0);
+        data->binary.size = 0;
+        data->binary.ptr = 0;
       } else {
-        length = static_cast<int32_t>(value.size());
-        xe::store_and_swap<int32_t>(user_data + kValueOffset, length);
-        xe::store_and_swap<uint32_t>(
-            user_data + kPointerOffset,
-            buffer_ptr + static_cast<uint32_t>(buffer_offset));
-        memcpy(buffer + buffer_offset, value.data(), length);
+        size_t size = value.size();
+        assert_true(size <= std::numeric_limits<uint32_t>::max());
+        data->binary.size = static_cast<uint32_t>(size);
+        data->binary.ptr = stream->ptr();
+        stream->Write(value.data(), size);
       }
-      return buffer_offset + length;
     }
     std::vector<uint8_t> Serialize() const override {
       return std::vector<uint8_t>(value.data(), value.data() + value.size());
@@ -188,12 +215,10 @@ class UserProfile {
     DateTimeSetting(uint32_t setting_id, int64_t value)
         : Setting(setting_id, Type::DATETIME, 8, true), value(value) {}
     int64_t value;
-    size_t Append(uint8_t* user_data, uint8_t* buffer, uint32_t buffer_ptr,
-                  size_t buffer_offset) override {
-      buffer_offset =
-          Setting::Append(user_data, buffer, buffer_ptr, buffer_offset);
-      xe::store_and_swap<int64_t>(user_data + kValueOffset, value);
-      return buffer_offset;
+    void Append(X_USER_PROFILE_SETTING_DATA* data,
+                SettingByteStream* stream) override {
+      Setting::Append(data, stream);
+      data->filetime = value;
     }
   };
 
