@@ -26,6 +26,9 @@ DECLARE_bool(disable_global_lock);
 
 DECLARE_bool(validate_hir);
 
+DECLARE_uint64(pvr);
+
+// Breakpoints:
 DECLARE_uint64(break_on_instruction);
 DECLARE_int32(break_condition_gpr);
 DECLARE_uint64(break_condition_value);
