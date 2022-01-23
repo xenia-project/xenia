@@ -58,6 +58,28 @@ TEST_CASE("VECTOR_SHR_I8_CONSTANT", "[instr]") {
       });
 }
 
+// This targets the "all_same" optimization of the Int8 specialization of
+// VECTOR_SHR_V128
+TEST_CASE("VECTOR_SHR_I8_SAME_CONSTANT", "[instr]") {
+  TestFunction test([](HIRBuilder& b) {
+    StoreVR(
+        b, 3,
+        b.VectorShr(LoadVR(b, 4), b.LoadConstantVec128(vec128b(3)), INT8_TYPE));
+    b.Return();
+  });
+  test.Run(
+      [](PPCContext* ctx) {
+        ctx->v[4] = vec128b(0x7E, 0x7E, 0x7E, 0x7F, 0x80, 0xFF, 0x01, 0x12,
+                            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
+      },
+      [](PPCContext* ctx) {
+        auto result = ctx->v[3];
+        REQUIRE(result == vec128b(0x0F, 0x0F, 0x0F, 0x0F, 0x10, 0x1F, 0x00,
+                                  0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                  0x00, 0x00));
+      });
+}
+
 TEST_CASE("VECTOR_SHR_I16", "[instr]") {
   TestFunction test([](HIRBuilder& b) {
     StoreVR(b, 3, b.VectorShr(LoadVR(b, 4), LoadVR(b, 5), INT16_TYPE));
