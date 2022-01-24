@@ -30,11 +30,8 @@ init:
       If (-Not $env:APPVEYOR_PULL_REQUEST_NUMBER) {
         $env:is_not_pr = "true"
       }
-      If (-Not $env:APPVEYOR_REPO_COMMIT_MESSAGE) {
-        $env:APPVEYOR_REPO_COMMIT_MESSAGE = ""
-      }
       If (-Not $env:APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED) {
-        $env:APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED = ""
+        $env:APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED = " "
       }
 
 install:
@@ -91,6 +88,7 @@ deploy:
       Windows release build for https://github.com/xenia-project/xenia/commit/$(APPVEYOR_REPO_COMMIT).
       
       $(APPVEYOR_REPO_COMMIT_MESSAGE)
+      
       $(APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED)
     draft: false
     prerelease: false
