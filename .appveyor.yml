@@ -25,6 +25,12 @@ pull_requests:
 
 os: Visual Studio 2019
 
+init:
+  - ps: |
+      If (-Not $env:APPVEYOR_PULL_REQUEST_NUMBER) {
+        $env:is_not_pr = "true"
+      }
+
 install:
   - |
     vcpkg integrate remove
@@ -55,12 +61,6 @@ test_script:
 artifacts:
   - path: '*.zip'
   - path: xenia-cpu-ppc-test.log
-
-before_deploy:
-  - ps: |
-      If (-Not $env:APPVEYOR_PULL_REQUEST_NUMBER) {
-        $env:is_not_pr = "true"
-      }
 
 deploy:
   - provider: Environment
