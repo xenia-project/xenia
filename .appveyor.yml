@@ -58,7 +58,6 @@ artifacts:
 
 deploy:
   - provider: Environment
-    name: xenia-master
     release: xenia-$(appveyor_repo_branch)-v$(appveyor_build_version)
     artifact: '*.zip'
     draft: false
@@ -67,4 +66,18 @@ deploy:
       branch: master
       configuration: release
       appveyor_repo_tag: true
+      is_not_pr: true
+  - provider: GitHub
+    name: xenia-master
+    repository: xenia-project/release-builds-windows
+    auth_token:
+      secure: /8he47z1WnPN7LcCTe5T5KMxxX0SmqFj9QMpeWEa3aZ64kMsfupOT/jKakqTM8af
+    release: xenia-$(appveyor_repo_branch)-v$(appveyor_build_version)
+    description: 'Release build for xenia/$(APPVEYOR_REPO_COMMIT)'
+    artifact: '*.zip'
+    draft: false
+    prerelease: false
+    on:
+      branch: master
+      configuration: release
       is_not_pr: true
