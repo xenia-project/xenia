@@ -79,8 +79,13 @@ deploy:
     repository: xenia-project/release-builds-windows
     auth_token:
       secure: /8he47z1WnPN7LcCTe5T5KMxxX0SmqFj9QMpeWEa3aZ64kMsfupOT/jKakqTM8af
+    tag: xenia-$(appveyor_repo_branch)-v$(appveyor_build_version)
     release: xenia-$(appveyor_repo_branch)-v$(appveyor_build_version)
-    description: 'Release build for xenia/$(APPVEYOR_REPO_COMMIT)'
+    description: |
+      Windows release build for https://github.com/xenia-project/xenia/commit/$(APPVEYOR_REPO_COMMIT)
+      
+      $(APPVEYOR_REPO_COMMIT_MESSAGE)
+      $(APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED)
     draft: false
     prerelease: false
     on:
