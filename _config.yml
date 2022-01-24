@@ -82,4 +82,4 @@ artifacts:
     branches:
     - name: master
       title: master
-      download_url: "https://ci.appveyor.com/api/projects/benvanik/xenia/artifacts/xenia_master.zip?branch=master&job=Configuration%3A%20Release&pr=false"
+      download_url: "https://github.com/xenia-project/release-builds-windows/releases/latest/download/xenia_master.zip"
