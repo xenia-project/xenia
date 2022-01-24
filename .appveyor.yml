@@ -56,8 +56,15 @@ artifacts:
   - path: '*.zip'
   - path: xenia-cpu-ppc-test.log
 
+before_deploy:
+  - ps: |
+      If (-Not $env:APPVEYOR_PULL_REQUEST_NUMBER) {
+        $env:IS_NOT_PR = "true"
+      }
+
 deploy:
   - provider: Environment
+    name: xenia-master
     release: xenia-$(appveyor_repo_branch)-v$(appveyor_build_version)
     artifact: '*.zip'
     draft: false
@@ -74,7 +81,6 @@ deploy:
       secure: /8he47z1WnPN7LcCTe5T5KMxxX0SmqFj9QMpeWEa3aZ64kMsfupOT/jKakqTM8af
     release: xenia-$(appveyor_repo_branch)-v$(appveyor_build_version)
     description: 'Release build for xenia/$(APPVEYOR_REPO_COMMIT)'
-    artifact: '*.zip'
     draft: false
     prerelease: false
     on:
