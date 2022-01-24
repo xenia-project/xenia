@@ -59,7 +59,7 @@ artifacts:
 before_deploy:
   - ps: |
       If (-Not $env:APPVEYOR_PULL_REQUEST_NUMBER) {
-        $env:IS_NOT_PR = "true"
+        $env:is_not_pr = "true"
       }
 
 deploy:
