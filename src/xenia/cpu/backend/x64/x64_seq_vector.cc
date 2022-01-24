@@ -742,9 +742,9 @@ struct VECTOR_SHL_V128
         }
         if (all_same) {
           // Every count is the same, so we can use gf2p8affineqb.
-          const uint8_t shift_amount = shamt.u8[0];
+          const uint8_t shift_amount = shamt.u8[0] & 0b111;
           const uint64_t shift_matrix =
-              0x0102040810204080 >> (shift_amount * 8);
+              UINT64_C(0x0102040810204080) >> (shift_amount * 8);
           e.vgf2p8affineqb(i.dest, i.src1,
                            e.StashConstantXmm(0, vec128q(shift_matrix)), 0);
           return;
@@ -950,8 +950,8 @@ struct VECTOR_SHR_V128
         }
         if (all_same) {
           // Every count is the same, so we can use gf2p8affineqb.
-          const uint8_t shift_amount = shamt.u8[0];
-          const uint64_t shift_matrix = 0x0102040810204080
+          const uint8_t shift_amount = shamt.u8[0] & 0b111;
+          const uint64_t shift_matrix = UINT64_C(0x0102040810204080)
                                         << (shift_amount * 8);
           e.vgf2p8affineqb(i.dest, i.src1,
                            e.StashConstantXmm(0, vec128q(shift_matrix)), 0);
@@ -1133,12 +1133,11 @@ struct VECTOR_SHA_V128
         }
         if (all_same) {
           // Every count is the same, so we can use gf2p8affineqb.
-          const uint8_t shift_amount = shamt.u8[0];
+          const uint8_t shift_amount = shamt.u8[0] & 0b111;
           const uint64_t shift_matrix =
-              shift_amount < 8
-                  ? (0x0102040810204080ULL << (shift_amount * 8)) |
-                        (0x8080808080808080ULL >> (64 - shift_amount * 8))
-                  : 0x8080808080808080ULL;
+              (UINT64_C(0x0102040810204080) << (shift_amount * 8)) |
+              (UINT64_C(0x8080808080808080) >> (64 - shift_amount * 8));
+          ;
           e.vgf2p8affineqb(i.dest, i.src1,
                            e.StashConstantXmm(0, vec128q(shift_matrix)), 0);
           return;
