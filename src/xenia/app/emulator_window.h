@@ -139,7 +139,7 @@ class EmulatorWindow {
   void GpuTraceFrame();
   void GpuClearCaches();
   void ToggleDisplayConfigDialog();
-  void ShowHelpWebsite();
+  void ShowFAQ();
   void ShowBuildCommit();
 
   Emulator* emulator_;
