@@ -124,7 +124,7 @@ void HandleCppException(pointer_t<X_EXCEPTION_RECORD> record) {
 }
 
 void RtlRaiseException_entry(pointer_t<X_EXCEPTION_RECORD> record) {
-  switch (record->exception_code) {
+  switch (record->code) {
     case 0x406D1388: {
       HandleSetThreadName(record);
       return;

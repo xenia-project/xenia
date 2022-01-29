@@ -312,7 +312,8 @@ struct X_OBJECT_ATTRIBUTES {
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/aa363082.aspx
 typedef struct {
-  xe::be<uint32_t> exception_code;
+  // Renamed due to a collision with exception_code from Windows excpt.h.
+  xe::be<uint32_t> code;
   xe::be<uint32_t> exception_flags;
   xe::be<uint32_t> exception_record;
   xe::be<uint32_t> exception_address;

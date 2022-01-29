@@ -16,6 +16,8 @@
 #include <utility>
 #include <vector>
 
+#include "xenia/ui/window.h"
+
 namespace xe {
 namespace ui {
 
@@ -68,7 +70,7 @@ class FilePicker {
     selected_files_ = std::move(selected_files);
   }
 
-  virtual bool Show(void* parent_window_handle = nullptr) = 0;
+  virtual bool Show(Window* parent_window = nullptr) = 0;
 
  private:
   Mode mode_;

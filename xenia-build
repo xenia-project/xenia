@@ -902,7 +902,8 @@ class BuildShadersCommand(Command):
             if sys.platform == 'win32':
                 print('Building Direct3D 12 Shader Model 5.1 DXBC shaders...')
                 windows_sdk_bin_path = os.path.join(
-                    os.environ['ProgramFiles(x86)'], 'Windows Kits/10/bin/x64')
+                    os.environ['ProgramFiles(x86)'],
+                    'Windows Kits/10/bin/10.0.19041.0/x64')
                 fxc = os.path.join(windows_sdk_bin_path, 'fxc')
                 # Ensure we have the tools.
                 if not os.path.exists(windows_sdk_bin_path):
@@ -921,12 +922,16 @@ class BuildShadersCommand(Command):
                     os.makedirs(dxbc_dir_path, exist_ok=True)
                     dxbc_file_path_base = os.path.join(dxbc_dir_path,
                                                        dxbc_identifier)
+                    # Not enabling treating warnings as errors (/WX) because it
+                    # overrides #pragma warning, and the FXAA shader triggers a
+                    # bug in FXC causing an uninitialized variable warning if
+                    # early exit from a function is done.
                     if subprocess.call([
                            fxc,
+                           '/D', 'XESL_LANGUAGE_HLSL=1',
                            '/Fh', dxbc_file_path_base + '.h',
                            '/T', dxbc_identifier[-2:] + '_5_1',
                            '/Vn', dxbc_identifier,
-                           '/WX',
                            '/nologo',
                            src_path
                            ], stdout=subprocess.DEVNULL):
@@ -966,7 +971,6 @@ class GenSpirvCommand(Command):
         vulkan_bin_path = os.path.join(vulkan_sdk_path, 'bin')
         glslang = os.path.join(vulkan_bin_path, 'glslangValidator')
         spirv_dis = os.path.join(vulkan_bin_path, 'spirv-dis')
-        spirv_remap = os.path.join(vulkan_bin_path, 'spirv-remap')
 
         # Ensure we have the tools.
         if not os.path.exists(vulkan_sdk_path):
@@ -977,9 +981,6 @@ class GenSpirvCommand(Command):
             return 1
         elif not has_bin(spirv_dis):
             print('ERROR: could not find spirv-dis')
-            return 1
-        elif not has_bin(spirv_remap):
-            print('ERROR: could not find spirv-remap')
             return 1
 
         src_files = [os.path.join(root, name)
@@ -994,7 +995,8 @@ class GenSpirvCommand(Command):
             src_name = os.path.splitext(os.path.basename(src_file))[0]
             identifier = os.path.basename(src_file).replace('.', '_')
 
-            bin_path = os.path.join(os.path.dirname(src_file), 'bin')
+            bin_path = os.path.join(os.path.dirname(src_file),
+                                    'bytecode/vulkan_spirv')
             spv_file = os.path.join(bin_path, identifier) + '.spv'
             txt_file = os.path.join(bin_path, identifier) + '.txt'
             h_file = os.path.join(bin_path, identifier) + '.h'
@@ -1002,6 +1004,7 @@ class GenSpirvCommand(Command):
             # GLSL source -> .spv binary
             shell_call([
                 glslang,
+                '-DXESL_LANGUAGE_GLSL=1',
                 '-Os',
                 '-V', src_file,
                 '-o', spv_file,

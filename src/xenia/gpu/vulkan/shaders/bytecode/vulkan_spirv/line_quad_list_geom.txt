@@ -1,0 +1,132 @@
+; SPIR-V
+; Version: 1.0
+; Generator: Khronos Glslang Reference Front End; 10
+; Bound: 83
+; Schema: 0
+               OpCapability Geometry
+               OpCapability GeometryPointSize
+          %1 = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint Geometry %main "main" %_ %gl_in %out_interpolators %in_interpolators %_in_point_coord_unused %_in_point_size_unused %_out_point_coord_unused
+               OpExecutionMode %main InputLinesAdjacency
+               OpExecutionMode %main Invocations 1
+               OpExecutionMode %main OutputLineStrip
+               OpExecutionMode %main OutputVertices 5
+               OpSource GLSL 450
+               OpSourceExtension "GL_ARB_explicit_attrib_location"
+               OpSourceExtension "GL_ARB_separate_shader_objects"
+               OpName %main "main"
+               OpName %gl_PerVertex "gl_PerVertex"
+               OpMemberName %gl_PerVertex 0 "gl_Position"
+               OpMemberName %gl_PerVertex 1 "gl_PointSize"
+               OpName %_ ""
+               OpName %gl_PerVertex_0 "gl_PerVertex"
+               OpMemberName %gl_PerVertex_0 0 "gl_Position"
+               OpMemberName %gl_PerVertex_0 1 "gl_PointSize"
+               OpName %gl_in "gl_in"
+               OpName %out_interpolators "out_interpolators"
+               OpName %in_interpolators "in_interpolators"
+               OpName %_in_point_coord_unused "_in_point_coord_unused"
+               OpName %_in_point_size_unused "_in_point_size_unused"
+               OpName %_out_point_coord_unused "_out_point_coord_unused"
+               OpMemberDecorate %gl_PerVertex 0 BuiltIn Position
+               OpMemberDecorate %gl_PerVertex 1 BuiltIn PointSize
+               OpDecorate %gl_PerVertex Block
+               OpMemberDecorate %gl_PerVertex_0 0 BuiltIn Position
+               OpMemberDecorate %gl_PerVertex_0 1 BuiltIn PointSize
+               OpDecorate %gl_PerVertex_0 Block
+               OpDecorate %out_interpolators Location 0
+               OpDecorate %in_interpolators Location 0
+               OpDecorate %_in_point_coord_unused Location 16
+               OpDecorate %_in_point_size_unused Location 17
+               OpDecorate %_out_point_coord_unused Location 16
+       %void = OpTypeVoid
+          %3 = OpTypeFunction %void
+      %float = OpTypeFloat 32
+    %v4float = OpTypeVector %float 4
+%gl_PerVertex = OpTypeStruct %v4float %float
+%_ptr_Output_gl_PerVertex = OpTypePointer Output %gl_PerVertex
+          %_ = OpVariable %_ptr_Output_gl_PerVertex Output
+        %int = OpTypeInt 32 1
+      %int_0 = OpConstant %int 0
+%gl_PerVertex_0 = OpTypeStruct %v4float %float
+       %uint = OpTypeInt 32 0
+     %uint_4 = OpConstant %uint 4
+%_arr_gl_PerVertex_0_uint_4 = OpTypeArray %gl_PerVertex_0 %uint_4
+%_ptr_Input__arr_gl_PerVertex_0_uint_4 = OpTypePointer Input %_arr_gl_PerVertex_0_uint_4
+      %gl_in = OpVariable %_ptr_Input__arr_gl_PerVertex_0_uint_4 Input
+%_ptr_Input_v4float = OpTypePointer Input %v4float
+%_ptr_Output_v4float = OpTypePointer Output %v4float
+      %int_1 = OpConstant %int 1
+%_ptr_Input_float = OpTypePointer Input %float
+%_ptr_Output_float = OpTypePointer Output %float
+    %uint_16 = OpConstant %uint 16
+%_arr_v4float_uint_16 = OpTypeArray %v4float %uint_16
+%_ptr_Output__arr_v4float_uint_16 = OpTypePointer Output %_arr_v4float_uint_16
+%out_interpolators = OpVariable %_ptr_Output__arr_v4float_uint_16 Output
+%_arr__arr_v4float_uint_16_uint_4 = OpTypeArray %_arr_v4float_uint_16 %uint_4
+%_ptr_Input__arr__arr_v4float_uint_16_uint_4 = OpTypePointer Input %_arr__arr_v4float_uint_16_uint_4
+%in_interpolators = OpVariable %_ptr_Input__arr__arr_v4float_uint_16_uint_4 Input
+%_ptr_Input__arr_v4float_uint_16 = OpTypePointer Input %_arr_v4float_uint_16
+      %int_2 = OpConstant %int 2
+      %int_3 = OpConstant %int 3
+    %v2float = OpTypeVector %float 2
+%_arr_v2float_uint_4 = OpTypeArray %v2float %uint_4
+%_ptr_Input__arr_v2float_uint_4 = OpTypePointer Input %_arr_v2float_uint_4
+%_in_point_coord_unused = OpVariable %_ptr_Input__arr_v2float_uint_4 Input
+%_arr_float_uint_4 = OpTypeArray %float %uint_4
+%_ptr_Input__arr_float_uint_4 = OpTypePointer Input %_arr_float_uint_4
+%_in_point_size_unused = OpVariable %_ptr_Input__arr_float_uint_4 Input
+%_ptr_Output_v2float = OpTypePointer Output %v2float
+%_out_point_coord_unused = OpVariable %_ptr_Output_v2float Output
+       %main = OpFunction %void None %3
+          %5 = OpLabel
+         %20 = OpAccessChain %_ptr_Input_v4float %gl_in %int_0 %int_0
+         %21 = OpLoad %v4float %20
+         %23 = OpAccessChain %_ptr_Output_v4float %_ %int_0
+               OpStore %23 %21
+         %26 = OpAccessChain %_ptr_Input_float %gl_in %int_0 %int_1
+         %27 = OpLoad %float %26
+         %29 = OpAccessChain %_ptr_Output_float %_ %int_1
+               OpStore %29 %27
+         %38 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_0
+         %39 = OpLoad %_arr_v4float_uint_16 %38
+               OpStore %out_interpolators %39
+               OpEmitVertex
+         %40 = OpAccessChain %_ptr_Input_v4float %gl_in %int_1 %int_0
+         %41 = OpLoad %v4float %40
+               OpStore %23 %41
+         %43 = OpAccessChain %_ptr_Input_float %gl_in %int_1 %int_1
+         %44 = OpLoad %float %43
+               OpStore %29 %44
+         %46 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_1
+         %47 = OpLoad %_arr_v4float_uint_16 %46
+               OpStore %out_interpolators %47
+               OpEmitVertex
+         %49 = OpAccessChain %_ptr_Input_v4float %gl_in %int_2 %int_0
+         %50 = OpLoad %v4float %49
+               OpStore %23 %50
+         %52 = OpAccessChain %_ptr_Input_float %gl_in %int_2 %int_1
+         %53 = OpLoad %float %52
+               OpStore %29 %53
+         %55 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_2
+         %56 = OpLoad %_arr_v4float_uint_16 %55
+               OpStore %out_interpolators %56
+               OpEmitVertex
+         %58 = OpAccessChain %_ptr_Input_v4float %gl_in %int_3 %int_0
+         %59 = OpLoad %v4float %58
+               OpStore %23 %59
+         %61 = OpAccessChain %_ptr_Input_float %gl_in %int_3 %int_1
+         %62 = OpLoad %float %61
+               OpStore %29 %62
+         %64 = OpAccessChain %_ptr_Input__arr_v4float_uint_16 %in_interpolators %int_3
+         %65 = OpLoad %_arr_v4float_uint_16 %64
+               OpStore %out_interpolators %65
+               OpEmitVertex
+               OpStore %23 %21
+               OpStore %29 %27
+               OpStore %out_interpolators %39
+               OpEmitVertex
+               OpEndPrimitive
+               OpReturn
+               OpFunctionEnd

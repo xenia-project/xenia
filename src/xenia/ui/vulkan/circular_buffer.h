@@ -12,8 +12,7 @@
 
 #include <queue>
 
-#include "xenia/ui/vulkan/vulkan.h"
-#include "xenia/ui/vulkan/vulkan_device.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 
 namespace xe {
 namespace ui {
@@ -27,7 +26,7 @@ namespace vulkan {
 // ends of the buffer), where trailing older allocations are freed after use.
 class CircularBuffer {
  public:
-  CircularBuffer(VulkanDevice* device, VkBufferUsageFlags usage,
+  CircularBuffer(const VulkanProvider& provider, VkBufferUsageFlags usage,
                  VkDeviceSize capacity, VkDeviceSize alignment = 256);
   ~CircularBuffer();
 
@@ -76,7 +75,7 @@ class CircularBuffer {
   VkDeviceSize write_head_ = 0;
   VkDeviceSize read_head_ = 0;
 
-  VulkanDevice* device_;
+  const VulkanProvider& provider_;
   bool owns_gpu_memory_ = false;
   VkBuffer gpu_buffer_ = nullptr;
   VkDeviceMemory gpu_memory_ = nullptr;

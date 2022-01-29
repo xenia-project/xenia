@@ -18,3 +18,8 @@ project("xenia-ui")
   filter("platforms:Android-*")
     -- Exports JNI functions.
     wholelib("On")
+
+  filter("platforms:Windows")
+    links({
+      "DXGI",
+    })

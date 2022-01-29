@@ -76,3 +76,9 @@
 [submodule "third_party/premake-androidndk"]
 	path = third_party/premake-androidndk
 	url = https://github.com/Triang3l/premake-androidndk.git
+[submodule "third_party/FidelityFX-CAS"]
+	path = third_party/FidelityFX-CAS
+	url = https://github.com/GPUOpen-Effects/FidelityFX-CAS.git
+[submodule "third_party/FidelityFX-FSR"]
+	path = third_party/FidelityFX-FSR
+	url = https://github.com/GPUOpen-Effects/FidelityFX-FSR.git

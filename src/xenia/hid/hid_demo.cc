@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -24,10 +24,14 @@
 #include "xenia/base/threading.h"
 #include "xenia/hid/hid_flags.h"
 #include "xenia/hid/input_system.h"
+#include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/immediate_drawer.h"
+#include "xenia/ui/presenter.h"
 #include "xenia/ui/virtual_key.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/window.h"
+#include "xenia/ui/window_listener.h"
 #include "xenia/ui/windowed_app.h"
 
 // Available input drivers:
@@ -59,12 +63,41 @@ class HidDemoApp final : public ui::WindowedApp {
   bool OnInitialize() override;
 
  private:
+  enum : size_t {
+    kZOrderHidInput,
+    kZOrderImGui,
+  };
+
+  class HidDemoWindowListener final : public ui::WindowListener {
+   public:
+    explicit HidDemoWindowListener(ui::WindowedAppContext& app_context)
+        : app_context_(app_context) {}
+    void OnClosing(ui::UIEvent& e) override { app_context_.QuitFromUIThread(); }
+
+   private:
+    ui::WindowedAppContext& app_context_;
+  };
+
+  class HidDemoDialog final : public ui::ImGuiDialog {
+   public:
+    explicit HidDemoDialog(ui::ImGuiDrawer* imgui_drawer, HidDemoApp& app)
+        : ui::ImGuiDialog(imgui_drawer), app_(app) {}
+
+   protected:
+    void OnDraw(ImGuiIO& io) override;
+
+   private:
+    HidDemoApp& app_;
+  };
+
   explicit HidDemoApp(ui::WindowedAppContext& app_context)
-      : ui::WindowedApp(app_context, "xenia-hid-demo") {}
+      : ui::WindowedApp(app_context, "xenia-hid-demo"),
+        window_listener_(app_context) {}
 
   static std::vector<std::unique_ptr<hid::InputDriver>> CreateInputDrivers(
       ui::Window* window);
 
+  void Draw(ImGuiIO& io);
   void DrawUserInputGetState(uint32_t user_index) const;
   void DrawInputGetState() const;
   void DrawUserInputGetKeystroke(uint32_t user_index, bool poll,
@@ -72,9 +105,15 @@ class HidDemoApp final : public ui::WindowedApp {
   void DrawInputGetKeystroke(bool poll, bool hide_repeats,
                              bool clear_log) const;
 
+  HidDemoWindowListener window_listener_;
   std::unique_ptr<ui::GraphicsProvider> graphics_provider_;
   std::unique_ptr<ui::Window> window_;
   std::unique_ptr<InputSystem> input_system_;
+  std::unique_ptr<ui::Presenter> presenter_;
+  std::unique_ptr<ui::ImmediateDrawer> immediate_drawer_;
+  std::unique_ptr<ui::ImGuiDrawer> imgui_drawer_;
+  std::unique_ptr<HidDemoDialog> demo_dialog_;
+
   bool is_active_ = true;
 };
 
@@ -82,71 +121,64 @@ std::vector<std::unique_ptr<hid::InputDriver>> HidDemoApp::CreateInputDrivers(
     ui::Window* window) {
   std::vector<std::unique_ptr<hid::InputDriver>> drivers;
   if (cvars::hid.compare("nop") == 0) {
-    drivers.emplace_back(xe::hid::nop::Create(window));
+    drivers.emplace_back(xe::hid::nop::Create(window, kZOrderHidInput));
   } else if (cvars::hid.compare("sdl") == 0) {
-    auto driver = xe::hid::sdl::Create(window);
+    auto driver = xe::hid::sdl::Create(window, kZOrderHidInput);
     if (XSUCCEEDED(driver->Setup())) {
       drivers.emplace_back(std::move(driver));
     }
 #if XE_PLATFORM_WIN32
   } else if (cvars::hid.compare("winkey") == 0) {
-    auto driver = xe::hid::winkey::Create(window);
+    auto driver = xe::hid::winkey::Create(window, kZOrderHidInput);
     if (XSUCCEEDED(driver->Setup())) {
       drivers.emplace_back(std::move(driver));
     }
   } else if (cvars::hid.compare("xinput") == 0) {
-    auto driver = xe::hid::xinput::Create(window);
+    auto driver = xe::hid::xinput::Create(window, kZOrderHidInput);
     if (XSUCCEEDED(driver->Setup())) {
       drivers.emplace_back(std::move(driver));
     }
 #endif  // XE_PLATFORM_WIN32
   } else {
-    auto sdl_driver = xe::hid::sdl::Create(window);
+    auto sdl_driver = xe::hid::sdl::Create(window, kZOrderHidInput);
     if (sdl_driver && XSUCCEEDED(sdl_driver->Setup())) {
       drivers.emplace_back(std::move(sdl_driver));
     }
 #if XE_PLATFORM_WIN32
-    auto xinput_driver = xe::hid::xinput::Create(window);
+    auto xinput_driver = xe::hid::xinput::Create(window, kZOrderHidInput);
     if (xinput_driver && XSUCCEEDED(xinput_driver->Setup())) {
       drivers.emplace_back(std::move(xinput_driver));
     }
-    auto winkey_driver = xe::hid::winkey::Create(window);
+    auto winkey_driver = xe::hid::winkey::Create(window, kZOrderHidInput);
     if (winkey_driver && XSUCCEEDED(winkey_driver->Setup())) {
       drivers.emplace_back(std::move(winkey_driver));
     }
 #endif  // XE_PLATFORM_WIN32
     if (drivers.empty()) {
       // Fallback to nop if none created.
-      drivers.emplace_back(xe::hid::nop::Create(window));
+      drivers.emplace_back(xe::hid::nop::Create(window, kZOrderHidInput));
     }
   }
   return drivers;
 }
 
 bool HidDemoApp::OnInitialize() {
-  // Create graphics provider that provides the context for the window.
-  graphics_provider_ = xe::ui::vulkan::VulkanProvider::Create();
+  // Create the graphics provider that provides the presenter for the window.
+  graphics_provider_ = xe::ui::vulkan::VulkanProvider::Create(true);
   if (!graphics_provider_) {
+    XELOGE("Failed to initialize the graphics provider");
     return false;
   }
 
-  // Create the window.
-  window_ = xe::ui::Window::Create(app_context(), GetName());
-  if (!window_->Initialize()) {
-    XELOGE("Failed to initialize main window");
+  // Create and configure the window.
+  window_ = xe::ui::Window::Create(app_context(), GetName(),
+                                   COL_WIDTH_STATE + COL_WIDTH_STROKE,
+                                   ROW_HEIGHT_GENERAL + 500);
+  window_->AddListener(&window_listener_);
+  if (!window_->Open()) {
+    XELOGE("Failed to open the main window");
     return false;
   }
-  window_->on_closed.AddListener([this](xe::ui::UIEvent* e) {
-    XELOGI("User-initiated death!");
-    app_context().QuitFromUIThread();
-  });
-
-  // Initial size setting, done here so that it knows the menu exists.
-  window_->Resize(COL_WIDTH_STATE + COL_WIDTH_STROKE, ROW_HEIGHT_GENERAL + 500);
-
-  // Create the graphics context for the window. The window will finish
-  // initialization with the context (loading resources, etc).
-  window_->set_context(graphics_provider_->CreateContext(window_.get()));
 
   // Initialize input system and all drivers.
   input_system_ = std::make_unique<xe::hid::InputSystem>(window_.get());
@@ -157,69 +189,81 @@ bool HidDemoApp::OnInitialize() {
     input_system_->AddDriver(std::move(driver));
   }
 
-  window_->Invalidate();
-
-  window_->set_imgui_input_enabled(true);
-
-  window_->on_painting.AddListener([this](xe::ui::UIEvent* e) {
-    auto& io = window_->imgui_drawer()->GetIO();
-
-    const ImGuiWindowFlags wflags =
-        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoScrollbar;
-
-    ImGui::Begin("General", nullptr, wflags);
-    {
-      ImGui::SetWindowPos(ImVec2(0, 0));
-      ImGui::SetWindowSize(
-          ImVec2(COL_WIDTH_STATE + COL_WIDTH_STROKE, ROW_HEIGHT_GENERAL));
-
-      ImGui::Text("Input System (hid) = \"%s\"", cvars::hid.c_str());
-      ImGui::Checkbox("is_active", &is_active_);
-    }
-    ImGui::End();
-
-    ImGui::Begin("GetState()", nullptr, wflags);
-    {
-      ImGui::SetWindowPos(ImVec2(0, ROW_HEIGHT_GENERAL));
-      ImGui::SetWindowSize(
-          ImVec2(COL_WIDTH_STATE, io.DisplaySize.y - ROW_HEIGHT_GENERAL));
-
-      static bool enable_GetState = false;
-      ImGui::Checkbox("Active", &enable_GetState);
-      ImGui::SameLine();
-      ImGui::Checkbox("Guide Button", &cvars::guide_button);
-      if (enable_GetState) {
-        ImGui::Spacing();
-        DrawInputGetState();
-      }
-    }
-    ImGui::End();
-
-    ImGui::Begin("GetKeystroke()", nullptr, wflags);
-    {
-      ImGui::SetWindowPos(ImVec2(COL_WIDTH_STATE, ROW_HEIGHT_GENERAL));
-      ImGui::SetWindowSize(
-          ImVec2(COL_WIDTH_STROKE, io.DisplaySize.y - ROW_HEIGHT_GENERAL));
-
-      static bool enable_GetKeystroke = false;
-      static bool hide_repeats = false;
-      ImGui::Checkbox("Active", &enable_GetKeystroke);
-      ImGui::SameLine();
-      ImGui::Checkbox("Hide repeats", &hide_repeats);
-      ImGui::SameLine();
-      const bool clear_log = ImGui::Button("Clear");
-      ImGui::Spacing();
-      DrawInputGetKeystroke(enable_GetKeystroke, hide_repeats, clear_log);
-    }
-    ImGui::End();
-
-    // Continuous paint.
-    window_->Invalidate();
-  });
+  // Setup drawing to the window.
+  presenter_ = graphics_provider_->CreatePresenter();
+  if (!presenter_) {
+    XELOGE("Failed to initialize the presenter");
+    return false;
+  }
+  immediate_drawer_ = graphics_provider_->CreateImmediateDrawer();
+  if (!immediate_drawer_) {
+    XELOGE("Failed to initialize the immediate drawer");
+    return false;
+  }
+  immediate_drawer_->SetPresenter(presenter_.get());
+  imgui_drawer_ =
+      std::make_unique<ui::ImGuiDrawer>(window_.get(), kZOrderImGui);
+  imgui_drawer_->SetPresenterAndImmediateDrawer(presenter_.get(),
+                                                immediate_drawer_.get());
+  demo_dialog_ = std::make_unique<HidDemoDialog>(imgui_drawer_.get(), *this);
+  window_->SetPresenter(presenter_.get());
 
   return true;
+}
+
+void HidDemoApp::HidDemoDialog::OnDraw(ImGuiIO& io) { app_.Draw(io); }
+
+void HidDemoApp::Draw(ImGuiIO& io) {
+  const ImGuiWindowFlags wflags =
+      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
+      ImGuiWindowFlags_NoScrollbar;
+
+  ImGui::Begin("General", nullptr, wflags);
+  {
+    ImGui::SetWindowPos(ImVec2(0, 0));
+    ImGui::SetWindowSize(
+        ImVec2(COL_WIDTH_STATE + COL_WIDTH_STROKE, ROW_HEIGHT_GENERAL));
+
+    ImGui::Text("Input System (hid) = \"%s\"", cvars::hid.c_str());
+    ImGui::Checkbox("is_active", &is_active_);
+  }
+  ImGui::End();
+
+  ImGui::Begin("GetState()", nullptr, wflags);
+  {
+    ImGui::SetWindowPos(ImVec2(0, ROW_HEIGHT_GENERAL));
+    ImGui::SetWindowSize(
+        ImVec2(COL_WIDTH_STATE, io.DisplaySize.y - ROW_HEIGHT_GENERAL));
+
+    static bool enable_GetState = false;
+    ImGui::Checkbox("Active", &enable_GetState);
+    ImGui::SameLine();
+    ImGui::Checkbox("Guide Button", &cvars::guide_button);
+    if (enable_GetState) {
+      ImGui::Spacing();
+      DrawInputGetState();
+    }
+  }
+  ImGui::End();
+
+  ImGui::Begin("GetKeystroke()", nullptr, wflags);
+  {
+    ImGui::SetWindowPos(ImVec2(COL_WIDTH_STATE, ROW_HEIGHT_GENERAL));
+    ImGui::SetWindowSize(
+        ImVec2(COL_WIDTH_STROKE, io.DisplaySize.y - ROW_HEIGHT_GENERAL));
+
+    static bool enable_GetKeystroke = false;
+    static bool hide_repeats = false;
+    ImGui::Checkbox("Active", &enable_GetKeystroke);
+    ImGui::SameLine();
+    ImGui::Checkbox("Hide repeats", &hide_repeats);
+    ImGui::SameLine();
+    const bool clear_log = ImGui::Button("Clear");
+    ImGui::Spacing();
+    DrawInputGetKeystroke(enable_GetKeystroke, hide_repeats, clear_log);
+  }
+  ImGui::End();
 }
 
 void HidDemoApp::DrawUserInputGetState(uint32_t user_index) const {

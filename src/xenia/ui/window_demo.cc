@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -17,6 +17,8 @@
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/presenter.h"
+#include "xenia/ui/ui_event.h"
 #include "xenia/ui/virtual_key.h"
 #include "xenia/ui/window.h"
 #include "xenia/ui/window_demo.h"
@@ -30,26 +32,31 @@ bool WindowDemoApp::OnInitialize() {
   Profiler::Initialize();
   Profiler::ThreadEnter("Main");
 
-  // Create graphics provider that provides the context for the window.
+  // Create the graphics provider that provides the presenter for the window.
   graphics_provider_ = CreateGraphicsProvider();
   if (!graphics_provider_) {
+    XELOGE("Failed to initialize the graphics provider");
     return false;
   }
 
+  enum : size_t {
+    kZOrderImGui,
+    kZOrderProfiler,
+    kZOrderWindowDemoInput,
+  };
+
   // Create the window.
-  window_ = xe::ui::Window::Create(app_context(), GetName());
-  if (!window_->Initialize()) {
-    XELOGE("Failed to initialize main window");
-    return false;
-  }
+  window_ = xe::ui::Window::Create(app_context(), GetName(), 1920, 1200);
+  window_->AddListener(&window_listener_);
+  window_->AddInputListener(&window_listener_, kZOrderWindowDemoInput);
 
   // Main menu.
   auto main_menu = MenuItem::Create(MenuItem::Type::kNormal);
   auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, "&File");
   {
-    file_menu->AddChild(MenuItem::Create(MenuItem::Type::kString, "&Close",
-                                         "Alt+F4",
-                                         [this]() { window_->Close(); }));
+    file_menu->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, "&Close", "Alt+F4",
+                         [this]() { window_->RequestClose(); }));
   }
   main_menu->AddChild(std::move(file_menu));
   auto debug_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Debug");
@@ -62,50 +69,60 @@ bool WindowDemoApp::OnInitialize() {
                                           []() { Profiler::TogglePause(); }));
   }
   main_menu->AddChild(std::move(debug_menu));
-  window_->set_main_menu(std::move(main_menu));
+  window_->SetMainMenu(std::move(main_menu));
 
-  // Initial size setting, done here so that it knows the menu exists.
-  window_->Resize(1920, 1200);
+  // Open the window once it's configured.
+  if (!window_->Open()) {
+    XELOGE("Failed to open the main window");
+    return false;
+  }
 
-  // Create the graphics context for the window. The window will finish
-  // initialization with the context (loading resources, etc).
-  window_->set_context(graphics_provider_->CreateContext(window_.get()));
+  // Setup drawing to the window.
 
-  // Setup the profiler display.
-  GraphicsContextLock context_lock(window_->context());
-  Profiler::set_window(window_.get());
+  presenter_ = graphics_provider_->CreatePresenter();
+  if (!presenter_) {
+    XELOGE("Failed to initialize the presenter");
+    return false;
+  }
 
-  // Enable imgui input.
-  window_->set_imgui_input_enabled(true);
+  immediate_drawer_ = graphics_provider_->CreateImmediateDrawer();
+  if (!immediate_drawer_) {
+    XELOGE("Failed to initialize the immediate drawer");
+    return false;
+  }
+  immediate_drawer_->SetPresenter(presenter_.get());
 
-  window_->on_closed.AddListener([this](xe::ui::UIEvent* e) {
-    XELOGI("User-initiated death!");
-    app_context().QuitFromUIThread();
-  });
+  imgui_drawer_ = std::make_unique<ImGuiDrawer>(window_.get(), kZOrderImGui);
+  imgui_drawer_->SetPresenterAndImmediateDrawer(presenter_.get(),
+                                                immediate_drawer_.get());
+  demo_dialog_ = std::make_unique<WindowDemoDialog>(imgui_drawer_.get());
 
-  window_->on_key_down.AddListener([](xe::ui::KeyEvent* e) {
-    switch (e->virtual_key()) {
-      case VirtualKey::kF3:
-        Profiler::ToggleDisplay();
-        break;
-      default:
-        break;
-    }
-  });
+  Profiler::SetUserIO(kZOrderProfiler, window_.get(), presenter_.get(),
+                      immediate_drawer_.get());
 
-  window_->on_painting.AddListener([this](xe::ui::UIEvent* e) {
-    auto& io = window_->imgui_drawer()->GetIO();
-
-    ImGui::ShowDemoWindow();
-    ImGui::ShowMetricsWindow();
-
-    Profiler::Flip();
-
-    // Continuous paint.
-    window_->Invalidate();
-  });
+  window_->SetPresenter(presenter_.get());
 
   return true;
+}
+
+void WindowDemoApp::WindowDemoWindowListener::OnClosing(UIEvent& e) {
+  app_context_.QuitFromUIThread();
+}
+
+void WindowDemoApp::WindowDemoWindowListener::OnKeyDown(KeyEvent& e) {
+  switch (e.virtual_key()) {
+    case VirtualKey::kF3:
+      Profiler::ToggleDisplay();
+      break;
+    default:
+      return;
+  }
+  e.set_handled(true);
+}
+
+void WindowDemoApp::WindowDemoDialog::OnDraw(ImGuiIO& io) {
+  ImGui::ShowDemoWindow();
+  ImGui::ShowMetricsWindow();
 }
 
 }  // namespace ui

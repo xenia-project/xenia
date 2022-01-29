@@ -36,7 +36,7 @@ class VulkanTraceViewer final : public TraceViewer {
       uint32_t pitch, xenos::MsaaSamples samples, uint32_t base,
       xenos::ColorRenderTargetFormat format) override {
     auto command_processor = static_cast<VulkanCommandProcessor*>(
-        graphics_system_->command_processor());
+        graphics_system()->command_processor());
     // return command_processor->GetColorRenderTarget(pitch, samples, base,
     //                                               format);
     return 0;
@@ -46,7 +46,7 @@ class VulkanTraceViewer final : public TraceViewer {
       uint32_t pitch, xenos::MsaaSamples samples, uint32_t base,
       xenos::DepthRenderTargetFormat format) override {
     auto command_processor = static_cast<VulkanCommandProcessor*>(
-        graphics_system_->command_processor());
+        graphics_system()->command_processor());
     // return command_processor->GetDepthRenderTarget(pitch, samples, base,
     //                                               format);
     return 0;
@@ -55,7 +55,7 @@ class VulkanTraceViewer final : public TraceViewer {
   uintptr_t GetTextureEntry(const TextureInfo& texture_info,
                             const SamplerInfo& sampler_info) override {
     auto command_processor = static_cast<VulkanCommandProcessor*>(
-        graphics_system_->command_processor());
+        graphics_system()->command_processor());
 
     // auto entry_view =
     //    command_processor->texture_cache()->Demand(texture_info,

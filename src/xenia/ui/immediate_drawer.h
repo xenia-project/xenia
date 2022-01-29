@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -12,10 +12,10 @@
 
 #include <memory>
 
+#include "xenia/ui/presenter.h"
+
 namespace xe {
 namespace ui {
-
-class GraphicsContext;
 
 // Describes the filter applied when sampling textures.
 enum class ImmediateTextureFilter {
@@ -80,21 +80,38 @@ struct ImmediateDraw {
 
   // True to enable scissoring using the region defined by scissor_rect.
   bool scissor = false;
-  // Scissoring region in framebuffer pixels as (x, y, w, h).
-  int scissor_rect[4] = {0};
+  // Scissoring region in the coordinate space (if right < left or bottom < top,
+  // not drawing).
+  float scissor_left = 0.0f;
+  float scissor_top = 0.0f;
+  float scissor_right = 0.0f;
+  float scissor_bottom = 0.0f;
 };
 
 class ImmediateDrawer {
  public:
+  ImmediateDrawer(const ImmediateDrawer& immediate_drawer) = delete;
+  ImmediateDrawer& operator=(const ImmediateDrawer& immediate_drawer) = delete;
+
   virtual ~ImmediateDrawer() = default;
+
+  void SetPresenter(Presenter* new_presenter);
 
   // Creates a new texture with the given attributes and R8G8B8A8 data.
   virtual std::unique_ptr<ImmediateTexture> CreateTexture(
       uint32_t width, uint32_t height, ImmediateTextureFilter filter,
       bool is_repeated, const uint8_t* data) = 0;
 
-  // Begins drawing in immediate mode using the given projection matrix.
-  virtual void Begin(int render_target_width, int render_target_height) = 0;
+  // Begins drawing in immediate mode using the given projection matrix. The
+  // presenter that is currently attached to the immediate drawer, as the
+  // implementation may hold presenter-specific information such as UI
+  // submission indices. Pass 0 or a negative value as the coordinate space
+  // width or height to use raw render target pixel coordinates (or this will
+  // just be used as a safe fallback when with a non-zero-sized surface the
+  // coordinate space size becomes zero somehow).
+  virtual void Begin(UIDrawContext& ui_draw_context,
+                     float coordinate_space_width,
+                     float coordinate_space_height);
   // Starts a draw batch.
   virtual void BeginDrawBatch(const ImmediateDrawBatch& batch) = 0;
   // Draws one set of a batch.
@@ -102,13 +119,33 @@ class ImmediateDrawer {
   // Ends a draw batch.
   virtual void EndDrawBatch() = 0;
   // Ends drawing in immediate mode and flushes contents.
-  virtual void End() = 0;
+  virtual void End();
 
  protected:
-  ImmediateDrawer(GraphicsContext* graphics_context)
-      : graphics_context_(graphics_context) {}
+  ImmediateDrawer() = default;
 
-  GraphicsContext* graphics_context_ = nullptr;
+  Presenter* presenter() const { return presenter_; }
+  virtual void OnLeavePresenter() {}
+  virtual void OnEnterPresenter() {}
+
+  // Available between Begin and End.
+  UIDrawContext* ui_draw_context() const { return ui_draw_context_; }
+  float coordinate_space_width() const { return coordinate_space_width_; }
+  float coordinate_space_height() const { return coordinate_space_height_; }
+
+  // Converts and clamps the scissor in the immediate draw to render target
+  // coordinates. Returns whether the scissor contains any render target pixels
+  // (but a valid scissor is written even if false is returned).
+  bool ScissorToRenderTarget(const ImmediateDraw& immediate_draw,
+                             uint32_t& out_left, uint32_t& out_top,
+                             uint32_t& out_width, uint32_t& out_height);
+
+ private:
+  Presenter* presenter_ = nullptr;
+
+  UIDrawContext* ui_draw_context_ = nullptr;
+  float coordinate_space_width_;
+  float coordinate_space_height_;
 };
 
 }  // namespace ui

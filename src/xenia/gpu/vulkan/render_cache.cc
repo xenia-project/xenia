@@ -19,13 +19,14 @@
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/registers.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
+#include "xenia/ui/vulkan/vulkan_util.h"
 
 namespace xe {
 namespace gpu {
 namespace vulkan {
 
 using namespace xe::gpu::xenos;
-using xe::ui::vulkan::CheckResult;
+using xe::ui::vulkan::util::CheckResult;
 
 constexpr uint32_t kEdramBufferCapacity = 10 * 1024 * 1024;
 
@@ -105,7 +106,7 @@ class CachedFramebuffer {
   // Associated render pass
   VkRenderPass render_pass = nullptr;
 
-  CachedFramebuffer(const ui::vulkan::VulkanDevice& device,
+  CachedFramebuffer(const ui::vulkan::VulkanProvider& provider,
                     VkRenderPass render_pass, uint32_t surface_width,
                     uint32_t surface_height,
                     CachedTileView* target_color_attachments[4],
@@ -117,7 +118,7 @@ class CachedFramebuffer {
   bool IsCompatible(const RenderConfiguration& desired_config) const;
 
  private:
-  const ui::vulkan::VulkanDevice& device_;
+  const ui::vulkan::VulkanProvider& provider_;
 };
 
 // Cached render passes based on register states.
@@ -134,7 +135,7 @@ class CachedRenderPass {
   // Cache of framebuffers for the various tile attachments.
   std::vector<CachedFramebuffer*> cached_framebuffers;
 
-  CachedRenderPass(const ui::vulkan::VulkanDevice& device,
+  CachedRenderPass(const ui::vulkan::VulkanProvider& provider,
                    const RenderConfiguration& desired_config);
   ~CachedRenderPass();
 
@@ -143,28 +144,30 @@ class CachedRenderPass {
   bool IsCompatible(const RenderConfiguration& desired_config) const;
 
  private:
-  const ui::vulkan::VulkanDevice& device_;
+  const ui::vulkan::VulkanProvider& provider_;
 };
 
-CachedTileView::CachedTileView(ui::vulkan::VulkanDevice* device,
+CachedTileView::CachedTileView(const ui::vulkan::VulkanProvider& provider,
                                VkDeviceMemory edram_memory,
                                TileViewKey view_key)
-    : device_(device), key(std::move(view_key)) {}
+    : provider_(provider), key(std::move(view_key)) {}
 
 CachedTileView::~CachedTileView() {
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
-  ui::vulkan::DestroyAndNullHandle(dfn.vkDestroyImageView, *device_,
-                                   image_view);
-  ui::vulkan::DestroyAndNullHandle(dfn.vkDestroyImageView, *device_,
-                                   image_view_depth);
-  ui::vulkan::DestroyAndNullHandle(dfn.vkDestroyImageView, *device_,
-                                   image_view_stencil);
-  ui::vulkan::DestroyAndNullHandle(dfn.vkDestroyImage, *device_, image);
-  ui::vulkan::DestroyAndNullHandle(dfn.vkFreeMemory, *device_, memory);
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImageView, device,
+                                         image_view);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImageView, device,
+                                         image_view_depth);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImageView, device,
+                                         image_view_stencil);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImage, device, image);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, memory);
 }
 
 VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
   VkResult status = VK_SUCCESS;
 
   // Map format to Vulkan.
@@ -237,26 +240,40 @@ VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
   image_info.queueFamilyIndexCount = 0;
   image_info.pQueueFamilyIndices = nullptr;
   image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  status = dfn.vkCreateImage(*device_, &image_info, nullptr, &image);
+  status = dfn.vkCreateImage(device, &image_info, nullptr, &image);
   if (status != VK_SUCCESS) {
     return status;
   }
 
-  device_->DbgSetObjectName(
-      reinterpret_cast<uint64_t>(image), VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
+  provider_.SetDeviceObjectName(
+      VK_OBJECT_TYPE_IMAGE, uint64_t(image),
       fmt::format("RT(d): 0x{:08X} 0x{:08X}({}) 0x{:08X}({}) {} {} {}",
                   uint32_t(key.tile_offset), uint32_t(key.tile_width),
                   uint32_t(key.tile_width), uint32_t(key.tile_height),
                   uint32_t(key.tile_height), uint32_t(key.color_or_depth),
-                  uint32_t(key.msaa_samples), uint32_t(key.edram_format)));
+                  uint32_t(key.msaa_samples), uint32_t(key.edram_format))
+          .c_str());
 
   VkMemoryRequirements memory_requirements;
-  dfn.vkGetImageMemoryRequirements(*device_, image, &memory_requirements);
+  dfn.vkGetImageMemoryRequirements(device, image, &memory_requirements);
 
   // Bind to a newly allocated chunk.
   // TODO: Alias from a really big buffer?
-  memory = device_->AllocateMemory(memory_requirements, 0);
-  status = dfn.vkBindImageMemory(*device_, image, memory, 0);
+  VkMemoryAllocateInfo memory_allocate_info;
+  memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  memory_allocate_info.pNext = nullptr;
+  memory_allocate_info.allocationSize = memory_requirements.size;
+  if (!xe::bit_scan_forward(memory_requirements.memoryTypeBits &
+                                provider_.memory_types_device_local(),
+                            &memory_allocate_info.memoryTypeIndex)) {
+    return VK_ERROR_INITIALIZATION_FAILED;
+  }
+  status =
+      dfn.vkAllocateMemory(device, &memory_allocate_info, nullptr, &memory);
+  if (status != VK_SUCCESS) {
+    return status;
+  }
+  status = dfn.vkBindImageMemory(device, image, memory, 0);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -284,7 +301,7 @@ VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
         VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
   }
   status =
-      dfn.vkCreateImageView(*device_, &image_view_info, nullptr, &image_view);
+      dfn.vkCreateImageView(device, &image_view_info, nullptr, &image_view);
   if (status != VK_SUCCESS) {
     return status;
   }
@@ -292,14 +309,14 @@ VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
   // Create separate depth/stencil views.
   if (key.color_or_depth == 0) {
     image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    status = dfn.vkCreateImageView(*device_, &image_view_info, nullptr,
+    status = dfn.vkCreateImageView(device, &image_view_info, nullptr,
                                    &image_view_depth);
     if (status != VK_SUCCESS) {
       return status;
     }
 
     image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
-    status = dfn.vkCreateImageView(*device_, &image_view_info, nullptr,
+    status = dfn.vkCreateImageView(device, &image_view_info, nullptr,
                                    &image_view_stencil);
     if (status != VK_SUCCESS) {
       return status;
@@ -338,11 +355,11 @@ VkResult CachedTileView::Initialize(VkCommandBuffer command_buffer) {
 }
 
 CachedFramebuffer::CachedFramebuffer(
-    const ui::vulkan::VulkanDevice& device, VkRenderPass render_pass,
+    const ui::vulkan::VulkanProvider& provider, VkRenderPass render_pass,
     uint32_t surface_width, uint32_t surface_height,
     CachedTileView* target_color_attachments[4],
     CachedTileView* target_depth_stencil_attachment)
-    : device_(device),
+    : provider_(provider),
       width(surface_width),
       height(surface_height),
       depth_stencil_attachment(target_depth_stencil_attachment),
@@ -354,8 +371,9 @@ CachedFramebuffer::CachedFramebuffer(
 
 CachedFramebuffer::~CachedFramebuffer() {
   if (handle != VK_NULL_HANDLE) {
-    const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_.dfn();
-    dfn.vkDestroyFramebuffer(device_, handle, nullptr);
+    const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+    VkDevice device = provider_.device();
+    dfn.vkDestroyFramebuffer(device, handle, nullptr);
   }
 }
 
@@ -381,8 +399,9 @@ VkResult CachedFramebuffer::Initialize() {
   framebuffer_info.width = width;
   framebuffer_info.height = height;
   framebuffer_info.layers = 1;
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_.dfn();
-  return dfn.vkCreateFramebuffer(device_, &framebuffer_info, nullptr, &handle);
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
+  return dfn.vkCreateFramebuffer(device, &framebuffer_info, nullptr, &handle);
 }
 
 bool CachedFramebuffer::IsCompatible(
@@ -427,9 +446,9 @@ bool CachedFramebuffer::IsCompatible(
   return true;
 }
 
-CachedRenderPass::CachedRenderPass(const ui::vulkan::VulkanDevice& device,
+CachedRenderPass::CachedRenderPass(const ui::vulkan::VulkanProvider& provider,
                                    const RenderConfiguration& desired_config)
-    : device_(device) {
+    : provider_(provider) {
   std::memcpy(&config, &desired_config, sizeof(config));
 }
 
@@ -440,8 +459,9 @@ CachedRenderPass::~CachedRenderPass() {
   cached_framebuffers.clear();
 
   if (handle != VK_NULL_HANDLE) {
-    const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_.dfn();
-    dfn.vkDestroyRenderPass(device_, handle, nullptr);
+    const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+    VkDevice device = provider_.device();
+    dfn.vkDestroyRenderPass(device, handle, nullptr);
   }
 }
 
@@ -553,8 +573,9 @@ VkResult CachedRenderPass::Initialize() {
 
   render_pass_info.dependencyCount = 1;
   render_pass_info.pDependencies = dependencies;
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_.dfn();
-  return dfn.vkCreateRenderPass(device_, &render_pass_info, nullptr, &handle);
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
+  return dfn.vkCreateRenderPass(device, &render_pass_info, nullptr, &handle);
 }
 
 bool CachedRenderPass::IsCompatible(
@@ -577,13 +598,14 @@ bool CachedRenderPass::IsCompatible(
 }
 
 RenderCache::RenderCache(RegisterFile* register_file,
-                         ui::vulkan::VulkanDevice* device)
-    : register_file_(register_file), device_(device) {}
+                         const ui::vulkan::VulkanProvider& provider)
+    : register_file_(register_file), provider_(provider) {}
 
 RenderCache::~RenderCache() { Shutdown(); }
 
 VkResult RenderCache::Initialize() {
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
   VkResult status = VK_SUCCESS;
 
   // Create the buffer we'll bind to our memory.
@@ -597,7 +619,7 @@ VkResult RenderCache::Initialize() {
   buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   buffer_info.queueFamilyIndexCount = 0;
   buffer_info.pQueueFamilyIndices = nullptr;
-  status = dfn.vkCreateBuffer(*device_, &buffer_info, nullptr, &edram_buffer_);
+  status = dfn.vkCreateBuffer(device, &buffer_info, nullptr, &edram_buffer_);
   CheckResult(status, "vkCreateBuffer");
   if (status != VK_SUCCESS) {
     return status;
@@ -606,20 +628,29 @@ VkResult RenderCache::Initialize() {
   // Query requirements for the buffer.
   // It should be 1:1.
   VkMemoryRequirements buffer_requirements;
-  dfn.vkGetBufferMemoryRequirements(*device_, edram_buffer_,
+  dfn.vkGetBufferMemoryRequirements(device, edram_buffer_,
                                     &buffer_requirements);
   assert_true(buffer_requirements.size == kEdramBufferCapacity);
 
   // Allocate EDRAM memory.
   // TODO(benvanik): do we need it host visible?
-  edram_memory_ = device_->AllocateMemory(buffer_requirements);
-  assert_not_null(edram_memory_);
-  if (!edram_memory_) {
+  VkMemoryAllocateInfo buffer_allocate_info;
+  buffer_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  buffer_allocate_info.pNext = nullptr;
+  buffer_allocate_info.allocationSize = buffer_requirements.size;
+  buffer_allocate_info.memoryTypeIndex = ui::vulkan::util::ChooseHostMemoryType(
+      provider_, buffer_requirements.memoryTypeBits, false);
+  if (buffer_allocate_info.memoryTypeIndex == UINT32_MAX) {
     return VK_ERROR_INITIALIZATION_FAILED;
+  }
+  status = dfn.vkAllocateMemory(device, &buffer_allocate_info, nullptr,
+                                &edram_memory_);
+  if (status != VK_SUCCESS) {
+    return status;
   }
 
   // Bind buffer to map our entire memory.
-  status = dfn.vkBindBufferMemory(*device_, edram_buffer_, edram_memory_, 0);
+  status = dfn.vkBindBufferMemory(device, edram_buffer_, edram_memory_, 0);
   CheckResult(status, "vkBindBufferMemory");
   if (status != VK_SUCCESS) {
     return status;
@@ -628,16 +659,15 @@ VkResult RenderCache::Initialize() {
   if (status == VK_SUCCESS) {
     // For debugging, upload a grid into the EDRAM buffer.
     uint32_t* gpu_data = nullptr;
-    status =
-        dfn.vkMapMemory(*device_, edram_memory_, 0, buffer_requirements.size, 0,
-                        reinterpret_cast<void**>(&gpu_data));
+    status = dfn.vkMapMemory(device, edram_memory_, 0, buffer_requirements.size,
+                             0, reinterpret_cast<void**>(&gpu_data));
 
     if (status == VK_SUCCESS) {
       for (int i = 0; i < kEdramBufferCapacity / 4; i++) {
         gpu_data[i] = (i % 8) >= 4 ? 0xFF0000FF : 0xFFFFFFFF;
       }
 
-      dfn.vkUnmapMemory(*device_, edram_memory_);
+      dfn.vkUnmapMemory(device, edram_memory_);
     }
   }
 
@@ -647,7 +677,8 @@ VkResult RenderCache::Initialize() {
 void RenderCache::Shutdown() {
   // TODO(benvanik): wait for idle.
 
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
 
   // Dispose all render passes (and their framebuffers).
   for (auto render_pass : cached_render_passes_) {
@@ -663,11 +694,11 @@ void RenderCache::Shutdown() {
 
   // Release underlying EDRAM memory.
   if (edram_buffer_) {
-    dfn.vkDestroyBuffer(*device_, edram_buffer_, nullptr);
+    dfn.vkDestroyBuffer(device, edram_buffer_, nullptr);
     edram_buffer_ = nullptr;
   }
   if (edram_memory_) {
-    dfn.vkFreeMemory(*device_, edram_memory_, nullptr);
+    dfn.vkFreeMemory(device, edram_memory_, nullptr);
     edram_memory_ = nullptr;
   }
 }
@@ -803,7 +834,7 @@ const RenderState* RenderCache::BeginRenderPass(VkCommandBuffer command_buffer,
   render_pass_begin_info.pClearValues = nullptr;
 
   // Begin the render pass.
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   dfn.vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info,
                            VK_SUBPASS_CONTENTS_INLINE);
 
@@ -891,11 +922,10 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
 
   // If no render pass was found in the cache create a new one.
   if (!render_pass) {
-    render_pass = new CachedRenderPass(*device_, *config);
+    render_pass = new CachedRenderPass(provider_, *config);
     VkResult status = render_pass->Initialize();
     if (status != VK_SUCCESS) {
-      XELOGE("{}: Failed to create render pass, status {}", __func__,
-             ui::vulkan::to_string(status));
+      XELOGE("{}: Failed to create render pass", __func__);
       delete render_pass;
       return false;
     }
@@ -971,12 +1001,11 @@ bool RenderCache::ConfigureRenderPass(VkCommandBuffer command_buffer,
     surface_pitch_px = std::min(surface_pitch_px, 2560u);
     surface_height_px = std::min(surface_height_px, 2560u);
     framebuffer = new CachedFramebuffer(
-        *device_, render_pass->handle, surface_pitch_px, surface_height_px,
+        provider_, render_pass->handle, surface_pitch_px, surface_height_px,
         target_color_attachments, target_depth_stencil_attachment);
     VkResult status = framebuffer->Initialize();
     if (status != VK_SUCCESS) {
-      XELOGE("{}: Failed to create framebuffer, status {}", __func__,
-             ui::vulkan::to_string(status));
+      XELOGE("{}: Failed to create framebuffer", __func__);
       delete framebuffer;
       return false;
     }
@@ -1025,11 +1054,10 @@ CachedTileView* RenderCache::FindOrCreateTileView(
   }
 
   // Create a new tile and add to the cache.
-  tile_view = new CachedTileView(device_, edram_memory_, view_key);
+  tile_view = new CachedTileView(provider_, edram_memory_, view_key);
   VkResult status = tile_view->Initialize(command_buffer);
   if (status != VK_SUCCESS) {
-    XELOGE("{}: Failed to create tile view, status {}", __func__,
-           ui::vulkan::to_string(status));
+    XELOGE("{}: Failed to create tile view", __func__);
 
     delete tile_view;
     return nullptr;
@@ -1042,7 +1070,7 @@ CachedTileView* RenderCache::FindOrCreateTileView(
 void RenderCache::UpdateTileView(VkCommandBuffer command_buffer,
                                  CachedTileView* view, bool load,
                                  bool insert_barrier) {
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
 
   uint32_t tile_width =
       view->key.msaa_samples == uint16_t(xenos::MsaaSamples::k4X) ? 40 : 80;
@@ -1111,7 +1139,7 @@ void RenderCache::EndRenderPass() {
   assert_not_null(current_command_buffer_);
 
   // End the render pass.
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   dfn.vkCmdEndRenderPass(current_command_buffer_);
 
   // Copy all render targets back into our EDRAM buffer.
@@ -1165,7 +1193,7 @@ void RenderCache::RawCopyToImage(VkCommandBuffer command_buffer,
                                  VkImageLayout image_layout,
                                  bool color_or_depth, VkOffset3D offset,
                                  VkExtent3D extents) {
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
 
   // Transition the texture into a transfer destination layout.
   VkImageMemoryBarrier image_barrier;
@@ -1239,7 +1267,7 @@ void RenderCache::BlitToImage(VkCommandBuffer command_buffer,
                               bool color_or_depth, uint32_t format,
                               VkFilter filter, VkOffset3D offset,
                               VkExtent3D extents) {
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
 
   if (color_or_depth) {
     // Adjust similar formats for easier matching.
@@ -1372,7 +1400,7 @@ void RenderCache::ClearEDRAMColor(VkCommandBuffer command_buffer,
   std::memcpy(clear_value.float32, color, sizeof(float) * 4);
 
   // Issue a clear command
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   dfn.vkCmdClearColorImage(command_buffer, tile_view->image,
                            VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &range);
 
@@ -1412,7 +1440,7 @@ void RenderCache::ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
   clear_value.stencil = stencil;
 
   // Issue a clear command
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   dfn.vkCmdClearDepthStencilImage(command_buffer, tile_view->image,
                                   VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1,
                                   &range);
@@ -1422,7 +1450,7 @@ void RenderCache::ClearEDRAMDepthStencil(VkCommandBuffer command_buffer,
 }
 
 void RenderCache::FillEDRAM(VkCommandBuffer command_buffer, uint32_t value) {
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   dfn.vkCmdFillBuffer(command_buffer, edram_buffer_, 0, kEdramBufferCapacity,
                       value);
 }

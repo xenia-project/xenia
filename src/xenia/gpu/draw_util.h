@@ -25,15 +25,6 @@ namespace xe {
 namespace gpu {
 namespace draw_util {
 
-// For estimating coverage extents from vertices. This may give results that are
-// different than what the host GPU will actually draw (this is the reference
-// conversion with 1/2 ULP accuracy, but Direct3D 11 permits 0.6 ULP tolerance
-// in floating point to fixed point conversion), but is enough to tie-break
-// vertices at pixel centers (due to the half-pixel offset applied to integer
-// coordinates incorrectly, for instance) with some error tolerance near 0.5,
-// for use with the top-left rasterization rule later.
-int32_t FloatToD3D11Fixed16p8(float f32);
-
 // Polygonal primitive types (not including points and lines) are rasterized as
 // triangles, have front and back faces, and also support face culling and fill
 // modes (polymode_front_ptype, polymode_back_ptype). Other primitive types are

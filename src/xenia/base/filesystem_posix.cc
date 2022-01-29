@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -122,7 +122,7 @@ static uint64_t convertUnixtimeToWinFiletime(time_t unixtime) {
   return filetime;
 }
 
-bool CreateFile(const std::filesystem::path& path) {
+bool CreateEmptyFile(const std::filesystem::path& path) {
   int file = creat(path.c_str(), 0774);
   if (file >= 0) {
     close(file);

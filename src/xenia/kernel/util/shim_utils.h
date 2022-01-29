@@ -458,7 +458,7 @@ inline void AppendParam(StringBuffer* string_buffer,
 inline void AppendParam(StringBuffer* string_buffer,
                         pointer_t<X_EXCEPTION_RECORD> record) {
   string_buffer->AppendFormat("{:08X}({:08X})", record.guest_address(),
-                              uint32_t(record->exception_code));
+                              uint32_t(record->code));
 }
 template <typename T>
 void AppendParam(StringBuffer* string_buffer, pointer_t<T> param) {

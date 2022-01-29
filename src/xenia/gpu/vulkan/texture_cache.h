@@ -26,10 +26,8 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/vulkan/circular_buffer.h"
 #include "xenia/ui/vulkan/fenced_pools.h"
-#include "xenia/ui/vulkan/vulkan.h"
-#include "xenia/ui/vulkan/vulkan_device.h"
-
-#include "third_party/vulkan/vk_mem_alloc.h"
+#include "xenia/ui/vulkan/vulkan_mem_alloc.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 
 namespace xe {
 namespace gpu {
@@ -78,7 +76,7 @@ class TextureCache {
   };
 
   TextureCache(Memory* memory, RegisterFile* register_file,
-               TraceWriter* trace_writer, ui::vulkan::VulkanDevice* device);
+               TraceWriter* trace_writer, ui::vulkan::VulkanProvider& provider);
   ~TextureCache();
 
   VkResult Initialize();
@@ -203,8 +201,7 @@ class TextureCache {
 
   RegisterFile* register_file_ = nullptr;
   TraceWriter* trace_writer_ = nullptr;
-  ui::vulkan::VulkanDevice* device_ = nullptr;
-  VkQueue device_queue_ = nullptr;
+  ui::vulkan::VulkanProvider& provider_;
 
   std::unique_ptr<xe::ui::vulkan::CommandBufferPool> wb_command_pool_ = nullptr;
   std::unique_ptr<xe::ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;

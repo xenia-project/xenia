@@ -33,8 +33,8 @@ namespace xe {
 namespace hid {
 namespace sdl {
 
-SDLInputDriver::SDLInputDriver(xe::ui::Window* window)
-    : InputDriver(window),
+SDLInputDriver::SDLInputDriver(xe::ui::Window* window, size_t window_z_order)
+    : InputDriver(window, window_z_order),
       sdl_events_initialized_(false),
       sdl_gamecontroller_initialized_(false),
       sdl_events_unflushed_(0),

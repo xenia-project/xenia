@@ -13,8 +13,7 @@
 #include <map>
 #include <memory>
 
-#include "xenia/ui/vulkan/vulkan.h"
-#include "xenia/ui/vulkan/vulkan_device.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 
 namespace xe {
 namespace ui {
@@ -24,10 +23,10 @@ class DescriptorPool;
 
 class Blitter {
  public:
-  Blitter();
+  Blitter(const VulkanProvider& provider);
   ~Blitter();
 
-  VkResult Initialize(VulkanDevice* device);
+  VkResult Initialize();
   void Scavenge();
   void Shutdown();
 
@@ -79,7 +78,7 @@ class Blitter {
                             VkShaderModule frag_shader, bool color_or_depth);
 
   std::unique_ptr<DescriptorPool> descriptor_pool_ = nullptr;
-  VulkanDevice* device_ = nullptr;
+  const VulkanProvider& provider_;
   VkPipeline pipeline_color_ = nullptr;
   VkPipeline pipeline_depth_ = nullptr;
   VkPipelineLayout pipeline_layout_ = nullptr;

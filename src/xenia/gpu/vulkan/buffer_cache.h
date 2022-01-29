@@ -17,10 +17,8 @@
 #include "xenia/memory.h"
 #include "xenia/ui/vulkan/circular_buffer.h"
 #include "xenia/ui/vulkan/fenced_pools.h"
-#include "xenia/ui/vulkan/vulkan.h"
-#include "xenia/ui/vulkan/vulkan_device.h"
-
-#include "third_party/vulkan/vk_mem_alloc.h"
+#include "xenia/ui/vulkan/vulkan_mem_alloc.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 
 #include <map>
 #include <unordered_map>
@@ -35,7 +33,7 @@ namespace vulkan {
 class BufferCache {
  public:
   BufferCache(RegisterFile* register_file, Memory* memory,
-              ui::vulkan::VulkanDevice* device, size_t capacity);
+              const ui::vulkan::VulkanProvider& provider, size_t capacity);
   ~BufferCache();
 
   VkResult Initialize();
@@ -147,7 +145,7 @@ class BufferCache {
 
   RegisterFile* register_file_ = nullptr;
   Memory* memory_ = nullptr;
-  ui::vulkan::VulkanDevice* device_ = nullptr;
+  const ui::vulkan::VulkanProvider& provider_;
 
   VkDeviceMemory gpu_memory_pool_ = nullptr;
   VmaAllocator mem_allocator_ = nullptr;

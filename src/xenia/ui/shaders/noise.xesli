@@ -1,0 +1,47 @@
+#ifndef XENIA_UI_SHADERS_NOISE_XESLI_
+#define XENIA_UI_SHADERS_NOISE_XESLI_
+
+#define XeNoiseRow16(scale, offset, v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, \
+                     va, vb, vc, vd, ve, vf)                                \
+  v0 * scale + offset, v1 * scale + offset, v2 * scale + offset,            \
+  v3 * scale + offset, v4 * scale + offset, v5 * scale + offset,            \
+  v6 * scale + offset, v7 * scale + offset, v8 * scale + offset,            \
+  v9 * scale + offset, va * scale + offset, vb * scale + offset,            \
+  vc * scale + offset, vd * scale + offset, ve * scale + offset,            \
+  vf * scale + offset
+
+#define XeBlueNoise16x16Values0Until256(scale, offset)                         \
+  XeNoiseRow16(scale, offset, 62, 185, 238, 26, 211, 88, 197, 37, 216, 161,    \
+               207, 23, 166, 109, 200, 35),                                    \
+  XeNoiseRow16(scale, offset, 222, 92, 136, 49, 156, 59, 168, 96, 250, 56,     \
+               121, 93, 221, 1, 82, 130),                                      \
+  XeNoiseRow16(scale, offset, 174, 42, 199, 108, 242, 18, 224, 125, 179, 8,    \
+               147, 192, 51, 139, 235, 24),                                    \
+  XeNoiseRow16(scale, offset, 150, 249, 12, 71, 186, 138, 67, 28, 85, 212, 75, \
+               32, 245, 72, 183, 98),                                          \
+  XeNoiseRow16(scale, offset, 58, 118, 143, 220, 89, 115, 232, 194, 154, 114,  \
+               231, 170, 123, 155, 20, 217),                                   \
+  XeNoiseRow16(scale, offset, 188, 84, 205, 33, 165, 4, 177, 43, 253, 19, 60,  \
+               95, 6, 206, 106, 38),                                           \
+  XeNoiseRow16(scale, offset, 234, 7, 175, 68, 246, 53, 103, 134, 79, 204,     \
+               132, 225, 191, 65, 254, 162),                                   \
+  XeNoiseRow16(scale, offset, 131, 46, 110, 228, 127, 148, 215, 13, 160, 50,   \
+               178, 40, 145, 31, 119, 77),                                     \
+  XeNoiseRow16(scale, offset, 213, 153, 190, 97, 27, 195, 83, 237, 193, 100,   \
+               244, 112, 87, 236, 182, 15),                                    \
+  XeNoiseRow16(scale, offset, 57, 243, 76, 11, 172, 63, 41, 116, 29, 149, 0,   \
+               171, 22, 203, 157, 99),                                         \
+  XeNoiseRow16(scale, offset, 140, 30, 202, 133, 251, 219, 164, 135, 210, 90,  \
+               64, 214, 142, 78, 39, 223),                                     \
+  XeNoiseRow16(scale, offset, 184, 104, 163, 54, 111, 91, 9, 240, 52, 176,     \
+               230, 120, 48, 247, 129, 2),                                     \
+  XeNoiseRow16(scale, offset, 241, 81, 229, 16, 208, 141, 196, 80, 21, 107,    \
+               159, 10, 189, 105, 173, 61),                                    \
+  XeNoiseRow16(scale, offset, 25, 126, 44, 180, 69, 34, 167, 122, 187, 255,    \
+               36, 86, 226, 74, 209, 144),                                     \
+  XeNoiseRow16(scale, offset, 227, 201, 151, 102, 252, 218, 55, 233, 70, 137,  \
+               198, 124, 146, 17, 45, 94),                                     \
+  XeNoiseRow16(scale, offset, 117, 5, 73, 169, 128, 3, 113, 152, 14, 101, 47,  \
+               239, 66, 181, 248, 158)
+
+#endif  // XENIA_UI_SHADERS_NOISE_XESLI_

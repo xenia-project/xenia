@@ -80,47 +80,22 @@ void WinKeyInputDriver::ParseKeyBinding(ui::VirtualKey output_key,
   }
 }
 
-WinKeyInputDriver::WinKeyInputDriver(xe::ui::Window* window)
-    : InputDriver(window), packet_number_(1) {
-  // Register a key listener.
-  window->on_key_down.AddListener([this](ui::KeyEvent* evt) {
-    if (!is_active()) {
-      return;
-    }
-
-    auto global_lock = global_critical_region_.Acquire();
-
-    KeyEvent key;
-    key.virtual_key = evt->virtual_key();
-    key.transition = true;
-    key.prev_state = evt->prev_state();
-    key.repeat_count = evt->repeat_count();
-    key_events_.push(key);
-  });
-  window->on_key_up.AddListener([this](ui::KeyEvent* evt) {
-    if (!is_active()) {
-      return;
-    }
-
-    auto global_lock = global_critical_region_.Acquire();
-
-    KeyEvent key;
-    key.virtual_key = evt->virtual_key();
-    key.transition = false;
-    key.prev_state = evt->prev_state();
-    key.repeat_count = evt->repeat_count();
-    key_events_.push(key);
-  });
-
+WinKeyInputDriver::WinKeyInputDriver(xe::ui::Window* window,
+                                     size_t window_z_order)
+    : InputDriver(window, window_z_order), window_input_listener_(*this) {
 #define XE_HID_WINKEY_BINDING(button, description, cvar_name,          \
                               cvar_default_value)                      \
   ParseKeyBinding(xe::ui::VirtualKey::kXInputPad##button, description, \
                   cvars::cvar_name);
 #include "winkey_binding_table.inc"
 #undef XE_HID_WINKEY_BINDING
+
+  window->AddInputListener(&window_input_listener_, window_z_order);
 }
 
-WinKeyInputDriver::~WinKeyInputDriver() = default;
+WinKeyInputDriver::~WinKeyInputDriver() {
+  window()->RemoveInputListener(&window_input_listener_);
+}
 
 X_STATUS WinKeyInputDriver::Setup() { return X_STATUS_SUCCESS; }
 
@@ -162,7 +137,7 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
   int16_t thumb_rx = 0;
   int16_t thumb_ry = 0;
 
-  if (window()->has_focus() && is_active()) {
+  if (window()->HasFocus() && is_active()) {
     bool capital = IsKeyToggled(VK_CAPITAL) || IsKeyDown(VK_SHIFT);
     for (const KeyBinding& b : key_bindings_) {
       if (((b.lowercase == b.uppercase) || (b.lowercase && !capital) ||
@@ -329,6 +304,29 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
   // X_ERROR_DEVICE_NOT_CONNECTED if no device
   // X_ERROR_SUCCESS if key
   return result;
+}
+
+void WinKeyInputDriver::WinKeyWindowInputListener::OnKeyDown(ui::KeyEvent& e) {
+  driver_.OnKey(e, true);
+}
+
+void WinKeyInputDriver::WinKeyWindowInputListener::OnKeyUp(ui::KeyEvent& e) {
+  driver_.OnKey(e, false);
+}
+
+void WinKeyInputDriver::OnKey(ui::KeyEvent& e, bool is_down) {
+  if (!is_active()) {
+    return;
+  }
+
+  KeyEvent key;
+  key.virtual_key = e.virtual_key();
+  key.transition = is_down;
+  key.prev_state = e.prev_state();
+  key.repeat_count = e.repeat_count();
+
+  auto global_lock = global_critical_region_.Acquire();
+  key_events_.push(key);
 }
 
 }  // namespace winkey

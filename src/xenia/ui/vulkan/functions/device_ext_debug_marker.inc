@@ -1,5 +1,0 @@
-// VK_EXT_debug_marker functions used in Xenia.
-XE_UI_VULKAN_FUNCTION(vkDebugMarkerSetObjectNameEXT)
-XE_UI_VULKAN_FUNCTION(vkCmdDebugMarkerBeginEXT)
-XE_UI_VULKAN_FUNCTION(vkCmdDebugMarkerEndEXT)
-XE_UI_VULKAN_FUNCTION(vkCmdDebugMarkerInsertEXT)

@@ -16,8 +16,7 @@
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/xenos.h"
-#include "xenia/ui/vulkan/vulkan.h"
-#include "xenia/ui/vulkan/vulkan_device.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 
 namespace xe {
 namespace gpu {
@@ -68,8 +67,8 @@ class CachedTileView {
   // (if a depth view) Image view of stencil aspect
   VkImageView image_view_stencil = nullptr;
 
-  CachedTileView(ui::vulkan::VulkanDevice* device, VkDeviceMemory edram_memory,
-                 TileViewKey view_key);
+  CachedTileView(const ui::vulkan::VulkanProvider& provider,
+                 VkDeviceMemory edram_memory, TileViewKey view_key);
   ~CachedTileView();
 
   VkResult Initialize(VkCommandBuffer command_buffer);
@@ -89,7 +88,7 @@ class CachedTileView {
   }
 
  private:
-  ui::vulkan::VulkanDevice* device_ = nullptr;
+  const ui::vulkan::VulkanProvider& provider_;
 };
 
 // Parsed render configuration from the current render state.
@@ -274,7 +273,8 @@ struct RenderState {
 //   must check for overlap then compute the offset (in both X and Y).
 class RenderCache {
  public:
-  RenderCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device);
+  RenderCache(RegisterFile* register_file,
+              const ui::vulkan::VulkanProvider& provider);
   ~RenderCache();
 
   VkResult Initialize();
@@ -358,7 +358,7 @@ class RenderCache {
                            CachedFramebuffer** out_framebuffer);
 
   RegisterFile* register_file_ = nullptr;
-  ui::vulkan::VulkanDevice* device_ = nullptr;
+  const ui::vulkan::VulkanProvider& provider_;
 
   // Entire 10MiB of EDRAM.
   VkDeviceMemory edram_memory_ = nullptr;

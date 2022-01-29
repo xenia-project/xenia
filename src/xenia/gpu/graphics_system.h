@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -11,7 +11,10 @@
 #define XENIA_GPU_GRAPHICS_SYSTEM_H_
 
 #include <atomic>
+#include <cstdint>
+#include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -19,7 +22,9 @@
 #include "xenia/gpu/register_file.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/memory.h"
-#include "xenia/ui/window.h"
+#include "xenia/ui/graphics_provider.h"
+#include "xenia/ui/presenter.h"
+#include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -41,14 +46,17 @@ class GraphicsSystem {
   cpu::Processor* processor() const { return processor_; }
   kernel::KernelState* kernel_state() const { return kernel_state_; }
   ui::GraphicsProvider* provider() const { return provider_.get(); }
+  ui::Presenter* presenter() const { return presenter_.get(); }
 
   virtual X_STATUS Setup(cpu::Processor* processor,
                          kernel::KernelState* kernel_state,
-                         ui::Window* target_window);
+                         ui::WindowedAppContext* app_context,
+                         bool is_surface_required);
   virtual void Shutdown();
-  virtual void Reset();
 
-  virtual std::unique_ptr<xe::ui::RawImage> Capture() { return nullptr; }
+  // May be called from any thread any number of times, even during recovery
+  // from a device loss.
+  void OnHostGpuLossFromAnyThread(bool is_responsible);
 
   RegisterFile* register_file() { return &register_file_; }
   CommandProcessor* command_processor() const {
@@ -91,12 +99,11 @@ class GraphicsSystem {
   void WriteRegister(uint32_t addr, uint32_t value);
 
   void MarkVblank();
-  virtual void Swap(xe::ui::UIEvent* e) = 0;
 
   Memory* memory_ = nullptr;
   cpu::Processor* processor_ = nullptr;
   kernel::KernelState* kernel_state_ = nullptr;
-  ui::Window* target_window_ = nullptr;
+  ui::WindowedAppContext* app_context_ = nullptr;
   std::unique_ptr<ui::GraphicsProvider> provider_;
 
   uint32_t interrupt_callback_ = 0;
@@ -109,6 +116,11 @@ class GraphicsSystem {
   std::unique_ptr<CommandProcessor> command_processor_;
 
   bool paused_ = false;
+
+ private:
+  std::unique_ptr<ui::Presenter> presenter_;
+
+  std::atomic_flag host_gpu_loss_reported_;
 };
 
 }  // namespace gpu

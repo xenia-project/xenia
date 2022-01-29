@@ -29,13 +29,11 @@ class NullGraphicsSystem : public GraphicsSystem {
   std::string name() const override { return "null"; }
 
   X_STATUS Setup(cpu::Processor* processor, kernel::KernelState* kernel_state,
-                 ui::Window* target_window) override;
-  void Shutdown() override;
+                 ui::WindowedAppContext* app_context,
+                 bool is_surface_required) override;
 
  private:
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
-
-  void Swap(xe::ui::UIEvent* e) override;
 };
 
 }  // namespace null

@@ -215,7 +215,7 @@ D3D12RenderTargetCache::~D3D12RenderTargetCache() { Shutdown(true); }
 
 bool D3D12RenderTargetCache::Initialize() {
   const ui::d3d12::D3D12Provider& provider =
-      command_processor_.GetD3D12Context().GetD3D12Provider();
+      command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
 
   if (cvars::render_target_path_d3d12 == "rtv") {
@@ -1298,7 +1298,7 @@ bool D3D12RenderTargetCache::Update(bool is_rasterization_done,
 void D3D12RenderTargetCache::WriteEdramRawSRVDescriptor(
     D3D12_CPU_DESCRIPTOR_HANDLE handle) {
   const ui::d3d12::D3D12Provider& provider =
-      command_processor_.GetD3D12Context().GetD3D12Provider();
+      command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
@@ -1311,7 +1311,7 @@ void D3D12RenderTargetCache::WriteEdramRawSRVDescriptor(
 void D3D12RenderTargetCache::WriteEdramRawUAVDescriptor(
     D3D12_CPU_DESCRIPTOR_HANDLE handle) {
   const ui::d3d12::D3D12Provider& provider =
-      command_processor_.GetD3D12Context().GetD3D12Provider();
+      command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
@@ -1339,7 +1339,7 @@ void D3D12RenderTargetCache::WriteEdramUintPow2SRVDescriptor(
       return;
   }
   const ui::d3d12::D3D12Provider& provider =
-      command_processor_.GetD3D12Context().GetD3D12Provider();
+      command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
@@ -1366,7 +1366,7 @@ void D3D12RenderTargetCache::WriteEdramUintPow2UAVDescriptor(
       return;
   }
   const ui::d3d12::D3D12Provider& provider =
-      command_processor_.GetD3D12Context().GetD3D12Provider();
+      command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
@@ -1668,8 +1668,9 @@ bool D3D12RenderTargetCache::InitializeTraceSubmitDownloads() {
     ui::d3d12::util::FillBufferResourceDesc(edram_snapshot_download_buffer_desc,
                                             xenos::kEdramSizeBytes,
                                             D3D12_RESOURCE_FLAG_NONE);
-    auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
-    auto device = provider.GetDevice();
+    const ui::d3d12::D3D12Provider& provider =
+        command_processor_.GetD3D12Provider();
+    ID3D12Device* device = provider.GetDevice();
     if (FAILED(device->CreateCommittedResource(
             &ui::d3d12::util::kHeapPropertiesReadback,
             provider.GetHeapFlagCreateNotZeroed(),
@@ -1721,7 +1722,8 @@ void D3D12RenderTargetCache::RestoreEdramSnapshot(const void* snapshot) {
 
   // Create the buffer - will be used for copying to either a 32-bit 1280x2048
   // render target or the EDRAM buffer.
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Provider();
   if (!edram_snapshot_restore_pool_) {
     edram_snapshot_restore_pool_ =
         std::make_unique<ui::d3d12::D3D12UploadBufferPool>(
@@ -1966,8 +1968,7 @@ DXGI_FORMAT D3D12RenderTargetCache::GetDepthSRVStencilDXGIFormat(
 
 RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(
     RenderTargetKey key) {
-  ID3D12Device* device =
-      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
+  ID3D12Device* device = command_processor_.GetD3D12Provider().GetDevice();
 
   D3D12_RESOURCE_DESC resource_desc;
   resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -4345,8 +4346,7 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   // ***************************************************************************
 
   ID3D12PipelineState* const* pipelines;
-  ID3D12Device* device =
-      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
+  ID3D12Device* device = command_processor_.GetD3D12Provider().GetDevice();
   D3D12_INPUT_ELEMENT_DESC pipeline_input_element_desc;
   pipeline_input_element_desc.SemanticName = "POSITION";
   pipeline_input_element_desc.SemanticIndex = 0;
@@ -4516,7 +4516,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
   assert_true(GetPath() == Path::kHostRenderTargets);
 
   const ui::d3d12::D3D12Provider& provider =
-      command_processor_.GetD3D12Context().GetD3D12Provider();
+      command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
   uint64_t current_submission = command_processor_.GetCurrentSubmission();
   DeferredCommandList& command_list =
@@ -6476,8 +6476,8 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
   // Pipeline
   // ***************************************************************************
   ID3D12PipelineState* pipeline = ui::d3d12::util::CreateComputePipeline(
-      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice(),
-      built_shader_.data(), built_shader_size_bytes,
+      command_processor_.GetD3D12Provider().GetDevice(), built_shader_.data(),
+      built_shader_size_bytes,
       key.is_depth ? dump_root_signature_depth_ : dump_root_signature_color_);
   const char* format_name =
       key.is_depth
@@ -6561,7 +6561,7 @@ void D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base,
   // 32bpp and 64bpp.
   size_t edram_uav_indices[2] = {SIZE_MAX, SIZE_MAX};
   const ui::d3d12::D3D12Provider& provider =
-      command_processor_.GetD3D12Context().GetD3D12Provider();
+      command_processor_.GetD3D12Provider();
   if (!bindless_resources_used_) {
     if (any_sources_32bpp_64bpp[0]) {
       edram_uav_indices[0] = current_temporary_descriptors_cpu_.size();
