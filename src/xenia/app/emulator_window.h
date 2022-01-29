@@ -140,7 +140,7 @@ class EmulatorWindow {
   void GpuClearCaches();
   void ToggleDisplayConfigDialog();
   void ShowHelpWebsite();
-  void ShowCommitID();
+  void ShowBuildCommit();
 
   Emulator* emulator_;
   ui::WindowedAppContext& app_context_;
