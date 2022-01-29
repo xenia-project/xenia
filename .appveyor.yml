@@ -23,7 +23,7 @@ skip_branch_with_pr: true
 pull_requests:
   do_not_increment_build_number: true
 
-os: Visual Studio 2022
+os: Visual Studio 2019
 
 init:
   - ps: |
