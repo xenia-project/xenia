@@ -390,8 +390,9 @@ void EmulatorWindow::CpuTimeScalarSetDouble() {
 void EmulatorWindow::CpuBreakIntoDebugger() {
   if (!cvars::debug) {
     xe::ui::ImGuiDialog::ShowMessageBox(window_.get(), "Xenia Debugger",
-                                        "Xenia must be launched with the "
-                                        "--debug flag in order to enable "
+                                        "Xenia must be launched with "
+                                        "debug enabled in the config in "
+                                        "order to enable "
                                         "debugging.");
     return;
   }
