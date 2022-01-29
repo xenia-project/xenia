@@ -585,6 +585,10 @@ bool EmulatorWindow::Initialize() {
   // Help menu.
   auto help_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Help");
   {
+    help_menu->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, "FA&Q...", "F1",
+                         std::bind(&EmulatorWindow::ShowFAQ, this)));
+    help_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
     help_menu->AddChild(MenuItem::Create(
         MenuItem::Type::kString, "Build commit on GitHub...", "F2",
         std::bind(&EmulatorWindow::ShowBuildCommit, this)));
@@ -595,9 +599,6 @@ bool EmulatorWindow::Initialize() {
               "..." XE_BUILD_BRANCH);
         }));
     help_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
-    help_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "&Website...", "F1",
-                         std::bind(&EmulatorWindow::ShowHelpWebsite, this)));
     help_menu->AddChild(MenuItem::Create(
         MenuItem::Type::kString, "&About...",
         [this]() { LaunchWebBrowser("https://xenia.jp/about/"); }));
@@ -776,7 +777,7 @@ void EmulatorWindow::OnKeyDown(ui::KeyEvent& e) {
     } break;
 
     case ui::VirtualKey::kF1: {
-      ShowHelpWebsite();
+      ShowFAQ();
     } break;
 
     case ui::VirtualKey::kF2: {
@@ -927,7 +928,9 @@ void EmulatorWindow::ToggleDisplayConfigDialog() {
   }
 }
 
-void EmulatorWindow::ShowHelpWebsite() { LaunchWebBrowser("https://xenia.jp"); }
+void EmulatorWindow::ShowFAQ() {
+  LaunchWebBrowser("https://github.com/xenia-project/xenia/wiki/FAQ");
+}
 
 void EmulatorWindow::ShowBuildCommit() {
 #ifdef XE_BUILD_IS_PR
