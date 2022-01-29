@@ -589,6 +589,10 @@ bool EmulatorWindow::Initialize() {
         MenuItem::Create(MenuItem::Type::kString, "FA&Q...", "F1",
                          std::bind(&EmulatorWindow::ShowFAQ, this)));
     help_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
+    help_menu->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, "Game &compatibility...",
+                         std::bind(&EmulatorWindow::ShowCompatibility, this)));
+    help_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
     help_menu->AddChild(MenuItem::Create(
         MenuItem::Type::kString, "Build commit on GitHub...", "F2",
         std::bind(&EmulatorWindow::ShowBuildCommit, this)));
@@ -926,6 +930,20 @@ void EmulatorWindow::ToggleDisplayConfigDialog() {
   } else {
     display_config_dialog_.reset();
   }
+}
+
+void EmulatorWindow::ShowCompatibility() {
+  const std::string_view base_url =
+      "https://github.com/xenia-project/game-compatibility/issues";
+  std::string url;
+  // Avoid searching for a title ID of "00000000".
+  uint32_t title_id = emulator_->title_id();
+  if (!title_id) {
+    url = base_url;
+  } else {
+    url = fmt::format("{}?q=is%3Aissue+is%3Aopen+{:08X}", base_url, title_id);
+  }
+  LaunchWebBrowser(url);
 }
 
 void EmulatorWindow::ShowFAQ() {
