@@ -53,8 +53,11 @@ constexpr T align(T value, T alignment) {
 
 // Rounds the given number up to the next highest multiple.
 template <typename T, typename V>
-constexpr T round_up(T value, V multiple) {
-  return value ? (((value + multiple - 1) / multiple) * multiple) : multiple;
+constexpr T round_up(T value, V multiple, bool force_non_zero = true) {
+  if (force_non_zero && !value) {
+    return multiple;
+  }
+  return (value + multiple - 1) / multiple * multiple;
 }
 
 // Using the same conventions as in shading languages, returning 0 for NaN.

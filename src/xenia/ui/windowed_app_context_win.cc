@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -22,10 +22,43 @@ Win32WindowedAppContext::~Win32WindowedAppContext() {
   if (pending_functions_hwnd_) {
     DestroyWindow(pending_functions_hwnd_);
   }
+  if (shcore_module_) {
+    FreeLibrary(shcore_module_);
+  }
 }
 
 bool Win32WindowedAppContext::Initialize() {
   // Logging possibly not initialized in this function yet.
+
+  // Obtain function pointers that may be used for windows if available.
+  shcore_module_ = LoadLibraryW(L"SHCore.dll");
+  if (shcore_module_) {
+    per_monitor_dpi_v1_api_available_ = true;
+    per_monitor_dpi_v1_api_available_ &=
+        (*reinterpret_cast<void**>(
+             &per_monitor_dpi_v1_api_.get_dpi_for_monitor) =
+             GetProcAddress(shcore_module_, "GetDpiForMonitor")) != nullptr;
+    per_monitor_dpi_v2_api_available_ = true;
+    per_monitor_dpi_v2_api_available_ &=
+        (*reinterpret_cast<void**>(
+             &per_monitor_dpi_v2_api_.adjust_window_rect_ex_for_dpi) =
+             GetProcAddress(shcore_module_, "AdjustWindowRectExForDpi")) !=
+        nullptr;
+    per_monitor_dpi_v2_api_available_ &=
+        (*reinterpret_cast<void**>(
+             &per_monitor_dpi_v2_api_.enable_non_client_dpi_scaling) =
+             GetProcAddress(shcore_module_, "EnableNonClientDpiScaling")) !=
+        nullptr;
+    per_monitor_dpi_v2_api_available_ &=
+        (*reinterpret_cast<void**>(
+             &per_monitor_dpi_v2_api_.get_dpi_for_system) =
+             GetProcAddress(shcore_module_, "GetDpiForSystem")) != nullptr;
+    per_monitor_dpi_v2_api_available_ &=
+        (*reinterpret_cast<void**>(
+             &per_monitor_dpi_v2_api_.get_dpi_for_window) =
+             GetProcAddress(shcore_module_, "GetDpiForWindow")) != nullptr;
+  }
+
   // Create the message-only window for executing pending functions - using a
   // window instead of executing them between iterations so non-main message
   // loops, such as Windows modals, can execute pending functions too.
@@ -51,6 +84,7 @@ bool Win32WindowedAppContext::Initialize() {
   if (!pending_functions_hwnd_) {
     return false;
   }
+
   return true;
 }
 
@@ -117,7 +151,7 @@ LRESULT CALLBACK Win32WindowedAppContext::PendingFunctionsWndProc(
           break;
         case kPendingFunctionsWindowClassMessageExecute:
           app_context->ExecutePendingFunctionsFromUIThread();
-          break;
+          return 0;
         default:
           break;
       }

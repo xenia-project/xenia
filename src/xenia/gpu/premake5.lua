@@ -39,6 +39,7 @@ project("xenia-gpu-shader-compiler")
     "spirv-tools",
     "xenia-base",
     "xenia-gpu",
+    "xenia-ui",
     "xenia-ui-spirv",
   })
   defines({

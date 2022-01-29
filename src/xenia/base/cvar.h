@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -86,6 +86,10 @@ class ConfigVar : public CommandVar<T>, virtual public IConfigVar {
   void LoadGameConfigValue(std::shared_ptr<cpptoml::base> result) override;
   void SetConfigValue(T val);
   void SetGameConfigValue(T val);
+  // Changes the actual value used to the one specified, and also makes it the
+  // one that will be stored when the global config is written next time. After
+  // overriding, however, the next game config loaded may still change it.
+  void OverrideConfigValue(T val);
 
  private:
   std::string category_;
@@ -260,6 +264,16 @@ void ConfigVar<T>::SetGameConfigValue(T val) {
   UpdateValue();
 }
 template <class T>
+void ConfigVar<T>::OverrideConfigValue(T val) {
+  config_value_ = std::make_unique<T>(val);
+  // The user explicitly changes the value at runtime and wants it to take
+  // effect immediately. Drop everything with a higher priority. The next game
+  // config load, however, may still change it.
+  game_config_value_.reset();
+  this->commandline_value_.reset();
+  UpdateValue();
+}
+template <class T>
 void ConfigVar<T>::ResetConfigValueToDefault() {
   SetConfigValue(this->default_value_);
 }
@@ -372,6 +386,28 @@ ICommandVar* define_cmdvar(const char* name, T* default_value,
   namespace cvars {              \
   extern type name;              \
   }
+
+#define ACCESS_CVar(name) (*cv::cv_##name)
+
+// dynamic_cast is needed because of virtual inheritance.
+#define OVERRIDE_CVar(name, type, value)                   \
+  dynamic_cast<cvar::ConfigVar<type>*>(&ACCESS_CVar(name)) \
+      ->OverrideConfigValue(value);
+
+#define OVERRIDE_bool(name, value) OVERRIDE_CVar(name, bool, value)
+
+#define OVERRIDE_int32(name, value) OVERRIDE_CVar(name, int32_t, value)
+
+#define OVERRIDE_uint32(name, value) OVERRIDE_CVar(name, uint32_t, value)
+
+#define OVERRIDE_uint64(name, value) OVERRIDE_CVar(name, uint64_t, value)
+
+#define OVERRIDE_double(name, value) OVERRIDE_CVar(name, double, value)
+
+#define OVERRIDE_string(name, value) OVERRIDE_CVar(name, std::string, value)
+
+#define OVERRIDE_path(name, value) \
+  OVERRIDE_CVar(name, std::filesystem::path, value)
 
 // Interface for changing the default value of a variable with auto-upgrading of
 // users' configs (to distinguish between a leftover old default and an explicit

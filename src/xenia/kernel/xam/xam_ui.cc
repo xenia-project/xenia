@@ -16,6 +16,7 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/ui/imgui_dialog.h"
+#include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/window.h"
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
@@ -51,7 +52,8 @@ class XamDialog : public xe::ui::ImGuiDialog {
   }
 
  protected:
-  XamDialog(xe::ui::Window* window) : xe::ui::ImGuiDialog(window) {}
+  XamDialog(xe::ui::ImGuiDrawer* imgui_drawer)
+      : xe::ui::ImGuiDialog(imgui_drawer) {}
 
   void OnClose() override {
     if (close_callback_) {
@@ -206,10 +208,10 @@ DECLARE_XAM_EXPORT2(XamIsUIActive, kUI, kImplemented, kHighFrequency);
 
 class MessageBoxDialog : public XamDialog {
  public:
-  MessageBoxDialog(xe::ui::Window* window, std::string title,
+  MessageBoxDialog(xe::ui::ImGuiDrawer* imgui_drawer, std::string title,
                    std::string description, std::vector<std::string> buttons,
                    uint32_t default_button)
-      : XamDialog(window),
+      : XamDialog(imgui_drawer),
         title_(title),
         description_(description),
         buttons_(std::move(buttons)),
@@ -310,11 +312,11 @@ dword_result_t XamShowMessageBoxUI_entry(
       *result_ptr = dialog->chosen_button();
       return X_ERROR_SUCCESS;
     };
-    auto display_window = kernel_state()->emulator()->display_window();
+    const Emulator* emulator = kernel_state()->emulator();
+    ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
     result = xeXamDispatchDialog<MessageBoxDialog>(
-        new MessageBoxDialog(display_window, title,
-                             xe::to_utf8(text_ptr.value()), buttons,
-                             active_button),
+        new MessageBoxDialog(imgui_drawer, title, xe::to_utf8(text_ptr.value()),
+                             buttons, active_button),
         close, overlapped);
   }
   return result;
@@ -323,10 +325,10 @@ DECLARE_XAM_EXPORT1(XamShowMessageBoxUI, kUI, kImplemented);
 
 class KeyboardInputDialog : public XamDialog {
  public:
-  KeyboardInputDialog(xe::ui::Window* window, std::string title,
+  KeyboardInputDialog(xe::ui::ImGuiDrawer* imgui_drawer, std::string title,
                       std::string description, std::string default_text,
                       size_t max_length)
-      : XamDialog(window),
+      : XamDialog(imgui_drawer),
         title_(title),
         description_(description),
         default_text_(default_text),
@@ -446,10 +448,11 @@ dword_result_t XamShowKeyboardUI_entry(
         return X_ERROR_SUCCESS;
       }
     };
-    auto display_window = kernel_state()->emulator()->display_window();
+    const Emulator* emulator = kernel_state()->emulator();
+    ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
     result = xeXamDispatchDialogEx<KeyboardInputDialog>(
         new KeyboardInputDialog(
-            display_window, title ? xe::to_utf8(title.value()) : "",
+            imgui_drawer, title ? xe::to_utf8(title.value()) : "",
             description ? xe::to_utf8(description.value()) : "",
             default_text ? xe::to_utf8(default_text.value()) : "",
             buffer_length),
@@ -479,10 +482,11 @@ void XamShowDirtyDiscErrorUI_entry(dword_t user_index) {
     exit(1);
     return;
   }
-  auto display_window = kernel_state()->emulator()->display_window();
+  const Emulator* emulator = kernel_state()->emulator();
+  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
   xeXamDispatchDialog<MessageBoxDialog>(
       new MessageBoxDialog(
-          display_window, "Disc Read Error",
+          imgui_drawer, "Disc Read Error",
           "There's been an issue reading content from the game disc.\nThis is "
           "likely caused by bad or unimplemented file IO calls.",
           {"OK"}, 0),

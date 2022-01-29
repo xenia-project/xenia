@@ -2,7 +2,6 @@
 XE_UI_VULKAN_FUNCTION(vkCreateDevice)
 XE_UI_VULKAN_FUNCTION(vkDestroyDevice)
 XE_UI_VULKAN_FUNCTION(vkEnumerateDeviceExtensionProperties)
-XE_UI_VULKAN_FUNCTION(vkEnumerateDeviceLayerProperties)
 XE_UI_VULKAN_FUNCTION(vkEnumeratePhysicalDevices)
 XE_UI_VULKAN_FUNCTION(vkGetDeviceProcAddr)
 XE_UI_VULKAN_FUNCTION(vkGetPhysicalDeviceFeatures)

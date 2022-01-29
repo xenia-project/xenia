@@ -105,6 +105,10 @@ void ReadGameConfig(const std::filesystem::path& file_path) {
 }
 
 void SaveConfig() {
+  if (config_path.empty()) {
+    return;
+  }
+
   // All cvar defaults have been updated on loading - store the current date.
   auto defaults_date_cvar =
       dynamic_cast<cvar::ConfigVar<uint32_t>*>(cv::cv_defaults_date);

@@ -16,9 +16,9 @@ namespace xe {
 namespace hid {
 namespace nop {
 
-class NopInputDriver : public InputDriver {
+class NopInputDriver final : public InputDriver {
  public:
-  explicit NopInputDriver(xe::ui::Window* window);
+  explicit NopInputDriver(xe::ui::Window* window, size_t window_z_order);
   ~NopInputDriver() override;
 
   X_STATUS Setup() override;

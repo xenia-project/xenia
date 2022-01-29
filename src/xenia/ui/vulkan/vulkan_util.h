@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,21 +10,24 @@
 #ifndef XENIA_UI_VULKAN_VULKAN_UTIL_H_
 #define XENIA_UI_VULKAN_VULKAN_UTIL_H_
 
-#include <memory>
-#include <string>
-#include <vector>
+#include <algorithm>
+#include <cstdint>
 
-#include "xenia/ui/vulkan/vulkan.h"
-
-namespace xe {
-namespace ui {
-class Window;
-}  // namespace ui
-}  // namespace xe
+#include "xenia/base/logging.h"
+#include "xenia/base/math.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 
 namespace xe {
 namespace ui {
 namespace vulkan {
+namespace util {
+
+inline void CheckResult(VkResult result, const char* action) {
+  if (result != VK_SUCCESS) {
+    XELOGE("Vulkan check: {} returned 0x{:X}", action, uint32_t(result));
+  }
+  assert_true(result == VK_SUCCESS, action);
+}
 
 template <typename F, typename T>
 inline bool DestroyAndNullHandle(F* destroy_function, T& handle) {
@@ -36,9 +39,8 @@ inline bool DestroyAndNullHandle(F* destroy_function, T& handle) {
   return false;
 }
 
-template <typename F, typename T>
-inline bool DestroyAndNullHandle(F* destroy_function, VkInstance parent,
-                                 T& handle) {
+template <typename F, typename P, typename T>
+inline bool DestroyAndNullHandle(F* destroy_function, P parent, T& handle) {
   if (handle != VK_NULL_HANDLE) {
     destroy_function(parent, handle, nullptr);
     handle = VK_NULL_HANDLE;
@@ -47,86 +49,128 @@ inline bool DestroyAndNullHandle(F* destroy_function, VkInstance parent,
   return false;
 }
 
-template <typename F, typename T>
-inline bool DestroyAndNullHandle(F* destroy_function, VkDevice parent,
-                                 T& handle) {
-  if (handle != VK_NULL_HANDLE) {
-    destroy_function(parent, handle, nullptr);
-    handle = VK_NULL_HANDLE;
-    return true;
+enum class MemoryPurpose {
+  kDeviceLocal,
+  kUpload,
+  kReadback,
+};
+
+inline VkDeviceSize GetMappableMemorySize(const VulkanProvider& provider,
+                                          VkDeviceSize size) {
+  VkDeviceSize non_coherent_atom_size =
+      provider.device_properties().limits.nonCoherentAtomSize;
+  // On some Android implementations, nonCoherentAtomSize is 0, not 1.
+  if (non_coherent_atom_size > 1) {
+    size = xe::round_up(size, non_coherent_atom_size, false);
   }
-  return false;
+  return size;
 }
 
-struct Version {
-  uint32_t major;
-  uint32_t minor;
-  uint32_t patch;
-  std::string pretty_string;
+inline uint32_t ChooseHostMemoryType(const VulkanProvider& provider,
+                                     uint32_t supported_types,
+                                     bool is_readback) {
+  supported_types &= provider.memory_types_host_visible();
+  uint32_t host_cached = provider.memory_types_host_cached();
+  uint32_t memory_type;
+  // For upload, uncached is preferred so writes do not pollute the CPU cache.
+  // For readback, cached is preferred so multiple CPU reads are fast.
+  // If the preferred caching behavior is not available, pick any host-visible.
+  if (xe::bit_scan_forward(
+          supported_types & (is_readback ? host_cached : ~host_cached),
+          &memory_type) ||
+      xe::bit_scan_forward(supported_types, &memory_type)) {
+    return memory_type;
+  }
+  return UINT32_MAX;
+}
 
-  static uint32_t Make(uint32_t major, uint32_t minor, uint32_t patch);
+inline uint32_t ChooseMemoryType(const VulkanProvider& provider,
+                                 uint32_t supported_types,
+                                 MemoryPurpose purpose) {
+  switch (purpose) {
+    case MemoryPurpose::kDeviceLocal: {
+      uint32_t memory_type;
+      return xe::bit_scan_forward(supported_types, &memory_type) ? memory_type
+                                                                 : UINT32_MAX;
+    } break;
+    case MemoryPurpose::kUpload:
+    case MemoryPurpose::kReadback:
+      return ChooseHostMemoryType(provider, supported_types,
+                                  purpose == MemoryPurpose::kReadback);
+    default:
+      assert_unhandled_case(purpose);
+      return UINT32_MAX;
+  }
+}
 
-  static Version Parse(uint32_t value);
-};
+// Actual memory size is required if explicit size is specified for clamping to
+// the actual memory allocation size while rounding to the non-coherent atom
+// size (offset + size passed to vkFlushMappedMemoryRanges inside this function
+// must be either a multiple of nonCoherentAtomSize (but not exceeding the
+// memory size) or equal to the memory size).
+void FlushMappedMemoryRange(const VulkanProvider& provider,
+                            VkDeviceMemory memory, uint32_t memory_type,
+                            VkDeviceSize offset = 0,
+                            VkDeviceSize memory_size = VK_WHOLE_SIZE,
+                            VkDeviceSize size = VK_WHOLE_SIZE);
 
-const char* to_string(VkFormat format);
-const char* to_string(VkPhysicalDeviceType type);
-const char* to_string(VkSharingMode sharing_mode);
-const char* to_string(VkResult result);
+inline VkExtent2D GetMax2DFramebufferExtent(const VulkanProvider& provider) {
+  const VkPhysicalDeviceLimits& limits = provider.device_properties().limits;
+  VkExtent2D max_extent;
+  max_extent.width =
+      std::min(limits.maxFramebufferWidth, limits.maxImageDimension2D);
+  max_extent.height =
+      std::min(limits.maxFramebufferHeight, limits.maxImageDimension2D);
+  return max_extent;
+}
 
-std::string to_flags_string(VkImageUsageFlagBits flags);
-std::string to_flags_string(VkFormatFeatureFlagBits flags);
-std::string to_flags_string(VkSurfaceTransformFlagBitsKHR flags);
+inline void InitializeSubresourceRange(
+    VkImageSubresourceRange& range,
+    VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT,
+    uint32_t base_mip_level = 0, uint32_t level_count = VK_REMAINING_MIP_LEVELS,
+    uint32_t base_array_layer = 0,
+    uint32_t layer_count = VK_REMAINING_ARRAY_LAYERS) {
+  range.aspectMask = aspect_mask;
+  range.baseMipLevel = base_mip_level;
+  range.levelCount = level_count;
+  range.baseArrayLayer = base_array_layer;
+  range.layerCount = layer_count;
+}
 
-const char* to_string(VkColorSpaceKHR color_space);
-const char* to_string(VkPresentModeKHR present_mode);
+// Creates a buffer backed by a dedicated allocation. The allocation size will
+// NOT be aligned to nonCoherentAtomSize - if mapping or flushing not the whole
+// size, memory_size_out must be used for clamping the range.
+bool CreateDedicatedAllocationBuffer(
+    const VulkanProvider& provider, VkDeviceSize size, VkBufferUsageFlags usage,
+    MemoryPurpose memory_purpose, VkBuffer& buffer_out,
+    VkDeviceMemory& memory_out, uint32_t* memory_type_out = nullptr,
+    VkDeviceSize* memory_size_out = nullptr);
 
-// Throws a fatal error with some Vulkan help text.
-void FatalVulkanError(std::string error);
+bool CreateDedicatedAllocationImage(const VulkanProvider& provider,
+                                    const VkImageCreateInfo& create_info,
+                                    MemoryPurpose memory_purpose,
+                                    VkImage& image_out,
+                                    VkDeviceMemory& memory_out,
+                                    uint32_t* memory_type_out = nullptr,
+                                    VkDeviceSize* memory_size_out = nullptr);
 
-// Logs and assets expecting the result to be VK_SUCCESS.
-void CheckResult(VkResult result, const char* action);
+inline VkShaderModule CreateShaderModule(const VulkanProvider& provider,
+                                         const void* code, size_t code_size) {
+  VkShaderModuleCreateInfo shader_module_create_info;
+  shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+  shader_module_create_info.pNext = nullptr;
+  shader_module_create_info.flags = 0;
+  shader_module_create_info.codeSize = code_size;
+  shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(code);
+  VkShaderModule shader_module;
+  return provider.dfn().vkCreateShaderModule(
+             provider.device(), &shader_module_create_info, nullptr,
+             &shader_module) == VK_SUCCESS
+             ? shader_module
+             : VK_NULL_HANDLE;
+}
 
-struct LayerInfo {
-  VkLayerProperties properties;
-  std::vector<VkExtensionProperties> extensions;
-};
-
-struct DeviceInfo {
-  VkPhysicalDevice handle;
-  VkPhysicalDeviceProperties properties;
-  VkPhysicalDeviceFeatures features;
-  VkPhysicalDeviceMemoryProperties memory_properties;
-  std::vector<VkQueueFamilyProperties> queue_family_properties;
-  std::vector<LayerInfo> layers;
-  std::vector<VkExtensionProperties> extensions;
-};
-
-// Defines a requirement for a layer or extension, used to both verify and
-// enable them on initialization.
-struct Requirement {
-  // Layer or extension name.
-  std::string name;
-  // Minimum required spec version of the layer or extension.
-  uint32_t min_version;
-  // True if the requirement is optional (will not cause verification to fail).
-  bool is_optional;
-};
-
-// Gets a list of enabled layer names based on the given layer requirements and
-// available layer info.
-// Returns a boolean indicating whether all required layers are present.
-std::pair<bool, std::vector<const char*>> CheckRequirements(
-    const std::vector<Requirement>& requirements,
-    const std::vector<LayerInfo>& layer_infos);
-
-// Gets a list of enabled extension names based on the given extension
-// requirements and available extensions.
-// Returns a boolean indicating whether all required extensions are present.
-std::pair<bool, std::vector<const char*>> CheckRequirements(
-    const std::vector<Requirement>& requirements,
-    const std::vector<VkExtensionProperties>& extension_properties);
-
+}  // namespace util
 }  // namespace vulkan
 }  // namespace ui
 }  // namespace xe

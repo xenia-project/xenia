@@ -11,6 +11,7 @@
 #define XENIA_GPU_VULKAN_VULKAN_COMMAND_PROCESSOR_H_
 
 #include <atomic>
+#include <cstdint>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -27,21 +28,21 @@
 #include "xenia/gpu/vulkan/pipeline_cache.h"
 #include "xenia/gpu/vulkan/render_cache.h"
 #include "xenia/gpu/vulkan/texture_cache.h"
+#include "xenia/gpu/vulkan/vulkan_graphics_system.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/memory.h"
 #include "xenia/ui/vulkan/blitter.h"
 #include "xenia/ui/vulkan/fenced_pools.h"
-#include "xenia/ui/vulkan/vulkan_context.h"
-#include "xenia/ui/vulkan/vulkan_device.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
+#include "xenia/ui/vulkan/vulkan_submission_tracker.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
 
 namespace xe {
 namespace gpu {
 namespace vulkan {
 
-class VulkanGraphicsSystem;
 class TextureCache;
 
 class VulkanCommandProcessor : public CommandProcessor {
@@ -55,6 +56,11 @@ class VulkanCommandProcessor : public CommandProcessor {
   void RestoreEdramSnapshot(const void* snapshot) override;
   void ClearCaches() override;
 
+  ui::vulkan::VulkanProvider& GetVulkanProvider() const {
+    return *static_cast<ui::vulkan::VulkanProvider*>(
+        graphics_system_->provider());
+  }
+
   RenderCache* render_cache() { return render_cache_.get(); }
 
  private:
@@ -62,19 +68,14 @@ class VulkanCommandProcessor : public CommandProcessor {
   void ShutdownContext() override;
 
   void MakeCoherent() override;
-  void PrepareForWait() override;
-  void ReturnFromWait() override;
 
   void WriteRegister(uint32_t index, uint32_t value) override;
 
   void BeginFrame();
   void EndFrame();
 
-  void CreateSwapImage(VkCommandBuffer setup_buffer, VkExtent2D extents);
-  void DestroySwapImage();
-
-  void PerformSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
-                   uint32_t frontbuffer_height) override;
+  void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
+                 uint32_t frontbuffer_height) override;
 
   Shader* LoadShader(xenos::ShaderType shader_type, uint32_t guest_address,
                      const uint32_t* host_address,
@@ -99,13 +100,6 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   void InitializeTrace() override;
 
-  xe::ui::vulkan::VulkanDevice* device_ = nullptr;
-
-  // front buffer / back buffer memory
-  VkDeviceMemory fb_memory_ = nullptr;
-  VkImageView fb_image_view_ = nullptr;
-  VkFramebuffer fb_framebuffer_ = nullptr;
-
   uint64_t dirty_float_constants_ = 0;  // Dirty float constants in blocks of 4
   uint8_t dirty_bool_constants_ = 0;
   uint32_t dirty_loop_constants_ = 0;
@@ -113,14 +107,6 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   uint32_t coher_base_vc_ = 0;
   uint32_t coher_size_vc_ = 0;
-
-  // TODO(benvanik): abstract behind context?
-  // Queue used to submit work. This may be a dedicated queue for the command
-  // processor and no locking will be required for use. If a dedicated queue
-  // was not available this will be the device primary_queue and the
-  // queue_mutex must be used to synchronize access to it.
-  VkQueue queue_ = nullptr;
-  std::mutex* queue_mutex_ = nullptr;
 
   // Last copy base address, for debugging only.
   uint32_t last_copy_base_ = 0;
@@ -142,6 +128,10 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkCommandBuffer current_command_buffer_ = nullptr;
   VkCommandBuffer current_setup_buffer_ = nullptr;
   VkFence current_batch_fence_;
+
+  ui::vulkan::VulkanSubmissionTracker swap_submission_tracker_;
+  VkFramebuffer swap_framebuffer_ = VK_NULL_HANDLE;
+  uint64_t swap_framebuffer_version_ = UINT64_MAX;
 };
 
 }  // namespace vulkan

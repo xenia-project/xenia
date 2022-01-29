@@ -13,26 +13,27 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
-#include "xenia/ui/vulkan/vulkan_device.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
 
 namespace xe {
 namespace gpu {
 namespace vulkan {
 
-using xe::ui::vulkan::CheckResult;
+using xe::ui::vulkan::util::CheckResult;
 
-VulkanShader::VulkanShader(ui::vulkan::VulkanDevice* device,
+VulkanShader::VulkanShader(const ui::vulkan::VulkanProvider& provider,
                            xenos::ShaderType shader_type, uint64_t data_hash,
                            const uint32_t* dword_ptr, uint32_t dword_count)
-    : Shader(shader_type, data_hash, dword_ptr, dword_count), device_(device) {}
+    : Shader(shader_type, data_hash, dword_ptr, dword_count),
+      provider_(provider) {}
 
 VulkanShader::VulkanTranslation::~VulkanTranslation() {
   if (shader_module_) {
-    const VulkanShader& vulkan_shader = static_cast<VulkanShader&>(shader());
-    const ui::vulkan::VulkanDevice* device = vulkan_shader.device_;
-    const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device->dfn();
-    dfn.vkDestroyShaderModule(*device, shader_module_, nullptr);
+    const ui::vulkan::VulkanProvider& provider =
+        static_cast<VulkanShader&>(shader()).provider_;
+    const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+    VkDevice device = provider.device();
+    dfn.vkDestroyShaderModule(device, shader_module_, nullptr);
     shader_module_ = nullptr;
   }
 }
@@ -42,8 +43,9 @@ bool VulkanShader::VulkanTranslation::Prepare() {
   assert_true(is_valid());
 
   const VulkanShader& vulkan_shader = static_cast<VulkanShader&>(shader());
-  const ui::vulkan::VulkanDevice* device = vulkan_shader.device_;
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device->dfn();
+  const ui::vulkan::VulkanProvider& provider = vulkan_shader.provider_;
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
 
   // Create the shader module.
   VkShaderModuleCreateInfo shader_info;
@@ -54,7 +56,7 @@ bool VulkanShader::VulkanTranslation::Prepare() {
   shader_info.pCode =
       reinterpret_cast<const uint32_t*>(translated_binary().data());
   auto status =
-      dfn.vkCreateShaderModule(*device, &shader_info, nullptr, &shader_module_);
+      dfn.vkCreateShaderModule(device, &shader_info, nullptr, &shader_module_);
   CheckResult(status, "vkCreateShaderModule");
 
   char type_char;
@@ -68,10 +70,10 @@ bool VulkanShader::VulkanTranslation::Prepare() {
     default:
       type_char = 'u';
   }
-  device->DbgSetObjectName(uint64_t(shader_module_),
-                           VK_DEBUG_REPORT_OBJECT_TYPE_SHADER_MODULE_EXT,
-                           fmt::format("S({}): {:016X}", type_char,
-                                       vulkan_shader.ucode_data_hash()));
+  provider.SetDeviceObjectName(
+      VK_OBJECT_TYPE_SHADER_MODULE, uint64_t(shader_module_),
+      fmt::format("S({}): {:016X}", type_char, vulkan_shader.ucode_data_hash())
+          .c_str());
   return status == VK_SUCCESS;
 }
 

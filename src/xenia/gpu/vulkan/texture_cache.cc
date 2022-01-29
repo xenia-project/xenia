@@ -23,8 +23,8 @@
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/vulkan/texture_config.h"
 #include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
-#include "xenia/ui/vulkan/vulkan_instance.h"
 #include "xenia/ui/vulkan/vulkan_mem_alloc.h"
+#include "xenia/ui/vulkan/vulkan_util.h"
 
 DECLARE_bool(texture_dump);
 
@@ -35,7 +35,7 @@ void TextureDump(const TextureInfo& src, void* buffer, size_t length);
 
 namespace vulkan {
 
-using xe::ui::vulkan::CheckResult;
+using xe::ui::vulkan::util::CheckResult;
 
 using namespace xe::literals;
 
@@ -58,20 +58,21 @@ const char* get_dimension_name(xenos::DataDimension dimension) {
 
 TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
                            TraceWriter* trace_writer,
-                           ui::vulkan::VulkanDevice* device)
+                           ui::vulkan::VulkanProvider& provider)
     : memory_(memory),
       register_file_(register_file),
       trace_writer_(trace_writer),
-      device_(device),
-      staging_buffer_(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+      provider_(provider),
+      staging_buffer_(provider, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                       kStagingBufferSize),
-      wb_staging_buffer_(device, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+      wb_staging_buffer_(provider, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                          kStagingBufferSize) {}
 
 TextureCache::~TextureCache() { Shutdown(); }
 
 VkResult TextureCache::Initialize() {
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
   VkResult status = VK_SUCCESS;
 
   // Descriptor pool used for all of our cached descriptors.
@@ -79,16 +80,16 @@ VkResult TextureCache::Initialize() {
   pool_sizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
   pool_sizes[0].descriptorCount = 32768;
   descriptor_pool_ = std::make_unique<ui::vulkan::DescriptorPool>(
-      *device_, 32768,
+      provider_, 32768,
       std::vector<VkDescriptorPoolSize>(pool_sizes, std::end(pool_sizes)));
 
   wb_command_pool_ = std::make_unique<ui::vulkan::CommandBufferPool>(
-      *device_, device_->queue_family_index());
+      provider_, provider_.queue_family_graphics_compute());
 
   // Check some device limits
   // On low sampler counts: Rarely would we experience over 16 unique samplers.
   // This code could be refactored to scale up/down to the # of samplers.
-  auto& limits = device_->device_info().properties.limits;
+  auto& limits = provider_.device_properties().limits;
   if (limits.maxPerStageDescriptorSamplers < kMaxTextureSamplers ||
       limits.maxPerStageDescriptorSampledImages < kMaxTextureSamplers) {
     XELOGE(
@@ -120,7 +121,7 @@ VkResult TextureCache::Initialize() {
       static_cast<uint32_t>(xe::countof(bindings));
   descriptor_set_layout_info.pBindings = bindings;
   status =
-      dfn.vkCreateDescriptorSetLayout(*device_, &descriptor_set_layout_info,
+      dfn.vkCreateDescriptorSetLayout(device, &descriptor_set_layout_info,
                                       nullptr, &texture_descriptor_set_layout_);
   if (status != VK_SUCCESS) {
     return status;
@@ -138,14 +139,16 @@ VkResult TextureCache::Initialize() {
 
   // Create a memory allocator for textures.
   VmaVulkanFunctions vulkan_funcs = {};
-  ui::vulkan::FillVMAVulkanFunctions(&vulkan_funcs, *device_);
+  ui::vulkan::FillVMAVulkanFunctions(&vulkan_funcs, provider_);
 
-  VmaAllocatorCreateInfo alloc_info = {
-      0, *device_, *device_, 0, 0, nullptr, nullptr, 0, nullptr, &vulkan_funcs,
-  };
+  VmaAllocatorCreateInfo alloc_info = {};
+  alloc_info.physicalDevice = provider_.physical_device();
+  alloc_info.device = device;
+  alloc_info.pVulkanFunctions = &vulkan_funcs;
+  alloc_info.instance = provider_.instance();
   status = vmaCreateAllocator(&alloc_info, &mem_allocator_);
   if (status != VK_SUCCESS) {
-    dfn.vkDestroyDescriptorSetLayout(*device_, texture_descriptor_set_layout_,
+    dfn.vkDestroyDescriptorSetLayout(device, texture_descriptor_set_layout_,
                                      nullptr);
     return status;
   }
@@ -153,8 +156,6 @@ VkResult TextureCache::Initialize() {
   invalidated_textures_sets_[0].reserve(64);
   invalidated_textures_sets_[1].reserve(64);
   invalidated_textures_ = &invalidated_textures_sets_[0];
-
-  device_queue_ = device_->AcquireQueue(device_->queue_family_index());
 
   memory_invalidation_callback_handle_ =
       memory_->RegisterPhysicalMemoryInvalidationCallback(
@@ -170,10 +171,6 @@ void TextureCache::Shutdown() {
     memory_invalidation_callback_handle_ = nullptr;
   }
 
-  if (device_queue_) {
-    device_->ReleaseQueue(device_queue_, device_->queue_family_index());
-  }
-
   // Free all textures allocated.
   ClearCache();
   Scavenge();
@@ -182,8 +179,9 @@ void TextureCache::Shutdown() {
     vmaDestroyAllocator(mem_allocator_);
     mem_allocator_ = nullptr;
   }
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
-  dfn.vkDestroyDescriptorSetLayout(*device_, texture_descriptor_set_layout_,
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
+  dfn.vkDestroyDescriptorSetLayout(device, texture_descriptor_set_layout_,
                                    nullptr);
 }
 
@@ -235,20 +233,19 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   image_info.usage =
       VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
-  const ui::vulkan::VulkanInstance* instance = device_->instance();
-  const ui::vulkan::VulkanInstance::InstanceFunctions& ifn = instance->ifn();
+  const ui::vulkan::VulkanProvider::InstanceFunctions& ifn = provider_.ifn();
 
   // Check the device limits for the format before we create it.
   VkFormatProperties props;
-  ifn.vkGetPhysicalDeviceFormatProperties(*device_, format, &props);
+  ifn.vkGetPhysicalDeviceFormatProperties(provider_.physical_device(), format,
+                                          &props);
   if ((props.optimalTilingFeatures & required_flags) != required_flags) {
     // Texture needs conversion on upload to a native format.
     XELOGE(
-        "Texture Cache: Invalid usage flag specified on format {} ({})\n\t"
-        "(requested: {})",
-        texture_info.format_info()->name, ui::vulkan::to_string(format),
-        ui::vulkan::to_flags_string(static_cast<VkFormatFeatureFlagBits>(
-            required_flags & ~props.optimalTilingFeatures)));
+        "Texture Cache: Invalid usage flag specified on format {} (0x{:X})\n\t"
+        "(requested: 0x{:X})",
+        texture_info.format_info()->name, uint32_t(format),
+        uint32_t(required_flags & ~props.optimalTilingFeatures));
   }
 
   if (texture_info.dimension != xenos::DataDimension::kCube &&
@@ -267,8 +264,8 @@ TextureCache::Texture* TextureCache::AllocateTexture(
 
   VkImageFormatProperties image_props;
   ifn.vkGetPhysicalDeviceImageFormatProperties(
-      *device_, format, image_info.imageType, image_info.tiling,
-      image_info.usage, image_info.flags, &image_props);
+      provider_.physical_device(), format, image_info.imageType,
+      image_info.tiling, image_info.usage, image_info.flags, &image_props);
 
   // TODO(DrChat): Actually check the image properties.
 
@@ -317,10 +314,11 @@ TextureCache::Texture* TextureCache::AllocateTexture(
 }
 
 bool TextureCache::FreeTexture(Texture* texture) {
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
 
   if (texture->in_flight_fence) {
-    VkResult status = dfn.vkGetFenceStatus(*device_, texture->in_flight_fence);
+    VkResult status = dfn.vkGetFenceStatus(device, texture->in_flight_fence);
     if (status != VK_SUCCESS && status != VK_ERROR_DEVICE_LOST) {
       // Texture still in flight.
       return false;
@@ -328,11 +326,11 @@ bool TextureCache::FreeTexture(Texture* texture) {
   }
 
   if (texture->framebuffer) {
-    dfn.vkDestroyFramebuffer(*device_, texture->framebuffer, nullptr);
+    dfn.vkDestroyFramebuffer(device, texture->framebuffer, nullptr);
   }
 
   for (auto it = texture->views.begin(); it != texture->views.end();) {
-    dfn.vkDestroyImageView(*device_, (*it)->view, nullptr);
+    dfn.vkDestroyImageView(device, (*it)->view, nullptr);
     it = texture->views.erase(it);
   }
 
@@ -529,14 +527,14 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
   }
 
   // Setup a debug name for the texture.
-  device_->DbgSetObjectName(
-      reinterpret_cast<uint64_t>(texture->image),
-      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
+  provider_.SetDeviceObjectName(
+      VK_OBJECT_TYPE_IMAGE, uint64_t(texture->image),
       fmt::format(
           "RT: 0x{:08X} - 0x{:08X} ({}, {})", texture_info.memory.base_address,
           texture_info.memory.base_address + texture_info.memory.base_size,
           texture_info.format_info()->name,
-          get_dimension_name(texture_info.dimension)));
+          get_dimension_name(texture_info.dimension))
+          .c_str());
 
   // Setup an access watch. If this texture is touched, it is destroyed.
   WatchTexture(texture);
@@ -612,14 +610,14 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
   }
 
   // Setup a debug name for the texture.
-  device_->DbgSetObjectName(
-      reinterpret_cast<uint64_t>(texture->image),
-      VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT,
+  provider_.SetDeviceObjectName(
+      VK_OBJECT_TYPE_IMAGE, uint64_t(texture->image),
       fmt::format(
           "T: 0x{:08X} - 0x{:08X} ({}, {})", texture_info.memory.base_address,
           texture_info.memory.base_address + texture_info.memory.base_size,
           texture_info.format_info()->name,
-          get_dimension_name(texture_info.dimension)));
+          get_dimension_name(texture_info.dimension))
+          .c_str());
 
   textures_[texture_hash] = texture;
   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
@@ -703,8 +701,9 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
       !is_cube ? 1 : 1 + texture->texture_info.depth;
 
   VkImageView view;
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
-  auto status = dfn.vkCreateImageView(*device_, &view_info, nullptr, &view);
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
+  auto status = dfn.vkCreateImageView(device, &view_info, nullptr, &view);
   CheckResult(status, "vkCreateImageView");
   if (status == VK_SUCCESS) {
     auto texture_view = new TextureView();
@@ -844,9 +843,10 @@ TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
   sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
   sampler_create_info.unnormalizedCoordinates = VK_FALSE;
   VkSampler vk_sampler;
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
   status =
-      dfn.vkCreateSampler(*device_, &sampler_create_info, nullptr, &vk_sampler);
+      dfn.vkCreateSampler(device, &sampler_create_info, nullptr, &vk_sampler);
   CheckResult(status, "vkCreateSampler");
   if (status != VK_SUCCESS) {
     return nullptr;
@@ -960,7 +960,8 @@ TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
 
 void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
                                         VkFence completion_fence) {
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
   auto status = dfn.vkEndCommandBuffer(command_buffer);
   CheckResult(status, "vkEndCommandBuffer");
 
@@ -970,21 +971,17 @@ void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
   submit_info.commandBufferCount = 1;
   submit_info.pCommandBuffers = &command_buffer;
 
-  if (device_queue_) {
-    auto status =
-        dfn.vkQueueSubmit(device_queue_, 1, &submit_info, completion_fence);
-    CheckResult(status, "vkQueueSubmit");
-  } else {
-    std::lock_guard<std::mutex> lock(device_->primary_queue_mutex());
-
-    auto status = dfn.vkQueueSubmit(device_->primary_queue(), 1, &submit_info,
+  {
+    ui::vulkan::VulkanProvider::QueueAcquisition queue_acquisition(
+        provider_.AcquireQueue(provider_.queue_family_graphics_compute(), 0));
+    auto status = dfn.vkQueueSubmit(queue_acquisition.queue, 1, &submit_info,
                                     completion_fence);
     CheckResult(status, "vkQueueSubmit");
   }
 
-  dfn.vkWaitForFences(*device_, 1, &completion_fence, VK_TRUE, -1);
+  dfn.vkWaitForFences(device, 1, &completion_fence, VK_TRUE, -1);
   staging_buffer_.Scavenge();
-  dfn.vkResetFences(*device_, 1, &completion_fence);
+  dfn.vkResetFences(device, 1, &completion_fence);
 
   // Reset the command buffer and put it back into the recording state.
   dfn.vkResetCommandBuffer(command_buffer, 0);
@@ -1169,7 +1166,7 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
     TextureDump(src, unpack_buffer, unpack_length);
   }
 
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
 
   // Transition the texture into a transfer destination layout.
   VkImageMemoryBarrier barrier;
@@ -1313,7 +1310,7 @@ uint32_t TextureCache::ComputeTextureStorage(const TextureInfo& src) {
 }
 
 void TextureCache::WritebackTexture(Texture* texture) {
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   VkResult status = VK_SUCCESS;
   VkFence fence = wb_command_pool_->BeginBatch();
   auto alloc = wb_staging_buffer_.Acquire(texture->alloc_info.size, fence);
@@ -1361,7 +1358,8 @@ void TextureCache::WritebackTexture(Texture* texture) {
   // Submit the command buffer.
   // Submit commands and wait.
   {
-    std::lock_guard<std::mutex> lock(device_->primary_queue_mutex());
+    ui::vulkan::VulkanProvider::QueueAcquisition queue_acquisition(
+        provider_.AcquireQueue(provider_.queue_family_graphics_compute(), 0));
     VkSubmitInfo submit_info = {
         VK_STRUCTURE_TYPE_SUBMIT_INFO,
         nullptr,
@@ -1373,12 +1371,11 @@ void TextureCache::WritebackTexture(Texture* texture) {
         0,
         nullptr,
     };
-    status =
-        dfn.vkQueueSubmit(device_->primary_queue(), 1, &submit_info, fence);
+    status = dfn.vkQueueSubmit(queue_acquisition.queue, 1, &submit_info, fence);
     CheckResult(status, "vkQueueSubmit");
 
     if (status == VK_SUCCESS) {
-      status = dfn.vkQueueWaitIdle(device_->primary_queue());
+      status = dfn.vkQueueWaitIdle(queue_acquisition.queue);
       CheckResult(status, "vkQueueWaitIdle");
     }
   }
@@ -1471,8 +1468,9 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
 
   // Update the descriptor set.
   if (update_set_info->image_write_count > 0) {
-    const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
-    dfn.vkUpdateDescriptorSets(*device_, update_set_info->image_write_count,
+    const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+    VkDevice device = provider_.device();
+    dfn.vkUpdateDescriptorSets(device, update_set_info->image_write_count,
                                update_set_info->image_writes, 0, nullptr);
   }
 
@@ -1632,9 +1630,10 @@ void TextureCache::ClearCache() {
   textures_.clear();
   COUNT_profile_set("gpu/texture_cache/textures", 0);
 
-  const ui::vulkan::VulkanDevice::DeviceFunctions& dfn = device_->dfn();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
   for (auto it = samplers_.begin(); it != samplers_.end(); ++it) {
-    dfn.vkDestroySampler(*device_, it->second->sampler, nullptr);
+    dfn.vkDestroySampler(device, it->second->sampler, nullptr);
     delete it->second;
   }
   samplers_.clear();

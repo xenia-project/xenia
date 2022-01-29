@@ -17,12 +17,13 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
-using xe::ui::vulkan::CheckResult;
+using util::CheckResult;
 
-CommandBufferPool::CommandBufferPool(const VulkanDevice& device,
+CommandBufferPool::CommandBufferPool(const VulkanProvider& provider,
                                      uint32_t queue_family_index)
-    : BaseFencedPool(device) {
-  const VulkanDevice::DeviceFunctions& dfn = device_.dfn();
+    : BaseFencedPool(provider) {
+  const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
 
   // Create the pool used for allocating buffers.
   // They are marked as transient (short-lived) and cycled frequently.
@@ -33,7 +34,7 @@ CommandBufferPool::CommandBufferPool(const VulkanDevice& device,
                         VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
   cmd_pool_info.queueFamilyIndex = queue_family_index;
   auto err =
-      dfn.vkCreateCommandPool(device_, &cmd_pool_info, nullptr, &command_pool_);
+      dfn.vkCreateCommandPool(device, &cmd_pool_info, nullptr, &command_pool_);
   CheckResult(err, "vkCreateCommandPool");
 
   // Allocate a bunch of command buffers to start.
@@ -45,7 +46,7 @@ CommandBufferPool::CommandBufferPool(const VulkanDevice& device,
   command_buffer_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   command_buffer_info.commandBufferCount = kDefaultCount;
   VkCommandBuffer command_buffers[kDefaultCount];
-  err = dfn.vkAllocateCommandBuffers(device_, &command_buffer_info,
+  err = dfn.vkAllocateCommandBuffers(device, &command_buffer_info,
                                      command_buffers);
   CheckResult(err, "vkCreateCommandBuffer");
   for (size_t i = 0; i < xe::countof(command_buffers); ++i) {
@@ -55,8 +56,9 @@ CommandBufferPool::CommandBufferPool(const VulkanDevice& device,
 
 CommandBufferPool::~CommandBufferPool() {
   FreeAllEntries();
-  const VulkanDevice::DeviceFunctions& dfn = device_.dfn();
-  dfn.vkDestroyCommandPool(device_, command_pool_, nullptr);
+  const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
+  dfn.vkDestroyCommandPool(device, command_pool_, nullptr);
   command_pool_ = nullptr;
 }
 
@@ -70,21 +72,24 @@ VkCommandBuffer CommandBufferPool::AllocateEntry(void* data) {
       VkCommandBufferLevel(reinterpret_cast<uintptr_t>(data));
   command_buffer_info.commandBufferCount = 1;
   VkCommandBuffer command_buffer;
-  const VulkanDevice::DeviceFunctions& dfn = device_.dfn();
-  auto err = dfn.vkAllocateCommandBuffers(device_, &command_buffer_info,
+  const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
+  auto err = dfn.vkAllocateCommandBuffers(device, &command_buffer_info,
                                           &command_buffer);
   CheckResult(err, "vkCreateCommandBuffer");
   return command_buffer;
 }
 
 void CommandBufferPool::FreeEntry(VkCommandBuffer handle) {
-  const VulkanDevice::DeviceFunctions& dfn = device_.dfn();
-  dfn.vkFreeCommandBuffers(device_, command_pool_, 1, &handle);
+  const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
+  dfn.vkFreeCommandBuffers(device, command_pool_, 1, &handle);
 }
 
-DescriptorPool::DescriptorPool(const VulkanDevice& device, uint32_t max_count,
+DescriptorPool::DescriptorPool(const VulkanProvider& provider,
+                               uint32_t max_count,
                                std::vector<VkDescriptorPoolSize> pool_sizes)
-    : BaseFencedPool(device) {
+    : BaseFencedPool(provider) {
   VkDescriptorPoolCreateInfo descriptor_pool_info;
   descriptor_pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
   descriptor_pool_info.pNext = nullptr;
@@ -93,15 +98,17 @@ DescriptorPool::DescriptorPool(const VulkanDevice& device, uint32_t max_count,
   descriptor_pool_info.maxSets = max_count;
   descriptor_pool_info.poolSizeCount = uint32_t(pool_sizes.size());
   descriptor_pool_info.pPoolSizes = pool_sizes.data();
-  const VulkanDevice::DeviceFunctions& dfn = device_.dfn();
+  const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
   auto err = dfn.vkCreateDescriptorPool(device, &descriptor_pool_info, nullptr,
                                         &descriptor_pool_);
   CheckResult(err, "vkCreateDescriptorPool");
 }
 DescriptorPool::~DescriptorPool() {
   FreeAllEntries();
-  const VulkanDevice::DeviceFunctions& dfn = device_.dfn();
-  dfn.vkDestroyDescriptorPool(device_, descriptor_pool_, nullptr);
+  const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
+  dfn.vkDestroyDescriptorPool(device, descriptor_pool_, nullptr);
   descriptor_pool_ = nullptr;
 }
 
@@ -115,17 +122,19 @@ VkDescriptorSet DescriptorPool::AllocateEntry(void* data) {
   set_alloc_info.descriptorPool = descriptor_pool_;
   set_alloc_info.descriptorSetCount = 1;
   set_alloc_info.pSetLayouts = &layout;
-  const VulkanDevice::DeviceFunctions& dfn = device_.dfn();
+  const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
   auto err =
-      dfn.vkAllocateDescriptorSets(device_, &set_alloc_info, &descriptor_set);
+      dfn.vkAllocateDescriptorSets(device, &set_alloc_info, &descriptor_set);
   CheckResult(err, "vkAllocateDescriptorSets");
 
   return descriptor_set;
 }
 
 void DescriptorPool::FreeEntry(VkDescriptorSet handle) {
-  const VulkanDevice::DeviceFunctions& dfn = device_.dfn();
-  dfn.vkFreeDescriptorSets(device_, descriptor_pool_, 1, &handle);
+  const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
+  VkDevice device = provider_.device();
+  dfn.vkFreeDescriptorSets(device, descriptor_pool_, 1, &handle);
 }
 
 }  // namespace vulkan

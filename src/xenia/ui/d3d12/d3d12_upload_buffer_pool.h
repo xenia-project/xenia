@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -38,8 +38,7 @@ class D3D12UploadBufferPool : public GraphicsUploadBufferPool {
     // Creates a reference to the buffer. It must not be unmapped until this
     // D3D12Page is deleted.
     D3D12Page(ID3D12Resource* buffer, void* mapping);
-    ~D3D12Page() override;
-    ID3D12Resource* buffer_;
+    Microsoft::WRL::ComPtr<ID3D12Resource> buffer_;
     void* mapping_;
     D3D12_GPU_VIRTUAL_ADDRESS gpu_address_;
   };

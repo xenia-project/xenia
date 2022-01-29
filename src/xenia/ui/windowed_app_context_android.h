@@ -36,7 +36,8 @@ class AndroidWindowedAppContext final : public WindowedAppContext {
   // The single Window instance that will be receiving window callbacks.
   // Multiple windows cannot be created as one activity or fragment can have
   // only one layout. This window acts purely as a proxy between the activity
-  // and the Xenia logic.
+  // and the Xenia logic. May be done during Window destruction, so must not
+  // interact with it.
   AndroidWindow* GetActivityWindow() const { return activity_window_; }
   void SetActivityWindow(AndroidWindow* window) { activity_window_ = window; }
 

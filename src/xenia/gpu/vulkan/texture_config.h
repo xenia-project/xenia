@@ -12,7 +12,7 @@
 
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"
-#include "xenia/ui/vulkan/vulkan.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 
 namespace xe {
 namespace gpu {

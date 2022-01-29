@@ -20,8 +20,7 @@
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/spirv/spirv_disassembler.h"
-#include "xenia/ui/vulkan/vulkan.h"
-#include "xenia/ui/vulkan/vulkan_device.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 
 namespace xe {
 namespace gpu {
@@ -38,7 +37,8 @@ class PipelineCache {
     kError,
   };
 
-  PipelineCache(RegisterFile* register_file, ui::vulkan::VulkanDevice* device);
+  PipelineCache(RegisterFile* register_file,
+                const ui::vulkan::VulkanProvider& provider);
   ~PipelineCache();
 
   VkResult Initialize(VkDescriptorSetLayout uniform_descriptor_set_layout,
@@ -90,7 +90,7 @@ class PipelineCache {
                                    bool is_line_mode);
 
   RegisterFile* register_file_ = nullptr;
-  ui::vulkan::VulkanDevice* device_ = nullptr;
+  const ui::vulkan::VulkanProvider& provider_;
 
   // Temporary storage for AnalyzeUcode calls.
   StringBuffer ucode_disasm_buffer_;

@@ -14,6 +14,7 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/ui/imgui_dialog.h"
+#include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/window.h"
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
@@ -49,17 +50,21 @@ dword_result_t XamShowNuiTroubleshooterUI_entry(unknown_t unk1, unknown_t unk2,
     return 0;
   }
 
-  auto display_window = kernel_state()->emulator()->display_window();
-  xe::threading::Fence fence;
-  if (display_window->app_context().CallInUIThreadSynchronous([&]() {
-        xe::ui::ImGuiDialog::ShowMessageBox(
-            display_window, "NUI Troubleshooter",
-            "The game has indicated there is a problem with NUI (Kinect).")
-            ->Then(&fence);
-      })) {
-    ++xam_dialogs_shown_;
-    fence.Wait();
-    --xam_dialogs_shown_;
+  const Emulator* emulator = kernel_state()->emulator();
+  ui::Window* display_window = emulator->display_window();
+  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+  if (display_window && imgui_drawer) {
+    xe::threading::Fence fence;
+    if (display_window->app_context().CallInUIThreadSynchronous([&]() {
+          xe::ui::ImGuiDialog::ShowMessageBox(
+              imgui_drawer, "NUI Troubleshooter",
+              "The game has indicated there is a problem with NUI (Kinect).")
+              ->Then(&fence);
+        })) {
+      ++xam_dialogs_shown_;
+      fence.Wait();
+      --xam_dialogs_shown_;
+    }
   }
 
   return 0;

@@ -31,9 +31,9 @@ void NullCommandProcessor::ShutdownContext() {
   return CommandProcessor::ShutdownContext();
 }
 
-void NullCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
-                                       uint32_t frontbuffer_width,
-                                       uint32_t frontbuffer_height) {}
+void NullCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
+                                     uint32_t frontbuffer_width,
+                                     uint32_t frontbuffer_height) {}
 
 Shader* NullCommandProcessor::LoadShader(xenos::ShaderType shader_type,
                                          uint32_t guest_address,

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -28,6 +28,7 @@
 #include "xenia/emulator.h"
 #include "xenia/ui/file_picker.h"
 #include "xenia/ui/window.h"
+#include "xenia/ui/window_listener.h"
 #include "xenia/ui/windowed_app.h"
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/vfs/devices/host_path_device.h"
@@ -61,8 +62,6 @@ DEFINE_string(gpu, "any", "Graphics system. Use: [any, d3d12, vulkan, null]",
               "GPU");
 DEFINE_string(hid, "any", "Input system. Use: [any, nop, sdl, winkey, xinput]",
               "HID");
-
-DEFINE_bool(fullscreen, false, "Toggles fullscreen", "GPU");
 
 DEFINE_path(
     storage_root, "",
@@ -192,6 +191,17 @@ class EmulatorApp final : public xe::ui::WindowedApp {
     }
   };
 
+  class DebugWindowClosedListener final : public xe::ui::WindowListener {
+   public:
+    explicit DebugWindowClosedListener(EmulatorApp& emulator_app)
+        : emulator_app_(emulator_app) {}
+
+    void OnClosing(xe::ui::UIEvent& e) override;
+
+   private:
+    EmulatorApp& emulator_app_;
+  };
+
   explicit EmulatorApp(xe::ui::WindowedAppContext& app_context);
 
   static std::unique_ptr<apu::AudioSystem> CreateAudioSystem(
@@ -202,6 +212,8 @@ class EmulatorApp final : public xe::ui::WindowedApp {
 
   void EmulatorThread();
   void ShutdownEmulatorThreadFromUIThread();
+
+  DebugWindowClosedListener debug_window_closed_listener_;
 
   std::unique_ptr<Emulator> emulator_;
   std::unique_ptr<EmulatorWindow> emulator_window_;
@@ -215,8 +227,15 @@ class EmulatorApp final : public xe::ui::WindowedApp {
   std::thread emulator_thread_;
 };
 
+void EmulatorApp::DebugWindowClosedListener::OnClosing(xe::ui::UIEvent& e) {
+  EmulatorApp* emulator_app = &emulator_app_;
+  emulator_app->emulator_->processor()->set_debug_listener(nullptr);
+  emulator_app->debug_window_.reset();
+}
+
 EmulatorApp::EmulatorApp(xe::ui::WindowedAppContext& app_context)
-    : xe::ui::WindowedApp(app_context, "xenia", "[Path to .iso/.xex]") {
+    : xe::ui::WindowedApp(app_context, "xenia", "[Path to .iso/.xex]"),
+      debug_window_closed_listener_(*this) {
   AddPositionalOption("target");
 }
 
@@ -252,9 +271,10 @@ std::vector<std::unique_ptr<hid::InputDriver>> EmulatorApp::CreateInputDrivers(
     ui::Window* window) {
   std::vector<std::unique_ptr<hid::InputDriver>> drivers;
   if (cvars::hid.compare("nop") == 0) {
-    drivers.emplace_back(xe::hid::nop::Create(window));
+    drivers.emplace_back(
+        xe::hid::nop::Create(window, EmulatorWindow::kZOrderHidInput));
   } else {
-    Factory<hid::InputDriver, ui::Window*> factory;
+    Factory<hid::InputDriver, ui::Window*, size_t> factory;
 #if XE_PLATFORM_WIN32
     factory.Add("xinput", xe::hid::xinput::Create);
 #endif  // XE_PLATFORM_WIN32
@@ -263,14 +283,16 @@ std::vector<std::unique_ptr<hid::InputDriver>> EmulatorApp::CreateInputDrivers(
     // WinKey input driver should always be the last input driver added!
     factory.Add("winkey", xe::hid::winkey::Create);
 #endif  // XE_PLATFORM_WIN32
-    for (auto& driver : factory.CreateAll(cvars::hid, window)) {
+    for (auto& driver : factory.CreateAll(cvars::hid, window,
+                                          EmulatorWindow::kZOrderHidInput)) {
       if (XSUCCEEDED(driver->Setup())) {
         drivers.emplace_back(std::move(driver));
       }
     }
     if (drivers.empty()) {
       // Fallback to nop if none created.
-      drivers.emplace_back(xe::hid::nop::Create(window));
+      drivers.emplace_back(
+          xe::hid::nop::Create(window, EmulatorWindow::kZOrderHidInput));
     }
   }
   return drivers;
@@ -365,6 +387,9 @@ void EmulatorApp::OnDestroy() {
   // The profiler needs to shut down before the graphics context.
   Profiler::Shutdown();
 
+  // Write all cvar overrides to the config.
+  config::SaveConfig();
+
   // TODO(DrChat): Remove this code and do a proper exit.
   XELOGI("Cheap-skate exit!");
   std::quick_exit(EXIT_SUCCESS);
@@ -378,14 +403,17 @@ void EmulatorApp::EmulatorThread() {
 
   // Setup and initialize all subsystems. If we can't do something
   // (unsupported system, memory issues, etc) this will fail early.
-  X_STATUS result =
-      emulator_->Setup(emulator_window_->window(), CreateAudioSystem,
-                       CreateGraphicsSystem, CreateInputDrivers);
+  X_STATUS result = emulator_->Setup(
+      emulator_window_->window(), emulator_window_->imgui_drawer(),
+      CreateAudioSystem, CreateGraphicsSystem, CreateInputDrivers);
   if (XFAILED(result)) {
     XELOGE("Failed to setup emulator: {:08X}", result);
     app_context().RequestDeferredQuit();
     return;
   }
+
+  app_context().CallInUIThread(
+      [this]() { emulator_window_->SetupGraphicsSystemPresenterPainting(); });
 
   if (cvars::mount_scratch) {
     auto scratch_device = std::make_unique<xe::vfs::HostPathDevice>(
@@ -455,12 +483,8 @@ void EmulatorApp::EmulatorThread() {
           app_context().CallInUIThreadSynchronous([this]() {
             debug_window_ = xe::debug::ui::DebugWindow::Create(emulator_.get(),
                                                                app_context());
-            debug_window_->window()->on_closed.AddListener(
-                [this](xe::ui::UIEvent* e) {
-                  emulator_->processor()->set_debug_listener(nullptr);
-                  app_context().CallInUIThread(
-                      [this]() { debug_window_.reset(); });
-                });
+            debug_window_->window()->AddListener(
+                &debug_window_closed_listener_);
           });
           // If failed to enqueue the UI thread call, this will just be null.
           return debug_window_.get();
@@ -489,20 +513,14 @@ void EmulatorApp::EmulatorThread() {
     }
   });
 
-  // Enable the main menu now that the emulator is properly loaded
+  // Enable emulator input now that the emulator is properly loaded.
   app_context().CallInUIThread(
-      [this]() { emulator_window_->window()->EnableMainMenu(); });
+      [this]() { emulator_window_->OnEmulatorInitialized(); });
 
   // Grab path from the flag or unnamed argument.
   std::filesystem::path path;
   if (!cvars::target.empty()) {
     path = cvars::target;
-  }
-
-  // Toggles fullscreen
-  if (cvars::fullscreen) {
-    app_context().CallInUIThread(
-        [this]() { emulator_window_->ToggleFullscreen(); });
   }
 
   if (!path.empty()) {

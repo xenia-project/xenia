@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,347 +10,719 @@
 #include "xenia/ui/window.h"
 
 #include <algorithm>
+#include <iterator>
 
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/presenter.h"
 
 namespace xe {
 namespace ui {
 
-constexpr bool kContinuousRepaint = false;
-constexpr bool kShowPresentFps = kContinuousRepaint;
-
-// Enables long press behaviors (context menu, etc).
-constexpr bool kTouch = false;
-
-constexpr uint64_t kDoubleClickDelayMillis = 600;
-constexpr double kDoubleClickDistance = 5;
-
-constexpr int32_t kMouseWheelDetent = 120;
-
-Window::Window(WindowedAppContext& app_context, const std::string& title)
-    : app_context_(app_context), title_(title) {}
+Window::Window(WindowedAppContext& app_context, const std::string_view title,
+               uint32_t desired_logical_width, uint32_t desired_logical_height)
+    : app_context_(app_context),
+      title_(title),
+      desired_logical_width_(desired_logical_width),
+      desired_logical_height_(desired_logical_height) {}
 
 Window::~Window() {
-  // Context must have been cleaned up already in OnDestroy.
-  assert_null(context_.get());
+  // In case the implementation didn't need to call EnterDestructor. Though
+  // that was likely a mistake, so placing an assertion.
+  assert_true(phase_ == Phase::kDeleting);
+  EnterDestructor();
+
+  if (presenter_) {
+    Presenter* old_presenter = presenter_;
+    // Null the pointer to prevent an infinite loop between
+    // SetWindowSurfaceFromUIThread and SetPresenter calling each other.
+    presenter_ = nullptr;
+    old_presenter->SetWindowSurfaceFromUIThread(nullptr, nullptr);
+    presenter_surface_.reset();
+  }
+
+  // Right before destruction has finished, after which no interaction with
+  // *this can be done, notify the destruction receivers that the window is
+  // being destroyed and that *this is not accessible anymore.
+  while (innermost_destruction_receiver_) {
+    innermost_destruction_receiver_->window_ = nullptr;
+    innermost_destruction_receiver_ =
+        innermost_destruction_receiver_->outer_receiver_;
+  }
 }
 
-void Window::AttachListener(WindowListener* listener) {
-  if (in_listener_loop_) {
-    pending_listener_attaches_.push_back(listener);
-    return;
-  }
-  auto it = std::find(listeners_.begin(), listeners_.end(), listener);
-  if (it != listeners_.end()) {
+void Window::AddListener(WindowListener* listener) {
+  assert_not_null(listener);
+  // Check if already added.
+  if (std::find(listeners_.cbegin(), listeners_.cend(), listener) !=
+      listeners_.cend()) {
     return;
   }
   listeners_.push_back(listener);
-  Invalidate();
 }
 
-void Window::DetachListener(WindowListener* listener) {
-  if (in_listener_loop_) {
-    pending_listener_detaches_.push_back(listener);
+void Window::RemoveListener(WindowListener* listener) {
+  assert_not_null(listener);
+  auto it = std::find(listeners_.cbegin(), listeners_.cend(), listener);
+  if (it == listeners_.cend()) {
     return;
   }
-  auto it = std::find(listeners_.begin(), listeners_.end(), listener);
-  if (it == listeners_.end()) {
-    return;
+  // Actualize the next listener indices after the erasure from the vector.
+  ListenerIterationContext* iteration_context =
+      innermost_listener_iteration_context_;
+  if (iteration_context) {
+    size_t existing_index = size_t(std::distance(listeners_.cbegin(), it));
+    while (iteration_context) {
+      if (iteration_context->next_index > existing_index) {
+        --iteration_context->next_index;
+      }
+      iteration_context = iteration_context->outer_context;
+    }
   }
   listeners_.erase(it);
 }
 
-void Window::ForEachListener(std::function<void(WindowListener*)> fn) {
-  assert_false(in_listener_loop_);
-  in_listener_loop_ = true;
-  for (auto listener : listeners_) {
-    fn(listener);
+void Window::AddInputListener(WindowInputListener* listener, size_t z_order) {
+  assert_not_null(listener);
+  // Check if already added.
+  for (auto it_existing = input_listeners_.rbegin();
+       it_existing != input_listeners_.rend(); ++it_existing) {
+    if (it_existing->second != listener) {
+      continue;
+    }
+    if (it_existing->first == z_order) {
+      return;
+    }
+    // If removing the listener that is the next in a current listener loop,
+    // skip it (in a multimap, only one element iterator is invalidated).
+    InputListenerIterationContext* iteration_context =
+        innermost_input_listener_iteration_context_;
+    while (iteration_context) {
+      if (iteration_context->next_iterator == it_existing) {
+        ++iteration_context->next_iterator;
+      }
+      iteration_context = iteration_context->outer_context;
+    }
+    input_listeners_.erase(std::prev(it_existing.base()));
+    // FIXME(Triang3l): Changing the Z order of an existing listener while
+    // already executing the listeners may cause listeners to be called twice if
+    // the Z order is lowered from one that has already been processed to one
+    // below the current one. Because nested listener calls are supported, a
+    // single last call index can't be associated with a listener to skip it if
+    // calling twice for the same event (a "not equal to" comparison of the call
+    // indices will result in the skipping being cancelled in the outer loop if
+    // an inner one is done, a "greater than" comparison will cause the inner
+    // loop to effectively terminate all outer ones).
   }
-  in_listener_loop_ = false;
-  while (!pending_listener_attaches_.empty()) {
-    auto listener = pending_listener_attaches_.back();
-    pending_listener_attaches_.pop_back();
-    AttachListener(listener);
-  }
-  while (!pending_listener_detaches_.empty()) {
-    auto listener = pending_listener_detaches_.back();
-    pending_listener_detaches_.pop_back();
-    DetachListener(listener);
-  }
-}
-
-void Window::TryForEachListener(std::function<bool(WindowListener*)> fn) {
-  assert_false(in_listener_loop_);
-  in_listener_loop_ = true;
-  for (auto listener : listeners_) {
-    if (fn(listener)) {
-      break;
+  auto it_new = std::prev(
+      std::make_reverse_iterator(input_listeners_.emplace(z_order, listener)));
+  // If adding to layers in between the currently being processed ones (from
+  // highest to lowest) and the previously next, make sure the new listener is
+  // executed too. Execution within one layer, however, happens in the reverse
+  // order of addition, so if adding to the Z layer currently being processed,
+  // the new listener must not be executed within the loop. But, if adding to
+  // the next Z layer after the current one, it must be executed immediately.
+  {
+    InputListenerIterationContext* iteration_context =
+        innermost_input_listener_iteration_context_;
+    while (iteration_context) {
+      if (z_order < iteration_context->current_z_order &&
+          (iteration_context->next_iterator == input_listeners_.crend() ||
+           z_order >= iteration_context->next_iterator->first)) {
+        iteration_context->next_iterator = it_new;
+      }
+      iteration_context = iteration_context->outer_context;
     }
   }
-  in_listener_loop_ = false;
-  while (!pending_listener_attaches_.empty()) {
-    auto listener = pending_listener_attaches_.back();
-    pending_listener_attaches_.pop_back();
-    AttachListener(listener);
-  }
-  while (!pending_listener_detaches_.empty()) {
-    auto listener = pending_listener_detaches_.back();
-    pending_listener_detaches_.pop_back();
-    DetachListener(listener);
-  }
 }
 
-void Window::set_imgui_input_enabled(bool value) {
-  if (value == is_imgui_input_enabled_) {
+void Window::RemoveInputListener(WindowInputListener* listener) {
+  assert_not_null(listener);
+  for (auto it_existing = input_listeners_.rbegin();
+       it_existing != input_listeners_.rend(); ++it_existing) {
+    if (it_existing->second != listener) {
+      continue;
+    }
+    // If removing the listener that is the next in a current listener loop,
+    // skip it (in a multimap, only one element iterator is invalidated).
+    InputListenerIterationContext* iteration_context =
+        innermost_input_listener_iteration_context_;
+    while (iteration_context) {
+      if (iteration_context->next_iterator == it_existing) {
+        ++iteration_context->next_iterator;
+      }
+      iteration_context = iteration_context->outer_context;
+    }
+    input_listeners_.erase(std::prev(it_existing.base()));
     return;
   }
-  is_imgui_input_enabled_ = value;
-  if (!value) {
-    DetachListener(imgui_drawer_.get());
-  } else {
-    AttachListener(imgui_drawer_.get());
-  }
 }
 
-bool Window::OnCreate() { return true; }
+bool Window::Open() {
+  if (phase_ != Phase::kClosedOpenable) {
+    return true;
+  }
 
-bool Window::MakeReady() {
-  imgui_drawer_ = std::make_unique<xe::ui::ImGuiDrawer>(this);
+  // For consistency of the behavior of OpenImpl and the initial On*Update
+  // that should be called as a result of it, reset the actual state to its
+  // defaults for a closed window.
+  // Note that this is performed in Open, not after closing, because there's
+  // only one entry point for opening a window, while closing may be done
+  // different ways - by actually closing, by destroying, or by failing to call
+  // OpenImpl - instead of performing this reset in every possible close case,
+  // just returning these defaults from the actual state getters if
+  // HasActualState is false.
+  actual_physical_width_ = 0;
+  actual_physical_height_ = 0;
+  has_focus_ = false;
+  phase_ = Phase::kOpening;
+  bool platform_open_result = OpenImpl();
+  if (!platform_open_result) {
+    phase_ = Phase::kClosedOpenable;
+    return false;
+  }
+  if (phase_ != Phase::kOpening) {
+    // The window was closed mid-opening.
+    return true;
+  }
+  phase_ = Phase::kOpen;
+
+  // Call the listeners (OnOpened with all the new state so the listeners are
+  // aware that they can start interacting with the open Window, and after that,
+  // in case certain listeners don't handle OnOpened, but rather, only need the
+  // more granular callbacks, make sure those callbacks receive the new state
+  // too) for the actual state of the new window (that may be different than the
+  // desired, depending on how the platform has interpreted the desired state).
+  {
+    MonitorUpdateEvent e(this, true, true);
+    OnMonitorUpdate(e);
+  }
+  {
+    UISetupEvent e(this, true);
+    WindowDestructionReceiver destruction_receiver(this);
+    SendEventToListeners([&e](auto listener) { listener->OnOpened(e); },
+                         destruction_receiver);
+    if (destruction_receiver.IsWindowDestroyedOrListenersUncallable()) {
+      return true;
+    }
+    SendEventToListeners([&e](auto listener) { listener->OnDpiChanged(e); },
+                         destruction_receiver);
+    if (destruction_receiver.IsWindowDestroyedOrListenersUncallable()) {
+      return true;
+    }
+    SendEventToListeners([&e](auto listener) { listener->OnResize(e); },
+                         destruction_receiver);
+    if (destruction_receiver.IsWindowDestroyedOrListenersUncallable()) {
+      return true;
+    }
+    if (HasFocus()) {
+      SendEventToListeners([&e](auto listener) { listener->OnGotFocus(e); },
+                           destruction_receiver);
+      if (destruction_receiver.IsWindowDestroyedOrListenersUncallable()) {
+        return true;
+      }
+    }
+  }
+
+  // May now try to create a valid surface (though the window may be in a
+  // minimized state without the possibility of creating a surface, but that
+  // will be resolved by the implementation), after OnDpiChanged and OnResize so
+  // nothing related to painting will be making wrong assumptions about the
+  // size.
+  OnSurfaceChanged(true);
 
   return true;
 }
 
-void Window::OnMainMenuChange() {
-  ForEachListener([](auto listener) { listener->OnMainMenuChange(); });
+void Window::SetFullscreen(bool new_fullscreen) {
+  if (fullscreen_ == new_fullscreen) {
+    return;
+  }
+  fullscreen_ = new_fullscreen;
+  if (!CanApplyState()) {
+    return;
+  }
+  WindowDestructionReceiver destruction_receiver(this);
+  ApplyNewFullscreen();
+  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
+    return;
+  }
 }
 
-void Window::OnClose() {
-  UIEvent e(this);
-  ForEachListener([&e](auto listener) { listener->OnClosing(&e); });
-  on_closing(&e);
-  ForEachListener([&e](auto listener) { listener->OnClosed(&e); });
-  on_closed(&e);
+void Window::SetTitle(const std::string_view new_title) {
+  if (title_ == new_title) {
+    return;
+  }
+  title_ = new_title;
+  if (!CanApplyState()) {
+    return;
+  }
+  WindowDestructionReceiver destruction_receiver(this);
+  ApplyNewTitle();
+  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
+    return;
+  }
 }
 
-void Window::OnDestroy() {
-  if (!context_) {
+void Window::SetIcon(const void* buffer, size_t size) {
+  bool reset = !buffer || !size;
+  WindowDestructionReceiver destruction_receiver(this);
+  LoadAndApplyIcon(reset ? nullptr : buffer, reset ? 0 : size, CanApplyState());
+  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
+    return;
+  }
+}
+
+void Window::SetMainMenu(std::unique_ptr<MenuItem> new_main_menu) {
+  // The primary reason for this comparison (of two unique pointers) is
+  // nullptr == nullptr.
+  if (main_menu_ == new_main_menu) {
+    return;
+  }
+  // Keep the old menu object existing while it's still being detached from
+  // the platform window.
+  std::unique_ptr<MenuItem> old_main_menu = std::move(main_menu_);
+  main_menu_ = std::move(new_main_menu);
+  if (!CanApplyState()) {
+    return;
+  }
+  WindowDestructionReceiver destruction_receiver(this);
+  ApplyNewMainMenu(old_main_menu.get());
+  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
+    return;
+  }
+}
+
+void Window::CompleteMainMenuItemsUpdate() {
+  if (!main_menu_ || !CanApplyState()) {
+    return;
+  }
+  WindowDestructionReceiver destruction_receiver(this);
+  CompleteMainMenuItemsUpdateImpl();
+  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
+    return;
+  }
+}
+
+void Window::SetMainMenuEnabled(bool enabled) {
+  if (!main_menu_) {
+    return;
+  }
+  // Not comparing to the actual enabled state, it's a part of the MenuItem, not
+  // the Window.
+  // In case enabling (or even disabling) causes menu-related events (like
+  // pressing) that may execute callbacks potentially destroying the Window via
+  // the outer architecture.
+  WindowDestructionReceiver destruction_receiver(this);
+  main_menu_->SetEnabled(enabled);
+  if (destruction_receiver.IsWindowDestroyed()) {
+    return;
+  }
+  // Modifying the state of the items, notify the implementation so it makes the
+  // displaying of the main menu consistent.
+  CompleteMainMenuItemsUpdate();
+  if (destruction_receiver.IsWindowDestroyed()) {
+    return;
+  }
+}
+
+void Window::CaptureMouse() {
+  ++mouse_capture_request_count_;
+  if (!CanApplyState()) {
+    return;
+  }
+  WindowDestructionReceiver destruction_receiver(this);
+  // Call even if capturing while the mouse is already assumed to be captured,
+  // in case something has released it in the OS.
+  ApplyNewMouseCapture();
+  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
+    return;
+  }
+}
+
+void Window::ReleaseMouse() {
+  assert_not_zero(mouse_capture_request_count_);
+  if (!mouse_capture_request_count_) {
+    return;
+  }
+  if (--mouse_capture_request_count_) {
+    return;
+  }
+  if (!CanApplyState()) {
+    return;
+  }
+  WindowDestructionReceiver destruction_receiver(this);
+  ApplyNewMouseRelease();
+  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
+    return;
+  }
+}
+
+void Window::SetCursorVisibility(CursorVisibility new_cursor_visibility) {
+  if (cursor_visibility_ == new_cursor_visibility) {
+    return;
+  }
+  CursorVisibility old_cursor_visibility = cursor_visibility_;
+  cursor_visibility_ = new_cursor_visibility;
+  if (!CanApplyState()) {
+    return;
+  }
+  WindowDestructionReceiver destruction_receiver(this);
+  ApplyNewCursorVisibility(old_cursor_visibility);
+  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
+    return;
+  }
+}
+
+void Window::Focus() {
+  if (!CanApplyState() || has_focus_) {
+    return;
+  }
+  WindowDestructionReceiver destruction_receiver(this);
+  FocusImpl();
+  if (destruction_receiver.IsWindowDestroyedOrStateInapplicable()) {
+    return;
+  }
+}
+
+void Window::SetPresenter(Presenter* presenter) {
+  if (presenter_ == presenter) {
+    return;
+  }
+  if (presenter_) {
+    presenter_->SetWindowSurfaceFromUIThread(nullptr, nullptr);
+    presenter_surface_.reset();
+  }
+  presenter_ = presenter;
+  if (presenter_) {
+    presenter_surface_ = CreateSurface(presenter_->GetSupportedSurfaceTypes());
+    presenter_->SetWindowSurfaceFromUIThread(this, presenter_surface_.get());
+  }
+}
+
+void Window::OnSurfaceChanged(bool new_surface_potentially_exists) {
+  if (!presenter_) {
     return;
   }
 
-  imgui_drawer_.reset();
+  // Detach the presenter from the old surface before attaching to the new one.
+  if (presenter_surface_) {
+    presenter_->SetWindowSurfaceFromUIThread(this, nullptr);
+    presenter_surface_.reset();
+  }
 
-  // Context must go last.
-  context_.reset();
-}
-
-void Window::Layout() {
-  UIEvent e(this);
-  OnLayout(&e);
-}
-
-void Window::Invalidate() {}
-
-void Window::OnDpiChanged(UIEvent* e) {
-  // TODO(DrChat): Notify listeners.
-}
-
-void Window::OnResize(UIEvent* e) {
-  ForEachListener([e](auto listener) { listener->OnResize(e); });
-}
-
-void Window::OnLayout(UIEvent* e) {
-  ForEachListener([e](auto listener) { listener->OnLayout(e); });
-}
-
-void Window::OnPaint(UIEvent* e) {
-  if (!context_) {
+  if (!new_surface_potentially_exists) {
     return;
   }
 
-  ++frame_count_;
-  ++fps_frame_count_;
-  static auto tick_frequency = Clock::QueryHostTickFrequency();
-  auto now_ticks = Clock::QueryHostTickCount();
-  // Average fps over 1 second.
-  if (now_ticks > fps_update_time_ticks_ + tick_frequency * 1) {
-    fps_ = static_cast<uint32_t>(
-        fps_frame_count_ /
-        (static_cast<double>(now_ticks - fps_update_time_ticks_) /
-         tick_frequency));
-    fps_update_time_ticks_ = now_ticks;
-    fps_frame_count_ = 0;
+  presenter_surface_ = CreateSurface(presenter_->GetSupportedSurfaceTypes());
+  if (presenter_surface_) {
+    presenter_->SetWindowSurfaceFromUIThread(this, presenter_surface_.get());
+  }
+}
+
+void Window::OnBeforeClose(WindowDestructionReceiver& destruction_receiver) {
+  // Because events are not sent from closed windows, and to make sure the
+  // window isn't closed while its surface is still attached to the presenter,
+  // this must be called before doing what constitutes closing in the platform
+  // implementation, not after.
+
+  bool was_open = phase_ == Phase::kOpen;
+  bool was_open_or_opening = was_open || phase_ == Phase::kOpening;
+  assert_true(was_open_or_opening);
+  if (!was_open_or_opening) {
+    return;
   }
 
-  GraphicsContextLock context_lock(context_.get());
+  if (was_open) {
+    phase_ = Phase::kOpenBeforeClosing;
 
-  // Prepare ImGui for use this frame.
-  auto& io = imgui_drawer_->GetIO();
-  if (!last_paint_time_ticks_) {
-    io.DeltaTime = 0.0f;
-    last_paint_time_ticks_ = now_ticks;
+    // If the window was focused, notify the listeners that focus is being lost
+    // because the window is being closed (the implementation usually wouldn't
+    // be sending any events to the listeners after OnClosing even if the OS
+    // actually sends the focus loss event as part of the closing process).
+    OnFocusUpdate(false, destruction_receiver);
+    if (destruction_receiver.IsWindowDestroyed()) {
+      return;
+    }
+
+    {
+      UIEvent e(this);
+      SendEventToListeners([&e](auto listener) { listener->OnClosing(e); },
+                           destruction_receiver);
+      if (destruction_receiver.IsWindowDestroyed()) {
+        return;
+      }
+    }
+
+    // Disconnect from the surface without connecting to the new one (after the
+    // listeners so they don't try to reconnect afterwards).
+    OnSurfaceChanged(false);
+  }
+
+  phase_ = Phase::kClosing;
+}
+
+void Window::OnAfterClose() {
+  assert_true(phase_ == Phase::kClosing);
+  if (phase_ != Phase::kClosing) {
+    return;
+  }
+  phase_ = (innermost_listener_iteration_context_ ||
+            innermost_input_listener_iteration_context_)
+               ? Phase::kClosedLeavingListeners
+               : Phase::kClosedOpenable;
+}
+
+void Window::OnDpiChanged(UISetupEvent& e,
+                          WindowDestructionReceiver& destruction_receiver) {
+  SendEventToListeners([&e](auto listener) { listener->OnDpiChanged(e); },
+                       destruction_receiver);
+  if (destruction_receiver.IsWindowDestroyed()) {
+    return;
+  }
+}
+
+void Window::OnMonitorUpdate(MonitorUpdateEvent& e) {
+  if (presenter_surface_) {
+    presenter_->OnSurfaceMonitorUpdateFromUIThread(
+        e.old_monitor_potentially_disconnected());
+  }
+}
+
+bool Window::OnActualSizeUpdate(
+    uint32_t new_physical_width, uint32_t new_physical_height,
+    WindowDestructionReceiver& destruction_receiver) {
+  if (actual_physical_width_ == new_physical_width &&
+      actual_physical_height_ == new_physical_height) {
+    return false;
+  }
+  actual_physical_width_ = new_physical_width;
+  actual_physical_height_ = new_physical_height;
+  // The listeners may reference the presenter, update the presenter first.
+  if (presenter_surface_) {
+    presenter_->OnSurfaceResizeFromUIThread();
+  }
+  UISetupEvent e(this);
+  SendEventToListeners([&e](auto listener) { listener->OnResize(e); },
+                       destruction_receiver);
+  if (destruction_receiver.IsWindowDestroyed()) {
+    return true;
+  }
+  return true;
+}
+
+void Window::OnFocusUpdate(bool new_has_focus,
+                           WindowDestructionReceiver& destruction_receiver) {
+  if (has_focus_ == new_has_focus) {
+    return;
+  }
+  has_focus_ = new_has_focus;
+  UISetupEvent e(this);
+  if (has_focus_) {
+    SendEventToListeners([&e](auto listener) { listener->OnGotFocus(e); },
+                         destruction_receiver);
   } else {
-    io.DeltaTime = (now_ticks - last_paint_time_ticks_) /
-                   static_cast<float>(tick_frequency);
-    last_paint_time_ticks_ = now_ticks;
+    SendEventToListeners([&e](auto listener) { listener->OnLostFocus(e); },
+                         destruction_receiver);
   }
-  io.DisplaySize = ImVec2(static_cast<float>(scaled_width()),
-                          static_cast<float>(scaled_height()));
-
-  bool can_swap = context_->BeginSwap();
-  if (context_->WasLost()) {
-    on_context_lost(e);
+  if (destruction_receiver.IsWindowDestroyed()) {
     return;
   }
-  if (!can_swap) {
-    // Surface not available.
+}
+
+void Window::OnPaint(bool force_paint) {
+  if (is_painting_) {
     return;
   }
+  is_painting_ = true;
+  if (presenter_surface_) {
+    presenter_->PaintFromUIThread(force_paint);
+  }
+  is_painting_ = false;
+}
 
-  ImGui::NewFrame();
-
-  ForEachListener([e](auto listener) { listener->OnPainting(e); });
-  on_painting(e);
-  ForEachListener([e](auto listener) { listener->OnPaint(e); });
-  on_paint(e);
-
-  // Flush ImGui buffers before we swap.
-  ImGui::Render();
-  imgui_drawer_->RenderDrawLists();
-
-  ForEachListener([e](auto listener) { listener->OnPainted(e); });
-  on_painted(e);
-
-  context_->EndSwap();
-
-  // If animations are running, reinvalidate immediately.
-  if (kContinuousRepaint) {
-    Invalidate();
+void Window::OnFileDrop(FileDropEvent& e,
+                        WindowDestructionReceiver& destruction_receiver) {
+  SendEventToListeners([&e](auto listener) { listener->OnFileDrop(e); },
+                       destruction_receiver);
+  if (destruction_receiver.IsWindowDestroyed()) {
+    return;
   }
 }
 
-void Window::OnFileDrop(FileDropEvent* e) {
-  on_file_drop(e);
-  ForEachListener([e](auto listener) { listener->OnFileDrop(e); });
+void Window::OnKeyDown(KeyEvent& e,
+                       WindowDestructionReceiver& destruction_receiver) {
+  PropagateEventThroughInputListeners(
+      [&e](auto listener) {
+        listener->OnKeyDown(e);
+        return e.is_handled();
+      },
+      destruction_receiver);
+  if (destruction_receiver.IsWindowDestroyed()) {
+    return;
+  }
 }
 
-void Window::OnVisible(UIEvent* e) {
-  ForEachListener([e](auto listener) { listener->OnVisible(e); });
+void Window::OnKeyUp(KeyEvent& e,
+                     WindowDestructionReceiver& destruction_receiver) {
+  PropagateEventThroughInputListeners(
+      [&e](auto listener) {
+        listener->OnKeyUp(e);
+        return e.is_handled();
+      },
+      destruction_receiver);
+  if (destruction_receiver.IsWindowDestroyed()) {
+    return;
+  }
 }
 
-void Window::OnHidden(UIEvent* e) {
-  ForEachListener([e](auto listener) { listener->OnHidden(e); });
+void Window::OnKeyChar(KeyEvent& e,
+                       WindowDestructionReceiver& destruction_receiver) {
+  PropagateEventThroughInputListeners(
+      [&e](auto listener) {
+        listener->OnKeyChar(e);
+        return e.is_handled();
+      },
+      destruction_receiver);
+  if (destruction_receiver.IsWindowDestroyed()) {
+    return;
+  }
 }
 
-void Window::OnGotFocus(UIEvent* e) {
-  ForEachListener([e](auto listener) { listener->OnGotFocus(e); });
+void Window::OnMouseDown(MouseEvent& e,
+                         WindowDestructionReceiver& destruction_receiver) {
+  PropagateEventThroughInputListeners(
+      [&e](auto listener) {
+        listener->OnMouseDown(e);
+        return e.is_handled();
+      },
+      destruction_receiver);
+  if (destruction_receiver.IsWindowDestroyed()) {
+    return;
+  }
 }
 
-void Window::OnLostFocus(UIEvent* e) {
-  modifier_shift_pressed_ = false;
-  modifier_cntrl_pressed_ = false;
-  modifier_alt_pressed_ = false;
-  modifier_super_pressed_ = false;
-  ForEachListener([e](auto listener) { listener->OnLostFocus(e); });
+void Window::OnMouseMove(MouseEvent& e,
+                         WindowDestructionReceiver& destruction_receiver) {
+  PropagateEventThroughInputListeners(
+      [&e](auto listener) {
+        listener->OnMouseMove(e);
+        return e.is_handled();
+      },
+      destruction_receiver);
+  if (destruction_receiver.IsWindowDestroyed()) {
+    return;
+  }
 }
 
-void Window::OnKeyPress(KeyEvent* e, bool is_down, bool is_char) {
-  if (!is_char) {
-    switch (e->virtual_key()) {
-      case VirtualKey::kShift:
-        modifier_shift_pressed_ = is_down;
-        break;
-      case VirtualKey::kControl:
-        modifier_cntrl_pressed_ = is_down;
-        break;
-      case VirtualKey::kMenu:
-        modifier_alt_pressed_ = is_down;
-        break;
-      case VirtualKey::kLWin:
-        modifier_super_pressed_ = is_down;
-        break;
-      default:
-        break;
+void Window::OnMouseUp(MouseEvent& e,
+                       WindowDestructionReceiver& destruction_receiver) {
+  PropagateEventThroughInputListeners(
+      [&e](auto listener) {
+        listener->OnMouseUp(e);
+        return e.is_handled();
+      },
+      destruction_receiver);
+  if (destruction_receiver.IsWindowDestroyed()) {
+    return;
+  }
+}
+
+void Window::OnMouseWheel(MouseEvent& e,
+                          WindowDestructionReceiver& destruction_receiver) {
+  PropagateEventThroughInputListeners(
+      [&e](auto listener) {
+        listener->OnMouseWheel(e);
+        return e.is_handled();
+      },
+      destruction_receiver);
+  if (destruction_receiver.IsWindowDestroyed()) {
+    return;
+  }
+}
+
+void Window::SendEventToListeners(
+    std::function<void(WindowListener*)> fn,
+    WindowDestructionReceiver& destruction_receiver) {
+  if (!CanSendEventsToListeners()) {
+    return;
+  }
+  ListenerIterationContext iteration_context(
+      innermost_listener_iteration_context_);
+  innermost_listener_iteration_context_ = &iteration_context;
+  while (iteration_context.next_index < listeners_.size()) {
+    // iteration_context.next_index may be changed during the execution of the
+    // listener if the list of the listeners is modified by it - don't assume
+    // that after the call iteration_context.next_index will be the same as
+    // iteration_context.next_index + 1 before it.
+    fn(listeners_[iteration_context.next_index++]);
+    if (destruction_receiver.IsWindowDestroyed()) {
+      // The window was destroyed by the listener, can't access anything in
+      // *this anymore, including innermost_listener_iteration_context_ which
+      // has to be left in an indeterminate state.
+      return;
+    }
+    if (!CanSendEventsToListeners()) {
+      // The listener has put the window in a state in which the window can't
+      // send events anymore.
+      break;
     }
   }
+  assert_true(innermost_listener_iteration_context_ == &iteration_context);
+  innermost_listener_iteration_context_ =
+      innermost_listener_iteration_context_->outer_context;
+  if (phase_ == Phase::kClosedLeavingListeners &&
+      !innermost_listener_iteration_context_ &&
+      !innermost_input_listener_iteration_context_) {
+    phase_ = Phase::kClosedOpenable;
+  }
 }
 
-void Window::OnKeyDown(KeyEvent* e) {
-  on_key_down(e);
-  if (e->is_handled()) {
+void Window::PropagateEventThroughInputListeners(
+    std::function<bool(WindowInputListener*)> fn,
+    WindowDestructionReceiver& destruction_receiver) {
+  if (!CanSendEventsToListeners()) {
     return;
   }
-  TryForEachListener([e](auto listener) {
-    listener->OnKeyDown(e);
-    return e->is_handled();
-  });
-  OnKeyPress(e, true, false);
-}
-
-void Window::OnKeyUp(KeyEvent* e) {
-  on_key_up(e);
-  if (e->is_handled()) {
-    return;
+  InputListenerIterationContext iteration_context(
+      innermost_input_listener_iteration_context_, input_listeners_.crbegin());
+  innermost_input_listener_iteration_context_ = &iteration_context;
+  while (iteration_context.next_iterator != input_listeners_.crend()) {
+    // The current iterator may be invalidated, and
+    // iteration_context.next_iterator may be changed, during the execution of
+    // the listener if the list of the listeners is modified by it - don't
+    // assume that after the call iteration_context.next_iterator will be the
+    // same as std::next(iteration_context.next_iterator) before it.
+    iteration_context.current_z_order = iteration_context.next_iterator->first;
+    bool event_handled = fn((iteration_context.next_iterator++)->second);
+    if (destruction_receiver.IsWindowDestroyed()) {
+      // The window was destroyed by the listener, can't access anything in
+      // *this anymore, including innermost_listener_iteration_context_ which
+      // has to be left in an indeterminate state.
+      return;
+    }
+    if (event_handled) {
+      break;
+    }
+    if (!CanSendEventsToListeners()) {
+      // The listener has put the window in a state in which the window can't
+      // send events anymore.
+      break;
+    }
   }
-  TryForEachListener([e](auto listener) {
-    listener->OnKeyUp(e);
-    return e->is_handled();
-  });
-  OnKeyPress(e, false, false);
-}
-
-void Window::OnKeyChar(KeyEvent* e) {
-  OnKeyPress(e, true, true);
-  on_key_char(e);
-  ForEachListener([e](auto listener) { listener->OnKeyChar(e); });
-  OnKeyPress(e, false, true);
-}
-
-void Window::OnMouseDown(MouseEvent* e) {
-  on_mouse_down(e);
-  if (e->is_handled()) {
-    return;
+  assert_true(innermost_input_listener_iteration_context_ ==
+              &iteration_context);
+  innermost_input_listener_iteration_context_ =
+      innermost_input_listener_iteration_context_->outer_context;
+  if (phase_ == Phase::kClosedLeavingListeners &&
+      !innermost_listener_iteration_context_ &&
+      !innermost_input_listener_iteration_context_) {
+    phase_ = Phase::kClosedOpenable;
   }
-  TryForEachListener([e](auto listener) {
-    listener->OnMouseDown(e);
-    return e->is_handled();
-  });
-}
-
-void Window::OnMouseMove(MouseEvent* e) {
-  on_mouse_move(e);
-  if (e->is_handled()) {
-    return;
-  }
-  TryForEachListener([e](auto listener) {
-    listener->OnMouseMove(e);
-    return e->is_handled();
-  });
-}
-
-void Window::OnMouseUp(MouseEvent* e) {
-  on_mouse_up(e);
-  if (e->is_handled()) {
-    return;
-  }
-  TryForEachListener([e](auto listener) {
-    listener->OnMouseUp(e);
-    return e->is_handled();
-  });
-}
-
-void Window::OnMouseWheel(MouseEvent* e) {
-  on_mouse_wheel(e);
-  if (e->is_handled()) {
-    return;
-  }
-  TryForEachListener([e](auto listener) {
-    listener->OnMouseWheel(e);
-    return e->is_handled();
-  });
 }
 
 }  // namespace ui

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -38,7 +38,7 @@ uint8_t* D3D12UploadBufferPool::Request(
     return nullptr;
   }
   if (buffer_out) {
-    *buffer_out = page->buffer_;
+    *buffer_out = page->buffer_.Get();
   }
   if (offset_out) {
     *offset_out = offset;
@@ -61,7 +61,7 @@ uint8_t* D3D12UploadBufferPool::RequestPartial(
     return nullptr;
   }
   if (buffer_out) {
-    *buffer_out = page->buffer_;
+    *buffer_out = page->buffer_.Get();
   }
   if (offset_out) {
     *offset_out = offset;
@@ -80,7 +80,7 @@ D3D12UploadBufferPool::CreatePageImplementation() {
   D3D12_RESOURCE_DESC buffer_desc;
   util::FillBufferResourceDesc(buffer_desc, page_size_,
                                D3D12_RESOURCE_FLAG_NONE);
-  ID3D12Resource* buffer;
+  Microsoft::WRL::ComPtr<ID3D12Resource> buffer;
   if (FAILED(provider_.GetDevice()->CreateCommittedResource(
           &util::kHeapPropertiesUpload, provider_.GetHeapFlagCreateNotZeroed(),
           &buffer_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
@@ -97,22 +97,14 @@ D3D12UploadBufferPool::CreatePageImplementation() {
     buffer->Release();
     return nullptr;
   }
-  D3D12Page* page = new D3D12Page(buffer, mapping);
-  // Owned by the page now.
-  buffer->Release();
-  return page;
+  // Unmapping will be done implicitly when the resource is destroyed.
+  return new D3D12Page(buffer.Get(), mapping);
 }
 
 D3D12UploadBufferPool::D3D12Page::D3D12Page(ID3D12Resource* buffer,
                                             void* mapping)
     : buffer_(buffer), mapping_(mapping) {
-  buffer_->AddRef();
   gpu_address_ = buffer_->GetGPUVirtualAddress();
-}
-
-D3D12UploadBufferPool::D3D12Page::~D3D12Page() {
-  // Unmapping is done implicitly when the buffer is destroyed.
-  buffer_->Release();
 }
 
 }  // namespace d3d12
