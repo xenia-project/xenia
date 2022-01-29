@@ -585,9 +585,9 @@ bool EmulatorWindow::Initialize() {
   // Help menu.
   auto help_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Help");
   {
-    help_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "Build commit on GitHub...",
-                         "F2", std::bind(&EmulatorWindow::ShowCommitID, this)));
+    help_menu->AddChild(MenuItem::Create(
+        MenuItem::Type::kString, "Build commit on GitHub...", "F2",
+        std::bind(&EmulatorWindow::ShowBuildCommit, this)));
     help_menu->AddChild(MenuItem::Create(
         MenuItem::Type::kString, "Recent changes on GitHub...", [this]() {
           LaunchWebBrowser(
@@ -780,7 +780,7 @@ void EmulatorWindow::OnKeyDown(ui::KeyEvent& e) {
     } break;
 
     case ui::VirtualKey::kF2: {
-      ShowCommitID();
+      ShowBuildCommit();
     } break;
 
     default:
@@ -929,7 +929,7 @@ void EmulatorWindow::ToggleDisplayConfigDialog() {
 
 void EmulatorWindow::ShowHelpWebsite() { LaunchWebBrowser("https://xenia.jp"); }
 
-void EmulatorWindow::ShowCommitID() {
+void EmulatorWindow::ShowBuildCommit() {
 #ifdef XE_BUILD_IS_PR
   LaunchWebBrowser(
       "https://github.com/xenia-project/xenia/pull/" XE_BUILD_PR_NUMBER);
