@@ -7,17 +7,285 @@
  ******************************************************************************
  */
 
+#include <jni.h>
 #include <cstring>
+#include <string>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/logging.h"
+#include "xenia/base/main_android.h"
 #include "xenia/base/system.h"
 
 namespace xe {
 
+// To store jmethodIDs persistently, global references to the classes are
+// required to prevent the classes from being unloaded and reloaded, potentially
+// changing the method IDs.
+
+static jclass android_system_application_context_class_ = nullptr;
+static jmethodID android_system_application_context_start_activity_ = nullptr;
+
+static jclass android_system_uri_class_ = nullptr;
+static jmethodID android_system_uri_parse_ = nullptr;
+
+static jclass android_system_intent_class_ = nullptr;
+static jfieldID android_system_intent_action_view_field_id_ = nullptr;
+static jfieldID android_system_intent_flag_activity_new_task_field_id_ =
+    nullptr;
+static jmethodID android_system_intent_init_action_uri_ = nullptr;
+static jmethodID android_system_intent_add_flags_ = nullptr;
+static jobject android_system_intent_action_view_ = nullptr;
+static jint android_system_intent_flag_activity_new_task_;
+
+static bool android_system_initialized_ = false;
+
+bool InitializeAndroidSystemForApplicationContext() {
+  assert_false(android_system_initialized_);
+
+  JNIEnv* jni_env = GetAndroidThreadJNIEnv();
+  if (!jni_env) {
+    return false;
+  }
+  jobject application_context = xe::GetAndroidApplicationContext();
+  if (!application_context) {
+    return false;
+  }
+
+  // Application context.
+  {
+    {
+      jclass application_context_class_local_ref =
+          jni_env->GetObjectClass(application_context);
+      if (!application_context_class_local_ref) {
+        XELOGE(
+            "InitializeAndroidSystemForApplicationContext: Failed to get the "
+            "class of the application context");
+        ShutdownAndroidSystem();
+        return false;
+      }
+      android_system_application_context_class_ =
+          reinterpret_cast<jclass>(jni_env->NewGlobalRef(
+              reinterpret_cast<jobject>(application_context_class_local_ref)));
+      jni_env->DeleteLocalRef(application_context_class_local_ref);
+    }
+    if (!android_system_application_context_class_) {
+      XELOGE(
+          "InitializeAndroidSystemForApplicationContext: Failed to create a "
+          "global reference to the class of the application context");
+      ShutdownAndroidSystem();
+      return false;
+    }
+    bool application_context_ids_obtained = true;
+    application_context_ids_obtained &=
+        (android_system_application_context_start_activity_ =
+             jni_env->GetMethodID(android_system_application_context_class_,
+                                  "startActivity",
+                                  "(Landroid/content/Intent;)V")) != nullptr;
+    if (!application_context_ids_obtained) {
+      XELOGE(
+          "InitializeAndroidSystemForApplicationContext: Failed to get the "
+          "application context class IDs");
+      ShutdownAndroidSystem();
+      return false;
+    }
+  }
+
+  // URI.
+  {
+    {
+      jclass uri_class_local_ref = jni_env->FindClass("android/net/Uri");
+      if (!uri_class_local_ref) {
+        XELOGE(
+            "InitializeAndroidSystemForApplicationContext: Failed to find the "
+            "URI class");
+        ShutdownAndroidSystem();
+        return false;
+      }
+      android_system_uri_class_ =
+          reinterpret_cast<jclass>(jni_env->NewGlobalRef(
+              reinterpret_cast<jobject>(uri_class_local_ref)));
+      jni_env->DeleteLocalRef(uri_class_local_ref);
+    }
+    if (!android_system_uri_class_) {
+      XELOGE(
+          "InitializeAndroidSystemForApplicationContext: Failed to create a "
+          "global reference to the URI class");
+      ShutdownAndroidSystem();
+      return false;
+    }
+    bool uri_ids_obtained = true;
+    uri_ids_obtained &=
+        (android_system_uri_parse_ = jni_env->GetStaticMethodID(
+             android_system_uri_class_, "parse",
+             "(Ljava/lang/String;)Landroid/net/Uri;")) != nullptr;
+    if (!uri_ids_obtained) {
+      XELOGE(
+          "InitializeAndroidSystemForApplicationContext: Failed to get the URI "
+          "class IDs");
+      ShutdownAndroidSystem();
+      return false;
+    }
+  }
+
+  // Intent.
+  {
+    {
+      jclass intent_class_local_ref =
+          jni_env->FindClass("android/content/Intent");
+      if (!intent_class_local_ref) {
+        XELOGE(
+            "InitializeAndroidSystemForApplicationContext: Failed to find the "
+            "intent class");
+        ShutdownAndroidSystem();
+        return false;
+      }
+      android_system_intent_class_ =
+          reinterpret_cast<jclass>(jni_env->NewGlobalRef(
+              reinterpret_cast<jobject>(intent_class_local_ref)));
+      jni_env->DeleteLocalRef(intent_class_local_ref);
+    }
+    if (!android_system_intent_class_) {
+      XELOGE(
+          "InitializeAndroidSystemForApplicationContext: Failed to create a "
+          "global reference to the intent class");
+      ShutdownAndroidSystem();
+      return false;
+    }
+    bool intent_ids_obtained = true;
+    intent_ids_obtained &= (android_system_intent_action_view_field_id_ =
+                                jni_env->GetStaticFieldID(
+                                    android_system_intent_class_, "ACTION_VIEW",
+                                    "Ljava/lang/String;")) != nullptr;
+    intent_ids_obtained &=
+        (android_system_intent_flag_activity_new_task_field_id_ =
+             jni_env->GetStaticFieldID(android_system_intent_class_,
+                                       "FLAG_ACTIVITY_NEW_TASK", "I")) !=
+        nullptr;
+    intent_ids_obtained &=
+        (android_system_intent_init_action_uri_ = jni_env->GetMethodID(
+             android_system_intent_class_, "<init>",
+             "(Ljava/lang/String;Landroid/net/Uri;)V")) != nullptr;
+    intent_ids_obtained &=
+        (android_system_intent_add_flags_ =
+             jni_env->GetMethodID(android_system_intent_class_, "addFlags",
+                                  "(I)Landroid/content/Intent;")) != nullptr;
+    if (!intent_ids_obtained) {
+      XELOGE(
+          "InitializeAndroidSystemForApplicationContext: Failed to get the "
+          "intent class IDs");
+      ShutdownAndroidSystem();
+      return false;
+    }
+    {
+      jobject intent_action_view_local_ref = jni_env->GetStaticObjectField(
+          android_system_intent_class_,
+          android_system_intent_action_view_field_id_);
+      if (!intent_action_view_local_ref) {
+        XELOGE(
+            "InitializeAndroidSystemForApplicationContext: Failed to get the "
+            "intent view action string");
+        ShutdownAndroidSystem();
+        return false;
+      }
+      android_system_intent_action_view_ =
+          jni_env->NewGlobalRef(intent_action_view_local_ref);
+      jni_env->DeleteLocalRef(intent_action_view_local_ref);
+      if (!android_system_intent_action_view_) {
+        XELOGE(
+            "InitializeAndroidSystemForApplicationContext: Failed to create a "
+            "global reference to the intent view action string");
+        ShutdownAndroidSystem();
+        return false;
+      }
+    }
+    android_system_intent_flag_activity_new_task_ = jni_env->GetStaticIntField(
+        android_system_intent_class_,
+        android_system_intent_flag_activity_new_task_field_id_);
+  }
+
+  android_system_initialized_ = true;
+  return true;
+}
+
+void ShutdownAndroidSystem() {
+  // May be called from InitializeAndroidSystemForApplicationContext as well.
+  android_system_initialized_ = false;
+  android_system_intent_add_flags_ = nullptr;
+  android_system_intent_init_action_uri_ = nullptr;
+  android_system_intent_flag_activity_new_task_field_id_ = nullptr;
+  android_system_intent_action_view_field_id_ = nullptr;
+  android_system_uri_parse_ = nullptr;
+  android_system_application_context_start_activity_ = nullptr;
+  JNIEnv* jni_env = GetAndroidThreadJNIEnv();
+  if (jni_env) {
+    if (android_system_intent_action_view_) {
+      jni_env->DeleteGlobalRef(android_system_intent_action_view_);
+    }
+    if (android_system_intent_class_) {
+      jni_env->DeleteGlobalRef(android_system_intent_class_);
+    }
+    if (android_system_uri_class_) {
+      jni_env->DeleteGlobalRef(android_system_uri_class_);
+    }
+    if (android_system_application_context_class_) {
+      jni_env->DeleteGlobalRef(android_system_application_context_class_);
+    }
+  }
+  android_system_intent_action_view_ = nullptr;
+  android_system_intent_class_ = nullptr;
+  android_system_uri_class_ = nullptr;
+  android_system_application_context_class_ = nullptr;
+}
+
 void LaunchWebBrowser(const std::string_view url) {
-  // TODO(Triang3l): Intent.ACTION_VIEW (need a Java VM for the thread -
-  // possibly restrict this to the UI thread).
-  assert_always();
+  if (!android_system_initialized_) {
+    return;
+  }
+  JNIEnv* jni_env = GetAndroidThreadJNIEnv();
+  if (!jni_env) {
+    return;
+  }
+  jobject application_context = GetAndroidApplicationContext();
+  if (!application_context) {
+    return;
+  }
+
+  jstring uri_string = jni_env->NewStringUTF(std::string(url).c_str());
+  if (!uri_string) {
+    XELOGE("LaunchWebBrowser: Failed to create the URI string");
+    return;
+  }
+  jobject uri = jni_env->CallStaticObjectMethod(
+      android_system_uri_class_, android_system_uri_parse_, uri_string);
+  jni_env->DeleteLocalRef(uri_string);
+  if (!uri) {
+    XELOGE("LaunchWebBrowser: Failed to parse the URI");
+    return;
+  }
+  jobject intent = jni_env->NewObject(android_system_intent_class_,
+                                      android_system_intent_init_action_uri_,
+                                      android_system_intent_action_view_, uri);
+  jni_env->DeleteLocalRef(uri);
+  if (!intent) {
+    XELOGE("LaunchWebBrowser: Failed to create the intent");
+    return;
+  }
+  // Start a new task - the user may want to be able to switch between the
+  // emulator and the newly opened web browser, without having to quit the web
+  // browser to return to the emulator. Also, since the application context, not
+  // the activity, is used, the new task flag is required.
+  {
+    jobject intent_add_flags_result_local_ref = jni_env->CallObjectMethod(
+        intent, android_system_intent_add_flags_,
+        android_system_intent_flag_activity_new_task_);
+    if (intent_add_flags_result_local_ref) {
+      jni_env->DeleteLocalRef(intent_add_flags_result_local_ref);
+    }
+  }
+  jni_env->CallVoidMethod(application_context,
+                          android_system_application_context_start_activity_,
+                          intent);
+  jni_env->DeleteLocalRef(intent);
 }
 
 void LaunchFileExplorer(const std::filesystem::path& path) { assert_always(); }

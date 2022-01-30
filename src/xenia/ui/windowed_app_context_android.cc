@@ -141,26 +141,14 @@ bool AndroidWindowedAppContext::Initialize(JNIEnv* ui_thread_jni_env,
   }
   AConfiguration_fromAssetManager(configuration_, asset_manager_);
 
-  // Initialize Xenia globals that may depend on the API level, as well as
-  // logging.
-  xe::InitializeAndroidAppFromMainThread(
-      AConfiguration_getSdkVersion(configuration_));
-  android_base_initialized_ = true;
-
-  // Initialize interfacing with the WindowedAppActivity.
-  activity_ = ui_thread_jni_env_->NewGlobalRef(activity);
-  if (!activity_) {
-    XELOGE(
-        "AndroidWindowedAppContext: Failed to create a global reference to the "
-        "activity");
-    Shutdown();
-    return false;
-  }
+  // Get the activity class, needed for the application context here, and for
+  // other activity interaction later.
   {
     jclass activity_class_local_ref =
         ui_thread_jni_env_->GetObjectClass(activity);
     if (!activity_class_local_ref) {
-      XELOGE("AndroidWindowedAppContext: Failed to get the activity class");
+      __android_log_write(ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
+                          "Failed to get the activity class");
       Shutdown();
       return false;
     }
@@ -170,9 +158,46 @@ bool AndroidWindowedAppContext::Initialize(JNIEnv* ui_thread_jni_env,
         reinterpret_cast<jobject>(activity_class_local_ref));
   }
   if (!activity_class_) {
+    __android_log_write(
+        ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
+        "Failed to create a global reference to the activity class");
+    Shutdown();
+    return false;
+  }
+
+  // Get the application context.
+  jmethodID activity_get_application_context = ui_thread_jni_env_->GetMethodID(
+      activity_class_, "getApplicationContext", "()Landroid/content/Context;");
+  if (!activity_get_application_context) {
+    __android_log_write(
+        ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
+        "Failed to get the getApplicationContext method of the activity");
+    Shutdown();
+    return false;
+  }
+  jobject application_context_init_ref = ui_thread_jni_env_->CallObjectMethod(
+      activity, activity_get_application_context);
+  if (!application_context_init_ref) {
+    __android_log_write(
+        ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
+        "Failed to get the application context from the activity");
+    Shutdown();
+    return false;
+  }
+
+  // Initialize Xenia globals that may depend on the base globals and logging.
+  xe::InitializeAndroidAppFromMainThread(
+      AConfiguration_getSdkVersion(configuration_), ui_thread_jni_env_,
+      application_context_init_ref);
+  android_base_initialized_ = true;
+  ui_thread_jni_env_->DeleteLocalRef(application_context_init_ref);
+
+  // Initialize interfacing with the WindowedAppActivity.
+  activity_ = ui_thread_jni_env_->NewGlobalRef(activity);
+  if (!activity_) {
     XELOGE(
         "AndroidWindowedAppContext: Failed to create a global reference to the "
-        "activity class");
+        "activity");
     Shutdown();
     return false;
   }
@@ -249,11 +274,6 @@ void AndroidWindowedAppContext::Shutdown() {
   }
 
   activity_method_finish_ = nullptr;
-  if (activity_class_) {
-    ui_thread_jni_env_->DeleteGlobalRef(
-        reinterpret_cast<jobject>(activity_class_));
-    activity_class_ = nullptr;
-  }
   if (activity_) {
     ui_thread_jni_env_->DeleteGlobalRef(activity_);
     activity_ = nullptr;
@@ -262,6 +282,12 @@ void AndroidWindowedAppContext::Shutdown() {
   if (android_base_initialized_) {
     xe::ShutdownAndroidAppFromMainThread();
     android_base_initialized_ = false;
+  }
+
+  if (activity_class_) {
+    ui_thread_jni_env_->DeleteGlobalRef(
+        reinterpret_cast<jobject>(activity_class_));
+    activity_class_ = nullptr;
   }
 
   if (configuration_) {
