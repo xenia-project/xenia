@@ -10,11 +10,15 @@ skip_commits:
   files:
     - .drone.star
     - .github/**
+    - android/**
     - docs/**
     - src/**/*_posix.*
     - src/**/*_linux.*
+    - src/**/*_gnulinux.*
     - src/**/*_x11.*
     - src/**/*_gtk.*
+    - src/**/*_android.*
+    - src/**/*_mac.*
     - LICENSE
     - README.md
 
