@@ -410,14 +410,15 @@ def git_is_repository():
 
 
 def git_submodule_update():
-    """Runs a full recursive git submodule init and update.
+    """Runs a git submodule init and update.
     """
     shell_call([
         'git',
+        '-c',
+        'fetch.recurseSubmodules=on-demand',
         'submodule',
         'update',
         '--init',
-        '--recursive',
         ])
 
 
