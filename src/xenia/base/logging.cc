@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
 #include <vector>
@@ -500,7 +501,13 @@ void FatalError(const std::string_view str) {
   }
 
   ShutdownLogging();
-  std::exit(1);
+
+#if XE_PLATFORM_ANDROID
+  // Throw an error that can be reported to the developers via the store.
+  std::abort();
+#else
+  std::exit(EXIT_FAILURE);
+#endif  // XE_PLATFORM_ANDROID
 }
 
 }  // namespace xe
