@@ -3,11 +3,10 @@ package jp.xenia.emulator;
 import android.app.Activity;
 import android.content.res.AssetManager;
 import android.os.Bundle;
-import android.util.Log;
+
+import jp.xenia.XeniaRuntimeException;
 
 public abstract class WindowedAppActivity extends Activity {
-    private static final String TAG = "WindowedAppActivity";
-
     static {
         // TODO(Triang3l): Move all demos to libxenia.so.
         System.loadLibrary("xenia-ui-window-vulkan-demo");
@@ -26,11 +25,12 @@ public abstract class WindowedAppActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        mAppContext = initializeWindowedAppOnCreateNative(getWindowedAppIdentifier(), getAssets());
+        final String windowedAppIdentifier = getWindowedAppIdentifier();
+        mAppContext = initializeWindowedAppOnCreateNative(windowedAppIdentifier, getAssets());
         if (mAppContext == 0) {
-            Log.e(TAG, "Error initializing the windowed app");
             finish();
-            return;
+            throw new XeniaRuntimeException(
+                    "Error initializing the windowed app " + windowedAppIdentifier);
         }
     }
 
