@@ -24,7 +24,7 @@ extern "C" int main(int argc, char** argv) {
 
   // Initialize Android globals, including logging. Needs parsed cvars.
   // TODO(Triang3l): Obtain the actual API level.
-  xe::InitializeAndroidAppFromMainThread(__ANDROID_API__);
+  xe::InitializeAndroidAppFromMainThread(__ANDROID_API__, nullptr, nullptr);
 
   std::vector<std::string> args;
   for (int n = 0; n < argc; n++) {

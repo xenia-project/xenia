@@ -95,10 +95,11 @@ class AndroidWindowedAppContext final : public WindowedAppContext {
 
   AConfiguration* configuration_ = nullptr;
 
+  jclass activity_class_ = nullptr;
+
   bool android_base_initialized_ = false;
 
   jobject activity_ = nullptr;
-  jclass activity_class_ = nullptr;
   jmethodID activity_method_finish_ = nullptr;
 
   // May be read by non-UI threads in NotifyUILoopOfPendingFunctions.

@@ -13,10 +13,17 @@
 #include <filesystem>
 #include <string_view>
 
+#include "xenia/base/platform.h"
 #include "xenia/base/string.h"
 
 namespace xe {
 
+#if XE_PLATFORM_ANDROID
+bool InitializeAndroidSystemForApplicationContext();
+void ShutdownAndroidSystem();
+#endif
+
+// The URL must include the protocol.
 void LaunchWebBrowser(const std::string_view url);
 void LaunchFileExplorer(const std::filesystem::path& path);
 
