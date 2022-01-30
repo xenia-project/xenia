@@ -703,37 +703,39 @@ void PipelineCache::InitializeShaderStorage(
       ++pipelines_created;
     }
 
-    CreateQueuedPipelinesOnProcessorThread();
-    if (creation_threads_.size() > creation_thread_original_count) {
-      {
-        std::lock_guard<std::mutex> lock(creation_request_lock_);
-        creation_threads_shutdown_from_ = creation_thread_original_count;
-        // Assuming the queue is empty because of
-        // CreateQueuedPipelinesOnProcessorThread.
-      }
-      creation_request_cond_.notify_all();
-      while (creation_threads_.size() > creation_thread_original_count) {
-        xe::threading::Wait(creation_threads_.back().get(), false);
-        creation_threads_.pop_back();
-      }
-      bool await_creation_completion_event;
-      {
-        // Cleanup so additional threads can be created later again.
-        std::lock_guard<std::mutex> lock(creation_request_lock_);
-        creation_threads_shutdown_from_ = SIZE_MAX;
-        // If the invocation is blocking, all the shader storage initialization
-        // is expected to be done before proceeding, to avoid latency in the
-        // command processor after the invocation.
-        await_creation_completion_event =
-            blocking && creation_threads_busy_ != 0;
-        if (await_creation_completion_event) {
-          creation_completion_event_->Reset();
-          creation_completion_set_event_ = true;
+    if (!creation_threads_.empty()) {
+      CreateQueuedPipelinesOnProcessorThread();
+      if (creation_threads_.size() > creation_thread_original_count) {
+        {
+          std::lock_guard<std::mutex> lock(creation_request_lock_);
+          creation_threads_shutdown_from_ = creation_thread_original_count;
+          // Assuming the queue is empty because of
+          // CreateQueuedPipelinesOnProcessorThread.
         }
-      }
-      if (await_creation_completion_event) {
-        creation_request_cond_.notify_one();
-        xe::threading::Wait(creation_completion_event_.get(), false);
+        creation_request_cond_.notify_all();
+        while (creation_threads_.size() > creation_thread_original_count) {
+          xe::threading::Wait(creation_threads_.back().get(), false);
+          creation_threads_.pop_back();
+        }
+        bool await_creation_completion_event;
+        {
+          // Cleanup so additional threads can be created later again.
+          std::lock_guard<std::mutex> lock(creation_request_lock_);
+          creation_threads_shutdown_from_ = SIZE_MAX;
+          // If the invocation is blocking, all the shader storage
+          // initialization is expected to be done before proceeding, to avoid
+          // latency in the command processor after the invocation.
+          await_creation_completion_event =
+              blocking && creation_threads_busy_ != 0;
+          if (await_creation_completion_event) {
+            creation_completion_event_->Reset();
+            creation_completion_set_event_ = true;
+          }
+        }
+        if (await_creation_completion_event) {
+          creation_request_cond_.notify_one();
+          xe::threading::Wait(creation_completion_event_.get(), false);
+        }
       }
     }
 
