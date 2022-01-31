@@ -42,6 +42,8 @@ int32_t GetAndroidApiLevel();
 // attach on a non-main thread.
 JNIEnv* GetAndroidThreadJNIEnv();
 // Returns the global reference if in an application context, or null otherwise.
+// This is the application context, not the activity one, because multiple
+// activities may be running in one process.
 jobject GetAndroidApplicationContext();
 
 }  // namespace xe
