@@ -24,6 +24,8 @@
 
 #include "third_party/fmt/include/fmt/format.h"
 
+DECLARE_int32(user_language);
+
 namespace xe {
 namespace kernel {
 namespace xam {
@@ -206,16 +208,16 @@ dword_result_t XGetGameRegion_entry() { return xeXGetGameRegion(); }
 DECLARE_XAM_EXPORT1(XGetGameRegion, kNone, kStub);
 
 dword_result_t XGetLanguage_entry() {
-  auto desired_language = XLanguage::kEnglish;
+  auto desired_language = static_cast<XLanguage>(cvars::user_language);
 
   // Switch the language based on game region.
   // TODO(benvanik): pull from xex header.
-  uint32_t game_region = XEX_REGION_NTSCU;
+  /* uint32_t game_region = XEX_REGION_NTSCU;
   if (game_region & XEX_REGION_NTSCU) {
     desired_language = XLanguage::kEnglish;
   } else if (game_region & XEX_REGION_NTSCJ) {
     desired_language = XLanguage::kJapanese;
-  }
+  }*/
   // Add more overrides?
 
   return uint32_t(desired_language);
