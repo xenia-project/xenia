@@ -18,9 +18,9 @@
 
 namespace xe {
 
-// To store jmethodIDs persistently, global references to the classes are
-// required to prevent the classes from being unloaded and reloaded, potentially
-// changing the method IDs.
+// To store method and field IDs persistently, global references to the classes
+// are required to prevent the classes from being unloaded and reloaded,
+// potentially changing the IDs.
 
 static jclass android_system_application_context_class_ = nullptr;
 static jmethodID android_system_application_context_start_activity_ = nullptr;
@@ -29,9 +29,6 @@ static jclass android_system_uri_class_ = nullptr;
 static jmethodID android_system_uri_parse_ = nullptr;
 
 static jclass android_system_intent_class_ = nullptr;
-static jfieldID android_system_intent_action_view_field_id_ = nullptr;
-static jfieldID android_system_intent_flag_activity_new_task_field_id_ =
-    nullptr;
 static jmethodID android_system_intent_init_action_uri_ = nullptr;
 static jmethodID android_system_intent_add_flags_ = nullptr;
 static jobject android_system_intent_action_view_ = nullptr;
@@ -152,14 +149,14 @@ bool InitializeAndroidSystemForApplicationContext() {
       return false;
     }
     bool intent_ids_obtained = true;
-    intent_ids_obtained &= (android_system_intent_action_view_field_id_ =
-                                jni_env->GetStaticFieldID(
-                                    android_system_intent_class_, "ACTION_VIEW",
-                                    "Ljava/lang/String;")) != nullptr;
+    jfieldID intent_action_view_id;
+    intent_ids_obtained &= (intent_action_view_id = jni_env->GetStaticFieldID(
+                                android_system_intent_class_, "ACTION_VIEW",
+                                "Ljava/lang/String;")) != nullptr;
+    jfieldID intent_flag_activity_new_task_id;
     intent_ids_obtained &=
-        (android_system_intent_flag_activity_new_task_field_id_ =
-             jni_env->GetStaticFieldID(android_system_intent_class_,
-                                       "FLAG_ACTIVITY_NEW_TASK", "I")) !=
+        (intent_flag_activity_new_task_id = jni_env->GetStaticFieldID(
+             android_system_intent_class_, "FLAG_ACTIVITY_NEW_TASK", "I")) !=
         nullptr;
     intent_ids_obtained &=
         (android_system_intent_init_action_uri_ = jni_env->GetMethodID(
@@ -178,8 +175,7 @@ bool InitializeAndroidSystemForApplicationContext() {
     }
     {
       jobject intent_action_view_local_ref = jni_env->GetStaticObjectField(
-          android_system_intent_class_,
-          android_system_intent_action_view_field_id_);
+          android_system_intent_class_, intent_action_view_id);
       if (!intent_action_view_local_ref) {
         XELOGE(
             "InitializeAndroidSystemForApplicationContext: Failed to get the "
@@ -199,8 +195,7 @@ bool InitializeAndroidSystemForApplicationContext() {
       }
     }
     android_system_intent_flag_activity_new_task_ = jni_env->GetStaticIntField(
-        android_system_intent_class_,
-        android_system_intent_flag_activity_new_task_field_id_);
+        android_system_intent_class_, intent_flag_activity_new_task_id);
   }
 
   android_system_initialized_ = true;
@@ -212,8 +207,6 @@ void ShutdownAndroidSystem() {
   android_system_initialized_ = false;
   android_system_intent_add_flags_ = nullptr;
   android_system_intent_init_action_uri_ = nullptr;
-  android_system_intent_flag_activity_new_task_field_id_ = nullptr;
-  android_system_intent_action_view_field_id_ = nullptr;
   android_system_uri_parse_ = nullptr;
   android_system_application_context_start_activity_ = nullptr;
   JNIEnv* jni_env = GetAndroidThreadJNIEnv();
