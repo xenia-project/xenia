@@ -278,12 +278,16 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
     if (xuids) {
       out_setting->xuid = user_profile->xuid();
     } else {
+      out_setting->xuid = -1;
       out_setting->user_index = static_cast<uint32_t>(user_index);
     }
     out_setting->setting_id = setting_id;
 
-    if (setting && setting->is_set) {
-      setting->Append(&out_setting->data, &out_stream);
+    if (setting) {
+      out_setting->data.type = uint8_t(setting->type);
+      if (setting->is_set) {
+        setting->Append(&out_setting->data, &out_stream);
+      }
     }
     ++out_setting;
   }
