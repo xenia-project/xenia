@@ -271,6 +271,10 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
   // Even if the close button has been pressed, still paint everything not to
   // have one frame with an empty window.
 
+  // Prevent user confusion which has been reported multiple times.
+  ImGui::TextUnformatted("All effects can be used on GPUs of any brand.");
+  ImGui::Spacing();
+
   gpu::CommandProcessor* command_processor =
       graphics_system->command_processor();
   if (command_processor) {
