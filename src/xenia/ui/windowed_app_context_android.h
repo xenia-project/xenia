@@ -78,14 +78,6 @@ class AndroidWindowedAppContext final : public WindowedAppContext {
   bool InitializeApp(std::unique_ptr<WindowedApp> (*app_creator)(
       WindowedAppContext& app_context));
 
-  // Useful notes about JNI usage on Android within Xenia:
-  // - All static libraries defining JNI native functions must be linked to
-  //   shared libraries via LOCAL_WHOLE_STATIC_LIBRARIES.
-  // - If method or field IDs are cached, a global reference to the class needs
-  //   to be held - it prevents the class from being unloaded by the class
-  //   loaders (in a way that would make the IDs invalid when it's reloaded).
-  // - GetStringUTFChars (UTF-8) returns null-terminated strings, GetStringChars
-  //   (UTF-16) does not.
   JNIEnv* ui_thread_jni_env_ = nullptr;
 
   // The object reference must be held by the app according to

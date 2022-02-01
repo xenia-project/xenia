@@ -39,7 +39,7 @@ static bool android_system_initialized_ = false;
 bool InitializeAndroidSystemForApplicationContext() {
   assert_false(android_system_initialized_);
 
-  JNIEnv* jni_env = GetAndroidThreadJNIEnv();
+  JNIEnv* jni_env = GetAndroidThreadJniEnv();
   if (!jni_env) {
     return false;
   }
@@ -209,7 +209,7 @@ void ShutdownAndroidSystem() {
   android_system_intent_init_action_uri_ = nullptr;
   android_system_uri_parse_ = nullptr;
   android_system_application_context_start_activity_ = nullptr;
-  JNIEnv* jni_env = GetAndroidThreadJNIEnv();
+  JNIEnv* jni_env = GetAndroidThreadJniEnv();
   if (jni_env) {
     if (android_system_intent_action_view_) {
       jni_env->DeleteGlobalRef(android_system_intent_action_view_);
@@ -234,7 +234,7 @@ void LaunchWebBrowser(const std::string_view url) {
   if (!android_system_initialized_) {
     return;
   }
-  JNIEnv* jni_env = GetAndroidThreadJNIEnv();
+  JNIEnv* jni_env = GetAndroidThreadJniEnv();
   if (!jni_env) {
     return;
   }
