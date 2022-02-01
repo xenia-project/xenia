@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,6 +13,7 @@
 #include <android/asset_manager.h>
 #include <android/configuration.h>
 #include <android/looper.h>
+#include <android/native_window.h>
 #include <jni.h>
 #include <array>
 #include <memory>
@@ -33,6 +34,27 @@ class AndroidWindowedAppContext final : public WindowedAppContext {
 
   void PlatformQuitFromUIThread() override;
 
+  uint32_t GetPixelDensity() const {
+    return configuration_ ? uint32_t(AConfiguration_getDensity(configuration_))
+                          : 160;
+  }
+
+  int32_t window_surface_layout_left() const {
+    return window_surface_layout_left_;
+  }
+  int32_t window_surface_layout_top() const {
+    return window_surface_layout_top_;
+  }
+  int32_t window_surface_layout_right() const {
+    return window_surface_layout_right_;
+  }
+  int32_t window_surface_layout_bottom() const {
+    return window_surface_layout_bottom_;
+  }
+
+  ANativeWindow* GetWindowSurface() const { return window_surface_; }
+  void PostInvalidateWindowSurface();
+
   // The single Window instance that will be receiving window callbacks.
   // Multiple windows cannot be created as one activity or fragment can have
   // only one layout. This window acts purely as a proxy between the activity
@@ -46,6 +68,10 @@ class AndroidWindowedAppContext final : public WindowedAppContext {
       JNIEnv* jni_env, jobject activity, jstring windowed_app_identifier,
       jobject asset_manager);
   void JniActivityOnDestroy();
+  void JniActivityOnWindowSurfaceLayoutChange(jint left, jint top, jint right,
+                                              jint bottom);
+  void JniActivityOnWindowSurfaceChanged(jobject window_surface_object);
+  void JniActivityPaintWindow(bool force_paint);
 
  private:
   enum class UIThreadLooperCallbackCommand : uint8_t {
@@ -93,6 +119,7 @@ class AndroidWindowedAppContext final : public WindowedAppContext {
 
   jobject activity_ = nullptr;
   jmethodID activity_method_finish_ = nullptr;
+  jmethodID activity_method_post_invalidate_window_surface_ = nullptr;
 
   // May be read by non-UI threads in NotifyUILoopOfPendingFunctions.
   ALooper* ui_thread_looper_ = nullptr;
@@ -100,6 +127,13 @@ class AndroidWindowedAppContext final : public WindowedAppContext {
   // threads in NotifyUILoopOfPendingFunctions.
   std::array<int, 2> ui_thread_looper_callback_pipe_{-1, -1};
   bool ui_thread_looper_callback_registered_ = false;
+
+  int32_t window_surface_layout_left_ = 0;
+  int32_t window_surface_layout_top_ = 0;
+  int32_t window_surface_layout_right_ = 0;
+  int32_t window_surface_layout_bottom_ = 0;
+
+  ANativeWindow* window_surface_ = nullptr;
 
   AndroidWindow* activity_window_ = nullptr;
 
