@@ -9,7 +9,9 @@
 
 #include <alloca.h>
 #include <dlfcn.h>
+#include <spawn.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include <cstring>
 
@@ -21,6 +23,8 @@
 // Use headers in third party to not depend on system sdl headers for building
 #include "third_party/SDL2/include/SDL.h"
 
+extern char** environ;
+
 namespace xe {
 
 void LaunchWebBrowser(const std::string_view url) {
@@ -29,7 +33,19 @@ void LaunchWebBrowser(const std::string_view url) {
   system(cmd.c_str());
 }
 
-void LaunchFileExplorer(const std::filesystem::path& path) { assert_always(); }
+void LaunchFileExplorer(const std::filesystem::path& path) {
+  pid_t pid;
+  int n = path.string().length();
+  char cmdxdg[] = "xdg-open";
+  char cmdpath[n + 1];
+  char* argv[] = {cmdxdg, cmdpath, NULL};
+  int status = -1;
+  strcpy(cmdpath, path.c_str());
+  status = posix_spawn(&pid, "/usr/bin/xdg-open", NULL, NULL, argv, environ);
+  if (status != 0) {
+    perror("posix_spawn");
+  }
+}
 
 void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message) {
   void* libsdl2 = dlopen("libSDL2.so", RTLD_LAZY | RTLD_LOCAL);
