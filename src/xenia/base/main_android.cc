@@ -145,7 +145,7 @@ void ShutdownAndroidAppFromMainThread() {
 
 int32_t GetAndroidApiLevel() { return android_api_level_; }
 
-JNIEnv* GetAndroidThreadJNIEnv() {
+JNIEnv* GetAndroidThreadJniEnv() {
   if (!android_java_vm_) {
     return nullptr;
   }
