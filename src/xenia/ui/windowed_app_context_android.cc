@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,6 +13,8 @@
 #include <android/configuration.h>
 #include <android/log.h>
 #include <android/looper.h>
+#include <android/native_window.h>
+#include <android/native_window_jni.h>
 #include <fcntl.h>
 #include <jni.h>
 #include <unistd.h>
@@ -22,6 +24,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/main_android.h"
+#include "xenia/ui/window_android.h"
 #include "xenia/ui/windowed_app.h"
 
 namespace xe {
@@ -50,6 +53,16 @@ void AndroidWindowedAppContext::PlatformQuitFromUIThread() {
   if (activity_ && activity_method_finish_) {
     ui_thread_jni_env_->CallVoidMethod(activity_, activity_method_finish_);
   }
+}
+
+void AndroidWindowedAppContext::PostInvalidateWindowSurface() {
+  // May be called from non-UI threads.
+  JNIEnv* jni_env = GetAndroidThreadJniEnv();
+  if (!jni_env) {
+    return;
+  }
+  jni_env->CallVoidMethod(activity_,
+                          activity_method_post_invalidate_window_surface_);
 }
 
 AndroidWindowedAppContext*
@@ -100,7 +113,52 @@ void AndroidWindowedAppContext::JniActivityOnDestroy() {
     app_->InvokeOnDestroy();
     app_.reset();
   }
+  // Expecting that the destruction of the app will destroy the window as well,
+  // no need to notify it explicitly.
+  assert_null(activity_window_);
   RequestDestruction();
+}
+
+void AndroidWindowedAppContext::JniActivityOnWindowSurfaceLayoutChange(
+    jint left, jint top, jint right, jint bottom) {
+  window_surface_layout_left_ = left;
+  window_surface_layout_top_ = top;
+  window_surface_layout_right_ = right;
+  window_surface_layout_bottom_ = bottom;
+  if (activity_window_) {
+    activity_window_->OnActivitySurfaceLayoutChange();
+  }
+}
+
+void AndroidWindowedAppContext::JniActivityOnWindowSurfaceChanged(
+    jobject window_surface_object) {
+  // Detach from the old surface.
+  if (window_surface_) {
+    ANativeWindow* old_window_surface = window_surface_;
+    window_surface_ = nullptr;
+    if (activity_window_) {
+      activity_window_->OnActivitySurfaceChanged();
+    }
+    ANativeWindow_release(old_window_surface);
+  }
+  if (!window_surface_object) {
+    return;
+  }
+  window_surface_ =
+      ANativeWindow_fromSurface(ui_thread_jni_env_, window_surface_object);
+  if (!window_surface_) {
+    return;
+  }
+  if (activity_window_) {
+    activity_window_->OnActivitySurfaceChanged();
+  }
+}
+
+void AndroidWindowedAppContext::JniActivityPaintWindow(bool force_paint) {
+  if (!activity_window_) {
+    return;
+  }
+  activity_window_->PaintActivitySurface(force_paint);
 }
 
 AndroidWindowedAppContext::~AndroidWindowedAppContext() { Shutdown(); }
@@ -205,6 +263,11 @@ bool AndroidWindowedAppContext::Initialize(JNIEnv* ui_thread_jni_env,
   activity_ids_obtained &=
       (activity_method_finish_ = ui_thread_jni_env_->GetMethodID(
            activity_class_, "finish", "()V")) != nullptr;
+  activity_ids_obtained &=
+      (activity_method_post_invalidate_window_surface_ =
+           ui_thread_jni_env_->GetMethodID(
+               activity_class_, "postInvalidateWindowSurface", "()V")) !=
+      nullptr;
   if (!activity_ids_obtained) {
     XELOGE("AndroidWindowedAppContext: Failed to get the activity class IDs");
     Shutdown();
@@ -407,7 +470,7 @@ bool AndroidWindowedAppContext::InitializeApp(std::unique_ptr<WindowedApp> (
 extern "C" {
 
 JNIEXPORT jlong JNICALL
-Java_jp_xenia_emulator_WindowedAppActivity_initializeWindowedAppOnCreateNative(
+Java_jp_xenia_emulator_WindowedAppActivity_initializeWindowedAppOnCreate(
     JNIEnv* jni_env, jobject activity, jstring windowed_app_identifier,
     jobject asset_manager) {
   return reinterpret_cast<jlong>(
@@ -421,6 +484,29 @@ Java_jp_xenia_emulator_WindowedAppActivity_onDestroyNative(
     JNIEnv* jni_env, jobject activity, jlong app_context_ptr) {
   reinterpret_cast<xe::ui::AndroidWindowedAppContext*>(app_context_ptr)
       ->JniActivityOnDestroy();
+}
+
+JNIEXPORT void JNICALL
+Java_jp_xenia_emulator_WindowedAppActivity_onWindowSurfaceLayoutChange(
+    JNIEnv* jni_env, jobject activity, jlong app_context_ptr, jint left,
+    jint top, jint right, jint bottom) {
+  reinterpret_cast<xe::ui::AndroidWindowedAppContext*>(app_context_ptr)
+      ->JniActivityOnWindowSurfaceLayoutChange(left, top, right, bottom);
+}
+
+JNIEXPORT void JNICALL
+Java_jp_xenia_emulator_WindowedAppActivity_onWindowSurfaceChanged(
+    JNIEnv* jni_env, jobject activity, jlong app_context_ptr,
+    jobject window_surface_object) {
+  reinterpret_cast<xe::ui::AndroidWindowedAppContext*>(app_context_ptr)
+      ->JniActivityOnWindowSurfaceChanged(window_surface_object);
+}
+
+JNIEXPORT void JNICALL Java_jp_xenia_emulator_WindowedAppActivity_paintWindow(
+    JNIEnv* jni_env, jobject activity, jlong app_context_ptr,
+    jboolean force_paint) {
+  reinterpret_cast<xe::ui::AndroidWindowedAppContext*>(app_context_ptr)
+      ->JniActivityPaintWindow(bool(force_paint));
 }
 
 }  // extern "C"

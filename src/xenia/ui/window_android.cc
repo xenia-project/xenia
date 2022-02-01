@@ -29,17 +29,42 @@ std::unique_ptr<Window> Window::Create(WindowedAppContext& app_context,
 
 AndroidWindow::~AndroidWindow() {
   EnterDestructor();
-  AndroidWindowedAppContext& android_app_context =
+  auto& android_app_context =
       static_cast<AndroidWindowedAppContext&>(app_context());
   if (android_app_context.GetActivityWindow() == this) {
     android_app_context.SetActivityWindow(nullptr);
   }
 }
 
+void AndroidWindow::OnActivitySurfaceLayoutChange() {
+  auto& android_app_context =
+      static_cast<const AndroidWindowedAppContext&>(app_context());
+  assert_true(android_app_context.GetActivityWindow() == this);
+  uint32_t physical_width =
+      uint32_t(android_app_context.window_surface_layout_right() -
+               android_app_context.window_surface_layout_left());
+  uint32_t physical_height =
+      uint32_t(android_app_context.window_surface_layout_bottom() -
+               android_app_context.window_surface_layout_top());
+  OnDesiredLogicalSizeUpdate(SizeToLogical(physical_width),
+                             SizeToLogical(physical_height));
+  WindowDestructionReceiver destruction_receiver(this);
+  OnActualSizeUpdate(physical_width, physical_height, destruction_receiver);
+  if (destruction_receiver.IsWindowDestroyedOrClosed()) {
+    return;
+  }
+}
+
+uint32_t AndroidWindow::GetLatestDpiImpl() const {
+  auto& android_app_context =
+      static_cast<const AndroidWindowedAppContext&>(app_context());
+  return android_app_context.GetPixelDensity();
+}
+
 bool AndroidWindow::OpenImpl() {
   // The window is a proxy between the main activity and Xenia, so there can be
-  // only one for an activity.
-  AndroidWindowedAppContext& android_app_context =
+  // only one open window for an activity.
+  auto& android_app_context =
       static_cast<AndroidWindowedAppContext&>(app_context());
   AndroidWindow* previous_activity_window =
       android_app_context.GetActivityWindow();
@@ -50,6 +75,10 @@ bool AndroidWindow::OpenImpl() {
     return false;
   }
   android_app_context.SetActivityWindow(this);
+
+  // Report the initial layout.
+  OnActivitySurfaceLayoutChange();
+
   return true;
 }
 
@@ -68,7 +97,7 @@ void AndroidWindow::RequestCloseImpl() {
   }
   OnAfterClose();
 
-  AndroidWindowedAppContext& android_app_context =
+  auto& android_app_context =
       static_cast<AndroidWindowedAppContext&>(app_context());
   if (android_app_context.GetActivityWindow() == this) {
     android_app_context.SetActivityWindow(nullptr);
@@ -78,13 +107,24 @@ void AndroidWindow::RequestCloseImpl() {
 std::unique_ptr<Surface> AndroidWindow::CreateSurfaceImpl(
     Surface::TypeFlags allowed_types) {
   if (allowed_types & Surface::kTypeFlag_AndroidNativeWindow) {
-    // TODO(Triang3l): AndroidNativeWindowSurface for the ANativeWindow.
+    auto& android_app_context =
+        static_cast<const AndroidWindowedAppContext&>(app_context());
+    assert_true(android_app_context.GetActivityWindow() == this);
+    ANativeWindow* activity_window_surface =
+        android_app_context.GetWindowSurface();
+    if (activity_window_surface) {
+      return std::make_unique<AndroidNativeWindowSurface>(
+          activity_window_surface);
+    }
   }
   return nullptr;
 }
 
 void AndroidWindow::RequestPaintImpl() {
-  // TODO(Triang3l): postInvalidate.
+  auto& android_app_context =
+      static_cast<AndroidWindowedAppContext&>(app_context());
+  assert_true(android_app_context.GetActivityWindow() == this);
+  android_app_context.PostInvalidateWindowSurface();
 }
 
 std::unique_ptr<ui::MenuItem> MenuItem::Create(Type type,

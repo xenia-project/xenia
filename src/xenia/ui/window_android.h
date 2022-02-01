@@ -29,7 +29,13 @@ class AndroidWindow : public Window {
 
   uint32_t GetMediumDpi() const override { return 160; }
 
+  void OnActivitySurfaceLayoutChange();
+  void OnActivitySurfaceChanged() { OnSurfaceChanged(true); }
+  void PaintActivitySurface(bool force_paint) { OnPaint(force_paint); }
+
  protected:
+  uint32_t GetLatestDpiImpl() const override;
+
   bool OpenImpl() override;
   void RequestCloseImpl() override;
 

@@ -974,8 +974,8 @@ class Presenter {
   // frame rates wasting the CPU and the GPU resources and starving everything
   // else. The waits performed here must be interruptible by guest output
   // presentation requests to prevent adding arbitrary amounts of latency to it.
-  // On GTK, this is not needed, the frame rate of draw signals is limited to
-  // the display refresh rate internally.
+  // On Android and GTK, this is not needed, the frame rate of draw events is
+  // limited to the display refresh rate internally.
 #if XE_PLATFORM_WIN32
   static Microsoft::WRL::ComPtr<IDXGIOutput> GetDXGIOutputForMonitor(
       IDXGIFactory1* factory, HMONITOR monitor);

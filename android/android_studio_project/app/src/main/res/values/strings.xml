@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Xenia</string>
+    <string name="activity_label_window_demo">Xenia Window Demo</string>
 </resources>

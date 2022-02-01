@@ -26,13 +26,13 @@
 // presenting from the thread refreshing the guest output is not absolutely
 // necessary, but still may be nice for bypassing the scheduling and the
 // message queue.
-// On GTK, the frame rate of draw signals is limited to the display refresh rate
-// internally, so for the lowest latency especially in case the refresh rates
-// differ significantly on the guest and the host (like 30/60 Hz presented to
-// 144 Hz), drawing from the guest output refreshing thread is highly desirable.
-// Presenting directly from the GPU emulation thread also makes debugging GPU
-// emulation easier with external tools, as presenting in most cases happens
-// exactly between emulation frames.
+// On Android and GTK, the frame rate of draw events is limited to the display
+// refresh rate internally, so for the lowest latency especially in case the
+// refresh rates differ significantly on the guest and the host (like 30/60 Hz
+// presented to 144 Hz), drawing from the guest output refreshing thread is
+// highly desirable. Presenting directly from the GPU emulation thread also
+// makes debugging GPU emulation easier with external tools, as presenting in
+// most cases happens exactly between emulation frames.
 DEFINE_bool(
     host_present_from_non_ui_thread, true,
     "Allow the GPU emulation thread to present the guest output to the host "

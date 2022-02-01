@@ -7,15 +7,15 @@ public class XeniaRuntimeException extends RuntimeException {
     public XeniaRuntimeException() {
     }
 
-    public XeniaRuntimeException(String name) {
+    public XeniaRuntimeException(final String name) {
         super(name);
     }
 
-    public XeniaRuntimeException(String name, Throwable cause) {
+    public XeniaRuntimeException(final String name, final Throwable cause) {
         super(name, cause);
     }
 
-    public XeniaRuntimeException(Exception cause) {
+    public XeniaRuntimeException(final Exception cause) {
         super(cause);
     }
 }

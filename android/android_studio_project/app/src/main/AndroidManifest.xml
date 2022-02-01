@@ -29,7 +29,9 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light">
 
-        <activity android:name="jp.xenia.emulator.WindowDemoActivity">
+        <activity
+            android:name="jp.xenia.emulator.WindowDemoActivity"
+            android:label="@string/activity_label_window_demo">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
