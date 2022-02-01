@@ -13,7 +13,8 @@
 #include "xenia/base/console_app_main.h"
 #include "xenia/base/main_win.h"
 
-int main(int argc_ignored, char** argv_ignored) {
+// A wide character entry point is required for functions like _get_wpgmptr.
+int wmain(int argc_ignored, wchar_t** argv_ignored) {
   xe::ConsoleAppEntryInfo entry_info = xe::GetConsoleAppEntryInfo();
 
   std::vector<std::string> args;
