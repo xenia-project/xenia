@@ -49,6 +49,10 @@ DEFINE_bool(d3d12_submit_on_primary_buffer_end, true,
             "Submit the command list when a PM4 primary buffer ends if it's "
             "possible to submit immediately to try to reduce frame latency.",
             "D3D12");
+DEFINE_bool(d3d12_clear_memory_page_state, false,
+            "Refresh state of memory pages to enable gpu written data. (Use "
+            "for 'Team Ninja' Games to fix missing character models)",
+            "D3D12");
 
 namespace xe {
 namespace gpu {
@@ -3008,6 +3012,9 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
   }
 
   if (is_closing_frame) {
+    if (cvars::d3d12_clear_memory_page_state) {
+      shared_memory_->SetSystemPageBlocksValidWithGpuDataWritten();
+    }
     // Close the capture after submitting.
     if (pix_capturing_) {
       IDXGraphicsAnalysis* graphics_analysis = provider.GetGraphicsAnalysis();

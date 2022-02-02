@@ -103,12 +103,13 @@ void SharedMemory::ClearCache() {
     delete[] pool;
   }
   watch_range_pools_.clear();
+  SetSystemPageBlocksValidWithGpuDataWritten();
+}
 
-  {
-    auto global_lock = global_critical_region_.Acquire();
-    for (SystemPageFlagsBlock& block : system_page_flags_) {
-      block.valid = block.valid_and_gpu_written;
-    }
+void SharedMemory::SetSystemPageBlocksValidWithGpuDataWritten() {
+  auto global_lock = global_critical_region_.Acquire();
+  for (SystemPageFlagsBlock& block : system_page_flags_) {
+    block.valid = block.valid_and_gpu_written;
   }
 }
 

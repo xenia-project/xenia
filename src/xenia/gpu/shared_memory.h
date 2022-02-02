@@ -32,6 +32,7 @@ class SharedMemory {
   virtual ~SharedMemory();
   // Call in the implementation-specific ClearCache.
   virtual void ClearCache();
+  virtual void SetSystemPageBlocksValidWithGpuDataWritten();
 
   typedef void (*GlobalWatchCallback)(
       const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
