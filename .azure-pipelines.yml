@@ -1,27 +1,25 @@
 trigger:
   branches:
     include: [ '*' ]
-    exclude: [ gh-pages, master ]
+    exclude: [ gh-pages, master, canary_base ]
   paths:
     exclude:
-    - 'docs/**'
-    - '.github/**'
-    - 'LICENSE'
-    - 'README.md'
+    - '*.md'
     - '.appveyor.yml'
-    - '.travis.yml'
+    - '.github/**'
+    - 'docs/**'
+    - 'LICENSE'
 pr:
   branches:
     include: [ '*' ]
-    exclude: [ gh-pages, master ]
+    exclude: [ gh-pages, master, canary_base ]
   paths:
     exclude:
-    - 'docs/**'
-    - '.github/**'
-    - 'LICENSE'
-    - 'README.md'
+    - '*.md'
     - '.appveyor.yml'
-    - '.travis.yml'
+    - '.github/**'
+    - 'docs/**'
+    - 'LICENSE'
 
 pool:
   vmImage: windows-latest
