@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -19,7 +19,7 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-dword_result_t XexCheckExecutablePrivilege(dword_t privilege) {
+dword_result_t XexCheckExecutablePrivilege_entry(dword_t privilege) {
   // BOOL
   // DWORD Privilege
 
@@ -39,8 +39,8 @@ dword_result_t XexCheckExecutablePrivilege(dword_t privilege) {
 }
 DECLARE_XBOXKRNL_EXPORT1(XexCheckExecutablePrivilege, kModules, kImplemented);
 
-dword_result_t XexGetModuleHandle(lpstring_t module_name,
-                                  lpdword_t hmodule_ptr) {
+dword_result_t XexGetModuleHandle_entry(lpstring_t module_name,
+                                        lpdword_t hmodule_ptr) {
   object_ref<XModule> module;
 
   if (!module_name) {
@@ -61,8 +61,9 @@ dword_result_t XexGetModuleHandle(lpstring_t module_name,
 }
 DECLARE_XBOXKRNL_EXPORT1(XexGetModuleHandle, kModules, kImplemented);
 
-dword_result_t XexGetModuleSection(lpvoid_t hmodule, lpstring_t name,
-                                   lpdword_t data_ptr, lpdword_t size_ptr) {
+dword_result_t XexGetModuleSection_entry(lpvoid_t hmodule, lpstring_t name,
+                                         lpdword_t data_ptr,
+                                         lpdword_t size_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto module = XModule::GetFromHModule(kernel_state(), hmodule);
@@ -82,8 +83,8 @@ dword_result_t XexGetModuleSection(lpvoid_t hmodule, lpstring_t name,
 }
 DECLARE_XBOXKRNL_EXPORT1(XexGetModuleSection, kModules, kImplemented);
 
-dword_result_t XexLoadImage(lpstring_t module_name, dword_t module_flags,
-                            dword_t min_version, lpdword_t hmodule_ptr) {
+dword_result_t XexLoadImage_entry(lpstring_t module_name, dword_t module_flags,
+                                  dword_t min_version, lpdword_t hmodule_ptr) {
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
   uint32_t hmodule = 0;
@@ -117,7 +118,7 @@ dword_result_t XexLoadImage(lpstring_t module_name, dword_t module_flags,
 }
 DECLARE_XBOXKRNL_EXPORT1(XexLoadImage, kModules, kImplemented);
 
-dword_result_t XexUnloadImage(lpvoid_t hmodule) {
+dword_result_t XexUnloadImage_entry(lpvoid_t hmodule) {
   auto module = XModule::GetFromHModule(kernel_state(), hmodule);
   if (!module) {
     return X_STATUS_INVALID_HANDLE;
@@ -138,8 +139,8 @@ dword_result_t XexUnloadImage(lpvoid_t hmodule) {
 }
 DECLARE_XBOXKRNL_EXPORT1(XexUnloadImage, kModules, kImplemented);
 
-dword_result_t XexGetProcedureAddress(lpvoid_t hmodule, dword_t ordinal,
-                                      lpdword_t out_function_ptr) {
+dword_result_t XexGetProcedureAddress_entry(lpvoid_t hmodule, dword_t ordinal,
+                                            lpdword_t out_function_ptr) {
   // May be entry point?
   assert_not_zero(ordinal);
 
@@ -166,7 +167,15 @@ dword_result_t XexGetProcedureAddress(lpvoid_t hmodule, dword_t ordinal,
       *out_function_ptr = ptr;
       result = X_STATUS_SUCCESS;
     } else {
-      XELOGW("ERROR: XexGetProcedureAddress ordinal not found!");
+      if (is_string_name) {
+        XELOGW("ERROR: XexGetProcedureAddress export '{}' in '{}' not found!",
+               string_name, module->name());
+      } else {
+        XELOGW(
+            "ERROR: XexGetProcedureAddress ordinal {} (0x{:X}) in '{}' not "
+            "found!",
+            ordinal, ordinal, module->name());
+      }
       *out_function_ptr = 0;
       result = X_STATUS_DRIVER_ENTRYPOINT_NOT_FOUND;
     }
@@ -176,7 +185,7 @@ dword_result_t XexGetProcedureAddress(lpvoid_t hmodule, dword_t ordinal,
 }
 DECLARE_XBOXKRNL_EXPORT1(XexGetProcedureAddress, kModules, kImplemented);
 
-void ExRegisterTitleTerminateNotification(
+void ExRegisterTitleTerminateNotification_entry(
     pointer_t<X_EX_TITLE_TERMINATE_REGISTRATION> reg, dword_t create) {
   if (create) {
     // Adding.
@@ -190,9 +199,8 @@ void ExRegisterTitleTerminateNotification(
 DECLARE_XBOXKRNL_EXPORT1(ExRegisterTitleTerminateNotification, kModules,
                          kImplemented);
 
-void RegisterModuleExports(xe::cpu::ExportResolver* export_resolver,
-                           KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(Module);

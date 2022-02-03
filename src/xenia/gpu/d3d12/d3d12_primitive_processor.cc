@@ -33,7 +33,7 @@ bool D3D12PrimitiveProcessor::Initialize() {
     return false;
   }
   frame_index_buffer_pool_ = std::make_unique<ui::d3d12::D3D12UploadBufferPool>(
-      command_processor_.GetD3D12Context().GetD3D12Provider(),
+      command_processor_.GetD3D12Provider(),
       std::max(size_t(kMinRequiredConvertedIndexBufferSize),
                ui::GraphicsUploadBufferPool::kDefaultPageSize));
   return true;
@@ -90,7 +90,7 @@ bool D3D12PrimitiveProcessor::InitializeBuiltin16BitIndexBuffer(
   assert_null(builtin_index_buffer_upload_);
 
   const ui::d3d12::D3D12Provider& provider =
-      command_processor_.GetD3D12Context().GetD3D12Provider();
+      command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
 
   D3D12_RESOURCE_DESC resource_desc;

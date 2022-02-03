@@ -21,9 +21,9 @@ Discussing illegal activities will get you banned.
 
 ## Status
 
-Buildbot | Status
--------- | ------
-[Windows](https://ci.appveyor.com/project/benvanik/xenia/branch/master) | [![Build status](https://ci.appveyor.com/api/projects/status/ftqiy86kdfawyx3a/branch/master?svg=true)](https://ci.appveyor.com/project/benvanik/xenia/branch/master)
+Buildbot | Status | Releases
+-------- | ------ | --------
+[Windows](https://ci.appveyor.com/project/benvanik/xenia/branch/master) | [![Build status](https://ci.appveyor.com/api/projects/status/ftqiy86kdfawyx3a/branch/master?svg=true)](https://ci.appveyor.com/project/benvanik/xenia/branch/master) | [Latest](https://github.com/xenia-project/release-builds-windows/releases/latest) ◦ [All](https://github.com/xenia-project/release-builds-windows/releases)
 [Linux](https://cloud.drone.io/xenia-project/xenia) | [![Build status](https://cloud.drone.io/api/badges/xenia-project/xenia/status.svg)](https://cloud.drone.io/xenia-project/xenia)
 
 Quite a few real games run. Quite a few don't.
@@ -61,7 +61,7 @@ Fixes and optimizations are always welcome (please!), but in addition to
 that there are some major work areas still untouched:
 
 * Help work through [missing functionality/bugs in games](https://github.com/xenia-project/xenia/labels/compat)
-* Add input drivers for [third-party controllers](https://github.com/xenia-project/xenia/issues/1333)
+* Reduce the size of Xenia's [huge log files](https://github.com/xenia-project/xenia/issues/1526)
 * Skilled with Linux? A strong contributor is needed to [help with porting](https://github.com/xenia-project/xenia/labels/platform-linux)
 
 See more projects [good for contributors](https://github.com/xenia-project/xenia/labels/good%20first%20issue). It's a good idea to ask on Discord and check the issues page before beginning work on

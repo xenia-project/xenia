@@ -87,7 +87,8 @@ PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
       register_file_(register_file),
       render_target_cache_(render_target_cache),
       bindless_resources_used_(bindless_resources_used) {
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Provider();
 
   bool edram_rov_used = render_target_cache.GetPath() ==
                         RenderTargetCache::Path::kPixelShaderInterlock;
@@ -109,7 +110,8 @@ PipelineCache::PipelineCache(D3D12CommandProcessor& command_processor,
 PipelineCache::~PipelineCache() { Shutdown(); }
 
 bool PipelineCache::Initialize() {
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Provider();
 
   // Initialize the command processor thread DXIL objects.
   dxbc_converter_ = nullptr;
@@ -414,7 +416,8 @@ void PipelineCache::InitializeShaderStorage(
     std::mutex shaders_failed_to_translate_mutex;
     std::vector<D3D12Shader::D3D12Translation*> shaders_failed_to_translate;
     auto shader_translation_thread_function = [&]() {
-      auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+      const ui::d3d12::D3D12Provider& provider =
+          command_processor_.GetD3D12Provider();
       StringBuffer ucode_disasm_buffer;
       DxbcShaderTranslator translator(
           provider.GetAdapterVendorID(), bindless_resources_used_,
@@ -700,37 +703,39 @@ void PipelineCache::InitializeShaderStorage(
       ++pipelines_created;
     }
 
-    CreateQueuedPipelinesOnProcessorThread();
-    if (creation_threads_.size() > creation_thread_original_count) {
-      {
-        std::lock_guard<std::mutex> lock(creation_request_lock_);
-        creation_threads_shutdown_from_ = creation_thread_original_count;
-        // Assuming the queue is empty because of
-        // CreateQueuedPipelinesOnProcessorThread.
-      }
-      creation_request_cond_.notify_all();
-      while (creation_threads_.size() > creation_thread_original_count) {
-        xe::threading::Wait(creation_threads_.back().get(), false);
-        creation_threads_.pop_back();
-      }
-      bool await_creation_completion_event;
-      {
-        // Cleanup so additional threads can be created later again.
-        std::lock_guard<std::mutex> lock(creation_request_lock_);
-        creation_threads_shutdown_from_ = SIZE_MAX;
-        // If the invocation is blocking, all the shader storage initialization
-        // is expected to be done before proceeding, to avoid latency in the
-        // command processor after the invocation.
-        await_creation_completion_event =
-            blocking && creation_threads_busy_ != 0;
-        if (await_creation_completion_event) {
-          creation_completion_event_->Reset();
-          creation_completion_set_event_ = true;
+    if (!creation_threads_.empty()) {
+      CreateQueuedPipelinesOnProcessorThread();
+      if (creation_threads_.size() > creation_thread_original_count) {
+        {
+          std::lock_guard<std::mutex> lock(creation_request_lock_);
+          creation_threads_shutdown_from_ = creation_thread_original_count;
+          // Assuming the queue is empty because of
+          // CreateQueuedPipelinesOnProcessorThread.
         }
-      }
-      if (await_creation_completion_event) {
-        creation_request_cond_.notify_one();
-        xe::threading::Wait(creation_completion_event_.get(), false);
+        creation_request_cond_.notify_all();
+        while (creation_threads_.size() > creation_thread_original_count) {
+          xe::threading::Wait(creation_threads_.back().get(), false);
+          creation_threads_.pop_back();
+        }
+        bool await_creation_completion_event;
+        {
+          // Cleanup so additional threads can be created later again.
+          std::lock_guard<std::mutex> lock(creation_request_lock_);
+          creation_threads_shutdown_from_ = SIZE_MAX;
+          // If the invocation is blocking, all the shader storage
+          // initialization is expected to be done before proceeding, to avoid
+          // latency in the command processor after the invocation.
+          await_creation_completion_event =
+              blocking && creation_threads_busy_ != 0;
+          if (await_creation_completion_event) {
+            creation_completion_event_->Reset();
+            creation_completion_set_event_ = true;
+          }
+        }
+        if (await_creation_completion_event) {
+          creation_request_cond_.notify_one();
+          xe::threading::Wait(creation_completion_event_.get(), false);
+        }
       }
     }
 
@@ -1241,7 +1246,8 @@ bool PipelineCache::TranslateAnalyzedShader(
   }
 
   // Disassemble the shader for dumping.
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Provider();
   if (cvars::d3d12_dxbc_disasm_dxilconv) {
     translation.DisassembleDxbcAndDxil(provider, cvars::d3d12_dxbc_disasm,
                                        dxbc_converter, dxc_utils, dxc_compiler);
@@ -2052,8 +2058,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
   }
 
   // Create the D3D12 pipeline state object.
-  auto device =
-      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
+  ID3D12Device* device = command_processor_.GetD3D12Provider().GetDevice();
   ID3D12PipelineState* state;
   if (FAILED(device->CreateGraphicsPipelineState(&state_desc,
                                                  IID_PPV_ARGS(&state)))) {

@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
 #include <vector>
@@ -25,6 +26,7 @@
 #include "xenia/base/cvar.h"
 #include "xenia/base/debugging.h"
 #include "xenia/base/filesystem.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/platform.h"
@@ -59,6 +61,7 @@ DEFINE_int32(
     "Logging");
 
 namespace dp = disruptorplus;
+using namespace xe::literals;
 
 namespace xe {
 
@@ -74,7 +77,7 @@ struct LogLine {
   char prefix_char;
 };
 
-thread_local char thread_log_buffer_[64 * 1024];
+thread_local char thread_log_buffer_[64_KiB];
 
 FileLogSink::~FileLogSink() {
   if (file_) {
@@ -234,7 +237,7 @@ class Logger {
   }
 
  private:
-  static const size_t kBufferSize = 8 * 1024 * 1024;
+  static const size_t kBufferSize = 8_MiB;
   uint8_t buffer_[kBufferSize];
 
   static const size_t kBlockSize = 256;
@@ -498,7 +501,13 @@ void FatalError(const std::string_view str) {
   }
 
   ShutdownLogging();
-  std::exit(1);
+
+#if XE_PLATFORM_ANDROID
+  // Throw an error that can be reported to the developers via the store.
+  std::abort();
+#else
+  std::exit(EXIT_FAILURE);
+#endif  // XE_PLATFORM_ANDROID
 }
 
 }  // namespace xe

@@ -27,6 +27,7 @@ XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
     : KernelModule(kernel_state, "xe:\\xam.xex"), loader_data_() {
   RegisterExportTable(export_resolver_);
 
+  // Register all exported functions.
 #define XE_MODULE_EXPORT_GROUP(m, n) \
   Register##n##Exports(export_resolver_, kernel_state_);
 #include "xam_module_export_groups.inc"

@@ -10,6 +10,7 @@
 #ifndef XENIA_HID_INPUT_DRIVER_H_
 #define XENIA_HID_INPUT_DRIVER_H_
 
+#include <cstddef>
 #include <functional>
 
 #include "xenia/hid/input.h"
@@ -29,7 +30,7 @@ class InputSystem;
 
 class InputDriver {
  public:
-  virtual ~InputDriver();
+  virtual ~InputDriver() = default;
 
   virtual X_STATUS Setup() = 0;
 
@@ -45,18 +46,21 @@ class InputDriver {
     is_active_callback_ = is_active_callback;
   }
 
- private:
-  xe::ui::Window* window_ = nullptr;
-  std::function<bool()> is_active_callback_ = nullptr;
-
  protected:
-  explicit InputDriver(xe::ui::Window* window);
+  explicit InputDriver(xe::ui::Window* window, size_t window_z_order)
+      : window_(window), window_z_order_(window_z_order) {}
 
   xe::ui::Window* window() const { return window_; }
+  size_t window_z_order() const { return window_z_order_; }
 
   bool is_active() const {
     return !is_active_callback_ || is_active_callback_();
   }
+
+ private:
+  xe::ui::Window* window_;
+  size_t window_z_order_;
+  std::function<bool()> is_active_callback_ = nullptr;
 };
 
 }  // namespace hid

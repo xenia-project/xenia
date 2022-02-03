@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -824,7 +824,7 @@ class WideCountFormatData : public FormatData {
   int32_t count_;
 };
 
-SHIM_CALL DbgPrint_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+SHIM_CALL DbgPrint_entry(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(0);
   if (!format_ptr) {
     SHIM_SET_RETURN_32(X_STATUS_INVALID_PARAMETER);
@@ -854,7 +854,7 @@ SHIM_CALL DbgPrint_shim(PPCContext* ppc_context, KernelState* kernel_state) {
 }
 
 // https://msdn.microsoft.com/en-us/library/2ts7cx93.aspx
-SHIM_CALL _snprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+SHIM_CALL _snprintf_entry(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   int32_t buffer_count = SHIM_GET_ARG_32(1);
   uint32_t format_ptr = SHIM_GET_ARG_32(2);
@@ -894,7 +894,7 @@ SHIM_CALL _snprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
 }
 
 // https://msdn.microsoft.com/en-us/library/ybk95axf.aspx
-SHIM_CALL sprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+SHIM_CALL sprintf_entry(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
 
@@ -925,7 +925,7 @@ SHIM_CALL sprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
 }
 
 // https://msdn.microsoft.com/en-us/library/2ts7cx93.aspx
-SHIM_CALL _snwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+SHIM_CALL _snwprintf_entry(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   int32_t buffer_count = SHIM_GET_ARG_32(1);
   uint32_t format_ptr = SHIM_GET_ARG_32(2);
@@ -966,7 +966,7 @@ SHIM_CALL _snwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
 }
 
 // https://msdn.microsoft.com/en-us/library/ybk95axf.aspx
-SHIM_CALL swprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+SHIM_CALL swprintf_entry(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
 
@@ -998,7 +998,7 @@ SHIM_CALL swprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
 }
 
 // https://msdn.microsoft.com/en-us/library/1kt27hek.aspx
-SHIM_CALL _vsnprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+SHIM_CALL _vsnprintf_entry(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   int32_t buffer_count = SHIM_GET_ARG_32(1);
   uint32_t format_ptr = SHIM_GET_ARG_32(2);
@@ -1041,7 +1041,8 @@ SHIM_CALL _vsnprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
 }
 
 // https://msdn.microsoft.com/en-us/library/1kt27hek.aspx
-SHIM_CALL _vsnwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+SHIM_CALL _vsnwprintf_entry(PPCContext* ppc_context,
+                            KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   int32_t buffer_count = SHIM_GET_ARG_32(1);
   uint32_t format_ptr = SHIM_GET_ARG_32(2);
@@ -1086,7 +1087,7 @@ SHIM_CALL _vsnwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
 }
 
 // https://msdn.microsoft.com/en-us/library/28d5ce15.aspx
-SHIM_CALL vsprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+SHIM_CALL vsprintf_entry(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
   uint32_t arg_ptr = SHIM_GET_ARG_32(2);
@@ -1118,7 +1119,8 @@ SHIM_CALL vsprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
 }
 
 // https://msdn.microsoft.com/en-us/library/w05tbk72.aspx
-SHIM_CALL _vscwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+SHIM_CALL _vscwprintf_entry(PPCContext* ppc_context,
+                            KernelState* kernel_state) {
   uint32_t format_ptr = SHIM_GET_ARG_32(0);
   uint32_t arg_ptr = SHIM_GET_ARG_32(1);
 
@@ -1145,7 +1147,7 @@ SHIM_CALL _vscwprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
 }
 
 // https://msdn.microsoft.com/en-us/library/28d5ce15.aspx
-SHIM_CALL vswprintf_shim(PPCContext* ppc_context, KernelState* kernel_state) {
+SHIM_CALL vswprintf_entry(PPCContext* ppc_context, KernelState* kernel_state) {
   uint32_t buffer_ptr = SHIM_GET_ARG_32(0);
   uint32_t format_ptr = SHIM_GET_ARG_32(1);
   uint32_t arg_ptr = SHIM_GET_ARG_32(2);

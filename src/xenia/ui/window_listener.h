@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -15,38 +15,39 @@
 namespace xe {
 namespace ui {
 
-// Virtual interface for types that want to listen for Window events.
-// Use Window::AttachListener and Window::DetachListener to manage active
-// listeners.
+// Virtual interfaces for types that want to listen for Window events.
+// Use Window::Add[Input]Listener and Window::Remove[Input]Listener to manage
+// active listeners.
+
 class WindowListener {
  public:
   virtual ~WindowListener() = default;
 
-  virtual void OnMainMenuChange() {}
-  virtual void OnClosing(UIEvent* e) {}
-  virtual void OnClosed(UIEvent* e) {}
+  // OnOpened will be followed by various initial setup listeners.
+  virtual void OnOpened(UISetupEvent& e) {}
+  virtual void OnClosing(UIEvent& e) {}
 
-  virtual void OnResize(UIEvent* e) {}
-  virtual void OnLayout(UIEvent* e) {}
-  virtual void OnPainting(UIEvent* e) {}
-  virtual void OnPaint(UIEvent* e) {}
-  virtual void OnPainted(UIEvent* e) {}
-  virtual void OnFileDrop(UIEvent* e) {}
+  virtual void OnDpiChanged(UISetupEvent& e) {}
+  virtual void OnResize(UISetupEvent& e) {}
 
-  virtual void OnVisible(UIEvent* e) {}
-  virtual void OnHidden(UIEvent* e) {}
+  virtual void OnGotFocus(UISetupEvent& e) {}
+  virtual void OnLostFocus(UISetupEvent& e) {}
 
-  virtual void OnGotFocus(UIEvent* e) {}
-  virtual void OnLostFocus(UIEvent* e) {}
+  virtual void OnFileDrop(FileDropEvent& e) {}
+};
 
-  virtual void OnKeyDown(KeyEvent* e) {}
-  virtual void OnKeyUp(KeyEvent* e) {}
-  virtual void OnKeyChar(KeyEvent* e) {}
+class WindowInputListener {
+ public:
+  virtual ~WindowInputListener() = default;
 
-  virtual void OnMouseDown(MouseEvent* e) {}
-  virtual void OnMouseMove(MouseEvent* e) {}
-  virtual void OnMouseUp(MouseEvent* e) {}
-  virtual void OnMouseWheel(MouseEvent* e) {}
+  virtual void OnKeyDown(KeyEvent& e) {}
+  virtual void OnKeyUp(KeyEvent& e) {}
+  virtual void OnKeyChar(KeyEvent& e) {}
+
+  virtual void OnMouseDown(MouseEvent& e) {}
+  virtual void OnMouseMove(MouseEvent& e) {}
+  virtual void OnMouseUp(MouseEvent& e) {}
+  virtual void OnMouseWheel(MouseEvent& e) {}
 };
 
 }  // namespace ui

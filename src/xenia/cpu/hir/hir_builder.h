@@ -224,6 +224,7 @@ class HIRBuilder {
   Value* DotProduct4(Value* value1, Value* value2);
 
   Value* And(Value* value1, Value* value2);
+  Value* AndNot(Value* value1, Value* value2);
   Value* Or(Value* value1, Value* value2);
   Value* Xor(Value* value1, Value* value2);
   Value* Not(Value* value);

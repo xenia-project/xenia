@@ -38,6 +38,13 @@ DEFINE_bool(
 DEFINE_bool(validate_hir, false,
             "Perform validation checks on the HIR during compilation.", "CPU");
 
+DEFINE_uint64(
+    pvr, 0x710700,
+    "Processor version and revision number.\nBits 0 to 15 are the version "
+    "number.\nBits 16 to 31 are the revision number.\nNote: Some XEXs (such as "
+    "mfgbootlauncher.xex) may check for a value that's less than 0x710700.",
+    "CPU");
+
 // Breakpoints:
 DEFINE_uint64(break_on_instruction, 0,
               "int3 before the given guest address is executed.", "CPU");

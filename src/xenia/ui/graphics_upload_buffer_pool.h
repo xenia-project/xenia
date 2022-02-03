@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,8 +13,12 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "xenia/base/literals.h"
+
 namespace xe {
 namespace ui {
+
+using namespace xe::literals;
 
 // Submission index is the fence value or a value derived from it (if reclaiming
 // less often than once per fence value, for instance).
@@ -23,11 +27,12 @@ class GraphicsUploadBufferPool {
  public:
   // Taken from the Direct3D 12 MiniEngine sample (LinearAllocator
   // kCpuAllocatorPageSize). Large enough for most cases.
-  static constexpr size_t kDefaultPageSize = 2 * 1024 * 1024;
+  static constexpr size_t kDefaultPageSize = 2_MiB;
 
   virtual ~GraphicsUploadBufferPool();
 
   void Reclaim(uint64_t completed_submission_index);
+  void ChangeSubmissionTimeline();
   void ClearCache();
 
   // Should be called before submitting anything using this pool, unless the

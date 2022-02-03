@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -20,9 +20,9 @@ namespace xe {
 namespace hid {
 namespace winkey {
 
-class WinKeyInputDriver : public InputDriver {
+class WinKeyInputDriver final : public InputDriver {
  public:
-  explicit WinKeyInputDriver(xe::ui::Window* window);
+  explicit WinKeyInputDriver(xe::ui::Window* window, size_t window_z_order);
   ~WinKeyInputDriver() override;
 
   X_STATUS Setup() override;
@@ -42,10 +42,38 @@ class WinKeyInputDriver : public InputDriver {
     bool prev_state = false;  // down(true) or up(false)
   };
 
+  struct KeyBinding {
+    ui::VirtualKey input_key = ui::VirtualKey::kNone;
+    ui::VirtualKey output_key = ui::VirtualKey::kNone;
+    bool uppercase = false;
+    bool lowercase = false;
+  };
+
+  class WinKeyWindowInputListener final : public ui::WindowInputListener {
+   public:
+    explicit WinKeyWindowInputListener(WinKeyInputDriver& driver)
+        : driver_(driver) {}
+
+    void OnKeyDown(ui::KeyEvent& e) override;
+    void OnKeyUp(ui::KeyEvent& e) override;
+
+   private:
+    WinKeyInputDriver& driver_;
+  };
+
+  void ParseKeyBinding(ui::VirtualKey virtual_key,
+                       const std::string_view description,
+                       const std::string_view binding);
+
+  void OnKey(ui::KeyEvent& e, bool is_down);
+
+  WinKeyWindowInputListener window_input_listener_;
+
   xe::global_critical_region global_critical_region_;
   std::queue<KeyEvent> key_events_;
+  std::vector<KeyBinding> key_bindings_;
 
-  uint32_t packet_number_;
+  uint32_t packet_number_ = 1;
 };
 
 }  // namespace winkey

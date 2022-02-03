@@ -8,14 +8,17 @@ skip_tags: true
 
 skip_commits:
   files:
-    - .drone.yml
+    - .drone.star
     - .github/**
-    - .travis.yml
+    - android/**
     - docs/**
     - src/**/*_posix.*
     - src/**/*_linux.*
+    - src/**/*_gnulinux.*
     - src/**/*_x11.*
     - src/**/*_gtk.*
+    - src/**/*_android.*
+    - src/**/*_mac.*
     - LICENSE
     - README.md
 
@@ -27,23 +30,28 @@ pull_requests:
 os: Visual Studio 2019
 
 init:
-  - git config --global core.autocrlf input
+  - ps: |
+      If (-Not $env:APPVEYOR_PULL_REQUEST_NUMBER) {
+        $env:is_not_pr = "true"
+      }
+      If (-Not $env:APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED) {
+        $env:APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED = " "
+      }
 
 install:
-  - cmd: vcpkg integrate remove
-  - cmd: xb setup
+  - |
+    vcpkg integrate remove
+    xb setup
 
 platform: Windows
 
-configuration:
-  - Release
-  - Checked
+configuration: [Release, Checked]
 
 build_script:
-  - cmd: xb build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-base-tests --target=tests\xenia-cpu-ppc-tests --target=src\xenia-vfs-dump
+  - xb build --config=%CONFIGURATION% --target=src\xenia-app --target=tests\xenia-base-tests --target=tests\xenia-cpu-ppc-tests --target=src\xenia-vfs-dump
 
 after_build:
-  - cmd: |
+  - |
       IF NOT "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SUFFIX=%APPVEYOR_REPO_BRANCH%"
       IF NOT "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SWITCHES=--"
       IF     "%CONFIGURATION%"=="Checked" SET "ARCHIVE_SUFFIX=%APPVEYOR_REPO_BRANCH%_FOR-DEVS-ONLY"
@@ -52,10 +60,10 @@ after_build:
       7z a xenia-vfs-dump_%ARCHIVE_SUFFIX%.zip %ARCHIVE_SWITCHES% LICENSE "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.exe" "%APPVEYOR_BUILD_FOLDER%\build\bin\%PLATFORM%\%CONFIGURATION%\xenia-vfs-dump.pdb"
 
 before_test:
-  - cmd: xb gentests
+  - xb gentests
 
 test_script:
-  - cmd: xb test --config=%CONFIGURATION% --no_build
+  - xb test --config=%CONFIGURATION% --no_build
 
 artifacts:
   - path: '*.zip'
@@ -72,4 +80,23 @@ deploy:
       branch: master
       configuration: release
       appveyor_repo_tag: true
+      is_not_pr: true
+  - provider: GitHub
+    name: xenia-master
+    repository: xenia-project/release-builds-windows
+    auth_token:
+      secure: /8he47z1WnPN7LcCTe5T5KMxxX0SmqFj9QMpeWEa3aZ64kMsfupOT/jKakqTM8af
+    tag: v$(appveyor_build_version)
+    release: v$(appveyor_build_version)
+    description: |
+      Windows release build for https://github.com/xenia-project/xenia/commit/$(APPVEYOR_REPO_COMMIT).
+      
+      $(APPVEYOR_REPO_COMMIT_MESSAGE)
+      
+      $(APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED)
+    draft: false
+    prerelease: false
+    on:
+      branch: master
+      configuration: release
       is_not_pr: true

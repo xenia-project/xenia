@@ -19,8 +19,11 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
-// Memory mappings are always aligned to nonCoherentAtomSize, so for simplicity,
-// round the page size to it now via GetMappableMemorySize.
+// Host-visible memory sizes are likely to be internally rounded to
+// nonCoherentAtomSize (it's the memory mapping granularity, though as the map
+// or flush range must be clamped to the actual allocation size as a special
+// case, but it's still unlikely that the allocation won't be aligned to it), so
+// try not to waste that padding.
 VulkanUploadBufferPool::VulkanUploadBufferPool(const VulkanProvider& provider,
                                                VkBufferUsageFlags usage,
                                                size_t page_size)
@@ -72,8 +75,6 @@ VulkanUploadBufferPool::CreatePageImplementation() {
   const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   VkDevice device = provider_.device();
 
-  // For the first call, the page size is already aligned to nonCoherentAtomSize
-  // for mapping.
   VkBufferCreateInfo buffer_create_info;
   buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
   buffer_create_info.pNext = nullptr;
@@ -105,16 +106,10 @@ VulkanUploadBufferPool::CreatePageImplementation() {
       return nullptr;
     }
     allocation_size_ = memory_requirements.size;
-    // On some Android implementations, nonCoherentAtomSize is 0, not 1.
-    VkDeviceSize non_coherent_atom_size =
-        std::max(provider_.device_properties().limits.nonCoherentAtomSize,
-                 VkDeviceSize(1));
-    VkDeviceSize allocation_size_aligned =
-        allocation_size_ / non_coherent_atom_size * non_coherent_atom_size;
-    if (allocation_size_aligned > page_size_) {
-      // Try to occupy all the allocation padding. If that's going to require
-      // even more memory for some reason, don't.
-      buffer_create_info.size = allocation_size_aligned;
+    if (allocation_size_ > page_size_) {
+      // Try to occupy the allocation padding. If that's going to require even
+      // more memory for some reason, don't.
+      buffer_create_info.size = allocation_size_;
       VkBuffer buffer_expanded;
       if (dfn.vkCreateBuffer(device, &buffer_create_info, nullptr,
                              &buffer_expanded) == VK_SUCCESS) {
@@ -125,8 +120,7 @@ VulkanUploadBufferPool::CreatePageImplementation() {
             provider_, memory_requirements.memoryTypeBits, false);
         if (memory_requirements_expanded.size <= allocation_size_ &&
             memory_type_expanded != UINT32_MAX) {
-          // page_size_ must be aligned to nonCoherentAtomSize.
-          page_size_ = size_t(allocation_size_aligned);
+          page_size_ = size_t(allocation_size_);
           allocation_size_ = memory_requirements_expanded.size;
           memory_type_ = memory_type_expanded;
           dfn.vkDestroyBuffer(device, buffer, nullptr);
@@ -139,20 +133,22 @@ VulkanUploadBufferPool::CreatePageImplementation() {
   }
 
   VkMemoryAllocateInfo memory_allocate_info;
+  VkMemoryAllocateInfo* memory_allocate_info_last = &memory_allocate_info;
   memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  memory_allocate_info.pNext = nullptr;
+  memory_allocate_info.allocationSize = allocation_size_;
+  memory_allocate_info.memoryTypeIndex = memory_type_;
   VkMemoryDedicatedAllocateInfoKHR memory_dedicated_allocate_info;
   if (provider_.device_extensions().khr_dedicated_allocation) {
+    memory_allocate_info_last->pNext = &memory_dedicated_allocate_info;
+    memory_allocate_info_last = reinterpret_cast<VkMemoryAllocateInfo*>(
+        &memory_dedicated_allocate_info);
     memory_dedicated_allocate_info.sType =
         VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
     memory_dedicated_allocate_info.pNext = nullptr;
     memory_dedicated_allocate_info.image = VK_NULL_HANDLE;
     memory_dedicated_allocate_info.buffer = buffer;
-    memory_allocate_info.pNext = &memory_dedicated_allocate_info;
-  } else {
-    memory_allocate_info.pNext = nullptr;
   }
-  memory_allocate_info.allocationSize = allocation_size_;
-  memory_allocate_info.memoryTypeIndex = memory_type_;
   VkDeviceMemory memory;
   if (dfn.vkAllocateMemory(device, &memory_allocate_info, nullptr, &memory) !=
       VK_SUCCESS) {
@@ -171,10 +167,10 @@ VulkanUploadBufferPool::CreatePageImplementation() {
   }
 
   void* mapping;
-  // page_size_ is aligned to nonCoherentAtomSize.
-  if (dfn.vkMapMemory(device, memory, 0, page_size_, 0, &mapping) !=
+  if (dfn.vkMapMemory(device, memory, 0, VK_WHOLE_SIZE, 0, &mapping) !=
       VK_SUCCESS) {
-    XELOGE("Failed to map {} bytes of Vulkan upload buffer memory", page_size_);
+    XELOGE("Failed to map {} bytes of Vulkan upload buffer memory",
+           allocation_size_);
     dfn.vkDestroyBuffer(device, buffer, nullptr);
     dfn.vkFreeMemory(device, memory, nullptr);
     return nullptr;
@@ -187,7 +183,7 @@ void VulkanUploadBufferPool::FlushPageWrites(Page* page, size_t offset,
                                              size_t size) {
   util::FlushMappedMemoryRange(
       provider_, static_cast<const VulkanPage*>(page)->memory_, memory_type_,
-      VkDeviceSize(offset), VkDeviceSize(size));
+      VkDeviceSize(offset), allocation_size_, VkDeviceSize(size));
 }
 
 VulkanUploadBufferPool::VulkanPage::~VulkanPage() {

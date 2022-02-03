@@ -21,8 +21,9 @@ namespace xe {
 namespace hid {
 namespace xinput {
 
-XInputInputDriver::XInputInputDriver(xe::ui::Window* window)
-    : InputDriver(window),
+XInputInputDriver::XInputInputDriver(xe::ui::Window* window,
+                                     size_t window_z_order)
+    : InputDriver(window, window_z_order),
       module_(nullptr),
       XInputGetCapabilities_(nullptr),
       XInputGetState_(nullptr),

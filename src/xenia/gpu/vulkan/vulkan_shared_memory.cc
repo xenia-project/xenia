@@ -46,7 +46,7 @@ bool VulkanSharedMemory::Initialize() {
   InitializeCommon();
 
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
   const VkPhysicalDeviceFeatures& device_features = provider.device_features();
@@ -138,22 +138,26 @@ bool VulkanSharedMemory::Initialize() {
       return false;
     }
     VkMemoryAllocateInfo buffer_memory_allocate_info;
+    VkMemoryAllocateInfo* buffer_memory_allocate_info_last =
+        &buffer_memory_allocate_info;
     buffer_memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    buffer_memory_allocate_info.pNext = nullptr;
+    buffer_memory_allocate_info.allocationSize =
+        buffer_memory_requirements.size;
+    buffer_memory_allocate_info.memoryTypeIndex = buffer_memory_type_;
     VkMemoryDedicatedAllocateInfoKHR buffer_memory_dedicated_allocate_info;
     if (provider.device_extensions().khr_dedicated_allocation) {
+      buffer_memory_allocate_info_last->pNext =
+          &buffer_memory_dedicated_allocate_info;
+      buffer_memory_allocate_info_last =
+          reinterpret_cast<VkMemoryAllocateInfo*>(
+              &buffer_memory_dedicated_allocate_info);
       buffer_memory_dedicated_allocate_info.sType =
           VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
       buffer_memory_dedicated_allocate_info.pNext = nullptr;
       buffer_memory_dedicated_allocate_info.image = VK_NULL_HANDLE;
       buffer_memory_dedicated_allocate_info.buffer = buffer_;
-      buffer_memory_allocate_info.pNext =
-          &buffer_memory_dedicated_allocate_info;
-    } else {
-      buffer_memory_allocate_info.pNext = nullptr;
     }
-    buffer_memory_allocate_info.allocationSize =
-        buffer_memory_requirements.size;
-    buffer_memory_allocate_info.memoryTypeIndex = buffer_memory_type_;
     VkDeviceMemory buffer_memory;
     if (dfn.vkAllocateMemory(device, &buffer_memory_allocate_info, nullptr,
                              &buffer_memory) != VK_SUCCESS) {
@@ -190,7 +194,7 @@ void VulkanSharedMemory::Shutdown(bool from_destructor) {
   last_usage_ = Usage::kTransferDestination;
 
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
@@ -258,7 +262,7 @@ bool VulkanSharedMemory::InitializeTraceSubmitDownloads() {
   }
 
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
           provider, download_page_count << page_size_log2(),
           VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -313,7 +317,7 @@ void VulkanSharedMemory::InitializeTraceCompleteDownloads() {
     return;
   }
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
   void* download_mapping;
@@ -342,7 +346,7 @@ bool VulkanSharedMemory::AllocateSparseHostGpuMemoryRange(
   }
 
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
@@ -474,7 +478,7 @@ void VulkanSharedMemory::GetBarrier(Usage usage,
                VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   if (provider.device_features().tessellationShader) {
     stage_mask |= VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT;
   }
@@ -495,7 +499,7 @@ void VulkanSharedMemory::GetBarrier(Usage usage,
 
 void VulkanSharedMemory::ResetTraceDownload() {
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,

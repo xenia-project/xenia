@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -23,15 +23,17 @@ namespace d3d12 {
 
 class D3D12Provider : public GraphicsProvider {
  public:
-  ~D3D12Provider() override;
+  ~D3D12Provider();
 
   static bool IsD3D12APIAvailable();
 
   static std::unique_ptr<D3D12Provider> Create();
 
-  std::unique_ptr<GraphicsContext> CreateHostContext(
-      Window* target_window) override;
-  std::unique_ptr<GraphicsContext> CreateEmulationContext() override;
+  std::unique_ptr<Presenter> CreatePresenter(
+      Presenter::HostGpuLossCallback host_gpu_loss_callback =
+          Presenter::FatalErrorHostGpuLossCallback) override;
+
+  std::unique_ptr<ImmediateDrawer> CreateImmediateDrawer() override;
 
   IDXGIFactory2* GetDXGIFactory() const { return dxgi_factory_; }
   // nullptr if PIX not attached.
@@ -118,11 +120,6 @@ class D3D12Provider : public GraphicsProvider {
     return pfn_d3d12_serialize_root_signature_(desc, version, blob_out,
                                                error_blob_out);
   }
-  HRESULT CreateDCompositionDevice(IDXGIDevice* dxgi_device, const IID& iid,
-                                   void** dcomposition_device_out) const {
-    return pfn_dcomposition_create_device_(dxgi_device, iid,
-                                           dcomposition_device_out);
-  }
   HRESULT Disassemble(const void* src_data, size_t src_data_size, UINT flags,
                       const char* comments, ID3DBlob** disassembly_out) const {
     if (!pfn_d3d_disassemble_) {
@@ -156,21 +153,16 @@ class D3D12Provider : public GraphicsProvider {
                                                  _COM_Outptr_ void** ppFactory);
   typedef HRESULT(WINAPI* PFNDXGIGetDebugInterface1)(
       UINT Flags, REFIID riid, _COM_Outptr_ void** pDebug);
-  typedef HRESULT(WINAPI* PFNDCompositionCreateDevice)(
-      _In_opt_ IDXGIDevice* dxgiDevice, _In_ REFIID iid,
-      _Outptr_ void** dcompositionDevice);
 
   HMODULE library_dxgi_ = nullptr;
   PFNCreateDXGIFactory2 pfn_create_dxgi_factory2_;
-  PFNDXGIGetDebugInterface1 pfn_dxgi_get_debug_interface1_;
+  // Needed during shutdown as well to report live objects, so may be nullptr.
+  PFNDXGIGetDebugInterface1 pfn_dxgi_get_debug_interface1_ = nullptr;
 
   HMODULE library_d3d12_ = nullptr;
   PFN_D3D12_GET_DEBUG_INTERFACE pfn_d3d12_get_debug_interface_;
   PFN_D3D12_CREATE_DEVICE pfn_d3d12_create_device_;
   PFN_D3D12_SERIALIZE_ROOT_SIGNATURE pfn_d3d12_serialize_root_signature_;
-
-  HMODULE library_dcomp_ = nullptr;
-  PFNDCompositionCreateDevice pfn_dcomposition_create_device_;
 
   HMODULE library_d3dcompiler_ = nullptr;
   pD3DDisassemble pfn_d3d_disassemble_ = nullptr;
@@ -182,9 +174,9 @@ class D3D12Provider : public GraphicsProvider {
   DxcCreateInstanceProc pfn_dxcompiler_dxc_create_instance_ = nullptr;
 
   IDXGIFactory2* dxgi_factory_ = nullptr;
-  IDXGraphicsAnalysis* graphics_analysis_ = nullptr;
   ID3D12Device* device_ = nullptr;
   ID3D12CommandQueue* direct_queue_ = nullptr;
+  IDXGraphicsAnalysis* graphics_analysis_ = nullptr;
 
   uint32_t descriptor_sizes_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
 

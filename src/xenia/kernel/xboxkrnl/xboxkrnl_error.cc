@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -1011,15 +1011,14 @@ uint32_t xeRtlNtStatusToDosError(uint32_t source_status) {
   return 317;  // ERROR_MR_MID_NOT_FOUND
 }
 
-dword_result_t RtlNtStatusToDosError(dword_t source_status) {
+dword_result_t RtlNtStatusToDosError_entry(dword_t source_status) {
   return xeRtlNtStatusToDosError(source_status);
 }
 DECLARE_XBOXKRNL_EXPORT3(RtlNtStatusToDosError, kNone, kImportant,
                          kHighFrequency, kLogResult);
 
-void RegisterErrorExports(xe::cpu::ExportResolver* export_resolver,
-                          KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(Error);

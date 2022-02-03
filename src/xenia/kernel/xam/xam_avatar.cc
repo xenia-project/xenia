@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -17,7 +17,7 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-dword_result_t XamAvatarInitialize(
+dword_result_t XamAvatarInitialize_entry(
     dword_t unk1,              // 1, 4, etc
     dword_t unk2,              // 0 or 1
     dword_t processor_number,  // for thread creation?
@@ -30,14 +30,13 @@ dword_result_t XamAvatarInitialize(
 }
 DECLARE_XAM_EXPORT1(XamAvatarInitialize, kAvatars, kStub);
 
-void XamAvatarShutdown() {
+void XamAvatarShutdown_entry() {
   // No-op.
 }
 DECLARE_XAM_EXPORT1(XamAvatarShutdown, kAvatars, kStub);
 
-void RegisterAvatarExports(xe::cpu::ExportResolver* export_resolver,
-                           KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Avatar);

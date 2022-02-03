@@ -27,7 +27,7 @@ static bool has_shell_environment_variable() {
   size_t size = 0;
   // Check if SHELL exists
   // If it doesn't, then we are in a Windows Terminal
-  auto error = getenv_s(&size, nullptr, 0, "SHELL");
+  auto error = _wgetenv_s(&size, nullptr, 0, L"SHELL");
   if (error) {
     return false;
   }

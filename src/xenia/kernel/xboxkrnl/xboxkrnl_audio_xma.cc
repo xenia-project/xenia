@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -58,7 +58,7 @@ using xe::apu::XMA_CONTEXT_DATA;
 // restrictions of frame/subframe/etc:
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.xaudio2.xaudio2_buffer(v=vs.85).aspx
 
-dword_result_t XMACreateContext(lpdword_t context_out_ptr) {
+dword_result_t XMACreateContext_entry(lpdword_t context_out_ptr) {
   auto xma_decoder = kernel_state()->emulator()->audio_system()->xma_decoder();
   uint32_t context_ptr = xma_decoder->AllocateContext();
   *context_out_ptr = context_ptr;
@@ -70,7 +70,7 @@ dword_result_t XMACreateContext(lpdword_t context_out_ptr) {
 DECLARE_XBOXKRNL_EXPORT2(XMACreateContext, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMAReleaseContext(lpvoid_t context_ptr) {
+dword_result_t XMAReleaseContext_entry(lpvoid_t context_ptr) {
   auto xma_decoder = kernel_state()->emulator()->audio_system()->xma_decoder();
   xma_decoder->ReleaseContext(context_ptr);
   return 0;
@@ -117,8 +117,8 @@ struct XMA_CONTEXT_INIT {
 };
 static_assert_size(XMA_CONTEXT_INIT, 56);
 
-dword_result_t XMAInitializeContext(lpvoid_t context_ptr,
-                                    pointer_t<XMA_CONTEXT_INIT> context_init) {
+dword_result_t XMAInitializeContext_entry(
+    lpvoid_t context_ptr, pointer_t<XMA_CONTEXT_INIT> context_init) {
   // Input buffers may be null (buffer 1 in 415607D4).
   // Convert to host endianness.
   uint32_t input_buffer_0_guest_ptr = context_init->input_buffer_0_ptr;
@@ -193,8 +193,8 @@ dword_result_t XMAInitializeContext(lpvoid_t context_ptr,
 DECLARE_XBOXKRNL_EXPORT2(XMAInitializeContext, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMASetLoopData(lpvoid_t context_ptr,
-                              pointer_t<XMA_CONTEXT_DATA> loop_data) {
+dword_result_t XMASetLoopData_entry(lpvoid_t context_ptr,
+                                    pointer_t<XMA_CONTEXT_DATA> loop_data) {
   XMA_CONTEXT_DATA context(context_ptr);
 
   context.loop_start = loop_data->loop_start;
@@ -209,15 +209,15 @@ dword_result_t XMASetLoopData(lpvoid_t context_ptr,
 }
 DECLARE_XBOXKRNL_EXPORT2(XMASetLoopData, kAudio, kImplemented, kHighFrequency);
 
-dword_result_t XMAGetInputBufferReadOffset(lpvoid_t context_ptr) {
+dword_result_t XMAGetInputBufferReadOffset_entry(lpvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_read_offset;
 }
 DECLARE_XBOXKRNL_EXPORT2(XMAGetInputBufferReadOffset, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMASetInputBufferReadOffset(lpvoid_t context_ptr,
-                                           dword_t value) {
+dword_result_t XMASetInputBufferReadOffset_entry(lpvoid_t context_ptr,
+                                                 dword_t value) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_read_offset = value;
   context.Store(context_ptr);
@@ -227,8 +227,8 @@ dword_result_t XMASetInputBufferReadOffset(lpvoid_t context_ptr,
 DECLARE_XBOXKRNL_EXPORT2(XMASetInputBufferReadOffset, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMASetInputBuffer0(lpvoid_t context_ptr, lpvoid_t buffer,
-                                  dword_t packet_count) {
+dword_result_t XMASetInputBuffer0_entry(lpvoid_t context_ptr, lpvoid_t buffer,
+                                        dword_t packet_count) {
   uint32_t buffer_physical_address =
       kernel_memory()->GetPhysicalAddress(buffer.guest_address());
   assert_true(buffer_physical_address != UINT32_MAX);
@@ -251,14 +251,14 @@ dword_result_t XMASetInputBuffer0(lpvoid_t context_ptr, lpvoid_t buffer,
 DECLARE_XBOXKRNL_EXPORT2(XMASetInputBuffer0, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMAIsInputBuffer0Valid(lpvoid_t context_ptr) {
+dword_result_t XMAIsInputBuffer0Valid_entry(lpvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_0_valid;
 }
 DECLARE_XBOXKRNL_EXPORT2(XMAIsInputBuffer0Valid, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMASetInputBuffer0Valid(lpvoid_t context_ptr) {
+dword_result_t XMASetInputBuffer0Valid_entry(lpvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_0_valid = 1;
   context.Store(context_ptr);
@@ -268,8 +268,8 @@ dword_result_t XMASetInputBuffer0Valid(lpvoid_t context_ptr) {
 DECLARE_XBOXKRNL_EXPORT2(XMASetInputBuffer0Valid, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMASetInputBuffer1(lpvoid_t context_ptr, lpvoid_t buffer,
-                                  dword_t packet_count) {
+dword_result_t XMASetInputBuffer1_entry(lpvoid_t context_ptr, lpvoid_t buffer,
+                                        dword_t packet_count) {
   uint32_t buffer_physical_address =
       kernel_memory()->GetPhysicalAddress(buffer.guest_address());
   assert_true(buffer_physical_address != UINT32_MAX);
@@ -292,14 +292,14 @@ dword_result_t XMASetInputBuffer1(lpvoid_t context_ptr, lpvoid_t buffer,
 DECLARE_XBOXKRNL_EXPORT2(XMASetInputBuffer1, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMAIsInputBuffer1Valid(lpvoid_t context_ptr) {
+dword_result_t XMAIsInputBuffer1Valid_entry(lpvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.input_buffer_1_valid;
 }
 DECLARE_XBOXKRNL_EXPORT2(XMAIsInputBuffer1Valid, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMASetInputBuffer1Valid(lpvoid_t context_ptr) {
+dword_result_t XMASetInputBuffer1Valid_entry(lpvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.input_buffer_1_valid = 1;
   context.Store(context_ptr);
@@ -309,14 +309,14 @@ dword_result_t XMASetInputBuffer1Valid(lpvoid_t context_ptr) {
 DECLARE_XBOXKRNL_EXPORT2(XMASetInputBuffer1Valid, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMAIsOutputBufferValid(lpvoid_t context_ptr) {
+dword_result_t XMAIsOutputBufferValid_entry(lpvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_valid;
 }
 DECLARE_XBOXKRNL_EXPORT2(XMAIsOutputBufferValid, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMASetOutputBufferValid(lpvoid_t context_ptr) {
+dword_result_t XMASetOutputBufferValid_entry(lpvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.output_buffer_valid = 1;
   context.Store(context_ptr);
@@ -326,15 +326,15 @@ dword_result_t XMASetOutputBufferValid(lpvoid_t context_ptr) {
 DECLARE_XBOXKRNL_EXPORT2(XMASetOutputBufferValid, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMAGetOutputBufferReadOffset(lpvoid_t context_ptr) {
+dword_result_t XMAGetOutputBufferReadOffset_entry(lpvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_read_offset;
 }
 DECLARE_XBOXKRNL_EXPORT2(XMAGetOutputBufferReadOffset, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMASetOutputBufferReadOffset(lpvoid_t context_ptr,
-                                            dword_t value) {
+dword_result_t XMASetOutputBufferReadOffset_entry(lpvoid_t context_ptr,
+                                                  dword_t value) {
   XMA_CONTEXT_DATA context(context_ptr);
   context.output_buffer_read_offset = value;
   context.Store(context_ptr);
@@ -344,27 +344,27 @@ dword_result_t XMASetOutputBufferReadOffset(lpvoid_t context_ptr,
 DECLARE_XBOXKRNL_EXPORT2(XMASetOutputBufferReadOffset, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMAGetOutputBufferWriteOffset(lpvoid_t context_ptr) {
+dword_result_t XMAGetOutputBufferWriteOffset_entry(lpvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.output_buffer_write_offset;
 }
 DECLARE_XBOXKRNL_EXPORT2(XMAGetOutputBufferWriteOffset, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMAGetPacketMetadata(lpvoid_t context_ptr) {
+dword_result_t XMAGetPacketMetadata_entry(lpvoid_t context_ptr) {
   XMA_CONTEXT_DATA context(context_ptr);
   return context.packet_metadata;
 }
 DECLARE_XBOXKRNL_EXPORT1(XMAGetPacketMetadata, kAudio, kImplemented);
 
-dword_result_t XMAEnableContext(lpvoid_t context_ptr) {
+dword_result_t XMAEnableContext_entry(lpvoid_t context_ptr) {
   StoreXmaContextIndexedRegister(kernel_state(), 0x1940, context_ptr);
   return 0;
 }
 DECLARE_XBOXKRNL_EXPORT2(XMAEnableContext, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMADisableContext(lpvoid_t context_ptr, dword_t wait) {
+dword_result_t XMADisableContext_entry(lpvoid_t context_ptr, dword_t wait) {
   X_HRESULT result = X_E_SUCCESS;
   StoreXmaContextIndexedRegister(kernel_state(), 0x1A40, context_ptr);
   if (!kernel_state()
@@ -379,7 +379,7 @@ dword_result_t XMADisableContext(lpvoid_t context_ptr, dword_t wait) {
 DECLARE_XBOXKRNL_EXPORT2(XMADisableContext, kAudio, kImplemented,
                          kHighFrequency);
 
-dword_result_t XMABlockWhileInUse(lpvoid_t context_ptr) {
+dword_result_t XMABlockWhileInUse_entry(lpvoid_t context_ptr) {
   do {
     XMA_CONTEXT_DATA context(context_ptr);
     if (!context.input_buffer_0_valid && !context.input_buffer_1_valid) {
@@ -392,9 +392,8 @@ dword_result_t XMABlockWhileInUse(lpvoid_t context_ptr) {
 DECLARE_XBOXKRNL_EXPORT2(XMABlockWhileInUse, kAudio, kImplemented,
                          kHighFrequency);
 
-void RegisterAudioXmaExports(xe::cpu::ExportResolver* export_resolver,
-                             KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(AudioXma);

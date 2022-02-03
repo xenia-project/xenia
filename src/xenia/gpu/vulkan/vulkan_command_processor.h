@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_VULKAN_VULKAN_COMMAND_PROCESSOR_H_
 #define XENIA_GPU_VULKAN_VULKAN_COMMAND_PROCESSOR_H_
 
+#include <array>
 #include <climits>
 #include <cstdint>
 #include <deque>
@@ -31,7 +32,8 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/ui/vulkan/transient_descriptor_pool.h"
-#include "xenia/ui/vulkan/vulkan_context.h"
+#include "xenia/ui/vulkan/vulkan_presenter.h"
+#include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/vulkan/vulkan_upload_buffer_pool.h"
 
 namespace xe {
@@ -48,8 +50,9 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   void RestoreEdramSnapshot(const void* snapshot) override;
 
-  ui::vulkan::VulkanContext& GetVulkanContext() const {
-    return static_cast<ui::vulkan::VulkanContext&>(*context_);
+  ui::vulkan::VulkanProvider& GetVulkanProvider() const {
+    return *static_cast<ui::vulkan::VulkanProvider*>(
+        graphics_system_->provider());
   }
 
   // Returns the deferred drawing command list for the currently open
@@ -93,8 +96,8 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   void WriteRegister(uint32_t index, uint32_t value) override;
 
-  void PerformSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
-                   uint32_t frontbuffer_height) override;
+  void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
+                 uint32_t frontbuffer_height) override;
 
   Shader* LoadShader(xenos::ShaderType shader_type, uint32_t guest_address,
                      const uint32_t* host_address,
@@ -159,17 +162,18 @@ class VulkanCommandProcessor : public CommandProcessor {
   // Rechecks submission number and reclaims per-submission resources. Pass 0 as
   // the submission to await to simply check status, or pass
   // GetCurrentSubmission() to wait for all queue operations to be completed.
-  void CheckSubmissionFence(uint64_t await_submission);
+  void CheckSubmissionFenceAndDeviceLoss(uint64_t await_submission);
   // If is_guest_command is true, a new full frame - with full cleanup of
   // resources and, if needed, starting capturing - is opened if pending (as
-  // opposed to simply resuming after mid-frame synchronization).
-  void BeginSubmission(bool is_guest_command);
+  // opposed to simply resuming after mid-frame synchronization). Returns
+  // whether a submission is open currently and the device is not lost.
+  bool BeginSubmission(bool is_guest_command);
   // If is_swap is true, a full frame is closed - with, if needed, cache
   // clearing and stopping capturing. Returns whether the submission was done
   // successfully, if it has failed, leaves it open.
   bool EndSubmission(bool is_swap);
   bool AwaitAllQueueOperationsCompletion() {
-    CheckSubmissionFence(GetCurrentSubmission());
+    CheckSubmissionFenceAndDeviceLoss(GetCurrentSubmission());
     return !submission_open_ && submissions_in_flight_fences_.empty();
   }
 
@@ -188,6 +192,8 @@ class VulkanCommandProcessor : public CommandProcessor {
       VkDescriptorBufferInfo& descriptor_buffer_info_out,
       VkWriteDescriptorSet& write_descriptor_set_out);
 
+  bool device_lost_ = false;
+
   bool cache_clear_requested_ = false;
 
   std::vector<VkFence> fences_free_;
@@ -200,7 +206,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::vector<VkSemaphore> current_submission_wait_semaphores_;
   std::vector<VkPipelineStageFlags> current_submission_wait_stage_masks_;
   std::vector<VkFence> submissions_in_flight_fences_;
-  std::deque<std::pair<VkSemaphore, uint64_t>>
+  std::deque<std::pair<uint64_t, VkSemaphore>>
       submissions_in_flight_semaphores_;
 
   static constexpr uint32_t kMaxFramesInFlight = 3;
@@ -213,7 +219,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   uint64_t closed_frame_submissions_[kMaxFramesInFlight] = {};
 
   std::vector<CommandBuffer> command_buffers_writable_;
-  std::deque<std::pair<CommandBuffer, uint64_t>> command_buffers_submitted_;
+  std::deque<std::pair<uint64_t, CommandBuffer>> command_buffers_submitted_;
   DeferredCommandBuffer deferred_command_buffer_;
 
   std::vector<VkSparseMemoryBind> sparse_memory_binds_;
@@ -260,13 +266,33 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkDescriptorPool shared_memory_and_edram_descriptor_pool_ = VK_NULL_HANDLE;
   VkDescriptorSet shared_memory_and_edram_descriptor_set_;
 
+  // Has no dependencies on specific pipeline stages on both ends to simplify
+  // use in different scenarios with different pipelines - use explicit barriers
+  // for synchronization. Drawing to VK_FORMAT_R8G8B8A8_SRGB.
+  VkRenderPass swap_render_pass_ = VK_NULL_HANDLE;
+  VkPipelineLayout swap_pipeline_layout_ = VK_NULL_HANDLE;
+  VkPipeline swap_pipeline_ = VK_NULL_HANDLE;
+
+  // Framebuffer for the current presenter's guest output image revision, and
+  // its usage tracking.
+  struct SwapFramebuffer {
+    VkFramebuffer framebuffer = VK_NULL_HANDLE;
+    uint64_t version = UINT64_MAX;
+    uint64_t last_submission = 0;
+  };
+  std::array<SwapFramebuffer,
+             ui::vulkan::VulkanPresenter::kMaxActiveGuestOutputImageVersions>
+      swap_framebuffers_;
+  std::deque<std::pair<uint64_t, VkFramebuffer>> swap_framebuffers_outdated_;
+
   // The current fixed-function drawing state.
   VkViewport ff_viewport_;
   VkRect2D ff_scissor_;
   bool ff_viewport_update_needed_;
   bool ff_scissor_update_needed_;
 
-  // Cache render pass currently started in the command buffer with framebuffer.
+  // Cache render pass currently started in the command buffer with the
+  // framebuffer.
   VkRenderPass current_render_pass_;
   VkFramebuffer current_framebuffer_;
 

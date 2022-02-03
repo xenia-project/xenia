@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -27,12 +27,40 @@ class UIEvent {
   Window* target() const { return target_; }
 
  private:
-  Window* target_ = nullptr;
+  Window* target_;
+};
+
+class UISetupEvent : public UIEvent {
+ public:
+  explicit UISetupEvent(Window* target = nullptr, bool is_initial_setup = false)
+      : UIEvent(target), is_initial_setup_(is_initial_setup) {}
+
+  bool is_initial_setup() const { return is_initial_setup_; }
+
+ private:
+  bool is_initial_setup_;
+};
+
+class MonitorUpdateEvent : public UISetupEvent {
+ public:
+  explicit MonitorUpdateEvent(Window* target,
+                              bool old_monitor_potentially_disconnected,
+                              bool is_initial_setup = false)
+      : UISetupEvent(target, is_initial_setup),
+        old_monitor_potentially_disconnected_(
+            old_monitor_potentially_disconnected) {}
+
+  bool old_monitor_potentially_disconnected() const {
+    return old_monitor_potentially_disconnected_;
+  }
+
+ private:
+  bool old_monitor_potentially_disconnected_;
 };
 
 class FileDropEvent : public UIEvent {
  public:
-  FileDropEvent(Window* target, std::filesystem::path filename)
+  explicit FileDropEvent(Window* target, std::filesystem::path filename)
       : UIEvent(target), filename_(std::move(filename)) {}
   ~FileDropEvent() override = default;
 
@@ -44,10 +72,10 @@ class FileDropEvent : public UIEvent {
 
 class KeyEvent : public UIEvent {
  public:
-  KeyEvent(Window* target, VirtualKey virtual_key, int repeat_count,
-           bool prev_state, bool modifier_shift_pressed,
-           bool modifier_ctrl_pressed, bool modifier_alt_pressed,
-           bool modifier_super_pressed)
+  explicit KeyEvent(Window* target, VirtualKey virtual_key, int repeat_count,
+                    bool prev_state, bool modifier_shift_pressed,
+                    bool modifier_ctrl_pressed, bool modifier_alt_pressed,
+                    bool modifier_super_pressed)
       : UIEvent(target),
         virtual_key_(virtual_key),
         repeat_count_(repeat_count),
@@ -96,9 +124,17 @@ class MouseEvent : public UIEvent {
   };
 
  public:
-  MouseEvent(Window* target, Button button, int32_t x, int32_t y,
-             int32_t dx = 0, int32_t dy = 0)
-      : UIEvent(target), button_(button), x_(x), y_(y), dx_(dx), dy_(dy) {}
+  // Matching Windows WHEEL_DELTA.
+  static constexpr uint32_t kScrollPerDetent = 120;
+
+  explicit MouseEvent(Window* target, Button button, int32_t x, int32_t y,
+                      int32_t scroll_x = 0, int32_t scroll_y = 0)
+      : UIEvent(target),
+        button_(button),
+        x_(x),
+        y_(y),
+        scroll_x_(scroll_x),
+        scroll_y_(scroll_y) {}
   ~MouseEvent() override = default;
 
   bool is_handled() const { return handled_; }
@@ -107,16 +143,17 @@ class MouseEvent : public UIEvent {
   Button button() const { return button_; }
   int32_t x() const { return x_; }
   int32_t y() const { return y_; }
-  int32_t dx() const { return dx_; }
-  int32_t dy() const { return dy_; }
+  int32_t scroll_x() const { return scroll_x_; }
+  int32_t scroll_y() const { return scroll_y_; }
 
  private:
   bool handled_ = false;
   Button button_;
   int32_t x_ = 0;
   int32_t y_ = 0;
-  int32_t dx_ = 0;
-  int32_t dy_ = 0;
+  int32_t scroll_x_ = 0;
+  // Positive is up (away from the user), negative is down (towards the user).
+  int32_t scroll_y_ = 0;
 };
 
 }  // namespace ui

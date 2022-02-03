@@ -43,7 +43,7 @@ bool D3D12SharedMemory::Initialize() {
   InitializeCommon();
 
   const ui::d3d12::D3D12Provider& provider =
-      command_processor_.GetD3D12Context().GetD3D12Provider();
+      command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
 
   D3D12_RESOURCE_DESC buffer_desc;
@@ -215,8 +215,9 @@ void D3D12SharedMemory::CommitUAVWritesAndTransitionBuffer(
 
 void D3D12SharedMemory::WriteRawSRVDescriptor(
     D3D12_CPU_DESCRIPTOR_HANDLE handle) {
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
-  auto device = provider.GetDevice();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Provider();
+  ID3D12Device* device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
@@ -226,8 +227,9 @@ void D3D12SharedMemory::WriteRawSRVDescriptor(
 
 void D3D12SharedMemory::WriteRawUAVDescriptor(
     D3D12_CPU_DESCRIPTOR_HANDLE handle) {
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
-  auto device = provider.GetDevice();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Provider();
+  ID3D12Device* device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
@@ -252,8 +254,9 @@ void D3D12SharedMemory::WriteUintPow2SRVDescriptor(
       assert_unhandled_case(element_size_bytes_pow2);
       return;
   }
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
-  auto device = provider.GetDevice();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Provider();
+  ID3D12Device* device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
@@ -278,8 +281,9 @@ void D3D12SharedMemory::WriteUintPow2UAVDescriptor(
       assert_unhandled_case(element_size_bytes_pow2);
       return;
   }
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
-  auto device = provider.GetDevice();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Provider();
+  ID3D12Device* device = provider.GetDevice();
   device->CopyDescriptorsSimple(
       1, handle,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
@@ -298,8 +302,9 @@ bool D3D12SharedMemory::InitializeTraceSubmitDownloads() {
   ui::d3d12::util::FillBufferResourceDesc(
       download_buffer_desc, download_page_count << page_size_log2(),
       D3D12_RESOURCE_FLAG_NONE);
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
-  auto device = provider.GetDevice();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Provider();
+  ID3D12Device* device = provider.GetDevice();
   if (FAILED(device->CreateCommittedResource(
           &ui::d3d12::util::kHeapPropertiesReadback,
           provider.GetHeapFlagCreateNotZeroed(), &download_buffer_desc,
@@ -365,7 +370,7 @@ bool D3D12SharedMemory::AllocateSparseHostGpuMemoryRange(
                           << host_gpu_memory_sparse_granularity_log2();
 
   const ui::d3d12::D3D12Provider& provider =
-      command_processor_.GetD3D12Context().GetD3D12Provider();
+      command_processor_.GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
   ID3D12CommandQueue* direct_queue = provider.GetDirectQueue();
 

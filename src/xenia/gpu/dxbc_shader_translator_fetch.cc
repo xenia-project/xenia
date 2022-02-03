@@ -35,7 +35,9 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   uint32_t used_result_components = instr.result.GetUsedResultComponents();
   uint32_t needed_words = xenos::GetVertexFormatNeededWords(
       instr.attributes.data_format, used_result_components);
-  if (!needed_words) {
+  // If this is vfetch_full, the address may still be needed for vfetch_mini -
+  // don't exit before calculating the address.
+  if (!needed_words && instr.is_mini_fetch) {
     // Nothing to load - just constant 0/1 writes, or the swizzle includes only
     // components that don't exist in the format (writing zero instead of them).
     // Unpacking assumes at least some word is needed.
@@ -59,47 +61,74 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
   // fetch constants on the CPU when proper bound checks are added - vfetch may
   // be conditional, so fetch constants may also be used conditionally.
 
-  // - Load the byte address in physical memory to system_temp_result_.w (so
-  //   it's not overwritten by data loads until the last one).
+  // - Load the part of the byte address in the physical memory that is the same
+  //   in vfetch_full and vfetch_mini to system_temp_grad_v_vfetch_address_.w
+  //   (the index operand GPR must not be reloaded in vfetch_mini because it
+  //   might have been overwritten previously, but that shouldn't have effect on
+  //   vfetch_mini).
 
-  dxbc::Dest address_dest(dxbc::Dest::R(system_temp_result_, 0b1000));
-  dxbc::Src address_src(dxbc::Src::R(system_temp_result_, dxbc::Src::kWWWW));
-  if (instr.attributes.stride) {
-    // Convert the index to an integer by flooring or by rounding to the nearest
-    // (as floor(index + 0.5) because rounding to the nearest even makes no
-    // sense for addressing, both 1.5 and 2.5 would be 2).
-    // http://web.archive.org/web/20100302145413/http://msdn.microsoft.com:80/en-us/library/bb313960.aspx
-    {
-      bool index_operand_temp_pushed = false;
-      dxbc::Src index_operand(
-          LoadOperand(instr.operands[0], 0b0001, index_operand_temp_pushed)
-              .SelectFromSwizzled(0));
-      if (instr.attributes.is_index_rounded) {
-        a_.OpAdd(address_dest, index_operand, dxbc::Src::LF(0.5f));
-        a_.OpRoundNI(address_dest, address_src);
-      } else {
-        a_.OpRoundNI(address_dest, index_operand);
+  dxbc::Src address_src(
+      dxbc::Src::R(system_temp_grad_v_vfetch_address_, dxbc::Src::kWWWW));
+  if (!instr.is_mini_fetch) {
+    dxbc::Dest address_dest(
+        dxbc::Dest::R(system_temp_grad_v_vfetch_address_, 0b1000));
+    if (instr.attributes.stride) {
+      // Convert the index to an integer by flooring or by rounding to the
+      // nearest (as floor(index + 0.5) because rounding to the nearest even
+      // makes no sense for addressing, both 1.5 and 2.5 would be 2).
+      {
+        bool index_operand_temp_pushed = false;
+        dxbc::Src index_operand(
+            LoadOperand(instr.operands[0], 0b0001, index_operand_temp_pushed)
+                .SelectFromSwizzled(0));
+        if (instr.attributes.is_index_rounded) {
+          a_.OpAdd(address_dest, index_operand, dxbc::Src::LF(0.5f));
+          a_.OpRoundNI(address_dest, address_src);
+        } else {
+          a_.OpRoundNI(address_dest, index_operand);
+        }
+        if (index_operand_temp_pushed) {
+          PopSystemTemp();
+        }
       }
-      if (index_operand_temp_pushed) {
-        PopSystemTemp();
-      }
+      a_.OpFToI(address_dest, address_src);
+      // Extract the byte address from the fetch constant to
+      // system_temp_result_.w (which is not used yet).
+      a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b1000),
+               fetch_constant_src.SelectFromSwizzled(0),
+               dxbc::Src::LU(~uint32_t(3)));
+      // Merge the index and the base address.
+      a_.OpIMAd(address_dest, address_src,
+                dxbc::Src::LU(instr.attributes.stride * sizeof(uint32_t)),
+                dxbc::Src::R(system_temp_result_, dxbc::Src::kWWWW));
+    } else {
+      // Fetching from the same location - extract the byte address of the
+      // beginning of the buffer.
+      a_.OpAnd(address_dest, fetch_constant_src.SelectFromSwizzled(0),
+               dxbc::Src::LU(~uint32_t(3)));
     }
-    a_.OpFToI(address_dest, address_src);
-    // Extract the byte address from the fetch constant to
-    // system_temp_result_.z.
-    a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b0100),
-             fetch_constant_src.SelectFromSwizzled(0),
-             dxbc::Src::LU(~uint32_t(3)));
-    // Merge the index and the base address.
-    a_.OpIMAd(address_dest, address_src,
-              dxbc::Src::LU(instr.attributes.stride * sizeof(uint32_t)),
-              dxbc::Src::R(system_temp_result_, dxbc::Src::kZZZZ));
-  } else {
-    // Fetching from the same location - extract the byte address of the
-    // beginning of the buffer.
-    a_.OpAnd(address_dest, fetch_constant_src.SelectFromSwizzled(0),
-             dxbc::Src::LU(~uint32_t(3)));
   }
+
+  if (!needed_words) {
+    // The vfetch_full address has been loaded for the subsequent vfetch_mini,
+    // but there's no data to load.
+    StoreResult(instr.result, dxbc::Src::LF(0.0f));
+    return;
+  }
+
+  dxbc::Dest address_temp_dest(dxbc::Dest::R(system_temp_result_, 0b1000));
+  dxbc::Src address_temp_src(
+      dxbc::Src::R(system_temp_result_, dxbc::Src::kWWWW));
+
+  // - From now on, if any additional offset must be applied to the
+  //   `base + index * stride` part of the address, it must be done by writing
+  //   to system_temp_result_.w (address_temp_dest) instead of
+  //   system_temp_grad_v_vfetch_address_.w (since it must stay the same for the
+  //   vfetch_full and all its vfetch_mini invocations), and changing
+  //   address_src to address_temp_src afterwards. system_temp_result_.w can be
+  //   used for this purpose safely because it won't be overwritten until the
+  //   last dword is loaded (after which the address won't be needed anymore).
+
   // Add the word offset from the instruction (signed), plus the offset of the
   // first needed word within the element.
   uint32_t first_word_index;
@@ -108,8 +137,9 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
       instr.attributes.offset + int32_t(first_word_index);
   if (first_word_buffer_offset) {
     // Add the constant word offset.
-    a_.OpIAdd(address_dest, address_src,
+    a_.OpIAdd(address_temp_dest, address_src,
               dxbc::Src::LI(first_word_buffer_offset * sizeof(uint32_t)));
+    address_src = address_temp_src;
   }
 
   // - Load needed words to system_temp_result_, words 0, 1, 2, 3 to X, Y, Z, W
@@ -159,9 +189,10 @@ void DxbcShaderTranslator::ProcessVertexFetchInstruction(
           ~((uint32_t(1) << (word_index + word_count)) - uint32_t(1));
       if (word_index != word_index_previous) {
         // Go to the word in the buffer.
-        a_.OpIAdd(address_dest, address_src,
+        a_.OpIAdd(address_temp_dest, address_src,
                   dxbc::Src::LU((word_index - word_index_previous) *
                                 sizeof(uint32_t)));
+        address_src = address_temp_src;
         word_index_previous = word_index;
       }
       // Can ld_raw either to the first multiple components, or to any scalar
@@ -592,7 +623,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     case FetchOpcode::kSetTextureGradientsVert: {
       bool grad_operand_temp_pushed = false;
       a_.OpMov(
-          dxbc::Dest::R(system_temp_grad_v_, 0b0111),
+          dxbc::Dest::R(system_temp_grad_v_vfetch_address_, 0b0111),
           LoadOperand(instr.operands[0], 0b0111, grad_operand_temp_pushed));
       if (grad_operand_temp_pushed) {
         PopSystemTemp();
@@ -1521,15 +1552,15 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           // Extract gradient exponent biases from the fetch constant and merge
           // them with the LOD bias.
           a_.OpIBFE(dxbc::Dest::R(grad_h_lod_temp, 0b0011), dxbc::Src::LU(5),
-                     dxbc::Src::LU(22, 27, 0, 0),
-                     RequestTextureFetchConstantWord(tfetch_index, 4));
+                    dxbc::Src::LU(22, 27, 0, 0),
+                    RequestTextureFetchConstantWord(tfetch_index, 4));
           a_.OpIMAd(dxbc::Dest::R(grad_h_lod_temp, 0b0011),
-                     dxbc::Src::R(grad_h_lod_temp), dxbc::Src::LI(int32_t(1) << 23),
-                     dxbc::Src::LF(1.0f));
+                    dxbc::Src::R(grad_h_lod_temp),
+                    dxbc::Src::LI(int32_t(1) << 23), dxbc::Src::LF(1.0f));
           a_.OpMul(dxbc::Dest::R(grad_v_temp, 0b1000), lod_src,
-                    dxbc::Src::R(grad_h_lod_temp, dxbc::Src::kYYYY));
+                   dxbc::Src::R(grad_h_lod_temp, dxbc::Src::kYYYY));
           a_.OpMul(lod_dest, lod_src,
-                    dxbc::Src::R(grad_h_lod_temp, dxbc::Src::kXXXX));
+                   dxbc::Src::R(grad_h_lod_temp, dxbc::Src::kXXXX));
 #endif
           // Obtain the gradients and apply biases to them.
           if (instr.attributes.use_register_gradients) {
@@ -1540,11 +1571,11 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
             // done in getCompTexLOD, so don't do it here too.
 #if 0
             a_.OpMul(dxbc::Dest::R(grad_v_temp, grad_mask),
-                      dxbc::Src::R(system_temp_grad_v_),
-                      dxbc::Src::R(grad_v_temp, dxbc::Src::kWWWW));
+                     dxbc::Src::R(system_temp_grad_v_vfetch_address_),
+                     dxbc::Src::R(grad_v_temp, dxbc::Src::kWWWW));
 #else
             a_.OpMul(dxbc::Dest::R(grad_v_temp, grad_mask),
-                     dxbc::Src::R(system_temp_grad_v_), lod_src);
+                     dxbc::Src::R(system_temp_grad_v_vfetch_address_), lod_src);
 #endif
             // TODO(Triang3l): Are cube map register gradients unnormalized if
             // the coordinates themselves are unnormalized?
@@ -1586,8 +1617,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
             // done in getCompTexLOD, so don't do it here too.
 #if 0
             a_.OpMul(dxbc::Dest::R(grad_v_temp, grad_mask),
-                      dxbc::Src::R(grad_v_temp),
-                      dxbc::Src::R(grad_v_temp, dxbc::Src::kWWWW));
+                     dxbc::Src::R(grad_v_temp),
+                     dxbc::Src::R(grad_v_temp, dxbc::Src::kWWWW));
 #else
             a_.OpMul(dxbc::Dest::R(grad_v_temp, grad_mask),
                      dxbc::Src::R(grad_v_temp), lod_src);

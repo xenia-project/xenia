@@ -19,7 +19,7 @@
                OpName %_ ""
                OpName %xe_attr_position "xe_attr_position"
                OpName %XePushConstants "XePushConstants"
-               OpMemberName %XePushConstants 0 "viewport_size_inv"
+               OpMemberName %XePushConstants 0 "xe_coordinate_space_size_inv"
                OpName %__0 ""
                OpDecorate %xe_var_texcoord Location 0
                OpDecorate %xe_attr_texcoord Location 1

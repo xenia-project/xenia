@@ -61,12 +61,10 @@ class VulkanPipelineCache {
 
   // Retrieves the shader modification for the current state. The shader must
   // have microcode analyzed.
-  SpirvShaderTranslator::Modification
-  VulkanPipelineCache::GetCurrentVertexShaderModification(
+  SpirvShaderTranslator::Modification GetCurrentVertexShaderModification(
       const Shader& shader,
       Shader::HostVertexShaderType host_vertex_shader_type) const;
-  SpirvShaderTranslator::Modification
-  VulkanPipelineCache::GetCurrentPixelShaderModification(
+  SpirvShaderTranslator::Modification GetCurrentPixelShaderModification(
       const Shader& shader) const;
 
   // TODO(Triang3l): Return a deferred creation handle.

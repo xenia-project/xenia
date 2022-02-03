@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -35,6 +35,25 @@ void GraphicsUploadBufferPool::Reclaim(uint64_t completed_submission_index) {
   }
   if (!submitted_first_) {
     submitted_last_ = nullptr;
+  }
+}
+
+void GraphicsUploadBufferPool::ChangeSubmissionTimeline() {
+  // Reclaim all submitted pages.
+  if (writable_last_) {
+    writable_last_->next_ = submitted_first_;
+  } else {
+    writable_first_ = submitted_first_;
+  }
+  writable_last_ = submitted_last_;
+  submitted_first_ = nullptr;
+  submitted_last_ = nullptr;
+
+  // Mark all pages as never used yet in the new timeline.
+  Page* page = writable_first_;
+  while (page) {
+    page->last_submission_index_ = 0;
+    page = page->next_;
   }
 }
 

@@ -28,9 +28,9 @@ namespace xe {
 namespace hid {
 namespace sdl {
 
-class SDLInputDriver : public InputDriver {
+class SDLInputDriver final : public InputDriver {
  public:
-  explicit SDLInputDriver(xe::ui::Window* window);
+  explicit SDLInputDriver(xe::ui::Window* window, size_t window_z_order);
   ~SDLInputDriver() override;
 
   X_STATUS Setup() override;
@@ -42,7 +42,7 @@ class SDLInputDriver : public InputDriver {
   X_RESULT GetKeystroke(uint32_t user_index, uint32_t flags,
                         X_INPUT_KEYSTROKE* out_keystroke) override;
 
- protected:
+ private:
   struct ControllerState {
     SDL_GameController* sdl;
     X_INPUT_CAPABILITIES caps;
@@ -65,7 +65,6 @@ class SDLInputDriver : public InputDriver {
     uint32_t repeat_time;
   };
 
- protected:
   void HandleEvent(const SDL_Event& event);
   void OnControllerDeviceAdded(const SDL_Event& event);
   void OnControllerDeviceRemoved(const SDL_Event& event);
@@ -80,7 +79,6 @@ class SDLInputDriver : public InputDriver {
   void UpdateXCapabilities(ControllerState& state);
   void QueueControllerUpdate();
 
- protected:
   bool sdl_events_initialized_;
   bool sdl_gamecontroller_initialized_;
   int sdl_events_unflushed_;

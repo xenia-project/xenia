@@ -11,6 +11,7 @@
 #include "xenia/base/platform_win.h"
 #include "xenia/base/string.h"
 #include "xenia/ui/file_picker.h"
+#include "xenia/ui/window_win.h"
 
 // Microsoft headers after platform_win.h.
 #include <wrl/client.h>
@@ -23,7 +24,7 @@ class Win32FilePicker : public FilePicker {
   Win32FilePicker();
   ~Win32FilePicker() override;
 
-  bool Show(void* parent_window_handle) override;
+  bool Show(Window* parent_window) override;
 
  private:
 };
@@ -109,7 +110,7 @@ Win32FilePicker::Win32FilePicker() = default;
 
 Win32FilePicker::~Win32FilePicker() = default;
 
-bool Win32FilePicker::Show(void* parent_window_handle) {
+bool Win32FilePicker::Show(Window* parent_window) {
   // TODO(benvanik): FileSaveDialog.
   assert_true(mode() == Mode::kOpen);
   // TODO(benvanik): folder dialogs.
@@ -179,7 +180,9 @@ bool Win32FilePicker::Show(void* parent_window_handle) {
   }
 
   // Show the dialog modally.
-  hr = file_dialog->Show(static_cast<HWND>(parent_window_handle));
+  hr = file_dialog->Show(
+      parent_window ? static_cast<const Win32Window*>(parent_window)->hwnd()
+                    : nullptr);
   file_dialog->Unadvise(cookie);
   if (!SUCCEEDED(hr)) {
     return false;

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -11,20 +11,18 @@
 
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/assert.h"
-#include "xenia/ui/window.h"
+#include "xenia/ui/imgui_drawer.h"
 
 namespace xe {
 namespace ui {
 
-ImGuiDialog::ImGuiDialog(Window* window) : window_(window) {
-  window_->AttachListener(this);
-  had_imgui_active_ = window_->is_imgui_input_enabled();
-  window_->set_imgui_input_enabled(true);
+ImGuiDialog::ImGuiDialog(ImGuiDrawer* imgui_drawer)
+    : imgui_drawer_(imgui_drawer) {
+  imgui_drawer_->AddDialog(this);
 }
 
 ImGuiDialog::~ImGuiDialog() {
-  window_->set_imgui_input_enabled(had_imgui_active_);
-  window_->DetachListener(this);
+  imgui_drawer_->RemoveDialog(this);
   for (auto fence : waiting_fences_) {
     fence->Signal();
   }
@@ -36,12 +34,9 @@ void ImGuiDialog::Then(xe::threading::Fence* fence) {
 
 void ImGuiDialog::Close() { has_close_pending_ = true; }
 
-ImGuiIO& ImGuiDialog::GetIO() { return window_->imgui_drawer()->GetIO(); }
+ImGuiIO& ImGuiDialog::GetIO() { return imgui_drawer()->GetIO(); }
 
-void ImGuiDialog::OnPaint(UIEvent* e) {
-  // Keep imgui rendering every frame.
-  window_->Invalidate();
-
+void ImGuiDialog::Draw() {
   // Draw UI.
   OnDraw(GetIO());
 
@@ -52,10 +47,13 @@ void ImGuiDialog::OnPaint(UIEvent* e) {
   }
 }
 
-class MessageBoxDialog : public ImGuiDialog {
+class MessageBoxDialog final : public ImGuiDialog {
  public:
-  MessageBoxDialog(Window* window, std::string title, std::string body)
-      : ImGuiDialog(window), title_(std::move(title)), body_(std::move(body)) {}
+  MessageBoxDialog(ImGuiDrawer* imgui_drawer, std::string title,
+                   std::string body)
+      : ImGuiDialog(imgui_drawer),
+        title_(std::move(title)),
+        body_(std::move(body)) {}
 
   void OnDraw(ImGuiIO& io) override {
     if (!has_opened_) {
@@ -84,9 +82,9 @@ class MessageBoxDialog : public ImGuiDialog {
   std::string body_;
 };
 
-ImGuiDialog* ImGuiDialog::ShowMessageBox(Window* window, std::string title,
-                                         std::string body) {
-  return new MessageBoxDialog(window, std::move(title), std::move(body));
+ImGuiDialog* ImGuiDialog::ShowMessageBox(ImGuiDrawer* imgui_drawer,
+                                         std::string title, std::string body) {
+  return new MessageBoxDialog(imgui_drawer, std::move(title), std::move(body));
 }
 
 }  // namespace ui

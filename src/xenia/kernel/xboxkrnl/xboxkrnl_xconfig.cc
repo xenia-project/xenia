@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -122,9 +122,10 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
   return X_STATUS_SUCCESS;
 }
 
-dword_result_t ExGetXConfigSetting(word_t category, word_t setting,
-                                   lpdword_t buffer_ptr, word_t buffer_size,
-                                   lpword_t required_size_ptr) {
+dword_result_t ExGetXConfigSetting_entry(word_t category, word_t setting,
+                                         lpvoid_t buffer_ptr,
+                                         word_t buffer_size,
+                                         lpword_t required_size_ptr) {
   uint16_t required_size = 0;
   X_STATUS result = xeExGetXConfigSetting(category, setting, buffer_ptr,
                                           buffer_size, &required_size);
@@ -137,9 +138,8 @@ dword_result_t ExGetXConfigSetting(word_t category, word_t setting,
 }
 DECLARE_XBOXKRNL_EXPORT1(ExGetXConfigSetting, kModules, kImplemented);
 
-void RegisterXConfigExports(xe::cpu::ExportResolver* export_resolver,
-                            KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(XConfig);

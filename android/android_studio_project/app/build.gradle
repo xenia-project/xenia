@@ -4,7 +4,6 @@ plugins {
 
 android {
     compileSdkVersion 30
-    buildToolsVersion '30.0.2'
     ndkVersion '23.0.7599858'
 
     defaultConfig {
@@ -82,4 +81,8 @@ android {
             path file('../../../build/xenia.wks.Android.mk')
         }
     }
+}
+
+dependencies {
+    implementation 'org.jetbrains:annotations:15.0'
 }

@@ -23,15 +23,19 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
-class VulkanContext;
-
 class VulkanImmediateDrawer : public ImmediateDrawer {
  public:
-  VulkanImmediateDrawer(VulkanContext& graphics_context);
-  ~VulkanImmediateDrawer() override;
+  static std::unique_ptr<VulkanImmediateDrawer> Create(
+      const VulkanProvider& provider) {
+    auto immediate_drawer = std::unique_ptr<VulkanImmediateDrawer>(
+        new VulkanImmediateDrawer(provider));
+    if (!immediate_drawer->Initialize()) {
+      return nullptr;
+    }
+    return std::move(immediate_drawer);
+  }
 
-  bool Initialize();
-  void Shutdown();
+  ~VulkanImmediateDrawer();
 
   std::unique_ptr<ImmediateTexture> CreateTexture(uint32_t width,
                                                   uint32_t height,
@@ -39,16 +43,20 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
                                                   bool is_repeated,
                                                   const uint8_t* data) override;
 
-  void Begin(int render_target_width, int render_target_height) override;
+  void Begin(UIDrawContext& ui_draw_context, float coordinate_space_width,
+             float coordinate_space_height) override;
   void BeginDrawBatch(const ImmediateDrawBatch& batch) override;
   void Draw(const ImmediateDraw& draw) override;
   void EndDrawBatch() override;
   void End() override;
 
+ protected:
+  void OnLeavePresenter() override;
+
  private:
   struct PushConstants {
     struct Vertex {
-      float viewport_size_inv[2];
+      float coordinate_space_size_inv[2];
     } vertex;
   };
 
@@ -88,7 +96,10 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
     TextureDescriptorPool* recycled_next;
   };
 
-  bool EnsurePipelinesCreated();
+  VulkanImmediateDrawer(const VulkanProvider& provider) : provider_(provider) {}
+  bool Initialize();
+
+  bool EnsurePipelinesCreatedForCurrentRenderPass();
 
   // Allocates a combined image sampler in a pool and returns its index, or
   // UINT32_MAX in case of failure.
@@ -106,7 +117,7 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   void DestroyTextureResource(VulkanImmediateTexture::Resource& resource);
   void OnImmediateTextureDestroyed(VulkanImmediateTexture& texture);
 
-  VulkanContext& context_;
+  const VulkanProvider& provider_;
 
   // Combined image sampler pools for textures.
   VkDescriptorSetLayout texture_descriptor_set_layout_;
@@ -137,13 +148,20 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   std::vector<std::pair<VulkanImmediateTexture::Resource, uint64_t>>
       textures_deleted_;
 
-  VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
-
   std::unique_ptr<VulkanUploadBufferPool> vertex_buffer_pool_;
+
+  VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
 
   VkFormat pipeline_framebuffer_format_ = VK_FORMAT_UNDEFINED;
   VkPipeline pipeline_triangle_ = VK_NULL_HANDLE;
   VkPipeline pipeline_line_ = VK_NULL_HANDLE;
+
+  // The submission index within the current Begin (or the last, if outside
+  // one).
+  uint64_t last_paint_submission_index_ = 0;
+  // Completed submission index as of the latest Begin, to coarsely skip delayed
+  // texture deletion.
+  uint64_t last_completed_submission_index_ = 0;
 
   VkCommandBuffer current_command_buffer_ = VK_NULL_HANDLE;
   VkExtent2D current_render_target_extent_;

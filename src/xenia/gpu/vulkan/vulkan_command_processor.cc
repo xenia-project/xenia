@@ -29,13 +29,19 @@
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/vulkan/vulkan_shared_memory.h"
 #include "xenia/gpu/xenos.h"
-#include "xenia/ui/vulkan/vulkan_context.h"
+#include "xenia/ui/vulkan/vulkan_presenter.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
 
 namespace xe {
 namespace gpu {
 namespace vulkan {
+
+// Generated with `xb buildshaders`.
+namespace shaders {
+#include "xenia/gpu/shaders/bytecode/vulkan_spirv/fullscreen_tc_vert.h"
+#include "xenia/gpu/shaders/bytecode/vulkan_spirv/uv_frag.h"
+}  // namespace shaders
 
 VulkanCommandProcessor::VulkanCommandProcessor(
     VulkanGraphicsSystem* graphics_system, kernel::KernelState* kernel_state)
@@ -58,8 +64,7 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
-  const ui::vulkan::VulkanProvider& provider =
-      GetVulkanContext().GetVulkanProvider();
+  const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
@@ -274,6 +279,215 @@ bool VulkanCommandProcessor::SetupContext() {
   // interlocks case.
   dfn.vkUpdateDescriptorSets(device, 1, write_descriptor_sets, 0, nullptr);
 
+  // Swap objects.
+
+  // Swap render pass. Doesn't make assumptions about outer usage (explicit
+  // barriers must be used instead) for simplicity of use in different scenarios
+  // with different pipelines.
+  VkAttachmentDescription swap_render_pass_attachment;
+  swap_render_pass_attachment.flags = 0;
+  swap_render_pass_attachment.format =
+      ui::vulkan::VulkanPresenter::kGuestOutputFormat;
+  swap_render_pass_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+  swap_render_pass_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+  swap_render_pass_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+  swap_render_pass_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+  swap_render_pass_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+  swap_render_pass_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  swap_render_pass_attachment.finalLayout =
+      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  VkAttachmentReference swap_render_pass_color_attachment;
+  swap_render_pass_color_attachment.attachment = 0;
+  swap_render_pass_color_attachment.layout =
+      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  VkSubpassDescription swap_render_pass_subpass = {};
+  swap_render_pass_subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+  swap_render_pass_subpass.colorAttachmentCount = 1;
+  swap_render_pass_subpass.pColorAttachments =
+      &swap_render_pass_color_attachment;
+  VkSubpassDependency swap_render_pass_dependencies[2];
+  for (uint32_t i = 0; i < 2; ++i) {
+    VkSubpassDependency& swap_render_pass_dependency =
+        swap_render_pass_dependencies[i];
+    swap_render_pass_dependency.srcSubpass = i ? 0 : VK_SUBPASS_EXTERNAL;
+    swap_render_pass_dependency.dstSubpass = i ? VK_SUBPASS_EXTERNAL : 0;
+    swap_render_pass_dependency.srcStageMask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    swap_render_pass_dependency.dstStageMask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    swap_render_pass_dependency.srcAccessMask =
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    swap_render_pass_dependency.dstAccessMask =
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    swap_render_pass_dependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+  }
+  VkRenderPassCreateInfo swap_render_pass_create_info;
+  swap_render_pass_create_info.sType =
+      VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+  swap_render_pass_create_info.pNext = nullptr;
+  swap_render_pass_create_info.flags = 0;
+  swap_render_pass_create_info.attachmentCount = 1;
+  swap_render_pass_create_info.pAttachments = &swap_render_pass_attachment;
+  swap_render_pass_create_info.subpassCount = 1;
+  swap_render_pass_create_info.pSubpasses = &swap_render_pass_subpass;
+  swap_render_pass_create_info.dependencyCount =
+      uint32_t(xe::countof(swap_render_pass_dependencies));
+  swap_render_pass_create_info.pDependencies = swap_render_pass_dependencies;
+  if (dfn.vkCreateRenderPass(device, &swap_render_pass_create_info, nullptr,
+                             &swap_render_pass_) != VK_SUCCESS) {
+    XELOGE("Failed to create the Vulkan render pass for presentation");
+    return false;
+  }
+
+  // Swap pipeline layout.
+  // TODO(Triang3l): Source binding, push constants, FXAA pipeline layout.
+  VkPipelineLayoutCreateInfo swap_pipeline_layout_create_info;
+  swap_pipeline_layout_create_info.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  swap_pipeline_layout_create_info.pNext = nullptr;
+  swap_pipeline_layout_create_info.flags = 0;
+  swap_pipeline_layout_create_info.setLayoutCount = 0;
+  swap_pipeline_layout_create_info.pSetLayouts = nullptr;
+  swap_pipeline_layout_create_info.pushConstantRangeCount = 0;
+  swap_pipeline_layout_create_info.pPushConstantRanges = nullptr;
+  if (dfn.vkCreatePipelineLayout(device, &swap_pipeline_layout_create_info,
+                                 nullptr,
+                                 &swap_pipeline_layout_) != VK_SUCCESS) {
+    XELOGE("Failed to create the Vulkan pipeline layout for presentation");
+    return false;
+  }
+
+  // Swap pipeline.
+
+  VkPipelineShaderStageCreateInfo swap_pipeline_stages[2];
+  swap_pipeline_stages[0].sType =
+      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  swap_pipeline_stages[0].pNext = nullptr;
+  swap_pipeline_stages[0].flags = 0;
+  swap_pipeline_stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+  swap_pipeline_stages[0].module = ui::vulkan::util::CreateShaderModule(
+      provider, shaders::fullscreen_tc_vert,
+      sizeof(shaders::fullscreen_tc_vert));
+  if (swap_pipeline_stages[0].module == VK_NULL_HANDLE) {
+    XELOGE("Failed to create the Vulkan vertex shader module for presentation");
+    return false;
+  }
+  swap_pipeline_stages[0].pName = "main";
+  swap_pipeline_stages[0].pSpecializationInfo = nullptr;
+  swap_pipeline_stages[1].sType =
+      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  swap_pipeline_stages[1].pNext = nullptr;
+  swap_pipeline_stages[1].flags = 0;
+  swap_pipeline_stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  swap_pipeline_stages[1].module = ui::vulkan::util::CreateShaderModule(
+      provider, shaders::uv_frag, sizeof(shaders::uv_frag));
+  if (swap_pipeline_stages[1].module == VK_NULL_HANDLE) {
+    XELOGE(
+        "Failed to create the Vulkan fragment shader module for presentation");
+    dfn.vkDestroyShaderModule(device, swap_pipeline_stages[0].module, nullptr);
+    return false;
+  }
+  swap_pipeline_stages[1].pName = "main";
+  swap_pipeline_stages[1].pSpecializationInfo = nullptr;
+
+  VkPipelineVertexInputStateCreateInfo swap_pipeline_vertex_input_state = {};
+  swap_pipeline_vertex_input_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  VkPipelineInputAssemblyStateCreateInfo swap_pipeline_input_assembly_state;
+  swap_pipeline_input_assembly_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  swap_pipeline_input_assembly_state.pNext = nullptr;
+  swap_pipeline_input_assembly_state.flags = 0;
+  swap_pipeline_input_assembly_state.topology =
+      VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  swap_pipeline_input_assembly_state.primitiveRestartEnable = VK_FALSE;
+
+  VkPipelineViewportStateCreateInfo swap_pipeline_viewport_state;
+  swap_pipeline_viewport_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+  swap_pipeline_viewport_state.pNext = nullptr;
+  swap_pipeline_viewport_state.flags = 0;
+  swap_pipeline_viewport_state.viewportCount = 1;
+  swap_pipeline_viewport_state.pViewports = nullptr;
+  swap_pipeline_viewport_state.scissorCount = 1;
+  swap_pipeline_viewport_state.pScissors = nullptr;
+
+  VkPipelineRasterizationStateCreateInfo swap_pipeline_rasterization_state = {};
+  swap_pipeline_rasterization_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  swap_pipeline_rasterization_state.polygonMode = VK_POLYGON_MODE_FILL;
+  swap_pipeline_rasterization_state.cullMode = VK_CULL_MODE_NONE;
+  swap_pipeline_rasterization_state.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+  swap_pipeline_rasterization_state.lineWidth = 1.0f;
+
+  VkPipelineMultisampleStateCreateInfo swap_pipeline_multisample_state = {};
+  swap_pipeline_multisample_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+  swap_pipeline_multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+  VkPipelineColorBlendAttachmentState
+      swap_pipeline_color_blend_attachment_state = {};
+  swap_pipeline_color_blend_attachment_state.colorWriteMask =
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  VkPipelineColorBlendStateCreateInfo swap_pipeline_color_blend_state = {};
+  swap_pipeline_color_blend_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  swap_pipeline_color_blend_state.attachmentCount = 1;
+  swap_pipeline_color_blend_state.pAttachments =
+      &swap_pipeline_color_blend_attachment_state;
+
+  static const VkDynamicState kSwapPipelineDynamicStates[] = {
+      VK_DYNAMIC_STATE_VIEWPORT,
+      VK_DYNAMIC_STATE_SCISSOR,
+  };
+  VkPipelineDynamicStateCreateInfo swap_pipeline_dynamic_state;
+  swap_pipeline_dynamic_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+  swap_pipeline_dynamic_state.pNext = nullptr;
+  swap_pipeline_dynamic_state.flags = 0;
+  swap_pipeline_dynamic_state.dynamicStateCount =
+      uint32_t(xe::countof(kSwapPipelineDynamicStates));
+  swap_pipeline_dynamic_state.pDynamicStates = kSwapPipelineDynamicStates;
+
+  VkGraphicsPipelineCreateInfo swap_pipeline_create_info;
+  swap_pipeline_create_info.sType =
+      VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+  swap_pipeline_create_info.pNext = nullptr;
+  swap_pipeline_create_info.flags = 0;
+  swap_pipeline_create_info.stageCount =
+      uint32_t(xe::countof(swap_pipeline_stages));
+  swap_pipeline_create_info.pStages = swap_pipeline_stages;
+  swap_pipeline_create_info.pVertexInputState =
+      &swap_pipeline_vertex_input_state;
+  swap_pipeline_create_info.pInputAssemblyState =
+      &swap_pipeline_input_assembly_state;
+  swap_pipeline_create_info.pTessellationState = nullptr;
+  swap_pipeline_create_info.pViewportState = &swap_pipeline_viewport_state;
+  swap_pipeline_create_info.pRasterizationState =
+      &swap_pipeline_rasterization_state;
+  swap_pipeline_create_info.pMultisampleState =
+      &swap_pipeline_multisample_state;
+  swap_pipeline_create_info.pDepthStencilState = nullptr;
+  swap_pipeline_create_info.pColorBlendState = &swap_pipeline_color_blend_state;
+  swap_pipeline_create_info.pDynamicState = &swap_pipeline_dynamic_state;
+  swap_pipeline_create_info.layout = swap_pipeline_layout_;
+  swap_pipeline_create_info.renderPass = swap_render_pass_;
+  swap_pipeline_create_info.subpass = 0;
+  swap_pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
+  swap_pipeline_create_info.basePipelineIndex = UINT32_MAX;
+  VkResult swap_pipeline_create_result = dfn.vkCreateGraphicsPipelines(
+      device, VK_NULL_HANDLE, 1, &swap_pipeline_create_info, nullptr,
+      &swap_pipeline_);
+  for (size_t i = 0; i < xe::countof(swap_pipeline_stages); ++i) {
+    dfn.vkDestroyShaderModule(device, swap_pipeline_stages[i].module, nullptr);
+  }
+  if (swap_pipeline_create_result != VK_SUCCESS) {
+    XELOGE("Failed to create the Vulkan pipeline for presentation");
+    return false;
+  }
+
   // Just not to expose uninitialized memory.
   std::memset(&system_constants_, 0, sizeof(system_constants_));
 
@@ -283,10 +497,25 @@ bool VulkanCommandProcessor::SetupContext() {
 void VulkanCommandProcessor::ShutdownContext() {
   AwaitAllQueueOperationsCompletion();
 
-  const ui::vulkan::VulkanProvider& provider =
-      GetVulkanContext().GetVulkanProvider();
+  const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
+
+  for (const auto& framebuffer_pair : swap_framebuffers_outdated_) {
+    dfn.vkDestroyFramebuffer(device, framebuffer_pair.second, nullptr);
+  }
+  swap_framebuffers_outdated_.clear();
+  for (SwapFramebuffer& swap_framebuffer : swap_framebuffers_) {
+    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyFramebuffer, device,
+                                           swap_framebuffer.framebuffer);
+  }
+
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
+                                         swap_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                         swap_pipeline_layout_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyRenderPass, device,
+                                         swap_render_pass_);
 
   ui::vulkan::util::DestroyAndNullHandle(
       dfn.vkDestroyDescriptorPool, device,
@@ -339,7 +568,7 @@ void VulkanCommandProcessor::ShutdownContext() {
 
   deferred_command_buffer_.Reset();
   for (const auto& command_buffer_pair : command_buffers_submitted_) {
-    dfn.vkDestroyCommandPool(device, command_buffer_pair.first.pool, nullptr);
+    dfn.vkDestroyCommandPool(device, command_buffer_pair.second.pool, nullptr);
   }
   command_buffers_submitted_.clear();
   for (const CommandBuffer& command_buffer : command_buffers_writable_) {
@@ -353,7 +582,7 @@ void VulkanCommandProcessor::ShutdownContext() {
   frame_open_ = false;
 
   for (const auto& semaphore : submissions_in_flight_semaphores_) {
-    dfn.vkDestroySemaphore(device, semaphore.first, nullptr);
+    dfn.vkDestroySemaphore(device, semaphore.second, nullptr);
   }
   submissions_in_flight_semaphores_.clear();
   for (VkFence& fence : submissions_in_flight_fences_) {
@@ -376,6 +605,8 @@ void VulkanCommandProcessor::ShutdownContext() {
     dfn.vkDestroyFence(device, fence, nullptr);
   }
   fences_free_.clear();
+
+  device_lost_ = false;
 
   CommandProcessor::ShutdownContext();
 }
@@ -432,18 +663,228 @@ void VulkanCommandProcessor::SparseBindBuffer(
   sparse_bind_wait_stage_mask_ |= wait_stage_mask;
 }
 
-void VulkanCommandProcessor::PerformSwap(uint32_t frontbuffer_ptr,
-                                         uint32_t frontbuffer_width,
-                                         uint32_t frontbuffer_height) {
+void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
+                                       uint32_t frontbuffer_width,
+                                       uint32_t frontbuffer_height) {
   // FIXME(Triang3l): frontbuffer_ptr is currently unreliable, in the trace
   // player it's set to 0, but it's not needed anyway since the fetch constant
   // contains the address.
 
   SCOPE_profile_cpu_f("gpu");
 
-  // In case the swap command is the only one in the frame.
-  BeginSubmission(true);
+  ui::Presenter* presenter = graphics_system_->presenter();
+  if (!presenter) {
+    return;
+  }
 
+  // TODO(Triang3l): Resolution scale.
+  uint32_t resolution_scale = 1;
+  uint32_t scaled_width = frontbuffer_width * resolution_scale;
+  uint32_t scaled_height = frontbuffer_height * resolution_scale;
+  presenter->RefreshGuestOutput(
+      scaled_width, scaled_height, 1280 * resolution_scale,
+      720 * resolution_scale,
+      [this, scaled_width, scaled_height](
+          ui::Presenter::GuestOutputRefreshContext& context) -> bool {
+        // In case the swap command is the only one in the frame.
+        if (!BeginSubmission(true)) {
+          return false;
+        }
+
+        auto& vulkan_context = static_cast<
+            ui::vulkan::VulkanPresenter::VulkanGuestOutputRefreshContext&>(
+            context);
+        uint64_t guest_output_image_version = vulkan_context.image_version();
+
+        const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
+        const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+        VkDevice device = provider.device();
+
+        // Make sure a framebuffer is available for the current guest output
+        // image version.
+        size_t swap_framebuffer_index = SIZE_MAX;
+        size_t swap_framebuffer_new_index = SIZE_MAX;
+        // Try to find the existing framebuffer for the current guest output
+        // image version, or an unused (without an existing framebuffer, or with
+        // one, but that has never actually been used dynamically) slot.
+        for (size_t i = 0; i < swap_framebuffers_.size(); ++i) {
+          const SwapFramebuffer& existing_swap_framebuffer =
+              swap_framebuffers_[i];
+          if (existing_swap_framebuffer.framebuffer != VK_NULL_HANDLE &&
+              existing_swap_framebuffer.version == guest_output_image_version) {
+            swap_framebuffer_index = i;
+            break;
+          }
+          if (existing_swap_framebuffer.framebuffer == VK_NULL_HANDLE ||
+              !existing_swap_framebuffer.last_submission) {
+            swap_framebuffer_new_index = i;
+          }
+        }
+        if (swap_framebuffer_index == SIZE_MAX) {
+          if (swap_framebuffer_new_index == SIZE_MAX) {
+            // Replace the earliest used framebuffer.
+            swap_framebuffer_new_index = 0;
+            for (size_t i = 1; i < swap_framebuffers_.size(); ++i) {
+              if (swap_framebuffers_[i].last_submission <
+                  swap_framebuffers_[swap_framebuffer_new_index]
+                      .last_submission) {
+                swap_framebuffer_new_index = i;
+              }
+            }
+          }
+          swap_framebuffer_index = swap_framebuffer_new_index;
+          SwapFramebuffer& new_swap_framebuffer =
+              swap_framebuffers_[swap_framebuffer_new_index];
+          if (new_swap_framebuffer.framebuffer != VK_NULL_HANDLE) {
+            if (submission_completed_ >= new_swap_framebuffer.last_submission) {
+              dfn.vkDestroyFramebuffer(device, new_swap_framebuffer.framebuffer,
+                                       nullptr);
+            } else {
+              swap_framebuffers_outdated_.emplace_back(
+                  new_swap_framebuffer.last_submission,
+                  new_swap_framebuffer.framebuffer);
+            }
+            new_swap_framebuffer.framebuffer = VK_NULL_HANDLE;
+          }
+          VkImageView guest_output_image_view_srgb =
+              vulkan_context.image_view();
+          VkFramebufferCreateInfo swap_framebuffer_create_info;
+          swap_framebuffer_create_info.sType =
+              VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+          swap_framebuffer_create_info.pNext = nullptr;
+          swap_framebuffer_create_info.flags = 0;
+          swap_framebuffer_create_info.renderPass = swap_render_pass_;
+          swap_framebuffer_create_info.attachmentCount = 1;
+          swap_framebuffer_create_info.pAttachments =
+              &guest_output_image_view_srgb;
+          swap_framebuffer_create_info.width = scaled_width;
+          swap_framebuffer_create_info.height = scaled_height;
+          swap_framebuffer_create_info.layers = 1;
+          if (dfn.vkCreateFramebuffer(
+                  device, &swap_framebuffer_create_info, nullptr,
+                  &new_swap_framebuffer.framebuffer) != VK_SUCCESS) {
+            XELOGE("Failed to create the Vulkan framebuffer for presentation");
+            return false;
+          }
+          new_swap_framebuffer.version = guest_output_image_version;
+          // The actual submission index will be set if the framebuffer is
+          // actually used, not dropped due to some error.
+          new_swap_framebuffer.last_submission = 0;
+        }
+
+        // End the current render pass before inserting barriers and starting a
+        // new one.
+        EndRenderPass();
+
+        if (vulkan_context.image_ever_written_previously()) {
+          // Insert a barrier after the last presenter's usage of the guest
+          // output image.
+          VkImageMemoryBarrier guest_output_image_acquire_barrier;
+          guest_output_image_acquire_barrier.sType =
+              VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+          guest_output_image_acquire_barrier.pNext = nullptr;
+          guest_output_image_acquire_barrier.srcAccessMask =
+              ui::vulkan::VulkanPresenter::kGuestOutputInternalAccessMask;
+          guest_output_image_acquire_barrier.dstAccessMask =
+              VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+          // Will be overwriting all the contents.
+          guest_output_image_acquire_barrier.oldLayout =
+              VK_IMAGE_LAYOUT_UNDEFINED;
+          // The render pass will do the layout transition, but newLayout must
+          // not be UNDEFINED.
+          guest_output_image_acquire_barrier.newLayout =
+              VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+          guest_output_image_acquire_barrier.srcQueueFamilyIndex =
+              VK_QUEUE_FAMILY_IGNORED;
+          guest_output_image_acquire_barrier.dstQueueFamilyIndex =
+              VK_QUEUE_FAMILY_IGNORED;
+          guest_output_image_acquire_barrier.image = vulkan_context.image();
+          ui::vulkan::util::InitializeSubresourceRange(
+              guest_output_image_acquire_barrier.subresourceRange);
+          deferred_command_buffer_.CmdVkPipelineBarrier(
+              ui::vulkan::VulkanPresenter::kGuestOutputInternalStageMask,
+              VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0,
+              nullptr, 1, &guest_output_image_acquire_barrier);
+        }
+
+        SwapFramebuffer& swap_framebuffer =
+            swap_framebuffers_[swap_framebuffer_index];
+        swap_framebuffer.last_submission = GetCurrentSubmission();
+
+        VkRenderPassBeginInfo render_pass_begin_info;
+        render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        render_pass_begin_info.pNext = nullptr;
+        render_pass_begin_info.renderPass = swap_render_pass_;
+        render_pass_begin_info.framebuffer = swap_framebuffer.framebuffer;
+        render_pass_begin_info.renderArea.offset.x = 0;
+        render_pass_begin_info.renderArea.offset.y = 0;
+        render_pass_begin_info.renderArea.extent.width = scaled_width;
+        render_pass_begin_info.renderArea.extent.height = scaled_height;
+        render_pass_begin_info.clearValueCount = 0;
+        render_pass_begin_info.pClearValues = nullptr;
+        deferred_command_buffer_.CmdVkBeginRenderPass(
+            &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+        ff_viewport_update_needed_ = true;
+        ff_scissor_update_needed_ = true;
+        VkViewport viewport;
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = float(scaled_width);
+        viewport.height = float(scaled_height);
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        deferred_command_buffer_.CmdVkSetViewport(0, 1, &viewport);
+        VkRect2D scissor_rect;
+        scissor_rect.offset.x = 0;
+        scissor_rect.offset.y = 0;
+        scissor_rect.extent.width = scaled_width;
+        scissor_rect.extent.height = scaled_height;
+        deferred_command_buffer_.CmdVkSetScissor(0, 1, &scissor_rect);
+
+        // Bind a non-emulation graphics pipeline and invalidate the bindings.
+        current_graphics_pipeline_ = VK_NULL_HANDLE;
+        current_graphics_pipeline_layout_ = nullptr;
+        deferred_command_buffer_.CmdVkBindPipeline(
+            VK_PIPELINE_BIND_POINT_GRAPHICS, swap_pipeline_);
+
+        deferred_command_buffer_.CmdVkDraw(3, 1, 0, 0);
+
+        deferred_command_buffer_.CmdVkEndRenderPass();
+
+        VkImageMemoryBarrier guest_output_image_release_barrier;
+        guest_output_image_release_barrier.sType =
+            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        guest_output_image_release_barrier.pNext = nullptr;
+        guest_output_image_release_barrier.srcAccessMask =
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        guest_output_image_release_barrier.dstAccessMask =
+            ui::vulkan::VulkanPresenter::kGuestOutputInternalAccessMask;
+        guest_output_image_release_barrier.oldLayout =
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        guest_output_image_release_barrier.newLayout =
+            ui::vulkan::VulkanPresenter::kGuestOutputInternalLayout;
+        guest_output_image_release_barrier.srcQueueFamilyIndex =
+            VK_QUEUE_FAMILY_IGNORED;
+        guest_output_image_release_barrier.dstQueueFamilyIndex =
+            VK_QUEUE_FAMILY_IGNORED;
+        guest_output_image_release_barrier.image = vulkan_context.image();
+        ui::vulkan::util::InitializeSubresourceRange(
+            guest_output_image_release_barrier.subresourceRange);
+        deferred_command_buffer_.CmdVkPipelineBarrier(
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            ui::vulkan::VulkanPresenter::kGuestOutputInternalStageMask, 0, 0,
+            nullptr, 0, nullptr, 1, &guest_output_image_release_barrier);
+
+        // Need to submit all the commands before giving the image back to the
+        // presenter so it can submit its own commands for displaying it to the
+        // queue.
+        EndSubmission(true);
+        return true;
+      });
+
+  // End the frame even if did not present for any reason (the image refresher
+  // was not called), to prevent leaking per-frame resources.
   EndSubmission(true);
 }
 
@@ -454,6 +895,7 @@ void VulkanCommandProcessor::EndRenderPass() {
   }
   deferred_command_buffer_.CmdVkEndRenderPass();
   current_render_pass_ = VK_NULL_HANDLE;
+  current_framebuffer_ = VK_NULL_HANDLE;
 }
 
 const VulkanPipelineCache::PipelineLayoutProvider*
@@ -469,8 +911,7 @@ VulkanCommandProcessor::GetPipelineLayout(uint32_t texture_count_pixel,
     }
   }
 
-  const ui::vulkan::VulkanProvider& provider =
-      GetVulkanContext().GetVulkanProvider();
+  const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
@@ -675,7 +1116,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   }
   // TODO(Triang3l): Memory export.
 
-  BeginSubmission(true);
+  if (!BeginSubmission(true)) {
+    return false;
+  }
 
   // Process primitives.
   PrimitiveProcessor::ProcessingResult primitive_processing_result;
@@ -765,8 +1208,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     current_graphics_pipeline_layout_ = pipeline_layout;
   }
 
-  const ui::vulkan::VulkanProvider& provider =
-      GetVulkanContext().GetVulkanProvider();
+  const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
   const VkPhysicalDeviceProperties& device_properties =
       provider.device_properties();
 
@@ -925,13 +1367,17 @@ bool VulkanCommandProcessor::IssueCopy() {
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
 
-  BeginSubmission(true);
+  if (!BeginSubmission(true)) {
+    return false;
+  }
 
   return true;
 }
 
 void VulkanCommandProcessor::InitializeTrace() {
-  BeginSubmission(false);
+  if (!BeginSubmission(true)) {
+    return;
+  }
   bool shared_memory_submitted =
       shared_memory_->InitializeTraceSubmitDownloads();
   if (!shared_memory_submitted) {
@@ -943,7 +1389,13 @@ void VulkanCommandProcessor::InitializeTrace() {
   }
 }
 
-void VulkanCommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
+void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(
+    uint64_t await_submission) {
+  // Only report once, no need to retry a wait that won't succeed anyway.
+  if (device_lost_) {
+    return;
+  }
+
   if (await_submission >= GetCurrentSubmission()) {
     if (submission_open_) {
       EndSubmission(false);
@@ -953,8 +1405,7 @@ void VulkanCommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
     await_submission = GetCurrentSubmission() - 1;
   }
 
-  const ui::vulkan::VulkanProvider& provider =
-      GetVulkanContext().GetVulkanProvider();
+  const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
@@ -962,25 +1413,39 @@ void VulkanCommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
   size_t fences_awaited = 0;
   if (await_submission > submission_completed_) {
     // Await in a blocking way if requested.
-    if (dfn.vkWaitForFences(device,
-                            uint32_t(await_submission - submission_completed_),
-                            submissions_in_flight_fences_.data(), VK_TRUE,
-                            UINT64_MAX) == VK_SUCCESS) {
+    // TODO(Triang3l): Await only one fence. "Fence signal operations that are
+    // defined by vkQueueSubmit additionally include in the first
+    // synchronization scope all commands that occur earlier in submission
+    // order."
+    VkResult wait_result = dfn.vkWaitForFences(
+        device, uint32_t(await_submission - submission_completed_),
+        submissions_in_flight_fences_.data(), VK_TRUE, UINT64_MAX);
+    if (wait_result == VK_SUCCESS) {
       fences_awaited += await_submission - submission_completed_;
     } else {
       XELOGE("Failed to await submission completion Vulkan fences");
+      if (wait_result == VK_ERROR_DEVICE_LOST) {
+        device_lost_ = true;
+      }
     }
   }
   // Check how far into the submissions the GPU currently is, in order because
   // submission themselves can be executed out of order, but Xenia serializes
   // that for simplicity.
   while (fences_awaited < fences_total) {
-    if (dfn.vkWaitForFences(device, 1,
-                            &submissions_in_flight_fences_[fences_awaited],
-                            VK_TRUE, 0) != VK_SUCCESS) {
+    VkResult fence_status = dfn.vkWaitForFences(
+        device, 1, &submissions_in_flight_fences_[fences_awaited], VK_TRUE, 0);
+    if (fence_status != VK_SUCCESS) {
+      if (fence_status == VK_ERROR_DEVICE_LOST) {
+        device_lost_ = true;
+      }
       break;
     }
     ++fences_awaited;
+  }
+  if (device_lost_) {
+    graphics_system_->OnHostGpuLossFromAnyThread(true);
+    return;
   }
   if (!fences_awaited) {
     // Not updated - no need to reclaim or download things.
@@ -1002,48 +1467,65 @@ void VulkanCommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
   while (!submissions_in_flight_semaphores_.empty()) {
     const auto& semaphore_submission =
         submissions_in_flight_semaphores_.front();
-    if (semaphore_submission.second > submission_completed_) {
+    if (semaphore_submission.first > submission_completed_) {
       break;
     }
-    semaphores_free_.push_back(semaphore_submission.first);
+    semaphores_free_.push_back(semaphore_submission.second);
     submissions_in_flight_semaphores_.pop_front();
   }
 
   // Reclaim command pools.
   while (!command_buffers_submitted_.empty()) {
     const auto& command_buffer_pair = command_buffers_submitted_.front();
-    if (command_buffer_pair.second > submission_completed_) {
+    if (command_buffer_pair.first > submission_completed_) {
       break;
     }
-    command_buffers_writable_.push_back(command_buffer_pair.first);
+    command_buffers_writable_.push_back(command_buffer_pair.second);
     command_buffers_submitted_.pop_front();
   }
 
   shared_memory_->CompletedSubmissionUpdated();
 
   primitive_processor_->CompletedSubmissionUpdated();
+
+  // Destroy outdated swap objects.
+  while (!swap_framebuffers_outdated_.empty()) {
+    const auto& framebuffer_pair = swap_framebuffers_outdated_.front();
+    if (framebuffer_pair.first > submission_completed_) {
+      break;
+    }
+    dfn.vkDestroyFramebuffer(device, framebuffer_pair.second, nullptr);
+    swap_framebuffers_outdated_.pop_front();
+  }
 }
 
-void VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
+bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
 #if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
 
+  if (device_lost_) {
+    return false;
+  }
+
   bool is_opening_frame = is_guest_command && !frame_open_;
   if (submission_open_ && !is_opening_frame) {
-    return;
+    return true;
   }
 
   // Check the fence - needed for all kinds of submissions (to reclaim transient
   // resources early) and specifically for frames (not to queue too many), and
-  // await the availability of the current frame.
-  CheckSubmissionFence(
+  // await the availability of the current frame. Also check whether the device
+  // is still available, and whether the await was successful.
+  uint64_t await_submission =
       is_opening_frame
           ? closed_frame_submissions_[frame_current_ % kMaxFramesInFlight]
-          : 0);
-  // TODO(Triang3l): If failed to await (completed submission < awaited frame
-  // submission), do something like dropping the draw command that wanted to
-  // open the frame.
+          : 0;
+  CheckSubmissionFenceAndDeviceLoss(await_submission);
+  if (device_lost_ || submission_completed_ < await_submission) {
+    return false;
+  }
+
   if (is_opening_frame) {
     // Update the completed frame index, also obtaining the actual completed
     // frame number (since the CPU may be actually less than 3 frames behind)
@@ -1104,10 +1586,12 @@ void VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
 
     primitive_processor_->BeginFrame();
   }
+
+  return true;
 }
 
 bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
-  ui::vulkan::VulkanProvider& provider = GetVulkanContext().GetVulkanProvider();
+  ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
@@ -1219,8 +1703,14 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       bind_sparse_info.pImageBinds = 0;
       bind_sparse_info.signalSemaphoreCount = 1;
       bind_sparse_info.pSignalSemaphores = &bind_sparse_semaphore;
-      if (provider.BindSparse(1, &bind_sparse_info, VK_NULL_HANDLE) !=
-          VK_SUCCESS) {
+      VkResult bind_sparse_result;
+      {
+        ui::vulkan::VulkanProvider::QueueAcquisition queue_acquisition(
+            provider.AcquireQueue(provider.queue_family_sparse_binding(), 0));
+        bind_sparse_result = dfn.vkQueueBindSparse(
+            queue_acquisition.queue, 1, &bind_sparse_info, VK_NULL_HANDLE);
+      }
+      if (bind_sparse_result != VK_SUCCESS) {
         XELOGE("Failed to submit Vulkan sparse binds");
         return false;
       }
@@ -1281,19 +1771,29 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       XELOGE("Failed to reset a Vulkan submission fence");
       return false;
     }
-    if (provider.SubmitToGraphicsComputeQueue(1, &submit_info, fence) !=
-        VK_SUCCESS) {
+    VkResult submit_result;
+    {
+      ui::vulkan::VulkanProvider::QueueAcquisition queue_acquisition(
+          provider.AcquireQueue(provider.queue_family_graphics_compute(), 0));
+      submit_result =
+          dfn.vkQueueSubmit(queue_acquisition.queue, 1, &submit_info, fence);
+    }
+    if (submit_result != VK_SUCCESS) {
       XELOGE("Failed to submit a Vulkan command buffer");
+      if (submit_result == VK_ERROR_DEVICE_LOST && !device_lost_) {
+        device_lost_ = true;
+        graphics_system_->OnHostGpuLossFromAnyThread(true);
+      }
       return false;
     }
     uint64_t submission_current = GetCurrentSubmission();
     current_submission_wait_stage_masks_.clear();
     for (VkSemaphore semaphore : current_submission_wait_semaphores_) {
-      submissions_in_flight_semaphores_.emplace_back(semaphore,
-                                                     submission_current);
+      submissions_in_flight_semaphores_.emplace_back(submission_current,
+                                                     semaphore);
     }
     current_submission_wait_semaphores_.clear();
-    command_buffers_submitted_.emplace_back(command_buffer, submission_current);
+    command_buffers_submitted_.emplace_back(submission_current, command_buffer);
     command_buffers_writable_.pop_back();
     // Increments the current submission number, going to the next submission.
     submissions_in_flight_fences_.push_back(fence);
@@ -1337,6 +1837,11 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       descriptor_set_layouts_textures_.clear();
 
       primitive_processor_->ClearCache();
+
+      for (SwapFramebuffer& swap_framebuffer : swap_framebuffers_) {
+        ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyFramebuffer, device,
+                                               swap_framebuffer.framebuffer);
+      }
     }
   }
 
@@ -1346,8 +1851,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
 VkShaderStageFlags VulkanCommandProcessor::GetGuestVertexShaderStageFlags()
     const {
   VkShaderStageFlags stages = VK_SHADER_STAGE_VERTEX_BIT;
-  const ui::vulkan::VulkanProvider& provider =
-      GetVulkanContext().GetVulkanProvider();
+  const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
   if (provider.device_features().tessellationShader) {
     stages |= VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
   }
@@ -1685,8 +2189,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
             write_fetch_constants.dstSet;
   }
   if (write_descriptor_set_count) {
-    const ui::vulkan::VulkanProvider& provider =
-        GetVulkanContext().GetVulkanProvider();
+    const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
     const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
     VkDevice device = provider.device();
     dfn.vkUpdateDescriptorSets(device, write_descriptor_set_count,
@@ -1748,8 +2251,7 @@ uint8_t* VulkanCommandProcessor::WriteUniformBufferBinding(
   if (descriptor_set == VK_NULL_HANDLE) {
     return nullptr;
   }
-  const ui::vulkan::VulkanProvider& provider =
-      GetVulkanContext().GetVulkanProvider();
+  const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
   uint8_t* mapping = uniform_buffer_pool_->Request(
       frame_current_, size,
       size_t(

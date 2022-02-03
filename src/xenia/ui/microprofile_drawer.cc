@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,9 +10,10 @@
 #include "xenia/ui/microprofile_drawer.h"
 
 #include <algorithm>
+#include <cstdint>
 
 #include "xenia/base/math.h"
-#include "xenia/ui/window.h"
+#include "xenia/base/profiling.h"
 
 namespace xe {
 namespace ui {
@@ -124,10 +125,8 @@ const uint8_t kFontData[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
 };
 
-MicroprofileDrawer::MicroprofileDrawer(xe::ui::Window* window)
-    : window_(window),
-      graphics_context_(window->context()),
-      vertices_(kMaxVertices) {
+MicroprofileDrawer::MicroprofileDrawer(ImmediateDrawer* immediate_drawer)
+    : immediate_drawer_(immediate_drawer), vertices_(kMaxVertices) {
   SetupFont();
 }
 
@@ -171,21 +170,21 @@ void MicroprofileDrawer::SetupFont() {
     }
   }
 
-  font_texture_ = graphics_context_->immediate_drawer()->CreateTexture(
+  font_texture_ = immediate_drawer_->CreateTexture(
       kFontTextureWidth, kFontTextureHeight, ImmediateTextureFilter::kNearest,
       false, reinterpret_cast<uint8_t*>(unpacked));
 }
 
-MicroprofileDrawer::~MicroprofileDrawer() = default;
-
-void MicroprofileDrawer::Begin() {
-  graphics_context_->immediate_drawer()->Begin(window_->scaled_width(),
-                                               window_->scaled_height());
+void MicroprofileDrawer::Begin(UIDrawContext& ui_draw_context,
+                               uint32_t coordinate_space_width,
+                               uint32_t coordinate_space_height) {
+  immediate_drawer_->Begin(ui_draw_context, float(coordinate_space_width),
+                           float(coordinate_space_height));
 }
 
 void MicroprofileDrawer::End() {
   Flush();
-  graphics_context_->immediate_drawer()->End();
+  immediate_drawer_->End();
 }
 
 ImmediateVertex* MicroprofileDrawer::BeginVertices(
@@ -203,7 +202,6 @@ ImmediateVertex* MicroprofileDrawer::BeginVertices(
 void MicroprofileDrawer::EndVertices() {}
 
 void MicroprofileDrawer::Flush() {
-  auto drawer = graphics_context_->immediate_drawer();
   if (!vertex_count_) {
     return;
   }
@@ -211,15 +209,15 @@ void MicroprofileDrawer::Flush() {
   ImmediateDrawBatch batch;
   batch.vertices = vertices_.data();
   batch.vertex_count = vertex_count_;
-  drawer->BeginDrawBatch(batch);
+  immediate_drawer_->BeginDrawBatch(batch);
 
   ImmediateDraw draw;
   draw.primitive_type = current_primitive_type_;
   draw.count = vertex_count_;
   draw.texture = font_texture_.get();
-  drawer->Draw(draw);
+  immediate_drawer_->Draw(draw);
 
-  drawer->EndDrawBatch();
+  immediate_drawer_->EndDrawBatch();
 
   vertex_count_ = 0;
 }
@@ -323,8 +321,8 @@ void MicroprofileDrawer::DrawLine2D(uint32_t count, float* vertices,
   EndVertices();
 }
 
-void MicroprofileDrawer::DrawText(int x, int y, uint32_t color,
-                                  const char* text, int text_length) {
+void MicroprofileDrawer::DrawTextString(int x, int y, uint32_t color,
+                                        const char* text, int text_length) {
   if (!text_length) {
     return;
   }

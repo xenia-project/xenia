@@ -13,6 +13,7 @@
 
 #include "xenia/base/console_app_main.h"
 #include "xenia/base/cvar.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 
@@ -21,6 +22,8 @@
 
 namespace xe {
 namespace vfs {
+
+using namespace xe::literals;
 
 DEFINE_transient_path(source, "", "Specifies the file to dump from.",
                       "General");
@@ -91,7 +94,7 @@ int vfs_dump_main(const std::vector<std::string>& args) {
         }
 
         // Allocate a buffer rounded up to the nearest 512MB.
-        buffer_size = xe::round_up(entry->size(), 512 * 1024 * 1024);
+        buffer_size = xe::round_up(entry->size(), 512_MiB);
         buffer = new uint8_t[buffer_size];
       }
 

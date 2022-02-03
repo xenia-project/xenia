@@ -23,29 +23,18 @@ NullGraphicsSystem::~NullGraphicsSystem() {}
 
 X_STATUS NullGraphicsSystem::Setup(cpu::Processor* processor,
                                    kernel::KernelState* kernel_state,
-                                   ui::Window* target_window) {
+                                   ui::WindowedAppContext* app_context,
+                                   bool is_surface_required) {
   // This is a null graphics system, but we still setup vulkan because UI needs
   // it through us :|
-  provider_ = xe::ui::vulkan::VulkanProvider::Create();
-
-  return GraphicsSystem::Setup(processor, kernel_state, target_window);
+  provider_ = xe::ui::vulkan::VulkanProvider::Create(is_surface_required);
+  return GraphicsSystem::Setup(processor, kernel_state, app_context,
+                               is_surface_required);
 }
-
-void NullGraphicsSystem::Shutdown() { GraphicsSystem::Shutdown(); }
 
 std::unique_ptr<CommandProcessor> NullGraphicsSystem::CreateCommandProcessor() {
   return std::unique_ptr<CommandProcessor>(
       new NullCommandProcessor(this, kernel_state_));
-}
-
-void NullGraphicsSystem::Swap(xe::ui::UIEvent* e) {
-  if (!command_processor_) {
-    return;
-  }
-
-  auto& swap_state = command_processor_->swap_state();
-  std::lock_guard<std::mutex> lock(swap_state.mutex);
-  swap_state.pending = false;
 }
 
 }  // namespace null

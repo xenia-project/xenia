@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -23,28 +23,16 @@ VulkanGraphicsSystem::~VulkanGraphicsSystem() {}
 
 X_STATUS VulkanGraphicsSystem::Setup(cpu::Processor* processor,
                                      kernel::KernelState* kernel_state,
-                                     ui::Window* target_window) {
-  provider_ = xe::ui::vulkan::VulkanProvider::Create();
-
-  return GraphicsSystem::Setup(processor, kernel_state, target_window);
+                                     ui::WindowedAppContext* app_context,
+                                     bool is_surface_required) {
+  provider_ = xe::ui::vulkan::VulkanProvider::Create(is_surface_required);
+  return GraphicsSystem::Setup(processor, kernel_state, app_context,
+                               is_surface_required);
 }
-
-void VulkanGraphicsSystem::Shutdown() { GraphicsSystem::Shutdown(); }
 
 std::unique_ptr<CommandProcessor>
 VulkanGraphicsSystem::CreateCommandProcessor() {
-  return std::unique_ptr<CommandProcessor>(
-      new VulkanCommandProcessor(this, kernel_state_));
-}
-
-void VulkanGraphicsSystem::Swap(xe::ui::UIEvent* e) {
-  if (!command_processor_) {
-    return;
-  }
-
-  auto& swap_state = command_processor_->swap_state();
-  std::lock_guard<std::mutex> lock(swap_state.mutex);
-  swap_state.pending = false;
+  return std::make_unique<VulkanCommandProcessor>(this, kernel_state_);
 }
 
 }  // namespace vulkan

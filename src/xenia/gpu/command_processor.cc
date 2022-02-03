@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -45,15 +45,12 @@ CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system,
 
 CommandProcessor::~CommandProcessor() = default;
 
-bool CommandProcessor::Initialize(
-    std::unique_ptr<xe::ui::GraphicsContext> context) {
-  context_ = std::move(context);
-
+bool CommandProcessor::Initialize() {
   // Initialize the gamma ramps to their default (linear) values - taken from
   // what games set when starting.
   for (uint32_t i = 0; i < 256; ++i) {
     uint32_t value = i * 1023 / 255;
-    gamma_ramp_.normal[i].value = value | (value << 10) | (value << 20);
+    gamma_ramp_.table[i].value = value | (value << 10) | (value << 20);
   }
   for (uint32_t i = 0; i < 128; ++i) {
     uint32_t value = (i * 65535 / 127) & ~63;
@@ -64,7 +61,7 @@ bool CommandProcessor::Initialize(
       gamma_ramp_.pwl[i].values[j].value = value;
     }
   }
-  dirty_gamma_ramp_normal_ = true;
+  dirty_gamma_ramp_table_ = true;
   dirty_gamma_ramp_pwl_ = true;
 
   worker_running_ = true;
@@ -140,8 +137,18 @@ void CommandProcessor::CallInThread(std::function<void()> fn) {
 
 void CommandProcessor::ClearCaches() {}
 
+void CommandProcessor::SetDesiredSwapPostEffect(
+    SwapPostEffect swap_post_effect) {
+  if (swap_post_effect_desired_ == swap_post_effect) {
+    return;
+  }
+  swap_post_effect_desired_ = swap_post_effect;
+  CallInThread([this, swap_post_effect]() {
+    swap_post_effect_actual_ = swap_post_effect;
+  });
+}
+
 void CommandProcessor::WorkerThreadMain() {
-  context_->MakeCurrent();
   if (!SetupContext()) {
     xe::FatalError("Unable to setup command processor internal state");
     return;
@@ -212,9 +219,6 @@ void CommandProcessor::Pause() {
     threading::Thread::GetCurrentThread()->Suspend();
   });
 
-  // HACK - Prevents a hang in IssueSwap()
-  swap_state_.pending = false;
-
   fence.Wait();
 }
 
@@ -255,7 +259,7 @@ bool CommandProcessor::Restore(ByteStream* stream) {
 
 bool CommandProcessor::SetupContext() { return true; }
 
-void CommandProcessor::ShutdownContext() { context_.reset(); }
+void CommandProcessor::ShutdownContext() {}
 
 void CommandProcessor::InitializeRingBuffer(uint32_t ptr, uint32_t size_log2) {
   read_ptr_index_ = 0;
@@ -326,14 +330,17 @@ void CommandProcessor::UpdateGammaRampValue(GammaRampType type,
 
   if (mask_lo) {
     switch (type) {
-      case GammaRampType::kNormal:
+      case GammaRampType::kTable:
         assert_true(regs->values[XE_GPU_REG_DC_LUT_RW_MODE].u32 == 0);
-        gamma_ramp_.normal[index].value = value;
-        dirty_gamma_ramp_normal_ = true;
+        gamma_ramp_.table[index].value = value;
+        dirty_gamma_ramp_table_ = true;
         break;
       case GammaRampType::kPWL:
         assert_true(regs->values[XE_GPU_REG_DC_LUT_RW_MODE].u32 == 1);
-        gamma_ramp_.pwl[index].values[gamma_ramp_rw_subindex_].value = value;
+        // The lower 6 bits are hardwired to 0.
+        // https://developer.amd.com/wordpress/media/2012/10/RRG-216M56-03oOEM.pdf
+        gamma_ramp_.pwl[index].values[gamma_ramp_rw_subindex_].value =
+            value & ~(uint32_t(63) | (uint32_t(63) << 16));
         gamma_ramp_rw_subindex_ = (gamma_ramp_rw_subindex_ + 1) % 3;
         dirty_gamma_ramp_pwl_ = true;
         break;
@@ -385,51 +392,6 @@ void CommandProcessor::PrepareForWait() { trace_writer_.Flush(); }
 
 void CommandProcessor::ReturnFromWait() {}
 
-void CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
-                                 uint32_t frontbuffer_width,
-                                 uint32_t frontbuffer_height) {
-  SCOPE_profile_cpu_f("gpu");
-  if (!swap_request_handler_) {
-    return;
-  }
-
-  // If there was a swap pending we drop it on the floor.
-  // This prevents the display from pulling the backbuffer out from under us.
-  // If we skip a lot then we may need to buffer more, but as the display
-  // thread should be fairly idle that shouldn't happen.
-  if (!cvars::vsync) {
-    std::lock_guard<std::mutex> lock(swap_state_.mutex);
-    if (swap_state_.pending) {
-      swap_state_.pending = false;
-      // TODO(benvanik): frame skip counter.
-      XELOGW("Skipped frame!");
-    }
-  } else {
-    // Spin until no more pending swap.
-    while (worker_running_) {
-      {
-        std::lock_guard<std::mutex> lock(swap_state_.mutex);
-        if (!swap_state_.pending) {
-          break;
-        }
-      }
-      xe::threading::MaybeYield();
-    }
-  }
-
-  PerformSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
-
-  {
-    // Set pending so that the display will swap the next time it can.
-    std::lock_guard<std::mutex> lock(swap_state_.mutex);
-    swap_state_.pending = true;
-  }
-
-  // Notify the display a swap is pending so that our changes are picked up.
-  // It does the actual front/back buffer swap.
-  swap_request_handler_();
-}
-
 uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
                                                 uint32_t write_index) {
   SCOPE_profile_cpu_f("gpu");
@@ -440,7 +402,7 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
     uint32_t title_id = kernel_state_->GetExecutableModule()
                             ? kernel_state_->GetExecutableModule()->title_id()
                             : 0;
-    auto file_name = fmt::format("{:8X}_stream.xtr", title_id);
+    auto file_name = fmt::format("{:08X}_stream.xtr", title_id);
     auto path = trace_stream_path_ / file_name;
     trace_writer_.Open(path, title_id);
     InitializeTrace();
@@ -767,7 +729,7 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
     } else if (trace_state_ == TraceState::kSingleFrame) {
       // New trace request - we only start tracing at the beginning of a frame.
       uint32_t title_id = kernel_state_->GetExecutableModule()->title_id();
-      auto file_name = fmt::format("{:8X}_{}.xtr", title_id, counter_ - 1);
+      auto file_name = fmt::format("{:08X}_{}.xtr", title_id, counter_ - 1);
       auto path = trace_frame_path_ / file_name;
       trace_writer_.Open(path, title_id);
       InitializeTrace();
@@ -837,7 +799,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingBuffer* reader,
   uint32_t frontbuffer_height = reader->ReadAndSwap<uint32_t>();
   reader->AdvanceRead((count - 4) * sizeof(uint32_t));
 
-  if (swap_mode_ == SwapMode::kNormal) {
+  if (!ignore_swap_) {
     IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
   }
 

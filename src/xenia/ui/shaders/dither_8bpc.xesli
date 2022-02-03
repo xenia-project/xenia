@@ -1,0 +1,34 @@
+#ifndef XENIA_UI_SHADERS_DITHER_8BPC_XESLI_
+#define XENIA_UI_SHADERS_DITHER_8BPC_XESLI_
+
+#include "xesl.xesli"
+
+#include "noise.xesli"
+
+xesl_static const float xe_dither_8bpc_noise[] = {
+  // The conversion to 8bpc in the fixed-function output-merger is done as
+  // floor(saturate(color) * 255.0 + 0.5). This dithering function effectively
+  // replaces that 0.5 offset, done for rounding to the nearest, with the noise.
+  // To do that, first, 0.5/255 needs to be subtracted from the color, and
+  // then the noise value `[0, 255/256] / 255` from xe_dither_8bpc_noise needs
+  // to be added. However, due to rounding (because division by 255.0 is
+  // inexact), subtracting 0.5/255 from exact 8-bit integer color values
+  // (including, for instance, 1.0, or 255/255) may result in the result being
+  // smaller than the original exact 8-bit value where the noise value is 0. So,
+  // remapping the noise to the `[0.5/256, 255.5/256] / 255` range. Another way
+  // of preventing rounding issues is doing it manually and returning only exact
+  // integer 8-bit color values divided by 255, but that would assume that the
+  // render target is specifically 8bpc, so it's better to avoid that in case
+  // the window system, for instance, provides a 10bpc render target (for which
+  // dithering is still done here for more consistency between displays, but
+  // some addition precision would still be desirable).
+  XeBlueNoise16x16Values0Until256(1.0 / 256.0 / 255.0,
+                                  (-0.5 + 0.5 / 256.0) / 255.0)
+};
+
+float XeDitherOffset8bpc(xesl_uint2 pixel_coord) {
+  pixel_coord &= 15u;
+  return xe_dither_8bpc_noise[pixel_coord.y * 16u + pixel_coord.x];
+}
+
+#endif  // XENIA_UI_SHADERS_DITHER_8BPC_XESLI_

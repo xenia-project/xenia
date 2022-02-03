@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,6 +10,7 @@
 #ifndef XENIA_UI_VULKAN_VULKAN_UTIL_H_
 #define XENIA_UI_VULKAN_VULKAN_UTIL_H_
 
+#include <algorithm>
 #include <cstdint>
 
 #include "xenia/base/math.h"
@@ -75,10 +76,45 @@ inline uint32_t ChooseHostMemoryType(const VulkanProvider& provider,
   return UINT32_MAX;
 }
 
+inline uint32_t ChooseMemoryType(const VulkanProvider& provider,
+                                 uint32_t supported_types,
+                                 MemoryPurpose purpose) {
+  switch (purpose) {
+    case MemoryPurpose::kDeviceLocal: {
+      uint32_t memory_type;
+      return xe::bit_scan_forward(supported_types, &memory_type) ? memory_type
+                                                                 : UINT32_MAX;
+    } break;
+    case MemoryPurpose::kUpload:
+    case MemoryPurpose::kReadback:
+      return ChooseHostMemoryType(provider, supported_types,
+                                  purpose == MemoryPurpose::kReadback);
+    default:
+      assert_unhandled_case(purpose);
+      return UINT32_MAX;
+  }
+}
+
+// Actual memory size is required if explicit size is specified for clamping to
+// the actual memory allocation size while rounding to the non-coherent atom
+// size (offset + size passed to vkFlushMappedMemoryRanges inside this function
+// must be either a multiple of nonCoherentAtomSize (but not exceeding the
+// memory size) or equal to the memory size).
 void FlushMappedMemoryRange(const VulkanProvider& provider,
                             VkDeviceMemory memory, uint32_t memory_type,
                             VkDeviceSize offset = 0,
+                            VkDeviceSize memory_size = VK_WHOLE_SIZE,
                             VkDeviceSize size = VK_WHOLE_SIZE);
+
+inline VkExtent2D GetMax2DFramebufferExtent(const VulkanProvider& provider) {
+  const VkPhysicalDeviceLimits& limits = provider.device_properties().limits;
+  VkExtent2D max_extent;
+  max_extent.width =
+      std::min(limits.maxFramebufferWidth, limits.maxImageDimension2D);
+  max_extent.height =
+      std::min(limits.maxFramebufferHeight, limits.maxImageDimension2D);
+  return max_extent;
+}
 
 inline void InitializeSubresourceRange(
     VkImageSubresourceRange& range,
@@ -93,13 +129,22 @@ inline void InitializeSubresourceRange(
   range.layerCount = layer_count;
 }
 
-// Creates a buffer backed by a dedicated allocation. If using a mappable memory
-// purpose (upload/readback), the allocation size will be aligned to
-// nonCoherentAtomSize.
+// Creates a buffer backed by a dedicated allocation. The allocation size will
+// NOT be aligned to nonCoherentAtomSize - if mapping or flushing not the whole
+// size, memory_size_out must be used for clamping the range.
 bool CreateDedicatedAllocationBuffer(
     const VulkanProvider& provider, VkDeviceSize size, VkBufferUsageFlags usage,
     MemoryPurpose memory_purpose, VkBuffer& buffer_out,
-    VkDeviceMemory& memory_out, uint32_t* memory_type_out = nullptr);
+    VkDeviceMemory& memory_out, uint32_t* memory_type_out = nullptr,
+    VkDeviceSize* memory_size_out = nullptr);
+
+bool CreateDedicatedAllocationImage(const VulkanProvider& provider,
+                                    const VkImageCreateInfo& create_info,
+                                    MemoryPurpose memory_purpose,
+                                    VkImage& image_out,
+                                    VkDeviceMemory& memory_out,
+                                    uint32_t* memory_type_out = nullptr,
+                                    VkDeviceSize* memory_size_out = nullptr);
 
 inline VkShaderModule CreateShaderModule(const VulkanProvider& provider,
                                          const void* code, size_t code_size) {
@@ -114,7 +159,7 @@ inline VkShaderModule CreateShaderModule(const VulkanProvider& provider,
              provider.device(), &shader_module_create_info, nullptr,
              &shader_module) == VK_SUCCESS
              ? shader_module
-             : nullptr;
+             : VK_NULL_HANDLE;
 }
 
 }  // namespace util
