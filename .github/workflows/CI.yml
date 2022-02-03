@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches-ignore: [ gh-pages, master ]
+    branches-ignore: [ gh-pages, master, canary_base ]
     paths-ignore:
       - '.github/*'
       - '.github/*_TEMPLATE/**'
