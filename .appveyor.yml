@@ -1,29 +1,26 @@
 version: 1.0.{build}-{branch}
 
 branches:
-  except:
-    - gh-pages
-    - master
-    - canary_base
+  except: [gh-pages, master, canary_base]
 
 skip_tags: true
 
 skip_commits:
   files:
-    - .drone.star
-    - .azure-pipelines.yml
-    - .github/**
-    - android/**
-    - docs/**
-    - src/**/*_posix.*
-    - src/**/*_linux.*
-    - src/**/*_gnulinux.*
-    - src/**/*_x11.*
-    - src/**/*_gtk.*
-    - src/**/*_android.*
-    - src/**/*_mac.*
-    - LICENSE
-    - README.md
+    - '*.md'
+    - '.azure-pipelines.yml'
+    - '.drone.star'
+    - '.github/**'
+    - 'android/**'
+    - 'docs/**'
+    - 'src/**/*_posix.*'
+    - 'src/**/*_linux.*'
+    - 'src/**/*_gnulinux.*'
+    - 'src/**/*_x11.*'
+    - 'src/**/*_gtk.*'
+    - 'src/**/*_android.*'
+    - 'src/**/*_mac.*'
+    - 'LICENSE'
 
 skip_branch_with_pr: true
 
