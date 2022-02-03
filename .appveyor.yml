@@ -4,6 +4,7 @@ branches:
   except:
     - gh-pages
     - master
+    - canary_base
 
 skip_tags: true
 
