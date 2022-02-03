@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -18,14 +18,13 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-void KeEnableFpuExceptions(dword_t enabled) {
+void KeEnableFpuExceptions_entry(dword_t enabled) {
   // TODO(benvanik): can we do anything about exceptions?
 }
 DECLARE_XBOXKRNL_EXPORT1(KeEnableFpuExceptions, kNone, kStub);
 
-void RegisterMiscExports(xe::cpu::ExportResolver* export_resolver,
-                         KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(Misc);

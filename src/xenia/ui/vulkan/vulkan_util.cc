@@ -22,7 +22,11 @@ namespace util {
 
 void FlushMappedMemoryRange(const VulkanProvider& provider,
                             VkDeviceMemory memory, uint32_t memory_type,
-                            VkDeviceSize offset, VkDeviceSize size) {
+                            VkDeviceSize offset, VkDeviceSize memory_size,
+                            VkDeviceSize size) {
+  assert_false(size != VK_WHOLE_SIZE && memory_size == VK_WHOLE_SIZE);
+  assert_true(memory_size == VK_WHOLE_SIZE || offset <= memory_size);
+  assert_true(memory_size == VK_WHOLE_SIZE || size <= memory_size - offset);
   if (!size ||
       (provider.memory_types_host_coherent() & (uint32_t(1) << memory_type))) {
     return;
@@ -39,8 +43,9 @@ void FlushMappedMemoryRange(const VulkanProvider& provider,
   if (non_coherent_atom_size > 1) {
     range.offset = offset / non_coherent_atom_size * non_coherent_atom_size;
     if (size != VK_WHOLE_SIZE) {
-      range.size =
-          xe::round_up(offset + size, non_coherent_atom_size) - range.offset;
+      range.size = std::min(xe::round_up(offset + size, non_coherent_atom_size),
+                            memory_size) -
+                   range.offset;
     }
   }
   provider.dfn().vkFlushMappedMemoryRanges(provider.device(), 1, &range);
@@ -49,7 +54,8 @@ void FlushMappedMemoryRange(const VulkanProvider& provider,
 bool CreateDedicatedAllocationBuffer(
     const VulkanProvider& provider, VkDeviceSize size, VkBufferUsageFlags usage,
     MemoryPurpose memory_purpose, VkBuffer& buffer_out,
-    VkDeviceMemory& memory_out, uint32_t* memory_type_out) {
+    VkDeviceMemory& memory_out, uint32_t* memory_type_out,
+    VkDeviceSize* memory_size_out) {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
@@ -70,55 +76,37 @@ bool CreateDedicatedAllocationBuffer(
 
   VkMemoryRequirements memory_requirements;
   dfn.vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
-  uint32_t memory_type = UINT32_MAX;
-  switch (memory_purpose) {
-    case MemoryPurpose::kDeviceLocal:
-      if (!xe::bit_scan_forward(memory_requirements.memoryTypeBits &
-                                    provider.memory_types_device_local(),
-                                &memory_type)) {
-        memory_type = UINT32_MAX;
-      }
-      break;
-    case MemoryPurpose::kUpload:
-    case MemoryPurpose::kReadback:
-      memory_type =
-          ChooseHostMemoryType(provider, memory_requirements.memoryTypeBits,
-                               memory_purpose == MemoryPurpose::kReadback);
-      break;
-    default:
-      assert_unhandled_case(memory_purpose);
-  }
+  uint32_t memory_type = ChooseMemoryType(
+      provider, memory_requirements.memoryTypeBits, memory_purpose);
   if (memory_type == UINT32_MAX) {
     dfn.vkDestroyBuffer(device, buffer, nullptr);
     return false;
   }
 
   VkMemoryAllocateInfo memory_allocate_info;
+  VkMemoryAllocateInfo* memory_allocate_info_last = &memory_allocate_info;
   memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  memory_allocate_info.pNext = nullptr;
+  memory_allocate_info.allocationSize = memory_requirements.size;
+  memory_allocate_info.memoryTypeIndex = memory_type;
   VkMemoryDedicatedAllocateInfoKHR memory_dedicated_allocate_info;
   if (provider.device_extensions().khr_dedicated_allocation) {
+    memory_allocate_info_last->pNext = &memory_dedicated_allocate_info;
+    memory_allocate_info_last = reinterpret_cast<VkMemoryAllocateInfo*>(
+        &memory_dedicated_allocate_info);
     memory_dedicated_allocate_info.sType =
         VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
     memory_dedicated_allocate_info.pNext = nullptr;
     memory_dedicated_allocate_info.image = VK_NULL_HANDLE;
     memory_dedicated_allocate_info.buffer = buffer;
-    memory_allocate_info.pNext = &memory_dedicated_allocate_info;
-  } else {
-    memory_allocate_info.pNext = nullptr;
   }
-  memory_allocate_info.allocationSize = memory_requirements.size;
-  if (memory_purpose == MemoryPurpose::kUpload ||
-      memory_purpose == MemoryPurpose::kReadback) {
-    memory_allocate_info.allocationSize =
-        GetMappableMemorySize(provider, memory_allocate_info.allocationSize);
-  }
-  memory_allocate_info.memoryTypeIndex = memory_type;
   VkDeviceMemory memory;
   if (dfn.vkAllocateMemory(device, &memory_allocate_info, nullptr, &memory) !=
       VK_SUCCESS) {
     dfn.vkDestroyBuffer(device, buffer, nullptr);
     return false;
   }
+
   if (dfn.vkBindBufferMemory(device, buffer, memory, 0) != VK_SUCCESS) {
     dfn.vkDestroyBuffer(device, buffer, nullptr);
     dfn.vkFreeMemory(device, memory, nullptr);
@@ -129,6 +117,74 @@ bool CreateDedicatedAllocationBuffer(
   memory_out = memory;
   if (memory_type_out) {
     *memory_type_out = memory_type;
+  }
+  if (memory_size_out) {
+    *memory_size_out = memory_allocate_info.allocationSize;
+  }
+  return true;
+}
+
+bool CreateDedicatedAllocationImage(const VulkanProvider& provider,
+                                    const VkImageCreateInfo& create_info,
+                                    MemoryPurpose memory_purpose,
+                                    VkImage& image_out,
+                                    VkDeviceMemory& memory_out,
+                                    uint32_t* memory_type_out,
+                                    VkDeviceSize* memory_size_out) {
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+
+  VkImage image;
+  if (dfn.vkCreateImage(device, &create_info, nullptr, &image) != VK_SUCCESS) {
+    return false;
+  }
+
+  VkMemoryRequirements memory_requirements;
+  dfn.vkGetImageMemoryRequirements(device, image, &memory_requirements);
+  uint32_t memory_type = ChooseMemoryType(
+      provider, memory_requirements.memoryTypeBits, memory_purpose);
+  if (memory_type == UINT32_MAX) {
+    dfn.vkDestroyImage(device, image, nullptr);
+    return false;
+  }
+
+  VkMemoryAllocateInfo memory_allocate_info;
+  VkMemoryAllocateInfo* memory_allocate_info_last = &memory_allocate_info;
+  memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  memory_allocate_info.pNext = nullptr;
+  memory_allocate_info.allocationSize = memory_requirements.size;
+  memory_allocate_info.memoryTypeIndex = memory_type;
+  VkMemoryDedicatedAllocateInfoKHR memory_dedicated_allocate_info;
+  if (provider.device_extensions().khr_dedicated_allocation) {
+    memory_allocate_info_last->pNext = &memory_dedicated_allocate_info;
+    memory_allocate_info_last = reinterpret_cast<VkMemoryAllocateInfo*>(
+        &memory_dedicated_allocate_info);
+    memory_dedicated_allocate_info.sType =
+        VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
+    memory_dedicated_allocate_info.pNext = nullptr;
+    memory_dedicated_allocate_info.image = image;
+    memory_dedicated_allocate_info.buffer = VK_NULL_HANDLE;
+  }
+  VkDeviceMemory memory;
+  if (dfn.vkAllocateMemory(device, &memory_allocate_info, nullptr, &memory) !=
+      VK_SUCCESS) {
+    dfn.vkDestroyImage(device, image, nullptr);
+    return false;
+  }
+
+  if (dfn.vkBindImageMemory(device, image, memory, 0) != VK_SUCCESS) {
+    dfn.vkDestroyImage(device, image, nullptr);
+    dfn.vkFreeMemory(device, memory, nullptr);
+    return false;
+  }
+
+  image_out = image;
+  memory_out = memory;
+  if (memory_type_out) {
+    *memory_type_out = memory_type;
+  }
+  if (memory_size_out) {
+    *memory_size_out = memory_allocate_info.allocationSize;
   }
   return true;
 }

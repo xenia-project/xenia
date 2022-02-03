@@ -1,0 +1,45 @@
+#ifndef XENIA_UI_SHADERS_XESL_XESLI_
+#define XENIA_UI_SHADERS_XESL_XESLI_
+
+// XESL_LANGUAGE_GLSL / HLSL are expected to be defined via compiler arguments.
+
+// Vectors.
+#if XESL_LANGUAGE_GLSL
+  #define xesl_bool2 bvec2
+  #define xesl_bool3 bvec3
+  #define xesl_bool4 bvec4
+  #define xesl_int2 ivec2
+  #define xesl_int3 ivec3
+  #define xesl_int4 ivec4
+  #define xesl_uint2 uvec2
+  #define xesl_uint3 uvec3
+  #define xesl_uint4 uvec4
+  #define xesl_float2 vec2
+  #define xesl_float3 vec3
+  #define xesl_float4 vec4
+#else
+  #define xesl_bool2 bool2
+  #define xesl_bool3 bool3
+  #define xesl_bool4 bool4
+  #define xesl_int2 int2
+  #define xesl_int3 int3
+  #define xesl_int4 int4
+  #define xesl_uint2 uint2
+  #define xesl_uint3 uint3
+  #define xesl_uint4 uint4
+  #define xesl_float2 float2
+  #define xesl_float3 float3
+  #define xesl_float4 float4
+#endif  // XESL_LANGUAGE_GLSL
+
+// Declarations.
+#if XESL_LANGUAGE_HLSL
+  // HLSL requires static const to declare a constant in the global scope so it
+  // doesn't go to $Globals instead.
+  #define xesl_static static
+#else
+  // GLSL requires just const to declare a constant in the global scope.
+  #define xesl_static
+#endif  // XESL_LANGUAGE_HLSL
+
+#endif  // XENIA_UI_SHADERS_XESL_XESLI_

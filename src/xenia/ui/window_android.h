@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -18,31 +18,30 @@ namespace ui {
 
 class AndroidWindow : public Window {
  public:
-  // Many functions are left unimplemented because the layout is configured from
-  // XML and Java.
+  // Several state-related functions are left unimplemented because the layout
+  // is configured from XML and Java.
 
-  AndroidWindow(WindowedAppContext& app_context, const std::string& title)
-      : Window(app_context, title) {}
+  AndroidWindow(WindowedAppContext& app_context, const std::string_view title,
+                uint32_t desired_logical_width, uint32_t desired_logical_height)
+      : Window(app_context, title, desired_logical_width,
+               desired_logical_height) {}
   ~AndroidWindow();
 
-  NativePlatformHandle native_platform_handle() const override {
-    return nullptr;
-  }
-  // TODO(Triang3l): ANativeWindow for Vulkan surface creation.
-  NativeWindowHandle native_handle() const override { return nullptr; }
+  uint32_t GetMediumDpi() const override { return 160; }
 
-  void EnableMainMenu() override {}
-  void DisableMainMenu() override {}
+  void OnActivitySurfaceLayoutChange();
+  void OnActivitySurfaceChanged() { OnSurfaceChanged(true); }
+  void PaintActivitySurface(bool force_paint) { OnPaint(force_paint); }
 
-  bool SetIcon(const void* buffer, size_t size) override { return false; }
+ protected:
+  uint32_t GetLatestDpiImpl() const override;
 
-  bool CaptureMouse() override { return false; }
-  bool ReleaseMouse() override { return false; }
+  bool OpenImpl() override;
+  void RequestCloseImpl() override;
 
-  int get_medium_dpi() const override { return 160; }
-
-  // TODO(Triang3l): Call the close event, which may finish the activity.
-  void Close() override {}
+  std::unique_ptr<Surface> CreateSurfaceImpl(
+      Surface::TypeFlags allowed_types) override;
+  void RequestPaintImpl() override;
 };
 
 // Dummy for the menu item - menus are controlled by the layout.
@@ -53,9 +52,6 @@ class AndroidMenuItem final : public MenuItem {
   AndroidMenuItem(Type type, const std::string& text, const std::string& hotkey,
                   std::function<void()> callback)
       : MenuItem(type, text, hotkey, callback) {}
-
-  void EnableMenuItem(Window& window) override {}
-  void DisableMenuItem(Window& window) override {}
 };
 
 }  // namespace ui

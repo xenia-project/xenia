@@ -15,7 +15,8 @@
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
-#include "xenia/ui/d3d12/d3d12_context.h"
+#include "xenia/ui/d3d12/d3d12_immediate_drawer.h"
+#include "xenia/ui/d3d12/d3d12_presenter.h"
 
 DEFINE_bool(d3d12_debug, false, "Enable Direct3D 12 and DXGI debug layer.",
             "D3D12");
@@ -77,6 +78,14 @@ D3D12Provider::~D3D12Provider() {
     dxgi_factory_->Release();
   }
 
+  if (cvars::d3d12_debug && pfn_dxgi_get_debug_interface1_) {
+    Microsoft::WRL::ComPtr<IDXGIDebug> dxgi_debug;
+    if (SUCCEEDED(
+            pfn_dxgi_get_debug_interface1_(0, IID_PPV_ARGS(&dxgi_debug)))) {
+      dxgi_debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
+    }
+  }
+
   if (library_dxcompiler_ != nullptr) {
     FreeLibrary(library_dxcompiler_);
   }
@@ -85,9 +94,6 @@ D3D12Provider::~D3D12Provider() {
   }
   if (library_d3dcompiler_ != nullptr) {
     FreeLibrary(library_d3dcompiler_);
-  }
-  if (library_dcomp_ != nullptr) {
-    FreeLibrary(library_dcomp_);
   }
   if (library_d3d12_ != nullptr) {
     FreeLibrary(library_d3d12_);
@@ -120,9 +126,8 @@ bool D3D12Provider::Initialize() {
   // Load the core libraries.
   library_dxgi_ = LoadLibraryW(L"dxgi.dll");
   library_d3d12_ = LoadLibraryW(L"D3D12.dll");
-  library_dcomp_ = LoadLibraryW(L"dcomp.dll");
-  if (!library_dxgi_ || !library_d3d12_ || !library_dcomp_) {
-    XELOGE("Failed to load dxgi.dll, D3D12.dll or dcomp.dll");
+  if (!library_dxgi_ || !library_d3d12_) {
+    XELOGE("Failed to load dxgi.dll or D3D12.dll");
     return false;
   }
   bool libraries_loaded = true;
@@ -143,12 +148,8 @@ bool D3D12Provider::Initialize() {
       (pfn_d3d12_serialize_root_signature_ = PFN_D3D12_SERIALIZE_ROOT_SIGNATURE(
            GetProcAddress(library_d3d12_, "D3D12SerializeRootSignature"))) !=
       nullptr;
-  libraries_loaded &=
-      (pfn_dcomposition_create_device_ = PFNDCompositionCreateDevice(
-           GetProcAddress(library_dcomp_, "DCompositionCreateDevice"))) !=
-      nullptr;
   if (!libraries_loaded) {
-    XELOGE("Failed to get DXGI, Direct3D 12 or DirectComposition functions");
+    XELOGE("Failed to get DXGI or Direct3D 12 functions");
     return false;
   }
 
@@ -470,23 +471,13 @@ bool D3D12Provider::Initialize() {
   return true;
 }
 
-std::unique_ptr<GraphicsContext> D3D12Provider::CreateHostContext(
-    Window* target_window) {
-  auto new_context =
-      std::unique_ptr<D3D12Context>(new D3D12Context(this, target_window));
-  if (!new_context->Initialize()) {
-    return nullptr;
-  }
-  return std::unique_ptr<GraphicsContext>(new_context.release());
+std::unique_ptr<Presenter> D3D12Provider::CreatePresenter(
+    Presenter::HostGpuLossCallback host_gpu_loss_callback) {
+  return D3D12Presenter::Create(host_gpu_loss_callback, *this);
 }
 
-std::unique_ptr<GraphicsContext> D3D12Provider::CreateEmulationContext() {
-  auto new_context =
-      std::unique_ptr<D3D12Context>(new D3D12Context(this, nullptr));
-  if (!new_context->Initialize()) {
-    return nullptr;
-  }
-  return std::unique_ptr<GraphicsContext>(new_context.release());
+std::unique_ptr<ImmediateDrawer> D3D12Provider::CreateImmediateDrawer() {
+  return D3D12ImmediateDrawer::Create(*this);
 }
 
 }  // namespace d3d12

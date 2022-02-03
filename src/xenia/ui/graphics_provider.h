@@ -12,10 +12,12 @@
 
 #include <memory>
 
+#include "xenia/ui/immediate_drawer.h"
+#include "xenia/ui/presenter.h"
+
 namespace xe {
 namespace ui {
 
-class GraphicsContext;
 class Window;
 
 // Factory for graphics contexts.
@@ -36,13 +38,13 @@ class GraphicsProvider {
 
   virtual ~GraphicsProvider() = default;
 
-  // Creates a new host-side graphics context and swapchain, possibly presenting
-  // to a window and using the immediate drawer.
-  virtual std::unique_ptr<GraphicsContext> CreateHostContext(
-      Window* target_window) = 0;
+  // It's safe to reinitialize the presenter in the host GPU loss callback if it
+  // was called from the UI thread as specified in the arguments.
+  virtual std::unique_ptr<Presenter> CreatePresenter(
+      Presenter::HostGpuLossCallback host_gpu_loss_callback =
+          Presenter::FatalErrorHostGpuLossCallback) = 0;
 
-  // Creates a new offscreen emulation graphics context.
-  virtual std::unique_ptr<GraphicsContext> CreateEmulationContext() = 0;
+  virtual std::unique_ptr<ImmediateDrawer> CreateImmediateDrawer() = 0;
 
  protected:
   GraphicsProvider() = default;

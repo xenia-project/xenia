@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -36,20 +36,22 @@ uint32_t xeXamNotifyCreateListener(uint64_t mask, uint32_t is_system,
   return handle;
 }
 
-dword_result_t XamNotifyCreateListener(qword_t mask, dword_t max_version) {
+dword_result_t XamNotifyCreateListener_entry(qword_t mask,
+                                             dword_t max_version) {
   return xeXamNotifyCreateListener(mask, 0, max_version);
 }
 DECLARE_XAM_EXPORT1(XamNotifyCreateListener, kNone, kImplemented);
 
-dword_result_t XamNotifyCreateListenerInternal(qword_t mask, dword_t is_system,
-                                               dword_t max_version) {
+dword_result_t XamNotifyCreateListenerInternal_entry(qword_t mask,
+                                                     dword_t is_system,
+                                                     dword_t max_version) {
   return xeXamNotifyCreateListener(mask, is_system, max_version);
 }
 DECLARE_XAM_EXPORT1(XamNotifyCreateListenerInternal, kNone, kImplemented);
 
 // https://github.com/CodeAsm/ffplay360/blob/master/Common/AtgSignIn.cpp
-dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
-                              lpdword_t id_ptr, lpdword_t param_ptr) {
+dword_result_t XNotifyGetNext_entry(dword_t handle, dword_t match_id,
+                                    lpdword_t id_ptr, lpdword_t param_ptr) {
   if (param_ptr) {
     *param_ptr = 0;
   }
@@ -89,20 +91,19 @@ dword_result_t XNotifyGetNext(dword_t handle, dword_t match_id,
 }
 DECLARE_XAM_EXPORT2(XNotifyGetNext, kNone, kImplemented, kHighFrequency);
 
-dword_result_t XNotifyDelayUI(dword_t delay_ms) {
+dword_result_t XNotifyDelayUI_entry(dword_t delay_ms) {
   // Ignored.
   return 0;
 }
 DECLARE_XAM_EXPORT1(XNotifyDelayUI, kNone, kStub);
 
-void XNotifyPositionUI(dword_t position) {
+void XNotifyPositionUI_entry(dword_t position) {
   // Ignored.
 }
 DECLARE_XAM_EXPORT1(XNotifyPositionUI, kNone, kStub);
 
-void RegisterNotifyExports(xe::cpu::ExportResolver* export_resolver,
-                           KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Notify);

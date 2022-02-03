@@ -11,6 +11,7 @@ project("xenia-ui-vulkan")
     "xenia-ui",
   })
   local_platform_files()
+  local_platform_files("functions")
   files({
     "../shaders/bytecode/vulkan_spirv/*.h",
   })
@@ -35,3 +36,10 @@ project("xenia-ui-window-vulkan-demo")
   resincludedirs({
     project_root,
   })
+
+  filter("platforms:Linux")
+    links({
+      "X11",
+      "xcb",
+      "X11-xcb",
+    })

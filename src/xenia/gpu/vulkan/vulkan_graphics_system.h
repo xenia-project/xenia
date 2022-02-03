@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -29,13 +29,11 @@ class VulkanGraphicsSystem : public GraphicsSystem {
   std::string name() const override { return "Vulkan Prototype - DO NOT USE"; }
 
   X_STATUS Setup(cpu::Processor* processor, kernel::KernelState* kernel_state,
-                 ui::Window* target_window) override;
-  void Shutdown() override;
+                 ui::WindowedAppContext* app_context,
+                 bool is_surface_required) override;
 
  private:
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
-
-  void Swap(xe::ui::UIEvent* e) override;
 };
 
 }  // namespace vulkan

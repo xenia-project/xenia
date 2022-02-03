@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -39,9 +39,9 @@ struct XTASK_MESSAGE {
 };
 static_assert_size(XTASK_MESSAGE, 0x1C);
 
-dword_result_t XamTaskSchedule(lpvoid_t callback,
-                               pointer_t<XTASK_MESSAGE> message,
-                               lpdword_t unknown, lpdword_t handle_ptr) {
+dword_result_t XamTaskSchedule_entry(lpvoid_t callback,
+                                     pointer_t<XTASK_MESSAGE> message,
+                                     lpdword_t unknown, lpdword_t handle_ptr) {
   // TODO(gibbed): figure out what this is for
   *handle_ptr = 12345;
 
@@ -69,12 +69,11 @@ dword_result_t XamTaskSchedule(lpvoid_t callback,
 }
 DECLARE_XAM_EXPORT2(XamTaskSchedule, kNone, kImplemented, kSketchy);
 
-dword_result_t XamTaskShouldExit(dword_t r3) { return 0; }
+dword_result_t XamTaskShouldExit_entry(dword_t r3) { return 0; }
 DECLARE_XAM_EXPORT2(XamTaskShouldExit, kNone, kStub, kSketchy);
-
-void RegisterTaskExports(xe::cpu::ExportResolver* export_resolver,
-                         KernelState* kernel_state) {}
 
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(Task);

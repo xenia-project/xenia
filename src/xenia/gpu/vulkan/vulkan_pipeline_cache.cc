@@ -43,7 +43,7 @@ VulkanPipelineCache::~VulkanPipelineCache() { Shutdown(); }
 
 bool VulkanPipelineCache::Initialize() {
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
 
   device_pipeline_features_.features = 0;
   // TODO(Triang3l): Support the portability subset.
@@ -64,7 +64,7 @@ void VulkanPipelineCache::Shutdown() {
 
 void VulkanPipelineCache::ClearCache() {
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
@@ -96,9 +96,9 @@ VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
   // Always create the shader and stash it away.
   // We need to track it even if it fails translation so we know not to try
   // again.
-  VulkanShader* shader = new VulkanShader(
-      shader_type, data_hash, host_address, dword_count,
-      command_processor_.GetVulkanContext().GetVulkanProvider());
+  VulkanShader* shader =
+      new VulkanShader(shader_type, data_hash, host_address, dword_count,
+                       command_processor_.GetVulkanProvider());
   shaders_.emplace(data_hash, shader);
   return shader;
 }
@@ -396,15 +396,9 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
     shader_stage_fragment.pSpecializationInfo = nullptr;
   }
 
-  VkPipelineVertexInputStateCreateInfo vertex_input_state;
+  VkPipelineVertexInputStateCreateInfo vertex_input_state = {};
   vertex_input_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  vertex_input_state.pNext = nullptr;
-  vertex_input_state.flags = 0;
-  vertex_input_state.vertexBindingDescriptionCount = 0;
-  vertex_input_state.pVertexBindingDescriptions = nullptr;
-  vertex_input_state.vertexAttributeDescriptionCount = 0;
-  vertex_input_state.pVertexAttributeDescriptions = nullptr;
 
   VkPipelineInputAssemblyStateCreateInfo input_assembly_state;
   input_assembly_state.sType =
@@ -573,10 +567,10 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   pipeline_create_info.renderPass = creation_arguments.render_pass;
   pipeline_create_info.subpass = 0;
   pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
-  pipeline_create_info.basePipelineIndex = 0;
+  pipeline_create_info.basePipelineIndex = UINT32_MAX;
 
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
   VkPipeline pipeline;

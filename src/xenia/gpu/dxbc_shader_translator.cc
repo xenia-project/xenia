@@ -849,7 +849,7 @@ void DxbcShaderTranslator::StartTranslation() {
     system_temp_aL_ = PushSystemTemp(0b1111);
     system_temp_loop_count_ = PushSystemTemp(0b1111);
     system_temp_grad_h_lod_ = PushSystemTemp(0b1111);
-    system_temp_grad_v_ = PushSystemTemp(0b0111);
+    system_temp_grad_v_vfetch_address_ = PushSystemTemp(0b1111);
 
     // Zero general-purpose registers to prevent crashes when the game
     // references them after only initializing them conditionally.
@@ -1039,7 +1039,7 @@ void DxbcShaderTranslator::CompleteShaderCode() {
     // - system_temp_aL_.
     // - system_temp_loop_count_.
     // - system_temp_grad_h_lod_.
-    // - system_temp_grad_v_.
+    // - system_temp_grad_v_vfetch_address_.
     PopSystemTemp(6);
 
     // Write memexported data to the shared memory UAV.

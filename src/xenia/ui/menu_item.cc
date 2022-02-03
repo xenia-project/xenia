@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -62,9 +62,11 @@ void MenuItem::RemoveChild(MenuItem* child_item) {
 
 MenuItem* MenuItem::child(size_t index) { return children_[index].get(); }
 
-void MenuItem::OnSelected(UIEvent* e) {
+void MenuItem::OnSelected() {
   if (callback_) {
     callback_();
+    // Note that this MenuItem might have been destroyed by the callback.
+    // Must not do anything with *this in this function from now on.
   }
 }
 

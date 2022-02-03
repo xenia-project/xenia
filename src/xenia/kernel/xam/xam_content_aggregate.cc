@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -76,11 +76,11 @@ void AddODDContentTest(object_ref<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>> e,
   }
 }
 
-dword_result_t XamContentAggregateCreateEnumerator(qword_t xuid,
-                                                   dword_t device_id,
-                                                   dword_t content_type,
-                                                   unknown_t unk3,
-                                                   lpdword_t handle_out) {
+dword_result_t XamContentAggregateCreateEnumerator_entry(qword_t xuid,
+                                                         dword_t device_id,
+                                                         dword_t content_type,
+                                                         unknown_t unk3,
+                                                         lpdword_t handle_out) {
   assert_not_null(handle_out);
 
   auto device_info = device_id == 0 ? nullptr : GetDummyDeviceInfo(device_id);
@@ -139,9 +139,8 @@ dword_result_t XamContentAggregateCreateEnumerator(qword_t xuid,
 }
 DECLARE_XAM_EXPORT1(XamContentAggregateCreateEnumerator, kContent, kStub);
 
-void RegisterContentAggregateExports(xe::cpu::ExportResolver* export_resolver,
-                                     KernelState* kernel_state) {}
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XAM_EMPTY_REGISTER_EXPORTS(ContentAggregate);

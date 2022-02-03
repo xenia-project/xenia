@@ -25,10 +25,13 @@
 #include <vector>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/literals.h"
 #include "xenia/base/platform.h"
 
 namespace xe {
 namespace threading {
+
+using namespace xe::literals;
 
 #if XE_PLATFORM_ANDROID
 void AndroidInitialize();
@@ -368,7 +371,7 @@ struct ThreadPriority {
 class Thread : public WaitHandle {
  public:
   struct CreationParameters {
-    size_t stack_size = 4 * 1024 * 1024;
+    size_t stack_size = 4_MiB;
     bool create_suspended = false;
     int32_t initial_priority = 0;
   };

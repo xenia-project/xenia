@@ -869,8 +869,9 @@ TextureCache::TextureCache(D3D12CommandProcessor& command_processor,
 TextureCache::~TextureCache() { Shutdown(); }
 
 bool TextureCache::Initialize() {
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
-  auto device = provider.GetDevice();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Provider();
+  ID3D12Device* device = provider.GetDevice();
 
   if (IsDrawResolutionScaled()) {
     // Buffers not used yet - no need aliasing barriers to change ownership of
@@ -1444,7 +1445,8 @@ void TextureCache::WriteActiveTextureBindfulSRV(
       }
     }
   }
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Provider();
   D3D12_CPU_DESCRIPTOR_HANDLE source_handle;
   if (descriptor_index != UINT32_MAX) {
     assert_not_null(texture);
@@ -1622,8 +1624,7 @@ void TextureCache::WriteSampler(SamplerParameters parameters,
   desc.MinLOD = float(parameters.mip_min_level);
   // Maximum mip level is in the texture resource itself.
   desc.MaxLOD = FLT_MAX;
-  auto device =
-      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
+  ID3D12Device* device = command_processor_.GetD3D12Provider().GetDevice();
   device->CreateSampler(&desc, handle);
 }
 
@@ -1712,8 +1713,9 @@ bool TextureCache::EnsureScaledResolveMemoryCommitted(
   uint64_t last_scaled = uint64_t(start_unscaled + (length_unscaled - 1)) *
                          draw_resolution_scale_area;
 
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
-  auto device = provider.GetDevice();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Provider();
+  ID3D12Device* device = provider.GetDevice();
 
   // Ensure GPU virtual memory for buffers that may be used to access the range
   // is allocated - buffers are created. Always creating both buffers for all
@@ -1943,8 +1945,8 @@ void TextureCache::CreateCurrentScaledResolveRangeUintPow2SRV(
       scaled_resolve_2gb_buffers_[buffer_index];
   assert_not_null(buffer);
   ui::d3d12::util::CreateBufferTypedSRV(
-      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice(),
-      handle, buffer->resource(),
+      command_processor_.GetD3D12Provider().GetDevice(), handle,
+      buffer->resource(),
       ui::d3d12::util::GetUintPow2DXGIFormat(element_size_bytes_pow2),
       uint32_t(scaled_resolve_current_range_length_scaled_ >>
                element_size_bytes_pow2),
@@ -1961,8 +1963,8 @@ void TextureCache::CreateCurrentScaledResolveRangeUintPow2UAV(
       scaled_resolve_2gb_buffers_[buffer_index];
   assert_not_null(buffer);
   ui::d3d12::util::CreateBufferTypedUAV(
-      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice(),
-      handle, buffer->resource(),
+      command_processor_.GetD3D12Provider().GetDevice(), handle,
+      buffer->resource(),
       ui::d3d12::util::GetUintPow2DXGIFormat(element_size_bytes_pow2),
       uint32_t(scaled_resolve_current_range_length_scaled_ >>
                element_size_bytes_pow2),
@@ -2254,8 +2256,9 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
   // Untiling through a buffer instead of using unordered access because copying
   // is not done that often.
   desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
-  auto device = provider.GetDevice();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Provider();
+  ID3D12Device* device = provider.GetDevice();
   // Assuming untiling will be the next operation.
   D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST;
   ID3D12Resource* resource;
@@ -2317,9 +2320,9 @@ bool TextureCache::LoadTextureData(Texture* texture) {
     return true;
   }
 
-  auto& command_list = command_processor_.GetDeferredCommandList();
-  auto device =
-      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
+  DeferredCommandList& command_list =
+      command_processor_.GetDeferredCommandList();
+  ID3D12Device* device = command_processor_.GetD3D12Provider().GetDevice();
 
   // Get the pipeline.
   LoadMode load_mode = GetLoadMode(texture->key);
@@ -2875,8 +2878,7 @@ uint32_t TextureCache::FindOrCreateTextureDescriptor(Texture& texture,
       host_swizzle |
       D3D12_SHADER_COMPONENT_MAPPING_ALWAYS_SET_BIT_AVOIDING_ZEROMEM_MISTAKES;
 
-  auto device =
-      command_processor_.GetD3D12Context().GetD3D12Provider().GetDevice();
+  ID3D12Device* device = command_processor_.GetD3D12Provider().GetDevice();
   uint32_t descriptor_index;
   if (bindless_resources_used_) {
     descriptor_index =
@@ -2928,7 +2930,8 @@ uint32_t TextureCache::FindOrCreateTextureDescriptor(Texture& texture,
 
 D3D12_CPU_DESCRIPTOR_HANDLE TextureCache::GetTextureDescriptorCPUHandle(
     uint32_t descriptor_index) const {
-  auto& provider = command_processor_.GetD3D12Context().GetD3D12Provider();
+  const ui::d3d12::D3D12Provider& provider =
+      command_processor_.GetD3D12Provider();
   if (bindless_resources_used_) {
     return provider.OffsetViewDescriptor(
         command_processor_.GetViewBindlessHeapCPUStart(), descriptor_index);

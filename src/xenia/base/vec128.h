@@ -257,6 +257,8 @@ static inline vec128_t vec128b(uint8_t x0, uint8_t x1, uint8_t x2, uint8_t x3,
 
 std::string to_string(const vec128_t& value);
 
+std::ostream& operator<<(std::ostream& os, const vec128_t& value);
+
 }  // namespace xe
 
 #endif  // XENIA_BASE_VEC128_H_

@@ -19,6 +19,7 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/platform_linux.h"
 #include "xenia/base/string.h"
+#include "xenia/ui/window_gtk.h"
 
 namespace xe {
 namespace ui {
@@ -28,7 +29,7 @@ class GtkFilePicker : public FilePicker {
   GtkFilePicker();
   ~GtkFilePicker() override;
 
-  bool Show(void* parent_window_handle) override;
+  bool Show(Window* parent_window) override;
 
  private:
 };
@@ -41,7 +42,7 @@ GtkFilePicker::GtkFilePicker() = default;
 
 GtkFilePicker::~GtkFilePicker() = default;
 
-bool GtkFilePicker::Show(void* parent_window_handle) {
+bool GtkFilePicker::Show(Window* parent_window) {
   // TODO(benvanik): FileSaveDialog.
   assert_true(mode() == Mode::kOpen);
   // TODO(benvanik): folder dialogs.
@@ -50,7 +51,10 @@ bool GtkFilePicker::Show(void* parent_window_handle) {
   gint res;
 
   dialog = gtk_file_chooser_dialog_new(
-      "Open File", (GtkWindow*)parent_window_handle,
+      "Open File",
+      parent_window
+          ? GTK_WINDOW(static_cast<const GTKWindow*>(parent_window)->window())
+          : nullptr,
       GTK_FILE_CHOOSER_ACTION_OPEN, "_Cancel", GTK_RESPONSE_CANCEL, "_Open",
       GTK_RESPONSE_ACCEPT, NULL);
 

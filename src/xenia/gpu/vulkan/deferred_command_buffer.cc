@@ -36,7 +36,7 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
 #endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
 
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn =
-      command_processor_.GetVulkanContext().GetVulkanProvider().dfn();
+      command_processor_.GetVulkanProvider().dfn();
   const uintmax_t* stream = command_stream_.data();
   size_t stream_remaining = command_stream_.size();
   while (stream_remaining) {

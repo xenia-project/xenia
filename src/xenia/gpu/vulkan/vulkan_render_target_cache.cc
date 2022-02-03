@@ -41,7 +41,7 @@ bool VulkanRenderTargetCache::Initialize() {
 
 void VulkanRenderTargetCache::Shutdown(bool from_destructor) {
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
@@ -65,7 +65,7 @@ void VulkanRenderTargetCache::Shutdown(bool from_destructor) {
 
 void VulkanRenderTargetCache::ClearCache() {
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
@@ -385,7 +385,7 @@ VkRenderPass VulkanRenderTargetCache::GetRenderPass(RenderPassKey key) {
   render_pass_create_info.pDependencies = subpass_dependencies;
 
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
   VkRenderPass render_pass;
@@ -491,20 +491,20 @@ VulkanRenderTargetCache::VulkanRenderTarget::~VulkanRenderTarget() {
 
 uint32_t VulkanRenderTargetCache::GetMaxRenderTargetWidth() const {
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   return provider.device_properties().limits.maxFramebufferWidth;
 }
 
 uint32_t VulkanRenderTargetCache::GetMaxRenderTargetHeight() const {
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   return provider.device_properties().limits.maxFramebufferHeight;
 }
 
 RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(
     RenderTargetKey key) {
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
@@ -556,47 +556,11 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(
     return nullptr;
   }
   VkImage image;
-  if (dfn.vkCreateImage(device, &image_create_info, nullptr, &image) !=
-      VK_SUCCESS) {
-    // TODO(Triang3l): Error message.
-    return nullptr;
-  }
-
-  // Allocate and bind the memory.
-
-  VkMemoryAllocateInfo memory_allocate_info;
-  VkMemoryRequirements memory_requirements;
-  dfn.vkGetImageMemoryRequirements(device, image, &memory_requirements);
-  if (!xe::bit_scan_forward(memory_requirements.memoryTypeBits &
-                                provider.memory_types_device_local(),
-                            &memory_allocate_info.memoryTypeIndex)) {
-    dfn.vkDestroyImage(device, image, nullptr);
-    return nullptr;
-  }
-  memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-  VkMemoryDedicatedAllocateInfoKHR memory_dedicated_allocate_info;
-  if (provider.device_extensions().khr_dedicated_allocation) {
-    memory_dedicated_allocate_info.sType =
-        VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
-    memory_dedicated_allocate_info.pNext = nullptr;
-    memory_dedicated_allocate_info.image = image;
-    memory_dedicated_allocate_info.buffer = VK_NULL_HANDLE;
-    memory_allocate_info.pNext = &memory_dedicated_allocate_info;
-  } else {
-    memory_allocate_info.pNext = nullptr;
-  }
-  memory_allocate_info.allocationSize = memory_requirements.size;
   VkDeviceMemory memory;
-  if (dfn.vkAllocateMemory(device, &memory_allocate_info, nullptr, &memory) !=
-      VK_SUCCESS) {
+  if (!ui::vulkan::util::CreateDedicatedAllocationImage(
+          provider, image_create_info,
+          ui::vulkan::util::MemoryPurpose::kDeviceLocal, image, memory)) {
     // TODO(Triang3l): Error message.
-    dfn.vkDestroyImage(device, image, nullptr);
-    return nullptr;
-  }
-  if (dfn.vkBindImageMemory(device, image, memory, 0) != VK_SUCCESS) {
-    // TODO(Triang3l): Error message.
-    dfn.vkDestroyImage(device, image, nullptr);
-    dfn.vkFreeMemory(device, memory, nullptr);
     return nullptr;
   }
 
@@ -716,7 +680,7 @@ VulkanRenderTargetCache::GetFramebuffer(
   }
 
   const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanContext().GetVulkanProvider();
+      command_processor_.GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 

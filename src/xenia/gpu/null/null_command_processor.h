@@ -33,8 +33,8 @@ class NullCommandProcessor : public CommandProcessor {
   bool SetupContext() override;
   void ShutdownContext() override;
 
-  void PerformSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
-                   uint32_t frontbuffer_height) override;
+  void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
+                 uint32_t frontbuffer_height) override;
 
   Shader* LoadShader(xenos::ShaderType shader_type, uint32_t guest_address,
                      const uint32_t* host_address,

@@ -16,9 +16,9 @@ namespace xe {
 namespace hid {
 namespace xinput {
 
-class XInputInputDriver : public InputDriver {
+class XInputInputDriver final : public InputDriver {
  public:
-  explicit XInputInputDriver(xe::ui::Window* window);
+  explicit XInputInputDriver(xe::ui::Window* window, size_t window_z_order);
   ~XInputInputDriver() override;
 
   X_STATUS Setup() override;
@@ -30,7 +30,7 @@ class XInputInputDriver : public InputDriver {
   X_RESULT GetKeystroke(uint32_t user_index, uint32_t flags,
                         X_INPUT_KEYSTROKE* out_keystroke) override;
 
- protected:
+ private:
   void* module_;
   void* XInputGetCapabilities_;
   void* XInputGetState_;

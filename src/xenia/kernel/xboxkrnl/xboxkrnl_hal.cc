@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -17,7 +17,7 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-void HalReturnToFirmware(dword_t routine) {
+void HalReturnToFirmware_entry(dword_t routine) {
   // void
   // IN FIRMWARE_REENTRY  Routine
 
@@ -31,9 +31,8 @@ void HalReturnToFirmware(dword_t routine) {
 }
 DECLARE_XBOXKRNL_EXPORT2(HalReturnToFirmware, kNone, kStub, kImportant);
 
-void RegisterHalExports(xe::cpu::ExportResolver* export_resolver,
-                        KernelState* kernel_state) {}
-
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
+
+DECLARE_XBOXKRNL_EMPTY_REGISTER_EXPORTS(Hal);

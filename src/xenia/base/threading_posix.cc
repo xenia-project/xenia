@@ -14,6 +14,7 @@
 #include "xenia/base/platform.h"
 
 #include <pthread.h>
+#include <sched.h>
 #include <signal.h>
 #include <sys/eventfd.h>
 #include <sys/syscall.h>
@@ -28,7 +29,6 @@
 
 #if XE_PLATFORM_ANDROID
 #include <dlfcn.h>
-#include <sched.h>
 
 #include "xenia/base/main_android.h"
 #include "xenia/base/string_util.h"
@@ -128,11 +128,7 @@ uint32_t current_thread_system_id() {
 }
 
 void MaybeYield() {
-#if XE_PLATFORM_ANDROID
   sched_yield();
-#else
-  pthread_yield();
-#endif
   __sync_synchronize();
 }
 

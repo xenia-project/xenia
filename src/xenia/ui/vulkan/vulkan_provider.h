@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,18 +10,25 @@
 #ifndef XENIA_UI_VULKAN_VULKAN_PROVIDER_H_
 #define XENIA_UI_VULKAN_VULKAN_PROVIDER_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <utility>
 #include <vector>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/platform.h"
 #include "xenia/ui/graphics_provider.h"
+#include "xenia/ui/renderdoc_api.h"
 
 #if XE_PLATFORM_ANDROID
 #ifndef VK_USE_PLATFORM_ANDROID_KHR
 #define VK_USE_PLATFORM_ANDROID_KHR 1
+#endif
+#elif XE_PLATFORM_GNU_LINUX
+#ifndef VK_USE_PLATFORM_XCB_KHR
+#define VK_USE_PLATFORM_XCB_KHR 1
 #endif
 #elif XE_PLATFORM_WIN32
 // Must be included before vulkan.h with VK_USE_PLATFORM_WIN32_KHR because it
@@ -47,13 +54,17 @@ namespace vulkan {
 
 class VulkanProvider : public GraphicsProvider {
  public:
-  ~VulkanProvider() override;
+  ~VulkanProvider();
 
-  static std::unique_ptr<VulkanProvider> Create();
+  static std::unique_ptr<VulkanProvider> Create(bool is_surface_required);
 
-  std::unique_ptr<GraphicsContext> CreateHostContext(
-      Window* target_window) override;
-  std::unique_ptr<GraphicsContext> CreateEmulationContext() override;
+  std::unique_ptr<Presenter> CreatePresenter(
+      Presenter::HostGpuLossCallback host_gpu_loss_callback =
+          Presenter::FatalErrorHostGpuLossCallback) override;
+
+  std::unique_ptr<ImmediateDrawer> CreateImmediateDrawer() override;
+
+  const RenderdocApi& renderdoc_api() const { return renderdoc_api_; }
 
   struct LibraryFunctions {
     // From the module.
@@ -63,6 +74,7 @@ class VulkanProvider : public GraphicsProvider {
     PFN_vkCreateInstance vkCreateInstance;
     PFN_vkEnumerateInstanceExtensionProperties
         vkEnumerateInstanceExtensionProperties;
+    PFN_vkEnumerateInstanceLayerProperties vkEnumerateInstanceLayerProperties;
     struct {
       PFN_vkEnumerateInstanceVersion vkEnumerateInstanceVersion;
     } v_1_1;
@@ -70,41 +82,41 @@ class VulkanProvider : public GraphicsProvider {
   const LibraryFunctions& lfn() const { return lfn_; }
 
   struct InstanceExtensions {
+    bool ext_debug_utils;
     // Core since 1.1.0.
     bool khr_get_physical_device_properties2;
+
+    // Surface extensions.
+    bool khr_surface;
+#if XE_PLATFORM_ANDROID
+    bool khr_android_surface;
+#elif XE_PLATFORM_GNU_LINUX
+    bool khr_xcb_surface;
+#elif XE_PLATFORM_WIN32
+    bool khr_win32_surface;
+#endif
   };
   const InstanceExtensions& instance_extensions() const {
     return instance_extensions_;
   }
   VkInstance instance() const { return instance_; }
   struct InstanceFunctions {
-    PFN_vkCreateDevice vkCreateDevice;
-    PFN_vkDestroyDevice vkDestroyDevice;
-    PFN_vkDestroySurfaceKHR vkDestroySurfaceKHR;
-    PFN_vkEnumerateDeviceExtensionProperties
-        vkEnumerateDeviceExtensionProperties;
-    PFN_vkEnumeratePhysicalDevices vkEnumeratePhysicalDevices;
-    PFN_vkGetDeviceProcAddr vkGetDeviceProcAddr;
-    PFN_vkGetPhysicalDeviceFeatures vkGetPhysicalDeviceFeatures;
-    PFN_vkGetPhysicalDeviceMemoryProperties vkGetPhysicalDeviceMemoryProperties;
-    PFN_vkGetPhysicalDeviceProperties vkGetPhysicalDeviceProperties;
-    // VK_KHR_get_physical_device_properties2 or 1.1.0.
-    PFN_vkGetPhysicalDeviceProperties2KHR vkGetPhysicalDeviceProperties2KHR;
-    PFN_vkGetPhysicalDeviceQueueFamilyProperties
-        vkGetPhysicalDeviceQueueFamilyProperties;
-    PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
-    PFN_vkGetPhysicalDeviceSurfaceFormatsKHR
-        vkGetPhysicalDeviceSurfaceFormatsKHR;
-    PFN_vkGetPhysicalDeviceSurfacePresentModesKHR
-        vkGetPhysicalDeviceSurfacePresentModesKHR;
-    PFN_vkGetPhysicalDeviceSurfaceSupportKHR
-        vkGetPhysicalDeviceSurfaceSupportKHR;
+#define XE_UI_VULKAN_FUNCTION(name) PFN_##name name;
+#define XE_UI_VULKAN_FUNCTION_PROMOTED(extension_name, core_name) \
+  PFN_##extension_name extension_name;
+#include "xenia/ui/vulkan/functions/instance_1_0.inc"
+#include "xenia/ui/vulkan/functions/instance_ext_debug_utils.inc"
+#include "xenia/ui/vulkan/functions/instance_khr_get_physical_device_properties2.inc"
+#include "xenia/ui/vulkan/functions/instance_khr_surface.inc"
 #if XE_PLATFORM_ANDROID
-    PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR;
+#include "xenia/ui/vulkan/functions/instance_khr_android_surface.inc"
+#elif XE_PLATFORM_GNU_LINUX
+#include "xenia/ui/vulkan/functions/instance_khr_xcb_surface.inc"
 #elif XE_PLATFORM_WIN32
-    PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR;
+#include "xenia/ui/vulkan/functions/instance_khr_win32_surface.inc"
 #endif
+#undef XE_UI_VULKAN_FUNCTION_PROMOTED
+#undef XE_UI_VULKAN_FUNCTION
   };
   const InstanceFunctions& ifn() const { return ifn_; }
 
@@ -120,9 +132,12 @@ class VulkanProvider : public GraphicsProvider {
     // Core since 1.1.0.
     bool khr_dedicated_allocation;
     // Core since 1.2.0.
+    bool khr_image_format_list;
+    // Core since 1.2.0.
     bool khr_shader_float_controls;
     // Core since 1.2.0.
     bool khr_spirv_1_4;
+    bool khr_swapchain;
   };
   const DeviceExtensions& device_extensions() const {
     return device_extensions_;
@@ -139,117 +154,64 @@ class VulkanProvider : public GraphicsProvider {
   uint32_t memory_types_host_cached() const {
     return memory_types_host_cached_;
   }
-  // FIXME(Triang3l): Allow a separate queue for present - see
-  // vulkan_provider.cc for details.
+  struct QueueFamily {
+    uint32_t queue_first_index = 0;
+    uint32_t queue_count = 0;
+    bool potentially_supports_present = false;
+  };
+  const std::vector<QueueFamily>& queue_families() const {
+    return queue_families_;
+  }
+  // Required.
   uint32_t queue_family_graphics_compute() const {
     return queue_family_graphics_compute_;
+  }
+  // Optional, if sparse binding is supported (UINT32_MAX otherwise). May be the
+  // same as queue_family_graphics_compute_.
+  uint32_t queue_family_sparse_binding() const {
+    return queue_family_sparse_binding_;
   }
   const VkPhysicalDeviceFloatControlsPropertiesKHR&
   device_float_controls_properties() const {
     return device_float_controls_properties_;
   }
 
+  struct Queue {
+    VkQueue queue = VK_NULL_HANDLE;
+    std::recursive_mutex mutex;
+  };
+  struct QueueAcquisition {
+    QueueAcquisition(std::unique_lock<std::recursive_mutex>&& lock,
+                     VkQueue queue)
+        : lock(std::move(lock)), queue(queue) {}
+    std::unique_lock<std::recursive_mutex> lock;
+    VkQueue queue;
+  };
+  QueueAcquisition AcquireQueue(uint32_t index) {
+    Queue& queue = queues_[index];
+    return QueueAcquisition(std::unique_lock<std::recursive_mutex>(queue.mutex),
+                            queue.queue);
+  }
+  QueueAcquisition AcquireQueue(uint32_t family_index, uint32_t index) {
+    assert_true(family_index != UINT32_MAX);
+    return AcquireQueue(queue_families_[family_index].queue_first_index +
+                        index);
+  }
+
   VkDevice device() const { return device_; }
   struct DeviceFunctions {
-    PFN_vkAcquireNextImageKHR vkAcquireNextImageKHR;
-    PFN_vkAllocateCommandBuffers vkAllocateCommandBuffers;
-    PFN_vkAllocateDescriptorSets vkAllocateDescriptorSets;
-    PFN_vkAllocateMemory vkAllocateMemory;
-    PFN_vkBeginCommandBuffer vkBeginCommandBuffer;
-    PFN_vkBindBufferMemory vkBindBufferMemory;
-    PFN_vkBindImageMemory vkBindImageMemory;
-    PFN_vkCmdBeginRenderPass vkCmdBeginRenderPass;
-    PFN_vkCmdBindDescriptorSets vkCmdBindDescriptorSets;
-    PFN_vkCmdBindIndexBuffer vkCmdBindIndexBuffer;
-    PFN_vkCmdBindPipeline vkCmdBindPipeline;
-    PFN_vkCmdBindVertexBuffers vkCmdBindVertexBuffers;
-    PFN_vkCmdClearColorImage vkCmdClearColorImage;
-    PFN_vkCmdCopyBuffer vkCmdCopyBuffer;
-    PFN_vkCmdCopyBufferToImage vkCmdCopyBufferToImage;
-    PFN_vkCmdDraw vkCmdDraw;
-    PFN_vkCmdDrawIndexed vkCmdDrawIndexed;
-    PFN_vkCmdEndRenderPass vkCmdEndRenderPass;
-    PFN_vkCmdPipelineBarrier vkCmdPipelineBarrier;
-    PFN_vkCmdPushConstants vkCmdPushConstants;
-    PFN_vkCmdSetScissor vkCmdSetScissor;
-    PFN_vkCmdSetViewport vkCmdSetViewport;
-    PFN_vkCreateBuffer vkCreateBuffer;
-    PFN_vkCreateCommandPool vkCreateCommandPool;
-    PFN_vkCreateDescriptorPool vkCreateDescriptorPool;
-    PFN_vkCreateDescriptorSetLayout vkCreateDescriptorSetLayout;
-    PFN_vkCreateFence vkCreateFence;
-    PFN_vkCreateFramebuffer vkCreateFramebuffer;
-    PFN_vkCreateGraphicsPipelines vkCreateGraphicsPipelines;
-    PFN_vkCreateImage vkCreateImage;
-    PFN_vkCreateImageView vkCreateImageView;
-    PFN_vkCreatePipelineLayout vkCreatePipelineLayout;
-    PFN_vkCreateRenderPass vkCreateRenderPass;
-    PFN_vkCreateSampler vkCreateSampler;
-    PFN_vkCreateSemaphore vkCreateSemaphore;
-    PFN_vkCreateShaderModule vkCreateShaderModule;
-    PFN_vkCreateSwapchainKHR vkCreateSwapchainKHR;
-    PFN_vkDestroyBuffer vkDestroyBuffer;
-    PFN_vkDestroyCommandPool vkDestroyCommandPool;
-    PFN_vkDestroyDescriptorPool vkDestroyDescriptorPool;
-    PFN_vkDestroyDescriptorSetLayout vkDestroyDescriptorSetLayout;
-    PFN_vkDestroyFence vkDestroyFence;
-    PFN_vkDestroyFramebuffer vkDestroyFramebuffer;
-    PFN_vkDestroyImage vkDestroyImage;
-    PFN_vkDestroyImageView vkDestroyImageView;
-    PFN_vkDestroyPipeline vkDestroyPipeline;
-    PFN_vkDestroyPipelineLayout vkDestroyPipelineLayout;
-    PFN_vkDestroyRenderPass vkDestroyRenderPass;
-    PFN_vkDestroySampler vkDestroySampler;
-    PFN_vkDestroySemaphore vkDestroySemaphore;
-    PFN_vkDestroyShaderModule vkDestroyShaderModule;
-    PFN_vkDestroySwapchainKHR vkDestroySwapchainKHR;
-    PFN_vkEndCommandBuffer vkEndCommandBuffer;
-    PFN_vkFlushMappedMemoryRanges vkFlushMappedMemoryRanges;
-    PFN_vkFreeMemory vkFreeMemory;
-    PFN_vkGetBufferMemoryRequirements vkGetBufferMemoryRequirements;
-    PFN_vkGetDeviceQueue vkGetDeviceQueue;
-    PFN_vkGetImageMemoryRequirements vkGetImageMemoryRequirements;
-    PFN_vkGetSwapchainImagesKHR vkGetSwapchainImagesKHR;
-    PFN_vkMapMemory vkMapMemory;
-    PFN_vkResetCommandPool vkResetCommandPool;
-    PFN_vkResetDescriptorPool vkResetDescriptorPool;
-    PFN_vkResetFences vkResetFences;
-    PFN_vkQueueBindSparse vkQueueBindSparse;
-    PFN_vkQueuePresentKHR vkQueuePresentKHR;
-    PFN_vkQueueSubmit vkQueueSubmit;
-    PFN_vkUnmapMemory vkUnmapMemory;
-    PFN_vkUpdateDescriptorSets vkUpdateDescriptorSets;
-    PFN_vkWaitForFences vkWaitForFences;
+#define XE_UI_VULKAN_FUNCTION(name) PFN_##name name;
+#include "xenia/ui/vulkan/functions/device_1_0.inc"
+#include "xenia/ui/vulkan/functions/device_khr_swapchain.inc"
+#undef XE_UI_VULKAN_FUNCTION
   };
   const DeviceFunctions& dfn() const { return dfn_; }
 
-  VkResult SubmitToGraphicsComputeQueue(uint32_t submit_count,
-                                        const VkSubmitInfo* submits,
-                                        VkFence fence) {
-    std::lock_guard<std::mutex> lock(queue_graphics_compute_mutex_);
-    return dfn_.vkQueueSubmit(queue_graphics_compute_, submit_count, submits,
-                              fence);
-  }
-  // Safer in Xenia context - in case a sparse binding queue was not obtained
-  // for some reason.
+  void SetDeviceObjectName(VkObjectType type, uint64_t handle,
+                           const char* name) const;
+
   bool IsSparseBindingSupported() const {
-    return queue_sparse_binding_ != VK_NULL_HANDLE;
-  }
-  VkResult BindSparse(uint32_t bind_info_count,
-                      const VkBindSparseInfo* bind_info, VkFence fence) {
-    assert_true(IsSparseBindingSupported());
-    std::mutex& mutex = queue_sparse_binding_ == queue_graphics_compute_
-                            ? queue_graphics_compute_mutex_
-                            : queue_sparse_binding_separate_mutex_;
-    std::lock_guard<std::mutex> lock(mutex);
-    return dfn_.vkQueueBindSparse(queue_sparse_binding_, bind_info_count,
-                                  bind_info, fence);
-  }
-  VkResult Present(const VkPresentInfoKHR* present_info) {
-    // FIXME(Triang3l): Allow a separate queue for present - see
-    // vulkan_provider.cc for details.
-    std::lock_guard<std::mutex> lock(queue_graphics_compute_mutex_);
-    return dfn_.vkQueuePresentKHR(queue_graphics_compute_, present_info);
+    return queue_family_sparse_binding_ != UINT32_MAX;
   }
 
   // Samplers that may be useful for host needs. Only these samplers should be
@@ -269,9 +231,25 @@ class VulkanProvider : public GraphicsProvider {
   }
 
  private:
-  VulkanProvider() = default;
+  explicit VulkanProvider(bool is_surface_required)
+      : is_surface_required_(is_surface_required) {}
 
   bool Initialize();
+
+  static void AccumulateInstanceExtensions(
+      size_t properties_count, const VkExtensionProperties* properties,
+      bool request_debug_utils, InstanceExtensions& instance_extensions,
+      std::vector<const char*>& instance_extensions_enabled);
+
+  static VkBool32 VKAPI_CALL DebugMessengerCallback(
+      VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
+      VkDebugUtilsMessageTypeFlagsEXT message_types,
+      const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
+      void* user_data);
+
+  bool is_surface_required_;
+
+  RenderdocApi renderdoc_api_;
 
 #if XE_PLATFORM_LINUX
   void* library_ = nullptr;
@@ -284,6 +262,8 @@ class VulkanProvider : public GraphicsProvider {
   InstanceExtensions instance_extensions_;
   VkInstance instance_ = VK_NULL_HANDLE;
   InstanceFunctions ifn_;
+  VkDebugUtilsMessengerEXT debug_messenger_ = VK_NULL_HANDLE;
+  bool debug_names_used_ = false;
 
   VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
   VkPhysicalDeviceProperties device_properties_;
@@ -293,20 +273,15 @@ class VulkanProvider : public GraphicsProvider {
   uint32_t memory_types_host_visible_;
   uint32_t memory_types_host_coherent_;
   uint32_t memory_types_host_cached_;
+  std::vector<QueueFamily> queue_families_;
   uint32_t queue_family_graphics_compute_;
+  uint32_t queue_family_sparse_binding_;
   VkPhysicalDeviceFloatControlsPropertiesKHR device_float_controls_properties_;
 
   VkDevice device_ = VK_NULL_HANDLE;
   DeviceFunctions dfn_ = {};
-  VkQueue queue_graphics_compute_;
-  // VkQueue access must be externally synchronized - must be locked when
-  // submitting anything.
-  std::mutex queue_graphics_compute_mutex_;
-  // May be VK_NULL_HANDLE if not available.
-  VkQueue queue_sparse_binding_;
-  // If queue_sparse_binding_ == queue_graphics_compute_, lock
-  // queue_graphics_compute_mutex_ instead when submitting sparse bindings.
-  std::mutex queue_sparse_binding_separate_mutex_;
+  // Queues contain a mutex, can't use std::vector.
+  std::unique_ptr<Queue[]> queues_;
 
   VkSampler host_samplers_[size_t(HostSampler::kCount)] = {};
 };

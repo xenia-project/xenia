@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -30,6 +30,7 @@ class D3D12DescriptorHeapPool {
   ~D3D12DescriptorHeapPool();
 
   void Reclaim(uint64_t completed_submission_index);
+  void ChangeSubmissionTimeline();
   void ClearCache();
 
   // Because all descriptors for a single draw call must be in the same heap,
@@ -65,7 +66,7 @@ class D3D12DescriptorHeapPool {
   // after a successful request because before a request, the heap may not exist
   // yet.
   ID3D12DescriptorHeap* GetLastRequestHeap() const {
-    return writable_first_->heap;
+    return writable_first_->heap.Get();
   }
   D3D12_CPU_DESCRIPTOR_HANDLE GetLastRequestHeapCPUStart() const {
     return writable_first_->cpu_start;
@@ -80,7 +81,7 @@ class D3D12DescriptorHeapPool {
   uint32_t page_size_;
 
   struct Page {
-    ID3D12DescriptorHeap* heap;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> heap;
     D3D12_CPU_DESCRIPTOR_HANDLE cpu_start;
     D3D12_GPU_DESCRIPTOR_HANDLE gpu_start;
     uint64_t last_submission_index;

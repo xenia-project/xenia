@@ -28,6 +28,7 @@ project("xenia-gpu-shader-compiler")
     "dxbc",
     "fmt",
     "glslang-spirv",
+    "snappy",
     "xenia-base",
     "xenia-gpu",
     "xenia-ui-vulkan",
