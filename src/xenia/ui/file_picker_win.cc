@@ -113,8 +113,6 @@ Win32FilePicker::~Win32FilePicker() = default;
 bool Win32FilePicker::Show(Window* parent_window) {
   // TODO(benvanik): FileSaveDialog.
   assert_true(mode() == Mode::kOpen);
-  // TODO(benvanik): folder dialogs.
-  assert_true(type() == Type::kFile);
 
   Microsoft::WRL::ComPtr<IFileDialog> file_dialog;
   HRESULT hr =
@@ -134,37 +132,41 @@ bool Win32FilePicker::Show(Window* parent_window) {
   if (!SUCCEEDED(hr)) {
     return false;
   }
-  // FOS_PICKFOLDERS
   // FOS_FILEMUSTEXIST
   // FOS_PATHMUSTEXIST
   flags |= FOS_FORCEFILESYSTEM;
   if (multi_selection()) {
     flags |= FOS_ALLOWMULTISELECT;
   }
+  if (type() == Type::kDirectory) {
+    flags |= FOS_PICKFOLDERS;
+  }
   hr = file_dialog->SetOptions(flags);
   if (!SUCCEEDED(hr)) {
     return false;
   }
 
-  // Set the file types to display only. Notice that this is a 1-based array.
-  std::vector<std::pair<std::u16string, std::u16string>> file_pairs;
-  std::vector<COMDLG_FILTERSPEC> file_types;
-  for (const auto& extension : this->extensions()) {
-    const auto& file_pair =
-        file_pairs.emplace_back(std::move(xe::to_utf16(extension.first)),
-                                std::move(xe::to_utf16(extension.second)));
-    file_types.push_back(
-        {(LPCWSTR)file_pair.first.c_str(), (LPCWSTR)file_pair.second.c_str()});
-  }
-  hr = file_dialog->SetFileTypes(static_cast<UINT>(file_types.size()),
-                                 file_types.data());
-  if (!SUCCEEDED(hr)) {
-    return false;
-  }
+  if (type() == Type::kFile) {
+    // Set the file types to display only. Notice that this is a 1-based array.
+    std::vector<std::pair<std::u16string, std::u16string>> file_pairs;
+    std::vector<COMDLG_FILTERSPEC> file_types;
+    for (const auto& extension : this->extensions()) {
+      const auto& file_pair =
+          file_pairs.emplace_back(std::move(xe::to_utf16(extension.first)),
+                                  std::move(xe::to_utf16(extension.second)));
+      file_types.push_back({(LPCWSTR)file_pair.first.c_str(),
+                            (LPCWSTR)file_pair.second.c_str()});
+    }
+    hr = file_dialog->SetFileTypes(static_cast<UINT>(file_types.size()),
+                                   file_types.data());
+    if (!SUCCEEDED(hr)) {
+      return false;
+    }
 
-  hr = file_dialog->SetFileTypeIndex(1);
-  if (!SUCCEEDED(hr)) {
-    return false;
+    hr = file_dialog->SetFileTypeIndex(1);
+    if (!SUCCEEDED(hr)) {
+      return false;
+    }
   }
 
   // Create an event handling object, and hook it up to the dialog.
