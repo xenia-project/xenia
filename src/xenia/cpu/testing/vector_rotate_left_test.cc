@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -62,7 +62,7 @@ TEST_CASE("VECTOR_ROTATE_LEFT_I32", "[instr]") {
   test.Run(
       [](PPCContext* ctx) {
         ctx->v[4] = vec128i(0x00000001, 0x00000001, 0x80000000, 0x80000000);
-        ctx->v[5] = vec128i(0, 1, 1, 2);
+        ctx->v[5] = vec128i(0, 1, 33, 2);
       },
       [](PPCContext* ctx) {
         auto result = ctx->v[3];
