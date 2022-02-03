@@ -22,7 +22,6 @@
 
 // NOTE: must be included last as it expects windows.h to already be included.
 #include "third_party/xbyak/xbyak/xbyak.h"
-#include "third_party/xbyak/xbyak/xbyak_bin2hex.h"
 #include "third_party/xbyak/xbyak/xbyak_util.h"
 
 namespace xe {
