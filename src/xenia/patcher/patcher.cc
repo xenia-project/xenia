@@ -48,30 +48,17 @@ void Patcher::ApplyPatch(Memory* memory, const PatchInfoEntry* patch) {
     heap->QueryProtect(patch_data_entry.memory_address_, &old_address_protect);
 
     heap->Protect(patch_data_entry.memory_address_,
-                  patch_data_entry.alloc_size_,
+                  (uint32_t)patch_data_entry.new_data_.alloc_size_,
                   kMemoryProtectRead | kMemoryProtectWrite);
 
-    switch (patch_data_entry.alloc_size_) {
-      case 1:
-        xe::store_and_swap(address, uint8_t(patch_data_entry.new_value_));
-        break;
-      case 2:
-        xe::store_and_swap(address, uint16_t(patch_data_entry.new_value_));
-        break;
-      case 4:
-        xe::store_and_swap(address, uint32_t(patch_data_entry.new_value_));
-        break;
-      case 8:
-        xe::store_and_swap(address, uint64_t(patch_data_entry.new_value_));
-        break;
-      default:
-        XELOGE("Patcher: Unsupported patch allocation size - {}",
-               patch_data_entry.alloc_size_);
-        break;
-    }
+    xe::copy_and_swap(address,
+                      (uint8_t*)patch_data_entry.new_data_.patch_data_ptr_,
+                      patch_data_entry.new_data_.alloc_size_);
+
     // Restore previous protection
     heap->Protect(patch_data_entry.memory_address_,
-                  patch_data_entry.alloc_size_, old_address_protect);
+                  (uint32_t)patch_data_entry.new_data_.alloc_size_,
+                  old_address_protect);
 
     is_any_patch_applied_ = true;
   }

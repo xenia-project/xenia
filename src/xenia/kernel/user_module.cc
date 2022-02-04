@@ -141,7 +141,7 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
     }
   }
 
-  XELOGI("Module hash: {:16X} for {}", hash_, name_);
+  XELOGI("Module hash: {:016X} for {}", hash_, name_);
   return LoadXexContinue();
 }
 
