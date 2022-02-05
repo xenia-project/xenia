@@ -18,10 +18,12 @@ namespace vulkan {
 
 using util::CheckResult;
 
-// Generated with `xenia-build genspirv`.
-#include "xenia/ui/vulkan/shaders/bytecode/vulkan_spirv/blit_color_frag.h"
-#include "xenia/ui/vulkan/shaders/bytecode/vulkan_spirv/blit_depth_frag.h"
-#include "xenia/ui/vulkan/shaders/bytecode/vulkan_spirv/blit_vert.h"
+// Generated with `xb buildshaders`.
+namespace shaders {
+#include "xenia/ui/vulkan/shaders/bytecode/vulkan_spirv/blit_color_ps.h"
+#include "xenia/ui/vulkan/shaders/bytecode/vulkan_spirv/blit_depth_ps.h"
+#include "xenia/ui/vulkan/shaders/bytecode/vulkan_spirv/blit_vs.h"
+}  // namespace shaders
 
 Blitter::Blitter(const VulkanProvider& provider) : provider_(provider) {}
 Blitter::~Blitter() { Shutdown(); }
@@ -35,8 +37,8 @@ VkResult Blitter::Initialize() {
   VkShaderModuleCreateInfo shader_create_info;
   std::memset(&shader_create_info, 0, sizeof(shader_create_info));
   shader_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-  shader_create_info.codeSize = sizeof(blit_vert);
-  shader_create_info.pCode = reinterpret_cast<const uint32_t*>(blit_vert);
+  shader_create_info.codeSize = sizeof(shaders::blit_vs);
+  shader_create_info.pCode = shaders::blit_vs;
   status = dfn.vkCreateShaderModule(device, &shader_create_info, nullptr,
                                     &blit_vertex_);
   CheckResult(status, "vkCreateShaderModule");
@@ -46,8 +48,8 @@ VkResult Blitter::Initialize() {
   provider_.SetDeviceObjectName(VK_OBJECT_TYPE_SHADER_MODULE,
                                 uint64_t(blit_vertex_), "S(B): Vertex");
 
-  shader_create_info.codeSize = sizeof(blit_color_frag);
-  shader_create_info.pCode = reinterpret_cast<const uint32_t*>(blit_color_frag);
+  shader_create_info.codeSize = sizeof(shaders::blit_color_ps);
+  shader_create_info.pCode = shaders::blit_color_ps;
   status = dfn.vkCreateShaderModule(device, &shader_create_info, nullptr,
                                     &blit_color_);
   CheckResult(status, "vkCreateShaderModule");
@@ -57,8 +59,8 @@ VkResult Blitter::Initialize() {
   provider_.SetDeviceObjectName(VK_OBJECT_TYPE_SHADER_MODULE,
                                 uint64_t(blit_color_), "S(B): Color");
 
-  shader_create_info.codeSize = sizeof(blit_depth_frag);
-  shader_create_info.pCode = reinterpret_cast<const uint32_t*>(blit_depth_frag);
+  shader_create_info.codeSize = sizeof(shaders::blit_depth_ps);
+  shader_create_info.pCode = shaders::blit_depth_ps;
   status = dfn.vkCreateShaderModule(device, &shader_create_info, nullptr,
                                     &blit_depth_);
   CheckResult(status, "vkCreateShaderModule");
