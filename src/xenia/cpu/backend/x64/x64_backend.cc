@@ -42,6 +42,7 @@ DEFINE_int32(x64_extension_mask, -1,
              "  512 = AVX512VL\n"
              " 1024 = AVX512BW\n"
              " 2048 = AVX512DQ\n"
+             " 4096 = AVX512VBMI\n"
              "   -1 = Detect and utilize all possible processor features\n",
              "x64");
 
