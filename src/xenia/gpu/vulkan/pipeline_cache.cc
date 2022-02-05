@@ -27,12 +27,14 @@ namespace vulkan {
 
 using xe::ui::vulkan::util::CheckResult;
 
-// Generated with `xenia-build genspirv`.
-#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/dummy_frag.h"
-#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/line_quad_list_geom.h"
-#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/point_list_geom.h"
-#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/quad_list_geom.h"
-#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/rect_list_geom.h"
+// Generated with `xb buildshaders`.
+namespace shaders {
+#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/dummy_ps.h"
+#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/line_quad_list_gs.h"
+#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/point_list_gs.h"
+#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/quad_list_gs.h"
+#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/rect_list_gs.h"
+}  // namespace shaders
 
 PipelineCache::PipelineCache(RegisterFile* register_file,
                              const ui::vulkan::VulkanProvider& provider)
@@ -111,10 +113,8 @@ VkResult PipelineCache::Initialize(
   shader_module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   shader_module_info.pNext = nullptr;
   shader_module_info.flags = 0;
-  shader_module_info.codeSize =
-      static_cast<uint32_t>(sizeof(line_quad_list_geom));
-  shader_module_info.pCode =
-      reinterpret_cast<const uint32_t*>(line_quad_list_geom);
+  shader_module_info.codeSize = sizeof(shaders::line_quad_list_gs);
+  shader_module_info.pCode = shaders::line_quad_list_gs;
   status = dfn.vkCreateShaderModule(device, &shader_module_info, nullptr,
                                     &geometry_shaders_.line_quad_list);
   if (status != VK_SUCCESS) {
@@ -124,8 +124,8 @@ VkResult PipelineCache::Initialize(
                                 uint64_t(geometry_shaders_.line_quad_list),
                                 "S(g): Line Quad List");
 
-  shader_module_info.codeSize = static_cast<uint32_t>(sizeof(point_list_geom));
-  shader_module_info.pCode = reinterpret_cast<const uint32_t*>(point_list_geom);
+  shader_module_info.codeSize = sizeof(shaders::point_list_gs);
+  shader_module_info.pCode = shaders::point_list_gs;
   status = dfn.vkCreateShaderModule(device, &shader_module_info, nullptr,
                                     &geometry_shaders_.point_list);
   if (status != VK_SUCCESS) {
@@ -135,8 +135,8 @@ VkResult PipelineCache::Initialize(
                                 uint64_t(geometry_shaders_.point_list),
                                 "S(g): Point List");
 
-  shader_module_info.codeSize = static_cast<uint32_t>(sizeof(quad_list_geom));
-  shader_module_info.pCode = reinterpret_cast<const uint32_t*>(quad_list_geom);
+  shader_module_info.codeSize = sizeof(shaders::quad_list_gs);
+  shader_module_info.pCode = shaders::quad_list_gs;
   status = dfn.vkCreateShaderModule(device, &shader_module_info, nullptr,
                                     &geometry_shaders_.quad_list);
   if (status != VK_SUCCESS) {
@@ -146,8 +146,8 @@ VkResult PipelineCache::Initialize(
                                 uint64_t(geometry_shaders_.quad_list),
                                 "S(g): Quad List");
 
-  shader_module_info.codeSize = static_cast<uint32_t>(sizeof(rect_list_geom));
-  shader_module_info.pCode = reinterpret_cast<const uint32_t*>(rect_list_geom);
+  shader_module_info.codeSize = sizeof(shaders::rect_list_gs);
+  shader_module_info.pCode = shaders::rect_list_gs;
   status = dfn.vkCreateShaderModule(device, &shader_module_info, nullptr,
                                     &geometry_shaders_.rect_list);
   if (status != VK_SUCCESS) {
@@ -157,8 +157,8 @@ VkResult PipelineCache::Initialize(
                                 uint64_t(geometry_shaders_.rect_list),
                                 "S(g): Rect List");
 
-  shader_module_info.codeSize = static_cast<uint32_t>(sizeof(dummy_frag));
-  shader_module_info.pCode = reinterpret_cast<const uint32_t*>(dummy_frag);
+  shader_module_info.codeSize = sizeof(shaders::dummy_ps);
+  shader_module_info.pCode = shaders::dummy_ps;
   status = dfn.vkCreateShaderModule(device, &shader_module_info, nullptr,
                                     &dummy_pixel_shader_);
   if (status != VK_SUCCESS) {

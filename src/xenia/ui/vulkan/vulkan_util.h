@@ -155,13 +155,14 @@ bool CreateDedicatedAllocationImage(const VulkanProvider& provider,
                                     VkDeviceSize* memory_size_out = nullptr);
 
 inline VkShaderModule CreateShaderModule(const VulkanProvider& provider,
-                                         const void* code, size_t code_size) {
+                                         const uint32_t* code,
+                                         size_t code_size_bytes) {
   VkShaderModuleCreateInfo shader_module_create_info;
   shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   shader_module_create_info.pNext = nullptr;
   shader_module_create_info.flags = 0;
-  shader_module_create_info.codeSize = code_size;
-  shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(code);
+  shader_module_create_info.codeSize = code_size_bytes;
+  shader_module_create_info.pCode = code;
   VkShaderModule shader_module;
   return provider.dfn().vkCreateShaderModule(
              provider.device(), &shader_module_create_info, nullptr,
