@@ -140,6 +140,8 @@ enum X64EmitterFeatureFlags {
   kX64EmitAVX512BW = 1 << 10,
   kX64EmitAVX512DQ = 1 << 11,
 
+  kX64EmitAVX512VBMI = 1 << 12,
+
   kX64EmitAVX512Ortho = kX64EmitAVX512F | kX64EmitAVX512VL,
   kX64EmitAVX512Ortho64 = kX64EmitAVX512Ortho | kX64EmitAVX512DQ
 };

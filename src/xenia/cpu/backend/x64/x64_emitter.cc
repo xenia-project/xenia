@@ -98,6 +98,7 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
   TEST_EMIT_FEATURE(kX64EmitAVX512VL, Xbyak::util::Cpu::tAVX512VL);
   TEST_EMIT_FEATURE(kX64EmitAVX512BW, Xbyak::util::Cpu::tAVX512BW);
   TEST_EMIT_FEATURE(kX64EmitAVX512DQ, Xbyak::util::Cpu::tAVX512DQ);
+  TEST_EMIT_FEATURE(kX64EmitAVX512VBMI, Xbyak::util::Cpu::tAVX512_VBMI);
 
 #undef TEST_EMIT_FEATURE
 }
