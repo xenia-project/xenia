@@ -813,6 +813,14 @@ void KernelState::CompleteOverlappedDeferredEx(
   auto ptr = memory()->TranslateVirtual(overlapped_ptr);
   XOverlappedSetResult(ptr, X_ERROR_IO_PENDING);
   XOverlappedSetContext(ptr, XThread::GetCurrentThreadHandle());
+  X_HANDLE event_handle = XOverlappedGetEvent(ptr);
+  if (event_handle) {
+    auto ev = object_table()->LookupObject<XEvent>(event_handle);
+    assert_not_null(ev);
+    if (ev) {
+      ev->Reset();
+    }
+  }
   auto global_lock = global_critical_region_.Acquire();
   dispatch_queue_.push_back([this, completion_callback, overlapped_ptr,
                              pre_callback, post_callback]() {
