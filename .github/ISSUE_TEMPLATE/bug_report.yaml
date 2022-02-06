@@ -1,8 +1,9 @@
 name: Bug report
 description: Template for bug reports.
-title: 'Bug: '
+labels: bug
 body:
-  - type: markdown
+  - id: disclaimer
+    type: markdown
     attributes:
       value: |
         Try to create a very concise title that's straight to the point.
@@ -14,8 +15,8 @@ body:
         A game specific issue would be e.g. "Game X crashes after you hit a character a certain way"
         A Xenia issue would be e.g. "Kernel export NtDoSomething does nothing"
         For specific games, visit https://github.com/xenia-project/game-compatibility#game-compatibility
-  - type: checkboxes
-    id: validation
+  - id: validation
+    type: checkboxes
     attributes:
       label: Validation
       options:
@@ -32,23 +33,23 @@ body:
       - label: 'My device meets the minimum requirements: https://github.com/xenia-project/xenia/wiki/Quickstart#system-requirements'
         required: true
       - label: '(If building) I have read the building doc: https://github.com/xenia-project/xenia/blob/master/docs/building.md'
-  - type: textarea
-    id: problem
+  - id: problem
+    type: textarea
     attributes:
       label: Describe what's going wrong
     validations:
       required: true
-  - type: textarea
-    id: what-should-happen
+  - id: what-should-happen
+    type: textarea
     attributes:
       label: Describe what should happen
     validations:
       required: true
-  - type: textarea
-    id: callstack
+  - id: callstack
+    type: textarea
     attributes:
       label: If applicable, provide a callstack here, especially for crashes
-  - type: textarea
-    id: logfile
+  - id: logfile
+    type: textarea
     attributes:
       label: If applicable, upload a logfile and link it here
