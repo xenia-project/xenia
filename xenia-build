@@ -1014,6 +1014,14 @@ class BuildShadersCommand(Command):
                 'ps': 'frag',
                 'cs': 'comp',
             }
+            # #version must be before everything else in a GLSL file, can't use
+            # a language conditional to add it. Use string interpolation to
+            # insert the file name. Using #include also preserves line numbers
+            # in error and warning messages.
+            spirv_xesl_wrapper =  \
+                '#version 460\n' + \
+                '#extension GL_GOOGLE_include_directive : require\n' + \
+                '#include "%s"\n'
             for src_path in src_paths:
                 src_name = os.path.basename(src_path)
                 src_is_xesl = src_name.endswith('.xesl')
@@ -1031,20 +1039,9 @@ class BuildShadersCommand(Command):
                 spirv_file_path_base = os.path.join(spirv_dir_path,
                                                     spirv_identifier)
                 spirv_glslang_file_path = spirv_file_path_base + '.glslang.spv'
-                glslang_file_argument = src_path
-                glslang_input = None
-                if src_is_xesl:
-                    # #version must be before everything else in a GLSL file,
-                    # can't use a language conditional to add it.
-                    glslang_file_argument = '--stdin'
-                    glslang_input = \
-                        '#version 460\n' + \
-                        '#extension GL_GOOGLE_include_directive : require\n'
-                    with open(src_path, 'r') as glsl_file:
-                        glslang_input += glsl_file.read()
                 # --stdin must be before -S for some reason.
                 glslang_arguments = [glslang,
-                                     glslang_file_argument,
+                                     '--stdin' if src_is_xesl else src_path,
                                      '-DXESL_LANGUAGE_GLSL=1',
                                      '-S', spirv_stage,
                                      '-o', spirv_glslang_file_path,
@@ -1053,8 +1050,11 @@ class BuildShadersCommand(Command):
                 # containing the file, add the include directory explicitly.
                 if src_is_xesl:
                     glslang_arguments.append('-I' + src_dir)
-                if subprocess.run(glslang_arguments, input=glslang_input,
-                                  universal_newlines=True).returncode != 0:
+                if subprocess.run(
+                       glslang_arguments,
+                       input = (spirv_xesl_wrapper % src_name) if src_is_xesl
+                               else None,
+                       universal_newlines = True).returncode != 0:
                     print('ERROR: failed to build a SPIR-V shader')
                     return 1
                 # spirv-opt input and output files must be different.
