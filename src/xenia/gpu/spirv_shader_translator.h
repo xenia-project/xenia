@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -439,6 +439,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id var_main_address_absolute_;
   // float.
   spv::Id var_main_previous_scalar_;
+  // `base + index * stride` in dwords from the last vfetch_full as it may be
+  // needed by vfetch_mini - int.
+  spv::Id var_main_vfetch_address_;
   // float4[register_count()].
   spv::Id var_main_registers_;
   // VS only - float3 (special exports).

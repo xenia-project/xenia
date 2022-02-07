@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -27,7 +27,9 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   uint32_t used_result_components = instr.result.GetUsedResultComponents();
   uint32_t needed_words = xenos::GetVertexFormatNeededWords(
       instr.attributes.data_format, used_result_components);
-  if (!needed_words) {
+  // If this is vfetch_full, the address may still be needed for vfetch_mini -
+  // don't exit before calculating the address.
+  if (!needed_words && instr.is_mini_fetch) {
     // Nothing to load - just constant 0/1 writes, or the swizzle includes only
     // components that don't exist in the format (writing zero instead of them).
     // Unpacking assumes at least some word is needed.
@@ -37,56 +39,71 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
 
   EnsureBuildPointAvailable();
 
-  // Get the base address in dwords from the bits 2:31 of the first fetch
-  // constant word.
   uint32_t fetch_constant_word_0_index = instr.operands[1].storage_index << 1;
-  id_vector_temp_.clear();
-  id_vector_temp_.reserve(3);
-  // The only element of the fetch constant buffer.
-  id_vector_temp_.push_back(const_int_0_);
-  // Vector index.
-  id_vector_temp_.push_back(
-      builder_->makeIntConstant(int(fetch_constant_word_0_index >> 2)));
-  // Component index.
-  id_vector_temp_.push_back(
-      builder_->makeIntConstant(int(fetch_constant_word_0_index & 3)));
-  spv::Id fetch_constant_word_0 = builder_->createLoad(
-      builder_->createAccessChain(spv::StorageClassUniform,
-                                  uniform_fetch_constants_, id_vector_temp_),
-      spv::NoPrecision);
-  // TODO(Triang3l): Verify the fetch constant type (that it's a vertex fetch,
-  // not a texture fetch) here instead of dropping draws with invalid vertex
-  // fetch constants on the CPU when proper bound checks are added - vfetch may
-  // be conditional, so fetch constants may also be used conditionally.
-  spv::Id address = builder_->createUnaryOp(
-      spv::OpBitcast, type_int_,
-      builder_->createBinOp(spv::OpShiftRightLogical, type_uint_,
-                            fetch_constant_word_0,
-                            builder_->makeUintConstant(2)));
-  if (instr.attributes.stride) {
-    // Convert the index to an integer by flooring or by rounding to the nearest
-    // (as floor(index + 0.5) because rounding to the nearest even makes no
-    // sense for addressing, both 1.5 and 2.5 would be 2).
-    // http://web.archive.org/web/20100302145413/http://msdn.microsoft.com:80/en-us/library/bb313960.aspx
-    spv::Id index = GetOperandComponents(LoadOperandStorage(instr.operands[0]),
-                                         instr.operands[0], 0b0001);
-    if (instr.attributes.is_index_rounded) {
-      index = builder_->createBinOp(spv::OpFAdd, type_float_, index,
-                                    builder_->makeFloatConstant(0.5f));
-      builder_->addDecoration(index, spv::DecorationNoContraction);
-    }
+
+  spv::Id address;
+  if (instr.is_mini_fetch) {
+    // `base + index * stride` loaded by vfetch_full.
+    address = builder_->createLoad(var_main_vfetch_address_, spv::NoPrecision);
+  } else {
+    // Get the base address in dwords from the bits 2:31 of the first fetch
+    // constant word.
     id_vector_temp_.clear();
-    id_vector_temp_.push_back(index);
-    index = builder_->createUnaryOp(
-        spv::OpConvertFToS, type_int_,
-        builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                    GLSLstd450Floor, id_vector_temp_));
-    if (instr.attributes.stride > 1) {
-      index = builder_->createBinOp(
-          spv::OpIMul, type_int_, index,
-          builder_->makeIntConstant(int(instr.attributes.stride)));
+    id_vector_temp_.reserve(3);
+    // The only element of the fetch constant buffer.
+    id_vector_temp_.push_back(const_int_0_);
+    // Vector index.
+    id_vector_temp_.push_back(
+        builder_->makeIntConstant(int(fetch_constant_word_0_index >> 2)));
+    // Component index.
+    id_vector_temp_.push_back(
+        builder_->makeIntConstant(int(fetch_constant_word_0_index & 3)));
+    spv::Id fetch_constant_word_0 = builder_->createLoad(
+        builder_->createAccessChain(spv::StorageClassUniform,
+                                    uniform_fetch_constants_, id_vector_temp_),
+        spv::NoPrecision);
+    // TODO(Triang3l): Verify the fetch constant type (that it's a vertex fetch,
+    // not a texture fetch) here instead of dropping draws with invalid vertex
+    // fetch constants on the CPU when proper bound checks are added - vfetch
+    // may be conditional, so fetch constants may also be used conditionally.
+    address = builder_->createUnaryOp(
+        spv::OpBitcast, type_int_,
+        builder_->createBinOp(spv::OpShiftRightLogical, type_uint_,
+                              fetch_constant_word_0,
+                              builder_->makeUintConstant(2)));
+    if (instr.attributes.stride) {
+      // Convert the index to an integer by flooring or by rounding to the
+      // nearest (as floor(index + 0.5) because rounding to the nearest even
+      // makes no sense for addressing, both 1.5 and 2.5 would be 2).
+      spv::Id index = GetOperandComponents(
+          LoadOperandStorage(instr.operands[0]), instr.operands[0], 0b0001);
+      if (instr.attributes.is_index_rounded) {
+        index = builder_->createBinOp(spv::OpFAdd, type_float_, index,
+                                      builder_->makeFloatConstant(0.5f));
+        builder_->addDecoration(index, spv::DecorationNoContraction);
+      }
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(index);
+      index = builder_->createUnaryOp(
+          spv::OpConvertFToS, type_int_,
+          builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                      GLSLstd450Floor, id_vector_temp_));
+      if (instr.attributes.stride > 1) {
+        index = builder_->createBinOp(
+            spv::OpIMul, type_int_, index,
+            builder_->makeIntConstant(int(instr.attributes.stride)));
+      }
+      address = builder_->createBinOp(spv::OpIAdd, type_int_, address, index);
     }
-    address = builder_->createBinOp(spv::OpIAdd, type_int_, address, index);
+    // Store the address for the subsequent vfetch_mini.
+    builder_->createStore(address, var_main_vfetch_address_);
+  }
+
+  if (!needed_words) {
+    // The vfetch_full address has been loaded for the subsequent vfetch_mini,
+    // but there's no data to load.
+    StoreResult(instr.result, spv::NoResult);
+    return;
   }
 
   // Load the needed words.
