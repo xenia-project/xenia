@@ -1,9 +1,39 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
 #ifndef XENIA_UI_SHADERS_XESL_XESLI_
 #define XENIA_UI_SHADERS_XESL_XESLI_
 
-// XESL_LANGUAGE_GLSL / HLSL are expected to be defined via compiler arguments.
+// XESL_LANGUAGE_GLSL / HLSL = 1 are expected to be defined via compiler
+// arguments.
+
+// For functions, it's preferable to take the identifiers here from an existing
+// target language, such as GLSL or HLSL, prefixing them with xesl_, only
+// modifying the names when altering (generalizing or specializing usually)
+// their functionality compared to that of the original function. The preferred
+// name choice from all the shading languages is the name that reflects the
+// functionality the closest, especially if some languages have a narrower input
+// domain (for instance, HLSL has asuint that can accept both float and int,
+// while GLSL has floatBitsToUint that accepts only float - there are two
+// options here, a xesl_floatBitsToUint alias, or xesl_asuint overloads, but the
+// former is more precisely descriptive, so it's preferred; xesl_lerp is
+// preferred over xesl_mix because the former describes how exactly the mixing
+// will be performed), and / or that is the most visually consistent
+// (xesl_float4 over xesl_vec4 considering it's a float vector).
 
 // Vectors.
+
+// Scalars for definition consistency.
+#define xesl_bool bool
+#define xesl_int int
+#define xesl_uint uint
+#define xesl_float float
 #if XESL_LANGUAGE_GLSL
   #define xesl_bool2 bvec2
   #define xesl_bool3 bvec3
@@ -33,13 +63,377 @@
 #endif  // XESL_LANGUAGE_GLSL
 
 // Declarations.
+//
+// Resource binding is very different between shading languages, so any
+// customizations are fine in it. All binding slots for all APIs, however,
+// should be explicitly specified by the shader for ease of manual lookup and
+// tweaking. They should be alphabetically ordered by the name of the target
+// shading language in the argument lists (GLSL before HLSL). For readability,
+// the `set=` and `binding=` specifiers, and register types and the `space`
+// prefix in HLSL, are exposed to the shader, even though they're redundant.
+//
+// The xesl_id_ prefix (with context-specific sub-prefixes) can be used to
+// create internal derivative identifiers (such as buffer block names from
+// instance names, or separate texture and sampler from a combined texture /
+// sampler for languages not supporting the latter).
+
+// Shader entry point must be declared as:
+// xesl_entry
+//   Everything here must be separated with xesl_entry_binding_next, with no
+//   leading or trailing separators.
+//   - Texel buffer, texture, sampler bindings.
+// xesl_entry_bindings_end
+//   Everything here must be separated with xesl_entry_signature_next, with no
+//   leading or trailing separators.
+//   - Linked stage inputs.
+//   - Linked system stage inputs (like pixel position).
+//   - System stage inputs.
+//   - Linked stage outputs.
+//   - Linked system stage outputs (like vertex position).
+//   - System stage outputs.
+// xesl_entry_signature_end
+//   - Main function code.
+// xesl_entry_end
+// Bindings are in the entry point because they are passed this way in MSL.
+// Note that for the stage inputs / outputs, the order must be the same as in
+// HLSL linkage.
+// Both binding and signature entry names may be placed in the global scope in
+// the target language, make sure they don't collide with anything there.
+#if XESL_LANGUAGE_GLSL
+  #define xesl_entry_signature_end void main() {
+#elif XESL_LANGUAGE_HLSL
+  #define xesl_entry_bindings_end void main(
+  #define xesl_entry_signature_next ,
+  #define xesl_entry_signature_end ) {
+#else
+  #error xesl_entry not defined for the target language.
+#endif  // XE_LANGUAGE
+#ifndef xesl_entry
+  #define xesl_entry
+#endif  // !xesl_entry
+#ifndef xesl_entry_binding_next
+  #define xesl_entry_binding_next
+#endif  // !xesl_entry_binding_next
+#ifndef xesl_entry_bindings_end
+  #define xesl_entry_bindings_end
+#endif  // !xesl_entry_bindings_end
+#ifndef xesl_entry_signature_next
+  #define xesl_entry_signature_next
+#endif  // !xesl_entry_signature_next
+#ifndef xesl_entry_end
+  #define xesl_entry_end }
+#endif  // !xesl_entry_end
+
 #if XESL_LANGUAGE_HLSL
-  // HLSL requires static const to declare a constant in the global scope so it
-  // doesn't go to $Globals instead.
+  // HLSL requires static const for declaring a constant in the global scope so
+  // it doesn't go to $Globals instead.
   #define xesl_static static
 #else
-  // GLSL requires just const to declare a constant in the global scope.
+  // GLSL requires just const for declaring a constant in the global scope.
   #define xesl_static
 #endif  // XESL_LANGUAGE_HLSL
+
+#if XESL_LANGUAGE_GLSL
+  #define xesl_block_offset_member(glsl_offset_bytes, hlsl_packoffset, type, \
+                                   name_element_count) \
+      layout(offset=glsl_offset_bytes) type name_element_count;
+#elif XESL_LANGUAGE_HLSL
+  #define xesl_block_offset_member(glsl_offset_bytes, hlsl_packoffset, type, \
+                                   name_element_count) \
+      type name_element_count : packoffset(hlsl_packoffset);
+#else
+  #error xesl_block_offset_member not defined for the target language.
+#endif  // XESL_LANGUAGE
+
+// Structures of constant and structured buffer bindings must be declared before
+// the entry point declaration.
+
+// Constant buffers and push constants must be manually packed as std140 (which
+// is stricter than HLSL packing) due to the GLSL requirement. This means that
+// 32x4 and 32x3 vectors must start at 16-byte alignment, 32x2 at 8-byte, and a
+// single 32-bit value can be placed immediately after a 32x3 vector (the Vulkan
+// definition of this behavior). Specifically, all alignment padding must be
+// inserted explicitly (or xesl_block_offset_member must be used), as by default
+// HLSL doesn't have the alignment requirement, only the rule that elements
+// (array elements, or single non-array members) must not cross 32x4 vector
+// boundaries, so something like float|float3 or float|float2|float will be
+// packed differently in GLSL (float|pad3|float3 or float|pad|float2|float) and
+// HLSL (float|float3 or float|float2|float).
+
+// Constant buffer and push constant member names will be in the global scope in
+// some target languages - they must not collide with anything else there. To
+// access a constant, use xesl_constant or xesl_push_constant.
+
+// Push constants, even though may be spread across multiple constant buffers in
+// the Direct3D 12 API, must be declared in a single structure in XeSL - the
+// reason is that layout qualifiers in GLSL can't be used in regular structures,
+// only in blocks, and sub-blocks can't be declared in a block, so there's no
+// way to create separate identifiers for push constant ranges in GLSL. Though
+// both GLSL and HLSL support anonymous push constants / cbuffers, MSL requires
+// a name for the buffer binding.
+// In GLSL, the offsets in the push constants are global across shader stages.
+// In HLSL, they're local to the specific root constant buffer.
+#if XESL_LANGUAGE_GLSL
+  #define xesl_push_constants_begin(hlsl_b, hlsl_b_space) \
+      layout(push_constant) uniform xesl_push_constants_block {
+  #define xesl_push_constants_end \
+      } xesl_push_constants;
+#elif XESL_LANGUAGE_HLSL
+  #define XESL_PUSH_CONSTANTS_GLOBAL 1
+  #define xesl_push_constants_begin(hlsl_b, hlsl_b_space) \
+      cbuffer xesl_push_constants : register(hlsl_b, hlsl_b_space) {
+  #define xesl_push_constants_end \
+      };
+#else
+  #error xesl_push_constants not defined for the target language.
+#endif  // XESL_LANGUAGE
+#if XESL_PUSH_CONSTANTS_GLOBAL
+  #define xesl_push_constant(name) name
+#else
+  #define xesl_push_constant(name) xesl_push_constants.name
+#endif  // XESL_PUSH_CONSTANTS_GLOBAL
+
+// Texture, sampler and image declarations must be in the entry point bindings
+// declaration.
+// - xesl_texture is a separate texture.
+// - xesl_samplerState is a separate sampler.
+// - xesl_sampler is a combined texture / sampler where available, internally
+//   separate where not.
+// - xesl_fetchSampler is a special kind of xesl_sampler for use when only
+//   texelFetch is needed - it can be used with xesl_texelFetch#D_comb just like
+//   a xesl_sampler, but when the target language doesn't need the sampler state
+//   for texelFetch, the unused sampler will not be created.
+#if XESL_LANGUAGE_GLSL
+  #define XESL_COMBINED_TEXTURE_SAMPLER 1
+  #define XESL_TEXEL_FETCH_USES_SAMPLER 1
+  // Types.
+  #define xesl_texture2D texture2D
+  #define xesl_sampler2D sampler2D
+  // Binding declarations.
+  #define xesl_texture(texture_type, name, glsl_set, glsl_binding, hlsl_t, \
+                       hlsl_t_space)                                       \
+      layout(glsl_set, glsl_binding) uniform texture_type name;
+  #define xesl_samplerState(name, glsl_set, glsl_binding, hlsl_s, \
+                            hlsl_s_space) \
+      layout(glsl_set, glsl_binding) uniform sampler name;
+  #define xesl_sampler(sampler_type, name, glsl_set, glsl_binding, hlsl_t, \
+                       hlsl_t_space, hlsl_s, hlsl_s_space)                 \
+      layout(glsl_set, glsl_binding) uniform sampler_type name;
+  // Fetching.
+  #define xesl_texelFetch2D_sep(texture_name, sampler_name, position, lod) \
+      texelFetch(sampler2D(texture_name, sampler_name), position, lod)
+  #define xesl_texelFetch2D_comb(texture_sampler_name, position, lod) \
+      texelFetch(texture_sampler_name, position, lod)
+  #define xesl_textureSampleLod2D_sep(texture, sampler_name, position, lod) \
+      textureLod(sampler2D(texture_name, sampler_name), position, lod)
+  #define xesl_textureSampleLod2D_comb(texture_sampler_name, position, lod) \
+      textureLod(texture_sampler_name, position, lod)
+  #define xesl_textureGatherRed2D_sep(texture_name, sampler_name, position) \
+      textureGather(sampler2D(texture_name, sampler_name), position, 0)
+  #define xesl_textureGatherGreen2D_sep(texture_name, sampler_name, position) \
+      textureGather(sampler2D(texture_name, sampler_name), position, 1)
+  #define xesl_textureGatherBlue2D_sep(texture_name, sampler_name, position) \
+      textureGather(sampler2D(texture_name, sampler_name), position, 2)
+  #define xesl_textureGatherAlpha2D_sep(texture_name, sampler_name, position) \
+      textureGather(sampler2D(texture_name, sampler_name), position, 3)
+  #define xesl_textureGatherRed2D_comb(texture_sampler_name, position) \
+      textureGather(texture_sampler_name, position, 0)
+  #define xesl_textureGatherGreen2D_comb(texture_sampler_name, position) \
+      textureGather(texture_sampler_name, position, 1)
+  #define xesl_textureGatherBlue2D_comb(texture_sampler_name, position) \
+      textureGather(texture_sampler_name, position, 2)
+  #define xesl_textureGatherAlpha2D_comb(texture_sampler_name, position) \
+      textureGather(texture_sampler_name, position, 3)
+#elif XESL_LANGUAGE_HLSL
+  // Types.
+  #define xesl_texture2D Texture2D
+  // Binding declarations.
+  #define xesl_texture(texture_type, name, glsl_set, glsl_binding, hlsl_t, \
+                       hlsl_t_space)                                       \
+      texture_type name : register(hlsl_t, hlsl_t_space);
+  #define xesl_samplerState(name, glsl_set, glsl_binding, hlsl_s, \
+                            hlsl_s_space) \
+      SamplerState name : register(hlsl_s, hlsl_s_space);
+  // Fetching.
+  #define xesl_texelFetch2D_sep(texture_name, sampler_name, position, lod) \
+      ((texture_name).Load(int3(position, lod)))
+  #define xesl_texelFetch2D_comb(texture_sampler_name, position, lod) \
+      ((xesl_id_texture_##texture_sampler_name).Load(int3(position, lod)))
+  #define xesl_textureSampleLod2D_sep(texture_name, sampler_name, position, \
+                                      lod)                                  \
+      ((texture_name).SampleLevel(sampler_name, position, lod))
+  #define xesl_textureGatherRed2D_sep(texture_name, sampler_name, position) \
+      ((texture_name).GatherRed(sampler_name, position))
+  #define xesl_textureGatherGreen2D_sep(texture_name, sampler_name, position) \
+      ((texture_name).GatherGreen(sampler_name, position))
+  #define xesl_textureGatherBlue2D_sep(texture_name, sampler_name, position) \
+      ((texture_name).GatherBlue(sampler_name, position))
+  #define xesl_textureGatherAlpha2D_sep(texture_name, sampler_name, position) \
+      ((texture_name).GatherAlpha(sampler_name, position))
+#else
+  #error xesl_texture and xesl_samplerState not defined for the target language.
+#endif  // XESL_LANGUAGE
+// If there's no language specialization doing this already, implement combined
+// textures / samplers as separate, with `xesl_id_texture_` and
+// `xesl_id_sampler_` prefixes. The sampler types become the texture types.
+#if !XESL_COMBINED_TEXTURE_SAMPLER
+  #ifndef xesl_sampler2D
+    #define xesl_sampler2D xesl_texture2D
+  #endif  // !xesl_sampler2D
+  #ifndef xesl_sampler
+    #define xesl_sampler(sampler_type, name, glsl_set, glsl_binding, hlsl_t, \
+                         hlsl_t_space, hlsl_s, hlsl_s_space)                 \
+        xesl_texture(sampler_type, xesl_id_texture_##name, glsl_set,         \
+                     glsl_binding, hlsl_t, hlsl_t_space)                     \
+        xesl_entry_binding_next                                              \
+        xesl_samplerState(xesl_id_sampler_##name, glsl_set, glsl_binding,    \
+                          hlsl_s, hlsl_s_space)
+  #endif  // !xesl_sampler
+  #ifndef xesl_textureSampleLod2D_comb
+    #define xesl_textureSampleLod2D_comb(texture_sampler_name, position, lod) \
+        xesl_textureSampleLod2D_sep(xesl_id_texture_##texture_sampler_name,   \
+                                    xesl_id_sampler_##texture_sampler_name,   \
+                                    position, lod)
+  #endif  // !xesl_textureSampleLod2D_comb
+  #ifndef xesl_textureGatherRed2D_comb
+    #define xesl_textureGatherRed2D_comb(texture_sampler_name, position)    \
+        xesl_textureGatherRed2D_sep(xesl_id_texture_##texture_sampler_name, \
+                                    xesl_id_sampler_##texture_sampler_name, \
+                                    position)
+  #endif  // !xesl_textureGatherRed2D_comb
+  #ifndef xesl_textureGatherGreen2D_comb
+    #define xesl_textureGatherGreen2D_comb(texture_sampler_name, position)    \
+        xesl_textureGatherGreen2D_sep(xesl_id_texture_##texture_sampler_name, \
+                                      xesl_id_sampler_##texture_sampler_name, \
+                                      position)
+  #endif  // !xesl_textureGatherGreen2D_comb
+  #ifndef xesl_textureGatherBlue2D_comb
+    #define xesl_textureGatherBlue2D_comb(texture_sampler_name, position)    \
+        xesl_textureGatherBlue2D_sep(xesl_id_texture_##texture_sampler_name, \
+                                     xesl_id_sampler_##texture_sampler_name, \
+                                     position)
+  #endif  // !xesl_textureGatherBlue2D_comb
+  #ifndef xesl_textureGatherAlpha2D_comb
+    #define xesl_textureGatherAlpha2D_comb(texture_sampler_name, position)    \
+        xesl_textureGatherAlpha2D_sep(xesl_id_texture_##texture_sampler_name, \
+                                      xesl_id_sampler_##texture_sampler_name, \
+                                      position)
+  #endif  // !xesl_textureGatherAlpha2D_comb
+#endif  // !XESL_COMBINED_TEXTURE_SAMPLER
+#if XESL_TEXEL_FETCH_USES_SAMPLER
+  #ifndef xesl_fetchSampler
+    #define xesl_fetchSampler(sampler_type, name, glsl_set, glsl_binding, \
+                              hlsl_t, hlsl_t_space)                       \
+        xesl_sampler(sampler_type, name, glsl_set, glsl_binding, hlsl_t,  \
+                     hlsl_t_space, s0, space0)
+  #endif  // !xesl_fetchSampler
+#else
+  #ifndef xesl_fetchSampler
+    #define xesl_fetchSampler(sampler_type, name, glsl_set, glsl_binding, \
+                              hlsl_t, hlsl_t_space)                       \
+        xesl_texture(sampler_type, xesl_id_texture_##name, glsl_set,      \
+                     glsl_binding, hlsl_t, hlsl_t_space)
+  #endif  // !xesl_fetchSampler
+#endif  // XESL_TEXEL_FETCH_USES_SAMPLER
+
+// xesl_input_vertex_id declares int xesl_VertexID.
+// xesl_input_frag_coord declares xesl_float4 xesl_FragCoord.
+// xesl_FragCoord.w is 1/W if XESL_FRAG_COORD_W_IS_INVERSE, W otherwise.
+// xesl_output_position declares xesl_float4 xesl_Position.
+#if XESL_LANGUAGE_GLSL
+  #define XESL_FRAG_COORD_W_IS_INVERSE 1
+  #define xesl_VertexID gl_VertexIndex
+  #define xesl_FragCoord gl_FragCoord
+  #define xesl_Position gl_Position
+  #define xesl_input(type, name, index, hlsl_semantic) \
+      layout(location=index) in type name;
+  #define xesl_input_vertex_id
+  #define xesl_input_frag_coord
+  #define xesl_output(type, name, index, hlsl_semantic) \
+      layout(location=index) out type name;
+  #define xesl_output_position
+  #define xesl_output_color(type, name, index) \
+      layout(location=index) out type name;
+#elif XESL_LANGUAGE_HLSL
+  #define xesl_VertexID (int(xesl_id_vertex_id))
+  #define xesl_input(type, name, index, hlsl_semantic) \
+      type name : hlsl_semantic
+  #define xesl_input_vertex_id \
+      uint xesl_id_vertex_id : SV_VertexID
+  #define xesl_input_frag_coord \
+      xesl_float4 xesl_FragCoord : SV_Position
+  #define xesl_output(type, name, index, hlsl_semantic) \
+      out type name : hlsl_semantic
+  #define xesl_output_position \
+      out xesl_float4 xesl_Position : SV_Position
+  #define xesl_output_color(type, name, index) \
+      out type name : SV_Target##index
+#else
+  #error xesl_input and xesl_output not defined for the target language.
+#endif  // XESL_LANGUAGE
+
+// XESL_Y_SCREEN_DIRECTION is 1.0 if with a positive viewport height,
+// +xesl_Position.y is towards +xesl_FragCoord.y, -1.0 if +xesl_Position.y is
+// towards -xesl_FragCoord.y.
+#if XESL_LANGUAGE_GLSL
+  #define XESL_Y_SCREEN_DIRECTION 1.0
+#else
+  #define XESL_Y_SCREEN_DIRECTION -1.0
+#endif  // XESL_LANGUAGE_GLSL
+
+// Function aliases.
+
+#if XESL_LANGUAGE_HLSL
+  // Using functions instead of #define for implicit argument conversion.
+  int xesl_floatBitsToInt(float value) { return asint(value); }
+  xesl_int2 xesl_floatBitsToInt(xesl_float2 value) { return asint(value); }
+  xesl_int3 xesl_floatBitsToInt(xesl_float3 value) { return asint(value); }
+  xesl_int4 xesl_floatBitsToInt(xesl_float4 value) { return asint(value); }
+  uint xesl_floatBitsToUint(float value) { return asuint(value); }
+  xesl_uint2 xesl_floatBitsToUint(xesl_float2 value) { return asuint(value); }
+  xesl_uint3 xesl_floatBitsToUint(xesl_float3 value) { return asuint(value); }
+  xesl_uint4 xesl_floatBitsToUint(xesl_float4 value) { return asuint(value); }
+  float xesl_intBitsToFloat(int value) { return asfloat(value); }
+  xesl_float2 xesl_intBitsToFloat(xesl_int2 value) { return asfloat(value); }
+  xesl_float3 xesl_intBitsToFloat(xesl_int3 value) { return asfloat(value); }
+  xesl_float4 xesl_intBitsToFloat(xesl_int4 value) { return asfloat(value); }
+  float xesl_uintBitsToFloat(uint value) { return asfloat(value); }
+  xesl_float2 xesl_uintBitsToFloat(xesl_uint2 value) { return asfloat(value); }
+  xesl_float3 xesl_uintBitsToFloat(xesl_uint3 value) { return asfloat(value); }
+  xesl_float4 xesl_uintBitsToFloat(xesl_uint4 value) { return asfloat(value); }
+#else
+  #define xesl_floatBitsToInt floatBitsToInt
+  #define xesl_floatBitsToUint floatBitsToUint
+  #define xesl_intBitsToFloat intBitsToFloat
+  #define xesl_uintBitsToFloat uintBitsToFloat
+#endif  // XESL_LANGUAGE_HLSL
+
+#if XESL_LANGUAGE_GLSL
+  float xesl_saturate(float value) {
+    return clamp(value, 0.0, 1.0);
+  }
+  xesl_float2 xesl_saturate(xesl_float2 value) {
+    return clamp(value, xesl_float2(0.0, 0.0), xesl_float2(1.0, 1.0));
+  }
+  xesl_float3 xesl_saturate(xesl_float3 value) {
+    return clamp(value, xesl_float3(0.0, 0.0, 0.0), xesl_float3(1.0, 1.0, 1.0));
+  }
+  xesl_float4 xesl_saturate(xesl_float4 value) {
+    return clamp(value, xesl_float4(0.0, 0.0, 0.0, 0.0),
+                 xesl_float4(1.0, 1.0, 1.0, 1.0));
+  }
+#else
+  #define xesl_saturate saturate
+#endif  // XESL_LANGUAGE_GLSL
+
+#if XESL_LANGUAGE_GLSL
+  #define xesl_packHalf2x16 packHalf2x16
+#elif XESL_LANGUAGE_HLSL
+  uint xesl_packHalf2x16(xesl_float2 value) {
+    return f32tof16(value.x) | (f32tof16(value.y) << 16u);
+  }
+#else
+  #error xesl_packHalf2x16 not defined for the target language.
+#endif  // XESL_LANGUAGE
 
 #endif  // XENIA_UI_SHADERS_XESL_XESLI_

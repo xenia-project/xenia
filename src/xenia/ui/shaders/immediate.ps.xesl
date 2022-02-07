@@ -1,0 +1,25 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include "xesl.xesli"
+
+xesl_entry
+  xesl_sampler(xesl_sampler2D, xe_immediate_texture, set=0, binding=0, t0,
+               space0, s0, space0)
+xesl_entry_bindings_end
+  xesl_input(xesl_float2, xe_in_texcoord, 0, TEXCOORD)
+  xesl_entry_signature_next
+  xesl_input(xesl_float4, xe_in_color, 1, COLOR)
+  xesl_entry_signature_next
+  xesl_output_color(xesl_float4, xe_out_color, 0)
+xesl_entry_signature_end
+  xe_out_color =
+      xe_in_color *
+      xesl_textureSampleLod2D_comb(xe_immediate_texture, xe_in_texcoord, 0.0);
+xesl_entry_end

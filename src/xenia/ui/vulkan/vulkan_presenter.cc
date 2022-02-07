@@ -60,16 +60,16 @@ namespace vulkan {
 
 // Generated with `xb buildshaders`.
 namespace shaders {
-#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_bilinear_dither_frag.h"
-#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_bilinear_frag.h"
-#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_ffx_cas_resample_dither_frag.h"
-#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_ffx_cas_resample_frag.h"
-#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_ffx_cas_sharpen_dither_frag.h"
-#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_ffx_cas_sharpen_frag.h"
-#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_ffx_fsr_easu_frag.h"
-#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_ffx_fsr_rcas_dither_frag.h"
-#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_ffx_fsr_rcas_frag.h"
-#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_triangle_strip_rect_vert.h"
+#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_bilinear_dither_ps.h"
+#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_bilinear_ps.h"
+#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_ffx_cas_resample_dither_ps.h"
+#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_ffx_cas_resample_ps.h"
+#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_ffx_cas_sharpen_dither_ps.h"
+#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_ffx_cas_sharpen_ps.h"
+#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_ffx_fsr_easu_ps.h"
+#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_ffx_fsr_rcas_dither_ps.h"
+#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_ffx_fsr_rcas_ps.h"
+#include "xenia/ui/shaders/bytecode/vulkan_spirv/guest_output_triangle_strip_rect_vs.h"
 }  // namespace shaders
 
 VulkanPresenter::PaintContext::Submission::~Submission() {
@@ -2213,9 +2213,9 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   shader_module_create_info.pNext = nullptr;
   shader_module_create_info.flags = 0;
   shader_module_create_info.codeSize =
-      sizeof(shaders::guest_output_triangle_strip_rect_vert);
-  shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(
-      shaders::guest_output_triangle_strip_rect_vert);
+      sizeof(shaders::guest_output_triangle_strip_rect_vs);
+  shader_module_create_info.pCode =
+      shaders::guest_output_triangle_strip_rect_vs;
   if (dfn.vkCreateShaderModule(device, &shader_module_create_info, nullptr,
                                &guest_output_paint_vs_) != VK_SUCCESS) {
     XELOGE(
@@ -2229,57 +2229,54 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
     switch (guest_output_paint_effect) {
       case GuestOutputPaintEffect::kBilinear:
         shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_bilinear_frag);
-        shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(
-            shaders::guest_output_bilinear_frag);
+            sizeof(shaders::guest_output_bilinear_ps);
+        shader_module_create_info.pCode = shaders::guest_output_bilinear_ps;
         break;
       case GuestOutputPaintEffect::kBilinearDither:
         shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_bilinear_dither_frag);
-        shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(
-            shaders::guest_output_bilinear_dither_frag);
+            sizeof(shaders::guest_output_bilinear_dither_ps);
+        shader_module_create_info.pCode =
+            shaders::guest_output_bilinear_dither_ps;
         break;
       case GuestOutputPaintEffect::kCasSharpen:
         shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_ffx_cas_sharpen_frag);
-        shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(
-            shaders::guest_output_ffx_cas_sharpen_frag);
+            sizeof(shaders::guest_output_ffx_cas_sharpen_ps);
+        shader_module_create_info.pCode =
+            shaders::guest_output_ffx_cas_sharpen_ps;
         break;
       case GuestOutputPaintEffect::kCasSharpenDither:
         shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_ffx_cas_sharpen_dither_frag);
-        shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(
-            shaders::guest_output_ffx_cas_sharpen_dither_frag);
+            sizeof(shaders::guest_output_ffx_cas_sharpen_dither_ps);
+        shader_module_create_info.pCode =
+            shaders::guest_output_ffx_cas_sharpen_dither_ps;
         break;
       case GuestOutputPaintEffect::kCasResample:
         shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_ffx_cas_resample_frag);
-        shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(
-            shaders::guest_output_ffx_cas_resample_frag);
+            sizeof(shaders::guest_output_ffx_cas_resample_ps);
+        shader_module_create_info.pCode =
+            shaders::guest_output_ffx_cas_resample_ps;
         break;
       case GuestOutputPaintEffect::kCasResampleDither:
         shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_ffx_cas_resample_dither_frag);
-        shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(
-            shaders::guest_output_ffx_cas_resample_dither_frag);
+            sizeof(shaders::guest_output_ffx_cas_resample_dither_ps);
+        shader_module_create_info.pCode =
+            shaders::guest_output_ffx_cas_resample_dither_ps;
         break;
       case GuestOutputPaintEffect::kFsrEasu:
         shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_ffx_fsr_easu_frag);
-        shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(
-            shaders::guest_output_ffx_fsr_easu_frag);
+            sizeof(shaders::guest_output_ffx_fsr_easu_ps);
+        shader_module_create_info.pCode = shaders::guest_output_ffx_fsr_easu_ps;
         break;
       case GuestOutputPaintEffect::kFsrRcas:
         shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_ffx_fsr_rcas_frag);
-        shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(
-            shaders::guest_output_ffx_fsr_rcas_frag);
+            sizeof(shaders::guest_output_ffx_fsr_rcas_ps);
+        shader_module_create_info.pCode = shaders::guest_output_ffx_fsr_rcas_ps;
         break;
       case GuestOutputPaintEffect::kFsrRcasDither:
         shader_module_create_info.codeSize =
-            sizeof(shaders::guest_output_ffx_fsr_rcas_dither_frag);
-        shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(
-            shaders::guest_output_ffx_fsr_rcas_dither_frag);
+            sizeof(shaders::guest_output_ffx_fsr_rcas_dither_ps);
+        shader_module_create_info.pCode =
+            shaders::guest_output_ffx_fsr_rcas_dither_ps;
         break;
       default:
         // Not supported by this implementation.
