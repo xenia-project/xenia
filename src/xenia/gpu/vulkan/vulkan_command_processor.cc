@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -39,8 +39,8 @@ namespace vulkan {
 
 // Generated with `xb buildshaders`.
 namespace shaders {
-#include "xenia/gpu/shaders/bytecode/vulkan_spirv/fullscreen_tc_vert.h"
-#include "xenia/gpu/shaders/bytecode/vulkan_spirv/uv_frag.h"
+#include "xenia/gpu/shaders/bytecode/vulkan_spirv/fullscreen_tc_vs.h"
+#include "xenia/gpu/shaders/bytecode/vulkan_spirv/uv_ps.h"
 }  // namespace shaders
 
 VulkanCommandProcessor::VulkanCommandProcessor(
@@ -366,8 +366,7 @@ bool VulkanCommandProcessor::SetupContext() {
   swap_pipeline_stages[0].flags = 0;
   swap_pipeline_stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
   swap_pipeline_stages[0].module = ui::vulkan::util::CreateShaderModule(
-      provider, shaders::fullscreen_tc_vert,
-      sizeof(shaders::fullscreen_tc_vert));
+      provider, shaders::fullscreen_tc_vs, sizeof(shaders::fullscreen_tc_vs));
   if (swap_pipeline_stages[0].module == VK_NULL_HANDLE) {
     XELOGE("Failed to create the Vulkan vertex shader module for presentation");
     return false;
@@ -380,7 +379,7 @@ bool VulkanCommandProcessor::SetupContext() {
   swap_pipeline_stages[1].flags = 0;
   swap_pipeline_stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
   swap_pipeline_stages[1].module = ui::vulkan::util::CreateShaderModule(
-      provider, shaders::uv_frag, sizeof(shaders::uv_frag));
+      provider, shaders::uv_ps, sizeof(shaders::uv_ps));
   if (swap_pipeline_stages[1].module == VK_NULL_HANDLE) {
     XELOGE(
         "Failed to create the Vulkan fragment shader module for presentation");

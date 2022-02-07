@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2020 Ben Vanik. All Rights Reserved.
+# Copyright 2022 Ben Vanik. All Rights Reserved.
 
 """Main build script and tooling for xenia.
 
@@ -596,7 +596,6 @@ def discover_commands(subparsers):
         'build': BuildCommand(subparsers),
         'buildshaders': BuildShadersCommand(subparsers),
         'devenv': DevenvCommand(subparsers),
-        'genspirv': GenSpirvCommand(subparsers),
         'gentests': GenTestsCommand(subparsers),
         'test': TestCommand(subparsers),
         'gputest': GpuTestCommand(subparsers),
@@ -877,47 +876,72 @@ class BuildShadersCommand(Command):
             help_short='Generates shader binaries for inclusion in C++ files.',
             help_long='''
             Generates the shader binaries under src/*/shaders/bytecode/.
-            Run after modifying any .hs/vs/ds/gs/ps/cs.hlsl files.
+            Run after modifying any .hs/vs/ds/gs/ps/cs.glsl/hlsl/xesl files.
             Direct3D shaders can be built only on a Windows host.
             ''',
             *args, **kwargs)
         self.parser.add_argument(
-            '--target', action='append', choices=['dxbc'], default=[],
+            '--target', action='append', choices=['dxbc', 'spirv'], default=[],
             help='Builds only the given target(s).')
 
     def execute(self, args, pass_args, cwd):
         src_paths = [os.path.join(root, name)
                      for root, dirs, files in os.walk('src')
                      for name in files
-                     if (name.endswith('.hs.hlsl') or
-                         name.endswith('.vs.hlsl') or
-                         name.endswith('.ds.hlsl') or
-                         name.endswith('.gs.hlsl') or
-                         name.endswith('.ps.hlsl') or
-                         name.endswith('.cs.hlsl'))]
+                     if (name.endswith('.glsl') or
+                         name.endswith('.hlsl') or
+                         name.endswith('.xesl'))]
         targets = args['target']
         all_targets = len(targets) == 0
+
+        # XeSL ("Xenia Shading Language") means shader files that can be
+        # compiled as multiple languages from a single file. Whenever possible,
+        # this is achieved without the involvement of the build script, using
+        # just conditionals, macros and functions in shaders, however, in some
+        # cases, that's necessary (such as to prepend `#version` in GLSL, as
+        # well as to enable `#include` in GLSL, to include `xesl.xesli` itself,
+        # without writing the same `#if` / `#extension` / `#endif` in every
+        # shader). Also, not all shading languages provide a built-in
+        # preprocessor definition for identification of them, so XESL_LANGUAGE_*
+        # is also defined via the build arguments. XESL_LANGUAGE_* is set
+        # regardless of whether the file is XeSL or a raw source file in a
+        # specific language, as XeSL headers may be used in language-specific
+        # sources.
 
         # Direct3D DXBC.
         if all_targets or 'dxbc' in targets:
             if sys.platform == 'win32':
                 print('Building Direct3D 12 Shader Model 5.1 DXBC shaders...')
+
+                # Get the FXC path.
+                # TODO(Triang3l): Find FXC in the most recent Windows SDK.
+                program_files_path = os.environ['ProgramFiles(x86)']
+                if not os.path.exists(program_files_path):
+                    print('ERROR: could not find 32-bit Program Files')
+                    return 1
                 windows_sdk_bin_path = os.path.join(
-                    os.environ['ProgramFiles(x86)'],
-                    'Windows Kits/10/bin/10.0.19041.0/x64')
-                fxc = os.path.join(windows_sdk_bin_path, 'fxc')
-                # Ensure we have the tools.
+                    program_files_path, 'Windows Kits/10/bin/10.0.19041.0/x64')
                 if not os.path.exists(windows_sdk_bin_path):
                     print('ERROR: could not find Windows 10 SDK binaries')
                     return 1
-                elif not has_bin(fxc):
+                fxc = os.path.join(windows_sdk_bin_path, 'fxc')
+                if not has_bin(fxc):
                     print('ERROR: could not find fxc')
                     return 1
+
                 # Build DXBC.
+                dxbc_stages = ['vs', 'hs', 'ds', 'gs', 'ps', 'cs']
                 for src_path in src_paths:
+                    src_name = os.path.basename(src_path)
+                    if ((not src_name.endswith('.hlsl') and
+                         not src_name.endswith('.xesl')) or
+                        len(src_name) <= 8 or src_name[-8] != '.'):
+                        continue
+                    dxbc_identifier = src_name[:-5].replace('.', '_')
+                    dxbc_stage = dxbc_identifier[-2:]
+                    if not dxbc_stage in dxbc_stages:
+                        continue
                     print('- %s > d3d12_5_1' % (src_path))
-                    dxbc_identifier = \
-                        os.path.basename(src_path)[:-5].replace('.', '_')
                     dxbc_dir_path = os.path.join(os.path.dirname(src_path),
                                                  'bytecode/d3d12_5_1')
                     os.makedirs(dxbc_dir_path, exist_ok=True)
@@ -927,16 +951,19 @@ class BuildShadersCommand(Command):
                     # overrides #pragma warning, and the FXAA shader triggers a
                     # bug in FXC causing an uninitialized variable warning if
                     # early exit from a function is done.
+                    # FXC writes errors and warnings to stderr, not stdout, but
+                    # stdout receives generic status messages that only add
+                    # clutter in this case.
                     if subprocess.call([
                            fxc,
                            '/D', 'XESL_LANGUAGE_HLSL=1',
                            '/Fh', dxbc_file_path_base + '.h',
-                           '/T', dxbc_identifier[-2:] + '_5_1',
+                           '/T', dxbc_stage + '_5_1',
                            '/Vn', dxbc_identifier,
                            '/nologo',
-                           src_path
-                           ], stdout=subprocess.DEVNULL):
-                        print('ERROR: failed to build a DXBC shader')
+                           src_path,
+                           ], stdout=subprocess.DEVNULL) != 0:
+                        print('ERROR: failed to compile a DXBC shader')
                         return 1
             else:
                 if all_targets:
@@ -947,101 +974,149 @@ class BuildShadersCommand(Command):
                           'only on Windows')
                     return 1
 
-        return 0
+        # Vulkan SPIR-V.
+        if all_targets or 'spirv' in targets:
+            print('Building Vulkan SPIR-V shaders...')
 
+            # Get the SPIR-V tool paths.
+            vulkan_sdk_path = os.environ['VULKAN_SDK']
+            if not os.path.exists(vulkan_sdk_path):
+                print('ERROR: could not find the Vulkan SDK in $VULKAN_SDK')
+                return 1
+            # bin is lowercase on Linux (even though it's uppercase on Windows).
+            vulkan_bin_path = os.path.join(vulkan_sdk_path, 'bin')
+            if not os.path.exists(vulkan_bin_path):
+                print('ERROR: could not find the Vulkan SDK binaries')
+                return 1
+            glslang = os.path.join(vulkan_bin_path, 'glslangValidator')
+            if not has_bin(glslang):
+                print('ERROR: could not find glslangValidator')
+                return 1
+            spirv_opt = os.path.join(vulkan_bin_path, 'spirv-opt')
+            if not has_bin(spirv_opt):
+                print('ERROR: could not find spirv-opt')
+                return 1
+            spirv_remap = os.path.join(vulkan_bin_path, 'spirv-remap')
+            if not has_bin(spirv_remap):
+                print('ERROR: could not find spirv-remap')
+                return 1
+            spirv_dis = os.path.join(vulkan_bin_path, 'spirv-dis')
+            if not has_bin(spirv_dis):
+                print('ERROR: could not find spirv-dis')
+                return 1
 
-class GenSpirvCommand(Command):
-    """'genspirv' command."""
-
-    def __init__(self, subparsers, *args, **kwargs):
-        super(GenSpirvCommand, self).__init__(
-            subparsers,
-            name='genspirv',
-            help_short='Generates SPIR-V binaries and header files.',
-            help_long='''
-            Generates the .spv/.h binaries under src/xenia/*/vulkan/shaders/bin/).
-            Run after modifying any .vert/.geom/.frag files.
-            ''',
-            *args, **kwargs)
-
-    def execute(self, args, pass_args, cwd):
-        print('Generating SPIR-V binaries...')
-        print('')
-
-        vulkan_sdk_path = os.environ['VULKAN_SDK']
-        vulkan_bin_path = os.path.join(vulkan_sdk_path, 'bin')
-        glslang = os.path.join(vulkan_bin_path, 'glslangValidator')
-        spirv_dis = os.path.join(vulkan_bin_path, 'spirv-dis')
-
-        # Ensure we have the tools.
-        if not os.path.exists(vulkan_sdk_path):
-            print('ERROR: could not find the Vulkan SDK')
-            return 1
-        elif not has_bin(glslang):
-            print('ERROR: could not find glslangValidator')
-            return 1
-        elif not has_bin(spirv_dis):
-            print('ERROR: could not find spirv-dis')
-            return 1
-
-        src_files = [os.path.join(root, name)
-                     for root, dirs, files in os.walk('src')
-                     for name in files
-                     if (name.endswith('.vert') or name.endswith('.geom') or
-                         name.endswith('.frag'))]
-
-        any_errors = False
-        for src_file in src_files:
-            print('- %s' % (src_file))
-            src_name = os.path.splitext(os.path.basename(src_file))[0]
-            identifier = os.path.basename(src_file).replace('.', '_')
-
-            bin_path = os.path.join(os.path.dirname(src_file),
-                                    'bytecode/vulkan_spirv')
-            spv_file = os.path.join(bin_path, identifier) + '.spv'
-            txt_file = os.path.join(bin_path, identifier) + '.txt'
-            h_file = os.path.join(bin_path, identifier) + '.h'
-
-            # GLSL source -> .spv binary
-            shell_call([
-                glslang,
-                '-DXESL_LANGUAGE_GLSL=1',
-                '-Os',
-                '-V', src_file,
-                '-o', spv_file,
-                ])
-
-            # Disassemble binary into human-readable text.
-            shell_call([
-                spirv_dis,
-                '-o', txt_file,
-                spv_file,
-                ])
-
-            # TODO(benvanik): remap?
-
-            # bin2c so we get a header file we can compile in.
-            with open(h_file, 'w') as out_file:
-                out_file.write('// generated from `xb genspirv`\n')
-                out_file.write('// source: %s\n' % os.path.basename(src_file))
-                out_file.write('const uint8_t %s[] = {' % (identifier))
-                with open(spv_file, 'rb') as in_file:
-                    index = 0
-                    c = in_file.read(1)
-                    while len(c) != 0:
-                        if index % 12 == 0:
-                            out_file.write('\n    ')
-                        else:
-                            out_file.write(' ')
-                        index += 1
-                        out_file.write('0x%02X,' % ord(c))
-                        c = in_file.read(1)
-                out_file.write('\n};\n')
-
-        if any_errors:
-            print('ERROR: failed to build one or more SPIR-V files.')
-            return 1
-
+            # Build SPIR-V.
+            spirv_stages = {
+                'vs': 'vert',
+                'hs': 'tesc',
+                'ds': 'tese',
+                'gs': 'geom',
+                'ps': 'frag',
+                'cs': 'comp',
+            }
+            # #version must be before everything else in a GLSL file, can't use
+            # a language conditional to add it. Use string interpolation to
+            # insert the file name. Using #include also preserves line numbers
+            # in error and warning messages.
+            spirv_xesl_wrapper =  \
+                '#version 460\n' + \
+                '#extension GL_GOOGLE_include_directive : require\n' + \
+                '#include "%s"\n'
+            for src_path in src_paths:
+                src_name = os.path.basename(src_path)
+                src_is_xesl = src_name.endswith('.xesl')
+                if ((not src_is_xesl and not src_name.endswith('.glsl')) or
+                    len(src_name) <= 8 or src_name[-8] != '.'):
+                    continue
+                spirv_identifier = src_name[:-5].replace('.', '_')
+                spirv_stage = spirv_stages.get(spirv_identifier[-2:], None)
+                if spirv_stage is None:
+                    continue
+                print('- %s > vulkan_spirv' % (src_path))
+                src_dir = os.path.dirname(src_path)
+                spirv_dir_path = os.path.join(src_dir, 'bytecode/vulkan_spirv')
+                os.makedirs(spirv_dir_path, exist_ok=True)
+                spirv_file_path_base = os.path.join(spirv_dir_path,
+                                                    spirv_identifier)
+                spirv_glslang_file_path = spirv_file_path_base + '.glslang.spv'
+                # --stdin must be before -S for some reason.
+                glslang_arguments = [glslang,
+                                     '--stdin' if src_is_xesl else src_path,
+                                     '-DXESL_LANGUAGE_GLSL=1',
+                                     '-S', spirv_stage,
+                                     '-o', spirv_glslang_file_path,
+                                     '-V']
+                # When compiling the code from stdin, there's no directory
+                # containing the file, add the include directory explicitly.
+                if src_is_xesl:
+                    glslang_arguments.append('-I' + src_dir)
+                if subprocess.run(
+                       glslang_arguments,
+                       input = (spirv_xesl_wrapper % src_name) if src_is_xesl
+                               else None,
+                       universal_newlines = True).returncode != 0:
+                    print('ERROR: failed to build a SPIR-V shader')
+                    return 1
+                # spirv-opt input and output files must be different.
+                spirv_file_path = spirv_file_path_base + '.spv'
+                if subprocess.call([
+                       spirv_opt,
+                       '-O',
+                       spirv_glslang_file_path,
+                       '-o', spirv_file_path,
+                       ]) != 0:
+                    print('ERROR: failed to optimize a SPIR-V shader')
+                    return 1
+                os.remove(spirv_glslang_file_path)
+                # spirv-remap takes the output directory, but it may be the same
+                # as the one the input is stored in.
+                if subprocess.call([
+                       spirv_remap,
+                       '--do-everything',
+                       '-i', spirv_file_path,
+                       '-o', spirv_dir_path,
+                       ]) != 0:
+                    print('ERROR: failed to remap a SPIR-V shader')
+                    return 1
+                spirv_dis_file_path = spirv_file_path_base + '.txt';
+                if subprocess.call([
+                       spirv_dis,
+                       '-o', spirv_dis_file_path,
+                       spirv_file_path,
+                       ]) != 0:
+                    print('ERROR: failed to disassemble a SPIR-V shader')
+                    return 1
+                # Generate the header from the disassembly and the binary.
+                with open(spirv_file_path_base + '.h', 'w') as out_file:
+                    out_file.write(
+                        '// Generated with `xb buildshaders`.\n#if 0\n')
+                    with open(spirv_dis_file_path, 'r') as spirv_dis_file:
+                        spirv_dis_data = spirv_dis_file.read()
+                        if len(spirv_dis_data) > 0:
+                            out_file.write(spirv_dis_data)
+                            if spirv_dis_data[-1] != '\n':
+                                out_file.write('\n')
+                    out_file.write('#endif\n\nconst uint32_t %s[] = {' %
+                                   spirv_identifier)
+                    with open(spirv_file_path, 'rb') as spirv_file:
+                        index = 0
+                        # SPIR-V consists of host-endian 32-bit words.
+                        c = spirv_file.read(4)
+                        while len(c) != 0:
+                            if len(c) != 4:
+                                print('ERROR: a SPIR-V shader is misaligned')
+                                return 1
+                            if index % 6 == 0:
+                                out_file.write('\n    ')
+                            else:
+                                out_file.write(' ')
+                            index += 1
+                            out_file.write(
+                                '0x%08X,' % int.from_bytes(c, sys.byteorder))
+                            c = spirv_file.read(4)
+                    out_file.write('\n};\n')
+                os.remove(spirv_dis_file_path)
+                os.remove(spirv_file_path)
         return 0
 
 

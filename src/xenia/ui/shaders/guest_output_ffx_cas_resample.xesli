@@ -1,0 +1,83 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include "xesl.xesli"
+
+#include "amd_language.xesli"
+
+#if XE_GUEST_OUTPUT_DITHER
+  #include "dither_8bpc.xesli"
+#endif  // XE_GUEST_OUTPUT_DITHER
+
+xesl_push_constants_begin(b0, space0)
+  // 16 used by the vertex shader (GLSL push constant offsets are across
+  // stages).
+  xesl_block_offset_member(16, c0.x, xesl_int2, xe_cas_output_offset)
+  // CasSetup const0.xy.
+  xesl_block_offset_member(24, c0.z, xesl_float2,
+                           xe_cas_input_output_size_ratio)
+  // CasSetup const1.x.
+  xesl_block_offset_member(32, c1.x, float, xe_cas_sharpness_post_setup)
+xesl_push_constants_end
+
+// Forward declaration because CasLoad needs xe_cas_source from the entry point
+// bindings.
+void CasFilter(out float pixel_r, out float pixel_g, out float pixel_b,
+               xesl_uint2 pixel_position, xesl_uint4 const0, xesl_uint4 const1,
+               bool no_scaling);
+
+xesl_entry
+  xesl_fetchSampler(xesl_sampler2D, xe_cas_source, set=0, binding=0, t0, space0)
+xesl_entry_bindings_end
+  xesl_input_frag_coord
+  xesl_entry_signature_next
+  xesl_output_color(xesl_float4, xe_cas_color, 0)
+xesl_entry_signature_end
+  xesl_uint2 pixel_coord =
+      xesl_uint2(xesl_int2(xesl_FragCoord.xy) -
+                 xesl_push_constant(xe_cas_output_offset));
+  // CasSetup with smaller push constants usage.
+  xesl_uint4 cas_const_0 =
+      xesl_uint4(
+          xesl_floatBitsToUint(
+              xesl_push_constant(xe_cas_input_output_size_ratio)),
+          xesl_floatBitsToUint(
+              0.5 * xesl_push_constant(xe_cas_input_output_size_ratio) - 0.5));
+  xesl_uint4 cas_const_1 =
+      xesl_uint4(
+          xesl_floatBitsToUint(xesl_push_constant(xe_cas_sharpness_post_setup)),
+          xesl_packHalf2x16(xesl_float2(
+              xesl_push_constant(xe_cas_sharpness_post_setup), 0.0)),
+          xesl_floatBitsToUint(8.0), 0u);
+  CasFilter(xe_cas_color.r, xe_cas_color.g, xe_cas_color.b, pixel_coord,
+            cas_const_0, cas_const_1, false);
+  // Linear conversion approximation as recommended in the CAS presentation.
+  xe_cas_color.rgb = sqrt(xe_cas_color.rgb);
+  #if XE_GUEST_OUTPUT_DITHER
+    // Clamping because on Vulkan, the surface may specify any format, including
+    // floating-point.
+    xe_cas_color.rgb =
+        xesl_saturate(xe_cas_color.rgb + XeDitherOffset8bpc(pixel_coord));
+  #endif  // XE_GUEST_OUTPUT_DITHER
+  // Force alpha to 1 to make sure the surface won't be translucent.
+  xe_cas_color.a = 1.0;
+xesl_entry_end
+
+#define A_GPU 1
+#include "../../../../third_party/FidelityFX-CAS/ffx-cas/ffx_a.h"
+xesl_float3 CasLoad(xesl_int2 p) {
+  return xesl_texelFetch2D_comb(xe_cas_source, p, 0).rgb;
+}
+void CasInput(inout float r, inout float g, inout float b) {
+  // Linear conversion approximation as recommended in the CAS presentation.
+  r *= r;
+  g *= g;
+  b *= b;
+}
+#include "../../../../third_party/FidelityFX-CAS/ffx-cas/ffx_cas.h"

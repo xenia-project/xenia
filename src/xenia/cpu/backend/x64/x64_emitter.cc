@@ -90,6 +90,7 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
   TEST_EMIT_FEATURE(kX64EmitFMA, Xbyak::util::Cpu::tFMA);
   TEST_EMIT_FEATURE(kX64EmitLZCNT, Xbyak::util::Cpu::tLZCNT);
   TEST_EMIT_FEATURE(kX64EmitBMI1, Xbyak::util::Cpu::tBMI1);
+  TEST_EMIT_FEATURE(kX64EmitBMI2, Xbyak::util::Cpu::tBMI2);
   TEST_EMIT_FEATURE(kX64EmitF16C, Xbyak::util::Cpu::tF16C);
   TEST_EMIT_FEATURE(kX64EmitMovbe, Xbyak::util::Cpu::tMOVBE);
   TEST_EMIT_FEATURE(kX64EmitGFNI, Xbyak::util::Cpu::tGFNI);

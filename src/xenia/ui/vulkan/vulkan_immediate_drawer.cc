@@ -25,8 +25,10 @@ namespace ui {
 namespace vulkan {
 
 // Generated with `xb buildshaders`.
-#include "xenia/ui/shaders/bytecode/vulkan_spirv/immediate_frag.h"
-#include "xenia/ui/shaders/bytecode/vulkan_spirv/immediate_vert.h"
+namespace shaders {
+#include "xenia/ui/shaders/bytecode/vulkan_spirv/immediate_ps.h"
+#include "xenia/ui/shaders/bytecode/vulkan_spirv/immediate_vs.h"
+}  // namespace shaders
 
 VulkanImmediateDrawer::VulkanImmediateTexture::~VulkanImmediateTexture() {
   if (immediate_drawer_) {
@@ -578,8 +580,8 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   VkPipelineShaderStageCreateInfo stages[2] = {};
   stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-  stages[0].module = util::CreateShaderModule(provider_, immediate_vert,
-                                              sizeof(immediate_vert));
+  stages[0].module = util::CreateShaderModule(provider_, shaders::immediate_vs,
+                                              sizeof(shaders::immediate_vs));
   if (stages[0].module == VK_NULL_HANDLE) {
     XELOGE("VulkanImmediateDrawer: Failed to create the vertex shader module");
     return false;
@@ -587,8 +589,8 @@ bool VulkanImmediateDrawer::EnsurePipelinesCreatedForCurrentRenderPass() {
   stages[0].pName = "main";
   stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  stages[1].module = util::CreateShaderModule(provider_, immediate_frag,
-                                              sizeof(immediate_frag));
+  stages[1].module = util::CreateShaderModule(provider_, shaders::immediate_ps,
+                                              sizeof(shaders::immediate_ps));
   if (stages[1].module == VK_NULL_HANDLE) {
     XELOGE(
         "VulkanImmediateDrawer: Failed to create the fragment shader module");

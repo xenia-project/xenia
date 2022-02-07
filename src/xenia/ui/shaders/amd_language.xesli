@@ -1,0 +1,21 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#ifndef XENIA_UI_SHADERS_AMD_LANGUAGE_XESLI_
+#define XENIA_UI_SHADERS_AMD_LANGUAGE_XESLI_
+
+#if XESL_LANGUAGE_GLSL
+  #define A_GLSL 1
+#elif XESL_LANGUAGE_HLSL
+  #define A_HLSL 1
+#else
+  #error Unknown shading language for AMD shaders.
+#endif
+
+#endif  // XENIA_UI_SHADERS_AMD_LANGUAGE_XESLI_
