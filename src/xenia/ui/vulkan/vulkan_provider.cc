@@ -10,7 +10,9 @@
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
 #include <cfloat>
+#include <cstddef>
 #include <cstring>
+#include <utility>
 #include <vector>
 
 #include "xenia/base/assert.h"
@@ -706,45 +708,62 @@ bool VulkanProvider::Initialize() {
       }
     }
     device_extensions_enabled.clear();
+    // Checking if already enabled as an optimization to do fewer and fewer
+    // string comparisons, as well as to skip adding extensions promoted to the
+    // core to device_extensions_enabled. Adding literals to
+    // device_extensions_enabled for the most C string lifetime safety.
+    static const std::pair<const char*, size_t> kUsedDeviceExtensions[] = {
+        {"VK_EXT_fragment_shader_interlock",
+         offsetof(DeviceExtensions, ext_fragment_shader_interlock)},
+        {"VK_KHR_dedicated_allocation",
+         offsetof(DeviceExtensions, khr_dedicated_allocation)},
+        {"VK_KHR_image_format_list",
+         offsetof(DeviceExtensions, khr_image_format_list)},
+        {"VK_KHR_portability_subset",
+         offsetof(DeviceExtensions, khr_portability_subset)},
+        {"VK_KHR_shader_float_controls",
+         offsetof(DeviceExtensions, khr_shader_float_controls)},
+        {"VK_KHR_spirv_1_4", offsetof(DeviceExtensions, khr_spirv_1_4)},
+        {"VK_KHR_swapchain", offsetof(DeviceExtensions, khr_swapchain)},
+    };
     for (const VkExtensionProperties& device_extension :
          device_extension_properties) {
-      const char* device_extension_name = device_extension.extensionName;
-      // Checking if already enabled as an optimization to do fewer and fewer
-      // string comparisons, as well as to skip adding extensions promoted to
-      // the core to device_extensions_enabled. Adding literals to
-      // device_extensions_enabled for the most C string lifetime safety.
-      if (!device_extensions_.ext_fragment_shader_interlock &&
-          !std::strcmp(device_extension_name,
-                       "VK_EXT_fragment_shader_interlock")) {
-        device_extensions_enabled.push_back("VK_EXT_fragment_shader_interlock");
-        device_extensions_.ext_fragment_shader_interlock = true;
-      } else if (!device_extensions_.khr_dedicated_allocation &&
-                 !std::strcmp(device_extension_name,
-                              "VK_KHR_dedicated_allocation")) {
-        device_extensions_enabled.push_back("VK_KHR_dedicated_allocation");
-        device_extensions_.khr_dedicated_allocation = true;
-      } else if (!device_extensions_.khr_image_format_list &&
-                 !std::strcmp(device_extension_name,
-                              "VK_KHR_image_format_list")) {
-        device_extensions_enabled.push_back("VK_KHR_image_format_list");
-        device_extensions_.khr_image_format_list = true;
-      } else if (!device_extensions_.khr_shader_float_controls &&
-                 !std::strcmp(device_extension_name,
-                              "VK_KHR_shader_float_controls")) {
-        device_extensions_enabled.push_back("VK_KHR_shader_float_controls");
-        device_extensions_.khr_shader_float_controls = true;
-      } else if (!device_extensions_.khr_spirv_1_4 &&
-                 !std::strcmp(device_extension_name, "VK_KHR_spirv_1_4")) {
-        device_extensions_enabled.push_back("VK_KHR_spirv_1_4");
-        device_extensions_.khr_spirv_1_4 = true;
-      } else if (!device_extensions_.khr_swapchain &&
-                 !std::strcmp(device_extension_name, "VK_KHR_swapchain")) {
-        device_extensions_enabled.push_back("VK_KHR_swapchain");
-        device_extensions_.khr_swapchain = true;
+      for (const std::pair<const char*, size_t>& used_device_extension :
+           kUsedDeviceExtensions) {
+        bool& device_extension_flag = *reinterpret_cast<bool*>(
+            reinterpret_cast<char*>(&device_extensions_) +
+            used_device_extension.second);
+        if (!device_extension_flag &&
+            !std::strcmp(device_extension.extensionName,
+                         used_device_extension.first)) {
+          device_extensions_enabled.push_back(used_device_extension.first);
+          device_extension_flag = true;
+        }
       }
     }
     if (is_surface_required_ && !device_extensions_.khr_swapchain) {
       continue;
+    }
+
+    // Get portability subset features.
+    // VK_KHR_portability_subset reduces, not increases, the capabilities, skip
+    // the device completely if there's no way to retrieve what is actually
+    // unsupported. Though VK_KHR_portability_subset requires
+    // VK_KHR_get_physical_device_properties2, check just in case of an
+    // untrustworthy driver.
+    if (device_extensions_.khr_portability_subset) {
+      if (!instance_extensions_.khr_get_physical_device_properties2) {
+        continue;
+      }
+      device_portability_subset_features_.sType =
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_KHR;
+      device_portability_subset_features_.pNext = nullptr;
+      VkPhysicalDeviceProperties2KHR device_properties_2;
+      device_properties_2.sType =
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
+      device_properties_2.pNext = &device_portability_subset_features_;
+      ifn_.vkGetPhysicalDeviceProperties2KHR(physical_device_,
+                                             &device_properties_2);
     }
 
     // Get the memory types.
@@ -843,6 +862,7 @@ bool VulkanProvider::Initialize() {
   VkDeviceCreateInfo device_create_info;
   device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
   device_create_info.pNext = nullptr;
+  VkDeviceCreateInfo* device_create_info_last = &device_create_info;
   device_create_info.flags = 0;
   device_create_info.queueCreateInfoCount = uint32_t(queue_create_infos.size());
   device_create_info.pQueueCreateInfos = queue_create_infos.data();
@@ -854,6 +874,13 @@ bool VulkanProvider::Initialize() {
   device_create_info.ppEnabledExtensionNames = device_extensions_enabled.data();
   // TODO(Triang3l): Enable only needed features.
   device_create_info.pEnabledFeatures = &device_features_;
+  if (device_extensions_.khr_portability_subset) {
+    // TODO(Triang3l): Enable only needed portability subset features.
+    device_portability_subset_features_.pNext = nullptr;
+    device_create_info_last->pNext = &device_portability_subset_features_;
+    device_create_info_last = reinterpret_cast<VkDeviceCreateInfo*>(
+        &device_portability_subset_features_);
+  }
   if (ifn_.vkCreateDevice(physical_device_, &device_create_info, nullptr,
                           &device_) != VK_SUCCESS) {
     XELOGE("Failed to create a Vulkan device");
@@ -923,6 +950,34 @@ bool VulkanProvider::Initialize() {
           device_extensions_.khr_dedicated_allocation ? "yes" : "no");
   XELOGVK("* VK_KHR_image_format_list: {}",
           device_extensions_.khr_image_format_list ? "yes" : "no");
+  XELOGVK("* VK_KHR_portability_subset: {}",
+          device_extensions_.khr_portability_subset ? "yes" : "no");
+  if (device_extensions_.khr_portability_subset) {
+    XELOGVK("  * Constant alpha color blend factors: {}",
+            device_portability_subset_features_.constantAlphaColorBlendFactors
+                ? "yes"
+                : "no");
+    XELOGVK("  * Image view format reinterpretation: {}",
+            device_portability_subset_features_.imageViewFormatReinterpretation
+                ? "yes"
+                : "no");
+    XELOGVK("  * Image view format swizzle: {}",
+            device_portability_subset_features_.imageViewFormatSwizzle ? "yes"
+                                                                       : "no");
+    XELOGVK("  * Point polygons: {}",
+            device_portability_subset_features_.pointPolygons ? "yes" : "no");
+    XELOGVK(
+        "  * Separate stencil front and back masks and reference values: {}",
+        device_portability_subset_features_.separateStencilMaskRef ? "yes"
+                                                                   : "no");
+    XELOGVK("  *  Shader sample rate interpolation functions: {}",
+            device_portability_subset_features_
+                    .shaderSampleRateInterpolationFunctions
+                ? "yes"
+                : "no");
+    XELOGVK("  * Triangle fans: {}",
+            device_portability_subset_features_.triangleFans ? "yes" : "no");
+  }
   XELOGVK("* VK_KHR_shader_float_controls: {}",
           device_extensions_.khr_shader_float_controls ? "yes" : "no");
   if (device_extensions_.khr_shader_float_controls) {

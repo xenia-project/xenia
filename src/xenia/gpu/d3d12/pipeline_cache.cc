@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -934,6 +934,7 @@ bool PipelineCache::ConfigurePipeline(
     D3D12Shader::D3D12Translation* vertex_shader,
     D3D12Shader::D3D12Translation* pixel_shader,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+    uint32_t normalized_color_mask,
     uint32_t bound_depth_and_color_render_target_bits,
     const uint32_t* bound_depth_and_color_render_target_formats,
     void** pipeline_handle_out, ID3D12RootSignature** root_signature_out) {
@@ -1005,7 +1006,7 @@ bool PipelineCache::ConfigurePipeline(
   PipelineRuntimeDescription runtime_description;
   if (!GetCurrentStateDescription(
           vertex_shader, pixel_shader, primitive_processing_result,
-          bound_depth_and_color_render_target_bits,
+          normalized_color_mask, bound_depth_and_color_render_target_bits,
           bound_depth_and_color_render_target_formats, runtime_description)) {
     return false;
   }
@@ -1272,6 +1273,7 @@ bool PipelineCache::GetCurrentStateDescription(
     D3D12Shader::D3D12Translation* vertex_shader,
     D3D12Shader::D3D12Translation* pixel_shader,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+    uint32_t normalized_color_mask,
     uint32_t bound_depth_and_color_render_target_bits,
     const uint32_t* bound_depth_and_color_render_target_formats,
     PipelineRuntimeDescription& runtime_description_out) {
@@ -1409,7 +1411,6 @@ bool PipelineCache::GetCurrentStateDescription(
   // rasterization will be disabled externally, or the draw call will be dropped
   // early if the vertex shader doesn't export to memory.
   bool cull_front, cull_back;
-  float poly_offset = 0.0f, poly_offset_scale = 0.0f;
   if (primitive_polygonal) {
     description_out.front_counter_clockwise = pa_su_sc_mode_cntl.face == 0;
     cull_front = pa_su_sc_mode_cntl.cull_front != 0;
@@ -1433,23 +1434,12 @@ bool PipelineCache::GetCurrentStateDescription(
           xenos::PolygonType::kTriangles) {
         description_out.fill_mode_wireframe = 1;
       }
-      if (!edram_rov_used && pa_su_sc_mode_cntl.poly_offset_front_enable) {
-        poly_offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
-        poly_offset_scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
-      }
     }
     if (!cull_back) {
       // Back faces aren't culled.
       if (pa_su_sc_mode_cntl.polymode_back_ptype !=
           xenos::PolygonType::kTriangles) {
         description_out.fill_mode_wireframe = 1;
-      }
-      // Prefer front depth bias because in general, front faces are the ones
-      // that are rendered (except for shadow volumes).
-      if (!edram_rov_used && pa_su_sc_mode_cntl.poly_offset_back_enable &&
-          poly_offset == 0.0f && poly_offset_scale == 0.0f) {
-        poly_offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
-        poly_offset_scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
       }
     }
     if (pa_su_sc_mode_cntl.poly_mode != xenos::PolygonModeEnable::kDualMode) {
@@ -1459,24 +1449,23 @@ bool PipelineCache::GetCurrentStateDescription(
     // Filled front faces only, without culling.
     cull_front = false;
     cull_back = false;
-    if (!edram_rov_used && pa_su_sc_mode_cntl.poly_offset_para_enable) {
-      poly_offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
-      poly_offset_scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
-    }
   }
   if (!edram_rov_used) {
-    float poly_offset_host_scale = draw_util::GetD3D10PolygonOffsetFactor(
+    float polygon_offset, polygon_offset_scale;
+    draw_util::GetPreferredFacePolygonOffset(
+        regs, primitive_polygonal, polygon_offset_scale, polygon_offset);
+    float polygon_offset_host_scale = draw_util::GetD3D10PolygonOffsetFactor(
         regs.Get<reg::RB_DEPTH_INFO>().depth_format, true);
     // Using ceil here just in case a game wants the offset but passes a value
     // that is too small - it's better to apply more offset than to make depth
     // fighting worse or to disable the offset completely (Direct3D 12 takes an
     // integer value).
     description_out.depth_bias =
-        int32_t(std::ceil(std::abs(poly_offset * poly_offset_host_scale))) *
-        (poly_offset < 0.0f ? -1 : 1);
-    // "slope computed in subpixels ([...] 1/16)" - R5xx Acceleration.
+        int32_t(
+            std::ceil(std::abs(polygon_offset * polygon_offset_host_scale))) *
+        (polygon_offset < 0.0f ? -1 : 1);
     description_out.depth_bias_slope_scaled =
-        poly_offset_scale * xenos::kPolygonOffsetScaleSubpixelUnit;
+        polygon_offset_scale * xenos::kPolygonOffsetScaleSubpixelUnit;
   }
   if (tessellated && cvars::d3d12_tessellation_wireframe) {
     description_out.fill_mode_wireframe = 1;
@@ -1547,10 +1536,6 @@ bool PipelineCache::GetCurrentStateDescription(
 
     // Render targets and blending state. 32 because of 0x1F mask, for safety
     // (all unknown to zero).
-    uint32_t color_mask =
-        pixel_shader ? command_processor_.GetCurrentColorMask(
-                           pixel_shader->shader().writes_color_targets())
-                     : 0;
     static const PipelineBlendFactor kBlendFactorMap[32] = {
         /*  0 */ PipelineBlendFactor::kZero,
         /*  1 */ PipelineBlendFactor::kOne,
@@ -1622,8 +1607,7 @@ bool PipelineCache::GetCurrentStateDescription(
           reg::RB_COLOR_INFO::rt_register_indices[i]);
       rt.format = xenos::ColorRenderTargetFormat(
           bound_depth_and_color_render_target_formats[1 + i]);
-      // TODO(Triang3l): Normalize unused bits of the color write mask.
-      rt.write_mask = (color_mask >> (i * 4)) & 0xF;
+      rt.write_mask = (normalized_color_mask >> (i * 4)) & 0xF;
       if (rt.write_mask) {
         auto blendcontrol = regs.Get<reg::RB_BLENDCONTROL>(
             reg::RB_BLENDCONTROL::rt_register_indices[i]);
@@ -2017,9 +2001,6 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       }
       D3D12_RENDER_TARGET_BLEND_DESC& blend_desc =
           state_desc.BlendState.RenderTarget[i];
-      // Treat 1 * src + 0 * dest as disabled blending (there are opaque
-      // surfaces drawn with blending enabled, but it's 1 * src + 0 * dest, in
-      // 415607E6 - GPU performance is better when not blending.
       if (rt.src_blend != PipelineBlendFactor::kOne ||
           rt.dest_blend != PipelineBlendFactor::kZero ||
           rt.blend_op != xenos::BlendOp::kAdd ||

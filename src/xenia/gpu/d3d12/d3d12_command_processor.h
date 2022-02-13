@@ -83,16 +83,6 @@ class D3D12CommandProcessor : public CommandProcessor {
   uint64_t GetCurrentFrame() const { return frame_current_; }
   uint64_t GetCompletedFrame() const { return frame_completed_; }
 
-  // Gets the current color write mask, taking the pixel shader's write mask
-  // into account. If a shader doesn't write to a render target, it shouldn't be
-  // written to and it shouldn't be even bound - otherwise, in 4D5307E6, one
-  // render target is being destroyed by a shader not writing anything, and in
-  // 58410955, the result of clearing the top tile is being ignored because
-  // there are 4 render targets bound with the same EDRAM base (clearly not
-  // correct usage), but the shader only clears 1, and then EDRAM buffer stores
-  // conflict with each other.
-  uint32_t GetCurrentColorMask(uint32_t shader_writes_color_targets) const;
-
   void PushTransitionBarrier(
       ID3D12Resource* resource, D3D12_RESOURCE_STATES old_state,
       D3D12_RESOURCE_STATES new_state,
@@ -362,7 +352,7 @@ class D3D12CommandProcessor : public CommandProcessor {
                                   xenos::Endian index_endian,
                                   const draw_util::ViewportInfo& viewport_info,
                                   uint32_t used_texture_mask,
-                                  uint32_t color_mask);
+                                  uint32_t normalized_color_mask);
   bool UpdateBindings(const D3D12Shader* vertex_shader,
                       const D3D12Shader* pixel_shader,
                       ID3D12RootSignature* root_signature);
@@ -593,8 +583,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Currently bound pipeline, either a graphics pipeline from the pipeline
   // cache (with potentially deferred creation - current_external_pipeline_ is
   // nullptr in this case) or a non-Xenos graphics or compute pipeline
-  // (current_cached_pipeline_ is nullptr in this case).
-  void* current_cached_pipeline_;
+  // (current_guest_pipeline_ is nullptr in this case).
+  void* current_guest_pipeline_;
   ID3D12PipelineState* current_external_pipeline_;
 
   // Currently bound graphics root signature.
