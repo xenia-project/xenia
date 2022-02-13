@@ -707,7 +707,7 @@ void D3D12CommandProcessor::SetViewport(const D3D12_VIEWPORT& viewport) {
   ff_viewport_update_needed_ |= ff_viewport_.MaxDepth != viewport.MaxDepth;
   if (ff_viewport_update_needed_) {
     ff_viewport_ = viewport;
-    deferred_command_list_.RSSetViewport(viewport);
+    deferred_command_list_.RSSetViewport(ff_viewport_);
     ff_viewport_update_needed_ = false;
   }
 }
@@ -719,7 +719,7 @@ void D3D12CommandProcessor::SetScissorRect(const D3D12_RECT& scissor_rect) {
   ff_scissor_update_needed_ |= ff_scissor_.bottom != scissor_rect.bottom;
   if (ff_scissor_update_needed_) {
     ff_scissor_ = scissor_rect;
-    deferred_command_list_.RSSetScissorRect(scissor_rect);
+    deferred_command_list_.RSSetScissorRect(ff_scissor_);
     ff_scissor_update_needed_ = false;
   }
 }
@@ -3056,19 +3056,18 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
     const RegisterFile& regs = *register_file_;
 
     // Blend factor.
+    float blend_factor[] = {
+        regs[XE_GPU_REG_RB_BLEND_RED].f32,
+        regs[XE_GPU_REG_RB_BLEND_GREEN].f32,
+        regs[XE_GPU_REG_RB_BLEND_BLUE].f32,
+        regs[XE_GPU_REG_RB_BLEND_ALPHA].f32,
+    };
+    // std::memcmp instead of != so in case of NaN, every draw won't be
+    // invalidating it.
     ff_blend_factor_update_needed_ |=
-        ff_blend_factor_[0] != regs[XE_GPU_REG_RB_BLEND_RED].f32;
-    ff_blend_factor_update_needed_ |=
-        ff_blend_factor_[1] != regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
-    ff_blend_factor_update_needed_ |=
-        ff_blend_factor_[2] != regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
-    ff_blend_factor_update_needed_ |=
-        ff_blend_factor_[3] != regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
+        std::memcmp(ff_blend_factor_, blend_factor, sizeof(float) * 4) != 0;
     if (ff_blend_factor_update_needed_) {
-      ff_blend_factor_[0] = regs[XE_GPU_REG_RB_BLEND_RED].f32;
-      ff_blend_factor_[1] = regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
-      ff_blend_factor_[2] = regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
-      ff_blend_factor_[3] = regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
+      std::memcpy(ff_blend_factor_, blend_factor, sizeof(float) * 4);
       deferred_command_list_.D3DOMSetBlendFactor(ff_blend_factor_);
       ff_blend_factor_update_needed_ = false;
     }
@@ -3089,7 +3088,7 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
     ff_stencil_ref_update_needed_ |= ff_stencil_ref_ != stencil_ref;
     if (ff_stencil_ref_update_needed_) {
       ff_stencil_ref_ = stencil_ref;
-      deferred_command_list_.D3DOMSetStencilRef(stencil_ref);
+      deferred_command_list_.D3DOMSetStencilRef(ff_stencil_ref_);
       ff_stencil_ref_update_needed_ = false;
     }
   }
