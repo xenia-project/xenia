@@ -9,6 +9,7 @@
 
 #include "xenia/ui/window_win.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 
@@ -238,27 +239,32 @@ bool Win32Window::OpenImpl() {
     shown_placement.length = sizeof(shown_placement);
     if (GetWindowPlacement(hwnd_, &shown_placement)) {
       // Get the size of the non-client area to subtract it from the size of the
-      // entire window in its non-maximized state, to get the client area.
+      // entire window in its non-maximized state, to get the client area. For
+      // safety, in case the window is somehow smaller than its non-client area
+      // (AdjustWindowRect is not exact in various cases also, such as when the
+      // menu becomes multiline), clamp to 0.
       RECT non_client_area_rect = {};
       AdjustWindowRectangle(non_client_area_rect);
       OnDesiredLogicalSizeUpdate(
-          SizeToLogical(uint32_t(
+          SizeToLogical(uint32_t(std::max(
               (shown_placement.rcNormalPosition.right -
                shown_placement.rcNormalPosition.left) -
-              (non_client_area_rect.right - non_client_area_rect.left))),
-          SizeToLogical(uint32_t(
+                  (non_client_area_rect.right - non_client_area_rect.left),
+              LONG(0)))),
+          SizeToLogical(uint32_t(std::max(
               (shown_placement.rcNormalPosition.bottom -
                shown_placement.rcNormalPosition.top) -
-              (non_client_area_rect.bottom - non_client_area_rect.top))));
+                  (non_client_area_rect.bottom - non_client_area_rect.top),
+              LONG(0)))));
     }
 
     // Report the actual physical size in the current state.
+    // GetClientRect returns a rectangle with 0 origin.
     RECT shown_client_rect;
     if (GetClientRect(hwnd_, &shown_client_rect)) {
-      OnActualSizeUpdate(
-          uint32_t(shown_client_rect.right - shown_client_rect.left),
-          uint32_t(shown_client_rect.bottom - shown_client_rect.top),
-          destruction_receiver);
+      OnActualSizeUpdate(uint32_t(shown_client_rect.right),
+                         uint32_t(shown_client_rect.bottom),
+                         destruction_receiver);
       if (destruction_receiver.IsWindowDestroyedOrClosed()) {
         return true;
       }
@@ -632,17 +638,22 @@ void Win32Window::ApplyFullscreenEntry(
   // Preserve values for DPI rescaling of the window in the non-maximized state
   // if DPI is changed mid-fullscreen.
   // Get the size of the non-client area to subtract it from the size of the
-  // entire window in its non-maximized state, to get the client area.
+  // entire window in its non-maximized state, to get the client area. For
+  // safety, in case the window is somehow smaller than its non-client area
+  // (AdjustWindowRect is not exact in various cases also, such as when the menu
+  // becomes multiline), clamp to 0.
   RECT non_client_area_rect = {};
   AdjustWindowRectangle(non_client_area_rect);
-  pre_fullscreen_normal_client_width_ =
-      uint32_t((pre_fullscreen_placement_.rcNormalPosition.right -
+  pre_fullscreen_normal_client_width_ = uint32_t(
+      std::max((pre_fullscreen_placement_.rcNormalPosition.right -
                 pre_fullscreen_placement_.rcNormalPosition.left) -
-               (non_client_area_rect.right - non_client_area_rect.left));
-  pre_fullscreen_normal_client_height_ =
-      uint32_t((pre_fullscreen_placement_.rcNormalPosition.bottom -
+                   (non_client_area_rect.right - non_client_area_rect.left),
+               LONG(0)));
+  pre_fullscreen_normal_client_height_ = uint32_t(
+      std::max((pre_fullscreen_placement_.rcNormalPosition.bottom -
                 pre_fullscreen_placement_.rcNormalPosition.top) -
-               (non_client_area_rect.bottom - non_client_area_rect.top));
+                   (non_client_area_rect.bottom - non_client_area_rect.top),
+               LONG(0)));
 
   // Changing the style and the menu may change the size too, don't handle the
   // resize multiple times (also potentially with the listeners changing the
@@ -716,27 +727,32 @@ void Win32Window::HandleSizeUpdate(
       // window_placement.rcNormalPosition is the entire window's rectangle, not
       // only the client area - convert to client.
       // https://devblogs.microsoft.com/oldnewthing/20131017-00/?p=2903
-      RECT non_client_rect = {};
-      if (AdjustWindowRectangle(non_client_rect)) {
+      // For safety, in case the window is somehow smaller than its non-client
+      // area (AdjustWindowRect is not exact in various cases also, such as when
+      // the menu becomes multiline), clamp to 0.
+      RECT non_client_area_rect = {};
+      if (AdjustWindowRectangle(non_client_area_rect)) {
         OnDesiredLogicalSizeUpdate(
-            SizeToLogical(uint32_t((window_placement.rcNormalPosition.right -
-                                    non_client_rect.right) -
-                                   (window_placement.rcNormalPosition.left -
-                                    non_client_rect.left))),
-            SizeToLogical(uint32_t((window_placement.rcNormalPosition.bottom -
-                                    non_client_rect.bottom) -
-                                   (window_placement.rcNormalPosition.top -
-                                    non_client_rect.top))));
+            SizeToLogical(uint32_t(std::max(
+                (window_placement.rcNormalPosition.right -
+                 window_placement.rcNormalPosition.left) -
+                    (non_client_area_rect.right - non_client_area_rect.left),
+                LONG(0)))),
+            SizeToLogical(uint32_t(std::max(
+                (window_placement.rcNormalPosition.bottom -
+                 window_placement.rcNormalPosition.top) -
+                    (non_client_area_rect.bottom - non_client_area_rect.top),
+                LONG(0)))));
       }
     }
   }
 
   // For the actual state.
+  // GetClientRect returns a rectangle with 0 origin.
   RECT client_rect;
   if (GetClientRect(hwnd_, &client_rect)) {
-    OnActualSizeUpdate(uint32_t(client_rect.right - client_rect.left),
-                       uint32_t(client_rect.bottom - client_rect.top),
-                       destruction_receiver);
+    OnActualSizeUpdate(uint32_t(client_rect.right),
+                       uint32_t(client_rect.bottom), destruction_receiver);
     if (destruction_receiver.IsWindowDestroyedOrClosed()) {
       return;
     }

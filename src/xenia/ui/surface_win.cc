@@ -2,17 +2,12 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/ui/surface_win.h"
-
-#include <algorithm>
-#include <memory>
-
-#include "xenia/base/logging.h"
 
 namespace xe {
 namespace ui {
@@ -24,9 +19,9 @@ bool Win32HwndSurface::GetSizeImpl(uint32_t& width_out,
   if (!GetClientRect(hwnd(), &client_rect)) {
     return false;
   }
-  width_out = uint32_t(std::max(client_rect.right - client_rect.left, LONG(0)));
-  height_out =
-      uint32_t(std::max(client_rect.bottom - client_rect.top, LONG(0)));
+  // GetClientRect returns a rectangle with 0 origin.
+  width_out = uint32_t(client_rect.right);
+  height_out = uint32_t(client_rect.bottom);
   return true;
 }
 #endif
