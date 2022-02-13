@@ -583,8 +583,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Currently bound pipeline, either a graphics pipeline from the pipeline
   // cache (with potentially deferred creation - current_external_pipeline_ is
   // nullptr in this case) or a non-Xenos graphics or compute pipeline
-  // (current_cached_pipeline_ is nullptr in this case).
-  void* current_cached_pipeline_;
+  // (current_guest_pipeline_ is nullptr in this case).
+  void* current_guest_pipeline_;
   ID3D12PipelineState* current_external_pipeline_;
 
   // Currently bound graphics root signature.
