@@ -30,6 +30,9 @@ project("xenia-hid-demo")
     "xenia-ui",
     "xenia-ui-vulkan",
   })
+  includedirs({
+    project_root.."/third_party/Vulkan-Headers/include",
+  })
   files({
     "hid_demo.cc",
     "../ui/windowed_app_main_"..platform_suffix..".cc",

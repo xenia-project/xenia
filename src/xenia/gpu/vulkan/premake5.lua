@@ -15,7 +15,8 @@ project("xenia-gpu-vulkan")
     "xenia-ui-vulkan",
     "xxhash",
   })
-  defines({
+  includedirs({
+    project_root.."/third_party/Vulkan-Headers/include",
   })
   local_platform_files()
   files({
@@ -58,7 +59,8 @@ project("xenia-gpu-vulkan-trace-viewer")
     "spirv-tools",
     "xxhash",
   })
-  defines({
+  includedirs({
+    project_root.."/third_party/Vulkan-Headers/include",
   })
   files({
     "vulkan_trace_viewer_main.cc",
@@ -124,7 +126,8 @@ project("xenia-gpu-vulkan-trace-dump")
     "spirv-tools",
     "xxhash",
   })
-  defines({
+  includedirs({
+    project_root.."/third_party/Vulkan-Headers/include",
   })
   files({
     "vulkan_trace_dump_main.cc",

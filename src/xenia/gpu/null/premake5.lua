@@ -13,6 +13,7 @@ project("xenia-gpu-null")
     "xenia-ui-vulkan",
     "xxhash",
   })
-  defines({
+  includedirs({
+    project_root.."/third_party/Vulkan-Headers/include",
   })
   local_platform_files()

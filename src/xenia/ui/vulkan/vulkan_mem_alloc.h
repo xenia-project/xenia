@@ -23,7 +23,7 @@
 #ifndef VMA_NOT_NULL
 #define VMA_NOT_NULL
 #endif
-#include "third_party/vulkan/vk_mem_alloc.h"
+#include "third_party/VulkanMemoryAllocator/include/vk_mem_alloc.h"
 
 namespace xe {
 namespace ui {
