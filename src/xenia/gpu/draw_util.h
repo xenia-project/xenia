@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -122,6 +122,16 @@ constexpr float GetD3D10PolygonOffsetFactor(
   return float24_as_0_to_0_5 ? kFloat24Scale * 0.5f : kFloat24Scale;
 }
 
+// For hosts not supporting separate front and back polygon offsets, returns the
+// polygon offset for the face which likely needs the offset the most (and that
+// will not be culled). The values returned will have the units of the original
+// registers (the scale is for 1/16 subpixels, multiply by
+// xenos::kPolygonOffsetScaleSubpixelUnit outside if the value for pixels is
+// needed).
+void GetPreferredFacePolygonOffset(const RegisterFile& regs,
+                                   bool primitive_polygonal, float& scale_out,
+                                   float& offset_out);
+
 inline bool DoesCoverageDependOnAlpha(reg::RB_COLORCONTROL rb_colorcontrol) {
   return (rb_colorcontrol.alpha_test_enable &&
           rb_colorcontrol.alpha_func != xenos::CompareFunction::kAlways) ||
@@ -185,6 +195,17 @@ struct Scissor {
 };
 void GetScissor(const RegisterFile& regs, Scissor& scissor_out,
                 bool clamp_to_surface_pitch = true);
+
+// Returns the color component write mask for the draw command taking into
+// account which color targets are written to by the pixel shader, as well as
+// components that don't exist in the formats of the render targets (render
+// targets with only non-existent components written are skipped, but
+// non-existent components are forced to written if some existing components of
+// the render target are actually used to make sure the host driver doesn't try
+// to take a slow path involving reading and mixing if there are any disabled
+// components even if they don't actually exist).
+uint32_t GetNormalizedColorMask(const RegisterFile& regs,
+                                uint32_t pixel_shader_writes_color_targets);
 
 // Scales, and shift amounts of the upper 32 bits of the 32x32=64-bit
 // multiplication result, for fast division and multiplication by
