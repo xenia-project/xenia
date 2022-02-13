@@ -215,7 +215,7 @@ class RenderTargetCache {
   virtual void BeginFrame();
 
   virtual bool Update(bool is_rasterization_done,
-                      uint32_t shader_writes_color_targets);
+                      uint32_t normalized_color_mask);
 
   // Returns bits where 0 is whether a depth render target is currently bound on
   // the host and 1... are whether the same applies to color render targets, and

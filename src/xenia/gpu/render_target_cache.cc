@@ -366,7 +366,7 @@ void RenderTargetCache::ClearCache() {
 void RenderTargetCache::BeginFrame() { ResetAccumulatedRenderTargets(); }
 
 bool RenderTargetCache::Update(bool is_rasterization_done,
-                               uint32_t shader_writes_color_targets) {
+                               uint32_t normalized_color_mask) {
   const RegisterFile& regs = register_file();
   bool interlock_barrier_only = GetPath() == Path::kPixelShaderInterlock;
 
@@ -419,9 +419,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     }
   }
 
-  uint32_t rts_remaining;
-  uint32_t rt_index;
-
   // Get used render targets.
   // [0] is depth / stencil where relevant, [1...4] is color.
   // Depth / stencil testing / writing is before color in the pipeline.
@@ -432,7 +429,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   uint32_t rts_are_64bpp = 0;
   uint32_t color_rts_are_gamma = 0;
   if (is_rasterization_done) {
-    auto rb_depthcontrol = regs.Get<reg::RB_DEPTHCONTROL>();
+    auto rb_depthcontrol = draw_util::GetDepthControlForCurrentEdramMode(regs);
     if (rb_depthcontrol.z_enable || rb_depthcontrol.stencil_enable) {
       depth_and_color_rts_used_bits |= 1;
       auto rb_depth_info = regs.Get<reg::RB_DEPTH_INFO>();
@@ -445,50 +442,46 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
       resource_formats[0] =
           interlock_barrier_only ? 0 : uint32_t(rb_depth_info.depth_format);
     }
-    if (regs.Get<reg::RB_MODECONTROL>().edram_mode ==
-        xenos::ModeControl::kColorDepth) {
-      uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
-      rts_remaining = shader_writes_color_targets;
-      while (xe::bit_scan_forward(rts_remaining, &rt_index)) {
-        rts_remaining &= ~(uint32_t(1) << rt_index);
-        auto color_info = regs.Get<reg::RB_COLOR_INFO>(
-            reg::RB_COLOR_INFO::rt_register_indices[rt_index]);
-        xenos::ColorRenderTargetFormat color_format =
-            regs.Get<reg::RB_COLOR_INFO>(
-                    reg::RB_COLOR_INFO::rt_register_indices[rt_index])
-                .color_format;
-        if ((rb_color_mask >> (rt_index * 4)) &
-            ((uint32_t(1) << xenos::GetColorRenderTargetFormatComponentCount(
-                  color_format)) -
-             1)) {
-          uint32_t rt_bit_index = 1 + rt_index;
-          depth_and_color_rts_used_bits |= uint32_t(1) << rt_bit_index;
-          edram_bases[rt_bit_index] =
-              std::min(color_info.color_base, xenos::kEdramTileCount);
-          bool is_64bpp = xenos::IsColorRenderTargetFormat64bpp(color_format);
-          if (is_64bpp) {
-            rts_are_64bpp |= uint32_t(1) << rt_bit_index;
-          }
-          if (color_format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
-            color_rts_are_gamma |= uint32_t(1) << rt_index;
-          }
-          xenos::ColorRenderTargetFormat color_resource_format;
-          if (interlock_barrier_only) {
-            // Only changes in mapping between coordinates and addresses are
-            // interesting (along with access overlap between draw calls), thus
-            // only pixel size is relevant.
-            color_resource_format =
-                is_64bpp ? xenos::ColorRenderTargetFormat::k_16_16_16_16
-                         : xenos::ColorRenderTargetFormat::k_8_8_8_8;
-          } else {
-            color_resource_format = GetColorResourceFormat(
-                xenos::GetStorageColorFormat(color_format));
-          }
-          resource_formats[rt_bit_index] = uint32_t(color_resource_format);
-        }
+    for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+      if (!(normalized_color_mask & (uint32_t(0b1111) << (4 * i)))) {
+        continue;
       }
+      auto color_info = regs.Get<reg::RB_COLOR_INFO>(
+          reg::RB_COLOR_INFO::rt_register_indices[i]);
+      uint32_t rt_bit_index = 1 + i;
+      depth_and_color_rts_used_bits |= uint32_t(1) << rt_bit_index;
+      edram_bases[rt_bit_index] =
+          std::min(color_info.color_base, xenos::kEdramTileCount);
+      xenos::ColorRenderTargetFormat color_format =
+          regs.Get<reg::RB_COLOR_INFO>(
+                  reg::RB_COLOR_INFO::rt_register_indices[i])
+              .color_format;
+      bool is_64bpp = xenos::IsColorRenderTargetFormat64bpp(color_format);
+      if (is_64bpp) {
+        rts_are_64bpp |= uint32_t(1) << rt_bit_index;
+      }
+      if (color_format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
+        color_rts_are_gamma |= uint32_t(1) << i;
+      }
+      xenos::ColorRenderTargetFormat color_resource_format;
+      if (interlock_barrier_only) {
+        // Only changes in mapping between coordinates and addresses are
+        // interesting (along with access overlap between draw calls), thus only
+        // pixel size is relevant.
+        color_resource_format =
+            is_64bpp ? xenos::ColorRenderTargetFormat::k_16_16_16_16
+                     : xenos::ColorRenderTargetFormat::k_8_8_8_8;
+      } else {
+        color_resource_format =
+            GetColorResourceFormat(xenos::GetStorageColorFormat(color_format));
+      }
+      resource_formats[rt_bit_index] = uint32_t(color_resource_format);
     }
   }
+
+  uint32_t rts_remaining;
+  uint32_t rt_index;
+
   // Eliminate other bound render targets if their EDRAM base conflicts with
   // another render target - it's an error in most host implementations to bind
   // the same render target into multiple slots, also the behavior would be

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -185,6 +185,17 @@ struct Scissor {
 };
 void GetScissor(const RegisterFile& regs, Scissor& scissor_out,
                 bool clamp_to_surface_pitch = true);
+
+// Returns the color component write mask for the draw command taking into
+// account which color targets are written to by the pixel shader, as well as
+// components that don't exist in the formats of the render targets (render
+// targets with only non-existent components written are skipped, but
+// non-existent components are forced to written if some existing components of
+// the render target are actually used to make sure the host driver doesn't try
+// to take a slow path involving reading and mixing if there are any disabled
+// components even if they don't actually exist).
+uint32_t GetNormalizedColorMask(const RegisterFile& regs,
+                                uint32_t pixel_shader_writes_color_targets);
 
 // Scales, and shift amounts of the upper 32 bits of the 32x32=64-bit
 // multiplication result, for fast division and multiplication by
