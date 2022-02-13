@@ -1411,7 +1411,6 @@ bool PipelineCache::GetCurrentStateDescription(
   // rasterization will be disabled externally, or the draw call will be dropped
   // early if the vertex shader doesn't export to memory.
   bool cull_front, cull_back;
-  float poly_offset = 0.0f, poly_offset_scale = 0.0f;
   if (primitive_polygonal) {
     description_out.front_counter_clockwise = pa_su_sc_mode_cntl.face == 0;
     cull_front = pa_su_sc_mode_cntl.cull_front != 0;
@@ -1435,23 +1434,12 @@ bool PipelineCache::GetCurrentStateDescription(
           xenos::PolygonType::kTriangles) {
         description_out.fill_mode_wireframe = 1;
       }
-      if (!edram_rov_used && pa_su_sc_mode_cntl.poly_offset_front_enable) {
-        poly_offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
-        poly_offset_scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
-      }
     }
     if (!cull_back) {
       // Back faces aren't culled.
       if (pa_su_sc_mode_cntl.polymode_back_ptype !=
           xenos::PolygonType::kTriangles) {
         description_out.fill_mode_wireframe = 1;
-      }
-      // Prefer front depth bias because in general, front faces are the ones
-      // that are rendered (except for shadow volumes).
-      if (!edram_rov_used && pa_su_sc_mode_cntl.poly_offset_back_enable &&
-          poly_offset == 0.0f && poly_offset_scale == 0.0f) {
-        poly_offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
-        poly_offset_scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
       }
     }
     if (pa_su_sc_mode_cntl.poly_mode != xenos::PolygonModeEnable::kDualMode) {
@@ -1461,24 +1449,23 @@ bool PipelineCache::GetCurrentStateDescription(
     // Filled front faces only, without culling.
     cull_front = false;
     cull_back = false;
-    if (!edram_rov_used && pa_su_sc_mode_cntl.poly_offset_para_enable) {
-      poly_offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
-      poly_offset_scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
-    }
   }
   if (!edram_rov_used) {
-    float poly_offset_host_scale = draw_util::GetD3D10PolygonOffsetFactor(
+    float polygon_offset, polygon_offset_scale;
+    draw_util::GetPreferredFacePolygonOffset(
+        regs, primitive_polygonal, polygon_offset_scale, polygon_offset);
+    float polygon_offset_host_scale = draw_util::GetD3D10PolygonOffsetFactor(
         regs.Get<reg::RB_DEPTH_INFO>().depth_format, true);
     // Using ceil here just in case a game wants the offset but passes a value
     // that is too small - it's better to apply more offset than to make depth
     // fighting worse or to disable the offset completely (Direct3D 12 takes an
     // integer value).
     description_out.depth_bias =
-        int32_t(std::ceil(std::abs(poly_offset * poly_offset_host_scale))) *
-        (poly_offset < 0.0f ? -1 : 1);
-    // "slope computed in subpixels ([...] 1/16)" - R5xx Acceleration.
+        int32_t(
+            std::ceil(std::abs(polygon_offset * polygon_offset_host_scale))) *
+        (polygon_offset < 0.0f ? -1 : 1);
     description_out.depth_bias_slope_scaled =
-        poly_offset_scale * xenos::kPolygonOffsetScaleSubpixelUnit;
+        polygon_offset_scale * xenos::kPolygonOffsetScaleSubpixelUnit;
   }
   if (tessellated && cvars::d3d12_tessellation_wireframe) {
     description_out.fill_mode_wireframe = 1;

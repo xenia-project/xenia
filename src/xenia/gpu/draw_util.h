@@ -122,6 +122,16 @@ constexpr float GetD3D10PolygonOffsetFactor(
   return float24_as_0_to_0_5 ? kFloat24Scale * 0.5f : kFloat24Scale;
 }
 
+// For hosts not supporting separate front and back polygon offsets, returns the
+// polygon offset for the face which likely needs the offset the most (and that
+// will not be culled). The values returned will have the units of the original
+// registers (the scale is for 1/16 subpixels, multiply by
+// xenos::kPolygonOffsetScaleSubpixelUnit outside if the value for pixels is
+// needed).
+void GetPreferredFacePolygonOffset(const RegisterFile& regs,
+                                   bool primitive_polygonal, float& scale_out,
+                                   float& offset_out);
+
 inline bool DoesCoverageDependOnAlpha(reg::RB_COLORCONTROL rb_colorcontrol) {
   return (rb_colorcontrol.alpha_test_enable &&
           rb_colorcontrol.alpha_func != xenos::CompareFunction::kAlways) ||

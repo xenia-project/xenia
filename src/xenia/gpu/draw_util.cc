@@ -68,6 +68,36 @@ const int8_t kD3D10StandardSamplePositions2x[2][2] = {{4, 4}, {-4, -4}};
 const int8_t kD3D10StandardSamplePositions4x[4][2] = {
     {-2, -6}, {6, -2}, {-6, 2}, {2, 6}};
 
+void GetPreferredFacePolygonOffset(const RegisterFile& regs,
+                                   bool primitive_polygonal, float& scale_out,
+                                   float& offset_out) {
+  float scale = 0.0f, offset = 0.0f;
+  auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
+  if (primitive_polygonal) {
+    // Prefer the front polygon offset because in general, front faces are the
+    // ones that are rendered (except for shadow volumes).
+    if (pa_su_sc_mode_cntl.poly_offset_front_enable &&
+        !pa_su_sc_mode_cntl.cull_front) {
+      scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+      offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+    }
+    if (pa_su_sc_mode_cntl.poly_offset_back_enable &&
+        !pa_su_sc_mode_cntl.cull_back && !scale && !offset) {
+      scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
+      offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
+    }
+  } else {
+    // Non-triangle primitives use the front offset, but it's toggled via
+    // poly_offset_para_enable.
+    if (pa_su_sc_mode_cntl.poly_offset_para_enable) {
+      scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+      offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+    }
+  }
+  scale_out = scale;
+  offset_out = offset;
+}
+
 bool IsPixelShaderNeededWithRasterization(const Shader& shader,
                                           const RegisterFile& regs) {
   assert_true(shader.type() == xenos::ShaderType::kPixel);
