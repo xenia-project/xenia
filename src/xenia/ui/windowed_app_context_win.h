@@ -97,6 +97,7 @@ class Win32WindowedAppContext final : public WindowedAppContext {
   int show_cmd_;
 
   HMODULE shcore_module_ = nullptr;
+  HMODULE user32_module_ = nullptr;
   PerMonitorDpiV1Api per_monitor_dpi_v1_api_ = {};
   PerMonitorDpiV2Api per_monitor_dpi_v2_api_ = {};
   bool per_monitor_dpi_v1_api_available_ = false;
