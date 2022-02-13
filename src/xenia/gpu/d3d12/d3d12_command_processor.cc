@@ -683,7 +683,7 @@ void D3D12CommandProcessor::ReleaseScratchGPUBuffer(
 void D3D12CommandProcessor::SetExternalPipeline(ID3D12PipelineState* pipeline) {
   if (current_external_pipeline_ != pipeline) {
     current_external_pipeline_ = pipeline;
-    current_cached_pipeline_ = nullptr;
+    current_guest_pipeline_ = nullptr;
     deferred_command_list_.D3DSetPipelineState(pipeline);
   }
 }
@@ -2189,10 +2189,10 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
 
   // Bind the pipeline after configuring it and doing everything that may bind
   // other pipelines.
-  if (current_cached_pipeline_ != pipeline_handle) {
+  if (current_guest_pipeline_ != pipeline_handle) {
     deferred_command_list_.SetPipelineStateHandle(
         reinterpret_cast<void*>(pipeline_handle));
-    current_cached_pipeline_ = pipeline_handle;
+    current_guest_pipeline_ = pipeline_handle;
     current_external_pipeline_ = nullptr;
   }
 
@@ -2799,7 +2799,7 @@ bool D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
     ff_scissor_update_needed_ = true;
     ff_blend_factor_update_needed_ = true;
     ff_stencil_ref_update_needed_ = true;
-    current_cached_pipeline_ = nullptr;
+    current_guest_pipeline_ = nullptr;
     current_external_pipeline_ = nullptr;
     current_graphics_root_signature_ = nullptr;
     current_graphics_root_up_to_date_ = 0;
