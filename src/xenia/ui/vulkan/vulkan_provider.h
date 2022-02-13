@@ -42,7 +42,7 @@
 #ifndef VK_NO_PROTOTYPES
 #define VK_NO_PROTOTYPES 1
 #endif
-#include "third_party/vulkan/vulkan.h"
+#include "third_party/Vulkan-Headers/include/vulkan/vulkan.h"
 
 #define XELOGVK XELOGI
 

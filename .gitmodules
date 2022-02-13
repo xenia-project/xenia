@@ -82,3 +82,9 @@
 [submodule "third_party/FidelityFX-FSR"]
 	path = third_party/FidelityFX-FSR
 	url = https://github.com/GPUOpen-Effects/FidelityFX-FSR.git
+[submodule "third_party/Vulkan-Headers"]
+	path = third_party/Vulkan-Headers
+	url = https://github.com/KhronosGroup/Vulkan-Headers.git
+[submodule "third_party/VulkanMemoryAllocator"]
+	path = third_party/VulkanMemoryAllocator
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git

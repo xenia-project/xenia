@@ -12,10 +12,8 @@ project("xenia-ui-vulkan")
     "xenia-ui",
     "xenia-ui-spirv",
   })
-  defines({
-  })
   includedirs({
-    project_root.."/third_party/vulkan/",
+    project_root.."/third_party/Vulkan-Headers/include",
   })
   local_platform_files()
   local_platform_files("functions")
@@ -37,10 +35,8 @@ project("xenia-ui-window-vulkan-demo")
     "xenia-ui-spirv",
     "xenia-ui-vulkan",
   })
-  defines({
-  })
   includedirs({
-    project_root.."/third_party/vulkan/",
+    project_root.."/third_party/Vulkan-Headers/include",
   })
   files({
     "../window_demo.cc",
