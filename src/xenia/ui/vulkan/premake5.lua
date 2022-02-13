@@ -18,7 +18,8 @@ project("xenia-ui-vulkan")
   local_platform_files()
   local_platform_files("functions")
   files({
-    "shaders/bin/*.h",
+    "../shaders/bytecode/vulkan_spirv/*.h",
+    "shaders/bytecode/vulkan_spirv/*.h",
   })
   removefiles({"*_demo.cc"})
 

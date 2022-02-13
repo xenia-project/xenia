@@ -20,7 +20,7 @@ project("xenia-gpu-vulkan")
   })
   local_platform_files()
   files({
-    "shaders/bin/*.h",
+    "shaders/bytecode/vulkan_spirv/*.h",
   })
 
 -- TODO(benvanik): kill this and move to the debugger UI.
