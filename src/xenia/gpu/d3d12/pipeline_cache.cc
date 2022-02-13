@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -934,6 +934,7 @@ bool PipelineCache::ConfigurePipeline(
     D3D12Shader::D3D12Translation* vertex_shader,
     D3D12Shader::D3D12Translation* pixel_shader,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+    uint32_t normalized_color_mask,
     uint32_t bound_depth_and_color_render_target_bits,
     const uint32_t* bound_depth_and_color_render_target_formats,
     void** pipeline_handle_out, ID3D12RootSignature** root_signature_out) {
@@ -1005,7 +1006,7 @@ bool PipelineCache::ConfigurePipeline(
   PipelineRuntimeDescription runtime_description;
   if (!GetCurrentStateDescription(
           vertex_shader, pixel_shader, primitive_processing_result,
-          bound_depth_and_color_render_target_bits,
+          normalized_color_mask, bound_depth_and_color_render_target_bits,
           bound_depth_and_color_render_target_formats, runtime_description)) {
     return false;
   }
@@ -1272,6 +1273,7 @@ bool PipelineCache::GetCurrentStateDescription(
     D3D12Shader::D3D12Translation* vertex_shader,
     D3D12Shader::D3D12Translation* pixel_shader,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+    uint32_t normalized_color_mask,
     uint32_t bound_depth_and_color_render_target_bits,
     const uint32_t* bound_depth_and_color_render_target_formats,
     PipelineRuntimeDescription& runtime_description_out) {
@@ -1547,10 +1549,6 @@ bool PipelineCache::GetCurrentStateDescription(
 
     // Render targets and blending state. 32 because of 0x1F mask, for safety
     // (all unknown to zero).
-    uint32_t color_mask =
-        pixel_shader ? command_processor_.GetCurrentColorMask(
-                           pixel_shader->shader().writes_color_targets())
-                     : 0;
     static const PipelineBlendFactor kBlendFactorMap[32] = {
         /*  0 */ PipelineBlendFactor::kZero,
         /*  1 */ PipelineBlendFactor::kOne,
@@ -1622,8 +1620,7 @@ bool PipelineCache::GetCurrentStateDescription(
           reg::RB_COLOR_INFO::rt_register_indices[i]);
       rt.format = xenos::ColorRenderTargetFormat(
           bound_depth_and_color_render_target_formats[1 + i]);
-      // TODO(Triang3l): Normalize unused bits of the color write mask.
-      rt.write_mask = (color_mask >> (i * 4)) & 0xF;
+      rt.write_mask = (normalized_color_mask >> (i * 4)) & 0xF;
       if (rt.write_mask) {
         auto blendcontrol = regs.Get<reg::RB_BLENDCONTROL>(
             reg::RB_BLENDCONTROL::rt_register_indices[i]);
@@ -2017,9 +2014,6 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       }
       D3D12_RENDER_TARGET_BLEND_DESC& blend_desc =
           state_desc.BlendState.RenderTarget[i];
-      // Treat 1 * src + 0 * dest as disabled blending (there are opaque
-      // surfaces drawn with blending enabled, but it's 1 * src + 0 * dest, in
-      // 415607E6 - GPU performance is better when not blending.
       if (rt.src_blend != PipelineBlendFactor::kOne ||
           rt.dest_blend != PipelineBlendFactor::kZero ||
           rt.blend_op != xenos::BlendOp::kAdd ||
