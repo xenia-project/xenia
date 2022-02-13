@@ -39,6 +39,9 @@
 #endif
 #endif
 
+#ifndef VK_ENABLE_BETA_EXTENSIONS
+#define VK_ENABLE_BETA_EXTENSIONS 1
+#endif
 #ifndef VK_NO_PROTOTYPES
 #define VK_NO_PROTOTYPES 1
 #endif
@@ -134,6 +137,8 @@ class VulkanProvider : public GraphicsProvider {
     bool khr_dedicated_allocation;
     // Core since 1.2.0.
     bool khr_image_format_list;
+    // Requires the VK_KHR_get_physical_device_properties2 instance extension.
+    bool khr_portability_subset;
     // Core since 1.2.0.
     bool khr_shader_float_controls;
     // Core since 1.2.0.
@@ -142,6 +147,14 @@ class VulkanProvider : public GraphicsProvider {
   };
   const DeviceExtensions& device_extensions() const {
     return device_extensions_;
+  }
+  // Returns nullptr if the device is fully compliant with Vulkan 1.0.
+  const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
+  device_portability_subset_features() const {
+    if (!device_extensions_.khr_portability_subset) {
+      return nullptr;
+    }
+    return &device_portability_subset_features_;
   }
   uint32_t memory_types_device_local() const {
     return memory_types_device_local_;
@@ -271,6 +284,8 @@ class VulkanProvider : public GraphicsProvider {
   VkPhysicalDeviceProperties device_properties_;
   VkPhysicalDeviceFeatures device_features_;
   DeviceExtensions device_extensions_;
+  VkPhysicalDevicePortabilitySubsetFeaturesKHR
+      device_portability_subset_features_;
   uint32_t memory_types_device_local_;
   uint32_t memory_types_host_visible_;
   uint32_t memory_types_host_coherent_;
