@@ -22,6 +22,9 @@ Win32WindowedAppContext::~Win32WindowedAppContext() {
   if (pending_functions_hwnd_) {
     DestroyWindow(pending_functions_hwnd_);
   }
+  if (user32_module_) {
+    FreeLibrary(user32_module_);
+  }
   if (shcore_module_) {
     FreeLibrary(shcore_module_);
   }
@@ -38,25 +41,28 @@ bool Win32WindowedAppContext::Initialize() {
         (*reinterpret_cast<void**>(
              &per_monitor_dpi_v1_api_.get_dpi_for_monitor) =
              GetProcAddress(shcore_module_, "GetDpiForMonitor")) != nullptr;
+  }
+  user32_module_ = LoadLibraryW(L"user32.dll");
+  if (user32_module_) {
     per_monitor_dpi_v2_api_available_ = true;
     per_monitor_dpi_v2_api_available_ &=
         (*reinterpret_cast<void**>(
              &per_monitor_dpi_v2_api_.adjust_window_rect_ex_for_dpi) =
-             GetProcAddress(shcore_module_, "AdjustWindowRectExForDpi")) !=
+             GetProcAddress(user32_module_, "AdjustWindowRectExForDpi")) !=
         nullptr;
     per_monitor_dpi_v2_api_available_ &=
         (*reinterpret_cast<void**>(
              &per_monitor_dpi_v2_api_.enable_non_client_dpi_scaling) =
-             GetProcAddress(shcore_module_, "EnableNonClientDpiScaling")) !=
+             GetProcAddress(user32_module_, "EnableNonClientDpiScaling")) !=
         nullptr;
     per_monitor_dpi_v2_api_available_ &=
         (*reinterpret_cast<void**>(
              &per_monitor_dpi_v2_api_.get_dpi_for_system) =
-             GetProcAddress(shcore_module_, "GetDpiForSystem")) != nullptr;
+             GetProcAddress(user32_module_, "GetDpiForSystem")) != nullptr;
     per_monitor_dpi_v2_api_available_ &=
         (*reinterpret_cast<void**>(
              &per_monitor_dpi_v2_api_.get_dpi_for_window) =
-             GetProcAddress(shcore_module_, "GetDpiForWindow")) != nullptr;
+             GetProcAddress(user32_module_, "GetDpiForWindow")) != nullptr;
   }
 
   // Create the message-only window for executing pending functions - using a
