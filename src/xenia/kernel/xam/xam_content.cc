@@ -443,9 +443,9 @@ typedef struct {
 } X_SWAPDISC_ERROR_MESSAGE;
 static_assert_size(X_SWAPDISC_ERROR_MESSAGE, 12);
 
-dword_result_t XamSwapDisc(dword_t disc_number,
-                           pointer_t<X_KEVENT> completion_handle,
-                           pointer_t<X_SWAPDISC_ERROR_MESSAGE> error_message) {
+dword_result_t XamSwapDisc_entry(
+    dword_t disc_number, pointer_t<X_KEVENT> completion_handle,
+    pointer_t<X_SWAPDISC_ERROR_MESSAGE> error_message) {
 
   xex2_opt_execution_info* info = nullptr;
   kernel_state()->GetExecutableModule()->GetOptHeader(XEX_HEADER_EXECUTION_INFO,

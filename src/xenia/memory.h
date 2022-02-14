@@ -165,6 +165,9 @@ class BaseHeap {
                           uint32_t allocation_type, uint32_t protect,
                           bool top_down, uint32_t* out_address);
 
+  virtual bool AllocSystemHeap(uint32_t size, uint32_t alignment,
+                               uint32_t allocation_type, uint32_t protect,
+                               bool top_down, uint32_t* out_address);
   // Decommits pages in the given range.
   // Partial overlapping pages will also be decommitted.
   virtual bool Decommit(uint32_t address, uint32_t size);
@@ -255,6 +258,9 @@ class PhysicalHeap : public BaseHeap {
                   uint32_t alignment, uint32_t allocation_type,
                   uint32_t protect, bool top_down,
                   uint32_t* out_address) override;
+  bool AllocSystemHeap(uint32_t size, uint32_t alignment,
+                       uint32_t allocation_type, uint32_t protect,
+                       bool top_down, uint32_t* out_address) override;
   bool Decommit(uint32_t address, uint32_t size) override;
   bool Release(uint32_t base_address,
                uint32_t* out_region_size = nullptr) override;

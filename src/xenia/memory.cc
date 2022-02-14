@@ -555,7 +555,7 @@ uint32_t Memory::SystemHeapAlloc(uint32_t size, uint32_t alignment,
   uint32_t address;
   if (!heap->AllocSystemHeap(
           size, alignment, kMemoryAllocationReserve | kMemoryAllocationCommit,
-          kMemoryProtectRead | kMemoryProtectWrite, false, &address)) {
+          kMemoryProtectRead | kMemoryProtectWrite, true, &address)) {
     return 0;
   }
   Zero(address, size);
@@ -823,10 +823,14 @@ bool BaseHeap::Alloc(uint32_t size, uint32_t alignment,
   *out_address = 0;
   size = xe::round_up(size, page_size_);
   alignment = xe::round_up(alignment, page_size_);
+  uint32_t heap_virtual_guest_offset = 0;
+  if (heap_type_ == HeapType::kGuestVirtual) {
+    heap_virtual_guest_offset = 0x10000000;
+  }
+
   uint32_t low_address = heap_base_;
   uint32_t high_address =
-      heap_base_ + (heap_size_ - 1) -
-      (heap_type_ == HeapType::kGuestVirtual ? 0x10000000 : 0);
+      heap_base_ + (heap_size_ - 1) - heap_virtual_guest_offset;
   return AllocRange(low_address, high_address, size, alignment, allocation_type,
                     protect, top_down, out_address);
 }
@@ -1521,6 +1525,12 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
   }
   *out_address = address;
   return true;
+}
+
+bool PhysicalHeap::AllocSystemHeap(uint32_t size, uint32_t alignment,
+  uint32_t allocation_type, uint32_t protect,
+  bool top_down, uint32_t* out_address) {
+  return Alloc(size, alignment, allocation_type, protect, top_down, out_address);
 }
 
 bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {

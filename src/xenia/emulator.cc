@@ -535,8 +535,7 @@ const std::filesystem::path Emulator::GetNewDiscPath(
       {"All Files (*.*)", "*.*"},
   });
 
-  if (file_picker->Show(
-          kernel_state()->emulator()->display_window()->native_handle())) {
+  if (file_picker->Show()) {
     auto selected_files = file_picker->selected_files();
     if (!selected_files.empty()) {
       path = selected_files[0];
