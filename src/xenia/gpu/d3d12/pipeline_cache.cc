@@ -1980,10 +1980,11 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
         D3D12_BLEND_BLEND_FACTOR,  D3D12_BLEND_INV_BLEND_FACTOR,
         D3D12_BLEND_SRC_ALPHA_SAT,
     };
+    // 8 entries for safety since 3 bits from the guest are passed directly.
     static const D3D12_BLEND_OP kBlendOpMap[] = {
         D3D12_BLEND_OP_ADD, D3D12_BLEND_OP_SUBTRACT,     D3D12_BLEND_OP_MIN,
-        D3D12_BLEND_OP_MAX, D3D12_BLEND_OP_REV_SUBTRACT,
-    };
+        D3D12_BLEND_OP_MAX, D3D12_BLEND_OP_REV_SUBTRACT, D3D12_BLEND_OP_ADD,
+        D3D12_BLEND_OP_ADD, D3D12_BLEND_OP_ADD};
     for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
       const PipelineRenderTarget& rt = description.render_targets[i];
       if (!rt.used) {
