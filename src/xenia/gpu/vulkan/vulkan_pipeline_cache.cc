@@ -662,7 +662,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
     assert_always(
         "When creating a new pipeline, the description must not require "
         "unsupported features, and when loading the pipeline storage, "
-        "unsupported supported must be filtered out");
+        "pipelines with unsupported features must be filtered out");
     return false;
   }
 
