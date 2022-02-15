@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -2376,21 +2376,37 @@ EMITTER_OPCODE_TABLE(OPCODE_RSQRT, RSQRT_F32, RSQRT_F64, RSQRT_V128);
 // ============================================================================
 // OPCODE_RECIP
 // ============================================================================
+// Altivec guarantees an error of < 1/4096 for vrefp while AVX only gives
+// < 1.5*2^-12 ≈ 1/2730 for rcpps. This breaks camp, horse and random event
+// spawning, breaks cactus collision as well as flickering grass in 5454082B
 struct RECIP_F32 : Sequence<RECIP_F32, I<OPCODE_RECIP, F32Op, F32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vrcpss(i.dest, i.src1);
+    if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
+      e.vrcp14ss(i.dest, i.src1, i.src1);
+    } else {
+      e.vmovaps(e.xmm0, e.GetXmmConstPtr(XMMOne));
+      e.vdivss(i.dest, e.xmm0, i.src1);
+    }
   }
 };
 struct RECIP_F64 : Sequence<RECIP_F64, I<OPCODE_RECIP, F64Op, F64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vcvtsd2ss(i.dest, i.src1);
-    e.vrcpss(i.dest, i.dest);
-    e.vcvtss2sd(i.dest, i.dest);
+    if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
+      e.vrcp14sd(i.dest, i.src1, i.src1);
+    } else {
+      e.vmovapd(e.xmm0, e.GetXmmConstPtr(XMMOnePD));
+      e.vdivsd(i.dest, e.xmm0, i.src1);
+    }
   }
 };
 struct RECIP_V128 : Sequence<RECIP_V128, I<OPCODE_RECIP, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vrcpps(i.dest, i.src1);
+    if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
+      e.vrcp14ps(i.dest, i.src1);
+    } else {
+      e.vmovaps(e.xmm0, e.GetXmmConstPtr(XMMOne));
+      e.vdivps(i.dest, e.xmm0, i.src1);
+    }
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_RECIP, RECIP_F32, RECIP_F64, RECIP_V128);

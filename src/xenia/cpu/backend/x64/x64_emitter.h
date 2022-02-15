@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -49,6 +49,7 @@ enum RegisterFlags {
 enum XmmConst {
   XMMZero = 0,
   XMMOne,
+  XMMOnePD,
   XMMNegativeOne,
   XMMFFFF,
   XMMMaskX16Y16,
