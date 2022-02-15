@@ -1,4 +1,4 @@
-/**
+﻿/**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
@@ -2354,21 +2354,39 @@ EMITTER_OPCODE_TABLE(OPCODE_SQRT, SQRT_F32, SQRT_F64, SQRT_V128);
 // ============================================================================
 // OPCODE_RSQRT
 // ============================================================================
+// Altivec guarantees an error of < 1/4096 for vrsqrtefp while AVX only gives
+// < 1.5*2^-12 ≈ 1/2730 for vrsqrtps.
 struct RSQRT_F32 : Sequence<RSQRT_F32, I<OPCODE_RSQRT, F32Op, F32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vrsqrtss(i.dest, i.src1);
+    if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
+      e.vrsqrt14ss(i.dest, i.src1, i.src1);
+    } else {
+      e.vmovaps(e.xmm0, e.GetXmmConstPtr(XMMOne));
+      e.vsqrtss(e.xmm1, i.src1, i.src1);
+      e.vdivss(i.dest, e.xmm0, e.xmm1);
+    }
   }
 };
 struct RSQRT_F64 : Sequence<RSQRT_F64, I<OPCODE_RSQRT, F64Op, F64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vcvtsd2ss(i.dest, i.src1);
-    e.vrsqrtss(i.dest, i.dest);
-    e.vcvtss2sd(i.dest, i.dest);
+    if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
+      e.vrsqrt14sd(i.dest, i.src1, i.src1);
+    } else {
+      e.vmovapd(e.xmm0, e.GetXmmConstPtr(XMMOnePD));
+      e.vsqrtsd(e.xmm1, i.src1, i.src1);
+      e.vdivsd(i.dest, e.xmm0, e.xmm1);
+    }
   }
 };
 struct RSQRT_V128 : Sequence<RSQRT_V128, I<OPCODE_RSQRT, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vrsqrtps(i.dest, i.src1);
+    if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
+      e.vrsqrt14ps(i.dest, i.src1);
+    } else {
+      e.vmovaps(e.xmm0, e.GetXmmConstPtr(XMMOne));
+      e.vsqrtps(e.xmm1, i.src1);
+      e.vdivps(i.dest, e.xmm0, e.xmm1);
+    }
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_RSQRT, RSQRT_F32, RSQRT_F64, RSQRT_V128);
