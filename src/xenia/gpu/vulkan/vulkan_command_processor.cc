@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iterator>
+#include <tuple>
 #include <utility>
 
 #include "xenia/base/assert.h"
@@ -530,7 +531,7 @@ void VulkanCommandProcessor::ShutdownContext() {
 
   for (const auto& pipeline_layout_pair : pipeline_layouts_) {
     dfn.vkDestroyPipelineLayout(
-        device, pipeline_layout_pair.second.pipeline_layout, nullptr);
+        device, pipeline_layout_pair.second.GetPipelineLayout(), nullptr);
   }
   pipeline_layouts_.clear();
   for (const auto& descriptor_set_layout_pair :
@@ -824,8 +825,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
         deferred_command_buffer_.CmdVkBeginRenderPass(
             &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        ff_viewport_update_needed_ = true;
-        ff_scissor_update_needed_ = true;
+        dynamic_viewport_update_needed_ = true;
+        dynamic_scissor_update_needed_ = true;
         VkViewport viewport;
         viewport.x = 0.0f;
         viewport.y = 0.0f;
@@ -841,11 +842,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
         scissor_rect.extent.height = scaled_height;
         deferred_command_buffer_.CmdVkSetScissor(0, 1, &scissor_rect);
 
-        // Bind a non-emulation graphics pipeline and invalidate the bindings.
-        current_graphics_pipeline_ = VK_NULL_HANDLE;
-        current_graphics_pipeline_layout_ = nullptr;
-        deferred_command_buffer_.CmdVkBindPipeline(
-            VK_PIPELINE_BIND_POINT_GRAPHICS, swap_pipeline_);
+        BindExternalGraphicsPipeline(swap_pipeline_);
 
         deferred_command_buffer_.CmdVkDraw(3, 1, 0, 0);
 
@@ -1043,16 +1040,40 @@ VulkanCommandProcessor::GetPipelineLayout(uint32_t texture_count_pixel,
         texture_count_pixel, texture_count_vertex);
     return nullptr;
   }
-  PipelineLayout pipeline_layout_entry;
-  pipeline_layout_entry.pipeline_layout = pipeline_layout;
-  pipeline_layout_entry.descriptor_set_layout_textures_pixel_ref =
-      descriptor_set_layout_textures_pixel;
-  pipeline_layout_entry.descriptor_set_layout_textures_vertex_ref =
-      descriptor_set_layout_textures_vertex;
-  auto emplaced_pair =
-      pipeline_layouts_.emplace(pipeline_layout_key.key, pipeline_layout_entry);
+  auto emplaced_pair = pipeline_layouts_.emplace(
+      std::piecewise_construct, std::forward_as_tuple(pipeline_layout_key.key),
+      std::forward_as_tuple(pipeline_layout,
+                            descriptor_set_layout_textures_vertex,
+                            descriptor_set_layout_textures_pixel));
   // unordered_map insertion doesn't invalidate element references.
   return &emplaced_pair.first->second;
+}
+
+void VulkanCommandProcessor::BindExternalGraphicsPipeline(
+    VkPipeline pipeline, bool keep_dynamic_depth_bias,
+    bool keep_dynamic_blend_constants, bool keep_dynamic_stencil_mask_ref) {
+  if (!keep_dynamic_depth_bias) {
+    dynamic_depth_bias_update_needed_ = true;
+  }
+  if (!keep_dynamic_blend_constants) {
+    dynamic_blend_constants_update_needed_ = true;
+  }
+  if (!keep_dynamic_stencil_mask_ref) {
+    dynamic_stencil_compare_mask_front_update_needed_ = true;
+    dynamic_stencil_compare_mask_back_update_needed_ = true;
+    dynamic_stencil_write_mask_front_update_needed_ = true;
+    dynamic_stencil_write_mask_back_update_needed_ = true;
+    dynamic_stencil_reference_front_update_needed_ = true;
+    dynamic_stencil_reference_back_update_needed_ = true;
+  }
+  if (current_external_graphics_pipeline_ == pipeline) {
+    return;
+  }
+  deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                             pipeline);
+  current_external_graphics_pipeline_ = pipeline;
+  current_guest_graphics_pipeline_ = VK_NULL_HANDLE;
+  current_guest_graphics_pipeline_layout_ = VK_NULL_HANDLE;
 }
 
 Shader* VulkanCommandProcessor::LoadShader(xenos::ShaderType shader_type,
@@ -1134,20 +1155,23 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     return false;
   }
 
+  uint32_t normalized_color_mask =
+      pixel_shader ? draw_util::GetNormalizedColorMask(
+                         regs, pixel_shader->writes_color_targets())
+                   : 0;
+
   // Shader modifications.
   SpirvShaderTranslator::Modification vertex_shader_modification =
       pipeline_cache_->GetCurrentVertexShaderModification(
           *vertex_shader, primitive_processing_result.host_vertex_shader_type);
   SpirvShaderTranslator::Modification pixel_shader_modification =
-      pixel_shader
-          ? pipeline_cache_->GetCurrentPixelShaderModification(*pixel_shader)
-          : SpirvShaderTranslator::Modification(0);
+      pixel_shader ? pipeline_cache_->GetCurrentPixelShaderModification(
+                         *pixel_shader, normalized_color_mask)
+                   : SpirvShaderTranslator::Modification(0);
 
   // Set up the render targets - this may perform dispatches and draws.
-  uint32_t pixel_shader_writes_color_targets =
-      pixel_shader ? pixel_shader->writes_color_targets() : 0;
   if (!render_target_cache_->Update(is_rasterization_done,
-                                    pixel_shader_writes_color_targets)) {
+                                    normalized_color_mask)) {
     return false;
   }
 
@@ -1164,37 +1188,41 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
 
   // Update the graphics pipeline, and if the new graphics pipeline has a
   // different layout, invalidate incompatible descriptor sets before updating
-  // current_graphics_pipeline_layout_.
+  // current_guest_graphics_pipeline_layout_.
   VkPipeline pipeline;
   const VulkanPipelineCache::PipelineLayoutProvider* pipeline_layout_provider;
   if (!pipeline_cache_->ConfigurePipeline(
           vertex_shader_translation, pixel_shader_translation,
-          primitive_processing_result,
+          primitive_processing_result, normalized_color_mask,
           render_target_cache_->last_update_render_pass_key(), pipeline,
           pipeline_layout_provider)) {
     return false;
   }
-  deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                             pipeline);
+  if (current_guest_graphics_pipeline_ != pipeline) {
+    deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                               pipeline);
+    current_guest_graphics_pipeline_ = pipeline;
+    current_external_graphics_pipeline_ = VK_NULL_HANDLE;
+  }
   auto pipeline_layout =
       static_cast<const PipelineLayout*>(pipeline_layout_provider);
-  if (current_graphics_pipeline_layout_ != pipeline_layout) {
-    if (current_graphics_pipeline_layout_) {
+  if (current_guest_graphics_pipeline_layout_ != pipeline_layout) {
+    if (current_guest_graphics_pipeline_layout_) {
       // Keep descriptor set layouts for which the new pipeline layout is
       // compatible with the previous one (pipeline layouts are compatible for
       // set N if set layouts 0 through N are compatible).
       uint32_t descriptor_sets_kept =
           uint32_t(SpirvShaderTranslator::kDescriptorSetCount);
-      if (current_graphics_pipeline_layout_
-              ->descriptor_set_layout_textures_vertex_ref !=
-          pipeline_layout->descriptor_set_layout_textures_vertex_ref) {
+      if (current_guest_graphics_pipeline_layout_
+              ->descriptor_set_layout_textures_vertex_ref() !=
+          pipeline_layout->descriptor_set_layout_textures_vertex_ref()) {
         descriptor_sets_kept = std::min(
             descriptor_sets_kept,
             uint32_t(SpirvShaderTranslator::kDescriptorSetTexturesVertex));
       }
-      if (current_graphics_pipeline_layout_
-              ->descriptor_set_layout_textures_pixel_ref !=
-          pipeline_layout->descriptor_set_layout_textures_pixel_ref) {
+      if (current_guest_graphics_pipeline_layout_
+              ->descriptor_set_layout_textures_pixel_ref() !=
+          pipeline_layout->descriptor_set_layout_textures_pixel_ref()) {
         descriptor_sets_kept = std::min(
             descriptor_sets_kept,
             uint32_t(SpirvShaderTranslator::kDescriptorSetTexturesPixel));
@@ -1204,7 +1232,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
       // indeterminate state.
       current_graphics_descriptor_sets_bound_up_to_date_ = 0;
     }
-    current_graphics_pipeline_layout_ = pipeline_layout;
+    current_guest_graphics_pipeline_layout_ = pipeline_layout;
   }
 
   const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
@@ -1234,8 +1262,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
       device_properties.limits.maxViewportDimensions[1], true, false, false,
       false, viewport_info);
 
-  // Update fixed-function dynamic state.
-  UpdateFixedFunctionState(viewport_info);
+  // Update dynamic graphics pipeline state.
+  UpdateDynamicState(viewport_info, primitive_polygonal);
 
   // Update system constants before uploading them.
   UpdateSystemConstantValues(primitive_processing_result.host_index_endian,
@@ -1550,12 +1578,21 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
     deferred_command_buffer_.Reset();
 
     // Reset cached state of the command buffer.
-    ff_viewport_update_needed_ = true;
-    ff_scissor_update_needed_ = true;
+    dynamic_viewport_update_needed_ = true;
+    dynamic_scissor_update_needed_ = true;
+    dynamic_depth_bias_update_needed_ = true;
+    dynamic_blend_constants_update_needed_ = true;
+    dynamic_stencil_compare_mask_front_update_needed_ = true;
+    dynamic_stencil_compare_mask_back_update_needed_ = true;
+    dynamic_stencil_write_mask_front_update_needed_ = true;
+    dynamic_stencil_write_mask_back_update_needed_ = true;
+    dynamic_stencil_reference_front_update_needed_ = true;
+    dynamic_stencil_reference_back_update_needed_ = true;
     current_render_pass_ = VK_NULL_HANDLE;
     current_framebuffer_ = VK_NULL_HANDLE;
-    current_graphics_pipeline_ = VK_NULL_HANDLE;
-    current_graphics_pipeline_layout_ = nullptr;
+    current_guest_graphics_pipeline_ = VK_NULL_HANDLE;
+    current_external_graphics_pipeline_ = VK_NULL_HANDLE;
+    current_guest_graphics_pipeline_layout_ = nullptr;
     current_graphics_descriptor_sets_bound_up_to_date_ = 0;
 
     primitive_processor_->BeginSubmission();
@@ -1825,7 +1862,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
 
       for (const auto& pipeline_layout_pair : pipeline_layouts_) {
         dfn.vkDestroyPipelineLayout(
-            device, pipeline_layout_pair.second.pipeline_layout, nullptr);
+            device, pipeline_layout_pair.second.GetPipelineLayout(), nullptr);
       }
       pipeline_layouts_.clear();
       for (const auto& descriptor_set_layout_pair :
@@ -1859,8 +1896,8 @@ VkShaderStageFlags VulkanCommandProcessor::GetGuestVertexShaderStageFlags()
   return stages;
 }
 
-void VulkanCommandProcessor::UpdateFixedFunctionState(
-    const draw_util::ViewportInfo& viewport_info) {
+void VulkanCommandProcessor::UpdateDynamicState(
+    const draw_util::ViewportInfo& viewport_info, bool primitive_polygonal) {
 #if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
@@ -1891,16 +1928,19 @@ void VulkanCommandProcessor::UpdateFixedFunctionState(
   }
   viewport.minDepth = viewport_info.z_min;
   viewport.maxDepth = viewport_info.z_max;
-  ff_viewport_update_needed_ |= ff_viewport_.x != viewport.x;
-  ff_viewport_update_needed_ |= ff_viewport_.y != viewport.y;
-  ff_viewport_update_needed_ |= ff_viewport_.width != viewport.width;
-  ff_viewport_update_needed_ |= ff_viewport_.height != viewport.height;
-  ff_viewport_update_needed_ |= ff_viewport_.minDepth != viewport.minDepth;
-  ff_viewport_update_needed_ |= ff_viewport_.maxDepth != viewport.maxDepth;
-  if (ff_viewport_update_needed_) {
-    ff_viewport_ = viewport;
-    deferred_command_buffer_.CmdVkSetViewport(0, 1, &viewport);
-    ff_viewport_update_needed_ = false;
+  dynamic_viewport_update_needed_ |= dynamic_viewport_.x != viewport.x;
+  dynamic_viewport_update_needed_ |= dynamic_viewport_.y != viewport.y;
+  dynamic_viewport_update_needed_ |= dynamic_viewport_.width != viewport.width;
+  dynamic_viewport_update_needed_ |=
+      dynamic_viewport_.height != viewport.height;
+  dynamic_viewport_update_needed_ |=
+      dynamic_viewport_.minDepth != viewport.minDepth;
+  dynamic_viewport_update_needed_ |=
+      dynamic_viewport_.maxDepth != viewport.maxDepth;
+  if (dynamic_viewport_update_needed_) {
+    dynamic_viewport_ = viewport;
+    deferred_command_buffer_.CmdVkSetViewport(0, 1, &dynamic_viewport_);
+    dynamic_viewport_update_needed_ = false;
   }
 
   // Scissor.
@@ -1911,17 +1951,191 @@ void VulkanCommandProcessor::UpdateFixedFunctionState(
   scissor_rect.offset.y = int32_t(scissor.offset[1]);
   scissor_rect.extent.width = scissor.extent[0];
   scissor_rect.extent.height = scissor.extent[1];
-  ff_scissor_update_needed_ |= ff_scissor_.offset.x != scissor_rect.offset.x;
-  ff_scissor_update_needed_ |= ff_scissor_.offset.y != scissor_rect.offset.y;
-  ff_scissor_update_needed_ |=
-      ff_scissor_.extent.width != scissor_rect.extent.width;
-  ff_scissor_update_needed_ |=
-      ff_scissor_.extent.height != scissor_rect.extent.height;
-  if (ff_scissor_update_needed_) {
-    ff_scissor_ = scissor_rect;
-    deferred_command_buffer_.CmdVkSetScissor(0, 1, &scissor_rect);
-    ff_scissor_update_needed_ = false;
+  dynamic_scissor_update_needed_ |=
+      dynamic_scissor_.offset.x != scissor_rect.offset.x;
+  dynamic_scissor_update_needed_ |=
+      dynamic_scissor_.offset.y != scissor_rect.offset.y;
+  dynamic_scissor_update_needed_ |=
+      dynamic_scissor_.extent.width != scissor_rect.extent.width;
+  dynamic_scissor_update_needed_ |=
+      dynamic_scissor_.extent.height != scissor_rect.extent.height;
+  if (dynamic_scissor_update_needed_) {
+    dynamic_scissor_ = scissor_rect;
+    deferred_command_buffer_.CmdVkSetScissor(0, 1, &dynamic_scissor_);
+    dynamic_scissor_update_needed_ = false;
   }
+
+  // Depth bias.
+  // TODO(Triang3l): Disable the depth bias for the fragment shader interlock RB
+  // implementation.
+  float depth_bias_constant_factor, depth_bias_slope_factor;
+  draw_util::GetPreferredFacePolygonOffset(regs, primitive_polygonal,
+                                           depth_bias_slope_factor,
+                                           depth_bias_constant_factor);
+  depth_bias_constant_factor *= draw_util::GetD3D10PolygonOffsetFactor(
+      regs.Get<reg::RB_DEPTH_INFO>().depth_format, true);
+  // With non-square resolution scaling, make sure the worst-case impact is
+  // reverted (slope only along the scaled axis), thus max. More bias is better
+  // than less bias, because less bias means Z fighting with the background is
+  // more likely.
+  depth_bias_slope_factor *=
+      xenos::kPolygonOffsetScaleSubpixelUnit *
+      float(std::max(render_target_cache_->GetResolutionScaleX(),
+                     render_target_cache_->GetResolutionScaleY()));
+  // std::memcmp instead of != so in case of NaN, every draw won't be
+  // invalidating it.
+  dynamic_depth_bias_update_needed_ |=
+      std::memcmp(&dynamic_depth_bias_constant_factor_,
+                  &depth_bias_constant_factor, sizeof(float)) != 0;
+  dynamic_depth_bias_update_needed_ |=
+      std::memcmp(&dynamic_depth_bias_slope_factor_, &depth_bias_slope_factor,
+                  sizeof(float)) != 0;
+  if (dynamic_depth_bias_update_needed_) {
+    dynamic_depth_bias_constant_factor_ = depth_bias_constant_factor;
+    dynamic_depth_bias_slope_factor_ = depth_bias_slope_factor;
+    deferred_command_buffer_.CmdVkSetDepthBias(
+        dynamic_depth_bias_constant_factor_, 0.0f,
+        dynamic_depth_bias_slope_factor_);
+    dynamic_depth_bias_update_needed_ = false;
+  }
+
+  // Blend constants.
+  float blend_constants[] = {
+      regs[XE_GPU_REG_RB_BLEND_RED].f32,
+      regs[XE_GPU_REG_RB_BLEND_GREEN].f32,
+      regs[XE_GPU_REG_RB_BLEND_BLUE].f32,
+      regs[XE_GPU_REG_RB_BLEND_ALPHA].f32,
+  };
+  dynamic_blend_constants_update_needed_ |=
+      std::memcmp(dynamic_blend_constants_, blend_constants,
+                  sizeof(float) * 4) != 0;
+  if (dynamic_blend_constants_update_needed_) {
+    std::memcpy(dynamic_blend_constants_, blend_constants, sizeof(float) * 4);
+    deferred_command_buffer_.CmdVkSetBlendConstants(dynamic_blend_constants_);
+    dynamic_blend_constants_update_needed_ = false;
+  }
+
+  // Stencil masks and references.
+  // Due to pretty complex conditions involving registers not directly related
+  // to stencil (primitive type, culling), changing the values only when stencil
+  // is actually needed. However, due to the way dynamic state needs to be set
+  // in Vulkan, which doesn't take into account whether the state actually has
+  // effect on drawing, and because the masks and the references are always
+  // dynamic in Xenia guest pipelines, they must be set in the command buffer
+  // before any draw.
+  auto rb_depthcontrol = draw_util::GetDepthControlForCurrentEdramMode(regs);
+  if (rb_depthcontrol.stencil_enable) {
+    Register stencil_ref_mask_front_reg, stencil_ref_mask_back_reg;
+    if (primitive_polygonal && rb_depthcontrol.backface_enable) {
+      const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
+      const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
+          device_portability_subset_features =
+              provider.device_portability_subset_features();
+      if (!device_portability_subset_features ||
+          device_portability_subset_features->separateStencilMaskRef) {
+        // Choose the back face values only if drawing only back faces.
+        stencil_ref_mask_front_reg =
+            regs.Get<reg::PA_SU_SC_MODE_CNTL>().cull_front
+                ? XE_GPU_REG_RB_STENCILREFMASK_BF
+                : XE_GPU_REG_RB_STENCILREFMASK;
+        stencil_ref_mask_back_reg = stencil_ref_mask_front_reg;
+      } else {
+        stencil_ref_mask_front_reg = XE_GPU_REG_RB_STENCILREFMASK;
+        stencil_ref_mask_back_reg = XE_GPU_REG_RB_STENCILREFMASK_BF;
+      }
+    } else {
+      stencil_ref_mask_front_reg = XE_GPU_REG_RB_STENCILREFMASK;
+      stencil_ref_mask_back_reg = XE_GPU_REG_RB_STENCILREFMASK;
+    }
+    auto stencil_ref_mask_front =
+        regs.Get<reg::RB_STENCILREFMASK>(stencil_ref_mask_front_reg);
+    auto stencil_ref_mask_back =
+        regs.Get<reg::RB_STENCILREFMASK>(stencil_ref_mask_back_reg);
+    // Compare mask.
+    dynamic_stencil_compare_mask_front_update_needed_ |=
+        dynamic_stencil_compare_mask_front_ !=
+        stencil_ref_mask_front.stencilmask;
+    dynamic_stencil_compare_mask_front_ = stencil_ref_mask_front.stencilmask;
+    dynamic_stencil_compare_mask_back_update_needed_ |=
+        dynamic_stencil_compare_mask_back_ != stencil_ref_mask_back.stencilmask;
+    dynamic_stencil_compare_mask_back_ = stencil_ref_mask_back.stencilmask;
+    // Write mask.
+    dynamic_stencil_write_mask_front_update_needed_ |=
+        dynamic_stencil_write_mask_front_ !=
+        stencil_ref_mask_front.stencilwritemask;
+    dynamic_stencil_write_mask_front_ = stencil_ref_mask_front.stencilwritemask;
+    dynamic_stencil_write_mask_back_update_needed_ |=
+        dynamic_stencil_write_mask_back_ !=
+        stencil_ref_mask_back.stencilwritemask;
+    dynamic_stencil_write_mask_back_ = stencil_ref_mask_back.stencilwritemask;
+    // Reference.
+    dynamic_stencil_reference_front_update_needed_ |=
+        dynamic_stencil_reference_front_ != stencil_ref_mask_front.stencilref;
+    dynamic_stencil_reference_front_ = stencil_ref_mask_front.stencilref;
+    dynamic_stencil_reference_back_update_needed_ |=
+        dynamic_stencil_reference_back_ != stencil_ref_mask_back.stencilref;
+    dynamic_stencil_reference_back_ = stencil_ref_mask_back.stencilref;
+  }
+  // Using VK_STENCIL_FACE_FRONT_AND_BACK for higher safety when running on the
+  // Vulkan portability subset without separateStencilMaskRef.
+  if (dynamic_stencil_compare_mask_front_update_needed_ ||
+      dynamic_stencil_compare_mask_back_update_needed_) {
+    if (dynamic_stencil_compare_mask_front_ ==
+        dynamic_stencil_compare_mask_back_) {
+      deferred_command_buffer_.CmdVkSetStencilCompareMask(
+          VK_STENCIL_FACE_FRONT_AND_BACK, dynamic_stencil_compare_mask_front_);
+    } else {
+      if (dynamic_stencil_compare_mask_front_update_needed_) {
+        deferred_command_buffer_.CmdVkSetStencilCompareMask(
+            VK_STENCIL_FACE_FRONT_BIT, dynamic_stencil_compare_mask_front_);
+      }
+      if (dynamic_stencil_compare_mask_back_update_needed_) {
+        deferred_command_buffer_.CmdVkSetStencilCompareMask(
+            VK_STENCIL_FACE_BACK_BIT, dynamic_stencil_compare_mask_back_);
+      }
+    }
+    dynamic_stencil_compare_mask_front_update_needed_ = false;
+    dynamic_stencil_compare_mask_back_update_needed_ = false;
+  }
+  if (dynamic_stencil_write_mask_front_update_needed_ ||
+      dynamic_stencil_write_mask_back_update_needed_) {
+    if (dynamic_stencil_write_mask_front_ == dynamic_stencil_write_mask_back_) {
+      deferred_command_buffer_.CmdVkSetStencilWriteMask(
+          VK_STENCIL_FACE_FRONT_AND_BACK, dynamic_stencil_write_mask_front_);
+    } else {
+      if (dynamic_stencil_write_mask_front_update_needed_) {
+        deferred_command_buffer_.CmdVkSetStencilWriteMask(
+            VK_STENCIL_FACE_FRONT_BIT, dynamic_stencil_write_mask_front_);
+      }
+      if (dynamic_stencil_write_mask_back_update_needed_) {
+        deferred_command_buffer_.CmdVkSetStencilWriteMask(
+            VK_STENCIL_FACE_BACK_BIT, dynamic_stencil_write_mask_back_);
+      }
+    }
+    dynamic_stencil_write_mask_front_update_needed_ = false;
+    dynamic_stencil_write_mask_back_update_needed_ = false;
+  }
+  if (dynamic_stencil_reference_front_update_needed_ ||
+      dynamic_stencil_reference_back_update_needed_) {
+    if (dynamic_stencil_reference_front_ == dynamic_stencil_reference_back_) {
+      deferred_command_buffer_.CmdVkSetStencilReference(
+          VK_STENCIL_FACE_FRONT_AND_BACK, dynamic_stencil_reference_front_);
+    } else {
+      if (dynamic_stencil_reference_front_update_needed_) {
+        deferred_command_buffer_.CmdVkSetStencilReference(
+            VK_STENCIL_FACE_FRONT_BIT, dynamic_stencil_reference_front_);
+      }
+      if (dynamic_stencil_reference_back_update_needed_) {
+        deferred_command_buffer_.CmdVkSetStencilReference(
+            VK_STENCIL_FACE_BACK_BIT, dynamic_stencil_reference_back_);
+      }
+    }
+    dynamic_stencil_reference_front_update_needed_ = false;
+    dynamic_stencil_reference_back_update_needed_ = false;
+  }
+
+  // TODO(Triang3l): VK_EXT_extended_dynamic_state and
+  // VK_EXT_extended_dynamic_state2.
 }
 
 void VulkanCommandProcessor::UpdateSystemConstantValues(
@@ -2201,14 +2415,14 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
   // Bind the new descriptor sets.
   uint32_t descriptor_sets_needed =
       (uint32_t(1) << SpirvShaderTranslator::kDescriptorSetCount) - 1;
-  if (current_graphics_pipeline_layout_
-          ->descriptor_set_layout_textures_vertex_ref ==
+  if (current_guest_graphics_pipeline_layout_
+          ->descriptor_set_layout_textures_vertex_ref() ==
       descriptor_set_layout_empty_) {
     descriptor_sets_needed &=
         ~(uint32_t(1) << SpirvShaderTranslator::kDescriptorSetTexturesVertex);
   }
-  if (current_graphics_pipeline_layout_
-          ->descriptor_set_layout_textures_pixel_ref ==
+  if (current_guest_graphics_pipeline_layout_
+          ->descriptor_set_layout_textures_pixel_ref() ==
       descriptor_set_layout_empty_) {
     descriptor_sets_needed &=
         ~(uint32_t(1) << SpirvShaderTranslator::kDescriptorSetTexturesPixel);
@@ -2226,7 +2440,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
     // geometry shaders.
     deferred_command_buffer_.CmdVkBindDescriptorSets(
         VK_PIPELINE_BIND_POINT_GRAPHICS,
-        current_graphics_pipeline_layout_->pipeline_layout,
+        current_guest_graphics_pipeline_layout_->GetPipelineLayout(),
         descriptor_set_index, descriptor_set_mask_tzcnt - descriptor_set_index,
         current_graphics_descriptor_sets_ + descriptor_set_index, 0, nullptr);
     if (descriptor_set_mask_tzcnt >= 32) {

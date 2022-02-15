@@ -1216,10 +1216,11 @@ void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
       "xe_out_fragment_data_2",
       "xe_out_fragment_data_3",
   };
-  uint32_t shader_writes_color_targets =
-      current_shader().writes_color_targets();
+  uint32_t fragment_data_outputs_written =
+      current_shader().writes_color_targets() &
+      ~GetSpirvShaderModification().pixel.color_outputs_disabled;
   for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
-    if (!(shader_writes_color_targets & (uint32_t(1) << i))) {
+    if (!(fragment_data_outputs_written & (uint32_t(1) << i))) {
       continue;
     }
     spv::Id output_fragment_data_rt =
@@ -1252,11 +1253,10 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
   }
 
   // Initialize the colors for safety.
-  uint32_t shader_writes_color_targets =
-      current_shader().writes_color_targets();
   for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
-    if (shader_writes_color_targets & (uint32_t(1) << i)) {
-      builder_->createStore(const_float4_0_, output_fragment_data_[i]);
+    spv::Id output_fragment_data_rt = output_fragment_data_[i];
+    if (output_fragment_data_rt != spv::NoResult) {
+      builder_->createStore(const_float4_0_, output_fragment_data_rt);
     }
   }
 }
@@ -1618,7 +1618,10 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
       assert_not_zero(used_write_mask);
       assert_true(current_shader().writes_color_target(result.storage_index));
       target_pointer = output_fragment_data_[result.storage_index];
-      assert_true(target_pointer != spv::NoResult);
+      // May be spv::NoResult if the color output is explicitly removed due to
+      // an empty write mask without independent blending.
+      // TODO(Triang3l): Store the alpha of the first output in this case for
+      // alpha test and alpha to coverage.
       break;
     default:
       // TODO(Triang3l): All storage targets.

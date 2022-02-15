@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -21,6 +21,7 @@
 #include "xenia/base/xxhash.h"
 #include "xenia/gpu/primitive_processor.h"
 #include "xenia/gpu/register_file.h"
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/gpu/vulkan/vulkan_render_target_cache.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
@@ -41,6 +42,9 @@ class VulkanPipelineCache {
    public:
     virtual ~PipelineLayoutProvider() {}
     virtual VkPipelineLayout GetPipelineLayout() const = 0;
+
+   protected:
+    PipelineLayoutProvider() = default;
   };
 
   VulkanPipelineCache(VulkanCommandProcessor& command_processor,
@@ -65,37 +69,25 @@ class VulkanPipelineCache {
       const Shader& shader,
       Shader::HostVertexShaderType host_vertex_shader_type) const;
   SpirvShaderTranslator::Modification GetCurrentPixelShaderModification(
-      const Shader& shader) const;
+      const Shader& shader, uint32_t normalized_color_mask) const;
 
   // TODO(Triang3l): Return a deferred creation handle.
   bool ConfigurePipeline(
       VulkanShader::VulkanTranslation* vertex_shader,
       VulkanShader::VulkanTranslation* pixel_shader,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+      uint32_t normalized_color_mask,
       VulkanRenderTargetCache::RenderPassKey render_pass_key,
       VkPipeline& pipeline_out,
       const PipelineLayoutProvider*& pipeline_layout_out);
 
  private:
-  // Can only load pipeline storage if features of the device it was created on
-  // and the current device match because descriptions may requires features not
-  // supported on the device. Very radical differences (such as RB emulation
-  // method) should result in a different storage file being used.
-  union DevicePipelineFeatures {
-    struct {
-      uint32_t point_polygons : 1;
-      uint32_t triangle_fans : 1;
-    };
-    uint32_t features = 0;
-  };
-
   enum class PipelinePrimitiveTopology : uint32_t {
     kPointList,
     kLineList,
     kLineStrip,
     kTriangleList,
     kTriangleStrip,
-    // Requires DevicePipelineFeatures::triangle_fans.
     kTriangleFan,
     kLineListWithAdjacency,
     kPatchList,
@@ -106,6 +98,35 @@ class VulkanPipelineCache {
     kLine,
     kPoint,
   };
+
+  enum class PipelineBlendFactor : uint32_t {
+    kZero,
+    kOne,
+    kSrcColor,
+    kOneMinusSrcColor,
+    kDstColor,
+    kOneMinusDstColor,
+    kSrcAlpha,
+    kOneMinusSrcAlpha,
+    kDstAlpha,
+    kOneMinusDstAlpha,
+    kConstantColor,
+    kOneMinusConstantColor,
+    kConstantAlpha,
+    kOneMinusConstantAlpha,
+    kSrcAlphaSaturate,
+  };
+
+  // Update PipelineDescription::kVersion if anything is changed!
+  XEPACKEDSTRUCT(PipelineRenderTarget, {
+    PipelineBlendFactor src_color_blend_factor : 4;  // 4
+    PipelineBlendFactor dst_color_blend_factor : 4;  // 8
+    xenos::BlendOp color_blend_op : 3;               // 11
+    PipelineBlendFactor src_alpha_blend_factor : 4;  // 15
+    PipelineBlendFactor dst_alpha_blend_factor : 4;  // 19
+    xenos::BlendOp alpha_blend_op : 3;               // 22
+    uint32_t color_write_mask : 4;                   // 26
+  });
 
   XEPACKEDSTRUCT(PipelineDescription, {
     uint64_t vertex_shader_hash;
@@ -119,10 +140,27 @@ class VulkanPipelineCache {
     PipelinePrimitiveTopology primitive_topology : 3;  // 3
     uint32_t primitive_restart : 1;                    // 4
     // Rasterization.
-    PipelinePolygonMode polygon_mode : 2;  // 6
-    uint32_t cull_front : 1;               // 7
-    uint32_t cull_back : 1;                // 8
-    uint32_t front_face_clockwise : 1;     // 9
+    uint32_t depth_clamp_enable : 1;       // 5
+    PipelinePolygonMode polygon_mode : 2;  // 7
+    uint32_t cull_front : 1;               // 8
+    uint32_t cull_back : 1;                // 9
+    uint32_t front_face_clockwise : 1;     // 10
+    // Depth / stencil.
+    uint32_t depth_write_enable : 1;                      // 11
+    xenos::CompareFunction depth_compare_op : 3;          // 14
+    uint32_t stencil_test_enable : 1;                     // 15
+    xenos::StencilOp stencil_front_fail_op : 3;           // 18
+    xenos::StencilOp stencil_front_pass_op : 3;           // 21
+    xenos::StencilOp stencil_front_depth_fail_op : 3;     // 24
+    xenos::CompareFunction stencil_front_compare_op : 3;  // 27
+    xenos::StencilOp stencil_back_fail_op : 3;            // 30
+
+    xenos::StencilOp stencil_back_pass_op : 3;           // 3
+    xenos::StencilOp stencil_back_depth_fail_op : 3;     // 6
+    xenos::CompareFunction stencil_back_compare_op : 3;  // 9
+
+    // Filled only for the attachments present in the render pass object.
+    PipelineRenderTarget render_targets[xenos::kMaxColorRenderTargets];
 
     // Including all the padding, for a stable hash.
     PipelineDescription() { Reset(); }
@@ -166,12 +204,19 @@ class VulkanPipelineCache {
   bool TranslateAnalyzedShader(SpirvShaderTranslator& translator,
                                VulkanShader::VulkanTranslation& translation);
 
+  void WritePipelineRenderTargetDescription(
+      reg::RB_BLENDCONTROL blend_control, uint32_t write_mask,
+      PipelineRenderTarget& render_target_out) const;
   bool GetCurrentStateDescription(
       const VulkanShader::VulkanTranslation* vertex_shader,
       const VulkanShader::VulkanTranslation* pixel_shader,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+      uint32_t normalized_color_mask,
       VulkanRenderTargetCache::RenderPassKey render_pass_key,
       PipelineDescription& description_out) const;
+
+  // Whether the pipeline for the given description is supported by the device.
+  bool ArePipelineRequirementsMet(const PipelineDescription& description) const;
 
   // Can be called from creation threads - all needed data must be fully set up
   // at the point of the call: shaders must be translated, pipeline layout and
@@ -182,8 +227,6 @@ class VulkanPipelineCache {
   VulkanCommandProcessor& command_processor_;
   const RegisterFile& register_file_;
   VulkanRenderTargetCache& render_target_cache_;
-
-  DevicePipelineFeatures device_pipeline_features_;
 
   // Temporary storage for AnalyzeUcode calls on the processor thread.
   StringBuffer ucode_disasm_buffer_;

@@ -90,6 +90,17 @@ class VulkanCommandProcessor : public CommandProcessor {
   const VulkanPipelineCache::PipelineLayoutProvider* GetPipelineLayout(
       uint32_t texture_count_pixel, uint32_t texture_count_vertex);
 
+  // Binds a graphics pipeline for host-specific purposes, invalidating the
+  // affected state. keep_dynamic_* must be false (to invalidate the dynamic
+  // state after binding the pipeline with the same state being static, or if
+  // the caller changes the dynamic state bypassing the VulkanCommandProcessor)
+  // unless the caller has these state variables as dynamic and uses the
+  // tracking in VulkanCommandProcessor to modify them.
+  void BindExternalGraphicsPipeline(VkPipeline pipeline,
+                                    bool keep_dynamic_depth_bias = false,
+                                    bool keep_dynamic_blend_constants = false,
+                                    bool keep_dynamic_stencil_mask_ref = false);
+
  protected:
   bool SetupContext() override;
   void ShutdownContext() override;
@@ -146,12 +157,29 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   class PipelineLayout : public VulkanPipelineCache::PipelineLayoutProvider {
    public:
+    PipelineLayout(
+        VkPipelineLayout pipeline_layout,
+        VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref,
+        VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref)
+        : pipeline_layout_(pipeline_layout),
+          descriptor_set_layout_textures_vertex_ref_(
+              descriptor_set_layout_textures_vertex_ref),
+          descriptor_set_layout_textures_pixel_ref_(
+              descriptor_set_layout_textures_pixel_ref) {}
     VkPipelineLayout GetPipelineLayout() const override {
-      return pipeline_layout;
+      return pipeline_layout_;
     }
-    VkPipelineLayout pipeline_layout;
-    VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref;
-    VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref;
+    VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref() const {
+      return descriptor_set_layout_textures_vertex_ref_;
+    }
+    VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref() const {
+      return descriptor_set_layout_textures_pixel_ref_;
+    }
+
+   private:
+    VkPipelineLayout pipeline_layout_;
+    VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref_;
+    VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref_;
   };
 
   // BeginSubmission and EndSubmission may be called at any time. If there's an
@@ -179,7 +207,8 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   VkShaderStageFlags GetGuestVertexShaderStageFlags() const;
 
-  void UpdateFixedFunctionState(const draw_util::ViewportInfo& viewport_info);
+  void UpdateDynamicState(const draw_util::ViewportInfo& viewport_info,
+                          bool primitive_polygonal);
   void UpdateSystemConstantValues(xenos::Endian index_endian,
                                   const draw_util::ViewportInfo& viewport_info);
   bool UpdateBindings(const VulkanShader* vertex_shader,
@@ -285,22 +314,52 @@ class VulkanCommandProcessor : public CommandProcessor {
       swap_framebuffers_;
   std::deque<std::pair<uint64_t, VkFramebuffer>> swap_framebuffers_outdated_;
 
-  // The current fixed-function drawing state.
-  VkViewport ff_viewport_;
-  VkRect2D ff_scissor_;
-  bool ff_viewport_update_needed_;
-  bool ff_scissor_update_needed_;
+  // The current dynamic state of the graphics pipeline bind point. Note that
+  // binding any pipeline to the bind point with static state (even if it's
+  // unused, like depth bias being disabled, but the values themselves still not
+  // declared as dynamic in the pipeline) invalidates such dynamic state.
+  VkViewport dynamic_viewport_;
+  VkRect2D dynamic_scissor_;
+  float dynamic_depth_bias_constant_factor_;
+  float dynamic_depth_bias_slope_factor_;
+  float dynamic_blend_constants_[4];
+  // The stencil values are pre-initialized (to D3D11_DEFAULT_STENCIL_*, and the
+  // initial values for front and back are the same for portability subset
+  // safety) because they're updated conditionally to avoid changing the back
+  // face values when stencil is disabled and the primitive type is changed
+  // between polygonal and non-polygonal.
+  uint32_t dynamic_stencil_compare_mask_front_ = UINT8_MAX;
+  uint32_t dynamic_stencil_compare_mask_back_ = UINT8_MAX;
+  uint32_t dynamic_stencil_write_mask_front_ = UINT8_MAX;
+  uint32_t dynamic_stencil_write_mask_back_ = UINT8_MAX;
+  uint32_t dynamic_stencil_reference_front_ = 0;
+  uint32_t dynamic_stencil_reference_back_ = 0;
+  bool dynamic_viewport_update_needed_;
+  bool dynamic_scissor_update_needed_;
+  bool dynamic_depth_bias_update_needed_;
+  bool dynamic_blend_constants_update_needed_;
+  bool dynamic_stencil_compare_mask_front_update_needed_;
+  bool dynamic_stencil_compare_mask_back_update_needed_;
+  bool dynamic_stencil_write_mask_front_update_needed_;
+  bool dynamic_stencil_write_mask_back_update_needed_;
+  bool dynamic_stencil_reference_front_update_needed_;
+  bool dynamic_stencil_reference_back_update_needed_;
 
   // Cache render pass currently started in the command buffer with the
   // framebuffer.
   VkRenderPass current_render_pass_;
   VkFramebuffer current_framebuffer_;
 
-  // Cache graphics pipeline currently bound to the command buffer.
-  VkPipeline current_graphics_pipeline_;
+  // Currently bound graphics pipeline, either from the pipeline cache (with
+  // potentially deferred creation - current_external_graphics_pipeline_ is
+  // VK_NULL_HANDLE in this case) or a non-Xenos one
+  // (current_guest_graphics_pipeline_ is VK_NULL_HANDLE in this case).
+  // TODO(Triang3l): Change to a deferred compilation handle.
+  VkPipeline current_guest_graphics_pipeline_;
+  VkPipeline current_external_graphics_pipeline_;
 
-  // Pipeline layout of the current graphics pipeline.
-  const PipelineLayout* current_graphics_pipeline_layout_;
+  // Pipeline layout of the current guest graphics pipeline.
+  const PipelineLayout* current_guest_graphics_pipeline_layout_;
   VkDescriptorSet current_graphics_descriptor_sets_
       [SpirvShaderTranslator::kDescriptorSetCount];
   // Whether descriptor sets in current_graphics_descriptor_sets_ point to

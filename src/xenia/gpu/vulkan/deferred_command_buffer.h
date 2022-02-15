@@ -162,6 +162,22 @@ class DeferredCommandBuffer {
                             uint32_t image_memory_barrier_count,
                             const VkImageMemoryBarrier* image_memory_barriers);
 
+  void CmdVkSetBlendConstants(const float* blend_constants) {
+    auto& args = *reinterpret_cast<ArgsVkSetBlendConstants*>(WriteCommand(
+        Command::kVkSetBlendConstants, sizeof(ArgsVkSetBlendConstants)));
+    std::memcpy(args.blend_constants, blend_constants, sizeof(float) * 4);
+  }
+
+  void CmdVkSetDepthBias(float depth_bias_constant_factor,
+                         float depth_bias_clamp,
+                         float depth_bias_slope_factor) {
+    auto& args = *reinterpret_cast<ArgsVkSetDepthBias*>(
+        WriteCommand(Command::kVkSetDepthBias, sizeof(ArgsVkSetDepthBias)));
+    args.depth_bias_constant_factor = depth_bias_constant_factor;
+    args.depth_bias_clamp = depth_bias_clamp;
+    args.depth_bias_slope_factor = depth_bias_slope_factor;
+  }
+
   void CmdVkSetScissor(uint32_t first_scissor, uint32_t scissor_count,
                        const VkRect2D* scissors) {
     const size_t header_size =
@@ -174,6 +190,31 @@ class DeferredCommandBuffer {
     args.scissor_count = scissor_count;
     std::memcpy(args_ptr + header_size, scissors,
                 sizeof(VkRect2D) * scissor_count);
+  }
+
+  void CmdVkSetStencilCompareMask(VkStencilFaceFlags face_mask,
+                                  uint32_t compare_mask) {
+    auto& args = *reinterpret_cast<ArgsSetStencilMaskReference*>(
+        WriteCommand(Command::kVkSetStencilCompareMask,
+                     sizeof(ArgsSetStencilMaskReference)));
+    args.face_mask = face_mask;
+    args.mask_reference = compare_mask;
+  }
+
+  void CmdVkSetStencilReference(VkStencilFaceFlags face_mask,
+                                uint32_t reference) {
+    auto& args = *reinterpret_cast<ArgsSetStencilMaskReference*>(WriteCommand(
+        Command::kVkSetStencilReference, sizeof(ArgsSetStencilMaskReference)));
+    args.face_mask = face_mask;
+    args.mask_reference = reference;
+  }
+
+  void CmdVkSetStencilWriteMask(VkStencilFaceFlags face_mask,
+                                uint32_t write_mask) {
+    auto& args = *reinterpret_cast<ArgsSetStencilMaskReference*>(WriteCommand(
+        Command::kVkSetStencilWriteMask, sizeof(ArgsSetStencilMaskReference)));
+    args.face_mask = face_mask;
+    args.mask_reference = write_mask;
   }
 
   void CmdVkSetViewport(uint32_t first_viewport, uint32_t viewport_count,
@@ -201,7 +242,12 @@ class DeferredCommandBuffer {
     kVkDrawIndexed,
     kVkEndRenderPass,
     kVkPipelineBarrier,
+    kVkSetBlendConstants,
+    kVkSetDepthBias,
     kVkSetScissor,
+    kVkSetStencilCompareMask,
+    kVkSetStencilReference,
+    kVkSetStencilWriteMask,
     kVkSetViewport,
   };
 
@@ -280,11 +326,26 @@ class DeferredCommandBuffer {
     static_assert(alignof(VkImageMemoryBarrier) <= alignof(uintmax_t));
   };
 
+  struct ArgsVkSetBlendConstants {
+    float blend_constants[4];
+  };
+
+  struct ArgsVkSetDepthBias {
+    float depth_bias_constant_factor;
+    float depth_bias_clamp;
+    float depth_bias_slope_factor;
+  };
+
   struct ArgsVkSetScissor {
     uint32_t first_scissor;
     uint32_t scissor_count;
     // Followed by aligned VkRect2D[].
     static_assert(alignof(VkRect2D) <= alignof(uintmax_t));
+  };
+
+  struct ArgsSetStencilMaskReference {
+    VkStencilFaceFlags face_mask;
+    uint32_t mask_reference;
   };
 
   struct ArgsVkSetViewport {

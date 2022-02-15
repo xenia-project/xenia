@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,6 +10,7 @@
 #include "xenia/gpu/vulkan/vulkan_pipeline_cache.h"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <memory>
 
@@ -44,11 +45,6 @@ VulkanPipelineCache::~VulkanPipelineCache() { Shutdown(); }
 bool VulkanPipelineCache::Initialize() {
   const ui::vulkan::VulkanProvider& provider =
       command_processor_.GetVulkanProvider();
-
-  device_pipeline_features_.features = 0;
-  // TODO(Triang3l): Support the portability subset.
-  device_pipeline_features_.point_polygons = 1;
-  device_pipeline_features_.triangle_fans = 1;
 
   shader_translator_ = std::make_unique<SpirvShaderTranslator>(
       SpirvShaderTranslator::Features(provider));
@@ -119,21 +115,52 @@ VulkanPipelineCache::GetCurrentVertexShaderModification(
 
 SpirvShaderTranslator::Modification
 VulkanPipelineCache::GetCurrentPixelShaderModification(
-    const Shader& shader) const {
+    const Shader& shader, uint32_t normalized_color_mask) const {
   assert_true(shader.type() == xenos::ShaderType::kPixel);
   assert_true(shader.is_ucode_analyzed());
   const auto& regs = register_file_;
+
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
-  return SpirvShaderTranslator::Modification(
+  SpirvShaderTranslator::Modification modification(
       shader_translator_->GetDefaultPixelShaderModification(
           shader.GetDynamicAddressableRegisterCount(
               sq_program_cntl.ps_num_reg)));
+
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanProvider();
+  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
+  if (!device_features.independentBlend) {
+    // Since without independent blending, the write mask is common for all
+    // attachments, but the render pass may still include the attachments from
+    // previous draws (to prevent excessive render pass changes potentially
+    // doing stores and loads), disable writing to render targets with a
+    // completely empty write mask by removing the output from the shader.
+    // Only explicitly excluding render targets that the shader actually writes
+    // to, for better pipeline storage compatibility between devices with and
+    // without independent blending (so in the usual situation - the shader
+    // doesn't write to any render targets disabled via the color mask - no
+    // explicit disabling of shader outputs will be needed, and the disabled
+    // output mask will be 0).
+    uint32_t color_targets_remaining = shader.writes_color_targets();
+    uint32_t color_target_index;
+    while (xe::bit_scan_forward(color_targets_remaining, &color_target_index)) {
+      color_targets_remaining &= ~(uint32_t(1) << color_target_index);
+      if (!(normalized_color_mask &
+            (uint32_t(0b1111) << (4 * color_target_index)))) {
+        modification.pixel.color_outputs_disabled |= uint32_t(1)
+                                                     << color_target_index;
+      }
+    }
+  }
+
+  return modification;
 }
 
 bool VulkanPipelineCache::ConfigurePipeline(
     VulkanShader::VulkanTranslation* vertex_shader,
     VulkanShader::VulkanTranslation* pixel_shader,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+    uint32_t normalized_color_mask,
     VulkanRenderTargetCache::RenderPassKey render_pass_key,
     VkPipeline& pipeline_out,
     const PipelineLayoutProvider*& pipeline_layout_out) {
@@ -174,9 +201,9 @@ bool VulkanPipelineCache::ConfigurePipeline(
   }
 
   PipelineDescription description;
-  if (!GetCurrentStateDescription(vertex_shader, pixel_shader,
-                                  primitive_processing_result, render_pass_key,
-                                  description)) {
+  if (!GetCurrentStateDescription(
+          vertex_shader, pixel_shader, primitive_processing_result,
+          normalized_color_mask, render_pass_key, description)) {
     return false;
   }
   if (last_pipeline_ && last_pipeline_->first == description) {
@@ -231,13 +258,91 @@ bool VulkanPipelineCache::TranslateAnalyzedShader(
   return translation.GetOrCreateShaderModule() != VK_NULL_HANDLE;
 }
 
+void VulkanPipelineCache::WritePipelineRenderTargetDescription(
+    reg::RB_BLENDCONTROL blend_control, uint32_t write_mask,
+    PipelineRenderTarget& render_target_out) const {
+  if (write_mask) {
+    assert_zero(write_mask & ~uint32_t(0b1111));
+    // 32 because of 0x1F mask, for safety (all unknown to zero).
+    static const PipelineBlendFactor kBlendFactorMap[32] = {
+        /*  0 */ PipelineBlendFactor::kZero,
+        /*  1 */ PipelineBlendFactor::kOne,
+        /*  2 */ PipelineBlendFactor::kZero,  // ?
+        /*  3 */ PipelineBlendFactor::kZero,  // ?
+        /*  4 */ PipelineBlendFactor::kSrcColor,
+        /*  5 */ PipelineBlendFactor::kOneMinusSrcColor,
+        /*  6 */ PipelineBlendFactor::kSrcAlpha,
+        /*  7 */ PipelineBlendFactor::kOneMinusSrcAlpha,
+        /*  8 */ PipelineBlendFactor::kDstColor,
+        /*  9 */ PipelineBlendFactor::kOneMinusDstColor,
+        /* 10 */ PipelineBlendFactor::kDstAlpha,
+        /* 11 */ PipelineBlendFactor::kOneMinusDstAlpha,
+        /* 12 */ PipelineBlendFactor::kConstantColor,
+        /* 13 */ PipelineBlendFactor::kOneMinusConstantColor,
+        /* 14 */ PipelineBlendFactor::kConstantAlpha,
+        /* 15 */ PipelineBlendFactor::kOneMinusConstantAlpha,
+        /* 16 */ PipelineBlendFactor::kSrcAlphaSaturate,
+    };
+    render_target_out.src_color_blend_factor =
+        kBlendFactorMap[uint32_t(blend_control.color_srcblend)];
+    render_target_out.dst_color_blend_factor =
+        kBlendFactorMap[uint32_t(blend_control.color_destblend)];
+    render_target_out.color_blend_op = blend_control.color_comb_fcn;
+    render_target_out.src_alpha_blend_factor =
+        kBlendFactorMap[uint32_t(blend_control.alpha_srcblend)];
+    render_target_out.dst_alpha_blend_factor =
+        kBlendFactorMap[uint32_t(blend_control.alpha_destblend)];
+    render_target_out.alpha_blend_op = blend_control.alpha_comb_fcn;
+    const ui::vulkan::VulkanProvider& provider =
+        command_processor_.GetVulkanProvider();
+    const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
+        device_portability_subset_features =
+            provider.device_portability_subset_features();
+    if (device_portability_subset_features &&
+        !device_portability_subset_features->constantAlphaColorBlendFactors) {
+      if (blend_control.color_srcblend == xenos::BlendFactor::kConstantAlpha) {
+        render_target_out.src_color_blend_factor =
+            PipelineBlendFactor::kConstantColor;
+      } else if (blend_control.color_srcblend ==
+                 xenos::BlendFactor::kOneMinusConstantAlpha) {
+        render_target_out.src_color_blend_factor =
+            PipelineBlendFactor::kOneMinusConstantColor;
+      }
+      if (blend_control.color_destblend == xenos::BlendFactor::kConstantAlpha) {
+        render_target_out.dst_color_blend_factor =
+            PipelineBlendFactor::kConstantColor;
+      } else if (blend_control.color_destblend ==
+                 xenos::BlendFactor::kOneMinusConstantAlpha) {
+        render_target_out.dst_color_blend_factor =
+            PipelineBlendFactor::kOneMinusConstantColor;
+      }
+    }
+  } else {
+    render_target_out.src_color_blend_factor = PipelineBlendFactor::kOne;
+    render_target_out.dst_color_blend_factor = PipelineBlendFactor::kZero;
+    render_target_out.color_blend_op = xenos::BlendOp::kAdd;
+    render_target_out.src_alpha_blend_factor = PipelineBlendFactor::kOne;
+    render_target_out.dst_alpha_blend_factor = PipelineBlendFactor::kZero;
+    render_target_out.alpha_blend_op = xenos::BlendOp::kAdd;
+  }
+  render_target_out.color_write_mask = write_mask;
+}
+
 bool VulkanPipelineCache::GetCurrentStateDescription(
     const VulkanShader::VulkanTranslation* vertex_shader,
     const VulkanShader::VulkanTranslation* pixel_shader,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+    uint32_t normalized_color_mask,
     VulkanRenderTargetCache::RenderPassKey render_pass_key,
     PipelineDescription& description_out) const {
   description_out.Reset();
+
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanProvider();
+  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
+  const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
+      device_portability_subset_features =
+          provider.device_portability_subset_features();
 
   const RegisterFile& regs = register_file_;
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
@@ -268,6 +373,9 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       primitive_topology = PipelinePrimitiveTopology::kTriangleList;
       break;
     case xenos::PrimitiveType::kTriangleFan:
+      // The check should be performed at primitive processing time.
+      assert_true(!device_portability_subset_features ||
+                  device_portability_subset_features->triangleFans);
       primitive_topology = PipelinePrimitiveTopology::kTriangleFan;
       break;
     case xenos::PrimitiveType::kTriangleStrip:
@@ -283,6 +391,9 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   description_out.primitive_topology = primitive_topology;
   description_out.primitive_restart =
       primitive_processing_result.host_primitive_reset_enabled;
+
+  description_out.depth_clamp_enable =
+      regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable;
 
   // TODO(Triang3l): Tessellation.
   bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
@@ -313,9 +424,11 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       case xenos::PolygonType::kPoints:
         // When points are not supported, use lines instead, preserving
         // debug-like purpose.
-        description_out.polygon_mode = device_pipeline_features_.point_polygons
-                                           ? PipelinePolygonMode::kPoint
-                                           : PipelinePolygonMode::kLine;
+        description_out.polygon_mode =
+            (!device_portability_subset_features ||
+             device_portability_subset_features->pointPolygons)
+                ? PipelinePolygonMode::kPoint
+                : PipelinePolygonMode::kLine;
         break;
       case xenos::PolygonType::kLines:
         description_out.polygon_mode = PipelinePolygonMode::kLine;
@@ -330,6 +443,196 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     description_out.front_face_clockwise = pa_su_sc_mode_cntl.face != 0;
   } else {
     description_out.polygon_mode = PipelinePolygonMode::kFill;
+  }
+
+  // TODO(Triang3l): Skip depth / stencil and color state for the fragment
+  // shader interlock RB implementation.
+
+  if (render_pass_key.depth_and_color_used & 1) {
+    auto rb_depthcontrol = draw_util::GetDepthControlForCurrentEdramMode(regs);
+    if (rb_depthcontrol.z_enable) {
+      description_out.depth_write_enable = rb_depthcontrol.z_write_enable;
+      description_out.depth_compare_op = rb_depthcontrol.zfunc;
+    } else {
+      description_out.depth_compare_op = xenos::CompareFunction::kAlways;
+    }
+    if (rb_depthcontrol.stencil_enable) {
+      description_out.stencil_test_enable = 1;
+      description_out.stencil_front_fail_op = rb_depthcontrol.stencilfail;
+      description_out.stencil_front_pass_op = rb_depthcontrol.stencilzpass;
+      description_out.stencil_front_depth_fail_op =
+          rb_depthcontrol.stencilzfail;
+      description_out.stencil_front_compare_op = rb_depthcontrol.stencilfunc;
+      if (primitive_polygonal && rb_depthcontrol.backface_enable) {
+        description_out.stencil_back_fail_op = rb_depthcontrol.stencilfail_bf;
+        description_out.stencil_back_pass_op = rb_depthcontrol.stencilzpass_bf;
+        description_out.stencil_back_depth_fail_op =
+            rb_depthcontrol.stencilzfail_bf;
+        description_out.stencil_back_compare_op =
+            rb_depthcontrol.stencilfunc_bf;
+      } else {
+        description_out.stencil_back_fail_op =
+            description_out.stencil_front_fail_op;
+        description_out.stencil_back_pass_op =
+            description_out.stencil_front_pass_op;
+        description_out.stencil_back_depth_fail_op =
+            description_out.stencil_front_depth_fail_op;
+        description_out.stencil_back_compare_op =
+            description_out.stencil_front_compare_op;
+      }
+    }
+  }
+
+  // Color blending and write masks (filled only for the attachments present in
+  // the render pass object).
+  uint32_t render_pass_color_rts = render_pass_key.depth_and_color_used >> 1;
+  if (device_features.independentBlend) {
+    uint32_t render_pass_color_rts_remaining = render_pass_color_rts;
+    uint32_t color_rt_index;
+    while (xe::bit_scan_forward(render_pass_color_rts_remaining,
+                                &color_rt_index)) {
+      render_pass_color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
+      WritePipelineRenderTargetDescription(
+          regs.Get<reg::RB_BLENDCONTROL>(
+              reg::RB_BLENDCONTROL::rt_register_indices[color_rt_index]),
+          (normalized_color_mask >> (color_rt_index * 4)) & 0b1111,
+          description_out.render_targets[color_rt_index]);
+    }
+  } else {
+    // Take the blend control for the first render target that the guest wants
+    // to write to (consider it the most important) and use it for all render
+    // targets, if any.
+    // TODO(Triang3l): Implement an option for independent blending via multiple
+    // draw calls with different pipelines maybe? Though independent blending
+    // support is pretty wide, with a quite prominent exception of Adreno 4xx
+    // apparently.
+    uint32_t render_pass_color_rts_remaining = render_pass_color_rts;
+    uint32_t render_pass_first_color_rt_index;
+    if (xe::bit_scan_forward(render_pass_color_rts_remaining,
+                             &render_pass_first_color_rt_index)) {
+      render_pass_color_rts_remaining &=
+          ~(uint32_t(1) << render_pass_first_color_rt_index);
+      PipelineRenderTarget& render_pass_first_color_rt =
+          description_out.render_targets[render_pass_first_color_rt_index];
+      uint32_t common_blend_rt_index;
+      if (xe::bit_scan_forward(normalized_color_mask, &common_blend_rt_index)) {
+        common_blend_rt_index >>= 2;
+        // If a common write mask will be used for multiple render targets, use
+        // the original RB_COLOR_MASK instead of the normalized color mask as
+        // the normalized color mask has non-existent components forced to
+        // written (don't need reading to be preserved), while the number of
+        // components may vary between render targets. The attachments in the
+        // pass that must not be written to at all will be excluded via a shader
+        // modification.
+        WritePipelineRenderTargetDescription(
+            regs.Get<reg::RB_BLENDCONTROL>(
+                reg::RB_BLENDCONTROL::rt_register_indices
+                    [common_blend_rt_index]),
+            (((normalized_color_mask &
+               ~(uint32_t(0b1111) << (4 * common_blend_rt_index)))
+                  ? regs[XE_GPU_REG_RB_COLOR_MASK].u32
+                  : normalized_color_mask) >>
+             (4 * common_blend_rt_index)) &
+                0b1111,
+            render_pass_first_color_rt);
+      } else {
+        // No render targets are written to, though the render pass still may
+        // contain color attachments - set them to not written and not blending.
+        render_pass_first_color_rt.src_color_blend_factor =
+            PipelineBlendFactor::kOne;
+        render_pass_first_color_rt.dst_color_blend_factor =
+            PipelineBlendFactor::kZero;
+        render_pass_first_color_rt.color_blend_op = xenos::BlendOp::kAdd;
+        render_pass_first_color_rt.src_alpha_blend_factor =
+            PipelineBlendFactor::kOne;
+        render_pass_first_color_rt.dst_alpha_blend_factor =
+            PipelineBlendFactor::kZero;
+        render_pass_first_color_rt.alpha_blend_op = xenos::BlendOp::kAdd;
+      }
+      // Reuse the same blending settings for all render targets in the pass,
+      // for description consistency.
+      uint32_t color_rt_index;
+      while (xe::bit_scan_forward(render_pass_color_rts_remaining,
+                                  &color_rt_index)) {
+        render_pass_color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
+        description_out.render_targets[color_rt_index] =
+            render_pass_first_color_rt;
+      }
+    }
+  }
+
+  return true;
+}
+
+bool VulkanPipelineCache::ArePipelineRequirementsMet(
+    const PipelineDescription& description) const {
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanProvider();
+  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
+
+  const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
+      device_portability_subset_features =
+          provider.device_portability_subset_features();
+  if (device_portability_subset_features) {
+    if (description.primitive_topology ==
+            PipelinePrimitiveTopology::kTriangleFan &&
+        device_portability_subset_features->triangleFans) {
+      return false;
+    }
+    if (description.polygon_mode == PipelinePolygonMode::kPoint &&
+        device_portability_subset_features->pointPolygons) {
+      return false;
+    }
+    if (!device_portability_subset_features->constantAlphaColorBlendFactors) {
+      uint32_t color_rts_remaining =
+          description.render_pass_key.depth_and_color_used >> 1;
+      uint32_t color_rt_index;
+      while (xe::bit_scan_forward(color_rts_remaining, &color_rt_index)) {
+        color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
+        const PipelineRenderTarget& color_rt =
+            description.render_targets[color_rt_index];
+        if (color_rt.src_color_blend_factor ==
+                PipelineBlendFactor::kConstantAlpha ||
+            color_rt.src_color_blend_factor ==
+                PipelineBlendFactor::kOneMinusConstantAlpha ||
+            color_rt.dst_color_blend_factor ==
+                PipelineBlendFactor::kConstantAlpha ||
+            color_rt.dst_color_blend_factor ==
+                PipelineBlendFactor::kOneMinusConstantAlpha) {
+          return false;
+        }
+      }
+    }
+  }
+
+  if (!device_features.independentBlend) {
+    uint32_t color_rts_remaining =
+        description.render_pass_key.depth_and_color_used >> 1;
+    uint32_t first_color_rt_index;
+    if (xe::bit_scan_forward(color_rts_remaining, &first_color_rt_index)) {
+      color_rts_remaining &= ~(uint32_t(1) << first_color_rt_index);
+      const PipelineRenderTarget& first_color_rt =
+          description.render_targets[first_color_rt_index];
+      uint32_t color_rt_index;
+      while (xe::bit_scan_forward(color_rts_remaining, &color_rt_index)) {
+        color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
+        const PipelineRenderTarget& color_rt =
+            description.render_targets[color_rt_index];
+        if (color_rt.src_color_blend_factor !=
+                first_color_rt.src_color_blend_factor ||
+            color_rt.dst_color_blend_factor !=
+                first_color_rt.dst_color_blend_factor ||
+            color_rt.color_blend_op != first_color_rt.color_blend_op ||
+            color_rt.src_alpha_blend_factor !=
+                first_color_rt.src_alpha_blend_factor ||
+            color_rt.dst_alpha_blend_factor !=
+                first_color_rt.dst_alpha_blend_factor ||
+            color_rt.alpha_blend_op != first_color_rt.alpha_blend_op ||
+            color_rt.color_write_mask != first_color_rt.color_write_mask) {
+          return false;
+        }
+      }
+    }
   }
 
   return true;
@@ -355,6 +658,17 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   }
 
   const PipelineDescription& description = creation_arguments.pipeline->first;
+  if (!ArePipelineRequirementsMet(description)) {
+    assert_always(
+        "When creating a new pipeline, the description must not require "
+        "unsupported features, and when loading the pipeline storage, "
+        "unsupported supported must be filtered out");
+    return false;
+  }
+
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanProvider();
+  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
 
   VkPipelineShaderStageCreateInfo shader_stages[2];
   uint32_t shader_stage_count = 0;
@@ -434,10 +748,6 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
       input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
       break;
     case PipelinePrimitiveTopology::kTriangleFan:
-      assert_true(device_pipeline_features_.triangle_fans);
-      if (!device_pipeline_features_.triangle_fans) {
-        return false;
-      }
       input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
       break;
     case PipelinePrimitiveTopology::kLineListWithAdjacency:
@@ -474,6 +784,8 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   VkPipelineRasterizationStateCreateInfo rasterization_state = {};
   rasterization_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  rasterization_state.depthClampEnable =
+      description.depth_clamp_enable ? VK_TRUE : VK_FALSE;
   switch (description.polygon_mode) {
     case PipelinePolygonMode::kFill:
       rasterization_state.polygonMode = VK_POLYGON_MODE_FILL;
@@ -482,10 +794,6 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
       rasterization_state.polygonMode = VK_POLYGON_MODE_LINE;
       break;
     case PipelinePolygonMode::kPoint:
-      assert_true(device_pipeline_features_.point_polygons);
-      if (!device_pipeline_features_.point_polygons) {
-        return false;
-      }
       rasterization_state.polygonMode = VK_POLYGON_MODE_POINT;
       break;
     default:
@@ -502,6 +810,17 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   rasterization_state.frontFace = description.front_face_clockwise
                                       ? VK_FRONT_FACE_CLOCKWISE
                                       : VK_FRONT_FACE_COUNTER_CLOCKWISE;
+  // Depth bias is dynamic (even toggling - pipeline creation is expensive).
+  // "If no depth attachment is present, r is undefined" in the depth bias
+  // formula, though Z has no effect on anything if a depth attachment is not
+  // used (the guest shader can't access Z), enabling only when there's a
+  // depth / stencil attachment for correctness.
+  // TODO(Triang3l): Disable the depth bias for the fragment shader interlock RB
+  // implementation.
+  rasterization_state.depthBiasEnable =
+      (description.render_pass_key.depth_and_color_used & 0b1) ? VK_TRUE
+                                                               : VK_FALSE;
+  // TODO(Triang3l): Wide lines.
   rasterization_state.lineWidth = 1.0f;
 
   VkPipelineMultisampleStateCreateInfo multisample_state = {};
@@ -510,42 +829,156 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   multisample_state.rasterizationSamples = VkSampleCountFlagBits(
       uint32_t(1) << uint32_t(description.render_pass_key.msaa_samples));
 
-  // TODO(Triang3l): Depth / stencil state.
   VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {};
   depth_stencil_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
   depth_stencil_state.pNext = nullptr;
+  if (description.depth_write_enable ||
+      description.depth_compare_op != xenos::CompareFunction::kAlways) {
+    depth_stencil_state.depthTestEnable = VK_TRUE;
+    depth_stencil_state.depthWriteEnable =
+        description.depth_write_enable ? VK_TRUE : VK_FALSE;
+    depth_stencil_state.depthCompareOp = VkCompareOp(
+        uint32_t(VK_COMPARE_OP_NEVER) + uint32_t(description.depth_compare_op));
+  }
+  if (description.stencil_test_enable) {
+    depth_stencil_state.stencilTestEnable = VK_TRUE;
+    depth_stencil_state.front.failOp =
+        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                    uint32_t(description.stencil_front_fail_op));
+    depth_stencil_state.front.passOp =
+        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                    uint32_t(description.stencil_front_pass_op));
+    depth_stencil_state.front.depthFailOp =
+        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                    uint32_t(description.stencil_front_depth_fail_op));
+    depth_stencil_state.front.compareOp =
+        VkCompareOp(uint32_t(VK_COMPARE_OP_NEVER) +
+                    uint32_t(description.stencil_front_compare_op));
+    depth_stencil_state.back.failOp =
+        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                    uint32_t(description.stencil_back_fail_op));
+    depth_stencil_state.back.passOp =
+        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                    uint32_t(description.stencil_back_pass_op));
+    depth_stencil_state.back.depthFailOp =
+        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                    uint32_t(description.stencil_back_depth_fail_op));
+    depth_stencil_state.back.compareOp =
+        VkCompareOp(uint32_t(VK_COMPARE_OP_NEVER) +
+                    uint32_t(description.stencil_back_compare_op));
+  }
 
-  // TODO(Triang3l): Color blend state.
-  // TODO(Triang3l): Handle disabled separate blending.
   VkPipelineColorBlendAttachmentState
       color_blend_attachments[xenos::kMaxColorRenderTargets] = {};
-  for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
-    if (!(description.render_pass_key.depth_and_color_used & (1 << (1 + i)))) {
-      continue;
+  uint32_t color_rts_used =
+      description.render_pass_key.depth_and_color_used >> 1;
+  {
+    static const VkBlendFactor kBlendFactorMap[] = {
+        VK_BLEND_FACTOR_ZERO,
+        VK_BLEND_FACTOR_ONE,
+        VK_BLEND_FACTOR_SRC_COLOR,
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
+        VK_BLEND_FACTOR_DST_COLOR,
+        VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
+        VK_BLEND_FACTOR_SRC_ALPHA,
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        VK_BLEND_FACTOR_DST_ALPHA,
+        VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
+        VK_BLEND_FACTOR_CONSTANT_COLOR,
+        VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR,
+        VK_BLEND_FACTOR_CONSTANT_ALPHA,
+        VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
+        VK_BLEND_FACTOR_SRC_ALPHA_SATURATE,
+    };
+    // 8 entries for safety since 3 bits from the guest are passed directly.
+    static const VkBlendOp kBlendOpMap[] = {VK_BLEND_OP_ADD,
+                                            VK_BLEND_OP_SUBTRACT,
+                                            VK_BLEND_OP_MIN,
+                                            VK_BLEND_OP_MAX,
+                                            VK_BLEND_OP_REVERSE_SUBTRACT,
+                                            VK_BLEND_OP_ADD,
+                                            VK_BLEND_OP_ADD,
+                                            VK_BLEND_OP_ADD};
+    uint32_t color_rts_remaining = color_rts_used;
+    uint32_t color_rt_index;
+    while (xe::bit_scan_forward(color_rts_remaining, &color_rt_index)) {
+      color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
+      VkPipelineColorBlendAttachmentState& color_blend_attachment =
+          color_blend_attachments[color_rt_index];
+      const PipelineRenderTarget& color_rt =
+          description.render_targets[color_rt_index];
+      if (color_rt.src_color_blend_factor != PipelineBlendFactor::kOne ||
+          color_rt.dst_color_blend_factor != PipelineBlendFactor::kZero ||
+          color_rt.color_blend_op != xenos::BlendOp::kAdd ||
+          color_rt.src_alpha_blend_factor != PipelineBlendFactor::kOne ||
+          color_rt.dst_alpha_blend_factor != PipelineBlendFactor::kZero ||
+          color_rt.alpha_blend_op != xenos::BlendOp::kAdd) {
+        color_blend_attachment.blendEnable = VK_TRUE;
+        color_blend_attachment.srcColorBlendFactor =
+            kBlendFactorMap[uint32_t(color_rt.src_color_blend_factor)];
+        color_blend_attachment.dstColorBlendFactor =
+            kBlendFactorMap[uint32_t(color_rt.dst_color_blend_factor)];
+        color_blend_attachment.colorBlendOp =
+            kBlendOpMap[uint32_t(color_rt.color_blend_op)];
+        color_blend_attachment.srcAlphaBlendFactor =
+            kBlendFactorMap[uint32_t(color_rt.src_alpha_blend_factor)];
+        color_blend_attachment.dstAlphaBlendFactor =
+            kBlendFactorMap[uint32_t(color_rt.dst_alpha_blend_factor)];
+        color_blend_attachment.alphaBlendOp =
+            kBlendOpMap[uint32_t(color_rt.alpha_blend_op)];
+      }
+      color_blend_attachment.colorWriteMask =
+          VkColorComponentFlags(color_rt.color_write_mask);
+      if (!device_features.independentBlend) {
+        // For non-independent blend, the pAttachments element for the first
+        // actually used color will be replicated into all.
+        break;
+      }
     }
-    color_blend_attachments[i].colorWriteMask =
-        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
   }
   VkPipelineColorBlendStateCreateInfo color_blend_state = {};
   color_blend_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  color_blend_state.attachmentCount =
-      32 - xe::lzcnt(
-               uint32_t(description.render_pass_key.depth_and_color_used >> 1));
+  color_blend_state.attachmentCount = 32 - xe::lzcnt(color_rts_used);
   color_blend_state.pAttachments = color_blend_attachments;
+  if (color_rts_used && !device_features.independentBlend) {
+    // "If the independent blending feature is not enabled, all elements of
+    //  pAttachments must be identical."
+    uint32_t first_color_rt_index;
+    xe::bit_scan_forward(color_rts_used, &first_color_rt_index);
+    for (uint32_t i = 0; i < color_blend_state.attachmentCount; ++i) {
+      if (i == first_color_rt_index) {
+        continue;
+      }
+      color_blend_attachments[i] =
+          color_blend_attachments[first_color_rt_index];
+    }
+  }
 
-  static const VkDynamicState dynamic_states[] = {
-      VK_DYNAMIC_STATE_VIEWPORT,
-      VK_DYNAMIC_STATE_SCISSOR,
-  };
+  std::array<VkDynamicState, 7> dynamic_states;
   VkPipelineDynamicStateCreateInfo dynamic_state;
   dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
   dynamic_state.pNext = nullptr;
   dynamic_state.flags = 0;
-  dynamic_state.dynamicStateCount = uint32_t(xe::countof(dynamic_states));
-  dynamic_state.pDynamicStates = dynamic_states;
+  dynamic_state.dynamicStateCount = 0;
+  dynamic_state.pDynamicStates = dynamic_states.data();
+  // Regardless of whether some of this state actually has any effect on the
+  // pipeline, marking all as dynamic because otherwise, binding any pipeline
+  // with such state not marked as dynamic will cause the dynamic state to be
+  // invalidated (again, even if it has no effect).
+  dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_VIEWPORT;
+  dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_SCISSOR;
+  dynamic_states[dynamic_state.dynamicStateCount++] =
+      VK_DYNAMIC_STATE_DEPTH_BIAS;
+  dynamic_states[dynamic_state.dynamicStateCount++] =
+      VK_DYNAMIC_STATE_BLEND_CONSTANTS;
+  dynamic_states[dynamic_state.dynamicStateCount++] =
+      VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK;
+  dynamic_states[dynamic_state.dynamicStateCount++] =
+      VK_DYNAMIC_STATE_STENCIL_WRITE_MASK;
+  dynamic_states[dynamic_state.dynamicStateCount++] =
+      VK_DYNAMIC_STATE_STENCIL_REFERENCE;
 
   VkGraphicsPipelineCreateInfo pipeline_create_info;
   pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -569,8 +1002,6 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
   pipeline_create_info.basePipelineIndex = UINT32_MAX;
 
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
   VkPipeline pipeline;
