@@ -168,6 +168,18 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
             args.image_memory_barrier_count, image_memory_barriers);
       } break;
 
+      case Command::kVkSetBlendConstants: {
+        auto& args = *reinterpret_cast<const ArgsVkSetBlendConstants*>(stream);
+        dfn.vkCmdSetBlendConstants(command_buffer, args.blend_constants);
+      } break;
+
+      case Command::kVkSetDepthBias: {
+        auto& args = *reinterpret_cast<const ArgsVkSetDepthBias*>(stream);
+        dfn.vkCmdSetDepthBias(command_buffer, args.depth_bias_constant_factor,
+                              args.depth_bias_clamp,
+                              args.depth_bias_slope_factor);
+      } break;
+
       case Command::kVkSetScissor: {
         auto& args = *reinterpret_cast<const ArgsVkSetScissor*>(stream);
         dfn.vkCmdSetScissor(
@@ -175,6 +187,27 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
             reinterpret_cast<const VkRect2D*>(
                 reinterpret_cast<const uint8_t*>(stream) +
                 xe::align(sizeof(ArgsVkSetScissor), alignof(VkRect2D))));
+      } break;
+
+      case Command::kVkSetStencilCompareMask: {
+        auto& args =
+            *reinterpret_cast<const ArgsSetStencilMaskReference*>(stream);
+        dfn.vkCmdSetStencilCompareMask(command_buffer, args.face_mask,
+                                       args.mask_reference);
+      } break;
+
+      case Command::kVkSetStencilReference: {
+        auto& args =
+            *reinterpret_cast<const ArgsSetStencilMaskReference*>(stream);
+        dfn.vkCmdSetStencilReference(command_buffer, args.face_mask,
+                                     args.mask_reference);
+      } break;
+
+      case Command::kVkSetStencilWriteMask: {
+        auto& args =
+            *reinterpret_cast<const ArgsSetStencilMaskReference*>(stream);
+        dfn.vkCmdSetStencilWriteMask(command_buffer, args.face_mask,
+                                     args.mask_reference);
       } break;
 
       case Command::kVkSetViewport: {
