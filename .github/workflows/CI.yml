@@ -23,50 +23,58 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-2019
+    runs-on: ${{ matrix.runs-on }}
     env:
       POWERSHELL_TELEMETRY_OPTOUT: 1
     strategy:
       fail-fast: false
+      matrix:
+        runs-on: [windows-2019, windows-latest]
+        include:
+          - runs-on: windows-latest
+            vsver: VS2022
+          - runs-on: windows-2019
+            vsver: VS2019
     steps:
-    - uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
-    - name: Setup
-      run: .\xb setup
-    - name: Build
-      run: .\xb build --config=Release --target=src\xenia-app --target=src\xenia-vfs-dump
-    - name: Prepare artifacts
-      run: |
-        robocopy . build\bin\${{ runner.os }}\Release                                                                LICENSE /r:0 /w:0
-        robocopy   build\bin\${{ runner.os }}\Release artifacts\xenia_canary   xenia_canary.exe   xenia_canary.pdb   LICENSE /r:0 /w:0
-        robocopy   build\bin\${{ runner.os }}\Release artifacts\xenia-vfs-dump xenia-vfs-dump.exe xenia-vfs-dump.pdb LICENSE /r:0 /w:0
-        If ($LastExitCode -le 7) { echo "LastExitCode = $LastExitCode";$LastExitCode = 0 }
-    - name: Upload xenia-vfs-dump artifacts
-      uses: actions/upload-artifact@v2
-      with:
-        name: xenia-vfs-dump_canary
-        path: artifacts\xenia-vfs-dump
-        if-no-files-found: error
-    - name: Upload xenia artifacts
-      uses: actions/upload-artifact@v2
-      with:
-        name: xenia_canary
-        path: artifacts\xenia_canary
-        if-no-files-found: error
-    - name: Create release
-      if: |
-        github.repository == 'xenia-canary/xenia-canary' &&
-        github.event.action != 'pull_request' &&
-        contains(github.ref, 'refs/heads/canary')
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        $asset="xenia_canary.zip"
-        7z a $asset .\artifacts\xenia_canary\*.exe LICENSE
-        If ($(Get-Item $asset).length -le 100000) {
-          Throw "Error: Archive $asset too small!"
-        }
-        $tag=$env:GITHUB_SHA.SubString(0,7)
-        $title="${tag}_$($env:GITHUB_REF -replace 'refs/heads/', '')"
-        gh release create $tag $asset --target $env:GITHUB_SHA -t $title
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Setup
+        run: .\xb setup
+      - name: Build
+        run: .\xb build --config=Release --target=src\xenia-app --target=src\xenia-vfs-dump
+      - name: Prepare artifacts
+        run: |
+          robocopy . build\bin\${{ runner.os }}\Release                                                                LICENSE /r:0 /w:0
+          robocopy   build\bin\${{ runner.os }}\Release artifacts\xenia_canary   xenia_canary.exe   xenia_canary.pdb   LICENSE /r:0 /w:0
+          robocopy   build\bin\${{ runner.os }}\Release artifacts\xenia-vfs-dump xenia-vfs-dump.exe xenia-vfs-dump.pdb LICENSE /r:0 /w:0
+          If ($LastExitCode -le 7) { echo "LastExitCode = $LastExitCode";$LastExitCode = 0 }
+      - name: Upload xenia-vfs-dump artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: xenia-vfs-dump_canary
+          path: artifacts\xenia-vfs-dump
+          if-no-files-found: error
+      - name: Upload xenia artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: xenia_canary_${{ matrix.vsver }}
+          path: artifacts\xenia_canary
+          if-no-files-found: error
+      - name: Create release
+        if: |
+          matrix.runs-on == 'windows-2019' &&
+          github.repository == 'xenia-canary/xenia-canary' &&
+          github.event.action != 'pull_request' &&
+          contains(github.ref, 'refs/heads/canary')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $asset="xenia_canary.zip"
+          7z a $asset .\artifacts\xenia_canary\*.exe LICENSE
+          If ($(Get-Item $asset).length -le 100000) {
+            Throw "Error: Archive $asset too small!"
+          }
+          $tag=$env:GITHUB_SHA.SubString(0,7)
+          $title="${tag}_$($env:GITHUB_REF -replace 'refs/heads/', '')"
+          gh release create $tag $asset --target $env:GITHUB_SHA -t $title
