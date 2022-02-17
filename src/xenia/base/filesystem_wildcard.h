@@ -30,6 +30,7 @@ class WildcardFlags {
   static WildcardFlags FIRST;
   static WildcardFlags LAST;
   static WildcardFlags ANY;
+  static WildcardFlags FIRST_AND_LAST;
 };
 
 class WildcardRule {

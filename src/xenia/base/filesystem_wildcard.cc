@@ -19,6 +19,7 @@ namespace xe::filesystem {
 WildcardFlags WildcardFlags::FIRST(true, false, false);
 WildcardFlags WildcardFlags::LAST(false, true, false);
 WildcardFlags WildcardFlags::ANY(false, false, true);
+WildcardFlags WildcardFlags::FIRST_AND_LAST(true, true, false);
 
 WildcardFlags::WildcardFlags()
     : FromStart(false), ToEnd(false), ExactLength(false) {}
@@ -89,7 +90,8 @@ void WildcardEngine::PreparePattern(const std::string_view pattern) {
   }
   if (last != pattern.size()) {
     std::string str_str(pattern.substr(last));
-    rules_.push_back(WildcardRule(str_str, WildcardFlags::LAST));
+    rules_.push_back(WildcardRule(
+        str_str, last ? WildcardFlags::LAST : WildcardFlags::FIRST_AND_LAST));
   }
 }
 
