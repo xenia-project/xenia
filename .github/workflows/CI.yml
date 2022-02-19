@@ -50,7 +50,6 @@ jobs:
           robocopy   build\bin\${{ runner.os }}\Release artifacts\xenia-vfs-dump xenia-vfs-dump.exe xenia-vfs-dump.pdb LICENSE /r:0 /w:0
           curl -fLJO https://github.com/xenia-canary/game-patches/archive/refs/heads/main.zip
           7z e game-patches-main.zip game-patches-main\patches -oartifacts\xenia_canary\patches
-          If ($LastExitCode -le 7) { echo "LastExitCode = $LastExitCode";$LastExitCode = 0 }
       - name: Upload xenia-vfs-dump artifacts
         uses: actions/upload-artifact@v2
         with:
