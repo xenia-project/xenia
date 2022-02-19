@@ -54,7 +54,7 @@ jobs:
       - name: Upload xenia-vfs-dump artifacts
         uses: actions/upload-artifact@v2
         with:
-          name: xenia-vfs-dump_canary
+          name: xenia-vfs-dump_canary_${{ matrix.vsver }}
           path: artifacts\xenia-vfs-dump
           if-no-files-found: error
       - name: Upload xenia artifacts
