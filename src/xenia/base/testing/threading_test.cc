@@ -92,8 +92,7 @@ TEST_CASE("Fence") {
       std::thread(func),
   });
 
-  Sleep(100ms);
-  REQUIRE(started.load() == threads.size());
+  REQUIRE(spin_wait_for(1s, [&] { return started == threads.size(); }));
   REQUIRE(finished.load() == 0);
 
   pFence->Signal();
@@ -320,6 +319,7 @@ TEST_CASE("Wait on Multiple Events", "[event]") {
       Event::CreateManualResetEvent(false),
   };
 
+  std::atomic_uint threads_started(0);
   std::array<char, 8> order = {0};
   std::atomic_uint index(0);
   auto sign_in = [&order, &index](uint32_t id) {
@@ -328,40 +328,53 @@ TEST_CASE("Wait on Multiple Events", "[event]") {
   };
 
   auto threads = std::array<std::thread, 4>{
-      std::thread([&events, &sign_in] {
-        auto res = WaitAll({events[1].get(), events[3].get()}, false, 100ms);
+      std::thread([&events, &sign_in, &threads_started] {
+        set_name("1");
+        threads_started++;
+        auto res = WaitAll({events[1].get(), events[3].get()}, false);
+        REQUIRE(res == WaitResult::kSuccess);
         if (res == WaitResult::kSuccess) {
           sign_in(1);
         }
       }),
-      std::thread([&events, &sign_in] {
-        auto res = WaitAny({events[0].get(), events[2].get()}, false, 100ms);
+      std::thread([&events, &sign_in, &threads_started] {
+        set_name("2");
+        threads_started++;
+        auto res = WaitAny({events[0].get(), events[2].get()}, false);
+        REQUIRE(res.first == WaitResult::kSuccess);
         if (res.first == WaitResult::kSuccess) {
           sign_in(2);
         }
       }),
-      std::thread([&events, &sign_in] {
-        auto res = WaitAll({events[0].get(), events[2].get(), events[3].get()},
-                           false, 100ms);
+      std::thread([&events, &sign_in, &threads_started] {
+        set_name("3");
+        threads_started++;
+        auto res =
+            WaitAll({events[0].get(), events[2].get(), events[3].get()}, false);
+        REQUIRE(res == WaitResult::kSuccess);
         if (res == WaitResult::kSuccess) {
           sign_in(3);
         }
       }),
-      std::thread([&events, &sign_in] {
-        auto res = WaitAny({events[1].get(), events[3].get()}, false, 100ms);
+      std::thread([&events, &sign_in, &threads_started] {
+        set_name("4");
+        threads_started++;
+        auto res = WaitAny({events[1].get(), events[3].get()}, false);
+        REQUIRE(res.first == WaitResult::kSuccess);
         if (res.first == WaitResult::kSuccess) {
           sign_in(4);
         }
       }),
   };
 
-  Sleep(10ms);
+  // wait for all threads starting up
+  REQUIRE(spin_wait_for(1s, [&] { return threads_started == 4; }));
   events[3]->Set();  // Signals thread id=4 and stays on for 1 and 3
-  Sleep(10ms);
+  REQUIRE(spin_wait_for(1s, [&] { return index == 1; }));
   events[1]->Set();  // Signals thread id=1
-  Sleep(10ms);
+  REQUIRE(spin_wait_for(1s, [&] { return index == 2; }));
   events[0]->Set();  // Signals thread id=2
-  Sleep(10ms);
+  REQUIRE(spin_wait_for(1s, [&] { return index == 3; }));
   events[2]->Set();  // Partial signals thread id=3
   events[0]->Set();  // Signals thread id=3
 
@@ -369,12 +382,13 @@ TEST_CASE("Wait on Multiple Events", "[event]") {
     t.join();
   }
 
+  REQUIRE(index == 4);
+
   INFO(order.data());
   REQUIRE(order[0] == '4');
-  // TODO(bwrsandman): Order is not always maintained on linux
-  // REQUIRE(order[1] == '1');
-  // REQUIRE(order[2] == '2');
-  // REQUIRE(order[3] == '3');
+  REQUIRE(order[1] == '1');
+  REQUIRE(order[2] == '2');
+  REQUIRE(order[3] == '3');
 }
 
 TEST_CASE("Wait on Semaphore", "[semaphore]") {
@@ -433,26 +447,24 @@ TEST_CASE("Wait on Semaphore", "[semaphore]") {
 
   // Semaphore between threads
   sem = Semaphore::Create(5, 5);
-  Sleep(10ms);
   // Occupy the semaphore with 5 threads
   std::atomic<int> wait_count(0);
-  volatile bool threads_terminate(false);
+  std::atomic<bool> threads_terminate(false);
   auto func = [&sem, &wait_count, &threads_terminate] {
     auto res = Wait(sem.get(), false, 100ms);
     wait_count++;
-    while (!threads_terminate) {
-    }
-    if (res == WaitResult::kSuccess) {
-      sem->Release(1, nullptr);
-    }
+
+    REQUIRE(spin_wait_for(2s, [&] { return threads_terminate.load(); }));
+
+    REQUIRE(res == WaitResult::kSuccess);
+    sem->Release(1, nullptr);
   };
   auto threads = std::array<std::thread, 5>{
       std::thread(func), std::thread(func), std::thread(func),
       std::thread(func), std::thread(func),
   };
   // Wait for threads to finish semaphore calls
-  while (wait_count != 5) {
-  }
+  REQUIRE(spin_wait_for(1s, [&] { return wait_count == 5; }));
   // Attempt to acquire full semaphore with current (6th) thread
   result = Wait(sem.get(), false, 20ms);
   REQUIRE(result == WaitResult::kTimeout);
@@ -465,18 +477,23 @@ TEST_CASE("Wait on Semaphore", "[semaphore]") {
   REQUIRE(result == WaitResult::kSuccess);
   sem->Release(1, &previous_count);
   REQUIRE(previous_count == 4);
+}
+
+TEST_CASE("Invalid semaphore parameters", "[semaphore]") {
+  std::unique_ptr<Semaphore> sem;
 
   // Test invalid construction parameters
   // These are invalid according to documentation
-  // TODO(bwrsandman): Many of these invalid invocations succeed
   sem = Semaphore::Create(-1, 5);
-  // REQUIRE(sem.get() == nullptr);
+  REQUIRE(sem == nullptr);
   sem = Semaphore::Create(10, 5);
-  // REQUIRE(sem.get() == nullptr);
+  REQUIRE(sem == nullptr);
   sem = Semaphore::Create(0, 0);
-  // REQUIRE(sem.get() == nullptr);
+  REQUIRE(sem == nullptr);
   sem = Semaphore::Create(0, -1);
-  // REQUIRE(sem.get() == nullptr);
+  REQUIRE(sem == nullptr);
+  sem = Semaphore::Create(-1, 0);
+  REQUIRE(sem == nullptr);
 }
 
 TEST_CASE("Wait on Multiple Semaphores", "[semaphore]") {
@@ -576,17 +593,18 @@ TEST_CASE("Wait on Mutant", "[mutant]") {
   REQUIRE_FALSE(mut->Release());
 
   // Test mutants on other threads
-  auto thread1 = std::thread([&mut] {
-    Sleep(5ms);
+  std::atomic<unsigned int> step(0);
+  auto thread1 = std::thread([&mut, &step] {
     mut = Mutant::Create(true);
-    Sleep(100ms);
+    step++;  // 1
+    REQUIRE(spin_wait_for(2s, [&] { return step == 2; }));
     mut->Release();
   });
-  Sleep(10ms);
+  REQUIRE(spin_wait_for(1s, [&] { return step == 1; }));
   REQUIRE_FALSE(mut->Release());
-  Sleep(10ms);
   result = Wait(mut.get(), false, 50ms);
   REQUIRE(result == WaitResult::kTimeout);
+  step++;  // 2
   thread1.join();
   result = Wait(mut.get(), false, 1ms);
   REQUIRE(result == WaitResult::kSuccess);
@@ -597,16 +615,18 @@ TEST_CASE("Wait on Multiple Mutants", "[mutant]") {
   WaitResult all_result;
   std::pair<WaitResult, size_t> any_result;
   std::unique_ptr<Mutant> mut0, mut1;
+  std::atomic<unsigned int> step(0);
 
   // Test which should fail for WaitAll and WaitAny
-  auto thread0 = std::thread([&mut0, &mut1] {
+  auto thread0 = std::thread([&mut0, &mut1, &step] {
     mut0 = Mutant::Create(true);
     mut1 = Mutant::Create(true);
-    Sleep(50ms);
+    step++;  // 1
+    REQUIRE(spin_wait_for(2s, [&] { return step == 2; }));
     mut0->Release();
     mut1->Release();
   });
-  Sleep(10ms);
+  REQUIRE(spin_wait_for(1s, [&] { return step == 1; }));
   all_result = WaitAll({mut0.get(), mut1.get()}, false, 10ms);
   REQUIRE(all_result == WaitResult::kTimeout);
   REQUIRE_FALSE(mut0->Release());
@@ -616,16 +636,19 @@ TEST_CASE("Wait on Multiple Mutants", "[mutant]") {
   REQUIRE(any_result.second == 0);
   REQUIRE_FALSE(mut0->Release());
   REQUIRE_FALSE(mut1->Release());
+  step++;  // 2
   thread0.join();
 
   // Test which should fail for WaitAll but not WaitAny
-  auto thread1 = std::thread([&mut0, &mut1] {
+  step = 0;
+  auto thread1 = std::thread([&mut0, &mut1, &step] {
     mut0 = Mutant::Create(true);
     mut1 = Mutant::Create(false);
-    Sleep(50ms);
+    step++;  // 1
+    REQUIRE(spin_wait_for(2s, [&] { return step == 2; }));
     mut0->Release();
   });
-  Sleep(10ms);
+  REQUIRE(spin_wait_for(1s, [&] { return step == 1; }));
   all_result = WaitAll({mut0.get(), mut1.get()}, false, 10ms);
   REQUIRE(all_result == WaitResult::kTimeout);
   REQUIRE_FALSE(mut0->Release());
@@ -635,15 +658,18 @@ TEST_CASE("Wait on Multiple Mutants", "[mutant]") {
   REQUIRE(any_result.second == 1);
   REQUIRE_FALSE(mut0->Release());
   REQUIRE(mut1->Release());
+  step++;  // 2
   thread1.join();
 
   // Test which should pass for WaitAll and WaitAny
-  auto thread2 = std::thread([&mut0, &mut1] {
+  step = 0;
+  auto thread2 = std::thread([&mut0, &mut1, &step] {
     mut0 = Mutant::Create(false);
     mut1 = Mutant::Create(false);
-    Sleep(50ms);
+    step++;  // 1
+    REQUIRE(spin_wait_for(2s, [&] { return step == 2; }));
   });
-  Sleep(10ms);
+  REQUIRE(spin_wait_for(1s, [&] { return step == 1; }));
   all_result = WaitAll({mut0.get(), mut1.get()}, false, 10ms);
   REQUIRE(all_result == WaitResult::kSuccess);
   REQUIRE(mut0->Release());
@@ -653,6 +679,7 @@ TEST_CASE("Wait on Multiple Mutants", "[mutant]") {
   REQUIRE(any_result.second == 0);
   REQUIRE(mut0->Release());
   REQUIRE_FALSE(mut1->Release());
+  step++;  // 2
   thread2.join();
 }
 
