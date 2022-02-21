@@ -1574,7 +1574,11 @@ EMITTER_OPCODE_TABLE(OPCODE_EXTRACT, EXTRACT_I8, EXTRACT_I16, EXTRACT_I32);
 struct SPLAT_I8 : Sequence<SPLAT_I8, I<OPCODE_SPLAT, V128Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src1.is_constant) {
-      // TODO(benvanik): faster constant splats.
+      if (e.IsFeatureEnabled(kX64EmitGFNI)) {
+        e.pxor(e.xmm0, e.xmm0);
+        e.gf2p8affineqb(i.dest, e.xmm0, i.src1.constant());
+        return;
+      }
       e.mov(e.eax, i.src1.constant());
       e.vmovd(e.xmm0, e.eax);
     } else {
