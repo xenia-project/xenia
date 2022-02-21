@@ -975,6 +975,10 @@ class PosixSemaphore : public PosixConditionHandle<Semaphore> {
 
 std::unique_ptr<Semaphore> Semaphore::Create(int initial_count,
                                              int maximum_count) {
+  if (initial_count < 0 || initial_count > maximum_count ||
+      maximum_count <= 0) {
+    return nullptr;
+  }
   return std::make_unique<PosixSemaphore>(initial_count, maximum_count);
 }
 
