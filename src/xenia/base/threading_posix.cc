@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -253,37 +253,37 @@ class PosixConditionBase {
   static std::pair<WaitResult, size_t> WaitMultiple(
       std::vector<PosixConditionBase*>&& handles, bool wait_all,
       std::chrono::milliseconds timeout) {
-    using iter_t = std::vector<PosixConditionBase*>::const_iterator;
-    bool executed;
-    auto predicate = [](auto h) { return h->signaled(); };
+    assert_true(handles.size() > 0);
 
     // Construct a condition for all or any depending on wait_all
-    auto operation = wait_all ? std::all_of<iter_t, decltype(predicate)>
-                              : std::any_of<iter_t, decltype(predicate)>;
-    auto aggregate = [&handles, operation, predicate] {
-      return operation(handles.cbegin(), handles.cend(), predicate);
-    };
+    std::function<bool()> predicate;
+    {
+      using iter_t = std::vector<PosixConditionBase*>::const_iterator;
+      const auto predicate_inner = [](auto h) { return h->signaled(); };
+      const auto operation =
+          wait_all ? std::all_of<iter_t, decltype(predicate_inner)>
+                   : std::any_of<iter_t, decltype(predicate_inner)>;
+      predicate = [&handles, operation, predicate_inner] {
+        return operation(handles.cbegin(), handles.cend(), predicate_inner);
+      };
+    }
 
     // TODO(bwrsandman, Triang3l) This is controversial, see issue #1677
     // This will probably cause a deadlock on the next thread doing any waiting
     // if the thread is suspended between locking and waiting
     std::unique_lock<std::mutex> lock(PosixConditionBase::mutex_);
 
-    // Check if the aggregate lambda (all or any) is already satisfied
-    if (aggregate()) {
-      executed = true;
+    bool wait_success = true;
+    // If the timeout is infinite, wait without timeout.
+    // The predicate will be checked before beginning the wait
+    if (timeout == std::chrono::milliseconds::max()) {
+      PosixConditionBase::cond_.wait(lock, predicate);
     } else {
-      // If the aggregate is not yet satisfied and the timeout is infinite,
-      // wait without timeout.
-      if (timeout == std::chrono::milliseconds::max()) {
-        PosixConditionBase::cond_.wait(lock, aggregate);
-        executed = true;
-      } else {
-        // Wait with timeout.
-        executed = PosixConditionBase::cond_.wait_for(lock, timeout, aggregate);
-      }
+      // Wait with timeout.
+      wait_success =
+          PosixConditionBase::cond_.wait_for(lock, timeout, predicate);
     }
-    if (executed) {
+    if (wait_success) {
       auto first_signaled = std::numeric_limits<size_t>::max();
       for (auto i = 0u; i < handles.size(); ++i) {
         if (handles[i]->signaled()) {
@@ -294,6 +294,7 @@ class PosixConditionBase {
           if (!wait_all) break;
         }
       }
+      assert_true(std::numeric_limits<size_t>::max() != first_signaled);
       return std::make_pair(WaitResult::kSuccess, first_signaled);
     } else {
       return std::make_pair<WaitResult, size_t>(WaitResult::kTimeout, 0);
@@ -329,13 +330,7 @@ class PosixCondition<Event> : public PosixConditionBase {
   bool Signal() override {
     auto lock = std::unique_lock<std::mutex>(mutex_);
     signal_ = true;
-    if (manual_reset_) {
-      cond_.notify_all();
-    } else {
-      // FIXME(bwrsandman): Potential cause for deadlock
-      // See issue #1678 for possible fix and discussion
-      cond_.notify_one();
-    }
+    cond_.notify_all();
     return true;
   }
 
@@ -402,7 +397,7 @@ class PosixCondition<Mutant> : public PosixConditionBase {
       --count_;
       // Free to be acquired by another thread
       if (count_ == 0) {
-        cond_.notify_one();
+        cond_.notify_all();
       }
       return true;
     }
@@ -471,11 +466,7 @@ class PosixCondition<Timer> : public PosixConditionBase {
       // Store callback
       if (callback_) callback = callback_;
       signal_ = true;
-      if (manual_reset_) {
-        cond_.notify_all();
-      } else {
-        cond_.notify_one();
-      }
+      cond_.notify_all();
     }
     // Call callback
     if (callback) callback();
