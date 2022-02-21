@@ -2,7 +2,7 @@
 ******************************************************************************
 * Xenia : Xbox 360 Emulator Research Project                                 *
 ******************************************************************************
-* Copyright 2021 Ben Vanik. All rights reserved.                             *
+* Copyright 2022 Ben Vanik. All rights reserved.                             *
 * Released under the BSD license - see LICENSE in the root for more details. *
 ******************************************************************************
 */
@@ -18,6 +18,35 @@ namespace base {
 namespace test {
 using namespace threading;
 using namespace std::chrono_literals;
+
+// Helpers to wait on a predicate which do not depend on complex sync primitives
+template <class Clock, class Duration, class Predicate>
+bool spin_wait_until(
+    const std::chrono::time_point<Clock, Duration>& timeout_time,
+    Predicate stop_waiting) {
+  while (!stop_waiting()) {
+    if (std::chrono::steady_clock::now() >= timeout_time) {
+      return false;
+    }
+    // Needed for valgrind because it basically runs one thread:
+    MaybeYield();
+  }
+  return true;
+}
+template <class Period, class Rep, class Predicate>
+bool spin_wait_for(const std::chrono::duration<Rep, Period>& rel_time,
+                   Predicate stop_waiting) {
+  return spin_wait_until(std::chrono::steady_clock::now() + rel_time,
+                         stop_waiting);
+}
+
+template <class Predicate>
+void spin_wait(Predicate stop_waiting) {
+  while (!stop_waiting()) {
+    // Needed for valgrind because it basically runs one thread:
+    MaybeYield();
+  }
+}
 
 TEST_CASE("Fence") {
   std::unique_ptr<threading::Fence> pFence;
