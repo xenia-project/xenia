@@ -829,18 +829,25 @@ TEST_CASE("Create and Run Thread", "[thread]") {
   std::unique_ptr<Thread> thread;
   WaitResult result;
   Thread::CreationParameters params = {};
-  auto func = [] { Sleep(20ms); };
+  std::atomic<unsigned int> fence(0);
+  auto func = [&fence] {
+    REQUIRE(spin_wait_for(1s, [&] { return fence == 1; }));
+    fence++;
+  };
 
   SECTION("Create most basic case of thread") {
+    fence = 0;
     thread = Thread::Create(params, func);
     REQUIRE(thread->native_handle() != nullptr);
     REQUIRE_NOTHROW(thread->affinity_mask());
     REQUIRE(thread->name().empty());
-    result = Wait(thread.get(), false, 50ms);
+    fence++;
+    result = Wait(thread.get(), false, 1s);
     REQUIRE(result == WaitResult::kSuccess);
   }
 
   SECTION("Add thread name") {
+    fence = 0;
     std::string new_name = "Test thread name";
     thread = Thread::Create(params, func);
     auto name = thread->name();
@@ -848,7 +855,8 @@ TEST_CASE("Create and Run Thread", "[thread]") {
     REQUIRE(name.empty());
     thread->set_name(new_name);
     REQUIRE(thread->name() == new_name);
-    result = Wait(thread.get(), false, 50ms);
+    fence++;
+    result = Wait(thread.get(), false, 1s);
     REQUIRE(result == WaitResult::kSuccess);
   }
 
@@ -858,10 +866,10 @@ TEST_CASE("Create and Run Thread", "[thread]") {
         Sleep(1ms);
       }
     });
-    result = Wait(thread.get(), false, 50ms);
+    result = Wait(thread.get(), false, 1s);
     REQUIRE(result == WaitResult::kTimeout);
     thread->Terminate(-1);
-    result = Wait(thread.get(), false, 50ms);
+    result = Wait(thread.get(), false, 1s);
     REQUIRE(result == WaitResult::kSuccess);
   }
 
@@ -869,8 +877,10 @@ TEST_CASE("Create and Run Thread", "[thread]") {
     thread = Thread::Create(params, [] {
       Thread::Exit(-1);
       FAIL("Function must not return");
+      while (true)
+        ;
     });
-    result = Wait(thread.get(), false, 50ms);
+    result = Wait(thread.get(), false, 1s);
     REQUIRE(result == WaitResult::kSuccess);
   }
 
@@ -879,14 +889,16 @@ TEST_CASE("Create and Run Thread", "[thread]") {
     REQUIRE(result == WaitResult::kTimeout);
   }
 
-  SECTION("16kb stack size") {
+  SECTION("16Mb stack size") {
     params.stack_size = 16_MiB;
     thread = Thread::Create(params, [] {
       Thread::Exit(-1);
       FAIL("Function must not return");
+      while (true)
+        ;
     });
     REQUIRE(thread != nullptr);
-    result = Wait(thread.get(), false, 50ms);
+    result = Wait(thread.get(), false, 1s);
     REQUIRE(result == WaitResult::kSuccess);
   }
 
@@ -973,18 +985,19 @@ TEST_CASE("Test Thread QueueUserCallback", "[thread]") {
   has_finished = -1;
   thread = Thread::Create(params, [&has_finished, &order] {
     // Not using Alertable so callback is not registered
+    order++;  // 1
     Sleep(90ms);
+    order++;  // 2
     has_finished = std::atomic_fetch_add_explicit(
         &order, 1, std::memory_order::memory_order_relaxed);
   });
-  result = Wait(thread.get(), true, 50ms);
-  REQUIRE(result == WaitResult::kTimeout);
+  REQUIRE(!spin_wait_for(50ms, [&] { return order == 2; }));
   REQUIRE(is_modified == -1);
   thread->QueueUserCallback(callback);
-  result = Wait(thread.get(), true, 100ms);
+  result = Wait(thread.get(), true, 200ms);
   REQUIRE(result == WaitResult::kSuccess);
   REQUIRE(is_modified == -1);
-  REQUIRE(has_finished == 0);
+  REQUIRE(has_finished == 2);
 
   // With alertable
   order = 0;
@@ -992,18 +1005,19 @@ TEST_CASE("Test Thread QueueUserCallback", "[thread]") {
   has_finished = -1;
   thread = Thread::Create(params, [&has_finished, &order] {
     // Using Alertable so callback is registered
+    order++;  // 1
     AlertableSleep(90ms);
+    order++;  // 3
     has_finished = std::atomic_fetch_add_explicit(
         &order, 1, std::memory_order::memory_order_relaxed);
   });
-  result = Wait(thread.get(), true, 50ms);
-  REQUIRE(result == WaitResult::kTimeout);
+  REQUIRE(!spin_wait_for(50ms, [&] { return order == 2; }));
   REQUIRE(is_modified == -1);
   thread->QueueUserCallback(callback);
-  result = Wait(thread.get(), true, 100ms);
+  result = Wait(thread.get(), true, 200ms);
   REQUIRE(result == WaitResult::kSuccess);
-  REQUIRE(is_modified == 0);
-  REQUIRE(has_finished == 1);
+  REQUIRE(is_modified == 1);
+  REQUIRE(has_finished == 3);
 
   // Test Exit command with QueueUserCallback
   order = 0;
@@ -1013,17 +1027,18 @@ TEST_CASE("Test Thread QueueUserCallback", "[thread]") {
     is_modified = std::atomic_fetch_add_explicit(
         &order, 1, std::memory_order::memory_order_relaxed);
     // Using Alertable so callback is registered
-    AlertableSleep(200ms);
-    has_finished = std::atomic_fetch_add_explicit(
-        &order, 1, std::memory_order::memory_order_relaxed);
+    order++;  // 2
+    AlertableSleep(1s);
+    FAIL("Thread should have been terminated during alertable sleep");
+    while (true)
+      ;
   });
-  result = Wait(thread.get(), true, 100ms);
-  REQUIRE(result == WaitResult::kTimeout);
+  REQUIRE(!spin_wait_for(100ms, [&] { return order == 3; }));  // timeout
   thread->QueueUserCallback([] { Thread::Exit(0); });
   result = Wait(thread.get(), true, 500ms);
   REQUIRE(result == WaitResult::kSuccess);
   REQUIRE(is_modified == 0);
-  REQUIRE(has_finished == -1);
+  REQUIRE(order == 2);
 
   // TODO(bwrsandman): Test alertable wait returning kUserCallback by using IO
   // callbacks.
