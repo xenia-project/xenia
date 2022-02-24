@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -28,6 +28,7 @@ void XMutant::Initialize(bool initial_owner) {
   assert_false(mutant_);
 
   mutant_ = xe::threading::Mutant::Create(initial_owner);
+  assert_not_null(mutant_);
 }
 
 void XMutant::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {

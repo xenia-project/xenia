@@ -149,6 +149,7 @@ bool PipelineCache::Initialize() {
   creation_threads_busy_ = 0;
   creation_completion_event_ =
       xe::threading::Event::CreateManualResetEvent(true);
+  assert_not_null(creation_completion_event_);
   creation_completion_set_event_ = false;
   creation_threads_shutdown_from_ = SIZE_MAX;
   if (cvars::d3d12_pipeline_creation_threads != 0) {
@@ -164,6 +165,7 @@ bool PipelineCache::Initialize() {
     for (size_t i = 0; i < creation_thread_count; ++i) {
       std::unique_ptr<xe::threading::Thread> creation_thread =
           xe::threading::Thread::Create({}, [this, i]() { CreationThread(i); });
+      assert_not_null(creation_thread);
       creation_thread->set_name("D3D12 Pipelines");
       creation_threads_.push_back(std::move(creation_thread));
     }
@@ -540,9 +542,11 @@ void PipelineCache::InitializeShaderStorage(
       }
       while (shader_translation_threads.size() <
              shader_translation_threads_needed) {
-        shader_translation_threads.push_back(xe::threading::Thread::Create(
-            {}, shader_translation_thread_function));
-        shader_translation_threads.back()->set_name("Shader Translation");
+        auto thread = xe::threading::Thread::Create(
+            {}, shader_translation_thread_function);
+        assert_not_null(thread);
+        thread->set_name("Shader Translation");
+        shader_translation_threads.push_back(std::move(thread));
       }
       // Request ucode information gathering and translation of all the needed
       // shaders.
@@ -606,6 +610,7 @@ void PipelineCache::InitializeShaderStorage(
           xe::threading::Thread::Create({}, [this, creation_thread_index]() {
             CreationThread(creation_thread_index);
           });
+      assert_not_null(creation_thread);
       creation_thread->set_name("D3D12 Pipelines");
       creation_threads_.push_back(std::move(creation_thread));
     }
@@ -771,6 +776,8 @@ void PipelineCache::InitializeShaderStorage(
   storage_write_thread_shutdown_ = false;
   storage_write_thread_ =
       xe::threading::Thread::Create({}, [this]() { StorageWriteThread(); });
+  assert_not_null(storage_write_thread_);
+  storage_write_thread_->set_name("D3D12 Storage writer");
 }
 
 void PipelineCache::ShutdownShaderStorage() {

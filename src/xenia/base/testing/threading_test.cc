@@ -165,6 +165,7 @@ TEST_CASE("TlsHandle") {
   auto thread = Thread::Create({}, [&non_thread_local_value, &handle] {
     non_thread_local_value = threading::GetTlsValue(handle);
   });
+  REQUIRE(thread);
 
   auto result = Wait(thread.get(), false, 50ms);
   REQUIRE(result == WaitResult::kSuccess);
@@ -231,8 +232,11 @@ TEST_CASE("HighResolutionTimer") {
 
 TEST_CASE("Wait on Multiple Handles", "[wait]") {
   auto mutant = Mutant::Create(true);
+  REQUIRE(mutant);
   auto semaphore = Semaphore::Create(10, 10);
+  REQUIRE(semaphore);
   auto event_ = Event::CreateManualResetEvent(false);
+  REQUIRE(event_);
   auto thread = Thread::Create({}, [&mutant, &semaphore, &event_] {
     event_->Set();
     Wait(mutant.get(), false, 25ms);
@@ -259,7 +263,9 @@ TEST_CASE("Wait on Multiple Handles", "[wait]") {
 TEST_CASE("Signal and Wait") {
   WaitResult result;
   auto mutant = Mutant::Create(true);
+  REQUIRE(mutant);
   auto event_ = Event::CreateAutoResetEvent(false);
+  REQUIRE(event_);
   auto thread = Thread::Create({}, [&mutant, &event_] {
     Wait(mutant.get(), false);
     event_->Set();
@@ -274,6 +280,7 @@ TEST_CASE("Signal and Wait") {
 
 TEST_CASE("Wait on Event", "[event]") {
   auto evt = Event::CreateAutoResetEvent(false);
+  REQUIRE(evt);
   WaitResult result;
 
   // Call wait on unset Event
@@ -292,6 +299,7 @@ TEST_CASE("Wait on Event", "[event]") {
 
 TEST_CASE("Reset Event", "[event]") {
   auto evt = Event::CreateAutoResetEvent(false);
+  REQUIRE(evt);
   WaitResult result;
 
   // Call wait on reset Event
@@ -318,6 +326,9 @@ TEST_CASE("Wait on Multiple Events", "[event]") {
       Event::CreateAutoResetEvent(false),
       Event::CreateManualResetEvent(false),
   };
+  for (auto& event : events) {
+    REQUIRE(event.get() != nullptr);
+  }
 
   std::atomic_uint threads_started(0);
   std::array<char, 8> order = {0};
@@ -398,6 +409,7 @@ TEST_CASE("Wait on Semaphore", "[semaphore]") {
 
   // Wait on semaphore with no room
   sem = Semaphore::Create(0, 5);
+  REQUIRE(sem);
   result = Wait(sem.get(), false, 10ms);
   REQUIRE(result == WaitResult::kTimeout);
 
@@ -413,12 +425,14 @@ TEST_CASE("Wait on Semaphore", "[semaphore]") {
 
   // Set semaphore over maximum_count
   sem = Semaphore::Create(5, 5);
+  REQUIRE(sem);
   previous_count = -1;
   REQUIRE_FALSE(sem->Release(1, &previous_count));
   REQUIRE(previous_count == -1);
   REQUIRE_FALSE(sem->Release(10, &previous_count));
   REQUIRE(previous_count == -1);
   sem = Semaphore::Create(0, 5);
+  REQUIRE(sem);
   REQUIRE_FALSE(sem->Release(10, &previous_count));
   REQUIRE(previous_count == -1);
   REQUIRE_FALSE(sem->Release(10, &previous_count));
@@ -432,6 +446,7 @@ TEST_CASE("Wait on Semaphore", "[semaphore]") {
 
   // Wait on fully available semaphore
   sem = Semaphore::Create(5, 5);
+  REQUIRE(sem);
   result = Wait(sem.get(), false, 10ms);
   REQUIRE(result == WaitResult::kSuccess);
   result = Wait(sem.get(), false, 10ms);
@@ -447,6 +462,7 @@ TEST_CASE("Wait on Semaphore", "[semaphore]") {
 
   // Semaphore between threads
   sem = Semaphore::Create(5, 5);
+  REQUIRE(sem);
   // Occupy the semaphore with 5 threads
   std::atomic<int> wait_count(0);
   std::atomic<bool> threads_terminate(false);
@@ -505,6 +521,8 @@ TEST_CASE("Wait on Multiple Semaphores", "[semaphore]") {
   // Test Wait all which should fail
   sem0 = Semaphore::Create(0, 5);
   sem1 = Semaphore::Create(5, 5);
+  REQUIRE(sem0);
+  REQUIRE(sem1);
   all_result = WaitAll({sem0.get(), sem1.get()}, false, 10ms);
   REQUIRE(all_result == WaitResult::kTimeout);
   previous_count = -1;
@@ -517,6 +535,8 @@ TEST_CASE("Wait on Multiple Semaphores", "[semaphore]") {
   // Test Wait all again which should succeed
   sem0 = Semaphore::Create(1, 5);
   sem1 = Semaphore::Create(5, 5);
+  REQUIRE(sem0);
+  REQUIRE(sem1);
   all_result = WaitAll({sem0.get(), sem1.get()}, false, 10ms);
   REQUIRE(all_result == WaitResult::kSuccess);
   previous_count = -1;
@@ -529,6 +549,8 @@ TEST_CASE("Wait on Multiple Semaphores", "[semaphore]") {
   // Test Wait Any which should fail
   sem0 = Semaphore::Create(0, 5);
   sem1 = Semaphore::Create(0, 5);
+  REQUIRE(sem0);
+  REQUIRE(sem1);
   any_result = WaitAny({sem0.get(), sem1.get()}, false, 10ms);
   REQUIRE(any_result.first == WaitResult::kTimeout);
   REQUIRE(any_result.second == 0);
@@ -542,6 +564,8 @@ TEST_CASE("Wait on Multiple Semaphores", "[semaphore]") {
   // Test Wait Any which should succeed
   sem0 = Semaphore::Create(0, 5);
   sem1 = Semaphore::Create(5, 5);
+  REQUIRE(sem0);
+  REQUIRE(sem1);
   any_result = WaitAny({sem0.get(), sem1.get()}, false, 10ms);
   REQUIRE(any_result.first == WaitResult::kSuccess);
   REQUIRE(any_result.second == 1);
@@ -689,6 +713,7 @@ TEST_CASE("Wait on Timer", "[timer]") {
 
   // Test Manual Reset
   timer = Timer::CreateManualResetTimer();
+  REQUIRE(timer);
   result = Wait(timer.get(), false, 1ms);
   REQUIRE(result == WaitResult::kTimeout);
   REQUIRE(timer->SetOnce(1ms));  // Signals it
@@ -699,6 +724,7 @@ TEST_CASE("Wait on Timer", "[timer]") {
 
   // Test Synchronization
   timer = Timer::CreateSynchronizationTimer();
+  REQUIRE(timer);
   result = Wait(timer.get(), false, 1ms);
   REQUIRE(result == WaitResult::kTimeout);
   REQUIRE(timer->SetOnce(1ms));  // Signals it
@@ -813,7 +839,7 @@ TEST_CASE("Set and Test Current Thread ID", "[thread]") {
   // TODO(bwrsandman): Test on Thread object
 }
 
-TEST_CASE("Set and Test Current Thread Name", "Thread") {
+TEST_CASE("Set and Test Current Thread Name", "[thread]") {
   auto current_thread = Thread::GetCurrentThread();
   REQUIRE(current_thread);
   auto old_thread_name = current_thread->name();

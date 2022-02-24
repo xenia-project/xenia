@@ -66,7 +66,8 @@ static void set_name(HANDLE thread, const std::string_view name) {
     auto func =
         (SetThreadDescriptionFn)GetProcAddress(kernel, "SetThreadDescription");
     if (func) {
-      func(thread, reinterpret_cast<PCWSTR>(xe::to_utf16(name).c_str()));
+      auto u16name = xe::to_utf16(name);
+      func(thread, reinterpret_cast<PCWSTR>(u16name.c_str()));
     }
   }
   raise_thread_name_exception(thread, std::string(name));

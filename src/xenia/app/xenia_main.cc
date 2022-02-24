@@ -17,6 +17,7 @@
 
 #include "xenia/app/discord/discord_presence.h"
 #include "xenia/app/emulator_window.h"
+#include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
@@ -371,6 +372,7 @@ bool EmulatorApp::OnInitialize() {
   // Setup the emulator and run its loop in a separate thread.
   emulator_thread_quit_requested_.store(false, std::memory_order_relaxed);
   emulator_thread_event_ = xe::threading::Event::CreateAutoResetEvent(false);
+  assert_not_null(emulator_thread_event_);
   emulator_thread_ = std::thread(&EmulatorApp::EmulatorThread, this);
 
   return true;

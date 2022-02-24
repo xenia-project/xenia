@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -20,22 +20,24 @@ XSemaphore::XSemaphore(KernelState* kernel_state)
 
 XSemaphore::~XSemaphore() = default;
 
-void XSemaphore::Initialize(int32_t initial_count, int32_t maximum_count) {
+bool XSemaphore::Initialize(int32_t initial_count, int32_t maximum_count) {
   assert_false(semaphore_);
 
   CreateNative(sizeof(X_KSEMAPHORE));
 
   maximum_count_ = maximum_count;
   semaphore_ = xe::threading::Semaphore::Create(initial_count, maximum_count);
+  return !!semaphore_;
 }
 
-void XSemaphore::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
+bool XSemaphore::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
   assert_false(semaphore_);
 
   auto semaphore = reinterpret_cast<X_KSEMAPHORE*>(native_ptr);
   maximum_count_ = semaphore->limit;
   semaphore_ = xe::threading::Semaphore::Create(semaphore->header.signal_state,
                                                 semaphore->limit);
+  return !!semaphore_;
 }
 
 int32_t XSemaphore::ReleaseSemaphore(int32_t release_count) {
@@ -85,6 +87,7 @@ object_ref<XSemaphore> XSemaphore::Restore(KernelState* kernel_state,
 
   sem->semaphore_ =
       threading::Semaphore::Create(free_count, sem->maximum_count_);
+  assert_not_null(sem->semaphore_);
 
   return object_ref<XSemaphore>(sem);
 }

@@ -30,6 +30,7 @@ TracePlayer::TracePlayer(GraphicsSystem* graphics_system)
                    kMemoryProtectRead | kMemoryProtectWrite);
 
   playback_event_ = xe::threading::Event::CreateAutoResetEvent(false);
+  assert_not_null(playback_event_);
 }
 
 TracePlayer::~TracePlayer() { delete[] edram_snapshot_; }
