@@ -455,7 +455,7 @@ dword_result_t NtCreateEvent_entry(
         existing_object->RetainHandle();
         *handle_ptr = existing_object->handle();
       }
-      return X_STATUS_SUCCESS;
+      return X_STATUS_OBJECT_NAME_EXISTS;
     } else {
       return X_STATUS_INVALID_HANDLE;
     }
@@ -576,7 +576,7 @@ DECLARE_XBOXKRNL_EXPORT1(KeReleaseSemaphore, kThreading, kImplemented);
 dword_result_t NtCreateSemaphore_entry(lpdword_t handle_ptr,
                                        lpvoid_t obj_attributes_ptr,
                                        dword_t count, dword_t limit) {
-  // Check for an existing timer with the same name.
+  // Check for an existing semaphore with the same name.
   auto existing_object =
       LookupNamedObject<XSemaphore>(kernel_state(), obj_attributes_ptr);
   if (existing_object) {
@@ -585,7 +585,7 @@ dword_result_t NtCreateSemaphore_entry(lpdword_t handle_ptr,
         existing_object->RetainHandle();
         *handle_ptr = existing_object->handle();
       }
-      return X_STATUS_SUCCESS;
+      return X_STATUS_OBJECT_NAME_EXISTS;
     } else {
       return X_STATUS_INVALID_HANDLE;
     }
@@ -647,7 +647,7 @@ dword_result_t NtCreateMutant_entry(
         existing_object->RetainHandle();
         *handle_out = existing_object->handle();
       }
-      return X_STATUS_SUCCESS;
+      return X_STATUS_OBJECT_NAME_EXISTS;
     } else {
       return X_STATUS_INVALID_HANDLE;
     }
@@ -709,7 +709,7 @@ dword_result_t NtCreateTimer_entry(lpdword_t handle_ptr,
         existing_object->RetainHandle();
         *handle_ptr = existing_object->handle();
       }
-      return X_STATUS_SUCCESS;
+      return X_STATUS_OBJECT_NAME_EXISTS;
     } else {
       return X_STATUS_INVALID_HANDLE;
     }
