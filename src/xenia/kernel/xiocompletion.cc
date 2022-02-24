@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -15,6 +15,7 @@ namespace kernel {
 XIOCompletion::XIOCompletion(KernelState* kernel_state)
     : XObject(kernel_state, kObjectType) {
   notification_semaphore_ = threading::Semaphore::Create(0, kMaxNotifications);
+  assert_not_null(notification_semaphore_);
 }
 
 XIOCompletion::~XIOCompletion() = default;

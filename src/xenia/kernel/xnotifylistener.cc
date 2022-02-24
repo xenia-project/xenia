@@ -2,13 +2,14 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/kernel/xnotifylistener.h"
 
+#include "xenia/base/assert.h"
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
@@ -25,6 +26,7 @@ void XNotifyListener::Initialize(uint64_t mask, uint32_t max_version) {
   assert_false(wait_handle_);
 
   wait_handle_ = xe::threading::Event::CreateManualResetEvent(false);
+  assert_not_null(wait_handle_);
   mask_ = mask;
   max_version_ = max_version;
 
