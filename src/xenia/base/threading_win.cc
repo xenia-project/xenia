@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -11,6 +11,9 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/platform_win.h"
 #include "xenia/base/threading.h"
+
+#define LOG_LASTERROR() \
+  { XELOGI("Win32 Error 0x{:08X} in " __FUNCTION__ "(...)", GetLastError()); }
 
 typedef HANDLE (*SetThreadDescriptionFn)(HANDLE hThread,
                                          PCWSTR lpThreadDescription);
@@ -153,7 +156,9 @@ std::unique_ptr<HighResolutionTimer> HighResolutionTimer::CreateRepeating(
 template <typename T>
 class Win32Handle : public T {
  public:
-  explicit Win32Handle(HANDLE handle) : handle_(handle) {}
+  explicit Win32Handle(HANDLE handle) : handle_(handle) {
+    assert_not_null(handle);
+  }
   ~Win32Handle() override {
     CloseHandle(handle_);
     handle_ = nullptr;
@@ -248,13 +253,25 @@ class Win32Event : public Win32Handle<Event> {
 };
 
 std::unique_ptr<Event> Event::CreateManualResetEvent(bool initial_state) {
-  return std::make_unique<Win32Event>(
-      CreateEvent(nullptr, TRUE, initial_state ? TRUE : FALSE, nullptr));
+  HANDLE handle =
+      CreateEvent(nullptr, TRUE, initial_state ? TRUE : FALSE, nullptr);
+  if (handle) {
+    return std::make_unique<Win32Event>(handle);
+  } else {
+    LOG_LASTERROR();
+    return nullptr;
+  }
 }
 
 std::unique_ptr<Event> Event::CreateAutoResetEvent(bool initial_state) {
-  return std::make_unique<Win32Event>(
-      CreateEvent(nullptr, FALSE, initial_state ? TRUE : FALSE, nullptr));
+  HANDLE handle =
+      CreateEvent(nullptr, FALSE, initial_state ? TRUE : FALSE, nullptr);
+  if (handle) {
+    return std::make_unique<Win32Event>(handle);
+  } else {
+    LOG_LASTERROR();
+    return nullptr;
+  }
 }
 
 class Win32Semaphore : public Win32Handle<Semaphore> {
@@ -271,8 +288,14 @@ class Win32Semaphore : public Win32Handle<Semaphore> {
 
 std::unique_ptr<Semaphore> Semaphore::Create(int initial_count,
                                              int maximum_count) {
-  return std::make_unique<Win32Semaphore>(
-      CreateSemaphore(nullptr, initial_count, maximum_count, nullptr));
+  HANDLE handle =
+      CreateSemaphore(nullptr, initial_count, maximum_count, nullptr);
+  if (handle) {
+    return std::make_unique<Win32Semaphore>(handle);
+  } else {
+    LOG_LASTERROR();
+    return nullptr;
+  }
 }
 
 class Win32Mutant : public Win32Handle<Mutant> {
@@ -283,8 +306,13 @@ class Win32Mutant : public Win32Handle<Mutant> {
 };
 
 std::unique_ptr<Mutant> Mutant::Create(bool initial_owner) {
-  return std::make_unique<Win32Mutant>(
-      CreateMutex(nullptr, initial_owner ? TRUE : FALSE, nullptr));
+  HANDLE handle = CreateMutex(nullptr, initial_owner ? TRUE : FALSE, nullptr);
+  if (handle) {
+    return std::make_unique<Win32Mutant>(handle);
+  } else {
+    LOG_LASTERROR();
+    return nullptr;
+  }
 }
 
 class Win32Timer : public Win32Handle<Timer> {
@@ -344,11 +372,23 @@ class Win32Timer : public Win32Handle<Timer> {
 };
 
 std::unique_ptr<Timer> Timer::CreateManualResetTimer() {
-  return std::make_unique<Win32Timer>(CreateWaitableTimer(NULL, TRUE, NULL));
+  HANDLE handle = CreateWaitableTimer(NULL, TRUE, NULL);
+  if (handle) {
+    return std::make_unique<Win32Timer>(handle);
+  } else {
+    LOG_LASTERROR();
+    return nullptr;
+  }
 }
 
 std::unique_ptr<Timer> Timer::CreateSynchronizationTimer() {
-  return std::make_unique<Win32Timer>(CreateWaitableTimer(NULL, FALSE, NULL));
+  HANDLE handle = CreateWaitableTimer(NULL, FALSE, NULL);
+  if (handle) {
+    return std::make_unique<Win32Timer>(handle);
+  } else {
+    LOG_LASTERROR();
+    return nullptr;
+  }
 }
 
 class Win32Thread : public Win32Handle<Thread> {
@@ -450,15 +490,13 @@ std::unique_ptr<Thread> Thread::Create(CreationParameters params,
   HANDLE handle =
       CreateThread(NULL, params.stack_size, ThreadStartRoutine, start_data,
                    params.create_suspended ? CREATE_SUSPENDED : 0, NULL);
-  if (handle == INVALID_HANDLE_VALUE) {
-    // TODO(benvanik): pass back?
-    auto last_error = GetLastError();
-    XELOGE("Unable to CreateThread: {}", last_error);
+  if (handle) {
+    return std::make_unique<Win32Thread>(handle);
+  } else {
+    LOG_LASTERROR();
     delete start_data;
     return nullptr;
   }
-
-  return std::make_unique<Win32Thread>(handle);
 }
 
 Thread* Thread::GetCurrentThread() {
