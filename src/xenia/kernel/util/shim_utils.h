@@ -84,18 +84,18 @@ inline uint64_t get_arg_64(PPCContext* ppc_context, uint8_t index) {
   return SHIM_MEM_64(stack_address);
 }
 
-inline std::string TranslateAnsiString(const Memory* memory,
-                                       const X_ANSI_STRING* ansi_string) {
+inline std::string_view TranslateAnsiString(const Memory* memory,
+                                            const X_ANSI_STRING* ansi_string) {
   if (!ansi_string || !ansi_string->length) {
     return "";
   }
-  return std::string(
+  return std::string_view(
       memory->TranslateVirtual<const char*>(ansi_string->pointer),
       ansi_string->length);
 }
 
-inline std::string TranslateAnsiStringAddress(const Memory* memory,
-                                              uint32_t guest_address) {
+inline std::string_view TranslateAnsiStringAddress(const Memory* memory,
+                                                   uint32_t guest_address) {
   if (!guest_address) {
     return "";
   }
@@ -440,7 +440,7 @@ inline void AppendParam(StringBuffer* string_buffer,
   if (record) {
     auto name_string =
         kernel_memory()->TranslateVirtual<X_ANSI_STRING*>(record->name_ptr);
-    std::string name =
+    std::string_view name =
         name_string == nullptr
             ? "(null)"
             : util::TranslateAnsiString(kernel_memory(), name_string);
