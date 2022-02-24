@@ -144,10 +144,10 @@ DECLARE_XBOXKRNL_EXPORT1(ObDereferenceObject, kNone, kImplemented);
 
 dword_result_t ObCreateSymbolicLink_entry(pointer_t<X_ANSI_STRING> path_ptr,
                                           pointer_t<X_ANSI_STRING> target_ptr) {
-  auto path = util::TranslateAnsiString(kernel_memory(), path_ptr);
-  auto target = util::TranslateAnsiString(kernel_memory(), target_ptr);
-  path = xe::utf8::canonicalize_guest_path(path);
-  target = xe::utf8::canonicalize_guest_path(target);
+  auto path = xe::utf8::canonicalize_guest_path(
+      util::TranslateAnsiString(kernel_memory(), path_ptr));
+  auto target = xe::utf8::canonicalize_guest_path(
+      util::TranslateAnsiString(kernel_memory(), target_ptr));
 
   if (xe::utf8::starts_with(path, u8"\\??\\")) {
     path = path.substr(4);  // Strip the full qualifier

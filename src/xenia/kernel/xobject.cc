@@ -172,7 +172,7 @@ void XObject::SetAttributes(uint32_t obj_attributes_ptr) {
       memory(), xe::load_and_swap<uint32_t>(
                     memory()->TranslateVirtual(obj_attributes_ptr + 4)));
   if (!name.empty()) {
-    name_ = std::move(name);
+    name_ = std::string(name);
     kernel_state_->object_table()->AddNameMapping(name_, handles_[0]);
   }
 }

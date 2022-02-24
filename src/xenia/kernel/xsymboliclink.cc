@@ -24,8 +24,8 @@ XSymbolicLink::~XSymbolicLink() {}
 
 void XSymbolicLink::Initialize(const std::string_view path,
                                const std::string_view target) {
-  path_ = path;
-  target_ = target;
+  path_ = std::string(path);
+  target_ = std::string(target);
   // TODO(gibbed): kernel_state_->RegisterSymbolicLink(this);
 }
 

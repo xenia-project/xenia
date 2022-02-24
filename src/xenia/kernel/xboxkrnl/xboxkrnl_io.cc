@@ -614,8 +614,7 @@ dword_result_t NtOpenSymbolicLinkObject_entry(
   auto object_name =
       kernel_memory()->TranslateVirtual<X_ANSI_STRING*>(object_attrs->name_ptr);
 
-  std::string target_path =
-      util::TranslateAnsiString(kernel_memory(), object_name);
+  auto target_path = util::TranslateAnsiString(kernel_memory(), object_name);
 
   // Enforce that the path is ASCII.
   if (!IsValidPath(target_path, false)) {
