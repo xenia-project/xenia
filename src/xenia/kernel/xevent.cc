@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -30,6 +30,7 @@ void XEvent::Initialize(bool manual_reset, bool initial_state) {
   } else {
     event_ = xe::threading::Event::CreateAutoResetEvent(initial_state);
   }
+  assert_not_null(event_);
 }
 
 void XEvent::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
@@ -53,6 +54,7 @@ void XEvent::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
   } else {
     event_ = xe::threading::Event::CreateAutoResetEvent(initial_state);
   }
+  assert_not_null(event_);
 }
 
 int32_t XEvent::Set(uint32_t priority_increment, bool wait) {
@@ -112,6 +114,7 @@ object_ref<XEvent> XEvent::Restore(KernelState* kernel_state,
   } else {
     evt->event_ = xe::threading::Event::CreateAutoResetEvent(false);
   }
+  assert_not_null(evt->event_);
 
   if (signaled) {
     evt->event_->Set();

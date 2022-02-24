@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2015 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -91,6 +91,7 @@ class Win32Socket : public Socket {
     // notifications.
     // Set true to start so we'll force a query of the socket on first run.
     event_ = xe::threading::Event::CreateManualResetEvent(true);
+    assert_not_null(event_);
     WSAEventSelect(socket_, event_->native_handle(), FD_READ | FD_CLOSE);
 
     // Keepalive for a looong time, as we may be paused by the debugger/etc.
@@ -279,6 +280,7 @@ class Win32SocketServer : public SocketServer {
         accept_callback_(std::move(client));
       }
     });
+    assert_not_null(accept_thread_);
 
     return true;
   }

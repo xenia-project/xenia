@@ -590,7 +590,13 @@ dword_result_t NtCreateSemaphore_entry(lpdword_t handle_ptr,
   }
 
   auto sem = object_ref<XSemaphore>(new XSemaphore(kernel_state()));
-  sem->Initialize((int32_t)count, (int32_t)limit);
+  if (!sem->Initialize((int32_t)count, (int32_t)limit)) {
+    if (handle_ptr) {
+      *handle_ptr = 0;
+    }
+    sem->ReleaseHandle();
+    return X_STATUS_INVALID_PARAMETER;
+  }
 
   // obj_attributes may have a name inside of it, if != NULL.
   if (obj_attributes_ptr) {

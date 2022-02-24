@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -30,8 +30,9 @@ class XSemaphore : public XObject {
   explicit XSemaphore(KernelState* kernel_state);
   ~XSemaphore() override;
 
-  void Initialize(int32_t initial_count, int32_t maximum_count);
-  void InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header);
+  [[nodiscard]] bool Initialize(int32_t initial_count, int32_t maximum_count);
+  [[nodiscard]] bool InitializeNative(void* native_ptr,
+                                      X_DISPATCH_HEADER* header);
 
   int32_t ReleaseSemaphore(int32_t release_count);
 

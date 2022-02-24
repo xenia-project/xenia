@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -139,6 +139,7 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
 
   worker_running_ = true;
   work_event_ = xe::threading::Event::CreateAutoResetEvent(false);
+  assert_not_null(work_event_);
   worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
         WorkerThreadMain();

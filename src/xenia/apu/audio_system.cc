@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -12,6 +12,7 @@
 #include "xenia/apu/apu_flags.h"
 #include "xenia/apu/audio_driver.h"
 #include "xenia/apu/xma_decoder.h"
+#include "xenia/base/assert.h"
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -45,14 +46,17 @@ AudioSystem::AudioSystem(cpu::Processor* processor)
   for (size_t i = 0; i < kMaximumClientCount; ++i) {
     client_semaphores_[i] =
         xe::threading::Semaphore::Create(0, kMaximumQueuedFrames);
+    assert_not_null(client_semaphores_[i]);
     wait_handles_[i] = client_semaphores_[i].get();
   }
   shutdown_event_ = xe::threading::Event::CreateAutoResetEvent(false);
+  assert_not_null(shutdown_event_);
   wait_handles_[kMaximumClientCount] = shutdown_event_.get();
 
   xma_decoder_ = std::make_unique<xe::apu::XmaDecoder>(processor_);
 
   resume_event_ = xe::threading::Event::CreateAutoResetEvent(false);
+  assert_not_null(resume_event_);
 }
 
 AudioSystem::~AudioSystem() {
