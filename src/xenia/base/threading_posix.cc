@@ -34,6 +34,19 @@
 #include "xenia/base/string_util.h"
 #endif
 
+#if XE_PLATFORM_LINUX
+// SIGEV_THREAD_ID in timer_create(...) is a Linux extension
+#define XE_HAS_SIGEV_THREAD_ID 1
+#ifdef __GLIBC__
+#define sigev_notify_thread_id _sigev_un._tid
+#endif
+#if __GLIBC__ == 2 && __GLIBC_MINOR__ < 30
+#define gettid() syscall(SYS_gettid)
+#endif
+#else
+#define XE_HAS_SIGEV_THREAD_ID 0
+#endif
+
 namespace xe {
 namespace threading {
 
@@ -195,7 +208,13 @@ class PosixHighResolutionTimer : public HighResolutionTimer {
     }
     // Create timer
     sigevent sev{};
+#if XE_HAS_SIGEV_THREAD_ID
+    sev.sigev_notify = SIGEV_SIGNAL | SIGEV_THREAD_ID;
+    sev.sigev_notify_thread_id = gettid();
+#else
     sev.sigev_notify = SIGEV_SIGNAL;
+    callback_info_->target_thread = pthread_self();
+#endif
     sev.sigev_signo = GetSystemSignal(SignalType::kHighResolutionTimer);
     sev.sigev_value.sival_ptr = (void*)&callback_;
     if (timer_create(CLOCK_MONOTONIC, &sev, &timer_) == -1) return false;
@@ -445,7 +464,13 @@ class PosixCondition<Timer> : public PosixConditionBase {
     // Create timer
     if (timer_ == nullptr) {
       sigevent sev{};
+#if XE_HAS_SIGEV_THREAD_ID
+      sev.sigev_notify = SIGEV_SIGNAL | SIGEV_THREAD_ID;
+      sev.sigev_notify_thread_id = gettid();
+#else
       sev.sigev_notify = SIGEV_SIGNAL;
+      callback_info_->target_thread = pthread_self();
+#endif
       sev.sigev_signo = GetSystemSignal(SignalType::kTimer);
       sev.sigev_value.sival_ptr = this;
       if (timer_create(CLOCK_MONOTONIC, &sev, &timer_) == -1) return false;
