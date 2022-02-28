@@ -81,6 +81,8 @@ jobs:
           $branch=$($env:GITHUB_REF -replace 'refs/heads/', '')
           $title="${tag}_$branch"
           gh release create $tag $asset --target $env:GITHUB_SHA -t $title
-          gh release delete $branch -y
+          # Remove canary_ to prevent conflicts from tag
+          $tag=$($branch -replace 'canary_', '')
+          gh release delete $tag -y
           If ($LastExitCode -ne 0) { echo "LastExitCode = $LastExitCode";$LastExitCode = 0 }
-          gh release create $branch $asset --target $env:GITHUB_SHA -t $branch
+          gh release create $tag $asset --target $env:GITHUB_SHA -t $branch
