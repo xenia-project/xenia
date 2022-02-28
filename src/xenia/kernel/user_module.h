@@ -67,6 +67,7 @@ class UserModule : public XModule {
 
   uint32_t entry_point() const { return entry_point_; }
   uint32_t stack_size() const { return stack_size_; }
+  uint32_t workspace_size() const { return workspace_size_; }
 
   X_STATUS LoadFromFile(const std::string_view path);
   X_STATUS LoadFromMemory(const void* addr, const size_t length);
@@ -113,6 +114,7 @@ class UserModule : public XModule {
   bool is_dll_module_ = false;
   uint32_t entry_point_ = 0;
   uint32_t stack_size_ = 0;
+  uint32_t workspace_size_ = 384*1024;
 };
 
 }  // namespace kernel

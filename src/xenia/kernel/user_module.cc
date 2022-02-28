@@ -208,6 +208,13 @@ X_STATUS UserModule::LoadContinue() {
   // Cache some commonly used headers...
   this->xex_module()->GetOptHeader(XEX_HEADER_ENTRY_POINT, &entry_point_);
   this->xex_module()->GetOptHeader(XEX_HEADER_DEFAULT_STACK_SIZE, &stack_size_);
+
+  xe::be<uint32_t>* ws_size = 0;
+  this->xex_module()->GetOptHeader(XEX_HEADER_TITLE_WORKSPACE_SIZE, &ws_size);
+  // ToDo: Find better way to handle default and mimimal values!
+  if (ws_size && *ws_size) {
+    workspace_size_ = std::max(ws_size->get(), uint32_t(256 * 1024));
+  }
   is_dll_module_ = !!(header->module_flags & XEX_MODULE_DLL_MODULE);
 
   // Setup the loader data entry
