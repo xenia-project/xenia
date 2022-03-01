@@ -180,12 +180,21 @@ TEST_CASE("HighResolutionTimer") {
   // Smaller values are not as precise and fail the test
   const auto wait_time = 500ms;
 
+  const Thread* timer_thread = nullptr;
+
   // Time the actual sleep duration
   {
     const auto interval = 50ms;
     std::atomic<uint64_t> counter(0);
     auto start = std::chrono::steady_clock::now();
-    auto cb = [&counter] { ++counter; };
+    auto cb = [&counter, &timer_thread] {
+      if (counter == 0) {
+        timer_thread = Thread::GetCurrentThread();
+      } else {
+        REQUIRE(Thread::GetCurrentThread() == timer_thread);
+      }
+      ++counter;
+    };
     auto pTimer = HighResolutionTimer::CreateRepeating(interval, cb);
     Sleep(wait_time);
     pTimer.reset();
@@ -206,8 +215,14 @@ TEST_CASE("HighResolutionTimer") {
     std::atomic<uint64_t> counter1(0);
     std::atomic<uint64_t> counter2(0);
     auto start = std::chrono::steady_clock::now();
-    auto cb1 = [&counter1] { ++counter1; };
-    auto cb2 = [&counter2] { ++counter2; };
+    auto cb1 = [&counter1, timer_thread] {
+      ++counter1;
+      REQUIRE(Thread::GetCurrentThread() == timer_thread);
+    };
+    auto cb2 = [&counter2, timer_thread] {
+      ++counter2;
+      REQUIRE(Thread::GetCurrentThread() == timer_thread);
+    };
     auto pTimer1 = HighResolutionTimer::CreateRepeating(interval1, cb1);
     auto pTimer2 = HighResolutionTimer::CreateRepeating(interval2, cb2);
     Sleep(wait_time);
