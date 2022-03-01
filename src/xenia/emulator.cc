@@ -831,6 +831,7 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
           // If English title is unavailable, get the title in default locale.
           title_name_ = db.title();
         }
+        XELOGI("Title name: {}", title_name_);
         auto icon_block = db.icon();
         if (icon_block) {
           display_window_->SetIcon(icon_block.buffer, icon_block.size);
