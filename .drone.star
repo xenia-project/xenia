@@ -277,7 +277,7 @@ def pipeline_linux_desktop(name, image, arch, cc, build_release_all):
                 'image': image,
                 'volumes': [volume_build('premake')],
                 'commands': [
-                    'valgrind --error-exitcode=99 ./build/bin/Linux/Debug/xenia-base-tests',
+                    'valgrind --error-exitcode=99 ./build/bin/Linux/Debug/xenia-base-tests --durations yes',
                 ],
                 'depends_on': ['build-premake-debug-tests'],
             },
@@ -287,7 +287,7 @@ def pipeline_linux_desktop(name, image, arch, cc, build_release_all):
                 'image': image,
                 'volumes': [volume_build('premake')],
                 'commands': [
-                    './build/bin/Linux/Release/xenia-base-tests',
+                    './build/bin/Linux/Release/xenia-base-tests --success --durations yes',
                 ],
                 'depends_on': ['build-premake-release-tests'],
             },
@@ -297,7 +297,7 @@ def pipeline_linux_desktop(name, image, arch, cc, build_release_all):
                 'image': image,
                 'volumes': [volume_build('cmake')],
                 'commands': [
-                    './build/bin/Linux/Release/xenia-base-tests',
+                    './build/bin/Linux/Release/xenia-base-tests --success --durations yes',
                 ],
                 'depends_on': ['build-cmake-release-tests'],
             },
