@@ -31,7 +31,7 @@
   } while (false);
 #define MICROPROFILE_WEBSERVER 0
 #define MICROPROFILE_DEBUG 0
-#define MICROPROFILE_MAX_THREADS 128
+#define MICROPROFILE_MAX_THREADS 256
 #include "third_party/microprofile/microprofile.h"
 
 #include "xenia/base/assert.h"

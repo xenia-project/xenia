@@ -29,7 +29,7 @@
 
 #if XE_OPTION_PROFILING
 // Pollutes the global namespace. Yuck.
-#define MICROPROFILE_MAX_THREADS 128
+#define MICROPROFILE_MAX_THREADS 256
 #include <microprofile/microprofile.h>
 #endif  // XE_OPTION_PROFILING
 
