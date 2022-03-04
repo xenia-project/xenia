@@ -528,9 +528,7 @@ void Processor::OnThreadDestroyed(uint32_t thread_id) {
   auto global_lock = global_critical_region_.Acquire();
   auto it = thread_debug_infos_.find(thread_id);
   assert_true(it != thread_debug_infos_.end());
-  auto thread_info = it->second.get();
-  thread_info->state = ThreadDebugInfo::State::kZombie;
-  thread_info->thread = nullptr;
+  thread_debug_infos_.erase(it);
 }
 
 void Processor::OnThreadEnteringWait(uint32_t thread_id) {
