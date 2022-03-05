@@ -11,6 +11,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/platform_win.h"
 #include "xenia/base/threading.h"
+#include "xenia/base/threading_timer_queue.h"
 
 #define LOG_LASTERROR() \
   { XELOGI("Win32 Error 0x{:08X} in " __FUNCTION__ "(...)", GetLastError()); }
@@ -110,48 +111,6 @@ uintptr_t GetTlsValue(TlsHandle handle) {
 
 bool SetTlsValue(TlsHandle handle, uintptr_t value) {
   return TlsSetValue(handle, reinterpret_cast<void*>(value)) ? true : false;
-}
-
-class Win32HighResolutionTimer : public HighResolutionTimer {
- public:
-  Win32HighResolutionTimer(std::function<void()> callback)
-      : callback_(std::move(callback)) {}
-  ~Win32HighResolutionTimer() override {
-    if (valid_) {
-      DeleteTimerQueueTimer(nullptr, handle_, INVALID_HANDLE_VALUE);
-      handle_ = nullptr;
-    }
-  }
-
-  bool Initialize(std::chrono::milliseconds period) {
-    if (valid_) {
-      // Double initialization
-      assert_always();
-      return false;
-    }
-    valid_ = !!CreateTimerQueueTimer(
-        &handle_, nullptr,
-        [](PVOID param, BOOLEAN timer_or_wait_fired) {
-          auto timer = reinterpret_cast<Win32HighResolutionTimer*>(param);
-          timer->callback_();
-        },
-        this, 0, DWORD(period.count()), WT_EXECUTEINTIMERTHREAD);
-    return valid_;
-  }
-
- private:
-  std::function<void()> callback_;
-  HANDLE handle_ = nullptr;
-  bool valid_ = false;  // Documentation does not state which HANDLE is invalid
-};
-
-std::unique_ptr<HighResolutionTimer> HighResolutionTimer::CreateRepeating(
-    std::chrono::milliseconds period, std::function<void()> callback) {
-  auto timer = std::make_unique<Win32HighResolutionTimer>(std::move(callback));
-  if (!timer->Initialize(period)) {
-    return nullptr;
-  }
-  return std::move(timer);
 }
 
 template <typename T>

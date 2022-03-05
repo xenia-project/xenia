@@ -27,6 +27,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/literals.h"
 #include "xenia/base/platform.h"
+#include "xenia/base/threading_timer_queue.h"
 
 namespace xe {
 namespace threading {
@@ -141,18 +142,38 @@ bool FreeTlsHandle(TlsHandle handle);
 uintptr_t GetTlsValue(TlsHandle handle);
 bool SetTlsValue(TlsHandle handle, uintptr_t value);
 
-// A high-resolution timer capable of firing at millisecond-precision.
-// All timers created in this way are executed in the same thread so
-// callbacks must be kept short or else all timers will be impacted.
+// A high-resolution timer capable of firing at millisecond-precision. All
+// timers created in this way are executed in the same thread so callbacks must
+// be kept short or else all timers will be impacted. This is a simplified
+// wrapper around QueueTimerRecurring which automatically cancels the timer on
+// destruction.
 class HighResolutionTimer {
+  HighResolutionTimer(std::chrono::milliseconds interval,
+                      std::function<void()> callback) {
+    assert_not_null(callback);
+    wait_item_ = QueueTimerRecurring(
+        [callback = std::move(callback)](void*) { callback(); }, nullptr,
+        TimerQueueWaitItem::clock::now(), interval);
+  }
+
  public:
-  virtual ~HighResolutionTimer() = default;
+  ~HighResolutionTimer() {
+    if (auto wait_item = wait_item_.lock()) {
+      wait_item->Disarm();
+    }
+  }
 
   // Creates a new repeating timer with the given period.
   // The given function will be called back as close to the given period as
   // possible.
   static std::unique_ptr<HighResolutionTimer> CreateRepeating(
-      std::chrono::milliseconds period, std::function<void()> callback);
+      std::chrono::milliseconds period, std::function<void()> callback) {
+    return std::unique_ptr<HighResolutionTimer>(
+        new HighResolutionTimer(period, std::move(callback)));
+  }
+
+ private:
+  std::weak_ptr<TimerQueueWaitItem> wait_item_;
 };
 
 // Results for a WaitHandle operation.
