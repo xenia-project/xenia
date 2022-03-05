@@ -11,6 +11,7 @@
 
 #include "xenia/base/threading.h"
 
+#define CATCH_CONFIG_ENABLE_CHRONO_STRINGMAKER
 #include "third_party/catch/include/catch.hpp"
 
 namespace xe {
@@ -786,7 +787,7 @@ TEST_CASE("Wait on Timer", "[timer]") {
   REQUIRE(timer);
   result = Wait(timer.get(), false, 1ms);
   REQUIRE(result == WaitResult::kTimeout);
-  REQUIRE(timer->SetOnce(1ms));  // Signals it
+  REQUIRE(timer->SetOnceAfter(1ms));  // Signals it
   result = Wait(timer.get(), false, 2ms);
   REQUIRE(result == WaitResult::kSuccess);
   result = Wait(timer.get(), false, 1ms);
@@ -797,21 +798,20 @@ TEST_CASE("Wait on Timer", "[timer]") {
   REQUIRE(timer);
   result = Wait(timer.get(), false, 1ms);
   REQUIRE(result == WaitResult::kTimeout);
-  REQUIRE(timer->SetOnce(1ms));  // Signals it
+  REQUIRE(timer->SetOnceAfter(1ms));  // Signals it
   result = Wait(timer.get(), false, 2ms);
   REQUIRE(result == WaitResult::kSuccess);
   result = Wait(timer.get(), false, 1ms);
   REQUIRE(result == WaitResult::kTimeout);  // Did reset
 
-  // TODO(bwrsandman): This test unexpectedly fails under windows
   // Test long due time
-  // timer = Timer::CreateSynchronizationTimer();
-  // REQUIRE(timer->SetOnce(10s));
-  // result = Wait(timer.get(), false, 10ms);  // Still signals under windows
-  // REQUIRE(result == WaitResult::kTimeout);
+  timer = Timer::CreateSynchronizationTimer();
+  REQUIRE(timer->SetOnceAfter(10s));
+  result = Wait(timer.get(), false, 10ms);
+  REQUIRE(result == WaitResult::kTimeout);
 
   // Test Repeating
-  REQUIRE(timer->SetRepeating(1ms, 10ms));
+  REQUIRE(timer->SetRepeatingAfter(1ms, 10ms));
   for (int i = 0; i < 10; ++i) {
     result = Wait(timer.get(), false, 20ms);
     INFO(i);
@@ -832,12 +832,12 @@ TEST_CASE("Wait on Timer", "[timer]") {
   result = Wait(timer.get(), false, 20ms);
   REQUIRE(result == WaitResult::kTimeout);
   // Cancel with SetOnce
-  REQUIRE(timer->SetRepeating(1ms, 10ms));
+  REQUIRE(timer->SetRepeatingAfter(1ms, 10ms));
   for (int i = 0; i < 10; ++i) {
     result = Wait(timer.get(), false, 20ms);
     REQUIRE(result == WaitResult::kSuccess);
   }
-  REQUIRE(timer->SetOnce(1ms));
+  REQUIRE(timer->SetOnceAfter(1ms));
   result = Wait(timer.get(), false, 20ms);
   REQUIRE(result == WaitResult::kSuccess);  // Signal from Set Once
   result = Wait(timer.get(), false, 20ms);
@@ -859,7 +859,7 @@ TEST_CASE("Wait on Multiple Timers", "[timer]") {
   REQUIRE(any_result.second == 0);
 
   // Some signaled
-  REQUIRE(timer1->SetOnce(1ms));
+  REQUIRE(timer1->SetOnceAfter(1ms));
   all_result = WaitAll({timer0.get(), timer1.get()}, false, 100ms);
   REQUIRE(all_result == WaitResult::kTimeout);
   any_result = WaitAny({timer0.get(), timer1.get()}, false, 100ms);
@@ -867,11 +867,11 @@ TEST_CASE("Wait on Multiple Timers", "[timer]") {
   REQUIRE(any_result.second == 1);
 
   // All signaled
-  REQUIRE(timer0->SetOnce(1ms));
+  REQUIRE(timer0->SetOnceAfter(1ms));
   all_result = WaitAll({timer0.get(), timer1.get()}, false, 100ms);
   REQUIRE(all_result == WaitResult::kSuccess);
-  REQUIRE(timer0->SetOnce(1ms));
-  Sleep(1ms);
+  REQUIRE(timer0->SetOnceAfter(1ms));
+  Sleep(2ms);
   any_result = WaitAny({timer0.get(), timer1.get()}, false, 100ms);
   REQUIRE(any_result.first == WaitResult::kSuccess);
   REQUIRE(any_result.second == 0);

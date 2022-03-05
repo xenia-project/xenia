@@ -8,6 +8,7 @@
  */
 
 #include "xenia/base/assert.h"
+#include "xenia/base/chrono_steady_cast.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform_win.h"
 #include "xenia/base/threading.h"
@@ -276,15 +277,28 @@ std::unique_ptr<Mutant> Mutant::Create(bool initial_owner) {
 }
 
 class Win32Timer : public Win32Handle<Timer> {
+  using WClock_ = Timer::WClock_;
+  using GClock_ = Timer::GClock_;
+
  public:
   explicit Win32Timer(HANDLE handle) : Win32Handle(handle) {}
   ~Win32Timer() = default;
-  bool SetOnce(std::chrono::nanoseconds due_time,
-               std::function<void()> opt_callback) override {
+
+  bool SetOnceAfter(xe::chrono::hundrednanoseconds rel_time,
+                    std::function<void()> opt_callback) override {
+    return SetOnceAt(WClock_::now() + rel_time, std::move(opt_callback));
+  }
+  bool SetOnceAt(GClock_::time_point due_time,
+                 std::function<void()> opt_callback) override {
+    return SetOnceAt(date::clock_cast<WClock_>(due_time),
+                     std::move(opt_callback));
+  }
+  bool SetOnceAt(WClock_::time_point due_time,
+                 std::function<void()> opt_callback) override {
     std::lock_guard<std::mutex> lock(mutex_);
     callback_ = std::move(opt_callback);
     LARGE_INTEGER due_time_li;
-    due_time_li.QuadPart = due_time.count() / 100;
+    due_time_li.QuadPart = WClock_::to_file_time(due_time);
     auto completion_routine =
         callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine)
                   : NULL;
@@ -293,13 +307,26 @@ class Win32Timer : public Win32Handle<Timer> {
                ? true
                : false;
   }
-  bool SetRepeating(std::chrono::nanoseconds due_time,
-                    std::chrono::milliseconds period,
-                    std::function<void()> opt_callback) override {
+
+  bool SetRepeatingAfter(
+      xe::chrono::hundrednanoseconds rel_time, std::chrono::milliseconds period,
+      std::function<void()> opt_callback = nullptr) override {
+    return SetRepeatingAt(WClock_::now() + rel_time, period,
+                          std::move(opt_callback));
+  }
+  bool SetRepeatingAt(GClock_::time_point due_time,
+                      std::chrono::milliseconds period,
+                      std::function<void()> opt_callback = nullptr) {
+    return SetRepeatingAt(date::clock_cast<WClock_>(due_time), period,
+                          std::move(opt_callback));
+  }
+  bool SetRepeatingAt(WClock_::time_point due_time,
+                      std::chrono::milliseconds period,
+                      std::function<void()> opt_callback) override {
     std::lock_guard<std::mutex> lock(mutex_);
     callback_ = std::move(opt_callback);
     LARGE_INTEGER due_time_li;
-    due_time_li.QuadPart = due_time.count() / 100;
+    due_time_li.QuadPart = WClock_::to_file_time(due_time);
     auto completion_routine =
         callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine)
                   : NULL;
@@ -308,6 +335,7 @@ class Win32Timer : public Win32Handle<Timer> {
                ? true
                : false;
   }
+
   bool Cancel() override {
     // Reset the callback immediately so that any completions don't call it.
     std::lock_guard<std::mutex> lock(mutex_);
