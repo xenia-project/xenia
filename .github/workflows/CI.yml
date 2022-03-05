@@ -84,5 +84,6 @@ jobs:
           # Remove canary_ to prevent conflicts from tag
           $tag=$($branch -replace 'canary_', '')
           gh release delete $tag -y
-          If ($LastExitCode -ne 0) { echo "LastExitCode = $LastExitCode";$LastExitCode = 0 }
+          git push --delete origin $tag
+          git tag -d $tag
           gh release create $tag $asset --target $env:GITHUB_SHA -t $branch
