@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/chrono.h"
 #include "xenia/base/literals.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/threading_timer_queue.h"
@@ -338,6 +339,13 @@ class Mutant : public WaitHandle {
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms687012(v=vs.85).aspx
 class Timer : public WaitHandle {
  public:
+  // Make vtable entries for both so we can defer conversions and only do them
+  // if really necessary (let the calling code what clock it prefers). Windows
+  // kernel sync primitives will work with WinSystemClock while our own
+  // implementation works with steady_clock.
+  using WClock_ = xe::chrono::WinSystemClock;
+  using GClock_ = std::chrono::steady_clock;  // generic
+
   // Creates a timer whose state remains signaled until SetOnce() or
   // SetRepeating() is called to establish a new due time.
   static std::unique_ptr<Timer> CreateManualResetTimer();
@@ -350,25 +358,27 @@ class Timer : public WaitHandle {
   // timer is signaled and the thread that set the timer calls the optional
   // completion routine.
   // Returns true on success.
-  virtual bool SetOnce(std::chrono::nanoseconds due_time,
-                       std::function<void()> opt_callback = nullptr) = 0;
+  virtual bool SetOnceAfter(xe::chrono::hundrednanoseconds rel_time,
+                            std::function<void()> opt_callback = nullptr) = 0;
+  virtual bool SetOnceAt(WClock_::time_point due_time,
+                         std::function<void()> opt_callback = nullptr) = 0;
+  virtual bool SetOnceAt(GClock_::time_point due_time,
+                         std::function<void()> opt_callback = nullptr) = 0;
 
   // Activates the specified waitable timer. When the due time arrives, the
   // timer is signaled and the thread that set the timer calls the optional
   // completion routine. A periodic timer automatically reactivates each time
   // the period elapses, until the timer is canceled or reset.
   // Returns true on success.
-  virtual bool SetRepeating(std::chrono::nanoseconds due_time,
-                            std::chrono::milliseconds period,
-                            std::function<void()> opt_callback = nullptr) = 0;
-  template <typename Rep, typename Period>
-  bool SetRepeating(std::chrono::nanoseconds due_time,
-                    std::chrono::duration<Rep, Period> period,
-                    std::function<void()> opt_callback = nullptr) {
-    return SetRepeating(
-        due_time, std::chrono::duration_cast<std::chrono::milliseconds>(period),
-        std::move(opt_callback));
-  }
+  virtual bool SetRepeatingAfter(
+      xe::chrono::hundrednanoseconds rel_time, std::chrono::milliseconds period,
+      std::function<void()> opt_callback = nullptr) = 0;
+  virtual bool SetRepeatingAt(WClock_::time_point due_time,
+                              std::chrono::milliseconds period,
+                              std::function<void()> opt_callback = nullptr) = 0;
+  virtual bool SetRepeatingAt(GClock_::time_point due_time,
+                              std::chrono::milliseconds period,
+                              std::function<void()> opt_callback = nullptr) = 0;
 
   // Stops the timer before it can be set to the signaled state and cancels
   // outstanding callbacks. Threads performing a wait operation on the timer
