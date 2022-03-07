@@ -2,23 +2,49 @@ name: CI
 
 on:
   push:
-    branches-ignore: [ gh-pages, master ]
+    branches-ignore: [gh-pages, master]
     paths-ignore:
+      - '.clang-format'
+      - '.drone.star'
+      - '.gitattributes'
+      - '.gitignore'
+      - '.gdbinit'
       - '.github/*'
       - '.github/*_TEMPLATE/**'
       - '*.md'
       - '*.yml'
       - 'docs/**'
+      - 'src/**/*_posix.*'
+      - 'src/**/*_linux.*'
+      - 'src/**/*_gnulinux.*'
+      - 'src/**/*_x11.*'
+      - 'src/**/*_gtk.*'
+      - 'src/**/*_android.*'
+      - 'src/**/*_mac.*'
       - 'LICENSE'
+      - 'README.md'
   pull_request:
-    branches-ignore: [ gh-pages, master ]
+    branches-ignore: [gh-pages, master]
     paths-ignore:
+      - '.clang-format'
+      - '.drone.star'
+      - '.gitattributes'
+      - '.gitignore'
+      - '.gdbinit'
       - '.github/*'
       - '.github/*_TEMPLATE/**'
       - '*.md'
       - '*.yml'
       - 'docs/**'
+      - 'src/**/*_posix.*'
+      - 'src/**/*_linux.*'
+      - 'src/**/*_gnulinux.*'
+      - 'src/**/*_x11.*'
+      - 'src/**/*_gtk.*'
+      - 'src/**/*_android.*'
+      - 'src/**/*_mac.*'
       - 'LICENSE'
+      - 'README.md'
   workflow_dispatch:
 
 jobs:
@@ -36,7 +62,7 @@ jobs:
           - runs-on: windows-latest
             vsver: VS2022
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - name: Setup
