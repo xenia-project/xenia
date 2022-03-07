@@ -750,6 +750,13 @@ void Value::Not() {
   }
 }
 
+void Value::AndNot(Value* other) {
+  assert_true(type == other->type);
+  Value second = Value(*other);
+  second.Not();
+  And(&second);
+}
+
 void Value::Shl(Value* other) {
   assert_true(other->type == INT8_TYPE);
   switch (type) {

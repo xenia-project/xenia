@@ -516,6 +516,7 @@ class Value {
   void Or(Value* other);
   void Xor(Value* other);
   void Not();
+  void AndNot(Value* other);
   void Shl(Value* other);
   void Shr(Value* other);
   void Sha(Value* other);
