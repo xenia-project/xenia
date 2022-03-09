@@ -5,20 +5,23 @@ function Write-FatalError($message) {
     Exit 1
 }
 
-$pythonPath = Get-Command python | Select-Object -ExpandProperty Definition
-
-# Check for 'python3' if 'python' isn't found
-if ([string]::IsNullOrEmpty($pythonPath)) {
-    $pythonPath = Get-Command python3 | Select-Object -ExpandProperty Definition
+$pythonExecutables = 'python', 'python3'
+foreach ($pythonExecutable in $pythonExecutables) {
+    if (!$pythonPath) {
+        $pythonPath = powershell -NoLogo -NonInteractive "(Get-Command -ErrorAction SilentlyContinue $pythonexecutable).Definition" # Hack to not give command suggestion
+    } else {
+        break
+    }
 }
 # Neither found, error and exit
-if ([string]::IsNullOrEmpty($pythonPath)) {
-    Write-FatalError "ERROR: no Python executable found on PATH.`nMake sure you can run 'python' or 'python3' in a Command Prompt."
+$pythonMinimumVer = 3,6
+if (!$pythonPath) {
+    Write-FatalError "ERROR: Python $($pythonMinimumVer[0]).$($pythonMinimumVer[1])+ must be installed and on PATH:`nhttps://www.python.org/"
 }
 
-python -c "import sys; sys.exit(1 if not sys.version_info[:2] >= (3, 4) else 0)"
+& $pythonPath -c "import sys; sys.exit(1 if not sys.version_info[:2] >= ($($pythonMinimumVer[0]), $($pythonMinimumVer[1])) else 0)"
 if ($LASTEXITCODE -gt 0) {
-    Write-FatalError "ERROR: Python version mismatch, not at least 3.4.`nFound Python executable was $($pythonPath)"
+    Write-FatalError "ERROR: Python version mismatch, not at least $($pythonMinimumVer[0]).$($pythonMinimumVer[1]).`nFound Python executable was `"$($pythonPath)`"."
 }
 
-python "$($PSScriptRoot)/xenia-build" $args
+& $pythonPath "$($PSScriptRoot)/xenia-build" $args
