@@ -13,6 +13,7 @@
 #include <string>
 
 #include "xenia/base/atomic.h"
+#include "xenia/base/chrono.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 #include "xenia/base/threading.h"
@@ -21,7 +22,6 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
-#include "xenia/kernel/xclock.h"
 #include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xthread.h"
 
@@ -511,7 +511,10 @@ static_assert_size(X_TIME_FIELDS, 16);
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtltimetotimefields
 void RtlTimeToTimeFields_entry(lpqword_t time_ptr,
                                pointer_t<X_TIME_FIELDS> time_fields_ptr) {
-  auto tp = XClock::to_sys(XClock::from_file_time(time_ptr.value()));
+  // Use host clock because we don't want scaling to be applied, just conversion
+  using xe::chrono::WinSystemClock;
+  auto tp =
+      WinSystemClock::to_sys(WinSystemClock::from_file_time(time_ptr.value()));
   auto dp = date::floor<date::days>(tp);
   auto year_month_day = date::year_month_day{dp};
   auto weekday = date::weekday{dp};
@@ -531,6 +534,7 @@ DECLARE_XBOXKRNL_EXPORT1(RtlTimeToTimeFields, kNone, kImplemented);
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtltimefieldstotime
 dword_result_t RtlTimeFieldsToTime_entry(
     pointer_t<X_TIME_FIELDS> time_fields_ptr, lpqword_t time_ptr) {
+  using xe::chrono::WinSystemClock;
   if (time_fields_ptr->year < 1601 || time_fields_ptr->month < 1 ||
       time_fields_ptr->month > 12 || time_fields_ptr->day < 1 ||
       time_fields_ptr->day > 31 || time_fields_ptr->hour > 23 ||
@@ -551,7 +555,7 @@ dword_result_t RtlTimeFieldsToTime_entry(
   time += std::chrono::minutes{time_fields_ptr->minute};
   time += std::chrono::seconds{time_fields_ptr->second};
   time += std::chrono::milliseconds{time_fields_ptr->milliseconds};
-  *time_ptr = XClock::to_file_time(XClock::from_sys(time));
+  *time_ptr = WinSystemClock::to_file_time(WinSystemClock::from_sys(time));
   return 1;
 }
 DECLARE_XBOXKRNL_EXPORT1(RtlTimeFieldsToTime, kNone, kImplemented);
