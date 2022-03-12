@@ -11,7 +11,6 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/chrono_steady_cast.h"
-#include "xenia/base/delay_scheduler.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/threading_timer_queue.h"
 
@@ -79,47 +78,6 @@ void AndroidShutdown() {
   }
 }
 #endif
-
-// This is separately allocated for each (`HighResolution`)`Timer` object. It
-// will be cleaned up some time (`timers_garbage_collector_delay`) after the
-// posix timer was canceled because posix `timer_delete(...)` does not remove
-// pending timer signals.
-// https://stackoverflow.com/questions/49756114/linux-timer-pending-signal
-struct timer_callback_info_t {
-  std::atomic_bool disarmed;
-#if !XE_HAS_SIGEV_THREAD_ID
-  pthread_t target_thread;
-#endif
-  std::function<void()> callback;
-  void* userdata;
-
-  timer_callback_info_t(std::function<void()> callback)
-      : disarmed(false),
-#if !XE_HAS_SIGEV_THREAD_ID
-        target_thread(),
-#endif
-        callback(callback),
-        userdata(nullptr) {
-  }
-};
-
-// GC for timer signal info structs:
-constexpr uint_fast8_t timers_garbage_collector_scale_ =
-#if XE_HAS_SIGEV_THREAD_ID
-    1;
-#else
-    2;
-#endif
-DelayScheduler<timer_callback_info_t> timers_garbage_collector_(
-    512 * timers_garbage_collector_scale_,
-    [](timer_callback_info_t* info) {
-      assert_not_null(info);
-      delete info;
-    },
-    true);
-// Delay we have to assume it takes to clear all pending signals (maximum):
-constexpr auto timers_garbage_collector_delay =
-    std::chrono::milliseconds(100 * timers_garbage_collector_scale_);
 
 template <typename _Rep, typename _Period>
 inline timespec DurationToTimeSpec(
