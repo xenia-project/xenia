@@ -95,6 +95,8 @@ void VulkanPrimitiveProcessor::BeginSubmission() {
     // been used yet, and builtin_index_buffer_upload_ is written before
     // submitting commands reading it.
 
+    command_processor_.EndRenderPass();
+
     DeferredCommandBuffer& command_buffer =
         command_processor_.deferred_command_buffer();
 
@@ -104,25 +106,10 @@ void VulkanPrimitiveProcessor::BeginSubmission() {
     copy_region->dstOffset = 0;
     copy_region->size = builtin_index_buffer_size_;
 
-    VkBufferMemoryBarrier builtin_index_buffer_memory_barrier;
-    builtin_index_buffer_memory_barrier.sType =
-        VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    builtin_index_buffer_memory_barrier.pNext = nullptr;
-    builtin_index_buffer_memory_barrier.srcAccessMask =
-        VK_ACCESS_TRANSFER_WRITE_BIT;
-    builtin_index_buffer_memory_barrier.dstAccessMask =
-        VK_ACCESS_INDEX_READ_BIT;
-    builtin_index_buffer_memory_barrier.srcQueueFamilyIndex =
-        VK_QUEUE_FAMILY_IGNORED;
-    builtin_index_buffer_memory_barrier.dstQueueFamilyIndex =
-        VK_QUEUE_FAMILY_IGNORED;
-    builtin_index_buffer_memory_barrier.buffer = builtin_index_buffer_;
-    builtin_index_buffer_memory_barrier.offset = 0;
-    builtin_index_buffer_memory_barrier.size = VK_WHOLE_SIZE;
-    command_processor_.EndRenderPass();
-    command_buffer.CmdVkPipelineBarrier(
-        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0,
-        0, nullptr, 1, &builtin_index_buffer_memory_barrier, 0, nullptr);
+    command_processor_.PushBufferMemoryBarrier(
+        builtin_index_buffer_, 0, VK_WHOLE_SIZE, VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+        VK_ACCESS_INDEX_READ_BIT);
 
     builtin_index_buffer_upload_submission_ =
         command_processor_.GetCurrentSubmission();

@@ -224,31 +224,28 @@ void VulkanSharedMemory::Use(Usage usage,
       std::min(written_range.second, kBufferSize - written_range.first);
   assert_true(usage != Usage::kRead || !written_range.second);
   if (last_usage_ != usage || last_written_range_.second) {
-    VkPipelineStageFlags stage_mask_src, stage_mask_dst;
-    VkBufferMemoryBarrier buffer_memory_barrier;
-    GetBarrier(last_usage_, stage_mask_src,
-               buffer_memory_barrier.srcAccessMask);
-    GetBarrier(usage, stage_mask_dst, buffer_memory_barrier.dstAccessMask);
-    buffer_memory_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    buffer_memory_barrier.pNext = nullptr;
-    buffer_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    buffer_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    buffer_memory_barrier.buffer = buffer_;
+    VkPipelineStageFlags src_stage_mask, dst_stage_mask;
+    VkAccessFlags src_access_mask, dst_access_mask;
+    GetBarrier(last_usage_, src_stage_mask, src_access_mask);
+    GetBarrier(usage, dst_stage_mask, dst_access_mask);
+    VkDeviceSize offset, size;
     if (last_usage_ == usage) {
-      // Committing the previous write.
-      buffer_memory_barrier.offset = VkDeviceSize(last_written_range_.first);
-      buffer_memory_barrier.size = VkDeviceSize(last_written_range_.second);
+      // Committing the previous write, while not changing the access mask
+      // (passing false as whether to skip the barrier if no masks are changed
+      // for this reason).
+      offset = VkDeviceSize(last_written_range_.first);
+      size = VkDeviceSize(last_written_range_.second);
     } else {
       // Changing the stage and access mask - all preceding writes must be
       // available not only to the source stage, but to the destination as well.
-      buffer_memory_barrier.offset = 0;
-      buffer_memory_barrier.size = VK_WHOLE_SIZE;
+      offset = 0;
+      size = VK_WHOLE_SIZE;
       last_usage_ = usage;
     }
-    command_processor_.EndRenderPass();
-    command_processor_.deferred_command_buffer().CmdVkPipelineBarrier(
-        stage_mask_src, stage_mask_dst, 0, 0, nullptr, 1,
-        &buffer_memory_barrier, 0, nullptr);
+    command_processor_.PushBufferMemoryBarrier(
+        buffer_, offset, size, src_stage_mask, dst_stage_mask, src_access_mask,
+        dst_access_mask, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+        false);
   }
   last_written_range_ = written_range;
 }
@@ -276,8 +273,8 @@ bool VulkanSharedMemory::InitializeTraceSubmitDownloads() {
     return false;
   }
 
-  command_processor_.EndRenderPass();
   Use(Usage::kRead);
+  command_processor_.SubmitBarriers(true);
   DeferredCommandBuffer& command_buffer =
       command_processor_.deferred_command_buffer();
 
@@ -295,19 +292,10 @@ bool VulkanSharedMemory::InitializeTraceSubmitDownloads() {
     download_buffer_offset += download_range.second;
   }
 
-  VkBufferMemoryBarrier download_buffer_barrier;
-  download_buffer_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-  download_buffer_barrier.pNext = nullptr;
-  download_buffer_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  download_buffer_barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
-  download_buffer_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  download_buffer_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  download_buffer_barrier.buffer = trace_download_buffer_;
-  download_buffer_barrier.offset = 0;
-  download_buffer_barrier.size = VK_WHOLE_SIZE;
-  command_buffer.CmdVkPipelineBarrier(VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                      VK_PIPELINE_STAGE_HOST_BIT, 0, 0, nullptr,
-                                      1, &download_buffer_barrier, 0, nullptr);
+  command_processor_.PushBufferMemoryBarrier(
+      trace_download_buffer_, 0, VK_WHOLE_SIZE, VK_PIPELINE_STAGE_TRANSFER_BIT,
+      VK_PIPELINE_STAGE_HOST_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+      VK_ACCESS_HOST_READ_BIT);
 
   return true;
 }
@@ -389,7 +377,6 @@ bool VulkanSharedMemory::UploadRanges(
   if (upload_page_ranges.empty()) {
     return true;
   }
-  command_processor_.EndRenderPass();
   // upload_page_ranges are sorted, use them to determine the range for the
   // ordering barrier.
   Use(Usage::kTransferDestination,
@@ -398,6 +385,7 @@ bool VulkanSharedMemory::UploadRanges(
           (upload_page_ranges.back().first + upload_page_ranges.back().second -
            upload_page_ranges.front().first)
               << page_size_log2()));
+  command_processor_.SubmitBarriers(true);
   DeferredCommandBuffer& command_buffer =
       command_processor_.deferred_command_buffer();
   uint64_t submission_current = command_processor_.GetCurrentSubmission();

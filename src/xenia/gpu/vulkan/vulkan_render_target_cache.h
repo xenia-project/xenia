@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -113,6 +113,22 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   // Can only be destroyed when framebuffers referencing it are destroyed!
   class VulkanRenderTarget final : public RenderTarget {
    public:
+    static constexpr VkPipelineStageFlags kColorDrawStageMask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    static constexpr VkAccessFlags kColorDrawAccessMask =
+        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    static constexpr VkImageLayout kColorDrawLayout =
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    static constexpr VkPipelineStageFlags kDepthDrawStageMask =
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+        VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    static constexpr VkAccessFlags kDepthDrawAccessMask =
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    static constexpr VkImageLayout kDepthDrawLayout =
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     // Takes ownership of the Vulkan objects passed to the constructor.
     VulkanRenderTarget(RenderTargetKey key,
                        const ui::vulkan::VulkanProvider& provider,
@@ -137,6 +153,26 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     VkImageView view_depth_color() const { return view_depth_color_; }
     VkImageView view_depth_stencil() const { return view_depth_stencil_; }
 
+    static void GetDrawUsage(bool is_depth,
+                             VkPipelineStageFlags* stage_mask_out,
+                             VkAccessFlags* access_mask_out,
+                             VkImageLayout* layout_out) {
+      if (stage_mask_out) {
+        *stage_mask_out = is_depth ? kDepthDrawStageMask : kColorDrawStageMask;
+      }
+      if (access_mask_out) {
+        *access_mask_out =
+            is_depth ? kDepthDrawAccessMask : kColorDrawAccessMask;
+      }
+      if (layout_out) {
+        *layout_out = is_depth ? kDepthDrawLayout : kColorDrawLayout;
+      }
+    }
+    void GetDrawUsage(VkPipelineStageFlags* stage_mask_out,
+                      VkAccessFlags* access_mask_out,
+                      VkImageLayout* layout_out) const {
+      GetDrawUsage(key().is_depth, stage_mask_out, access_mask_out, layout_out);
+    }
     VkPipelineStageFlags current_stage_mask() const {
       return current_stage_mask_;
     }

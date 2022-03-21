@@ -313,7 +313,7 @@ bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
     image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     image_memory_barrier.image = guest_output_image->image();
-    util::InitializeSubresourceRange(image_memory_barrier.subresourceRange);
+    image_memory_barrier.subresourceRange = util::InitializeSubresourceRange();
     dfn.vkCmdPipelineBarrier(command_buffer, kGuestOutputInternalStageMask,
                              VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
                              nullptr, 1, &image_memory_barrier);

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -183,73 +183,26 @@ bool VulkanRenderTargetCache::Update(bool is_rasterization_done,
   last_update_framebuffer_ = framebuffer;
 
   // Transition the used render targets.
-  VkPipelineStageFlags barrier_src_stage_mask = 0;
-  VkPipelineStageFlags barrier_dst_stage_mask = 0;
-  VkImageMemoryBarrier barrier_image_memory[1 + xenos::kMaxColorRenderTargets];
-  uint32_t barrier_image_memory_count = 0;
   for (uint32_t i = 0; i < 1 + xenos::kMaxColorRenderTargets; ++i) {
     RenderTarget* rt = depth_and_color_render_targets[i];
     if (!rt) {
       continue;
     }
     auto& vulkan_rt = *static_cast<VulkanRenderTarget*>(rt);
-    VkPipelineStageFlags rt_src_stage_mask = vulkan_rt.current_stage_mask();
-    VkAccessFlags rt_src_access_mask = vulkan_rt.current_access_mask();
-    VkImageLayout rt_old_layout = vulkan_rt.current_layout();
     VkPipelineStageFlags rt_dst_stage_mask;
     VkAccessFlags rt_dst_access_mask;
     VkImageLayout rt_new_layout;
-    if (i) {
-      rt_dst_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-      rt_dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-                           VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-      rt_new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    } else {
-      rt_dst_stage_mask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-                          VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-      rt_dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-                           VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-      rt_new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    }
-    bool rt_image_memory_barrier_needed =
-        rt_src_access_mask != rt_dst_access_mask ||
-        rt_old_layout != rt_new_layout;
-    if (rt_image_memory_barrier_needed ||
-        rt_src_stage_mask != rt_dst_stage_mask) {
-      barrier_src_stage_mask |= rt_src_stage_mask;
-      barrier_dst_stage_mask |= rt_dst_stage_mask;
-      if (rt_image_memory_barrier_needed) {
-        VkImageMemoryBarrier& rt_image_memory_barrier =
-            barrier_image_memory[barrier_image_memory_count++];
-        rt_image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        rt_image_memory_barrier.pNext = nullptr;
-        rt_image_memory_barrier.srcAccessMask = rt_src_access_mask;
-        rt_image_memory_barrier.dstAccessMask = rt_dst_access_mask;
-        rt_image_memory_barrier.oldLayout = rt_old_layout;
-        rt_image_memory_barrier.newLayout = rt_new_layout;
-        rt_image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        rt_image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        rt_image_memory_barrier.image = vulkan_rt.image();
+    VulkanRenderTarget::GetDrawUsage(i == 0, &rt_dst_stage_mask,
+                                     &rt_dst_access_mask, &rt_new_layout);
+    command_processor_.PushImageMemoryBarrier(
+        vulkan_rt.image(),
         ui::vulkan::util::InitializeSubresourceRange(
-            rt_image_memory_barrier.subresourceRange,
             i ? VK_IMAGE_ASPECT_COLOR_BIT
-              : (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT));
-      }
-      vulkan_rt.SetUsage(rt_dst_stage_mask, rt_dst_access_mask, rt_new_layout);
-    }
-  }
-  if (barrier_src_stage_mask || barrier_dst_stage_mask ||
-      barrier_image_memory_count) {
-    if (!barrier_src_stage_mask) {
-      barrier_src_stage_mask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-    }
-    if (!barrier_dst_stage_mask) {
-      barrier_dst_stage_mask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-    }
-    command_processor_.EndRenderPass();
-    command_processor_.deferred_command_buffer().CmdVkPipelineBarrier(
-        barrier_src_stage_mask, barrier_dst_stage_mask, 0, 0, nullptr, 0,
-        nullptr, barrier_image_memory_count, barrier_image_memory);
+              : (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)),
+        vulkan_rt.current_stage_mask(), rt_dst_stage_mask,
+        vulkan_rt.current_access_mask(), rt_dst_access_mask,
+        vulkan_rt.current_layout(), rt_new_layout);
+    vulkan_rt.SetUsage(rt_dst_stage_mask, rt_dst_access_mask, rt_new_layout);
   }
 
   return true;
@@ -288,8 +241,8 @@ VkRenderPass VulkanRenderTargetCache::GetRenderPass(RenderPassKey key) {
     attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
     attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    attachment.initialLayout = VulkanRenderTarget::kDepthDrawLayout;
+    attachment.finalLayout = VulkanRenderTarget::kDepthDrawLayout;
   }
   VkAttachmentReference color_attachments[xenos::kMaxColorRenderTargets];
   xenos::ColorRenderTargetFormat color_formats[] = {
@@ -300,7 +253,7 @@ VkRenderPass VulkanRenderTargetCache::GetRenderPass(RenderPassKey key) {
   };
   for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
     VkAttachmentReference& color_attachment = color_attachments[i];
-    color_attachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    color_attachment.layout = VulkanRenderTarget::kColorDrawLayout;
     uint32_t attachment_bit = uint32_t(1) << (1 + i);
     if (!(key.depth_and_color_used & attachment_bit)) {
       color_attachment.attachment = VK_ATTACHMENT_UNUSED;
@@ -317,15 +270,14 @@ VkRenderPass VulkanRenderTargetCache::GetRenderPass(RenderPassKey key) {
     attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    attachment.initialLayout = VulkanRenderTarget::kColorDrawLayout;
+    attachment.finalLayout = VulkanRenderTarget::kColorDrawLayout;
   }
 
   VkAttachmentReference depth_stencil_attachment;
   depth_stencil_attachment.attachment =
       (key.depth_and_color_used & 0b1) ? 0 : VK_ATTACHMENT_UNUSED;
-  depth_stencil_attachment.layout =
-      VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+  depth_stencil_attachment.layout = VulkanRenderTarget::kDepthDrawLayout;
 
   VkSubpassDescription subpass;
   subpass.flags = 0;
@@ -344,15 +296,12 @@ VkRenderPass VulkanRenderTargetCache::GetRenderPass(RenderPassKey key) {
   VkPipelineStageFlags dependency_stage_mask = 0;
   VkAccessFlags dependency_access_mask = 0;
   if (key.depth_and_color_used & 0b1) {
-    dependency_stage_mask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
-                             VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    dependency_access_mask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-                              VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependency_stage_mask |= VulkanRenderTarget::kDepthDrawStageMask;
+    dependency_access_mask |= VulkanRenderTarget::kDepthDrawAccessMask;
   }
   if (key.depth_and_color_used >> 1) {
-    dependency_stage_mask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency_access_mask |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
-                              VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependency_stage_mask |= VulkanRenderTarget::kColorDrawStageMask;
+    dependency_access_mask |= VulkanRenderTarget::kColorDrawAccessMask;
   }
   VkSubpassDependency subpass_dependencies[2];
   subpass_dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -577,9 +526,9 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(
   view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
   view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
   view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-  ui::vulkan::util::InitializeSubresourceRange(
-      view_create_info.subresourceRange,
-      key.is_depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT);
+  view_create_info.subresourceRange =
+      ui::vulkan::util::InitializeSubresourceRange(
+          key.is_depth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT);
   VkImageView view_depth_color;
   if (dfn.vkCreateImageView(device, &view_create_info, nullptr,
                             &view_depth_color) != VK_SUCCESS) {
