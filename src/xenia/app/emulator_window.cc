@@ -224,7 +224,7 @@ void EmulatorWindow::OnEmulatorInitialized() {
   // When the user can see that the emulator isn't initializing anymore (the
   // menu isn't disabled), enter fullscreen if requested.
   if (cvars::fullscreen) {
-    window_->SetFullscreen(true);
+    SetFullscreen(true);
   }
 }
 

@@ -280,7 +280,7 @@ class Window {
 
   // Desired state stored by the common Window, modifiable both externally and
   // by the implementation (including from SetFullscreen itself).
-  virtual bool IsFullscreen() const { return fullscreen_; }
+  bool IsFullscreen() const { return fullscreen_; }
   void SetFullscreen(bool new_fullscreen);
 
   // Desired state stored by the common Window, externally modifiable, read-only

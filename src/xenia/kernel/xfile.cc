@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -26,10 +26,12 @@ XFile::XFile(KernelState* kernel_state, vfs::File* file, bool synchronous)
       file_(file),
       is_synchronous_(synchronous) {
   async_event_ = threading::Event::CreateAutoResetEvent(false);
+  assert_not_null(async_event_);
 }
 
 XFile::XFile() : XObject(kObjectType) {
   async_event_ = threading::Event::CreateAutoResetEvent(false);
+  assert_not_null(async_event_);
 }
 
 XFile::~XFile() {

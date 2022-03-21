@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,7 +10,7 @@
 #include "xenia/base/threading.h"
 
 #include "xenia/base/assert.h"
-#include "xenia/base/logging.h"
+#include "xenia/base/delay_scheduler.h"
 #include "xenia/base/platform.h"
 
 #include <pthread.h>
@@ -23,7 +23,6 @@
 #include <unistd.h>
 #include <array>
 #include <cstddef>
-#include <cstring>
 #include <ctime>
 #include <memory>
 
@@ -32,6 +31,19 @@
 
 #include "xenia/base/main_android.h"
 #include "xenia/base/string_util.h"
+#endif
+
+#if XE_PLATFORM_LINUX
+// SIGEV_THREAD_ID in timer_create(...) is a Linux extension
+#define XE_HAS_SIGEV_THREAD_ID 1
+#ifdef __GLIBC__
+#define sigev_notify_thread_id _sigev_un._tid
+#endif
+#if __GLIBC__ == 2 && __GLIBC_MINOR__ < 30
+#define gettid() syscall(SYS_gettid)
+#endif
+#else
+#define XE_HAS_SIGEV_THREAD_ID 0
 #endif
 
 namespace xe {
@@ -65,6 +77,47 @@ void AndroidShutdown() {
   }
 }
 #endif
+
+// This is separately allocated for each (`HighResolution`)`Timer` object. It
+// will be cleaned up some time (`timers_garbage_collector_delay`) after the
+// posix timer was canceled because posix `timer_delete(...)` does not remove
+// pending timer signals.
+// https://stackoverflow.com/questions/49756114/linux-timer-pending-signal
+struct timer_callback_info_t {
+  std::atomic_bool disarmed;
+#if !XE_HAS_SIGEV_THREAD_ID
+  pthread_t target_thread;
+#endif
+  std::function<void()> callback;
+  void* userdata;
+
+  timer_callback_info_t(std::function<void()> callback)
+      : disarmed(false),
+#if !XE_HAS_SIGEV_THREAD_ID
+        target_thread(),
+#endif
+        callback(callback),
+        userdata(nullptr) {
+  }
+};
+
+// GC for timer signal info structs:
+constexpr uint_fast8_t timers_garbage_collector_scale_ =
+#if XE_HAS_SIGEV_THREAD_ID
+    1;
+#else
+    2;
+#endif
+DelayScheduler<timer_callback_info_t> timers_garbage_collector_(
+    512 * timers_garbage_collector_scale_,
+    [](timer_callback_info_t* info) {
+      assert_not_null(info);
+      delete info;
+    },
+    true);
+// Delay we have to assume it takes to clear all pending signals (maximum):
+constexpr auto timers_garbage_collector_delay =
+    std::chrono::milliseconds(100 * timers_garbage_collector_scale_);
 
 template <typename _Rep, typename _Period>
 inline timespec DurationToTimeSpec(
@@ -182,9 +235,20 @@ bool SetTlsValue(TlsHandle handle, uintptr_t value) {
 class PosixHighResolutionTimer : public HighResolutionTimer {
  public:
   explicit PosixHighResolutionTimer(std::function<void()> callback)
-      : callback_(std::move(callback)), valid_(false) {}
+      : valid_(false) {
+    callback_info_ = new timer_callback_info_t(std::move(callback));
+  }
   ~PosixHighResolutionTimer() override {
-    if (valid_) timer_delete(timer_);
+    if (valid_) {
+      callback_info_->disarmed = true;
+      timer_delete(timerid_);
+      // Deliberately leaks memory when wait queue is full instead of blogs,
+      // check logs
+      static_cast<void>(timers_garbage_collector_.TryScheduleAfter(
+          callback_info_, timers_garbage_collector_delay));
+    } else {
+      delete callback_info_;
+    }
   }
 
   bool Initialize(std::chrono::milliseconds period) {
@@ -195,22 +259,31 @@ class PosixHighResolutionTimer : public HighResolutionTimer {
     }
     // Create timer
     sigevent sev{};
+#if XE_HAS_SIGEV_THREAD_ID
+    sev.sigev_notify = SIGEV_SIGNAL | SIGEV_THREAD_ID;
+    sev.sigev_notify_thread_id = gettid();
+#else
     sev.sigev_notify = SIGEV_SIGNAL;
+    callback_info_->target_thread = pthread_self();
+#endif
     sev.sigev_signo = GetSystemSignal(SignalType::kHighResolutionTimer);
-    sev.sigev_value.sival_ptr = (void*)&callback_;
-    if (timer_create(CLOCK_MONOTONIC, &sev, &timer_) == -1) return false;
+    sev.sigev_value.sival_ptr = callback_info_;
+    if (timer_create(CLOCK_MONOTONIC, &sev, &timerid_) == -1) return false;
 
     // Start timer
     itimerspec its{};
     its.it_value = DurationToTimeSpec(period);
     its.it_interval = its.it_value;
-    valid_ = timer_settime(timer_, 0, &its, nullptr) != -1;
+    valid_ = timer_settime(timerid_, 0, &its, nullptr) != -1;
+    if (!valid_) {
+      timer_delete(timerid_);
+    }
     return valid_;
   }
 
  private:
-  std::function<void()> callback_;
-  timer_t timer_;
+  timer_callback_info_t* callback_info_;
+  timer_t timerid_;
   bool valid_;  // all values for timer_t are legal so we need this
 };
 
@@ -253,37 +326,37 @@ class PosixConditionBase {
   static std::pair<WaitResult, size_t> WaitMultiple(
       std::vector<PosixConditionBase*>&& handles, bool wait_all,
       std::chrono::milliseconds timeout) {
-    using iter_t = std::vector<PosixConditionBase*>::const_iterator;
-    bool executed;
-    auto predicate = [](auto h) { return h->signaled(); };
+    assert_true(handles.size() > 0);
 
     // Construct a condition for all or any depending on wait_all
-    auto operation = wait_all ? std::all_of<iter_t, decltype(predicate)>
-                              : std::any_of<iter_t, decltype(predicate)>;
-    auto aggregate = [&handles, operation, predicate] {
-      return operation(handles.cbegin(), handles.cend(), predicate);
-    };
+    std::function<bool()> predicate;
+    {
+      using iter_t = std::vector<PosixConditionBase*>::const_iterator;
+      const auto predicate_inner = [](auto h) { return h->signaled(); };
+      const auto operation =
+          wait_all ? std::all_of<iter_t, decltype(predicate_inner)>
+                   : std::any_of<iter_t, decltype(predicate_inner)>;
+      predicate = [&handles, operation, predicate_inner] {
+        return operation(handles.cbegin(), handles.cend(), predicate_inner);
+      };
+    }
 
     // TODO(bwrsandman, Triang3l) This is controversial, see issue #1677
     // This will probably cause a deadlock on the next thread doing any waiting
     // if the thread is suspended between locking and waiting
     std::unique_lock<std::mutex> lock(PosixConditionBase::mutex_);
 
-    // Check if the aggregate lambda (all or any) is already satisfied
-    if (aggregate()) {
-      executed = true;
+    bool wait_success = true;
+    // If the timeout is infinite, wait without timeout.
+    // The predicate will be checked before beginning the wait
+    if (timeout == std::chrono::milliseconds::max()) {
+      PosixConditionBase::cond_.wait(lock, predicate);
     } else {
-      // If the aggregate is not yet satisfied and the timeout is infinite,
-      // wait without timeout.
-      if (timeout == std::chrono::milliseconds::max()) {
-        PosixConditionBase::cond_.wait(lock, aggregate);
-        executed = true;
-      } else {
-        // Wait with timeout.
-        executed = PosixConditionBase::cond_.wait_for(lock, timeout, aggregate);
-      }
+      // Wait with timeout.
+      wait_success =
+          PosixConditionBase::cond_.wait_for(lock, timeout, predicate);
     }
-    if (executed) {
+    if (wait_success) {
       auto first_signaled = std::numeric_limits<size_t>::max();
       for (auto i = 0u; i < handles.size(); ++i) {
         if (handles[i]->signaled()) {
@@ -294,6 +367,7 @@ class PosixConditionBase {
           if (!wait_all) break;
         }
       }
+      assert_true(std::numeric_limits<size_t>::max() != first_signaled);
       return std::make_pair(WaitResult::kSuccess, first_signaled);
     } else {
       return std::make_pair<WaitResult, size_t>(WaitResult::kTimeout, 0);
@@ -329,13 +403,7 @@ class PosixCondition<Event> : public PosixConditionBase {
   bool Signal() override {
     auto lock = std::unique_lock<std::mutex>(mutex_);
     signal_ = true;
-    if (manual_reset_) {
-      cond_.notify_all();
-    } else {
-      // FIXME(bwrsandman): Potential cause for deadlock
-      // See issue #1678 for possible fix and discussion
-      cond_.notify_one();
-    }
+    cond_.notify_all();
     return true;
   }
 
@@ -402,7 +470,7 @@ class PosixCondition<Mutant> : public PosixConditionBase {
       --count_;
       // Free to be acquired by another thread
       if (count_ == 0) {
-        cond_.notify_one();
+        cond_.notify_all();
       }
       return true;
     }
@@ -427,33 +495,47 @@ template <>
 class PosixCondition<Timer> : public PosixConditionBase {
  public:
   explicit PosixCondition(bool manual_reset)
-      : callback_(),
-        timer_(nullptr),
+      : timer_(nullptr),
+        callback_info_(nullptr),
         signal_(false),
         manual_reset_(manual_reset) {}
 
   virtual ~PosixCondition() { Cancel(); }
 
   bool Signal() override {
-    CompletionRoutine();
+    std::lock_guard<std::mutex> lock(mutex_);
+    signal_ = true;
+    cond_.notify_all();
     return true;
   }
 
   // TODO(bwrsandman): due_times of under 1ms deadlock under travis
+  // TODO(joellinn): This is likely due to deadlock on mutex_ if Signal() is
+  // called from signal_handler running in Thread A while thread A was still in
+  // Set(...) routine inside the lock
   bool Set(std::chrono::nanoseconds due_time, std::chrono::milliseconds period,
            std::function<void()> opt_callback = nullptr) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    Cancel();
 
-    callback_ = std::move(opt_callback);
+    std::lock_guard<std::mutex> lock(mutex_);
+    callback_info_ = new timer_callback_info_t(std::move(opt_callback));
+    callback_info_->userdata = this;
     signal_ = false;
 
     // Create timer
-    if (timer_ == nullptr) {
-      sigevent sev{};
-      sev.sigev_notify = SIGEV_SIGNAL;
-      sev.sigev_signo = GetSystemSignal(SignalType::kTimer);
-      sev.sigev_value.sival_ptr = this;
-      if (timer_create(CLOCK_MONOTONIC, &sev, &timer_) == -1) return false;
+    sigevent sev{};
+#if XE_HAS_SIGEV_THREAD_ID
+    sev.sigev_notify = SIGEV_SIGNAL | SIGEV_THREAD_ID;
+    sev.sigev_notify_thread_id = gettid();
+#else
+    sev.sigev_notify = SIGEV_SIGNAL;
+    callback_info_->target_thread = pthread_self();
+#endif
+    sev.sigev_signo = GetSystemSignal(SignalType::kTimer);
+    sev.sigev_value.sival_ptr = callback_info_;
+    if (timer_create(CLOCK_MONOTONIC, &sev, &timer_) == -1) {
+      delete callback_info_;
+      return false;
     }
 
     // Start timer
@@ -463,30 +545,16 @@ class PosixCondition<Timer> : public PosixConditionBase {
     return timer_settime(timer_, 0, &its, nullptr) == 0;
   }
 
-  void CompletionRoutine() {
-    // As the callback may reset the timer, store local.
-    std::function<void()> callback;
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      // Store callback
-      if (callback_) callback = callback_;
-      signal_ = true;
-      if (manual_reset_) {
-        cond_.notify_all();
-      } else {
-        cond_.notify_one();
-      }
-    }
-    // Call callback
-    if (callback) callback();
-  }
-
   bool Cancel() {
     std::lock_guard<std::mutex> lock(mutex_);
     bool result = true;
     if (timer_) {
+      callback_info_->disarmed = true;
       result = timer_delete(timer_) == 0;
       timer_ = nullptr;
+      static_cast<void>(timers_garbage_collector_.TryScheduleAfter(
+          callback_info_, timers_garbage_collector_delay));
+      callback_info_ = nullptr;
     }
     return result;
   }
@@ -502,8 +570,8 @@ class PosixCondition<Timer> : public PosixConditionBase {
       signal_ = false;
     }
   }
-  std::function<void()> callback_;
   timer_t timer_;
+  timer_callback_info_t* callback_info_;
   volatile bool signal_;
   const bool manual_reset_;
 };
@@ -984,6 +1052,10 @@ class PosixSemaphore : public PosixConditionHandle<Semaphore> {
 
 std::unique_ptr<Semaphore> Semaphore::Create(int initial_count,
                                              int maximum_count) {
+  if (initial_count < 0 || initial_count > maximum_count ||
+      maximum_count <= 0) {
+    return nullptr;
+  }
   return std::make_unique<PosixSemaphore>(initial_count, maximum_count);
 }
 
@@ -1182,15 +1254,50 @@ static void signal_handler(int signal, siginfo_t* info, void* /*context*/) {
   switch (GetSystemSignalType(signal)) {
     case SignalType::kHighResolutionTimer: {
       assert_not_null(info->si_value.sival_ptr);
-      auto callback =
-          *static_cast<std::function<void()>*>(info->si_value.sival_ptr);
-      callback();
+      auto timer_info =
+          reinterpret_cast<timer_callback_info_t*>(info->si_value.sival_ptr);
+      if (!timer_info->disarmed) {
+#if XE_HAS_SIGEV_THREAD_ID
+        {
+#else
+        if (pthread_self() != timer_info->target_thread) {
+          sigval info_inner{};
+          info_inner.sival_ptr = timer_info;
+          const auto queueres = pthread_sigqueue(
+              timer_info->target_thread,
+              GetSystemSignal(SignalType::kHighResolutionTimer), info_inner);
+          assert_zero(queueres);
+        } else {
+#endif
+          timer_info->callback();
+        }
+      }
     } break;
     case SignalType::kTimer: {
       assert_not_null(info->si_value.sival_ptr);
-      auto pTimer =
-          static_cast<PosixCondition<Timer>*>(info->si_value.sival_ptr);
-      pTimer->CompletionRoutine();
+      auto timer_info =
+          reinterpret_cast<timer_callback_info_t*>(info->si_value.sival_ptr);
+      if (!timer_info->disarmed) {
+        assert_not_null(timer_info->userdata);
+        auto timer = static_cast<PosixCondition<Timer>*>(timer_info->userdata);
+#if XE_HAS_SIGEV_THREAD_ID
+        {
+#else
+        if (pthread_self() != timer_info->target_thread) {
+          sigval info_inner{};
+          info_inner.sival_ptr = timer_info;
+          const auto queueres =
+              pthread_sigqueue(timer_info->target_thread,
+                               GetSystemSignal(SignalType::kTimer), info_inner);
+          assert_zero(queueres);
+        } else {
+#endif
+          timer->Signal();
+          if (timer_info->callback) {
+            timer_info->callback();
+          }
+        }
+      }
     } break;
     case SignalType::kThreadSuspend: {
       assert_not_null(current_thread_);

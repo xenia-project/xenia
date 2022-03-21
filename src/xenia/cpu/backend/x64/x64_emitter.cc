@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -653,6 +653,7 @@ void X64Emitter::MovMem64(const Xbyak::RegExp& addr, uint64_t v) {
 static const vec128_t xmm_consts[] = {
     /* XMMZero                */ vec128f(0.0f),
     /* XMMOne                 */ vec128f(1.0f),
+    /* XMMOnePD               */ vec128d(1.0),
     /* XMMNegativeOne         */ vec128f(-1.0f, -1.0f, -1.0f, -1.0f),
     /* XMMFFFF                */
     vec128i(0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu),
