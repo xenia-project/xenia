@@ -74,10 +74,12 @@ object_ref<T> LookupNamedObject(KernelState* kernel_state,
   if (!obj_attributes_ptr) {
     return nullptr;
   }
-  auto name = util::TranslateAnsiStringAddress(
-      kernel_state->memory(),
-      xe::load_and_swap<uint32_t>(
-          kernel_state->memory()->TranslateVirtual(obj_attributes_ptr + 4)));
+  auto obj_attributes =
+      kernel_state->memory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(
+          obj_attributes_ptr);
+  assert_true(obj_attributes->name_ptr != 0);
+  auto name = util::TranslateAnsiStringAddress(kernel_state->memory(),
+                                               obj_attributes->name_ptr);
   if (!name.empty()) {
     X_HANDLE handle = X_INVALID_HANDLE_VALUE;
     X_RESULT result =
@@ -453,7 +455,7 @@ dword_result_t NtCreateEvent_entry(
         existing_object->RetainHandle();
         *handle_ptr = existing_object->handle();
       }
-      return X_STATUS_SUCCESS;
+      return X_STATUS_OBJECT_NAME_EXISTS;
     } else {
       return X_STATUS_INVALID_HANDLE;
     }
@@ -574,7 +576,7 @@ DECLARE_XBOXKRNL_EXPORT1(KeReleaseSemaphore, kThreading, kImplemented);
 dword_result_t NtCreateSemaphore_entry(lpdword_t handle_ptr,
                                        lpvoid_t obj_attributes_ptr,
                                        dword_t count, dword_t limit) {
-  // Check for an existing timer with the same name.
+  // Check for an existing semaphore with the same name.
   auto existing_object =
       LookupNamedObject<XSemaphore>(kernel_state(), obj_attributes_ptr);
   if (existing_object) {
@@ -583,14 +585,20 @@ dword_result_t NtCreateSemaphore_entry(lpdword_t handle_ptr,
         existing_object->RetainHandle();
         *handle_ptr = existing_object->handle();
       }
-      return X_STATUS_SUCCESS;
+      return X_STATUS_OBJECT_NAME_EXISTS;
     } else {
       return X_STATUS_INVALID_HANDLE;
     }
   }
 
   auto sem = object_ref<XSemaphore>(new XSemaphore(kernel_state()));
-  sem->Initialize((int32_t)count, (int32_t)limit);
+  if (!sem->Initialize((int32_t)count, (int32_t)limit)) {
+    if (handle_ptr) {
+      *handle_ptr = 0;
+    }
+    sem->ReleaseHandle();
+    return X_STATUS_INVALID_PARAMETER;
+  }
 
   // obj_attributes may have a name inside of it, if != NULL.
   if (obj_attributes_ptr) {
@@ -639,7 +647,7 @@ dword_result_t NtCreateMutant_entry(
         existing_object->RetainHandle();
         *handle_out = existing_object->handle();
       }
-      return X_STATUS_SUCCESS;
+      return X_STATUS_OBJECT_NAME_EXISTS;
     } else {
       return X_STATUS_INVALID_HANDLE;
     }
@@ -701,7 +709,7 @@ dword_result_t NtCreateTimer_entry(lpdword_t handle_ptr,
         existing_object->RetainHandle();
         *handle_ptr = existing_object->handle();
       }
-      return X_STATUS_SUCCESS;
+      return X_STATUS_OBJECT_NAME_EXISTS;
     } else {
       return X_STATUS_INVALID_HANDLE;
     }

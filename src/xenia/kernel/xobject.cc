@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -172,7 +172,7 @@ void XObject::SetAttributes(uint32_t obj_attributes_ptr) {
       memory(), xe::load_and_swap<uint32_t>(
                     memory()->TranslateVirtual(obj_attributes_ptr + 4)));
   if (!name.empty()) {
-    name_ = std::move(name);
+    name_ = std::string(name);
     kernel_state_->object_table()->AddNameMapping(name_, handles_[0]);
   }
 }
@@ -410,7 +410,9 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
       case 5:  // SemaphoreObject
       {
         auto sem = new XSemaphore(kernel_state);
-        sem->InitializeNative(native_ptr, header);
+        auto success = sem->InitializeNative(native_ptr, header);
+        // Can't report failure to the guest at late initialization:
+        assert_true(success);
         object = sem;
       } break;
       case 3:   // ProcessObject

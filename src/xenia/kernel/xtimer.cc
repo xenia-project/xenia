@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -35,6 +35,7 @@ void XTimer::Initialize(uint32_t timer_type) {
       assert_always();
       break;
   }
+  assert_not_null(timer_);
 }
 
 X_STATUS XTimer::SetTimer(int64_t due_time, uint32_t period_ms,

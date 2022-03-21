@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
@@ -31,10 +32,15 @@ dword_result_t ObOpenObjectByName_entry(lpunknown_t obj_attributes_ptr,
   // r5 = 0
   // r6 = out_ptr (handle?)
 
-  auto name = util::TranslateAnsiStringAddress(
-      kernel_memory(),
-      xe::load_and_swap<uint32_t>(kernel_memory()->TranslateVirtual(
-          obj_attributes_ptr.guest_address() + 4)));
+  if (!obj_attributes_ptr) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
+
+  auto obj_attributes = kernel_memory()->TranslateVirtual<X_OBJECT_ATTRIBUTES*>(
+      obj_attributes_ptr);
+  assert_true(obj_attributes->name_ptr != 0);
+  auto name = util::TranslateAnsiStringAddress(kernel_memory(),
+                                               obj_attributes->name_ptr);
 
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
   X_STATUS result =
@@ -144,10 +150,10 @@ DECLARE_XBOXKRNL_EXPORT1(ObDereferenceObject, kNone, kImplemented);
 
 dword_result_t ObCreateSymbolicLink_entry(pointer_t<X_ANSI_STRING> path_ptr,
                                           pointer_t<X_ANSI_STRING> target_ptr) {
-  auto path = util::TranslateAnsiString(kernel_memory(), path_ptr);
-  auto target = util::TranslateAnsiString(kernel_memory(), target_ptr);
-  path = xe::utf8::canonicalize_guest_path(path);
-  target = xe::utf8::canonicalize_guest_path(target);
+  auto path = xe::utf8::canonicalize_guest_path(
+      util::TranslateAnsiString(kernel_memory(), path_ptr));
+  auto target = xe::utf8::canonicalize_guest_path(
+      util::TranslateAnsiString(kernel_memory(), target_ptr));
 
   if (xe::utf8::starts_with(path, u8"\\??\\")) {
     path = path.substr(4);  // Strip the full qualifier

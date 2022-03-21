@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -1057,6 +1057,7 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
       // Release the self-reference to the thread.
       thread->ReleaseHandle();
     });
+    assert_not_null(thread->thread_);
 
     // Notify processor we were recreated.
     thread->emulator()->processor()->OnThreadCreated(

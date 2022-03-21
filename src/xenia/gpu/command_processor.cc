@@ -41,7 +41,9 @@ CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system,
       trace_writer_(graphics_system->memory()->physical_membase()),
       worker_running_(true),
       write_ptr_index_event_(xe::threading::Event::CreateAutoResetEvent(false)),
-      write_ptr_index_(0) {}
+      write_ptr_index_(0) {
+  assert_not_null(write_ptr_index_event_);
+}
 
 CommandProcessor::~CommandProcessor() = default;
 
