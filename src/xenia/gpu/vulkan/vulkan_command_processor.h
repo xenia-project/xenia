@@ -81,6 +81,31 @@ class VulkanCommandProcessor : public CommandProcessor {
   uint64_t GetCurrentFrame() const { return frame_current_; }
   uint64_t GetCompletedFrame() const { return frame_completed_; }
 
+  // Submission must be open to insert barriers.
+  void PushBufferMemoryBarrier(
+      VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size,
+      VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask,
+      VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask,
+      uint32_t src_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
+      uint32_t dst_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
+      bool skip_if_equal = true);
+  void PushImageMemoryBarrier(
+      VkImage image, const VkImageSubresourceRange& subresource_range,
+      VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask,
+      VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask,
+      VkImageLayout old_layout, VkImageLayout new_layout,
+      uint32_t src_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
+      uint32_t dst_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
+      bool skip_if_equal = true);
+  // Returns whether any barriers have been submitted - if true is returned, the
+  // render pass will also be closed.
+  bool SubmitBarriers(bool force_end_render_pass);
+
+  // If not started yet, begins a render pass from the render target cache.
+  // Submission must be open.
+  void SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+      VkRenderPass render_pass,
+      const VulkanRenderTargetCache::Framebuffer* framebuffer);
   // Must be called before doing anything outside the render pass scope,
   // including adding pipeline barriers that are not a part of the render pass
   // scope. Submission must be open.
@@ -205,6 +230,8 @@ class VulkanCommandProcessor : public CommandProcessor {
     return !submission_open_ && submissions_in_flight_fences_.empty();
   }
 
+  void SplitPendingBarrier();
+
   VkShaderStageFlags GetGuestVertexShaderStageFlags() const;
 
   void UpdateDynamicState(const draw_util::ViewportInfo& viewport_info,
@@ -314,6 +341,18 @@ class VulkanCommandProcessor : public CommandProcessor {
       swap_framebuffers_;
   std::deque<std::pair<uint64_t, VkFramebuffer>> swap_framebuffers_outdated_;
 
+  // Pending pipeline barriers.
+  std::vector<VkBufferMemoryBarrier> pending_barriers_buffer_memory_barriers_;
+  std::vector<VkImageMemoryBarrier> pending_barriers_image_memory_barriers_;
+  struct PendingBarrier {
+    VkPipelineStageFlags src_stage_mask = 0;
+    VkPipelineStageFlags dst_stage_mask = 0;
+    size_t buffer_memory_barriers_offset = 0;
+    size_t image_memory_barriers_offset = 0;
+  };
+  std::vector<PendingBarrier> pending_barriers_;
+  PendingBarrier current_pending_barrier_;
+
   // The current dynamic state of the graphics pipeline bind point. Note that
   // binding any pipeline to the bind point with static state (even if it's
   // unused, like depth bias being disabled, but the values themselves still not
@@ -348,7 +387,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   // Cache render pass currently started in the command buffer with the
   // framebuffer.
   VkRenderPass current_render_pass_;
-  VkFramebuffer current_framebuffer_;
+  const VulkanRenderTargetCache::Framebuffer* current_framebuffer_;
 
   // Currently bound graphics pipeline, either from the pipeline cache (with
   // potentially deferred creation - current_external_graphics_pipeline_ is

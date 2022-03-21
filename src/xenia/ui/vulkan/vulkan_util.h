@@ -116,17 +116,18 @@ inline VkExtent2D GetMax2DFramebufferExtent(const VulkanProvider& provider) {
   return max_extent;
 }
 
-inline void InitializeSubresourceRange(
-    VkImageSubresourceRange& range,
+inline VkImageSubresourceRange InitializeSubresourceRange(
     VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT,
     uint32_t base_mip_level = 0, uint32_t level_count = VK_REMAINING_MIP_LEVELS,
     uint32_t base_array_layer = 0,
     uint32_t layer_count = VK_REMAINING_ARRAY_LAYERS) {
+  VkImageSubresourceRange range;
   range.aspectMask = aspect_mask;
   range.baseMipLevel = base_mip_level;
   range.levelCount = level_count;
   range.baseArrayLayer = base_array_layer;
   range.layerCount = layer_count;
+  return range;
 }
 
 // Creates a buffer backed by a dedicated allocation. The allocation size will

@@ -772,40 +772,25 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
           new_swap_framebuffer.last_submission = 0;
         }
 
-        // End the current render pass before inserting barriers and starting a
-        // new one.
-        EndRenderPass();
 
         if (vulkan_context.image_ever_written_previously()) {
           // Insert a barrier after the last presenter's usage of the guest
-          // output image.
-          VkImageMemoryBarrier guest_output_image_acquire_barrier;
-          guest_output_image_acquire_barrier.sType =
-              VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-          guest_output_image_acquire_barrier.pNext = nullptr;
-          guest_output_image_acquire_barrier.srcAccessMask =
-              ui::vulkan::VulkanPresenter::kGuestOutputInternalAccessMask;
-          guest_output_image_acquire_barrier.dstAccessMask =
-              VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-          // Will be overwriting all the contents.
-          guest_output_image_acquire_barrier.oldLayout =
-              VK_IMAGE_LAYOUT_UNDEFINED;
-          // The render pass will do the layout transition, but newLayout must
-          // not be UNDEFINED.
-          guest_output_image_acquire_barrier.newLayout =
-              VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-          guest_output_image_acquire_barrier.srcQueueFamilyIndex =
-              VK_QUEUE_FAMILY_IGNORED;
-          guest_output_image_acquire_barrier.dstQueueFamilyIndex =
-              VK_QUEUE_FAMILY_IGNORED;
-          guest_output_image_acquire_barrier.image = vulkan_context.image();
-          ui::vulkan::util::InitializeSubresourceRange(
-              guest_output_image_acquire_barrier.subresourceRange);
-          deferred_command_buffer_.CmdVkPipelineBarrier(
+          // output image. Will be overwriting all the contents, so oldLayout
+          // layout is UNDEFINED. The render pass will do the layout transition,
+          // but newLayout must not be UNDEFINED.
+          PushImageMemoryBarrier(
+              vulkan_context.image(),
+              ui::vulkan::util::InitializeSubresourceRange(),
               ui::vulkan::VulkanPresenter::kGuestOutputInternalStageMask,
-              VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0,
-              nullptr, 1, &guest_output_image_acquire_barrier);
+              VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+              ui::vulkan::VulkanPresenter::kGuestOutputInternalAccessMask,
+              VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+              VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         }
+
+        // End the current render pass before inserting barriers and starting a
+        // new one, and insert the barrier.
+        SubmitBarriers(true);
 
         SwapFramebuffer& swap_framebuffer =
             swap_framebuffers_[swap_framebuffer_index];
@@ -848,33 +833,20 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
 
         deferred_command_buffer_.CmdVkEndRenderPass();
 
-        VkImageMemoryBarrier guest_output_image_release_barrier;
-        guest_output_image_release_barrier.sType =
-            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        guest_output_image_release_barrier.pNext = nullptr;
-        guest_output_image_release_barrier.srcAccessMask =
-            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        guest_output_image_release_barrier.dstAccessMask =
-            ui::vulkan::VulkanPresenter::kGuestOutputInternalAccessMask;
-        guest_output_image_release_barrier.oldLayout =
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        guest_output_image_release_barrier.newLayout =
-            ui::vulkan::VulkanPresenter::kGuestOutputInternalLayout;
-        guest_output_image_release_barrier.srcQueueFamilyIndex =
-            VK_QUEUE_FAMILY_IGNORED;
-        guest_output_image_release_barrier.dstQueueFamilyIndex =
-            VK_QUEUE_FAMILY_IGNORED;
-        guest_output_image_release_barrier.image = vulkan_context.image();
-        ui::vulkan::util::InitializeSubresourceRange(
-            guest_output_image_release_barrier.subresourceRange);
-        deferred_command_buffer_.CmdVkPipelineBarrier(
+        // Insert the release barrier.
+        PushImageMemoryBarrier(
+            vulkan_context.image(),
+            ui::vulkan::util::InitializeSubresourceRange(),
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            ui::vulkan::VulkanPresenter::kGuestOutputInternalStageMask, 0, 0,
-            nullptr, 0, nullptr, 1, &guest_output_image_release_barrier);
+            ui::vulkan::VulkanPresenter::kGuestOutputInternalStageMask,
+            VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            ui::vulkan::VulkanPresenter::kGuestOutputInternalAccessMask,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            ui::vulkan::VulkanPresenter::kGuestOutputInternalLayout);
 
         // Need to submit all the commands before giving the image back to the
         // presenter so it can submit its own commands for displaying it to the
-        // queue.
+        // queue, and also need to submit the release barrier.
         EndSubmission(true);
         return true;
       });
@@ -884,6 +856,215 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
   EndSubmission(true);
 }
 
+void VulkanCommandProcessor::PushBufferMemoryBarrier(
+    VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size,
+    VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask,
+    VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask,
+    uint32_t src_queue_family_index, uint32_t dst_queue_family_index,
+    bool skip_if_equal) {
+  if (skip_if_equal && src_stage_mask == dst_stage_mask &&
+      src_access_mask == dst_access_mask &&
+      src_queue_family_index == dst_queue_family_index) {
+    return;
+  }
+
+  // Separate different barriers for overlapping buffer ranges into different
+  // pipeline barrier commands.
+  for (const VkBufferMemoryBarrier& other_buffer_memory_barrier :
+       pending_barriers_buffer_memory_barriers_) {
+    if (other_buffer_memory_barrier.buffer != buffer ||
+        (size != VK_WHOLE_SIZE &&
+         offset + size <= other_buffer_memory_barrier.offset) ||
+        (other_buffer_memory_barrier.size != VK_WHOLE_SIZE &&
+         other_buffer_memory_barrier.offset +
+                 other_buffer_memory_barrier.size <=
+             offset)) {
+      continue;
+    }
+    if (other_buffer_memory_barrier.offset == offset &&
+        other_buffer_memory_barrier.size == size &&
+        other_buffer_memory_barrier.srcAccessMask == src_access_mask &&
+        other_buffer_memory_barrier.dstAccessMask == dst_access_mask &&
+        other_buffer_memory_barrier.srcQueueFamilyIndex ==
+            src_queue_family_index &&
+        other_buffer_memory_barrier.dstQueueFamilyIndex ==
+            dst_queue_family_index) {
+      // The barrier is already present.
+      current_pending_barrier_.src_stage_mask |= src_stage_mask;
+      current_pending_barrier_.dst_stage_mask |= dst_stage_mask;
+      return;
+    }
+    SplitPendingBarrier();
+    break;
+  }
+
+  current_pending_barrier_.src_stage_mask |= src_stage_mask;
+  current_pending_barrier_.dst_stage_mask |= dst_stage_mask;
+  VkBufferMemoryBarrier& buffer_memory_barrier =
+      pending_barriers_buffer_memory_barriers_.emplace_back();
+  buffer_memory_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+  buffer_memory_barrier.pNext = nullptr;
+  buffer_memory_barrier.srcAccessMask = src_access_mask;
+  buffer_memory_barrier.dstAccessMask = dst_access_mask;
+  buffer_memory_barrier.srcQueueFamilyIndex = src_queue_family_index;
+  buffer_memory_barrier.dstQueueFamilyIndex = dst_queue_family_index;
+  buffer_memory_barrier.buffer = buffer;
+  buffer_memory_barrier.offset = offset;
+  buffer_memory_barrier.size = size;
+}
+
+void VulkanCommandProcessor::PushImageMemoryBarrier(
+    VkImage image, const VkImageSubresourceRange& subresource_range,
+    VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask,
+    VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask,
+    VkImageLayout old_layout, VkImageLayout new_layout,
+    uint32_t src_queue_family_index, uint32_t dst_queue_family_index,
+    bool skip_if_equal) {
+  if (skip_if_equal && src_stage_mask == dst_stage_mask &&
+      src_access_mask == dst_access_mask && old_layout == new_layout &&
+      src_queue_family_index == dst_queue_family_index) {
+    return;
+  }
+
+  // Separate different barriers for overlapping image subresource ranges into
+  // different pipeline barrier commands.
+  for (const VkImageMemoryBarrier& other_image_memory_barrier :
+       pending_barriers_image_memory_barriers_) {
+    if (other_image_memory_barrier.image != image ||
+        !(other_image_memory_barrier.subresourceRange.aspectMask &
+          subresource_range.aspectMask) ||
+        (subresource_range.levelCount != VK_REMAINING_MIP_LEVELS &&
+         subresource_range.baseMipLevel + subresource_range.levelCount <=
+             other_image_memory_barrier.subresourceRange.baseMipLevel) ||
+        (other_image_memory_barrier.subresourceRange.levelCount !=
+             VK_REMAINING_MIP_LEVELS &&
+         other_image_memory_barrier.subresourceRange.baseMipLevel +
+                 other_image_memory_barrier.subresourceRange.levelCount <=
+             subresource_range.baseMipLevel) ||
+        (subresource_range.layerCount != VK_REMAINING_ARRAY_LAYERS &&
+         subresource_range.baseArrayLayer + subresource_range.layerCount <=
+             other_image_memory_barrier.subresourceRange.baseArrayLayer) ||
+        (other_image_memory_barrier.subresourceRange.layerCount !=
+             VK_REMAINING_ARRAY_LAYERS &&
+         other_image_memory_barrier.subresourceRange.baseArrayLayer +
+                 other_image_memory_barrier.subresourceRange.layerCount <=
+             subresource_range.baseArrayLayer)) {
+      continue;
+    }
+    if (other_image_memory_barrier.subresourceRange.aspectMask ==
+            subresource_range.aspectMask &&
+        other_image_memory_barrier.subresourceRange.baseMipLevel ==
+            subresource_range.baseMipLevel &&
+        other_image_memory_barrier.subresourceRange.levelCount ==
+            subresource_range.levelCount &&
+        other_image_memory_barrier.subresourceRange.baseArrayLayer ==
+            subresource_range.baseArrayLayer &&
+        other_image_memory_barrier.subresourceRange.layerCount ==
+            subresource_range.layerCount &&
+        other_image_memory_barrier.srcAccessMask == src_access_mask &&
+        other_image_memory_barrier.dstAccessMask == dst_access_mask &&
+        other_image_memory_barrier.oldLayout == old_layout &&
+        other_image_memory_barrier.newLayout == new_layout &&
+        other_image_memory_barrier.srcQueueFamilyIndex ==
+            src_queue_family_index &&
+        other_image_memory_barrier.dstQueueFamilyIndex ==
+            dst_queue_family_index) {
+      // The barrier is already present.
+      current_pending_barrier_.src_stage_mask |= src_stage_mask;
+      current_pending_barrier_.dst_stage_mask |= dst_stage_mask;
+      return;
+    }
+    SplitPendingBarrier();
+    break;
+  }
+
+  current_pending_barrier_.src_stage_mask |= src_stage_mask;
+  current_pending_barrier_.dst_stage_mask |= dst_stage_mask;
+  VkImageMemoryBarrier& image_memory_barrier =
+      pending_barriers_image_memory_barriers_.emplace_back();
+  image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  image_memory_barrier.pNext = nullptr;
+  image_memory_barrier.srcAccessMask = src_access_mask;
+  image_memory_barrier.dstAccessMask = dst_access_mask;
+  image_memory_barrier.oldLayout = old_layout;
+  image_memory_barrier.newLayout = new_layout;
+  image_memory_barrier.srcQueueFamilyIndex = src_queue_family_index;
+  image_memory_barrier.dstQueueFamilyIndex = dst_queue_family_index;
+  image_memory_barrier.image = image;
+  image_memory_barrier.subresourceRange = subresource_range;
+}
+
+bool VulkanCommandProcessor::SubmitBarriers(bool force_end_render_pass) {
+  assert_true(submission_open_);
+  SplitPendingBarrier();
+  if (pending_barriers_.empty()) {
+    if (force_end_render_pass) {
+      EndRenderPass();
+    }
+    return false;
+  }
+  EndRenderPass();
+  for (auto it = pending_barriers_.cbegin(); it != pending_barriers_.cend();
+       ++it) {
+    auto it_next = std::next(it);
+    bool is_last = it_next == pending_barriers_.cend();
+    // .data() + offset, not &[offset], for buffer and image barriers, because
+    // if there are no buffer or image memory barriers in the last pipeline
+    // barriers, the offsets may be equal to the sizes of the vectors.
+    deferred_command_buffer_.CmdVkPipelineBarrier(
+        it->src_stage_mask ? it->src_stage_mask
+                           : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        it->dst_stage_mask ? it->dst_stage_mask
+                           : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+        0, 0, nullptr,
+        uint32_t((is_last ? pending_barriers_buffer_memory_barriers_.size()
+                          : it_next->buffer_memory_barriers_offset) -
+                 it->buffer_memory_barriers_offset),
+        pending_barriers_buffer_memory_barriers_.data() +
+            it->buffer_memory_barriers_offset,
+        uint32_t((is_last ? pending_barriers_image_memory_barriers_.size()
+                          : it_next->image_memory_barriers_offset) -
+                 it->image_memory_barriers_offset),
+        pending_barriers_image_memory_barriers_.data() +
+            it->image_memory_barriers_offset);
+  }
+  pending_barriers_.clear();
+  pending_barriers_buffer_memory_barriers_.clear();
+  pending_barriers_image_memory_barriers_.clear();
+  current_pending_barrier_.buffer_memory_barriers_offset = 0;
+  current_pending_barrier_.image_memory_barriers_offset = 0;
+  return true;
+}
+
+void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+    VkRenderPass render_pass,
+    const VulkanRenderTargetCache::Framebuffer* framebuffer) {
+  SubmitBarriers(false);
+  if (current_render_pass_ == render_pass &&
+      current_framebuffer_ == framebuffer) {
+    return;
+  }
+  if (current_render_pass_ != VK_NULL_HANDLE) {
+    deferred_command_buffer_.CmdVkEndRenderPass();
+  }
+  current_render_pass_ = render_pass;
+  current_framebuffer_ = framebuffer;
+  VkRenderPassBeginInfo render_pass_begin_info;
+  render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+  render_pass_begin_info.pNext = nullptr;
+  render_pass_begin_info.renderPass = render_pass;
+  render_pass_begin_info.framebuffer = framebuffer->framebuffer;
+  render_pass_begin_info.renderArea.offset.x = 0;
+  render_pass_begin_info.renderArea.offset.y = 0;
+  // TODO(Triang3l): Actual dirty width / height in the deferred command
+  // buffer.
+  render_pass_begin_info.renderArea.extent = framebuffer->host_extent;
+  render_pass_begin_info.clearValueCount = 0;
+  render_pass_begin_info.pClearValues = nullptr;
+  deferred_command_buffer_.CmdVkBeginRenderPass(&render_pass_begin_info,
+                                                VK_SUBPASS_CONTENTS_INLINE);
+}
+
 void VulkanCommandProcessor::EndRenderPass() {
   assert_true(submission_open_);
   if (current_render_pass_ == VK_NULL_HANDLE) {
@@ -891,7 +1072,7 @@ void VulkanCommandProcessor::EndRenderPass() {
   }
   deferred_command_buffer_.CmdVkEndRenderPass();
   current_render_pass_ = VK_NULL_HANDLE;
-  current_framebuffer_ = VK_NULL_HANDLE;
+  current_framebuffer_ = nullptr;
 }
 
 const VulkanPipelineCache::PipelineLayoutProvider*
@@ -1324,33 +1505,12 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // TODO(Triang3l): Memory export.
   shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
 
-  // After all commands that may dispatch, copy or insert barriers, enter the
-  // render pass before drawing.
-  VkRenderPass render_pass = render_target_cache_->last_update_render_pass();
-  const VulkanRenderTargetCache::Framebuffer* framebuffer =
-      render_target_cache_->last_update_framebuffer();
-  if (current_render_pass_ != render_pass ||
-      current_framebuffer_ != framebuffer->framebuffer) {
-    if (current_render_pass_ != VK_NULL_HANDLE) {
-      deferred_command_buffer_.CmdVkEndRenderPass();
-    }
-    current_render_pass_ = render_pass;
-    current_framebuffer_ = framebuffer->framebuffer;
-    VkRenderPassBeginInfo render_pass_begin_info;
-    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    render_pass_begin_info.pNext = nullptr;
-    render_pass_begin_info.renderPass = render_pass;
-    render_pass_begin_info.framebuffer = framebuffer->framebuffer;
-    render_pass_begin_info.renderArea.offset.x = 0;
-    render_pass_begin_info.renderArea.offset.y = 0;
-    // TODO(Triang3l): Actual dirty width / height in the deferred command
-    // buffer.
-    render_pass_begin_info.renderArea.extent = framebuffer->host_extent;
-    render_pass_begin_info.clearValueCount = 0;
-    render_pass_begin_info.pClearValues = nullptr;
-    deferred_command_buffer_.CmdVkBeginRenderPass(&render_pass_begin_info,
-                                                  VK_SUBPASS_CONTENTS_INLINE);
-  }
+  // After all commands that may dispatch, copy or insert barriers, submit the
+  // barriers (may end the render pass), and (re)enter the render pass before
+  // drawing.
+  SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+      render_target_cache_->last_update_render_pass(),
+      render_target_cache_->last_update_framebuffer());
 
   // Draw.
   if (primitive_processing_result.index_buffer_type ==
@@ -1589,7 +1749,7 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
     dynamic_stencil_reference_front_update_needed_ = true;
     dynamic_stencil_reference_back_update_needed_ = true;
     current_render_pass_ = VK_NULL_HANDLE;
-    current_framebuffer_ = VK_NULL_HANDLE;
+    current_framebuffer_ = nullptr;
     current_guest_graphics_pipeline_ = VK_NULL_HANDLE;
     current_external_graphics_pipeline_ = VK_NULL_HANDLE;
     current_guest_graphics_pipeline_layout_ = nullptr;
@@ -1759,6 +1919,8 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
       sparse_memory_binds_.clear();
     }
 
+    SubmitBarriers(true);
+
     assert_false(command_buffers_writable_.empty());
     CommandBuffer command_buffer = command_buffers_writable_.back();
     if (dfn.vkResetCommandPool(device, command_buffer.pool, 0) != VK_SUCCESS) {
@@ -1882,6 +2044,28 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
   }
 
   return true;
+}
+
+void VulkanCommandProcessor::SplitPendingBarrier() {
+  size_t pending_buffer_memory_barrier_count =
+      pending_barriers_buffer_memory_barriers_.size();
+  size_t pending_image_memory_barrier_count =
+      pending_barriers_image_memory_barriers_.size();
+  if (!current_pending_barrier_.src_stage_mask &&
+      !current_pending_barrier_.dst_stage_mask &&
+      current_pending_barrier_.buffer_memory_barriers_offset >=
+          pending_buffer_memory_barrier_count &&
+      current_pending_barrier_.image_memory_barriers_offset >=
+          pending_image_memory_barrier_count) {
+    return;
+  }
+  pending_barriers_.emplace_back(current_pending_barrier_);
+  current_pending_barrier_.src_stage_mask = 0;
+  current_pending_barrier_.dst_stage_mask = 0;
+  current_pending_barrier_.buffer_memory_barriers_offset =
+      pending_buffer_memory_barrier_count;
+  current_pending_barrier_.image_memory_barriers_offset =
+      pending_image_memory_barrier_count;
 }
 
 VkShaderStageFlags VulkanCommandProcessor::GetGuestVertexShaderStageFlags()
