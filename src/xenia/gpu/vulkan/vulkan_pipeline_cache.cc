@@ -27,10 +27,16 @@
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/ui/vulkan/vulkan_util.h"
 
 namespace xe {
 namespace gpu {
 namespace vulkan {
+
+// Generated with `xb buildshaders`.
+namespace shaders {
+#include "xenia/gpu/shaders/bytecode/vulkan_spirv/primitive_rectangle_list_gs.h"
+}  // namespace shaders
 
 VulkanPipelineCache::VulkanPipelineCache(
     VulkanCommandProcessor& command_processor,
@@ -45,6 +51,20 @@ VulkanPipelineCache::~VulkanPipelineCache() { Shutdown(); }
 bool VulkanPipelineCache::Initialize() {
   const ui::vulkan::VulkanProvider& provider =
       command_processor_.GetVulkanProvider();
+  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
+
+  if (device_features.geometryShader) {
+    gs_rectangle_list_ = ui::vulkan::util::CreateShaderModule(
+        provider, shaders::primitive_rectangle_list_gs,
+        sizeof(shaders::primitive_rectangle_list_gs));
+    if (gs_rectangle_list_ == VK_NULL_HANDLE) {
+      XELOGE(
+          "VulkanPipelineCache: Failed to create the rectangle list geometry "
+          "shader");
+      Shutdown();
+      return false;
+    }
+  }
 
   shader_translator_ = std::make_unique<SpirvShaderTranslator>(
       SpirvShaderTranslator::Features(provider));
@@ -53,9 +73,17 @@ bool VulkanPipelineCache::Initialize() {
 }
 
 void VulkanPipelineCache::Shutdown() {
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanProvider();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+
   ClearCache();
 
   shader_translator_.reset();
+
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
+                                         gs_rectangle_list_);
 }
 
 void VulkanPipelineCache::ClearCache() {
@@ -357,6 +385,9 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   }
   description_out.render_pass_key = render_pass_key;
 
+  // TODO(Triang3l): Implement primitive types currently using geometry shaders
+  // without them.
+  PipelineGeometryShader geometry_shader = PipelineGeometryShader::kNone;
   PipelinePrimitiveTopology primitive_topology;
   switch (primitive_processing_result.host_primitive_type) {
     case xenos::PrimitiveType::kPointList:
@@ -369,7 +400,6 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       primitive_topology = PipelinePrimitiveTopology::kLineStrip;
       break;
     case xenos::PrimitiveType::kTriangleList:
-    case xenos::PrimitiveType::kRectangleList:
       primitive_topology = PipelinePrimitiveTopology::kTriangleList;
       break;
     case xenos::PrimitiveType::kTriangleFan:
@@ -381,6 +411,10 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     case xenos::PrimitiveType::kTriangleStrip:
       primitive_topology = PipelinePrimitiveTopology::kTriangleStrip;
       break;
+    case xenos::PrimitiveType::kRectangleList:
+      geometry_shader = PipelineGeometryShader::kRectangleList;
+      primitive_topology = PipelinePrimitiveTopology::kTriangleList;
+      break;
     case xenos::PrimitiveType::kQuadList:
       primitive_topology = PipelinePrimitiveTopology::kLineListWithAdjacency;
       break;
@@ -388,6 +422,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       // TODO(Triang3l): All primitive types and tessellation.
       return false;
   }
+  description_out.geometry_shader = geometry_shader;
   description_out.primitive_topology = primitive_topology;
   description_out.primitive_restart =
       primitive_processing_result.host_primitive_reset_enabled;
@@ -605,6 +640,11 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
     }
   }
 
+  if (!device_features.geometryShader &&
+      description.geometry_shader != PipelineGeometryShader::kNone) {
+    return false;
+  }
+
   if (!device_features.independentBlend) {
     uint32_t color_rts_remaining =
         description.render_pass_key.depth_and_color_used >> 1;
@@ -670,14 +710,14 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
       command_processor_.GetVulkanProvider();
   const VkPhysicalDeviceFeatures& device_features = provider.device_features();
 
-  VkPipelineShaderStageCreateInfo shader_stages[2];
+  std::array<VkPipelineShaderStageCreateInfo, 3> shader_stages;
   uint32_t shader_stage_count = 0;
 
+  // Vertex or tessellation evaluation shader.
   assert_true(creation_arguments.vertex_shader->is_translated());
   if (!creation_arguments.vertex_shader->is_valid()) {
     return false;
   }
-  assert_true(shader_stage_count < xe::countof(shader_stages));
   VkPipelineShaderStageCreateInfo& shader_stage_vertex =
       shader_stages[shader_stage_count++];
   shader_stage_vertex.sType =
@@ -690,12 +730,33 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   assert_true(shader_stage_vertex.module != VK_NULL_HANDLE);
   shader_stage_vertex.pName = "main";
   shader_stage_vertex.pSpecializationInfo = nullptr;
+  // Geometry shader.
+  VkShaderModule geometry_shader = VK_NULL_HANDLE;
+  switch (description.geometry_shader) {
+    case PipelineGeometryShader::kRectangleList:
+      geometry_shader = gs_rectangle_list_;
+      break;
+    default:
+      break;
+  }
+  if (geometry_shader != VK_NULL_HANDLE) {
+    VkPipelineShaderStageCreateInfo& shader_stage_geometry =
+        shader_stages[shader_stage_count++];
+    shader_stage_geometry.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shader_stage_geometry.pNext = nullptr;
+    shader_stage_geometry.flags = 0;
+    shader_stage_geometry.stage = VK_SHADER_STAGE_GEOMETRY_BIT;
+    shader_stage_geometry.module = geometry_shader;
+    shader_stage_geometry.pName = "main";
+    shader_stage_geometry.pSpecializationInfo = nullptr;
+  }
+  // Pixel shader.
   if (creation_arguments.pixel_shader) {
     assert_true(creation_arguments.pixel_shader->is_translated());
     if (!creation_arguments.pixel_shader->is_valid()) {
       return false;
     }
-    assert_true(shader_stage_count < xe::countof(shader_stages));
     VkPipelineShaderStageCreateInfo& shader_stage_fragment =
         shader_stages[shader_stage_count++];
     shader_stage_fragment.sType =
@@ -985,7 +1046,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   pipeline_create_info.pNext = nullptr;
   pipeline_create_info.flags = 0;
   pipeline_create_info.stageCount = shader_stage_count;
-  pipeline_create_info.pStages = shader_stages;
+  pipeline_create_info.pStages = shader_stages.data();
   pipeline_create_info.pVertexInputState = &vertex_input_state;
   pipeline_create_info.pInputAssemblyState = &input_assembly_state;
   pipeline_create_info.pTessellationState = nullptr;

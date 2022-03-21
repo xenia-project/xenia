@@ -82,6 +82,11 @@ class VulkanPipelineCache {
       const PipelineLayoutProvider*& pipeline_layout_out);
 
  private:
+  enum class PipelineGeometryShader : uint32_t {
+    kNone,
+    kRectangleList,
+  };
+
   enum class PipelinePrimitiveTopology : uint32_t {
     kPointList,
     kLineList,
@@ -136,24 +141,26 @@ class VulkanPipelineCache {
     uint64_t pixel_shader_modification;
     VulkanRenderTargetCache::RenderPassKey render_pass_key;
 
+    // Shader stages.
+    PipelineGeometryShader geometry_shader : 2;  // 2
     // Input assembly.
-    PipelinePrimitiveTopology primitive_topology : 3;  // 3
-    uint32_t primitive_restart : 1;                    // 4
+    PipelinePrimitiveTopology primitive_topology : 3;  // 5
+    uint32_t primitive_restart : 1;                    // 6
     // Rasterization.
-    uint32_t depth_clamp_enable : 1;       // 5
-    PipelinePolygonMode polygon_mode : 2;  // 7
-    uint32_t cull_front : 1;               // 8
-    uint32_t cull_back : 1;                // 9
-    uint32_t front_face_clockwise : 1;     // 10
+    uint32_t depth_clamp_enable : 1;       // 7
+    PipelinePolygonMode polygon_mode : 2;  // 9
+    uint32_t cull_front : 1;               // 10
+    uint32_t cull_back : 1;                // 11
+    uint32_t front_face_clockwise : 1;     // 12
     // Depth / stencil.
-    uint32_t depth_write_enable : 1;                      // 11
-    xenos::CompareFunction depth_compare_op : 3;          // 14
-    uint32_t stencil_test_enable : 1;                     // 15
-    xenos::StencilOp stencil_front_fail_op : 3;           // 18
-    xenos::StencilOp stencil_front_pass_op : 3;           // 21
-    xenos::StencilOp stencil_front_depth_fail_op : 3;     // 24
-    xenos::CompareFunction stencil_front_compare_op : 3;  // 27
-    xenos::StencilOp stencil_back_fail_op : 3;            // 30
+    uint32_t depth_write_enable : 1;                      // 13
+    xenos::CompareFunction depth_compare_op : 3;          // 15
+    uint32_t stencil_test_enable : 1;                     // 17
+    xenos::StencilOp stencil_front_fail_op : 3;           // 20
+    xenos::StencilOp stencil_front_pass_op : 3;           // 23
+    xenos::StencilOp stencil_front_depth_fail_op : 3;     // 26
+    xenos::CompareFunction stencil_front_compare_op : 3;  // 29
+    xenos::StencilOp stencil_back_fail_op : 3;            // 32
 
     xenos::StencilOp stencil_back_pass_op : 3;           // 3
     xenos::StencilOp stencil_back_depth_fail_op : 3;     // 6
@@ -227,6 +234,8 @@ class VulkanPipelineCache {
   VulkanCommandProcessor& command_processor_;
   const RegisterFile& register_file_;
   VulkanRenderTargetCache& render_target_cache_;
+
+  VkShaderModule gs_rectangle_list_ = VK_NULL_HANDLE;
 
   // Temporary storage for AnalyzeUcode calls on the processor thread.
   StringBuffer ucode_disasm_buffer_;
