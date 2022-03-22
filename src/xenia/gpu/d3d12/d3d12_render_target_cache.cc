@@ -5970,7 +5970,8 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
   a.OpDclInput(dxbc::Dest::VThreadID(0b0011));
   // r0 - addressing before the load, then addressing and conversion scratch
   // r1 - addressing scratch before the load, then data
-  a.OpDclTemps(2);
+  stat.temp_register_count = 2;
+  a.OpDclTemps(stat.temp_register_count);
   // There's no strict dependency on the group size here, for simplicity of
   // calculations especially with resolution scaling, dividing manually (as the
   // group size is not unlimited). The only restriction is that an integer
@@ -6355,8 +6356,6 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
       case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
         // Float16 has a wider range for both color and alpha, also NaNs.
         // Color - clamp and convert.
-        stat.temp_register_count =
-            std::max(stat.temp_register_count, uint32_t(3));
         // Convert red in r1.x to the result register r1.x - the same, but
         // UnclampedFloat32To7e3 allows that - using r0.x as a temporary.
         DxbcShaderTranslator::UnclampedFloat32To7e3(a, 1, 0, 1, 0, 0, 0);
