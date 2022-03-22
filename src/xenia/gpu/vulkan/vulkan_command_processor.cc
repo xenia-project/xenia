@@ -404,8 +404,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
             acquire_image_memory_barrier.dstQueueFamilyIndex =
                 VK_QUEUE_FAMILY_IGNORED;
             acquire_image_memory_barrier.image = texture->image;
-            ui::vulkan::util::InitializeSubresourceRange(
-                acquire_image_memory_barrier.subresourceRange);
+            acquire_image_memory_barrier.subresourceRange =
+                ui::vulkan::util::InitializeSubresourceRange();
           }
           {
             acquire_barrier_dst_stages |=
@@ -427,8 +427,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
             acquire_image_memory_barrier.dstQueueFamilyIndex =
                 VK_QUEUE_FAMILY_IGNORED;
             acquire_image_memory_barrier.image = vulkan_context.image();
-            ui::vulkan::util::InitializeSubresourceRange(
-                acquire_image_memory_barrier.subresourceRange);
+            acquire_image_memory_barrier.subresourceRange =
+                ui::vulkan::util::InitializeSubresourceRange();
             if (vulkan_context.image_ever_written_previously()) {
               acquire_barrier_src_stages |=
                   ui::vulkan::VulkanPresenter::kGuestOutputInternalStageMask;
@@ -496,8 +496,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
             release_image_memory_barrier.dstQueueFamilyIndex =
                 VK_QUEUE_FAMILY_IGNORED;
             release_image_memory_barrier.image = texture->image;
-            ui::vulkan::util::InitializeSubresourceRange(
-                release_image_memory_barrier.subresourceRange);
+            release_image_memory_barrier.subresourceRange =
+                ui::vulkan::util::InitializeSubresourceRange();
           }
           {
             release_barrier_src_stages |=
@@ -523,8 +523,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
             release_image_memory_barrier.dstQueueFamilyIndex =
                 VK_QUEUE_FAMILY_IGNORED;
             release_image_memory_barrier.image = vulkan_context.image();
-            ui::vulkan::util::InitializeSubresourceRange(
-                release_image_memory_barrier.subresourceRange);
+            release_image_memory_barrier.subresourceRange =
+                ui::vulkan::util::InitializeSubresourceRange();
           }
           assert_not_zero(release_barrier_src_stages);
           assert_not_zero(release_barrier_dst_stages);
