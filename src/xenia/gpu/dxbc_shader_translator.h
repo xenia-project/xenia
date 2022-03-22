@@ -536,7 +536,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // range to 20e4 floating point, with zeros in bits 24:31, rounding to the
   // nearest even. Source and destination may be the same, temporary must be
   // different than both. If remap_from_0_to_0_5 is true, it's assumed that
-  // 0...1 is pre-remapped to 0...0.5 on the input.
+  // 0...1 is pre-remapped to 0...0.5 in the input.
   static void PreClampedDepthTo20e4(
       dxbc::Assembler& a, uint32_t f24_temp, uint32_t f24_temp_component,
       uint32_t f32_temp, uint32_t f32_temp_component, uint32_t temp_temp,
