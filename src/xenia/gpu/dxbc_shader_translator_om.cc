@@ -3140,7 +3140,7 @@ void DxbcShaderTranslator::PreClampedFloat32To7e3(
   // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
   // Assuming the color is already clamped to [0, 31.875].
 
-  // Check if the number is too small to be represented as normalized 20e4.
+  // Check if the number is too small to be represented as normalized 7e3.
   // temp = f32 < 2^-2
   a.OpULT(temp_dest, f32_src, dxbc::Src::LU(0x3E800000));
   // Handle denormalized numbers separately.
