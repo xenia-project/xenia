@@ -426,7 +426,8 @@ void VulkanImmediateDrawer::End() {
       image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
       image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
       image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-      util::InitializeSubresourceRange(image_memory_barrier.subresourceRange);
+      image_memory_barrier.subresourceRange =
+          util::InitializeSubresourceRange();
       for (const PendingTextureUpload& pending_texture_upload :
            texture_uploads_pending_) {
         image_memory_barriers.emplace_back(image_memory_barrier).image =
@@ -913,7 +914,7 @@ bool VulkanImmediateDrawer::CreateTextureResource(
   image_view_create_info.components.g = swizzle;
   image_view_create_info.components.b = swizzle;
   image_view_create_info.components.a = swizzle;
-  util::InitializeSubresourceRange(image_view_create_info.subresourceRange);
+  image_view_create_info.subresourceRange = util::InitializeSubresourceRange();
   VkImageView image_view;
   if (dfn.vkCreateImageView(device, &image_view_create_info, nullptr,
                             &image_view) != VK_SUCCESS) {
