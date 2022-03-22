@@ -126,95 +126,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       xenos::DepthRenderTargetFormat format);
 
  protected:
-  class D3D12RenderTarget final : public RenderTarget {
-   public:
-    // descriptor_draw_srgb is only used for k_8_8_8_8 render targets when host
-    // sRGB (gamma_render_target_as_srgb) is used. descriptor_load is present
-    // when the DXGI formats are different for drawing and bit-exact loading
-    // (for NaN pattern preservation across EDRAM tile ownership transfers in
-    // floating-point formats, and to distinguish between two -1 representations
-    // in snorm formats).
-    D3D12RenderTarget(
-        RenderTargetKey key, ID3D12Resource* resource,
-        ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_draw,
-        ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_draw_srgb,
-        ui::d3d12::D3D12CpuDescriptorPool::Descriptor&&
-            descriptor_load_separate,
-        ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_srv,
-        ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_srv_stencil,
-        D3D12_RESOURCE_STATES resource_state)
-        : RenderTarget(key),
-          resource_(resource),
-          descriptor_draw_(std::move(descriptor_draw)),
-          descriptor_draw_srgb_(std::move(descriptor_draw_srgb)),
-          descriptor_load_separate_(std::move(descriptor_load_separate)),
-          descriptor_srv_(std::move(descriptor_srv)),
-          descriptor_srv_stencil_(std::move(descriptor_srv_stencil)),
-          resource_state_(resource_state) {}
-
-    ID3D12Resource* resource() const { return resource_.Get(); }
-    const ui::d3d12::D3D12CpuDescriptorPool::Descriptor& descriptor_draw()
-        const {
-      return descriptor_draw_;
-    }
-    const ui::d3d12::D3D12CpuDescriptorPool::Descriptor& descriptor_draw_srgb()
-        const {
-      return descriptor_draw_srgb_;
-    }
-    const ui::d3d12::D3D12CpuDescriptorPool::Descriptor& descriptor_srv()
-        const {
-      return descriptor_srv_;
-    }
-    const ui::d3d12::D3D12CpuDescriptorPool::Descriptor&
-    descriptor_srv_stencil() const {
-      return descriptor_srv_stencil_;
-    }
-    const ui::d3d12::D3D12CpuDescriptorPool::Descriptor&
-    descriptor_load_separate() const {
-      return descriptor_load_separate_;
-    }
-
-    D3D12_RESOURCE_STATES SetResourceState(D3D12_RESOURCE_STATES new_state) {
-      D3D12_RESOURCE_STATES old_state = resource_state_;
-      resource_state_ = new_state;
-      return old_state;
-    }
-
-    uint32_t temporary_srv_descriptor_index() const {
-      return temporary_srv_descriptor_index_;
-    }
-    void SetTemporarySRVDescriptorIndex(uint32_t index) {
-      temporary_srv_descriptor_index_ = index;
-    }
-    uint32_t temporary_srv_descriptor_index_stencil() const {
-      return temporary_srv_descriptor_index_stencil_;
-    }
-    void SetTemporarySRVDescriptorIndexStencil(uint32_t index) {
-      temporary_srv_descriptor_index_stencil_ = index;
-    }
-    uint32_t temporary_sort_index() const { return temporary_sort_index_; }
-    void SetTemporarySortIndex(uint32_t index) {
-      temporary_sort_index_ = index;
-    }
-
-   private:
-    Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
-    ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_draw_;
-    ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_draw_srgb_;
-    ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_load_separate_;
-    // Texture SRV non-shader-visible descriptors, to prepare shader-visible
-    // descriptors faster, by copying rather than by creating every time.
-    // TODO(Triang3l): With bindless resources, persistently store them in the
-    // heap.
-    ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_srv_;
-    ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_srv_stencil_;
-    D3D12_RESOURCE_STATES resource_state_;
-    // Temporary storage for indices in operations like transfers and dumps.
-    uint32_t temporary_srv_descriptor_index_ = UINT32_MAX;
-    uint32_t temporary_srv_descriptor_index_stencil_ = UINT32_MAX;
-    uint32_t temporary_sort_index_ = 0;
-  };
-
   uint32_t GetMaxRenderTargetWidth() const override {
     return D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
   }
@@ -309,6 +220,95 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       edram_snapshot_restore_pool_;
 
   // For host render targets.
+
+  class D3D12RenderTarget final : public RenderTarget {
+   public:
+    // descriptor_draw_srgb is only used for k_8_8_8_8 render targets when host
+    // sRGB (gamma_render_target_as_srgb) is used. descriptor_load is present
+    // when the DXGI formats are different for drawing and bit-exact loading
+    // (for NaN pattern preservation across EDRAM tile ownership transfers in
+    // floating-point formats, and to distinguish between two -1 representations
+    // in snorm formats).
+    D3D12RenderTarget(
+        RenderTargetKey key, ID3D12Resource* resource,
+        ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_draw,
+        ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_draw_srgb,
+        ui::d3d12::D3D12CpuDescriptorPool::Descriptor&&
+            descriptor_load_separate,
+        ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_srv,
+        ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_srv_stencil,
+        D3D12_RESOURCE_STATES resource_state)
+        : RenderTarget(key),
+          resource_(resource),
+          descriptor_draw_(std::move(descriptor_draw)),
+          descriptor_draw_srgb_(std::move(descriptor_draw_srgb)),
+          descriptor_load_separate_(std::move(descriptor_load_separate)),
+          descriptor_srv_(std::move(descriptor_srv)),
+          descriptor_srv_stencil_(std::move(descriptor_srv_stencil)),
+          resource_state_(resource_state) {}
+
+    ID3D12Resource* resource() const { return resource_.Get(); }
+    const ui::d3d12::D3D12CpuDescriptorPool::Descriptor& descriptor_draw()
+        const {
+      return descriptor_draw_;
+    }
+    const ui::d3d12::D3D12CpuDescriptorPool::Descriptor& descriptor_draw_srgb()
+        const {
+      return descriptor_draw_srgb_;
+    }
+    const ui::d3d12::D3D12CpuDescriptorPool::Descriptor& descriptor_srv()
+        const {
+      return descriptor_srv_;
+    }
+    const ui::d3d12::D3D12CpuDescriptorPool::Descriptor&
+    descriptor_srv_stencil() const {
+      return descriptor_srv_stencil_;
+    }
+    const ui::d3d12::D3D12CpuDescriptorPool::Descriptor&
+    descriptor_load_separate() const {
+      return descriptor_load_separate_;
+    }
+
+    D3D12_RESOURCE_STATES SetResourceState(D3D12_RESOURCE_STATES new_state) {
+      D3D12_RESOURCE_STATES old_state = resource_state_;
+      resource_state_ = new_state;
+      return old_state;
+    }
+
+    uint32_t temporary_srv_descriptor_index() const {
+      return temporary_srv_descriptor_index_;
+    }
+    void SetTemporarySRVDescriptorIndex(uint32_t index) {
+      temporary_srv_descriptor_index_ = index;
+    }
+    uint32_t temporary_srv_descriptor_index_stencil() const {
+      return temporary_srv_descriptor_index_stencil_;
+    }
+    void SetTemporarySRVDescriptorIndexStencil(uint32_t index) {
+      temporary_srv_descriptor_index_stencil_ = index;
+    }
+    uint32_t temporary_sort_index() const { return temporary_sort_index_; }
+    void SetTemporarySortIndex(uint32_t index) {
+      temporary_sort_index_ = index;
+    }
+
+   private:
+    Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
+    ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_draw_;
+    ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_draw_srgb_;
+    ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_load_separate_;
+    // Texture SRV non-shader-visible descriptors, to prepare shader-visible
+    // descriptors faster, by copying rather than by creating every time.
+    // TODO(Triang3l): With bindless resources, persistently store them in the
+    // heap.
+    ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_srv_;
+    ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_srv_stencil_;
+    D3D12_RESOURCE_STATES resource_state_;
+    // Temporary storage for indices in operations like transfers and dumps.
+    uint32_t temporary_srv_descriptor_index_ = UINT32_MAX;
+    uint32_t temporary_srv_descriptor_index_stencil_ = UINT32_MAX;
+    uint32_t temporary_sort_index_ = 0;
+  };
 
   enum TransferCBVRegister : uint32_t {
     kTransferCBVRegisterStencilMask,
@@ -438,7 +438,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
       // Last bits because this affects the root signature - after sorting, only
       // change it as fewer times as possible. Depth buffers have an additional
-      // depth SRV.
+      // stencil SRV.
       static_assert(size_t(TransferMode::kCount) <= (size_t(1) << 3));
       TransferMode mode : 3;
     };
