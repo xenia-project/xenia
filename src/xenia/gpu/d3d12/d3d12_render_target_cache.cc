@@ -4388,14 +4388,8 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
         D3D12_STENCIL_OP_REPLACE;
     pipeline_desc.DepthStencilState.FrontFace.StencilFunc =
         D3D12_COMPARISON_FUNC_ALWAYS;
-    pipeline_desc.DepthStencilState.BackFace.StencilFailOp =
-        D3D12_STENCIL_OP_KEEP;
-    pipeline_desc.DepthStencilState.BackFace.StencilDepthFailOp =
-        D3D12_STENCIL_OP_KEEP;
-    pipeline_desc.DepthStencilState.BackFace.StencilPassOp =
-        D3D12_STENCIL_OP_REPLACE;
-    pipeline_desc.DepthStencilState.BackFace.StencilFunc =
-        D3D12_COMPARISON_FUNC_ALWAYS;
+    pipeline_desc.DepthStencilState.BackFace =
+        pipeline_desc.DepthStencilState.FrontFace;
     pipeline_desc.DSVFormat = GetDepthDSVDXGIFormat(dest_depth_format);
     // Even if creation fails, still store the null pointers not to try to
     // create again.
@@ -4448,14 +4442,8 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
         // stencil being different.
         pipeline_desc.DepthStencilState.FrontFace.StencilFunc =
             D3D12_COMPARISON_FUNC_ALWAYS;
-        pipeline_desc.DepthStencilState.BackFace.StencilFailOp =
-            D3D12_STENCIL_OP_KEEP;
-        pipeline_desc.DepthStencilState.BackFace.StencilDepthFailOp =
-            D3D12_STENCIL_OP_REPLACE;
-        pipeline_desc.DepthStencilState.BackFace.StencilPassOp =
-            D3D12_STENCIL_OP_REPLACE;
-        pipeline_desc.DepthStencilState.BackFace.StencilFunc =
-            D3D12_COMPARISON_FUNC_ALWAYS;
+        pipeline_desc.DepthStencilState.BackFace =
+            pipeline_desc.DepthStencilState.FrontFace;
       }
       pipeline_desc.DSVFormat = GetDepthDSVDXGIFormat(dest_depth_format);
     }
