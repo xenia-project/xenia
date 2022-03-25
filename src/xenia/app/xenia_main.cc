@@ -59,7 +59,7 @@
 #include "third_party/fmt/include/fmt/format.h"
 
 DEFINE_string(apu, "any", "Audio system. Use: [any, nop, sdl, xaudio2]", "APU");
-DEFINE_string(gpu, "any", "Graphics system. Use: [any, d3d12, vulkan, null]",
+DEFINE_string(gpu, "any", "Graphics system. Use: [any, d3d12, null]",
               "GPU");
 DEFINE_string(hid, "any", "Input system. Use: [any, nop, sdl, winkey, xinput]",
               "HID");
@@ -263,7 +263,7 @@ std::unique_ptr<gpu::GraphicsSystem> EmulatorApp::CreateGraphicsSystem() {
 #if XE_PLATFORM_WIN32
   factory.Add<gpu::d3d12::D3D12GraphicsSystem>("d3d12");
 #endif  // XE_PLATFORM_WIN32
-  factory.Add<gpu::vulkan::VulkanGraphicsSystem>("vulkan");
+  //factory.Add<gpu::vulkan::VulkanGraphicsSystem>("vulkan");
   factory.Add<gpu::null::NullGraphicsSystem>("null");
   return factory.Create(cvars::gpu);
 }
