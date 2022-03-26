@@ -1543,8 +1543,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
             std::make_pair(uint64_t(0), guest_output_image);
         // Create the descriptors of the new image.
         VkDescriptorImageInfo guest_output_image_descriptor_image_info;
-        guest_output_image_descriptor_image_info.sampler =
-            provider_.GetHostSampler(VulkanProvider::HostSampler::kLinearClamp);
+        guest_output_image_descriptor_image_info.sampler = VK_NULL_HANDLE;
         guest_output_image_descriptor_image_info.imageView =
             guest_output_image->view();
         guest_output_image_descriptor_image_info.imageLayout =
@@ -1561,7 +1560,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
         guest_output_image_descriptor_write.dstArrayElement = 0;
         guest_output_image_descriptor_write.descriptorCount = 1;
         guest_output_image_descriptor_write.descriptorType =
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         guest_output_image_descriptor_write.pImageInfo =
             &guest_output_image_descriptor_image_info;
         guest_output_image_descriptor_write.pBufferInfo = nullptr;
@@ -1642,9 +1641,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
             }
             // Descriptors.
             VkDescriptorImageInfo intermediate_descriptor_image_info;
-            intermediate_descriptor_image_info.sampler =
-                provider_.GetHostSampler(
-                    VulkanProvider::HostSampler::kLinearClamp);
+            intermediate_descriptor_image_info.sampler = VK_NULL_HANDLE;
             intermediate_descriptor_image_info.imageView =
                 intermediate_image_ptr_ref->view();
             intermediate_descriptor_image_info.imageLayout =
@@ -1662,7 +1659,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
             intermediate_descriptor_write.dstArrayElement = 0;
             intermediate_descriptor_write.descriptorCount = 1;
             intermediate_descriptor_write.descriptorType =
-                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
             intermediate_descriptor_write.pImageInfo =
                 &intermediate_descriptor_image_info;
             intermediate_descriptor_write.pBufferInfo = nullptr;
@@ -2115,24 +2112,34 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   VkDevice device = provider_.device();
 
+  VkDescriptorSetLayoutBinding guest_output_image_sampler_bindings[2];
+  guest_output_image_sampler_bindings[0].binding = 0;
+  guest_output_image_sampler_bindings[0].descriptorType =
+      VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+  guest_output_image_sampler_bindings[0].descriptorCount = 1;
+  guest_output_image_sampler_bindings[0].stageFlags =
+      VK_SHADER_STAGE_FRAGMENT_BIT;
+  guest_output_image_sampler_bindings[0].pImmutableSamplers = nullptr;
   VkSampler sampler_linear_clamp =
       provider_.GetHostSampler(VulkanProvider::HostSampler::kLinearClamp);
-  VkDescriptorSetLayoutBinding guest_output_image_binding;
-  guest_output_image_binding.binding = 0;
-  guest_output_image_binding.descriptorType =
-      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-  guest_output_image_binding.descriptorCount = 1;
-  guest_output_image_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-  guest_output_image_binding.pImmutableSamplers = &sampler_linear_clamp;
+  guest_output_image_sampler_bindings[1].binding = 1;
+  guest_output_image_sampler_bindings[1].descriptorType =
+      VK_DESCRIPTOR_TYPE_SAMPLER;
+  guest_output_image_sampler_bindings[1].descriptorCount = 1;
+  guest_output_image_sampler_bindings[1].stageFlags =
+      VK_SHADER_STAGE_FRAGMENT_BIT;
+  guest_output_image_sampler_bindings[1].pImmutableSamplers =
+      &sampler_linear_clamp;
   VkDescriptorSetLayoutCreateInfo
       guest_output_paint_image_descriptor_set_layout_create_info;
   guest_output_paint_image_descriptor_set_layout_create_info.sType =
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
   guest_output_paint_image_descriptor_set_layout_create_info.pNext = nullptr;
   guest_output_paint_image_descriptor_set_layout_create_info.flags = 0;
-  guest_output_paint_image_descriptor_set_layout_create_info.bindingCount = 1;
+  guest_output_paint_image_descriptor_set_layout_create_info.bindingCount =
+      uint32_t(xe::countof(guest_output_image_sampler_bindings));
   guest_output_paint_image_descriptor_set_layout_create_info.pBindings =
-      &guest_output_image_binding;
+      guest_output_image_sampler_bindings;
   if (dfn.vkCreateDescriptorSetLayout(
           device, &guest_output_paint_image_descriptor_set_layout_create_info,
           nullptr,
@@ -2390,11 +2397,16 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   }
 
   // Guest output painting descriptor sets.
-  VkDescriptorPoolSize guest_output_paint_descriptor_pool_size;
-  guest_output_paint_descriptor_pool_size.type =
-      guest_output_image_binding.descriptorType;
-  // Each descriptor set contains only 1 descriptor.
-  guest_output_paint_descriptor_pool_size.descriptorCount =
+  VkDescriptorPoolSize guest_output_paint_descriptor_pool_sizes[2];
+  guest_output_paint_descriptor_pool_sizes[0].type =
+      VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+  guest_output_paint_descriptor_pool_sizes[0].descriptorCount =
+      PaintContext::kGuestOutputDescriptorSetCount;
+  // Required even when using immutable samplers, otherwise failing to allocate
+  // descriptor sets (tested on AMD Software: Adrenalin Edition 22.3.2 on
+  // Windows 10 on AMD Radeon RX Vega 10 with Vulkan validation enabled).
+  guest_output_paint_descriptor_pool_sizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLER;
+  guest_output_paint_descriptor_pool_sizes[1].descriptorCount =
       PaintContext::kGuestOutputDescriptorSetCount;
   VkDescriptorPoolCreateInfo guest_output_paint_descriptor_pool_create_info;
   guest_output_paint_descriptor_pool_create_info.sType =
@@ -2403,9 +2415,10 @@ bool VulkanPresenter::InitializeSurfaceIndependent() {
   guest_output_paint_descriptor_pool_create_info.flags = 0;
   guest_output_paint_descriptor_pool_create_info.maxSets =
       PaintContext::kGuestOutputDescriptorSetCount;
-  guest_output_paint_descriptor_pool_create_info.poolSizeCount = 1;
+  guest_output_paint_descriptor_pool_create_info.poolSizeCount =
+      uint32_t(xe::countof(guest_output_paint_descriptor_pool_sizes));
   guest_output_paint_descriptor_pool_create_info.pPoolSizes =
-      &guest_output_paint_descriptor_pool_size;
+      guest_output_paint_descriptor_pool_sizes;
   if (dfn.vkCreateDescriptorPool(
           device, &guest_output_paint_descriptor_pool_create_info, nullptr,
           &paint_context_.guest_output_descriptor_pool) != VK_SUCCESS) {

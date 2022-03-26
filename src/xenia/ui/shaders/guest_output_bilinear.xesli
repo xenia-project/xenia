@@ -22,8 +22,9 @@ xesl_push_constants_begin(b0, space0)
 xesl_push_constants_end
 
 xesl_entry
-  xesl_sampler(xesl_sampler2D, xe_bilinear_source, set=0, binding=0, t0,
-               space0, s0, space0)
+  xesl_texture(xesl_texture2D, xe_bilinear_source, set=0, binding=0, t0, space0)
+  xesl_entry_binding_next
+  xesl_samplerState(xe_bilinear_sampler, set=0, binding=1, s0, space0)
 xesl_entry_bindings_end
   xesl_input_frag_coord
   xesl_entry_signature_next
@@ -40,8 +41,8 @@ xesl_entry_signature_end
   // too apparent (4D5307E6 HUD, for example, mainly the edges of the
   // multiplayer score bars).
   xe_bilinear_color.rgb =
-      xesl_textureSampleLod2D_comb(
-          xe_bilinear_source,
+      xesl_textureSampleLod2D_sep(
+          xe_bilinear_source, xe_bilinear_sampler,
           (xesl_float2(pixel_coord) + 0.5) *
               xesl_push_constant(xe_bilinear_output_size_inv),
           0.0).rgb;
