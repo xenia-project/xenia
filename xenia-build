@@ -1014,12 +1014,13 @@ class BuildShadersCommand(Command):
                 'ps': 'frag',
                 'cs': 'comp',
             }
-            # #version must be before everything else in a GLSL file, can't use
-            # a language conditional to add it. Use string interpolation to
-            # insert the file name. Using #include also preserves line numbers
-            # in error and warning messages.
+            # #version and extensions must be before everything else in a GLSL
+            # file, can't use a language conditional to add them. Use string
+            # interpolation to insert the file name. Using #include also
+            # preserves line numbers in error and warning messages.
             spirv_xesl_wrapper =  \
                 '#version 460\n' + \
+                '#extension GL_EXT_samplerless_texture_functions : require\n' + \
                 '#extension GL_GOOGLE_include_directive : require\n' + \
                 '#include "%s"\n'
             for src_path in src_paths:

@@ -1348,7 +1348,7 @@ int InstrEmit_vrlimi128(PPCHIRBuilder& f, const InstrData& i) {
         swizzle_mask = SWIZZLE_XYZW_TO_WXYZ;
         break;
       default:
-        assert_always();
+        XEINSTRNOTIMPLEMENTED();
         return 1;
     }
     v = f.Swizzle(f.LoadVR(vb), FLOAT32_TYPE, swizzle_mask);

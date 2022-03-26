@@ -33,7 +33,7 @@ void CasFilter(out float pixel_r, out float pixel_g, out float pixel_b,
                bool no_scaling);
 
 xesl_entry
-  xesl_fetchSampler(xesl_sampler2D, xe_cas_source, set=0, binding=0, t0, space0)
+  xesl_texture(xesl_texture2D, xe_cas_source, set=0, binding=0, t0, space0)
 xesl_entry_bindings_end
   xesl_input_frag_coord
   xesl_entry_signature_next
@@ -72,7 +72,7 @@ xesl_entry_end
 #define A_GPU 1
 #include "../../../../third_party/FidelityFX-CAS/ffx-cas/ffx_a.h"
 xesl_float3 CasLoad(xesl_int2 p) {
-  return xesl_texelFetch2D_comb(xe_cas_source, p, 0).rgb;
+  return xesl_texelFetch2D(xe_cas_source, p, 0).rgb;
 }
 void CasInput(inout float r, inout float g, inout float b) {
   // Linear conversion approximation as recommended in the CAS presentation.
