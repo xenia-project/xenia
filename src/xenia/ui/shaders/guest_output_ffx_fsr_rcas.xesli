@@ -29,8 +29,7 @@ void FsrRcasF(out float pixel_r, out float pixel_g, out float pixel_b,
               xesl_uint2 pixel_position, xesl_uint4 constants);
 
 xesl_entry
-  xesl_fetchSampler(xesl_sampler2D, xe_fsr_rcas_source, set=0, binding=0, t0,
-                    space0)
+  xesl_texture(xesl_texture2D, xe_fsr_rcas_source, set=0, binding=0, t0, space0)
 xesl_entry_bindings_end
   xesl_input_frag_coord
   xesl_entry_signature_next
@@ -60,7 +59,7 @@ xesl_entry_end
 #include "../../../../third_party/FidelityFX-FSR/ffx-fsr/ffx_a.h"
 #define FSR_RCAS_F 1
 xesl_float4 FsrRcasLoadF(xesl_int2 p) {
-  return xesl_float4(xesl_texelFetch2D_comb(xe_fsr_rcas_source, p, 0).rgb, 1.0);
+  return xesl_float4(xesl_texelFetch2D(xe_fsr_rcas_source, p, 0).rgb, 1.0);
 }
 void FsrRcasInputF(inout float r, inout float g, inout float b) {}
 #include "../../../../third_party/FidelityFX-FSR/ffx-fsr/ffx_fsr1.h"

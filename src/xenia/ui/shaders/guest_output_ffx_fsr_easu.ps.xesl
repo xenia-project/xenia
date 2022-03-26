@@ -26,8 +26,9 @@ void FsrEasuF(out xesl_float3 pixel, xesl_uint2 pixel_position,
               xesl_uint4 const3);
 
 xesl_entry
-  xesl_sampler(xesl_sampler2D, xe_fsr_easu_source, set=0, binding=0, t0, space0,
-               s0, space0)
+  xesl_texture(xesl_texture2D, xe_fsr_easu_source, set=0, binding=0, t0, space0)
+  xesl_entry_binding_next
+  xesl_samplerState(xe_fsr_easu_sampler, set=0, binding=1, s0, space0)
 xesl_entry_bindings_end
   xesl_input_frag_coord
   xesl_entry_signature_next
@@ -61,12 +62,15 @@ xesl_entry_end
 #include "../../../../third_party/FidelityFX-FSR/ffx-fsr/ffx_a.h"
 #define FSR_EASU_F 1
 xesl_float4 FsrEasuRF(xesl_float2 p) {
-  return xesl_textureGatherRed2D_comb(xe_fsr_easu_source, p);
+  return xesl_textureGatherRed2D_sep(xe_fsr_easu_source, xe_fsr_easu_sampler,
+                                     p);
 }
 xesl_float4 FsrEasuGF(xesl_float2 p) {
-  return xesl_textureGatherGreen2D_comb(xe_fsr_easu_source, p);
+  return xesl_textureGatherGreen2D_sep(xe_fsr_easu_source, xe_fsr_easu_sampler,
+                                       p);
 }
 xesl_float4 FsrEasuBF(xesl_float2 p) {
-  return xesl_textureGatherBlue2D_comb(xe_fsr_easu_source, p);
+  return xesl_textureGatherBlue2D_sep(xe_fsr_easu_source, xe_fsr_easu_sampler,
+                                      p);
 }
 #include "../../../../third_party/FidelityFX-FSR/ffx-fsr/ffx_fsr1.h"
