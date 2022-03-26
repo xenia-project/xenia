@@ -13,6 +13,9 @@
 // XESL_LANGUAGE_GLSL / HLSL = 1 are expected to be defined via compiler
 // arguments.
 
+// Required GLSL extensions:
+// - GL_EXT_samplerless_texture_functions
+
 // For functions, it's preferable to take the identifiers here from an existing
 // target language, such as GLSL or HLSL, prefixing them with xesl_, only
 // modifying the names when altering (generalizing or specializing usually)
@@ -199,13 +202,8 @@
 // - xesl_samplerState is a separate sampler.
 // - xesl_sampler is a combined texture / sampler where available, internally
 //   separate where not.
-// - xesl_fetchSampler is a special kind of xesl_sampler for use when only
-//   texelFetch is needed - it can be used with xesl_texelFetch#D_comb just like
-//   a xesl_sampler, but when the target language doesn't need the sampler state
-//   for texelFetch, the unused sampler will not be created.
 #if XESL_LANGUAGE_GLSL
   #define XESL_COMBINED_TEXTURE_SAMPLER 1
-  #define XESL_TEXEL_FETCH_USES_SAMPLER 1
   // Types.
   #define xesl_texture2D texture2D
   #define xesl_sampler2D sampler2D
@@ -214,17 +212,16 @@
                        hlsl_t_space)                                       \
       layout(glsl_set, glsl_binding) uniform texture_type name;
   #define xesl_samplerState(name, glsl_set, glsl_binding, hlsl_s, \
-                            hlsl_s_space) \
+                            hlsl_s_space)                         \
       layout(glsl_set, glsl_binding) uniform sampler name;
   #define xesl_sampler(sampler_type, name, glsl_set, glsl_binding, hlsl_t, \
                        hlsl_t_space, hlsl_s, hlsl_s_space)                 \
       layout(glsl_set, glsl_binding) uniform sampler_type name;
   // Fetching.
-  #define xesl_texelFetch2D_sep(texture_name, sampler_name, position, lod) \
-      texelFetch(sampler2D(texture_name, sampler_name), position, lod)
-  #define xesl_texelFetch2D_comb(texture_sampler_name, position, lod) \
-      texelFetch(texture_sampler_name, position, lod)
-  #define xesl_textureSampleLod2D_sep(texture, sampler_name, position, lod) \
+  #define xesl_texelFetch2D(texture_name, position, lod) \
+      texelFetch(texture_name, position, lod)
+  #define xesl_textureSampleLod2D_sep(texture_name, sampler_name, position, \
+                                      lod)                                  \
       textureLod(sampler2D(texture_name, sampler_name), position, lod)
   #define xesl_textureSampleLod2D_comb(texture_sampler_name, position, lod) \
       textureLod(texture_sampler_name, position, lod)
@@ -252,13 +249,11 @@
                        hlsl_t_space)                                       \
       texture_type name : register(hlsl_t, hlsl_t_space);
   #define xesl_samplerState(name, glsl_set, glsl_binding, hlsl_s, \
-                            hlsl_s_space) \
+                            hlsl_s_space)                         \
       SamplerState name : register(hlsl_s, hlsl_s_space);
   // Fetching.
-  #define xesl_texelFetch2D_sep(texture_name, sampler_name, position, lod) \
+  #define xesl_texelFetch2D(texture_name, position, lod) \
       ((texture_name).Load(int3(position, lod)))
-  #define xesl_texelFetch2D_comb(texture_sampler_name, position, lod) \
-      ((xesl_id_texture_##texture_sampler_name).Load(int3(position, lod)))
   #define xesl_textureSampleLod2D_sep(texture_name, sampler_name, position, \
                                       lod)                                  \
       ((texture_name).SampleLevel(sampler_name, position, lod))
@@ -320,21 +315,6 @@
                                       position)
   #endif  // !xesl_textureGatherAlpha2D_comb
 #endif  // !XESL_COMBINED_TEXTURE_SAMPLER
-#if XESL_TEXEL_FETCH_USES_SAMPLER
-  #ifndef xesl_fetchSampler
-    #define xesl_fetchSampler(sampler_type, name, glsl_set, glsl_binding, \
-                              hlsl_t, hlsl_t_space)                       \
-        xesl_sampler(sampler_type, name, glsl_set, glsl_binding, hlsl_t,  \
-                     hlsl_t_space, s0, space0)
-  #endif  // !xesl_fetchSampler
-#else
-  #ifndef xesl_fetchSampler
-    #define xesl_fetchSampler(sampler_type, name, glsl_set, glsl_binding, \
-                              hlsl_t, hlsl_t_space)                       \
-        xesl_texture(sampler_type, xesl_id_texture_##name, glsl_set,      \
-                     glsl_binding, hlsl_t, hlsl_t_space)
-  #endif  // !xesl_fetchSampler
-#endif  // XESL_TEXEL_FETCH_USES_SAMPLER
 
 // xesl_input_vertex_id declares int xesl_VertexID.
 // xesl_input_frag_coord declares xesl_float4 xesl_FragCoord.
