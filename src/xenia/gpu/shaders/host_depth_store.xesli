@@ -1,0 +1,61 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#ifndef XENIA_GPU_SHADERS_HOST_DEPTH_STORE_XESLI_
+#define XENIA_GPU_SHADERS_HOST_DEPTH_STORE_XESLI_
+
+#include "../../ui/shaders/xesl.xesli"
+
+xesl_push_constants_begin(b0, space0)
+  uint xe_host_depth_store_rectangle;
+  uint xe_host_depth_store_render_target;
+xesl_push_constants_end
+
+xesl_uint2 XeHostDepthStoreResolutionScale() {
+  uint rt_constant = xesl_push_constant(xe_host_depth_store_render_target);
+  return (rt_constant.xx >> xesl_uint2(10u, 12u)) & 0x3u;
+}
+
+xesl_uint2 XeHostDepthStoreUnscaledOrigin() {
+  uint rectangle_constant = xesl_push_constant(xe_host_depth_store_rectangle);
+  return ((rectangle_constant.xx >> xesl_uint2(0u, 10u)) & 0x3FFu) << 3u;
+}
+
+xesl_uint2 XeHostDepthStoreScaledOrigin() {
+  return XeHostDepthStoreUnscaledOrigin() * XeHostDepthStoreResolutionScale();
+}
+
+uint XeHostDepthStoreUnscaledWidthDiv8Minus1() {
+  uint rectangle_constant = xesl_push_constant(xe_host_depth_store_rectangle);
+  return (rectangle_constant >> 20u) & 0x3FFu;
+}
+
+uint XeHostDepthStoreScaledWidthDiv8() {
+  return (XeHostDepthStoreUnscaledWidthDiv8Minus1() + 1u) *
+         XeHostDepthStoreResolutionScale().x;
+}
+
+// As host depth is needed for at most one transfer destination per update, base
+// is not passed to the shader - (0, 0) of the render target is at 0 of the
+// destination buffer.
+
+uint XeHostDepthStorePitchTiles() {
+  uint rt_constant = xesl_push_constant(xe_host_depth_store_render_target);
+  return rt_constant & 0x3FFu;
+}
+
+bool XeHostDepthStoreMsaa2xSupported() {
+  uint rt_constant = xesl_push_constant(xe_host_depth_store_render_target);
+  return bool((rt_constant >> 14u) & 0x1u);
+}
+
+// 40-sample columns are not swapped for addressing simplicity (because this is
+// used for depth -> depth transfers, where swapping isn't needed).
+
+#endif  // XENIA_GPU_SHADERS_HOST_DEPTH_STORE_XESLI_

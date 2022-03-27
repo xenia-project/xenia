@@ -1020,6 +1020,7 @@ class BuildShadersCommand(Command):
             # preserves line numbers in error and warning messages.
             spirv_xesl_wrapper =  \
                 '#version 460\n' + \
+                '#extension GL_EXT_control_flow_attributes : require\n' + \
                 '#extension GL_EXT_samplerless_texture_functions : require\n' + \
                 '#extension GL_GOOGLE_include_directive : require\n' + \
                 '#include "%s"\n'

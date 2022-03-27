@@ -1,5 +1,5 @@
 #include "endian.hlsli"
-#include "pixel_formats.hlsli"
+#include "pixel_formats.xesli"
 #include "resolve.hlsli"
 
 RWBuffer<uint4> xe_resolve_dest : register(u0);
