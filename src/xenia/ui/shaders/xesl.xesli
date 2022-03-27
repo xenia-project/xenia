@@ -14,6 +14,7 @@
 // arguments.
 
 // Required GLSL extensions:
+// - GL_EXT_control_flow_attributes
 // - GL_EXT_samplerless_texture_functions
 
 // For functions, it's preferable to take the identifiers here from an existing
@@ -85,7 +86,7 @@
 //   Everything here must be separated with xesl_entry_binding_next, with no
 //   leading or trailing separators.
 //   - Texel buffer, texture, sampler bindings.
-// xesl_entry_bindings_end
+// xesl_entry_bindings_end or (for CS) xesl_entry_bindings_end_local_size
 //   Everything here must be separated with xesl_entry_signature_next, with no
 //   leading or trailing separators.
 //   - Linked stage inputs.
@@ -103,9 +104,14 @@
 // Both binding and signature entry names may be placed in the global scope in
 // the target language, make sure they don't collide with anything there.
 #if XESL_LANGUAGE_GLSL
+  #define xesl_entry_bindings_end_local_size(x, y, z) \
+      layout(local_size_x=(x), local_size_y=(y), local_size_z=(z)) in;
   #define xesl_entry_signature_end void main() {
 #elif XESL_LANGUAGE_HLSL
   #define xesl_entry_bindings_end void main(
+  #define xesl_entry_bindings_end_local_size(x, y, z) \
+      [numthreads(x, y, z)]                           \
+      xesl_entry_bindings_end
   #define xesl_entry_signature_next ,
   #define xesl_entry_signature_end ) {
 #else
@@ -196,8 +202,12 @@
   #define xesl_push_constant(name) xesl_push_constants.name
 #endif  // XESL_PUSH_CONSTANTS_GLOBAL
 
-// Texture, sampler and image declarations must be in the entry point bindings
-// declaration.
+// Buffer, texture, sampler and image declarations must be in the entry point
+// bindings declaration.
+// - xesl_typedStorageBuffer is a buffer limited to 1/2/4-component vectors of
+//   32-bit integers and floats, a typed buffer on Direct3D, but a storage
+//   buffer (as opposed to a texel buffer, which has a very small minimum
+//   requirement for the maximum size) on Vulkan.
 // - xesl_texture is a separate texture.
 // - xesl_samplerState is a separate sampler.
 // - xesl_sampler is a combined texture / sampler where available, internally
@@ -206,8 +216,21 @@
   #define XESL_COMBINED_TEXTURE_SAMPLER 1
   // Types.
   #define xesl_texture2D texture2D
+  #define xesl_texture2DMS texture2DMS
   #define xesl_sampler2D sampler2D
   // Binding declarations.
+  #define xesl_typedStorageBuffer(value_type, name, glsl_set, glsl_binding, \
+                                  hlsl_t, hlsl_t_space)                     \
+      layout(std430, glsl_set, glsl_binding)                                \
+      readonly buffer xesl_id_buffer_##name {                               \
+        value_type data[];                                                  \
+      } name;
+  #define xesl_writeTypedStorageBuffer(value_type, name, glsl_set,         \
+                                       glsl_binding, hlsl_u, hlsl_u_space) \
+      layout(std430, glsl_set, glsl_binding)                               \
+      writeonly buffer xesl_id_buffer_##name {                             \
+        value_type data[];                                                 \
+      } name;
   #define xesl_texture(texture_type, name, glsl_set, glsl_binding, hlsl_t, \
                        hlsl_t_space)                                       \
       layout(glsl_set, glsl_binding) uniform texture_type name;
@@ -217,9 +240,15 @@
   #define xesl_sampler(sampler_type, name, glsl_set, glsl_binding, hlsl_t, \
                        hlsl_t_space, hlsl_s, hlsl_s_space)                 \
       layout(glsl_set, glsl_binding) uniform sampler_type name;
-  // Fetching.
+  // Fetching and storing.
+  #define xesl_typedStorageBufferLoad(name, position) \
+      ((name).data[uint(position)])
+  #define xesl_writeTypedStorageBufferStore(name, position, value) \
+      ((name).data[uint(position)] = (value))
   #define xesl_texelFetch2D(texture_name, position, lod) \
       texelFetch(texture_name, position, lod)
+  #define xesl_texelFetch2DMS(texture_name, position, sample_index) \
+      texelFetch(texture_name, position, sample_index)
   #define xesl_textureSampleLod2D_sep(texture_name, sampler_name, position, \
                                       lod)                                  \
       textureLod(sampler2D(texture_name, sampler_name), position, lod)
@@ -243,17 +272,29 @@
       textureGather(texture_sampler_name, position, 3)
 #elif XESL_LANGUAGE_HLSL
   // Types.
-  #define xesl_texture2D Texture2D
+  #define xesl_texture2D Texture2D<float4>
+  #define xesl_texture2DMS Texture2DMS<float4>
   // Binding declarations.
+  #define xesl_typedStorageBuffer(value_type, name, glsl_set, glsl_binding, \
+                                  hlsl_t, hlsl_t_space)                     \
+      Buffer<value_type> name : register(hlsl_t, hlsl_t_space);
+  #define xesl_writeTypedStorageBuffer(value_type, name, glsl_set,         \
+                                       glsl_binding, hlsl_u, hlsl_u_space) \
+      RWBuffer<value_type> name : register(hlsl_u, hlsl_u_space);
   #define xesl_texture(texture_type, name, glsl_set, glsl_binding, hlsl_t, \
                        hlsl_t_space)                                       \
       texture_type name : register(hlsl_t, hlsl_t_space);
   #define xesl_samplerState(name, glsl_set, glsl_binding, hlsl_s, \
                             hlsl_s_space)                         \
       SamplerState name : register(hlsl_s, hlsl_s_space);
-  // Fetching.
+  // Fetching and storing.
+  #define xesl_typedStorageBufferLoad(name, position) ((name)[uint(position)])
+  #define xesl_writeTypedStorageBufferStore(name, position, value) \
+      ((name)[uint(position)] = (value))
   #define xesl_texelFetch2D(texture_name, position, lod) \
       ((texture_name).Load(int3(position, lod)))
+  #define xesl_texelFetch2DMS(texture_name, position, sample_index) \
+      ((texture_name).Load(position, sample_index))
   #define xesl_textureSampleLod2D_sep(texture_name, sampler_name, position, \
                                       lod)                                  \
       ((texture_name).SampleLevel(sampler_name, position, lod))
@@ -266,7 +307,7 @@
   #define xesl_textureGatherAlpha2D_sep(texture_name, sampler_name, position) \
       ((texture_name).GatherAlpha(sampler_name, position))
 #else
-  #error xesl_texture and xesl_samplerState not defined for the target language.
+  #error Buffers and textures not defined for the target language.
 #endif  // XESL_LANGUAGE
 // If there's no language specialization doing this already, implement combined
 // textures / samplers as separate, with `xesl_id_texture_` and
@@ -324,11 +365,19 @@
   #define XESL_FRAG_COORD_W_IS_INVERSE 1
   #define xesl_VertexID gl_VertexIndex
   #define xesl_FragCoord gl_FragCoord
+  #define xesl_WorkGroupID gl_WorkGroupID
+  #define xesl_LocalInvocationID gl_LocalInvocationID
+  #define xesl_GlobalInvocationID gl_GlobalInvocationID
+  #define xesl_LocalInvocationIndex gl_LocalInvocationIndex
   #define xesl_Position gl_Position
   #define xesl_input(type, name, index, hlsl_semantic) \
       layout(location=index) in type name;
   #define xesl_input_vertex_id
   #define xesl_input_frag_coord
+  #define xesl_input_work_group_id
+  #define xesl_input_local_invocation_id
+  #define xesl_input_global_invocation_id
+  #define xesl_input_local_invocation_index
   #define xesl_output(type, name, index, hlsl_semantic) \
       layout(location=index) out type name;
   #define xesl_output_position
@@ -342,6 +391,14 @@
       uint xesl_id_vertex_id : SV_VertexID
   #define xesl_input_frag_coord \
       xesl_float4 xesl_FragCoord : SV_Position
+  #define xesl_input_work_group_id \
+      xesl_uint3 xesl_WorkGroupID : SV_GroupID
+  #define xesl_input_local_invocation_id \
+      xesl_uint3 xesl_LocalInvocationID : SV_GroupThreadID
+  #define xesl_input_global_invocation_id \
+      xesl_uint3 xesl_GlobalInvocationID : SV_DispatchThreadID
+  #define xesl_input_local_invocation_index \
+      uint xesl_LocalInvocationIndex : SV_GroupIndex
   #define xesl_output(type, name, index, hlsl_semantic) \
       out type name : hlsl_semantic
   #define xesl_output_position \
@@ -361,9 +418,54 @@
   #define XESL_Y_SCREEN_DIRECTION -1.0
 #endif  // XESL_LANGUAGE_GLSL
 
+// Attributes.
+
+#if XESL_LANGUAGE_GLSL
+  #define xesl_flatten [[flatten]]
+  #define xesl_dont_flatten [[dont_flatten]]
+#elif XESL_LANGUAGE_HLSL
+  #define xesl_flatten [flatten]
+  #define xesl_dont_flatten [branch]
+#endif  // XESL_LANGUAGE
+#ifndef xesl_flatten
+  #define xesl_flatten
+#endif  // !xesl_flatten
+#ifndef xesl_dont_flatten
+  #define xesl_dont_flatten
+#endif  // !xesl_dont_flatten
+
 // Function aliases.
 
-#if XESL_LANGUAGE_HLSL
+#if XESL_LANGUAGE_GLSL
+  #define xesl_lessThan lessThan
+  #define xesl_lessThanEqual lessThanEqual
+  #define xesl_greaterThan greaterThan
+  #define xesl_greaterThanEqual greaterThanEqual
+  #define xesl_equal equal
+  #define xesl_notEqual notEqual
+  #define xesl_not not
+  #define xesl_select(condition, true_result, false_result) \
+      mix(false_result, true_result, condition)
+#elif XESL_LANGUAGE_HLSL
+  #define xesl_lessThan(x, y) ((x) < (y))
+  #define xesl_lessThanEqual(x, y) ((x) <= (y))
+  #define xesl_greaterThan(x, y) ((x) > (y))
+  #define xesl_greaterThanEqual(x, y) ((x) >= (y))
+  #define xesl_equal(x, y) ((x) == (y))
+  #define xesl_notEqual(x, y) ((x) != (y))
+  #define xesl_not(x) (!(x))
+  #define xesl_select(condition, true_result, false_result) \
+      ((condition) ? (true_result) : (false_result))
+#else
+  #error Comparison operations not defined for the target language.
+#endif
+
+#if XESL_LANGUAGE_GLSL
+  #define xesl_floatBitsToInt floatBitsToInt
+  #define xesl_floatBitsToUint floatBitsToUint
+  #define xesl_intBitsToFloat intBitsToFloat
+  #define xesl_uintBitsToFloat uintBitsToFloat
+#elif XESL_LANGUAGE_HLSL
   // Using functions instead of #define for implicit argument conversion.
   int xesl_floatBitsToInt(float value) { return asint(value); }
   xesl_int2 xesl_floatBitsToInt(xesl_float2 value) { return asint(value); }
@@ -382,11 +484,8 @@
   xesl_float3 xesl_uintBitsToFloat(xesl_uint3 value) { return asfloat(value); }
   xesl_float4 xesl_uintBitsToFloat(xesl_uint4 value) { return asfloat(value); }
 #else
-  #define xesl_floatBitsToInt floatBitsToInt
-  #define xesl_floatBitsToUint floatBitsToUint
-  #define xesl_intBitsToFloat intBitsToFloat
-  #define xesl_uintBitsToFloat uintBitsToFloat
-#endif  // XESL_LANGUAGE_HLSL
+  #error Float bit casting not defined for the target language.
+#endif  // XESL_LANGUAGE
 
 #if XESL_LANGUAGE_GLSL
   float xesl_saturate(float value) {
@@ -405,6 +504,16 @@
 #else
   #define xesl_saturate saturate
 #endif  // XESL_LANGUAGE_GLSL
+
+#if XESL_LANGUAGE_GLSL
+  #define xesl_findLSB findLSB
+  #define xesl_findMSB findMSB
+#elif XESL_LANGUAGE_HLSL
+  #define xesl_findLSB firstbitlow
+  #define xesl_findMSB firstbithigh
+#else
+  #error Bit count operations not defined for the target language.
+#endif  // XESL_LANGUAGE
 
 #if XESL_LANGUAGE_GLSL
   #define xesl_packHalf2x16 packHalf2x16

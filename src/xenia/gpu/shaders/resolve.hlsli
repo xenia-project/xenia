@@ -1,8 +1,8 @@
 #ifndef XENIA_GPU_D3D12_SHADERS_RESOLVE_HLSLI_
 #define XENIA_GPU_D3D12_SHADERS_RESOLVE_HLSLI_
 
-#include "edram.hlsli"
-#include "pixel_formats.hlsli"
+#include "edram.xesli"
+#include "pixel_formats.xesli"
 #include "texture_address.hlsli"
 
 cbuffer XeResolveConstants : register(b0) {

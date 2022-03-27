@@ -575,29 +575,16 @@ bool D3D12RenderTargetCache::Initialize() {
     // and pipelines.
     D3D12_ROOT_PARAMETER
     host_depth_store_root_parameters[kHostDepthStoreRootParameterCount];
-    // Rectangle constant.
-    D3D12_ROOT_PARAMETER& host_depth_store_root_rectangle_constant =
-        host_depth_store_root_parameters
-            [kHostDepthStoreRootParameterRectangleConstant];
-    host_depth_store_root_rectangle_constant.ParameterType =
+    // Constants.
+    D3D12_ROOT_PARAMETER& host_depth_store_root_constants =
+        host_depth_store_root_parameters[kHostDepthStoreRootParameterConstants];
+    host_depth_store_root_constants.ParameterType =
         D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-    host_depth_store_root_rectangle_constant.Constants.ShaderRegister = 0;
-    host_depth_store_root_rectangle_constant.Constants.RegisterSpace = 0;
-    host_depth_store_root_rectangle_constant.Constants.Num32BitValues =
-        sizeof(HostDepthStoreRectangleConstant) / sizeof(uint32_t);
-    host_depth_store_root_rectangle_constant.ShaderVisibility =
-        D3D12_SHADER_VISIBILITY_ALL;
-    // Render target constant.
-    D3D12_ROOT_PARAMETER& host_depth_store_root_render_target_constant =
-        host_depth_store_root_parameters
-            [kHostDepthStoreRootParameterRenderTargetConstant];
-    host_depth_store_root_render_target_constant.ParameterType =
-        D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-    host_depth_store_root_render_target_constant.Constants.ShaderRegister = 1;
-    host_depth_store_root_render_target_constant.Constants.RegisterSpace = 0;
-    host_depth_store_root_render_target_constant.Constants.Num32BitValues =
-        sizeof(HostDepthStoreRenderTargetConstant) / sizeof(uint32_t);
-    host_depth_store_root_render_target_constant.ShaderVisibility =
+    host_depth_store_root_constants.Constants.ShaderRegister = 0;
+    host_depth_store_root_constants.Constants.RegisterSpace = 0;
+    host_depth_store_root_constants.Constants.Num32BitValues =
+        sizeof(HostDepthStoreConstants) / sizeof(uint32_t);
+    host_depth_store_root_constants.ShaderVisibility =
         D3D12_SHADER_VISIBILITY_ALL;
     // Source.
     D3D12_DESCRIPTOR_RANGE host_depth_store_root_source_range;
@@ -4599,9 +4586,11 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
         host_depth_store_render_target_constant.msaa_2x_supported =
             uint32_t(msaa_2x_supported_);
         command_list.D3DSetComputeRoot32BitConstants(
-            kHostDepthStoreRootParameterRenderTargetConstant,
+            kHostDepthStoreRootParameterConstants,
             sizeof(host_depth_store_render_target_constant) / sizeof(uint32_t),
-            &host_depth_store_render_target_constant, 0);
+            &host_depth_store_render_target_constant,
+            offsetof(HostDepthStoreConstants, render_target) /
+                sizeof(uint32_t));
         // Barriers - don't need to try to combine them with the rest of
         // render target transfer barriers now - if this happens, after host
         // depth storing, NON_PIXEL_SHADER_RESOURCE -> DEPTH_WRITE will be done
@@ -4649,9 +4638,10 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
         host_depth_store_rectangle_constant.width_pixels_div_8_minus_1 =
             (transfer_rectangle.width_pixels >> 3) - 1;
         command_list.D3DSetComputeRoot32BitConstants(
-            kHostDepthStoreRootParameterRectangleConstant,
+            kHostDepthStoreRootParameterConstants,
             sizeof(host_depth_store_rectangle_constant) / sizeof(uint32_t),
-            &host_depth_store_rectangle_constant, 0);
+            &host_depth_store_rectangle_constant,
+            offsetof(HostDepthStoreConstants, rectangle) / sizeof(uint32_t));
         command_processor_.SubmitBarriers();
         command_list.D3DDispatch(
             (transfer_rectangle.width_pixels * pixel_size_x + 63) >> 6,
