@@ -1,0 +1,19 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include "../../ui/shaders/xesl.xesli"
+
+xesl_entry
+xesl_entry_bindings_end
+  xesl_input(xesl_float2, xe_in_position, 0, POSITION)
+  xesl_entry_signature_next
+  xesl_output_position
+xesl_entry_signature_end
+  xesl_Position = xesl_float4(xe_in_position, 0.0, 1.0);
+xesl_entry_end

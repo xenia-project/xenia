@@ -391,6 +391,41 @@ class RenderTargetCache {
                                  const Rectangle* cutout = nullptr);
   };
 
+  union HostDepthStoreRectangleConstant {
+    uint32_t constant;
+    struct {
+      // - 1 because the maximum is 0x1FFF / 8, not 0x2000 / 8.
+      uint32_t x_pixels_div_8 : xenos::kResolveSizeBits - 1 -
+                                xenos::kResolveAlignmentPixelsLog2;
+      uint32_t y_pixels_div_8 : xenos::kResolveSizeBits - 1 -
+                                xenos::kResolveAlignmentPixelsLog2;
+      uint32_t width_pixels_div_8_minus_1 : xenos::kResolveSizeBits - 1 -
+                                            xenos::kResolveAlignmentPixelsLog2;
+    };
+    HostDepthStoreRectangleConstant() : constant(0) {
+      static_assert_size(*this, sizeof(constant));
+    }
+  };
+
+  union HostDepthStoreRenderTargetConstant {
+    uint32_t constant;
+    struct {
+      uint32_t pitch_tiles : xenos::kEdramPitchTilesBits;
+      uint32_t resolution_scale_x : 2;
+      uint32_t resolution_scale_y : 2;
+      // Whether 2x MSAA is supported natively rather than through 4x.
+      uint32_t msaa_2x_supported : 1;
+    };
+    HostDepthStoreRenderTargetConstant() : constant(0) {
+      static_assert_size(*this, sizeof(constant));
+    }
+  };
+
+  struct HostDepthStoreConstants {
+    HostDepthStoreRectangleConstant rectangle;
+    HostDepthStoreRenderTargetConstant render_target;
+  };
+
   struct ResolveCopyDumpRectangle {
     RenderTarget* render_target;
     // If rows == 1:

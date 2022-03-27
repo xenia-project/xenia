@@ -1,0 +1,59 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include "../../ui/shaders/xesl.xesli"
+
+#include "edram.xesli"
+#include "host_depth_store.xesli"
+
+xesl_entry
+  xesl_writeTypedStorageBuffer(xesl_uint4, xe_host_depth_store_dest, set=0,
+                               binding=0, u0, space0)
+  xesl_entry_binding_next
+  xesl_texture(xesl_texture2D, xe_host_depth_store_source, set=1, binding=0, t0,
+               space0)
+xesl_entry_bindings_end_local_size(8, 8, 1)
+  xesl_input_global_invocation_id
+xesl_entry_signature_end
+  // 1 thread = 8 samples (same as resolve granularity).
+  // Group height can't cross resolve granularity, Y overflow check not needed.
+  xesl_dont_flatten
+  if (xesl_GlobalInvocationID.x >= XeHostDepthStoreScaledWidthDiv8()) {
+    return;
+  }
+  xesl_int2 pixel_index =
+      xesl_int2(XeHostDepthStoreScaledOrigin() +
+                (xesl_GlobalInvocationID.xy << xesl_uint2(3u, 0u)));
+  uint edram_address_int4s =
+      XeEdramOffsetInts(xesl_uint2(pixel_index), 0u,
+                        XeHostDepthStorePitchTiles(), kXenosMsaaSamples_1X,
+                        false, 0u, 0u, XeHostDepthStoreResolutionScale())
+      >> 2u;
+  xesl_writeTypedStorageBufferStore(
+      xe_host_depth_store_dest, edram_address_int4s,
+      xesl_floatBitsToUint(xesl_float4(
+          xesl_texelFetch2D(xe_host_depth_store_source, pixel_index, 0).r,
+          xesl_texelFetch2D(xe_host_depth_store_source,
+                            pixel_index + xesl_int2(1, 0), 0).r,
+          xesl_texelFetch2D(xe_host_depth_store_source,
+                            pixel_index + xesl_int2(2, 0), 0).r,
+          xesl_texelFetch2D(xe_host_depth_store_source,
+                            pixel_index + xesl_int2(3, 0), 0).r)));
+  xesl_writeTypedStorageBufferStore(
+      xe_host_depth_store_dest, edram_address_int4s + 1u,
+      xesl_floatBitsToUint(xesl_float4(
+          xesl_texelFetch2D(xe_host_depth_store_source,
+                            pixel_index + xesl_int2(4, 0), 0).r,
+          xesl_texelFetch2D(xe_host_depth_store_source,
+                            pixel_index + xesl_int2(5, 0), 0).r,
+          xesl_texelFetch2D(xe_host_depth_store_source,
+                            pixel_index + xesl_int2(6, 0), 0).r,
+          xesl_texelFetch2D(xe_host_depth_store_source,
+                            pixel_index + xesl_int2(7, 0), 0).r)));
+xesl_entry_end
