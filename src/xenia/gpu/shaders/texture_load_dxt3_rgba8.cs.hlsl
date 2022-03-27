@@ -1,4 +1,4 @@
-#include "pixel_formats.hlsli"
+#include "pixel_formats.xesli"
 #include "texture_load.hlsli"
 
 Buffer<uint4> xe_texture_load_source : register(t0);

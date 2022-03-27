@@ -1,4 +1,4 @@
-#include "pixel_formats.hlsli"
+#include "pixel_formats.xesli"
 #include "xenos_draw.hlsli"
 
 struct XePSInput {
