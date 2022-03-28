@@ -2535,7 +2535,7 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(
   pipeline_create_info.renderPass = render_pass;
   pipeline_create_info.subpass = 0;
   pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
-  pipeline_create_info.basePipelineIndex = UINT32_MAX;
+  pipeline_create_info.basePipelineIndex = -1;
 
   const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   VkDevice device = provider_.device();
