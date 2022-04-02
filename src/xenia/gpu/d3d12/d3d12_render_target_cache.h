@@ -142,6 +142,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
  private:
   enum class EdramBufferModificationStatus {
+    // The values are ordered by how strong the barrier conditions are.
     // No uncommitted ROV/UAV writes.
     kUnmodified,
     // Need to commit before the next ROV usage with overlap.

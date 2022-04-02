@@ -546,6 +546,21 @@ class RenderTargetCache {
     return last_update_transfers_;
   }
 
+  HostDepthStoreRenderTargetConstant GetHostDepthStoreRenderTargetConstant(
+      uint32_t pitch_tiles, bool msaa_2x_supported) const {
+    HostDepthStoreRenderTargetConstant constant;
+    constant.pitch_tiles = pitch_tiles;
+    constant.resolution_scale_x = GetResolutionScaleX();
+    constant.resolution_scale_y = GetResolutionScaleY();
+    constant.msaa_2x_supported = uint32_t(msaa_2x_supported);
+    return constant;
+  }
+  void GetHostDepthStoreRectangleInfo(
+      const Transfer::Rectangle& transfer_rectangle,
+      xenos::MsaaSamples msaa_samples,
+      HostDepthStoreRectangleConstant& rectangle_constant_out,
+      uint32_t& group_count_x_out, uint32_t& group_count_y_out) const;
+
   // Returns mappings between ranges within the specified tile rectangle (not
   // render target texture rectangle - textures may have any pitch they need)
   // from ResolveInfo::GetCopyEdramTileSpan and render targets owning them to

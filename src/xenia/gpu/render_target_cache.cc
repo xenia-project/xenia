@@ -868,6 +868,35 @@ uint32_t RenderTargetCache::GetRenderTargetHeight(
   return tile_rows * (xenos::kEdramTileHeightSamples >> msaa_samples_y_log2);
 }
 
+void RenderTargetCache::GetHostDepthStoreRectangleInfo(
+    const Transfer::Rectangle& transfer_rectangle,
+    xenos::MsaaSamples msaa_samples,
+    HostDepthStoreRectangleConstant& rectangle_constant_out,
+    uint32_t& group_count_x_out, uint32_t& group_count_y_out) const {
+  // Initialize to all bits zeroed.
+  HostDepthStoreRectangleConstant rectangle_constant;
+  // 8 pixels is the resolve granularity, both clearing and tile size are
+  // aligned to 8.
+  assert_zero(transfer_rectangle.x_pixels & 7);
+  assert_zero(transfer_rectangle.y_pixels & 7);
+  assert_zero(transfer_rectangle.width_pixels & 7);
+  assert_zero(transfer_rectangle.height_pixels & 7);
+  assert_not_zero(transfer_rectangle.width_pixels);
+  rectangle_constant.x_pixels_div_8 = transfer_rectangle.x_pixels >> 3;
+  rectangle_constant.y_pixels_div_8 = transfer_rectangle.y_pixels >> 3;
+  rectangle_constant.width_pixels_div_8_minus_1 =
+      (transfer_rectangle.width_pixels >> 3) - 1;
+  rectangle_constant_out = rectangle_constant;
+  // 1 thread group = 64x8 host samples.
+  uint32_t pixel_size_x = GetResolutionScaleX()
+                          << uint32_t(msaa_samples >= xenos::MsaaSamples::k4X);
+  uint32_t pixel_size_y = GetResolutionScaleY()
+                          << uint32_t(msaa_samples >= xenos::MsaaSamples::k2X);
+  group_count_x_out =
+      (transfer_rectangle.width_pixels * pixel_size_x + 63) >> 6;
+  group_count_y_out = (transfer_rectangle.height_pixels * pixel_size_y) >> 3;
+}
+
 void RenderTargetCache::GetResolveCopyRectanglesToDump(
     uint32_t base, uint32_t row_length, uint32_t rows, uint32_t pitch,
     std::vector<ResolveCopyDumpRectangle>& rectangles_out) const {
