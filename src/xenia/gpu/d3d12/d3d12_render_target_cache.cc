@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -2148,13 +2148,15 @@ void D3D12RenderTargetCache::RequestPixelShaderInterlockBarrier() {
 
 void D3D12RenderTargetCache::TransitionEdramBuffer(
     D3D12_RESOURCE_STATES new_state) {
-  command_processor_.PushTransitionBarrier(edram_buffer_, edram_buffer_state_,
-                                           new_state);
-  edram_buffer_state_ = new_state;
-  if (new_state != D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
+  if (command_processor_.PushTransitionBarrier(
+          edram_buffer_, edram_buffer_state_, new_state)) {
+    // Resetting edram_buffer_modification_status_ only if the barrier has been
+    // truly inserted - in particular, not resetting it for UAV > UAV as
+    // barriers are dropped if the state hasn't been changed.
     edram_buffer_modification_status_ =
         EdramBufferModificationStatus::kUnmodified;
   }
+  edram_buffer_state_ = new_state;
 }
 
 void D3D12RenderTargetCache::MarkEdramBufferModified(
@@ -2227,7 +2229,7 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   bool source_is_color = (rs & kTransferUsedRootParameterColorSRVBit) != 0;
   bool source_is_64bpp;
   uint32_t source_color_format_component_count;
-  uint32_t source_color_srv_component_count;
+  uint32_t source_color_srv_component_mask;
   bool source_color_is_uint;
   if (source_is_color) {
     assert_zero(rs & kTransferUsedRootParameterDepthSRVBit);
@@ -2240,21 +2242,22 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
       if (source_is_64bpp && !dest_is_64bpp) {
         // Need one component, but choosing from the two 32bpp halves of the
         // 64bpp sample.
-        source_color_srv_component_count =
-            (source_color_format_component_count >> 1) + 1;
+        source_color_srv_component_mask =
+            0b1 | (0b1 << (source_color_format_component_count >> 1));
       } else {
         // Red is at least 8 bits per component in all formats.
-        source_color_srv_component_count = 1;
+        source_color_srv_component_mask = 0b1;
       }
     } else {
-      source_color_srv_component_count = source_color_format_component_count;
+      source_color_srv_component_mask =
+          (uint32_t(1) << source_color_format_component_count) - 1;
     }
     GetColorOwnershipTransferDXGIFormat(source_color_format,
                                         &source_color_is_uint);
   } else {
     source_is_64bpp = false;
     source_color_format_component_count = 0;
-    source_color_srv_component_count = 0;
+    source_color_srv_component_mask = 0;
     source_color_is_uint = false;
   }
 
@@ -2471,7 +2474,7 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   // - Texture2D/Texture2DMS<floatN/uintN> xe_transfer_color
   // - Texture2D/Texture2DMS<float> xe_transfer_depth
   // - Texture2D/Texture2DMS<uint2> xe_transfer_stencil
-  // - Texture2D/Texture2DMS/Buffer<float> xe_transfer_host_depth
+  // - Texture2D<float>/Texture2DMS<float>/Buffer<uint> xe_transfer_host_depth
   // - Constant buffers
   uint32_t rdef_srv_count = 0;
   uint32_t srv_index_color = (rs & kTransferUsedRootParameterColorSRVBit)
@@ -2533,8 +2536,10 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
       }
       rdef_binding_color.bind_point = kTransferSRVRegisterColor;
       rdef_binding_color.bind_count = 1;
-      rdef_binding_color.flags = (source_color_srv_component_count - 1)
-                                 << dxbc::kRdefInputFlagsComponentsShift;
+      assert_not_zero(source_color_srv_component_mask);
+      rdef_binding_color.flags =
+          (32 - xe::lzcnt(source_color_srv_component_mask) - 1)
+          << dxbc::kRdefInputFlagsComponentsShift;
       rdef_binding_color.id = srv_index_color;
     }
     // xe_transfer_depth
@@ -3402,8 +3407,6 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   // the coordinates needed for stencil loading).
   // Stencil will be loaded to x.
   // Color will be loaded to x...w.
-  uint32_t source_color_srv_component_mask =
-      (1 << source_color_srv_component_count) - 1;
   bool source_load_is_two_dwords = !source_is_64bpp && dest_is_64bpp;
   if (key.source_msaa_samples != xenos::MsaaSamples::k1X) {
     for (uint32_t i = 0; i <= uint32_t(source_load_is_two_dwords); ++i) {
@@ -3473,16 +3476,22 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   if (source_is_64bpp && !dest_is_64bpp) {
     uint32_t source_color_half_component_count =
         source_color_format_component_count >> 1;
-    uint32_t color_high_dword_swizzle =
-        (source_color_half_component_count * 0b01010101) &
-        ~((uint32_t(1) << (source_color_half_component_count * 2)) - 1);
-    for (uint32_t i = 0; i < source_color_half_component_count; ++i) {
-      color_high_dword_swizzle |= (source_color_half_component_count + i)
-                                  << (i * 2);
+    if (dest_is_stencil_bit) {
+      a.OpMovC(dxbc::Dest::R(1, 0b0001), dxbc::Src::R(0, dxbc::Src::kWWWW),
+               dxbc::Src::R(1).Select(source_color_half_component_count),
+               dxbc::Src::R(1, dxbc::Src::kXXXX));
+    } else {
+      uint32_t color_high_dword_swizzle =
+          (source_color_half_component_count * 0b01010101) &
+          ~((uint32_t(1) << (source_color_half_component_count * 2)) - 1);
+      for (uint32_t i = 0; i < source_color_half_component_count; ++i) {
+        color_high_dword_swizzle |= (source_color_half_component_count + i)
+                                    << (i * 2);
+      }
+      a.OpMovC(dxbc::Dest::R(1, (1 << source_color_half_component_count) - 1),
+               dxbc::Src::R(0, dxbc::Src::kWWWW),
+               dxbc::Src::R(1, color_high_dword_swizzle), dxbc::Src::R(1));
     }
-    a.OpMovC(dxbc::Dest::R(1, (1 << source_color_format_component_count) - 1),
-             dxbc::Src::R(0, dxbc::Src::kWWWW),
-             dxbc::Src::R(1, color_high_dword_swizzle), dxbc::Src::R(1));
   }
 
   if (osgn_parameter_index_sv_stencil_ref != UINT32_MAX &&
@@ -4500,8 +4509,10 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
   DeferredCommandList& command_list =
       command_processor_.GetDeferredCommandList();
 
+  bool resolve_clear_needed =
+      render_target_resolve_clear_values && resolve_clear_rectangle;
   D3D12_RECT clear_rect;
-  if (resolve_clear_rectangle) {
+  if (resolve_clear_needed) {
     // Assuming the rectangle is already clamped by the setup function from the
     // common render target cache.
     clear_rect.left =
@@ -4576,15 +4587,9 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
             host_depth_store_descriptor_source.second);
         // Render target constant.
         HostDepthStoreRenderTargetConstant
-            host_depth_store_render_target_constant;
-        host_depth_store_render_target_constant.pitch_tiles =
-            dest_rt_key.pitch_tiles_at_32bpp;
-        host_depth_store_render_target_constant.resolution_scale_x =
-            resolution_scale_x_;
-        host_depth_store_render_target_constant.resolution_scale_y =
-            resolution_scale_y_;
-        host_depth_store_render_target_constant.msaa_2x_supported =
-            uint32_t(msaa_2x_supported_);
+            host_depth_store_render_target_constant =
+                GetHostDepthStoreRenderTargetConstant(
+                    dest_rt_key.pitch_tiles_at_32bpp, msaa_2x_supported_);
         command_list.D3DSetComputeRoot32BitConstants(
             kHostDepthStoreRootParameterConstants,
             sizeof(host_depth_store_render_target_constant) / sizeof(uint32_t),
@@ -4615,37 +4620,18 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
           resolve_clear_rectangle);
       assert_not_zero(transfer_rectangle_count);
       HostDepthStoreRectangleConstant host_depth_store_rectangle_constant;
-      // 1 thread group = 64x8 host samples.
-      uint32_t pixel_size_x =
-          resolution_scale_x_
-          << uint32_t(dest_rt_key.msaa_samples >= xenos::MsaaSamples::k4X);
-      uint32_t pixel_size_y =
-          resolution_scale_y_
-          << uint32_t(dest_rt_key.msaa_samples >= xenos::MsaaSamples::k2X);
       for (uint32_t j = 0; j < transfer_rectangle_count; ++j) {
-        const Transfer::Rectangle& transfer_rectangle = transfer_rectangles[j];
-        // 8 pixels is the resolve granularity, both clearing and tile size are
-        // aligned to 8.
-        assert_zero(transfer_rectangle.x_pixels & 7);
-        assert_zero(transfer_rectangle.y_pixels & 7);
-        assert_zero(transfer_rectangle.width_pixels & 7);
-        assert_zero(transfer_rectangle.height_pixels & 7);
-        assert_not_zero(transfer_rectangle.width_pixels);
-        host_depth_store_rectangle_constant.x_pixels_div_8 =
-            transfer_rectangle.x_pixels >> 3;
-        host_depth_store_rectangle_constant.y_pixels_div_8 =
-            transfer_rectangle.y_pixels >> 3;
-        host_depth_store_rectangle_constant.width_pixels_div_8_minus_1 =
-            (transfer_rectangle.width_pixels >> 3) - 1;
+        uint32_t group_count_x, group_count_y;
+        GetHostDepthStoreRectangleInfo(
+            transfer_rectangles[j], dest_rt_key.msaa_samples,
+            host_depth_store_rectangle_constant, group_count_x, group_count_y);
         command_list.D3DSetComputeRoot32BitConstants(
             kHostDepthStoreRootParameterConstants,
             sizeof(host_depth_store_rectangle_constant) / sizeof(uint32_t),
             &host_depth_store_rectangle_constant,
             offsetof(HostDepthStoreConstants, rectangle) / sizeof(uint32_t));
         command_processor_.SubmitBarriers();
-        command_list.D3DDispatch(
-            (transfer_rectangle.width_pixels * pixel_size_x + 63) >> 6,
-            (transfer_rectangle.height_pixels * pixel_size_y) >> 3, 1);
+        command_list.D3DDispatch(group_count_x, group_count_y, 1);
         MarkEdramBufferModified();
       }
     }
@@ -4666,7 +4652,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
     }
     auto& dest_d3d12_rt = *static_cast<D3D12RenderTarget*>(dest_rt);
     const std::vector<Transfer>& dest_transfers = render_target_transfers[i];
-    if (dest_transfers.empty()) {
+    if (!resolve_clear_needed && dest_transfers.empty()) {
       continue;
     }
     // Transition the sources, only if not going to be used as destinations
@@ -4818,7 +4804,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
                                   D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
   }
 
-  // Perform the transfers.
+  // Perform the transfers and clears.
 
   bool transfer_viewport_set = false;
   float pixels_to_ndc_unscaled =
@@ -4842,31 +4828,33 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
     if (!dest_rt) {
       continue;
     }
+
+    const std::vector<Transfer>& current_transfers = render_target_transfers[i];
+    if (current_transfers.empty() && !resolve_clear_needed) {
+      continue;
+    }
+
     auto& dest_d3d12_rt = *static_cast<D3D12RenderTarget*>(dest_rt);
     RenderTargetKey dest_rt_key = dest_d3d12_rt.key();
 
-    const std::vector<Transfer>& current_transfers = render_target_transfers[i];
+    // Late barrier in case there was cross-copying that prevented merging of
+    // barriers.
+    D3D12_RESOURCE_STATES dest_state = dest_rt_key.is_depth
+                                           ? D3D12_RESOURCE_STATE_DEPTH_WRITE
+                                           : D3D12_RESOURCE_STATE_RENDER_TARGET;
+    command_processor_.PushTransitionBarrier(
+        dest_d3d12_rt.resource(), dest_d3d12_rt.SetResourceState(dest_state),
+        dest_state);
+
     if (!current_transfers.empty()) {
       are_current_command_list_render_targets_valid_ = false;
       if (dest_rt_key.is_depth) {
-        // Late barrier in case there was cross-copying that prevented merging
-        // of barriers.
-        command_processor_.PushTransitionBarrier(
-            dest_d3d12_rt.resource(),
-            dest_d3d12_rt.SetResourceState(D3D12_RESOURCE_STATE_DEPTH_WRITE),
-            D3D12_RESOURCE_STATE_DEPTH_WRITE);
         command_list.D3DOMSetRenderTargets(
             0, nullptr, FALSE, &dest_d3d12_rt.descriptor_draw().GetHandle());
         if (!use_stencil_reference_output_) {
           command_processor_.SetStencilReference(UINT8_MAX);
         }
       } else {
-        // Late barrier in case there was cross-copying that prevented merging
-        // of barriers.
-        command_processor_.PushTransitionBarrier(
-            dest_d3d12_rt.resource(),
-            dest_d3d12_rt.SetResourceState(D3D12_RESOURCE_STATE_RENDER_TARGET),
-            D3D12_RESOURCE_STATE_RENDER_TARGET);
         command_list.D3DOMSetRenderTargets(
             1,
             &(dest_d3d12_rt.descriptor_load_separate().IsValid()
@@ -5388,7 +5376,8 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
       }
     }
 
-    if (render_target_resolve_clear_values && resolve_clear_rectangle) {
+    // Perform the clear.
+    if (resolve_clear_needed) {
       uint64_t clear_value = render_target_resolve_clear_values[i];
       if (dest_rt_key.is_depth) {
         uint32_t depth_guest_clear_value =
@@ -5419,48 +5408,48 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
         bool clear_via_drawing = false;
         switch (dest_rt_key.GetColorFormat()) {
           case xenos::ColorRenderTargetFormat::k_8_8_8_8:
-          case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+          case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA: {
             for (uint32_t j = 0; j < 4; ++j) {
               color_clear_value[j] =
                   ((clear_value >> (j * 8)) & 0xFF) * (1.0f / 0xFF);
             }
-            break;
+          } break;
           case xenos::ColorRenderTargetFormat::k_2_10_10_10:
-          case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
+          case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10: {
             for (uint32_t j = 0; j < 3; ++j) {
               color_clear_value[j] =
                   ((clear_value >> (j * 10)) & 0x3FF) * (1.0f / 0x3FF);
             }
             color_clear_value[3] = ((clear_value >> 30) & 0x3) * (1.0f / 0x3);
-            break;
+          } break;
           case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
           case xenos::ColorRenderTargetFormat::
-              k_2_10_10_10_FLOAT_AS_16_16_16_16:
+              k_2_10_10_10_FLOAT_AS_16_16_16_16: {
             for (uint32_t j = 0; j < 3; ++j) {
               color_clear_value[j] =
                   xenos::Float7e3To32((clear_value >> (j * 10)) & 0x3FF);
             }
             color_clear_value[3] = ((clear_value >> 30) & 0x3) * (1.0f / 0x3);
-            break;
+          } break;
           case xenos::ColorRenderTargetFormat::k_16_16:
-          case xenos::ColorRenderTargetFormat::k_16_16_FLOAT:
+          case xenos::ColorRenderTargetFormat::k_16_16_FLOAT: {
             // Using uint for loading both. Disregarding the current -32...32
             // vs. -1...1 settings for consistency with color clear via depth
             // aliasing.
             for (uint32_t j = 0; j < 2; ++j) {
               color_clear_value[j] = float((clear_value >> (j * 16)) & 0xFFFF);
             }
-            break;
+          } break;
           case xenos::ColorRenderTargetFormat::k_16_16_16_16:
-          case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+          case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT: {
             // Using uint for loading both. Disregarding the current -32...32
             // vs. -1...1 settings for consistency with color clear via depth
             // aliasing.
             for (uint32_t j = 0; j < 4; ++j) {
               color_clear_value[j] = float((clear_value >> (j * 16)) & 0xFFFF);
             }
-            break;
-          case xenos::ColorRenderTargetFormat::k_32_FLOAT:
+          } break;
+          case xenos::ColorRenderTargetFormat::k_32_FLOAT: {
             // Using uint for proper denormal and NaN handling.
             color_clear_value[0] = float(uint32_t(clear_value));
             // Numbers > 2^24 can't be represented with a step of 1 as floats,
@@ -5468,8 +5457,8 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
             if (uint64_t(color_clear_value[0]) != uint32_t(clear_value)) {
               clear_via_drawing = true;
             }
-            break;
-          case xenos::ColorRenderTargetFormat::k_32_32_FLOAT:
+          } break;
+          case xenos::ColorRenderTargetFormat::k_32_32_FLOAT: {
             // Using uint for proper denormal and NaN handling.
             color_clear_value[0] = float(uint32_t(clear_value));
             color_clear_value[1] = float(uint32_t(clear_value >> 32));
@@ -5479,7 +5468,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
                 uint64_t(color_clear_value[1]) != uint32_t(clear_value >> 32)) {
               clear_via_drawing = true;
             }
-            break;
+          } break;
         }
         command_processor_.PushTransitionBarrier(
             dest_d3d12_rt.resource(),
