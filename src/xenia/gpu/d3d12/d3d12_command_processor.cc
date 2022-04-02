@@ -103,11 +103,11 @@ void D3D12CommandProcessor::RestoreEdramSnapshot(const void* snapshot) {
   render_target_cache_->RestoreEdramSnapshot(snapshot);
 }
 
-void D3D12CommandProcessor::PushTransitionBarrier(
+bool D3D12CommandProcessor::PushTransitionBarrier(
     ID3D12Resource* resource, D3D12_RESOURCE_STATES old_state,
     D3D12_RESOURCE_STATES new_state, UINT subresource) {
   if (old_state == new_state) {
-    return;
+    return false;
   }
   D3D12_RESOURCE_BARRIER barrier;
   barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -117,6 +117,7 @@ void D3D12CommandProcessor::PushTransitionBarrier(
   barrier.Transition.StateBefore = old_state;
   barrier.Transition.StateAfter = new_state;
   barriers_.push_back(barrier);
+  return true;
 }
 
 void D3D12CommandProcessor::PushAliasingBarrier(ID3D12Resource* old_resource,

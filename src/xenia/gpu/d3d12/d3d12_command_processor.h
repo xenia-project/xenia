@@ -83,7 +83,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   uint64_t GetCurrentFrame() const { return frame_current_; }
   uint64_t GetCompletedFrame() const { return frame_completed_; }
 
-  void PushTransitionBarrier(
+  // Returns true if the barrier has been inserted (the new state is different).
+  bool PushTransitionBarrier(
       ID3D12Resource* resource, D3D12_RESOURCE_STATES old_state,
       D3D12_RESOURCE_STATES new_state,
       UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
@@ -303,6 +304,9 @@ class D3D12CommandProcessor : public CommandProcessor {
   // open non-frame submission, BeginSubmission(true) will promote it to a
   // frame. EndSubmission(true) will close the frame no matter whether the
   // submission has already been closed.
+  // Submission (ExecuteCommandLists) boundaries are implicit full UAV and
+  // aliasing barriers, and also result in common resource state promotion and
+  // decay.
 
   // Rechecks submission number and reclaims per-submission resources. Pass 0 as
   // the submission to await to simply check status, or pass submission_current_
