@@ -177,6 +177,10 @@ bool VulkanSharedMemory::Initialize() {
     }
   }
 
+  // The first usage will likely be uploading.
+  last_usage_ = Usage::kTransferDestination;
+  last_written_range_ = std::make_pair<uint32_t, uint32_t>(0, 0);
+
   upload_buffer_pool_ = std::make_unique<ui::vulkan::VulkanUploadBufferPool>(
       provider, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
       xe::align(ui::vulkan::VulkanUploadBufferPool::kDefaultPageSize,
@@ -189,9 +193,6 @@ void VulkanSharedMemory::Shutdown(bool from_destructor) {
   ResetTraceDownload();
 
   upload_buffer_pool_.reset();
-
-  last_written_range_ = std::make_pair<uint32_t, uint32_t>(0, 0);
-  last_usage_ = Usage::kTransferDestination;
 
   const ui::vulkan::VulkanProvider& provider =
       command_processor_.GetVulkanProvider();
@@ -226,8 +227,8 @@ void VulkanSharedMemory::Use(Usage usage,
   if (last_usage_ != usage || last_written_range_.second) {
     VkPipelineStageFlags src_stage_mask, dst_stage_mask;
     VkAccessFlags src_access_mask, dst_access_mask;
-    GetBarrier(last_usage_, src_stage_mask, src_access_mask);
-    GetBarrier(usage, dst_stage_mask, dst_access_mask);
+    GetUsageMasks(last_usage_, src_stage_mask, src_access_mask);
+    GetUsageMasks(usage, dst_stage_mask, dst_access_mask);
     VkDeviceSize offset, size;
     if (last_usage_ == usage) {
       // Committing the previous write, while not changing the access mask
@@ -447,9 +448,9 @@ bool VulkanSharedMemory::UploadRanges(
   return successful;
 }
 
-void VulkanSharedMemory::GetBarrier(Usage usage,
-                                    VkPipelineStageFlags& stage_mask,
-                                    VkAccessFlags& access_mask) const {
+void VulkanSharedMemory::GetUsageMasks(Usage usage,
+                                       VkPipelineStageFlags& stage_mask,
+                                       VkAccessFlags& access_mask) const {
   switch (usage) {
     case Usage::kComputeWrite:
       stage_mask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;

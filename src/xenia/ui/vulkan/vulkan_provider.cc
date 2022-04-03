@@ -715,6 +715,8 @@ bool VulkanProvider::Initialize() {
     static const std::pair<const char*, size_t> kUsedDeviceExtensions[] = {
         {"VK_EXT_fragment_shader_interlock",
          offsetof(DeviceExtensions, ext_fragment_shader_interlock)},
+        {"VK_EXT_shader_stencil_export",
+         offsetof(DeviceExtensions, ext_shader_stencil_export)},
         {"VK_KHR_dedicated_allocation",
          offsetof(DeviceExtensions, khr_dedicated_allocation)},
         {"VK_KHR_image_format_list",
@@ -946,6 +948,8 @@ bool VulkanProvider::Initialize() {
   XELOGVK("Vulkan device extensions:");
   XELOGVK("* VK_EXT_fragment_shader_interlock: {}",
           device_extensions_.ext_fragment_shader_interlock ? "yes" : "no");
+  XELOGVK("* VK_EXT_shader_stencil_export: {}",
+          device_extensions_.ext_shader_stencil_export ? "yes" : "no");
   XELOGVK("* VK_KHR_dedicated_allocation: {}",
           device_extensions_.khr_dedicated_allocation ? "yes" : "no");
   XELOGVK("* VK_KHR_image_format_list: {}",

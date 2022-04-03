@@ -8,6 +8,7 @@ project("xenia-gpu-vulkan")
   language("C++")
   links({
     "fmt",
+    "glslang-spirv",
     "xenia-base",
     "xenia-gpu",
     "xenia-ui",

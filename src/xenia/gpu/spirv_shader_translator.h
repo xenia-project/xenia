@@ -138,6 +138,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kDescriptorSetCount,
   };
 
+  // "Xenia Emulator Microcode Translator".
+  // https://github.com/KhronosGroup/SPIRV-Headers/blob/c43a43c7cc3af55910b9bec2a71e3e8a622443cf/include/spirv/spir-v.xml#L79
+  static constexpr uint32_t kSpirvMagicToolId = 26;
+
   struct Features {
     explicit Features(const ui::vulkan::VulkanProvider& provider);
     explicit Features(bool all = false);
@@ -171,6 +175,38 @@ class SpirvShaderTranslator : public ShaderTranslator {
     return GetSharedMemoryStorageBufferCountLog2(
         features_.max_storage_buffer_range);
   }
+
+  // Common functions useful not only for the translator, but also for EDRAM
+  // emulation via conventional render targets.
+
+  // Converts the color value externally clamped to [0, 31.875] to 7e3 floating
+  // point, with zeros in bits 10:31, rounding to the nearest even.
+  static spv::Id PreClampedFloat32To7e3(spv::Builder& builder,
+                                        spv::Id f32_scalar,
+                                        spv::Id ext_inst_glsl_std_450);
+  // Same as PreClampedFloat32To7e3, but clamps the input to [0, 31.875].
+  static spv::Id UnclampedFloat32To7e3(spv::Builder& builder,
+                                       spv::Id f32_scalar,
+                                       spv::Id ext_inst_glsl_std_450);
+  // Converts the 7e3 number in bits [f10_shift, f10_shift + 10) to a 32-bit
+  // float.
+  static spv::Id Float7e3To32(spv::Builder& builder, spv::Id f10_uint_scalar,
+                              uint32_t f10_shift, bool result_as_uint,
+                              spv::Id ext_inst_glsl_std_450);
+  // Converts the depth value externally clamped to the representable [0, 2)
+  // range to 20e4 floating point, with zeros in bits 24:31, rounding to the
+  // nearest even. If remap_from_0_to_0_5 is true, it's assumed that 0...1 is
+  // pre-remapped to 0...0.5 in the input.
+  static spv::Id PreClampedDepthTo20e4(spv::Builder& builder,
+                                       spv::Id f32_scalar,
+                                       bool remap_from_0_to_0_5,
+                                       spv::Id ext_inst_glsl_std_450);
+  // Converts the 20e4 number in bits [f24_shift, f24_shift + 10) to a 32-bit
+  // float.
+  static spv::Id Depth20e4To32(spv::Builder& builder, spv::Id f24_uint_scalar,
+                               uint32_t f24_shift, bool remap_to_0_to_0_5,
+                               bool result_as_uint,
+                               spv::Id ext_inst_glsl_std_450);
 
  protected:
   void Reset() override;

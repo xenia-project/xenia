@@ -113,11 +113,9 @@ uint32_t SpirvShaderTranslator::GetModificationRegisterCount() const {
 }
 
 void SpirvShaderTranslator::StartTranslation() {
-  // Tool ID 26 "Xenia Emulator Microcode Translator".
-  // https://github.com/KhronosGroup/SPIRV-Headers/blob/c43a43c7cc3af55910b9bec2a71e3e8a622443cf/include/spirv/spir-v.xml#L79
   // TODO(Triang3l): Logger.
-  builder_ = std::make_unique<spv::Builder>(features_.spirv_version,
-                                            (26 << 16) | 1, nullptr);
+  builder_ = std::make_unique<spv::Builder>(
+      features_.spirv_version, (kSpirvMagicToolId << 16) | 1, nullptr);
 
   builder_->addCapability(IsSpirvTessEvalShader() ? spv::CapabilityTessellation
                                                   : spv::CapabilityShader);
@@ -1535,20 +1533,20 @@ spv::Id SpirvShaderTranslator::GetUnmodifiedOperandComponents(
         static_cast<unsigned int>(original_operand.GetComponent(scalar_index)) -
             static_cast<unsigned int>(SwizzleSource::kX));
   }
-  id_vector_temp_util_.clear();
-  id_vector_temp_util_.reserve(component_count);
+  uint_vector_temp_util_.clear();
+  uint_vector_temp_util_.reserve(component_count);
   uint32_t components_remaining = components;
   uint32_t component_index;
   while (xe::bit_scan_forward(components_remaining, &component_index)) {
     components_remaining &= ~(uint32_t(1) << component_index);
-    id_vector_temp_util_.push_back(
+    uint_vector_temp_util_.push_back(
         static_cast<unsigned int>(
             original_operand.GetComponent(component_index)) -
         static_cast<unsigned int>(SwizzleSource::kX));
   }
   return builder_->createRvalueSwizzle(spv::NoPrecision,
                                        type_float_vectors_[component_count - 1],
-                                       operand_storage, id_vector_temp_util_);
+                                       operand_storage, uint_vector_temp_util_);
 }
 
 void SpirvShaderTranslator::GetOperandScalarXY(

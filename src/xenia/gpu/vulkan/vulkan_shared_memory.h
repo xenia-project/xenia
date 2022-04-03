@@ -47,8 +47,8 @@ class VulkanSharedMemory : public SharedMemory {
     kComputeWrite,
     kTransferDestination,
   };
-  // Places pipeline barrier for the target usage, also ensuring writes of
-  // adjacent are ordered with writes of each other and reads.
+  // Inserts a pipeline barrier for the target usage, also ensuring consecutive
+  // read-write accesses are ordered with each other.
   void Use(Usage usage, std::pair<uint32_t, uint32_t> written_range = {});
 
   VkBuffer buffer() const { return buffer_; }
@@ -65,8 +65,8 @@ class VulkanSharedMemory : public SharedMemory {
                         upload_page_ranges) override;
 
  private:
-  void GetBarrier(Usage usage, VkPipelineStageFlags& stage_mask,
-                  VkAccessFlags& access_mask) const;
+  void GetUsageMasks(Usage usage, VkPipelineStageFlags& stage_mask,
+                     VkAccessFlags& access_mask) const;
 
   VulkanCommandProcessor& command_processor_;
   TraceWriter& trace_writer_;
@@ -76,9 +76,8 @@ class VulkanSharedMemory : public SharedMemory {
   // Single for non-sparse, every allocation so far for sparse.
   std::vector<VkDeviceMemory> buffer_memory_;
 
-  // First usage will likely be uploading.
-  Usage last_usage_ = Usage::kTransferDestination;
-  std::pair<uint32_t, uint32_t> last_written_range_ = {};
+  Usage last_usage_;
+  std::pair<uint32_t, uint32_t> last_written_range_;
 
   std::unique_ptr<ui::vulkan::VulkanUploadBufferPool> upload_buffer_pool_;
   std::vector<VkBufferCopy> upload_regions_;
