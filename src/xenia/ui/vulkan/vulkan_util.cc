@@ -189,6 +189,53 @@ bool CreateDedicatedAllocationImage(const VulkanProvider& provider,
   return true;
 }
 
+VkPipeline CreateComputePipeline(
+    const VulkanProvider& provider, VkPipelineLayout layout,
+    VkShaderModule shader, const VkSpecializationInfo* specialization_info,
+    const char* entry_point) {
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+  VkComputePipelineCreateInfo pipeline_create_info;
+  pipeline_create_info.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+  pipeline_create_info.pNext = nullptr;
+  pipeline_create_info.flags = 0;
+  pipeline_create_info.stage.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  pipeline_create_info.stage.pNext = nullptr;
+  pipeline_create_info.stage.flags = 0;
+  pipeline_create_info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+  pipeline_create_info.stage.module = shader;
+  pipeline_create_info.stage.pName = entry_point;
+  pipeline_create_info.stage.pSpecializationInfo = specialization_info;
+  pipeline_create_info.layout = layout;
+  pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
+  pipeline_create_info.basePipelineIndex = -1;
+  VkPipeline pipeline;
+  if (dfn.vkCreateComputePipelines(device, VK_NULL_HANDLE, 1,
+                                   &pipeline_create_info, nullptr,
+                                   &pipeline) != VK_SUCCESS) {
+    return VK_NULL_HANDLE;
+  }
+  return pipeline;
+}
+
+VkPipeline CreateComputePipeline(
+    const VulkanProvider& provider, VkPipelineLayout layout,
+    const uint32_t* shader_code, size_t shader_code_size_bytes,
+    const VkSpecializationInfo* specialization_info, const char* entry_point) {
+  VkShaderModule shader =
+      CreateShaderModule(provider, shader_code, shader_code_size_bytes);
+  if (shader == VK_NULL_HANDLE) {
+    return VK_NULL_HANDLE;
+  }
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+  VkPipeline pipeline = CreateComputePipeline(provider, layout, shader,
+                                              specialization_info, entry_point);
+  dfn.vkDestroyShaderModule(device, shader, nullptr);
+  return pipeline;
+}
+
 }  // namespace util
 }  // namespace vulkan
 }  // namespace ui

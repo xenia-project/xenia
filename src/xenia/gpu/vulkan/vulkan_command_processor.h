@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -81,15 +81,16 @@ class VulkanCommandProcessor : public CommandProcessor {
   uint64_t GetCurrentFrame() const { return frame_current_; }
   uint64_t GetCompletedFrame() const { return frame_completed_; }
 
-  // Submission must be open to insert barriers.
-  void PushBufferMemoryBarrier(
+  // Submission must be open to insert barriers. Returning true if the barrier
+  // has actually been inserted and not dropped.
+  bool PushBufferMemoryBarrier(
       VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size,
       VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask,
       VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask,
       uint32_t src_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
       uint32_t dst_queue_family_index = VK_QUEUE_FAMILY_IGNORED,
       bool skip_if_equal = true);
-  void PushImageMemoryBarrier(
+  bool PushImageMemoryBarrier(
       VkImage image, const VkImageSubresourceRange& subresource_range,
       VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask,
       VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask,
@@ -125,6 +126,9 @@ class VulkanCommandProcessor : public CommandProcessor {
                                     bool keep_dynamic_depth_bias = false,
                                     bool keep_dynamic_blend_constants = false,
                                     bool keep_dynamic_stencil_mask_ref = false);
+  void BindExternalComputePipeline(VkPipeline pipeline);
+  void SetViewport(const VkViewport& viewport);
+  void SetScissor(const VkRect2D& scissor);
 
  protected:
   bool SetupContext() override;
@@ -211,6 +215,9 @@ class VulkanCommandProcessor : public CommandProcessor {
   // open non-frame submission, BeginSubmission(true) will promote it to a
   // frame. EndSubmission(true) will close the frame no matter whether the
   // submission has already been closed.
+  // Unlike on Direct3D 12, submission boundaries do not imply any memory
+  // barriers aside from an incoming host write (but not outgoing host read)
+  // dependency.
 
   // Rechecks submission number and reclaims per-submission resources. Pass 0 as
   // the submission to await to simply check status, or pass
@@ -396,6 +403,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   // TODO(Triang3l): Change to a deferred compilation handle.
   VkPipeline current_guest_graphics_pipeline_;
   VkPipeline current_external_graphics_pipeline_;
+  VkPipeline current_external_compute_pipeline_;
 
   // Pipeline layout of the current guest graphics pipeline.
   const PipelineLayout* current_guest_graphics_pipeline_layout_;

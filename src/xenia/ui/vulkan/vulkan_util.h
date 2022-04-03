@@ -164,6 +164,17 @@ inline VkShaderModule CreateShaderModule(const VulkanProvider& provider,
              : VK_NULL_HANDLE;
 }
 
+VkPipeline CreateComputePipeline(
+    const VulkanProvider& provider, VkPipelineLayout layout,
+    VkShaderModule shader,
+    const VkSpecializationInfo* specialization_info = nullptr,
+    const char* entry_point = "main");
+VkPipeline CreateComputePipeline(
+    const VulkanProvider& provider, VkPipelineLayout layout,
+    const uint32_t* shader_code, size_t shader_code_size_bytes,
+    const VkSpecializationInfo* specialization_info = nullptr,
+    const char* entry_point = "main");
+
 }  // namespace util
 }  // namespace vulkan
 }  // namespace ui

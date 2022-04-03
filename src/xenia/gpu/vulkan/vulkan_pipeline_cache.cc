@@ -884,11 +884,25 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   // TODO(Triang3l): Wide lines.
   rasterization_state.lineWidth = 1.0f;
 
+  VkSampleMask sample_mask = UINT32_MAX;
   VkPipelineMultisampleStateCreateInfo multisample_state = {};
   multisample_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-  multisample_state.rasterizationSamples = VkSampleCountFlagBits(
-      uint32_t(1) << uint32_t(description.render_pass_key.msaa_samples));
+  if (description.render_pass_key.msaa_samples == xenos::MsaaSamples::k2X &&
+      !render_target_cache_.IsMsaa2xSupported(
+          description.render_pass_key.depth_and_color_used != 0)) {
+    // Using sample 0 as 0 and 3 as 1 for 2x instead (not exactly the same
+    // sample locations, but still top-left and bottom-right - however, this can
+    // be adjusted with custom sample locations).
+    multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_4_BIT;
+    sample_mask = 0b1001;
+    // TODO(Triang3l): Research sample mask behavior without attachments (in
+    // Direct3D, it's completely ignored in this case).
+    multisample_state.pSampleMask = &sample_mask;
+  } else {
+    multisample_state.rasterizationSamples = VkSampleCountFlagBits(
+        uint32_t(1) << uint32_t(description.render_pass_key.msaa_samples));
+  }
 
   VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {};
   depth_stencil_state.sType =
@@ -1061,7 +1075,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   pipeline_create_info.renderPass = creation_arguments.render_pass;
   pipeline_create_info.subpass = 0;
   pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
-  pipeline_create_info.basePipelineIndex = UINT32_MAX;
+  pipeline_create_info.basePipelineIndex = -1;
 
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();

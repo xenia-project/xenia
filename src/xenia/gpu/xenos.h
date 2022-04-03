@@ -248,6 +248,7 @@ enum class MsaaSamples : uint32_t {
 
 constexpr uint32_t kMsaaSamplesBits = 2;
 
+constexpr uint32_t kColorRenderTargetIndexBits = 2;
 constexpr uint32_t kMaxColorRenderTargets = 4;
 
 enum class ColorRenderTargetFormat : uint32_t {

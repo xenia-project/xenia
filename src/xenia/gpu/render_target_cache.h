@@ -302,6 +302,10 @@ class RenderTargetCache {
       }
       return xenos::IsColorRenderTargetFormat64bpp(GetColorFormat());
     }
+    const char* GetFormatName() const {
+      return is_depth ? xenos::GetDepthRenderTargetFormatName(GetDepthFormat())
+                      : xenos::GetColorRenderTargetFormatName(GetColorFormat());
+    }
 
     uint32_t GetPitchTiles() const {
       return pitch_tiles_at_32bpp << uint32_t(Is64bpp());
@@ -317,11 +321,9 @@ class RenderTargetCache {
     }
 
     std::string GetDebugName() const {
-      return fmt::format(
-          "RT @ {}t, <{}t>, {}xMSAA, {}", base_tiles, GetPitchTiles(),
-          uint32_t(1) << uint32_t(msaa_samples),
-          is_depth ? xenos::GetDepthRenderTargetFormatName(GetDepthFormat())
-                   : xenos::GetColorRenderTargetFormatName(GetColorFormat()));
+      return fmt::format("RT @ {}t, <{}t>, {}xMSAA, {}", base_tiles,
+                         GetPitchTiles(), uint32_t(1) << uint32_t(msaa_samples),
+                         GetFormatName());
     }
   };
 

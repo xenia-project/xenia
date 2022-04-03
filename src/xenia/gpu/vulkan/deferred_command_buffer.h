@@ -108,6 +108,61 @@ class DeferredCommandBuffer {
     args.pipeline = pipeline;
   }
 
+  void CmdVkBindVertexBuffers(uint32_t first_binding, uint32_t binding_count,
+                              const VkBuffer* buffers,
+                              const VkDeviceSize* offsets) {
+    size_t arguments_size =
+        xe::align(sizeof(ArgsVkBindVertexBuffers), alignof(VkBuffer));
+    size_t buffers_offset = arguments_size;
+    arguments_size =
+        xe::align(arguments_size + sizeof(VkBuffer) * binding_count,
+                  alignof(VkDeviceSize));
+    size_t offsets_offset = arguments_size;
+    arguments_size += sizeof(VkDeviceSize) * binding_count;
+    uint8_t* args_ptr = reinterpret_cast<uint8_t*>(
+        WriteCommand(Command::kVkBindVertexBuffers, arguments_size));
+    auto& args = *reinterpret_cast<ArgsVkBindVertexBuffers*>(args_ptr);
+    args.first_binding = first_binding;
+    args.binding_count = binding_count;
+    std::memcpy(args_ptr + buffers_offset, buffers,
+                sizeof(VkBuffer) * binding_count);
+    std::memcpy(args_ptr + offsets_offset, offsets,
+                sizeof(VkDeviceSize) * binding_count);
+  }
+
+  void CmdClearAttachmentsEmplace(uint32_t attachment_count,
+                                  VkClearAttachment*& attachments_out,
+                                  uint32_t rect_count,
+                                  VkClearRect*& rects_out) {
+    size_t arguments_size =
+        xe::align(sizeof(ArgsVkClearAttachments), alignof(VkClearAttachment));
+    size_t attachments_offset = arguments_size;
+    arguments_size =
+        xe::align(arguments_size + sizeof(VkClearAttachment) * attachment_count,
+                  alignof(VkClearRect));
+    size_t rects_offset = arguments_size;
+    arguments_size += sizeof(VkClearRect) * rect_count;
+    uint8_t* args_ptr = reinterpret_cast<uint8_t*>(
+        WriteCommand(Command::kVkClearAttachments, arguments_size));
+    auto& args = *reinterpret_cast<ArgsVkClearAttachments*>(args_ptr);
+    args.attachment_count = attachment_count;
+    args.rect_count = rect_count;
+    attachments_out =
+        reinterpret_cast<VkClearAttachment*>(args_ptr + attachments_offset);
+    rects_out = reinterpret_cast<VkClearRect*>(args_ptr + rects_offset);
+  }
+  void CmdVkClearAttachments(uint32_t attachment_count,
+                             const VkClearAttachment* attachments,
+                             uint32_t rect_count, const VkClearRect* rects) {
+    VkClearAttachment* attachments_arg;
+    VkClearRect* rects_arg;
+    CmdClearAttachmentsEmplace(attachment_count, attachments_arg, rect_count,
+                               rects_arg);
+    std::memcpy(attachments_arg, attachments,
+                sizeof(VkClearAttachment) * attachment_count);
+    std::memcpy(rects_arg, rects, sizeof(VkClearRect) * rect_count);
+  }
+
   VkBufferCopy* CmdCopyBufferEmplace(VkBuffer src_buffer, VkBuffer dst_buffer,
                                      uint32_t region_count) {
     const size_t header_size =
@@ -125,6 +180,15 @@ class DeferredCommandBuffer {
                        uint32_t region_count, const VkBufferCopy* regions) {
     std::memcpy(CmdCopyBufferEmplace(src_buffer, dst_buffer, region_count),
                 regions, sizeof(VkBufferCopy) * region_count);
+  }
+
+  void CmdVkDispatch(uint32_t group_count_x, uint32_t group_count_y,
+                     uint32_t group_count_z) {
+    auto& args = *reinterpret_cast<ArgsVkDispatch*>(
+        WriteCommand(Command::kVkDispatch, sizeof(ArgsVkDispatch)));
+    args.group_count_x = group_count_x;
+    args.group_count_y = group_count_y;
+    args.group_count_z = group_count_z;
   }
 
   void CmdVkDraw(uint32_t vertex_count, uint32_t instance_count,
@@ -161,6 +225,19 @@ class DeferredCommandBuffer {
                             const VkBufferMemoryBarrier* buffer_memory_barriers,
                             uint32_t image_memory_barrier_count,
                             const VkImageMemoryBarrier* image_memory_barriers);
+
+  void CmdVkPushConstants(VkPipelineLayout layout,
+                          VkShaderStageFlags stage_flags, uint32_t offset,
+                          uint32_t size, const void* values) {
+    uint8_t* args_ptr = reinterpret_cast<uint8_t*>(WriteCommand(
+        Command::kVkPushConstants, sizeof(ArgsVkPushConstants) + size));
+    auto& args = *reinterpret_cast<ArgsVkPushConstants*>(args_ptr);
+    args.layout = layout;
+    args.stage_flags = stage_flags;
+    args.offset = offset;
+    args.size = size;
+    std::memcpy(args_ptr + sizeof(ArgsVkPushConstants), values, size);
+  }
 
   void CmdVkSetBlendConstants(const float* blend_constants) {
     auto& args = *reinterpret_cast<ArgsVkSetBlendConstants*>(WriteCommand(
@@ -237,11 +314,15 @@ class DeferredCommandBuffer {
     kVkBindDescriptorSets,
     kVkBindIndexBuffer,
     kVkBindPipeline,
+    kVkBindVertexBuffers,
+    kVkClearAttachments,
     kVkCopyBuffer,
+    kVkDispatch,
     kVkDraw,
     kVkDrawIndexed,
     kVkEndRenderPass,
     kVkPipelineBarrier,
+    kVkPushConstants,
     kVkSetBlendConstants,
     kVkSetDepthBias,
     kVkSetScissor,
@@ -289,12 +370,34 @@ class DeferredCommandBuffer {
     VkPipeline pipeline;
   };
 
+  struct ArgsVkBindVertexBuffers {
+    uint32_t first_binding;
+    uint32_t binding_count;
+    // Followed by aligned VkBuffer[], VkDeviceSize[].
+    static_assert(alignof(VkBuffer) <= alignof(uintmax_t));
+    static_assert(alignof(VkDeviceSize) <= alignof(uintmax_t));
+  };
+
+  struct ArgsVkClearAttachments {
+    uint32_t attachment_count;
+    uint32_t rect_count;
+    // Followed by aligned VkClearAttachment[], VkClearRect[].
+    static_assert(alignof(VkClearAttachment) <= alignof(uintmax_t));
+    static_assert(alignof(VkClearRect) <= alignof(uintmax_t));
+  };
+
   struct ArgsVkCopyBuffer {
     VkBuffer src_buffer;
     VkBuffer dst_buffer;
     uint32_t region_count;
     // Followed by aligned VkBufferCopy[].
     static_assert(alignof(VkBufferCopy) <= alignof(uintmax_t));
+  };
+
+  struct ArgsVkDispatch {
+    uint32_t group_count_x;
+    uint32_t group_count_y;
+    uint32_t group_count_z;
   };
 
   struct ArgsVkDraw {
@@ -324,6 +427,14 @@ class DeferredCommandBuffer {
     static_assert(alignof(VkMemoryBarrier) <= alignof(uintmax_t));
     static_assert(alignof(VkBufferMemoryBarrier) <= alignof(uintmax_t));
     static_assert(alignof(VkImageMemoryBarrier) <= alignof(uintmax_t));
+  };
+
+  struct ArgsVkPushConstants {
+    VkPipelineLayout layout;
+    VkShaderStageFlags stage_flags;
+    uint32_t offset;
+    uint32_t size;
+    // Followed by `size` bytes of values.
   };
 
   struct ArgsVkSetBlendConstants {

@@ -476,7 +476,7 @@ bool VulkanCommandProcessor::SetupContext() {
   swap_pipeline_create_info.renderPass = swap_render_pass_;
   swap_pipeline_create_info.subpass = 0;
   swap_pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
-  swap_pipeline_create_info.basePipelineIndex = UINT32_MAX;
+  swap_pipeline_create_info.basePipelineIndex = -1;
   VkResult swap_pipeline_create_result = dfn.vkCreateGraphicsPipelines(
       device, VK_NULL_HANDLE, 1, &swap_pipeline_create_info, nullptr,
       &swap_pipeline_);
@@ -810,8 +810,6 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
         deferred_command_buffer_.CmdVkBeginRenderPass(
             &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-        dynamic_viewport_update_needed_ = true;
-        dynamic_scissor_update_needed_ = true;
         VkViewport viewport;
         viewport.x = 0.0f;
         viewport.y = 0.0f;
@@ -819,13 +817,13 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
         viewport.height = float(scaled_height);
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
-        deferred_command_buffer_.CmdVkSetViewport(0, 1, &viewport);
-        VkRect2D scissor_rect;
-        scissor_rect.offset.x = 0;
-        scissor_rect.offset.y = 0;
-        scissor_rect.extent.width = scaled_width;
-        scissor_rect.extent.height = scaled_height;
-        deferred_command_buffer_.CmdVkSetScissor(0, 1, &scissor_rect);
+        SetViewport(viewport);
+        VkRect2D scissor;
+        scissor.offset.x = 0;
+        scissor.offset.y = 0;
+        scissor.extent.width = scaled_width;
+        scissor.extent.height = scaled_height;
+        SetScissor(scissor);
 
         BindExternalGraphicsPipeline(swap_pipeline_);
 
@@ -856,7 +854,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
   EndSubmission(true);
 }
 
-void VulkanCommandProcessor::PushBufferMemoryBarrier(
+bool VulkanCommandProcessor::PushBufferMemoryBarrier(
     VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size,
     VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask,
     VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask,
@@ -865,7 +863,7 @@ void VulkanCommandProcessor::PushBufferMemoryBarrier(
   if (skip_if_equal && src_stage_mask == dst_stage_mask &&
       src_access_mask == dst_access_mask &&
       src_queue_family_index == dst_queue_family_index) {
-    return;
+    return false;
   }
 
   // Separate different barriers for overlapping buffer ranges into different
@@ -889,10 +887,10 @@ void VulkanCommandProcessor::PushBufferMemoryBarrier(
             src_queue_family_index &&
         other_buffer_memory_barrier.dstQueueFamilyIndex ==
             dst_queue_family_index) {
-      // The barrier is already present.
+      // The barrier is already pending.
       current_pending_barrier_.src_stage_mask |= src_stage_mask;
       current_pending_barrier_.dst_stage_mask |= dst_stage_mask;
-      return;
+      return true;
     }
     SplitPendingBarrier();
     break;
@@ -911,9 +909,10 @@ void VulkanCommandProcessor::PushBufferMemoryBarrier(
   buffer_memory_barrier.buffer = buffer;
   buffer_memory_barrier.offset = offset;
   buffer_memory_barrier.size = size;
+  return true;
 }
 
-void VulkanCommandProcessor::PushImageMemoryBarrier(
+bool VulkanCommandProcessor::PushImageMemoryBarrier(
     VkImage image, const VkImageSubresourceRange& subresource_range,
     VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask,
     VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask,
@@ -923,7 +922,7 @@ void VulkanCommandProcessor::PushImageMemoryBarrier(
   if (skip_if_equal && src_stage_mask == dst_stage_mask &&
       src_access_mask == dst_access_mask && old_layout == new_layout &&
       src_queue_family_index == dst_queue_family_index) {
-    return;
+    return false;
   }
 
   // Separate different barriers for overlapping image subresource ranges into
@@ -969,10 +968,10 @@ void VulkanCommandProcessor::PushImageMemoryBarrier(
             src_queue_family_index &&
         other_image_memory_barrier.dstQueueFamilyIndex ==
             dst_queue_family_index) {
-      // The barrier is already present.
+      // The barrier is already pending.
       current_pending_barrier_.src_stage_mask |= src_stage_mask;
       current_pending_barrier_.dst_stage_mask |= dst_stage_mask;
-      return;
+      return true;
     }
     SplitPendingBarrier();
     break;
@@ -992,6 +991,7 @@ void VulkanCommandProcessor::PushImageMemoryBarrier(
   image_memory_barrier.dstQueueFamilyIndex = dst_queue_family_index;
   image_memory_barrier.image = image;
   image_memory_barrier.subresourceRange = subresource_range;
+  return true;
 }
 
 bool VulkanCommandProcessor::SubmitBarriers(bool force_end_render_pass) {
@@ -1257,6 +1257,53 @@ void VulkanCommandProcessor::BindExternalGraphicsPipeline(
   current_guest_graphics_pipeline_layout_ = VK_NULL_HANDLE;
 }
 
+void VulkanCommandProcessor::BindExternalComputePipeline(VkPipeline pipeline) {
+  if (current_external_compute_pipeline_ == pipeline) {
+    return;
+  }
+  deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE,
+                                             pipeline);
+  current_external_compute_pipeline_ = pipeline;
+}
+
+void VulkanCommandProcessor::SetViewport(const VkViewport& viewport) {
+  if (!dynamic_viewport_update_needed_) {
+    dynamic_viewport_update_needed_ |= dynamic_viewport_.x != viewport.x;
+    dynamic_viewport_update_needed_ |= dynamic_viewport_.y != viewport.y;
+    dynamic_viewport_update_needed_ |=
+        dynamic_viewport_.width != viewport.width;
+    dynamic_viewport_update_needed_ |=
+        dynamic_viewport_.height != viewport.height;
+    dynamic_viewport_update_needed_ |=
+        dynamic_viewport_.minDepth != viewport.minDepth;
+    dynamic_viewport_update_needed_ |=
+        dynamic_viewport_.maxDepth != viewport.maxDepth;
+  }
+  if (dynamic_viewport_update_needed_) {
+    dynamic_viewport_ = viewport;
+    deferred_command_buffer_.CmdVkSetViewport(0, 1, &dynamic_viewport_);
+    dynamic_viewport_update_needed_ = false;
+  }
+}
+
+void VulkanCommandProcessor::SetScissor(const VkRect2D& scissor) {
+  if (!dynamic_scissor_update_needed_) {
+    dynamic_scissor_update_needed_ |=
+        dynamic_scissor_.offset.x != scissor.offset.x;
+    dynamic_scissor_update_needed_ |=
+        dynamic_scissor_.offset.y != scissor.offset.y;
+    dynamic_scissor_update_needed_ |=
+        dynamic_scissor_.extent.width != scissor.extent.width;
+    dynamic_scissor_update_needed_ |=
+        dynamic_scissor_.extent.height != scissor.extent.height;
+  }
+  if (dynamic_scissor_update_needed_) {
+    dynamic_scissor_ = scissor;
+    deferred_command_buffer_.CmdVkSetScissor(0, 1, &dynamic_scissor_);
+    dynamic_scissor_update_needed_ = false;
+  }
+}
+
 Shader* VulkanCommandProcessor::LoadShader(xenos::ShaderType shader_type,
                                            uint32_t guest_address,
                                            const uint32_t* host_address,
@@ -1417,8 +1464,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   }
 
   const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
-  const VkPhysicalDeviceProperties& device_properties =
-      provider.device_properties();
+  const VkPhysicalDeviceLimits& device_limits =
+      provider.device_properties().limits;
 
   // Get dynamic rasterizer state.
   draw_util::ViewportInfo viewport_info;
@@ -1438,10 +1485,10 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // life. Or even disregard the viewport bounds range in the fragment shader
   // interlocks case completely - apply the viewport and the scissor offset
   // directly to pixel address and to things like ps_param_gen.
-  draw_util::GetHostViewportInfo(
-      regs, 1, 1, false, device_properties.limits.maxViewportDimensions[0],
-      device_properties.limits.maxViewportDimensions[1], true, false, false,
-      false, viewport_info);
+  draw_util::GetHostViewportInfo(regs, 1, 1, false,
+                                 device_limits.maxViewportDimensions[0],
+                                 device_limits.maxViewportDimensions[1], true,
+                                 false, false, false, viewport_info);
 
   // Update dynamic graphics pipeline state.
   UpdateDynamicState(viewport_info, primitive_polygonal);
@@ -1675,6 +1722,8 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(
 
   primitive_processor_->CompletedSubmissionUpdated();
 
+  render_target_cache_->CompletedSubmissionUpdated();
+
   // Destroy outdated swap objects.
   while (!swap_framebuffers_outdated_.empty()) {
     const auto& framebuffer_pair = swap_framebuffers_outdated_.front();
@@ -1752,6 +1801,7 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
     current_framebuffer_ = nullptr;
     current_guest_graphics_pipeline_ = VK_NULL_HANDLE;
     current_external_graphics_pipeline_ = VK_NULL_HANDLE;
+    current_external_compute_pipeline_ = VK_NULL_HANDLE;
     current_guest_graphics_pipeline_layout_ = nullptr;
     current_graphics_descriptor_sets_bound_up_to_date_ = 0;
 
@@ -1860,6 +1910,8 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
 
   if (submission_open_) {
     EndRenderPass();
+
+    render_target_cache_->EndSubmission();
 
     primitive_processor_->EndSubmission();
 
@@ -2112,20 +2164,7 @@ void VulkanCommandProcessor::UpdateDynamicState(
   }
   viewport.minDepth = viewport_info.z_min;
   viewport.maxDepth = viewport_info.z_max;
-  dynamic_viewport_update_needed_ |= dynamic_viewport_.x != viewport.x;
-  dynamic_viewport_update_needed_ |= dynamic_viewport_.y != viewport.y;
-  dynamic_viewport_update_needed_ |= dynamic_viewport_.width != viewport.width;
-  dynamic_viewport_update_needed_ |=
-      dynamic_viewport_.height != viewport.height;
-  dynamic_viewport_update_needed_ |=
-      dynamic_viewport_.minDepth != viewport.minDepth;
-  dynamic_viewport_update_needed_ |=
-      dynamic_viewport_.maxDepth != viewport.maxDepth;
-  if (dynamic_viewport_update_needed_) {
-    dynamic_viewport_ = viewport;
-    deferred_command_buffer_.CmdVkSetViewport(0, 1, &dynamic_viewport_);
-    dynamic_viewport_update_needed_ = false;
-  }
+  SetViewport(viewport);
 
   // Scissor.
   draw_util::Scissor scissor;
@@ -2135,19 +2174,7 @@ void VulkanCommandProcessor::UpdateDynamicState(
   scissor_rect.offset.y = int32_t(scissor.offset[1]);
   scissor_rect.extent.width = scissor.extent[0];
   scissor_rect.extent.height = scissor.extent[1];
-  dynamic_scissor_update_needed_ |=
-      dynamic_scissor_.offset.x != scissor_rect.offset.x;
-  dynamic_scissor_update_needed_ |=
-      dynamic_scissor_.offset.y != scissor_rect.offset.y;
-  dynamic_scissor_update_needed_ |=
-      dynamic_scissor_.extent.width != scissor_rect.extent.width;
-  dynamic_scissor_update_needed_ |=
-      dynamic_scissor_.extent.height != scissor_rect.extent.height;
-  if (dynamic_scissor_update_needed_) {
-    dynamic_scissor_ = scissor_rect;
-    deferred_command_buffer_.CmdVkSetScissor(0, 1, &dynamic_scissor_);
-    dynamic_scissor_update_needed_ = false;
-  }
+  SetScissor(scissor_rect);
 
   // Depth bias.
   // TODO(Triang3l): Disable the depth bias for the fragment shader interlock RB

@@ -132,6 +132,7 @@ class VulkanProvider : public GraphicsProvider {
   }
   struct DeviceExtensions {
     bool ext_fragment_shader_interlock;
+    bool ext_shader_stencil_export;
     // Core since 1.1.0.
     bool khr_dedicated_allocation;
     // Core since 1.2.0.
