@@ -1,0 +1,96 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include "pixel_formats.xesli"
+#include "texture_load.xesli"
+
+xesl_entry
+  xesl_writeTypedStorageBuffer(xesl_uint4, xe_texture_load_dest, set=0,
+                               binding=0, u0, space0)
+  xesl_entry_binding_next
+  xesl_typedStorageBuffer(xesl_uint4, xe_texture_load_source, set=1, binding=0,
+                          t0, space0)
+xesl_entry_bindings_end_local_size(16, 32, 1)
+  xesl_input_global_invocation_id
+xesl_entry_signature_end
+  // 1 thread = 2 DXN blocks to 8x4 R8G8 texels.
+  xesl_uint3 block_index = xesl_GlobalInvocationID << xesl_uint3(1u, 0u, 0u);
+  xesl_dont_flatten
+  if (any(xesl_greaterThanEqual(block_index.xy,
+                                XeTextureLoadSizeBlocks().xy))) {
+    return;
+  }
+  xesl_uint3 texel_index_host = block_index << xesl_uint3(2u, 2u, 0u);
+  uint blocks_pitch_host = XeTextureLoadHostPitch();
+  uint height_texels = XeTextureLoadHeightTexels();
+  uint block_offset_host = uint(
+      (XeTextureHostLinearOffset(xesl_int3(texel_index_host), blocks_pitch_host,
+                                 height_texels, 2u) +
+       XeTextureLoadHostOffset()) >> 4u);
+  uint elements_pitch_host = blocks_pitch_host >> 4u;
+  uint block_offset_guest =
+      XeTextureLoadGuestBlockOffset(block_index, 16u, 4u) >> 4u;
+  uint endian = XeTextureLoadEndian32();
+  xesl_uint4 block_0 = XeEndianSwap32(
+      xesl_typedStorageBufferLoad(xe_texture_load_source, block_offset_guest),
+      endian);
+  // Odd block = even block + 32 guest bytes when tiled.
+  block_offset_guest += XeTextureLoadIsTiled() ? 2u : 1u;
+  xesl_uint4 block_1 = XeEndianSwap32(
+      xesl_typedStorageBufferLoad(xe_texture_load_source, block_offset_guest),
+      endian);
+  xesl_uint4 end_0 = (block_0.xxzz >> xesl_uint4(0u, 8u, 0u, 8u)) & 0xFFu;
+  xesl_uint4 end_1 = (block_1.xxzz >> xesl_uint4(0u, 8u, 0u, 8u)) & 0xFFu;
+  xesl_uint4 weights = (xesl_uint4(block_0.xz, block_1.xz) >> 16u) |
+                       ((xesl_uint4(block_0.yw, block_1.yw) & 0xFFu) << 16u);
+  weights = xesl_uint4(XeDXT5HighAlphaWeights(end_0.xy, weights.x),
+                       XeDXT5HighAlphaWeights(end_0.zw, weights.y),
+                       XeDXT5HighAlphaWeights(end_1.xy, weights.z),
+                       XeDXT5HighAlphaWeights(end_1.zw, weights.w));
+  xesl_writeTypedStorageBufferStore(
+      xe_texture_load_dest, block_offset_host,
+      xesl_uint4(XeDXT5RowToA8In16(end_0.xy, weights.x) |
+                     (XeDXT5RowToA8In16(end_0.zw, weights.y) << 8u),
+                 XeDXT5RowToA8In16(end_1.xy, weights.z) |
+                     (XeDXT5RowToA8In16(end_1.zw, weights.w) << 8u)));
+  xesl_dont_flatten if (++texel_index_host.y < height_texels) {
+    block_offset_host += elements_pitch_host;
+    weights >>= 12u;
+    xesl_writeTypedStorageBufferStore(
+        xe_texture_load_dest, block_offset_host,
+        xesl_uint4(XeDXT5RowToA8In16(end_0.xy, weights.x) |
+                       (XeDXT5RowToA8In16(end_0.zw, weights.y) << 8u),
+                   XeDXT5RowToA8In16(end_1.xy, weights.z) |
+                       (XeDXT5RowToA8In16(end_1.zw, weights.w) << 8u)));
+    xesl_dont_flatten if (++texel_index_host.y < height_texels) {
+      block_offset_host += elements_pitch_host;
+      weights = xesl_uint4(block_0.yw, block_1.yw) >> 8u;
+      weights = xesl_uint4(XeDXT5HighAlphaWeights(end_0.xy, weights.x),
+                           XeDXT5HighAlphaWeights(end_0.zw, weights.y),
+                           XeDXT5HighAlphaWeights(end_1.xy, weights.z),
+                           XeDXT5HighAlphaWeights(end_1.zw, weights.w));
+      xesl_writeTypedStorageBufferStore(
+          xe_texture_load_dest, block_offset_host,
+          xesl_uint4(XeDXT5RowToA8In16(end_0.xy, weights.x) |
+                         (XeDXT5RowToA8In16(end_0.zw, weights.y) << 8u),
+                     XeDXT5RowToA8In16(end_1.xy, weights.z) |
+                         (XeDXT5RowToA8In16(end_1.zw, weights.w) << 8u)));
+      xesl_dont_flatten if (++texel_index_host.y < height_texels) {
+        block_offset_host += elements_pitch_host;
+        weights >>= 12u;
+        xesl_writeTypedStorageBufferStore(
+            xe_texture_load_dest, block_offset_host,
+            xesl_uint4(XeDXT5RowToA8In16(end_0.xy, weights.x) |
+                           (XeDXT5RowToA8In16(end_0.zw, weights.y) << 8u),
+                       XeDXT5RowToA8In16(end_1.xy, weights.z) |
+                           (XeDXT5RowToA8In16(end_1.zw, weights.w) << 8u)));
+      }
+    }
+  }
+xesl_entry_end

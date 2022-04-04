@@ -376,36 +376,31 @@ xesl_float4 XeUnpackR16G16B16A16Edram(xesl_uint2 p) {
 // Xenos 16-bit packed textures are RGBA, but in Direct3D 12 they are BGRA.
 
 xesl_uint4 XeR5G5B5A1ToB5G5R5A1(xesl_uint4 packed_texels) {
-  return (packed_texels & 0x83E083E0u) | ((packed_texels & 0x001F001Fu) << 10) |
-         ((packed_texels & 0x7C007C00u) >> 10);
-}
-xesl_uint2 XeR5G5B5A1ToB5G5R5A1(xesl_uint2 packed_texels) {
-  return XeR5G5B5A1ToB5G5R5A1(packed_texels.xyxx).xy;
+  return (packed_texels & 0x83E083E0u) |
+         ((packed_texels & 0x001F001Fu) << 10u) |
+         ((packed_texels & 0x7C007C00u) >> 10u);
 }
 
 xesl_uint4 XeR5G6B5ToB5G6R5(xesl_uint4 packed_texels) {
-  return (packed_texels & 0x07E007E0u) | ((packed_texels & 0x001F001Fu) << 11) |
-         ((packed_texels & 0xF800F800u) >> 11);
-}
-xesl_uint2 XeR5G6B5ToB5G6R5(xesl_uint2 packed_texels) {
-  return XeR5G6B5ToB5G6R5(packed_texels.xyxx).xy;
+  return (packed_texels & 0x07E007E0u) |
+         ((packed_texels & 0x001F001Fu) << 11u) |
+         ((packed_texels & 0xF800F800u) >> 11u);
 }
 
 xesl_uint4 XeR4G4B4A4ToB4G4R4A4(xesl_uint4 packed_texels) {
-  return (packed_texels & 0xF0F0F0F0u) | ((packed_texels & 0x000F000Fu) << 8) |
-         ((packed_texels & 0x0F000F00u) >> 8);
+  return (packed_texels & 0xF0F0F0F0u) | ((packed_texels & 0x000F000Fu) << 8u) |
+         ((packed_texels & 0x0F000F00u) >> 8u);
 }
-xesl_uint2 XeR4G4B4A4ToB4G4R4A4(xesl_uint2 packed_texels) {
-  return XeR4G4B4A4ToB4G4R4A4(packed_texels.xyxx).xy;
+
+xesl_uint4 XeR4G4B4A4ToA4R4G4B4(xesl_uint4 packed_texels) {
+  return ((packed_texels & 0x0FFF0FFFu) << 4u) |
+         ((packed_texels & 0xF000F000u) >> 12u);
 }
 
 // RRRRR GGGGG BBBBBB to GGGGG BBBBBB RRRRR (use RBGA swizzle when reading).
 xesl_uint4 XeR5G5B6ToB5G6R5WithRBGASwizzle(xesl_uint4 packed_texels) {
-  return ((packed_texels & 0x001F001Fu) << 11) |
-         ((packed_texels & 0xFFE0FFE0u) >> 5);
-}
-xesl_uint2 XeR5G5B6ToB5G6R5WithRBGASwizzle(xesl_uint2 packed_texels) {
-  return XeR5G5B6ToB5G6R5WithRBGASwizzle(packed_texels.xyxx).xy;
+  return ((packed_texels & 0x001F001Fu) << 11u) |
+         ((packed_texels & 0xFFE0FFE0u) >> 5u);
 }
 
 xesl_uint4 XeR10G11B11UNormToRGBA16(xesl_uint2 packed_texels) {
@@ -422,9 +417,6 @@ xesl_uint4 XeR10G11B11UNormToRGBA16(xesl_uint2 packed_texels) {
   // Alpha.
   result.yw |= 0xFFFF0000u;
   return result;
-}
-xesl_uint2 XeR10G11B11UNormToRGBA16(uint packed_texel) {
-  return XeR10G11B11UNormToRGBA16(packed_texel.xx).xy;
 }
 void XeR10G11B11UNormToRGBA16(xesl_uint4 packed_texels, out xesl_uint4 out_01,
                               out xesl_uint4 out_23) {
@@ -446,9 +438,6 @@ xesl_uint4 XeR11G11B10UNormToRGBA16(xesl_uint2 packed_texels) {
   // Alpha.
   result.yw |= 0xFFFF0000u;
   return result;
-}
-xesl_uint2 XeR11G11B10UNormToRGBA16(uint packed_texel) {
-  return XeR11G11B10UNormToRGBA16(packed_texel.xx).xy;
 }
 void XeR11G11B10UNormToRGBA16(xesl_uint4 packed_texels, out xesl_uint4 out_01,
                               out xesl_uint4 out_23) {
@@ -490,9 +479,6 @@ xesl_uint4 XeR10G11B11SNormToRGBA16(xesl_uint2 packed_texels) {
                         (XeSNorm11To16((packed_texels >> 10u) & 2047u) << 16u),
                     XeSNorm11To16(packed_texels >> 21u) | 0x7FFF0000u).xzyw;
 }
-xesl_uint2 XeR10G11B11SNormToRGBA16(uint packed_texel) {
-  return XeR10G11B11SNormToRGBA16(packed_texel.xx).xy;
-}
 void XeR10G11B11SNormToRGBA16(xesl_uint4 packed_texels, out xesl_uint4 out_01,
                               out xesl_uint4 out_23) {
   out_01 = XeR10G11B11SNormToRGBA16(packed_texels.xy);
@@ -504,9 +490,6 @@ xesl_uint4 XeR11G11B10SNormToRGBA16(xesl_uint2 packed_texels) {
   return xesl_uint4(XeSNorm11To16(packed_texels & 2047u) |
                         (XeSNorm11To16((packed_texels >> 11u) & 2047u) << 16u),
                     XeSNorm10To16(packed_texels >> 22u) | 0x7FFF0000u).xzyw;
-}
-xesl_uint2 XeR11G11B10SNormToRGBA16(uint packed_texel) {
-  return XeR11G11B10SNormToRGBA16(packed_texel.xx).xy;
 }
 void XeR11G11B10SNormToRGBA16(xesl_uint4 packed_texels, out xesl_uint4 out_01,
                               out xesl_uint4 out_23) {
@@ -711,6 +694,33 @@ xesl_uint4 XeDXT3AAs1111TwoBlocksRowToBGRA4(xesl_uint2 halfblocks) {
       (((halfblocks.xxyy >> xesl_uint2(5u, 13u).xyxy) & 1u) << 16u) |
       (((halfblocks.xxyy >> xesl_uint2(0u, 8u).xyxy) & 1u) << 12u) |
       (((halfblocks.xxyy >> xesl_uint2(4u, 12u).xyxy) & 1u) << 28u);
+  row |= row << 1u;
+  row |= row << 2u;
+  return row;
+}
+
+xesl_uint4 XeDXT3AAs1111TwoBlocksRowToARGB4(xesl_uint2 halfblocks) {
+  // Only 16 bits of half-blocks are used. X contains pixels 0123, Y - 4567 (in
+  // the image, halfblocks.y is halfblocks.x + 8).
+  // In the row, X contains pixels 01, Y - 23, Z - 45, W - 67.
+  // Assuming alpha in LSB and red in MSB, because it's consistent with how
+  // DXT1/DXT3/DXT5 color components and CTX1 X/Y are ordered in:
+  // http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
+  // (LSB on the right, MSB on the left.)
+  // TODO(Triang3l): Investigate this better, 4D53085B is the only known game
+  // that uses it (for lighting in certain places - one of easy to notice usages
+  // is the T-shaped (or somewhat H-shaped) metal beams in the beginning of the
+  // first mission), however the contents don't say anything about the channel
+  // order.
+  xesl_uint4 row =
+      (((halfblocks.xxyy >> xesl_uint2(3u, 11u).xyxy) & 1u) << 4u) |
+      (((halfblocks.xxyy >> xesl_uint2(7u, 15u).xyxy) & 1u) << 20u) |
+      (((halfblocks.xxyy >> xesl_uint2(2u, 10u).xyxy) & 1u) << 8u) |
+      (((halfblocks.xxyy >> xesl_uint2(6u, 14u).xyxy) & 1u) << 24u) |
+      (((halfblocks.xxyy >> xesl_uint2(1u, 9u).xyxy) & 1u) << 12u) |
+      (((halfblocks.xxyy >> xesl_uint2(5u, 13u).xyxy) & 1u) << 28u) |
+      ((halfblocks.xxyy >> xesl_uint2(0u, 8u).xyxy) & 1u) |
+      (((halfblocks.xxyy >> xesl_uint2(4u, 12u).xyxy) & 1u) << 16u);
   row |= row << 1u;
   row |= row << 2u;
   return row;

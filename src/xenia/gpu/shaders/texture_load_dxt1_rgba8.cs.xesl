@@ -1,0 +1,90 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include "pixel_formats.xesli"
+#include "texture_load.xesli"
+
+xesl_entry
+  xesl_writeTypedStorageBuffer(xesl_uint4, xe_texture_load_dest, set=0,
+                               binding=0, u0, space0)
+  xesl_entry_binding_next
+  xesl_typedStorageBuffer(xesl_uint4, xe_texture_load_source, set=1, binding=0,
+                          t0, space0)
+xesl_entry_bindings_end_local_size(8, 32, 1)
+  xesl_input_global_invocation_id
+xesl_entry_signature_end
+  // 1 thread = 4 DXT1 blocks to 16x4 R8G8B8A8 texels.
+  xesl_uint3 block_index = xesl_GlobalInvocationID << xesl_uint3(2u, 0u, 0u);
+  xesl_dont_flatten
+  if (any(xesl_greaterThanEqual(block_index.xy,
+                                XeTextureLoadSizeBlocks().xy))) {
+    return;
+  }
+  xesl_uint3 texel_index_host = block_index << xesl_uint3(2u, 2u, 0u);
+  uint blocks_pitch_host = XeTextureLoadHostPitch();
+  uint height_texels = XeTextureLoadHeightTexels();
+  uint block_offset_host = uint(
+      (XeTextureHostLinearOffset(xesl_int3(texel_index_host), blocks_pitch_host,
+                                 height_texels, 4u) +
+       XeTextureLoadHostOffset()) >> 4u);
+  uint elements_pitch_host = blocks_pitch_host >> 4u;
+  uint block_offset_guest =
+      XeTextureLoadGuestBlockOffset(block_index, 8u, 3u) >> 4u;
+  uint endian = XeTextureLoadEndian32();
+  xesl_uint4 blocks_01 = XeEndianSwap32(
+      xesl_typedStorageBufferLoad(xe_texture_load_source, block_offset_guest),
+      endian);
+  // Odd 2 blocks = even 2 blocks + 32 bytes when tiled.
+  block_offset_guest += XeTextureLoadIsTiled() ? 2u : 1u;
+  xesl_uint4 blocks_23 = XeEndianSwap32(
+      xesl_typedStorageBufferLoad(xe_texture_load_source, block_offset_guest),
+      endian);
+  xesl_uint4 end_8in10_01 =
+      xesl_uint4(XeDXTColorEndpointsToBGR8In10(blocks_01.x),
+                 XeDXTColorEndpointsToBGR8In10(blocks_01.z));
+  xesl_uint4 end_8in10_23 =
+      xesl_uint4(XeDXTColorEndpointsToBGR8In10(blocks_23.x),
+                 XeDXTColorEndpointsToBGR8In10(blocks_23.z));
+  xesl_bool4 is_trans =
+      xesl_lessThanEqual(xesl_uint4(end_8in10_01.xz, end_8in10_23.xz),
+                         xesl_uint4(end_8in10_01.yw, end_8in10_23.yw));
+  xesl_uint4 weights = xesl_uint4(blocks_01.yw, blocks_23.yw);
+  weights = xesl_select(is_trans, XeDXT1TransWeights(weights),
+                        XeDXTHighColorWeights(weights));
+  uint i;
+  xesl_unroll for (i = 0u; i < 4u; ++i) {
+    if (i != 0u) {
+      if (texel_index_host.y + i >= height_texels) {
+        break;
+      }
+      block_offset_host += elements_pitch_host;
+      weights >>= 8u;
+    }
+    xesl_writeTypedStorageBufferStore(
+        xe_texture_load_dest, block_offset_host,
+        is_trans.x ? XeDXT1TransRowToRGBA8(end_8in10_01.xy, weights.x)
+                   : (XeDXTOpaqueRowToRGB8(end_8in10_01.xy, weights.x) |
+                      0xFF000000u));
+    xesl_writeTypedStorageBufferStore(
+        xe_texture_load_dest, block_offset_host + 1u,
+        is_trans.y ? XeDXT1TransRowToRGBA8(end_8in10_01.zw, weights.y)
+                   : (XeDXTOpaqueRowToRGB8(end_8in10_01.zw, weights.y) |
+                      0xFF000000u));
+    xesl_writeTypedStorageBufferStore(
+        xe_texture_load_dest, block_offset_host + 2u,
+        is_trans.z ? XeDXT1TransRowToRGBA8(end_8in10_23.xy, weights.z)
+                   : (XeDXTOpaqueRowToRGB8(end_8in10_23.xy, weights.z) |
+                      0xFF000000u));
+    xesl_writeTypedStorageBufferStore(
+        xe_texture_load_dest, block_offset_host + 3u,
+        is_trans.w ? XeDXT1TransRowToRGBA8(end_8in10_23.zw, weights.w)
+                   : (XeDXTOpaqueRowToRGB8(end_8in10_23.zw, weights.w) |
+                      0xFF000000u));
+  }
+xesl_entry_end
