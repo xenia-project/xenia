@@ -19,7 +19,7 @@ void main(point XeVertexPreGS xe_in[1],
   // Shader header writes -1.0f to point_size by default, so any positive value
   // means that it was overwritten by the translated vertex shader.
   float2 point_size =
-      xe_in[0].post_gs.pre_ps.point_params.z > 0.0f
+      xe_in[0].post_gs.pre_ps.point_params.z >= 0.0f
            ? xe_in[0].post_gs.pre_ps.point_params.zz
            : float2(xe_point_size_x, xe_point_size_y);
   point_size =
