@@ -1,0 +1,91 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include "pixel_formats.xesli"
+#include "texture_load.xesli"
+
+// http://fileadmin.cs.lth.se/cs/Personal/Michael_Doggett/talks/unc-xenos-doggett.pdf
+// CXT1 is like DXT3/5 color, but 2-component and with 8:8 endpoints rather than
+// 5:6:5.
+//
+// Dword 1:
+// rrrrrrrrgggggggg
+// RRRRRRRRGGGGGGGG
+// (R is in the higher bits, according to how this format is used in 4D5307E6).
+// Dword 2:
+// AA BB CC DD
+// EE FF GG HH
+// II JJ KK LL
+// MM NN OO PP
+
+xesl_entry
+  xesl_writeTypedStorageBuffer(xesl_uint4, xe_texture_load_dest, set=0,
+                               binding=0, u0, space0)
+  xesl_entry_binding_next
+  xesl_typedStorageBuffer(xesl_uint4, xe_texture_load_source, set=1, binding=0,
+                          t0, space0)
+xesl_entry_bindings_end_local_size(8, 32, 1)
+  xesl_input_global_invocation_id
+xesl_entry_signature_end
+  // 1 thread = 4 CTX1 blocks to 16x4 R8G8 texels.
+  xesl_uint3 block_index = xesl_GlobalInvocationID << xesl_uint3(2u, 0u, 0u);
+  xesl_dont_flatten
+  if (any(xesl_greaterThanEqual(block_index.xy,
+                                XeTextureLoadSizeBlocks().xy))) {
+    return;
+  }
+  xesl_uint3 texel_index_host = block_index << xesl_uint3(2u, 2u, 0u);
+  uint blocks_pitch_host = XeTextureLoadHostPitch();
+  uint height_texels = XeTextureLoadHeightTexels();
+  uint block_offset_host = uint(
+      (XeTextureHostLinearOffset(xesl_int3(texel_index_host), blocks_pitch_host,
+                                 height_texels, 2u) +
+       XeTextureLoadHostOffset()) >> 4u);
+  uint elements_pitch_host = blocks_pitch_host >> 4u;
+  uint block_offset_guest =
+      XeTextureLoadGuestBlockOffset(block_index, 8u, 3u) >> 4u;
+  uint endian = XeTextureLoadEndian32();
+  uint i;
+  xesl_unroll for (i = 0u; i < 2u; ++i) {
+    if (i != 0u) {
+      ++block_offset_host;
+      // Odd 2 blocks = even 2 blocks + 32 bytes when tiled.
+      block_offset_guest += XeTextureLoadIsTiled() ? 2u : 1u;
+    }
+    // Two blocks.
+    xesl_uint4 blocks = XeEndianSwap32(
+        xesl_typedStorageBufferLoad(xe_texture_load_source, block_offset_guest),
+        endian);
+    // Unpack the endpoints as 0x00g000r0 0x00G000R0 0x00g100r1 0x00G100R1 so
+    // they can be multiplied by their weights allowing overflow.
+    xesl_uint4 end_8in16;
+    end_8in16.xz = ((blocks.xz >> 8u) & 0xFFu) | ((blocks.xz & 0xFFu) << 16u);
+    end_8in16.yw = (blocks.xz >> 24u) | (blocks.xz & 0xFF0000u);
+    xesl_uint2 weights_high = XeDXTHighColorWeights(blocks.yw);
+    xesl_writeTypedStorageBufferStore(
+        xe_texture_load_dest, block_offset_host,
+        XeCTX1TwoBlocksRowToR8G8(end_8in16, weights_high));
+    xesl_dont_flatten if (texel_index_host.y + 1u < height_texels) {
+      xesl_writeTypedStorageBufferStore(
+          xe_texture_load_dest, block_offset_host + elements_pitch_host,
+          XeCTX1TwoBlocksRowToR8G8(end_8in16, weights_high >> 8u));
+      xesl_dont_flatten if (texel_index_host.y + 2u < height_texels) {
+        xesl_writeTypedStorageBufferStore(
+            xe_texture_load_dest, block_offset_host + 2u * elements_pitch_host,
+            XeCTX1TwoBlocksRowToR8G8(end_8in16, weights_high >> 16u));
+        xesl_dont_flatten if (texel_index_host.y + 3u < height_texels) {
+          xesl_writeTypedStorageBufferStore(
+              xe_texture_load_dest,
+              block_offset_host + 3u * elements_pitch_host,
+              XeCTX1TwoBlocksRowToR8G8(end_8in16, weights_high >> 24u));
+        }
+      }
+    }
+  }
+xesl_entry_end

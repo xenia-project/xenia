@@ -1,4 +1,4 @@
-#include "endian.hlsli"
+#include "endian.xesli"
 #include "pixel_formats.xesli"
 #include "resolve.hlsli"
 

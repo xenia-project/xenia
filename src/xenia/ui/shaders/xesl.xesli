@@ -183,24 +183,33 @@
 // In GLSL, the offsets in the push constants are global across shader stages.
 // In HLSL, they're local to the specific root constant buffer.
 #if XESL_LANGUAGE_GLSL
+  #define xesl_cbuffer_begin(name, glsl_set, glsl_binding, hlsl_b, \
+                             hlsl_b_space)                         \
+      layout(std140, glsl_set, glsl_binding)                       \
+      uniform xesl_id_cbuffer_##name {
+  #define xesl_cbuffer_end(name) \
+      } name;
+  #define xesl_constant(cbuffer_name, constant_name) cbuffer_name.constant_name
   #define xesl_push_constants_begin(hlsl_b, hlsl_b_space) \
       layout(push_constant) uniform xesl_push_constants_block {
   #define xesl_push_constants_end \
       } xesl_push_constants;
+  #define xesl_push_constant(name) xesl_push_constants.name
 #elif XESL_LANGUAGE_HLSL
-  #define XESL_PUSH_CONSTANTS_GLOBAL 1
+  #define xesl_cbuffer_begin(name, glsl_set, glsl_binding, hlsl_b, \
+                             hlsl_b_space)                         \
+      cbuffer name : register(hlsl_b, hlsl_b_space) {
+  #define xesl_cbuffer_end(name) \
+      };
+  #define xesl_constant(cbuffer_name, constant_name) constant_name
   #define xesl_push_constants_begin(hlsl_b, hlsl_b_space) \
       cbuffer xesl_push_constants : register(hlsl_b, hlsl_b_space) {
   #define xesl_push_constants_end \
       };
-#else
-  #error xesl_push_constants not defined for the target language.
-#endif  // XESL_LANGUAGE
-#if XESL_PUSH_CONSTANTS_GLOBAL
   #define xesl_push_constant(name) name
 #else
-  #define xesl_push_constant(name) xesl_push_constants.name
-#endif  // XESL_PUSH_CONSTANTS_GLOBAL
+  #error Constant buffers not defined for the target language.
+#endif  // XESL_LANGUAGE
 
 // Buffer, texture, sampler and image declarations must be in the entry point
 // bindings declaration.
@@ -421,12 +430,22 @@
 // Attributes.
 
 #if XESL_LANGUAGE_GLSL
+  #define xesl_unroll [[unroll]]
+  #define xesl_dont_unroll [[dont_unroll]]
   #define xesl_flatten [[flatten]]
   #define xesl_dont_flatten [[dont_flatten]]
 #elif XESL_LANGUAGE_HLSL
+  #define xesl_unroll [unroll]
+  #define xesl_dont_unroll [loop]
   #define xesl_flatten [flatten]
   #define xesl_dont_flatten [branch]
 #endif  // XESL_LANGUAGE
+#ifndef xesl_unroll
+  #define xesl_unroll
+#endif  // !xesl_unroll
+#ifndef xesl_dont_unroll
+  #define xesl_dont_unroll
+#endif  // !xesl_dont_unroll
 #ifndef xesl_flatten
   #define xesl_flatten
 #endif  // !xesl_flatten

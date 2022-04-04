@@ -1,4 +1,4 @@
-#include "endian.hlsli"
+#include "endian.xesli"
 #include "xenos_draw.hlsli"
 
 XeHSControlPointInputAdaptive main(uint xe_edge_factor : SV_VertexID) {
