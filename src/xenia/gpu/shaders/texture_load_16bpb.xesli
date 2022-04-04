@@ -1,0 +1,49 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include "texture_load.xesli"
+
+xesl_entry
+  xesl_writeTypedStorageBuffer(xesl_uint4, xe_texture_load_dest, set=0,
+                               binding=0, u0, space0)
+  xesl_entry_binding_next
+  xesl_typedStorageBuffer(xesl_uint4, xe_texture_load_source, set=1, binding=0,
+                          t0, space0)
+xesl_entry_bindings_end_local_size(2, 32, 1)
+  xesl_input_global_invocation_id
+xesl_entry_signature_end
+  // 1 thread = 16 blocks passed through an externally provided
+  // uint4 transformation function (XE_TEXTURE_LOAD_16BPB_TRANSFORM).
+  xesl_uint3 block_index = xesl_GlobalInvocationID << xesl_uint3(4u, 0u, 0u);
+  xesl_uint3 size_blocks = XeTextureLoadSizeBlocks();
+  xesl_dont_flatten
+  if (any(xesl_greaterThanEqual(block_index.xy, size_blocks.xy))) {
+    return;
+  }
+  uint block_offset_host = uint(
+      (XeTextureHostLinearOffset(xesl_int3(block_index),
+                                 XeTextureLoadHostPitch(), size_blocks.y, 2u) +
+       XeTextureLoadHostOffset()) >> 4u);
+  uint block_offset_guest =
+      XeTextureLoadGuestBlockOffset(block_index, 2u, 1u) >> 4u;
+  uint endian = XeTextureLoadEndian32();
+  xesl_writeTypedStorageBufferStore(
+      xe_texture_load_dest, block_offset_host,
+      XE_TEXTURE_LOAD_16BPB_TRANSFORM(XeEndianSwap16(
+          xesl_typedStorageBufferLoad(xe_texture_load_source,
+          block_offset_guest), endian)));
+  ++block_offset_host;
+  block_offset_guest +=
+      XeTextureLoadRightConsecutiveBlocksOffset(block_index.x, 1u) >> 4u;
+  xesl_writeTypedStorageBufferStore(
+      xe_texture_load_dest, block_offset_host,
+      XE_TEXTURE_LOAD_16BPB_TRANSFORM(XeEndianSwap16(
+          xesl_typedStorageBufferLoad(xe_texture_load_source,
+          block_offset_guest), endian)));
+xesl_entry_end

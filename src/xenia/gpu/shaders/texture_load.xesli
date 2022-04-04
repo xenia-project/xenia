@@ -1,0 +1,155 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#ifndef XENIA_GPU_SHADERS_TEXTURE_LOAD_XESLI_
+#define XENIA_GPU_SHADERS_TEXTURE_LOAD_XESLI_
+
+#include "endian.xesli"
+#include "texture_address.xesli"
+
+xesl_cbuffer_begin(xe_texture_load_constants, set=2, binding=0, b0, space0)
+  uint xe_texture_load_is_tiled_3d_endian_scale;
+  // Base offset in bytes, resolution-scaled.
+  uint xe_texture_load_guest_offset;
+  // For tiled textures - row pitch in guest blocks, aligned to 32, unscaled.
+  // For linear textures - row pitch in bytes.
+  uint xe_texture_load_guest_pitch_aligned;
+  // For 3D textures only (ignored otherwise) - aligned to 32, unscaled.
+  uint xe_texture_load_guest_z_stride_block_rows_aligned;
+
+  // - std140 vector boundary -
+
+  // If this is a packed mip tail, this is aligned to tile dimensions.
+  // Resolution-scaled.
+  xesl_uint3 xe_texture_load_size_blocks;
+  // Base offset in bytes.
+  uint xe_texture_load_host_offset;
+
+  // - std140 vector boundary -
+
+  uint xe_texture_load_host_pitch;
+  uint xe_texture_load_height_texels;
+xesl_cbuffer_end(xe_texture_load_constants)
+
+bool XeTextureLoadIsTiled() {
+  #ifdef XE_TEXTURE_LOAD_RESOLUTION_SCALED
+    // Only resolved textures can be resolution-scaled, and resolving is only
+    // possible to a tiled destination.
+    return true;
+  #else
+    return (xesl_constant(xe_texture_load_constants,
+                          xe_texture_load_is_tiled_3d_endian_scale) & 1u) != 0u;
+  #endif
+}
+
+bool XeTextureLoadIs3D() {
+  return (xesl_constant(xe_texture_load_constants,
+                        xe_texture_load_is_tiled_3d_endian_scale) & (1u << 1u))
+         != 0u;
+}
+
+uint XeTextureLoadEndian32() {
+  return (xesl_constant(xe_texture_load_constants,
+                        xe_texture_load_is_tiled_3d_endian_scale) >> 2u) & 3u;
+}
+
+xesl_uint2 XeTextureLoadResolutionScale() {
+  #ifdef XE_TEXTURE_LOAD_RESOLUTION_SCALED
+    return (xesl_constant(xe_texture_load_constants,
+                          xe_texture_load_is_tiled_3d_endian_scale.xx) >>
+            xesl_uint2(4u, 6u)) & 3u;
+  #else
+    return xesl_uint2(1u, 1u);
+  #endif
+}
+
+xesl_uint3 XeTextureLoadSizeBlocks() {
+  return xesl_constant(xe_texture_load_constants, xe_texture_load_size_blocks);
+}
+
+uint XeTextureLoadHostOffset() {
+  return xesl_constant(xe_texture_load_constants, xe_texture_load_host_offset);
+}
+
+uint XeTextureLoadHostPitch() {
+  return xesl_constant(xe_texture_load_constants, xe_texture_load_host_pitch);
+}
+
+uint XeTextureLoadHeightTexels() {
+  return xesl_constant(xe_texture_load_constants,
+                       xe_texture_load_height_texels);
+}
+
+// bpb and bpb_log2 are separate because bpb may be not a power of 2 (like 96).
+uint XeTextureLoadGuestBlockOffset(xesl_uint3 block_index, uint bpb,
+                                   uint bpb_log2) {
+  #ifdef XE_TEXTURE_LOAD_RESOLUTION_SCALED
+    // Only resolved textures can be resolution-scaled, and resolving is only
+    // possible to a tiled destination.
+    return
+        xesl_constant(xe_texture_load_constants, xe_texture_load_guest_offset) +
+        XeTextureScaledTiledOffset(
+            XeTextureLoadIs3D(), block_index,
+            xesl_constant(xe_texture_load_constants,
+                          xe_texture_load_guest_pitch_aligned),
+            xesl_constant(xe_texture_load_constants,
+                          xe_texture_load_guest_z_stride_block_rows_aligned),
+            bpb_log2, XeTextureLoadResolutionScale());
+  #else
+    int block_offset_guest;
+    xesl_dont_flatten if (XeTextureLoadIsTiled()) {
+      xesl_dont_flatten if (XeTextureLoadIs3D()) {
+        block_offset_guest = XeTextureTiledOffset3D(
+            xesl_int3(block_index),
+            xesl_constant(xe_texture_load_constants,
+                          xe_texture_load_guest_pitch_aligned),
+            xesl_constant(xe_texture_load_constants,
+                          xe_texture_load_guest_z_stride_block_rows_aligned),
+            bpb_log2);
+      } else {
+        block_offset_guest = XeTextureTiledOffset2D(
+            xesl_int2(block_index.xy),
+            xesl_constant(xe_texture_load_constants,
+                          xe_texture_load_guest_pitch_aligned), bpb_log2);
+      }
+    } else {
+      block_offset_guest = XeTextureGuestLinearOffset(
+          xesl_int3(block_index),
+          xesl_constant(xe_texture_load_constants,
+                        xe_texture_load_guest_pitch_aligned),
+          xesl_constant(xe_texture_load_constants,
+                        xe_texture_load_guest_z_stride_block_rows_aligned),
+          bpb);
+    }
+    return uint(int(xesl_constant(xe_texture_load_constants,
+                                  xe_texture_load_guest_offset)) +
+           block_offset_guest);
+  #endif
+}
+
+// Offset of the beginning of the odd R32G32/R32G32B32A32 load address from the
+// address of the even load, for power-of-two-sized textures.
+uint XeTextureLoadRightConsecutiveBlocksOffset(uint block_x, uint bpb_log2) {
+  #ifdef XE_TEXTURE_LOAD_RESOLUTION_SCALED
+    return XeTextureScaledRightSubUnitOffsetInConsecutivePair(
+               block_x, bpb_log2, XeTextureLoadResolutionScale());
+  #else
+    uint offset;
+    uint consecutive_blocks_log2 =
+        XeTextureTiledConsecutiveBlocksLog2(bpb_log2);
+    xesl_dont_flatten if (XeTextureLoadIsTiled()) {
+      offset = XeTextureTiledOddConsecutiveBlocksOffset(bpb_log2);
+    } else {
+      offset = 1u << (consecutive_blocks_log2 + bpb_log2);
+    }
+    return offset;
+  #endif
+}
+
+#endif  // XENIA_GPU_SHADERS_TEXTURE_LOAD_XESLI_

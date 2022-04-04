@@ -7,8 +7,6 @@
  ******************************************************************************
  */
 
-#include "../../ui/shaders/xesl.xesli"
-
 #include "edram.xesli"
 #include "host_depth_store.xesli"
 
