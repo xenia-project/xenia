@@ -1,4 +1,4 @@
-#include "endian.hlsli"
+#include "endian.xesli"
 #include "xenos_draw.hlsli"
 
 XeHSControlPointInputIndexed main(uint xe_vertex_id : SV_VertexID) {

@@ -80,7 +80,7 @@ namespace shaders {
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt1_rgba8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt3_rgba8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt3a_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt3aas1111_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt3aas1111_bgra4_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt5_rgba8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt5a_r8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_cs.h"
@@ -739,7 +739,7 @@ const TextureCache::HostFormat TextureCache::host_formats_[64] = {
     // k_DXT3A_AS_1_1_1_1
     {DXGI_FORMAT_B4G4R4A4_UNORM,
      DXGI_FORMAT_B4G4R4A4_UNORM,
-     LoadMode::kDXT3AAs1111,
+     LoadMode::kDXT3AAs1111ToBGRA4,
      DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown,
      false,
@@ -832,8 +832,8 @@ const TextureCache::LoadModeInfo TextureCache::load_mode_info_[] = {
      nullptr, 0, 4, 4, 2},
     {shaders::texture_load_dxt3a_cs, sizeof(shaders::texture_load_dxt3a_cs),
      nullptr, 0, 4, 4, 4},
-    {shaders::texture_load_dxt3aas1111_cs,
-     sizeof(shaders::texture_load_dxt3aas1111_cs), nullptr, 0, 4, 4, 4},
+    {shaders::texture_load_dxt3aas1111_bgra4_cs,
+     sizeof(shaders::texture_load_dxt3aas1111_bgra4_cs), nullptr, 0, 4, 4, 4},
     {shaders::texture_load_dxt5a_r8_cs,
      sizeof(shaders::texture_load_dxt5a_r8_cs), nullptr, 0, 4, 4, 4},
     {shaders::texture_load_ctx1_cs, sizeof(shaders::texture_load_ctx1_cs),

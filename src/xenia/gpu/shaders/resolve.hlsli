@@ -3,7 +3,7 @@
 
 #include "edram.xesli"
 #include "pixel_formats.xesli"
-#include "texture_address.hlsli"
+#include "texture_address.xesli"
 
 cbuffer XeResolveConstants : register(b0) {
   #ifdef XE_RESOLVE_CLEAR

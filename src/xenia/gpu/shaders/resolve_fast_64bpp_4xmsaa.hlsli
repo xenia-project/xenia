@@ -1,4 +1,4 @@
-#include "endian.hlsli"
+#include "endian.xesli"
 #include "resolve.hlsli"
 
 RWBuffer<uint4> xe_resolve_dest : register(u0);
