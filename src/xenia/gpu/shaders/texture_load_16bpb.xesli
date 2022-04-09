@@ -37,7 +37,7 @@ xesl_entry_signature_end
       xe_texture_load_dest, block_offset_host,
       XE_TEXTURE_LOAD_16BPB_TRANSFORM(XeEndianSwap16(
           xesl_typedStorageBufferLoad(xe_texture_load_source,
-          block_offset_guest), endian)));
+                                      block_offset_guest), endian)));
   ++block_offset_host;
   block_offset_guest +=
       XeTextureLoadRightConsecutiveBlocksOffset(block_index.x, 1u) >> 4u;
@@ -45,5 +45,5 @@ xesl_entry_signature_end
       xe_texture_load_dest, block_offset_host,
       XE_TEXTURE_LOAD_16BPB_TRANSFORM(XeEndianSwap16(
           xesl_typedStorageBufferLoad(xe_texture_load_source,
-          block_offset_guest), endian)));
+                                      block_offset_guest), endian)));
 xesl_entry_end
