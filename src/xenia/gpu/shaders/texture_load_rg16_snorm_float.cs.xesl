@@ -7,6 +7,6 @@
  ******************************************************************************
  */
 
-#define XE_TEXTURE_LOAD_RESOLUTION_SCALED
-#define XE_TEXTURE_LOAD_64BPB_TRANSFORM(blocks) (blocks)
-#include "texture_load_64bpb.xesli"
+#include "pixel_formats.xesli"
+#define XE_TEXTURE_LOAD_32BPB_TRANSFORM XeRG16SNormToRG16Float
+#include "texture_load_32bpb.xesli"
