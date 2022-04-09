@@ -358,19 +358,20 @@ xesl_float4 XeUnpackR10G10B10A2Float(uint p) {
 // Upper 16 bits are ignored by XeUnpackR16EdramX4.
 
 xesl_float4 XeUnpackR16EdramX4(xesl_uint4 p) {
-  return max(xesl_float4(xesl_int4(p) << 16 >> 16) * (32.0 / 32767.0), -1.0);
+  return max((-1.0).xxxx,
+             xesl_float4(xesl_int4(p) << 16 >> 16) * (32.0 / 32767.0));
 }
 
 xesl_float2 XeUnpackR16G16Edram(uint p) {
   return max(
-      xesl_float2(int(p).xx << xesl_int2(16, 0) >> 16) * (32.0 / 32767.0),
-      -1.0);
+      (-1.0).xx,
+      xesl_float2(int(p).xx << xesl_int2(16, 0) >> 16) * (32.0 / 32767.0));
 }
 
 xesl_float4 XeUnpackR16G16B16A16Edram(xesl_uint2 p) {
-  return max(xesl_float4(xesl_int2(p).xxyy << xesl_int2(16, 0).xyxy >> 16) *
-                 (32.0 / 32767.0),
-             -1.0);
+  return max((-1.0).xxxx,
+             xesl_float4(xesl_int2(p).xxyy << xesl_int2(16, 0).xyxy >> 16) *
+                 (32.0 / 32767.0));
 }
 
 // Xenos 16-bit packed textures are RGBA, but in Direct3D 12 they are BGRA.
@@ -495,6 +496,28 @@ void XeR11G11B10SNormToRGBA16(xesl_uint4 packed_texels, out xesl_uint4 out_01,
                               out xesl_uint4 out_23) {
   out_01 = XeR11G11B10SNormToRGBA16(packed_texels.xy);
   out_23 = XeR11G11B10SNormToRGBA16(packed_texels.zw);
+}
+
+xesl_uint4 XeRG16UNormToRG16Float(xesl_uint4 packed_texels) {
+  xesl_float4 r = xesl_float4(packed_texels & 0xFFFFu) * (1.0 / 65535.0);
+  xesl_float4 g = xesl_float4(packed_texels >> 16u) * (1.0 / 65535.0);
+  return xesl_uint4(xesl_packHalf2x16(xesl_float2(r.x, g.x)),
+                    xesl_packHalf2x16(xesl_float2(r.y, g.y)),
+                    xesl_packHalf2x16(xesl_float2(r.z, g.z)),
+                    xesl_packHalf2x16(xesl_float2(r.w, g.w)));
+}
+
+xesl_uint4 XeRG16SNormToRG16Float(xesl_uint4 packed_texels) {
+  xesl_float4 r =
+      max((-1.0).xxxx,
+          xesl_float4(xesl_int4(packed_texels) << 16 >> 16) * (1.0 / 32767.0));
+  xesl_float4 g =
+      max((-1.0).xxxx,
+          xesl_float4(xesl_int4(packed_texels) >> 16) * (1.0 / 32767.0));
+  return xesl_uint4(xesl_packHalf2x16(xesl_float2(r.x, g.x)),
+                    xesl_packHalf2x16(xesl_float2(r.y, g.y)),
+                    xesl_packHalf2x16(xesl_float2(r.z, g.z)),
+                    xesl_packHalf2x16(xesl_float2(r.w, g.w)));
 }
 
 // Based on CFloat24 from d3dref9.dll and the 6e4 code from:
