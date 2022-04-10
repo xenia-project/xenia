@@ -823,6 +823,26 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     }
   }
 
+  // - 4D5307F1 - Continuous AutoIndexed QuadPatch draws initiated with only
+  // one vertex. host_draw_vertex_count needs to be rounded up to meet the
+  // requirements of the host hull shader.
+  if (tessellation_enabled &&
+      (tessellation_mode == xenos::TessellationMode::kDiscrete ||
+       tessellation_mode == xenos::TessellationMode::kContinuous)) {
+    if (host_vertex_shader_type ==
+            Shader::HostVertexShaderType::kTriangleDomainCPIndexed ||
+        host_vertex_shader_type ==
+            Shader::HostVertexShaderType::kTriangleDomainPatchIndexed)
+      cacheable.host_draw_vertex_count = xe::round_up(
+          cacheable.host_draw_vertex_count, uint32_t(3), false);
+    else if (host_vertex_shader_type ==
+                 Shader::HostVertexShaderType::kQuadDomainCPIndexed ||
+             host_vertex_shader_type ==
+                 Shader::HostVertexShaderType::kQuadDomainPatchIndexed)
+      cacheable.host_draw_vertex_count =
+          xe::align(cacheable.host_draw_vertex_count, uint32_t(4));
+  }
+
   result_out.guest_primitive_type = guest_primitive_type;
   result_out.host_primitive_type = host_primitive_type;
   result_out.host_vertex_shader_type = host_vertex_shader_type;
