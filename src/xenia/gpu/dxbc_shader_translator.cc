@@ -435,12 +435,19 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
                                                   : dxbc::Dest::R(0, 0b0111),
                  dxbc::Src::VDomain(0b000110));
         if (register_count() >= 2) {
-          // Copy the primitive index to r1.x as a float.
+          // Copy the primitive index + offset to r1.x as a float.
           uint32_t primitive_id_temp =
               uses_register_dynamic_addressing ? PushSystemTemp() : 1;
           in_primitive_id_used_ = true;
+          a_.OpMov(dxbc::Dest::R(primitive_id_temp, 0b0001),
+                   dxbc::Src::VPrim());
+          a_.OpIAdd(dxbc::Dest::R(primitive_id_temp, 0b0001),
+                    dxbc::Src::R(primitive_id_temp, dxbc::Src::kXXXX),
+                    dxbc::Src::CB(cbuffer_index_system_constants_,
+                                  uint32_t(CbufferRegister::kSystemConstants),
+                                  1, dxbc::Src::kYYYY));
           a_.OpUToF(dxbc::Dest::R(primitive_id_temp, 0b0001),
-                    dxbc::Src::VPrim());
+                    dxbc::Src::R(primitive_id_temp, dxbc::Src::kXXXX));
           if (uses_register_dynamic_addressing) {
             a_.OpMov(dxbc::Dest::X(0, 1, 0b0001),
                      dxbc::Src::R(primitive_id_temp, dxbc::Src::kXXXX));
@@ -518,11 +525,18 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 0, 0b0110)
                                                   : dxbc::Dest::R(0, 0b0110),
                  dxbc::Src::VDomain(0b010000));
-        // Copy the primitive index to r0.x as a float.
+        // Copy the primitive index + offset to r0.x as a float.
         uint32_t primitive_id_temp =
             uses_register_dynamic_addressing ? PushSystemTemp() : 0;
         in_primitive_id_used_ = true;
-        a_.OpUToF(dxbc::Dest::R(primitive_id_temp, 0b0001), dxbc::Src::VPrim());
+        a_.OpMov(dxbc::Dest::R(primitive_id_temp, 0b0001), dxbc::Src::VPrim());
+        a_.OpIAdd(dxbc::Dest::R(primitive_id_temp, 0b0001),
+                  dxbc::Src::R(primitive_id_temp, dxbc::Src::kXXXX),
+                  dxbc::Src::CB(cbuffer_index_system_constants_,
+                                uint32_t(CbufferRegister::kSystemConstants), 1,
+                                dxbc::Src::kYYYY));
+        a_.OpUToF(dxbc::Dest::R(primitive_id_temp, 0b0001),
+                  dxbc::Src::R(primitive_id_temp, dxbc::Src::kXXXX));
         if (uses_register_dynamic_addressing) {
           a_.OpMov(dxbc::Dest::X(0, 0, 0b0001),
                    dxbc::Src::R(primitive_id_temp, dxbc::Src::kXXXX));
