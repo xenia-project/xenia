@@ -50,6 +50,7 @@ StfsContainerDevice::StfsContainerDevice(const std::string_view mount_path,
       name_("STFS"),
       host_path_(host_path),
       files_total_size_(),
+      component_name_max_length_(40),
       svod_base_offset_(),
       header_(),
       svod_layout_(),
@@ -85,6 +86,7 @@ bool StfsContainerDevice::Initialize() {
       return ReadSTFS() == Error::kSuccess;
       break;
     case XContentVolumeType::kSvod:
+      component_name_max_length_ = 255;
       return ReadSVOD() == Error::kSuccess;
     default:
       XELOGE("Unknown XContent volume type: {}",
