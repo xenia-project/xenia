@@ -57,13 +57,13 @@ void DisassembleResultOperand(const InstructionResult& result,
   }
   if (uses_storage_index) {
     switch (result.storage_addressing_mode) {
-      case InstructionStorageAddressingMode::kStatic:
+      case InstructionStorageAddressingMode::kAbsolute:
         out->AppendFormat("{}", result.storage_index);
         break;
-      case InstructionStorageAddressingMode::kAddressAbsolute:
+      case InstructionStorageAddressingMode::kAddressRegisterRelative:
         out->AppendFormat("[{}+a0]", result.storage_index);
         break;
-      case InstructionStorageAddressingMode::kAddressRelative:
+      case InstructionStorageAddressingMode::kLoopRelative:
         out->AppendFormat("[{}+aL]", result.storage_index);
         break;
     }
@@ -109,17 +109,17 @@ void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
     out->Append("_abs");
   }
   switch (op.storage_addressing_mode) {
-    case InstructionStorageAddressingMode::kStatic:
+    case InstructionStorageAddressingMode::kAbsolute:
       if (op.is_absolute_value) {
         out->AppendFormat("[{}]", op.storage_index);
       } else {
         out->AppendFormat("{}", op.storage_index);
       }
       break;
-    case InstructionStorageAddressingMode::kAddressAbsolute:
+    case InstructionStorageAddressingMode::kAddressRegisterRelative:
       out->AppendFormat("[{}+a0]", op.storage_index);
       break;
-    case InstructionStorageAddressingMode::kAddressRelative:
+    case InstructionStorageAddressingMode::kLoopRelative:
       out->AppendFormat("[{}+aL]", op.storage_index);
       break;
   }

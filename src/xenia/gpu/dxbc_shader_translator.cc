@@ -1331,12 +1331,12 @@ dxbc::Src DxbcShaderTranslator::LoadOperand(const InstructionOperand& operand,
 
   dxbc::Index index(operand.storage_index);
   switch (operand.storage_addressing_mode) {
-    case InstructionStorageAddressingMode::kStatic:
+    case InstructionStorageAddressingMode::kAbsolute:
       break;
-    case InstructionStorageAddressingMode::kAddressAbsolute:
+    case InstructionStorageAddressingMode::kAddressRegisterRelative:
       index = dxbc::Index(system_temp_ps_pc_p0_a0_, 3, operand.storage_index);
       break;
-    case InstructionStorageAddressingMode::kAddressRelative:
+    case InstructionStorageAddressingMode::kLoopRelative:
       index = dxbc::Index(system_temp_aL_, 0, operand.storage_index);
       break;
   }
@@ -1365,7 +1365,7 @@ dxbc::Src DxbcShaderTranslator::LoadOperand(const InstructionOperand& operand,
         src = dxbc::Src::R(temp);
       } else {
         assert_true(operand.storage_addressing_mode ==
-                    InstructionStorageAddressingMode::kStatic);
+                    InstructionStorageAddressingMode::kAbsolute);
         src = dxbc::Src::R(index.index_);
       }
     } break;
@@ -1376,7 +1376,7 @@ dxbc::Src DxbcShaderTranslator::LoadOperand(const InstructionOperand& operand,
       const Shader::ConstantRegisterMap& constant_register_map =
           current_shader().constant_register_map();
       if (operand.storage_addressing_mode ==
-          InstructionStorageAddressingMode::kStatic) {
+          InstructionStorageAddressingMode::kAbsolute) {
         uint32_t float_constant_index =
             constant_register_map.GetPackedFloatConstantIndex(
                 operand.storage_index);
@@ -1429,13 +1429,13 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
       if (current_shader().uses_register_dynamic_addressing()) {
         dxbc::Index register_index(result.storage_index);
         switch (result.storage_addressing_mode) {
-          case InstructionStorageAddressingMode::kStatic:
+          case InstructionStorageAddressingMode::kAbsolute:
             break;
-          case InstructionStorageAddressingMode::kAddressAbsolute:
+          case InstructionStorageAddressingMode::kAddressRegisterRelative:
             register_index =
                 dxbc::Index(system_temp_ps_pc_p0_a0_, 3, result.storage_index);
             break;
-          case InstructionStorageAddressingMode::kAddressRelative:
+          case InstructionStorageAddressingMode::kLoopRelative:
             register_index =
                 dxbc::Index(system_temp_aL_, 0, result.storage_index);
             break;
@@ -1443,7 +1443,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
         dest = dxbc::Dest::X(0, register_index);
       } else {
         assert_true(result.storage_addressing_mode ==
-                    InstructionStorageAddressingMode::kStatic);
+                    InstructionStorageAddressingMode::kAbsolute);
         dest = dxbc::Dest::R(result.storage_index);
       }
       break;
