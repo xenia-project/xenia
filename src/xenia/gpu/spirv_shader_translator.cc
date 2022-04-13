@@ -3110,16 +3110,16 @@ Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
   }
 
   switch (op.storage_addressing_mode) {
-    case InstructionStorageAddressingMode::kStatic: {
+    case InstructionStorageAddressingMode::kAbsolute: {
       storage_index = b.makeUintConstant(storage_base + op.storage_index);
     } break;
-    case InstructionStorageAddressingMode::kAddressAbsolute: {
+    case InstructionStorageAddressingMode::kAddressRegisterRelative: {
       // storage_index + a0
       storage_index =
           b.createBinOp(spv::Op::OpIAdd, uint_type_, b.createLoad(a0_),
                         b.makeUintConstant(storage_base + op.storage_index));
     } break;
-    case InstructionStorageAddressingMode::kAddressRelative: {
+    case InstructionStorageAddressingMode::kLoopRelative: {
       // storage_index + aL.x
       auto idx = b.createCompositeExtract(b.createLoad(aL_), uint_type_, 0);
       storage_index =
@@ -3269,16 +3269,16 @@ void SpirvShaderTranslator::StoreToResult(Id source_value_id,
   std::vector<Id> storage_offsets;  // Offsets in nested arrays -> storage
 
   switch (result.storage_addressing_mode) {
-    case InstructionStorageAddressingMode::kStatic: {
+    case InstructionStorageAddressingMode::kAbsolute: {
       storage_index = b.makeUintConstant(result.storage_index);
     } break;
-    case InstructionStorageAddressingMode::kAddressAbsolute: {
+    case InstructionStorageAddressingMode::kAddressRegisterRelative: {
       // storage_index + a0
       storage_index =
           b.createBinOp(spv::Op::OpIAdd, uint_type_, b.createLoad(a0_),
                         b.makeUintConstant(result.storage_index));
     } break;
-    case InstructionStorageAddressingMode::kAddressRelative: {
+    case InstructionStorageAddressingMode::kLoopRelative: {
       // storage_index + aL.x
       auto idx = b.createCompositeExtract(b.createLoad(aL_), uint_type_, 0);
       storage_index = b.createBinOp(spv::Op::OpIAdd, uint_type_, idx,

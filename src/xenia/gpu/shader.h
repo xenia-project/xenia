@@ -44,7 +44,7 @@ namespace gpu {
 enum class InstructionStorageTarget {
   // Result is not stored.
   kNone,
-  // Result is stored to a temporary register indexed by storage_index [0-31].
+  // Result is stored to a temporary register indexed by storage_index [0-63].
   kRegister,
   // Result is stored into a vertex shader interpolator export [0-15].
   kInterpolator,
@@ -85,11 +85,13 @@ constexpr uint32_t GetInstructionStorageTargetUsedComponentCount(
 
 enum class InstructionStorageAddressingMode {
   // The storage index is not dynamically addressed.
-  kStatic,
+  kAbsolute,
   // The storage index is addressed by a0.
-  kAddressAbsolute,
+  // Float constants only.
+  kAddressRegisterRelative,
   // The storage index is addressed by aL.
-  kAddressRelative,
+  // Float constants and temporary registers only.
+  kLoopRelative,
 };
 
 // Describes the source value of a particular component.
@@ -111,6 +113,12 @@ enum class SwizzleSource {
 constexpr SwizzleSource GetSwizzleFromComponentIndex(uint32_t i) {
   return static_cast<SwizzleSource>(i);
 }
+constexpr SwizzleSource GetSwizzledAluSourceComponent(
+    uint32_t swizzle, uint32_t component_index) {
+  return GetSwizzleFromComponentIndex(
+      ucode::AluInstruction::GetSwizzledComponentIndex(swizzle,
+                                                       component_index));
+}
 inline char GetCharForComponentIndex(uint32_t i) {
   const static char kChars[] = {'x', 'y', 'z', 'w'};
   return kChars[i];
@@ -127,7 +135,7 @@ struct InstructionResult {
   uint32_t storage_index = 0;
   // How the storage index is dynamically addressed, if it is.
   InstructionStorageAddressingMode storage_addressing_mode =
-      InstructionStorageAddressingMode::kStatic;
+      InstructionStorageAddressingMode::kAbsolute;
   // True to clamp the result value to [0-1].
   bool is_clamped = false;
   // Defines whether each output component is written, though this is from the
@@ -191,9 +199,9 @@ struct InstructionResult {
 };
 
 enum class InstructionStorageSource {
-  // Source is stored in a temporary register indexed by storage_index [0-31].
+  // Source is stored in a temporary register indexed by storage_index [0-63].
   kRegister,
-  // Source is stored in a float constant indexed by storage_index [0-511].
+  // Source is stored in a float constant indexed by storage_index [0-255].
   kConstantFloat,
   // Source is stored in a vertex fetch constant indexed by storage_index
   // [0-95].
@@ -210,7 +218,7 @@ struct InstructionOperand {
   uint32_t storage_index = 0;
   // How the storage index is dynamically addressed, if it is.
   InstructionStorageAddressingMode storage_addressing_mode =
-      InstructionStorageAddressingMode::kStatic;
+      InstructionStorageAddressingMode::kAbsolute;
   // True to negate the operand value.
   bool is_negated = false;
   // True to take the absolute value of the source (before any negation).
