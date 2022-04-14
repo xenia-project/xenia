@@ -273,6 +273,36 @@ void DxbcShaderTranslator::ConvertPWLGamma(
            accumulator_src);
 }
 
+void DxbcShaderTranslator::RemapAndConvertVertexIndices(
+    uint32_t dest_temp, uint32_t dest_temp_components, const dxbc::Src& src) {
+  dxbc::Dest dest(dxbc::Dest::R(dest_temp, dest_temp_components));
+  dxbc::Src dest_src(dxbc::Src::R(dest_temp));
+
+  // Add the base vertex index.
+  a_.OpIAdd(dest, src,
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexOffset,
+                               offsetof(SystemConstants, vertex_index_offset),
+                               dxbc::Src::kXXXX));
+
+  // Mask since the GPU only uses the lower 24 bits of the vertex index (tested
+  // on an Adreno 200 phone). `((index & 0xFFFFFF) + offset) & 0xFFFFFF` is the
+  // same as `(index + offset) & 0xFFFFFF`.
+  a_.OpAnd(dest, dest_src, dxbc::Src::LU(xenos::kVertexIndexMask));
+
+  // Clamp after offsetting.
+  a_.OpUMax(dest, dest_src,
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexMinMax,
+                               offsetof(SystemConstants, vertex_index_min),
+                               dxbc::Src::kXXXX));
+  a_.OpUMin(dest, dest_src,
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexMinMax,
+                               offsetof(SystemConstants, vertex_index_max),
+                               dxbc::Src::kXXXX));
+
+  // Convert to float.
+  a_.OpUToF(dest, dest_src);
+}
+
 void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   if (register_count() < 1) {
     return;
@@ -348,29 +378,9 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
     }
   }
 
-  // Add the base vertex index.
-  a_.OpIAdd(index_dest, index_src,
-            LoadSystemConstant(SystemConstants::Index::kVertexIndexOffset,
-                               offsetof(SystemConstants, vertex_index_offset),
-                               dxbc::Src::kXXXX));
-
-  // Mask since the GPU only uses the lower 24 bits of the vertex index (tested
-  // on an Adreno 200 phone). `((index & 0xFFFFFF) + offset) & 0xFFFFFF` is the
-  // same as `(index + offset) & 0xFFFFFF`.
-  a_.OpAnd(index_dest, index_src, dxbc::Src::LU(xenos::kVertexIndexMask));
-
-  // Clamp the vertex index after offsetting.
-  a_.OpUMax(index_dest, index_src,
-            LoadSystemConstant(SystemConstants::Index::kVertexIndexMinMax,
-                               offsetof(SystemConstants, vertex_index_min),
-                               dxbc::Src::kXXXX));
-  a_.OpUMin(index_dest, index_src,
-            LoadSystemConstant(SystemConstants::Index::kVertexIndexMinMax,
-                               offsetof(SystemConstants, vertex_index_max),
-                               dxbc::Src::kXXXX));
-
-  // Convert to float.
-  a_.OpUToF(index_dest, index_src);
+  // Remap the index to the needed range and convert it to floating-point.
+  RemapAndConvertVertexIndices(index_dest.index_1d_.index_,
+                               index_dest.write_mask_, index_src);
 
   if (uses_register_dynamic_addressing) {
     // Store to indexed GPR 0 in x0[0].
@@ -435,12 +445,12 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
                                                   : dxbc::Dest::R(0, 0b0111),
                  dxbc::Src::VDomain(0b000110));
         if (register_count() >= 2) {
-          // Copy the primitive index to r1.x as a float.
+          // Remap and write the primitive index to r1.x as floating-point.
           uint32_t primitive_id_temp =
               uses_register_dynamic_addressing ? PushSystemTemp() : 1;
           in_primitive_id_used_ = true;
-          a_.OpUToF(dxbc::Dest::R(primitive_id_temp, 0b0001),
-                    dxbc::Src::VPrim());
+          RemapAndConvertVertexIndices(primitive_id_temp, 0b0001,
+                                       dxbc::Src::VPrim());
           if (uses_register_dynamic_addressing) {
             a_.OpMov(dxbc::Dest::X(0, 1, 0b0001),
                      dxbc::Src::R(primitive_id_temp, dxbc::Src::kXXXX));
@@ -518,11 +528,13 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 0, 0b0110)
                                                   : dxbc::Dest::R(0, 0b0110),
                  dxbc::Src::VDomain(0b010000));
-        // Copy the primitive index to r0.x as a float.
+        // Remap and write the primitive index to r0.x as floating-point.
+        // 4D5307F1 ground quad patches use the primitive index offset.
         uint32_t primitive_id_temp =
             uses_register_dynamic_addressing ? PushSystemTemp() : 0;
         in_primitive_id_used_ = true;
-        a_.OpUToF(dxbc::Dest::R(primitive_id_temp, 0b0001), dxbc::Src::VPrim());
+        RemapAndConvertVertexIndices(primitive_id_temp, 0b0001,
+                                     dxbc::Src::VPrim());
         if (uses_register_dynamic_addressing) {
           a_.OpMov(dxbc::Dest::X(0, 0, 0b0001),
                    dxbc::Src::R(primitive_id_temp, dxbc::Src::kXXXX));
