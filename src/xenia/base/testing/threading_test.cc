@@ -788,7 +788,7 @@ TEST_CASE("Wait on Timer", "[timer]") {
   result = Wait(timer.get(), false, 1ms);
   REQUIRE(result == WaitResult::kTimeout);
   REQUIRE(timer->SetOnceAfter(1ms));  // Signals it
-  result = Wait(timer.get(), false, 2ms);
+  result = Wait(timer.get(), false, 20ms);
   REQUIRE(result == WaitResult::kSuccess);
   result = Wait(timer.get(), false, 1ms);
   REQUIRE(result == WaitResult::kSuccess);  // Did not reset
@@ -799,7 +799,7 @@ TEST_CASE("Wait on Timer", "[timer]") {
   result = Wait(timer.get(), false, 1ms);
   REQUIRE(result == WaitResult::kTimeout);
   REQUIRE(timer->SetOnceAfter(1ms));  // Signals it
-  result = Wait(timer.get(), false, 2ms);
+  result = Wait(timer.get(), false, 20ms);
   REQUIRE(result == WaitResult::kSuccess);
   result = Wait(timer.get(), false, 1ms);
   REQUIRE(result == WaitResult::kTimeout);  // Did reset
