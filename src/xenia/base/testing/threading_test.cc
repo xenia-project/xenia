@@ -14,6 +14,8 @@
 #define CATCH_CONFIG_ENABLE_CHRONO_STRINGMAKER
 #include "third_party/catch/include/catch.hpp"
 
+#include "third_party/disruptorplus/include/disruptorplus/spin_wait.hpp"
+
 namespace xe {
 namespace base {
 namespace test {
@@ -25,12 +27,12 @@ template <class Clock, class Duration, class Predicate>
 bool spin_wait_until(
     const std::chrono::time_point<Clock, Duration>& timeout_time,
     Predicate stop_waiting) {
+  disruptorplus::spin_wait spinner;
   while (!stop_waiting()) {
     if (std::chrono::steady_clock::now() >= timeout_time) {
       return false;
     }
-    // Needed for valgrind because it basically runs one thread:
-    MaybeYield();
+    spinner.spin_once();
   }
   return true;
 }
@@ -43,9 +45,9 @@ bool spin_wait_for(const std::chrono::duration<Rep, Period>& rel_time,
 
 template <class Predicate>
 void spin_wait(Predicate stop_waiting) {
+  disruptorplus::spin_wait spinner;
   while (!stop_waiting()) {
-    // Needed for valgrind because it basically runs one thread:
-    MaybeYield();
+    spinner.spin_once();
   }
 }
 
