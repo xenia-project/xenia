@@ -960,7 +960,7 @@ uint8_t KernelState::GetConnectedUsers() const {
 void KernelState::UpdateUsedUserProfiles() {
   const uint8_t used_slots_bitmask = GetConnectedUsers();
 
-  for (uint8_t i = 1; i < 4; i++) {
+  for (uint32_t i = 1; i < 4; i++) {
     bool is_used = used_slots_bitmask & (1 << i);
 
     if (IsUserSignedIn(i) && !is_used) {

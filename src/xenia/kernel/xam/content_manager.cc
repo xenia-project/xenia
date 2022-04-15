@@ -321,7 +321,8 @@ X_RESULT ContentManager::DeleteContent(const XCONTENT_AGGREGATE_DATA& data) {
 
 std::filesystem::path ContentManager::ResolveGameUserContentPath() {
   auto title_id = fmt::format("{:08X}", kernel_state_->title_id());
-  auto user_name = xe::to_path(kernel_state_->user_profile(0)->name());
+  auto user_name =
+      xe::to_path(kernel_state_->user_profile(uint32_t(0))->name());
 
   // Per-game per-profile data location:
   // content_root/title_id/profile/user_name

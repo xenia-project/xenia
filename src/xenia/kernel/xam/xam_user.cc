@@ -224,17 +224,31 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
 
   // Title ID = 0 means us.
   // 0xfffe07d1 = profile?
-  if (!kernel_state()->IsUserSignedIn(user_index)) {
+  if (!kernel_state()->IsUserSignedIn(user_index) && !xuids) {
     if (overlapped) {
-    kernel_state()->CompleteOverlappedImmediate(
-        kernel_state()->memory()->HostToGuestVirtual(overlapped),
-                                                  X_ERROR_NO_SUCH_USER);
+      kernel_state()->CompleteOverlappedImmediate(
+          kernel_state()->memory()->HostToGuestVirtual(overlapped),
+          X_ERROR_NO_SUCH_USER);
       return X_ERROR_IO_PENDING;
     }
     return X_ERROR_NO_SUCH_USER;
   }
 
-  const auto& user_profile = kernel_state()->user_profile(user_index);
+  auto user_profile = kernel_state()->user_profile(user_index);
+
+  if (xuids) {
+    uint64_t user_xuid = static_cast<uint64_t>(xuids[0]);
+    if (!kernel_state()->IsUserSignedIn(user_xuid)) {
+      if (overlapped) {
+        kernel_state()->CompleteOverlappedImmediate(
+            kernel_state()->memory()->HostToGuestVirtual(overlapped),
+            X_ERROR_NO_SUCH_USER);
+        return X_ERROR_IO_PENDING;
+      }
+      return X_ERROR_NO_SUCH_USER;
+    }
+    user_profile = kernel_state()->user_profile(user_xuid);
+  }
 
   // First call asks for size (fill buffer_size_ptr).
   // Second call asks for buffer contents with that size.
@@ -529,7 +543,7 @@ dword_result_t XamShowSigninUI_entry(dword_t unk, dword_t unk_mask) {
   // Mask values vary. Probably matching user types? Local/remote?
   // Games seem to sit and loop until we trigger this notification:
 
-  for (uint8_t i = 0; i < 4; i++) {
+  for (uint32_t i = 0; i < 4; i++) {
     if (kernel_state()->IsUserSignedIn(i)) {
       // XN_SYS_SIGNINCHANGED
       kernel_state()->BroadcastNotification(0xA, i);
