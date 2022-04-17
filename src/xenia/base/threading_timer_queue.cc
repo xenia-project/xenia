@@ -184,7 +184,9 @@ void TimerQueueWaitItem::Disarm() {
   // once Disarm() has returned.
   while (!state_.compare_exchange_weak(state, State::kDisarmed,
                                        std::memory_order_acq_rel)) {
-    if (state == State::kInCallbackSelfDisarmed || state == State::kDisarmed) {
+    if (state == State::kDisarmed) {
+      // Do not break for kInCallbackSelfDisarmed and keep spinning in order to
+      // meet guarantees
       break;
     }
     state = State::kIdle;
