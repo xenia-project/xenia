@@ -25,11 +25,17 @@ namespace gpu {
 using namespace ucode;
 
 Shader::Shader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
-               const uint32_t* ucode_dwords, size_t ucode_dword_count)
+               const uint32_t* ucode_dwords, size_t ucode_dword_count,
+               std::endian ucode_source_endian)
     : shader_type_(shader_type), ucode_data_hash_(ucode_data_hash) {
   // We keep ucode data in host native format so it's easier to work with.
   ucode_data_.resize(ucode_dword_count);
-  xe::copy_and_swap(ucode_data_.data(), ucode_dwords, ucode_dword_count);
+  if (std::endian::native != ucode_source_endian) {
+    xe::copy_and_swap(ucode_data_.data(), ucode_dwords, ucode_dword_count);
+  } else {
+    std::memcpy(ucode_data_.data(), ucode_dwords,
+                sizeof(uint32_t) * ucode_dword_count);
+  }
 }
 
 Shader::~Shader() {

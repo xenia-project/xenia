@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "xenia/base/byte_order.h"
 #include "xenia/base/math.h"
 #include "xenia/base/string_buffer.h"
 #include "xenia/gpu/ucode.h"
@@ -810,8 +811,11 @@ class Shader {
     std::string host_disassembly_;
   };
 
+  // ucode_source_endian specifies the endianness of the ucode_dwords argument -
+  // inside the Shader, the ucode will be stored with the native byte order.
   Shader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
-         const uint32_t* ucode_dwords, size_t ucode_dword_count);
+         const uint32_t* ucode_dwords, size_t ucode_dword_count,
+         std::endian ucode_source_endian = std::endian::big);
   virtual ~Shader();
 
   // Whether the shader is identified as a vertex or pixel shader.
