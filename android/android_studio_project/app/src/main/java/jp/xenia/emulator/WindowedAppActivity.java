@@ -85,6 +85,7 @@ public abstract class WindowedAppActivity extends Activity {
     }
 
     // Used from the native WindowedAppContext. May be called from non-UI threads.
+    @SuppressWarnings("UnusedDeclaration")
     protected void postInvalidateWindowSurface() {
         if (mWindowSurfaceView == null) {
             return;
