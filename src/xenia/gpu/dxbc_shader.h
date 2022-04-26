@@ -28,8 +28,9 @@ class DxbcShader : public Shader {
         : Translation(shader, modification) {}
   };
 
-  DxbcShader(xenos::ShaderType shader_type, uint64_t data_hash,
-             const uint32_t* dword_ptr, uint32_t dword_count);
+  DxbcShader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
+             const uint32_t* ucode_dwords, size_t ucode_dword_count,
+             std::endian ucode_source_endian = std::endian::big);
 
   // Resource bindings are gathered after the successful translation of any
   // modification for simplicity of translation (and they don't depend on

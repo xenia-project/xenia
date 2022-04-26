@@ -37,8 +37,9 @@ class VulkanShader : public Shader {
   };
 
   VulkanShader(const ui::vulkan::VulkanProvider& provider,
-               xenos::ShaderType shader_type, uint64_t data_hash,
-               const uint32_t* dword_ptr, uint32_t dword_count);
+               xenos::ShaderType shader_type, uint64_t ucode_data_hash,
+               const uint32_t* ucode_dwords, size_t ucode_dword_count,
+               std::endian ucode_source_endian = std::endian::big);
 
  protected:
   Translation* CreateTranslationInstance(uint64_t modification) override;

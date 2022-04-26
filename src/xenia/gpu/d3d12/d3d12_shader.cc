@@ -22,9 +22,12 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-D3D12Shader::D3D12Shader(xenos::ShaderType shader_type, uint64_t data_hash,
-                         const uint32_t* dword_ptr, uint32_t dword_count)
-    : DxbcShader(shader_type, data_hash, dword_ptr, dword_count) {}
+D3D12Shader::D3D12Shader(xenos::ShaderType shader_type,
+                         uint64_t ucode_data_hash, const uint32_t* ucode_dwords,
+                         size_t ucode_dword_count,
+                         std::endian ucode_source_endian)
+    : DxbcShader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count,
+                 ucode_source_endian) {}
 
 void D3D12Shader::D3D12Translation::DisassembleDxbcAndDxil(
     const ui::d3d12::D3D12Provider& provider, bool disassemble_dxbc,
