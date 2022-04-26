@@ -134,7 +134,6 @@ void GetFormatCopyInfo(DXGI_FORMAT format, uint32_t plane,
   DXGI_FORMAT copy_format = format;
   uint32_t block_width = 1;
   uint32_t block_height = 1;
-  bool divide_by_block_size = false;
   uint32_t bytes_per_block = 1;
   switch (format) {
     case DXGI_FORMAT_R32G32B32A32_TYPELESS:
