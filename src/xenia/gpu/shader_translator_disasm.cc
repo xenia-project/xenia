@@ -141,25 +141,27 @@ void DisassembleSourceOperand(const InstructionOperand& op, StringBuffer* out) {
 void ParsedExecInstruction::Disassemble(StringBuffer* out) const {
   switch (type) {
     case Type::kUnconditional:
-      out->AppendFormat("      {} ", opcode_name);
+      out->AppendFormat("      {}", opcode_name);
       break;
     case Type::kPredicated:
       out->Append(condition ? " (p0) " : "(!p0) ");
-      out->AppendFormat("{} ", opcode_name);
+      out->AppendFormat("{}", opcode_name);
       break;
     case Type::kConditional:
-      out->AppendFormat("      {} ", opcode_name);
-      if (!condition) {
-        out->Append('!');
-      }
-      out->AppendFormat("b{}", bool_constant_index);
+      out->AppendFormat("      {} {}b{}", opcode_name, condition ? "" : "!",
+                        bool_constant_index);
       break;
   }
   if (is_yield) {
-    out->Append(", Yield=true");
+    if (type == Type::kConditional) {
+      // For `exec` or `(p0) exec` (but not `cexec`), "unexpected token ','" if
+      // preceded by a comma.
+      out->Append(',');
+    }
+    out->Append(" Yield=true");
   }
   if (!clean) {
-    out->Append("  // PredicateClean=false");
+    out->Append("    // PredicateClean=false");
   }
   out->Append('\n');
 }
