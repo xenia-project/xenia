@@ -160,7 +160,7 @@ void ParsedExecInstruction::Disassemble(StringBuffer* out) const {
     }
     out->Append(" Yield=true");
   }
-  if (!clean) {
+  if (!is_predicate_clean) {
     out->Append("    // PredicateClean=false");
   }
   out->Append('\n');

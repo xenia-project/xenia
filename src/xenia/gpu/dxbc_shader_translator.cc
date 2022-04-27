@@ -1798,6 +1798,8 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
   }
 
   // Break if the loop counter is 0 (since the condition is checked in the end).
+  // TODO(Triang3l): Move this before pushing and address loading. This won't
+  // pop if the counter is 0.
   a_.OpIf(false, dxbc::Src::R(system_temp_loop_count_, dxbc::Src::kXXXX));
   JumpToLabel(instr.loop_skip_address);
   a_.OpEndIf();
