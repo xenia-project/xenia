@@ -1810,10 +1810,24 @@ enum class ExportRegister : uint32_t {
   // See R6xx/R7xx registers for details (USE_VTX_POINT_SIZE, USE_VTX_EDGE_FLAG,
   // USE_VTX_KILL_FLAG).
   // X - PSIZE (gl_PointSize).
+  //     According to tests and GL_AMD_program_binary_Z400 disassembly on an
+  //     Adreno 200 device:
+  //     * This is the full width and height of the point sprite (not half -
+  //       gl_PointSize goes directly to oPts.x).
+  //     * Clamped to PA_SU_POINT_MINMAX as a signed integer in rasterization:
+  //       * -NaN - min
+  //       * -Infinity - min
+  //       * -Normal - min
+  //       * -0 (0x80000000 - the smallest signed integer) - min
+  //       * +0 - min
+  //       * +Infinity - max
+  //       * +NaN - max
   // Y - EDGEFLAG (glEdgeFlag) for PrimitiveType::kPolygon wireframe/point
   //     drawing.
   // Z - KILLVERTEX flag (used in 4D5307ED for grass), set for killing
-  //     primitives based on PA_CL_CLIP_CNTL::VTX_KILL_OR condition.
+  //     primitives based on PA_CL_CLIP_CNTL::VTX_KILL_OR condition if bits 0:30
+  //     of this export value (the sign bit is ignored according to the
+  //     IPR2015-00325 sequencer specification) are not zero.
   kVSPointSizeEdgeFlagKillVertex = 63,
 
   kPSColor0 = 0,

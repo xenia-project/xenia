@@ -706,6 +706,12 @@ void DxbcShaderTranslator::StartPixelShader() {
       a_.OpEndIf();
       // ZW - UV within a point sprite in the absolute value, at centroid if
       // requested for the interpolator.
+      // TODO(Triang3l): Are centroid point coordinates possible in the hardware
+      // at all? ps_param_gen is not a triangle-IJ-interpolated value
+      // apparently, rather, it replaces the value in the shader input.
+      // TODO(Triang3l): Saturate to avoid negative point coordinates (the sign
+      // bit is used for the primitive type indicator) in case of extrapolation
+      // when the center is not covered with MSAA.
       dxbc::Dest point_coord_r_zw_dest(dxbc::Dest::R(param_gen_temp, 0b1100));
       dxbc::Src point_coord_v_xxxy_src(dxbc::Src::V(
           uint32_t(InOutRegister::kPSInPointParameters), 0b01000000));
@@ -723,6 +729,7 @@ void DxbcShaderTranslator::StartPixelShader() {
       // At centroid.
       a_.OpEvalCentroid(point_coord_r_zw_dest, point_coord_v_xxxy_src);
       a_.OpEndIf();
+      // TODO(Triang3l): Point / line primitive type flags to the sign bits.
       // Write ps_param_gen to the specified GPR.
       dxbc::Src param_gen_src(dxbc::Src::R(param_gen_temp));
       if (uses_register_dynamic_addressing) {
@@ -980,12 +987,12 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
            dxbc::Src::R(system_temp_position_));
 
   // Assuming SV_CullDistance was zeroed earlier in this function.
-  // Kill the primitive if needed - check if the shader wants to kill.
-  // TODO(Triang3l): Find if the condition is actually the flag being non-zero.
-  a_.OpNE(temp_x_dest,
-          dxbc::Src::R(system_temp_point_size_edge_flag_kill_vertex_,
-                       dxbc::Src::kZZZZ),
-          dxbc::Src::LF(0.0f));
+  // Kill the primitive if needed - check if the shader wants to kill (bits
+  // 0:30 of the vertex kill register are not zero).
+  a_.OpAnd(temp_x_dest,
+           dxbc::Src::R(system_temp_point_size_edge_flag_kill_vertex_,
+                        dxbc::Src::kZZZZ),
+           dxbc::Src::LU(UINT32_C(0x7FFFFFFF)));
   a_.OpIf(true, temp_x_src);
   {
     // Extract the killing condition.
