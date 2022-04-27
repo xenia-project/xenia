@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -23,6 +23,7 @@
 #include "xenia/base/cvar.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/register_file.h"
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/xenos.h"
 
 DECLARE_bool(depth_transfer_not_equal_test);
@@ -215,6 +216,7 @@ class RenderTargetCache {
   virtual void BeginFrame();
 
   virtual bool Update(bool is_rasterization_done,
+                      reg::RB_DEPTHCONTROL normalized_depth_control,
                       uint32_t normalized_color_mask);
 
   // Returns bits where 0 is whether a depth render target is currently bound on

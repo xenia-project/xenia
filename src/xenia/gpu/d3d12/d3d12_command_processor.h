@@ -30,6 +30,7 @@
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/dxbc_shader.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/ui/d3d12/d3d12_descriptor_heap_pool.h"
@@ -349,13 +350,15 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   void UpdateFixedFunctionState(const draw_util::ViewportInfo& viewport_info,
                                 const draw_util::Scissor& scissor,
-                                bool primitive_polygonal);
+                                bool primitive_polygonal,
+                                reg::RB_DEPTHCONTROL normalized_depth_control);
   void UpdateSystemConstantValues(bool shared_memory_is_uav,
                                   bool primitive_polygonal,
                                   uint32_t line_loop_closing_index,
                                   xenos::Endian index_endian,
                                   const draw_util::ViewportInfo& viewport_info,
                                   uint32_t used_texture_mask,
+                                  reg::RB_DEPTHCONTROL normalized_depth_control,
                                   uint32_t normalized_color_mask);
   bool UpdateBindings(const D3D12Shader* vertex_shader,
                       const D3D12Shader* pixel_shader,
