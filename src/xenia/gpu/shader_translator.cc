@@ -662,7 +662,7 @@ void ParseControlFlowExec(const ControlFlowExecInstruction& cf,
   instr.instruction_count = cf.count();
   instr.type = ParsedExecInstruction::Type::kUnconditional;
   instr.is_end = cf.opcode() == ControlFlowOpcode::kExecEnd;
-  instr.clean = cf.clean();
+  instr.is_predicate_clean = cf.is_predicate_clean();
   instr.is_yield = cf.is_yield();
   instr.sequence = cf.sequence();
 }
@@ -689,7 +689,7 @@ void ParseControlFlowCondExec(const ControlFlowCondExecInstruction& cf,
   switch (cf.opcode()) {
     case ControlFlowOpcode::kCondExec:
     case ControlFlowOpcode::kCondExecEnd:
-      instr.clean = false;
+      instr.is_predicate_clean = false;
       break;
     default:
       break;
@@ -710,7 +710,7 @@ void ParseControlFlowCondExecPred(const ControlFlowCondExecPredInstruction& cf,
   instr.type = ParsedExecInstruction::Type::kPredicated;
   instr.condition = cf.condition();
   instr.is_end = cf.opcode() == ControlFlowOpcode::kCondExecPredEnd;
-  instr.clean = cf.clean();
+  instr.is_predicate_clean = cf.is_predicate_clean();
   instr.is_yield = cf.is_yield();
   instr.sequence = cf.sequence();
 }

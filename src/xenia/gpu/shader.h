@@ -302,8 +302,9 @@ struct ParsedExecInstruction {
 
   // Whether this exec ends the shader.
   bool is_end = false;
-  // Whether to reset the current predicate.
-  bool clean = true;
+  // Whether the hardware doesn't have to wait for the predicate to be updated
+  // after this exec.
+  bool is_predicate_clean = true;
   // ?
   bool is_yield = false;
 

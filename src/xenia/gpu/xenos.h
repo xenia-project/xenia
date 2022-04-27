@@ -975,6 +975,21 @@ inline uint32_t GpuToCpu(uint32_t p) { return p; }
 
 inline uint32_t CpuToGpu(uint32_t p) { return p & 0x1FFFFFFF; }
 
+// XE_GPU_REG_SHADER_CONSTANT_LOOP_*
+union alignas(uint32_t) LoopConstant {
+  uint32_t value;
+  struct {
+    uint32_t count : 8;  // +0
+    // Address (aL) start and step.
+    // The resulting aL is `iterator * step + start`, 10-bit, and has the real
+    // range of [-256, 256], according to the IPR2015-00325 sequencer
+    // specification.
+    uint32_t start : 8;  // +8
+    int32_t step : 8;    // +16
+  };
+};
+static_assert_size(LoopConstant, sizeof(uint32_t));
+
 // SQ_TEX_VTX_INVALID/VALID_TEXTURE/BUFFER
 enum class FetchConstantType : uint32_t {
   kInvalidTexture,

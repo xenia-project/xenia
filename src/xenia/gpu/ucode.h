@@ -97,18 +97,44 @@ enum class ControlFlowOpcode : uint32_t {
   // Executes fetch or ALU instructions then ends execution.
   kExecEnd = 2,
   // Conditionally executes based on a bool const.
+  // PredicateClean = false.
   kCondExec = 3,
   // Conditionally executes based on a bool const then ends execution.
+  // PredicateClean = false.
+  // According to the IPR2015-00325 sequencer specification, execution ends only
+  // if the condition is actually met (unlike on the R600, where execution ends
+  // unconditionally if END_OF_PROGRAM is set in the control flow instruction).
+  // 4D5307ED has many shaders (used, in particular, in the Press Start screen
+  // background) with if / else in its tail done via cexece - cexece b130, then
+  // cexece !b130, and then an empty exece (if the condition was ignored, the
+  // second cexece would have never been reached). Also, the validator reports
+  // "Shader will try to execute instruction 3.0, but last possible instruction
+  // is 2.1" for a shader that contains just one cexece without an exece.
   kCondExecEnd = 4,
   // Conditionally executes based on the current predicate.
+  // Since 64 vertices or pixels are processed by each sequencer in the Xenos
+  // hardware, the actual condition is AND of the predicate values for all
+  // active (and not killed) invocations for (!p0) exec, and OR of them for
+  // (p0) exec - if any of the invocations passes the predicate check, all of
+  // them will enter the exec. This is according to the IPR2015-00325 sequencer
+  // specification. Because of this, the compiler makes the ALU and fetch
+  // instructions themselves inside a predicated exec predicated as well. The
+  // validator also reports mismatch between the control flow predication and
+  // ALU / fetch predication.
   kCondExecPred = 5,
   // Conditionally executes based on the current predicate then ends execution.
+  // According to the IPR2015-00325 sequencer specification, execution ends only
+  // if the condition is actually met for any of the invocations (unlike on the
+  // R600, where execution ends unconditionally if END_OF_PROGRAM is set in the
+  // control flow instruction).
   kCondExecPredEnd = 6,
-  // Starts a loop that must be terminated with kLoopEnd.
+  // Starts a loop that must be terminated with kLoopEnd, with depth of up to 4.
   kLoopStart = 7,
-  // Continues or breaks out of a loop started with kLoopStart.
+  // Continues or breaks out of a loop started with kLoopStart. According to the
+  // IPR2015-00325 sequencer specification, the incrementing of the loop
+  // iteration happens before the count and the predicated break checks.
   kLoopEnd = 8,
-  // Conditionally calls a function.
+  // Conditionally calls a function, with depth of up to 4.
   // A return address is pushed to the stack to be used by a kReturn.
   kCondCall = 9,
   // Returns from the current function as called by kCondCall.
@@ -118,11 +144,21 @@ enum class ControlFlowOpcode : uint32_t {
   kCondJmp = 11,
   // Allocates output values.
   kAlloc = 12,
-  // Conditionally executes based on the current predicate.
-  // Optionally resets the predicate value.
+  // Conditionally executes based on a bool const.
+  // PredicateClean = true.
+  // This is cexec with a bool constant (kCondExec, can be verified by comparing
+  // the XNA disassembler output with cexec containing and not containing a setp
+  // instruction), not a kCondExecPred. kCondExec doesn't have a predicate clean
+  // field (the space is occupied by the bool constant index), while
+  // kCondExecPred itself does. This is unlike what the IPR2015-00325 sequencer
+  // specification says about the Conditional_Execute_Predicates_No_Stall
+  // instruction using this opcode (in the specification, this is described as
+  // behaving like kCondExecPred with PredicateClean = false, but the
+  // specification is likely highly outdated - it doesn't even have predicate
+  // clean fields in exec instructions overall).
   kCondExecPredClean = 13,
-  // Conditionally executes based on the current predicate then ends execution.
-  // Optionally resets the predicate value.
+  // Conditionally executes based on a bool const then ends execution.
+  // PredicateClean = true.
   kCondExecPredCleanEnd = 14,
   // Hints that no more vertex fetches will be performed.
   kMarkVsFetchDone = 15,
@@ -150,9 +186,9 @@ constexpr bool DoesControlFlowOpcodeEndShader(ControlFlowOpcode opcode) {
          opcode == ControlFlowOpcode::kCondExecPredCleanEnd;
 }
 
-// Returns true if the given control flow opcode resets the predicate prior to
-// execution.
-constexpr bool DoesControlFlowOpcodeCleanPredicate(ControlFlowOpcode opcode) {
+// See the description of ControlFlowOpcode::kCondExecPredClean.
+constexpr bool DoesControlFlowCondExecHaveCleanPredicate(
+    ControlFlowOpcode opcode) {
   return opcode == ControlFlowOpcode::kCondExecPredClean ||
          opcode == ControlFlowOpcode::kCondExecPredCleanEnd;
 }
@@ -193,31 +229,39 @@ struct ControlFlowExecInstruction {
   uint32_t count() const { return count_; }
   // Sequence bits, 2 per instruction.
   // [0] - ALU (0) or fetch (1), [1] - serialize.
-  uint32_t sequence() const { return serialize_; }
-  // Whether to reset the current predicate.
-  bool clean() const { return clean_ == 1; }
+  uint32_t sequence() const { return sequence_; }
+  bool is_predicate_clean() const { return is_predicate_clean_ == 1; }
   // ?
-  bool is_yield() const { return is_yeild_ == 1; }
+  bool is_yield() const { return is_yield_ == 1; }
 
  private:
   // Word 0: (32 bits)
   uint32_t address_ : 12;
   uint32_t count_ : 3;
-  uint32_t is_yeild_ : 1;
-  uint32_t serialize_ : 12;
+  uint32_t is_yield_ : 1;
+  uint32_t sequence_ : 12;
   uint32_t vc_hi_ : 4;  // Vertex cache?
 
   // Word 1: (16 bits)
   uint32_t vc_lo_ : 2;
   uint32_t : 7;
-  uint32_t clean_ : 1;
+  // According to the description of Conditional_Execute_Predicates_No_Stall in
+  // the IPR2015-00325 sequencer specification, the sequencer's control flow
+  // logic will not wait for the predicate to be updated (apparently after this
+  // exec). The compiler specifies PredicateClean=false for the exec if the
+  // instructions inside it modify the predicate (but if the predicate set is
+  // only a refinement of the current predicate, like in case of a nested `if`,
+  // PredicateClean=true may still be set according to the IPR2015-00325
+  // sequencer specification, because the optimization would still work).
+  uint32_t is_predicate_clean_ : 1;
   uint32_t : 1;
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
 };
 static_assert_size(ControlFlowExecInstruction, sizeof(uint32_t) * 2);
 
-// Instruction data for ControlFlowOpcode::kCondExec and kCondExecEnd.
+// Instruction data for ControlFlowOpcode::kCondExec, kCondExecEnd,
+// kCondExecPredClean and kCondExecPredCleanEnd.
 struct ControlFlowCondExecInstruction {
   ControlFlowOpcode opcode() const { return opcode_; }
   AddressingMode addressing_mode() const { return address_mode_; }
@@ -227,20 +271,20 @@ struct ControlFlowCondExecInstruction {
   uint32_t count() const { return count_; }
   // Sequence bits, 2 per instruction.
   // [0] - ALU (0) or fetch (1), [1] - serialize.
-  uint32_t sequence() const { return serialize_; }
+  uint32_t sequence() const { return sequence_; }
   // Constant index used as the conditional.
   uint32_t bool_address() const { return bool_address_; }
   // Required condition value of the comparision (true or false).
   bool condition() const { return condition_ == 1; }
   // ?
-  bool is_yield() const { return is_yeild_ == 1; }
+  bool is_yield() const { return is_yield_ == 1; }
 
  private:
   // Word 0: (32 bits)
   uint32_t address_ : 12;
   uint32_t count_ : 3;
-  uint32_t is_yeild_ : 1;
-  uint32_t serialize_ : 12;
+  uint32_t is_yield_ : 1;
+  uint32_t sequence_ : 12;
   uint32_t vc_hi_ : 4;  // Vertex cache?
 
   // Word 1: (16 bits)
@@ -252,8 +296,7 @@ struct ControlFlowCondExecInstruction {
 };
 static_assert_size(ControlFlowCondExecInstruction, sizeof(uint32_t) * 2);
 
-// Instruction data for ControlFlowOpcode::kCondExecPred, kCondExecPredEnd,
-// kCondExecPredClean, kCondExecPredCleanEnd.
+// Instruction data for ControlFlowOpcode::kCondExecPred and kCondExecPredEnd.
 struct ControlFlowCondExecPredInstruction {
   ControlFlowOpcode opcode() const { return opcode_; }
   AddressingMode addressing_mode() const { return address_mode_; }
@@ -263,26 +306,25 @@ struct ControlFlowCondExecPredInstruction {
   uint32_t count() const { return count_; }
   // Sequence bits, 2 per instruction.
   // [0] - ALU (0) or fetch (1), [1] - serialize.
-  uint32_t sequence() const { return serialize_; }
-  // Whether to reset the current predicate.
-  bool clean() const { return clean_ == 1; }
+  uint32_t sequence() const { return sequence_; }
+  bool is_predicate_clean() const { return is_predicate_clean_ == 1; }
   // Required condition value of the comparision (true or false).
   bool condition() const { return condition_ == 1; }
   // ?
-  bool is_yield() const { return is_yeild_ == 1; }
+  bool is_yield() const { return is_yield_ == 1; }
 
  private:
   // Word 0: (32 bits)
   uint32_t address_ : 12;
   uint32_t count_ : 3;
-  uint32_t is_yeild_ : 1;
-  uint32_t serialize_ : 12;
+  uint32_t is_yield_ : 1;
+  uint32_t sequence_ : 12;
   uint32_t vc_hi_ : 4;  // Vertex cache?
 
   // Word 1: (16 bits)
   uint32_t vc_lo_ : 2;
   uint32_t : 7;
-  uint32_t clean_ : 1;
+  uint32_t is_predicate_clean_ : 1;
   uint32_t condition_ : 1;
   AddressingMode address_mode_ : 1;
   ControlFlowOpcode opcode_ : 4;
@@ -293,12 +335,13 @@ static_assert_size(ControlFlowCondExecPredInstruction, sizeof(uint32_t) * 2);
 struct ControlFlowLoopStartInstruction {
   ControlFlowOpcode opcode() const { return opcode_; }
   AddressingMode addressing_mode() const { return address_mode_; }
-  // Target address to jump to when skipping the loop.
+  // Target address to jump to when skipping the loop (normally points to the
+  // instruction right after the `endloop` instruction).
   uint32_t address() const { return address_; }
   // Whether to reuse the current aL instead of reset it to loop start.
   bool is_repeat() const { return is_repeat_; }
-  // Integer constant register that holds the loop parameters.
-  // 0:7 - uint8 loop count, 8:15 - uint8 start aL, 16:23 - int8 aL step.
+  // Integer constant register that holds the loop parameters
+  // (xenos::LoopConstant).
   uint32_t loop_id() const { return loop_id_; }
 
  private:
@@ -320,12 +363,14 @@ static_assert_size(ControlFlowLoopStartInstruction, sizeof(uint32_t) * 2);
 struct ControlFlowLoopEndInstruction {
   ControlFlowOpcode opcode() const { return opcode_; }
   AddressingMode addressing_mode() const { return address_mode_; }
-  // Target address of the start of the loop body.
+  // Target address of the start of the loop body (normally points to the
+  // instruction right after the `loop` instruction).
   uint32_t address() const { return address_; }
-  // Integer constant register that holds the loop parameters.
-  // 0:7 - uint8 loop count, 8:15 - uint8 start aL, 16:23 - int8 aL step.
+  // Integer constant register that holds the loop parameters
+  // (xenos::LoopConstant).
   uint32_t loop_id() const { return loop_id_; }
-  // Break from the loop if the predicate matches the expected value.
+  // Break from the loop if the predicate in all 64 invocations matches the
+  // expected value.
   bool is_predicated_break() const { return is_predicated_break_; }
   // Required condition value of the comparision (true or false).
   bool condition() const { return condition_ == 1; }
