@@ -130,22 +130,70 @@ union alignas(uint32_t) SQ_CONTEXT_MISC {
     uint32_t sc_output_screen_xy : 1;         // +1
     xenos::SampleControl sc_sample_cntl : 2;  // +2
     uint32_t : 4;                             // +4
-    // Pixel shader interpolator (according to the XNA microcode compiler) index
-    // to write pixel parameters to. So far have been able to find the following
-    // usage:
+    // Pixel shader interpolator (according to the XNA microcode compiler -
+    // limited to the interpolator count, 16, not the total register count of
+    // 64) index to write pixel parameters to.
+    // See https://portal.unifiedpatents.com/ptab/case/IPR2015-00325 Exhibit
+    // 2039 R400 Sequencer Specification 2.11 (a significantly early version of
+    // the specification, however) section 19.2 "Sprites/ XY screen coordinates/
+    // FB information" for additional details.
     // * |XY| - position on screen (vPos - the XNA microcode compiler translates
     //   ps_3_0 vPos directly to this, so at least in Direct3D 9 pixel center
     //   mode, this contains 0, 1, 2, not 0.5, 1.5, 2.5). flto also said in the
     //   Freedreno IRC that it's .0 even in OpenGL:
     //   https://dri.freedesktop.org/~cbrill/dri-log/?channel=freedreno&date=2020-04-19
-    //   (on Android, according to LG P705 GL_OES_get_program_binary
-    //   disassembly, gl_FragCoord.xy is |r0.xy| * c221.xy + c222.zw - haven't
-    //   been able to dump the constant values by exploiting a huge uniform
-    //   array, but flto says c222.zw contains tile offset plus 0.5).
-    // * Sign bit of X - is front face (vFace), non-negative for front face,
-    //   negative for back face (used with `rcpc` in shaders to take signedness
-    //   of 0 into account in `cndge`).
-    // * |ZW| - UV within a point sprite (sign meaning is unknown so far).
+    //   According to the actual usage, in the final version of the hardware,
+    //   the screen coordinates are passed to the shader directly as floats
+    //   (contrary to what's written in the early 2.11 version of the sequencer
+    //   specification from IPR2015-00325, where the coordinates are specified
+    //   to be 2^23-biased, essentially packed as integers in the low mantissa
+    //   bits of 2^23).
+    //   * On Android, according to LG P705 - checked on the driver V@6.0 AU@
+    //     (CL@3050818) - GL_OES_get_program_binary disassembly, gl_FragCoord.xy
+    //     is |r0.xy| * c221.xy + c222.zw. Though we haven't yet been able to
+    //     dump the actual constant values by exploiting a huge uniform array,
+    //     but flto says c222.zw contains tile offset plus 0.5. It also appears
+    //     that the multiplication by c221.xy is done to flip the direction of
+    //     the Y axis in gl_FragCoord (c221.y is probably -1). According to the
+    //     tests performed with triangles and point sprites, the hardware uses
+    //     the top-left rasterization rule just like Direct3D (tie-breaking
+    //     sample coverage towards gl_FragCoord.-x+y, while Direct3D tie-breaks
+    //     towards VPOS.-x-y), and the R400 / Z430 doesn't seem to have the
+    //     equivalent of R5xx's SC_EDGERULE register for configuring this).
+    //     Also, both OpenGL and apparently Direct3D 9 define the point sprite V
+    //     coordinate to be 0 in the top, and 1 in the bottom (but OpenGL
+    //     gl_FragCoord.y is towards the top, while Direct3D 9's VPOS.y is
+    //     towards the bottom), gl_PointCoord.y is |PsParamGen.w| directly, and
+    //     the R400 / Z430 doesn't appear to have an equivalent of R6xx's
+    //     SPI_INTERP_CONTROL_0::PNT_SPRITE_TOP_1 for toggling the direction.
+    //     So, it looks like the internal screen coordinates in the official
+    //     OpenGL ES 2.0 driver are still top-to-bottom like in Direct3D, but
+    //     gl_FragCoord.y is flipped in the shader code so it's bottom-to-top
+    //     as OpenGL specifies.
+    //     https://docs.microsoft.com/en-us/windows/win32/direct3d9/point-sprites
+    // * |ZW| - UV within a point sprite, [0, 1]. In OpenGL ES 2.0, this is
+    //   interpreted directly as gl_PointCoord, with the directions matching the
+    //   OpenGL ES 2.0 specification - 0 in the top (towards +gl_FragCoord.y in
+    //   OpenGL ES bottom-to-top screen coordinates - but towards -PsParamGen.y
+    //   likely, see the explanation of gl_FragCoord.xy above), 1 in the bottom
+    //   (towards -gl_FragCoord.y, or +PsParamGen.y likely). The point sprite
+    //   coordinates are exposed differently on the Xbox 360 and the PC
+    //   Direct3D 9 - the Xbox 360 passes the whole PsParamGen register via the
+    //   SPRITETEXCOORD input semantic directly (unlike on the PC, where point
+    //   sprite coordinates are written to XY of TEXCOORD0), and shaders should
+    //   take abs(SPRITETEXCOORD.zw) explicitly.
+    //   https://shawnhargreaves.com/blog/point-sprites-on-xbox.html
+    //   4D5307F1 has snowflake point sprites with an asymmetric texture.
+    // * Sign bit of X - is front face (according to the disassembly of vFace
+    //   and gl_FrontFacing usage), non-negative for front face, negative for
+    //   back face (used with `rcpc` in shaders to take signedness of 0 into
+    //   account in `cndge`).
+    // * Sign bit of Y - is the primitive type a point (according to the
+    //   IPR2015-00325 sequencer specification), negative for a point,
+    //   non-negative for other primitive types.
+    // * Sign bit of Z - is the primitive type a line (according to the
+    //   IPR2015-00325 sequencer specification), negative for a line,
+    //   non-negative for other primitive types.
     uint32_t param_gen_pos : 8;    // +8
     uint32_t perfcounter_ref : 1;  // +16
     uint32_t yeild_optimize : 1;   // +17 sic
@@ -309,7 +357,7 @@ static_assert_size(VGT_HOS_CNTL, sizeof(uint32_t));
 union alignas(uint32_t) PA_SU_POINT_MINMAX {
   uint32_t value;
   struct {
-    // Radius, 12.4 fixed point.
+    // For per-vertex size specification, radius (1/2 size), 12.4 fixed point.
     uint32_t min_size : 16;  // +0
     uint32_t max_size : 16;  // +16
   };
@@ -548,6 +596,10 @@ union alignas(uint32_t) RB_COLORCONTROL {
     uint32_t alpha_to_mask_enable : 1;      // +4
     // Everything in between was added on Adreno.
     uint32_t : 19;  // +5
+    // TODO(Triang3l): Redo these tests and possibly flip these vertically in
+    // the comment and in the actual implementation. It appears that
+    // gl_FragCoord.y is mirrored as opposed to the actual screen coordinates in
+    // the rasterizer (see the SQ_CONTEXT_MISC::param_gen_pos comment here).
     // According to tests on an Adreno 200 device (LG Optimus L7), done by
     // drawing 0.5x0.5 rectangles in different corners of four pixels in a quad
     // to a multisampled GLSurfaceView, the coverage mask is the following for 4
