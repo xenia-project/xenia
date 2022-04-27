@@ -370,9 +370,12 @@ void Shader::GatherAluInstructionInformation(
   ParseAluInstruction(op, type(), instr);
   instr.Disassemble(&ucode_disasm_buffer);
 
-  kills_pixels_ = kills_pixels_ ||
-                  ucode::AluVectorOpcodeIsKill(op.vector_opcode()) ||
-                  ucode::AluScalarOpcodeIsKill(op.scalar_opcode());
+  kills_pixels_ =
+      kills_pixels_ ||
+      (ucode::GetAluVectorOpcodeInfo(op.vector_opcode()).changed_state &
+       ucode::kAluOpChangedStatePixelKill) ||
+      (ucode::GetAluScalarOpcodeInfo(op.scalar_opcode()).changed_state &
+       ucode::kAluOpChangedStatePixelKill);
 
   GatherAluResultInformation(instr.vector_and_constant_result,
                              memexport_alloc_current_count);
@@ -1055,99 +1058,6 @@ uint32_t ParsedTextureFetchInstruction::GetNonZeroResultComponents() const {
   return result.GetUsedResultComponents() & components;
 }
 
-struct AluOpcodeInfo {
-  const char* name;
-  uint32_t argument_count;
-  uint32_t src_swizzle_component_count;
-};
-
-static const AluOpcodeInfo alu_vector_opcode_infos[0x20] = {
-    {"add", 2, 4},           // 0
-    {"mul", 2, 4},           // 1
-    {"max", 2, 4},           // 2
-    {"min", 2, 4},           // 3
-    {"seq", 2, 4},           // 4
-    {"sgt", 2, 4},           // 5
-    {"sge", 2, 4},           // 6
-    {"sne", 2, 4},           // 7
-    {"frc", 1, 4},           // 8
-    {"trunc", 1, 4},         // 9
-    {"floor", 1, 4},         // 10
-    {"mad", 3, 4},           // 11
-    {"cndeq", 3, 4},         // 12
-    {"cndge", 3, 4},         // 13
-    {"cndgt", 3, 4},         // 14
-    {"dp4", 2, 4},           // 15
-    {"dp3", 2, 4},           // 16
-    {"dp2add", 3, 4},        // 17
-    {"cube", 2, 4},          // 18
-    {"max4", 1, 4},          // 19
-    {"setp_eq_push", 2, 4},  // 20
-    {"setp_ne_push", 2, 4},  // 21
-    {"setp_gt_push", 2, 4},  // 22
-    {"setp_ge_push", 2, 4},  // 23
-    {"kill_eq", 2, 4},       // 24
-    {"kill_gt", 2, 4},       // 25
-    {"kill_ge", 2, 4},       // 26
-    {"kill_ne", 2, 4},       // 27
-    {"dst", 2, 4},           // 28
-    {"maxa", 2, 4},          // 29
-};
-
-static const AluOpcodeInfo alu_scalar_opcode_infos[0x40] = {
-    {"adds", 1, 2},         // 0
-    {"adds_prev", 1, 1},    // 1
-    {"muls", 1, 2},         // 2
-    {"muls_prev", 1, 1},    // 3
-    {"muls_prev2", 1, 2},   // 4
-    {"maxs", 1, 2},         // 5
-    {"mins", 1, 2},         // 6
-    {"seqs", 1, 1},         // 7
-    {"sgts", 1, 1},         // 8
-    {"sges", 1, 1},         // 9
-    {"snes", 1, 1},         // 10
-    {"frcs", 1, 1},         // 11
-    {"truncs", 1, 1},       // 12
-    {"floors", 1, 1},       // 13
-    {"exp", 1, 1},          // 14
-    {"logc", 1, 1},         // 15
-    {"log", 1, 1},          // 16
-    {"rcpc", 1, 1},         // 17
-    {"rcpf", 1, 1},         // 18
-    {"rcp", 1, 1},          // 19
-    {"rsqc", 1, 1},         // 20
-    {"rsqf", 1, 1},         // 21
-    {"rsq", 1, 1},          // 22
-    {"maxas", 1, 2},        // 23
-    {"maxasf", 1, 2},       // 24
-    {"subs", 1, 2},         // 25
-    {"subs_prev", 1, 1},    // 26
-    {"setp_eq", 1, 1},      // 27
-    {"setp_ne", 1, 1},      // 28
-    {"setp_gt", 1, 1},      // 29
-    {"setp_ge", 1, 1},      // 30
-    {"setp_inv", 1, 1},     // 31
-    {"setp_pop", 1, 1},     // 32
-    {"setp_clr", 0, 0},     // 33
-    {"setp_rstr", 1, 1},    // 34
-    {"kills_eq", 1, 1},     // 35
-    {"kills_gt", 1, 1},     // 36
-    {"kills_ge", 1, 1},     // 37
-    {"kills_ne", 1, 1},     // 38
-    {"kills_one", 1, 1},    // 39
-    {"sqrt", 1, 1},         // 40
-    {"UNKNOWN", 0, 0},      // 41
-    {"mulsc", 2, 1},        // 42
-    {"mulsc", 2, 1},        // 43
-    {"addsc", 2, 1},        // 44
-    {"addsc", 2, 1},        // 45
-    {"subsc", 2, 1},        // 46
-    {"subsc", 2, 1},        // 47
-    {"sin", 1, 1},          // 48
-    {"cos", 1, 1},          // 49
-    {"retain_prev", 0, 0},  // 50
-};
-
 static void ParseAluInstructionOperand(const AluInstruction& op, uint32_t i,
                                        uint32_t swizzle_component_count,
                                        InstructionOperand& out_op) {
@@ -1290,9 +1200,10 @@ void ParseAluInstruction(const AluInstruction& op,
 
   // Vector operation and constant 0/1 writes.
 
-  instr.vector_opcode = op.vector_opcode();
-  const auto& vector_opcode_info =
-      alu_vector_opcode_infos[uint32_t(instr.vector_opcode)];
+  ucode::AluVectorOpcode vector_opcode = op.vector_opcode();
+  instr.vector_opcode = vector_opcode;
+  const ucode::AluVectorOpcodeInfo& vector_opcode_info =
+      ucode::GetAluVectorOpcodeInfo(vector_opcode);
   instr.vector_opcode_name = vector_opcode_info.name;
 
   instr.vector_and_constant_result.storage_target = storage_target;
@@ -1322,19 +1233,18 @@ void ParseAluInstruction(const AluInstruction& op,
     instr.vector_and_constant_result.components[i] = component;
   }
 
-  instr.vector_operand_count = vector_opcode_info.argument_count;
+  instr.vector_operand_count = vector_opcode_info.GetOperandCount();
   for (uint32_t i = 0; i < instr.vector_operand_count; ++i) {
     InstructionOperand& vector_operand = instr.vector_operands[i];
-    ParseAluInstructionOperand(op, i + 1,
-                               vector_opcode_info.src_swizzle_component_count,
-                               vector_operand);
+    ParseAluInstructionOperand(op, i + 1, 4, vector_operand);
   }
 
   // Scalar operation.
 
-  instr.scalar_opcode = op.scalar_opcode();
-  const auto& scalar_opcode_info =
-      alu_scalar_opcode_infos[uint32_t(instr.scalar_opcode)];
+  ucode::AluScalarOpcode scalar_opcode = op.scalar_opcode();
+  instr.scalar_opcode = scalar_opcode;
+  const ucode::AluScalarOpcodeInfo& scalar_opcode_info =
+      ucode::GetAluScalarOpcodeInfo(scalar_opcode);
   instr.scalar_opcode_name = scalar_opcode_info.name;
 
   instr.scalar_result.storage_target = storage_target;
@@ -1355,12 +1265,12 @@ void ParseAluInstruction(const AluInstruction& op,
     instr.scalar_result.components[i] = GetSwizzleFromComponentIndex(i);
   }
 
-  instr.scalar_operand_count = scalar_opcode_info.argument_count;
+  instr.scalar_operand_count = scalar_opcode_info.operand_count;
   if (instr.scalar_operand_count) {
     if (instr.scalar_operand_count == 1) {
-      ParseAluInstructionOperand(op, 3,
-                                 scalar_opcode_info.src_swizzle_component_count,
-                                 instr.scalar_operands[0]);
+      ParseAluInstructionOperand(
+          op, 3, scalar_opcode_info.single_operand_is_two_component ? 2 : 1,
+          instr.scalar_operands[0]);
     } else {
       // Constant and temporary register.
 
@@ -1393,7 +1303,7 @@ void ParseAluInstruction(const AluInstruction& op,
       temp_op.is_negated = src3_negate;
       temp_op.is_absolute_value = op.abs_constants();
       temp_op.storage_source = InstructionStorageSource::kRegister;
-      temp_op.storage_index = op.scalar_const_op_src_temp_reg();
+      temp_op.storage_index = op.scalar_const_reg_op_src_temp_reg();
       temp_op.storage_addressing_mode =
           InstructionStorageAddressingMode::kAbsolute;
       temp_op.component_count = 1;
@@ -1423,7 +1333,7 @@ bool ParsedAluInstruction::IsNop() const {
   return scalar_opcode == ucode::AluScalarOpcode::kRetainPrev &&
          !scalar_result.GetUsedWriteMask() &&
          !vector_and_constant_result.GetUsedWriteMask() &&
-         !ucode::AluVectorOpHasSideEffects(vector_opcode);
+         !ucode::GetAluVectorOpcodeInfo(vector_opcode).changed_state;
 }
 
 uint32_t ParsedAluInstruction::GetMemExportStreamConstant() const {

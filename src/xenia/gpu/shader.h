@@ -561,12 +561,12 @@ struct ParsedAluInstruction {
   // instruction even if only constants are being exported. The XNA disassembler
   // falls back to displaying the whole vector operation, even if only constant
   // components are written, if the scalar operation is a nop or if the vector
-  // operation has side effects (but if the scalar operation isn't nop, it
-  // outputs the entire constant mask in the scalar operation destination).
-  // Normally the XNA disassembler outputs the constant mask in both vector and
-  // scalar operations, but that's not required by assembler, so it doesn't
-  // really matter whether it's specified in the vector operation, in the scalar
-  // operation, or in both.
+  // operation changes a0, p0 or kills pixels (but if the scalar operation isn't
+  // nop, it outputs the entire constant mask in the scalar operation
+  // destination). Normally the XNA disassembler outputs the constant mask in
+  // both vector and scalar operations, but that's not required by assembler, so
+  // it doesn't really matter whether it's specified in the vector operation, in
+  // the scalar operation, or in both.
   InstructionResult vector_and_constant_result;
   // Describes how the scalar operation result is stored.
   InstructionResult scalar_result;
@@ -591,8 +591,8 @@ struct ParsedAluInstruction {
   // will result in the same microcode (since instructions with just an empty
   // write mask may have different values in other fields).
   // This is for disassembly! Translators should use the write masks and
-  // AluVectorOpHasSideEffects to skip operations, as this only covers one very
-  // specific nop format!
+  // the changed state bits in the opcode info to skip operations, as this only
+  // covers one very specific nop format!
   bool IsVectorOpDefaultNop() const;
   // Whether the scalar part of the instruction is the same as if it was omitted
   // in the assembly (if compiled or assembled with the Xbox 360 shader

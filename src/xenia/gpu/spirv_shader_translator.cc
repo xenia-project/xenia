@@ -2264,7 +2264,7 @@ bool SpirvShaderTranslator::ProcessVectorAluOperation(
   close_predicated_block = false;
 
   if (!instr.vector_and_constant_result.GetUsedWriteMask() &&
-      !AluVectorOpHasSideEffects(instr.vector_opcode)) {
+      !ucode::GetAluVectorOpcodeInfo(instr.vector_opcode).changed_state) {
     return false;
   }
 
