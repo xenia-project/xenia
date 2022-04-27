@@ -13,6 +13,7 @@
 #include <cstdint>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/math.h"
 #include "xenia/base/platform.h"
 #include "xenia/gpu/xenos.h"
 
@@ -900,8 +901,9 @@ static_assert_size(FetchInstruction, sizeof(uint32_t) * 3);
 // Conventions:
 // - All temporary registers are vec4s.
 // - Most scalar ALU operations work with one or two components of the source
-//   register passed as the third operand of the whole co-issued ALU operation,
-//   denoted by `a` (the left-hand operand) and `b` (the right-hand operand).
+//   register or the float constant passed as the third operand of the whole
+//   co-issued ALU operation, denoted by `a` (the left-hand operand) and `b`
+//   (the right-hand operand).
 //   `a` is the [(3 + src3_swizzle[6:7]) & 3] component (W - alpha).
 //   `b` is the [(0 + src3_swizzle[0:1]) & 3] component (X - red).
 // - mulsc, addsc, subsc scalar ALU operations accept two operands - a float
@@ -947,6 +949,14 @@ static_assert_size(FetchInstruction, sizeof(uint32_t) * 3);
 //   RDNA 2, which removed v_mad_f32 as well) - shader translators should not
 //   use instructions that may be interpreted by the host GPU as fused
 //   multiply-add.
+
+// For analysis of shaders and skipping instructions that write nothing.
+enum AluOpChangedState {
+  kAluOpChangedStateNone = 0,
+  kAluOpChangedStateAddressRegister = 1 << 0,
+  kAluOpChangedStatePredicate = 1 << 1,
+  kAluOpChangedStatePixelKill = 1 << 2,
+};
 
 enum class AluScalarOpcode : uint32_t {
   // Floating-Point Add
@@ -1277,17 +1287,28 @@ enum class AluScalarOpcode : uint32_t {
   kRetainPrev = 50,
 };
 
-constexpr bool AluScalarOpcodeIsKill(AluScalarOpcode scalar_opcode) {
-  switch (scalar_opcode) {
-    case AluScalarOpcode::kKillsEq:
-    case AluScalarOpcode::kKillsGt:
-    case AluScalarOpcode::kKillsGe:
-    case AluScalarOpcode::kKillsNe:
-    case AluScalarOpcode::kKillsOne:
-      return true;
-    default:
-      return false;
-  }
+struct AluScalarOpcodeInfo {
+  const char* name;
+  // 0 - no operands.
+  // 1 - one single-component (W) or two-component (WX) r# or c#.
+  // 2 - c#.w and r#.x.
+  uint32_t operand_count;
+  // If operand_count is 1, whether both W and X of the operand are used rather
+  // than only W.
+  bool single_operand_is_two_component;
+  // Note that all scalar instructions except for retain_prev modify the
+  // previous scalar register, so they must be executed even if they don't write
+  // any result and don't perform any other state changes.
+  AluOpChangedState changed_state;
+};
+
+// 6 scalar opcode bits - 64 entries.
+extern const AluScalarOpcodeInfo kAluScalarOpcodeInfos[64];
+
+inline const AluScalarOpcodeInfo& GetAluScalarOpcodeInfo(
+    AluScalarOpcode opcode) {
+  assert_true(uint32_t(opcode) < xe::countof(kAluScalarOpcodeInfos));
+  return kAluScalarOpcodeInfos[uint32_t(opcode)];
 }
 
 enum class AluVectorOpcode : uint32_t {
@@ -1385,6 +1406,9 @@ enum class AluVectorOpcode : uint32_t {
   //     dest.y = src0.y * src1.y + src2.y;
   //     dest.z = src0.z * src1.z + src2.z;
   //     dest.w = src0.w * src1.w + src2.w;
+  // According to SQ_ALU::multiply_add (used in the isHardwareAccurate case)
+  // from IPR2015-00325 sq_alu, this is FMA - rounding to single-precision only
+  // after the addition.
   kMad = 11,
 
   // Per-Component Floating-Point Conditional Move If Equal
@@ -1490,6 +1514,17 @@ enum class AluVectorOpcode : uint32_t {
   //     } else {
   //       dest.xyzw = src0.w;
   //     }
+  // However, the comparisons may be >= actually - the XNA documentation on
+  // MSDN, as well as R600 and GCN documentation, describe `max` as being
+  // implemented via >= rather than >. `max4` is documented vaguely, without the
+  // exact calculations for each component - MSDN describes it as max(xyzw), and
+  // in the R600 documentation it's max(wzyx). There's also a case more similar
+  // to `max4` where there also is a discrepancy between IPR2015-00325 sq_alu
+  // and the GCN documentation - `cube` has max3 in zyx priority order, and a >=
+  // comparison is used for this purpose on the GCN, but in IPR2015-00325 sq_alu
+  // it's implemented via >. It's possible that in an early version of the R400,
+  // the comparison was >, but was later changed to >=, but this is merely a
+  // guess.
   kMax4 = 19,
 
   // Floating-Point Predicate Counter Increment If Equal
@@ -1627,60 +1662,32 @@ enum class AluVectorOpcode : uint32_t {
   kMaxA = 29,
 };
 
-constexpr bool AluVectorOpcodeIsKill(AluVectorOpcode vector_opcode) {
-  switch (vector_opcode) {
-    case AluVectorOpcode::kKillEq:
-    case AluVectorOpcode::kKillGt:
-    case AluVectorOpcode::kKillGe:
-    case AluVectorOpcode::kKillNe:
-      return true;
-    default:
-      return false;
-  }
-}
+struct AluVectorOpcodeInfo {
+  const char* name;
+  uint32_t operand_components_used[3];
+  AluOpChangedState changed_state;
 
-// Whether the vector instruction has side effects such as discarding a pixel or
-// setting the predicate and can't be ignored even if it doesn't write to
-// anywhere. Note that all scalar operations except for retain_prev have a side
-// effect of modifying the previous scalar result register, so they must always
-// be executed even if not writing.
-constexpr bool AluVectorOpHasSideEffects(AluVectorOpcode vector_opcode) {
-  if (AluVectorOpcodeIsKill(vector_opcode)) {
-    return true;
+  uint32_t GetOperandCount() const {
+    if (!operand_components_used[2]) {
+      if (!operand_components_used[1]) {
+        if (!operand_components_used[0]) {
+          return 0;
+        }
+        return 1;
+      }
+      return 2;
+    }
+    return 3;
   }
-  switch (vector_opcode) {
-    case AluVectorOpcode::kSetpEqPush:
-    case AluVectorOpcode::kSetpNePush:
-    case AluVectorOpcode::kSetpGtPush:
-    case AluVectorOpcode::kSetpGePush:
-    case AluVectorOpcode::kMaxA:
-      return true;
-    default:
-      return false;
-  }
-}
+};
 
-// Whether each component of a source operand is used at all in the instruction
-// (doesn't check the operand count though).
-constexpr uint32_t GetAluVectorOpUsedSourceComponents(
-    AluVectorOpcode vector_opcode, uint32_t src_index) {
-  assert_not_zero(src_index);
-  switch (vector_opcode) {
-    case AluVectorOpcode::kDp3:
-      return 0b0111;
-    case AluVectorOpcode::kDp2Add:
-      return src_index == 3 ? 0b0001 : 0b0011;
-    case AluVectorOpcode::kSetpEqPush:
-    case AluVectorOpcode::kSetpNePush:
-    case AluVectorOpcode::kSetpGtPush:
-    case AluVectorOpcode::kSetpGePush:
-      return 0b1001;
-    case AluVectorOpcode::kDst:
-      return src_index == 2 ? 0b1010 : 0b0110;
-    default:
-      break;
-  }
-  return 0b1111;
+// 5 vector opcode bits - 32 entries.
+extern const AluVectorOpcodeInfo kAluVectorOpcodeInfos[32];
+
+inline const AluVectorOpcodeInfo& GetAluVectorOpcodeInfo(
+    AluVectorOpcode opcode) {
+  assert_true(uint32_t(opcode) < xe::countof(kAluVectorOpcodeInfos));
+  return kAluVectorOpcodeInfos[uint32_t(opcode)];
 }
 
 // Whether each component of a source operand is needed for the instruction if
@@ -1688,7 +1695,7 @@ constexpr uint32_t GetAluVectorOpUsedSourceComponents(
 // undefined in translation. For per-component operations, for example, only the
 // components specified in the write mask are needed, but there are instructions
 // with special behavior for certain components.
-constexpr uint32_t GetAluVectorOpNeededSourceComponents(
+inline uint32_t GetAluVectorOpNeededSourceComponents(
     AluVectorOpcode vector_opcode, uint32_t src_index,
     uint32_t used_result_components) {
   assert_not_zero(src_index);
@@ -1721,8 +1728,8 @@ constexpr uint32_t GetAluVectorOpNeededSourceComponents(
     case AluVectorOpcode::kKillNe:
       components = 0b1111;
       break;
-    // kDst is per-component, but not all components are used -
-    // GetAluVectorOpUsedSourceComponents will filter out the unused ones.
+    // kDst is per-component, but not all components are used.
+    // operand_components_used will filter out the unused ones.
     case AluVectorOpcode::kMaxA:
       if (src_index == 1) {
         components |= 0b1000;
@@ -1731,8 +1738,8 @@ constexpr uint32_t GetAluVectorOpNeededSourceComponents(
     default:
       break;
   }
-  return components &
-         GetAluVectorOpUsedSourceComponents(vector_opcode, src_index);
+  return components & GetAluVectorOpcodeInfo(vector_opcode)
+                          .operand_components_used[src_index - 1];
 }
 
 enum class ExportRegister : uint32_t {
@@ -1787,7 +1794,6 @@ struct alignas(uint32_t) AluInstruction {
 
   // Whether data is being exported (or written to local registers).
   bool is_export() const { return data_.export_data == 1; }
-  bool export_write_mask() const { return data_.scalar_dest_rel == 1; }
 
   // Whether the jump is predicated (or conditional).
   bool is_predicated() const { return data_.is_predicated; }
@@ -1921,7 +1927,7 @@ struct alignas(uint32_t) AluInstruction {
     }
   }
 
-  uint32_t scalar_const_op_src_temp_reg() const {
+  uint32_t scalar_const_reg_op_src_temp_reg() const {
     return (uint32_t(data_.scalar_opc) & 1) | (data_.src3_sel << 1) |
            (data_.src3_swiz & 0x3C);
   }
