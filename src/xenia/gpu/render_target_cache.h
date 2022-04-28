@@ -21,9 +21,11 @@
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
+#include "xenia/gpu/draw_extent_estimator.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/registers.h"
+#include "xenia/gpu/shader.h"
 #include "xenia/gpu/xenos.h"
 
 DECLARE_bool(depth_transfer_not_equal_test);
@@ -217,7 +219,8 @@ class RenderTargetCache {
 
   virtual bool Update(bool is_rasterization_done,
                       reg::RB_DEPTHCONTROL normalized_depth_control,
-                      uint32_t normalized_color_mask);
+                      uint32_t normalized_color_mask,
+                      const Shader& vertex_shader);
 
   // Returns bits where 0 is whether a depth render target is currently bound on
   // the host and 1... are whether the same applies to color render targets, and
@@ -228,8 +231,10 @@ class RenderTargetCache {
       uint32_t* depth_and_color_formats_out = nullptr) const;
 
  protected:
-  RenderTargetCache(const RegisterFile& register_file)
-      : register_file_(register_file) {}
+  RenderTargetCache(const RegisterFile& register_file, const Memory& memory,
+                    TraceWriter* trace_writer)
+      : register_file_(register_file),
+        draw_extent_estimator_(register_file, memory, trace_writer) {}
 
   const RegisterFile& register_file() const { return register_file_; }
 
@@ -605,6 +610,8 @@ class RenderTargetCache {
 
  private:
   const RegisterFile& register_file_;
+
+  DrawExtentEstimator draw_extent_estimator_;
 
   // For host render targets.
 

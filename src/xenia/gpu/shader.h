@@ -914,6 +914,12 @@ class Shader {
   // True if the current shader has any `kill` instructions.
   bool kills_pixels() const { return kills_pixels_; }
 
+  // True if the shader has any texture-related instructions (any fetch
+  // instructions other than vertex fetch) writing any non-constant components.
+  bool uses_texture_fetch_instruction_results() const {
+    return uses_texture_fetch_instruction_results_;
+  }
+
   // True if the shader overrides the pixel depth.
   bool writes_depth() const { return writes_depth_; }
 
@@ -1002,6 +1008,7 @@ class Shader {
   uint32_t register_static_address_bound_ = 0;
   bool uses_register_dynamic_addressing_ = false;
   bool kills_pixels_ = false;
+  bool uses_texture_fetch_instruction_results_ = false;
   bool writes_depth_ = false;
   uint32_t writes_color_targets_ = 0b0000;
 

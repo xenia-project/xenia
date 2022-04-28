@@ -43,10 +43,10 @@ class D3D12CommandProcessor;
 class D3D12RenderTargetCache final : public RenderTargetCache {
  public:
   D3D12RenderTargetCache(const RegisterFile& register_file,
+                         const Memory& memory, TraceWriter& trace_writer,
                          D3D12CommandProcessor& command_processor,
-                         TraceWriter& trace_writer,
                          bool bindless_resources_used)
-      : RenderTargetCache(register_file),
+      : RenderTargetCache(register_file, memory, &trace_writer),
         command_processor_(command_processor),
         trace_writer_(trace_writer),
         bindless_resources_used_(bindless_resources_used) {}
@@ -65,7 +65,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
   bool Update(bool is_rasterization_done,
               reg::RB_DEPTHCONTROL normalized_depth_control,
-              uint32_t shader_writes_color_targets) override;
+              uint32_t shader_writes_color_targets,
+              const Shader& vertex_shader) override;
 
   void InvalidateCommandListRenderTargets() {
     are_current_command_list_render_targets_valid_ = false;

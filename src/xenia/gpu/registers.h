@@ -215,6 +215,31 @@ union alignas(uint32_t) SQ_INTERPOLATOR_CNTL {
 };
 static_assert_size(SQ_INTERPOLATOR_CNTL, sizeof(uint32_t));
 
+union alignas(uint32_t) SQ_VS_CONST {
+  uint32_t value;
+  struct {
+    uint32_t base : 9;  // +0
+    uint32_t : 3;       // +9
+    // Vec4 count minus one.
+    uint32_t size : 9;  // 12
+  };
+  static constexpr Register register_index = XE_GPU_REG_SQ_VS_CONST;
+};
+static_assert_size(SQ_VS_CONST, sizeof(uint32_t));
+
+// Same as SQ_VS_CONST.
+union alignas(uint32_t) SQ_PS_CONST {
+  uint32_t value;
+  struct {
+    uint32_t base : 9;  // +0
+    uint32_t : 3;       // +9
+    // Vec4 count minus one.
+    uint32_t size : 9;  // 12
+  };
+  static constexpr Register register_index = XE_GPU_REG_SQ_PS_CONST;
+};
+static_assert_size(SQ_PS_CONST, sizeof(uint32_t));
+
 /*******************************************************************************
  __   _____ ___ _____ _____  __
  \ \ / / __| _ \_   _| __\ \/ /
