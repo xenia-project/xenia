@@ -334,6 +334,10 @@ void Shader::GatherTextureFetchInformation(const TextureFetchInstruction& op,
     GatherOperandInformation(binding.fetch_instr.operands[i]);
   }
 
+  if (binding.fetch_instr.result.GetUsedResultComponents()) {
+    uses_texture_fetch_instruction_results_ = true;
+  }
+
   switch (op.opcode()) {
     case FetchOpcode::kSetTextureLod:
     case FetchOpcode::kSetTextureGradientsHorz:

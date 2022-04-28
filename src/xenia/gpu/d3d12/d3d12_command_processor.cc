@@ -847,7 +847,8 @@ bool D3D12CommandProcessor::SetupContext() {
   // Initialize the render target cache before configuring binding - need to
   // know if using rasterizer-ordered views for the bindless root signature.
   render_target_cache_ = std::make_unique<D3D12RenderTargetCache>(
-      *register_file_, *this, trace_writer_, bindless_resources_used_);
+      *register_file_, *memory_, trace_writer_, *this,
+      bindless_resources_used_);
   if (!render_target_cache_->Initialize()) {
     XELOGE("Failed to initialize the render target cache");
     return false;
@@ -2147,7 +2148,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
                    : 0;
   if (!render_target_cache_->Update(is_rasterization_done,
                                     normalized_depth_control,
-                                    normalized_color_mask)) {
+                                    normalized_color_mask, *vertex_shader)) {
     return false;
   }
 
