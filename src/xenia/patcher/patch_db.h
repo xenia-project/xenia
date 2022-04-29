@@ -124,7 +124,7 @@ class PatchDB {
       {"be16", PatchData(sizeof(uint16_t), PatchDataType::be16)},
       {"be8", PatchData(sizeof(uint8_t), PatchDataType::be8)}};
 
-  void ReadHash(PatchFileEntry &patchEntry,
+  void ReadHash(PatchFileEntry& patchEntry,
                 std::shared_ptr<cpptoml::table> patch_toml_fields);
 };
 }  // namespace patcher

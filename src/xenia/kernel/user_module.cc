@@ -73,12 +73,6 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
 
     // Load the module.
     result = LoadFromMemory(mmap->data(), mmap->size());
-    if (XSUCCEEDED(result)) {
-      XXH3_state_t hash_state;
-      XXH3_64bits_reset(&hash_state);
-      XXH3_64bits_update(&hash_state, mmap->data(), mmap->size());
-      hash_ = XXH3_64bits_digest(&hash_state);
-    }
   } else {
     std::vector<uint8_t> buffer(fs_entry->size());
 
@@ -99,12 +93,6 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
 
     // Load the module.
     result = LoadFromMemory(buffer.data(), bytes_read);
-
-    // Generate xex hash
-    XXH3_state_t hash_state;
-    XXH3_64bits_reset(&hash_state);
-    XXH3_64bits_update(&hash_state, buffer.data(), bytes_read);
-    hash_ = XXH3_64bits_digest(&hash_state);
 
     // Close the file.
     file->Destroy();
@@ -140,6 +128,8 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
       }
     }
   }
+
+  CalculateHash();
 
   XELOGI("Module hash: {:016X} for {}", hash_, name_);
   return LoadXexContinue();
@@ -818,5 +808,13 @@ void UserModule::Dump() {
   xe::logging::AppendLogLine(xe::LogLevel::Info, 'i', sb.to_string_view());
 }
 
+void UserModule::CalculateHash() {
+  uint8_t* base_adr = memory()->TranslateVirtual(xex_module()->base_address());
+
+  XXH3_state_t hash_state;
+  XXH3_64bits_reset(&hash_state);
+  XXH3_64bits_update(&hash_state, base_adr, xex_module()->image_size());
+  hash_ = XXH3_64bits_digest(&hash_state);
+}
 }  // namespace kernel
 }  // namespace xe

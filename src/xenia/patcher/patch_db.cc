@@ -15,7 +15,8 @@
 
 #include "xenia/patcher/patch_db.h"
 
-DEFINE_bool(apply_patches, true, "Enables custom patching functionality", "General");
+DEFINE_bool(apply_patches, true, "Enables custom patching functionality",
+            "General");
 
 namespace xe {
 namespace patcher {
@@ -183,7 +184,7 @@ std::vector<PatchFileEntry> PatchDB::GetTitlePatches(uint32_t title_id,
   return title_patches;
 }
 
-void PatchDB::ReadHash(PatchFileEntry &patchEntry,
+void PatchDB::ReadHash(PatchFileEntry& patchEntry,
                        std::shared_ptr<cpptoml::table> patch_toml_fields) {
   auto title_hashes = patch_toml_fields->get_array_of<std::string>("hash");
 

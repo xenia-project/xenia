@@ -98,6 +98,7 @@ class UserModule : public XModule {
 
  private:
   X_STATUS LoadXexContinue();
+  void CalculateHash();
 
   std::string name_;
   std::string path_;
