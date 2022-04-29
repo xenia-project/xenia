@@ -15,7 +15,7 @@
 
 #include "xenia/patcher/patch_db.h"
 
-DEFINE_bool(apply_patches, true, "Enables patching functionality", "General");
+DEFINE_bool(apply_patches, true, "Enables custom patching functionality", "General");
 
 namespace xe {
 namespace patcher {
@@ -71,11 +71,10 @@ PatchFileEntry PatchDB::ReadPatchFile(const std::filesystem::path& file_path) {
 
   auto title_name = patch_toml_fields->get_as<std::string>("title_name");
   auto title_id = patch_toml_fields->get_as<std::string>("title_id");
-  auto title_hash = patch_toml_fields->get_as<std::string>("hash");
 
   patchFile.title_id = strtoul((*title_id).c_str(), NULL, 16);
-  patchFile.hash = strtoull((*title_hash).c_str(), NULL, 16);
   patchFile.title_name = *title_name;
+  ReadHash(patchFile, patch_toml_fields);
 
   auto patch_table = patch_toml_fields->get_table_array("patch");
 
@@ -171,14 +170,31 @@ std::vector<PatchFileEntry> PatchDB::GetTitlePatches(uint32_t title_id,
                                                      const uint64_t hash) {
   std::vector<PatchFileEntry> title_patches;
 
-  std::copy_if(loaded_patches.cbegin(), loaded_patches.cend(),
-               std::back_inserter(title_patches),
-               [=](const PatchFileEntry entry) {
-                 return entry.title_id == title_id &&
-                        (!entry.hash || entry.hash == hash);
-               });
+  std::copy_if(
+      loaded_patches.cbegin(), loaded_patches.cend(),
+      std::back_inserter(title_patches), [=](const PatchFileEntry entry) {
+        bool hash_exist = std::find(entry.hashes.cbegin(), entry.hashes.cend(),
+                                    hash) != entry.hashes.cend();
+
+        return entry.title_id == title_id &&
+               (entry.hashes.empty() || hash_exist);
+      });
 
   return title_patches;
+}
+
+void PatchDB::ReadHash(PatchFileEntry &patchEntry,
+                       std::shared_ptr<cpptoml::table> patch_toml_fields) {
+  auto title_hashes = patch_toml_fields->get_array_of<std::string>("hash");
+
+  for (const auto& hash : *title_hashes) {
+    patchEntry.hashes.push_back(strtoull(hash.c_str(), NULL, 16));
+  }
+
+  auto single_hash = patch_toml_fields->get_as<std::string>("hash");
+  if (single_hash) {
+    patchEntry.hashes.push_back(strtoull((*single_hash).c_str(), NULL, 16));
+  }
 }
 
 }  // namespace patcher

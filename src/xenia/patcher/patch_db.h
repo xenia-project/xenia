@@ -70,7 +70,7 @@ struct PatchInfoEntry {
 struct PatchFileEntry {
   uint32_t title_id;
   std::string title_name;
-  uint64_t hash = 0;
+  std::vector<uint64_t> hashes;
   std::vector<PatchInfoEntry> patch_info;
 };
 
@@ -123,8 +123,10 @@ class PatchDB {
       {"be32", PatchData(sizeof(uint32_t), PatchDataType::be32)},
       {"be16", PatchData(sizeof(uint16_t), PatchDataType::be16)},
       {"be8", PatchData(sizeof(uint8_t), PatchDataType::be8)}};
-};
 
+  void ReadHash(PatchFileEntry &patchEntry,
+                std::shared_ptr<cpptoml::table> patch_toml_fields);
+};
 }  // namespace patcher
 }  // namespace xe
 
