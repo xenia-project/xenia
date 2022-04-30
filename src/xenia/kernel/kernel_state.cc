@@ -28,6 +28,8 @@
 #include "xenia/kernel/xobject.h"
 #include "xenia/kernel/xthread.h"
 
+DEFINE_bool(apply_title_update, true, "Apply title updates.", "Kernel");
+
 namespace xe {
 namespace kernel {
 
@@ -404,7 +406,16 @@ object_ref<UserModule> KernelState::LoadUserModule(
     // Putting into the listing automatically retains.
     user_modules_.push_back(module);
   }
+  return module;
+}
 
+X_RESULT KernelState::FinishLoadingUserModule(
+    const object_ref<UserModule> module, bool call_entry) {
+  // TODO(Gliniak): Apply custom patches here
+  X_RESULT result = module->LoadContinue();
+  if (XFAILED(result)) {
+    return result;
+  }
   module->Dump();
 
   if (module->is_dll_module() && module->entry_point() && call_entry) {
@@ -419,8 +430,55 @@ object_ref<UserModule> KernelState::LoadUserModule(
     processor()->Execute(thread_state, module->entry_point(), args,
                          xe::countof(args));
   }
+  return result;
+}
 
-  return module;
+X_RESULT KernelState::ApplyTitleUpdate(const object_ref<UserModule> module) {
+  X_RESULT result = X_STATUS_SUCCESS;
+  if (!cvars::apply_title_update) {
+    return result;
+  }
+
+  std::vector<xam::XCONTENT_AGGREGATE_DATA> tu_list =
+      content_manager()->ListContent(1, xe::XContentType::kInstaller,
+                                     module->title_id());
+
+  if (tu_list.empty()) {
+    return result;
+  }
+
+  uint32_t disc_number = -1;
+  if (module->is_multi_disc_title()) {
+    disc_number = module->disc_number();
+  }
+  // TODO(Gliniak): Support for selecting from multiple TUs
+  const xam::XCONTENT_AGGREGATE_DATA& title_update = tu_list.front();
+  X_RESULT open_status =
+      content_manager()->OpenContent("UPDATE", title_update, disc_number);
+
+  std::string resolved_path = "";
+  file_system()->FindSymbolicLink("UPDATE:", resolved_path);
+  xe::vfs::Entry* patch_entry = kernel_state()->file_system()->ResolvePath(
+      resolved_path + "default.xexp");
+
+  if (patch_entry) {
+    const std::string patch_path = patch_entry->absolute_path();
+    XELOGI("Loading XEX patch from {}", patch_path);
+    auto patch_module = object_ref<UserModule>(new UserModule(this));
+
+    result = patch_module->LoadFromFile(patch_path);
+    if (result != X_STATUS_SUCCESS) {
+      XELOGE("Failed to load XEX patch, code: {}", result);
+      return X_STATUS_UNSUCCESSFUL;
+    }
+
+    result = patch_module->xex_module()->ApplyPatch(module->xex_module());
+    if (result != X_STATUS_SUCCESS) {
+      XELOGE("Failed to apply XEX patch, code: {}", result);
+      return X_STATUS_UNSUCCESSFUL;
+    }
+  }
+  return result;
 }
 
 void KernelState::UnloadUserModule(const object_ref<UserModule>& module,
