@@ -110,8 +110,11 @@ class PatchDB {
   std::vector<PatchFileEntry>& GetAllPatches() { return loaded_patches; }
 
  private:
-  std::vector<PatchFileEntry> loaded_patches;
-  std::filesystem::path patches_root_;
+  void ReadHash(PatchFileEntry& patchEntry,
+                std::shared_ptr<cpptoml::table> patch_toml_fields);
+
+  inline static const std::string patch_filename_regex =
+      "^[A-Fa-f0-9]{8}.*\\.patch\\.toml$";
 
   const std::map<std::string, PatchData> patch_data_types_size = {
       {"string", PatchData(0, PatchDataType::string)},
@@ -124,8 +127,8 @@ class PatchDB {
       {"be16", PatchData(sizeof(uint16_t), PatchDataType::be16)},
       {"be8", PatchData(sizeof(uint8_t), PatchDataType::be8)}};
 
-  void ReadHash(PatchFileEntry& patchEntry,
-                std::shared_ptr<cpptoml::table> patch_toml_fields);
+  std::vector<PatchFileEntry> loaded_patches;
+  std::filesystem::path patches_root_;
 };
 }  // namespace patcher
 }  // namespace xe

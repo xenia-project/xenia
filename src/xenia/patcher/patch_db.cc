@@ -36,8 +36,7 @@ void PatchDB::LoadPatches() {
   const std::filesystem::path patches_directory = patches_root_ / "patches";
   const std::vector<xe::filesystem::FileInfo>& patch_files =
       filesystem::ListFiles(patches_directory);
-  const std::regex file_name_regex_match =
-      std::regex("^[A-Fa-f0-9]{8}.*\\.patch\\.toml$");
+  const std::regex file_name_regex_match = std::regex(patch_filename_regex);
 
   for (const xe::filesystem::FileInfo& patch_file : patch_files) {
     // Skip files that doesn't have only title_id as name and .patch as
@@ -150,7 +149,6 @@ bool PatchDB::ReadPatchData(
 
         bool success = string_util::hex_string_to_array(data, value);
         if (!success) {
-          XELOGE("PatchDB: Cannot load patch due to invalid data!");
           return false;
         }
 
