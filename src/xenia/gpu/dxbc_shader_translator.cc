@@ -273,6 +273,36 @@ void DxbcShaderTranslator::ConvertPWLGamma(
            accumulator_src);
 }
 
+void DxbcShaderTranslator::RemapAndConvertVertexIndices(
+    uint32_t dest_temp, uint32_t dest_temp_components, const dxbc::Src& src) {
+  dxbc::Dest dest(dxbc::Dest::R(dest_temp, dest_temp_components));
+  dxbc::Src dest_src(dxbc::Src::R(dest_temp));
+
+  // Add the base vertex index.
+  a_.OpIAdd(dest, src,
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexOffset,
+                               offsetof(SystemConstants, vertex_index_offset),
+                               dxbc::Src::kXXXX));
+
+  // Mask since the GPU only uses the lower 24 bits of the vertex index (tested
+  // on an Adreno 200 phone). `((index & 0xFFFFFF) + offset) & 0xFFFFFF` is the
+  // same as `(index + offset) & 0xFFFFFF`.
+  a_.OpAnd(dest, dest_src, dxbc::Src::LU(xenos::kVertexIndexMask));
+
+  // Clamp after offsetting.
+  a_.OpUMax(dest, dest_src,
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexMinMax,
+                               offsetof(SystemConstants, vertex_index_min),
+                               dxbc::Src::kXXXX));
+  a_.OpUMin(dest, dest_src,
+            LoadSystemConstant(SystemConstants::Index::kVertexIndexMinMax,
+                               offsetof(SystemConstants, vertex_index_max),
+                               dxbc::Src::kXXXX));
+
+  // Convert to float.
+  a_.OpUToF(dest, dest_src);
+}
+
 void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   if (register_count() < 1) {
     return;
@@ -348,29 +378,9 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
     }
   }
 
-  // Add the base vertex index.
-  a_.OpIAdd(index_dest, index_src,
-            LoadSystemConstant(SystemConstants::Index::kVertexIndexOffset,
-                               offsetof(SystemConstants, vertex_index_offset),
-                               dxbc::Src::kXXXX));
-
-  // Mask since the GPU only uses the lower 24 bits of the vertex index (tested
-  // on an Adreno 200 phone). `((index & 0xFFFFFF) + offset) & 0xFFFFFF` is the
-  // same as `(index + offset) & 0xFFFFFF`.
-  a_.OpAnd(index_dest, index_src, dxbc::Src::LU(xenos::kVertexIndexMask));
-
-  // Clamp the vertex index after offsetting.
-  a_.OpUMax(index_dest, index_src,
-            LoadSystemConstant(SystemConstants::Index::kVertexIndexMinMax,
-                               offsetof(SystemConstants, vertex_index_min),
-                               dxbc::Src::kXXXX));
-  a_.OpUMin(index_dest, index_src,
-            LoadSystemConstant(SystemConstants::Index::kVertexIndexMinMax,
-                               offsetof(SystemConstants, vertex_index_max),
-                               dxbc::Src::kXXXX));
-
-  // Convert to float.
-  a_.OpUToF(index_dest, index_src);
+  // Remap the index to the needed range and convert it to floating-point.
+  RemapAndConvertVertexIndices(index_dest.index_1d_.index_,
+                               index_dest.write_mask_, index_src);
 
   if (uses_register_dynamic_addressing) {
     // Store to indexed GPR 0 in x0[0].
@@ -435,12 +445,12 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
                                                   : dxbc::Dest::R(0, 0b0111),
                  dxbc::Src::VDomain(0b000110));
         if (register_count() >= 2) {
-          // Copy the primitive index to r1.x as a float.
+          // Remap and write the primitive index to r1.x as floating-point.
           uint32_t primitive_id_temp =
               uses_register_dynamic_addressing ? PushSystemTemp() : 1;
           in_primitive_id_used_ = true;
-          a_.OpUToF(dxbc::Dest::R(primitive_id_temp, 0b0001),
-                    dxbc::Src::VPrim());
+          RemapAndConvertVertexIndices(primitive_id_temp, 0b0001,
+                                       dxbc::Src::VPrim());
           if (uses_register_dynamic_addressing) {
             a_.OpMov(dxbc::Dest::X(0, 1, 0b0001),
                      dxbc::Src::R(primitive_id_temp, dxbc::Src::kXXXX));
@@ -518,11 +528,13 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 0, 0b0110)
                                                   : dxbc::Dest::R(0, 0b0110),
                  dxbc::Src::VDomain(0b010000));
-        // Copy the primitive index to r0.x as a float.
+        // Remap and write the primitive index to r0.x as floating-point.
+        // 4D5307F1 ground quad patches use the primitive index offset.
         uint32_t primitive_id_temp =
             uses_register_dynamic_addressing ? PushSystemTemp() : 0;
         in_primitive_id_used_ = true;
-        a_.OpUToF(dxbc::Dest::R(primitive_id_temp, 0b0001), dxbc::Src::VPrim());
+        RemapAndConvertVertexIndices(primitive_id_temp, 0b0001,
+                                     dxbc::Src::VPrim());
         if (uses_register_dynamic_addressing) {
           a_.OpMov(dxbc::Dest::X(0, 0, 0b0001),
                    dxbc::Src::R(primitive_id_temp, dxbc::Src::kXXXX));
@@ -694,6 +706,12 @@ void DxbcShaderTranslator::StartPixelShader() {
       a_.OpEndIf();
       // ZW - UV within a point sprite in the absolute value, at centroid if
       // requested for the interpolator.
+      // TODO(Triang3l): Are centroid point coordinates possible in the hardware
+      // at all? ps_param_gen is not a triangle-IJ-interpolated value
+      // apparently, rather, it replaces the value in the shader input.
+      // TODO(Triang3l): Saturate to avoid negative point coordinates (the sign
+      // bit is used for the primitive type indicator) in case of extrapolation
+      // when the center is not covered with MSAA.
       dxbc::Dest point_coord_r_zw_dest(dxbc::Dest::R(param_gen_temp, 0b1100));
       dxbc::Src point_coord_v_xxxy_src(dxbc::Src::V(
           uint32_t(InOutRegister::kPSInPointParameters), 0b01000000));
@@ -711,6 +729,7 @@ void DxbcShaderTranslator::StartPixelShader() {
       // At centroid.
       a_.OpEvalCentroid(point_coord_r_zw_dest, point_coord_v_xxxy_src);
       a_.OpEndIf();
+      // TODO(Triang3l): Point / line primitive type flags to the sign bits.
       // Write ps_param_gen to the specified GPR.
       dxbc::Src param_gen_src(dxbc::Src::R(param_gen_temp));
       if (uses_register_dynamic_addressing) {
@@ -968,12 +987,12 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
            dxbc::Src::R(system_temp_position_));
 
   // Assuming SV_CullDistance was zeroed earlier in this function.
-  // Kill the primitive if needed - check if the shader wants to kill.
-  // TODO(Triang3l): Find if the condition is actually the flag being non-zero.
-  a_.OpNE(temp_x_dest,
-          dxbc::Src::R(system_temp_point_size_edge_flag_kill_vertex_,
-                       dxbc::Src::kZZZZ),
-          dxbc::Src::LF(0.0f));
+  // Kill the primitive if needed - check if the shader wants to kill (bits
+  // 0:30 of the vertex kill register are not zero).
+  a_.OpAnd(temp_x_dest,
+           dxbc::Src::R(system_temp_point_size_edge_flag_kill_vertex_,
+                        dxbc::Src::kZZZZ),
+           dxbc::Src::LU(UINT32_C(0x7FFFFFFF)));
   a_.OpIf(true, temp_x_src);
   {
     // Extract the killing condition.
@@ -1331,12 +1350,12 @@ dxbc::Src DxbcShaderTranslator::LoadOperand(const InstructionOperand& operand,
 
   dxbc::Index index(operand.storage_index);
   switch (operand.storage_addressing_mode) {
-    case InstructionStorageAddressingMode::kStatic:
+    case InstructionStorageAddressingMode::kAbsolute:
       break;
-    case InstructionStorageAddressingMode::kAddressAbsolute:
+    case InstructionStorageAddressingMode::kAddressRegisterRelative:
       index = dxbc::Index(system_temp_ps_pc_p0_a0_, 3, operand.storage_index);
       break;
-    case InstructionStorageAddressingMode::kAddressRelative:
+    case InstructionStorageAddressingMode::kLoopRelative:
       index = dxbc::Index(system_temp_aL_, 0, operand.storage_index);
       break;
   }
@@ -1365,7 +1384,7 @@ dxbc::Src DxbcShaderTranslator::LoadOperand(const InstructionOperand& operand,
         src = dxbc::Src::R(temp);
       } else {
         assert_true(operand.storage_addressing_mode ==
-                    InstructionStorageAddressingMode::kStatic);
+                    InstructionStorageAddressingMode::kAbsolute);
         src = dxbc::Src::R(index.index_);
       }
     } break;
@@ -1376,7 +1395,7 @@ dxbc::Src DxbcShaderTranslator::LoadOperand(const InstructionOperand& operand,
       const Shader::ConstantRegisterMap& constant_register_map =
           current_shader().constant_register_map();
       if (operand.storage_addressing_mode ==
-          InstructionStorageAddressingMode::kStatic) {
+          InstructionStorageAddressingMode::kAbsolute) {
         uint32_t float_constant_index =
             constant_register_map.GetPackedFloatConstantIndex(
                 operand.storage_index);
@@ -1429,13 +1448,13 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
       if (current_shader().uses_register_dynamic_addressing()) {
         dxbc::Index register_index(result.storage_index);
         switch (result.storage_addressing_mode) {
-          case InstructionStorageAddressingMode::kStatic:
+          case InstructionStorageAddressingMode::kAbsolute:
             break;
-          case InstructionStorageAddressingMode::kAddressAbsolute:
+          case InstructionStorageAddressingMode::kAddressRegisterRelative:
             register_index =
                 dxbc::Index(system_temp_ps_pc_p0_a0_, 3, result.storage_index);
             break;
-          case InstructionStorageAddressingMode::kAddressRelative:
+          case InstructionStorageAddressingMode::kLoopRelative:
             register_index =
                 dxbc::Index(system_temp_aL_, 0, result.storage_index);
             break;
@@ -1443,7 +1462,7 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
         dest = dxbc::Dest::X(0, register_index);
       } else {
         assert_true(result.storage_addressing_mode ==
-                    InstructionStorageAddressingMode::kStatic);
+                    InstructionStorageAddressingMode::kAbsolute);
         dest = dxbc::Dest::R(result.storage_index);
       }
       break;
@@ -1786,6 +1805,8 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
   }
 
   // Break if the loop counter is 0 (since the condition is checked in the end).
+  // TODO(Triang3l): Move this before pushing and address loading. This won't
+  // pop if the counter is 0.
   a_.OpIf(false, dxbc::Src::R(system_temp_loop_count_, dxbc::Src::kXXXX));
   JumpToLabel(instr.loop_skip_address);
   a_.OpEndIf();

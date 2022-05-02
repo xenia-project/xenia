@@ -247,22 +247,18 @@ void Shader::GatherExecInformation(
     if (sequence & 0b10) {
       ucode_disasm_buffer.Append("         serialize\n             ");
     }
+    const uint32_t* op_ptr = ucode_data_.data() + instr_offset * 3;
     if (sequence & 0b01) {
-      auto fetch_opcode = FetchOpcode(ucode_data_[instr_offset * 3] & 0x1F);
-      if (fetch_opcode == FetchOpcode::kVertexFetch) {
-        auto& op = *reinterpret_cast<const VertexFetchInstruction*>(
-            ucode_data_.data() + instr_offset * 3);
-        GatherVertexFetchInformation(op, previous_vfetch_full,
+      auto& op = *reinterpret_cast<const FetchInstruction*>(op_ptr);
+      if (op.opcode() == FetchOpcode::kVertexFetch) {
+        GatherVertexFetchInformation(op.vertex_fetch(), previous_vfetch_full,
                                      ucode_disasm_buffer);
       } else {
-        auto& op = *reinterpret_cast<const TextureFetchInstruction*>(
-            ucode_data_.data() + instr_offset * 3);
-        GatherTextureFetchInformation(op, unique_texture_bindings,
-                                      ucode_disasm_buffer);
+        GatherTextureFetchInformation(
+            op.texture_fetch(), unique_texture_bindings, ucode_disasm_buffer);
       }
     } else {
-      auto& op = *reinterpret_cast<const AluInstruction*>(ucode_data_.data() +
-                                                          instr_offset * 3);
+      auto& op = *reinterpret_cast<const AluInstruction*>(op_ptr);
       GatherAluInstructionInformation(op, memexport_alloc_current_count,
                                       memexport_eA_written,
                                       ucode_disasm_buffer);
@@ -338,6 +334,10 @@ void Shader::GatherTextureFetchInformation(const TextureFetchInstruction& op,
     GatherOperandInformation(binding.fetch_instr.operands[i]);
   }
 
+  if (binding.fetch_instr.result.GetUsedResultComponents()) {
+    uses_texture_fetch_instruction_results_ = true;
+  }
+
   switch (op.opcode()) {
     case FetchOpcode::kSetTextureLod:
     case FetchOpcode::kSetTextureGradientsHorz:
@@ -374,9 +374,12 @@ void Shader::GatherAluInstructionInformation(
   ParseAluInstruction(op, type(), instr);
   instr.Disassemble(&ucode_disasm_buffer);
 
-  kills_pixels_ = kills_pixels_ ||
-                  ucode::AluVectorOpcodeIsKill(op.vector_opcode()) ||
-                  ucode::AluScalarOpcodeIsKill(op.scalar_opcode());
+  kills_pixels_ =
+      kills_pixels_ ||
+      (ucode::GetAluVectorOpcodeInfo(op.vector_opcode()).changed_state &
+       ucode::kAluOpChangedStatePixelKill) ||
+      (ucode::GetAluScalarOpcodeInfo(op.scalar_opcode()).changed_state &
+       ucode::kAluOpChangedStatePixelKill);
 
   GatherAluResultInformation(instr.vector_and_constant_result,
                              memexport_alloc_current_count);
@@ -420,7 +423,7 @@ void Shader::GatherOperandInformation(const InstructionOperand& operand) {
   switch (operand.storage_source) {
     case InstructionStorageSource::kRegister:
       if (operand.storage_addressing_mode ==
-          InstructionStorageAddressingMode::kStatic) {
+          InstructionStorageAddressingMode::kAbsolute) {
         register_static_address_bound_ =
             std::max(register_static_address_bound_,
                      operand.storage_index + uint32_t(1));
@@ -430,7 +433,7 @@ void Shader::GatherOperandInformation(const InstructionOperand& operand) {
       break;
     case InstructionStorageSource::kConstantFloat:
       if (operand.storage_addressing_mode ==
-          InstructionStorageAddressingMode::kStatic) {
+          InstructionStorageAddressingMode::kAbsolute) {
         // Store used float constants before translating so the
         // translator can use tightly packed indices if not dynamically
         // indexed.
@@ -457,7 +460,7 @@ void Shader::GatherFetchResultInformation(const InstructionResult& result) {
   // operand.
   assert_true(result.storage_target == InstructionStorageTarget::kRegister);
   if (result.storage_addressing_mode ==
-      InstructionStorageAddressingMode::kStatic) {
+      InstructionStorageAddressingMode::kAbsolute) {
     register_static_address_bound_ = std::max(
         register_static_address_bound_, result.storage_index + uint32_t(1));
   } else {
@@ -473,7 +476,7 @@ void Shader::GatherAluResultInformation(
   switch (result.storage_target) {
     case InstructionStorageTarget::kRegister:
       if (result.storage_addressing_mode ==
-          InstructionStorageAddressingMode::kStatic) {
+          InstructionStorageAddressingMode::kAbsolute) {
         register_static_address_bound_ = std::max(
             register_static_address_bound_, result.storage_index + uint32_t(1));
       } else {
@@ -663,7 +666,7 @@ void ParseControlFlowExec(const ControlFlowExecInstruction& cf,
   instr.instruction_count = cf.count();
   instr.type = ParsedExecInstruction::Type::kUnconditional;
   instr.is_end = cf.opcode() == ControlFlowOpcode::kExecEnd;
-  instr.clean = cf.clean();
+  instr.is_predicate_clean = cf.is_predicate_clean();
   instr.is_yield = cf.is_yield();
   instr.sequence = cf.sequence();
 }
@@ -690,7 +693,7 @@ void ParseControlFlowCondExec(const ControlFlowCondExecInstruction& cf,
   switch (cf.opcode()) {
     case ControlFlowOpcode::kCondExec:
     case ControlFlowOpcode::kCondExecEnd:
-      instr.clean = false;
+      instr.is_predicate_clean = false;
       break;
     default:
       break;
@@ -711,7 +714,7 @@ void ParseControlFlowCondExecPred(const ControlFlowCondExecPredInstruction& cf,
   instr.type = ParsedExecInstruction::Type::kPredicated;
   instr.condition = cf.condition();
   instr.is_end = cf.opcode() == ControlFlowOpcode::kCondExecPredEnd;
-  instr.clean = cf.clean();
+  instr.is_predicate_clean = cf.is_predicate_clean();
   instr.is_yield = cf.is_yield();
   instr.sequence = cf.sequence();
 }
@@ -789,28 +792,24 @@ void ShaderTranslator::TranslateExecInstructions(
   for (uint32_t instr_offset = instr.instruction_address;
        instr_offset < instr.instruction_address + instr.instruction_count;
        ++instr_offset, sequence >>= 2) {
+    const uint32_t* op_ptr = ucode_dwords + instr_offset * 3;
     if (sequence & 0b01) {
-      auto fetch_opcode =
-          static_cast<FetchOpcode>(ucode_dwords[instr_offset * 3] & 0x1F);
-      if (fetch_opcode == FetchOpcode::kVertexFetch) {
-        auto& op = *reinterpret_cast<const VertexFetchInstruction*>(
-            ucode_dwords + instr_offset * 3);
+      auto& op = *reinterpret_cast<const FetchInstruction*>(op_ptr);
+      if (op.opcode() == FetchOpcode::kVertexFetch) {
+        const VertexFetchInstruction& vfetch_op = op.vertex_fetch();
         ParsedVertexFetchInstruction vfetch_instr;
-        if (ParseVertexFetchInstruction(op, previous_vfetch_full_,
+        if (ParseVertexFetchInstruction(vfetch_op, previous_vfetch_full_,
                                         vfetch_instr)) {
-          previous_vfetch_full_ = op;
+          previous_vfetch_full_ = vfetch_op;
         }
         ProcessVertexFetchInstruction(vfetch_instr);
       } else {
-        auto& op = *reinterpret_cast<const TextureFetchInstruction*>(
-            ucode_dwords + instr_offset * 3);
         ParsedTextureFetchInstruction tfetch_instr;
-        ParseTextureFetchInstruction(op, tfetch_instr);
+        ParseTextureFetchInstruction(op.texture_fetch(), tfetch_instr);
         ProcessTextureFetchInstruction(tfetch_instr);
       }
     } else {
-      auto& op = *reinterpret_cast<const AluInstruction*>(ucode_dwords +
-                                                          instr_offset * 3);
+      auto& op = *reinterpret_cast<const AluInstruction*>(op_ptr);
       ParsedAluInstruction alu_instr;
       ParseAluInstruction(op, current_shader().type(), alu_instr);
       ProcessAluInstruction(alu_instr);
@@ -826,25 +825,40 @@ static void ParseFetchInstructionResult(uint32_t dest, uint32_t swizzle,
   result.storage_index = dest;
   result.is_clamped = false;
   result.storage_addressing_mode =
-      is_relative ? InstructionStorageAddressingMode::kAddressRelative
-                  : InstructionStorageAddressingMode::kStatic;
+      is_relative ? InstructionStorageAddressingMode::kLoopRelative
+                  : InstructionStorageAddressingMode::kAbsolute;
   result.original_write_mask = 0b1111;
   for (int i = 0; i < 4; ++i) {
-    switch (swizzle & 0x7) {
-      case 4:
-      case 6:
-        result.components[i] = SwizzleSource::k0;
+    SwizzleSource component_source = SwizzleSource::k0;
+    ucode::FetchDestinationSwizzle component_swizzle =
+        ucode::GetFetchDestinationComponentSwizzle(swizzle, i);
+    switch (component_swizzle) {
+      case ucode::FetchDestinationSwizzle::kX:
+        component_source = SwizzleSource::kX;
         break;
-      case 5:
-        result.components[i] = SwizzleSource::k1;
+      case ucode::FetchDestinationSwizzle::kY:
+        component_source = SwizzleSource::kY;
         break;
-      case 7:
-        result.original_write_mask &= ~uint32_t(1 << i);
+      case ucode::FetchDestinationSwizzle::kZ:
+        component_source = SwizzleSource::kZ;
+        break;
+      case ucode::FetchDestinationSwizzle::kW:
+        component_source = SwizzleSource::kW;
+        break;
+      case ucode::FetchDestinationSwizzle::k1:
+        component_source = SwizzleSource::k1;
+        break;
+      case ucode::FetchDestinationSwizzle::kKeep:
+        result.original_write_mask &= ~(UINT32_C(1) << i);
         break;
       default:
-        result.components[i] = GetSwizzleFromComponentIndex(swizzle & 0x3);
+        // ucode::FetchDestinationSwizzle::k0 or the invalid swizzle 6.
+        // TODO(Triang3l): Find the correct handling of the invalid swizzle 6.
+        assert_true(component_swizzle == ucode::FetchDestinationSwizzle::k0);
+        component_source = SwizzleSource::k0;
+        break;
     }
-    swizzle >>= 3;
+    result.components[i] = component_source;
   }
 }
 
@@ -867,8 +881,8 @@ bool ParseVertexFetchInstruction(const VertexFetchInstruction& op,
   src_op.storage_index = full_op.src();
   src_op.storage_addressing_mode =
       full_op.is_src_relative()
-          ? InstructionStorageAddressingMode::kAddressRelative
-          : InstructionStorageAddressingMode::kStatic;
+          ? InstructionStorageAddressingMode::kLoopRelative
+          : InstructionStorageAddressingMode::kAbsolute;
   src_op.is_negated = false;
   src_op.is_absolute_value = false;
   src_op.component_count = 1;
@@ -962,8 +976,8 @@ void ParseTextureFetchInstruction(const TextureFetchInstruction& op,
   src_op.storage_source = InstructionStorageSource::kRegister;
   src_op.storage_index = op.src();
   src_op.storage_addressing_mode =
-      op.is_src_relative() ? InstructionStorageAddressingMode::kAddressRelative
-                           : InstructionStorageAddressingMode::kStatic;
+      op.is_src_relative() ? InstructionStorageAddressingMode::kLoopRelative
+                           : InstructionStorageAddressingMode::kAbsolute;
   src_op.is_negated = false;
   src_op.is_absolute_value = false;
   src_op.component_count =
@@ -1048,185 +1062,52 @@ uint32_t ParsedTextureFetchInstruction::GetNonZeroResultComponents() const {
   return result.GetUsedResultComponents() & components;
 }
 
-struct AluOpcodeInfo {
-  const char* name;
-  uint32_t argument_count;
-  uint32_t src_swizzle_component_count;
-};
-
-static const AluOpcodeInfo alu_vector_opcode_infos[0x20] = {
-    {"add", 2, 4},           // 0
-    {"mul", 2, 4},           // 1
-    {"max", 2, 4},           // 2
-    {"min", 2, 4},           // 3
-    {"seq", 2, 4},           // 4
-    {"sgt", 2, 4},           // 5
-    {"sge", 2, 4},           // 6
-    {"sne", 2, 4},           // 7
-    {"frc", 1, 4},           // 8
-    {"trunc", 1, 4},         // 9
-    {"floor", 1, 4},         // 10
-    {"mad", 3, 4},           // 11
-    {"cndeq", 3, 4},         // 12
-    {"cndge", 3, 4},         // 13
-    {"cndgt", 3, 4},         // 14
-    {"dp4", 2, 4},           // 15
-    {"dp3", 2, 4},           // 16
-    {"dp2add", 3, 4},        // 17
-    {"cube", 2, 4},          // 18
-    {"max4", 1, 4},          // 19
-    {"setp_eq_push", 2, 4},  // 20
-    {"setp_ne_push", 2, 4},  // 21
-    {"setp_gt_push", 2, 4},  // 22
-    {"setp_ge_push", 2, 4},  // 23
-    {"kill_eq", 2, 4},       // 24
-    {"kill_gt", 2, 4},       // 25
-    {"kill_ge", 2, 4},       // 26
-    {"kill_ne", 2, 4},       // 27
-    {"dst", 2, 4},           // 28
-    {"maxa", 2, 4},          // 29
-};
-
-static const AluOpcodeInfo alu_scalar_opcode_infos[0x40] = {
-    {"adds", 1, 2},         // 0
-    {"adds_prev", 1, 1},    // 1
-    {"muls", 1, 2},         // 2
-    {"muls_prev", 1, 1},    // 3
-    {"muls_prev2", 1, 2},   // 4
-    {"maxs", 1, 2},         // 5
-    {"mins", 1, 2},         // 6
-    {"seqs", 1, 1},         // 7
-    {"sgts", 1, 1},         // 8
-    {"sges", 1, 1},         // 9
-    {"snes", 1, 1},         // 10
-    {"frcs", 1, 1},         // 11
-    {"truncs", 1, 1},       // 12
-    {"floors", 1, 1},       // 13
-    {"exp", 1, 1},          // 14
-    {"logc", 1, 1},         // 15
-    {"log", 1, 1},          // 16
-    {"rcpc", 1, 1},         // 17
-    {"rcpf", 1, 1},         // 18
-    {"rcp", 1, 1},          // 19
-    {"rsqc", 1, 1},         // 20
-    {"rsqf", 1, 1},         // 21
-    {"rsq", 1, 1},          // 22
-    {"maxas", 1, 2},        // 23
-    {"maxasf", 1, 2},       // 24
-    {"subs", 1, 2},         // 25
-    {"subs_prev", 1, 1},    // 26
-    {"setp_eq", 1, 1},      // 27
-    {"setp_ne", 1, 1},      // 28
-    {"setp_gt", 1, 1},      // 29
-    {"setp_ge", 1, 1},      // 30
-    {"setp_inv", 1, 1},     // 31
-    {"setp_pop", 1, 1},     // 32
-    {"setp_clr", 0, 0},     // 33
-    {"setp_rstr", 1, 1},    // 34
-    {"kills_eq", 1, 1},     // 35
-    {"kills_gt", 1, 1},     // 36
-    {"kills_ge", 1, 1},     // 37
-    {"kills_ne", 1, 1},     // 38
-    {"kills_one", 1, 1},    // 39
-    {"sqrt", 1, 1},         // 40
-    {"UNKNOWN", 0, 0},      // 41
-    {"mulsc", 2, 1},        // 42
-    {"mulsc", 2, 1},        // 43
-    {"addsc", 2, 1},        // 44
-    {"addsc", 2, 1},        // 45
-    {"subsc", 2, 1},        // 46
-    {"subsc", 2, 1},        // 47
-    {"sin", 1, 1},          // 48
-    {"cos", 1, 1},          // 49
-    {"retain_prev", 0, 0},  // 50
-};
-
 static void ParseAluInstructionOperand(const AluInstruction& op, uint32_t i,
                                        uint32_t swizzle_component_count,
                                        InstructionOperand& out_op) {
-  int const_slot = 0;
-  switch (i) {
-    case 2:
-      const_slot = op.src_is_temp(1) ? 0 : 1;
-      break;
-    case 3:
-      const_slot = op.src_is_temp(1) && op.src_is_temp(2) ? 0 : 1;
-      break;
-  }
   out_op.is_negated = op.src_negate(i);
   uint32_t reg = op.src_reg(i);
   if (op.src_is_temp(i)) {
     out_op.storage_source = InstructionStorageSource::kRegister;
-    out_op.storage_index = reg & 0x1F;
-    out_op.is_absolute_value = (reg & 0x80) == 0x80;
+    out_op.storage_index = AluInstruction::src_temp_reg(reg);
+    out_op.is_absolute_value = AluInstruction::is_src_temp_value_absolute(reg);
     out_op.storage_addressing_mode =
-        (reg & 0x40) ? InstructionStorageAddressingMode::kAddressRelative
-                     : InstructionStorageAddressingMode::kStatic;
+        AluInstruction::is_src_temp_relative(reg)
+            ? InstructionStorageAddressingMode::kLoopRelative
+            : InstructionStorageAddressingMode::kAbsolute;
   } else {
     out_op.storage_source = InstructionStorageSource::kConstantFloat;
     out_op.storage_index = reg;
-    if ((const_slot == 0 && op.is_const_0_addressed()) ||
-        (const_slot == 1 && op.is_const_1_addressed())) {
-      if (op.is_address_relative()) {
+    if (op.src_const_is_addressed(i)) {
+      if (op.is_const_address_register_relative()) {
         out_op.storage_addressing_mode =
-            InstructionStorageAddressingMode::kAddressAbsolute;
+            InstructionStorageAddressingMode::kAddressRegisterRelative;
       } else {
         out_op.storage_addressing_mode =
-            InstructionStorageAddressingMode::kAddressRelative;
+            InstructionStorageAddressingMode::kLoopRelative;
       }
     } else {
       out_op.storage_addressing_mode =
-          InstructionStorageAddressingMode::kStatic;
+          InstructionStorageAddressingMode::kAbsolute;
     }
     out_op.is_absolute_value = op.abs_constants();
   }
   out_op.component_count = swizzle_component_count;
   uint32_t swizzle = op.src_swizzle(i);
   if (swizzle_component_count == 1) {
-    uint32_t a = ((swizzle >> 6) + 3) & 0x3;
-    out_op.components[0] = GetSwizzleFromComponentIndex(a);
+    // Scalar `a` (W).
+    out_op.components[0] = GetSwizzledAluSourceComponent(swizzle, 3);
   } else if (swizzle_component_count == 2) {
-    uint32_t a = ((swizzle >> 6) + 3) & 0x3;
-    uint32_t b = ((swizzle >> 0) + 0) & 0x3;
-    out_op.components[0] = GetSwizzleFromComponentIndex(a);
-    out_op.components[1] = GetSwizzleFromComponentIndex(b);
+    // Scalar left-hand `a` (W) and right-hand `b` (X).
+    out_op.components[0] = GetSwizzledAluSourceComponent(swizzle, 3);
+    out_op.components[1] = GetSwizzledAluSourceComponent(swizzle, 0);
   } else if (swizzle_component_count == 3) {
     assert_always();
   } else if (swizzle_component_count == 4) {
-    for (uint32_t j = 0; j < swizzle_component_count; ++j, swizzle >>= 2) {
-      out_op.components[j] = GetSwizzleFromComponentIndex((swizzle + j) & 0x3);
+    for (uint32_t j = 0; j < swizzle_component_count; ++j) {
+      out_op.components[j] = GetSwizzledAluSourceComponent(swizzle, j);
     }
   }
-}
-
-static void ParseAluInstructionOperandSpecial(
-    const AluInstruction& op, InstructionStorageSource storage_source,
-    uint32_t reg, bool negate, int const_slot, uint32_t component_index,
-    InstructionOperand& out_op) {
-  out_op.is_negated = negate;
-  out_op.is_absolute_value = op.abs_constants();
-  out_op.storage_source = storage_source;
-  if (storage_source == InstructionStorageSource::kRegister) {
-    out_op.storage_index = reg & 0x7F;
-    out_op.storage_addressing_mode = InstructionStorageAddressingMode::kStatic;
-  } else {
-    out_op.storage_index = reg;
-    if ((const_slot == 0 && op.is_const_0_addressed()) ||
-        (const_slot == 1 && op.is_const_1_addressed())) {
-      if (op.is_address_relative()) {
-        out_op.storage_addressing_mode =
-            InstructionStorageAddressingMode::kAddressAbsolute;
-      } else {
-        out_op.storage_addressing_mode =
-            InstructionStorageAddressingMode::kAddressRelative;
-      }
-    } else {
-      out_op.storage_addressing_mode =
-          InstructionStorageAddressingMode::kStatic;
-    }
-  }
-  out_op.component_count = 1;
-  out_op.components[0] = GetSwizzleFromComponentIndex(component_index);
 }
 
 bool ParsedAluInstruction::IsVectorOpDefaultNop() const {
@@ -1237,14 +1118,14 @@ bool ParsedAluInstruction::IsVectorOpDefaultNop() const {
           InstructionStorageSource::kRegister ||
       vector_operands[0].storage_index != 0 ||
       vector_operands[0].storage_addressing_mode !=
-          InstructionStorageAddressingMode::kStatic ||
+          InstructionStorageAddressingMode::kAbsolute ||
       vector_operands[0].is_negated || vector_operands[0].is_absolute_value ||
       !vector_operands[0].IsStandardSwizzle() ||
       vector_operands[1].storage_source !=
           InstructionStorageSource::kRegister ||
       vector_operands[1].storage_index != 0 ||
       vector_operands[1].storage_addressing_mode !=
-          InstructionStorageAddressingMode::kStatic ||
+          InstructionStorageAddressingMode::kAbsolute ||
       vector_operands[1].is_negated || vector_operands[1].is_absolute_value ||
       !vector_operands[1].IsStandardSwizzle()) {
     return false;
@@ -1253,7 +1134,7 @@ bool ParsedAluInstruction::IsVectorOpDefaultNop() const {
       InstructionStorageTarget::kRegister) {
     if (vector_and_constant_result.storage_index != 0 ||
         vector_and_constant_result.storage_addressing_mode !=
-            InstructionStorageAddressingMode::kStatic) {
+            InstructionStorageAddressingMode::kAbsolute) {
       return false;
     }
   } else {
@@ -1323,21 +1204,22 @@ void ParseAluInstruction(const AluInstruction& op,
 
   // Vector operation and constant 0/1 writes.
 
-  instr.vector_opcode = op.vector_opcode();
-  const auto& vector_opcode_info =
-      alu_vector_opcode_infos[uint32_t(instr.vector_opcode)];
+  ucode::AluVectorOpcode vector_opcode = op.vector_opcode();
+  instr.vector_opcode = vector_opcode;
+  const ucode::AluVectorOpcodeInfo& vector_opcode_info =
+      ucode::GetAluVectorOpcodeInfo(vector_opcode);
   instr.vector_opcode_name = vector_opcode_info.name;
 
   instr.vector_and_constant_result.storage_target = storage_target;
   instr.vector_and_constant_result.storage_addressing_mode =
-      InstructionStorageAddressingMode::kStatic;
+      InstructionStorageAddressingMode::kAbsolute;
   if (is_export) {
     instr.vector_and_constant_result.storage_index = storage_index_export;
   } else {
     instr.vector_and_constant_result.storage_index = op.vector_dest();
     if (op.is_vector_dest_relative()) {
       instr.vector_and_constant_result.storage_addressing_mode =
-          InstructionStorageAddressingMode::kAddressRelative;
+          InstructionStorageAddressingMode::kLoopRelative;
     }
   }
   instr.vector_and_constant_result.is_clamped = op.vector_clamp();
@@ -1355,31 +1237,30 @@ void ParseAluInstruction(const AluInstruction& op,
     instr.vector_and_constant_result.components[i] = component;
   }
 
-  instr.vector_operand_count = vector_opcode_info.argument_count;
+  instr.vector_operand_count = vector_opcode_info.GetOperandCount();
   for (uint32_t i = 0; i < instr.vector_operand_count; ++i) {
     InstructionOperand& vector_operand = instr.vector_operands[i];
-    ParseAluInstructionOperand(op, i + 1,
-                               vector_opcode_info.src_swizzle_component_count,
-                               vector_operand);
+    ParseAluInstructionOperand(op, i + 1, 4, vector_operand);
   }
 
   // Scalar operation.
 
-  instr.scalar_opcode = op.scalar_opcode();
-  const auto& scalar_opcode_info =
-      alu_scalar_opcode_infos[uint32_t(instr.scalar_opcode)];
+  ucode::AluScalarOpcode scalar_opcode = op.scalar_opcode();
+  instr.scalar_opcode = scalar_opcode;
+  const ucode::AluScalarOpcodeInfo& scalar_opcode_info =
+      ucode::GetAluScalarOpcodeInfo(scalar_opcode);
   instr.scalar_opcode_name = scalar_opcode_info.name;
 
   instr.scalar_result.storage_target = storage_target;
   instr.scalar_result.storage_addressing_mode =
-      InstructionStorageAddressingMode::kStatic;
+      InstructionStorageAddressingMode::kAbsolute;
   if (is_export) {
     instr.scalar_result.storage_index = storage_index_export;
   } else {
     instr.scalar_result.storage_index = op.scalar_dest();
     if (op.is_scalar_dest_relative()) {
       instr.scalar_result.storage_addressing_mode =
-          InstructionStorageAddressingMode::kAddressRelative;
+          InstructionStorageAddressingMode::kLoopRelative;
     }
   }
   instr.scalar_result.is_clamped = op.scalar_clamp();
@@ -1388,27 +1269,49 @@ void ParseAluInstruction(const AluInstruction& op,
     instr.scalar_result.components[i] = GetSwizzleFromComponentIndex(i);
   }
 
-  instr.scalar_operand_count = scalar_opcode_info.argument_count;
+  instr.scalar_operand_count = scalar_opcode_info.operand_count;
   if (instr.scalar_operand_count) {
     if (instr.scalar_operand_count == 1) {
-      ParseAluInstructionOperand(op, 3,
-                                 scalar_opcode_info.src_swizzle_component_count,
-                                 instr.scalar_operands[0]);
+      ParseAluInstructionOperand(
+          op, 3, scalar_opcode_info.single_operand_is_two_component ? 2 : 1,
+          instr.scalar_operands[0]);
     } else {
+      // Constant and temporary register.
+
+      bool src3_negate = op.src_negate(3);
       uint32_t src3_swizzle = op.src_swizzle(3);
-      uint32_t component_a = ((src3_swizzle >> 6) + 3) & 0x3;
-      uint32_t component_b = ((src3_swizzle >> 0) + 0) & 0x3;
-      uint32_t reg2 = (src3_swizzle & 0x3C) | (op.src_is_temp(3) << 1) |
-                      (static_cast<int>(op.scalar_opcode()) & 1);
-      int const_slot = (op.src_is_temp(1) || op.src_is_temp(2)) ? 1 : 0;
 
-      ParseAluInstructionOperandSpecial(
-          op, InstructionStorageSource::kConstantFloat, op.src_reg(3),
-          op.src_negate(3), 0, component_a, instr.scalar_operands[0]);
+      // Left-hand constant operand (`a` - W swizzle).
+      InstructionOperand& const_op = instr.scalar_operands[0];
+      const_op.is_negated = src3_negate;
+      const_op.is_absolute_value = op.abs_constants();
+      const_op.storage_source = InstructionStorageSource::kConstantFloat;
+      const_op.storage_index = op.src_reg(3);
+      if (op.src_const_is_addressed(3)) {
+        if (op.is_const_address_register_relative()) {
+          const_op.storage_addressing_mode =
+              InstructionStorageAddressingMode::kAddressRegisterRelative;
+        } else {
+          const_op.storage_addressing_mode =
+              InstructionStorageAddressingMode::kLoopRelative;
+        }
+      } else {
+        const_op.storage_addressing_mode =
+            InstructionStorageAddressingMode::kAbsolute;
+      }
+      const_op.component_count = 1;
+      const_op.components[0] = GetSwizzledAluSourceComponent(src3_swizzle, 3);
 
-      ParseAluInstructionOperandSpecial(op, InstructionStorageSource::kRegister,
-                                        reg2, op.src_negate(3), const_slot,
-                                        component_b, instr.scalar_operands[1]);
+      // Right-hand temporary register operand (`b` - X swizzle).
+      InstructionOperand& temp_op = instr.scalar_operands[1];
+      temp_op.is_negated = src3_negate;
+      temp_op.is_absolute_value = op.abs_constants();
+      temp_op.storage_source = InstructionStorageSource::kRegister;
+      temp_op.storage_index = op.scalar_const_reg_op_src_temp_reg();
+      temp_op.storage_addressing_mode =
+          InstructionStorageAddressingMode::kAbsolute;
+      temp_op.component_count = 1;
+      temp_op.components[0] = GetSwizzledAluSourceComponent(src3_swizzle, 0);
     }
   }
 }
@@ -1421,7 +1324,7 @@ bool ParsedAluInstruction::IsScalarOpDefaultNop() const {
   if (scalar_result.storage_target == InstructionStorageTarget::kRegister) {
     if (scalar_result.storage_index != 0 ||
         scalar_result.storage_addressing_mode !=
-            InstructionStorageAddressingMode::kStatic) {
+            InstructionStorageAddressingMode::kAbsolute) {
       return false;
     }
   }
@@ -1434,7 +1337,7 @@ bool ParsedAluInstruction::IsNop() const {
   return scalar_opcode == ucode::AluScalarOpcode::kRetainPrev &&
          !scalar_result.GetUsedWriteMask() &&
          !vector_and_constant_result.GetUsedWriteMask() &&
-         !ucode::AluVectorOpHasSideEffects(vector_opcode);
+         !ucode::GetAluVectorOpcodeInfo(vector_opcode).changed_state;
 }
 
 uint32_t ParsedAluInstruction::GetMemExportStreamConstant() const {
@@ -1446,7 +1349,7 @@ uint32_t ParsedAluInstruction::GetMemExportStreamConstant() const {
       vector_operands[2].storage_source ==
           InstructionStorageSource::kConstantFloat &&
       vector_operands[2].storage_addressing_mode ==
-          InstructionStorageAddressingMode::kStatic &&
+          InstructionStorageAddressingMode::kAbsolute &&
       vector_operands[2].IsStandardSwizzle() &&
       !vector_operands[2].is_negated && !vector_operands[2].is_absolute_value) {
     return vector_operands[2].storage_index;

@@ -199,8 +199,8 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
-  render_target_cache_ =
-      std::make_unique<VulkanRenderTargetCache>(*this, *register_file_);
+  render_target_cache_ = std::make_unique<VulkanRenderTargetCache>(
+      *register_file_, *memory_, &trace_writer_, *this);
   if (!render_target_cache_->Initialize()) {
     XELOGE("Failed to initialize the render target cache");
     return false;
@@ -1383,6 +1383,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     return false;
   }
 
+  reg::RB_DEPTHCONTROL normalized_depth_control =
+      draw_util::GetNormalizedDepthControl(regs);
   uint32_t normalized_color_mask =
       pixel_shader ? draw_util::GetNormalizedColorMask(
                          regs, pixel_shader->writes_color_targets())
@@ -1399,7 +1401,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
 
   // Set up the render targets - this may perform dispatches and draws.
   if (!render_target_cache_->Update(is_rasterization_done,
-                                    normalized_color_mask)) {
+                                    normalized_depth_control,
+                                    normalized_color_mask, *vertex_shader)) {
     return false;
   }
 
@@ -1421,7 +1424,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   const VulkanPipelineCache::PipelineLayoutProvider* pipeline_layout_provider;
   if (!pipeline_cache_->ConfigurePipeline(
           vertex_shader_translation, pixel_shader_translation,
-          primitive_processing_result, normalized_color_mask,
+          primitive_processing_result, normalized_depth_control,
+          normalized_color_mask,
           render_target_cache_->last_update_render_pass_key(), pipeline,
           pipeline_layout_provider)) {
     return false;
@@ -1485,13 +1489,14 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // life. Or even disregard the viewport bounds range in the fragment shader
   // interlocks case completely - apply the viewport and the scissor offset
   // directly to pixel address and to things like ps_param_gen.
-  draw_util::GetHostViewportInfo(regs, 1, 1, false,
-                                 device_limits.maxViewportDimensions[0],
-                                 device_limits.maxViewportDimensions[1], true,
-                                 false, false, false, viewport_info);
+  draw_util::GetHostViewportInfo(
+      regs, 1, 1, false, device_limits.maxViewportDimensions[0],
+      device_limits.maxViewportDimensions[1], true, normalized_depth_control,
+      false, false, false, viewport_info);
 
   // Update dynamic graphics pipeline state.
-  UpdateDynamicState(viewport_info, primitive_polygonal);
+  UpdateDynamicState(viewport_info, primitive_polygonal,
+                     normalized_depth_control);
 
   // Update system constants before uploading them.
   UpdateSystemConstantValues(primitive_processing_result.host_index_endian,
@@ -2133,7 +2138,8 @@ VkShaderStageFlags VulkanCommandProcessor::GetGuestVertexShaderStageFlags()
 }
 
 void VulkanCommandProcessor::UpdateDynamicState(
-    const draw_util::ViewportInfo& viewport_info, bool primitive_polygonal) {
+    const draw_util::ViewportInfo& viewport_info, bool primitive_polygonal,
+    reg::RB_DEPTHCONTROL normalized_depth_control) {
 #if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
@@ -2234,10 +2240,9 @@ void VulkanCommandProcessor::UpdateDynamicState(
   // effect on drawing, and because the masks and the references are always
   // dynamic in Xenia guest pipelines, they must be set in the command buffer
   // before any draw.
-  auto rb_depthcontrol = draw_util::GetDepthControlForCurrentEdramMode(regs);
-  if (rb_depthcontrol.stencil_enable) {
+  if (normalized_depth_control.stencil_enable) {
     Register stencil_ref_mask_front_reg, stencil_ref_mask_back_reg;
-    if (primitive_polygonal && rb_depthcontrol.backface_enable) {
+    if (primitive_polygonal && normalized_depth_control.backface_enable) {
       const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
       const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
           device_portability_subset_features =

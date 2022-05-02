@@ -36,6 +36,11 @@ DEFINE_path(shader_input, "", "Input shader binary file path.", "GPU");
 DEFINE_string(shader_input_type, "",
               "'vs', 'ps', or unspecified to infer from the given filename.",
               "GPU");
+DEFINE_bool(
+    shader_input_little_endian, false,
+    "Whether the input shader binary is little-endian (from an Arm device with "
+    "the Qualcomm Adreno 200, for instance).",
+    "GPU");
 DEFINE_path(shader_output, "", "Output shader file path.", "GPU");
 DEFINE_string(shader_output_type, "ucode",
               "Translator to use: [ucode, spirv, spirvtext, dxbc, dxbctext].",
@@ -107,7 +112,9 @@ int shader_compiler_main(const std::vector<std::string>& args) {
   // TODO(benvanik): hash? need to return the data to big-endian format first.
   uint64_t ucode_data_hash = 0;
   auto shader = std::make_unique<Shader>(
-      shader_type, ucode_data_hash, ucode_dwords.data(), ucode_dwords.size());
+      shader_type, ucode_data_hash, ucode_dwords.data(), ucode_dwords.size(),
+      cvars::shader_input_little_endian ? std::endian::little
+                                        : std::endian::big);
 
   StringBuffer ucode_disasm_buffer;
   shader->AnalyzeUcode(ucode_disasm_buffer);

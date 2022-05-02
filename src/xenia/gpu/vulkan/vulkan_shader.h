@@ -35,9 +35,10 @@ class VulkanShader : public Shader {
     VkShaderModule shader_module_ = VK_NULL_HANDLE;
   };
 
-  VulkanShader(xenos::ShaderType shader_type, uint64_t data_hash,
-               const uint32_t* dword_ptr, uint32_t dword_count,
-               const ui::vulkan::VulkanProvider& provider);
+  VulkanShader(const ui::vulkan::VulkanProvider& provider,
+               xenos::ShaderType shader_type, uint64_t ucode_data_hash,
+               const uint32_t* ucode_dwords, size_t ucode_dword_count,
+               std::endian ucode_source_endian = std::endian::big);
 
  protected:
   Translation* CreateTranslationInstance(uint64_t modification) override;

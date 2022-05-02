@@ -21,6 +21,7 @@
 
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/draw_util.h"
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/gpu/vulkan/deferred_command_buffer.h"
 #include "xenia/gpu/vulkan/vulkan_graphics_system.h"
@@ -242,7 +243,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkShaderStageFlags GetGuestVertexShaderStageFlags() const;
 
   void UpdateDynamicState(const draw_util::ViewportInfo& viewport_info,
-                          bool primitive_polygonal);
+                          bool primitive_polygonal,
+                          reg::RB_DEPTHCONTROL normalized_depth_control);
   void UpdateSystemConstantValues(xenos::Endian index_endian,
                                   const draw_util::ViewportInfo& viewport_info);
   bool UpdateBindings(const VulkanShader* vertex_shader,

@@ -100,7 +100,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
   uint32_t used_result_components =
       instr.vector_and_constant_result.GetUsedResultComponents();
   if (!used_result_components &&
-      !AluVectorOpHasSideEffects(instr.vector_opcode)) {
+      !ucode::GetAluVectorOpcodeInfo(instr.vector_opcode).changed_state) {
     return spv::NoResult;
   }
   uint32_t used_result_component_count = xe::bit_count(used_result_components);
@@ -324,7 +324,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
                 spv::OpConvertFToS, type_int_,
                 builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
                                             GLSLstd450NClamp, id_vector_temp_)),
-            var_main_address_absolute_);
+            var_main_address_register_);
       }
       if (!used_result_components) {
         // maxa returning nothing - can't load src1.
@@ -1174,7 +1174,7 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
                 spv::OpConvertFToS, type_int_,
                 builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
                                             GLSLstd450NClamp, id_vector_temp_)),
-            var_main_address_absolute_);
+            var_main_address_register_);
       }
       if (a == b) {
         // max is commonly used as mov.

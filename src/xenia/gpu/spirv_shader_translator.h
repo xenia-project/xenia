@@ -475,9 +475,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // uint4.
   spv::Id var_main_loop_count_;
   // int4.
-  spv::Id var_main_address_relative_;
+  spv::Id var_main_loop_address_;
   // int.
-  spv::Id var_main_address_absolute_;
+  spv::Id var_main_address_register_;
   // float.
   spv::Id var_main_previous_scalar_;
   // `base + index * stride` in dwords from the last vfetch_full as it may be

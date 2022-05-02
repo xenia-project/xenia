@@ -756,6 +756,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
                                        uint32_t factor_component);
 
   // Writing the prologue.
+  // Applies the offset to vertex or tessellation patch indices in the source
+  // components, restricts them to the minimum and the maximum index values, and
+  // converts them to floating-point. The destination may be the same as the
+  // source.
+  void RemapAndConvertVertexIndices(uint32_t dest_temp,
+                                    uint32_t dest_temp_components,
+                                    const dxbc::Src& src);
   void StartVertexShader_LoadVertexIndex();
   void StartVertexOrDomainShader();
   void StartDomainShader();

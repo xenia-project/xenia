@@ -28,7 +28,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
   uint32_t used_result_components =
       instr.vector_and_constant_result.GetUsedResultComponents();
   if (!used_result_components &&
-      !AluVectorOpHasSideEffects(instr.vector_opcode)) {
+      !ucode::GetAluVectorOpcodeInfo(instr.vector_opcode).changed_state) {
     return;
   }
 

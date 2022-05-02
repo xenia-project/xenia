@@ -378,8 +378,65 @@ int64_t m128_i64(const __m128& v) {
 }
 #endif
 
-uint16_t float_to_half(float value);
-float half_to_float(uint16_t value);
+// Similar to the C++ implementation of XMConvertFloatToHalf and
+// XMConvertHalfToFloat from DirectXMath 3.00 (pre-3.04, which switched from the
+// Xenos encoding to IEEE 754), with the extended range instead of infinity and
+// NaN, and optionally with denormalized numbers - as used in vpkd3d128 (no
+// denormals, rounding towards zero) and on the Xenos (GL_OES_texture_float
+// alternative encoding).
+
+inline uint16_t float_to_xenos_half(float value, bool preserve_denormal = false,
+                                    bool round_to_nearest_even = false) {
+  uint32_t integer_value = *reinterpret_cast<const uint32_t*>(&value);
+  uint32_t abs_value = integer_value & 0x7FFFFFFFu;
+  uint32_t result;
+  if (abs_value >= 0x47FFE000u) {
+    // Saturate.
+    result = 0x7FFFu;
+  } else {
+    if (abs_value < 0x38800000u) {
+      // The number is too small to be represented as a normalized half.
+      if (preserve_denormal) {
+        uint32_t shift =
+            std::min(uint32_t(113u - (abs_value >> 23u)), uint32_t(24u));
+        result = (0x800000u | (abs_value & 0x7FFFFFu)) >> shift;
+      } else {
+        result = 0u;
+      }
+    } else {
+      // Rebias the exponent to represent the value as a normalized half.
+      result = abs_value + 0xC8000000u;
+    }
+    if (round_to_nearest_even) {
+      result += 0xFFFu + ((result >> 13u) & 1u);
+    }
+    result = (result >> 13u) & 0x7FFFu;
+  }
+  return uint16_t(result | ((integer_value & 0x80000000u) >> 16u));
+}
+
+inline float xenos_half_to_float(uint16_t value,
+                                 bool preserve_denormal = false) {
+  uint32_t mantissa = value & 0x3FFu;
+  uint32_t exponent = (value >> 10u) & 0x1Fu;
+  if (!exponent) {
+    if (!preserve_denormal) {
+      mantissa = 0;
+    } else if (mantissa) {
+      // Normalize the value in the resulting float.
+      // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x0400) == 0)
+      uint32_t mantissa_lzcnt = xe::lzcnt(mantissa) - (32u - 11u);
+      exponent = uint32_t(1 - int32_t(mantissa_lzcnt));
+      mantissa = (mantissa << mantissa_lzcnt) & 0x3FFu;
+    }
+    if (!mantissa) {
+      exponent = uint32_t(-112);
+    }
+  }
+  uint32_t result = (uint32_t(value & 0x8000u) << 16u) |
+                    ((exponent + 112u) << 23u) | (mantissa << 13u);
+  return *reinterpret_cast<const float*>(&result);
+}
 
 // https://locklessinc.com/articles/sat_arithmetic/
 template <typename T>

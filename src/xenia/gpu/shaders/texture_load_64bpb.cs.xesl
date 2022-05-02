@@ -7,4 +7,5 @@
  ******************************************************************************
  */
 
+#define XE_TEXTURE_LOAD_64BPB_TRANSFORM(blocks) (blocks)
 #include "texture_load_64bpb.xesli"

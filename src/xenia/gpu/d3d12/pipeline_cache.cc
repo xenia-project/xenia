@@ -36,6 +36,7 @@
 #include "xenia/gpu/d3d12/d3d12_render_target_cache.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/gpu_flags.h"
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
@@ -896,7 +897,8 @@ PipelineCache::GetCurrentVertexShaderModification(
 }
 
 DxbcShaderTranslator::Modification
-PipelineCache::GetCurrentPixelShaderModification(const Shader& shader) const {
+PipelineCache::GetCurrentPixelShaderModification(
+    const Shader& shader, reg::RB_DEPTHCONTROL normalized_depth_control) const {
   assert_true(shader.type() == xenos::ShaderType::kPixel);
   assert_true(shader.is_ucode_analyzed());
   const auto& regs = register_file_;
@@ -915,7 +917,7 @@ PipelineCache::GetCurrentPixelShaderModification(const Shader& shader) const {
              RenderTargetCache::DepthFloat24Conversion::kOnOutputTruncating ||
          depth_float24_conversion ==
              RenderTargetCache::DepthFloat24Conversion::kOnOutputRounding) &&
-        draw_util::GetDepthControlForCurrentEdramMode(regs).z_enable &&
+        normalized_depth_control.z_enable &&
         regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
             xenos::DepthRenderTargetFormat::kD24FS8) {
       modification.pixel.depth_stencil_mode =
@@ -941,6 +943,7 @@ bool PipelineCache::ConfigurePipeline(
     D3D12Shader::D3D12Translation* vertex_shader,
     D3D12Shader::D3D12Translation* pixel_shader,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+    reg::RB_DEPTHCONTROL normalized_depth_control,
     uint32_t normalized_color_mask,
     uint32_t bound_depth_and_color_render_target_bits,
     const uint32_t* bound_depth_and_color_render_target_formats,
@@ -1013,7 +1016,8 @@ bool PipelineCache::ConfigurePipeline(
   PipelineRuntimeDescription runtime_description;
   if (!GetCurrentStateDescription(
           vertex_shader, pixel_shader, primitive_processing_result,
-          normalized_color_mask, bound_depth_and_color_render_target_bits,
+          normalized_depth_control, normalized_color_mask,
+          bound_depth_and_color_render_target_bits,
           bound_depth_and_color_render_target_formats, runtime_description)) {
     return false;
   }
@@ -1280,6 +1284,7 @@ bool PipelineCache::GetCurrentStateDescription(
     D3D12Shader::D3D12Translation* vertex_shader,
     D3D12Shader::D3D12Translation* pixel_shader,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+    reg::RB_DEPTHCONTROL normalized_depth_control,
     uint32_t normalized_color_mask,
     uint32_t bound_depth_and_color_render_target_bits,
     const uint32_t* bound_depth_and_color_render_target_formats,
@@ -1483,18 +1488,16 @@ bool PipelineCache::GetCurrentStateDescription(
     // Depth/stencil. No stencil, always passing depth test and no depth writing
     // means depth disabled.
     if (bound_depth_and_color_render_target_bits & 1) {
-      auto rb_depthcontrol =
-          draw_util::GetDepthControlForCurrentEdramMode(regs);
-      if (rb_depthcontrol.z_enable) {
-        description_out.depth_func = rb_depthcontrol.zfunc;
-        description_out.depth_write = rb_depthcontrol.z_write_enable;
+      if (normalized_depth_control.z_enable) {
+        description_out.depth_func = normalized_depth_control.zfunc;
+        description_out.depth_write = normalized_depth_control.z_write_enable;
       } else {
         description_out.depth_func = xenos::CompareFunction::kAlways;
       }
-      if (rb_depthcontrol.stencil_enable) {
+      if (normalized_depth_control.stencil_enable) {
         description_out.stencil_enable = 1;
         bool stencil_backface_enable =
-            primitive_polygonal && rb_depthcontrol.backface_enable;
+            primitive_polygonal && normalized_depth_control.backface_enable;
         // Per-face masks not supported by Direct3D 12, choose the back face
         // ones only if drawing only back faces.
         Register stencil_ref_mask_reg;
@@ -1507,18 +1510,23 @@ bool PipelineCache::GetCurrentStateDescription(
             regs.Get<reg::RB_STENCILREFMASK>(stencil_ref_mask_reg);
         description_out.stencil_read_mask = stencil_ref_mask.stencilmask;
         description_out.stencil_write_mask = stencil_ref_mask.stencilwritemask;
-        description_out.stencil_front_fail_op = rb_depthcontrol.stencilfail;
+        description_out.stencil_front_fail_op =
+            normalized_depth_control.stencilfail;
         description_out.stencil_front_depth_fail_op =
-            rb_depthcontrol.stencilzfail;
-        description_out.stencil_front_pass_op = rb_depthcontrol.stencilzpass;
-        description_out.stencil_front_func = rb_depthcontrol.stencilfunc;
+            normalized_depth_control.stencilzfail;
+        description_out.stencil_front_pass_op =
+            normalized_depth_control.stencilzpass;
+        description_out.stencil_front_func =
+            normalized_depth_control.stencilfunc;
         if (stencil_backface_enable) {
-          description_out.stencil_back_fail_op = rb_depthcontrol.stencilfail_bf;
+          description_out.stencil_back_fail_op =
+              normalized_depth_control.stencilfail_bf;
           description_out.stencil_back_depth_fail_op =
-              rb_depthcontrol.stencilzfail_bf;
+              normalized_depth_control.stencilzfail_bf;
           description_out.stencil_back_pass_op =
-              rb_depthcontrol.stencilzpass_bf;
-          description_out.stencil_back_func = rb_depthcontrol.stencilfunc_bf;
+              normalized_depth_control.stencilzpass_bf;
+          description_out.stencil_back_func =
+              normalized_depth_control.stencilfunc_bf;
         } else {
           description_out.stencil_back_fail_op =
               description_out.stencil_front_fail_op;

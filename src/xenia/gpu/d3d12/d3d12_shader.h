@@ -33,8 +33,9 @@ class D3D12Shader : public DxbcShader {
                                 IDxcCompiler* dxc_compiler = nullptr);
   };
 
-  D3D12Shader(xenos::ShaderType shader_type, uint64_t data_hash,
-              const uint32_t* dword_ptr, uint32_t dword_count);
+  D3D12Shader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
+              const uint32_t* ucode_dwords, size_t ucode_dword_count,
+              std::endian ucode_source_endian = std::endian::big);
 
   // For owning subsystem like the pipeline cache, accessors for unique
   // identifiers (used instead of hashes to make sure collisions can't happen)

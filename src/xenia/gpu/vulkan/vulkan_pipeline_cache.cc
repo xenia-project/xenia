@@ -121,8 +121,8 @@ VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
   // We need to track it even if it fails translation so we know not to try
   // again.
   VulkanShader* shader =
-      new VulkanShader(shader_type, data_hash, host_address, dword_count,
-                       command_processor_.GetVulkanProvider());
+      new VulkanShader(command_processor_.GetVulkanProvider(), shader_type,
+                       data_hash, host_address, dword_count);
   shaders_.emplace(data_hash, shader);
   return shader;
 }
@@ -188,6 +188,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
     VulkanShader::VulkanTranslation* vertex_shader,
     VulkanShader::VulkanTranslation* pixel_shader,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+    reg::RB_DEPTHCONTROL normalized_depth_control,
     uint32_t normalized_color_mask,
     VulkanRenderTargetCache::RenderPassKey render_pass_key,
     VkPipeline& pipeline_out,
@@ -231,7 +232,8 @@ bool VulkanPipelineCache::ConfigurePipeline(
   PipelineDescription description;
   if (!GetCurrentStateDescription(
           vertex_shader, pixel_shader, primitive_processing_result,
-          normalized_color_mask, render_pass_key, description)) {
+          normalized_depth_control, normalized_color_mask, render_pass_key,
+          description)) {
     return false;
   }
   if (last_pipeline_ && last_pipeline_->first == description) {
@@ -360,6 +362,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     const VulkanShader::VulkanTranslation* vertex_shader,
     const VulkanShader::VulkanTranslation* pixel_shader,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+    reg::RB_DEPTHCONTROL normalized_depth_control,
     uint32_t normalized_color_mask,
     VulkanRenderTargetCache::RenderPassKey render_pass_key,
     PipelineDescription& description_out) const {
@@ -484,27 +487,32 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   // shader interlock RB implementation.
 
   if (render_pass_key.depth_and_color_used & 1) {
-    auto rb_depthcontrol = draw_util::GetDepthControlForCurrentEdramMode(regs);
-    if (rb_depthcontrol.z_enable) {
-      description_out.depth_write_enable = rb_depthcontrol.z_write_enable;
-      description_out.depth_compare_op = rb_depthcontrol.zfunc;
+    if (normalized_depth_control.z_enable) {
+      description_out.depth_write_enable =
+          normalized_depth_control.z_write_enable;
+      description_out.depth_compare_op = normalized_depth_control.zfunc;
     } else {
       description_out.depth_compare_op = xenos::CompareFunction::kAlways;
     }
-    if (rb_depthcontrol.stencil_enable) {
+    if (normalized_depth_control.stencil_enable) {
       description_out.stencil_test_enable = 1;
-      description_out.stencil_front_fail_op = rb_depthcontrol.stencilfail;
-      description_out.stencil_front_pass_op = rb_depthcontrol.stencilzpass;
+      description_out.stencil_front_fail_op =
+          normalized_depth_control.stencilfail;
+      description_out.stencil_front_pass_op =
+          normalized_depth_control.stencilzpass;
       description_out.stencil_front_depth_fail_op =
-          rb_depthcontrol.stencilzfail;
-      description_out.stencil_front_compare_op = rb_depthcontrol.stencilfunc;
-      if (primitive_polygonal && rb_depthcontrol.backface_enable) {
-        description_out.stencil_back_fail_op = rb_depthcontrol.stencilfail_bf;
-        description_out.stencil_back_pass_op = rb_depthcontrol.stencilzpass_bf;
+          normalized_depth_control.stencilzfail;
+      description_out.stencil_front_compare_op =
+          normalized_depth_control.stencilfunc;
+      if (primitive_polygonal && normalized_depth_control.backface_enable) {
+        description_out.stencil_back_fail_op =
+            normalized_depth_control.stencilfail_bf;
+        description_out.stencil_back_pass_op =
+            normalized_depth_control.stencilzpass_bf;
         description_out.stencil_back_depth_fail_op =
-            rb_depthcontrol.stencilzfail_bf;
+            normalized_depth_control.stencilzfail_bf;
         description_out.stencil_back_compare_op =
-            rb_depthcontrol.stencilfunc_bf;
+            normalized_depth_control.stencilfunc_bf;
       } else {
         description_out.stencil_back_fail_op =
             description_out.stencil_front_fail_op;

@@ -114,9 +114,10 @@ const VulkanRenderTargetCache::TransferModeInfo
 };
 
 VulkanRenderTargetCache::VulkanRenderTargetCache(
-    VulkanCommandProcessor& command_processor,
-    const RegisterFile& register_file)
-    : RenderTargetCache(register_file), command_processor_(command_processor) {}
+    const RegisterFile& register_file, const Memory& memory,
+    TraceWriter* trace_writer, VulkanCommandProcessor& command_processor)
+    : RenderTargetCache(register_file, memory, trace_writer),
+      command_processor_(command_processor) {}
 
 VulkanRenderTargetCache::~VulkanRenderTargetCache() { Shutdown(true); }
 
@@ -574,10 +575,12 @@ void VulkanRenderTargetCache::EndSubmission() {
   }
 }
 
-bool VulkanRenderTargetCache::Update(bool is_rasterization_done,
-                                     uint32_t shader_writes_color_targets) {
+bool VulkanRenderTargetCache::Update(
+    bool is_rasterization_done, reg::RB_DEPTHCONTROL normalized_depth_control,
+    uint32_t normalized_color_mask, const Shader& vertex_shader) {
   if (!RenderTargetCache::Update(is_rasterization_done,
-                                 shader_writes_color_targets)) {
+                                 normalized_depth_control,
+                                 normalized_color_mask, vertex_shader)) {
     return false;
   }
 

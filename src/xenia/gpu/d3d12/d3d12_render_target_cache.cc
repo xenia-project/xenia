@@ -1249,10 +1249,12 @@ void D3D12RenderTargetCache::BeginSubmission() {
   }
 }
 
-bool D3D12RenderTargetCache::Update(bool is_rasterization_done,
-                                    uint32_t shader_writes_color_targets) {
+bool D3D12RenderTargetCache::Update(
+    bool is_rasterization_done, reg::RB_DEPTHCONTROL normalized_depth_control,
+    uint32_t shader_writes_color_targets, const Shader& vertex_shader) {
   if (!RenderTargetCache::Update(is_rasterization_done,
-                                 shader_writes_color_targets)) {
+                                 normalized_depth_control,
+                                 shader_writes_color_targets, vertex_shader)) {
     return false;
   }
   switch (GetPath()) {
