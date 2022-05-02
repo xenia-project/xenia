@@ -11,7 +11,10 @@
 
 #include "xenia/base/threading.h"
 
+#define CATCH_CONFIG_ENABLE_CHRONO_STRINGMAKER
 #include "third_party/catch/include/catch.hpp"
+
+#include "third_party/disruptorplus/include/disruptorplus/spin_wait.hpp"
 
 namespace xe {
 namespace base {
@@ -24,12 +27,12 @@ template <class Clock, class Duration, class Predicate>
 bool spin_wait_until(
     const std::chrono::time_point<Clock, Duration>& timeout_time,
     Predicate stop_waiting) {
+  disruptorplus::spin_wait spinner;
   while (!stop_waiting()) {
     if (std::chrono::steady_clock::now() >= timeout_time) {
       return false;
     }
-    // Needed for valgrind because it basically runs one thread:
-    MaybeYield();
+    spinner.spin_once();
   }
   return true;
 }
@@ -42,9 +45,9 @@ bool spin_wait_for(const std::chrono::duration<Rep, Period>& rel_time,
 
 template <class Predicate>
 void spin_wait(Predicate stop_waiting) {
+  disruptorplus::spin_wait spinner;
   while (!stop_waiting()) {
-    // Needed for valgrind because it basically runs one thread:
-    MaybeYield();
+    spinner.spin_once();
   }
 }
 
@@ -241,8 +244,63 @@ TEST_CASE("HighResolutionTimer") {
     REQUIRE(counter2 <= ratio2 + 1);
   }
 
-  // TODO(bwrsandman): Check on which thread callbacks are executed when
-  // spawned from differing threads
+  // Test many timers
+  {
+    const auto interval = 50ms;
+    const size_t timer_count = 128;
+    std::atomic<uint64_t> counter(0);
+    auto cb = [&counter, &timer_thread] {
+      ++counter;
+      REQUIRE(Thread::GetCurrentThread() == timer_thread);
+    };
+    std::vector<std::unique_ptr<HighResolutionTimer>> timers;
+    auto start = std::chrono::steady_clock::now();
+    for (size_t i = 0; i < timer_count; i++) {
+      timers.emplace_back(HighResolutionTimer::CreateRepeating(interval, cb));
+    }
+    Sleep(wait_time);
+    timers.clear();
+    auto duration = std::chrono::steady_clock::now() - start;
+
+    REQUIRE(duration.count() >= wait_time.count());
+    auto ratio = static_cast<uint64_t>(timer_count * duration / interval);
+    REQUIRE(counter >= ratio - timer_count);
+    REQUIRE(counter <= ratio + timer_count);
+  }
+
+  // Check timer order
+  {
+    constexpr size_t timer_count = 16;
+    using pair_t = std::pair<std::atomic<uint64_t>,
+                             std::chrono::high_resolution_clock::time_point>;
+    std::array<pair_t, timer_count> time_points{};
+    auto start = std::chrono::steady_clock::now();
+    auto gen_callback = [&timer_thread, &time_points](size_t i) {
+      return [&timer_thread, &time_points, i]() {
+        auto& pair = time_points[i];
+        if (pair.first.fetch_add(1) == 1) {
+          pair.second = std::chrono::high_resolution_clock::now();
+          pair.first++;
+        }
+        REQUIRE(Thread::GetCurrentThread() == timer_thread);
+      };
+    };
+    std::vector<std::unique_ptr<HighResolutionTimer>> timers;
+    for (size_t i = 0; i < timer_count; i++) {
+      timers.emplace_back(HighResolutionTimer::CreateRepeating(
+          10ms * (timer_count - i), gen_callback(timer_count - i - 1)));
+    }
+    REQUIRE(spin_wait_for(2s, [&] {
+      return std::all_of(time_points.cbegin(), time_points.cend(),
+                         [](auto& pair) { return pair.first >= 3; });
+    }));
+
+    timers.clear();
+
+    REQUIRE(std::is_sorted(
+        time_points.cbegin(), time_points.cend(),
+        [](auto& left, auto& right) { return left.second < right.second; }));
+  }
 }
 
 TEST_CASE("Wait on Multiple Handles", "[wait]") {
@@ -731,8 +789,8 @@ TEST_CASE("Wait on Timer", "[timer]") {
   REQUIRE(timer);
   result = Wait(timer.get(), false, 1ms);
   REQUIRE(result == WaitResult::kTimeout);
-  REQUIRE(timer->SetOnce(1ms));  // Signals it
-  result = Wait(timer.get(), false, 2ms);
+  REQUIRE(timer->SetOnceAfter(1ms));  // Signals it
+  result = Wait(timer.get(), false, 20ms);
   REQUIRE(result == WaitResult::kSuccess);
   result = Wait(timer.get(), false, 1ms);
   REQUIRE(result == WaitResult::kSuccess);  // Did not reset
@@ -742,21 +800,20 @@ TEST_CASE("Wait on Timer", "[timer]") {
   REQUIRE(timer);
   result = Wait(timer.get(), false, 1ms);
   REQUIRE(result == WaitResult::kTimeout);
-  REQUIRE(timer->SetOnce(1ms));  // Signals it
-  result = Wait(timer.get(), false, 2ms);
+  REQUIRE(timer->SetOnceAfter(1ms));  // Signals it
+  result = Wait(timer.get(), false, 20ms);
   REQUIRE(result == WaitResult::kSuccess);
   result = Wait(timer.get(), false, 1ms);
   REQUIRE(result == WaitResult::kTimeout);  // Did reset
 
-  // TODO(bwrsandman): This test unexpectedly fails under windows
   // Test long due time
-  // timer = Timer::CreateSynchronizationTimer();
-  // REQUIRE(timer->SetOnce(10s));
-  // result = Wait(timer.get(), false, 10ms);  // Still signals under windows
-  // REQUIRE(result == WaitResult::kTimeout);
+  timer = Timer::CreateSynchronizationTimer();
+  REQUIRE(timer->SetOnceAfter(10s));
+  result = Wait(timer.get(), false, 10ms);
+  REQUIRE(result == WaitResult::kTimeout);
 
   // Test Repeating
-  REQUIRE(timer->SetRepeating(1ms, 10ms));
+  REQUIRE(timer->SetRepeatingAfter(1ms, 10ms));
   for (int i = 0; i < 10; ++i) {
     result = Wait(timer.get(), false, 20ms);
     INFO(i);
@@ -777,12 +834,12 @@ TEST_CASE("Wait on Timer", "[timer]") {
   result = Wait(timer.get(), false, 20ms);
   REQUIRE(result == WaitResult::kTimeout);
   // Cancel with SetOnce
-  REQUIRE(timer->SetRepeating(1ms, 10ms));
+  REQUIRE(timer->SetRepeatingAfter(1ms, 10ms));
   for (int i = 0; i < 10; ++i) {
     result = Wait(timer.get(), false, 20ms);
     REQUIRE(result == WaitResult::kSuccess);
   }
-  REQUIRE(timer->SetOnce(1ms));
+  REQUIRE(timer->SetOnceAfter(1ms));
   result = Wait(timer.get(), false, 20ms);
   REQUIRE(result == WaitResult::kSuccess);  // Signal from Set Once
   result = Wait(timer.get(), false, 20ms);
@@ -804,7 +861,7 @@ TEST_CASE("Wait on Multiple Timers", "[timer]") {
   REQUIRE(any_result.second == 0);
 
   // Some signaled
-  REQUIRE(timer1->SetOnce(1ms));
+  REQUIRE(timer1->SetOnceAfter(1ms));
   all_result = WaitAll({timer0.get(), timer1.get()}, false, 100ms);
   REQUIRE(all_result == WaitResult::kTimeout);
   any_result = WaitAny({timer0.get(), timer1.get()}, false, 100ms);
@@ -812,11 +869,11 @@ TEST_CASE("Wait on Multiple Timers", "[timer]") {
   REQUIRE(any_result.second == 1);
 
   // All signaled
-  REQUIRE(timer0->SetOnce(1ms));
+  REQUIRE(timer0->SetOnceAfter(1ms));
   all_result = WaitAll({timer0.get(), timer1.get()}, false, 100ms);
   REQUIRE(all_result == WaitResult::kSuccess);
-  REQUIRE(timer0->SetOnce(1ms));
-  Sleep(1ms);
+  REQUIRE(timer0->SetOnceAfter(1ms));
+  Sleep(2ms);
   any_result = WaitAny({timer0.get(), timer1.get()}, false, 100ms);
   REQUIRE(any_result.first == WaitResult::kSuccess);
   REQUIRE(any_result.second == 0);

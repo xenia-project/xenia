@@ -336,6 +336,7 @@ void AndroidWindowedAppContext::Shutdown() {
     ui_thread_looper_ = nullptr;
   }
 
+  activity_method_post_invalidate_window_surface_ = nullptr;
   activity_method_finish_ = nullptr;
   if (activity_) {
     ui_thread_jni_env_->DeleteGlobalRef(activity_);

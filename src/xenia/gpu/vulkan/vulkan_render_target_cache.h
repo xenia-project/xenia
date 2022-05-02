@@ -85,8 +85,9 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
         : framebuffer(framebuffer), host_extent(host_extent) {}
   };
 
-  VulkanRenderTargetCache(VulkanCommandProcessor& command_processor,
-                          const RegisterFile& register_file);
+  VulkanRenderTargetCache(const RegisterFile& register_file,
+                          const Memory& memory, TraceWriter* trace_writer,
+                          VulkanCommandProcessor& command_processor);
   ~VulkanRenderTargetCache();
 
   bool Initialize();
@@ -103,7 +104,9 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   uint32_t GetResolutionScaleY() const override { return resolution_scale_y_; }
 
   bool Update(bool is_rasterization_done,
-              uint32_t shader_writes_color_targets) override;
+              reg::RB_DEPTHCONTROL normalized_depth_control,
+              uint32_t normalized_color_mask,
+              const Shader& vertex_shader) override;
   // Binding information for the last successful update.
   RenderPassKey last_update_render_pass_key() const {
     return last_update_render_pass_key_;

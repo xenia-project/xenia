@@ -51,10 +51,14 @@ VkShaderModule VulkanShader::VulkanTranslation::GetOrCreateShaderModule() {
   return shader_module_;
 }
 
-VulkanShader::VulkanShader(xenos::ShaderType shader_type, uint64_t data_hash,
-                           const uint32_t* dword_ptr, uint32_t dword_count,
-                           const ui::vulkan::VulkanProvider& provider)
-    : Shader(shader_type, data_hash, dword_ptr, dword_count),
+VulkanShader::VulkanShader(const ui::vulkan::VulkanProvider& provider,
+                           xenos::ShaderType shader_type,
+                           uint64_t ucode_data_hash,
+                           const uint32_t* ucode_dwords,
+                           size_t ucode_dword_count,
+                           std::endian ucode_source_endian)
+    : Shader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count,
+             ucode_source_endian),
       provider_(provider) {}
 
 Shader::Translation* VulkanShader::CreateTranslationInstance(

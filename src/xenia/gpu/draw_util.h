@@ -84,18 +84,7 @@ bool IsRasterizationPotentiallyDone(const RegisterFile& regs,
 extern const int8_t kD3D10StandardSamplePositions2x[2][2];
 extern const int8_t kD3D10StandardSamplePositions4x[4][2];
 
-inline reg::RB_DEPTHCONTROL GetDepthControlForCurrentEdramMode(
-    const RegisterFile& regs) {
-  xenos::ModeControl edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
-  if (edram_mode != xenos::ModeControl::kColorDepth &&
-      edram_mode != xenos::ModeControl::kDepth) {
-    // Both depth and stencil disabled (EDRAM depth and stencil ignored).
-    reg::RB_DEPTHCONTROL disabled;
-    disabled.value = 0;
-    return disabled;
-  }
-  return regs.Get<reg::RB_DEPTHCONTROL>();
-}
+reg::RB_DEPTHCONTROL GetNormalizedDepthControl(const RegisterFile& regs);
 
 constexpr float GetD3D10PolygonOffsetFactor(
     xenos::DepthRenderTargetFormat depth_format, bool float24_as_0_to_0_5) {
@@ -183,6 +172,7 @@ struct ViewportInfo {
 void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale_x,
                          uint32_t resolution_scale_y, bool origin_bottom_left,
                          uint32_t x_max, uint32_t y_max, bool allow_reverse_z,
+                         reg::RB_DEPTHCONTROL normalized_depth_control,
                          bool convert_z_to_float24, bool full_float24_in_0_to_1,
                          bool pixel_shader_writes_depth,
                          ViewportInfo& viewport_info_out);

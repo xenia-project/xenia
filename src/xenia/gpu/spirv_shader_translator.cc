@@ -385,12 +385,12 @@ void SpirvShaderTranslator::StartTranslation() {
   var_main_loop_count_ = builder_->createVariable(
       spv::NoPrecision, spv::StorageClassFunction, type_uint4_,
       "xe_var_loop_count", const_uint4_0_);
-  var_main_address_absolute_ = builder_->createVariable(
+  var_main_address_register_ = builder_->createVariable(
       spv::NoPrecision, spv::StorageClassFunction, type_int_,
-      "xe_var_address_absolute", const_int_0_);
-  var_main_address_relative_ = builder_->createVariable(
+      "xe_var_address_register", const_int_0_);
+  var_main_loop_address_ = builder_->createVariable(
       spv::NoPrecision, spv::StorageClassFunction, type_int4_,
-      "xe_var_address_relative", const_int4_0_);
+      "xe_var_loop_address", const_int4_0_);
   var_main_previous_scalar_ = builder_->createVariable(
       spv::NoPrecision, spv::StorageClassFunction, type_float_,
       "xe_var_previous_scalar", const_float_0_);
@@ -693,7 +693,7 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
   // Push aL - keep the same value as in the previous loop if repeating, or the
   // new one otherwise.
   spv::Id address_relative_stack_old =
-      builder_->createLoad(var_main_address_relative_, spv::NoPrecision);
+      builder_->createLoad(var_main_loop_address_, spv::NoPrecision);
   id_vector_temp_.clear();
   id_vector_temp_.reserve(4);
   if (instr.is_repeat) {
@@ -713,7 +713,7 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
   }
   builder_->createStore(
       builder_->createCompositeConstruct(type_int4_, id_vector_temp_),
-      var_main_address_relative_);
+      var_main_loop_address_);
 
   // Break (jump to the skip label) if the loop counter is 0 (since the
   // condition is checked in the end).
@@ -762,7 +762,7 @@ void SpirvShaderTranslator::ProcessLoopEndInstruction(
       builder_->createCompositeExtract(loop_count_stack_old, type_uint_, 0),
       builder_->makeUintConstant(1));
   spv::Id address_relative_stack_old =
-      builder_->createLoad(var_main_address_relative_, spv::NoPrecision);
+      builder_->createLoad(var_main_loop_address_, spv::NoPrecision);
 
   // Predicated break works like break if (loop_count == 0 || [!]p0).
   // Three options, due to logical operations usage (so OpLogicalNot is not
@@ -841,7 +841,7 @@ void SpirvShaderTranslator::ProcessLoopEndInstruction(
                                           loop_constant),
                   builder_->makeIntConstant(16), builder_->makeIntConstant(8))),
           address_relative_stack_old, type_int4_, 0),
-      var_main_address_relative_);
+      var_main_loop_address_);
   // Jump back to the beginning of the loop body.
   main_switch_next_pc_phi_operands_.push_back(
       builder_->makeIntConstant(int(instr.loop_body_address)));
@@ -872,7 +872,7 @@ void SpirvShaderTranslator::ProcessLoopEndInstruction(
   id_vector_temp_.push_back(const_int_0_);
   builder_->createStore(
       builder_->createCompositeConstruct(type_int4_, id_vector_temp_),
-      var_main_address_relative_);
+      var_main_loop_address_);
   // Now going to fall through to the next control flow instruction.
 }
 
@@ -1417,7 +1417,7 @@ spv::Id SpirvShaderTranslator::GetStorageAddressingIndex(
   EnsureBuildPointAvailable();
   spv::Id base_pointer = spv::NoResult;
   switch (addressing_mode) {
-    case InstructionStorageAddressingMode::kStatic: {
+    case InstructionStorageAddressingMode::kAbsolute: {
       uint32_t static_storage_index = storage_index;
       if (is_float_constant) {
         static_storage_index =
@@ -1429,15 +1429,15 @@ spv::Id SpirvShaderTranslator::GetStorageAddressingIndex(
       }
       return builder_->makeIntConstant(int(static_storage_index));
     }
-    case InstructionStorageAddressingMode::kAddressAbsolute:
-      base_pointer = var_main_address_absolute_;
+    case InstructionStorageAddressingMode::kAddressRegisterRelative:
+      base_pointer = var_main_address_register_;
       break;
-    case InstructionStorageAddressingMode::kAddressRelative:
+    case InstructionStorageAddressingMode::kLoopRelative:
       // Load X component.
       id_vector_temp_util_.clear();
       id_vector_temp_util_.push_back(const_int_0_);
       base_pointer = builder_->createAccessChain(spv::StorageClassFunction,
-                                                 var_main_address_relative_,
+                                                 var_main_loop_address_,
                                                  id_vector_temp_util_);
       break;
   }
