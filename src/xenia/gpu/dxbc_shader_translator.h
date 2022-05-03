@@ -130,6 +130,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_UserClipPlane5_Shift,
     kSysFlag_KillIfAnyVertexKilled_Shift,
     kSysFlag_PrimitivePolygonal_Shift,
+    kSysFlag_PrimitivePoint_Shift,
+    kSysFlag_PrimitiveLine_Shift,
     kSysFlag_DepthFloat24_Shift,
     kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual_Shift,
@@ -173,6 +175,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSysFlag_UserClipPlane5 = 1u << kSysFlag_UserClipPlane5_Shift,
     kSysFlag_KillIfAnyVertexKilled = 1u << kSysFlag_KillIfAnyVertexKilled_Shift,
     kSysFlag_PrimitivePolygonal = 1u << kSysFlag_PrimitivePolygonal_Shift,
+    kSysFlag_PrimitivePoint = 1u << kSysFlag_PrimitivePoint_Shift,
+    kSysFlag_PrimitiveLine = 1u << kSysFlag_PrimitiveLine_Shift,
     kSysFlag_DepthFloat24 = 1u << kSysFlag_DepthFloat24_Shift,
     kSysFlag_AlphaPassIfLess = 1u << kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual = 1u << kSysFlag_AlphaPassIfEqual_Shift,
@@ -233,18 +237,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
     float user_clip_planes[6][4];
 
     float ndc_scale[3];
-    float point_size_x;
+    float point_vertex_diameter_min;
 
     float ndc_offset[3];
-    float point_size_y;
+    float point_vertex_diameter_max;
 
-    union {
-      struct {
-        float point_size_min;
-        float point_size_max;
-      };
-      float point_size_min_max[2];
-    };
+    float point_constant_radius[2];
     // Screen point size * 2 (but not supersampled) -> size in NDC.
     float point_screen_to_ndc[2];
 
@@ -353,12 +351,12 @@ class DxbcShaderTranslator : public ShaderTranslator {
       kUserClipPlanes,
 
       kNDCScale,
-      kPointSizeX,
+      kPointVertexDiameterMin,
 
       kNDCOffset,
-      kPointSizeY,
+      kPointVertexDiameterMax,
 
-      kPointSizeMinMax,
+      kPointConstantRadius,
       kPointScreenToNDC,
 
       kInterpolatorSamplingPattern,
