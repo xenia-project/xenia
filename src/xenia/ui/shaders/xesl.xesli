@@ -76,7 +76,7 @@
 // the `set=` and `binding=` specifiers, and register types and the `space`
 // prefix in HLSL, are exposed to the shader, even though they're redundant.
 //
-// The xesl_id_ prefix (with context-specific sub-prefixes) can be used to
+// The `xesl_id_` prefix (with context-specific sub-prefixes) can be used to
 // create internal derivative identifiers (such as buffer block names from
 // instance names, or separate texture and sampler from a combined texture /
 // sampler for languages not supporting the latter).
@@ -232,13 +232,13 @@
                                   hlsl_t, hlsl_t_space)                     \
       layout(std430, glsl_set, glsl_binding)                                \
       readonly buffer xesl_id_buffer_##name {                               \
-        value_type data[];                                                  \
+        value_type xesl_id_data[];                                          \
       } name;
   #define xesl_writeTypedStorageBuffer(value_type, name, glsl_set,         \
                                        glsl_binding, hlsl_u, hlsl_u_space) \
       layout(std430, glsl_set, glsl_binding)                               \
       writeonly buffer xesl_id_buffer_##name {                             \
-        value_type data[];                                                 \
+        value_type xesl_id_data[];                                         \
       } name;
   #define xesl_texture(texture_type, name, glsl_set, glsl_binding, hlsl_t, \
                        hlsl_t_space)                                       \
@@ -251,9 +251,9 @@
       layout(glsl_set, glsl_binding) uniform sampler_type name;
   // Fetching and storing.
   #define xesl_typedStorageBufferLoad(name, position) \
-      ((name).data[uint(position)])
+      ((name).xesl_id_data[uint(position)])
   #define xesl_writeTypedStorageBufferStore(name, position, value) \
-      ((name).data[uint(position)] = (value))
+      ((name).xesl_id_data[uint(position)] = (value))
   #define xesl_texelFetch2D(texture_name, position, lod) \
       texelFetch(texture_name, position, lod)
   #define xesl_texelFetch2DMS(texture_name, position, sample_index) \
@@ -454,6 +454,9 @@
 #endif  // !xesl_dont_flatten
 
 // Function aliases.
+//
+// Use the `xesl_var_` prefix for arguments of functions that are not macros and
+// for local variables.
 
 #if XESL_LANGUAGE_GLSL
   #define xesl_lessThan lessThan
@@ -486,39 +489,70 @@
   #define xesl_uintBitsToFloat uintBitsToFloat
 #elif XESL_LANGUAGE_HLSL
   // Using functions instead of #define for implicit argument conversion.
-  int xesl_floatBitsToInt(float value) { return asint(value); }
-  xesl_int2 xesl_floatBitsToInt(xesl_float2 value) { return asint(value); }
-  xesl_int3 xesl_floatBitsToInt(xesl_float3 value) { return asint(value); }
-  xesl_int4 xesl_floatBitsToInt(xesl_float4 value) { return asint(value); }
-  uint xesl_floatBitsToUint(float value) { return asuint(value); }
-  xesl_uint2 xesl_floatBitsToUint(xesl_float2 value) { return asuint(value); }
-  xesl_uint3 xesl_floatBitsToUint(xesl_float3 value) { return asuint(value); }
-  xesl_uint4 xesl_floatBitsToUint(xesl_float4 value) { return asuint(value); }
-  float xesl_intBitsToFloat(int value) { return asfloat(value); }
-  xesl_float2 xesl_intBitsToFloat(xesl_int2 value) { return asfloat(value); }
-  xesl_float3 xesl_intBitsToFloat(xesl_int3 value) { return asfloat(value); }
-  xesl_float4 xesl_intBitsToFloat(xesl_int4 value) { return asfloat(value); }
-  float xesl_uintBitsToFloat(uint value) { return asfloat(value); }
-  xesl_float2 xesl_uintBitsToFloat(xesl_uint2 value) { return asfloat(value); }
-  xesl_float3 xesl_uintBitsToFloat(xesl_uint3 value) { return asfloat(value); }
-  xesl_float4 xesl_uintBitsToFloat(xesl_uint4 value) { return asfloat(value); }
+  int xesl_floatBitsToInt(float xesl_var_value) {
+    return asint(xesl_var_value);
+  }
+  xesl_int2 xesl_floatBitsToInt(xesl_float2 xesl_var_value) {
+    return asint(xesl_var_value);
+  }
+  xesl_int3 xesl_floatBitsToInt(xesl_float3 xesl_var_value) {
+    return asint(xesl_var_value);
+  }
+  xesl_int4 xesl_floatBitsToInt(xesl_float4 xesl_var_value) {
+    return asint(xesl_var_value);
+  }
+  uint xesl_floatBitsToUint(float xesl_var_value) {
+    return asuint(xesl_var_value);
+  }
+  xesl_uint2 xesl_floatBitsToUint(xesl_float2 xesl_var_value) {
+    return asuint(xesl_var_value);
+  }
+  xesl_uint3 xesl_floatBitsToUint(xesl_float3 xesl_var_value) {
+    return asuint(xesl_var_value);
+  }
+  xesl_uint4 xesl_floatBitsToUint(xesl_float4 xesl_var_value) {
+    return asuint(xesl_var_value);
+  }
+  float xesl_intBitsToFloat(int xesl_var_value) {
+    return asfloat(xesl_var_value);
+  }
+  xesl_float2 xesl_intBitsToFloat(xesl_int2 xesl_var_value) {
+    return asfloat(xesl_var_value);
+  }
+  xesl_float3 xesl_intBitsToFloat(xesl_int3 xesl_var_value) {
+    return asfloat(xesl_var_value);
+  }
+  xesl_float4 xesl_intBitsToFloat(xesl_int4 xesl_var_value) {
+    return asfloat(xesl_var_value);
+  }
+  float xesl_uintBitsToFloat(uint xesl_var_value) {
+    return asfloat(xesl_var_value);
+  }
+  xesl_float2 xesl_uintBitsToFloat(xesl_uint2 xesl_var_value) {
+    return asfloat(xesl_var_value);
+  }
+  xesl_float3 xesl_uintBitsToFloat(xesl_uint3 xesl_var_value) {
+    return asfloat(xesl_var_value);
+  }
+  xesl_float4 xesl_uintBitsToFloat(xesl_uint4 xesl_var_value) {
+    return asfloat(xesl_var_value);
+  }
 #else
   #error Float bit casting not defined for the target language.
 #endif  // XESL_LANGUAGE
 
 #if XESL_LANGUAGE_GLSL
-  float xesl_saturate(float value) {
-    return clamp(value, 0.0, 1.0);
+  float xesl_saturate(float xesl_var_value) {
+    return clamp(xesl_var_value, 0.0, 1.0);
   }
-  xesl_float2 xesl_saturate(xesl_float2 value) {
-    return clamp(value, xesl_float2(0.0, 0.0), xesl_float2(1.0, 1.0));
+  xesl_float2 xesl_saturate(xesl_float2 xesl_var_value) {
+    return clamp(xesl_var_value, (0.0).xx, (1.0).xx);
   }
-  xesl_float3 xesl_saturate(xesl_float3 value) {
-    return clamp(value, xesl_float3(0.0, 0.0, 0.0), xesl_float3(1.0, 1.0, 1.0));
+  xesl_float3 xesl_saturate(xesl_float3 xesl_var_value) {
+    return clamp(xesl_var_value, (0.0).xxx, (1.0).xxx);
   }
-  xesl_float4 xesl_saturate(xesl_float4 value) {
-    return clamp(value, xesl_float4(0.0, 0.0, 0.0, 0.0),
-                 xesl_float4(1.0, 1.0, 1.0, 1.0));
+  xesl_float4 xesl_saturate(xesl_float4 xesl_var_value) {
+    return clamp(xesl_var_value, (0.0).xxxx, (1.0).xxxx);
   }
 #else
   #define xesl_saturate saturate
@@ -537,8 +571,8 @@
 #if XESL_LANGUAGE_GLSL
   #define xesl_packHalf2x16 packHalf2x16
 #elif XESL_LANGUAGE_HLSL
-  uint xesl_packHalf2x16(xesl_float2 value) {
-    return f32tof16(value.x) | (f32tof16(value.y) << 16u);
+  uint xesl_packHalf2x16(xesl_float2 xesl_var_value) {
+    return f32tof16(xesl_var_value.x) | (f32tof16(xesl_var_value.y) << 16u);
   }
 #else
   #error xesl_packHalf2x16 not defined for the target language.
