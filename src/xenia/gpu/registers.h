@@ -184,6 +184,17 @@ union alignas(uint32_t) SQ_CONTEXT_MISC {
     //   take abs(SPRITETEXCOORD.zw) explicitly.
     //   https://shawnhargreaves.com/blog/point-sprites-on-xbox.html
     //   4D5307F1 has snowflake point sprites with an asymmetric texture.
+    //   * For non-point primitives, according to LG P705, this may be the IJ
+    //     barycentric coordinates, however, it's not yet known how intentional,
+    //     well-defined and reliable this behavior is, and whether any game uses
+    //     it on purpose. Also, the mapping between the vertex indices and the
+    //     order of these coordinates seems to vary possibly depending on the
+    //     positions of the vertices relative to each other even when the
+    //     winding order stays the same. It's also unknown what effect the
+    //     provoking vertex convention has on the order.
+    // TODO(Triang3l): Research the order, as well as the sampling location, of
+    // PsParamGen.zw, the behavior (whether they're extrapolated) when the
+    // center of the pixel is not covered, on the real hardware.
     // * Sign bit of X - is front face (according to the disassembly of vFace
     //   and gl_FrontFacing usage), non-negative for front face, negative for
     //   back face (used with `rcpc` in shaders to take signedness of 0 into

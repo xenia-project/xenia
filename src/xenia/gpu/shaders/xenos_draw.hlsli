@@ -13,12 +13,12 @@ cbuffer xe_system_cbuffer : register(b0) {
   float4 xe_user_clip_planes[6];
 
   float3 xe_ndc_scale;
-  float xe_point_size_x;
+  float xe_point_vertex_diameter_min;
 
   float3 xe_ndc_offset;
-  float xe_point_size_y;
+  float xe_point_vertex_diameter_max;
 
-  float2 xe_point_size_min_max;
+  float2 xe_point_constant_radius;
   float2 xe_point_screen_to_ndc;
 
   uint xe_interpolator_sampling_pattern;
