@@ -3330,32 +3330,39 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       float(pa_su_point_minmax.min_size) * (2.0f / 16.0f);
   float point_vertex_diameter_max =
       float(pa_su_point_minmax.max_size) * (2.0f / 16.0f);
-  float point_constant_radius_x =
-      float(pa_su_point_size.width) * (1.0f / 16.0f);
-  float point_constant_radius_y =
-      float(pa_su_point_size.height) * (1.0f / 16.0f);
+  float point_constant_diameter_x =
+      float(pa_su_point_size.width) * (2.0f / 16.0f);
+  float point_constant_diameter_y =
+      float(pa_su_point_size.height) * (2.0f / 16.0f);
   dirty |=
       system_constants_.point_vertex_diameter_min != point_vertex_diameter_min;
   dirty |=
       system_constants_.point_vertex_diameter_max != point_vertex_diameter_max;
   dirty |=
-      system_constants_.point_constant_radius[0] != point_constant_radius_x;
+      system_constants_.point_constant_diameter[0] != point_constant_diameter_x;
   dirty |=
-      system_constants_.point_constant_radius[1] != point_constant_radius_y;
+      system_constants_.point_constant_diameter[1] != point_constant_diameter_y;
   system_constants_.point_vertex_diameter_min = point_vertex_diameter_min;
   system_constants_.point_vertex_diameter_max = point_vertex_diameter_max;
-  system_constants_.point_constant_radius[0] = point_constant_radius_x;
-  system_constants_.point_constant_radius[1] = point_constant_radius_y;
-  float point_screen_to_ndc_x =
+  system_constants_.point_constant_diameter[0] = point_constant_diameter_x;
+  system_constants_.point_constant_diameter[1] = point_constant_diameter_y;
+  // 2 because 1 in the NDC is half of the viewport's axis, 0.5 for diameter to
+  // radius conversion to avoid multiplying the per-vertex diameter by an
+  // additional constant in the shader.
+  float point_screen_diameter_to_ndc_radius_x =
       (/* 0.5f * 2.0f * */ float(resolution_scale_x)) /
       std::max(viewport_info.xy_extent[0], uint32_t(1));
-  float point_screen_to_ndc_y =
+  float point_screen_diameter_to_ndc_radius_y =
       (/* 0.5f * 2.0f * */ float(resolution_scale_y)) /
       std::max(viewport_info.xy_extent[1], uint32_t(1));
-  dirty |= system_constants_.point_screen_to_ndc[0] != point_screen_to_ndc_x;
-  dirty |= system_constants_.point_screen_to_ndc[1] != point_screen_to_ndc_y;
-  system_constants_.point_screen_to_ndc[0] = point_screen_to_ndc_x;
-  system_constants_.point_screen_to_ndc[1] = point_screen_to_ndc_y;
+  dirty |= system_constants_.point_screen_diameter_to_ndc_radius[0] !=
+           point_screen_diameter_to_ndc_radius_x;
+  dirty |= system_constants_.point_screen_diameter_to_ndc_radius[1] !=
+           point_screen_diameter_to_ndc_radius_y;
+  system_constants_.point_screen_diameter_to_ndc_radius[0] =
+      point_screen_diameter_to_ndc_radius_x;
+  system_constants_.point_screen_diameter_to_ndc_radius[1] =
+      point_screen_diameter_to_ndc_radius_y;
 
   // Interpolator sampling pattern, centroid or center.
   uint32_t interpolator_sampling_pattern =

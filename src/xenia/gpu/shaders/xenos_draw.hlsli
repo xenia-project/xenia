@@ -18,8 +18,8 @@ cbuffer xe_system_cbuffer : register(b0) {
   float3 xe_ndc_offset;
   float xe_point_vertex_diameter_max;
 
-  float2 xe_point_constant_radius;
-  float2 xe_point_screen_to_ndc;
+  float2 xe_point_constant_diameter;
+  float2 xe_point_screen_diameter_to_ndc_radius;
 
   uint xe_interpolator_sampling_pattern;
   uint xe_ps_param_gen;
@@ -70,7 +70,7 @@ struct XeHSControlPointOutput {
 
 struct XeVertexPrePS {
   float4 interpolators[16] : TEXCOORD0;
-  float3 point_params : TEXCOORD16;
+  float3 point_parameters : TEXCOORD16;
 };
 
 struct XeVertexPostGS {
