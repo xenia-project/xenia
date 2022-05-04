@@ -85,10 +85,10 @@ void main(triangle XeVertexPreGS xe_in[3],
         v3_signs.y * xe_in[1].post_gs.pre_ps.interpolators[i] +
         v3_signs.z * xe_in[2].post_gs.pre_ps.interpolators[i];
   }
-  xe_out.pre_ps.point_params =
-      v3_signs.x * xe_in[0].post_gs.pre_ps.point_params +
-      v3_signs.y * xe_in[1].post_gs.pre_ps.point_params +
-      v3_signs.z * xe_in[2].post_gs.pre_ps.point_params;
+  xe_out.pre_ps.point_parameters =
+      v3_signs.x * xe_in[0].post_gs.pre_ps.point_parameters +
+      v3_signs.y * xe_in[1].post_gs.pre_ps.point_parameters +
+      v3_signs.z * xe_in[2].post_gs.pre_ps.point_parameters;
   xe_out.position = v3_signs.x * xe_in[0].post_gs.position +
                     v3_signs.y * xe_in[1].post_gs.position +
                     v3_signs.z * xe_in[2].post_gs.position;

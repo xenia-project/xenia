@@ -2040,9 +2040,9 @@ const DxbcShaderTranslator::SystemConstantRdef
         {"xe_point_vertex_diameter_max", ShaderRdefTypeIndex::kFloat,
          sizeof(float)},
 
-        {"xe_point_constant_radius", ShaderRdefTypeIndex::kFloat2,
+        {"xe_point_constant_diameter", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
-        {"xe_point_screen_to_ndc", ShaderRdefTypeIndex::kFloat2,
+        {"xe_point_screen_diameter_to_ndc_radius", ShaderRdefTypeIndex::kFloat2,
          sizeof(float) * 2},
 
         {"xe_interpolator_sampling_pattern", ShaderRdefTypeIndex::kUint,
