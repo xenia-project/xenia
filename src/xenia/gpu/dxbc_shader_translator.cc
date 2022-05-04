@@ -1814,12 +1814,26 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
                     2 + (instr.loop_constant_index >> 2))
           .Select(instr.loop_constant_index & 3));
 
-  // Push the count to the loop count stack - move XYZ to YZW and set X to this
-  // loop count.
-  a_.OpMov(dxbc::Dest::R(system_temp_loop_count_, 0b1110),
-           dxbc::Src::R(system_temp_loop_count_, 0b10010000));
-  a_.OpAnd(dxbc::Dest::R(system_temp_loop_count_, 0b0001), loop_constant_src,
-           dxbc::Src::LU(UINT8_MAX));
+  {
+    uint32_t loop_count_temp = PushSystemTemp();
+    a_.OpAnd(dxbc::Dest::R(loop_count_temp, 0b0001), loop_constant_src,
+             dxbc::Src::LU(UINT8_MAX));
+
+    // Skip the loop without pushing if the count is zero from the beginning.
+    a_.OpIf(false, dxbc::Src::R(loop_count_temp, dxbc::Src::kXXXX));
+    JumpToLabel(instr.loop_skip_address);
+    a_.OpEndIf();
+
+    // Push the count to the loop count stack - move XYZ to YZW and set X to the
+    // new loop count.
+    a_.OpMov(dxbc::Dest::R(system_temp_loop_count_, 0b1110),
+             dxbc::Src::R(system_temp_loop_count_, 0b10010000));
+    a_.OpMov(dxbc::Dest::R(system_temp_loop_count_, 0b0001),
+             dxbc::Src::R(loop_count_temp, dxbc::Src::kXXXX));
+
+    // Release loop_count_temp.
+    PopSystemTemp();
+  }
 
   // Push aL - keep the same value as in the previous loop if repeating, or the
   // new one otherwise.
@@ -1829,13 +1843,6 @@ void DxbcShaderTranslator::ProcessLoopStartInstruction(
     a_.OpUBFE(dxbc::Dest::R(system_temp_aL_, 0b0001), dxbc::Src::LU(8),
               dxbc::Src::LU(8), loop_constant_src);
   }
-
-  // Break if the loop counter is 0 (since the condition is checked in the end).
-  // TODO(Triang3l): Move this before pushing and address loading. This won't
-  // pop if the counter is 0.
-  a_.OpIf(false, dxbc::Src::R(system_temp_loop_count_, dxbc::Src::kXXXX));
-  JumpToLabel(instr.loop_skip_address);
-  a_.OpEndIf();
 }
 
 void DxbcShaderTranslator::ProcessLoopEndInstruction(
