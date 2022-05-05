@@ -225,8 +225,9 @@ workspace("xenia")
       platforms({"Windows"})
       -- 10.0.15063.0: ID3D12GraphicsCommandList1::SetSamplePositions.
       -- 10.0.19041.0: D3D12_HEAP_FLAG_CREATE_NOT_ZEROED.
+      -- 10.0.22000.0: DWMWA_WINDOW_CORNER_PREFERENCE.
       filter("action:vs2017")
-        systemversion("10.0.19041.0")
+        systemversion("10.0.22000.0")
       filter("action:vs2019")
         systemversion("10.0")
       filter({})
