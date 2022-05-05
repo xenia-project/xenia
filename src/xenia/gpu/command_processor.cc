@@ -405,7 +405,7 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
         auto& gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
         // Bit 7 of the index is ignored for PWL.
         uint32_t gamma_ramp_rw_index_pwl = gamma_ramp_rw_index.rw_index & 0x7F;
-        // DC_LUT_RW_INDEX is likely in the red, green, blue order because
+        // DC_LUT_PWL_DATA is likely in the red, green, blue order because
         // DC_LUT_SEQ_COLOR is, but the write enable mask is blue, green, red.
         bool write_gamma_ramp_component =
             (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK].u32 &
