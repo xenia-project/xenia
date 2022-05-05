@@ -98,8 +98,6 @@ class VulkanCommandProcessor : public CommandProcessor {
                         VulkanShader* pixel_shader);
   bool IssueCopy() override;
 
-  void InitializeTrace() override;
-
   uint64_t dirty_float_constants_ = 0;  // Dirty float constants in blocks of 4
   uint8_t dirty_bool_constants_ = 0;
   uint32_t dirty_loop_constants_ = 0;

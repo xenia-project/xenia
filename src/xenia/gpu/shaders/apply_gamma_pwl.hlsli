@@ -32,10 +32,9 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   }
   // UNORM conversion according to the Direct3D 10+ rules.
   uint3 input = uint3(xe_apply_gamma_source[xe_thread_id.xy] * 1023.0f + 0.5f);
-  // The ramp is BGR, not RGB.
-  float3 output = float3(XeApplyPWLGamma(input.r, 2u),
+  float3 output = float3(XeApplyPWLGamma(input.r, 0u),
                          XeApplyPWLGamma(input.g, 1u),
-                         XeApplyPWLGamma(input.b, 0u));
+                         XeApplyPWLGamma(input.b, 2u));
   xe_apply_gamma_dest[xe_thread_id.xy] =
       float4(output, XeApplyGammaGetAlpha(output));
 }

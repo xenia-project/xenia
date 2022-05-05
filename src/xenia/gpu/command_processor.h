@@ -22,6 +22,7 @@
 #include "xenia/base/ring_buffer.h"
 #include "xenia/base/threading.h"
 #include "xenia/gpu/register_file.h"
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/trace_writer.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/xthread.h"
@@ -62,61 +63,6 @@ enum class GammaRampType {
   kUnknown = 0,
   kTable,
   kPWL,
-};
-
-struct GammaRamp {
-  // A lot of gamma ramp (DC_LUT) documentation:
-  // https://developer.amd.com/wordpress/media/2012/10/RRG-216M56-03oOEM.pdf
-  // The ramps entries are BGR, not RGB.
-  // For the 256-entry table (used by Direct3D 9 for a 8bpc front buffer),
-  // 535107D4 has in-game settings allowing separate configuration.
-  // The component order of the PWL table is untested, however, it's likely BGR
-  // too, since DC_LUTA/B registers have values for blue first, and for red
-  // last.
-  struct TableEntry {
-    union {
-      uint32_t value;
-      struct {
-        uint32_t b : 10;
-        uint32_t g : 10;
-        uint32_t r : 10;
-        uint32_t : 2;
-      };
-    };
-  };
-
-  struct PWLValue {
-    union {
-      uint32_t value;
-      struct {
-        // The lower 6 bits are always zero (these are 10-bit in the upper bits
-        // thus, not fully 16-bit).
-        // See DC_LUTA/B_CONTROL for information about the way they should be
-        // interpreted (`output = base + (multiplier * delta) / 2^increment`,
-        // where the increment is the value specified in DC_LUTA/B_CONTROL for
-        // the specific color channel, the base is 7 bits of the front buffer
-        // value above `increment` bits, the multiplier is the lower `increment`
-        // bits of it; the increment is nonzero, otherwise the 256-entry table
-        // should be used instead).
-        uint16_t base;
-        uint16_t delta;
-      };
-    };
-  };
-
-  struct PWLEntry {
-    union {
-      PWLValue values[3];
-      struct {
-        PWLValue b;
-        PWLValue g;
-        PWLValue r;
-      };
-    };
-  };
-
-  TableEntry table[256];
-  PWLEntry pwl[128];
 };
 
 class CommandProcessor {
@@ -170,6 +116,13 @@ class CommandProcessor {
 
   virtual void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) = 0;
 
+  void RestoreRegisters(uint32_t first_register,
+                        const uint32_t* register_values,
+                        uint32_t register_count, bool execute_callbacks);
+  void RestoreGammaRamp(
+      const reg::DC_LUT_30_COLOR* new_gamma_ramp_256_entry_table,
+      const reg::DC_LUT_PWL_DATA* new_gamma_ramp_pwl_rgb,
+      uint32_t new_gamma_ramp_rw_component);
   virtual void RestoreEdramSnapshot(const void* snapshot) = 0;
 
   void InitializeRingBuffer(uint32_t ptr, uint32_t size_log2);
@@ -201,7 +154,14 @@ class CommandProcessor {
 
   virtual void WriteRegister(uint32_t index, uint32_t value);
 
-  void UpdateGammaRampValue(GammaRampType type, uint32_t value);
+  const reg::DC_LUT_30_COLOR* gamma_ramp_256_entry_table() const {
+    return gamma_ramp_256_entry_table_;
+  }
+  const reg::DC_LUT_PWL_DATA* gamma_ramp_pwl_rgb() const {
+    return gamma_ramp_pwl_rgb_[0];
+  }
+  virtual void OnGammaRamp256EntryTableValueWritten() {}
+  virtual void OnGammaRampPWLValueWritten() {}
 
   virtual void MakeCoherent();
   virtual void PrepareForWait();
@@ -285,9 +245,7 @@ class CommandProcessor {
     return swap_post_effect_actual_;
   }
 
-  // TODO(Triang3l): Write the gamma ramp (including the display controller
-  // write pointers) in the common code.
-  virtual void InitializeTrace() = 0;
+  virtual void InitializeTrace();
 
   Memory* memory_ = nullptr;
   kernel::KernelState* kernel_state_ = nullptr;
@@ -334,15 +292,15 @@ class CommandProcessor {
 
   bool paused_ = false;
 
-  GammaRamp gamma_ramp_ = {};
-  int gamma_ramp_rw_subindex_ = 0;
-  bool dirty_gamma_ramp_table_ = true;
-  bool dirty_gamma_ramp_pwl_ = true;
-
   // By default (such as for tools), post-processing is disabled.
   // "Desired" is for the external thread managing the post-processing effect.
   SwapPostEffect swap_post_effect_desired_ = SwapPostEffect::kNone;
   SwapPostEffect swap_post_effect_actual_ = SwapPostEffect::kNone;
+
+ private:
+  reg::DC_LUT_30_COLOR gamma_ramp_256_entry_table_[256] = {};
+  reg::DC_LUT_PWL_DATA gamma_ramp_pwl_rgb_[128][3] = {};
+  uint32_t gamma_ramp_rw_component_ = 0;
 };
 
 }  // namespace gpu
