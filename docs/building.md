@@ -13,7 +13,7 @@ drivers.
   * For Visual Studio 2022, MSBuild `v142` must be used due to a compiler bug; See [#2003](https://github.com/xenia-project/xenia/issues/2003).
 * [Python 3.6+](https://www.python.org/downloads/)
   * Ensure Python is in PATH.
-* Windows 10 SDK version 10.0.19041.0 (for Visual Studio 2019, this or any newer version)
+* Windows 11 SDK version 10.0.22000.0 (for Visual Studio 2019, this or any newer version)
 
 ```
 git clone https://github.com/xenia-project/xenia.git
