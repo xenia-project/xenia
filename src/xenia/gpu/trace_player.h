@@ -30,7 +30,6 @@ enum class TracePlaybackMode {
 class TracePlayer : public TraceReader {
  public:
   TracePlayer(GraphicsSystem* graphics_system);
-  ~TracePlayer() override;
 
   GraphicsSystem* graphics_system() const { return graphics_system_; }
   void SetPresentLastCopy(bool present_last_copy) {
@@ -66,7 +65,6 @@ class TracePlayer : public TraceReader {
   bool playing_trace_ = false;
   std::atomic<uint32_t> playback_percent_ = {0};
   std::unique_ptr<xe::threading::Event> playback_event_;
-  uint8_t* edram_snapshot_ = nullptr;
 };
 
 }  // namespace gpu

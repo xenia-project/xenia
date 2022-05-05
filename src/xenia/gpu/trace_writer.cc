@@ -10,6 +10,7 @@
 #include "xenia/gpu/trace_writer.h"
 
 #include <cstring>
+#include <memory>
 
 #include "third_party/snappy/snappy-sinksource.h"
 #include "third_party/snappy/snappy.h"
@@ -19,6 +20,7 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/xenos.h"
 
 namespace xe {
@@ -194,7 +196,7 @@ class SnappySink : public snappy::Sink {
 
 void TraceWriter::WriteMemoryCommand(TraceCommandType type, uint32_t base_ptr,
                                      size_t length, const void* host_ptr) {
-  MemoryCommand cmd;
+  MemoryCommand cmd = {};
   cmd.type = type;
   cmd.base_ptr = base_ptr;
   cmd.encoding_format = MemoryEncodingFormat::kNone;
@@ -232,8 +234,9 @@ void TraceWriter::WriteMemoryCommand(TraceCommandType type, uint32_t base_ptr,
 }
 
 void TraceWriter::WriteEdramSnapshot(const void* snapshot) {
-  EdramSnapshotCommand cmd;
+  EdramSnapshotCommand cmd = {};
   cmd.type = TraceCommandType::kEdramSnapshot;
+
   if (compress_output_) {
     // Write the header now so we reserve space in the buffer.
     long header_position = std::ftell(file_);
@@ -270,6 +273,94 @@ void TraceWriter::WriteEvent(EventCommand::Type event_type) {
       event_type,
   };
   fwrite(&cmd, 1, sizeof(cmd), file_);
+}
+
+void TraceWriter::WriteRegisters(uint32_t first_register,
+                                 const uint32_t* register_values,
+                                 uint32_t register_count,
+                                 bool execute_callbacks_on_play) {
+  RegistersCommand cmd = {};
+  cmd.type = TraceCommandType::kRegisters;
+  cmd.first_register = first_register;
+  cmd.register_count = register_count;
+  cmd.execute_callbacks = execute_callbacks_on_play;
+
+  uint32_t uncompressed_length = uint32_t(sizeof(uint32_t) * register_count);
+  if (compress_output_) {
+    // Write the header now so we reserve space in the buffer.
+    long header_position = std::ftell(file_);
+    cmd.encoding_format = MemoryEncodingFormat::kSnappy;
+    fwrite(&cmd, 1, sizeof(cmd), file_);
+
+    // Stream the content right to the buffer.
+    snappy::ByteArraySource snappy_source(
+        reinterpret_cast<const char*>(register_values), uncompressed_length);
+    SnappySink snappy_sink(file_);
+    cmd.encoded_length =
+        static_cast<uint32_t>(snappy::Compress(&snappy_source, &snappy_sink));
+
+    // Seek back and overwrite the header with our final size.
+    std::fseek(file_, header_position, SEEK_SET);
+    fwrite(&cmd, 1, sizeof(cmd), file_);
+    std::fseek(file_, header_position + sizeof(cmd) + cmd.encoded_length,
+               SEEK_SET);
+  } else {
+    // Uncompressed - write the values directly to the file.
+    cmd.encoding_format = MemoryEncodingFormat::kNone;
+    cmd.encoded_length = uncompressed_length;
+    fwrite(&cmd, 1, sizeof(cmd), file_);
+    fwrite(register_values, 1, uncompressed_length, file_);
+  }
+}
+
+void TraceWriter::WriteGammaRamp(
+    const reg::DC_LUT_30_COLOR* gamma_ramp_256_entry_table,
+    const reg::DC_LUT_PWL_DATA* gamma_ramp_pwl_rgb,
+    uint32_t gamma_ramp_rw_component) {
+  GammaRampCommand cmd = {};
+  cmd.type = TraceCommandType::kGammaRamp;
+  cmd.rw_component = uint8_t(gamma_ramp_rw_component);
+
+  constexpr uint32_t k256EntryTableUncompressedLength =
+      sizeof(reg::DC_LUT_30_COLOR) * 256;
+  constexpr uint32_t kPWLUncompressedLength =
+      sizeof(reg::DC_LUT_PWL_DATA) * 3 * 128;
+  constexpr uint32_t kUncompressedLength =
+      k256EntryTableUncompressedLength + kPWLUncompressedLength;
+  if (compress_output_) {
+    // Write the header now so we reserve space in the buffer.
+    long header_position = std::ftell(file_);
+    cmd.encoding_format = MemoryEncodingFormat::kSnappy;
+    fwrite(&cmd, 1, sizeof(cmd), file_);
+
+    // Stream the content right to the buffer.
+    {
+      std::unique_ptr<char[]> gamma_ramps(new char[kUncompressedLength]);
+      std::memcpy(gamma_ramps.get(), gamma_ramp_256_entry_table,
+                  k256EntryTableUncompressedLength);
+      std::memcpy(gamma_ramps.get() + k256EntryTableUncompressedLength,
+                  gamma_ramp_pwl_rgb, kPWLUncompressedLength);
+      snappy::ByteArraySource snappy_source(gamma_ramps.get(),
+                                            kUncompressedLength);
+      SnappySink snappy_sink(file_);
+      cmd.encoded_length =
+          static_cast<uint32_t>(snappy::Compress(&snappy_source, &snappy_sink));
+    }
+
+    // Seek back and overwrite the header with our final size.
+    std::fseek(file_, header_position, SEEK_SET);
+    fwrite(&cmd, 1, sizeof(cmd), file_);
+    std::fseek(file_, header_position + sizeof(cmd) + cmd.encoded_length,
+               SEEK_SET);
+  } else {
+    // Uncompressed - write the values directly to the file.
+    cmd.encoding_format = MemoryEncodingFormat::kNone;
+    cmd.encoded_length = kUncompressedLength;
+    fwrite(&cmd, 1, sizeof(cmd), file_);
+    fwrite(gamma_ramp_256_entry_table, 1, k256EntryTableUncompressedLength,
+           file_);
+    fwrite(gamma_ramp_pwl_rgb, 1, kPWLUncompressedLength, file_);
+  }
 }
 
 }  //  namespace gpu

@@ -53,6 +53,8 @@ enum class TraceCommandType : uint32_t {
   kMemoryWrite,
   kEdramSnapshot,
   kEvent,
+  kRegisters,
+  kGammaRamp,
 };
 
 struct PrimaryBufferStartCommand {
@@ -132,6 +134,40 @@ struct EventCommand {
     kSwap,
   };
   Type event_type;
+};
+
+// Represents a range of registers.
+struct RegistersCommand {
+  TraceCommandType type;
+
+  uint32_t first_register;
+  uint32_t register_count;
+  // Whether to set the registers via WriteRegister, which may have side
+  // effects, rather than by copying them directly to the register file.
+  bool execute_callbacks;
+
+  // Encoding format of the values in the trace file.
+  MemoryEncodingFormat encoding_format;
+  // Number of bytes the values occupy in the trace file in their encoded form.
+  // If no encoding is used, this will be sizeof(uint32_t) * register_count.
+  uint32_t encoded_length;
+};
+
+// Represents a gamma ramp - encoded 256 DC_LUT_30_COLOR values and 128
+// interleaved RGB DC_LUT_PWL_DATA values.
+// Assuming that all other gamma ramp state is saved as plain registers.
+struct GammaRampCommand {
+  TraceCommandType type;
+
+  // The component index (0 = red, 1 = green, 2 = blue) for the next
+  // DC_LUT_SEQ_COLOR or DC_LUT_PWL_DATA read or write.
+  uint8_t rw_component;
+
+  // Encoding format of the ramps in the trace file.
+  MemoryEncodingFormat encoding_format;
+  // Number of bytes the ramps occupy in the trace file in their encoded form.
+  // If no encoding is used, this will be sizeof(uint32_t) * (256 + 3 * 128).
+  uint32_t encoded_length;
 };
 
 }  // namespace gpu

@@ -825,6 +825,68 @@ union alignas(uint32_t) RB_COPY_DEST_PITCH {
 };
 static_assert_size(RB_COPY_DEST_PITCH, sizeof(uint32_t));
 
+/*******************************************************************************
+  ___ ___ ___ ___ _      ___   __
+ |   \_ _/ __| _ \ |    /_\ \ / /
+ | |) | |\__ \  _/ |__ / _ \ V /
+ |___/___|___/_| |____/_/ \_\_|
+
+   ___ ___  _  _ _____ ___  ___  _    _    ___ ___
+  / __/ _ \| \| |_   _| _ \/ _ \| |  | |  | __| _ \
+ | (_| (_) | .` | | | |   / (_) | |__| |__| _||   /
+  \___\___/|_|\_| |_| |_|_\\___/|____|____|___|_|_\
+
+*******************************************************************************/
+
+union alignas(uint32_t) DC_LUT_RW_INDEX {
+  uint32_t value;
+  struct {
+    // Unlike in the M56 documentation, for the 256-table entry, this is the
+    // absolute index, without the lower or upper 10 bits selection in the
+    // bit 0. For PWL, the bit 7 is ignored.
+    uint32_t rw_index : 8;  // +0
+  };
+  static constexpr Register register_index = XE_GPU_REG_DC_LUT_RW_INDEX;
+};
+static_assert_size(DC_LUT_RW_INDEX, sizeof(uint32_t));
+
+union alignas(uint32_t) DC_LUT_SEQ_COLOR {
+  uint32_t value;
+  struct {
+    uint32_t seq_color : 16;  // +0, bits 0:5 are hardwired to zero
+  };
+  static constexpr Register register_index = XE_GPU_REG_DC_LUT_SEQ_COLOR;
+};
+static_assert_size(DC_LUT_SEQ_COLOR, sizeof(uint32_t));
+
+union alignas(uint32_t) DC_LUT_PWL_DATA {
+  uint32_t value;
+  struct {
+    // See the M56 DC_LUTA_CONTROL for information about the way these should be
+    // interpreted (`output = base + (multiplier * delta) / 2^increment`, where
+    // the increment is the value specified in DC_LUTA_CONTROL for the specific
+    // color channel, the base is 7 bits of the front buffer value above
+    // `increment` bits, the multiplier is the lower `increment` bits of it; the
+    // increment is nonzero, otherwise the 256-entry table should be used
+    // instead).
+    uint32_t base : 16;   // +0, bits 0:5 are hardwired to zero
+    uint32_t delta : 16;  // +16, bits 0:5 are hardwired to zero
+  };
+  static constexpr Register register_index = XE_GPU_REG_DC_LUT_PWL_DATA;
+};
+static_assert_size(DC_LUT_PWL_DATA, sizeof(uint32_t));
+
+union alignas(uint32_t) DC_LUT_30_COLOR {
+  uint32_t value;
+  struct {
+    uint32_t color_10_blue : 10;   // +0
+    uint32_t color_10_green : 10;  // +10
+    uint32_t color_10_red : 10;    // +20
+  };
+  static constexpr Register register_index = XE_GPU_REG_DC_LUT_30_COLOR;
+};
+static_assert_size(DC_LUT_30_COLOR, sizeof(uint32_t));
+
 }  // namespace reg
 
 }  // namespace gpu

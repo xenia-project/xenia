@@ -209,6 +209,9 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   void WriteRegister(uint32_t index, uint32_t value) override;
 
+  void OnGammaRamp256EntryTableValueWritten() override;
+  void OnGammaRampPWLValueWritten() override;
+
   void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                  uint32_t frontbuffer_height) override;
 
@@ -496,17 +499,18 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   std::unique_ptr<TextureCache> texture_cache_;
 
-  // Bytes 0x0...0x3FF - 256-entry R10G10B10X2 gamma ramp (red and blue must be
-  // read as swapped - 535107D4 has settings allowing separate configuration).
+  // Bytes 0x0...0x3FF - 256-entry gamma ramp table with B10G10R10X2 data (read
+  // as R10G10B10X2 with swizzle).
   // Bytes 0x400...0x9FF - 128-entry PWL R16G16 gamma ramp (R - base, G - delta,
   // low 6 bits of each are zero, 3 elements per entry).
-  // https://www.x.org/docs/AMD/old/42590_m76_rrg_1.01o.pdf
   Microsoft::WRL::ComPtr<ID3D12Resource> gamma_ramp_buffer_;
   D3D12_RESOURCE_STATES gamma_ramp_buffer_state_;
   // Upload buffer for an image that is the same as gamma_ramp_, but with
   // kQueueFrames array layers.
   Microsoft::WRL::ComPtr<ID3D12Resource> gamma_ramp_upload_buffer_;
   uint8_t* gamma_ramp_upload_buffer_mapping_ = nullptr;
+  bool gamma_ramp_256_entry_table_up_to_date_ = false;
+  bool gamma_ramp_pwl_up_to_date_ = false;
 
   struct ApplyGammaConstants {
     uint32_t size[2];

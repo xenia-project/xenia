@@ -191,20 +191,6 @@ void VulkanCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
     offset ^= 0x1F;
 
     dirty_loop_constants_ |= (1 << offset);
-  } else if (index == XE_GPU_REG_DC_LUT_PWL_DATA) {
-    UpdateGammaRampValue(GammaRampType::kPWL, value);
-  } else if (index == XE_GPU_REG_DC_LUT_30_COLOR) {
-    UpdateGammaRampValue(GammaRampType::kTable, value);
-  } else if (index >= XE_GPU_REG_DC_LUT_RW_MODE &&
-             index <= XE_GPU_REG_DC_LUTA_CONTROL) {
-    uint32_t offset = index - XE_GPU_REG_DC_LUT_RW_MODE;
-    offset ^= 0x05;
-
-    dirty_gamma_constants_ |= (1 << offset);
-
-    if (index == XE_GPU_REG_DC_LUT_RW_INDEX) {
-      gamma_ramp_rw_subindex_ = 0;
-    }
   }
 }
 
@@ -1399,8 +1385,6 @@ bool VulkanCommandProcessor::IssueCopy() {
 
   return true;
 }
-
-void VulkanCommandProcessor::InitializeTrace() {}
 
 }  // namespace vulkan
 }  // namespace gpu

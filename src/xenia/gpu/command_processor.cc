@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cmath>
+#include <cstring>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/byte_stream.h"
@@ -49,22 +50,23 @@ CommandProcessor::~CommandProcessor() = default;
 
 bool CommandProcessor::Initialize() {
   // Initialize the gamma ramps to their default (linear) values - taken from
-  // what games set when starting.
+  // what games set when starting with the sRGB (return value 1)
+  // VdGetCurrentDisplayGamma.
   for (uint32_t i = 0; i < 256; ++i) {
-    uint32_t value = i * 1023 / 255;
-    gamma_ramp_.table[i].value = value | (value << 10) | (value << 20);
+    uint32_t value = i * 0x3FF / 0xFF;
+    reg::DC_LUT_30_COLOR& gamma_ramp_entry = gamma_ramp_256_entry_table_[i];
+    gamma_ramp_entry.color_10_blue = value;
+    gamma_ramp_entry.color_10_green = value;
+    gamma_ramp_entry.color_10_red = value;
   }
   for (uint32_t i = 0; i < 128; ++i) {
-    uint32_t value = (i * 65535 / 127) & ~63;
-    if (i < 127) {
-      value |= 0x200 << 16;
-    }
+    reg::DC_LUT_PWL_DATA gamma_ramp_entry = {};
+    gamma_ramp_entry.base = (i * 0xFFFF / 0x7F) & ~UINT32_C(0x3F);
+    gamma_ramp_entry.delta = i < 0x7F ? 0x200 : 0;
     for (uint32_t j = 0; j < 3; ++j) {
-      gamma_ramp_.pwl[i].values[j].value = value;
+      gamma_ramp_pwl_rgb_[i][j] = gamma_ramp_entry;
     }
   }
-  dirty_gamma_ramp_table_ = true;
-  dirty_gamma_ramp_pwl_ = true;
 
   worker_running_ = true;
   worker_thread_ = kernel::object_ref<kernel::XHostThread>(
@@ -126,6 +128,46 @@ void CommandProcessor::EndTracing() {
   assert_true(trace_state_ == TraceState::kStreaming);
   trace_state_ = TraceState::kDisabled;
   trace_writer_.Close();
+}
+
+void CommandProcessor::RestoreRegisters(uint32_t first_register,
+                                        const uint32_t* register_values,
+                                        uint32_t register_count,
+                                        bool execute_callbacks) {
+  if (first_register > RegisterFile::kRegisterCount ||
+      RegisterFile::kRegisterCount - first_register < register_count) {
+    XELOGW(
+        "CommandProcessor::RestoreRegisters out of bounds (0x{:X} registers "
+        "starting with 0x{:X}, while a total of 0x{:X} registers are stored)",
+        register_count, first_register, RegisterFile::kRegisterCount);
+    if (first_register > RegisterFile::kRegisterCount) {
+      return;
+    }
+    register_count =
+        std::min(uint32_t(RegisterFile::kRegisterCount) - first_register,
+                 register_count);
+  }
+  if (execute_callbacks) {
+    for (uint32_t i = 0; i < register_count; ++i) {
+      WriteRegister(first_register + i, register_values[i]);
+    }
+  } else {
+    std::memcpy(register_file_->values + first_register, register_values,
+                sizeof(uint32_t) * register_count);
+  }
+}
+
+void CommandProcessor::RestoreGammaRamp(
+    const reg::DC_LUT_30_COLOR* new_gamma_ramp_256_entry_table,
+    const reg::DC_LUT_PWL_DATA* new_gamma_ramp_pwl_rgb,
+    uint32_t new_gamma_ramp_rw_component) {
+  std::memcpy(gamma_ramp_256_entry_table_, new_gamma_ramp_256_entry_table,
+              sizeof(reg::DC_LUT_30_COLOR) * 256);
+  std::memcpy(gamma_ramp_pwl_rgb_, new_gamma_ramp_pwl_rgb,
+              sizeof(reg::DC_LUT_PWL_DATA) * 3 * 128);
+  gamma_ramp_rw_component_ = new_gamma_ramp_rw_component;
+  OnGammaRamp256EntryTableValueWritten();
+  OnGammaRampPWLValueWritten();
 }
 
 void CommandProcessor::CallInThread(std::function<void()> fn) {
@@ -286,68 +328,141 @@ void CommandProcessor::UpdateWritePointer(uint32_t value) {
 }
 
 void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
-  RegisterFile* regs = register_file_;
+  RegisterFile& regs = *register_file_;
   if (index >= RegisterFile::kRegisterCount) {
     XELOGW("CommandProcessor::WriteRegister index out of bounds: {}", index);
     return;
   }
 
-  regs->values[index].u32 = value;
-  if (!regs->GetRegisterInfo(index)) {
+  regs.values[index].u32 = value;
+  if (!regs.GetRegisterInfo(index)) {
     XELOGW("GPU: Write to unknown register ({:04X} = {:08X})", index, value);
-  }
-
-  // If this is a COHER register, set the dirty flag.
-  // This will block the command processor the next time it WAIT_MEM_REGs and
-  // allow us to synchronize the memory.
-  if (index == XE_GPU_REG_COHER_STATUS_HOST) {
-    regs->values[index].u32 |= 0x80000000ul;
   }
 
   // Scratch register writeback.
   if (index >= XE_GPU_REG_SCRATCH_REG0 && index <= XE_GPU_REG_SCRATCH_REG7) {
     uint32_t scratch_reg = index - XE_GPU_REG_SCRATCH_REG0;
-    if ((1 << scratch_reg) & regs->values[XE_GPU_REG_SCRATCH_UMSK].u32) {
+    if ((1 << scratch_reg) & regs.values[XE_GPU_REG_SCRATCH_UMSK].u32) {
       // Enabled - write to address.
-      uint32_t scratch_addr = regs->values[XE_GPU_REG_SCRATCH_ADDR].u32;
+      uint32_t scratch_addr = regs.values[XE_GPU_REG_SCRATCH_ADDR].u32;
       uint32_t mem_addr = scratch_addr + (scratch_reg * 4);
       xe::store_and_swap<uint32_t>(memory_->TranslatePhysical(mem_addr), value);
     }
-  }
-}
+  } else {
+    switch (index) {
+      // If this is a COHER register, set the dirty flag.
+      // This will block the command processor the next time it WAIT_MEM_REGs
+      // and allow us to synchronize the memory.
+      case XE_GPU_REG_COHER_STATUS_HOST: {
+        regs.values[index].u32 |= UINT32_C(0x80000000);
+      } break;
 
-void CommandProcessor::UpdateGammaRampValue(GammaRampType type,
-                                            uint32_t value) {
-  RegisterFile* regs = register_file_;
+      case XE_GPU_REG_DC_LUT_RW_INDEX: {
+        // Reset the sequential read / write component index (see the M56
+        // DC_LUT_SEQ_COLOR documentation).
+        gamma_ramp_rw_component_ = 0;
+      } break;
 
-  auto index = regs->values[XE_GPU_REG_DC_LUT_RW_INDEX].u32;
+      case XE_GPU_REG_DC_LUT_SEQ_COLOR: {
+        // Should be in the 256-entry table writing mode.
+        assert_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE].u32 & 0b1);
+        auto& gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
+        // DC_LUT_SEQ_COLOR is in the red, green, blue order, but the write
+        // enable mask is blue, green, red.
+        bool write_gamma_ramp_component =
+            (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK].u32 &
+             (UINT32_C(1) << (2 - gamma_ramp_rw_component_))) != 0;
+        if (write_gamma_ramp_component) {
+          reg::DC_LUT_30_COLOR& gamma_ramp_entry =
+              gamma_ramp_256_entry_table_[gamma_ramp_rw_index.rw_index];
+          // Bits 0:5 are hardwired to zero.
+          uint32_t gamma_ramp_seq_color =
+              regs.Get<reg::DC_LUT_SEQ_COLOR>().seq_color >> 6;
+          switch (gamma_ramp_rw_component_) {
+            case 0:
+              gamma_ramp_entry.color_10_red = gamma_ramp_seq_color;
+              break;
+            case 1:
+              gamma_ramp_entry.color_10_green = gamma_ramp_seq_color;
+              break;
+            case 2:
+              gamma_ramp_entry.color_10_blue = gamma_ramp_seq_color;
+              break;
+          }
+        }
+        if (++gamma_ramp_rw_component_ >= 3) {
+          gamma_ramp_rw_component_ = 0;
+          ++gamma_ramp_rw_index.rw_index;
+        }
+        if (write_gamma_ramp_component) {
+          OnGammaRamp256EntryTableValueWritten();
+        }
+      } break;
 
-  auto mask = regs->values[XE_GPU_REG_DC_LUT_WRITE_EN_MASK].u32;
-  auto mask_lo = (mask >> 0) & 0x7;
-  auto mask_hi = (mask >> 3) & 0x7;
+      case XE_GPU_REG_DC_LUT_PWL_DATA: {
+        // Should be in the PWL writing mode.
+        assert_not_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE].u32 & 0b1);
+        auto& gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
+        // Bit 7 of the index is ignored for PWL.
+        uint32_t gamma_ramp_rw_index_pwl = gamma_ramp_rw_index.rw_index & 0x7F;
+        // DC_LUT_RW_INDEX is likely in the red, green, blue order because
+        // DC_LUT_SEQ_COLOR is, but the write enable mask is blue, green, red.
+        bool write_gamma_ramp_component =
+            (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK].u32 &
+             (UINT32_C(1) << (2 - gamma_ramp_rw_component_))) != 0;
+        if (write_gamma_ramp_component) {
+          reg::DC_LUT_PWL_DATA& gamma_ramp_entry =
+              gamma_ramp_pwl_rgb_[gamma_ramp_rw_index_pwl]
+                                 [gamma_ramp_rw_component_];
+          auto gamma_ramp_value = regs.Get<reg::DC_LUT_PWL_DATA>();
+          // Bits 0:5 are hardwired to zero.
+          gamma_ramp_entry.base = gamma_ramp_value.base & ~UINT32_C(0x3F);
+          gamma_ramp_entry.delta = gamma_ramp_value.delta & ~UINT32_C(0x3F);
+        }
+        if (++gamma_ramp_rw_component_ >= 3) {
+          gamma_ramp_rw_component_ = 0;
+          // TODO(Triang3l): Should this increase beyond 7 bits for PWL?
+          // Direct3D 9 explicitly sets rw_index to 0x80 after writing the last
+          // PWL entry. However, the DC_LUT_RW_INDEX documentation says that for
+          // PWL, the bit 7 is ignored.
+          gamma_ramp_rw_index.rw_index =
+              (gamma_ramp_rw_index.rw_index & ~UINT32_C(0x7F)) |
+              ((gamma_ramp_rw_index_pwl + 1) & 0x7F);
+        }
+        if (write_gamma_ramp_component) {
+          OnGammaRampPWLValueWritten();
+        }
+      } break;
 
-  // If games update individual components we're going to have a problem.
-  assert_true(mask_lo == 0 || mask_lo == 7);
-  assert_true(mask_hi == 0);
-
-  if (mask_lo) {
-    switch (type) {
-      case GammaRampType::kTable:
-        assert_true(regs->values[XE_GPU_REG_DC_LUT_RW_MODE].u32 == 0);
-        gamma_ramp_.table[index].value = value;
-        dirty_gamma_ramp_table_ = true;
-        break;
-      case GammaRampType::kPWL:
-        assert_true(regs->values[XE_GPU_REG_DC_LUT_RW_MODE].u32 == 1);
-        // The lower 6 bits are hardwired to 0.
-        // https://developer.amd.com/wordpress/media/2012/10/RRG-216M56-03oOEM.pdf
-        gamma_ramp_.pwl[index].values[gamma_ramp_rw_subindex_].value =
-            value & ~(uint32_t(63) | (uint32_t(63) << 16));
-        gamma_ramp_rw_subindex_ = (gamma_ramp_rw_subindex_ + 1) % 3;
-        dirty_gamma_ramp_pwl_ = true;
-        break;
-      default:
-        assert_unhandled_case(type);
+      case XE_GPU_REG_DC_LUT_30_COLOR: {
+        // Should be in the 256-entry table writing mode.
+        assert_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE].u32 & 0b1);
+        auto& gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
+        uint32_t gamma_ramp_write_enable_mask =
+            regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK].u32 & 0b111;
+        if (gamma_ramp_write_enable_mask) {
+          reg::DC_LUT_30_COLOR& gamma_ramp_entry =
+              gamma_ramp_256_entry_table_[gamma_ramp_rw_index.rw_index];
+          auto gamma_ramp_value = regs.Get<reg::DC_LUT_30_COLOR>();
+          if (gamma_ramp_write_enable_mask & 0b001) {
+            gamma_ramp_entry.color_10_blue = gamma_ramp_value.color_10_blue;
+          }
+          if (gamma_ramp_write_enable_mask & 0b010) {
+            gamma_ramp_entry.color_10_green = gamma_ramp_value.color_10_green;
+          }
+          if (gamma_ramp_write_enable_mask & 0b100) {
+            gamma_ramp_entry.color_10_red = gamma_ramp_value.color_10_red;
+          }
+        }
+        ++gamma_ramp_rw_index.rw_index;
+        // TODO(Triang3l): Should this reset the component write index? If this
+        // increase is assumed to behave like a full DC_LUT_RW_INDEX write, it
+        // probably should.
+        gamma_ramp_rw_component_ = 0;
+        if (gamma_ramp_write_enable_mask) {
+          OnGammaRamp256EntryTableValueWritten();
+        }
+      } break;
     }
   }
 }
@@ -1491,6 +1606,18 @@ bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(RingBuffer* reader,
   }
 
   return true;
+}
+
+void CommandProcessor::InitializeTrace() {
+  // Write the initial register values, to be loaded directly into the
+  // RegisterFile since all registers, including those that may have side
+  // effects on setting, will be saved.
+  trace_writer_.WriteRegisters(
+      0, reinterpret_cast<const uint32_t*>(register_file_->values),
+      RegisterFile::kRegisterCount, false);
+
+  trace_writer_.WriteGammaRamp(gamma_ramp_256_entry_table(),
+                               gamma_ramp_pwl_rgb(), gamma_ramp_rw_component_);
 }
 
 }  // namespace gpu
