@@ -326,16 +326,17 @@ void DxbcShaderTranslator::StartVertexShader_LoadVertexIndex() {
   // Check if the closing vertex of a non-indexed line loop is being processed.
   a_.OpINE(
       index_dest,
-      dxbc::Src::V(uint32_t(InOutRegister::kVSInVertexIndex), dxbc::Src::kXXXX),
+      dxbc::Src::V1D(uint32_t(InOutRegister::kVSInVertexIndex),
+                     dxbc::Src::kXXXX),
       LoadSystemConstant(SystemConstants::Index::kLineLoopClosingIndex,
                          offsetof(SystemConstants, line_loop_closing_index),
                          dxbc::Src::kXXXX));
   // Zero the index if processing the closing vertex of a line loop, or do
   // nothing (replace 0 with 0) if not needed.
-  a_.OpAnd(
-      index_dest,
-      dxbc::Src::V(uint32_t(InOutRegister::kVSInVertexIndex), dxbc::Src::kXXXX),
-      index_src);
+  a_.OpAnd(index_dest,
+           dxbc::Src::V1D(uint32_t(InOutRegister::kVSInVertexIndex),
+                          dxbc::Src::kXXXX),
+           index_src);
 
   {
     // Swap the vertex index's endianness.
@@ -590,7 +591,7 @@ void DxbcShaderTranslator::StartPixelShader() {
         // system_temp_depth_stencil_ before any return statement is possibly
         // reached.
         assert_true(system_temp_depth_stencil_ != UINT32_MAX);
-        dxbc::Src in_position_z(dxbc::Src::V(
+        dxbc::Src in_position_z(dxbc::Src::V1D(
             uint32_t(InOutRegister::kPSInPosition), dxbc::Src::kZZZZ));
         in_position_used_ |= 0b0100;
         a_.OpDerivRTXCoarse(dxbc::Dest::R(system_temp_depth_stencil_, 0b0001),
@@ -633,14 +634,14 @@ void DxbcShaderTranslator::StartPixelShader() {
       // At center.
       a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, i)
                                                 : dxbc::Dest::R(i),
-               dxbc::Src::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
+               dxbc::Src::V1D(uint32_t(InOutRegister::kPSInInterpolators) + i));
       a_.OpElse();
       // At centroid. Not really important that 2x MSAA is emulated using
       // ForcedSampleCount 4 - what matters is that the sample position will
       // be within the primitive, and the value will not be extrapolated.
       a_.OpEvalCentroid(
           dxbc::Dest::R(centroid_register),
-          dxbc::Src::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
+          dxbc::Src::V1D(uint32_t(InOutRegister::kPSInInterpolators) + i));
       if (uses_register_dynamic_addressing) {
         a_.OpMov(dxbc::Dest::X(0, i), dxbc::Src::R(centroid_register));
       }
@@ -677,7 +678,7 @@ void DxbcShaderTranslator::StartPixelShader() {
       // have correct derivative magnitude and LODs.
       in_position_used_ |= 0b0011;
       a_.OpRoundNI(dxbc::Dest::R(param_gen_temp, 0b0011),
-                   dxbc::Src::V(uint32_t(InOutRegister::kPSInPosition)));
+                   dxbc::Src::V1D(uint32_t(InOutRegister::kPSInPosition)));
       uint32_t resolution_scaled_axes =
           uint32_t(draw_resolution_scale_x_ > 1) |
           (uint32_t(draw_resolution_scale_y_ > 1) << 1);
@@ -701,20 +702,20 @@ void DxbcShaderTranslator::StartPixelShader() {
         // Negate modifier flips the sign bit even for 0 - set it to minus for
         // backfaces.
         in_front_face_used_ = true;
-        a_.OpMovC(
-            dxbc::Dest::R(param_gen_temp, 0b0001),
-            dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
-                         dxbc::Src::kXXXX),
-            dxbc::Src::R(param_gen_temp, dxbc::Src::kXXXX),
-            -dxbc::Src::R(param_gen_temp, dxbc::Src::kXXXX));
+        a_.OpMovC(dxbc::Dest::R(param_gen_temp, 0b0001),
+                  dxbc::Src::V1D(
+                      uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
+                      dxbc::Src::kXXXX),
+                  dxbc::Src::R(param_gen_temp, dxbc::Src::kXXXX),
+                  -dxbc::Src::R(param_gen_temp, dxbc::Src::kXXXX));
       }
       a_.OpEndIf();
       // Point sprite coordinates.
       // Saturate to avoid negative point coordinates if the center of the pixel
       // is not covered, and extrapolation is done.
       a_.OpMov(dxbc::Dest::R(param_gen_temp, 0b1100),
-               dxbc::Src::V(uint32_t(InOutRegister::kPSInPointParameters),
-                            0b0100 << 4),
+               dxbc::Src::V1D(uint32_t(InOutRegister::kPSInPointParameters),
+                              0b0100 << 4),
                true);
       // Primitive type.
       {
@@ -3499,7 +3500,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
       if (register_count()) {
         // Unswapped vertex index input (only X component).
         ao_.OpDclInputSGV(
-            dxbc::Dest::V(uint32_t(InOutRegister::kVSInVertexIndex), 0b0001),
+            dxbc::Dest::V1D(uint32_t(InOutRegister::kVSInVertexIndex), 0b0001),
             dxbc::Name::kVertexID);
       }
     }
@@ -3537,14 +3538,14 @@ void DxbcShaderTranslator::WriteShaderCode() {
       for (uint32_t i = 0; i < interpolator_count; ++i) {
         ao_.OpDclInputPS(
             dxbc::InterpolationMode::kLinear,
-            dxbc::Dest::V(uint32_t(InOutRegister::kPSInInterpolators) + i));
+            dxbc::Dest::V1D(uint32_t(InOutRegister::kPSInInterpolators) + i));
       }
       if (register_count()) {
         // Point parameters input (only coordinates, not size, needed).
         ao_.OpDclInputPS(
             dxbc::InterpolationMode::kLinear,
-            dxbc::Dest::V(uint32_t(InOutRegister::kPSInPointParameters),
-                          0b0011));
+            dxbc::Dest::V1D(uint32_t(InOutRegister::kPSInPointParameters),
+                            0b0011));
       }
     }
     if (in_position_used_) {
@@ -3560,8 +3561,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
           (is_writing_float24_depth && !shader_writes_depth)
               ? dxbc::InterpolationMode::kLinearNoPerspectiveSample
               : dxbc::InterpolationMode::kLinearNoPerspective,
-          dxbc::Dest::V(uint32_t(InOutRegister::kPSInPosition),
-                        in_position_used_),
+          dxbc::Dest::V1D(uint32_t(InOutRegister::kPSInPosition),
+                          in_position_used_),
           dxbc::Name::kPosition);
     }
     bool sample_rate_memexport =
@@ -3575,8 +3576,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
     if (front_face_and_sample_index_mask) {
       // Is front face, sample index.
       ao_.OpDclInputPSSGV(
-          dxbc::Dest::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
-                        front_face_and_sample_index_mask),
+          dxbc::Dest::V1D(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
+                          front_face_and_sample_index_mask),
           dxbc::Name::kIsFrontFace);
     }
     if (edram_rov_used_) {

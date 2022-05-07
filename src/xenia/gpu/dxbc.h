@@ -655,33 +655,6 @@ enum class OperandType : uint32_t {
   kOutputStencilRef = 41,
 };
 
-// D3D10_SB_OPERAND_INDEX_DIMENSION
-constexpr uint32_t GetOperandIndexDimension(OperandType type,
-                                            bool in_dcl = false) {
-  switch (type) {
-    case OperandType::kTemp:
-    case OperandType::kInput:
-      // FIXME(Triang3l): kInput has a dimensionality of 2 in the control point
-      // phase of hull shaders, however, currently the translator isn't used to
-      // emit them - if code where this matters is emitted by Xenia, the actual
-      // dimensionality will need to be stored in OperandAddress itself.
-    case OperandType::kOutput:
-    case OperandType::kLabel:
-      return 1;
-    case OperandType::kIndexableTemp:
-    case OperandType::kInputControlPoint:
-      return 2;
-    case OperandType::kSampler:
-    case OperandType::kResource:
-    case OperandType::kUnorderedAccessView:
-      return in_dcl ? 3 : 2;
-    case OperandType::kConstantBuffer:
-      return 3;
-    default:
-      return 0;
-  }
-}
-
 // D3D10_SB_OPERAND_NUM_COMPONENTS
 enum class OperandDimension : uint32_t {
   kNoData,  // D3D10_SB_OPERAND_0_COMPONENT
@@ -766,11 +739,22 @@ struct Index {
 
 struct OperandAddress {
   OperandType type_;
+  uint32_t index_dimension_;
   Index index_1d_, index_2d_, index_3d_;
 
-  explicit OperandAddress(OperandType type, Index index_1d = Index(),
-                          Index index_2d = Index(), Index index_3d = Index())
+  explicit OperandAddress(OperandType type)
+      : type_(type), index_dimension_(0) {}
+  explicit OperandAddress(OperandType type, Index index_1d)
+      : type_(type), index_dimension_(1), index_1d_(index_1d) {}
+  explicit OperandAddress(OperandType type, Index index_1d, Index index_2d)
       : type_(type),
+        index_dimension_(2),
+        index_1d_(index_1d),
+        index_2d_(index_2d) {}
+  explicit OperandAddress(OperandType type, Index index_1d, Index index_2d,
+                          Index index_3d)
+      : type_(type),
+        index_dimension_(3),
         index_1d_(index_1d),
         index_2d_(index_2d),
         index_3d_(index_3d) {}
@@ -778,44 +762,38 @@ struct OperandAddress {
   OperandDimension GetDimension(bool in_dcl = false) const {
     return GetOperandDimension(type_, in_dcl);
   }
-  uint32_t GetIndexDimension(bool in_dcl = false) const {
-    return GetOperandIndexDimension(type_, in_dcl);
-  }
-  uint32_t GetOperandTokenTypeAndIndex(bool in_dcl = false) const {
-    uint32_t index_dimension = GetIndexDimension(in_dcl);
-    uint32_t operand_token = (uint32_t(type_) << 12) | (index_dimension << 20);
-    if (index_dimension > 0) {
+  uint32_t GetOperandTokenTypeAndIndex() const {
+    uint32_t operand_token = (uint32_t(type_) << 12) | (index_dimension_ << 20);
+    if (index_dimension_ > 0) {
       operand_token |= uint32_t(index_1d_.GetRepresentation()) << 22;
-      if (index_dimension > 1) {
+      if (index_dimension_ > 1) {
         operand_token |= uint32_t(index_2d_.GetRepresentation()) << 25;
-        if (index_dimension > 2) {
+        if (index_dimension_ > 2) {
           operand_token |= uint32_t(index_3d_.GetRepresentation()) << 28;
         }
       }
     }
     return operand_token;
   }
-  uint32_t GetLength(bool in_dcl = false) const {
+  uint32_t GetLength() const {
     uint32_t length = 0;
-    uint32_t index_dimension = GetIndexDimension(in_dcl);
-    if (index_dimension > 0) {
+    if (index_dimension_ > 0) {
       length += index_1d_.GetLength();
-      if (index_dimension > 1) {
+      if (index_dimension_ > 1) {
         length += index_2d_.GetLength();
-        if (index_dimension > 2) {
+        if (index_dimension_ > 2) {
           length += index_3d_.GetLength();
         }
       }
     }
     return length;
   }
-  void Write(std::vector<uint32_t>& code, bool in_dcl = false) const {
-    uint32_t index_dimension = GetIndexDimension(in_dcl);
-    if (index_dimension > 0) {
+  void Write(std::vector<uint32_t>& code) const {
+    if (index_dimension_ > 0) {
       index_1d_.Write(code);
-      if (index_dimension > 1) {
+      if (index_dimension_ > 1) {
         index_2d_.Write(code);
-        if (index_dimension > 2) {
+        if (index_dimension_ > 2) {
           index_3d_.Write(code);
         }
       }
@@ -845,17 +823,27 @@ struct Dest : OperandAddress {
   // declarations use read masks instead of swizzle (resource declarations still
   // use swizzle when they're vector, however).
 
-  explicit Dest(OperandType type, uint32_t write_mask = 0b1111,
-                Index index_1d = Index(), Index index_2d = Index(),
-                Index index_3d = Index())
+  explicit Dest(OperandType type, uint32_t write_mask)
+      : OperandAddress(type), write_mask_(write_mask) {}
+  explicit Dest(OperandType type, uint32_t write_mask, Index index_1d)
+      : OperandAddress(type, index_1d), write_mask_(write_mask) {}
+  explicit Dest(OperandType type, uint32_t write_mask, Index index_1d,
+                Index index_2d)
+      : OperandAddress(type, index_1d, index_2d), write_mask_(write_mask) {}
+  explicit Dest(OperandType type, uint32_t write_mask, Index index_1d,
+                Index index_2d, Index index_3d)
       : OperandAddress(type, index_1d, index_2d, index_3d),
         write_mask_(write_mask) {}
 
   static Dest R(uint32_t index, uint32_t write_mask = 0b1111) {
     return Dest(OperandType::kTemp, write_mask, index);
   }
-  static Dest V(uint32_t index, uint32_t read_mask = 0b1111) {
+  static Dest V1D(uint32_t index, uint32_t read_mask = 0b1111) {
     return Dest(OperandType::kInput, read_mask, index);
+  }
+  static Dest V2D(uint32_t index_1d, uint32_t index_2d,
+                  uint32_t read_mask = 0b1111) {
+    return Dest(OperandType::kInput, read_mask, index_1d, index_2d);
   }
   static Dest O(Index index, uint32_t write_mask = 0b1111) {
     return Dest(OperandType::kOutput, write_mask, index);
@@ -915,11 +903,14 @@ struct Dest : OperandAddress {
     }
   }
   [[nodiscard]] Dest Mask(uint32_t write_mask) const {
-    return Dest(type_, write_mask, index_1d_, index_2d_, index_3d_);
+    Dest new_dest(*this);
+    new_dest.write_mask_ = write_mask;
+    return new_dest;
   }
   [[nodiscard]] Dest MaskMasked(uint32_t write_mask) const {
-    return Dest(type_, write_mask_ & write_mask, index_1d_, index_2d_,
-                index_3d_);
+    Dest new_dest(*this);
+    new_dest.write_mask_ &= write_mask;
+    return new_dest;
   }
   static uint32_t GetMaskSingleComponent(uint32_t write_mask) {
     uint32_t component;
@@ -934,11 +925,9 @@ struct Dest : OperandAddress {
     return GetMaskSingleComponent(GetMask(in_dcl));
   }
 
-  uint32_t GetLength(bool in_dcl = false) const {
-    return 1 + OperandAddress::GetLength(in_dcl);
-  }
+  uint32_t GetLength() const { return 1 + OperandAddress::GetLength(); }
   void Write(std::vector<uint32_t>& code, bool in_dcl = false) const {
-    uint32_t operand_token = GetOperandTokenTypeAndIndex(in_dcl);
+    uint32_t operand_token = GetOperandTokenTypeAndIndex();
     OperandDimension dimension = GetDimension(in_dcl);
     operand_token |= uint32_t(dimension);
     if (dimension == OperandDimension::kVector) {
@@ -947,7 +936,7 @@ struct Dest : OperandAddress {
           (uint32_t(ComponentSelection::kMask) << 2) | (write_mask_ << 4);
     }
     code.push_back(operand_token);
-    OperandAddress::Write(code, in_dcl);
+    OperandAddress::Write(code);
   }
 };
 
@@ -962,18 +951,21 @@ struct Src : OperandAddress {
 
   // Ignored for 0-component and 1-component operand types.
   uint32_t swizzle_;
-  bool absolute_;
-  bool negate_;
+  bool absolute_ = false;
+  bool negate_ = false;
   // Only valid for OperandType::kImmediate32.
   uint32_t immediate_[4];
 
-  explicit Src(OperandType type, uint32_t swizzle = kXYZW,
-               Index index_1d = Index(), Index index_2d = Index(),
-               Index index_3d = Index())
-      : OperandAddress(type, index_1d, index_2d, index_3d),
-        swizzle_(swizzle),
-        absolute_(false),
-        negate_(false) {}
+  explicit Src(OperandType type, uint32_t swizzle)
+      : OperandAddress(type), swizzle_(swizzle) {}
+  explicit Src(OperandType type, uint32_t swizzle, Index index_1d)
+      : OperandAddress(type, index_1d), swizzle_(swizzle) {}
+  explicit Src(OperandType type, uint32_t swizzle, Index index_1d,
+               Index index_2d)
+      : OperandAddress(type, index_1d, index_2d), swizzle_(swizzle) {}
+  explicit Src(OperandType type, uint32_t swizzle, Index index_1d,
+               Index index_2d, Index index_3d)
+      : OperandAddress(type, index_1d, index_2d, index_3d), swizzle_(swizzle) {}
 
   // For creating instances for use in declarations.
   struct DclT {};
@@ -982,8 +974,11 @@ struct Src : OperandAddress {
   static Src R(uint32_t index, uint32_t swizzle = kXYZW) {
     return Src(OperandType::kTemp, swizzle, index);
   }
-  static Src V(Index index, uint32_t swizzle = kXYZW) {
+  static Src V1D(Index index, uint32_t swizzle = kXYZW) {
     return Src(OperandType::kInput, swizzle, index);
+  }
+  static Src V2D(Index index_1d, Index index_2d, uint32_t swizzle = kXYZW) {
+    return Src(OperandType::kInput, swizzle, index_1d, index_2d);
   }
   static Src X(uint32_t index_1d, Index index_2d, uint32_t swizzle = kXYZW) {
     return Src(OperandType::kIndexableTemp, swizzle, index_1d, index_2d);
@@ -1108,15 +1103,14 @@ struct Src : OperandAddress {
     return new_src;
   }
 
-  uint32_t GetLength(uint32_t mask, bool force_vector = false,
-                     bool in_dcl = false) const {
+  uint32_t GetLength(uint32_t mask, bool force_vector = false) const {
     bool is_vector =
         force_vector ||
         (mask != 0b0000 && Dest::GetMaskSingleComponent(mask) == UINT32_MAX);
     if (type_ == OperandType::kImmediate32) {
       return is_vector ? 5 : 2;
     }
-    return ((absolute_ || negate_) ? 2 : 1) + OperandAddress::GetLength(in_dcl);
+    return ((absolute_ || negate_) ? 2 : 1) + OperandAddress::GetLength();
   }
   static constexpr uint32_t GetModifiedImmediate(uint32_t value,
                                                  bool is_integer, bool absolute,
@@ -1147,7 +1141,7 @@ struct Src : OperandAddress {
   }
   void Write(std::vector<uint32_t>& code, bool is_integer, uint32_t mask,
              bool force_vector = false, bool in_dcl = false) const {
-    uint32_t operand_token = GetOperandTokenTypeAndIndex(in_dcl);
+    uint32_t operand_token = GetOperandTokenTypeAndIndex();
     uint32_t mask_single_component = Dest::GetMaskSingleComponent(mask);
     uint32_t select_component =
         mask_single_component != UINT32_MAX ? mask_single_component : 0;
@@ -1220,7 +1214,7 @@ struct Src : OperandAddress {
         code.push_back(uint32_t(ExtendedOperandType::kModifier) |
                        (uint32_t(modifier) << 6));
       }
-      OperandAddress::Write(code, in_dcl);
+      OperandAddress::Write(code);
     }
   }
 };
@@ -1915,7 +1909,7 @@ class Assembler {
   }
   void OpDclResource(ResourceDimension dimension, uint32_t return_type_token,
                      const Src& operand, uint32_t space = 0) {
-    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    uint32_t operands_length = operand.GetLength(0b1111, false);
     code_.reserve(code_.size() + 3 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclResource, 2 + operands_length) |
                     (uint32_t(dimension) << 11));
@@ -1929,7 +1923,7 @@ class Assembler {
                            ConstantBufferAccessPattern access_pattern =
                                ConstantBufferAccessPattern::kImmediateIndexed,
                            uint32_t space = 0) {
-    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    uint32_t operands_length = operand.GetLength(0b1111, false);
     code_.reserve(code_.size() + 3 + operands_length);
     code_.push_back(
         OpcodeToken(Opcode::kDclConstantBuffer, 2 + operands_length) |
@@ -1941,7 +1935,7 @@ class Assembler {
   void OpDclSampler(const Src& operand,
                     SamplerMode mode = SamplerMode::kDefault,
                     uint32_t space = 0) {
-    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    uint32_t operands_length = operand.GetLength(0b1111, false);
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclSampler, 1 + operands_length) |
                     (uint32_t(mode) << 11));
@@ -1949,14 +1943,14 @@ class Assembler {
     code_.push_back(space);
   }
   void OpDclInput(const Dest& operand) {
-    uint32_t operands_length = operand.GetLength(true);
+    uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 1 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclInput, operands_length));
     operand.Write(code_, true);
     ++stat_.dcl_count;
   }
   void OpDclInputSGV(const Dest& operand, Name name) {
-    uint32_t operands_length = operand.GetLength(true);
+    uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclInputSGV, 1 + operands_length));
     operand.Write(code_, true);
@@ -1964,7 +1958,7 @@ class Assembler {
     ++stat_.dcl_count;
   }
   void OpDclInputPS(InterpolationMode interpolation_mode, const Dest& operand) {
-    uint32_t operands_length = operand.GetLength(true);
+    uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 1 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclInputPS, operands_length) |
                     (uint32_t(interpolation_mode) << 11));
@@ -1972,7 +1966,7 @@ class Assembler {
     ++stat_.dcl_count;
   }
   void OpDclInputPSSGV(const Dest& operand, Name name) {
-    uint32_t operands_length = operand.GetLength(true);
+    uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 2 + operands_length);
     // Constant interpolation mode is set in FXC output at least for
     // SV_IsFrontFace, despite the comment in d3d12TokenizedProgramFormat.hpp
@@ -1985,7 +1979,7 @@ class Assembler {
   }
   void OpDclInputPSSIV(InterpolationMode interpolation_mode,
                        const Dest& operand, Name name) {
-    uint32_t operands_length = operand.GetLength(true);
+    uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclInputPSSIV, 1 + operands_length) |
                     (uint32_t(interpolation_mode) << 11));
@@ -1994,14 +1988,14 @@ class Assembler {
     ++stat_.dcl_count;
   }
   void OpDclOutput(const Dest& operand) {
-    uint32_t operands_length = operand.GetLength(true);
+    uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 1 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclOutput, operands_length));
     operand.Write(code_, true);
     ++stat_.dcl_count;
   }
   void OpDclOutputSIV(const Dest& operand, Name name) {
-    uint32_t operands_length = operand.GetLength(true);
+    uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclOutputSIV, 1 + operands_length));
     operand.Write(code_, true);
@@ -2124,7 +2118,7 @@ class Assembler {
   void OpDclUnorderedAccessViewTyped(ResourceDimension dimension,
                                      uint32_t flags, uint32_t return_type_token,
                                      const Src& operand, uint32_t space = 0) {
-    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    uint32_t operands_length = operand.GetLength(0b1111, false);
     code_.reserve(code_.size() + 3 + operands_length);
     code_.push_back(
         OpcodeToken(Opcode::kDclUnorderedAccessViewTyped, 2 + operands_length) |
@@ -2137,7 +2131,7 @@ class Assembler {
   // kUAVFlagRasterizerOrderedAccess.
   void OpDclUnorderedAccessViewRaw(uint32_t flags, const Src& operand,
                                    uint32_t space = 0) {
-    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    uint32_t operands_length = operand.GetLength(0b1111, false);
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(
         OpcodeToken(Opcode::kDclUnorderedAccessViewRaw, 1 + operands_length) |
@@ -2146,7 +2140,7 @@ class Assembler {
     code_.push_back(space);
   }
   void OpDclResourceRaw(const Src& operand, uint32_t space = 0) {
-    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    uint32_t operands_length = operand.GetLength(0b1111, false);
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclResourceRaw, 1 + operands_length));
     operand.Write(code_, true, 0b1111, false, true);

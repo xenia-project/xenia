@@ -2943,10 +2943,10 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
                      kTransferSRVRegisterHostDepth));
   }
   a.OpDclInputPSSIV(dxbc::InterpolationMode::kLinearNoPerspective,
-                    dxbc::Dest::V(kInputRegisterPosition, 0b0011),
+                    dxbc::Dest::V1D(kInputRegisterPosition, 0b0011),
                     dxbc::Name::kPosition);
   if (key.dest_msaa_samples != xenos::MsaaSamples::k1X) {
-    a.OpDclInputPSSGV(dxbc::Dest::V(kInputRegisterSampleIndex, 0b0001),
+    a.OpDclInputPSSGV(dxbc::Dest::V1D(kInputRegisterSampleIndex, 0b0001),
                       dxbc::Name::kSampleIndex);
   }
   if (osgn_parameter_index_sv_target != UINT32_MAX) {
@@ -2971,7 +2971,7 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   // Split the destination pixel index into 32bpp tile in r0.z and
   // 32bpp-tile-relative pixel index in r0.xy.
   // r0.xy = pixel XY as uint
-  a.OpFToU(dxbc::Dest::R(0, 0b0011), dxbc::Src::V(kInputRegisterPosition));
+  a.OpFToU(dxbc::Dest::R(0, 0b0011), dxbc::Src::V1D(kInputRegisterPosition));
   uint32_t dest_sample_width_log2 =
       uint32_t(dest_is_64bpp) +
       uint32_t(key.dest_msaa_samples >= xenos::MsaaSamples::k4X);
@@ -3057,7 +3057,7 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   // If 64bpp -> 32bpp, also the needed half in r0.w.
 
   dxbc::Src dest_sample(
-      dxbc::Src::V(kInputRegisterSampleIndex, dxbc::Src::kXXXX));
+      dxbc::Src::V1D(kInputRegisterSampleIndex, dxbc::Src::kXXXX));
   dxbc::Src source_sample(dest_sample);
   uint32_t source_tile_pixel_x_reg = 0;
   uint32_t source_tile_pixel_y_reg = 0;
@@ -3086,7 +3086,7 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
         source_sample = dxbc::Src::R(1, dxbc::Src::kZZZZ);
         a.OpBFI(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(31), dxbc::Src::LU(1),
                 dxbc::Src::R(0, dxbc::Src::kXXXX),
-                dxbc::Src::V(kInputRegisterSampleIndex, dxbc::Src::kXXXX));
+                dxbc::Src::V1D(kInputRegisterSampleIndex, dxbc::Src::kXXXX));
         source_tile_pixel_x_reg = 1;
       } else if (key.dest_msaa_samples == xenos::MsaaSamples::k2X) {
         // 32bpp -> 64bpp, 4x -> 2x.
@@ -3128,7 +3128,7 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
         a.OpIShL(dxbc::Dest::R(1, 0b0001), dxbc::Src::R(0, dxbc::Src::kXXXX),
                  dxbc::Src::LU(2));
         a.OpBFI(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(1), dxbc::Src::LU(1),
-                dxbc::Src::V(kInputRegisterSampleIndex, dxbc::Src::kXXXX),
+                dxbc::Src::V1D(kInputRegisterSampleIndex, dxbc::Src::kXXXX),
                 dxbc::Src::R(1, dxbc::Src::kXXXX));
         source_tile_pixel_x_reg = 1;
         // Y is handled by common code.
