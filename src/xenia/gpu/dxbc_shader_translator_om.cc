@@ -172,7 +172,7 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   // system_temp_rov_params_.y = Y host pixel position as uint
   in_position_used_ |= 0b0011;
   a_.OpFToU(dxbc::Dest::R(system_temp_rov_params_, 0b0011),
-            dxbc::Src::V(uint32_t(InOutRegister::kPSInPosition)));
+            dxbc::Src::V1D(uint32_t(InOutRegister::kPSInPosition)));
   // Convert the position from pixels to samples.
   // system_temp_rov_params_.x = X sample 0 position
   // system_temp_rov_params_.y = Y sample 0 position
@@ -605,8 +605,8 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     ROV_DepthTo24Bit(system_temp_depth_stencil_, 0, system_temp_depth_stencil_,
                      0, temp, 0);
   } else {
-    dxbc::Src in_position_z(
-        dxbc::Src::V(uint32_t(InOutRegister::kPSInPosition), dxbc::Src::kZZZZ));
+    dxbc::Src in_position_z(dxbc::Src::V1D(
+        uint32_t(InOutRegister::kPSInPosition), dxbc::Src::kZZZZ));
     // Get the derivatives of the screen-space (but not clamped to the viewport
     // depth bounds yet - this happens after the pixel shader in Direct3D 11+;
     // also linear within the triangle - thus constant derivatives along the
@@ -645,9 +645,9 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     a_.OpMax(temp_z_dest, z_ddx_src.Abs(), z_ddy_src.Abs());
     // Calculate the depth bias for the needed faceness.
     in_front_face_used_ = true;
-    a_.OpIf(true,
-            dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
-                         dxbc::Src::kXXXX));
+    a_.OpIf(true, dxbc::Src::V1D(
+                      uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
+                      dxbc::Src::kXXXX));
     // temp.x if early = ddx(z)
     // temp.y if early = ddy(z)
     // temp.z = front face polygon offset
@@ -949,7 +949,7 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     {
       // Check the current face to get the reference and apply the read mask.
       in_front_face_used_ = true;
-      a_.OpIf(true, dxbc::Src::V(
+      a_.OpIf(true, dxbc::Src::V1D(
                         uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
                         dxbc::Src::kXXXX));
       for (uint32_t j = 0; j < 2; ++j) {
@@ -1012,8 +1012,8 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
       in_front_face_used_ = true;
       a_.OpMovC(
           sample_temp_z_dest,
-          dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
-                       dxbc::Src::kXXXX),
+          dxbc::Src::V1D(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
+                         dxbc::Src::kXXXX),
           LoadSystemConstant(
               SystemConstants::Index::kEdramStencil,
               offsetof(SystemConstants, edram_stencil_front_func_ops),
@@ -1090,18 +1090,18 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
         // Replace.
         a_.OpCase(dxbc::Src::LU(uint32_t(xenos::StencilOp::kReplace)));
         in_front_face_used_ = true;
-        a_.OpMovC(
-            sample_temp_y_dest,
-            dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
-                         dxbc::Src::kXXXX),
-            LoadSystemConstant(
-                SystemConstants::Index::kEdramStencil,
-                offsetof(SystemConstants, edram_stencil_front_reference),
-                dxbc::Src::kXXXX),
-            LoadSystemConstant(
-                SystemConstants::Index::kEdramStencil,
-                offsetof(SystemConstants, edram_stencil_back_reference),
-                dxbc::Src::kXXXX));
+        a_.OpMovC(sample_temp_y_dest,
+                  dxbc::Src::V1D(
+                      uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
+                      dxbc::Src::kXXXX),
+                  LoadSystemConstant(
+                      SystemConstants::Index::kEdramStencil,
+                      offsetof(SystemConstants, edram_stencil_front_reference),
+                      dxbc::Src::kXXXX),
+                  LoadSystemConstant(
+                      SystemConstants::Index::kEdramStencil,
+                      offsetof(SystemConstants, edram_stencil_back_reference),
+                      dxbc::Src::kXXXX));
         a_.OpBreak();
         // Increment and clamp.
         a_.OpCase(dxbc::Src::LU(uint32_t(xenos::StencilOp::kIncrementClamp)));
@@ -1155,8 +1155,8 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
       in_front_face_used_ = true;
       a_.OpMovC(
           sample_temp_z_dest,
-          dxbc::Src::V(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
-                       dxbc::Src::kXXXX),
+          dxbc::Src::V1D(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
+                         dxbc::Src::kXXXX),
           LoadSystemConstant(
               SystemConstants::Index::kEdramStencil,
               offsetof(SystemConstants, edram_stencil_front_write_mask),
@@ -1924,10 +1924,10 @@ void DxbcShaderTranslator::CompletePixelShader_DSV_DepthTo24Bit() {
     // assumption of it being clamped while working with the bit representation.
     temp = PushSystemTemp();
     in_position_used_ |= 0b0100;
-    a_.OpMul(
-        dxbc::Dest::R(temp, 0b0001),
-        dxbc::Src::V(uint32_t(InOutRegister::kPSInPosition), dxbc::Src::kZZZZ),
-        dxbc::Src::LF(2.0f), true);
+    a_.OpMul(dxbc::Dest::R(temp, 0b0001),
+             dxbc::Src::V1D(uint32_t(InOutRegister::kPSInPosition),
+                            dxbc::Src::kZZZZ),
+             dxbc::Src::LF(2.0f), true);
   }
 
   dxbc::Dest temp_x_dest(dxbc::Dest::R(temp, 0b0001));
@@ -2068,7 +2068,7 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMask() {
   // temp.x = alpha to coverage offset as float 0.0...3.0.
   in_position_used_ |= 0b0011;
   a_.OpFToU(dxbc::Dest::R(temp, 0b0011),
-            dxbc::Src::V(uint32_t(InOutRegister::kPSInPosition)));
+            dxbc::Src::V1D(uint32_t(InOutRegister::kPSInPosition)));
   a_.OpAnd(dxbc::Dest::R(temp, 0b0010), dxbc::Src::R(temp, dxbc::Src::kYYYY),
            dxbc::Src::LU(1));
   a_.OpBFI(temp_x_dest, dxbc::Src::LU(1), dxbc::Src::LU(1), temp_x_src,
