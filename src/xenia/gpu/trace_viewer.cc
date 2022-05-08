@@ -408,6 +408,18 @@ void TraceViewer::DrawPacketDisassemblerUI() {
         }
         break;
       }
+      case TraceCommandType::kRegisters: {
+        auto cmd = reinterpret_cast<const RegistersCommand*>(trace_ptr);
+        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        // ImGui::BulletText("Registers");
+        break;
+      }
+      case TraceCommandType::kGammaRamp: {
+        auto cmd = reinterpret_cast<const GammaRampCommand*>(trace_ptr);
+        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        // ImGui::BulletText("GammaRamp");
+        break;
+      }
     }
   }
   ImGui::EndChild();
