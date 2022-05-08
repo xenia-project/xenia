@@ -408,6 +408,12 @@ void TraceViewer::DrawPacketDisassemblerUI() {
         }
         break;
       }
+      case TraceCommandType::kRegisters: {
+        break;
+      }
+      case TraceCommandType::kGammaRamp: {
+        break;
+      }
     }
   }
   ImGui::EndChild();
