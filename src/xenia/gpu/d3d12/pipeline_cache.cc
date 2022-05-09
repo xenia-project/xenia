@@ -2598,8 +2598,7 @@ void PipelineCache::CreateDxbcGeometryShader(
       }
       a.OpEndIf();
 
-      // Emit the triangle in the strip that consisting of the original
-      // vertices.
+      // Emit the triangle in the strip that consists of the original vertices.
       for (uint32_t i = 0; i < 3; ++i) {
         dxbc::Index input_vertex_index(0, i);
         for (uint32_t j = 0; j < key.interpolator_count; ++j) {
