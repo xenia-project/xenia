@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,6 +13,7 @@
 #include <condition_variable>
 #include <cstdio>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -21,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "xenia/base/assert.h"
 #include "xenia/base/hash.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/string_buffer.h"
@@ -230,7 +232,35 @@ class PipelineCache {
     ID3D12RootSignature* root_signature;
     D3D12Shader::D3D12Translation* vertex_shader;
     D3D12Shader::D3D12Translation* pixel_shader;
+    const std::vector<uint32_t>* geometry_shader;
     PipelineDescription description;
+  };
+
+  union GeometryShaderKey {
+    uint32_t key;
+    struct {
+      PipelineGeometryShader type : 2;
+      uint32_t interpolator_count : 5;
+      uint32_t user_clip_plane_count : 3;
+      uint32_t user_clip_plane_cull : 1;
+      uint32_t has_vertex_kill_and : 1;
+      uint32_t has_point_size : 1;
+      uint32_t has_point_coordinates : 1;
+    };
+
+    GeometryShaderKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+
+    struct Hasher {
+      size_t operator()(const GeometryShaderKey& key) const {
+        return std::hash<uint32_t>{}(key.key);
+      }
+    };
+    bool operator==(const GeometryShaderKey& other_key) const {
+      return key == other_key.key;
+    }
+    bool operator!=(const GeometryShaderKey& other_key) const {
+      return !(*this == other_key);
+    }
   };
 
   D3D12Shader* LoadShader(xenos::ShaderType shader_type,
@@ -256,6 +286,12 @@ class PipelineCache {
       uint32_t bound_depth_and_color_render_target_bits,
       const uint32_t* bound_depth_and_color_render_target_formats,
       PipelineRuntimeDescription& runtime_description_out);
+
+  static bool GetGeometryShaderKey(PipelineGeometryShader geometry_shader_type,
+                                   GeometryShaderKey& key_out);
+  static void CreateDxbcGeometryShader(GeometryShaderKey key,
+                                       std::vector<uint32_t>& shader_out);
+  const std::vector<uint32_t>& GetGeometryShader(GeometryShaderKey key);
 
   ID3D12PipelineState* CreateD3D12Pipeline(
       const PipelineRuntimeDescription& runtime_description);
@@ -301,6 +337,11 @@ class PipelineCache {
   std::unordered_multimap<uint64_t, LayoutUID,
                           xe::hash::IdentityHasher<uint64_t>>
       bindless_sampler_layout_map_;
+
+  // Geometry shaders for Xenos primitive types not supported by Direct3D 12.
+  std::unordered_map<GeometryShaderKey, std::vector<uint32_t>,
+                     GeometryShaderKey::Hasher>
+      geometry_shaders_;
 
   // Empty depth-only pixel shader for writing to depth buffer via ROV when no
   // Xenos pixel shader provided.

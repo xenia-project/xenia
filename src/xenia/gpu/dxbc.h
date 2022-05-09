@@ -166,11 +166,11 @@ struct alignas(uint32_t) BlobHeader {
     // In order of appearance in a container.
     kResourceDefinition = MakeFourCC('R', 'D', 'E', 'F'),
     kInputSignature = MakeFourCC('I', 'S', 'G', 'N'),
-    kInputSignature11_1 = MakeFourCC('I', 'S', 'G', '1'),
+    kInputSignature_11_1 = MakeFourCC('I', 'S', 'G', '1'),
     kPatchConstantSignature = MakeFourCC('P', 'C', 'S', 'G'),
     kOutputSignature = MakeFourCC('O', 'S', 'G', 'N'),
     kOutputSignatureForGS = MakeFourCC('O', 'S', 'G', '5'),
-    kOutputSignature11_1 = MakeFourCC('O', 'S', 'G', '1'),
+    kOutputSignature_11_1 = MakeFourCC('O', 'S', 'G', '1'),
     kShaderEx = MakeFourCC('S', 'H', 'E', 'X'),
     kShaderFeatureInfo = MakeFourCC('S', 'F', 'I', '0'),
     kStatistics = MakeFourCC('S', 'T', 'A', 'T'),
@@ -522,7 +522,7 @@ static_assert_size(SignatureParameterForGS, sizeof(uint32_t) * 7);
 
 // D3D11_INTERNALSHADER_PARAMETER_11_1
 // Extends SignatureParameterForGS, see it for more information.
-struct alignas(uint32_t) SignatureParameter11_1 {
+struct alignas(uint32_t) SignatureParameter_11_1 {
   uint32_t stream;
   uint32_t semantic_name_ptr;
   uint32_t semantic_index;
@@ -536,7 +536,7 @@ struct alignas(uint32_t) SignatureParameter11_1 {
   };
   MinPrecision min_precision;
 };
-static_assert_size(SignatureParameter11_1, sizeof(uint32_t) * 8);
+static_assert_size(SignatureParameter_11_1, sizeof(uint32_t) * 8);
 
 // D3D10_INTERNALSHADER_SIGNATURE
 struct alignas(uint32_t) Signature {
@@ -1527,6 +1527,10 @@ constexpr uint32_t OpcodeToken(Opcode opcode, uint32_t operands_length,
          (extended_opcode_count ? (uint32_t(1) << 31) : 0);
 }
 
+constexpr uint32_t GetOpcodeTokenInstructionLength(uint32_t opcode_token) {
+  return (opcode_token >> 24) & ((UINT32_C(1) << 7) - 1);
+}
+
 constexpr uint32_t SampleControlsExtendedOpcodeToken(int32_t aoffimmi_u,
                                                      int32_t aoffimmi_v,
                                                      int32_t aoffimmi_w,
@@ -2049,11 +2053,15 @@ class Assembler {
     operand.Write(code_, false, 0b1111, false, true);
     code_.push_back(space);
   }
+  // In geometry shaders, only kPointList, kLineStrip and kTriangleStrip are
+  // allowed.
   void OpDclOutputTopology(PrimitiveTopology output_topology) {
     code_.push_back(OpcodeToken(Opcode::kDclOutputTopology, 0) |
                     (uint32_t(output_topology) << 11));
     stat_.gs_output_topology = output_topology;
   }
+  // In geometry shaders, only kPoint, kLine, kTriangle, kLineWithAdjacency and
+  // kTriangleWithAdjacency are allowed.
   void OpDclInputPrimitive(Primitive input_primitive) {
     code_.push_back(OpcodeToken(Opcode::kDclInputPrimitive, 0) |
                     (uint32_t(input_primitive) << 11));
@@ -2194,6 +2202,9 @@ class Assembler {
     code_.push_back(OpcodeToken(Opcode::kEmitThenCutStream, operands_length));
     stream.Write(code_);
     ++stat_.instruction_count;
+    // TODO(Triang3l): Verify if the instruction counts should be incremented
+    // this way (haven't been able to obtain this from FXC because it generates
+    // separate emit_stream and cut_stream, at least for Shader Model 5.1).
     ++stat_.emit_instruction_count;
     ++stat_.cut_instruction_count;
   }
