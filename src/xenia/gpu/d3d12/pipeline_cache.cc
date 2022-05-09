@@ -2343,8 +2343,9 @@ void PipelineCache::CreateDxbcGeometryShader(
     }
   }
 
-  size_t dcl_temps_instruction_position_dwords = shader_out.size();
-  size_t dcl_temps_count_position_dwords = a.OpDclTemps(0);
+  // At least 1 temporary register needed to discard primitives with NaN
+  // position.
+  size_t dcl_temps_count_position_dwords = a.OpDclTemps(1);
 
   a.OpDclInputPrimitive(input_primitive);
   dxbc::Dest stream(dxbc::Dest::M(0));
@@ -2380,13 +2381,25 @@ void PipelineCache::CreateDxbcGeometryShader(
   // Also, FXC generates only movs (from statically or dynamically indexed
   // v[#][#], from r#, or from a literal) to o# for some reason.
 
-  // Cull the whole primitive if all cull distances are < 0.
+  // Discard the whole primitive if any vertex has a NaN position (may also be
+  // set to NaN for emulation of vertex killing with the OR operator).
+  for (uint32_t i = 0; i < input_primitive_vertex_count; ++i) {
+    a.OpNE(dxbc::Dest::R(0), dxbc::Src::V2D(i, input_register_position),
+           dxbc::Src::V2D(i, input_register_position));
+    a.OpOr(dxbc::Dest::R(0, 0b0011), dxbc::Src::R(0, 0b0100),
+           dxbc::Src::R(0, 0b1110));
+    a.OpOr(dxbc::Dest::R(0, 0b0001), dxbc::Src::R(0, dxbc::Src::kXXXX),
+           dxbc::Src::R(0, dxbc::Src::kYYYY));
+    a.OpRetC(true, dxbc::Src::R(0, dxbc::Src::kXXXX));
+  }
+
+  // Cull the whole primitive if any cull distance for all vertices in the
+  // primitive is < 0.
   // TODO(Triang3l): For points, handle ps_ucp_mode (transform the host clip
   // space to the guest one, calculate the distances to the user clip planes,
   // cull using the distance from the center for modes 0, 1 and 2, cull and clip
   // per-vertex for modes 2 and 3) - except for the vertex kill flag.
   if (input_cull_distance_count) {
-    stat.temp_register_count = std::max(UINT32_C(1), stat.temp_register_count);
     for (uint32_t i = 0; i < input_cull_distance_count; ++i) {
       uint32_t cull_distance_register = input_register_clip_and_cull_distances +
                                         ((input_clip_distance_count + i) >> 2);
@@ -2424,8 +2437,6 @@ void PipelineCache::CreateDxbcGeometryShader(
                  2) &
                 3)
                << 2)));
-      stat.temp_register_count =
-          std::max(UINT32_C(1), stat.temp_register_count);
       if (key.has_point_size) {
         // The vertex shader's header writes -1.0 to point_size by default, so
         // any non-negative value means that it was overwritten by the
@@ -2547,9 +2558,6 @@ void PipelineCache::CreateDxbcGeometryShader(
       //
       // Input vertices are implicitly indexable, dcl_indexRange is not needed
       // for the first dimension of a v[#][#] index.
-
-      stat.temp_register_count =
-          std::max(UINT32_C(1), stat.temp_register_count);
 
       // Get squares of edge lengths into r0.xyz to choose the longest edge.
       // r0.x = ||12||^2
@@ -2711,23 +2719,8 @@ void PipelineCache::CreateDxbcGeometryShader(
 
   a.OpRet();
 
-  if (stat.temp_register_count) {
-    // Write the actual number of temporary registers used.
-    shader_out[dcl_temps_count_position_dwords] = stat.temp_register_count;
-  } else {
-    // Remove the dcl_temps instruction (FXC doesn't generate it when temporary
-    // variables aren't used).
-    uint32_t dcl_temps_length_dwords = dxbc::GetOpcodeTokenInstructionLength(
-        shader_out[dcl_temps_instruction_position_dwords]);
-    size_t dcl_temps_end_position_dwords =
-        dcl_temps_instruction_position_dwords + dcl_temps_length_dwords;
-    size_t shader_size_with_dcl_temps = shader_out.size();
-    std::memmove(shader_out.data() + dcl_temps_instruction_position_dwords,
-                 shader_out.data() + dcl_temps_end_position_dwords,
-                 sizeof(uint32_t) * (shader_size_with_dcl_temps -
-                                     dcl_temps_end_position_dwords));
-    shader_out.resize(shader_size_with_dcl_temps - dcl_temps_length_dwords);
-  }
+  // Write the actual number of temporary registers used.
+  shader_out[dcl_temps_count_position_dwords] = stat.temp_register_count;
 
   // Write the shader program length in dwords.
   shader_out[shex_position_dwords + 1] =
