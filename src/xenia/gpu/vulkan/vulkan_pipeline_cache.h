@@ -86,6 +86,7 @@ class VulkanPipelineCache {
   enum class PipelineGeometryShader : uint32_t {
     kNone,
     kRectangleList,
+    kQuadList,
   };
 
   enum class PipelinePrimitiveTopology : uint32_t {
@@ -205,7 +206,35 @@ class VulkanPipelineCache {
     std::pair<const PipelineDescription, Pipeline>* pipeline;
     const VulkanShader::VulkanTranslation* vertex_shader;
     const VulkanShader::VulkanTranslation* pixel_shader;
+    VkShaderModule geometry_shader;
     VkRenderPass render_pass;
+  };
+
+  union GeometryShaderKey {
+    uint32_t key;
+    struct {
+      PipelineGeometryShader type : 2;
+      uint32_t interpolator_count : 5;
+      uint32_t user_clip_plane_count : 3;
+      uint32_t user_clip_plane_cull : 1;
+      uint32_t has_vertex_kill_and : 1;
+      uint32_t has_point_size : 1;
+      uint32_t has_point_coordinates : 1;
+    };
+
+    GeometryShaderKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+
+    struct Hasher {
+      size_t operator()(const GeometryShaderKey& key) const {
+        return std::hash<uint32_t>{}(key.key);
+      }
+    };
+    bool operator==(const GeometryShaderKey& other_key) const {
+      return key == other_key.key;
+    }
+    bool operator!=(const GeometryShaderKey& other_key) const {
+      return !(*this == other_key);
+    }
   };
 
   // Can be called from multiple threads.
@@ -227,6 +256,10 @@ class VulkanPipelineCache {
   // Whether the pipeline for the given description is supported by the device.
   bool ArePipelineRequirementsMet(const PipelineDescription& description) const;
 
+  static bool GetGeometryShaderKey(PipelineGeometryShader geometry_shader_type,
+                                   GeometryShaderKey& key_out);
+  VkShaderModule GetGeometryShader(GeometryShaderKey key);
+
   // Can be called from creation threads - all needed data must be fully set up
   // at the point of the call: shaders must be translated, pipeline layout and
   // render pass objects must be available.
@@ -237,8 +270,6 @@ class VulkanPipelineCache {
   const RegisterFile& register_file_;
   VulkanRenderTargetCache& render_target_cache_;
 
-  VkShaderModule gs_rectangle_list_ = VK_NULL_HANDLE;
-
   // Temporary storage for AnalyzeUcode calls on the processor thread.
   StringBuffer ucode_disasm_buffer_;
   // Reusable shader translator on the command processor thread.
@@ -248,6 +279,12 @@ class VulkanPipelineCache {
   std::unordered_map<uint64_t, VulkanShader*,
                      xe::hash::IdentityHasher<uint64_t>>
       shaders_;
+
+  // Geometry shaders for Xenos primitive types not supported by Vulkan.
+  // Stores VK_NULL_HANDLE if failed to create.
+  std::unordered_map<GeometryShaderKey, VkShaderModule,
+                     GeometryShaderKey::Hasher>
+      geometry_shaders_;
 
   std::unordered_map<PipelineDescription, Pipeline, PipelineDescription::Hasher>
       pipelines_;

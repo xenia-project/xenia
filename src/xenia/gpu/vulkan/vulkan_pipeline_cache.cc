@@ -11,9 +11,12 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstring>
 #include <memory>
+#include <utility>
 
+#include "third_party/glslang/SPIRV/SpvBuilder.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -33,11 +36,6 @@ namespace xe {
 namespace gpu {
 namespace vulkan {
 
-// Generated with `xb buildshaders`.
-namespace shaders {
-#include "xenia/gpu/shaders/bytecode/vulkan_spirv/primitive_rectangle_list_gs.h"
-}  // namespace shaders
-
 VulkanPipelineCache::VulkanPipelineCache(
     VulkanCommandProcessor& command_processor,
     const RegisterFile& register_file,
@@ -51,20 +49,6 @@ VulkanPipelineCache::~VulkanPipelineCache() { Shutdown(); }
 bool VulkanPipelineCache::Initialize() {
   const ui::vulkan::VulkanProvider& provider =
       command_processor_.GetVulkanProvider();
-  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
-
-  if (device_features.geometryShader) {
-    gs_rectangle_list_ = ui::vulkan::util::CreateShaderModule(
-        provider, shaders::primitive_rectangle_list_gs,
-        sizeof(shaders::primitive_rectangle_list_gs));
-    if (gs_rectangle_list_ == VK_NULL_HANDLE) {
-      XELOGE(
-          "VulkanPipelineCache: Failed to create the rectangle list geometry "
-          "shader");
-      Shutdown();
-      return false;
-    }
-  }
 
   shader_translator_ = std::make_unique<SpirvShaderTranslator>(
       SpirvShaderTranslator::Features(provider));
@@ -80,10 +64,14 @@ void VulkanPipelineCache::Shutdown() {
 
   ClearCache();
 
-  shader_translator_.reset();
+  for (const auto& geometry_shader_pair : geometry_shaders_) {
+    if (geometry_shader_pair.second != VK_NULL_HANDLE) {
+      dfn.vkDestroyShaderModule(device, geometry_shader_pair.second, nullptr);
+    }
+  }
+  geometry_shaders_.clear();
 
-  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
-                                         gs_rectangle_list_);
+  shader_translator_.reset();
 }
 
 void VulkanPipelineCache::ClearCache() {
@@ -255,6 +243,14 @@ bool VulkanPipelineCache::ConfigurePipeline(
   if (!pipeline_layout) {
     return false;
   }
+  VkShaderModule geometry_shader = VK_NULL_HANDLE;
+  GeometryShaderKey geometry_shader_key;
+  if (GetGeometryShaderKey(description.geometry_shader, geometry_shader_key)) {
+    geometry_shader = GetGeometryShader(geometry_shader_key);
+    if (geometry_shader == VK_NULL_HANDLE) {
+      return false;
+    }
+  }
   VkRenderPass render_pass =
       render_target_cache_.GetRenderPass(render_pass_key);
   if (render_pass == VK_NULL_HANDLE) {
@@ -266,6 +262,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
   creation_arguments.pipeline = &pipeline;
   creation_arguments.vertex_shader = vertex_shader;
   creation_arguments.pixel_shader = pixel_shader;
+  creation_arguments.geometry_shader = geometry_shader;
   creation_arguments.render_pass = render_pass;
   if (!EnsurePipelineCreated(creation_arguments)) {
     return false;
@@ -419,6 +416,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       primitive_topology = PipelinePrimitiveTopology::kTriangleList;
       break;
     case xenos::PrimitiveType::kQuadList:
+      geometry_shader = PipelineGeometryShader::kQuadList;
       primitive_topology = PipelinePrimitiveTopology::kLineListWithAdjacency;
       break;
     default:
@@ -686,6 +684,782 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
   return true;
 }
 
+bool VulkanPipelineCache::GetGeometryShaderKey(
+    PipelineGeometryShader geometry_shader_type, GeometryShaderKey& key_out) {
+  if (geometry_shader_type == PipelineGeometryShader::kNone) {
+    return false;
+  }
+  GeometryShaderKey key;
+  key.type = geometry_shader_type;
+  // TODO(Triang3l): Make the linkage parameters depend on the real needs of the
+  // vertex and the pixel shader.
+  key.interpolator_count = xenos::kMaxInterpolators;
+  key.user_clip_plane_count = /* 6 */ 0;
+  key.user_clip_plane_cull = 0;
+  key.has_vertex_kill_and = /* 1 */ 0;
+  key.has_point_size = /* 1 */ 0;
+  key.has_point_coordinates = /* 1 */ 0;
+  key_out = key;
+  return true;
+}
+
+VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
+  auto it = geometry_shaders_.find(key);
+  if (it != geometry_shaders_.end()) {
+    return it->second;
+  }
+
+  std::vector<spv::Id> id_vector_temp;
+  std::vector<unsigned int> uint_vector_temp;
+
+  spv::ExecutionMode input_primitive_execution_mode = spv::ExecutionMode(0);
+  uint32_t input_primitive_vertex_count = 0;
+  spv::ExecutionMode output_primitive_execution_mode = spv::ExecutionMode(0);
+  uint32_t output_max_vertices = 0;
+  switch (key.type) {
+    case PipelineGeometryShader::kRectangleList:
+      // Triangle to a strip of 2 triangles.
+      input_primitive_execution_mode = spv::ExecutionModeTriangles;
+      input_primitive_vertex_count = 3;
+      output_primitive_execution_mode = spv::ExecutionModeOutputTriangleStrip;
+      output_max_vertices = 4;
+      break;
+    case PipelineGeometryShader::kQuadList:
+      // 4 vertices passed via a line list with adjacency to a strip of 2
+      // triangles.
+      input_primitive_execution_mode = spv::ExecutionModeInputLinesAdjacency;
+      input_primitive_vertex_count = 4;
+      output_primitive_execution_mode = spv::ExecutionModeOutputTriangleStrip;
+      output_max_vertices = 4;
+      break;
+    default:
+      assert_unhandled_case(key.type);
+  }
+
+  uint32_t clip_distance_count =
+      key.user_clip_plane_cull ? 0 : key.user_clip_plane_count;
+  uint32_t cull_distance_count =
+      (key.user_clip_plane_cull ? key.user_clip_plane_count : 0) +
+      key.has_vertex_kill_and;
+
+  spv::Builder builder(spv::Spv_1_0,
+                       (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1,
+                       nullptr);
+  spv::Id ext_inst_glsl_std_450 = builder.import("GLSL.std.450");
+  builder.addCapability(spv::CapabilityGeometry);
+  if (clip_distance_count) {
+    builder.addCapability(spv::CapabilityClipDistance);
+  }
+  if (cull_distance_count) {
+    builder.addCapability(spv::CapabilityCullDistance);
+  }
+  builder.setMemoryModel(spv::AddressingModelLogical, spv::MemoryModelGLSL450);
+  builder.setSource(spv::SourceLanguageUnknown, 0);
+
+  // TODO(Triang3l): Shader float controls (NaN preservation most importantly).
+
+  std::vector<spv::Id> main_interface;
+
+  spv::Id type_void = builder.makeVoidType();
+  spv::Id type_bool = builder.makeBoolType();
+  spv::Id type_bool4 = builder.makeVectorType(type_bool, 4);
+  spv::Id type_int = builder.makeIntType(32);
+  spv::Id type_float = builder.makeFloatType(32);
+  spv::Id type_float4 = builder.makeVectorType(type_float, 4);
+  spv::Id type_clip_distances =
+      clip_distance_count
+          ? builder.makeArrayType(
+                type_float, builder.makeUintConstant(clip_distance_count), 0)
+          : spv::NoType;
+  spv::Id type_cull_distances =
+      cull_distance_count
+          ? builder.makeArrayType(
+                type_float, builder.makeUintConstant(cull_distance_count), 0)
+          : spv::NoType;
+  spv::Id type_interpolators =
+      key.interpolator_count
+          ? builder.makeArrayType(
+                type_float4, builder.makeUintConstant(key.interpolator_count),
+                0)
+          : spv::NoType;
+  spv::Id type_point_coordinates = key.has_point_coordinates
+                                       ? builder.makeVectorType(type_float, 2)
+                                       : spv::NoType;
+
+  // Inputs and outputs - matching glslang order, in gl_PerVertex gl_in[],
+  // user-defined outputs, user-defined inputs, out gl_PerVertex.
+  // TODO(Triang3l): Point parameters from the system uniform buffer.
+
+  spv::Id const_input_primitive_vertex_count =
+      builder.makeUintConstant(input_primitive_vertex_count);
+
+  // in gl_PerVertex gl_in[].
+  // gl_Position.
+  id_vector_temp.clear();
+  uint32_t member_in_gl_per_vertex_position = uint32_t(id_vector_temp.size());
+  id_vector_temp.push_back(type_float4);
+  spv::Id const_member_in_gl_per_vertex_position =
+      builder.makeIntConstant(int32_t(member_in_gl_per_vertex_position));
+  // gl_ClipDistance.
+  uint32_t member_in_gl_per_vertex_clip_distance = UINT32_MAX;
+  spv::Id const_member_in_gl_per_vertex_clip_distance = spv::NoResult;
+  if (clip_distance_count) {
+    member_in_gl_per_vertex_clip_distance = uint32_t(id_vector_temp.size());
+    id_vector_temp.push_back(type_clip_distances);
+    const_member_in_gl_per_vertex_clip_distance =
+        builder.makeIntConstant(int32_t(member_in_gl_per_vertex_clip_distance));
+  }
+  // gl_CullDistance.
+  uint32_t member_in_gl_per_vertex_cull_distance = UINT32_MAX;
+  if (cull_distance_count) {
+    member_in_gl_per_vertex_cull_distance = uint32_t(id_vector_temp.size());
+    id_vector_temp.push_back(type_cull_distances);
+  }
+  // Structure and array.
+  spv::Id type_struct_in_gl_per_vertex =
+      builder.makeStructType(id_vector_temp, "gl_PerVertex");
+  builder.addMemberName(type_struct_in_gl_per_vertex,
+                        member_in_gl_per_vertex_position, "gl_Position");
+  builder.addMemberDecoration(type_struct_in_gl_per_vertex,
+                              member_in_gl_per_vertex_position,
+                              spv::DecorationBuiltIn, spv::BuiltInPosition);
+  if (clip_distance_count) {
+    builder.addMemberName(type_struct_in_gl_per_vertex,
+                          member_in_gl_per_vertex_clip_distance,
+                          "gl_ClipDistance");
+    builder.addMemberDecoration(
+        type_struct_in_gl_per_vertex, member_in_gl_per_vertex_clip_distance,
+        spv::DecorationBuiltIn, spv::BuiltInClipDistance);
+  }
+  if (cull_distance_count) {
+    builder.addMemberName(type_struct_in_gl_per_vertex,
+                          member_in_gl_per_vertex_cull_distance,
+                          "gl_CullDistance");
+    builder.addMemberDecoration(
+        type_struct_in_gl_per_vertex, member_in_gl_per_vertex_cull_distance,
+        spv::DecorationBuiltIn, spv::BuiltInCullDistance);
+  }
+  builder.addDecoration(type_struct_in_gl_per_vertex, spv::DecorationBlock);
+  spv::Id type_array_in_gl_per_vertex = builder.makeArrayType(
+      type_struct_in_gl_per_vertex, const_input_primitive_vertex_count, 0);
+  spv::Id in_gl_per_vertex =
+      builder.createVariable(spv::NoPrecision, spv::StorageClassInput,
+                             type_array_in_gl_per_vertex, "gl_in");
+  main_interface.push_back(in_gl_per_vertex);
+
+  // Interpolators output.
+  spv::Id out_interpolators = spv::NoResult;
+  if (key.interpolator_count) {
+    out_interpolators =
+        builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
+                               type_interpolators, "xe_out_interpolators");
+    builder.addDecoration(out_interpolators, spv::DecorationLocation, 0);
+    builder.addDecoration(out_interpolators, spv::DecorationInvariant);
+    main_interface.push_back(out_interpolators);
+  }
+
+  // Point coordinate output.
+  spv::Id out_point_coordinates = spv::NoResult;
+  if (key.has_point_coordinates) {
+    out_point_coordinates = builder.createVariable(
+        spv::NoPrecision, spv::StorageClassOutput, type_point_coordinates,
+        "xe_out_point_coordinates");
+    builder.addDecoration(out_point_coordinates, spv::DecorationLocation,
+                          key.interpolator_count);
+    builder.addDecoration(out_point_coordinates, spv::DecorationInvariant);
+    main_interface.push_back(out_point_coordinates);
+  }
+
+  // Interpolator input.
+  spv::Id in_interpolators = spv::NoResult;
+  if (key.interpolator_count) {
+    in_interpolators = builder.createVariable(
+        spv::NoPrecision, spv::StorageClassInput,
+        builder.makeArrayType(type_interpolators,
+                              const_input_primitive_vertex_count, 0),
+        "xe_in_interpolators");
+    builder.addDecoration(in_interpolators, spv::DecorationLocation, 0);
+    main_interface.push_back(in_interpolators);
+  }
+
+  // Point size input.
+  spv::Id in_point_size = spv::NoResult;
+  if (key.has_point_size) {
+    in_point_size = builder.createVariable(
+        spv::NoPrecision, spv::StorageClassInput,
+        builder.makeArrayType(type_float, const_input_primitive_vertex_count,
+                              0),
+        "xe_in_point_size");
+    builder.addDecoration(in_point_size, spv::DecorationLocation,
+                          key.interpolator_count);
+    main_interface.push_back(in_point_size);
+  }
+
+  // out gl_PerVertex.
+  // gl_Position.
+  id_vector_temp.clear();
+  uint32_t member_out_gl_per_vertex_position = uint32_t(id_vector_temp.size());
+  id_vector_temp.push_back(type_float4);
+  spv::Id const_member_out_gl_per_vertex_position =
+      builder.makeIntConstant(int32_t(member_out_gl_per_vertex_position));
+  // gl_ClipDistance.
+  uint32_t member_out_gl_per_vertex_clip_distance = UINT32_MAX;
+  spv::Id const_member_out_gl_per_vertex_clip_distance = spv::NoResult;
+  if (clip_distance_count) {
+    member_out_gl_per_vertex_clip_distance = uint32_t(id_vector_temp.size());
+    id_vector_temp.push_back(type_clip_distances);
+    const_member_out_gl_per_vertex_clip_distance = builder.makeIntConstant(
+        int32_t(member_out_gl_per_vertex_clip_distance));
+  }
+  // Structure.
+  spv::Id type_struct_out_gl_per_vertex =
+      builder.makeStructType(id_vector_temp, "gl_PerVertex");
+  builder.addMemberName(type_struct_out_gl_per_vertex,
+                        member_out_gl_per_vertex_position, "gl_Position");
+  builder.addMemberDecoration(type_struct_out_gl_per_vertex,
+                              member_out_gl_per_vertex_position,
+                              spv::DecorationInvariant);
+  builder.addMemberDecoration(type_struct_out_gl_per_vertex,
+                              member_out_gl_per_vertex_position,
+                              spv::DecorationBuiltIn, spv::BuiltInPosition);
+  if (clip_distance_count) {
+    builder.addMemberName(type_struct_out_gl_per_vertex,
+                          member_out_gl_per_vertex_clip_distance,
+                          "gl_ClipDistance");
+    builder.addMemberDecoration(type_struct_out_gl_per_vertex,
+                                member_out_gl_per_vertex_clip_distance,
+                                spv::DecorationInvariant);
+    builder.addMemberDecoration(
+        type_struct_out_gl_per_vertex, member_out_gl_per_vertex_clip_distance,
+        spv::DecorationBuiltIn, spv::BuiltInClipDistance);
+  }
+  builder.addDecoration(type_struct_out_gl_per_vertex, spv::DecorationBlock);
+  spv::Id out_gl_per_vertex =
+      builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
+                             type_struct_out_gl_per_vertex, "");
+  main_interface.push_back(out_gl_per_vertex);
+
+  // Begin the main function.
+  std::vector<spv::Id> main_param_types;
+  std::vector<std::vector<spv::Decoration>> main_precisions;
+  spv::Block* main_entry;
+  spv::Function* main_function =
+      builder.makeFunctionEntry(spv::NoPrecision, type_void, "main",
+                                main_param_types, main_precisions, &main_entry);
+  spv::Instruction* entry_point =
+      builder.addEntryPoint(spv::ExecutionModelGeometry, main_function, "main");
+  for (spv::Id interface_id : main_interface) {
+    entry_point->addIdOperand(interface_id);
+  }
+  builder.addExecutionMode(main_function, input_primitive_execution_mode);
+  builder.addExecutionMode(main_function, spv::ExecutionModeInvocations, 1);
+  builder.addExecutionMode(main_function, output_primitive_execution_mode);
+  builder.addExecutionMode(main_function, spv::ExecutionModeOutputVertices,
+                           int(output_max_vertices));
+
+  // Note that after every OpEmitVertex, all output variables are undefined.
+
+  // Discard the whole primitive if any vertex has a NaN position (may also be
+  // set to NaN for emulation of vertex killing with the OR operator).
+  for (uint32_t i = 0; i < input_primitive_vertex_count; ++i) {
+    id_vector_temp.clear();
+    id_vector_temp.reserve(2);
+    id_vector_temp.push_back(builder.makeIntConstant(int32_t(i)));
+    id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
+    spv::Id position_is_nan = builder.createUnaryOp(
+        spv::OpAny, type_bool,
+        builder.createUnaryOp(
+            spv::OpIsNan, type_bool4,
+            builder.createLoad(
+                builder.createAccessChain(spv::StorageClassInput,
+                                          in_gl_per_vertex, id_vector_temp),
+                spv::NoPrecision)));
+    spv::Block& discard_predecessor = *builder.getBuildPoint();
+    spv::Block& discard_then_block = builder.makeNewBlock();
+    spv::Block& discard_merge_block = builder.makeNewBlock();
+    {
+      std::unique_ptr<spv::Instruction> selection_merge_op(
+          std::make_unique<spv::Instruction>(spv::OpSelectionMerge));
+      selection_merge_op->addIdOperand(discard_merge_block.getId());
+      selection_merge_op->addImmediateOperand(
+          spv::SelectionControlDontFlattenMask);
+      discard_predecessor.addInstruction(std::move(selection_merge_op));
+    }
+    {
+      std::unique_ptr<spv::Instruction> branch_conditional_op(
+          std::make_unique<spv::Instruction>(spv::OpBranchConditional));
+      branch_conditional_op->addIdOperand(position_is_nan);
+      branch_conditional_op->addIdOperand(discard_then_block.getId());
+      branch_conditional_op->addIdOperand(discard_merge_block.getId());
+      branch_conditional_op->addImmediateOperand(1);
+      branch_conditional_op->addImmediateOperand(2);
+      discard_predecessor.addInstruction(std::move(branch_conditional_op));
+    }
+    discard_then_block.addPredecessor(&discard_predecessor);
+    discard_merge_block.addPredecessor(&discard_predecessor);
+    builder.setBuildPoint(&discard_then_block);
+    builder.createNoResultOp(spv::OpReturn);
+    builder.setBuildPoint(&discard_merge_block);
+  }
+
+  // Cull the whole primitive if any cull distance for all vertices in the
+  // primitive is < 0.
+  // TODO(Triang3l): For points, handle ps_ucp_mode (transform the host clip
+  // space to the guest one, calculate the distances to the user clip planes,
+  // cull using the distance from the center for modes 0, 1 and 2, cull and clip
+  // per-vertex for modes 2 and 3) - except for the vertex kill flag.
+  if (cull_distance_count) {
+    spv::Id const_member_in_gl_per_vertex_cull_distance =
+        builder.makeIntConstant(int32_t(member_in_gl_per_vertex_cull_distance));
+    spv::Id const_float_0 = builder.makeFloatConstant(0.0f);
+    spv::Id cull_condition = spv::NoResult;
+    for (uint32_t i = 0; i < cull_distance_count; ++i) {
+      for (uint32_t j = 0; j < input_primitive_vertex_count; ++j) {
+        id_vector_temp.clear();
+        id_vector_temp.reserve(3);
+        id_vector_temp.push_back(builder.makeIntConstant(int32_t(j)));
+        id_vector_temp.push_back(const_member_in_gl_per_vertex_cull_distance);
+        id_vector_temp.push_back(builder.makeIntConstant(int32_t(i)));
+        spv::Id cull_distance_is_negative = builder.createBinOp(
+            spv::OpFOrdLessThan, type_bool,
+            builder.createLoad(
+                builder.createAccessChain(spv::StorageClassInput,
+                                          in_gl_per_vertex, id_vector_temp),
+                spv::NoPrecision),
+            const_float_0);
+        if (cull_condition != spv::NoResult) {
+          cull_condition =
+              builder.createBinOp(spv::OpLogicalAnd, type_bool, cull_condition,
+                                  cull_distance_is_negative);
+        } else {
+          cull_condition = cull_distance_is_negative;
+        }
+      }
+    }
+    assert_true(cull_condition != spv::NoResult);
+    spv::Block& discard_predecessor = *builder.getBuildPoint();
+    spv::Block& discard_then_block = builder.makeNewBlock();
+    spv::Block& discard_merge_block = builder.makeNewBlock();
+    {
+      std::unique_ptr<spv::Instruction> selection_merge_op(
+          std::make_unique<spv::Instruction>(spv::OpSelectionMerge));
+      selection_merge_op->addIdOperand(discard_merge_block.getId());
+      selection_merge_op->addImmediateOperand(
+          spv::SelectionControlDontFlattenMask);
+      discard_predecessor.addInstruction(std::move(selection_merge_op));
+    }
+    {
+      std::unique_ptr<spv::Instruction> branch_conditional_op(
+          std::make_unique<spv::Instruction>(spv::OpBranchConditional));
+      branch_conditional_op->addIdOperand(cull_condition);
+      branch_conditional_op->addIdOperand(discard_then_block.getId());
+      branch_conditional_op->addIdOperand(discard_merge_block.getId());
+      branch_conditional_op->addImmediateOperand(1);
+      branch_conditional_op->addImmediateOperand(2);
+      discard_predecessor.addInstruction(std::move(branch_conditional_op));
+    }
+    discard_then_block.addPredecessor(&discard_predecessor);
+    discard_merge_block.addPredecessor(&discard_predecessor);
+    builder.setBuildPoint(&discard_then_block);
+    builder.createNoResultOp(spv::OpReturn);
+    builder.setBuildPoint(&discard_merge_block);
+  }
+
+  switch (key.type) {
+    case PipelineGeometryShader::kRectangleList: {
+      // Construct a strip with the fourth vertex generated by mirroring a
+      // vertex across the longest edge (the diagonal).
+      //
+      // Possible options:
+      //
+      // 0---1
+      // |  /|
+      // | / |  - 12 is the longest edge, strip 0123 (most commonly used)
+      // |/  |    v3 = v0 + (v1 - v0) + (v2 - v0), or v3 = -v0 + v1 + v2
+      // 2--[3]
+      //
+      // 1---2
+      // |  /|
+      // | / |  - 20 is the longest edge, strip 1203
+      // |/  |
+      // 0--[3]
+      //
+      // 2---0
+      // |  /|
+      // | / |  - 01 is the longest edge, strip 2013
+      // |/  |
+      // 1--[3]
+
+      spv::Id const_int_0 = builder.makeIntConstant(0);
+      spv::Id const_int_1 = builder.makeIntConstant(1);
+      spv::Id const_int_2 = builder.makeIntConstant(2);
+      spv::Id const_int_3 = builder.makeIntConstant(3);
+
+      // Get squares of edge lengths to choose the longest edge.
+      // [0] - 12, [1] - 20, [2] - 01.
+      spv::Id edge_lengths[3];
+      id_vector_temp.resize(3);
+      id_vector_temp[1] = const_member_in_gl_per_vertex_position;
+      for (uint32_t i = 0; i < 3; ++i) {
+        id_vector_temp[0] = builder.makeIntConstant(int32_t((1 + i) % 3));
+        id_vector_temp[2] = const_int_0;
+        spv::Id edge_0_x = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        id_vector_temp[2] = const_int_1;
+        spv::Id edge_0_y = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        id_vector_temp[0] = builder.makeIntConstant(int32_t((2 + i) % 3));
+        id_vector_temp[2] = const_int_0;
+        spv::Id edge_1_x = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        id_vector_temp[2] = const_int_1;
+        spv::Id edge_1_y = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        spv::Id edge_x =
+            builder.createBinOp(spv::OpFSub, type_float, edge_1_x, edge_0_x);
+        spv::Id edge_y =
+            builder.createBinOp(spv::OpFSub, type_float, edge_1_y, edge_0_y);
+        edge_lengths[i] = builder.createBinOp(
+            spv::OpFAdd, type_float,
+            builder.createBinOp(spv::OpFMul, type_float, edge_x, edge_x),
+            builder.createBinOp(spv::OpFMul, type_float, edge_y, edge_y));
+      }
+
+      // Choose the index of the first vertex in the strip based on which edge
+      // is the longest, and calculate the indices of the other vertices.
+      spv::Id vertex_indices[3];
+      // If 12 > 20 && 12 > 01, then 12 is the longest edge, and the strip is
+      // 0123. Otherwise, if 20 > 01, then 20 is the longest, and the strip is
+      // 1203, but if not, 01 is the longest, and the strip is 2013.
+      vertex_indices[0] = builder.createTriOp(
+          spv::OpSelect, type_int,
+          builder.createBinOp(
+              spv::OpLogicalAnd, type_bool,
+              builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
+                                  edge_lengths[0], edge_lengths[1]),
+              builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
+                                  edge_lengths[0], edge_lengths[2])),
+          const_int_0,
+          builder.createTriOp(
+              spv::OpSelect, type_int,
+              builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
+                                  edge_lengths[1], edge_lengths[2]),
+              const_int_1, const_int_2));
+      for (uint32_t i = 1; i < 3; ++i) {
+        // vertex_indices[i] = (vertex_indices[0] + i) % 3
+        spv::Id vertex_index_without_wrapping =
+            builder.createBinOp(spv::OpIAdd, type_int, vertex_indices[0],
+                                builder.makeIntConstant(int32_t(i)));
+        vertex_indices[i] = builder.createTriOp(
+            spv::OpSelect, type_int,
+            builder.createBinOp(spv::OpSLessThan, type_bool,
+                                vertex_index_without_wrapping, const_int_3),
+            vertex_index_without_wrapping,
+            builder.createBinOp(spv::OpISub, type_int,
+                                vertex_index_without_wrapping, const_int_3));
+      }
+
+      // Initialize the point coordinates output for safety if this shader type
+      // is used with has_point_coordinates for some reason.
+      spv::Id const_point_coordinates_zero = spv::NoResult;
+      if (key.has_point_coordinates) {
+        spv::Id const_float_0 = builder.makeFloatConstant(0.0f);
+        id_vector_temp.clear();
+        id_vector_temp.reserve(2);
+        id_vector_temp.push_back(const_float_0);
+        id_vector_temp.push_back(const_float_0);
+        const_point_coordinates_zero = builder.makeCompositeConstant(
+            type_point_coordinates, id_vector_temp);
+      }
+
+      // Emit the triangle in the strip that consists of the original vertices.
+      for (uint32_t i = 0; i < 3; ++i) {
+        spv::Id vertex_index = vertex_indices[i];
+        // Interpolators.
+        if (key.interpolator_count) {
+          id_vector_temp.clear();
+          id_vector_temp.push_back(vertex_index);
+          builder.createStore(
+              builder.createLoad(
+                  builder.createAccessChain(spv::StorageClassInput,
+                                            in_interpolators, id_vector_temp),
+                  spv::NoPrecision),
+              out_interpolators);
+        }
+        // Point coordinates.
+        if (key.has_point_coordinates) {
+          builder.createStore(const_point_coordinates_zero,
+                              out_point_coordinates);
+        }
+        // Position.
+        id_vector_temp.clear();
+        id_vector_temp.reserve(2);
+        id_vector_temp.push_back(vertex_index);
+        id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
+        spv::Id vertex_position = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        id_vector_temp.clear();
+        id_vector_temp.push_back(const_member_out_gl_per_vertex_position);
+        builder.createStore(
+            vertex_position,
+            builder.createAccessChain(spv::StorageClassOutput,
+                                      out_gl_per_vertex, id_vector_temp));
+        // Clip distances.
+        if (clip_distance_count) {
+          id_vector_temp.clear();
+          id_vector_temp.reserve(2);
+          id_vector_temp.push_back(vertex_index);
+          id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
+          spv::Id vertex_clip_distances = builder.createLoad(
+              builder.createAccessChain(spv::StorageClassInput,
+                                        in_gl_per_vertex, id_vector_temp),
+              spv::NoPrecision);
+          id_vector_temp.clear();
+          id_vector_temp.push_back(
+              const_member_out_gl_per_vertex_clip_distance);
+          builder.createStore(
+              vertex_clip_distances,
+              builder.createAccessChain(spv::StorageClassOutput,
+                                        out_gl_per_vertex, id_vector_temp));
+        }
+        // Emit the vertex.
+        builder.createNoResultOp(spv::OpEmitVertex);
+      }
+
+      // Construct the fourth vertex.
+      // Interpolators.
+      for (uint32_t i = 0; i < key.interpolator_count; ++i) {
+        spv::Id const_int_i = builder.makeIntConstant(int32_t(i));
+        id_vector_temp.clear();
+        id_vector_temp.reserve(2);
+        id_vector_temp.push_back(vertex_indices[0]);
+        id_vector_temp.push_back(const_int_i);
+        spv::Id vertex_interpolator_v0 = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_interpolators,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        id_vector_temp[0] = vertex_indices[1];
+        spv::Id vertex_interpolator_v01 = builder.createBinOp(
+            spv::OpFSub, type_float4,
+            builder.createLoad(
+                builder.createAccessChain(spv::StorageClassInput,
+                                          in_interpolators, id_vector_temp),
+                spv::NoPrecision),
+            vertex_interpolator_v0);
+        builder.addDecoration(vertex_interpolator_v01,
+                              spv::DecorationNoContraction);
+        id_vector_temp[0] = vertex_indices[2];
+        spv::Id vertex_interpolator_v3 = builder.createBinOp(
+            spv::OpFAdd, type_float4, vertex_interpolator_v01,
+            builder.createLoad(
+                builder.createAccessChain(spv::StorageClassInput,
+                                          in_interpolators, id_vector_temp),
+                spv::NoPrecision));
+        builder.addDecoration(vertex_interpolator_v3,
+                              spv::DecorationNoContraction);
+        id_vector_temp.clear();
+        id_vector_temp.push_back(const_int_i);
+        builder.createStore(
+            vertex_interpolator_v3,
+            builder.createAccessChain(spv::StorageClassOutput,
+                                      out_interpolators, id_vector_temp));
+      }
+      // Point coordinates.
+      if (key.has_point_coordinates) {
+        builder.createStore(const_point_coordinates_zero,
+                            out_point_coordinates);
+      }
+      // Position.
+      id_vector_temp.clear();
+      id_vector_temp.reserve(2);
+      id_vector_temp.push_back(vertex_indices[0]);
+      id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
+      spv::Id vertex_position_v0 = builder.createLoad(
+          builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                    id_vector_temp),
+          spv::NoPrecision);
+      id_vector_temp[0] = vertex_indices[1];
+      spv::Id vertex_position_v01 = builder.createBinOp(
+          spv::OpFSub, type_float4,
+          builder.createLoad(
+              builder.createAccessChain(spv::StorageClassInput,
+                                        in_gl_per_vertex, id_vector_temp),
+              spv::NoPrecision),
+          vertex_position_v0);
+      builder.addDecoration(vertex_position_v01, spv::DecorationNoContraction);
+      id_vector_temp[0] = vertex_indices[2];
+      spv::Id vertex_position_v3 = builder.createBinOp(
+          spv::OpFAdd, type_float4, vertex_position_v01,
+          builder.createLoad(
+              builder.createAccessChain(spv::StorageClassInput,
+                                        in_gl_per_vertex, id_vector_temp),
+              spv::NoPrecision));
+      builder.addDecoration(vertex_position_v3, spv::DecorationNoContraction);
+      id_vector_temp.clear();
+      id_vector_temp.push_back(const_member_out_gl_per_vertex_position);
+      builder.createStore(
+          vertex_position_v3,
+          builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex,
+                                    id_vector_temp));
+      // Clip distances.
+      for (uint32_t i = 0; i < clip_distance_count; ++i) {
+        spv::Id const_int_i = builder.makeIntConstant(int32_t(i));
+        id_vector_temp.clear();
+        id_vector_temp.reserve(3);
+        id_vector_temp.push_back(vertex_indices[0]);
+        id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
+        id_vector_temp.push_back(const_int_i);
+        spv::Id vertex_clip_distance_v0 = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        id_vector_temp[0] = vertex_indices[1];
+        spv::Id vertex_clip_distance_v01 = builder.createBinOp(
+            spv::OpFSub, type_float,
+            builder.createLoad(
+                builder.createAccessChain(spv::StorageClassInput,
+                                          in_gl_per_vertex, id_vector_temp),
+                spv::NoPrecision),
+            vertex_clip_distance_v0);
+        builder.addDecoration(vertex_clip_distance_v01,
+                              spv::DecorationNoContraction);
+        id_vector_temp[0] = vertex_indices[2];
+        spv::Id vertex_clip_distance_v3 = builder.createBinOp(
+            spv::OpFAdd, type_float, vertex_clip_distance_v01,
+            builder.createLoad(
+                builder.createAccessChain(spv::StorageClassInput,
+                                          in_gl_per_vertex, id_vector_temp),
+                spv::NoPrecision));
+        builder.addDecoration(vertex_clip_distance_v3,
+                              spv::DecorationNoContraction);
+        id_vector_temp.clear();
+        id_vector_temp.reserve(2);
+        id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
+        id_vector_temp.push_back(const_int_i);
+        builder.createStore(
+            vertex_clip_distance_v3,
+            builder.createAccessChain(spv::StorageClassOutput,
+                                      out_gl_per_vertex, id_vector_temp));
+      }
+      // Emit the vertex.
+      builder.createNoResultOp(spv::OpEmitVertex);
+      builder.createNoResultOp(spv::OpEndPrimitive);
+    } break;
+
+    case PipelineGeometryShader::kQuadList: {
+      // Initialize the point coordinates output for safety if this shader type
+      // is used with has_point_coordinates for some reason.
+      spv::Id const_point_coordinates_zero = spv::NoResult;
+      if (key.has_point_coordinates) {
+        spv::Id const_float_0 = builder.makeFloatConstant(0.0f);
+        id_vector_temp.clear();
+        id_vector_temp.reserve(2);
+        id_vector_temp.push_back(const_float_0);
+        id_vector_temp.push_back(const_float_0);
+        const_point_coordinates_zero = builder.makeCompositeConstant(
+            type_point_coordinates, id_vector_temp);
+      }
+
+      // Build the triangle strip from the original quad vertices in the
+      // 0, 1, 3, 2 order (like specified for GL_QUAD_STRIP).
+      // TODO(Triang3l): Find the correct decomposition of quads into triangles
+      // on the real hardware.
+      for (uint32_t i = 0; i < 4; ++i) {
+        spv::Id const_vertex_index =
+            builder.makeIntConstant(int32_t(i ^ (i >> 1)));
+        // Interpolators.
+        if (key.interpolator_count) {
+          id_vector_temp.clear();
+          id_vector_temp.push_back(const_vertex_index);
+          builder.createStore(
+              builder.createLoad(
+                  builder.createAccessChain(spv::StorageClassInput,
+                                            in_interpolators, id_vector_temp),
+                  spv::NoPrecision),
+              out_interpolators);
+        }
+        // Point coordinates.
+        if (key.has_point_coordinates) {
+          builder.createStore(const_point_coordinates_zero,
+                              out_point_coordinates);
+        }
+        // Position.
+        id_vector_temp.clear();
+        id_vector_temp.reserve(2);
+        id_vector_temp.push_back(const_vertex_index);
+        id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
+        spv::Id vertex_position = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        id_vector_temp.clear();
+        id_vector_temp.push_back(const_member_out_gl_per_vertex_position);
+        builder.createStore(
+            vertex_position,
+            builder.createAccessChain(spv::StorageClassOutput,
+                                      out_gl_per_vertex, id_vector_temp));
+        // Clip distances.
+        if (clip_distance_count) {
+          id_vector_temp.clear();
+          id_vector_temp.reserve(2);
+          id_vector_temp.push_back(const_vertex_index);
+          id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
+          spv::Id vertex_clip_distances = builder.createLoad(
+              builder.createAccessChain(spv::StorageClassInput,
+                                        in_gl_per_vertex, id_vector_temp),
+              spv::NoPrecision);
+          id_vector_temp.clear();
+          id_vector_temp.push_back(
+              const_member_out_gl_per_vertex_clip_distance);
+          builder.createStore(
+              vertex_clip_distances,
+              builder.createAccessChain(spv::StorageClassOutput,
+                                        out_gl_per_vertex, id_vector_temp));
+        }
+        // Emit the vertex.
+        builder.createNoResultOp(spv::OpEmitVertex);
+      }
+      builder.createNoResultOp(spv::OpEndPrimitive);
+    } break;
+
+    default:
+      assert_unhandled_case(key.type);
+  }
+
+  // End the main function.
+  builder.leaveFunction();
+
+  // Serialize the shader code.
+  std::vector<unsigned int> shader_code;
+  builder.dump(shader_code);
+
+  // Create the shader module, and store the handle even if creation fails not
+  // to try to create it again later.
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanProvider();
+  VkShaderModule shader_module = ui::vulkan::util::CreateShaderModule(
+      provider, reinterpret_cast<const uint32_t*>(shader_code.data()),
+      sizeof(uint32_t) * shader_code.size());
+  if (shader_module == VK_NULL_HANDLE) {
+    XELOGE(
+        "VulkanPipelineCache: Failed to create the primitive type geometry "
+        "shader 0x{:08X}",
+        key.key);
+  }
+  geometry_shaders_.emplace(key, shader_module);
+  return shader_module;
+}
+
 bool VulkanPipelineCache::EnsurePipelineCreated(
     const PipelineCreationArguments& creation_arguments) {
   if (creation_arguments.pipeline->second.pipeline != VK_NULL_HANDLE) {
@@ -739,15 +1513,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   shader_stage_vertex.pName = "main";
   shader_stage_vertex.pSpecializationInfo = nullptr;
   // Geometry shader.
-  VkShaderModule geometry_shader = VK_NULL_HANDLE;
-  switch (description.geometry_shader) {
-    case PipelineGeometryShader::kRectangleList:
-      geometry_shader = gs_rectangle_list_;
-      break;
-    default:
-      break;
-  }
-  if (geometry_shader != VK_NULL_HANDLE) {
+  if (creation_arguments.geometry_shader != VK_NULL_HANDLE) {
     VkPipelineShaderStageCreateInfo& shader_stage_geometry =
         shader_stages[shader_stage_count++];
     shader_stage_geometry.sType =
@@ -755,7 +1521,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
     shader_stage_geometry.pNext = nullptr;
     shader_stage_geometry.flags = 0;
     shader_stage_geometry.stage = VK_SHADER_STAGE_GEOMETRY_BIT;
-    shader_stage_geometry.module = geometry_shader;
+    shader_stage_geometry.module = creation_arguments.geometry_shader;
     shader_stage_geometry.pName = "main";
     shader_stage_geometry.pSpecializationInfo = nullptr;
   }
