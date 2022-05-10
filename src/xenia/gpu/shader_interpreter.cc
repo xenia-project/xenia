@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/shader_interpreter.h"
 
+#include <cfloat>
 #include <cmath>
 #include <cstring>
 

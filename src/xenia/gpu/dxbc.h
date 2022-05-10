@@ -166,8 +166,11 @@ struct alignas(uint32_t) BlobHeader {
     // In order of appearance in a container.
     kResourceDefinition = MakeFourCC('R', 'D', 'E', 'F'),
     kInputSignature = MakeFourCC('I', 'S', 'G', 'N'),
+    kInputSignature_11_1 = MakeFourCC('I', 'S', 'G', '1'),
     kPatchConstantSignature = MakeFourCC('P', 'C', 'S', 'G'),
     kOutputSignature = MakeFourCC('O', 'S', 'G', 'N'),
+    kOutputSignatureForGS = MakeFourCC('O', 'S', 'G', '5'),
+    kOutputSignature_11_1 = MakeFourCC('O', 'S', 'G', '1'),
     kShaderEx = MakeFourCC('S', 'H', 'E', 'X'),
     kShaderFeatureInfo = MakeFourCC('S', 'F', 'I', '0'),
     kStatistics = MakeFourCC('S', 'T', 'A', 'T'),
@@ -320,6 +323,7 @@ enum RdefInputFlags : uint32_t {
 enum class RdefShaderModel : uint32_t {
   kPixelShader5_1 = 0xFFFF0501u,
   kVertexShader5_1 = 0xFFFE0501u,
+  kGeometryShader5_1 = 0x47530501u,
   kDomainShader5_1 = 0x44530501u,
   kComputeShader5_1 = 0x43530501u,
 };
@@ -467,8 +471,7 @@ enum class SignatureRegisterComponentType : uint32_t {
 };
 
 // D3D_MIN_PRECISION
-// uint8_t as it's used as one byte in SignatureParameter.
-enum class MinPrecision : uint8_t {
+enum class MinPrecision : uint32_t {
   kDefault,
   kFloat16,
   kFloat2_8,
@@ -478,7 +481,7 @@ enum class MinPrecision : uint8_t {
   kAny10,
 };
 
-// D3D11_INTERNALSHADER_PARAMETER_11_1
+// D3D10_INTERNALSHADER_PARAMETER
 struct alignas(uint32_t) SignatureParameter {
   uint32_t semantic_name_ptr;
   uint32_t semantic_index;
@@ -496,9 +499,44 @@ struct alignas(uint32_t) SignatureParameter {
     // For an input signature.
     uint8_t always_reads_mask;
   };
-  MinPrecision min_precision;
 };
 static_assert_size(SignatureParameter, sizeof(uint32_t) * 6);
+
+// D3D11_INTERNALSHADER_PARAMETER_FOR_GS
+// Extends SignatureParameter, see it for more information.
+struct alignas(uint32_t) SignatureParameterForGS {
+  // Stream index (parameters must appear in non-decreasing stream order).
+  uint32_t stream;
+  uint32_t semantic_name_ptr;
+  uint32_t semantic_index;
+  Name system_value;
+  SignatureRegisterComponentType component_type;
+  uint32_t register_index;
+  uint8_t mask;
+  union {
+    uint8_t never_writes_mask;
+    uint8_t always_reads_mask;
+  };
+};
+static_assert_size(SignatureParameterForGS, sizeof(uint32_t) * 7);
+
+// D3D11_INTERNALSHADER_PARAMETER_11_1
+// Extends SignatureParameterForGS, see it for more information.
+struct alignas(uint32_t) SignatureParameter_11_1 {
+  uint32_t stream;
+  uint32_t semantic_name_ptr;
+  uint32_t semantic_index;
+  Name system_value;
+  SignatureRegisterComponentType component_type;
+  uint32_t register_index;
+  uint8_t mask;
+  union {
+    uint8_t never_writes_mask;
+    uint8_t always_reads_mask;
+  };
+  MinPrecision min_precision;
+};
+static_assert_size(SignatureParameter_11_1, sizeof(uint32_t) * 8);
 
 // D3D10_INTERNALSHADER_SIGNATURE
 struct alignas(uint32_t) Signature {
@@ -543,6 +581,62 @@ enum class TessellatorDomain : uint32_t {
   kQuad,
 };
 
+// D3D10_SB_PRIMITIVE_TOPOLOGY
+enum class PrimitiveTopology : uint32_t {
+  kUndefined = 0,
+  kPointList = 1,
+  kLineList = 2,
+  kLineStrip = 3,
+  kTriangleList = 4,
+  kTriangleStrip = 5,
+  kLineListWithAdjacency = 10,
+  kLineStripWithAdjacency = 11,
+  kTriangleListWithAdjacency = 12,
+  kTriangleStripWithAdjacency = 13,
+};
+
+// D3D10_SB_PRIMITIVE
+enum class Primitive : uint32_t {
+  kUndefined = 0,
+  kPoint = 1,
+  kLine = 2,
+  kTriangle = 3,
+  kLineWithAdjacency = 6,
+  kTriangleWithAdjacency = 7,
+  k1ControlPointPatch = 8,
+  k2ControlPointPatch = 9,
+  k3ControlPointPatch = 10,
+  k4ControlPointPatch = 11,
+  k5ControlPointPatch = 12,
+  k6ControlPointPatch = 13,
+  k7ControlPointPatch = 14,
+  k8ControlPointPatch = 15,
+  k9ControlPointPatch = 16,
+  k10ControlPointPatch = 17,
+  k11ControlPointPatch = 18,
+  k12ControlPointPatch = 19,
+  k13ControlPointPatch = 20,
+  k14ControlPointPatch = 21,
+  k15ControlPointPatch = 22,
+  k16ControlPointPatch = 23,
+  k17ControlPointPatch = 24,
+  k18ControlPointPatch = 25,
+  k19ControlPointPatch = 26,
+  k20ControlPointPatch = 27,
+  k21ControlPointPatch = 28,
+  k22ControlPointPatch = 29,
+  k23ControlPointPatch = 30,
+  k24ControlPointPatch = 31,
+  k25ControlPointPatch = 32,
+  k26ControlPointPatch = 33,
+  k27ControlPointPatch = 34,
+  k28ControlPointPatch = 35,
+  k29ControlPointPatch = 36,
+  k30ControlPointPatch = 37,
+  k31ControlPointPatch = 38,
+  k32ControlPointPatch = 39,
+};
+
 // The STAT blob (based on Wine d3dcompiler_parse_stat).
 struct alignas(uint32_t) Statistics {
   // Not increased by declarations and labels.
@@ -576,11 +670,11 @@ struct alignas(uint32_t) Statistics {
   uint32_t movc_instruction_count;        // +50
   uint32_t conversion_instruction_count;  // +54
   // Unknown in Wine.
-  uint32_t unknown_22;                  // +58
-  uint32_t input_primitive;             // +5C
-  uint32_t gs_output_topology;          // +60
-  uint32_t gs_max_output_vertex_count;  // +64
-  uint32_t unknown_26;                  // +68
+  uint32_t unknown_22;                   // +58
+  Primitive input_primitive;             // +5C
+  PrimitiveTopology gs_output_topology;  // +60
+  uint32_t gs_max_output_vertex_count;   // +64
+  uint32_t unknown_26;                   // +68
   // Unknown in Wine, but confirmed by testing.
   uint32_t lod_instructions;             // +6C
   uint32_t unknown_28;                   // +70
@@ -644,6 +738,7 @@ enum class OperandType : uint32_t {
   kOutputDepth = 12,
   kNull = 13,
   kOutputCoverageMask = 15,
+  kStream = 16,
   kInputControlPoint = 25,
   kInputDomainPoint = 28,
   kUnorderedAccessView = 30,
@@ -654,33 +749,6 @@ enum class OperandType : uint32_t {
   kOutputDepthLessEqual = 39,
   kOutputStencilRef = 41,
 };
-
-// D3D10_SB_OPERAND_INDEX_DIMENSION
-constexpr uint32_t GetOperandIndexDimension(OperandType type,
-                                            bool in_dcl = false) {
-  switch (type) {
-    case OperandType::kTemp:
-    case OperandType::kInput:
-      // FIXME(Triang3l): kInput has a dimensionality of 2 in the control point
-      // phase of hull shaders, however, currently the translator isn't used to
-      // emit them - if code where this matters is emitted by Xenia, the actual
-      // dimensionality will need to be stored in OperandAddress itself.
-    case OperandType::kOutput:
-    case OperandType::kLabel:
-      return 1;
-    case OperandType::kIndexableTemp:
-    case OperandType::kInputControlPoint:
-      return 2;
-    case OperandType::kSampler:
-    case OperandType::kResource:
-    case OperandType::kUnorderedAccessView:
-      return in_dcl ? 3 : 2;
-    case OperandType::kConstantBuffer:
-      return 3;
-    default:
-      return 0;
-  }
-}
 
 // D3D10_SB_OPERAND_NUM_COMPONENTS
 enum class OperandDimension : uint32_t {
@@ -696,6 +764,7 @@ constexpr OperandDimension GetOperandDimension(OperandType type,
       return in_dcl ? OperandDimension::kVector : OperandDimension::kNoData;
     case OperandType::kLabel:
     case OperandType::kNull:
+    case OperandType::kStream:
       return OperandDimension::kNoData;
     case OperandType::kInputPrimitiveID:
     case OperandType::kOutputDepth:
@@ -766,11 +835,22 @@ struct Index {
 
 struct OperandAddress {
   OperandType type_;
+  uint32_t index_dimension_;
   Index index_1d_, index_2d_, index_3d_;
 
-  explicit OperandAddress(OperandType type, Index index_1d = Index(),
-                          Index index_2d = Index(), Index index_3d = Index())
+  explicit OperandAddress(OperandType type)
+      : type_(type), index_dimension_(0) {}
+  explicit OperandAddress(OperandType type, Index index_1d)
+      : type_(type), index_dimension_(1), index_1d_(index_1d) {}
+  explicit OperandAddress(OperandType type, Index index_1d, Index index_2d)
       : type_(type),
+        index_dimension_(2),
+        index_1d_(index_1d),
+        index_2d_(index_2d) {}
+  explicit OperandAddress(OperandType type, Index index_1d, Index index_2d,
+                          Index index_3d)
+      : type_(type),
+        index_dimension_(3),
         index_1d_(index_1d),
         index_2d_(index_2d),
         index_3d_(index_3d) {}
@@ -778,44 +858,38 @@ struct OperandAddress {
   OperandDimension GetDimension(bool in_dcl = false) const {
     return GetOperandDimension(type_, in_dcl);
   }
-  uint32_t GetIndexDimension(bool in_dcl = false) const {
-    return GetOperandIndexDimension(type_, in_dcl);
-  }
-  uint32_t GetOperandTokenTypeAndIndex(bool in_dcl = false) const {
-    uint32_t index_dimension = GetIndexDimension(in_dcl);
-    uint32_t operand_token = (uint32_t(type_) << 12) | (index_dimension << 20);
-    if (index_dimension > 0) {
+  uint32_t GetOperandTokenTypeAndIndex() const {
+    uint32_t operand_token = (uint32_t(type_) << 12) | (index_dimension_ << 20);
+    if (index_dimension_ > 0) {
       operand_token |= uint32_t(index_1d_.GetRepresentation()) << 22;
-      if (index_dimension > 1) {
+      if (index_dimension_ > 1) {
         operand_token |= uint32_t(index_2d_.GetRepresentation()) << 25;
-        if (index_dimension > 2) {
+        if (index_dimension_ > 2) {
           operand_token |= uint32_t(index_3d_.GetRepresentation()) << 28;
         }
       }
     }
     return operand_token;
   }
-  uint32_t GetLength(bool in_dcl = false) const {
+  uint32_t GetLength() const {
     uint32_t length = 0;
-    uint32_t index_dimension = GetIndexDimension(in_dcl);
-    if (index_dimension > 0) {
+    if (index_dimension_ > 0) {
       length += index_1d_.GetLength();
-      if (index_dimension > 1) {
+      if (index_dimension_ > 1) {
         length += index_2d_.GetLength();
-        if (index_dimension > 2) {
+        if (index_dimension_ > 2) {
           length += index_3d_.GetLength();
         }
       }
     }
     return length;
   }
-  void Write(std::vector<uint32_t>& code, bool in_dcl = false) const {
-    uint32_t index_dimension = GetIndexDimension(in_dcl);
-    if (index_dimension > 0) {
+  void Write(std::vector<uint32_t>& code) const {
+    if (index_dimension_ > 0) {
       index_1d_.Write(code);
-      if (index_dimension > 1) {
+      if (index_dimension_ > 1) {
         index_2d_.Write(code);
-        if (index_dimension > 2) {
+        if (index_dimension_ > 2) {
           index_3d_.Write(code);
         }
       }
@@ -845,17 +919,27 @@ struct Dest : OperandAddress {
   // declarations use read masks instead of swizzle (resource declarations still
   // use swizzle when they're vector, however).
 
-  explicit Dest(OperandType type, uint32_t write_mask = 0b1111,
-                Index index_1d = Index(), Index index_2d = Index(),
-                Index index_3d = Index())
+  explicit Dest(OperandType type, uint32_t write_mask)
+      : OperandAddress(type), write_mask_(write_mask) {}
+  explicit Dest(OperandType type, uint32_t write_mask, Index index_1d)
+      : OperandAddress(type, index_1d), write_mask_(write_mask) {}
+  explicit Dest(OperandType type, uint32_t write_mask, Index index_1d,
+                Index index_2d)
+      : OperandAddress(type, index_1d, index_2d), write_mask_(write_mask) {}
+  explicit Dest(OperandType type, uint32_t write_mask, Index index_1d,
+                Index index_2d, Index index_3d)
       : OperandAddress(type, index_1d, index_2d, index_3d),
         write_mask_(write_mask) {}
 
   static Dest R(uint32_t index, uint32_t write_mask = 0b1111) {
     return Dest(OperandType::kTemp, write_mask, index);
   }
-  static Dest V(uint32_t index, uint32_t read_mask = 0b1111) {
+  static Dest V1D(uint32_t index, uint32_t read_mask = 0b1111) {
     return Dest(OperandType::kInput, read_mask, index);
+  }
+  static Dest V2D(uint32_t index_1d, uint32_t index_2d,
+                  uint32_t read_mask = 0b1111) {
+    return Dest(OperandType::kInput, read_mask, index_1d, index_2d);
   }
   static Dest O(Index index, uint32_t write_mask = 0b1111) {
     return Dest(OperandType::kOutput, write_mask, index);
@@ -868,6 +952,9 @@ struct Dest : OperandAddress {
   static Dest ODepth() { return Dest(OperandType::kOutputDepth, 0b0001); }
   static Dest Null() { return Dest(OperandType::kNull, 0b0000); }
   static Dest OMask() { return Dest(OperandType::kOutputCoverageMask, 0b0001); }
+  static Dest M(uint32_t index) {
+    return Dest(OperandType::kStream, 0b0000, index);
+  }
   static Dest VICP(uint32_t control_point_count, uint32_t element,
                    uint32_t read_mask = 0b1111) {
     return Dest(OperandType::kInputControlPoint, read_mask, control_point_count,
@@ -915,11 +1002,14 @@ struct Dest : OperandAddress {
     }
   }
   [[nodiscard]] Dest Mask(uint32_t write_mask) const {
-    return Dest(type_, write_mask, index_1d_, index_2d_, index_3d_);
+    Dest new_dest(*this);
+    new_dest.write_mask_ = write_mask;
+    return new_dest;
   }
   [[nodiscard]] Dest MaskMasked(uint32_t write_mask) const {
-    return Dest(type_, write_mask_ & write_mask, index_1d_, index_2d_,
-                index_3d_);
+    Dest new_dest(*this);
+    new_dest.write_mask_ &= write_mask;
+    return new_dest;
   }
   static uint32_t GetMaskSingleComponent(uint32_t write_mask) {
     uint32_t component;
@@ -934,11 +1024,9 @@ struct Dest : OperandAddress {
     return GetMaskSingleComponent(GetMask(in_dcl));
   }
 
-  uint32_t GetLength(bool in_dcl = false) const {
-    return 1 + OperandAddress::GetLength(in_dcl);
-  }
+  uint32_t GetLength() const { return 1 + OperandAddress::GetLength(); }
   void Write(std::vector<uint32_t>& code, bool in_dcl = false) const {
-    uint32_t operand_token = GetOperandTokenTypeAndIndex(in_dcl);
+    uint32_t operand_token = GetOperandTokenTypeAndIndex();
     OperandDimension dimension = GetDimension(in_dcl);
     operand_token |= uint32_t(dimension);
     if (dimension == OperandDimension::kVector) {
@@ -947,7 +1035,7 @@ struct Dest : OperandAddress {
           (uint32_t(ComponentSelection::kMask) << 2) | (write_mask_ << 4);
     }
     code.push_back(operand_token);
-    OperandAddress::Write(code, in_dcl);
+    OperandAddress::Write(code);
   }
 };
 
@@ -962,18 +1050,21 @@ struct Src : OperandAddress {
 
   // Ignored for 0-component and 1-component operand types.
   uint32_t swizzle_;
-  bool absolute_;
-  bool negate_;
+  bool absolute_ = false;
+  bool negate_ = false;
   // Only valid for OperandType::kImmediate32.
   uint32_t immediate_[4];
 
-  explicit Src(OperandType type, uint32_t swizzle = kXYZW,
-               Index index_1d = Index(), Index index_2d = Index(),
-               Index index_3d = Index())
-      : OperandAddress(type, index_1d, index_2d, index_3d),
-        swizzle_(swizzle),
-        absolute_(false),
-        negate_(false) {}
+  explicit Src(OperandType type, uint32_t swizzle)
+      : OperandAddress(type), swizzle_(swizzle) {}
+  explicit Src(OperandType type, uint32_t swizzle, Index index_1d)
+      : OperandAddress(type, index_1d), swizzle_(swizzle) {}
+  explicit Src(OperandType type, uint32_t swizzle, Index index_1d,
+               Index index_2d)
+      : OperandAddress(type, index_1d, index_2d), swizzle_(swizzle) {}
+  explicit Src(OperandType type, uint32_t swizzle, Index index_1d,
+               Index index_2d, Index index_3d)
+      : OperandAddress(type, index_1d, index_2d, index_3d), swizzle_(swizzle) {}
 
   // For creating instances for use in declarations.
   struct DclT {};
@@ -982,8 +1073,11 @@ struct Src : OperandAddress {
   static Src R(uint32_t index, uint32_t swizzle = kXYZW) {
     return Src(OperandType::kTemp, swizzle, index);
   }
-  static Src V(Index index, uint32_t swizzle = kXYZW) {
+  static Src V1D(Index index, uint32_t swizzle = kXYZW) {
     return Src(OperandType::kInput, swizzle, index);
+  }
+  static Src V2D(Index index_1d, Index index_2d, uint32_t swizzle = kXYZW) {
+    return Src(OperandType::kInput, swizzle, index_1d, index_2d);
   }
   static Src X(uint32_t index_1d, Index index_2d, uint32_t swizzle = kXYZW) {
     return Src(OperandType::kIndexableTemp, swizzle, index_1d, index_2d);
@@ -1108,15 +1202,14 @@ struct Src : OperandAddress {
     return new_src;
   }
 
-  uint32_t GetLength(uint32_t mask, bool force_vector = false,
-                     bool in_dcl = false) const {
+  uint32_t GetLength(uint32_t mask, bool force_vector = false) const {
     bool is_vector =
         force_vector ||
         (mask != 0b0000 && Dest::GetMaskSingleComponent(mask) == UINT32_MAX);
     if (type_ == OperandType::kImmediate32) {
       return is_vector ? 5 : 2;
     }
-    return ((absolute_ || negate_) ? 2 : 1) + OperandAddress::GetLength(in_dcl);
+    return ((absolute_ || negate_) ? 2 : 1) + OperandAddress::GetLength();
   }
   static constexpr uint32_t GetModifiedImmediate(uint32_t value,
                                                  bool is_integer, bool absolute,
@@ -1147,7 +1240,7 @@ struct Src : OperandAddress {
   }
   void Write(std::vector<uint32_t>& code, bool is_integer, uint32_t mask,
              bool force_vector = false, bool in_dcl = false) const {
-    uint32_t operand_token = GetOperandTokenTypeAndIndex(in_dcl);
+    uint32_t operand_token = GetOperandTokenTypeAndIndex();
     uint32_t mask_single_component = Dest::GetMaskSingleComponent(mask);
     uint32_t select_component =
         mask_single_component != UINT32_MAX ? mask_single_component : 0;
@@ -1220,7 +1313,7 @@ struct Src : OperandAddress {
         code.push_back(uint32_t(ExtendedOperandType::kModifier) |
                        (uint32_t(modifier) << 6));
       }
-      OperandAddress::Write(code, in_dcl);
+      OperandAddress::Write(code);
     }
   }
 };
@@ -1372,8 +1465,12 @@ enum class Opcode : uint32_t {
   kDclResource = 88,
   kDclConstantBuffer = 89,
   kDclSampler = 90,
+  kDclOutputTopology = 92,
+  kDclInputPrimitive = 93,
+  kDclMaxOutputVertexCount = 94,
   kDclInput = 95,
   kDclInputSGV = 96,
+  kDclInputSIV = 97,
   kDclInputPS = 98,
   kDclInputPSSGV = 99,
   kDclInputPSSIV = 100,
@@ -1383,6 +1480,9 @@ enum class Opcode : uint32_t {
   kDclIndexableTemp = 105,
   kDclGlobalFlags = 106,
   kLOD = 108,
+  kEmitStream = 117,
+  kCutStream = 118,
+  kEmitThenCutStream = 119,
   kDerivRTXCoarse = 122,
   kDerivRTXFine = 123,
   kDerivRTYCoarse = 124,
@@ -1396,6 +1496,7 @@ enum class Opcode : uint32_t {
   kIBFE = 139,
   kBFI = 140,
   kBFRev = 141,
+  kDclStream = 143,
   kDclInputControlPointCount = 147,
   kDclTessDomain = 149,
   kDclThreadGroup = 155,
@@ -1424,6 +1525,10 @@ constexpr uint32_t OpcodeToken(Opcode opcode, uint32_t operands_length,
   return uint32_t(opcode) | (saturate ? (uint32_t(1) << 13) : 0) |
          ((uint32_t(1) + extended_opcode_count + operands_length) << 24) |
          (extended_opcode_count ? (uint32_t(1) << 31) : 0);
+}
+
+constexpr uint32_t GetOpcodeTokenInstructionLength(uint32_t opcode_token) {
+  return (opcode_token >> 24) & ((UINT32_C(1) << 7) - 1);
 }
 
 constexpr uint32_t SampleControlsExtendedOpcodeToken(int32_t aoffimmi_u,
@@ -1915,7 +2020,7 @@ class Assembler {
   }
   void OpDclResource(ResourceDimension dimension, uint32_t return_type_token,
                      const Src& operand, uint32_t space = 0) {
-    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    uint32_t operands_length = operand.GetLength(0b1111, false);
     code_.reserve(code_.size() + 3 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclResource, 2 + operands_length) |
                     (uint32_t(dimension) << 11));
@@ -1929,7 +2034,7 @@ class Assembler {
                            ConstantBufferAccessPattern access_pattern =
                                ConstantBufferAccessPattern::kImmediateIndexed,
                            uint32_t space = 0) {
-    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    uint32_t operands_length = operand.GetLength(0b1111, false);
     code_.reserve(code_.size() + 3 + operands_length);
     code_.push_back(
         OpcodeToken(Opcode::kDclConstantBuffer, 2 + operands_length) |
@@ -1941,30 +2046,60 @@ class Assembler {
   void OpDclSampler(const Src& operand,
                     SamplerMode mode = SamplerMode::kDefault,
                     uint32_t space = 0) {
-    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    uint32_t operands_length = operand.GetLength(0b1111, false);
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclSampler, 1 + operands_length) |
                     (uint32_t(mode) << 11));
     operand.Write(code_, false, 0b1111, false, true);
     code_.push_back(space);
   }
+  // In geometry shaders, only kPointList, kLineStrip and kTriangleStrip are
+  // allowed.
+  void OpDclOutputTopology(PrimitiveTopology output_topology) {
+    code_.push_back(OpcodeToken(Opcode::kDclOutputTopology, 0) |
+                    (uint32_t(output_topology) << 11));
+    stat_.gs_output_topology = output_topology;
+  }
+  // In geometry shaders, only kPoint, kLine, kTriangle, kLineWithAdjacency and
+  // kTriangleWithAdjacency are allowed.
+  void OpDclInputPrimitive(Primitive input_primitive) {
+    code_.push_back(OpcodeToken(Opcode::kDclInputPrimitive, 0) |
+                    (uint32_t(input_primitive) << 11));
+    stat_.input_primitive = input_primitive;
+  }
+  // Returns the index of the count written in the code_ vector.
+  size_t OpDclMaxOutputVertexCount(uint32_t count) {
+    code_.reserve(code_.size() + 2);
+    code_.push_back(OpcodeToken(Opcode::kDclMaxOutputVertexCount, 1));
+    code_.push_back(count);
+    stat_.gs_max_output_vertex_count = count;
+    return code_.size() - 1;
+  }
   void OpDclInput(const Dest& operand) {
-    uint32_t operands_length = operand.GetLength(true);
+    uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 1 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclInput, operands_length));
     operand.Write(code_, true);
     ++stat_.dcl_count;
   }
   void OpDclInputSGV(const Dest& operand, Name name) {
-    uint32_t operands_length = operand.GetLength(true);
+    uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclInputSGV, 1 + operands_length));
     operand.Write(code_, true);
     code_.push_back(uint32_t(name));
     ++stat_.dcl_count;
   }
+  void OpDclInputSIV(const Dest& operand, Name name) {
+    uint32_t operands_length = operand.GetLength();
+    code_.reserve(code_.size() + 2 + operands_length);
+    code_.push_back(OpcodeToken(Opcode::kDclInputSIV, 1 + operands_length));
+    operand.Write(code_, true);
+    code_.push_back(uint32_t(name));
+    ++stat_.dcl_count;
+  }
   void OpDclInputPS(InterpolationMode interpolation_mode, const Dest& operand) {
-    uint32_t operands_length = operand.GetLength(true);
+    uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 1 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclInputPS, operands_length) |
                     (uint32_t(interpolation_mode) << 11));
@@ -1972,7 +2107,7 @@ class Assembler {
     ++stat_.dcl_count;
   }
   void OpDclInputPSSGV(const Dest& operand, Name name) {
-    uint32_t operands_length = operand.GetLength(true);
+    uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 2 + operands_length);
     // Constant interpolation mode is set in FXC output at least for
     // SV_IsFrontFace, despite the comment in d3d12TokenizedProgramFormat.hpp
@@ -1985,7 +2120,7 @@ class Assembler {
   }
   void OpDclInputPSSIV(InterpolationMode interpolation_mode,
                        const Dest& operand, Name name) {
-    uint32_t operands_length = operand.GetLength(true);
+    uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclInputPSSIV, 1 + operands_length) |
                     (uint32_t(interpolation_mode) << 11));
@@ -1994,14 +2129,14 @@ class Assembler {
     ++stat_.dcl_count;
   }
   void OpDclOutput(const Dest& operand) {
-    uint32_t operands_length = operand.GetLength(true);
+    uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 1 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclOutput, operands_length));
     operand.Write(code_, true);
     ++stat_.dcl_count;
   }
   void OpDclOutputSIV(const Dest& operand, Name name) {
-    uint32_t operands_length = operand.GetLength(true);
+    uint32_t operands_length = operand.GetLength();
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclOutputSIV, 1 + operands_length));
     operand.Write(code_, true);
@@ -2044,6 +2179,34 @@ class Assembler {
     sampler.Write(code_, false, 0b0000);
     ++stat_.instruction_count;
     ++stat_.lod_instructions;
+  }
+  void OpEmitStream(const Dest& stream) {
+    uint32_t operands_length = stream.GetLength();
+    code_.reserve(code_.size() + 1 + operands_length);
+    code_.push_back(OpcodeToken(Opcode::kEmitStream, operands_length));
+    stream.Write(code_);
+    ++stat_.instruction_count;
+    ++stat_.emit_instruction_count;
+  }
+  void OpCutStream(const Dest& stream) {
+    uint32_t operands_length = stream.GetLength();
+    code_.reserve(code_.size() + 1 + operands_length);
+    code_.push_back(OpcodeToken(Opcode::kCutStream, operands_length));
+    stream.Write(code_);
+    ++stat_.instruction_count;
+    ++stat_.cut_instruction_count;
+  }
+  void OpEmitThenCutStream(const Dest& stream) {
+    uint32_t operands_length = stream.GetLength();
+    code_.reserve(code_.size() + 1 + operands_length);
+    code_.push_back(OpcodeToken(Opcode::kEmitThenCutStream, operands_length));
+    stream.Write(code_);
+    ++stat_.instruction_count;
+    // TODO(Triang3l): Verify if the instruction counts should be incremented
+    // this way (haven't been able to obtain this from FXC because it generates
+    // separate emit_stream and cut_stream, at least for Shader Model 5.1).
+    ++stat_.emit_instruction_count;
+    ++stat_.cut_instruction_count;
   }
   void OpDerivRTXCoarse(const Dest& dest, const Src& src,
                         bool saturate = false) {
@@ -2102,6 +2265,12 @@ class Assembler {
     EmitAluOp(Opcode::kBFRev, 0b1, dest, src);
     ++stat_.uint_instruction_count;
   }
+  void OpDclStream(const Dest& stream) {
+    uint32_t operands_length = stream.GetLength();
+    code_.reserve(code_.size() + 1 + operands_length);
+    code_.push_back(OpcodeToken(Opcode::kDclStream, operands_length));
+    stream.Write(code_, true);
+  }
   void OpDclInputControlPointCount(uint32_t count) {
     code_.push_back(OpcodeToken(Opcode::kDclInputControlPointCount, 0) |
                     (count << 11));
@@ -2124,7 +2293,7 @@ class Assembler {
   void OpDclUnorderedAccessViewTyped(ResourceDimension dimension,
                                      uint32_t flags, uint32_t return_type_token,
                                      const Src& operand, uint32_t space = 0) {
-    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    uint32_t operands_length = operand.GetLength(0b1111, false);
     code_.reserve(code_.size() + 3 + operands_length);
     code_.push_back(
         OpcodeToken(Opcode::kDclUnorderedAccessViewTyped, 2 + operands_length) |
@@ -2137,7 +2306,7 @@ class Assembler {
   // kUAVFlagRasterizerOrderedAccess.
   void OpDclUnorderedAccessViewRaw(uint32_t flags, const Src& operand,
                                    uint32_t space = 0) {
-    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    uint32_t operands_length = operand.GetLength(0b1111, false);
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(
         OpcodeToken(Opcode::kDclUnorderedAccessViewRaw, 1 + operands_length) |
@@ -2146,7 +2315,7 @@ class Assembler {
     code_.push_back(space);
   }
   void OpDclResourceRaw(const Src& operand, uint32_t space = 0) {
-    uint32_t operands_length = operand.GetLength(0b1111, false, true);
+    uint32_t operands_length = operand.GetLength(0b1111, false);
     code_.reserve(code_.size() + 2 + operands_length);
     code_.push_back(OpcodeToken(Opcode::kDclResourceRaw, 1 + operands_length));
     operand.Write(code_, true, 0b1111, false, true);

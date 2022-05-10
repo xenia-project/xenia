@@ -242,9 +242,10 @@ class DxbcShaderTranslator : public ShaderTranslator {
     float ndc_offset[3];
     float point_vertex_diameter_max;
 
-    float point_constant_radius[2];
-    // Screen point size * 2 (but not supersampled) -> size in NDC.
-    float point_screen_to_ndc[2];
+    float point_constant_diameter[2];
+    // Diameter in guest screen coordinates > radius (0.5 * diameter) in the NDC
+    // for the host viewport.
+    float point_screen_diameter_to_ndc_radius[2];
 
     uint32_t interpolator_sampling_pattern;
     uint32_t ps_param_gen;
@@ -356,8 +357,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
       kNDCOffset,
       kPointVertexDiameterMax,
 
-      kPointConstantRadius,
-      kPointScreenToNDC,
+      kPointConstantDiameter,
+      kPointScreenDiameterToNDCRadius,
 
       kInterpolatorSamplingPattern,
       kPSParamGen,

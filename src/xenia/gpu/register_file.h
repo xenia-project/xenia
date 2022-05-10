@@ -33,7 +33,7 @@ class RegisterFile {
 
   static const RegisterInfo* GetRegisterInfo(uint32_t index);
 
-  static const size_t kRegisterCount = 0x5003;
+  static constexpr size_t kRegisterCount = 0x5003;
   union RegisterValue {
     uint32_t u32;
     float f32;

@@ -275,14 +275,183 @@ XE_GPU_REGISTER(0x1844, kDword, D1GRPH_PRIMARY_SURFACE_ADDRESS)
 
 XE_GPU_REGISTER(0x1852, kDword, D1GRPH_FLIP_CONTROL)
 
-XE_GPU_REGISTER(0x1921, kDword, DC_LUT_RW_MODE)
-XE_GPU_REGISTER(0x1922, kDword, DC_LUT_RW_INDEX)
+// In 4B4F07FE, the 256-entry gamma ramp for the 8bpc framebuffer is set to
+// different values in multiple places in the game. For VdGetCurrentDisplayGamma
+// returning 1 (sRGB), it's set up in the beginning as:
+// DC_LUTA_CONTROL = 0x00000000 (256-entry unsigned fixed-point)
+// DC_LUT_RW_MODE = 0x00000000
+// DC_LUT_RW_INDEX = 0x00000000
+// DC_LUT_WRITE_EN_MASK = 0x00000007
+// DC_LUT_30_COLOR = 0x00000000
+// DC_LUT_RW_INDEX = 0x00000001
+// DC_LUT_30_COLOR = 0x04812048
+// DC_LUT_RW_INDEX = 0x00000002
+// DC_LUT_30_COLOR = 0x05916459
+// DC_LUT_RW_INDEX = 0x00000003
+// DC_LUT_30_COLOR = 0x06519465
+// ...
+// DC_LUT_RW_INDEX = 0x000000FE
+// DC_LUT_30_COLOR = 0x3FBFEFFB
+// DC_LUT_RW_INDEX = 0x000000FF
+// DC_LUT_30_COLOR = 0x3FFFFFFF
+// DC_LUT_RW_INDEX = 0x00000100
+//
+// One another possible setup in 4B4F07FE is:
+// DC_LUTA_CONTROL = 0x00000000 (256-entry unsigned fixed-point)
+// DC_LUT_RW_MODE = 0x00000000
+// DC_LUT_RW_INDEX = 0x00000000
+// DC_LUT_WRITE_EN_MASK = 0x00000007
+// DC_LUT_30_COLOR = 0x00000000
+// DC_LUT_RW_INDEX = 0x00000001
+// DC_LUT_30_COLOR = 0x01A0681A
+// DC_LUT_RW_INDEX = 0x00000002
+// DC_LUT_30_COLOR = 0x02709C27
+// ...
+// DC_LUT_RW_INDEX = 0x000000FE
+// DC_LUT_30_COLOR = 0x3FBFEFFB
+// DC_LUT_RW_INDEX = 0x000000FF
+// DC_LUT_30_COLOR = 0x3FFFFFFF
+// DC_LUT_RW_INDEX = 0x00000100
+//
+// In 4D5307E6, the 128-entry PWL gamma ramp for the 10bpc framebuffer, for
+// VdGetCurrentDisplayGamma returning 1 (sRGB), is set up right after launching
+// the game as:
+// DC_LUTA_CONTROL = 0x00000003 (8-increment unsigned fixed-point)
+// DC_LUT_RW_MODE = 0x00000001
+// DC_LUT_RW_INDEX = 0x00000000
+// DC_LUT_WRITE_EN_MASK = 0x00000007
+// DC_LUT_PWL_DATA = 0x02000000
+// DC_LUT_PWL_DATA = 0x02000000
+// DC_LUT_PWL_DATA = 0x02000000
+// DC_LUT_RW_INDEX = 0x00000001
+// DC_LUT_PWL_DATA = 0x02000200
+// DC_LUT_PWL_DATA = 0x02000200
+// DC_LUT_PWL_DATA = 0x02000200
+// DC_LUT_RW_INDEX = 0x00000001
+// DC_LUT_PWL_DATA = 0x02000400
+// DC_LUT_PWL_DATA = 0x02000400
+// DC_LUT_PWL_DATA = 0x02000400
+// ...
+// DC_LUT_RW_INDEX = 0x0000007D
+// DC_LUT_PWL_DATA = 0x0200FBC0
+// DC_LUT_PWL_DATA = 0x0200FBC0
+// DC_LUT_PWL_DATA = 0x0200FBC0
+// DC_LUT_RW_INDEX = 0x0000007E
+// DC_LUT_PWL_DATA = 0x0200FDC0
+// DC_LUT_PWL_DATA = 0x0200FDC0
+// DC_LUT_PWL_DATA = 0x0200FDC0
+// DC_LUT_RW_INDEX = 0x0000007F
+// DC_LUT_PWL_DATA = 0x0000FFC0
+// DC_LUT_PWL_DATA = 0x0000FFC0
+// DC_LUT_PWL_DATA = 0x0000FFC0
+// DC_LUT_RW_INDEX = 0x00000080
+//
+// Later in 4D5307E6, for the game itself (apparently for conversion of the bit
+// representation of 7e3 floating-point data in the front buffer to 10-bit fixed
+// point, as the game draws the final passes to a 7e3 framebuffer), with
+// VdGetCurrentDisplayGamma returning 1 (sRGB) and the normal brightness in the
+// game settings, it's:
+// DC_LUTA_CONTROL = 0x00000003 (8-increment unsigned fixed-point)
+// DC_LUT_RW_MODE = 0x00000001
+// DC_LUT_RW_INDEX = 0x00000000
+// DC_LUT_WRITE_EN_MASK = 0x00000007
+// DC_LUT_PWL_DATA = 0x05000000
+// DC_LUT_PWL_DATA = 0x05000000
+// DC_LUT_PWL_DATA = 0x05000000
+// DC_LUT_RW_INDEX = 0x00000001
+// DC_LUT_PWL_DATA = 0x02000500
+// DC_LUT_PWL_DATA = 0x02000500
+// DC_LUT_PWL_DATA = 0x02000500
+// DC_LUT_RW_INDEX = 0x00000001
+// DC_LUT_PWL_DATA = 0x01800740
+// DC_LUT_PWL_DATA = 0x01800740
+// DC_LUT_PWL_DATA = 0x01800740
+// ...
+// DC_LUT_RW_INDEX = 0x0000007D
+// DC_LUT_PWL_DATA = 0x0440F340
+// DC_LUT_PWL_DATA = 0x0440F340
+// DC_LUT_PWL_DATA = 0x0440F340
+// DC_LUT_RW_INDEX = 0x0000007E
+// DC_LUT_PWL_DATA = 0x0400F780
+// DC_LUT_PWL_DATA = 0x0400F780
+// DC_LUT_PWL_DATA = 0x0400F780
+// DC_LUT_RW_INDEX = 0x0000007F
+// DC_LUT_PWL_DATA = 0x0400FBC0
+// DC_LUT_PWL_DATA = 0x0400FBC0
+// DC_LUT_PWL_DATA = 0x0400FBC0
+// DC_LUT_RW_INDEX = 0x00000080
+//
+// In 535107D4, the 256-entry gamma ramp for the 8bpc framebuffer is
+// configurable from the game's settings menu for each channel independently.
+// For VdGetCurrentDisplayGamma returning 1 (sRGB), when in the settings, the
+// red gamma is at the maximum of 5.56, green is at 1.00, and blue is at the
+// minimum of 0.17, the setup is done as:
+// DC_LUT_RW_MODE = 0x00000000
+// DC_LUT_RW_INDEX = 0x00000000
+// DC_LUT_WRITE_EN_MASK = 0x00000007
+// DC_LUT_30_COLOR = 0x00000000
+// DC_LUT_RW_INDEX = 0x00000001
+// DC_LUT_30_COLOR = 0x17901000
+// DC_LUT_RW_INDEX = 0x00000002
+// DC_LUT_30_COLOR = 0x1AB02000
+// ...
+// DC_LUT_RW_INDEX = 0x000000FE
+// DC_LUT_30_COLOR = 0x3FEFE3D2
+// DC_LUT_RW_INDEX = 0x000000FF
+// DC_LUT_30_COLOR = 0x3FFFF3E9
+// DC_LUT_RW_INDEX = 0x00000100
 
+// Read / write mode in bit 0: 0 - 256-entry table, 1 - PWL.
+// Default: 0x00000000.
+XE_GPU_REGISTER(0x1921, kDword, DC_LUT_RW_MODE)
+// Read / write index. No lower and upper halves on the Xenos apparently, for
+// the 256-entry table, the bits 0:7 are the index directly (unlike on the M56,
+// not split into the index in 1:7 and the lower or upper 10 bits selection in
+// 0:0, instead, on the Xenos, the index in 0:7 is just increased
+// monotonically). For some reason though Direct3D 9 writes an index that
+// overflows by one (0x100 for the 256-entry table, 0x80 for the 128-entry PWL
+// gamma ramp) after setting up all the values. However, the index is 8-bit, and
+// for PWL, according to the M56 documentation, the bit 7 is not used.
+// Default: 0x00000000.
+XE_GPU_REGISTER(0x1922, kDword, DC_LUT_RW_INDEX)
+// Sequential 10-bit R, G, B host read / write for the 256-entry table. After
+// reset or writing DC_LUT_RW_INDEX, the first access is for the red component,
+// the second is for green, the third is for blue, and after blue is accessed,
+// the LUT index is increased by 1 (without having to explicitly change
+// DC_LUT_RW_INDEX). Bits 0:5 are hardwired to zero.
+// Default: 0x00000000.
+XE_GPU_REGISTER(0x1923, kDword, DC_LUT_SEQ_COLOR)
+// Read / write, 0:15 - base, 16:31 - delta. Bits 0:5 of both the base and the
+// delta are hardwired to zero. The LUT index is increased by 1 when
+// DC_LUT_PWL_DATA is accessed, though three DC_LUT_PWL_DATA writes are done for
+// one entry (the order is likely R, G, B, similar to DC_LUT_SEQ_COLOR, but this
+// hasn't been verified yet as no games using the PWL gamma ramp with separate
+// settings for each channel have been found yet).
+// Default: 0x00000000.
 XE_GPU_REGISTER(0x1924, kDword, DC_LUT_PWL_DATA)
+// Read / write, 0:9 - blue, 10:19 - green, 20:29 - red. The LUT index is
+// increased by 1 when DC_LUT_30_COLOR is accessed.
+// Default: 0x00000000.
 XE_GPU_REGISTER(0x1925, kDword, DC_LUT_30_COLOR)
 
+// Only LUT pipe 1 on the Xenos apparently (Direct3D 9 sets DC_LUT_WRITE_EN_MASK
+// to 0b111 before writing the gamma ramp), 3 bits set, rather than 6 on the
+// M56.
+// Bit 0 - blue write enable mask.
+// Bit 1 - green write enable mask.
+// Bit 2 - red write enable mask.
+// Default: 0x00000007 (though 0x0000003F on the M56 where there are two pipes).
 XE_GPU_REGISTER(0x1927, kDword, DC_LUT_WRITE_EN_MASK)
 
+// Single set of parameters for all channels apparently unlike on the M56
+// (4D5307E6 sets DC_LUTA_CONTROL to 0x00000003 for the data increment of 8 in
+// the 128-entry PWL gamma ramp for a 10bpc framebuffer). Also set not only
+// during setup, but also apparently during every swap by Direct3D 9, though not
+// directly in all games (happens in 4B4F07FE and 4D5307E6 even without proper
+// VdSwap emulation, but in 535107D4, with a fake VdSwap packet rather than the
+// real ones, the register is not set at all, though the expected behavior is
+// that of the value of 0x00000000).
+// Default: 0x00000000.
 XE_GPU_REGISTER(0x1930, kDword, DC_LUTA_CONTROL)
 
 XE_GPU_REGISTER(0x1961, kDword, AVIVO_D1MODE_VIEWPORT_SIZE)

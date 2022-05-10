@@ -205,6 +205,16 @@ void TraceReader::ParseTrace() {
         }
         break;
       }
+      case TraceCommandType::kRegisters: {
+        auto cmd = reinterpret_cast<const RegistersCommand*>(trace_ptr);
+        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        break;
+      }
+      case TraceCommandType::kGammaRamp: {
+        auto cmd = reinterpret_cast<const GammaRampCommand*>(trace_ptr);
+        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        break;
+      }
       default:
         // Broken trace file?
         assert_unhandled_case(type);
@@ -218,8 +228,8 @@ void TraceReader::ParseTrace() {
 }
 
 bool TraceReader::DecompressMemory(MemoryEncodingFormat encoding_format,
-                                   const uint8_t* src, size_t src_size,
-                                   uint8_t* dest, size_t dest_size) {
+                                   const void* src, size_t src_size, void* dest,
+                                   size_t dest_size) {
   switch (encoding_format) {
     case MemoryEncodingFormat::kNone:
       assert_true(src_size == dest_size);
