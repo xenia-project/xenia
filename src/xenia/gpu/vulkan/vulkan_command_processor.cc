@@ -1614,6 +1614,8 @@ bool VulkanCommandProcessor::IssueCopy() {
 }
 
 void VulkanCommandProcessor::InitializeTrace() {
+  CommandProcessor::InitializeTrace();
+
   if (!BeginSubmission(true)) {
     return;
   }

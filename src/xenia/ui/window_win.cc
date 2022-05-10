@@ -23,8 +23,8 @@
 #include "xenia/ui/virtual_key.h"
 #include "xenia/ui/windowed_app_context_win.h"
 
-// For per-monitor DPI awareness v1.
 #include <ShellScalingApi.h>
+#include <dwmapi.h>
 
 namespace xe {
 namespace ui {
@@ -181,6 +181,14 @@ bool Win32Window::OpenImpl() {
       SetWindowPlacement(hwnd_, &initial_dpi_placement);
     }
   }
+
+  // Disable rounded corners starting with Windows 11 (or silently receive and
+  // ignore E_INVALIDARG on Windows versions before 10.0.22000.0), primarily to
+  // preserve all pixels of the guest output.
+  DWM_WINDOW_CORNER_PREFERENCE window_corner_preference = DWMWCP_DONOTROUND;
+  DwmSetWindowAttribute(hwnd_, DWMWA_WINDOW_CORNER_PREFERENCE,
+                        &window_corner_preference,
+                        sizeof(window_corner_preference));
 
   // Disable flicks.
   ATOM atom = GlobalAddAtomW(L"MicrosoftTabletPenServiceProperty");

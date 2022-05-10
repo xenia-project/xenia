@@ -13,6 +13,7 @@
 #include <utility>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/byte_order.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -1161,8 +1162,8 @@ bool D3D12CommandProcessor::SetupContext() {
       provider.GetHeapFlagCreateNotZeroed();
 
   // Create gamma ramp resources.
-  dirty_gamma_ramp_table_ = true;
-  dirty_gamma_ramp_pwl_ = true;
+  gamma_ramp_256_entry_table_up_to_date_ = false;
+  gamma_ramp_pwl_up_to_date_ = false;
   D3D12_RESOURCE_DESC gamma_ramp_buffer_desc;
   ui::d3d12::util::FillBufferResourceDesc(
       gamma_ramp_buffer_desc, (256 + 128 * 3) * 4, D3D12_RESOURCE_FLAG_NONE);
@@ -1699,13 +1700,15 @@ void D3D12CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
       texture_cache_->TextureFetchConstantWritten(
           (index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0) / 6);
     }
-  } else if (index == XE_GPU_REG_DC_LUT_PWL_DATA) {
-    UpdateGammaRampValue(GammaRampType::kPWL, value);
-  } else if (index == XE_GPU_REG_DC_LUT_30_COLOR) {
-    UpdateGammaRampValue(GammaRampType::kTable, value);
-  } else if (index == XE_GPU_REG_DC_LUT_RW_MODE) {
-    gamma_ramp_rw_subindex_ = 0;
   }
+}
+
+void D3D12CommandProcessor::OnGammaRamp256EntryTableValueWritten() {
+  gamma_ramp_256_entry_table_up_to_date_ = false;
+}
+
+void D3D12CommandProcessor::OnGammaRampPWLValueWritten() {
+  gamma_ramp_pwl_up_to_date_ = false;
 }
 
 void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
@@ -1801,6 +1804,9 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
         // This is according to D3D::InitializePresentationParameters from a
         // game executable, which initializes the 256-entry table gamma ramp for
         // 8_8_8_8 output and the PWL gamma ramp for 2_10_10_10.
+        // TODO(Triang3l): Choose between the table and PWL based on
+        // DC_LUTA_CONTROL, support both for all formats (and also different
+        // increments for PWL).
         bool use_pwl_gamma_ramp =
             frontbuffer_format == xenos::TextureFormat::k_2_10_10_10 ||
             frontbuffer_format ==
@@ -1811,20 +1817,43 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
         // Upload the new gamma ramp, using the upload buffer for the current
         // frame (will close the frame after this anyway, so can't write
         // multiple times per frame).
-        if (use_pwl_gamma_ramp ? dirty_gamma_ramp_pwl_
-                               : dirty_gamma_ramp_table_) {
+        if (!(use_pwl_gamma_ramp ? gamma_ramp_pwl_up_to_date_
+                                 : gamma_ramp_256_entry_table_up_to_date_)) {
           uint32_t gamma_ramp_offset_bytes = use_pwl_gamma_ramp ? 256 * 4 : 0;
           uint32_t gamma_ramp_upload_offset_bytes =
               uint32_t(frame_current_ % kQueueFrames) * ((256 + 128 * 3) * 4) +
               gamma_ramp_offset_bytes;
           uint32_t gamma_ramp_size_bytes =
               (use_pwl_gamma_ramp ? 128 * 3 : 256) * 4;
-          std::memcpy(gamma_ramp_upload_buffer_mapping_ +
-                          gamma_ramp_upload_offset_bytes,
-                      use_pwl_gamma_ramp
-                          ? static_cast<const void*>(gamma_ramp_.pwl)
-                          : static_cast<const void*>(gamma_ramp_.table),
-                      gamma_ramp_size_bytes);
+          if (std::endian::native != std::endian::little &&
+              use_pwl_gamma_ramp) {
+            // R16G16 is first R16, where the shader expects the base, and
+            // second G16, where the delta should be, but gamma_ramp_pwl_rgb()
+            // is an array of 32-bit DC_LUT_PWL_DATA registers - swap 16 bits in
+            // each 32.
+            auto gamma_ramp_pwl_upload_buffer =
+                reinterpret_cast<reg::DC_LUT_PWL_DATA*>(
+                    gamma_ramp_upload_buffer_mapping_ +
+                    gamma_ramp_upload_offset_bytes);
+            const reg::DC_LUT_PWL_DATA* gamma_ramp_pwl = gamma_ramp_pwl_rgb();
+            for (size_t i = 0; i < 128 * 3; ++i) {
+              reg::DC_LUT_PWL_DATA& gamma_ramp_pwl_upload_buffer_entry =
+                  gamma_ramp_pwl_upload_buffer[i];
+              reg::DC_LUT_PWL_DATA gamma_ramp_pwl_entry = gamma_ramp_pwl[i];
+              gamma_ramp_pwl_upload_buffer_entry.base =
+                  gamma_ramp_pwl_entry.delta;
+              gamma_ramp_pwl_upload_buffer_entry.delta =
+                  gamma_ramp_pwl_entry.base;
+            }
+          } else {
+            std::memcpy(
+                gamma_ramp_upload_buffer_mapping_ +
+                    gamma_ramp_upload_offset_bytes,
+                use_pwl_gamma_ramp
+                    ? static_cast<const void*>(gamma_ramp_pwl_rgb())
+                    : static_cast<const void*>(gamma_ramp_256_entry_table()),
+                gamma_ramp_size_bytes);
+          }
           PushTransitionBarrier(gamma_ramp_buffer_.Get(),
                                 gamma_ramp_buffer_state_,
                                 D3D12_RESOURCE_STATE_COPY_DEST);
@@ -1834,8 +1863,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
               gamma_ramp_buffer_.Get(), gamma_ramp_offset_bytes,
               gamma_ramp_upload_buffer_.Get(), gamma_ramp_upload_offset_bytes,
               gamma_ramp_size_bytes);
-          (use_pwl_gamma_ramp ? dirty_gamma_ramp_pwl_
-                              : dirty_gamma_ramp_table_) = false;
+          (use_pwl_gamma_ramp ? gamma_ramp_pwl_up_to_date_
+                              : gamma_ramp_256_entry_table_up_to_date_) = true;
         }
 
         // Destination, source, and if bindful, gamma ramp.
@@ -2589,6 +2618,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
 }
 
 void D3D12CommandProcessor::InitializeTrace() {
+  CommandProcessor::InitializeTrace();
+
   if (!BeginSubmission(false)) {
     return;
   }
@@ -3330,32 +3361,39 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       float(pa_su_point_minmax.min_size) * (2.0f / 16.0f);
   float point_vertex_diameter_max =
       float(pa_su_point_minmax.max_size) * (2.0f / 16.0f);
-  float point_constant_radius_x =
-      float(pa_su_point_size.width) * (1.0f / 16.0f);
-  float point_constant_radius_y =
-      float(pa_su_point_size.height) * (1.0f / 16.0f);
+  float point_constant_diameter_x =
+      float(pa_su_point_size.width) * (2.0f / 16.0f);
+  float point_constant_diameter_y =
+      float(pa_su_point_size.height) * (2.0f / 16.0f);
   dirty |=
       system_constants_.point_vertex_diameter_min != point_vertex_diameter_min;
   dirty |=
       system_constants_.point_vertex_diameter_max != point_vertex_diameter_max;
   dirty |=
-      system_constants_.point_constant_radius[0] != point_constant_radius_x;
+      system_constants_.point_constant_diameter[0] != point_constant_diameter_x;
   dirty |=
-      system_constants_.point_constant_radius[1] != point_constant_radius_y;
+      system_constants_.point_constant_diameter[1] != point_constant_diameter_y;
   system_constants_.point_vertex_diameter_min = point_vertex_diameter_min;
   system_constants_.point_vertex_diameter_max = point_vertex_diameter_max;
-  system_constants_.point_constant_radius[0] = point_constant_radius_x;
-  system_constants_.point_constant_radius[1] = point_constant_radius_y;
-  float point_screen_to_ndc_x =
+  system_constants_.point_constant_diameter[0] = point_constant_diameter_x;
+  system_constants_.point_constant_diameter[1] = point_constant_diameter_y;
+  // 2 because 1 in the NDC is half of the viewport's axis, 0.5 for diameter to
+  // radius conversion to avoid multiplying the per-vertex diameter by an
+  // additional constant in the shader.
+  float point_screen_diameter_to_ndc_radius_x =
       (/* 0.5f * 2.0f * */ float(resolution_scale_x)) /
       std::max(viewport_info.xy_extent[0], uint32_t(1));
-  float point_screen_to_ndc_y =
+  float point_screen_diameter_to_ndc_radius_y =
       (/* 0.5f * 2.0f * */ float(resolution_scale_y)) /
       std::max(viewport_info.xy_extent[1], uint32_t(1));
-  dirty |= system_constants_.point_screen_to_ndc[0] != point_screen_to_ndc_x;
-  dirty |= system_constants_.point_screen_to_ndc[1] != point_screen_to_ndc_y;
-  system_constants_.point_screen_to_ndc[0] = point_screen_to_ndc_x;
-  system_constants_.point_screen_to_ndc[1] = point_screen_to_ndc_y;
+  dirty |= system_constants_.point_screen_diameter_to_ndc_radius[0] !=
+           point_screen_diameter_to_ndc_radius_x;
+  dirty |= system_constants_.point_screen_diameter_to_ndc_radius[1] !=
+           point_screen_diameter_to_ndc_radius_y;
+  system_constants_.point_screen_diameter_to_ndc_radius[0] =
+      point_screen_diameter_to_ndc_radius_x;
+  system_constants_.point_screen_diameter_to_ndc_radius[1] =
+      point_screen_diameter_to_ndc_radius_y;
 
   // Interpolator sampling pattern, centroid or center.
   uint32_t interpolator_sampling_pattern =

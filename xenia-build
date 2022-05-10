@@ -920,7 +920,7 @@ class BuildShadersCommand(Command):
                     print('ERROR: could not find 32-bit Program Files')
                     return 1
                 windows_sdk_bin_path = os.path.join(
-                    program_files_path, 'Windows Kits/10/bin/10.0.19041.0/x64')
+                    program_files_path, 'Windows Kits/10/bin/10.0.22000.0/x64')
                 if not os.path.exists(windows_sdk_bin_path):
                     print('ERROR: could not find Windows 10 SDK binaries')
                     return 1
