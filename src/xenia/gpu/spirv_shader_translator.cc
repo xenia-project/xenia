@@ -932,64 +932,34 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
   }
 
   // Create the Xenia-specific outputs.
+  // TODO(Triang3l): Change to an interpolator array.
   for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
     spv::Id interpolator = builder_->createVariable(
         spv::NoPrecision, spv::StorageClassOutput, type_float4_,
         (kInterpolatorNamePrefix + std::to_string(i)).c_str());
     input_output_interpolators_[i] = interpolator;
     builder_->addDecoration(interpolator, spv::DecorationLocation, int(i));
+    builder_->addDecoration(interpolator, spv::DecorationInvariant);
     main_interface_.push_back(interpolator);
   }
 
-  // Create the entire GLSL 4.50 gl_PerVertex output similar to what glslang
-  // does. Members (like gl_PointSize) don't need to be used, and also
-  // ClipDistance and CullDistance may exist even if the device doesn't support
-  // them, as long as the capabilities aren't enabled, and nothing is stored to
-  // them.
-  if (features_.clip_distance) {
-    builder_->addCapability(spv::CapabilityClipDistance);
-  }
-  if (features_.cull_distance) {
-    builder_->addCapability(spv::CapabilityCullDistance);
-  }
+  // Create the gl_PerVertex output for used system outputs.
   std::vector<spv::Id> struct_per_vertex_members;
   struct_per_vertex_members.reserve(kOutputPerVertexMemberCount);
   struct_per_vertex_members.push_back(type_float4_);
-  struct_per_vertex_members.push_back(type_float_);
-  // TODO(Triang3l): Specialization constant for ucp_cull_only_ena, for 6 + 1
-  // or 1 + 7 array sizes.
-  struct_per_vertex_members.push_back(builder_->makeArrayType(
-      type_float_, builder_->makeUintConstant(features_.clip_distance ? 6 : 1),
-      0));
-  struct_per_vertex_members.push_back(
-      builder_->makeArrayType(type_float_, builder_->makeUintConstant(1), 0));
   spv::Id type_struct_per_vertex =
       builder_->makeStructType(struct_per_vertex_members, "gl_PerVertex");
+  builder_->addMemberName(type_struct_per_vertex,
+                          kOutputPerVertexMemberPosition, "gl_Position");
   builder_->addMemberDecoration(type_struct_per_vertex,
                                 kOutputPerVertexMemberPosition,
                                 spv::DecorationInvariant);
   builder_->addMemberDecoration(type_struct_per_vertex,
                                 kOutputPerVertexMemberPosition,
                                 spv::DecorationBuiltIn, spv::BuiltInPosition);
-  builder_->addMemberDecoration(type_struct_per_vertex,
-                                kOutputPerVertexMemberPointSize,
-                                spv::DecorationBuiltIn, spv::BuiltInPointSize);
-  builder_->addMemberDecoration(type_struct_per_vertex,
-                                kOutputPerVertexMemberClipDistance,
-                                spv::DecorationInvariant);
-  builder_->addMemberDecoration(
-      type_struct_per_vertex, kOutputPerVertexMemberClipDistance,
-      spv::DecorationBuiltIn, spv::BuiltInClipDistance);
-  builder_->addMemberDecoration(type_struct_per_vertex,
-                                kOutputPerVertexMemberCullDistance,
-                                spv::DecorationInvariant);
-  builder_->addMemberDecoration(
-      type_struct_per_vertex, kOutputPerVertexMemberCullDistance,
-      spv::DecorationBuiltIn, spv::BuiltInCullDistance);
   builder_->addDecoration(type_struct_per_vertex, spv::DecorationBlock);
-  output_per_vertex_ =
-      builder_->createVariable(spv::NoPrecision, spv::StorageClassOutput,
-                               type_struct_per_vertex, "xe_out_gl_PerVertex");
+  output_per_vertex_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassOutput, type_struct_per_vertex, "");
   main_interface_.push_back(output_per_vertex_);
 }
 
@@ -1178,18 +1148,6 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
         std::move(composite_construct_op));
   }
   builder_->createStore(position, position_ptr);
-
-  // Write 1 to point size (using a geometry shader or another kind of fallback
-  // to expand point sprites - point size support is not guaranteed, and the
-  // size would also be limited, and can't be controlled independently along two
-  // axes).
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(
-      builder_->makeIntConstant(kOutputPerVertexMemberPointSize));
-  builder_->createStore(
-      const_float_1_,
-      builder_->createAccessChain(spv::StorageClassOutput, output_per_vertex_,
-                                  id_vector_temp_));
 }
 
 void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {

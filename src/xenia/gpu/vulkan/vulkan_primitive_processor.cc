@@ -28,17 +28,16 @@ VulkanPrimitiveProcessor::~VulkanPrimitiveProcessor() { Shutdown(true); }
 
 bool VulkanPrimitiveProcessor::Initialize() {
   // TODO(Triang3l): fullDrawIndexUint32 feature check and indirect index fetch.
-  // TODO(Triang3l): geometryShader check for quads when geometry shaders are
-  // added.
   const ui::vulkan::VulkanProvider& provider =
       command_processor_.GetVulkanProvider();
+  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
   const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
       device_portability_subset_features =
           provider.device_portability_subset_features();
   if (!InitializeCommon(true,
                         !device_portability_subset_features ||
                             device_portability_subset_features->triangleFans,
-                        false, false)) {
+                        false, device_features.geometryShader)) {
     Shutdown();
     return false;
   }

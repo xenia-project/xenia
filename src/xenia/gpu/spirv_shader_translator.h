@@ -459,9 +459,6 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   enum OutputPerVertexMember : unsigned int {
     kOutputPerVertexMemberPosition,
-    kOutputPerVertexMemberPointSize,
-    kOutputPerVertexMemberClipDistance,
-    kOutputPerVertexMemberCullDistance,
     kOutputPerVertexMemberCount,
   };
   spv::Id output_per_vertex_;
