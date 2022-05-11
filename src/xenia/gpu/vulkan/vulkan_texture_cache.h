@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_VULKAN_TEXTURE_CACHE_H_
-#define XENIA_GPU_VULKAN_TEXTURE_CACHE_H_
+#ifndef XENIA_GPU_VULKAN_VULKAN_TEXTURE_CACHE_H_
+#define XENIA_GPU_VULKAN_VULKAN_TEXTURE_CACHE_H_
 
 #include <algorithm>
 #include <list>
@@ -34,7 +34,7 @@ namespace gpu {
 namespace vulkan {
 
 //
-class TextureCache {
+class VulkanTextureCache {
  public:
   struct TextureView;
 
@@ -75,9 +75,10 @@ class TextureCache {
     };
   };
 
-  TextureCache(Memory* memory, RegisterFile* register_file,
-               TraceWriter* trace_writer, ui::vulkan::VulkanProvider& provider);
-  ~TextureCache();
+  VulkanTextureCache(Memory* memory, RegisterFile* register_file,
+                     TraceWriter* trace_writer,
+                     ui::vulkan::VulkanProvider& provider);
+  ~VulkanTextureCache();
 
   VkResult Initialize();
   void Shutdown();
@@ -237,4 +238,4 @@ class TextureCache {
 }  // namespace gpu
 }  // namespace xe
 
-#endif  // XENIA_GPU_VULKAN_TEXTURE_CACHE_H_
+#endif  // XENIA_GPU_VULKAN_VULKAN_TEXTURE_CACHE_H_

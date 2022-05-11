@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/gpu/vulkan/texture_cache.h"
+#include "xenia/gpu/vulkan/vulkan_texture_cache.h"
 
 #include <algorithm>
 
@@ -56,9 +56,10 @@ const char* get_dimension_name(xenos::DataDimension dimension) {
   return "unknown";
 }
 
-TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
-                           TraceWriter* trace_writer,
-                           ui::vulkan::VulkanProvider& provider)
+VulkanTextureCache::VulkanTextureCache(Memory* memory,
+                                       RegisterFile* register_file,
+                                       TraceWriter* trace_writer,
+                                       ui::vulkan::VulkanProvider& provider)
     : memory_(memory),
       register_file_(register_file),
       trace_writer_(trace_writer),
@@ -68,9 +69,9 @@ TextureCache::TextureCache(Memory* memory, RegisterFile* register_file,
       wb_staging_buffer_(provider, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                          kStagingBufferSize) {}
 
-TextureCache::~TextureCache() { Shutdown(); }
+VulkanTextureCache::~VulkanTextureCache() { Shutdown(); }
 
-VkResult TextureCache::Initialize() {
+VkResult VulkanTextureCache::Initialize() {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   VkDevice device = provider_.device();
   VkResult status = VK_SUCCESS;
@@ -164,7 +165,7 @@ VkResult TextureCache::Initialize() {
   return VK_SUCCESS;
 }
 
-void TextureCache::Shutdown() {
+void VulkanTextureCache::Shutdown() {
   if (memory_invalidation_callback_handle_ != nullptr) {
     memory_->UnregisterPhysicalMemoryInvalidationCallback(
         memory_invalidation_callback_handle_);
@@ -185,7 +186,7 @@ void TextureCache::Shutdown() {
                                    nullptr);
 }
 
-TextureCache::Texture* TextureCache::AllocateTexture(
+VulkanTextureCache::Texture* VulkanTextureCache::AllocateTexture(
     const TextureInfo& texture_info, VkFormatFeatureFlags required_flags) {
   auto format_info = texture_info.format_info();
   assert_not_null(format_info);
@@ -313,7 +314,7 @@ TextureCache::Texture* TextureCache::AllocateTexture(
   return texture;
 }
 
-bool TextureCache::FreeTexture(Texture* texture) {
+bool VulkanTextureCache::FreeTexture(Texture* texture) {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   VkDevice device = provider_.device();
 
@@ -354,7 +355,7 @@ bool TextureCache::FreeTexture(Texture* texture) {
   return true;
 }
 
-void TextureCache::WatchTexture(Texture* texture) {
+void VulkanTextureCache::WatchTexture(Texture* texture) {
   uint32_t address, size;
 
   {
@@ -424,7 +425,7 @@ void TextureCache::WatchTexture(Texture* texture) {
   memory_->EnablePhysicalMemoryAccessCallbacks(address, size, true, false);
 }
 
-void TextureCache::TextureTouched(Texture* texture) {
+void VulkanTextureCache::TextureTouched(Texture* texture) {
   if (texture->pending_invalidation) {
     return;
   }
@@ -438,7 +439,7 @@ void TextureCache::TextureTouched(Texture* texture) {
   texture->pending_invalidation = true;
 }
 
-std::pair<uint32_t, uint32_t> TextureCache::MemoryInvalidationCallback(
+std::pair<uint32_t, uint32_t> VulkanTextureCache::MemoryInvalidationCallback(
     uint32_t physical_address_start, uint32_t length, bool exact_range) {
   global_critical_region_.Acquire();
   if (watched_textures_.empty()) {
@@ -478,14 +479,15 @@ std::pair<uint32_t, uint32_t> TextureCache::MemoryInvalidationCallback(
   return std::make_pair(previous_end, next_start - previous_end);
 }
 
-std::pair<uint32_t, uint32_t> TextureCache::MemoryInvalidationCallbackThunk(
+std::pair<uint32_t, uint32_t>
+VulkanTextureCache::MemoryInvalidationCallbackThunk(
     void* context_ptr, uint32_t physical_address_start, uint32_t length,
     bool exact_range) {
-  return reinterpret_cast<TextureCache*>(context_ptr)
+  return reinterpret_cast<VulkanTextureCache*>(context_ptr)
       ->MemoryInvalidationCallback(physical_address_start, length, exact_range);
 }
 
-TextureCache::Texture* TextureCache::DemandResolveTexture(
+VulkanTextureCache::Texture* VulkanTextureCache::DemandResolveTexture(
     const TextureInfo& texture_info) {
   auto texture_hash = texture_info.hash();
   for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
@@ -544,9 +546,9 @@ TextureCache::Texture* TextureCache::DemandResolveTexture(
   return texture;
 }
 
-TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
-                                            VkCommandBuffer command_buffer,
-                                            VkFence completion_fence) {
+VulkanTextureCache::Texture* VulkanTextureCache::Demand(
+    const TextureInfo& texture_info, VkCommandBuffer command_buffer,
+    VkFence completion_fence) {
   // Run a tight loop to scan for an exact match existing texture.
   auto texture_hash = texture_info.hash();
   for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
@@ -629,8 +631,8 @@ TextureCache::Texture* TextureCache::Demand(const TextureInfo& texture_info,
   return texture;
 }
 
-TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
-                                                    uint16_t swizzle) {
+VulkanTextureCache::TextureView* VulkanTextureCache::DemandView(
+    Texture* texture, uint16_t swizzle) {
   for (auto it = texture->views.begin(); it != texture->views.end(); ++it) {
     if ((*it)->swizzle == swizzle) {
       return (*it).get();
@@ -717,7 +719,8 @@ TextureCache::TextureView* TextureCache::DemandView(Texture* texture,
   return nullptr;
 }
 
-TextureCache::Sampler* TextureCache::Demand(const SamplerInfo& sampler_info) {
+VulkanTextureCache::Sampler* VulkanTextureCache::Demand(
+    const SamplerInfo& sampler_info) {
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
@@ -875,7 +878,8 @@ bool TextureFormatIsSimilar(xenos::TextureFormat left,
 #undef COMPARE_FORMAT
 }
 
-TextureCache::Texture* TextureCache::Lookup(const TextureInfo& texture_info) {
+VulkanTextureCache::Texture* VulkanTextureCache::Lookup(
+    const TextureInfo& texture_info) {
   auto texture_hash = texture_info.hash();
   for (auto it = textures_.find(texture_hash); it != textures_.end(); ++it) {
     if (it->second->texture_info == texture_info) {
@@ -918,11 +922,9 @@ TextureCache::Texture* TextureCache::Lookup(const TextureInfo& texture_info) {
   return nullptr;
 }
 
-TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
-                                                   uint32_t width,
-                                                   uint32_t height,
-                                                   xenos::TextureFormat format,
-                                                   VkOffset2D* out_offset) {
+VulkanTextureCache::Texture* VulkanTextureCache::LookupAddress(
+    uint32_t guest_address, uint32_t width, uint32_t height,
+    xenos::TextureFormat format, VkOffset2D* out_offset) {
   for (auto it = textures_.begin(); it != textures_.end(); ++it) {
     const auto& texture_info = it->second->texture_info;
     if (guest_address >= texture_info.memory.base_address &&
@@ -958,8 +960,8 @@ TextureCache::Texture* TextureCache::LookupAddress(uint32_t guest_address,
   return nullptr;
 }
 
-void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
-                                        VkFence completion_fence) {
+void VulkanTextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
+                                              VkFence completion_fence) {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   VkDevice device = provider_.device();
   auto status = dfn.vkEndCommandBuffer(command_buffer);
@@ -992,8 +994,9 @@ void TextureCache::FlushPendingCommands(VkCommandBuffer command_buffer,
   dfn.vkBeginCommandBuffer(command_buffer, &begin_info);
 }
 
-bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
-                                  uint32_t mip, const TextureInfo& src) {
+bool VulkanTextureCache::ConvertTexture(uint8_t* dest,
+                                        VkBufferImageCopy* copy_region,
+                                        uint32_t mip, const TextureInfo& src) {
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
@@ -1064,9 +1067,9 @@ bool TextureCache::ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
   return true;
 }
 
-bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
-                                 VkFence completion_fence, Texture* dest,
-                                 const TextureInfo& src) {
+bool VulkanTextureCache::UploadTexture(VkCommandBuffer command_buffer,
+                                       VkFence completion_fence, Texture* dest,
+                                       const TextureInfo& src) {
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
@@ -1103,7 +1106,8 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
     if (!staging_buffer_.CanAcquire(unpack_length)) {
       // The staging buffer isn't big enough to hold this texture.
       XELOGE(
-          "TextureCache staging buffer is too small! (uploading 0x{:X} bytes)",
+          "VulkanTextureCache staging buffer is too small! (uploading 0x{:X} "
+          "bytes)",
           unpack_length);
       assert_always();
       return false;
@@ -1226,7 +1230,8 @@ bool TextureCache::UploadTexture(VkCommandBuffer command_buffer,
   return true;
 }
 
-const FormatInfo* TextureCache::GetFormatInfo(xenos::TextureFormat format) {
+const FormatInfo* VulkanTextureCache::GetFormatInfo(
+    xenos::TextureFormat format) {
   switch (format) {
     case xenos::TextureFormat::k_CTX1:
       return FormatInfo::Get(xenos::TextureFormat::k_8_8);
@@ -1237,7 +1242,7 @@ const FormatInfo* TextureCache::GetFormatInfo(xenos::TextureFormat format) {
   }
 }
 
-texture_conversion::CopyBlockCallback TextureCache::GetFormatCopyBlock(
+texture_conversion::CopyBlockCallback VulkanTextureCache::GetFormatCopyBlock(
     xenos::TextureFormat format) {
   switch (format) {
     case xenos::TextureFormat::k_CTX1:
@@ -1249,7 +1254,8 @@ texture_conversion::CopyBlockCallback TextureCache::GetFormatCopyBlock(
   }
 }
 
-TextureExtent TextureCache::GetMipExtent(const TextureInfo& src, uint32_t mip) {
+TextureExtent VulkanTextureCache::GetMipExtent(const TextureInfo& src,
+                                               uint32_t mip) {
   auto format_info = GetFormatInfo(src.format);
   uint32_t width = src.width + 1;
   uint32_t height = src.height + 1;
@@ -1267,9 +1273,9 @@ TextureExtent TextureCache::GetMipExtent(const TextureInfo& src, uint32_t mip) {
   return extent;
 }
 
-uint32_t TextureCache::ComputeMipStorage(const FormatInfo* format_info,
-                                         uint32_t width, uint32_t height,
-                                         uint32_t depth, uint32_t mip) {
+uint32_t VulkanTextureCache::ComputeMipStorage(const FormatInfo* format_info,
+                                               uint32_t width, uint32_t height,
+                                               uint32_t depth, uint32_t mip) {
   assert_not_null(format_info);
   TextureExtent extent;
   if (mip == 0) {
@@ -1285,14 +1291,15 @@ uint32_t TextureCache::ComputeMipStorage(const FormatInfo* format_info,
   return extent.all_blocks() * bytes_per_block;
 }
 
-uint32_t TextureCache::ComputeMipStorage(const TextureInfo& src, uint32_t mip) {
+uint32_t VulkanTextureCache::ComputeMipStorage(const TextureInfo& src,
+                                               uint32_t mip) {
   uint32_t size = ComputeMipStorage(GetFormatInfo(src.format), src.width + 1,
                                     src.height + 1, src.depth + 1, mip);
   // ensure 4-byte alignment
   return (size + 3) & (~3u);
 }
 
-uint32_t TextureCache::ComputeTextureStorage(const TextureInfo& src) {
+uint32_t VulkanTextureCache::ComputeTextureStorage(const TextureInfo& src) {
   auto format_info = GetFormatInfo(src.format);
   uint32_t width = src.width + 1;
   uint32_t height = src.height + 1;
@@ -1309,7 +1316,7 @@ uint32_t TextureCache::ComputeTextureStorage(const TextureInfo& src) {
   return length;
 }
 
-void TextureCache::WritebackTexture(Texture* texture) {
+void VulkanTextureCache::WritebackTexture(Texture* texture) {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   VkResult status = VK_SUCCESS;
   VkFence fence = wb_command_pool_->BeginBatch();
@@ -1391,7 +1398,7 @@ void TextureCache::WritebackTexture(Texture* texture) {
   wb_staging_buffer_.Scavenge();
 }
 
-void TextureCache::HashTextureBindings(
+void VulkanTextureCache::HashTextureBindings(
     XXH3_state_t* hash_state, uint32_t& fetch_mask,
     const std::vector<Shader::TextureBinding>& bindings) {
   for (auto& binding : bindings) {
@@ -1412,7 +1419,7 @@ void TextureCache::HashTextureBindings(
   }
 }
 
-VkDescriptorSet TextureCache::PrepareTextureSet(
+VkDescriptorSet VulkanTextureCache::PrepareTextureSet(
     VkCommandBuffer command_buffer, VkFence completion_fence,
     const std::vector<Shader::TextureBinding>& vertex_bindings,
     const std::vector<Shader::TextureBinding>& pixel_bindings) {
@@ -1478,7 +1485,7 @@ VkDescriptorSet TextureCache::PrepareTextureSet(
   return descriptor_set;
 }
 
-bool TextureCache::SetupTextureBindings(
+bool VulkanTextureCache::SetupTextureBindings(
     VkCommandBuffer command_buffer, VkFence completion_fence,
     UpdateSetInfo* update_set_info,
     const std::vector<Shader::TextureBinding>& bindings) {
@@ -1496,10 +1503,9 @@ bool TextureCache::SetupTextureBindings(
   return !any_failed;
 }
 
-bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
-                                       VkFence completion_fence,
-                                       UpdateSetInfo* update_set_info,
-                                       const Shader::TextureBinding& binding) {
+bool VulkanTextureCache::SetupTextureBinding(
+    VkCommandBuffer command_buffer, VkFence completion_fence,
+    UpdateSetInfo* update_set_info, const Shader::TextureBinding& binding) {
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
@@ -1590,7 +1596,7 @@ bool TextureCache::SetupTextureBinding(VkCommandBuffer command_buffer,
   return true;
 }
 
-void TextureCache::RemoveInvalidatedTextures() {
+void VulkanTextureCache::RemoveInvalidatedTextures() {
   std::unordered_set<Texture*>& invalidated_textures = *invalidated_textures_;
 
   // Clean up any invalidated textures.
@@ -1619,7 +1625,7 @@ void TextureCache::RemoveInvalidatedTextures() {
   }
 }
 
-void TextureCache::ClearCache() {
+void VulkanTextureCache::ClearCache() {
   RemoveInvalidatedTextures();
   for (auto it = textures_.begin(); it != textures_.end(); ++it) {
     while (!FreeTexture(it->second)) {
@@ -1639,7 +1645,7 @@ void TextureCache::ClearCache() {
   samplers_.clear();
 }
 
-void TextureCache::Scavenge() {
+void VulkanTextureCache::Scavenge() {
   SCOPE_profile_cpu_f("gpu");
 
   // Close any open descriptor pool batches

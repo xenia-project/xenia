@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_GPU_VULKAN_PIPELINE_CACHE_H_
-#define XENIA_GPU_VULKAN_PIPELINE_CACHE_H_
+#ifndef XENIA_GPU_VULKAN_VULKAN_PIPELINE_CACHE_H_
+#define XENIA_GPU_VULKAN_VULKAN_PIPELINE_CACHE_H_
 
 #include <unordered_map>
 
@@ -29,7 +29,7 @@ namespace vulkan {
 // Configures and caches pipelines based on render state.
 // This is responsible for properly setting all state required for a draw
 // including shaders, various blend/etc options, and input configuration.
-class PipelineCache {
+class VulkanPipelineCache {
  public:
   enum class UpdateStatus {
     kCompatible,
@@ -37,9 +37,9 @@ class PipelineCache {
     kError,
   };
 
-  PipelineCache(RegisterFile* register_file,
-                const ui::vulkan::VulkanProvider& provider);
-  ~PipelineCache();
+  VulkanPipelineCache(RegisterFile* register_file,
+                      const ui::vulkan::VulkanProvider& provider);
+  ~VulkanPipelineCache();
 
   VkResult Initialize(VkDescriptorSetLayout uniform_descriptor_set_layout,
                       VkDescriptorSetLayout texture_descriptor_set_layout,
@@ -310,4 +310,4 @@ class PipelineCache {
 }  // namespace gpu
 }  // namespace xe
 
-#endif  // XENIA_GPU_VULKAN_PIPELINE_CACHE_H_
+#endif  // XENIA_GPU_VULKAN_VULKAN_PIPELINE_CACHE_H_
