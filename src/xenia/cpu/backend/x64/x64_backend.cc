@@ -434,9 +434,9 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   code_offsets.prolog = getSize();
 
   // rsp + 0 = return address
-  mov(qword[rsp + 8 * 3], GetNativeReg(2));
-  mov(qword[rsp + 8 * 2], GetNativeReg(1));
-  mov(qword[rsp + 8 * 1], GetNativeReg(0));
+  mov(qword[rsp + offsetof(StackLayout::Thunk, arg_temp[2])], GetNativeReg(2));
+  mov(qword[rsp + offsetof(StackLayout::Thunk, arg_temp[1])], GetNativeReg(1));
+  mov(qword[rsp + offsetof(StackLayout::Thunk, arg_temp[0])], GetNativeReg(0));
   sub(rsp, stack_size);
 
   code_offsets.prolog_stack_alloc = getSize();
@@ -455,9 +455,9 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   code_offsets.epilog = getSize();
 
   add(rsp, stack_size);
-  mov(GetNativeReg(0), qword[rsp + 8 * 1]);
-  mov(GetNativeReg(1), qword[rsp + 8 * 2]);
-  mov(GetNativeReg(2), qword[rsp + 8 * 3]);
+  mov(GetNativeReg(0), qword[rsp + offsetof(StackLayout::Thunk, arg_temp[0])]);
+  mov(GetNativeReg(1), qword[rsp + offsetof(StackLayout::Thunk, arg_temp[1])]);
+  mov(GetNativeReg(2), qword[rsp + offsetof(StackLayout::Thunk, arg_temp[2])]);
   ret();
 
   code_offsets.tail = getSize();
