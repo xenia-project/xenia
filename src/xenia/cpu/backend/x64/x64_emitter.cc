@@ -210,7 +210,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   code_offsets.body = getSize();
 
   mov(qword[rsp + StackLayout::GUEST_CTX_HOME], GetContextReg());
-  mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rcx);
+  mov(qword[rsp + StackLayout::GUEST_RET_ADDR], GetNativeReg(0));
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], 0);
 
   // Safe now to do some tracing.
@@ -438,13 +438,13 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
     EmitTraceUserCallReturn();
 
     // Pass the callers return address over.
-    mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
+    mov(GetNativeReg(0), qword[rsp + StackLayout::GUEST_RET_ADDR]);
 
     add(rsp, static_cast<uint32_t>(stack_size()));
     jmp(rax);
   } else {
     // Return address is from the previous SET_RETURN_ADDRESS.
-    mov(rcx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
+    mov(GetNativeReg(0), qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
 
     call(rax);
   }
@@ -471,7 +471,7 @@ void X64Emitter::CallIndirect(const hir::Instr* instr,
     // Not too important because indirection table is almost always available.
     mov(edx, reg.cvt32());
     mov(rax, reinterpret_cast<uint64_t>(ResolveFunction));
-    mov(rcx, GetContextReg());
+    mov(GetNativeReg(0), GetContextReg());
     call(rax);
   }
 
@@ -481,13 +481,13 @@ void X64Emitter::CallIndirect(const hir::Instr* instr,
     EmitTraceUserCallReturn();
 
     // Pass the callers return address over.
-    mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
+    mov(GetNativeReg(0), qword[rsp + StackLayout::GUEST_RET_ADDR]);
 
     add(rsp, static_cast<uint32_t>(stack_size()));
     jmp(rax);
   } else {
     // Return address is from the previous SET_RETURN_ADDRESS.
-    mov(rcx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
+    mov(GetNativeReg(0), qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
 
     call(rax);
   }
@@ -510,15 +510,18 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
     auto builtin_function = static_cast<const BuiltinFunction*>(function);
     if (builtin_function->handler()) {
       undefined = false;
-      // rcx = target function
-      // rdx = arg0
-      // r8  = arg1
-      // r9  = arg2
+      // 1st native reg = target function
+      // 2nd native reg = arg0
+      // 3rd native reg = arg1
+      // 4th native reg = arg2
       auto thunk = backend()->guest_to_host_thunk();
       mov(rax, reinterpret_cast<uint64_t>(thunk));
-      mov(rcx, reinterpret_cast<uint64_t>(builtin_function->handler()));
-      mov(rdx, reinterpret_cast<uint64_t>(builtin_function->arg0()));
-      mov(r8, reinterpret_cast<uint64_t>(builtin_function->arg1()));
+      mov(GetNativeReg(0),
+          reinterpret_cast<uint64_t>(builtin_function->handler()));
+      mov(GetNativeReg(1),
+          reinterpret_cast<uint64_t>(builtin_function->arg0()));
+      mov(GetNativeReg(2),
+          reinterpret_cast<uint64_t>(builtin_function->arg1()));
       call(rax);
       // rax = host return
     }
@@ -526,14 +529,15 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
     auto extern_function = static_cast<const GuestFunction*>(function);
     if (extern_function->extern_handler()) {
       undefined = false;
-      // rcx = target function
-      // rdx = arg0
-      // r8  = arg1
-      // r9  = arg2
+      // 1st native reg = target function
+      // 2nd native reg = arg0
+      // 3rd native reg = arg1
+      // 4th native reg = arg2
       auto thunk = backend()->guest_to_host_thunk();
       mov(rax, reinterpret_cast<uint64_t>(thunk));
-      mov(rcx, reinterpret_cast<uint64_t>(extern_function->extern_handler()));
-      mov(rdx,
+      mov(GetNativeReg(0),
+          reinterpret_cast<uint64_t>(extern_function->extern_handler()));
+      mov(GetNativeReg(1),
           qword[GetContextReg() + offsetof(ppc::PPCContext, kernel_state)]);
       call(rax);
       // rax = host return
@@ -561,13 +565,13 @@ void X64Emitter::CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0),
 }
 
 void X64Emitter::CallNativeSafe(void* fn) {
-  // rcx = target function
-  // rdx = arg0
-  // r8  = arg1
-  // r9  = arg2
+  // 1st native reg = target function
+  // 2nd native reg = arg0
+  // 3rd native reg = arg1
+  // 4th native reg = arg2
   auto thunk = backend()->guest_to_host_thunk();
   mov(rax, reinterpret_cast<uint64_t>(thunk));
-  mov(rcx, reinterpret_cast<uint64_t>(fn));
+  mov(GetNativeReg(0), reinterpret_cast<uint64_t>(fn));
   call(rax);
   // rax = host return
 }
@@ -577,16 +581,22 @@ void X64Emitter::SetReturnAddress(uint64_t value) {
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], rax);
 }
 
-Xbyak::Reg64 X64Emitter::GetNativeParam(uint32_t param) {
-  if (param == 0)
+Xbyak::Reg64 X64Emitter::GetNativeReg(uint32_t reg) {
+  if (reg == 0)
+    return rcx;
+  else if (reg == 1)
     return rdx;
-  else if (param == 1)
+  else if (reg == 2)
     return r8;
-  else if (param == 2)
+  else if (reg == 3)
     return r9;
 
   assert_always();
   return r9;
+}
+
+Xbyak::Reg64 X64Emitter::GetNativeParam(uint32_t param) {
+  return GetNativeReg(param + 1);
 }
 
 // Important: If you change these, you must update the thunks in x64_backend.cc!
