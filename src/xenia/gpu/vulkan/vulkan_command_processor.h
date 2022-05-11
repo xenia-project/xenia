@@ -25,11 +25,11 @@
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/vulkan/buffer_cache.h"
-#include "xenia/gpu/vulkan/pipeline_cache.h"
 #include "xenia/gpu/vulkan/render_cache.h"
-#include "xenia/gpu/vulkan/texture_cache.h"
 #include "xenia/gpu/vulkan/vulkan_graphics_system.h"
+#include "xenia/gpu/vulkan/vulkan_pipeline_cache.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
+#include "xenia/gpu/vulkan/vulkan_texture_cache.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/memory.h"
@@ -43,7 +43,7 @@ namespace xe {
 namespace gpu {
 namespace vulkan {
 
-class TextureCache;
+class VulkanTextureCache;
 
 class VulkanCommandProcessor : public CommandProcessor {
  public:
@@ -114,9 +114,9 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool cache_clear_requested_ = false;
 
   std::unique_ptr<BufferCache> buffer_cache_;
-  std::unique_ptr<PipelineCache> pipeline_cache_;
+  std::unique_ptr<VulkanPipelineCache> pipeline_cache_;
   std::unique_ptr<RenderCache> render_cache_;
-  std::unique_ptr<TextureCache> texture_cache_;
+  std::unique_ptr<VulkanTextureCache> texture_cache_;
 
   std::unique_ptr<ui::vulkan::Blitter> blitter_;
   std::unique_ptr<ui::vulkan::CommandBufferPool> command_buffer_pool_;

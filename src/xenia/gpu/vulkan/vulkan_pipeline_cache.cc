@@ -7,7 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/gpu/vulkan/pipeline_cache.h"
+#include "xenia/gpu/vulkan/vulkan_pipeline_cache.h"
 
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -36,15 +36,15 @@ namespace shaders {
 #include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/rect_list_gs.h"
 }  // namespace shaders
 
-PipelineCache::PipelineCache(RegisterFile* register_file,
-                             const ui::vulkan::VulkanProvider& provider)
+VulkanPipelineCache::VulkanPipelineCache(
+    RegisterFile* register_file, const ui::vulkan::VulkanProvider& provider)
     : register_file_(register_file), provider_(provider) {
   shader_translator_.reset(new SpirvShaderTranslator());
 }
 
-PipelineCache::~PipelineCache() { Shutdown(); }
+VulkanPipelineCache::~VulkanPipelineCache() { Shutdown(); }
 
-VkResult PipelineCache::Initialize(
+VkResult VulkanPipelineCache::Initialize(
     VkDescriptorSetLayout uniform_descriptor_set_layout,
     VkDescriptorSetLayout texture_descriptor_set_layout,
     VkDescriptorSetLayout vertex_descriptor_set_layout) {
@@ -170,7 +170,7 @@ VkResult PipelineCache::Initialize(
   return VK_SUCCESS;
 }
 
-void PipelineCache::Shutdown() {
+void VulkanPipelineCache::Shutdown() {
   ClearCache();
 
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
@@ -209,10 +209,10 @@ void PipelineCache::Shutdown() {
   }
 }
 
-VulkanShader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
-                                        uint32_t guest_address,
-                                        const uint32_t* host_address,
-                                        uint32_t dword_count) {
+VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
+                                              uint32_t guest_address,
+                                              const uint32_t* host_address,
+                                              uint32_t dword_count) {
   // Hash the input memory and lookup the shader.
   uint64_t data_hash =
       XXH3_64bits(host_address, dword_count * sizeof(uint32_t));
@@ -232,7 +232,7 @@ VulkanShader* PipelineCache::LoadShader(xenos::ShaderType shader_type,
   return shader;
 }
 
-PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
+VulkanPipelineCache::UpdateStatus VulkanPipelineCache::ConfigurePipeline(
     VkCommandBuffer command_buffer, const RenderState* render_state,
     VulkanShader* vertex_shader, VulkanShader* pixel_shader,
     xenos::PrimitiveType primitive_type, VkPipeline* pipeline_out) {
@@ -279,7 +279,7 @@ PipelineCache::UpdateStatus PipelineCache::ConfigurePipeline(
   return update_status;
 }
 
-void PipelineCache::ClearCache() {
+void VulkanPipelineCache::ClearCache() {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   VkDevice device = provider_.device();
   // Destroy all pipelines.
@@ -296,8 +296,8 @@ void PipelineCache::ClearCache() {
   shader_map_.clear();
 }
 
-VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
-                                      uint64_t hash_key) {
+VkPipeline VulkanPipelineCache::GetPipeline(const RenderState* render_state,
+                                            uint64_t hash_key) {
   // Lookup the pipeline in the cache.
   auto it = cached_pipelines_.find(hash_key);
   if (it != cached_pipelines_.end()) {
@@ -374,7 +374,7 @@ VkPipeline PipelineCache::GetPipeline(const RenderState* render_state,
   return pipeline;
 }
 
-bool PipelineCache::TranslateShader(
+bool VulkanPipelineCache::TranslateShader(
     VulkanShader::VulkanTranslation& translation) {
   translation.shader().AnalyzeUcode(ucode_disasm_buffer_);
   // Perform translation.
@@ -425,7 +425,7 @@ static void DumpShaderStatisticsAMD(const VkShaderStatisticsInfoAMD& stats) {
   XELOGI("numAvailableSgprs: {}", stats.numAvailableSgprs);
 }
 
-void PipelineCache::DumpShaderDisasmAMD(VkPipeline pipeline) {
+void VulkanPipelineCache::DumpShaderDisasmAMD(VkPipeline pipeline) {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   VkDevice device = provider_.device();
   VkResult status = VK_SUCCESS;
@@ -455,7 +455,7 @@ void PipelineCache::DumpShaderDisasmAMD(VkPipeline pipeline) {
   // TODO(DrChat): Eventually dump the disasm...
 }
 
-void PipelineCache::DumpShaderDisasmNV(
+void VulkanPipelineCache::DumpShaderDisasmNV(
     const VkGraphicsPipelineCreateInfo& pipeline_info) {
   // !! HACK !!: This only works on NVidia drivers. Dumps shader disasm.
   // This code is super ugly. Update this when NVidia includes an official
@@ -548,7 +548,7 @@ void PipelineCache::DumpShaderDisasmNV(
   dfn.vkDestroyPipelineCache(device, dummy_pipeline_cache, nullptr);
 }
 
-VkShaderModule PipelineCache::GetGeometryShader(
+VkShaderModule VulkanPipelineCache::GetGeometryShader(
     xenos::PrimitiveType primitive_type, bool is_line_mode) {
   switch (primitive_type) {
     case xenos::PrimitiveType::kLineList:
@@ -583,8 +583,8 @@ VkShaderModule PipelineCache::GetGeometryShader(
   }
 }
 
-bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
-                                    bool full_update) {
+bool VulkanPipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
+                                          bool full_update) {
 #if FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // FINE_GRAINED_DRAW_SCOPES
@@ -938,7 +938,8 @@ bool PipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
   return true;
 }
 
-bool PipelineCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {
+bool VulkanPipelineCache::SetShadowRegister(uint32_t* dest,
+                                            uint32_t register_name) {
   uint32_t value = register_file_->values[register_name].u32;
   if (*dest == value) {
     return false;
@@ -947,7 +948,8 @@ bool PipelineCache::SetShadowRegister(uint32_t* dest, uint32_t register_name) {
   return true;
 }
 
-bool PipelineCache::SetShadowRegister(float* dest, uint32_t register_name) {
+bool VulkanPipelineCache::SetShadowRegister(float* dest,
+                                            uint32_t register_name) {
   float value = register_file_->values[register_name].f32;
   if (*dest == value) {
     return false;
@@ -956,8 +958,8 @@ bool PipelineCache::SetShadowRegister(float* dest, uint32_t register_name) {
   return true;
 }
 
-bool PipelineCache::SetShadowRegisterArray(uint32_t* dest, uint32_t num,
-                                           uint32_t register_name) {
+bool VulkanPipelineCache::SetShadowRegisterArray(uint32_t* dest, uint32_t num,
+                                                 uint32_t register_name) {
   bool dirty = false;
   for (uint32_t i = 0; i < num; i++) {
     uint32_t value = register_file_->values[register_name + i].u32;
@@ -972,7 +974,7 @@ bool PipelineCache::SetShadowRegisterArray(uint32_t* dest, uint32_t num,
   return dirty;
 }
 
-PipelineCache::UpdateStatus PipelineCache::UpdateState(
+VulkanPipelineCache::UpdateStatus VulkanPipelineCache::UpdateState(
     VulkanShader* vertex_shader, VulkanShader* pixel_shader,
     xenos::PrimitiveType primitive_type) {
   bool mismatch = false;
@@ -1014,7 +1016,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateState(
   return mismatch ? UpdateStatus::kMismatch : UpdateStatus::kCompatible;
 }
 
-PipelineCache::UpdateStatus PipelineCache::UpdateRenderTargetState() {
+VulkanPipelineCache::UpdateStatus
+VulkanPipelineCache::UpdateRenderTargetState() {
   auto& regs = update_render_targets_regs_;
   bool dirty = false;
 
@@ -1053,7 +1056,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRenderTargetState() {
   return UpdateStatus::kMismatch;
 }
 
-PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
+VulkanPipelineCache::UpdateStatus VulkanPipelineCache::UpdateShaderStages(
     VulkanShader* vertex_shader, VulkanShader* pixel_shader,
     xenos::PrimitiveType primitive_type) {
   auto& regs = update_shader_stages_regs_;
@@ -1159,7 +1162,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateShaderStages(
   return UpdateStatus::kMismatch;
 }
 
-PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
+VulkanPipelineCache::UpdateStatus VulkanPipelineCache::UpdateVertexInputState(
     VulkanShader* vertex_shader) {
   auto& regs = update_vertex_input_state_regs_;
   auto& state_info = update_vertex_input_state_info_;
@@ -1184,7 +1187,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateVertexInputState(
   return UpdateStatus::kCompatible;
 }
 
-PipelineCache::UpdateStatus PipelineCache::UpdateInputAssemblyState(
+VulkanPipelineCache::UpdateStatus VulkanPipelineCache::UpdateInputAssemblyState(
     xenos::PrimitiveType primitive_type) {
   auto& regs = update_input_assembly_state_regs_;
   auto& state_info = update_input_assembly_state_info_;
@@ -1260,7 +1263,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateInputAssemblyState(
   return UpdateStatus::kMismatch;
 }
 
-PipelineCache::UpdateStatus PipelineCache::UpdateViewportState() {
+VulkanPipelineCache::UpdateStatus VulkanPipelineCache::UpdateViewportState() {
   auto& state_info = update_viewport_state_info_;
 
   state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -1277,7 +1280,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateViewportState() {
   return UpdateStatus::kCompatible;
 }
 
-PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
+VulkanPipelineCache::UpdateStatus VulkanPipelineCache::UpdateRasterizationState(
     xenos::PrimitiveType primitive_type) {
   auto& regs = update_rasterization_state_regs_;
   auto& state_info = update_rasterization_state_info_;
@@ -1395,7 +1398,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateRasterizationState(
   return UpdateStatus::kMismatch;
 }
 
-PipelineCache::UpdateStatus PipelineCache::UpdateMultisampleState() {
+VulkanPipelineCache::UpdateStatus
+VulkanPipelineCache::UpdateMultisampleState() {
   auto& regs = update_multisample_state_regs_;
   auto& state_info = update_multisample_state_info_;
 
@@ -1448,7 +1452,8 @@ PipelineCache::UpdateStatus PipelineCache::UpdateMultisampleState() {
   return UpdateStatus::kMismatch;
 }
 
-PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
+VulkanPipelineCache::UpdateStatus
+VulkanPipelineCache::UpdateDepthStencilState() {
   auto& regs = update_depth_stencil_state_regs_;
   auto& state_info = update_depth_stencil_state_info_;
 
@@ -1530,7 +1535,7 @@ PipelineCache::UpdateStatus PipelineCache::UpdateDepthStencilState() {
   return UpdateStatus::kMismatch;
 }
 
-PipelineCache::UpdateStatus PipelineCache::UpdateColorBlendState() {
+VulkanPipelineCache::UpdateStatus VulkanPipelineCache::UpdateColorBlendState() {
   auto& regs = update_color_blend_state_regs_;
   auto& state_info = update_color_blend_state_info_;
 
