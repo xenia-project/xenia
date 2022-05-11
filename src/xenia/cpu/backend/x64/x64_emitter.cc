@@ -60,8 +60,10 @@ static const size_t kStashOffset = 32;
 
 const uint32_t X64Emitter::gpr_reg_map_[X64Emitter::GPR_COUNT] = {
     Xbyak::Operand::RBX, Xbyak::Operand::R10, Xbyak::Operand::R11,
-    Xbyak::Operand::R12, Xbyak::Operand::R13, Xbyak::Operand::R14,
-    Xbyak::Operand::R15,
+    Xbyak::Operand::R12, Xbyak::Operand::R13,
+#if XE_PLATFORM_WIN32
+    Xbyak::Operand::R14, Xbyak::Operand::R15,
+#endif
 };
 
 const uint32_t X64Emitter::xmm_reg_map_[X64Emitter::XMM_COUNT] = {
@@ -469,7 +471,11 @@ void X64Emitter::CallIndirect(const hir::Instr* instr,
   } else {
     // Old-style resolve.
     // Not too important because indirection table is almost always available.
+#if XE_PLATFORM_WIN32
     mov(edx, reg.cvt32());
+#else
+    mov(esi, reg.cvt32());
+#endif
     mov(rax, reinterpret_cast<uint64_t>(ResolveFunction));
     mov(GetNativeReg(0), GetContextReg());
     call(rax);
@@ -582,6 +588,7 @@ void X64Emitter::SetReturnAddress(uint64_t value) {
 }
 
 Xbyak::Reg64 X64Emitter::GetNativeReg(uint32_t reg) {
+#if XE_PLATFORM_WIN32
   if (reg == 0)
     return rcx;
   else if (reg == 1)
@@ -593,6 +600,19 @@ Xbyak::Reg64 X64Emitter::GetNativeReg(uint32_t reg) {
 
   assert_always();
   return r9;
+#else
+  if (reg == 0)
+    return rdi;
+  else if (reg == 1)
+    return rsi;
+  else if (reg == 2)
+    return rdx;
+  else if (reg == 3)
+    return rcx;
+
+  assert_always();
+  return rcx;
+#endif
 }
 
 Xbyak::Reg64 X64Emitter::GetNativeParam(uint32_t param) {
@@ -600,8 +620,21 @@ Xbyak::Reg64 X64Emitter::GetNativeParam(uint32_t param) {
 }
 
 // Important: If you change these, you must update the thunks in x64_backend.cc!
-Xbyak::Reg64 X64Emitter::GetContextReg() { return rsi; }
-Xbyak::Reg64 X64Emitter::GetMembaseReg() { return rdi; }
+Xbyak::Reg64 X64Emitter::GetContextReg() {
+#if XE_PLATFORM_WIN32
+  return rsi;
+#else
+  return r14;
+#endif
+}
+
+Xbyak::Reg64 X64Emitter::GetMembaseReg() {
+#if XE_PLATFORM_WIN32
+  return rdi;
+#else
+  return r15;
+#endif
+}
 
 void X64Emitter::ReloadContext() {
   mov(GetContextReg(), qword[rsp + StackLayout::GUEST_CTX_HOME]);

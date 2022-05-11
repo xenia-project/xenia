@@ -161,6 +161,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
             std::vector<SourceMapEntry>* out_source_map);
 
  public:
+#if XE_PLATFORM_WIN32
   // Reserved:  rsp, rsi, rdi
   // Scratch:   rax/rcx/rdx
   //            xmm0-2
@@ -168,6 +169,15 @@ class X64Emitter : public Xbyak::CodeGenerator {
   //            xmm4-xmm15 (save to get xmm3)
   static const int GPR_COUNT = 7;
   static const int XMM_COUNT = 12;
+#else
+  // Reserved:  rsp, r14, r15
+  // Scratch:   rax/rdi/rsi/rcx/rdx
+  //            xmm0-2
+  // Available: rbx, r10-r13
+  //            xmm4-xmm15 (save to get xmm3)
+  static const int GPR_COUNT = 5;
+  static const int XMM_COUNT = 12;
+#endif
 
   static void SetupReg(const hir::Value* v, Xbyak::Reg8& r) {
     auto idx = gpr_reg_map_[v->reg.index];
