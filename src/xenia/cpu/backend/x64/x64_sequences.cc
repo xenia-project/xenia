@@ -2435,7 +2435,7 @@ EMITTER_OPCODE_TABLE(OPCODE_RECIP, RECIP_F32, RECIP_F64, RECIP_V128);
 // TODO(benvanik): use approx here:
 //     https://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
 struct POW2_F32 : Sequence<POW2_F32, I<OPCODE_POW2, F32Op, F32Op>> {
-  static __m128 EmulatePow2(void*, __m128 src) {
+  static __m128 EmulatePow2(void*, __m128& src) {
     float src_value;
     _mm_store_ss(&src_value, src);
     float result = std::exp2(src_value);
@@ -2449,7 +2449,7 @@ struct POW2_F32 : Sequence<POW2_F32, I<OPCODE_POW2, F32Op, F32Op>> {
   }
 };
 struct POW2_F64 : Sequence<POW2_F64, I<OPCODE_POW2, F64Op, F64Op>> {
-  static __m128d EmulatePow2(void*, __m128d src) {
+  static __m128d EmulatePow2(void*, __m128d& src) {
     double src_value;
     _mm_store_sd(&src_value, src);
     double result = std::exp2(src_value);
@@ -2463,7 +2463,7 @@ struct POW2_F64 : Sequence<POW2_F64, I<OPCODE_POW2, F64Op, F64Op>> {
   }
 };
 struct POW2_V128 : Sequence<POW2_V128, I<OPCODE_POW2, V128Op, V128Op>> {
-  static __m128 EmulatePow2(void*, __m128 src) {
+  static __m128 EmulatePow2(void*, __m128& src) {
     alignas(16) float values[4];
     _mm_store_ps(values, src);
     for (size_t i = 0; i < 4; ++i) {
@@ -2486,7 +2486,7 @@ EMITTER_OPCODE_TABLE(OPCODE_POW2, POW2_F32, POW2_F64, POW2_V128);
 //     https://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
 // TODO(benvanik): this emulated fn destroys all xmm registers! don't do it!
 struct LOG2_F32 : Sequence<LOG2_F32, I<OPCODE_LOG2, F32Op, F32Op>> {
-  static __m128 EmulateLog2(void*, __m128 src) {
+  static __m128 EmulateLog2(void*, __m128& src) {
     float src_value;
     _mm_store_ss(&src_value, src);
     float result = std::log2(src_value);
@@ -2504,7 +2504,7 @@ struct LOG2_F32 : Sequence<LOG2_F32, I<OPCODE_LOG2, F32Op, F32Op>> {
   }
 };
 struct LOG2_F64 : Sequence<LOG2_F64, I<OPCODE_LOG2, F64Op, F64Op>> {
-  static __m128d EmulateLog2(void*, __m128d src) {
+  static __m128d EmulateLog2(void*, __m128d& src) {
     double src_value;
     _mm_store_sd(&src_value, src);
     double result = std::log2(src_value);
@@ -2522,7 +2522,7 @@ struct LOG2_F64 : Sequence<LOG2_F64, I<OPCODE_LOG2, F64Op, F64Op>> {
   }
 };
 struct LOG2_V128 : Sequence<LOG2_V128, I<OPCODE_LOG2, V128Op, V128Op>> {
-  static __m128 EmulateLog2(void*, __m128 src) {
+  static __m128 EmulateLog2(void*, __m128& src) {
     alignas(16) float values[4];
     _mm_store_ps(values, src);
     for (size_t i = 0; i < 4; ++i) {
@@ -2955,7 +2955,7 @@ struct SHL_V128 : Sequence<SHL_V128, I<OPCODE_SHL, V128Op, V128Op, I8Op>> {
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateShlV128));
     e.vmovaps(i.dest, e.xmm0);
   }
-  static __m128i EmulateShlV128(void*, __m128i src1, uint8_t src2) {
+  static __m128i EmulateShlV128(void*, __m128i& src1, uint8_t src2) {
     // Almost all instances are shamt = 1, but non-constant.
     // shamt is [0,7]
     uint8_t shamt = src2 & 0x7;
@@ -3032,7 +3032,7 @@ struct SHR_V128 : Sequence<SHR_V128, I<OPCODE_SHR, V128Op, V128Op, I8Op>> {
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateShrV128));
     e.vmovaps(i.dest, e.xmm0);
   }
-  static __m128i EmulateShrV128(void*, __m128i src1, uint8_t src2) {
+  static __m128i EmulateShrV128(void*, __m128i& src1, uint8_t src2) {
     // Almost all instances are shamt = 1, but non-constant.
     // shamt is [0,7]
     uint8_t shamt = src2 & 0x7;
