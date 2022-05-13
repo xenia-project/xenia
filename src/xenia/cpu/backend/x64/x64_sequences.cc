@@ -38,6 +38,9 @@
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/processor.h"
 
+// For OPCODE_PACK/OPCODE_UNPACK
+#include "third_party/half/include/half.hpp"
+
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -53,6 +56,23 @@ using xe::cpu::hir::Instr;
 
 typedef bool (*SequenceSelectFn)(X64Emitter&, const Instr*);
 std::unordered_map<uint32_t, SequenceSelectFn> sequence_table;
+
+template <typename T>
+bool Register() {
+  sequence_table.insert({T::head_key(), T::Select});
+  return true;
+}
+
+template <typename T, typename Tn, typename... Ts>
+static bool Register() {
+  bool b = true;
+  b = b && Register<T>();          // Call the above function
+  b = b && Register<Tn, Ts...>();  // Call ourself again (recursively)
+  return b;
+}
+
+#define EMITTER_OPCODE_TABLE(name, ...) \
+  const auto X64_INSTR_##name = Register<__VA_ARGS__>();
 
 // ============================================================================
 // OPCODE_COMMENT
@@ -3299,15 +3319,9 @@ struct SET_ROUNDING_MODE_I32
 };
 EMITTER_OPCODE_TABLE(OPCODE_SET_ROUNDING_MODE, SET_ROUNDING_MODE_I32);
 
-// Include anchors to other sequence sources so they get included in the build.
-extern volatile int anchor_control;
-static int anchor_control_dest = anchor_control;
-
-extern volatile int anchor_memory;
-static int anchor_memory_dest = anchor_memory;
-
-extern volatile int anchor_vector;
-static int anchor_vector_dest = anchor_vector;
+#include "x64_seq_control.inc"
+#include "x64_seq_memory.inc"
+#include "x64_seq_vector.inc"
 
 bool SelectSequence(X64Emitter* e, const Instr* i, const Instr** new_tail) {
   const InstrKey key(i);

@@ -7,22 +7,7 @@
  ******************************************************************************
  */
 
-#include "xenia/cpu/backend/x64/x64_sequences.h"
-
-#include <algorithm>
-#include <cstring>
-
-#include "xenia/cpu/backend/x64/x64_op.h"
-
-// For OPCODE_PACK/OPCODE_UNPACK
-#include "third_party/half/include/half.hpp"
-
-namespace xe {
-namespace cpu {
-namespace backend {
-namespace x64 {
-
-volatile int anchor_vector = 0;
+// NOTICE: This file is #included in x64_sequences.cc
 
 // ============================================================================
 // OPCODE_VECTOR_CONVERT_I2F
@@ -2684,8 +2669,3 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_UNPACK, UNPACK);
-
-}  // namespace x64
-}  // namespace backend
-}  // namespace cpu
-}  // namespace xe

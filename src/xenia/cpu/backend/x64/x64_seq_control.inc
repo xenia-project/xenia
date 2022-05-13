@@ -2,24 +2,12 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Xenia Developers. All rights reserved.                      *
+ * Copyright 2022 Xenia Developers. All rights reserved.                      *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#include "xenia/cpu/backend/x64/x64_sequences.h"
-
-#include <algorithm>
-#include <cstring>
-
-#include "xenia/cpu/backend/x64/x64_op.h"
-
-namespace xe {
-namespace cpu {
-namespace backend {
-namespace x64 {
-
-volatile int anchor_control = 0;
+// NOTICE: This file is #included in x64_sequences.cc
 
 // ============================================================================
 // OPCODE_DEBUG_BREAK
@@ -546,8 +534,3 @@ struct BRANCH_FALSE_F64
 EMITTER_OPCODE_TABLE(OPCODE_BRANCH_FALSE, BRANCH_FALSE_I8, BRANCH_FALSE_I16,
                      BRANCH_FALSE_I32, BRANCH_FALSE_I64, BRANCH_FALSE_F32,
                      BRANCH_FALSE_F64);
-
-}  // namespace x64
-}  // namespace backend
-}  // namespace cpu
-}  // namespace xe
