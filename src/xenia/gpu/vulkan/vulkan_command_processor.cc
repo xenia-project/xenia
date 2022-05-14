@@ -199,8 +199,10 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
+  // TODO(Triang3l): Get the actual draw resolution scale when the texture cache
+  // supports resolution scaling.
   render_target_cache_ = std::make_unique<VulkanRenderTargetCache>(
-      *register_file_, *memory_, &trace_writer_, *this);
+      *register_file_, *memory_, &trace_writer_, 1, 1, *this);
   if (!render_target_cache_->Initialize()) {
     XELOGE("Failed to initialize the render target cache");
     return false;
@@ -2199,8 +2201,8 @@ void VulkanCommandProcessor::UpdateDynamicState(
   // more likely.
   depth_bias_slope_factor *=
       xenos::kPolygonOffsetScaleSubpixelUnit *
-      float(std::max(render_target_cache_->GetResolutionScaleX(),
-                     render_target_cache_->GetResolutionScaleY()));
+      float(std::max(render_target_cache_->draw_resolution_scale_x(),
+                     render_target_cache_->draw_resolution_scale_y()));
   // std::memcmp instead of != so in case of NaN, every draw won't be
   // invalidating it.
   dynamic_depth_bias_update_needed_ |=

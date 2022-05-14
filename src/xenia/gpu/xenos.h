@@ -905,29 +905,29 @@ constexpr bool IsSingleCopySampleSelected(CopySampleSelect copy_sample_select) {
          copy_sample_select <= CopySampleSelect::k3;
 }
 
-#define XE_GPU_MAKE_SWIZZLE(x, y, z, w)                        \
-  (((XE_GPU_SWIZZLE_##x) << 0) | ((XE_GPU_SWIZZLE_##y) << 3) | \
-   ((XE_GPU_SWIZZLE_##z) << 6) | ((XE_GPU_SWIZZLE_##w) << 9))
+#define XE_GPU_MAKE_TEXTURE_SWIZZLE(x, y, z, w)          \
+  (((xe::gpu::xenos::XE_GPU_TEXTURE_SWIZZLE_##x) << 0) | \
+   ((xe::gpu::xenos::XE_GPU_TEXTURE_SWIZZLE_##y) << 3) | \
+   ((xe::gpu::xenos::XE_GPU_TEXTURE_SWIZZLE_##z) << 6) | \
+   ((xe::gpu::xenos::XE_GPU_TEXTURE_SWIZZLE_##w) << 9))
 typedef enum {
-  XE_GPU_SWIZZLE_X = 0,
-  XE_GPU_SWIZZLE_R = 0,
-  XE_GPU_SWIZZLE_Y = 1,
-  XE_GPU_SWIZZLE_G = 1,
-  XE_GPU_SWIZZLE_Z = 2,
-  XE_GPU_SWIZZLE_B = 2,
-  XE_GPU_SWIZZLE_W = 3,
-  XE_GPU_SWIZZLE_A = 3,
-  XE_GPU_SWIZZLE_0 = 4,
-  XE_GPU_SWIZZLE_1 = 5,
-  XE_GPU_SWIZZLE_RGBA = XE_GPU_MAKE_SWIZZLE(R, G, B, A),
-  XE_GPU_SWIZZLE_BGRA = XE_GPU_MAKE_SWIZZLE(B, G, R, A),
-  XE_GPU_SWIZZLE_RGB1 = XE_GPU_MAKE_SWIZZLE(R, G, B, 1),
-  XE_GPU_SWIZZLE_BGR1 = XE_GPU_MAKE_SWIZZLE(B, G, R, 1),
-  XE_GPU_SWIZZLE_000R = XE_GPU_MAKE_SWIZZLE(0, 0, 0, R),
-  XE_GPU_SWIZZLE_RRR1 = XE_GPU_MAKE_SWIZZLE(R, R, R, 1),
-  XE_GPU_SWIZZLE_R111 = XE_GPU_MAKE_SWIZZLE(R, 1, 1, 1),
-  XE_GPU_SWIZZLE_R000 = XE_GPU_MAKE_SWIZZLE(R, 0, 0, 0),
-} XE_GPU_SWIZZLE;
+  XE_GPU_TEXTURE_SWIZZLE_X = 0,
+  XE_GPU_TEXTURE_SWIZZLE_R = 0,
+  XE_GPU_TEXTURE_SWIZZLE_Y = 1,
+  XE_GPU_TEXTURE_SWIZZLE_G = 1,
+  XE_GPU_TEXTURE_SWIZZLE_Z = 2,
+  XE_GPU_TEXTURE_SWIZZLE_B = 2,
+  XE_GPU_TEXTURE_SWIZZLE_W = 3,
+  XE_GPU_TEXTURE_SWIZZLE_A = 3,
+  XE_GPU_TEXTURE_SWIZZLE_0 = 4,
+  XE_GPU_TEXTURE_SWIZZLE_1 = 5,
+  XE_GPU_TEXTURE_SWIZZLE_RRRR = XE_GPU_MAKE_TEXTURE_SWIZZLE(R, R, R, R),
+  XE_GPU_TEXTURE_SWIZZLE_RGGG = XE_GPU_MAKE_TEXTURE_SWIZZLE(R, G, G, G),
+  XE_GPU_TEXTURE_SWIZZLE_RGBB = XE_GPU_MAKE_TEXTURE_SWIZZLE(R, G, B, B),
+  XE_GPU_TEXTURE_SWIZZLE_RGBA = XE_GPU_MAKE_TEXTURE_SWIZZLE(R, G, B, A),
+  XE_GPU_TEXTURE_SWIZZLE_BGRA = XE_GPU_MAKE_TEXTURE_SWIZZLE(B, G, R, A),
+  XE_GPU_TEXTURE_SWIZZLE_0000 = XE_GPU_MAKE_TEXTURE_SWIZZLE(0, 0, 0, 0),
+} XE_GPU_TEXTURE_SWIZZLE;
 
 inline uint16_t GpuSwap(uint16_t value, Endian endianness) {
   switch (endianness) {
@@ -998,6 +998,9 @@ enum class FetchConstantType : uint32_t {
   kTexture,
   kVertex,
 };
+
+constexpr uint32_t kTextureFetchConstantCount = 32;
+constexpr uint32_t kVertexFetchConstantCount = 3 * kTextureFetchConstantCount;
 
 // XE_GPU_REG_SHADER_CONSTANT_FETCH_*
 union alignas(uint32_t) xe_gpu_vertex_fetch_t {
@@ -1128,7 +1131,7 @@ union alignas(uint32_t) xe_gpu_texture_fetch_t {
     };
 
     uint32_t num_format : 1;  // +0 dword_3 frac/int
-    // xyzw, 3b each (XE_GPU_SWIZZLE)
+    // xyzw, 3b each (XE_GPU_TEXTURE_SWIZZLE)
     uint32_t swizzle : 12;                 // +1
     int32_t exp_adjust : 6;                // +13
     TextureFilter mag_filter : 2;          // +19

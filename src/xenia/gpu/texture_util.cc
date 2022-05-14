@@ -533,6 +533,9 @@ uint8_t SwizzleSigns(const xenos::xe_gpu_texture_fetch_t& fetch) {
     // If only constant components, choose according to the original format
     // (what would more likely be loaded if there were non-constant components).
     // If all components would be signed, use signed.
+    // Textures with only constant components must still be bound to shaders for
+    // various queries (such as filtering weights) not involving the color data
+    // itself.
     if (((fetch.dword_0 >> 2) & 0b11111111) ==
         uint32_t(xenos::TextureSign::kSigned) * 0b01010101) {
       constants_sign = xenos::TextureSign::kSigned;

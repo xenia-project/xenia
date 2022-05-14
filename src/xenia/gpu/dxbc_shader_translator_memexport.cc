@@ -11,6 +11,7 @@
 #include "xenia/base/math.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
+#include "xenia/gpu/texture_cache.h"
 
 namespace xe {
 namespace gpu {
@@ -159,6 +160,11 @@ void DxbcShaderTranslator::ExportToMemory() {
             dxbc::Src::R(control_temp).Select(1 + i));
         uint32_t axis_resolution_scale =
             i ? draw_resolution_scale_y_ : draw_resolution_scale_x_;
+        static_assert(
+            TextureCache::kMaxDrawResolutionScaleAlongAxis <= 3,
+            "DxbcShaderTranslator memexport draw resolution scaling "
+            "conditional generation supports draw resolution scaling factors "
+            "of only up to 3");
         switch (axis_resolution_scale) {
           case 2:
             // xy & 1 == 1.

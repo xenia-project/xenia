@@ -208,10 +208,6 @@ SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
 }
 
 void SharedMemory::UnwatchMemoryRange(WatchHandle handle) {
-  if (handle == nullptr) {
-    // Could be a zero length range.
-    return;
-  }
   auto global_lock = global_critical_region_.Acquire();
   UnlinkWatchRange(reinterpret_cast<WatchRange*>(handle));
 }
@@ -228,8 +224,8 @@ void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last,
 
   // Fire global watches.
   for (const auto global_watch : global_watches_) {
-    global_watch->callback(global_watch->callback_context, address_first,
-                           address_last, invalidated_by_gpu);
+    global_watch->callback(global_lock, global_watch->callback_context,
+                           address_first, address_last, invalidated_by_gpu);
   }
 
   // Fire per-range watches.
@@ -241,8 +237,9 @@ void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last,
       // will be broken.
       node = node->bucket_node_next;
       if (page_first <= range->page_last && page_last >= range->page_first) {
-        range->callback(range->callback_context, range->callback_data,
-                        range->callback_argument, invalidated_by_gpu);
+        range->callback(global_lock, range->callback_context,
+                        range->callback_data, range->callback_argument,
+                        invalidated_by_gpu);
         UnlinkWatchRange(range);
       }
     }

@@ -27,6 +27,7 @@
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/registers.h"
 #include "xenia/gpu/spirv_shader_translator.h"
+#include "xenia/gpu/texture_cache.h"
 #include "xenia/gpu/vulkan/deferred_command_buffer.h"
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 #include "xenia/gpu/xenos.h"
@@ -115,8 +116,10 @@ const VulkanRenderTargetCache::TransferModeInfo
 
 VulkanRenderTargetCache::VulkanRenderTargetCache(
     const RegisterFile& register_file, const Memory& memory,
-    TraceWriter* trace_writer, VulkanCommandProcessor& command_processor)
-    : RenderTargetCache(register_file, memory, trace_writer),
+    TraceWriter* trace_writer, uint32_t draw_resolution_scale_x,
+    uint32_t draw_resolution_scale_y, VulkanCommandProcessor& command_processor)
+    : RenderTargetCache(register_file, memory, trace_writer,
+                        draw_resolution_scale_x, draw_resolution_scale_y),
       command_processor_(command_processor) {}
 
 VulkanRenderTargetCache::~VulkanRenderTargetCache() { Shutdown(true); }
@@ -201,8 +204,8 @@ bool VulkanRenderTargetCache::Initialize() {
   // maxStorageBufferRange.
   if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
           provider,
-          VkDeviceSize(xenos::kEdramSizeBytes * resolution_scale_x_ *
-                       resolution_scale_y_),
+          VkDeviceSize(xenos::kEdramSizeBytes *
+                       (draw_resolution_scale_x() * draw_resolution_scale_y())),
           VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
           ui::vulkan::util::MemoryPurpose::kDeviceLocal, edram_buffer_,
@@ -972,10 +975,10 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(
   image_create_info.pNext = nullptr;
   image_create_info.flags = 0;
   image_create_info.imageType = VK_IMAGE_TYPE_2D;
-  image_create_info.extent.width = key.GetWidth() * resolution_scale_x_;
+  image_create_info.extent.width = key.GetWidth() * draw_resolution_scale_x();
   image_create_info.extent.height =
       GetRenderTargetHeight(key.pitch_tiles_at_32bpp, key.msaa_samples) *
-      resolution_scale_y_;
+      draw_resolution_scale_y();
   image_create_info.extent.depth = 1;
   image_create_info.mipLevels = 1;
   image_create_info.arrayLayers = 1;
@@ -1752,9 +1755,9 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   // be done at texture fetch.
 
   uint32_t tile_width_samples_scaled =
-      xenos::kEdramTileWidthSamples * resolution_scale_x_;
+      xenos::kEdramTileWidthSamples * draw_resolution_scale_x();
   uint32_t tile_height_samples_scaled =
-      xenos::kEdramTileHeightSamples * resolution_scale_y_;
+      xenos::kEdramTileHeightSamples * draw_resolution_scale_y();
 
   // Convert the fragment coordinates to uint2.
   uint_vector_temp.clear();
@@ -1788,7 +1791,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
       uint32_t(key.dest_msaa_samples >= xenos::MsaaSamples::k2X);
   uint32_t dest_tile_width_divide_scale, dest_tile_width_divide_shift;
   draw_util::GetEdramTileWidthDivideScaleAndUpperShift(
-      resolution_scale_x_, dest_tile_width_divide_scale,
+      draw_resolution_scale_x(), dest_tile_width_divide_scale,
       dest_tile_width_divide_shift);
   // Doing 16*16=32 multiplication, not 32*32=64.
   // TODO(Triang3l): Abstract this away, don't do 32*32 on Direct3D 12 too.
@@ -1808,7 +1811,11 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                           builder.makeUintConstant(tile_width_samples_scaled >>
                                                    dest_sample_width_log2)));
   spv::Id dest_tile_index_y, dest_tile_pixel_y;
-  if (resolution_scale_y_ == 3) {
+  static_assert(
+      TextureCache::kMaxDrawResolutionScaleAlongAxis <= 3,
+      "VulkanRenderTargetCache EDRAM range ownership transfer shader "
+      "generation supports Y draw resolution scaling factors of only up to 3");
+  if (draw_resolution_scale_y() == 3) {
     dest_tile_index_y = builder.createBinOp(
         spv::OpShiftRightLogical, type_uint,
         builder.createBinOp(
@@ -1823,9 +1830,9 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             builder.makeUintConstant(tile_height_samples_scaled >>
                                      dest_sample_height_log2)));
   } else {
-    assert_true(resolution_scale_y_ <= 2);
+    assert_true(draw_resolution_scale_y() <= 2);
     uint32_t dest_tile_height_pixels_log2 =
-        (resolution_scale_y_ == 2 ? 5 : 4) - dest_sample_height_log2;
+        (draw_resolution_scale_y() == 2 ? 5 : 4) - dest_sample_height_log2;
     dest_tile_index_y = builder.createBinOp(
         spv::OpShiftRightLogical, type_uint, dest_pixel_y,
         builder.makeUintConstant(dest_tile_height_pixels_log2));
@@ -3967,13 +3974,13 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
     // Assuming the rectangle is already clamped by the setup function from the
     // common render target cache.
     resolve_clear_rect.rect.offset.x =
-        int32_t(resolve_clear_rectangle->x_pixels * resolution_scale_x_);
+        int32_t(resolve_clear_rectangle->x_pixels * draw_resolution_scale_x());
     resolve_clear_rect.rect.offset.y =
-        int32_t(resolve_clear_rectangle->y_pixels * resolution_scale_y_);
+        int32_t(resolve_clear_rectangle->y_pixels * draw_resolution_scale_y());
     resolve_clear_rect.rect.extent.width =
-        resolve_clear_rectangle->width_pixels * resolution_scale_x_;
+        resolve_clear_rectangle->width_pixels * draw_resolution_scale_x();
     resolve_clear_rect.rect.extent.height =
-        resolve_clear_rectangle->height_pixels * resolution_scale_y_;
+        resolve_clear_rectangle->height_pixels * draw_resolution_scale_y();
     resolve_clear_rect.baseArrayLayer = 0;
     resolve_clear_rect.layerCount = 1;
   }
@@ -4437,14 +4444,16 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
                ++j) {
             const Transfer::Rectangle& stencil_clear_rectangle =
                 transfer_stencil_clear_rectangles[j];
-            stencil_clear_rect_write_ptr->rect.offset.x =
-                int32_t(stencil_clear_rectangle.x_pixels * resolution_scale_x_);
-            stencil_clear_rect_write_ptr->rect.offset.y =
-                int32_t(stencil_clear_rectangle.y_pixels * resolution_scale_y_);
+            stencil_clear_rect_write_ptr->rect.offset.x = int32_t(
+                stencil_clear_rectangle.x_pixels * draw_resolution_scale_x());
+            stencil_clear_rect_write_ptr->rect.offset.y = int32_t(
+                stencil_clear_rectangle.y_pixels * draw_resolution_scale_y());
             stencil_clear_rect_write_ptr->rect.extent.width =
-                stencil_clear_rectangle.width_pixels * resolution_scale_x_;
+                stencil_clear_rectangle.width_pixels *
+                draw_resolution_scale_x();
             stencil_clear_rect_write_ptr->rect.extent.height =
-                stencil_clear_rectangle.height_pixels * resolution_scale_y_;
+                stencil_clear_rectangle.height_pixels *
+                draw_resolution_scale_y();
             stencil_clear_rect_write_ptr->baseArrayLayer = 0;
             stencil_clear_rect_write_ptr->layerCount = 1;
             ++stencil_clear_rect_write_ptr;

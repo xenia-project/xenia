@@ -23,7 +23,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/gpu/d3d12/d3d12_shared_memory.h"
-#include "xenia/gpu/d3d12/texture_cache.h"
+#include "xenia/gpu/d3d12/d3d12_texture_cache.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/render_target_cache.h"
 #include "xenia/gpu/trace_writer.h"
@@ -44,9 +44,12 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
  public:
   D3D12RenderTargetCache(const RegisterFile& register_file,
                          const Memory& memory, TraceWriter& trace_writer,
+                         uint32_t draw_resolution_scale_x,
+                         uint32_t draw_resolution_scale_y,
                          D3D12CommandProcessor& command_processor,
                          bool bindless_resources_used)
-      : RenderTargetCache(register_file, memory, &trace_writer),
+      : RenderTargetCache(register_file, memory, &trace_writer,
+                          draw_resolution_scale_x, draw_resolution_scale_y),
         command_processor_(command_processor),
         trace_writer_(trace_writer),
         bindless_resources_used_(bindless_resources_used) {}
@@ -59,9 +62,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   void BeginSubmission();
 
   Path GetPath() const override { return path_; }
-
-  uint32_t GetResolutionScaleX() const override { return resolution_scale_x_; }
-  uint32_t GetResolutionScaleY() const override { return resolution_scale_y_; }
 
   bool Update(bool is_rasterization_done,
               reg::RB_DEPTHCONTROL normalized_depth_control,
@@ -85,7 +85,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   // register values, and also clears the render targets if needed. Must be in a
   // frame for calling.
   bool Resolve(const Memory& memory, D3D12SharedMemory& shared_memory,
-               TextureCache& texture_cache, uint32_t& written_address_out,
+               D3D12TextureCache& texture_cache, uint32_t& written_address_out,
                uint32_t& written_length_out);
 
   // Returns true if any downloads were submitted to the command processor.
@@ -164,8 +164,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
   bool bindless_resources_used_;
 
   Path path_ = Path::kHostRenderTargets;
-  uint32_t resolution_scale_x_ = 1;
-  uint32_t resolution_scale_y_ = 1;
 
   // For host render targets, an EDRAM-sized scratch buffer for:
   // - Guest render target data copied from host render targets during copying

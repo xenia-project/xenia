@@ -24,9 +24,9 @@
 #include "xenia/gpu/d3d12/d3d12_primitive_processor.h"
 #include "xenia/gpu/d3d12/d3d12_render_target_cache.h"
 #include "xenia/gpu/d3d12/d3d12_shared_memory.h"
+#include "xenia/gpu/d3d12/d3d12_texture_cache.h"
 #include "xenia/gpu/d3d12/deferred_command_list.h"
 #include "xenia/gpu/d3d12/pipeline_cache.h"
-#include "xenia/gpu/d3d12/texture_cache.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/dxbc_shader.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
@@ -482,7 +482,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   // number (so checking if the first can be reused is enough).
   std::deque<std::pair<ID3D12DescriptorHeap*, uint64_t>>
       sampler_bindless_heaps_overflowed_;
-  // TextureCache::SamplerParameters::value -> indices within the current
+  // D3D12TextureCache::SamplerParameters::value -> indices within the current
   // bindless sampler heap.
   std::unordered_map<uint32_t, uint32_t> texture_cache_bindless_sampler_map_;
 
@@ -497,7 +497,7 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   std::unique_ptr<PipelineCache> pipeline_cache_;
 
-  std::unique_ptr<TextureCache> texture_cache_;
+  std::unique_ptr<D3D12TextureCache> texture_cache_;
 
   // Bytes 0x0...0x3FF - 256-entry gamma ramp table with B10G10R10X2 data (read
   // as R10G10B10X2 with swizzle).
@@ -648,10 +648,11 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Size of these should be ignored when checking whether these are up to date,
   // layout UID should be checked first (they will be different for different
   // binding counts).
-  std::vector<TextureCache::TextureSRVKey> current_texture_srv_keys_vertex_;
-  std::vector<TextureCache::TextureSRVKey> current_texture_srv_keys_pixel_;
-  std::vector<TextureCache::SamplerParameters> current_samplers_vertex_;
-  std::vector<TextureCache::SamplerParameters> current_samplers_pixel_;
+  std::vector<D3D12TextureCache::TextureSRVKey>
+      current_texture_srv_keys_vertex_;
+  std::vector<D3D12TextureCache::TextureSRVKey> current_texture_srv_keys_pixel_;
+  std::vector<D3D12TextureCache::SamplerParameters> current_samplers_vertex_;
+  std::vector<D3D12TextureCache::SamplerParameters> current_samplers_pixel_;
   std::vector<uint32_t> current_sampler_bindless_indices_vertex_;
   std::vector<uint32_t> current_sampler_bindless_indices_pixel_;
 
