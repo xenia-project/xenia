@@ -427,6 +427,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   // of UpdateBindings time, and that's outside the emulator's control even).
   bool bindless_resources_used_ = false;
 
+  std::unique_ptr<D3D12SharedMemory> shared_memory_;
+
   std::unique_ptr<D3D12RenderTargetCache> render_target_cache_;
 
   std::unique_ptr<ui::d3d12::D3D12UploadBufferPool> constant_buffer_pool_;
@@ -490,8 +492,6 @@ class D3D12CommandProcessor : public CommandProcessor {
   std::unordered_map<uint32_t, ID3D12RootSignature*> root_signatures_bindful_;
   ID3D12RootSignature* root_signature_bindless_vs_ = nullptr;
   ID3D12RootSignature* root_signature_bindless_ds_ = nullptr;
-
-  std::unique_ptr<D3D12SharedMemory> shared_memory_;
 
   std::unique_ptr<D3D12PrimitiveProcessor> primitive_processor_;
 
