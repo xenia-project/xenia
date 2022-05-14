@@ -196,9 +196,11 @@ struct ViewportInfo {
 // a viewport, plus values to multiply-add the returned position by, usable on
 // host graphics APIs such as Direct3D 11+ and Vulkan, also forcing it to the
 // Direct3D clip space with 0...W Z rather than -W...W.
-void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale_x,
-                         uint32_t resolution_scale_y, bool origin_bottom_left,
-                         uint32_t x_max, uint32_t y_max, bool allow_reverse_z,
+void GetHostViewportInfo(const RegisterFile& regs,
+                         uint32_t draw_resolution_scale_x,
+                         uint32_t draw_resolution_scale_y,
+                         bool origin_bottom_left, uint32_t x_max,
+                         uint32_t y_max, bool allow_reverse_z,
                          reg::RB_DEPTHCONTROL normalized_depth_control,
                          bool convert_z_to_float24, bool full_float24_in_0_to_1,
                          bool pixel_shader_writes_depth,
@@ -234,26 +236,9 @@ constexpr uint32_t kDivideUpperShift5 = 2;
 constexpr uint32_t kDivideScale15 = 0x88888889u;
 constexpr uint32_t kDivideUpperShift15 = 3;
 
-inline void GetEdramTileWidthDivideScaleAndUpperShift(
-    uint32_t resolution_scale_x, uint32_t& divide_scale,
-    uint32_t& divide_upper_shift) {
-  switch (resolution_scale_x) {
-    case 1:
-      divide_scale = kDivideScale5;
-      divide_upper_shift = kDivideUpperShift5 + 4;
-      break;
-    case 2:
-      divide_scale = kDivideScale5;
-      divide_upper_shift = kDivideUpperShift5 + 5;
-      break;
-    case 3:
-      divide_scale = kDivideScale15;
-      divide_upper_shift = kDivideUpperShift15 + 4;
-      break;
-    default:
-      assert_unhandled_case(resolution_scale_x);
-  }
-}
+void GetEdramTileWidthDivideScaleAndUpperShift(
+    uint32_t draw_resolution_scale_x, uint32_t& divide_scale_out,
+    uint32_t& divide_upper_shift_out);
 
 // Never an identity conversion - can always write conditional move instructions
 // to shaders that will be no-ops for conversion from guest to host samples.
@@ -474,7 +459,7 @@ struct ResolveInfo {
   }
 
   ResolveCopyShaderIndex GetCopyShader(
-      uint32_t resolution_scale_x, uint32_t resolution_scale_y,
+      uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
       ResolveCopyShaderConstants& constants_out, uint32_t& group_count_x_out,
       uint32_t& group_count_y_out) const;
 
@@ -509,7 +494,8 @@ struct ResolveInfo {
   }
 
   std::pair<uint32_t, uint32_t> GetClearShaderGroupCount(
-      uint32_t resolution_scale_x, uint32_t resolution_scale_y) const {
+      uint32_t draw_resolution_scale_x,
+      uint32_t draw_resolution_scale_y) const {
     // 8 guest MSAA samples per invocation.
     uint32_t width_samples_div_8 = address.width_div_8;
     uint32_t height_samples_div_8 = address.height_div_8;
@@ -522,8 +508,8 @@ struct ResolveInfo {
         width_samples_div_8 <<= 1;
       }
     }
-    width_samples_div_8 *= resolution_scale_x;
-    height_samples_div_8 *= resolution_scale_y;
+    width_samples_div_8 *= draw_resolution_scale_x;
+    height_samples_div_8 *= draw_resolution_scale_y;
     return std::make_pair((width_samples_div_8 + uint32_t(7)) >> 3,
                           height_samples_div_8);
   }

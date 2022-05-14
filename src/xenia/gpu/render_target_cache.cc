@@ -76,25 +76,6 @@ DEFINE_string(
     " Any other value:\n"
     "  Choose what is considered the most optimal (currently \"on_copy\").",
     "GPU");
-DEFINE_int32(
-    draw_resolution_scale_x, 1,
-    "Integer pixel width scale used for scaling the rendering resolution "
-    "opaquely to the game.\n"
-    "1, 2 and 3 may be supported, but support of anything above 1 depends on "
-    "the device properties, such as whether it supports sparse binding / tiled "
-    "resources, the number of virtual address bits per resource, and other "
-    "factors.\n"
-    "Various effects and parts of game rendering pipelines may work "
-    "incorrectly as pixels become ambiguous from the game's perspective and "
-    "because half-pixel offset (which normally doesn't affect coverage when "
-    "MSAA isn't used) becomes full-pixel.",
-    "GPU");
-DEFINE_int32(
-    draw_resolution_scale_y, 1,
-    "Integer pixel width scale used for scaling the rendering resolution "
-    "opaquely to the game.\n"
-    "See draw_resolution_scale_x for more information.",
-    "GPU");
 DEFINE_bool(
     draw_resolution_scaled_texture_offsets, true,
     "Apply offsets from texture fetch instructions taking resolution scale "
@@ -416,7 +397,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     uint32_t pitch_pixels_tile_aligned_scaled =
         pitch_tiles_at_32bpp *
         (xenos::kEdramTileWidthSamples >> msaa_samples_x_log2) *
-        GetResolutionScaleX();
+        draw_resolution_scale_x();
     uint32_t max_render_target_width = GetMaxRenderTargetWidth();
     if (pitch_pixels_tile_aligned_scaled > max_render_target_width) {
       // TODO(Triang3l): If really needed for some game on some device, clamp
@@ -834,14 +815,13 @@ uint32_t RenderTargetCache::GetRenderTargetHeight(
       !(xenos::kTexture2DCubeMaxWidthHeight % xenos::kEdramTileHeightSamples),
       "Maximum guest render target height is assumed to always be a multiple "
       "of an EDRAM tile height");
-  uint32_t resolution_scale_y = GetResolutionScaleY();
   uint32_t max_height_scaled =
-      std::min(xenos::kTexture2DCubeMaxWidthHeight * resolution_scale_y,
+      std::min(xenos::kTexture2DCubeMaxWidthHeight * draw_resolution_scale_y(),
                GetMaxRenderTargetHeight());
   uint32_t msaa_samples_y_log2 =
       uint32_t(msaa_samples >= xenos::MsaaSamples::k2X);
   uint32_t tile_height_samples_scaled =
-      xenos::kEdramTileHeightSamples * resolution_scale_y;
+      xenos::kEdramTileHeightSamples * draw_resolution_scale_y();
   tile_rows = std::min(tile_rows, (max_height_scaled << msaa_samples_y_log2) /
                                       tile_height_samples_scaled);
   assert_not_zero(tile_rows);
@@ -868,9 +848,9 @@ void RenderTargetCache::GetHostDepthStoreRectangleInfo(
       (transfer_rectangle.width_pixels >> 3) - 1;
   rectangle_constant_out = rectangle_constant;
   // 1 thread group = 64x8 host samples.
-  uint32_t pixel_size_x = GetResolutionScaleX()
+  uint32_t pixel_size_x = draw_resolution_scale_x()
                           << uint32_t(msaa_samples >= xenos::MsaaSamples::k4X);
-  uint32_t pixel_size_y = GetResolutionScaleY()
+  uint32_t pixel_size_y = draw_resolution_scale_y()
                           << uint32_t(msaa_samples >= xenos::MsaaSamples::k2X);
   group_count_x_out =
       (transfer_rectangle.width_pixels * pixel_size_x + 63) >> 6;
@@ -1001,7 +981,7 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
   uint32_t pitch_pixels =
       pitch_tiles_at_32bpp *
       (xenos::kEdramTileWidthSamples >> msaa_samples_x_log2);
-  uint32_t pitch_pixels_scaled = pitch_pixels * GetResolutionScaleX();
+  uint32_t pitch_pixels_scaled = pitch_pixels * draw_resolution_scale_x();
   uint32_t max_render_target_width = GetMaxRenderTargetWidth();
   if (pitch_pixels_scaled > max_render_target_width) {
     // TODO(Triang3l): If really needed for some game on some device, clamp the
@@ -1147,12 +1127,10 @@ RenderTargetCache::RenderTarget*
 RenderTargetCache::PrepareFullEdram1280xRenderTargetForSnapshotRestoration(
     xenos::ColorRenderTargetFormat color_format) {
   assert_true(GetPath() == Path::kHostRenderTargets);
-  uint32_t resolution_scale_x = GetResolutionScaleX();
-  uint32_t resolution_scale_y = GetResolutionScaleY();
   constexpr uint32_t kPitchTilesAt32bpp = 16;
   constexpr uint32_t kWidth =
       kPitchTilesAt32bpp * xenos::kEdramTileWidthSamples;
-  if (kWidth * resolution_scale_x > GetMaxRenderTargetWidth()) {
+  if (kWidth * draw_resolution_scale_x() > GetMaxRenderTargetWidth()) {
     return nullptr;
   }
   // Same render target height is used for 32bpp and 64bpp to allow mixing them.
@@ -1168,7 +1146,7 @@ RenderTargetCache::PrepareFullEdram1280xRenderTargetForSnapshotRestoration(
       "Using width of the render target for EDRAM snapshot restoration that is "
       "expect to fully cover the EDRAM without exceeding the maximum guest "
       "render target height.");
-  if (kHeight * resolution_scale_y > GetMaxRenderTargetHeight()) {
+  if (kHeight * draw_resolution_scale_y() > GetMaxRenderTargetHeight()) {
     return nullptr;
   }
   RenderTargetKey render_target_key;

@@ -20,6 +20,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/registers.h"
+#include "xenia/gpu/texture_cache.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/texture_util.h"
 #include "xenia/gpu/xenos.h"
@@ -166,15 +167,17 @@ bool IsPixelShaderNeededWithRasterization(const Shader& shader,
   return false;
 }
 
-void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale_x,
-                         uint32_t resolution_scale_y, bool origin_bottom_left,
-                         uint32_t x_max, uint32_t y_max, bool allow_reverse_z,
+void GetHostViewportInfo(const RegisterFile& regs,
+                         uint32_t draw_resolution_scale_x,
+                         uint32_t draw_resolution_scale_y,
+                         bool origin_bottom_left, uint32_t x_max,
+                         uint32_t y_max, bool allow_reverse_z,
                          reg::RB_DEPTHCONTROL normalized_depth_control,
                          bool convert_z_to_float24, bool full_float24_in_0_to_1,
                          bool pixel_shader_writes_depth,
                          ViewportInfo& viewport_info_out) {
-  assert_not_zero(resolution_scale_x);
-  assert_not_zero(resolution_scale_y);
+  assert_not_zero(draw_resolution_scale_x);
+  assert_not_zero(draw_resolution_scale_y);
 
   // A vertex position goes the following path:
   //
@@ -343,8 +346,8 @@ void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale_x,
 
   // The maximum value is at least the maximum host render target size anyway -
   // and a guest pixel is always treated as a whole with resolution scaling.
-  uint32_t xy_max_unscaled[] = {x_max / resolution_scale_x,
-                                y_max / resolution_scale_y};
+  uint32_t xy_max_unscaled[] = {x_max / draw_resolution_scale_x,
+                                y_max / draw_resolution_scale_y};
   assert_not_zero(xy_max_unscaled[0]);
   assert_not_zero(xy_max_unscaled[1]);
 
@@ -363,7 +366,8 @@ void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale_x,
       uint32_t extent_axis_unscaled =
           std::min(xenos::kTexture2DCubeMaxWidthHeight, xy_max_unscaled[i]);
       viewport_info_out.xy_extent[i] =
-          extent_axis_unscaled * (i ? resolution_scale_y : resolution_scale_x);
+          extent_axis_unscaled *
+          (i ? draw_resolution_scale_y : draw_resolution_scale_x);
       float extent_axis_unscaled_float = float(extent_axis_unscaled);
       float pixels_to_ndc_axis = 2.0f / extent_axis_unscaled_float;
       ndc_scale[i] = scale_xy[i] * pixels_to_ndc_axis;
@@ -390,7 +394,7 @@ void GetHostViewportInfo(const RegisterFile& regs, uint32_t resolution_scale_x,
       // doing truncation for simplicity - since maxing with 0 is done anyway
       // (we only return viewports in the positive quarter-plane).
       uint32_t axis_resolution_scale =
-          i ? resolution_scale_y : resolution_scale_x;
+          i ? draw_resolution_scale_y : draw_resolution_scale_x;
       float offset_axis = offset_base_xy[i] + offset_add_xy[i];
       float scale_axis = scale_xy[i];
       float scale_axis_abs = std::abs(scale_xy[i]);
@@ -643,6 +647,31 @@ uint32_t GetNormalizedColorMask(const RegisterFile& regs,
     normalized_color_mask |= rt_write_mask << (4 * i);
   }
   return normalized_color_mask;
+}
+
+void GetEdramTileWidthDivideScaleAndUpperShift(
+    uint32_t draw_resolution_scale_x, uint32_t& divide_scale_out,
+    uint32_t& divide_upper_shift_out) {
+  static_assert(
+      TextureCache::kMaxDrawResolutionScaleAlongAxis <= 3,
+      "GetEdramTileWidthDivideScaleAndUpperShift provides values only for draw "
+      "resolution scaling factors of up to 3");
+  switch (draw_resolution_scale_x) {
+    case 1:
+      divide_scale_out = kDivideScale5;
+      divide_upper_shift_out = kDivideUpperShift5 + 4;
+      break;
+    case 2:
+      divide_scale_out = kDivideScale5;
+      divide_upper_shift_out = kDivideUpperShift5 + 5;
+      break;
+    case 3:
+      divide_scale_out = kDivideScale15;
+      divide_upper_shift_out = kDivideUpperShift15 + 4;
+      break;
+    default:
+      assert_unhandled_case(draw_resolution_scale_x);
+  }
 }
 
 xenos::CopySampleSelect SanitizeCopySampleSelect(
@@ -1098,7 +1127,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
 }
 
 ResolveCopyShaderIndex ResolveInfo::GetCopyShader(
-    uint32_t resolution_scale_x, uint32_t resolution_scale_y,
+    uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
     ResolveCopyShaderConstants& constants_out, uint32_t& group_count_x_out,
     uint32_t& group_count_y_out) const {
   ResolveCopyShaderIndex shader = ResolveCopyShaderIndex::kUnknown;
@@ -1152,10 +1181,10 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(
   if (shader != ResolveCopyShaderIndex::kUnknown) {
     uint32_t width =
         (address.width_div_8 << xenos::kResolveAlignmentPixelsLog2) *
-        resolution_scale_x;
+        draw_resolution_scale_x;
     uint32_t height =
         (address.height_div_8 << xenos::kResolveAlignmentPixelsLog2) *
-        resolution_scale_y;
+        draw_resolution_scale_y;
     const ResolveCopyShaderInfo& shader_info =
         resolve_copy_shader_info[size_t(shader)];
     group_count_x_out = (width + ((1 << shader_info.group_size_x_log2) - 1)) >>

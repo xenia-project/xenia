@@ -29,8 +29,6 @@
 #include "xenia/gpu/xenos.h"
 
 DECLARE_bool(depth_transfer_not_equal_test);
-DECLARE_int32(draw_resolution_scale_x);
-DECLARE_int32(draw_resolution_scale_y);
 DECLARE_bool(draw_resolution_scaled_texture_offsets);
 DECLARE_bool(gamma_render_target_as_srgb);
 DECLARE_bool(native_2x_msaa);
@@ -204,10 +202,10 @@ class RenderTargetCache {
   // would participate in filtering. However, 1x1 scissor rounded to 1x1, with
   // the half-pixel offset of vertices, would cause the entire 0.75...2.25 quad
   // to be discarded.
-  virtual uint32_t GetResolutionScaleX() const = 0;
-  virtual uint32_t GetResolutionScaleY() const = 0;
-  bool IsResolutionScaled() const {
-    return GetResolutionScaleX() > 1 || GetResolutionScaleY() > 1;
+  uint32_t draw_resolution_scale_x() const { return draw_resolution_scale_x_; }
+  uint32_t draw_resolution_scale_y() const { return draw_resolution_scale_y_; }
+  bool IsDrawResolutionScaled() const {
+    return draw_resolution_scale_x() > 1 || draw_resolution_scale_y() > 1;
   }
 
   // Virtual (both the common code and the implementation may do something
@@ -232,9 +230,15 @@ class RenderTargetCache {
 
  protected:
   RenderTargetCache(const RegisterFile& register_file, const Memory& memory,
-                    TraceWriter* trace_writer)
+                    TraceWriter* trace_writer, uint32_t draw_resolution_scale_x,
+                    uint32_t draw_resolution_scale_y)
       : register_file_(register_file),
-        draw_extent_estimator_(register_file, memory, trace_writer) {}
+        draw_extent_estimator_(register_file, memory, trace_writer),
+        draw_resolution_scale_x_(draw_resolution_scale_x),
+        draw_resolution_scale_y_(draw_resolution_scale_y) {
+    assert_not_zero(draw_resolution_scale_x);
+    assert_not_zero(draw_resolution_scale_y);
+  }
 
   const RegisterFile& register_file() const { return register_file_; }
 
@@ -309,6 +313,10 @@ class RenderTargetCache {
       }
       return xenos::IsColorRenderTargetFormat64bpp(GetColorFormat());
     }
+    const char* GetFormatName() const {
+      return is_depth ? xenos::GetDepthRenderTargetFormatName(GetDepthFormat())
+                      : xenos::GetColorRenderTargetFormatName(GetColorFormat());
+    }
 
     uint32_t GetPitchTiles() const {
       return pitch_tiles_at_32bpp << uint32_t(Is64bpp());
@@ -324,11 +332,9 @@ class RenderTargetCache {
     }
 
     std::string GetDebugName() const {
-      return fmt::format(
-          "RT @ {}t, <{}t>, {}xMSAA, {}", base_tiles, GetPitchTiles(),
-          uint32_t(1) << uint32_t(msaa_samples),
-          is_depth ? xenos::GetDepthRenderTargetFormatName(GetDepthFormat())
-                   : xenos::GetColorRenderTargetFormatName(GetColorFormat()));
+      return fmt::format("RT @ {}t, <{}t>, {}xMSAA, {}", base_tiles,
+                         GetPitchTiles(), uint32_t(1) << uint32_t(msaa_samples),
+                         GetFormatName());
     }
   };
 
@@ -557,8 +563,8 @@ class RenderTargetCache {
       uint32_t pitch_tiles, bool msaa_2x_supported) const {
     HostDepthStoreRenderTargetConstant constant;
     constant.pitch_tiles = pitch_tiles;
-    constant.resolution_scale_x = GetResolutionScaleX();
-    constant.resolution_scale_y = GetResolutionScaleY();
+    constant.resolution_scale_x = draw_resolution_scale_x();
+    constant.resolution_scale_y = draw_resolution_scale_y();
     constant.msaa_2x_supported = uint32_t(msaa_2x_supported);
     return constant;
   }
@@ -610,6 +616,8 @@ class RenderTargetCache {
 
  private:
   const RegisterFile& register_file_;
+  uint32_t draw_resolution_scale_x_;
+  uint32_t draw_resolution_scale_y_;
 
   DrawExtentEstimator draw_extent_estimator_;
 

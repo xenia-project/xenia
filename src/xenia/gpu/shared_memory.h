@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -11,6 +11,7 @@
 #define XENIA_GPU_SHARED_MEMORY_H_
 
 #include <cstdint>
+#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -32,9 +33,9 @@ class SharedMemory {
   // Call in the implementation-specific ClearCache.
   virtual void ClearCache();
 
-  typedef void (*GlobalWatchCallback)(void* context, uint32_t address_first,
-                                      uint32_t address_last,
-                                      bool invalidated_by_gpu);
+  typedef void (*GlobalWatchCallback)(
+      const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
+      uint32_t address_first, uint32_t address_last, bool invalidated_by_gpu);
   typedef void* GlobalWatchHandle;
   // Registers a callback invoked when something is invalidated in the GPU
   // memory copy by the CPU or (if triggered explicitly - such as by a resolve)
@@ -47,8 +48,9 @@ class SharedMemory {
   GlobalWatchHandle RegisterGlobalWatch(GlobalWatchCallback callback,
                                         void* callback_context);
   void UnregisterGlobalWatch(GlobalWatchHandle handle);
-  typedef void (*WatchCallback)(void* context, void* data, uint64_t argument,
-                                bool invalidated_by_gpu);
+  typedef void (*WatchCallback)(
+      const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
+      void* data, uint64_t argument, bool invalidated_by_gpu);
   typedef void* WatchHandle;
   // Registers a callback invoked when the specified memory range is invalidated
   // in the GPU memory copy by the CPU or (if triggered explicitly - such as by
