@@ -26,8 +26,8 @@
 #include "xenia/base/math.h"
 #include "xenia/base/string.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
+#include "xenia/gpu/d3d12/d3d12_texture_cache.h"
 #include "xenia/gpu/d3d12/deferred_command_list.h"
-#include "xenia/gpu/d3d12/texture_cache.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/dxbc.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
@@ -250,35 +250,10 @@ bool D3D12RenderTargetCache::Initialize() {
     path_ = Path::kHostRenderTargets;
   }
 
-  uint32_t config_resolution_scale_x =
-      uint32_t(std::max(cvars::draw_resolution_scale_x, int32_t(1)));
-  uint32_t config_resolution_scale_y =
-      uint32_t(std::max(cvars::draw_resolution_scale_y, int32_t(1)));
-  // Hard limit, originating from the half-pixel offset (two-pixel offset is too
-  // much, the resolve shaders, being generic for different scales, only
-  // duplicate the second pixel into the first, not the third), and also due to
-  // the bit counts used for passing the scale to shaders, and hardcoded scales
-  // and shifts for fast division by integer constants.
-  const uint32_t kMaxResolutionScale = 3;
-  resolution_scale_x_ =
-      std::min(config_resolution_scale_x, kMaxResolutionScale);
-  resolution_scale_y_ =
-      std::min(config_resolution_scale_y, kMaxResolutionScale);
-  TextureCache::ClampDrawResolutionScaleToSupportedRange(
-      resolution_scale_x_, resolution_scale_y_, provider);
-  if (resolution_scale_x_ != config_resolution_scale_x ||
-      resolution_scale_y_ != config_resolution_scale_y) {
-    XELOGW(
-        "D3D12RenderTargetCache: {}x{} resolution scale not supported by the "
-        "device or the emulator, reducing to {}x{}",
-        config_resolution_scale_x, config_resolution_scale_y,
-        resolution_scale_x_, resolution_scale_y_);
-  }
-  bool resolution_scaled = resolution_scale_x_ > 1 || resolution_scale_y_ > 1;
-
   // Create the buffer for reinterpreting EDRAM contents.
   uint32_t edram_buffer_size =
-      xenos::kEdramSizeBytes * resolution_scale_x_ * resolution_scale_y_;
+      xenos::kEdramSizeBytes *
+      (draw_resolution_scale_x() * draw_resolution_scale_y());
   D3D12_RESOURCE_DESC edram_buffer_desc;
   ui::d3d12::util::FillBufferResourceDesc(
       edram_buffer_desc, edram_buffer_size,
@@ -369,6 +344,8 @@ bool D3D12RenderTargetCache::Initialize() {
           uint32_t(EdramBufferDescriptorIndex::kR32G32B32A32UintUAV)),
       edram_buffer_, DXGI_FORMAT_R32G32B32A32_UINT, edram_buffer_size >> 4);
 
+  bool draw_resolution_scaled = IsDrawResolutionScaled();
+
   // Create the resolve copying root signature.
   D3D12_ROOT_PARAMETER resolve_copy_root_parameters[4];
   // Parameter 0 is constants.
@@ -379,7 +356,7 @@ bool D3D12RenderTargetCache::Initialize() {
   // Binding all of the shared memory at 1x resolution, portions with scaled
   // resolution.
   resolve_copy_root_parameters[0].Constants.Num32BitValues =
-      (IsResolutionScaled()
+      (draw_resolution_scaled
            ? sizeof(draw_util::ResolveCopyShaderConstants::DestRelative)
            : sizeof(draw_util::ResolveCopyShaderConstants)) /
       sizeof(uint32_t);
@@ -414,7 +391,7 @@ bool D3D12RenderTargetCache::Initialize() {
   resolve_copy_root_parameters[2].ShaderVisibility =
       D3D12_SHADER_VISIBILITY_ALL;
   // Parameter 3 is the resolution scale.
-  if (resolution_scaled) {
+  if (draw_resolution_scaled) {
     resolve_copy_root_parameters[3].ParameterType =
         D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     resolve_copy_root_parameters[3].Constants.ShaderRegister = 1;
@@ -427,7 +404,8 @@ bool D3D12RenderTargetCache::Initialize() {
         D3D12_SHADER_VISIBILITY_ALL;
   }
   D3D12_ROOT_SIGNATURE_DESC resolve_copy_root_signature_desc;
-  resolve_copy_root_signature_desc.NumParameters = resolution_scaled ? 4 : 3;
+  resolve_copy_root_signature_desc.NumParameters =
+      draw_resolution_scaled ? 4 : 3;
   resolve_copy_root_signature_desc.pParameters = resolve_copy_root_parameters;
   resolve_copy_root_signature_desc.NumStaticSamplers = 0;
   resolve_copy_root_signature_desc.pStaticSamplers = nullptr;
@@ -457,10 +435,10 @@ bool D3D12RenderTargetCache::Initialize() {
     ID3D12PipelineState* resolve_copy_pipeline =
         ui::d3d12::util::CreateComputePipeline(
             device,
-            resolution_scaled ? resolve_copy_shader_code.scaled
-                              : resolve_copy_shader_code.unscaled,
-            resolution_scaled ? resolve_copy_shader_code.scaled_size
-                              : resolve_copy_shader_code.unscaled_size,
+            draw_resolution_scaled ? resolve_copy_shader_code.scaled
+                                   : resolve_copy_shader_code.unscaled,
+            draw_resolution_scaled ? resolve_copy_shader_code.scaled_size
+                                   : resolve_copy_shader_code.unscaled_size,
             resolve_copy_root_signature_);
     if (resolve_copy_pipeline == nullptr) {
       XELOGE(
@@ -1081,7 +1059,7 @@ bool D3D12RenderTargetCache::Initialize() {
     resolve_rov_clear_root_parameters[1].ShaderVisibility =
         D3D12_SHADER_VISIBILITY_ALL;
     // Parameter 2 is the resolution scale.
-    if (resolution_scaled) {
+    if (draw_resolution_scaled) {
       resolve_rov_clear_root_parameters[2].ParameterType =
           D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
       resolve_rov_clear_root_parameters[2].Constants.ShaderRegister = 1;
@@ -1095,7 +1073,7 @@ bool D3D12RenderTargetCache::Initialize() {
     }
     D3D12_ROOT_SIGNATURE_DESC resolve_rov_clear_root_signature_desc;
     resolve_rov_clear_root_signature_desc.NumParameters =
-        resolution_scaled ? 3 : 2;
+        draw_resolution_scaled ? 3 : 2;
     resolve_rov_clear_root_signature_desc.pParameters =
         resolve_rov_clear_root_parameters;
     resolve_rov_clear_root_signature_desc.NumStaticSamplers = 0;
@@ -1115,10 +1093,10 @@ bool D3D12RenderTargetCache::Initialize() {
     // Create the resolve EDRAM buffer clearing pipelines.
     resolve_rov_clear_32bpp_pipeline_ = ui::d3d12::util::CreateComputePipeline(
         device,
-        resolution_scaled ? shaders::resolve_clear_32bpp_scaled_cs
-                          : shaders::resolve_clear_32bpp_cs,
-        resolution_scaled ? sizeof(shaders::resolve_clear_32bpp_scaled_cs)
-                          : sizeof(shaders::resolve_clear_32bpp_cs),
+        draw_resolution_scaled ? shaders::resolve_clear_32bpp_scaled_cs
+                               : shaders::resolve_clear_32bpp_cs,
+        draw_resolution_scaled ? sizeof(shaders::resolve_clear_32bpp_scaled_cs)
+                               : sizeof(shaders::resolve_clear_32bpp_cs),
         resolve_rov_clear_root_signature_);
     if (resolve_rov_clear_32bpp_pipeline_ == nullptr) {
       XELOGE(
@@ -1130,10 +1108,10 @@ bool D3D12RenderTargetCache::Initialize() {
     resolve_rov_clear_32bpp_pipeline_->SetName(L"Resolve Clear 32bpp");
     resolve_rov_clear_64bpp_pipeline_ = ui::d3d12::util::CreateComputePipeline(
         device,
-        resolution_scaled ? shaders::resolve_clear_64bpp_scaled_cs
-                          : shaders::resolve_clear_64bpp_cs,
-        resolution_scaled ? sizeof(shaders::resolve_clear_64bpp_scaled_cs)
-                          : sizeof(shaders::resolve_clear_64bpp_cs),
+        draw_resolution_scaled ? shaders::resolve_clear_64bpp_scaled_cs
+                               : shaders::resolve_clear_64bpp_cs,
+        draw_resolution_scaled ? sizeof(shaders::resolve_clear_64bpp_scaled_cs)
+                               : sizeof(shaders::resolve_clear_64bpp_cs),
         resolve_rov_clear_root_signature_);
     if (resolve_rov_clear_64bpp_pipeline_ == nullptr) {
       XELOGE(
@@ -1366,17 +1344,17 @@ void D3D12RenderTargetCache::WriteEdramUintPow2UAVDescriptor(
 
 bool D3D12RenderTargetCache::Resolve(const Memory& memory,
                                      D3D12SharedMemory& shared_memory,
-                                     TextureCache& texture_cache,
+                                     D3D12TextureCache& texture_cache,
                                      uint32_t& written_address_out,
                                      uint32_t& written_length_out) {
   written_address_out = 0;
   written_length_out = 0;
 
-  bool resolution_scaled = IsResolutionScaled();
+  bool draw_resolution_scaled = IsDrawResolutionScaled();
 
   draw_util::ResolveInfo resolve_info;
   if (!draw_util::GetResolveInfo(
-          register_file(), memory, trace_writer_, resolution_scaled,
+          register_file(), memory, trace_writer_, draw_resolution_scaled,
           IsFixed16TruncatedToMinus1To1(), resolve_info)) {
     return false;
   }
@@ -1387,8 +1365,8 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
   }
 
   draw_util::ResolveResolutionScaleConstant resolution_scale_constant;
-  resolution_scale_constant.resolution_scale_x = resolution_scale_x_;
-  resolution_scale_constant.resolution_scale_y = resolution_scale_y_;
+  resolution_scale_constant.resolution_scale_x = draw_resolution_scale_x();
+  resolution_scale_constant.resolution_scale_y = draw_resolution_scale_y();
 
   DeferredCommandList& command_list =
       command_processor_.GetDeferredCommandList();
@@ -1413,8 +1391,8 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
     draw_util::ResolveCopyShaderConstants copy_shader_constants;
     uint32_t copy_group_count_x, copy_group_count_y;
     draw_util::ResolveCopyShaderIndex copy_shader = resolve_info.GetCopyShader(
-        resolution_scale_x_, resolution_scale_y_, copy_shader_constants,
-        copy_group_count_x, copy_group_count_y);
+        draw_resolution_scale_x(), draw_resolution_scale_y(),
+        copy_shader_constants, copy_group_count_x, copy_group_count_y);
     assert_true(copy_group_count_x && copy_group_count_y);
     if (copy_shader != draw_util::ResolveCopyShaderIndex::kUnknown) {
       const draw_util::ResolveCopyShaderInfo& copy_shader_info =
@@ -1422,7 +1400,7 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
 
       // Make sure there is memory to write to.
       bool copy_dest_committed;
-      if (resolution_scaled) {
+      if (draw_resolution_scaled) {
         copy_dest_committed =
             texture_cache.EnsureScaledResolveMemoryCommitted(
                 resolve_info.copy_dest_base, resolve_info.copy_dest_length) &&
@@ -1441,10 +1419,10 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
         ui::d3d12::util::DescriptorCpuGpuHandlePair descriptor_source;
         ui::d3d12::util::DescriptorCpuGpuHandlePair descriptors[2];
         if (command_processor_.RequestOneUseSingleViewDescriptors(
-                bindless_resources_used_ ? uint32_t(resolution_scaled) : 2,
+                bindless_resources_used_ ? uint32_t(draw_resolution_scaled) : 2,
                 descriptors)) {
           if (bindless_resources_used_) {
-            if (resolution_scaled) {
+            if (draw_resolution_scaled) {
               descriptor_dest = descriptors[0];
             } else {
               descriptor_dest =
@@ -1463,7 +1441,7 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
             }
           } else {
             descriptor_dest = descriptors[0];
-            if (!resolution_scaled) {
+            if (!draw_resolution_scaled) {
               shared_memory.WriteUintPow2UAVDescriptor(
                   descriptor_dest.first, copy_shader_info.dest_bpe_log2);
             }
@@ -1475,7 +1453,7 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
                                               copy_shader_info.source_bpe_log2);
             }
           }
-          if (resolution_scaled) {
+          if (draw_resolution_scaled) {
             texture_cache.CreateCurrentScaledResolveRangeUintPow2UAV(
                 descriptor_dest.first, copy_shader_info.dest_bpe_log2);
             texture_cache.TransitionCurrentScaledResolveRange(
@@ -1487,7 +1465,7 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
 
           // Submit the resolve.
           command_list.D3DSetComputeRootSignature(resolve_copy_root_signature_);
-          if (resolution_scaled) {
+          if (draw_resolution_scaled) {
             command_list.D3DSetComputeRoot32BitConstants(
                 3, sizeof(resolution_scale_constant) / sizeof(uint32_t),
                 &resolution_scale_constant, 0);
@@ -1496,7 +1474,7 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
               2, descriptor_source.second);
           command_list.D3DSetComputeRootDescriptorTable(1,
                                                         descriptor_dest.second);
-          if (resolution_scaled) {
+          if (draw_resolution_scaled) {
             command_list.D3DSetComputeRoot32BitConstants(
                 0,
                 sizeof(copy_shader_constants.dest_relative) / sizeof(uint32_t),
@@ -1512,7 +1490,7 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
           command_list.D3DDispatch(copy_group_count_x, copy_group_count_y, 1);
 
           // Order the resolve with other work using the destination as a UAV.
-          if (resolution_scaled) {
+          if (draw_resolution_scaled) {
             texture_cache.MarkCurrentScaledResolveRangeUAVWritesCommitNeeded();
           } else {
             shared_memory.MarkUAVWritesCommitNeeded();
@@ -1585,7 +1563,7 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
           CommitEdramBufferUAVWrites();
           command_list.D3DSetComputeRootSignature(
               resolve_rov_clear_root_signature_);
-          if (resolution_scaled) {
+          if (draw_resolution_scaled) {
             command_list.D3DSetComputeRoot32BitConstants(
                 2, sizeof(resolution_scale_constant) / sizeof(uint32_t),
                 &resolution_scale_constant, 0);
@@ -1593,8 +1571,8 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
           command_list.D3DSetComputeRootDescriptorTable(
               1, descriptor_edram.second);
           std::pair<uint32_t, uint32_t> clear_group_count =
-              resolve_info.GetClearShaderGroupCount(resolution_scale_x_,
-                                                    resolution_scale_y_);
+              resolve_info.GetClearShaderGroupCount(draw_resolution_scale_x(),
+                                                    draw_resolution_scale_y());
           assert_true(clear_group_count.first && clear_group_count.second);
           if (clear_depth) {
             draw_util::ResolveClearShaderConstants depth_clear_constants;
@@ -1648,7 +1626,7 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
 }
 
 bool D3D12RenderTargetCache::InitializeTraceSubmitDownloads() {
-  if (IsResolutionScaled()) {
+  if (IsDrawResolutionScaled()) {
     // No 1:1 mapping.
     return false;
   }
@@ -1704,7 +1682,7 @@ void D3D12RenderTargetCache::InitializeTraceCompleteDownloads() {
 }
 
 void D3D12RenderTargetCache::RestoreEdramSnapshot(const void* snapshot) {
-  if (IsResolutionScaled()) {
+  if (IsDrawResolutionScaled()) {
     // No 1:1 mapping.
     return;
   }
@@ -1962,10 +1940,10 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(
   D3D12_RESOURCE_DESC resource_desc;
   resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
   resource_desc.Alignment = 0;
-  resource_desc.Width = key.GetWidth() * resolution_scale_x_;
+  resource_desc.Width = key.GetWidth() * draw_resolution_scale_x();
   resource_desc.Height =
       GetRenderTargetHeight(key.pitch_tiles_at_32bpp, key.msaa_samples) *
-      resolution_scale_y_;
+      draw_resolution_scale_y();
   resource_desc.DepthOrArraySize = 1;
   resource_desc.MipLevels = 1;
   if (key.is_depth) {
@@ -2963,10 +2941,13 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   // for the coordinates for that load. Currently 3 temps are enough.
   a.OpDclTemps(3);
 
+  uint32_t draw_resolution_scale_x = this->draw_resolution_scale_x();
+  uint32_t draw_resolution_scale_y = this->draw_resolution_scale_y();
+
   uint32_t tile_width_samples_scaled =
-      xenos::kEdramTileWidthSamples * resolution_scale_x_;
+      xenos::kEdramTileWidthSamples * draw_resolution_scale_x;
   uint32_t tile_height_samples_scaled =
-      xenos::kEdramTileHeightSamples * resolution_scale_y_;
+      xenos::kEdramTileHeightSamples * draw_resolution_scale_y;
 
   // Split the destination pixel index into 32bpp tile in r0.z and
   // 32bpp-tile-relative pixel index in r0.xy.
@@ -2979,12 +2960,16 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
       uint32_t(key.dest_msaa_samples >= xenos::MsaaSamples::k2X);
   uint32_t dest_tile_width_divide_scale, dest_tile_width_divide_upper_shift;
   draw_util::GetEdramTileWidthDivideScaleAndUpperShift(
-      resolution_scale_x_, dest_tile_width_divide_scale,
+      draw_resolution_scale_x, dest_tile_width_divide_scale,
       dest_tile_width_divide_upper_shift);
   assert_true(dest_tile_width_divide_upper_shift >= dest_sample_width_log2);
   // Need the host tile size in pixels, not samples.
   dest_tile_width_divide_upper_shift -= dest_sample_width_log2;
-  if (resolution_scale_y_ == 3) {
+  static_assert(
+      TextureCache::kMaxDrawResolutionScaleAlongAxis <= 3,
+      "D3D12RenderTargetCache EDRAM range ownership transfer shader generation "
+      "supports Y draw resolution scaling factors of only up to 3");
+  if (draw_resolution_scale_y == 3) {
     // r0.zw = upper 32 bits in the division process of pixel XY by pixel count
     // in a 32bpp tile
     a.OpUMul(dxbc::Dest::R(0, 0b1100), dxbc::Dest::Null(),
@@ -3000,14 +2985,14 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
     a.OpIMAd(
         dxbc::Dest::R(0, 0b0011), dxbc::Src::R(0, 0b1110),
         dxbc::Src::LI(
-            -int32_t((80 * resolution_scale_x_) >> dest_sample_width_log2),
-            -int32_t((16 * resolution_scale_y_) >> dest_sample_height_log2), 0,
-            0),
+            -int32_t((80 * draw_resolution_scale_x) >> dest_sample_width_log2),
+            -int32_t((16 * draw_resolution_scale_y) >> dest_sample_height_log2),
+            0, 0),
         dxbc::Src::R(0, 0b0100));
   } else {
-    assert_true(resolution_scale_y_ <= 2);
+    assert_true(draw_resolution_scale_y <= 2);
     uint32_t dest_tile_height_pixels_log2 =
-        (resolution_scale_y_ == 2 ? 5 : 4) - dest_sample_height_log2;
+        (draw_resolution_scale_y == 2 ? 5 : 4) - dest_sample_height_log2;
     // r0.z = upper 32 bits in the division process of pixel X by pixel count in
     // a 32bpp tile
     a.OpUMul(dxbc::Dest::R(0, 0b0100), dxbc::Dest::Null(),
@@ -3019,7 +3004,7 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
                            dest_tile_height_pixels_log2));
     // r0.x = destination pixel X index within the 32bpp tile
     a.OpIMAd(dxbc::Dest::R(0, 0b0001), dxbc::Src::R(0, dxbc::Src::kZZZZ),
-             dxbc::Src::LI(-int32_t((80 * resolution_scale_x_) >>
+             dxbc::Src::LI(-int32_t((80 * draw_resolution_scale_x) >>
                                     dest_sample_width_log2)),
              dxbc::Src::R(0, dxbc::Src::kXXXX));
     // r0.y = destination pixel Y index within the 32bpp tile
@@ -4518,15 +4503,15 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
     // Assuming the rectangle is already clamped by the setup function from the
     // common render target cache.
     clear_rect.left =
-        LONG(resolve_clear_rectangle->x_pixels * resolution_scale_x_);
+        LONG(resolve_clear_rectangle->x_pixels * draw_resolution_scale_x());
     clear_rect.top =
-        LONG(resolve_clear_rectangle->y_pixels * resolution_scale_y_);
+        LONG(resolve_clear_rectangle->y_pixels * draw_resolution_scale_y());
     clear_rect.right = LONG((resolve_clear_rectangle->x_pixels +
                              resolve_clear_rectangle->width_pixels) *
-                            resolution_scale_x_);
+                            draw_resolution_scale_x());
     clear_rect.bottom = LONG((resolve_clear_rectangle->y_pixels +
                               resolve_clear_rectangle->height_pixels) *
-                             resolution_scale_y_);
+                             draw_resolution_scale_y());
   }
 
   // Do host depth storing for the depth destination (assuming there can be only
@@ -4811,8 +4796,8 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
   bool transfer_viewport_set = false;
   float pixels_to_ndc_unscaled =
       2.0f / float(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION);
-  float pixels_to_ndc_x = pixels_to_ndc_unscaled * resolution_scale_x_;
-  float pixels_to_ndc_y = pixels_to_ndc_unscaled * resolution_scale_y_;
+  float pixels_to_ndc_x = pixels_to_ndc_unscaled * draw_resolution_scale_x();
+  float pixels_to_ndc_y = pixels_to_ndc_unscaled * draw_resolution_scale_y();
 
   TransferRootSignatureIndex last_transfer_root_signature_index =
       TransferRootSignatureIndex::kCount;
@@ -4988,18 +4973,18 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
                ++j) {
             const Transfer::Rectangle& stencil_clear_rectangle =
                 transfer_stencil_clear_rectangles[j];
-            stencil_clear_rect_write_ptr->left =
-                LONG(stencil_clear_rectangle.x_pixels * resolution_scale_x_);
-            stencil_clear_rect_write_ptr->top =
-                LONG(stencil_clear_rectangle.y_pixels * resolution_scale_y_);
+            stencil_clear_rect_write_ptr->left = LONG(
+                stencil_clear_rectangle.x_pixels * draw_resolution_scale_x());
+            stencil_clear_rect_write_ptr->top = LONG(
+                stencil_clear_rectangle.y_pixels * draw_resolution_scale_y());
             stencil_clear_rect_write_ptr->right =
                 LONG((stencil_clear_rectangle.x_pixels +
                       stencil_clear_rectangle.width_pixels) *
-                     resolution_scale_x_);
+                     draw_resolution_scale_x());
             stencil_clear_rect_write_ptr->bottom =
                 LONG((stencil_clear_rectangle.y_pixels +
                       stencil_clear_rectangle.height_pixels) *
-                     resolution_scale_y_);
+                     draw_resolution_scale_y());
             ++stencil_clear_rect_write_ptr;
           }
         }
@@ -5967,13 +5952,20 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
   // fits in it, while 80x16 doesn't.
   a.OpDclThreadGroup(40, 16, 1);
 
+  uint32_t draw_resolution_scale_x = this->draw_resolution_scale_x();
+  uint32_t draw_resolution_scale_y = this->draw_resolution_scale_y();
+
   // For now, as the exact addressing in 64bpp render targets relatively to
   // 32bpp is unknown, treating 64bpp tiles as storing 40x16 samples rather than
   // 80x16 for simplicity of addressing into the texture.
 
   // Get the parts of the address along Y - tile row index within the dispatch
   // to r0.w, sample Y within the tile to r0.y.
-  if (resolution_scale_y_ == 3) {
+  static_assert(
+      TextureCache::kMaxDrawResolutionScaleAlongAxis <= 3,
+      "D3D12RenderTargetCache render target dump shader generation supports Y "
+      "draw resolution scaling factors of only up to 3");
+  if (draw_resolution_scale_y == 3) {
     // Multiplication part of the division by the (16 * scale) tile height,
     // specifically 48 here, or 16 * 3.
     // r0.w = (Y * kDivideScale3) >> 32
@@ -5988,28 +5980,28 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
     // r0.y = Y sample position within the tile
     // r0.w = Y tile position
     a.OpIMAd(dxbc::Dest::R(0, 0b0010), dxbc::Src::R(0, dxbc::Src::kWWWW),
-             dxbc::Src::LI(-16 * resolution_scale_y_),
+             dxbc::Src::LI(-16 * draw_resolution_scale_y),
              dxbc::Src::VThreadID(dxbc::Src::kYYYY));
   } else {
-    assert_true(resolution_scale_y_ <= 2);
+    assert_true(draw_resolution_scale_y <= 2);
     // Tile height is a power of two, can use bit operations.
     // Get the tile row index into r0.w.
     // r0.w = Y tile position.
     a.OpUShR(dxbc::Dest::R(0, 0b1000), dxbc::Src::VThreadID(dxbc::Src::kYYYY),
-             dxbc::Src::LU(resolution_scale_y_ == 2 ? 5 : 4));
+             dxbc::Src::LU(draw_resolution_scale_y == 2 ? 5 : 4));
     // Get the Y sample position within the tile into r0.y.
     // r0.y = Y sample position within the tile
     // r0.w = Y tile position
     a.OpAnd(dxbc::Dest::R(0, 0b0010), dxbc::Src::VThreadID(dxbc::Src::kYYYY),
-            dxbc::Src::LU((16 * resolution_scale_y_) - 1));
+            dxbc::Src::LU((16 * draw_resolution_scale_y) - 1));
   }
 
   // Get the X tile offset within the dispatch to r0.z.
-  uint32_t tile_width = xenos::kEdramTileWidthSamples * resolution_scale_x_;
+  uint32_t tile_width = xenos::kEdramTileWidthSamples * draw_resolution_scale_x;
   uint32_t tile_width_divide_scale;
   uint32_t tile_width_divide_upper_shift;
   draw_util::GetEdramTileWidthDivideScaleAndUpperShift(
-      resolution_scale_x_, tile_width_divide_scale,
+      draw_resolution_scale_x, tile_width_divide_scale,
       tile_width_divide_upper_shift);
   if (format_is_64bpp) {
     tile_width >>= 1;
@@ -6082,7 +6074,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
   // r0.w = tile index in the EDRAM
   a.OpUMAd(dxbc::Dest::R(0, 0b0100), dxbc::Src::R(0, dxbc::Src::kWWWW),
            dxbc::Src::LU(
-               resolution_scale_x_ * resolution_scale_y_ *
+               draw_resolution_scale_x * draw_resolution_scale_y *
                (xenos::kEdramTileWidthSamples >> uint32_t(format_is_64bpp)) *
                xenos::kEdramTileHeightSamples),
            dxbc::Src::R(0, dxbc::Src::kXXXX));
@@ -6177,9 +6169,10 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
   // r0.y = Y sample position within the source texture
   // r0.z = sample offset in the EDRAM
   // r1.x = free
-  a.OpUMAd(dxbc::Dest::R(0, 0b0010), dxbc::Src::R(1, dxbc::Src::kXXXX),
-           dxbc::Src::LU(xenos::kEdramTileHeightSamples * resolution_scale_y_),
-           dxbc::Src::R(0, dxbc::Src::kYYYY));
+  a.OpUMAd(
+      dxbc::Dest::R(0, 0b0010), dxbc::Src::R(1, dxbc::Src::kXXXX),
+      dxbc::Src::LU(xenos::kEdramTileHeightSamples * draw_resolution_scale_y),
+      dxbc::Src::R(0, dxbc::Src::kYYYY));
   // Will be using the source texture coordinates from r0.xy, and for
   // single-sampled source, LOD from r0.w.
   dxbc::Src source_address_src(dxbc::Src::R(0, 0b11000100));
@@ -6708,9 +6701,10 @@ void D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base,
       command_processor_.SubmitBarriers();
       // Processing 40 x 16 x scale samples per dispatch (a 32bpp tile in two
       // dispatches at 1x1 scale, 64bpp in one dispatch).
-      command_list.D3DDispatch((dispatch.width_tiles * resolution_scale_x_)
-                                   << uint32_t(!format_is_64bpp),
-                               dispatch.height_tiles * resolution_scale_y_, 1);
+      command_list.D3DDispatch(
+          (dispatch.width_tiles * draw_resolution_scale_x())
+              << uint32_t(!format_is_64bpp),
+          dispatch.height_tiles * draw_resolution_scale_y(), 1);
     }
     MarkEdramBufferModified();
   }

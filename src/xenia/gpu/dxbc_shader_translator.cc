@@ -81,10 +81,8 @@ DxbcShaderTranslator::DxbcShaderTranslator(
       draw_resolution_scale_x_(draw_resolution_scale_x),
       draw_resolution_scale_y_(draw_resolution_scale_y),
       emit_source_map_(force_emit_source_map || cvars::dxbc_source_map) {
-  assert_true(draw_resolution_scale_x >= 1);
-  assert_true(draw_resolution_scale_x <= 3);
-  assert_true(draw_resolution_scale_y >= 1);
-  assert_true(draw_resolution_scale_y <= 3);
+  assert_not_zero(draw_resolution_scale_x);
+  assert_not_zero(draw_resolution_scale_y);
   // Don't allocate again and again for the first shader.
   shader_code_.reserve(8192);
   shader_object_.reserve(16384);
