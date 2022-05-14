@@ -14,6 +14,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/draw_util.h"
+#include "xenia/gpu/texture_cache.h"
 
 namespace xe {
 namespace gpu {
@@ -200,6 +201,10 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
     assert_not_zero(tile_or_half_tile_width_divide_upper_shift);
     --tile_or_half_tile_width_divide_upper_shift;
   }
+  static_assert(
+      TextureCache::kMaxDrawResolutionScaleAlongAxis <= 3,
+      "DxbcShaderTranslator ROV sample address calculation supports Y draw "
+      "resolution scaling factors of only up to 3");
   if (draw_resolution_scale_y_ == 3) {
     // Multiplication part of the division by 40|80 x 16 x scale (specifically
     // 40|80 * scale width here, and 48 height, or 16 * 3 height).

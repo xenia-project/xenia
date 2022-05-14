@@ -87,6 +87,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   VulkanRenderTargetCache(const RegisterFile& register_file,
                           const Memory& memory, TraceWriter* trace_writer,
+                          uint32_t draw_resolution_scale_x,
+                          uint32_t draw_resolution_scale_y,
                           VulkanCommandProcessor& command_processor);
   ~VulkanRenderTargetCache();
 
@@ -99,9 +101,6 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   // TODO(Triang3l): Fragment shader interlock.
   Path GetPath() const override { return Path::kHostRenderTargets; }
-
-  uint32_t GetResolutionScaleX() const override { return resolution_scale_x_; }
-  uint32_t GetResolutionScaleY() const override { return resolution_scale_y_; }
 
   bool Update(bool is_rasterization_done,
               reg::RB_DEPTHCONTROL normalized_depth_control,
@@ -205,9 +204,6 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
           EdramBufferModificationStatus::kViaFragmentShaderInterlock);
 
   VulkanCommandProcessor& command_processor_;
-
-  uint32_t resolution_scale_x_ = 1;
-  uint32_t resolution_scale_y_ = 1;
 
   // Accessible in fragment and compute shaders.
   VkDescriptorSetLayout descriptor_set_layout_storage_buffer_ = VK_NULL_HANDLE;
