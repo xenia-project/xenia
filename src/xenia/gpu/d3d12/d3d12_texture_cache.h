@@ -268,9 +268,9 @@ class D3D12TextureCache final : public TextureCache {
 
   class D3D12Texture final : public Texture {
    public:
-    D3D12Texture(D3D12TextureCache& texture_cache, const TextureKey& key,
-                 ID3D12Resource* resource,
-                 D3D12_RESOURCE_STATES resource_state);
+    explicit D3D12Texture(D3D12TextureCache& texture_cache,
+                          const TextureKey& key, ID3D12Resource* resource,
+                          D3D12_RESOURCE_STATES resource_state);
     ~D3D12Texture();
 
     ID3D12Resource* resource() const { return resource_.Get(); }
@@ -346,8 +346,8 @@ class D3D12TextureCache final : public TextureCache {
 
   class ScaledResolveVirtualBuffer {
    public:
-    ScaledResolveVirtualBuffer(ID3D12Resource* resource,
-                               D3D12_RESOURCE_STATES resource_state)
+    explicit ScaledResolveVirtualBuffer(ID3D12Resource* resource,
+                                        D3D12_RESOURCE_STATES resource_state)
         : resource_(resource), resource_state_(resource_state) {}
     ID3D12Resource* resource() const { return resource_.Get(); }
     D3D12_RESOURCE_STATES SetResourceState(D3D12_RESOURCE_STATES new_state) {
@@ -373,12 +373,12 @@ class D3D12TextureCache final : public TextureCache {
     bool uav_barrier_pending_ = false;
   };
 
-  D3D12TextureCache(const RegisterFile& register_file,
-                    D3D12SharedMemory& shared_memory,
-                    uint32_t draw_resolution_scale_x,
-                    uint32_t draw_resolution_scale_y,
-                    D3D12CommandProcessor& command_processor,
-                    bool bindless_resources_used);
+  explicit D3D12TextureCache(const RegisterFile& register_file,
+                             D3D12SharedMemory& shared_memory,
+                             uint32_t draw_resolution_scale_x,
+                             uint32_t draw_resolution_scale_y,
+                             D3D12CommandProcessor& command_processor,
+                             bool bindless_resources_used);
 
   bool Initialize();
 

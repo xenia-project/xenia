@@ -248,7 +248,7 @@ class TextureCache {
     void LogAction(const char* action) const;
 
    protected:
-    Texture(TextureCache& texture_cache, const TextureKey& key);
+    explicit Texture(TextureCache& texture_cache, const TextureKey& key);
 
     void SetHostMemoryUsage(uint64_t new_host_memory_usage) {
       texture_cache_.UpdateTexturesTotalHostMemoryUsage(new_host_memory_usage,
@@ -420,9 +420,10 @@ class TextureCache {
     }
   };
 
-  TextureCache(const RegisterFile& register_file, SharedMemory& shared_memory,
-               uint32_t draw_resolution_scale_x,
-               uint32_t draw_resolution_scale_y);
+  explicit TextureCache(const RegisterFile& register_file,
+                        SharedMemory& shared_memory,
+                        uint32_t draw_resolution_scale_x,
+                        uint32_t draw_resolution_scale_y);
 
   const RegisterFile& register_file() const { return register_file_; }
   SharedMemory& shared_memory() const { return shared_memory_; }
