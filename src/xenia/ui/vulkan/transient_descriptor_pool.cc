@@ -118,7 +118,7 @@ VkDescriptorSet TransientDescriptorPool::Request(
 
   if (pages_writable_.empty()) {
     VkDescriptorPoolSize descriptor_pool_size;
-    descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptor_pool_size.type = descriptor_type_;
     descriptor_pool_size.descriptorCount = page_descriptor_count_;
     VkDescriptorPoolCreateInfo descriptor_pool_create_info;
     descriptor_pool_create_info.sType =
