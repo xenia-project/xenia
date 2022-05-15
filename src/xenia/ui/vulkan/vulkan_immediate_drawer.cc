@@ -866,6 +866,9 @@ bool VulkanImmediateDrawer::CreateTextureResource(
     size_t& pending_upload_index_out) {
   const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
   VkDevice device = provider_.device();
+  const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
+      device_portability_subset_features =
+          provider_.device_portability_subset_features();
 
   // Create the image and the descriptor.
 
@@ -907,9 +910,13 @@ bool VulkanImmediateDrawer::CreateTextureResource(
   image_view_create_info.image = image;
   image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
   image_view_create_info.format = VK_FORMAT_R8G8B8A8_UNORM;
-  // data == nullptr is a special case for (1, 1, 1, 1).
+  // data == nullptr is a special case for (1, 1, 1, 1), though the image will
+  // be cleared to (1, 1, 1, 1) anyway, just a micro-optimization.
   VkComponentSwizzle swizzle =
-      data ? VK_COMPONENT_SWIZZLE_IDENTITY : VK_COMPONENT_SWIZZLE_ONE;
+      (data || (device_portability_subset_features &&
+                !device_portability_subset_features->imageViewFormatSwizzle))
+          ? VK_COMPONENT_SWIZZLE_IDENTITY
+          : VK_COMPONENT_SWIZZLE_ONE;
   image_view_create_info.components.r = swizzle;
   image_view_create_info.components.g = swizzle;
   image_view_create_info.components.b = swizzle;
