@@ -249,13 +249,13 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   bool IsSpirvVertexShader() const {
     return is_vertex_shader() &&
-           GetSpirvShaderModification().vertex.host_vertex_shader_type ==
-               Shader::HostVertexShaderType::kVertex;
+           !Shader::IsHostVertexShaderTypeDomain(
+               GetSpirvShaderModification().vertex.host_vertex_shader_type);
   }
   bool IsSpirvTessEvalShader() const {
     return is_vertex_shader() &&
-           GetSpirvShaderModification().vertex.host_vertex_shader_type !=
-               Shader::HostVertexShaderType::kVertex;
+           Shader::IsHostVertexShaderTypeDomain(
+               GetSpirvShaderModification().vertex.host_vertex_shader_type);
   }
 
   // Must be called before emitting any SPIR-V operations that must be in a
