@@ -1182,7 +1182,7 @@ bool PipelineCache::TranslateAnalyzedShader(
                                             ? kLayoutUIDEmpty
                                             : size_t(sampler_binding_count);
     if (texture_binding_count || bindless_sampler_count) {
-      std::lock_guard<std::mutex> layouts_mutex_(layouts_mutex_);
+      std::lock_guard<std::mutex> layouts_lock(layouts_mutex_);
       if (texture_binding_count) {
         auto found_range = texture_binding_layout_map_.equal_range(
             texture_binding_layout_hash);
