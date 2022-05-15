@@ -229,6 +229,15 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
+  // TODO(Triang3l): Actual draw resolution scale.
+  texture_cache_ =
+      VulkanTextureCache::Create(*register_file_, *shared_memory_, 1, 1, *this,
+                                 guest_shader_pipeline_stages_);
+  if (!texture_cache_) {
+    XELOGE("Failed to initialize the texture cache");
+    return false;
+  }
+
   // Shared memory and EDRAM common bindings.
   VkDescriptorPoolSize descriptor_pool_sizes[1];
   descriptor_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -536,6 +545,8 @@ void VulkanCommandProcessor::ShutdownContext() {
   ui::vulkan::util::DestroyAndNullHandle(
       dfn.vkDestroyDescriptorPool, device,
       shared_memory_and_edram_descriptor_pool_);
+
+  texture_cache_.reset();
 
   pipeline_cache_.reset();
 
@@ -1747,6 +1758,8 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(
 
   render_target_cache_->CompletedSubmissionUpdated();
 
+  texture_cache_->CompletedSubmissionUpdated(submission_completed_);
+
   // Destroy outdated swap objects.
   while (!swap_framebuffers_outdated_.empty()) {
     const auto& framebuffer_pair = swap_framebuffers_outdated_.front();
@@ -1829,6 +1842,8 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
     current_graphics_descriptor_sets_bound_up_to_date_ = 0;
 
     primitive_processor_->BeginSubmission();
+
+    texture_cache_->BeginSubmission(GetCurrentSubmission());
   }
 
   if (is_opening_frame) {
@@ -1854,6 +1869,8 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
     uniform_buffer_pool_->Reclaim(frame_completed_);
 
     primitive_processor_->BeginFrame();
+
+    texture_cache_->BeginFrame();
   }
 
   return true;
@@ -2092,6 +2109,8 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
 
       uniform_buffer_pool_->ClearCache();
       transient_descriptor_pool_uniform_buffers_->ClearCache();
+
+      texture_cache_->ClearCache();
 
       pipeline_cache_->ClearCache();
 

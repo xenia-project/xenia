@@ -163,6 +163,30 @@ class DeferredCommandBuffer {
     std::memcpy(rects_arg, rects, sizeof(VkClearRect) * rect_count);
   }
 
+  VkImageSubresourceRange* CmdClearColorImageEmplace(
+      VkImage image, VkImageLayout image_layout, const VkClearColorValue* color,
+      uint32_t range_count) {
+    const size_t header_size = xe::align(sizeof(ArgsVkClearColorImage),
+                                         alignof(VkImageSubresourceRange));
+    uint8_t* args_ptr = reinterpret_cast<uint8_t*>(WriteCommand(
+        Command::kVkClearColorImage,
+        header_size + sizeof(VkImageSubresourceRange) * range_count));
+    auto& args = *reinterpret_cast<ArgsVkClearColorImage*>(args_ptr);
+    args.image = image;
+    args.image_layout = image_layout;
+    args.color = *color;
+    args.range_count = range_count;
+    return reinterpret_cast<VkImageSubresourceRange*>(args_ptr + header_size);
+  }
+  void CmdVkClearColorImage(VkImage image, VkImageLayout image_layout,
+                            const VkClearColorValue* color,
+                            uint32_t range_count,
+                            const VkImageSubresourceRange* ranges) {
+    std::memcpy(
+        CmdClearColorImageEmplace(image, image_layout, color, range_count),
+        ranges, sizeof(VkImageSubresourceRange) * range_count);
+  }
+
   VkBufferCopy* CmdCopyBufferEmplace(VkBuffer src_buffer, VkBuffer dst_buffer,
                                      uint32_t region_count) {
     const size_t header_size =
@@ -316,6 +340,7 @@ class DeferredCommandBuffer {
     kVkBindPipeline,
     kVkBindVertexBuffers,
     kVkClearAttachments,
+    kVkClearColorImage,
     kVkCopyBuffer,
     kVkDispatch,
     kVkDraw,
@@ -384,6 +409,15 @@ class DeferredCommandBuffer {
     // Followed by aligned VkClearAttachment[], VkClearRect[].
     static_assert(alignof(VkClearAttachment) <= alignof(uintmax_t));
     static_assert(alignof(VkClearRect) <= alignof(uintmax_t));
+  };
+
+  struct ArgsVkClearColorImage {
+    VkImage image;
+    VkImageLayout image_layout;
+    VkClearColorValue color;
+    uint32_t range_count;
+    // Followed by aligned VkImageSubresourceRange[].
+    static_assert(alignof(VkImageSubresourceRange) <= alignof(uintmax_t));
   };
 
   struct ArgsVkCopyBuffer {
