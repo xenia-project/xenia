@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <unordered_map>
 #include <utility>
