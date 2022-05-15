@@ -646,13 +646,13 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   bool IsDxbcVertexShader() const {
     return is_vertex_shader() &&
-           GetDxbcShaderModification().vertex.host_vertex_shader_type ==
-               Shader::HostVertexShaderType::kVertex;
+           !Shader::IsHostVertexShaderTypeDomain(
+               GetDxbcShaderModification().vertex.host_vertex_shader_type);
   }
   bool IsDxbcDomainShader() const {
     return is_vertex_shader() &&
-           GetDxbcShaderModification().vertex.host_vertex_shader_type !=
-               Shader::HostVertexShaderType::kVertex;
+           Shader::IsHostVertexShaderTypeDomain(
+               GetDxbcShaderModification().vertex.host_vertex_shader_type);
   }
 
   // Whether to use switch-case rather than if (pc >= label) for control flow.
