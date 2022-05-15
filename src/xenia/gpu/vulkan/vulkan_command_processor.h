@@ -14,11 +14,14 @@
 #include <climits>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "xenia/base/assert.h"
+#include "xenia/base/hash.h"
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/registers.h"
@@ -167,26 +170,54 @@ class VulkanCommandProcessor : public CommandProcessor {
   };
 
   union TextureDescriptorSetLayoutKey {
+    uint32_t key;
     struct {
       uint32_t is_vertex : 1;
       // For 0, use descriptor_set_layout_empty_ instead as these are owning
       // references.
       uint32_t texture_count : 31;
     };
-    uint32_t key = 0;
+
+    TextureDescriptorSetLayoutKey() : key(0) {
+      static_assert_size(*this, sizeof(key));
+    }
+
+    struct Hasher {
+      size_t operator()(const TextureDescriptorSetLayoutKey& key) const {
+        return std::hash<decltype(key.key)>{}(key.key);
+      }
+    };
+    bool operator==(const TextureDescriptorSetLayoutKey& other_key) const {
+      return key == other_key.key;
+    }
+    bool operator!=(const TextureDescriptorSetLayoutKey& other_key) const {
+      return !(*this == other_key);
+    }
   };
-  static_assert(sizeof(TextureDescriptorSetLayoutKey) == sizeof(uint32_t));
 
   union PipelineLayoutKey {
+    uint32_t key;
     struct {
       // Pixel textures in the low bits since those are varied much more
       // commonly.
       uint32_t texture_count_pixel : 16;
       uint32_t texture_count_vertex : 16;
     };
-    uint32_t key = 0;
+
+    PipelineLayoutKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+
+    struct Hasher {
+      size_t operator()(const PipelineLayoutKey& key) const {
+        return std::hash<decltype(key.key)>{}(key.key);
+      }
+    };
+    bool operator==(const PipelineLayoutKey& other_key) const {
+      return key == other_key.key;
+    }
+    bool operator!=(const PipelineLayoutKey& other_key) const {
+      return !(*this == other_key);
+    }
   };
-  static_assert(sizeof(PipelineLayoutKey) == sizeof(uint32_t));
 
   class PipelineLayout : public VulkanPipelineCache::PipelineLayoutProvider {
    public:
@@ -319,13 +350,14 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkDescriptorSetLayout descriptor_set_layout_shared_memory_and_edram_ =
       VK_NULL_HANDLE;
 
-  // TextureDescriptorSetLayoutKey::key -> VkDescriptorSetLayout.
-  // Layouts are referenced by pipeline_layouts_.
-  std::unordered_map<uint32_t, VkDescriptorSetLayout>
+  // Descriptor set layouts are referenced by pipeline_layouts_.
+  std::unordered_map<TextureDescriptorSetLayoutKey, VkDescriptorSetLayout,
+                     TextureDescriptorSetLayoutKey::Hasher>
       descriptor_set_layouts_textures_;
-  // PipelineLayoutKey::key -> PipelineLayout.
-  // Layouts are referenced by VulkanPipelineCache.
-  std::unordered_map<uint32_t, PipelineLayout> pipeline_layouts_;
+  // Pipeline layouts are referenced by VulkanPipelineCache.
+  std::unordered_map<PipelineLayoutKey, PipelineLayout,
+                     PipelineLayoutKey::Hasher>
+      pipeline_layouts_;
 
   std::unique_ptr<VulkanSharedMemory> shared_memory_;
 
