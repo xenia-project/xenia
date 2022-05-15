@@ -134,6 +134,17 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
                                   attachments, args.rect_count, rects);
       } break;
 
+      case Command::kVkClearColorImage: {
+        auto& args = *reinterpret_cast<const ArgsVkClearColorImage*>(stream);
+        dfn.vkCmdClearColorImage(
+            command_buffer, args.image, args.image_layout, &args.color,
+            args.range_count,
+            reinterpret_cast<const VkImageSubresourceRange*>(
+                reinterpret_cast<const uint8_t*>(stream) +
+                xe::align(sizeof(ArgsVkClearColorImage),
+                          alignof(VkImageSubresourceRange))));
+      } break;
+
       case Command::kVkCopyBuffer: {
         auto& args = *reinterpret_cast<const ArgsVkCopyBuffer*>(stream);
         dfn.vkCmdCopyBuffer(

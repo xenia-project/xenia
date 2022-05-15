@@ -30,6 +30,7 @@
 #include "xenia/gpu/vulkan/vulkan_render_target_cache.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/vulkan/vulkan_shared_memory.h"
+#include "xenia/gpu/vulkan/vulkan_texture_cache.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/ui/vulkan/transient_descriptor_pool.h"
@@ -82,8 +83,10 @@ class VulkanCommandProcessor : public CommandProcessor {
   uint64_t GetCurrentFrame() const { return frame_current_; }
   uint64_t GetCompletedFrame() const { return frame_completed_; }
 
-  // Submission must be open to insert barriers. Returning true if the barrier
-  // has actually been inserted and not dropped.
+  // Submission must be open to insert barriers. If no pipeline stages access
+  // the resource in a synchronization scope, the stage masks should be 0 (top /
+  // bottom of pipe should be specified only if explicitly needed). Returning
+  // true if the barrier has actually been inserted and not dropped.
   bool PushBufferMemoryBarrier(
       VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size,
       VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask,
@@ -328,9 +331,11 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   std::unique_ptr<VulkanPrimitiveProcessor> primitive_processor_;
 
+  std::unique_ptr<VulkanRenderTargetCache> render_target_cache_;
+
   std::unique_ptr<VulkanPipelineCache> pipeline_cache_;
 
-  std::unique_ptr<VulkanRenderTargetCache> render_target_cache_;
+  std::unique_ptr<VulkanTextureCache> texture_cache_;
 
   VkDescriptorPool shared_memory_and_edram_descriptor_pool_ = VK_NULL_HANDLE;
   VkDescriptorSet shared_memory_and_edram_descriptor_set_;
