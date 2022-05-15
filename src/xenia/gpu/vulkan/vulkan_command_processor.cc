@@ -68,6 +68,21 @@ bool VulkanCommandProcessor::SetupContext() {
   const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
+  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
+
+  guest_shader_pipeline_stages_ = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                                  VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+  guest_shader_vertex_stages_ = VK_SHADER_STAGE_VERTEX_BIT;
+  if (device_features.tessellationShader) {
+    guest_shader_pipeline_stages_ |=
+        VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT;
+    guest_shader_vertex_stages_ |= VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+  }
+  if (!device_features.vertexPipelineStoresAndAtomics) {
+    // For memory export from vertex shaders converted to compute shaders.
+    guest_shader_pipeline_stages_ |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    guest_shader_vertex_stages_ |= VK_SHADER_STAGE_COMPUTE_BIT;
+  }
 
   // No specific reason for 32768, just the "too much" amount from Direct3D 12
   // PIX warnings.
@@ -98,15 +113,14 @@ bool VulkanCommandProcessor::SetupContext() {
     XELOGE("Failed to create an empty Vulkan descriptor set layout");
     return false;
   }
-  VkShaderStageFlags shader_stages_guest_vertex =
-      GetGuestVertexShaderStageFlags();
+  VkShaderStageFlags guest_shader_stages =
+      guest_shader_vertex_stages_ | VK_SHADER_STAGE_FRAGMENT_BIT;
   VkDescriptorSetLayoutBinding descriptor_set_layout_binding_uniform_buffer;
   descriptor_set_layout_binding_uniform_buffer.binding = 0;
   descriptor_set_layout_binding_uniform_buffer.descriptorType =
       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
   descriptor_set_layout_binding_uniform_buffer.descriptorCount = 1;
-  descriptor_set_layout_binding_uniform_buffer.stageFlags =
-      shader_stages_guest_vertex | VK_SHADER_STAGE_FRAGMENT_BIT;
+  descriptor_set_layout_binding_uniform_buffer.stageFlags = guest_shader_stages;
   descriptor_set_layout_binding_uniform_buffer.pImmutableSamplers = nullptr;
   descriptor_set_layout_create_info.bindingCount = 1;
   descriptor_set_layout_create_info.pBindings =
@@ -120,7 +134,7 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
   descriptor_set_layout_binding_uniform_buffer.stageFlags =
-      shader_stages_guest_vertex;
+      guest_shader_vertex_stages_;
   if (dfn.vkCreateDescriptorSetLayout(
           device, &descriptor_set_layout_create_info, nullptr,
           &descriptor_set_layout_float_constants_vertex_) != VK_SUCCESS) {
@@ -139,9 +153,8 @@ bool VulkanCommandProcessor::SetupContext() {
         "float constants uniform buffer");
     return false;
   }
-  descriptor_set_layout_binding_uniform_buffer.stageFlags =
-      shader_stages_guest_vertex | VK_SHADER_STAGE_FRAGMENT_BIT;
-  if (provider.device_features().tessellationShader) {
+  descriptor_set_layout_binding_uniform_buffer.stageFlags = guest_shader_stages;
+  if (device_features.tessellationShader) {
     descriptor_set_layout_binding_uniform_buffer.stageFlags |=
         VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
   }
@@ -169,7 +182,7 @@ bool VulkanCommandProcessor::SetupContext() {
   // vertex shader access to the shared memory for the tessellation vertex
   // shader (to retrieve tessellation factors).
   descriptor_set_layout_bindings_shared_memory_and_edram[0].stageFlags =
-      shader_stages_guest_vertex | VK_SHADER_STAGE_FRAGMENT_BIT;
+      guest_shader_stages;
   descriptor_set_layout_bindings_shared_memory_and_edram[0].pImmutableSamplers =
       nullptr;
   // TODO(Triang3l): EDRAM storage image binding for the fragment shader
@@ -185,8 +198,8 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
-  shared_memory_ =
-      std::make_unique<VulkanSharedMemory>(*this, *memory_, trace_writer_);
+  shared_memory_ = std::make_unique<VulkanSharedMemory>(
+      *this, *memory_, trace_writer_, guest_shader_pipeline_stages_);
   if (!shared_memory_->Initialize()) {
     XELOGE("Failed to initialize shared memory");
     return false;
@@ -209,7 +222,8 @@ bool VulkanCommandProcessor::SetupContext() {
   }
 
   pipeline_cache_ = std::make_unique<VulkanPipelineCache>(
-      *this, *register_file_, *render_target_cache_);
+      *this, *register_file_, *render_target_cache_,
+      guest_shader_vertex_stages_);
   if (!pipeline_cache_->Initialize()) {
     XELOGE("Failed to initialize the graphics pipeline cache");
     return false;
@@ -1151,8 +1165,7 @@ VulkanCommandProcessor::GetPipelineLayout(uint32_t texture_count_pixel,
       descriptor_set_layout_binding.descriptorType =
           VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
       descriptor_set_layout_binding.descriptorCount = texture_count_vertex;
-      descriptor_set_layout_binding.stageFlags =
-          GetGuestVertexShaderStageFlags();
+      descriptor_set_layout_binding.stageFlags = guest_shader_vertex_stages_;
       descriptor_set_layout_binding.pImmutableSamplers = nullptr;
       VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info;
       descriptor_set_layout_create_info.sType =
@@ -2128,18 +2141,6 @@ void VulkanCommandProcessor::SplitPendingBarrier() {
       pending_buffer_memory_barrier_count;
   current_pending_barrier_.image_memory_barriers_offset =
       pending_image_memory_barrier_count;
-}
-
-VkShaderStageFlags VulkanCommandProcessor::GetGuestVertexShaderStageFlags()
-    const {
-  VkShaderStageFlags stages = VK_SHADER_STAGE_VERTEX_BIT;
-  const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
-  if (provider.device_features().tessellationShader) {
-    stages |= VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
-  }
-  // TODO(Triang3l): Vertex to compute translation for rectangle and possibly
-  // point emulation.
-  return stages;
 }
 
 void VulkanCommandProcessor::UpdateDynamicState(

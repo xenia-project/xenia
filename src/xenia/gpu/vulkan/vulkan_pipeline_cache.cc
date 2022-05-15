@@ -39,10 +39,12 @@ namespace vulkan {
 VulkanPipelineCache::VulkanPipelineCache(
     VulkanCommandProcessor& command_processor,
     const RegisterFile& register_file,
-    VulkanRenderTargetCache& render_target_cache)
+    VulkanRenderTargetCache& render_target_cache,
+    VkShaderStageFlags guest_shader_vertex_stages)
     : command_processor_(command_processor),
       register_file_(register_file),
-      render_target_cache_(render_target_cache) {}
+      render_target_cache_(render_target_cache),
+      guest_shader_vertex_stages_(guest_shader_vertex_stages) {}
 
 VulkanPipelineCache::~VulkanPipelineCache() { Shutdown(); }
 
@@ -607,6 +609,17 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
 
 bool VulkanPipelineCache::ArePipelineRequirementsMet(
     const PipelineDescription& description) const {
+  VkShaderStageFlags vertex_shader_stage =
+      Shader::IsHostVertexShaderTypeDomain(
+          SpirvShaderTranslator::Modification(
+              description.vertex_shader_modification)
+              .vertex.host_vertex_shader_type)
+          ? VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT
+          : VK_SHADER_STAGE_VERTEX_BIT;
+  if (!(guest_shader_vertex_stages_ & vertex_shader_stage)) {
+    return false;
+  }
+
   const ui::vulkan::VulkanProvider& provider =
       command_processor_.GetVulkanProvider();
   const VkPhysicalDeviceFeatures& device_features = provider.device_features();
