@@ -35,10 +35,12 @@ namespace vulkan {
 
 VulkanSharedMemory::VulkanSharedMemory(
     VulkanCommandProcessor& command_processor, Memory& memory,
-    TraceWriter& trace_writer)
+    TraceWriter& trace_writer,
+    VkPipelineStageFlags guest_shader_pipeline_stages)
     : SharedMemory(memory),
       command_processor_(command_processor),
-      trace_writer_(trace_writer) {}
+      trace_writer_(trace_writer),
+      guest_shader_pipeline_stages_(guest_shader_pipeline_stages) {}
 
 VulkanSharedMemory::~VulkanSharedMemory() { Shutdown(true); }
 
@@ -463,14 +465,8 @@ void VulkanSharedMemory::GetUsageMasks(Usage usage,
     default:
       break;
   }
-  stage_mask = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT |
-               VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
-               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
-  if (provider.device_features().tessellationShader) {
-    stage_mask |= VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT;
-  }
+  stage_mask =
+      VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | guest_shader_pipeline_stages_;
   access_mask = VK_ACCESS_INDEX_READ_BIT | VK_ACCESS_SHADER_READ_BIT;
   switch (usage) {
     case Usage::kRead:

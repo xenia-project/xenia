@@ -240,8 +240,6 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   void SplitPendingBarrier();
 
-  VkShaderStageFlags GetGuestVertexShaderStageFlags() const;
-
   void UpdateDynamicState(const draw_util::ViewportInfo& viewport_info,
                           bool primitive_polygonal,
                           reg::RB_DEPTHCONTROL normalized_depth_control);
@@ -260,6 +258,12 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool device_lost_ = false;
 
   bool cache_clear_requested_ = false;
+
+  // Host shader types that guest shaders can be translated into - they can
+  // access the shared memory (via vertex fetch, memory export, or manual index
+  // buffer reading) and textures.
+  VkPipelineStageFlags guest_shader_pipeline_stages_ = 0;
+  VkShaderStageFlags guest_shader_vertex_stages_ = 0;
 
   std::vector<VkFence> fences_free_;
   std::vector<VkSemaphore> semaphores_free_;

@@ -30,7 +30,8 @@ class VulkanCommandProcessor;
 class VulkanSharedMemory : public SharedMemory {
  public:
   VulkanSharedMemory(VulkanCommandProcessor& command_processor, Memory& memory,
-                     TraceWriter& trace_writer);
+                     TraceWriter& trace_writer,
+                     VkPipelineStageFlags guest_shader_pipeline_stages);
   ~VulkanSharedMemory() override;
 
   bool Initialize();
@@ -70,6 +71,7 @@ class VulkanSharedMemory : public SharedMemory {
 
   VulkanCommandProcessor& command_processor_;
   TraceWriter& trace_writer_;
+  VkPipelineStageFlags guest_shader_pipeline_stages_;
 
   VkBuffer buffer_ = VK_NULL_HANDLE;
   uint32_t buffer_memory_type_;

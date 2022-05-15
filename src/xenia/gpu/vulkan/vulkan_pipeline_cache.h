@@ -50,7 +50,8 @@ class VulkanPipelineCache {
 
   VulkanPipelineCache(VulkanCommandProcessor& command_processor,
                       const RegisterFile& register_file,
-                      VulkanRenderTargetCache& render_target_cache);
+                      VulkanRenderTargetCache& render_target_cache,
+                      VkShaderStageFlags guest_shader_vertex_stages);
   ~VulkanPipelineCache();
 
   bool Initialize();
@@ -270,6 +271,7 @@ class VulkanPipelineCache {
   VulkanCommandProcessor& command_processor_;
   const RegisterFile& register_file_;
   VulkanRenderTargetCache& render_target_cache_;
+  VkShaderStageFlags guest_shader_vertex_stages_;
 
   // Temporary storage for AnalyzeUcode calls on the processor thread.
   StringBuffer ucode_disasm_buffer_;
