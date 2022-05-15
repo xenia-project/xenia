@@ -1379,7 +1379,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     // Nothing to draw.
     return true;
   }
-  // TODO(Triang3l): Tessellation.
+  // TODO(Triang3l): Tessellation, geometry-type-specific vertex shader, vertex
+  // shader as compute.
   if (primitive_processing_result.host_vertex_shader_type !=
       Shader::HostVertexShaderType::kVertex) {
     return false;
