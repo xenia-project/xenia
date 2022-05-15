@@ -1109,7 +1109,7 @@ VulkanCommandProcessor::GetPipelineLayout(uint32_t texture_count_pixel,
   pipeline_layout_key.texture_count_pixel = texture_count_pixel;
   pipeline_layout_key.texture_count_vertex = texture_count_vertex;
   {
-    auto it = pipeline_layouts_.find(pipeline_layout_key.key);
+    auto it = pipeline_layouts_.find(pipeline_layout_key);
     if (it != pipeline_layouts_.end()) {
       return &it->second;
     }
@@ -1125,7 +1125,7 @@ VulkanCommandProcessor::GetPipelineLayout(uint32_t texture_count_pixel,
     texture_descriptor_set_layout_key.is_vertex = 0;
     texture_descriptor_set_layout_key.texture_count = texture_count_pixel;
     auto it = descriptor_set_layouts_textures_.find(
-        texture_descriptor_set_layout_key.key);
+        texture_descriptor_set_layout_key);
     if (it != descriptor_set_layouts_textures_.end()) {
       descriptor_set_layout_textures_pixel = it->second;
     } else {
@@ -1154,7 +1154,7 @@ VulkanCommandProcessor::GetPipelineLayout(uint32_t texture_count_pixel,
         return nullptr;
       }
       descriptor_set_layouts_textures_.emplace(
-          texture_descriptor_set_layout_key.key,
+          texture_descriptor_set_layout_key,
           descriptor_set_layout_textures_pixel);
     }
   } else {
@@ -1167,7 +1167,7 @@ VulkanCommandProcessor::GetPipelineLayout(uint32_t texture_count_pixel,
     texture_descriptor_set_layout_key.is_vertex = 0;
     texture_descriptor_set_layout_key.texture_count = texture_count_vertex;
     auto it = descriptor_set_layouts_textures_.find(
-        texture_descriptor_set_layout_key.key);
+        texture_descriptor_set_layout_key);
     if (it != descriptor_set_layouts_textures_.end()) {
       descriptor_set_layout_textures_vertex = it->second;
     } else {
@@ -1196,7 +1196,7 @@ VulkanCommandProcessor::GetPipelineLayout(uint32_t texture_count_pixel,
         return nullptr;
       }
       descriptor_set_layouts_textures_.emplace(
-          texture_descriptor_set_layout_key.key,
+          texture_descriptor_set_layout_key,
           descriptor_set_layout_textures_vertex);
     }
   } else {
@@ -1248,7 +1248,7 @@ VulkanCommandProcessor::GetPipelineLayout(uint32_t texture_count_pixel,
     return nullptr;
   }
   auto emplaced_pair = pipeline_layouts_.emplace(
-      std::piecewise_construct, std::forward_as_tuple(pipeline_layout_key.key),
+      std::piecewise_construct, std::forward_as_tuple(pipeline_layout_key),
       std::forward_as_tuple(pipeline_layout,
                             descriptor_set_layout_textures_vertex,
                             descriptor_set_layout_textures_pixel));
