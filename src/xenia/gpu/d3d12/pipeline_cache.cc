@@ -685,10 +685,10 @@ void PipelineCache::InitializeShaderStorage(
       pipeline_runtime_description.root_signature =
           command_processor_.GetRootSignature(
               vertex_shader, pixel_shader,
-              DxbcShaderTranslator::Modification(
-                  pipeline_description.vertex_shader_modification)
-                      .vertex.host_vertex_shader_type !=
-                  Shader::HostVertexShaderType::kVertex);
+              Shader::IsHostVertexShaderTypeDomain(
+                  DxbcShaderTranslator::Modification(
+                      pipeline_description.vertex_shader_modification)
+                      .vertex.host_vertex_shader_type));
       if (!pipeline_runtime_description.root_signature) {
         continue;
       }
@@ -2834,30 +2834,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       DxbcShaderTranslator::Modification(
           runtime_description.vertex_shader->modification())
           .vertex.host_vertex_shader_type;
-  if (host_vertex_shader_type == Shader::HostVertexShaderType::kVertex) {
-    state_desc.VS.pShaderBytecode =
-        runtime_description.vertex_shader->translated_binary().data();
-    state_desc.VS.BytecodeLength =
-        runtime_description.vertex_shader->translated_binary().size();
-    PipelinePrimitiveTopologyType primitive_topology_type =
-        PipelinePrimitiveTopologyType(
-            description.primitive_topology_type_or_tessellation_mode);
-    switch (primitive_topology_type) {
-      case PipelinePrimitiveTopologyType::kPoint:
-        state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
-        break;
-      case PipelinePrimitiveTopologyType::kLine:
-        state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
-        break;
-      case PipelinePrimitiveTopologyType::kTriangle:
-        state_desc.PrimitiveTopologyType =
-            D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-        break;
-      default:
-        assert_unhandled_case(primitive_topology_type);
-        return nullptr;
-    }
-  } else {
+  if (Shader::IsHostVertexShaderTypeDomain(host_vertex_shader_type)) {
     state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
     xenos::TessellationMode tessellation_mode = xenos::TessellationMode(
         description.primitive_topology_type_or_tessellation_mode);
@@ -2929,6 +2906,35 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
         runtime_description.vertex_shader->translated_binary().data();
     state_desc.DS.BytecodeLength =
         runtime_description.vertex_shader->translated_binary().size();
+  } else {
+    assert_true(host_vertex_shader_type ==
+                Shader::HostVertexShaderType::kVertex);
+    if (host_vertex_shader_type != Shader::HostVertexShaderType::kVertex) {
+      // Fallback vertex shaders are not needed on Direct3D 12.
+      return nullptr;
+    }
+    state_desc.VS.pShaderBytecode =
+        runtime_description.vertex_shader->translated_binary().data();
+    state_desc.VS.BytecodeLength =
+        runtime_description.vertex_shader->translated_binary().size();
+    PipelinePrimitiveTopologyType primitive_topology_type =
+        PipelinePrimitiveTopologyType(
+            description.primitive_topology_type_or_tessellation_mode);
+    switch (primitive_topology_type) {
+      case PipelinePrimitiveTopologyType::kPoint:
+        state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+        break;
+      case PipelinePrimitiveTopologyType::kLine:
+        state_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+        break;
+      case PipelinePrimitiveTopologyType::kTriangle:
+        state_desc.PrimitiveTopologyType =
+            D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+        break;
+      default:
+        assert_unhandled_case(primitive_topology_type);
+        return nullptr;
+    }
   }
 
   // Pixel shader.
