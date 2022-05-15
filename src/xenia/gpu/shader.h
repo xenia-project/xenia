@@ -659,15 +659,24 @@ class Shader {
   // packed. This is : uint32_t for simplicity of packing in bit fields.
   enum class HostVertexShaderType : uint32_t {
     kVertex,
-    kLineDomainCPIndexed,
+
+    kDomainStart,
+    kLineDomainCPIndexed = kDomainStart,
     kLineDomainPatchIndexed,
     kTriangleDomainCPIndexed,
     kTriangleDomainPatchIndexed,
     kQuadDomainCPIndexed,
     kQuadDomainPatchIndexed,
+    kDomainEnd,
   };
   // For packing HostVertexShaderType in bit fields.
   static constexpr uint32_t kHostVertexShaderTypeBitCount = 3;
+
+  static constexpr bool IsHostVertexShaderTypeDomain(
+      HostVertexShaderType host_vertex_shader_type) {
+    return host_vertex_shader_type >= HostVertexShaderType::kDomainStart &&
+           host_vertex_shader_type < HostVertexShaderType::kDomainEnd;
+  }
 
   struct Error {
     bool is_fatal = false;

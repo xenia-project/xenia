@@ -11,6 +11,7 @@
 #define XENIA_GPU_D3D12_D3D12_TEXTURE_CACHE_H_
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <unordered_map>
 #include <utility>
@@ -268,9 +269,31 @@ class D3D12TextureCache final : public TextureCache {
 
   class D3D12Texture final : public Texture {
    public:
-    D3D12Texture(D3D12TextureCache& texture_cache, const TextureKey& key,
-                 ID3D12Resource* resource,
-                 D3D12_RESOURCE_STATES resource_state);
+    union SRVDescriptorKey {
+      uint32_t key;
+      struct {
+        uint32_t is_signed : 1;
+        uint32_t host_swizzle : 12;
+      };
+
+      SRVDescriptorKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+
+      struct Hasher {
+        size_t operator()(const SRVDescriptorKey& key) const {
+          return std::hash<decltype(key.key)>{}(key.key);
+        }
+      };
+      bool operator==(const SRVDescriptorKey& other_key) const {
+        return key == other_key.key;
+      }
+      bool operator!=(const SRVDescriptorKey& other_key) const {
+        return !(*this == other_key);
+      }
+    };
+
+    explicit D3D12Texture(D3D12TextureCache& texture_cache,
+                          const TextureKey& key, ID3D12Resource* resource,
+                          D3D12_RESOURCE_STATES resource_state);
     ~D3D12Texture();
 
     ID3D12Resource* resource() const { return resource_.Get(); }
@@ -281,12 +304,12 @@ class D3D12TextureCache final : public TextureCache {
       return old_state;
     }
 
-    uint32_t GetSRVDescriptorIndex(uint32_t descriptor_key) const {
+    uint32_t GetSRVDescriptorIndex(SRVDescriptorKey descriptor_key) const {
       auto it = srv_descriptors_.find(descriptor_key);
       return it != srv_descriptors_.cend() ? it->second : UINT32_MAX;
     }
 
-    void AddSRVDescriptorIndex(uint32_t descriptor_key,
+    void AddSRVDescriptorIndex(SRVDescriptorKey descriptor_key,
                                uint32_t descriptor_index) {
       srv_descriptors_.emplace(descriptor_key, descriptor_index);
     }
@@ -299,7 +322,8 @@ class D3D12TextureCache final : public TextureCache {
     // copying to the shader-visible heap (much faster than recreating, which,
     // according to profiling, was often a bottleneck in many games).
     // For bindless - indices in the global shader-visible descriptor heap.
-    std::unordered_map<uint32_t, uint32_t> srv_descriptors_;
+    std::unordered_map<SRVDescriptorKey, uint32_t, SRVDescriptorKey::Hasher>
+        srv_descriptors_;
   };
 
   static constexpr uint32_t kSRVDescriptorCachePageSize = 65536;
@@ -346,8 +370,8 @@ class D3D12TextureCache final : public TextureCache {
 
   class ScaledResolveVirtualBuffer {
    public:
-    ScaledResolveVirtualBuffer(ID3D12Resource* resource,
-                               D3D12_RESOURCE_STATES resource_state)
+    explicit ScaledResolveVirtualBuffer(ID3D12Resource* resource,
+                                        D3D12_RESOURCE_STATES resource_state)
         : resource_(resource), resource_state_(resource_state) {}
     ID3D12Resource* resource() const { return resource_.Get(); }
     D3D12_RESOURCE_STATES SetResourceState(D3D12_RESOURCE_STATES new_state) {
@@ -373,12 +397,12 @@ class D3D12TextureCache final : public TextureCache {
     bool uav_barrier_pending_ = false;
   };
 
-  D3D12TextureCache(const RegisterFile& register_file,
-                    D3D12SharedMemory& shared_memory,
-                    uint32_t draw_resolution_scale_x,
-                    uint32_t draw_resolution_scale_y,
-                    D3D12CommandProcessor& command_processor,
-                    bool bindless_resources_used);
+  explicit D3D12TextureCache(const RegisterFile& register_file,
+                             D3D12SharedMemory& shared_memory,
+                             uint32_t draw_resolution_scale_x,
+                             uint32_t draw_resolution_scale_y,
+                             D3D12CommandProcessor& command_processor,
+                             bool bindless_resources_used);
 
   bool Initialize();
 

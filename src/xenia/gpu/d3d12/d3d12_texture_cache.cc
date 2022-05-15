@@ -1955,7 +1955,9 @@ void D3D12TextureCache::UpdateTextureBindingsImpl(
 
 uint32_t D3D12TextureCache::FindOrCreateTextureDescriptor(
     D3D12Texture& texture, bool is_signed, uint32_t host_swizzle) {
-  uint32_t descriptor_key = uint32_t(is_signed) | (host_swizzle << 1);
+  D3D12Texture::SRVDescriptorKey descriptor_key;
+  descriptor_key.is_signed = uint32_t(is_signed);
+  descriptor_key.host_swizzle = host_swizzle;
 
   // Try to find an existing descriptor.
   uint32_t existing_descriptor_index =

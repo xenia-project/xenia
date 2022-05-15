@@ -862,6 +862,13 @@ bool D3D12CommandProcessor::SetupContext() {
         draw_resolution_scale_x, draw_resolution_scale_y);
   }
 
+  shared_memory_ =
+      std::make_unique<D3D12SharedMemory>(*this, *memory_, trace_writer_);
+  if (!shared_memory_->Initialize()) {
+    XELOGE("Failed to initialize shared memory");
+    return false;
+  }
+
   // Initialize the render target cache before configuring binding - need to
   // know if using rasterizer-ordered views for the bindless root signature.
   render_target_cache_ = std::make_unique<D3D12RenderTargetCache>(
@@ -1142,13 +1149,6 @@ bool D3D12CommandProcessor::SetupContext() {
           "the version for use with tessellation");
       return false;
     }
-  }
-
-  shared_memory_ =
-      std::make_unique<D3D12SharedMemory>(*this, *memory_, trace_writer_);
-  if (!shared_memory_->Initialize()) {
-    XELOGE("Failed to initialize shared memory");
-    return false;
   }
 
   primitive_processor_ = std::make_unique<D3D12PrimitiveProcessor>(
@@ -1615,13 +1615,11 @@ void D3D12CommandProcessor::ShutdownContext() {
   gamma_ramp_upload_buffer_.Reset();
   gamma_ramp_buffer_.Reset();
 
-  pipeline_cache_.reset();
-
   texture_cache_.reset();
 
-  primitive_processor_.reset();
+  pipeline_cache_.reset();
 
-  shared_memory_.reset();
+  primitive_processor_.reset();
 
   // Shut down binding - bindless descriptors may be owned by subsystems like
   // the texture cache.
@@ -1653,6 +1651,8 @@ void D3D12CommandProcessor::ShutdownContext() {
   constant_buffer_pool_.reset();
 
   render_target_cache_.reset();
+
+  shared_memory_.reset();
 
   deferred_command_list_.Reset();
   ui::d3d12::util::ReleaseAndNull(command_list_1_);
@@ -2787,9 +2787,9 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
 
   shared_memory_->CompletedSubmissionUpdated();
 
-  primitive_processor_->CompletedSubmissionUpdated();
-
   render_target_cache_->CompletedSubmissionUpdated();
+
+  primitive_processor_->CompletedSubmissionUpdated();
 
   texture_cache_->CompletedSubmissionUpdated(submission_completed_);
 }
@@ -2870,9 +2870,9 @@ bool D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
     }
     primitive_topology_ = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 
-    primitive_processor_->BeginSubmission();
-
     render_target_cache_->BeginSubmission();
+
+    primitive_processor_->BeginSubmission();
 
     texture_cache_->BeginSubmission(submission_current_);
   }
@@ -3043,11 +3043,9 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
       }
       constant_buffer_pool_->ClearCache();
 
-      pipeline_cache_->ClearCache();
-
-      render_target_cache_->ClearCache();
-
       texture_cache_->ClearCache();
+
+      pipeline_cache_->ClearCache();
 
       for (auto it : root_signatures_bindful_) {
         it.second->Release();
@@ -3055,6 +3053,8 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
       root_signatures_bindful_.clear();
 
       primitive_processor_->ClearCache();
+
+      render_target_cache_->ClearCache();
 
       shared_memory_->ClearCache();
     }

@@ -145,7 +145,7 @@ class PrimitiveProcessor {
     // only valid for index_buffer_type kHostConverted and kHostBuiltin.
     size_t host_index_buffer_handle;
     bool IsTessellated() const {
-      return host_vertex_shader_type != Shader::HostVertexShaderType::kVertex;
+      return Shader::IsHostVertexShaderTypeDomain(host_vertex_shader_type);
     }
   };
 
