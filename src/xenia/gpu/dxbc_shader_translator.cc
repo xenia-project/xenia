@@ -2428,7 +2428,7 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
     } else {
       for (uint32_t i = 0; i < uint32_t(sampler_bindings_.size()); ++i) {
         name_ptr += dxbc::AppendAlignedString(
-            shader_object_, sampler_bindings_[i].name.c_str());
+            shader_object_, sampler_bindings_[i].bindful_name.c_str());
       }
     }
   }
@@ -2456,8 +2456,8 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
   } else {
     for (TextureBinding& texture_binding : texture_bindings_) {
       texture_binding.bindful_srv_rdef_name_ptr = name_ptr;
-      name_ptr += dxbc::AppendAlignedString(shader_object_,
-                                            texture_binding.name.c_str());
+      name_ptr += dxbc::AppendAlignedString(
+          shader_object_, texture_binding.bindful_name.c_str());
     }
   }
   uint32_t shared_memory_uav_name_ptr = name_ptr;
@@ -2495,8 +2495,8 @@ void DxbcShaderTranslator::WriteResourceDefinition() {
         sampler.bind_point = uint32_t(i);
         sampler.bind_count = 1;
         sampler.id = uint32_t(i);
-        sampler_current_name_ptr +=
-            dxbc::GetAlignedStringLength(sampler_bindings_[i].name.c_str());
+        sampler_current_name_ptr += dxbc::GetAlignedStringLength(
+            sampler_bindings_[i].bindful_name.c_str());
       }
     }
   }
