@@ -487,7 +487,7 @@ uint32_t DxbcShaderTranslator::FindOrAddTextureBinding(
   }
   uint32_t srv_index = UINT32_MAX;
   for (uint32_t i = 0; i < uint32_t(texture_bindings_.size()); ++i) {
-    TextureBinding& texture_binding = texture_bindings_[i];
+    const TextureBinding& texture_binding = texture_bindings_[i];
     if (texture_binding.fetch_constant == fetch_constant &&
         texture_binding.dimension == dimension &&
         texture_binding.is_signed == is_signed) {
@@ -499,11 +499,25 @@ uint32_t DxbcShaderTranslator::FindOrAddTextureBinding(
     return kMaxTextureBindings - 1;
   }
   uint32_t texture_binding_index = uint32_t(texture_bindings_.size());
-  TextureBinding new_texture_binding;
+  TextureBinding& new_texture_binding = texture_bindings_.emplace_back();
   if (!bindless_resources_used_) {
     new_texture_binding.bindful_srv_index = srv_count_++;
     texture_bindings_for_bindful_srv_indices_.insert(
         {new_texture_binding.bindful_srv_index, texture_binding_index});
+    const char* dimension_name;
+    switch (dimension) {
+      case xenos::FetchOpDimension::k3DOrStacked:
+        dimension_name = "3d";
+        break;
+      case xenos::FetchOpDimension::kCube:
+        dimension_name = "cube";
+        break;
+      default:
+        dimension_name = "2d";
+    }
+    new_texture_binding.bindful_name =
+        fmt::format("xe_texture{}_{}_{}", fetch_constant, dimension_name,
+                    is_signed ? 's' : 'u');
   } else {
     new_texture_binding.bindful_srv_index = kBindingIndexUnallocated;
   }
@@ -514,20 +528,6 @@ uint32_t DxbcShaderTranslator::FindOrAddTextureBinding(
   new_texture_binding.fetch_constant = fetch_constant;
   new_texture_binding.dimension = dimension;
   new_texture_binding.is_signed = is_signed;
-  const char* dimension_name;
-  switch (dimension) {
-    case xenos::FetchOpDimension::k3DOrStacked:
-      dimension_name = "3d";
-      break;
-    case xenos::FetchOpDimension::kCube:
-      dimension_name = "cube";
-      break;
-    default:
-      dimension_name = "2d";
-  }
-  new_texture_binding.name = fmt::format("xe_texture{}_{}_{}", fetch_constant,
-                                         dimension_name, is_signed ? 's' : 'u');
-  texture_bindings_.emplace_back(std::move(new_texture_binding));
   return texture_binding_index;
 }
 
@@ -558,23 +558,7 @@ uint32_t DxbcShaderTranslator::FindOrAddSamplerBinding(
     assert_always();
     return kMaxSamplerBindings - 1;
   }
-  std::ostringstream name;
-  name << "xe_sampler" << fetch_constant;
-  if (aniso_filter != xenos::AnisoFilter::kUseFetchConst) {
-    if (aniso_filter == xenos::AnisoFilter::kDisabled) {
-      name << "_a0";
-    } else {
-      name << "_a" << (1u << (uint32_t(aniso_filter) - 1));
-    }
-  }
-  if (aniso_filter == xenos::AnisoFilter::kDisabled ||
-      aniso_filter == xenos::AnisoFilter::kUseFetchConst) {
-    static const char* kFilterSuffixes[] = {"p", "l", "b", "f"};
-    name << "_" << kFilterSuffixes[uint32_t(mag_filter)]
-         << kFilterSuffixes[uint32_t(min_filter)]
-         << kFilterSuffixes[uint32_t(mip_filter)];
-  }
-  SamplerBinding new_sampler_binding;
+  SamplerBinding& new_sampler_binding = sampler_bindings_.emplace_back();
   // Consistently 0 if not bindless as it may be used for hashing.
   new_sampler_binding.bindless_descriptor_index =
       bindless_resources_used_ ? GetBindlessResourceCount() : 0;
@@ -583,10 +567,26 @@ uint32_t DxbcShaderTranslator::FindOrAddSamplerBinding(
   new_sampler_binding.min_filter = min_filter;
   new_sampler_binding.mip_filter = mip_filter;
   new_sampler_binding.aniso_filter = aniso_filter;
-  new_sampler_binding.name = name.str();
-  uint32_t sampler_binding_index = uint32_t(sampler_bindings_.size());
-  sampler_bindings_.emplace_back(std::move(new_sampler_binding));
-  return sampler_binding_index;
+  if (!bindless_resources_used_) {
+    std::ostringstream name;
+    name << "xe_sampler" << fetch_constant;
+    if (aniso_filter == xenos::AnisoFilter::kDisabled ||
+        aniso_filter == xenos::AnisoFilter::kUseFetchConst) {
+      static const char kFilterSuffixes[] = {'p', 'l', 'b', 'f'};
+      name << '_' << kFilterSuffixes[uint32_t(mag_filter)]
+           << kFilterSuffixes[uint32_t(min_filter)]
+           << kFilterSuffixes[uint32_t(mip_filter)];
+    }
+    if (aniso_filter != xenos::AnisoFilter::kUseFetchConst) {
+      if (aniso_filter == xenos::AnisoFilter::kDisabled) {
+        name << "_a0";
+      } else {
+        name << "_a" << (UINT32_C(1) << (uint32_t(aniso_filter) - 1));
+      }
+    }
+    new_sampler_binding.bindful_name = name.str();
+  }
+  return uint32_t(sampler_bindings_.size() - 1);
 }
 
 void DxbcShaderTranslator::ProcessTextureFetchInstruction(
