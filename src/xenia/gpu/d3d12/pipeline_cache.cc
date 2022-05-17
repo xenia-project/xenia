@@ -1140,10 +1140,10 @@ bool PipelineCache::TranslateAnalyzedShader(
   if (shader.EnterBindingLayoutUserUIDSetup()) {
     const std::vector<D3D12Shader::TextureBinding>& texture_bindings =
         shader.GetTextureBindingsAfterTranslation();
-    uint32_t texture_binding_count = uint32_t(texture_bindings.size());
+    size_t texture_binding_count = texture_bindings.size();
     const std::vector<D3D12Shader::SamplerBinding>& sampler_bindings =
         shader.GetSamplerBindingsAfterTranslation();
-    uint32_t sampler_binding_count = uint32_t(sampler_bindings.size());
+    size_t sampler_binding_count = sampler_bindings.size();
     assert_false(bindless_resources_used_ &&
                  texture_binding_count + sampler_binding_count >
                      D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 4);
@@ -1154,13 +1154,13 @@ bool PipelineCache::TranslateAnalyzedShader(
       texture_binding_layout_hash =
           XXH3_64bits(texture_bindings.data(), texture_binding_layout_bytes);
     }
-    uint32_t bindless_sampler_count =
+    size_t bindless_sampler_count =
         bindless_resources_used_ ? sampler_binding_count : 0;
     uint64_t bindless_sampler_layout_hash = 0;
     if (bindless_sampler_count) {
       XXH3_state_t hash_state;
       XXH3_64bits_reset(&hash_state);
-      for (uint32_t i = 0; i < bindless_sampler_count; ++i) {
+      for (size_t i = 0; i < bindless_sampler_count; ++i) {
         XXH3_64bits_update(
             &hash_state, &sampler_bindings[i].bindless_descriptor_index,
             sizeof(sampler_bindings[i].bindless_descriptor_index));
@@ -1178,9 +1178,8 @@ bool PipelineCache::TranslateAnalyzedShader(
         kLayoutUIDEmpty == 0,
         "Empty layout UID is assumed to be 0 because for bindful samplers, the "
         "UID is their count");
-    size_t sampler_binding_layout_uid = bindless_resources_used_
-                                            ? kLayoutUIDEmpty
-                                            : size_t(sampler_binding_count);
+    size_t sampler_binding_layout_uid =
+        bindless_resources_used_ ? kLayoutUIDEmpty : sampler_binding_count;
     if (texture_binding_count || bindless_sampler_count) {
       std::lock_guard<std::mutex> layouts_lock(layouts_mutex_);
       if (texture_binding_count) {
@@ -1225,7 +1224,7 @@ bool PipelineCache::TranslateAnalyzedShader(
           sampler_binding_layout_uid = it->second.uid;
           const uint32_t* vector_bindless_sampler_layout =
               bindless_sampler_layouts_.data() + it->second.vector_span_offset;
-          for (uint32_t i = 0; i < bindless_sampler_count; ++i) {
+          for (size_t i = 0; i < bindless_sampler_count; ++i) {
             if (vector_bindless_sampler_layout[i] !=
                 sampler_bindings[i].bindless_descriptor_index) {
               sampler_binding_layout_uid = kLayoutUIDEmpty;
@@ -1250,7 +1249,7 @@ bool PipelineCache::TranslateAnalyzedShader(
                                            sampler_binding_count);
           uint32_t* vector_bindless_sampler_layout =
               bindless_sampler_layouts_.data() + new_uid.vector_span_offset;
-          for (uint32_t i = 0; i < bindless_sampler_count; ++i) {
+          for (size_t i = 0; i < bindless_sampler_count; ++i) {
             vector_bindless_sampler_layout[i] =
                 sampler_bindings[i].bindless_descriptor_index;
           }
