@@ -39,6 +39,8 @@ class VulkanCommandProcessor;
 // implementations.
 class VulkanPipelineCache {
  public:
+  static constexpr size_t kLayoutUIDEmpty = 0;
+
   class PipelineLayoutProvider {
    public:
     virtual ~PipelineLayoutProvider() {}
@@ -277,6 +279,21 @@ class VulkanPipelineCache {
   StringBuffer ucode_disasm_buffer_;
   // Reusable shader translator on the command processor thread.
   std::unique_ptr<SpirvShaderTranslator> shader_translator_;
+
+  struct LayoutUID {
+    size_t uid;
+    size_t vector_span_offset;
+    size_t vector_span_length;
+  };
+  std::mutex layouts_mutex_;
+  // Texture binding layouts of different shaders, for obtaining layout UIDs.
+  std::vector<VulkanShader::TextureBinding> texture_binding_layouts_;
+  // Map of texture binding layouts used by shaders, for obtaining UIDs. Keys
+  // are XXH3 hashes of layouts, values need manual collision resolution using
+  // layout_vector_offset:layout_length of texture_binding_layouts_.
+  std::unordered_multimap<uint64_t, LayoutUID,
+                          xe::hash::IdentityHasher<uint64_t>>
+      texture_binding_layout_map_;
 
   // Ucode hash -> shader.
   std::unordered_map<uint64_t, VulkanShader*,

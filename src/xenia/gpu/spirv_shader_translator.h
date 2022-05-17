@@ -131,9 +131,11 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kDescriptorSetMutableLayoutsStart,
 
     // Rarely used at all, but may be changed at an unpredictable rate when
-    // vertex textures are used, combined images and samplers.
-    kDescriptorSetTexturesVertex = kDescriptorSetMutableLayoutsStart,
-    // Per-material, combined images and samplers.
+    // vertex textures are used.
+    kDescriptorSetSamplersVertex = kDescriptorSetMutableLayoutsStart,
+    kDescriptorSetTexturesVertex,
+    // Per-material textures.
+    kDescriptorSetSamplersPixel,
     kDescriptorSetTexturesPixel,
     kDescriptorSetCount,
   };
@@ -217,6 +219,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   std::vector<uint8_t> CompleteTranslation() override;
 
+  void PostTranslation() override;
+
   void ProcessLabel(uint32_t cf_index) override;
 
   void ProcessExecInstructionBegin(const ParsedExecInstruction& instr) override;
@@ -229,9 +233,31 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   void ProcessVertexFetchInstruction(
       const ParsedVertexFetchInstruction& instr) override;
+  void ProcessTextureFetchInstruction(
+      const ParsedTextureFetchInstruction& instr) override;
   void ProcessAluInstruction(const ParsedAluInstruction& instr) override;
 
  private:
+  struct TextureBinding {
+    uint32_t fetch_constant;
+    // Stacked and 3D are separate TextureBindings.
+    xenos::FetchOpDimension dimension;
+    bool is_signed;
+
+    spv::Id type;
+    spv::Id variable;
+  };
+
+  struct SamplerBinding {
+    uint32_t fetch_constant;
+    xenos::TextureFilter mag_filter;
+    xenos::TextureFilter min_filter;
+    xenos::TextureFilter mip_filter;
+    xenos::AnisoFilter aniso_filter;
+
+    spv::Id variable;
+  };
+
   // Builder helpers.
   void SpirvCreateSelectionMerge(
       spv::Id merge_block_id, spv::SelectionControlMask selection_control_mask =
@@ -353,6 +379,15 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   spv::Id LoadUint32FromSharedMemory(spv::Id address_dwords_int);
 
+  size_t FindOrAddTextureBinding(uint32_t fetch_constant,
+                                 xenos::FetchOpDimension dimension,
+                                 bool is_signed);
+  size_t FindOrAddSamplerBinding(uint32_t fetch_constant,
+                                 xenos::TextureFilter mag_filter,
+                                 xenos::TextureFilter min_filter,
+                                 xenos::TextureFilter mip_filter,
+                                 xenos::AnisoFilter aniso_filter);
+
   Features features_;
 
   std::unique_ptr<spv::Builder> builder_;
@@ -445,6 +480,13 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id uniform_fetch_constants_;
 
   spv::Id buffers_shared_memory_;
+
+  // Not using combined images and samplers because
+  // maxPerStageDescriptorSamplers is often lower than
+  // maxPerStageDescriptorSampledImages, and for every fetch constant, there
+  // are, for regular fetches, two bindings (unsigned and signed).
+  std::vector<TextureBinding> texture_bindings_;
+  std::vector<SamplerBinding> sampler_bindings_;
 
   // VS as VS only - int.
   spv::Id input_vertex_index_;

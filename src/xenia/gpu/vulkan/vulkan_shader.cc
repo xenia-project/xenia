@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -11,6 +11,7 @@
 
 #include <cstdint>
 
+#include "xenia/base/logging.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
 namespace xe {
@@ -45,6 +46,10 @@ VkShaderModule VulkanShader::VulkanTranslation::GetOrCreateShaderModule() {
   if (provider.dfn().vkCreateShaderModule(provider.device(),
                                           &shader_module_create_info, nullptr,
                                           &shader_module_) != VK_SUCCESS) {
+    XELOGE(
+        "VulkanShader::VulkanTranslation: Failed to create a Vulkan shader "
+        "module for shader {:016X} modification {:016X}",
+        shader().ucode_data_hash(), modification());
     MakeInvalid();
     return VK_NULL_HANDLE;
   }
@@ -57,8 +62,8 @@ VulkanShader::VulkanShader(const ui::vulkan::VulkanProvider& provider,
                            const uint32_t* ucode_dwords,
                            size_t ucode_dword_count,
                            std::endian ucode_source_endian)
-    : Shader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count,
-             ucode_source_endian),
+    : SpirvShader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count,
+                  ucode_source_endian),
       provider_(provider) {}
 
 Shader::Translation* VulkanShader::CreateTranslationInstance(
