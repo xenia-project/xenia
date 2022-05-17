@@ -94,8 +94,7 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
     if (dfn.vkAllocateDescriptorSets(device, &descriptor_set_allocate_info,
                                      &descriptor_set) != VK_SUCCESS) {
       XELOGE(
-          "SingleLayoutDescriptorSetPool: Failed to allocate a descriptor "
-          "layout");
+          "SingleLayoutDescriptorSetPool: Failed to allocate a descriptor set");
       if (current_pool_sets_remaining_ >= pool_set_count_) {
         // Failed to allocate in a new pool - something completely wrong, don't
         // store empty pools as full.

@@ -45,6 +45,17 @@ class VulkanTextureCache final : public TextureCache {
 
   void BeginSubmission(uint64_t new_submission_index) override;
 
+  VkImageView GetNullImageView(xenos::FetchOpDimension dimension) const {
+    switch (dimension) {
+      case xenos::FetchOpDimension::k3DOrStacked:
+        return null_image_view_3d_;
+      case xenos::FetchOpDimension::kCube:
+        return null_image_view_cube_;
+      default:
+        return null_image_view_2d_array_;
+    }
+  }
+
  protected:
   uint32_t GetHostFormatSwizzle(TextureKey key) const override;
 

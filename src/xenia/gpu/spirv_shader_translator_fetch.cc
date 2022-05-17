@@ -12,8 +12,10 @@
 #include <climits>
 #include <cmath>
 #include <memory>
+#include <sstream>
 #include <utility>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "third_party/glslang/SPIRV/GLSL.std.450.h"
 #include "xenia/base/math.h"
 
@@ -531,6 +533,146 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     }
   }
   StoreResult(instr.result, result);
+}
+
+void SpirvShaderTranslator::ProcessTextureFetchInstruction(
+    const ParsedTextureFetchInstruction& instr) {
+  UpdateInstructionPredication(instr.is_predicated, instr.predicate_condition);
+
+  EnsureBuildPointAvailable();
+
+  // TODO(Triang3l): Fetch the texture.
+  if (instr.opcode == ucode::FetchOpcode::kTextureFetch) {
+    uint32_t fetch_constant_index = instr.operands[1].storage_index;
+    bool use_computed_lod =
+        instr.attributes.use_computed_lod &&
+        (is_pixel_shader() || instr.attributes.use_register_gradients);
+    FindOrAddTextureBinding(fetch_constant_index, instr.dimension, false);
+    FindOrAddTextureBinding(fetch_constant_index, instr.dimension, true);
+    FindOrAddSamplerBinding(fetch_constant_index, instr.attributes.mag_filter,
+                            instr.attributes.min_filter,
+                            instr.attributes.mip_filter,
+                            use_computed_lod ? instr.attributes.aniso_filter
+                                             : xenos::AnisoFilter::kDisabled);
+  }
+}
+
+size_t SpirvShaderTranslator::FindOrAddTextureBinding(
+    uint32_t fetch_constant, xenos::FetchOpDimension dimension,
+    bool is_signed) {
+  // 1D and 2D textures (including stacked ones) are treated as 2D arrays for
+  // binding and coordinate simplicity.
+  if (dimension == xenos::FetchOpDimension::k1D) {
+    dimension = xenos::FetchOpDimension::k2D;
+  }
+  for (size_t i = 0; i < texture_bindings_.size(); ++i) {
+    const TextureBinding& texture_binding = texture_bindings_[i];
+    if (texture_binding.fetch_constant == fetch_constant &&
+        texture_binding.dimension == dimension &&
+        texture_binding.is_signed == is_signed) {
+      return i;
+    }
+  }
+  // TODO(Triang3l): Limit the total count to that actually supported by the
+  // implementation.
+  size_t new_texture_binding_index = texture_bindings_.size();
+  TextureBinding& new_texture_binding = texture_bindings_.emplace_back();
+  new_texture_binding.fetch_constant = fetch_constant;
+  new_texture_binding.dimension = dimension;
+  new_texture_binding.is_signed = is_signed;
+  spv::Dim type_dimension;
+  bool is_array;
+  const char* dimension_name;
+  switch (dimension) {
+    case xenos::FetchOpDimension::k3DOrStacked:
+      type_dimension = spv::Dim3D;
+      is_array = false;
+      dimension_name = "3d";
+      break;
+    case xenos::FetchOpDimension::kCube:
+      type_dimension = spv::DimCube;
+      is_array = false;
+      dimension_name = "cube";
+      break;
+    default:
+      type_dimension = spv::Dim2D;
+      is_array = true;
+      dimension_name = "2d";
+  }
+  new_texture_binding.type =
+      builder_->makeImageType(type_float_, type_dimension, false, is_array,
+                              false, 1, spv::ImageFormatUnknown);
+  new_texture_binding.variable = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassUniformConstant,
+      new_texture_binding.type,
+      fmt::format("xe_texture{}_{}_{}", fetch_constant, dimension_name,
+                  is_signed ? 's' : 'u')
+          .c_str());
+  builder_->addDecoration(
+      new_texture_binding.variable, spv::DecorationDescriptorSet,
+      int(is_vertex_shader() ? kDescriptorSetTexturesVertex
+                             : kDescriptorSetTexturesPixel));
+  builder_->addDecoration(new_texture_binding.variable, spv::DecorationBinding,
+                          int(new_texture_binding_index));
+  if (features_.spirv_version >= spv::Spv_1_4) {
+    main_interface_.push_back(new_texture_binding.variable);
+  }
+  return new_texture_binding_index;
+}
+
+size_t SpirvShaderTranslator::FindOrAddSamplerBinding(
+    uint32_t fetch_constant, xenos::TextureFilter mag_filter,
+    xenos::TextureFilter min_filter, xenos::TextureFilter mip_filter,
+    xenos::AnisoFilter aniso_filter) {
+  if (aniso_filter != xenos::AnisoFilter::kUseFetchConst) {
+    // TODO(Triang3l): Limit to what's actually supported by the implementation.
+    aniso_filter = std::min(aniso_filter, xenos::AnisoFilter::kMax_16_1);
+  }
+  for (size_t i = 0; i < sampler_bindings_.size(); ++i) {
+    const SamplerBinding& sampler_binding = sampler_bindings_[i];
+    if (sampler_binding.fetch_constant == fetch_constant &&
+        sampler_binding.mag_filter == mag_filter &&
+        sampler_binding.min_filter == min_filter &&
+        sampler_binding.mip_filter == mip_filter &&
+        sampler_binding.aniso_filter == aniso_filter) {
+      return i;
+    }
+  }
+  // TODO(Triang3l): Limit the total count to that actually supported by the
+  // implementation.
+  size_t new_sampler_binding_index = sampler_bindings_.size();
+  SamplerBinding& new_sampler_binding = sampler_bindings_.emplace_back();
+  new_sampler_binding.fetch_constant = fetch_constant;
+  new_sampler_binding.mag_filter = mag_filter;
+  new_sampler_binding.min_filter = min_filter;
+  new_sampler_binding.mip_filter = mip_filter;
+  new_sampler_binding.aniso_filter = aniso_filter;
+  std::ostringstream name;
+  static const char kFilterSuffixes[] = {'p', 'l', 'b', 'f'};
+  name << "xe_sampler" << fetch_constant << '_'
+       << kFilterSuffixes[uint32_t(mag_filter)]
+       << kFilterSuffixes[uint32_t(min_filter)]
+       << kFilterSuffixes[uint32_t(mip_filter)];
+  if (aniso_filter != xenos::AnisoFilter::kUseFetchConst) {
+    if (aniso_filter == xenos::AnisoFilter::kDisabled) {
+      name << "_a0";
+    } else {
+      name << "_a" << (UINT32_C(1) << (uint32_t(aniso_filter) - 1));
+    }
+  }
+  new_sampler_binding.variable = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassUniformConstant,
+      builder_->makeSamplerType(), name.str().c_str());
+  builder_->addDecoration(
+      new_sampler_binding.variable, spv::DecorationDescriptorSet,
+      int(is_vertex_shader() ? kDescriptorSetSamplersVertex
+                             : kDescriptorSetSamplersPixel));
+  builder_->addDecoration(new_sampler_binding.variable, spv::DecorationBinding,
+                          int(new_sampler_binding_index));
+  if (features_.spirv_version >= spv::Spv_1_4) {
+    main_interface_.push_back(new_sampler_binding.variable);
+  }
+  return new_sampler_binding_index;
 }
 
 }  // namespace gpu

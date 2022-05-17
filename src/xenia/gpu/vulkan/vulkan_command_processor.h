@@ -36,7 +36,7 @@
 #include "xenia/gpu/vulkan/vulkan_texture_cache.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/ui/vulkan/transient_descriptor_pool.h"
+#include "xenia/ui/vulkan/single_type_descriptor_set_allocator.h"
 #include "xenia/ui/vulkan/vulkan_presenter.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/vulkan/vulkan_upload_buffer_pool.h"
@@ -47,6 +47,17 @@ namespace vulkan {
 
 class VulkanCommandProcessor : public CommandProcessor {
  public:
+  // Single-descriptor layouts for use within a single frame.
+  enum class SingleTransientDescriptorLayout {
+    kUniformBufferGuestVertex,
+    kUniformBufferFragment,
+    kUniformBufferGuestShader,
+    kUniformBufferSystemConstants,
+    kUniformBufferCompute,
+    kStorageBufferCompute,
+    kCount,
+  };
+
   VulkanCommandProcessor(VulkanGraphicsSystem* graphics_system,
                          kernel::KernelState* kernel_state);
   ~VulkanCommandProcessor();
@@ -119,9 +130,23 @@ class VulkanCommandProcessor : public CommandProcessor {
   // scope. Submission must be open.
   void EndRenderPass();
 
+  VkDescriptorSetLayout GetSingleTransientDescriptorLayout(
+      SingleTransientDescriptorLayout transient_descriptor_layout) const {
+    return descriptor_set_layouts_single_transient_[size_t(
+        transient_descriptor_layout)];
+  }
+  // A frame must be open.
+  VkDescriptorSet AllocateSingleTransientDescriptor(
+      SingleTransientDescriptorLayout transient_descriptor_layout);
+
+  // The returned reference is valid until a cache clear.
+  VkDescriptorSetLayout GetTextureDescriptorSetLayout(bool is_samplers,
+                                                      bool is_vertex,
+                                                      size_t binding_count);
   // The returned reference is valid until a cache clear.
   const VulkanPipelineCache::PipelineLayoutProvider* GetPipelineLayout(
-      uint32_t texture_count_pixel, uint32_t texture_count_vertex);
+      size_t texture_count_pixel, size_t sampler_count_pixel,
+      size_t texture_count_vertex, size_t sampler_count_vertex);
 
   // Binds a graphics pipeline for host-specific purposes, invalidating the
   // affected state. keep_dynamic_* must be false (to invalidate the dynamic
@@ -172,10 +197,12 @@ class VulkanCommandProcessor : public CommandProcessor {
   union TextureDescriptorSetLayoutKey {
     uint32_t key;
     struct {
+      // 0 - sampled image descriptors, 1 - sampler descriptors.
+      uint32_t is_samplers : 1;
       uint32_t is_vertex : 1;
       // For 0, use descriptor_set_layout_empty_ instead as these are owning
       // references.
-      uint32_t texture_count : 31;
+      uint32_t binding_count : 30;
     };
 
     TextureDescriptorSetLayoutKey() : key(0) {
@@ -196,12 +223,14 @@ class VulkanCommandProcessor : public CommandProcessor {
   };
 
   union PipelineLayoutKey {
-    uint32_t key;
+    uint64_t key;
     struct {
       // Pixel textures in the low bits since those are varied much more
       // commonly.
-      uint32_t texture_count_pixel : 16;
-      uint32_t texture_count_vertex : 16;
+      uint16_t texture_count_pixel;
+      uint16_t sampler_count_pixel;
+      uint16_t texture_count_vertex;
+      uint16_t sampler_count_vertex;
     };
 
     PipelineLayoutKey() : key(0) { static_assert_size(*this, sizeof(key)); }
@@ -221,29 +250,55 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   class PipelineLayout : public VulkanPipelineCache::PipelineLayoutProvider {
    public:
-    PipelineLayout(
+    explicit PipelineLayout(
         VkPipelineLayout pipeline_layout,
         VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref,
-        VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref)
+        VkDescriptorSetLayout descriptor_set_layout_samplers_vertex_ref,
+        VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref,
+        VkDescriptorSetLayout descriptor_set_layout_samplers_pixel_ref)
         : pipeline_layout_(pipeline_layout),
           descriptor_set_layout_textures_vertex_ref_(
               descriptor_set_layout_textures_vertex_ref),
+          descriptor_set_layout_samplers_vertex_ref_(
+              descriptor_set_layout_samplers_vertex_ref),
           descriptor_set_layout_textures_pixel_ref_(
-              descriptor_set_layout_textures_pixel_ref) {}
+              descriptor_set_layout_textures_pixel_ref),
+          descriptor_set_layout_samplers_pixel_ref_(
+              descriptor_set_layout_samplers_pixel_ref) {}
     VkPipelineLayout GetPipelineLayout() const override {
       return pipeline_layout_;
     }
     VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref() const {
       return descriptor_set_layout_textures_vertex_ref_;
     }
+    VkDescriptorSetLayout descriptor_set_layout_samplers_vertex_ref() const {
+      return descriptor_set_layout_samplers_vertex_ref_;
+    }
     VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref() const {
       return descriptor_set_layout_textures_pixel_ref_;
+    }
+    VkDescriptorSetLayout descriptor_set_layout_samplers_pixel_ref() const {
+      return descriptor_set_layout_samplers_pixel_ref_;
     }
 
    private:
     VkPipelineLayout pipeline_layout_;
     VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref_;
+    VkDescriptorSetLayout descriptor_set_layout_samplers_vertex_ref_;
     VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref_;
+    VkDescriptorSetLayout descriptor_set_layout_samplers_pixel_ref_;
+  };
+
+  struct UsedSingleTransientDescriptor {
+    uint64_t frame;
+    SingleTransientDescriptorLayout layout;
+    VkDescriptorSet set;
+  };
+
+  struct UsedTextureTransientDescriptorSet {
+    uint64_t frame;
+    TextureDescriptorSetLayoutKey layout;
+    VkDescriptorSet set;
   };
 
   // BeginSubmission and EndSubmission may be called at any time. If there's an
@@ -272,6 +327,8 @@ class VulkanCommandProcessor : public CommandProcessor {
     return !submission_open_ && submissions_in_flight_fences_.empty();
   }
 
+  void ClearTransientDescriptorPools();
+
   void SplitPendingBarrier();
 
   void UpdateDynamicState(const draw_util::ViewportInfo& viewport_info,
@@ -284,9 +341,19 @@ class VulkanCommandProcessor : public CommandProcessor {
   // Allocates a descriptor, space in the uniform buffer pool, and fills the
   // VkWriteDescriptorSet structure and VkDescriptorBufferInfo referenced by it.
   // Returns null in case of failure.
-  uint8_t* WriteUniformBufferBinding(
-      size_t size, VkDescriptorSetLayout descriptor_set_layout,
+  uint8_t* WriteTransientUniformBufferBinding(
+      size_t size, SingleTransientDescriptorLayout transient_descriptor_layout,
       VkDescriptorBufferInfo& descriptor_buffer_info_out,
+      VkWriteDescriptorSet& write_descriptor_set_out);
+  // Allocates a descriptor set and fills the VkWriteDescriptorSet structure.
+  // The descriptor set layout must be the one for the given is_samplers,
+  // is_vertex, binding_count (from GetTextureDescriptorSetLayout - may be
+  // already available at the moment of the call, no need to locate it again).
+  // Returns whether the allocation was successful.
+  bool WriteTransientTextureBindings(
+      bool is_samplers, bool is_vertex, uint32_t binding_count,
+      VkDescriptorSetLayout descriptor_set_layout,
+      const VkDescriptorImageInfo* image_info,
       VkWriteDescriptorSet& write_descriptor_set_out);
 
   bool device_lost_ = false;
@@ -333,22 +400,21 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::vector<VkSparseBufferMemoryBindInfo> sparse_buffer_bind_infos_temp_;
   VkPipelineStageFlags sparse_bind_wait_stage_mask_ = 0;
 
-  std::unique_ptr<ui::vulkan::TransientDescriptorPool>
-      transient_descriptor_pool_uniform_buffers_;
+  // Temporary storage with reusable memory for creating descriptor set layouts.
+  std::vector<VkDescriptorSetLayoutBinding> descriptor_set_layout_bindings_;
+  // Temporary storage with reusable memory for writing image and sampler
+  // descriptors.
+  std::vector<VkDescriptorImageInfo> descriptor_write_image_info_;
+
   std::unique_ptr<ui::vulkan::VulkanUploadBufferPool> uniform_buffer_pool_;
 
   // Descriptor set layouts used by different shaders.
   VkDescriptorSetLayout descriptor_set_layout_empty_ = VK_NULL_HANDLE;
-  VkDescriptorSetLayout descriptor_set_layout_fetch_bool_loop_constants_ =
-      VK_NULL_HANDLE;
-  VkDescriptorSetLayout descriptor_set_layout_float_constants_vertex_ =
-      VK_NULL_HANDLE;
-  VkDescriptorSetLayout descriptor_set_layout_float_constants_pixel_ =
-      VK_NULL_HANDLE;
-  VkDescriptorSetLayout descriptor_set_layout_system_constants_ =
-      VK_NULL_HANDLE;
   VkDescriptorSetLayout descriptor_set_layout_shared_memory_and_edram_ =
       VK_NULL_HANDLE;
+  std::array<VkDescriptorSetLayout,
+             size_t(SingleTransientDescriptorLayout::kCount)>
+      descriptor_set_layouts_single_transient_{};
 
   // Descriptor set layouts are referenced by pipeline_layouts_.
   std::unordered_map<TextureDescriptorSetLayoutKey, VkDescriptorSetLayout,
@@ -358,6 +424,26 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::unordered_map<PipelineLayoutKey, PipelineLayout,
                      PipelineLayoutKey::Hasher>
       pipeline_layouts_;
+
+  ui::vulkan::SingleTypeDescriptorSetAllocator
+      transient_descriptor_allocator_uniform_buffer_;
+  ui::vulkan::SingleTypeDescriptorSetAllocator
+      transient_descriptor_allocator_storage_buffer_;
+  std::deque<UsedSingleTransientDescriptor> single_transient_descriptors_used_;
+  std::array<std::vector<VkDescriptorSet>,
+             size_t(SingleTransientDescriptorLayout::kCount)>
+      single_transient_descriptors_free_;
+
+  ui::vulkan::SingleTypeDescriptorSetAllocator
+      transient_descriptor_allocator_sampled_image_;
+  ui::vulkan::SingleTypeDescriptorSetAllocator
+      transient_descriptor_allocator_sampler_;
+  std::deque<UsedTextureTransientDescriptorSet>
+      texture_transient_descriptor_sets_used_;
+  std::unordered_map<TextureDescriptorSetLayoutKey,
+                     std::vector<VkDescriptorSet>,
+                     TextureDescriptorSetLayoutKey::Hasher>
+      texture_transient_descriptor_sets_free_;
 
   std::unique_ptr<VulkanSharedMemory> shared_memory_;
 

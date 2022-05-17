@@ -20,6 +20,7 @@
 #include "third_party/glslang/SPIRV/GLSL.std.450.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
+#include "xenia/gpu/spirv_shader.h"
 
 namespace xe {
 namespace gpu {
@@ -94,6 +95,9 @@ void SpirvShaderTranslator::Reset() {
   builder_.reset();
 
   uniform_float_constants_ = spv::NoResult;
+
+  sampler_bindings_.clear();
+  texture_bindings_.clear();
 
   main_interface_.clear();
   var_main_registers_ = spv::NoResult;
@@ -593,6 +597,41 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
                       reinterpret_cast<const uint8_t*>(module_uints.data()) +
                           sizeof(unsigned int) * module_uints.size());
   return module_bytes;
+}
+
+void SpirvShaderTranslator::PostTranslation() {
+  Shader::Translation& translation = current_translation();
+  if (!translation.is_valid()) {
+    return;
+  }
+  SpirvShader* spirv_shader = dynamic_cast<SpirvShader*>(&translation.shader());
+  if (spirv_shader && !spirv_shader->bindings_setup_entered_.test_and_set(
+                          std::memory_order_relaxed)) {
+    spirv_shader->texture_bindings_.clear();
+    spirv_shader->texture_bindings_.reserve(texture_bindings_.size());
+    for (const TextureBinding& translator_binding : texture_bindings_) {
+      SpirvShader::TextureBinding& shader_binding =
+          spirv_shader->texture_bindings_.emplace_back();
+      // For a stable hash.
+      std::memset(&shader_binding, 0, sizeof(shader_binding));
+      shader_binding.fetch_constant = translator_binding.fetch_constant;
+      shader_binding.dimension = translator_binding.dimension;
+      shader_binding.is_signed = translator_binding.is_signed;
+      spirv_shader->used_texture_mask_ |= UINT32_C(1)
+                                          << translator_binding.fetch_constant;
+    }
+    spirv_shader->sampler_bindings_.clear();
+    spirv_shader->sampler_bindings_.reserve(sampler_bindings_.size());
+    for (const SamplerBinding& translator_binding : sampler_bindings_) {
+      SpirvShader::SamplerBinding& shader_binding =
+          spirv_shader->sampler_bindings_.emplace_back();
+      shader_binding.fetch_constant = translator_binding.fetch_constant;
+      shader_binding.mag_filter = translator_binding.mag_filter;
+      shader_binding.min_filter = translator_binding.min_filter;
+      shader_binding.mip_filter = translator_binding.mip_filter;
+      shader_binding.aniso_filter = translator_binding.aniso_filter;
+    }
+  }
 }
 
 void SpirvShaderTranslator::ProcessLabel(uint32_t cf_index) {

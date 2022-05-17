@@ -82,6 +82,7 @@ void VulkanPipelineCache::ClearCache() {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
+  // Destroy all pipelines.
   last_pipeline_ = nullptr;
   for (const auto& pipeline_pair : pipelines_) {
     if (pipeline_pair.second.pipeline != VK_NULL_HANDLE) {
@@ -90,10 +91,13 @@ void VulkanPipelineCache::ClearCache() {
   }
   pipelines_.clear();
 
+  // Destroy all shaders.
   for (auto it : shaders_) {
     delete it.second;
   }
   shaders_.clear();
+  texture_binding_layout_map_.clear();
+  texture_binding_layouts_.clear();
 }
 
 VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
@@ -241,7 +245,23 @@ bool VulkanPipelineCache::ConfigurePipeline(
 
   // Create the pipeline if not the latest and not already existing.
   const PipelineLayoutProvider* pipeline_layout =
-      command_processor_.GetPipelineLayout(0, 0);
+      command_processor_.GetPipelineLayout(
+          pixel_shader
+              ? static_cast<const VulkanShader&>(pixel_shader->shader())
+                    .GetTextureBindingsAfterTranslation()
+                    .size()
+              : 0,
+          pixel_shader
+              ? static_cast<const VulkanShader&>(pixel_shader->shader())
+                    .GetSamplerBindingsAfterTranslation()
+                    .size()
+              : 0,
+          static_cast<const VulkanShader&>(vertex_shader->shader())
+              .GetTextureBindingsAfterTranslation()
+              .size(),
+          static_cast<const VulkanShader&>(vertex_shader->shader())
+              .GetSamplerBindingsAfterTranslation()
+              .size());
   if (!pipeline_layout) {
     return false;
   }
@@ -277,14 +297,80 @@ bool VulkanPipelineCache::ConfigurePipeline(
 bool VulkanPipelineCache::TranslateAnalyzedShader(
     SpirvShaderTranslator& translator,
     VulkanShader::VulkanTranslation& translation) {
+  VulkanShader& shader = static_cast<VulkanShader&>(translation.shader());
+
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
   if (!translator.TranslateAnalyzedShader(translation)) {
     XELOGE("Shader {:016X} translation failed; marking as ignored",
-           translation.shader().ucode_data_hash());
+           shader.ucode_data_hash());
     return false;
   }
-  return translation.GetOrCreateShaderModule() != VK_NULL_HANDLE;
+  if (translation.GetOrCreateShaderModule() == VK_NULL_HANDLE) {
+    return false;
+  }
+
+  // TODO(Triang3l): Log that the shader has been successfully translated in
+  // common code.
+
+  // Set up the texture binding layout.
+  if (shader.EnterBindingLayoutUserUIDSetup()) {
+    // Obtain the unique IDs of the binding layout if there are any texture
+    // bindings, for invalidation in the command processor.
+    size_t texture_binding_layout_uid = kLayoutUIDEmpty;
+    const std::vector<VulkanShader::TextureBinding>& texture_bindings =
+        shader.GetTextureBindingsAfterTranslation();
+    size_t texture_binding_count = texture_bindings.size();
+    if (texture_binding_count) {
+      size_t texture_binding_layout_bytes =
+          texture_binding_count * sizeof(*texture_bindings.data());
+      uint64_t texture_binding_layout_hash =
+          XXH3_64bits(texture_bindings.data(), texture_binding_layout_bytes);
+      auto found_range =
+          texture_binding_layout_map_.equal_range(texture_binding_layout_hash);
+      for (auto it = found_range.first; it != found_range.second; ++it) {
+        if (it->second.vector_span_length == texture_binding_count &&
+            !std::memcmp(
+                texture_binding_layouts_.data() + it->second.vector_span_offset,
+                texture_bindings.data(), texture_binding_layout_bytes)) {
+          texture_binding_layout_uid = it->second.uid;
+          break;
+        }
+      }
+      if (texture_binding_layout_uid == kLayoutUIDEmpty) {
+        static_assert(
+            kLayoutUIDEmpty == 0,
+            "Layout UID is size + 1 because it's assumed that 0 is the UID for "
+            "an empty layout");
+        texture_binding_layout_uid = texture_binding_layout_map_.size() + 1;
+        LayoutUID new_uid;
+        new_uid.uid = texture_binding_layout_uid;
+        new_uid.vector_span_offset = texture_binding_layouts_.size();
+        new_uid.vector_span_length = texture_binding_count;
+        texture_binding_layouts_.resize(new_uid.vector_span_offset +
+                                        texture_binding_count);
+        std::memcpy(
+            texture_binding_layouts_.data() + new_uid.vector_span_offset,
+            texture_bindings.data(), texture_binding_layout_bytes);
+        texture_binding_layout_map_.emplace(texture_binding_layout_hash,
+                                            new_uid);
+      }
+    }
+    shader.SetTextureBindingLayoutUserUID(texture_binding_layout_uid);
+
+    // Use the sampler count for samplers because it's the only thing that must
+    // be the same for layouts to be compatible in this case
+    // (instruction-specified parameters are used as overrides for creating
+    // actual samplers).
+    static_assert(
+        kLayoutUIDEmpty == 0,
+        "Empty layout UID is assumed to be 0 because for bindful samplers, the "
+        "UID is their count");
+    shader.SetSamplerBindingLayoutUserUID(
+        shader.GetSamplerBindingsAfterTranslation().size());
+  }
+
+  return true;
 }
 
 void VulkanPipelineCache::WritePipelineRenderTargetDescription(
