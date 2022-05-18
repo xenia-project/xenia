@@ -2,7 +2,6 @@ name: CI
 
 on:
   push:
-    branches-ignore: [gh-pages, master]
     paths-ignore:
       - '.clang-format'
       - '.drone.star'
@@ -24,7 +23,6 @@ on:
       - 'LICENSE'
       - 'README.md'
   pull_request:
-    branches-ignore: [gh-pages, master]
     paths-ignore:
       - '.clang-format'
       - '.drone.star'
@@ -49,18 +47,15 @@ on:
 
 jobs:
   build-windows:
-    runs-on: ${{ matrix.runs-on }}
+    runs-on: ${{ matrix.config.runs-on }}
     env:
       POWERSHELL_TELEMETRY_OPTOUT: 1
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [windows-2019, windows-latest]
-        include:
-          - runs-on: windows-2019
-            vsver: VS2019
-          - runs-on: windows-latest
-            vsver: VS2022
+        config:
+          - {vsver: VS2022, runs-on: windows-latest}
+          - {vsver: VS2019, runs-on: windows-2019}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -79,18 +74,18 @@ jobs:
       - name: Upload xenia-vfs-dump artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: xenia-vfs-dump_canary_${{ matrix.vsver }}
+          name: xenia-vfs-dump_canary_${{ matrix.config.vsver }}
           path: artifacts\xenia-vfs-dump
           if-no-files-found: error
       - name: Upload xenia artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: xenia_canary_${{ matrix.vsver }}
+          name: xenia_canary_${{ matrix.config.vsver }}
           path: artifacts\xenia_canary
           if-no-files-found: error
       - name: Create release
         if: |
-          matrix.runs-on == 'windows-2019' &&
+          matrix.config.runs-on == 'windows-2019' &&
           github.repository == 'xenia-canary/xenia-canary' &&
           github.event.action != 'pull_request' &&
           contains(github.ref, 'refs/heads/canary') &&
@@ -104,11 +99,11 @@ jobs:
             Throw "Error: Archive $asset too small!"
           }
           $tag=$env:GITHUB_SHA.SubString(0,7)
-          $branch=$($env:GITHUB_REF -replace 'refs/heads/', '')
+          $branch=$($env:GITHUB_REF -replace 'refs/heads/')
           $title="${tag}_$branch"
           gh release create $tag $asset --target $env:GITHUB_SHA -t $title
           # Remove canary_ to prevent conflicts from tag
-          $tag=$($branch -replace 'canary_', '')
+          $tag=$($branch -replace 'canary_')
           gh release delete $tag -y
           git push --delete origin $tag
           git tag -d $tag
