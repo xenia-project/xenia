@@ -13,6 +13,7 @@
 
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/xxhash.h"
 #include "xenia/cpu/elf_module.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/xex_module.h"
@@ -128,6 +129,9 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
     }
   }
 
+  CalculateHash();
+
+  XELOGI("Module hash: {:016X} for {}", hash_, name_);
   return LoadXexContinue();
 }
 
@@ -804,5 +808,13 @@ void UserModule::Dump() {
   xe::logging::AppendLogLine(xe::LogLevel::Info, 'i', sb.to_string_view());
 }
 
+void UserModule::CalculateHash() {
+  uint8_t* base_adr = memory()->TranslateVirtual(xex_module()->base_address());
+
+  XXH3_state_t hash_state;
+  XXH3_64bits_reset(&hash_state);
+  XXH3_64bits_update(&hash_state, base_adr, xex_module()->image_size());
+  hash_ = XXH3_64bits_digest(&hash_state);
+}
 }  // namespace kernel
 }  // namespace xe
