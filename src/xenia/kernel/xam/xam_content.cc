@@ -11,9 +11,12 @@
 #include "xenia/base/math.h"
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_content_device.h"
 #include "xenia/kernel/xam/xam_private.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/xbox.h"
 
@@ -419,6 +422,63 @@ dword_result_t XamContentDeleteInternal_entry(lpvoid_t content_data_ptr,
   return XamContentDelete_entry(0xFE, content_data_ptr, overlapped_ptr);
 }
 DECLARE_XAM_EXPORT1(XamContentDeleteInternal, kContent, kImplemented);
+
+typedef struct {
+  xe::be<uint32_t> stringTitlePtr;
+  xe::be<uint32_t> stringTextPtr;
+  xe::be<uint32_t> stringBtnMsgPtr;
+} X_SWAPDISC_ERROR_MESSAGE;
+static_assert_size(X_SWAPDISC_ERROR_MESSAGE, 12);
+
+dword_result_t XamSwapDisc(dword_t disc_number,
+                           pointer_t<X_KEVENT> completion_handle,
+                           pointer_t<X_SWAPDISC_ERROR_MESSAGE> error_message) {
+
+  xex2_opt_execution_info* info = nullptr;
+  kernel_state()->GetExecutableModule()->GetOptHeader(XEX_HEADER_EXECUTION_INFO,
+                                                      &info);
+
+  if (info->disc_number > info->disc_count) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  auto completion_event = [completion_handle]() -> void {
+    auto kevent = xboxkrnl::xeKeSetEvent(completion_handle, 1, 0);
+
+    // Release the completion handle
+    auto object =
+        XObject::GetNativeObject<XObject>(kernel_state(), completion_handle);
+    if (object) {
+      object->Retain();
+    }
+  };
+
+  if (info->disc_number == disc_number) {
+    completion_event();
+    return X_ERROR_SUCCESS;
+  }
+							 
+  auto filesystem = kernel_state()->file_system();
+  auto mount_path = "\\Device\\LauncherData";
+
+  if (filesystem->ResolvePath(mount_path) != NULL) {
+    filesystem->UnregisterDevice(mount_path);
+  }
+
+  std::u16string text_message = xe::load_and_swap<std::u16string>(
+      kernel_state()->memory()->TranslateVirtual(error_message->stringTextPtr));
+
+  const std::filesystem::path new_disc_path =
+      kernel_state()->emulator()->GetNewDiscPath(xe::to_utf8(text_message));
+  XELOGI("GetNewDiscPath returned path {}.", new_disc_path.string().c_str());
+
+  // TODO(Gliniak): Implement checking if inserted file is requested one
+  kernel_state()->emulator()->MountPath(new_disc_path, mount_path);
+  completion_event();
+
+  return X_ERROR_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamSwapDisc, kContent, kSketchy);
 
 }  // namespace xam
 }  // namespace kernel

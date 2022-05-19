@@ -21,6 +21,7 @@
 #include "xenia/base/exception_handler.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/memory.h"
+#include "xenia/vfs/device.h"
 #include "xenia/vfs/virtual_file_system.h"
 #include "xenia/xbox.h"
 
@@ -171,6 +172,11 @@ class Emulator {
   // Terminates the currently running title.
   X_STATUS TerminateTitle();
 
+const std::unique_ptr<vfs::Device> CreateVfsDeviceBasedOnPath(
+      const std::filesystem::path& path, const std::string_view mount_path);
+
+  X_STATUS MountPath(const std::filesystem::path& path,
+                     const std::string_view mount_path);
   // Launches a game from the given file path.
   // This will attempt to infer the type of the given file (such as an iso, etc)
   // using heuristics.
@@ -196,6 +202,7 @@ class Emulator {
   // The game can request another title to be loaded.
   bool TitleRequested();
   void LaunchNextTitle();
+  const std::filesystem::path GetNewDiscPath(std::string window_message = "");
 
   void WaitUntilExit();
 
