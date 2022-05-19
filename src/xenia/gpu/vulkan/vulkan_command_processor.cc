@@ -738,6 +738,10 @@ void VulkanCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
              index <= XE_GPU_REG_SHADER_CONSTANT_FETCH_31_5) {
     current_graphics_descriptor_set_values_up_to_date_ &=
         ~(UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetFetchConstants);
+    if (texture_cache_) {
+      texture_cache_->TextureFetchConstantWritten(
+          (index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0) / 6);
+    }
   }
 }
 
@@ -1548,13 +1552,6 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                          *pixel_shader, normalized_color_mask)
                    : SpirvShaderTranslator::Modification(0);
 
-  // Set up the render targets - this may perform dispatches and draws.
-  if (!render_target_cache_->Update(is_rasterization_done,
-                                    normalized_depth_control,
-                                    normalized_color_mask, *vertex_shader)) {
-    return false;
-  }
-
   // Translate the shaders.
   VulkanShader::VulkanTranslation* vertex_shader_translation =
       static_cast<VulkanShader::VulkanTranslation*>(
@@ -1565,6 +1562,23 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                          pixel_shader->GetOrCreateTranslation(
                              pixel_shader_modification.value))
                    : nullptr;
+
+  // Update the textures before other work in the submission because samplers
+  // depend on this (and in case of sampler overflow in a submission,
+  // submissions must be split) - may perform dispatches.
+  uint32_t used_texture_mask =
+      vertex_shader->GetUsedTextureMaskAfterTranslation() |
+      (pixel_shader != nullptr
+           ? pixel_shader->GetUsedTextureMaskAfterTranslation()
+           : 0);
+  texture_cache_->RequestTextures(used_texture_mask);
+
+  // Set up the render targets - this may perform dispatches and draws.
+  if (!render_target_cache_->Update(is_rasterization_done,
+                                    normalized_depth_control,
+                                    normalized_color_mask, *vertex_shader)) {
+    return false;
+  }
 
   // Update the graphics pipeline, and if the new graphics pipeline has a
   // different layout, invalidate incompatible descriptor sets before updating
@@ -2758,7 +2772,9 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       VkDescriptorImageInfo& descriptor_image_info =
           descriptor_write_image_info_.emplace_back();
       descriptor_image_info.imageView =
-          texture_cache_->GetNullImageView(texture_binding.dimension);
+          texture_cache_->GetActiveBindingOrNullImageView(
+              texture_binding.fetch_constant, texture_binding.dimension,
+              bool(texture_binding.is_signed));
       descriptor_image_info.imageLayout =
           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
@@ -2782,7 +2798,9 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       VkDescriptorImageInfo& descriptor_image_info =
           descriptor_write_image_info_.emplace_back();
       descriptor_image_info.imageView =
-          texture_cache_->GetNullImageView(texture_binding.dimension);
+          texture_cache_->GetActiveBindingOrNullImageView(
+              texture_binding.fetch_constant, texture_binding.dimension,
+              bool(texture_binding.is_signed));
       descriptor_image_info.imageLayout =
           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
