@@ -41,6 +41,7 @@ class EntryTable {
 
   Entry* Get(uint32_t address);
   Entry::Status GetOrCreate(uint32_t address, Entry** out_entry);
+  void Delete(uint32_t address);
 
   std::vector<Function*> FindWithAddress(uint32_t address);
 
