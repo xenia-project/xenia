@@ -1311,14 +1311,14 @@ ID3D12Resource* D3D12TextureCache::RequestSwapTexture(
     return nullptr;
   }
   texture->MarkAsUsed();
-  // The swap texture is likely to be used only for the presentation pixel
+  // The swap texture is likely to be used only for the presentation compute
   // shader, and not during emulation, where it'd be NON_PIXEL_SHADER_RESOURCE |
   // PIXEL_SHADER_RESOURCE.
   ID3D12Resource* texture_resource = texture->resource();
   command_processor_.PushTransitionBarrier(
       texture_resource,
-      texture->SetResourceState(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
-      D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+      texture->SetResourceState(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
   srv_desc_out.Format = GetDXGIUnormFormat(key);
   srv_desc_out.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
   srv_desc_out.Shader4ComponentMapping =
