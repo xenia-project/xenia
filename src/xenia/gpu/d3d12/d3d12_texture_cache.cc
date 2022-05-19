@@ -131,16 +131,16 @@ const D3D12TextureCache::HostFormat D3D12TextureCache::host_formats_[64] = {
     // Red and blue probably must be swapped, similar to k_Y1_Cr_Y0_Cb_REP.
     {DXGI_FORMAT_G8R8_G8B8_UNORM, DXGI_FORMAT_G8R8_G8B8_UNORM, LoadMode::k32bpb,
      DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_BGRA},
+     LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_BGRR},
     // k_Y1_Cr_Y0_Cb_REP
-    // Used for videos in 54540829. Red and blue must be swapped.
+    // Red and blue must be swapped.
     // TODO(Triang3l): D3DFMT_G8R8_G8B8 is DXGI_FORMAT_R8G8_B8G8_UNORM * 255.0f,
     // watch out for num_format int, division in shaders, etc., in 54540829 it
     // works as is. Also need to decompress if the size is uneven, but should be
     // a very rare case.
     {DXGI_FORMAT_R8G8_B8G8_UNORM, DXGI_FORMAT_R8G8_B8G8_UNORM, LoadMode::k32bpb,
      DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_BGRA},
+     LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_BGRR},
     // k_16_16_EDRAM
     // Not usable as a texture, also has -32...32 range.
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
@@ -1311,14 +1311,14 @@ ID3D12Resource* D3D12TextureCache::RequestSwapTexture(
     return nullptr;
   }
   texture->MarkAsUsed();
-  // The swap texture is likely to be used only for the presentation pixel
+  // The swap texture is likely to be used only for the presentation compute
   // shader, and not during emulation, where it'd be NON_PIXEL_SHADER_RESOURCE |
   // PIXEL_SHADER_RESOURCE.
   ID3D12Resource* texture_resource = texture->resource();
   command_processor_.PushTransitionBarrier(
       texture_resource,
-      texture->SetResourceState(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
-      D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+      texture->SetResourceState(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
   srv_desc_out.Format = GetDXGIUnormFormat(key);
   srv_desc_out.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
   srv_desc_out.Shader4ComponentMapping =
