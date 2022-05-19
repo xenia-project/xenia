@@ -18,6 +18,7 @@
 #include "xenia/base/string.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
+#include "xenia/hid/input_system.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
@@ -49,7 +50,7 @@ KernelState::KernelState(Emulator* emulator)
   file_system_ = emulator->file_system();
 
   app_manager_ = std::make_unique<xam::AppManager>();
-  user_profile_ = std::make_unique<xam::UserProfile>();
+  user_profiles_.emplace(0, std::make_unique<xam::UserProfile>(0));
 
   auto content_root = emulator_->content_root();
   if (!content_root.empty()) {
@@ -884,6 +885,28 @@ bool KernelState::Restore(ByteStream* stream) {
   }
 
   return true;
+}
+
+uint8_t KernelState::GetConnectedUsers() const {
+  return emulator_->input_system()->GetConnectedSlots();
+}
+
+void KernelState::UpdateUsedUserProfiles() {
+  const uint8_t used_slots_bitmask = GetConnectedUsers();
+
+  for (uint8_t i = 1; i < 4; i++) {
+    bool is_used = used_slots_bitmask & (1 << i);
+
+    if (IsUserSignedIn(i) && !is_used) {
+      user_profiles_.erase(i);
+      BroadcastNotification(0x12, 0);
+    }
+
+    if (!IsUserSignedIn(i) && is_used) {
+      user_profiles_.emplace(i, std::make_unique<xam::UserProfile>(i));
+      BroadcastNotification(0x12, 0);
+    }
+  }
 }
 
 }  // namespace kernel

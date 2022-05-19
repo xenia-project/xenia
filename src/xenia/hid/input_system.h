@@ -45,6 +45,8 @@ class InputSystem {
                         X_INPUT_KEYSTROKE* out_keystroke);
 
   void ToggleVibration();
+  void UpdateUsedSlot(uint8_t slot, bool connected);
+  uint8_t GetConnectedSlots() const { return connected_slot; }
 
  private:
   xe::ui::Window* window_ = nullptr;
@@ -52,6 +54,7 @@ class InputSystem {
   std::vector<std::unique_ptr<InputDriver>> drivers_;
 
   X_INPUT_VIBRATION ModifyVibrationLevel(X_INPUT_VIBRATION* vibration);
+  uint8_t connected_slot = 0b0001;
 };
 
 }  // namespace hid

@@ -222,7 +222,7 @@ class UserProfile {
     }
   };
 
-  UserProfile();
+  UserProfile(uint8_t index);
 
   uint64_t xuid() const { return xuid_; }
   std::string name() const { return name_; }
