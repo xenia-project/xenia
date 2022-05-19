@@ -348,6 +348,9 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
            data->input_buffer_read_offset, data->current_buffer,
            current_input_buffer);
 
+  if (!current_input_buffer) {
+    return;
+  }
   size_t input_buffer_0_size =
       data->input_buffer_0_packet_count * kBytesPerPacket;
   size_t input_buffer_1_size =
@@ -602,6 +605,9 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
     */
     if (ret < 0) {
       XELOGE("XmaContext {}: Error during decoding", id());
+      data->input_buffer_0_valid = 0;
+      data->input_buffer_1_valid = 0;
+
       assert_always();
       return;  // TODO bail out
     }

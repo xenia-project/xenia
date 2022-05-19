@@ -34,6 +34,10 @@
 // and let the normal AudioSystem handling take it, to prevent duplicate
 // implementations. They can be found in xboxkrnl_audio_xma.cc
 
+DEFINE_uint32(
+    max_queued_frames, 64,
+    "Allows changing max buffered audio frames to reduce audio delay.", "APU");
+
 namespace xe {
 namespace apu {
 
@@ -45,8 +49,7 @@ AudioSystem::AudioSystem(cpu::Processor* processor)
 
   for (size_t i = 0; i < kMaximumClientCount; ++i) {
     client_semaphores_[i] =
-        xe::threading::Semaphore::Create(0, kMaximumQueuedFrames);
-    assert_not_null(client_semaphores_[i]);
+        xe::threading::Semaphore::Create(0, cvars::max_queued_frames);
     wait_handles_[i] = client_semaphores_[i].get();
   }
   shutdown_event_ = xe::threading::Event::CreateAutoResetEvent(false);
@@ -176,7 +179,7 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
   assert_true(index >= 0);
 
   auto client_semaphore = client_semaphores_[index].get();
-  auto ret = client_semaphore->Release(kMaximumQueuedFrames, nullptr);
+  auto ret = client_semaphore->Release(cvars::max_queued_frames, nullptr);
   assert_true(ret);
 
   AudioDriver* driver;
@@ -279,7 +282,7 @@ bool AudioSystem::Restore(ByteStream* stream) {
     client.in_use = true;
 
     auto client_semaphore = client_semaphores_[id].get();
-    auto ret = client_semaphore->Release(kMaximumQueuedFrames, nullptr);
+    auto ret = client_semaphore->Release(cvars::max_queued_frames, nullptr);
     assert_true(ret);
 
     AudioDriver* driver = nullptr;

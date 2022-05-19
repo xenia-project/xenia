@@ -37,8 +37,8 @@ uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, lpvoid_t buffer_ptr,
     return X_ERROR_INVALID_HANDLE;
   }
 
-  auto run = [e, buffer_ptr](uint32_t& extended_error,
-                             uint32_t& length) -> X_RESULT {
+  auto run = [e, buffer_ptr, overlapped_ptr](uint32_t& extended_error,
+                                             uint32_t& length) -> X_RESULT {
     X_RESULT result;
     uint32_t item_count = 0;
     if (!buffer_ptr) {
@@ -49,6 +49,9 @@ uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, lpvoid_t buffer_ptr,
     }
     extended_error = X_HRESULT_FROM_WIN32(result);
     length = item_count;
+    if (result && overlapped_ptr) {
+      result = X_ERROR_FUNCTION_FAILED;
+    }
     return result;
   };
 

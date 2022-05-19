@@ -824,7 +824,9 @@ bool BaseHeap::Alloc(uint32_t size, uint32_t alignment,
   size = xe::round_up(size, page_size_);
   alignment = xe::round_up(alignment, page_size_);
   uint32_t low_address = heap_base_;
-  uint32_t high_address = heap_base_ + (heap_size_ - 1);
+  uint32_t high_address =
+      heap_base_ + (heap_size_ - 1) -
+      (heap_type_ == HeapType::kGuestVirtual ? 0x10000000 : 0);
   return AllocRange(low_address, high_address, size, alignment, allocation_type,
                     protect, top_down, out_address);
 }
@@ -1252,7 +1254,8 @@ bool BaseHeap::QueryRegionInfo(uint32_t base_address,
   out_info->protect = 0;
   if (start_page_entry.state) {
     // Committed/reserved region.
-    out_info->allocation_base = start_page_entry.base_address * page_size_;
+    out_info->allocation_base =
+        heap_base_ + start_page_entry.base_address * page_size_;
     out_info->allocation_protect = start_page_entry.allocation_protect;
     out_info->allocation_size = start_page_entry.region_page_count * page_size_;
     out_info->state = start_page_entry.state;
