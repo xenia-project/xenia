@@ -133,7 +133,7 @@ const D3D12TextureCache::HostFormat D3D12TextureCache::host_formats_[64] = {
      DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true, DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_BGRR},
     // k_Y1_Cr_Y0_Cb_REP
-    // Used for videos in 54540829. Red and blue must be swapped.
+    // Red and blue must be swapped.
     // TODO(Triang3l): D3DFMT_G8R8_G8B8 is DXGI_FORMAT_R8G8_B8G8_UNORM * 255.0f,
     // watch out for num_format int, division in shaders, etc., in 54540829 it
     // works as is. Also need to decompress if the size is uneven, but should be
