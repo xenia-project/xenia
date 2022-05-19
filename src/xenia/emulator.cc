@@ -753,13 +753,25 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   // Allow xam to request module loads.
   auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
 
-  XELOGI("Launching module {}", module_path);
+  XELOGI("Loading module {}", module_path);
   auto module = kernel_state_->LoadUserModule(module_path);
   if (!module) {
     XELOGE("Failed to load user module {}", xe::path_to_utf8(path));
     return X_STATUS_NOT_FOUND;
   }
 
+  X_RESULT result = kernel_state_->ApplyTitleUpdate(module);
+  if (XFAILED(result)) {
+    XELOGE("Failed to apply title update! Cannot run module {}",
+           xe::path_to_utf8(path));
+    return result;
+  }
+
+  result = kernel_state_->FinishLoadingUserModule(module);
+  if (XFAILED(result)) {
+    XELOGE("Failed to initialize user module {}", xe::path_to_utf8(path));
+    return result;
+  }
   // Grab the current title ID.
   xex2_opt_execution_info* info = nullptr;
   module->GetOptHeader(XEX_HEADER_EXECUTION_INFO, &info);

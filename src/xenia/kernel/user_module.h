@@ -59,6 +59,9 @@ class UserModule : public XModule {
   uint32_t guest_xex_header() const { return guest_xex_header_; }
   // The title ID in the xex header or 0 if this is not a xex.
   uint32_t title_id() const;
+  uint32_t disc_number() const;
+  bool is_multi_disc_title() const;
+
   bool is_executable() const { return processor_module_->is_executable(); }
   bool is_dll_module() const { return is_dll_module_; }
 
@@ -67,6 +70,7 @@ class UserModule : public XModule {
 
   X_STATUS LoadFromFile(const std::string_view path);
   X_STATUS LoadFromMemory(const void* addr, const size_t length);
+  X_STATUS LoadContinue();
   X_STATUS Unload();
 
   uint32_t GetProcAddressByOrdinal(uint16_t ordinal) override;
@@ -97,7 +101,6 @@ class UserModule : public XModule {
                                         const std::string_view path);
 
  private:
-  X_STATUS LoadXexContinue();
   void CalculateHash();
 
   std::string name_;

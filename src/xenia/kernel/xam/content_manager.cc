@@ -73,11 +73,18 @@ std::filesystem::path ContentManager::ResolvePackageRoot(
 }
 
 std::filesystem::path ContentManager::ResolvePackagePath(
-    const XCONTENT_AGGREGATE_DATA& data) {
+    const XCONTENT_AGGREGATE_DATA& data, const uint32_t disc_number) {
   // Content path:
   // content_root/title_id/content_type/data_file_name/
   auto package_root = ResolvePackageRoot(data.content_type, data.title_id);
-  return package_root / xe::to_path(data.file_name());
+  std::string disc_directory = "";
+  std::filesystem::path package_path =
+      package_root / xe::to_path(data.file_name());
+
+  if (disc_number != -1) {
+    package_path /= fmt::format("disc{:03}", disc_number);
+  }
+  return package_path;
 }
 
 std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(
@@ -116,8 +123,9 @@ std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(
 }
 
 std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
-    const std::string_view root_name, const XCONTENT_AGGREGATE_DATA& data) {
-  auto package_path = ResolvePackagePath(data);
+    const std::string_view root_name, const XCONTENT_AGGREGATE_DATA& data,
+    const uint32_t disc_number) {
+  auto package_path = ResolvePackagePath(data, disc_number);
   if (!std::filesystem::exists(package_path)) {
     return nullptr;
   }
@@ -220,7 +228,8 @@ X_RESULT ContentManager::CreateContent(const std::string_view root_name,
 }
 
 X_RESULT ContentManager::OpenContent(const std::string_view root_name,
-                                     const XCONTENT_AGGREGATE_DATA& data) {
+                                     const XCONTENT_AGGREGATE_DATA& data,
+                                     const uint32_t disc_number) {
   auto global_lock = global_critical_region_.Acquire();
 
   if (open_packages_.count(string_key(root_name))) {
@@ -228,14 +237,14 @@ X_RESULT ContentManager::OpenContent(const std::string_view root_name,
     return X_ERROR_ALREADY_EXISTS;
   }
 
-  auto package_path = ResolvePackagePath(data);
+  auto package_path = ResolvePackagePath(data, disc_number);
   if (!std::filesystem::exists(package_path)) {
     // Does not exist, must be created.
     return X_ERROR_FILE_NOT_FOUND;
   }
 
   // Open package.
-  auto package = ResolvePackage(root_name, data);
+  auto package = ResolvePackage(root_name, data, disc_number);
   assert_not_null(package);
 
   open_packages_.insert({string_key::create(root_name), package.release()});

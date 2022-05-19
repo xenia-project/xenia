@@ -144,6 +144,8 @@ class KernelState {
   void SetExecutableModule(object_ref<UserModule> module);
   object_ref<UserModule> LoadUserModule(const std::string_view name,
                                         bool call_entry = true);
+  X_RESULT FinishLoadingUserModule(const object_ref<UserModule> module,
+                                   bool call_entry = true);
   void UnloadUserModule(const object_ref<UserModule>& module,
                         bool call_entry = true);
 
@@ -160,6 +162,7 @@ class KernelState {
     return object_ref<T>(reinterpret_cast<T*>(module.release()));
   }
 
+  X_RESULT ApplyTitleUpdate(const object_ref<UserModule> module);
   // Terminates a title: Unloads all modules, and kills all guest threads.
   // This DOES NOT RETURN if called from a guest thread!
   void TerminateTitle();

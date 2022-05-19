@@ -146,7 +146,8 @@ class ContentManager {
                                                    uint32_t title_id = -1);
 
   std::unique_ptr<ContentPackage> ResolvePackage(
-      const std::string_view root_name, const XCONTENT_AGGREGATE_DATA& data);
+      const std::string_view root_name, const XCONTENT_AGGREGATE_DATA& data,
+      const uint32_t disc_number = -1);
 
   bool ContentExists(const XCONTENT_AGGREGATE_DATA& data);
   X_RESULT WriteContentHeaderFile(const XCONTENT_AGGREGATE_DATA* data_raw);
@@ -156,7 +157,8 @@ class ContentManager {
   X_RESULT CreateContent(const std::string_view root_name,
                          const XCONTENT_AGGREGATE_DATA& data);
   X_RESULT OpenContent(const std::string_view root_name,
-                       const XCONTENT_AGGREGATE_DATA& data);
+                       const XCONTENT_AGGREGATE_DATA& data,
+                       const uint32_t disc_number = -1);
   X_RESULT CloseContent(const std::string_view root_name);
   X_RESULT GetContentThumbnail(const XCONTENT_AGGREGATE_DATA& data,
                                std::vector<uint8_t>* buffer);
@@ -170,7 +172,8 @@ class ContentManager {
  private:
   std::filesystem::path ResolvePackageRoot(XContentType content_type,
                                            uint32_t title_id = -1);
-  std::filesystem::path ResolvePackagePath(const XCONTENT_AGGREGATE_DATA& data);
+  std::filesystem::path ResolvePackagePath(const XCONTENT_AGGREGATE_DATA& data,
+                                           const uint32_t disc_number = -1);
 
   KernelState* kernel_state_;
   std::filesystem::path root_path_;
