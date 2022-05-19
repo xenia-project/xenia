@@ -131,7 +131,7 @@ const D3D12TextureCache::HostFormat D3D12TextureCache::host_formats_[64] = {
     // Red and blue probably must be swapped, similar to k_Y1_Cr_Y0_Cb_REP.
     {DXGI_FORMAT_G8R8_G8B8_UNORM, DXGI_FORMAT_G8R8_G8B8_UNORM, LoadMode::k32bpb,
      DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_BGRA},
+     LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_BGRR},
     // k_Y1_Cr_Y0_Cb_REP
     // Used for videos in 54540829. Red and blue must be swapped.
     // TODO(Triang3l): D3DFMT_G8R8_G8B8 is DXGI_FORMAT_R8G8_B8G8_UNORM * 255.0f,
@@ -140,7 +140,7 @@ const D3D12TextureCache::HostFormat D3D12TextureCache::host_formats_[64] = {
     // a very rare case.
     {DXGI_FORMAT_R8G8_B8G8_UNORM, DXGI_FORMAT_R8G8_B8G8_UNORM, LoadMode::k32bpb,
      DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_BGRA},
+     LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_BGRR},
     // k_16_16_EDRAM
     // Not usable as a texture, also has -32...32 range.
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
