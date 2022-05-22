@@ -1538,12 +1538,11 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   UINT64 host_slice_sizes_mips[xenos::kTexture2DCubeMaxWidthHeightLog2 + 1];
   {
     // Using custom calculations instead of GetCopyableFootprints because
-    // shaders may copy multiple blocks per thread for simplicity. For 3x
-    // resolution scaling, the number becomes a multiple of 3 rather than a
-    // power of 2 - so the 256-byte alignment required anyway by Direct3D 12 is
-    // not enough. GetCopyableFootprints would be needed to be called with an
-    // overaligned width - but it may exceed 16384 (the maximum Direct3D 12
-    // texture size) for 3x resolution scaling, and the function will fail.
+    // shaders may unconditionally copy multiple blocks along X per thread for
+    // simplicity, to make sure all rows (also including the last one -
+    // GetCopyableFootprints aligns row offsets, but not the total size) are
+    // properly padded to the number of blocks copied in an invocation without
+    // implicit assumptions about D3D12_TEXTURE_DATA_PITCH_ALIGNMENT.
     DXGI_FORMAT host_copy_format;
     uint32_t host_block_width;
     uint32_t host_block_height;
@@ -1576,8 +1575,7 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       host_slice_layout_base.Footprint.RowPitch =
           xe::align(xe::round_up(host_slice_layout_base.Footprint.Width /
                                      host_block_width,
-                                 load_mode_info.host_x_blocks_per_thread *
-                                     texture_resolution_scale_x) *
+                                 load_mode_info.host_x_blocks_per_thread) *
                         host_bytes_per_block,
                     uint32_t(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
       host_slice_size_base = xe::align(
@@ -1622,8 +1620,7 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
         host_slice_layout_mip.Footprint.RowPitch =
             xe::align(xe::round_up(host_slice_layout_mip.Footprint.Width /
                                        host_block_width,
-                                   load_mode_info.host_x_blocks_per_thread *
-                                       texture_resolution_scale_x) *
+                                   load_mode_info.host_x_blocks_per_thread) *
                           host_bytes_per_block,
                       uint32_t(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
         UINT64 host_slice_sizes_mip = xe::align(
