@@ -197,9 +197,6 @@ class D3D12CommandProcessor : public CommandProcessor {
   void SetStencilReference(uint32_t stencil_ref);
   void SetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY primitive_topology);
 
-  // For the pipeline cache to call when binding layout UIDs may be reused.
-  void NotifyShaderBindingsLayoutUIDsInvalidated();
-
   // Returns the text to display in the GPU backend name in the window title.
   std::string GetWindowTitleText() const;
 
