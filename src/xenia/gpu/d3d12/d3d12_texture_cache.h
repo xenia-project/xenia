@@ -235,10 +235,6 @@ class D3D12TextureCache final : public TextureCache {
     // Log2 of the number of guest resolution-scaled blocks along the X axis
     // loaded by a single thread shader group.
     uint32_t guest_x_blocks_per_thread_log2;
-    // Number of host blocks (or texels for uncompressed) along the X axis
-    // written by a single compute shader thread - rows in the upload buffer are
-    // padded to at least this amount.
-    uint32_t host_x_blocks_per_thread;
 
     uint32_t GetGuestXBlocksPerGroupLog2() const {
       return kLoadGuestXThreadsPerGroupLog2 + guest_x_blocks_per_thread_log2;
