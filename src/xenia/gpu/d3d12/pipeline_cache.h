@@ -55,7 +55,10 @@ class PipelineCache {
 
   bool Initialize();
   void Shutdown();
-  void ClearCache(bool shutting_down = false);
+  // No ClearCache because it's undesirable with the persistent shader storage
+  // (if the storage is reloaded, effectively nothing is cleared, while the call
+  // takes a long time, and if it's not, there will be heavy stuttering for the
+  // rest of the execution of the guest).
 
   void InitializeShaderStorage(const std::filesystem::path& cache_root,
                                uint32_t title_id, bool blocking);
