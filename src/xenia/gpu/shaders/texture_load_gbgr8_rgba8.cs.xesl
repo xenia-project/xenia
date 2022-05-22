@@ -7,7 +7,6 @@
  ******************************************************************************
  */
 
-#define XE_TEXTURE_LOAD_RESOLUTION_SCALED
 #include "pixel_formats.xesli"
-#define XE_TEXTURE_LOAD_32BPB_TRANSFORM XeBGRG8ToRGBG8
-#include "texture_load_32bpb.xesli"
+#define XE_TEXTURE_LOAD_32BPB_TO_64BPB XeGBGR8ToRGBA8
+#include "texture_load_32bpb_64bpb.xesli"

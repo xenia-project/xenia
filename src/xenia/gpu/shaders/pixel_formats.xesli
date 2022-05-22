@@ -417,6 +417,32 @@ xesl_uint4 XeBGRG8ToRGBG8(xesl_uint4 packed_texels) {
          ((packed_texels & 0x00FF0000u) >> 16u);
 }
 
+xesl_uint4 XeGBGR8ToRGBA8(xesl_uint2 packed_texels) {
+  xesl_uint2 rba = (packed_texels >> 24u) |
+                   ((packed_texels & 0x0000FF00u) << 8u) | 0xFF000000u;
+  xesl_uint4 g = xesl_uint4((packed_texels & 0x000000FFu) << 8u,
+                            (packed_texels & 0x00FF0000u) >> 8u).xzyw;
+  return rba.xxyy | g;
+}
+void XeGBGR8ToRGBA8(xesl_uint4 packed_texels, out xesl_uint4 out_01,
+                    out xesl_uint4 out_23) {
+  out_01 = XeGBGR8ToRGBA8(packed_texels.xy);
+  out_23 = XeGBGR8ToRGBA8(packed_texels.zw);
+}
+
+xesl_uint4 XeBGRG8ToRGBA8(xesl_uint2 packed_texels) {
+  xesl_uint2 rba = ((packed_texels & 0x00FF0000u) >> 16u) |
+                   ((packed_texels & 0x000000FFu) << 16u) | 0xFF000000u;
+  xesl_uint4 g = xesl_uint4(packed_texels & 0x0000FF00u,
+                            (packed_texels & 0xFF000000u) >> 16u).xzyw;
+  return rba.xxyy | g;
+}
+void XeBGRG8ToRGBA8(xesl_uint4 packed_texels, out xesl_uint4 out_01,
+                    out xesl_uint4 out_23) {
+  out_01 = XeBGRG8ToRGBA8(packed_texels.xy);
+  out_23 = XeBGRG8ToRGBA8(packed_texels.zw);
+}
+
 xesl_uint4 XeR10G11B11UNormToRGBA16(xesl_uint2 packed_texels) {
   // Red and blue.
   xesl_uint4 result =
