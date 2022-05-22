@@ -404,6 +404,19 @@ xesl_uint4 XeR5G5B6ToB5G6R5WithRBGASwizzle(xesl_uint4 packed_texels) {
          ((packed_texels & 0xFFE0FFE0u) >> 5u);
 }
 
+xesl_uint4 XeGBGR8ToGRGB8(xesl_uint4 packed_texels) {
+  return (packed_texels & 0x00FF00FFu) |
+         ((packed_texels & 0x0000FF00u) << 16u) |
+         ((packed_texels & 0xFF000000u) >> 16u);
+}
+
+// Also usable for BGRA8 <> RGBA8, but that's not needed for texture loading.
+xesl_uint4 XeBGRG8ToRGBG8(xesl_uint4 packed_texels) {
+  return (packed_texels & 0xFF00FF00u) |
+         ((packed_texels & 0x000000FFu) << 16u) |
+         ((packed_texels & 0x00FF0000u) >> 16u);
+}
+
 xesl_uint4 XeR10G11B11UNormToRGBA16(xesl_uint2 packed_texels) {
   // Red and blue.
   xesl_uint4 result =

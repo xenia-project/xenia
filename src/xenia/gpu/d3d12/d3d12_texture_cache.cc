@@ -44,6 +44,8 @@ namespace shaders {
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_64bpb_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_8bpb_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_8bpb_scaled_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_bgrg8_rgbg8_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_bgrg8_rgbg8_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_ctx1_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_float_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_float_scaled_cs.h"
@@ -56,6 +58,8 @@ namespace shaders {
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt3aas1111_bgra4_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt5_rgba8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt5a_r8_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_gbgr8_grgb8_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_gbgr8_grgb8_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_snorm_cs.h"
@@ -128,19 +132,19 @@ const D3D12TextureCache::HostFormat D3D12TextureCache::host_formats_[64] = {
      DXGI_FORMAT_R8G8_SNORM, LoadMode::kUnknown, false, DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
     // k_Cr_Y1_Cb_Y0_REP
-    // Red and blue probably must be swapped, similar to k_Y1_Cr_Y0_Cb_REP.
-    {DXGI_FORMAT_G8R8_G8B8_UNORM, DXGI_FORMAT_G8R8_G8B8_UNORM, LoadMode::k32bpb,
-     DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_BGRR},
+    // Red and blue swapped in the load shader for simplicity.
+    // TODO(Triang3l): Decompress if the size is uneven.
+    {DXGI_FORMAT_G8R8_G8B8_UNORM, DXGI_FORMAT_G8R8_G8B8_UNORM,
+     LoadMode::kGBGR8ToGRGB8, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true,
+     DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
+     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
     // k_Y1_Cr_Y0_Cb_REP
-    // Red and blue must be swapped.
-    // TODO(Triang3l): D3DFMT_G8R8_G8B8 is DXGI_FORMAT_R8G8_B8G8_UNORM * 255.0f,
-    // watch out for num_format int, division in shaders, etc., in 54540829 it
-    // works as is. Also need to decompress if the size is uneven, but should be
-    // a very rare case.
-    {DXGI_FORMAT_R8G8_B8G8_UNORM, DXGI_FORMAT_R8G8_B8G8_UNORM, LoadMode::k32bpb,
-     DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_BGRR},
+    // Red and blue swapped in the load shader for simplicity.
+    // TODO(Triang3l): Decompress if the size is uneven.
+    {DXGI_FORMAT_R8G8_B8G8_UNORM, DXGI_FORMAT_R8G8_B8G8_UNORM,
+     LoadMode::kBGRG8ToRGBG8, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true,
+     DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
+     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
     // k_16_16_EDRAM
     // Not usable as a texture, also has -32...32 range.
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
@@ -401,6 +405,14 @@ const D3D12TextureCache::LoadModeInfo D3D12TextureCache::load_mode_info_[] = {
      sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_cs),
      shaders::texture_load_r4g4b4a4_b4g4r4a4_scaled_cs,
      sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_scaled_cs), 4, 4, 2, 4, 16},
+    {shaders::texture_load_gbgr8_grgb8_cs,
+     sizeof(shaders::texture_load_gbgr8_grgb8_cs),
+     shaders::texture_load_gbgr8_grgb8_scaled_cs,
+     sizeof(shaders::texture_load_gbgr8_grgb8_scaled_cs), 4, 4, 4, 3, 8},
+    {shaders::texture_load_bgrg8_rgbg8_cs,
+     sizeof(shaders::texture_load_bgrg8_rgbg8_cs),
+     shaders::texture_load_bgrg8_rgbg8_scaled_cs,
+     sizeof(shaders::texture_load_bgrg8_rgbg8_scaled_cs), 4, 4, 4, 3, 8},
     {shaders::texture_load_r10g11b11_rgba16_cs,
      sizeof(shaders::texture_load_r10g11b11_rgba16_cs),
      shaders::texture_load_r10g11b11_rgba16_scaled_cs,
