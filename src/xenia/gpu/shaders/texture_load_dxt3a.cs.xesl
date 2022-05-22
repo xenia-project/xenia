@@ -16,8 +16,8 @@ xesl_entry
   xesl_entry_binding_next
   xesl_typedStorageBuffer(xesl_uint4, xe_texture_load_source, set=1, binding=0,
                           t0, space0)
-xesl_entry_bindings_end_local_size(XeTextureLoadGroupSizeX,
-                                   XeTextureLoadGroupSizeY, 1)
+xesl_entry_bindings_end_local_size(kXeTextureLoadGroupSizeX,
+                                   kXeTextureLoadGroupSizeY, 1)
   xesl_input_global_invocation_id
 xesl_entry_signature_end
   // 1 thread = 4 DXT3A blocks to 16x4 R8 texels (no need to convert to DXT3
