@@ -411,11 +411,13 @@ enum class TextureFormat : uint32_t {
   k_8_A = 8,
   k_8_B = 9,
   k_8_8 = 10,
+  // Though it's unknown what exactly REP means, likely it's "repeating
+  // fraction" (the term used for normalized fixed-point formats, UNORM here in
+  // particular - 0.0 to 1.0 range, like in Direct3D 10+, unlike the 0.0 to
+  // 255.0 range for D3DFMT_R8G8_B8G8 and D3DFMT_G8R8_G8B8 in Direct3D 9).
+  // 54540829 uses k_Y1_Cr_Y0_Cb_REP directly as UNORM.
   k_Cr_Y1_Cb_Y0_REP = 11,
   // Used for videos in 54540829.
-  // TODO(Triang3l): D3DFMT_G8R8_G8B8 is DXGI_FORMAT_R8G8_B8G8_UNORM * 255.0f,
-  // watch out for num_format int, division in shaders, etc., in 54540829 it
-  // works as is with UNORM on the host.
   k_Y1_Cr_Y0_Cb_REP = 12,
   k_16_16_EDRAM = 13,
   k_8_8_8_8_A = 14,
