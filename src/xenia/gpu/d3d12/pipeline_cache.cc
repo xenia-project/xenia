@@ -203,7 +203,6 @@ void PipelineCache::Shutdown() {
   COUNT_profile_set("gpu/pipeline_cache/pipelines", 0);
 
   // Destroy all shaders.
-  command_processor_.NotifyShaderBindingsLayoutUIDsInvalidated();
   if (bindless_resources_used_) {
     bindless_sampler_layout_map_.clear();
     bindless_sampler_layouts_.clear();
