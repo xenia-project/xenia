@@ -48,7 +48,7 @@ dcl_resource_buffer (uint,uint,uint,uint) T0[0:0], space=0
 dcl_uav_typed_buffer (uint,uint,uint,uint) U0[0:0], space=0
 dcl_input vThreadID.xyz
 dcl_temps 8
-dcl_thread_group 8, 32, 1
+dcl_thread_group 4, 32, 1
 ishl r0.x, vThreadID.x, l(2)
 mov r0.y, vThreadID.y
 uge r0.zw, r0.xxxy, CB0[0][1].xxxy
@@ -387,10 +387,10 @@ ret
 
 const BYTE texture_load_dxt3aas1111_bgra4_cs[] =
 {
-     68,  88,  66,  67,   7, 219, 
-    254, 199, 108, 155, 230, 211, 
-    206,  89,  99, 210, 111,  24, 
-    155,  76,   1,   0,   0,   0, 
+     68,  88,  66,  67, 101,  36, 
+    240,   2,  58, 233,  10,  60, 
+     67,  45,  23, 145, 147,  13, 
+     72, 229,   1,   0,   0,   0, 
      92,  60,   0,   0,   5,   0, 
       0,   0,  52,   0,   0,   0, 
      32,   4,   0,   0,  48,   4, 
@@ -589,7 +589,7 @@ const BYTE texture_load_dxt3aas1111_bgra4_cs[] =
       0,   2, 114,   0,   2,   0, 
     104,   0,   0,   2,   8,   0, 
       0,   0, 155,   0,   0,   4, 
-      8,   0,   0,   0,  32,   0, 
+      4,   0,   0,   0,  32,   0, 
       0,   0,   1,   0,   0,   0, 
      41,   0,   0,   6,  18,   0, 
      16,   0,   0,   0,   0,   0, 

@@ -13,6 +13,18 @@
 #include "endian.xesli"
 #include "texture_address.xesli"
 
+// 128 threads per group (the maximum wave size supported by DXIL and SPIR-V,
+// and the minimum required number of threads per group on Vulkan), laid out as
+// 4x32 (32 texels along Y per group - one guest tile) - starting with 64x32
+// blocks (2x1 guest tiles) per group for 8bpb / 16bpb, and smaller for larger
+// block sizes. Since the mip tail is packed in 32x / x32 storage, there's no
+// need for the Y group size smaller than 32 - 8x16, for instance, would result
+// in 128x16 blocks per group for 8bpb / 16bpb, and for a 32x32 mip tail, there
+// would be two groups rather than one, for a total of 128x32 blocks - 75% of
+// the work will be wasted rather than 50% with one 64x32-block group.
+#define XeTextureLoadGroupSizeX 4
+#define XeTextureLoadGroupSizeY 32
+
 xesl_cbuffer_begin(xe_texture_load_constants, set=2, binding=0, b0, space0)
   uint xe_texture_load_is_tiled_3d_endian_scale;
   // Base offset in bytes, resolution-scaled.
