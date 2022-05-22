@@ -224,8 +224,12 @@ class D3D12TextureCache final : public TextureCache {
     // may copy multiple blocks per one invocation.
     uint32_t srv_bpe_log2;
     uint32_t uav_bpe_log2;
-    // Log2 of the number of guest blocks along the X axis loaded by a single
-    // thread shader group.
+    // Number of bytes in a host resolution-scaled block (corresponding to a
+    // guest block if not decompressing, or a host texel if decompressing)
+    // written by the shader.
+    uint32_t bytes_per_host_block;
+    // Log2 of the number of guest resolution-scaled blocks along the X axis
+    // loaded by a single thread shader group.
     uint32_t guest_x_blocks_per_thread_log2;
     // Number of host blocks (or texels for uncompressed) along the X axis
     // written by a single compute shader thread - rows in the upload buffer are
@@ -262,8 +266,9 @@ class D3D12TextureCache final : public TextureCache {
     // textures and multiplication to the tfetch implementation.
 
     // Whether the DXGI format, if not uncompressing the texture, consists of
-    // blocks, thus copy regions must be aligned to block size.
-    bool dxgi_format_block_aligned;
+    // blocks, thus copy regions must be aligned to block size (assuming it's
+    // the same as the guest block size).
+    bool is_block_compressed;
     // Uncompression info for when the regular host format for this texture is
     // block-compressed, but the size is not block-aligned, and thus such
     // texture cannot be created in Direct3D on PC and needs decompression,
