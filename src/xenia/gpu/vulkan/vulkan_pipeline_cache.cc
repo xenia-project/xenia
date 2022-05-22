@@ -64,24 +64,6 @@ void VulkanPipelineCache::Shutdown() {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
-  ClearCache();
-
-  for (const auto& geometry_shader_pair : geometry_shaders_) {
-    if (geometry_shader_pair.second != VK_NULL_HANDLE) {
-      dfn.vkDestroyShaderModule(device, geometry_shader_pair.second, nullptr);
-    }
-  }
-  geometry_shaders_.clear();
-
-  shader_translator_.reset();
-}
-
-void VulkanPipelineCache::ClearCache() {
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
-  VkDevice device = provider.device();
-
   // Destroy all pipelines.
   last_pipeline_ = nullptr;
   for (const auto& pipeline_pair : pipelines_) {
@@ -91,13 +73,24 @@ void VulkanPipelineCache::ClearCache() {
   }
   pipelines_.clear();
 
-  // Destroy all shaders.
+  // Destroy all internal shaders.
+  for (const auto& geometry_shader_pair : geometry_shaders_) {
+    if (geometry_shader_pair.second != VK_NULL_HANDLE) {
+      dfn.vkDestroyShaderModule(device, geometry_shader_pair.second, nullptr);
+    }
+  }
+  geometry_shaders_.clear();
+
+  // Destroy all translated shaders.
   for (auto it : shaders_) {
     delete it.second;
   }
   shaders_.clear();
   texture_binding_layout_map_.clear();
   texture_binding_layouts_.clear();
+
+  // Shut down shader translation.
+  shader_translator_.reset();
 }
 
 VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
