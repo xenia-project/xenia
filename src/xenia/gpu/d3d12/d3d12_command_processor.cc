@@ -3045,8 +3045,6 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
 
       texture_cache_->ClearCache();
 
-      pipeline_cache_->ClearCache();
-
       for (auto it : root_signatures_bindful_) {
         it.second->Release();
       }
