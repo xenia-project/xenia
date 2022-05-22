@@ -35,21 +35,21 @@ xesl_entry_signature_end
   uint block_offset_guest =
       XeTextureLoadGuestBlockOffset(block_index, 4u, 2u) >> 4u;
   uint endian = XeTextureLoadEndian32();
-  xesl_uint4 block_0, block_1;
-  XE_TEXTURE_LOAD_32BPB_TO_64BPB(
+  xesl_uint4 guest_blocks =
       XeEndianSwap32(xesl_typedStorageBufferLoad(xe_texture_load_source,
-                                                 block_offset_guest), endian),
-      block_0, block_1);
+                                                 block_offset_guest), endian);
+  xesl_uint4 block_0, block_1;
+  XE_TEXTURE_LOAD_32BPB_TO_64BPB(guest_blocks, block_0, block_1);
   xesl_writeTypedStorageBufferStore(xe_texture_load_dest, block_offset_host,
                                     block_0);
   xesl_writeTypedStorageBufferStore(xe_texture_load_dest,
                                     block_offset_host + 1u, block_1);
   block_offset_guest +=
       XeTextureLoadRightConsecutiveBlocksOffset(block_index.x, 2u) >> 4u;
-  XE_TEXTURE_LOAD_32BPB_TO_64BPB(
+  guest_blocks =
       XeEndianSwap32(xesl_typedStorageBufferLoad(xe_texture_load_source,
-                                                 block_offset_guest), endian),
-      block_0, block_1);
+                                                 block_offset_guest), endian);
+  XE_TEXTURE_LOAD_32BPB_TO_64BPB(guest_blocks, block_0, block_1);
   xesl_writeTypedStorageBufferStore(xe_texture_load_dest,
                                     block_offset_host + 2u, block_0);
   xesl_writeTypedStorageBufferStore(xe_texture_load_dest,
