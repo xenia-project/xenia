@@ -48,7 +48,7 @@ dcl_resource_buffer (uint,uint,uint,uint) T0[0:0], space=0
 dcl_uav_typed_buffer (uint,uint,uint,uint) U0[0:0], space=0
 dcl_input vThreadID.xyz
 dcl_temps 5
-dcl_thread_group 8, 32, 1
+dcl_thread_group 4, 32, 1
 ishl r0.x, vThreadID.x, l(2)
 mov r0.y, vThreadID.y
 uge r0.yz, r0.xxyx, CB0[0][1].xxyx
@@ -185,10 +185,10 @@ ret
 
 const BYTE texture_load_rgba16_snorm_float_cs[] =
 {
-     68,  88,  66,  67, 130,  84, 
-    147, 165,  41, 150, 201, 188, 
-    240,  11, 180,  52, 244, 252, 
-    250, 246,   1,   0,   0,   0, 
+     68,  88,  66,  67,  91, 175, 
+     48, 102,  17, 226, 165, 118, 
+    162, 155,  35,  75, 247,  35, 
+    254, 225,   1,   0,   0,   0, 
      88,  22,   0,   0,   5,   0, 
       0,   0,  52,   0,   0,   0, 
      32,   4,   0,   0,  48,   4, 
@@ -387,7 +387,7 @@ const BYTE texture_load_rgba16_snorm_float_cs[] =
       0,   2, 114,   0,   2,   0, 
     104,   0,   0,   2,   5,   0, 
       0,   0, 155,   0,   0,   4, 
-      8,   0,   0,   0,  32,   0, 
+      4,   0,   0,   0,  32,   0, 
       0,   0,   1,   0,   0,   0, 
      41,   0,   0,   6,  18,   0, 
      16,   0,   0,   0,   0,   0, 

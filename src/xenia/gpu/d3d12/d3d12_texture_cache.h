@@ -176,6 +176,9 @@ class D3D12TextureCache final : public TextureCache {
   void UpdateTextureBindingsImpl(uint32_t fetch_constant_mask) override;
 
  private:
+  static constexpr uint32_t kLoadGuestXThreadsPerGroupLog2 = 2;
+  static constexpr uint32_t kLoadGuestYBlocksPerGroupLog2 = 5;
+
   enum class LoadMode {
     k8bpb,
     k16bpb,
@@ -221,10 +224,17 @@ class D3D12TextureCache final : public TextureCache {
     // may copy multiple blocks per one invocation.
     uint32_t srv_bpe_log2;
     uint32_t uav_bpe_log2;
-    // Number of host blocks (or texels for uncompressed) along X axis written
-    // by every compute shader thread - rows in the upload buffer are padded to
-    // at least this amount.
+    // Log2 of the number of guest blocks along the X axis loaded by a single
+    // thread shader group.
+    uint32_t guest_x_blocks_per_thread_log2;
+    // Number of host blocks (or texels for uncompressed) along the X axis
+    // written by a single compute shader thread - rows in the upload buffer are
+    // padded to at least this amount.
     uint32_t host_x_blocks_per_thread;
+
+    uint32_t GetGuestXBlocksPerGroupLog2() const {
+      return kLoadGuestXThreadsPerGroupLog2 + guest_x_blocks_per_thread_log2;
+    }
   };
 
   struct HostFormat {
