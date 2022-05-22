@@ -58,7 +58,6 @@ class VulkanPipelineCache {
 
   bool Initialize();
   void Shutdown();
-  void ClearCache();
 
   VulkanShader* LoadShader(xenos::ShaderType shader_type,
                            const uint32_t* host_address, uint32_t dword_count);
@@ -198,7 +197,8 @@ class VulkanPipelineCache {
 
   struct Pipeline {
     VkPipeline pipeline = VK_NULL_HANDLE;
-    // Owned by VulkanCommandProcessor, valid until ClearCache.
+    // The layouts are owned by the VulkanCommandProcessor, and must not be
+    // destroyed by it while the pipeline cache is active.
     const PipelineLayoutProvider* pipeline_layout;
     Pipeline(const PipelineLayoutProvider* pipeline_layout_provider)
         : pipeline_layout(pipeline_layout_provider) {}

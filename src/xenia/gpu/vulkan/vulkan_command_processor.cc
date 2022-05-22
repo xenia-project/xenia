@@ -70,6 +70,11 @@ VulkanCommandProcessor::VulkanCommandProcessor(
 
 VulkanCommandProcessor::~VulkanCommandProcessor() = default;
 
+void VulkanCommandProcessor::ClearCaches() {
+  CommandProcessor::ClearCaches();
+  cache_clear_requested_ = true;
+}
+
 void VulkanCommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
                                                       uint32_t length) {
   shared_memory_->MemoryInvalidationCallback(base_ptr, length, true);
@@ -2295,21 +2300,10 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
 
       texture_cache_->ClearCache();
 
-      pipeline_cache_->ClearCache();
-
       render_target_cache_->ClearCache();
 
-      for (const auto& pipeline_layout_pair : pipeline_layouts_) {
-        dfn.vkDestroyPipelineLayout(
-            device, pipeline_layout_pair.second.GetPipelineLayout(), nullptr);
-      }
-      pipeline_layouts_.clear();
-      for (const auto& descriptor_set_layout_pair :
-           descriptor_set_layouts_textures_) {
-        dfn.vkDestroyDescriptorSetLayout(
-            device, descriptor_set_layout_pair.second, nullptr);
-      }
-      descriptor_set_layouts_textures_.clear();
+      // Not clearing the pipeline layouts and the descriptor set layouts as
+      // they're referenced by pipelines, which are not destroyed.
 
       primitive_processor_->ClearCache();
 
