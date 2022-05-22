@@ -22,8 +22,8 @@
 // in 128x16 blocks per group for 8bpb / 16bpb, and for a 32x32 mip tail, there
 // would be two groups rather than one, for a total of 128x32 blocks - 75% of
 // the work will be wasted rather than 50% with one 64x32-block group.
-#define XeTextureLoadGroupSizeX 4
-#define XeTextureLoadGroupSizeY 32
+#define kXeTextureLoadGroupSizeX 4
+#define kXeTextureLoadGroupSizeY 32
 
 xesl_cbuffer_begin(xe_texture_load_constants, set=2, binding=0, b0, space0)
   uint xe_texture_load_is_tiled_3d_endian_scale;
