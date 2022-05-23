@@ -44,6 +44,8 @@ namespace shaders {
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_64bpb_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_8bpb_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_8bpb_scaled_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_bgrg8_rgb8_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_bgrg8_rgbg8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_ctx1_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_float_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_float_scaled_cs.h"
@@ -56,6 +58,8 @@ namespace shaders {
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt3aas1111_bgra4_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt5_rgba8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt5a_r8_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_gbgr8_grgb8_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_gbgr8_rgb8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_snorm_cs.h"
@@ -128,19 +132,23 @@ const D3D12TextureCache::HostFormat D3D12TextureCache::host_formats_[64] = {
      DXGI_FORMAT_R8G8_SNORM, LoadMode::kUnknown, false, DXGI_FORMAT_UNKNOWN,
      LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
     // k_Cr_Y1_Cb_Y0_REP
-    // Red and blue probably must be swapped, similar to k_Y1_Cr_Y0_Cb_REP.
-    {DXGI_FORMAT_G8R8_G8B8_UNORM, DXGI_FORMAT_G8R8_G8B8_UNORM, LoadMode::k32bpb,
-     DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_BGRR},
+    // Red and blue swapped in the load shader for simplicity.
+    // TODO(Triang3l): The DXGI_FORMAT_R8G8B8A8_U/SNORM conversion is usable for
+    // the signed version, separate unsigned and signed load modes completely
+    // (as one doesn't need decompression for this format, while another does).
+    {DXGI_FORMAT_G8R8_G8B8_UNORM, DXGI_FORMAT_G8R8_G8B8_UNORM,
+     LoadMode::kGBGR8ToGRGB8, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true,
+     DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::kGBGR8ToRGB8,
+     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
     // k_Y1_Cr_Y0_Cb_REP
-    // Red and blue must be swapped.
-    // TODO(Triang3l): D3DFMT_G8R8_G8B8 is DXGI_FORMAT_R8G8_B8G8_UNORM * 255.0f,
-    // watch out for num_format int, division in shaders, etc., in 54540829 it
-    // works as is. Also need to decompress if the size is uneven, but should be
-    // a very rare case.
-    {DXGI_FORMAT_R8G8_B8G8_UNORM, DXGI_FORMAT_R8G8_B8G8_UNORM, LoadMode::k32bpb,
-     DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true, DXGI_FORMAT_UNKNOWN,
-     LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_BGRR},
+    // Red and blue swapped in the load shader for simplicity.
+    // TODO(Triang3l): The DXGI_FORMAT_R8G8B8A8_U/SNORM conversion is usable for
+    // the signed version, separate unsigned and signed load modes completely
+    // (as one doesn't need decompression for this format, while another does).
+    {DXGI_FORMAT_R8G8_B8G8_UNORM, DXGI_FORMAT_R8G8_B8G8_UNORM,
+     LoadMode::kBGRG8ToRGBG8, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true,
+     DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::kBGRG8ToRGB8,
+     xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
     // k_16_16_EDRAM
     // Not usable as a texture, also has -32...32 range.
     {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown,
@@ -371,76 +379,87 @@ const D3D12TextureCache::HostFormat D3D12TextureCache::host_formats_[64] = {
 const D3D12TextureCache::LoadModeInfo D3D12TextureCache::load_mode_info_[] = {
     {shaders::texture_load_8bpb_cs, sizeof(shaders::texture_load_8bpb_cs),
      shaders::texture_load_8bpb_scaled_cs,
-     sizeof(shaders::texture_load_8bpb_scaled_cs), 3, 4, 16},
+     sizeof(shaders::texture_load_8bpb_scaled_cs), 3, 4, 1, 4},
     {shaders::texture_load_16bpb_cs, sizeof(shaders::texture_load_16bpb_cs),
      shaders::texture_load_16bpb_scaled_cs,
-     sizeof(shaders::texture_load_16bpb_scaled_cs), 4, 4, 16},
+     sizeof(shaders::texture_load_16bpb_scaled_cs), 4, 4, 2, 4},
     {shaders::texture_load_32bpb_cs, sizeof(shaders::texture_load_32bpb_cs),
      shaders::texture_load_32bpb_scaled_cs,
-     sizeof(shaders::texture_load_32bpb_scaled_cs), 4, 4, 8},
+     sizeof(shaders::texture_load_32bpb_scaled_cs), 4, 4, 4, 3},
     {shaders::texture_load_64bpb_cs, sizeof(shaders::texture_load_64bpb_cs),
      shaders::texture_load_64bpb_scaled_cs,
-     sizeof(shaders::texture_load_64bpb_scaled_cs), 4, 4, 4},
+     sizeof(shaders::texture_load_64bpb_scaled_cs), 4, 4, 8, 2},
     {shaders::texture_load_128bpb_cs, sizeof(shaders::texture_load_128bpb_cs),
      shaders::texture_load_128bpb_scaled_cs,
-     sizeof(shaders::texture_load_128bpb_scaled_cs), 4, 4, 2},
+     sizeof(shaders::texture_load_128bpb_scaled_cs), 4, 4, 16, 1},
     {shaders::texture_load_r5g5b5a1_b5g5r5a1_cs,
      sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_cs),
      shaders::texture_load_r5g5b5a1_b5g5r5a1_scaled_cs,
-     sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_scaled_cs), 4, 4, 16},
+     sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_scaled_cs), 4, 4, 2, 4},
     {shaders::texture_load_r5g6b5_b5g6r5_cs,
      sizeof(shaders::texture_load_r5g6b5_b5g6r5_cs),
      shaders::texture_load_r5g6b5_b5g6r5_scaled_cs,
-     sizeof(shaders::texture_load_r5g6b5_b5g6r5_scaled_cs), 4, 4, 16},
+     sizeof(shaders::texture_load_r5g6b5_b5g6r5_scaled_cs), 4, 4, 2, 4},
     {shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs,
      sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs),
      shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_scaled_cs,
      sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_scaled_cs), 4, 4,
-     16},
+     2, 4},
     {shaders::texture_load_r4g4b4a4_b4g4r4a4_cs,
      sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_cs),
      shaders::texture_load_r4g4b4a4_b4g4r4a4_scaled_cs,
-     sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_scaled_cs), 4, 4, 16},
+     sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_scaled_cs), 4, 4, 2, 4},
+    {shaders::texture_load_gbgr8_grgb8_cs,
+     sizeof(shaders::texture_load_gbgr8_grgb8_cs), nullptr, 0, 4, 4, 4, 3},
+    {shaders::texture_load_gbgr8_rgb8_cs,
+     sizeof(shaders::texture_load_gbgr8_rgb8_cs), nullptr, 0, 4, 4, 8, 3},
+    {shaders::texture_load_bgrg8_rgbg8_cs,
+     sizeof(shaders::texture_load_bgrg8_rgbg8_cs), nullptr, 0, 4, 4, 4, 3},
+    {shaders::texture_load_bgrg8_rgb8_cs,
+     sizeof(shaders::texture_load_bgrg8_rgb8_cs), nullptr, 0, 4, 4, 8, 3},
     {shaders::texture_load_r10g11b11_rgba16_cs,
      sizeof(shaders::texture_load_r10g11b11_rgba16_cs),
      shaders::texture_load_r10g11b11_rgba16_scaled_cs,
-     sizeof(shaders::texture_load_r10g11b11_rgba16_scaled_cs), 4, 4, 8},
+     sizeof(shaders::texture_load_r10g11b11_rgba16_scaled_cs), 4, 4, 8, 3},
     {shaders::texture_load_r10g11b11_rgba16_snorm_cs,
      sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_cs),
      shaders::texture_load_r10g11b11_rgba16_snorm_scaled_cs,
-     sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_scaled_cs), 4, 4, 8},
+     sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_scaled_cs), 4, 4, 8,
+     3},
     {shaders::texture_load_r11g11b10_rgba16_cs,
      sizeof(shaders::texture_load_r11g11b10_rgba16_cs),
      shaders::texture_load_r11g11b10_rgba16_scaled_cs,
-     sizeof(shaders::texture_load_r11g11b10_rgba16_scaled_cs), 4, 4, 8},
+     sizeof(shaders::texture_load_r11g11b10_rgba16_scaled_cs), 4, 4, 8, 3},
     {shaders::texture_load_r11g11b10_rgba16_snorm_cs,
      sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_cs),
      shaders::texture_load_r11g11b10_rgba16_snorm_scaled_cs,
-     sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_scaled_cs), 4, 4, 8},
+     sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_scaled_cs), 4, 4, 8,
+     3},
     {shaders::texture_load_dxt1_rgba8_cs,
-     sizeof(shaders::texture_load_dxt1_rgba8_cs), nullptr, 0, 4, 4, 4},
+     sizeof(shaders::texture_load_dxt1_rgba8_cs), nullptr, 0, 4, 4, 4, 2},
     {shaders::texture_load_dxt3_rgba8_cs,
-     sizeof(shaders::texture_load_dxt3_rgba8_cs), nullptr, 0, 4, 4, 2},
+     sizeof(shaders::texture_load_dxt3_rgba8_cs), nullptr, 0, 4, 4, 4, 1},
     {shaders::texture_load_dxt5_rgba8_cs,
-     sizeof(shaders::texture_load_dxt5_rgba8_cs), nullptr, 0, 4, 4, 2},
+     sizeof(shaders::texture_load_dxt5_rgba8_cs), nullptr, 0, 4, 4, 4, 1},
     {shaders::texture_load_dxn_rg8_cs, sizeof(shaders::texture_load_dxn_rg8_cs),
-     nullptr, 0, 4, 4, 2},
+     nullptr, 0, 4, 4, 2, 1},
     {shaders::texture_load_dxt3a_cs, sizeof(shaders::texture_load_dxt3a_cs),
-     nullptr, 0, 4, 4, 4},
+     nullptr, 0, 4, 4, 1, 2},
     {shaders::texture_load_dxt3aas1111_bgra4_cs,
-     sizeof(shaders::texture_load_dxt3aas1111_bgra4_cs), nullptr, 0, 4, 4, 4},
+     sizeof(shaders::texture_load_dxt3aas1111_bgra4_cs), nullptr, 0, 4, 4, 2,
+     2},
     {shaders::texture_load_dxt5a_r8_cs,
-     sizeof(shaders::texture_load_dxt5a_r8_cs), nullptr, 0, 4, 4, 4},
+     sizeof(shaders::texture_load_dxt5a_r8_cs), nullptr, 0, 4, 4, 1, 2},
     {shaders::texture_load_ctx1_cs, sizeof(shaders::texture_load_ctx1_cs),
-     nullptr, 0, 4, 4, 4},
+     nullptr, 0, 4, 4, 2, 2},
     {shaders::texture_load_depth_unorm_cs,
      sizeof(shaders::texture_load_depth_unorm_cs),
      shaders::texture_load_depth_unorm_scaled_cs,
-     sizeof(shaders::texture_load_depth_unorm_scaled_cs), 4, 4, 8},
+     sizeof(shaders::texture_load_depth_unorm_scaled_cs), 4, 4, 4, 3},
     {shaders::texture_load_depth_float_cs,
      sizeof(shaders::texture_load_depth_float_cs),
      shaders::texture_load_depth_float_scaled_cs,
-     sizeof(shaders::texture_load_depth_float_scaled_cs), 4, 4, 8},
+     sizeof(shaders::texture_load_depth_float_scaled_cs), 4, 4, 4, 3},
 };
 
 D3D12TextureCache::D3D12TextureCache(const RegisterFile& register_file,
@@ -1524,6 +1543,17 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       texture_resolution_scaled ? draw_resolution_scale_y() : 1;
 
   // Get the host layout and the buffer.
+  bool host_block_compressed =
+      host_formats_[uint32_t(guest_format)].is_block_compressed &&
+      !IsDecompressionNeeded(guest_format, width, height);
+  uint32_t host_block_width = host_block_compressed ? block_width : 1;
+  uint32_t host_block_height = host_block_compressed ? block_height : 1;
+  uint32_t host_x_blocks_per_thread =
+      UINT32_C(1) << load_mode_info.guest_x_blocks_per_thread_log2;
+  if (!host_block_compressed) {
+    // Decompressing guest blocks.
+    host_x_blocks_per_thread *= block_width;
+  }
   UINT64 copy_buffer_size = 0;
   D3D12_PLACED_SUBRESOURCE_FOOTPRINT host_slice_layout_base;
   UINT64 host_slice_size_base;
@@ -1535,19 +1565,13 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   UINT64 host_slice_sizes_mips[xenos::kTexture2DCubeMaxWidthHeightLog2 + 1];
   {
     // Using custom calculations instead of GetCopyableFootprints because
-    // shaders may copy multiple blocks per thread for simplicity. For 3x
-    // resolution scaling, the number becomes a multiple of 3 rather than a
-    // power of 2 - so the 256-byte alignment required anyway by Direct3D 12 is
-    // not enough. GetCopyableFootprints would be needed to be called with an
-    // overaligned width - but it may exceed 16384 (the maximum Direct3D 12
-    // texture size) for 3x resolution scaling, and the function will fail.
-    DXGI_FORMAT host_copy_format;
-    uint32_t host_block_width;
-    uint32_t host_block_height;
-    uint32_t host_bytes_per_block;
-    ui::d3d12::util::GetFormatCopyInfo(
-        GetDXGIResourceFormat(guest_format, width, height), 0, host_copy_format,
-        host_block_width, host_block_height, host_bytes_per_block);
+    // shaders may unconditionally copy multiple blocks along X per thread for
+    // simplicity, to make sure all rows (also including the last one -
+    // GetCopyableFootprints aligns row offsets, but not the total size) are
+    // properly padded to the number of blocks copied in an invocation without
+    // implicit assumptions about D3D12_TEXTURE_DATA_PITCH_ALIGNMENT.
+    DXGI_FORMAT host_copy_format =
+        GetDXGIResourceFormat(guest_format, width, height);
     if (!level_first) {
       host_slice_layout_base.Offset = copy_buffer_size;
       host_slice_layout_base.Footprint.Format = host_copy_format;
@@ -1573,9 +1597,8 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       host_slice_layout_base.Footprint.RowPitch =
           xe::align(xe::round_up(host_slice_layout_base.Footprint.Width /
                                      host_block_width,
-                                 load_mode_info.host_x_blocks_per_thread *
-                                     texture_resolution_scale_x) *
-                        host_bytes_per_block,
+                                 host_x_blocks_per_thread) *
+                        load_mode_info.bytes_per_host_block,
                     uint32_t(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
       host_slice_size_base = xe::align(
           UINT64(host_slice_layout_base.Footprint.RowPitch) *
@@ -1619,9 +1642,8 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
         host_slice_layout_mip.Footprint.RowPitch =
             xe::align(xe::round_up(host_slice_layout_mip.Footprint.Width /
                                        host_block_width,
-                                   load_mode_info.host_x_blocks_per_thread *
-                                       texture_resolution_scale_x) *
-                          host_bytes_per_block,
+                                   host_x_blocks_per_thread) *
+                          load_mode_info.bytes_per_host_block,
                       uint32_t(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT));
         UINT64 host_slice_sizes_mip = xe::align(
             UINT64(host_slice_layout_mip.Footprint.RowPitch) *
@@ -1639,13 +1661,6 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       uint32_t(copy_buffer_size), copy_buffer_state);
   if (copy_buffer == nullptr) {
     return false;
-  }
-  uint32_t host_block_width = 1;
-  uint32_t host_block_height = 1;
-  if (host_formats_[uint32_t(guest_format)].dxgi_format_block_aligned &&
-      !IsDecompressionNeeded(guest_format, width, height)) {
-    host_block_width = block_width;
-    host_block_height = block_height;
   }
 
   // Begin loading.
@@ -1736,6 +1751,8 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   // available through buffers, and to create a descriptor, the buffer start
   // address is required - which may be different for base and mips.
   bool scaled_mips_source_set_up = false;
+  uint32_t guest_x_blocks_per_group_log2 =
+      load_mode_info.GetGuestXBlocksPerGroupLog2();
   for (uint32_t loop_level = loop_level_first; loop_level <= loop_level_last;
        ++loop_level) {
     bool is_base = loop_level == 0;
@@ -1817,8 +1834,14 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
 
     // Each thread group processes 32x32x1 source blocks (resolution-scaled, but
     // still compressed if the host needs decompression).
-    uint32_t group_count_x = (load_constants.size_blocks[0] + 31) >> 5;
-    uint32_t group_count_y = (load_constants.size_blocks[1] + 31) >> 5;
+    uint32_t group_count_x =
+        (load_constants.size_blocks[0] +
+         ((UINT32_C(1) << guest_x_blocks_per_group_log2) - 1)) >>
+        guest_x_blocks_per_group_log2;
+    uint32_t group_count_y =
+        (load_constants.size_blocks[1] +
+         ((UINT32_C(1) << kLoadGuestYBlocksPerGroupLog2) - 1)) >>
+        kLoadGuestYBlocksPerGroupLog2;
 
     const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& host_slice_layout =
         is_base ? host_slice_layout_base : host_slice_layouts_mips[level];

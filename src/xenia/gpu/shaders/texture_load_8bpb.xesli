@@ -15,7 +15,8 @@ xesl_entry
   xesl_entry_binding_next
   xesl_typedStorageBuffer(xesl_uint2, xe_texture_load_source, set=1, binding=0,
                           t0, space0)
-xesl_entry_bindings_end_local_size(2, 32, 1)
+xesl_entry_bindings_end_local_size(kXeTextureLoadGroupSizeX,
+                                   kXeTextureLoadGroupSizeY, 1)
   xesl_input_global_invocation_id
 xesl_entry_signature_end
   // 1 thread = 16 blocks.
