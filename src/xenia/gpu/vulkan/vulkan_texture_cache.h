@@ -85,6 +85,8 @@ class VulkanTextureCache final : public TextureCache {
     kR5G6B5ToB5G6R5,
     kR5G5B6ToB5G6R5WithRBGASwizzle,
     kRGBA4ToARGB4,
+    kGBGR8ToRGB8,
+    kBGRG8ToRGB8,
     kR10G11B11ToRGBA16,
     kR10G11B11ToRGBA16SNorm,
     kR11G11B10ToRGBA16,
