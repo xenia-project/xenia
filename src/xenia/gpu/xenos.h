@@ -411,6 +411,12 @@ enum class TextureFormat : uint32_t {
   k_8_A = 8,
   k_8_B = 9,
   k_8_8 = 10,
+  // Though it's unknown what exactly REP means, likely it's "repeating
+  // fraction" (the term used for normalized fixed-point formats, UNORM in
+  // particular for unsigned signedness - 0.0 to 1.0 range, like in
+  // Direct3D 10+, unlike the 0.0 to 255.0 range for D3DFMT_R8G8_B8G8 and
+  // D3DFMT_G8R8_G8B8 in Direct3D 9). 54540829 uses k_Y1_Cr_Y0_Cb_REP directly
+  // as UNORM.
   k_Cr_Y1_Cb_Y0_REP = 11,
   // Used for videos in 54540829.
   k_Y1_Cr_Y0_Cb_REP = 12,
@@ -926,8 +932,6 @@ typedef enum {
   XE_GPU_TEXTURE_SWIZZLE_RGGG = XE_GPU_MAKE_TEXTURE_SWIZZLE(R, G, G, G),
   XE_GPU_TEXTURE_SWIZZLE_RGBB = XE_GPU_MAKE_TEXTURE_SWIZZLE(R, G, B, B),
   XE_GPU_TEXTURE_SWIZZLE_RGBA = XE_GPU_MAKE_TEXTURE_SWIZZLE(R, G, B, A),
-  XE_GPU_TEXTURE_SWIZZLE_BGRR = XE_GPU_MAKE_TEXTURE_SWIZZLE(B, G, R, R),
-  XE_GPU_TEXTURE_SWIZZLE_BGRA = XE_GPU_MAKE_TEXTURE_SWIZZLE(B, G, R, A),
   XE_GPU_TEXTURE_SWIZZLE_0000 = XE_GPU_MAKE_TEXTURE_SWIZZLE(0, 0, 0, 0),
 } XE_GPU_TEXTURE_SWIZZLE;
 

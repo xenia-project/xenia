@@ -9,7 +9,7 @@
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
                OpEntryPoint GLCompute %5663 "main" %gl_GlobalInvocationID
-               OpExecutionMode %5663 LocalSize 8 32 1
+               OpExecutionMode %5663 LocalSize 4 32 1
                OpMemberDecorate %_struct_1161 0 Offset 0
                OpMemberDecorate %_struct_1161 1 Offset 4
                OpMemberDecorate %_struct_1161 2 Offset 8
@@ -23,17 +23,17 @@
                OpDecorate %5245 Binding 0
                OpDecorate %gl_GlobalInvocationID BuiltIn GlobalInvocationId
                OpDecorate %_runtimearr_v4uint ArrayStride 16
-               OpMemberDecorate %_struct_1972 0 NonReadable
+               OpMemberDecorate %_struct_1972 0 NonWritable
                OpMemberDecorate %_struct_1972 0 Offset 0
                OpDecorate %_struct_1972 BufferBlock
-               OpDecorate %5134 DescriptorSet 0
-               OpDecorate %5134 Binding 0
-               OpDecorate %_runtimearr_v4uint_0 ArrayStride 16
-               OpMemberDecorate %_struct_1973 0 NonWritable
-               OpMemberDecorate %_struct_1973 0 Offset 0
-               OpDecorate %_struct_1973 BufferBlock
                OpDecorate %4218 DescriptorSet 1
                OpDecorate %4218 Binding 0
+               OpDecorate %_runtimearr_v4uint_0 ArrayStride 16
+               OpMemberDecorate %_struct_1973 0 NonReadable
+               OpMemberDecorate %_struct_1973 0 Offset 0
+               OpDecorate %_struct_1973 BufferBlock
+               OpDecorate %5134 DescriptorSet 0
+               OpDecorate %5134 Binding 0
                OpDecorate %gl_WorkGroupSize BuiltIn WorkgroupSize
        %void = OpTypeVoid
        %1282 = OpTypeFunction %void
@@ -93,13 +93,13 @@
 %_runtimearr_v4uint = OpTypeRuntimeArray %v4uint
 %_struct_1972 = OpTypeStruct %_runtimearr_v4uint
 %_ptr_Uniform__struct_1972 = OpTypePointer Uniform %_struct_1972
-       %5134 = OpVariable %_ptr_Uniform__struct_1972 Uniform
+       %4218 = OpVariable %_ptr_Uniform__struct_1972 Uniform
+%_ptr_Uniform_v4uint = OpTypePointer Uniform %v4uint
 %_runtimearr_v4uint_0 = OpTypeRuntimeArray %v4uint
 %_struct_1973 = OpTypeStruct %_runtimearr_v4uint_0
 %_ptr_Uniform__struct_1973 = OpTypePointer Uniform %_struct_1973
-       %4218 = OpVariable %_ptr_Uniform__struct_1973 Uniform
-%_ptr_Uniform_v4uint = OpTypePointer Uniform %v4uint
-%gl_WorkGroupSize = OpConstantComposite %v3uint %uint_8 %uint_32 %uint_1
+       %5134 = OpVariable %_ptr_Uniform__struct_1973 Uniform
+%gl_WorkGroupSize = OpConstantComposite %v3uint %uint_4 %uint_32 %uint_1
      %uint_9 = OpConstant %uint 9
     %uint_10 = OpConstant %uint 10
        %2510 = OpConstantComposite %v4uint %uint_16711935 %uint_16711935 %uint_16711935 %uint_16711935
@@ -406,7 +406,7 @@ const uint32_t texture_load_rgba16_snorm_float_cs[] = {
     0x00000001, 0x0006000B, 0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E,
     0x00000000, 0x0003000E, 0x00000000, 0x00000001, 0x0006000F, 0x00000005,
     0x0000161F, 0x6E69616D, 0x00000000, 0x00000F48, 0x00060010, 0x0000161F,
-    0x00000011, 0x00000008, 0x00000020, 0x00000001, 0x00050048, 0x00000489,
+    0x00000011, 0x00000004, 0x00000020, 0x00000001, 0x00050048, 0x00000489,
     0x00000000, 0x00000023, 0x00000000, 0x00050048, 0x00000489, 0x00000001,
     0x00000023, 0x00000004, 0x00050048, 0x00000489, 0x00000002, 0x00000023,
     0x00000008, 0x00050048, 0x00000489, 0x00000003, 0x00000023, 0x0000000C,
@@ -417,14 +417,14 @@ const uint32_t texture_load_rgba16_snorm_float_cs[] = {
     0x0000147D, 0x00000022, 0x00000002, 0x00040047, 0x0000147D, 0x00000021,
     0x00000000, 0x00040047, 0x00000F48, 0x0000000B, 0x0000001C, 0x00040047,
     0x000007DC, 0x00000006, 0x00000010, 0x00040048, 0x000007B4, 0x00000000,
-    0x00000019, 0x00050048, 0x000007B4, 0x00000000, 0x00000023, 0x00000000,
-    0x00030047, 0x000007B4, 0x00000003, 0x00040047, 0x0000140E, 0x00000022,
-    0x00000000, 0x00040047, 0x0000140E, 0x00000021, 0x00000000, 0x00040047,
-    0x000007DD, 0x00000006, 0x00000010, 0x00040048, 0x000007B5, 0x00000000,
-    0x00000018, 0x00050048, 0x000007B5, 0x00000000, 0x00000023, 0x00000000,
-    0x00030047, 0x000007B5, 0x00000003, 0x00040047, 0x0000107A, 0x00000022,
+    0x00000018, 0x00050048, 0x000007B4, 0x00000000, 0x00000023, 0x00000000,
+    0x00030047, 0x000007B4, 0x00000003, 0x00040047, 0x0000107A, 0x00000022,
     0x00000001, 0x00040047, 0x0000107A, 0x00000021, 0x00000000, 0x00040047,
-    0x00000024, 0x0000000B, 0x00000019, 0x00020013, 0x00000008, 0x00030021,
+    0x000007DD, 0x00000006, 0x00000010, 0x00040048, 0x000007B5, 0x00000000,
+    0x00000019, 0x00050048, 0x000007B5, 0x00000000, 0x00000023, 0x00000000,
+    0x00030047, 0x000007B5, 0x00000003, 0x00040047, 0x0000140E, 0x00000022,
+    0x00000000, 0x00040047, 0x0000140E, 0x00000021, 0x00000000, 0x00040047,
+    0x00000BC3, 0x0000000B, 0x00000019, 0x00020013, 0x00000008, 0x00030021,
     0x00000502, 0x00000008, 0x00040015, 0x0000000B, 0x00000020, 0x00000000,
     0x00040017, 0x00000017, 0x0000000B, 0x00000004, 0x00040015, 0x0000000C,
     0x00000020, 0x00000001, 0x00040017, 0x00000012, 0x0000000C, 0x00000002,
@@ -464,10 +464,10 @@ const uint32_t texture_load_rgba16_snorm_float_cs[] = {
     0x00000A0A, 0x00000A0A, 0x00040017, 0x0000000F, 0x00000009, 0x00000002,
     0x0003001D, 0x000007DC, 0x00000017, 0x0003001E, 0x000007B4, 0x000007DC,
     0x00040020, 0x00000A31, 0x00000002, 0x000007B4, 0x0004003B, 0x00000A31,
-    0x0000140E, 0x00000002, 0x0003001D, 0x000007DD, 0x00000017, 0x0003001E,
-    0x000007B5, 0x000007DD, 0x00040020, 0x00000A32, 0x00000002, 0x000007B5,
-    0x0004003B, 0x00000A32, 0x0000107A, 0x00000002, 0x00040020, 0x00000294,
-    0x00000002, 0x00000017, 0x0006002C, 0x00000014, 0x00000024, 0x00000A22,
+    0x0000107A, 0x00000002, 0x00040020, 0x00000294, 0x00000002, 0x00000017,
+    0x0003001D, 0x000007DD, 0x00000017, 0x0003001E, 0x000007B5, 0x000007DD,
+    0x00040020, 0x00000A32, 0x00000002, 0x000007B5, 0x0004003B, 0x00000A32,
+    0x0000140E, 0x00000002, 0x0006002C, 0x00000014, 0x00000BC3, 0x00000A16,
     0x00000A6A, 0x00000A0D, 0x0004002B, 0x0000000B, 0x00000A25, 0x00000009,
     0x0004002B, 0x0000000B, 0x00000A28, 0x0000000A, 0x0007002C, 0x00000017,
     0x000009CE, 0x000008A6, 0x000008A6, 0x000008A6, 0x000008A6, 0x0007002C,

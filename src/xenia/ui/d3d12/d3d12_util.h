@@ -93,14 +93,6 @@ void CreateBufferTypedUAV(ID3D12Device* device,
                           ID3D12Resource* buffer, DXGI_FORMAT format,
                           uint32_t num_elements, uint64_t first_element = 0);
 
-// For cases where GetCopyableFootprints isn't usable (such as when the size
-// needs to be overaligned beyond the maximum texture size), providing data
-// needed to compute the copyable footprints manually.
-void GetFormatCopyInfo(DXGI_FORMAT format, uint32_t plane,
-                       DXGI_FORMAT& copy_format_out, uint32_t& block_width_out,
-                       uint32_t& block_height_out,
-                       uint32_t& bytes_per_block_out);
-
 }  // namespace util
 }  // namespace d3d12
 }  // namespace ui

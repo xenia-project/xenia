@@ -176,6 +176,9 @@ class D3D12TextureCache final : public TextureCache {
   void UpdateTextureBindingsImpl(uint32_t fetch_constant_mask) override;
 
  private:
+  static constexpr uint32_t kLoadGuestXThreadsPerGroupLog2 = 2;
+  static constexpr uint32_t kLoadGuestYBlocksPerGroupLog2 = 5;
+
   enum class LoadMode {
     k8bpb,
     k16bpb,
@@ -186,6 +189,10 @@ class D3D12TextureCache final : public TextureCache {
     kR5G6B5ToB5G6R5,
     kR5G5B6ToB5G6R5WithRBGASwizzle,
     kR4G4B4A4ToB4G4R4A4,
+    kGBGR8ToGRGB8,
+    kGBGR8ToRGB8,
+    kBGRG8ToRGBG8,
+    kBGRG8ToRGB8,
     kR10G11B11ToRGBA16,
     kR10G11B11ToRGBA16SNorm,
     kR11G11B10ToRGBA16,
@@ -221,10 +228,17 @@ class D3D12TextureCache final : public TextureCache {
     // may copy multiple blocks per one invocation.
     uint32_t srv_bpe_log2;
     uint32_t uav_bpe_log2;
-    // Number of host blocks (or texels for uncompressed) along X axis written
-    // by every compute shader thread - rows in the upload buffer are padded to
-    // at least this amount.
-    uint32_t host_x_blocks_per_thread;
+    // Number of bytes in a host resolution-scaled block (corresponding to a
+    // guest block if not decompressing, or a host texel if decompressing)
+    // written by the shader.
+    uint32_t bytes_per_host_block;
+    // Log2 of the number of guest resolution-scaled blocks along the X axis
+    // loaded by a single thread shader group.
+    uint32_t guest_x_blocks_per_thread_log2;
+
+    uint32_t GetGuestXBlocksPerGroupLog2() const {
+      return kLoadGuestXThreadsPerGroupLog2 + guest_x_blocks_per_thread_log2;
+    }
   };
 
   struct HostFormat {
@@ -252,8 +266,9 @@ class D3D12TextureCache final : public TextureCache {
     // textures and multiplication to the tfetch implementation.
 
     // Whether the DXGI format, if not uncompressing the texture, consists of
-    // blocks, thus copy regions must be aligned to block size.
-    bool dxgi_format_block_aligned;
+    // blocks, thus copy regions must be aligned to block size (assuming it's
+    // the same as the guest block size).
+    bool is_block_compressed;
     // Uncompression info for when the regular host format for this texture is
     // block-compressed, but the size is not block-aligned, and thus such
     // texture cannot be created in Direct3D on PC and needs decompression,
