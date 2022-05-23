@@ -44,7 +44,7 @@ namespace shaders {
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_64bpb_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_8bpb_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_8bpb_scaled_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_bgrg8_rgba8_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_bgrg8_rgb8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_bgrg8_rgbg8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_ctx1_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_depth_float_cs.h"
@@ -59,7 +59,7 @@ namespace shaders {
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt5_rgba8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_dxt5a_r8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_gbgr8_grgb8_cs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_gbgr8_rgba8_cs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_gbgr8_rgb8_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/texture_load_r10g11b11_rgba16_snorm_cs.h"
@@ -133,15 +133,21 @@ const D3D12TextureCache::HostFormat D3D12TextureCache::host_formats_[64] = {
      LoadMode::kUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
     // k_Cr_Y1_Cb_Y0_REP
     // Red and blue swapped in the load shader for simplicity.
+    // TODO(Triang3l): The DXGI_FORMAT_R8G8B8A8_U/SNORM conversion is usable for
+    // the signed version, separate unsigned and signed load modes completely
+    // (as one doesn't need decompression for this format, while another does).
     {DXGI_FORMAT_G8R8_G8B8_UNORM, DXGI_FORMAT_G8R8_G8B8_UNORM,
      LoadMode::kGBGR8ToGRGB8, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true,
-     DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::kGBGR8ToRGBA8,
+     DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::kGBGR8ToRGB8,
      xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
     // k_Y1_Cr_Y0_Cb_REP
     // Red and blue swapped in the load shader for simplicity.
+    // TODO(Triang3l): The DXGI_FORMAT_R8G8B8A8_U/SNORM conversion is usable for
+    // the signed version, separate unsigned and signed load modes completely
+    // (as one doesn't need decompression for this format, while another does).
     {DXGI_FORMAT_R8G8_B8G8_UNORM, DXGI_FORMAT_R8G8_B8G8_UNORM,
      LoadMode::kBGRG8ToRGBG8, DXGI_FORMAT_UNKNOWN, LoadMode::kUnknown, true,
-     DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::kBGRG8ToRGBA8,
+     DXGI_FORMAT_R8G8B8A8_UNORM, LoadMode::kBGRG8ToRGB8,
      xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
     // k_16_16_EDRAM
     // Not usable as a texture, also has -32...32 range.
@@ -405,12 +411,12 @@ const D3D12TextureCache::LoadModeInfo D3D12TextureCache::load_mode_info_[] = {
      sizeof(shaders::texture_load_r4g4b4a4_b4g4r4a4_scaled_cs), 4, 4, 2, 4},
     {shaders::texture_load_gbgr8_grgb8_cs,
      sizeof(shaders::texture_load_gbgr8_grgb8_cs), nullptr, 0, 4, 4, 4, 3},
-    {shaders::texture_load_gbgr8_rgba8_cs,
-     sizeof(shaders::texture_load_gbgr8_rgba8_cs), nullptr, 0, 4, 4, 8, 3},
+    {shaders::texture_load_gbgr8_rgb8_cs,
+     sizeof(shaders::texture_load_gbgr8_rgb8_cs), nullptr, 0, 4, 4, 8, 3},
     {shaders::texture_load_bgrg8_rgbg8_cs,
      sizeof(shaders::texture_load_bgrg8_rgbg8_cs), nullptr, 0, 4, 4, 4, 3},
-    {shaders::texture_load_bgrg8_rgba8_cs,
-     sizeof(shaders::texture_load_bgrg8_rgba8_cs), nullptr, 0, 4, 4, 8, 3},
+    {shaders::texture_load_bgrg8_rgb8_cs,
+     sizeof(shaders::texture_load_bgrg8_rgb8_cs), nullptr, 0, 4, 4, 8, 3},
     {shaders::texture_load_r10g11b11_rgba16_cs,
      sizeof(shaders::texture_load_r10g11b11_rgba16_cs),
      shaders::texture_load_r10g11b11_rgba16_scaled_cs,

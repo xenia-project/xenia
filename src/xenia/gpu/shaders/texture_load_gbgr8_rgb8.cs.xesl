@@ -8,5 +8,5 @@
  */
 
 #include "pixel_formats.xesli"
-#define XE_TEXTURE_LOAD_32BPB_TO_64BPB XeBGRG8ToRGBA8
+#define XE_TEXTURE_LOAD_32BPB_TO_64BPB XeGBGR8ToRGB8WithRGBBSwizzle
 #include "texture_load_32bpb_64bpb.xesli"

@@ -417,30 +417,37 @@ xesl_uint4 XeBGRG8ToRGBG8(xesl_uint4 packed_texels) {
          ((packed_texels & 0x00FF0000u) >> 16u);
 }
 
-xesl_uint4 XeGBGR8ToRGBA8(xesl_uint2 packed_texels) {
+// On the Xenos, it appears that the last existing component of a texture is
+// replicated into the missing components. Writing blue directly to the alpha
+// instead of 1 also makes this conversion correct for both unsigned and signed
+// data.
+
+xesl_uint4 XeGBGR8ToRGB8WithRGBBSwizzle(xesl_uint2 packed_texels) {
   xesl_uint2 rba = (packed_texels >> 24u) |
-                   ((packed_texels & 0x0000FF00u) << 8u) | 0xFF000000u;
+                   (((packed_texels & 0x0000FF00u) << 8u) * 0x101u);
   xesl_uint4 g = xesl_uint4((packed_texels & 0x000000FFu) << 8u,
                             (packed_texels & 0x00FF0000u) >> 8u).xzyw;
   return rba.xxyy | g;
 }
-void XeGBGR8ToRGBA8(xesl_uint4 packed_texels, out xesl_uint4 out_01,
-                    out xesl_uint4 out_23) {
-  out_01 = XeGBGR8ToRGBA8(packed_texels.xy);
-  out_23 = XeGBGR8ToRGBA8(packed_texels.zw);
+void XeGBGR8ToRGB8WithRGBBSwizzle(xesl_uint4 packed_texels,
+                                  out xesl_uint4 out_01,
+                                  out xesl_uint4 out_23) {
+  out_01 = XeGBGR8ToRGB8WithRGBBSwizzle(packed_texels.xy);
+  out_23 = XeGBGR8ToRGB8WithRGBBSwizzle(packed_texels.zw);
 }
 
-xesl_uint4 XeBGRG8ToRGBA8(xesl_uint2 packed_texels) {
+xesl_uint4 XeBGRG8ToRGB8WithRGBBSwizzle(xesl_uint2 packed_texels) {
   xesl_uint2 rba = ((packed_texels & 0x00FF0000u) >> 16u) |
-                   ((packed_texels & 0x000000FFu) << 16u) | 0xFF000000u;
+                   (((packed_texels & 0x000000FFu) << 16u) * 0x101u);
   xesl_uint4 g = xesl_uint4(packed_texels & 0x0000FF00u,
                             (packed_texels & 0xFF000000u) >> 16u).xzyw;
   return rba.xxyy | g;
 }
-void XeBGRG8ToRGBA8(xesl_uint4 packed_texels, out xesl_uint4 out_01,
-                    out xesl_uint4 out_23) {
-  out_01 = XeBGRG8ToRGBA8(packed_texels.xy);
-  out_23 = XeBGRG8ToRGBA8(packed_texels.zw);
+void XeBGRG8ToRGB8WithRGBBSwizzle(xesl_uint4 packed_texels,
+                                  out xesl_uint4 out_01,
+                                  out xesl_uint4 out_23) {
+  out_01 = XeBGRG8ToRGB8WithRGBBSwizzle(packed_texels.xy);
+  out_23 = XeBGRG8ToRGB8WithRGBBSwizzle(packed_texels.zw);
 }
 
 xesl_uint4 XeR10G11B11UNormToRGBA16(xesl_uint2 packed_texels) {
