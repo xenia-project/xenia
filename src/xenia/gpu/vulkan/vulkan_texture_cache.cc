@@ -139,14 +139,14 @@ const VulkanTextureCache::HostFormatPair
         // VK_FORMAT_G8B8G8R8_422_UNORM_KHR (added in
         // VK_KHR_sampler_ycbcr_conversion and promoted to Vulkan 1.1) is
         // optional.
-        {{LoadMode::k32bpb, VK_FORMAT_G8B8G8R8_422_UNORM_KHR, 1, 0},
+        {{LoadMode::k32bpb, VK_FORMAT_G8B8G8R8_422_UNORM_KHR, true},
          {LoadMode::kGBGR8ToRGB8, VK_FORMAT_R8G8B8A8_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
         // k_Y1_Cr_Y0_Cb_REP
         // VK_FORMAT_B8G8R8G8_422_UNORM_KHR (added in
         // VK_KHR_sampler_ycbcr_conversion and promoted to Vulkan 1.1) is
         // optional.
-        {{LoadMode::k32bpb, VK_FORMAT_B8G8R8G8_422_UNORM_KHR, 1, 0},
+        {{LoadMode::k32bpb, VK_FORMAT_B8G8R8G8_422_UNORM_KHR, true},
          {LoadMode::kBGRG8ToRGB8, VK_FORMAT_R8G8B8A8_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
         // k_16_16_EDRAM
@@ -177,17 +177,17 @@ const VulkanTextureCache::HostFormatPair
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
         // k_DXT1
         // VK_FORMAT_BC1_RGBA_UNORM_BLOCK is optional.
-        {{LoadMode::k64bpb, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, 2, 2},
+        {{LoadMode::k64bpb, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, true},
          {LoadMode::kUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_DXT2_3
         // VK_FORMAT_BC2_UNORM_BLOCK is optional.
-        {{LoadMode::k128bpb, VK_FORMAT_BC2_UNORM_BLOCK, 2, 2},
+        {{LoadMode::k128bpb, VK_FORMAT_BC2_UNORM_BLOCK, true},
          {LoadMode::kUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_DXT4_5
         // VK_FORMAT_BC3_UNORM_BLOCK is optional.
-        {{LoadMode::k128bpb, VK_FORMAT_BC3_UNORM_BLOCK, 2, 2},
+        {{LoadMode::k128bpb, VK_FORMAT_BC3_UNORM_BLOCK, true},
          {LoadMode::kUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_16_16_16_16_EDRAM
@@ -321,7 +321,7 @@ const VulkanTextureCache::HostFormatPair
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
         // k_DXN
         // VK_FORMAT_BC5_UNORM_BLOCK is optional.
-        {{LoadMode::k128bpb, VK_FORMAT_BC5_UNORM_BLOCK, 2, 2},
+        {{LoadMode::k128bpb, VK_FORMAT_BC5_UNORM_BLOCK, true},
          {LoadMode::kUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
         // k_8_8_8_8_AS_16_16_16_16
@@ -331,17 +331,17 @@ const VulkanTextureCache::HostFormatPair
          true},
         // k_DXT1_AS_16_16_16_16
         // VK_FORMAT_BC1_RGBA_UNORM_BLOCK is optional.
-        {{LoadMode::k64bpb, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, 2, 2},
+        {{LoadMode::k64bpb, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, true},
          {LoadMode::kUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_DXT2_3_AS_16_16_16_16
         // VK_FORMAT_BC2_UNORM_BLOCK is optional.
-        {{LoadMode::k128bpb, VK_FORMAT_BC2_UNORM_BLOCK, 2, 2},
+        {{LoadMode::k128bpb, VK_FORMAT_BC2_UNORM_BLOCK, true},
          {LoadMode::kUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_DXT4_5_AS_16_16_16_16
         // VK_FORMAT_BC3_UNORM_BLOCK is optional.
-        {{LoadMode::k128bpb, VK_FORMAT_BC3_UNORM_BLOCK, 2, 2},
+        {{LoadMode::k128bpb, VK_FORMAT_BC3_UNORM_BLOCK, true},
          {LoadMode::kUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_2_10_10_10_AS_16_16_16_16
@@ -372,7 +372,7 @@ const VulkanTextureCache::HostFormatPair
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_DXT5A
         // VK_FORMAT_BC4_UNORM_BLOCK is optional.
-        {{LoadMode::k64bpb, VK_FORMAT_BC4_UNORM_BLOCK, 2, 2},
+        {{LoadMode::k64bpb, VK_FORMAT_BC4_UNORM_BLOCK, true},
          {LoadMode::kUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_CTX1
@@ -930,7 +930,7 @@ bool VulkanTextureCache::Initialize() {
       kLinearFilterFeatures) {
     host_format_gbgr.format_unsigned.load_mode = LoadMode::kGBGR8ToRGB8;
     host_format_gbgr.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
-    host_format_gbgr.format_unsigned.block_width_log2 = 0;
+    host_format_gbgr.format_unsigned.block_compressed = false;
     host_format_gbgr.unsigned_signed_compatible = true;
   }
   HostFormatPair& host_format_bgrg =
@@ -945,7 +945,7 @@ bool VulkanTextureCache::Initialize() {
       kLinearFilterFeatures) {
     host_format_bgrg.format_unsigned.load_mode = LoadMode::kBGRG8ToRGB8;
     host_format_bgrg.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
-    host_format_bgrg.format_unsigned.block_width_log2 = 0;
+    host_format_bgrg.format_unsigned.block_compressed = false;
     host_format_bgrg.unsigned_signed_compatible = true;
   }
   // TODO(Triang3l): k_10_11_11 -> filterable R16G16B16A16_SFLOAT (enough
@@ -971,8 +971,7 @@ bool VulkanTextureCache::Initialize() {
       kLinearFilterFeatures) {
     host_format_dxt1.format_unsigned.load_mode = LoadMode::kDXT1ToRGBA8;
     host_format_dxt1.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
-    host_format_dxt1.format_unsigned.block_width_log2 = 0;
-    host_format_dxt1.format_unsigned.block_height_log2 = 0;
+    host_format_dxt1.format_unsigned.block_compressed = false;
     host_formats_[uint32_t(xenos::TextureFormat::k_DXT1_AS_16_16_16_16)] =
         host_format_dxt1;
   }
@@ -986,8 +985,7 @@ bool VulkanTextureCache::Initialize() {
       kLinearFilterFeatures) {
     host_format_dxt2_3.format_unsigned.load_mode = LoadMode::kDXT3ToRGBA8;
     host_format_dxt2_3.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
-    host_format_dxt2_3.format_unsigned.block_width_log2 = 0;
-    host_format_dxt2_3.format_unsigned.block_height_log2 = 0;
+    host_format_dxt2_3.format_unsigned.block_compressed = false;
     host_formats_[uint32_t(xenos::TextureFormat::k_DXT2_3_AS_16_16_16_16)] =
         host_format_dxt2_3;
   }
@@ -1001,8 +999,7 @@ bool VulkanTextureCache::Initialize() {
       kLinearFilterFeatures) {
     host_format_dxt4_5.format_unsigned.load_mode = LoadMode::kDXT5ToRGBA8;
     host_format_dxt4_5.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
-    host_format_dxt4_5.format_unsigned.block_width_log2 = 0;
-    host_format_dxt4_5.format_unsigned.block_height_log2 = 0;
+    host_format_dxt4_5.format_unsigned.block_compressed = false;
     host_formats_[uint32_t(xenos::TextureFormat::k_DXT4_5_AS_16_16_16_16)] =
         host_format_dxt4_5;
   }
@@ -1016,8 +1013,7 @@ bool VulkanTextureCache::Initialize() {
       kLinearFilterFeatures) {
     host_format_dxn.format_unsigned.load_mode = LoadMode::kDXNToRG8;
     host_format_dxn.format_unsigned.format = VK_FORMAT_R8G8_UNORM;
-    host_format_dxn.format_unsigned.block_width_log2 = 0;
-    host_format_dxn.format_unsigned.block_height_log2 = 0;
+    host_format_dxn.format_unsigned.block_compressed = false;
   }
   HostFormatPair& host_format_dxt5a =
       host_formats_[uint32_t(xenos::TextureFormat::k_DXT5A)];
@@ -1029,8 +1025,7 @@ bool VulkanTextureCache::Initialize() {
       kLinearFilterFeatures) {
     host_format_dxt5a.format_unsigned.load_mode = LoadMode::kDXT5AToR8;
     host_format_dxt5a.format_unsigned.format = VK_FORMAT_R8_UNORM;
-    host_format_dxt5a.format_unsigned.block_width_log2 = 0;
-    host_format_dxt5a.format_unsigned.block_height_log2 = 0;
+    host_format_dxt5a.format_unsigned.block_compressed = false;
   }
   // k_16, k_16_16, k_16_16_16_16 - UNORM / SNORM are optional, fall back to
   // SFLOAT, which is mandatory and is always filterable (the guest 16-bit
@@ -1235,15 +1230,11 @@ bool VulkanTextureCache::Initialize() {
       // size, though the fallbacks are configured incorrectly if that's not the
       // case (since such formats just can't be in one compatibility class).
       assert_false(host_format.unsigned_signed_compatible &&
-                   (host_format.format_unsigned.block_width_log2 !=
-                        host_format.format_signed.block_width_log2 ||
-                    host_format.format_unsigned.block_height_log2 !=
-                        host_format.format_signed.block_height_log2));
+                   host_format.format_unsigned.block_compressed !=
+                       host_format.format_signed.block_compressed);
       if (host_format.unsigned_signed_compatible &&
-          (host_format.format_unsigned.block_width_log2 !=
-               host_format.format_signed.block_width_log2 ||
-           host_format.format_unsigned.block_height_log2 !=
-               host_format.format_signed.block_height_log2)) {
+          host_format.format_unsigned.block_compressed !=
+              host_format.format_signed.block_compressed) {
         host_format.unsigned_signed_compatible = false;
       }
     } else {
