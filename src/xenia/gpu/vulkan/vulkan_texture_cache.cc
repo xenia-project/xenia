@@ -35,6 +35,7 @@ namespace shaders {
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_64bpb_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_8bpb_cs.h"
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_8bpb_scaled_cs.h"
+#include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_bgrg8_rgb8_cs.h"
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_ctx1_cs.h"
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_depth_float_cs.h"
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_depth_float_scaled_cs.h"
@@ -47,6 +48,7 @@ namespace shaders {
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_dxt3aas1111_argb4_cs.h"
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_dxt5_rgba8_cs.h"
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_dxt5a_r8_cs.h"
+#include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_gbgr8_rgb8_cs.h"
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_r10g11b11_rgba16_cs.h"
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_r10g11b11_rgba16_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_r10g11b11_rgba16_snorm_cs.h"
@@ -138,14 +140,14 @@ const VulkanTextureCache::HostFormatPair
         // VK_KHR_sampler_ycbcr_conversion and promoted to Vulkan 1.1) is
         // optional.
         {{LoadMode::k32bpb, VK_FORMAT_G8B8G8R8_422_UNORM_KHR, 1, 0},
-         {LoadMode::kUnknown},
+         {LoadMode::kGBGR8ToRGB8, VK_FORMAT_R8G8B8A8_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
         // k_Y1_Cr_Y0_Cb_REP
         // VK_FORMAT_B8G8R8G8_422_UNORM_KHR (added in
         // VK_KHR_sampler_ycbcr_conversion and promoted to Vulkan 1.1) is
         // optional.
         {{LoadMode::k32bpb, VK_FORMAT_B8G8R8G8_422_UNORM_KHR, 1, 0},
-         {LoadMode::kUnknown},
+         {LoadMode::kBGRG8ToRGB8, VK_FORMAT_R8G8B8A8_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
         // k_16_16_EDRAM
         // Not usable as a texture, also has -32...32 range.
@@ -889,6 +891,9 @@ bool VulkanTextureCache::Initialize() {
   }
 
   // Check format support and switch to fallbacks if needed.
+  constexpr VkFormatFeatureFlags kLinearFilterFeatures =
+      VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+      VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
   VkFormatProperties r16_unorm_properties;
   ifn.vkGetPhysicalDeviceFormatProperties(physical_device, VK_FORMAT_R16_UNORM,
                                           &r16_unorm_properties);
@@ -912,8 +917,37 @@ bool VulkanTextureCache::Initialize() {
   VkFormatProperties format_properties;
   // TODO(Triang3l): k_2_10_10_10 signed -> filterable R16G16B16A16_SFLOAT
   // (enough storage precision, possibly unwanted filtering precision change).
-  // TODO(Triang3l): k_Cr_Y1_Cb_Y0_REP -> R8G8B8A8_UNORM.
-  // TODO(Triang3l): k_Y1_Cr_Y0_Cb_REP -> R8G8B8A8_UNORM.
+  // k_Cr_Y1_Cb_Y0_REP, k_Y1_Cr_Y0_Cb_REP.
+  HostFormatPair& host_format_gbgr =
+      host_formats_[uint32_t(xenos::TextureFormat::k_Cr_Y1_Cb_Y0_REP)];
+  assert_true(host_format_gbgr.format_unsigned.format ==
+              VK_FORMAT_G8B8G8R8_422_UNORM_KHR);
+  assert_true(host_format_gbgr.format_signed.format ==
+              VK_FORMAT_R8G8B8A8_SNORM);
+  ifn.vkGetPhysicalDeviceFormatProperties(
+      physical_device, VK_FORMAT_G8B8G8R8_422_UNORM_KHR, &format_properties);
+  if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
+      kLinearFilterFeatures) {
+    host_format_gbgr.format_unsigned.load_mode = LoadMode::kGBGR8ToRGB8;
+    host_format_gbgr.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
+    host_format_gbgr.format_unsigned.block_width_log2 = 0;
+    host_format_gbgr.unsigned_signed_compatible = true;
+  }
+  HostFormatPair& host_format_bgrg =
+      host_formats_[uint32_t(xenos::TextureFormat::k_Y1_Cr_Y0_Cb_REP)];
+  assert_true(host_format_bgrg.format_unsigned.format ==
+              VK_FORMAT_B8G8R8G8_422_UNORM_KHR);
+  assert_true(host_format_bgrg.format_signed.format ==
+              VK_FORMAT_R8G8B8A8_SNORM);
+  ifn.vkGetPhysicalDeviceFormatProperties(
+      physical_device, VK_FORMAT_B8G8R8G8_422_UNORM_KHR, &format_properties);
+  if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
+      kLinearFilterFeatures) {
+    host_format_bgrg.format_unsigned.load_mode = LoadMode::kBGRG8ToRGB8;
+    host_format_bgrg.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
+    host_format_bgrg.format_unsigned.block_width_log2 = 0;
+    host_format_bgrg.unsigned_signed_compatible = true;
+  }
   // TODO(Triang3l): k_10_11_11 -> filterable R16G16B16A16_SFLOAT (enough
   // storage precision, possibly unwanted filtering precision change).
   // TODO(Triang3l): k_11_11_10 -> filterable R16G16B16A16_SFLOAT (enough
@@ -933,8 +967,8 @@ bool VulkanTextureCache::Initialize() {
               VK_FORMAT_BC1_RGBA_UNORM_BLOCK);
   ifn.vkGetPhysicalDeviceFormatProperties(
       physical_device, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, &format_properties);
-  if (!(format_properties.optimalTilingFeatures &
-        VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+  if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
+      kLinearFilterFeatures) {
     host_format_dxt1.format_unsigned.load_mode = LoadMode::kDXT1ToRGBA8;
     host_format_dxt1.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
     host_format_dxt1.format_unsigned.block_width_log2 = 0;
@@ -948,8 +982,8 @@ bool VulkanTextureCache::Initialize() {
               VK_FORMAT_BC2_UNORM_BLOCK);
   ifn.vkGetPhysicalDeviceFormatProperties(
       physical_device, VK_FORMAT_BC2_UNORM_BLOCK, &format_properties);
-  if (!(format_properties.optimalTilingFeatures &
-        VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+  if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
+      kLinearFilterFeatures) {
     host_format_dxt2_3.format_unsigned.load_mode = LoadMode::kDXT3ToRGBA8;
     host_format_dxt2_3.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
     host_format_dxt2_3.format_unsigned.block_width_log2 = 0;
@@ -963,8 +997,8 @@ bool VulkanTextureCache::Initialize() {
               VK_FORMAT_BC3_UNORM_BLOCK);
   ifn.vkGetPhysicalDeviceFormatProperties(
       physical_device, VK_FORMAT_BC3_UNORM_BLOCK, &format_properties);
-  if (!(format_properties.optimalTilingFeatures &
-        VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+  if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
+      kLinearFilterFeatures) {
     host_format_dxt4_5.format_unsigned.load_mode = LoadMode::kDXT5ToRGBA8;
     host_format_dxt4_5.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
     host_format_dxt4_5.format_unsigned.block_width_log2 = 0;
@@ -978,8 +1012,8 @@ bool VulkanTextureCache::Initialize() {
               VK_FORMAT_BC5_UNORM_BLOCK);
   ifn.vkGetPhysicalDeviceFormatProperties(
       physical_device, VK_FORMAT_BC5_UNORM_BLOCK, &format_properties);
-  if (!(format_properties.optimalTilingFeatures &
-        VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+  if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
+      kLinearFilterFeatures) {
     host_format_dxn.format_unsigned.load_mode = LoadMode::kDXNToRG8;
     host_format_dxn.format_unsigned.format = VK_FORMAT_R8G8_UNORM;
     host_format_dxn.format_unsigned.block_width_log2 = 0;
@@ -991,8 +1025,8 @@ bool VulkanTextureCache::Initialize() {
               VK_FORMAT_BC4_UNORM_BLOCK);
   ifn.vkGetPhysicalDeviceFormatProperties(
       physical_device, VK_FORMAT_BC4_UNORM_BLOCK, &format_properties);
-  if (!(format_properties.optimalTilingFeatures &
-        VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+  if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
+      kLinearFilterFeatures) {
     host_format_dxt5a.format_unsigned.load_mode = LoadMode::kDXT5AToR8;
     host_format_dxt5a.format_unsigned.format = VK_FORMAT_R8_UNORM;
     host_format_dxt5a.format_unsigned.block_width_log2 = 0;
