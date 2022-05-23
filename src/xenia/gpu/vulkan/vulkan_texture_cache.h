@@ -121,8 +121,10 @@ class VulkanTextureCache final : public TextureCache {
     // set to 1 though), add a constant buffer containing multipliers for the
     // textures and multiplication to the tfetch implementation.
     VkFormat format;
-    uint32_t block_width_log2;
-    uint32_t block_height_log2;
+    // Whether the format is block-compressed on the host (the host block size
+    // matches the guest format block size in this case), and isn't decompressed
+    // on load.
+    bool block_compressed;
 
     // Set up dynamically based on what's supported by the device.
     bool linear_filterable;
