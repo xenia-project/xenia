@@ -58,6 +58,84 @@ class VulkanCommandProcessor : public CommandProcessor {
     kCount,
   };
 
+  class ScratchBufferAcquisition {
+   public:
+    explicit ScratchBufferAcquisition() = default;
+    explicit ScratchBufferAcquisition(VulkanCommandProcessor& command_processor,
+                                      VkBuffer buffer,
+                                      VkPipelineStageFlags stage_mask,
+                                      VkAccessFlags access_mask)
+        : command_processor_(&command_processor),
+          buffer_(buffer),
+          stage_mask_(stage_mask),
+          access_mask_(access_mask) {}
+
+    ScratchBufferAcquisition(const ScratchBufferAcquisition& acquisition) =
+        delete;
+    ScratchBufferAcquisition& operator=(
+        const ScratchBufferAcquisition& acquisition) = delete;
+
+    ScratchBufferAcquisition(ScratchBufferAcquisition&& acquisition) {
+      command_processor_ = acquisition.command_processor_;
+      buffer_ = acquisition.buffer_;
+      stage_mask_ = acquisition.stage_mask_;
+      access_mask_ = acquisition.access_mask_;
+      acquisition.command_processor_ = nullptr;
+      acquisition.buffer_ = VK_NULL_HANDLE;
+      acquisition.stage_mask_ = 0;
+      acquisition.access_mask_ = 0;
+    }
+    ScratchBufferAcquisition& operator=(
+        ScratchBufferAcquisition&& acquisition) {
+      if (this == &acquisition) {
+        return *this;
+      }
+      command_processor_ = acquisition.command_processor_;
+      buffer_ = acquisition.buffer_;
+      stage_mask_ = acquisition.stage_mask_;
+      access_mask_ = acquisition.access_mask_;
+      acquisition.command_processor_ = nullptr;
+      acquisition.buffer_ = VK_NULL_HANDLE;
+      acquisition.stage_mask_ = 0;
+      acquisition.access_mask_ = 0;
+      return *this;
+    }
+
+    ~ScratchBufferAcquisition() {
+      if (buffer_ != VK_NULL_HANDLE) {
+        assert_true(command_processor_->scratch_buffer_used_);
+        assert_true(command_processor_->scratch_buffer_ == buffer_);
+        command_processor_->scratch_buffer_last_stage_mask_ = stage_mask_;
+        command_processor_->scratch_buffer_last_access_mask_ = access_mask_;
+        command_processor_->scratch_buffer_last_usage_submission_ =
+            command_processor_->GetCurrentSubmission();
+        command_processor_->scratch_buffer_used_ = false;
+      }
+    }
+
+    // VK_NULL_HANDLE if failed to acquire or if moved.
+    VkBuffer buffer() const { return buffer_; }
+
+    VkPipelineStageFlags GetStageMask() const { return stage_mask_; }
+    VkPipelineStageFlags SetStageMask(VkPipelineStageFlags new_stage_mask) {
+      VkPipelineStageFlags old_stage_mask = stage_mask_;
+      stage_mask_ = new_stage_mask;
+      return old_stage_mask;
+    }
+    VkAccessFlags GetAccessMask() const { return access_mask_; }
+    VkAccessFlags SetAccessMask(VkAccessFlags new_access_mask) {
+      VkAccessFlags old_access_mask = access_mask_;
+      access_mask_ = new_access_mask;
+      return old_access_mask;
+    }
+
+   private:
+    VulkanCommandProcessor* command_processor_ = nullptr;
+    VkBuffer buffer_ = VK_NULL_HANDLE;
+    VkPipelineStageFlags stage_mask_ = 0;
+    VkAccessFlags access_mask_ = 0;
+  };
+
   VulkanCommandProcessor(VulkanGraphicsSystem* graphics_system,
                          kernel::KernelState* kernel_state);
   ~VulkanCommandProcessor();
@@ -140,6 +218,16 @@ class VulkanCommandProcessor : public CommandProcessor {
   // A frame must be open.
   VkDescriptorSet AllocateSingleTransientDescriptor(
       SingleTransientDescriptorLayout transient_descriptor_layout);
+  // Allocates a descriptor, space in the uniform buffer pool, and fills the
+  // VkWriteDescriptorSet structure and VkDescriptorBufferInfo referenced by it.
+  // Returns null in case of failure.
+  uint8_t* WriteTransientUniformBufferBinding(
+      size_t size, SingleTransientDescriptorLayout transient_descriptor_layout,
+      VkDescriptorBufferInfo& descriptor_buffer_info_out,
+      VkWriteDescriptorSet& write_descriptor_set_out);
+  uint8_t* WriteTransientUniformBufferBinding(
+      size_t size, SingleTransientDescriptorLayout transient_descriptor_layout,
+      VkDescriptorSet& descriptor_set_out);
 
   // The returned reference is valid until a cache clear.
   VkDescriptorSetLayout GetTextureDescriptorSetLayout(bool is_samplers,
@@ -149,6 +237,13 @@ class VulkanCommandProcessor : public CommandProcessor {
   const VulkanPipelineCache::PipelineLayoutProvider* GetPipelineLayout(
       size_t texture_count_pixel, size_t sampler_count_pixel,
       size_t texture_count_vertex, size_t sampler_count_vertex);
+
+  // Returns a single temporary GPU-side buffer within a submission for tasks
+  // like texture untiling and resolving. May push a buffer memory barrier into
+  // the initial usage. Submission must be open.
+  ScratchBufferAcquisition AcquireScratchGpuBuffer(
+      VkDeviceSize size, VkPipelineStageFlags initial_stage_mask,
+      VkAccessFlags initial_access_mask);
 
   // Binds a graphics pipeline for host-specific purposes, invalidating the
   // affected state. keep_dynamic_* must be false (to invalidate the dynamic
@@ -340,13 +435,6 @@ class VulkanCommandProcessor : public CommandProcessor {
                                   const draw_util::ViewportInfo& viewport_info);
   bool UpdateBindings(const VulkanShader* vertex_shader,
                       const VulkanShader* pixel_shader);
-  // Allocates a descriptor, space in the uniform buffer pool, and fills the
-  // VkWriteDescriptorSet structure and VkDescriptorBufferInfo referenced by it.
-  // Returns null in case of failure.
-  uint8_t* WriteTransientUniformBufferBinding(
-      size_t size, SingleTransientDescriptorLayout transient_descriptor_layout,
-      VkDescriptorBufferInfo& descriptor_buffer_info_out,
-      VkWriteDescriptorSet& write_descriptor_set_out);
   // Allocates a descriptor set and fills the VkWriteDescriptorSet structure.
   // The descriptor set layout must be the one for the given is_samplers,
   // is_vertex, binding_count (from GetTextureDescriptorSetLayout - may be
@@ -389,6 +477,11 @@ class VulkanCommandProcessor : public CommandProcessor {
   uint64_t frame_completed_ = 0;
   // Submission indices of frames that have already been submitted.
   uint64_t closed_frame_submissions_[kMaxFramesInFlight] = {};
+
+  // <Submission where last used, resource>, sorted by the submission number.
+  std::deque<std::pair<uint64_t, VkDeviceMemory>> destroy_memory_;
+  std::deque<std::pair<uint64_t, VkBuffer>> destroy_buffers_;
+  std::deque<std::pair<uint64_t, VkFramebuffer>> destroy_framebuffers_;
 
   std::vector<CommandBuffer> command_buffers_writable_;
   std::deque<std::pair<uint64_t, CommandBuffer>> command_buffers_submitted_;
@@ -490,6 +583,16 @@ class VulkanCommandProcessor : public CommandProcessor {
   };
   std::vector<PendingBarrier> pending_barriers_;
   PendingBarrier current_pending_barrier_;
+
+  // GPU-local scratch buffer.
+  static constexpr VkDeviceSize kScratchBufferSizeIncrement = 16 * 1024 * 1024;
+  VkDeviceMemory scratch_buffer_memory_ = VK_NULL_HANDLE;
+  VkBuffer scratch_buffer_ = VK_NULL_HANDLE;
+  VkDeviceSize scratch_buffer_size_ = 0;
+  VkPipelineStageFlags scratch_buffer_last_stage_mask_ = 0;
+  VkAccessFlags scratch_buffer_last_access_mask_ = 0;
+  uint64_t scratch_buffer_last_usage_submission_ = 0;
+  bool scratch_buffer_used_ = false;
 
   // The current dynamic state of the graphics pipeline bind point. Note that
   // binding any pipeline to the bind point with static state (even if it's

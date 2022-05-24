@@ -306,6 +306,7 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
+  // Requires the transient descriptor set layouts.
   // TODO(Triang3l): Actual draw resolution scale.
   texture_cache_ =
       VulkanTextureCache::Create(*register_file_, *shared_memory_, 1, 1, *this,
@@ -603,10 +604,11 @@ void VulkanCommandProcessor::ShutdownContext() {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
-  for (const auto& framebuffer_pair : swap_framebuffers_outdated_) {
-    dfn.vkDestroyFramebuffer(device, framebuffer_pair.second, nullptr);
-  }
-  swap_framebuffers_outdated_.clear();
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
+                                         scratch_buffer_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                         scratch_buffer_memory_);
+
   for (SwapFramebuffer& swap_framebuffer : swap_framebuffers_) {
     ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyFramebuffer, device,
                                            swap_framebuffer.framebuffer);
@@ -674,6 +676,19 @@ void VulkanCommandProcessor::ShutdownContext() {
     dfn.vkDestroyCommandPool(device, command_buffer.pool, nullptr);
   }
   command_buffers_writable_.clear();
+
+  for (const auto& destroy_pair : destroy_framebuffers_) {
+    dfn.vkDestroyFramebuffer(device, destroy_pair.second, nullptr);
+  }
+  destroy_framebuffers_.clear();
+  for (const auto& destroy_pair : destroy_buffers_) {
+    dfn.vkDestroyBuffer(device, destroy_pair.second, nullptr);
+  }
+  destroy_buffers_.clear();
+  for (const auto& destroy_pair : destroy_memory_) {
+    dfn.vkFreeMemory(device, destroy_pair.second, nullptr);
+  }
+  destroy_memory_.clear();
 
   std::memset(closed_frame_submissions_, 0, sizeof(closed_frame_submissions_));
   frame_completed_ = 0;
@@ -843,7 +858,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
               dfn.vkDestroyFramebuffer(device, new_swap_framebuffer.framebuffer,
                                        nullptr);
             } else {
-              swap_framebuffers_outdated_.emplace_back(
+              destroy_framebuffers_.emplace_back(
                   new_swap_framebuffer.last_submission,
                   new_swap_framebuffer.framebuffer);
             }
@@ -1387,6 +1402,83 @@ VulkanCommandProcessor::GetPipelineLayout(size_t texture_count_pixel,
   return &emplaced_pair.first->second;
 }
 
+VulkanCommandProcessor::ScratchBufferAcquisition
+VulkanCommandProcessor::AcquireScratchGpuBuffer(
+    VkDeviceSize size, VkPipelineStageFlags initial_stage_mask,
+    VkAccessFlags initial_access_mask) {
+  assert_true(submission_open_);
+  assert_false(scratch_buffer_used_);
+  if (!submission_open_ || scratch_buffer_used_ || !size) {
+    return ScratchBufferAcquisition();
+  }
+
+  uint64_t submission_current = GetCurrentSubmission();
+
+  if (scratch_buffer_ != VK_NULL_HANDLE && size <= scratch_buffer_size_) {
+    // Already used previously - transition.
+    PushBufferMemoryBarrier(scratch_buffer_, 0, VK_WHOLE_SIZE,
+                            scratch_buffer_last_stage_mask_, initial_stage_mask,
+                            scratch_buffer_last_access_mask_,
+                            initial_access_mask);
+    scratch_buffer_last_stage_mask_ = initial_stage_mask;
+    scratch_buffer_last_access_mask_ = initial_access_mask;
+    scratch_buffer_last_usage_submission_ = submission_current;
+    scratch_buffer_used_ = true;
+    return ScratchBufferAcquisition(*this, scratch_buffer_, initial_stage_mask,
+                                    initial_access_mask);
+  }
+
+  size = xe::align(size, kScratchBufferSizeIncrement);
+
+  const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
+
+  VkDeviceMemory new_scratch_buffer_memory;
+  VkBuffer new_scratch_buffer;
+  // VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT for
+  // texture loading.
+  if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
+          provider, size,
+          VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+          ui::vulkan::util::MemoryPurpose::kDeviceLocal, new_scratch_buffer,
+          new_scratch_buffer_memory)) {
+    XELOGE(
+        "VulkanCommandProcessor: Failed to create a {} MB scratch GPU buffer",
+        size >> 20);
+    return ScratchBufferAcquisition();
+  }
+
+  if (submission_completed_ >= scratch_buffer_last_usage_submission_) {
+    const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+    VkDevice device = provider.device();
+    if (scratch_buffer_ != VK_NULL_HANDLE) {
+      dfn.vkDestroyBuffer(device, scratch_buffer_, nullptr);
+    }
+    if (scratch_buffer_memory_ != VK_NULL_HANDLE) {
+      dfn.vkFreeMemory(device, scratch_buffer_memory_, nullptr);
+    }
+  } else {
+    if (scratch_buffer_ != VK_NULL_HANDLE) {
+      destroy_buffers_.emplace_back(scratch_buffer_last_usage_submission_,
+                                    scratch_buffer_);
+    }
+    if (scratch_buffer_memory_ != VK_NULL_HANDLE) {
+      destroy_memory_.emplace_back(scratch_buffer_last_usage_submission_,
+                                   scratch_buffer_memory_);
+    }
+  }
+
+  scratch_buffer_memory_ = new_scratch_buffer_memory;
+  scratch_buffer_ = new_scratch_buffer;
+  scratch_buffer_size_ = size;
+  // Not used yet, no need for a barrier.
+  scratch_buffer_last_stage_mask_ = initial_access_mask;
+  scratch_buffer_last_access_mask_ = initial_stage_mask;
+  scratch_buffer_last_usage_submission_ = submission_current;
+  scratch_buffer_used_ = true;
+  return ScratchBufferAcquisition(*this, new_scratch_buffer, initial_stage_mask,
+                                  initial_access_mask);
+}
+
 void VulkanCommandProcessor::BindExternalGraphicsPipeline(
     VkPipeline pipeline, bool keep_dynamic_depth_bias,
     bool keep_dynamic_blend_constants, bool keep_dynamic_stencil_mask_ref) {
@@ -1915,14 +2007,30 @@ void VulkanCommandProcessor::CheckSubmissionFenceAndDeviceLoss(
 
   texture_cache_->CompletedSubmissionUpdated(submission_completed_);
 
-  // Destroy outdated swap objects.
-  while (!swap_framebuffers_outdated_.empty()) {
-    const auto& framebuffer_pair = swap_framebuffers_outdated_.front();
-    if (framebuffer_pair.first > submission_completed_) {
+  // Destroy objects scheduled for destruction.
+  while (!destroy_framebuffers_.empty()) {
+    const auto& destroy_pair = destroy_framebuffers_.front();
+    if (destroy_pair.first > submission_completed_) {
       break;
     }
-    dfn.vkDestroyFramebuffer(device, framebuffer_pair.second, nullptr);
-    swap_framebuffers_outdated_.pop_front();
+    dfn.vkDestroyFramebuffer(device, destroy_pair.second, nullptr);
+    destroy_framebuffers_.pop_front();
+  }
+  while (!destroy_buffers_.empty()) {
+    const auto& destroy_pair = destroy_buffers_.front();
+    if (destroy_pair.first > submission_completed_) {
+      break;
+    }
+    dfn.vkDestroyBuffer(device, destroy_pair.second, nullptr);
+    destroy_buffers_.pop_front();
+  }
+  while (!destroy_memory_.empty()) {
+    const auto& destroy_pair = destroy_memory_.front();
+    if (destroy_pair.first > submission_completed_) {
+      break;
+    }
+    dfn.vkFreeMemory(device, destroy_pair.second, nullptr);
+    destroy_memory_.pop_front();
   }
 }
 
@@ -2136,6 +2244,8 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
   }
 
   if (submission_open_) {
+    assert_false(scratch_buffer_used_);
+
     EndRenderPass();
 
     render_target_cache_->EndSubmission();
@@ -3117,6 +3227,25 @@ uint8_t* VulkanCommandProcessor::WriteTransientUniformBufferBinding(
   write_descriptor_set_out.pImageInfo = nullptr;
   write_descriptor_set_out.pBufferInfo = &descriptor_buffer_info_out;
   write_descriptor_set_out.pTexelBufferView = nullptr;
+  return mapping;
+}
+
+uint8_t* VulkanCommandProcessor::WriteTransientUniformBufferBinding(
+    size_t size, SingleTransientDescriptorLayout transient_descriptor_layout,
+    VkDescriptorSet& descriptor_set_out) {
+  VkDescriptorBufferInfo write_descriptor_buffer_info;
+  VkWriteDescriptorSet write_descriptor_set;
+  uint8_t* mapping = WriteTransientUniformBufferBinding(
+      size, transient_descriptor_layout, write_descriptor_buffer_info,
+      write_descriptor_set);
+  if (!mapping) {
+    return nullptr;
+  }
+  const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+  dfn.vkUpdateDescriptorSets(device, 1, &write_descriptor_set, 0, nullptr);
+  descriptor_set_out = write_descriptor_set.dstSet;
   return mapping;
 }
 
