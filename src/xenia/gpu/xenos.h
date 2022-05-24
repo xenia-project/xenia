@@ -1045,6 +1045,10 @@ constexpr uint32_t kTexture3DMaxWidthHeight = 1 << kTexture3DMaxWidthHeightLog2;
 constexpr uint32_t kTexture3DMaxDepthLog2 = 10;
 constexpr uint32_t kTexture3DMaxDepth = 1 << kTexture3DMaxDepthLog2;
 
+constexpr uint32_t kTextureMaxMips =
+    std::max(kTexture2DCubeMaxWidthHeightLog2, kTexture3DMaxWidthHeightLog2) +
+    1;
+
 // Tiled texture sizes are in 32x32 increments for 2D, 32x32x4 for 3D.
 // 2DTiledOffset(X * 32 + x, Y * 32 + y) ==
 //     2DTiledOffset(X * 32, Y * 32) + 2DTiledOffset(x, y)

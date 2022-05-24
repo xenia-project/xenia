@@ -173,8 +173,8 @@ struct TextureGuestLayout {
   // If mip_max_level specified at calculation time is at least 1, the stored
   // mips are min(1, packed_mip_level) through min(mip_max_level,
   // packed_mip_level).
-  Level mips[xenos::kTexture2DCubeMaxWidthHeightLog2 + 1];
-  uint32_t mip_offsets_bytes[xenos::kTexture2DCubeMaxWidthHeightLog2 + 1];
+  Level mips[xenos::kTextureMaxMips];
+  uint32_t mip_offsets_bytes[xenos::kTextureMaxMips];
   uint32_t mips_total_extent_bytes;
   uint32_t max_level;
   // UINT32_MAX if there's no packed mip tail.
@@ -207,6 +207,11 @@ void GetTextureTotalSize(xenos::DataDimension dimension,
 //       Offset3D(X * 32, Y * 32, Z * 8) + Offset3D(x, y, z)
 //   (true for negative offsets too).
 // - 2D 32x32 tiles are laid out linearly.
+// FIXME(Triang3l): This is wrong for 1bpb and 2bpb. At 1bpb (32x32 is 1024
+// bytes), offset for X + 32 minus offset for X is 512, not 1024, but offset for
+// X + 128 minus offset for X + 96 is 2560. Also, for XY = 0...31, the extent of
+// the addresses is 2560, not 1024. At 2bpb, addressing repeats every 64x64, and
+// the extent for XY = 0...31 is 3072, not 2048.
 // - 3D tiled texture slices 0:3 and 4:7 are stored separately in memory, in
 //   non-overlapping ranges, but addressing in 4:7 is different than in 0:3.
 // - Addressing of blocks that are contiguous along X (for tiling/untiling of
