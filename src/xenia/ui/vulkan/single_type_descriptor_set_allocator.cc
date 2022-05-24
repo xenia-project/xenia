@@ -128,7 +128,7 @@ VkDescriptorSet SingleTypeDescriptorSetAllocator::Allocate(
     // or will become full, and in case of a failure to allocate internally even
     // though there still should be enough space, it should never be allocated
     // from again.
-    Page map_page = pages_usable_.crend()->second;
+    Page map_page = page_usable_last_it->second;
     pages_usable_.erase(page_usable_last_it);
     descriptor_set_allocate_info.descriptorPool = map_page.pool;
     if (dfn.vkAllocateDescriptorSets(device, &descriptor_set_allocate_info,
