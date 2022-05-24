@@ -391,6 +391,12 @@ TextureGuestLayout GetGuestTextureLayout(
         // 2D 32x32-block tiles are laid out linearly in the texture.
         // Calculate the extent as ((all rows except for the last * pitch in
         // tiles + last row length in tiles) * bytes per tile).
+        // FIXME(Triang3l): This is wrong for 1bpb and 2bpb. At 1bpb (32x32 is
+        // 1024 bytes), offset for X + 32 minus offset for X is 512, not 1024,
+        // but offset for X + 128 minus offset for X + 96 is 2560. Also, for
+        // XY = 0...31, the extent of the addresses is 2560, not 1024. At 2bpb,
+        // addressing repeats every 64x64, and the extent for XY = 0...31 is
+        // 3072, not 2048.
         level_layout.array_slice_data_extent_bytes =
             (level_layout.y_extent_blocks - xenos::kTextureTileWidthHeight) *
                 level_layout.row_pitch_bytes +
