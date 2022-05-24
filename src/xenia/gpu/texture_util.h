@@ -173,8 +173,8 @@ struct TextureGuestLayout {
   // If mip_max_level specified at calculation time is at least 1, the stored
   // mips are min(1, packed_mip_level) through min(mip_max_level,
   // packed_mip_level).
-  Level mips[xenos::kTexture2DCubeMaxWidthHeightLog2 + 1];
-  uint32_t mip_offsets_bytes[xenos::kTexture2DCubeMaxWidthHeightLog2 + 1];
+  Level mips[xenos::kTextureMaxMips];
+  uint32_t mip_offsets_bytes[xenos::kTextureMaxMips];
   uint32_t mips_total_extent_bytes;
   uint32_t max_level;
   // UINT32_MAX if there's no packed mip tail.
