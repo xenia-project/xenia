@@ -179,85 +179,23 @@ class D3D12TextureCache final : public TextureCache {
   static constexpr uint32_t kLoadGuestXThreadsPerGroupLog2 = 2;
   static constexpr uint32_t kLoadGuestYBlocksPerGroupLog2 = 5;
 
-  enum class LoadMode {
-    k8bpb,
-    k16bpb,
-    k32bpb,
-    k64bpb,
-    k128bpb,
-    kR5G5B5A1ToB5G5R5A1,
-    kR5G6B5ToB5G6R5,
-    kR5G5B6ToB5G6R5WithRBGASwizzle,
-    kR4G4B4A4ToB4G4R4A4,
-    kGBGR8ToGRGB8,
-    kGBGR8ToRGB8,
-    kBGRG8ToRGBG8,
-    kBGRG8ToRGB8,
-    kR10G11B11ToRGBA16,
-    kR10G11B11ToRGBA16SNorm,
-    kR11G11B10ToRGBA16,
-    kR11G11B10ToRGBA16SNorm,
-    kDXT1ToRGBA8,
-    kDXT3ToRGBA8,
-    kDXT5ToRGBA8,
-    kDXNToRG8,
-    kDXT3A,
-    kDXT3AAs1111ToBGRA4,
-    kDXT5AToR8,
-    kCTX1,
-    kDepthUnorm,
-    kDepthFloat,
-
-    kCount,
-
-    kUnknown = kCount
-  };
-
-  struct LoadModeInfo {
-    // Shader without resolution scaling.
-    const void* shader;
-    size_t shader_size;
-    // Shader with resolution scaling, if available. These shaders are separate
-    // so the majority of the textures are not affected by the code needed for
-    // resolution scale support, and also to check if the format allows
-    // resolution scaling.
-    const void* shader_scaled;
-    size_t shader_scaled_size;
-    // Log2 of the sizes, in bytes, of the source (guest) SRV and the
-    // destination (host) UAV accessed by the copying shader, since the shader
-    // may copy multiple blocks per one invocation.
-    uint32_t srv_bpe_log2;
-    uint32_t uav_bpe_log2;
-    // Number of bytes in a host resolution-scaled block (corresponding to a
-    // guest block if not decompressing, or a host texel if decompressing)
-    // written by the shader.
-    uint32_t bytes_per_host_block;
-    // Log2 of the number of guest resolution-scaled blocks along the X axis
-    // loaded by a single thread shader group.
-    uint32_t guest_x_blocks_per_thread_log2;
-
-    uint32_t GetGuestXBlocksPerGroupLog2() const {
-      return kLoadGuestXThreadsPerGroupLog2 + guest_x_blocks_per_thread_log2;
-    }
-  };
-
   struct HostFormat {
     // Format info for the regular case.
     // DXGI format (typeless when different signedness or number representation
     // is used) for the texture resource.
     DXGI_FORMAT dxgi_format_resource;
     // DXGI format for unsigned normalized or unsigned/signed float SRV.
-    DXGI_FORMAT dxgi_format_unorm;
-    // The regular load mode, used when special modes (like signed-specific or
-    // decompressing) aren't needed.
-    LoadMode load_mode;
+    DXGI_FORMAT dxgi_format_unsigned;
+    // The regular load shader, used when special load shaders (like
+    // signed-specific or decompressing) aren't needed.
+    LoadShaderIndex load_shader;
     // DXGI format for signed normalized or unsigned/signed float SRV.
-    DXGI_FORMAT dxgi_format_snorm;
+    DXGI_FORMAT dxgi_format_signed;
     // If the signed version needs a different bit representation on the host,
-    // this is the load mode for the signed version. Otherwise the regular
-    // load_mode will be used for the signed version, and a single copy will be
-    // created if both unsigned and signed are used.
-    LoadMode load_mode_snorm;
+    // this is the load shader for the signed version. Otherwise the regular
+    // load_shader will be used for the signed version, and a single copy will
+    // be created if both unsigned and signed are used.
+    LoadShaderIndex load_shader_signed;
 
     // Do NOT add integer DXGI formats to this - they are not filterable, can
     // only be read with Load, not Sample! If any game is seen using num_format
@@ -276,7 +214,7 @@ class D3D12TextureCache final : public TextureCache {
     // supports unsigned normalized formats - let's hope GPUSIGN_SIGNED was not
     // used for DXN and DXT5A.
     DXGI_FORMAT dxgi_format_uncompressed;
-    LoadMode decompress_mode;
+    LoadShaderIndex load_shader_decompress;
 
     // Mapping of Xenos swizzle components to DXGI format components.
     uint32_t swizzle;
@@ -440,13 +378,13 @@ class D3D12TextureCache final : public TextureCache {
     const HostFormat& host_format = host_formats_[uint32_t(format)];
     return IsDecompressionNeeded(format, width, height)
                ? host_format.dxgi_format_uncompressed
-               : host_format.dxgi_format_unorm;
+               : host_format.dxgi_format_unsigned;
   }
   static DXGI_FORMAT GetDXGIUnormFormat(TextureKey key) {
     return GetDXGIUnormFormat(key.format, key.GetWidth(), key.GetHeight());
   }
 
-  static LoadMode GetLoadMode(TextureKey key);
+  static LoadShaderIndex GetLoadShaderIndex(TextureKey key);
 
   static constexpr bool AreDimensionsCompatible(
       xenos::FetchOpDimension binding_dimension,
@@ -528,14 +466,11 @@ class D3D12TextureCache final : public TextureCache {
   D3D12CommandProcessor& command_processor_;
   bool bindless_resources_used_;
 
-  static const LoadModeInfo load_mode_info_[];
   Microsoft::WRL::ComPtr<ID3D12RootSignature> load_root_signature_;
-  std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>,
-             size_t(LoadMode::kCount)>
+  std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, kLoadShaderCount>
       load_pipelines_;
   // Load pipelines for resolution-scaled resolve targets.
-  std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>,
-             size_t(LoadMode::kCount)>
+  std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, kLoadShaderCount>
       load_pipelines_scaled_;
 
   std::vector<SRVDescriptorCachePage> srv_descriptor_cache_;
