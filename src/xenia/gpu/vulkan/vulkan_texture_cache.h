@@ -28,6 +28,8 @@ class VulkanCommandProcessor;
 
 class VulkanTextureCache final : public TextureCache {
  public:
+  // Transient descriptor set layouts must be initialized in the command
+  // processor.
   static std::unique_ptr<VulkanTextureCache> Create(
       const RegisterFile& register_file, VulkanSharedMemory& shared_memory,
       uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
@@ -75,46 +77,15 @@ class VulkanTextureCache final : public TextureCache {
   void UpdateTextureBindingsImpl(uint32_t fetch_constant_mask) override;
 
  private:
-  enum class LoadMode {
-    k8bpb,
-    k16bpb,
-    k32bpb,
-    k64bpb,
-    k128bpb,
-    kR5G5B5A1ToB5G5R5A1,
-    kR5G6B5ToB5G6R5,
-    kR5G5B6ToB5G6R5WithRBGASwizzle,
-    kRGBA4ToARGB4,
-    kGBGR8ToRGB8,
-    kBGRG8ToRGB8,
-    kR10G11B11ToRGBA16,
-    kR10G11B11ToRGBA16SNorm,
-    kR11G11B10ToRGBA16,
-    kR11G11B10ToRGBA16SNorm,
-    kR16UNormToFloat,
-    kR16SNormToFloat,
-    kRG16UNormToFloat,
-    kRG16SNormToFloat,
-    kRGBA16UNormToFloat,
-    kRGBA16SNormToFloat,
-    kDXT1ToRGBA8,
-    kDXT3ToRGBA8,
-    kDXT5ToRGBA8,
-    kDXNToRG8,
-    kDXT3A,
-    kDXT3AAs1111ToARGB4,
-    kDXT5AToR8,
-    kCTX1,
-    kDepthUnorm,
-    kDepthFloat,
-
-    kCount,
-
-    kUnknown = kCount
+  enum LoadDescriptorSetIndex {
+    kLoadDescriptorSetIndexDestination,
+    kLoadDescriptorSetIndexSource,
+    kLoadDescriptorSetIndexConstants,
+    kLoadDescriptorSetCount,
   };
 
   struct HostFormat {
-    LoadMode load_mode;
+    LoadShaderIndex load_shader;
     // Do NOT add integer formats to this - they are not filterable, can only be
     // read with ImageFetch, not ImageSample! If any game is seen using
     // num_format 1 for fixed-point formats (for floating-point, it's normally
@@ -274,6 +245,10 @@ class VulkanTextureCache final : public TextureCache {
 
   static const HostFormatPair kBestHostFormats[64];
   HostFormatPair host_formats_[64];
+
+  VkPipelineLayout load_pipeline_layout_ = VK_NULL_HANDLE;
+  std::array<VkPipeline, kLoadShaderCount> load_pipelines_{};
+  std::array<VkPipeline, kLoadShaderCount> load_pipelines_scaled_{};
 
   // If both images can be placed in the same allocation, it's one allocation,
   // otherwise it's two separate.

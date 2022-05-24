@@ -10,12 +10,15 @@
 #include "xenia/gpu/vulkan/vulkan_texture_cache.h"
 
 #include <algorithm>
+#include <array>
+#include <utility>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/texture_info.h"
+#include "xenia/gpu/vulkan/deferred_command_buffer.h"
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
 
@@ -79,319 +82,322 @@ namespace shaders {
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/texture_load_rgba16_unorm_float_scaled_cs.h"
 }  // namespace shaders
 
+static_assert(VK_FORMAT_UNDEFINED == VkFormat(0),
+              "Assuming that skipping a VkFormat in an initializer results in "
+              "VK_FORMAT_UNDEFINED");
 const VulkanTextureCache::HostFormatPair
     VulkanTextureCache::kBestHostFormats[64] = {
         // k_1_REVERSE
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_1
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_8
-        {{LoadMode::k8bpb, VK_FORMAT_R8_UNORM},
-         {LoadMode::k8bpb, VK_FORMAT_R8_SNORM},
+        {{kLoadShaderIndex8bpb, VK_FORMAT_R8_UNORM},
+         {kLoadShaderIndex8bpb, VK_FORMAT_R8_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
          true},
         // k_1_5_5_5
         // Red and blue swapped in the load shader for simplicity.
-        {{LoadMode::kR5G5B5A1ToB5G5R5A1, VK_FORMAT_A1R5G5B5_UNORM_PACK16},
-         {},
+        {{kLoadShaderIndexR5G5B5A1ToB5G5R5A1, VK_FORMAT_A1R5G5B5_UNORM_PACK16},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_5_6_5
         // Red and blue swapped in the load shader for simplicity.
-        {{LoadMode::kR5G6B5ToB5G6R5, VK_FORMAT_R5G6B5_UNORM_PACK16},
-         {},
+        {{kLoadShaderIndexR5G6B5ToB5G6R5, VK_FORMAT_R5G6B5_UNORM_PACK16},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
         // k_6_5_5
         // On the host, green bits in blue, blue bits in green.
-        {{LoadMode::kR5G5B6ToB5G6R5WithRBGASwizzle,
+        {{kLoadShaderIndexR5G5B6ToB5G6R5WithRBGASwizzle,
           VK_FORMAT_R5G6B5_UNORM_PACK16},
-         {},
+         {kLoadShaderIndexUnknown},
          XE_GPU_MAKE_TEXTURE_SWIZZLE(R, B, G, G)},
         // k_8_8_8_8
-        {{LoadMode::k32bpb, VK_FORMAT_R8G8B8A8_UNORM},
-         {LoadMode::k32bpb, VK_FORMAT_R8G8B8A8_SNORM},
+        {{kLoadShaderIndex32bpb, VK_FORMAT_R8G8B8A8_UNORM},
+         {kLoadShaderIndex32bpb, VK_FORMAT_R8G8B8A8_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
          true},
         // k_2_10_10_10
         // VK_FORMAT_A2B10G10R10_SNORM_PACK32 is optional.
-        {{LoadMode::k32bpb, VK_FORMAT_A2B10G10R10_UNORM_PACK32},
-         {LoadMode::k32bpb, VK_FORMAT_A2B10G10R10_SNORM_PACK32},
+        {{kLoadShaderIndex32bpb, VK_FORMAT_A2B10G10R10_UNORM_PACK32},
+         {kLoadShaderIndex32bpb, VK_FORMAT_A2B10G10R10_SNORM_PACK32},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
          true},
         // k_8_A
-        {{LoadMode::k8bpb, VK_FORMAT_R8_UNORM},
-         {LoadMode::k8bpb, VK_FORMAT_R8_SNORM},
+        {{kLoadShaderIndex8bpb, VK_FORMAT_R8_UNORM},
+         {kLoadShaderIndex8bpb, VK_FORMAT_R8_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
          true},
         // k_8_B
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_8_8
-        {{LoadMode::k16bpb, VK_FORMAT_R8G8_UNORM},
-         {LoadMode::k16bpb, VK_FORMAT_R8G8_SNORM},
+        {{kLoadShaderIndex16bpb, VK_FORMAT_R8G8_UNORM},
+         {kLoadShaderIndex16bpb, VK_FORMAT_R8G8_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG,
          true},
         // k_Cr_Y1_Cb_Y0_REP
         // VK_FORMAT_G8B8G8R8_422_UNORM_KHR (added in
         // VK_KHR_sampler_ycbcr_conversion and promoted to Vulkan 1.1) is
         // optional.
-        {{LoadMode::k32bpb, VK_FORMAT_G8B8G8R8_422_UNORM_KHR, true},
-         {LoadMode::kGBGR8ToRGB8, VK_FORMAT_R8G8B8A8_SNORM},
+        {{kLoadShaderIndex32bpb, VK_FORMAT_G8B8G8R8_422_UNORM_KHR, true},
+         {kLoadShaderIndexGBGR8ToRGB8, VK_FORMAT_R8G8B8A8_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
         // k_Y1_Cr_Y0_Cb_REP
         // VK_FORMAT_B8G8R8G8_422_UNORM_KHR (added in
         // VK_KHR_sampler_ycbcr_conversion and promoted to Vulkan 1.1) is
         // optional.
-        {{LoadMode::k32bpb, VK_FORMAT_B8G8R8G8_422_UNORM_KHR, true},
-         {LoadMode::kBGRG8ToRGB8, VK_FORMAT_R8G8B8A8_SNORM},
+        {{kLoadShaderIndex32bpb, VK_FORMAT_B8G8R8G8_422_UNORM_KHR, true},
+         {kLoadShaderIndexBGRG8ToRGB8, VK_FORMAT_R8G8B8A8_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
         // k_16_16_EDRAM
         // Not usable as a texture, also has -32...32 range.
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
         // k_8_8_8_8_A
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_4_4_4_4
         // Components swapped in the load shader for simplicity.
-        {{LoadMode::kRGBA4ToARGB4, VK_FORMAT_B4G4R4A4_UNORM_PACK16},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexRGBA4ToARGB4, VK_FORMAT_B4G4R4A4_UNORM_PACK16},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_10_11_11
         // TODO(Triang3l): 16_UNORM/SNORM are optional, convert to float16
         // instead.
-        {{LoadMode::kR11G11B10ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
-         {LoadMode::kR11G11B10ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
+        {{kLoadShaderIndexR11G11B10ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
+         {kLoadShaderIndexR11G11B10ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
         // k_11_11_10
         // TODO(Triang3l): 16_UNORM/SNORM are optional, convert to float16
         // instead.
-        {{LoadMode::kR10G11B11ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
-         {LoadMode::kR10G11B11ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
+        {{kLoadShaderIndexR10G11B11ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
+         {kLoadShaderIndexR10G11B11ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
         // k_DXT1
         // VK_FORMAT_BC1_RGBA_UNORM_BLOCK is optional.
-        {{LoadMode::k64bpb, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, true},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndex64bpb, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, true},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_DXT2_3
         // VK_FORMAT_BC2_UNORM_BLOCK is optional.
-        {{LoadMode::k128bpb, VK_FORMAT_BC2_UNORM_BLOCK, true},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndex128bpb, VK_FORMAT_BC2_UNORM_BLOCK, true},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_DXT4_5
         // VK_FORMAT_BC3_UNORM_BLOCK is optional.
-        {{LoadMode::k128bpb, VK_FORMAT_BC3_UNORM_BLOCK, true},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndex128bpb, VK_FORMAT_BC3_UNORM_BLOCK, true},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_16_16_16_16_EDRAM
         // Not usable as a texture, also has -32...32 range.
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_24_8
-        {{LoadMode::kDepthUnorm, VK_FORMAT_R32_SFLOAT},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexDepthUnorm, VK_FORMAT_R32_SFLOAT},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_24_8_FLOAT
-        {{LoadMode::kDepthFloat, VK_FORMAT_R32_SFLOAT},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexDepthFloat, VK_FORMAT_R32_SFLOAT},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_16
         // VK_FORMAT_R16_UNORM and VK_FORMAT_R16_SNORM are optional.
-        {{LoadMode::k16bpb, VK_FORMAT_R16_UNORM},
-         {LoadMode::k16bpb, VK_FORMAT_R16_SNORM},
+        {{kLoadShaderIndex16bpb, VK_FORMAT_R16_UNORM},
+         {kLoadShaderIndex16bpb, VK_FORMAT_R16_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
          true},
         // k_16_16
         // VK_FORMAT_R16G16_UNORM and VK_FORMAT_R16G16_SNORM are optional.
-        {{LoadMode::k32bpb, VK_FORMAT_R16G16_UNORM},
-         {LoadMode::k32bpb, VK_FORMAT_R16G16_SNORM},
+        {{kLoadShaderIndex32bpb, VK_FORMAT_R16G16_UNORM},
+         {kLoadShaderIndex32bpb, VK_FORMAT_R16G16_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG,
          true},
         // k_16_16_16_16
         // VK_FORMAT_R16G16B16A16_UNORM and VK_FORMAT_R16G16B16A16_SNORM are
         // optional.
-        {{LoadMode::k64bpb, VK_FORMAT_R16G16B16A16_UNORM},
-         {LoadMode::k64bpb, VK_FORMAT_R16G16B16A16_SNORM},
+        {{kLoadShaderIndex64bpb, VK_FORMAT_R16G16B16A16_UNORM},
+         {kLoadShaderIndex64bpb, VK_FORMAT_R16G16B16A16_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
          true},
         // k_16_EXPAND
-        {{LoadMode::k16bpb, VK_FORMAT_R16_SFLOAT},
-         {LoadMode::k16bpb, VK_FORMAT_R16_SFLOAT},
+        {{kLoadShaderIndex16bpb, VK_FORMAT_R16_SFLOAT},
+         {kLoadShaderIndex16bpb, VK_FORMAT_R16_SFLOAT},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
          true},
         // k_16_16_EXPAND
-        {{LoadMode::k32bpb, VK_FORMAT_R16G16_SFLOAT},
-         {LoadMode::k32bpb, VK_FORMAT_R16G16_SFLOAT},
+        {{kLoadShaderIndex32bpb, VK_FORMAT_R16G16_SFLOAT},
+         {kLoadShaderIndex32bpb, VK_FORMAT_R16G16_SFLOAT},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG,
          true},
         // k_16_16_16_16_EXPAND
-        {{LoadMode::k64bpb, VK_FORMAT_R16G16B16A16_SFLOAT},
-         {LoadMode::k64bpb, VK_FORMAT_R16G16B16A16_SFLOAT},
+        {{kLoadShaderIndex64bpb, VK_FORMAT_R16G16B16A16_SFLOAT},
+         {kLoadShaderIndex64bpb, VK_FORMAT_R16G16B16A16_SFLOAT},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
          true},
         // k_16_FLOAT
-        {{LoadMode::k16bpb, VK_FORMAT_R16_SFLOAT},
-         {LoadMode::k16bpb, VK_FORMAT_R16_SFLOAT},
+        {{kLoadShaderIndex16bpb, VK_FORMAT_R16_SFLOAT},
+         {kLoadShaderIndex16bpb, VK_FORMAT_R16_SFLOAT},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
          true},
         // k_16_16_FLOAT
-        {{LoadMode::k32bpb, VK_FORMAT_R16G16_SFLOAT},
-         {LoadMode::k32bpb, VK_FORMAT_R16G16_SFLOAT},
+        {{kLoadShaderIndex32bpb, VK_FORMAT_R16G16_SFLOAT},
+         {kLoadShaderIndex32bpb, VK_FORMAT_R16G16_SFLOAT},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG,
          true},
         // k_16_16_16_16_FLOAT
-        {{LoadMode::k64bpb, VK_FORMAT_R16G16B16A16_SFLOAT},
-         {LoadMode::k64bpb, VK_FORMAT_R16G16B16A16_SFLOAT},
+        {{kLoadShaderIndex64bpb, VK_FORMAT_R16G16B16A16_SFLOAT},
+         {kLoadShaderIndex64bpb, VK_FORMAT_R16G16B16A16_SFLOAT},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
          true},
         // k_32
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_32_32
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
         // k_32_32_32_32
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_32_FLOAT
-        {{LoadMode::k32bpb, VK_FORMAT_R32_SFLOAT},
-         {LoadMode::k32bpb, VK_FORMAT_R32_SFLOAT},
+        {{kLoadShaderIndex32bpb, VK_FORMAT_R32_SFLOAT},
+         {kLoadShaderIndex32bpb, VK_FORMAT_R32_SFLOAT},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR,
          true},
         // k_32_32_FLOAT
-        {{LoadMode::k64bpb, VK_FORMAT_R32G32_SFLOAT},
-         {LoadMode::k64bpb, VK_FORMAT_R32G32_SFLOAT},
+        {{kLoadShaderIndex64bpb, VK_FORMAT_R32G32_SFLOAT},
+         {kLoadShaderIndex64bpb, VK_FORMAT_R32G32_SFLOAT},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG,
          true},
         // k_32_32_32_32_FLOAT
-        {{LoadMode::k128bpb, VK_FORMAT_R32G32B32A32_SFLOAT},
-         {LoadMode::k128bpb, VK_FORMAT_R32G32B32A32_SFLOAT},
+        {{kLoadShaderIndex128bpb, VK_FORMAT_R32G32B32A32_SFLOAT},
+         {kLoadShaderIndex128bpb, VK_FORMAT_R32G32B32A32_SFLOAT},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
          true},
         // k_32_AS_8
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_32_AS_8_8
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
         // k_16_MPEG
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_16_16_MPEG
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
         // k_8_INTERLACED
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_32_AS_8_INTERLACED
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_32_AS_8_8_INTERLACED
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
         // k_16_INTERLACED
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_16_MPEG_INTERLACED
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_16_16_MPEG_INTERLACED
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
         // k_DXN
         // VK_FORMAT_BC5_UNORM_BLOCK is optional.
-        {{LoadMode::k128bpb, VK_FORMAT_BC5_UNORM_BLOCK, true},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndex128bpb, VK_FORMAT_BC5_UNORM_BLOCK, true},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
         // k_8_8_8_8_AS_16_16_16_16
-        {{LoadMode::k32bpb, VK_FORMAT_R8G8B8A8_UNORM},
-         {LoadMode::k32bpb, VK_FORMAT_R8G8B8A8_SNORM},
+        {{kLoadShaderIndex32bpb, VK_FORMAT_R8G8B8A8_UNORM},
+         {kLoadShaderIndex32bpb, VK_FORMAT_R8G8B8A8_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
          true},
         // k_DXT1_AS_16_16_16_16
         // VK_FORMAT_BC1_RGBA_UNORM_BLOCK is optional.
-        {{LoadMode::k64bpb, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, true},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndex64bpb, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, true},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_DXT2_3_AS_16_16_16_16
         // VK_FORMAT_BC2_UNORM_BLOCK is optional.
-        {{LoadMode::k128bpb, VK_FORMAT_BC2_UNORM_BLOCK, true},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndex128bpb, VK_FORMAT_BC2_UNORM_BLOCK, true},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_DXT4_5_AS_16_16_16_16
         // VK_FORMAT_BC3_UNORM_BLOCK is optional.
-        {{LoadMode::k128bpb, VK_FORMAT_BC3_UNORM_BLOCK, true},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndex128bpb, VK_FORMAT_BC3_UNORM_BLOCK, true},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_2_10_10_10_AS_16_16_16_16
         // VK_FORMAT_A2B10G10R10_SNORM_PACK32 is optional.
-        {{LoadMode::k32bpb, VK_FORMAT_A2B10G10R10_UNORM_PACK32},
-         {LoadMode::k32bpb, VK_FORMAT_A2B10G10R10_SNORM_PACK32},
+        {{kLoadShaderIndex32bpb, VK_FORMAT_A2B10G10R10_UNORM_PACK32},
+         {kLoadShaderIndex32bpb, VK_FORMAT_A2B10G10R10_SNORM_PACK32},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA,
          true},
         // k_10_11_11_AS_16_16_16_16
         // TODO(Triang3l): 16_UNORM/SNORM are optional, convert to float16
         // instead.
-        {{LoadMode::kR11G11B10ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
-         {LoadMode::kR11G11B10ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
+        {{kLoadShaderIndexR11G11B10ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
+         {kLoadShaderIndexR11G11B10ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
         // k_11_11_10_AS_16_16_16_16
         // TODO(Triang3l): 16_UNORM/SNORM are optional, convert to float16
         // instead.
-        {{LoadMode::kR10G11B11ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
-         {LoadMode::kR10G11B11ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
+        {{kLoadShaderIndexR10G11B11ToRGBA16, VK_FORMAT_R16G16B16A16_UNORM},
+         {kLoadShaderIndexR10G11B11ToRGBA16SNorm, VK_FORMAT_R16G16B16A16_SNORM},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
         // k_32_32_32_FLOAT
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB},
         // k_DXT3A
-        {{LoadMode::kDXT3A, VK_FORMAT_R8_UNORM},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexDXT3A, VK_FORMAT_R8_UNORM},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_DXT5A
         // VK_FORMAT_BC4_UNORM_BLOCK is optional.
-        {{LoadMode::k64bpb, VK_FORMAT_BC4_UNORM_BLOCK, true},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndex64bpb, VK_FORMAT_BC4_UNORM_BLOCK, true},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_CTX1
-        {{LoadMode::kCTX1, VK_FORMAT_R8G8_UNORM},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexCTX1, VK_FORMAT_R8G8_UNORM},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
         // k_DXT3A_AS_1_1_1_1
-        {{LoadMode::kDXT3AAs1111ToARGB4, VK_FORMAT_B4G4R4A4_UNORM_PACK16},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexDXT3AAs1111ToARGB4, VK_FORMAT_B4G4R4A4_UNORM_PACK16},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_8_8_8_8_GAMMA_EDRAM
         // Not usable as a texture.
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
         // k_2_10_10_10_FLOAT_EDRAM
         // Not usable as a texture.
-        {{LoadMode::kUnknown},
-         {LoadMode::kUnknown},
+        {{kLoadShaderIndexUnknown},
+         {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
 };
 
@@ -420,6 +426,19 @@ VulkanTextureCache::~VulkanTextureCache() {
     if (null_images_memory != VK_NULL_HANDLE) {
       dfn.vkFreeMemory(device, null_images_memory, nullptr);
     }
+  }
+  for (VkPipeline load_pipeline : load_pipelines_scaled_) {
+    if (load_pipeline != VK_NULL_HANDLE) {
+      dfn.vkDestroyPipeline(device, load_pipeline, nullptr);
+    }
+  }
+  for (VkPipeline load_pipeline : load_pipelines_) {
+    if (load_pipeline != VK_NULL_HANDLE) {
+      dfn.vkDestroyPipeline(device, load_pipeline, nullptr);
+    }
+  }
+  if (load_pipeline_layout_ != VK_NULL_HANDLE) {
+    dfn.vkDestroyPipelineLayout(device, load_pipeline_layout_, nullptr);
   }
 }
 
@@ -712,7 +731,454 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(
 bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
                                                                bool load_base,
                                                                bool load_mips) {
-  // TODO(Triang3l): Implement LoadTextureDataFromResidentMemoryImpl.
+  VulkanTexture& vulkan_texture = static_cast<VulkanTexture&>(texture);
+  TextureKey texture_key = vulkan_texture.key();
+
+  // Get the pipeline.
+  const HostFormatPair& host_format_pair =
+      host_formats_[uint32_t(texture_key.format)];
+  bool host_format_is_signed;
+  if (IsSignedVersionSeparateForFormat(texture_key)) {
+    host_format_is_signed = bool(texture_key.signed_separate);
+  } else {
+    host_format_is_signed =
+        host_format_pair.format_unsigned.load_shader == kLoadShaderIndexUnknown;
+  }
+  const HostFormat& host_format = host_format_is_signed
+                                      ? host_format_pair.format_signed
+                                      : host_format_pair.format_unsigned;
+  LoadShaderIndex load_shader = host_format.load_shader;
+  if (load_shader == kLoadShaderIndexUnknown) {
+    return false;
+  }
+  VkPipeline pipeline = texture_key.scaled_resolve
+                            ? load_pipelines_scaled_[load_shader]
+                            : load_pipelines_[load_shader];
+  if (pipeline == VK_NULL_HANDLE) {
+    return false;
+  }
+  const LoadShaderInfo& load_shader_info = GetLoadShaderInfo(load_shader);
+
+  // Get the guest layout.
+  const texture_util::TextureGuestLayout& guest_layout =
+      vulkan_texture.guest_layout();
+  xenos::DataDimension dimension = texture_key.dimension;
+  bool is_3d = dimension == xenos::DataDimension::k3D;
+  uint32_t width = texture_key.GetWidth();
+  uint32_t height = texture_key.GetHeight();
+  uint32_t depth_or_array_size = texture_key.GetDepthOrArraySize();
+  uint32_t depth = is_3d ? depth_or_array_size : 1;
+  uint32_t array_size = is_3d ? 1 : depth_or_array_size;
+  xenos::TextureFormat guest_format = texture_key.format;
+  const FormatInfo* guest_format_info = FormatInfo::Get(guest_format);
+  uint32_t block_width = guest_format_info->block_width;
+  uint32_t block_height = guest_format_info->block_height;
+  uint32_t bytes_per_block = guest_format_info->bytes_per_block();
+  uint32_t level_first = load_base ? 0 : 1;
+  uint32_t level_last = load_mips ? texture_key.mip_max_level : 0;
+  assert_true(level_first <= level_last);
+  uint32_t level_packed = guest_layout.packed_level;
+  uint32_t level_stored_first = std::min(level_first, level_packed);
+  uint32_t level_stored_last = std::min(level_last, level_packed);
+  uint32_t texture_resolution_scale_x =
+      texture_key.scaled_resolve ? draw_resolution_scale_x() : 1;
+  uint32_t texture_resolution_scale_y =
+      texture_key.scaled_resolve ? draw_resolution_scale_y() : 1;
+
+  // The loop counter can mean two things depending on whether the packed mip
+  // tail is stored as mip 0, because in this case, it would be ambiguous since
+  // both the base and the mips would be on "level 0", but stored in separate
+  // places.
+  uint32_t loop_level_first, loop_level_last;
+  if (level_packed == 0) {
+    // Packed mip tail is the level 0 - may need to load mip tails for the base,
+    // the mips, or both.
+    // Loop iteration 0 - base packed mip tail.
+    // Loop iteration 1 - mips packed mip tail.
+    loop_level_first = uint32_t(level_first != 0);
+    loop_level_last = uint32_t(level_last != 0);
+  } else {
+    // Packed mip tail is not the level 0.
+    // Loop iteration is the actual level being loaded.
+    loop_level_first = level_stored_first;
+    loop_level_last = level_stored_last;
+  }
+
+  // Get the host layout and the buffer.
+  uint32_t host_block_width = host_format.block_compressed ? block_width : 1;
+  uint32_t host_block_height = host_format.block_compressed ? block_height : 1;
+  uint32_t host_x_blocks_per_thread =
+      UINT32_C(1) << load_shader_info.guest_x_blocks_per_thread_log2;
+  if (!host_format.block_compressed) {
+    // Decompressing guest blocks.
+    host_x_blocks_per_thread *= block_width;
+  }
+  VkDeviceSize host_buffer_size = 0;
+  struct HostLayout {
+    VkDeviceSize offset_bytes;
+    VkDeviceSize slice_size_bytes;
+    uint32_t x_pitch_blocks;
+    uint32_t y_pitch_blocks;
+  };
+  HostLayout host_layout_base;
+  // Indexing is the same as for guest stored mips:
+  // 1...min(level_last, level_packed) if level_packed is not 0, or only 0 if
+  // level_packed == 0.
+  HostLayout host_layout_mips[xenos::kTextureMaxMips];
+  for (uint32_t loop_level = loop_level_first; loop_level <= loop_level_last;
+       ++loop_level) {
+    bool is_base = loop_level == 0;
+    uint32_t level = (level_packed == 0) ? 0 : loop_level;
+    HostLayout& level_host_layout =
+        is_base ? host_layout_base : host_layout_mips[level];
+    level_host_layout.offset_bytes = host_buffer_size;
+    uint32_t level_guest_x_extent_texels_unscaled;
+    uint32_t level_guest_y_extent_texels_unscaled;
+    uint32_t level_guest_z_extent_texels;
+    if (level == level_packed) {
+      // Loading the packed tail for the base or the mips - load the whole tail
+      // to copy regions out of it.
+      const texture_util::TextureGuestLayout::Level& guest_layout_packed =
+          is_base ? guest_layout.base : guest_layout.mips[level];
+      level_guest_x_extent_texels_unscaled =
+          guest_layout_packed.x_extent_blocks * block_width;
+      level_guest_y_extent_texels_unscaled =
+          guest_layout_packed.y_extent_blocks * block_height;
+      level_guest_z_extent_texels = guest_layout_packed.z_extent;
+    } else {
+      level_guest_x_extent_texels_unscaled =
+          std::max(width >> level, UINT32_C(1));
+      level_guest_y_extent_texels_unscaled =
+          std::max(height >> level, UINT32_C(1));
+      level_guest_z_extent_texels = std::max(depth >> level, UINT32_C(1));
+    }
+    level_host_layout.x_pitch_blocks = xe::round_up(
+        (level_guest_x_extent_texels_unscaled * texture_resolution_scale_x +
+         (host_block_width - 1)) /
+            host_block_width,
+        host_x_blocks_per_thread);
+    level_host_layout.y_pitch_blocks =
+        (level_guest_y_extent_texels_unscaled * texture_resolution_scale_y +
+         (host_block_height - 1)) /
+        host_block_height;
+    level_host_layout.slice_size_bytes =
+        VkDeviceSize(load_shader_info.bytes_per_host_block) *
+        level_host_layout.x_pitch_blocks * level_host_layout.y_pitch_blocks *
+        level_guest_z_extent_texels;
+    host_buffer_size += level_host_layout.slice_size_bytes * array_size;
+  }
+  VulkanCommandProcessor::ScratchBufferAcquisition scratch_buffer_acquisition(
+      command_processor_.AcquireScratchGpuBuffer(
+          host_buffer_size, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          VK_ACCESS_SHADER_WRITE_BIT));
+  VkBuffer scratch_buffer = scratch_buffer_acquisition.buffer();
+  if (scratch_buffer == VK_NULL_HANDLE) {
+    return false;
+  }
+
+  // Begin loading.
+  // TODO(Triang3l): Going from one descriptor to another on per-array-layer
+  // or even per-8-depth-slices level to stay within maxStorageBufferRange.
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanProvider();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+  VulkanSharedMemory& vulkan_shared_memory =
+      static_cast<VulkanSharedMemory&>(shared_memory());
+  std::array<VkWriteDescriptorSet, 3> write_descriptor_sets;
+  uint32_t write_descriptor_set_count = 0;
+  VkDescriptorSet descriptor_set_dest =
+      command_processor_.AllocateSingleTransientDescriptor(
+          VulkanCommandProcessor::SingleTransientDescriptorLayout ::
+              kStorageBufferCompute);
+  if (!descriptor_set_dest) {
+    return false;
+  }
+  VkDescriptorBufferInfo write_descriptor_set_dest_buffer_info;
+  {
+    write_descriptor_set_dest_buffer_info.buffer = scratch_buffer;
+    write_descriptor_set_dest_buffer_info.offset = 0;
+    write_descriptor_set_dest_buffer_info.range = host_buffer_size;
+    VkWriteDescriptorSet& write_descriptor_set_dest =
+        write_descriptor_sets[write_descriptor_set_count++];
+    write_descriptor_set_dest.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_set_dest.pNext = nullptr;
+    write_descriptor_set_dest.dstSet = descriptor_set_dest;
+    write_descriptor_set_dest.dstBinding = 0;
+    write_descriptor_set_dest.dstArrayElement = 0;
+    write_descriptor_set_dest.descriptorCount = 1;
+    write_descriptor_set_dest.descriptorType =
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write_descriptor_set_dest.pImageInfo = nullptr;
+    write_descriptor_set_dest.pBufferInfo =
+        &write_descriptor_set_dest_buffer_info;
+    write_descriptor_set_dest.pTexelBufferView = nullptr;
+  }
+  // TODO(Triang3l): Use a single 512 MB shared memory binding if possible.
+  // TODO(Triang3l): Scaled resolve buffer bindings.
+  VkDescriptorSet descriptor_set_source_base = VK_NULL_HANDLE;
+  VkDescriptorSet descriptor_set_source_mips = VK_NULL_HANDLE;
+  VkDescriptorBufferInfo write_descriptor_set_source_base_buffer_info;
+  VkDescriptorBufferInfo write_descriptor_set_source_mips_buffer_info;
+  if (level_first == 0) {
+    descriptor_set_source_base =
+        command_processor_.AllocateSingleTransientDescriptor(
+            VulkanCommandProcessor::SingleTransientDescriptorLayout ::
+                kStorageBufferCompute);
+    if (!descriptor_set_source_base) {
+      return false;
+    }
+    write_descriptor_set_source_base_buffer_info.buffer =
+        vulkan_shared_memory.buffer();
+    write_descriptor_set_source_base_buffer_info.offset = texture_key.base_page
+                                                          << 12;
+    write_descriptor_set_source_base_buffer_info.range =
+        vulkan_texture.GetGuestBaseSize();
+    VkWriteDescriptorSet& write_descriptor_set_source_base =
+        write_descriptor_sets[write_descriptor_set_count++];
+    write_descriptor_set_source_base.sType =
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_set_source_base.pNext = nullptr;
+    write_descriptor_set_source_base.dstSet = descriptor_set_source_base;
+    write_descriptor_set_source_base.dstBinding = 0;
+    write_descriptor_set_source_base.dstArrayElement = 0;
+    write_descriptor_set_source_base.descriptorCount = 1;
+    write_descriptor_set_source_base.descriptorType =
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write_descriptor_set_source_base.pImageInfo = nullptr;
+    write_descriptor_set_source_base.pBufferInfo =
+        &write_descriptor_set_source_base_buffer_info;
+    write_descriptor_set_source_base.pTexelBufferView = nullptr;
+  }
+  if (level_last != 0) {
+    descriptor_set_source_mips =
+        command_processor_.AllocateSingleTransientDescriptor(
+            VulkanCommandProcessor::SingleTransientDescriptorLayout ::
+                kStorageBufferCompute);
+    if (!descriptor_set_source_mips) {
+      return false;
+    }
+    write_descriptor_set_source_mips_buffer_info.buffer =
+        vulkan_shared_memory.buffer();
+    write_descriptor_set_source_mips_buffer_info.offset = texture_key.mip_page
+                                                          << 12;
+    write_descriptor_set_source_mips_buffer_info.range =
+        vulkan_texture.GetGuestMipsSize();
+    VkWriteDescriptorSet& write_descriptor_set_source_mips =
+        write_descriptor_sets[write_descriptor_set_count++];
+    write_descriptor_set_source_mips.sType =
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_set_source_mips.pNext = nullptr;
+    write_descriptor_set_source_mips.dstSet = descriptor_set_source_mips;
+    write_descriptor_set_source_mips.dstBinding = 0;
+    write_descriptor_set_source_mips.dstArrayElement = 0;
+    write_descriptor_set_source_mips.descriptorCount = 1;
+    write_descriptor_set_source_mips.descriptorType =
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write_descriptor_set_source_mips.pImageInfo = nullptr;
+    write_descriptor_set_source_mips.pBufferInfo =
+        &write_descriptor_set_source_mips_buffer_info;
+    write_descriptor_set_source_mips.pTexelBufferView = nullptr;
+  }
+  if (write_descriptor_set_count) {
+    dfn.vkUpdateDescriptorSets(device, write_descriptor_set_count,
+                               write_descriptor_sets.data(), 0, nullptr);
+  }
+  vulkan_shared_memory.Use(VulkanSharedMemory::Usage::kRead);
+
+  // Submit the copy buffer population commands.
+
+  DeferredCommandBuffer& command_buffer =
+      command_processor_.deferred_command_buffer();
+
+  command_processor_.BindExternalComputePipeline(pipeline);
+
+  command_buffer.CmdVkBindDescriptorSets(
+      VK_PIPELINE_BIND_POINT_COMPUTE, load_pipeline_layout_,
+      kLoadDescriptorSetIndexDestination, 1, &descriptor_set_dest, 0, nullptr);
+
+  VkDescriptorSet descriptor_set_source_current = VK_NULL_HANDLE;
+
+  LoadConstants load_constants;
+  load_constants.is_tiled_3d_endian_scale =
+      uint32_t(texture_key.tiled) | (uint32_t(is_3d) << 1) |
+      (uint32_t(texture_key.endianness) << 2) |
+      (texture_resolution_scale_x << 4) | (texture_resolution_scale_y << 6);
+
+  uint32_t guest_x_blocks_per_group_log2 =
+      load_shader_info.GetGuestXBlocksPerGroupLog2();
+  for (uint32_t loop_level = loop_level_first; loop_level <= loop_level_last;
+       ++loop_level) {
+    bool is_base = loop_level == 0;
+    uint32_t level = (level_packed == 0) ? 0 : loop_level;
+
+    VkDescriptorSet descriptor_set_source =
+        is_base ? descriptor_set_source_base : descriptor_set_source_mips;
+    if (descriptor_set_source_current != descriptor_set_source) {
+      descriptor_set_source_current = descriptor_set_source;
+      command_buffer.CmdVkBindDescriptorSets(
+          VK_PIPELINE_BIND_POINT_COMPUTE, load_pipeline_layout_,
+          kLoadDescriptorSetIndexSource, 1, &descriptor_set_source, 0, nullptr);
+    }
+
+    // TODO(Triang3l): guest_offset relative to the storage buffer origin.
+    load_constants.guest_offset = 0;
+    if (!is_base) {
+      load_constants.guest_offset +=
+          guest_layout.mip_offsets_bytes[level] *
+          (texture_resolution_scale_x * texture_resolution_scale_y);
+    }
+    const texture_util::TextureGuestLayout::Level& level_guest_layout =
+        is_base ? guest_layout.base : guest_layout.mips[level];
+    uint32_t level_guest_pitch = level_guest_layout.row_pitch_bytes;
+    if (texture_key.tiled) {
+      // Shaders expect pitch in blocks for tiled textures.
+      level_guest_pitch /= bytes_per_block;
+      assert_zero(level_guest_pitch & (xenos::kTextureTileWidthHeight - 1));
+    }
+    load_constants.guest_pitch_aligned = level_guest_pitch;
+    load_constants.guest_z_stride_block_rows_aligned =
+        level_guest_layout.z_slice_stride_block_rows;
+    assert_true(dimension != xenos::DataDimension::k3D ||
+                !(load_constants.guest_z_stride_block_rows_aligned &
+                  (xenos::kTextureTileWidthHeight - 1)));
+
+    uint32_t level_width, level_height, level_depth;
+    if (level == level_packed) {
+      // This is the packed mip tail, containing not only the specified level,
+      // but also other levels at different offsets - load the entire needed
+      // extents.
+      level_width = level_guest_layout.x_extent_blocks * block_width;
+      level_height = level_guest_layout.y_extent_blocks * block_height;
+      level_depth = level_guest_layout.z_extent;
+    } else {
+      level_width = std::max(width >> level, UINT32_C(1));
+      level_height = std::max(height >> level, UINT32_C(1));
+      level_depth = std::max(depth >> level, UINT32_C(1));
+    }
+    load_constants.size_blocks[0] = (level_width + (block_width - 1)) /
+                                    block_width * texture_resolution_scale_x;
+    load_constants.size_blocks[1] = (level_height + (block_height - 1)) /
+                                    block_height * texture_resolution_scale_y;
+    load_constants.size_blocks[2] = level_depth;
+    load_constants.height_texels = level_height;
+
+    uint32_t group_count_x =
+        (load_constants.size_blocks[0] +
+         ((UINT32_C(1) << guest_x_blocks_per_group_log2) - 1)) >>
+        guest_x_blocks_per_group_log2;
+    uint32_t group_count_y =
+        (load_constants.size_blocks[1] +
+         ((UINT32_C(1) << kLoadGuestYBlocksPerGroupLog2) - 1)) >>
+        kLoadGuestYBlocksPerGroupLog2;
+
+    // TODO(Triang3l): host_offset relative to the storage buffer origin.
+    const HostLayout& level_host_layout =
+        is_base ? host_layout_base : host_layout_mips[level];
+    load_constants.host_offset = uint32_t(level_host_layout.offset_bytes);
+    load_constants.host_pitch = load_shader_info.bytes_per_host_block *
+                                level_host_layout.x_pitch_blocks;
+
+    uint32_t level_array_slice_stride_bytes_scaled =
+        level_guest_layout.array_slice_stride_bytes *
+        (texture_resolution_scale_x * texture_resolution_scale_y);
+    for (uint32_t slice = 0; slice < array_size; ++slice) {
+      VkDescriptorSet descriptor_set_constants;
+      void* constants_mapping =
+          command_processor_.WriteTransientUniformBufferBinding(
+              sizeof(load_constants),
+              VulkanCommandProcessor::SingleTransientDescriptorLayout ::
+                  kUniformBufferCompute,
+              descriptor_set_constants);
+      if (!constants_mapping) {
+        return false;
+      }
+      std::memcpy(constants_mapping, &load_constants, sizeof(load_constants));
+      command_buffer.CmdVkBindDescriptorSets(
+          VK_PIPELINE_BIND_POINT_COMPUTE, load_pipeline_layout_,
+          kLoadDescriptorSetIndexConstants, 1, &descriptor_set_constants, 0,
+          nullptr);
+      command_processor_.SubmitBarriers(true);
+      command_buffer.CmdVkDispatch(group_count_x, group_count_y,
+                                   load_constants.size_blocks[2]);
+      load_constants.guest_offset += level_array_slice_stride_bytes_scaled;
+      load_constants.host_offset +=
+          uint32_t(level_host_layout.slice_size_bytes);
+    }
+  }
+
+  // Submit copying from the copy buffer to the host texture.
+  command_processor_.PushBufferMemoryBarrier(
+      scratch_buffer, 0, VK_WHOLE_SIZE,
+      scratch_buffer_acquisition.SetStageMask(VK_PIPELINE_STAGE_TRANSFER_BIT),
+      VK_PIPELINE_STAGE_TRANSFER_BIT,
+      scratch_buffer_acquisition.SetAccessMask(VK_ACCESS_TRANSFER_READ_BIT),
+      VK_ACCESS_TRANSFER_READ_BIT);
+  vulkan_texture.MarkAsUsed();
+  VulkanTexture::Usage texture_old_usage =
+      vulkan_texture.SetUsage(VulkanTexture::Usage::kTransferDestination);
+  if (texture_old_usage != VulkanTexture::Usage::kTransferDestination) {
+    VkPipelineStageFlags texture_src_stage_mask, texture_dst_stage_mask;
+    VkAccessFlags texture_src_access_mask, texture_dst_access_mask;
+    VkImageLayout texture_old_layout, texture_new_layout;
+    GetTextureUsageMasks(texture_old_usage, texture_src_stage_mask,
+                         texture_src_access_mask, texture_old_layout);
+    GetTextureUsageMasks(VulkanTexture::Usage::kTransferDestination,
+                         texture_dst_stage_mask, texture_dst_access_mask,
+                         texture_new_layout);
+    command_processor_.PushImageMemoryBarrier(
+        vulkan_texture.image(), ui::vulkan::util::InitializeSubresourceRange(),
+        texture_src_stage_mask, texture_dst_stage_mask, texture_src_access_mask,
+        texture_dst_access_mask, texture_old_layout, texture_new_layout);
+  }
+  command_processor_.SubmitBarriers(true);
+  VkBufferImageCopy* copy_regions = command_buffer.CmdCopyBufferToImageEmplace(
+      scratch_buffer, vulkan_texture.image(),
+      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, level_last - level_first + 1);
+  for (uint32_t level = level_first; level <= level_last; ++level) {
+    VkBufferImageCopy& copy_region = copy_regions[level - level_first];
+    const HostLayout& level_host_layout =
+        level != 0 ? host_layout_mips[std::min(level, level_packed)]
+                   : host_layout_base;
+    copy_region.bufferOffset = level_host_layout.offset_bytes;
+    if (level >= level_packed) {
+      uint32_t level_offset_blocks_x, level_offset_blocks_y, level_offset_z;
+      texture_util::GetPackedMipOffset(width, height, depth, guest_format,
+                                       level, level_offset_blocks_x,
+                                       level_offset_blocks_y, level_offset_z);
+      uint32_t level_offset_host_blocks_x =
+          texture_resolution_scale_x * level_offset_blocks_x;
+      uint32_t level_offset_host_blocks_y =
+          texture_resolution_scale_y * level_offset_blocks_y;
+      if (!host_format.block_compressed) {
+        level_offset_host_blocks_x *= block_width;
+        level_offset_host_blocks_y *= block_height;
+      }
+      copy_region.bufferOffset +=
+          load_shader_info.bytes_per_host_block *
+          (level_offset_host_blocks_x +
+           level_host_layout.x_pitch_blocks *
+               (level_offset_host_blocks_y + level_host_layout.y_pitch_blocks *
+                                                 VkDeviceSize(level_offset_z)));
+    }
+    copy_region.bufferRowLength =
+        level_host_layout.x_pitch_blocks * host_block_width;
+    copy_region.bufferImageHeight =
+        level_host_layout.y_pitch_blocks * host_block_height;
+    copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copy_region.imageSubresource.mipLevel = level;
+    copy_region.imageSubresource.baseArrayLayer = 0;
+    copy_region.imageSubresource.layerCount = array_size;
+    copy_region.imageOffset.x = 0;
+    copy_region.imageOffset.y = 0;
+    copy_region.imageOffset.z = 0;
+    copy_region.imageExtent.width =
+        std::max((width * texture_resolution_scale_x) >> level, UINT32_C(1));
+    copy_region.imageExtent.height =
+        std::max((height * texture_resolution_scale_y) >> level, UINT32_C(1));
+    copy_region.imageExtent.depth = std::max(depth >> level, UINT32_C(1));
+  }
+
   return true;
 }
 
@@ -886,7 +1352,7 @@ bool VulkanTextureCache::Initialize() {
   // Image formats.
 
   // Initialize to the best formats.
-  for (size_t i = 0; i < 64; ++i) {
+  for (size_t i = 0; i < xe::countof(host_formats_); ++i) {
     host_formats_[i] = kBestHostFormats[i];
   }
 
@@ -928,7 +1394,7 @@ bool VulkanTextureCache::Initialize() {
       physical_device, VK_FORMAT_G8B8G8R8_422_UNORM_KHR, &format_properties);
   if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
       kLinearFilterFeatures) {
-    host_format_gbgr.format_unsigned.load_mode = LoadMode::kGBGR8ToRGB8;
+    host_format_gbgr.format_unsigned.load_shader = kLoadShaderIndexGBGR8ToRGB8;
     host_format_gbgr.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
     host_format_gbgr.format_unsigned.block_compressed = false;
     host_format_gbgr.unsigned_signed_compatible = true;
@@ -943,7 +1409,7 @@ bool VulkanTextureCache::Initialize() {
       physical_device, VK_FORMAT_B8G8R8G8_422_UNORM_KHR, &format_properties);
   if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
       kLinearFilterFeatures) {
-    host_format_bgrg.format_unsigned.load_mode = LoadMode::kBGRG8ToRGB8;
+    host_format_bgrg.format_unsigned.load_shader = kLoadShaderIndexBGRG8ToRGB8;
     host_format_bgrg.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
     host_format_bgrg.format_unsigned.block_compressed = false;
     host_format_bgrg.unsigned_signed_compatible = true;
@@ -969,7 +1435,7 @@ bool VulkanTextureCache::Initialize() {
       physical_device, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, &format_properties);
   if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
       kLinearFilterFeatures) {
-    host_format_dxt1.format_unsigned.load_mode = LoadMode::kDXT1ToRGBA8;
+    host_format_dxt1.format_unsigned.load_shader = kLoadShaderIndexDXT1ToRGBA8;
     host_format_dxt1.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
     host_format_dxt1.format_unsigned.block_compressed = false;
     host_formats_[uint32_t(xenos::TextureFormat::k_DXT1_AS_16_16_16_16)] =
@@ -983,7 +1449,8 @@ bool VulkanTextureCache::Initialize() {
       physical_device, VK_FORMAT_BC2_UNORM_BLOCK, &format_properties);
   if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
       kLinearFilterFeatures) {
-    host_format_dxt2_3.format_unsigned.load_mode = LoadMode::kDXT3ToRGBA8;
+    host_format_dxt2_3.format_unsigned.load_shader =
+        kLoadShaderIndexDXT3ToRGBA8;
     host_format_dxt2_3.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
     host_format_dxt2_3.format_unsigned.block_compressed = false;
     host_formats_[uint32_t(xenos::TextureFormat::k_DXT2_3_AS_16_16_16_16)] =
@@ -997,7 +1464,8 @@ bool VulkanTextureCache::Initialize() {
       physical_device, VK_FORMAT_BC3_UNORM_BLOCK, &format_properties);
   if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
       kLinearFilterFeatures) {
-    host_format_dxt4_5.format_unsigned.load_mode = LoadMode::kDXT5ToRGBA8;
+    host_format_dxt4_5.format_unsigned.load_shader =
+        kLoadShaderIndexDXT5ToRGBA8;
     host_format_dxt4_5.format_unsigned.format = VK_FORMAT_R8G8B8A8_UNORM;
     host_format_dxt4_5.format_unsigned.block_compressed = false;
     host_formats_[uint32_t(xenos::TextureFormat::k_DXT4_5_AS_16_16_16_16)] =
@@ -1011,7 +1479,7 @@ bool VulkanTextureCache::Initialize() {
       physical_device, VK_FORMAT_BC5_UNORM_BLOCK, &format_properties);
   if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
       kLinearFilterFeatures) {
-    host_format_dxn.format_unsigned.load_mode = LoadMode::kDXNToRG8;
+    host_format_dxn.format_unsigned.load_shader = kLoadShaderIndexDXNToRG8;
     host_format_dxn.format_unsigned.format = VK_FORMAT_R8G8_UNORM;
     host_format_dxn.format_unsigned.block_compressed = false;
   }
@@ -1023,7 +1491,7 @@ bool VulkanTextureCache::Initialize() {
       physical_device, VK_FORMAT_BC4_UNORM_BLOCK, &format_properties);
   if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
       kLinearFilterFeatures) {
-    host_format_dxt5a.format_unsigned.load_mode = LoadMode::kDXT5AToR8;
+    host_format_dxt5a.format_unsigned.load_shader = kLoadShaderIndexDXT5AToR8;
     host_format_dxt5a.format_unsigned.format = VK_FORMAT_R8_UNORM;
     host_format_dxt5a.format_unsigned.block_compressed = false;
   }
@@ -1043,13 +1511,14 @@ bool VulkanTextureCache::Initialize() {
   assert_true(host_format_16.format_unsigned.format == VK_FORMAT_R16_UNORM);
   if ((r16_unorm_properties.optimalTilingFeatures & norm16_required_features) !=
       norm16_required_features) {
-    host_format_16.format_unsigned.load_mode = LoadMode::kR16UNormToFloat;
+    host_format_16.format_unsigned.load_shader =
+        kLoadShaderIndexR16UNormToFloat;
     host_format_16.format_unsigned.format = VK_FORMAT_R16_SFLOAT;
   }
   assert_true(host_format_16.format_signed.format == VK_FORMAT_R16_SNORM);
   if ((r16_snorm_properties.optimalTilingFeatures & norm16_required_features) !=
       norm16_required_features) {
-    host_format_16.format_signed.load_mode = LoadMode::kR16SNormToFloat;
+    host_format_16.format_signed.load_shader = kLoadShaderIndexR16SNormToFloat;
     host_format_16.format_signed.format = VK_FORMAT_R16_SFLOAT;
   }
   host_format_16.unsigned_signed_compatible =
@@ -1063,13 +1532,15 @@ bool VulkanTextureCache::Initialize() {
               VK_FORMAT_R16G16_UNORM);
   if ((r16g16_unorm_properties.optimalTilingFeatures &
        norm16_required_features) != norm16_required_features) {
-    host_format_16_16.format_unsigned.load_mode = LoadMode::kRG16UNormToFloat;
+    host_format_16_16.format_unsigned.load_shader =
+        kLoadShaderIndexRG16UNormToFloat;
     host_format_16_16.format_unsigned.format = VK_FORMAT_R16G16_SFLOAT;
   }
   assert_true(host_format_16_16.format_signed.format == VK_FORMAT_R16G16_SNORM);
   if ((r16g16_snorm_properties.optimalTilingFeatures &
        norm16_required_features) != norm16_required_features) {
-    host_format_16_16.format_signed.load_mode = LoadMode::kRG16SNormToFloat;
+    host_format_16_16.format_signed.load_shader =
+        kLoadShaderIndexRG16SNormToFloat;
     host_format_16_16.format_signed.format = VK_FORMAT_R16G16_SFLOAT;
   }
   host_format_16_16.unsigned_signed_compatible =
@@ -1083,8 +1554,8 @@ bool VulkanTextureCache::Initialize() {
               VK_FORMAT_R16G16B16A16_UNORM);
   if ((r16g16b16a16_unorm_properties.optimalTilingFeatures &
        norm16_required_features) != norm16_required_features) {
-    host_format_16_16_16_16.format_unsigned.load_mode =
-        LoadMode::kRGBA16UNormToFloat;
+    host_format_16_16_16_16.format_unsigned.load_shader =
+        kLoadShaderIndexRGBA16UNormToFloat;
     host_format_16_16_16_16.format_unsigned.format =
         VK_FORMAT_R16G16B16A16_SFLOAT;
   }
@@ -1092,8 +1563,8 @@ bool VulkanTextureCache::Initialize() {
               VK_FORMAT_R16G16B16A16_SNORM);
   if ((r16g16b16a16_snorm_properties.optimalTilingFeatures &
        norm16_required_features) != norm16_required_features) {
-    host_format_16_16_16_16.format_signed.load_mode =
-        LoadMode::kRGBA16SNormToFloat;
+    host_format_16_16_16_16.format_signed.load_shader =
+        kLoadShaderIndexRGBA16SNormToFloat;
     host_format_16_16_16_16.format_signed.format =
         VK_FORMAT_R16G16B16A16_SFLOAT;
   }
@@ -1108,27 +1579,29 @@ bool VulkanTextureCache::Initialize() {
            VK_FORMAT_R16G16B16A16_SFLOAT);
 
   // Normalize format information structures.
-  for (size_t i = 0; i < 64; ++i) {
+  for (size_t i = 0; i < xe::countof(host_formats_); ++i) {
     HostFormatPair& host_format = host_formats_[i];
-    // LoadMode is left uninitialized for the tail (non-existent formats),
-    // kUnknown may be non-zero, and format support may be disabled by setting
-    // the format to VK_FORMAT_UNDEFINED.
+    // load_shader_index is left uninitialized for the tail (non-existent
+    // formats), kLoadShaderIndexUnknown may be non-zero, and format support may
+    // be disabled by setting the format to VK_FORMAT_UNDEFINED.
     if (host_format.format_unsigned.format == VK_FORMAT_UNDEFINED) {
-      host_format.format_unsigned.load_mode = LoadMode::kUnknown;
+      host_format.format_unsigned.load_shader = kLoadShaderIndexUnknown;
     }
-    assert_false(host_format.format_unsigned.load_mode == LoadMode::kUnknown &&
+    assert_false(host_format.format_unsigned.load_shader ==
+                     kLoadShaderIndexUnknown &&
                  host_format.format_unsigned.format != VK_FORMAT_UNDEFINED);
-    if (host_format.format_unsigned.load_mode == LoadMode::kUnknown) {
+    if (host_format.format_unsigned.load_shader == kLoadShaderIndexUnknown) {
       host_format.format_unsigned.format = VK_FORMAT_UNDEFINED;
       // Surely known it's unsupported with these two conditions.
       host_format.format_unsigned.linear_filterable = false;
     }
     if (host_format.format_signed.format == VK_FORMAT_UNDEFINED) {
-      host_format.format_signed.load_mode = LoadMode::kUnknown;
+      host_format.format_signed.load_shader = kLoadShaderIndexUnknown;
     }
-    assert_false(host_format.format_signed.load_mode == LoadMode::kUnknown &&
+    assert_false(host_format.format_signed.load_shader ==
+                     kLoadShaderIndexUnknown &&
                  host_format.format_signed.format != VK_FORMAT_UNDEFINED);
-    if (host_format.format_signed.load_mode == LoadMode::kUnknown) {
+    if (host_format.format_signed.load_shader == kLoadShaderIndexUnknown) {
       host_format.format_signed.format = VK_FORMAT_UNDEFINED;
       // Surely known it's unsupported with these two conditions.
       host_format.format_signed.linear_filterable = false;
@@ -1146,7 +1619,7 @@ bool VulkanTextureCache::Initialize() {
              VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0;
       } else {
         host_format.format_unsigned.format = VK_FORMAT_UNDEFINED;
-        host_format.format_unsigned.load_mode = LoadMode::kUnknown;
+        host_format.format_unsigned.load_shader = kLoadShaderIndexUnknown;
         host_format.format_unsigned.linear_filterable = false;
       }
     }
@@ -1161,7 +1634,7 @@ bool VulkanTextureCache::Initialize() {
              VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0;
       } else {
         host_format.format_signed.format = VK_FORMAT_UNDEFINED;
-        host_format.format_signed.load_mode = LoadMode::kUnknown;
+        host_format.format_signed.load_shader = kLoadShaderIndexUnknown;
         host_format.format_signed.linear_filterable = false;
       }
     }
@@ -1210,14 +1683,14 @@ bool VulkanTextureCache::Initialize() {
       }
     }
 
-    // Signednesses with different load modes must have the data loaded
+    // Signednesses with different load shaders must have the data loaded
     // differently, therefore can't share the image even if the format is the
     // same. Also, if there's only one version, simplify the logic - there can't
     // be compatibility between two formats when one of them is undefined.
     if (host_format.format_unsigned.format != VK_FORMAT_UNDEFINED &&
         host_format.format_signed.format != VK_FORMAT_UNDEFINED) {
-      if (host_format.format_unsigned.load_mode ==
-          host_format.format_signed.load_mode) {
+      if (host_format.format_unsigned.load_shader ==
+          host_format.format_signed.load_shader) {
         if (host_format.format_unsigned.format ==
             host_format.format_signed.format) {
           // Same format after all the fallbacks - force compatibilty.
@@ -1239,6 +1712,251 @@ bool VulkanTextureCache::Initialize() {
       }
     } else {
       host_format.unsigned_signed_compatible = false;
+    }
+  }
+
+  // Load pipeline layout.
+
+  VkDescriptorSetLayout load_descriptor_set_layouts[kLoadDescriptorSetCount] =
+      {};
+  VkDescriptorSetLayout load_descriptor_set_layout_storage_buffer =
+      command_processor_.GetSingleTransientDescriptorLayout(
+          VulkanCommandProcessor::SingleTransientDescriptorLayout ::
+              kStorageBufferCompute);
+  assert_true(load_descriptor_set_layout_storage_buffer != VK_NULL_HANDLE);
+  load_descriptor_set_layouts[kLoadDescriptorSetIndexDestination] =
+      load_descriptor_set_layout_storage_buffer;
+  load_descriptor_set_layouts[kLoadDescriptorSetIndexSource] =
+      load_descriptor_set_layout_storage_buffer;
+  load_descriptor_set_layouts[kLoadDescriptorSetIndexConstants] =
+      command_processor_.GetSingleTransientDescriptorLayout(
+          VulkanCommandProcessor::SingleTransientDescriptorLayout ::
+              kUniformBufferCompute);
+  assert_true(load_descriptor_set_layouts[kLoadDescriptorSetIndexConstants] !=
+              VK_NULL_HANDLE);
+  VkPipelineLayoutCreateInfo load_pipeline_layout_create_info;
+  load_pipeline_layout_create_info.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  load_pipeline_layout_create_info.pNext = nullptr;
+  load_pipeline_layout_create_info.flags = 0;
+  load_pipeline_layout_create_info.setLayoutCount = kLoadDescriptorSetCount;
+  load_pipeline_layout_create_info.pSetLayouts = load_descriptor_set_layouts;
+  load_pipeline_layout_create_info.pushConstantRangeCount = 0;
+  load_pipeline_layout_create_info.pPushConstantRanges = nullptr;
+  if (dfn.vkCreatePipelineLayout(device, &load_pipeline_layout_create_info,
+                                 nullptr, &load_pipeline_layout_)) {
+    XELOGE("VulkanTexture: Failed to create the texture load pipeline layout");
+    return false;
+  }
+
+  // Load pipelines, only the ones needed for the formats that will be used.
+
+  bool load_shaders_needed[kLoadShaderCount] = {};
+  for (size_t i = 0; i < xe::countof(host_formats_); ++i) {
+    const HostFormatPair& host_format = host_formats_[i];
+    if (host_format.format_unsigned.load_shader != kLoadShaderIndexUnknown) {
+      load_shaders_needed[host_format.format_unsigned.load_shader] = true;
+    }
+    if (host_format.format_signed.load_shader != kLoadShaderIndexUnknown) {
+      load_shaders_needed[host_format.format_signed.load_shader] = true;
+    }
+  }
+
+  std::pair<const uint32_t*, size_t> load_shader_code[kLoadShaderCount] = {};
+  load_shader_code[kLoadShaderIndex8bpb] = std::make_pair(
+      shaders::texture_load_8bpb_cs, sizeof(shaders::texture_load_8bpb_cs));
+  load_shader_code[kLoadShaderIndex16bpb] = std::make_pair(
+      shaders::texture_load_16bpb_cs, sizeof(shaders::texture_load_16bpb_cs));
+  load_shader_code[kLoadShaderIndex32bpb] = std::make_pair(
+      shaders::texture_load_32bpb_cs, sizeof(shaders::texture_load_32bpb_cs));
+  load_shader_code[kLoadShaderIndex64bpb] = std::make_pair(
+      shaders::texture_load_64bpb_cs, sizeof(shaders::texture_load_64bpb_cs));
+  load_shader_code[kLoadShaderIndex128bpb] = std::make_pair(
+      shaders::texture_load_128bpb_cs, sizeof(shaders::texture_load_128bpb_cs));
+  load_shader_code[kLoadShaderIndexR5G5B5A1ToB5G5R5A1] =
+      std::make_pair(shaders::texture_load_r5g5b5a1_b5g5r5a1_cs,
+                     sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_cs));
+  load_shader_code[kLoadShaderIndexR5G6B5ToB5G6R5] =
+      std::make_pair(shaders::texture_load_r5g6b5_b5g6r5_cs,
+                     sizeof(shaders::texture_load_r5g6b5_b5g6r5_cs));
+  load_shader_code[kLoadShaderIndexR5G5B6ToB5G6R5WithRBGASwizzle] =
+      std::make_pair(
+          shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs,
+          sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_cs));
+  load_shader_code[kLoadShaderIndexRGBA4ToARGB4] =
+      std::make_pair(shaders::texture_load_r4g4b4a4_a4r4g4b4_cs,
+                     sizeof(shaders::texture_load_r4g4b4a4_a4r4g4b4_cs));
+  load_shader_code[kLoadShaderIndexGBGR8ToRGB8] =
+      std::make_pair(shaders::texture_load_gbgr8_rgb8_cs,
+                     sizeof(shaders::texture_load_gbgr8_rgb8_cs));
+  load_shader_code[kLoadShaderIndexBGRG8ToRGB8] =
+      std::make_pair(shaders::texture_load_bgrg8_rgb8_cs,
+                     sizeof(shaders::texture_load_bgrg8_rgb8_cs));
+  load_shader_code[kLoadShaderIndexR10G11B11ToRGBA16] =
+      std::make_pair(shaders::texture_load_r10g11b11_rgba16_cs,
+                     sizeof(shaders::texture_load_r10g11b11_rgba16_cs));
+  load_shader_code[kLoadShaderIndexR10G11B11ToRGBA16SNorm] =
+      std::make_pair(shaders::texture_load_r10g11b11_rgba16_snorm_cs,
+                     sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_cs));
+  load_shader_code[kLoadShaderIndexR11G11B10ToRGBA16] =
+      std::make_pair(shaders::texture_load_r11g11b10_rgba16_cs,
+                     sizeof(shaders::texture_load_r11g11b10_rgba16_cs));
+  load_shader_code[kLoadShaderIndexR11G11B10ToRGBA16SNorm] =
+      std::make_pair(shaders::texture_load_r11g11b10_rgba16_snorm_cs,
+                     sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_cs));
+  load_shader_code[kLoadShaderIndexR16UNormToFloat] =
+      std::make_pair(shaders::texture_load_r16_unorm_float_cs,
+                     sizeof(shaders::texture_load_r16_unorm_float_cs));
+  load_shader_code[kLoadShaderIndexR16SNormToFloat] =
+      std::make_pair(shaders::texture_load_r16_snorm_float_cs,
+                     sizeof(shaders::texture_load_r16_snorm_float_cs));
+  load_shader_code[kLoadShaderIndexRG16UNormToFloat] =
+      std::make_pair(shaders::texture_load_rg16_unorm_float_cs,
+                     sizeof(shaders::texture_load_rg16_unorm_float_cs));
+  load_shader_code[kLoadShaderIndexRG16SNormToFloat] =
+      std::make_pair(shaders::texture_load_rg16_snorm_float_cs,
+                     sizeof(shaders::texture_load_rg16_snorm_float_cs));
+  load_shader_code[kLoadShaderIndexRGBA16UNormToFloat] =
+      std::make_pair(shaders::texture_load_rgba16_unorm_float_cs,
+                     sizeof(shaders::texture_load_rgba16_unorm_float_cs));
+  load_shader_code[kLoadShaderIndexRGBA16SNormToFloat] =
+      std::make_pair(shaders::texture_load_rgba16_snorm_float_cs,
+                     sizeof(shaders::texture_load_rgba16_snorm_float_cs));
+  load_shader_code[kLoadShaderIndexDXT1ToRGBA8] =
+      std::make_pair(shaders::texture_load_dxt1_rgba8_cs,
+                     sizeof(shaders::texture_load_dxt1_rgba8_cs));
+  load_shader_code[kLoadShaderIndexDXT3ToRGBA8] =
+      std::make_pair(shaders::texture_load_dxt3_rgba8_cs,
+                     sizeof(shaders::texture_load_dxt3_rgba8_cs));
+  load_shader_code[kLoadShaderIndexDXT5ToRGBA8] =
+      std::make_pair(shaders::texture_load_dxt5_rgba8_cs,
+                     sizeof(shaders::texture_load_dxt5_rgba8_cs));
+  load_shader_code[kLoadShaderIndexDXNToRG8] =
+      std::make_pair(shaders::texture_load_dxn_rg8_cs,
+                     sizeof(shaders::texture_load_dxn_rg8_cs));
+  load_shader_code[kLoadShaderIndexDXT3A] = std::make_pair(
+      shaders::texture_load_dxt3a_cs, sizeof(shaders::texture_load_dxt3a_cs));
+  load_shader_code[kLoadShaderIndexDXT3AAs1111ToARGB4] =
+      std::make_pair(shaders::texture_load_dxt3aas1111_argb4_cs,
+                     sizeof(shaders::texture_load_dxt3aas1111_argb4_cs));
+  load_shader_code[kLoadShaderIndexDXT5AToR8] =
+      std::make_pair(shaders::texture_load_dxt5a_r8_cs,
+                     sizeof(shaders::texture_load_dxt5a_r8_cs));
+  load_shader_code[kLoadShaderIndexCTX1] = std::make_pair(
+      shaders::texture_load_ctx1_cs, sizeof(shaders::texture_load_ctx1_cs));
+  load_shader_code[kLoadShaderIndexDepthUnorm] =
+      std::make_pair(shaders::texture_load_depth_unorm_cs,
+                     sizeof(shaders::texture_load_depth_unorm_cs));
+  load_shader_code[kLoadShaderIndexDepthFloat] =
+      std::make_pair(shaders::texture_load_depth_float_cs,
+                     sizeof(shaders::texture_load_depth_float_cs));
+  std::pair<const uint32_t*, size_t> load_shader_code_scaled[kLoadShaderCount] =
+      {};
+  if (IsDrawResolutionScaled()) {
+    load_shader_code_scaled[kLoadShaderIndex8bpb] =
+        std::make_pair(shaders::texture_load_8bpb_scaled_cs,
+                       sizeof(shaders::texture_load_8bpb_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndex16bpb] =
+        std::make_pair(shaders::texture_load_16bpb_scaled_cs,
+                       sizeof(shaders::texture_load_16bpb_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndex32bpb] =
+        std::make_pair(shaders::texture_load_32bpb_scaled_cs,
+                       sizeof(shaders::texture_load_32bpb_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndex64bpb] =
+        std::make_pair(shaders::texture_load_64bpb_scaled_cs,
+                       sizeof(shaders::texture_load_64bpb_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndex128bpb] =
+        std::make_pair(shaders::texture_load_128bpb_scaled_cs,
+                       sizeof(shaders::texture_load_128bpb_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexR5G5B5A1ToB5G5R5A1] =
+        std::make_pair(
+            shaders::texture_load_r5g5b5a1_b5g5r5a1_scaled_cs,
+            sizeof(shaders::texture_load_r5g5b5a1_b5g5r5a1_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexR5G6B5ToB5G6R5] =
+        std::make_pair(shaders::texture_load_r5g6b5_b5g6r5_scaled_cs,
+                       sizeof(shaders::texture_load_r5g6b5_b5g6r5_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexR5G5B6ToB5G6R5WithRBGASwizzle] =
+        std::make_pair(
+            shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_scaled_cs,
+            sizeof(shaders::texture_load_r5g5b6_b5g6r5_swizzle_rbga_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexRGBA4ToARGB4] = std::make_pair(
+        shaders::texture_load_r4g4b4a4_a4r4g4b4_scaled_cs,
+        sizeof(shaders::texture_load_r4g4b4a4_a4r4g4b4_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexR10G11B11ToRGBA16] = std::make_pair(
+        shaders::texture_load_r10g11b11_rgba16_scaled_cs,
+        sizeof(shaders::texture_load_r10g11b11_rgba16_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexR10G11B11ToRGBA16SNorm] =
+        std::make_pair(
+            shaders::texture_load_r10g11b11_rgba16_snorm_scaled_cs,
+            sizeof(shaders::texture_load_r10g11b11_rgba16_snorm_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexR11G11B10ToRGBA16] = std::make_pair(
+        shaders::texture_load_r11g11b10_rgba16_scaled_cs,
+        sizeof(shaders::texture_load_r11g11b10_rgba16_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexR11G11B10ToRGBA16SNorm] =
+        std::make_pair(
+            shaders::texture_load_r11g11b10_rgba16_snorm_scaled_cs,
+            sizeof(shaders::texture_load_r11g11b10_rgba16_snorm_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexR16UNormToFloat] =
+        std::make_pair(shaders::texture_load_r16_unorm_float_scaled_cs,
+                       sizeof(shaders::texture_load_r16_unorm_float_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexR16SNormToFloat] =
+        std::make_pair(shaders::texture_load_r16_snorm_float_scaled_cs,
+                       sizeof(shaders::texture_load_r16_snorm_float_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexRG16UNormToFloat] = std::make_pair(
+        shaders::texture_load_rg16_unorm_float_scaled_cs,
+        sizeof(shaders::texture_load_rg16_unorm_float_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexRG16SNormToFloat] = std::make_pair(
+        shaders::texture_load_rg16_snorm_float_scaled_cs,
+        sizeof(shaders::texture_load_rg16_snorm_float_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexRGBA16UNormToFloat] =
+        std::make_pair(
+            shaders::texture_load_rgba16_unorm_float_scaled_cs,
+            sizeof(shaders::texture_load_rgba16_unorm_float_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexRGBA16SNormToFloat] =
+        std::make_pair(
+            shaders::texture_load_rgba16_snorm_float_scaled_cs,
+            sizeof(shaders::texture_load_rgba16_snorm_float_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexDepthUnorm] =
+        std::make_pair(shaders::texture_load_depth_unorm_scaled_cs,
+                       sizeof(shaders::texture_load_depth_unorm_scaled_cs));
+    load_shader_code_scaled[kLoadShaderIndexDepthFloat] =
+        std::make_pair(shaders::texture_load_depth_float_scaled_cs,
+                       sizeof(shaders::texture_load_depth_float_scaled_cs));
+  }
+
+  for (size_t i = 0; i < kLoadShaderCount; ++i) {
+    if (!load_shaders_needed[i]) {
+      continue;
+    }
+    const std::pair<const uint32_t*, size_t>& current_load_shader_code =
+        load_shader_code[i];
+    assert_not_null(current_load_shader_code.first);
+    load_pipelines_[i] = ui::vulkan::util::CreateComputePipeline(
+        provider, load_pipeline_layout_, current_load_shader_code.first,
+        current_load_shader_code.second);
+    if (load_pipelines_[i] == VK_NULL_HANDLE) {
+      XELOGE(
+          "VulkanTextureCache: Failed to create the texture loading pipeline "
+          "for shader {}",
+          i);
+      return false;
+    }
+    if (IsDrawResolutionScaled()) {
+      const std::pair<const uint32_t*, size_t>&
+          current_load_shader_code_scaled = load_shader_code_scaled[i];
+      if (current_load_shader_code_scaled.first) {
+        load_pipelines_scaled_[i] = ui::vulkan::util::CreateComputePipeline(
+            provider, load_pipeline_layout_,
+            current_load_shader_code_scaled.first,
+            current_load_shader_code_scaled.second);
+        if (load_pipelines_scaled_[i] == VK_NULL_HANDLE) {
+          XELOGE(
+              "VulkanTextureCache: Failed to create the resolution-scaled "
+              "texture loading pipeline for shader {}",
+              i);
+          return false;
+        }
+      }
     }
   }
 
