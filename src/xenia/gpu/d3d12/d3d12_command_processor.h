@@ -562,7 +562,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Unsubmitted barrier batch.
   std::vector<D3D12_RESOURCE_BARRIER> barriers_;
 
-  // <Resource, submission where requested>, sorted by the submission number.
+  // <Submission where requested, resource>, sorted by the submission number.
   std::deque<std::pair<uint64_t, ID3D12Resource*>> resources_for_deletion_;
 
   static constexpr uint32_t kScratchBufferSizeIncrement = 16 * 1024 * 1024;
