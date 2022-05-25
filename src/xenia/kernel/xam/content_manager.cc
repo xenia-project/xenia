@@ -108,7 +108,7 @@ std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(
     XCONTENT_AGGREGATE_DATA content_data;
     if (XSUCCEEDED(
             ReadContentHeaderFile(xe::path_to_utf8(file_info.name) + ".header",
-                                  content_type, content_data))) {
+                                  content_type, content_data, title_id))) {
       result.emplace_back(std::move(content_data));
     } else {
       content_data.device_id = device_id;
@@ -170,10 +170,16 @@ X_RESULT ContentManager::WriteContentHeaderFile(
 
 X_RESULT ContentManager::ReadContentHeaderFile(const std::string_view file_name,
                                                XContentType content_type,
-                                               XCONTENT_AGGREGATE_DATA& data) {
-  auto title_id = fmt::format("{:8X}", kernel_state_->title_id());
+                                               XCONTENT_AGGREGATE_DATA& data,
+                                               const uint32_t title_id) {
+  auto title_id_str = fmt::format("{:08X}", title_id);
+  if (title_id == -1) {
+    title_id_str = fmt::format("{:08X}", kernel_state_->title_id());
+  }
+
   auto content_type_directory = fmt::format("{:08X}", content_type);
-  auto header_file_path = root_path_ / title_id / kGameContentHeaderDirName /
+  auto header_file_path = root_path_ / title_id_str /
+                          kGameContentHeaderDirName /
                           content_type_directory / file_name;
   constexpr uint32_t header_size = sizeof(XCONTENT_AGGREGATE_DATA);
 

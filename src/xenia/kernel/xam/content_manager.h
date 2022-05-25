@@ -153,7 +153,8 @@ class ContentManager {
   X_RESULT WriteContentHeaderFile(const XCONTENT_AGGREGATE_DATA* data_raw);
   X_RESULT ReadContentHeaderFile(const std::string_view file_name,
                                  XContentType content_type,
-                                 XCONTENT_AGGREGATE_DATA& data);
+                                 XCONTENT_AGGREGATE_DATA& data,
+                                 const uint32_t title_id = -1);
   X_RESULT CreateContent(const std::string_view root_name,
                          const XCONTENT_AGGREGATE_DATA& data);
   X_RESULT OpenContent(const std::string_view root_name,
