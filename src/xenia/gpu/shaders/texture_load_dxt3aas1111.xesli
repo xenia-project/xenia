@@ -15,7 +15,8 @@ xesl_entry
   xesl_entry_binding_next
   xesl_typedStorageBuffer(xesl_uint4, xe_texture_load_source, set=1, binding=0,
                           t0, space0)
-xesl_entry_bindings_end_local_size(8, 32, 1)
+xesl_entry_bindings_end_local_size(kXeTextureLoadGroupSizeX,
+                                   kXeTextureLoadGroupSizeY, 1)
   xesl_input_global_invocation_id
 xesl_entry_signature_end
   // 1 thread = 4 DXT3A-as-1111 blocks to 16x4 16bpp texels passed through an
@@ -55,12 +56,13 @@ xesl_entry_signature_end
       XE_TEXTURE_LOAD_DXT3A_AS_1_1_1_1_TO_16BPP(blocks_23.xz));
   xesl_dont_flatten if (++texel_index_host.y < height_texels) {
     block_offset_host += elements_pitch_host;
+    xesl_uint4 high_halfblocks = xesl_uint4(blocks_01.xz, blocks_23.xz) >> 16u;
     xesl_writeTypedStorageBufferStore(
         xe_texture_load_dest, block_offset_host,
-        XE_TEXTURE_LOAD_DXT3A_AS_1_1_1_1_TO_16BPP(blocks_01.xz >> 16u));
+        XE_TEXTURE_LOAD_DXT3A_AS_1_1_1_1_TO_16BPP(high_halfblocks.xy));
     xesl_writeTypedStorageBufferStore(
         xe_texture_load_dest, block_offset_host + 1u,
-        XE_TEXTURE_LOAD_DXT3A_AS_1_1_1_1_TO_16BPP(blocks_23.xz >> 16u));
+        XE_TEXTURE_LOAD_DXT3A_AS_1_1_1_1_TO_16BPP(high_halfblocks.zw));
     xesl_dont_flatten if (++texel_index_host.y < height_texels) {
       block_offset_host += elements_pitch_host;
       xesl_writeTypedStorageBufferStore(
@@ -71,12 +73,13 @@ xesl_entry_signature_end
           XE_TEXTURE_LOAD_DXT3A_AS_1_1_1_1_TO_16BPP(blocks_23.yw));
       xesl_dont_flatten if (++texel_index_host.y < height_texels) {
         block_offset_host += elements_pitch_host;
+        high_halfblocks = xesl_uint4(blocks_01.yw, blocks_23.yw) >> 16u;
         xesl_writeTypedStorageBufferStore(
             xe_texture_load_dest, block_offset_host,
-            XE_TEXTURE_LOAD_DXT3A_AS_1_1_1_1_TO_16BPP(blocks_01.yw >> 16u));
+            XE_TEXTURE_LOAD_DXT3A_AS_1_1_1_1_TO_16BPP(high_halfblocks.xy));
         xesl_writeTypedStorageBufferStore(
             xe_texture_load_dest, block_offset_host + 1u,
-            XE_TEXTURE_LOAD_DXT3A_AS_1_1_1_1_TO_16BPP(blocks_23.yw >> 16u));
+            XE_TEXTURE_LOAD_DXT3A_AS_1_1_1_1_TO_16BPP(high_halfblocks.zw));
       }
     }
   }

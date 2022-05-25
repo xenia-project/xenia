@@ -175,9 +175,8 @@ bool PipelineCache::Initialize() {
 }
 
 void PipelineCache::Shutdown() {
-  ClearCache(true);
-
-  // Shut down all threads.
+  // Shut down all threads, before destroying the pipelines since they may be
+  // creating them.
   if (!creation_threads_.empty()) {
     {
       std::lock_guard<std::mutex> lock(creation_request_lock_);
@@ -191,44 +190,11 @@ void PipelineCache::Shutdown() {
   }
   creation_completion_event_.reset();
 
-  ui::d3d12::util::ReleaseAndNull(dxc_compiler_);
-  ui::d3d12::util::ReleaseAndNull(dxc_utils_);
-  ui::d3d12::util::ReleaseAndNull(dxbc_converter_);
-}
-
-void PipelineCache::ClearCache(bool shutting_down) {
-  bool reinitialize_shader_storage =
-      !shutting_down && storage_write_thread_ != nullptr;
-  std::filesystem::path shader_storage_cache_root;
-  uint32_t shader_storage_title_id = shader_storage_title_id_;
-  if (reinitialize_shader_storage) {
-    shader_storage_cache_root = shader_storage_cache_root_;
-  }
+  // Shut down the persistent shader / pipeline storage.
   ShutdownShaderStorage();
 
-  // Remove references to the current pipeline.
-  current_pipeline_ = nullptr;
-
-  if (!creation_threads_.empty()) {
-    // Empty the pipeline creation queue and make sure there are no threads
-    // currently creating pipelines because pipelines are going to be deleted.
-    bool await_creation_completion_event = false;
-    {
-      std::lock_guard<std::mutex> lock(creation_request_lock_);
-      creation_queue_.clear();
-      await_creation_completion_event = creation_threads_busy_ != 0;
-      if (await_creation_completion_event) {
-        creation_completion_event_->Reset();
-        creation_completion_set_event_ = true;
-      }
-    }
-    if (await_creation_completion_event) {
-      creation_request_cond_.notify_one();
-      xe::threading::Wait(creation_completion_event_.get(), false);
-    }
-  }
-
   // Destroy all pipelines.
+  current_pipeline_ = nullptr;
   for (auto it : pipelines_) {
     it.second->state->Release();
     delete it.second;
@@ -237,7 +203,6 @@ void PipelineCache::ClearCache(bool shutting_down) {
   COUNT_profile_set("gpu/pipeline_cache/pipelines", 0);
 
   // Destroy all shaders.
-  command_processor_.NotifyShaderBindingsLayoutUIDsInvalidated();
   if (bindless_resources_used_) {
     bindless_sampler_layout_map_.clear();
     bindless_sampler_layouts_.clear();
@@ -250,10 +215,10 @@ void PipelineCache::ClearCache(bool shutting_down) {
   shaders_.clear();
   shader_storage_index_ = 0;
 
-  if (reinitialize_shader_storage) {
-    InitializeShaderStorage(shader_storage_cache_root, shader_storage_title_id,
-                            false);
-  }
+  // Shut down shader translation.
+  ui::d3d12::util::ReleaseAndNull(dxc_compiler_);
+  ui::d3d12::util::ReleaseAndNull(dxc_utils_);
+  ui::d3d12::util::ReleaseAndNull(dxbc_converter_);
 }
 
 void PipelineCache::InitializeShaderStorage(

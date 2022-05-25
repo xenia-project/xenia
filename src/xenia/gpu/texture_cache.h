@@ -395,6 +395,69 @@ class TextureCache {
     uint32_t height_texels;
   };
 
+  static constexpr uint32_t kLoadGuestXThreadsPerGroupLog2 = 2;
+  static constexpr uint32_t kLoadGuestYBlocksPerGroupLog2 = 5;
+
+  enum LoadShaderIndex {
+    kLoadShaderIndex8bpb,
+    kLoadShaderIndex16bpb,
+    kLoadShaderIndex32bpb,
+    kLoadShaderIndex64bpb,
+    kLoadShaderIndex128bpb,
+    kLoadShaderIndexR5G5B5A1ToB5G5R5A1,
+    kLoadShaderIndexR5G6B5ToB5G6R5,
+    kLoadShaderIndexR5G5B6ToB5G6R5WithRBGASwizzle,
+    kLoadShaderIndexRGBA4ToBGRA4,
+    kLoadShaderIndexRGBA4ToARGB4,
+    kLoadShaderIndexGBGR8ToGRGB8,
+    kLoadShaderIndexGBGR8ToRGB8,
+    kLoadShaderIndexBGRG8ToRGBG8,
+    kLoadShaderIndexBGRG8ToRGB8,
+    kLoadShaderIndexR10G11B11ToRGBA16,
+    kLoadShaderIndexR10G11B11ToRGBA16SNorm,
+    kLoadShaderIndexR11G11B10ToRGBA16,
+    kLoadShaderIndexR11G11B10ToRGBA16SNorm,
+    kLoadShaderIndexR16UNormToFloat,
+    kLoadShaderIndexR16SNormToFloat,
+    kLoadShaderIndexRG16UNormToFloat,
+    kLoadShaderIndexRG16SNormToFloat,
+    kLoadShaderIndexRGBA16UNormToFloat,
+    kLoadShaderIndexRGBA16SNormToFloat,
+    kLoadShaderIndexDXT1ToRGBA8,
+    kLoadShaderIndexDXT3ToRGBA8,
+    kLoadShaderIndexDXT5ToRGBA8,
+    kLoadShaderIndexDXNToRG8,
+    kLoadShaderIndexDXT3A,
+    kLoadShaderIndexDXT3AAs1111ToBGRA4,
+    kLoadShaderIndexDXT3AAs1111ToARGB4,
+    kLoadShaderIndexDXT5AToR8,
+    kLoadShaderIndexCTX1,
+    kLoadShaderIndexDepthUnorm,
+    kLoadShaderIndexDepthFloat,
+
+    kLoadShaderCount,
+    kLoadShaderIndexUnknown = kLoadShaderCount,
+  };
+
+  struct LoadShaderInfo {
+    // Log2 of the sizes, in bytes, of the elements in the source (guest) and
+    // the destination (host) buffer bindings accessed by the copying shader,
+    // since the shader may copy multiple blocks per one invocation.
+    uint32_t source_bpe_log2;
+    uint32_t dest_bpe_log2;
+    // Number of bytes in a host resolution-scaled block (corresponding to a
+    // guest block if not decompressing, or a host texel if decompressing)
+    // written by the shader.
+    uint32_t bytes_per_host_block;
+    // Log2 of the number of guest resolution-scaled blocks along the X axis
+    // loaded by a single thread shader group.
+    uint32_t guest_x_blocks_per_thread_log2;
+
+    uint32_t GetGuestXBlocksPerGroupLog2() const {
+      return kLoadGuestXThreadsPerGroupLog2 + guest_x_blocks_per_thread_log2;
+    }
+  };
+
   static constexpr uint8_t kSwizzledSignsUnsigned =
       uint8_t(xenos::TextureSign::kUnsigned) * uint8_t(0b01010101);
 
@@ -472,6 +535,11 @@ class TextureCache {
   // should be made.
   Texture* FindOrCreateTexture(TextureKey key);
 
+  static const LoadShaderInfo& GetLoadShaderInfo(
+      LoadShaderIndex load_shader_index) {
+    assert_true(load_shader_index < kLoadShaderCount);
+    return load_shader_info_[load_shader_index];
+  }
   bool LoadTextureData(Texture& texture);
   // Writes the texture data (for base, mips or both - but not neither) from the
   // shared memory or the scaled resolve memory. The shared memory management is
@@ -526,6 +594,8 @@ class TextureCache {
   SharedMemory& shared_memory_;
   uint32_t draw_resolution_scale_x_;
   uint32_t draw_resolution_scale_y_;
+
+  static const LoadShaderInfo load_shader_info_[kLoadShaderCount];
 
   xe::global_critical_region global_critical_region_;
   // Bit vector storing whether each 4 KB physical memory page contains scaled

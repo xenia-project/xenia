@@ -1298,7 +1298,6 @@ VulkanPresenter::GuestOutputImage::~GuestOutputImage() {
 
 bool VulkanPresenter::GuestOutputImage::Initialize() {
   VkImageCreateInfo image_create_info;
-  VkImageCreateInfo* image_create_info_last = &image_create_info;
   image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
   image_create_info.pNext = nullptr;
   image_create_info.flags = 0;

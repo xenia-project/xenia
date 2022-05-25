@@ -197,9 +197,6 @@ class D3D12CommandProcessor : public CommandProcessor {
   void SetStencilReference(uint32_t stencil_ref);
   void SetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY primitive_topology);
 
-  // For the pipeline cache to call when binding layout UIDs may be reused.
-  void NotifyShaderBindingsLayoutUIDsInvalidated();
-
   // Returns the text to display in the GPU backend name in the window title.
   std::string GetWindowTitleText() const;
 
@@ -565,7 +562,7 @@ class D3D12CommandProcessor : public CommandProcessor {
   // Unsubmitted barrier batch.
   std::vector<D3D12_RESOURCE_BARRIER> barriers_;
 
-  // <Resource, submission where requested>, sorted by the submission number.
+  // <Submission where requested, resource>, sorted by the submission number.
   std::deque<std::pair<uint64_t, ID3D12Resource*>> resources_for_deletion_;
 
   static constexpr uint32_t kScratchBufferSizeIncrement = 16 * 1024 * 1024;

@@ -748,18 +748,6 @@ void D3D12CommandProcessor::SetPrimitiveTopology(
   }
 }
 
-void D3D12CommandProcessor::NotifyShaderBindingsLayoutUIDsInvalidated() {
-  if (bindless_resources_used_) {
-    cbuffer_binding_descriptor_indices_vertex_.up_to_date = false;
-    cbuffer_binding_descriptor_indices_pixel_.up_to_date = false;
-  } else {
-    bindful_textures_written_vertex_ = false;
-    bindful_textures_written_pixel_ = false;
-    bindful_samplers_written_vertex_ = false;
-    bindful_samplers_written_pixel_ = false;
-  }
-}
-
 std::string D3D12CommandProcessor::GetWindowTitleText() const {
   std::ostringstream title;
   title << "Direct3D 12";
@@ -3052,12 +3040,8 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
 
       texture_cache_->ClearCache();
 
-      pipeline_cache_->ClearCache();
-
-      for (auto it : root_signatures_bindful_) {
-        it.second->Release();
-      }
-      root_signatures_bindful_.clear();
+      // Not clearing the root signatures as they're referenced by pipelines,
+      // which are not destroyed.
 
       primitive_processor_->ClearCache();
 

@@ -103,6 +103,16 @@
 // HLSL linkage.
 // Both binding and signature entry names may be placed in the global scope in
 // the target language, make sure they don't collide with anything there.
+//
+// In compute shaders, the total group size must not exceed 128 threads (unless
+// the shader is used with the appropriate conditionals), as that's the minimum
+// maxComputeWorkGroupInvocations requirement on Vulkan. 128 threads exactly is
+// the recommended group size overall, especially for shaders not using the
+// group functionality, as it's the maximum wave size supported by DXIL and
+// SPIR-V wave operations, and there are PowerVR GPUs with 128-lane waves, so
+// it provides balance between wave utilization and excess thread (and, on GPUs
+// with smaller waves, wave) count if the size of the actual work domain is not
+// aligned to the group size.
 #if XESL_LANGUAGE_GLSL
   #define xesl_entry_bindings_end_local_size(x, y, z) \
       layout(local_size_x=(x), local_size_y=(y), local_size_z=(z)) in;
