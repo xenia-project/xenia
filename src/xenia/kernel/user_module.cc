@@ -395,8 +395,13 @@ void UserModule::Dump() {
       kernel_state_->emulator()->export_resolver();
   auto header = xex_header();
 
+  CalculateHash();
+
   // XEX header.
   sb.AppendFormat("Module {}:\n", path_);
+
+  sb.AppendFormat("Module Hash: {:016X}\n", hash_);
+
   sb.AppendFormat("    Module Flags: {:08X}\n", (uint32_t)header->module_flags);
 
   // Security header
