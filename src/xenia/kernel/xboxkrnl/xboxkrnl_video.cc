@@ -30,6 +30,13 @@ UPDATE_from_uint32(kernel_display_gamma_type, 2020, 12, 31, 13, 1);
 DEFINE_double(kernel_display_gamma_power, 2.22222233,
               "Display gamma to use with kernel_display_gamma_type 3.",
               "Kernel");
+DEFINE_bool(kernel_display_interlaced, false,
+            "Whether to use interlaced display mode in games.", "Kernel");
+DEFINE_bool(kernel_display_widescreen, true,
+            "Whether to use widescreen mode in games.", "Kernel");
+DEFINE_bool(kernel_display_hi_def, true,
+            "Whether the emulator should support hi-def rendering in games.",
+            "Kernel");
 
 namespace xe {
 namespace kernel {
@@ -136,9 +143,9 @@ void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   std::memset(video_mode, 0, sizeof(X_VIDEO_MODE));
   video_mode->display_width = 1280;
   video_mode->display_height = 720;
-  video_mode->is_interlaced = 0;
-  video_mode->is_widescreen = 1;
-  video_mode->is_hi_def = 1;
+  video_mode->is_interlaced = cvars::kernel_display_interlaced;
+  video_mode->is_widescreen = cvars::kernel_display_widescreen;
+  video_mode->is_hi_def = cvars::kernel_display_hi_def;
   video_mode->refresh_rate = 60.0f;
   video_mode->video_standard = 1;  // NTSC
   video_mode->unknown_0x8a = 0x4A;
