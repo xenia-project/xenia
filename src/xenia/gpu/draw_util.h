@@ -377,7 +377,8 @@ struct ResolveCopyShaderInfo {
   // shader (at least 2).
   uint32_t source_bpe_log2;
   // Log2 of bytes per element of the type of the destination buffer bound to
-  // the shader (at least 2 because of Nvidia's 128 megatexel limit that
+  // the shader (at least 2 because of the 128 megatexel minimum requirement on
+  // Direct3D 10+ - D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP - that
   // prevents binding the entire shared memory buffer with smaller element
   // sizes).
   uint32_t dest_bpe_log2;
