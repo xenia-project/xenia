@@ -975,11 +975,11 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
       dest_height = rb_copy_dest_pitch.copy_dest_height;
       // The pointer is only adjusted to Z / 8, but the texture may have a depth
       // of (N % 8) <= 4, like 4, 12, 20 when rounded up to 4
-      // (xenos::kTextureTiledDepthGranularity), so provide Z + 1 to measure the
-      // size of the texture conservatively, but without going out of the upper
-      // bound (though this still may go out of bounds a bit probably if
-      // resolving to non-zero XY, but not sure if that really happens and
-      // actually causes issues).
+      // (xenos::kTextureTileDepth), so provide Z + 1 to measure the size of the
+      // texture conservatively, but without going out of the upper bound
+      // (though this still may go out of bounds a bit probably if resolving to
+      // non-zero XY, but not sure if that really happens and actually causes
+      // issues).
       dest_depth = rb_copy_dest_info.copy_dest_slice + 1;
     } else {
       copy_dest_base_adjusted += texture_util::GetTiledOffset2D(
