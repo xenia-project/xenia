@@ -1715,9 +1715,10 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   }
 
   // Begin loading.
-  // May use different buffers for scaled base and mips, and also can't address
-  // more than 128 megatexels directly on Nvidia - need two separate UAV
-  // descriptors for base and mips.
+  // May use different buffers for scaled base and mips, and also addressability
+  // of more than 128 * 2^20 (2^D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP)
+  // texels is not mandatory - need two separate UAV descriptors for base and
+  // mips.
   // Destination.
   uint32_t descriptor_count = 1;
   if (texture_resolution_scaled) {
@@ -1820,7 +1821,8 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
 
     if (texture_resolution_scaled) {
       // Offset already applied in the buffer because more than 512 MB can't be
-      // directly addresses on Nvidia as R32.
+      // directly addresses as R32 on some hardware (above
+      // 2^D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP).
       load_constants.guest_offset = 0;
     } else {
       load_constants.guest_offset = guest_address;
