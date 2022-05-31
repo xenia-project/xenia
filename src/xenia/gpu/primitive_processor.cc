@@ -703,9 +703,9 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
           // Does not need indirection on backends not supporting full 32-bit
           // indices.
           if (guest_primitive_reset_index_guest_endian != UINT16_MAX) {
-            // If primitive reset is with a non-0xFFFF index is used, replace
-            // with 0xFFFF if 0xFFFF is not used as a real index, or with
-            // 0xFFFFFFFF if it is.
+            // If primitive reset with a non-0xFFFF index is used, replace with
+            // 0xFFFF if 0xFFFF is not used as a real index, or with 0xFFFFFFFF
+            // if it is.
             // Writing to the trace irrespective of the cache lookup result
             // because cache behavior depends on runtime configuration and
             // state.
