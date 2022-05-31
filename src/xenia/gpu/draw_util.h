@@ -299,6 +299,9 @@ union ResolveAddressPackedInfo {
     // taking 8x8 granularity into account) if the offset of the 160x32 region
     // itself, and the offset of the texture tile, are pre-added to the bases.
 
+    // TODO(Triang3l): Tiled address repeats every up to 128x128 blocks (for 2D
+    // 1bpb textures) - change the range to 640x128.
+
     // In the EDRAM source, the whole offset is relative to the base.
     // In the texture, & 31 of the offset is relative to the base (the base is
     // adjusted to 32x32 tiles).

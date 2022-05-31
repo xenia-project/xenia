@@ -1049,19 +1049,12 @@ constexpr uint32_t kTextureMaxMips =
     std::max(kTexture2DCubeMaxWidthHeightLog2, kTexture3DMaxWidthHeightLog2) +
     1;
 
-// Tiled texture sizes are in 32x32 increments for 2D, 32x32x4 for 3D.
-// 2DTiledOffset(X * 32 + x, Y * 32 + y) ==
-//     2DTiledOffset(X * 32, Y * 32) + 2DTiledOffset(x, y)
-// 3DTiledOffset(X * 32 + x, Y * 32 + y, Z * 8 + z) ==
-//     3DTiledOffset(X * 32, Y * 32, Z * 8) + 3DTiledOffset(x, y, z)
-// Both are true for negative offsets too.
 constexpr uint32_t kTextureTileWidthHeightLog2 = 5;
 constexpr uint32_t kTextureTileWidthHeight = 1 << kTextureTileWidthHeightLog2;
 // 3D tiled texture slices 0:3 and 4:7 are stored separately in memory, in
 // non-overlapping ranges, but addressing in 4:7 is different than in 0:3.
-constexpr uint32_t kTextureTiledDepthGranularityLog2 = 2;
-constexpr uint32_t kTextureTiledDepthGranularity =
-    1 << kTextureTiledDepthGranularityLog2;
+constexpr uint32_t kTextureTileDepthLog2 = 2;
+constexpr uint32_t kTextureTileDepth = 1 << kTextureTileDepthLog2;
 constexpr uint32_t kTextureTiledZBaseGranularityLog2 = 3;
 constexpr uint32_t kTextureTiledZBaseGranularity =
     1 << kTextureTiledZBaseGranularityLog2;
