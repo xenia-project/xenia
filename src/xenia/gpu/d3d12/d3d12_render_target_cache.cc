@@ -1413,8 +1413,9 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
       if (copy_dest_committed) {
         // Write the descriptors and transition the resources.
         // Full shared memory without resolution scaling, range of the scaled
-        // resolve buffer with scaling because only 128 R32 elements can be
-        // addressed on Nvidia.
+        // resolve buffer with scaling because only at least 128 * 2^20 R32
+        // elements must be addressable
+        // (D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP).
         ui::d3d12::util::DescriptorCpuGpuHandlePair descriptor_dest;
         ui::d3d12::util::DescriptorCpuGpuHandlePair descriptor_source;
         ui::d3d12::util::DescriptorCpuGpuHandlePair descriptors[2];
