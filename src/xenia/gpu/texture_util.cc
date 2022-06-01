@@ -443,7 +443,8 @@ TextureGuestLayout GetGuestTextureLayout(
         // 494707D4, there's a 2x2 k_8_8_8_8 linear texture with packed mips),
         // for instance, would have its 2x2 base at (16, 0) and its 1x1 mip at
         // (8, 0) - and we need 2 or 1 rows in these cases, not 32 - the 32 rows
-        // would span two 4 KB pages rather than one.
+        // would span two 4 KB pages rather than one, taking the 256-byte pitch
+        // alignment in linear textures into account.
         level_layout.x_extent_blocks = 0;
         level_layout.y_extent_blocks = 0;
         level_layout.z_extent = 0;
