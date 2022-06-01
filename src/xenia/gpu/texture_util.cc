@@ -439,10 +439,11 @@ TextureGuestLayout GetGuestTextureLayout(
       if (level == layout.packed_level) {
         // Calculate the portion of the mip tail actually used by the needed
         // mips. The actually used region may be significantly smaller than the
-        // full 32x32-texel-aligned tail. A 2x2 texture (for example, in Test
-        // Drive Unlimited, there's a 2x2 k_8_8_8_8 linear texture with packed
-        // mips), for instance, would have its 2x2 base at (16, 0) and its 1x1
-        // mip at (8, 0) - and we need 2 or 1 rows in these cases, not 32.
+        // full 32x32-texel-aligned tail. A 2x2 texture (for example, in
+        // 494707D4, there's a 2x2 k_8_8_8_8 linear texture with packed mips),
+        // for instance, would have its 2x2 base at (16, 0) and its 1x1 mip at
+        // (8, 0) - and we need 2 or 1 rows in these cases, not 32 - the 32 rows
+        // would span two 4 KB pages rather than one.
         level_layout.x_extent_blocks = 0;
         level_layout.y_extent_blocks = 0;
         level_layout.z_extent = 0;
