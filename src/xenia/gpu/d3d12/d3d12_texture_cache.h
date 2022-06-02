@@ -361,30 +361,30 @@ class D3D12TextureCache final : public TextureCache {
 
   // Whether decompression is needed on the host (Direct3D only allows creation
   // of block-compressed textures with 4x4-aligned dimensions on PC).
-  static bool IsDecompressionNeeded(xenos::TextureFormat format, uint32_t width,
-                                    uint32_t height);
-  static DXGI_FORMAT GetDXGIResourceFormat(xenos::TextureFormat format,
-                                           uint32_t width, uint32_t height) {
+  bool IsDecompressionNeeded(xenos::TextureFormat format, uint32_t width,
+                             uint32_t height) const;
+  DXGI_FORMAT GetDXGIResourceFormat(xenos::TextureFormat format, uint32_t width,
+                                    uint32_t height) const {
     const HostFormat& host_format = host_formats_[uint32_t(format)];
     return IsDecompressionNeeded(format, width, height)
                ? host_format.dxgi_format_uncompressed
                : host_format.dxgi_format_resource;
   }
-  static DXGI_FORMAT GetDXGIResourceFormat(TextureKey key) {
+  DXGI_FORMAT GetDXGIResourceFormat(TextureKey key) const {
     return GetDXGIResourceFormat(key.format, key.GetWidth(), key.GetHeight());
   }
-  static DXGI_FORMAT GetDXGIUnormFormat(xenos::TextureFormat format,
-                                        uint32_t width, uint32_t height) {
+  DXGI_FORMAT GetDXGIUnormFormat(xenos::TextureFormat format, uint32_t width,
+                                 uint32_t height) const {
     const HostFormat& host_format = host_formats_[uint32_t(format)];
     return IsDecompressionNeeded(format, width, height)
                ? host_format.dxgi_format_uncompressed
                : host_format.dxgi_format_unsigned;
   }
-  static DXGI_FORMAT GetDXGIUnormFormat(TextureKey key) {
+  DXGI_FORMAT GetDXGIUnormFormat(TextureKey key) const {
     return GetDXGIUnormFormat(key.format, key.GetWidth(), key.GetHeight());
   }
 
-  static LoadShaderIndex GetLoadShaderIndex(TextureKey key);
+  LoadShaderIndex GetLoadShaderIndex(TextureKey key) const;
 
   static constexpr bool AreDimensionsCompatible(
       xenos::FetchOpDimension binding_dimension,
