@@ -236,6 +236,8 @@ class VulkanTextureCache final : public TextureCache {
 
   bool Initialize();
 
+  const HostFormatPair& GetHostFormatPair(TextureKey key) const;
+
   void GetTextureUsageMasks(VulkanTexture::Usage usage,
                             VkPipelineStageFlags& stage_mask,
                             VkAccessFlags& access_mask, VkImageLayout& layout);
@@ -244,6 +246,8 @@ class VulkanTextureCache final : public TextureCache {
   VkPipelineStageFlags guest_shader_pipeline_stages_;
 
   static const HostFormatPair kBestHostFormats[64];
+  static const HostFormatPair kHostFormatGBGRUnaligned;
+  static const HostFormatPair kHostFormatBGRGUnaligned;
   HostFormatPair host_formats_[64];
 
   VkPipelineLayout load_pipeline_layout_ = VK_NULL_HANDLE;
