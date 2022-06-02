@@ -401,6 +401,24 @@ const VulkanTextureCache::HostFormatPair
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA},
 };
 
+// Vulkan requires 2x1 (4:2:2) subsampled images to have an even width.
+// Always decompressing them to RGBA8, which is required to be linear-filterable
+// as UNORM and SNORM.
+
+const VulkanTextureCache::HostFormatPair
+    VulkanTextureCache::kHostFormatGBGRUnaligned = {
+        {kLoadShaderIndexGBGR8ToRGB8, VK_FORMAT_R8G8B8A8_UNORM, false, true},
+        {kLoadShaderIndexGBGR8ToRGB8, VK_FORMAT_R8G8B8A8_SNORM, false, true},
+        xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB,
+        true};
+
+const VulkanTextureCache::HostFormatPair
+    VulkanTextureCache::kHostFormatBGRGUnaligned = {
+        {kLoadShaderIndexBGRG8ToRGB8, VK_FORMAT_R8G8B8A8_UNORM, false, true},
+        {kLoadShaderIndexBGRG8ToRGB8, VK_FORMAT_R8G8B8A8_SNORM, false, true},
+        xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB,
+        true};
+
 VulkanTextureCache::~VulkanTextureCache() {
   const ui::vulkan::VulkanProvider& provider =
       command_processor_.GetVulkanProvider();
@@ -573,7 +591,7 @@ VkImageView VulkanTextureCache::GetActiveBindingOrNullImageView(
 
 bool VulkanTextureCache::IsSignedVersionSeparateForFormat(
     TextureKey key) const {
-  const HostFormatPair& host_format_pair = host_formats_[uint32_t(key.format)];
+  const HostFormatPair& host_format_pair = GetHostFormatPair(key);
   if (host_format_pair.format_unsigned.format == VK_FORMAT_UNDEFINED ||
       host_format_pair.format_signed.format == VK_FORMAT_UNDEFINED) {
     // Just one signedness.
@@ -583,7 +601,7 @@ bool VulkanTextureCache::IsSignedVersionSeparateForFormat(
 }
 
 uint32_t VulkanTextureCache::GetHostFormatSwizzle(TextureKey key) const {
-  return host_formats_[uint32_t(key.format)].swizzle;
+  return GetHostFormatPair(key).swizzle;
 }
 
 uint32_t VulkanTextureCache::GetMaxHostTextureWidthHeight(
@@ -633,7 +651,7 @@ uint32_t VulkanTextureCache::GetMaxHostTextureDepthOrArraySize(
 std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(
     TextureKey key) {
   VkFormat formats[] = {VK_FORMAT_UNDEFINED, VK_FORMAT_UNDEFINED};
-  const HostFormatPair& host_format = host_formats_[uint32_t(key.format)];
+  const HostFormatPair& host_format = GetHostFormatPair(key);
   if (host_format.format_signed.format == VK_FORMAT_UNDEFINED) {
     // Only the unsigned format may be available, if at all.
     formats[0] = host_format.format_unsigned.format;
@@ -735,8 +753,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   TextureKey texture_key = vulkan_texture.key();
 
   // Get the pipeline.
-  const HostFormatPair& host_format_pair =
-      host_formats_[uint32_t(texture_key.format)];
+  const HostFormatPair& host_format_pair = GetHostFormatPair(texture_key);
   bool host_format_is_signed;
   if (IsSignedVersionSeparateForFormat(texture_key)) {
     host_format_is_signed = bool(texture_key.signed_separate);
@@ -1253,7 +1270,7 @@ VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed,
   ViewKey view_key;
 
   const HostFormatPair& host_format_pair =
-      vulkan_texture_cache.host_formats_[uint32_t(key().format)];
+      vulkan_texture_cache.GetHostFormatPair(key());
   VkFormat format = (is_signed ? host_format_pair.format_signed
                                : host_format_pair.format_unsigned)
                         .format;
@@ -1761,6 +1778,26 @@ bool VulkanTextureCache::Initialize() {
       load_shaders_needed[host_format.format_signed.load_shader] = true;
     }
   }
+  if (kHostFormatGBGRUnaligned.format_unsigned.load_shader !=
+      kLoadShaderIndexUnknown) {
+    load_shaders_needed[kHostFormatGBGRUnaligned.format_unsigned.load_shader] =
+        true;
+  }
+  if (kHostFormatGBGRUnaligned.format_signed.load_shader !=
+      kLoadShaderIndexUnknown) {
+    load_shaders_needed[kHostFormatGBGRUnaligned.format_signed.load_shader] =
+        true;
+  }
+  if (kHostFormatBGRGUnaligned.format_unsigned.load_shader !=
+      kLoadShaderIndexUnknown) {
+    load_shaders_needed[kHostFormatBGRGUnaligned.format_unsigned.load_shader] =
+        true;
+  }
+  if (kHostFormatBGRGUnaligned.format_signed.load_shader !=
+      kLoadShaderIndexUnknown) {
+    load_shaders_needed[kHostFormatBGRGUnaligned.format_signed.load_shader] =
+        true;
+  }
 
   std::pair<const uint32_t*, size_t> load_shader_code[kLoadShaderCount] = {};
   load_shader_code[kLoadShaderIndex8bpb] = std::make_pair(
@@ -2175,6 +2212,19 @@ bool VulkanTextureCache::Initialize() {
   null_images_cleared_ = false;
 
   return true;
+}
+
+const VulkanTextureCache::HostFormatPair& VulkanTextureCache::GetHostFormatPair(
+    TextureKey key) const {
+  if (key.format == xenos::TextureFormat::k_Cr_Y1_Cb_Y0_REP &&
+      (key.GetWidth() & 1)) {
+    return kHostFormatGBGRUnaligned;
+  }
+  if (key.format == xenos::TextureFormat::k_Y1_Cr_Y0_Cb_REP &&
+      (key.GetWidth() & 1)) {
+    return kHostFormatBGRGUnaligned;
+  }
+  return host_formats_[uint32_t(key.format)];
 }
 
 void VulkanTextureCache::GetTextureUsageMasks(VulkanTexture::Usage usage,
