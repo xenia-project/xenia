@@ -717,27 +717,32 @@ xenos::CopySampleSelect SanitizeCopySampleSelect(
   return copy_sample_select;
 }
 
-void GetResolveEdramTileSpan(ResolveEdramPackedInfo edram_info,
-                             ResolveAddressPackedInfo address_info,
+void GetResolveEdramTileSpan(ResolveEdramInfo edram_info,
+                             ResolveCoordinateInfo coordinate_info,
                              uint32_t& base_out, uint32_t& row_length_used_out,
                              uint32_t& rows_out) {
+  // Due to 64bpp, and also not to make an assumption that the offsets are
+  // limited to (80 - 8, 8 - 8) with 2x MSAA, and (40 - 8, 8 - 8) with 4x MSAA,
+  // still taking the offset into account.
   uint32_t x_scale_log2 =
       3 + uint32_t(edram_info.msaa_samples >= xenos::MsaaSamples::k4X) +
       edram_info.format_is_64bpp;
-  uint32_t x0 = (address_info.local_x_div_8 << x_scale_log2) /
+  uint32_t x0 = (coordinate_info.edram_offset_x_div_8 << x_scale_log2) /
                 xenos::kEdramTileWidthSamples;
-  uint32_t x1 = (((address_info.local_x_div_8 + address_info.width_div_8)
-                  << x_scale_log2) +
-                 (xenos::kEdramTileWidthSamples - 1)) /
-                xenos::kEdramTileWidthSamples;
+  uint32_t x1 =
+      (((coordinate_info.edram_offset_x_div_8 + coordinate_info.width_div_8)
+        << x_scale_log2) +
+       (xenos::kEdramTileWidthSamples - 1)) /
+      xenos::kEdramTileWidthSamples;
   uint32_t y_scale_log2 =
       3 + uint32_t(edram_info.msaa_samples >= xenos::MsaaSamples::k2X);
-  uint32_t y0 = (address_info.local_y_div_8 << y_scale_log2) /
+  uint32_t y0 = (coordinate_info.edram_offset_y_div_8 << y_scale_log2) /
                 xenos::kEdramTileHeightSamples;
-  uint32_t y1 = (((address_info.local_y_div_8 + address_info.height_div_8)
-                  << y_scale_log2) +
-                 (xenos::kEdramTileHeightSamples - 1)) /
-                xenos::kEdramTileHeightSamples;
+  uint32_t y1 =
+      (((coordinate_info.edram_offset_y_div_8 + coordinate_info.height_div_8)
+        << y_scale_log2) +
+       (xenos::kEdramTileHeightSamples - 1)) /
+      xenos::kEdramTileHeightSamples;
   base_out = edram_info.base_tiles + y0 * edram_info.pitch_tiles + x0;
   row_length_used_out = x1 - x0;
   rows_out = y1 - y0;
@@ -757,7 +762,8 @@ const ResolveCopyShaderInfo
 };
 
 bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
-                    TraceWriter& trace_writer, bool is_resolution_scaled,
+                    TraceWriter& trace_writer, uint32_t draw_resolution_scale_x,
+                    uint32_t draw_resolution_scale_y,
                     bool fixed_16_truncated_to_minus_1_to_1,
                     ResolveInfo& info_out) {
   auto rb_copy_control = regs.Get<reg::RB_COPY_CONTROL>();
@@ -775,7 +781,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
 
   // Don't pass uninitialized values to shaders, not to leak data to frame
   // captures.
-  info_out.address.packed = 0;
+  info_out.coordinate_info.packed = 0;
 
   // Get the extent of pixels covered by the resolve rectangle, according to the
   // top-left rasterization rule.
@@ -884,15 +890,21 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
     y1 = y0 + int32_t(xenos::kMaxResolveSize);
   }
 
+  assert_true(x0 < x1 && y0 < y1);
   if (x0 >= x1 || y0 >= y1) {
     XELOGE("Resolve region is empty");
+    return false;
   }
 
-  assert_true(x0 <= x1 && y0 <= y1);
-  info_out.address.width_div_8 =
+  info_out.coordinate_info.width_div_8 =
       uint32_t(x1 - x0) >> xenos::kResolveAlignmentPixelsLog2;
-  info_out.address.height_div_8 =
+  info_out.coordinate_info.height_div_8 =
       uint32_t(y1 - y0) >> xenos::kResolveAlignmentPixelsLog2;
+  // 2 bits for each.
+  assert_true(draw_resolution_scale_x <= 3);
+  assert_true(draw_resolution_scale_y <= 3);
+  info_out.coordinate_info.draw_resolution_scale_x = draw_resolution_scale_x;
+  info_out.coordinate_info.draw_resolution_scale_y = draw_resolution_scale_y;
 
   // Handle the destination.
   bool is_depth =
@@ -909,7 +921,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
         is_depth ? "depth" : "color", rb_copy_control.copy_sample_select,
         sample_select);
   }
-  info_out.address.copy_sample_select = sample_select;
+  info_out.copy_dest_coordinate_info.copy_sample_select = sample_select;
   // Get the format to pass to the shader in a unified way - for depth (for
   // which Direct3D 9 specifies the k_8_8_8_8 uint destination format), make
   // sure the shader won't try to do conversion - pass proper k_24_8 or
@@ -946,96 +958,97 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   // Calculate the destination memory extent.
   uint32_t rb_copy_dest_base = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32;
   uint32_t copy_dest_base_adjusted = rb_copy_dest_base;
-  uint32_t copy_dest_length;
+  uint32_t copy_dest_extent_start, copy_dest_extent_end;
   auto rb_copy_dest_pitch = regs.Get<reg::RB_COPY_DEST_PITCH>();
   uint32_t copy_dest_pitch_aligned_div_32 =
       (rb_copy_dest_pitch.copy_dest_pitch +
        (xenos::kTextureTileWidthHeight - 1)) >>
       xenos::kTextureTileWidthHeightLog2;
-  info_out.copy_dest_pitch_aligned.pitch_aligned_div_32 =
+  info_out.copy_dest_coordinate_info.pitch_aligned_div_32 =
       copy_dest_pitch_aligned_div_32;
-  info_out.copy_dest_pitch_aligned.height_aligned_div_32 =
+  info_out.copy_dest_coordinate_info.height_aligned_div_32 =
       (rb_copy_dest_pitch.copy_dest_height +
        (xenos::kTextureTileWidthHeight - 1)) >>
       xenos::kTextureTileWidthHeightLog2;
   const FormatInfo& dest_format_info = *FormatInfo::Get(dest_format);
   if (is_depth || dest_format_info.type == FormatType::kResolvable) {
     uint32_t bpp_log2 = xe::log2_floor(dest_format_info.bits_per_pixel >> 3);
-    xenos::DataDimension dest_dimension;
-    uint32_t dest_height, dest_depth;
+    uint32_t dest_base_relative_x_mask =
+        (UINT32_C(1) << xenos::GetTextureTiledXBaseGranularityLog2(
+             bool(rb_copy_dest_info.copy_dest_array), bpp_log2)) -
+        1;
+    uint32_t dest_base_relative_y_mask =
+        (UINT32_C(1) << xenos::GetTextureTiledYBaseGranularityLog2(
+             bool(rb_copy_dest_info.copy_dest_array), bpp_log2)) -
+        1;
+    info_out.copy_dest_coordinate_info.offset_x_div_8 =
+        (uint32_t(x0) & dest_base_relative_x_mask) >>
+        xenos::kResolveAlignmentPixelsLog2;
+    info_out.copy_dest_coordinate_info.offset_y_div_8 =
+        (uint32_t(y0) & dest_base_relative_y_mask) >>
+        xenos::kResolveAlignmentPixelsLog2;
+    uint32_t dest_base_x = uint32_t(x0) & ~dest_base_relative_x_mask;
+    uint32_t dest_base_y = uint32_t(y0) & ~dest_base_relative_y_mask;
     if (rb_copy_dest_info.copy_dest_array) {
-      // The pointer is already adjusted to the Z / 8 (copy_dest_slice is
+      // The base pointer is already adjusted to the Z / 8 (copy_dest_slice is
       // 3-bit).
       copy_dest_base_adjusted += texture_util::GetTiledOffset3D(
-          x0 & ~int32_t(xenos::kTextureTileWidthHeight - 1),
-          y0 & ~int32_t(xenos::kTextureTileWidthHeight - 1), 0,
+          int32_t(dest_base_x), int32_t(dest_base_y), 0,
           rb_copy_dest_pitch.copy_dest_pitch,
           rb_copy_dest_pitch.copy_dest_height, bpp_log2);
-      dest_dimension = xenos::DataDimension::k3D;
-      dest_height = rb_copy_dest_pitch.copy_dest_height;
-      // The pointer is only adjusted to Z / 8, but the texture may have a depth
-      // of (N % 8) <= 4, like 4, 12, 20 when rounded up to 4
-      // (xenos::kTextureTileDepth), so provide Z + 1 to measure the size of the
-      // texture conservatively, but without going out of the upper bound
-      // (though this still may go out of bounds a bit probably if resolving to
-      // non-zero XY, but not sure if that really happens and actually causes
-      // issues).
-      dest_depth = rb_copy_dest_info.copy_dest_slice + 1;
+      copy_dest_extent_start =
+          rb_copy_dest_base +
+          texture_util::GetTiledAddressLowerBound3D(
+              uint32_t(x0), uint32_t(y0), rb_copy_dest_info.copy_dest_slice,
+              rb_copy_dest_pitch.copy_dest_pitch,
+              rb_copy_dest_pitch.copy_dest_height, bpp_log2);
+      copy_dest_extent_end =
+          rb_copy_dest_base +
+          texture_util::GetTiledAddressUpperBound3D(
+              uint32_t(x1), uint32_t(y1), rb_copy_dest_info.copy_dest_slice + 1,
+              rb_copy_dest_pitch.copy_dest_pitch,
+              rb_copy_dest_pitch.copy_dest_height, bpp_log2);
     } else {
       copy_dest_base_adjusted += texture_util::GetTiledOffset2D(
-          x0 & ~int32_t(xenos::kTextureTileWidthHeight - 1),
-          y0 & ~int32_t(xenos::kTextureTileWidthHeight - 1),
+          int32_t(dest_base_x), int32_t(dest_base_y),
           rb_copy_dest_pitch.copy_dest_pitch, bpp_log2);
-      dest_dimension = xenos::DataDimension::k2DOrStacked;
-      // RB_COPY_DEST_PITCH::copy_dest_height is the real texture height used
-      // for 3D texture pitch, it's not relative to 0,0 of the coordinate space
-      // (in 4D5307E6, the sniper rifle scope has copy_dest_height of 192, but
-      // the rectangle's Y is 64...256) - provide the real height of the
-      // rectangle since 32x32 tiles are stored linearly anyway. In addition,
-      // the height in RB_COPY_DEST_PITCH may be larger than needed - in
-      // 5454082B, a UI texture for the letterbox bars alpha is located within
-      // the range of a 1280x720 resolve target, so with resolution scaling it's
-      // also wrongly detected as scaled, while only 1280x208 is being resolved.
-      dest_height = uint32_t(y1 - y0);
-      dest_depth = 1;
+      copy_dest_extent_start =
+          rb_copy_dest_base + texture_util::GetTiledAddressLowerBound2D(
+                                  uint32_t(x0), uint32_t(y0),
+                                  rb_copy_dest_pitch.copy_dest_pitch, bpp_log2);
+      copy_dest_extent_end =
+          rb_copy_dest_base + texture_util::GetTiledAddressUpperBound2D(
+                                  uint32_t(x1), uint32_t(y1),
+                                  rb_copy_dest_pitch.copy_dest_pitch, bpp_log2);
     }
-    // Need a subregion size, not the full subresource size - thus not aligning
-    // to xenos::kTextureSubresourceAlignmentBytes.
-    copy_dest_length =
-        texture_util::GetGuestTextureLayout(
-            dest_dimension, copy_dest_pitch_aligned_div_32, uint32_t(x1 - x0),
-            dest_height, dest_depth, true, dest_format, false, true, 0)
-            .base.level_data_extent_bytes;
   } else {
     XELOGE("Tried to resolve to format {}, which is not a ColorFormat",
            dest_format_info.name);
-    copy_dest_length = 0;
+    copy_dest_extent_start = copy_dest_base_adjusted;
+    copy_dest_extent_end = copy_dest_base_adjusted;
   }
+  assert_true(copy_dest_extent_start >= copy_dest_base_adjusted);
+  assert_true(copy_dest_extent_end >= copy_dest_base_adjusted);
+  assert_true(copy_dest_extent_end >= copy_dest_extent_start);
   info_out.copy_dest_base = copy_dest_base_adjusted;
-  info_out.copy_dest_length = copy_dest_length;
+  info_out.copy_dest_extent_start = copy_dest_extent_start;
+  info_out.copy_dest_extent_length =
+      copy_dest_extent_end - copy_dest_extent_start;
 
-  // Offset to 160x32 (a multiple of both the EDRAM tile size and the texture
-  // tile size), so the whole offset can be stored in a very small number of
-  // bits, with bases adjusted instead. The destination pointer is already
-  // offset.
-  uint32_t local_offset_x = uint32_t(x0) % 160;
-  uint32_t local_offset_y = uint32_t(y0) & 31;
-  info_out.address.local_x_div_8 =
-      local_offset_x >> xenos::kResolveAlignmentPixelsLog2;
-  info_out.address.local_y_div_8 =
-      local_offset_y >> xenos::kResolveAlignmentPixelsLog2;
-  uint32_t base_offset_x_samples =
-      (uint32_t(x0) - local_offset_x)
-      << uint32_t(rb_surface_info.msaa_samples >= xenos::MsaaSamples::k4X);
-  uint32_t base_offset_x_tiles =
-      (base_offset_x_samples + (xenos::kEdramTileWidthSamples - 1)) /
-      xenos::kEdramTileWidthSamples;
-  uint32_t base_offset_y_samples =
-      (uint32_t(y0) - local_offset_y)
-      << uint32_t(rb_surface_info.msaa_samples >= xenos::MsaaSamples::k2X);
-  uint32_t base_offset_y_tiles =
-      (base_offset_y_samples + (xenos::kEdramTileHeightSamples - 1)) /
-      xenos::kEdramTileHeightSamples;
+  // Offset relative to the beginning of the tile to put it in fewer bits.
+  uint32_t sample_count_log2_x =
+      uint32_t(rb_surface_info.msaa_samples >= xenos::MsaaSamples::k4X);
+  uint32_t sample_count_log2_y =
+      uint32_t(rb_surface_info.msaa_samples >= xenos::MsaaSamples::k2X);
+  uint32_t x0_samples = uint32_t(x0) << sample_count_log2_x;
+  uint32_t y0_samples = uint32_t(y0) << sample_count_log2_y;
+  uint32_t base_offset_x_tiles = x0_samples / xenos::kEdramTileWidthSamples;
+  uint32_t base_offset_y_tiles = y0_samples / xenos::kEdramTileHeightSamples;
+  info_out.coordinate_info.edram_offset_x_div_8 =
+      (x0_samples % xenos::kEdramTileWidthSamples) >> (sample_count_log2_x + 3);
+  info_out.coordinate_info.edram_offset_y_div_8 =
+      (y0_samples % xenos::kEdramTileHeightSamples) >>
+      (sample_count_log2_y + 3);
   uint32_t surface_pitch_tiles = xenos::GetSurfacePitchTiles(
       rb_surface_info.surface_pitch, rb_surface_info.msaa_samples, false);
   uint32_t edram_base_offset_tiles =
@@ -1043,11 +1056,11 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
 
   // Write the color/depth EDRAM info.
   bool duplicate_second_pixel =
-      is_resolution_scaled &&
+      (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) &&
       cvars::resolve_resolution_scale_duplicate_second_pixel &&
       cvars::half_pixel_offset && !regs.Get<reg::PA_SU_VTX_CNTL>().pix_center;
   int32_t exp_bias = is_depth ? 0 : rb_copy_dest_info.copy_dest_exp_bias;
-  ResolveEdramPackedInfo depth_edram_info;
+  ResolveEdramInfo depth_edram_info;
   depth_edram_info.packed = 0;
   if (is_depth || rb_copy_control.depth_clear_enable) {
     depth_edram_info.pitch_tiles = surface_pitch_tiles;
@@ -1063,7 +1076,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
     info_out.depth_original_base = 0;
   }
   info_out.depth_edram_info = depth_edram_info;
-  ResolveEdramPackedInfo color_edram_info;
+  ResolveEdramInfo color_edram_info;
   color_edram_info.packed = 0;
   if (!is_depth) {
     // Color.
@@ -1113,15 +1126,15 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   info_out.rb_color_clear_lo = regs[XE_GPU_REG_RB_COLOR_CLEAR_LO].u32;
 
   XELOGD(
-      "Resolve: {},{} <= x,y < {},{}, {} -> {} at 0x{:08X} (first tile at "
-      "0x{:08X}, length 0x{:08X})",
+      "Resolve: {},{} <= x,y < {},{}, {} -> {} at 0x{:08X} (potentially "
+      "modified memory range 0x{:08X} to 0x{:08X})",
       x0, y0, x1, y1,
       is_depth ? xenos::GetDepthRenderTargetFormatName(
                      xenos::DepthRenderTargetFormat(depth_edram_info.format))
                : xenos::GetColorRenderTargetFormatName(
                      xenos::ColorRenderTargetFormat(color_edram_info.format)),
-      dest_format_info.name, rb_copy_dest_base, copy_dest_base_adjusted,
-      copy_dest_length);
+      dest_format_info.name, rb_copy_dest_base, copy_dest_extent_start,
+      copy_dest_extent_end);
 
   return true;
 }
@@ -1132,15 +1145,14 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(
     uint32_t& group_count_y_out) const {
   ResolveCopyShaderIndex shader = ResolveCopyShaderIndex::kUnknown;
   bool is_depth = IsCopyingDepth();
-  ResolveEdramPackedInfo edram_info =
-      is_depth ? depth_edram_info : color_edram_info;
+  ResolveEdramInfo edram_info = is_depth ? depth_edram_info : color_edram_info;
   bool source_is_64bpp = !is_depth && color_edram_info.format_is_64bpp != 0;
-  if (is_depth ||
-      (!copy_dest_info.copy_dest_exp_bias &&
-       xenos::IsSingleCopySampleSelected(address.copy_sample_select) &&
-       xenos::IsColorResolveFormatBitwiseEquivalent(
-           xenos::ColorRenderTargetFormat(color_edram_info.format),
-           xenos::ColorFormat(copy_dest_info.copy_dest_format)))) {
+  if (is_depth || (!copy_dest_info.copy_dest_exp_bias &&
+                   xenos::IsSingleCopySampleSelected(
+                       copy_dest_coordinate_info.copy_sample_select) &&
+                   xenos::IsColorResolveFormatBitwiseEquivalent(
+                       xenos::ColorRenderTargetFormat(color_edram_info.format),
+                       xenos::ColorFormat(copy_dest_info.copy_dest_format)))) {
     if (edram_info.msaa_samples >= xenos::MsaaSamples::k4X) {
       shader = source_is_64bpp ? ResolveCopyShaderIndex::kFast64bpp4xMSAA
                                : ResolveCopyShaderIndex::kFast32bpp4xMSAA;
@@ -1173,17 +1185,17 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(
   }
 
   constants_out.dest_relative.edram_info = edram_info;
-  constants_out.dest_relative.address_info = address;
+  constants_out.dest_relative.coordinate_info = coordinate_info;
   constants_out.dest_relative.dest_info = copy_dest_info;
-  constants_out.dest_relative.dest_pitch_aligned = copy_dest_pitch_aligned;
+  constants_out.dest_relative.dest_coordinate_info = copy_dest_coordinate_info;
   constants_out.dest_base = copy_dest_base;
 
   if (shader != ResolveCopyShaderIndex::kUnknown) {
     uint32_t width =
-        (address.width_div_8 << xenos::kResolveAlignmentPixelsLog2) *
+        (coordinate_info.width_div_8 << xenos::kResolveAlignmentPixelsLog2) *
         draw_resolution_scale_x;
     uint32_t height =
-        (address.height_div_8 << xenos::kResolveAlignmentPixelsLog2) *
+        (coordinate_info.height_div_8 << xenos::kResolveAlignmentPixelsLog2) *
         draw_resolution_scale_y;
     const ResolveCopyShaderInfo& shader_info =
         resolve_copy_shader_info[size_t(shader)];

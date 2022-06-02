@@ -268,7 +268,7 @@ xenos::CopySampleSelect SanitizeCopySampleSelect(
 // Packed structures are small and can be passed to the shaders in root/push
 // constants.
 
-union ResolveEdramPackedInfo {
+union ResolveEdramInfo {
   uint32_t packed;
   struct {
     // With 32bpp/64bpp taken into account.
@@ -283,33 +283,19 @@ union ResolveEdramPackedInfo {
     // the impact of the half-pixel offset with resolution scaling.
     uint32_t duplicate_second_pixel : 1;
   };
-  ResolveEdramPackedInfo() : packed(0) {
-    static_assert_size(*this, sizeof(packed));
-  }
+  ResolveEdramInfo() : packed(0) { static_assert_size(*this, sizeof(packed)); }
 };
-static_assert(sizeof(ResolveEdramPackedInfo) <= sizeof(uint32_t),
-              "ResolveEdramPackedInfo must be packable in uint32_t");
 
-union ResolveAddressPackedInfo {
+union ResolveCoordinateInfo {
   uint32_t packed;
   struct {
-    // 160x32 is divisible by both the EDRAM tile size (80x16 samples, but for
-    // simplicity, this is in pixels) and the texture tile size (32x32), so
-    // the X and Y offsets can be packed in a very small number of bits (also
-    // taking 8x8 granularity into account) if the offset of the 160x32 region
-    // itself, and the offset of the texture tile, are pre-added to the bases.
+    // In pixels relatively to the origin of the EDRAM base tile.
+    // 0...9 for 0...72.
+    uint32_t edram_offset_x_div_8 : 4;
+    // 0...1 for 0...8.
+    uint32_t edram_offset_y_div_8 : 1;
 
-    // TODO(Triang3l): Tiled address repeats every up to 128x128 blocks (for 2D
-    // 1bpb textures) - change the range to 640x128.
-
-    // In the EDRAM source, the whole offset is relative to the base.
-    // In the texture, & 31 of the offset is relative to the base (the base is
-    // adjusted to 32x32 tiles).
-
-    // 0...19 for 0...152.
-    uint32_t local_x_div_8 : 5;
-    // 0...3 for 0...24.
-    uint32_t local_y_div_8 : 2;
+    // In pixels.
     // May be zero if the original rectangle was somehow specified in a
     // totally broken way - in this case, the resolve must be dropped.
     uint32_t width_div_8 : xenos::kResolveSizeBits -
@@ -317,23 +303,23 @@ union ResolveAddressPackedInfo {
     uint32_t height_div_8 : xenos::kResolveSizeBits -
                             xenos::kResolveAlignmentPixelsLog2;
 
-    xenos::CopySampleSelect copy_sample_select : 3;
+    // 1 to 3.
+    uint32_t draw_resolution_scale_x : 2;
+    uint32_t draw_resolution_scale_y : 2;
   };
-  ResolveAddressPackedInfo() : packed(0) {
+  ResolveCoordinateInfo() : packed(0) {
     static_assert_size(*this, sizeof(packed));
   }
 };
-static_assert(sizeof(ResolveAddressPackedInfo) <= sizeof(uint32_t),
-              "ResolveAddressPackedInfo must be packable in uint32_t");
 
 // Returns tiles actually covered by a resolve area. Row length used is width of
 // the area in tiles, but the pitch between rows is edram_info.pitch_tiles.
-void GetResolveEdramTileSpan(ResolveEdramPackedInfo edram_info,
-                             ResolveAddressPackedInfo address_info,
+void GetResolveEdramTileSpan(ResolveEdramInfo edram_info,
+                             ResolveCoordinateInfo coordinate_info,
                              uint32_t& base_out, uint32_t& row_length_used_out,
                              uint32_t& rows_out);
 
-union ResolveCopyDestPitchPackedInfo {
+union ResolveCopyDestCoordinateInfo {
   uint32_t packed;
   struct {
     // 0...16384/32.
@@ -341,8 +327,15 @@ union ResolveCopyDestPitchPackedInfo {
                                     2 - xenos::kTextureTileWidthHeightLog2;
     uint32_t height_aligned_div_32 : xenos::kTexture2DCubeMaxWidthHeightLog2 +
                                      2 - xenos::kTextureTileWidthHeightLog2;
+
+    // Up to the maximum period of the texture tiled address function (128x128
+    // for 2D 1bpb).
+    uint32_t offset_x_div_8 : 7 - xenos::kResolveAlignmentPixelsLog2;
+    uint32_t offset_y_div_8 : 7 - xenos::kResolveAlignmentPixelsLog2;
+
+    xenos::CopySampleSelect copy_sample_select : 3;
   };
-  ResolveCopyDestPitchPackedInfo() : packed(0) {
+  ResolveCopyDestCoordinateInfo() : packed(0) {
     static_assert_size(*this, sizeof(packed));
   }
 };
@@ -395,10 +388,10 @@ struct ResolveCopyShaderConstants {
   // memory buffer - with resoluion scaling, for instance), only the
   // DestRelative part may be passed to the shader to use less constants.
   struct DestRelative {
-    ResolveEdramPackedInfo edram_info;
-    ResolveAddressPackedInfo address_info;
+    ResolveEdramInfo edram_info;
+    ResolveCoordinateInfo coordinate_info;
     reg::RB_COPY_DEST_INFO dest_info;
-    ResolveCopyDestPitchPackedInfo dest_pitch_aligned;
+    ResolveCopyDestCoordinateInfo dest_coordinate_info;
   };
   DestRelative dest_relative;
   uint32_t dest_base;
@@ -409,10 +402,10 @@ struct ResolveClearShaderConstants {
   // be preserved in the root bindings when going from depth to color.
   struct RenderTargetSpecific {
     uint32_t clear_value[2];
-    ResolveEdramPackedInfo edram_info;
+    ResolveEdramInfo edram_info;
   };
   RenderTargetSpecific rt_specific;
-  ResolveAddressPackedInfo address_info;
+  ResolveCoordinateInfo coordinate_info;
 };
 
 struct ResolveInfo {
@@ -421,27 +414,31 @@ struct ResolveInfo {
   // depth_edram_info / depth_original_base and color_edram_info /
   // color_original_base are set up if copying or clearing color and depth
   // respectively, according to RB_COPY_CONTROL.
-  ResolveEdramPackedInfo depth_edram_info;
-  ResolveEdramPackedInfo color_edram_info;
+  ResolveEdramInfo depth_edram_info;
+  ResolveEdramInfo color_edram_info;
   // Original bases, without adjustment to a 160x32 region for packed offsets,
   // for locating host render targets to perform clears if host render targets
   // are used for EDRAM emulation - the same as the base that the render target
-  // will likely used for drawing next, to prevent unneeded tile ownership
+  // will likely be used for drawing next, to prevent unneeded tile ownership
   // transfers between clears and first usage if clearing a subregion.
   uint32_t depth_original_base;
   uint32_t color_original_base;
 
-  ResolveAddressPackedInfo address;
+  ResolveCoordinateInfo coordinate_info;
 
   reg::RB_COPY_DEST_INFO copy_dest_info;
-  ResolveCopyDestPitchPackedInfo copy_dest_pitch_aligned;
+  ResolveCopyDestCoordinateInfo copy_dest_coordinate_info;
 
-  // Memory range that will potentially be modified by copying, with
-  // address.local_x/y_div_8 & 31 being the origin relative to it.
+  // The address of the texture or the location within the texture that
+  // copy_dest_coordinate_info.offset_x/y_div_8 - the origin of the copy
+  // destination - is relative to.
   uint32_t copy_dest_base;
-  // May be zero if something is wrong with the destination, in this case,
-  // clearing may still be done, but copying must be dropped.
-  uint32_t copy_dest_length;
+  // Memory range that will potentially be modified by copying to the texture.
+  // copy_dest_extent_length may be zero if something is wrong with the
+  // destination, in this case, clearing may still be done, but copying must be
+  // dropped.
+  uint32_t copy_dest_extent_start;
+  uint32_t copy_dest_extent_length;
 
   // The clear shaders always write to a uint4 view of EDRAM.
   uint32_t rb_depth_clear;
@@ -455,10 +452,10 @@ struct ResolveInfo {
   // See GetResolveEdramTileSpan documentation for explanation.
   void GetCopyEdramTileSpan(uint32_t& base_out, uint32_t& row_length_used_out,
                             uint32_t& rows_out, uint32_t& pitch_out) const {
-    ResolveEdramPackedInfo edram_info =
+    ResolveEdramInfo edram_info =
         IsCopyingDepth() ? depth_edram_info : color_edram_info;
-    GetResolveEdramTileSpan(edram_info, address, base_out, row_length_used_out,
-                            rows_out);
+    GetResolveEdramTileSpan(edram_info, coordinate_info, base_out,
+                            row_length_used_out, rows_out);
     pitch_out = edram_info.pitch_tiles;
   }
 
@@ -481,7 +478,7 @@ struct ResolveInfo {
     constants_out.rt_specific.clear_value[0] = rb_depth_clear;
     constants_out.rt_specific.clear_value[1] = rb_depth_clear;
     constants_out.rt_specific.edram_info = depth_edram_info;
-    constants_out.address_info = address;
+    constants_out.coordinate_info = coordinate_info;
   }
 
   void GetColorClearShaderConstants(
@@ -494,15 +491,15 @@ struct ResolveInfo {
     constants_out.rt_specific.clear_value[0] = rb_color_clear;
     constants_out.rt_specific.clear_value[1] = rb_color_clear_lo;
     constants_out.rt_specific.edram_info = color_edram_info;
-    constants_out.address_info = address;
+    constants_out.coordinate_info = coordinate_info;
   }
 
   std::pair<uint32_t, uint32_t> GetClearShaderGroupCount(
       uint32_t draw_resolution_scale_x,
       uint32_t draw_resolution_scale_y) const {
     // 8 guest MSAA samples per invocation.
-    uint32_t width_samples_div_8 = address.width_div_8;
-    uint32_t height_samples_div_8 = address.height_div_8;
+    uint32_t width_samples_div_8 = coordinate_info.width_div_8;
+    uint32_t height_samples_div_8 = coordinate_info.height_div_8;
     xenos::MsaaSamples samples = IsCopyingDepth()
                                      ? depth_edram_info.msaa_samples
                                      : color_edram_info.msaa_samples;
@@ -525,21 +522,10 @@ struct ResolveInfo {
 // emulated as snorm, with range limited to -1...1, but with correct blending
 // within that range.
 bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
-                    TraceWriter& trace_writer, bool is_resolution_scaled,
+                    TraceWriter& trace_writer, uint32_t draw_resolution_scale_x,
+                    uint32_t draw_resolution_scale_y,
                     bool fixed_16_truncated_to_minus_1_to_1,
                     ResolveInfo& info_out);
-
-union ResolveResolutionScaleConstant {
-  uint32_t packed;
-  struct {
-    // 1 to 3.
-    uint32_t resolution_scale_x : 2;
-    uint32_t resolution_scale_y : 2;
-  };
-  ResolveResolutionScaleConstant() : packed(0) {
-    static_assert_size(*this, sizeof(packed));
-  }
-};
 
 // Taking user configuration - stretching or letterboxing, overscan region to
 // crop to fill while maintaining the aspect ratio - into account, returns the

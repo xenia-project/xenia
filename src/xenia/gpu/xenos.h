@@ -1055,6 +1055,21 @@ constexpr uint32_t kTextureTileWidthHeight = 1 << kTextureTileWidthHeightLog2;
 // non-overlapping ranges, but addressing in 4:7 is different than in 0:3.
 constexpr uint32_t kTextureTileDepthLog2 = 2;
 constexpr uint32_t kTextureTileDepth = 1 << kTextureTileDepthLog2;
+
+// Texture tile address function periods:
+// - 2D 1bpb: 128x128
+// - 2D 2bpb: 64x64
+// - 2D 4bpb+: 32x32
+// - 3D 1bpb: 64x32x8
+// - 3D 2bpb+: 32x32x8
+constexpr uint32_t GetTextureTiledXBaseGranularityLog2(
+    bool is_3d, uint32_t bytes_per_block_log2) {
+  return 7 - std::min(UINT32_C(2), bytes_per_block_log2 + uint32_t(is_3d));
+}
+constexpr uint32_t GetTextureTiledYBaseGranularityLog2(
+    bool is_3d, uint32_t bytes_per_block_log2) {
+  return is_3d ? 5 : (7 - std::min(UINT32_C(2), bytes_per_block_log2));
+}
 constexpr uint32_t kTextureTiledZBaseGranularityLog2 = 3;
 constexpr uint32_t kTextureTiledZBaseGranularity =
     1 << kTextureTiledZBaseGranularityLog2;
