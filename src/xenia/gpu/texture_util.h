@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -198,22 +198,71 @@ void GetTextureTotalSize(xenos::DataDimension dimension,
                          bool has_packed_mips, uint32_t* base_size_out,
                          uint32_t* mip_size_out);
 
-// Notes about tiled addresses that can be useful for simplifying and optimizing
-// tiling/untiling:
-// - Offset2D(X * 32 + x, Y * 32 + y) ==
-//       Offset2D(X * 32, Y * 32) + Offset2D(x, y)
-//   (true for negative offsets too).
-// - Offset3D(X * 32 + x, Y * 32 + y, Z * 8 + z) ==
-//       Offset3D(X * 32, Y * 32, Z * 8) + Offset3D(x, y, z)
-//   (true for negative offsets too).
-// - 2D 32x32 tiles are laid out linearly.
-// FIXME(Triang3l): This is wrong for 1bpb and 2bpb. At 1bpb (32x32 is 1024
-// bytes), offset for X + 32 minus offset for X is 512, not 1024, but offset for
-// X + 128 minus offset for X + 96 is 2560. Also, for XY = 0...31, the extent of
-// the addresses is 2560, not 1024. At 2bpb, addressing repeats every 64x64, and
-// the extent for XY = 0...31 is 3072, not 2048.
-// - 3D tiled texture slices 0:3 and 4:7 are stored separately in memory, in
-//   non-overlapping ranges, but addressing in 4:7 is different than in 0:3.
+// Notes about tiled addresses:
+// - The tiled address calculation functions work for both positive and negative
+//   offsets, so they can be used to go both from the origin of the texture to a
+//   region inside it and back (as long as the coordinates are a multiple of the
+//   period of the tiled address function in each direction - depends on whether
+//   the texture is 2D or 3D, and on the number of bytes per block). This is, in
+//   particular, used by Direct3D 9 inside resolving to allow resolving with an
+//   offset in the texture, so the rectangle coordinates are relative to both
+//   the render target and the region (with the appropriate alignment) in the
+//   texture at the same time.
+// - 2D:
+//   - Origins of 32x32-block tiles grow monotonically as Y/32 (in blocks)
+//     increases, and in each tile row, as X/32 (in blocks) increases.
+//   - In each 32x32 tile, the block at (0, 0) within the tile has the address
+//     that matches the origin of the tile itself. This is not true for the
+//     block (31, 31), however - its address will be somewhere within the memory
+//     extent of the tile.
+//   - 1bpb:
+//     - The tiled address sequence repeats every 128 blocks along X or Y.
+//     - 32x32 tiles have their origins 0x200-bytes-aligned, and the addresses
+//       of the blocks within a 32x32 tile span 0xA00 bytes.
+//     - Note that 32x32x1bpb is 0x400 bytes, but addresses of blocks within a
+//       tile span the range of 0xA00 bytes - so 32x32 tiles are stored in
+//       memory ranges that may overlap (even across 128x128 - with the pitch of
+//       192 blocks, the tile at (96, 32)...(127, 63) spans 0x2200...0x2BFF,
+//       while the tile at (128, 32)...(159, 63) spans 0x2400...0x2DFF.
+//     - All blocks within a 32x32 tile are located in the same 4KB-aligned
+//       region.
+//   - 2bpb:
+//     - The approach to storage is conceptually similar to that of 1bpb, with
+//       some quantitative differences.
+//     - The tiled address sequence repeats every 64 blocks along X or Y.
+//     - 32x32 tiles have their origins 0x400-bytes-aligned, and the addresses
+//       of the blocks within a 32x32 tile span 0xC00 bytes.
+//   - 4bpb and larger:
+//     - 32x32 tiles (which themselves are 4 KB or larger in this case) are
+//       stored simply in a tile-row-major way, separately from each other in
+//       memory, with independent addressing within each tile.
+// - 3D:
+//   - Origins of 32x32x4-block tiles grow monotonically as Z/4 increases, and
+//     in each 4-slice portion, as Y/32 (in blocks) increases, and in each tile
+//     row, as X/32 (in blocks) increases.
+//   - Along Z, addressing repeats every 8 slices. Along Y, addressing repeats
+//     every 32 blocks regardless of the number of bytes per block.
+//   - 32-block-row x 4-slice portions are stored in disjoint 4KB-aligned ranges
+//     in memory (thus every 4 slices are also stored in disjoint ranges).
+//   - Addresses within a 32x32x4-block tile span widely throughout the X pitch,
+//     with a lot of overlap between 32x32x4 tiles with different X.
+//   - 1bpb:
+//     - The tiled address sequence repeats every 64 blocks along X.
+//     - Origins of 32x32x4-block tiles within 32-block-row x 4-slice portions:
+//       - X = 0, 64, 128...: (X / 64) * 0x1000
+//       - X = 32, 96, 160...: (X / 64) * 0x1000 + 0x400
+//       - Or: ((X >> 6) << 12) | (((X >> 5) & 1) << 10)
+//     - Span of the addresses within a 32x32x4-block tile:
+//       - Pitch = 32, 96, 160...: (Pitch / 64) * 0x1000 + 0x1000
+//       - Pitch = 64, 128, 192...: (Pitch / 64) * 0x1000 + 0xC00
+//     - Or: ((Pitch >> 6) << 12) + 0xC00 + (((Pitch >> 5) & 1) << 10)
+//     - Or: ((Pitch >> 6) << 12) + 0xC00 + ((Pitch & (1 << 5)) << (10 - 5))
+//   - 2bpb and larger:
+//     - The tiled address sequence repeats every 32 blocks along X.
+//     - Origins of 32x32x4-block tiles within 32-block-row x 4-slice portions:
+//       (X / 32) * 0x1000 * (BPB / 2)
+//     - Span of the addresses within a 32x32x4-block tile:
+//       ((Pitch / 32) * 0x1000 + 0x1000) * (BPB / 2)
 // - Addressing of blocks that are contiguous along X (for tiling/untiling of
 //   larger portions at once):
 //   - 1bpb - each 8 blocks are laid out sequentially, odd 8 blocks =
@@ -237,6 +286,37 @@ int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t pitch,
                          uint32_t bytes_per_block_log2);
 int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t pitch,
                          uint32_t height, uint32_t bytes_per_block_log2);
+// Because (0, 0, 0) within each 32x32x4-block tile is stored in memory first,
+// and the tiled address grows monotonically with Z/4, then Y/32, then X/32
+// blocks.
+inline uint32_t GetTiledAddressLowerBound2D(uint32_t left, uint32_t top,
+                                            uint32_t pitch,
+                                            uint32_t bytes_per_block_log2) {
+  return uint32_t(
+      GetTiledOffset2D(int32_t(left & ~(xenos::kTextureTileWidthHeight - 1)),
+                       int32_t(top & ~(xenos::kTextureTileWidthHeight - 1)),
+                       pitch, bytes_per_block_log2));
+}
+inline uint32_t GetTiledAddressLowerBound3D(uint32_t left, uint32_t top,
+                                            uint32_t front, uint32_t pitch,
+                                            uint32_t height,
+                                            uint32_t bytes_per_block_log2) {
+  return uint32_t(
+      GetTiledOffset3D(int32_t(left & ~(xenos::kTextureTileWidthHeight - 1)),
+                       int32_t(top & ~(xenos::kTextureTileWidthHeight - 1)),
+                       int32_t(front & ~(xenos::kTextureTileDepth)), pitch,
+                       height, bytes_per_block_log2));
+}
+// Supporting the right > pitch and bottom > height (in tiles) cases also, for
+// estimation how far addresses can actually go even potentially beyond the
+// subresource stride.
+uint32_t GetTiledAddressUpperBound2D(uint32_t right, uint32_t bottom,
+                                     uint32_t pitch,
+                                     uint32_t bytes_per_block_log2);
+uint32_t GetTiledAddressUpperBound3D(uint32_t right, uint32_t bottom,
+                                     uint32_t back, uint32_t pitch,
+                                     uint32_t height,
+                                     uint32_t bytes_per_block_log2);
 
 // Returns four packed TextureSign values swizzled according to the swizzle in
 // the fetch constant, so the shader can apply TextureSigns after reading a

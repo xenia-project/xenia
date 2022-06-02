@@ -18,12 +18,13 @@ namespace gpu {
 using namespace ucode;
 
 // TODO(Triang3l): Support sub-dword memexports (like k_8 in 58410B86). This
-// would require four 128 MB R8_UINT UAVs due to the Nvidia addressing limit.
-// Need to be careful with resource binding tiers, however. Resource binding
-// tier 1 on feature level 11_0 allows only 8 UAVs _across all stages_.
-// RWByteAddressBuffer + 4 typed buffers is 5 per stage already, would need 10
-// for both VS and PS, or even 11 with the eDRAM ROV. Need to drop draw commands
-// doing memexport in both VS and PS on FL 11_0 resource binding tier 1.
+// would require four 128 MB R8_UINT UAVs due to
+// D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP. Need to be careful with
+// resource binding tiers, however. Resource binding tier 1 on feature level
+// 11_0 allows only 8 UAVs _across all stages_. RWByteAddressBuffer + 4 typed
+// buffers is 5 per stage already, would need 10 for both VS and PS, or even 11
+// with the eDRAM ROV. Need to drop draw commands doing memexport in both VS and
+// PS on FL 11_0 resource binding tier 1.
 
 void DxbcShaderTranslator::ExportToMemory_PackFixed32(
     const uint32_t* eM_temps, uint32_t eM_count, const uint32_t bits[4],

@@ -1442,19 +1442,30 @@ D3D12TextureCache::D3D12Texture::~D3D12Texture() {
 }
 
 bool D3D12TextureCache::IsDecompressionNeeded(xenos::TextureFormat format,
-                                              uint32_t width, uint32_t height) {
+                                              uint32_t width,
+                                              uint32_t height) const {
   DXGI_FORMAT dxgi_format_uncompressed =
       host_formats_[uint32_t(format)].dxgi_format_uncompressed;
   if (dxgi_format_uncompressed == DXGI_FORMAT_UNKNOWN) {
     return false;
   }
   const FormatInfo* format_info = FormatInfo::Get(format);
-  return (width & (format_info->block_width - 1)) != 0 ||
-         (height & (format_info->block_height - 1)) != 0;
+  if (!(width & (format_info->block_width - 1)) &&
+      !(height & (format_info->block_height - 1))) {
+    return false;
+  }
+  // UnalignedBlockTexturesSupported is for block-compressed textures with the
+  // block size of 4x4, but not for 2x1 (4:2:2) subsampled formats.
+  if (format_info->block_width == 4 && format_info->block_height == 4 &&
+      command_processor_.GetD3D12Provider()
+          .AreUnalignedBlockTexturesSupported()) {
+    return false;
+  }
+  return true;
 }
 
 TextureCache::LoadShaderIndex D3D12TextureCache::GetLoadShaderIndex(
-    TextureKey key) {
+    TextureKey key) const {
   const HostFormat& host_format = host_formats_[uint32_t(key.format)];
   if (key.signed_separate) {
     return host_format.load_shader_signed;
@@ -1715,9 +1726,10 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   }
 
   // Begin loading.
-  // May use different buffers for scaled base and mips, and also can't address
-  // more than 128 megatexels directly on Nvidia - need two separate UAV
-  // descriptors for base and mips.
+  // May use different buffers for scaled base and mips, and also addressability
+  // of more than 128 * 2^20 (2^D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP)
+  // texels is not mandatory - need two separate UAV descriptors for base and
+  // mips.
   // Destination.
   uint32_t descriptor_count = 1;
   if (texture_resolution_scaled) {
@@ -1820,7 +1832,8 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
 
     if (texture_resolution_scaled) {
       // Offset already applied in the buffer because more than 512 MB can't be
-      // directly addresses on Nvidia as R32.
+      // directly addresses as R32 on some hardware (above
+      // 2^D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP).
       load_constants.guest_offset = 0;
     } else {
       load_constants.guest_offset = guest_address;

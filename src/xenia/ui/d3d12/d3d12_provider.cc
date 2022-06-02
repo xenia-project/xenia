@@ -422,6 +422,7 @@ bool D3D12Provider::Initialize() {
   rasterizer_ordered_views_supported_ = false;
   resource_binding_tier_ = D3D12_RESOURCE_BINDING_TIER_1;
   tiled_resources_tier_ = D3D12_TILED_RESOURCES_TIER_NOT_SUPPORTED;
+  unaligned_block_textures_supported_ = false;
   D3D12_FEATURE_DATA_D3D12_OPTIONS options;
   if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS,
                                             &options, sizeof(options)))) {
@@ -439,6 +440,12 @@ bool D3D12Provider::Initialize() {
     programmable_sample_positions_tier_ =
         options2.ProgrammableSamplePositionsTier;
   }
+  D3D12_FEATURE_DATA_D3D12_OPTIONS8 options8;
+  if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS8,
+                                            &options8, sizeof(options8)))) {
+    unaligned_block_textures_supported_ =
+        bool(options8.UnalignedBlockTexturesSupported);
+  }
   virtual_address_bits_per_resource_ = 0;
   D3D12_FEATURE_DATA_GPU_VIRTUAL_ADDRESS_SUPPORT virtual_address_support;
   if (SUCCEEDED(device->CheckFeatureSupport(
@@ -455,14 +462,16 @@ bool D3D12Provider::Initialize() {
       "* Programmable sample positions: tier {}\n"
       "* Rasterizer-ordered views: {}\n"
       "* Resource binding: tier {}\n"
-      "* Tiled resources: tier {}\n",
+      "* Tiled resources: tier {}\n"
+      "* Unaligned block-compressed textures: {}",
       virtual_address_bits_per_resource_,
       (heap_flag_create_not_zeroed_ & D3D12_HEAP_FLAG_CREATE_NOT_ZEROED) ? "yes"
                                                                          : "no",
       ps_specified_stencil_reference_supported_ ? "yes" : "no",
       uint32_t(programmable_sample_positions_tier_),
       rasterizer_ordered_views_supported_ ? "yes" : "no",
-      uint32_t(resource_binding_tier_), uint32_t(tiled_resources_tier_));
+      uint32_t(resource_binding_tier_), uint32_t(tiled_resources_tier_),
+      unaligned_block_textures_supported_ ? "yes" : "no");
 
   // Get the graphics analysis interface, will silently fail if PIX is not
   // attached.

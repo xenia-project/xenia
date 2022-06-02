@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <locale>
 #include <numeric>
+#include <tuple>
 
 #define UTF_CPP_CPLUSPLUS 201703L
 #include "third_party/utfcpp/source/utf8.h"
