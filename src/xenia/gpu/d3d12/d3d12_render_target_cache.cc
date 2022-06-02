@@ -10,6 +10,7 @@
 #include "xenia/gpu/d3d12/d3d12_render_target_cache.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -347,7 +348,7 @@ bool D3D12RenderTargetCache::Initialize() {
   bool draw_resolution_scaled = IsDrawResolutionScaled();
 
   // Create the resolve copying root signature.
-  D3D12_ROOT_PARAMETER resolve_copy_root_parameters[4];
+  std::array<D3D12_ROOT_PARAMETER, 3> resolve_copy_root_parameters;
   // Parameter 0 is constants.
   resolve_copy_root_parameters[0].ParameterType =
       D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
@@ -390,23 +391,11 @@ bool D3D12RenderTargetCache::Initialize() {
       &resolve_copy_source_range;
   resolve_copy_root_parameters[2].ShaderVisibility =
       D3D12_SHADER_VISIBILITY_ALL;
-  // Parameter 3 is the resolution scale.
-  if (draw_resolution_scaled) {
-    resolve_copy_root_parameters[3].ParameterType =
-        D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-    resolve_copy_root_parameters[3].Constants.ShaderRegister = 1;
-    resolve_copy_root_parameters[3].Constants.RegisterSpace = 0;
-    // Binding all of the shared memory at 1x resolution, portions with scaled
-    // resolution.
-    resolve_copy_root_parameters[3].Constants.Num32BitValues =
-        sizeof(draw_util::ResolveResolutionScaleConstant) / sizeof(uint32_t);
-    resolve_copy_root_parameters[3].ShaderVisibility =
-        D3D12_SHADER_VISIBILITY_ALL;
-  }
   D3D12_ROOT_SIGNATURE_DESC resolve_copy_root_signature_desc;
   resolve_copy_root_signature_desc.NumParameters =
-      draw_resolution_scaled ? 4 : 3;
-  resolve_copy_root_signature_desc.pParameters = resolve_copy_root_parameters;
+      UINT(resolve_copy_root_parameters.size());
+  resolve_copy_root_signature_desc.pParameters =
+      resolve_copy_root_parameters.data();
   resolve_copy_root_signature_desc.NumStaticSamplers = 0;
   resolve_copy_root_signature_desc.pStaticSamplers = nullptr;
   resolve_copy_root_signature_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
@@ -1031,7 +1020,7 @@ bool D3D12RenderTargetCache::Initialize() {
     msaa_2x_supported_ = false;
 
     // Create the resolve EDRAM buffer clearing root signature.
-    D3D12_ROOT_PARAMETER resolve_rov_clear_root_parameters[3];
+    std::array<D3D12_ROOT_PARAMETER, 2> resolve_rov_clear_root_parameters;
     // Parameter 0 is constants.
     resolve_rov_clear_root_parameters[0].ParameterType =
         D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
@@ -1058,24 +1047,11 @@ bool D3D12RenderTargetCache::Initialize() {
         &resolve_rov_clear_dest_range;
     resolve_rov_clear_root_parameters[1].ShaderVisibility =
         D3D12_SHADER_VISIBILITY_ALL;
-    // Parameter 2 is the resolution scale.
-    if (draw_resolution_scaled) {
-      resolve_rov_clear_root_parameters[2].ParameterType =
-          D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-      resolve_rov_clear_root_parameters[2].Constants.ShaderRegister = 1;
-      resolve_rov_clear_root_parameters[2].Constants.RegisterSpace = 0;
-      // Binding all of the shared memory at 1x resolution, portions with scaled
-      // resolution.
-      resolve_rov_clear_root_parameters[2].Constants.Num32BitValues =
-          sizeof(draw_util::ResolveResolutionScaleConstant) / sizeof(uint32_t);
-      resolve_rov_clear_root_parameters[2].ShaderVisibility =
-          D3D12_SHADER_VISIBILITY_ALL;
-    }
     D3D12_ROOT_SIGNATURE_DESC resolve_rov_clear_root_signature_desc;
     resolve_rov_clear_root_signature_desc.NumParameters =
-        draw_resolution_scaled ? 3 : 2;
+        UINT(resolve_rov_clear_root_parameters.size());
     resolve_rov_clear_root_signature_desc.pParameters =
-        resolve_rov_clear_root_parameters;
+        resolve_rov_clear_root_parameters.data();
     resolve_rov_clear_root_signature_desc.NumStaticSamplers = 0;
     resolve_rov_clear_root_signature_desc.pStaticSamplers = nullptr;
     resolve_rov_clear_root_signature_desc.Flags =
@@ -1354,26 +1330,24 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
 
   draw_util::ResolveInfo resolve_info;
   if (!draw_util::GetResolveInfo(
-          register_file(), memory, trace_writer_, draw_resolution_scaled,
-          IsFixed16TruncatedToMinus1To1(), resolve_info)) {
+          register_file(), memory, trace_writer_, draw_resolution_scale_x(),
+          draw_resolution_scale_y(), IsFixed16TruncatedToMinus1To1(),
+          resolve_info)) {
     return false;
   }
 
   // Nothing to copy/clear.
-  if (!resolve_info.address.width_div_8 || !resolve_info.address.height_div_8) {
+  if (!resolve_info.coordinate_info.width_div_8 ||
+      !resolve_info.coordinate_info.height_div_8) {
     return true;
   }
-
-  draw_util::ResolveResolutionScaleConstant resolution_scale_constant;
-  resolution_scale_constant.resolution_scale_x = draw_resolution_scale_x();
-  resolution_scale_constant.resolution_scale_y = draw_resolution_scale_y();
 
   DeferredCommandList& command_list =
       command_processor_.GetDeferredCommandList();
 
   // Copying.
   bool copied = false;
-  if (resolve_info.copy_dest_length) {
+  if (resolve_info.copy_dest_extent_length) {
     if (GetPath() == Path::kHostRenderTargets) {
       // Dump the current contents of the render targets owning the affected
       // range to edram_buffer_.
@@ -1401,14 +1375,21 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
       // Make sure there is memory to write to.
       bool copy_dest_committed;
       if (draw_resolution_scaled) {
-        copy_dest_committed =
-            texture_cache.EnsureScaledResolveMemoryCommitted(
-                resolve_info.copy_dest_base, resolve_info.copy_dest_length) &&
-            texture_cache.MakeScaledResolveRangeCurrent(
-                resolve_info.copy_dest_base, resolve_info.copy_dest_length);
+        // Committing starting with the beginning of the potentially written
+        // extent, but making the buffer containing the base current as the
+        // beginning of the bound buffer is the base.
+        copy_dest_committed = texture_cache.EnsureScaledResolveMemoryCommitted(
+                                  resolve_info.copy_dest_extent_start,
+                                  resolve_info.copy_dest_extent_length) &&
+                              texture_cache.MakeScaledResolveRangeCurrent(
+                                  resolve_info.copy_dest_base,
+                                  resolve_info.copy_dest_extent_start -
+                                      resolve_info.copy_dest_base +
+                                      resolve_info.copy_dest_extent_length);
       } else {
-        copy_dest_committed = shared_memory.RequestRange(
-            resolve_info.copy_dest_base, resolve_info.copy_dest_length);
+        copy_dest_committed =
+            shared_memory.RequestRange(resolve_info.copy_dest_extent_start,
+                                       resolve_info.copy_dest_extent_length);
       }
       if (copy_dest_committed) {
         // Write the descriptors and transition the resources.
@@ -1466,11 +1447,6 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
 
           // Submit the resolve.
           command_list.D3DSetComputeRootSignature(resolve_copy_root_signature_);
-          if (draw_resolution_scaled) {
-            command_list.D3DSetComputeRoot32BitConstants(
-                3, sizeof(resolution_scale_constant) / sizeof(uint32_t),
-                &resolution_scale_constant, 0);
-          }
           command_list.D3DSetComputeRootDescriptorTable(
               2, descriptor_source.second);
           command_list.D3DSetComputeRootDescriptorTable(1,
@@ -1498,10 +1474,11 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
           }
 
           // Invalidate textures and mark the range as scaled if needed.
-          texture_cache.MarkRangeAsResolved(resolve_info.copy_dest_base,
-                                            resolve_info.copy_dest_length);
-          written_address_out = resolve_info.copy_dest_base;
-          written_length_out = resolve_info.copy_dest_length;
+          texture_cache.MarkRangeAsResolved(
+              resolve_info.copy_dest_extent_start,
+              resolve_info.copy_dest_extent_length);
+          written_address_out = resolve_info.copy_dest_extent_start;
+          written_length_out = resolve_info.copy_dest_extent_length;
           copied = true;
         }
       } else {
@@ -1564,11 +1541,6 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
           CommitEdramBufferUAVWrites();
           command_list.D3DSetComputeRootSignature(
               resolve_rov_clear_root_signature_);
-          if (draw_resolution_scaled) {
-            command_list.D3DSetComputeRoot32BitConstants(
-                2, sizeof(resolution_scale_constant) / sizeof(uint32_t),
-                &resolution_scale_constant, 0);
-          }
           command_list.D3DSetComputeRootDescriptorTable(
               1, descriptor_edram.second);
           std::pair<uint32_t, uint32_t> clear_group_count =

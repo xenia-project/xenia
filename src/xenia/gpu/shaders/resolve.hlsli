@@ -9,27 +9,20 @@ cbuffer XeResolveConstants : register(b0) {
   #ifdef XE_RESOLVE_CLEAR
     uint2 xe_resolve_clear_value;
   #endif
-  // xe::gpu::draw_util::ResolveSourcePackedInfo.
+  // xe::gpu::draw_util::ResolveEdramInfo.
   uint xe_resolve_edram_info;
-  // xe::gpu::draw_util::ResolveAddressPackedInfo.
-  uint xe_resolve_address_info;
+  // xe::gpu::draw_util::ResolveCoordinateInfo.
+  uint xe_resolve_coordinate_info;
   #ifndef XE_RESOLVE_CLEAR
     // Sanitized RB_COPY_DEST_INFO.
     uint xe_resolve_dest_info;
-    // xe::gpu::draw_util::ResolveCopyDestPitchPackedInfo.
-    uint xe_resolve_dest_pitch_aligned;
+    // xe::gpu::draw_util::ResolveCopyDestCoordinateInfo.
+    uint xe_resolve_dest_coordinate_info;
     #ifndef XE_RESOLVE_RESOLUTION_SCALED
       uint xe_resolve_dest_base;
     #endif
   #endif
 };
-
-  #ifdef XE_RESOLVE_RESOLUTION_SCALED
-  cbuffer XeResolveResolutionScaleConstant : register(b1) {
-    // xe::gpu::draw_util::ResolveResolutionScaleConstant.
-    uint xe_resolve_resolution_scale;
-  }
-  #endif
 
 uint XeResolveEdramPitchTiles() {
   return xe_resolve_edram_info & ((1u << 10u) - 1u);
@@ -67,7 +60,7 @@ uint XeResolveEdramPixelStrideInts() {
 
 uint2 XeResolveResolutionScale() {
 #ifdef XE_RESOLVE_RESOLUTION_SCALED
-  return (xe_resolve_resolution_scale.xx >> uint2(0u, 2u)) & 3u;
+  return (xe_resolve_coordinate_info.xx >> uint2(27u, 29u)) & 3u;
 #else
   return uint2(1u, 1u);
 #endif
@@ -95,12 +88,8 @@ bool2 XeResolveDuplicateSecondHostPixel() {
 // Within 160x32 guest pixels, total value relative to the source EDRAM base,
 // & 31 of * 8 relative to the destination texture base.
 uint2 XeResolveUnscaledOffsetDiv8() {
-  return
-      (xe_resolve_address_info >> uint2(0u, 5u)) & ((1u << uint2(5u, 2u)) - 1u);
-}
-
-uint2 XeResolveUnscaledOffset() {
-  return XeResolveUnscaledOffsetDiv8() << 3u;
+  return (xe_resolve_coordinate_info >> uint2(0u, 4u)) &
+         ((1u << uint2(4u, 1u)) - 1u);
 }
 
 uint2 XeResolveScaledOffsetDiv8() {
@@ -112,7 +101,7 @@ uint2 XeResolveScaledOffset() {
 }
 
 uint2 XeResolveUnscaledSizeDiv8() {
-  return (xe_resolve_address_info >> uint2(7u, 18u)) & ((1u << 11u) - 1u);
+  return (xe_resolve_coordinate_info >> uint2(5u, 16u)) & ((1u << 11u) - 1u);
 }
 
 uint2 XeResolveScaledSizeDiv8() {
@@ -153,7 +142,7 @@ uint2 XeResolveScaledSize() {
   }
 
   uint XeResolveDestRowPitchAlignedDiv32() {
-    return xe_resolve_dest_pitch_aligned & ((1u << 10u) - 1u);
+    return xe_resolve_dest_coordinate_info & ((1u << 10u) - 1u);
   }
 
   uint XeResolveDestRowPitchAligned() {
@@ -161,16 +150,21 @@ uint2 XeResolveScaledSize() {
   }
 
   uint XeResolveDestSlicePitchAlignedDiv32() {
-    return (xe_resolve_dest_pitch_aligned >> 10u) & ((1u << 10u) - 1u);
+    return (xe_resolve_dest_coordinate_info >> 10u) & ((1u << 10u) - 1u);
   }
 
   uint XeResolveDestSlicePitchAligned() {
     return XeResolveDestSlicePitchAlignedDiv32() << 5u;
   }
 
+  uint2 XeResolveDestUnscaledXYOffsetDiv8() {
+    return (xe_resolve_dest_coordinate_info.xx >> uint2(20u, 24u)) &
+           ((1u << 4u) - 1u);
+  }
+
   uint XeResolveDestPixelAddress(uint2 p, uint bpp_log2) {
     uint2 resolution_scale = XeResolveResolutionScale();
-    p += (XeResolveUnscaledOffset() & 31u) * resolution_scale;
+    p += (XeResolveDestUnscaledXYOffsetDiv8() << 3u) * resolution_scale;
     uint address;
     uint row_pitch = XeResolveDestRowPitchAligned();
     #ifdef XE_RESOLVE_RESOLUTION_SCALED
@@ -213,7 +207,7 @@ uint2 XeResolveScaledSize() {
   #define kXenosCopySampleSelect_0123 6u
 
   uint XeResolveSampleSelect() {
-    return xe_resolve_address_info >> 29u;
+    return (xe_resolve_dest_coordinate_info >> 28u) & ((1u << 3u) - 1u);
   }
 
   uint XeResolveFirstSampleIndex() {
