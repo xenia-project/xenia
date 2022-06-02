@@ -1002,18 +1002,18 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
       std::min((base_offset_tiles_at_32bpp -
                 base_offset_rows_at_32bpp * pitch_tiles_at_32bpp) *
                        (xenos::kEdramTileWidthSamples >> msaa_samples_x_log2) +
-                   resolve_info.address.local_x_div_8 * uint32_t(8),
+                   (resolve_info.coordinate_info.edram_offset_x_div_8 << 3),
                pitch_pixels);
   clear_rectangle.y_pixels =
       std::min(base_offset_rows_at_32bpp *
                        (xenos::kEdramTileHeightSamples >> msaa_samples_y_log2) +
-                   resolve_info.address.local_y_div_8 * uint32_t(8),
+                   (resolve_info.coordinate_info.edram_offset_y_div_8 << 3),
                render_target_height_pixels);
   clear_rectangle.width_pixels =
-      std::min(resolve_info.address.width_div_8 * uint32_t(8),
+      std::min(resolve_info.coordinate_info.width_div_8 << 3,
                pitch_pixels - clear_rectangle.x_pixels);
   clear_rectangle.height_pixels =
-      std::min(resolve_info.address.height_div_8 * uint32_t(8),
+      std::min(resolve_info.coordinate_info.height_div_8 << 3,
                render_target_height_pixels - clear_rectangle.y_pixels);
   if (!clear_rectangle.width_pixels || !clear_rectangle.height_pixels) {
     // Outside the pitch / height (or initially specified as 0).

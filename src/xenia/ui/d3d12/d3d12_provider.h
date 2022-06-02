@@ -108,6 +108,9 @@ class D3D12Provider : public GraphicsProvider {
   D3D12_TILED_RESOURCES_TIER GetTiledResourcesTier() const {
     return tiled_resources_tier_;
   }
+  bool AreUnalignedBlockTexturesSupported() const {
+    return unaligned_block_textures_supported_;
+  }
   uint32_t GetVirtualAddressBitsPerResource() const {
     return virtual_address_bits_per_resource_;
   }
@@ -184,11 +187,12 @@ class D3D12Provider : public GraphicsProvider {
 
   D3D12_HEAP_FLAGS heap_flag_create_not_zeroed_;
   D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER programmable_sample_positions_tier_;
-  bool ps_specified_stencil_reference_supported_;
-  bool rasterizer_ordered_views_supported_;
   D3D12_RESOURCE_BINDING_TIER resource_binding_tier_;
   D3D12_TILED_RESOURCES_TIER tiled_resources_tier_;
   uint32_t virtual_address_bits_per_resource_;
+  bool ps_specified_stencil_reference_supported_;
+  bool rasterizer_ordered_views_supported_;
+  bool unaligned_block_textures_supported_;
 };
 
 }  // namespace d3d12

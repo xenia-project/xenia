@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -346,12 +346,10 @@ TextureGuestLayout GetGuestTextureLayout(
     uint32_t z_stride_bytes = level_layout.array_slice_stride_bytes;
     if (dimension == xenos::DataDimension::k3D) {
       level_layout.array_slice_stride_bytes *=
-          xe::align(depth_or_array_size, xenos::kTextureTiledDepthGranularity);
+          xe::align(depth_or_array_size, xenos::kTextureTileDepth);
     }
-    uint32_t array_slice_stride_bytes_non_4kb_aligned =
-        level_layout.array_slice_stride_bytes;
     level_layout.array_slice_stride_bytes =
-        xe::align(array_slice_stride_bytes_non_4kb_aligned,
+        xe::align(level_layout.array_slice_stride_bytes,
                   xenos::kTextureSubresourceAlignmentBytes);
 
     // Estimate the memory amount actually referenced by the texture, which may
@@ -374,43 +372,38 @@ TextureGuestLayout GetGuestTextureLayout(
           xe::align(level_width_blocks, xenos::kTextureTileWidthHeight);
       level_layout.y_extent_blocks =
           xe::align(level_height_blocks, xenos::kTextureTileWidthHeight);
+      uint32_t bytes_per_block_log2 = xe::log2_floor(bytes_per_block);
       if (dimension == xenos::DataDimension::k3D) {
         level_layout.z_extent =
-            xe::align(level_depth, xenos::kTextureTiledDepthGranularity);
-        // 3D texture addressing is pretty complex, so it's hard to determine
-        // the memory extent of a subregion - just use `pitch_tiles *
-        // height_tiles * depth_tiles * bytes_per_tile` at least for now, until
-        // we find a case where it causes issues. `width > pitch` is a very
-        // weird edge case anyway, and is extremely unlikely.
-        assert_true(level_layout.x_extent_blocks <=
-                    row_pitch_blocks_tile_aligned);
+            xe::align(level_depth, xenos::kTextureTileDepth);
+        // 32-block-row x 4 slice portions laid out sequentially (4-slice-major,
+        // 32-block-row-minor), address extent within a 32x32x4 tile depends on
+        // the pitch. Origins of 32x32x4 tiles grow monotonically, first along
+        // Z, then along Y, then along X.
         level_layout.array_slice_data_extent_bytes =
-            array_slice_stride_bytes_non_4kb_aligned;
+            GetTiledAddressUpperBound3D(
+                level_layout.x_extent_blocks, level_layout.y_extent_blocks,
+                level_layout.z_extent, row_pitch_blocks_tile_aligned,
+                level_layout.y_extent_blocks, bytes_per_block_log2);
       } else {
         level_layout.z_extent = 1;
-        // 2D 32x32-block tiles are laid out linearly in the texture.
-        // Calculate the extent as ((all rows except for the last * pitch in
-        // tiles + last row length in tiles) * bytes per tile).
-        // FIXME(Triang3l): This is wrong for 1bpb and 2bpb. At 1bpb (32x32 is
-        // 1024 bytes), offset for X + 32 minus offset for X is 512, not 1024,
-        // but offset for X + 128 minus offset for X + 96 is 2560. Also, for
-        // XY = 0...31, the extent of the addresses is 2560, not 1024. At 2bpb,
-        // addressing repeats every 64x64, and the extent for XY = 0...31 is
-        // 3072, not 2048.
+        // Origins of 32x32 tiles grow monotonically, first along Y, then along
+        // X.
         level_layout.array_slice_data_extent_bytes =
-            (level_layout.y_extent_blocks - xenos::kTextureTileWidthHeight) *
-                level_layout.row_pitch_bytes +
-            bytes_per_block * level_layout.x_extent_blocks *
-                xenos::kTextureTileWidthHeight;
+            GetTiledAddressUpperBound2D(
+                level_layout.x_extent_blocks, level_layout.y_extent_blocks,
+                row_pitch_blocks_tile_aligned, bytes_per_block_log2);
       }
     } else {
       if (level == layout.packed_level) {
         // Calculate the portion of the mip tail actually used by the needed
         // mips. The actually used region may be significantly smaller than the
-        // full 32x32-texel-aligned tail. A 2x2 texture (for example, in Test
-        // Drive Unlimited, there's a 2x2 k_8_8_8_8 linear texture with packed
-        // mips), for instance, would have its 2x2 base at (16, 0) and its 1x1
-        // mip at (8, 0) - and we need 2 or 1 rows in these cases, not 32.
+        // full 32x32-texel-aligned tail. A 2x2 texture (for example, in
+        // 494707D4, there's a 2x2 k_8_8_8_8 linear texture with packed mips),
+        // for instance, would have its 2x2 base at (16, 0) and its 1x1 mip at
+        // (8, 0) - and we need 2 or 1 rows in these cases, not 32 - the 32 rows
+        // would span two 4 KB pages rather than one, taking the 256-byte pitch
+        // alignment in linear textures into account.
         level_layout.x_extent_blocks = 0;
         level_layout.y_extent_blocks = 0;
         level_layout.z_extent = 0;
@@ -512,6 +505,69 @@ int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t pitch,
   address <<= 3;
   address += offset2 & 63;
   return address;
+}
+
+uint32_t GetTiledAddressUpperBound2D(uint32_t right, uint32_t bottom,
+                                     uint32_t pitch,
+                                     uint32_t bytes_per_block_log2) {
+  if (!right || !bottom) {
+    return 0;
+  }
+  // Get the origin of the 32x32 tile containing the last texel.
+  uint32_t upper_bound = uint32_t(GetTiledOffset2D(
+      int32_t((right - 1) & ~(xenos::kTextureTileWidthHeight - 1)),
+      int32_t((bottom - 1) & ~(xenos::kTextureTileWidthHeight - 1)), pitch,
+      bytes_per_block_log2));
+  switch (bytes_per_block_log2) {
+    case 0:
+      // Independent addressing within 128x128 portions, but the extent is 0xA00
+      // bytes from the 32x32 tile origin.
+      upper_bound += 0xA00;
+      break;
+    case 1:
+      // Independent addressing within 64x64 portions, but the extent is 0xC00
+      // bytes from the 32x32 tile origin.
+      upper_bound += 0xC00;
+      break;
+    default:
+      upper_bound += UINT32_C(0x400) << bytes_per_block_log2;
+      break;
+  }
+  return upper_bound;
+}
+
+uint32_t GetTiledAddressUpperBound3D(uint32_t right, uint32_t bottom,
+                                     uint32_t back, uint32_t pitch,
+                                     uint32_t height,
+                                     uint32_t bytes_per_block_log2) {
+  if (!right || !bottom || !back) {
+    return 0;
+  }
+  // Get the origin of the 32x32x4 tile containing the last texel.
+  uint32_t upper_bound = uint32_t(GetTiledOffset3D(
+      int32_t((right - 1) & ~(xenos::kTextureTileWidthHeight - 1)),
+      int32_t((bottom - 1) & ~(xenos::kTextureTileWidthHeight - 1)),
+      int32_t((back - 1) & ~(xenos::kTextureTileDepth - 1)), pitch, height,
+      bytes_per_block_log2));
+  uint32_t pitch_aligned = xe::align(pitch, xenos::kTextureTileWidthHeight);
+  switch (bytes_per_block_log2) {
+    case 0:
+      // 64x32x8 portions have independent addressing.
+      // Extent relative to the 32x32x4 tile origin:
+      // - Pitch = 32, 96, 160...: (Pitch / 64) * 0x1000 + 0x1000
+      // - Pitch = 64, 128, 192...: (Pitch / 64) * 0x1000 + 0xC00
+      upper_bound += ((pitch_aligned >> 6) << 12) + 0xC00 +
+                     ((pitch_aligned & (1 << 5)) << (10 - 5));
+      break;
+    default:
+      // 32x32x8 portions have independent addressing.
+      // Extent: ((Pitch / 32) * 0x1000 + 0x1000) * (BPB / 2)
+      // Or: ((Pitch / 32) * 0x1000 / 2 + 0x1000 / 2) * BPB
+      upper_bound += ((pitch_aligned << (12 - 5 - 1)) + (0x1000 >> 1))
+                     << bytes_per_block_log2;
+      break;
+  }
+  return upper_bound;
 }
 
 uint8_t SwizzleSigns(const xenos::xe_gpu_texture_fetch_t& fetch) {
