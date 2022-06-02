@@ -1442,19 +1442,30 @@ D3D12TextureCache::D3D12Texture::~D3D12Texture() {
 }
 
 bool D3D12TextureCache::IsDecompressionNeeded(xenos::TextureFormat format,
-                                              uint32_t width, uint32_t height) {
+                                              uint32_t width,
+                                              uint32_t height) const {
   DXGI_FORMAT dxgi_format_uncompressed =
       host_formats_[uint32_t(format)].dxgi_format_uncompressed;
   if (dxgi_format_uncompressed == DXGI_FORMAT_UNKNOWN) {
     return false;
   }
   const FormatInfo* format_info = FormatInfo::Get(format);
-  return (width & (format_info->block_width - 1)) != 0 ||
-         (height & (format_info->block_height - 1)) != 0;
+  if (!(width & (format_info->block_width - 1)) &&
+      !(height & (format_info->block_height - 1))) {
+    return false;
+  }
+  // UnalignedBlockTexturesSupported is for block-compressed textures with the
+  // block size of 4x4, but not for 2x1 (4:2:2) subsampled formats.
+  if (format_info->block_width == 4 && format_info->block_height == 4 &&
+      command_processor_.GetD3D12Provider()
+          .AreUnalignedBlockTexturesSupported()) {
+    return false;
+  }
+  return true;
 }
 
 TextureCache::LoadShaderIndex D3D12TextureCache::GetLoadShaderIndex(
-    TextureKey key) {
+    TextureKey key) const {
   const HostFormat& host_format = host_formats_[uint32_t(key.format)];
   if (key.signed_separate) {
     return host_format.load_shader_signed;
