@@ -1030,6 +1030,20 @@ dword_result_t NetDll_getsockname_entry(dword_t caller, dword_t socket_handle,
 }
 DECLARE_XAM_EXPORT1(NetDll_getsockname, kNetworking, kImplemented);
 
+dword_result_t NetDll_XNetCreateKey_entry(dword_t caller, lpdword_t key_id,
+                                          lpdword_t exchange_key) {
+  kernel_memory()->Fill(key_id.guest_address(), 8, 0xBE);
+  kernel_memory()->Fill(exchange_key.guest_address(), 16, 0xBE);
+  return 0;
+}
+DECLARE_XAM_EXPORT1(NetDll_XNetCreateKey, kNetworking, kStub);
+
+dword_result_t NetDll_XNetRegisterKey_entry(dword_t caller, lpdword_t key_id,
+                                            lpdword_t exchange_key) {
+  return 0;
+}
+DECLARE_XAM_EXPORT1(NetDll_XNetRegisterKey, kNetworking, kStub);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
