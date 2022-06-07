@@ -17,6 +17,91 @@ namespace xe {
 namespace gpu {
 namespace xenos {
 
+// Based on X360GammaToLinear and X360LinearToGamma from the Source Engine, with
+// additional logic from Direct3D 9 code in game executable disassembly, located
+// via the floating-point constants involved.
+// https://github.com/ValveSoftware/source-sdk-2013/blob/master/mp/src/mathlib/color_conversion.cpp#L329
+// These are provided here in part as a reference for shader translators.
+
+float PWLGammaToLinear(float gamma) {
+  // Not found in game executables, so just using the logic similar to that in
+  // the Source Engine.
+  gamma = xe::saturate_unsigned(gamma);
+  float scale, offset;
+  // While the compiled code for linear to gamma conversion uses `vcmpgtfp
+  // constant, value` comparison (constant > value, or value < constant), it's
+  // preferable to use `value >= constant` condition for the higher pieces, as
+  // it will never pass for NaN, and in case of NaN, the 0...64/255 case will be
+  // selected regardless of whether it's saturated before or after the
+  // comparisons (always pre-saturating here, but shader translators may choose
+  // to saturate later for convenience), as saturation will flush NaN to 0.
+  if (gamma >= 96.0f / 255.0f) {
+    if (gamma >= 192.0f / 255.0f) {
+      scale = 8.0f / 1024.0f;
+      offset = -1024.0f;
+    } else {
+      scale = 4.0f / 1024.0f;
+      offset = -256.0f;
+    }
+  } else {
+    if (gamma >= 64.0f / 255.0f) {
+      scale = 2.0f / 1024.0f;
+      offset = -64.0f;
+    } else {
+      scale = 1.0f / 1024.0f;
+      offset = 0.0f;
+      // No `floor` term in this case in the Source Engine, but for the largest
+      // value, 1.0, `floor(255.0f * (1.0f / 1024.0f))` is 0 anyway.
+    }
+  }
+  // Though in the Source Engine, the 1/1024 multiplication is done for the
+  // truncated part specifically, pre-baking it into the scale is lossless -
+  // both 1024 and `scale` are powers of 2.
+  float linear = gamma * ((255.0f * 1024.0f) * scale) + offset;
+  // For consistency with linear to gamma, and because it's more logical here
+  // (0 rather than 1 at -epsilon), using `trunc` instead of `floor`.
+  linear += std::trunc(linear * scale);
+  linear *= 1.0f / 1023.0f;
+  // Clamping is not necessary (1 * (255 * 8) - 1024 + 7 is exactly 1023).
+  return linear;
+}
+
+float LinearToPWLGamma(float linear) {
+  linear = xe::saturate_unsigned(linear);
+  float scale, offset;
+  // While the compiled code uses `vcmpgtfp constant, value` comparison
+  // (constant > value, or value < constant), it's preferable to use `value >=
+  // constant` condition for the higher pieces, as it will never pass for NaN,
+  // and in case of NaN, the 0...64/1023 case will be selected regardless of
+  // whether it's saturated before or after the comparisons (always
+  // pre-saturating here, but shader translators may choose to saturate later
+  // for convenience), as saturation will flush NaN to 0.
+  if (linear >= 128.0f / 1023.0f) {
+    if (linear >= 512.0f / 1023.0f) {
+      scale = 1023.0f / 8.0f;
+      offset = 128.0f / 255.0f;
+    } else {
+      scale = 1023.0f / 4.0f;
+      offset = 64.0f / 255.0f;
+    }
+  } else {
+    if (linear >= 64.0f / 1023.0f) {
+      scale = 1023.0f / 2.0f;
+      offset = 32.0f / 255.0f;
+    } else {
+      scale = 1023.0f;
+      offset = 0.0f;
+    }
+  }
+  // The truncation isn't in X360LinearToGamma in the Source Engine, but is
+  // there in Direct3D 9 disassembly (the `vrfiz` instructions).
+  // It also prevents conversion of 1.0 to 1.0034313725490196078431372549016
+  // that's handled via clamping in the Source Engine.
+  // 127.875 (1023 / 8) is truncated to 127, which, after scaling, becomes
+  // 127 / 255, and when 128 / 255 is added, the result is 1.
+  return std::trunc(linear * scale) * (1.0f / 255.0f) + offset;
+}
+
 // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
 
 float Float7e3To32(uint32_t f10) {
