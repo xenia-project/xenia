@@ -165,12 +165,28 @@ dword_result_t XamInputGetKeystrokeEx_entry(
   }
 
   uint32_t user_index = *user_index_ptr;
-  if ((user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
+  auto input_system = kernel_state()->emulator()->input_system();
+
+  if ((user_index & 0xFF) == 0xFF) {
     // Always pin user to 0.
     user_index = 0;
   }
 
-  auto input_system = kernel_state()->emulator()->input_system();
+  if (flags & XINPUT_FLAG_ANY_USER) {
+    // That flag means we should iterate over every connected controller and check which one have pending request.
+    auto result = X_ERROR_DEVICE_NOT_CONNECTED;
+    for (uint32_t i = 0; i < 4; i++) {
+      auto result = input_system->GetKeystroke(i, flags, keystroke);
+
+      // Return result from first user that have pending request
+      if (result == X_ERROR_SUCCESS) {
+        *user_index_ptr = keystroke->user_index;
+        return result;
+      }
+    }
+    return result;
+  }
+
   auto result = input_system->GetKeystroke(user_index, flags, keystroke);
   if (XSUCCEEDED(result)) {
     *user_index_ptr = keystroke->user_index;
@@ -186,7 +202,8 @@ X_HRESULT_result_t XamUserGetDeviceContext_entry(dword_t user_index,
   // If this function fails they assume zero, so let's fail AND
   // set zero just to be safe.
   *out_ptr = 0;
-  if (!user_index || (user_index & 0xFF) == 0xFF) {
+  if (kernel_state()->IsUserSignedIn(user_index) || (user_index & 0xFF) == 0xFF) {
+    *out_ptr = (uint32_t)user_index;
     return X_E_SUCCESS;
   } else {
     return X_E_DEVICE_NOT_CONNECTED;
