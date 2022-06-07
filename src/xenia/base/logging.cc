@@ -439,9 +439,7 @@ void InitializeLogging(const std::string_view app_name) {
   if (cvars::log_file.empty()) {
     // Default to app name.
     auto file_name = fmt::format("{}.log", app_name);
-    auto file_path = std::filesystem::path(file_name);
-    xe::filesystem::CreateParentFolder(file_path);
-
+    auto file_path = xe::filesystem::GetExecutableFolder() / file_name;
     log_file = xe::filesystem::OpenFile(file_path, "wt");
   } else {
     xe::filesystem::CreateParentFolder(cvars::log_file);
