@@ -1384,8 +1384,8 @@ void DxbcShaderTranslator::ROV_UnpackColor(
              dxbc::Src::LF(1.0f / 255.0f));
     if (i) {
       for (uint32_t j = 0; j < 3; ++j) {
-        ConvertPWLGamma(false, color_temp, j, color_temp, j, temp1,
-                        temp1_component, temp2, temp2_component);
+        PWLGammaToLinear(color_temp, j, color_temp, j, true, temp1,
+                         temp1_component, temp2, temp2_component);
       }
     }
     a_.OpBreak();
@@ -1537,8 +1537,9 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
           : xenos::ColorRenderTargetFormat::k_8_8_8_8)));
     for (uint32_t j = 0; j < 4; ++j) {
       if (i && j < 3) {
-        ConvertPWLGamma(true, color_temp, j, temp1, temp1_component, temp1,
-                        temp1_component, temp2, temp2_component);
+        PreSaturatedLinearToPWLGamma(temp1, temp1_component, color_temp, j,
+                                     temp1, temp1_component, temp2,
+                                     temp2_component);
         // Denormalize and add 0.5 for rounding.
         a_.OpMAd(temp1_dest, temp1_src, dxbc::Src::LF(255.0f),
                  dxbc::Src::LF(0.5f));
@@ -1863,10 +1864,10 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
     if (!(shader_writes_color_targets & (1 << i))) {
       continue;
     }
+    uint32_t system_temp_color = system_temps_color_[i];
     // Apply the exponent bias after alpha to coverage because it needs the
-    // unbiased alpha from the shader
-    a_.OpMul(dxbc::Dest::R(system_temps_color_[i]),
-             dxbc::Src::R(system_temps_color_[i]),
+    // unbiased alpha from the shader.
+    a_.OpMul(dxbc::Dest::R(system_temp_color), dxbc::Src::R(system_temp_color),
              LoadSystemConstant(
                  SystemConstants::Index::kColorExpBias,
                  offsetof(SystemConstants, color_exp_bias) + sizeof(float) * i,
@@ -1878,14 +1879,17 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
       a_.OpAnd(dxbc::Dest::R(gamma_temp, 0b0001), LoadFlagsSystemConstant(),
                dxbc::Src::LU(kSysFlag_ConvertColor0ToGamma << i));
       a_.OpIf(true, dxbc::Src::R(gamma_temp, dxbc::Src::kXXXX));
+      // Saturate before the gamma conversion.
+      a_.OpMov(dxbc::Dest::R(system_temp_color, 0b0111),
+               dxbc::Src::R(system_temp_color), true);
       for (uint32_t j = 0; j < 3; ++j) {
-        ConvertPWLGamma(true, system_temps_color_[i], j, system_temps_color_[i],
-                        j, gamma_temp, 0, gamma_temp, 1);
+        PreSaturatedLinearToPWLGamma(system_temp_color, j, system_temp_color, j,
+                                     gamma_temp, 0, gamma_temp, 1);
       }
       a_.OpEndIf();
     }
     // Copy the color from a readable temp register to an output register.
-    a_.OpMov(dxbc::Dest::O(i), dxbc::Src::R(system_temps_color_[i]));
+    a_.OpMov(dxbc::Dest::O(i), dxbc::Src::R(system_temp_color));
   }
   // Release gamma_temp.
   PopSystemTemp();
