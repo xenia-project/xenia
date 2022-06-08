@@ -120,15 +120,34 @@ bool PatchDB::ReadPatchData(
     size_t alloc_size = (size_t)data_type.second.size;
 
     switch (data_type.second.type) {
+      case PatchDataType::be8: {
+        uint16_t value = *patch_data_table->get_as<uint8_t>("value");
+        patch_data.push_back({address, PatchDataValue(alloc_size, value)});
+        break;
+      }
+      case PatchDataType::be16: {
+        uint16_t value = *patch_data_table->get_as<uint16_t>("value");
+        patch_data.push_back(
+            {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
+        break;
+      }
+      case PatchDataType::be32: {
+        uint32_t value = *patch_data_table->get_as<uint32_t>("value");
+        patch_data.push_back(
+            {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
+        break;
+      }
       case PatchDataType::f64: {
         double val = *patch_data_table->get_as<double>("value");
         uint64_t value = *reinterpret_cast<uint64_t*>(&val);
-        patch_data.push_back({address, PatchDataValue(alloc_size, value)});
+        patch_data.push_back(
+            {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
         break;
       }
       case PatchDataType::f32: {
         float value = float(*patch_data_table->get_as<double>("value"));
-        patch_data.push_back({address, PatchDataValue(alloc_size, value)});
+        patch_data.push_back(
+            {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
         break;
       }
       case PatchDataType::string: {
@@ -157,7 +176,8 @@ bool PatchDB::ReadPatchData(
       }
       default: {
         uint64_t value = *patch_data_table->get_as<uint64_t>("value");
-        patch_data.push_back({address, PatchDataValue(alloc_size, value)});
+        patch_data.push_back(
+            {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
         break;
       }
     }

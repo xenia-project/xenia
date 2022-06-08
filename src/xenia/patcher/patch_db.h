@@ -21,6 +21,24 @@ struct PatchDataValue {
   const size_t alloc_size_;
   const uint8_t* patch_data_ptr_;
 
+  PatchDataValue(const size_t alloc_size, const uint8_t value)
+      : alloc_size_(alloc_size) {
+    patch_data_ptr_ = new uint8_t[alloc_size_];
+    memcpy((void*)patch_data_ptr_, &value, alloc_size);
+  };
+
+  PatchDataValue(const size_t alloc_size, const uint16_t value)
+      : alloc_size_(alloc_size) {
+    patch_data_ptr_ = new uint8_t[alloc_size_];
+    memcpy((void*)patch_data_ptr_, &value, alloc_size);
+  };
+
+  PatchDataValue(const size_t alloc_size, const uint32_t value)
+      : alloc_size_(alloc_size) {
+    patch_data_ptr_ = new uint8_t[alloc_size_];
+    memcpy((void*)patch_data_ptr_, &value, alloc_size);
+  };
+
   PatchDataValue(const size_t alloc_size, const uint64_t value)
       : alloc_size_(alloc_size) {
     patch_data_ptr_ = new uint8_t[alloc_size_];

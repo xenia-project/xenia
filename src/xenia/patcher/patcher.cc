@@ -51,9 +51,9 @@ void Patcher::ApplyPatch(Memory* memory, const PatchInfoEntry* patch) {
                   (uint32_t)patch_data_entry.new_data_.alloc_size_,
                   kMemoryProtectRead | kMemoryProtectWrite);
 
-    xe::copy_and_swap(address,
-                      (uint8_t*)patch_data_entry.new_data_.patch_data_ptr_,
-                      patch_data_entry.new_data_.alloc_size_);
+
+    memcpy(address, patch_data_entry.new_data_.patch_data_ptr_,
+           patch_data_entry.new_data_.alloc_size_);
 
     // Restore previous protection
     heap->Protect(patch_data_entry.memory_address_,
