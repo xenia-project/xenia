@@ -50,6 +50,9 @@ class ObjectTable {
   template <typename T>
   object_ref<T> LookupObject(X_HANDLE handle) {
     auto object = LookupObject(handle, false);
+    if (T::kObjectType == XObject::Type::Socket) {
+      object = LookupObject((handle | 0xF8000000), false);
+    }
     if (object) {
       assert_true(object->type() == T::kObjectType);
     }

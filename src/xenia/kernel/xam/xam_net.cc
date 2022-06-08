@@ -639,7 +639,7 @@ dword_result_t NetDll_socket_entry(dword_t caller, dword_t af, dword_t type,
     return -1;
   }
 
-  return socket->handle();
+  return (socket->handle() & 0x00FFFFFF);
 }
 DECLARE_XAM_EXPORT1(NetDll_socket, kNetworking, kImplemented);
 
@@ -690,6 +690,22 @@ dword_result_t NetDll_setsockopt_entry(dword_t caller, dword_t socket_handle,
   return XSUCCEEDED(status) ? 0 : -1;
 }
 DECLARE_XAM_EXPORT1(NetDll_setsockopt, kNetworking, kImplemented);
+
+dword_result_t NetDll_getsockopt_entry(dword_t caller, dword_t socket_handle,
+                                       dword_t level, dword_t optname,
+                                       lpvoid_t optval_ptr, lpdword_t optlen) {
+  auto socket =
+      kernel_state()->object_table()->LookupObject<XSocket>(socket_handle);
+  if (!socket) {
+    XThread::SetLastError(uint32_t(X_WSAError::X_WSAENOTSOCK));
+    return -1;
+  }
+
+  int native_len = *optlen;
+  X_STATUS status = socket->GetOption(level, optname, optval_ptr, &native_len);
+  return XSUCCEEDED(status) ? 0 : -1;
+}
+DECLARE_XAM_EXPORT1(NetDll_getsockopt, kNetworking, kImplemented);
 
 dword_result_t NetDll_ioctlsocket_entry(dword_t caller, dword_t socket_handle,
                                         dword_t cmd, lpvoid_t arg_ptr) {
@@ -1043,6 +1059,12 @@ dword_result_t NetDll_XNetRegisterKey_entry(dword_t caller, lpdword_t key_id,
   return 0;
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetRegisterKey, kNetworking, kStub);
+
+dword_result_t NetDll_XNetUnregisterKey_entry(dword_t caller, lpdword_t key_id,
+                                            lpdword_t exchange_key) {
+  return 0;
+}
+DECLARE_XAM_EXPORT1(NetDll_XNetUnregisterKey, kNetworking, kStub);
 
 }  // namespace xam
 }  // namespace kernel
