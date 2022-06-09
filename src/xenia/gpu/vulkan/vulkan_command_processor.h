@@ -432,7 +432,8 @@ class VulkanCommandProcessor : public CommandProcessor {
                           bool primitive_polygonal,
                           reg::RB_DEPTHCONTROL normalized_depth_control);
   void UpdateSystemConstantValues(xenos::Endian index_endian,
-                                  const draw_util::ViewportInfo& viewport_info);
+                                  const draw_util::ViewportInfo& viewport_info,
+                                  uint32_t used_texture_mask);
   bool UpdateBindings(const VulkanShader* vertex_shader,
                       const VulkanShader* pixel_shader);
   // Allocates a descriptor set and fills the VkWriteDescriptorSet structure.

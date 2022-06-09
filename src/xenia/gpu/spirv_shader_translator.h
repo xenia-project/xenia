@@ -84,6 +84,16 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
     float ndc_offset[3];
     uint32_t padding_ndc_offset;
+
+    // Each byte contains post-swizzle TextureSign values for each of the needed
+    // components of each of the 32 used texture fetch constants.
+    uint32_t texture_swizzled_signs[8];
+
+    // If the imageViewFormatSwizzle portability subset is not supported, the
+    // component swizzle (taking both guest and host swizzles into account) to
+    // apply to the result directly in the shader code. In each uint32_t,
+    // swizzles for 2 texture fetch constants (in bits 0:11 and 12:23).
+    uint32_t texture_swizzles[16];
   };
 
   // The minimum limit for maxPerStageDescriptorStorageBuffers is 4, and for
@@ -151,6 +161,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     uint32_t max_storage_buffer_range;
     bool clip_distance;
     bool cull_distance;
+    bool image_view_format_swizzle;
     bool signed_zero_inf_nan_preserve_float32;
     bool denorm_flush_to_zero_float32;
   };
@@ -244,7 +255,6 @@ class SpirvShaderTranslator : public ShaderTranslator {
     xenos::FetchOpDimension dimension;
     bool is_signed;
 
-    spv::Id type;
     spv::Id variable;
   };
 
@@ -259,6 +269,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   };
 
   // Builder helpers.
+  spv::Id SpirvSmearScalarResultOrConstant(spv::Id scalar, spv::Id vector_type);
   void SpirvCreateSelectionMerge(
       spv::Id merge_block_id, spv::SelectionControlMask selection_control_mask =
                                   spv::SelectionControlMaskNone) {
@@ -379,6 +390,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   spv::Id LoadUint32FromSharedMemory(spv::Id address_dwords_int);
 
+  // The source may be a floating-point scalar or a vector.
+  spv::Id PWLGammaToLinear(spv::Id gamma, bool gamma_pre_saturated);
+  spv::Id LinearToPWLGamma(spv::Id linear, bool linear_pre_saturated);
+
   size_t FindOrAddTextureBinding(uint32_t fetch_constant,
                                  xenos::FetchOpDimension dimension,
                                  bool is_signed);
@@ -387,6 +402,24 @@ class SpirvShaderTranslator : public ShaderTranslator {
                                  xenos::TextureFilter min_filter,
                                  xenos::TextureFilter mip_filter,
                                  xenos::AnisoFilter aniso_filter);
+  // `texture_parameters` need to be set up except for `sampler`, which will be
+  // set internally, optionally doing linear interpolation between the an
+  // existing value and the new one (the result location may be the same as for
+  // the first lerp endpoint, but not across signedness).
+  void SampleTexture(spv::Builder::TextureParameters& texture_parameters,
+                     spv::ImageOperandsMask image_operands_mask,
+                     spv::Id image_unsigned, spv::Id image_signed,
+                     spv::Id sampler, spv::Id is_all_signed,
+                     spv::Id is_any_signed, spv::Id& result_unsigned_out,
+                     spv::Id& result_signed_out,
+                     spv::Id lerp_factor = spv::NoResult,
+                     spv::Id lerp_first_unsigned = spv::NoResult,
+                     spv::Id lerp_first_signed = spv::NoResult);
+  // `texture_parameters` need to be set up except for `sampler`, which will be
+  // set internally.
+  spv::Id QueryTextureLod(spv::Builder::TextureParameters& texture_parameters,
+                          spv::Id image_unsigned, spv::Id image_signed,
+                          spv::Id sampler, spv::Id is_all_signed);
 
   Features features_;
 
@@ -473,6 +506,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSystemConstantIndexVertexBaseIndex,
     kSystemConstantNdcScale,
     kSystemConstantNdcOffset,
+    kSystemConstantTextureSwizzledSigns,
+    kSystemConstantTextureSwizzles,
   };
   spv::Id uniform_system_constants_;
   spv::Id uniform_float_constants_;
@@ -522,6 +557,11 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // `base + index * stride` in dwords from the last vfetch_full as it may be
   // needed by vfetch_mini - int.
   spv::Id var_main_vfetch_address_;
+  // float.
+  spv::Id var_main_tfetch_lod_;
+  // float3.
+  spv::Id var_main_tfetch_gradients_h_;
+  spv::Id var_main_tfetch_gradients_v_;
   // float4[register_count()].
   spv::Id var_main_registers_;
   // VS only - float3 (special exports).
