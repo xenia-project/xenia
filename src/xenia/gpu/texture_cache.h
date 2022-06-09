@@ -98,8 +98,11 @@ class TextureCache {
 
   // "ActiveTexture" means as of the latest RequestTextures call.
 
-  // Returns the post-swizzle signedness of a currently bound texture (must be
-  // called after RequestTextures).
+  uint8_t GetActiveTextureHostSwizzle(uint32_t fetch_constant_index) const {
+    const TextureBinding* binding =
+        GetValidTextureBinding(fetch_constant_index);
+    return binding ? binding->host_swizzle : xenos::XE_GPU_TEXTURE_SWIZZLE_0000;
+  }
   uint8_t GetActiveTextureSwizzledSigns(uint32_t fetch_constant_index) const {
     const TextureBinding* binding =
         GetValidTextureBinding(fetch_constant_index);
