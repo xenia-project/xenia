@@ -664,15 +664,23 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Frees the last allocated internal r# registers for later reuse.
   void PopSystemTemp(uint32_t count = 1);
 
-  // Converts one scalar to or from PWL gamma, using 1 temporary scalar.
-  // The target may be the same as any of the source, the piece temporary or the
-  // accumulator, but not two or three of these.
-  // The piece and the accumulator can't be the same as source or as each other.
-  void ConvertPWLGamma(bool to_gamma, int32_t source_temp,
-                       uint32_t source_temp_component, uint32_t target_temp,
-                       uint32_t target_temp_component, uint32_t piece_temp,
-                       uint32_t piece_temp_component, uint32_t accumulator_temp,
-                       uint32_t accumulator_temp_component);
+  // Converts one scalar from piecewise linear gamma to linear. The target may
+  // be the same as the source, the temporary variables must be different. If
+  // the source is not pre-saturated, saturation will be done internally.
+  void PWLGammaToLinear(uint32_t target_temp, uint32_t target_temp_component,
+                        uint32_t source_temp, uint32_t source_temp_component,
+                        bool source_pre_saturated, uint32_t temp1,
+                        uint32_t temp1_component, uint32_t temp2,
+                        uint32_t temp2_component);
+  // Converts one scalar, which must be saturated before calling this function,
+  // from linear to piecewise linear gamma. The target may be the same as either
+  // the source or as temp_or_target, but not as both (and temp_or_target may
+  // not be the same as the source). temp_non_target must be different.
+  void PreSaturatedLinearToPWLGamma(
+      uint32_t target_temp, uint32_t target_temp_component,
+      uint32_t source_temp, uint32_t source_temp_component,
+      uint32_t temp_or_target, uint32_t temp_or_target_component,
+      uint32_t temp_non_target, uint32_t temp_non_target_component);
 
   bool IsSampleRate() const {
     assert_true(is_pixel_shader());

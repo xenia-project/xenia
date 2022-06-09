@@ -327,6 +327,9 @@ enum class DepthRenderTargetFormat : uint32_t {
 
 const char* GetDepthRenderTargetFormatName(DepthRenderTargetFormat format);
 
+float PWLGammaToLinear(float gamma);
+float LinearToPWLGamma(float linear);
+
 // Converts Xenos floating-point 7e3 color value in bits 0:9 (not clamping) to
 // an IEEE-754 32-bit floating-point number.
 float Float7e3To32(uint32_t f10);
