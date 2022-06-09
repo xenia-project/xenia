@@ -1774,7 +1774,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
 
   // Update system constants before uploading them.
   UpdateSystemConstantValues(primitive_processing_result.host_index_endian,
-                             viewport_info);
+                             viewport_info, used_texture_mask);
 
   // Update uniform buffers and descriptor sets after binding the pipeline with
   // the new layout.
@@ -2682,7 +2682,8 @@ void VulkanCommandProcessor::UpdateDynamicState(
 }
 
 void VulkanCommandProcessor::UpdateSystemConstantValues(
-    xenos::Endian index_endian, const draw_util::ViewportInfo& viewport_info) {
+    xenos::Endian index_endian, const draw_util::ViewportInfo& viewport_info,
+    uint32_t used_texture_mask) {
 #if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
@@ -2729,6 +2730,55 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
     dirty |= system_constants_.ndc_offset[i] != viewport_info.ndc_offset[i];
     system_constants_.ndc_scale[i] = viewport_info.ndc_scale[i];
     system_constants_.ndc_offset[i] = viewport_info.ndc_offset[i];
+  }
+
+  // Texture signedness / gamma.
+  {
+    uint32_t textures_remaining = used_texture_mask;
+    uint32_t texture_index;
+    while (xe::bit_scan_forward(textures_remaining, &texture_index)) {
+      textures_remaining &= ~(UINT32_C(1) << texture_index);
+      uint32_t& texture_signs_uint =
+          system_constants_.texture_swizzled_signs[texture_index >> 2];
+      uint32_t texture_signs_shift = 8 * (texture_index & 3);
+      uint8_t texture_signs =
+          texture_cache_->GetActiveTextureSwizzledSigns(texture_index);
+      uint32_t texture_signs_shifted = uint32_t(texture_signs)
+                                       << texture_signs_shift;
+      uint32_t texture_signs_mask = (UINT32_C(1 << 8) - 1)
+                                    << texture_signs_shift;
+      dirty |=
+          (texture_signs_uint & texture_signs_mask) != texture_signs_shifted;
+      texture_signs_uint =
+          (texture_signs_uint & ~texture_signs_mask) | texture_signs_shifted;
+    }
+  }
+
+  // Texture host swizzle in the shader.
+  const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
+  const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
+      device_portability_subset_features =
+          provider.device_portability_subset_features();
+  if (device_portability_subset_features &&
+      !device_portability_subset_features->imageViewFormatSwizzle) {
+    uint32_t textures_remaining = used_texture_mask;
+    uint32_t texture_index;
+    while (xe::bit_scan_forward(textures_remaining, &texture_index)) {
+      textures_remaining &= ~(UINT32_C(1) << texture_index);
+      uint32_t& texture_swizzles_uint =
+          system_constants_.texture_swizzles[texture_index >> 1];
+      uint32_t texture_swizzle_shift = 12 * (texture_index & 1);
+      uint32_t texture_swizzle =
+          texture_cache_->GetActiveTextureHostSwizzle(texture_index);
+      uint32_t texture_swizzle_shifted = uint32_t(texture_swizzle)
+                                         << texture_swizzle_shift;
+      uint32_t texture_swizzle_mask = (UINT32_C(1 << 12) - 1)
+                                      << texture_swizzle_shift;
+      dirty |= (texture_swizzles_uint & texture_swizzle_mask) !=
+               texture_swizzle_shifted;
+      texture_swizzles_uint = (texture_swizzles_uint & ~texture_swizzle_mask) |
+                              texture_swizzle_shifted;
+    }
   }
 
   if (dirty) {
