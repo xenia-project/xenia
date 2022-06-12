@@ -32,6 +32,7 @@ project("xenia-gpu-shader-compiler")
     "snappy",
     "xenia-base",
     "xenia-gpu",
+    "xenia-ui",
     "xenia-ui-vulkan",
   })
   includedirs({
