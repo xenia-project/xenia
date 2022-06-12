@@ -2745,7 +2745,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
           texture_cache_->GetActiveTextureSwizzledSigns(texture_index);
       uint32_t texture_signs_shifted = uint32_t(texture_signs)
                                        << texture_signs_shift;
-      uint32_t texture_signs_mask = (UINT32_C(1 << 8) - 1)
+      uint32_t texture_signs_mask = ((UINT32_C(1) << 8) - 1)
                                     << texture_signs_shift;
       dirty |=
           (texture_signs_uint & texture_signs_mask) != texture_signs_shifted;
@@ -2772,7 +2772,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
           texture_cache_->GetActiveTextureHostSwizzle(texture_index);
       uint32_t texture_swizzle_shifted = uint32_t(texture_swizzle)
                                          << texture_swizzle_shift;
-      uint32_t texture_swizzle_mask = (UINT32_C(1 << 12) - 1)
+      uint32_t texture_swizzle_mask = ((UINT32_C(1) << 12) - 1)
                                       << texture_swizzle_shift;
       dirty |= (texture_swizzles_uint & texture_swizzle_mask) !=
                texture_swizzle_shifted;
