@@ -2103,8 +2103,8 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
           a_.OpIf(false, dxbc::Src::R(gamma_temp, dxbc::Src::kXXXX));
         }
         // Convert from piecewise linear.
-        ConvertPWLGamma(false, system_temp_result_, i, system_temp_result_, i,
-                        gamma_temp, 0, gamma_temp, 1);
+        PWLGammaToLinear(system_temp_result_, i, system_temp_result_, i, false,
+                         gamma_temp, 0, gamma_temp, 1);
         if (gamma_render_target_as_srgb_) {
           a_.OpElse();
           // Convert from sRGB.

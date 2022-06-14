@@ -34,15 +34,14 @@ void PatchDB::LoadPatches() {
   }
 
   const std::filesystem::path patches_directory = patches_root_ / "patches";
-  const std::vector<xe::filesystem::FileInfo>& patch_files =
+  const std::vector<xe::filesystem::FileInfo> patch_files =
       filesystem::ListFiles(patches_directory);
-  const std::regex file_name_regex_match = std::regex(patch_filename_regex);
 
   for (const xe::filesystem::FileInfo& patch_file : patch_files) {
     // Skip files that doesn't have only title_id as name and .patch as
     // extension
     if (!std::regex_match(path_to_utf8(patch_file.name),
-                          file_name_regex_match)) {
+                          patch_filename_regex_)) {
       XELOGE("PatchDB: Skipped loading file {} due to incorrect filename",
              path_to_utf8(patch_file.name));
       continue;
@@ -51,30 +50,30 @@ void PatchDB::LoadPatches() {
     const PatchFileEntry loaded_title_patches =
         ReadPatchFile(patch_file.path / patch_file.name);
     if (loaded_title_patches.title_id != -1) {
-      loaded_patches.push_back(loaded_title_patches);
+      loaded_patches_.push_back(loaded_title_patches);
     }
   }
-  XELOGI("PatchDB: Loaded patches for {} titles", loaded_patches.size());
+  XELOGI("PatchDB: Loaded patches for {} titles", loaded_patches_.size());
 }
 
 PatchFileEntry PatchDB::ReadPatchFile(const std::filesystem::path& file_path) {
-  PatchFileEntry patchFile;
+  PatchFileEntry patch_file;
   std::shared_ptr<cpptoml::table> patch_toml_fields;
 
   try {
     patch_toml_fields = cpptoml::parse_file(path_to_utf8(file_path));
   } catch (...) {
     XELOGE("PatchDB: Cannot load patch file: {}", path_to_utf8(file_path));
-    patchFile.title_id = -1;
-    return patchFile;
+    patch_file.title_id = -1;
+    return patch_file;
   };
 
   auto title_name = patch_toml_fields->get_as<std::string>("title_name");
   auto title_id = patch_toml_fields->get_as<std::string>("title_id");
 
-  patchFile.title_id = strtoul((*title_id).c_str(), NULL, 16);
-  patchFile.title_name = *title_name;
-  ReadHash(patchFile, patch_toml_fields);
+  patch_file.title_id = strtoul((*title_id).c_str(), NULL, 16);
+  patch_file.title_name = *title_name;
+  ReadHashes(patch_file, patch_toml_fields);
 
   auto patch_table = patch_toml_fields->get_table_array("patch");
 
@@ -92,7 +91,7 @@ PatchFileEntry PatchDB::ReadPatchFile(const std::filesystem::path& file_path) {
     patch.is_enabled = is_enabled;
 
     // Iterate through all available data sizes
-    for (const auto& patch_data_type : patch_data_types_size) {
+    for (const auto& patch_data_type : patch_data_types_size_) {
       bool success =
           ReadPatchData(patch.patch_data, patch_data_type, patch_table_entry);
 
@@ -101,9 +100,9 @@ PatchFileEntry PatchDB::ReadPatchFile(const std::filesystem::path& file_path) {
         break;
       }
     }
-    patchFile.patch_info.push_back(patch);
+    patch_file.patch_info.push_back(patch);
   }
-  return patchFile;
+  return patch_file;
 }
 
 bool PatchDB::ReadPatchData(
@@ -120,77 +119,83 @@ bool PatchDB::ReadPatchData(
     size_t alloc_size = (size_t)data_type.second.size;
 
     switch (data_type.second.type) {
-      case PatchDataType::be8: {
+      case PatchDataType::kBE8: {
         uint16_t value = *patch_data_table->get_as<uint8_t>("value");
         patch_data.push_back({address, PatchDataValue(alloc_size, value)});
         break;
       }
-      case PatchDataType::be16: {
+      case PatchDataType::kBE16: {
         uint16_t value = *patch_data_table->get_as<uint16_t>("value");
         patch_data.push_back(
             {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
         break;
       }
-      case PatchDataType::be32: {
+      case PatchDataType::kBE32: {
         uint32_t value = *patch_data_table->get_as<uint32_t>("value");
         patch_data.push_back(
             {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
         break;
       }
-      case PatchDataType::f64: {
+      case PatchDataType::kBE64: {
+        uint64_t value = *patch_data_table->get_as<uint64_t>("value");
+        patch_data.push_back(
+            {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
+        break;
+      }
+      case PatchDataType::kF64: {
         double val = *patch_data_table->get_as<double>("value");
         uint64_t value = *reinterpret_cast<uint64_t*>(&val);
         patch_data.push_back(
             {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
         break;
       }
-      case PatchDataType::f32: {
+      case PatchDataType::kF32: {
         float value = float(*patch_data_table->get_as<double>("value"));
         patch_data.push_back(
             {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
         break;
       }
-      case PatchDataType::string: {
+      case PatchDataType::kString: {
         std::string value = *patch_data_table->get_as<std::string>("value");
         patch_data.push_back({address, PatchDataValue(value)});
         break;
       }
-      case PatchDataType::u16string: {
+      case PatchDataType::kU16String: {
         std::u16string value =
             xe::to_utf16(*patch_data_table->get_as<std::string>("value"));
         patch_data.push_back({address, PatchDataValue(value)});
         break;
       }
-      case PatchDataType::byte_array: {
+      case PatchDataType::kByteArray: {
         std::vector<uint8_t> data;
         const std::string value =
             *patch_data_table->get_as<std::string>("value");
 
         bool success = string_util::hex_string_to_array(data, value);
         if (!success) {
+          XELOGW("PatchDB: Cannot convert hex string to byte array! Skipping",
+                 address);
           return false;
         }
-
-        patch_data.push_back({address, PatchDataValue(value.size() / 2, data)});
+        patch_data.push_back({address, PatchDataValue(data)});
         break;
       }
       default: {
-        uint64_t value = *patch_data_table->get_as<uint64_t>("value");
-        patch_data.push_back(
-            {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
-        break;
+        XELOGW("PatchDB: Unknown patch data type for address {:08X}! Skipping",
+               address);
+        return false;
       }
     }
   }
   return true;
 }
 
-std::vector<PatchFileEntry> PatchDB::GetTitlePatches(uint32_t title_id,
-                                                     const uint64_t hash) {
+std::vector<PatchFileEntry> PatchDB::GetTitlePatches(
+    const uint32_t title_id, const std::optional<uint64_t> hash) {
   std::vector<PatchFileEntry> title_patches;
 
   std::copy_if(
-      loaded_patches.cbegin(), loaded_patches.cend(),
+      loaded_patches_.cbegin(), loaded_patches_.cend(),
       std::back_inserter(title_patches), [=](const PatchFileEntry entry) {
         bool hash_exist = std::find(entry.hashes.cbegin(), entry.hashes.cend(),
                                     hash) != entry.hashes.cend();
@@ -202,17 +207,17 @@ std::vector<PatchFileEntry> PatchDB::GetTitlePatches(uint32_t title_id,
   return title_patches;
 }
 
-void PatchDB::ReadHash(PatchFileEntry& patchEntry,
-                       std::shared_ptr<cpptoml::table> patch_toml_fields) {
+void PatchDB::ReadHashes(PatchFileEntry& patch_entry,
+                         std::shared_ptr<cpptoml::table> patch_toml_fields) {
   auto title_hashes = patch_toml_fields->get_array_of<std::string>("hash");
 
   for (const auto& hash : *title_hashes) {
-    patchEntry.hashes.push_back(strtoull(hash.c_str(), NULL, 16));
+    patch_entry.hashes.push_back(strtoull(hash.c_str(), NULL, 16));
   }
 
   auto single_hash = patch_toml_fields->get_as<std::string>("hash");
   if (single_hash) {
-    patchEntry.hashes.push_back(strtoull((*single_hash).c_str(), NULL, 16));
+    patch_entry.hashes.push_back(strtoull((*single_hash).c_str(), NULL, 16));
   }
 }
 

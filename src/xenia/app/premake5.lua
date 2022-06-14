@@ -25,6 +25,7 @@ project("xenia-app")
     "xenia-hid-nop",
     "xenia-hid-sdl",
     "xenia-kernel",
+    "xenia-patcher",
     "xenia-ui",
     "xenia-ui-spirv",
     "xenia-ui-vulkan",

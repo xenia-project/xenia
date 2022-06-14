@@ -41,6 +41,7 @@ project("xenia-gpu-vulkan-trace-viewer")
     "xenia-hid",
     "xenia-hid-nop",
     "xenia-kernel",
+    "xenia-patcher",
     "xenia-ui",
     "xenia-ui-spirv",
     "xenia-ui-vulkan",

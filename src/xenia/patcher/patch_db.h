@@ -10,7 +10,10 @@
 #ifndef XENIA_PATCH_DB_H_
 #define XENIA_PATCH_DB_H_
 
+#include <cstring>
 #include <map>
+#include <optional>
+#include <regex>
 
 #include "third_party/cpptoml/include/cpptoml.h"
 
@@ -18,62 +21,37 @@ namespace xe {
 namespace patcher {
 
 struct PatchDataValue {
-  const size_t alloc_size_;
-  const uint8_t* patch_data_ptr_;
+  const size_t alloc_size;
+  std::vector<uint8_t> patch_data;
 
-  PatchDataValue(const size_t alloc_size, const uint8_t value)
-      : alloc_size_(alloc_size) {
-    patch_data_ptr_ = new uint8_t[alloc_size_];
-    memcpy((void*)patch_data_ptr_, &value, alloc_size);
+  template <typename T>
+  PatchDataValue(const size_t size, const T value) : alloc_size(size) {
+    patch_data.resize(alloc_size);
+    std::memcpy(patch_data.data(), &value, alloc_size);
   };
 
-  PatchDataValue(const size_t alloc_size, const uint16_t value)
-      : alloc_size_(alloc_size) {
-    patch_data_ptr_ = new uint8_t[alloc_size_];
-    memcpy((void*)patch_data_ptr_, &value, alloc_size);
+  PatchDataValue(const std::vector<uint8_t> value) : alloc_size(value.size()) {
+    patch_data.resize(alloc_size);
+    std::memcpy(patch_data.data(), value.data(), alloc_size);
   };
 
-  PatchDataValue(const size_t alloc_size, const uint32_t value)
-      : alloc_size_(alloc_size) {
-    patch_data_ptr_ = new uint8_t[alloc_size_];
-    memcpy((void*)patch_data_ptr_, &value, alloc_size);
+  PatchDataValue(const std::string value) : alloc_size(value.size()) {
+    patch_data.resize(alloc_size);
+    std::memcpy(patch_data.data(), value.c_str(), alloc_size);
   };
 
-  PatchDataValue(const size_t alloc_size, const uint64_t value)
-      : alloc_size_(alloc_size) {
-    patch_data_ptr_ = new uint8_t[alloc_size_];
-    memcpy((void*)patch_data_ptr_, &value, alloc_size);
-  };
-
-  PatchDataValue(const size_t alloc_size, const float value)
-      : alloc_size_(alloc_size) {
-    patch_data_ptr_ = new uint8_t[alloc_size_];
-    memcpy((void*)patch_data_ptr_, &value, alloc_size);
-  };
-
-  PatchDataValue(const size_t alloc_size, const std::vector<uint8_t> value)
-      : alloc_size_(alloc_size) {
-    patch_data_ptr_ = new uint8_t[alloc_size_];
-    memcpy((void*)patch_data_ptr_, value.data(), alloc_size);
-  };
-
-  PatchDataValue(const std::string value) : alloc_size_(value.size()) {
-    patch_data_ptr_ = new uint8_t[alloc_size_];
-    memcpy((void*)patch_data_ptr_, value.c_str(), alloc_size_);
-  };
-
-  PatchDataValue(const std::u16string value) : alloc_size_(value.size() * 2) {
-    patch_data_ptr_ = new uint8_t[alloc_size_];
-    memcpy((void*)patch_data_ptr_, value.c_str(), alloc_size_);
+  PatchDataValue(const std::u16string value) : alloc_size(value.size() * 2) {
+    patch_data.resize(alloc_size);
+    std::memcpy(patch_data.data(), value.c_str(), alloc_size);
   };
 };
 
 struct PatchDataEntry {
-  const uint32_t memory_address_;
-  const PatchDataValue new_data_;
+  const uint32_t address;
+  const PatchDataValue data;
 
-  PatchDataEntry(const uint32_t memory_address, const PatchDataValue new_data)
-      : memory_address_(memory_address), new_data_(new_data){};
+  PatchDataEntry(const uint32_t memory_address, const PatchDataValue patch_data)
+      : address(memory_address), data(patch_data){};
 };
 
 struct PatchInfoEntry {
@@ -93,15 +71,15 @@ struct PatchFileEntry {
 };
 
 enum class PatchDataType {
-  be8,
-  be16,
-  be32,
-  be64,
-  f32,
-  f64,
-  string,
-  u16string,
-  byte_array
+  kBE8,
+  kBE16,
+  kBE32,
+  kBE64,
+  kF32,
+  kF64,
+  kString,
+  kU16String,
+  kByteArray
 };
 
 struct PatchData {
@@ -123,29 +101,29 @@ class PatchDB {
                      const std::pair<std::string, PatchData> data_type,
                      const std::shared_ptr<cpptoml::table>& patch_table);
 
-  std::vector<PatchFileEntry> GetTitlePatches(uint32_t title_id,
-                                              const uint64_t hash);
-  std::vector<PatchFileEntry>& GetAllPatches() { return loaded_patches; }
+  std::vector<PatchFileEntry> GetTitlePatches(
+      const uint32_t title_id, const std::optional<uint64_t> hash);
+  std::vector<PatchFileEntry>& GetAllPatches() { return loaded_patches_; }
 
  private:
-  void ReadHash(PatchFileEntry& patchEntry,
-                std::shared_ptr<cpptoml::table> patch_toml_fields);
+  void ReadHashes(PatchFileEntry& patch_entry,
+                  std::shared_ptr<cpptoml::table> patch_toml_fields);
 
-  inline static const std::string patch_filename_regex =
-      "^[A-Fa-f0-9]{8}.*\\.patch\\.toml$";
+  inline static const std::regex patch_filename_regex_ =
+      std::regex("^[A-Fa-f0-9]{8}.*\\.patch\\.toml$");
 
-  const std::map<std::string, PatchData> patch_data_types_size = {
-      {"string", PatchData(0, PatchDataType::string)},
-      {"u16string", PatchData(0, PatchDataType::u16string)},
-      {"array", PatchData(0, PatchDataType::byte_array)},
-      {"f64", PatchData(sizeof(uint64_t), PatchDataType::f64)},
-      {"f32", PatchData(sizeof(uint32_t), PatchDataType::f32)},
-      {"be64", PatchData(sizeof(uint64_t), PatchDataType::be64)},
-      {"be32", PatchData(sizeof(uint32_t), PatchDataType::be32)},
-      {"be16", PatchData(sizeof(uint16_t), PatchDataType::be16)},
-      {"be8", PatchData(sizeof(uint8_t), PatchDataType::be8)}};
+  const std::map<std::string, PatchData> patch_data_types_size_ = {
+      {"string", PatchData(0, PatchDataType::kString)},
+      {"u16string", PatchData(0, PatchDataType::kU16String)},
+      {"array", PatchData(0, PatchDataType::kByteArray)},
+      {"f64", PatchData(sizeof(uint64_t), PatchDataType::kF64)},
+      {"f32", PatchData(sizeof(uint32_t), PatchDataType::kF32)},
+      {"be64", PatchData(sizeof(uint64_t), PatchDataType::kBE64)},
+      {"be32", PatchData(sizeof(uint32_t), PatchDataType::kBE32)},
+      {"be16", PatchData(sizeof(uint16_t), PatchDataType::kBE16)},
+      {"be8", PatchData(sizeof(uint8_t), PatchDataType::kBE8)}};
 
-  std::vector<PatchFileEntry> loaded_patches;
+  std::vector<PatchFileEntry> loaded_patches_;
   std::filesystem::path patches_root_;
 };
 }  // namespace patcher

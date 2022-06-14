@@ -19,16 +19,15 @@ namespace patcher {
 class Patcher {
  public:
   Patcher(const std::filesystem::path patches_root);
-  ~Patcher();
 
   void ApplyPatch(Memory* memory, const PatchInfoEntry* patch);
   void ApplyPatchesForTitle(Memory* memory, const uint32_t title_id,
-                            const uint64_t hash);
+                            const std::optional<uint64_t> hash);
 
   bool IsAnyPatchApplied() { return is_any_patch_applied_; }
 
  private:
-  PatchDB* patch_db;
+  PatchDB* patch_db_;
   bool is_any_patch_applied_;
 };
 

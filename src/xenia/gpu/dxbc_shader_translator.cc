@@ -212,63 +212,124 @@ void DxbcShaderTranslator::PopSystemTemp(uint32_t count) {
   system_temp_count_current_ -= std::min(count, system_temp_count_current_);
 }
 
-void DxbcShaderTranslator::ConvertPWLGamma(
-    bool to_gamma, int32_t source_temp, uint32_t source_temp_component,
-    uint32_t target_temp, uint32_t target_temp_component, uint32_t piece_temp,
-    uint32_t piece_temp_component, uint32_t accumulator_temp,
-    uint32_t accumulator_temp_component) {
-  assert_true(source_temp != target_temp ||
-              source_temp_component != target_temp_component ||
-              ((target_temp != accumulator_temp ||
-                target_temp_component != accumulator_temp_component) &&
-               (target_temp != piece_temp ||
-                target_temp_component != piece_temp_component)));
-  assert_true(piece_temp != source_temp ||
-              piece_temp_component != source_temp_component);
-  assert_true(accumulator_temp != source_temp ||
-              accumulator_temp_component != source_temp_component);
-  assert_true(piece_temp != accumulator_temp ||
-              piece_temp_component != accumulator_temp_component);
+void DxbcShaderTranslator::PWLGammaToLinear(
+    uint32_t target_temp, uint32_t target_temp_component, uint32_t source_temp,
+    uint32_t source_temp_component, bool source_pre_saturated, uint32_t temp1,
+    uint32_t temp1_component, uint32_t temp2, uint32_t temp2_component) {
+  // The source is needed only once to begin building the result, so it can be
+  // the same as the destination.
+  assert_true(temp1 != target_temp || temp1_component != target_temp_component);
+  assert_true(temp1 != source_temp || temp1_component != source_temp_component);
+  assert_true(temp2 != target_temp || temp2_component != target_temp_component);
+  assert_true(temp2 != source_temp || temp2_component != source_temp_component);
+  assert_true(temp1 != temp2 || temp1_component != temp2_component);
+  dxbc::Dest target_dest(
+      dxbc::Dest::R(target_temp, UINT32_C(1) << target_temp_component));
+  dxbc::Src target_src(dxbc::Src::R(target_temp).Select(target_temp_component));
   dxbc::Src source_src(dxbc::Src::R(source_temp).Select(source_temp_component));
-  dxbc::Dest piece_dest(dxbc::Dest::R(piece_temp, 1 << piece_temp_component));
-  dxbc::Src piece_src(dxbc::Src::R(piece_temp).Select(piece_temp_component));
-  dxbc::Dest accumulator_dest(
-      dxbc::Dest::R(accumulator_temp, 1 << accumulator_temp_component));
-  dxbc::Src accumulator_src(
-      dxbc::Src::R(accumulator_temp).Select(accumulator_temp_component));
-  // For each piece:
-  // 1) Calculate how far we are on it. Multiply by 1/width, subtract
-  //    start/width and saturate.
-  // 2) Add the contribution of the piece - multiply the position on the piece
-  //    by its slope*width and accumulate.
-  // Piece 1.
-  a_.OpMul(piece_dest, source_src,
-           dxbc::Src::LF(to_gamma ? (1.0f / 0.0625f) : (1.0f / 0.25f)), true);
-  a_.OpMul(accumulator_dest, piece_src,
-           dxbc::Src::LF(to_gamma ? (4.0f * 0.0625f) : (0.25f * 0.25f)));
-  // Piece 2.
-  a_.OpMAd(piece_dest, source_src,
-           dxbc::Src::LF(to_gamma ? (1.0f / 0.0625f) : (1.0f / 0.125f)),
-           dxbc::Src::LF(to_gamma ? (-0.0625f / 0.0625f) : (-0.25f / 0.125f)),
-           true);
-  a_.OpMAd(accumulator_dest, piece_src,
-           dxbc::Src::LF(to_gamma ? (2.0f * 0.0625f) : (0.5f * 0.125f)),
-           accumulator_src);
-  // Piece 3.
-  a_.OpMAd(piece_dest, source_src,
-           dxbc::Src::LF(to_gamma ? (1.0f / 0.375f) : (1.0f / 0.375f)),
-           dxbc::Src::LF(to_gamma ? (-0.125f / 0.375f) : (-0.375f / 0.375f)),
-           true);
-  a_.OpMAd(accumulator_dest, piece_src,
-           dxbc::Src::LF(to_gamma ? (1.0f * 0.375f) : (1.0f * 0.375f)),
-           accumulator_src);
-  // Piece 4.
-  a_.OpMAd(piece_dest, source_src,
-           dxbc::Src::LF(to_gamma ? (1.0f / 0.5f) : (1.0f / 0.25f)),
-           dxbc::Src::LF(to_gamma ? (-0.5f / 0.5f) : (-0.75f / 0.25f)), true);
-  a_.OpMAd(dxbc::Dest::R(target_temp, 1 << target_temp_component), piece_src,
-           dxbc::Src::LF(to_gamma ? (0.5f * 0.5f) : (2.0f * 0.25f)),
-           accumulator_src);
+  dxbc::Dest temp1_dest(dxbc::Dest::R(temp1, UINT32_C(1) << temp1_component));
+  dxbc::Src temp1_src(dxbc::Src::R(temp1).Select(temp1_component));
+  dxbc::Dest temp2_dest(dxbc::Dest::R(temp2, UINT32_C(1) << temp2_component));
+  dxbc::Src temp2_src(dxbc::Src::R(temp2).Select(temp2_component));
+
+  // Get the scale (into temp1) and the offset (into temp2) for the piece.
+  // Using `source >= threshold` comparisons because the input might have not
+  // been saturated yet, and thus it may be NaN - since it will be saturated to
+  // 0 later, the 0...64/255 case should be selected for it.
+  a_.OpGE(temp2_dest, source_src, dxbc::Src::LF(96.0f / 255.0f));
+  a_.OpIf(true, temp2_src);
+  // [96/255 ... 1
+  a_.OpGE(temp2_dest, source_src, dxbc::Src::LF(192.0f / 255.0f));
+  a_.OpMovC(temp1_dest, temp2_src, dxbc::Src::LF(8.0f / 1024.0f),
+            dxbc::Src::LF(4.0f / 1024.0f));
+  a_.OpMovC(temp2_dest, temp2_src, dxbc::Src::LF(-1024.0f),
+            dxbc::Src::LF(-256.0f));
+  a_.OpElse();
+  // 0 ... 96/255)
+  a_.OpGE(temp2_dest, source_src, dxbc::Src::LF(64.0f / 255.0f));
+  a_.OpMovC(temp1_dest, temp2_src, dxbc::Src::LF(2.0f / 1024.0f),
+            dxbc::Src::LF(1.0f / 1024.0f));
+  a_.OpMovC(temp2_dest, temp2_src, dxbc::Src::LF(-64.0f), dxbc::Src::LF(0.0f));
+  a_.OpEndIf();
+
+  if (!source_pre_saturated) {
+    // Saturate the input, and flush NaN to 0.
+    a_.OpMov(target_dest, source_src, true);
+  }
+  // linear = gamma * (255 * 1024) * scale + offset
+  // As both 1024 and the scale are powers of 2, and 1024 * scale is not smaller
+  // than 1, it's not important if it's (gamma * 255) * 1024 * scale,
+  // (gamma * 255 * 1024) * scale, gamma * 255 * (1024 * scale), or
+  // gamma * (255 * 1024 * scale) - or the option chosen here, as long as
+  // 1024 is applied before the scale since the scale is < 1 (specifically at
+  // least 1/1024), and it may make very small values denormal.
+  a_.OpMul(target_dest, source_pre_saturated ? source_src : target_src,
+           dxbc::Src::LF(255.0f * 1024.0f));
+  a_.OpMAd(target_dest, target_src, temp1_src, temp2_src);
+  // linear += trunc(linear * scale)
+  a_.OpMul(temp1_dest, target_src, temp1_src);
+  a_.OpRoundZ(temp1_dest, temp1_src);
+  a_.OpAdd(target_dest, target_src, temp1_src);
+  // linear *= 1/1023
+  a_.OpMul(target_dest, target_src, dxbc::Src::LF(1.0f / 1023.0f));
+}
+
+void DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(
+    uint32_t target_temp, uint32_t target_temp_component, uint32_t source_temp,
+    uint32_t source_temp_component, uint32_t temp_or_target,
+    uint32_t temp_or_target_component, uint32_t temp_non_target,
+    uint32_t temp_non_target_component) {
+  // The source may be the same as the target, but in this case it can't also be
+  // used as a temporary variable.
+  assert_true(target_temp != source_temp ||
+              target_temp_component != source_temp_component ||
+              target_temp != temp_or_target ||
+              target_temp_component != temp_or_target_component);
+  assert_true(temp_or_target != source_temp ||
+              temp_or_target_component != source_temp_component);
+  assert_true(temp_non_target != target_temp ||
+              temp_non_target_component != target_temp_component);
+  assert_true(temp_non_target != source_temp ||
+              temp_non_target_component != source_temp_component);
+  assert_true(temp_or_target != temp_non_target ||
+              temp_or_target_component != temp_non_target_component);
+  dxbc::Dest target_dest(
+      dxbc::Dest::R(target_temp, UINT32_C(1) << target_temp_component));
+  dxbc::Src target_src(dxbc::Src::R(target_temp).Select(target_temp_component));
+  dxbc::Src source_src(dxbc::Src::R(source_temp).Select(source_temp_component));
+  dxbc::Dest temp_or_target_dest(
+      dxbc::Dest::R(temp_or_target, UINT32_C(1) << temp_or_target_component));
+  dxbc::Src temp_or_target_src(
+      dxbc::Src::R(temp_or_target).Select(temp_or_target_component));
+  dxbc::Dest temp_non_target_dest(
+      dxbc::Dest::R(temp_non_target, UINT32_C(1) << temp_non_target_component));
+  dxbc::Src temp_non_target_src(
+      dxbc::Src::R(temp_non_target).Select(temp_non_target_component));
+
+  // Get the scale (into temp_or_target) and the offset (into temp_non_target)
+  // for the piece.
+  a_.OpGE(temp_non_target_dest, source_src, dxbc::Src::LF(128.0f / 1023.0f));
+  a_.OpIf(true, temp_non_target_src);
+  // [128/1023 ... 1
+  a_.OpGE(temp_non_target_dest, source_src, dxbc::Src::LF(512.0f / 1023.0f));
+  a_.OpMovC(temp_or_target_dest, temp_non_target_src,
+            dxbc::Src::LF(1023.0f / 8.0f), dxbc::Src::LF(1023.0f / 4.0f));
+  a_.OpMovC(temp_non_target_dest, temp_non_target_src,
+            dxbc::Src::LF(128.0f / 255.0f), dxbc::Src::LF(64.0f / 255.0f));
+  a_.OpElse();
+  // 0 ... 128/1023)
+  a_.OpGE(temp_non_target_dest, source_src, dxbc::Src::LF(64.0f / 1023.0f));
+  a_.OpMovC(temp_or_target_dest, temp_non_target_src,
+            dxbc::Src::LF(1023.0f / 2.0f), dxbc::Src::LF(1023.0f));
+  a_.OpMovC(temp_non_target_dest, temp_non_target_src,
+            dxbc::Src::LF(32.0f / 255.0f), dxbc::Src::LF(0.0f));
+  a_.OpEndIf();
+
+  // gamma = trunc(linear * scale) * (1.0 / 255.0) + offset
+  a_.OpMul(target_dest, source_src, temp_or_target_src);
+  a_.OpRoundZ(target_dest, target_src);
+  a_.OpMAd(target_dest, target_src, dxbc::Src::LF(1.0f / 255.0f),
+           temp_non_target_src);
 }
 
 void DxbcShaderTranslator::RemapAndConvertVertexIndices(
