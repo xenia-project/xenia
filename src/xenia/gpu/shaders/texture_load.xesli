@@ -22,10 +22,12 @@
 // in 128x16 blocks per group for 8bpb / 16bpb, and for a 32x32 mip tail, there
 // would be two groups rather than one, for a total of 128x32 blocks - 75% of
 // the work will be wasted rather than 50% with one 64x32-block group.
-#define kXeTextureLoadGroupSizeX 4
-#define kXeTextureLoadGroupSizeY 32
+#define xesl_localSize_x 4
+#define xesl_localSize_y 32
+#define xesl_localSize_z 1
 
-xesl_cbuffer_begin(xe_texture_load_constants, set=2, binding=0, b0, space0)
+xesl_constantBuffer_begin(xe_texture_load_constants, set=2, binding=0, b0,
+                          space0)
   uint xe_texture_load_is_tiled_3d_endian_scale;
   // Base offset in bytes, resolution-scaled.
   uint xe_texture_load_guest_offset;
@@ -47,115 +49,109 @@ xesl_cbuffer_begin(xe_texture_load_constants, set=2, binding=0, b0, space0)
 
   uint xe_texture_load_host_pitch;
   uint xe_texture_load_height_texels;
-xesl_cbuffer_end(xe_texture_load_constants)
+xesl_constantBuffer_end(xe_texture_load_constants)
 
-bool XeTextureLoadIsTiled() {
+#define XE_TEXTURE_LOAD_CONSTANT_BUFFER_BINDING \
+    xesl_constantBuffer_binding(xe_texture_load_constants, buffer(0))
+
+struct XeTextureLoadInfo {
+  bool is_tiled;
+  bool is_3d;
+  uint endian_32;
+  xesl_uint2 resolution_scale;
+  uint guest_offset;
+  uint guest_pitch_aligned;
+  uint guest_z_stride_block_rows_aligned;
+  xesl_uint3 size_blocks;
+  uint host_offset;
+  uint host_pitch;
+  uint height_texels;
+};
+
+XeTextureLoadInfo XeTextureLoadGetInfo(
+    xesl_function_param_constantBuffer(xe_texture_load_constants)) {
+  XeTextureLoadInfo load_info;
+  uint is_tiled_3d_endian_scale = xesl_constant(
+      xe_texture_load_constants, xe_texture_load_is_tiled_3d_endian_scale);
   #ifdef XE_TEXTURE_LOAD_RESOLUTION_SCALED
     // Only resolved textures can be resolution-scaled, and resolving is only
     // possible to a tiled destination.
-    return true;
+    load_info.is_tiled = true;
   #else
-    return (xesl_constant(xe_texture_load_constants,
-                          xe_texture_load_is_tiled_3d_endian_scale) & 1u) != 0u;
+    load_info.is_tiled = (is_tiled_3d_endian_scale & 1u) != 0u;
   #endif
-}
-
-bool XeTextureLoadIs3D() {
-  return (xesl_constant(xe_texture_load_constants,
-                        xe_texture_load_is_tiled_3d_endian_scale) & (1u << 1u))
-         != 0u;
-}
-
-uint XeTextureLoadEndian32() {
-  return (xesl_constant(xe_texture_load_constants,
-                        xe_texture_load_is_tiled_3d_endian_scale) >> 2u) & 3u;
-}
-
-xesl_uint2 XeTextureLoadResolutionScale() {
+  load_info.is_3d = (is_tiled_3d_endian_scale & (1u << 1u)) != 0u;
+  load_info.endian_32 = (is_tiled_3d_endian_scale >> 2u) & 3u;
   #ifdef XE_TEXTURE_LOAD_RESOLUTION_SCALED
-    return (xesl_constant(xe_texture_load_constants,
-                          xe_texture_load_is_tiled_3d_endian_scale.xx) >>
-            xesl_uint2(4u, 6u)) & 3u;
+    load_info.resolution_scale =
+        ((xesl_uint_x2(is_tiled_3d_endian_scale)) >> xesl_uint2(4u, 6u)) & 3u;
   #else
-    return xesl_uint2(1u, 1u);
+    load_info.resolution_scale = xesl_uint2(1u, 1u);
   #endif
-}
-
-xesl_uint3 XeTextureLoadSizeBlocks() {
-  return xesl_constant(xe_texture_load_constants, xe_texture_load_size_blocks);
-}
-
-uint XeTextureLoadHostOffset() {
-  return xesl_constant(xe_texture_load_constants, xe_texture_load_host_offset);
-}
-
-uint XeTextureLoadHostPitch() {
-  return xesl_constant(xe_texture_load_constants, xe_texture_load_host_pitch);
-}
-
-uint XeTextureLoadHeightTexels() {
-  return xesl_constant(xe_texture_load_constants,
-                       xe_texture_load_height_texels);
+  load_info.guest_offset =
+      xesl_constant(xe_texture_load_constants, xe_texture_load_guest_offset);
+  load_info.guest_pitch_aligned = xesl_constant(
+      xe_texture_load_constants, xe_texture_load_guest_pitch_aligned);
+  load_info.guest_z_stride_block_rows_aligned =
+      xesl_constant(xe_texture_load_constants,
+                    xe_texture_load_guest_z_stride_block_rows_aligned);
+  load_info.size_blocks =
+      xesl_constant(xe_texture_load_constants, xe_texture_load_size_blocks);
+  load_info.host_offset =
+      xesl_constant(xe_texture_load_constants, xe_texture_load_host_offset);
+  load_info.host_pitch =
+      xesl_constant(xe_texture_load_constants, xe_texture_load_host_pitch);
+  load_info.height_texels =
+      xesl_constant(xe_texture_load_constants, xe_texture_load_height_texels);
+  return load_info;
 }
 
 // bpb and bpb_log2 are separate because bpb may be not a power of 2 (like 96).
-uint XeTextureLoadGuestBlockOffset(xesl_uint3 block_index, uint bpb,
+uint XeTextureLoadGuestBlockOffset(XeTextureLoadInfo load_info,
+                                   xesl_uint3 block_index, uint bpb,
                                    uint bpb_log2) {
   #ifdef XE_TEXTURE_LOAD_RESOLUTION_SCALED
     // Only resolved textures can be resolution-scaled, and resolving is only
     // possible to a tiled destination.
     return
-        xesl_constant(xe_texture_load_constants, xe_texture_load_guest_offset) +
-        XeTextureScaledTiledOffset(
-            XeTextureLoadIs3D(), block_index,
-            xesl_constant(xe_texture_load_constants,
-                          xe_texture_load_guest_pitch_aligned),
-            xesl_constant(xe_texture_load_constants,
-                          xe_texture_load_guest_z_stride_block_rows_aligned),
-            bpb_log2, XeTextureLoadResolutionScale());
+        load_info.guest_offset +
+        XeTextureScaledTiledOffset(load_info.is_3d, block_index,
+                                   load_info.guest_pitch_aligned,
+                                   load_info.guest_z_stride_block_rows_aligned,
+                                   bpb_log2, load_info.resolution_scale);
   #else
     int block_offset_guest;
-    xesl_dont_flatten if (XeTextureLoadIsTiled()) {
-      xesl_dont_flatten if (XeTextureLoadIs3D()) {
+    xesl_dont_flatten if (load_info.is_tiled) {
+      xesl_dont_flatten if (load_info.is_3d) {
         block_offset_guest = XeTextureTiledOffset3D(
-            xesl_int3(block_index),
-            xesl_constant(xe_texture_load_constants,
-                          xe_texture_load_guest_pitch_aligned),
-            xesl_constant(xe_texture_load_constants,
-                          xe_texture_load_guest_z_stride_block_rows_aligned),
-            bpb_log2);
+            xesl_int3(block_index), load_info.guest_pitch_aligned,
+            load_info.guest_z_stride_block_rows_aligned, bpb_log2);
       } else {
         block_offset_guest = XeTextureTiledOffset2D(
-            xesl_int2(block_index.xy),
-            xesl_constant(xe_texture_load_constants,
-                          xe_texture_load_guest_pitch_aligned), bpb_log2);
+            xesl_int2(block_index.xy), load_info.guest_pitch_aligned,
+            bpb_log2);
       }
     } else {
       block_offset_guest = XeTextureGuestLinearOffset(
-          xesl_int3(block_index),
-          xesl_constant(xe_texture_load_constants,
-                        xe_texture_load_guest_pitch_aligned),
-          xesl_constant(xe_texture_load_constants,
-                        xe_texture_load_guest_z_stride_block_rows_aligned),
-          bpb);
+          xesl_int3(block_index), load_info.guest_pitch_aligned,
+          load_info.guest_z_stride_block_rows_aligned, bpb);
     }
-    return uint(int(xesl_constant(xe_texture_load_constants,
-                                  xe_texture_load_guest_offset)) +
-           block_offset_guest);
+    return uint(int(load_info.guest_offset) + block_offset_guest);
   #endif
 }
 
 // Offset of the beginning of the odd R32G32/R32G32B32A32 load address from the
 // address of the even load, for power-of-two-sized textures.
-uint XeTextureLoadRightConsecutiveBlocksOffset(uint block_x, uint bpb_log2) {
+uint XeTextureLoadRightConsecutiveBlocksOffset(XeTextureLoadInfo load_info,
+                                               uint block_x, uint bpb_log2) {
   #ifdef XE_TEXTURE_LOAD_RESOLUTION_SCALED
     return XeTextureScaledRightSubUnitOffsetInConsecutivePair(
-               block_x, bpb_log2, XeTextureLoadResolutionScale());
+               block_x, bpb_log2, load_info.resolution_scale);
   #else
     uint offset;
     uint consecutive_blocks_log2 =
         XeTextureTiledConsecutiveBlocksLog2(bpb_log2);
-    xesl_dont_flatten if (XeTextureLoadIsTiled()) {
+    xesl_dont_flatten if (load_info.is_tiled) {
       offset = XeTextureTiledOddConsecutiveBlocksOffset(bpb_log2);
     } else {
       offset = 1u << (consecutive_blocks_log2 + bpb_log2);

@@ -9,11 +9,13 @@
 
 #include "../../ui/shaders/xesl.xesli"
 
-xesl_entry
-xesl_entry_bindings_end
-  xesl_input(xesl_float2, xe_in_position, 0, POSITION)
-  xesl_entry_signature_next
-  xesl_output_position
-xesl_entry_signature_end
-  xesl_Position = xesl_float4(xe_in_position, 0.0, 1.0);
-xesl_entry_end
+xesl_entry_outputs_begin
+  xesl_entry_output_position
+xesl_entry_outputs_end_stageInputs_begin
+  xesl_entry_stageInput_vertex(xesl_float2, xe_in_position, 0, POSITION)
+xesl_entry_stageInputs_end_bindings_begin_vertex
+xesl_entry_bindings_empty_end_inputs_begin
+  xesl_entry_input_stageInputs
+xesl_entry_inputs_end_code_begin
+  xesl_Position = xesl_float4(xesl_StageInput(xe_in_position), 0.0, 1.0);
+xesl_entry_code_end

@@ -5,7 +5,7 @@
 //
 // Buffer Definitions: 
 //
-// cbuffer xesl_push_constants
+// cbuffer xesl_pushConstants
 // {
 //
 //   int2 xe_bilinear_output_offset;    // Offset:    0 Size:     8
@@ -20,7 +20,7 @@
 // ------------------------------ ---------- ------- ----------- ------- -------------- ------
 // xe_bilinear_sampler               sampler      NA          NA      S0             s0      1 
 // xe_bilinear_source                texture  float4          2d      T0             t0      1 
-// xesl_push_constants               cbuffer      NA          NA     CB0            cb0      1 
+// xesl_pushConstants                cbuffer      NA          NA     CB0            cb0      1 
 //
 //
 //
@@ -317,10 +317,10 @@ ret
 
 const BYTE guest_output_bilinear_dither_ps[] =
 {
-     68,  88,  66,  67,  55,  93, 
-      9, 117, 129, 177, 137, 139, 
-     40, 171,  68, 135, 129, 155, 
-    184,   4,   1,   0,   0,   0, 
+     68,  88,  66,  67, 136, 171, 
+    120, 166,  53,  38, 172, 101, 
+    232, 170,  77, 224, 127,  69, 
+     99, 234,   1,   0,   0,   0, 
      60,  21,   0,   0,   5,   0, 
       0,   0,  52,   0,   0,   0, 
      72,   2,   0,   0, 124,   2, 
@@ -365,8 +365,8 @@ const BYTE guest_output_bilinear_dither_ps[] =
     114,  95, 115, 111, 117, 114, 
      99, 101,   0, 120, 101, 115, 
     108,  95, 112, 117, 115, 104, 
-     95,  99, 111, 110, 115, 116, 
-     97, 110, 116, 115,   0, 171, 
+     67, 111, 110, 115, 116,  97, 
+    110, 116, 115,   0, 171, 171, 
     219,   0,   0,   0,   2,   0, 
       0,   0,   8,   1,   0,   0, 
      16,   0,   0,   0,   0,   0, 

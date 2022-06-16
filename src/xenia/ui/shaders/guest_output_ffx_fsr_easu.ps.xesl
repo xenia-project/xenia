@@ -11,52 +11,60 @@
 
 #include "amd_language.xesli"
 
-xesl_push_constants_begin(b0, space0)
+xesl_pushConstants_begin(b0, space0)
   // 16 used by the vertex shader (GLSL push constant offsets are across
   // stages).
   xesl_block_offset_member(16, c0.x, xesl_float2,
                            xe_fsr_easu_input_output_size_ratio)
   xesl_block_offset_member(24, c0.z, xesl_float2, xe_fsr_easu_input_size_inv)
-xesl_push_constants_end
+xesl_pushConstants_end
+
+// FIXME(Triang3l): This approach doesn't work for MSL - the texture must be
+// passed explicitly from the entry point's arguments to FsrEasu#F.
 
 // Forward declaration because FsrEasu#F need xe_fsr_easu_source from the entry
 // point bindings.
-void FsrEasuF(out xesl_float3 pixel, xesl_uint2 pixel_position,
-              xesl_uint4 const0, xesl_uint4 const1, xesl_uint4 const2,
-              xesl_uint4 const3);
+void FsrEasuF(xesl_function_param_out(xesl_float3, pixel),
+              xesl_uint2 pixel_position, xesl_uint4 const0, xesl_uint4 const1,
+              xesl_uint4 const2, xesl_uint4 const3);
 
-xesl_entry
-  xesl_texture(xesl_texture2D, xe_fsr_easu_source, set=0, binding=0, t0, space0)
+xesl_entry_outputs_begin
+  xesl_entry_output_target(xesl_float4, xe_fsr_easu_color, 0)
+xesl_entry_outputs_end_stageInputs_begin
+xesl_entry_stageInputs_end_bindings_begin_pixel
+  xesl_pushConstants_binding(buffer(0))
   xesl_entry_binding_next
-  xesl_samplerState(xe_fsr_easu_sampler, set=0, binding=1, s0, space0)
-xesl_entry_bindings_end
-  xesl_input_frag_coord
-  xesl_entry_signature_next
-  xesl_output_color(xesl_float4, xe_fsr_easu_color, 0)
-xesl_entry_signature_end
+  xesl_texture(xesl_texture2D, xe_fsr_easu_source, set=0, binding=0, t0, space0,
+               texture(0))
+  xesl_entry_binding_next
+  xesl_samplerState(xe_fsr_easu_sampler, set=0, binding=1, s0, space0,
+                    sampler(0))
+xesl_entry_bindings_end_inputs_begin
+  xesl_entry_input_fragCoord
+xesl_entry_inputs_end_code_begin
   // FsrEasuCon with smaller push constant usage.
   xesl_uint4 easu_const_0 =
       xesl_uint4(
           xesl_floatBitsToUint(
-              xesl_push_constant(xe_fsr_easu_input_output_size_ratio)),
+              xesl_pushConstant(xe_fsr_easu_input_output_size_ratio)),
           xesl_floatBitsToUint(
-              0.5 * xesl_push_constant(xe_fsr_easu_input_output_size_ratio) -
+              0.5 * xesl_pushConstant(xe_fsr_easu_input_output_size_ratio) -
               0.5));
   xesl_uint4 easu_const_1 =
       xesl_floatBitsToUint(xesl_float4(1.0, 1.0, 1.0, -1.0) *
-                           xesl_push_constant(xe_fsr_easu_input_size_inv).xyxy);
+                           xesl_pushConstant(xe_fsr_easu_input_size_inv).xyxy);
   xesl_uint4 easu_const_2 =
       xesl_floatBitsToUint(xesl_float4(-1.0, 2.0, 1.0, 2.0) *
-                           xesl_push_constant(xe_fsr_easu_input_size_inv).xyxy);
+                           xesl_pushConstant(xe_fsr_easu_input_size_inv).xyxy);
   xesl_uint4 easu_const_3 =
       xesl_uint4(xesl_floatBitsToUint(0.0),
                  xesl_floatBitsToUint(
-                     4.0 * xesl_push_constant(xe_fsr_easu_input_size_inv).y),
+                     4.0 * xesl_pushConstant(xe_fsr_easu_input_size_inv).y),
                  0u, 0u);
-  FsrEasuF(xe_fsr_easu_color.rgb, xesl_uint2(xesl_FragCoord.xy), easu_const_0,
-           easu_const_1, easu_const_2, easu_const_3);
-  xe_fsr_easu_color.a = 1.0;
-xesl_entry_end
+  FsrEasuF(xesl_Output(xe_fsr_easu_color).rgb, xesl_uint2(xesl_FragCoord.xy),
+           easu_const_0, easu_const_1, easu_const_2, easu_const_3);
+  xesl_Output(xe_fsr_easu_color).a = 1.0;
+xesl_entry_code_end
 
 #define A_GPU 1
 #include "../../../../third_party/FidelityFX-FSR/ffx-fsr/ffx_a.h"
