@@ -5,7 +5,7 @@
 //
 // Buffer Definitions: 
 //
-// cbuffer xesl_push_constants
+// cbuffer xesl_pushConstants
 // {
 //
 //   float2 xe_fsr_easu_input_output_size_ratio;// Offset:    0 Size:     8
@@ -20,7 +20,7 @@
 // ------------------------------ ---------- ------- ----------- ------- -------------- ------
 // xe_fsr_easu_sampler               sampler      NA          NA      S0             s0      1 
 // xe_fsr_easu_source                texture  float4          2d      T0             t0      1 
-// xesl_push_constants               cbuffer      NA          NA     CB0            cb0      1 
+// xesl_pushConstants                cbuffer      NA          NA     CB0            cb0      1 
 //
 //
 //
@@ -349,10 +349,10 @@ ret
 
 const BYTE guest_output_ffx_fsr_easu_ps[] =
 {
-     68,  88,  66,  67, 116, 222, 
-     34, 168,  25, 190, 222,  18, 
-    116, 177, 135, 170, 202,  44, 
-     73,  65,   1,   0,   0,   0, 
+     68,  88,  66,  67, 204, 214, 
+     70, 255,  61,  49,  52,  98, 
+     20,  80,   3, 213, 232, 141, 
+    225, 246,   1,   0,   0,   0, 
     240,  40,   0,   0,   5,   0, 
       0,   0,  52,   0,   0,   0, 
      40,   2,   0,   0,  92,   2, 
@@ -397,8 +397,8 @@ const BYTE guest_output_ffx_fsr_easu_ps[] =
     117,  95, 115, 111, 117, 114, 
      99, 101,   0, 120, 101, 115, 
     108,  95, 112, 117, 115, 104, 
-     95,  99, 111, 110, 115, 116, 
-     97, 110, 116, 115,   0, 171, 
+     67, 111, 110, 115, 116,  97, 
+    110, 116, 115,   0, 171, 171, 
     219,   0,   0,   0,   2,   0, 
       0,   0,   8,   1,   0,   0, 
      16,   0,   0,   0,   0,   0, 

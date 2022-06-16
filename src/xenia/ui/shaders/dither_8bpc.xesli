@@ -14,7 +14,7 @@
 
 #include "noise.xesli"
 
-xesl_static const float xe_dither_8bpc_noise[] = {
+xesl_staticConst float xe_dither_8bpc_noise[] = {
   // The conversion to 8bpc in the fixed-function output-merger is done as
   // floor(saturate(color) * 255.0 + 0.5). This dithering function effectively
   // replaces that 0.5 offset, done for rounding to the nearest, with the noise.

@@ -13,26 +13,31 @@
   #include "dither_8bpc.xesli"
 #endif  // XE_GUEST_OUTPUT_DITHER
 
-xesl_push_constants_begin(b0, space0)
+xesl_pushConstants_begin(b0, space0)
   // 16 used by the vertex shader (GLSL push constant offsets are across
   // stages).
   xesl_block_offset_member(16, c0.x, xesl_int2, xe_bilinear_output_offset)
-  // CasSetup const1.x.
   xesl_block_offset_member(24, c0.z, xesl_float2, xe_bilinear_output_size_inv)
-xesl_push_constants_end
+xesl_pushConstants_end
 
-xesl_entry
-  xesl_texture(xesl_texture2D, xe_bilinear_source, set=0, binding=0, t0, space0)
+xesl_entry_outputs_begin
+  xesl_entry_output_target(xesl_float4, xe_bilinear_color, 0)
+xesl_entry_outputs_end_stageInputs_begin
+xesl_entry_stageInputs_end_bindings_begin_pixel
+  xesl_pushConstants_binding(buffer(0))
   xesl_entry_binding_next
-  xesl_samplerState(xe_bilinear_sampler, set=0, binding=1, s0, space0)
-xesl_entry_bindings_end
-  xesl_input_frag_coord
-  xesl_entry_signature_next
-  xesl_output_color(xesl_float4, xe_bilinear_color, 0)
-xesl_entry_signature_end
+  xesl_texture(xesl_texture2D, xe_bilinear_source, set=0, binding=0, t0, space0,
+               texture(0))
+  xesl_entry_binding_next
+  xesl_samplerState(xe_bilinear_sampler, set=0, binding=1, s0, space0,
+                    sampler(0))
+xesl_entry_bindings_end_inputs_begin
+  xesl_entry_input_fragCoord
+xesl_entry_inputs_end_code_begin
   xesl_uint2 pixel_coord =
       xesl_uint2(xesl_int2(xesl_FragCoord.xy) -
-                 xesl_push_constant(xe_bilinear_output_offset));
+                 xesl_pushConstant(xe_bilinear_output_offset));
+  xesl_float4 bilinear_color;
   // + 0.5 so the origin is at the pixel center, and at 1:1 the original pixel
   // is taken.
   // Interpolating the four colors in the perceptual space because doing it in
@@ -40,17 +45,18 @@ xesl_entry_signature_end
   // become too thick, and aliasing of bright parts on top of dark areas to be
   // too apparent (4D5307E6 HUD, for example, mainly the edges of the
   // multiplayer score bars).
-  xe_bilinear_color.rgb =
+  bilinear_color.rgb =
       xesl_textureSampleLod2D_sep(
           xe_bilinear_source, xe_bilinear_sampler,
           (xesl_float2(pixel_coord) + 0.5) *
-              xesl_push_constant(xe_bilinear_output_size_inv),
+              xesl_pushConstant(xe_bilinear_output_size_inv),
           0.0).rgb;
   #if XE_GUEST_OUTPUT_DITHER
     // Clamping because on Vulkan, the surface may specify any format, including
     // floating-point.
-    xe_bilinear_color.rgb =
-        xesl_saturate(xe_bilinear_color.rgb + XeDitherOffset8bpc(pixel_coord));
+    bilinear_color.rgb =
+        xesl_saturate(bilinear_color.rgb + XeDitherOffset8bpc(pixel_coord));
   #endif  // XE_GUEST_OUTPUT_DITHER
-  xe_bilinear_color.a = 1.0;
-xesl_entry_end
+  bilinear_color.a = 1.0;
+  xesl_Output(xe_bilinear_color) = bilinear_color;
+xesl_entry_code_end

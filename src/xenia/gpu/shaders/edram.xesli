@@ -23,9 +23,10 @@ uint XeEdramOffsetInts(xesl_uint2 pixel_index, uint base_tiles,
   xesl_uint2 rt_sample_index =
       pixel_index <<
       xesl_uint2(xesl_greaterThanEqual(
-          msaa_samples.xx,
+          xesl_uint_x2(msaa_samples),
           xesl_uint2(kXenosMsaaSamples_4X, kXenosMsaaSamples_2X)));
-  rt_sample_index += (pixel_sample_index.xx >> xesl_uint2(1u, 0u)) & 1u;
+  rt_sample_index +=
+      (xesl_uint_x2(pixel_sample_index) >> xesl_uint2(1u, 0u)) & 1u;
   // For now, while the actual storage of 64bpp render targets in comparison to
   // 32bpp is not known, storing 40x16 64bpp samples per tile for simplicity of
   // addressing in different scenarios.
