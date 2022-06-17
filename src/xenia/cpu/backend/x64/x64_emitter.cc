@@ -818,6 +818,12 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {
     // 1111...
     vpcmpeqb(dest, dest);
   } else {
+    for (size_t i = 0; i < (kConstDataSize / sizeof(vec128_t)); ++i) {
+      if (xmm_consts[i] == v) {
+        vmovapd(dest, GetXmmConstPtr((XmmConst)i));
+        return;
+      }
+    }
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
     MovMem64(rsp + kStashOffset, v.low);
@@ -833,11 +839,19 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, float v) {
   } x = {v};
   if (!x.i) {
     // +0.0f (but not -0.0f because it may be used to flip the sign via xor).
-    vpxor(dest, dest);
+    vxorps(dest, dest);
   } else if (x.i == ~uint32_t(0)) {
     // 1111...
-    vpcmpeqb(dest, dest);
+    vcmpeqss(dest, dest);
   } else {
+    unsigned raw_bits = *reinterpret_cast<unsigned*>(&v);
+
+    for (size_t i = 0; i < (kConstDataSize / sizeof(vec128_t)); ++i) {
+      if (xmm_consts[i].u32[0] == raw_bits) {
+        vmovss(dest, GetXmmConstPtr((XmmConst)i));
+        return;
+      }
+    }
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
     mov(eax, x.i);
@@ -852,11 +866,19 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, double v) {
   } x = {v};
   if (!x.i) {
     // +0.0 (but not -0.0 because it may be used to flip the sign via xor).
-    vpxor(dest, dest);
+    vxorpd(dest, dest);
   } else if (x.i == ~uint64_t(0)) {
     // 1111...
-    vpcmpeqb(dest, dest);
+    vcmpeqpd(dest, dest);
   } else {
+    uint64_t raw_bits = *reinterpret_cast<uint64_t*>(&v);
+
+    for (size_t i = 0; i < (kConstDataSize / sizeof(vec128_t)); ++i) {
+      if (xmm_consts[i].u64[0] == raw_bits) {
+        vmovsd(dest, GetXmmConstPtr((XmmConst)i));
+        return;
+      }
+    }
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
     mov(rax, x.i);

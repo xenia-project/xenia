@@ -52,9 +52,9 @@ RegExp ComputeMemoryAddressOffset(X64Emitter& e, const T& guest,
     if (xe::memory::allocation_granularity() > 0x1000) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
+      e.xor_(e.eax, e.eax);
       e.cmp(guest.reg().cvt32(), 0xE0000000 - offset_const);
       e.setae(e.al);
-      e.movzx(e.eax, e.al);
       e.shl(e.eax, 12);
       e.add(e.eax, guest.reg().cvt32());
     } else {
@@ -89,9 +89,9 @@ RegExp ComputeMemoryAddress(X64Emitter& e, const T& guest) {
     if (xe::memory::allocation_granularity() > 0x1000) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
+      e.xor_(e.eax, e.eax);
       e.cmp(guest.reg().cvt32(), 0xE0000000);
       e.setae(e.al);
-      e.movzx(e.eax, e.al);
       e.shl(e.eax, 12);
       e.add(e.eax, guest.reg().cvt32());
     } else {
