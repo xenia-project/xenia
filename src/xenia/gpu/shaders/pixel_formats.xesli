@@ -257,7 +257,8 @@ xesl_uint4 XePack32bpp4Pixels(xesl_float4 pixel_0, xesl_float4 pixel_1,
 
 void XePack64bpp4Pixels(xesl_float4 pixel_0, xesl_float4 pixel_1,
                         xesl_float4 pixel_2, xesl_float4 pixel_3, uint format,
-                        out xesl_uint4 packed_01, out xesl_uint4 packed_23) {
+                        xesl_function_param_out(xesl_uint4, packed_01),
+                        xesl_function_param_out(xesl_uint4, packed_23)) {
   switch (format) {
     case kXenosFormat_16_16_16_16:
       packed_01.xy = XePackR16G16B16A16UNorm(pixel_0);
@@ -290,7 +291,7 @@ xesl_float4 XeUnpackR8UNormX4(xesl_uint4 p) {
 }
 
 xesl_float4 XeUnpackR8G8B8A8UNorm(uint p) {
-  return xesl_float4((p.xxxx >> xesl_uint4(0u, 8u, 16u, 24u)) & 255u) *
+  return xesl_float4((xesl_uint_x4(p) >> xesl_uint4(0u, 8u, 16u, 24u)) & 255u) *
          (1.0 / 255.0);
 }
 
@@ -299,7 +300,7 @@ xesl_float4 XeUnpackR10UNormX4(xesl_uint4 p) {
 }
 
 xesl_float4 XeUnpackR10G10B10A2UNorm(uint p) {
-  return xesl_float4((p.xxxx >> xesl_uint4(0u, 10u, 20u, 30u)) &
+  return xesl_float4((xesl_uint_x4(p) >> xesl_uint4(0u, 10u, 20u, 30u)) &
                       xesl_uint2(1023u, 3u).xxxy) *
          xesl_float2(1.0 / 1023.0, 1.0 / 3.0).xxxy;
 }
@@ -312,35 +313,36 @@ xesl_float4 XeUnpackR10FloatX4(xesl_uint4 p) {
   // Normalize the values for the denormalized components.
   // Exponent = 1;
   // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x80) == 0);
-  xesl_bool4 is_denormalized = xesl_equal(exponent, (0u).xxxx);
-  xesl_uint4 mantissa_lzcnt = (7u).xxxx - xesl_findMSB(mantissa);
-  exponent =
-      xesl_select(is_denormalized, ((1u).xxxx - mantissa_lzcnt), exponent);
+  xesl_bool4 is_denormalized = xesl_equal(exponent, xesl_uint_x4(0u));
+  xesl_uint4 mantissa_lzcnt = xesl_uint_x4(7u) - xesl_firstOneBitHigh(mantissa);
+  exponent = xesl_select(is_denormalized, (xesl_uint_x4(1u) - mantissa_lzcnt),
+                         exponent);
   mantissa = xesl_select(is_denormalized,
                          ((mantissa << mantissa_lzcnt) & 0x7Fu), mantissa);
   // Combine into 32-bit float bits and clear zeros.
   return xesl_uintBitsToFloat(xesl_select(
-      xesl_equal(f10u32, (0u).xxxx), (0u).xxxx,
+      xesl_equal(f10u32, xesl_uint_x4(0u)), xesl_uint_x4(0u),
       ((exponent + 124u) << 23u) | (mantissa << 16u)));
 }
 
 xesl_float4 XeUnpackR10G10B10A2Float(uint p) {
   // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
-  xesl_uint3 rgb_f10u32 = (p.xxx >> xesl_uint3(0u, 10u, 20u)) & 0x3FFu;
+  xesl_uint3 rgb_f10u32 =
+      (xesl_uint_x3(p) >> xesl_uint3(0u, 10u, 20u)) & 0x3FFu;
   xesl_uint3 mantissa = rgb_f10u32 & 0x7Fu;
   xesl_uint3 exponent = rgb_f10u32 >> 7u;
   // Normalize the values for the denormalized components.
   // Exponent = 1;
   // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x80) == 0);
-  xesl_bool3 is_denormalized = xesl_equal(exponent, (0u).xxx);
-  xesl_uint3 mantissa_lzcnt = (7u).xxx - xesl_findMSB(mantissa);
-  exponent =
-      xesl_select(is_denormalized, ((1u).xxx - mantissa_lzcnt), exponent);
+  xesl_bool3 is_denormalized = xesl_equal(exponent, xesl_uint_x3(0u));
+  xesl_uint3 mantissa_lzcnt = xesl_uint_x3(7u) - xesl_firstOneBitHigh(mantissa);
+  exponent = xesl_select(is_denormalized, (xesl_uint_x3(1u) - mantissa_lzcnt),
+                         exponent);
   mantissa = xesl_select(is_denormalized,
                          ((mantissa << mantissa_lzcnt) & 0x7Fu), mantissa);
   // Combine into 32-bit float bits and clear zeros.
   xesl_uint3 rgb_f32u32 = xesl_select(
-      xesl_equal(rgb_f10u32, (0u).xxx), (0u).xxx,
+      xesl_equal(rgb_f10u32, xesl_uint_x3(0u)), xesl_uint_x3(0u),
       ((exponent + 124u) << 23u) | (mantissa << 16u));
   return xesl_float4(xesl_uintBitsToFloat(rgb_f32u32),
                      float(p >> 30u) * (1.0 / 3.0));
@@ -358,18 +360,18 @@ xesl_float4 XeUnpackR10G10B10A2Float(uint p) {
 // Upper 16 bits are ignored by XeUnpackR16EdramX4.
 
 xesl_float4 XeUnpackR16EdramX4(xesl_uint4 p) {
-  return max((-1.0).xxxx,
+  return max(xesl_float_x4(-1.0),
              xesl_float4(xesl_int4(p) << 16 >> 16) * (32.0 / 32767.0));
 }
 
 xesl_float2 XeUnpackR16G16Edram(uint p) {
-  return max(
-      (-1.0).xx,
-      xesl_float2(int(p).xx << xesl_int2(16, 0) >> 16) * (32.0 / 32767.0));
+  return max(xesl_float_x2(-1.0),
+             xesl_float2(xesl_int_x2(int(p)) << xesl_int2(16, 0) >> 16) *
+                 (32.0 / 32767.0));
 }
 
 xesl_float4 XeUnpackR16G16B16A16Edram(xesl_uint2 p) {
-  return max((-1.0).xxxx,
+  return max(xesl_float_x4(-1.0),
              xesl_float4(xesl_int2(p).xxyy << xesl_int2(16, 0).xyxy >> 16) *
                  (32.0 / 32767.0));
 }
@@ -430,8 +432,8 @@ xesl_uint4 XeGBGR8ToRGB8WithRGBBSwizzle(xesl_uint2 packed_texels) {
   return rba.xxyy | g;
 }
 void XeGBGR8ToRGB8WithRGBBSwizzle(xesl_uint4 packed_texels,
-                                  out xesl_uint4 out_01,
-                                  out xesl_uint4 out_23) {
+                                  xesl_function_param_out(xesl_uint4, out_01),
+                                  xesl_function_param_out(xesl_uint4, out_23)) {
   out_01 = XeGBGR8ToRGB8WithRGBBSwizzle(packed_texels.xy);
   out_23 = XeGBGR8ToRGB8WithRGBBSwizzle(packed_texels.zw);
 }
@@ -444,8 +446,8 @@ xesl_uint4 XeBGRG8ToRGB8WithRGBBSwizzle(xesl_uint2 packed_texels) {
   return rba.xxyy | g;
 }
 void XeBGRG8ToRGB8WithRGBBSwizzle(xesl_uint4 packed_texels,
-                                  out xesl_uint4 out_01,
-                                  out xesl_uint4 out_23) {
+                                  xesl_function_param_out(xesl_uint4, out_01),
+                                  xesl_function_param_out(xesl_uint4, out_23)) {
   out_01 = XeBGRG8ToRGB8WithRGBBSwizzle(packed_texels.xy);
   out_23 = XeBGRG8ToRGB8WithRGBBSwizzle(packed_texels.zw);
 }
@@ -465,8 +467,9 @@ xesl_uint4 XeR10G11B11UNormToRGBA16(xesl_uint2 packed_texels) {
   result.yw |= 0xFFFF0000u;
   return result;
 }
-void XeR10G11B11UNormToRGBA16(xesl_uint4 packed_texels, out xesl_uint4 out_01,
-                              out xesl_uint4 out_23) {
+void XeR10G11B11UNormToRGBA16(xesl_uint4 packed_texels,
+                              xesl_function_param_out(xesl_uint4, out_01),
+                              xesl_function_param_out(xesl_uint4, out_23)) {
   out_01 = XeR10G11B11UNormToRGBA16(packed_texels.xy);
   out_23 = XeR10G11B11UNormToRGBA16(packed_texels.zw);
 }
@@ -486,8 +489,9 @@ xesl_uint4 XeR11G11B10UNormToRGBA16(xesl_uint2 packed_texels) {
   result.yw |= 0xFFFF0000u;
   return result;
 }
-void XeR11G11B10UNormToRGBA16(xesl_uint4 packed_texels, out xesl_uint4 out_01,
-                              out xesl_uint4 out_23) {
+void XeR11G11B10UNormToRGBA16(xesl_uint4 packed_texels,
+                              xesl_function_param_out(xesl_uint4, out_01),
+                              xesl_function_param_out(xesl_uint4, out_23)) {
   out_01 = XeR11G11B10UNormToRGBA16(packed_texels.xy);
   out_23 = XeR11G11B10UNormToRGBA16(packed_texels.zw);
 }
@@ -495,29 +499,39 @@ void XeR11G11B10UNormToRGBA16(xesl_uint4 packed_texels, out xesl_uint4 out_01,
 // Assuming the original number has only 10 bits.
 xesl_uint2 XeSNorm10To16(xesl_uint2 s10) {
   xesl_uint2 signs = s10 >> 9u;
-  xesl_bool2 is_negative = xesl_notEqual(signs, (0u).xx);
+  xesl_bool2 is_negative = xesl_notEqual(signs, xesl_uint_x2(0u));
   // -512 and -511 are both -1.0, but with -512 the conversion will overflow.
-  s10 = xesl_select(xesl_equal(s10, (0x200u).xx), (0x201u).xx, s10);
+  s10 = xesl_select(xesl_equal(s10, xesl_uint_x2(0x200u)), xesl_uint_x2(0x201u),
+                    s10);
   // Take the absolute value.
-  s10 = (s10 ^ xesl_select(is_negative, (0x3FFu).xx, (0u).xx)) + signs;
+  s10 = (s10 ^
+         xesl_select(is_negative, xesl_uint_x2(0x3FFu), xesl_uint_x2(0u))) +
+        signs;
   // Expand the 9-bit absolute value to 15 bits like unorm.
   s10 = (s10 << 6u) | (s10 >> 3u);
   // Apply the sign.
-  return (s10 ^ xesl_select(is_negative, (0xFFFFu).xx, (0u).xx)) + signs;
+  return (s10 ^
+          xesl_select(is_negative, xesl_uint_x2(0xFFFFu), xesl_uint_x2(0u))) +
+         signs;
 }
 
 // Assuming the original number has only 11 bits.
 xesl_uint2 XeSNorm11To16(xesl_uint2 s11) {
   xesl_uint2 signs = s11 >> 10u;
-  xesl_bool2 is_negative = xesl_notEqual(signs, (0u).xx);
+  xesl_bool2 is_negative = xesl_notEqual(signs, xesl_uint_x2(0u));
   // -1024 and -1023 are both -1.0, but with -1024 the conversion will overflow.
-  s11 = xesl_select(xesl_equal(s11, (0x400u).xx), (0x401u).xx, s11);
+  s11 = xesl_select(xesl_equal(s11, xesl_uint_x2(0x400u)), xesl_uint_x2(0x401u),
+                    s11);
   // Take the absolute value.
-  s11 = (s11 ^ xesl_select(is_negative, (0x7FFu).xx, (0u).xx)) + signs;
+  s11 = (s11 ^
+         xesl_select(is_negative, xesl_uint_x2(0x7FFu), xesl_uint_x2(0u))) +
+        signs;
   // Expand the 10-bit absolute value to 15 bits like unorm.
   s11 = (s11 << 5u) | (s11 >> 5u);
   // Apply the sign.
-  return (s11 ^ xesl_select(is_negative, (0xFFFFu).xx, (0u).xx)) + signs;
+  return (s11 ^
+          xesl_select(is_negative, xesl_uint_x2(0xFFFFu), xesl_uint_x2(0u))) +
+         signs;
 }
 
 xesl_uint4 XeR10G11B11SNormToRGBA16(xesl_uint2 packed_texels) {
@@ -526,8 +540,9 @@ xesl_uint4 XeR10G11B11SNormToRGBA16(xesl_uint2 packed_texels) {
                         (XeSNorm11To16((packed_texels >> 10u) & 2047u) << 16u),
                     XeSNorm11To16(packed_texels >> 21u) | 0x7FFF0000u).xzyw;
 }
-void XeR10G11B11SNormToRGBA16(xesl_uint4 packed_texels, out xesl_uint4 out_01,
-                              out xesl_uint4 out_23) {
+void XeR10G11B11SNormToRGBA16(xesl_uint4 packed_texels,
+                              xesl_function_param_out(xesl_uint4, out_01),
+                              xesl_function_param_out(xesl_uint4, out_23)) {
   out_01 = XeR10G11B11SNormToRGBA16(packed_texels.xy);
   out_23 = XeR10G11B11SNormToRGBA16(packed_texels.zw);
 }
@@ -538,8 +553,9 @@ xesl_uint4 XeR11G11B10SNormToRGBA16(xesl_uint2 packed_texels) {
                         (XeSNorm11To16((packed_texels >> 11u) & 2047u) << 16u),
                     XeSNorm10To16(packed_texels >> 22u) | 0x7FFF0000u).xzyw;
 }
-void XeR11G11B10SNormToRGBA16(xesl_uint4 packed_texels, out xesl_uint4 out_01,
-                              out xesl_uint4 out_23) {
+void XeR11G11B10SNormToRGBA16(xesl_uint4 packed_texels,
+                              xesl_function_param_out(xesl_uint4, out_01),
+                              xesl_function_param_out(xesl_uint4, out_23)) {
   out_01 = XeR11G11B10SNormToRGBA16(packed_texels.xy);
   out_23 = XeR11G11B10SNormToRGBA16(packed_texels.zw);
 }
@@ -555,10 +571,10 @@ xesl_uint4 XeRG16UNormToRG16Float(xesl_uint4 packed_texels) {
 
 xesl_uint4 XeRG16SNormToRG16Float(xesl_uint4 packed_texels) {
   xesl_float4 r =
-      max((-1.0).xxxx,
+      max(xesl_float_x4(-1.0),
           xesl_float4(xesl_int4(packed_texels) << 16 >> 16) * (1.0 / 32767.0));
   xesl_float4 g =
-      max((-1.0).xxxx,
+      max(xesl_float_x4(-1.0),
           xesl_float4(xesl_int4(packed_texels) >> 16) * (1.0 / 32767.0));
   return xesl_uint4(xesl_packHalf2x16(xesl_float2(r.x, g.x)),
                     xesl_packHalf2x16(xesl_float2(r.y, g.y)),
@@ -588,7 +604,7 @@ uint XeFloat20e4To32(uint f24u32, bool remap_to_0_to_0_5) {
   // Exponent = 1;
   // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x100000) == 0);
   bool is_denormalized = exponent == 0u;
-  uint mantissa_lzcnt = 20u - xesl_findMSB(mantissa);
+  uint mantissa_lzcnt = 20u - xesl_firstOneBitHigh(mantissa);
   exponent = is_denormalized ? (1u - mantissa_lzcnt) : exponent;
   mantissa =
       is_denormalized ? ((mantissa << mantissa_lzcnt) & 0xFFFFFu) : mantissa;
@@ -606,13 +622,15 @@ xesl_uint4 XeFloat20e4To32(xesl_uint4 f24u32) {
   // Normalize the values for the denormalized components.
   // Exponent = 1;
   // do { Exponent--; Mantissa <<= 1; } while ((Mantissa & 0x100000) == 0);
-  xesl_bool4 is_denormalized = xesl_equal(exponent, (0u).xxxx);
-  xesl_uint4 mantissa_lzcnt = (20u).xxxx - xesl_findMSB(mantissa);
-  exponent = xesl_select(is_denormalized, (1u).xxxx - mantissa_lzcnt, exponent);
+  xesl_bool4 is_denormalized = xesl_equal(exponent, xesl_uint_x4(0u));
+  xesl_uint4 mantissa_lzcnt =
+      xesl_uint_x4(20u) - xesl_firstOneBitHigh(mantissa);
+  exponent =
+      xesl_select(is_denormalized, xesl_uint_x4(1u) - mantissa_lzcnt, exponent);
   mantissa = xesl_select(
       is_denormalized, (mantissa << mantissa_lzcnt) & 0xFFFFFu, mantissa);
   // Combine into 32-bit float bits and clear zeros.
-  return xesl_select(xesl_equal(f24u32, (0u).xxxx), (0u).xxxx,
+  return xesl_select(xesl_equal(f24u32, xesl_uint_x4(0u)), xesl_uint_x4(0u),
                      ((exponent + 112u) << 23u) | (mantissa << 3u));
 }
 
@@ -673,7 +691,7 @@ xesl_uint2 XeDXTHighColorWeights(xesl_uint2 codes) {
   return XeDXTHighColorWeights(codes.xyxx).xy;
 }
 uint XeDXTHighColorWeights(uint codes) {
-  return XeDXTHighColorWeights(codes.xx).x;
+  return XeDXTHighColorWeights(xesl_uint_x2(codes)).x;
 }
 
 // Get the RGB colors of one row of a DXT opaque block. Endpoint colors can be
@@ -684,8 +702,8 @@ uint XeDXTHighColorWeights(uint codes) {
 xesl_uint4 XeDXTOpaqueRowToRGB8(xesl_uint2 bgr_end_8in10, uint weights_high) {
   const xesl_uint4 weights_shifts = xesl_uint4(0u, 2u, 4u, 6u);
   xesl_uint4 bgr_row_8in10_3x =
-      (((~weights_high).xxxx >> weights_shifts) & 3u) * bgr_end_8in10.x +
-      ((weights_high.xxxx >> weights_shifts) & 3u) * bgr_end_8in10.y;
+      ((xesl_uint_x4(~weights_high) >> weights_shifts) & 3u) * bgr_end_8in10.x +
+      ((xesl_uint_x4(weights_high) >> weights_shifts) & 3u) * bgr_end_8in10.y;
   return (((bgr_row_8in10_3x & 1023u) / 3u) << 16u) |
          ((((bgr_row_8in10_3x >> 10u) & 1023u) / 3u) << 8u) |
          ((bgr_row_8in10_3x >> 20u) / 3u);
@@ -712,19 +730,21 @@ xesl_uint4 XeDXT1TransRowToRGBA8(xesl_uint2 bgr_end_8in10, uint weights) {
   const xesl_uint4 weights_shifts_low = xesl_uint4(0u, 2u, 4u, 6u);
   const xesl_uint4 weights_shifts_high = xesl_uint4(1u, 3u, 5u, 7u);
   xesl_uint4 bgr_row_8in10_scaled =
-      ((weights.xxxx >> weights_shifts_low) & 1u) * bgr_end_8in10.x +
-      ((weights.xxxx >> weights_shifts_high) & 1u) * bgr_end_8in10.y;
+      ((xesl_uint_x4(weights) >> weights_shifts_low) & 1u) * bgr_end_8in10.x +
+      ((xesl_uint_x4(weights) >> weights_shifts_high) & 1u) * bgr_end_8in10.y;
   // Whether the texel is (RGB0+RGB1)/2 - divide the weighted sum by 2 (shift
   // right by 1) if it is.
   uint weights_sums_log2 = weights & ((weights & 0xAAAAAAAAu) >> 1u);
-  xesl_uint4 bgr_shift = (weights_sums_log2.xxxx >> weights_shifts_low) & 1u;
+  xesl_uint4 bgr_shift =
+      (xesl_uint_x4(weights_sums_log2) >> weights_shifts_low) & 1u;
   // Whether the texel is opaque.
   uint weights_alpha =
       (weights & 0x55555555u) | ((weights & 0xAAAAAAAAu) >> 1u);
   return (((bgr_row_8in10_scaled & 1023u) >> bgr_shift) << 16u) +
          ((((bgr_row_8in10_scaled >> 10u) & 1023u) >> bgr_shift) << 8u) +
          ((bgr_row_8in10_scaled >> 20u) >> bgr_shift) +
-         (((weights_alpha.xxxx >> weights_shifts_low) & 1u) * 0xFF000000u);
+         (((xesl_uint_x4(weights_alpha) >> weights_shifts_low) & 1u) *
+          0xFF000000u);
 }
 
 // Converts one row of four DXT3 alpha blocks to 16 packed R8 texels, useful for

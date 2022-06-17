@@ -9,39 +9,46 @@
 
 #include "texture_load.xesli"
 
-xesl_entry
-  xesl_writeTypedStorageBuffer(xesl_uint4, xe_texture_load_dest, set=0,
-                               binding=0, u0, space0)
+xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_texture_load_dest, set=0,
+                                     binding=0, u0, space0)
+xesl_typedStorageBuffer_declare(xesl_uint4, xe_texture_load_source, set=1,
+                                binding=0, t0, space0)
+xesl_entry_bindings_begin_compute
+  XE_TEXTURE_LOAD_CONSTANT_BUFFER_BINDING
   xesl_entry_binding_next
-  xesl_typedStorageBuffer(xesl_uint4, xe_texture_load_source, set=1, binding=0,
-                          t0, space0)
-xesl_entry_bindings_end_local_size(kXeTextureLoadGroupSizeX,
-                                   kXeTextureLoadGroupSizeY, 1)
-  xesl_input_global_invocation_id
-xesl_entry_signature_end
+  xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_texture_load_dest,
+                                       buffer(1))
+  xesl_entry_binding_next
+  xesl_typedStorageBuffer_binding(xesl_uint4, xe_texture_load_source, buffer(2))
+xesl_entry_bindings_end_inputs_begin_compute
+  xesl_entry_input_globalInvocationID
+xesl_entry_inputs_end_code_begin_compute
   // 1 thread = 2 blocks.
+  XeTextureLoadInfo load_info = XeTextureLoadGetInfo(
+      xesl_function_call_constantBuffer(xe_texture_load_constants));
   xesl_uint3 block_index = xesl_GlobalInvocationID << xesl_uint3(1u, 0u, 0u);
-  xesl_uint3 size_blocks = XeTextureLoadSizeBlocks();
   xesl_dont_flatten
-  if (any(xesl_greaterThanEqual(block_index.xy, size_blocks.xy))) {
+  if (any(xesl_greaterThanEqual(block_index.xy, load_info.size_blocks.xy))) {
     return;
   }
   uint block_offset_host = uint(
-      (XeTextureHostLinearOffset(xesl_int3(block_index),
-                                 XeTextureLoadHostPitch(), size_blocks.y, 16u) +
-       XeTextureLoadHostOffset()) >> 4u);
+      (XeTextureHostLinearOffset(xesl_int3(block_index), load_info.host_pitch,
+                                 load_info.size_blocks.y, 16u) +
+       load_info.host_offset) >> 4u);
   uint block_offset_guest =
-      XeTextureLoadGuestBlockOffset(block_index, 16u, 4u) >> 4u;
-  uint endian = XeTextureLoadEndian32();
+      XeTextureLoadGuestBlockOffset(load_info, block_index, 16u, 4u) >> 4u;
   xesl_writeTypedStorageBufferStore(
       xe_texture_load_dest, block_offset_host,
       XeEndianSwap32(xesl_typedStorageBufferLoad(xe_texture_load_source,
-                                                 block_offset_guest), endian));
+                                                 block_offset_guest),
+                     load_info.endian_32));
   ++block_offset_host;
   block_offset_guest +=
-      XeTextureLoadRightConsecutiveBlocksOffset(block_index.x, 4u) >> 4u;
+      XeTextureLoadRightConsecutiveBlocksOffset(load_info, block_index.x, 4u) >>
+      4u;
   xesl_writeTypedStorageBufferStore(
       xe_texture_load_dest, block_offset_host,
       XeEndianSwap32(xesl_typedStorageBufferLoad(xe_texture_load_source,
-                                                 block_offset_guest), endian));
-xesl_entry_end
+                                                 block_offset_guest),
+                     load_info.endian_32));
+xesl_entry_code_end_compute
