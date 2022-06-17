@@ -175,7 +175,7 @@ struct ZERO_EXTEND_I32_I8
 struct ZERO_EXTEND_I64_I8
     : Sequence<ZERO_EXTEND_I64_I8, I<OPCODE_ZERO_EXTEND, I64Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.movzx(i.dest, i.src1);
+    e.movzx(i.dest.reg().cvt32(), i.src1);
   }
 };
 struct ZERO_EXTEND_I32_I16
@@ -187,7 +187,7 @@ struct ZERO_EXTEND_I32_I16
 struct ZERO_EXTEND_I64_I16
     : Sequence<ZERO_EXTEND_I64_I16, I<OPCODE_ZERO_EXTEND, I64Op, I16Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.movzx(i.dest, i.src1);
+    e.movzx(i.dest.reg().cvt32(), i.src1);
   }
 };
 struct ZERO_EXTEND_I64_I32
@@ -1209,14 +1209,7 @@ void EmitAddCarryXX(X64Emitter& e, const ARGS& i) {
       e.clc();
     }
   } else {
-    if (i.src3.reg().getIdx() <= 4) {
-      // Can move from A/B/C/DX to AH.
-      e.mov(e.ah, i.src3.reg().cvt8());
-    } else {
-      e.mov(e.al, i.src3);
-      e.mov(e.ah, e.al);
-    }
-    e.sahf();
+    e.bt(i.src3.reg().cvt32(), 0);
   }
   SEQ::EmitCommutativeBinaryOp(
       e, i,
@@ -1326,6 +1319,18 @@ EMITTER_OPCODE_TABLE(OPCODE_SUB, SUB_I8, SUB_I16, SUB_I32, SUB_I64, SUB_F32,
 // We exploit mulx here to avoid creating too much register pressure.
 struct MUL_I8 : Sequence<MUL_I8, I<OPCODE_MUL, I8Op, I8Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    if (i.src1.is_constant || i.src2.is_constant) {
+      uint64_t cval =
+          i.src1.is_constant ? i.src1.constant() : i.src2.constant();
+
+      if (cval < (1ull << 32)) {
+        auto& whichevs = i.src1.is_constant ? i.src2 : i.src1;
+
+        e.imul(i.dest, whichevs, (int)cval);
+        return;
+      }
+    }
+
     if (e.IsFeatureEnabled(kX64EmitBMI2)) {
       // mulx: $1:$2 = EDX * $3
 
@@ -1367,6 +1372,18 @@ struct MUL_I8 : Sequence<MUL_I8, I<OPCODE_MUL, I8Op, I8Op, I8Op>> {
 };
 struct MUL_I16 : Sequence<MUL_I16, I<OPCODE_MUL, I16Op, I16Op, I16Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    if (i.src1.is_constant || i.src2.is_constant) {
+      uint64_t cval =
+          i.src1.is_constant ? i.src1.constant() : i.src2.constant();
+
+      if (cval < (1ull << 32)) {
+        auto& whichevs = i.src1.is_constant ? i.src2 : i.src1;
+
+        e.imul(i.dest, whichevs, (int)cval);
+        return;
+      }
+    }
+
     if (e.IsFeatureEnabled(kX64EmitBMI2)) {
       // mulx: $1:$2 = EDX * $3
 
@@ -1408,6 +1425,26 @@ struct MUL_I16 : Sequence<MUL_I16, I<OPCODE_MUL, I16Op, I16Op, I16Op>> {
 };
 struct MUL_I32 : Sequence<MUL_I32, I<OPCODE_MUL, I32Op, I32Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      uint32_t multiplier = i.src2.value->constant.u32;
+      if (multiplier == 3 || multiplier == 5 || multiplier == 9) {
+        e.lea(i.dest, e.ptr[i.src1.reg() * (multiplier - 1) + i.src1.reg()]);
+        return;
+      }
+    }
+
+    if (i.src1.is_constant || i.src2.is_constant) {
+      uint64_t cval =
+          i.src1.is_constant ? i.src1.constant() : i.src2.constant();
+
+      if (cval < (1ull << 32)) {
+        auto& whichevs = i.src1.is_constant ? i.src2 : i.src1;
+
+        e.imul(i.dest, whichevs, (int)cval);
+        return;
+      }
+    }
+
     if (e.IsFeatureEnabled(kX64EmitBMI2)) {
       // mulx: $1:$2 = EDX * $3
 
@@ -1450,6 +1487,27 @@ struct MUL_I32 : Sequence<MUL_I32, I<OPCODE_MUL, I32Op, I32Op, I32Op>> {
 };
 struct MUL_I64 : Sequence<MUL_I64, I<OPCODE_MUL, I64Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      uint64_t multiplier = i.src2.value->constant.u64;
+      if (multiplier == 3 || multiplier == 5 || multiplier == 9) {
+        e.lea(i.dest,
+              e.ptr[i.src1.reg() * ((int)multiplier - 1) + i.src1.reg()]);
+        return;
+      }
+    }
+
+    if (i.src1.is_constant || i.src2.is_constant) {
+      uint64_t cval =
+          i.src1.is_constant ? i.src1.constant() : i.src2.constant();
+
+      if (cval < (1ull << 32)) {
+        auto& whichevs = i.src1.is_constant ? i.src2 : i.src1;
+
+        e.imul(i.dest, whichevs, (int)cval);
+        return;
+      }
+    }
+
     if (e.IsFeatureEnabled(kX64EmitBMI2)) {
       // mulx: $1:$2 = RDX * $3
 
@@ -2617,6 +2675,34 @@ void EmitAndXX(X64Emitter& e, const ARGS& i) {
         e.and_(dest_src, src);
       },
       [](X64Emitter& e, const REG& dest_src, int32_t constant) {
+        if (constant == 0xFF) {
+          if (dest_src.getBit() == 16 || dest_src.getBit() == 32) {
+            e.movzx(dest_src, dest_src.cvt8());
+            return;
+          } else if (dest_src.getBit() == 64) {
+            // take advantage of automatic zeroing of upper 32 bits
+            e.movzx(dest_src.cvt32(), dest_src.cvt8());
+            return;
+          }
+        } else if (constant == 0xFFFF) {
+          if (dest_src.getBit() == 32) {
+            e.movzx(dest_src, dest_src.cvt16());
+            return;
+          } else if (dest_src.getBit() == 64) {
+            e.movzx(dest_src.cvt32(), dest_src.cvt16());
+            return;
+          }
+        } else if (constant == -1) {
+          if (dest_src.getBit() == 64) {
+            // todo: verify that mov eax, eax will properly zero upper 64 bits
+          }
+        } else if (dest_src.getBit() == 64 && constant > 0) {
+          // do 32 bit and, not the full 64, because the upper 32 of the mask
+          // are zero and the 32 bit op will auto clear the top, save space on
+          // the immediate and avoid a rex prefix
+          e.and_(dest_src.cvt32(), constant);
+          return;
+        }
         e.and_(dest_src, constant);
       });
 }
