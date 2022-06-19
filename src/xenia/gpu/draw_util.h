@@ -275,7 +275,7 @@ union ResolveEdramInfo {
     uint32_t pitch_tiles : xenos::kEdramPitchTilesBits;
     xenos::MsaaSamples msaa_samples : xenos::kMsaaSamplesBits;
     uint32_t is_depth : 1;
-    // With offset to the 160x32 region that local_x/y_div_8 are relative to.
+    // With offset to the region that edram_offset_x/y_div_8 are relative to.
     uint32_t base_tiles : xenos::kEdramBaseTilesBits;
     uint32_t format : xenos::kRenderTargetFormatBits;
     uint32_t format_is_64bpp : 1;
