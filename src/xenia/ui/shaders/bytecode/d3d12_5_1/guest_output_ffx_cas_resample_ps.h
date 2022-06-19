@@ -5,7 +5,7 @@
 //
 // Buffer Definitions: 
 //
-// cbuffer xesl_push_constants
+// cbuffer xesl_pushConstants
 // {
 //
 //   int2 xe_cas_output_offset;         // Offset:    0 Size:     8
@@ -20,7 +20,7 @@
 // Name                                 Type  Format         Dim      ID      HLSL Bind  Count
 // ------------------------------ ---------- ------- ----------- ------- -------------- ------
 // xe_cas_source                     texture  float4          2d      T0             t0      1 
-// xesl_push_constants               cbuffer      NA          NA     CB0            cb0      1 
+// xesl_pushConstants                cbuffer      NA          NA     CB0            cb0      1 
 //
 //
 //
@@ -221,10 +221,10 @@ ret
 
 const BYTE guest_output_ffx_cas_resample_ps[] =
 {
-     68,  88,  66,  67, 248, 232, 
-    207,  92, 213, 189, 237, 217, 
-    220, 103,  14, 244, 152,  17, 
-    180,  41,   1,   0,   0,   0, 
+     68,  88,  66,  67, 218, 135, 
+     61,  84,  18, 214,  47, 213, 
+     40,  40,  32, 224, 139, 169, 
+      5, 170,   1,   0,   0,   0, 
      92,  24,   0,   0,   5,   0, 
       0,   0,  52,   0,   0,   0, 
     120,   2,   0,   0, 172,   2, 
@@ -258,8 +258,8 @@ const BYTE guest_output_ffx_cas_resample_ps[] =
      97, 115,  95, 115, 111, 117, 
     114,  99, 101,   0, 120, 101, 
     115, 108,  95, 112, 117, 115, 
-    104,  95,  99, 111, 110, 115, 
-    116,  97, 110, 116, 115,   0, 
+    104,  67, 111, 110, 115, 116, 
+     97, 110, 116, 115,   0, 171, 
     171, 171, 154,   0,   0,   0, 
       3,   0,   0,   0, 200,   0, 
       0,   0,  32,   0,   0,   0, 

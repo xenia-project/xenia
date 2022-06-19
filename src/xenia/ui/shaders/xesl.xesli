@@ -10,7 +10,7 @@
 #ifndef XENIA_UI_SHADERS_XESL_XESLI_
 #define XENIA_UI_SHADERS_XESL_XESLI_
 
-// XESL_LANGUAGE_GLSL / HLSL = 1 are expected to be defined via compiler
+// XESL_LANGUAGE_GLSL / HLSL / MSL = 1 are expected to be defined via compiler
 // arguments.
 
 // Required GLSL extensions:
@@ -30,6 +30,11 @@
 // preferred over xesl_mix because the former describes how exactly the mixing
 // will be performed), and / or that is the most visually consistent
 // (xesl_float4 over xesl_vec4 considering it's a float vector).
+
+#if XESL_LANGUAGE_MSL
+  #include <metal_stdlib>
+  using namespace metal;
+#endif
 
 // Vectors.
 
@@ -66,6 +71,47 @@
   #define xesl_float4 float4
 #endif  // XESL_LANGUAGE_GLSL
 
+xesl_bool2 xesl_bool_x2(bool xesl_var_value) {
+  return xesl_bool2(xesl_var_value, xesl_var_value);
+}
+xesl_bool3 xesl_bool_x3(bool xesl_var_value) {
+  return xesl_bool3(xesl_var_value, xesl_var_value, xesl_var_value);
+}
+xesl_bool4 xesl_bool_x4(bool xesl_var_value) {
+  return xesl_bool4(xesl_var_value, xesl_var_value, xesl_var_value,
+                    xesl_var_value);
+}
+xesl_int2 xesl_int_x2(int xesl_var_value) {
+  return xesl_int2(xesl_var_value, xesl_var_value);
+}
+xesl_int3 xesl_int_x3(int xesl_var_value) {
+  return xesl_int3(xesl_var_value, xesl_var_value, xesl_var_value);
+}
+xesl_int4 xesl_int_x4(int xesl_var_value) {
+  return xesl_int4(xesl_var_value, xesl_var_value, xesl_var_value,
+                   xesl_var_value);
+}
+xesl_uint2 xesl_uint_x2(uint xesl_var_value) {
+  return xesl_uint2(xesl_var_value, xesl_var_value);
+}
+xesl_uint3 xesl_uint_x3(uint xesl_var_value) {
+  return xesl_uint3(xesl_var_value, xesl_var_value, xesl_var_value);
+}
+xesl_uint4 xesl_uint_x4(uint xesl_var_value) {
+  return xesl_uint4(xesl_var_value, xesl_var_value, xesl_var_value,
+                    xesl_var_value);
+}
+xesl_float2 xesl_float_x2(float xesl_var_value) {
+  return xesl_float2(xesl_var_value, xesl_var_value);
+}
+xesl_float3 xesl_float_x3(float xesl_var_value) {
+  return xesl_float3(xesl_var_value, xesl_var_value, xesl_var_value);
+}
+xesl_float4 xesl_float_x4(float xesl_var_value) {
+  return xesl_float4(xesl_var_value, xesl_var_value, xesl_var_value,
+                     xesl_var_value);
+}
+
 // Declarations.
 //
 // Resource binding is very different between shading languages, so any
@@ -81,27 +127,55 @@
 // instance names, or separate texture and sampler from a combined texture /
 // sampler for languages not supporting the latter).
 
-// Shader entry point must be declared as:
-// xesl_entry
-//   Everything here must be separated with xesl_entry_binding_next, with no
-//   leading or trailing separators.
-//   - Texel buffer, texture, sampler bindings.
-// xesl_entry_bindings_end or (for CS) xesl_entry_bindings_end_local_size
-//   Everything here must be separated with xesl_entry_signature_next, with no
-//   leading or trailing separators.
-//   - Linked stage inputs.
-//   - Linked system stage inputs (like pixel position).
-//   - System stage inputs.
+// Non-compute shader entry point must be declared as:
+// xesl_entry_outputs_begin
 //   - Linked stage outputs.
 //   - Linked system stage outputs (like vertex position).
 //   - System stage outputs.
-// xesl_entry_signature_end
+// xesl_entry_outputs_end_stageInputs_begin
+//   - Linked stage inputs (vertex attributes, interpolants).
+// xesl_entry_stageInputs_end_bindings_begin_[stage] (vertex, pixel)
+//   Everything here must be separated with xesl_entry_binding_next, with no
+//   leading or trailing separators.
+//   - Buffer, texture, sampler bindings.
+// xesl_entry_bindings_end_inputs_begin
+// (or xesl_entry_bindings_empty_end_inputs_begin if there are no bindings).
+//   Everything here must be separated with xesl_entry_input_next, with no
+//   leading or trailing separators.
+//   - xesl_entry_input_stageInputs if any linked stage inputs are used.
+//   - Linked system inputs (like pixel position).
+//   - System inputs.
+// xesl_entry_inputs_end_code_begin
 //   - Main function code.
-// xesl_entry_end
-// Bindings are in the entry point because they are passed this way in MSL.
+// xesl_entry_code_end
+//
+// Compute shader entry point must be declared as:
+// #define xesl_localSize_x, y, z
+// xesl_entry_bindings_begin_compute
+//   Everything here must be separated with xesl_entry_binding_next, with no
+//   leading or trailing separators.
+//   - Buffer, texture, sampler bindings.
+// xesl_entry_bindings_end_inputs_begin_compute
+//   Everything here must be separated with xesl_entry_input_next, with no
+//   leading or trailing separators.
+//   - System inputs.
+// xesl_entry_inputs_end_code_begin_compute
+//   - Main function code.
+// xesl_entry_code_end_compute
+//
+// Bindings are in the entry point because they are passed this way in MSL. For
+// this reason, constant and storage buffer declarations are also split into the
+// declaration itself and the binding (because blocks can't be passed as
+// function arguments in GLSL, for instance, so they must be fully declared
+// before functions referencing them in headers, for example - but in MSL, their
+// structure has to be forward-declared for this purpose, and the reference to
+// the binding should be passed to the function).
+//
 // Note that for the stage inputs / outputs, the order must be the same as in
-// HLSL linkage.
-// Both binding and signature entry names may be placed in the global scope in
+// HLSL linkage. For this reason, the position and the fragment coordinate also
+// must be after the stage inputs structure in the input list.
+//
+// Both input / output and binding names may be placed in the global scope in
 // the target language, make sure they don't collide with anything there.
 //
 // In compute shaders, the total group size must not exceed 128 threads (unless
@@ -113,44 +187,221 @@
 // it provides balance between wave utilization and excess thread (and, on GPUs
 // with smaller waves, wave) count if the size of the actual work domain is not
 // aligned to the group size.
+//
+// System outputs and inputs (declared via the respective xesl_entry_output_*
+// and xesl_entry_input_*):
+// - Vertex shaders:
+//   - out xesl_float4 xesl_Position
+//   - in uint xesl_VertexID
+// - Pixel shaders:
+//   - in xesl_float4 xesl_FragCoord
+//     xesl_FragCoord.w is 1/W if XESL_FRAG_COORD_W_IS_INVERSE, W otherwise.
+// - Compute shaders:
+//   - in xesl_uint3 xesl_WorkGroupID
+//   - in xesl_uint3 xesl_LocalInvocationID
+//   - in xesl_uint3 xesl_GlobalInvocationID
+//   - in uint xesl_LocalInvocationIndex
 #if XESL_LANGUAGE_GLSL
-  #define xesl_entry_bindings_end_local_size(x, y, z) \
-      layout(local_size_x=(x), local_size_y=(y), local_size_z=(z)) in;
-  #define xesl_entry_signature_end void main() {
+  #define xesl_entry_output(type, name, index, semantic) \
+      layout(location=index) out type name;
+  #define xesl_entry_output_target(type, name, index) \
+      layout(location=index) out type name;
+  #define xesl_Output(name) name
+  #define xesl_Position gl_Position
+  #define xesl_entry_stageInput(type, name, index, semantic) \
+      layout(location=index) in type name;
+  #define xesl_entry_bindings_end_inputs_begin_compute                         \
+      layout(local_size_x=(xesl_localSize_x), local_size_y=(xesl_localSize_y), \
+             local_size_z=(xesl_localSize_z)) in;
+  #define xesl_StageInput(name) name
+  #define xesl_VertexID (uint(gl_VertexIndex))
+  #define XESL_FRAG_COORD_W_IS_INVERSE 1
+  #define xesl_FragCoord gl_FragCoord
+  #define xesl_WorkGroupID gl_WorkGroupID
+  #define xesl_LocalInvocationID gl_LocalInvocationID
+  #define xesl_GlobalInvocationID gl_GlobalInvocationID
+  #define xesl_LocalInvocationIndex gl_LocalInvocationIndex
+  #define xesl_entry_inputs_end_code_begin void main() {
+  #define xesl_entry_inputs_end_code_begin_compute void main() {
+  #define xesl_entry_return return;
 #elif XESL_LANGUAGE_HLSL
-  #define xesl_entry_bindings_end void main(
-  #define xesl_entry_bindings_end_local_size(x, y, z) \
-      [numthreads(x, y, z)]                           \
-      xesl_entry_bindings_end
-  #define xesl_entry_signature_next ,
-  #define xesl_entry_signature_end ) {
+  #define xesl_entry_outputs_begin struct xesl_entry_outputs_struct {
+  #define xesl_entry_output(type, name, index, semantic) type name : semantic;
+  #define xesl_entry_output_target(type, name, index) \
+      type name : SV_Target##index;
+  #define xesl_Output(name) xesl_entry_outputs.name
+  #define xesl_entry_output_position \
+      float4 xesl_id_output_position : SV_Position;
+  #define xesl_Position xesl_entry_outputs.xesl_id_output_position
+  #define xesl_entry_outputs_end_stageInputs_begin \
+      };                                           \
+      struct xesl_entry_stageInputs_struct {
+  #define xesl_entry_stageInput(type, name, index, semantic) \
+      type name : semantic;
+  #define xesl_entry_stageInputs_end_bindings_begin_vertex };
+  #define xesl_entry_stageInputs_end_bindings_begin_pixel };
+  #define xesl_entry_bindings_end_inputs_begin xesl_entry_outputs_struct main(
+  #define xesl_entry_bindings_empty_end_inputs_begin \
+      xesl_entry_outputs_struct main(
+  #define xesl_entry_bindings_end_inputs_begin_compute                   \
+      [numthreads(xesl_localSize_x, xesl_localSize_y, xesl_localSize_z)] \
+      void main(
+  #define xesl_entry_input_next ,
+  #define xesl_entry_input_stageInputs \
+      xesl_entry_stageInputs_struct xesl_entry_stageInputs
+  #define xesl_StageInput(name) xesl_entry_stageInputs.name
+  #define xesl_entry_input_vertexID uint xesl_VertexID : SV_VertexID
+  #define xesl_entry_input_fragCoord xesl_float4 xesl_FragCoord : SV_Position
+  #define xesl_entry_input_workGroupID xesl_uint3 xesl_WorkGroupID : SV_GroupID
+  #define xesl_entry_input_localInvocationID \
+      xesl_uint3 xesl_LocalInvocationID : SV_GroupThreadID
+  #define xesl_entry_input_globalInvocationID \
+      xesl_uint3 xesl_GlobalInvocationID : SV_DispatchThreadID
+  #define xesl_entry_input_localInvocationIndex \
+      uint xesl_LocalInvocationIndex : SV_GroupIndex
+  #define xesl_entry_inputs_end_code_begin \
+      ) {                                  \
+          xesl_entry_outputs_struct xesl_entry_outputs;
+  #define xesl_entry_inputs_end_code_begin_compute ) {
+  #define xesl_entry_return return xesl_entry_outputs;
+#elif XESL_LANGUAGE_MSL
+  #define xesl_entry_outputs_begin struct xesl_entry_outputs_struct {
+  #define xesl_entry_output(type, name, index, semantic) \
+      type name [[user(semantic)]];
+  #define xesl_entry_output_target(type, name, index) \
+      type name [[color(index)]];
+  #define xesl_Output(name) xesl_entry_outputs.name
+  #define xesl_entry_output_position \
+      xesl_float4 xesl_id_output_position [[position]];
+  #define xesl_Position xesl_entry_outputs.xesl_id_output_position
+  #define xesl_entry_outputs_end_stageInputs_begin \
+      };                                           \
+      struct xesl_entry_stageInputs_struct {
+  #define xesl_entry_stageInput(type, name, index, semantic) \
+      type name [[user(semantic)]];
+  #define xesl_entry_stageInput_vertex(type, name, index, semantic) \
+      type name [[attribute(index)]];
+  #define xesl_entry_stageInputs_end_bindings_begin_vertex \
+      };                                                   \
+      vertex xesl_entry_outputs_struct xesl_entry(
+  #define xesl_entry_stageInputs_end_bindings_begin_pixel \
+      };                                                  \
+      fragment xesl_entry_outputs_struct xesl_entry(
+  #define xesl_entry_bindings_begin_compute kernel void xesl_entry(
+  #define xesl_entry_binding_next ,
+  #define xesl_entry_bindings_end_inputs_begin ,
+  #define xesl_entry_bindings_end_inputs_begin_compute ,
+  #define xesl_entry_input_next ,
+  #define xesl_entry_input_stageInputs \
+      xesl_entry_stageInputs_struct xesl_entry_stageInputs [[stage_in]]
+  #define xesl_StageInput(name) xesl_entry_stageInputs.name
+  #define xesl_entry_input_vertexID uint xesl_VertexID [[vertex_id]]
+  #define XESL_FRAG_COORD_W_IS_INVERSE 1
+  #define xesl_entry_input_fragCoord xesl_float4 xesl_FragCoord [[position]]
+  #define xesl_entry_input_workGroupID \
+      xesl_uint3 xesl_WorkGroupID [[threadgroup_position_in_grid]]
+  #define xesl_entry_input_localInvocationID \
+      xesl_uint3 xesl_LocalInvocationID [[thread_position_in_threadgroup]]
+  #define xesl_entry_input_globalInvocationID \
+      xesl_uint3 xesl_GlobalInvocationID [[thread_position_in_grid]]
+  #define xesl_entry_input_localInvocationIndex \
+      uint xesl_LocalInvocationIndex [[thread_index_in_threadgroup]]
+  #define xesl_entry_inputs_end_code_begin \
+      ) {                                  \
+          xesl_entry_outputs_struct xesl_entry_outputs;
+  #define xesl_entry_inputs_end_code_begin_compute ) {
+  #define xesl_entry_return return xesl_entry_outputs;
 #else
   #error xesl_entry not defined for the target language.
 #endif  // XE_LANGUAGE
-#ifndef xesl_entry
-  #define xesl_entry
-#endif  // !xesl_entry
+#ifndef xesl_entry_outputs_begin
+  #define xesl_entry_outputs_begin
+#endif  // !xesl_entry_outputs_begin
+#ifndef xesl_entry_output_position
+  #define xesl_entry_output_position
+#endif  // !xesl_entry_output_position
+#ifndef xesl_entry_outputs_end_stageInputs_begin
+  #define xesl_entry_outputs_end_stageInputs_begin
+#endif  // !xesl_entry_outputs_end_stageInputs_begin
+#ifndef xesl_entry_stageInput_vertex
+  #define xesl_entry_stageInput_vertex(type, name, index, semantic) \
+      xesl_entry_stageInput(type, name, index, semantic)
+#endif  // !xesl_entry_stageInput_vertex
+#ifndef xesl_entry_stageInputs_end_bindings_begin_vertex
+  #define xesl_entry_stageInputs_end_bindings_begin_vertex
+#endif  // !xesl_entry_stageInputs_end_bindings_begin_vertex
+#ifndef xesl_entry_stageInputs_end_bindings_begin_pixel
+  #define xesl_entry_stageInputs_end_bindings_begin_pixel
+#endif  // !xesl_entry_stageInputs_end_bindings_begin_pixel
+#ifndef xesl_entry_bindings_begin_compute
+  #define xesl_entry_bindings_begin_compute
+#endif  // !xesl_entry_bindings_begin_compute
 #ifndef xesl_entry_binding_next
   #define xesl_entry_binding_next
 #endif  // !xesl_entry_binding_next
-#ifndef xesl_entry_bindings_end
-  #define xesl_entry_bindings_end
-#endif  // !xesl_entry_bindings_end
-#ifndef xesl_entry_signature_next
-  #define xesl_entry_signature_next
-#endif  // !xesl_entry_signature_next
-#ifndef xesl_entry_end
-  #define xesl_entry_end }
-#endif  // !xesl_entry_end
+#ifndef xesl_entry_bindings_end_inputs_begin
+  #define xesl_entry_bindings_end_inputs_begin
+#endif  // !xesl_entry_bindings_end_inputs_begin
+#ifndef xesl_entry_bindings_empty_end_inputs_begin
+  #define xesl_entry_bindings_empty_end_inputs_begin
+#endif  // !xesl_entry_bindings_empty_end_inputs_begin
+#ifndef xesl_entry_bindings_end_inputs_begin_compute
+  #define xesl_entry_bindings_end_inputs_begin_compute
+#endif  // !xesl_entry_bindings_end_inputs_begin_compute
+#ifndef xesl_entry_input_next
+  #define xesl_entry_input_next
+#endif  // !xesl_entry_input_next
+#ifndef xesl_entry_input_stageInputs
+  #define xesl_entry_input_stageInputs
+#endif  // !xesl_entry_input_stageInputs
+#ifndef xesl_entry_input_vertexID
+  #define xesl_entry_input_vertexID
+#endif  // !xesl_entry_input_vertexID
+#ifndef xesl_entry_input_fragCoord
+  #define xesl_entry_input_fragCoord
+#endif  // !xesl_entry_input_fragCoord
+#ifndef xesl_entry_input_workGroupID
+  #define xesl_entry_input_workGroupID
+#endif  // !xesl_entry_input_workGroupID
+#ifndef xesl_entry_input_localInvocationID
+  #define xesl_entry_input_localInvocationID
+#endif  // !xesl_entry_input_localInvocationID
+#ifndef xesl_entry_input_globalInvocationID
+  #define xesl_entry_input_globalInvocationID
+#endif  // !xesl_entry_input_globalInvocationID
+#ifndef xesl_entry_input_localInvocationIndex
+  #define xesl_entry_input_localInvocationIndex
+#endif  // !xesl_entry_input_localInvocationIndex
+#ifndef xesl_entry_code_end
+  #define xesl_entry_code_end \
+        xesl_entry_return     \
+      }
+#endif  // !xesl_entry_code_end
+#ifndef xesl_entry_code_end_compute
+  #define xesl_entry_code_end_compute }
+#endif  // !xesl_entry_code_end_compute
 
-#if XESL_LANGUAGE_HLSL
+// XESL_Y_SCREEN_DIRECTION is 1.0 if with a positive viewport height,
+// +xesl_Position.y is towards +xesl_FragCoord.y, -1.0 if +xesl_Position.y is
+// towards -xesl_FragCoord.y.
+#if XESL_LANGUAGE_GLSL
+  #define XESL_Y_SCREEN_DIRECTION 1.0
+#else
+  #define XESL_Y_SCREEN_DIRECTION -1.0
+#endif  // XESL_LANGUAGE_GLSL
+
+#if XESL_LANGUAGE_GLSL
+  // GLSL requires just const for declaring a constant in the global scope.
+  #define xesl_staticConst const
+#elif XESL_LANGUAGE_HLSL
   // HLSL requires static const for declaring a constant in the global scope so
   // it doesn't go to $Globals instead.
-  #define xesl_static static
+  #define xesl_staticConst static const
+#elif XESL_LANGUAGE_MSL
+  #define xesl_staticConst constexpr constant
 #else
-  // GLSL requires just const for declaring a constant in the global scope.
-  #define xesl_static
-#endif  // XESL_LANGUAGE_HLSL
+  #error xesl_staticConst not defined for the target language.
+#endif  // XESL_LANGUAGE
 
 #if XESL_LANGUAGE_GLSL
   #define xesl_block_offset_member(glsl_offset_bytes, hlsl_packoffset, type, \
@@ -160,6 +411,11 @@
   #define xesl_block_offset_member(glsl_offset_bytes, hlsl_packoffset, type, \
                                    name_element_count) \
       type name_element_count : packoffset(hlsl_packoffset);
+#elif XESL_LANGUAGE_MSL
+  // Explicit offset is not supported by MSL.
+  #define xesl_block_offset_member(glsl_offset_bytes, hlsl_packoffset, type, \
+                                   name_element_count) \
+      type name_element_count;
 #else
   #error xesl_block_offset_member not defined for the target language.
 #endif  // XESL_LANGUAGE
@@ -181,7 +437,7 @@
 
 // Constant buffer and push constant member names will be in the global scope in
 // some target languages - they must not collide with anything else there. To
-// access a constant, use xesl_constant or xesl_push_constant.
+// access a constant, use xesl_constant or xesl_pushConstant.
 
 // Push constants, even though may be spread across multiple constant buffers in
 // the Direct3D 12 API, must be declared in a single structure in XeSL - the
@@ -193,40 +449,199 @@
 // In GLSL, the offsets in the push constants are global across shader stages.
 // In HLSL, they're local to the specific root constant buffer.
 #if XESL_LANGUAGE_GLSL
-  #define xesl_cbuffer_begin(name, glsl_set, glsl_binding, hlsl_b, \
-                             hlsl_b_space)                         \
-      layout(std140, glsl_set, glsl_binding)                       \
-      uniform xesl_id_cbuffer_##name {
-  #define xesl_cbuffer_end(name) \
+  #define xesl_constantBuffer_begin(name, glsl_set, glsl_binding, hlsl_b, \
+                                    hlsl_b_space)                         \
+      layout(std140, glsl_set, glsl_binding)                              \
+      uniform xesl_id_constantBuffer_##name {
+  #define xesl_constantBuffer_end(name) \
       } name;
   #define xesl_constant(cbuffer_name, constant_name) cbuffer_name.constant_name
-  #define xesl_push_constants_begin(hlsl_b, hlsl_b_space) \
-      layout(push_constant) uniform xesl_push_constants_block {
-  #define xesl_push_constants_end \
-      } xesl_push_constants;
-  #define xesl_push_constant(name) xesl_push_constants.name
+  #define xesl_pushConstants_begin(hlsl_b, hlsl_b_space) \
+      layout(push_constant) uniform xesl_pushConstants_block {
+  #define xesl_pushConstants_end \
+      } xesl_pushConstants;
+  #define xesl_pushConstant(name) xesl_pushConstants.name
 #elif XESL_LANGUAGE_HLSL
-  #define xesl_cbuffer_begin(name, glsl_set, glsl_binding, hlsl_b, \
-                             hlsl_b_space)                         \
+  #define xesl_constantBuffer_begin(name, glsl_set, glsl_binding, hlsl_b, \
+                                    hlsl_b_space)                         \
       cbuffer name : register(hlsl_b, hlsl_b_space) {
-  #define xesl_cbuffer_end(name) \
+  #define xesl_constantBuffer_end(name) \
       };
   #define xesl_constant(cbuffer_name, constant_name) constant_name
-  #define xesl_push_constants_begin(hlsl_b, hlsl_b_space) \
-      cbuffer xesl_push_constants : register(hlsl_b, hlsl_b_space) {
-  #define xesl_push_constants_end \
+  #define xesl_pushConstants_begin(hlsl_b, hlsl_b_space) \
+      cbuffer xesl_pushConstants : register(hlsl_b, hlsl_b_space) {
+  #define xesl_pushConstants_end \
       };
-  #define xesl_push_constant(name) name
+  #define xesl_pushConstant(name) name
+#elif XESL_LANGUAGE_MSL
+  #define xesl_constantBuffer_begin(name, glsl_set, glsl_binding, hlsl_b, \
+                                    hlsl_b_space)                         \
+      struct xesl_id_constantBuffer_##name {
+  #define xesl_constantBuffer_end(name) \
+      };
+  #define xesl_constantBuffer_binding(name, msl_buffer) \
+      constant xesl_id_constantBuffer_##name& name [[msl_buffer]]
+  #define xesl_constant(cbuffer_name, constant_name) cbuffer_name.constant_name
+  #define xesl_pushConstants_begin(hlsl_b, hlsl_b_space) \
+      struct xesl_pushConstants_struct {
+  #define xesl_pushConstants_end \
+      };
+  #define xesl_pushConstants_binding(msl_buffer) \
+      constant xesl_pushConstants_struct& xesl_pushConstants [[msl_buffer]]
+  #define xesl_pushConstant(name) xesl_pushConstants.name
 #else
   #error Constant buffers not defined for the target language.
 #endif  // XESL_LANGUAGE
+#ifndef xesl_constantBuffer_binding
+  #define xesl_constantBuffer_binding(name, msl_buffer)
+#endif  // !xesl_constantBuffer_binding
+#ifndef xesl_pushConstants_binding
+  #define xesl_pushConstants_binding(msl_buffer)
+#endif  // !xesl_pushConstants_binding
 
-// Buffer, texture, sampler and image declarations must be in the entry point
+// Declarations of typed storage buffers and dword buffers (_declare) must be
+// outside the entry point, but their bindings (_binding) must also be specified
+// in the entry point binding declarations.
+//
+// xesl_typedStorageBuffer is a buffer limited to 1/2/4-component vectors of
+// 32-bit integers and floats, a typed buffer on Direct3D, but a storage buffer
+// (as opposed to a texel buffer, which has a very small minimum requirement for
+// the maximum size) on Vulkan.
+//
+// xesl_uintVectorBuffer is a buffer containing 32-bit values, but loading or
+// storing may be done for 2, 3 or 4 consecutive values that are still
+// 32-bit-aligned, and depending on the language and hardware support, access
+// of multiple elements may or may not be compiled into a single hardware
+// instruction instead of separate accesses of individual elements. Each index
+// value corresponds to a 32-bit element. Implementations for languages without
+// native support must use functions, not macros, for adding the component
+// offset to the index to avoid evaluating the address multiple times.
+#if XESL_LANGUAGE_GLSL
+  // Binding declarations.
+  #define xesl_typedStorageBuffer_declare(value_type, name, glsl_set,         \
+                                          glsl_binding, hlsl_t, hlsl_t_space) \
+      layout(std430, glsl_set, glsl_binding)                                  \
+      readonly buffer xesl_id_buffer_##name {                                 \
+        value_type xesl_id_data[];                                            \
+      } name;
+  #define xesl_writeTypedStorageBuffer_declare(value_type, name, glsl_set, \
+                                               glsl_binding, hlsl_u,       \
+                                               hlsl_u_space)               \
+      layout(std430, glsl_set, glsl_binding)                               \
+      writeonly buffer xesl_id_buffer_##name {                             \
+        value_type xesl_id_data[];                                         \
+      } name;
+  #define xesl_uintVectorBuffer_declare(name, glsl_set, glsl_binding, hlsl_t, \
+                                        hlsl_t_space)                         \
+      layout(std430, glsl_set, glsl_binding)                                  \
+      readonly buffer xesl_id_buffer_##name {                                 \
+        uint xesl_id_data[];                                                  \
+      } name;                                                                 \
+      xesl_uint2 xesl_id_uintVectorBuffer_load2_##name(                       \
+          uint xesl_var_position) {                                           \
+        return xesl_uint2(name.xesl_id_data[xesl_var_position],               \
+                          name.xesl_id_data[xesl_var_position + 1u]);         \
+      }                                                                       \
+      xesl_uint3 xesl_id_uintVectorBuffer_load3_##name(                       \
+          uint xesl_var_position) {                                           \
+        return xesl_uint3(name.xesl_id_data[xesl_var_position],               \
+                          name.xesl_id_data[xesl_var_position + 1u],          \
+                          name.xesl_id_data[xesl_var_position + 2u]);         \
+      }                                                                       \
+      xesl_uint4 xesl_id_uintVectorBuffer_load4_##name(                       \
+          uint xesl_var_position) {                                           \
+        return xesl_uint4(name.xesl_id_data[xesl_var_position],               \
+                          name.xesl_id_data[xesl_var_position + 1u],          \
+                          name.xesl_id_data[xesl_var_position + 2u],          \
+                          name.xesl_id_data[xesl_var_position + 3u]);         \
+      }
+  // Loading and storing.
+  #define xesl_typedStorageBufferLoad(name, position) \
+      ((name).xesl_id_data[uint(position)])
+  #define xesl_writeTypedStorageBufferStore(name, position, value) \
+      ((name).xesl_id_data[uint(position)] = (value))
+  #define xesl_uintVectorBufferLoad1(name, position) \
+      ((name).xesl_id_data[uint(position)])
+  #define xesl_uintVectorBufferLoad2(name, position) \
+      xesl_id_uintVectorBuffer_load2_##name(uint(position))
+  #define xesl_uintVectorBufferLoad3(name, position) \
+      xesl_id_uintVectorBuffer_load3_##name(uint(position))
+  #define xesl_uintVectorBufferLoad4(name, position) \
+      xesl_id_uintVectorBuffer_load4_##name(uint(position))
+#elif XESL_LANGUAGE_HLSL
+  // Binding declarations.
+  #define xesl_typedStorageBuffer_declare(value_type, name, glsl_set,         \
+                                          glsl_binding, hlsl_t, hlsl_t_space) \
+      Buffer<value_type> name : register(hlsl_t, hlsl_t_space);
+  #define xesl_writeTypedStorageBuffer_declare(value_type, name, glsl_set, \
+                                               glsl_binding, hlsl_u,       \
+                                               hlsl_u_space)               \
+      RWBuffer<value_type> name : register(hlsl_u, hlsl_u_space);
+  #define xesl_uintVectorBuffer_declare(name, glsl_set, glsl_binding, hlsl_t, \
+                                        hlsl_t_space)                         \
+      ByteAddressBuffer name : register(hlsl_t, hlsl_t_space);
+  // Loading and storing.
+  #define xesl_typedStorageBufferLoad(name, position) ((name)[uint(position)])
+  #define xesl_writeTypedStorageBufferStore(name, position, value) \
+      ((name)[uint(position)] = (value))
+  #define xesl_uintVectorBufferLoad1(name, position) \
+      ((name).Load(int(position) << 2))
+  #define xesl_uintVectorBufferLoad2(name, position) \
+      ((name).Load2(int(position) << 2))
+  #define xesl_uintVectorBufferLoad3(name, position) \
+      ((name).Load3(int(position) << 2))
+  #define xesl_uintVectorBufferLoad4(name, position) \
+      ((name).Load4(int(position) << 2))
+#elif XESL_LANGUAGE_MSL
+  // Binding declarations.
+  #define xesl_typedStorageBuffer_binding(value_type, name, msl_buffer) \
+      const device value_type* name [[msl_buffer]]
+  #define xesl_writeTypedStorageBuffer_binding(value_type, name, msl_buffer) \
+      device value_type* name [[msl_buffer]]
+  #define xesl_uintVectorBuffer_binding(name, msl_buffer) \
+      const device uint* name [[msl_buffer]]
+  // Loading and storing.
+  #define xesl_typedStorageBufferLoad(name, position) ((name)[size_t(position)])
+  #define xesl_writeTypedStorageBufferStore(name, position, value) \
+      ((name)[size_t(position)] = (value))
+  #define xesl_uintVectorBufferLoad1(name, position) ((name)[size_t(position)])
+  #define xesl_uintVectorBufferLoad2(name, position)            \
+      xesl_uint2(*reinterpret_cast<const device packed_uint2*>( \
+                     &((name)[size_t(position)])))
+  #define xesl_uintVectorBufferLoad3(name, position)            \
+      xesl_uint3(*reinterpret_cast<const device packed_uint3*>( \
+                     &((name)[size_t(position)])))
+  #define xesl_uintVectorBufferLoad4(name, position)            \
+      xesl_uint4(*reinterpret_cast<const device packed_uint4*>( \
+                     &((name)[size_t(position)])))
+#else
+  #error Storage buffers not defined for the target language.
+#endif  // XESL_LANGUAGE
+#ifndef xesl_typedStorageBuffer_declare
+  #define xesl_typedStorageBuffer_declare(value_type, name, glsl_set,         \
+                                          glsl_binding, hlsl_t, hlsl_t_space)
+#endif  // !xesl_typedStorageBuffer_declare
+#ifndef xesl_writeTypedStorageBuffer_declare
+  #define xesl_writeTypedStorageBuffer_declare(value_type, name, glsl_set, \
+                                               glsl_binding, hlsl_u,       \
+                                               hlsl_u_space)
+#endif  // !xesl_writeTypedStorageBuffer_declare
+#ifndef xesl_typedStorageBuffer_binding
+  #define xesl_typedStorageBuffer_binding(value_type, name, msl_buffer)
+#endif  // !xesl_typedStorageBuffer_binding
+#ifndef xesl_writeTypedStorageBuffer_binding
+  #define xesl_writeTypedStorageBuffer_binding(value_type, name, msl_buffer)
+#endif  // !xesl_writeTypedStorageBuffer_binding
+#ifndef xesl_uintVectorBuffer_declare
+  #define xesl_uintVectorBuffer_declare(name, glsl_set, glsl_binding, hlsl_t, \
+                                        hlsl_t_space)
+#endif  // !xesl_uintVectorBuffer_declare
+#ifndef xesl_uintVectorBuffer_binding
+  #define xesl_uintVectorBuffer_binding(name, msl_buffer)
+#endif  // !xesl_uintVectorBuffer_binding
+
+// Buffer, texture, sampler and image bindings must be in the entry point
 // bindings declaration.
-// - xesl_typedStorageBuffer is a buffer limited to 1/2/4-component vectors of
-//   32-bit integers and floats, a typed buffer on Direct3D, but a storage
-//   buffer (as opposed to a texel buffer, which has a very small minimum
-//   requirement for the maximum size) on Vulkan.
 // - xesl_texture is a separate texture.
 // - xesl_samplerState is a separate sampler.
 // - xesl_sampler is a combined texture / sampler where available, internally
@@ -238,36 +653,21 @@
   #define xesl_texture2DMS texture2DMS
   #define xesl_sampler2D sampler2D
   // Binding declarations.
-  #define xesl_typedStorageBuffer(value_type, name, glsl_set, glsl_binding, \
-                                  hlsl_t, hlsl_t_space)                     \
-      layout(std430, glsl_set, glsl_binding)                                \
-      readonly buffer xesl_id_buffer_##name {                               \
-        value_type xesl_id_data[];                                          \
-      } name;
-  #define xesl_writeTypedStorageBuffer(value_type, name, glsl_set,         \
-                                       glsl_binding, hlsl_u, hlsl_u_space) \
-      layout(std430, glsl_set, glsl_binding)                               \
-      writeonly buffer xesl_id_buffer_##name {                             \
-        value_type xesl_id_data[];                                         \
-      } name;
   #define xesl_texture(texture_type, name, glsl_set, glsl_binding, hlsl_t, \
-                       hlsl_t_space)                                       \
+                       hlsl_t_space, msl_texture)                          \
       layout(glsl_set, glsl_binding) uniform texture_type name;
   #define xesl_samplerState(name, glsl_set, glsl_binding, hlsl_s, \
-                            hlsl_s_space)                         \
+                            hlsl_s_space, msl_sampler)            \
       layout(glsl_set, glsl_binding) uniform sampler name;
   #define xesl_sampler(sampler_type, name, glsl_set, glsl_binding, hlsl_t, \
-                       hlsl_t_space, hlsl_s, hlsl_s_space)                 \
+                       hlsl_t_space, hlsl_s, hlsl_s_space, msl_texture,    \
+                       msl_sampler)                                        \
       layout(glsl_set, glsl_binding) uniform sampler_type name;
   // Fetching and storing.
-  #define xesl_typedStorageBufferLoad(name, position) \
-      ((name).xesl_id_data[uint(position)])
-  #define xesl_writeTypedStorageBufferStore(name, position, value) \
-      ((name).xesl_id_data[uint(position)] = (value))
   #define xesl_texelFetch2D(texture_name, position, lod) \
-      texelFetch(texture_name, position, lod)
+      texelFetch(texture_name, xesl_int2(position), int(lod))
   #define xesl_texelFetch2DMS(texture_name, position, sample_index) \
-      texelFetch(texture_name, position, sample_index)
+      texelFetch(texture_name, xesl_int2(position), int(sample_index))
   #define xesl_textureSampleLod2D_sep(texture_name, sampler_name, position, \
                                       lod)                                  \
       textureLod(sampler2D(texture_name, sampler_name), position, lod)
@@ -291,29 +691,20 @@
       textureGather(texture_sampler_name, position, 3)
 #elif XESL_LANGUAGE_HLSL
   // Types.
-  #define xesl_texture2D Texture2D<float4>
-  #define xesl_texture2DMS Texture2DMS<float4>
+  #define xesl_texture2D Texture2D<xesl_float4>
+  #define xesl_texture2DMS Texture2DMS<xesl_float4>
   // Binding declarations.
-  #define xesl_typedStorageBuffer(value_type, name, glsl_set, glsl_binding, \
-                                  hlsl_t, hlsl_t_space)                     \
-      Buffer<value_type> name : register(hlsl_t, hlsl_t_space);
-  #define xesl_writeTypedStorageBuffer(value_type, name, glsl_set,         \
-                                       glsl_binding, hlsl_u, hlsl_u_space) \
-      RWBuffer<value_type> name : register(hlsl_u, hlsl_u_space);
   #define xesl_texture(texture_type, name, glsl_set, glsl_binding, hlsl_t, \
-                       hlsl_t_space)                                       \
+                       hlsl_t_space, msl_texture)                          \
       texture_type name : register(hlsl_t, hlsl_t_space);
   #define xesl_samplerState(name, glsl_set, glsl_binding, hlsl_s, \
-                            hlsl_s_space)                         \
+                            hlsl_s_space, msl_sampler)            \
       SamplerState name : register(hlsl_s, hlsl_s_space);
   // Fetching and storing.
-  #define xesl_typedStorageBufferLoad(name, position) ((name)[uint(position)])
-  #define xesl_writeTypedStorageBufferStore(name, position, value) \
-      ((name)[uint(position)] = (value))
   #define xesl_texelFetch2D(texture_name, position, lod) \
-      ((texture_name).Load(int3(position, lod)))
+      ((texture_name).Load(xesl_int3(position, lod)))
   #define xesl_texelFetch2DMS(texture_name, position, sample_index) \
-      ((texture_name).Load(position, sample_index))
+      ((texture_name).Load(xesl_int2(position), int(sample_index)))
   #define xesl_textureSampleLod2D_sep(texture_name, sampler_name, position, \
                                       lod)                                  \
       ((texture_name).SampleLevel(sampler_name, position, lod))
@@ -325,117 +716,156 @@
       ((texture_name).GatherBlue(sampler_name, position))
   #define xesl_textureGatherAlpha2D_sep(texture_name, sampler_name, position) \
       ((texture_name).GatherAlpha(sampler_name, position))
+#elif XESL_LANGUAGE_MSL
+  // Types.
+  #define xesl_texture2D texture2d<float>
+  #define xesl_texture2DMS texture2d_ms<float>
+  // Binding declarations.
+  #define xesl_texture(texture_type, name, glsl_set, glsl_binding, hlsl_t, \
+                       hlsl_t_space, msl_texture)                          \
+      texture_type name [[msl_texture]]
+  #define xesl_samplerState(name, glsl_set, glsl_binding, hlsl_s, \
+                            hlsl_s_space, msl_sampler)            \
+      sampler name [[msl_sampler]]
+  // Fetching and storing.
+  #define xesl_texelFetch2D(texture_name, position, lod) \
+      ((texture_name).read(xesl_uint2(position), uint(lod)))
+  #define xesl_texelFetch2DMS(texture_name, position, sample_index) \
+      ((texture_name).read(xesl_uint2(position), uint(sample_index)))
+  #define xesl_textureSampleLod2D_sep(texture_name, sampler_name, position, \
+                                      lod)                                  \
+      ((texture_name).sample(sampler_name, position, level(lod)))
+  #define xesl_textureGatherRed2D_sep(texture_name, sampler_name, position) \
+      ((texture_name).gather(sampler_name, position, xesl_int2(0),          \
+                             component::x))
+  #define xesl_textureGatherGreen2D_sep(texture_name, sampler_name, position) \
+      ((texture_name).gather(sampler_name, position, xesl_int2(0),            \
+                             component::y))
+  #define xesl_textureGatherBlue2D_sep(texture_name, sampler_name, position) \
+      ((texture_name).gather(sampler_name, position, xesl_int2(0),           \
+                             component::z))
+  #define xesl_textureGatherAlpha2D_sep(texture_name, sampler_name, position) \
+      ((texture_name).gather(sampler_name, position, xesl_int2(0),            \
+                             component::w))
 #else
   #error Buffers and textures not defined for the target language.
 #endif  // XESL_LANGUAGE
 // If there's no language specialization doing this already, implement combined
-// textures / samplers as separate, with `xesl_id_texture_` and
-// `xesl_id_sampler_` prefixes. The sampler types become the texture types.
+// textures / samplers as separate, with the `xesl_id_sampler_` prefix for
+// samplers. The sampler types become the texture types.
 #if !XESL_COMBINED_TEXTURE_SAMPLER
   #ifndef xesl_sampler2D
     #define xesl_sampler2D xesl_texture2D
   #endif  // !xesl_sampler2D
   #ifndef xesl_sampler
     #define xesl_sampler(sampler_type, name, glsl_set, glsl_binding, hlsl_t, \
-                         hlsl_t_space, hlsl_s, hlsl_s_space)                 \
-        xesl_texture(sampler_type, xesl_id_texture_##name, glsl_set,         \
-                     glsl_binding, hlsl_t, hlsl_t_space)                     \
+                         hlsl_t_space, hlsl_s, hlsl_s_space, msl_texture,    \
+                         msl_sampler)                                        \
+        xesl_texture(sampler_type, name, glsl_set, glsl_binding, hlsl_t,     \
+                     hlsl_t_space, msl_texture)                              \
         xesl_entry_binding_next                                              \
         xesl_samplerState(xesl_id_sampler_##name, glsl_set, glsl_binding,    \
-                          hlsl_s, hlsl_s_space)
+                          hlsl_s, hlsl_s_space, msl_sampler)
   #endif  // !xesl_sampler
   #ifndef xesl_textureSampleLod2D_comb
     #define xesl_textureSampleLod2D_comb(texture_sampler_name, position, lod) \
-        xesl_textureSampleLod2D_sep(xesl_id_texture_##texture_sampler_name,   \
+        xesl_textureSampleLod2D_sep(texture_sampler_name,                     \
                                     xesl_id_sampler_##texture_sampler_name,   \
                                     position, lod)
   #endif  // !xesl_textureSampleLod2D_comb
   #ifndef xesl_textureGatherRed2D_comb
     #define xesl_textureGatherRed2D_comb(texture_sampler_name, position)    \
-        xesl_textureGatherRed2D_sep(xesl_id_texture_##texture_sampler_name, \
+        xesl_textureGatherRed2D_sep(texture_sampler_name,                   \
                                     xesl_id_sampler_##texture_sampler_name, \
                                     position)
   #endif  // !xesl_textureGatherRed2D_comb
   #ifndef xesl_textureGatherGreen2D_comb
     #define xesl_textureGatherGreen2D_comb(texture_sampler_name, position)    \
-        xesl_textureGatherGreen2D_sep(xesl_id_texture_##texture_sampler_name, \
+        xesl_textureGatherGreen2D_sep(texture_sampler_name,                   \
                                       xesl_id_sampler_##texture_sampler_name, \
                                       position)
   #endif  // !xesl_textureGatherGreen2D_comb
   #ifndef xesl_textureGatherBlue2D_comb
     #define xesl_textureGatherBlue2D_comb(texture_sampler_name, position)    \
-        xesl_textureGatherBlue2D_sep(xesl_id_texture_##texture_sampler_name, \
+        xesl_textureGatherBlue2D_sep(texture_sampler_name,                   \
                                      xesl_id_sampler_##texture_sampler_name, \
                                      position)
   #endif  // !xesl_textureGatherBlue2D_comb
   #ifndef xesl_textureGatherAlpha2D_comb
     #define xesl_textureGatherAlpha2D_comb(texture_sampler_name, position)    \
-        xesl_textureGatherAlpha2D_sep(xesl_id_texture_##texture_sampler_name, \
+        xesl_textureGatherAlpha2D_sep(texture_sampler_name,                   \
                                       xesl_id_sampler_##texture_sampler_name, \
                                       position)
   #endif  // !xesl_textureGatherAlpha2D_comb
 #endif  // !XESL_COMBINED_TEXTURE_SAMPLER
 
-// xesl_input_vertex_id declares int xesl_VertexID.
-// xesl_input_frag_coord declares xesl_float4 xesl_FragCoord.
-// xesl_FragCoord.w is 1/W if XESL_FRAG_COORD_W_IS_INVERSE, W otherwise.
-// xesl_output_position declares xesl_float4 xesl_Position.
-#if XESL_LANGUAGE_GLSL
-  #define XESL_FRAG_COORD_W_IS_INVERSE 1
-  #define xesl_VertexID gl_VertexIndex
-  #define xesl_FragCoord gl_FragCoord
-  #define xesl_WorkGroupID gl_WorkGroupID
-  #define xesl_LocalInvocationID gl_LocalInvocationID
-  #define xesl_GlobalInvocationID gl_GlobalInvocationID
-  #define xesl_LocalInvocationIndex gl_LocalInvocationIndex
-  #define xesl_Position gl_Position
-  #define xesl_input(type, name, index, hlsl_semantic) \
-      layout(location=index) in type name;
-  #define xesl_input_vertex_id
-  #define xesl_input_frag_coord
-  #define xesl_input_work_group_id
-  #define xesl_input_local_invocation_id
-  #define xesl_input_global_invocation_id
-  #define xesl_input_local_invocation_index
-  #define xesl_output(type, name, index, hlsl_semantic) \
-      layout(location=index) out type name;
-  #define xesl_output_position
-  #define xesl_output_color(type, name, index) \
-      layout(location=index) out type name;
-#elif XESL_LANGUAGE_HLSL
-  #define xesl_VertexID (int(xesl_id_vertex_id))
-  #define xesl_input(type, name, index, hlsl_semantic) \
-      type name : hlsl_semantic
-  #define xesl_input_vertex_id \
-      uint xesl_id_vertex_id : SV_VertexID
-  #define xesl_input_frag_coord \
-      xesl_float4 xesl_FragCoord : SV_Position
-  #define xesl_input_work_group_id \
-      xesl_uint3 xesl_WorkGroupID : SV_GroupID
-  #define xesl_input_local_invocation_id \
-      xesl_uint3 xesl_LocalInvocationID : SV_GroupThreadID
-  #define xesl_input_global_invocation_id \
-      xesl_uint3 xesl_GlobalInvocationID : SV_DispatchThreadID
-  #define xesl_input_local_invocation_index \
-      uint xesl_LocalInvocationIndex : SV_GroupIndex
-  #define xesl_output(type, name, index, hlsl_semantic) \
-      out type name : hlsl_semantic
-  #define xesl_output_position \
-      out xesl_float4 xesl_Position : SV_Position
-  #define xesl_output_color(type, name, index) \
-      out type name : SV_Target##index
+// Passing bindings to functions, and also output and input / output parameters.
+
+#if XESL_LANGUAGE_MSL
+  #define xesl_function_param_out(type, name) thread type& name
+  #define xesl_function_param_inout(type, name) thread type& name
 #else
-  #error xesl_input and xesl_output not defined for the target language.
+  #define xesl_function_param_out(type, name) out type name
+  #define xesl_function_param_inout(type, name) inout type name
+#endif  // XESL_LANGUAGE_MSL
+
+#if XESL_LANGUAGE_MSL
+  // Prototype parameters.
+  #define xesl_function_param_constantBuffer(name) \
+      constant xesl_id_constantBuffer_##name& name
+  #define xesl_function_param_next_after_constantBuffer ,
+  #define xesl_function_param_pushConstants \
+      constant xesl_pushConstants_struct& xesl_pushConstants
+  #define xesl_function_param_next_after_pushConstants ,
+  #define xesl_function_param_uintVectorBuffer(name) const device uint* name
+  #define xesl_function_param_next_after_uintVectorBuffer ,
+  // Call arguments.
+  #define xesl_function_call_constantBuffer(name) (name)
+  #define xesl_function_call_next_after_constantBuffer ,
+  #define xesl_function_call_pushConstants xesl_pushConstants
+  #define xesl_function_call_next_after_pushConstants ,
+  #define xesl_function_call_uintVectorBuffer(name) (name)
+  #define xesl_function_call_next_after_uintVectorBuffer ,
 #endif  // XESL_LANGUAGE
 
-// XESL_Y_SCREEN_DIRECTION is 1.0 if with a positive viewport height,
-// +xesl_Position.y is towards +xesl_FragCoord.y, -1.0 if +xesl_Position.y is
-// towards -xesl_FragCoord.y.
-#if XESL_LANGUAGE_GLSL
-  #define XESL_Y_SCREEN_DIRECTION 1.0
-#else
-  #define XESL_Y_SCREEN_DIRECTION -1.0
-#endif  // XESL_LANGUAGE_GLSL
+// Prototype parameters.
+#ifndef xesl_function_param_constantBuffer
+  #define xesl_function_param_constantBuffer(name)
+#endif  // !xesl_function_param_constantBuffer
+#ifndef xesl_function_param_next_after_constantBuffer
+  #define xesl_function_param_next_after_constantBuffer
+#endif  // !xesl_function_param_next_after_constantBuffer
+#ifndef xesl_function_param_pushConstants
+  #define xesl_function_param_pushConstants
+#endif  // !xesl_function_param_pushConstants
+#ifndef xesl_function_param_next_after_pushConstants
+  #define xesl_function_param_next_after_pushConstants
+#endif  // !xesl_function_param_next_after_pushConstants
+#ifndef xesl_function_param_uintVectorBuffer
+  #define xesl_function_param_uintVectorBuffer(name)
+#endif  // !xesl_function_param_uintVectorBuffer
+#ifndef xesl_function_param_next_after_uintVectorBuffer
+  #define xesl_function_param_next_after_uintVectorBuffer
+#endif  // !xesl_function_param_next_after_uintVectorBuffer
+// Call arguments.
+#ifndef xesl_function_call_constantBuffer
+  #define xesl_function_call_constantBuffer(name)
+#endif  // !xesl_function_call_constantBuffer
+#ifndef xesl_function_call_next_after_constantBuffer
+  #define xesl_function_call_next_after_constantBuffer
+#endif  // !xesl_function_call_next_after_constantBuffer
+#ifndef xesl_function_call_pushConstants
+  #define xesl_function_call_pushConstants
+#endif  // !xesl_function_call_pushConstants
+#ifndef xesl_function_call_next_after_pushConstants
+  #define xesl_function_call_next_after_pushConstants
+#endif  // !xesl_function_call_next_after_pushConstants
+#ifndef xesl_function_call_uintVectorBuffer
+  #define xesl_function_call_uintVectorBuffer(name)
+#endif  // !xesl_function_call_uintVectorBuffer
+#ifndef xesl_function_call_next_after_uintVectorBuffer
+  #define xesl_function_call_next_after_uintVectorBuffer
+#endif  // !xesl_function_call_next_after_uintVectorBuffer
 
 // Attributes.
 
@@ -488,6 +918,16 @@
   #define xesl_not(x) (!(x))
   #define xesl_select(condition, true_result, false_result) \
       ((condition) ? (true_result) : (false_result))
+#elif XESL_LANGUAGE_MSL
+  #define xesl_lessThan(x, y) ((x) < (y))
+  #define xesl_lessThanEqual(x, y) ((x) <= (y))
+  #define xesl_greaterThan(x, y) ((x) > (y))
+  #define xesl_greaterThanEqual(x, y) ((x) >= (y))
+  #define xesl_equal(x, y) ((x) == (y))
+  #define xesl_notEqual(x, y) ((x) != (y))
+  #define xesl_not(x) (!(x))
+  #define xesl_select(condition, true_result, false_result) \
+      select(false_result, true_result, condition)
 #else
   #error Comparison operations not defined for the target language.
 #endif
@@ -547,6 +987,56 @@
   xesl_float4 xesl_uintBitsToFloat(xesl_uint4 xesl_var_value) {
     return asfloat(xesl_var_value);
   }
+#elif XESL_LANGUAGE_MSL
+  // Using functions instead of #define for implicit argument conversion.
+  int xesl_floatBitsToInt(float xesl_var_value) {
+    return as_type<int>(xesl_var_value);
+  }
+  xesl_int2 xesl_floatBitsToInt(xesl_float2 xesl_var_value) {
+    return as_type<xesl_int2>(xesl_var_value);
+  }
+  xesl_int3 xesl_floatBitsToInt(xesl_float3 xesl_var_value) {
+    return as_type<xesl_int3>(xesl_var_value);
+  }
+  xesl_int4 xesl_floatBitsToInt(xesl_float4 xesl_var_value) {
+    return as_type<xesl_int4>(xesl_var_value);
+  }
+  uint xesl_floatBitsToUint(float xesl_var_value) {
+    return as_type<uint>(xesl_var_value);
+  }
+  xesl_uint2 xesl_floatBitsToUint(xesl_float2 xesl_var_value) {
+    return as_type<xesl_uint2>(xesl_var_value);
+  }
+  xesl_uint3 xesl_floatBitsToUint(xesl_float3 xesl_var_value) {
+    return as_type<xesl_uint3>(xesl_var_value);
+  }
+  xesl_uint4 xesl_floatBitsToUint(xesl_float4 xesl_var_value) {
+    return as_type<xesl_uint4>(xesl_var_value);
+  }
+  float xesl_intBitsToFloat(int xesl_var_value) {
+    return as_type<float>(xesl_var_value);
+  }
+  xesl_float2 xesl_intBitsToFloat(xesl_int2 xesl_var_value) {
+    return as_type<xesl_float2>(xesl_var_value);
+  }
+  xesl_float3 xesl_intBitsToFloat(xesl_int3 xesl_var_value) {
+    return as_type<xesl_float3>(xesl_var_value);
+  }
+  xesl_float4 xesl_intBitsToFloat(xesl_int4 xesl_var_value) {
+    return as_type<xesl_float4>(xesl_var_value);
+  }
+  float xesl_uintBitsToFloat(uint xesl_var_value) {
+    return as_type<float>(xesl_var_value);
+  }
+  xesl_float2 xesl_uintBitsToFloat(xesl_uint2 xesl_var_value) {
+    return as_type<xesl_float2>(xesl_var_value);
+  }
+  xesl_float3 xesl_uintBitsToFloat(xesl_uint3 xesl_var_value) {
+    return as_type<xesl_float3>(xesl_var_value);
+  }
+  xesl_float4 xesl_uintBitsToFloat(xesl_uint4 xesl_var_value) {
+    return as_type<xesl_float4>(xesl_var_value);
+  }
 #else
   #error Float bit casting not defined for the target language.
 #endif  // XESL_LANGUAGE
@@ -556,33 +1046,190 @@
     return clamp(xesl_var_value, 0.0, 1.0);
   }
   xesl_float2 xesl_saturate(xesl_float2 xesl_var_value) {
-    return clamp(xesl_var_value, (0.0).xx, (1.0).xx);
+    return clamp(xesl_var_value, xesl_float_x2(0.0), xesl_float_x2(1.0));
   }
   xesl_float3 xesl_saturate(xesl_float3 xesl_var_value) {
-    return clamp(xesl_var_value, (0.0).xxx, (1.0).xxx);
+    return clamp(xesl_var_value, xesl_float_x3(0.0), xesl_float_x3(1.0));
   }
   xesl_float4 xesl_saturate(xesl_float4 xesl_var_value) {
-    return clamp(xesl_var_value, (0.0).xxxx, (1.0).xxxx);
+    return clamp(xesl_var_value, xesl_float_x4(0.0), xesl_float_x4(1.0));
   }
 #else
   #define xesl_saturate saturate
 #endif  // XESL_LANGUAGE_GLSL
 
+// Returning a unsigned integer vector. The result is undefined for zero.
 #if XESL_LANGUAGE_GLSL
-  #define xesl_findLSB findLSB
-  #define xesl_findMSB findMSB
+  uint xesl_firstOneBitLow(int xesl_var_value) {
+    return uint(findLSB(xesl_var_value));
+  }
+  xesl_uint2 xesl_firstOneBitLow(xesl_int2 xesl_var_value) {
+    return xesl_uint2(findLSB(xesl_var_value));
+  }
+  xesl_uint3 xesl_firstOneBitLow(xesl_int3 xesl_var_value) {
+    return xesl_uint3(findLSB(xesl_var_value));
+  }
+  xesl_uint4 xesl_firstOneBitLow(xesl_int4 xesl_var_value) {
+    return xesl_uint4(findLSB(xesl_var_value));
+  }
+  uint xesl_firstOneBitLow(uint xesl_var_value) {
+    return uint(findLSB(xesl_var_value));
+  }
+  xesl_uint2 xesl_firstOneBitLow(xesl_uint2 xesl_var_value) {
+    return xesl_uint2(findLSB(xesl_var_value));
+  }
+  xesl_uint3 xesl_firstOneBitLow(xesl_uint3 xesl_var_value) {
+    return xesl_uint3(findLSB(xesl_var_value));
+  }
+  xesl_uint4 xesl_firstOneBitLow(xesl_uint4 xesl_var_value) {
+    return xesl_uint4(findLSB(xesl_var_value));
+  }
+  // GLSL findMSB finds the highest 0 for a negative value.
+  uint xesl_firstOneBitHigh(int xesl_var_value) {
+    return uint(findMSB(uint(xesl_var_value)));
+  }
+  xesl_uint2 xesl_firstOneBitHigh(xesl_int2 xesl_var_value) {
+    return xesl_uint2(findMSB(xesl_uint2(xesl_var_value)));
+  }
+  xesl_uint3 xesl_firstOneBitHigh(xesl_int3 xesl_var_value) {
+    return xesl_uint3(findMSB(xesl_uint3(xesl_var_value)));
+  }
+  xesl_uint4 xesl_firstOneBitHigh(xesl_int4 xesl_var_value) {
+    return xesl_uint4(findMSB(xesl_uint4(xesl_var_value)));
+  }
+  uint xesl_firstOneBitHigh(uint xesl_var_value) {
+    return uint(findMSB(xesl_var_value));
+  }
+  xesl_uint2 xesl_firstOneBitHigh(xesl_uint2 xesl_var_value) {
+    return xesl_uint2(findMSB(xesl_var_value));
+  }
+  xesl_uint3 xesl_firstOneBitHigh(xesl_uint3 xesl_var_value) {
+    return xesl_uint3(findMSB(xesl_var_value));
+  }
+  xesl_uint4 xesl_firstOneBitHigh(xesl_uint4 xesl_var_value) {
+    return xesl_uint4(findMSB(xesl_var_value));
+  }
 #elif XESL_LANGUAGE_HLSL
-  #define xesl_findLSB firstbitlow
-  #define xesl_findMSB firstbithigh
+  uint xesl_firstOneBitLow(int xesl_var_value) {
+    return uint(firstbitlow(xesl_var_value));
+  }
+  xesl_uint2 xesl_firstOneBitLow(xesl_int2 xesl_var_value) {
+    return xesl_uint2(firstbitlow(xesl_var_value));
+  }
+  xesl_uint3 xesl_firstOneBitLow(xesl_int3 xesl_var_value) {
+    return xesl_uint3(firstbitlow(xesl_var_value));
+  }
+  xesl_uint4 xesl_firstOneBitLow(xesl_int4 xesl_var_value) {
+    return xesl_uint4(firstbitlow(xesl_var_value));
+  }
+  uint xesl_firstOneBitLow(uint xesl_var_value) {
+    return firstbitlow(xesl_var_value);
+  }
+  xesl_uint2 xesl_firstOneBitLow(xesl_uint2 xesl_var_value) {
+    return firstbitlow(xesl_var_value);
+  }
+  xesl_uint3 xesl_firstOneBitLow(xesl_uint3 xesl_var_value) {
+    return firstbitlow(xesl_var_value);
+  }
+  xesl_uint4 xesl_firstOneBitLow(xesl_uint4 xesl_var_value) {
+    return firstbitlow(xesl_var_value);
+  }
+  // HLSL firstbithigh finds the highest 0 for a negative value.
+  uint xesl_firstOneBitHigh(int xesl_var_value) {
+    return uint(firstbithigh(uint(xesl_var_value)));
+  }
+  xesl_uint2 xesl_firstOneBitHigh(xesl_int2 xesl_var_value) {
+    return xesl_uint2(firstbithigh(xesl_uint2(xesl_var_value)));
+  }
+  xesl_uint3 xesl_firstOneBitHigh(xesl_int3 xesl_var_value) {
+    return xesl_uint3(firstbithigh(xesl_uint3(xesl_var_value)));
+  }
+  xesl_uint4 xesl_firstOneBitHigh(xesl_int4 xesl_var_value) {
+    return xesl_uint4(firstbithigh(xesl_uint4(xesl_var_value)));
+  }
+  uint xesl_firstOneBitHigh(uint xesl_var_value) {
+    return firstbithigh(xesl_var_value);
+  }
+  xesl_uint2 xesl_firstOneBitHigh(xesl_uint2 xesl_var_value) {
+    return firstbithigh(xesl_var_value);
+  }
+  xesl_uint3 xesl_firstOneBitHigh(xesl_uint3 xesl_var_value) {
+    return firstbithigh(xesl_var_value);
+  }
+  xesl_uint4 xesl_firstOneBitHigh(xesl_uint4 xesl_var_value) {
+    return firstbithigh(xesl_var_value);
+  }
+#elif XESL_LANGUAGE_MSL
+  uint xesl_firstOneBitLow(int xesl_var_value) {
+    return uint(ctz(xesl_var_value));
+  }
+  xesl_uint2 xesl_firstOneBitLow(xesl_int2 xesl_var_value) {
+    return xesl_uint2(ctz(xesl_var_value));
+  }
+  xesl_uint3 xesl_firstOneBitLow(xesl_int3 xesl_var_value) {
+    return xesl_uint3(ctz(xesl_var_value));
+  }
+  xesl_uint4 xesl_firstOneBitLow(xesl_int4 xesl_var_value) {
+    return xesl_uint4(ctz(xesl_var_value));
+  }
+  uint xesl_firstOneBitLow(uint xesl_var_value) {
+    return ctz(xesl_var_value);
+  }
+  xesl_uint2 xesl_firstOneBitLow(xesl_uint2 xesl_var_value) {
+    return ctz(xesl_var_value);
+  }
+  xesl_uint3 xesl_firstOneBitLow(xesl_uint3 xesl_var_value) {
+    return ctz(xesl_var_value);
+  }
+  xesl_uint4 xesl_firstOneBitLow(xesl_uint4 xesl_var_value) {
+    return ctz(xesl_var_value);
+  }
+  uint xesl_firstOneBitHigh(int xesl_var_value) {
+    return 32u - uint(clz(xesl_var_value));
+  }
+  xesl_uint2 xesl_firstOneBitHigh(xesl_int2 xesl_var_value) {
+    return xesl_uint_x2(32u) - xesl_uint2(clz(xesl_var_value));
+  }
+  xesl_uint3 xesl_firstOneBitHigh(xesl_int3 xesl_var_value) {
+    return xesl_uint_x3(32u) - xesl_uint3(clz(xesl_var_value));
+  }
+  xesl_uint4 xesl_firstOneBitHigh(xesl_int4 xesl_var_value) {
+    return xesl_uint_x4(32u) - xesl_uint4(clz(xesl_var_value));
+  }
+  uint xesl_firstOneBitHigh(uint xesl_var_value) {
+    return 32u - clz(xesl_var_value);
+  }
+  xesl_uint2 xesl_firstOneBitHigh(xesl_uint2 xesl_var_value) {
+    return xesl_uint_x2(32u) - clz(xesl_var_value);
+  }
+  xesl_uint3 xesl_firstOneBitHigh(xesl_uint3 xesl_var_value) {
+    return xesl_uint_x3(32u) - clz(xesl_var_value);
+  }
+  xesl_uint4 xesl_firstOneBitHigh(xesl_uint4 xesl_var_value) {
+    return xesl_uint_x4(32u) - clz(xesl_var_value);
+  }
 #else
   #error Bit count operations not defined for the target language.
 #endif  // XESL_LANGUAGE
 
 #if XESL_LANGUAGE_GLSL
   #define xesl_packHalf2x16 packHalf2x16
+  #define xesl_unpackHalf2x16 unpackHalf2x16
 #elif XESL_LANGUAGE_HLSL
   uint xesl_packHalf2x16(xesl_float2 xesl_var_value) {
     return f32tof16(xesl_var_value.x) | (f32tof16(xesl_var_value.y) << 16u);
+  }
+  xesl_float2 xesl_unpackHalf2x16(uint xesl_var_value) {
+    return f16tof32(xesl_uint_x2(xesl_var_value) >> xesl_uint2(0u, 16u));
+  }
+#elif XESL_LANGUAGE_MSL
+  uint xesl_packHalf2x16(xesl_float2 xesl_var_value) {
+    return uint(as_type<ushort>(half(xesl_var_value.x))) |
+           (uint(as_type<ushort>(half(xesl_var_value.y))) << 16u);
+  }
+  xesl_float2 xesl_unpackHalf2x16(uint xesl_var_value) {
+    return xesl_float2(as_type<half2>(ushort2(
+        xesl_uint_x2(xesl_var_value) >> xesl_uint2(0u, 16u))));
   }
 #else
   #error xesl_packHalf2x16 not defined for the target language.
