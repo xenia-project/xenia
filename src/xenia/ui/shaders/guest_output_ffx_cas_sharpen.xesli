@@ -15,59 +15,72 @@
   #include "dither_8bpc.xesli"
 #endif  // XE_GUEST_OUTPUT_DITHER
 
-xesl_push_constants_begin(b0, space0)
+xesl_pushConstants_begin(b0, space0)
   // 16 used by the vertex shader (GLSL push constant offsets are across
   // stages).
   xesl_block_offset_member(16, c0.x, xesl_int2, xe_cas_output_offset)
   // CasSetup const1.x.
   xesl_block_offset_member(24, c0.z, float, xe_cas_sharpness_post_setup)
-xesl_push_constants_end
+xesl_pushConstants_end
+
+// FIXME(Triang3l): This approach doesn't work for MSL - the texture must be
+// passed explicitly from the entry point's arguments to CasLoad.
 
 // Forward declaration because CasLoad needs xe_cas_source from the entry point
 // bindings.
-void CasFilter(out float pixel_r, out float pixel_g, out float pixel_b,
+void CasFilter(xesl_function_param_out(float, pixel_r),
+               xesl_function_param_out(float, pixel_g),
+               xesl_function_param_out(float, pixel_b),
                xesl_uint2 pixel_position, xesl_uint4 const0, xesl_uint4 const1,
                bool no_scaling);
 
-xesl_entry
-  xesl_texture(xesl_texture2D, xe_cas_source, set=0, binding=0, t0, space0)
-xesl_entry_bindings_end
-  xesl_input_frag_coord
-  xesl_entry_signature_next
-  xesl_output_color(xesl_float4, xe_cas_color, 0)
-xesl_entry_signature_end
+xesl_entry_outputs_begin
+  xesl_entry_output_target(xesl_float4, xe_cas_color, 0)
+xesl_entry_outputs_end_stageInputs_begin
+xesl_entry_stageInputs_end_bindings_begin_pixel
+  xesl_pushConstants_binding(buffer(0))
+  xesl_entry_binding_next
+  xesl_texture(xesl_texture2D, xe_cas_source, set=0, binding=0, t0, space0,
+               texture(0))
+xesl_entry_bindings_end_inputs_begin
+  xesl_entry_input_fragCoord
+xesl_entry_inputs_end_code_begin
   xesl_uint2 pixel_coord =
       xesl_uint2(xesl_int2(xesl_FragCoord.xy) -
-                 xesl_push_constant(xe_cas_output_offset));
+                 xesl_pushConstant(xe_cas_output_offset));
   // CasSetup with smaller push constants usage.
   xesl_uint4 cas_const_0 =
       xesl_floatBitsToUint(xesl_float4(1.0, 1.0, 0.0, 0.0));
   xesl_uint4 cas_const_1 =
       xesl_uint4(
-          xesl_floatBitsToUint(xesl_push_constant(xe_cas_sharpness_post_setup)),
+          xesl_floatBitsToUint(xesl_pushConstant(xe_cas_sharpness_post_setup)),
           xesl_packHalf2x16(xesl_float2(
-              xesl_push_constant(xe_cas_sharpness_post_setup), 0.0)),
+              xesl_pushConstant(xe_cas_sharpness_post_setup), 0.0)),
           xesl_floatBitsToUint(8.0), 0u);
-  CasFilter(xe_cas_color.r, xe_cas_color.g, xe_cas_color.b, pixel_coord,
-            cas_const_0, cas_const_1, true);
+  xesl_float4 cas_color;
+  CasFilter(cas_color.r, cas_color.g, cas_color.b, pixel_coord, cas_const_0,
+            cas_const_1, true);
   // Linear conversion approximation as recommended in the CAS presentation.
-  xe_cas_color.rgb = sqrt(xe_cas_color.rgb);
+  cas_color.rgb = sqrt(cas_color.rgb);
   #if XE_GUEST_OUTPUT_DITHER
     // Clamping because on Vulkan, the surface may specify any format, including
     // floating-point.
-    xe_cas_color.rgb =
-        xesl_saturate(xe_cas_color.rgb + XeDitherOffset8bpc(pixel_coord));
+    cas_color.rgb =
+        xesl_saturate(cas_color.rgb + XeDitherOffset8bpc(pixel_coord));
   #endif  // XE_GUEST_OUTPUT_DITHER
   // Force alpha to 1 to make sure the surface won't be translucent.
-  xe_cas_color.a = 1.0;
-xesl_entry_end
+  cas_color.a = 1.0;
+  xesl_Output(xe_cas_color) = cas_color;
+xesl_entry_code_end
 
 #define A_GPU 1
 #include "../../../../third_party/FidelityFX-CAS/ffx-cas/ffx_a.h"
 xesl_float3 CasLoad(xesl_int2 p) {
   return xesl_texelFetch2D(xe_cas_source, p, 0).rgb;
 }
-void CasInput(inout float r, inout float g, inout float b) {
+void CasInput(xesl_function_param_inout(float, r),
+              xesl_function_param_inout(float, g),
+              xesl_function_param_inout(float, b)) {
   // Linear conversion approximation as recommended in the CAS presentation.
   r *= r;
   g *= g;

@@ -33,7 +33,7 @@
     %v2float = OpTypeVector %float 2
 %_struct_1030 = OpTypeStruct %v2float %v2float
 %_ptr_PushConstant__struct_1030 = OpTypePointer PushConstant %_struct_1030
-       %3052 = OpVariable %_ptr_PushConstant__struct_1030 PushConstant
+       %4495 = OpVariable %_ptr_PushConstant__struct_1030 PushConstant
 %_ptr_PushConstant_v2float = OpTypePointer PushConstant %v2float
 %_ptr_Input_int = OpTypePointer Input %int
 %gl_VertexIndex = OpVariable %_ptr_Input_int Input
@@ -47,7 +47,7 @@
        %1828 = OpConstantComposite %v2uint %uint_1 %uint_1
        %5663 = OpFunction %void None %1282
       %23915 = OpLabel
-       %7053 = OpAccessChain %_ptr_PushConstant_v2float %3052 %int_0
+       %7053 = OpAccessChain %_ptr_PushConstant_v2float %4495 %int_0
       %17516 = OpLoad %v2float %7053
       %23241 = OpLoad %int %gl_VertexIndex
        %9480 = OpBitcast %uint %23241
@@ -55,7 +55,7 @@
       %14991 = OpShiftRightLogical %v2uint %15408 %1819
       %17567 = OpBitwiseAnd %v2uint %14991 %1828
        %7856 = OpConvertUToF %v2float %17567
-      %12606 = OpAccessChain %_ptr_PushConstant_v2float %3052 %int_1
+      %12606 = OpAccessChain %_ptr_PushConstant_v2float %4495 %int_1
       %24011 = OpLoad %v2float %12606
       %17243 = OpFMul %v2float %7856 %24011
       %16594 = OpFAdd %v2float %17516 %17243
@@ -89,7 +89,7 @@ const uint32_t guest_output_triangle_strip_rect_vs[] = {
     0x0000000C, 0x00000020, 0x00000001, 0x0004002B, 0x0000000C, 0x00000A0B,
     0x00000000, 0x00040017, 0x00000013, 0x0000000D, 0x00000002, 0x0004001E,
     0x00000406, 0x00000013, 0x00000013, 0x00040020, 0x00000683, 0x00000009,
-    0x00000406, 0x0004003B, 0x00000683, 0x00000BEC, 0x00000009, 0x00040020,
+    0x00000406, 0x0004003B, 0x00000683, 0x0000118F, 0x00000009, 0x00040020,
     0x00000290, 0x00000009, 0x00000013, 0x00040020, 0x00000289, 0x00000001,
     0x0000000C, 0x0004003B, 0x00000289, 0x00001029, 0x00000001, 0x00040017,
     0x00000011, 0x0000000B, 0x00000002, 0x0004002B, 0x0000000B, 0x00000A0A,
@@ -99,13 +99,13 @@ const uint32_t guest_output_triangle_strip_rect_vs[] = {
     0x00040020, 0x0000029A, 0x00000003, 0x0000001D, 0x0005002C, 0x00000011,
     0x00000724, 0x00000A0D, 0x00000A0D, 0x00050036, 0x00000008, 0x0000161F,
     0x00000000, 0x00000502, 0x000200F8, 0x00005D6B, 0x00050041, 0x00000290,
-    0x00001B8D, 0x00000BEC, 0x00000A0B, 0x0004003D, 0x00000013, 0x0000446C,
+    0x00001B8D, 0x0000118F, 0x00000A0B, 0x0004003D, 0x00000013, 0x0000446C,
     0x00001B8D, 0x0004003D, 0x0000000C, 0x00005AC9, 0x00001029, 0x0004007C,
     0x0000000B, 0x00002508, 0x00005AC9, 0x00050050, 0x00000011, 0x00003C30,
     0x00002508, 0x00002508, 0x000500C2, 0x00000011, 0x00003A8F, 0x00003C30,
     0x0000071B, 0x000500C7, 0x00000011, 0x0000449F, 0x00003A8F, 0x00000724,
     0x00040070, 0x00000013, 0x00001EB0, 0x0000449F, 0x00050041, 0x00000290,
-    0x0000313E, 0x00000BEC, 0x00000A0E, 0x0004003D, 0x00000013, 0x00005DCB,
+    0x0000313E, 0x0000118F, 0x00000A0E, 0x0004003D, 0x00000013, 0x00005DCB,
     0x0000313E, 0x00050085, 0x00000013, 0x0000435B, 0x00001EB0, 0x00005DCB,
     0x00050081, 0x00000013, 0x000040D2, 0x0000446C, 0x0000435B, 0x00050051,
     0x0000000D, 0x00002967, 0x000040D2, 0x00000000, 0x00050051, 0x0000000D,

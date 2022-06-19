@@ -45,7 +45,7 @@
        %5474 = OpVariable %_ptr_Input_v2float Input
 %_struct_997 = OpTypeStruct %v2float
 %_ptr_PushConstant__struct_997 = OpTypePointer PushConstant %_struct_997
-       %3052 = OpVariable %_ptr_PushConstant__struct_997 PushConstant
+       %4495 = OpVariable %_ptr_PushConstant__struct_997 PushConstant
 %_ptr_PushConstant_v2float = OpTypePointer PushConstant %v2float
     %float_2 = OpConstant %float 2
        %2981 = OpConstantComposite %v2float %float_2 %float_2
@@ -59,7 +59,7 @@
       %11060 = OpLoad %v4float %5914
                OpStore %3080 %11060
       %10541 = OpLoad %v2float %5474
-      %22255 = OpAccessChain %_ptr_PushConstant_v2float %3052 %int_0
+      %22255 = OpAccessChain %_ptr_PushConstant_v2float %4495 %int_0
       %12012 = OpLoad %v2float %22255
       %17501 = OpFMul %v2float %10541 %12012
       %13314 = OpFMul %v2float %17501 %2981
@@ -102,7 +102,7 @@ const uint32_t immediate_vs[] = {
     0x00001342, 0x00000003, 0x00040015, 0x0000000C, 0x00000020, 0x00000001,
     0x0004002B, 0x0000000C, 0x00000A0B, 0x00000000, 0x0004003B, 0x00000291,
     0x00001562, 0x00000001, 0x0003001E, 0x000003E5, 0x00000013, 0x00040020,
-    0x00000662, 0x00000009, 0x000003E5, 0x0004003B, 0x00000662, 0x00000BEC,
+    0x00000662, 0x00000009, 0x000003E5, 0x0004003B, 0x00000662, 0x0000118F,
     0x00000009, 0x00040020, 0x00000292, 0x00000009, 0x00000013, 0x0004002B,
     0x0000000D, 0x00000018, 0x40000000, 0x0005002C, 0x00000013, 0x00000BA5,
     0x00000018, 0x00000018, 0x0004002B, 0x0000000D, 0x0000008A, 0x3F800000,
@@ -112,7 +112,7 @@ const uint32_t immediate_vs[] = {
     0x00005065, 0x00001255, 0x0003003E, 0x0000103F, 0x00005065, 0x0004003D,
     0x0000001D, 0x00002B34, 0x0000171A, 0x0003003E, 0x00000C08, 0x00002B34,
     0x0004003D, 0x00000013, 0x0000292D, 0x00001562, 0x00050041, 0x00000292,
-    0x000056EF, 0x00000BEC, 0x00000A0B, 0x0004003D, 0x00000013, 0x00002EEC,
+    0x000056EF, 0x0000118F, 0x00000A0B, 0x0004003D, 0x00000013, 0x00002EEC,
     0x000056EF, 0x00050085, 0x00000013, 0x0000445D, 0x0000292D, 0x00002EEC,
     0x00050085, 0x00000013, 0x00003402, 0x0000445D, 0x00000BA5, 0x00050083,
     0x00000013, 0x000019DC, 0x00003402, 0x00000300, 0x00050051, 0x0000000D,

@@ -5,7 +5,7 @@
 //
 // Buffer Definitions: 
 //
-// cbuffer xesl_push_constants
+// cbuffer xesl_pushConstants
 // {
 //
 //   int2 xe_fsr_rcas_output_offset;    // Offset:    0 Size:     8
@@ -19,7 +19,7 @@
 // Name                                 Type  Format         Dim      ID      HLSL Bind  Count
 // ------------------------------ ---------- ------- ----------- ------- -------------- ------
 // xe_fsr_rcas_source                texture  float4          2d      T0             t0      1 
-// xesl_push_constants               cbuffer      NA          NA     CB0            cb0      1 
+// xesl_pushConstants                cbuffer      NA          NA     CB0            cb0      1 
 //
 //
 //
@@ -355,10 +355,10 @@ ret
 
 const BYTE guest_output_ffx_fsr_rcas_dither_ps[] =
 {
-     68,  88,  66,  67,  77,  65, 
-    206,  53, 228, 110,  88, 184, 
-     82, 169, 180, 230, 247, 200, 
-    167, 144,   1,   0,   0,   0, 
+     68,  88,  66,  67, 104, 194, 
+    182,   4,  99, 141, 191, 237, 
+    114, 162, 251,  47,  83, 117, 
+    247, 165,   1,   0,   0,   0, 
     200,  25,   0,   0,   5,   0, 
       0,   0,  52,   0,   0,   0, 
      16,   2,   0,   0,  68,   2, 
@@ -393,8 +393,8 @@ const BYTE guest_output_ffx_fsr_rcas_dither_ps[] =
     115,  95, 115, 111, 117, 114, 
      99, 101,   0, 120, 101, 115, 
     108,  95, 112, 117, 115, 104, 
-     95,  99, 111, 110, 115, 116, 
-     97, 110, 116, 115,   0, 171, 
+     67, 111, 110, 115, 116,  97, 
+    110, 116, 115,   0, 171, 171, 
     159,   0,   0,   0,   2,   0, 
       0,   0, 204,   0,   0,   0, 
      16,   0,   0,   0,   0,   0, 

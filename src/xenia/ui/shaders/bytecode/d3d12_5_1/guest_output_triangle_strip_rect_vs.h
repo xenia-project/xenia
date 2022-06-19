@@ -5,7 +5,7 @@
 //
 // Buffer Definitions: 
 //
-// cbuffer xesl_push_constants
+// cbuffer xesl_pushConstants
 // {
 //
 //   float2 xe_triangle_strip_rect_offset;// Offset:    0 Size:     8
@@ -18,7 +18,7 @@
 //
 // Name                                 Type  Format         Dim      ID      HLSL Bind  Count
 // ------------------------------ ---------- ------- ----------- ------- -------------- ------
-// xesl_push_constants               cbuffer      NA          NA     CB0            cb0      1 
+// xesl_pushConstants                cbuffer      NA          NA     CB0            cb0      1 
 //
 //
 //
@@ -53,10 +53,10 @@ ret
 
 const BYTE guest_output_triangle_strip_rect_vs[] =
 {
-     68,  88,  66,  67, 149, 206, 
-    103, 147, 159, 147,   2,  90, 
-    215,  81,  85,  83, 111, 183, 
-    165,  48,   1,   0,   0,   0, 
+     68,  88,  66,  67,   7,   8, 
+    151, 116, 244, 223, 181, 252, 
+    225, 125,  49, 199, 242,  21, 
+    127, 234,   1,   0,   0,   0, 
     204,   3,   0,   0,   5,   0, 
       0,   0,  52,   0,   0,   0, 
     172,   1,   0,   0, 224,   1, 
@@ -81,8 +81,8 @@ const BYTE guest_output_triangle_strip_rect_vs[] =
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0, 120, 101, 
     115, 108,  95, 112, 117, 115, 
-    104,  95,  99, 111, 110, 115, 
-    116,  97, 110, 116, 115,   0, 
+    104,  67, 111, 110, 115, 116, 
+     97, 110, 116, 115,   0, 171, 
     100,   0,   0,   0,   2,   0, 
       0,   0, 144,   0,   0,   0, 
      16,   0,   0,   0,   0,   0, 

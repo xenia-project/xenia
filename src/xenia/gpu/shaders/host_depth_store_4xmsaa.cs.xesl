@@ -10,31 +10,43 @@
 #include "edram.xesli"
 #include "host_depth_store.xesli"
 
-xesl_entry
-  xesl_writeTypedStorageBuffer(xesl_uint4, xe_host_depth_store_dest, set=0,
-                               binding=0, u0, space0)
+xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_host_depth_store_dest,
+                                     set=0, binding=0, u0, space0)
+#define xesl_localSize_x 8
+#define xesl_localSize_y 8
+#define xesl_localSize_z 1
+xesl_entry_bindings_begin_compute
+  XE_HOST_DEPTH_STORE_PUSH_CONSTANTS_BINDING
+  xesl_entry_binding_next
+  xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_host_depth_store_dest,
+                                       buffer(1))
   xesl_entry_binding_next
   xesl_texture(xesl_texture2DMS, xe_host_depth_store_source, set=1, binding=0,
-               t0, space0)
-xesl_entry_bindings_end_local_size(8, 8, 1)
-  xesl_input_global_invocation_id
-xesl_entry_signature_end
+               t0, space0, texture(0))
+xesl_entry_bindings_end_inputs_begin_compute
+  xesl_entry_input_globalInvocationID
+xesl_entry_inputs_end_code_begin_compute
   // 1 thread = 8 samples (4x0.5 pixels, resolve granularity is 8 pixels).
+  uint rect_constant = xesl_pushConstant(xe_host_depth_store_rectangle);
+  uint rt_constant = xesl_pushConstant(xe_host_depth_store_render_target);
+  xesl_uint2 resolution_scale = XeHostDepthStoreRTResolutionScale(rt_constant);
   // Group height can't cross resolve granularity, Y overflow check not needed.
   xesl_dont_flatten
-  if ((xesl_GlobalInvocationID.x >> 1u) >= XeHostDepthStoreScaledWidthDiv8()) {
+  if ((xesl_GlobalInvocationID.x >> 1u) >=
+      (XeHostDepthStoreRectUnscaledWidthDiv8(rect_constant) *
+       resolution_scale.x)) {
     return;
   }
-  xesl_int2 pixel_index =
-      xesl_int2(XeHostDepthStoreScaledOrigin() +
-                xesl_uint2(xesl_GlobalInvocationID.x << 2u,
-                           xesl_GlobalInvocationID.y >> 1u));
+  xesl_int2 pixel_index = xesl_int2(
+      XeHostDepthStoreRectUnscaledOrigin(rect_constant) * resolution_scale +
+      xesl_uint2(xesl_GlobalInvocationID.x << 2u,
+                 xesl_GlobalInvocationID.y >> 1u));
   // For simplicity, passing samples directly, not pixels, to XeEdramOffsetInts.
   uint edram_address_int4s =
       XeEdramOffsetInts(
           (xesl_uint2(pixel_index) << 1u) | (xesl_GlobalInvocationID.xy & 1u),
-          0u, XeHostDepthStorePitchTiles(), kXenosMsaaSamples_1X, false, 0u, 0u,
-          XeHostDepthStoreResolutionScale())
+          0u, XeHostDepthStoreRTPitchTiles(rt_constant), kXenosMsaaSamples_1X,
+          false, 0u, 0u, resolution_scale)
       >> 2u;
   // Render target horizontal sample in bit 0, vertical sample in bit 1.
   int source_sample_left = int((xesl_GlobalInvocationID.y & 1u) << 1u);
@@ -67,4 +79,4 @@ xesl_entry_signature_end
           xesl_texelFetch2DMS(xe_host_depth_store_source,
                               pixel_index + xesl_int2(3, 0),
                               source_sample_right).r)));
-xesl_entry_end
+xesl_entry_code_end_compute
