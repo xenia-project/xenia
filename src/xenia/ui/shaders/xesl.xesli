@@ -507,7 +507,17 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
 // 32-bit integers and floats, a typed buffer on Direct3D, but a storage buffer
 // (as opposed to a texel buffer, which has a very small minimum requirement for
 // the maximum size) on Vulkan.
+//
+// xesl_uintVectorBuffer is a buffer containing 32-bit values, but loading or
+// storing may be done for 2, 3 or 4 consecutive values that are still
+// 32-bit-aligned, and depending on the language and hardware support, access
+// of multiple elements may or may not be compiled into a single hardware
+// instruction instead of separate accesses of individual elements. Each index
+// value corresponds to a 32-bit element. Implementations for languages without
+// native support must use functions, not macros, for adding the component
+// offset to the index to avoid evaluating the address multiple times.
 #if XESL_LANGUAGE_GLSL
+  // Binding declarations.
   #define xesl_typedStorageBuffer_declare(value_type, name, glsl_set,         \
                                           glsl_binding, hlsl_t, hlsl_t_space) \
       layout(std430, glsl_set, glsl_binding)                                  \
@@ -521,11 +531,45 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
       writeonly buffer xesl_id_buffer_##name {                             \
         value_type xesl_id_data[];                                         \
       } name;
+  #define xesl_uintVectorBuffer_declare(name, glsl_set, glsl_binding, hlsl_t, \
+                                        hlsl_t_space)                         \
+      layout(std430, glsl_set, glsl_binding)                                  \
+      readonly buffer xesl_id_buffer_##name {                                 \
+        uint xesl_id_data[];                                                  \
+      } name;                                                                 \
+      xesl_uint2 xesl_id_uintVectorBuffer_load2_##name(                       \
+          uint xesl_var_position) {                                           \
+        return xesl_uint2(name.xesl_id_data[xesl_var_position],               \
+                          name.xesl_id_data[xesl_var_position + 1u]);         \
+      }                                                                       \
+      xesl_uint3 xesl_id_uintVectorBuffer_load3_##name(                       \
+          uint xesl_var_position) {                                           \
+        return xesl_uint3(name.xesl_id_data[xesl_var_position],               \
+                          name.xesl_id_data[xesl_var_position + 1u],          \
+                          name.xesl_id_data[xesl_var_position + 2u]);         \
+      }                                                                       \
+      xesl_uint4 xesl_id_uintVectorBuffer_load4_##name(                       \
+          uint xesl_var_position) {                                           \
+        return xesl_uint4(name.xesl_id_data[xesl_var_position],               \
+                          name.xesl_id_data[xesl_var_position + 1u],          \
+                          name.xesl_id_data[xesl_var_position + 2u],          \
+                          name.xesl_id_data[xesl_var_position + 3u]);         \
+      }
+  // Loading and storing.
   #define xesl_typedStorageBufferLoad(name, position) \
       ((name).xesl_id_data[uint(position)])
   #define xesl_writeTypedStorageBufferStore(name, position, value) \
       ((name).xesl_id_data[uint(position)] = (value))
+  #define xesl_uintVectorBufferLoad1(name, position) \
+      ((name).xesl_id_data[uint(position)])
+  #define xesl_uintVectorBufferLoad2(name, position) \
+      xesl_id_uintVectorBuffer_load2_##name(uint(position))
+  #define xesl_uintVectorBufferLoad3(name, position) \
+      xesl_id_uintVectorBuffer_load3_##name(uint(position))
+  #define xesl_uintVectorBufferLoad4(name, position) \
+      xesl_id_uintVectorBuffer_load4_##name(uint(position))
 #elif XESL_LANGUAGE_HLSL
+  // Binding declarations.
   #define xesl_typedStorageBuffer_declare(value_type, name, glsl_set,         \
                                           glsl_binding, hlsl_t, hlsl_t_space) \
       Buffer<value_type> name : register(hlsl_t, hlsl_t_space);
@@ -533,17 +577,43 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
                                                glsl_binding, hlsl_u,       \
                                                hlsl_u_space)               \
       RWBuffer<value_type> name : register(hlsl_u, hlsl_u_space);
+  #define xesl_uintVectorBuffer_declare(name, glsl_set, glsl_binding, hlsl_t, \
+                                        hlsl_t_space)                         \
+      ByteAddressBuffer name : register(hlsl_t, hlsl_t_space);
+  // Loading and storing.
   #define xesl_typedStorageBufferLoad(name, position) ((name)[uint(position)])
   #define xesl_writeTypedStorageBufferStore(name, position, value) \
       ((name)[uint(position)] = (value))
+  #define xesl_uintVectorBufferLoad1(name, position) \
+      ((name).Load(int(position) << 2))
+  #define xesl_uintVectorBufferLoad2(name, position) \
+      ((name).Load2(int(position) << 2))
+  #define xesl_uintVectorBufferLoad3(name, position) \
+      ((name).Load3(int(position) << 2))
+  #define xesl_uintVectorBufferLoad4(name, position) \
+      ((name).Load4(int(position) << 2))
 #elif XESL_LANGUAGE_MSL
+  // Binding declarations.
   #define xesl_typedStorageBuffer_binding(value_type, name, msl_buffer) \
       const device value_type* name [[msl_buffer]]
   #define xesl_writeTypedStorageBuffer_binding(value_type, name, msl_buffer) \
       device value_type* name [[msl_buffer]]
+  #define xesl_uintVectorBuffer_binding(name, msl_buffer) \
+      const device uint* name [[msl_buffer]]
+  // Loading and storing.
   #define xesl_typedStorageBufferLoad(name, position) ((name)[size_t(position)])
   #define xesl_writeTypedStorageBufferStore(name, position, value) \
       ((name)[size_t(position)] = (value))
+  #define xesl_uintVectorBufferLoad1(name, position) ((name)[size_t(position)])
+  #define xesl_uintVectorBufferLoad2(name, position)            \
+      xesl_uint2(*reinterpret_cast<const device packed_uint2*>( \
+                     &((name)[size_t(position)])))
+  #define xesl_uintVectorBufferLoad3(name, position)            \
+      xesl_uint3(*reinterpret_cast<const device packed_uint3*>( \
+                     &((name)[size_t(position)])))
+  #define xesl_uintVectorBufferLoad4(name, position)            \
+      xesl_uint4(*reinterpret_cast<const device packed_uint4*>( \
+                     &((name)[size_t(position)])))
 #else
   #error Storage buffers not defined for the target language.
 #endif  // XESL_LANGUAGE
@@ -562,6 +632,13 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
 #ifndef xesl_writeTypedStorageBuffer_binding
   #define xesl_writeTypedStorageBuffer_binding(value_type, name, msl_buffer)
 #endif  // !xesl_writeTypedStorageBuffer_binding
+#ifndef xesl_uintVectorBuffer_declare
+  #define xesl_uintVectorBuffer_declare(name, glsl_set, glsl_binding, hlsl_t, \
+                                        hlsl_t_space)
+#endif  // !xesl_uintVectorBuffer_declare
+#ifndef xesl_uintVectorBuffer_binding
+  #define xesl_uintVectorBuffer_binding(name, msl_buffer)
+#endif  // !xesl_uintVectorBuffer_binding
 
 // Buffer, texture, sampler and image bindings must be in the entry point
 // bindings declaration.
@@ -740,11 +817,15 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
   #define xesl_function_param_pushConstants \
       constant xesl_pushConstants_struct& xesl_pushConstants
   #define xesl_function_param_next_after_pushConstants ,
+  #define xesl_function_param_uintVectorBuffer(name) const device uint* name
+  #define xesl_function_param_next_after_uintVectorBuffer ,
   // Call arguments.
-  #define xesl_function_call_constantBuffer(name) name
+  #define xesl_function_call_constantBuffer(name) (name)
   #define xesl_function_call_next_after_constantBuffer ,
   #define xesl_function_call_pushConstants xesl_pushConstants
   #define xesl_function_call_next_after_pushConstants ,
+  #define xesl_function_call_uintVectorBuffer(name) (name)
+  #define xesl_function_call_next_after_uintVectorBuffer ,
 #endif  // XESL_LANGUAGE
 
 // Prototype parameters.
@@ -760,6 +841,12 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
 #ifndef xesl_function_param_next_after_pushConstants
   #define xesl_function_param_next_after_pushConstants
 #endif  // !xesl_function_param_next_after_pushConstants
+#ifndef xesl_function_param_uintVectorBuffer
+  #define xesl_function_param_uintVectorBuffer(name)
+#endif  // !xesl_function_param_uintVectorBuffer
+#ifndef xesl_function_param_next_after_uintVectorBuffer
+  #define xesl_function_param_next_after_uintVectorBuffer
+#endif  // !xesl_function_param_next_after_uintVectorBuffer
 // Call arguments.
 #ifndef xesl_function_call_constantBuffer
   #define xesl_function_call_constantBuffer(name)
@@ -773,6 +860,12 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
 #ifndef xesl_function_call_next_after_pushConstants
   #define xesl_function_call_next_after_pushConstants
 #endif  // !xesl_function_call_next_after_pushConstants
+#ifndef xesl_function_call_uintVectorBuffer
+  #define xesl_function_call_uintVectorBuffer(name)
+#endif  // !xesl_function_call_uintVectorBuffer
+#ifndef xesl_function_call_next_after_uintVectorBuffer
+  #define xesl_function_call_next_after_uintVectorBuffer
+#endif  // !xesl_function_call_next_after_uintVectorBuffer
 
 // Attributes.
 
@@ -1121,14 +1214,22 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
 
 #if XESL_LANGUAGE_GLSL
   #define xesl_packHalf2x16 packHalf2x16
+  #define xesl_unpackHalf2x16 unpackHalf2x16
 #elif XESL_LANGUAGE_HLSL
   uint xesl_packHalf2x16(xesl_float2 xesl_var_value) {
     return f32tof16(xesl_var_value.x) | (f32tof16(xesl_var_value.y) << 16u);
+  }
+  xesl_float2 xesl_unpackHalf2x16(uint xesl_var_value) {
+    return f16tof32(xesl_uint_x2(xesl_var_value) >> xesl_uint2(0u, 16u));
   }
 #elif XESL_LANGUAGE_MSL
   uint xesl_packHalf2x16(xesl_float2 xesl_var_value) {
     return uint(as_type<ushort>(half(xesl_var_value.x))) |
            (uint(as_type<ushort>(half(xesl_var_value.y))) << 16u);
+  }
+  xesl_float2 xesl_unpackHalf2x16(uint xesl_var_value) {
+    return xesl_float2(as_type<half2>(ushort2(
+        xesl_uint_x2(xesl_var_value) >> xesl_uint2(0u, 16u))));
   }
 #else
   #error xesl_packHalf2x16 not defined for the target language.

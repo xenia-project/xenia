@@ -33,7 +33,7 @@ xesl_entry_inputs_end_code_begin_compute
   // Group height can't cross resolve granularity, Y overflow check not needed.
   xesl_dont_flatten
   if ((xesl_GlobalInvocationID.x >> 1u) >=
-      (XeHostDepthStoreRectUnscaledWidthDiv8Minus1(rect_constant) *
+      (XeHostDepthStoreRectUnscaledWidthDiv8(rect_constant) *
        resolution_scale.x)) {
     return;
   }

@@ -1,0 +1,50 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#define XE_RESOLVE_CLEAR
+#include "resolve.xesli"
+
+xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_resolve_dest, set=0,
+                                     binding=0, u0, space0)
+#define xesl_localSize_x 8
+#define xesl_localSize_y 8
+#define xesl_localSize_z 1
+xesl_entry_bindings_begin_compute
+  XE_RESOLVE_PUSH_CONSTANTS_BINDING
+  xesl_entry_binding_next
+  xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_resolve_dest,
+                                       buffer(1))
+xesl_entry_bindings_end_inputs_begin_compute
+  xesl_entry_input_globalInvocationID
+xesl_entry_inputs_end_code_begin_compute
+  // 1 thread = 8 host samples (same as the resolve granularity at 1x1 scale).
+  XeResolveInfo resolve_info =
+      XeResolveGetInfo(xesl_function_call_pushConstants);
+  xesl_uint2 extent_scale = xesl_uint2(xesl_greaterThanEqual(
+      xesl_uint_x2(resolve_info.edram_msaa_samples),
+      xesl_uint2(kXenosMsaaSamples_4X, kXenosMsaaSamples_2X)));
+  // Group height can't cross resolve granularity, Y overflow check not needed.
+  xesl_dont_flatten
+  if (xesl_GlobalInvocationID.x >=
+      resolve_info.width_div_8_scaled << extent_scale.x) {
+    return;
+  }
+  uint address_int4s =
+      XeEdramOffsetInts(
+          (xesl_GlobalInvocationID.xy << xesl_uint2(3u, 0u)) +
+              (resolve_info.edram_offset_scaled << extent_scale),
+          resolve_info.edram_base_tiles, resolve_info.edram_pitch_tiles,
+          kXenosMsaaSamples_1X, false, 1u, 0u, resolve_info.resolution_scale)
+      >> 2u;
+  uint i;
+  xesl_unroll for (i = 0u; i < 4u; ++i) {
+    xesl_writeTypedStorageBufferStore(xe_resolve_dest, address_int4s + i,
+                                      resolve_info.clear_value.xyxy);
+  }
+xesl_entry_code_end_compute

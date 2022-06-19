@@ -24,8 +24,9 @@ xesl_uint2 XeHostDepthStoreRectUnscaledOrigin(uint rect_constant) {
   return ((xesl_uint_x2(rect_constant) >> xesl_uint2(0u, 10u)) & 0x3FFu) << 3u;
 }
 
-uint XeHostDepthStoreRectUnscaledWidthDiv8Minus1(uint rect_constant) {
-  return (rect_constant >> 20u) & 0x3FFu;
+uint XeHostDepthStoreRectUnscaledWidthDiv8(uint rect_constant) {
+  // The width divided by 8 minus 1 is stored.
+  return ((rect_constant >> 20u) & 0x3FFu) + 1u;
 }
 
 xesl_uint2 XeHostDepthStoreRTResolutionScale(uint rt_constant) {
