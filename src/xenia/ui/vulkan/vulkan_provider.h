@@ -222,8 +222,20 @@ class VulkanProvider : public GraphicsProvider {
   };
   const DeviceFunctions& dfn() const { return dfn_; }
 
-  void SetDeviceObjectName(VkObjectType type, uint64_t handle,
-                           const char* name) const;
+  template <typename T>
+  void SetDeviceObjectName(VkObjectType type, T handle,
+                           const char* name) const {
+    if (!debug_names_used_) {
+      return;
+    }
+    VkDebugUtilsObjectNameInfoEXT name_info;
+    name_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+    name_info.pNext = nullptr;
+    name_info.objectType = type;
+    name_info.objectHandle = uint64_t(handle);
+    name_info.pObjectName = name;
+    ifn_.vkSetDebugUtilsObjectNameEXT(device_, &name_info);
+  }
 
   bool IsSparseBindingSupported() const {
     return queue_family_sparse_binding_ != UINT32_MAX;

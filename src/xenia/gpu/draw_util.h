@@ -275,7 +275,7 @@ union ResolveEdramInfo {
     uint32_t pitch_tiles : xenos::kEdramPitchTilesBits;
     xenos::MsaaSamples msaa_samples : xenos::kMsaaSamplesBits;
     uint32_t is_depth : 1;
-    // With offset to the 160x32 region that local_x/y_div_8 are relative to.
+    // With offset to the region that edram_offset_x/y_div_8 are relative to.
     uint32_t base_tiles : xenos::kEdramBaseTilesBits;
     uint32_t format : xenos::kRenderTargetFormatBits;
     uint32_t format_is_64bpp : 1;
@@ -517,14 +517,15 @@ struct ResolveInfo {
 };
 
 // Returns false if there was an error obtaining the info making it totally
-// invalid. fixed_16_truncated_to_minus_1_to_1 is false if 16_16 and 16_16_16_16
+// invalid. fixed_rg[ba]16_truncated_to_minus_1_to_1 is false if 16_16[_16_16]
 // color render target formats are properly emulated as -32...32, true if
 // emulated as snorm, with range limited to -1...1, but with correct blending
 // within that range.
 bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
                     TraceWriter& trace_writer, uint32_t draw_resolution_scale_x,
                     uint32_t draw_resolution_scale_y,
-                    bool fixed_16_truncated_to_minus_1_to_1,
+                    bool fixed_rg16_truncated_to_minus_1_to_1,
+                    bool fixed_rgba16_truncated_to_minus_1_to_1,
                     ResolveInfo& info_out);
 
 // Taking user configuration - stretching or letterboxing, overscan region to

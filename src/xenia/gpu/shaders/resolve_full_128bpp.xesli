@@ -1,0 +1,62 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include "endian.xesli"
+#define XE_RESOLVE_COPY_EDRAM_IS_UINT_VECTOR_BUFFER
+#include "resolve.xesli"
+
+xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_resolve_dest, set=1,
+                                     binding=0, u0, space0)
+#define xesl_localSize_x 8
+#define xesl_localSize_y 8
+#define xesl_localSize_z 1
+xesl_entry_bindings_begin_compute
+  XE_RESOLVE_PUSH_CONSTANTS_BINDING
+  xesl_entry_binding_next
+  xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_resolve_dest,
+                                       buffer(1))
+  xesl_entry_binding_next
+  XE_RESOLVE_COPY_EDRAM_BINDING
+xesl_entry_bindings_end_inputs_begin_compute
+  xesl_entry_input_globalInvocationID
+xesl_entry_inputs_end_code_begin_compute
+  // 1 thread = 2 host pixels.
+  XeResolveInfo resolve_info =
+      XeResolveGetInfo(xesl_function_call_pushConstants);
+  xesl_uint2 pixel_index = xesl_GlobalInvocationID.xy << xesl_uint2(1u, 0u);
+  // Group height can't cross resolve granularity, Y overflow check not needed.
+  xesl_dont_flatten
+  if (pixel_index.x >= resolve_info.width_div_8_scaled << 3u) {
+    return;
+  }
+  xesl_float4 pixel_0, pixel_1;
+  XeResolveLoad2RGBAColors(
+      xesl_function_call_uintVectorBuffer(xe_resolve_edram)
+      xesl_function_call_next_after_uintVectorBuffer
+      resolve_info,
+      XeResolveColorCopySourcePixelAddressIntsYDuplicating(resolve_info,
+                                                           pixel_index),
+      pixel_0, pixel_1);
+  if (resolve_info.duplicate_second_host_pixel.x && pixel_index.x == 0u) {
+    pixel_0 = pixel_1;
+  }
+  // Only 32_32_32_32_FLOAT color format is 128bpp.
+  uint dest_address =
+      XeResolveDestPixelAddress(resolve_info, pixel_index, 4u) >> 4u;
+  xesl_writeTypedStorageBufferStore(
+      xe_resolve_dest, dest_address,
+      XeEndianSwap128(xesl_floatBitsToUint(pixel_0),
+                      resolve_info.dest_endian_128));
+  dest_address += XeResolveDestRightConsecutiveBlocksOffset(
+                      pixel_index.x, 4u, resolve_info.resolution_scale) >> 4u;
+  xesl_writeTypedStorageBufferStore(
+      xe_resolve_dest, dest_address,
+      XeEndianSwap128(xesl_floatBitsToUint(pixel_1),
+                      resolve_info.dest_endian_128));
+xesl_entry_code_end_compute

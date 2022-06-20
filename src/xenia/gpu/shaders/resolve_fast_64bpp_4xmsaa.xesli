@@ -1,0 +1,72 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include "endian.xesli"
+#define XE_RESOLVE_SOURCE_TYPE xesl_uint2
+#include "resolve.xesli"
+
+xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_resolve_dest, set=1,
+                                     binding=0, u0, space0)
+#define xesl_localSize_x 8
+#define xesl_localSize_y 8
+#define xesl_localSize_z 1
+xesl_entry_bindings_begin_compute
+  XE_RESOLVE_PUSH_CONSTANTS_BINDING
+  xesl_entry_binding_next
+  xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_resolve_dest,
+                                       buffer(1))
+  xesl_entry_binding_next
+  XE_RESOLVE_COPY_EDRAM_BINDING
+xesl_entry_bindings_end_inputs_begin_compute
+  xesl_entry_input_globalInvocationID
+xesl_entry_inputs_end_code_begin_compute
+  // 1 thread = 4 host pixels.
+  XeResolveInfo resolve_info =
+      XeResolveGetInfo(xesl_function_call_pushConstants);
+  xesl_uint2 pixel_index = xesl_GlobalInvocationID.xy << xesl_uint2(2u, 0u);
+  // Group height can't cross resolve granularity, Y overflow check not needed.
+  xesl_dont_flatten
+  if (pixel_index.x >= resolve_info.width_div_8_scaled << 3u) {
+    return;
+  }
+  uint source_address_int2s =
+      XeEdramOffsetInts(
+          xesl_uint2(pixel_index.x,
+                     max(pixel_index.y,
+                         uint(resolve_info.duplicate_second_host_pixel.y))) +
+              resolve_info.edram_offset_scaled,
+          resolve_info.edram_base_tiles, resolve_info.edram_pitch_tiles,
+          kXenosMsaaSamples_4X, false, 1u,
+          XeResolveFirstSampleIndex(resolve_info.sample_select),
+          resolve_info.resolution_scale)
+      >> 1u;
+  xesl_uint4 pixels_01, pixels_23;
+  pixels_01.xy = xesl_typedStorageBufferLoad(
+      xe_resolve_edram,
+      source_address_int2s +
+          uint(resolve_info.duplicate_second_host_pixel.x &&
+               pixel_index.x == 0u) * 2u);
+  pixels_01.zw =
+      xesl_typedStorageBufferLoad(xe_resolve_edram, source_address_int2s + 2u);
+  pixels_23.xy =
+      xesl_typedStorageBufferLoad(xe_resolve_edram, source_address_int2s + 4u);
+  pixels_23.zw =
+      xesl_typedStorageBufferLoad(xe_resolve_edram, source_address_int2s + 6u);
+  XeResolveSwap4PixelsRedBlue64bpp(resolve_info, pixels_01, pixels_23);
+  uint dest_address =
+      XeResolveDestPixelAddress(resolve_info, pixel_index, 3u) >> 4u;
+  xesl_writeTypedStorageBufferStore(
+      xe_resolve_dest, dest_address,
+      XeEndianSwap64(pixels_01, resolve_info.dest_endian_128));
+  dest_address += XeResolveDestRightConsecutiveBlocksOffset(
+                      pixel_index.x, 3u, resolve_info.resolution_scale) >> 4u;
+  xesl_writeTypedStorageBufferStore(
+      xe_resolve_dest, dest_address,
+      XeEndianSwap64(pixels_23, resolve_info.dest_endian_128));
+xesl_entry_code_end_compute

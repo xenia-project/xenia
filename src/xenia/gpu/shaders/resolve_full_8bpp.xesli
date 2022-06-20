@@ -1,0 +1,57 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include "endian.xesli"
+#include "pixel_formats.xesli"
+#define XE_RESOLVE_COPY_EDRAM_IS_UINT_VECTOR_BUFFER
+#include "resolve.xesli"
+
+xesl_writeTypedStorageBuffer_declare(xesl_uint2, xe_resolve_dest, set=1,
+                                     binding=0, u0, space0)
+#define xesl_localSize_x 8
+#define xesl_localSize_y 8
+#define xesl_localSize_z 1
+xesl_entry_bindings_begin_compute
+  XE_RESOLVE_PUSH_CONSTANTS_BINDING
+  xesl_entry_binding_next
+  xesl_writeTypedStorageBuffer_binding(xesl_uint2, xe_resolve_dest,
+                                       buffer(1))
+  xesl_entry_binding_next
+  XE_RESOLVE_COPY_EDRAM_BINDING
+xesl_entry_bindings_end_inputs_begin_compute
+  xesl_entry_input_globalInvocationID
+xesl_entry_inputs_end_code_begin_compute
+  // 1 thread = 8 host pixels.
+  XeResolveInfo resolve_info =
+      XeResolveGetInfo(xesl_function_call_pushConstants);
+  // Group height can't cross resolve granularity, Y overflow check not needed.
+  xesl_dont_flatten
+  if (xesl_GlobalInvocationID.x >= resolve_info.width_div_8_scaled) {
+    return;
+  }
+  xesl_uint2 pixel_index = xesl_GlobalInvocationID.xy << xesl_uint2(3u, 0u);
+  xesl_float4 pixels_0123, pixels_4567;
+  XeResolveLoad8RedColors(
+      xesl_function_call_uintVectorBuffer(xe_resolve_edram)
+      xesl_function_call_next_after_uintVectorBuffer
+      resolve_info,
+      XeResolveColorCopySourcePixelAddressIntsYDuplicating(resolve_info,
+                                                           pixel_index),
+      pixels_0123, pixels_4567);
+  if (resolve_info.duplicate_second_host_pixel.x && pixel_index.x == 0u) {
+    pixels_0123.x = pixels_0123.y;
+  }
+  // Convert to R8.
+  // TODO(Triang3l): Investigate formats 8_A and 8_B.
+  xesl_writeTypedStorageBufferStore(
+      xe_resolve_dest,
+      XeResolveDestPixelAddress(resolve_info, pixel_index, 0u) >> 3u,
+      xesl_uint2(XePackR8G8B8A8UNorm(pixels_0123),
+                 XePackR8G8B8A8UNorm(pixels_4567)));
+xesl_entry_code_end_compute
