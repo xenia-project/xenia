@@ -15,6 +15,13 @@
 #include "xenia/base/memory.h"
 #include "xenia/cpu/backend/x64/x64_op.h"
 #include "xenia/cpu/backend/x64/x64_tracers.h"
+#include "xenia/cpu/ppc/ppc_context.h"
+#include "xenia/base/cvar.h"
+
+DEFINE_bool(
+    elide_e0_check, false,
+    "Eliminate e0 check on some memory accesses, like to r13(tls) or r1(sp)",
+    "CPU");
 
 namespace xe {
 namespace cpu {
@@ -27,7 +34,30 @@ volatile int anchor_memory = 0;
 RegExp ComputeContextAddress(X64Emitter& e, const OffsetOp& offset) {
   return e.GetContextReg() + offset.value;
 }
+static bool is_eo_def(const hir::Value* v) {
+  if (v->def) {
+    auto df = v->def;
+    if (df->opcode == &OPCODE_LOAD_CONTEXT_info) {
+      size_t offs = df->src1.offset;
+      if (offs == offsetof(ppc::PPCContext_s, r[1]) ||
+          offs == offsetof(ppc::PPCContext_s, r[13])) {
+        return true;
+      }
+    } else if (df->opcode == &OPCODE_ASSIGN_info) {
+      return is_eo_def(df->src1.value);
+    }
+  }
+  return false;
+}
 
+template <typename T>
+static bool is_definitely_not_eo(const T& v) {
+  if (!cvars::elide_e0_check) {
+    return false;
+  }
+
+  return is_eo_def(v.value);
+}
 template <typename T>
 RegExp ComputeMemoryAddressOffset(X64Emitter& e, const T& guest,
                                   const T& offset) {
@@ -49,7 +79,8 @@ RegExp ComputeMemoryAddressOffset(X64Emitter& e, const T& guest,
       return e.GetMembaseReg() + e.rax;
     }
   } else {
-    if (xe::memory::allocation_granularity() > 0x1000) {
+    if (xe::memory::allocation_granularity() > 0x1000 &&
+        !is_definitely_not_eo(guest)) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
       e.xor_(e.eax, e.eax);
@@ -60,12 +91,12 @@ RegExp ComputeMemoryAddressOffset(X64Emitter& e, const T& guest,
     } else {
       // Clear the top 32 bits, as they are likely garbage.
       // TODO(benvanik): find a way to avoid doing this.
+
       e.mov(e.eax, guest.reg().cvt32());
     }
     return e.GetMembaseReg() + e.rax + offset_const;
   }
 }
-
 // Note: most *should* be aligned, but needs to be checked!
 template <typename T>
 RegExp ComputeMemoryAddress(X64Emitter& e, const T& guest) {
@@ -86,7 +117,8 @@ RegExp ComputeMemoryAddress(X64Emitter& e, const T& guest) {
       return e.GetMembaseReg() + e.rax;
     }
   } else {
-    if (xe::memory::allocation_granularity() > 0x1000) {
+    if (xe::memory::allocation_granularity() > 0x1000 &&
+        !is_definitely_not_eo(guest)) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
       e.xor_(e.eax, e.eax);

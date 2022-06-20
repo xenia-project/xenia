@@ -728,28 +728,103 @@ struct VECTOR_SHL_V128
     }
   }
 
-  static void EmitInt8(X64Emitter& e, const EmitArgType& i) {
+static void EmitInt8(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): native version (with shift magic).
-    if (i.src2.is_constant) {
-      if (e.IsFeatureEnabled(kX64EmitGFNI)) {
-        const auto& shamt = i.src2.constant();
+
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+      if (!i.src2.is_constant) {
+        // get high 8 bytes
+        e.vpunpckhqdq(e.xmm1, i.src1, i.src1);
+        e.vpunpckhqdq(e.xmm3, i.src2, i.src2);
+
+        e.vpmovzxbd(e.ymm0, i.src1);
+        e.vpmovzxbd(e.ymm1, e.xmm1);
+
+        e.vpmovzxbd(e.ymm2, i.src2);
+        e.vpmovzxbd(e.ymm3, e.xmm3);
+
+        e.vpsllvd(e.ymm0, e.ymm0, e.ymm2);
+        e.vpsllvd(e.ymm1, e.ymm1, e.ymm3);
+        e.vextracti128(e.xmm2, e.ymm0, 1);
+        e.vextracti128(e.xmm3, e.ymm1, 1);
+        e.vpshufb(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMIntsToBytes));
+        e.vpshufb(e.xmm1, e.xmm1, e.GetXmmConstPtr(XMMIntsToBytes));
+        e.vpshufb(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMIntsToBytes));
+        e.vpshufb(e.xmm3, e.xmm3, e.GetXmmConstPtr(XMMIntsToBytes));
+
+        e.vpunpckldq(e.xmm0, e.xmm0, e.xmm1);
+        e.vpunpckldq(e.xmm2, e.xmm2, e.xmm3);
+        e.vpunpcklqdq(i.dest, e.xmm0, e.xmm2);
+        return;
+      } else {
+        vec128_t constmask = i.src2.constant();
+
+        for (unsigned i = 0; i < 16; ++i) {
+          constmask.u8[i] &= 7;
+        }
+
+        unsigned seenvalue = constmask.u8[0];
         bool all_same = true;
-        for (size_t n = 0; n < 16 - n; ++n) {
-          if (shamt.u8[n] != shamt.u8[n + 1]) {
+        for (unsigned i = 1; i < 16; ++i) {
+          if (constmask.u8[i] != seenvalue) {
             all_same = false;
             break;
           }
         }
         if (all_same) {
-          // Every count is the same, so we can use gf2p8affineqb.
-          const uint8_t shift_amount = shamt.u8[0] & 0b111;
-          const uint64_t shift_matrix =
-              UINT64_C(0x0102040810204080) >> (shift_amount * 8);
-          e.vgf2p8affineqb(i.dest, i.src1,
-                           e.StashConstantXmm(0, vec128q(shift_matrix)), 0);
+          // mul by two
+          /*if (seenvalue == 1) {
+            e.vpaddb(i.dest, i.src1, i.src1);
+          } else if (seenvalue == 2) {
+            e.vpaddb(i.dest, i.src1, i.src1);
+            e.vpaddb(i.dest, i.dest, i.dest);
+          } else if (seenvalue == 3) {
+            // mul by 8
+            e.vpaddb(i.dest, i.src1, i.src1);
+            e.vpaddb(i.dest, i.dest, i.dest);
+            e.vpaddb(i.dest, i.dest, i.dest);
+          } else*/
+          {
+            e.vpmovzxbw(e.ymm0, i.src1);
+            e.vpsllw(e.ymm0, e.ymm0, seenvalue);
+            e.vextracti128(e.xmm1, e.ymm0, 1);
+
+            e.vpshufb(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMShortsToBytes));
+            e.vpshufb(e.xmm1, e.xmm1, e.GetXmmConstPtr(XMMShortsToBytes));
+            e.vpunpcklqdq(i.dest, e.xmm0, e.xmm1);
+            return;
+          }
+
+        } else {
+          e.LoadConstantXmm(e.xmm2, constmask);
+
+          e.vpunpckhqdq(e.xmm1, i.src1, i.src1);
+          e.vpunpckhqdq(e.xmm3, e.xmm2, e.xmm2);
+
+          e.vpmovzxbd(e.ymm0, i.src1);
+          e.vpmovzxbd(e.ymm1, e.xmm1);
+
+          e.vpmovzxbd(e.ymm2, e.xmm2);
+          e.vpmovzxbd(e.ymm3, e.xmm3);
+
+          e.vpsllvd(e.ymm0, e.ymm0, e.ymm2);
+          e.vpsllvd(e.ymm1, e.ymm1, e.ymm3);
+          e.vextracti128(e.xmm2, e.ymm0, 1);
+          e.vextracti128(e.xmm3, e.ymm1, 1);
+          e.vpshufb(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMIntsToBytes));
+          e.vpshufb(e.xmm1, e.xmm1, e.GetXmmConstPtr(XMMIntsToBytes));
+          e.vpshufb(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMIntsToBytes));
+          e.vpshufb(e.xmm3, e.xmm3, e.GetXmmConstPtr(XMMIntsToBytes));
+
+          e.vpunpckldq(e.xmm0, e.xmm0, e.xmm1);
+          e.vpunpckldq(e.xmm2, e.xmm2, e.xmm3);
+          e.vpunpcklqdq(i.dest, e.xmm0, e.xmm2);
+
           return;
         }
       }
+    }
+    if (i.src2.is_constant) {
       e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
     } else {
       e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
@@ -758,7 +833,6 @@ struct VECTOR_SHL_V128
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShl<uint8_t>));
     e.vmovaps(i.dest, e.xmm0);
   }
-
   static void EmitInt16(X64Emitter& e, const EmitArgType& i) {
     Xmm src1;
     if (i.src1.is_constant) {

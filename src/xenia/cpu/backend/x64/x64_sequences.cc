@@ -38,6 +38,10 @@
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/processor.h"
 
+DEFINE_bool(use_fast_dot_product, false,
+            "Experimental optimization, much shorter sequence on dot products, treating inf as overflow instead of using mcxsr"
+            "four insn dotprod",
+            "CPU");
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -886,7 +890,10 @@ struct COMPARE_EQ_I8
           e.cmp(src1, src2);
         },
         [](X64Emitter& e, const Reg8& src1, int32_t constant) {
-          e.cmp(src1, constant);
+          if (constant == 0) {
+            e.test(src1, src1);
+          } else
+            e.cmp(src1, constant);
         });
     e.sete(i.dest);
   }
@@ -900,7 +907,10 @@ struct COMPARE_EQ_I16
           e.cmp(src1, src2);
         },
         [](X64Emitter& e, const Reg16& src1, int32_t constant) {
-          e.cmp(src1, constant);
+          if (constant == 0) {
+            e.test(src1, src1);
+          } else
+            e.cmp(src1, constant);
         });
     e.sete(i.dest);
   }
@@ -914,7 +924,10 @@ struct COMPARE_EQ_I32
           e.cmp(src1, src2);
         },
         [](X64Emitter& e, const Reg32& src1, int32_t constant) {
-          e.cmp(src1, constant);
+          if (constant == 0) {
+            e.test(src1, src1);
+          } else
+            e.cmp(src1, constant);
         });
     e.sete(i.dest);
   }
@@ -928,7 +941,10 @@ struct COMPARE_EQ_I64
           e.cmp(src1, src2);
         },
         [](X64Emitter& e, const Reg64& src1, int32_t constant) {
-          e.cmp(src1, constant);
+          if (constant == 0) {
+            e.test(src1, src1);
+          } else
+            e.cmp(src1, constant);
         });
     e.sete(i.dest);
   }
@@ -1980,6 +1996,8 @@ struct DIV_V128 : Sequence<DIV_V128, I<OPCODE_DIV, V128Op, V128Op, V128Op>> {
     assert_true(!i.instr->flags);
     EmitAssociativeBinaryXmmOp(e, i,
                                [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
+                               //  e.vrcpps(e.xmm0, src2);
+                                 //e.vmulps(dest, src1, e.xmm0);
                                  e.vdivps(dest, src1, src2);
                                });
   }
@@ -2591,43 +2609,51 @@ EMITTER_OPCODE_TABLE(OPCODE_LOG2, LOG2_F32, LOG2_F64, LOG2_V128);
 
 struct DOT_PRODUCT_V128 {
   static void Emit(X64Emitter& e, Xmm dest, Xmm src1, Xmm src2, uint8_t imm) {
-    // TODO(benvanik): apparently this is very slow
-    // - find alternative?
-    Xbyak::Label end;
-    e.inLocalLabel();
+    if (cvars::use_fast_dot_product) {
+      e.vdpps(dest, src1, src2, imm);
+      e.vandps(e.xmm0, dest, e.GetXmmConstPtr(XMMAbsMaskPS));
+      e.vcmpgeps(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMFloatInf));
+      e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMQNaN), e.xmm0);
 
-    // Grab space to put MXCSR.
-    // TODO(gibbed): stick this in TLS or
-    // something?
-    e.sub(e.rsp, 8);
+    } else {
+      // TODO(benvanik): apparently this is very slow
+      // - find alternative?
+      Xbyak::Label end;
+      e.inLocalLabel();
 
-    // Grab MXCSR and mask off the overflow flag,
-    // because it's sticky.
-    e.vstmxcsr(e.dword[e.rsp]);
-    e.mov(e.eax, e.dword[e.rsp]);
-    e.and_(e.eax, uint32_t(~8));
-    e.mov(e.dword[e.rsp], e.eax);
-    e.vldmxcsr(e.dword[e.rsp]);
+      // Grab space to put MXCSR.
+      // TODO(gibbed): stick this in TLS or
+      // something?
+      e.sub(e.rsp, 8);
 
-    // Hey we can do the dot product now.
-    e.vdpps(dest, src1, src2, imm);
+      // Grab MXCSR and mask off the overflow flag,
+      // because it's sticky.
+      e.vstmxcsr(e.dword[e.rsp]);
+      e.mov(e.eax, e.dword[e.rsp]);
+      e.and_(e.eax, uint32_t(~8));
+      e.mov(e.dword[e.rsp], e.eax);
+      e.vldmxcsr(e.dword[e.rsp]);
 
-    // Load MXCSR...
-    e.vstmxcsr(e.dword[e.rsp]);
+      // Hey we can do the dot product now.
+      e.vdpps(dest, src1, src2, imm);
 
-    // ..free our temporary space and get MXCSR at
-    // the same time
-    e.pop(e.rax);
+      // Load MXCSR...
+      e.vstmxcsr(e.dword[e.rsp]);
 
-    // Did we overflow?
-    e.test(e.al, 8);
-    e.jz(end);
+      // ..free our temporary space and get MXCSR at
+      // the same time
+      e.pop(e.rax);
 
-    // Infinity? HA! Give NAN.
-    e.vmovdqa(dest, e.GetXmmConstPtr(XMMQNaN));
+      // Did we overflow?
+      e.test(e.al, 8);
+      e.jz(end);
 
-    e.L(end);
-    e.outLocalLabel();
+      // Infinity? HA! Give NAN.
+      e.vmovdqa(dest, e.GetXmmConstPtr(XMMQNaN));
+
+      e.L(end);
+      e.outLocalLabel();
+    }
   }
 };
 

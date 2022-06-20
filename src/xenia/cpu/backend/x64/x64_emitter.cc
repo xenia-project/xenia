@@ -43,7 +43,10 @@ DEFINE_bool(ignore_undefined_externs, true,
 DEFINE_bool(emit_source_annotations, false,
             "Add extra movs and nops to make disassembly easier to read.",
             "CPU");
-
+DEFINE_bool(resolve_rel32_guest_calls, false,
+            "Experimental optimization, directly call already resolved "
+            "functions via x86 rel32 call/jmp",
+            "CPU");
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -99,7 +102,28 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
   TEST_EMIT_FEATURE(kX64EmitAVX512BW, Xbyak::util::Cpu::tAVX512BW);
   TEST_EMIT_FEATURE(kX64EmitAVX512DQ, Xbyak::util::Cpu::tAVX512DQ);
 
+  
+
+
 #undef TEST_EMIT_FEATURE
+
+  if (cpu_.has(Xbyak::util::Cpu::tAMD)) {
+  
+      bool is_zennish = cpu_.displayFamily >= 0x17;
+
+      if (is_zennish) {
+        feature_flags_ |= kX64FastJrcx;
+
+        if (cpu_.displayFamily > 0x17) {
+          feature_flags_ |= kX64FastLoop;
+
+        } else if (cpu_.displayFamily == 0x17 && cpu_.displayModel >= 0x31) {
+          feature_flags_ |= kX64FastLoop;
+        }  // todo:figure out at model zen+ became zen2, this is just the model
+           // for my cpu, which is ripper90
+      
+      }
+  }
 }
 
 X64Emitter::~X64Emitter() = default;
@@ -149,6 +173,26 @@ void* X64Emitter::Emplace(const EmitFunctionInfo& func_info,
   if (function) {
     code_cache_->PlaceGuestCode(function->address(), top_, func_info, function,
                                 new_execute_address, new_write_address);
+    if (cvars::resolve_rel32_guest_calls) {
+      for (auto&& callsite : call_sites_) {
+#pragma pack(push, 1)
+        struct RGCEmitted {
+          uint8_t ff_;
+          uint32_t rgcid_;
+        };
+#pragma pack(pop)
+        RGCEmitted* hunter = (RGCEmitted*)new_execute_address;
+        while (hunter->ff_ != 0xFF || hunter->rgcid_ != callsite.offset_) {
+          hunter = reinterpret_cast<RGCEmitted*>(
+              reinterpret_cast<char*>(hunter) + 1);
+        }
+
+        hunter->ff_ = callsite.is_jump_ ? 0xE9 : 0xE8;
+        hunter->rgcid_ =
+            static_cast<uint32_t>(static_cast<intptr_t>(callsite.destination_) -
+                                  reinterpret_cast<intptr_t>(hunter + 1));
+      }
+    }
   } else {
     code_cache_->PlaceHostCode(0, top_, func_info, new_execute_address,
                                new_write_address);
@@ -157,6 +201,7 @@ void* X64Emitter::Emplace(const EmitFunctionInfo& func_info,
   ready();
   top_ = old_address;
   reset();
+  call_sites_.clear();
   return new_execute_address;
 }
 
@@ -287,11 +332,8 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   code_offsets.tail = getSize();
 
   if (cvars::emit_source_annotations) {
-    nop();
-    nop();
-    nop();
-    nop();
-    nop();
+    nop(5);
+
   }
 
   assert_zero(code_offsets.prolog);
@@ -313,11 +355,9 @@ void X64Emitter::MarkSourceOffset(const Instr* i) {
   entry->code_offset = static_cast<uint32_t>(getSize());
 
   if (cvars::emit_source_annotations) {
-    nop();
-    nop();
+    nop(2);
     mov(eax, entry->guest_address);
-    nop();
-    nop();
+    nop(2);
   }
 
   if (debug_info_flags_ & DebugInfoFlags::kDebugInfoTraceFunctionCoverage) {
@@ -414,10 +454,44 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
   assert_not_null(function);
   auto fn = static_cast<X64Function*>(function);
   // Resolve address to the function to call and store in rax.
+
+  if (cvars::resolve_rel32_guest_calls && fn->machine_code()) {
+    ResolvableGuestCall rgc;
+    rgc.destination_ = uint32_t(uint64_t(fn->machine_code()));
+    rgc.offset_ = current_rgc_id_;
+    current_rgc_id_++;
+
+    if (!(instr->flags & hir::CALL_TAIL)) {
+      mov(rcx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
+
+      db(0xFF);
+      rgc.is_jump_ = false;
+
+      dd(rgc.offset_);
+
+    } else {
+      // tail call
+      EmitTraceUserCallReturn();
+
+      rgc.is_jump_ = true;
+      // Pass the callers return address over.
+      mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
+
+      add(rsp, static_cast<uint32_t>(stack_size()));
+      db(0xFF);
+      dd(rgc.offset_);
+    }
+    call_sites_.push_back(rgc);
+    return;
+  }
+
   if (fn->machine_code()) {
     // TODO(benvanik): is it worth it to do this? It removes the need for
     // a ResolveFunction call, but makes the table less useful.
     assert_zero(uint64_t(fn->machine_code()) & 0xFFFFFFFF00000000);
+    // todo: this should be changed so that we can actually do a call to
+    // fn->machine_code. the code will be emitted near us, so 32 bit rel jmp
+    // should be possible
     mov(eax, uint32_t(uint64_t(fn->machine_code())));
   } else if (code_cache_->has_indirection_table()) {
     // Load the pointer to the indirection table maintained in X64CodeCache.
@@ -600,6 +674,30 @@ void X64Emitter::ReloadContext() {
 void X64Emitter::ReloadMembase() {
   mov(GetMembaseReg(), qword[GetContextReg() + 8]);  // membase
 }
+#define __NH_CONCAT(x, y) x##y
+#define _MH_CONCAT(cb, ...) cb (__VA_ARGS__)
+
+#define mh_concat2_m(x, y) __NH_CONCAT(x, y)
+
+#define DECLNOP(n, ...) \
+  static constexpr unsigned char mh_concat2_m(nop_, n)[] = {__VA_ARGS__}
+
+DECLNOP(1, 0x90);
+DECLNOP(2, 0x66, 0x90);
+DECLNOP(3, 0x0F, 0x1F, 0x00);
+DECLNOP(4, 0x0F, 0x1F, 0x40, 0x00);
+DECLNOP(5, 0x0F, 0x1F, 0x44, 0x00, 0x00);
+DECLNOP(6, 0x66, 0x0F, 0x1F, 0x44, 0x00, 0x00);
+DECLNOP(7, 0x0F, 0x1F, 0x80, 0x00, 0x00, 0x00, 0x00);
+DECLNOP(8, 0x0F, 0x1F, 0x84, 00, 00, 00, 00, 00);
+DECLNOP(9, 0x66, 0x0F, 0x1F, 0x84, 00, 00, 00, 00, 00);
+
+static constexpr const unsigned char* const g_noptable[] = {
+    &nop_1[0], &nop_1[0], &nop_2[0], &nop_3[0], &nop_4[0],
+    &nop_5[0], &nop_6[0], &nop_7[0], &nop_8[0], &nop_9[0]};
+
+static constexpr unsigned LENGTHOF_NOPTABLE =
+    sizeof(g_noptable) / sizeof(g_noptable[0]);
 
 // Len Assembly                                   Byte Sequence
 // ============================================================================
@@ -613,9 +711,17 @@ void X64Emitter::ReloadMembase() {
 // 8b  NOP DWORD ptr [EAX + EAX*1 + 00000000H]    0F 1F 84 00 00 00 00 00H
 // 9b  66 NOP DWORD ptr [EAX + EAX*1 + 00000000H] 66 0F 1F 84 00 00 00 00 00H
 void X64Emitter::nop(size_t length) {
-  // TODO(benvanik): fat nop
-  for (size_t i = 0; i < length; ++i) {
-    db(0x90);
+  while (length != 0) {
+    unsigned patchsize = length % LENGTHOF_NOPTABLE;
+
+    // patch_memory(locptr, size, (char*)g_noptable[patchsize]);
+
+    for (unsigned i = 0; i < patchsize; ++i) {
+      db(g_noptable[patchsize][i]);
+    }
+
+    //locptr += patchsize;
+    length -= patchsize;
   }
 }
 
@@ -648,6 +754,35 @@ void X64Emitter::MovMem64(const Xbyak::RegExp& addr, uint64_t v) {
     mov(dword[addr], static_cast<uint32_t>(v));
     mov(dword[addr + 4], static_cast<uint32_t>(v >> 32));
   }
+}
+static inline vec128_t v128_setr_bytes(unsigned char v0, unsigned char v1,
+                                       unsigned char v2, unsigned char v3,
+                                       unsigned char v4, unsigned char v5,
+                                       unsigned char v6, unsigned char v7,
+                                       unsigned char v8, unsigned char v9,
+                                       unsigned char v10, unsigned char v11,
+                                       unsigned char v12, unsigned char v13,
+                                       unsigned char v14, unsigned char v15) {
+  vec128_t result;
+
+  result.u8[0] = v0;
+  result.u8[1] = v1;
+  result.u8[2] = v2;
+  result.u8[3] = v3;
+  result.u8[4] = v4;
+  result.u8[5] = v5;
+  result.u8[6] = v6;
+  result.u8[7] = v7;
+  result.u8[8] = v8;
+  result.u8[9] = v9;
+  result.u8[10] = v10;
+  result.u8[11] = v11;
+  result.u8[12] = v12;
+  result.u8[13] = v13;
+  result.u8[14] = v14;
+
+  result.u8[15] = v15;
+  return result;
 }
 
 static const vec128_t xmm_consts[] = {
@@ -761,8 +896,60 @@ static const vec128_t xmm_consts[] = {
     /* XMMQNaN                */ vec128i(0x7FC00000u),
     /* XMMInt127              */ vec128i(0x7Fu),
     /* XMM2To32               */ vec128f(0x1.0p32f),
+    /* xmminf */ vec128i(0x7f800000),
+
+    /* XMMIntsToBytes*/
+    v128_setr_bytes(0, 4, 8, 12, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+                    0x80, 0x80, 0x80, 0x80),
+    /*XMMShortsToBytes*/
+    v128_setr_bytes(0, 2, 4, 6, 8, 10, 12, 14, 0x80, 0x80, 0x80, 0x80, 0x80,
+                    0x80, 0x80, 0x80)
 };
 
+void* X64Emitter::FindByteConstantOffset(unsigned bytevalue) {
+  for (auto& vec : xmm_consts) {
+    for (auto& u8 : vec.u8) {
+      if (u8 == bytevalue) {
+        return reinterpret_cast<void*>(backend_->emitter_data() +
+                                       (&u8 - &xmm_consts[0].u8[0]));
+      }
+    }
+  }
+  return nullptr;
+}
+void* X64Emitter::FindWordConstantOffset(unsigned wordvalue) {
+  for (auto& vec : xmm_consts) {
+    for (auto& u16 : vec.u16) {
+      if (u16 == wordvalue) {
+        return reinterpret_cast<void*>(backend_->emitter_data() +
+                                       ((&u16 - &xmm_consts[0].u16[0]) * 2));
+      }
+    }
+  }
+  return nullptr;
+}
+void* X64Emitter::FindDwordConstantOffset(unsigned dwordvalue) {
+  for (auto& vec : xmm_consts) {
+    for (auto& u32 : vec.u32) {
+      if (u32 == dwordvalue) {
+        return reinterpret_cast<void*>(backend_->emitter_data() +
+                                       ((&u32 - &xmm_consts[0].u32[0]) * 4));
+      }
+    }
+  }
+  return nullptr;
+}
+void* X64Emitter::FindQwordConstantOffset(uint64_t qwordvalue) {
+  for (auto& vec : xmm_consts) {
+    for (auto& u64 : vec.u64) {
+      if (u64 == qwordvalue) {
+        return reinterpret_cast<void*>(backend_->emitter_data() +
+                                       ((&u64 - &xmm_consts[0].u64[0]) * 8));
+      }
+    }
+  }
+  return nullptr;
+}
 // First location to try and place constants.
 static const uintptr_t kConstDataLocation = 0x20000000;
 static const uintptr_t kConstDataSize = sizeof(xmm_consts);
@@ -806,7 +993,6 @@ Xbyak::Address X64Emitter::GetXmmConstPtr(XmmConst id) {
   return ptr[reinterpret_cast<void*>(backend_->emitter_data() +
                                      sizeof(vec128_t) * id)];
 }
-
 // Implies possible StashXmm(0, ...)!
 void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {
   // https://www.agner.org/optimize/optimizing_assembly.pdf
@@ -818,12 +1004,115 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {
     // 1111...
     vpcmpeqb(dest, dest);
   } else {
+
     for (size_t i = 0; i < (kConstDataSize / sizeof(vec128_t)); ++i) {
       if (xmm_consts[i] == v) {
         vmovapd(dest, GetXmmConstPtr((XmmConst)i));
         return;
       }
     }
+    if (IsFeatureEnabled(kX64EmitAVX2)) {
+      bool all_equal_bytes = true;
+
+      unsigned firstbyte = v.u8[0];
+      for (unsigned i = 1; i < 16; ++i) {
+        if (v.u8[i] != firstbyte) {
+          all_equal_bytes = false;
+          break;
+        }
+      }
+
+      if (all_equal_bytes) {
+        void* bval = FindByteConstantOffset(firstbyte);
+
+        if (bval) {
+          vpbroadcastb(dest, byte[bval]);
+          return;
+        }
+        // didnt find existing mem with the value
+        mov(byte[rsp + kStashOffset], firstbyte);
+        vpbroadcastb(dest, byte[rsp + kStashOffset]);
+        return;
+      }
+
+      bool all_equal_words = true;
+      unsigned firstword = v.u16[0];
+      for (unsigned i = 1; i < 8; ++i) {
+        if (v.u16[i] != firstword) {
+          all_equal_words = false;
+          break;
+        }
+      }
+      if (all_equal_words) {
+        void* wval = FindWordConstantOffset(firstword);
+        if (wval) {
+          vpbroadcastw(dest, word[wval]);
+          return;
+        }
+        // didnt find existing mem with the value
+        mov(word[rsp + kStashOffset], firstword);
+        vpbroadcastw(dest, word[rsp + kStashOffset]);
+        return;
+      }
+
+      bool all_equal_dwords = true;
+      unsigned firstdword = v.u32[0];
+      for (unsigned i = 1; i < 4; ++i) {
+        if (v.u32[i] != firstdword) {
+          all_equal_dwords = false;
+          break;
+        }
+      }
+      if (all_equal_dwords) {
+        void* dwval = FindDwordConstantOffset(firstdword);
+        if (dwval) {
+          vpbroadcastd(dest, dword[dwval]);
+          return;
+        }
+        mov(dword[rsp + kStashOffset], firstdword);
+        vpbroadcastd(dest, dword[rsp + kStashOffset]);
+        return;
+      }
+
+      bool all_equal_qwords = v.low == v.high;
+
+      if (all_equal_qwords) {
+        void* qwval = FindQwordConstantOffset(v.low);
+        if (qwval) {
+          vpbroadcastq(dest, qword[qwval]);
+          return;
+        }
+        MovMem64(rsp + kStashOffset, v.low);
+        vpbroadcastq(dest, qword[rsp + kStashOffset]);
+        return;
+      }
+    }
+
+    for (auto& vec : xmm_consts) {
+      if (vec.low == v.low && vec.high == v.high) {
+        vmovdqa(dest,
+                ptr[reinterpret_cast<void*>(backend_->emitter_data() +
+                                            ((&vec - &xmm_consts[0]) * 16))]);
+        return;
+      }
+    }
+
+    if (v.high == 0 && v.low == ~0ULL) {
+      vpcmpeqb(dest, dest);
+      movq(dest, dest);
+      return;
+    }
+    if (v.high == 0) {
+      if ((v.low & 0xFFFFFFFF) == v.low) {
+        mov(dword[rsp + kStashOffset], static_cast<unsigned>(v.low));
+        movd(dest, dword[rsp + kStashOffset]);
+        return;
+      }
+      MovMem64(rsp + kStashOffset, v.low);
+      movq(dest, qword[rsp + kStashOffset]);
+      return;
+    }
+
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
     MovMem64(rsp + kStashOffset, v.low);
