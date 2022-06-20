@@ -190,91 +190,22 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   //   dividing by 40, not by 80.
   // For depth-only:
   //   Same, but for full 80x16 tiles, not 40x16 half-tiles.
-  uint32_t tile_or_half_tile_width = 80 * draw_resolution_scale_x_;
-  uint32_t tile_or_half_tile_width_divide_scale;
-  uint32_t tile_or_half_tile_width_divide_upper_shift;
-  draw_util::GetEdramTileWidthDivideScaleAndUpperShift(
-      draw_resolution_scale_x_, tile_or_half_tile_width_divide_scale,
-      tile_or_half_tile_width_divide_upper_shift);
-  if (any_color_targets_written) {
-    tile_or_half_tile_width >>= 1;
-    assert_not_zero(tile_or_half_tile_width_divide_upper_shift);
-    --tile_or_half_tile_width_divide_upper_shift;
-  }
-  static_assert(
-      TextureCache::kMaxDrawResolutionScaleAlongAxis <= 3,
-      "DxbcShaderTranslator ROV sample address calculation supports Y draw "
-      "resolution scaling factors of only up to 3");
-  if (draw_resolution_scale_y_ == 3) {
-    // Multiplication part of the division by 40|80 x 16 x scale (specifically
-    // 40|80 * scale width here, and 48 height, or 16 * 3 height).
-    // system_temp_rov_params_.x = X sample 0 position
-    // system_temp_rov_params_.y = Y sample 0 position
-    // system_temp_rov_params_.z = (X * tile_or_half_tile_width_divide_scale) >>
-    //                             32
-    // system_temp_rov_params_.w = (Y * kDivideScale3) >> 32
-    a_.OpUMul(dxbc::Dest::R(system_temp_rov_params_, 0b1100),
-              dxbc::Dest::Null(),
-              dxbc::Src::R(system_temp_rov_params_, 0b0100 << 4),
-              dxbc::Src::LU(0, 0, tile_or_half_tile_width_divide_scale,
-                            draw_util::kDivideScale3));
-    // Shift part of the division by 40|80 x 16 x scale.
-    // system_temp_rov_params_.x = X sample 0 position
-    // system_temp_rov_params_.y = Y sample 0 position
-    // system_temp_rov_params_.z = X half-tile or tile position
-    // system_temp_rov_params_.w = Y tile position
-    a_.OpUShR(dxbc::Dest::R(system_temp_rov_params_, 0b1100),
-              dxbc::Src::R(system_temp_rov_params_),
-              dxbc::Src::LU(0, 0, tile_or_half_tile_width_divide_upper_shift,
-                            draw_util::kDivideUpperShift3 + 4));
-    // Take the remainder of the performed division to
-    // system_temp_rov_params_.xy.
-    // system_temp_rov_params_.x = X sample 0 position within the half-tile
-    // system_temp_rov_params_.y = Y sample 0 position within the (half-)tile
-    // system_temp_rov_params_.z = X half-tile or tile position
-    // system_temp_rov_params_.w = Y tile position
-    a_.OpIMAd(dxbc::Dest::R(system_temp_rov_params_, 0b0011),
-              dxbc::Src::R(system_temp_rov_params_, 0b1110),
-              dxbc::Src::LI(-int32_t(tile_or_half_tile_width),
-                            -16 * draw_resolution_scale_y_, 0, 0),
-              dxbc::Src::R(system_temp_rov_params_));
-  } else {
-    assert_true(draw_resolution_scale_y_ <= 2);
-    // Multiplication part of the division of X by 40|80 * scale.
-    // system_temp_rov_params_.x = X sample 0 position
-    // system_temp_rov_params_.y = Y sample 0 position
-    // system_temp_rov_params_.z = (X * tile_or_half_tile_width_divide_scale) >>
-    //                             32
-    a_.OpUMul(dxbc::Dest::R(system_temp_rov_params_, 0b0100),
-              dxbc::Dest::Null(),
-              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
-              dxbc::Src::LU(tile_or_half_tile_width_divide_scale));
-    // Shift part of the division of X by 40 * scale, division of Y by
-    // 16 * scale as it's power of two in this case.
-    // system_temp_rov_params_.x = X sample 0 position
-    // system_temp_rov_params_.y = Y sample 0 position
-    // system_temp_rov_params_.z = X half-tile or tile position
-    // system_temp_rov_params_.w = Y tile position
-    a_.OpUShR(dxbc::Dest::R(system_temp_rov_params_, 0b1100),
-              dxbc::Src::R(system_temp_rov_params_, 0b0110 << 4),
-              dxbc::Src::LU(0, 0, tile_or_half_tile_width_divide_upper_shift,
-                            draw_resolution_scale_y_ == 2 ? 5 : 4));
-    // Take the remainder of the performed division (via multiply-subtract for
-    // X, via AND for Y which is power-of-two here) to
-    // system_temp_rov_params_.xy.
-    // system_temp_rov_params_.x = X sample 0 position within the half-tile or
-    //                             tile
-    // system_temp_rov_params_.y = Y sample 0 position within the (half-)tile
-    // system_temp_rov_params_.z = X half-tile or tile position
-    // system_temp_rov_params_.w = Y tile position
-    a_.OpIMAd(dxbc::Dest::R(system_temp_rov_params_, 0b0001),
-              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kZZZZ),
-              dxbc::Src::LI(-int32_t(tile_or_half_tile_width)),
-              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX));
-    a_.OpAnd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
-             dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-             dxbc::Src::LU((16 * draw_resolution_scale_y_) - 1));
-  }
+  uint32_t tile_width =
+      xenos::kEdramTileWidthSamples * draw_resolution_scale_x_;
+  uint32_t tile_or_tile_half_width =
+      tile_width >> uint32_t(any_color_targets_written);
+  uint32_t tile_height =
+      xenos::kEdramTileHeightSamples * draw_resolution_scale_y_;
+  // system_temp_rov_params_.x = X sample 0 position within the half-tile or
+  //                             tile
+  // system_temp_rov_params_.y = Y sample 0 position within the (half-)tile
+  // system_temp_rov_params_.z = X half-tile or tile position
+  // system_temp_rov_params_.w = Y tile position
+  a_.OpUDiv(dxbc::Dest::R(system_temp_rov_params_, 0b1100),
+            dxbc::Dest::R(system_temp_rov_params_, 0b0011),
+            dxbc::Src::R(system_temp_rov_params_, 0b01000100),
+            dxbc::Src::LU(tile_or_tile_half_width, tile_height,
+                          tile_or_tile_half_width, tile_height));
 
   // Convert the Y sample 0 position within the half-tile or tile to the dword
   // offset of the row within a 80x16 32bpp tile or a 40x16 64bpp half-tile to
@@ -287,8 +218,10 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   // system_temp_rov_params_.w = Y tile position
   a_.OpUMul(dxbc::Dest::Null(), dxbc::Dest::R(system_temp_rov_params_, 0b0010),
             dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-            dxbc::Src::LU(80 * draw_resolution_scale_x_));
+            dxbc::Src::LU(tile_width));
 
+  uint32_t tile_size = tile_width * tile_height;
+  uint32_t tile_half_width = tile_width >> 1;
   if (any_color_targets_written) {
     // Depth, 32bpp color, 64bpp color are all needed.
 
@@ -336,12 +269,10 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
     // system_temp_rov_params_.w = Y tile row dword origin in a 32bpp surface
     // rov_address_temp.x = dword offset of the beginning of the row of samples
     //                      within a row of 32bpp tiles
-    a_.OpUMAd(
-        dxbc::Dest::R(rov_address_temp, 0b0001),
-        dxbc::Src::R(rov_address_temp, dxbc::Src::kXXXX),
-        dxbc::Src::LU(80 * 16 *
-                      (draw_resolution_scale_x_ * draw_resolution_scale_y_)),
-        dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY));
+    a_.OpUMAd(dxbc::Dest::R(rov_address_temp, 0b0001),
+              dxbc::Src::R(rov_address_temp, dxbc::Src::kXXXX),
+              dxbc::Src::LU(tile_size),
+              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY));
     // Get the dword offset of the beginning of the row of samples within a
     // 32bpp surface to rov_address_temp.x.
     // system_temp_rov_params_.x = X sample 0 position within the half-tile
@@ -365,12 +296,10 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
     // system_temp_rov_params_.w = Y tile row dword origin in a 32bpp surface
     // rov_address_temp.x = dword offset of the beginning of the row of samples
     //                      within a 32bpp surface
-    a_.OpUMAd(
-        dxbc::Dest::R(system_temp_rov_params_, 0b0010),
-        dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kZZZZ),
-        dxbc::Src::LU(80 * 16 *
-                      (draw_resolution_scale_x_ * draw_resolution_scale_y_)),
-        dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY));
+    a_.OpUMAd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
+              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kZZZZ),
+              dxbc::Src::LU(tile_size),
+              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY));
     // Get the dword offset of the beginning of the row of samples within a
     // 64bpp surface to system_temp_rov_params_.w (last time the Y tile row
     // offset is needed).
@@ -420,7 +349,7 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
     //                      within a 32bpp surface
     a_.OpUMAd(dxbc::Dest::R(system_temp_rov_params_, 0b0100),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-              dxbc::Src::LU(40 * draw_resolution_scale_x_),
+              dxbc::Src::LU(tile_half_width),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX));
     // Get the final offset of the sample 0 within a 32bpp color surface to
     // system_temp_rov_params_.z (last time the 32bpp row offset is needed).
@@ -439,8 +368,8 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
     // system_temp_rov_params_.w = dword sample 0 offset within a 64bpp surface
     a_.OpMovC(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-              dxbc::Src::LI(-40 * draw_resolution_scale_x_),
-              dxbc::Src::LI(40 * draw_resolution_scale_x_));
+              dxbc::Src::LI(-int32_t(tile_half_width)),
+              dxbc::Src::LI(int32_t(tile_half_width)));
     // Flip the 40x16 half-tiles for depth / stencil as opposed to 32bpp color -
     // get the final offset of the sample 0 within a 32bpp depth / stencil
     // surface to system_temp_rov_params_.y.
@@ -466,12 +395,10 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
     // system_temp_rov_params_.z = dword offset of the beginning of the row of
     //                             samples within a row of 32bpp tiles
     // system_temp_rov_params_.w = Y tile position
-    a_.OpUMAd(
-        dxbc::Dest::R(system_temp_rov_params_, 0b0100),
-        dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kZZZZ),
-        dxbc::Src::LU(80 * 16 *
-                      (draw_resolution_scale_x_ * draw_resolution_scale_y_)),
-        dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY));
+    a_.OpUMAd(dxbc::Dest::R(system_temp_rov_params_, 0b0100),
+              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kZZZZ),
+              dxbc::Src::LU(tile_size),
+              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY));
     // Get the dword offset of the beginning of the row of samples within a
     // 32bpp surface to system_temp_rov_params_.y (last time anything Y-related
     // is needed, as well as the sample row offset within the tile row).
@@ -502,15 +429,15 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
     //                             otherwise
     a_.OpUGE(dxbc::Dest::R(system_temp_rov_params_, 0b0001),
              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
-             dxbc::Src::LU(40 * draw_resolution_scale_x_));
+             dxbc::Src::LU(tile_half_width));
     // Flip the 40x16 half-tiles for depth / stencil as opposed to 32bpp color -
     // get the dword offset to add for flipping to system_temp_rov_params_.x.
     // system_temp_rov_params_.x = depth half-tile flipping offset
     // system_temp_rov_params_.y = dword sample 0 offset within a 32bpp surface
     a_.OpMovC(dxbc::Dest::R(system_temp_rov_params_, 0b0001),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
-              dxbc::Src::LI(-40 * draw_resolution_scale_x_),
-              dxbc::Src::LI(40 * draw_resolution_scale_x_));
+              dxbc::Src::LI(-int32_t(tile_half_width)),
+              dxbc::Src::LI(int32_t(tile_half_width)));
     // Flip the 40x16 half-tiles for depth / stencil as opposed to 32bpp color -
     // get the final offset of the sample 0 within a 32bpp depth / stencil
     // surface to system_temp_rov_params_.y.
@@ -1288,10 +1215,12 @@ void DxbcShaderTranslator::ROV_DepthStencilTest() {
     // Go to the next sample (samples are at +0, +(80*scale_x), +1,
     // +(80*scale_x+1), so need to do +(80*scale_x), -(80*scale_x-1),
     // +(80*scale_x) and -(80*scale_x+1) after each sample).
+    uint32_t tile_width =
+        xenos::kEdramTileWidthSamples * draw_resolution_scale_x_;
     a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-              dxbc::Src::LI((i & 1) ? -80 * draw_resolution_scale_x_ + 2 - i
-                                    : 80 * draw_resolution_scale_x_));
+              dxbc::Src::LI((i & 1) ? -int32_t(tile_width) + 2 - i
+                                    : int32_t(tile_width)));
   }
 
   if (ROV_IsDepthStencilEarly()) {
@@ -2181,6 +2110,9 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   dxbc::Dest temp_w_dest(dxbc::Dest::R(temp, 0b1000));
   dxbc::Src temp_w_src(dxbc::Src::R(temp, dxbc::Src::kWWWW));
 
+  uint32_t tile_width =
+      xenos::kEdramTileWidthSamples * draw_resolution_scale_x_;
+
   // Do late depth/stencil test (which includes writing) if needed or deferred
   // depth writing.
   if (ROV_IsDepthStencilEarly()) {
@@ -2212,8 +2144,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       if (i < 3) {
         a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
                   dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-                  dxbc::Src::LI((i & 1) ? -80 * draw_resolution_scale_x_ + 2 - i
-                                        : 80 * draw_resolution_scale_x_));
+                  dxbc::Src::LI((i & 1) ? -int32_t(tile_width) + 2 - i
+                                        : int32_t(tile_width)));
       }
     }
   } else {
@@ -3021,8 +2953,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       // +(80*scale_x+1), so need to do +(80*scale_x), -(80*scale_x-1),
       // +(80*scale_x) and -(80*scale_x+1) after each sample).
       int32_t next_sample_distance =
-          (j & 1) ? -80 * draw_resolution_scale_x_ + 2 - j
-                  : 80 * draw_resolution_scale_x_;
+          (j & 1) ? -int32_t(tile_width) + 2 - j : int32_t(tile_width);
       a_.OpIAdd(
           dxbc::Dest::R(system_temp_rov_params_, 0b1100),
           dxbc::Src::R(system_temp_rov_params_),
