@@ -649,31 +649,6 @@ uint32_t GetNormalizedColorMask(const RegisterFile& regs,
   return normalized_color_mask;
 }
 
-void GetEdramTileWidthDivideScaleAndUpperShift(
-    uint32_t draw_resolution_scale_x, uint32_t& divide_scale_out,
-    uint32_t& divide_upper_shift_out) {
-  static_assert(
-      TextureCache::kMaxDrawResolutionScaleAlongAxis <= 3,
-      "GetEdramTileWidthDivideScaleAndUpperShift provides values only for draw "
-      "resolution scaling factors of up to 3");
-  switch (draw_resolution_scale_x) {
-    case 1:
-      divide_scale_out = kDivideScale5;
-      divide_upper_shift_out = kDivideUpperShift5 + 4;
-      break;
-    case 2:
-      divide_scale_out = kDivideScale5;
-      divide_upper_shift_out = kDivideUpperShift5 + 5;
-      break;
-    case 3:
-      divide_scale_out = kDivideScale15;
-      divide_upper_shift_out = kDivideUpperShift15 + 4;
-      break;
-    default:
-      assert_unhandled_case(draw_resolution_scale_x);
-  }
-}
-
 xenos::CopySampleSelect SanitizeCopySampleSelect(
     xenos::CopySampleSelect copy_sample_select, xenos::MsaaSamples msaa_samples,
     bool is_depth) {
