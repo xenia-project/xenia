@@ -226,20 +226,6 @@ void GetScissor(const RegisterFile& regs, Scissor& scissor_out,
 uint32_t GetNormalizedColorMask(const RegisterFile& regs,
                                 uint32_t pixel_shader_writes_color_targets);
 
-// Scales, and shift amounts of the upper 32 bits of the 32x32=64-bit
-// multiplication result, for fast division and multiplication by
-// EDRAM-tile-related amounts.
-constexpr uint32_t kDivideScale3 = 0xAAAAAAABu;
-constexpr uint32_t kDivideUpperShift3 = 1;
-constexpr uint32_t kDivideScale5 = 0xCCCCCCCDu;
-constexpr uint32_t kDivideUpperShift5 = 2;
-constexpr uint32_t kDivideScale15 = 0x88888889u;
-constexpr uint32_t kDivideUpperShift15 = 3;
-
-void GetEdramTileWidthDivideScaleAndUpperShift(
-    uint32_t draw_resolution_scale_x, uint32_t& divide_scale_out,
-    uint32_t& divide_upper_shift_out);
-
 // Never an identity conversion - can always write conditional move instructions
 // to shaders that will be no-ops for conversion from guest to host samples.
 // While we don't know the exact guest sample pattern, due to the way
