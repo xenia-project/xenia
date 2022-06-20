@@ -19,8 +19,8 @@
                OpMemberDecorate %_struct_1972 0 NonReadable
                OpMemberDecorate %_struct_1972 0 Offset 0
                OpDecorate %_struct_1972 BufferBlock
-               OpDecorate %5522 DescriptorSet 0
-               OpDecorate %5522 Binding 0
+               OpDecorate %3271 DescriptorSet 0
+               OpDecorate %3271 Binding 0
                OpDecorate %gl_WorkGroupSize BuiltIn WorkgroupSize
        %void = OpTypeVoid
        %1282 = OpTypeFunction %void
@@ -69,7 +69,7 @@
 %_runtimearr_v4uint = OpTypeRuntimeArray %v4uint
 %_struct_1972 = OpTypeStruct %_runtimearr_v4uint
 %_ptr_Uniform__struct_1972 = OpTypePointer Uniform %_struct_1972
-       %5522 = OpVariable %_ptr_Uniform__struct_1972 Uniform
+       %3271 = OpVariable %_ptr_Uniform__struct_1972 Uniform
 %_ptr_Uniform_v4uint = OpTypePointer Uniform %v4uint
      %uint_8 = OpConstant %uint 8
 %gl_WorkGroupSize = OpConstantComposite %v3uint %uint_8 %uint_8 %uint_1
@@ -150,16 +150,16 @@
        %6535 = OpIAdd %uint %14551 %19199
       %21961 = OpShiftRightLogical %uint %6535 %uint_2
       %17379 = OpVectorShuffle %v4uint %18180 %18180 0 1 0 1
-       %7737 = OpAccessChain %_ptr_Uniform_v4uint %5522 %int_0 %21961
+       %7737 = OpAccessChain %_ptr_Uniform_v4uint %3271 %int_0 %21961
                OpStore %7737 %17379
       %11457 = OpIAdd %uint %21961 %uint_1
-      %22875 = OpAccessChain %_ptr_Uniform_v4uint %5522 %int_0 %11457
+      %22875 = OpAccessChain %_ptr_Uniform_v4uint %3271 %int_0 %11457
                OpStore %22875 %17379
       %11458 = OpIAdd %uint %21961 %uint_2
-      %22876 = OpAccessChain %_ptr_Uniform_v4uint %5522 %int_0 %11458
+      %22876 = OpAccessChain %_ptr_Uniform_v4uint %3271 %int_0 %11458
                OpStore %22876 %17379
       %11459 = OpIAdd %uint %21961 %uint_3
-      %25174 = OpAccessChain %_ptr_Uniform_v4uint %5522 %int_0 %11459
+      %25174 = OpAccessChain %_ptr_Uniform_v4uint %3271 %int_0 %11459
                OpStore %25174 %17379
                OpBranch %19578
       %19578 = OpLabel
@@ -179,7 +179,7 @@ const uint32_t resolve_clear_64bpp_scaled_cs[] = {
     0x0000000B, 0x0000001C, 0x00040047, 0x000007DC, 0x00000006, 0x00000010,
     0x00040048, 0x000007B4, 0x00000000, 0x00000019, 0x00050048, 0x000007B4,
     0x00000000, 0x00000023, 0x00000000, 0x00030047, 0x000007B4, 0x00000003,
-    0x00040047, 0x00001592, 0x00000022, 0x00000000, 0x00040047, 0x00001592,
+    0x00040047, 0x00000CC7, 0x00000022, 0x00000000, 0x00040047, 0x00000CC7,
     0x00000021, 0x00000000, 0x00040047, 0x00000AC7, 0x0000000B, 0x00000019,
     0x00020013, 0x00000008, 0x00030021, 0x00000502, 0x00000008, 0x00020014,
     0x00000009, 0x00040017, 0x0000000F, 0x00000009, 0x00000002, 0x00040015,
@@ -213,7 +213,7 @@ const uint32_t resolve_clear_64bpp_scaled_cs[] = {
     0x0000072A, 0x00000A13, 0x00000A0A, 0x00040017, 0x00000017, 0x0000000B,
     0x00000004, 0x0003001D, 0x000007DC, 0x00000017, 0x0003001E, 0x000007B4,
     0x000007DC, 0x00040020, 0x00000A32, 0x00000002, 0x000007B4, 0x0004003B,
-    0x00000A32, 0x00001592, 0x00000002, 0x00040020, 0x00000294, 0x00000002,
+    0x00000A32, 0x00000CC7, 0x00000002, 0x00040020, 0x00000294, 0x00000002,
     0x00000017, 0x0004002B, 0x0000000B, 0x00000A22, 0x00000008, 0x0006002C,
     0x00000014, 0x00000AC7, 0x00000A22, 0x00000A22, 0x00000A0D, 0x0005002C,
     0x00000011, 0x0000074E, 0x00000A13, 0x00000A13, 0x00050036, 0x00000008,
@@ -277,14 +277,14 @@ const uint32_t resolve_clear_64bpp_scaled_cs[] = {
     0x00001987, 0x000038D7, 0x00004AFF, 0x000500C2, 0x0000000B, 0x000055C9,
     0x00001987, 0x00000A10, 0x0009004F, 0x00000017, 0x000043E3, 0x00004704,
     0x00004704, 0x00000000, 0x00000001, 0x00000000, 0x00000001, 0x00060041,
-    0x00000294, 0x00001E39, 0x00001592, 0x00000A0B, 0x000055C9, 0x0003003E,
+    0x00000294, 0x00001E39, 0x00000CC7, 0x00000A0B, 0x000055C9, 0x0003003E,
     0x00001E39, 0x000043E3, 0x00050080, 0x0000000B, 0x00002CC1, 0x000055C9,
-    0x00000A0D, 0x00060041, 0x00000294, 0x0000595B, 0x00001592, 0x00000A0B,
+    0x00000A0D, 0x00060041, 0x00000294, 0x0000595B, 0x00000CC7, 0x00000A0B,
     0x00002CC1, 0x0003003E, 0x0000595B, 0x000043E3, 0x00050080, 0x0000000B,
     0x00002CC2, 0x000055C9, 0x00000A10, 0x00060041, 0x00000294, 0x0000595C,
-    0x00001592, 0x00000A0B, 0x00002CC2, 0x0003003E, 0x0000595C, 0x000043E3,
+    0x00000CC7, 0x00000A0B, 0x00002CC2, 0x0003003E, 0x0000595C, 0x000043E3,
     0x00050080, 0x0000000B, 0x00002CC3, 0x000055C9, 0x00000A13, 0x00060041,
-    0x00000294, 0x00006256, 0x00001592, 0x00000A0B, 0x00002CC3, 0x0003003E,
+    0x00000294, 0x00006256, 0x00000CC7, 0x00000A0B, 0x00002CC3, 0x0003003E,
     0x00006256, 0x000043E3, 0x000200F9, 0x00004C7A, 0x000200F8, 0x00004C7A,
     0x000100FD, 0x00010038,
 };
