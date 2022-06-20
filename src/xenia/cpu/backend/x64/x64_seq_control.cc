@@ -109,22 +109,39 @@ struct DEBUG_BREAK_TRUE_I32
     : Sequence<DEBUG_BREAK_TRUE_I32,
                I<OPCODE_DEBUG_BREAK_TRUE, VoidOp, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.test(i.src1, i.src1);
-    Xbyak::Label skip;
-    e.jz(skip);
-    e.DebugBreak();
-    e.L(skip);
+
+    if (e.IsFeatureEnabled(kX64FastJrcx)) {
+      e.mov(e.ecx, i.src1);
+      Xbyak::Label skip;
+      e.jrcxz(skip);
+      e.DebugBreak();
+      e.L(skip);
+    } else {
+      e.test(i.src1, i.src1);
+      Xbyak::Label skip;
+      e.jz(skip);
+      e.DebugBreak();
+      e.L(skip);
+    }
   }
 };
 struct DEBUG_BREAK_TRUE_I64
     : Sequence<DEBUG_BREAK_TRUE_I64,
                I<OPCODE_DEBUG_BREAK_TRUE, VoidOp, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.test(i.src1, i.src1);
-    Xbyak::Label skip;
-    e.jz(skip);
-    e.DebugBreak();
-    e.L(skip);
+    if (e.IsFeatureEnabled(kX64FastJrcx)) {
+      e.mov(e.rcx, i.src1);
+      Xbyak::Label skip;
+      e.jrcxz(skip);
+      e.DebugBreak();
+      e.L(skip);
+    } else {
+      e.test(i.src1, i.src1);
+      Xbyak::Label skip;
+      e.jz(skip);
+      e.DebugBreak();
+      e.L(skip);
+    }
   }
 };
 struct DEBUG_BREAK_TRUE_F32
@@ -190,21 +207,37 @@ struct TRAP_TRUE_I16
 struct TRAP_TRUE_I32
     : Sequence<TRAP_TRUE_I32, I<OPCODE_TRAP_TRUE, VoidOp, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.test(i.src1, i.src1);
-    Xbyak::Label skip;
-    e.jz(skip);
-    e.Trap(i.instr->flags);
-    e.L(skip);
+    if (e.IsFeatureEnabled(kX64FastJrcx)) {
+      e.mov(e.ecx, i.src1);
+      Xbyak::Label skip;
+      e.jrcxz(skip);
+      e.Trap(i.instr->flags);
+      e.L(skip);
+    } else {
+      e.test(i.src1, i.src1);
+      Xbyak::Label skip;
+      e.jz(skip);
+      e.Trap(i.instr->flags);
+      e.L(skip);
+    }
   }
 };
 struct TRAP_TRUE_I64
     : Sequence<TRAP_TRUE_I64, I<OPCODE_TRAP_TRUE, VoidOp, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.test(i.src1, i.src1);
-    Xbyak::Label skip;
-    e.jz(skip);
-    e.Trap(i.instr->flags);
-    e.L(skip);
+    if (e.IsFeatureEnabled(kX64FastJrcx)) {
+      e.mov(e.rcx, i.src1);
+      Xbyak::Label skip;
+      e.jrcxz(skip);
+      e.Trap(i.instr->flags);
+      e.L(skip);
+    } else {
+      e.test(i.src1, i.src1);
+      Xbyak::Label skip;
+      e.jz(skip);
+      e.Trap(i.instr->flags);
+      e.L(skip);
+    }
   }
 };
 struct TRAP_TRUE_F32
@@ -355,22 +388,39 @@ struct CALL_INDIRECT_TRUE_I32
     : Sequence<CALL_INDIRECT_TRUE_I32,
                I<OPCODE_CALL_INDIRECT_TRUE, VoidOp, I32Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.test(i.src1, i.src1);
-    Xbyak::Label skip;
-    e.jz(skip, CodeGenerator::T_NEAR);
-    e.CallIndirect(i.instr, i.src2);
-    e.L(skip);
+
+    if (e.IsFeatureEnabled(kX64FastJrcx)) {
+      e.mov(e.ecx, i.src1);
+      Xbyak::Label skip;
+      e.jrcxz(skip);
+      e.CallIndirect(i.instr, i.src2);
+      e.L(skip);
+    } else {
+      e.test(i.src1, i.src1);
+      Xbyak::Label skip;
+      e.jz(skip, CodeGenerator::T_NEAR);
+      e.CallIndirect(i.instr, i.src2);
+      e.L(skip);
+    }
   }
 };
 struct CALL_INDIRECT_TRUE_I64
     : Sequence<CALL_INDIRECT_TRUE_I64,
                I<OPCODE_CALL_INDIRECT_TRUE, VoidOp, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.test(i.src1, i.src1);
-    Xbyak::Label skip;
-    e.jz(skip, CodeGenerator::T_NEAR);
-    e.CallIndirect(i.instr, i.src2);
-    e.L(skip);
+    if (e.IsFeatureEnabled(kX64FastJrcx)) {
+      e.mov(e.rcx, i.src1);
+      Xbyak::Label skip;
+      e.jrcxz(skip);
+      e.CallIndirect(i.instr, i.src2);
+      e.L(skip);
+    } else {
+      e.test(i.src1, i.src1);
+      Xbyak::Label skip;
+      e.jz(skip, CodeGenerator::T_NEAR);
+      e.CallIndirect(i.instr, i.src2);
+      e.L(skip);
+    }
   }
 };
 struct CALL_INDIRECT_TRUE_F32

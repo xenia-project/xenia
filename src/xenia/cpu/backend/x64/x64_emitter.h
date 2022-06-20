@@ -116,6 +116,9 @@ enum XmmConst {
   XMMQNaN,
   XMMInt127,
   XMM2To32,
+  XMMFloatInf,
+  XMMIntsToBytes,
+  XMMShortsToBytes
 };
 
 // Unfortunately due to the design of xbyak we have to pass this to the ctor.
@@ -141,7 +144,16 @@ enum X64EmitterFeatureFlags {
   kX64EmitAVX512DQ = 1 << 11,
 
   kX64EmitAVX512Ortho = kX64EmitAVX512F | kX64EmitAVX512VL,
-  kX64EmitAVX512Ortho64 = kX64EmitAVX512Ortho | kX64EmitAVX512DQ
+  kX64EmitAVX512Ortho64 = kX64EmitAVX512Ortho | kX64EmitAVX512DQ,
+  kX64FastJrcx = 1 << 12, //jrcxz is as fast as any other jump ( >= Zen1)
+  kX64FastLoop = 1 << 13, //loop/loope/loopne is as fast as any other jump ( >= Zen2)
+};
+class ResolvableGuestCall {
+ public:
+  bool is_jump_;
+  uintptr_t destination_;
+  // rgcid
+  unsigned offset_;
 };
 
 class X64Emitter : public Xbyak::CodeGenerator {
@@ -230,7 +242,10 @@ class X64Emitter : public Xbyak::CodeGenerator {
   Xbyak::Address StashConstantXmm(int index, float v);
   Xbyak::Address StashConstantXmm(int index, double v);
   Xbyak::Address StashConstantXmm(int index, const vec128_t& v);
-
+  void* FindByteConstantOffset(unsigned bytevalue);
+  void* FindWordConstantOffset(unsigned wordvalue);
+  void* FindDwordConstantOffset(unsigned bytevalue);
+  void* FindQwordConstantOffset(uint64_t bytevalue);
   bool IsFeatureEnabled(uint32_t feature_flag) const {
     return (feature_flags_ & feature_flag) == feature_flag;
   }
@@ -267,6 +282,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   static const uint32_t gpr_reg_map_[GPR_COUNT];
   static const uint32_t xmm_reg_map_[XMM_COUNT];
+  uint32_t current_rgc_id_ = 0xEEDDF00F;
+  std::vector<ResolvableGuestCall> call_sites_;
 };
 
 }  // namespace x64
