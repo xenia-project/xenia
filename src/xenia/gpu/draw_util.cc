@@ -764,7 +764,8 @@ const ResolveCopyShaderInfo
 bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
                     TraceWriter& trace_writer, uint32_t draw_resolution_scale_x,
                     uint32_t draw_resolution_scale_y,
-                    bool fixed_16_truncated_to_minus_1_to_1,
+                    bool fixed_rg16_truncated_to_minus_1_to_1,
+                    bool fixed_rgba16_truncated_to_minus_1_to_1,
                     ResolveInfo& info_out) {
   auto rb_copy_control = regs.Get<reg::RB_COPY_CONTROL>();
   info_out.rb_copy_control = rb_copy_control;
@@ -1093,8 +1094,9 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
     color_edram_info.format = uint32_t(color_info.color_format);
     color_edram_info.format_is_64bpp = is_64bpp;
     color_edram_info.duplicate_second_pixel = uint32_t(duplicate_second_pixel);
-    if (fixed_16_truncated_to_minus_1_to_1 &&
-        (color_info.color_format == xenos::ColorRenderTargetFormat::k_16_16 ||
+    if ((fixed_rg16_truncated_to_minus_1_to_1 &&
+         color_info.color_format == xenos::ColorRenderTargetFormat::k_16_16) ||
+        (fixed_rgba16_truncated_to_minus_1_to_1 &&
          color_info.color_format ==
              xenos::ColorRenderTargetFormat::k_16_16_16_16)) {
       // The texture expects 0x8001 = -32, 0x7FFF = 32, but the hack making
