@@ -9,10 +9,10 @@
 
 #include "endian.xesli"
 #include "pixel_formats.xesli"
-#define XE_RESOLVE_SOURCE_IS_UINT_VECTOR_BUFFER
+#define XE_RESOLVE_COPY_EDRAM_IS_UINT_VECTOR_BUFFER
 #include "resolve.xesli"
 
-xesl_writeTypedStorageBuffer_declare(xesl_uint2, xe_resolve_dest, set=0,
+xesl_writeTypedStorageBuffer_declare(xesl_uint2, xe_resolve_dest, set=1,
                                      binding=0, u0, space0)
 #define xesl_localSize_x 8
 #define xesl_localSize_y 8
@@ -23,7 +23,7 @@ xesl_entry_bindings_begin_compute
   xesl_writeTypedStorageBuffer_binding(xesl_uint2, xe_resolve_dest,
                                        buffer(1))
   xesl_entry_binding_next
-  XE_RESOLVE_SOURCE_BINDING
+  XE_RESOLVE_COPY_EDRAM_BINDING
 xesl_entry_bindings_end_inputs_begin_compute
   xesl_entry_input_globalInvocationID
 xesl_entry_inputs_end_code_begin_compute
@@ -38,7 +38,7 @@ xesl_entry_inputs_end_code_begin_compute
   }
   xesl_float4 pixel_0, pixel_1, pixel_2, pixel_3;
   XeResolveLoad4RGBAColors(
-      xesl_function_call_uintVectorBuffer(xe_resolve_source)
+      xesl_function_call_uintVectorBuffer(xe_resolve_edram)
       xesl_function_call_next_after_uintVectorBuffer
       resolve_info,
       XeResolveColorCopySourcePixelAddressIntsYDuplicating(resolve_info,

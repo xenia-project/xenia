@@ -10,7 +10,7 @@
 #define XE_RESOLVE_CLEAR
 #include "resolve.xesli"
 
-xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_resolve_dest, set=0,
+xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_resolve_edram, set=0,
                                      binding=0, u0, space0)
 #define xesl_localSize_x 8
 #define xesl_localSize_y 8
@@ -18,7 +18,7 @@ xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_resolve_dest, set=0,
 xesl_entry_bindings_begin_compute
   XE_RESOLVE_PUSH_CONSTANTS_BINDING
   xesl_entry_binding_next
-  xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_resolve_dest,
+  xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_resolve_edram,
                                        buffer(1))
 xesl_entry_bindings_end_inputs_begin_compute
   xesl_entry_input_globalInvocationID
@@ -44,7 +44,7 @@ xesl_entry_inputs_end_code_begin_compute
       >> 2u;
   uint i;
   xesl_unroll for (i = 0u; i < 4u; ++i) {
-    xesl_writeTypedStorageBufferStore(xe_resolve_dest, address_int4s + i,
+    xesl_writeTypedStorageBufferStore(xe_resolve_edram, address_int4s + i,
                                       resolve_info.clear_value.xyxy);
   }
 xesl_entry_code_end_compute

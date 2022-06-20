@@ -11,7 +11,7 @@
 #define XE_RESOLVE_SOURCE_TYPE xesl_uint4
 #include "resolve.xesli"
 
-xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_resolve_dest, set=0,
+xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_resolve_dest, set=1,
                                      binding=0, u0, space0)
 #define xesl_localSize_x 8
 #define xesl_localSize_y 8
@@ -22,7 +22,7 @@ xesl_entry_bindings_begin_compute
   xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_resolve_dest,
                                        buffer(1))
   xesl_entry_binding_next
-  XE_RESOLVE_SOURCE_BINDING
+  XE_RESOLVE_COPY_EDRAM_BINDING
 xesl_entry_bindings_end_inputs_begin_compute
   xesl_entry_input_globalInvocationID
 xesl_entry_inputs_end_code_begin_compute
@@ -51,22 +51,22 @@ xesl_entry_inputs_end_code_begin_compute
   if (resolve_info.sample_select != kXenosCopySampleSelect_2 &&
       resolve_info.sample_select != kXenosCopySampleSelect_3) {
     pixels_0123.xy = xesl_typedStorageBufferLoad(
-        xe_resolve_source, source_address_int4s).xz;
+        xe_resolve_edram, source_address_int4s).xz;
     pixels_0123.zw = xesl_typedStorageBufferLoad(
-        xe_resolve_source, source_address_int4s + 1u).xz;
+        xe_resolve_edram, source_address_int4s + 1u).xz;
     pixels_4567.xy = xesl_typedStorageBufferLoad(
-        xe_resolve_source, source_address_int4s + 2u).xz;
+        xe_resolve_edram, source_address_int4s + 2u).xz;
     pixels_4567.zw = xesl_typedStorageBufferLoad(
-        xe_resolve_source, source_address_int4s + 3u).xz;
+        xe_resolve_edram, source_address_int4s + 3u).xz;
   } else {
     pixels_0123.xy = xesl_typedStorageBufferLoad(
-        xe_resolve_source, source_address_int4s).yw;
+        xe_resolve_edram, source_address_int4s).yw;
     pixels_0123.zw = xesl_typedStorageBufferLoad(
-        xe_resolve_source, source_address_int4s + 1u).yw;
+        xe_resolve_edram, source_address_int4s + 1u).yw;
     pixels_4567.xy = xesl_typedStorageBufferLoad(
-        xe_resolve_source, source_address_int4s + 2u).yw;
+        xe_resolve_edram, source_address_int4s + 2u).yw;
     pixels_4567.zw = xesl_typedStorageBufferLoad(
-        xe_resolve_source, source_address_int4s + 3u).yw;
+        xe_resolve_edram, source_address_int4s + 3u).yw;
   }
   if (resolve_info.duplicate_second_host_pixel.x && pixel_index.x == 0u) {
     pixels_0123.x = pixels_0123.y;
