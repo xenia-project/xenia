@@ -1074,20 +1074,6 @@ std::unique_ptr<ImmediateDrawer> VulkanProvider::CreateImmediateDrawer() {
   return VulkanImmediateDrawer::Create(*this);
 }
 
-void VulkanProvider::SetDeviceObjectName(VkObjectType type, uint64_t handle,
-                                         const char* name) const {
-  if (!debug_names_used_) {
-    return;
-  }
-  VkDebugUtilsObjectNameInfoEXT name_info;
-  name_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
-  name_info.pNext = nullptr;
-  name_info.objectType = type;
-  name_info.objectHandle = handle;
-  name_info.pObjectName = name;
-  ifn_.vkSetDebugUtilsObjectNameEXT(device_, &name_info);
-}
-
 void VulkanProvider::AccumulateInstanceExtensions(
     size_t properties_count, const VkExtensionProperties* properties,
     bool request_debug_utils, InstanceExtensions& instance_extensions,

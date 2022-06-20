@@ -1329,10 +1329,11 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
   bool draw_resolution_scaled = IsDrawResolutionScaled();
 
   draw_util::ResolveInfo resolve_info;
+  bool fixed_16_truncated_to_minus_1_to_1 = IsFixed16TruncatedToMinus1To1();
   if (!draw_util::GetResolveInfo(
           register_file(), memory, trace_writer_, draw_resolution_scale_x(),
-          draw_resolution_scale_y(), IsFixed16TruncatedToMinus1To1(),
-          resolve_info)) {
+          draw_resolution_scale_y(), fixed_16_truncated_to_minus_1_to_1,
+          fixed_16_truncated_to_minus_1_to_1, resolve_info)) {
     return false;
   }
 
