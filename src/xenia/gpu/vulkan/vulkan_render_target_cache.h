@@ -20,6 +20,8 @@
 #include "xenia/base/hash.h"
 #include "xenia/base/xxhash.h"
 #include "xenia/gpu/render_target_cache.h"
+#include "xenia/gpu/vulkan/vulkan_shared_memory.h"
+#include "xenia/gpu/vulkan/vulkan_texture_cache.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/vulkan/single_layout_descriptor_set_pool.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
@@ -86,12 +88,14 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   };
 
   VulkanRenderTargetCache(const RegisterFile& register_file,
-                          const Memory& memory, TraceWriter* trace_writer,
+                          const Memory& memory, TraceWriter& trace_writer,
                           uint32_t draw_resolution_scale_x,
                           uint32_t draw_resolution_scale_y,
                           VulkanCommandProcessor& command_processor);
   ~VulkanRenderTargetCache();
 
+  // Transient descriptor set layouts must be initialized in the command
+  // processor.
   bool Initialize();
   void Shutdown(bool from_destructor = false);
   void ClearCache() override;
@@ -101,6 +105,13 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   // TODO(Triang3l): Fragment shader interlock.
   Path GetPath() const override { return Path::kHostRenderTargets; }
+
+  // Performs the resolve to a shared memory area according to the current
+  // register values, and also clears the render targets if needed. Must be in a
+  // frame for calling.
+  bool Resolve(const Memory& memory, VulkanSharedMemory& shared_memory,
+               VulkanTextureCache& texture_cache, uint32_t& written_address_out,
+               uint32_t& written_length_out);
 
   bool Update(bool is_rasterization_done,
               reg::RB_DEPTHCONTROL normalized_depth_control,
@@ -182,6 +193,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     // Trace playback.
     kTransferWrite,
   };
+
   enum class EdramBufferModificationStatus {
     // The values are ordered by how strong the barrier conditions are.
     // No uncommitted shader writes.
@@ -192,6 +204,23 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     // Need to commit before any next fragment shader interlock usage.
     kViaUnordered,
   };
+
+  enum ResolveCopyDescriptorSet : uint32_t {
+    // Never changes.
+    kResolveCopyDescriptorSetEdram,
+    // Shared memory or a region in it.
+    kResolveCopyDescriptorSetDest,
+
+    kResolveCopyDescriptorSetCount,
+  };
+
+  struct ResolveCopyShaderCode {
+    const uint32_t* unscaled;
+    size_t unscaled_size_bytes;
+    const uint32_t* scaled;
+    size_t scaled_size_bytes;
+  };
+
   static void GetEdramBufferUsageMasks(EdramBufferUsage usage,
                                        VkPipelineStageFlags& stage_mask_out,
                                        VkAccessFlags& access_mask_out);
@@ -204,6 +233,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
           EdramBufferModificationStatus::kViaFragmentShaderInterlock);
 
   VulkanCommandProcessor& command_processor_;
+  TraceWriter& trace_writer_;
 
   // Accessible in fragment and compute shaders.
   VkDescriptorSetLayout descriptor_set_layout_storage_buffer_ = VK_NULL_HANDLE;
@@ -223,6 +253,12 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       EdramBufferModificationStatus::kUnmodified;
   VkDescriptorPool edram_storage_buffer_descriptor_pool_ = VK_NULL_HANDLE;
   VkDescriptorSet edram_storage_buffer_descriptor_set_;
+
+  VkPipelineLayout resolve_copy_pipeline_layout_ = VK_NULL_HANDLE;
+  static const ResolveCopyShaderCode
+      kResolveCopyShaders[size_t(draw_util::ResolveCopyShaderIndex::kCount)];
+  std::array<VkPipeline, size_t(draw_util::ResolveCopyShaderIndex::kCount)>
+      resolve_copy_pipelines_{};
 
   // RenderPassKey::key -> VkRenderPass.
   // VK_NULL_HANDLE if failed to create.
@@ -627,6 +663,136 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     }
   };
 
+  union DumpPipelineKey {
+    uint32_t key;
+    struct {
+      xenos::MsaaSamples msaa_samples : 2;
+      uint32_t resource_format : 4;
+      // Last bit because this affects the pipeline - after sorting, only change
+      // it at most once. Depth buffers have an additional stencil SRV.
+      uint32_t is_depth : 1;
+    };
+
+    DumpPipelineKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+
+    struct Hasher {
+      size_t operator()(const DumpPipelineKey& key) const {
+        return std::hash<uint32_t>{}(key.key);
+      }
+    };
+    bool operator==(const DumpPipelineKey& other_key) const {
+      return key == other_key.key;
+    }
+    bool operator!=(const DumpPipelineKey& other_key) const {
+      return !(*this == other_key);
+    }
+    bool operator<(const DumpPipelineKey& other_key) const {
+      return key < other_key.key;
+    }
+
+    xenos::ColorRenderTargetFormat GetColorFormat() const {
+      assert_false(is_depth);
+      return xenos::ColorRenderTargetFormat(resource_format);
+    }
+    xenos::DepthRenderTargetFormat GetDepthFormat() const {
+      assert_true(is_depth);
+      return xenos::DepthRenderTargetFormat(resource_format);
+    }
+  };
+
+  // There's no strict dependency on the group size in dumping, for simplicity
+  // calculations especially with resolution scaling, dividing manually (as the
+  // group size is not unlimited). The only restriction is that an integer
+  // multiple of it must be 80x16 samples (and no larger than that) for 32bpp,
+  // or 40x16 samples for 64bpp (because only a half of the pair of tiles may
+  // need to be dumped). Using 8x16 since that's 128 - the minimum required
+  // group size on Vulkan, and the maximum number of lanes in a subgroup on
+  // Vulkan.
+  static constexpr uint32_t kDumpSamplesPerGroupX = 8;
+  static constexpr uint32_t kDumpSamplesPerGroupY = 16;
+
+  union DumpPitches {
+    uint32_t pitches;
+    struct {
+      // Both in tiles.
+      uint32_t dest_pitch : xenos::kEdramPitchTilesBits;
+      uint32_t source_pitch : xenos::kEdramPitchTilesBits;
+    };
+    DumpPitches() : pitches(0) { static_assert_size(*this, sizeof(pitches)); }
+    bool operator==(const DumpPitches& other_pitches) const {
+      return pitches == other_pitches.pitches;
+    }
+    bool operator!=(const DumpPitches& other_pitches) const {
+      return !(*this == other_pitches);
+    }
+  };
+
+  union DumpOffsets {
+    uint32_t offsets;
+    struct {
+      uint32_t dispatch_first_tile : xenos::kEdramBaseTilesBits;
+      uint32_t source_base_tiles : xenos::kEdramBaseTilesBits;
+    };
+    DumpOffsets() : offsets(0) { static_assert_size(*this, sizeof(offsets)); }
+    bool operator==(const DumpOffsets& other_offsets) const {
+      return offsets == other_offsets.offsets;
+    }
+    bool operator!=(const DumpOffsets& other_offsets) const {
+      return !(*this == other_offsets);
+    }
+  };
+
+  enum DumpDescriptorSet : uint32_t {
+    // Never changes. Same in both color and depth pipeline layouts, keep the
+    // first for pipeline layout compatibility, to only have to set it once.
+    kDumpDescriptorSetEdram,
+    // One resolve may need multiple sources. Different descriptor set layouts
+    // for color and depth.
+    kDumpDescriptorSetSource,
+
+    kDumpDescriptorSetCount,
+  };
+
+  enum DumpPushConstant : uint32_t {
+    // May be different for different sources.
+    kDumpPushConstantPitches,
+    // May be changed multiple times for the same source.
+    kDumpPushConstantOffsets,
+
+    kDumpPushConstantCount,
+  };
+
+  struct DumpInvocation {
+    ResolveCopyDumpRectangle rectangle;
+    DumpPipelineKey pipeline_key;
+    DumpInvocation(const ResolveCopyDumpRectangle& rectangle,
+                   const DumpPipelineKey& pipeline_key)
+        : rectangle(rectangle), pipeline_key(pipeline_key) {}
+    bool operator<(const DumpInvocation& other_invocation) {
+      // Sort by the pipeline key primarily to reduce pipeline state (context)
+      // switches.
+      if (pipeline_key != other_invocation.pipeline_key) {
+        return pipeline_key < other_invocation.pipeline_key;
+      }
+      assert_not_null(rectangle.render_target);
+      uint32_t render_target_index =
+          static_cast<const VulkanRenderTarget*>(rectangle.render_target)
+              ->temporary_sort_index();
+      const ResolveCopyDumpRectangle& other_rectangle =
+          other_invocation.rectangle;
+      uint32_t other_render_target_index =
+          static_cast<const VulkanRenderTarget*>(other_rectangle.render_target)
+              ->temporary_sort_index();
+      if (render_target_index != other_render_target_index) {
+        return render_target_index < other_render_target_index;
+      }
+      if (rectangle.row_first != other_rectangle.row_first) {
+        return rectangle.row_first < other_rectangle.row_first;
+      }
+      return rectangle.row_first_start < other_rectangle.row_first_start;
+    }
+  };
+
   // Returns the framebuffer object, or VK_NULL_HANDLE if failed to create.
   const Framebuffer* GetFramebuffer(
       RenderPassKey render_pass_key, uint32_t pitch_tiles_at_32bpp,
@@ -648,6 +814,13 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       const std::vector<Transfer>* render_target_transfers,
       const uint64_t* render_target_resolve_clear_values = nullptr,
       const Transfer::Rectangle* resolve_clear_rectangle = nullptr);
+
+  VkPipeline GetDumpPipeline(DumpPipelineKey key);
+
+  // Writes contents of host render targets within rectangles from
+  // ResolveInfo::GetCopyEdramTileSpan to edram_buffer_.
+  void DumpRenderTargets(uint32_t dump_base, uint32_t dump_row_length_used,
+                         uint32_t dump_rows, uint32_t dump_pitch);
 
   bool gamma_render_target_as_srgb_ = false;
 
@@ -688,8 +861,22 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
                      TransferPipelineKey::Hasher>
       transfer_pipelines_;
 
+  VkPipelineLayout dump_pipeline_layout_color_ = VK_NULL_HANDLE;
+  VkPipelineLayout dump_pipeline_layout_depth_ = VK_NULL_HANDLE;
+  // Compute pipelines for copying host render target contents to the EDRAM
+  // buffer. VK_NULL_HANDLE if failed to create.
+  std::unordered_map<DumpPipelineKey, VkPipeline, DumpPipelineKey::Hasher>
+      dump_pipelines_;
+
+  // Temporary storage for Resolve.
+  std::vector<Transfer> clear_transfers_[2];
+
   // Temporary storage for PerformTransfersAndResolveClears.
   std::vector<TransferInvocation> current_transfer_invocations_;
+
+  // Temporary storage for DumpRenderTargets.
+  std::vector<ResolveCopyDumpRectangle> dump_rectangles_;
+  std::vector<DumpInvocation> dump_invocations_;
 };
 
 }  // namespace vulkan

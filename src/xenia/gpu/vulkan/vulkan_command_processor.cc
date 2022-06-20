@@ -289,10 +289,11 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
+  // Requires the transient descriptor set layouts.
   // TODO(Triang3l): Get the actual draw resolution scale when the texture cache
   // supports resolution scaling.
   render_target_cache_ = std::make_unique<VulkanRenderTargetCache>(
-      *register_file_, *memory_, &trace_writer_, 1, 1, *this);
+      *register_file_, *memory_, trace_writer_, 1, 1, *this);
   if (!render_target_cache_->Initialize()) {
     XELOGE("Failed to initialize the render target cache");
     return false;
@@ -1884,6 +1885,14 @@ bool VulkanCommandProcessor::IssueCopy() {
     return false;
   }
 
+  uint32_t written_address, written_length;
+  if (!render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_,
+                                     written_address, written_length)) {
+    return false;
+  }
+
+  // TODO(Triang3l): CPU readback.
+
   return true;
 }
 
@@ -1893,6 +1902,7 @@ void VulkanCommandProcessor::InitializeTrace() {
   if (!BeginSubmission(true)) {
     return;
   }
+  // TODO(Triang3l): Write the EDRAM.
   bool shared_memory_submitted =
       shared_memory_->InitializeTraceSubmitDownloads();
   if (!shared_memory_submitted) {
