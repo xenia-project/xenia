@@ -1606,7 +1606,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
     id_vector_temp.push_back(builder.makeRuntimeArray(type_uint));
     // Storage buffers have std430 packing, no padding to 4-component vectors.
     builder.addDecoration(id_vector_temp.back(), spv::DecorationArrayStride,
-                          sizeof(float));
+                          sizeof(uint32_t));
     spv::Id type_host_depth_source_buffer =
         builder.makeStructType(id_vector_temp, "XeTransferHostDepthBuffer");
     builder.addMemberName(type_host_depth_source_buffer, 0, "host_depth");
@@ -1754,12 +1754,19 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   // Working with unsigned numbers for simplicity now, bitcasting to signed will
   // be done at texture fetch.
 
-  uint32_t tile_width_samples_scaled =
+  uint32_t tile_width_samples =
       xenos::kEdramTileWidthSamples * draw_resolution_scale_x();
-  uint32_t tile_height_samples_scaled =
+  uint32_t tile_height_samples =
       xenos::kEdramTileHeightSamples * draw_resolution_scale_y();
 
-  // Convert the fragment coordinates to uint2.
+  // Split the destination pixel index into 32bpp tile and 32bpp-tile-relative
+  // pixel index.
+  // Note that division by non-power-of-two constants will include a 4-cycle
+  // 32*32 multiplication on AMD, even though so many bits are not needed for
+  // the pixel position - however, if an OpUnreachable path is inserted for the
+  // case when the position has upper bits set, for some reason, the code for it
+  // is not eliminated when compiling the shader for AMD via RenderDoc on
+  // Windows, as of June 2022.
   uint_vector_temp.clear();
   uint_vector_temp.reserve(2);
   uint_vector_temp.push_back(0);
@@ -1770,77 +1777,25 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           spv::NoPrecision, type_float2,
           builder.createLoad(input_fragment_coord, spv::NoPrecision),
           uint_vector_temp));
-
-  // Prove to the AMD compiler that 24*24 multiplication can be done. 16 bits
-  // are more than enough for coordinates even with 3x resolution scaling (and
-  // Direct3D 11 hardware has 16.8 fixed-point coordinates).
-  // TODO(Triang3l): OpUnreachable if the coordinates have upper bits set.
-
-  // Split the destination pixel coordinate into scalars.
   spv::Id dest_pixel_x =
       builder.createCompositeExtract(dest_pixel_coord, type_uint, 0);
+  spv::Id const_dest_tile_width_pixels = builder.makeUintConstant(
+      tile_width_samples >>
+      (uint32_t(dest_is_64bpp) +
+       uint32_t(key.dest_msaa_samples >= xenos::MsaaSamples::k4X)));
+  spv::Id dest_tile_index_x = builder.createBinOp(
+      spv::OpUDiv, type_uint, dest_pixel_x, const_dest_tile_width_pixels);
+  spv::Id dest_tile_pixel_x = builder.createBinOp(
+      spv::OpUMod, type_uint, dest_pixel_x, const_dest_tile_width_pixels);
   spv::Id dest_pixel_y =
       builder.createCompositeExtract(dest_pixel_coord, type_uint, 1);
-
-  // Split the destination pixel index into 32bpp tile and 32bpp-tile-relative
-  // pixel index.
-  uint32_t dest_sample_width_log2 =
-      uint32_t(dest_is_64bpp) +
-      uint32_t(key.dest_msaa_samples >= xenos::MsaaSamples::k4X);
-  uint32_t dest_sample_height_log2 =
-      uint32_t(key.dest_msaa_samples >= xenos::MsaaSamples::k2X);
-  uint32_t dest_tile_width_divide_scale, dest_tile_width_divide_shift;
-  draw_util::GetEdramTileWidthDivideScaleAndUpperShift(
-      draw_resolution_scale_x(), dest_tile_width_divide_scale,
-      dest_tile_width_divide_shift);
-  // Doing 16*16=32 multiplication, not 32*32=64.
-  // TODO(Triang3l): Abstract this away, don't do 32*32 on Direct3D 12 too.
-  dest_tile_width_divide_scale &= UINT16_MAX;
-  dest_tile_width_divide_shift += 16;
-  // Need the host tile size in pixels, not samples.
-  dest_tile_width_divide_shift -= dest_sample_width_log2;
-  spv::Id dest_tile_index_x = builder.createBinOp(
-      spv::OpShiftRightLogical, type_uint,
-      builder.createBinOp(
-          spv::OpIMul, type_uint, dest_pixel_x,
-          builder.makeUintConstant(dest_tile_width_divide_scale)),
-      builder.makeUintConstant(dest_tile_width_divide_shift));
-  spv::Id dest_tile_pixel_x = builder.createBinOp(
-      spv::OpISub, type_uint, dest_pixel_x,
-      builder.createBinOp(spv::OpIMul, type_uint, dest_tile_index_x,
-                          builder.makeUintConstant(tile_width_samples_scaled >>
-                                                   dest_sample_width_log2)));
-  spv::Id dest_tile_index_y, dest_tile_pixel_y;
-  static_assert(
-      TextureCache::kMaxDrawResolutionScaleAlongAxis <= 3,
-      "VulkanRenderTargetCache EDRAM range ownership transfer shader "
-      "generation supports Y draw resolution scaling factors of only up to 3");
-  if (draw_resolution_scale_y() == 3) {
-    dest_tile_index_y = builder.createBinOp(
-        spv::OpShiftRightLogical, type_uint,
-        builder.createBinOp(
-            spv::OpIMul, type_uint, dest_pixel_y,
-            builder.makeUintConstant(draw_util::kDivideScale3 & UINT16_MAX)),
-        builder.makeUintConstant(draw_util::kDivideUpperShift3 + 16 + 4 -
-                                 dest_sample_height_log2));
-    dest_tile_pixel_y = builder.createBinOp(
-        spv::OpISub, type_uint, dest_pixel_y,
-        builder.createBinOp(
-            spv::OpIMul, type_uint, dest_tile_index_y,
-            builder.makeUintConstant(tile_height_samples_scaled >>
-                                     dest_sample_height_log2)));
-  } else {
-    assert_true(draw_resolution_scale_y() <= 2);
-    uint32_t dest_tile_height_pixels_log2 =
-        (draw_resolution_scale_y() == 2 ? 5 : 4) - dest_sample_height_log2;
-    dest_tile_index_y = builder.createBinOp(
-        spv::OpShiftRightLogical, type_uint, dest_pixel_y,
-        builder.makeUintConstant(dest_tile_height_pixels_log2));
-    dest_tile_pixel_y = builder.createBinOp(
-        spv::OpBitwiseAnd, type_uint, dest_pixel_y,
-        builder.makeUintConstant((uint32_t(1) << dest_tile_height_pixels_log2) -
-                                 1));
-  }
+  spv::Id const_dest_tile_height_pixels = builder.makeUintConstant(
+      tile_height_samples >>
+      uint32_t(key.dest_msaa_samples >= xenos::MsaaSamples::k2X));
+  spv::Id dest_tile_index_y = builder.createBinOp(
+      spv::OpUDiv, type_uint, dest_pixel_y, const_dest_tile_height_pixels);
+  spv::Id dest_tile_pixel_y = builder.createBinOp(
+      spv::OpUMod, type_uint, dest_pixel_y, const_dest_tile_height_pixels);
 
   assert_true(push_constants_member_address != UINT32_MAX);
   id_vector_temp.clear();
@@ -2269,7 +2224,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
     // Copying between color and depth / stencil - swap 40-32bpp-sample columns
     // in the pixel index within the source 32bpp tile.
     uint32_t source_32bpp_tile_half_pixels =
-        tile_width_samples_scaled >> (1 + source_pixel_width_dwords_log2);
+        tile_width_samples >> (1 + source_pixel_width_dwords_log2);
     source_tile_pixel_x = builder.createUnaryOp(
         spv::OpBitcast, type_uint,
         builder.createBinOp(
@@ -2315,7 +2270,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           spv::OpIAdd, type_uint,
           builder.createBinOp(
               spv::OpIMul, type_uint,
-              builder.makeUintConstant(tile_width_samples_scaled >>
+              builder.makeUintConstant(tile_width_samples >>
                                        source_pixel_width_dwords_log2),
               source_tile_index_x),
           source_tile_pixel_x));
@@ -2326,7 +2281,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           builder.createBinOp(
               spv::OpIMul, type_uint,
               builder.makeUintConstant(
-                  tile_height_samples_scaled >>
+                  tile_height_samples >>
                   uint32_t(key.source_msaa_samples >= xenos::MsaaSamples::k2X)),
               source_tile_index_y),
           source_tile_pixel_y));
@@ -2688,8 +2643,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         switch (source_depth_format) {
           case xenos::DepthRenderTargetFormat::kD24S8: {
             // Round to the nearest even integer. This seems to be the
-            // correct, adding +0.5 and rounding towards zero results in red
-            // instead of black in the 4D5307E6 clear shader.
+            // correct conversion, adding +0.5 and rounding towards zero results
+            // in red instead of black in the 4D5307E6 clear shader.
             id_vector_temp.clear();
             id_vector_temp.push_back(builder.createBinOp(
                 spv::OpFMul, type_float, source_depth_float[i],
@@ -3003,9 +2958,9 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
       } else {
         switch (source_depth_format) {
           case xenos::DepthRenderTargetFormat::kD24S8: {
-            // Round to the nearest even integer. This seems to be the correct,
-            // adding +0.5 and rounding towards zero results in red instead of
-            // black in the 4D5307E6 clear shader.
+            // Round to the nearest even integer. This seems to be the correct
+            // conversion, adding +0.5 and rounding towards zero results in red
+            // instead of black in the 4D5307E6 clear shader.
             id_vector_temp.clear();
             id_vector_temp.push_back(builder.createBinOp(
                 spv::OpFMul, type_float, source_depth_float[0],
@@ -3384,7 +3339,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                     spv::OpIAdd, type_uint,
                     builder.createBinOp(spv::OpIMul, type_uint,
                                         builder.makeUintConstant(
-                                            tile_width_samples_scaled >>
+                                            tile_width_samples >>
                                             uint32_t(key.source_msaa_samples >=
                                                      xenos::MsaaSamples::k4X)),
                                         host_depth_source_tile_index_x),
@@ -3395,7 +3350,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                     spv::OpIAdd, type_uint,
                     builder.createBinOp(spv::OpIMul, type_uint,
                                         builder.makeUintConstant(
-                                            tile_height_samples_scaled >>
+                                            tile_height_samples >>
                                             uint32_t(key.source_msaa_samples >=
                                                      xenos::MsaaSamples::k2X)),
                                         host_depth_source_tile_index_y),
@@ -3469,14 +3424,14 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                 spv::OpIAdd, type_uint,
                 builder.createBinOp(
                     spv::OpIMul, type_uint,
-                    builder.makeUintConstant(tile_width_samples_scaled *
-                                             tile_height_samples_scaled),
+                    builder.makeUintConstant(tile_width_samples *
+                                             tile_height_samples),
                     dest_tile_index),
                 builder.createBinOp(
                     spv::OpIAdd, type_uint,
                     builder.createBinOp(
                         spv::OpIMul, type_uint,
-                        builder.makeUintConstant(tile_width_samples_scaled),
+                        builder.makeUintConstant(tile_width_samples),
                         dest_tile_sample_y),
                     dest_tile_sample_x));
             id_vector_temp.clear();
@@ -3505,8 +3460,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             switch (dest_depth_format) {
               case xenos::DepthRenderTargetFormat::kD24S8: {
                 // Round to the nearest even integer. This seems to be the
-                // correct, adding +0.5 and rounding towards zero results in red
-                // instead of black in the 4D5307E6 clear shader.
+                // correct conversion, adding +0.5 and rounding towards zero
+                // results in red instead of black in the 4D5307E6 clear shader.
                 id_vector_temp.clear();
                 id_vector_temp.push_back(builder.createBinOp(
                     spv::OpFMul, type_float, host_depth32,
