@@ -17,7 +17,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 
-#include "xenia/vfs/devices/stfs_container_device.h"
+#include "xenia/vfs/devices/xcontent_container_device.h"
 #include "xenia/vfs/file.h"
 #include "xenia/vfs/virtual_file_system.h"
 
@@ -37,10 +37,9 @@ int vfs_dump_main(const std::vector<std::string>& args) {
   }
 
   std::filesystem::path base_path = cvars::dump_path;
-  std::unique_ptr<vfs::Device> device;
+  std::unique_ptr<vfs::Device> device =
+      vfs::XContentContainerDevice::CreateContentDevice("", cvars::source);
 
-  // TODO: Flags specifying the type of device.
-  device = std::make_unique<vfs::StfsContainerDevice>("", cvars::source);
   if (!device->Initialize()) {
     XELOGE("Failed to initialize device");
     return 1;

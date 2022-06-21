@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,14 +10,15 @@
 #ifndef XENIA_VFS_DEVICES_STFS_XBOX_H_
 #define XENIA_VFS_DEVICES_STFS_XBOX_H_
 
-#include "xenia/xbox.h"
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/util/xex2_info.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace vfs {
 
 // Convert FAT timestamp to 100-nanosecond intervals since January 1, 1601 (UTC)
+
 inline uint64_t decode_fat_timestamp(const uint32_t date, const uint32_t time) {
   struct tm tm = {0};
   // 80 is the difference between 1980 (FAT) and 1900 (tm);
@@ -29,7 +30,7 @@ inline uint64_t decode_fat_timestamp(const uint32_t date, const uint32_t time) {
   tm.tm_sec = (0x001F & time) << 1;  // the value stored in 2-seconds intervals
   tm.tm_isdst = 0;
 
-  #if XE_PLATFORM_WIN32
+#if XE_PLATFORM_WIN32
   time_t timet = _mkgmtime(&tm);
 #else
   time_t timet = timegm(&tm);
@@ -481,13 +482,21 @@ struct XContentHeader {
 static_assert_size(XContentHeader, 0x344);
 #pragma pack(pop)
 
-struct StfsHeader {
-  XContentHeader header;
-  XContentMetadata metadata;
+struct XContentContainerHeader {
+  XContentHeader content_header;
+  XContentMetadata content_metadata;
   // TODO: title/system updates contain more data after XContentMetadata, seems
   // to affect header.header_size
+
+  bool is_package_readonly() const {
+    if (content_metadata.volume_type == vfs::XContentVolumeType::kSvod) {
+      return true;
+    }
+
+    return content_metadata.volume_descriptor.stfs.flags.bits.read_only_format;
+  }
 };
-static_assert_size(StfsHeader, 0x971A);
+static_assert_size(XContentContainerHeader, 0x971A);
 
 }  // namespace vfs
 }  // namespace xe

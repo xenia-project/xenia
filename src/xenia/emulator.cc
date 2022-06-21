@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2023 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -48,10 +48,12 @@
 #include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/window.h"
 #include "xenia/ui/windowed_app_context.h"
+#include "xenia/vfs/device.h"
 #include "xenia/vfs/devices/disc_image_device.h"
 #include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/vfs/devices/null_device.h"
-#include "xenia/vfs/devices/stfs_container_device.h"
+#include "xenia/vfs/virtual_file_system.h"
+#include "xenia/vfs/devices/xcontent_container_device.h"
 
 #if XE_ARCH_AMD64
 #include "xenia/cpu/backend/x64/x64_backend.h"
@@ -320,7 +322,7 @@ std::string Emulator::CanonicalizeFileExtension(
 const std::unique_ptr<vfs::Device> Emulator::CreateVfsDeviceBasedOnPath(
     const std::filesystem::path& path, const std::string_view mount_path) {
   if (!path.has_extension()) {
-    return std::make_unique<vfs::StfsContainerDevice>(mount_path, path);
+    return vfs::XContentContainerDevice::CreateContentDevice(mount_path, path);
   }
   auto extension = CanonicalizeFileExtension(path);
   if (extension == ".xex" || extension == ".elf" || extension == ".exe") {
@@ -451,20 +453,23 @@ X_STATUS Emulator::LaunchStfsContainer(const std::filesystem::path& path) {
 }
 
 X_STATUS Emulator::InstallContentPackage(const std::filesystem::path& path) {
-  std::unique_ptr<vfs::StfsContainerDevice> device =
-      std::make_unique<vfs::StfsContainerDevice>("", path);
+  std::unique_ptr<vfs::Device> device =
+      vfs::XContentContainerDevice::CreateContentDevice("", path);
   if (!device->Initialize()) {
     XELOGE("Failed to initialize device");
     return X_STATUS_INVALID_PARAMETER;
   }
 
+  const vfs::XContentContainerDevice* dev =
+      (vfs::XContentContainerDevice*)device.get();
+
   std::filesystem::path installation_path =
-      content_root() / fmt::format("{:08X}", device->title_id()) /
-      fmt::format("{:08X}", device->content_type()) / path.filename();
+      content_root() / fmt::format("{:08X}", dev->title_id()) /
+      fmt::format("{:08X}", dev->content_type()) / path.filename();
 
   std::filesystem::path header_path =
-      content_root() / fmt::format("{:08X}", device->title_id()) / "Headers" /
-      fmt::format("{:08X}", device->content_type()) / path.filename();
+      content_root() / fmt::format("{:08X}", dev->title_id()) / "Headers" /
+      fmt::format("{:08X}", dev->content_type()) / path.filename();
 
   if (std::filesystem::exists(installation_path)) {
     // TODO(Gliniak): Popup

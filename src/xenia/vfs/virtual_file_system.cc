@@ -9,7 +9,7 @@
 
 #include "xenia/vfs/virtual_file_system.h"
 #include "xenia/kernel/xam/content_manager.h"
-#include "xenia/vfs/devices/stfs_container_device.h"
+#include "xenia/vfs/devices/xcontent_container_device.h"
 
 #include "devices/host_path_entry.h"
 #include "xenia/base/literals.h"
@@ -404,7 +404,8 @@ X_STATUS VirtualFileSystem::ExtractContentFiles(
 
 void VirtualFileSystem::ExtractContentHeader(Device* device,
                                              std::filesystem::path base_path) {
-  auto stfs_device = ((StfsContainerDevice*)device);
+  const XContentContainerDevice* xcontent_device =
+      ((XContentContainerDevice*)device);
 
   if (!std::filesystem::exists(base_path.parent_path())) {
     if (!std::filesystem::create_directories(base_path.parent_path())) {
@@ -417,7 +418,8 @@ void VirtualFileSystem::ExtractContentHeader(Device* device,
 
   if (std::filesystem::exists(header_path)) {
     auto file = xe::filesystem::OpenFile(header_path, "wb");
-    kernel::xam::XCONTENT_AGGREGATE_DATA data = stfs_device->content_header();
+    kernel::xam::XCONTENT_AGGREGATE_DATA data =
+        xcontent_device->content_header();
     data.set_file_name(base_path.filename().string());
     fwrite(&data, 1, sizeof(kernel::xam::XCONTENT_AGGREGATE_DATA), file);
     fclose(file);

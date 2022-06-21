@@ -2,13 +2,13 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2023 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#ifndef XENIA_VFS_DEVICES_STFS_CONTAINER_ENTRY_H_
-#define XENIA_VFS_DEVICES_STFS_CONTAINER_ENTRY_H_
+#ifndef XENIA_VFS_DEVICES_XCONTENT_CONTAINER_ENTRY_H_
+#define XENIA_VFS_DEVICES_XCONTENT_CONTAINER_ENTRY_H_
 
 #include <map>
 #include <string>
@@ -21,18 +21,17 @@ namespace xe {
 namespace vfs {
 typedef std::map<size_t, FILE*> MultiFileHandles;
 
-class StfsContainerDevice;
+class XContentContainerDevice;
 
-class StfsContainerEntry : public Entry {
+class XContentContainerEntry : public Entry {
  public:
-  StfsContainerEntry(Device* device, Entry* parent, const std::string_view path,
-                     MultiFileHandles* files);
-  ~StfsContainerEntry() override;
+  XContentContainerEntry(Device* device, Entry* parent,
+                         const std::string_view path, MultiFileHandles* files);
+  ~XContentContainerEntry() override;
 
-  static std::unique_ptr<StfsContainerEntry> Create(Device* device,
-                                                    Entry* parent,
-                                                    const std::string_view name,
-                                                    MultiFileHandles* files);
+  static std::unique_ptr<XContentContainerEntry> Create(
+      Device* device, Entry* parent, const std::string_view name,
+      MultiFileHandles* files);
 
   MultiFileHandles* files() const { return files_; }
   size_t data_offset() const { return data_offset_; }
@@ -50,6 +49,7 @@ class StfsContainerEntry : public Entry {
 
  private:
   friend class StfsContainerDevice;
+  friend class SvodContainerDevice;
 
   MultiFileHandles* files_;
   size_t data_offset_;
@@ -61,4 +61,4 @@ class StfsContainerEntry : public Entry {
 }  // namespace vfs
 }  // namespace xe
 
-#endif  // XENIA_VFS_DEVICES_STFS_CONTAINER_ENTRY_H_
+#endif  // XENIA_VFS_DEVICES_XCONTENT_CONTAINER_ENTRY_H_
