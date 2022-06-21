@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -13,8 +13,32 @@
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/util/xex2_info.h"
 
+#if XE_PLATFORM_WIN32
+#include "xenia/base/platform_win.h"
+#define timegm _mkgmtime
+#endif
+
 namespace xe {
 namespace vfs {
+
+// Convert FAT timestamp to 100-nanosecond intervals since January 1, 1601 (UTC)
+inline uint64_t decode_fat_timestamp(uint32_t date, uint32_t time) {
+  struct tm tm = {0};
+  // 80 is the difference between 1980 (FAT) and 1900 (tm);
+  tm.tm_year = ((0xFE00 & date) >> 9) + 80;
+  tm.tm_mon = ((0x01E0 & date) >> 5) - 1;
+  tm.tm_mday = (0x001F & date) >> 0;
+  tm.tm_hour = (0xF800 & time) >> 11;
+  tm.tm_min = (0x07E0 & time) >> 5;
+  tm.tm_sec = (0x001F & time) << 1;  // the value stored in 2-seconds intervals
+  tm.tm_isdst = 0;
+  time_t timet = timegm(&tm);
+  if (timet == -1) {
+    return 0;
+  }
+  // 11644473600LL is a difference between 1970 and 1601
+  return (timet + 11644473600LL) * 10000000;
+}
 
 // Structs used for interchange between Xenia and actual Xbox360 kernel/XAM
 
@@ -455,13 +479,21 @@ struct XContentHeader {
 static_assert_size(XContentHeader, 0x344);
 #pragma pack(pop)
 
-struct StfsHeader {
-  XContentHeader header;
-  XContentMetadata metadata;
+struct XContentContainerHeader {
+  XContentHeader content_header;
+  XContentMetadata content_metadata;
   // TODO: title/system updates contain more data after XContentMetadata, seems
   // to affect header.header_size
+
+  bool is_package_readonly() const {
+    if (content_metadata.volume_type == vfs::XContentVolumeType::kSvod) {
+      return true;
+    }
+
+    return content_metadata.volume_descriptor.stfs.flags.bits.read_only_format;
+  }
 };
-static_assert_size(StfsHeader, 0x971A);
+static_assert_size(XContentContainerHeader, 0x971A);
 
 }  // namespace vfs
 }  // namespace xe
