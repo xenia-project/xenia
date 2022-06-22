@@ -230,8 +230,8 @@ spv::Id SpirvShaderTranslator::Float7e3To32(spv::Builder& builder,
 }
 
 spv::Id SpirvShaderTranslator::PreClampedDepthTo20e4(
-    spv::Builder& builder, spv::Id f32_scalar, bool remap_from_0_to_0_5,
-    spv::Id ext_inst_glsl_std_450) {
+    spv::Builder& builder, spv::Id f32_scalar, bool round_to_nearest_even,
+    bool remap_from_0_to_0_5, spv::Id ext_inst_glsl_std_450) {
   // CFloat24 from d3dref9.dll +
   // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
   // Assuming the value is already clamped to [0, 2) (in all places, the depth
@@ -305,18 +305,20 @@ spv::Id SpirvShaderTranslator::PreClampedDepthTo20e4(
           builder.makeUintConstant(0x38800000 - (remap_bias << 23))),
       denormal_biased_f32, normal_biased_f32);
 
-  // Build the 20e4 number rounding to the nearest even.
-  // ((biased_f32 + 3 + ((biased_f32 >> 3) & 1)) >> 3) & 0xFFFFFF
-  return builder.createTriOp(
-      spv::OpBitFieldUExtract, type_uint,
-      builder.createBinOp(
-          spv::OpIAdd, type_uint,
-          builder.createBinOp(spv::OpIAdd, type_uint, biased_f32,
-                              builder.makeUintConstant(3)),
-          builder.createTriOp(spv::OpBitFieldUExtract, type_uint, biased_f32,
-                              builder.makeUintConstant(3),
-                              builder.makeUintConstant(1))),
-      builder.makeUintConstant(3), builder.makeUintConstant(24));
+  // Build the 20e4 number rounding to the nearest even or towards zero.
+  if (round_to_nearest_even) {
+    // biased_f32 += 3 + ((biased_f32 >> 3) & 1)
+    biased_f32 = builder.createBinOp(
+        spv::OpIAdd, type_uint,
+        builder.createBinOp(spv::OpIAdd, type_uint, biased_f32,
+                            builder.makeUintConstant(3)),
+        builder.createTriOp(spv::OpBitFieldUExtract, type_uint, biased_f32,
+                            builder.makeUintConstant(3),
+                            builder.makeUintConstant(1)));
+  }
+  return builder.createTriOp(spv::OpBitFieldUExtract, type_uint, biased_f32,
+                             builder.makeUintConstant(3),
+                             builder.makeUintConstant(24));
 }
 
 spv::Id SpirvShaderTranslator::Depth20e4To32(spv::Builder& builder,

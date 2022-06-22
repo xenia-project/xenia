@@ -416,6 +416,8 @@ bool VulkanRenderTargetCache::Initialize() {
 
   // TODO(Triang3l): All paths (FSI).
 
+  depth_float24_round_ = cvars::depth_float24_round;
+
   // TODO(Triang3l): Handle sampledImageIntegerSampleCounts 4 not supported in
   // transfers.
   if (cvars::native_2x_msaa) {
@@ -3037,7 +3039,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           } break;
           case xenos::DepthRenderTargetFormat::kD24FS8: {
             depth24 = SpirvShaderTranslator::PreClampedDepthTo20e4(
-                builder, source_depth_float[i], true, ext_inst_glsl_std_450);
+                builder, source_depth_float[i], depth_float24_round(), true,
+                ext_inst_glsl_std_450);
           } break;
         }
         // Merge depth and stencil.
@@ -3353,7 +3356,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           } break;
           case xenos::DepthRenderTargetFormat::kD24FS8: {
             packed = SpirvShaderTranslator::PreClampedDepthTo20e4(
-                builder, source_depth_float[0], true, ext_inst_glsl_std_450);
+                builder, source_depth_float[0], depth_float24_round(), true,
+                ext_inst_glsl_std_450);
           } break;
         }
         if (mode.output == TransferOutput::kDepth) {
@@ -3855,7 +3859,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               } break;
               case xenos::DepthRenderTargetFormat::kD24FS8: {
                 host_depth24 = SpirvShaderTranslator::PreClampedDepthTo20e4(
-                    builder, host_depth32, true, ext_inst_glsl_std_450);
+                    builder, host_depth32, depth_float24_round(), true,
+                    ext_inst_glsl_std_450);
               } break;
             }
             assert_true(host_depth24 != spv::NoResult);
@@ -5548,7 +5553,8 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
       } break;
       case xenos::DepthRenderTargetFormat::kD24FS8: {
         packed[0] = SpirvShaderTranslator::PreClampedDepthTo20e4(
-            builder, source_depth32, true, ext_inst_glsl_std_450);
+            builder, source_depth32, depth_float24_round(), true,
+            ext_inst_glsl_std_450);
       } break;
     }
     id_vector_temp.clear();
