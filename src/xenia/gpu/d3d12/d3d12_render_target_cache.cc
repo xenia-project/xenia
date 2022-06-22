@@ -457,7 +457,9 @@ bool D3D12RenderTargetCache::Initialize() {
 
     gamma_render_target_as_srgb_ = cvars::gamma_render_target_as_srgb;
 
-    depth_float24_conversion_ = GetConfigDepthFloat24Conversion();
+    depth_float24_round_ = cvars::depth_float24_round;
+    depth_float24_convert_in_pixel_shader_ =
+        cvars::depth_float24_convert_in_pixel_shader;
 
     // Check if 2x MSAA is supported or needs to be emulated with 4x MSAA
     // instead.
@@ -1013,8 +1015,9 @@ bool D3D12RenderTargetCache::Initialize() {
     // Blending is done in linear space directly in shaders.
     gamma_render_target_as_srgb_ = false;
 
-    // Always true float24 depth.
-    depth_float24_conversion_ = DepthFloat24Conversion::kOnOutputRounding;
+    // Always true float24 depth rounded to the nearest even.
+    depth_float24_round_ = true;
+    depth_float24_convert_in_pixel_shader_ = true;
 
     // Only ForcedSampleCount, which doesn't support 2x.
     msaa_2x_supported_ = false;
@@ -2091,7 +2094,7 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(
 bool D3D12RenderTargetCache::IsHostDepthEncodingDifferent(
     xenos::DepthRenderTargetFormat format) const {
   if (format == xenos::DepthRenderTargetFormat::kD24FS8) {
-    return depth_float24_conversion_ == DepthFloat24Conversion::kOnCopy;
+    return !depth_float24_convert_in_pixel_shader_;
   }
   return false;
 }
@@ -3542,8 +3545,13 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
           } break;
           case xenos::DepthRenderTargetFormat::kD24FS8: {
             // Convert using r1.y as temporary.
-            DxbcShaderTranslator::PreClampedDepthTo20e4(a, i, 3, i, 3, 1, 1,
-                                                        true);
+            // When converting the depth in pixel shaders, it's always exact,
+            // truncating not to insert additional rounding instructions.
+            DxbcShaderTranslator::PreClampedDepthTo20e4(
+                a, i, 3, i, 3, 1, 1,
+                !depth_float24_convert_in_pixel_shader() &&
+                    depth_float24_round(),
+                true);
           } break;
         }
         // Merge depth and stencil into r0/r1.x.
@@ -3729,8 +3737,13 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
           } break;
           case xenos::DepthRenderTargetFormat::kD24FS8: {
             // Convert using r1.y as temporary.
-            DxbcShaderTranslator::PreClampedDepthTo20e4(a, 1, 3, 1, 3, 1, 1,
-                                                        true);
+            // When converting the depth in pixel shaders, it's always exact,
+            // truncating not to insert additional rounding instructions.
+            DxbcShaderTranslator::PreClampedDepthTo20e4(
+                a, 1, 3, 1, 3, 1, 1,
+                !depth_float24_convert_in_pixel_shader() &&
+                    depth_float24_round(),
+                true);
           } break;
         }
         if (dest_is_color) {
@@ -4105,8 +4118,14 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
                          dxbc::Src::R(0, dxbc::Src::kYYYY));
               } break;
               case xenos::DepthRenderTargetFormat::kD24FS8: {
-                DxbcShaderTranslator::PreClampedDepthTo20e4(a, 0, 1, 0, 0, 0, 2,
-                                                            true);
+                // When converting the depth in pixel shaders, it's always
+                // exact, truncating not to insert additional rounding
+                // instructions.
+                DxbcShaderTranslator::PreClampedDepthTo20e4(
+                    a, 0, 1, 0, 0, 0, 2,
+                    !depth_float24_convert_in_pixel_shader() &&
+                        depth_float24_round(),
+                    true);
               } break;
             }
             a.OpIEq(dxbc::Dest::R(0, 0b0010), dxbc::Src::R(0, dxbc::Src::kYYYY),
@@ -6167,7 +6186,12 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
       case xenos::DepthRenderTargetFormat::kD24FS8:
         // Convert to [0, 2) float24 from [0, 1) float32, using r0.x as
         // temporary.
-        DxbcShaderTranslator::PreClampedDepthTo20e4(a, 1, 0, 1, 0, 0, 0, true);
+        // When converting the depth in pixel shaders, it's always exact,
+        // truncating not to insert additional rounding instructions.
+        DxbcShaderTranslator::PreClampedDepthTo20e4(
+            a, 1, 0, 1, 0, 0, 0,
+            !depth_float24_convert_in_pixel_shader() && depth_float24_round(),
+            true);
         break;
     }
     // Combine 24-bit depth and stencil into r1.x.
