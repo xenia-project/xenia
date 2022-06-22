@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_DRAW_UTIL_H_
 #define XENIA_GPU_DRAW_UTIL_H_
 
+#include <cmath>
 #include <cstdint>
 #include <utility>
 
@@ -113,29 +114,113 @@ extern const int8_t kD3D10StandardSamplePositions4x[4][2];
 
 reg::RB_DEPTHCONTROL GetNormalizedDepthControl(const RegisterFile& regs);
 
-constexpr float GetD3D10PolygonOffsetFactor(
-    xenos::DepthRenderTargetFormat depth_format, bool float24_as_0_to_0_5) {
-  if (depth_format == xenos::DepthRenderTargetFormat::kD24S8) {
-    return float(1 << 24);
+// Direct3D 9 and Xenos constant polygon offset is an absolute floating-point
+// value.
+// It's possibly treated just as an absolute offset by the Xenos too - the
+// PA_SU_POLY_OFFSET_DB_FMT_CNTL::POLY_OFFSET_DB_IS_FLOAT_FMT switch was added
+// later in the R6xx, though this needs verification.
+// 5454082B, for example, for float24, sets the bias to 0.000002 - or slightly
+// above 2^-19.
+// The total polygon offset formula specified by Direct3D 9 is:
+// `offset = slope * slope factor + constant offset`
+//
+// Direct3D 10, Metal, OpenGL and Vulkan, however, take the constant polygon
+// offset factor as a relative value, with the formula being:
+// `offset = slope * slope factor +
+//           maximum resolvable difference * constant factor`
+// where the maximum resolvable difference is:
+// - For a fixed-point depth buffer, the minimum representable non-zero value in
+//   the depth buffer, that is 1 / (2^24 - 1) for unorm24 (on Vulkan though it's
+//   allowed to be up to 2 / 2^24 in this case).
+// - For a floating-point depth buffer, it's:
+//   2 ^ (exponent of the maximum Z in the primitive - the number of explicitly
+//        stored mantissa bits)
+//   (23 explicitly stored bits for float32 - and 20 explicitly stored bits for
+//    float24).
+//
+// While the polygon offset is a fixed-function feature in the pipeline, and the
+// formula can't be toggled between absolute and relative, it's important that
+// Xenia translates the guest absolute depth bias into the host relative depth
+// bias in a way that the values that separate coplanar geometry on the guest
+// qualitatively also still correctly separate them on the host.
+//
+// It also should be taken into account that on Xenia, float32 depth values may
+// be snapped to float24 directly in the translated pixel shaders (to prevent
+// data loss if after reuploading a depth buffer to the EDRAM there's no way to
+// recover the full-precision value, that results in the inability to perform
+// more rendering passes for the same geometry), and not only to the nearest
+// value, but also just truncating them (so in case of data loss, the "greater
+// or equal" depth test function still works).
+//
+// Because of this, the depth bias may be lost if Xenia translates it into a too
+// small value, and the conversion of the depth is done in the pixel shader.
+// Specifically, Xenia should not simply convert a value that separates coplanar
+// primitives as float24 just into something that still separates them as
+// float32. Essentially, if conversion to float24 is done in the pixel shader,
+// Xenia should make sure the polygon offset on the host is calculated as if the
+// host had float24 depth too, not float32.
+
+// Applies to both native host unorm24, and unorm24 emulated as host float32.
+// For native unorm24, this is exactly the inverse of the minimum representable
+// non-zero value.
+// For unorm24 emulated as float32, the minimum representable non-zero value for
+// a primitive in the [0.5, 1) range (the worst case that forward depth reaches
+// very quickly, at nearly `2 * near clipping plane distance`) is 2 ^ (-1 - 23),
+// or 2^-24, and this factor is almost 2^24.
+constexpr float kD3D10PolygonOffsetFactorUnorm24 =
+    float((UINT32_C(1) << 24) - 1);
+
+// For a host floating-point depth buffer, the integer value of the depth bias
+// is roughly how many ULPs primitives should be separated by.
+//
+// Float24, however, has 3 mantissa bits fewer than float32 - so one float24 ULP
+// corresponds to 8 float32 ULPs - which means each conceptual "layer" of the
+// guest value should correspond to a polygon offset of 8. So, after the guest
+// absolute value is converted to "layers", it should be multiplied by 8 before
+// being used on the host with a float32 depth buffer.
+//
+// The scale for converting the guest absolute depth bias to the "layers" needs
+// to be determined for the worst case - specifically, the [0.5, 1) range (1 is
+// a single value, so there's no need to take it into consideration). In this
+// range, Z values have the exponent of -1. Therefore, for float24, the absolute
+// offset is obtained from the "layer index" in this range as (disregarding the
+// slope term):
+// offset = 2 ^ (-1 - 20) * constant factor
+// Thus, to obtain the constant factor from the absolute offset in the range
+// with the lowest absolute precision, the offset needs to be multiplied by
+// 2^21.
+//
+// Finally, the 0...0.5 range may be used on the host to represent the 0...1
+// guest depth range to be able to copy all possible encodings, which are
+// [0, 2), via a [0, 1] depth output variable, during EDRAM contents
+// reinterpretation. This is done by scaling the viewport depth bounds by 0.5.
+// However, there's no need to do anything to handle this scenario in the
+// polygon offset - it's calculated after applying the viewport transformation,
+// and the maximum Z value in the primitive will have an exponent lowered by 1,
+// thus the result will also have an exponent lowered by 1 - exactly what's
+// needed for remapping 0...1 to 0...0.5.
+constexpr float kD3D10PolygonOffsetFactorFloat24 =
+    float(UINT32_C(1) << (21 + 3));
+
+inline int32_t GetD3D10IntegerPolygonOffset(
+    xenos::DepthRenderTargetFormat depth_format, float polygon_offset) {
+  bool is_float24 = depth_format == xenos::DepthRenderTargetFormat::kD24FS8;
+  // Using `ceil` because more offset is better, especially if flooring would
+  // result in 0 - conceptually, if the offset is used at all, primitives need
+  // to be separated in the depth buffer.
+  int32_t polygon_offset_int = int32_t(
+      std::ceil(std::abs(polygon_offset) *
+                (is_float24 ? kD3D10PolygonOffsetFactorFloat24 * (1.0f / 8.0f)
+                            : kD3D10PolygonOffsetFactorUnorm24)));
+  // For float24, the conversion may be done in the translated pixel shaders,
+  // including via truncation rather than rounding to the nearest. So, making
+  // the integer bias always in the increments of 2^3 (2 ^ the difference in the
+  // mantissa bit count between float32 and float24), and because of that, doing
+  // `ceil` before changing the units from float24 ULPs to float32 ULPs.
+  if (is_float24) {
+    polygon_offset_int <<= 3;
   }
-  // 20 explicit + 1 implicit (1.) mantissa bits.
-  // 2^20 is not enough for 415607E6 retail version's training mission shooting
-  // range floor (with the number 1) on Direct3D 12. Tested on Nvidia GeForce
-  // GTX 1070, the exact formula (taking into account the 0...1 to 0...0.5
-  // remapping described below) used for testing is
-  // `int(ceil(offset * 2^20 * 0.5)) * sign(offset)`. With 2^20 * 0.5, there
-  // are various kinds of stripes dependending on the view angle in that
-  // location. With 2^21 * 0.5, the issue is not present.
-  constexpr float kFloat24Scale = float(1 << 21);
-  // 0...0.5 range may be used on the host to represent the 0...1 guest depth
-  // range to be able to copy all possible encodings, which are [0, 2), via a
-  // [0, 1] depth output variable, during EDRAM contents reinterpretation.
-  // This is done by scaling the viewport depth bounds by 0.5. However, the
-  // depth bias is applied after the viewport. This adjustment is only needed
-  // for the constant bias - for slope-scaled, the derivatives of Z are
-  // calculated after the viewport as well, and will already include the 0.5
-  // scaling from the viewport.
-  return float24_as_0_to_0_5 ? kFloat24Scale * 0.5f : kFloat24Scale;
+  return polygon_offset < 0 ? -polygon_offset_int : polygon_offset_int;
 }
 
 // For hosts not supporting separate front and back polygon offsets, returns the

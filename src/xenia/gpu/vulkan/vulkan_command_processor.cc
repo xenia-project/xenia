@@ -2526,8 +2526,11 @@ void VulkanCommandProcessor::UpdateDynamicState(
   draw_util::GetPreferredFacePolygonOffset(regs, primitive_polygonal,
                                            depth_bias_slope_factor,
                                            depth_bias_constant_factor);
-  depth_bias_constant_factor *= draw_util::GetD3D10PolygonOffsetFactor(
-      regs.Get<reg::RB_DEPTH_INFO>().depth_format, true);
+  depth_bias_constant_factor *=
+      regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
+              xenos::DepthRenderTargetFormat::kD24S8
+          ? draw_util::kD3D10PolygonOffsetFactorUnorm24
+          : draw_util::kD3D10PolygonOffsetFactorFloat24;
   // With non-square resolution scaling, make sure the worst-case impact is
   // reverted (slope only along the scaled axis), thus max. More bias is better
   // than less bias, because less bias means Z fighting with the background is
