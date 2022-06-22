@@ -126,7 +126,7 @@ float Float7e3To32(uint32_t f10) {
 // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
 // 6e4 has a different exponent bias allowing [0,512) values, 20e4 allows [0,2).
 
-uint32_t Float32To20e4(float f32) {
+uint32_t Float32To20e4(float f32, bool round_to_nearest_even) {
   if (!(f32 > 0.0f)) {
     // Positive only, and not -0 or NaN.
     return 0;
@@ -145,7 +145,10 @@ uint32_t Float32To20e4(float f32) {
     // Rebias the exponent to represent the value as a normalized 20e4.
     f32u32 += 0xC8000000u;
   }
-  return ((f32u32 + 3 + ((f32u32 >> 3) & 1)) >> 3) & 0xFFFFFF;
+  if (round_to_nearest_even) {
+    f32u32 += f32u32 + 3 + ((f32u32 >> 3) & 1);
+  }
+  return (f32u32 >> 3) & 0xFFFFFF;
 }
 
 float Float20e4To32(uint32_t f24) {

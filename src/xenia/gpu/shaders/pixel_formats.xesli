@@ -587,14 +587,17 @@ xesl_uint4 XeRG16SNormToRG16Float(xesl_uint4 packed_texels) {
 // 6e4 has a different exponent bias allowing [0,512) values, 20e4 allows [0,2).
 // We also can't clamp the stored value to 1 as load->store->load must be exact.
 
-uint XeFloat32To20e4(uint f32u32) {
+uint XeFloat32To20e4(uint f32u32, bool round_to_nearest_even) {
   // Keep only positive (high bit set means negative for both float and int) and
   // saturate to the maximum representable value near 2 (also dropping NaNs).
   f32u32 = min((f32u32 <= 0x7FFFFFFFu) ? f32u32 : 0u, 0x3FFFFFF8u);
   uint denormalized =
       ((f32u32 & 0x7FFFFFu) | 0x800000u) >> min(113u - (f32u32 >> 23u), 24u);
   uint f24u32 = (f32u32 < 0x38800000u) ? denormalized : (f32u32 + 0xC8000000u);
-  return ((f24u32 + 3u + ((f24u32 >> 3u) & 1u)) >> 3u) & 0xFFFFFFu;
+  if (round_to_nearest_even) {
+    f24u32 += 3u + ((f24u32 >> 3u) & 1u);
+  }
+  return (f24u32 >> 3u) & 0xFFFFFFu;
 }
 
 uint XeFloat20e4To32(uint f24u32, bool remap_to_0_to_0_5) {
