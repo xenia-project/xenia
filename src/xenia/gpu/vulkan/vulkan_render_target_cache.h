@@ -128,6 +128,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     return last_update_framebuffer_;
   }
 
+  bool depth_float24_round() const { return depth_float24_round_; }
+
   bool msaa_2x_attachments_supported() const {
     return msaa_2x_attachments_supported_;
   }
@@ -823,6 +825,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
                          uint32_t dump_rows, uint32_t dump_pitch);
 
   bool gamma_render_target_as_srgb_ = false;
+
+  bool depth_float24_round_ = false;
 
   bool msaa_2x_attachments_supported_ = false;
   bool msaa_2x_no_attachments_supported_ = false;

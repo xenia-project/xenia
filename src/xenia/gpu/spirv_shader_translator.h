@@ -208,10 +208,11 @@ class SpirvShaderTranslator : public ShaderTranslator {
                               spv::Id ext_inst_glsl_std_450);
   // Converts the depth value externally clamped to the representable [0, 2)
   // range to 20e4 floating point, with zeros in bits 24:31, rounding to the
-  // nearest even. If remap_from_0_to_0_5 is true, it's assumed that 0...1 is
-  // pre-remapped to 0...0.5 in the input.
+  // nearest even or towards zero. If remap_from_0_to_0_5 is true, it's assumed
+  // that 0...1 is pre-remapped to 0...0.5 in the input.
   static spv::Id PreClampedDepthTo20e4(spv::Builder& builder,
                                        spv::Id f32_scalar,
+                                       bool round_to_nearest_even,
                                        bool remap_from_0_to_0_5,
                                        spv::Id ext_inst_glsl_std_450);
   // Converts the 20e4 number in bits [f24_shift, f24_shift + 10) to a 32-bit
