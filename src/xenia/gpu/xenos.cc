@@ -146,7 +146,7 @@ uint32_t Float32To20e4(float f32, bool round_to_nearest_even) {
     f32u32 += 0xC8000000u;
   }
   if (round_to_nearest_even) {
-    f32u32 += f32u32 + 3 + ((f32u32 >> 3) & 1);
+    f32u32 += 3 + ((f32u32 >> 3) & 1);
   }
   return (f32u32 >> 3) & 0xFFFFFF;
 }
