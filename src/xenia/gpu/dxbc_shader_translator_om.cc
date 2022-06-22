@@ -1921,7 +1921,7 @@ void DxbcShaderTranslator::CompletePixelShader_DSV_DepthTo24Bit() {
   } else {
     // Properly convert to 20e4, with rounding to the nearest even (the bias was
     // pre-applied by multiplying by 2), then convert back restoring the bias.
-    PreClampedDepthTo20e4(a_, temp, 0, temp, 0, temp, 1, false);
+    PreClampedDepthTo20e4(a_, temp, 0, temp, 0, temp, 1, true, false);
     Depth20e4To32(a_, dxbc::Dest::ODepth(), temp, 0, 0, temp, 0, temp, 1, true);
   }
 
@@ -3217,7 +3217,8 @@ void DxbcShaderTranslator::Float7e3To32(
 void DxbcShaderTranslator::PreClampedDepthTo20e4(
     dxbc::Assembler& a, uint32_t f24_temp, uint32_t f24_temp_component,
     uint32_t f32_temp, uint32_t f32_temp_component, uint32_t temp_temp,
-    uint32_t temp_temp_component, bool remap_from_0_to_0_5) {
+    uint32_t temp_temp_component, bool round_to_nearest_even,
+    bool remap_from_0_to_0_5) {
   assert_true(temp_temp != f24_temp ||
               temp_temp_component != f24_temp_component);
   assert_true(temp_temp != f32_temp ||
@@ -3268,13 +3269,18 @@ void DxbcShaderTranslator::PreClampedDepthTo20e4(
   // Close the denormal check.
   a.OpEndIf();
   // Build the 20e4 number.
-  // temp = (biased_f32 >> 3) & 1
-  a.OpUBFE(temp_dest, dxbc::Src::LU(1), dxbc::Src::LU(3), f24_src);
-  // f24 = biased_f32 + 3
-  a.OpIAdd(f24_dest, f24_src, dxbc::Src::LU(3));
-  // f24 = biased_f32 + 3 + ((biased_f32 >> 3) & 1)
-  a.OpIAdd(f24_dest, f24_src, temp_src);
+  if (round_to_nearest_even) {
+    // temp = (biased_f32 >> 3) & 1
+    a.OpUBFE(temp_dest, dxbc::Src::LU(1), dxbc::Src::LU(3), f24_src);
+    // f24 = biased_f32 + 3
+    a.OpIAdd(f24_dest, f24_src, dxbc::Src::LU(3));
+    // f24 = biased_f32 + 3 + ((biased_f32 >> 3) & 1)
+    a.OpIAdd(f24_dest, f24_src, temp_src);
+  }
+  // For rounding to the nearest even:
   // f24 = ((biased_f32 + 3 + ((biased_f32 >> 3) & 1)) >> 3) & 0xFFFFFF
+  // For rounding towards zero:
+  // f24 = (biased_f32 >> 3) & 0xFFFFFF
   a.OpUBFE(f24_dest, dxbc::Src::LU(24), dxbc::Src::LU(3), f24_src);
 }
 
@@ -3377,7 +3383,7 @@ void DxbcShaderTranslator::ROV_DepthTo24Bit(uint32_t d24_temp,
     // 20e4 conversion.
     PreClampedDepthTo20e4(a_, d24_temp, d24_temp_component, d32_temp,
                           d32_temp_component, temp_temp, temp_temp_component,
-                          false);
+                          true, false);
   }
   a_.OpElse();
   {

@@ -532,8 +532,10 @@ void GetHostViewportInfo(const RegisterFile& regs,
       // interpolated Z instead if conversion can't be done exactly, without
       // modifying clipping bounds by adjusting Z in vertex shaders, as that
       // may cause polygons placed explicitly at Z = 0 or Z = W to be clipped.
-      z_min = xenos::Float20e4To32(xenos::Float32To20e4(z_min));
-      z_max = xenos::Float20e4To32(xenos::Float32To20e4(z_max));
+      // Rounding the bounds to the nearest even regardless of the depth
+      // rounding mode not to add even more error by truncating twice.
+      z_min = xenos::Float20e4To32(xenos::Float32To20e4(z_min, true));
+      z_max = xenos::Float20e4To32(xenos::Float32To20e4(z_max, true));
     }
     if (full_float24_in_0_to_1) {
       // Remap the full [0...2) float24 range to [0...1) support data round-trip
