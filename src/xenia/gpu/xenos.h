@@ -336,8 +336,8 @@ float Float7e3To32(uint32_t f10);
 // Converts 24-bit unorm depth in the value (not clamping) to an IEEE-754 32-bit
 // floating-point number.
 // Converts an IEEE-754 32-bit floating-point number to Xenos floating-point
-// depth, rounding to the nearest even.
-uint32_t Float32To20e4(float f32);
+// depth, rounding to the nearest even or towards zero.
+uint32_t Float32To20e4(float f32, bool round_to_nearest_even);
 // Converts Xenos floating-point depth in bits 0:23 (not clamping) to an
 // IEEE-754 32-bit floating-point number.
 float Float20e4To32(uint32_t f24);

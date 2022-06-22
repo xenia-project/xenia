@@ -107,8 +107,9 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
            !cvars::snorm16_render_target_full_range;
   }
 
-  DepthFloat24Conversion depth_float24_conversion() const {
-    return depth_float24_conversion_;
+  bool depth_float24_round() const { return depth_float24_round_; }
+  bool depth_float24_convert_in_pixel_shader() const {
+    return depth_float24_convert_in_pixel_shader_;
   }
 
   DXGI_FORMAT GetColorResourceDXGIFormat(
@@ -720,8 +721,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
   bool gamma_render_target_as_srgb_ = false;
 
-  DepthFloat24Conversion depth_float24_conversion_ =
-      DepthFloat24Conversion::kOnCopy;
+  bool depth_float24_round_ = false;
+  bool depth_float24_convert_in_pixel_shader_ = false;
 
   bool msaa_2x_supported_ = false;
 

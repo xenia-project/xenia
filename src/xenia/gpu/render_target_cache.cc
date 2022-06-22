@@ -39,42 +39,109 @@ DEFINE_bool(
     "reduce bandwidth usage during transfers as the previous depth won't need "
     "to be read.",
     "GPU");
-// The round trip is done, in particular, in 545407F2.
-DEFINE_string(
-    depth_float24_conversion, "",
-    "Method for converting 32-bit Z values to 20e4 floating point when using "
-    "host depth buffers without native 20e4 support (when not using rasterizer-"
-    "ordered views / fragment shader interlocks to perform depth testing "
-    "manually).\n"
-    "Use: [any, on_copy, truncate, round]\n"
-    " on_copy:\n"
-    "  Do depth testing at host precision, converting when copying between "
-    "color and depth buffers (or between depth buffers of different formats) "
-    "to support reinterpretation, but keeps the last host depth buffer used "
-    "for each EDRAM range and reloads the host precision value if it's still "
-    "up to date after the EDRAM range was used with a different pixel format.\n"
-    "  + Highest performance, allows early depth test and writing.\n"
-    "  + Host MSAA is possible with pixel-rate shading where supported.\n"
-    "  - EDRAM > RAM > EDRAM depth buffer round trip done in certain games "
-    "destroys precision irreparably, causing artifacts if another rendering "
-    "pass is done after the EDRAM reupload.\n"
-    " truncate:\n"
-    "  Convert to 20e4 directly in pixel shaders, always rounding down.\n"
-    "  + Average performance, conservative early depth test is possible.\n"
-    "  + No precision loss when anything changes in the storage of the depth "
-    "buffer, EDRAM > RAM > EDRAM copying preserves precision.\n"
-    "  - Rounding mode is incorrect, sometimes giving results smaller than "
-    "they should be - may cause inaccuracy especially in edge cases when the "
-    "game wants to write an exact value.\n"
-    "  - Host MSAA is only possible at SSAA speed, with per-sample shading.\n"
-    " round:\n"
-    "  Convert to 20e4 directly in pixel shaders, correctly rounding to the "
-    "nearest even.\n"
-    "  + Highest accuracy.\n"
-    "  - Significantly limited performance, early depth test is not possible.\n"
-    "  - Host MSAA is only possible at SSAA speed, with per-sample shading.\n"
-    " Any other value:\n"
-    "  Choose what is considered the most optimal (currently \"on_copy\").",
+// Lossless round trip: 545407F2.
+// Lossy round trip with the "greater or equal" test afterwards: 4D530919.
+// Lossy round trip with the "equal" test afterwards: 535107F5, 565507EF.
+DEFINE_bool(
+    depth_float24_round, false,
+    "Whether to round to the nearest even, rather than truncating (rounding "
+    "towards zero), the depth when converting it to 24-bit floating-point "
+    "(20e4) from the host precision (32-bit floating point) when using a host "
+    "depth buffer.\n"
+    "false:\n"
+    " Recommended.\n"
+    " The conversion may move the depth values farther away from the camera.\n"
+    " Without depth_float24_convert_in_pixel_shader:\n"
+    "  The \"greater or equal\" depth test function continues to work fine if "
+    "the full host precision depth data is lost, it's still possible to draw "
+    "another pass of the same geometry with it.\n"
+    "  (See the description of depth_float24_convert_in_pixel_shader for more "
+    "information about full precision depth data loss.)\n"
+    " With depth_float24_convert_in_pixel_shader:\n"
+    "  Faster - the pixel shader for hidden surfaces may still be skipped "
+    "(using conservative depth output).\n"
+    "true:\n"
+    " Only for special cases of issues caused by minor 32-bit floating-point "
+    "rounding errors, for instance, when the game tries to draw something at "
+    "the camera plane by setting Z of the vertex position to W.\n"
+    " The conversion may move the depth values closer or farther.\n"
+    " Using the same rounding mode as in the Direct3D 9 reference rasterizer.\n"
+    " Without depth_float24_convert_in_pixel_shader:\n"
+    "  Not possible to recover from a full host precision depth data loss - in "
+    "subsequent passes of rendering the same geometry, half of the samples "
+    "will be failing the depth test with the \"greater or equal\" depth test "
+    "function.\n"
+    " With depth_float24_convert_in_pixel_shader:\n"
+    "  Slower - depth rejection before the pixel shader is not possible.\n"
+    "When the depth buffer is emulated in software (via the fragment shader "
+    "interlock / rasterizer-ordered view), this is ignored, and rounding to "
+    "the nearest even is always done.",
+    "GPU");
+// With MSAA, when converting the depth in pixel shaders, they must run at
+// sample frequency - otherwise, if the depth is the same for the entire pixel,
+// intersections of polygons cannot be antialiased.
+//
+// Important usage note: When using this mode, bounds of the fixed-function
+// viewport must be converted to and back from float24 too (preferably using
+// rounding to the nearest even regardless of whether truncation was requested
+// for the values, to reduce the error already caused by truncation rather than
+// to amplify it). This ensures that clamping to the viewport bounds, which
+// happens after the pixel shader even if it overwrites the resulting depth, is
+// never done to a value not representable as float24 (for example, if the
+// minimum Z is a number too small to be represented as float24, but not zero,
+// it won't be possible to write what should become 0x000000 to the depth
+// buffer). Note that this may add some error to the depth values from the
+// rasterizer; however, modifying Z in the vertex shader to make interpolated
+// depth values would cause clipping to be done to different bounds, which may
+// be more undesirable, especially in cases when Z is explicitly set to a value
+// like 0 or W (in such cases, the adjusted polygon may go outside 0...W in clip
+// space and disappear).
+//
+// If false, doing the depth test at the host precision, converting to 20e4 to
+// support reinterpretation, but keeping track of both the last color (or
+// non-20e4 depth) value (let's call it stored_f24) and the last host depth
+// value (stored_host) for each EDRAM pixel, reloading the last host depth value
+// if stored_f24 == to_f24(stored_host) (otherwise it was overwritten by
+// something else, like clearing, or an actually used color buffer; this is
+// inexact though, and will incorrectly load pixels that were overwritten by
+// something else in the EDRAM, but turned out to have the same value on the
+// guest as before - an outdated host-precision value will be loaded in these
+// cases instead).
+DEFINE_bool(
+    depth_float24_convert_in_pixel_shader, false,
+    "Whether to convert the depth values to 24-bit floating-point (20e4) from "
+    "the host precision (32-bit floating point) directly in the pixel shaders "
+    "of guest draws when using a host depth buffer.\n"
+    "This prevents visual artifacts (interleaved stripes of parts of surfaces "
+    "rendered and parts not rendered, having either the same width in case of "
+    "the \"greater or equal\" depth test function, or the former being much "
+    "thinner than the latter with the \"equal\" function) if the full host "
+    "precision depth data is lost.\n"
+    "This issue may happen if the game reloads the depth data previously "
+    "evicted from the EDRAM to the RAM back to the EDRAM, but the EDRAM region "
+    "that previously contained that depth buffer was overwritten by another "
+    "depth buffer, or the game loads it to a different location in the EDRAM "
+    "than it was previously placed at, thus Xenia is unable to restore the "
+    "depth data with the original precision, and instead falls back to "
+    "converting the lower-precision values, so in subsequent rendering passes "
+    "for the same geometry, the actual depth values of the surfaces don't "
+    "match those stored in the depth buffer anymore.\n"
+    "This is a costly option because it makes the GPU unable to use depth "
+    "buffer compression, and also with MSAA, forces the pixel shader to run "
+    "for every subpixel sample rather than for the entire pixel, making pixel "
+    "shading 2 or 4 times heavier depending on the MSAA sample count.\n"
+    "The rounding direction is controlled by the depth_float24_round "
+    "configuration variable.\n"
+    "Note that with depth_float24_round = true, this becomes even more costly "
+    "because pixel shaders must be executed regardless of whether the surface "
+    "is behind the previously drawn surfaces. With depth_float24_round = "
+    "false, conservative depth output is used, however, so depth rejection "
+    "before the pixel shader may still work.\n"
+    "If sample-rate shading is not supported by the host GPU, the conversion "
+    "in the pixel shader is done only when MSAA is not used.\n"
+    "When the depth buffer is emulated in software (via the fragment shader "
+    "interlock / rasterizer-ordered view), this is ignored because 24-bit "
+    "depth is always used directly.",
     "GPU");
 DEFINE_bool(
     draw_resolution_scaled_texture_offsets, true,
@@ -788,17 +855,6 @@ uint32_t RenderTargetCache::GetLastUpdateBoundRenderTargets(
     }
   }
   return rts_used;
-}
-
-RenderTargetCache::DepthFloat24Conversion
-RenderTargetCache::GetConfigDepthFloat24Conversion() {
-  if (cvars::depth_float24_conversion == "truncate") {
-    return DepthFloat24Conversion::kOnOutputTruncating;
-  }
-  if (cvars::depth_float24_conversion == "round") {
-    return DepthFloat24Conversion::kOnOutputRounding;
-  }
-  return DepthFloat24Conversion::kOnCopy;
 }
 
 uint32_t RenderTargetCache::GetRenderTargetHeight(
