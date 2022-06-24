@@ -304,8 +304,13 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
     out_setting->setting_id = setting_id;
 
     if (setting) {
+      out_setting->from = 1;
       out_setting->data.type = uint8_t(setting->type);
       if (setting->is_set) {
+        if (setting->is_title_specific()) {
+          out_setting->from = 2;
+        }
+
         setting->Append(&out_setting->data, &out_stream);
       }
     }
