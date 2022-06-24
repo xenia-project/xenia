@@ -46,7 +46,7 @@ xesl_entry_inputs_end_code_begin_compute
                         kXenosMsaaSamples_1X, false, 0u, 0u,
                         resolution_scale)
       >> 2u;
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_host_depth_store_dest, edram_address_int4s,
       xesl_floatBitsToUint(xesl_float4(
           xesl_texelFetch2D(xe_host_depth_store_source, pixel_index, 0).r,
@@ -56,7 +56,7 @@ xesl_entry_inputs_end_code_begin_compute
                             pixel_index + xesl_int2(2, 0), 0).r,
           xesl_texelFetch2D(xe_host_depth_store_source,
                             pixel_index + xesl_int2(3, 0), 0).r)));
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_host_depth_store_dest, edram_address_int4s + 1u,
       xesl_floatBitsToUint(xesl_float4(
           xesl_texelFetch2D(xe_host_depth_store_source,

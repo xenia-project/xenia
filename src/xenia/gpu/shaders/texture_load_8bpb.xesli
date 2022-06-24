@@ -37,7 +37,7 @@ xesl_entry_inputs_end_code_begin_compute
        load_info.host_offset) >> 4u);
   uint block_offset_guest =
       XeTextureLoadGuestBlockOffset(load_info, block_index, 1u, 0u) >> 3u;
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_texture_load_dest, block_offset_host,
       xesl_uint4(
           xesl_typedStorageBufferLoad(xe_texture_load_source,

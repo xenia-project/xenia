@@ -49,13 +49,13 @@ xesl_entry_inputs_end_code_begin_compute
   // Only 32_32_32_32_FLOAT color format is 128bpp.
   uint dest_address =
       XeResolveDestPixelAddress(resolve_info, pixel_index, 4u) >> 4u;
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_resolve_dest, dest_address,
       XeEndianSwap128(xesl_floatBitsToUint(pixel_0),
                       resolve_info.dest_endian_128));
   dest_address += XeResolveDestRightConsecutiveBlocksOffset(
                       pixel_index.x, 4u, resolve_info.resolution_scale) >> 4u;
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_resolve_dest, dest_address,
       XeEndianSwap128(xesl_floatBitsToUint(pixel_1),
                       resolve_info.dest_endian_128));

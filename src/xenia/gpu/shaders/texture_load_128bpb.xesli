@@ -37,7 +37,7 @@ xesl_entry_inputs_end_code_begin_compute
        load_info.host_offset) >> 4u);
   uint block_offset_guest =
       XeTextureLoadGuestBlockOffset(load_info, block_index, 16u, 4u) >> 4u;
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_texture_load_dest, block_offset_host,
       XeEndianSwap32(xesl_typedStorageBufferLoad(xe_texture_load_source,
                                                  block_offset_guest),
@@ -46,7 +46,7 @@ xesl_entry_inputs_end_code_begin_compute
   block_offset_guest +=
       XeTextureLoadRightConsecutiveBlocksOffset(load_info, block_index.x, 4u) >>
       4u;
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_texture_load_dest, block_offset_host,
       XeEndianSwap32(xesl_typedStorageBufferLoad(xe_texture_load_source,
                                                  block_offset_guest),
