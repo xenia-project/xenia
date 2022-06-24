@@ -1,0 +1,86 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include "../../ui/shaders/xesl.xesli"
+
+#ifdef XE_APPLY_GAMMA_COMPUTE
+#ifdef XE_APPLY_GAMMA_FXAA_LUMA
+  #define XE_APPLY_GAMMA_DEST_FORMAT xesl_imageFormat_rgba16f
+#else
+  #define XE_APPLY_GAMMA_DEST_FORMAT xesl_imageFormat_rgb10_a2
+#endif
+xesl_pushConstants_begin(b0, space0)
+  xesl_uint2 xe_apply_gamma_size;
+xesl_pushConstants_end
+#define xesl_localSize_x 16
+#define xesl_localSize_y 8
+#define xesl_localSize_z 1
+xesl_entry_bindings_begin_compute
+  xesl_pushConstants_binding(buffer(0))
+  xesl_entry_binding_next
+  xesl_texture(xesl_textureBuffer, xe_apply_gamma_ramp, set=0, binding=0, t0,
+               space0, texture(0))
+  xesl_entry_binding_next
+  xesl_texture(xesl_texture2D, xe_apply_gamma_source, set=1, binding=0, t1,
+               space0, texture(1))
+  xesl_entry_binding_next
+  xesl_writeImage(xesl_image2D, XE_APPLY_GAMMA_DEST_FORMAT, xe_apply_gamma_dest,
+                  set=2, binding=0, u0, space0, texture(2))
+xesl_entry_bindings_end_inputs_begin_compute
+  xesl_entry_input_globalInvocationID
+xesl_entry_inputs_end_code_begin_compute
+  xesl_uint2 pixel_index = xesl_GlobalInvocationID.xy;
+  xesl_dont_flatten
+  if (any(xesl_greaterThanEqual(pixel_index,
+                                xesl_pushConstant(xe_apply_gamma_size)))) {
+    return;
+  }
+#else
+xesl_entry_outputs_begin
+  xesl_entry_output_target(xesl_float4, xe_apply_gamma_dest, 0)
+xesl_entry_outputs_end_stageInputs_begin
+xesl_entry_stageInputs_end_bindings_begin_pixel
+  xesl_texture(xesl_textureBuffer, xe_apply_gamma_ramp, set=0, binding=0, t0,
+               space0, texture(0))
+  xesl_entry_binding_next
+  xesl_texture(xesl_texture2D, xe_apply_gamma_source, set=1, binding=0, t1,
+               space0, texture(1))
+xesl_entry_bindings_end_inputs_begin
+  xesl_entry_input_fragCoord
+xesl_entry_inputs_end_code_begin
+  xesl_uint2 pixel_index = xesl_uint2(xesl_FragCoord.xy);
+#endif  // XE_APPLY_GAMMA_COMPUTE
+  // UNORM conversion according to the Direct3D 10+ rules.
+  xesl_uint3 apply_gamma_input = xesl_uint3(
+      xesl_texelFetch2D(xe_apply_gamma_source, pixel_index, 0).rgb * 255.0 +
+      0.5);
+  // The ramp has blue in bits 0:9, green in 10:19, red in 20:29 - BGR passed as
+  // an R10G10B10A2 buffer.
+  xesl_float4 apply_gamma_output;
+  apply_gamma_output.r =
+      xesl_texelFetchBuffer(xe_apply_gamma_ramp, apply_gamma_input.r).b;
+  apply_gamma_output.g =
+      xesl_texelFetchBuffer(xe_apply_gamma_ramp, apply_gamma_input.g).g;
+  apply_gamma_output.b =
+      xesl_texelFetchBuffer(xe_apply_gamma_ramp, apply_gamma_input.b).r;
+  #ifdef XE_APPLY_GAMMA_FXAA_LUMA
+    // Perceptual luma.
+    apply_gamma_output.a =
+        dot(apply_gamma_output.rgb, xesl_float3(0.299, 0.587, 0.114));
+  #else
+    // Perceptual luma.
+    apply_gamma_output.a = 1.0;
+  #endif
+#ifdef XE_APPLY_GAMMA_COMPUTE
+  xesl_imageStore2DRGBA(xe_apply_gamma_dest, pixel_index, apply_gamma_output);
+xesl_entry_code_end_compute
+#else
+  xesl_Output(xe_apply_gamma_dest) = apply_gamma_output;
+xesl_entry_code_end
+#endif

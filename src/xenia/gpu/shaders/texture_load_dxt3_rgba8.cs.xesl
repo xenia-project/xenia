@@ -55,25 +55,25 @@ xesl_entry_inputs_end_code_begin_compute
     // Sort the color indices so they can be used as weights for the second
     // endpoint.
     uint bgr_weights = XeDXTHighColorWeights(block.w);
-    xesl_writeTypedStorageBufferStore(
+    xesl_typedStorageBufferStore(
         xe_texture_load_dest, block_offset_host,
         XeDXTOpaqueRowToRGB8(bgr_end_8in10, bgr_weights) +
             ((block.xxxx >> xesl_uint4(0u, 4u, 8u, 12u)) & 0xFu) * 0x11000000u);
     xesl_dont_flatten if (texel_index_host.y + 1u < load_info.height_texels) {
-      xesl_writeTypedStorageBufferStore(
+      xesl_typedStorageBufferStore(
           xe_texture_load_dest, block_offset_host + elements_pitch_host,
           XeDXTOpaqueRowToRGB8(bgr_end_8in10, bgr_weights >> 8u) +
               ((block.xxxx >> xesl_uint4(16u, 20u, 24u, 28u)) & 0xFu) *
               0x11000000u);
       xesl_dont_flatten if (texel_index_host.y + 2u < load_info.height_texels) {
-        xesl_writeTypedStorageBufferStore(
+        xesl_typedStorageBufferStore(
             xe_texture_load_dest, block_offset_host + 2u * elements_pitch_host,
             XeDXTOpaqueRowToRGB8(bgr_end_8in10, bgr_weights >> 16u) +
                 ((block.yyyy >> xesl_uint4(0u, 4u, 8u, 12u)) & 0xFu) *
                 0x11000000u);
         xesl_dont_flatten
         if (texel_index_host.y + 3u < load_info.height_texels) {
-          xesl_writeTypedStorageBufferStore(
+          xesl_typedStorageBufferStore(
               xe_texture_load_dest,
               block_offset_host + 3u * elements_pitch_host,
               XeDXTOpaqueRowToRGB8(bgr_end_8in10, bgr_weights >> 24u) +
