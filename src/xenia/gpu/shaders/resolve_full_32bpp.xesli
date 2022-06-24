@@ -49,7 +49,7 @@ xesl_entry_inputs_end_code_begin_compute
   if (resolve_info.duplicate_second_host_pixel.x && pixel_index.x == 0u) {
     pixel_0 = pixel_1;
   }
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_resolve_dest,
       XeResolveDestPixelAddress(resolve_info, pixel_index, 2u) >> 4u,
       XeEndianSwap32(XePack32bpp4Pixels(pixel_0, pixel_1, pixel_2, pixel_3,

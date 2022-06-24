@@ -51,7 +51,7 @@ xesl_entry_inputs_end_code_begin_compute
   // Render target horizontal sample in bit 0, vertical sample in bit 1.
   int source_sample_left = int((xesl_GlobalInvocationID.y & 1u) << 1u);
   int source_sample_right = source_sample_left + 1;
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_host_depth_store_dest, edram_address_int4s,
       xesl_floatBitsToUint(xesl_float4(
           xesl_texelFetch2DMS(xe_host_depth_store_source, pixel_index,
@@ -64,7 +64,7 @@ xesl_entry_inputs_end_code_begin_compute
           xesl_texelFetch2DMS(xe_host_depth_store_source,
                               pixel_index + xesl_int2(1, 0),
                               source_sample_right).r)));
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_host_depth_store_dest, edram_address_int4s + 1u,
       xesl_floatBitsToUint(xesl_float4(
           xesl_texelFetch2DMS(xe_host_depth_store_source,

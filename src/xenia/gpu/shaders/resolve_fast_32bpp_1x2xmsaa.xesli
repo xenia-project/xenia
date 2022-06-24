@@ -56,12 +56,12 @@ xesl_entry_inputs_end_code_begin_compute
   XeResolveSwap8PixelsRedBlue32bpp(resolve_info, pixels_0123, pixels_4567);
   uint dest_address =
       XeResolveDestPixelAddress(resolve_info, pixel_index, 2u) >> 4u;
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_resolve_dest, dest_address,
       XeEndianSwap32(pixels_0123, resolve_info.dest_endian_128));
   dest_address += XeResolveDestRightConsecutiveBlocksOffset(
                       pixel_index.x, 2u, resolve_info.resolution_scale) >> 4u;
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_resolve_dest, dest_address,
       XeEndianSwap32(pixels_4567, resolve_info.dest_endian_128));
 xesl_entry_code_end_compute

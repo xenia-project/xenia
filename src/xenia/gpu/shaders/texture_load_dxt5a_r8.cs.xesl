@@ -58,7 +58,7 @@ xesl_entry_inputs_end_code_begin_compute
                        XeDXT5HighAlphaWeights(end_01.zw, weights.y),
                        XeDXT5HighAlphaWeights(end_23.xy, weights.z),
                        XeDXT5HighAlphaWeights(end_23.zw, weights.w));
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_texture_load_dest, block_offset_host,
       xesl_uint4(XeDXT5RowToA8(end_01.xy, weights.x),
                  XeDXT5RowToA8(end_01.zw, weights.y),
@@ -67,7 +67,7 @@ xesl_entry_inputs_end_code_begin_compute
   xesl_dont_flatten if (++texel_index_host.y < load_info.height_texels) {
     block_offset_host += elements_pitch_host;
     weights >>= 12u;
-    xesl_writeTypedStorageBufferStore(
+    xesl_typedStorageBufferStore(
         xe_texture_load_dest, block_offset_host,
         xesl_uint4(XeDXT5RowToA8(end_01.xy, weights.x),
                    XeDXT5RowToA8(end_01.zw, weights.y),
@@ -80,7 +80,7 @@ xesl_entry_inputs_end_code_begin_compute
                            XeDXT5HighAlphaWeights(end_01.zw, weights.y),
                            XeDXT5HighAlphaWeights(end_23.xy, weights.z),
                            XeDXT5HighAlphaWeights(end_23.zw, weights.w));
-      xesl_writeTypedStorageBufferStore(
+      xesl_typedStorageBufferStore(
           xe_texture_load_dest, block_offset_host,
           xesl_uint4(XeDXT5RowToA8(end_01.xy, weights.x),
                      XeDXT5RowToA8(end_01.zw, weights.y),
@@ -89,7 +89,7 @@ xesl_entry_inputs_end_code_begin_compute
       xesl_dont_flatten if (++texel_index_host.y < load_info.height_texels) {
         block_offset_host += elements_pitch_host;
         weights >>= 12u;
-        xesl_writeTypedStorageBufferStore(
+        xesl_typedStorageBufferStore(
             xe_texture_load_dest, block_offset_host,
             xesl_uint4(XeDXT5RowToA8(end_01.xy, weights.x),
                        XeDXT5RowToA8(end_01.zw, weights.y),

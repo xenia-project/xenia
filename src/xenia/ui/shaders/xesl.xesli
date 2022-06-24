@@ -558,7 +558,7 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
   // Loading and storing.
   #define xesl_typedStorageBufferLoad(name, position) \
       ((name).xesl_id_data[uint(position)])
-  #define xesl_writeTypedStorageBufferStore(name, position, value) \
+  #define xesl_typedStorageBufferStore(name, position, value) \
       ((name).xesl_id_data[uint(position)] = (value))
   #define xesl_uintVectorBufferLoad1(name, position) \
       ((name).xesl_id_data[uint(position)])
@@ -582,7 +582,7 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
       ByteAddressBuffer name : register(hlsl_t, hlsl_t_space);
   // Loading and storing.
   #define xesl_typedStorageBufferLoad(name, position) ((name)[uint(position)])
-  #define xesl_writeTypedStorageBufferStore(name, position, value) \
+  #define xesl_typedStorageBufferStore(name, position, value) \
       ((name)[uint(position)] = (value))
   #define xesl_uintVectorBufferLoad1(name, position) \
       ((name).Load(int(position) << 2))
@@ -602,7 +602,7 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
       const device uint* name [[msl_buffer]]
   // Loading and storing.
   #define xesl_typedStorageBufferLoad(name, position) ((name)[size_t(position)])
-  #define xesl_writeTypedStorageBufferStore(name, position, value) \
+  #define xesl_typedStorageBufferStore(name, position, value) \
       ((name)[size_t(position)] = (value))
   #define xesl_uintVectorBufferLoad1(name, position) ((name)[size_t(position)])
   #define xesl_uintVectorBufferLoad2(name, position)            \
