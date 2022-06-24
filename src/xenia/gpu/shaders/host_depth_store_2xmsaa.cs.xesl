@@ -54,7 +54,7 @@ xesl_entry_inputs_end_code_begin_compute
       XeHostDepthStoreRTMsaa2xSupported(rt_constant)
           ? (bool(dest_sample_index) ? 0 : 1)
           : (bool(dest_sample_index) ? 3 : 0);
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_host_depth_store_dest, edram_address_int4s,
       xesl_floatBitsToUint(xesl_float4(
           xesl_texelFetch2DMS(xe_host_depth_store_source, pixel_index,
@@ -68,7 +68,7 @@ xesl_entry_inputs_end_code_begin_compute
           xesl_texelFetch2DMS(xe_host_depth_store_source,
                               pixel_index + xesl_int2(3, 0),
                               source_sample_index).r)));
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_host_depth_store_dest, edram_address_int4s + 1u,
       xesl_floatBitsToUint(xesl_float4(
           xesl_texelFetch2DMS(xe_host_depth_store_source,

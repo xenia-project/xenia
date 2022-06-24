@@ -43,8 +43,8 @@ xesl_entry_inputs_end_code_begin_compute
           kXenosMsaaSamples_1X, resolve_info.edram_is_depth, 0u, 0u,
           resolve_info.resolution_scale)
       >> 2u;
-  xesl_writeTypedStorageBufferStore(xe_resolve_edram, address_int4s,
-                                    resolve_info.clear_value.xxxx);
-  xesl_writeTypedStorageBufferStore(xe_resolve_edram, address_int4s + 1u,
-                                    resolve_info.clear_value.xxxx);
+  xesl_typedStorageBufferStore(xe_resolve_edram, address_int4s,
+                               resolve_info.clear_value.xxxx);
+  xesl_typedStorageBufferStore(xe_resolve_edram, address_int4s + 1u,
+                               resolve_info.clear_value.xxxx);
 xesl_entry_code_end_compute
