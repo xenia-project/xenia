@@ -649,9 +649,16 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
 #if XESL_LANGUAGE_GLSL
   #define XESL_COMBINED_TEXTURE_SAMPLER 1
   // Types.
+  #define xesl_textureBuffer textureBuffer
+  #define xesl_utextureBuffer utextureBuffer
   #define xesl_texture2D texture2D
   #define xesl_texture2DMS texture2DMS
+  #define xesl_samplerBuffer samplerBuffer
+  #define xesl_usamplerBuffer usamplerBuffer
   #define xesl_sampler2D sampler2D
+  #define xesl_image2D image2D
+  #define xesl_imageFormat_rgb10_a2 rgb10_a2
+  #define xesl_imageFormat_rgba16f rgba16f
   // Binding declarations.
   #define xesl_texture(texture_type, name, glsl_set, glsl_binding, hlsl_t, \
                        hlsl_t_space, msl_texture)                          \
@@ -663,7 +670,12 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
                        hlsl_t_space, hlsl_s, hlsl_s_space, msl_texture,    \
                        msl_sampler)                                        \
       layout(glsl_set, glsl_binding) uniform sampler_type name;
+  #define xesl_writeImage(type, format, name, glsl_set, glsl_binding, hlsl_u, \
+                          hlsl_u_space, msl_texture)                          \
+      layout(format, glsl_set, glsl_binding) uniform writeonly type name;
   // Fetching and storing.
+  #define xesl_texelFetchBuffer(texture_name, position) \
+      texelFetch(texture_name, int(position))
   #define xesl_texelFetch2D(texture_name, position, lod) \
       texelFetch(texture_name, xesl_int2(position), int(lod))
   #define xesl_texelFetch2DMS(texture_name, position, sample_index) \
@@ -689,10 +701,17 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
       textureGather(texture_sampler_name, position, 2)
   #define xesl_textureGatherAlpha2D_comb(texture_sampler_name, position) \
       textureGather(texture_sampler_name, position, 3)
+  #define xesl_imageStore2DRGBA(name, position, data) \
+      imageStore(name, xesl_int2(position), data)
 #elif XESL_LANGUAGE_HLSL
   // Types.
+  #define xesl_textureBuffer Buffer<xesl_float4>
+  #define xesl_utextureBuffer Buffer<xesl_uint4>
   #define xesl_texture2D Texture2D<xesl_float4>
   #define xesl_texture2DMS Texture2DMS<xesl_float4>
+  #define xesl_image2D RWTexture2D
+  #define xesl_imageFormat_rgb10_a2 unorm float4
+  #define xesl_imageFormat_rgba16f float4
   // Binding declarations.
   #define xesl_texture(texture_type, name, glsl_set, glsl_binding, hlsl_t, \
                        hlsl_t_space, msl_texture)                          \
@@ -700,7 +719,12 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
   #define xesl_samplerState(name, glsl_set, glsl_binding, hlsl_s, \
                             hlsl_s_space, msl_sampler)            \
       SamplerState name : register(hlsl_s, hlsl_s_space);
+  #define xesl_writeImage(type, format, name, glsl_set, glsl_binding, hlsl_u, \
+                          hlsl_u_space, msl_texture)                          \
+      type<format> name : register(hlsl_u, hlsl_u_space);
   // Fetching and storing.
+  #define xesl_texelFetchBuffer(texture_name, position) \
+      ((texture_name).Load(int(position)))
   #define xesl_texelFetch2D(texture_name, position, lod) \
       ((texture_name).Load(xesl_int3(position, lod)))
   #define xesl_texelFetch2DMS(texture_name, position, sample_index) \
@@ -716,10 +740,17 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
       ((texture_name).GatherBlue(sampler_name, position))
   #define xesl_textureGatherAlpha2D_sep(texture_name, sampler_name, position) \
       ((texture_name).GatherAlpha(sampler_name, position))
+  #define xesl_imageStore2DRGBA(name, position, data) \
+      ((name)[xesl_int2(position)] = (data))
 #elif XESL_LANGUAGE_MSL
   // Types.
+  #define xesl_textureBuffer texture_buffer<float>
+  #define xesl_utextureBuffer texture_buffer<uint>
   #define xesl_texture2D texture2d<float>
   #define xesl_texture2DMS texture2d_ms<float>
+  #define xesl_image2D texture2d
+  #define xesl_imageFormat_rgb10_a2 float
+  #define xesl_imageFormat_rgba16f float
   // Binding declarations.
   #define xesl_texture(texture_type, name, glsl_set, glsl_binding, hlsl_t, \
                        hlsl_t_space, msl_texture)                          \
@@ -727,7 +758,12 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
   #define xesl_samplerState(name, glsl_set, glsl_binding, hlsl_s, \
                             hlsl_s_space, msl_sampler)            \
       sampler name [[msl_sampler]]
+  #define xesl_writeImage(type, format, name, glsl_set, glsl_binding, hlsl_u, \
+                          hlsl_u_space, msl_texture)                          \
+      type<format, access::write> name [[msl_texture]]
   // Fetching and storing.
+  #define xesl_texelFetchBuffer(texture_name, position) \
+      ((texture_name).read(uint(position)))
   #define xesl_texelFetch2D(texture_name, position, lod) \
       ((texture_name).read(xesl_uint2(position), uint(lod)))
   #define xesl_texelFetch2DMS(texture_name, position, sample_index) \
@@ -747,6 +783,8 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
   #define xesl_textureGatherAlpha2D_sep(texture_name, sampler_name, position) \
       ((texture_name).gather(sampler_name, position, xesl_int2(0),            \
                              component::w))
+  #define xesl_imageStore2DRGBA(name, position, data) \
+      ((name).write(data, xesl_uint2(position)))
 #else
   #error Buffers and textures not defined for the target language.
 #endif  // XESL_LANGUAGE

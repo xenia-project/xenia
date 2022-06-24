@@ -78,7 +78,7 @@ namespace d3d12 {
 // Generated with `xb buildshaders`.
 namespace shaders {
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/clear_uint2_ps.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/fullscreen_vs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/fullscreen_cw_vs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/host_depth_store_1xmsaa_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/host_depth_store_2xmsaa_cs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/host_depth_store_4xmsaa_cs.h"
@@ -954,9 +954,10 @@ bool D3D12RenderTargetCache::Initialize() {
     D3D12_GRAPHICS_PIPELINE_STATE_DESC uint32_rtv_clear_pipeline_desc = {};
     uint32_rtv_clear_pipeline_desc.pRootSignature =
         uint32_rtv_clear_root_signature_;
-    uint32_rtv_clear_pipeline_desc.VS.pShaderBytecode = shaders::fullscreen_vs;
+    uint32_rtv_clear_pipeline_desc.VS.pShaderBytecode =
+        shaders::fullscreen_cw_vs;
     uint32_rtv_clear_pipeline_desc.VS.BytecodeLength =
-        sizeof(shaders::fullscreen_vs);
+        sizeof(shaders::fullscreen_cw_vs);
     uint32_rtv_clear_pipeline_desc.PS.pShaderBytecode = shaders::clear_uint2_ps;
     uint32_rtv_clear_pipeline_desc.PS.BytecodeLength =
         sizeof(shaders::clear_uint2_ps);

@@ -1235,7 +1235,7 @@ bool D3D12CommandProcessor::SetupContext() {
   apply_gamma_root_descriptor_range_source.RangeType =
       D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
   apply_gamma_root_descriptor_range_source.NumDescriptors = 1;
-  apply_gamma_root_descriptor_range_source.BaseShaderRegister = 0;
+  apply_gamma_root_descriptor_range_source.BaseShaderRegister = 1;
   apply_gamma_root_descriptor_range_source.RegisterSpace = 0;
   apply_gamma_root_descriptor_range_source.OffsetInDescriptorsFromTableStart =
       0;
@@ -1254,7 +1254,7 @@ bool D3D12CommandProcessor::SetupContext() {
   apply_gamma_root_descriptor_range_ramp.RangeType =
       D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
   apply_gamma_root_descriptor_range_ramp.NumDescriptors = 1;
-  apply_gamma_root_descriptor_range_ramp.BaseShaderRegister = 1;
+  apply_gamma_root_descriptor_range_ramp.BaseShaderRegister = 0;
   apply_gamma_root_descriptor_range_ramp.RegisterSpace = 0;
   apply_gamma_root_descriptor_range_ramp.OffsetInDescriptorsFromTableStart = 0;
   {
@@ -1964,7 +1964,7 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
         }
         SetExternalPipeline(apply_gamma_pipeline);
         SubmitBarriers();
-        uint32_t group_count_x = (uint32_t(swap_texture_desc.Width) + 7) / 8;
+        uint32_t group_count_x = (uint32_t(swap_texture_desc.Width) + 15) / 16;
         uint32_t group_count_y = (uint32_t(swap_texture_desc.Height) + 7) / 8;
         deferred_command_list_.D3DDispatch(group_count_x, group_count_y, 1);
 
