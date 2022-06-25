@@ -141,33 +141,6 @@ VulkanPipelineCache::GetCurrentPixelShaderModification(
           shader.GetDynamicAddressableRegisterCount(
               sq_program_cntl.ps_num_reg)));
 
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
-  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
-  if (!device_features.independentBlend) {
-    // Since without independent blending, the write mask is common for all
-    // attachments, but the render pass may still include the attachments from
-    // previous draws (to prevent excessive render pass changes potentially
-    // doing stores and loads), disable writing to render targets with a
-    // completely empty write mask by removing the output from the shader.
-    // Only explicitly excluding render targets that the shader actually writes
-    // to, for better pipeline storage compatibility between devices with and
-    // without independent blending (so in the usual situation - the shader
-    // doesn't write to any render targets disabled via the color mask - no
-    // explicit disabling of shader outputs will be needed, and the disabled
-    // output mask will be 0).
-    uint32_t color_targets_remaining = shader.writes_color_targets();
-    uint32_t color_target_index;
-    while (xe::bit_scan_forward(color_targets_remaining, &color_target_index)) {
-      color_targets_remaining &= ~(uint32_t(1) << color_target_index);
-      if (!(normalized_color_mask &
-            (uint32_t(0b1111) << (4 * color_target_index)))) {
-        modification.pixel.color_outputs_disabled |= uint32_t(1)
-                                                     << color_target_index;
-      }
-    }
-  }
-
   return modification;
 }
 
