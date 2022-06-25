@@ -2185,7 +2185,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     return false;
   }
 
-  // Translate the shaders and create the pipeline if needed.
+  // Create the pipeline (for this, need the actually used render target formats
+  // from the render target cache), translating the shaders - doing this now to
+  // obtain the used textures.
   D3D12Shader::D3D12Translation* vertex_shader_translation =
       static_cast<D3D12Shader::D3D12Translation*>(
           vertex_shader->GetOrCreateTranslation(
