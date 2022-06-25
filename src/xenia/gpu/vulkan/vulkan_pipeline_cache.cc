@@ -525,37 +525,41 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     bool cull_back = pa_su_sc_mode_cntl.cull_back;
     description_out.cull_front = cull_front;
     description_out.cull_back = cull_back;
-    xenos::PolygonType polygon_type = xenos::PolygonType::kTriangles;
-    if (!cull_front) {
-      polygon_type =
-          std::min(polygon_type, pa_su_sc_mode_cntl.polymode_front_ptype);
-    }
-    if (!cull_back) {
-      polygon_type =
-          std::min(polygon_type, pa_su_sc_mode_cntl.polymode_back_ptype);
-    }
-    if (pa_su_sc_mode_cntl.poly_mode != xenos::PolygonModeEnable::kDualMode) {
-      polygon_type = xenos::PolygonType::kTriangles;
-    }
-    switch (polygon_type) {
-      case xenos::PolygonType::kPoints:
-        // When points are not supported, use lines instead, preserving
-        // debug-like purpose.
-        description_out.polygon_mode =
-            (!device_portability_subset_features ||
-             device_portability_subset_features->pointPolygons)
-                ? PipelinePolygonMode::kPoint
-                : PipelinePolygonMode::kLine;
-        break;
-      case xenos::PolygonType::kLines:
-        description_out.polygon_mode = PipelinePolygonMode::kLine;
-        break;
-      case xenos::PolygonType::kTriangles:
-        description_out.polygon_mode = PipelinePolygonMode::kFill;
-        break;
-      default:
-        assert_unhandled_case(polygon_type);
-        return false;
+    if (device_features.fillModeNonSolid) {
+      xenos::PolygonType polygon_type = xenos::PolygonType::kTriangles;
+      if (!cull_front) {
+        polygon_type =
+            std::min(polygon_type, pa_su_sc_mode_cntl.polymode_front_ptype);
+      }
+      if (!cull_back) {
+        polygon_type =
+            std::min(polygon_type, pa_su_sc_mode_cntl.polymode_back_ptype);
+      }
+      if (pa_su_sc_mode_cntl.poly_mode != xenos::PolygonModeEnable::kDualMode) {
+        polygon_type = xenos::PolygonType::kTriangles;
+      }
+      switch (polygon_type) {
+        case xenos::PolygonType::kPoints:
+          // When points are not supported, use lines instead, preserving
+          // debug-like purpose.
+          description_out.polygon_mode =
+              (!device_portability_subset_features ||
+               device_portability_subset_features->pointPolygons)
+                  ? PipelinePolygonMode::kPoint
+                  : PipelinePolygonMode::kLine;
+          break;
+        case xenos::PolygonType::kLines:
+          description_out.polygon_mode = PipelinePolygonMode::kLine;
+          break;
+        case xenos::PolygonType::kTriangles:
+          description_out.polygon_mode = PipelinePolygonMode::kFill;
+          break;
+        default:
+          assert_unhandled_case(polygon_type);
+          return false;
+      }
+    } else {
+      description_out.polygon_mode = PipelinePolygonMode::kFill;
     }
     description_out.front_face_clockwise = pa_su_sc_mode_cntl.face != 0;
   } else {
@@ -701,7 +705,6 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
 
   const ui::vulkan::VulkanProvider& provider =
       command_processor_.GetVulkanProvider();
-  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
 
   const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
       device_portability_subset_features =
@@ -709,13 +712,15 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
   if (device_portability_subset_features) {
     if (description.primitive_topology ==
             PipelinePrimitiveTopology::kTriangleFan &&
-        device_portability_subset_features->triangleFans) {
+        !device_portability_subset_features->triangleFans) {
       return false;
     }
+
     if (description.polygon_mode == PipelinePolygonMode::kPoint &&
-        device_portability_subset_features->pointPolygons) {
+        !device_portability_subset_features->pointPolygons) {
       return false;
     }
+
     if (!device_portability_subset_features->constantAlphaColorBlendFactors) {
       uint32_t color_rts_remaining =
           description.render_pass_key.depth_and_color_used >> 1;
@@ -738,8 +743,15 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
     }
   }
 
+  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
+
   if (!device_features.geometryShader &&
       description.geometry_shader != PipelineGeometryShader::kNone) {
+    return false;
+  }
+
+  if (!device_features.fillModeNonSolid &&
+      description.polygon_mode != PipelinePolygonMode::kFill) {
     return false;
   }
 
