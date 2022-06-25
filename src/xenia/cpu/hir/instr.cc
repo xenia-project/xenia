@@ -114,7 +114,20 @@ void Instr::Remove() {
     block->instr_tail = prev;
   }
 }
+Instr* Instr::GetDestDefSkipAssigns() {
+  Instr* current_def = this;
 
+  while (current_def->opcode == &OPCODE_ASSIGN_info) {
+    Instr* next_def = current_def->src1.value->def;
+
+    if (!next_def) {
+      return nullptr;
+    }
+
+    current_def = next_def;
+  }
+  return current_def;
+}
 }  // namespace hir
 }  // namespace cpu
 }  // namespace xe

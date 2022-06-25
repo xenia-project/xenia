@@ -347,6 +347,10 @@ enum OpcodeSignature {
 #define GET_OPCODE_SIG_TYPE_SRC1(sig) (OpcodeSignatureType)((sig >> 3) & 0x7)
 #define GET_OPCODE_SIG_TYPE_SRC2(sig) (OpcodeSignatureType)((sig >> 6) & 0x7)
 #define GET_OPCODE_SIG_TYPE_SRC3(sig) (OpcodeSignatureType)((sig >> 9) & 0x7)
+static bool IsOpcodeBinaryValue(uint32_t signature) {
+  return (signature & ~(0x7)) ==
+         ((OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_V << 6));
+}
 
 typedef struct {
   uint32_t flags;

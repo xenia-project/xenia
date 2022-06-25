@@ -106,7 +106,16 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
 
 
 #undef TEST_EMIT_FEATURE
-
+  /*
+  fix for xbyak bug/omission, amd cpus are never checked for lzcnt. fixed in latest version of xbyak
+*/
+  unsigned int data[4];
+  Xbyak::util::Cpu::getCpuid(0x80000001, data);
+  if (data[2] & (1U << 5)) {
+    if ((cvars::x64_extension_mask & kX64EmitLZCNT) == kX64EmitLZCNT) {
+      feature_flags_ |= kX64EmitLZCNT;
+    }
+  }
   if (cpu_.has(Xbyak::util::Cpu::tAMD)) {
   
       bool is_zennish = cpu_.displayFamily >= 0x17;
