@@ -1600,7 +1600,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         spv::Id lod = builder_->createBinOp(
             spv::OpFMul, type_float_,
             builder_->createUnaryOp(
-                spv::OpConvertUToF, type_float_,
+                spv::OpConvertSToF, type_float_,
                 builder_->createTriOp(spv::OpBitFieldSExtract, type_int_,
                                       fetch_constant_word_4_signed,
                                       builder_->makeUintConstant(12),
