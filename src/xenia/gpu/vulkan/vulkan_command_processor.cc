@@ -42,7 +42,6 @@ namespace vulkan {
 
 // Generated with `xb buildshaders`.
 namespace shaders {
-// TODO(Triang3l): Remove the texture coordinates.
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/apply_gamma_pwl_fxaa_luma_ps.h"
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/apply_gamma_pwl_ps.h"
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/apply_gamma_table_fxaa_luma_ps.h"
