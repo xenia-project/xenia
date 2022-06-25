@@ -589,6 +589,59 @@ VkImageView VulkanTextureCache::GetActiveBindingOrNullImageView(
   }
 }
 
+VkImageView VulkanTextureCache::RequestSwapTexture(
+    uint32_t& width_scaled_out, uint32_t& height_scaled_out,
+    xenos::TextureFormat& format_out) {
+  const auto& regs = register_file();
+  const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
+      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0);
+  TextureKey key;
+  BindingInfoFromFetchConstant(fetch, key, nullptr);
+  if (!key.is_valid || key.base_page == 0 ||
+      key.dimension != xenos::DataDimension::k2DOrStacked) {
+    return nullptr;
+  }
+  VulkanTexture* texture =
+      static_cast<VulkanTexture*>(FindOrCreateTexture(key));
+  if (!texture) {
+    return VK_NULL_HANDLE;
+  }
+  VkImageView texture_view = texture->GetView(
+      false, GuestToHostSwizzle(fetch.swizzle, GetHostFormatSwizzle(key)),
+      false);
+  if (texture_view == VK_NULL_HANDLE) {
+    return VK_NULL_HANDLE;
+  }
+  if (!LoadTextureData(*texture)) {
+    return VK_NULL_HANDLE;
+  }
+  texture->MarkAsUsed();
+  VulkanTexture::Usage old_usage =
+      texture->SetUsage(VulkanTexture::Usage::kSwapSampled);
+  if (old_usage != VulkanTexture::Usage::kSwapSampled) {
+    VkPipelineStageFlags src_stage_mask, dst_stage_mask;
+    VkAccessFlags src_access_mask, dst_access_mask;
+    VkImageLayout old_layout, new_layout;
+    GetTextureUsageMasks(old_usage, src_stage_mask, src_access_mask,
+                         old_layout);
+    GetTextureUsageMasks(VulkanTexture::Usage::kSwapSampled, dst_stage_mask,
+                         dst_access_mask, new_layout);
+    command_processor_.PushImageMemoryBarrier(
+        texture->image(), ui::vulkan::util::InitializeSubresourceRange(),
+        src_stage_mask, dst_stage_mask, src_access_mask, dst_access_mask,
+        old_layout, new_layout);
+  }
+  // Only texture->key, not the result of BindingInfoFromFetchConstant, contains
+  // whether the texture is scaled.
+  key = texture->key();
+  width_scaled_out =
+      key.GetWidth() * (key.scaled_resolve ? draw_resolution_scale_x() : 1);
+  height_scaled_out =
+      key.GetHeight() * (key.scaled_resolve ? draw_resolution_scale_y() : 1);
+  format_out = key.format;
+  return texture_view;
+}
+
 bool VulkanTextureCache::IsSignedVersionSeparateForFormat(
     TextureKey key) const {
   const HostFormatPair& host_format_pair = GetHostFormatPair(key);
@@ -1263,7 +1316,14 @@ VulkanTextureCache::VulkanTexture::~VulkanTexture() {
 }
 
 VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed,
-                                                       uint32_t host_swizzle) {
+                                                       uint32_t host_swizzle,
+                                                       bool is_array) {
+  xenos::DataDimension dimension = key().dimension;
+  if (dimension == xenos::DataDimension::k3D ||
+      dimension == xenos::DataDimension::kCube) {
+    is_array = false;
+  }
+
   const VulkanTextureCache& vulkan_texture_cache =
       static_cast<const VulkanTextureCache&>(texture_cache());
 
@@ -1297,6 +1357,8 @@ VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed,
   }
   view_key.host_swizzle = host_swizzle;
 
+  view_key.is_array = uint32_t(is_array);
+
   // Try to find an existing view.
   auto it = views_.find(view_key);
   if (it != views_.end()) {
@@ -1311,17 +1373,6 @@ VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed,
   view_create_info.pNext = nullptr;
   view_create_info.flags = 0;
   view_create_info.image = image();
-  switch (key().dimension) {
-    case xenos::DataDimension::k3D:
-      view_create_info.viewType = VK_IMAGE_VIEW_TYPE_3D;
-      break;
-    case xenos::DataDimension::kCube:
-      view_create_info.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
-      break;
-    default:
-      view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-      break;
-  }
   view_create_info.format = format;
   view_create_info.components.r = GetComponentSwizzle(host_swizzle, 0);
   view_create_info.components.g = GetComponentSwizzle(host_swizzle, 1);
@@ -1329,6 +1380,22 @@ VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed,
   view_create_info.components.a = GetComponentSwizzle(host_swizzle, 3);
   view_create_info.subresourceRange =
       ui::vulkan::util::InitializeSubresourceRange();
+  switch (dimension) {
+    case xenos::DataDimension::k3D:
+      view_create_info.viewType = VK_IMAGE_VIEW_TYPE_3D;
+      break;
+    case xenos::DataDimension::kCube:
+      view_create_info.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+      break;
+    default:
+      if (is_array) {
+        view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+      } else {
+        view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        view_create_info.subresourceRange.layerCount = 1;
+      }
+      break;
+  }
   VkImageView view;
   if (dfn.vkCreateImageView(device, &view_create_info, nullptr, &view) !=
       VK_SUCCESS) {
@@ -2248,9 +2315,10 @@ void VulkanTextureCache::GetTextureUsageMasks(VulkanTexture::Usage usage,
       layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
       break;
     case VulkanTexture::Usage::kSwapSampled:
-      // The swap texture is likely to be used only for the presentation compute
-      // shader, and not during emulation, where it'd be used in other stages.
-      stage_mask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+      // The swap texture is likely to be used only for the presentation
+      // fragment shader, and not during emulation, where it'd be used in other
+      // stages.
+      stage_mask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
       access_mask = VK_ACCESS_SHADER_READ_BIT;
       layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
       break;

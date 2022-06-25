@@ -10,6 +10,7 @@
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -17,6 +18,7 @@
 #include <utility>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
@@ -40,8 +42,12 @@ namespace vulkan {
 
 // Generated with `xb buildshaders`.
 namespace shaders {
-#include "xenia/gpu/shaders/bytecode/vulkan_spirv/fullscreen_tc_vs.h"
-#include "xenia/gpu/shaders/bytecode/vulkan_spirv/uv_ps.h"
+// TODO(Triang3l): Remove the texture coordinates.
+#include "xenia/gpu/shaders/bytecode/vulkan_spirv/apply_gamma_pwl_fxaa_luma_ps.h"
+#include "xenia/gpu/shaders/bytecode/vulkan_spirv/apply_gamma_pwl_ps.h"
+#include "xenia/gpu/shaders/bytecode/vulkan_spirv/apply_gamma_table_fxaa_luma_ps.h"
+#include "xenia/gpu/shaders/bytecode/vulkan_spirv/apply_gamma_table_ps.h"
+#include "xenia/gpu/shaders/bytecode/vulkan_spirv/fullscreen_cw_vs.h"
 }  // namespace shaders
 
 // No specific reason for 32768 descriptors, just the "too much" amount from
@@ -386,209 +392,578 @@ bool VulkanCommandProcessor::SetupContext() {
 
   // Swap objects.
 
-  // Swap render pass. Doesn't make assumptions about outer usage (explicit
-  // barriers must be used instead) for simplicity of use in different scenarios
-  // with different pipelines.
-  VkAttachmentDescription swap_render_pass_attachment;
-  swap_render_pass_attachment.flags = 0;
-  swap_render_pass_attachment.format =
-      ui::vulkan::VulkanPresenter::kGuestOutputFormat;
-  swap_render_pass_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-  swap_render_pass_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-  swap_render_pass_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-  swap_render_pass_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-  swap_render_pass_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-  swap_render_pass_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  swap_render_pass_attachment.finalLayout =
-      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-  VkAttachmentReference swap_render_pass_color_attachment;
-  swap_render_pass_color_attachment.attachment = 0;
-  swap_render_pass_color_attachment.layout =
-      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-  VkSubpassDescription swap_render_pass_subpass = {};
-  swap_render_pass_subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-  swap_render_pass_subpass.colorAttachmentCount = 1;
-  swap_render_pass_subpass.pColorAttachments =
-      &swap_render_pass_color_attachment;
-  VkSubpassDependency swap_render_pass_dependencies[2];
-  for (uint32_t i = 0; i < 2; ++i) {
-    VkSubpassDependency& swap_render_pass_dependency =
-        swap_render_pass_dependencies[i];
-    swap_render_pass_dependency.srcSubpass = i ? 0 : VK_SUBPASS_EXTERNAL;
-    swap_render_pass_dependency.dstSubpass = i ? VK_SUBPASS_EXTERNAL : 0;
-    swap_render_pass_dependency.srcStageMask =
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    swap_render_pass_dependency.dstStageMask =
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    swap_render_pass_dependency.srcAccessMask =
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    swap_render_pass_dependency.dstAccessMask =
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    swap_render_pass_dependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+  // Gamma ramp, either device-local and host-visible at once, or separate
+  // device-local texel buffer and host-visible upload buffer.
+  gamma_ramp_256_entry_table_current_frame_ = UINT32_MAX;
+  gamma_ramp_pwl_current_frame_ = UINT32_MAX;
+  // Try to create a device-local host-visible buffer first, to skip copying.
+  constexpr uint32_t kGammaRampSize256EntryTable = sizeof(uint32_t) * 256;
+  constexpr uint32_t kGammaRampSizePWL = sizeof(uint16_t) * 2 * 3 * 128;
+  constexpr uint32_t kGammaRampSize =
+      kGammaRampSize256EntryTable + kGammaRampSizePWL;
+  VkBufferCreateInfo gamma_ramp_host_visible_buffer_create_info;
+  gamma_ramp_host_visible_buffer_create_info.sType =
+      VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  gamma_ramp_host_visible_buffer_create_info.pNext = nullptr;
+  gamma_ramp_host_visible_buffer_create_info.flags = 0;
+  gamma_ramp_host_visible_buffer_create_info.size =
+      kGammaRampSize * kMaxFramesInFlight;
+  gamma_ramp_host_visible_buffer_create_info.usage =
+      VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
+  gamma_ramp_host_visible_buffer_create_info.sharingMode =
+      VK_SHARING_MODE_EXCLUSIVE;
+  gamma_ramp_host_visible_buffer_create_info.queueFamilyIndexCount = 0;
+  gamma_ramp_host_visible_buffer_create_info.pQueueFamilyIndices = nullptr;
+  if (dfn.vkCreateBuffer(device, &gamma_ramp_host_visible_buffer_create_info,
+                         nullptr, &gamma_ramp_buffer_) == VK_SUCCESS) {
+    bool use_gamma_ramp_host_visible_buffer = false;
+    VkMemoryRequirements gamma_ramp_host_visible_buffer_memory_requirements;
+    dfn.vkGetBufferMemoryRequirements(
+        device, gamma_ramp_buffer_,
+        &gamma_ramp_host_visible_buffer_memory_requirements);
+    uint32_t gamma_ramp_host_visible_buffer_memory_types =
+        gamma_ramp_host_visible_buffer_memory_requirements.memoryTypeBits &
+        (provider.memory_types_device_local() &
+         provider.memory_types_host_visible());
+    VkMemoryAllocateInfo gamma_ramp_host_visible_buffer_memory_allocate_info;
+    // Prefer a host-uncached (because it's write-only) memory type, but try a
+    // host-cached host-visible device-local one as well.
+    if (xe::bit_scan_forward(
+            gamma_ramp_host_visible_buffer_memory_types &
+                ~provider.memory_types_host_cached(),
+            &(gamma_ramp_host_visible_buffer_memory_allocate_info
+                  .memoryTypeIndex)) ||
+        xe::bit_scan_forward(
+            gamma_ramp_host_visible_buffer_memory_types,
+            &(gamma_ramp_host_visible_buffer_memory_allocate_info
+                  .memoryTypeIndex))) {
+      VkMemoryAllocateInfo*
+          gamma_ramp_host_visible_buffer_memory_allocate_info_last =
+              &gamma_ramp_host_visible_buffer_memory_allocate_info;
+      gamma_ramp_host_visible_buffer_memory_allocate_info.sType =
+          VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+      gamma_ramp_host_visible_buffer_memory_allocate_info.pNext = nullptr;
+      gamma_ramp_host_visible_buffer_memory_allocate_info.allocationSize =
+          gamma_ramp_host_visible_buffer_memory_requirements.size;
+      VkMemoryDedicatedAllocateInfoKHR
+          gamma_ramp_host_visible_buffer_memory_dedicated_allocate_info;
+      if (provider.device_extensions().khr_dedicated_allocation) {
+        gamma_ramp_host_visible_buffer_memory_allocate_info_last->pNext =
+            &gamma_ramp_host_visible_buffer_memory_dedicated_allocate_info;
+        gamma_ramp_host_visible_buffer_memory_allocate_info_last =
+            reinterpret_cast<VkMemoryAllocateInfo*>(
+                &gamma_ramp_host_visible_buffer_memory_dedicated_allocate_info);
+        gamma_ramp_host_visible_buffer_memory_dedicated_allocate_info.sType =
+            VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
+        gamma_ramp_host_visible_buffer_memory_dedicated_allocate_info.pNext =
+            nullptr;
+        gamma_ramp_host_visible_buffer_memory_dedicated_allocate_info.image =
+            VK_NULL_HANDLE;
+        gamma_ramp_host_visible_buffer_memory_dedicated_allocate_info.buffer =
+            gamma_ramp_buffer_;
+      }
+      if (dfn.vkAllocateMemory(
+              device, &gamma_ramp_host_visible_buffer_memory_allocate_info,
+              nullptr, &gamma_ramp_buffer_memory_) == VK_SUCCESS) {
+        if (dfn.vkBindBufferMemory(device, gamma_ramp_buffer_,
+                                   gamma_ramp_buffer_memory_,
+                                   0) == VK_SUCCESS) {
+          if (dfn.vkMapMemory(device, gamma_ramp_buffer_memory_, 0,
+                              VK_WHOLE_SIZE, 0,
+                              &gamma_ramp_upload_mapping_) == VK_SUCCESS) {
+            use_gamma_ramp_host_visible_buffer = true;
+            gamma_ramp_upload_memory_size_ =
+                gamma_ramp_host_visible_buffer_memory_allocate_info
+                    .allocationSize;
+            gamma_ramp_upload_memory_type_ =
+                gamma_ramp_host_visible_buffer_memory_allocate_info
+                    .memoryTypeIndex;
+          }
+        }
+        if (!use_gamma_ramp_host_visible_buffer) {
+          dfn.vkFreeMemory(device, gamma_ramp_buffer_memory_, nullptr);
+          gamma_ramp_buffer_memory_ = VK_NULL_HANDLE;
+        }
+      }
+    }
+    if (!use_gamma_ramp_host_visible_buffer) {
+      dfn.vkDestroyBuffer(device, gamma_ramp_buffer_, nullptr);
+      gamma_ramp_buffer_ = VK_NULL_HANDLE;
+    }
   }
-  VkRenderPassCreateInfo swap_render_pass_create_info;
-  swap_render_pass_create_info.sType =
-      VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-  swap_render_pass_create_info.pNext = nullptr;
-  swap_render_pass_create_info.flags = 0;
-  swap_render_pass_create_info.attachmentCount = 1;
-  swap_render_pass_create_info.pAttachments = &swap_render_pass_attachment;
-  swap_render_pass_create_info.subpassCount = 1;
-  swap_render_pass_create_info.pSubpasses = &swap_render_pass_subpass;
-  swap_render_pass_create_info.dependencyCount =
-      uint32_t(xe::countof(swap_render_pass_dependencies));
-  swap_render_pass_create_info.pDependencies = swap_render_pass_dependencies;
-  if (dfn.vkCreateRenderPass(device, &swap_render_pass_create_info, nullptr,
-                             &swap_render_pass_) != VK_SUCCESS) {
-    XELOGE("Failed to create the Vulkan render pass for presentation");
-    return false;
+  if (gamma_ramp_buffer_ == VK_NULL_HANDLE) {
+    // Create separate buffers for the shader and uploading.
+    if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
+            provider, kGammaRampSize,
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT,
+            ui::vulkan::util::MemoryPurpose::kDeviceLocal, gamma_ramp_buffer_,
+            gamma_ramp_buffer_memory_)) {
+      XELOGE("Failed to create the gamma ramp buffer");
+      return false;
+    }
+    if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
+            provider, kGammaRampSize * kMaxFramesInFlight,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            ui::vulkan::util::MemoryPurpose::kUpload, gamma_ramp_upload_buffer_,
+            gamma_ramp_upload_buffer_memory_, &gamma_ramp_upload_memory_type_,
+            &gamma_ramp_upload_memory_size_)) {
+      XELOGE("Failed to create the gamma ramp upload buffer");
+      return false;
+    }
+    if (dfn.vkMapMemory(device, gamma_ramp_upload_buffer_memory_, 0,
+                        VK_WHOLE_SIZE, 0,
+                        &gamma_ramp_upload_mapping_) != VK_SUCCESS) {
+      XELOGE("Failed to map the gamma ramp upload buffer");
+      return false;
+    }
   }
 
-  // Swap pipeline layout.
-  // TODO(Triang3l): Source binding, push constants, FXAA pipeline layout.
-  VkPipelineLayoutCreateInfo swap_pipeline_layout_create_info;
-  swap_pipeline_layout_create_info.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  swap_pipeline_layout_create_info.pNext = nullptr;
-  swap_pipeline_layout_create_info.flags = 0;
-  swap_pipeline_layout_create_info.setLayoutCount = 0;
-  swap_pipeline_layout_create_info.pSetLayouts = nullptr;
-  swap_pipeline_layout_create_info.pushConstantRangeCount = 0;
-  swap_pipeline_layout_create_info.pPushConstantRanges = nullptr;
-  if (dfn.vkCreatePipelineLayout(device, &swap_pipeline_layout_create_info,
-                                 nullptr,
-                                 &swap_pipeline_layout_) != VK_SUCCESS) {
-    XELOGE("Failed to create the Vulkan pipeline layout for presentation");
-    return false;
+  // Gamma ramp buffer views.
+  uint32_t gamma_ramp_frame_count =
+      gamma_ramp_upload_buffer_ == VK_NULL_HANDLE ? kMaxFramesInFlight : 1;
+  VkBufferViewCreateInfo gamma_ramp_buffer_view_create_info;
+  gamma_ramp_buffer_view_create_info.sType =
+      VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO;
+  gamma_ramp_buffer_view_create_info.pNext = nullptr;
+  gamma_ramp_buffer_view_create_info.flags = 0;
+  gamma_ramp_buffer_view_create_info.buffer = gamma_ramp_buffer_;
+  // 256-entry table.
+  gamma_ramp_buffer_view_create_info.format =
+      VK_FORMAT_A2B10G10R10_UNORM_PACK32;
+  gamma_ramp_buffer_view_create_info.range = kGammaRampSize256EntryTable;
+  for (uint32_t i = 0; i < gamma_ramp_frame_count; ++i) {
+    gamma_ramp_buffer_view_create_info.offset = kGammaRampSize * i;
+    if (dfn.vkCreateBufferView(device, &gamma_ramp_buffer_view_create_info,
+                               nullptr, &gamma_ramp_buffer_views_[i * 2]) !=
+        VK_SUCCESS) {
+      XELOGE("Failed to create a 256-entry table gamma ramp buffer view");
+      return false;
+    }
+  }
+  // Piecewise linear.
+  gamma_ramp_buffer_view_create_info.format = VK_FORMAT_R16G16_UINT;
+  gamma_ramp_buffer_view_create_info.range = kGammaRampSizePWL;
+  for (uint32_t i = 0; i < gamma_ramp_frame_count; ++i) {
+    gamma_ramp_buffer_view_create_info.offset =
+        kGammaRampSize * i + kGammaRampSize256EntryTable;
+    if (dfn.vkCreateBufferView(device, &gamma_ramp_buffer_view_create_info,
+                               nullptr, &gamma_ramp_buffer_views_[i * 2 + 1]) !=
+        VK_SUCCESS) {
+      XELOGE("Failed to create a PWL gamma ramp buffer view");
+      return false;
+    }
   }
 
-  // Swap pipeline.
-
-  VkPipelineShaderStageCreateInfo swap_pipeline_stages[2];
-  swap_pipeline_stages[0].sType =
-      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  swap_pipeline_stages[0].pNext = nullptr;
-  swap_pipeline_stages[0].flags = 0;
-  swap_pipeline_stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-  swap_pipeline_stages[0].module = ui::vulkan::util::CreateShaderModule(
-      provider, shaders::fullscreen_tc_vs, sizeof(shaders::fullscreen_tc_vs));
-  if (swap_pipeline_stages[0].module == VK_NULL_HANDLE) {
-    XELOGE("Failed to create the Vulkan vertex shader module for presentation");
-    return false;
-  }
-  swap_pipeline_stages[0].pName = "main";
-  swap_pipeline_stages[0].pSpecializationInfo = nullptr;
-  swap_pipeline_stages[1].sType =
-      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  swap_pipeline_stages[1].pNext = nullptr;
-  swap_pipeline_stages[1].flags = 0;
-  swap_pipeline_stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  swap_pipeline_stages[1].module = ui::vulkan::util::CreateShaderModule(
-      provider, shaders::uv_ps, sizeof(shaders::uv_ps));
-  if (swap_pipeline_stages[1].module == VK_NULL_HANDLE) {
+  // Swap descriptor set layouts.
+  VkDescriptorSetLayoutBinding swap_descriptor_set_layout_binding;
+  swap_descriptor_set_layout_binding.binding = 0;
+  swap_descriptor_set_layout_binding.descriptorCount = 1;
+  swap_descriptor_set_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  swap_descriptor_set_layout_binding.pImmutableSamplers = nullptr;
+  VkDescriptorSetLayoutCreateInfo swap_descriptor_set_layout_create_info;
+  swap_descriptor_set_layout_create_info.sType =
+      VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  swap_descriptor_set_layout_create_info.pNext = nullptr;
+  swap_descriptor_set_layout_create_info.flags = 0;
+  swap_descriptor_set_layout_create_info.bindingCount = 1;
+  swap_descriptor_set_layout_create_info.pBindings =
+      &swap_descriptor_set_layout_binding;
+  swap_descriptor_set_layout_binding.descriptorType =
+      VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+  if (dfn.vkCreateDescriptorSetLayout(
+          device, &swap_descriptor_set_layout_create_info, nullptr,
+          &swap_descriptor_set_layout_sampled_image_) != VK_SUCCESS) {
     XELOGE(
-        "Failed to create the Vulkan fragment shader module for presentation");
-    dfn.vkDestroyShaderModule(device, swap_pipeline_stages[0].module, nullptr);
+        "Failed to create the presentation sampled image descriptor set "
+        "layout");
     return false;
   }
-  swap_pipeline_stages[1].pName = "main";
-  swap_pipeline_stages[1].pSpecializationInfo = nullptr;
+  swap_descriptor_set_layout_binding.descriptorType =
+      VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
+  if (dfn.vkCreateDescriptorSetLayout(
+          device, &swap_descriptor_set_layout_create_info, nullptr,
+          &swap_descriptor_set_layout_uniform_texel_buffer_) != VK_SUCCESS) {
+    XELOGE(
+        "Failed to create the presentation uniform texel buffer descriptor set "
+        "layout");
+    return false;
+  }
 
-  VkPipelineVertexInputStateCreateInfo swap_pipeline_vertex_input_state = {};
-  swap_pipeline_vertex_input_state.sType =
+  // Swap descriptor pool.
+  std::array<VkDescriptorPoolSize, 2> swap_descriptor_pool_sizes;
+  VkDescriptorPoolCreateInfo swap_descriptor_pool_create_info;
+  swap_descriptor_pool_create_info.sType =
+      VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+  swap_descriptor_pool_create_info.pNext = nullptr;
+  swap_descriptor_pool_create_info.flags = 0;
+  swap_descriptor_pool_create_info.maxSets = 0;
+  swap_descriptor_pool_create_info.poolSizeCount = 0;
+  swap_descriptor_pool_create_info.pPoolSizes =
+      swap_descriptor_pool_sizes.data();
+  // TODO(Triang3l): FXAA combined image and sampler sources.
+  {
+    VkDescriptorPoolSize& swap_descriptor_pool_size_sampled_image =
+        swap_descriptor_pool_sizes[swap_descriptor_pool_create_info
+                                       .poolSizeCount++];
+    swap_descriptor_pool_size_sampled_image.type =
+        VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    // Source images.
+    swap_descriptor_pool_size_sampled_image.descriptorCount =
+        kMaxFramesInFlight;
+    swap_descriptor_pool_create_info.maxSets += kMaxFramesInFlight;
+  }
+  // 256-entry table and PWL gamma ramps. If the gamma ramp buffer is
+  // host-visible, for multiple frames.
+  uint32_t gamma_ramp_buffer_view_count = 2 * gamma_ramp_frame_count;
+  {
+    VkDescriptorPoolSize& swap_descriptor_pool_size_uniform_texel_buffer =
+        swap_descriptor_pool_sizes[swap_descriptor_pool_create_info
+                                       .poolSizeCount++];
+    swap_descriptor_pool_size_uniform_texel_buffer.type =
+        VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
+    swap_descriptor_pool_size_uniform_texel_buffer.descriptorCount =
+        gamma_ramp_buffer_view_count;
+    swap_descriptor_pool_create_info.maxSets += gamma_ramp_buffer_view_count;
+  }
+  if (dfn.vkCreateDescriptorPool(device, &swap_descriptor_pool_create_info,
+                                 nullptr,
+                                 &swap_descriptor_pool_) != VK_SUCCESS) {
+    XELOGE("Failed to create the presentation descriptor pool");
+    return false;
+  }
+
+  // Swap descriptor set allocation.
+  VkDescriptorSetAllocateInfo swap_descriptor_set_allocate_info;
+  swap_descriptor_set_allocate_info.sType =
+      VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  swap_descriptor_set_allocate_info.pNext = nullptr;
+  swap_descriptor_set_allocate_info.descriptorPool = swap_descriptor_pool_;
+  swap_descriptor_set_allocate_info.descriptorSetCount = 1;
+  swap_descriptor_set_allocate_info.pSetLayouts =
+      &swap_descriptor_set_layout_uniform_texel_buffer_;
+  for (uint32_t i = 0; i < gamma_ramp_buffer_view_count; ++i) {
+    if (dfn.vkAllocateDescriptorSets(device, &swap_descriptor_set_allocate_info,
+                                     &swap_descriptors_gamma_ramp_[i]) !=
+        VK_SUCCESS) {
+      XELOGE("Failed to allocate the gamma ramp descriptor sets");
+      return false;
+    }
+  }
+  swap_descriptor_set_allocate_info.pSetLayouts =
+      &swap_descriptor_set_layout_sampled_image_;
+  for (uint32_t i = 0; i < kMaxFramesInFlight; ++i) {
+    if (dfn.vkAllocateDescriptorSets(device, &swap_descriptor_set_allocate_info,
+                                     &swap_descriptors_source_[i]) !=
+        VK_SUCCESS) {
+      XELOGE(
+          "Failed to allocate the presentation source image descriptor sets");
+      return false;
+    }
+  }
+
+  // Gamma ramp descriptor sets.
+  VkWriteDescriptorSet gamma_ramp_write_descriptor_set;
+  gamma_ramp_write_descriptor_set.sType =
+      VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  gamma_ramp_write_descriptor_set.pNext = nullptr;
+  gamma_ramp_write_descriptor_set.dstBinding = 0;
+  gamma_ramp_write_descriptor_set.dstArrayElement = 0;
+  gamma_ramp_write_descriptor_set.descriptorCount = 1;
+  gamma_ramp_write_descriptor_set.descriptorType =
+      VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
+  gamma_ramp_write_descriptor_set.pImageInfo = nullptr;
+  gamma_ramp_write_descriptor_set.pBufferInfo = nullptr;
+  for (uint32_t i = 0; i < gamma_ramp_buffer_view_count; ++i) {
+    gamma_ramp_write_descriptor_set.dstSet = swap_descriptors_gamma_ramp_[i];
+    gamma_ramp_write_descriptor_set.pTexelBufferView =
+        &gamma_ramp_buffer_views_[i];
+    dfn.vkUpdateDescriptorSets(device, 1, &gamma_ramp_write_descriptor_set, 0,
+                               nullptr);
+  }
+
+  // Gamma ramp application pipeline layout.
+  std::array<VkDescriptorSetLayout, kSwapApplyGammaDescriptorSetCount>
+      swap_apply_gamma_descriptor_set_layouts{};
+  swap_apply_gamma_descriptor_set_layouts[kSwapApplyGammaDescriptorSetRamp] =
+      swap_descriptor_set_layout_uniform_texel_buffer_;
+  swap_apply_gamma_descriptor_set_layouts[kSwapApplyGammaDescriptorSetSource] =
+      swap_descriptor_set_layout_sampled_image_;
+  VkPipelineLayoutCreateInfo swap_apply_gamma_pipeline_layout_create_info;
+  swap_apply_gamma_pipeline_layout_create_info.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  swap_apply_gamma_pipeline_layout_create_info.pNext = nullptr;
+  swap_apply_gamma_pipeline_layout_create_info.flags = 0;
+  swap_apply_gamma_pipeline_layout_create_info.setLayoutCount =
+      uint32_t(swap_apply_gamma_descriptor_set_layouts.size());
+  swap_apply_gamma_pipeline_layout_create_info.pSetLayouts =
+      swap_apply_gamma_descriptor_set_layouts.data();
+  swap_apply_gamma_pipeline_layout_create_info.pushConstantRangeCount = 0;
+  swap_apply_gamma_pipeline_layout_create_info.pPushConstantRanges = nullptr;
+  if (dfn.vkCreatePipelineLayout(
+          device, &swap_apply_gamma_pipeline_layout_create_info, nullptr,
+          &swap_apply_gamma_pipeline_layout_) != VK_SUCCESS) {
+    XELOGE("Failed to create the gamma ramp application pipeline layout");
+    return false;
+  }
+
+  // Gamma application render pass. Doesn't make assumptions about outer usage
+  // (explicit barriers must be used instead) for simplicity of use in different
+  // scenarios with different pipelines.
+  VkAttachmentDescription swap_apply_gamma_render_pass_attachment;
+  swap_apply_gamma_render_pass_attachment.flags = 0;
+  swap_apply_gamma_render_pass_attachment.format =
+      ui::vulkan::VulkanPresenter::kGuestOutputFormat;
+  swap_apply_gamma_render_pass_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+  swap_apply_gamma_render_pass_attachment.loadOp =
+      VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+  swap_apply_gamma_render_pass_attachment.storeOp =
+      VK_ATTACHMENT_STORE_OP_STORE;
+  swap_apply_gamma_render_pass_attachment.stencilLoadOp =
+      VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+  swap_apply_gamma_render_pass_attachment.stencilStoreOp =
+      VK_ATTACHMENT_STORE_OP_DONT_CARE;
+  swap_apply_gamma_render_pass_attachment.initialLayout =
+      VK_IMAGE_LAYOUT_UNDEFINED;
+  swap_apply_gamma_render_pass_attachment.finalLayout =
+      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  VkAttachmentReference swap_apply_gamma_render_pass_color_attachment;
+  swap_apply_gamma_render_pass_color_attachment.attachment = 0;
+  swap_apply_gamma_render_pass_color_attachment.layout =
+      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+  VkSubpassDescription swap_apply_gamma_render_pass_subpass = {};
+  swap_apply_gamma_render_pass_subpass.pipelineBindPoint =
+      VK_PIPELINE_BIND_POINT_GRAPHICS;
+  swap_apply_gamma_render_pass_subpass.colorAttachmentCount = 1;
+  swap_apply_gamma_render_pass_subpass.pColorAttachments =
+      &swap_apply_gamma_render_pass_color_attachment;
+  VkSubpassDependency swap_apply_gamma_render_pass_dependencies[2];
+  for (uint32_t i = 0; i < 2; ++i) {
+    VkSubpassDependency& swap_apply_gamma_render_pass_dependency =
+        swap_apply_gamma_render_pass_dependencies[i];
+    swap_apply_gamma_render_pass_dependency.srcSubpass =
+        i ? 0 : VK_SUBPASS_EXTERNAL;
+    swap_apply_gamma_render_pass_dependency.dstSubpass =
+        i ? VK_SUBPASS_EXTERNAL : 0;
+    swap_apply_gamma_render_pass_dependency.srcStageMask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    swap_apply_gamma_render_pass_dependency.dstStageMask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    swap_apply_gamma_render_pass_dependency.srcAccessMask =
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    swap_apply_gamma_render_pass_dependency.dstAccessMask =
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    swap_apply_gamma_render_pass_dependency.dependencyFlags =
+        VK_DEPENDENCY_BY_REGION_BIT;
+  }
+  VkRenderPassCreateInfo swap_apply_gamma_render_pass_create_info;
+  swap_apply_gamma_render_pass_create_info.sType =
+      VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+  swap_apply_gamma_render_pass_create_info.pNext = nullptr;
+  swap_apply_gamma_render_pass_create_info.flags = 0;
+  swap_apply_gamma_render_pass_create_info.attachmentCount = 1;
+  swap_apply_gamma_render_pass_create_info.pAttachments =
+      &swap_apply_gamma_render_pass_attachment;
+  swap_apply_gamma_render_pass_create_info.subpassCount = 1;
+  swap_apply_gamma_render_pass_create_info.pSubpasses =
+      &swap_apply_gamma_render_pass_subpass;
+  swap_apply_gamma_render_pass_create_info.dependencyCount =
+      uint32_t(xe::countof(swap_apply_gamma_render_pass_dependencies));
+  swap_apply_gamma_render_pass_create_info.pDependencies =
+      swap_apply_gamma_render_pass_dependencies;
+  if (dfn.vkCreateRenderPass(device, &swap_apply_gamma_render_pass_create_info,
+                             nullptr,
+                             &swap_apply_gamma_render_pass_) != VK_SUCCESS) {
+    XELOGE("Failed to create the gamma ramp application render pass");
+    return false;
+  }
+
+  // Gamma ramp application pipeline.
+  // Using a graphics pipeline, not a compute one, because storage image support
+  // is optional for VK_FORMAT_A2B10G10R10_UNORM_PACK32.
+
+  enum SwapApplyGammaPixelShader {
+    kSwapApplyGammaPixelShader256EntryTable,
+    kSwapApplyGammaPixelShaderPWL,
+
+    kSwapApplyGammaPixelShaderCount,
+  };
+  std::array<VkShaderModule, kSwapApplyGammaPixelShaderCount>
+      swap_apply_gamma_pixel_shaders{};
+  bool swap_apply_gamma_pixel_shaders_created =
+      (swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShader256EntryTable] =
+           ui::vulkan::util::CreateShaderModule(
+               provider, shaders::apply_gamma_table_ps,
+               sizeof(shaders::apply_gamma_table_ps))) != VK_NULL_HANDLE &&
+      (swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShaderPWL] =
+           ui::vulkan::util::CreateShaderModule(
+               provider, shaders::apply_gamma_pwl_ps,
+               sizeof(shaders::apply_gamma_pwl_ps))) != VK_NULL_HANDLE;
+  if (!swap_apply_gamma_pixel_shaders_created) {
+    XELOGE("Failed to create the gamma ramp application pixel shader modules");
+    for (VkShaderModule swap_apply_gamma_pixel_shader :
+         swap_apply_gamma_pixel_shaders) {
+      if (swap_apply_gamma_pixel_shader != VK_NULL_HANDLE) {
+        dfn.vkDestroyShaderModule(device, swap_apply_gamma_pixel_shader,
+                                  nullptr);
+      }
+    }
+    return false;
+  }
+
+  VkPipelineShaderStageCreateInfo swap_apply_gamma_pipeline_stages[2];
+  swap_apply_gamma_pipeline_stages[0].sType =
+      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  swap_apply_gamma_pipeline_stages[0].pNext = nullptr;
+  swap_apply_gamma_pipeline_stages[0].flags = 0;
+  swap_apply_gamma_pipeline_stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+  swap_apply_gamma_pipeline_stages[0].module =
+      ui::vulkan::util::CreateShaderModule(provider, shaders::fullscreen_cw_vs,
+                                           sizeof(shaders::fullscreen_cw_vs));
+  if (swap_apply_gamma_pipeline_stages[0].module == VK_NULL_HANDLE) {
+    XELOGE("Failed to create the gamma ramp application vertex shader module");
+    for (VkShaderModule swap_apply_gamma_pixel_shader :
+         swap_apply_gamma_pixel_shaders) {
+      assert_true(swap_apply_gamma_pixel_shader != VK_NULL_HANDLE);
+      dfn.vkDestroyShaderModule(device, swap_apply_gamma_pixel_shader, nullptr);
+    }
+  }
+  swap_apply_gamma_pipeline_stages[0].pName = "main";
+  swap_apply_gamma_pipeline_stages[0].pSpecializationInfo = nullptr;
+  swap_apply_gamma_pipeline_stages[1].sType =
+      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  swap_apply_gamma_pipeline_stages[1].pNext = nullptr;
+  swap_apply_gamma_pipeline_stages[1].flags = 0;
+  swap_apply_gamma_pipeline_stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  // The fragment shader module will be specified later.
+  swap_apply_gamma_pipeline_stages[1].pName = "main";
+  swap_apply_gamma_pipeline_stages[1].pSpecializationInfo = nullptr;
+
+  VkPipelineVertexInputStateCreateInfo
+      swap_apply_gamma_pipeline_vertex_input_state = {};
+  swap_apply_gamma_pipeline_vertex_input_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-  VkPipelineInputAssemblyStateCreateInfo swap_pipeline_input_assembly_state;
-  swap_pipeline_input_assembly_state.sType =
+  VkPipelineInputAssemblyStateCreateInfo
+      swap_apply_gamma_pipeline_input_assembly_state;
+  swap_apply_gamma_pipeline_input_assembly_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  swap_pipeline_input_assembly_state.pNext = nullptr;
-  swap_pipeline_input_assembly_state.flags = 0;
-  swap_pipeline_input_assembly_state.topology =
+  swap_apply_gamma_pipeline_input_assembly_state.pNext = nullptr;
+  swap_apply_gamma_pipeline_input_assembly_state.flags = 0;
+  swap_apply_gamma_pipeline_input_assembly_state.topology =
       VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-  swap_pipeline_input_assembly_state.primitiveRestartEnable = VK_FALSE;
+  swap_apply_gamma_pipeline_input_assembly_state.primitiveRestartEnable =
+      VK_FALSE;
 
-  VkPipelineViewportStateCreateInfo swap_pipeline_viewport_state;
-  swap_pipeline_viewport_state.sType =
+  VkPipelineViewportStateCreateInfo swap_apply_gamma_pipeline_viewport_state;
+  swap_apply_gamma_pipeline_viewport_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-  swap_pipeline_viewport_state.pNext = nullptr;
-  swap_pipeline_viewport_state.flags = 0;
-  swap_pipeline_viewport_state.viewportCount = 1;
-  swap_pipeline_viewport_state.pViewports = nullptr;
-  swap_pipeline_viewport_state.scissorCount = 1;
-  swap_pipeline_viewport_state.pScissors = nullptr;
+  swap_apply_gamma_pipeline_viewport_state.pNext = nullptr;
+  swap_apply_gamma_pipeline_viewport_state.flags = 0;
+  swap_apply_gamma_pipeline_viewport_state.viewportCount = 1;
+  swap_apply_gamma_pipeline_viewport_state.pViewports = nullptr;
+  swap_apply_gamma_pipeline_viewport_state.scissorCount = 1;
+  swap_apply_gamma_pipeline_viewport_state.pScissors = nullptr;
 
-  VkPipelineRasterizationStateCreateInfo swap_pipeline_rasterization_state = {};
-  swap_pipeline_rasterization_state.sType =
+  VkPipelineRasterizationStateCreateInfo
+      swap_apply_gamma_pipeline_rasterization_state = {};
+  swap_apply_gamma_pipeline_rasterization_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-  swap_pipeline_rasterization_state.polygonMode = VK_POLYGON_MODE_FILL;
-  swap_pipeline_rasterization_state.cullMode = VK_CULL_MODE_NONE;
-  swap_pipeline_rasterization_state.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-  swap_pipeline_rasterization_state.lineWidth = 1.0f;
+  swap_apply_gamma_pipeline_rasterization_state.polygonMode =
+      VK_POLYGON_MODE_FILL;
+  swap_apply_gamma_pipeline_rasterization_state.cullMode = VK_CULL_MODE_NONE;
+  swap_apply_gamma_pipeline_rasterization_state.frontFace =
+      VK_FRONT_FACE_CLOCKWISE;
+  swap_apply_gamma_pipeline_rasterization_state.lineWidth = 1.0f;
 
-  VkPipelineMultisampleStateCreateInfo swap_pipeline_multisample_state = {};
-  swap_pipeline_multisample_state.sType =
+  VkPipelineMultisampleStateCreateInfo
+      swap_apply_gamma_pipeline_multisample_state = {};
+  swap_apply_gamma_pipeline_multisample_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-  swap_pipeline_multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+  swap_apply_gamma_pipeline_multisample_state.rasterizationSamples =
+      VK_SAMPLE_COUNT_1_BIT;
 
   VkPipelineColorBlendAttachmentState
-      swap_pipeline_color_blend_attachment_state = {};
-  swap_pipeline_color_blend_attachment_state.colorWriteMask =
+      swap_apply_gamma_pipeline_color_blend_attachment_state = {};
+  swap_apply_gamma_pipeline_color_blend_attachment_state.colorWriteMask =
       VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
       VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  VkPipelineColorBlendStateCreateInfo swap_pipeline_color_blend_state = {};
-  swap_pipeline_color_blend_state.sType =
+  VkPipelineColorBlendStateCreateInfo
+      swap_apply_gamma_pipeline_color_blend_state = {};
+  swap_apply_gamma_pipeline_color_blend_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  swap_pipeline_color_blend_state.attachmentCount = 1;
-  swap_pipeline_color_blend_state.pAttachments =
-      &swap_pipeline_color_blend_attachment_state;
+  swap_apply_gamma_pipeline_color_blend_state.attachmentCount = 1;
+  swap_apply_gamma_pipeline_color_blend_state.pAttachments =
+      &swap_apply_gamma_pipeline_color_blend_attachment_state;
 
-  static const VkDynamicState kSwapPipelineDynamicStates[] = {
+  static const VkDynamicState kSwapApplyGammaPipelineDynamicStates[] = {
       VK_DYNAMIC_STATE_VIEWPORT,
       VK_DYNAMIC_STATE_SCISSOR,
   };
-  VkPipelineDynamicStateCreateInfo swap_pipeline_dynamic_state;
-  swap_pipeline_dynamic_state.sType =
+  VkPipelineDynamicStateCreateInfo swap_apply_gamma_pipeline_dynamic_state;
+  swap_apply_gamma_pipeline_dynamic_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-  swap_pipeline_dynamic_state.pNext = nullptr;
-  swap_pipeline_dynamic_state.flags = 0;
-  swap_pipeline_dynamic_state.dynamicStateCount =
-      uint32_t(xe::countof(kSwapPipelineDynamicStates));
-  swap_pipeline_dynamic_state.pDynamicStates = kSwapPipelineDynamicStates;
+  swap_apply_gamma_pipeline_dynamic_state.pNext = nullptr;
+  swap_apply_gamma_pipeline_dynamic_state.flags = 0;
+  swap_apply_gamma_pipeline_dynamic_state.dynamicStateCount =
+      uint32_t(xe::countof(kSwapApplyGammaPipelineDynamicStates));
+  swap_apply_gamma_pipeline_dynamic_state.pDynamicStates =
+      kSwapApplyGammaPipelineDynamicStates;
 
-  VkGraphicsPipelineCreateInfo swap_pipeline_create_info;
-  swap_pipeline_create_info.sType =
+  VkGraphicsPipelineCreateInfo swap_apply_gamma_pipeline_create_info;
+  swap_apply_gamma_pipeline_create_info.sType =
       VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-  swap_pipeline_create_info.pNext = nullptr;
-  swap_pipeline_create_info.flags = 0;
-  swap_pipeline_create_info.stageCount =
-      uint32_t(xe::countof(swap_pipeline_stages));
-  swap_pipeline_create_info.pStages = swap_pipeline_stages;
-  swap_pipeline_create_info.pVertexInputState =
-      &swap_pipeline_vertex_input_state;
-  swap_pipeline_create_info.pInputAssemblyState =
-      &swap_pipeline_input_assembly_state;
-  swap_pipeline_create_info.pTessellationState = nullptr;
-  swap_pipeline_create_info.pViewportState = &swap_pipeline_viewport_state;
-  swap_pipeline_create_info.pRasterizationState =
-      &swap_pipeline_rasterization_state;
-  swap_pipeline_create_info.pMultisampleState =
-      &swap_pipeline_multisample_state;
-  swap_pipeline_create_info.pDepthStencilState = nullptr;
-  swap_pipeline_create_info.pColorBlendState = &swap_pipeline_color_blend_state;
-  swap_pipeline_create_info.pDynamicState = &swap_pipeline_dynamic_state;
-  swap_pipeline_create_info.layout = swap_pipeline_layout_;
-  swap_pipeline_create_info.renderPass = swap_render_pass_;
-  swap_pipeline_create_info.subpass = 0;
-  swap_pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
-  swap_pipeline_create_info.basePipelineIndex = -1;
-  VkResult swap_pipeline_create_result = dfn.vkCreateGraphicsPipelines(
-      device, VK_NULL_HANDLE, 1, &swap_pipeline_create_info, nullptr,
-      &swap_pipeline_);
-  for (size_t i = 0; i < xe::countof(swap_pipeline_stages); ++i) {
-    dfn.vkDestroyShaderModule(device, swap_pipeline_stages[i].module, nullptr);
+  swap_apply_gamma_pipeline_create_info.pNext = nullptr;
+  swap_apply_gamma_pipeline_create_info.flags = 0;
+  swap_apply_gamma_pipeline_create_info.stageCount =
+      uint32_t(xe::countof(swap_apply_gamma_pipeline_stages));
+  swap_apply_gamma_pipeline_create_info.pStages =
+      swap_apply_gamma_pipeline_stages;
+  swap_apply_gamma_pipeline_create_info.pVertexInputState =
+      &swap_apply_gamma_pipeline_vertex_input_state;
+  swap_apply_gamma_pipeline_create_info.pInputAssemblyState =
+      &swap_apply_gamma_pipeline_input_assembly_state;
+  swap_apply_gamma_pipeline_create_info.pTessellationState = nullptr;
+  swap_apply_gamma_pipeline_create_info.pViewportState =
+      &swap_apply_gamma_pipeline_viewport_state;
+  swap_apply_gamma_pipeline_create_info.pRasterizationState =
+      &swap_apply_gamma_pipeline_rasterization_state;
+  swap_apply_gamma_pipeline_create_info.pMultisampleState =
+      &swap_apply_gamma_pipeline_multisample_state;
+  swap_apply_gamma_pipeline_create_info.pDepthStencilState = nullptr;
+  swap_apply_gamma_pipeline_create_info.pColorBlendState =
+      &swap_apply_gamma_pipeline_color_blend_state;
+  swap_apply_gamma_pipeline_create_info.pDynamicState =
+      &swap_apply_gamma_pipeline_dynamic_state;
+  swap_apply_gamma_pipeline_create_info.layout =
+      swap_apply_gamma_pipeline_layout_;
+  swap_apply_gamma_pipeline_create_info.renderPass =
+      swap_apply_gamma_render_pass_;
+  swap_apply_gamma_pipeline_create_info.subpass = 0;
+  swap_apply_gamma_pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
+  swap_apply_gamma_pipeline_create_info.basePipelineIndex = -1;
+  swap_apply_gamma_pipeline_stages[1].module =
+      swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShader256EntryTable];
+  VkResult swap_apply_gamma_pipeline_256_entry_table_create_result =
+      dfn.vkCreateGraphicsPipelines(
+          device, VK_NULL_HANDLE, 1, &swap_apply_gamma_pipeline_create_info,
+          nullptr, &swap_apply_gamma_256_entry_table_pipeline_);
+  swap_apply_gamma_pipeline_stages[1].module =
+      swap_apply_gamma_pixel_shaders[kSwapApplyGammaPixelShaderPWL];
+  VkResult swap_apply_gamma_pipeline_pwl_create_result =
+      dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1,
+                                    &swap_apply_gamma_pipeline_create_info,
+                                    nullptr, &swap_apply_gamma_pwl_pipeline_);
+  dfn.vkDestroyShaderModule(device, swap_apply_gamma_pipeline_stages[0].module,
+                            nullptr);
+  for (VkShaderModule swap_apply_gamma_pixel_shader :
+       swap_apply_gamma_pixel_shaders) {
+    assert_true(swap_apply_gamma_pixel_shader != VK_NULL_HANDLE);
+    dfn.vkDestroyShaderModule(device, swap_apply_gamma_pixel_shader, nullptr);
   }
-  if (swap_pipeline_create_result != VK_SUCCESS) {
-    XELOGE("Failed to create the Vulkan pipeline for presentation");
+  if (swap_apply_gamma_pipeline_256_entry_table_create_result != VK_SUCCESS ||
+      swap_apply_gamma_pipeline_pwl_create_result != VK_SUCCESS) {
+    XELOGE("Failed to create the gamma ramp application pipelines");
     return false;
   }
 
@@ -616,11 +991,36 @@ void VulkanCommandProcessor::ShutdownContext() {
   }
 
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
-                                         swap_pipeline_);
-  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
-                                         swap_pipeline_layout_);
+                                         swap_apply_gamma_pwl_pipeline_);
+  ui::vulkan::util::DestroyAndNullHandle(
+      dfn.vkDestroyPipeline, device,
+      swap_apply_gamma_256_entry_table_pipeline_);
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyRenderPass, device,
-                                         swap_render_pass_);
+                                         swap_apply_gamma_render_pass_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                         swap_apply_gamma_pipeline_layout_);
+
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, device,
+                                         swap_descriptor_pool_);
+
+  ui::vulkan::util::DestroyAndNullHandle(
+      dfn.vkDestroyDescriptorSetLayout, device,
+      swap_descriptor_set_layout_uniform_texel_buffer_);
+  ui::vulkan::util::DestroyAndNullHandle(
+      dfn.vkDestroyDescriptorSetLayout, device,
+      swap_descriptor_set_layout_sampled_image_);
+  for (VkBufferView& gamma_ramp_buffer_view : gamma_ramp_buffer_views_) {
+    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBufferView, device,
+                                           gamma_ramp_buffer_view);
+  }
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
+                                         gamma_ramp_upload_buffer_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                         gamma_ramp_upload_buffer_memory_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
+                                         gamma_ramp_buffer_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                         gamma_ramp_buffer_memory_);
 
   ui::vulkan::util::DestroyAndNullHandle(
       dfn.vkDestroyDescriptorPool, device,
@@ -782,6 +1182,14 @@ void VulkanCommandProcessor::SparseBindBuffer(
   sparse_bind_wait_stage_mask_ |= wait_stage_mask;
 }
 
+void VulkanCommandProcessor::OnGammaRamp256EntryTableValueWritten() {
+  gamma_ramp_256_entry_table_current_frame_ = UINT32_MAX;
+}
+
+void VulkanCommandProcessor::OnGammaRampPWLValueWritten() {
+  gamma_ramp_pwl_current_frame_ = UINT32_MAX;
+}
+
 void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
                                        uint32_t frontbuffer_width,
                                        uint32_t frontbuffer_height) {
@@ -796,14 +1204,29 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
     return;
   }
 
-  // TODO(Triang3l): Resolution scale.
-  uint32_t resolution_scale = 1;
-  uint32_t scaled_width = frontbuffer_width * resolution_scale;
-  uint32_t scaled_height = frontbuffer_height * resolution_scale;
+  // In case the swap command is the only one in the frame.
+  if (!BeginSubmission(true)) {
+    return;
+  }
+
+  // Obtaining the actual front buffer size to pass to RefreshGuestOutput,
+  // resolution-scaled if it's a resolve destination, or not otherwise.
+  uint32_t frontbuffer_width_scaled, frontbuffer_height_scaled;
+  xenos::TextureFormat frontbuffer_format;
+  VkImageView swap_texture_view = texture_cache_->RequestSwapTexture(
+      frontbuffer_width_scaled, frontbuffer_height_scaled, frontbuffer_format);
+  if (swap_texture_view == VK_NULL_HANDLE) {
+    return;
+  }
+
+  uint32_t draw_resolution_scale_max =
+      std::max(texture_cache_->draw_resolution_scale_x(),
+               texture_cache_->draw_resolution_scale_y());
   presenter->RefreshGuestOutput(
-      scaled_width, scaled_height, 1280 * resolution_scale,
-      720 * resolution_scale,
-      [this, scaled_width, scaled_height](
+      frontbuffer_width_scaled, frontbuffer_height_scaled,
+      1280 * draw_resolution_scale_max, 720 * draw_resolution_scale_max,
+      [this, frontbuffer_width_scaled, frontbuffer_height_scaled,
+       frontbuffer_format, swap_texture_view](
           ui::Presenter::GuestOutputRefreshContext& context) -> bool {
         // In case the swap command is the only one in the frame.
         if (!BeginSubmission(true)) {
@@ -818,6 +1241,105 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
         const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
         const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
         VkDevice device = provider.device();
+
+        uint32_t swap_frame_index =
+            uint32_t(frame_current_ % kMaxFramesInFlight);
+
+        // This is according to D3D::InitializePresentationParameters from a
+        // game executable, which initializes the 256-entry table gamma ramp for
+        // 8_8_8_8 output and the PWL gamma ramp for 2_10_10_10.
+        // TODO(Triang3l): Choose between the table and PWL based on
+        // DC_LUTA_CONTROL, support both for all formats (and also different
+        // increments for PWL).
+        bool use_pwl_gamma_ramp =
+            frontbuffer_format == xenos::TextureFormat::k_2_10_10_10 ||
+            frontbuffer_format ==
+                xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16;
+
+        // TODO(Triang3l): FXAA can result in more than 8 bits of precision.
+        context.SetIs8bpc(!use_pwl_gamma_ramp);
+
+        // Update the gamma ramp if it's out of date.
+        uint32_t& gamma_ramp_frame_index_ref =
+            use_pwl_gamma_ramp ? gamma_ramp_pwl_current_frame_
+                               : gamma_ramp_256_entry_table_current_frame_;
+        if (gamma_ramp_frame_index_ref == UINT32_MAX) {
+          constexpr uint32_t kGammaRampSize256EntryTable =
+              sizeof(uint32_t) * 256;
+          constexpr uint32_t kGammaRampSizePWL = sizeof(uint16_t) * 2 * 3 * 128;
+          constexpr uint32_t kGammaRampSize =
+              kGammaRampSize256EntryTable + kGammaRampSizePWL;
+          uint32_t gamma_ramp_offset_in_frame =
+              use_pwl_gamma_ramp ? kGammaRampSize256EntryTable : 0;
+          uint32_t gamma_ramp_upload_offset =
+              kGammaRampSize * swap_frame_index + gamma_ramp_offset_in_frame;
+          uint32_t gamma_ramp_size = use_pwl_gamma_ramp
+                                         ? kGammaRampSizePWL
+                                         : kGammaRampSize256EntryTable;
+          void* gamma_ramp_frame_upload =
+              reinterpret_cast<uint8_t*>(gamma_ramp_upload_mapping_) +
+              gamma_ramp_upload_offset;
+          if (std::endian::native != std::endian::little &&
+              use_pwl_gamma_ramp) {
+            // R16G16 is first R16, where the shader expects the base, and
+            // second G16, where the delta should be, but gamma_ramp_pwl_rgb()
+            // is an array of 32-bit DC_LUT_PWL_DATA registers - swap 16 bits in
+            // each 32.
+            auto gamma_ramp_pwl_upload =
+                reinterpret_cast<reg::DC_LUT_PWL_DATA*>(
+                    gamma_ramp_frame_upload);
+            const reg::DC_LUT_PWL_DATA* gamma_ramp_pwl = gamma_ramp_pwl_rgb();
+            for (size_t i = 0; i < 128 * 3; ++i) {
+              reg::DC_LUT_PWL_DATA& gamma_ramp_pwl_upload_entry =
+                  gamma_ramp_pwl_upload[i];
+              reg::DC_LUT_PWL_DATA gamma_ramp_pwl_entry = gamma_ramp_pwl[i];
+              gamma_ramp_pwl_upload_entry.base = gamma_ramp_pwl_entry.delta;
+              gamma_ramp_pwl_upload_entry.delta = gamma_ramp_pwl_entry.base;
+            }
+          } else {
+            std::memcpy(
+                gamma_ramp_frame_upload,
+                use_pwl_gamma_ramp
+                    ? static_cast<const void*>(gamma_ramp_pwl_rgb())
+                    : static_cast<const void*>(gamma_ramp_256_entry_table()),
+                gamma_ramp_size);
+          }
+          bool gamma_ramp_has_upload_buffer =
+              gamma_ramp_upload_buffer_memory_ != VK_NULL_HANDLE;
+          ui::vulkan::util::FlushMappedMemoryRange(
+              provider,
+              gamma_ramp_has_upload_buffer ? gamma_ramp_upload_buffer_memory_
+                                           : gamma_ramp_buffer_memory_,
+              gamma_ramp_upload_memory_type_, gamma_ramp_upload_offset,
+              gamma_ramp_upload_memory_size_, gamma_ramp_size);
+          if (gamma_ramp_has_upload_buffer) {
+            // Copy from the host-visible buffer to the device-local one.
+            PushBufferMemoryBarrier(
+                gamma_ramp_buffer_, gamma_ramp_offset_in_frame, gamma_ramp_size,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_SHADER_READ_BIT,
+                VK_ACCESS_TRANSFER_WRITE_BIT, VK_QUEUE_FAMILY_IGNORED,
+                VK_QUEUE_FAMILY_IGNORED, false);
+            SubmitBarriers(true);
+            VkBufferCopy gamma_ramp_buffer_copy;
+            gamma_ramp_buffer_copy.srcOffset = gamma_ramp_upload_offset;
+            gamma_ramp_buffer_copy.dstOffset = gamma_ramp_offset_in_frame;
+            gamma_ramp_buffer_copy.size = gamma_ramp_size;
+            deferred_command_buffer_.CmdVkCopyBuffer(gamma_ramp_upload_buffer_,
+                                                     gamma_ramp_buffer_, 1,
+                                                     &gamma_ramp_buffer_copy);
+            PushBufferMemoryBarrier(
+                gamma_ramp_buffer_, gamma_ramp_offset_in_frame, gamma_ramp_size,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, false);
+          }
+          // The device-local, but not host-visible, gamma ramp buffer doesn't
+          // have per-frame sets of gamma ramps.
+          gamma_ramp_frame_index_ref =
+              gamma_ramp_has_upload_buffer ? 0 : swap_frame_index;
+        }
 
         // Make sure a framebuffer is available for the current guest output
         // image version.
@@ -865,19 +1387,18 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
             }
             new_swap_framebuffer.framebuffer = VK_NULL_HANDLE;
           }
-          VkImageView guest_output_image_view_srgb =
-              vulkan_context.image_view();
+          VkImageView guest_output_image_view = vulkan_context.image_view();
           VkFramebufferCreateInfo swap_framebuffer_create_info;
           swap_framebuffer_create_info.sType =
               VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
           swap_framebuffer_create_info.pNext = nullptr;
           swap_framebuffer_create_info.flags = 0;
-          swap_framebuffer_create_info.renderPass = swap_render_pass_;
+          swap_framebuffer_create_info.renderPass =
+              swap_apply_gamma_render_pass_;
           swap_framebuffer_create_info.attachmentCount = 1;
-          swap_framebuffer_create_info.pAttachments =
-              &guest_output_image_view_srgb;
-          swap_framebuffer_create_info.width = scaled_width;
-          swap_framebuffer_create_info.height = scaled_height;
+          swap_framebuffer_create_info.pAttachments = &guest_output_image_view;
+          swap_framebuffer_create_info.width = frontbuffer_width_scaled;
+          swap_framebuffer_create_info.height = frontbuffer_height_scaled;
           swap_framebuffer_create_info.layers = 1;
           if (dfn.vkCreateFramebuffer(
                   device, &swap_framebuffer_create_info, nullptr,
@@ -890,7 +1411,6 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
           // actually used, not dropped due to some error.
           new_swap_framebuffer.last_submission = 0;
         }
-
 
         if (vulkan_context.image_ever_written_previously()) {
           // Insert a barrier after the last presenter's usage of the guest
@@ -918,12 +1438,14 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
         VkRenderPassBeginInfo render_pass_begin_info;
         render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         render_pass_begin_info.pNext = nullptr;
-        render_pass_begin_info.renderPass = swap_render_pass_;
+        render_pass_begin_info.renderPass = swap_apply_gamma_render_pass_;
         render_pass_begin_info.framebuffer = swap_framebuffer.framebuffer;
         render_pass_begin_info.renderArea.offset.x = 0;
         render_pass_begin_info.renderArea.offset.y = 0;
-        render_pass_begin_info.renderArea.extent.width = scaled_width;
-        render_pass_begin_info.renderArea.extent.height = scaled_height;
+        render_pass_begin_info.renderArea.extent.width =
+            frontbuffer_width_scaled;
+        render_pass_begin_info.renderArea.extent.height =
+            frontbuffer_height_scaled;
         render_pass_begin_info.clearValueCount = 0;
         render_pass_begin_info.pClearValues = nullptr;
         deferred_command_buffer_.CmdVkBeginRenderPass(
@@ -932,19 +1454,58 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
         VkViewport viewport;
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = float(scaled_width);
-        viewport.height = float(scaled_height);
+        viewport.width = float(frontbuffer_width_scaled);
+        viewport.height = float(frontbuffer_height_scaled);
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         SetViewport(viewport);
         VkRect2D scissor;
         scissor.offset.x = 0;
         scissor.offset.y = 0;
-        scissor.extent.width = scaled_width;
-        scissor.extent.height = scaled_height;
+        scissor.extent.width = frontbuffer_width_scaled;
+        scissor.extent.height = frontbuffer_height_scaled;
         SetScissor(scissor);
 
-        BindExternalGraphicsPipeline(swap_pipeline_);
+        BindExternalGraphicsPipeline(
+            use_pwl_gamma_ramp ? swap_apply_gamma_pwl_pipeline_
+                               : swap_apply_gamma_256_entry_table_pipeline_);
+
+        VkDescriptorSet swap_descriptor_source =
+            swap_descriptors_source_[swap_frame_index];
+        VkDescriptorImageInfo swap_descriptor_source_image_info;
+        swap_descriptor_source_image_info.sampler = VK_NULL_HANDLE;
+        swap_descriptor_source_image_info.imageView = swap_texture_view;
+        swap_descriptor_source_image_info.imageLayout =
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkWriteDescriptorSet swap_descriptor_source_write;
+        swap_descriptor_source_write.sType =
+            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        swap_descriptor_source_write.pNext = nullptr;
+        swap_descriptor_source_write.dstSet = swap_descriptor_source;
+        swap_descriptor_source_write.dstBinding = 0;
+        swap_descriptor_source_write.dstArrayElement = 0;
+        swap_descriptor_source_write.descriptorCount = 1;
+        swap_descriptor_source_write.descriptorType =
+            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        swap_descriptor_source_write.pImageInfo =
+            &swap_descriptor_source_image_info;
+        swap_descriptor_source_write.pBufferInfo = nullptr;
+        swap_descriptor_source_write.pTexelBufferView = nullptr;
+        dfn.vkUpdateDescriptorSets(device, 1, &swap_descriptor_source_write, 0,
+                                   nullptr);
+
+        std::array<VkDescriptorSet, kSwapApplyGammaDescriptorSetCount>
+            swap_descriptor_sets{};
+        swap_descriptor_sets[kSwapApplyGammaDescriptorSetRamp] =
+            swap_descriptors_gamma_ramp_[2 * gamma_ramp_frame_index_ref +
+                                         uint32_t(use_pwl_gamma_ramp)];
+        swap_descriptor_sets[kSwapApplyGammaDescriptorSetSource] =
+            swap_descriptor_source;
+        // TODO(Triang3l): Red / blue swap without imageViewFormatSwizzle.
+        deferred_command_buffer_.CmdVkBindDescriptorSets(
+            VK_PIPELINE_BIND_POINT_GRAPHICS, swap_apply_gamma_pipeline_layout_,
+            0, uint32_t(swap_descriptor_sets.size()),
+            swap_descriptor_sets.data(), 0, nullptr);
 
         deferred_command_buffer_.CmdVkDraw(3, 1, 0, 0);
 

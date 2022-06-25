@@ -265,6 +265,9 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   void WriteRegister(uint32_t index, uint32_t value) override;
 
+  void OnGammaRamp256EntryTableValueWritten() override;
+  void OnGammaRampPWLValueWritten() override;
+
   void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                  uint32_t frontbuffer_height) override;
 
@@ -396,6 +399,21 @@ class VulkanCommandProcessor : public CommandProcessor {
     uint64_t frame;
     TextureDescriptorSetLayoutKey layout;
     VkDescriptorSet set;
+  };
+
+  enum SwapApplyGammaDescriptorSet : uint32_t {
+    kSwapApplyGammaDescriptorSetRamp,
+    kSwapApplyGammaDescriptorSetSource,
+
+    kSwapApplyGammaDescriptorSetCount,
+  };
+
+  // Framebuffer for the current presenter's guest output image revision, and
+  // its usage tracking.
+  struct SwapFramebuffer {
+    VkFramebuffer framebuffer = VK_NULL_HANDLE;
+    uint64_t version = UINT64_MAX;
+    uint64_t last_submission = 0;
   };
 
   // BeginSubmission and EndSubmission may be called at any time. If there's an
@@ -554,24 +572,55 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkDescriptorPool shared_memory_and_edram_descriptor_pool_ = VK_NULL_HANDLE;
   VkDescriptorSet shared_memory_and_edram_descriptor_set_;
 
+  // Bytes 0x0...0x3FF - 256-entry gamma ramp table with B10G10R10X2 data (read
+  // as R10G10B10X2 with swizzle).
+  // Bytes 0x400...0x9FF - 128-entry PWL R16G16 gamma ramp (R - base, G - delta,
+  // low 6 bits of each are zero, 3 elements per entry).
+  // kMaxFramesInFlight pairs of gamma ramps if in host-visible memory and
+  // uploaded directly, one otherwise.
+  VkDeviceMemory gamma_ramp_buffer_memory_ = VK_NULL_HANDLE;
+  VkBuffer gamma_ramp_buffer_ = VK_NULL_HANDLE;
+  // kMaxFramesInFlight pairs, only when the gamma ramp buffer is not
+  // host-visible.
+  VkDeviceMemory gamma_ramp_upload_buffer_memory_ = VK_NULL_HANDLE;
+  VkBuffer gamma_ramp_upload_buffer_ = VK_NULL_HANDLE;
+  VkDeviceSize gamma_ramp_upload_memory_size_;
+  uint32_t gamma_ramp_upload_memory_type_;
+  // Mapping of either gamma_ramp_buffer_memory_ (if it's host-visible) or
+  // gamma_ramp_upload_buffer_memory_ (otherwise).
+  void* gamma_ramp_upload_mapping_;
+  std::array<VkBufferView, 2 * kMaxFramesInFlight> gamma_ramp_buffer_views_{};
+  // UINT32_MAX if outdated.
+  uint32_t gamma_ramp_256_entry_table_current_frame_ = UINT32_MAX;
+  uint32_t gamma_ramp_pwl_current_frame_ = UINT32_MAX;
+
+  VkDescriptorSetLayout swap_descriptor_set_layout_sampled_image_ =
+      VK_NULL_HANDLE;
+  VkDescriptorSetLayout swap_descriptor_set_layout_uniform_texel_buffer_ =
+      VK_NULL_HANDLE;
+
+  // Descriptor pool for allocating descriptors needed for presentation, such as
+  // the destination images and the gamma ramps.
+  VkDescriptorPool swap_descriptor_pool_ = VK_NULL_HANDLE;
+  // Interleaved 256-entry table and PWL texel buffer descriptors.
+  // kMaxFramesInFlight pairs of gamma ramps if in host-visible memory and
+  // uploaded directly, one otherwise.
+  std::array<VkDescriptorSet, 2 * kMaxFramesInFlight>
+      swap_descriptors_gamma_ramp_;
+  // Sampled images.
+  std::array<VkDescriptorSet, kMaxFramesInFlight> swap_descriptors_source_;
+
+  VkPipelineLayout swap_apply_gamma_pipeline_layout_ = VK_NULL_HANDLE;
   // Has no dependencies on specific pipeline stages on both ends to simplify
   // use in different scenarios with different pipelines - use explicit barriers
-  // for synchronization. Drawing to VK_FORMAT_R8G8B8A8_SRGB.
-  VkRenderPass swap_render_pass_ = VK_NULL_HANDLE;
-  VkPipelineLayout swap_pipeline_layout_ = VK_NULL_HANDLE;
-  VkPipeline swap_pipeline_ = VK_NULL_HANDLE;
+  // for synchronization.
+  VkRenderPass swap_apply_gamma_render_pass_ = VK_NULL_HANDLE;
+  VkPipeline swap_apply_gamma_256_entry_table_pipeline_ = VK_NULL_HANDLE;
+  VkPipeline swap_apply_gamma_pwl_pipeline_ = VK_NULL_HANDLE;
 
-  // Framebuffer for the current presenter's guest output image revision, and
-  // its usage tracking.
-  struct SwapFramebuffer {
-    VkFramebuffer framebuffer = VK_NULL_HANDLE;
-    uint64_t version = UINT64_MAX;
-    uint64_t last_submission = 0;
-  };
   std::array<SwapFramebuffer,
              ui::vulkan::VulkanPresenter::kMaxActiveGuestOutputImageVersions>
       swap_framebuffers_;
-  std::deque<std::pair<uint64_t, VkFramebuffer>> swap_framebuffers_outdated_;
 
   // Pending pipeline barriers.
   std::vector<VkBufferMemoryBarrier> pending_barriers_buffer_memory_barriers_;
