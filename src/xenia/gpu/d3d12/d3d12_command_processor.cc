@@ -3474,7 +3474,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         edram_32bpp_tile_pitch_dwords_scaled;
   }
 
-  // Color exponent bias and output index mapping or ROV render target writing.
+  // Color exponent bias and ROV render target writing.
   for (uint32_t i = 0; i < 4; ++i) {
     reg::RB_COLOR_INFO color_info = color_infos[i];
     // Exponent bias is in bits 20:25 of RB_COLOR_INFO.
