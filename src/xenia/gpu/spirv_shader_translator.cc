@@ -1270,19 +1270,16 @@ void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
       "xe_out_fragment_data_2",
       "xe_out_fragment_data_3",
   };
-  uint32_t fragment_data_outputs_written =
-      current_shader().writes_color_targets() &
-      ~GetSpirvShaderModification().pixel.color_outputs_disabled;
-  for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
-    if (!(fragment_data_outputs_written & (uint32_t(1) << i))) {
-      continue;
-    }
-    spv::Id output_fragment_data_rt =
-        builder_->createVariable(spv::NoPrecision, spv::StorageClassOutput,
-                                 type_float4_, kFragmentDataNames[i]);
-    output_fragment_data_[i] = output_fragment_data_rt;
+  uint32_t color_targets_remaining = current_shader().writes_color_targets();
+  uint32_t color_target_index;
+  while (xe::bit_scan_forward(color_targets_remaining, &color_target_index)) {
+    color_targets_remaining &= ~(UINT32_C(1) << color_target_index);
+    spv::Id output_fragment_data_rt = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassOutput, type_float4_,
+        kFragmentDataNames[color_target_index]);
+    output_fragment_data_[color_target_index] = output_fragment_data_rt;
     builder_->addDecoration(output_fragment_data_rt, spv::DecorationLocation,
-                            int(i));
+                            int(color_target_index));
     // Make invariant as pixel shaders may be used for various precise
     // computations.
     builder_->addDecoration(output_fragment_data_rt, spv::DecorationInvariant);

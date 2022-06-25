@@ -46,11 +46,6 @@ class SpirvShaderTranslator : public ShaderTranslator {
     struct PixelShaderModification {
       // Dynamically indexable register count from SQ_PROGRAM_CNTL.
       uint32_t dynamic_addressable_register_count : 8;
-      // Color outputs removed from the shader to implement a zero color write
-      // mask when independent blending (and thus independent write masks) is
-      // not supported without switching to a render pass with some attachments
-      // actually excluded.
-      uint32_t color_outputs_disabled : 4;
     } pixel;
     uint64_t value = 0;
 
