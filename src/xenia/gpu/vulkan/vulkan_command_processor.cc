@@ -2210,7 +2210,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                          *pixel_shader, normalized_color_mask)
                    : SpirvShaderTranslator::Modification(0);
 
-  // Translate the shaders.
+  // Set up the render targets - this may perform dispatches and draws.
+  if (!render_target_cache_->Update(is_rasterization_done,
+                                    normalized_depth_control,
+                                    normalized_color_mask, *vertex_shader)) {
+    return false;
+  }
+
+  // Create the pipeline (for this, need the render pass from the render target
+  // cache), translating the shaders - doing this now to obtain the used
+  // textures.
   VulkanShader::VulkanTranslation* vertex_shader_translation =
       static_cast<VulkanShader::VulkanTranslation*>(
           vertex_shader->GetOrCreateTranslation(
@@ -2220,27 +2229,6 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                          pixel_shader->GetOrCreateTranslation(
                              pixel_shader_modification.value))
                    : nullptr;
-
-  // Update the textures before other work in the submission because samplers
-  // depend on this (and in case of sampler overflow in a submission,
-  // submissions must be split) - may perform dispatches.
-  uint32_t used_texture_mask =
-      vertex_shader->GetUsedTextureMaskAfterTranslation() |
-      (pixel_shader != nullptr
-           ? pixel_shader->GetUsedTextureMaskAfterTranslation()
-           : 0);
-  texture_cache_->RequestTextures(used_texture_mask);
-
-  // Set up the render targets - this may perform dispatches and draws.
-  if (!render_target_cache_->Update(is_rasterization_done,
-                                    normalized_depth_control,
-                                    normalized_color_mask, *vertex_shader)) {
-    return false;
-  }
-
-  // Update the graphics pipeline, and if the new graphics pipeline has a
-  // different layout, invalidate incompatible descriptor sets before updating
-  // current_guest_graphics_pipeline_layout_.
   VkPipeline pipeline;
   const VulkanPipelineCache::PipelineLayoutProvider* pipeline_layout_provider;
   if (!pipeline_cache_->ConfigurePipeline(
@@ -2251,6 +2239,20 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           pipeline_layout_provider)) {
     return false;
   }
+
+  // Update the textures before most other work in the submission because
+  // samplers depend on this (and in case of sampler overflow in a submission,
+  // submissions must be split) - may perform dispatches and copying.
+  uint32_t used_texture_mask =
+      vertex_shader->GetUsedTextureMaskAfterTranslation() |
+      (pixel_shader != nullptr
+           ? pixel_shader->GetUsedTextureMaskAfterTranslation()
+           : 0);
+  texture_cache_->RequestTextures(used_texture_mask);
+
+  // Update the graphics pipeline, and if the new graphics pipeline has a
+  // different layout, invalidate incompatible descriptor sets before updating
+  // current_guest_graphics_pipeline_layout_.
   if (current_guest_graphics_pipeline_ != pipeline) {
     deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS,
                                                pipeline);
