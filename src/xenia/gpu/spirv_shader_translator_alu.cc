@@ -653,7 +653,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       // tc = -y
       ma_x_result[0] = operand_neg[1];
       // ma/2 = x
-      ma_x_result[2] = operand[2];
+      ma_x_result[2] = operand[0];
       if (used_result_components & 0b1010) {
         spv::Id x_is_neg = builder_->createBinOp(
             spv::OpFOrdLessThan, type_bool_, operand[0], const_float_0_);
