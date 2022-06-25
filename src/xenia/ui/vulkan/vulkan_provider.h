@@ -139,6 +139,8 @@ class VulkanProvider : public GraphicsProvider {
     bool khr_image_format_list;
     // Requires the VK_KHR_get_physical_device_properties2 instance extension.
     bool khr_portability_subset;
+    // Core since 1.1.0.
+    bool khr_sampler_ycbcr_conversion;
     // Core since 1.2.0.
     bool khr_shader_float_controls;
     // Core since 1.2.0.

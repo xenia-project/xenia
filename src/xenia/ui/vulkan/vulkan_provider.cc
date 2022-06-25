@@ -701,6 +701,7 @@ bool VulkanProvider::Initialize() {
     std::memset(&device_extensions_, 0, sizeof(device_extensions_));
     if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
       device_extensions_.khr_dedicated_allocation = true;
+      device_extensions_.khr_sampler_ycbcr_conversion = true;
       if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 2, 0)) {
         device_extensions_.khr_image_format_list = true;
         device_extensions_.khr_shader_float_controls = true;
@@ -723,6 +724,13 @@ bool VulkanProvider::Initialize() {
          offsetof(DeviceExtensions, khr_image_format_list)},
         {"VK_KHR_portability_subset",
          offsetof(DeviceExtensions, khr_portability_subset)},
+        // While vkGetPhysicalDeviceFormatProperties should be used to check the
+        // format support (device support for Y'CbCr formats is not required by
+        // this extension or by Vulkan 1.1), still adding
+        // VK_KHR_sampler_ycbcr_conversion to this list to enable this extension
+        // on the device on Vulkan 1.0.
+        {"VK_KHR_sampler_ycbcr_conversion",
+         offsetof(DeviceExtensions, khr_sampler_ycbcr_conversion)},
         {"VK_KHR_shader_float_controls",
          offsetof(DeviceExtensions, khr_shader_float_controls)},
         {"VK_KHR_spirv_1_4", offsetof(DeviceExtensions, khr_spirv_1_4)},
@@ -982,6 +990,8 @@ bool VulkanProvider::Initialize() {
     XELOGVK("  * Triangle fans: {}",
             device_portability_subset_features_.triangleFans ? "yes" : "no");
   }
+  XELOGVK("* VK_KHR_sampler_ycbcr_conversion: {}",
+          device_extensions_.khr_sampler_ycbcr_conversion ? "yes" : "no");
   XELOGVK("* VK_KHR_shader_float_controls: {}",
           device_extensions_.khr_shader_float_controls ? "yes" : "no");
   if (device_extensions_.khr_shader_float_controls) {
