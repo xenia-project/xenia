@@ -784,11 +784,10 @@ bool VulkanRenderTargetCache::Resolve(const Memory& memory,
   bool draw_resolution_scaled = IsDrawResolutionScaled();
 
   draw_util::ResolveInfo resolve_info;
-  // TODO(Triang3l): Truncation of fixed16 (but not fixed16 as float16) range to
-  // -1 to 1.
   if (!draw_util::GetResolveInfo(
           register_file(), memory, trace_writer_, draw_resolution_scale_x(),
-          draw_resolution_scale_y(), false, false, resolve_info)) {
+          draw_resolution_scale_y(), IsFixedRG16TruncatedToMinus1To1(),
+          IsFixedRGBA16TruncatedToMinus1To1(), resolve_info)) {
     return false;
   }
 

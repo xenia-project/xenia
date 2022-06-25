@@ -128,6 +128,20 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     return last_update_framebuffer_;
   }
 
+  // Using R16G16[B16A16]_SNORM, which are -1...1, not the needed -32...32.
+  // Persistent data doesn't depend on this, so can be overriden by per-game
+  // configuration.
+  bool IsFixedRG16TruncatedToMinus1To1() const {
+    // TODO(Triang3l): Not float16 condition.
+    return GetPath() == Path::kHostRenderTargets &&
+           !cvars::snorm16_render_target_full_range;
+  }
+  bool IsFixedRGBA16TruncatedToMinus1To1() const {
+    // TODO(Triang3l): Not float16 condition.
+    return GetPath() == Path::kHostRenderTargets &&
+           !cvars::snorm16_render_target_full_range;
+  }
+
   bool depth_float24_round() const { return depth_float24_round_; }
 
   bool msaa_2x_attachments_supported() const {

@@ -228,6 +228,8 @@ void SpirvShaderTranslator::StartTranslation() {
        offsetof(SystemConstants, texture_swizzled_signs), type_uint4_array_2},
       {"texture_swizzles", offsetof(SystemConstants, texture_swizzles),
        type_uint4_array_4},
+      {"color_exp_bias", offsetof(SystemConstants, color_exp_bias),
+       type_float4_},
   };
   id_vector_temp_.clear();
   id_vector_temp_.reserve(xe::countof(system_constants));
@@ -402,6 +404,14 @@ void SpirvShaderTranslator::StartTranslation() {
   function_main_ = builder_->makeFunctionEntry(
       spv::NoPrecision, type_void_, "main", main_param_types, main_precisions,
       &function_main_entry);
+
+  // Load the flags system constant since it may be used in many places.
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantFlags));
+  main_system_constant_flags_ = builder_->createLoad(
+      builder_->createAccessChain(spv::StorageClassUniform,
+                                  uniform_system_constants_, id_vector_temp_),
+      spv::NoPrecision);
 
   // Begin ucode translation. Initialize everything, even without defined
   // defaults, for safety.
@@ -580,6 +590,8 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
 
   if (is_vertex_shader()) {
     CompleteVertexOrTessEvalShaderInMain();
+  } else if (is_pixel_shader()) {
+    CompleteFragmentShaderInMain();
   }
 
   // End the main function.
@@ -1116,13 +1128,6 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
 
 void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
   id_vector_temp_.clear();
-  id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantFlags));
-  spv::Id system_constant_flags = builder_->createLoad(
-      builder_->createAccessChain(spv::StorageClassUniform,
-                                  uniform_system_constants_, id_vector_temp_),
-      spv::NoPrecision);
-
-  id_vector_temp_.clear();
   id_vector_temp_.push_back(
       builder_->makeIntConstant(kOutputPerVertexMemberPosition));
   spv::Id position_ptr = builder_->createAccessChain(
@@ -1136,7 +1141,7 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
   spv::Id is_w_not_reciprocal = builder_->createBinOp(
       spv::OpINotEqual, type_bool_,
       builder_->createBinOp(
-          spv::OpBitwiseAnd, type_uint_, system_constant_flags,
+          spv::OpBitwiseAnd, type_uint_, main_system_constant_flags_,
           builder_->makeUintConstant(
               static_cast<unsigned int>(kSysFlag_WNotReciprocal))),
       const_uint_0_);
@@ -1160,7 +1165,7 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
   spv::Id is_xy_divided_by_w = builder_->createBinOp(
       spv::OpINotEqual, type_bool_,
       builder_->createBinOp(
-          spv::OpBitwiseAnd, type_uint_, system_constant_flags,
+          spv::OpBitwiseAnd, type_uint_, main_system_constant_flags_,
           builder_->makeUintConstant(
               static_cast<unsigned int>(kSysFlag_XYDividedByW))),
       const_uint_0_);
@@ -1180,7 +1185,7 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
   spv::Id is_z_divided_by_w = builder_->createBinOp(
       spv::OpINotEqual, type_bool_,
       builder_->createBinOp(
-          spv::OpBitwiseAnd, type_uint_, system_constant_flags,
+          spv::OpBitwiseAnd, type_uint_, main_system_constant_flags_,
           builder_->makeUintConstant(
               static_cast<unsigned int>(kSysFlag_ZDividedByW))),
       const_uint_0_);
