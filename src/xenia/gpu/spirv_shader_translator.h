@@ -61,12 +61,20 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSysFlag_XYDividedByW_Shift,
     kSysFlag_ZDividedByW_Shift,
     kSysFlag_WNotReciprocal_Shift,
+    kSysFlag_ConvertColor0ToGamma_Shift,
+    kSysFlag_ConvertColor1ToGamma_Shift,
+    kSysFlag_ConvertColor2ToGamma_Shift,
+    kSysFlag_ConvertColor3ToGamma_Shift,
 
     kSysFlag_Count,
 
     kSysFlag_XYDividedByW = 1u << kSysFlag_XYDividedByW_Shift,
     kSysFlag_ZDividedByW = 1u << kSysFlag_ZDividedByW_Shift,
     kSysFlag_WNotReciprocal = 1u << kSysFlag_WNotReciprocal_Shift,
+    kSysFlag_ConvertColor0ToGamma = 1u << kSysFlag_ConvertColor0ToGamma_Shift,
+    kSysFlag_ConvertColor1ToGamma = 1u << kSysFlag_ConvertColor1ToGamma_Shift,
+    kSysFlag_ConvertColor2ToGamma = 1u << kSysFlag_ConvertColor2ToGamma_Shift,
+    kSysFlag_ConvertColor3ToGamma = 1u << kSysFlag_ConvertColor3ToGamma_Shift,
   };
   static_assert(kSysFlag_Count <= 32, "Too many flags in the system constants");
 
@@ -94,6 +102,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
     // apply to the result directly in the shader code. In each uint32_t,
     // swizzles for 2 texture fetch constants (in bits 0:11 and 12:23).
     uint32_t texture_swizzles[16];
+
+    float color_exp_bias[4];
   };
 
   // The minimum limit for maxPerStageDescriptorStorageBuffers is 4, and for
@@ -308,6 +318,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   void StartFragmentShaderBeforeMain();
   void StartFragmentShaderInMain();
+  void CompleteFragmentShaderInMain();
 
   // Updates the current flow control condition (to be called in the beginning
   // of exec and in jumps), closing the previous conditionals if needed.
@@ -509,6 +520,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSystemConstantNdcOffset,
     kSystemConstantTextureSwizzledSigns,
     kSystemConstantTextureSwizzles,
+    kSystemConstantColorExpBias,
   };
   spv::Id uniform_system_constants_;
   spv::Id uniform_float_constants_;
@@ -545,6 +557,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   std::vector<spv::Id> main_interface_;
   spv::Function* function_main_;
+  spv::Id main_system_constant_flags_;
   // bool.
   spv::Id var_main_predicate_;
   // uint4.

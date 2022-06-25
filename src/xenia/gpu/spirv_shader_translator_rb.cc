@@ -11,9 +11,11 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 #include "third_party/glslang/SPIRV/GLSL.std.450.h"
 #include "xenia/base/assert.h"
+#include "xenia/base/math.h"
 
 namespace xe {
 namespace gpu {
@@ -421,6 +423,102 @@ spv::Id SpirvShaderTranslator::Depth20e4To32(spv::Builder& builder,
   }
 
   return f32;
+}
+
+void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantFlags));
+  spv::Id system_constant_flags = builder_->createLoad(
+      builder_->createAccessChain(spv::StorageClassUniform,
+                                  uniform_system_constants_, id_vector_temp_),
+      spv::NoPrecision);
+
+  uint32_t color_targets_remaining = current_shader().writes_color_targets();
+  uint32_t color_target_index;
+  while (xe::bit_scan_forward(color_targets_remaining, &color_target_index)) {
+    color_targets_remaining &= ~(UINT32_C(1) << color_target_index);
+    spv::Id color_variable = output_fragment_data_[color_target_index];
+    spv::Id color = builder_->createLoad(color_variable, spv::NoPrecision);
+
+    // Apply the exponent bias after the alpha test and alpha to coverage
+    // because they need the unbiased alpha from the shader.
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(2);
+    id_vector_temp_.push_back(
+        builder_->makeIntConstant(kSystemConstantColorExpBias));
+    id_vector_temp_.push_back(
+        builder_->makeIntConstant(int32_t(color_target_index)));
+    color = builder_->createBinOp(
+        spv::OpVectorTimesScalar, type_float4_, color,
+        builder_->createLoad(builder_->createAccessChain(
+                                 spv::StorageClassUniform,
+                                 uniform_system_constants_, id_vector_temp_),
+                             spv::NoPrecision));
+    builder_->addDecoration(color, spv::DecorationNoContraction);
+
+    // Convert to gamma space - this is incorrect, since it must be done after
+    // blending on the Xbox 360, but this is just one of many blending issues in
+    // the host render target path.
+    // TODO(Triang3l): Gamma as sRGB check.
+    spv::Id color_rgb;
+    {
+      std::unique_ptr<spv::Instruction> color_rgb_shuffle_op =
+          std::make_unique<spv::Instruction>(
+              builder_->getUniqueId(), type_float3_, spv::OpVectorShuffle);
+      color_rgb_shuffle_op->addIdOperand(color);
+      color_rgb_shuffle_op->addIdOperand(color);
+      color_rgb_shuffle_op->addImmediateOperand(0);
+      color_rgb_shuffle_op->addImmediateOperand(1);
+      color_rgb_shuffle_op->addImmediateOperand(2);
+      color_rgb = color_rgb_shuffle_op->getResultId();
+      builder_->getBuildPoint()->addInstruction(
+          std::move(color_rgb_shuffle_op));
+    }
+    spv::Id is_gamma = builder_->createBinOp(
+        spv::OpINotEqual, type_bool_,
+        builder_->createBinOp(
+            spv::OpBitwiseAnd, type_uint_, main_system_constant_flags_,
+            builder_->makeUintConstant(kSysFlag_ConvertColor0ToGamma
+                                       << color_target_index)),
+        const_uint_0_);
+    spv::Block& block_gamma_head = *builder_->getBuildPoint();
+    spv::Block& block_gamma = builder_->makeNewBlock();
+    spv::Block& block_gamma_merge = builder_->makeNewBlock();
+    SpirvCreateSelectionMerge(block_gamma_merge.getId());
+    builder_->createConditionalBranch(is_gamma, &block_gamma,
+                                      &block_gamma_merge);
+    builder_->setBuildPoint(&block_gamma);
+    spv::Id color_rgb_gamma = LinearToPWLGamma(color_rgb, false);
+    builder_->createBranch(&block_gamma_merge);
+    builder_->setBuildPoint(&block_gamma_merge);
+    {
+      std::unique_ptr<spv::Instruction> gamma_phi_op =
+          std::make_unique<spv::Instruction>(builder_->getUniqueId(),
+                                             type_float3_, spv::OpPhi);
+      gamma_phi_op->addIdOperand(color_rgb_gamma);
+      gamma_phi_op->addIdOperand(block_gamma.getId());
+      gamma_phi_op->addIdOperand(color_rgb);
+      gamma_phi_op->addIdOperand(block_gamma_head.getId());
+      color_rgb = gamma_phi_op->getResultId();
+      builder_->getBuildPoint()->addInstruction(std::move(gamma_phi_op));
+    }
+    {
+      std::unique_ptr<spv::Instruction> color_rgba_shuffle_op =
+          std::make_unique<spv::Instruction>(
+              builder_->getUniqueId(), type_float4_, spv::OpVectorShuffle);
+      color_rgba_shuffle_op->addIdOperand(color_rgb);
+      color_rgba_shuffle_op->addIdOperand(color);
+      color_rgba_shuffle_op->addImmediateOperand(0);
+      color_rgba_shuffle_op->addImmediateOperand(1);
+      color_rgba_shuffle_op->addImmediateOperand(2);
+      color_rgba_shuffle_op->addImmediateOperand(3 + 3);
+      color = color_rgba_shuffle_op->getResultId();
+      builder_->getBuildPoint()->addInstruction(
+          std::move(color_rgba_shuffle_op));
+    }
+
+    builder_->createStore(color, color_variable);
+  }
 }
 
 }  // namespace gpu

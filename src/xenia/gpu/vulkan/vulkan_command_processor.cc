@@ -3267,6 +3267,13 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
   int32_t vgt_indx_offset = int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
 
+  // Get the color info register values for each render target.
+  reg::RB_COLOR_INFO color_infos[xenos::kMaxColorRenderTargets];
+  for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+    color_infos[i] = regs.Get<reg::RB_COLOR_INFO>(
+        reg::RB_COLOR_INFO::rt_register_indices[i]);
+  }
+
   bool dirty = false;
 
   // Flags.
@@ -3287,6 +3294,14 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   }
   if (pa_cl_vte_cntl.vtx_w0_fmt) {
     flags |= SpirvShaderTranslator::kSysFlag_WNotReciprocal;
+  }
+  // Gamma writing.
+  // TODO(Triang3l): Gamma as sRGB check.
+  for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+    if (color_infos[i].color_format ==
+        xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
+      flags |= SpirvShaderTranslator::kSysFlag_ConvertColor0ToGamma << i;
+    }
   }
   dirty |= system_constants_.flags != flags;
   system_constants_.flags = flags;
@@ -3354,6 +3369,29 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
       texture_swizzles_uint = (texture_swizzles_uint & ~texture_swizzle_mask) |
                               texture_swizzle_shifted;
     }
+  }
+
+  // Color exponent bias.
+  for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+    reg::RB_COLOR_INFO color_info = color_infos[i];
+    // Exponent bias is in bits 20:25 of RB_COLOR_INFO.
+    int32_t color_exp_bias = color_info.color_exp_bias;
+    if (render_target_cache_->GetPath() ==
+            RenderTargetCache::Path::kHostRenderTargets &&
+        (color_info.color_format == xenos::ColorRenderTargetFormat::k_16_16 &&
+             !render_target_cache_->IsFixedRG16TruncatedToMinus1To1() ||
+         color_info.color_format ==
+                 xenos::ColorRenderTargetFormat::k_16_16_16_16 &&
+             !render_target_cache_->IsFixedRGBA16TruncatedToMinus1To1())) {
+      // Remap from -32...32 to -1...1 by dividing the output values by 32,
+      // losing blending correctness, but getting the full range.
+      color_exp_bias -= 5;
+    }
+    float color_exp_bias_scale;
+    *reinterpret_cast<int32_t*>(&color_exp_bias_scale) =
+        UINT32_C(0x3F800000) + (color_exp_bias << 23);
+    dirty |= system_constants_.color_exp_bias[i] != color_exp_bias_scale;
+    system_constants_.color_exp_bias[i] = color_exp_bias_scale;
   }
 
   if (dirty) {
