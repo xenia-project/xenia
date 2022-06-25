@@ -60,6 +60,13 @@ class VulkanTextureCache final : public TextureCache {
                                               xenos::FetchOpDimension dimension,
                                               bool is_signed) const;
 
+  // Returns the 2D view of the front buffer texture (for fragment shader
+  // reading - the barrier will be pushed in the command processor if needed),
+  // or VK_NULL_HANDLE in case of failure. May call LoadTextureData.
+  VkImageView RequestSwapTexture(uint32_t& width_scaled_out,
+                                 uint32_t& height_scaled_out,
+                                 xenos::TextureFormat& format_out);
+
  protected:
   bool IsSignedVersionSeparateForFormat(TextureKey key) const override;
   uint32_t GetHostFormatSwizzle(TextureKey key) const override;
@@ -136,7 +143,8 @@ class VulkanTextureCache final : public TextureCache {
       return old_usage;
     }
 
-    VkImageView GetView(bool is_signed, uint32_t host_swizzle);
+    VkImageView GetView(bool is_signed, uint32_t host_swizzle,
+                        bool is_array = true);
 
    private:
     union ViewKey {
@@ -144,6 +152,7 @@ class VulkanTextureCache final : public TextureCache {
       struct {
         uint32_t is_signed_separate_view : 1;
         uint32_t host_swizzle : 12;
+        uint32_t is_array : 1;
       };
 
       ViewKey() : key(0) { static_assert_size(*this, sizeof(key)); }
