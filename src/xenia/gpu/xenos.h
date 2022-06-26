@@ -714,6 +714,16 @@ enum class ArbitraryFilter : uint32_t {
   kUseFetchConst = 7,
 };
 
+// While instructions contain 6-bit register index fields (allowing literal
+// indices, or literal index offsets, depending on the addressing mode, of up to
+// 63), the maximum total register count for a vertex and a pixel shader
+// combined is 128, and the boundary between vertex and pixel shaders can be
+// moved via SQ_PROGRAM_CNTL::VS/PS_NUM_REG, according to the IPR2015-00325
+// specification (section 8 "Register file allocation").
+constexpr uint32_t kMaxShaderTempRegistersLog2 = 7;
+constexpr uint32_t kMaxShaderTempRegisters = UINT32_C(1)
+                                             << kMaxShaderTempRegistersLog2;
+
 // a2xx_sq_ps_vtx_mode
 enum class VertexShaderExportMode : uint32_t {
   kPosition1Vector = 0,
