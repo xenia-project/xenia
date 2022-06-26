@@ -112,7 +112,8 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
     xenos::IndexFormat index_format = vgt_draw_initiator.index_size;
     uint32_t index_buffer_base = regs[XE_GPU_REG_VGT_DMA_BASE].u32;
     uint32_t index_buffer_read_count =
-        std::min(vgt_draw_initiator.num_indices, vgt_dma_size.num_words);
+        std::min(uint32_t(vgt_draw_initiator.num_indices),
+                 uint32_t(vgt_dma_size.num_words));
     if (vgt_draw_initiator.index_size == xenos::IndexFormat::kInt16) {
       // Handle the index endianness to same way as the PrimitiveProcessor.
       if (index_endian == xenos::Endian::k8in32) {
@@ -281,7 +282,8 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
     scissor_bottom += window_y_offset;
   }
   auto pa_sc_screen_scissor_br = regs.Get<reg::PA_SC_SCREEN_SCISSOR_BR>();
-  scissor_bottom = std::min(scissor_bottom, pa_sc_screen_scissor_br.br_y);
+  scissor_bottom =
+      std::min(scissor_bottom, int32_t(pa_sc_screen_scissor_br.br_y));
   uint32_t max_y = uint32_t(std::max(scissor_bottom, int32_t(0)));
 
   if (regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable) {
@@ -302,7 +304,8 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
           if (scissor_window_offset) {
             scissor_right += pa_sc_window_offset.window_x_offset;
           }
-          scissor_right = std::min(scissor_right, pa_sc_screen_scissor_br.br_x);
+          scissor_right =
+              std::min(scissor_right, int32_t(pa_sc_screen_scissor_br.br_x));
           if (scissor_right >= xenos::kTexture2DCubeMaxWidthHeight) {
             estimate_vertex_max_y = true;
           }
