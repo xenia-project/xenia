@@ -449,7 +449,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   void UpdateDynamicState(const draw_util::ViewportInfo& viewport_info,
                           bool primitive_polygonal,
                           reg::RB_DEPTHCONTROL normalized_depth_control);
-  void UpdateSystemConstantValues(xenos::Endian index_endian,
+  void UpdateSystemConstantValues(bool primitive_polygonal,
+                                  xenos::Endian index_endian,
                                   const draw_util::ViewportInfo& viewport_info,
                                   uint32_t used_texture_mask);
   bool UpdateBindings(const VulkanShader* vertex_shader,

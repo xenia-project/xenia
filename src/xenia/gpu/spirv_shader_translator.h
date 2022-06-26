@@ -46,6 +46,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
     struct PixelShaderModification {
       // Dynamically indexable register count from SQ_PROGRAM_CNTL.
       uint32_t dynamic_addressable_register_count : 8;
+      uint32_t param_gen_enable : 1;
+      uint32_t param_gen_interpolator : 4;
+      // If param_gen_enable is set, this must be set for point primitives, and
+      // must not be set for other primitive types - enables the point sprite
+      // coordinates input, and also effects the flag bits in PsParamGen.
+      uint32_t param_gen_point : 1;
     } pixel;
     uint64_t value = 0;
 
@@ -56,6 +62,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSysFlag_XYDividedByW_Shift,
     kSysFlag_ZDividedByW_Shift,
     kSysFlag_WNotReciprocal_Shift,
+    kSysFlag_PrimitivePolygonal_Shift,
+    kSysFlag_PrimitiveLine_Shift,
     kSysFlag_ConvertColor0ToGamma_Shift,
     kSysFlag_ConvertColor1ToGamma_Shift,
     kSysFlag_ConvertColor2ToGamma_Shift,
@@ -66,6 +74,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSysFlag_XYDividedByW = 1u << kSysFlag_XYDividedByW_Shift,
     kSysFlag_ZDividedByW = 1u << kSysFlag_ZDividedByW_Shift,
     kSysFlag_WNotReciprocal = 1u << kSysFlag_WNotReciprocal_Shift,
+    kSysFlag_PrimitivePolygonal = 1u << kSysFlag_PrimitivePolygonal_Shift,
+    kSysFlag_PrimitiveLine = 1u << kSysFlag_PrimitiveLine_Shift,
     kSysFlag_ConvertColor0ToGamma = 1u << kSysFlag_ConvertColor0ToGamma_Shift,
     kSysFlag_ConvertColor1ToGamma = 1u << kSysFlag_ConvertColor1ToGamma_Shift,
     kSysFlag_ConvertColor2ToGamma = 1u << kSysFlag_ConvertColor2ToGamma_Shift,
@@ -301,6 +311,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
                GetSpirvShaderModification().vertex.host_vertex_shader_type);
   }
 
+  // Returns UINT32_MAX if PsParamGen doesn't need to be written.
+  uint32_t GetPsParamGenInterpolator() const;
+
   // Must be called before emitting any SPIR-V operations that must be in a
   // block in translator callbacks to ensure that if the last instruction added
   // was something like OpBranch - in this case, an unreachable block is
@@ -535,6 +548,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id input_vertex_index_;
   // VS as TES only - int.
   spv::Id input_primitive_id_;
+  // PS, only when needed - float4.
+  spv::Id input_fragment_coord_;
+  // PS, only when needed - bool.
+  spv::Id input_front_facing_;
 
   // In vertex or tessellation evaluation shaders - outputs, always
   // xenos::kMaxInterpolators.

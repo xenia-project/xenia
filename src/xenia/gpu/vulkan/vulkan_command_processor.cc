@@ -2336,7 +2336,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                      normalized_depth_control);
 
   // Update system constants before uploading them.
-  UpdateSystemConstantValues(primitive_processing_result.host_index_endian,
+  UpdateSystemConstantValues(primitive_polygonal,
+                             primitive_processing_result.host_index_endian,
                              viewport_info, used_texture_mask);
 
   // Update uniform buffers and descriptor sets after binding the pipeline with
@@ -3257,14 +3258,15 @@ void VulkanCommandProcessor::UpdateDynamicState(
 }
 
 void VulkanCommandProcessor::UpdateSystemConstantValues(
-    xenos::Endian index_endian, const draw_util::ViewportInfo& viewport_info,
-    uint32_t used_texture_mask) {
+    bool primitive_polygonal, xenos::Endian index_endian,
+    const draw_util::ViewportInfo& viewport_info, uint32_t used_texture_mask) {
 #if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
 
   const RegisterFile& regs = *register_file_;
   auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
+  auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
   int32_t vgt_indx_offset = int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
 
   // Get the color info register values for each render target.
@@ -3294,6 +3296,14 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   }
   if (pa_cl_vte_cntl.vtx_w0_fmt) {
     flags |= SpirvShaderTranslator::kSysFlag_WNotReciprocal;
+  }
+  // Whether the primitive is polygonal, and gl_FrontFacing matters.
+  if (primitive_polygonal) {
+    flags |= SpirvShaderTranslator::kSysFlag_PrimitivePolygonal;
+  }
+  // Primitive type.
+  if (draw_util::IsPrimitiveLine(regs)) {
+    flags |= SpirvShaderTranslator::kSysFlag_PrimitiveLine;
   }
   // Gamma writing.
   // TODO(Triang3l): Gamma as sRGB check.
