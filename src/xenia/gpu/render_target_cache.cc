@@ -498,7 +498,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
       // std::min for safety, to avoid negative numbers in case it's completely
       // wrong.
       edram_bases[0] =
-          std::min(rb_depth_info.depth_base, xenos::kEdramTileCount);
+          std::min(uint32_t(rb_depth_info.depth_base), xenos::kEdramTileCount);
       // With pixel shader interlock, always the same addressing disregarding
       // the format.
       resource_formats[0] =
@@ -513,7 +513,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
       uint32_t rt_bit_index = 1 + i;
       depth_and_color_rts_used_bits |= uint32_t(1) << rt_bit_index;
       edram_bases[rt_bit_index] =
-          std::min(color_info.color_base, xenos::kEdramTileCount);
+          std::min(uint32_t(color_info.color_base), xenos::kEdramTileCount);
       xenos::ColorRenderTargetFormat color_format =
           regs.Get<reg::RB_COLOR_INFO>(
                   reg::RB_COLOR_INFO::rt_register_indices[i])
@@ -1054,22 +1054,22 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
   uint32_t base_offset_rows_at_32bpp =
       base_offset_tiles_at_32bpp / pitch_tiles_at_32bpp;
   Transfer::Rectangle clear_rectangle;
-  clear_rectangle.x_pixels =
-      std::min((base_offset_tiles_at_32bpp -
-                base_offset_rows_at_32bpp * pitch_tiles_at_32bpp) *
-                       (xenos::kEdramTileWidthSamples >> msaa_samples_x_log2) +
-                   (resolve_info.coordinate_info.edram_offset_x_div_8 << 3),
-               pitch_pixels);
-  clear_rectangle.y_pixels =
-      std::min(base_offset_rows_at_32bpp *
-                       (xenos::kEdramTileHeightSamples >> msaa_samples_y_log2) +
-                   (resolve_info.coordinate_info.edram_offset_y_div_8 << 3),
-               render_target_height_pixels);
+  clear_rectangle.x_pixels = std::min(
+      (base_offset_tiles_at_32bpp -
+       base_offset_rows_at_32bpp * pitch_tiles_at_32bpp) *
+              (xenos::kEdramTileWidthSamples >> msaa_samples_x_log2) +
+          (uint32_t(resolve_info.coordinate_info.edram_offset_x_div_8) << 3),
+      pitch_pixels);
+  clear_rectangle.y_pixels = std::min(
+      base_offset_rows_at_32bpp *
+              (xenos::kEdramTileHeightSamples >> msaa_samples_y_log2) +
+          (uint32_t(resolve_info.coordinate_info.edram_offset_y_div_8) << 3),
+      render_target_height_pixels);
   clear_rectangle.width_pixels =
-      std::min(resolve_info.coordinate_info.width_div_8 << 3,
+      std::min(uint32_t(resolve_info.coordinate_info.width_div_8) << 3,
                pitch_pixels - clear_rectangle.x_pixels);
   clear_rectangle.height_pixels =
-      std::min(resolve_info.coordinate_info.height_div_8 << 3,
+      std::min(uint32_t(resolve_info.coordinate_info.height_div_8) << 3,
                render_target_height_pixels - clear_rectangle.y_pixels);
   if (!clear_rectangle.width_pixels || !clear_rectangle.height_pixels) {
     // Outside the pitch / height (or initially specified as 0).
