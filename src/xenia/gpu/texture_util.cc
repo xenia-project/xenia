@@ -85,9 +85,10 @@ void GetSubresourcesFromFetchConstant(
     mip_min_level = 0;
     mip_max_level = 0;
   } else {
-    mip_min_level = std::min(fetch.mip_min_level, size_mip_max_level);
-    mip_max_level = std::max(std::min(fetch.mip_max_level, size_mip_max_level),
-                             mip_min_level);
+    mip_min_level = std::min(uint32_t(fetch.mip_min_level), size_mip_max_level);
+    mip_max_level =
+        std::max(std::min(uint32_t(fetch.mip_max_level), size_mip_max_level),
+                 mip_min_level);
   }
   if (mip_max_level != 0) {
     if (base_page == 0) {
@@ -260,7 +261,8 @@ TextureGuestLayout GetGuestTextureLayout(
   if (layout.packed_level != 0) {
     std::memset(&layout.mips[0], 0, sizeof(layout.mips[0]));
   }
-  uint32_t max_stored_level = std::min(max_level, layout.packed_level);
+  uint32_t max_stored_level =
+      std::min(max_level, uint32_t(layout.packed_level));
   {
     uint32_t mips_end = max_stored_level + 1;
     assert_true(mips_end <= xe::countof(layout.mips));
