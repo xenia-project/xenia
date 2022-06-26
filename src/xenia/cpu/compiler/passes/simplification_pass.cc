@@ -102,7 +102,7 @@ uint64_t SimplificationPass::GetScalarNZM(hir::Value* value, hir::Instr* def,
   } else if (def_opcode == OPCODE_XOR || def_opcode == OPCODE_OR) {
     return GetScalarNZM(def->src1.value) | GetScalarNZM(def->src2.value);
   } else if (def_opcode == OPCODE_NOT) {
-    return ~GetScalarNZM(def->src1.value);
+    return typemask;
   } else if (def_opcode == OPCODE_ASSIGN) {
     return GetScalarNZM(def->src1.value);
   } else if (def_opcode == OPCODE_BYTE_SWAP) {
