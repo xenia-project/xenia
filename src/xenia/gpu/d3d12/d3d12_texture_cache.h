@@ -58,7 +58,9 @@ class D3D12TextureCache final : public TextureCache {
       uint32_t mip_linear : 1;              // 14
       xenos::AnisoFilter aniso_filter : 3;  // 17
       uint32_t mip_min_level : 4;           // 21
-      // Maximum mip level is in the texture resource itself.
+      uint32_t mip_base_map : 1;            // 22
+      // Maximum mip level is in the texture resource itself, but mip_base_map
+      // can be used to limit fetching to mip_min_level.
     };
 
     SamplerParameters() : value(0) { static_assert_size(*this, sizeof(value)); }
