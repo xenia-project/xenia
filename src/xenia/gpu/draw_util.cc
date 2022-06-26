@@ -576,11 +576,11 @@ void GetScissor(const RegisterFile& regs, Scissor& scissor_out,
   // Screen scissor is not used by Direct3D 9 (always 0, 0 to 8192, 8192), but
   // still handled here for completeness.
   auto pa_sc_screen_scissor_tl = regs.Get<reg::PA_SC_SCREEN_SCISSOR_TL>();
-  tl_x = std::max(tl_x, pa_sc_screen_scissor_tl.tl_x);
-  tl_y = std::max(tl_y, pa_sc_screen_scissor_tl.tl_y);
+  tl_x = std::max(tl_x, int32_t(pa_sc_screen_scissor_tl.tl_x));
+  tl_y = std::max(tl_y, int32_t(pa_sc_screen_scissor_tl.tl_y));
   auto pa_sc_screen_scissor_br = regs.Get<reg::PA_SC_SCREEN_SCISSOR_BR>();
-  br_x = std::min(br_x, pa_sc_screen_scissor_br.br_x);
-  br_y = std::min(br_y, pa_sc_screen_scissor_br.br_y);
+  br_x = std::min(br_x, int32_t(pa_sc_screen_scissor_br.br_x));
+  br_y = std::min(br_y, int32_t(pa_sc_screen_scissor_br.br_y));
   if (clamp_to_surface_pitch) {
     // Clamp the horizontal scissor to surface_pitch for safety, in case that's
     // not done by the guest for some reason (it's not when doing draws without

@@ -73,7 +73,8 @@ bool TextureInfo::Prepare(const xe_gpu_texture_fetch_t& fetch,
   info.pitch = fetch.pitch << 5;
 
   info.mip_min_level = fetch.mip_min_level;
-  info.mip_max_level = std::max(fetch.mip_min_level, fetch.mip_max_level);
+  info.mip_max_level =
+      std::max(uint32_t(fetch.mip_min_level), uint32_t(fetch.mip_max_level));
 
   info.is_tiled = fetch.tiled;
   info.has_packed_mips = fetch.packed_mips;
