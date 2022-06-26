@@ -57,6 +57,15 @@ inline size_t GetTypeSize(TypeName type_name) {
       return 0;
   }
 }
+inline uint64_t GetScalarTypeMask(TypeName type_name) {
+  size_t mask_width = GetTypeSize(type_name);
+
+  if (mask_width == 8) {
+    return ~0ULL;
+  } else {
+    return (1ULL << (mask_width * CHAR_BIT)) - 1;
+  }
+}
 
 enum ValueFlags {
   VALUE_IS_CONSTANT = (1 << 1),
@@ -66,6 +75,23 @@ enum ValueFlags {
 struct RegAssignment {
   const backend::MachineInfo::RegisterSet* set;
   int32_t index;
+};
+
+struct ValueMask {
+  uint64_t low;   // low 64 bits, usually for scalar values
+  uint64_t high;  // high 64 bits, only used for vector types
+
+  ValueMask(uint64_t _low, uint64_t _high) : low(_low), high(_high) {}
+
+  ValueMask operator&(ValueMask other) const {
+    return ValueMask{low & other.low, high & other.high};
+  }
+  ValueMask operator|(ValueMask other) const {
+    return ValueMask{low | other.low, high | other.high};
+  }
+  ValueMask operator^(ValueMask other) const {
+    return ValueMask{low ^ other.low, high ^ other.high};
+  }
 };
 
 class Value {

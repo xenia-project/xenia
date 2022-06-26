@@ -1023,6 +1023,17 @@ int InstrEmit_rlwimix(PPCHIRBuilder& f, const InstrData& i) {
   }
   return 0;
 }
+static bool InstrCheck_rlx_only_needs_low(unsigned rotation, uint64_t mask) {
+  uint32_t mask32 = static_cast<uint32_t>(mask);
+  if (static_cast<uint64_t>(mask32) != mask) {
+    return false;
+  }
+  uint32_t all_ones_32 = ~0U;
+  all_ones_32 <<= rotation;
+
+  return all_ones_32 == mask32;  // mask is only 32 bits and all bits from the
+                                 // rotation are discarded
+}
 
 int InstrEmit_rlwinmx(PPCHIRBuilder& f, const InstrData& i) {
   // n <- SH
@@ -1031,22 +1042,46 @@ int InstrEmit_rlwinmx(PPCHIRBuilder& f, const InstrData& i) {
   // RA <- r & m
   Value* v = f.LoadGPR(i.M.RT);
 
-  // (x||x)
-  v = f.Or(f.Shl(v, 32), f.ZeroExtend(f.Truncate(v, INT32_TYPE), INT64_TYPE));
+  unsigned rotation = i.M.SH;
 
-  // TODO(benvanik): optimize srwi
-  // TODO(benvanik): optimize slwi
-  // The compiler will generate a bunch of these for the special case of SH=0.
-  // Which seems to just select some bits and set cr0 for use with a branch.
-  // We can detect this and do less work.
-  if (i.M.SH) {
-    v = f.RotateLeft(v, f.LoadConstantInt8(i.M.SH));
-  }
-  // Compiler sometimes masks with 0xFFFFFFFF (identity) - avoid the work here
-  // as our truncation/zero-extend does it for us.
   uint64_t m = XEMASK(i.M.MB + 32, i.M.ME + 32);
-  if (m != 0xFFFFFFFFFFFFFFFFull) {
+
+  // in uint32 range (so no register concat/truncate/zx needed) and no rotation
+  if (m < (1ULL << 32) && (rotation == 0)) {
     v = f.And(v, f.LoadConstantUint64(m));
+  }
+  // masks out all the bits that are rotated in from the right, so just do a
+  // shift + and. the and with 0xFFFFFFFF is done instead of a truncate/zx
+  // because we have a special case for it in the emitters that will just do a
+  // single insn (mov reg32, lowpartofreg64), otherwise we generate
+  // significantly more code from setting up the opnds of the truncate/zx
+  else if (InstrCheck_rlx_only_needs_low(rotation, m)) {
+    // this path is taken for like 90% of all rlwinms
+    v = f.And(f.Shl(v, rotation), f.LoadConstantUint64(0xFFFFFFFF));
+  }
+
+  else {
+    // (x||x)
+    // cs: changed this to mask with UINT32_MAX instead of doing the
+    // truncate/extend, this generates better code in the backend and is easier
+    // to do analysis on
+    v = f.And(v, f.LoadConstantUint64(0xFFFFFFFF));
+
+    v = f.Or(f.Shl(v, 32), v);
+
+    // TODO(benvanik): optimize srwi
+    // TODO(benvanik): optimize slwi
+    // The compiler will generate a bunch of these for the special case of SH=0.
+    // Which seems to just select some bits and set cr0 for use with a branch.
+    // We can detect this and do less work.
+    if (i.M.SH) {
+      v = f.RotateLeft(v, f.LoadConstantInt8(rotation));
+    }
+    // Compiler sometimes masks with 0xFFFFFFFF (identity) - avoid the work here
+    // as our truncation/zero-extend does it for us.
+    if (m != 0xFFFFFFFFFFFFFFFFull) {
+      v = f.And(v, f.LoadConstantUint64(m));
+    }
   }
   f.StoreGPR(i.M.RA, v);
   if (i.M.Rc) {

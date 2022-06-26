@@ -2749,11 +2749,17 @@ struct AND_I32 : Sequence<AND_I32, I<OPCODE_AND, I32Op, I32Op, I32Op>> {
 };
 struct AND_I64 : Sequence<AND_I64, I<OPCODE_AND, I64Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    EmitAndXX<AND_I64, Reg64>(e, i);
+    if (i.src2.is_constant && i.src2.constant() == 0xFFFFFFFF) {
+      // special case for rlwinm codegen
+      e.mov(((Reg64)i.dest).cvt32(), ((Reg64)i.src1).cvt32());
+    } else {
+      EmitAndXX<AND_I64, Reg64>(e, i);
+    }
   }
 };
 struct AND_V128 : Sequence<AND_V128, I<OPCODE_AND, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+
     EmitCommutativeBinaryXmmOp(e, i,
                                [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
                                  e.vpand(dest, src1, src2);
