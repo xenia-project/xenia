@@ -1050,17 +1050,32 @@ void D3D12TextureCache::WriteSampler(SamplerParameters parameters,
   // LOD biasing is performed in shaders.
   desc.MipLODBias = 0.0f;
   desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-  // TODO(Triang3l): Border colors k_ACBYCR_BLACK and k_ACBCRY_BLACK.
-  if (parameters.border_color == xenos::BorderColor::k_AGBR_White) {
-    desc.BorderColor[0] = 1.0f;
-    desc.BorderColor[1] = 1.0f;
-    desc.BorderColor[2] = 1.0f;
-    desc.BorderColor[3] = 1.0f;
-  } else {
-    desc.BorderColor[0] = 0.0f;
-    desc.BorderColor[1] = 0.0f;
-    desc.BorderColor[2] = 0.0f;
-    desc.BorderColor[3] = 0.0f;
+  switch (parameters.border_color) {
+    case xenos::BorderColor::k_ABGR_White:
+      desc.BorderColor[0] = 1.0f;
+      desc.BorderColor[1] = 1.0f;
+      desc.BorderColor[2] = 1.0f;
+      desc.BorderColor[3] = 1.0f;
+      break;
+    case xenos::BorderColor::k_ACBYCR_Black:
+      desc.BorderColor[0] = 0.5f;
+      desc.BorderColor[1] = 0.0f;
+      desc.BorderColor[2] = 0.5f;
+      desc.BorderColor[3] = 0.0f;
+      break;
+    case xenos::BorderColor::k_ACBCRY_Black:
+      desc.BorderColor[0] = 0.0f;
+      desc.BorderColor[1] = 0.5f;
+      desc.BorderColor[2] = 0.5f;
+      desc.BorderColor[3] = 0.0f;
+      break;
+    default:
+      assert_true(parameters.border_color == xenos::BorderColor::k_ABGR_Black);
+      desc.BorderColor[0] = 0.0f;
+      desc.BorderColor[1] = 0.0f;
+      desc.BorderColor[2] = 0.0f;
+      desc.BorderColor[3] = 0.0f;
+      break;
   }
   desc.MinLOD = float(parameters.mip_min_level);
   if (parameters.mip_base_map) {
