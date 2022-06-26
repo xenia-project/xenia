@@ -3236,7 +3236,8 @@ void DxbcShaderTranslator::WriteOutputSignature() {
 
       // Coverage output for alpha to mask (SV_Coverage).
       size_t coverage_position = SIZE_MAX;
-      if (color_targets_written & 0b1) {
+      if ((color_targets_written & 0b1) &&
+          !IsForceEarlyDepthStencilGlobalFlagEnabled()) {
         coverage_position = shader_object_.size();
         shader_object_.resize(shader_object_.size() + kParameterDwords);
         ++parameter_count;
@@ -3364,14 +3365,11 @@ void DxbcShaderTranslator::WriteShaderCode() {
 
   // Don't allow refactoring when converting to native code to maintain position
   // invariance (needed even in pixel shaders for oDepth invariance).
-  uint32_t global_flags = 0;
-  if (is_pixel_shader() &&
-      GetDxbcShaderModification().pixel.depth_stencil_mode ==
-          Modification::DepthStencilMode::kEarlyHint &&
-      !edram_rov_used_ && current_shader().implicit_early_z_write_allowed()) {
-    global_flags |= dxbc::kGlobalFlagForceEarlyDepthStencil;
-  }
-  ao_.OpDclGlobalFlags(global_flags);
+  bool global_flag_force_early_depth_stencil =
+      IsForceEarlyDepthStencilGlobalFlagEnabled();
+  ao_.OpDclGlobalFlags(global_flag_force_early_depth_stencil
+                           ? dxbc::kGlobalFlagForceEarlyDepthStencil
+                           : 0);
 
   // Constant buffers, from most frequenly accessed to least frequently accessed
   // (the order is a hint to the driver according to the DXBC header).
@@ -3655,7 +3653,8 @@ void DxbcShaderTranslator::WriteShaderCode() {
         }
       }
       // Coverage output for alpha to mask.
-      if (color_targets_written & 0b1) {
+      if ((color_targets_written & 0b1) &&
+          !global_flag_force_early_depth_stencil) {
         ao_.OpDclOutput(dxbc::Dest::OMask());
       }
       // Depth output.

@@ -1979,7 +1979,8 @@ void DxbcShaderTranslator::CompletePixelShader_AlphaToMaskSample(
 
 void DxbcShaderTranslator::CompletePixelShader_AlphaToMask() {
   // Check if alpha to coverage can be done at all in this shader.
-  if (!current_shader().writes_color_target(0)) {
+  if (!current_shader().writes_color_target(0) ||
+      IsForceEarlyDepthStencilGlobalFlagEnabled()) {
     return;
   }
 
@@ -2987,7 +2988,8 @@ void DxbcShaderTranslator::CompletePixelShader() {
     return;
   }
 
-  if (current_shader().writes_color_target(0)) {
+  if (current_shader().writes_color_target(0) &&
+      !IsForceEarlyDepthStencilGlobalFlagEnabled()) {
     // Alpha test.
     // X - mask, then masked result (SGPR for loading, VGPR for masking).
     // Y - operation result (SGPR for mask operations, VGPR for alpha

@@ -656,6 +656,14 @@ class DxbcShaderTranslator : public ShaderTranslator {
                GetDxbcShaderModification().vertex.host_vertex_shader_type);
   }
 
+  bool IsForceEarlyDepthStencilGlobalFlagEnabled() const {
+    return is_pixel_shader() &&
+           GetDxbcShaderModification().pixel.depth_stencil_mode ==
+               Modification::DepthStencilMode::kEarlyHint &&
+           !edram_rov_used_ &&
+           current_shader().implicit_early_z_write_allowed();
+  }
+
   // Whether to use switch-case rather than if (pc >= label) for control flow.
   bool UseSwitchForControlFlow() const;
 
