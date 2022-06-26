@@ -134,12 +134,26 @@ VulkanPipelineCache::GetCurrentPixelShaderModification(
   assert_true(shader.type() == xenos::ShaderType::kPixel);
   assert_true(shader.is_ucode_analyzed());
   const auto& regs = register_file_;
-
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
+
   SpirvShaderTranslator::Modification modification(
       shader_translator_->GetDefaultPixelShaderModification(
           shader.GetDynamicAddressableRegisterCount(
               sq_program_cntl.ps_num_reg)));
+
+  if (sq_program_cntl.param_gen) {
+    auto sq_context_misc = regs.Get<reg::SQ_CONTEXT_MISC>();
+    if (sq_context_misc.param_gen_pos <
+        std::min(std::max(modification.pixel.dynamic_addressable_register_count,
+                          shader.register_static_address_bound()),
+                 xenos::kMaxInterpolators)) {
+      modification.pixel.param_gen_enable = 1;
+      modification.pixel.param_gen_interpolator = sq_context_misc.param_gen_pos;
+      auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
+      modification.pixel.param_gen_point = uint32_t(
+          vgt_draw_initiator.prim_type == xenos::PrimitiveType::kPointList);
+    }
+  }
 
   return modification;
 }

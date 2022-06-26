@@ -106,6 +106,9 @@ void SpirvShaderTranslator::Reset() {
 
   uniform_float_constants_ = spv::NoResult;
 
+  input_fragment_coord_ = spv::NoResult;
+  input_front_facing_ = spv::NoResult;
+
   sampler_bindings_.clear();
   texture_bindings_.clear();
 
@@ -1011,6 +1014,17 @@ spv::Id SpirvShaderTranslator::SpirvSmearScalarResultOrConstant(
                                          is_spec_constant);
 }
 
+uint32_t SpirvShaderTranslator::GetPsParamGenInterpolator() const {
+  assert_true(is_pixel_shader());
+  Modification modification = GetSpirvShaderModification();
+  // param_gen_interpolator is already 4 bits, no need for an interpolator count
+  // safety check.
+  return (modification.pixel.param_gen_enable &&
+          modification.pixel.param_gen_interpolator < register_count())
+             ? modification.pixel.param_gen_interpolator
+             : UINT32_MAX;
+}
+
 void SpirvShaderTranslator::EnsureBuildPointAvailable() {
   if (!builder_->getBuildPoint()->isTerminated()) {
     return;
@@ -1261,6 +1275,31 @@ void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
     main_interface_.push_back(interpolator);
   }
 
+  bool param_gen_needed = GetPsParamGenInterpolator() != UINT32_MAX;
+
+  // Fragment coordinates.
+  // TODO(Triang3l): More conditions - fragment shader interlock render backend,
+  // alpha to coverage (if RT 0 is written, and there's no early depth /
+  // stencil), depth writing in the fragment shader (per-sample if supported).
+  if (param_gen_needed) {
+    input_fragment_coord_ = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassInput, type_float4_, "gl_FragCoord");
+    builder_->addDecoration(input_fragment_coord_, spv::DecorationBuiltIn,
+                            spv::BuiltInFragCoord);
+    main_interface_.push_back(input_fragment_coord_);
+  }
+
+  // Is front facing.
+  // TODO(Triang3l): Needed for stencil in the fragment shader interlock render
+  // backend.
+  if (param_gen_needed && !GetSpirvShaderModification().pixel.param_gen_point) {
+    input_front_facing_ = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassInput, type_bool_, "gl_FrontFacing");
+    builder_->addDecoration(input_front_facing_, spv::DecorationBuiltIn,
+                            spv::BuiltInFrontFacing);
+    main_interface_.push_back(input_front_facing_);
+  }
+
   // Framebuffer attachment outputs.
   std::fill(output_fragment_data_.begin(), output_fragment_data_.end(),
             spv::NoResult);
@@ -1288,12 +1327,16 @@ void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
 }
 
 void SpirvShaderTranslator::StartFragmentShaderInMain() {
+  uint32_t param_gen_interpolator = GetPsParamGenInterpolator();
+
   // Copy the interpolators to general-purpose registers.
   // TODO(Triang3l): Centroid.
-  // TODO(Triang3l): ps_param_gen.
   uint32_t interpolator_count =
       std::min(xenos::kMaxInterpolators, register_count());
   for (uint32_t i = 0; i < interpolator_count; ++i) {
+    if (i == param_gen_interpolator) {
+      continue;
+    }
     id_vector_temp_.clear();
     // Register array element.
     id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
@@ -1301,6 +1344,127 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
         builder_->createLoad(input_output_interpolators_[i], spv::NoPrecision),
         builder_->createAccessChain(spv::StorageClassFunction,
                                     var_main_registers_, id_vector_temp_));
+  }
+
+  // Pixel parameters.
+  if (param_gen_interpolator != UINT32_MAX) {
+    Modification modification = GetSpirvShaderModification();
+    // Rounding the position down, and taking the absolute value, so in case the
+    // host GPU for some reason has quads used for derivative calculation at odd
+    // locations, the left and top edges will have correct derivative magnitude
+    // and LODs.
+    // Assuming that if PsParamGen is needed at all, param_gen_point is always
+    // set for point primitives, and is always disabled for other primitive
+    // types.
+    // OpFNegate requires sign bit flipping even for 0.0 (in this case, the
+    // first column or row of pixels) only since SPIR-V 1.5 revision 2 (not the
+    // base 1.5).
+    // TODO(Triang3l): When SPIR-V 1.6 is used in Xenia, see if OpFNegate can be
+    // used there, should be cheaper because it may be implemented as a hardware
+    // instruction modifier, though it respects the rule for subnormal numbers -
+    // see the actual hardware instructions in both OpBitwiseXor and OpFNegate
+    // cases.
+    spv::Id const_sign_bit = builder_->makeUintConstant(UINT32_C(1) << 31);
+    // TODO(Triang3l): Resolution scale inversion.
+    // X - pixel X .0 in the magnitude, is back-facing in the sign bit.
+    assert_true(input_fragment_coord_ != spv::NoResult);
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(const_int_0_);
+    spv::Id param_gen_x = builder_->createLoad(
+        builder_->createAccessChain(spv::StorageClassInput,
+                                    input_fragment_coord_, id_vector_temp_),
+        spv::NoPrecision);
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(param_gen_x);
+    param_gen_x = builder_->createBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor, id_vector_temp_);
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(param_gen_x);
+    param_gen_x = builder_->createBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_);
+    if (!modification.pixel.param_gen_point) {
+      assert_true(input_front_facing_ != spv::NoResult);
+      param_gen_x = builder_->createTriOp(
+          spv::OpSelect, type_float_,
+          builder_->createBinOp(
+              spv::OpLogicalOr, type_bool_,
+              builder_->createBinOp(
+                  spv::OpIEqual, type_bool_,
+                  builder_->createBinOp(
+                      spv::OpBitwiseAnd, type_uint_,
+                      main_system_constant_flags_,
+                      builder_->makeUintConstant(kSysFlag_PrimitivePolygonal)),
+                  const_uint_0_),
+              builder_->createLoad(input_front_facing_, spv::NoPrecision)),
+          param_gen_x,
+          builder_->createUnaryOp(
+              spv::OpBitcast, type_float_,
+              builder_->createBinOp(
+                  spv::OpBitwiseXor, type_uint_,
+                  builder_->createUnaryOp(spv::OpBitcast, type_uint_,
+                                          param_gen_x),
+                  const_sign_bit)));
+    }
+    // Y - pixel Y .0 in the magnitude, is point in the sign bit.
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(builder_->makeIntConstant(1));
+    spv::Id param_gen_y = builder_->createLoad(
+        builder_->createAccessChain(spv::StorageClassInput,
+                                    input_fragment_coord_, id_vector_temp_),
+        spv::NoPrecision);
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(param_gen_y);
+    param_gen_y = builder_->createBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor, id_vector_temp_);
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(param_gen_y);
+    param_gen_y = builder_->createBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_);
+    if (modification.pixel.param_gen_point) {
+      param_gen_y = builder_->createUnaryOp(
+          spv::OpBitcast, type_float_,
+          builder_->createBinOp(
+              spv::OpBitwiseXor, type_uint_,
+              builder_->createUnaryOp(spv::OpBitcast, type_uint_, param_gen_y),
+              const_sign_bit));
+    }
+    // Z - point S in the magnitude, is line in the sign bit.
+    spv::Id param_gen_z;
+    if (modification.pixel.param_gen_point) {
+      // TODO(Triang3l): Point coordinates.
+      param_gen_z = const_float_0_;
+    } else {
+      param_gen_z = builder_->createUnaryOp(
+          spv::OpBitcast, type_float_,
+          builder_->createTriOp(
+              spv::OpSelect, type_uint_,
+              builder_->createBinOp(
+                  spv::OpINotEqual, type_bool_,
+                  builder_->createBinOp(
+                      spv::OpBitwiseAnd, type_uint_,
+                      main_system_constant_flags_,
+                      builder_->makeUintConstant(kSysFlag_PrimitiveLine)),
+                  const_uint_0_),
+              const_sign_bit, const_uint_0_));
+    }
+    // W - point T in the magnitude.
+    // TODO(Triang3l): Point coordinates.
+    spv::Id param_gen_w = const_float_0_;
+    // Store the pixel parameters.
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(4);
+    id_vector_temp_.push_back(param_gen_x);
+    id_vector_temp_.push_back(param_gen_y);
+    id_vector_temp_.push_back(param_gen_z);
+    id_vector_temp_.push_back(param_gen_w);
+    spv::Id param_gen =
+        builder_->createCompositeConstruct(type_float4_, id_vector_temp_);
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(
+        builder_->makeIntConstant(int(param_gen_interpolator)));
+    builder_->createStore(param_gen, builder_->createAccessChain(
+                                         spv::StorageClassFunction,
+                                         var_main_registers_, id_vector_temp_));
   }
 
   // Initialize the colors for safety.
