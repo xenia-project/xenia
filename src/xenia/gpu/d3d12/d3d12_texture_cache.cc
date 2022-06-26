@@ -971,9 +971,9 @@ D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
   parameters.border_color = fetch.border_color;
 
   uint32_t mip_min_level;
-  texture_util::GetSubresourcesFromFetchConstant(
-      fetch, nullptr, nullptr, nullptr, nullptr, nullptr, &mip_min_level,
-      nullptr, binding.mip_filter);
+  texture_util::GetSubresourcesFromFetchConstant(fetch, nullptr, nullptr,
+                                                 nullptr, nullptr, nullptr,
+                                                 &mip_min_level, nullptr);
   parameters.mip_min_level = mip_min_level;
 
   xenos::AnisoFilter aniso_filter =
@@ -982,6 +982,10 @@ D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
           : binding.aniso_filter;
   aniso_filter = std::min(aniso_filter, xenos::AnisoFilter::kMax_16_1);
   parameters.aniso_filter = aniso_filter;
+  xenos::TextureFilter mip_filter =
+      binding.mip_filter == xenos::TextureFilter::kUseFetchConst
+          ? fetch.mip_filter
+          : binding.mip_filter;
   if (aniso_filter != xenos::AnisoFilter::kDisabled) {
     parameters.mag_linear = 1;
     parameters.min_linear = 1;
@@ -997,12 +1001,9 @@ D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
             ? fetch.min_filter
             : binding.min_filter;
     parameters.min_linear = min_filter == xenos::TextureFilter::kLinear;
-    xenos::TextureFilter mip_filter =
-        binding.mip_filter == xenos::TextureFilter::kUseFetchConst
-            ? fetch.mip_filter
-            : binding.mip_filter;
     parameters.mip_linear = mip_filter == xenos::TextureFilter::kLinear;
   }
+  parameters.mip_base_map = mip_filter == xenos::TextureFilter::kBaseMap;
 
   return parameters;
 }
@@ -1046,24 +1047,57 @@ void D3D12TextureCache::WriteSampler(SamplerParameters parameters,
   desc.AddressU = kAddressModeMap[uint32_t(parameters.clamp_x)];
   desc.AddressV = kAddressModeMap[uint32_t(parameters.clamp_y)];
   desc.AddressW = kAddressModeMap[uint32_t(parameters.clamp_z)];
-  // LOD is calculated in shaders.
+  // LOD biasing is performed in shaders.
   desc.MipLODBias = 0.0f;
   desc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-  // TODO(Triang3l): Border colors k_ACBYCR_BLACK and k_ACBCRY_BLACK.
-  if (parameters.border_color == xenos::BorderColor::k_AGBR_White) {
-    desc.BorderColor[0] = 1.0f;
-    desc.BorderColor[1] = 1.0f;
-    desc.BorderColor[2] = 1.0f;
-    desc.BorderColor[3] = 1.0f;
-  } else {
-    desc.BorderColor[0] = 0.0f;
-    desc.BorderColor[1] = 0.0f;
-    desc.BorderColor[2] = 0.0f;
-    desc.BorderColor[3] = 0.0f;
+  switch (parameters.border_color) {
+    case xenos::BorderColor::k_ABGR_White:
+      desc.BorderColor[0] = 1.0f;
+      desc.BorderColor[1] = 1.0f;
+      desc.BorderColor[2] = 1.0f;
+      desc.BorderColor[3] = 1.0f;
+      break;
+    case xenos::BorderColor::k_ACBYCR_Black:
+      desc.BorderColor[0] = 0.5f;
+      desc.BorderColor[1] = 0.0f;
+      desc.BorderColor[2] = 0.5f;
+      desc.BorderColor[3] = 0.0f;
+      break;
+    case xenos::BorderColor::k_ACBCRY_Black:
+      desc.BorderColor[0] = 0.0f;
+      desc.BorderColor[1] = 0.5f;
+      desc.BorderColor[2] = 0.5f;
+      desc.BorderColor[3] = 0.0f;
+      break;
+    default:
+      assert_true(parameters.border_color == xenos::BorderColor::k_ABGR_Black);
+      desc.BorderColor[0] = 0.0f;
+      desc.BorderColor[1] = 0.0f;
+      desc.BorderColor[2] = 0.0f;
+      desc.BorderColor[3] = 0.0f;
+      break;
   }
   desc.MinLOD = float(parameters.mip_min_level);
-  // Maximum mip level is in the texture resource itself.
-  desc.MaxLOD = FLT_MAX;
+  if (parameters.mip_base_map) {
+    // "It is undefined whether LOD clamping based on MinLOD and MaxLOD Sampler
+    // states should happen before or after deciding if magnification is
+    // occuring" - Direct3D 11.3 Functional Specification.
+    // Using the GL_NEAREST / GL_LINEAR minification filter emulation logic
+    // described in the Vulkan VkSamplerCreateInfo specification, preserving
+    // magnification vs. minification - point mip sampling (usable only without
+    // anisotropic filtering on Direct3D 12) and MaxLOD 0.25. With anisotropic
+    // filtering, magnification vs. minification doesn't matter as the filter is
+    // always linear for both on Direct3D 12 - but linear filtering specifically
+    // is what must not be done for kBaseMap, so setting MaxLOD to MinLOD.
+    desc.MaxLOD = desc.MinLOD;
+    if (parameters.aniso_filter == xenos::AnisoFilter::kDisabled) {
+      assert_false(parameters.mip_linear);
+      desc.MaxLOD += 0.25f;
+    }
+  } else {
+    // Maximum mip level is in the texture resource itself.
+    desc.MaxLOD = FLT_MAX;
+  }
   ID3D12Device* device = command_processor_.GetD3D12Provider().GetDevice();
   device->CreateSampler(&desc, handle);
 }
