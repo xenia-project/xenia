@@ -29,9 +29,15 @@ SimplificationPass::~SimplificationPass() {}
 
 bool SimplificationPass::Run(HIRBuilder* builder, bool& result) {
   result = false;
-  result |= SimplifyBitArith(builder);
-  result |= EliminateConversions(builder);
-  result |= SimplifyAssignments(builder);
+  bool iter_result = false;
+
+  do {
+    iter_result = false;
+    iter_result |= SimplifyBitArith(builder);
+    iter_result |= EliminateConversions(builder);
+    iter_result |= SimplifyAssignments(builder);
+    result |= iter_result;
+  } while (iter_result);
   return true;
 }
 // simplifications that apply to both or and xor
@@ -45,11 +51,115 @@ bool SimplificationPass::CheckOrXorZero(hir::Instr* i) {
   }
   return false;
 }
-bool SimplificationPass::CheckOr(hir::Instr* i) { return CheckOrXorZero(i); }
-bool SimplificationPass::CheckXor(hir::Instr* i) {
+static bool IsScalarBasicCmp(Opcode op) {
+  /*
+    OPCODE_COMPARE_EQ,
+  OPCODE_COMPARE_NE,
+  OPCODE_COMPARE_SLT,
+  OPCODE_COMPARE_SLE,
+  OPCODE_COMPARE_SGT,
+  OPCODE_COMPARE_SGE,
+  OPCODE_COMPARE_ULT,
+  OPCODE_COMPARE_ULE,
+  OPCODE_COMPARE_UGT,
+  OPCODE_COMPARE_UGE,
+  */
+  return op >= OPCODE_COMPARE_EQ && op <= OPCODE_COMPARE_UGE;
+}
+
+static bool SameValueOrEqualConstant(hir::Value* x, hir::Value* y) {
+  if (x == y) return true;
+
+  if (x->IsConstant() && y->IsConstant()) {
+    return x->AsUint64() == y->AsUint64();
+  }
+
+  return false;
+}
+
+static bool CompareDefsHaveSameOpnds(hir::Value* cmp1, hir::Value* cmp2,
+                                     hir::Value** out_cmped_l,
+                                     hir::Value** out_cmped_r, Opcode* out_l_op,
+                                     Opcode* out_r_op) {
+  auto df1 = cmp1->def;
+  auto df2 = cmp2->def;
+  if (!df1 || !df2) return false;
+  if (df1->src1.value != df2->src1.value) return false;
+
+  Opcode lop = df1->opcode->num, rop = df2->opcode->num;
+
+  if (!IsScalarBasicCmp(lop) || !IsScalarBasicCmp(rop)) return false;
+
+  if (!SameValueOrEqualConstant(df1->src2.value, df2->src2.value)) {
+    return false;
+  }
+
+  *out_cmped_l = df1->src1.value;
+  *out_cmped_r = df1->src2.value;
+  *out_l_op = lop;
+  *out_r_op = rop;
+  return true;
+}
+
+bool SimplificationPass::CheckOr(hir::Instr* i, hir::HIRBuilder* builder) {
+  if (CheckOrXorZero(i)) return true;
+
+  if (i->src1.value == i->src2.value) {
+    auto old1 = i->src1.value;
+    i->Replace(&OPCODE_ASSIGN_info, 0);
+    i->set_src1(old1);
+    return true;
+  }
+
+  if (i->dest->type == INT8_TYPE) {
+    Opcode l_op, r_op;
+    Value *cmpl, *cmpr;
+    if (!CompareDefsHaveSameOpnds(i->src1.value, i->src2.value, &cmpl, &cmpr,
+                                  &l_op, &r_op)) {
+      return false;
+    }
+    auto have_both_ops = [l_op, r_op](Opcode expect1, Opcode expect2) {
+      return (l_op == expect1 || r_op == expect1) &&
+             (l_op == expect2 || r_op == expect2);
+    };
+
+    if (have_both_ops(OPCODE_COMPARE_EQ, OPCODE_COMPARE_NE)) {
+      // both equal and not equal means always true
+      i->Replace(&OPCODE_ASSIGN_info, 0);
+      i->set_src1(builder->LoadConstantInt8(1));
+      return true;
+    }
+    const OpcodeInfo* new_cmpop = nullptr;
+
+    if (have_both_ops(OPCODE_COMPARE_EQ, OPCODE_COMPARE_SLT)) {
+      new_cmpop = &OPCODE_COMPARE_SLE_info;
+    } else if (have_both_ops(OPCODE_COMPARE_EQ, OPCODE_COMPARE_SGT)) {
+      new_cmpop = &OPCODE_COMPARE_SGE_info;
+    } else if (have_both_ops(OPCODE_COMPARE_EQ, OPCODE_COMPARE_ULT)) {
+      new_cmpop = &OPCODE_COMPARE_ULE_info;
+    } else if (have_both_ops(OPCODE_COMPARE_EQ, OPCODE_COMPARE_UGT)) {
+      new_cmpop = &OPCODE_COMPARE_UGE_info;
+    }
+    // todo: also check for pointless compares
+
+    if (new_cmpop != nullptr) {
+      i->Replace(new_cmpop, 0);
+      i->set_src1(cmpl);
+      i->set_src2(cmpr);
+      return true;
+    }
+  }
+  return false;
+}
+bool SimplificationPass::CheckXor(hir::Instr* i, hir::HIRBuilder* builder) {
   if (CheckOrXorZero(i)) {
     return true;
   } else {
+    if (i->src1.value == i->src2.value) {
+      i->Replace(&OPCODE_ASSIGN_info, 0);
+      i->set_src1(builder->LoadZero(i->dest->type));
+      return true;
+    }
     uint64_t type_mask = GetScalarTypeMask(i->dest->type);
 
     auto [constant_value, variable_value] =
@@ -102,7 +212,7 @@ uint64_t SimplificationPass::GetScalarNZM(hir::Value* value, hir::Instr* def,
   } else if (def_opcode == OPCODE_XOR || def_opcode == OPCODE_OR) {
     return GetScalarNZM(def->src1.value) | GetScalarNZM(def->src2.value);
   } else if (def_opcode == OPCODE_NOT) {
-    return typemask;
+    return typemask;  //~GetScalarNZM(def->src1.value);
   } else if (def_opcode == OPCODE_ASSIGN) {
     return GetScalarNZM(def->src1.value);
   } else if (def_opcode == OPCODE_BYTE_SWAP) {
@@ -166,10 +276,21 @@ uint64_t SimplificationPass::GetScalarNZM(hir::Value* value) {
   return GetScalarNZM(value, def, default_return, def->opcode->num) &
          default_return;
 }
-bool SimplificationPass::CheckAnd(hir::Instr* i) {
+bool SimplificationPass::CheckAnd(hir::Instr* i, hir::HIRBuilder* builder) {
 retry_and_simplification:
   auto [constant_value, variable_value] = i->BinaryValueArrangeAsConstAndVar();
-  if (!constant_value) return false;
+  if (!constant_value) {
+    // added this for srawi
+    uint64_t nzml = GetScalarNZM(i->src1.value);
+    uint64_t nzmr = GetScalarNZM(i->src2.value);
+
+    if ((nzml & nzmr) == 0) {
+      i->Replace(&OPCODE_ASSIGN_info, 0);
+      i->set_src1(builder->LoadZero(i->dest->type));
+      return true;
+    }
+    return false;
+  }
 
   // todo: check if masking with mask that covers all of zero extension source
   uint64_t type_mask = GetScalarTypeMask(i->dest->type);
@@ -241,6 +362,227 @@ retry_and_simplification:
 
   return false;
 }
+bool SimplificationPass::CheckAdd(hir::Instr* i, hir::HIRBuilder* builder) {
+  auto [definition, added_constant] =
+      i->BinaryValueArrangeByDefOpAndConstant(&OPCODE_NOT_info);
+
+  if (!definition) {
+    auto [added_constant_neg, added_var_neg] =
+        i->BinaryValueArrangeAsConstAndVar();
+
+    if (!added_constant_neg) return false;
+    if (added_constant_neg->AsUint64() &
+        GetScalarSignbitMask(added_constant_neg->type)) {
+      // adding a value that has its signbit set!
+
+      Value* negconst = builder->CloneValue(added_constant_neg);
+      negconst->Neg();
+      i->Replace(&OPCODE_SUB_info, 0);
+      i->set_src1(added_var_neg);
+      i->set_src2(negconst);
+      return true;
+    }
+    return false;
+  }
+
+  if (added_constant->AsUint64() == 1) {
+    i->Replace(&OPCODE_NEG_info, 0);
+    i->set_src1(definition->def->src1.value);
+    return true;
+  }
+
+  return false;
+}
+bool SimplificationPass::CheckSelect(hir::Instr* i, hir::HIRBuilder* builder,
+                                     hir::Value* condition, hir::Value* iftrue,
+                                     hir::Value* iffalse) {
+  return false;
+}
+
+bool SimplificationPass::CheckSelect(hir::Instr* i, hir::HIRBuilder* builder) {
+  Value* src1 = i->src1.value;
+  Value* src2 = i->src2.value;
+  Value* src3 = i->src3.value;
+  return CheckSelect(i, builder, src1, src2, src3);
+}
+
+bool SimplificationPass::CheckScalarConstCmp(hir::Instr* i,
+                                             hir::HIRBuilder* builder) {
+  if (!IsScalarIntegralType(i->src1.value->type)) return false;
+  auto [constant_value, variable] = i->BinaryValueArrangeAsConstAndVar();
+
+  if (!constant_value) {
+    return false;
+  }
+
+  uint64_t nzm_for_var = GetScalarNZM(variable);
+  Opcode cmpop = i->opcode->num;
+  uint64_t constant_unpacked = constant_value->AsUint64();
+  uint64_t signbit_for_var = GetScalarSignbitMask(variable->type);
+  bool signbit_definitely_0 = (nzm_for_var & signbit_for_var) == 0;
+
+  Instr* var_definition = variable->def;
+  Opcode def_opcode = OPCODE_NOP;
+
+  if (var_definition) {
+    var_definition = var_definition->GetDestDefSkipAssigns();
+    def_opcode = var_definition->opcode->num;
+  }
+  // x == 0 -> !x
+  if (cmpop == OPCODE_COMPARE_EQ && constant_unpacked == 0) {
+    i->Replace(&OPCODE_IS_FALSE_info, 0);
+    i->set_src1(variable);
+    return true;
+  }
+  // x != 0 -> !!x
+  if (cmpop == OPCODE_COMPARE_NE && constant_unpacked == 0) {
+    i->Replace(&OPCODE_IS_TRUE_info, 0);
+    i->set_src1(variable);
+    return true;
+  }
+  // todo: OPCODE_COMPARE_NE too?
+  if (cmpop == OPCODE_COMPARE_EQ &&
+      def_opcode == OPCODE_NOT) {  // i see this a lot around addic insns
+
+    Value* cloned = builder->CloneValue(constant_value);
+    cloned->Not();
+    i->Replace(&OPCODE_COMPARE_EQ_info, 0);
+    i->set_src1(var_definition->src1.value);
+    i->set_src2(cloned);
+    return true;
+  }
+  if (constant_value != i->src2.value) {
+    return false;
+  }
+  if (cmpop == OPCODE_COMPARE_ULT &&
+      constant_unpacked == 1) {  // unsigned lt 1 means == 0
+    i->Replace(&OPCODE_IS_FALSE_info, 0);
+    i->set_src1(variable);
+    return true;
+  }
+  if (cmpop == OPCODE_COMPARE_UGT &&
+      constant_unpacked == 0) {  // unsigned gt 1 means != 0
+
+    i->Replace(&OPCODE_IS_TRUE_info, 0);
+    i->set_src1(variable);
+    return true;
+  }
+
+  if (cmpop == OPCODE_COMPARE_ULT &&
+      constant_unpacked == 0) {  // impossible to be unsigned lt 0
+  impossible_compare:
+    i->Replace(&OPCODE_ASSIGN_info, 0);
+    i->set_src1(builder->LoadZeroInt8());
+    return true;
+
+  } else if (cmpop == OPCODE_COMPARE_UGT &&
+             nzm_for_var < constant_unpacked) {  // impossible!
+
+    goto impossible_compare;
+  } else if (cmpop == OPCODE_COMPARE_SLT && signbit_definitely_0 &&
+             constant_unpacked == 0) {
+    goto impossible_compare;  // cant be less than 0 because signbit cannot be
+                              // set
+  } else if (cmpop == OPCODE_COMPARE_SGT && signbit_definitely_0 &&
+             constant_unpacked == 0) {
+    // signbit cant be set, and checking if gt 0, so actually checking != 0
+    i->Replace(&OPCODE_IS_TRUE_info, 0);
+    i->set_src1(variable);
+    return true;
+  }
+
+  // value can only be one of two values, 0 or the bit set
+  if (xe::bit_count(nzm_for_var) != 1) {
+    return false;
+  }
+
+  if (constant_value->AsUint64() == nzm_for_var) {
+    const OpcodeInfo* repl = nullptr;
+    Value* constant_replacement = nullptr;
+
+    if (cmpop == OPCODE_COMPARE_EQ || cmpop == OPCODE_COMPARE_UGE) {
+      repl = &OPCODE_IS_TRUE_info;
+    } else if (cmpop == OPCODE_COMPARE_NE || cmpop == OPCODE_COMPARE_ULT) {
+      repl = &OPCODE_IS_FALSE_info;
+
+    } else if (cmpop == OPCODE_COMPARE_UGT) {
+      // impossible, cannot be greater than mask
+
+      /* i->Replace(&OPCODE_ASSIGN_info, 0);
+      i->set_src1(builder->LoadZeroInt8());
+      return true;
+      */
+      constant_replacement = builder->LoadZeroInt8();
+
+    } else if (cmpop == OPCODE_COMPARE_ULE) {  // less than or equal to mask =
+                                               // always true
+      constant_replacement = builder->LoadConstantInt8(1);
+    }
+
+    if (repl) {
+      i->Replace(repl, 0);
+      i->set_src1(variable);
+      return true;
+    }
+    if (constant_replacement) {
+      i->Replace(&OPCODE_ASSIGN_info, 0);
+      i->set_src1(constant_replacement);
+      return true;
+    }
+  }
+
+  return false;
+}
+bool SimplificationPass::CheckIsTrueIsFalse(hir::Instr* i,
+                                            hir::HIRBuilder* builder) {
+  bool istrue = i->opcode == &OPCODE_IS_TRUE_info;
+  bool isfalse = i->opcode == &OPCODE_IS_FALSE_info;
+
+  Value* input = i->src1.value;
+  TypeName input_type = input->type;
+  if (!IsScalarIntegralType(input_type)) {
+    return false;
+  }
+
+  uint64_t input_nzm = GetScalarNZM(input);
+
+  if (istrue &&
+      input_nzm == 1) {  // doing istrue on a value thats already a bool bitwise
+
+    if (input_type == INT8_TYPE) {
+      i->Replace(&OPCODE_ASSIGN_info, 0);
+      i->set_src1(input);
+
+    } else {
+      i->Replace(&OPCODE_TRUNCATE_info, 0);
+      i->set_src1(input);
+    }
+    return true;
+
+  } else if (isfalse && input_nzm == 1) {
+    if (input_type == INT8_TYPE) {
+      i->Replace(&OPCODE_XOR_info, 0);
+      i->set_src1(input);
+      i->set_src2(builder->LoadConstantInt8(1));
+      return true;
+    } else {
+      Value* truncated = builder->Truncate(input, INT8_TYPE);
+      truncated->def->MoveBefore(i);
+      i->Replace(&OPCODE_XOR_info, 0);
+      i->set_src1(truncated);
+      i->set_src2(builder->LoadConstantInt8(1));
+      return true;
+    }
+  }
+
+  /* Instr* input_def = input->def;
+   if (!input_def) {
+     return false;
+   }
+
+   input_def = input_def->GetDestDefSkipAssigns();*/
+  return false;
+}
 bool SimplificationPass::SimplifyBitArith(hir::HIRBuilder* builder) {
   bool result = false;
   auto block = builder->first_block();
@@ -249,15 +591,23 @@ bool SimplificationPass::SimplifyBitArith(hir::HIRBuilder* builder) {
     while (i) {
       // vector types use the same opcodes as scalar ones for AND/OR/XOR! we
       // don't handle these in our simplifications, so skip
-      if (i->dest && i->dest->type != VEC128_TYPE) {
+      if (i->dest && IsScalarIntegralType( i->dest->type) ) {
         if (i->opcode == &OPCODE_OR_info) {
-          result |= CheckOr(i);
+          result |= CheckOr(i, builder);
         } else if (i->opcode == &OPCODE_XOR_info) {
-          result |= CheckXor(i);
+          result |= CheckXor(i, builder);
         } else if (i->opcode == &OPCODE_AND_info) {
-          result |= CheckAnd(i);
+          result |= CheckAnd(i, builder);
+        } else if (i->opcode == &OPCODE_ADD_info) {
+          result |= CheckAdd(i, builder);
+        } else if (IsScalarBasicCmp(i->opcode->num)) {
+          result |= CheckScalarConstCmp(i, builder);
+        } else if (i->opcode == &OPCODE_IS_FALSE_info ||
+                   i->opcode == &OPCODE_IS_TRUE_info) {
+          result |= CheckIsTrueIsFalse(i, builder);
         }
       }
+
       i = i->next;
     }
     block = block->next;

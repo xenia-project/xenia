@@ -59,7 +59,6 @@ class Instr {
   void MoveBefore(Instr* other);
   void Replace(const OpcodeInfo* new_opcode, uint16_t new_flags);
   void Remove();
-
   template <typename TPredicate>
   std::pair<Value*, Value*> BinaryValueArrangeByPredicateExclusive(
       TPredicate&& pred) {
@@ -105,6 +104,17 @@ if both are constant, return nullptr, nullptr
   }
 
   Instr* GetDestDefSkipAssigns();
+  // returns [def op, constant]
+  std::pair<Value*, Value*> BinaryValueArrangeByDefOpAndConstant(
+      const OpcodeInfo* op_ptr) {
+    auto result = BinaryValueArrangeByDefiningOpcode(op_ptr);
+
+    if (!result.first) return result;
+    if (!result.second->IsConstant()) {
+      return {nullptr, nullptr};
+    }
+    return result;
+  }
 };
 
 }  // namespace hir
