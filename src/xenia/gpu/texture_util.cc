@@ -23,8 +23,7 @@ void GetSubresourcesFromFetchConstant(
     const xenos::xe_gpu_texture_fetch_t& fetch, uint32_t* width_minus_1_out,
     uint32_t* height_minus_1_out, uint32_t* depth_or_array_size_minus_1_out,
     uint32_t* base_page_out, uint32_t* mip_page_out,
-    uint32_t* mip_min_level_out, uint32_t* mip_max_level_out,
-    xenos::TextureFilter sampler_mip_filter) {
+    uint32_t* mip_min_level_out, uint32_t* mip_max_level_out) {
   uint32_t width_minus_1 = 0;
   uint32_t height_minus_1 = 0;
   uint32_t depth_or_array_size_minus_1 = 0;
@@ -72,16 +71,14 @@ void GetSubresourcesFromFetchConstant(
   }
   uint32_t size_mip_max_level =
       xe::log2_floor(longest_axis_minus_1 + uint32_t(1));
-  xenos::TextureFilter mip_filter =
-      sampler_mip_filter == xenos::TextureFilter::kUseFetchConst
-          ? fetch.mip_filter
-          : sampler_mip_filter;
 
   uint32_t base_page = fetch.base_address & 0x1FFFF;
   uint32_t mip_page = fetch.mip_address & 0x1FFFF;
 
   uint32_t mip_min_level, mip_max_level;
-  if (mip_filter == xenos::TextureFilter::kBaseMap || mip_page == 0) {
+  // Not taking mip_filter == kBaseMap into account for mip_max_level because
+  // the mip filter may be overridden by shader fetch instructions.
+  if (mip_page == 0) {
     mip_min_level = 0;
     mip_max_level = 0;
   } else {

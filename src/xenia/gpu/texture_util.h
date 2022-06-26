@@ -30,9 +30,7 @@ void GetSubresourcesFromFetchConstant(
     const xenos::xe_gpu_texture_fetch_t& fetch, uint32_t* width_minus_1_out,
     uint32_t* height_minus_1_out, uint32_t* depth_or_array_size_minus_1_out,
     uint32_t* base_page_out, uint32_t* mip_page_out,
-    uint32_t* mip_min_level_out, uint32_t* mip_max_level_out,
-    xenos::TextureFilter sampler_mip_filter =
-        xenos::TextureFilter::kUseFetchConst);
+    uint32_t* mip_min_level_out, uint32_t* mip_max_level_out);
 
 // Gets the number of the mipmap level where the packed mips are stored.
 inline uint32_t GetPackedMipLevel(uint32_t width, uint32_t height) {

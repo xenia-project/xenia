@@ -113,7 +113,9 @@ enum class TextureSign : uint32_t {
 enum class TextureFilter : uint32_t {
   kPoint = 0,
   kLinear = 1,
-  kBaseMap = 2,  // Only applicable for mip-filter - always fetch from level 0.
+  // Only applicable to the mip filter - like OpenGL minification filters
+  // GL_NEAREST / GL_LINEAR without MIPMAP_NEAREST / MIPMAP_LINEAR.
+  kBaseMap = 2,
   kUseFetchConst = 3,
 };
 
@@ -128,10 +130,17 @@ enum class AnisoFilter : uint32_t {
 };
 
 enum class BorderColor : uint32_t {
-  k_AGBR_Black = 0,
-  k_AGBR_White = 1,
-  k_ACBYCR_BLACK = 2,
-  k_ACBCRY_BLACK = 3,
+  // (0.0, 0.0, 0.0)
+  // TODO(Triang3l): Is the alpha 0 or 1?
+  k_ABGR_Black = 0,
+  // (1.0, 1.0, 1.0, 1.0)
+  k_ABGR_White = 1,
+  // Unknown precisely, but likely (0.5, 0.0, 0.5) for unsigned (Cr, Y, Cb)
+  // TODO(Triang3l): Real hardware border color, and is the alpha 0 or 1?
+  k_ACBYCR_Black = 2,
+  // Unknown precisely, but likely (0.0, 0.5, 0.5) for unsigned (Y, Cr, Cb)
+  // TODO(Triang3l): Real hardware border color, and is the alpha 0 or 1?
+  k_ACBCRY_Black = 3,
 };
 
 // For the tfetch instruction (not the fetch constant) and related instructions,
