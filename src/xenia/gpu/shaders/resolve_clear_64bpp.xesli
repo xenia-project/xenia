@@ -44,7 +44,7 @@ xesl_entry_inputs_end_code_begin_compute
       >> 2u;
   uint i;
   xesl_unroll for (i = 0u; i < 4u; ++i) {
-    xesl_writeTypedStorageBufferStore(xe_resolve_edram, address_int4s + i,
-                                      resolve_info.clear_value.xyxy);
+    xesl_typedStorageBufferStore(xe_resolve_edram, address_int4s + i,
+                                 resolve_info.clear_value.xyxy);
   }
 xesl_entry_code_end_compute

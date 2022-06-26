@@ -23,8 +23,7 @@ void GetSubresourcesFromFetchConstant(
     const xenos::xe_gpu_texture_fetch_t& fetch, uint32_t* width_minus_1_out,
     uint32_t* height_minus_1_out, uint32_t* depth_or_array_size_minus_1_out,
     uint32_t* base_page_out, uint32_t* mip_page_out,
-    uint32_t* mip_min_level_out, uint32_t* mip_max_level_out,
-    xenos::TextureFilter sampler_mip_filter) {
+    uint32_t* mip_min_level_out, uint32_t* mip_max_level_out) {
   uint32_t width_minus_1 = 0;
   uint32_t height_minus_1 = 0;
   uint32_t depth_or_array_size_minus_1 = 0;
@@ -72,22 +71,21 @@ void GetSubresourcesFromFetchConstant(
   }
   uint32_t size_mip_max_level =
       xe::log2_floor(longest_axis_minus_1 + uint32_t(1));
-  xenos::TextureFilter mip_filter =
-      sampler_mip_filter == xenos::TextureFilter::kUseFetchConst
-          ? fetch.mip_filter
-          : sampler_mip_filter;
 
   uint32_t base_page = fetch.base_address & 0x1FFFF;
   uint32_t mip_page = fetch.mip_address & 0x1FFFF;
 
   uint32_t mip_min_level, mip_max_level;
-  if (mip_filter == xenos::TextureFilter::kBaseMap || mip_page == 0) {
+  // Not taking mip_filter == kBaseMap into account for mip_max_level because
+  // the mip filter may be overridden by shader fetch instructions.
+  if (mip_page == 0) {
     mip_min_level = 0;
     mip_max_level = 0;
   } else {
-    mip_min_level = std::min(fetch.mip_min_level, size_mip_max_level);
-    mip_max_level = std::max(std::min(fetch.mip_max_level, size_mip_max_level),
-                             mip_min_level);
+    mip_min_level = std::min(uint32_t(fetch.mip_min_level), size_mip_max_level);
+    mip_max_level =
+        std::max(std::min(uint32_t(fetch.mip_max_level), size_mip_max_level),
+                 mip_min_level);
   }
   if (mip_max_level != 0) {
     if (base_page == 0) {
@@ -260,7 +258,8 @@ TextureGuestLayout GetGuestTextureLayout(
   if (layout.packed_level != 0) {
     std::memset(&layout.mips[0], 0, sizeof(layout.mips[0]));
   }
-  uint32_t max_stored_level = std::min(max_level, layout.packed_level);
+  uint32_t max_stored_level =
+      std::min(max_level, uint32_t(layout.packed_level));
   {
     uint32_t mips_end = max_stored_level + 1;
     assert_true(mips_end <= xe::countof(layout.mips));

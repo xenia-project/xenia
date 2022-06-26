@@ -22,7 +22,7 @@ SamplerState xe_sampler_linear_clamp : register(s0);
 #define FXAA_HLSL_5 1
 #include "../../../../third_party/fxaa/FXAA3_11.h"
 
-[numthreads(8, 8, 1)]
+[numthreads(16, 8, 1)]
 void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   [branch] if (any(xe_thread_id.xy >= xe_fxaa_size)) {
     return;

@@ -70,22 +70,22 @@ xesl_entry_inputs_end_code_begin_compute
       block_offset_host += elements_pitch_host;
       weights >>= 8u;
     }
-    xesl_writeTypedStorageBufferStore(
+    xesl_typedStorageBufferStore(
         xe_texture_load_dest, block_offset_host,
         is_trans.x ? XeDXT1TransRowToRGBA8(end_8in10_01.xy, weights.x)
                    : (XeDXTOpaqueRowToRGB8(end_8in10_01.xy, weights.x) |
                       0xFF000000u));
-    xesl_writeTypedStorageBufferStore(
+    xesl_typedStorageBufferStore(
         xe_texture_load_dest, block_offset_host + 1u,
         is_trans.y ? XeDXT1TransRowToRGBA8(end_8in10_01.zw, weights.y)
                    : (XeDXTOpaqueRowToRGB8(end_8in10_01.zw, weights.y) |
                       0xFF000000u));
-    xesl_writeTypedStorageBufferStore(
+    xesl_typedStorageBufferStore(
         xe_texture_load_dest, block_offset_host + 2u,
         is_trans.z ? XeDXT1TransRowToRGBA8(end_8in10_23.xy, weights.z)
                    : (XeDXTOpaqueRowToRGB8(end_8in10_23.xy, weights.z) |
                       0xFF000000u));
-    xesl_writeTypedStorageBufferStore(
+    xesl_typedStorageBufferStore(
         xe_texture_load_dest, block_offset_host + 3u,
         is_trans.w ? XeDXT1TransRowToRGBA8(end_8in10_23.zw, weights.w)
                    : (XeDXTOpaqueRowToRGB8(end_8in10_23.zw, weights.w) |

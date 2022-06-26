@@ -44,7 +44,7 @@ dcl_resource_texture2d (float,float,float,float) T0[0:0], space=0
 dcl_uav_typed_texture2d (unorm,unorm,unorm,unorm) U0[0:0], space=0
 dcl_input vThreadID.xy
 dcl_temps 7
-dcl_thread_group 8, 8, 1
+dcl_thread_group 16, 8, 1
 uge r0.xy, vThreadID.xyxx, CB0[0][0].xyxx
 or r0.x, r0.y, r0.x
 if_nz r0.x
@@ -255,10 +255,10 @@ ret
 
 const BYTE fxaa_cs[] =
 {
-     68,  88,  66,  67, 146,  66, 
-     17, 144, 231, 237, 183, 236, 
-    231,  78, 100, 194,  80,  51, 
-     78, 217,   1,   0,   0,   0, 
+     68,  88,  66,  67, 166,  45, 
+    113, 211, 255,  20,  36, 199, 
+     11, 156, 236,  21,  81,  60, 
+    246,  32,   1,   0,   0,   0, 
     184,  23,   0,   0,   5,   0, 
       0,   0,  52,   0,   0,   0, 
     108,   2,   0,   0, 124,   2, 
@@ -388,7 +388,7 @@ const BYTE fxaa_cs[] =
      95,   0,   0,   2,  50,   0, 
       2,   0, 104,   0,   0,   2, 
       7,   0,   0,   0, 155,   0, 
-      0,   4,   8,   0,   0,   0, 
+      0,   4,  16,   0,   0,   0, 
       8,   0,   0,   0,   1,   0, 
       0,   0,  80,   0,   0,   8, 
      50,   0,  16,   0,   0,   0, 

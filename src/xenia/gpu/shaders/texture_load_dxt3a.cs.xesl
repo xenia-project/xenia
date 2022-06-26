@@ -51,22 +51,22 @@ xesl_entry_inputs_end_code_begin_compute
   xesl_uint4 blocks_23 = XeEndianSwap32(
       xesl_typedStorageBufferLoad(xe_texture_load_source, block_offset_guest),
       load_info.endian_32);
-  xesl_writeTypedStorageBufferStore(
+  xesl_typedStorageBufferStore(
       xe_texture_load_dest, block_offset_host,
       XeDXT3FourBlocksRowToA8(xesl_uint4(blocks_01.xz, blocks_23.xz)));
   xesl_dont_flatten if (++texel_index_host.y < load_info.height_texels) {
     block_offset_host += elements_pitch_host;
-    xesl_writeTypedStorageBufferStore(
+    xesl_typedStorageBufferStore(
         xe_texture_load_dest, block_offset_host,
         XeDXT3FourBlocksRowToA8(xesl_uint4(blocks_01.xz, blocks_23.xz) >> 16u));
     xesl_dont_flatten if (++texel_index_host.y < load_info.height_texels) {
       block_offset_host += elements_pitch_host;
-      xesl_writeTypedStorageBufferStore(
+      xesl_typedStorageBufferStore(
           xe_texture_load_dest, block_offset_host,
           XeDXT3FourBlocksRowToA8(xesl_uint4(blocks_01.yw, blocks_23.yw)));
       xesl_dont_flatten if (++texel_index_host.y < load_info.height_texels) {
         block_offset_host += elements_pitch_host;
-        xesl_writeTypedStorageBufferStore(
+        xesl_typedStorageBufferStore(
             xe_texture_load_dest, block_offset_host,
             XeDXT3FourBlocksRowToA8(
                 xesl_uint4(blocks_01.yw, blocks_23.yw) >> 16u));

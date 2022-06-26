@@ -1239,7 +1239,7 @@ bool D3D12CommandProcessor::SetupContext() {
   apply_gamma_root_descriptor_range_source.RangeType =
       D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
   apply_gamma_root_descriptor_range_source.NumDescriptors = 1;
-  apply_gamma_root_descriptor_range_source.BaseShaderRegister = 0;
+  apply_gamma_root_descriptor_range_source.BaseShaderRegister = 1;
   apply_gamma_root_descriptor_range_source.RegisterSpace = 0;
   apply_gamma_root_descriptor_range_source.OffsetInDescriptorsFromTableStart =
       0;
@@ -1258,7 +1258,7 @@ bool D3D12CommandProcessor::SetupContext() {
   apply_gamma_root_descriptor_range_ramp.RangeType =
       D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
   apply_gamma_root_descriptor_range_ramp.NumDescriptors = 1;
-  apply_gamma_root_descriptor_range_ramp.BaseShaderRegister = 1;
+  apply_gamma_root_descriptor_range_ramp.BaseShaderRegister = 0;
   apply_gamma_root_descriptor_range_ramp.RegisterSpace = 0;
   apply_gamma_root_descriptor_range_ramp.OffsetInDescriptorsFromTableStart = 0;
   {
@@ -1968,7 +1968,7 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
         }
         SetExternalPipeline(apply_gamma_pipeline);
         SubmitBarriers();
-        uint32_t group_count_x = (uint32_t(swap_texture_desc.Width) + 7) / 8;
+        uint32_t group_count_x = (uint32_t(swap_texture_desc.Width) + 15) / 16;
         uint32_t group_count_y = (uint32_t(swap_texture_desc.Height) + 7) / 8;
         deferred_command_list_.D3DDispatch(group_count_x, group_count_y, 1);
 
@@ -2189,7 +2189,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     return false;
   }
 
-  // Translate the shaders and create the pipeline if needed.
+  // Create the pipeline (for this, need the actually used render target formats
+  // from the render target cache), translating the shaders - doing this now to
+  // obtain the used textures.
   D3D12Shader::D3D12Translation* vertex_shader_translation =
       static_cast<D3D12Shader::D3D12Translation*>(
           vertex_shader->GetOrCreateTranslation(
@@ -3479,7 +3481,7 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
         edram_32bpp_tile_pitch_dwords_scaled;
   }
 
-  // Color exponent bias and output index mapping or ROV render target writing.
+  // Color exponent bias and ROV render target writing.
   for (uint32_t i = 0; i < 4; ++i) {
     reg::RB_COLOR_INFO color_info = color_infos[i];
     // Exponent bias is in bits 20:25 of RB_COLOR_INFO.
