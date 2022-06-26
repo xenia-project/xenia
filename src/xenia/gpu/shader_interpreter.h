@@ -110,14 +110,15 @@ class ShaderInterpreter {
     return *reinterpret_cast<const float*>(&bits);
   }
 
-  const float* GetTempRegister(uint32_t address, bool is_relative) const {
-    return temp_registers_[(
-        int32_t(address) + (is_relative ? state_.GetLoopAddress() : 0) & 63)];
+  uint32_t GetTempRegisterIndex(uint32_t address, bool is_relative) const {
+    return (int32_t(address) + (is_relative ? state_.GetLoopAddress() : 0)) &
+           ((UINT32_C(1) << xenos::kMaxShaderTempRegistersLog2) - 1);
   }
-  // For simplicity (due to writability), not bounds-checking.
+  const float* GetTempRegister(uint32_t address, bool is_relative) const {
+    return temp_registers_[GetTempRegisterIndex(address, is_relative)];
+  }
   float* GetTempRegister(uint32_t address, bool is_relative) {
-    return temp_registers_[(
-        int32_t(address) + (is_relative ? state_.GetLoopAddress() : 0) & 63)];
+    return temp_registers_[GetTempRegisterIndex(address, is_relative)];
   }
   const float* GetFloatConstant(uint32_t address, bool is_relative,
                                 bool relative_address_is_a0) const;
@@ -138,7 +139,7 @@ class ShaderInterpreter {
   const uint32_t* ucode_ = nullptr;
 
   // For both inputs and locals.
-  float temp_registers_[64][4];
+  float temp_registers_[xenos::kMaxShaderTempRegisters][4];
 
   State state_;
 };
