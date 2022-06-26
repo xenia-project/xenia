@@ -22,6 +22,7 @@
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/shader_translator.h"
 #include "xenia/gpu/spirv_shader_translator.h"
+#include "xenia/gpu/xenos.h"
 #include "xenia/ui/spirv/spirv_disassembler.h"
 
 // For D3DDisassemble:
@@ -164,10 +165,11 @@ int shader_compiler_main(const std::vector<std::string>& args) {
   switch (shader_type) {
     case xenos::ShaderType::kVertex:
       modification = translator->GetDefaultVertexShaderModification(
-          64, host_vertex_shader_type);
+          xenos::kMaxShaderTempRegisters, host_vertex_shader_type);
       break;
     case xenos::ShaderType::kPixel:
-      modification = translator->GetDefaultPixelShaderModification(64);
+      modification = translator->GetDefaultPixelShaderModification(
+          xenos::kMaxShaderTempRegisters);
       break;
     default:
       assert_unhandled_case(shader_type);

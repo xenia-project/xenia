@@ -55,7 +55,9 @@ class ShaderTranslator {
 
   // Register count from SQ_PROGRAM_CNTL, stored by the implementation in its
   // modification bits.
-  virtual uint32_t GetModificationRegisterCount() const { return 64; }
+  virtual uint32_t GetModificationRegisterCount() const {
+    return xenos::kMaxShaderTempRegisters;
+  }
 
   // True if the current shader is a vertex shader.
   bool is_vertex_shader() const {
