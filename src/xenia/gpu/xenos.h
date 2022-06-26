@@ -113,7 +113,9 @@ enum class TextureSign : uint32_t {
 enum class TextureFilter : uint32_t {
   kPoint = 0,
   kLinear = 1,
-  kBaseMap = 2,  // Only applicable for mip-filter - always fetch from level 0.
+  // Only applicable to the mip filter - like OpenGL minification filters
+  // GL_NEAREST / GL_LINEAR without MIPMAP_NEAREST / MIPMAP_LINEAR.
+  kBaseMap = 2,
   kUseFetchConst = 3,
 };
 
