@@ -334,6 +334,13 @@ constexpr bool IsAnySignSigned(uint8_t packed_signs) {
   return ((xor_signed | (xor_signed >> 1)) & 0b01010101) != 0b01010101;
 }
 
+// Returns normalized clamp modes specified in the fetch constant based on the
+// texture data dimension in it.
+void GetClampModesForDimension(const xenos::xe_gpu_texture_fetch_t& fetch,
+                               xenos::ClampMode& clamp_x_out,
+                               xenos::ClampMode& clamp_y_out,
+                               xenos::ClampMode& clamp_z_out);
+
 }  // namespace texture_util
 }  // namespace gpu
 }  // namespace xe
