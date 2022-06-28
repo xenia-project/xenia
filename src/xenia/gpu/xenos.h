@@ -99,6 +99,11 @@ enum class ClampMode : uint32_t {
   kMirrorClampToBorder = 7,
 };
 
+constexpr bool ClampModeUsesBorder(ClampMode clamp_mode) {
+  return clamp_mode == ClampMode::kClampToBorder ||
+         clamp_mode == ClampMode::kMirrorClampToBorder;
+}
+
 // TEX_FORMAT_COMP, known as GPUSIGN on the Xbox 360.
 enum class TextureSign : uint32_t {
   kUnsigned = 0,

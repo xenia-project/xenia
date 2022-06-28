@@ -1281,7 +1281,7 @@ bool CommandProcessor::ExecutePacketType3Draw(RingBuffer* reader,
   --count_remaining;
   WriteRegister(XE_GPU_REG_VGT_DRAW_INITIATOR, vgt_draw_initiator.value);
 
-  bool success = true;
+  bool draw_succeeded = true;
   // TODO(Triang3l): Remove IndexBufferInfo and replace handling of all this
   // with PrimitiveProcessor when the old Vulkan renderer is removed.
   bool is_indexed = false;
@@ -1330,7 +1330,7 @@ bool CommandProcessor::ExecutePacketType3Draw(RingBuffer* reader,
           "{}: Using immediate vertex indices, which are not supported yet. "
           "Report the game to Xenia developers!",
           opcode_name, uint32_t(vgt_draw_initiator.source_select));
-      success = false;
+      draw_succeeded = false;
       assert_always();
     } break;
     case xenos::SourceSelect::kAutoIndex: {
@@ -1340,7 +1340,7 @@ bool CommandProcessor::ExecutePacketType3Draw(RingBuffer* reader,
     } break;
     default: {
       // Invalid source selection.
-      success = false;
+      draw_succeeded = false;
       assert_unhandled_case(vgt_draw_initiator.source_select);
     } break;
   }
@@ -1349,19 +1349,19 @@ bool CommandProcessor::ExecutePacketType3Draw(RingBuffer* reader,
   // we don't support yet.
   reader->AdvanceRead(count_remaining * sizeof(uint32_t));
 
-  if (success) {
+  if (draw_succeeded) {
     auto viz_query = register_file_->Get<reg::PA_SC_VIZ_QUERY>();
     if (!(viz_query.viz_query_ena && viz_query.kill_pix_post_hi_z)) {
       // TODO(Triang3l): Don't drop the draw call completely if the vertex
       // shader has memexport.
       // TODO(Triang3l || JoelLinn): Handle this properly in the render
       // backends.
-      success = IssueDraw(
+      draw_succeeded = IssueDraw(
           vgt_draw_initiator.prim_type, vgt_draw_initiator.num_indices,
           is_indexed ? &index_buffer_info : nullptr,
           xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode,
                                      vgt_draw_initiator.prim_type));
-      if (!success) {
+      if (!draw_succeeded) {
         XELOGE("{}({}, {}, {}): Failed in backend", opcode_name,
                vgt_draw_initiator.num_indices,
                uint32_t(vgt_draw_initiator.prim_type),
@@ -1370,7 +1370,11 @@ bool CommandProcessor::ExecutePacketType3Draw(RingBuffer* reader,
     }
   }
 
-  return success;
+  // If read the packed correctly, but merely couldn't execute it (because of,
+  // for instance, features not supported by the host), don't terminate command
+  // buffer processing as that would leave rendering in a way more inconsistent
+  // state than just a single dropped draw command.
+  return true;
 }
 
 bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
