@@ -17,6 +17,7 @@
 
 #include "xenia/base/hash.h"
 #include "xenia/gpu/texture_cache.h"
+#include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/vulkan/vulkan_shared_memory.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
@@ -28,6 +29,39 @@ class VulkanCommandProcessor;
 
 class VulkanTextureCache final : public TextureCache {
  public:
+  // Sampler parameters that can be directly converted to a host sampler or used
+  // for checking whether samplers bindings are up to date.
+  union SamplerParameters {
+    uint32_t value;
+    struct {
+      xenos::ClampMode clamp_x : 3;         // 3
+      xenos::ClampMode clamp_y : 3;         // 6
+      xenos::ClampMode clamp_z : 3;         // 9
+      xenos::BorderColor border_color : 2;  // 11
+      uint32_t mag_linear : 1;              // 12
+      uint32_t min_linear : 1;              // 13
+      uint32_t mip_linear : 1;              // 14
+      xenos::AnisoFilter aniso_filter : 3;  // 17
+      uint32_t mip_min_level : 4;           // 21
+      uint32_t mip_base_map : 1;            // 22
+      // Maximum mip level is in the texture resource itself, but mip_base_map
+      // can be used to limit fetching to mip_min_level.
+    };
+
+    SamplerParameters() : value(0) { static_assert_size(*this, sizeof(value)); }
+    struct Hasher {
+      size_t operator()(const SamplerParameters& parameters) const {
+        return std::hash<uint32_t>{}(parameters.value);
+      }
+    };
+    bool operator==(const SamplerParameters& parameters) const {
+      return value == parameters.value;
+    }
+    bool operator!=(const SamplerParameters& parameters) const {
+      return value != parameters.value;
+    }
+  };
+
   // Transient descriptor set layouts must be initialized in the command
   // processor.
   static std::unique_ptr<VulkanTextureCache> Create(
@@ -59,6 +93,26 @@ class VulkanTextureCache final : public TextureCache {
   VkImageView GetActiveBindingOrNullImageView(uint32_t fetch_constant_index,
                                               xenos::FetchOpDimension dimension,
                                               bool is_signed) const;
+
+  SamplerParameters GetSamplerParameters(
+      const VulkanShader::SamplerBinding& binding) const;
+
+  // Must be called for every used sampler at least once in a single submission,
+  // and a submission must be open for this to be callable.
+  // Returns:
+  // - The sampler, if obtained successfully - and increases its last usage
+  //   submission index - and has_overflown_out = false.
+  // - VK_NULL_HANDLE and has_overflown_out = true if there's a total sampler
+  //   count overflow in a submission that potentially hasn't completed yet.
+  // - VK_NULL_HANDLE and has_overflown_out = false in case of a general failure
+  //   to create a sampler.
+  VkSampler UseSampler(SamplerParameters parameters, bool& has_overflown_out);
+  // Returns the submission index to await (may be the current submission in
+  // case of an overflow within a single submission - in this case, it must be
+  // ended, and a new one must be started) in case of sampler count overflow, so
+  // samplers may be freed, and UseSamplers may take their slots.
+  uint64_t GetSubmissionToAwaitOnSamplerOverflow(
+      uint32_t overflowed_sampler_count) const;
 
   // Returns the 2D view of the front buffer texture (for fragment shader
   // reading - the barrier will be pushed in the command processor if needed),
@@ -220,6 +274,13 @@ class VulkanTextureCache final : public TextureCache {
     }
   };
 
+  struct Sampler {
+    VkSampler sampler;
+    uint64_t last_usage_submission;
+    std::pair<const SamplerParameters, Sampler>* used_previous;
+    std::pair<const SamplerParameters, Sampler>* used_next;
+  };
+
   static constexpr bool AreDimensionsCompatible(
       xenos::FetchOpDimension binding_dimension,
       xenos::DataDimension resource_dimension) {
@@ -251,6 +312,8 @@ class VulkanTextureCache final : public TextureCache {
                             VkPipelineStageFlags& stage_mask,
                             VkAccessFlags& access_mask, VkImageLayout& layout);
 
+  xenos::ClampMode NormalizeClampMode(xenos::ClampMode clamp_mode) const;
+
   VulkanCommandProcessor& command_processor_;
   VkPipelineStageFlags guest_shader_pipeline_stages_;
 
@@ -275,6 +338,15 @@ class VulkanTextureCache final : public TextureCache {
 
   std::array<VulkanTextureBinding, xenos::kTextureFetchConstantCount>
       vulkan_texture_bindings_;
+
+  uint32_t sampler_max_count_;
+
+  xenos::AnisoFilter max_anisotropy_;
+
+  std::unordered_map<SamplerParameters, Sampler, SamplerParameters::Hasher>
+      samplers_;
+  std::pair<const SamplerParameters, Sampler>* sampler_used_first_ = nullptr;
+  std::pair<const SamplerParameters, Sampler>* sampler_used_last_ = nullptr;
 };
 
 }  // namespace vulkan

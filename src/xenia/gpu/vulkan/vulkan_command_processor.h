@@ -158,6 +158,7 @@ class VulkanCommandProcessor : public CommandProcessor {
     return deferred_command_buffer_;
   }
 
+  bool submission_open() const { return submission_open_; }
   uint64_t GetCurrentSubmission() const {
     return submission_completed_ +
            uint64_t(submissions_in_flight_fences_.size()) + 1;
@@ -675,6 +676,12 @@ class VulkanCommandProcessor : public CommandProcessor {
   bool dynamic_stencil_write_mask_back_update_needed_;
   bool dynamic_stencil_reference_front_update_needed_;
   bool dynamic_stencil_reference_back_update_needed_;
+
+  // Currently used samplers.
+  std::vector<std::pair<VulkanTextureCache::SamplerParameters, VkSampler>>
+      current_samplers_vertex_;
+  std::vector<std::pair<VulkanTextureCache::SamplerParameters, VkSampler>>
+      current_samplers_pixel_;
 
   // Cache render pass currently started in the command buffer with the
   // framebuffer.

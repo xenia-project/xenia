@@ -18,6 +18,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/texture_info.h"
+#include "xenia/gpu/texture_util.h"
 #include "xenia/gpu/vulkan/deferred_command_buffer.h"
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
@@ -425,6 +426,15 @@ VulkanTextureCache::~VulkanTextureCache() {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
+  for (const std::pair<const SamplerParameters, Sampler>& sampler_pair :
+       samplers_) {
+    dfn.vkDestroySampler(device, sampler_pair.second.sampler, nullptr);
+  }
+  samplers_.clear();
+  COUNT_profile_set("gpu/texture_cache/vulkan/samplers", 0);
+  sampler_used_last_ = nullptr;
+  sampler_used_first_ = nullptr;
+
   if (null_image_view_3d_ != VK_NULL_HANDLE) {
     dfn.vkDestroyImageView(device, null_image_view_3d_, nullptr);
   }
@@ -587,6 +597,266 @@ VkImageView VulkanTextureCache::GetActiveBindingOrNullImageView(
     default:
       return null_image_view_2d_array_;
   }
+}
+
+VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
+    const VulkanShader::SamplerBinding& binding) const {
+  const auto& regs = register_file();
+  const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
+      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + binding.fetch_constant * 6);
+
+  SamplerParameters parameters;
+
+  xenos::ClampMode fetch_clamp_x, fetch_clamp_y, fetch_clamp_z;
+  texture_util::GetClampModesForDimension(fetch, fetch_clamp_x, fetch_clamp_y,
+                                          fetch_clamp_z);
+  parameters.clamp_x = NormalizeClampMode(fetch_clamp_x);
+  parameters.clamp_y = NormalizeClampMode(fetch_clamp_y);
+  parameters.clamp_z = NormalizeClampMode(fetch_clamp_z);
+  if (xenos::ClampModeUsesBorder(parameters.clamp_x) ||
+      xenos::ClampModeUsesBorder(parameters.clamp_y) ||
+      xenos::ClampModeUsesBorder(parameters.clamp_z)) {
+    parameters.border_color = fetch.border_color;
+  } else {
+    parameters.border_color = xenos::BorderColor::k_ABGR_Black;
+  }
+
+  xenos::TextureFilter mag_filter =
+      binding.mag_filter == xenos::TextureFilter::kUseFetchConst
+          ? fetch.mag_filter
+          : binding.mag_filter;
+  parameters.mag_linear = mag_filter == xenos::TextureFilter::kLinear;
+  xenos::TextureFilter min_filter =
+      binding.min_filter == xenos::TextureFilter::kUseFetchConst
+          ? fetch.min_filter
+          : binding.min_filter;
+  parameters.min_linear = min_filter == xenos::TextureFilter::kLinear;
+  xenos::TextureFilter mip_filter =
+      binding.mip_filter == xenos::TextureFilter::kUseFetchConst
+          ? fetch.mip_filter
+          : binding.mip_filter;
+  parameters.mip_linear = mip_filter == xenos::TextureFilter::kLinear;
+  if (parameters.mag_linear || parameters.min_linear || parameters.mip_linear) {
+    // Check if the texture is actually filterable on the host.
+    bool linear_filterable = true;
+    TextureKey texture_key;
+    uint8_t texture_swizzled_signs;
+    BindingInfoFromFetchConstant(fetch, texture_key, &texture_swizzled_signs);
+    if (texture_key.is_valid) {
+      const HostFormatPair& host_format_pair = GetHostFormatPair(texture_key);
+      if ((texture_util::IsAnySignNotSigned(texture_swizzled_signs) &&
+           !host_format_pair.format_unsigned.linear_filterable) ||
+          (texture_util::IsAnySignSigned(texture_swizzled_signs) &&
+           !host_format_pair.format_signed.linear_filterable)) {
+        linear_filterable = false;
+      }
+    } else {
+      linear_filterable = false;
+    }
+    if (!linear_filterable) {
+      parameters.mag_linear = 0;
+      parameters.min_linear = 0;
+      parameters.mip_linear = 0;
+    }
+  }
+  xenos::AnisoFilter aniso_filter =
+      binding.aniso_filter == xenos::AnisoFilter::kUseFetchConst
+          ? fetch.aniso_filter
+          : binding.aniso_filter;
+  parameters.aniso_filter = std::min(aniso_filter, max_anisotropy_);
+  parameters.mip_base_map = mip_filter == xenos::TextureFilter::kBaseMap;
+
+  uint32_t mip_min_level;
+  texture_util::GetSubresourcesFromFetchConstant(fetch, nullptr, nullptr,
+                                                 nullptr, nullptr, nullptr,
+                                                 &mip_min_level, nullptr);
+  parameters.mip_min_level = mip_min_level;
+
+  return parameters;
+}
+
+VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters,
+                                         bool& has_overflown_out) {
+  assert_true(command_processor_.submission_open());
+  uint64_t submission_current = command_processor_.GetCurrentSubmission();
+
+  // Try to find an existing sampler.
+  auto it_existing = samplers_.find(parameters);
+  if (it_existing != samplers_.end()) {
+    std::pair<const SamplerParameters, Sampler>& sampler = *it_existing;
+    assert_true(sampler.second.last_usage_submission <= submission_current);
+    // This is called very frequently, don't relink unless needed for caching.
+    if (sampler.second.last_usage_submission < submission_current) {
+      // Move to the front of the LRU queue.
+      sampler.second.last_usage_submission = submission_current;
+      if (sampler.second.used_next) {
+        if (sampler.second.used_previous) {
+          sampler.second.used_previous->second.used_next =
+              sampler.second.used_next;
+        } else {
+          sampler_used_first_ = sampler.second.used_next;
+        }
+        sampler.second.used_next->second.used_previous =
+            sampler.second.used_previous;
+        sampler.second.used_previous = sampler_used_last_;
+        sampler.second.used_next = nullptr;
+        sampler_used_last_->second.used_next = &sampler;
+        sampler_used_last_ = &sampler;
+      }
+    }
+    has_overflown_out = false;
+    return sampler.second.sampler;
+  }
+
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanProvider();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+
+  // See if an existing sampler can be destroyed to create space for the new
+  // one.
+  if (samplers_.size() >= sampler_max_count_) {
+    assert_not_null(sampler_used_first_);
+    if (!sampler_used_first_) {
+      has_overflown_out = false;
+      return VK_NULL_HANDLE;
+    }
+    if (sampler_used_first_->second.last_usage_submission >
+        command_processor_.GetCompletedSubmission()) {
+      has_overflown_out = true;
+      return VK_NULL_HANDLE;
+    }
+    auto it_reuse = samplers_.find(sampler_used_first_->first);
+    dfn.vkDestroySampler(device, sampler_used_first_->second.sampler, nullptr);
+    if (sampler_used_first_->second.used_next) {
+      sampler_used_first_->second.used_next->second.used_previous =
+          sampler_used_first_->second.used_previous;
+    } else {
+      sampler_used_last_ = sampler_used_first_->second.used_previous;
+    }
+    sampler_used_first_ = sampler_used_first_->second.used_next;
+    assert_true(it_reuse != samplers_.end());
+    if (it_reuse != samplers_.end()) {
+      // This destroys the Sampler object.
+      samplers_.erase(it_reuse);
+      COUNT_profile_set("gpu/texture_cache/vulkan/samplers", samplers_.size());
+    } else {
+      has_overflown_out = false;
+      return VK_NULL_HANDLE;
+    }
+  }
+
+  // Create a new sampler and make it the least recently used.
+  // The values are normalized, and unsupported ones are excluded, in
+  // GetSamplerParameters.
+  VkSamplerCreateInfo sampler_create_info = {};
+  sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  // TODO(Triang3l): VK_SAMPLER_CREATE_NON_SEAMLESS_CUBE_MAP_BIT_EXT if
+  // VK_EXT_non_seamless_cube_map and the nonSeamlessCubeMap feature are
+  // supported.
+  sampler_create_info.magFilter =
+      parameters.mag_linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+  sampler_create_info.minFilter =
+      parameters.mag_linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+  sampler_create_info.mipmapMode = parameters.mag_linear
+                                       ? VK_SAMPLER_MIPMAP_MODE_LINEAR
+                                       : VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  static const VkSamplerAddressMode kAddressModeMap[] = {
+      // kRepeat
+      VK_SAMPLER_ADDRESS_MODE_REPEAT,
+      // kMirroredRepeat
+      VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT,
+      // kClampToEdge
+      VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+      // kMirrorClampToEdge
+      VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE_KHR,
+      // kClampToHalfway
+      VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+      // kMirrorClampToHalfway
+      VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE_KHR,
+      // kClampToBorder
+      VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+      // kMirrorClampToBorder
+      VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE_KHR,
+  };
+  sampler_create_info.addressModeU =
+      kAddressModeMap[uint32_t(parameters.clamp_x)];
+  sampler_create_info.addressModeV =
+      kAddressModeMap[uint32_t(parameters.clamp_y)];
+  sampler_create_info.addressModeW =
+      kAddressModeMap[uint32_t(parameters.clamp_z)];
+  // LOD biasing is performed in shaders.
+  if (parameters.aniso_filter != xenos::AnisoFilter::kDisabled) {
+    sampler_create_info.anisotropyEnable = VK_TRUE;
+    sampler_create_info.maxAnisotropy =
+        float(UINT32_C(1) << (uint32_t(parameters.aniso_filter) -
+                              uint32_t(xenos::AnisoFilter::kMax_1_1)));
+  }
+  sampler_create_info.minLod = float(parameters.mip_min_level);
+  if (parameters.mip_base_map) {
+    assert_false(parameters.mip_linear);
+    sampler_create_info.maxLod = sampler_create_info.minLod + 0.25f;
+  } else {
+    sampler_create_info.maxLod = VK_LOD_CLAMP_NONE;
+  }
+  // TODO(Triang3l): Custom border colors for CrYCb / YCrCb.
+  switch (parameters.border_color) {
+    case xenos::BorderColor::k_ABGR_White:
+      sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+      break;
+    default:
+      sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+      break;
+  }
+  VkSampler vulkan_sampler;
+  if (dfn.vkCreateSampler(device, &sampler_create_info, nullptr,
+                          &vulkan_sampler) != VK_SUCCESS) {
+    XELOGE(
+        "VulkanTextureCache: Failed to create the sampler for parameters "
+        "0x{:08X}",
+        parameters.value);
+    has_overflown_out = false;
+    return VK_NULL_HANDLE;
+  }
+  std::pair<const SamplerParameters, Sampler>& new_sampler =
+      *(samplers_
+            .emplace(std::piecewise_construct,
+                     std::forward_as_tuple(parameters), std::forward_as_tuple())
+            .first);
+  COUNT_profile_set("gpu/texture_cache/vulkan/samplers", samplers_.size());
+  new_sampler.second.sampler = vulkan_sampler;
+  new_sampler.second.last_usage_submission = submission_current;
+  new_sampler.second.used_previous = sampler_used_last_;
+  new_sampler.second.used_next = nullptr;
+  if (sampler_used_last_) {
+    sampler_used_last_->second.used_next = &new_sampler;
+  } else {
+    sampler_used_first_ = &new_sampler;
+  }
+  sampler_used_last_ = &new_sampler;
+  return vulkan_sampler;
+}
+
+uint64_t VulkanTextureCache::GetSubmissionToAwaitOnSamplerOverflow(
+    uint32_t overflowed_sampler_count) const {
+  if (!overflowed_sampler_count) {
+    return 0;
+  }
+  std::pair<const SamplerParameters, Sampler>* sampler_used =
+      sampler_used_first_;
+  if (!sampler_used_first_) {
+    return 0;
+  }
+  for (uint32_t samplers_remaining = overflowed_sampler_count - 1;
+       samplers_remaining; --samplers_remaining) {
+    std::pair<const SamplerParameters, Sampler>* sampler_used_next =
+        sampler_used->second.used_next;
+    if (!sampler_used_next) {
+      break;
+    }
+    sampler_used = sampler_used_next;
+  }
+  return sampler_used->second.last_usage_submission;
 }
 
 VkImageView VulkanTextureCache::RequestSwapTexture(
@@ -2278,6 +2548,32 @@ bool VulkanTextureCache::Initialize() {
 
   null_images_cleared_ = false;
 
+  // Samplers.
+
+  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
+  const VkPhysicalDeviceLimits& device_limits =
+      provider.device_properties().limits;
+
+  // Some MoltenVK devices have a maximum of 2048, 1024, or even 96 samplers,
+  // below Vulkan's minimum requirement of 4000.
+  // Assuming that the current VulkanTextureCache is the only one on this
+  // VkDevice (true in a regular emulation scenario), so taking over all the
+  // allocation slots exclusively.
+  // Also leaving a few slots for use by things like overlay applications.
+  sampler_max_count_ =
+      device_limits.maxSamplerAllocationCount -
+      uint32_t(ui::vulkan::VulkanProvider::HostSampler::kCount) - 16;
+
+  if (device_features.samplerAnisotropy) {
+    max_anisotropy_ = xenos::AnisoFilter(
+        uint32_t(xenos::AnisoFilter::kMax_1_1) +
+        (31 -
+         xe::lzcnt(uint32_t(std::min(
+             16.0f, std::max(1.0f, device_limits.maxSamplerAnisotropy))))));
+  } else {
+    max_anisotropy_ = xenos::AnisoFilter::kDisabled;
+  }
+
   return true;
 }
 
@@ -2323,6 +2619,25 @@ void VulkanTextureCache::GetTextureUsageMasks(VulkanTexture::Usage usage,
       layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
       break;
   }
+}
+
+xenos::ClampMode VulkanTextureCache::NormalizeClampMode(
+    xenos::ClampMode clamp_mode) const {
+  if (clamp_mode == xenos::ClampMode::kClampToHalfway) {
+    // No GL_CLAMP (clamp to half edge, half border) equivalent in Vulkan, but
+    // there's no Direct3D 9 equivalent anyway, and too weird to be suitable for
+    // intentional real usage.
+    return xenos::ClampMode::kClampToEdge;
+  }
+  if (clamp_mode == xenos::ClampMode::kMirrorClampToEdge ||
+      clamp_mode == xenos::ClampMode::kMirrorClampToHalfway ||
+      clamp_mode == xenos::ClampMode::kMirrorClampToBorder) {
+    // TODO(Triang3l): VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE_KHR if
+    // VK_KHR_sampler_mirror_clamp_to_edge (or Vulkan 1.2) and the
+    // samplerMirrorClampToEdge feature are supported.
+    return xenos::ClampMode::kMirroredRepeat;
+  }
+  return clamp_mode;
 }
 
 }  // namespace vulkan

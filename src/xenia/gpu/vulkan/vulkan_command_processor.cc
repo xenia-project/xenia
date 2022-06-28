@@ -2174,26 +2174,6 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   }
   // TODO(Triang3l): Memory export.
 
-  if (!BeginSubmission(true)) {
-    return false;
-  }
-
-  // Process primitives.
-  PrimitiveProcessor::ProcessingResult primitive_processing_result;
-  if (!primitive_processor_->Process(primitive_processing_result)) {
-    return false;
-  }
-  if (!primitive_processing_result.host_draw_vertex_count) {
-    // Nothing to draw.
-    return true;
-  }
-  // TODO(Triang3l): Tessellation, geometry-type-specific vertex shader, vertex
-  // shader as compute.
-  if (primitive_processing_result.host_vertex_shader_type !=
-      Shader::HostVertexShaderType::kVertex) {
-    return false;
-  }
-
   reg::RB_DEPTHCONTROL normalized_depth_control =
       draw_util::GetNormalizedDepthControl(regs);
   uint32_t normalized_color_mask =
@@ -2201,14 +2181,132 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                          regs, pixel_shader->writes_color_targets())
                    : 0;
 
-  // Shader modifications.
-  SpirvShaderTranslator::Modification vertex_shader_modification =
-      pipeline_cache_->GetCurrentVertexShaderModification(
-          *vertex_shader, primitive_processing_result.host_vertex_shader_type);
-  SpirvShaderTranslator::Modification pixel_shader_modification =
-      pixel_shader ? pipeline_cache_->GetCurrentPixelShaderModification(
-                         *pixel_shader, normalized_color_mask)
-                   : SpirvShaderTranslator::Modification(0);
+  PrimitiveProcessor::ProcessingResult primitive_processing_result;
+  SpirvShaderTranslator::Modification vertex_shader_modification;
+  SpirvShaderTranslator::Modification pixel_shader_modification;
+  VulkanShader::VulkanTranslation* vertex_shader_translation;
+  VulkanShader::VulkanTranslation* pixel_shader_translation;
+
+  // Two iterations because a submission (even the current one - in which case
+  // it needs to be ended, and a new one must be started) may need to be awaited
+  // in case of a sampler count overflow, and if that happens, all subsystem
+  // updates done previously must be performed again because the updates done
+  // before the awaiting may be referencing objects destroyed by
+  // CompletedSubmissionUpdated.
+  for (uint32_t i = 0; i < 2; ++i) {
+    if (!BeginSubmission(true)) {
+      return false;
+    }
+
+    // Process primitives.
+    if (!primitive_processor_->Process(primitive_processing_result)) {
+      return false;
+    }
+    if (!primitive_processing_result.host_draw_vertex_count) {
+      // Nothing to draw.
+      return true;
+    }
+    // TODO(Triang3l): Tessellation, geometry-type-specific vertex shader,
+    // vertex shader as compute.
+    if (primitive_processing_result.host_vertex_shader_type !=
+        Shader::HostVertexShaderType::kVertex) {
+      return false;
+    }
+
+    // Shader modifications.
+    vertex_shader_modification =
+        pipeline_cache_->GetCurrentVertexShaderModification(
+            *vertex_shader,
+            primitive_processing_result.host_vertex_shader_type);
+    pixel_shader_modification =
+        pixel_shader ? pipeline_cache_->GetCurrentPixelShaderModification(
+                           *pixel_shader, normalized_color_mask)
+                     : SpirvShaderTranslator::Modification(0);
+
+    // Translate the shaders now to obtain the sampler bindings.
+    vertex_shader_translation = static_cast<VulkanShader::VulkanTranslation*>(
+        vertex_shader->GetOrCreateTranslation(
+            vertex_shader_modification.value));
+    pixel_shader_translation =
+        pixel_shader ? static_cast<VulkanShader::VulkanTranslation*>(
+                           pixel_shader->GetOrCreateTranslation(
+                               pixel_shader_modification.value))
+                     : nullptr;
+    if (!pipeline_cache_->EnsureShadersTranslated(vertex_shader_translation,
+                                                  pixel_shader_translation)) {
+      return false;
+    }
+
+    // Obtain the samplers. Note that the bindings don't depend on the shader
+    // modification, so if on the second iteration of this loop it becomes
+    // different for some reason (like a race condition with the guest in index
+    // buffer processing in the primitive processor resulting in different host
+    // vertex shader types), the bindings will stay the same.
+    // TODO(Triang3l): Sampler caching and reuse for adjacent draws within one
+    // submission.
+    uint32_t samplers_overflowed_count = 0;
+    for (uint32_t j = 0; j < 2; ++j) {
+      std::vector<std::pair<VulkanTextureCache::SamplerParameters, VkSampler>>&
+          shader_samplers =
+              j ? current_samplers_pixel_ : current_samplers_vertex_;
+      if (!i) {
+        shader_samplers.clear();
+      }
+      const VulkanShader* shader = j ? pixel_shader : vertex_shader;
+      if (!shader) {
+        continue;
+      }
+      const std::vector<VulkanShader::SamplerBinding>& shader_sampler_bindings =
+          shader->GetSamplerBindingsAfterTranslation();
+      if (!i) {
+        shader_samplers.reserve(shader_sampler_bindings.size());
+        for (const VulkanShader::SamplerBinding& shader_sampler_binding :
+             shader_sampler_bindings) {
+          shader_samplers.emplace_back(
+              texture_cache_->GetSamplerParameters(shader_sampler_binding),
+              VK_NULL_HANDLE);
+        }
+      }
+      for (std::pair<VulkanTextureCache::SamplerParameters, VkSampler>&
+               shader_sampler_pair : shader_samplers) {
+        // UseSampler calls are needed even on the second iteration in case the
+        // submission was broken (and thus the last usage submission indices for
+        // the used samplers need to be updated) due to an overflow within one
+        // submission. Though sampler overflow is a very rare situation overall.
+        bool sampler_overflowed;
+        VkSampler shader_sampler = texture_cache_->UseSampler(
+            shader_sampler_pair.first, sampler_overflowed);
+        shader_sampler_pair.second = shader_sampler;
+        if (shader_sampler == VK_NULL_HANDLE) {
+          if (!sampler_overflowed || i) {
+            // If !sampler_overflowed, just failed to create a sampler for some
+            // reason.
+            // If i == 1, an overflow has happened twice, can't recover from it
+            // anymore (would enter an infinite loop otherwise if the number of
+            // attempts was not limited to 2). Possibly too many unique samplers
+            // in one draw, or failed to await submission completion.
+            return false;
+          }
+          ++samplers_overflowed_count;
+        }
+      }
+    }
+    if (!samplers_overflowed_count) {
+      break;
+    }
+    assert_zero(i);
+    // Free space for as many samplers as how many haven't been allocated
+    // successfully - obtain the submission index that needs to be awaited to
+    // reuse `samplers_overflowed_count` slots. This must be done after all the
+    // UseSampler calls, not inside the loop calling UseSampler, because earlier
+    // UseSampler calls may "mark for deletion" some samplers that later
+    // UseSampler calls in the loop may actually demand.
+    uint64_t sampler_overflow_await_submission =
+        texture_cache_->GetSubmissionToAwaitOnSamplerOverflow(
+            samplers_overflowed_count);
+    assert_true(sampler_overflow_await_submission <= GetCurrentSubmission());
+    CheckSubmissionFenceAndDeviceLoss(sampler_overflow_await_submission);
+  }
 
   // Set up the render targets - this may perform dispatches and draws.
   if (!render_target_cache_->Update(is_rasterization_done,
@@ -2220,15 +2318,6 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // Create the pipeline (for this, need the render pass from the render target
   // cache), translating the shaders - doing this now to obtain the used
   // textures.
-  VulkanShader::VulkanTranslation* vertex_shader_translation =
-      static_cast<VulkanShader::VulkanTranslation*>(
-          vertex_shader->GetOrCreateTranslation(
-              vertex_shader_modification.value));
-  VulkanShader::VulkanTranslation* pixel_shader_translation =
-      pixel_shader ? static_cast<VulkanShader::VulkanTranslation*>(
-                         pixel_shader->GetOrCreateTranslation(
-                             pixel_shader_modification.value))
-                   : nullptr;
   VkPipeline pipeline;
   const VulkanPipelineCache::PipelineLayoutProvider* pipeline_layout_provider;
   if (!pipeline_cache_->ConfigurePipeline(
@@ -3532,18 +3621,15 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       (write_pixel_textures ? texture_count_pixel : 0));
   size_t vertex_sampler_image_info_offset = descriptor_write_image_info_.size();
   if (write_vertex_samplers) {
-    // TODO(Triang3l): Real samplers.
-    for (const VulkanShader::SamplerBinding& sampler_binding :
-         samplers_vertex) {
+    for (const std::pair<VulkanTextureCache::SamplerParameters, VkSampler>&
+             sampler_pair : current_samplers_vertex_) {
       VkDescriptorImageInfo& descriptor_image_info =
           descriptor_write_image_info_.emplace_back();
-      descriptor_image_info.sampler = provider.GetHostSampler(
-          ui::vulkan::VulkanProvider::HostSampler::kNearestClamp);
+      descriptor_image_info.sampler = sampler_pair.second;
     }
   }
   size_t vertex_texture_image_info_offset = descriptor_write_image_info_.size();
   if (write_vertex_textures) {
-    // TODO(Triang3l): Real textures.
     for (const VulkanShader::TextureBinding& texture_binding :
          textures_vertex) {
       VkDescriptorImageInfo& descriptor_image_info =
@@ -3558,18 +3644,15 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
   }
   size_t pixel_sampler_image_info_offset = descriptor_write_image_info_.size();
   if (write_pixel_samplers) {
-    // TODO(Triang3l): Real samplers.
-    for (const VulkanShader::SamplerBinding& sampler_binding :
-         *samplers_pixel) {
+    for (const std::pair<VulkanTextureCache::SamplerParameters, VkSampler>&
+             sampler_pair : current_samplers_pixel_) {
       VkDescriptorImageInfo& descriptor_image_info =
           descriptor_write_image_info_.emplace_back();
-      descriptor_image_info.sampler = provider.GetHostSampler(
-          ui::vulkan::VulkanProvider::HostSampler::kNearestClamp);
+      descriptor_image_info.sampler = sampler_pair.second;
     }
   }
   size_t pixel_texture_image_info_offset = descriptor_write_image_info_.size();
   if (write_pixel_textures) {
-    // TODO(Triang3l): Real textures.
     for (const VulkanShader::TextureBinding& texture_binding :
          *textures_pixel) {
       VkDescriptorImageInfo& descriptor_image_info =
