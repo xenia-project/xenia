@@ -34,9 +34,17 @@ class SimplificationPass : public ConditionalGroupSubpass {
   bool SimplifyBitArith(hir::HIRBuilder* builder);
   // handle either or or xor with 0
   bool CheckOrXorZero(hir::Instr* i);
-  bool CheckOr(hir::Instr* i);
-  bool CheckXor(hir::Instr* i);
-  bool CheckAnd(hir::Instr* i);
+  bool CheckOr(hir::Instr* i, hir::HIRBuilder* builder);
+  bool CheckXor(hir::Instr* i, hir::HIRBuilder* builder);
+  bool CheckAnd(hir::Instr* i, hir::HIRBuilder* builder);
+  bool CheckAdd(hir::Instr* i, hir::HIRBuilder* builder);
+  bool CheckSelect(hir::Instr* i, hir::HIRBuilder* builder,
+                   hir::Value* condition, hir::Value* iftrue,
+                   hir::Value* iffalse);
+  bool CheckSelect(hir::Instr* i, hir::HIRBuilder* builder);
+  bool CheckScalarConstCmp(hir::Instr* i, hir::HIRBuilder* builder);
+  bool CheckIsTrueIsFalse(hir::Instr* i, hir::HIRBuilder* builder);
+
   static bool Is1BitOpcode(hir::Opcode def_opcode);
   static uint64_t GetScalarNZM(hir::Value* value, hir::Instr* def,
                                uint64_t typemask, hir::Opcode def_opcode);

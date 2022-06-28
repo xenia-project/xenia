@@ -440,6 +440,9 @@ int InstrEmit_sc(PPCHIRBuilder& f, const InstrData& i) {
 
 // Trap (A-25)
 
+constexpr uint32_t TRAP_SLT = 1 << 4, TRAP_SGT = 1 << 3, TRAP_EQ = 1 << 2,
+                   TRAP_ULT = 1 << 1, TRAP_UGT = 1;
+
 int InstrEmit_trap(PPCHIRBuilder& f, const InstrData& i, Value* va, Value* vb,
                    uint32_t TO) {
   // if (a < b) & TO[0] then TRAP
@@ -454,30 +457,58 @@ int InstrEmit_trap(PPCHIRBuilder& f, const InstrData& i, Value* va, Value* vb,
     return 0;
   }
   Value* v = nullptr;
-  if (TO & (1 << 4)) {
-    // a < b
-    auto cmp = f.CompareSLT(va, vb);
-    v = v ? f.Or(v, cmp) : cmp;
-  }
-  if (TO & (1 << 3)) {
-    // a > b
-    auto cmp = f.CompareSGT(va, vb);
-    v = v ? f.Or(v, cmp) : cmp;
-  }
-  if (TO & (1 << 2)) {
-    // a = b
-    auto cmp = f.CompareEQ(va, vb);
-    v = v ? f.Or(v, cmp) : cmp;
-  }
-  if (TO & (1 << 1)) {
-    // a <u b
-    auto cmp = f.CompareULT(va, vb);
-    v = v ? f.Or(v, cmp) : cmp;
-  }
-  if (TO & (1 << 0)) {
-    // a >u b
-    auto cmp = f.CompareUGT(va, vb);
-    v = v ? f.Or(v, cmp) : cmp;
+
+  switch (TO) {
+    case TRAP_SLT | TRAP_EQ: {
+      v = f.CompareSLE(va, vb);
+      break;
+    }
+    case TRAP_SGT | TRAP_EQ: {
+      v = f.CompareSGE(va, vb);
+      break;
+    }
+    case TRAP_ULT | TRAP_EQ: {
+      v = f.CompareULE(va, vb);
+      break;
+    }
+    case TRAP_UGT | TRAP_EQ: {
+      v = f.CompareUGE(va, vb);
+      break;
+    }
+    case TRAP_SGT | TRAP_SLT:
+    case TRAP_UGT | TRAP_ULT: {  // used anywhere?
+      v = f.CompareNE(va, vb);
+      break;
+    }
+    default: {
+      // if (TO == )
+      if (TO & TRAP_SLT) {
+        // a < b
+        auto cmp = f.CompareSLT(va, vb);
+        v = v ? f.Or(v, cmp) : cmp;
+      }
+      if (TO & TRAP_SGT) {
+        // a > b
+        auto cmp = f.CompareSGT(va, vb);
+        v = v ? f.Or(v, cmp) : cmp;
+      }
+      if (TO & TRAP_EQ) {
+        // a = b
+        auto cmp = f.CompareEQ(va, vb);
+        v = v ? f.Or(v, cmp) : cmp;
+      }
+      if (TO & TRAP_ULT) {
+        // a <u b
+        auto cmp = f.CompareULT(va, vb);
+        v = v ? f.Or(v, cmp) : cmp;
+      }
+      if (TO & TRAP_UGT) {
+        // a >u b
+        auto cmp = f.CompareUGT(va, vb);
+        v = v ? f.Or(v, cmp) : cmp;
+      }
+      break;
+    }
   }
   if (v) {
     f.TrapTrue(v);

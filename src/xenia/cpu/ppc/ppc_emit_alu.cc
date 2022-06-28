@@ -30,9 +30,11 @@ Value* AddDidCarry(PPCHIRBuilder& f, Value* v1, Value* v2) {
 }
 
 Value* SubDidCarry(PPCHIRBuilder& f, Value* v1, Value* v2) {
+  Value* trunc_v2 = f.Truncate(v2, INT32_TYPE);
+
   return f.Or(f.CompareUGT(f.Truncate(v1, INT32_TYPE),
-                           f.Not(f.Neg(f.Truncate(v2, INT32_TYPE)))),
-              f.IsFalse(f.Truncate(v2, INT32_TYPE)));
+                           f.Sub(trunc_v2, f.LoadConstantInt32(1))),
+              f.IsFalse(trunc_v2));
 }
 
 // https://github.com/sebastianbiallas/pearpc/blob/0b3c823f61456faa677f6209545a7b906e797421/src/cpu/cpu_generic/ppc_tools.h#L26
@@ -1299,8 +1301,15 @@ int InstrEmit_srawix(PPCHIRBuilder& f, const InstrData& i) {
     // CA is set if any bits are shifted out of the right and if the result
     // is negative.
     uint32_t mask = (uint32_t)XEMASK(64 - i.X.RB, 63);
-    ca = f.And(f.Truncate(f.Shr(v, 31), INT8_TYPE),
-               f.IsTrue(f.And(v, f.LoadConstantUint32(mask))));
+
+    if (mask == 1) {
+      ca = f.And(f.CompareSLT(v, f.LoadConstantInt32(0)),
+                 f.Truncate(v, INT8_TYPE));
+
+    } else {
+      ca = f.And(f.CompareSLT(v, f.LoadConstantInt32(0)),
+                 f.IsTrue(f.And(v, f.LoadConstantUint32(mask))));
+    }
 
     v = f.Sha(v, (int8_t)i.X.RB), v = f.SignExtend(v, INT64_TYPE);
   }

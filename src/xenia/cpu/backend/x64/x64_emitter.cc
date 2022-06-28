@@ -43,7 +43,7 @@ DEFINE_bool(ignore_undefined_externs, true,
 DEFINE_bool(emit_source_annotations, false,
             "Add extra movs and nops to make disassembly easier to read.",
             "CPU");
-DEFINE_bool(resolve_rel32_guest_calls, false,
+DEFINE_bool(resolve_rel32_guest_calls, true,
             "Experimental optimization, directly call already resolved "
             "functions via x86 rel32 call/jmp",
             "CPU");

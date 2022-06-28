@@ -66,7 +66,15 @@ inline uint64_t GetScalarTypeMask(TypeName type_name) {
     return (1ULL << (mask_width * CHAR_BIT)) - 1;
   }
 }
+static inline uint64_t GetScalarSignbitMask(TypeName type_name) {
+  size_t type_width = GetTypeSize(type_name);
 
+  return 1ULL << ((type_width * CHAR_BIT) - 1);
+}
+
+static inline bool IsScalarIntegralType(TypeName type_name) {
+  return type_name < FLOAT32_TYPE && type_name >= INT8_TYPE;
+}
 enum ValueFlags {
   VALUE_IS_CONSTANT = (1 << 1),
   VALUE_IS_ALLOCATED = (1 << 2),  // Used by backends. Do not set.
