@@ -965,10 +965,19 @@ D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
 
   SamplerParameters parameters;
 
-  parameters.clamp_x = fetch.clamp_x;
-  parameters.clamp_y = fetch.clamp_y;
-  parameters.clamp_z = fetch.clamp_z;
-  parameters.border_color = fetch.border_color;
+  xenos::ClampMode fetch_clamp_x, fetch_clamp_y, fetch_clamp_z;
+  texture_util::GetClampModesForDimension(fetch, fetch_clamp_x, fetch_clamp_y,
+                                          fetch_clamp_z);
+  parameters.clamp_x = NormalizeClampMode(fetch_clamp_x);
+  parameters.clamp_y = NormalizeClampMode(fetch_clamp_y);
+  parameters.clamp_z = NormalizeClampMode(fetch_clamp_z);
+  if (xenos::ClampModeUsesBorder(parameters.clamp_x) ||
+      xenos::ClampModeUsesBorder(parameters.clamp_y) ||
+      xenos::ClampModeUsesBorder(parameters.clamp_z)) {
+    parameters.border_color = fetch.border_color;
+  } else {
+    parameters.border_color = xenos::BorderColor::k_ABGR_Black;
+  }
 
   uint32_t mip_min_level;
   texture_util::GetSubresourcesFromFetchConstant(fetch, nullptr, nullptr,
@@ -976,6 +985,7 @@ D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
                                                  &mip_min_level, nullptr);
   parameters.mip_min_level = mip_min_level;
 
+  // TODO(Triang3l): Disable filtering for texture formats not supporting it.
   xenos::AnisoFilter aniso_filter =
       binding.aniso_filter == xenos::AnisoFilter::kUseFetchConst
           ? fetch.aniso_filter
@@ -2202,6 +2212,22 @@ D3D12_CPU_DESCRIPTOR_HANDLE D3D12TextureCache::GetTextureDescriptorCPUHandle(
           .heap_start();
   uint32_t heap_offset = descriptor_index % kSRVDescriptorCachePageSize;
   return provider.OffsetViewDescriptor(heap_start, heap_offset);
+}
+
+xenos::ClampMode D3D12TextureCache::NormalizeClampMode(
+    xenos::ClampMode clamp_mode) const {
+  if (clamp_mode == xenos::ClampMode::kClampToHalfway) {
+    // No GL_CLAMP (clamp to half edge, half border) equivalent in Direct3D 12,
+    // but there's no Direct3D 9 equivalent anyway, and too weird to be suitable
+    // for intentional real usage.
+    return xenos::ClampMode::kClampToEdge;
+  }
+  if (clamp_mode == xenos::ClampMode::kMirrorClampToHalfway ||
+      clamp_mode == xenos::ClampMode::kMirrorClampToBorder) {
+    // No Direct3D 12 equivalents.
+    return xenos::ClampMode::kMirrorClampToEdge;
+  }
+  return clamp_mode;
 }
 
 }  // namespace d3d12

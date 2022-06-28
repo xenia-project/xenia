@@ -463,6 +463,8 @@ class D3D12TextureCache final : public TextureCache {
     return *scaled_resolve_buffer;
   }
 
+  xenos::ClampMode NormalizeClampMode(xenos::ClampMode clamp_mode) const;
+
   static const HostFormat host_formats_[64];
 
   D3D12CommandProcessor& command_processor_;

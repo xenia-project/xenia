@@ -612,6 +612,29 @@ uint8_t SwizzleSigns(const xenos::xe_gpu_texture_fetch_t& fetch) {
   return signs;
 }
 
+void GetClampModesForDimension(const xenos::xe_gpu_texture_fetch_t& fetch,
+                               xenos::ClampMode& clamp_x_out,
+                               xenos::ClampMode& clamp_y_out,
+                               xenos::ClampMode& clamp_z_out) {
+  clamp_x_out = xenos::ClampMode::kClampToEdge;
+  clamp_y_out = xenos::ClampMode::kClampToEdge;
+  clamp_z_out = xenos::ClampMode::kClampToEdge;
+  switch (fetch.dimension) {
+    case xenos::DataDimension::k3D:
+      clamp_z_out = fetch.clamp_z;
+      [[fallthrough]];
+    case xenos::DataDimension::k2DOrStacked:
+      clamp_y_out = fetch.clamp_y;
+      [[fallthrough]];
+    case xenos::DataDimension::k1D:
+      clamp_x_out = fetch.clamp_x;
+      break;
+    default:
+      // Not applicable to cube textures.
+      break;
+  }
+}
+
 }  // namespace texture_util
 }  // namespace gpu
 }  // namespace xe
