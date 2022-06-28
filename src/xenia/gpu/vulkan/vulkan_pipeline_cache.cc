@@ -158,20 +158,9 @@ VulkanPipelineCache::GetCurrentPixelShaderModification(
   return modification;
 }
 
-bool VulkanPipelineCache::ConfigurePipeline(
+bool VulkanPipelineCache::EnsureShadersTranslated(
     VulkanShader::VulkanTranslation* vertex_shader,
-    VulkanShader::VulkanTranslation* pixel_shader,
-    const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-    reg::RB_DEPTHCONTROL normalized_depth_control,
-    uint32_t normalized_color_mask,
-    VulkanRenderTargetCache::RenderPassKey render_pass_key,
-    VkPipeline& pipeline_out,
-    const PipelineLayoutProvider*& pipeline_layout_out) {
-#if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
-#endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
-
-  // Ensure shaders are translated - needed now for GetCurrentStateDescription.
+    VulkanShader::VulkanTranslation* pixel_shader) {
   // Edge flags are not supported yet (because polygon primitives are not).
   assert_true(register_file_.Get<reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
                   xenos::VertexShaderExportMode::kPosition2VectorsEdge &&
@@ -201,6 +190,26 @@ bool VulkanPipelineCache::ConfigurePipeline(
       // Translation attempted previously, but not valid.
       return false;
     }
+  }
+  return true;
+}
+
+bool VulkanPipelineCache::ConfigurePipeline(
+    VulkanShader::VulkanTranslation* vertex_shader,
+    VulkanShader::VulkanTranslation* pixel_shader,
+    const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+    reg::RB_DEPTHCONTROL normalized_depth_control,
+    uint32_t normalized_color_mask,
+    VulkanRenderTargetCache::RenderPassKey render_pass_key,
+    VkPipeline& pipeline_out,
+    const PipelineLayoutProvider*& pipeline_layout_out) {
+#if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
+  SCOPE_profile_cpu_f("gpu");
+#endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
+
+  // Ensure shaders are translated - needed now for GetCurrentStateDescription.
+  if (!EnsureShadersTranslated(vertex_shader, pixel_shader)) {
+    return false;
   }
 
   PipelineDescription description;

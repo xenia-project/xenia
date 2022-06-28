@@ -74,6 +74,8 @@ class VulkanPipelineCache {
   SpirvShaderTranslator::Modification GetCurrentPixelShaderModification(
       const Shader& shader, uint32_t normalized_color_mask) const;
 
+  bool EnsureShadersTranslated(VulkanShader::VulkanTranslation* vertex_shader,
+                               VulkanShader::VulkanTranslation* pixel_shader);
   // TODO(Triang3l): Return a deferred creation handle.
   bool ConfigurePipeline(
       VulkanShader::VulkanTranslation* vertex_shader,
