@@ -447,6 +447,8 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   void SplitPendingBarrier();
 
+  void DestroyScratchBuffer();
+
   void UpdateDynamicState(const draw_util::ViewportInfo& viewport_info,
                           bool primitive_polygonal,
                           reg::RB_DEPTHCONTROL normalized_depth_control);
