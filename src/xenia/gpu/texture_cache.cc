@@ -526,8 +526,10 @@ void TextureCache::Texture::MakeUpToDateAndWatch(
 }
 
 void TextureCache::Texture::MarkAsUsed() {
+  assert_true(last_usage_submission_index_ <=
+              texture_cache_.current_submission_index_);
   // This is called very frequently, don't relink unless needed for caching.
-  if (last_usage_submission_index_ ==
+  if (last_usage_submission_index_ >=
       texture_cache_.current_submission_index_) {
     return;
   }
@@ -545,9 +547,7 @@ void TextureCache::Texture::MarkAsUsed() {
   used_next_->used_previous_ = used_previous_;
   used_previous_ = texture_cache_.texture_used_last_;
   used_next_ = nullptr;
-  if (texture_cache_.texture_used_last_ != nullptr) {
-    texture_cache_.texture_used_last_->used_next_ = this;
-  }
+  texture_cache_.texture_used_last_->used_next_ = this;
   texture_cache_.texture_used_last_ = this;
 }
 
