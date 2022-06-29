@@ -1256,6 +1256,11 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   }
   // TODO(Triang3l): Use a single 512 MB shared memory binding if possible.
   // TODO(Triang3l): Scaled resolve buffer bindings.
+  // Aligning because if the data for a vector in a storage buffer is provided
+  // partially, the value read may still be (0, 0, 0, 0), and small (especially
+  // linear) textures won't be loaded correctly.
+  uint32_t source_length_alignment = UINT32_C(1)
+                                     << load_shader_info.source_bpe_log2;
   VkDescriptorSet descriptor_set_source_base = VK_NULL_HANDLE;
   VkDescriptorSet descriptor_set_source_mips = VK_NULL_HANDLE;
   VkDescriptorBufferInfo write_descriptor_set_source_base_buffer_info;
@@ -1273,7 +1278,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     write_descriptor_set_source_base_buffer_info.offset = texture_key.base_page
                                                           << 12;
     write_descriptor_set_source_base_buffer_info.range =
-        vulkan_texture.GetGuestBaseSize();
+        xe::align(vulkan_texture.GetGuestBaseSize(), source_length_alignment);
     VkWriteDescriptorSet& write_descriptor_set_source_base =
         write_descriptor_sets[write_descriptor_set_count++];
     write_descriptor_set_source_base.sType =
@@ -1303,7 +1308,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     write_descriptor_set_source_mips_buffer_info.offset = texture_key.mip_page
                                                           << 12;
     write_descriptor_set_source_mips_buffer_info.range =
-        vulkan_texture.GetGuestMipsSize();
+        xe::align(vulkan_texture.GetGuestMipsSize(), source_length_alignment);
     VkWriteDescriptorSet& write_descriptor_set_source_mips =
         write_descriptor_sets[write_descriptor_set_count++];
     write_descriptor_set_source_mips.sType =
