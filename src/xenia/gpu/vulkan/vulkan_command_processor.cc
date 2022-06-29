@@ -979,10 +979,7 @@ void VulkanCommandProcessor::ShutdownContext() {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
-  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
-                                         scratch_buffer_);
-  ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
-                                         scratch_buffer_memory_);
+  DestroyScratchBuffer();
 
   for (SwapFramebuffer& swap_framebuffer : swap_framebuffers_) {
     ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyFramebuffer, device,
@@ -3064,6 +3061,13 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
     if (cache_clear_requested_ && AwaitAllQueueOperationsCompletion()) {
       cache_clear_requested_ = false;
 
+      DestroyScratchBuffer();
+
+      for (SwapFramebuffer& swap_framebuffer : swap_framebuffers_) {
+        ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyFramebuffer, device,
+                                               swap_framebuffer.framebuffer);
+      }
+
       assert_true(command_buffers_submitted_.empty());
       for (const CommandBuffer& command_buffer : command_buffers_writable_) {
         dfn.vkDestroyCommandPool(device, command_buffer.pool, nullptr);
@@ -3083,10 +3087,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
 
       primitive_processor_->ClearCache();
 
-      for (SwapFramebuffer& swap_framebuffer : swap_framebuffers_) {
-        ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyFramebuffer, device,
-                                               swap_framebuffer.framebuffer);
-      }
+      shared_memory_->ClearCache();
     }
   }
 
@@ -3128,6 +3129,23 @@ void VulkanCommandProcessor::SplitPendingBarrier() {
       pending_buffer_memory_barrier_count;
   current_pending_barrier_.image_memory_barriers_offset =
       pending_image_memory_barrier_count;
+}
+
+void VulkanCommandProcessor::DestroyScratchBuffer() {
+  assert_false(scratch_buffer_used_);
+
+  const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+
+  scratch_buffer_last_usage_submission_ = 0;
+  scratch_buffer_last_access_mask_ = 0;
+  scratch_buffer_last_stage_mask_ = 0;
+  scratch_buffer_size_ = 0;
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
+                                         scratch_buffer_);
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
+                                         scratch_buffer_memory_);
 }
 
 void VulkanCommandProcessor::UpdateDynamicState(
