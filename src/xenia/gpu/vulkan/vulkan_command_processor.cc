@@ -2397,6 +2397,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   const VkPhysicalDeviceLimits& device_limits =
       provider.device_properties().limits;
 
+  bool host_render_targets_used = render_target_cache_->GetPath() ==
+                                  RenderTargetCache::Path::kHostRenderTargets;
+
   // Get dynamic rasterizer state.
   draw_util::ViewportInfo viewport_info;
   // Just handling maxViewportDimensions is enough - viewportBoundsRange[1] must
@@ -2418,7 +2421,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   draw_util::GetHostViewportInfo(
       regs, 1, 1, false, device_limits.maxViewportDimensions[0],
       device_limits.maxViewportDimensions[1], true, normalized_depth_control,
-      false, false, false, viewport_info);
+      false, host_render_targets_used,
+      pixel_shader && pixel_shader->writes_depth(), viewport_info);
 
   // Update dynamic graphics pipeline state.
   UpdateDynamicState(viewport_info, primitive_polygonal,
