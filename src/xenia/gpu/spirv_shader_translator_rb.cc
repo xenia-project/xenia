@@ -296,7 +296,7 @@ spv::Id SpirvShaderTranslator::PreClampedDepthTo20e4(
   // normal_biased_f32 = f32 - (112 << 23)
   spv::Id normal_biased_f32 = builder.createBinOp(
       spv::OpISub, type_uint, f32_scalar,
-      builder.makeUintConstant((UINT32_C(112) + remap_bias) << 23));
+      builder.makeUintConstant((UINT32_C(112) - remap_bias) << 23));
 
   // Select the needed conversion depending on whether the number is too small
   // to be represented as normalized 20e4.
