@@ -82,8 +82,9 @@ class TextureCache {
   void MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled);
   // Ensures the memory backing the range in the scaled resolve address space is
   // allocated and returns whether it is.
-  virtual bool EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled,
-                                                  uint32_t length_unscaled) {
+  virtual bool EnsureScaledResolveMemoryCommitted(
+      uint32_t start_unscaled, uint32_t length_unscaled,
+      uint32_t length_scaled_alignment_log2 = 0) {
     return false;
   }
 

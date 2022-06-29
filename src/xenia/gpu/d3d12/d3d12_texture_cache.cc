@@ -1147,7 +1147,8 @@ bool D3D12TextureCache::ClampDrawResolutionScaleToMaxSupported(
 }
 
 bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(
-    uint32_t start_unscaled, uint32_t length_unscaled) {
+    uint32_t start_unscaled, uint32_t length_unscaled,
+    uint32_t length_scaled_alignment_log2) {
   assert_true(IsDrawResolutionScaled());
 
   if (length_unscaled == 0) {
@@ -1162,8 +1163,12 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(
   uint32_t draw_resolution_scale_area =
       draw_resolution_scale_x() * draw_resolution_scale_y();
   uint64_t first_scaled = uint64_t(start_unscaled) * draw_resolution_scale_area;
-  uint64_t last_scaled = uint64_t(start_unscaled + (length_unscaled - 1)) *
-                         draw_resolution_scale_area;
+  uint64_t length_scaled_alignment_bits =
+      (UINT64_C(1) << length_scaled_alignment_log2) - 1;
+  uint64_t last_scaled = (uint64_t(start_unscaled + (length_unscaled - 1)) *
+                              draw_resolution_scale_area +
+                          length_scaled_alignment_bits) &
+                         ~length_scaled_alignment_bits;
 
   const ui::d3d12::D3D12Provider& provider =
       command_processor_.GetD3D12Provider();
@@ -1273,7 +1278,8 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(
 }
 
 bool D3D12TextureCache::MakeScaledResolveRangeCurrent(
-    uint32_t start_unscaled, uint32_t length_unscaled) {
+    uint32_t start_unscaled, uint32_t length_unscaled,
+    uint32_t length_scaled_alignment_log2) {
   assert_true(IsDrawResolutionScaled());
 
   if (!length_unscaled || start_unscaled >= SharedMemory::kBufferSize ||
@@ -1286,8 +1292,12 @@ bool D3D12TextureCache::MakeScaledResolveRangeCurrent(
   uint32_t draw_resolution_scale_area =
       draw_resolution_scale_x() * draw_resolution_scale_y();
   uint64_t start_scaled = uint64_t(start_unscaled) * draw_resolution_scale_area;
+  uint64_t length_scaled_alignment_bits =
+      (UINT64_C(1) << length_scaled_alignment_log2) - 1;
   uint64_t length_scaled =
-      uint64_t(length_unscaled) * draw_resolution_scale_area;
+      (uint64_t(length_unscaled) * draw_resolution_scale_area +
+       length_scaled_alignment_bits) &
+      ~length_scaled_alignment_bits;
   uint64_t last_scaled = start_scaled + (length_scaled - 1);
 
   // Get one or two buffers that can hold the whole range.
@@ -1855,7 +1865,8 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     if (texture_resolution_scaled && (is_base || !scaled_mips_source_set_up)) {
       uint32_t guest_size_unscaled = is_base ? d3d12_texture.GetGuestBaseSize()
                                              : d3d12_texture.GetGuestMipsSize();
-      if (!MakeScaledResolveRangeCurrent(guest_address, guest_size_unscaled)) {
+      if (!MakeScaledResolveRangeCurrent(guest_address, guest_size_unscaled,
+                                         load_shader_info.source_bpe_log2)) {
         command_processor_.ReleaseScratchGPUBuffer(copy_buffer,
                                                    copy_buffer_state);
         return false;
