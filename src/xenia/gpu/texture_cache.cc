@@ -656,6 +656,13 @@ bool TextureCache::LoadTextureData(Texture& texture) {
 
   TextureKey texture_key = texture.key();
 
+  // Implementation may load multiple blocks at once via accesses of up to 128
+  // bits (R32G32B32A32_UINT), so aligning the size to this value to make sure
+  // if the texture is small (especially if it's linear), the last blocks won't
+  // be cut off (hosts may return 0, 0, 0, 0 for the whole R32G32B32A32_UINT
+  // access for the non-16-aligned tail even if 1...15 bytes are actually
+  // provided for it).
+
   // Request uploading of the texture data to the shared memory.
   // This is also necessary when resolution scaling is used - the texture cache
   // relies on shared memory for invalidation of both unscaled and scaled
@@ -666,7 +673,8 @@ bool TextureCache::LoadTextureData(Texture& texture) {
   bool base_resolved = texture.GetBaseResolved();
   if (base_outdated) {
     if (!shared_memory().RequestRange(
-            texture_key.base_page << 12, texture.GetGuestBaseSize(),
+            texture_key.base_page << 12,
+            xe::align(texture.GetGuestBaseSize(), UINT32_C(16)),
             texture_key.scaled_resolve ? nullptr : &base_resolved)) {
       return false;
     }
@@ -674,7 +682,8 @@ bool TextureCache::LoadTextureData(Texture& texture) {
   bool mips_resolved = texture.GetMipsResolved();
   if (mips_outdated) {
     if (!shared_memory().RequestRange(
-            texture_key.mip_page << 12, texture.GetGuestMipsSize(),
+            texture_key.mip_page << 12,
+            xe::align(texture.GetGuestMipsSize(), UINT32_C(16)),
             texture_key.scaled_resolve ? nullptr : &mips_resolved)) {
       return false;
     }
@@ -685,11 +694,11 @@ bool TextureCache::LoadTextureData(Texture& texture) {
     // by an actual resolve, but is still included in the texture size, so the
     // GPU won't be trying to access unmapped memory.
     if (!EnsureScaledResolveMemoryCommitted(texture_key.base_page << 12,
-                                            texture.GetGuestBaseSize())) {
+                                            texture.GetGuestBaseSize(), 4)) {
       return false;
     }
     if (!EnsureScaledResolveMemoryCommitted(texture_key.mip_page << 12,
-                                            texture.GetGuestMipsSize())) {
+                                            texture.GetGuestMipsSize(), 4)) {
       return false;
     }
   }

@@ -130,14 +130,16 @@ class D3D12TextureCache final : public TextureCache {
       uint32_t& scale_x, uint32_t& scale_y,
       const ui::d3d12::D3D12Provider& provider);
   // Ensures the tiles backing the range in the buffers are allocated.
-  bool EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled,
-                                          uint32_t length_unscaled) override;
+  bool EnsureScaledResolveMemoryCommitted(
+      uint32_t start_unscaled, uint32_t length_unscaled,
+      uint32_t length_scaled_alignment_log2 = 0) override;
   // Makes the specified range of up to 1-2 GB currently accessible on the GPU.
   // One draw call can access only at most one range - the same memory is
   // accessible through different buffers based on the range needed, so aliasing
   // barriers are required.
   bool MakeScaledResolveRangeCurrent(uint32_t start_unscaled,
-                                     uint32_t length_unscaled);
+                                     uint32_t length_unscaled,
+                                     uint32_t length_scaled_alignment_log2 = 0);
   // These functions create a view of the range specified in the last successful
   // MakeScaledResolveRangeCurrent call because that function must be called
   // before this.
