@@ -3012,31 +3012,43 @@ void DxbcShaderTranslator::CompletePixelShader() {
     // checked, but let's assume this means "always", not "less, equal or
     // greater".
     // TODO(Triang3l): Check how alpha test works with NaN on Direct3D 9.
-    a_.OpINE(alpha_test_op_dest, alpha_test_mask_src, dxbc::Src::LU(0b111));
+    a_.OpINE(alpha_test_op_dest, alpha_test_mask_src,
+             dxbc::Src::LU(uint32_t(xenos::CompareFunction::kAlways)));
     // Don't do the test if the mode is "always".
     a_.OpIf(true, alpha_test_op_src);
     {
-      // Do the test. Can't use subtraction and sign because of float specials.
+      // Do the test.
       dxbc::Src alpha_src(
           dxbc::Src::R(system_temps_color_[0], dxbc::Src::kWWWW));
       dxbc::Src alpha_test_reference_src(LoadSystemConstant(
           SystemConstants::Index::kAlphaTestReference,
           offsetof(SystemConstants, alpha_test_reference), dxbc::Src::kXXXX));
-      // Less than.
-      a_.OpLT(alpha_test_op_dest, alpha_src, alpha_test_reference_src);
-      a_.OpOr(alpha_test_op_dest, alpha_test_op_src,
-              dxbc::Src::LU(~uint32_t(1 << 0)));
-      a_.OpAnd(alpha_test_mask_dest, alpha_test_mask_src, alpha_test_op_src);
-      // Equals to.
-      a_.OpEq(alpha_test_op_dest, alpha_src, alpha_test_reference_src);
-      a_.OpOr(alpha_test_op_dest, alpha_test_op_src,
-              dxbc::Src::LU(~uint32_t(1 << 1)));
-      a_.OpAnd(alpha_test_mask_dest, alpha_test_mask_src, alpha_test_op_src);
-      // Greater than.
-      a_.OpLT(alpha_test_op_dest, alpha_test_reference_src, alpha_src);
-      a_.OpOr(alpha_test_op_dest, alpha_test_op_src,
-              dxbc::Src::LU(~uint32_t(1 << 2)));
-      a_.OpAnd(alpha_test_mask_dest, alpha_test_mask_src, alpha_test_op_src);
+      // Handle "not equal" specially (specifically as "not equal" so it's true
+      // for NaN, not "less or greater" which is false for NaN).
+      a_.OpIEq(alpha_test_op_dest, alpha_test_mask_src,
+               dxbc::Src::LU(uint32_t(xenos::CompareFunction::kNotEqual)));
+      a_.OpIf(true, alpha_test_op_src);
+      { a_.OpNE(alpha_test_mask_dest, alpha_src, alpha_test_reference_src); }
+      a_.OpElse();
+      {
+        // Less than.
+        a_.OpLT(alpha_test_op_dest, alpha_src, alpha_test_reference_src);
+        a_.OpOr(alpha_test_op_dest, alpha_test_op_src,
+                dxbc::Src::LU(~uint32_t(1 << 0)));
+        a_.OpAnd(alpha_test_mask_dest, alpha_test_mask_src, alpha_test_op_src);
+        // Equals to.
+        a_.OpEq(alpha_test_op_dest, alpha_src, alpha_test_reference_src);
+        a_.OpOr(alpha_test_op_dest, alpha_test_op_src,
+                dxbc::Src::LU(~uint32_t(1 << 1)));
+        a_.OpAnd(alpha_test_mask_dest, alpha_test_mask_src, alpha_test_op_src);
+        // Greater than.
+        a_.OpLT(alpha_test_op_dest, alpha_test_reference_src, alpha_src);
+        a_.OpOr(alpha_test_op_dest, alpha_test_op_src,
+                dxbc::Src::LU(~uint32_t(1 << 2)));
+        a_.OpAnd(alpha_test_mask_dest, alpha_test_mask_src, alpha_test_op_src);
+      }
+      // Close the "not equal" check.
+      a_.OpEndIf();
       // Discard the pixel if it has failed the test.
       if (edram_rov_used_) {
         a_.OpRetC(false, alpha_test_mask_src);
