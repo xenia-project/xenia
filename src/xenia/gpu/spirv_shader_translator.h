@@ -34,7 +34,16 @@ class SpirvShaderTranslator : public ShaderTranslator {
     // TODO(Triang3l): Change to 0xYYYYMMDD once it's out of the rapid
     // prototyping stage (easier to do small granular updates with an
     // incremental counter).
-    static constexpr uint32_t kVersion = 3;
+    static constexpr uint32_t kVersion = 4;
+
+    enum class DepthStencilMode : uint32_t {
+      kNoModifiers,
+      // Early fragment tests - enable if alpha test and alpha to coverage are
+      // disabled; ignored if anything in the shader blocks early Z writing.
+      kEarlyHint,
+      // TODO(Triang3l): Unorm24 (rounding) and float24 (truncating and
+      // rounding) output modes.
+    };
 
     struct {
       // Dynamically indexable register count from SQ_PROGRAM_CNTL.
@@ -52,6 +61,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
       // must not be set for other primitive types - enables the point sprite
       // coordinates input, and also effects the flag bits in PsParamGen.
       uint32_t param_gen_point : 1;
+      // For host render targets - depth / stencil output mode.
+      DepthStencilMode depth_stencil_mode : 3;
     } pixel;
     uint64_t value = 0;
 
@@ -64,6 +75,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSysFlag_WNotReciprocal_Shift,
     kSysFlag_PrimitivePolygonal_Shift,
     kSysFlag_PrimitiveLine_Shift,
+    kSysFlag_AlphaPassIfLess_Shift,
+    kSysFlag_AlphaPassIfEqual_Shift,
+    kSysFlag_AlphaPassIfGreater_Shift,
     kSysFlag_ConvertColor0ToGamma_Shift,
     kSysFlag_ConvertColor1ToGamma_Shift,
     kSysFlag_ConvertColor2ToGamma_Shift,
@@ -76,6 +90,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSysFlag_WNotReciprocal = 1u << kSysFlag_WNotReciprocal_Shift,
     kSysFlag_PrimitivePolygonal = 1u << kSysFlag_PrimitivePolygonal_Shift,
     kSysFlag_PrimitiveLine = 1u << kSysFlag_PrimitiveLine_Shift,
+    kSysFlag_AlphaPassIfLess = 1u << kSysFlag_AlphaPassIfLess_Shift,
+    kSysFlag_AlphaPassIfEqual = 1u << kSysFlag_AlphaPassIfEqual_Shift,
+    kSysFlag_AlphaPassIfGreater = 1u << kSysFlag_AlphaPassIfGreater_Shift,
     kSysFlag_ConvertColor0ToGamma = 1u << kSysFlag_ConvertColor0ToGamma_Shift,
     kSysFlag_ConvertColor1ToGamma = 1u << kSysFlag_ConvertColor1ToGamma_Shift,
     kSysFlag_ConvertColor2ToGamma = 1u << kSysFlag_ConvertColor2ToGamma_Shift,
@@ -107,6 +124,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
     // apply to the result directly in the shader code. In each uint32_t,
     // swizzles for 2 texture fetch constants (in bits 0:11 and 12:23).
     uint32_t texture_swizzles[16];
+
+    float alpha_test_reference;
+    float padding_alpha_test_reference[3];
 
     float color_exp_bias[4];
   };
@@ -309,6 +329,14 @@ class SpirvShaderTranslator : public ShaderTranslator {
     return is_vertex_shader() &&
            Shader::IsHostVertexShaderTypeDomain(
                GetSpirvShaderModification().vertex.host_vertex_shader_type);
+  }
+
+  bool IsExecutionModeEarlyFragmentTests() const {
+    // TODO(Triang3l): Not applicable to fragment shader interlock.
+    return is_pixel_shader() &&
+           GetSpirvShaderModification().pixel.depth_stencil_mode ==
+               Modification::DepthStencilMode::kEarlyHint &&
+           current_shader().implicit_early_z_write_allowed();
   }
 
   // Returns UINT32_MAX if PsParamGen doesn't need to be written.
@@ -528,6 +556,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSystemConstantNdcOffset,
     kSystemConstantTextureSwizzledSigns,
     kSystemConstantTextureSwizzles,
+    kSystemConstantAlphaTestReference,
     kSystemConstantColorExpBias,
   };
   spv::Id uniform_system_constants_;

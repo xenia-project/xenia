@@ -155,6 +155,17 @@ VulkanPipelineCache::GetCurrentPixelShaderModification(
     }
   }
 
+  using DepthStencilMode =
+      SpirvShaderTranslator::Modification::DepthStencilMode;
+  if (shader.implicit_early_z_write_allowed() &&
+      (!shader.writes_color_target(0) ||
+       !draw_util::DoesCoverageDependOnAlpha(
+           regs.Get<reg::RB_COLORCONTROL>()))) {
+    modification.pixel.depth_stencil_mode = DepthStencilMode::kEarlyHint;
+  } else {
+    modification.pixel.depth_stencil_mode = DepthStencilMode::kNoModifiers;
+  }
+
   return modification;
 }
 

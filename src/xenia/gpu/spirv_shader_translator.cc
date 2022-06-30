@@ -231,6 +231,8 @@ void SpirvShaderTranslator::StartTranslation() {
        offsetof(SystemConstants, texture_swizzled_signs), type_uint4_array_2},
       {"texture_swizzles", offsetof(SystemConstants, texture_swizzles),
        type_uint4_array_4},
+      {"alpha_test_reference", offsetof(SystemConstants, alpha_test_reference),
+       type_float_},
       {"color_exp_bias", offsetof(SystemConstants, color_exp_bias),
        type_float4_},
   };
@@ -606,6 +608,10 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     execution_model = spv::ExecutionModelFragment;
     builder_->addExecutionMode(function_main_,
                                spv::ExecutionModeOriginUpperLeft);
+    if (IsExecutionModeEarlyFragmentTests()) {
+      builder_->addExecutionMode(function_main_,
+                                 spv::ExecutionModeEarlyFragmentTests);
+    }
   } else {
     assert_true(is_vertex_shader());
     execution_model = IsSpirvTessEvalShader()
