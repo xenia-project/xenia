@@ -433,6 +433,129 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                                   uniform_system_constants_, id_vector_temp_),
       spv::NoPrecision);
 
+  if (current_shader().writes_color_target(0) &&
+      !IsExecutionModeEarlyFragmentTests()) {
+    // Alpha test.
+    // TODO(Triang3l): Check how alpha test works with NaN on Direct3D 9.
+    // Extract the comparison function (less, equal, greater bits).
+    spv::Id alpha_test_function = builder_->createTriOp(
+        spv::OpBitFieldUExtract, type_uint_, main_system_constant_flags_,
+        builder_->makeUintConstant(kSysFlag_AlphaPassIfLess_Shift),
+        builder_->makeUintConstant(3));
+    // Check if the comparison function is not "always" - that should pass even
+    // for NaN likely, unlike "less, equal or greater".
+    spv::Id alpha_test_function_is_non_always = builder_->createBinOp(
+        spv::OpINotEqual, type_bool_, alpha_test_function,
+        builder_->makeUintConstant(uint32_t(xenos::CompareFunction::kAlways)));
+    spv::Block& block_alpha_test = builder_->makeNewBlock();
+    spv::Block& block_alpha_test_merge = builder_->makeNewBlock();
+    SpirvCreateSelectionMerge(block_alpha_test_merge.getId(),
+                              spv::SelectionControlDontFlattenMask);
+    builder_->createConditionalBranch(alpha_test_function_is_non_always,
+                                      &block_alpha_test,
+                                      &block_alpha_test_merge);
+    builder_->setBuildPoint(&block_alpha_test);
+    {
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(builder_->makeIntConstant(3));
+      spv::Id alpha_test_alpha =
+          builder_->createLoad(builder_->createAccessChain(
+                                   spv::StorageClassOutput,
+                                   output_fragment_data_[0], id_vector_temp_),
+                               spv::NoPrecision);
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(
+          builder_->makeIntConstant(kSystemConstantAlphaTestReference));
+      spv::Id alpha_test_reference =
+          builder_->createLoad(builder_->createAccessChain(
+                                   spv::StorageClassUniform,
+                                   uniform_system_constants_, id_vector_temp_),
+                               spv::NoPrecision);
+      // The comparison function is not "always" - perform the alpha test.
+      // Handle "not equal" specially (specifically as "not equal" so it's true
+      // for NaN, not "less or greater" which is false for NaN).
+      spv::Id alpha_test_function_is_not_equal = builder_->createBinOp(
+          spv::OpIEqual, type_bool_, alpha_test_function,
+          builder_->makeUintConstant(
+              uint32_t(xenos::CompareFunction::kNotEqual)));
+      spv::Block& block_alpha_test_not_equal = builder_->makeNewBlock();
+      spv::Block& block_alpha_test_non_not_equal = builder_->makeNewBlock();
+      spv::Block& block_alpha_test_not_equal_merge = builder_->makeNewBlock();
+      SpirvCreateSelectionMerge(block_alpha_test_not_equal_merge.getId(),
+                                spv::SelectionControlDontFlattenMask);
+      builder_->createConditionalBranch(alpha_test_function_is_not_equal,
+                                        &block_alpha_test_not_equal,
+                                        &block_alpha_test_non_not_equal);
+      spv::Id alpha_test_result_not_equal, alpha_test_result_non_not_equal;
+      builder_->setBuildPoint(&block_alpha_test_not_equal);
+      {
+        // "Not equal" function.
+        alpha_test_result_not_equal =
+            builder_->createBinOp(spv::OpFUnordNotEqual, type_bool_,
+                                  alpha_test_alpha, alpha_test_reference);
+        builder_->createBranch(&block_alpha_test_not_equal_merge);
+      }
+      builder_->setBuildPoint(&block_alpha_test_non_not_equal);
+      {
+        // Function other than "not equal".
+        static const spv::Op kAlphaTestOps[] = {
+            spv::OpFOrdLessThan, spv::OpFOrdEqual, spv::OpFOrdGreaterThan};
+        for (uint32_t i = 0; i < 3; ++i) {
+          spv::Id alpha_test_comparison_result = builder_->createBinOp(
+              spv::OpLogicalAnd, type_bool_,
+              builder_->createBinOp(kAlphaTestOps[i], type_bool_,
+                                    alpha_test_alpha, alpha_test_reference),
+              builder_->createBinOp(
+                  spv::OpINotEqual, type_bool_,
+                  builder_->createBinOp(
+                      spv::OpBitwiseAnd, type_uint_, alpha_test_function,
+                      builder_->makeUintConstant(UINT32_C(1) << i)),
+                  const_uint_0_));
+          if (i) {
+            alpha_test_result_non_not_equal = builder_->createBinOp(
+                spv::OpLogicalOr, type_bool_, alpha_test_result_non_not_equal,
+                alpha_test_comparison_result);
+          } else {
+            alpha_test_result_non_not_equal = alpha_test_comparison_result;
+          }
+        }
+        builder_->createBranch(&block_alpha_test_not_equal_merge);
+      }
+      builder_->setBuildPoint(&block_alpha_test_not_equal_merge);
+      spv::Id alpha_test_result;
+      {
+        std::unique_ptr<spv::Instruction> alpha_test_result_phi_op =
+            std::make_unique<spv::Instruction>(builder_->getUniqueId(),
+                                               type_bool_, spv::OpPhi);
+        alpha_test_result_phi_op->addIdOperand(alpha_test_result_not_equal);
+        alpha_test_result_phi_op->addIdOperand(
+            block_alpha_test_not_equal.getId());
+        alpha_test_result_phi_op->addIdOperand(alpha_test_result_non_not_equal);
+        alpha_test_result_phi_op->addIdOperand(
+            block_alpha_test_non_not_equal.getId());
+        alpha_test_result = alpha_test_result_phi_op->getResultId();
+        builder_->getBuildPoint()->addInstruction(
+            std::move(alpha_test_result_phi_op));
+      }
+      // Discard the pixel if the alpha test has failed. Creating a merge block
+      // even though it will contain just one OpBranch since SPIR-V requires
+      // structured control flow in shaders.
+      spv::Block& block_alpha_test_kill = builder_->makeNewBlock();
+      spv::Block& block_alpha_test_kill_merge = builder_->makeNewBlock();
+      SpirvCreateSelectionMerge(block_alpha_test_kill_merge.getId(),
+                                spv::SelectionControlDontFlattenMask);
+      builder_->createConditionalBranch(alpha_test_result,
+                                        &block_alpha_test_kill_merge,
+                                        &block_alpha_test_kill);
+      builder_->setBuildPoint(&block_alpha_test_kill);
+      builder_->createNoResultOp(spv::OpKill);
+      // OpKill terminates the block.
+      builder_->setBuildPoint(&block_alpha_test_kill_merge);
+      builder_->createBranch(&block_alpha_test_merge);
+    }
+    builder_->setBuildPoint(&block_alpha_test_merge);
+  }
+
   uint32_t color_targets_remaining = current_shader().writes_color_targets();
   uint32_t color_target_index;
   while (xe::bit_scan_forward(color_targets_remaining, &color_target_index)) {

@@ -3377,6 +3377,8 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
 
   const RegisterFile& regs = *register_file_;
   auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
+  float rb_alpha_ref = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
+  auto rb_colorcontrol = regs.Get<reg::RB_COLORCONTROL>();
   auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
   int32_t vgt_indx_offset = int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
 
@@ -3416,6 +3418,12 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   if (draw_util::IsPrimitiveLine(regs)) {
     flags |= SpirvShaderTranslator::kSysFlag_PrimitiveLine;
   }
+  // Alpha test.
+  xenos::CompareFunction alpha_test_function =
+      rb_colorcontrol.alpha_test_enable ? rb_colorcontrol.alpha_func
+                                        : xenos::CompareFunction::kAlways;
+  flags |= uint32_t(alpha_test_function)
+           << SpirvShaderTranslator::kSysFlag_AlphaPassIfLess_Shift;
   // Gamma writing.
   // TODO(Triang3l): Gamma as sRGB check.
   for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
@@ -3491,6 +3499,10 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
                               texture_swizzle_shifted;
     }
   }
+
+  // Alpha test.
+  dirty |= system_constants_.alpha_test_reference != rb_alpha_ref;
+  system_constants_.alpha_test_reference = rb_alpha_ref;
 
   // Color exponent bias.
   for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
