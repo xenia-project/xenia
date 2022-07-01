@@ -1745,12 +1745,9 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
   }
   D3D12_RESOURCE_DESC swap_texture_desc = swap_texture_resource->GetDesc();
 
-  uint32_t draw_resolution_scale_max =
-      std::max(texture_cache_->draw_resolution_scale_x(),
-               texture_cache_->draw_resolution_scale_y());
   presenter->RefreshGuestOutput(
       uint32_t(swap_texture_desc.Width), uint32_t(swap_texture_desc.Height),
-      1280 * draw_resolution_scale_max, 720 * draw_resolution_scale_max,
+      1280, 720,
       [this, &swap_texture_srv_desc, frontbuffer_format, swap_texture_resource,
        &swap_texture_desc](
           ui::Presenter::GuestOutputRefreshContext& context) -> bool {
