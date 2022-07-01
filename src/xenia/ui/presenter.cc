@@ -354,14 +354,14 @@ void Presenter::PaintFromUIThread(bool force_paint) {
 
 bool Presenter::RefreshGuestOutput(
     uint32_t frontbuffer_width, uint32_t frontbuffer_height,
-    uint32_t screen_width, uint32_t screen_height,
+    uint32_t display_aspect_ratio_x, uint32_t display_aspect_ratio_y,
     std::function<bool(GuestOutputRefreshContext& context)> refresher) {
   GuestOutputProperties& writable_properties =
       guest_output_properties_[guest_output_mailbox_writable_];
   writable_properties.frontbuffer_width = frontbuffer_width;
   writable_properties.frontbuffer_height = frontbuffer_height;
-  writable_properties.screen_width = screen_width;
-  writable_properties.screen_height = screen_height;
+  writable_properties.display_aspect_ratio_x = display_aspect_ratio_x;
+  writable_properties.display_aspect_ratio_y = display_aspect_ratio_y;
   writable_properties.is_8bpc = false;
   bool is_active = writable_properties.IsActive();
   if (is_active) {
@@ -706,8 +706,10 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
   // All host location calculations are DPI-independent, conceptually depending
   // only on the aspect ratios, not the absolute values.
   uint32_t output_width, output_height;
-  if (uint64_t(surface_width_in_paint_connection_) * properties.screen_height >
-      uint64_t(properties.screen_width) * surface_height_in_paint_connection_) {
+  if (uint64_t(surface_width_in_paint_connection_) *
+          properties.display_aspect_ratio_y >
+      uint64_t(surface_height_in_paint_connection_) *
+          properties.display_aspect_ratio_x) {
     // The window is wider that the source - crop along Y to preserve the aspect
     // ratio while stretching throughout the entire surface's width, then limit
     // the Y cropping via letterboxing or stretching along X.
@@ -719,9 +721,9 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
     }
     // Scale the desired width by the H:W aspect ratio (inverse of W:H) to get
     // the height.
-    output_height =
-        rescale_unsigned(surface_width_in_paint_connection_,
-                         properties.screen_height, properties.screen_width);
+    output_height = rescale_unsigned(surface_width_in_paint_connection_,
+                                     properties.display_aspect_ratio_y,
+                                     properties.display_aspect_ratio_x);
     bool letterbox = false;
     if (output_height * present_safe_area >
         surface_height_in_paint_connection_ * 100) {
@@ -732,8 +734,9 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
     }
     if (letterbox && cvars::present_letterbox) {
       output_width = rescale_unsigned(
-          properties.screen_width, surface_height_in_paint_connection_ * 100,
-          properties.screen_height * present_safe_area);
+          surface_height_in_paint_connection_ * 100,
+          properties.display_aspect_ratio_x,
+          properties.display_aspect_ratio_y * present_safe_area);
       // output_width might have been rounded up already by rescale_unsigned, so
       // rounding down in this division.
       flow.output_x = (int32_t(surface_width_in_paint_connection_) -
@@ -759,9 +762,9 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
       present_safe_area = 100;
     }
     // Scale the desired height by the W:H aspect ratio to get the width.
-    output_width =
-        rescale_unsigned(surface_height_in_paint_connection_,
-                         properties.screen_width, properties.screen_height);
+    output_width = rescale_unsigned(surface_height_in_paint_connection_,
+                                    properties.display_aspect_ratio_x,
+                                    properties.display_aspect_ratio_y);
     bool letterbox = false;
     if (output_width * present_safe_area >
         surface_width_in_paint_connection_ * 100) {
@@ -772,8 +775,9 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
     }
     if (letterbox && cvars::present_letterbox) {
       output_height = rescale_unsigned(
-          properties.screen_height, surface_width_in_paint_connection_ * 100,
-          properties.screen_width * present_safe_area);
+          surface_width_in_paint_connection_ * 100,
+          properties.display_aspect_ratio_y,
+          properties.display_aspect_ratio_x * present_safe_area);
       // output_height might have been rounded up already by rescale_unsigned,
       // so rounding down in this division.
       flow.output_y = (int32_t(surface_height_in_paint_connection_) -
