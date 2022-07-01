@@ -714,7 +714,8 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
     // ratio while stretching throughout the entire surface's width, then limit
     // the Y cropping via letterboxing or stretching along X.
     uint32_t present_safe_area;
-    if (cvars::present_safe_area_y > 0 && cvars::present_safe_area_y < 100) {
+    if (config.GetAllowOverscanCutoff() && cvars::present_safe_area_y > 0 &&
+        cvars::present_safe_area_y < 100) {
       present_safe_area = uint32_t(cvars::present_safe_area_y);
     } else {
       present_safe_area = 100;
@@ -756,7 +757,8 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
     // aspect ratio while stretching throughout the entire surface's height,
     // then limit the X cropping via letterboxing or stretching along Y.
     uint32_t present_safe_area;
-    if (cvars::present_safe_area_x > 0 && cvars::present_safe_area_x < 100) {
+    if (config.GetAllowOverscanCutoff() && cvars::present_safe_area_x > 0 &&
+        cvars::present_safe_area_x < 100) {
       present_safe_area = uint32_t(cvars::present_safe_area_x);
     } else {
       present_safe_area = 100;

@@ -90,7 +90,6 @@ class CommandProcessor {
 
   virtual void ClearCaches();
 
-  void SetIgnoreSwap(bool ignore_swap) { ignore_swap_ = ignore_swap; }
   // "Desired" is for the external thread managing the post-processing effect.
   SwapPostEffect GetDesiredSwapPostEffect() const {
     return swap_post_effect_desired_;
@@ -264,8 +263,6 @@ class CommandProcessor {
 
   std::atomic<bool> worker_running_;
   kernel::object_ref<kernel::XHostThread> worker_thread_;
-
-  bool ignore_swap_ = false;
 
   std::queue<std::function<void()>> pending_fns_;
 

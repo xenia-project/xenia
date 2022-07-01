@@ -21,7 +21,6 @@
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/immediate_drawer.h"
-#include "xenia/ui/presenter.h"
 #include "xenia/ui/window.h"
 #include "xenia/ui/window_listener.h"
 #include "xenia/ui/windowed_app.h"
@@ -129,7 +128,6 @@ class TraceViewer : public xe::ui::WindowedApp {
   GraphicsSystem* graphics_system_ = nullptr;
   std::unique_ptr<TracePlayer> player_;
 
-  std::unique_ptr<xe::ui::Presenter> presenter_;
   std::unique_ptr<xe::ui::ImmediateDrawer> immediate_drawer_;
   std::unique_ptr<xe::ui::ImGuiDrawer> imgui_drawer_;
   std::unique_ptr<TraceViewerDialog> trace_viewer_dialog_;
