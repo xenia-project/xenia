@@ -1215,12 +1215,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
     return;
   }
 
-  uint32_t draw_resolution_scale_max =
-      std::max(texture_cache_->draw_resolution_scale_x(),
-               texture_cache_->draw_resolution_scale_y());
   presenter->RefreshGuestOutput(
-      frontbuffer_width_scaled, frontbuffer_height_scaled,
-      1280 * draw_resolution_scale_max, 720 * draw_resolution_scale_max,
+      frontbuffer_width_scaled, frontbuffer_height_scaled, 1280, 720,
       [this, frontbuffer_width_scaled, frontbuffer_height_scaled,
        frontbuffer_format, swap_texture_view](
           ui::Presenter::GuestOutputRefreshContext& context) -> bool {
