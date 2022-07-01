@@ -114,7 +114,7 @@ bool TraceViewer::Setup() {
   // Main display window.
   assert_true(app_context().IsInUIThread());
   window_ = xe::ui::Window::Create(app_context(), "xenia-gpu-trace-viewer",
-                                   1920, 1200);
+                                   1920, 1080);
   window_->AddListener(&window_listener_);
   window_->AddInputListener(&window_listener_, kZOrderTraceViewerInput);
   if (!window_->Open()) {
@@ -135,28 +135,27 @@ bool TraceViewer::Setup() {
   graphics_system_ = emulator_->graphics_system();
 
   player_ = std::make_unique<TracePlayer>(graphics_system_);
-  player_->SetPresentLastCopy(true);
 
   // Setup drawing to the window.
-  xe::ui::GraphicsProvider& graphics_provider = *graphics_system_->provider();
-  presenter_ = graphics_provider.CreatePresenter();
-  if (!presenter_) {
+  ui::Presenter* presenter = graphics_system_->presenter();
+  if (!presenter) {
     XELOGE("Failed to initialize the presenter");
     return false;
   }
+  xe::ui::GraphicsProvider& graphics_provider = *graphics_system_->provider();
   immediate_drawer_ = graphics_provider.CreateImmediateDrawer();
   if (!immediate_drawer_) {
     XELOGE("Failed to initialize the immediate drawer");
     return false;
   }
-  immediate_drawer_->SetPresenter(presenter_.get());
+  immediate_drawer_->SetPresenter(presenter);
   imgui_drawer_ =
       std::make_unique<xe::ui::ImGuiDrawer>(window_.get(), kZOrderImGui);
-  imgui_drawer_->SetPresenterAndImmediateDrawer(presenter_.get(),
+  imgui_drawer_->SetPresenterAndImmediateDrawer(presenter,
                                                 immediate_drawer_.get());
   trace_viewer_dialog_ = std::unique_ptr<TraceViewerDialog>(
       new TraceViewerDialog(imgui_drawer_.get(), *this));
-  window_->SetPresenter(presenter_.get());
+  window_->SetPresenter(presenter);
 
   return true;
 }
