@@ -1189,10 +1189,6 @@ void VulkanCommandProcessor::OnGammaRampPWLValueWritten() {
 void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
                                        uint32_t frontbuffer_width,
                                        uint32_t frontbuffer_height) {
-  // FIXME(Triang3l): frontbuffer_ptr is currently unreliable, in the trace
-  // player it's set to 0, but it's not needed anyway since the fetch constant
-  // contains the address.
-
   SCOPE_profile_cpu_f("gpu");
 
   ui::Presenter* presenter = graphics_system_->presenter();

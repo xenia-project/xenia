@@ -916,9 +916,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingBuffer* reader,
   uint32_t frontbuffer_height = reader->ReadAndSwap<uint32_t>();
   reader->AdvanceRead((count - 4) * sizeof(uint32_t));
 
-  if (!ignore_swap_) {
-    IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
-  }
+  IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
 
   ++counter_;
   return true;

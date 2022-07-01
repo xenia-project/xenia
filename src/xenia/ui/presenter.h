@@ -228,6 +228,11 @@ class Presenter {
     // In the sharpness setters, min / max with a constant as the first argument
     // also drops NaNs.
 
+    bool GetAllowOverscanCutoff() const { return allow_overscan_cutoff_; }
+    void SetAllowOverscanCutoff(bool new_allow_overscan_cutoff) {
+      allow_overscan_cutoff_ = new_allow_overscan_cutoff;
+    }
+
     Effect GetEffect() const { return effect_; }
     void SetEffect(Effect new_effect) { effect_ = new_effect; }
 
@@ -265,8 +270,10 @@ class Presenter {
     void SetDither(bool new_dither) { dither_ = new_dither; }
 
    private:
-    // Tools, rather than the emulator itself, must use kBilinear as the image
-    // must be as close to the original front buffer as possible.
+    // Tools, rather than the emulator itself, must not allow overscan cutoff
+    // and must use the kBilinear effect as the image must be as close to the
+    // original front buffer as possible.
+    bool allow_overscan_cutoff_ = false;
     Effect effect_ = Effect::kBilinear;
     float cas_additional_sharpness_ = kCasAdditionalSharpnessDefault;
     uint32_t fsr_max_upsampling_passes_ = kFsrMaxUpscalingPassesMax;
