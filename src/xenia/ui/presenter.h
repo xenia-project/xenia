@@ -299,7 +299,9 @@ class Presenter {
   void PaintFromUIThread(bool force_paint = false);
 
   // Pass 0 as width or height to disable guest output until the next refresh
-  // with an actual size. The callback will receive a backend-specific context,
+  // with an actual size. The display aspect ratio may be specified like 16:9 or
+  // like 1280:720, both are accepted, for simplicity, the guest display size
+  // may just be passed. The callback will receive a backend-specific context,
   // and will not be called in case of an error such as the wrong size, or if
   // guest output is disabled. Returns whether the callback was called and it
   // returned true. The callback must submit all updating work to the host GPU
@@ -307,7 +309,7 @@ class Presenter {
   // primitives required by the GuestOutputRefreshContext implementation.
   bool RefreshGuestOutput(
       uint32_t frontbuffer_width, uint32_t frontbuffer_height,
-      uint32_t screen_width, uint32_t screen_height,
+      uint32_t display_aspect_ratio_x, uint32_t display_aspect_ratio_y,
       std::function<bool(GuestOutputRefreshContext& context)> refresher);
   // The implementation must be callable from any thread, including from
   // multiple at the same time, and it should acquire the latest guest output
@@ -354,24 +356,24 @@ class Presenter {
     // this frame.
     uint32_t frontbuffer_width;
     uint32_t frontbuffer_height;
-    // Guest screen size (primarily for the target aspect ratio, which may be
-    // different than that of the frontbuffer).
-    uint32_t screen_width;
-    uint32_t screen_height;
+    // Guest display aspect ratio numerator and denominator (both 16:9 and
+    // 1280:720 kinds of values are accepted).
+    uint32_t display_aspect_ratio_x;
+    uint32_t display_aspect_ratio_y;
     bool is_8bpc;
 
     GuestOutputProperties() { SetToInactive(); }
 
     bool IsActive() const {
-      return frontbuffer_width && frontbuffer_height && screen_width &&
-             screen_height;
+      return frontbuffer_width && frontbuffer_height &&
+             display_aspect_ratio_x && display_aspect_ratio_y;
     }
 
     void SetToInactive() {
       frontbuffer_width = 0;
       frontbuffer_height = 0;
-      screen_width = 0;
-      screen_height = 0;
+      display_aspect_ratio_x = 0;
+      display_aspect_ratio_y = 0;
       is_8bpc = false;
     }
   };
