@@ -132,11 +132,18 @@ class VulkanProvider : public GraphicsProvider {
   }
   struct DeviceExtensions {
     bool ext_fragment_shader_interlock;
+    bool ext_memory_budget;
     bool ext_shader_stencil_export;
     // Core since 1.1.0.
+    bool khr_bind_memory2;
+    // Core since 1.1.0.
     bool khr_dedicated_allocation;
+    // Core since 1.1.0.
+    bool khr_get_memory_requirements2;
     // Core since 1.2.0.
     bool khr_image_format_list;
+    // Core since 1.3.0.
+    bool khr_maintenance4;
     // Requires the VK_KHR_get_physical_device_properties2 instance extension.
     bool khr_portability_subset;
     // Core since 1.1.0.
@@ -217,8 +224,14 @@ class VulkanProvider : public GraphicsProvider {
   VkDevice device() const { return device_; }
   struct DeviceFunctions {
 #define XE_UI_VULKAN_FUNCTION(name) PFN_##name name;
+#define XE_UI_VULKAN_FUNCTION_PROMOTED(extension_name, core_name) \
+  PFN_##extension_name extension_name;
 #include "xenia/ui/vulkan/functions/device_1_0.inc"
+#include "xenia/ui/vulkan/functions/device_khr_bind_memory2.inc"
+#include "xenia/ui/vulkan/functions/device_khr_get_memory_requirements2.inc"
+#include "xenia/ui/vulkan/functions/device_khr_maintenance4.inc"
 #include "xenia/ui/vulkan/functions/device_khr_swapchain.inc"
+#undef XE_UI_VULKAN_FUNCTION_PROMOTED
 #undef XE_UI_VULKAN_FUNCTION
   };
   const DeviceFunctions& dfn() const { return dfn_; }

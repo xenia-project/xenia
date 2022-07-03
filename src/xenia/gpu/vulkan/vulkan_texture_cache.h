@@ -19,6 +19,7 @@
 #include "xenia/gpu/texture_cache.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/vulkan/vulkan_shared_memory.h"
+#include "xenia/ui/vulkan/vulkan_mem_alloc.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
 namespace xe {
@@ -185,7 +186,7 @@ class VulkanTextureCache final : public TextureCache {
     // Takes ownership of the image and its memory.
     explicit VulkanTexture(VulkanTextureCache& texture_cache,
                            const TextureKey& key, VkImage image,
-                           VkDeviceMemory memory, VkDeviceSize memory_size);
+                           VmaAllocation allocation);
     ~VulkanTexture();
 
     VkImage image() const { return image_; }
@@ -255,7 +256,7 @@ class VulkanTextureCache final : public TextureCache {
     }
 
     VkImage image_;
-    VkDeviceMemory memory_;
+    VmaAllocation allocation_;
 
     Usage usage_ = Usage::kUndefined;
 
@@ -316,6 +317,12 @@ class VulkanTextureCache final : public TextureCache {
 
   VulkanCommandProcessor& command_processor_;
   VkPipelineStageFlags guest_shader_pipeline_stages_;
+
+  // Using the Vulkan Memory Allocator because texture count in games is
+  // naturally pretty much unbounded, while Vulkan implementations, especially
+  // on Windows versions before 10, may have an allocation count limit as low as
+  // 4096.
+  VmaAllocator vma_allocator_ = VK_NULL_HANDLE;
 
   static const HostFormatPair kBestHostFormats[64];
   static const HostFormatPair kHostFormatGBGRUnaligned;
