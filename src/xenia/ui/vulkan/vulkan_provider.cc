@@ -29,9 +29,8 @@
 #include "xenia/base/platform_win.h"
 #endif
 
-// TODO(Triang3l): Disable Vulkan validation before releasing a stable version.
 DEFINE_bool(
-    vulkan_validation, true,
+    vulkan_validation, false,
     "Enable Vulkan validation (VK_LAYER_KHRONOS_validation). Messages will be "
     "written to the OS debug log without vulkan_debug_messenger or to the "
     "Xenia log with it.",
