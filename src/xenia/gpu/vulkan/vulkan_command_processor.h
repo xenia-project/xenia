@@ -106,9 +106,6 @@ class VulkanCommandProcessor : public CommandProcessor {
   uint32_t coher_base_vc_ = 0;
   uint32_t coher_size_vc_ = 0;
 
-  // Last copy base address, for debugging only.
-  uint32_t last_copy_base_ = 0;
-
   bool capturing_ = false;
   bool trace_requested_ = false;
   bool cache_clear_requested_ = false;

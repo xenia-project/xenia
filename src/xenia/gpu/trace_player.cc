@@ -89,28 +89,20 @@ void TracePlayer::PlayTrace(const uint8_t* trace_data, size_t trace_size,
                             TracePlaybackMode playback_mode,
                             bool clear_caches) {
   playing_trace_ = true;
-  // Pass a copy of present_last_copy_ to the thread so it's not accessible by
-  // multiple threads at once.
-  bool present_last_copy = present_last_copy_;
   graphics_system_->command_processor()->CallInThread([=]() {
-    PlayTraceOnThread(trace_data, trace_size, playback_mode, clear_caches,
-                      present_last_copy);
+    PlayTraceOnThread(trace_data, trace_size, playback_mode, clear_caches);
   });
 }
 
 void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
                                     size_t trace_size,
                                     TracePlaybackMode playback_mode,
-                                    bool clear_caches, bool present_last_copy) {
+                                    bool clear_caches) {
   auto memory = graphics_system_->memory();
   auto command_processor = graphics_system_->command_processor();
 
   if (clear_caches) {
     command_processor->ClearCaches();
-  }
-
-  if (present_last_copy) {
-    command_processor->SetIgnoreSwap(true);
   }
 
   playback_percent_ = 0;
@@ -251,11 +243,6 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
   }
 
   playing_trace_ = false;
-
-  if (present_last_copy) {
-    command_processor->SetIgnoreSwap(false);
-    command_processor->IssueSwap(0, 1280, 720);
-  }
 
   playback_event_->Set();
 }

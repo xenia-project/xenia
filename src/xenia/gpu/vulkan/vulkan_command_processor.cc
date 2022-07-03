@@ -269,11 +269,6 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
     return;
   }
 
-  if (!frontbuffer_ptr) {
-    // Trace viewer does this.
-    frontbuffer_ptr = last_copy_base_;
-  }
-
   std::vector<VkCommandBuffer> submit_buffers;
   if (frame_open_) {
     // TODO(DrChat): If the setup buffer is empty, don't bother queueing it up.
@@ -1107,9 +1102,6 @@ bool VulkanCommandProcessor::IssueCopy() {
   }
 
   texture->in_flight_fence = current_batch_fence_;
-
-  // For debugging purposes only (trace viewer)
-  last_copy_base_ = texture->texture_info.memory.base_address;
 
   if (!frame_open_) {
     BeginFrame();

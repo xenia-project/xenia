@@ -693,6 +693,7 @@ EmulatorWindow::GetGuestOutputPaintEffectForCvarValue(
 ui::Presenter::GuestOutputPaintConfig
 EmulatorWindow::GetGuestOutputPaintConfigForCvars() {
   ui::Presenter::GuestOutputPaintConfig paint_config;
+  paint_config.SetAllowOverscanCutoff(true);
   paint_config.SetEffect(GetGuestOutputPaintEffectForCvarValue(
       cvars::postprocess_scaling_and_sharpening));
   paint_config.SetCasAdditionalSharpness(
