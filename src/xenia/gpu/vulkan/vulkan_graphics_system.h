@@ -26,7 +26,9 @@ class VulkanGraphicsSystem : public GraphicsSystem {
 
   static bool IsAvailable() { return true; }
 
-  std::string name() const override { return "Vulkan Prototype - DO NOT USE"; }
+  std::string name() const override {
+    return "Vulkan - HEAVILY INCOMPLETE, early development";
+  }
 
   X_STATUS Setup(cpu::Processor* processor, kernel::KernelState* kernel_state,
                  ui::WindowedAppContext* app_context,
