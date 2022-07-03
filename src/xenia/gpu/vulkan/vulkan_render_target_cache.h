@@ -142,6 +142,9 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
            !cvars::snorm16_render_target_full_range;
   }
 
+  bool depth_unorm24_vulkan_format_supported() const {
+    return depth_unorm24_vulkan_format_supported_;
+  }
   bool depth_float24_round() const { return depth_float24_round_; }
 
   bool msaa_2x_attachments_supported() const {
@@ -172,11 +175,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   RenderTarget* CreateRenderTarget(RenderTargetKey key) override;
 
-  // TODO(Triang3l): Check actual unorm24 support.
   bool IsHostDepthEncodingDifferent(
-      xenos::DepthRenderTargetFormat format) const override {
-    return true;
-  }
+      xenos::DepthRenderTargetFormat format) const override;
 
  private:
   enum class EdramBufferUsage {
@@ -840,6 +840,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   bool gamma_render_target_as_srgb_ = false;
 
+  bool depth_unorm24_vulkan_format_supported_ = false;
   bool depth_float24_round_ = false;
 
   bool msaa_2x_attachments_supported_ = false;

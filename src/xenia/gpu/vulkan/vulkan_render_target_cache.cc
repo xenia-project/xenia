@@ -183,8 +183,21 @@ VulkanRenderTargetCache::~VulkanRenderTargetCache() { Shutdown(true); }
 bool VulkanRenderTargetCache::Initialize() {
   const ui::vulkan::VulkanProvider& provider =
       command_processor_.GetVulkanProvider();
+  const ui::vulkan::VulkanProvider::InstanceFunctions& ifn = provider.ifn();
+  VkPhysicalDevice physical_device = provider.physical_device();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
+
+  // Format support.
+  constexpr VkFormatFeatureFlags kUsedDepthFormatFeatures =
+      VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+      VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+  VkFormatProperties depth_unorm24_properties;
+  ifn.vkGetPhysicalDeviceFormatProperties(
+      physical_device, VK_FORMAT_D24_UNORM_S8_UINT, &depth_unorm24_properties);
+  depth_unorm24_vulkan_format_supported_ =
+      (depth_unorm24_properties.optimalTilingFeatures &
+       kUsedDepthFormatFeatures) == kUsedDepthFormatFeatures;
 
   // Descriptor set layouts.
   VkDescriptorSetLayoutBinding descriptor_set_layout_bindings[2];
@@ -1235,7 +1248,10 @@ VkRenderPass VulkanRenderTargetCache::GetRenderPass(RenderPassKey key) {
 
 VkFormat VulkanRenderTargetCache::GetDepthVulkanFormat(
     xenos::DepthRenderTargetFormat format) const {
-  // TODO(Triang3l): Conditional 24-bit depth.
+  if (format == xenos::DepthRenderTargetFormat::kD24S8 &&
+      depth_unorm24_vulkan_format_supported()) {
+    return VK_FORMAT_D24_UNORM_S8_UINT;
+  }
   return VK_FORMAT_D32_SFLOAT_S8_UINT;
 }
 
@@ -1580,6 +1596,18 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(
                                 view_depth_stencil, view_stencil, view_srgb,
                                 view_color_transfer_separate,
                                 descriptor_set_index_transfer_source);
+}
+
+bool VulkanRenderTargetCache::IsHostDepthEncodingDifferent(
+    xenos::DepthRenderTargetFormat format) const {
+  // TODO(Triang3l): Conversion directly in shaders.
+  switch (format) {
+    case xenos::DepthRenderTargetFormat::kD24S8:
+      return !depth_unorm24_vulkan_format_supported();
+    case xenos::DepthRenderTargetFormat::kD24FS8:
+      return true;
+  }
+  return false;
 }
 
 void VulkanRenderTargetCache::GetEdramBufferUsageMasks(
