@@ -260,11 +260,10 @@ std::unique_ptr<apu::AudioSystem> EmulatorApp::CreateAudioSystem(
 
 std::unique_ptr<gpu::GraphicsSystem> EmulatorApp::CreateGraphicsSystem() {
   Factory<gpu::GraphicsSystem> factory;
-  factory.Add<gpu::vulkan::VulkanGraphicsSystem>("vulkan");
-  // TODO(Triang3l): Move D3D12 back to the top.
 #if XE_PLATFORM_WIN32
   factory.Add<gpu::d3d12::D3D12GraphicsSystem>("d3d12");
 #endif  // XE_PLATFORM_WIN32
+  factory.Add<gpu::vulkan::VulkanGraphicsSystem>("vulkan");
   factory.Add<gpu::null::NullGraphicsSystem>("null");
   return factory.Create(cvars::gpu);
 }
