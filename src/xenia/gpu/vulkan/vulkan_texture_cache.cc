@@ -21,6 +21,7 @@
 #include "xenia/gpu/texture_util.h"
 #include "xenia/gpu/vulkan/deferred_command_buffer.h"
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
+#include "xenia/ui/vulkan/vulkan_mem_alloc.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
 
 namespace xe {
@@ -467,6 +468,14 @@ VulkanTextureCache::~VulkanTextureCache() {
   }
   if (load_pipeline_layout_ != VK_NULL_HANDLE) {
     dfn.vkDestroyPipelineLayout(device, load_pipeline_layout_, nullptr);
+  }
+
+  // Textures memory is allocated using the Vulkan Memory Allocator, destroy all
+  // textures before destroying VMA.
+  DestroyAllTextures(true);
+
+  if (vma_allocator_ != VK_NULL_HANDLE) {
+    vmaDestroyAllocator(vma_allocator_);
   }
 }
 
@@ -1052,21 +1061,19 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(
     image_format_list_create_info.viewFormatCount = 2;
     image_format_list_create_info.pViewFormats = formats;
   }
-  // TODO(Triang3l): Suballocate due to the low memory allocation count limit on
-  // Windows (use VMA or a custom allocator, possibly based on two-level
-  // segregated fit just like VMA).
+
+  VmaAllocationCreateInfo allocation_create_info = {};
+  allocation_create_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
   VkImage image;
-  VkDeviceMemory memory;
-  VkDeviceSize memory_size;
-  if (!ui::vulkan::util::CreateDedicatedAllocationImage(
-          provider, image_create_info,
-          ui::vulkan::util::MemoryPurpose::kDeviceLocal, image, memory, nullptr,
-          &memory_size)) {
+  VmaAllocation allocation;
+  if (vmaCreateImage(vma_allocator_, &image_create_info,
+                     &allocation_create_info, &image, &allocation, nullptr)) {
     return nullptr;
   }
 
   return std::unique_ptr<Texture>(
-      new VulkanTexture(*this, key, image, memory, memory_size));
+      new VulkanTexture(*this, key, image, allocation));
 }
 
 bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
@@ -1571,9 +1578,12 @@ void VulkanTextureCache::UpdateTextureBindingsImpl(
 
 VulkanTextureCache::VulkanTexture::VulkanTexture(
     VulkanTextureCache& texture_cache, const TextureKey& key, VkImage image,
-    VkDeviceMemory memory, VkDeviceSize memory_size)
-    : Texture(texture_cache, key), image_(image), memory_(memory) {
-  SetHostMemoryUsage(uint64_t(memory_size));
+    VmaAllocation allocation)
+    : Texture(texture_cache, key), image_(image), allocation_(allocation) {
+  VmaAllocationInfo allocation_info;
+  vmaGetAllocationInfo(texture_cache.vma_allocator_, allocation_,
+                       &allocation_info);
+  SetHostMemoryUsage(uint64_t(allocation_info.size));
 }
 
 VulkanTextureCache::VulkanTexture::~VulkanTexture() {
@@ -1586,8 +1596,7 @@ VulkanTextureCache::VulkanTexture::~VulkanTexture() {
   for (const auto& view_pair : views_) {
     dfn.vkDestroyImageView(device, view_pair.second, nullptr);
   }
-  dfn.vkDestroyImage(device, image_, nullptr);
-  dfn.vkFreeMemory(device, memory_, nullptr);
+  vmaDestroyImage(vulkan_texture_cache.vma_allocator_, image_, allocation_);
 }
 
 VkImageView VulkanTextureCache::VulkanTexture::GetView(bool is_signed,
@@ -1707,6 +1716,13 @@ bool VulkanTextureCache::Initialize() {
   const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
       device_portability_subset_features =
           provider.device_portability_subset_features();
+
+  // Vulkan Memory Allocator.
+
+  vma_allocator_ = ui::vulkan::CreateVmaAllocator(provider, true);
+  if (vma_allocator_ == VK_NULL_HANDLE) {
+    return false;
+  }
 
   // Image formats.
 
