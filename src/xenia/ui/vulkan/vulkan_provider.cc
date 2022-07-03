@@ -543,22 +543,10 @@ bool VulkanProvider::Initialize() {
        ++i) {
     VkPhysicalDevice physical_device_current = physical_devices[i];
 
-    // Get physical device features and check if the needed ones are supported.
-    // Need this before obtaining the queues as sparse binding is an optional
-    // feature.
+    // Get physical device features. Need this before obtaining the queues as
+    // sparse binding is an optional feature.
     ifn_.vkGetPhysicalDeviceFeatures(physical_device_current,
                                      &device_features_);
-    // Passing indices directly from guest memory, where they are big-endian; a
-    // workaround using fetch from shared memory for 32-bit indices that need
-    // swapping isn't implemented yet. Not supported only Qualcomm Adreno 4xx.
-    if (!device_features_.fullDrawIndexUint32) {
-      continue;
-    }
-    // TODO(Triang3l): Make geometry shaders optional by providing compute
-    // shader fallback (though that would require vertex shader stores).
-    if (!device_features_.geometryShader) {
-      continue;
-    }
 
     // Get the needed queues:
     // - Graphics and compute.
