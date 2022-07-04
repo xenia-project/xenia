@@ -374,8 +374,14 @@ void RenderTargetCache::InitializeCommon() {
                             RenderTargetKey(), RenderTargetKey()));
 }
 
-void RenderTargetCache::ShutdownCommon() {
+void RenderTargetCache::DestroyAllRenderTargets(bool shutting_down) {
   ownership_ranges_.clear();
+  if (!shutting_down) {
+    ownership_ranges_.emplace(
+        std::piecewise_construct, std::forward_as_tuple(uint32_t(0)),
+        std::forward_as_tuple(xenos::kEdramTileCount, RenderTargetKey(),
+                              RenderTargetKey(), RenderTargetKey()));
+  }
 
   for (const auto& render_target_pair : render_targets_) {
     if (render_target_pair.second) {
@@ -384,6 +390,8 @@ void RenderTargetCache::ShutdownCommon() {
   }
   render_targets_.clear();
 }
+
+void RenderTargetCache::ShutdownCommon() { DestroyAllRenderTargets(true); }
 
 void RenderTargetCache::ClearCache() {
   // Keep only render targets currently owning any EDRAM data.
