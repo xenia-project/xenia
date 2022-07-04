@@ -193,6 +193,10 @@ class RenderTargetCache {
   // Call last in implementation-specific initialization (when things like path
   // are initialized by the implementation).
   void InitializeCommon();
+  // May be called from the destructor, or from the implementation shutdown to
+  // destroy all render targets before destroying what they depend on in the
+  // implementation.
+  void DestroyAllRenderTargets(bool shutting_down);
   // Call last in implementation-specific shutdown, also callable from the
   // destructor.
   void ShutdownCommon();
