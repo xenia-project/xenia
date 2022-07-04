@@ -11,6 +11,7 @@
 
 #include <signal.h>
 #include <ucontext.h>
+#include <cstdint>
 
 #include "xenia/base/logging.h"
 
@@ -29,61 +30,62 @@ constexpr size_t kMaxHandlerCount = 8;
 // Executed in order.
 std::pair<ExceptionHandler::Handler, void*> handlers_[kMaxHandlerCount];
 
-void ExceptionHandlerCallback(int signum, siginfo_t* siginfo, void* sigctx) {
-  ucontext_t* ctx = static_cast<ucontext_t*>(sigctx);
+static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
+                                     void* signal_context) {
+  mcontext_t& mcontext =
+      reinterpret_cast<ucontext_t*>(signal_context)->uc_mcontext;
 
   X64Context thread_context;
 
-  thread_context.rip = ctx->uc_mcontext.gregs[REG_RIP];
-  thread_context.eflags = ctx->uc_mcontext.gregs[REG_EFL];
-  thread_context.rax = ctx->uc_mcontext.gregs[REG_RAX];
-  thread_context.rcx = ctx->uc_mcontext.gregs[REG_RCX];
-  thread_context.rdx = ctx->uc_mcontext.gregs[REG_RDX];
-  thread_context.rbx = ctx->uc_mcontext.gregs[REG_RBX];
-  thread_context.rsp = ctx->uc_mcontext.gregs[REG_RSP];
-  thread_context.rbp = ctx->uc_mcontext.gregs[REG_RBP];
-  thread_context.rsi = ctx->uc_mcontext.gregs[REG_RSI];
-  thread_context.rdi = ctx->uc_mcontext.gregs[REG_RDI];
-  thread_context.r8 = ctx->uc_mcontext.gregs[REG_R8];
-  thread_context.r9 = ctx->uc_mcontext.gregs[REG_R9];
-  thread_context.r10 = ctx->uc_mcontext.gregs[REG_R10];
-  thread_context.r11 = ctx->uc_mcontext.gregs[REG_R11];
-  thread_context.r12 = ctx->uc_mcontext.gregs[REG_R12];
-  thread_context.r13 = ctx->uc_mcontext.gregs[REG_R13];
-  thread_context.r14 = ctx->uc_mcontext.gregs[REG_R14];
-  thread_context.r15 = ctx->uc_mcontext.gregs[REG_R15];
-  std::memcpy(thread_context.xmm_registers, ctx->uc_mcontext.fpregs->_xmm,
+  thread_context.rip = uint64_t(mcontext.gregs[REG_RIP]);
+  thread_context.eflags = uint32_t(mcontext.gregs[REG_EFL]);
+  thread_context.rax = uint64_t(mcontext.gregs[REG_RAX]);
+  thread_context.rcx = uint64_t(mcontext.gregs[REG_RCX]);
+  thread_context.rdx = uint64_t(mcontext.gregs[REG_RDX]);
+  thread_context.rbx = uint64_t(mcontext.gregs[REG_RBX]);
+  thread_context.rsp = uint64_t(mcontext.gregs[REG_RSP]);
+  thread_context.rbp = uint64_t(mcontext.gregs[REG_RBP]);
+  thread_context.rsi = uint64_t(mcontext.gregs[REG_RSI]);
+  thread_context.rdi = uint64_t(mcontext.gregs[REG_RDI]);
+  thread_context.r8 = uint64_t(mcontext.gregs[REG_R8]);
+  thread_context.r9 = uint64_t(mcontext.gregs[REG_R9]);
+  thread_context.r10 = uint64_t(mcontext.gregs[REG_R10]);
+  thread_context.r11 = uint64_t(mcontext.gregs[REG_R11]);
+  thread_context.r12 = uint64_t(mcontext.gregs[REG_R12]);
+  thread_context.r13 = uint64_t(mcontext.gregs[REG_R13]);
+  thread_context.r14 = uint64_t(mcontext.gregs[REG_R14]);
+  thread_context.r15 = uint64_t(mcontext.gregs[REG_R15]);
+  std::memcpy(thread_context.xmm_registers, mcontext.fpregs->_xmm,
               sizeof(thread_context.xmm_registers));
 
   Exception ex;
-  switch (signum) {
+  switch (signal_number) {
     case SIGILL:
       ex.InitializeIllegalInstruction(&thread_context);
       break;
     case SIGSEGV: {
+      // x86_pf_error_code::X86_PF_WRITE
+      constexpr uint64_t kX86PageFaultErrorCodeWrite = UINT64_C(1) << 1;
       Exception::AccessViolationOperation access_violation_operation =
-          ((ucontext_t*)sigctx)->uc_mcontext.gregs[REG_ERR] & 0x2
-              ? Exception::AccessViolationOperation::kRead
-              : Exception::AccessViolationOperation::kWrite;
-      ex.InitializeAccessViolation(&thread_context,
-                                   reinterpret_cast<uint64_t>(siginfo->si_addr),
-                                   access_violation_operation);
+          (uint64_t(mcontext.gregs[REG_ERR]) & kX86PageFaultErrorCodeWrite)
+              ? Exception::AccessViolationOperation::kWrite
+              : Exception::AccessViolationOperation::kRead;
+      ex.InitializeAccessViolation(
+          &thread_context, reinterpret_cast<uint64_t>(signal_info->si_addr),
+          access_violation_operation);
     } break;
     default:
-      XELOGE("Unhandled signum: 0x{:08X}", signum);
-      assert_always("Unhandled signum");
+      assert_unhandled_case(signal_number);
   }
 
   for (size_t i = 0; i < xe::countof(handlers_) && handlers_[i].first; ++i) {
     if (handlers_[i].first(&ex, handlers_[i].second)) {
       // Exception handled.
       // TODO(benvanik): Update all thread state? Dirty flags?
-      ctx->uc_mcontext.gregs[REG_RIP] = thread_context.rip;
+      mcontext.gregs[REG_RIP] = thread_context.rip;
       return;
     }
   }
-
-  assert_always("Unhandled exception");
 }
 
 void ExceptionHandler::Install(Handler fn, void* data) {
@@ -110,7 +112,6 @@ void ExceptionHandler::Install(Handler fn, void* data) {
       return;
     }
   }
-  XELOGW("Too many exception handlers installed");
   assert_always("Too many exception handlers installed");
 }
 
