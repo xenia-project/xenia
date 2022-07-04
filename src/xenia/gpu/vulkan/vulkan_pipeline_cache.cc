@@ -2,1634 +2,1986 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/gpu/vulkan/vulkan_pipeline_cache.h"
 
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <utility>
+
+#include "third_party/glslang/SPIRV/SpvBuilder.h"
+#include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
-#include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/xxhash.h"
+#include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/gpu_flags.h"
-#include "xenia/gpu/vulkan/vulkan_gpu_flags.h"
+#include "xenia/gpu/register_file.h"
+#include "xenia/gpu/registers.h"
+#include "xenia/gpu/spirv_shader_translator.h"
+#include "xenia/gpu/vulkan/vulkan_command_processor.h"
+#include "xenia/gpu/vulkan/vulkan_shader.h"
+#include "xenia/gpu/xenos.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
-
-#include <cinttypes>
-#include <string>
 
 namespace xe {
 namespace gpu {
 namespace vulkan {
 
-using xe::ui::vulkan::util::CheckResult;
-
-// Generated with `xb buildshaders`.
-namespace shaders {
-#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/dummy_ps.h"
-#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/line_quad_list_gs.h"
-#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/point_list_gs.h"
-#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/quad_list_gs.h"
-#include "xenia/gpu/vulkan/shaders/bytecode/vulkan_spirv/rect_list_gs.h"
-}  // namespace shaders
-
 VulkanPipelineCache::VulkanPipelineCache(
-    RegisterFile* register_file, const ui::vulkan::VulkanProvider& provider)
-    : register_file_(register_file), provider_(provider) {
-  shader_translator_.reset(new SpirvShaderTranslator());
-}
+    VulkanCommandProcessor& command_processor,
+    const RegisterFile& register_file,
+    VulkanRenderTargetCache& render_target_cache,
+    VkShaderStageFlags guest_shader_vertex_stages)
+    : command_processor_(command_processor),
+      register_file_(register_file),
+      render_target_cache_(render_target_cache),
+      guest_shader_vertex_stages_(guest_shader_vertex_stages) {}
 
 VulkanPipelineCache::~VulkanPipelineCache() { Shutdown(); }
 
-VkResult VulkanPipelineCache::Initialize(
-    VkDescriptorSetLayout uniform_descriptor_set_layout,
-    VkDescriptorSetLayout texture_descriptor_set_layout,
-    VkDescriptorSetLayout vertex_descriptor_set_layout) {
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
-  VkDevice device = provider_.device();
-  VkResult status;
+bool VulkanPipelineCache::Initialize() {
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanProvider();
 
-  // Initialize the shared driver pipeline cache.
-  // We'll likely want to serialize this and reuse it, if that proves to be
-  // useful. If the shaders are expensive and this helps we could do it per
-  // game, otherwise a single shared cache for render state/etc.
-  VkPipelineCacheCreateInfo pipeline_cache_info;
-  pipeline_cache_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-  pipeline_cache_info.pNext = nullptr;
-  pipeline_cache_info.flags = 0;
-  pipeline_cache_info.initialDataSize = 0;
-  pipeline_cache_info.pInitialData = nullptr;
-  status = dfn.vkCreatePipelineCache(device, &pipeline_cache_info, nullptr,
-                                     &pipeline_cache_);
-  if (status != VK_SUCCESS) {
-    return status;
-  }
+  shader_translator_ = std::make_unique<SpirvShaderTranslator>(
+      SpirvShaderTranslator::Features(provider));
 
-  // Descriptors used by the pipelines.
-  // These are the only ones we can ever bind.
-  VkDescriptorSetLayout set_layouts[] = {
-      // Per-draw constant register uniforms.
-      uniform_descriptor_set_layout,
-      // All texture bindings.
-      texture_descriptor_set_layout,
-      // Vertex bindings.
-      vertex_descriptor_set_layout,
-  };
-
-  // Push constants used for draw parameters.
-  // We need to keep these under 128b across all stages.
-  // TODO(benvanik): split between the stages?
-  VkPushConstantRange push_constant_ranges[1];
-  push_constant_ranges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
-                                       VK_SHADER_STAGE_GEOMETRY_BIT |
-                                       VK_SHADER_STAGE_FRAGMENT_BIT;
-  push_constant_ranges[0].offset = 0;
-  push_constant_ranges[0].size = kSpirvPushConstantsSize;
-
-  // Shared pipeline layout.
-  VkPipelineLayoutCreateInfo pipeline_layout_info;
-  pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipeline_layout_info.pNext = nullptr;
-  pipeline_layout_info.flags = 0;
-  pipeline_layout_info.setLayoutCount =
-      static_cast<uint32_t>(xe::countof(set_layouts));
-  pipeline_layout_info.pSetLayouts = set_layouts;
-  pipeline_layout_info.pushConstantRangeCount =
-      static_cast<uint32_t>(xe::countof(push_constant_ranges));
-  pipeline_layout_info.pPushConstantRanges = push_constant_ranges;
-  status = dfn.vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr,
-                                      &pipeline_layout_);
-  if (status != VK_SUCCESS) {
-    return status;
-  }
-
-  // Initialize our shared geometry shaders.
-  // These will be used as needed to emulate primitive types Vulkan doesn't
-  // support.
-  VkShaderModuleCreateInfo shader_module_info;
-  shader_module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-  shader_module_info.pNext = nullptr;
-  shader_module_info.flags = 0;
-  shader_module_info.codeSize = sizeof(shaders::line_quad_list_gs);
-  shader_module_info.pCode = shaders::line_quad_list_gs;
-  status = dfn.vkCreateShaderModule(device, &shader_module_info, nullptr,
-                                    &geometry_shaders_.line_quad_list);
-  if (status != VK_SUCCESS) {
-    return status;
-  }
-  provider_.SetDeviceObjectName(VK_OBJECT_TYPE_SHADER_MODULE,
-                                uint64_t(geometry_shaders_.line_quad_list),
-                                "S(g): Line Quad List");
-
-  shader_module_info.codeSize = sizeof(shaders::point_list_gs);
-  shader_module_info.pCode = shaders::point_list_gs;
-  status = dfn.vkCreateShaderModule(device, &shader_module_info, nullptr,
-                                    &geometry_shaders_.point_list);
-  if (status != VK_SUCCESS) {
-    return status;
-  }
-  provider_.SetDeviceObjectName(VK_OBJECT_TYPE_SHADER_MODULE,
-                                uint64_t(geometry_shaders_.point_list),
-                                "S(g): Point List");
-
-  shader_module_info.codeSize = sizeof(shaders::quad_list_gs);
-  shader_module_info.pCode = shaders::quad_list_gs;
-  status = dfn.vkCreateShaderModule(device, &shader_module_info, nullptr,
-                                    &geometry_shaders_.quad_list);
-  if (status != VK_SUCCESS) {
-    return status;
-  }
-  provider_.SetDeviceObjectName(VK_OBJECT_TYPE_SHADER_MODULE,
-                                uint64_t(geometry_shaders_.quad_list),
-                                "S(g): Quad List");
-
-  shader_module_info.codeSize = sizeof(shaders::rect_list_gs);
-  shader_module_info.pCode = shaders::rect_list_gs;
-  status = dfn.vkCreateShaderModule(device, &shader_module_info, nullptr,
-                                    &geometry_shaders_.rect_list);
-  if (status != VK_SUCCESS) {
-    return status;
-  }
-  provider_.SetDeviceObjectName(VK_OBJECT_TYPE_SHADER_MODULE,
-                                uint64_t(geometry_shaders_.rect_list),
-                                "S(g): Rect List");
-
-  shader_module_info.codeSize = sizeof(shaders::dummy_ps);
-  shader_module_info.pCode = shaders::dummy_ps;
-  status = dfn.vkCreateShaderModule(device, &shader_module_info, nullptr,
-                                    &dummy_pixel_shader_);
-  if (status != VK_SUCCESS) {
-    return status;
-  }
-  provider_.SetDeviceObjectName(VK_OBJECT_TYPE_SHADER_MODULE,
-                                uint64_t(dummy_pixel_shader_), "S(g): Dummy");
-
-  return VK_SUCCESS;
+  return true;
 }
 
 void VulkanPipelineCache::Shutdown() {
-  ClearCache();
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanProvider();
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
 
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
-  VkDevice device = provider_.device();
+  // Destroy all pipelines.
+  last_pipeline_ = nullptr;
+  for (const auto& pipeline_pair : pipelines_) {
+    if (pipeline_pair.second.pipeline != VK_NULL_HANDLE) {
+      dfn.vkDestroyPipeline(device, pipeline_pair.second.pipeline, nullptr);
+    }
+  }
+  pipelines_.clear();
 
-  // Destroy geometry shaders.
-  if (geometry_shaders_.line_quad_list) {
-    dfn.vkDestroyShaderModule(device, geometry_shaders_.line_quad_list,
-                              nullptr);
-    geometry_shaders_.line_quad_list = nullptr;
+  // Destroy all internal shaders.
+  for (const auto& geometry_shader_pair : geometry_shaders_) {
+    if (geometry_shader_pair.second != VK_NULL_HANDLE) {
+      dfn.vkDestroyShaderModule(device, geometry_shader_pair.second, nullptr);
+    }
   }
-  if (geometry_shaders_.point_list) {
-    dfn.vkDestroyShaderModule(device, geometry_shaders_.point_list, nullptr);
-    geometry_shaders_.point_list = nullptr;
-  }
-  if (geometry_shaders_.quad_list) {
-    dfn.vkDestroyShaderModule(device, geometry_shaders_.quad_list, nullptr);
-    geometry_shaders_.quad_list = nullptr;
-  }
-  if (geometry_shaders_.rect_list) {
-    dfn.vkDestroyShaderModule(device, geometry_shaders_.rect_list, nullptr);
-    geometry_shaders_.rect_list = nullptr;
-  }
-  if (dummy_pixel_shader_) {
-    dfn.vkDestroyShaderModule(device, dummy_pixel_shader_, nullptr);
-    dummy_pixel_shader_ = nullptr;
-  }
+  geometry_shaders_.clear();
 
-  if (pipeline_layout_) {
-    dfn.vkDestroyPipelineLayout(device, pipeline_layout_, nullptr);
-    pipeline_layout_ = nullptr;
+  // Destroy all translated shaders.
+  for (auto it : shaders_) {
+    delete it.second;
   }
-  if (pipeline_cache_) {
-    dfn.vkDestroyPipelineCache(device, pipeline_cache_, nullptr);
-    pipeline_cache_ = nullptr;
-  }
+  shaders_.clear();
+  texture_binding_layout_map_.clear();
+  texture_binding_layouts_.clear();
+
+  // Shut down shader translation.
+  shader_translator_.reset();
 }
 
 VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
-                                              uint32_t guest_address,
                                               const uint32_t* host_address,
                                               uint32_t dword_count) {
   // Hash the input memory and lookup the shader.
   uint64_t data_hash =
       XXH3_64bits(host_address, dword_count * sizeof(uint32_t));
-  auto it = shader_map_.find(data_hash);
-  if (it != shader_map_.end()) {
+  auto it = shaders_.find(data_hash);
+  if (it != shaders_.end()) {
     // Shader has been previously loaded.
     return it->second;
   }
-
   // Always create the shader and stash it away.
   // We need to track it even if it fails translation so we know not to try
   // again.
-  VulkanShader* shader = new VulkanShader(provider_, shader_type, data_hash,
-                                          host_address, dword_count);
-  shader_map_.insert({data_hash, shader});
-
+  VulkanShader* shader =
+      new VulkanShader(command_processor_.GetVulkanProvider(), shader_type,
+                       data_hash, host_address, dword_count);
+  shaders_.emplace(data_hash, shader);
   return shader;
 }
 
-VulkanPipelineCache::UpdateStatus VulkanPipelineCache::ConfigurePipeline(
-    VkCommandBuffer command_buffer, const RenderState* render_state,
-    VulkanShader* vertex_shader, VulkanShader* pixel_shader,
-    xenos::PrimitiveType primitive_type, VkPipeline* pipeline_out) {
-#if FINE_GRAINED_DRAW_SCOPES
+SpirvShaderTranslator::Modification
+VulkanPipelineCache::GetCurrentVertexShaderModification(
+    const Shader& shader,
+    Shader::HostVertexShaderType host_vertex_shader_type) const {
+  assert_true(shader.type() == xenos::ShaderType::kVertex);
+  assert_true(shader.is_ucode_analyzed());
+  const auto& regs = register_file_;
+  auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
+  return SpirvShaderTranslator::Modification(
+      shader_translator_->GetDefaultVertexShaderModification(
+          shader.GetDynamicAddressableRegisterCount(sq_program_cntl.vs_num_reg),
+          host_vertex_shader_type));
+}
+
+SpirvShaderTranslator::Modification
+VulkanPipelineCache::GetCurrentPixelShaderModification(
+    const Shader& shader, uint32_t normalized_color_mask) const {
+  assert_true(shader.type() == xenos::ShaderType::kPixel);
+  assert_true(shader.is_ucode_analyzed());
+  const auto& regs = register_file_;
+  auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
+
+  SpirvShaderTranslator::Modification modification(
+      shader_translator_->GetDefaultPixelShaderModification(
+          shader.GetDynamicAddressableRegisterCount(
+              sq_program_cntl.ps_num_reg)));
+
+  if (sq_program_cntl.param_gen) {
+    auto sq_context_misc = regs.Get<reg::SQ_CONTEXT_MISC>();
+    if (sq_context_misc.param_gen_pos <
+        std::min(std::max(modification.pixel.dynamic_addressable_register_count,
+                          shader.register_static_address_bound()),
+                 xenos::kMaxInterpolators)) {
+      modification.pixel.param_gen_enable = 1;
+      modification.pixel.param_gen_interpolator = sq_context_misc.param_gen_pos;
+      auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
+      modification.pixel.param_gen_point = uint32_t(
+          vgt_draw_initiator.prim_type == xenos::PrimitiveType::kPointList);
+    }
+  }
+
+  using DepthStencilMode =
+      SpirvShaderTranslator::Modification::DepthStencilMode;
+  if (shader.implicit_early_z_write_allowed() &&
+      (!shader.writes_color_target(0) ||
+       !draw_util::DoesCoverageDependOnAlpha(
+           regs.Get<reg::RB_COLORCONTROL>()))) {
+    modification.pixel.depth_stencil_mode = DepthStencilMode::kEarlyHint;
+  } else {
+    modification.pixel.depth_stencil_mode = DepthStencilMode::kNoModifiers;
+  }
+
+  return modification;
+}
+
+bool VulkanPipelineCache::EnsureShadersTranslated(
+    VulkanShader::VulkanTranslation* vertex_shader,
+    VulkanShader::VulkanTranslation* pixel_shader) {
+  // Edge flags are not supported yet (because polygon primitives are not).
+  assert_true(register_file_.Get<reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
+                  xenos::VertexShaderExportMode::kPosition2VectorsEdge &&
+              register_file_.Get<reg::SQ_PROGRAM_CNTL>().vs_export_mode !=
+                  xenos::VertexShaderExportMode::kPosition2VectorsEdgeKill);
+  assert_false(register_file_.Get<reg::SQ_PROGRAM_CNTL>().gen_index_vtx);
+  if (!vertex_shader->is_translated()) {
+    vertex_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
+    if (!TranslateAnalyzedShader(*shader_translator_, *vertex_shader)) {
+      XELOGE("Failed to translate the vertex shader!");
+      return false;
+    }
+  }
+  if (!vertex_shader->is_valid()) {
+    // Translation attempted previously, but not valid.
+    return false;
+  }
+  if (pixel_shader != nullptr) {
+    if (!pixel_shader->is_translated()) {
+      pixel_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
+      if (!TranslateAnalyzedShader(*shader_translator_, *pixel_shader)) {
+        XELOGE("Failed to translate the pixel shader!");
+        return false;
+      }
+    }
+    if (!pixel_shader->is_valid()) {
+      // Translation attempted previously, but not valid.
+      return false;
+    }
+  }
+  return true;
+}
+
+bool VulkanPipelineCache::ConfigurePipeline(
+    VulkanShader::VulkanTranslation* vertex_shader,
+    VulkanShader::VulkanTranslation* pixel_shader,
+    const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+    reg::RB_DEPTHCONTROL normalized_depth_control,
+    uint32_t normalized_color_mask,
+    VulkanRenderTargetCache::RenderPassKey render_pass_key,
+    VkPipeline& pipeline_out,
+    const PipelineLayoutProvider*& pipeline_layout_out) {
+#if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
 
-  assert_not_null(pipeline_out);
-
-  // Perform a pass over all registers and state updating our cached structures.
-  // This will tell us if anything has changed that requires us to either build
-  // a new pipeline or use an existing one.
-  VkPipeline pipeline = nullptr;
-  auto update_status = UpdateState(vertex_shader, pixel_shader, primitive_type);
-  switch (update_status) {
-    case UpdateStatus::kCompatible:
-      // Requested pipeline is compatible with our previous one, so use that.
-      // Note that there still may be dynamic state that needs updating.
-      pipeline = current_pipeline_;
-      break;
-    case UpdateStatus::kMismatch:
-      // Pipeline state has changed. We need to either create a new one or find
-      // an old one that matches.
-      current_pipeline_ = nullptr;
-      break;
-    case UpdateStatus::kError:
-      // Error updating state - bail out.
-      // We are in an indeterminate state, so reset things for the next attempt.
-      current_pipeline_ = nullptr;
-      return update_status;
+  // Ensure shaders are translated - needed now for GetCurrentStateDescription.
+  if (!EnsureShadersTranslated(vertex_shader, pixel_shader)) {
+    return false;
   }
-  if (!pipeline) {
-    // Should have a hash key produced by the UpdateState pass.
-    uint64_t hash_key = XXH3_64bits_digest(&hash_state_);
-    pipeline = GetPipeline(render_state, hash_key);
-    current_pipeline_ = pipeline;
-    if (!pipeline) {
-      // Unable to create pipeline.
-      return UpdateStatus::kError;
+
+  PipelineDescription description;
+  if (!GetCurrentStateDescription(
+          vertex_shader, pixel_shader, primitive_processing_result,
+          normalized_depth_control, normalized_color_mask, render_pass_key,
+          description)) {
+    return false;
+  }
+  if (last_pipeline_ && last_pipeline_->first == description) {
+    pipeline_out = last_pipeline_->second.pipeline;
+    pipeline_layout_out = last_pipeline_->second.pipeline_layout;
+    return true;
+  }
+  auto it = pipelines_.find(description);
+  if (it != pipelines_.end()) {
+    last_pipeline_ = &*it;
+    pipeline_out = it->second.pipeline;
+    pipeline_layout_out = it->second.pipeline_layout;
+    return true;
+  }
+
+  // Create the pipeline if not the latest and not already existing.
+  const PipelineLayoutProvider* pipeline_layout =
+      command_processor_.GetPipelineLayout(
+          pixel_shader
+              ? static_cast<const VulkanShader&>(pixel_shader->shader())
+                    .GetTextureBindingsAfterTranslation()
+                    .size()
+              : 0,
+          pixel_shader
+              ? static_cast<const VulkanShader&>(pixel_shader->shader())
+                    .GetSamplerBindingsAfterTranslation()
+                    .size()
+              : 0,
+          static_cast<const VulkanShader&>(vertex_shader->shader())
+              .GetTextureBindingsAfterTranslation()
+              .size(),
+          static_cast<const VulkanShader&>(vertex_shader->shader())
+              .GetSamplerBindingsAfterTranslation()
+              .size());
+  if (!pipeline_layout) {
+    return false;
+  }
+  VkShaderModule geometry_shader = VK_NULL_HANDLE;
+  GeometryShaderKey geometry_shader_key;
+  if (GetGeometryShaderKey(description.geometry_shader, geometry_shader_key)) {
+    geometry_shader = GetGeometryShader(geometry_shader_key);
+    if (geometry_shader == VK_NULL_HANDLE) {
+      return false;
     }
   }
-
-  *pipeline_out = pipeline;
-  return update_status;
+  VkRenderPass render_pass =
+      render_target_cache_.GetRenderPass(render_pass_key);
+  if (render_pass == VK_NULL_HANDLE) {
+    return false;
+  }
+  PipelineCreationArguments creation_arguments;
+  auto& pipeline =
+      *pipelines_.emplace(description, Pipeline(pipeline_layout)).first;
+  creation_arguments.pipeline = &pipeline;
+  creation_arguments.vertex_shader = vertex_shader;
+  creation_arguments.pixel_shader = pixel_shader;
+  creation_arguments.geometry_shader = geometry_shader;
+  creation_arguments.render_pass = render_pass;
+  if (!EnsurePipelineCreated(creation_arguments)) {
+    return false;
+  }
+  pipeline_out = pipeline.second.pipeline;
+  pipeline_layout_out = pipeline_layout;
+  return true;
 }
 
-void VulkanPipelineCache::ClearCache() {
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
-  VkDevice device = provider_.device();
-  // Destroy all pipelines.
-  for (auto it : cached_pipelines_) {
-    dfn.vkDestroyPipeline(device, it.second, nullptr);
-  }
-  cached_pipelines_.clear();
-  COUNT_profile_set("gpu/pipeline_cache/pipelines", 0);
-
-  // Destroy all shaders.
-  for (auto it : shader_map_) {
-    delete it.second;
-  }
-  shader_map_.clear();
-}
-
-VkPipeline VulkanPipelineCache::GetPipeline(const RenderState* render_state,
-                                            uint64_t hash_key) {
-  // Lookup the pipeline in the cache.
-  auto it = cached_pipelines_.find(hash_key);
-  if (it != cached_pipelines_.end()) {
-    // Found existing pipeline.
-    return it->second;
-  }
-
-  VkPipelineDynamicStateCreateInfo dynamic_state_info;
-  dynamic_state_info.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-  dynamic_state_info.pNext = nullptr;
-  dynamic_state_info.flags = 0;
-  VkDynamicState dynamic_states[] = {
-      VK_DYNAMIC_STATE_VIEWPORT,
-      VK_DYNAMIC_STATE_SCISSOR,
-      VK_DYNAMIC_STATE_LINE_WIDTH,
-      VK_DYNAMIC_STATE_DEPTH_BIAS,
-      VK_DYNAMIC_STATE_BLEND_CONSTANTS,
-      VK_DYNAMIC_STATE_DEPTH_BOUNDS,
-      VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK,
-      VK_DYNAMIC_STATE_STENCIL_WRITE_MASK,
-      VK_DYNAMIC_STATE_STENCIL_REFERENCE,
-  };
-  dynamic_state_info.dynamicStateCount =
-      static_cast<uint32_t>(xe::countof(dynamic_states));
-  dynamic_state_info.pDynamicStates = dynamic_states;
-
-  VkGraphicsPipelineCreateInfo pipeline_info;
-  pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-  pipeline_info.pNext = nullptr;
-  pipeline_info.flags = VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT;
-  pipeline_info.stageCount = update_shader_stages_stage_count_;
-  pipeline_info.pStages = update_shader_stages_info_;
-  pipeline_info.pVertexInputState = &update_vertex_input_state_info_;
-  pipeline_info.pInputAssemblyState = &update_input_assembly_state_info_;
-  pipeline_info.pTessellationState = nullptr;
-  pipeline_info.pViewportState = &update_viewport_state_info_;
-  pipeline_info.pRasterizationState = &update_rasterization_state_info_;
-  pipeline_info.pMultisampleState = &update_multisample_state_info_;
-  pipeline_info.pDepthStencilState = &update_depth_stencil_state_info_;
-  pipeline_info.pColorBlendState = &update_color_blend_state_info_;
-  pipeline_info.pDynamicState = &dynamic_state_info;
-  pipeline_info.layout = pipeline_layout_;
-  pipeline_info.renderPass = render_state->render_pass_handle;
-  pipeline_info.subpass = 0;
-  pipeline_info.basePipelineHandle = nullptr;
-  pipeline_info.basePipelineIndex = -1;
-  VkPipeline pipeline = nullptr;
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
-  VkDevice device = provider_.device();
-  auto result = dfn.vkCreateGraphicsPipelines(
-      device, pipeline_cache_, 1, &pipeline_info, nullptr, &pipeline);
-  if (result != VK_SUCCESS) {
-    XELOGE("vkCreateGraphicsPipelines failed with code {}", result);
-    assert_always();
-    return nullptr;
-  }
-
-  // Dump shader disassembly.
-  if (cvars::vulkan_dump_disasm) {
-    if (provider_.device_extensions().amd_shader_info) {
-      DumpShaderDisasmAMD(pipeline);
-    } else if (provider_.device_properties().vendorID ==
-               uint32_t(ui::GraphicsProvider::GpuVendorID::kNvidia)) {
-      // NVIDIA cards
-      DumpShaderDisasmNV(pipeline_info);
-    }
-  }
-
-  // Add to cache with the hash key for reuse.
-  cached_pipelines_.insert({hash_key, pipeline});
-  COUNT_profile_set("gpu/pipeline_cache/pipelines", cached_pipelines_.size());
-
-  return pipeline;
-}
-
-bool VulkanPipelineCache::TranslateShader(
+bool VulkanPipelineCache::TranslateAnalyzedShader(
+    SpirvShaderTranslator& translator,
     VulkanShader::VulkanTranslation& translation) {
-  translation.shader().AnalyzeUcode(ucode_disasm_buffer_);
+  VulkanShader& shader = static_cast<VulkanShader&>(translation.shader());
+
   // Perform translation.
   // If this fails the shader will be marked as invalid and ignored later.
-  if (!shader_translator_->TranslateAnalyzedShader(translation)) {
-    XELOGE("Shader translation failed; marking shader as ignored");
+  if (!translator.TranslateAnalyzedShader(translation)) {
+    XELOGE("Shader {:016X} translation failed; marking as ignored",
+           shader.ucode_data_hash());
+    return false;
+  }
+  if (translation.GetOrCreateShaderModule() == VK_NULL_HANDLE) {
     return false;
   }
 
-  // Prepare the shader for use (creates our VkShaderModule).
-  // It could still fail at this point.
-  if (!translation.Prepare()) {
-    XELOGE("Shader preparation failed; marking shader as ignored");
-    return false;
-  }
+  // TODO(Triang3l): Log that the shader has been successfully translated in
+  // common code.
 
-  if (translation.is_valid()) {
-    XELOGGPU("Generated {} shader ({}b) - hash {:016X}:\n{}\n",
-             translation.shader().type() == xenos::ShaderType::kVertex
-                 ? "vertex"
-                 : "pixel",
-             translation.shader().ucode_dword_count() * 4,
-             translation.shader().ucode_data_hash(),
-             translation.shader().ucode_disassembly());
-  }
-
-  // Dump shader files if desired.
-  if (!cvars::dump_shaders.empty()) {
-    translation.Dump(cvars::dump_shaders, "vk");
-  }
-
-  return translation.is_valid();
-}
-
-static void DumpShaderStatisticsAMD(const VkShaderStatisticsInfoAMD& stats) {
-  XELOGI(" - resource usage:");
-  XELOGI("   numUsedVgprs: {}", stats.resourceUsage.numUsedVgprs);
-  XELOGI("   numUsedSgprs: {}", stats.resourceUsage.numUsedSgprs);
-  XELOGI("   ldsSizePerLocalWorkGroup: {}",
-         stats.resourceUsage.ldsSizePerLocalWorkGroup);
-  XELOGI("   ldsUsageSizeInBytes     : {}",
-         stats.resourceUsage.ldsUsageSizeInBytes);
-  XELOGI("   scratchMemUsageInBytes  : {}",
-         stats.resourceUsage.scratchMemUsageInBytes);
-  XELOGI("numPhysicalVgprs : {}", stats.numPhysicalVgprs);
-  XELOGI("numPhysicalSgprs : {}", stats.numPhysicalSgprs);
-  XELOGI("numAvailableVgprs: {}", stats.numAvailableVgprs);
-  XELOGI("numAvailableSgprs: {}", stats.numAvailableSgprs);
-}
-
-void VulkanPipelineCache::DumpShaderDisasmAMD(VkPipeline pipeline) {
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
-  VkDevice device = provider_.device();
-  VkResult status = VK_SUCCESS;
-  size_t data_size = 0;
-
-  VkShaderStatisticsInfoAMD stats;
-  data_size = sizeof(stats);
-
-  // Vertex shader
-  status = dfn.vkGetShaderInfoAMD(device, pipeline, VK_SHADER_STAGE_VERTEX_BIT,
-                                  VK_SHADER_INFO_TYPE_STATISTICS_AMD,
-                                  &data_size, &stats);
-  if (status == VK_SUCCESS) {
-    XELOGI("AMD Vertex Shader Statistics:");
-    DumpShaderStatisticsAMD(stats);
-  }
-
-  // Fragment shader
-  status = dfn.vkGetShaderInfoAMD(
-      device, pipeline, VK_SHADER_STAGE_FRAGMENT_BIT,
-      VK_SHADER_INFO_TYPE_STATISTICS_AMD, &data_size, &stats);
-  if (status == VK_SUCCESS) {
-    XELOGI("AMD Fragment Shader Statistics:");
-    DumpShaderStatisticsAMD(stats);
-  }
-
-  // TODO(DrChat): Eventually dump the disasm...
-}
-
-void VulkanPipelineCache::DumpShaderDisasmNV(
-    const VkGraphicsPipelineCreateInfo& pipeline_info) {
-  // !! HACK !!: This only works on NVidia drivers. Dumps shader disasm.
-  // This code is super ugly. Update this when NVidia includes an official
-  // way to dump shader disassembly.
-
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
-  VkDevice device = provider_.device();
-
-  VkPipelineCacheCreateInfo pipeline_cache_info;
-  VkPipelineCache dummy_pipeline_cache;
-  pipeline_cache_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-  pipeline_cache_info.pNext = nullptr;
-  pipeline_cache_info.flags = 0;
-  pipeline_cache_info.initialDataSize = 0;
-  pipeline_cache_info.pInitialData = nullptr;
-  auto status = dfn.vkCreatePipelineCache(device, &pipeline_cache_info, nullptr,
-                                          &dummy_pipeline_cache);
-  CheckResult(status, "vkCreatePipelineCache");
-
-  // Create a pipeline on the dummy cache and dump it.
-  VkPipeline dummy_pipeline;
-  status =
-      dfn.vkCreateGraphicsPipelines(device, dummy_pipeline_cache, 1,
-                                    &pipeline_info, nullptr, &dummy_pipeline);
-
-  std::vector<uint8_t> pipeline_data;
-  size_t data_size = 0;
-  status = dfn.vkGetPipelineCacheData(device, dummy_pipeline_cache, &data_size,
-                                      nullptr);
-  if (status == VK_SUCCESS) {
-    pipeline_data.resize(data_size);
-    dfn.vkGetPipelineCacheData(device, dummy_pipeline_cache, &data_size,
-                               pipeline_data.data());
-
-    // Scan the data for the disassembly.
-    std::string disasm_vp, disasm_fp;
-
-    const char* disasm_start_vp = nullptr;
-    const char* disasm_start_fp = nullptr;
-    size_t search_offset = 0;
-    const char* search_start =
-        reinterpret_cast<const char*>(pipeline_data.data());
-    while (true) {
-      auto p = reinterpret_cast<const char*>(
-          memchr(pipeline_data.data() + search_offset, '!',
-                 pipeline_data.size() - search_offset));
-      if (!p) {
-        break;
-      }
-      if (!strncmp(p, "!!NV", 4)) {
-        if (!strncmp(p + 4, "vp", 2)) {
-          disasm_start_vp = p;
-        } else if (!strncmp(p + 4, "fp", 2)) {
-          disasm_start_fp = p;
-        }
-
-        if (disasm_start_fp && disasm_start_vp) {
-          // Found all we needed.
+  // Set up the texture binding layout.
+  if (shader.EnterBindingLayoutUserUIDSetup()) {
+    // Obtain the unique IDs of the binding layout if there are any texture
+    // bindings, for invalidation in the command processor.
+    size_t texture_binding_layout_uid = kLayoutUIDEmpty;
+    const std::vector<VulkanShader::TextureBinding>& texture_bindings =
+        shader.GetTextureBindingsAfterTranslation();
+    size_t texture_binding_count = texture_bindings.size();
+    if (texture_binding_count) {
+      size_t texture_binding_layout_bytes =
+          texture_binding_count * sizeof(*texture_bindings.data());
+      uint64_t texture_binding_layout_hash =
+          XXH3_64bits(texture_bindings.data(), texture_binding_layout_bytes);
+      auto found_range =
+          texture_binding_layout_map_.equal_range(texture_binding_layout_hash);
+      for (auto it = found_range.first; it != found_range.second; ++it) {
+        if (it->second.vector_span_length == texture_binding_count &&
+            !std::memcmp(
+                texture_binding_layouts_.data() + it->second.vector_span_offset,
+                texture_bindings.data(), texture_binding_layout_bytes)) {
+          texture_binding_layout_uid = it->second.uid;
           break;
         }
       }
-      search_offset = p - search_start;
-      ++search_offset;
+      if (texture_binding_layout_uid == kLayoutUIDEmpty) {
+        static_assert(
+            kLayoutUIDEmpty == 0,
+            "Layout UID is size + 1 because it's assumed that 0 is the UID for "
+            "an empty layout");
+        texture_binding_layout_uid = texture_binding_layout_map_.size() + 1;
+        LayoutUID new_uid;
+        new_uid.uid = texture_binding_layout_uid;
+        new_uid.vector_span_offset = texture_binding_layouts_.size();
+        new_uid.vector_span_length = texture_binding_count;
+        texture_binding_layouts_.resize(new_uid.vector_span_offset +
+                                        texture_binding_count);
+        std::memcpy(
+            texture_binding_layouts_.data() + new_uid.vector_span_offset,
+            texture_bindings.data(), texture_binding_layout_bytes);
+        texture_binding_layout_map_.emplace(texture_binding_layout_hash,
+                                            new_uid);
+      }
     }
-    if (disasm_start_vp) {
-      disasm_vp = std::string(disasm_start_vp);
+    shader.SetTextureBindingLayoutUserUID(texture_binding_layout_uid);
 
-      // For some reason there's question marks all over the code.
-      disasm_vp.erase(std::remove(disasm_vp.begin(), disasm_vp.end(), '?'),
-                      disasm_vp.end());
-    } else {
-      disasm_vp = std::string("Shader disassembly not available.");
-    }
-
-    if (disasm_start_fp) {
-      disasm_fp = std::string(disasm_start_fp);
-
-      // For some reason there's question marks all over the code.
-      disasm_fp.erase(std::remove(disasm_fp.begin(), disasm_fp.end(), '?'),
-                      disasm_fp.end());
-    } else {
-      disasm_fp = std::string("Shader disassembly not available.");
-    }
-
-    XELOGI("{}\n=====================================\n{}\n", disasm_vp,
-           disasm_fp);
+    // Use the sampler count for samplers because it's the only thing that must
+    // be the same for layouts to be compatible in this case
+    // (instruction-specified parameters are used as overrides for creating
+    // actual samplers).
+    static_assert(
+        kLayoutUIDEmpty == 0,
+        "Empty layout UID is assumed to be 0 because for bindful samplers, the "
+        "UID is their count");
+    shader.SetSamplerBindingLayoutUserUID(
+        shader.GetSamplerBindingsAfterTranslation().size());
   }
 
-  dfn.vkDestroyPipeline(device, dummy_pipeline, nullptr);
-  dfn.vkDestroyPipelineCache(device, dummy_pipeline_cache, nullptr);
+  return true;
 }
 
-VkShaderModule VulkanPipelineCache::GetGeometryShader(
-    xenos::PrimitiveType primitive_type, bool is_line_mode) {
-  switch (primitive_type) {
-    case xenos::PrimitiveType::kLineList:
-    case xenos::PrimitiveType::kLineLoop:
-    case xenos::PrimitiveType::kLineStrip:
-    case xenos::PrimitiveType::kTriangleList:
-    case xenos::PrimitiveType::kTriangleFan:
-    case xenos::PrimitiveType::kTriangleStrip:
-      // Supported directly - no need to emulate.
-      return nullptr;
-    case xenos::PrimitiveType::kPointList:
-      return geometry_shaders_.point_list;
-    case xenos::PrimitiveType::kTriangleWithWFlags:
-      assert_always("Unknown geometry type");
-      return nullptr;
-    case xenos::PrimitiveType::kRectangleList:
-      return geometry_shaders_.rect_list;
-    case xenos::PrimitiveType::kQuadList:
-      return is_line_mode ? geometry_shaders_.line_quad_list
-                          : geometry_shaders_.quad_list;
-    case xenos::PrimitiveType::kQuadStrip:
-      // TODO(benvanik): quad strip geometry shader.
-      assert_always("Quad strips not implemented");
-      return nullptr;
-    case xenos::PrimitiveType::kTrianglePatch:
-    case xenos::PrimitiveType::kQuadPatch:
-      assert_always("Tessellation is not implemented");
-      return nullptr;
-    default:
-      assert_unhandled_case(primitive_type);
-      return nullptr;
-  }
-}
-
-bool VulkanPipelineCache::SetDynamicState(VkCommandBuffer command_buffer,
-                                          bool full_update) {
-#if FINE_GRAINED_DRAW_SCOPES
-  SCOPE_profile_cpu_f("gpu");
-#endif  // FINE_GRAINED_DRAW_SCOPES
-
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
-  auto& regs = set_dynamic_state_registers_;
-
-  bool window_offset_dirty = SetShadowRegister(&regs.pa_sc_window_offset,
-                                               XE_GPU_REG_PA_SC_WINDOW_OFFSET);
-  window_offset_dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
-                                           XE_GPU_REG_PA_SU_SC_MODE_CNTL);
-
-  // Window parameters.
-  // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
-  // See r200UpdateWindow:
-  // https://github.com/freedreno/mesa/blob/master/src/mesa/drivers/dri/r200/r200_state.c
-  int16_t window_offset_x = regs.pa_sc_window_offset & 0x7FFF;
-  int16_t window_offset_y = (regs.pa_sc_window_offset >> 16) & 0x7FFF;
-  if (window_offset_x & 0x4000) {
-    window_offset_x |= 0x8000;
-  }
-  if (window_offset_y & 0x4000) {
-    window_offset_y |= 0x8000;
-  }
-
-  // VK_DYNAMIC_STATE_SCISSOR
-  bool scissor_state_dirty = full_update || window_offset_dirty;
-  scissor_state_dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_tl,
-                                           XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL);
-  scissor_state_dirty |= SetShadowRegister(&regs.pa_sc_window_scissor_br,
-                                           XE_GPU_REG_PA_SC_WINDOW_SCISSOR_BR);
-  if (scissor_state_dirty) {
-    int32_t ws_x = regs.pa_sc_window_scissor_tl & 0x7FFF;
-    int32_t ws_y = (regs.pa_sc_window_scissor_tl >> 16) & 0x7FFF;
-    int32_t ws_w = (regs.pa_sc_window_scissor_br & 0x7FFF) - ws_x;
-    int32_t ws_h = ((regs.pa_sc_window_scissor_br >> 16) & 0x7FFF) - ws_y;
-    if (!(regs.pa_sc_window_scissor_tl & 0x80000000)) {
-      // ! WINDOW_OFFSET_DISABLE
-      ws_x += window_offset_x;
-      ws_y += window_offset_y;
-    }
-
-    int32_t adj_x = ws_x - std::max(ws_x, 0);
-    int32_t adj_y = ws_y - std::max(ws_y, 0);
-
-    VkRect2D scissor_rect;
-    scissor_rect.offset.x = ws_x - adj_x;
-    scissor_rect.offset.y = ws_y - adj_y;
-    scissor_rect.extent.width = std::max(ws_w + adj_x, 0);
-    scissor_rect.extent.height = std::max(ws_h + adj_y, 0);
-    dfn.vkCmdSetScissor(command_buffer, 0, 1, &scissor_rect);
-  }
-
-  // VK_DYNAMIC_STATE_VIEWPORT
-  bool viewport_state_dirty = full_update || window_offset_dirty;
-  viewport_state_dirty |=
-      SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
-  viewport_state_dirty |=
-      SetShadowRegister(&regs.pa_cl_vte_cntl, XE_GPU_REG_PA_CL_VTE_CNTL);
-  viewport_state_dirty |=
-      SetShadowRegister(&regs.pa_su_sc_vtx_cntl, XE_GPU_REG_PA_SU_VTX_CNTL);
-  viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_xoffset,
-                                            XE_GPU_REG_PA_CL_VPORT_XOFFSET);
-  viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_yoffset,
-                                            XE_GPU_REG_PA_CL_VPORT_YOFFSET);
-  viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_zoffset,
-                                            XE_GPU_REG_PA_CL_VPORT_ZOFFSET);
-  viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_xscale,
-                                            XE_GPU_REG_PA_CL_VPORT_XSCALE);
-  viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_yscale,
-                                            XE_GPU_REG_PA_CL_VPORT_YSCALE);
-  viewport_state_dirty |= SetShadowRegister(&regs.pa_cl_vport_zscale,
-                                            XE_GPU_REG_PA_CL_VPORT_ZSCALE);
-  // RB_SURFACE_INFO
-  auto surface_msaa =
-      static_cast<xenos::MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
-
-  // Apply a multiplier to emulate MSAA.
-  float window_width_scalar = 1;
-  float window_height_scalar = 1;
-  switch (surface_msaa) {
-    case xenos::MsaaSamples::k1X:
-      break;
-    case xenos::MsaaSamples::k2X:
-      window_height_scalar = 2;
-      break;
-    case xenos::MsaaSamples::k4X:
-      window_width_scalar = window_height_scalar = 2;
-      break;
-  }
-
-  // Whether each of the viewport settings are enabled.
-  // https://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
-  bool vport_xscale_enable = (regs.pa_cl_vte_cntl & (1 << 0)) > 0;
-  bool vport_xoffset_enable = (regs.pa_cl_vte_cntl & (1 << 1)) > 0;
-  bool vport_yscale_enable = (regs.pa_cl_vte_cntl & (1 << 2)) > 0;
-  bool vport_yoffset_enable = (regs.pa_cl_vte_cntl & (1 << 3)) > 0;
-  bool vport_zscale_enable = (regs.pa_cl_vte_cntl & (1 << 4)) > 0;
-  bool vport_zoffset_enable = (regs.pa_cl_vte_cntl & (1 << 5)) > 0;
-  assert_true(vport_xscale_enable == vport_yscale_enable ==
-              vport_zscale_enable == vport_xoffset_enable ==
-              vport_yoffset_enable == vport_zoffset_enable);
-
-  int16_t vtx_window_offset_x =
-      (regs.pa_su_sc_mode_cntl >> 16) & 1 ? window_offset_x : 0;
-  int16_t vtx_window_offset_y =
-      (regs.pa_su_sc_mode_cntl >> 16) & 1 ? window_offset_y : 0;
-
-  float vpw, vph, vpx, vpy;
-  if (vport_xscale_enable) {
-    float vox = vport_xoffset_enable ? regs.pa_cl_vport_xoffset : 0;
-    float voy = vport_yoffset_enable ? regs.pa_cl_vport_yoffset : 0;
-    float vsx = vport_xscale_enable ? regs.pa_cl_vport_xscale : 1;
-    float vsy = vport_yscale_enable ? regs.pa_cl_vport_yscale : 1;
-
-    window_width_scalar = window_height_scalar = 1;
-    vpw = 2 * window_width_scalar * vsx;
-    vph = -2 * window_height_scalar * vsy;
-    vpx = window_width_scalar * vox - vpw / 2 + vtx_window_offset_x;
-    vpy = window_height_scalar * voy - vph / 2 + vtx_window_offset_y;
-  } else {
-    // TODO(DrChat): This should be the width/height of the target picture
-    vpw = 2560.0f;
-    vph = 2560.0f;
-    vpx = vtx_window_offset_x;
-    vpy = vtx_window_offset_y;
-  }
-
-  if (viewport_state_dirty) {
-    VkViewport viewport_rect;
-    std::memset(&viewport_rect, 0, sizeof(VkViewport));
-    viewport_rect.x = vpx;
-    viewport_rect.y = vpy;
-    viewport_rect.width = vpw;
-    viewport_rect.height = vph;
-
-    float voz = vport_zoffset_enable ? regs.pa_cl_vport_zoffset : 0;
-    float vsz = vport_zscale_enable ? regs.pa_cl_vport_zscale : 1;
-    viewport_rect.minDepth = voz;
-    viewport_rect.maxDepth = voz + vsz;
-    assert_true(viewport_rect.minDepth >= 0 && viewport_rect.minDepth <= 1);
-    assert_true(viewport_rect.maxDepth >= -1 && viewport_rect.maxDepth <= 1);
-
-    dfn.vkCmdSetViewport(command_buffer, 0, 1, &viewport_rect);
-  }
-
-  // VK_DYNAMIC_STATE_DEPTH_BIAS
-  // No separate front/back bias in Vulkan - using what's more expected to work.
-  // No need to reset to 0 if not enabled in the pipeline - recheck conditions.
-  float depth_bias_scales[2] = {0}, depth_bias_offsets[2] = {0};
-  auto cull_mode = regs.pa_su_sc_mode_cntl & 3;
-  if (cull_mode != 1) {
-    // Front faces are not culled.
-    depth_bias_scales[0] =
-        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
-    depth_bias_offsets[0] =
-        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
-  }
-  if (cull_mode != 2) {
-    // Back faces are not culled.
-    depth_bias_scales[1] =
-        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
-    depth_bias_offsets[1] =
-        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
-  }
-  if (depth_bias_scales[0] != 0.0f || depth_bias_scales[1] != 0.0f ||
-      depth_bias_offsets[0] != 0.0f || depth_bias_offsets[1] != 0.0f) {
-    float depth_bias_scale, depth_bias_offset;
-    // Prefer front if not culled and offset for both is enabled.
-    // However, if none are culled, and there's no front offset, use back offset
-    // (since there was an intention to enable depth offset at all).
-    // As SetRenderState sets for both sides, this should be very rare anyway.
-    // TODO(Triang3l): Verify the intentions if this happens in real games.
-    if (depth_bias_scales[0] != 0.0f || depth_bias_offsets[0] != 0.0f) {
-      depth_bias_scale = depth_bias_scales[0];
-      depth_bias_offset = depth_bias_offsets[0];
-    } else {
-      depth_bias_scale = depth_bias_scales[1];
-      depth_bias_offset = depth_bias_offsets[1];
-    }
-    // Convert to Vulkan units based on the values in 415607E6:
-    // r_polygonOffsetScale is -1 there, but 32 in the register.
-    // r_polygonOffsetBias is -1 also, but passing 2/65536.
-    // 1/65536 and 2 scales are applied separately, however, and for shadow maps
-    // 0.5/65536 is passed (while sm_polygonOffsetBias is 0.5), and with 32768
-    // it would be 0.25, which seems too small. So using 65536, assuming it's a
-    // common scale value (which also looks less arbitrary than 32768).
-    // TODO(Triang3l): Investigate, also considering the depth format (kD24FS8).
-    // Possibly refer to:
-    // https://www.winehq.org/pipermail/wine-patches/2015-July/141200.html
-    float depth_bias_scale_vulkan = depth_bias_scale * (1.0f / 32.0f);
-    float depth_bias_offset_vulkan = depth_bias_offset * 65536.0f;
-    if (full_update ||
-        regs.pa_su_poly_offset_scale != depth_bias_scale_vulkan ||
-        regs.pa_su_poly_offset_offset != depth_bias_offset_vulkan) {
-      regs.pa_su_poly_offset_scale = depth_bias_scale_vulkan;
-      regs.pa_su_poly_offset_offset = depth_bias_offset_vulkan;
-      dfn.vkCmdSetDepthBias(command_buffer, depth_bias_offset_vulkan, 0.0f,
-                            depth_bias_scale_vulkan);
-    }
-  } else if (full_update) {
-    regs.pa_su_poly_offset_scale = 0.0f;
-    regs.pa_su_poly_offset_offset = 0.0f;
-    dfn.vkCmdSetDepthBias(command_buffer, 0.0f, 0.0f, 0.0f);
-  }
-
-  // VK_DYNAMIC_STATE_BLEND_CONSTANTS
-  bool blend_constant_state_dirty = full_update;
-  blend_constant_state_dirty |=
-      SetShadowRegister(&regs.rb_blend_rgba[0], XE_GPU_REG_RB_BLEND_RED);
-  blend_constant_state_dirty |=
-      SetShadowRegister(&regs.rb_blend_rgba[1], XE_GPU_REG_RB_BLEND_GREEN);
-  blend_constant_state_dirty |=
-      SetShadowRegister(&regs.rb_blend_rgba[2], XE_GPU_REG_RB_BLEND_BLUE);
-  blend_constant_state_dirty |=
-      SetShadowRegister(&regs.rb_blend_rgba[3], XE_GPU_REG_RB_BLEND_ALPHA);
-  if (blend_constant_state_dirty) {
-    dfn.vkCmdSetBlendConstants(command_buffer, regs.rb_blend_rgba);
-  }
-
-  bool stencil_state_dirty = full_update;
-  stencil_state_dirty |=
-      SetShadowRegister(&regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
-  if (stencil_state_dirty) {
-    uint32_t stencil_ref = (regs.rb_stencilrefmask & 0xFF);
-    uint32_t stencil_read_mask = (regs.rb_stencilrefmask >> 8) & 0xFF;
-    uint32_t stencil_write_mask = (regs.rb_stencilrefmask >> 16) & 0xFF;
-
-    // VK_DYNAMIC_STATE_STENCIL_REFERENCE
-    dfn.vkCmdSetStencilReference(command_buffer, VK_STENCIL_FRONT_AND_BACK,
-                                 stencil_ref);
-
-    // VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK
-    dfn.vkCmdSetStencilCompareMask(command_buffer, VK_STENCIL_FRONT_AND_BACK,
-                                   stencil_read_mask);
-
-    // VK_DYNAMIC_STATE_STENCIL_WRITE_MASK
-    dfn.vkCmdSetStencilWriteMask(command_buffer, VK_STENCIL_FRONT_AND_BACK,
-                                 stencil_write_mask);
-  }
-
-  bool push_constants_dirty = full_update || viewport_state_dirty;
-  push_constants_dirty |= SetShadowRegister(&regs.sq_program_cntl.value,
-                                            XE_GPU_REG_SQ_PROGRAM_CNTL);
-  push_constants_dirty |=
-      SetShadowRegister(&regs.sq_context_misc, XE_GPU_REG_SQ_CONTEXT_MISC);
-  push_constants_dirty |=
-      SetShadowRegister(&regs.rb_colorcontrol, XE_GPU_REG_RB_COLORCONTROL);
-  push_constants_dirty |=
-      SetShadowRegister(&regs.rb_color_info.value, XE_GPU_REG_RB_COLOR_INFO);
-  push_constants_dirty |=
-      SetShadowRegister(&regs.rb_color1_info.value, XE_GPU_REG_RB_COLOR1_INFO);
-  push_constants_dirty |=
-      SetShadowRegister(&regs.rb_color2_info.value, XE_GPU_REG_RB_COLOR2_INFO);
-  push_constants_dirty |=
-      SetShadowRegister(&regs.rb_color3_info.value, XE_GPU_REG_RB_COLOR3_INFO);
-  push_constants_dirty |=
-      SetShadowRegister(&regs.rb_alpha_ref, XE_GPU_REG_RB_ALPHA_REF);
-  push_constants_dirty |=
-      SetShadowRegister(&regs.pa_su_point_size, XE_GPU_REG_PA_SU_POINT_SIZE);
-  if (push_constants_dirty) {
-    // Normal vertex shaders only, for now.
-    assert_true(regs.sq_program_cntl.vs_export_mode ==
-                    xenos::VertexShaderExportMode::kPosition1Vector ||
-                regs.sq_program_cntl.vs_export_mode ==
-                    xenos::VertexShaderExportMode::kPosition2VectorsSprite ||
-                regs.sq_program_cntl.vs_export_mode ==
-                    xenos::VertexShaderExportMode::kMultipass);
-    assert_false(regs.sq_program_cntl.gen_index_vtx);
-
-    SpirvPushConstants push_constants = {};
-
-    // Done in VS, no need to flush state.
-    if (vport_xscale_enable) {
-      push_constants.window_scale[0] = 1.0f;
-      push_constants.window_scale[1] = -1.0f;
-      push_constants.window_scale[2] = 0.f;
-      push_constants.window_scale[3] = 0.f;
-    } else {
-      // 1 / unscaled viewport w/h
-      push_constants.window_scale[0] = window_width_scalar / 1280.f;
-      push_constants.window_scale[1] = window_height_scalar / 1280.f;
-      push_constants.window_scale[2] = (-1280.f / window_width_scalar) + 0.5f;
-      push_constants.window_scale[3] = (-1280.f / window_height_scalar) + 0.5f;
-    }
-
-    // https://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
-    // VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
-    //            = false: multiply the X, Y coordinates by 1/W0.
-    // VTX_Z_FMT = true: the incoming Z has already been multiplied by 1/W0.
-    //           = false: multiply the Z coordinate by 1/W0.
-    // VTX_W0_FMT = true: the incoming W0 is not 1/W0. Perform the reciprocal to
-    //                    get 1/W0.
-    float vtx_xy_fmt = (regs.pa_cl_vte_cntl >> 8) & 0x1 ? 1.0f : 0.0f;
-    float vtx_z_fmt = (regs.pa_cl_vte_cntl >> 9) & 0x1 ? 1.0f : 0.0f;
-    float vtx_w0_fmt = (regs.pa_cl_vte_cntl >> 10) & 0x1 ? 1.0f : 0.0f;
-    push_constants.vtx_fmt[0] = vtx_xy_fmt;
-    push_constants.vtx_fmt[1] = vtx_xy_fmt;
-    push_constants.vtx_fmt[2] = vtx_z_fmt;
-    push_constants.vtx_fmt[3] = vtx_w0_fmt;
-
-    // Point size
-    push_constants.point_size[0] =
-        static_cast<float>((regs.pa_su_point_size & 0xffff0000) >> 16) / 8.0f;
-    push_constants.point_size[1] =
-        static_cast<float>((regs.pa_su_point_size & 0x0000ffff)) / 8.0f;
-
-    reg::RB_COLOR_INFO color_info[4] = {
-        regs.rb_color_info,
-        regs.rb_color1_info,
-        regs.rb_color2_info,
-        regs.rb_color3_info,
+void VulkanPipelineCache::WritePipelineRenderTargetDescription(
+    reg::RB_BLENDCONTROL blend_control, uint32_t write_mask,
+    PipelineRenderTarget& render_target_out) const {
+  if (write_mask) {
+    assert_zero(write_mask & ~uint32_t(0b1111));
+    // 32 because of 0x1F mask, for safety (all unknown to zero).
+    static const PipelineBlendFactor kBlendFactorMap[32] = {
+        /*  0 */ PipelineBlendFactor::kZero,
+        /*  1 */ PipelineBlendFactor::kOne,
+        /*  2 */ PipelineBlendFactor::kZero,  // ?
+        /*  3 */ PipelineBlendFactor::kZero,  // ?
+        /*  4 */ PipelineBlendFactor::kSrcColor,
+        /*  5 */ PipelineBlendFactor::kOneMinusSrcColor,
+        /*  6 */ PipelineBlendFactor::kSrcAlpha,
+        /*  7 */ PipelineBlendFactor::kOneMinusSrcAlpha,
+        /*  8 */ PipelineBlendFactor::kDstColor,
+        /*  9 */ PipelineBlendFactor::kOneMinusDstColor,
+        /* 10 */ PipelineBlendFactor::kDstAlpha,
+        /* 11 */ PipelineBlendFactor::kOneMinusDstAlpha,
+        /* 12 */ PipelineBlendFactor::kConstantColor,
+        /* 13 */ PipelineBlendFactor::kOneMinusConstantColor,
+        /* 14 */ PipelineBlendFactor::kConstantAlpha,
+        /* 15 */ PipelineBlendFactor::kOneMinusConstantAlpha,
+        /* 16 */ PipelineBlendFactor::kSrcAlphaSaturate,
     };
-    for (int i = 0; i < 4; i++) {
-      push_constants.color_exp_bias[i] =
-          static_cast<float>(1 << color_info[i].color_exp_bias);
+    render_target_out.src_color_blend_factor =
+        kBlendFactorMap[uint32_t(blend_control.color_srcblend)];
+    render_target_out.dst_color_blend_factor =
+        kBlendFactorMap[uint32_t(blend_control.color_destblend)];
+    render_target_out.color_blend_op = blend_control.color_comb_fcn;
+    render_target_out.src_alpha_blend_factor =
+        kBlendFactorMap[uint32_t(blend_control.alpha_srcblend)];
+    render_target_out.dst_alpha_blend_factor =
+        kBlendFactorMap[uint32_t(blend_control.alpha_destblend)];
+    render_target_out.alpha_blend_op = blend_control.alpha_comb_fcn;
+    const ui::vulkan::VulkanProvider& provider =
+        command_processor_.GetVulkanProvider();
+    const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
+        device_portability_subset_features =
+            provider.device_portability_subset_features();
+    if (device_portability_subset_features &&
+        !device_portability_subset_features->constantAlphaColorBlendFactors) {
+      if (blend_control.color_srcblend == xenos::BlendFactor::kConstantAlpha) {
+        render_target_out.src_color_blend_factor =
+            PipelineBlendFactor::kConstantColor;
+      } else if (blend_control.color_srcblend ==
+                 xenos::BlendFactor::kOneMinusConstantAlpha) {
+        render_target_out.src_color_blend_factor =
+            PipelineBlendFactor::kOneMinusConstantColor;
+      }
+      if (blend_control.color_destblend == xenos::BlendFactor::kConstantAlpha) {
+        render_target_out.dst_color_blend_factor =
+            PipelineBlendFactor::kConstantColor;
+      } else if (blend_control.color_destblend ==
+                 xenos::BlendFactor::kOneMinusConstantAlpha) {
+        render_target_out.dst_color_blend_factor =
+            PipelineBlendFactor::kOneMinusConstantColor;
+      }
     }
-
-    // Alpha testing -- ALPHAREF, ALPHAFUNC, ALPHATESTENABLE
-    // Emulated in shader.
-    // if(ALPHATESTENABLE && frag_out.a [<=/ALPHAFUNC] ALPHAREF) discard;
-    // ALPHATESTENABLE
-    push_constants.alpha_test[0] =
-        (regs.rb_colorcontrol & 0x8) != 0 ? 1.0f : 0.0f;
-    // ALPHAFUNC
-    push_constants.alpha_test[1] =
-        static_cast<float>(regs.rb_colorcontrol & 0x7);
-    // ALPHAREF
-    push_constants.alpha_test[2] = regs.rb_alpha_ref;
-
-    // Whether to populate a register in the pixel shader with frag coord.
-    int ps_param_gen = (regs.sq_context_misc >> 8) & 0xFF;
-    push_constants.ps_param_gen =
-        regs.sq_program_cntl.param_gen ? ps_param_gen : -1;
-
-    dfn.vkCmdPushConstants(command_buffer, pipeline_layout_,
-                           VK_SHADER_STAGE_VERTEX_BIT |
-                               VK_SHADER_STAGE_GEOMETRY_BIT |
-                               VK_SHADER_STAGE_FRAGMENT_BIT,
-                           0, kSpirvPushConstantsSize, &push_constants);
+  } else {
+    render_target_out.src_color_blend_factor = PipelineBlendFactor::kOne;
+    render_target_out.dst_color_blend_factor = PipelineBlendFactor::kZero;
+    render_target_out.color_blend_op = xenos::BlendOp::kAdd;
+    render_target_out.src_alpha_blend_factor = PipelineBlendFactor::kOne;
+    render_target_out.dst_alpha_blend_factor = PipelineBlendFactor::kZero;
+    render_target_out.alpha_blend_op = xenos::BlendOp::kAdd;
   }
-
-  if (full_update) {
-    // VK_DYNAMIC_STATE_LINE_WIDTH
-    dfn.vkCmdSetLineWidth(command_buffer, 1.0f);
-
-    // VK_DYNAMIC_STATE_DEPTH_BOUNDS
-    dfn.vkCmdSetDepthBounds(command_buffer, 0.0f, 1.0f);
-  }
-
-  return true;
+  render_target_out.color_write_mask = write_mask;
 }
 
-bool VulkanPipelineCache::SetShadowRegister(uint32_t* dest,
-                                            uint32_t register_name) {
-  uint32_t value = register_file_->values[register_name].u32;
-  if (*dest == value) {
-    return false;
-  }
-  *dest = value;
-  return true;
-}
+bool VulkanPipelineCache::GetCurrentStateDescription(
+    const VulkanShader::VulkanTranslation* vertex_shader,
+    const VulkanShader::VulkanTranslation* pixel_shader,
+    const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+    reg::RB_DEPTHCONTROL normalized_depth_control,
+    uint32_t normalized_color_mask,
+    VulkanRenderTargetCache::RenderPassKey render_pass_key,
+    PipelineDescription& description_out) const {
+  description_out.Reset();
 
-bool VulkanPipelineCache::SetShadowRegister(float* dest,
-                                            uint32_t register_name) {
-  float value = register_file_->values[register_name].f32;
-  if (*dest == value) {
-    return false;
-  }
-  *dest = value;
-  return true;
-}
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanProvider();
+  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
+  const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
+      device_portability_subset_features =
+          provider.device_portability_subset_features();
 
-bool VulkanPipelineCache::SetShadowRegisterArray(uint32_t* dest, uint32_t num,
-                                                 uint32_t register_name) {
-  bool dirty = false;
-  for (uint32_t i = 0; i < num; i++) {
-    uint32_t value = register_file_->values[register_name + i].u32;
-    if (dest[i] == value) {
-      continue;
-    }
+  const RegisterFile& regs = register_file_;
+  auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
 
-    dest[i] = value;
-    dirty |= true;
-  }
-
-  return dirty;
-}
-
-VulkanPipelineCache::UpdateStatus VulkanPipelineCache::UpdateState(
-    VulkanShader* vertex_shader, VulkanShader* pixel_shader,
-    xenos::PrimitiveType primitive_type) {
-  bool mismatch = false;
-
-  // Reset hash so we can build it up.
-  XXH3_64bits_reset(&hash_state_);
-
-#define CHECK_UPDATE_STATUS(status, mismatch, error_message) \
-  {                                                          \
-    if (status == UpdateStatus::kError) {                    \
-      XELOGE(error_message);                                 \
-      return status;                                         \
-    } else if (status == UpdateStatus::kMismatch) {          \
-      mismatch = true;                                       \
-    }                                                        \
-  }
-
-  UpdateStatus status;
-  status = UpdateRenderTargetState();
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update render target state");
-  status = UpdateShaderStages(vertex_shader, pixel_shader, primitive_type);
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update shader stages");
-  status = UpdateVertexInputState(vertex_shader);
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update vertex input state");
-  status = UpdateInputAssemblyState(primitive_type);
-  CHECK_UPDATE_STATUS(status, mismatch,
-                      "Unable to update input assembly state");
-  status = UpdateViewportState();
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update viewport state");
-  status = UpdateRasterizationState(primitive_type);
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update rasterization state");
-  status = UpdateMultisampleState();
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update multisample state");
-  status = UpdateDepthStencilState();
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update depth/stencil state");
-  status = UpdateColorBlendState();
-  CHECK_UPDATE_STATUS(status, mismatch, "Unable to update color blend state");
-
-  return mismatch ? UpdateStatus::kMismatch : UpdateStatus::kCompatible;
-}
-
-VulkanPipelineCache::UpdateStatus
-VulkanPipelineCache::UpdateRenderTargetState() {
-  auto& regs = update_render_targets_regs_;
-  bool dirty = false;
-
-  // Check the render target formats
-  struct {
-    reg::RB_COLOR_INFO rb_color_info;
-    reg::RB_DEPTH_INFO rb_depth_info;
-    reg::RB_COLOR_INFO rb_color1_info;
-    reg::RB_COLOR_INFO rb_color2_info;
-    reg::RB_COLOR_INFO rb_color3_info;
-  }* cur_regs = reinterpret_cast<decltype(cur_regs)>(
-      &register_file_->values[XE_GPU_REG_RB_COLOR_INFO].u32);
-
-  dirty |=
-      regs.rb_color_info.color_format != cur_regs->rb_color_info.color_format;
-  dirty |=
-      regs.rb_depth_info.depth_format != cur_regs->rb_depth_info.depth_format;
-  dirty |=
-      regs.rb_color1_info.color_format != cur_regs->rb_color1_info.color_format;
-  dirty |=
-      regs.rb_color2_info.color_format != cur_regs->rb_color2_info.color_format;
-  dirty |=
-      regs.rb_color3_info.color_format != cur_regs->rb_color3_info.color_format;
-
-  // And copy the regs over.
-  regs.rb_color_info.color_format = cur_regs->rb_color_info.color_format;
-  regs.rb_depth_info.depth_format = cur_regs->rb_depth_info.depth_format;
-  regs.rb_color1_info.color_format = cur_regs->rb_color1_info.color_format;
-  regs.rb_color2_info.color_format = cur_regs->rb_color2_info.color_format;
-  regs.rb_color3_info.color_format = cur_regs->rb_color3_info.color_format;
-  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  return UpdateStatus::kMismatch;
-}
-
-VulkanPipelineCache::UpdateStatus VulkanPipelineCache::UpdateShaderStages(
-    VulkanShader* vertex_shader, VulkanShader* pixel_shader,
-    xenos::PrimitiveType primitive_type) {
-  auto& regs = update_shader_stages_regs_;
-
-  // These are the constant base addresses/ranges for shaders.
-  // We have these hardcoded right now cause nothing seems to differ.
-  assert_true(register_file_->values[XE_GPU_REG_SQ_VS_CONST].u32 ==
-                  0x000FF000 ||
-              register_file_->values[XE_GPU_REG_SQ_VS_CONST].u32 == 0x00000000);
-  assert_true(register_file_->values[XE_GPU_REG_SQ_PS_CONST].u32 ==
-                  0x000FF100 ||
-              register_file_->values[XE_GPU_REG_SQ_PS_CONST].u32 == 0x00000000);
-
-  bool dirty = false;
-  dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
-                             XE_GPU_REG_PA_SU_SC_MODE_CNTL);
-  dirty |= SetShadowRegister(&regs.sq_program_cntl.value,
-                             XE_GPU_REG_SQ_PROGRAM_CNTL);
-  dirty |= regs.vertex_shader != vertex_shader;
-  dirty |= regs.pixel_shader != pixel_shader;
-  dirty |= regs.primitive_type != primitive_type;
-  regs.vertex_shader = vertex_shader;
-  regs.pixel_shader = pixel_shader;
-  regs.primitive_type = primitive_type;
-  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  VulkanShader::VulkanTranslation* vertex_shader_translation =
-      static_cast<VulkanShader::VulkanTranslation*>(
-          vertex_shader->GetOrCreateTranslation(
-              shader_translator_->GetDefaultVertexShaderModification(
-                  vertex_shader->GetDynamicAddressableRegisterCount(
-                      regs.sq_program_cntl.vs_num_reg))));
-  if (!vertex_shader_translation->is_translated() &&
-      !TranslateShader(*vertex_shader_translation)) {
-    XELOGE("Failed to translate the vertex shader!");
-    return UpdateStatus::kError;
-  }
-
-  VulkanShader::VulkanTranslation* pixel_shader_translation = nullptr;
+  description_out.vertex_shader_hash =
+      vertex_shader->shader().ucode_data_hash();
+  description_out.vertex_shader_modification = vertex_shader->modification();
   if (pixel_shader) {
-    pixel_shader_translation = static_cast<VulkanShader::VulkanTranslation*>(
-        pixel_shader->GetOrCreateTranslation(
-            shader_translator_->GetDefaultPixelShaderModification(
-                pixel_shader->GetDynamicAddressableRegisterCount(
-                    regs.sq_program_cntl.ps_num_reg))));
-    if (!pixel_shader_translation->is_translated() &&
-        !TranslateShader(*pixel_shader_translation)) {
-      XELOGE("Failed to translate the pixel shader!");
-      return UpdateStatus::kError;
-    }
+    description_out.pixel_shader_hash =
+        pixel_shader->shader().ucode_data_hash();
+    description_out.pixel_shader_modification = pixel_shader->modification();
   }
+  description_out.render_pass_key = render_pass_key;
 
-  update_shader_stages_stage_count_ = 0;
-
-  auto& vertex_pipeline_stage =
-      update_shader_stages_info_[update_shader_stages_stage_count_++];
-  vertex_pipeline_stage.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  vertex_pipeline_stage.pNext = nullptr;
-  vertex_pipeline_stage.flags = 0;
-  vertex_pipeline_stage.stage = VK_SHADER_STAGE_VERTEX_BIT;
-  vertex_pipeline_stage.module = vertex_shader_translation->shader_module();
-  vertex_pipeline_stage.pName = "main";
-  vertex_pipeline_stage.pSpecializationInfo = nullptr;
-
-  bool is_line_mode = false;
-  if (((regs.pa_su_sc_mode_cntl >> 3) & 0x3) != 0) {
-    uint32_t front_poly_mode = (regs.pa_su_sc_mode_cntl >> 5) & 0x7;
-    if (front_poly_mode == 1) {
-      is_line_mode = true;
-    }
-  }
-  auto geometry_shader = GetGeometryShader(primitive_type, is_line_mode);
-  if (geometry_shader) {
-    auto& geometry_pipeline_stage =
-        update_shader_stages_info_[update_shader_stages_stage_count_++];
-    geometry_pipeline_stage.sType =
-        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    geometry_pipeline_stage.pNext = nullptr;
-    geometry_pipeline_stage.flags = 0;
-    geometry_pipeline_stage.stage = VK_SHADER_STAGE_GEOMETRY_BIT;
-    geometry_pipeline_stage.module = geometry_shader;
-    geometry_pipeline_stage.pName = "main";
-    geometry_pipeline_stage.pSpecializationInfo = nullptr;
-  }
-
-  auto& pixel_pipeline_stage =
-      update_shader_stages_info_[update_shader_stages_stage_count_++];
-  pixel_pipeline_stage.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  pixel_pipeline_stage.pNext = nullptr;
-  pixel_pipeline_stage.flags = 0;
-  pixel_pipeline_stage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  pixel_pipeline_stage.module = pixel_shader_translation
-                                    ? pixel_shader_translation->shader_module()
-                                    : dummy_pixel_shader_;
-  pixel_pipeline_stage.pName = "main";
-  pixel_pipeline_stage.pSpecializationInfo = nullptr;
-
-  return UpdateStatus::kMismatch;
-}
-
-VulkanPipelineCache::UpdateStatus VulkanPipelineCache::UpdateVertexInputState(
-    VulkanShader* vertex_shader) {
-  auto& regs = update_vertex_input_state_regs_;
-  auto& state_info = update_vertex_input_state_info_;
-
-  bool dirty = false;
-  dirty |= vertex_shader != regs.vertex_shader;
-  regs.vertex_shader = vertex_shader;
-  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  // We don't use vertex inputs.
-  state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  state_info.pNext = nullptr;
-  state_info.flags = 0;
-  state_info.vertexBindingDescriptionCount = 0;
-  state_info.vertexAttributeDescriptionCount = 0;
-  state_info.pVertexBindingDescriptions = nullptr;
-  state_info.pVertexAttributeDescriptions = nullptr;
-
-  return UpdateStatus::kCompatible;
-}
-
-VulkanPipelineCache::UpdateStatus VulkanPipelineCache::UpdateInputAssemblyState(
-    xenos::PrimitiveType primitive_type) {
-  auto& regs = update_input_assembly_state_regs_;
-  auto& state_info = update_input_assembly_state_info_;
-
-  bool dirty = false;
-  dirty |= primitive_type != regs.primitive_type;
-  dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
-                             XE_GPU_REG_PA_SU_SC_MODE_CNTL);
-  dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
-                             XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
-  regs.primitive_type = primitive_type;
-  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  state_info.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  state_info.pNext = nullptr;
-  state_info.flags = 0;
-
-  switch (primitive_type) {
+  // TODO(Triang3l): Implement primitive types currently using geometry shaders
+  // without them.
+  PipelineGeometryShader geometry_shader = PipelineGeometryShader::kNone;
+  PipelinePrimitiveTopology primitive_topology;
+  switch (primitive_processing_result.host_primitive_type) {
     case xenos::PrimitiveType::kPointList:
-      state_info.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+      primitive_topology = PipelinePrimitiveTopology::kPointList;
       break;
     case xenos::PrimitiveType::kLineList:
-      state_info.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+      primitive_topology = PipelinePrimitiveTopology::kLineList;
       break;
     case xenos::PrimitiveType::kLineStrip:
-      state_info.topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
-      break;
-    case xenos::PrimitiveType::kLineLoop:
-      state_info.topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+      primitive_topology = PipelinePrimitiveTopology::kLineStrip;
       break;
     case xenos::PrimitiveType::kTriangleList:
-      state_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-      break;
-    case xenos::PrimitiveType::kTriangleStrip:
-      state_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+      primitive_topology = PipelinePrimitiveTopology::kTriangleList;
       break;
     case xenos::PrimitiveType::kTriangleFan:
-      state_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
+      // The check should be performed at primitive processing time.
+      assert_true(!device_portability_subset_features ||
+                  device_portability_subset_features->triangleFans);
+      primitive_topology = PipelinePrimitiveTopology::kTriangleFan;
+      break;
+    case xenos::PrimitiveType::kTriangleStrip:
+      primitive_topology = PipelinePrimitiveTopology::kTriangleStrip;
       break;
     case xenos::PrimitiveType::kRectangleList:
-      state_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+      geometry_shader = PipelineGeometryShader::kRectangleList;
+      primitive_topology = PipelinePrimitiveTopology::kTriangleList;
       break;
     case xenos::PrimitiveType::kQuadList:
-      state_info.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
+      geometry_shader = PipelineGeometryShader::kQuadList;
+      primitive_topology = PipelinePrimitiveTopology::kLineListWithAdjacency;
       break;
     default:
-    case xenos::PrimitiveType::kTriangleWithWFlags:
-      XELOGE("unsupported primitive type {}", primitive_type);
-      assert_unhandled_case(primitive_type);
-      return UpdateStatus::kError;
+      // TODO(Triang3l): All primitive types and tessellation.
+      return false;
   }
+  description_out.geometry_shader = geometry_shader;
+  description_out.primitive_topology = primitive_topology;
+  description_out.primitive_restart =
+      primitive_processing_result.host_primitive_reset_enabled;
 
-  // TODO(benvanik): anything we can do about this? Vulkan seems to only support
-  // first.
-  assert_zero(regs.pa_su_sc_mode_cntl & (1 << 19));
-  // if (regs.pa_su_sc_mode_cntl & (1 << 19)) {
-  //   glProvokingVertex(GL_LAST_VERTEX_CONVENTION);
-  // } else {
-  //   glProvokingVertex(GL_FIRST_VERTEX_CONVENTION);
-  // }
+  description_out.depth_clamp_enable =
+      regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable;
 
-  // Primitive restart index is handled in the buffer cache.
-  if (regs.pa_su_sc_mode_cntl & (1 << 21)) {
-    state_info.primitiveRestartEnable = VK_TRUE;
+  // TODO(Triang3l): Tessellation.
+  bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
+  if (primitive_polygonal) {
+    // Vulkan only allows the polygon mode to be set for both faces - pick the
+    // most special one (more likely to represent the developer's deliberate
+    // intentions - fill is very generic, wireframe is common in debug, points
+    // are for pretty unusual things, but closer to debug purposes too - on the
+    // Xenos, points have the lowest register value and triangles have the
+    // highest) based on which faces are not culled.
+    bool cull_front = pa_su_sc_mode_cntl.cull_front;
+    bool cull_back = pa_su_sc_mode_cntl.cull_back;
+    description_out.cull_front = cull_front;
+    description_out.cull_back = cull_back;
+    if (device_features.fillModeNonSolid) {
+      xenos::PolygonType polygon_type = xenos::PolygonType::kTriangles;
+      if (!cull_front) {
+        polygon_type =
+            std::min(polygon_type, pa_su_sc_mode_cntl.polymode_front_ptype);
+      }
+      if (!cull_back) {
+        polygon_type =
+            std::min(polygon_type, pa_su_sc_mode_cntl.polymode_back_ptype);
+      }
+      if (pa_su_sc_mode_cntl.poly_mode != xenos::PolygonModeEnable::kDualMode) {
+        polygon_type = xenos::PolygonType::kTriangles;
+      }
+      switch (polygon_type) {
+        case xenos::PolygonType::kPoints:
+          // When points are not supported, use lines instead, preserving
+          // debug-like purpose.
+          description_out.polygon_mode =
+              (!device_portability_subset_features ||
+               device_portability_subset_features->pointPolygons)
+                  ? PipelinePolygonMode::kPoint
+                  : PipelinePolygonMode::kLine;
+          break;
+        case xenos::PolygonType::kLines:
+          description_out.polygon_mode = PipelinePolygonMode::kLine;
+          break;
+        case xenos::PolygonType::kTriangles:
+          description_out.polygon_mode = PipelinePolygonMode::kFill;
+          break;
+        default:
+          assert_unhandled_case(polygon_type);
+          return false;
+      }
+    } else {
+      description_out.polygon_mode = PipelinePolygonMode::kFill;
+    }
+    description_out.front_face_clockwise = pa_su_sc_mode_cntl.face != 0;
   } else {
-    state_info.primitiveRestartEnable = VK_FALSE;
+    description_out.polygon_mode = PipelinePolygonMode::kFill;
   }
 
-  return UpdateStatus::kMismatch;
-}
+  // TODO(Triang3l): Skip depth / stencil and color state for the fragment
+  // shader interlock RB implementation.
 
-VulkanPipelineCache::UpdateStatus VulkanPipelineCache::UpdateViewportState() {
-  auto& state_info = update_viewport_state_info_;
-
-  state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-  state_info.pNext = nullptr;
-  state_info.flags = 0;
-
-  state_info.viewportCount = 1;
-  state_info.scissorCount = 1;
-
-  // Ignored; set dynamically.
-  state_info.pViewports = nullptr;
-  state_info.pScissors = nullptr;
-
-  return UpdateStatus::kCompatible;
-}
-
-VulkanPipelineCache::UpdateStatus VulkanPipelineCache::UpdateRasterizationState(
-    xenos::PrimitiveType primitive_type) {
-  auto& regs = update_rasterization_state_regs_;
-  auto& state_info = update_rasterization_state_info_;
-
-  bool dirty = false;
-  dirty |= regs.primitive_type != primitive_type;
-  dirty |= SetShadowRegister(&regs.pa_cl_clip_cntl, XE_GPU_REG_PA_CL_CLIP_CNTL);
-  dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
-                             XE_GPU_REG_PA_SU_SC_MODE_CNTL);
-  dirty |= SetShadowRegister(&regs.pa_sc_screen_scissor_tl,
-                             XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL);
-  dirty |= SetShadowRegister(&regs.pa_sc_screen_scissor_br,
-                             XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR);
-  dirty |= SetShadowRegister(&regs.pa_sc_viz_query, XE_GPU_REG_PA_SC_VIZ_QUERY);
-  dirty |= SetShadowRegister(&regs.multi_prim_ib_reset_index,
-                             XE_GPU_REG_VGT_MULTI_PRIM_IB_RESET_INDX);
-  regs.primitive_type = primitive_type;
-
-  // Vulkan doesn't support separate depth biases for different sides.
-  // SetRenderState also accepts only one argument, so they should be rare.
-  // The culling mode must match the one in SetDynamicState, so not applying
-  // the primitive type exceptions to this (very unlikely to happen anyway).
-  bool depth_bias_enable = false;
-  uint32_t cull_mode = regs.pa_su_sc_mode_cntl & 0x3;
-  if (cull_mode != 1) {
-    float depth_bias_scale =
-        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
-    float depth_bias_offset =
-        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
-    depth_bias_enable = (depth_bias_scale != 0.0f && depth_bias_offset != 0.0f);
-  }
-  if (!depth_bias_enable && cull_mode != 2) {
-    float depth_bias_scale =
-        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
-    float depth_bias_offset =
-        register_file_->values[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
-    depth_bias_enable = (depth_bias_scale != 0.0f && depth_bias_offset != 0.0f);
-  }
-  if (regs.pa_su_poly_offset_enable !=
-      static_cast<uint32_t>(depth_bias_enable)) {
-    regs.pa_su_poly_offset_enable = static_cast<uint32_t>(depth_bias_enable);
-    dirty = true;
+  if (render_pass_key.depth_and_color_used & 1) {
+    if (normalized_depth_control.z_enable) {
+      description_out.depth_write_enable =
+          normalized_depth_control.z_write_enable;
+      description_out.depth_compare_op = normalized_depth_control.zfunc;
+    } else {
+      description_out.depth_compare_op = xenos::CompareFunction::kAlways;
+    }
+    if (normalized_depth_control.stencil_enable) {
+      description_out.stencil_test_enable = 1;
+      description_out.stencil_front_fail_op =
+          normalized_depth_control.stencilfail;
+      description_out.stencil_front_pass_op =
+          normalized_depth_control.stencilzpass;
+      description_out.stencil_front_depth_fail_op =
+          normalized_depth_control.stencilzfail;
+      description_out.stencil_front_compare_op =
+          normalized_depth_control.stencilfunc;
+      if (primitive_polygonal && normalized_depth_control.backface_enable) {
+        description_out.stencil_back_fail_op =
+            normalized_depth_control.stencilfail_bf;
+        description_out.stencil_back_pass_op =
+            normalized_depth_control.stencilzpass_bf;
+        description_out.stencil_back_depth_fail_op =
+            normalized_depth_control.stencilzfail_bf;
+        description_out.stencil_back_compare_op =
+            normalized_depth_control.stencilfunc_bf;
+      } else {
+        description_out.stencil_back_fail_op =
+            description_out.stencil_front_fail_op;
+        description_out.stencil_back_pass_op =
+            description_out.stencil_front_pass_op;
+        description_out.stencil_back_depth_fail_op =
+            description_out.stencil_front_depth_fail_op;
+        description_out.stencil_back_compare_op =
+            description_out.stencil_front_compare_op;
+      }
+    }
   }
 
-  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-  state_info.pNext = nullptr;
-  state_info.flags = 0;
-
-  // ZCLIP_NEAR_DISABLE
-  // state_info.depthClampEnable = !(regs.pa_cl_clip_cntl & (1 << 26));
-  // RASTERIZER_DISABLE
-  // state_info.rasterizerDiscardEnable = !!(regs.pa_cl_clip_cntl & (1 << 22));
-
-  // CLIP_DISABLE
-  state_info.depthClampEnable = !!(regs.pa_cl_clip_cntl & (1 << 16));
-  state_info.rasterizerDiscardEnable = VK_FALSE;
-
-  bool poly_mode = ((regs.pa_su_sc_mode_cntl >> 3) & 0x3) != 0;
-  if (poly_mode) {
-    uint32_t front_poly_mode = (regs.pa_su_sc_mode_cntl >> 5) & 0x7;
-    uint32_t back_poly_mode = (regs.pa_su_sc_mode_cntl >> 8) & 0x7;
-    // Vulkan only supports both matching.
-    assert_true(front_poly_mode == back_poly_mode);
-    static const VkPolygonMode kFillModes[3] = {
-        VK_POLYGON_MODE_POINT,
-        VK_POLYGON_MODE_LINE,
-        VK_POLYGON_MODE_FILL,
-    };
-    state_info.polygonMode = kFillModes[front_poly_mode];
-  } else {
-    state_info.polygonMode = VK_POLYGON_MODE_FILL;
-  }
-
-  switch (cull_mode) {
-    case 0:
-      state_info.cullMode = VK_CULL_MODE_NONE;
-      break;
-    case 1:
-      state_info.cullMode = VK_CULL_MODE_FRONT_BIT;
-      break;
-    case 2:
-      state_info.cullMode = VK_CULL_MODE_BACK_BIT;
-      break;
-    case 3:
-      // Cull both sides?
-      assert_always();
-      break;
-  }
-  if (regs.pa_su_sc_mode_cntl & 0x4) {
-    state_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
-  } else {
-    state_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-  }
-  if (primitive_type == xenos::PrimitiveType::kRectangleList) {
-    // Rectangle lists aren't culled. There may be other things they skip too.
-    state_info.cullMode = VK_CULL_MODE_NONE;
-  } else if (primitive_type == xenos::PrimitiveType::kPointList) {
-    // Face culling doesn't apply to point primitives.
-    state_info.cullMode = VK_CULL_MODE_NONE;
-  }
-
-  state_info.depthBiasEnable = depth_bias_enable ? VK_TRUE : VK_FALSE;
-
-  // Ignored; set dynamically:
-  state_info.depthBiasConstantFactor = 0;
-  state_info.depthBiasClamp = 0;
-  state_info.depthBiasSlopeFactor = 0;
-  state_info.lineWidth = 1.0f;
-
-  return UpdateStatus::kMismatch;
-}
-
-VulkanPipelineCache::UpdateStatus
-VulkanPipelineCache::UpdateMultisampleState() {
-  auto& regs = update_multisample_state_regs_;
-  auto& state_info = update_multisample_state_info_;
-
-  bool dirty = false;
-  dirty |= SetShadowRegister(&regs.pa_sc_aa_config, XE_GPU_REG_PA_SC_AA_CONFIG);
-  dirty |= SetShadowRegister(&regs.pa_su_sc_mode_cntl,
-                             XE_GPU_REG_PA_SU_SC_MODE_CNTL);
-  dirty |= SetShadowRegister(&regs.rb_surface_info, XE_GPU_REG_RB_SURFACE_INFO);
-  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
-  }
-
-  state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-  state_info.pNext = nullptr;
-  state_info.flags = 0;
-
-  // PA_SC_AA_CONFIG MSAA_NUM_SAMPLES (0x7)
-  // PA_SC_AA_MASK (0xFFFF)
-  // PA_SU_SC_MODE_CNTL MSAA_ENABLE (0x10000)
-  // If set, all samples will be sampled at set locations. Otherwise, they're
-  // all sampled from the pixel center.
-  if (cvars::vulkan_native_msaa) {
-    auto msaa_num_samples =
-        static_cast<xenos::MsaaSamples>((regs.rb_surface_info >> 16) & 0x3);
-    switch (msaa_num_samples) {
-      case xenos::MsaaSamples::k1X:
-        state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-        break;
-      case xenos::MsaaSamples::k2X:
-        state_info.rasterizationSamples = VK_SAMPLE_COUNT_2_BIT;
-        break;
-      case xenos::MsaaSamples::k4X:
-        state_info.rasterizationSamples = VK_SAMPLE_COUNT_4_BIT;
-        break;
-      default:
-        assert_unhandled_case(msaa_num_samples);
-        break;
+  // Color blending and write masks (filled only for the attachments present in
+  // the render pass object).
+  uint32_t render_pass_color_rts = render_pass_key.depth_and_color_used >> 1;
+  if (device_features.independentBlend) {
+    uint32_t render_pass_color_rts_remaining = render_pass_color_rts;
+    uint32_t color_rt_index;
+    while (xe::bit_scan_forward(render_pass_color_rts_remaining,
+                                &color_rt_index)) {
+      render_pass_color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
+      WritePipelineRenderTargetDescription(
+          regs.Get<reg::RB_BLENDCONTROL>(
+              reg::RB_BLENDCONTROL::rt_register_indices[color_rt_index]),
+          (normalized_color_mask >> (color_rt_index * 4)) & 0b1111,
+          description_out.render_targets[color_rt_index]);
     }
   } else {
-    state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    // Take the blend control for the first render target that the guest wants
+    // to write to (consider it the most important) and use it for all render
+    // targets, if any.
+    // TODO(Triang3l): Implement an option for independent blending via multiple
+    // draw calls with different pipelines maybe? Though independent blending
+    // support is pretty wide, with a quite prominent exception of Adreno 4xx
+    // apparently.
+    uint32_t render_pass_color_rts_remaining = render_pass_color_rts;
+    uint32_t render_pass_first_color_rt_index;
+    if (xe::bit_scan_forward(render_pass_color_rts_remaining,
+                             &render_pass_first_color_rt_index)) {
+      render_pass_color_rts_remaining &=
+          ~(uint32_t(1) << render_pass_first_color_rt_index);
+      PipelineRenderTarget& render_pass_first_color_rt =
+          description_out.render_targets[render_pass_first_color_rt_index];
+      uint32_t common_blend_rt_index;
+      if (xe::bit_scan_forward(normalized_color_mask, &common_blend_rt_index)) {
+        common_blend_rt_index >>= 2;
+        // If a common write mask will be used for multiple render targets, use
+        // the original RB_COLOR_MASK instead of the normalized color mask as
+        // the normalized color mask has non-existent components forced to
+        // written (don't need reading to be preserved), while the number of
+        // components may vary between render targets. The attachments in the
+        // pass that must not be written to at all will be excluded via a shader
+        // modification.
+        WritePipelineRenderTargetDescription(
+            regs.Get<reg::RB_BLENDCONTROL>(
+                reg::RB_BLENDCONTROL::rt_register_indices
+                    [common_blend_rt_index]),
+            (((normalized_color_mask &
+               ~(uint32_t(0b1111) << (4 * common_blend_rt_index)))
+                  ? regs[XE_GPU_REG_RB_COLOR_MASK].u32
+                  : normalized_color_mask) >>
+             (4 * common_blend_rt_index)) &
+                0b1111,
+            render_pass_first_color_rt);
+      } else {
+        // No render targets are written to, though the render pass still may
+        // contain color attachments - set them to not written and not blending.
+        render_pass_first_color_rt.src_color_blend_factor =
+            PipelineBlendFactor::kOne;
+        render_pass_first_color_rt.dst_color_blend_factor =
+            PipelineBlendFactor::kZero;
+        render_pass_first_color_rt.color_blend_op = xenos::BlendOp::kAdd;
+        render_pass_first_color_rt.src_alpha_blend_factor =
+            PipelineBlendFactor::kOne;
+        render_pass_first_color_rt.dst_alpha_blend_factor =
+            PipelineBlendFactor::kZero;
+        render_pass_first_color_rt.alpha_blend_op = xenos::BlendOp::kAdd;
+      }
+      // Reuse the same blending settings for all render targets in the pass,
+      // for description consistency.
+      uint32_t color_rt_index;
+      while (xe::bit_scan_forward(render_pass_color_rts_remaining,
+                                  &color_rt_index)) {
+        render_pass_color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
+        description_out.render_targets[color_rt_index] =
+            render_pass_first_color_rt;
+      }
+    }
   }
 
-  state_info.sampleShadingEnable = VK_FALSE;
-  state_info.minSampleShading = 0;
-  state_info.pSampleMask = nullptr;
-  state_info.alphaToCoverageEnable = VK_FALSE;
-  state_info.alphaToOneEnable = VK_FALSE;
-
-  return UpdateStatus::kMismatch;
+  return true;
 }
 
-VulkanPipelineCache::UpdateStatus
-VulkanPipelineCache::UpdateDepthStencilState() {
-  auto& regs = update_depth_stencil_state_regs_;
-  auto& state_info = update_depth_stencil_state_info_;
-
-  bool dirty = false;
-  dirty |= SetShadowRegister(&regs.rb_depthcontrol, XE_GPU_REG_RB_DEPTHCONTROL);
-  dirty |=
-      SetShadowRegister(&regs.rb_stencilrefmask, XE_GPU_REG_RB_STENCILREFMASK);
-  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
+bool VulkanPipelineCache::ArePipelineRequirementsMet(
+    const PipelineDescription& description) const {
+  VkShaderStageFlags vertex_shader_stage =
+      Shader::IsHostVertexShaderTypeDomain(
+          SpirvShaderTranslator::Modification(
+              description.vertex_shader_modification)
+              .vertex.host_vertex_shader_type)
+          ? VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT
+          : VK_SHADER_STAGE_VERTEX_BIT;
+  if (!(guest_shader_vertex_stages_ & vertex_shader_stage)) {
+    return false;
   }
 
-  state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-  state_info.pNext = nullptr;
-  state_info.flags = 0;
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanProvider();
 
-  static const VkCompareOp compare_func_map[] = {
-      /*  0 */ VK_COMPARE_OP_NEVER,
-      /*  1 */ VK_COMPARE_OP_LESS,
-      /*  2 */ VK_COMPARE_OP_EQUAL,
-      /*  3 */ VK_COMPARE_OP_LESS_OR_EQUAL,
-      /*  4 */ VK_COMPARE_OP_GREATER,
-      /*  5 */ VK_COMPARE_OP_NOT_EQUAL,
-      /*  6 */ VK_COMPARE_OP_GREATER_OR_EQUAL,
-      /*  7 */ VK_COMPARE_OP_ALWAYS,
-  };
-  static const VkStencilOp stencil_op_map[] = {
-      /*  0 */ VK_STENCIL_OP_KEEP,
-      /*  1 */ VK_STENCIL_OP_ZERO,
-      /*  2 */ VK_STENCIL_OP_REPLACE,
-      /*  3 */ VK_STENCIL_OP_INCREMENT_AND_CLAMP,
-      /*  4 */ VK_STENCIL_OP_DECREMENT_AND_CLAMP,
-      /*  5 */ VK_STENCIL_OP_INVERT,
-      /*  6 */ VK_STENCIL_OP_INCREMENT_AND_WRAP,
-      /*  7 */ VK_STENCIL_OP_DECREMENT_AND_WRAP,
-  };
+  const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
+      device_portability_subset_features =
+          provider.device_portability_subset_features();
+  if (device_portability_subset_features) {
+    if (description.primitive_topology ==
+            PipelinePrimitiveTopology::kTriangleFan &&
+        !device_portability_subset_features->triangleFans) {
+      return false;
+    }
 
-  // Depth state
-  // TODO: EARLY_Z_ENABLE (needs to be enabled in shaders)
-  state_info.depthWriteEnable = !!(regs.rb_depthcontrol & 0x4);
-  state_info.depthTestEnable = !!(regs.rb_depthcontrol & 0x2);
-  state_info.stencilTestEnable = !!(regs.rb_depthcontrol & 0x1);
+    if (description.polygon_mode == PipelinePolygonMode::kPoint &&
+        !device_portability_subset_features->pointPolygons) {
+      return false;
+    }
 
-  state_info.depthCompareOp =
-      compare_func_map[(regs.rb_depthcontrol >> 4) & 0x7];
-  state_info.depthBoundsTestEnable = VK_FALSE;
+    if (!device_portability_subset_features->constantAlphaColorBlendFactors) {
+      uint32_t color_rts_remaining =
+          description.render_pass_key.depth_and_color_used >> 1;
+      uint32_t color_rt_index;
+      while (xe::bit_scan_forward(color_rts_remaining, &color_rt_index)) {
+        color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
+        const PipelineRenderTarget& color_rt =
+            description.render_targets[color_rt_index];
+        if (color_rt.src_color_blend_factor ==
+                PipelineBlendFactor::kConstantAlpha ||
+            color_rt.src_color_blend_factor ==
+                PipelineBlendFactor::kOneMinusConstantAlpha ||
+            color_rt.dst_color_blend_factor ==
+                PipelineBlendFactor::kConstantAlpha ||
+            color_rt.dst_color_blend_factor ==
+                PipelineBlendFactor::kOneMinusConstantAlpha) {
+          return false;
+        }
+      }
+    }
+  }
 
-  // Stencil state
-  state_info.front.compareOp =
-      compare_func_map[(regs.rb_depthcontrol >> 8) & 0x7];
-  state_info.front.failOp = stencil_op_map[(regs.rb_depthcontrol >> 11) & 0x7];
-  state_info.front.passOp = stencil_op_map[(regs.rb_depthcontrol >> 14) & 0x7];
-  state_info.front.depthFailOp =
-      stencil_op_map[(regs.rb_depthcontrol >> 17) & 0x7];
+  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
 
-  // BACKFACE_ENABLE
-  if (!!(regs.rb_depthcontrol & 0x80)) {
-    state_info.back.compareOp =
-        compare_func_map[(regs.rb_depthcontrol >> 20) & 0x7];
-    state_info.back.failOp = stencil_op_map[(regs.rb_depthcontrol >> 23) & 0x7];
-    state_info.back.passOp = stencil_op_map[(regs.rb_depthcontrol >> 26) & 0x7];
-    state_info.back.depthFailOp =
-        stencil_op_map[(regs.rb_depthcontrol >> 29) & 0x7];
+  if (!device_features.geometryShader &&
+      description.geometry_shader != PipelineGeometryShader::kNone) {
+    return false;
+  }
+
+  if (!device_features.fillModeNonSolid &&
+      description.polygon_mode != PipelinePolygonMode::kFill) {
+    return false;
+  }
+
+  if (!device_features.independentBlend) {
+    uint32_t color_rts_remaining =
+        description.render_pass_key.depth_and_color_used >> 1;
+    uint32_t first_color_rt_index;
+    if (xe::bit_scan_forward(color_rts_remaining, &first_color_rt_index)) {
+      color_rts_remaining &= ~(uint32_t(1) << first_color_rt_index);
+      const PipelineRenderTarget& first_color_rt =
+          description.render_targets[first_color_rt_index];
+      uint32_t color_rt_index;
+      while (xe::bit_scan_forward(color_rts_remaining, &color_rt_index)) {
+        color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
+        const PipelineRenderTarget& color_rt =
+            description.render_targets[color_rt_index];
+        if (color_rt.src_color_blend_factor !=
+                first_color_rt.src_color_blend_factor ||
+            color_rt.dst_color_blend_factor !=
+                first_color_rt.dst_color_blend_factor ||
+            color_rt.color_blend_op != first_color_rt.color_blend_op ||
+            color_rt.src_alpha_blend_factor !=
+                first_color_rt.src_alpha_blend_factor ||
+            color_rt.dst_alpha_blend_factor !=
+                first_color_rt.dst_alpha_blend_factor ||
+            color_rt.alpha_blend_op != first_color_rt.alpha_blend_op ||
+            color_rt.color_write_mask != first_color_rt.color_write_mask) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+bool VulkanPipelineCache::GetGeometryShaderKey(
+    PipelineGeometryShader geometry_shader_type, GeometryShaderKey& key_out) {
+  if (geometry_shader_type == PipelineGeometryShader::kNone) {
+    return false;
+  }
+  GeometryShaderKey key;
+  key.type = geometry_shader_type;
+  // TODO(Triang3l): Make the linkage parameters depend on the real needs of the
+  // vertex and the pixel shader.
+  key.interpolator_count = xenos::kMaxInterpolators;
+  key.user_clip_plane_count = /* 6 */ 0;
+  key.user_clip_plane_cull = 0;
+  key.has_vertex_kill_and = /* 1 */ 0;
+  key.has_point_size = /* 1 */ 0;
+  key.has_point_coordinates = /* 1 */ 0;
+  key_out = key;
+  return true;
+}
+
+VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
+  auto it = geometry_shaders_.find(key);
+  if (it != geometry_shaders_.end()) {
+    return it->second;
+  }
+
+  std::vector<spv::Id> id_vector_temp;
+  std::vector<unsigned int> uint_vector_temp;
+
+  spv::ExecutionMode input_primitive_execution_mode = spv::ExecutionMode(0);
+  uint32_t input_primitive_vertex_count = 0;
+  spv::ExecutionMode output_primitive_execution_mode = spv::ExecutionMode(0);
+  uint32_t output_max_vertices = 0;
+  switch (key.type) {
+    case PipelineGeometryShader::kRectangleList:
+      // Triangle to a strip of 2 triangles.
+      input_primitive_execution_mode = spv::ExecutionModeTriangles;
+      input_primitive_vertex_count = 3;
+      output_primitive_execution_mode = spv::ExecutionModeOutputTriangleStrip;
+      output_max_vertices = 4;
+      break;
+    case PipelineGeometryShader::kQuadList:
+      // 4 vertices passed via a line list with adjacency to a strip of 2
+      // triangles.
+      input_primitive_execution_mode = spv::ExecutionModeInputLinesAdjacency;
+      input_primitive_vertex_count = 4;
+      output_primitive_execution_mode = spv::ExecutionModeOutputTriangleStrip;
+      output_max_vertices = 4;
+      break;
+    default:
+      assert_unhandled_case(key.type);
+  }
+
+  uint32_t clip_distance_count =
+      key.user_clip_plane_cull ? 0 : key.user_clip_plane_count;
+  uint32_t cull_distance_count =
+      (key.user_clip_plane_cull ? key.user_clip_plane_count : 0) +
+      key.has_vertex_kill_and;
+
+  spv::Builder builder(spv::Spv_1_0,
+                       (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1,
+                       nullptr);
+  spv::Id ext_inst_glsl_std_450 = builder.import("GLSL.std.450");
+  builder.addCapability(spv::CapabilityGeometry);
+  if (clip_distance_count) {
+    builder.addCapability(spv::CapabilityClipDistance);
+  }
+  if (cull_distance_count) {
+    builder.addCapability(spv::CapabilityCullDistance);
+  }
+  builder.setMemoryModel(spv::AddressingModelLogical, spv::MemoryModelGLSL450);
+  builder.setSource(spv::SourceLanguageUnknown, 0);
+
+  // TODO(Triang3l): Shader float controls (NaN preservation most importantly).
+
+  std::vector<spv::Id> main_interface;
+
+  spv::Id type_void = builder.makeVoidType();
+  spv::Id type_bool = builder.makeBoolType();
+  spv::Id type_bool4 = builder.makeVectorType(type_bool, 4);
+  spv::Id type_int = builder.makeIntType(32);
+  spv::Id type_float = builder.makeFloatType(32);
+  spv::Id type_float4 = builder.makeVectorType(type_float, 4);
+  spv::Id type_clip_distances =
+      clip_distance_count
+          ? builder.makeArrayType(
+                type_float, builder.makeUintConstant(clip_distance_count), 0)
+          : spv::NoType;
+  spv::Id type_cull_distances =
+      cull_distance_count
+          ? builder.makeArrayType(
+                type_float, builder.makeUintConstant(cull_distance_count), 0)
+          : spv::NoType;
+  spv::Id type_interpolators =
+      key.interpolator_count
+          ? builder.makeArrayType(
+                type_float4, builder.makeUintConstant(key.interpolator_count),
+                0)
+          : spv::NoType;
+  spv::Id type_point_coordinates = key.has_point_coordinates
+                                       ? builder.makeVectorType(type_float, 2)
+                                       : spv::NoType;
+
+  // Inputs and outputs - matching glslang order, in gl_PerVertex gl_in[],
+  // user-defined outputs, user-defined inputs, out gl_PerVertex.
+  // TODO(Triang3l): Point parameters from the system uniform buffer.
+
+  spv::Id const_input_primitive_vertex_count =
+      builder.makeUintConstant(input_primitive_vertex_count);
+
+  // in gl_PerVertex gl_in[].
+  // gl_Position.
+  id_vector_temp.clear();
+  uint32_t member_in_gl_per_vertex_position = uint32_t(id_vector_temp.size());
+  id_vector_temp.push_back(type_float4);
+  spv::Id const_member_in_gl_per_vertex_position =
+      builder.makeIntConstant(int32_t(member_in_gl_per_vertex_position));
+  // gl_ClipDistance.
+  uint32_t member_in_gl_per_vertex_clip_distance = UINT32_MAX;
+  spv::Id const_member_in_gl_per_vertex_clip_distance = spv::NoResult;
+  if (clip_distance_count) {
+    member_in_gl_per_vertex_clip_distance = uint32_t(id_vector_temp.size());
+    id_vector_temp.push_back(type_clip_distances);
+    const_member_in_gl_per_vertex_clip_distance =
+        builder.makeIntConstant(int32_t(member_in_gl_per_vertex_clip_distance));
+  }
+  // gl_CullDistance.
+  uint32_t member_in_gl_per_vertex_cull_distance = UINT32_MAX;
+  if (cull_distance_count) {
+    member_in_gl_per_vertex_cull_distance = uint32_t(id_vector_temp.size());
+    id_vector_temp.push_back(type_cull_distances);
+  }
+  // Structure and array.
+  spv::Id type_struct_in_gl_per_vertex =
+      builder.makeStructType(id_vector_temp, "gl_PerVertex");
+  builder.addMemberName(type_struct_in_gl_per_vertex,
+                        member_in_gl_per_vertex_position, "gl_Position");
+  builder.addMemberDecoration(type_struct_in_gl_per_vertex,
+                              member_in_gl_per_vertex_position,
+                              spv::DecorationBuiltIn, spv::BuiltInPosition);
+  if (clip_distance_count) {
+    builder.addMemberName(type_struct_in_gl_per_vertex,
+                          member_in_gl_per_vertex_clip_distance,
+                          "gl_ClipDistance");
+    builder.addMemberDecoration(
+        type_struct_in_gl_per_vertex, member_in_gl_per_vertex_clip_distance,
+        spv::DecorationBuiltIn, spv::BuiltInClipDistance);
+  }
+  if (cull_distance_count) {
+    builder.addMemberName(type_struct_in_gl_per_vertex,
+                          member_in_gl_per_vertex_cull_distance,
+                          "gl_CullDistance");
+    builder.addMemberDecoration(
+        type_struct_in_gl_per_vertex, member_in_gl_per_vertex_cull_distance,
+        spv::DecorationBuiltIn, spv::BuiltInCullDistance);
+  }
+  builder.addDecoration(type_struct_in_gl_per_vertex, spv::DecorationBlock);
+  spv::Id type_array_in_gl_per_vertex = builder.makeArrayType(
+      type_struct_in_gl_per_vertex, const_input_primitive_vertex_count, 0);
+  spv::Id in_gl_per_vertex =
+      builder.createVariable(spv::NoPrecision, spv::StorageClassInput,
+                             type_array_in_gl_per_vertex, "gl_in");
+  main_interface.push_back(in_gl_per_vertex);
+
+  // Interpolators output.
+  spv::Id out_interpolators = spv::NoResult;
+  if (key.interpolator_count) {
+    out_interpolators =
+        builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
+                               type_interpolators, "xe_out_interpolators");
+    builder.addDecoration(out_interpolators, spv::DecorationLocation, 0);
+    builder.addDecoration(out_interpolators, spv::DecorationInvariant);
+    main_interface.push_back(out_interpolators);
+  }
+
+  // Point coordinate output.
+  spv::Id out_point_coordinates = spv::NoResult;
+  if (key.has_point_coordinates) {
+    out_point_coordinates = builder.createVariable(
+        spv::NoPrecision, spv::StorageClassOutput, type_point_coordinates,
+        "xe_out_point_coordinates");
+    builder.addDecoration(out_point_coordinates, spv::DecorationLocation,
+                          key.interpolator_count);
+    builder.addDecoration(out_point_coordinates, spv::DecorationInvariant);
+    main_interface.push_back(out_point_coordinates);
+  }
+
+  // Interpolator input.
+  spv::Id in_interpolators = spv::NoResult;
+  if (key.interpolator_count) {
+    in_interpolators = builder.createVariable(
+        spv::NoPrecision, spv::StorageClassInput,
+        builder.makeArrayType(type_interpolators,
+                              const_input_primitive_vertex_count, 0),
+        "xe_in_interpolators");
+    builder.addDecoration(in_interpolators, spv::DecorationLocation, 0);
+    main_interface.push_back(in_interpolators);
+  }
+
+  // Point size input.
+  spv::Id in_point_size = spv::NoResult;
+  if (key.has_point_size) {
+    in_point_size = builder.createVariable(
+        spv::NoPrecision, spv::StorageClassInput,
+        builder.makeArrayType(type_float, const_input_primitive_vertex_count,
+                              0),
+        "xe_in_point_size");
+    builder.addDecoration(in_point_size, spv::DecorationLocation,
+                          key.interpolator_count);
+    main_interface.push_back(in_point_size);
+  }
+
+  // out gl_PerVertex.
+  // gl_Position.
+  id_vector_temp.clear();
+  uint32_t member_out_gl_per_vertex_position = uint32_t(id_vector_temp.size());
+  id_vector_temp.push_back(type_float4);
+  spv::Id const_member_out_gl_per_vertex_position =
+      builder.makeIntConstant(int32_t(member_out_gl_per_vertex_position));
+  // gl_ClipDistance.
+  uint32_t member_out_gl_per_vertex_clip_distance = UINT32_MAX;
+  spv::Id const_member_out_gl_per_vertex_clip_distance = spv::NoResult;
+  if (clip_distance_count) {
+    member_out_gl_per_vertex_clip_distance = uint32_t(id_vector_temp.size());
+    id_vector_temp.push_back(type_clip_distances);
+    const_member_out_gl_per_vertex_clip_distance = builder.makeIntConstant(
+        int32_t(member_out_gl_per_vertex_clip_distance));
+  }
+  // Structure.
+  spv::Id type_struct_out_gl_per_vertex =
+      builder.makeStructType(id_vector_temp, "gl_PerVertex");
+  builder.addMemberName(type_struct_out_gl_per_vertex,
+                        member_out_gl_per_vertex_position, "gl_Position");
+  builder.addMemberDecoration(type_struct_out_gl_per_vertex,
+                              member_out_gl_per_vertex_position,
+                              spv::DecorationInvariant);
+  builder.addMemberDecoration(type_struct_out_gl_per_vertex,
+                              member_out_gl_per_vertex_position,
+                              spv::DecorationBuiltIn, spv::BuiltInPosition);
+  if (clip_distance_count) {
+    builder.addMemberName(type_struct_out_gl_per_vertex,
+                          member_out_gl_per_vertex_clip_distance,
+                          "gl_ClipDistance");
+    builder.addMemberDecoration(type_struct_out_gl_per_vertex,
+                                member_out_gl_per_vertex_clip_distance,
+                                spv::DecorationInvariant);
+    builder.addMemberDecoration(
+        type_struct_out_gl_per_vertex, member_out_gl_per_vertex_clip_distance,
+        spv::DecorationBuiltIn, spv::BuiltInClipDistance);
+  }
+  builder.addDecoration(type_struct_out_gl_per_vertex, spv::DecorationBlock);
+  spv::Id out_gl_per_vertex =
+      builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
+                             type_struct_out_gl_per_vertex, "");
+  main_interface.push_back(out_gl_per_vertex);
+
+  // Begin the main function.
+  std::vector<spv::Id> main_param_types;
+  std::vector<std::vector<spv::Decoration>> main_precisions;
+  spv::Block* main_entry;
+  spv::Function* main_function =
+      builder.makeFunctionEntry(spv::NoPrecision, type_void, "main",
+                                main_param_types, main_precisions, &main_entry);
+  spv::Instruction* entry_point =
+      builder.addEntryPoint(spv::ExecutionModelGeometry, main_function, "main");
+  for (spv::Id interface_id : main_interface) {
+    entry_point->addIdOperand(interface_id);
+  }
+  builder.addExecutionMode(main_function, input_primitive_execution_mode);
+  builder.addExecutionMode(main_function, spv::ExecutionModeInvocations, 1);
+  builder.addExecutionMode(main_function, output_primitive_execution_mode);
+  builder.addExecutionMode(main_function, spv::ExecutionModeOutputVertices,
+                           int(output_max_vertices));
+
+  // Note that after every OpEmitVertex, all output variables are undefined.
+
+  // Discard the whole primitive if any vertex has a NaN position (may also be
+  // set to NaN for emulation of vertex killing with the OR operator).
+  for (uint32_t i = 0; i < input_primitive_vertex_count; ++i) {
+    id_vector_temp.clear();
+    id_vector_temp.reserve(2);
+    id_vector_temp.push_back(builder.makeIntConstant(int32_t(i)));
+    id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
+    spv::Id position_is_nan = builder.createUnaryOp(
+        spv::OpAny, type_bool,
+        builder.createUnaryOp(
+            spv::OpIsNan, type_bool4,
+            builder.createLoad(
+                builder.createAccessChain(spv::StorageClassInput,
+                                          in_gl_per_vertex, id_vector_temp),
+                spv::NoPrecision)));
+    spv::Block& discard_predecessor = *builder.getBuildPoint();
+    spv::Block& discard_then_block = builder.makeNewBlock();
+    spv::Block& discard_merge_block = builder.makeNewBlock();
+    {
+      std::unique_ptr<spv::Instruction> selection_merge_op(
+          std::make_unique<spv::Instruction>(spv::OpSelectionMerge));
+      selection_merge_op->addIdOperand(discard_merge_block.getId());
+      selection_merge_op->addImmediateOperand(
+          spv::SelectionControlDontFlattenMask);
+      discard_predecessor.addInstruction(std::move(selection_merge_op));
+    }
+    {
+      std::unique_ptr<spv::Instruction> branch_conditional_op(
+          std::make_unique<spv::Instruction>(spv::OpBranchConditional));
+      branch_conditional_op->addIdOperand(position_is_nan);
+      branch_conditional_op->addIdOperand(discard_then_block.getId());
+      branch_conditional_op->addIdOperand(discard_merge_block.getId());
+      branch_conditional_op->addImmediateOperand(1);
+      branch_conditional_op->addImmediateOperand(2);
+      discard_predecessor.addInstruction(std::move(branch_conditional_op));
+    }
+    discard_then_block.addPredecessor(&discard_predecessor);
+    discard_merge_block.addPredecessor(&discard_predecessor);
+    builder.setBuildPoint(&discard_then_block);
+    builder.createNoResultOp(spv::OpReturn);
+    builder.setBuildPoint(&discard_merge_block);
+  }
+
+  // Cull the whole primitive if any cull distance for all vertices in the
+  // primitive is < 0.
+  // TODO(Triang3l): For points, handle ps_ucp_mode (transform the host clip
+  // space to the guest one, calculate the distances to the user clip planes,
+  // cull using the distance from the center for modes 0, 1 and 2, cull and clip
+  // per-vertex for modes 2 and 3) - except for the vertex kill flag.
+  if (cull_distance_count) {
+    spv::Id const_member_in_gl_per_vertex_cull_distance =
+        builder.makeIntConstant(int32_t(member_in_gl_per_vertex_cull_distance));
+    spv::Id const_float_0 = builder.makeFloatConstant(0.0f);
+    spv::Id cull_condition = spv::NoResult;
+    for (uint32_t i = 0; i < cull_distance_count; ++i) {
+      for (uint32_t j = 0; j < input_primitive_vertex_count; ++j) {
+        id_vector_temp.clear();
+        id_vector_temp.reserve(3);
+        id_vector_temp.push_back(builder.makeIntConstant(int32_t(j)));
+        id_vector_temp.push_back(const_member_in_gl_per_vertex_cull_distance);
+        id_vector_temp.push_back(builder.makeIntConstant(int32_t(i)));
+        spv::Id cull_distance_is_negative = builder.createBinOp(
+            spv::OpFOrdLessThan, type_bool,
+            builder.createLoad(
+                builder.createAccessChain(spv::StorageClassInput,
+                                          in_gl_per_vertex, id_vector_temp),
+                spv::NoPrecision),
+            const_float_0);
+        if (cull_condition != spv::NoResult) {
+          cull_condition =
+              builder.createBinOp(spv::OpLogicalAnd, type_bool, cull_condition,
+                                  cull_distance_is_negative);
+        } else {
+          cull_condition = cull_distance_is_negative;
+        }
+      }
+    }
+    assert_true(cull_condition != spv::NoResult);
+    spv::Block& discard_predecessor = *builder.getBuildPoint();
+    spv::Block& discard_then_block = builder.makeNewBlock();
+    spv::Block& discard_merge_block = builder.makeNewBlock();
+    {
+      std::unique_ptr<spv::Instruction> selection_merge_op(
+          std::make_unique<spv::Instruction>(spv::OpSelectionMerge));
+      selection_merge_op->addIdOperand(discard_merge_block.getId());
+      selection_merge_op->addImmediateOperand(
+          spv::SelectionControlDontFlattenMask);
+      discard_predecessor.addInstruction(std::move(selection_merge_op));
+    }
+    {
+      std::unique_ptr<spv::Instruction> branch_conditional_op(
+          std::make_unique<spv::Instruction>(spv::OpBranchConditional));
+      branch_conditional_op->addIdOperand(cull_condition);
+      branch_conditional_op->addIdOperand(discard_then_block.getId());
+      branch_conditional_op->addIdOperand(discard_merge_block.getId());
+      branch_conditional_op->addImmediateOperand(1);
+      branch_conditional_op->addImmediateOperand(2);
+      discard_predecessor.addInstruction(std::move(branch_conditional_op));
+    }
+    discard_then_block.addPredecessor(&discard_predecessor);
+    discard_merge_block.addPredecessor(&discard_predecessor);
+    builder.setBuildPoint(&discard_then_block);
+    builder.createNoResultOp(spv::OpReturn);
+    builder.setBuildPoint(&discard_merge_block);
+  }
+
+  switch (key.type) {
+    case PipelineGeometryShader::kRectangleList: {
+      // Construct a strip with the fourth vertex generated by mirroring a
+      // vertex across the longest edge (the diagonal).
+      //
+      // Possible options:
+      //
+      // 0---1
+      // |  /|
+      // | / |  - 12 is the longest edge, strip 0123 (most commonly used)
+      // |/  |    v3 = v0 + (v1 - v0) + (v2 - v0), or v3 = -v0 + v1 + v2
+      // 2--[3]
+      //
+      // 1---2
+      // |  /|
+      // | / |  - 20 is the longest edge, strip 1203
+      // |/  |
+      // 0--[3]
+      //
+      // 2---0
+      // |  /|
+      // | / |  - 01 is the longest edge, strip 2013
+      // |/  |
+      // 1--[3]
+
+      spv::Id const_int_0 = builder.makeIntConstant(0);
+      spv::Id const_int_1 = builder.makeIntConstant(1);
+      spv::Id const_int_2 = builder.makeIntConstant(2);
+      spv::Id const_int_3 = builder.makeIntConstant(3);
+
+      // Get squares of edge lengths to choose the longest edge.
+      // [0] - 12, [1] - 20, [2] - 01.
+      spv::Id edge_lengths[3];
+      id_vector_temp.resize(3);
+      id_vector_temp[1] = const_member_in_gl_per_vertex_position;
+      for (uint32_t i = 0; i < 3; ++i) {
+        id_vector_temp[0] = builder.makeIntConstant(int32_t((1 + i) % 3));
+        id_vector_temp[2] = const_int_0;
+        spv::Id edge_0_x = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        id_vector_temp[2] = const_int_1;
+        spv::Id edge_0_y = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        id_vector_temp[0] = builder.makeIntConstant(int32_t((2 + i) % 3));
+        id_vector_temp[2] = const_int_0;
+        spv::Id edge_1_x = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        id_vector_temp[2] = const_int_1;
+        spv::Id edge_1_y = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        spv::Id edge_x =
+            builder.createBinOp(spv::OpFSub, type_float, edge_1_x, edge_0_x);
+        spv::Id edge_y =
+            builder.createBinOp(spv::OpFSub, type_float, edge_1_y, edge_0_y);
+        edge_lengths[i] = builder.createBinOp(
+            spv::OpFAdd, type_float,
+            builder.createBinOp(spv::OpFMul, type_float, edge_x, edge_x),
+            builder.createBinOp(spv::OpFMul, type_float, edge_y, edge_y));
+      }
+
+      // Choose the index of the first vertex in the strip based on which edge
+      // is the longest, and calculate the indices of the other vertices.
+      spv::Id vertex_indices[3];
+      // If 12 > 20 && 12 > 01, then 12 is the longest edge, and the strip is
+      // 0123. Otherwise, if 20 > 01, then 20 is the longest, and the strip is
+      // 1203, but if not, 01 is the longest, and the strip is 2013.
+      vertex_indices[0] = builder.createTriOp(
+          spv::OpSelect, type_int,
+          builder.createBinOp(
+              spv::OpLogicalAnd, type_bool,
+              builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
+                                  edge_lengths[0], edge_lengths[1]),
+              builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
+                                  edge_lengths[0], edge_lengths[2])),
+          const_int_0,
+          builder.createTriOp(
+              spv::OpSelect, type_int,
+              builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
+                                  edge_lengths[1], edge_lengths[2]),
+              const_int_1, const_int_2));
+      for (uint32_t i = 1; i < 3; ++i) {
+        // vertex_indices[i] = (vertex_indices[0] + i) % 3
+        spv::Id vertex_index_without_wrapping =
+            builder.createBinOp(spv::OpIAdd, type_int, vertex_indices[0],
+                                builder.makeIntConstant(int32_t(i)));
+        vertex_indices[i] = builder.createTriOp(
+            spv::OpSelect, type_int,
+            builder.createBinOp(spv::OpSLessThan, type_bool,
+                                vertex_index_without_wrapping, const_int_3),
+            vertex_index_without_wrapping,
+            builder.createBinOp(spv::OpISub, type_int,
+                                vertex_index_without_wrapping, const_int_3));
+      }
+
+      // Initialize the point coordinates output for safety if this shader type
+      // is used with has_point_coordinates for some reason.
+      spv::Id const_point_coordinates_zero = spv::NoResult;
+      if (key.has_point_coordinates) {
+        spv::Id const_float_0 = builder.makeFloatConstant(0.0f);
+        id_vector_temp.clear();
+        id_vector_temp.reserve(2);
+        id_vector_temp.push_back(const_float_0);
+        id_vector_temp.push_back(const_float_0);
+        const_point_coordinates_zero = builder.makeCompositeConstant(
+            type_point_coordinates, id_vector_temp);
+      }
+
+      // Emit the triangle in the strip that consists of the original vertices.
+      for (uint32_t i = 0; i < 3; ++i) {
+        spv::Id vertex_index = vertex_indices[i];
+        // Interpolators.
+        if (key.interpolator_count) {
+          id_vector_temp.clear();
+          id_vector_temp.push_back(vertex_index);
+          builder.createStore(
+              builder.createLoad(
+                  builder.createAccessChain(spv::StorageClassInput,
+                                            in_interpolators, id_vector_temp),
+                  spv::NoPrecision),
+              out_interpolators);
+        }
+        // Point coordinates.
+        if (key.has_point_coordinates) {
+          builder.createStore(const_point_coordinates_zero,
+                              out_point_coordinates);
+        }
+        // Position.
+        id_vector_temp.clear();
+        id_vector_temp.reserve(2);
+        id_vector_temp.push_back(vertex_index);
+        id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
+        spv::Id vertex_position = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        id_vector_temp.clear();
+        id_vector_temp.push_back(const_member_out_gl_per_vertex_position);
+        builder.createStore(
+            vertex_position,
+            builder.createAccessChain(spv::StorageClassOutput,
+                                      out_gl_per_vertex, id_vector_temp));
+        // Clip distances.
+        if (clip_distance_count) {
+          id_vector_temp.clear();
+          id_vector_temp.reserve(2);
+          id_vector_temp.push_back(vertex_index);
+          id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
+          spv::Id vertex_clip_distances = builder.createLoad(
+              builder.createAccessChain(spv::StorageClassInput,
+                                        in_gl_per_vertex, id_vector_temp),
+              spv::NoPrecision);
+          id_vector_temp.clear();
+          id_vector_temp.push_back(
+              const_member_out_gl_per_vertex_clip_distance);
+          builder.createStore(
+              vertex_clip_distances,
+              builder.createAccessChain(spv::StorageClassOutput,
+                                        out_gl_per_vertex, id_vector_temp));
+        }
+        // Emit the vertex.
+        builder.createNoResultOp(spv::OpEmitVertex);
+      }
+
+      // Construct the fourth vertex.
+      // Interpolators.
+      for (uint32_t i = 0; i < key.interpolator_count; ++i) {
+        spv::Id const_int_i = builder.makeIntConstant(int32_t(i));
+        id_vector_temp.clear();
+        id_vector_temp.reserve(2);
+        id_vector_temp.push_back(vertex_indices[0]);
+        id_vector_temp.push_back(const_int_i);
+        spv::Id vertex_interpolator_v0 = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_interpolators,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        id_vector_temp[0] = vertex_indices[1];
+        spv::Id vertex_interpolator_v01 = builder.createBinOp(
+            spv::OpFSub, type_float4,
+            builder.createLoad(
+                builder.createAccessChain(spv::StorageClassInput,
+                                          in_interpolators, id_vector_temp),
+                spv::NoPrecision),
+            vertex_interpolator_v0);
+        builder.addDecoration(vertex_interpolator_v01,
+                              spv::DecorationNoContraction);
+        id_vector_temp[0] = vertex_indices[2];
+        spv::Id vertex_interpolator_v3 = builder.createBinOp(
+            spv::OpFAdd, type_float4, vertex_interpolator_v01,
+            builder.createLoad(
+                builder.createAccessChain(spv::StorageClassInput,
+                                          in_interpolators, id_vector_temp),
+                spv::NoPrecision));
+        builder.addDecoration(vertex_interpolator_v3,
+                              spv::DecorationNoContraction);
+        id_vector_temp.clear();
+        id_vector_temp.push_back(const_int_i);
+        builder.createStore(
+            vertex_interpolator_v3,
+            builder.createAccessChain(spv::StorageClassOutput,
+                                      out_interpolators, id_vector_temp));
+      }
+      // Point coordinates.
+      if (key.has_point_coordinates) {
+        builder.createStore(const_point_coordinates_zero,
+                            out_point_coordinates);
+      }
+      // Position.
+      id_vector_temp.clear();
+      id_vector_temp.reserve(2);
+      id_vector_temp.push_back(vertex_indices[0]);
+      id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
+      spv::Id vertex_position_v0 = builder.createLoad(
+          builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                    id_vector_temp),
+          spv::NoPrecision);
+      id_vector_temp[0] = vertex_indices[1];
+      spv::Id vertex_position_v01 = builder.createBinOp(
+          spv::OpFSub, type_float4,
+          builder.createLoad(
+              builder.createAccessChain(spv::StorageClassInput,
+                                        in_gl_per_vertex, id_vector_temp),
+              spv::NoPrecision),
+          vertex_position_v0);
+      builder.addDecoration(vertex_position_v01, spv::DecorationNoContraction);
+      id_vector_temp[0] = vertex_indices[2];
+      spv::Id vertex_position_v3 = builder.createBinOp(
+          spv::OpFAdd, type_float4, vertex_position_v01,
+          builder.createLoad(
+              builder.createAccessChain(spv::StorageClassInput,
+                                        in_gl_per_vertex, id_vector_temp),
+              spv::NoPrecision));
+      builder.addDecoration(vertex_position_v3, spv::DecorationNoContraction);
+      id_vector_temp.clear();
+      id_vector_temp.push_back(const_member_out_gl_per_vertex_position);
+      builder.createStore(
+          vertex_position_v3,
+          builder.createAccessChain(spv::StorageClassOutput, out_gl_per_vertex,
+                                    id_vector_temp));
+      // Clip distances.
+      for (uint32_t i = 0; i < clip_distance_count; ++i) {
+        spv::Id const_int_i = builder.makeIntConstant(int32_t(i));
+        id_vector_temp.clear();
+        id_vector_temp.reserve(3);
+        id_vector_temp.push_back(vertex_indices[0]);
+        id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
+        id_vector_temp.push_back(const_int_i);
+        spv::Id vertex_clip_distance_v0 = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        id_vector_temp[0] = vertex_indices[1];
+        spv::Id vertex_clip_distance_v01 = builder.createBinOp(
+            spv::OpFSub, type_float,
+            builder.createLoad(
+                builder.createAccessChain(spv::StorageClassInput,
+                                          in_gl_per_vertex, id_vector_temp),
+                spv::NoPrecision),
+            vertex_clip_distance_v0);
+        builder.addDecoration(vertex_clip_distance_v01,
+                              spv::DecorationNoContraction);
+        id_vector_temp[0] = vertex_indices[2];
+        spv::Id vertex_clip_distance_v3 = builder.createBinOp(
+            spv::OpFAdd, type_float, vertex_clip_distance_v01,
+            builder.createLoad(
+                builder.createAccessChain(spv::StorageClassInput,
+                                          in_gl_per_vertex, id_vector_temp),
+                spv::NoPrecision));
+        builder.addDecoration(vertex_clip_distance_v3,
+                              spv::DecorationNoContraction);
+        id_vector_temp.clear();
+        id_vector_temp.reserve(2);
+        id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
+        id_vector_temp.push_back(const_int_i);
+        builder.createStore(
+            vertex_clip_distance_v3,
+            builder.createAccessChain(spv::StorageClassOutput,
+                                      out_gl_per_vertex, id_vector_temp));
+      }
+      // Emit the vertex.
+      builder.createNoResultOp(spv::OpEmitVertex);
+      builder.createNoResultOp(spv::OpEndPrimitive);
+    } break;
+
+    case PipelineGeometryShader::kQuadList: {
+      // Initialize the point coordinates output for safety if this shader type
+      // is used with has_point_coordinates for some reason.
+      spv::Id const_point_coordinates_zero = spv::NoResult;
+      if (key.has_point_coordinates) {
+        spv::Id const_float_0 = builder.makeFloatConstant(0.0f);
+        id_vector_temp.clear();
+        id_vector_temp.reserve(2);
+        id_vector_temp.push_back(const_float_0);
+        id_vector_temp.push_back(const_float_0);
+        const_point_coordinates_zero = builder.makeCompositeConstant(
+            type_point_coordinates, id_vector_temp);
+      }
+
+      // Build the triangle strip from the original quad vertices in the
+      // 0, 1, 3, 2 order (like specified for GL_QUAD_STRIP).
+      // TODO(Triang3l): Find the correct decomposition of quads into triangles
+      // on the real hardware.
+      for (uint32_t i = 0; i < 4; ++i) {
+        spv::Id const_vertex_index =
+            builder.makeIntConstant(int32_t(i ^ (i >> 1)));
+        // Interpolators.
+        if (key.interpolator_count) {
+          id_vector_temp.clear();
+          id_vector_temp.push_back(const_vertex_index);
+          builder.createStore(
+              builder.createLoad(
+                  builder.createAccessChain(spv::StorageClassInput,
+                                            in_interpolators, id_vector_temp),
+                  spv::NoPrecision),
+              out_interpolators);
+        }
+        // Point coordinates.
+        if (key.has_point_coordinates) {
+          builder.createStore(const_point_coordinates_zero,
+                              out_point_coordinates);
+        }
+        // Position.
+        id_vector_temp.clear();
+        id_vector_temp.reserve(2);
+        id_vector_temp.push_back(const_vertex_index);
+        id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
+        spv::Id vertex_position = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        id_vector_temp.clear();
+        id_vector_temp.push_back(const_member_out_gl_per_vertex_position);
+        builder.createStore(
+            vertex_position,
+            builder.createAccessChain(spv::StorageClassOutput,
+                                      out_gl_per_vertex, id_vector_temp));
+        // Clip distances.
+        if (clip_distance_count) {
+          id_vector_temp.clear();
+          id_vector_temp.reserve(2);
+          id_vector_temp.push_back(const_vertex_index);
+          id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
+          spv::Id vertex_clip_distances = builder.createLoad(
+              builder.createAccessChain(spv::StorageClassInput,
+                                        in_gl_per_vertex, id_vector_temp),
+              spv::NoPrecision);
+          id_vector_temp.clear();
+          id_vector_temp.push_back(
+              const_member_out_gl_per_vertex_clip_distance);
+          builder.createStore(
+              vertex_clip_distances,
+              builder.createAccessChain(spv::StorageClassOutput,
+                                        out_gl_per_vertex, id_vector_temp));
+        }
+        // Emit the vertex.
+        builder.createNoResultOp(spv::OpEmitVertex);
+      }
+      builder.createNoResultOp(spv::OpEndPrimitive);
+    } break;
+
+    default:
+      assert_unhandled_case(key.type);
+  }
+
+  // End the main function.
+  builder.leaveFunction();
+
+  // Serialize the shader code.
+  std::vector<unsigned int> shader_code;
+  builder.dump(shader_code);
+
+  // Create the shader module, and store the handle even if creation fails not
+  // to try to create it again later.
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanProvider();
+  VkShaderModule shader_module = ui::vulkan::util::CreateShaderModule(
+      provider, reinterpret_cast<const uint32_t*>(shader_code.data()),
+      sizeof(uint32_t) * shader_code.size());
+  if (shader_module == VK_NULL_HANDLE) {
+    XELOGE(
+        "VulkanPipelineCache: Failed to create the primitive type geometry "
+        "shader 0x{:08X}",
+        key.key);
+  }
+  geometry_shaders_.emplace(key, shader_module);
+  return shader_module;
+}
+
+bool VulkanPipelineCache::EnsurePipelineCreated(
+    const PipelineCreationArguments& creation_arguments) {
+  if (creation_arguments.pipeline->second.pipeline != VK_NULL_HANDLE) {
+    return true;
+  }
+
+  // This function preferably should validate the description to prevent
+  // unsupported behavior that may be dangerous/crashing because pipelines can
+  // be created from the disk storage.
+
+  if (creation_arguments.pixel_shader) {
+    XELOGGPU("Creating graphics pipeline state with VS {:016X}, PS {:016X}",
+             creation_arguments.vertex_shader->shader().ucode_data_hash(),
+             creation_arguments.pixel_shader->shader().ucode_data_hash());
   } else {
-    // Back state is identical to front state.
-    std::memcpy(&state_info.back, &state_info.front, sizeof(VkStencilOpState));
+    XELOGGPU("Creating graphics pipeline state with VS {:016X}",
+             creation_arguments.vertex_shader->shader().ucode_data_hash());
   }
 
-  // Ignored; set dynamically.
-  state_info.minDepthBounds = 0;
-  state_info.maxDepthBounds = 0;
-  state_info.front.compareMask = 0;
-  state_info.front.writeMask = 0;
-  state_info.front.reference = 0;
-  state_info.back.compareMask = 0;
-  state_info.back.writeMask = 0;
-  state_info.back.reference = 0;
-
-  return UpdateStatus::kMismatch;
-}
-
-VulkanPipelineCache::UpdateStatus VulkanPipelineCache::UpdateColorBlendState() {
-  auto& regs = update_color_blend_state_regs_;
-  auto& state_info = update_color_blend_state_info_;
-
-  bool dirty = false;
-  dirty |= SetShadowRegister(&regs.rb_color_mask, XE_GPU_REG_RB_COLOR_MASK);
-  dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[0], XE_GPU_REG_RB_BLENDCONTROL0);
-  dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[1], XE_GPU_REG_RB_BLENDCONTROL1);
-  dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[2], XE_GPU_REG_RB_BLENDCONTROL2);
-  dirty |=
-      SetShadowRegister(&regs.rb_blendcontrol[3], XE_GPU_REG_RB_BLENDCONTROL3);
-  dirty |= SetShadowRegister(&regs.rb_modecontrol, XE_GPU_REG_RB_MODECONTROL);
-  XXH3_64bits_update(&hash_state_, &regs, sizeof(regs));
-  if (!dirty) {
-    return UpdateStatus::kCompatible;
+  const PipelineDescription& description = creation_arguments.pipeline->first;
+  if (!ArePipelineRequirementsMet(description)) {
+    assert_always(
+        "When creating a new pipeline, the description must not require "
+        "unsupported features, and when loading the pipeline storage, "
+        "pipelines with unsupported features must be filtered out");
+    return false;
   }
 
-  state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  state_info.pNext = nullptr;
-  state_info.flags = 0;
+  const ui::vulkan::VulkanProvider& provider =
+      command_processor_.GetVulkanProvider();
+  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
 
-  state_info.logicOpEnable = VK_FALSE;
-  state_info.logicOp = VK_LOGIC_OP_NO_OP;
+  std::array<VkPipelineShaderStageCreateInfo, 3> shader_stages;
+  uint32_t shader_stage_count = 0;
 
-  auto enable_mode = static_cast<xenos::ModeControl>(regs.rb_modecontrol & 0x7);
-
-  static const VkBlendFactor kBlendFactorMap[] = {
-      /*  0 */ VK_BLEND_FACTOR_ZERO,
-      /*  1 */ VK_BLEND_FACTOR_ONE,
-      /*  2 */ VK_BLEND_FACTOR_ZERO,  // ?
-      /*  3 */ VK_BLEND_FACTOR_ZERO,  // ?
-      /*  4 */ VK_BLEND_FACTOR_SRC_COLOR,
-      /*  5 */ VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
-      /*  6 */ VK_BLEND_FACTOR_SRC_ALPHA,
-      /*  7 */ VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-      /*  8 */ VK_BLEND_FACTOR_DST_COLOR,
-      /*  9 */ VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
-      /* 10 */ VK_BLEND_FACTOR_DST_ALPHA,
-      /* 11 */ VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
-      /* 12 */ VK_BLEND_FACTOR_CONSTANT_COLOR,
-      /* 13 */ VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR,
-      /* 14 */ VK_BLEND_FACTOR_CONSTANT_ALPHA,
-      /* 15 */ VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
-      /* 16 */ VK_BLEND_FACTOR_SRC_ALPHA_SATURATE,
-  };
-  static const VkBlendOp kBlendOpMap[] = {
-      /*  0 */ VK_BLEND_OP_ADD,
-      /*  1 */ VK_BLEND_OP_SUBTRACT,
-      /*  2 */ VK_BLEND_OP_MIN,
-      /*  3 */ VK_BLEND_OP_MAX,
-      /*  4 */ VK_BLEND_OP_REVERSE_SUBTRACT,
-  };
-  auto& attachment_states = update_color_blend_attachment_states_;
-  for (int i = 0; i < 4; ++i) {
-    uint32_t blend_control = regs.rb_blendcontrol[i];
-    auto& attachment_state = attachment_states[i];
-    attachment_state.blendEnable = (blend_control & 0x1FFF1FFF) != 0x00010001;
-    // A2XX_RB_BLEND_CONTROL_COLOR_SRCBLEND
-    attachment_state.srcColorBlendFactor =
-        kBlendFactorMap[(blend_control & 0x0000001F) >> 0];
-    // A2XX_RB_BLEND_CONTROL_COLOR_DESTBLEND
-    attachment_state.dstColorBlendFactor =
-        kBlendFactorMap[(blend_control & 0x00001F00) >> 8];
-    // A2XX_RB_BLEND_CONTROL_COLOR_COMB_FCN
-    attachment_state.colorBlendOp =
-        kBlendOpMap[(blend_control & 0x000000E0) >> 5];
-    // A2XX_RB_BLEND_CONTROL_ALPHA_SRCBLEND
-    attachment_state.srcAlphaBlendFactor =
-        kBlendFactorMap[(blend_control & 0x001F0000) >> 16];
-    // A2XX_RB_BLEND_CONTROL_ALPHA_DESTBLEND
-    attachment_state.dstAlphaBlendFactor =
-        kBlendFactorMap[(blend_control & 0x1F000000) >> 24];
-    // A2XX_RB_BLEND_CONTROL_ALPHA_COMB_FCN
-    attachment_state.alphaBlendOp =
-        kBlendOpMap[(blend_control & 0x00E00000) >> 21];
-    // A2XX_RB_COLOR_MASK_WRITE_* == D3DRS_COLORWRITEENABLE
-    // Lines up with VkColorComponentFlagBits, where R=bit 1, G=bit 2, etc..
-    uint32_t write_mask = (regs.rb_color_mask >> (i * 4)) & 0xF;
-    attachment_state.colorWriteMask =
-        enable_mode == xenos::ModeControl::kColorDepth ? write_mask : 0;
+  // Vertex or tessellation evaluation shader.
+  assert_true(creation_arguments.vertex_shader->is_translated());
+  if (!creation_arguments.vertex_shader->is_valid()) {
+    return false;
+  }
+  VkPipelineShaderStageCreateInfo& shader_stage_vertex =
+      shader_stages[shader_stage_count++];
+  shader_stage_vertex.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  shader_stage_vertex.pNext = nullptr;
+  shader_stage_vertex.flags = 0;
+  shader_stage_vertex.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  shader_stage_vertex.module =
+      creation_arguments.vertex_shader->shader_module();
+  assert_true(shader_stage_vertex.module != VK_NULL_HANDLE);
+  shader_stage_vertex.pName = "main";
+  shader_stage_vertex.pSpecializationInfo = nullptr;
+  // Geometry shader.
+  if (creation_arguments.geometry_shader != VK_NULL_HANDLE) {
+    VkPipelineShaderStageCreateInfo& shader_stage_geometry =
+        shader_stages[shader_stage_count++];
+    shader_stage_geometry.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shader_stage_geometry.pNext = nullptr;
+    shader_stage_geometry.flags = 0;
+    shader_stage_geometry.stage = VK_SHADER_STAGE_GEOMETRY_BIT;
+    shader_stage_geometry.module = creation_arguments.geometry_shader;
+    shader_stage_geometry.pName = "main";
+    shader_stage_geometry.pSpecializationInfo = nullptr;
+  }
+  // Pixel shader.
+  if (creation_arguments.pixel_shader) {
+    assert_true(creation_arguments.pixel_shader->is_translated());
+    if (!creation_arguments.pixel_shader->is_valid()) {
+      return false;
+    }
+    VkPipelineShaderStageCreateInfo& shader_stage_fragment =
+        shader_stages[shader_stage_count++];
+    shader_stage_fragment.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shader_stage_fragment.pNext = nullptr;
+    shader_stage_fragment.flags = 0;
+    shader_stage_fragment.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    shader_stage_fragment.module =
+        creation_arguments.pixel_shader->shader_module();
+    assert_true(shader_stage_fragment.module != VK_NULL_HANDLE);
+    shader_stage_fragment.pName = "main";
+    shader_stage_fragment.pSpecializationInfo = nullptr;
   }
 
-  state_info.attachmentCount = 4;
-  state_info.pAttachments = attachment_states;
+  VkPipelineVertexInputStateCreateInfo vertex_input_state = {};
+  vertex_input_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-  // Ignored; set dynamically.
-  state_info.blendConstants[0] = 0.0f;
-  state_info.blendConstants[1] = 0.0f;
-  state_info.blendConstants[2] = 0.0f;
-  state_info.blendConstants[3] = 0.0f;
+  VkPipelineInputAssemblyStateCreateInfo input_assembly_state;
+  input_assembly_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  input_assembly_state.pNext = nullptr;
+  input_assembly_state.flags = 0;
+  switch (description.primitive_topology) {
+    case PipelinePrimitiveTopology::kPointList:
+      input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+      assert_false(description.primitive_restart);
+      if (description.primitive_restart) {
+        return false;
+      }
+      break;
+    case PipelinePrimitiveTopology::kLineList:
+      input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+      assert_false(description.primitive_restart);
+      if (description.primitive_restart) {
+        return false;
+      }
+      break;
+    case PipelinePrimitiveTopology::kLineStrip:
+      input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+      break;
+    case PipelinePrimitiveTopology::kTriangleList:
+      input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+      assert_false(description.primitive_restart);
+      if (description.primitive_restart) {
+        return false;
+      }
+      break;
+    case PipelinePrimitiveTopology::kTriangleStrip:
+      input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+      break;
+    case PipelinePrimitiveTopology::kTriangleFan:
+      input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
+      break;
+    case PipelinePrimitiveTopology::kLineListWithAdjacency:
+      input_assembly_state.topology =
+          VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY;
+      assert_false(description.primitive_restart);
+      if (description.primitive_restart) {
+        return false;
+      }
+      break;
+    case PipelinePrimitiveTopology::kPatchList:
+      input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
+      assert_false(description.primitive_restart);
+      if (description.primitive_restart) {
+        return false;
+      }
+      break;
+    default:
+      assert_unhandled_case(description.primitive_topology);
+      return false;
+  }
+  input_assembly_state.primitiveRestartEnable =
+      description.primitive_restart ? VK_TRUE : VK_FALSE;
 
-  return UpdateStatus::kMismatch;
+  VkPipelineViewportStateCreateInfo viewport_state;
+  viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+  viewport_state.pNext = nullptr;
+  viewport_state.flags = 0;
+  viewport_state.viewportCount = 1;
+  viewport_state.pViewports = nullptr;
+  viewport_state.scissorCount = 1;
+  viewport_state.pScissors = nullptr;
+
+  VkPipelineRasterizationStateCreateInfo rasterization_state = {};
+  rasterization_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  rasterization_state.depthClampEnable =
+      description.depth_clamp_enable ? VK_TRUE : VK_FALSE;
+  switch (description.polygon_mode) {
+    case PipelinePolygonMode::kFill:
+      rasterization_state.polygonMode = VK_POLYGON_MODE_FILL;
+      break;
+    case PipelinePolygonMode::kLine:
+      rasterization_state.polygonMode = VK_POLYGON_MODE_LINE;
+      break;
+    case PipelinePolygonMode::kPoint:
+      rasterization_state.polygonMode = VK_POLYGON_MODE_POINT;
+      break;
+    default:
+      assert_unhandled_case(description.polygon_mode);
+      return false;
+  }
+  rasterization_state.cullMode = VK_CULL_MODE_NONE;
+  if (description.cull_front) {
+    rasterization_state.cullMode |= VK_CULL_MODE_FRONT_BIT;
+  }
+  if (description.cull_back) {
+    rasterization_state.cullMode |= VK_CULL_MODE_BACK_BIT;
+  }
+  rasterization_state.frontFace = description.front_face_clockwise
+                                      ? VK_FRONT_FACE_CLOCKWISE
+                                      : VK_FRONT_FACE_COUNTER_CLOCKWISE;
+  // Depth bias is dynamic (even toggling - pipeline creation is expensive).
+  // "If no depth attachment is present, r is undefined" in the depth bias
+  // formula, though Z has no effect on anything if a depth attachment is not
+  // used (the guest shader can't access Z), enabling only when there's a
+  // depth / stencil attachment for correctness.
+  // TODO(Triang3l): Disable the depth bias for the fragment shader interlock RB
+  // implementation.
+  rasterization_state.depthBiasEnable =
+      (description.render_pass_key.depth_and_color_used & 0b1) ? VK_TRUE
+                                                               : VK_FALSE;
+  // TODO(Triang3l): Wide lines.
+  rasterization_state.lineWidth = 1.0f;
+
+  VkSampleMask sample_mask = UINT32_MAX;
+  VkPipelineMultisampleStateCreateInfo multisample_state = {};
+  multisample_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+  if (description.render_pass_key.msaa_samples == xenos::MsaaSamples::k2X &&
+      !render_target_cache_.IsMsaa2xSupported(
+          description.render_pass_key.depth_and_color_used != 0)) {
+    // Using sample 0 as 0 and 3 as 1 for 2x instead (not exactly the same
+    // sample locations, but still top-left and bottom-right - however, this can
+    // be adjusted with custom sample locations).
+    multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_4_BIT;
+    sample_mask = 0b1001;
+    // TODO(Triang3l): Research sample mask behavior without attachments (in
+    // Direct3D, it's completely ignored in this case).
+    multisample_state.pSampleMask = &sample_mask;
+  } else {
+    multisample_state.rasterizationSamples = VkSampleCountFlagBits(
+        uint32_t(1) << uint32_t(description.render_pass_key.msaa_samples));
+  }
+
+  VkPipelineDepthStencilStateCreateInfo depth_stencil_state = {};
+  depth_stencil_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depth_stencil_state.pNext = nullptr;
+  if (description.depth_write_enable ||
+      description.depth_compare_op != xenos::CompareFunction::kAlways) {
+    depth_stencil_state.depthTestEnable = VK_TRUE;
+    depth_stencil_state.depthWriteEnable =
+        description.depth_write_enable ? VK_TRUE : VK_FALSE;
+    depth_stencil_state.depthCompareOp = VkCompareOp(
+        uint32_t(VK_COMPARE_OP_NEVER) + uint32_t(description.depth_compare_op));
+  }
+  if (description.stencil_test_enable) {
+    depth_stencil_state.stencilTestEnable = VK_TRUE;
+    depth_stencil_state.front.failOp =
+        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                    uint32_t(description.stencil_front_fail_op));
+    depth_stencil_state.front.passOp =
+        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                    uint32_t(description.stencil_front_pass_op));
+    depth_stencil_state.front.depthFailOp =
+        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                    uint32_t(description.stencil_front_depth_fail_op));
+    depth_stencil_state.front.compareOp =
+        VkCompareOp(uint32_t(VK_COMPARE_OP_NEVER) +
+                    uint32_t(description.stencil_front_compare_op));
+    depth_stencil_state.back.failOp =
+        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                    uint32_t(description.stencil_back_fail_op));
+    depth_stencil_state.back.passOp =
+        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                    uint32_t(description.stencil_back_pass_op));
+    depth_stencil_state.back.depthFailOp =
+        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                    uint32_t(description.stencil_back_depth_fail_op));
+    depth_stencil_state.back.compareOp =
+        VkCompareOp(uint32_t(VK_COMPARE_OP_NEVER) +
+                    uint32_t(description.stencil_back_compare_op));
+  }
+
+  VkPipelineColorBlendAttachmentState
+      color_blend_attachments[xenos::kMaxColorRenderTargets] = {};
+  uint32_t color_rts_used =
+      description.render_pass_key.depth_and_color_used >> 1;
+  {
+    static const VkBlendFactor kBlendFactorMap[] = {
+        VK_BLEND_FACTOR_ZERO,
+        VK_BLEND_FACTOR_ONE,
+        VK_BLEND_FACTOR_SRC_COLOR,
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
+        VK_BLEND_FACTOR_DST_COLOR,
+        VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
+        VK_BLEND_FACTOR_SRC_ALPHA,
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        VK_BLEND_FACTOR_DST_ALPHA,
+        VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
+        VK_BLEND_FACTOR_CONSTANT_COLOR,
+        VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR,
+        VK_BLEND_FACTOR_CONSTANT_ALPHA,
+        VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
+        VK_BLEND_FACTOR_SRC_ALPHA_SATURATE,
+    };
+    // 8 entries for safety since 3 bits from the guest are passed directly.
+    static const VkBlendOp kBlendOpMap[] = {VK_BLEND_OP_ADD,
+                                            VK_BLEND_OP_SUBTRACT,
+                                            VK_BLEND_OP_MIN,
+                                            VK_BLEND_OP_MAX,
+                                            VK_BLEND_OP_REVERSE_SUBTRACT,
+                                            VK_BLEND_OP_ADD,
+                                            VK_BLEND_OP_ADD,
+                                            VK_BLEND_OP_ADD};
+    uint32_t color_rts_remaining = color_rts_used;
+    uint32_t color_rt_index;
+    while (xe::bit_scan_forward(color_rts_remaining, &color_rt_index)) {
+      color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
+      VkPipelineColorBlendAttachmentState& color_blend_attachment =
+          color_blend_attachments[color_rt_index];
+      const PipelineRenderTarget& color_rt =
+          description.render_targets[color_rt_index];
+      if (color_rt.src_color_blend_factor != PipelineBlendFactor::kOne ||
+          color_rt.dst_color_blend_factor != PipelineBlendFactor::kZero ||
+          color_rt.color_blend_op != xenos::BlendOp::kAdd ||
+          color_rt.src_alpha_blend_factor != PipelineBlendFactor::kOne ||
+          color_rt.dst_alpha_blend_factor != PipelineBlendFactor::kZero ||
+          color_rt.alpha_blend_op != xenos::BlendOp::kAdd) {
+        color_blend_attachment.blendEnable = VK_TRUE;
+        color_blend_attachment.srcColorBlendFactor =
+            kBlendFactorMap[uint32_t(color_rt.src_color_blend_factor)];
+        color_blend_attachment.dstColorBlendFactor =
+            kBlendFactorMap[uint32_t(color_rt.dst_color_blend_factor)];
+        color_blend_attachment.colorBlendOp =
+            kBlendOpMap[uint32_t(color_rt.color_blend_op)];
+        color_blend_attachment.srcAlphaBlendFactor =
+            kBlendFactorMap[uint32_t(color_rt.src_alpha_blend_factor)];
+        color_blend_attachment.dstAlphaBlendFactor =
+            kBlendFactorMap[uint32_t(color_rt.dst_alpha_blend_factor)];
+        color_blend_attachment.alphaBlendOp =
+            kBlendOpMap[uint32_t(color_rt.alpha_blend_op)];
+      }
+      color_blend_attachment.colorWriteMask =
+          VkColorComponentFlags(color_rt.color_write_mask);
+      if (!device_features.independentBlend) {
+        // For non-independent blend, the pAttachments element for the first
+        // actually used color will be replicated into all.
+        break;
+      }
+    }
+  }
+  VkPipelineColorBlendStateCreateInfo color_blend_state = {};
+  color_blend_state.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  color_blend_state.attachmentCount = 32 - xe::lzcnt(color_rts_used);
+  color_blend_state.pAttachments = color_blend_attachments;
+  if (color_rts_used && !device_features.independentBlend) {
+    // "If the independent blending feature is not enabled, all elements of
+    //  pAttachments must be identical."
+    uint32_t first_color_rt_index;
+    xe::bit_scan_forward(color_rts_used, &first_color_rt_index);
+    for (uint32_t i = 0; i < color_blend_state.attachmentCount; ++i) {
+      if (i == first_color_rt_index) {
+        continue;
+      }
+      color_blend_attachments[i] =
+          color_blend_attachments[first_color_rt_index];
+    }
+  }
+
+  std::array<VkDynamicState, 7> dynamic_states;
+  VkPipelineDynamicStateCreateInfo dynamic_state;
+  dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+  dynamic_state.pNext = nullptr;
+  dynamic_state.flags = 0;
+  dynamic_state.dynamicStateCount = 0;
+  dynamic_state.pDynamicStates = dynamic_states.data();
+  // Regardless of whether some of this state actually has any effect on the
+  // pipeline, marking all as dynamic because otherwise, binding any pipeline
+  // with such state not marked as dynamic will cause the dynamic state to be
+  // invalidated (again, even if it has no effect).
+  dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_VIEWPORT;
+  dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_SCISSOR;
+  dynamic_states[dynamic_state.dynamicStateCount++] =
+      VK_DYNAMIC_STATE_DEPTH_BIAS;
+  dynamic_states[dynamic_state.dynamicStateCount++] =
+      VK_DYNAMIC_STATE_BLEND_CONSTANTS;
+  dynamic_states[dynamic_state.dynamicStateCount++] =
+      VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK;
+  dynamic_states[dynamic_state.dynamicStateCount++] =
+      VK_DYNAMIC_STATE_STENCIL_WRITE_MASK;
+  dynamic_states[dynamic_state.dynamicStateCount++] =
+      VK_DYNAMIC_STATE_STENCIL_REFERENCE;
+
+  VkGraphicsPipelineCreateInfo pipeline_create_info;
+  pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+  pipeline_create_info.pNext = nullptr;
+  pipeline_create_info.flags = 0;
+  pipeline_create_info.stageCount = shader_stage_count;
+  pipeline_create_info.pStages = shader_stages.data();
+  pipeline_create_info.pVertexInputState = &vertex_input_state;
+  pipeline_create_info.pInputAssemblyState = &input_assembly_state;
+  pipeline_create_info.pTessellationState = nullptr;
+  pipeline_create_info.pViewportState = &viewport_state;
+  pipeline_create_info.pRasterizationState = &rasterization_state;
+  pipeline_create_info.pMultisampleState = &multisample_state;
+  pipeline_create_info.pDepthStencilState = &depth_stencil_state;
+  pipeline_create_info.pColorBlendState = &color_blend_state;
+  pipeline_create_info.pDynamicState = &dynamic_state;
+  pipeline_create_info.layout =
+      creation_arguments.pipeline->second.pipeline_layout->GetPipelineLayout();
+  pipeline_create_info.renderPass = creation_arguments.render_pass;
+  pipeline_create_info.subpass = 0;
+  pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
+  pipeline_create_info.basePipelineIndex = -1;
+
+  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
+  VkDevice device = provider.device();
+  VkPipeline pipeline;
+  if (dfn.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1,
+                                    &pipeline_create_info, nullptr,
+                                    &pipeline) != VK_SUCCESS) {
+    // TODO(Triang3l): Move these error messages outside.
+    /* if (creation_arguments.pixel_shader) {
+      XELOGE(
+          "Failed to create graphics pipeline with VS {:016X}, PS {:016X}",
+          creation_arguments.vertex_shader->shader().ucode_data_hash(),
+          creation_arguments.pixel_shader->shader().ucode_data_hash());
+    } else {
+      XELOGE("Failed to create graphics pipeline with VS {:016X}",
+             creation_arguments.vertex_shader->shader().ucode_data_hash());
+    } */
+    return false;
+  }
+  creation_arguments.pipeline->second.pipeline = pipeline;
+  return true;
 }
 
 }  // namespace vulkan

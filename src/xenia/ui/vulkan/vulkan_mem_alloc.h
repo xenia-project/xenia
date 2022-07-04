@@ -29,33 +29,8 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
-inline void FillVMAVulkanFunctions(VmaVulkanFunctions* vma_funcs,
-                                   const VulkanProvider& provider) {
-  const VulkanProvider::LibraryFunctions& lfn = provider.lfn();
-  const VulkanProvider::InstanceFunctions& ifn = provider.ifn();
-  const VulkanProvider::DeviceFunctions& dfn = provider.dfn();
-  vma_funcs->vkGetInstanceProcAddr = lfn.vkGetInstanceProcAddr;
-  vma_funcs->vkGetDeviceProcAddr = ifn.vkGetDeviceProcAddr;
-  vma_funcs->vkGetPhysicalDeviceProperties = ifn.vkGetPhysicalDeviceProperties;
-  vma_funcs->vkGetPhysicalDeviceMemoryProperties =
-      ifn.vkGetPhysicalDeviceMemoryProperties;
-  vma_funcs->vkAllocateMemory = dfn.vkAllocateMemory;
-  vma_funcs->vkFreeMemory = dfn.vkFreeMemory;
-  vma_funcs->vkMapMemory = dfn.vkMapMemory;
-  vma_funcs->vkUnmapMemory = dfn.vkUnmapMemory;
-  vma_funcs->vkFlushMappedMemoryRanges = dfn.vkFlushMappedMemoryRanges;
-  vma_funcs->vkInvalidateMappedMemoryRanges =
-      dfn.vkInvalidateMappedMemoryRanges;
-  vma_funcs->vkBindBufferMemory = dfn.vkBindBufferMemory;
-  vma_funcs->vkBindImageMemory = dfn.vkBindImageMemory;
-  vma_funcs->vkGetBufferMemoryRequirements = dfn.vkGetBufferMemoryRequirements;
-  vma_funcs->vkGetImageMemoryRequirements = dfn.vkGetImageMemoryRequirements;
-  vma_funcs->vkCreateBuffer = dfn.vkCreateBuffer;
-  vma_funcs->vkDestroyBuffer = dfn.vkDestroyBuffer;
-  vma_funcs->vkCreateImage = dfn.vkCreateImage;
-  vma_funcs->vkDestroyImage = dfn.vkDestroyImage;
-  vma_funcs->vkCmdCopyBuffer = dfn.vkCmdCopyBuffer;
-}
+VmaAllocator CreateVmaAllocator(const VulkanProvider& provider,
+                                bool externally_synchronized);
 
 }  // namespace vulkan
 }  // namespace ui

@@ -807,6 +807,9 @@ class Shader {
     Translation(Shader& shader, uint64_t modification)
         : shader_(shader), modification_(modification) {}
 
+    // If there was some failure during preparation on the implementation side.
+    void MakeInvalid() { is_valid_ = false; }
+
    private:
     friend class Shader;
     friend class ShaderTranslator;

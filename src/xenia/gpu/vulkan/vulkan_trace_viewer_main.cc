@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -19,8 +19,6 @@ namespace xe {
 namespace gpu {
 namespace vulkan {
 
-using namespace xe::gpu::xenos;
-
 class VulkanTraceViewer final : public TraceViewer {
  public:
   static std::unique_ptr<WindowedApp> Create(
@@ -35,36 +33,21 @@ class VulkanTraceViewer final : public TraceViewer {
   uintptr_t GetColorRenderTarget(
       uint32_t pitch, xenos::MsaaSamples samples, uint32_t base,
       xenos::ColorRenderTargetFormat format) override {
-    auto command_processor = static_cast<VulkanCommandProcessor*>(
-        graphics_system()->command_processor());
-    // return command_processor->GetColorRenderTarget(pitch, samples, base,
-    //                                               format);
+    // TODO(Triang3l): EDRAM viewer.
     return 0;
   }
 
   uintptr_t GetDepthRenderTarget(
       uint32_t pitch, xenos::MsaaSamples samples, uint32_t base,
       xenos::DepthRenderTargetFormat format) override {
-    auto command_processor = static_cast<VulkanCommandProcessor*>(
-        graphics_system()->command_processor());
-    // return command_processor->GetDepthRenderTarget(pitch, samples, base,
-    //                                               format);
+    // TODO(Triang3l): EDRAM viewer.
     return 0;
   }
 
   uintptr_t GetTextureEntry(const TextureInfo& texture_info,
                             const SamplerInfo& sampler_info) override {
-    auto command_processor = static_cast<VulkanCommandProcessor*>(
-        graphics_system()->command_processor());
-
-    // auto entry_view =
-    //    command_processor->texture_cache()->Demand(texture_info,
-    //    sampler_info);
-    // if (!entry_view) {
-    //  return 0;
-    //}
-    // auto texture = entry_view->texture;
-    // return static_cast<uintptr_t>(texture->handle);
+    // TODO(Triang3l): Textures, but from a fetch constant rather than
+    // TextureInfo/SamplerInfo which are going away.
     return 0;
   }
 

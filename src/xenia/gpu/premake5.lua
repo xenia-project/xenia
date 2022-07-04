@@ -11,20 +11,14 @@ project("xenia-gpu")
     "fmt",
     "glslang-spirv",
     "snappy",
-    "spirv-tools",
     "xenia-base",
     "xenia-ui",
-    "xenia-ui-spirv",
     "xxhash",
   })
-  defines({
-  })
   includedirs({
-    project_root.."/third_party/spirv-tools/external/include",
+    project_root.."/third_party/Vulkan-Headers/include",
   })
   local_platform_files()
-  -- local_platform_files("spirv")
-  -- local_platform_files("spirv/passes")
 
 group("src")
 project("xenia-gpu-shader-compiler")
@@ -36,13 +30,13 @@ project("xenia-gpu-shader-compiler")
     "fmt",
     "glslang-spirv",
     "snappy",
-    "spirv-tools",
     "xenia-base",
     "xenia-gpu",
     "xenia-ui",
-    "xenia-ui-spirv",
+    "xenia-ui-vulkan",
   })
-  defines({
+  includedirs({
+    project_root.."/third_party/Vulkan-Headers/include",
   })
   files({
     "shader_compiler_main.cc",

@@ -7,9 +7,6 @@
 [submodule "third_party/binutils-ppc-cygwin"]
 	path = third_party/binutils-ppc-cygwin
 	url = https://github.com/benvanik/binutils-ppc-cygwin.git
-[submodule "third_party/spirv-tools"]
-	path = third_party/spirv-tools
-	url = https://github.com/xenia-project/SPIRV-Tools.git
 [submodule "third_party/catch"]
 	path = third_party/catch
 	url = https://github.com/catchorg/Catch2.git
@@ -22,12 +19,6 @@
 [submodule "third_party/premake-export-compile-commands"]
 	path = third_party/premake-export-compile-commands
 	url = https://github.com/xenia-project/premake-export-compile-commands.git
-[submodule "third_party/spirv-headers"]
-	path = third_party/spirv-headers
-	url = https://github.com/KhronosGroup/SPIRV-Headers.git
-[submodule "third_party/volk"]
-	path = third_party/volk
-	url = https://github.com/zeux/volk.git
 [submodule "third_party/discord-rpc"]
 	path = third_party/discord-rpc
 	url = https://github.com/discordapp/discord-rpc.git
@@ -85,6 +76,12 @@
 [submodule "third_party/Vulkan-Headers"]
 	path = third_party/Vulkan-Headers
 	url = https://github.com/KhronosGroup/Vulkan-Headers.git
+[submodule "third_party/glslang"]
+	path = third_party/glslang
+	url = https://github.com/KhronosGroup/glslang.git
+[submodule "third_party/SPIRV-Tools"]
+	path = third_party/SPIRV-Tools
+	url = https://github.com/KhronosGroup/SPIRV-Tools.git
 [submodule "third_party/VulkanMemoryAllocator"]
 	path = third_party/VulkanMemoryAllocator
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git

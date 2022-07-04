@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,665 +10,645 @@
 #include "xenia/gpu/spirv_shader_translator.h"
 
 #include <algorithm>
-#include <cfloat>
 #include <cstddef>
-#include <cstring>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 
-#include "third_party/fmt/include/fmt/format.h"
-#include "xenia/base/cvar.h"
-#include "xenia/base/logging.h"
+#include "third_party/glslang/SPIRV/GLSL.std.450.h"
+#include "xenia/base/assert.h"
 #include "xenia/base/math.h"
-
-DEFINE_bool(spv_validate, false, "Validate SPIR-V shaders after generation",
-            "GPU");
-DEFINE_bool(spv_disasm, false, "Disassemble SPIR-V shaders after generation",
-            "GPU");
+#include "xenia/gpu/spirv_shader.h"
 
 namespace xe {
 namespace gpu {
-using namespace ucode;
 
-constexpr uint32_t kMaxInterpolators = 16;
-constexpr uint32_t kMaxTemporaryRegisters = 64;
+SpirvShaderTranslator::Features::Features(bool all)
+    : spirv_version(all ? spv::Spv_1_5 : spv::Spv_1_0),
+      max_storage_buffer_range(all ? UINT32_MAX : (128 * 1024 * 1024)),
+      clip_distance(all),
+      cull_distance(all),
+      image_view_format_swizzle(all),
+      signed_zero_inf_nan_preserve_float32(all),
+      denorm_flush_to_zero_float32(all) {}
 
-using spv::GLSLstd450;
-using spv::Id;
-using spv::Op;
+SpirvShaderTranslator::Features::Features(
+    const ui::vulkan::VulkanProvider& provider)
+    : max_storage_buffer_range(
+          provider.device_properties().limits.maxStorageBufferRange),
+      clip_distance(provider.device_features().shaderClipDistance),
+      cull_distance(provider.device_features().shaderCullDistance) {
+  uint32_t device_version = provider.device_properties().apiVersion;
+  const ui::vulkan::VulkanProvider::DeviceExtensions& device_extensions =
+      provider.device_extensions();
+  if (device_version >= VK_MAKE_VERSION(1, 2, 0)) {
+    spirv_version = spv::Spv_1_5;
+  } else if (device_extensions.khr_spirv_1_4) {
+    spirv_version = spv::Spv_1_4;
+  } else if (device_version >= VK_MAKE_VERSION(1, 1, 0)) {
+    spirv_version = spv::Spv_1_3;
+  } else {
+    spirv_version = spv::Spv_1_0;
+  }
+  const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
+      device_portability_subset_features =
+          provider.device_portability_subset_features();
+  if (device_portability_subset_features) {
+    image_view_format_swizzle =
+        bool(device_portability_subset_features->imageViewFormatSwizzle);
+  } else {
+    image_view_format_swizzle = true;
+  }
+  if (spirv_version >= spv::Spv_1_4 ||
+      device_extensions.khr_shader_float_controls) {
+    const VkPhysicalDeviceFloatControlsPropertiesKHR&
+        float_controls_properties = provider.device_float_controls_properties();
+    signed_zero_inf_nan_preserve_float32 =
+        bool(float_controls_properties.shaderSignedZeroInfNanPreserveFloat32);
+    denorm_flush_to_zero_float32 =
+        bool(float_controls_properties.shaderDenormFlushToZeroFloat32);
+  } else {
+    signed_zero_inf_nan_preserve_float32 = false;
+    denorm_flush_to_zero_float32 = false;
+  }
+}
 
-SpirvShaderTranslator::SpirvShaderTranslator() {}
-SpirvShaderTranslator::~SpirvShaderTranslator() = default;
+const std::string SpirvShaderTranslator::kInterpolatorNamePrefix =
+    "xe_interpolator_";
+
+SpirvShaderTranslator::SpirvShaderTranslator(const Features& features)
+    : features_(features) {}
+
+uint64_t SpirvShaderTranslator::GetDefaultVertexShaderModification(
+    uint32_t dynamic_addressable_register_count,
+    Shader::HostVertexShaderType host_vertex_shader_type) const {
+  Modification shader_modification;
+  shader_modification.vertex.dynamic_addressable_register_count =
+      dynamic_addressable_register_count;
+  shader_modification.vertex.host_vertex_shader_type = host_vertex_shader_type;
+  return shader_modification.value;
+}
+
+uint64_t SpirvShaderTranslator::GetDefaultPixelShaderModification(
+    uint32_t dynamic_addressable_register_count) const {
+  Modification shader_modification;
+  shader_modification.pixel.dynamic_addressable_register_count =
+      dynamic_addressable_register_count;
+  return shader_modification.value;
+}
+
+void SpirvShaderTranslator::Reset() {
+  ShaderTranslator::Reset();
+
+  builder_.reset();
+
+  uniform_float_constants_ = spv::NoResult;
+
+  input_fragment_coord_ = spv::NoResult;
+  input_front_facing_ = spv::NoResult;
+
+  sampler_bindings_.clear();
+  texture_bindings_.clear();
+
+  main_interface_.clear();
+  var_main_registers_ = spv::NoResult;
+
+  main_switch_op_.reset();
+  main_switch_next_pc_phi_operands_.clear();
+
+  cf_exec_conditional_merge_ = nullptr;
+  cf_instruction_predicate_merge_ = nullptr;
+}
+
+uint32_t SpirvShaderTranslator::GetModificationRegisterCount() const {
+  Modification modification = GetSpirvShaderModification();
+  return is_vertex_shader()
+             ? modification.vertex.dynamic_addressable_register_count
+             : modification.pixel.dynamic_addressable_register_count;
+}
 
 void SpirvShaderTranslator::StartTranslation() {
-  // Create a new builder.
-  builder_ = std::make_unique<spv::Builder>(0x10000, 0xFFFFFFFF, nullptr);
-  auto& b = *builder_;
+  // TODO(Triang3l): Logger.
+  builder_ = std::make_unique<spv::Builder>(
+      features_.spirv_version, (kSpirvMagicToolId << 16) | 1, nullptr);
 
-  // Import required modules.
-  glsl_std_450_instruction_set_ = b.import("GLSL.std.450");
+  builder_->addCapability(IsSpirvTessEvalShader() ? spv::CapabilityTessellation
+                                                  : spv::CapabilityShader);
+  if (features_.spirv_version < spv::Spv_1_4) {
+    if (features_.signed_zero_inf_nan_preserve_float32 ||
+        features_.denorm_flush_to_zero_float32) {
+      builder_->addExtension("SPV_KHR_float_controls");
+    }
+  }
+  ext_inst_glsl_std_450_ = builder_->import("GLSL.std.450");
+  builder_->setMemoryModel(spv::AddressingModelLogical,
+                           spv::MemoryModelGLSL450);
+  builder_->setSource(spv::SourceLanguageUnknown, 0);
 
-  // Configure environment.
-  b.setSource(spv::SourceLanguage::SourceLanguageUnknown, 0);
-  b.setMemoryModel(spv::AddressingModel::AddressingModelLogical,
-                   spv::MemoryModel::MemoryModelGLSL450);
-  b.addCapability(spv::Capability::CapabilityShader);
-  b.addCapability(spv::Capability::CapabilityImageQuery);
+  type_void_ = builder_->makeVoidType();
+  type_bool_ = builder_->makeBoolType();
+  type_bool2_ = builder_->makeVectorType(type_bool_, 2);
+  type_bool3_ = builder_->makeVectorType(type_bool_, 3);
+  type_bool4_ = builder_->makeVectorType(type_bool_, 4);
+  type_int_ = builder_->makeIntType(32);
+  type_int2_ = builder_->makeVectorType(type_int_, 2);
+  type_int3_ = builder_->makeVectorType(type_int_, 3);
+  type_int4_ = builder_->makeVectorType(type_int_, 4);
+  type_uint_ = builder_->makeUintType(32);
+  type_uint2_ = builder_->makeVectorType(type_uint_, 2);
+  type_uint3_ = builder_->makeVectorType(type_uint_, 3);
+  type_uint4_ = builder_->makeVectorType(type_uint_, 4);
+  type_float_ = builder_->makeFloatType(32);
+  type_float2_ = builder_->makeVectorType(type_float_, 2);
+  type_float3_ = builder_->makeVectorType(type_float_, 3);
+  type_float4_ = builder_->makeVectorType(type_float_, 4);
+
+  const_int_0_ = builder_->makeIntConstant(0);
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(4);
+  for (uint32_t i = 0; i < 4; ++i) {
+    id_vector_temp_.push_back(const_int_0_);
+  }
+  const_int4_0_ = builder_->makeCompositeConstant(type_int4_, id_vector_temp_);
+  const_uint_0_ = builder_->makeUintConstant(0);
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(4);
+  for (uint32_t i = 0; i < 4; ++i) {
+    id_vector_temp_.push_back(const_uint_0_);
+  }
+  const_uint4_0_ =
+      builder_->makeCompositeConstant(type_uint4_, id_vector_temp_);
+  const_float_0_ = builder_->makeFloatConstant(0.0f);
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(4);
+  id_vector_temp_.push_back(const_float_0_);
+  for (uint32_t i = 1; i < 4; ++i) {
+    id_vector_temp_.push_back(const_float_0_);
+    const_float_vectors_0_[i] = builder_->makeCompositeConstant(
+        type_float_vectors_[i], id_vector_temp_);
+  }
+  const_float_1_ = builder_->makeFloatConstant(1.0f);
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(4);
+  id_vector_temp_.push_back(const_float_1_);
+  for (uint32_t i = 1; i < 4; ++i) {
+    id_vector_temp_.push_back(const_float_1_);
+    const_float_vectors_1_[i] = builder_->makeCompositeConstant(
+        type_float_vectors_[i], id_vector_temp_);
+  }
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(2);
+  id_vector_temp_.push_back(const_float_0_);
+  id_vector_temp_.push_back(const_float_1_);
+  const_float2_0_1_ =
+      builder_->makeCompositeConstant(type_float2_, id_vector_temp_);
+
+  // Common uniform buffer - system constants.
+  struct SystemConstant {
+    const char* name;
+    size_t offset;
+    spv::Id type;
+  };
+  spv::Id type_uint4_array_2 = builder_->makeArrayType(
+      type_uint4_, builder_->makeUintConstant(2), sizeof(uint32_t) * 4);
+  builder_->addDecoration(type_uint4_array_2, spv::DecorationArrayStride,
+                          sizeof(uint32_t) * 4);
+  spv::Id type_uint4_array_4 = builder_->makeArrayType(
+      type_uint4_, builder_->makeUintConstant(4), sizeof(uint32_t) * 4);
+  builder_->addDecoration(type_uint4_array_4, spv::DecorationArrayStride,
+                          sizeof(uint32_t) * 4);
+  const SystemConstant system_constants[] = {
+      {"flags", offsetof(SystemConstants, flags), type_uint_},
+      {"vertex_index_endian", offsetof(SystemConstants, vertex_index_endian),
+       type_uint_},
+      {"vertex_base_index", offsetof(SystemConstants, vertex_base_index),
+       type_int_},
+      {"ndc_scale", offsetof(SystemConstants, ndc_scale), type_float3_},
+      {"ndc_offset", offsetof(SystemConstants, ndc_offset), type_float3_},
+      {"texture_swizzled_signs",
+       offsetof(SystemConstants, texture_swizzled_signs), type_uint4_array_2},
+      {"texture_swizzles", offsetof(SystemConstants, texture_swizzles),
+       type_uint4_array_4},
+      {"alpha_test_reference", offsetof(SystemConstants, alpha_test_reference),
+       type_float_},
+      {"color_exp_bias", offsetof(SystemConstants, color_exp_bias),
+       type_float4_},
+  };
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(xe::countof(system_constants));
+  for (size_t i = 0; i < xe::countof(system_constants); ++i) {
+    id_vector_temp_.push_back(system_constants[i].type);
+  }
+  spv::Id type_system_constants =
+      builder_->makeStructType(id_vector_temp_, "XeSystemConstants");
+  for (size_t i = 0; i < xe::countof(system_constants); ++i) {
+    const SystemConstant& system_constant = system_constants[i];
+    builder_->addMemberName(type_system_constants, static_cast<unsigned int>(i),
+                            system_constant.name);
+    builder_->addMemberDecoration(
+        type_system_constants, static_cast<unsigned int>(i),
+        spv::DecorationOffset, int(system_constant.offset));
+  }
+  builder_->addDecoration(type_system_constants, spv::DecorationBlock);
+  uniform_system_constants_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassUniform, type_system_constants,
+      "xe_uniform_system_constants");
+  builder_->addDecoration(uniform_system_constants_,
+                          spv::DecorationDescriptorSet,
+                          kDescriptorSetSystemConstants);
+  builder_->addDecoration(uniform_system_constants_, spv::DecorationBinding, 0);
+  if (features_.spirv_version >= spv::Spv_1_4) {
+    main_interface_.push_back(uniform_system_constants_);
+  }
+
+  // Common uniform buffer - float constants.
+  uint32_t float_constant_count =
+      current_shader().constant_register_map().float_count;
+  if (float_constant_count) {
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(builder_->makeArrayType(
+        type_float4_, builder_->makeUintConstant(float_constant_count),
+        sizeof(float) * 4));
+    // Currently (as of October 24, 2020) makeArrayType only uses the stride to
+    // check if deduplication can be done - the array stride decoration needs to
+    // be applied explicitly.
+    builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
+                            sizeof(float) * 4);
+    spv::Id type_float_constants =
+        builder_->makeStructType(id_vector_temp_, "XeFloatConstants");
+    builder_->addMemberName(type_float_constants, 0, "float_constants");
+    builder_->addMemberDecoration(type_float_constants, 0,
+                                  spv::DecorationOffset, 0);
+    builder_->addDecoration(type_float_constants, spv::DecorationBlock);
+    uniform_float_constants_ = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassUniform, type_float_constants,
+        "xe_uniform_float_constants");
+    builder_->addDecoration(
+        uniform_float_constants_, spv::DecorationDescriptorSet,
+        int(is_pixel_shader() ? kDescriptorSetFloatConstantsPixel
+                              : kDescriptorSetFloatConstantsVertex));
+    builder_->addDecoration(uniform_float_constants_, spv::DecorationBinding,
+                            0);
+    if (features_.spirv_version >= spv::Spv_1_4) {
+      main_interface_.push_back(uniform_float_constants_);
+    }
+  }
+
+  // Common uniform buffer - bool and loop constants.
+  // Uniform buffers must have std140 packing, so using arrays of 4-component
+  // vectors instead of scalar arrays because the latter would have padding to
+  // 16 bytes in each element.
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(2);
+  // 256 bool constants.
+  id_vector_temp_.push_back(builder_->makeArrayType(
+      type_uint4_, builder_->makeUintConstant(2), sizeof(uint32_t) * 4));
+  builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
+                          sizeof(uint32_t) * 4);
+  // 32 loop constants.
+  id_vector_temp_.push_back(builder_->makeArrayType(
+      type_uint4_, builder_->makeUintConstant(8), sizeof(uint32_t) * 4));
+  builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
+                          sizeof(uint32_t) * 4);
+  spv::Id type_bool_loop_constants =
+      builder_->makeStructType(id_vector_temp_, "XeBoolLoopConstants");
+  builder_->addMemberName(type_bool_loop_constants, 0, "bool_constants");
+  builder_->addMemberDecoration(type_bool_loop_constants, 0,
+                                spv::DecorationOffset, 0);
+  builder_->addMemberName(type_bool_loop_constants, 1, "loop_constants");
+  builder_->addMemberDecoration(type_bool_loop_constants, 1,
+                                spv::DecorationOffset, sizeof(uint32_t) * 8);
+  builder_->addDecoration(type_bool_loop_constants, spv::DecorationBlock);
+  uniform_bool_loop_constants_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassUniform, type_bool_loop_constants,
+      "xe_uniform_bool_loop_constants");
+  builder_->addDecoration(uniform_bool_loop_constants_,
+                          spv::DecorationDescriptorSet,
+                          int(kDescriptorSetBoolLoopConstants));
+  builder_->addDecoration(uniform_bool_loop_constants_, spv::DecorationBinding,
+                          0);
+  if (features_.spirv_version >= spv::Spv_1_4) {
+    main_interface_.push_back(uniform_bool_loop_constants_);
+  }
+
+  // Common uniform buffer - fetch constants (32 x 6 uints packed in std140 as
+  // 4-component vectors).
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(builder_->makeArrayType(
+      type_uint4_, builder_->makeUintConstant(32 * 6 / 4),
+      sizeof(uint32_t) * 4));
+  builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
+                          sizeof(uint32_t) * 4);
+  spv::Id type_fetch_constants =
+      builder_->makeStructType(id_vector_temp_, "XeFetchConstants");
+  builder_->addMemberName(type_fetch_constants, 0, "fetch_constants");
+  builder_->addMemberDecoration(type_fetch_constants, 0, spv::DecorationOffset,
+                                0);
+  builder_->addDecoration(type_fetch_constants, spv::DecorationBlock);
+  uniform_fetch_constants_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassUniform, type_fetch_constants,
+      "xe_uniform_fetch_constants");
+  builder_->addDecoration(uniform_fetch_constants_,
+                          spv::DecorationDescriptorSet,
+                          int(kDescriptorSetFetchConstants));
+  builder_->addDecoration(uniform_fetch_constants_, spv::DecorationBinding, 0);
+  if (features_.spirv_version >= spv::Spv_1_4) {
+    main_interface_.push_back(uniform_fetch_constants_);
+  }
+
+  // Common storage buffers - shared memory uint[], each 128 MB or larger,
+  // depending on what's possible on the device.
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(builder_->makeRuntimeArray(type_uint_));
+  // Storage buffers have std430 packing, no padding to 4-component vectors.
+  builder_->addDecoration(id_vector_temp_.back(), spv::DecorationArrayStride,
+                          sizeof(uint32_t));
+  spv::Id type_shared_memory =
+      builder_->makeStructType(id_vector_temp_, "XeSharedMemory");
+  builder_->addMemberName(type_shared_memory, 0, "shared_memory");
+  // TODO(Triang3l): Make writable when memexport is implemented.
+  builder_->addMemberDecoration(type_shared_memory, 0,
+                                spv::DecorationNonWritable);
+  builder_->addMemberDecoration(type_shared_memory, 0, spv::DecorationOffset,
+                                0);
+  builder_->addDecoration(type_shared_memory,
+                          features_.spirv_version >= spv::Spv_1_3
+                              ? spv::DecorationBlock
+                              : spv::DecorationBufferBlock);
+  unsigned int shared_memory_binding_count =
+      1 << GetSharedMemoryStorageBufferCountLog2();
+  if (shared_memory_binding_count > 1) {
+    type_shared_memory = builder_->makeArrayType(
+        type_shared_memory,
+        builder_->makeUintConstant(shared_memory_binding_count), 0);
+  }
+  buffers_shared_memory_ = builder_->createVariable(
+      spv::NoPrecision,
+      features_.spirv_version >= spv::Spv_1_3 ? spv::StorageClassStorageBuffer
+                                              : spv::StorageClassUniform,
+      type_shared_memory, "xe_shared_memory");
+  builder_->addDecoration(buffers_shared_memory_, spv::DecorationDescriptorSet,
+                          int(kDescriptorSetSharedMemoryAndEdram));
+  builder_->addDecoration(buffers_shared_memory_, spv::DecorationBinding, 0);
+  if (features_.spirv_version >= spv::Spv_1_4) {
+    main_interface_.push_back(buffers_shared_memory_);
+  }
 
   if (is_vertex_shader()) {
-    b.addCapability(spv::Capability::CapabilityClipDistance);
-    b.addCapability(spv::Capability::CapabilityCullDistance);
-  }
-  if (is_pixel_shader()) {
-    b.addCapability(spv::Capability::CapabilityDerivativeControl);
-  }
-
-  bool_type_ = b.makeBoolType();
-  float_type_ = b.makeFloatType(32);
-  int_type_ = b.makeIntType(32);
-  uint_type_ = b.makeUintType(32);
-  vec2_int_type_ = b.makeVectorType(int_type_, 2);
-  vec2_uint_type_ = b.makeVectorType(uint_type_, 2);
-  vec2_float_type_ = b.makeVectorType(float_type_, 2);
-  vec3_int_type_ = b.makeVectorType(int_type_, 3);
-  vec3_float_type_ = b.makeVectorType(float_type_, 3);
-  vec4_float_type_ = b.makeVectorType(float_type_, 4);
-  vec4_int_type_ = b.makeVectorType(int_type_, 4);
-  vec4_uint_type_ = b.makeVectorType(uint_type_, 4);
-  vec2_bool_type_ = b.makeVectorType(bool_type_, 2);
-  vec3_bool_type_ = b.makeVectorType(bool_type_, 3);
-  vec4_bool_type_ = b.makeVectorType(bool_type_, 4);
-
-  vec4_float_one_ = b.makeCompositeConstant(
-      vec4_float_type_,
-      std::vector<Id>({b.makeFloatConstant(1.f), b.makeFloatConstant(1.f),
-                       b.makeFloatConstant(1.f), b.makeFloatConstant(1.f)}));
-  vec4_float_zero_ = b.makeCompositeConstant(
-      vec4_float_type_,
-      std::vector<Id>({b.makeFloatConstant(0.f), b.makeFloatConstant(0.f),
-                       b.makeFloatConstant(0.f), b.makeFloatConstant(0.f)}));
-
-  cube_function_ = CreateCubeFunction();
-
-  spv::Block* function_block = nullptr;
-  translated_main_ =
-      b.makeFunctionEntry(spv::NoPrecision, b.makeVoidType(), "translated_main",
-                          {}, {}, &function_block);
-
-  assert_not_zero(register_count());
-  registers_type_ = b.makeArrayType(vec4_float_type_,
-                                    b.makeUintConstant(register_count()), 0);
-  registers_ptr_ = b.createVariable(spv::StorageClass::StorageClassFunction,
-                                    registers_type_, "r");
-
-  aL_ = b.createVariable(spv::StorageClass::StorageClassFunction,
-                         vec4_uint_type_, "aL");
-
-  loop_count_ = b.createVariable(spv::StorageClass::StorageClassFunction,
-                                 vec4_uint_type_, "loop_count");
-  p0_ = b.createVariable(spv::StorageClass::StorageClassFunction, bool_type_,
-                         "p0");
-  ps_ = b.createVariable(spv::StorageClass::StorageClassFunction, float_type_,
-                         "ps");
-  pv_ = b.createVariable(spv::StorageClass::StorageClassFunction,
-                         vec4_float_type_, "pv");
-  pc_ = b.createVariable(spv::StorageClass::StorageClassFunction, int_type_,
-                         "pc");
-  a0_ = b.createVariable(spv::StorageClass::StorageClassFunction, int_type_,
-                         "a0");
-  lod_ = b.createVariable(spv::StorageClass::StorageClassFunction, float_type_,
-                          "lod");
-
-  // Uniform constants.
-  Id float_consts_type =
-      b.makeArrayType(vec4_float_type_, b.makeUintConstant(512), 1);
-  Id loop_consts_type =
-      b.makeArrayType(vec4_uint_type_, b.makeUintConstant(8), 1);
-  Id bool_consts_type =
-      b.makeArrayType(vec4_uint_type_, b.makeUintConstant(2), 1);
-
-  // Strides
-  b.addDecoration(float_consts_type, spv::Decoration::DecorationArrayStride,
-                  4 * sizeof(float));
-  b.addDecoration(loop_consts_type, spv::Decoration::DecorationArrayStride,
-                  4 * sizeof(uint32_t));
-  b.addDecoration(bool_consts_type, spv::Decoration::DecorationArrayStride,
-                  4 * sizeof(uint32_t));
-
-  Id consts_struct_type = b.makeStructType(
-      {float_consts_type, loop_consts_type, bool_consts_type}, "consts_type");
-  b.addDecoration(consts_struct_type, spv::Decoration::DecorationBlock);
-
-  // Constants member decorations.
-  b.addMemberDecoration(consts_struct_type, 0,
-                        spv::Decoration::DecorationOffset, 0);
-  b.addMemberName(consts_struct_type, 0, "float_consts");
-
-  b.addMemberDecoration(consts_struct_type, 1,
-                        spv::Decoration::DecorationOffset,
-                        512 * 4 * sizeof(float));
-  b.addMemberName(consts_struct_type, 1, "loop_consts");
-
-  b.addMemberDecoration(consts_struct_type, 2,
-                        spv::Decoration::DecorationOffset,
-                        512 * 4 * sizeof(float) + 32 * sizeof(uint32_t));
-  b.addMemberName(consts_struct_type, 2, "bool_consts");
-
-  consts_ = b.createVariable(spv::StorageClass::StorageClassUniform,
-                             consts_struct_type, "consts");
-
-  b.addDecoration(consts_, spv::Decoration::DecorationDescriptorSet, 0);
-  if (is_vertex_shader()) {
-    b.addDecoration(consts_, spv::Decoration::DecorationBinding, 0);
+    StartVertexOrTessEvalShaderBeforeMain();
   } else if (is_pixel_shader()) {
-    b.addDecoration(consts_, spv::Decoration::DecorationBinding, 1);
+    StartFragmentShaderBeforeMain();
   }
 
-  // Push constants, represented by SpirvPushConstants.
-  Id push_constants_type =
-      b.makeStructType({vec4_float_type_, vec4_float_type_, vec4_float_type_,
-                        vec4_float_type_, vec4_float_type_, uint_type_},
-                       "push_consts_type");
-  b.addDecoration(push_constants_type, spv::Decoration::DecorationBlock);
+  // Begin the main function.
+  std::vector<spv::Id> main_param_types;
+  std::vector<std::vector<spv::Decoration>> main_precisions;
+  spv::Block* function_main_entry;
+  function_main_ = builder_->makeFunctionEntry(
+      spv::NoPrecision, type_void_, "main", main_param_types, main_precisions,
+      &function_main_entry);
 
-  // float4 window_scale;
-  b.addMemberDecoration(
-      push_constants_type, 0, spv::Decoration::DecorationOffset,
-      static_cast<int>(offsetof(SpirvPushConstants, window_scale)));
-  b.addMemberName(push_constants_type, 0, "window_scale");
-  // float4 vtx_fmt;
-  b.addMemberDecoration(
-      push_constants_type, 1, spv::Decoration::DecorationOffset,
-      static_cast<int>(offsetof(SpirvPushConstants, vtx_fmt)));
-  b.addMemberName(push_constants_type, 1, "vtx_fmt");
-  // float4 vtx_fmt;
-  b.addMemberDecoration(
-      push_constants_type, 2, spv::Decoration::DecorationOffset,
-      static_cast<int>(offsetof(SpirvPushConstants, point_size)));
-  b.addMemberName(push_constants_type, 2, "point_size");
-  // float4 alpha_test;
-  b.addMemberDecoration(
-      push_constants_type, 3, spv::Decoration::DecorationOffset,
-      static_cast<int>(offsetof(SpirvPushConstants, alpha_test)));
-  b.addMemberName(push_constants_type, 3, "alpha_test");
-  // float4 color_exp_bias;
-  b.addMemberDecoration(
-      push_constants_type, 4, spv::Decoration::DecorationOffset,
-      static_cast<int>(offsetof(SpirvPushConstants, color_exp_bias)));
-  b.addMemberName(push_constants_type, 4, "color_exp_bias");
-  // uint ps_param_gen;
-  b.addMemberDecoration(
-      push_constants_type, 5, spv::Decoration::DecorationOffset,
-      static_cast<int>(offsetof(SpirvPushConstants, ps_param_gen)));
-  b.addMemberName(push_constants_type, 5, "ps_param_gen");
-  push_consts_ = b.createVariable(spv::StorageClass::StorageClassPushConstant,
-                                  push_constants_type, "push_consts");
+  // Load the flags system constant since it may be used in many places.
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantFlags));
+  main_system_constant_flags_ = builder_->createLoad(
+      builder_->createAccessChain(spv::StorageClassUniform,
+                                  uniform_system_constants_, id_vector_temp_),
+      spv::NoPrecision);
 
-  const std::vector<Shader::TextureBinding>& texture_bindings =
-      current_shader().texture_bindings();
-  if (!texture_bindings.empty()) {
-    image_2d_type_ =
-        b.makeImageType(float_type_, spv::Dim::Dim2D, false, false, false, 1,
-                        spv::ImageFormat::ImageFormatUnknown);
-    image_3d_type_ =
-        b.makeImageType(float_type_, spv::Dim::Dim3D, false, false, false, 1,
-                        spv::ImageFormat::ImageFormatUnknown);
-    image_cube_type_ =
-        b.makeImageType(float_type_, spv::Dim::DimCube, false, false, false, 1,
-                        spv::ImageFormat::ImageFormatUnknown);
-
-    // Texture bindings
-    Id tex_t[] = {b.makeSampledImageType(image_2d_type_),
-                  b.makeSampledImageType(image_3d_type_),
-                  b.makeSampledImageType(image_cube_type_)};
-
-    uint32_t num_tex_bindings = 0;
-    for (const auto& binding : texture_bindings) {
-      // Calculate the highest binding index.
-      num_tex_bindings =
-          std::max(num_tex_bindings, uint32_t(binding.binding_index + 1));
+  // Begin ucode translation. Initialize everything, even without defined
+  // defaults, for safety.
+  var_main_predicate_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassFunction, type_bool_,
+      "xe_var_predicate", builder_->makeBoolConstant(false));
+  var_main_loop_count_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassFunction, type_uint4_,
+      "xe_var_loop_count", const_uint4_0_);
+  var_main_address_register_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassFunction, type_int_,
+      "xe_var_address_register", const_int_0_);
+  var_main_loop_address_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassFunction, type_int4_,
+      "xe_var_loop_address", const_int4_0_);
+  var_main_previous_scalar_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassFunction, type_float_,
+      "xe_var_previous_scalar", const_float_0_);
+  var_main_vfetch_address_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassFunction, type_int_,
+      "xe_var_vfetch_address", const_int_0_);
+  var_main_tfetch_lod_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassFunction, type_float_,
+      "xe_var_tfetch_lod", const_float_0_);
+  var_main_tfetch_gradients_h_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassFunction, type_float3_,
+      "xe_var_tfetch_gradients_h", const_float3_0_);
+  var_main_tfetch_gradients_v_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassFunction, type_float3_,
+      "xe_var_tfetch_gradients_v", const_float3_0_);
+  uint32_t register_array_size = register_count();
+  if (register_array_size) {
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(register_array_size);
+    // TODO(Triang3l): In PS, only need to initialize starting from the
+    // interpolators, probably manually. But likely not very important - the
+    // compiler in the driver will likely eliminate that write.
+    for (uint32_t i = 0; i < register_array_size; ++i) {
+      id_vector_temp_.push_back(const_float4_0_);
     }
-
-    Id tex_a_t[] = {
-        b.makeArrayType(tex_t[0], b.makeUintConstant(num_tex_bindings), 0),
-        b.makeArrayType(tex_t[1], b.makeUintConstant(num_tex_bindings), 0),
-        b.makeArrayType(tex_t[2], b.makeUintConstant(num_tex_bindings), 0)};
-
-    // Create 3 texture types, all aliased on the same binding
-    for (int i = 0; i < 3; i++) {
-      tex_[i] = b.createVariable(spv::StorageClass::StorageClassUniformConstant,
-                                 tex_a_t[i],
-                                 fmt::format("textures{}D", i + 2).c_str());
-      b.addDecoration(tex_[i], spv::Decoration::DecorationDescriptorSet, 1);
-      b.addDecoration(tex_[i], spv::Decoration::DecorationBinding, 0);
-    }
-
-    // Set up the map from binding -> ssbo index
-    for (const auto& binding : texture_bindings) {
-      tex_binding_map_[binding.fetch_constant] =
-          uint32_t(binding.binding_index);
-    }
+    spv::Id type_register_array = builder_->makeArrayType(
+        type_float4_, builder_->makeUintConstant(register_array_size), 0);
+    var_main_registers_ = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassFunction, type_register_array,
+        "xe_var_registers",
+        builder_->makeCompositeConstant(type_register_array, id_vector_temp_));
   }
 
-  // Interpolators.
-  Id interpolators_type = b.makeArrayType(
-      vec4_float_type_, b.makeUintConstant(kMaxInterpolators), 0);
+  // Write the execution model-specific prologue with access to variables in the
+  // main function.
   if (is_vertex_shader()) {
-    // Vertex inputs/outputs
-    // Inputs: 32 SSBOs on DS 2 binding 0
-
-    const std::vector<Shader::VertexBinding>& vertex_bindings =
-        current_shader().vertex_bindings();
-    if (!vertex_bindings.empty()) {
-      // Runtime array for vertex data
-      Id vtx_t = b.makeRuntimeArray(uint_type_);
-      b.addDecoration(vtx_t, spv::Decoration::DecorationArrayStride,
-                      sizeof(uint32_t));
-
-      Id vtx_s = b.makeStructType({vtx_t}, "vertex_type");
-      b.addDecoration(vtx_s, spv::Decoration::DecorationBufferBlock);
-
-      // Describe the actual data
-      b.addMemberName(vtx_s, 0, "data");
-      b.addMemberDecoration(vtx_s, 0, spv::Decoration::DecorationOffset, 0);
-
-      // Create the vertex bindings variable.
-      Id vtx_a_t = b.makeArrayType(
-          vtx_s, b.makeUintConstant(uint32_t(vertex_bindings.size())), 0);
-      vtx_ = b.createVariable(spv::StorageClass::StorageClassUniform, vtx_a_t,
-                              "vertex_bindings");
-
-      // DS 2 binding 0
-      b.addDecoration(vtx_, spv::Decoration::DecorationDescriptorSet, 2);
-      b.addDecoration(vtx_, spv::Decoration::DecorationBinding, 0);
-      b.addDecoration(vtx_, spv::Decoration::DecorationNonWritable);
-
-      // Set up the map from binding -> ssbo index
-      for (const auto& binding : vertex_bindings) {
-        vtx_binding_map_[binding.fetch_constant] = binding.binding_index;
-      }
-    }
-
-    // Outputs
-    interpolators_ = b.createVariable(spv::StorageClass::StorageClassOutput,
-                                      interpolators_type, "interpolators");
-    b.addDecoration(interpolators_, spv::Decoration::DecorationLocation, 0);
-    for (uint32_t i = 0; i < std::min(register_count(), kMaxInterpolators);
-         i++) {
-      // Zero interpolators.
-      auto ptr = b.createAccessChain(spv::StorageClass::StorageClassOutput,
-                                     interpolators_,
-                                     std::vector<Id>({b.makeUintConstant(i)}));
-      b.createStore(vec4_float_zero_, ptr);
-    }
-
-    point_size_ = b.createVariable(spv::StorageClass::StorageClassOutput,
-                                   float_type_, "point_size");
-    b.addDecoration(point_size_, spv::Decoration::DecorationLocation, 17);
-    // Set default point-size value (-1.0f, indicating to the geometry shader
-    // that the register value should be used instead of the per-vertex value)
-    b.createStore(b.makeFloatConstant(-1.0f), point_size_);
-
-    point_coord_ = b.createVariable(spv::StorageClass::StorageClassOutput,
-                                    vec2_float_type_, "point_coord");
-    b.addDecoration(point_coord_, spv::Decoration::DecorationLocation, 16);
-    // point_coord is only ever populated in a geometry shader. Just write
-    // zero to it in the vertex shader.
-    b.createStore(
-        b.makeCompositeConstant(vec2_float_type_,
-                                std::vector<Id>({b.makeFloatConstant(0.0f),
-                                                 b.makeFloatConstant(0.0f)})),
-        point_coord_);
-
-    pos_ = b.createVariable(spv::StorageClass::StorageClassOutput,
-                            vec4_float_type_, "gl_Position");
-    b.addDecoration(pos_, spv::Decoration::DecorationBuiltIn,
-                    spv::BuiltIn::BuiltInPosition);
-
-    vertex_idx_ = b.createVariable(spv::StorageClass::StorageClassInput,
-                                   int_type_, "gl_VertexIndex");
-    b.addDecoration(vertex_idx_, spv::Decoration::DecorationBuiltIn,
-                    spv::BuiltIn::BuiltInVertexIndex);
-
-    interface_ids_.push_back(interpolators_);
-    interface_ids_.push_back(point_coord_);
-    interface_ids_.push_back(point_size_);
-    interface_ids_.push_back(pos_);
-    interface_ids_.push_back(vertex_idx_);
-
-    auto vertex_idx = b.createLoad(vertex_idx_);
-    vertex_idx =
-        b.createUnaryOp(spv::Op::OpConvertSToF, float_type_, vertex_idx);
-    auto r0_ptr = b.createAccessChain(spv::StorageClass::StorageClassFunction,
-                                      registers_ptr_,
-                                      std::vector<Id>({b.makeUintConstant(0)}));
-    auto r0 = b.createLoad(r0_ptr);
-    r0 = b.createCompositeInsert(vertex_idx, r0, vec4_float_type_, 0);
-    b.createStore(r0, r0_ptr);
-  } else {
-    // Pixel inputs from vertex shader.
-    interpolators_ = b.createVariable(spv::StorageClass::StorageClassInput,
-                                      interpolators_type, "interpolators");
-    b.addDecoration(interpolators_, spv::Decoration::DecorationLocation, 0);
-
-    point_coord_ = b.createVariable(spv::StorageClass::StorageClassInput,
-                                    vec2_float_type_, "point_coord");
-    b.addDecoration(point_coord_, spv::Decoration::DecorationLocation, 16);
-
-    // Pixel fragment outputs (one per render target).
-    Id frag_outputs_type =
-        b.makeArrayType(vec4_float_type_, b.makeUintConstant(4), 0);
-    frag_outputs_ = b.createVariable(spv::StorageClass::StorageClassOutput,
-                                     frag_outputs_type, "oC");
-    b.addDecoration(frag_outputs_, spv::Decoration::DecorationLocation, 0);
-
-    frag_depth_ = b.createVariable(spv::StorageClass::StorageClassOutput,
-                                   float_type_, "gl_FragDepth");
-    b.addDecoration(frag_depth_, spv::Decoration::DecorationBuiltIn,
-                    spv::BuiltIn::BuiltInFragDepth);
-
-    interface_ids_.push_back(interpolators_);
-    interface_ids_.push_back(point_coord_);
-    interface_ids_.push_back(frag_outputs_);
-    interface_ids_.push_back(frag_depth_);
-    // TODO(benvanik): frag depth, etc.
-
-    // TODO(DrChat): Verify this naive, stupid approach to uninitialized values.
-    for (uint32_t i = 0; i < 4; i++) {
-      auto idx = b.makeUintConstant(i);
-      auto oC = b.createAccessChain(spv::StorageClass::StorageClassOutput,
-                                    frag_outputs_, std::vector<Id>({idx}));
-      b.createStore(vec4_float_zero_, oC);
-    }
-
-    // Copy interpolators to r[0..16].
-    // TODO: Need physical addressing in order to do this.
-    // b.createNoResultOp(spv::Op::OpCopyMemorySized,
-    //                   {registers_ptr_, interpolators_,
-    //                    b.makeUintConstant(16 * 4 * sizeof(float))});
-    for (uint32_t i = 0; i < std::min(register_count(), kMaxInterpolators);
-         i++) {
-      // For now, copy interpolators register-by-register :/
-      auto idx = b.makeUintConstant(i);
-      auto i_a = b.createAccessChain(spv::StorageClass::StorageClassInput,
-                                     interpolators_, std::vector<Id>({idx}));
-      auto r_a = b.createAccessChain(spv::StorageClass::StorageClassFunction,
-                                     registers_ptr_, std::vector<Id>({idx}));
-      b.createNoResultOp(spv::Op::OpCopyMemory, std::vector<Id>({r_a, i_a}));
-    }
-
-    // Setup ps_param_gen
-    auto ps_param_gen_idx_ptr = b.createAccessChain(
-        spv::StorageClass::StorageClassPushConstant, push_consts_,
-        std::vector<Id>({b.makeUintConstant(5)}));
-    auto ps_param_gen_idx = b.createLoad(ps_param_gen_idx_ptr);
-
-    auto frag_coord = b.createVariable(spv::StorageClass::StorageClassInput,
-                                       vec4_float_type_, "gl_FragCoord");
-    b.addDecoration(frag_coord, spv::Decoration::DecorationBuiltIn,
-                    spv::BuiltIn::BuiltInFragCoord);
-
-    interface_ids_.push_back(frag_coord);
-
-    auto param = b.createOp(
-        spv::Op::OpVectorShuffle, vec4_float_type_,
-        {b.createLoad(frag_coord), b.createLoad(point_coord_), 0, 1, 4, 5});
-    /*
-    // TODO: gl_FrontFacing
-    auto param_x = b.createCompositeExtract(param, float_type_, 0);
-    auto param_x_inv = b.createBinOp(spv::Op::OpFMul, float_type_, param_x,
-                                     b.makeFloatConstant(-1.f));
-    param_x = b.createCompositeInsert(param_x_inv, param, vec4_float_type_, 0);
-    */
-
-    auto cond = b.createBinOp(spv::Op::OpINotEqual, bool_type_,
-                              ps_param_gen_idx, b.makeUintConstant(-1));
-    spv::Builder::If ifb(cond, 0, b);
-
-    // FYI: We do this instead of r[ps_param_gen_idx] because that causes
-    // nvidia to move all registers into local memory (slow!)
-    for (uint32_t i = 0; i < std::min(register_count(), kMaxInterpolators);
-         i++) {
-      auto reg_ptr = b.createAccessChain(
-          spv::StorageClass::StorageClassFunction, registers_ptr_,
-          std::vector<Id>({b.makeUintConstant(i)}));
-
-      auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, ps_param_gen_idx,
-                                b.makeUintConstant(i));
-      cond = b.smearScalar(spv::NoPrecision, cond, vec4_bool_type_);
-      auto reg = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, cond, param,
-                               b.createLoad(reg_ptr));
-      b.createStore(reg, reg_ptr);
-    }
-
-    ifb.makeEndIf();
+    StartVertexOrTessEvalShaderInMain();
+  } else if (is_pixel_shader()) {
+    StartFragmentShaderInMain();
   }
 
-  b.createStore(b.makeIntConstant(0x0), pc_);
+  // Open the main loop.
+  spv::Block& main_loop_pre_header = *builder_->getBuildPoint();
+  main_loop_header_ = &builder_->makeNewBlock();
+  spv::Block& main_loop_body = builder_->makeNewBlock();
+  // Added later because the body has nested control flow, but according to the
+  // specification:
+  // "The order of blocks in a function must satisfy the rule that blocks appear
+  //  before all blocks they dominate."
+  main_loop_continue_ =
+      new spv::Block(builder_->getUniqueId(), *function_main_);
+  main_loop_merge_ = new spv::Block(builder_->getUniqueId(), *function_main_);
+  builder_->createBranch(main_loop_header_);
 
-  loop_head_block_ = &b.makeNewBlock();
-  auto block = &b.makeNewBlock();
-  loop_body_block_ = &b.makeNewBlock();
-  loop_cont_block_ = &b.makeNewBlock();
-  loop_exit_block_ = &b.makeNewBlock();
-  b.createBranch(loop_head_block_);
+  // If no jumps, don't create a switch, but still create a loop so exece can
+  // break.
+  bool has_main_switch = !current_shader().label_addresses().empty();
 
-  // Setup continue block
-  b.setBuildPoint(loop_cont_block_);
-  b.createBranch(loop_head_block_);
+  // Main loop header - based on whether it's the first iteration (entered from
+  // the function or from the continuation), choose the program counter.
+  builder_->setBuildPoint(main_loop_header_);
+  spv::Id main_loop_pc_current = spv::NoResult;
+  if (has_main_switch) {
+    // OpPhi must be the first in the block.
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(4);
+    id_vector_temp_.push_back(const_int_0_);
+    id_vector_temp_.push_back(main_loop_pre_header.getId());
+    main_loop_pc_next_ = builder_->getUniqueId();
+    id_vector_temp_.push_back(main_loop_pc_next_);
+    id_vector_temp_.push_back(main_loop_continue_->getId());
+    main_loop_pc_current =
+        builder_->createOp(spv::OpPhi, type_int_, id_vector_temp_);
+  }
+  uint_vector_temp_.clear();
+  builder_->createLoopMerge(main_loop_merge_, main_loop_continue_,
+                            spv::LoopControlDontUnrollMask, uint_vector_temp_);
+  builder_->createBranch(&main_loop_body);
 
-  // While loop header block
-  b.setBuildPoint(loop_head_block_);
-  b.createLoopMerge(loop_exit_block_, loop_cont_block_,
-                    spv::LoopControlMask::LoopControlDontUnrollMask, 0);
-  b.createBranch(block);
-
-  // Condition block
-  b.setBuildPoint(block);
-
-  // while (pc != 0xFFFF)
-  auto c = b.createBinOp(spv::Op::OpINotEqual, bool_type_, b.createLoad(pc_),
-                         b.makeIntConstant(0xFFFF));
-  b.createConditionalBranch(c, loop_body_block_, loop_exit_block_);
-  b.setBuildPoint(loop_body_block_);
+  // Main loop body.
+  builder_->setBuildPoint(&main_loop_body);
+  if (has_main_switch) {
+    // Create the program counter switch with cases for every label and for
+    // label 0.
+    main_switch_header_ = builder_->getBuildPoint();
+    main_switch_merge_ =
+        new spv::Block(builder_->getUniqueId(), *function_main_);
+    SpirvCreateSelectionMerge(main_switch_merge_->getId(),
+                              spv::SelectionControlDontFlattenMask);
+    main_switch_op_ = std::make_unique<spv::Instruction>(spv::OpSwitch);
+    main_switch_op_->addIdOperand(main_loop_pc_current);
+    main_switch_op_->addIdOperand(main_switch_merge_->getId());
+    // The default case (the merge here) must have the header as a predecessor.
+    main_switch_merge_->addPredecessor(main_switch_header_);
+    // The instruction will be inserted later, when all cases are filled.
+    // Insert and enter case 0.
+    spv::Block* main_switch_case_0_block =
+        new spv::Block(builder_->getUniqueId(), *function_main_);
+    main_switch_op_->addImmediateOperand(0);
+    main_switch_op_->addIdOperand(main_switch_case_0_block->getId());
+    // Every switch case must have the OpSelectionMerge/OpSwitch block as a
+    // predecessor.
+    main_switch_case_0_block->addPredecessor(main_switch_header_);
+    function_main_->addBlock(main_switch_case_0_block);
+    builder_->setBuildPoint(main_switch_case_0_block);
+  }
 }
 
 std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
-  auto& b = *builder_;
+  // Close flow control within the last switch case.
+  CloseExecConditionals();
+  bool has_main_switch = !current_shader().label_addresses().empty();
+  // After the final exec (if it happened to be not exece, which would already
+  // have a break branch), break from the switch if it exists, or from the
+  // loop it doesn't.
+  if (!builder_->getBuildPoint()->isTerminated()) {
+    builder_->createBranch(has_main_switch ? main_switch_merge_
+                                           : main_loop_merge_);
+  }
+  if (has_main_switch) {
+    // Insert the switch instruction with all cases added as operands.
+    builder_->setBuildPoint(main_switch_header_);
+    builder_->getBuildPoint()->addInstruction(std::move(main_switch_op_));
+    // Build the main switch merge, breaking out of the loop after falling
+    // through the end or breaking from exece (only continuing if a jump - from
+    // a guest loop or from jmp/call - was made).
+    function_main_->addBlock(main_switch_merge_);
+    builder_->setBuildPoint(main_switch_merge_);
+    builder_->createBranch(main_loop_merge_);
+  }
 
-  assert_false(open_predicated_block_);
-  b.setBuildPoint(loop_exit_block_);
-  b.makeReturn(false);
-  exec_cond_ = false;
-  exec_skip_block_ = nullptr;
+  // Main loop continuation - choose the program counter based on the path
+  // taken (-1 if not from a jump as a safe fallback, which would result in not
+  // hitting any switch case and reaching the final break in the body).
+  function_main_->addBlock(main_loop_continue_);
+  builder_->setBuildPoint(main_loop_continue_);
+  if (has_main_switch) {
+    // OpPhi, if added, must be the first in the block.
+    // If labels were added, but not jumps (for example, due to the call
+    // instruction not being implemented as of October 18, 2020), send an
+    // impossible program counter value (-1) to the OpPhi at the next iteration.
+    if (main_switch_next_pc_phi_operands_.empty()) {
+      main_switch_next_pc_phi_operands_.push_back(
+          builder_->makeIntConstant(-1));
+    }
+    std::unique_ptr<spv::Instruction> main_loop_pc_next_op =
+        std::make_unique<spv::Instruction>(
+            main_loop_pc_next_, type_int_,
+            main_switch_next_pc_phi_operands_.size() >= 2 ? spv::OpPhi
+                                                          : spv::OpCopyObject);
+    for (spv::Id operand : main_switch_next_pc_phi_operands_) {
+      main_loop_pc_next_op->addIdOperand(operand);
+    }
+    builder_->getBuildPoint()->addInstruction(std::move(main_loop_pc_next_op));
+  }
+  builder_->createBranch(main_loop_header_);
 
-  // main() entry point.
-  spv::Block* entry_block;
-  auto mainFn = b.makeFunctionEntry(spv::NoPrecision, b.makeVoidType(), "main",
-                                    {}, {}, &entry_block);
+  // Add the main loop merge block and go back to the function.
+  function_main_->addBlock(main_loop_merge_);
+  builder_->setBuildPoint(main_loop_merge_);
+
   if (is_vertex_shader()) {
-    auto entry = b.addEntryPoint(spv::ExecutionModel::ExecutionModelVertex,
-                                 mainFn, "main");
+    CompleteVertexOrTessEvalShaderInMain();
+  } else if (is_pixel_shader()) {
+    CompleteFragmentShaderInMain();
+  }
 
-    for (auto id : interface_ids_) {
-      entry->addIdOperand(id);
+  // End the main function.
+  builder_->leaveFunction();
+
+  // Make the main function the entry point.
+  spv::ExecutionModel execution_model;
+  if (is_pixel_shader()) {
+    execution_model = spv::ExecutionModelFragment;
+    builder_->addExecutionMode(function_main_,
+                               spv::ExecutionModeOriginUpperLeft);
+    if (IsExecutionModeEarlyFragmentTests()) {
+      builder_->addExecutionMode(function_main_,
+                                 spv::ExecutionModeEarlyFragmentTests);
     }
   } else {
-    auto entry = b.addEntryPoint(spv::ExecutionModel::ExecutionModelFragment,
-                                 mainFn, "main");
-    b.addExecutionMode(mainFn, spv::ExecutionModeOriginUpperLeft);
-
-    // If we write a new depth value, we must declare this mode!
-    if (current_shader().writes_depth()) {
-      b.addExecutionMode(mainFn, spv::ExecutionModeDepthReplacing);
-    }
-
-    for (auto id : interface_ids_) {
-      entry->addIdOperand(id);
-    }
+    assert_true(is_vertex_shader());
+    execution_model = IsSpirvTessEvalShader()
+                          ? spv::ExecutionModelTessellationEvaluation
+                          : spv::ExecutionModelVertex;
+  }
+  if (features_.denorm_flush_to_zero_float32) {
+    // Flush to zero, similar to the real hardware, also for things like Shader
+    // Model 3 multiplication emulation.
+    builder_->addCapability(spv::CapabilityDenormFlushToZero);
+    builder_->addExecutionMode(function_main_,
+                               spv::ExecutionModeDenormFlushToZero, 32);
+  }
+  if (features_.signed_zero_inf_nan_preserve_float32) {
+    // Signed zero used to get VFACE from ps_param_gen, also special behavior
+    // for infinity in certain instructions (such as logarithm, reciprocal,
+    // muls_prev2).
+    builder_->addCapability(spv::CapabilitySignedZeroInfNanPreserve);
+    builder_->addExecutionMode(function_main_,
+                               spv::ExecutionModeSignedZeroInfNanPreserve, 32);
+  }
+  spv::Instruction* entry_point =
+      builder_->addEntryPoint(execution_model, function_main_, "main");
+  for (spv::Id interface_id : main_interface_) {
+    entry_point->addIdOperand(interface_id);
   }
 
-  // TODO(benvanik): transform feedback.
-  if (false) {
-    b.addCapability(spv::Capability::CapabilityTransformFeedback);
-    b.addExecutionMode(mainFn, spv::ExecutionMode::ExecutionModeXfb);
-  }
-
-  b.createFunctionCall(translated_main_, std::vector<Id>({}));
-  if (is_vertex_shader()) {
-    // gl_Position transform
-    auto vtx_fmt_ptr = b.createAccessChain(
-        spv::StorageClass::StorageClassPushConstant, push_consts_,
-        std::vector<Id>({b.makeUintConstant(1)}));
-    auto window_scale_ptr = b.createAccessChain(
-        spv::StorageClass::StorageClassPushConstant, push_consts_,
-        std::vector<Id>({b.makeUintConstant(0)}));
-    auto vtx_fmt = b.createLoad(vtx_fmt_ptr);
-    auto window_scale = b.createLoad(window_scale_ptr);
-
-    auto p = b.createLoad(pos_);
-    auto c = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_, vtx_fmt,
-                           vec4_float_zero_);
-
-    // pos.w = vtx_fmt.w == 0.0 ? 1.0 / pos.w : pos.w
-    auto c_w = b.createCompositeExtract(c, bool_type_, 3);
-    auto p_w = b.createCompositeExtract(p, float_type_, 3);
-    auto p_w_inv = b.createBinOp(spv::Op::OpFDiv, float_type_,
-                                 b.makeFloatConstant(1.f), p_w);
-    p_w = b.createTriOp(spv::Op::OpSelect, float_type_, c_w, p_w, p_w_inv);
-
-    // pos.xyz = vtx_fmt.xyz != 0.0 ? pos.xyz / pos.w : pos.xyz
-    auto p_all_w = b.smearScalar(spv::NoPrecision, p_w, vec4_float_type_);
-    auto p_inv = b.createBinOp(spv::Op::OpFDiv, vec4_float_type_, p, p_all_w);
-    p = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, p_inv, p);
-
-    // Reinsert w
-    p = b.createCompositeInsert(p_w, p, vec4_float_type_, 3);
-
-    // Apply window offset
-    // pos.xy += window_scale.zw
-    auto window_offset = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
-                                    {window_scale, window_scale, 2, 3, 0, 1});
-    auto p_offset =
-        b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, p, window_offset);
-
-    // Apply window scaling
-    // pos.xy *= window_scale.xy
-    auto p_scaled = b.createBinOp(spv::Op::OpFMul, vec4_float_type_, p_offset,
-                                  window_scale);
-
-    p = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
-                   {p, p_scaled, 4, 5, 2, 3});
-
-    b.createStore(p, pos_);
-  } else {
-    // Color exponent bias
-    {
-      auto bias_ptr = b.createAccessChain(
-          spv::StorageClass::StorageClassPushConstant, push_consts_,
-          std::vector<Id>({b.makeUintConstant(4)}));
-      auto bias = b.createLoad(bias_ptr);
-      for (uint32_t i = 0; i < 4; i++) {
-        auto bias_value = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
-                                     {bias, bias, i, i, i, i});
-        auto oC_ptr = b.createAccessChain(
-            spv::StorageClass::StorageClassOutput, frag_outputs_,
-            std::vector<Id>({b.makeUintConstant(i)}));
-        auto oC_biased = b.createBinOp(spv::Op::OpFMul, vec4_float_type_,
-                                       b.createLoad(oC_ptr), bias_value);
-        b.createStore(oC_biased, oC_ptr);
-      }
-    }
-
-    // Alpha test
-    {
-      auto alpha_test_ptr = b.createAccessChain(
-          spv::StorageClass::StorageClassPushConstant, push_consts_,
-          std::vector<Id>({b.makeUintConstant(3)}));
-      auto alpha_test = b.createLoad(alpha_test_ptr);
-
-      auto alpha_test_enabled =
-          b.createCompositeExtract(alpha_test, float_type_, 0);
-      auto alpha_test_func =
-          b.createCompositeExtract(alpha_test, float_type_, 1);
-      auto alpha_test_ref =
-          b.createCompositeExtract(alpha_test, float_type_, 2);
-
-      alpha_test_func =
-          b.createUnaryOp(spv::Op::OpConvertFToU, uint_type_, alpha_test_func);
-
-      auto oC0_ptr = b.createAccessChain(
-          spv::StorageClass::StorageClassOutput, frag_outputs_,
-          std::vector<Id>({b.makeUintConstant(0)}));
-      auto oC0_alpha =
-          b.createCompositeExtract(b.createLoad(oC0_ptr), float_type_, 3);
-
-      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_,
-                                alpha_test_enabled, b.makeFloatConstant(1.f));
-      spv::Builder::If alpha_if(cond, 0, b);
-
-      std::vector<spv::Block*> switch_segments;
-      b.makeSwitch(
-          alpha_test_func, 0, 8, std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}),
-          std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7}), 7, switch_segments);
-
-      const static spv::Op alpha_op_map[] = {
-          spv::Op::OpNop,
-          spv::Op::OpFOrdGreaterThanEqual,
-          spv::Op::OpFOrdNotEqual,
-          spv::Op::OpFOrdGreaterThan,
-          spv::Op::OpFOrdLessThanEqual,
-          spv::Op::OpFOrdEqual,
-          spv::Op::OpFOrdLessThan,
-          spv::Op::OpNop,
-      };
-
-      // if (alpha_func == 0) passes = false;
-      b.nextSwitchSegment(switch_segments, 0);
-      b.makeDiscard();
-      b.addSwitchBreak();
-
-      for (int i = 1; i < 7; i++) {
-        b.nextSwitchSegment(switch_segments, i);
-        auto cond = b.createBinOp(alpha_op_map[i], bool_type_, oC0_alpha,
-                                  alpha_test_ref);
-        spv::Builder::If discard_if(cond, 0, b);
-        b.makeDiscard();
-        discard_if.makeEndIf();
-        b.addSwitchBreak();
-      }
-
-      // if (alpha_func == 7) passes = true;
-      b.nextSwitchSegment(switch_segments, 7);
-      b.endSwitch(switch_segments);
-
-      alpha_if.makeEndIf();
-    }
-  }
-
-  b.makeReturn(false);
-
-  // Compile the spv IR
-  // compiler_.Compile(b.getModule());
-
-  std::vector<uint32_t> spirv_words;
-  b.dump(spirv_words);
-
-  // Cleanup builder.
-  cf_blocks_.clear();
-  loop_head_block_ = nullptr;
-  loop_body_block_ = nullptr;
-  loop_cont_block_ = nullptr;
-  loop_exit_block_ = nullptr;
-  builder_.reset();
-
-  interface_ids_.clear();
-
-  // Copy bytes out.
-  // TODO(benvanik): avoid copy?
-  std::vector<uint8_t> spirv_bytes;
-  spirv_bytes.resize(spirv_words.size() * 4);
-  std::memcpy(spirv_bytes.data(), spirv_words.data(), spirv_bytes.size());
-  return spirv_bytes;
+  // TODO(Triang3l): Avoid copy?
+  std::vector<unsigned int> module_uints;
+  builder_->dump(module_uints);
+  std::vector<uint8_t> module_bytes;
+  module_bytes.reserve(sizeof(unsigned int) * module_uints.size());
+  module_bytes.insert(module_bytes.cend(),
+                      reinterpret_cast<const uint8_t*>(module_uints.data()),
+                      reinterpret_cast<const uint8_t*>(module_uints.data()) +
+                          sizeof(unsigned int) * module_uints.size());
+  return module_bytes;
 }
 
 void SpirvShaderTranslator::PostTranslation() {
@@ -676,2806 +656,1806 @@ void SpirvShaderTranslator::PostTranslation() {
   if (!translation.is_valid()) {
     return;
   }
-
-  // Validation.
-  if (cvars::spv_validate) {
-    auto validation = validator_.Validate(
-        reinterpret_cast<const uint32_t*>(
-            translation.translated_binary().data()),
-        translation.translated_binary().size() / sizeof(uint32_t));
-    if (validation->has_error()) {
-      XELOGE("SPIR-V Shader Validation failed! Error: {}",
-             validation->error_string());
+  SpirvShader* spirv_shader = dynamic_cast<SpirvShader*>(&translation.shader());
+  if (spirv_shader && !spirv_shader->bindings_setup_entered_.test_and_set(
+                          std::memory_order_relaxed)) {
+    spirv_shader->texture_bindings_.clear();
+    spirv_shader->texture_bindings_.reserve(texture_bindings_.size());
+    for (const TextureBinding& translator_binding : texture_bindings_) {
+      SpirvShader::TextureBinding& shader_binding =
+          spirv_shader->texture_bindings_.emplace_back();
+      // For a stable hash.
+      std::memset(&shader_binding, 0, sizeof(shader_binding));
+      shader_binding.fetch_constant = translator_binding.fetch_constant;
+      shader_binding.dimension = translator_binding.dimension;
+      shader_binding.is_signed = translator_binding.is_signed;
+      spirv_shader->used_texture_mask_ |= UINT32_C(1)
+                                          << translator_binding.fetch_constant;
+    }
+    spirv_shader->sampler_bindings_.clear();
+    spirv_shader->sampler_bindings_.reserve(sampler_bindings_.size());
+    for (const SamplerBinding& translator_binding : sampler_bindings_) {
+      SpirvShader::SamplerBinding& shader_binding =
+          spirv_shader->sampler_bindings_.emplace_back();
+      shader_binding.fetch_constant = translator_binding.fetch_constant;
+      shader_binding.mag_filter = translator_binding.mag_filter;
+      shader_binding.min_filter = translator_binding.min_filter;
+      shader_binding.mip_filter = translator_binding.mip_filter;
+      shader_binding.aniso_filter = translator_binding.aniso_filter;
     }
   }
-
-  if (cvars::spv_disasm) {
-    // TODO(benvanik): only if needed? could be slowish.
-    auto disasm = disassembler_.Disassemble(
-        reinterpret_cast<const uint32_t*>(
-            translation.translated_binary().data()),
-        translation.translated_binary().size() / sizeof(uint32_t));
-    if (disasm->has_error()) {
-      XELOGE("Failed to disassemble SPIRV - invalid?");
-    } else {
-      set_host_disassembly(translation, disasm->to_string());
-    }
-  }
-}
-
-void SpirvShaderTranslator::PreProcessControlFlowInstructions(
-    std::vector<ucode::ControlFlowInstruction> instrs) {
-  auto& b = *builder_;
-
-  auto default_block = &b.makeNewBlock();
-  switch_break_block_ = &b.makeNewBlock();
-
-  b.setBuildPoint(default_block);
-  b.createStore(b.makeIntConstant(0xFFFF), pc_);
-  b.createBranch(switch_break_block_);
-
-  b.setBuildPoint(switch_break_block_);
-  b.createBranch(loop_cont_block_);
-
-  // Now setup the switch.
-  default_block->addPredecessor(loop_body_block_);
-  b.setBuildPoint(loop_body_block_);
-
-  cf_blocks_.resize(instrs.size());
-  for (size_t i = 0; i < cf_blocks_.size(); i++) {
-    cf_blocks_[i].block = &b.makeNewBlock();
-    cf_blocks_[i].labelled = false;
-  }
-
-  std::vector<uint32_t> operands;
-  operands.push_back(b.createLoad(pc_));       // Selector
-  operands.push_back(default_block->getId());  // Default
-
-  // Always have a case for block 0.
-  operands.push_back(0);
-  operands.push_back(cf_blocks_[0].block->getId());
-  cf_blocks_[0].block->addPredecessor(loop_body_block_);
-  cf_blocks_[0].labelled = true;
-
-  for (size_t i = 0; i < instrs.size(); i++) {
-    auto& instr = instrs[i];
-    if (instr.opcode() == ucode::ControlFlowOpcode::kCondJmp) {
-      uint32_t address = instr.cond_jmp.address();
-
-      if (!cf_blocks_[address].labelled) {
-        cf_blocks_[address].labelled = true;
-        operands.push_back(address);
-        operands.push_back(cf_blocks_[address].block->getId());
-        cf_blocks_[address].block->addPredecessor(loop_body_block_);
-      }
-
-      if (!cf_blocks_[i + 1].labelled) {
-        cf_blocks_[i + 1].labelled = true;
-        operands.push_back(uint32_t(i + 1));
-        operands.push_back(cf_blocks_[i + 1].block->getId());
-        cf_blocks_[i + 1].block->addPredecessor(loop_body_block_);
-      }
-    } else if (instr.opcode() == ucode::ControlFlowOpcode::kLoopStart) {
-      uint32_t address = instr.loop_start.address();
-
-      // Label the body
-      if (!cf_blocks_[i + 1].labelled) {
-        cf_blocks_[i + 1].labelled = true;
-        operands.push_back(uint32_t(i + 1));
-        operands.push_back(cf_blocks_[i + 1].block->getId());
-        cf_blocks_[i + 1].block->addPredecessor(loop_body_block_);
-      }
-
-      // Label the loop skip address.
-      if (!cf_blocks_[address].labelled) {
-        cf_blocks_[address].labelled = true;
-        operands.push_back(address);
-        operands.push_back(cf_blocks_[address].block->getId());
-        cf_blocks_[address].block->addPredecessor(loop_body_block_);
-      }
-    } else if (instr.opcode() == ucode::ControlFlowOpcode::kLoopEnd) {
-      uint32_t address = instr.loop_end.address();
-
-      if (!cf_blocks_[address].labelled) {
-        cf_blocks_[address].labelled = true;
-        operands.push_back(address);
-        operands.push_back(cf_blocks_[address].block->getId());
-        cf_blocks_[address].block->addPredecessor(loop_body_block_);
-      }
-    }
-  }
-
-  b.createSelectionMerge(switch_break_block_, 0);
-  b.createNoResultOp(spv::Op::OpSwitch, operands);
 }
 
 void SpirvShaderTranslator::ProcessLabel(uint32_t cf_index) {
-  auto& b = *builder_;
-}
-
-void SpirvShaderTranslator::ProcessControlFlowInstructionBegin(
-    uint32_t cf_index) {
-  auto& b = *builder_;
-}
-
-void SpirvShaderTranslator::ProcessControlFlowInstructionEnd(
-    uint32_t cf_index) {
-  auto& b = *builder_;
-}
-
-void SpirvShaderTranslator::ProcessControlFlowNopInstruction(
-    uint32_t cf_index) {
-  auto& b = *builder_;
-
-  auto head = cf_blocks_[cf_index].block;
-  b.setBuildPoint(head);
-  b.createNoResultOp(spv::Op::OpNop);
-  if (cf_blocks_.size() > cf_index + 1) {
-    b.createBranch(cf_blocks_[cf_index + 1].block);
-  } else {
-    b.makeReturn(false);
+  if (cf_index == 0) {
+    // 0 already added in the beginning.
+    return;
   }
+
+  assert_false(current_shader().label_addresses().empty());
+
+  // Close flow control within the previous switch case.
+  CloseExecConditionals();
+
+  spv::Function& function = builder_->getBuildPoint()->getParent();
+  // Create the next switch case and fallthrough to it.
+  spv::Block* new_case = new spv::Block(builder_->getUniqueId(), function);
+  main_switch_op_->addImmediateOperand(cf_index);
+  main_switch_op_->addIdOperand(new_case->getId());
+  // Every switch case must have the OpSelectionMerge/OpSwitch block as a
+  // predecessor.
+  new_case->addPredecessor(main_switch_header_);
+  // The previous block may have already been terminated if was exece.
+  if (!builder_->getBuildPoint()->isTerminated()) {
+    builder_->createBranch(new_case);
+  }
+  function.addBlock(new_case);
+  builder_->setBuildPoint(new_case);
 }
 
 void SpirvShaderTranslator::ProcessExecInstructionBegin(
     const ParsedExecInstruction& instr) {
-  auto& b = *builder_;
-
-  assert_false(open_predicated_block_);
-  open_predicated_block_ = false;
-  predicated_block_cond_ = false;
-  predicated_block_end_ = nullptr;
-
-  // Head has the logic to check if the body should execute.
-  auto head = cf_blocks_[instr.dword_index].block;
-  b.setBuildPoint(head);
-  auto body = head;
-  switch (instr.type) {
-    case ParsedExecInstruction::Type::kUnconditional: {
-      // No need to do anything.
-      exec_cond_ = false;
-    } break;
-    case ParsedExecInstruction::Type::kConditional: {
-      // Based off of bool_consts
-      std::vector<Id> offsets;
-      offsets.push_back(b.makeUintConstant(2));  // bool_consts
-      uint32_t bitfield_index = instr.bool_constant_index / 32;
-      offsets.push_back(b.makeUintConstant(bitfield_index / 4));
-      auto v = b.createAccessChain(spv::StorageClass::StorageClassUniform,
-                                   consts_, offsets);
-      v = b.createLoad(v);
-      v = b.createCompositeExtract(v, uint_type_, bitfield_index % 4);
-
-      // Bitfield extract the bool constant.
-      // FIXME: NVidia's compiler seems to be broken on this instruction?
-      /*
-      v = b.createTriOp(spv::Op::OpBitFieldUExtract, uint_type_, v,
-                        b.makeUintConstant(instr.bool_constant_index % 32),
-                        b.makeUintConstant(1));
-
-      // Conditional branch
-      auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, v,
-                                b.makeUintConstant(instr.condition ? 1 : 0));
-      */
-      v = b.createBinOp(
-          spv::Op::OpBitwiseAnd, uint_type_, v,
-          b.makeUintConstant(1 << (instr.bool_constant_index % 32)));
-      auto cond = b.createBinOp(
-          instr.condition ? spv::Op::OpINotEqual : spv::Op::OpIEqual,
-          bool_type_, v, b.makeUintConstant(0));
-
-      // Conditional branch
-      body = &b.makeNewBlock();
-      exec_cond_ = true;
-      exec_skip_block_ = &b.makeNewBlock();
-
-      b.createSelectionMerge(
-          exec_skip_block_,
-          spv::SelectionControlMask::SelectionControlMaskNone);
-      b.createConditionalBranch(cond, body, exec_skip_block_);
-
-      b.setBuildPoint(exec_skip_block_);
-      if (!instr.is_end || cf_blocks_.size() > instr.dword_index + 1) {
-        assert_true(cf_blocks_.size() > instr.dword_index + 1);
-        b.createBranch(cf_blocks_[instr.dword_index + 1].block);
-      } else {
-        b.makeReturn(false);
-      }
-    } break;
-    case ParsedExecInstruction::Type::kPredicated: {
-      // Branch based on p0.
-      body = &b.makeNewBlock();
-      exec_cond_ = true;
-      exec_skip_block_ = &b.makeNewBlock();
-
-      auto cond =
-          b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                        b.makeBoolConstant(instr.condition));
-      b.createSelectionMerge(
-          exec_skip_block_,
-          spv::SelectionControlMask::SelectionControlMaskNone);
-      b.createConditionalBranch(cond, body, exec_skip_block_);
-
-      b.setBuildPoint(exec_skip_block_);
-      if (!instr.is_end || cf_blocks_.size() > instr.dword_index + 1) {
-        assert_true(cf_blocks_.size() > instr.dword_index + 1);
-        b.createBranch(cf_blocks_[instr.dword_index + 1].block);
-      } else {
-        b.makeReturn(false);
-      }
-    } break;
-  }
-  b.setBuildPoint(body);
+  UpdateExecConditionals(instr.type, instr.bool_constant_index,
+                         instr.condition);
 }
 
 void SpirvShaderTranslator::ProcessExecInstructionEnd(
     const ParsedExecInstruction& instr) {
-  auto& b = *builder_;
-
-  if (open_predicated_block_) {
-    b.createBranch(predicated_block_end_);
-    b.setBuildPoint(predicated_block_end_);
-    open_predicated_block_ = false;
-    predicated_block_cond_ = false;
-    predicated_block_end_ = nullptr;
-  }
-
   if (instr.is_end) {
-    b.makeReturn(false);
-  } else if (exec_cond_) {
-    b.createBranch(exec_skip_block_);
-  } else {
-    assert_true(cf_blocks_.size() > instr.dword_index + 1);
-    b.createBranch(cf_blocks_[instr.dword_index + 1].block);
+    // Break out of the main switch (if exists) and the main loop.
+    CloseInstructionPredication();
+    if (!builder_->getBuildPoint()->isTerminated()) {
+      builder_->createBranch(current_shader().label_addresses().empty()
+                                 ? main_loop_merge_
+                                 : main_switch_merge_);
+    }
   }
+  UpdateExecConditionals(instr.type, instr.bool_constant_index,
+                         instr.condition);
 }
 
 void SpirvShaderTranslator::ProcessLoopStartInstruction(
     const ParsedLoopStartInstruction& instr) {
-  auto& b = *builder_;
-
-  auto head = cf_blocks_[instr.dword_index].block;
-  b.setBuildPoint(head);
-
   // loop il<idx>, L<idx> - loop with loop data il<idx>, end @ L<idx>
 
-  std::vector<Id> offsets;
-  offsets.push_back(b.makeUintConstant(1));  // loop_consts
-  offsets.push_back(b.makeUintConstant(instr.loop_constant_index / 4));
-  auto loop_const = b.createAccessChain(spv::StorageClass::StorageClassUniform,
-                                        consts_, offsets);
-  loop_const = b.createLoad(loop_const);
-  loop_const = b.createCompositeExtract(loop_const, uint_type_,
-                                        instr.loop_constant_index % 4);
+  // Loop control is outside execs - actually close the last exec.
+  CloseExecConditionals();
 
-  // uint loop_count_value = loop_const & 0xFF;
-  auto loop_count_value = b.createBinOp(spv::Op::OpBitwiseAnd, uint_type_,
-                                        loop_const, b.makeUintConstant(0xFF));
+  EnsureBuildPointAvailable();
 
-  // uint loop_aL_value = (loop_const >> 8) & 0xFF;
-  auto loop_aL_value = b.createBinOp(spv::Op::OpShiftRightLogical, uint_type_,
-                                     loop_const, b.makeUintConstant(8));
-  loop_aL_value = b.createBinOp(spv::Op::OpBitwiseAnd, uint_type_,
-                                loop_aL_value, b.makeUintConstant(0xFF));
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(3);
+  // Loop constants (member 1).
+  id_vector_temp_.push_back(builder_->makeIntConstant(1));
+  // 4-component vector.
+  id_vector_temp_.push_back(
+      builder_->makeIntConstant(int(instr.loop_constant_index >> 2)));
+  // Scalar within the vector.
+  id_vector_temp_.push_back(
+      builder_->makeIntConstant(int(instr.loop_constant_index & 3)));
+  // Count (unsigned) in bits 0:7 of the loop constant (struct member 1),
+  // initial aL (unsigned) in 8:15.
+  spv::Id loop_constant =
+      builder_->createLoad(builder_->createAccessChain(
+                               spv::StorageClassUniform,
+                               uniform_bool_loop_constants_, id_vector_temp_),
+                           spv::NoPrecision);
 
-  // loop_count_ = uvec4(loop_count_value, loop_count_.xyz);
-  auto loop_count = b.createLoad(loop_count_);
-  loop_count =
-      b.createRvalueSwizzle(spv::NoPrecision, vec4_uint_type_, loop_count,
-                            std::vector<uint32_t>({0, 0, 1, 2}));
-  loop_count =
-      b.createCompositeInsert(loop_count_value, loop_count, vec4_uint_type_, 0);
-  b.createStore(loop_count, loop_count_);
+  spv::Id const_int_8 = builder_->makeIntConstant(8);
 
-  // aL = aL.xxyz;
-  auto aL = b.createLoad(aL_);
-  aL = b.createRvalueSwizzle(spv::NoPrecision, vec4_uint_type_, aL,
-                             std::vector<uint32_t>({0, 0, 1, 2}));
-  if (!instr.is_repeat) {
-    // aL.x = loop_aL_value;
-    aL = b.createCompositeInsert(loop_aL_value, aL, vec4_uint_type_, 0);
+  // Push the count to the loop count stack - move XYZ to YZW and set X to the
+  // new iteration count (swizzling the way glslang does it for similar GLSL).
+  spv::Id loop_count_stack_old =
+      builder_->createLoad(var_main_loop_count_, spv::NoPrecision);
+  spv::Id loop_count_new =
+      builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_, loop_constant,
+                            const_int_0_, const_int_8);
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(4);
+  id_vector_temp_.push_back(loop_count_new);
+  for (unsigned int i = 0; i < 3; ++i) {
+    id_vector_temp_.push_back(
+        builder_->createCompositeExtract(loop_count_stack_old, type_uint_, i));
   }
-  b.createStore(aL, aL_);
+  builder_->createStore(
+      builder_->createCompositeConstruct(type_uint4_, id_vector_temp_),
+      var_main_loop_count_);
 
-  // Short-circuit if loop counter is 0
-  auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, loop_count_value,
-                            b.makeUintConstant(0));
-  auto next_pc = b.createTriOp(spv::Op::OpSelect, int_type_, cond,
-                               b.makeIntConstant(instr.loop_skip_address),
-                               b.makeIntConstant(instr.dword_index + 1));
-  b.createStore(next_pc, pc_);
-  b.createBranch(switch_break_block_);
+  // Push aL - keep the same value as in the previous loop if repeating, or the
+  // new one otherwise.
+  spv::Id address_relative_stack_old =
+      builder_->createLoad(var_main_loop_address_, spv::NoPrecision);
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(4);
+  if (instr.is_repeat) {
+    id_vector_temp_.emplace_back();
+  } else {
+    id_vector_temp_.push_back(builder_->createUnaryOp(
+        spv::OpBitcast, type_int_,
+        builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_,
+                              loop_constant, const_int_8, const_int_8)));
+  }
+  for (unsigned int i = 0; i < 3; ++i) {
+    id_vector_temp_.push_back(builder_->createCompositeExtract(
+        address_relative_stack_old, type_int_, i));
+  }
+  if (instr.is_repeat) {
+    id_vector_temp_[0] = id_vector_temp_[1];
+  }
+  builder_->createStore(
+      builder_->createCompositeConstruct(type_int4_, id_vector_temp_),
+      var_main_loop_address_);
+
+  // Break (jump to the skip label) if the loop counter is 0 (since the
+  // condition is checked in the end).
+  spv::Block& head_block = *builder_->getBuildPoint();
+  spv::Id loop_count_zero = builder_->createBinOp(
+      spv::OpIEqual, type_bool_, loop_count_new, const_uint_0_);
+  spv::Block& skip_block = builder_->makeNewBlock();
+  spv::Block& body_block = builder_->makeNewBlock();
+  SpirvCreateSelectionMerge(body_block.getId());
+  {
+    std::unique_ptr<spv::Instruction> branch_conditional_op =
+        std::make_unique<spv::Instruction>(spv::OpBranchConditional);
+    branch_conditional_op->addIdOperand(loop_count_zero);
+    branch_conditional_op->addIdOperand(skip_block.getId());
+    branch_conditional_op->addIdOperand(body_block.getId());
+    // More likely to enter than to skip.
+    branch_conditional_op->addImmediateOperand(1);
+    branch_conditional_op->addImmediateOperand(2);
+    head_block.addInstruction(std::move(branch_conditional_op));
+  }
+  skip_block.addPredecessor(&head_block);
+  body_block.addPredecessor(&head_block);
+  builder_->setBuildPoint(&skip_block);
+  main_switch_next_pc_phi_operands_.push_back(
+      builder_->makeIntConstant(int(instr.loop_skip_address)));
+  main_switch_next_pc_phi_operands_.push_back(
+      builder_->getBuildPoint()->getId());
+  builder_->createBranch(main_loop_continue_);
+  builder_->setBuildPoint(&body_block);
 }
 
 void SpirvShaderTranslator::ProcessLoopEndInstruction(
     const ParsedLoopEndInstruction& instr) {
-  auto& b = *builder_;
-
-  auto head = cf_blocks_[instr.dword_index].block;
-  b.setBuildPoint(head);
-
   // endloop il<idx>, L<idx> - end loop w/ data il<idx>, head @ L<idx>
-  auto loop_count = b.createLoad(loop_count_);
-  auto count = b.createCompositeExtract(loop_count, uint_type_, 0);
-  count =
-      b.createBinOp(spv::Op::OpISub, uint_type_, count, b.makeUintConstant(1));
-  loop_count = b.createCompositeInsert(count, loop_count, vec4_uint_type_, 0);
-  b.createStore(loop_count, loop_count_);
 
-  // if (--loop_count_.x == 0 || [!]p0)
-  auto c1 = b.createBinOp(spv::Op::OpIEqual, bool_type_, count,
-                          b.makeUintConstant(0));
-  auto c2 =
-      b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                    b.makeBoolConstant(instr.predicate_condition));
-  auto cond = b.createBinOp(spv::Op::OpLogicalOr, bool_type_, c1, c2);
+  // Loop control is outside execs - actually close the last exec.
+  CloseExecConditionals();
 
-  auto loop = &b.makeNewBlock();
-  auto end = &b.makeNewBlock();
-  auto tail = &b.makeNewBlock();
-  b.createSelectionMerge(tail, spv::SelectionControlMaskNone);
-  b.createConditionalBranch(cond, end, loop);
+  EnsureBuildPointAvailable();
 
-  // ================================================
-  // Loop completed - pop the current loop off the stack and exit
-  b.setBuildPoint(end);
-  loop_count = b.createLoad(loop_count_);
-  auto aL = b.createLoad(aL_);
+  // Subtract 1 from the loop counter (will store later).
+  spv::Id loop_count_stack_old =
+      builder_->createLoad(var_main_loop_count_, spv::NoPrecision);
+  spv::Id loop_count = builder_->createBinOp(
+      spv::OpISub, type_uint_,
+      builder_->createCompositeExtract(loop_count_stack_old, type_uint_, 0),
+      builder_->makeUintConstant(1));
+  spv::Id address_relative_stack_old =
+      builder_->createLoad(var_main_loop_address_, spv::NoPrecision);
 
-  // loop_count = loop_count.yzw0
-  loop_count =
-      b.createRvalueSwizzle(spv::NoPrecision, vec4_uint_type_, loop_count,
-                            std::vector<uint32_t>({1, 2, 3, 3}));
-  loop_count = b.createCompositeInsert(b.makeUintConstant(0), loop_count,
-                                       vec4_uint_type_, 3);
-  b.createStore(loop_count, loop_count_);
+  // Predicated break works like break if (loop_count == 0 || [!]p0).
+  // Three options, due to logical operations usage (so OpLogicalNot is not
+  // required):
+  // - Continue if (loop_count != 0).
+  // - Continue if (loop_count != 0 && p0), if breaking if !p0.
+  // - Break if (loop_count == 0 || p0), if breaking if p0.
+  bool break_is_true = instr.is_predicated_break && instr.predicate_condition;
+  spv::Id condition =
+      builder_->createBinOp(break_is_true ? spv::OpIEqual : spv::OpINotEqual,
+                            type_bool_, loop_count, const_uint_0_);
+  if (instr.is_predicated_break) {
+    condition = builder_->createBinOp(
+        instr.predicate_condition ? spv::OpLogicalOr : spv::OpLogicalAnd,
+        type_bool_, condition,
+        builder_->createLoad(var_main_predicate_, spv::NoPrecision));
+  }
 
-  // aL = aL.yzw0
-  aL = b.createRvalueSwizzle(spv::NoPrecision, vec4_uint_type_, aL,
-                             std::vector<uint32_t>({1, 2, 3, 3}));
-  aL = b.createCompositeInsert(b.makeUintConstant(0), aL, vec4_uint_type_, 3);
-  b.createStore(aL, aL_);
+  spv::Block& body_block = *builder_->getBuildPoint();
+  spv::Block& continue_block = builder_->makeNewBlock();
+  spv::Block& break_block = builder_->makeNewBlock();
+  SpirvCreateSelectionMerge(break_block.getId());
+  {
+    std::unique_ptr<spv::Instruction> branch_conditional_op =
+        std::make_unique<spv::Instruction>(spv::OpBranchConditional);
+    branch_conditional_op->addIdOperand(condition);
+    // More likely to continue than to break.
+    if (break_is_true) {
+      branch_conditional_op->addIdOperand(break_block.getId());
+      branch_conditional_op->addIdOperand(continue_block.getId());
+      branch_conditional_op->addImmediateOperand(1);
+      branch_conditional_op->addImmediateOperand(2);
+    } else {
+      branch_conditional_op->addIdOperand(continue_block.getId());
+      branch_conditional_op->addIdOperand(break_block.getId());
+      branch_conditional_op->addImmediateOperand(2);
+      branch_conditional_op->addImmediateOperand(1);
+    }
+    body_block.addInstruction(std::move(branch_conditional_op));
+  }
+  continue_block.addPredecessor(&body_block);
+  break_block.addPredecessor(&body_block);
 
-  // Update pc with the next block
-  // pc_ = instr.dword_index + 1
-  b.createStore(b.makeIntConstant(instr.dword_index + 1), pc_);
-  b.createBranch(tail);
+  // Continue case.
+  builder_->setBuildPoint(&continue_block);
+  // Store the loop count with 1 subtracted.
+  builder_->createStore(builder_->createCompositeInsert(
+                            loop_count, loop_count_stack_old, type_uint4_, 0),
+                        var_main_loop_count_);
+  // Extract the value to add to aL (signed, in bits 16:23 of the loop
+  // constant).
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(3);
+  // Loop constants (member 1).
+  id_vector_temp_.push_back(builder_->makeIntConstant(1));
+  // 4-component vector.
+  id_vector_temp_.push_back(
+      builder_->makeIntConstant(int(instr.loop_constant_index >> 2)));
+  // Scalar within the vector.
+  id_vector_temp_.push_back(
+      builder_->makeIntConstant(int(instr.loop_constant_index & 3)));
+  spv::Id loop_constant =
+      builder_->createLoad(builder_->createAccessChain(
+                               spv::StorageClassUniform,
+                               uniform_bool_loop_constants_, id_vector_temp_),
+                           spv::NoPrecision);
+  spv::Id address_relative_old = builder_->createCompositeExtract(
+      address_relative_stack_old, type_int_, 0);
+  builder_->createStore(
+      builder_->createCompositeInsert(
+          builder_->createBinOp(
+              spv::OpIAdd, type_int_, address_relative_old,
+              builder_->createTriOp(
+                  spv::OpBitFieldSExtract, type_int_,
+                  builder_->createUnaryOp(spv::OpBitcast, type_int_,
+                                          loop_constant),
+                  builder_->makeIntConstant(16), builder_->makeIntConstant(8))),
+          address_relative_stack_old, type_int4_, 0),
+      var_main_loop_address_);
+  // Jump back to the beginning of the loop body.
+  main_switch_next_pc_phi_operands_.push_back(
+      builder_->makeIntConstant(int(instr.loop_body_address)));
+  main_switch_next_pc_phi_operands_.push_back(
+      builder_->getBuildPoint()->getId());
+  builder_->createBranch(main_loop_continue_);
 
-  // ================================================
-  // Still looping - increment aL and loop
-  b.setBuildPoint(loop);
-  aL = b.createLoad(aL_);
-  auto aL_x = b.createCompositeExtract(aL, uint_type_, 0);
-
-  std::vector<Id> offsets;
-  offsets.push_back(b.makeUintConstant(1));  // loop_consts
-  offsets.push_back(b.makeUintConstant(instr.loop_constant_index / 4));
-  auto loop_const = b.createAccessChain(spv::StorageClass::StorageClassUniform,
-                                        consts_, offsets);
-  loop_const = b.createLoad(loop_const);
-  loop_const = b.createCompositeExtract(loop_const, uint_type_,
-                                        instr.loop_constant_index % 4);
-
-  // uint loop_aL_value = (loop_const >> 16) & 0xFF;
-  auto loop_aL_value = b.createBinOp(spv::Op::OpShiftRightLogical, uint_type_,
-                                     loop_const, b.makeUintConstant(16));
-  loop_aL_value = b.createBinOp(spv::Op::OpBitwiseAnd, uint_type_,
-                                loop_aL_value, b.makeUintConstant(0xFF));
-
-  aL_x = b.createBinOp(spv::Op::OpIAdd, uint_type_, aL_x, loop_aL_value);
-  aL = b.createCompositeInsert(aL_x, aL, vec4_uint_type_, 0);
-  b.createStore(aL, aL_);
-
-  // pc_ = instr.loop_body_address;
-  b.createStore(b.makeIntConstant(instr.loop_body_address), pc_);
-  b.createBranch(tail);
-
-  // ================================================
-  b.setBuildPoint(tail);
-  b.createBranch(switch_break_block_);
+  // Break case.
+  builder_->setBuildPoint(&break_block);
+  // Pop the current loop off the loop counter and the relative address stacks -
+  // move YZW to XYZ and set W to 0.
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(4);
+  for (unsigned int i = 1; i < 4; ++i) {
+    id_vector_temp_.push_back(
+        builder_->createCompositeExtract(loop_count_stack_old, type_uint_, i));
+  }
+  id_vector_temp_.push_back(const_uint_0_);
+  builder_->createStore(
+      builder_->createCompositeConstruct(type_uint4_, id_vector_temp_),
+      var_main_loop_count_);
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(4);
+  for (unsigned int i = 1; i < 4; ++i) {
+    id_vector_temp_.push_back(builder_->createCompositeExtract(
+        address_relative_stack_old, type_int_, i));
+  }
+  id_vector_temp_.push_back(const_int_0_);
+  builder_->createStore(
+      builder_->createCompositeConstruct(type_int4_, id_vector_temp_),
+      var_main_loop_address_);
+  // Now going to fall through to the next control flow instruction.
 }
 
-void SpirvShaderTranslator::ProcessCallInstruction(
-    const ParsedCallInstruction& instr) {
-  auto& b = *builder_;
-
-  auto head = cf_blocks_[instr.dword_index].block;
-  b.setBuildPoint(head);
-
-  // Unused instruction(?)
-  assert_always();
-  EmitTranslationError("call is unimplemented", false);
-
-  assert_true(cf_blocks_.size() > instr.dword_index + 1);
-  b.createBranch(cf_blocks_[instr.dword_index + 1].block);
-}
-
-void SpirvShaderTranslator::ProcessReturnInstruction(
-    const ParsedReturnInstruction& instr) {
-  auto& b = *builder_;
-
-  auto head = cf_blocks_[instr.dword_index].block;
-  b.setBuildPoint(head);
-
-  // Unused instruction(?)
-  assert_always();
-  EmitTranslationError("ret is unimplemented", false);
-
-  assert_true(cf_blocks_.size() > instr.dword_index + 1);
-  b.createBranch(cf_blocks_[instr.dword_index + 1].block);
-}
-
-// CF jump
 void SpirvShaderTranslator::ProcessJumpInstruction(
     const ParsedJumpInstruction& instr) {
-  auto& b = *builder_;
-
-  auto head = cf_blocks_[instr.dword_index].block;
-  b.setBuildPoint(head);
-  switch (instr.type) {
-    case ParsedJumpInstruction::Type::kUnconditional: {
-      b.createStore(b.makeIntConstant(instr.target_address), pc_);
-      b.createBranch(switch_break_block_);
-    } break;
-    case ParsedJumpInstruction::Type::kConditional: {
-      assert_true(cf_blocks_.size() > instr.dword_index + 1);
-
-      // Based off of bool_consts
-      std::vector<Id> offsets;
-      offsets.push_back(b.makeUintConstant(2));  // bool_consts
-      uint32_t bitfield_index = instr.bool_constant_index / 32;
-      offsets.push_back(b.makeUintConstant(bitfield_index / 4));
-      auto v = b.createAccessChain(spv::StorageClass::StorageClassUniform,
-                                   consts_, offsets);
-      v = b.createLoad(v);
-      v = b.createCompositeExtract(v, uint_type_, bitfield_index % 4);
-
-      // Bitfield extract the bool constant.
-      // FIXME: NVidia's compiler seems to be broken on this instruction?
-      /*
-      v = b.createTriOp(spv::Op::OpBitFieldUExtract, uint_type_, v,
-                        b.makeUintConstant(instr.bool_constant_index % 32),
-                        b.makeUintConstant(1));
-
-      // Conditional branch
-      auto cond = b.createBinOp(spv::Op::OpIEqual, bool_type_, v,
-                                b.makeUintConstant(instr.condition ? 1 : 0));
-      */
-      v = b.createBinOp(
-          spv::Op::OpBitwiseAnd, uint_type_, v,
-          b.makeUintConstant(1 << (instr.bool_constant_index % 32)));
-      auto cond = b.createBinOp(
-          instr.condition ? spv::Op::OpINotEqual : spv::Op::OpIEqual,
-          bool_type_, v, b.makeUintConstant(0));
-
-      auto next_pc = b.createTriOp(spv::Op::OpSelect, int_type_, cond,
-                                   b.makeIntConstant(instr.target_address),
-                                   b.makeIntConstant(instr.dword_index + 1));
-      b.createStore(next_pc, pc_);
-      b.createBranch(switch_break_block_);
-    } break;
-    case ParsedJumpInstruction::Type::kPredicated: {
-      assert_true(cf_blocks_.size() > instr.dword_index + 1);
-
-      auto cond =
-          b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                        b.makeBoolConstant(instr.condition));
-
-      auto next_pc = b.createTriOp(spv::Op::OpSelect, int_type_, cond,
-                                   b.makeIntConstant(instr.target_address),
-                                   b.makeIntConstant(instr.dword_index + 1));
-      b.createStore(next_pc, pc_);
-      b.createBranch(switch_break_block_);
-    } break;
-  }
-}
-
-void SpirvShaderTranslator::ProcessAllocInstruction(
-    const ParsedAllocInstruction& instr) {
-  auto& b = *builder_;
-
-  auto head = cf_blocks_[instr.dword_index].block;
-  b.setBuildPoint(head);
-
-  switch (instr.type) {
-    case AllocType::kNone: {
-      // ?
-    } break;
-    case AllocType::kVsPosition: {
-      assert_true(is_vertex_shader());
-    } break;
-    // Also PS Colors
-    case AllocType::kVsInterpolators: {
-      // Already included, nothing to do here.
-    } break;
-    case AllocType::kMemory: {
-      // Nothing to do for this.
-    } break;
-    default:
-      break;
-  }
-
-  assert_true(cf_blocks_.size() > instr.dword_index + 1);
-  b.createBranch(cf_blocks_[instr.dword_index + 1].block);
-}
-
-spv::Id SpirvShaderTranslator::BitfieldExtract(spv::Id result_type,
-                                               spv::Id base, bool is_signed,
-                                               uint32_t offset,
-                                               uint32_t count) {
-  auto& b = *builder_;
-
-  spv::Id base_type = b.getTypeId(base);
-
-  // <-- 32 - (offset + count) ------ [bits] -?-
-  if (32 - (offset + count) > 0) {
-    base = b.createBinOp(spv::Op::OpShiftLeftLogical, base_type, base,
-                         b.makeUintConstant(32 - (offset + count)));
-  }
-  // [bits] -?-?-?---------------------------
-  auto op = is_signed ? spv::Op::OpShiftRightArithmetic
-                      : spv::Op::OpShiftRightLogical;
-  base = b.createBinOp(op, base_type, base, b.makeUintConstant(32 - count));
-
-  return base;
-}
-
-spv::Id SpirvShaderTranslator::ConvertNormVar(spv::Id var, spv::Id result_type,
-                                              uint32_t bits, bool is_signed) {
-  auto& b = *builder_;
-  if (is_signed) {
-    auto c = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, var,
-                           b.makeFloatConstant(-float(1 << (bits - 1))));
-    auto v = b.createBinOp(spv::Op::OpFDiv, result_type, var,
-                           b.makeFloatConstant(float((1 << (bits - 1)) - 1)));
-    var = b.createTriOp(spv::Op::OpSelect, result_type, c,
-                        b.makeFloatConstant(-1.f), v);
+  // Treat like exec, merge with execs if possible, since it's an if too.
+  ParsedExecInstruction::Type type;
+  if (instr.type == ParsedJumpInstruction::Type::kConditional) {
+    type = ParsedExecInstruction::Type::kConditional;
+  } else if (instr.type == ParsedJumpInstruction::Type::kPredicated) {
+    type = ParsedExecInstruction::Type::kPredicated;
   } else {
-    var = b.createBinOp(spv::Op::OpFDiv, result_type, var,
-                        b.makeFloatConstant(float((1 << bits) - 1)));
+    type = ParsedExecInstruction::Type::kUnconditional;
   }
+  UpdateExecConditionals(type, instr.bool_constant_index, instr.condition);
 
-  return var;
+  // UpdateExecConditionals may not necessarily close the instruction-level
+  // predicate check (it's not necessary if the execs are merged), but here the
+  // instruction itself is on the control flow level, so the predicate check is
+  // on the control flow level too.
+  CloseInstructionPredication();
+
+  if (builder_->getBuildPoint()->isTerminated()) {
+    // Unreachable for some reason.
+    return;
+  }
+  main_switch_next_pc_phi_operands_.push_back(
+      builder_->makeIntConstant(int(instr.target_address)));
+  main_switch_next_pc_phi_operands_.push_back(
+      builder_->getBuildPoint()->getId());
+  builder_->createBranch(main_loop_continue_);
 }
 
-void SpirvShaderTranslator::ProcessVertexFetchInstruction(
-    const ParsedVertexFetchInstruction& instr) {
-  auto& b = *builder_;
-  assert_true(is_vertex_shader());
-  assert_not_zero(vertex_idx_);
-
-  // Close the open predicated block if this instr isn't predicated or the
-  // conditions do not match.
-  if (open_predicated_block_ &&
-      (!instr.is_predicated ||
-       instr.predicate_condition != predicated_block_cond_)) {
-    b.createBranch(predicated_block_end_);
-    b.setBuildPoint(predicated_block_end_);
-    open_predicated_block_ = false;
-    predicated_block_cond_ = false;
-    predicated_block_end_ = nullptr;
+spv::Id SpirvShaderTranslator::SpirvSmearScalarResultOrConstant(
+    spv::Id scalar, spv::Id vector_type) {
+  bool is_constant = builder_->isConstant(scalar);
+  bool is_spec_constant = builder_->isSpecConstant(scalar);
+  if (!is_constant && !is_spec_constant) {
+    return builder_->smearScalar(spv::NoPrecision, scalar, vector_type);
   }
-
-  if (!open_predicated_block_ && instr.is_predicated) {
-    Id pred_cond =
-        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                      b.makeBoolConstant(instr.predicate_condition));
-    auto block = &b.makeNewBlock();
-    open_predicated_block_ = true;
-    predicated_block_cond_ = instr.predicate_condition;
-    predicated_block_end_ = &b.makeNewBlock();
-
-    b.createSelectionMerge(predicated_block_end_,
-                           spv::SelectionControlMaskNone);
-    b.createConditionalBranch(pred_cond, block, predicated_block_end_);
-    b.setBuildPoint(block);
+  assert_true(builder_->getTypeClass(builder_->getTypeId(scalar)) ==
+              builder_->getTypeClass(builder_->getScalarTypeId(vector_type)));
+  if (!builder_->isVectorType(vector_type)) {
+    assert_true(builder_->isScalarType(vector_type));
+    return scalar;
   }
-
-  // Operand 0 is the index
-  // Operand 1 is the binding
-  // TODO: Indexed fetch
-  auto vertex_idx = LoadFromOperand(instr.operands[0]);
-  vertex_idx = b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, vertex_idx);
-
-  // vertex_idx * stride + offset
-  vertex_idx = b.createBinOp(spv::Op::OpIMul, int_type_, vertex_idx,
-                             b.makeUintConstant(instr.attributes.stride));
-  vertex_idx = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
-                             b.makeUintConstant(instr.attributes.offset));
-
-  auto data_ptr = b.createAccessChain(
-      spv::StorageClass::StorageClassUniform, vtx_,
-      {b.makeUintConstant(vtx_binding_map_[instr.operands[1].storage_index]),
-       b.makeUintConstant(0)});
-
-  spv::Id vertex = 0;
-  switch (instr.attributes.data_format) {
-    case xenos::VertexFormat::k_8_8_8_8: {
-      auto vertex_ptr = b.createAccessChain(
-          spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
-      auto vertex_data = b.createLoad(vertex_ptr);
-
-      if (instr.attributes.is_integer) {
-        spv::Id components[4] = {};
-
-        auto op = instr.attributes.is_signed ? spv::Op::OpConvertSToF
-                                             : spv::Op::OpConvertUToF;
-        auto comp_type = instr.attributes.is_signed ? int_type_ : uint_type_;
-
-        for (int i = 0; i < 4; i++) {
-          components[i] = BitfieldExtract(comp_type, vertex_data,
-                                          instr.attributes.is_signed, 8 * i, 8);
-          components[i] = b.createUnaryOp(op, float_type_, components[i]);
-        }
-
-        vertex = b.createCompositeConstruct(
-            vec4_float_type_,
-            {components[0], components[1], components[2], components[3]});
-      } else {
-        spv::GLSLstd450 op;
-        if (instr.attributes.is_signed) {
-          op = spv::GLSLstd450::kUnpackSnorm4x8;
-        } else {
-          op = spv::GLSLstd450::kUnpackUnorm4x8;
-        }
-        vertex = CreateGlslStd450InstructionCall(
-            spv::NoPrecision, vec4_float_type_, op, {vertex_data});
-      }
-    } break;
-
-    case xenos::VertexFormat::k_16_16: {
-      spv::Id components[1] = {};
-      for (uint32_t i = 0; i < 1; i++) {
-        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
-                                   b.makeUintConstant(i));
-        auto vertex_ptr = b.createAccessChain(
-            spv::StorageClass::StorageClassUniform, data_ptr, {index});
-        auto vertex_data = b.createLoad(vertex_ptr);
-
-        if (instr.attributes.is_integer) {
-          spv::Id comp[2] = {};
-
-          bool is_signed = instr.attributes.is_signed;
-          bool is_integer = instr.attributes.is_integer;
-          auto comp_type = is_signed ? int_type_ : uint_type_;
-
-          if (is_signed) {
-            vertex_data =
-                b.createUnaryOp(spv::Op::OpBitcast, int_type_, vertex_data);
-          }
-
-          comp[0] = BitfieldExtract(comp_type, vertex_data, is_signed, 0, 16);
-          comp[1] = BitfieldExtract(comp_type, vertex_data, is_signed, 16, 16);
-
-          auto op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
-          for (int i = 0; i < xe::countof(comp); i++) {
-            comp[i] = b.createUnaryOp(op, float_type_, comp[i]);
-          }
-
-          components[i] =
-              b.createCompositeConstruct(vec2_float_type_, {comp[0], comp[1]});
-        } else {
-          spv::GLSLstd450 op;
-          if (instr.attributes.is_signed) {
-            op = spv::GLSLstd450::kUnpackSnorm2x16;
-          } else {
-            op = spv::GLSLstd450::kUnpackUnorm2x16;
-          }
-
-          components[i] = CreateGlslStd450InstructionCall(
-              spv::NoPrecision, vec2_float_type_, op, {vertex_data});
-        }
-      }
-
-      vertex = components[0];
-    } break;
-
-    case xenos::VertexFormat::k_16_16_16_16: {
-      spv::Id components[2] = {};
-      for (uint32_t i = 0; i < 2; i++) {
-        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
-                                   b.makeUintConstant(i));
-        auto vertex_ptr = b.createAccessChain(
-            spv::StorageClass::StorageClassUniform, data_ptr, {index});
-        auto vertex_data = b.createLoad(vertex_ptr);
-
-        if (instr.attributes.is_integer) {
-          spv::Id comp[2] = {};
-
-          bool is_signed = instr.attributes.is_signed;
-          bool is_integer = instr.attributes.is_integer;
-          auto comp_type = is_signed ? int_type_ : uint_type_;
-
-          if (is_signed) {
-            vertex_data =
-                b.createUnaryOp(spv::Op::OpBitcast, int_type_, vertex_data);
-          }
-
-          comp[0] = BitfieldExtract(comp_type, vertex_data, is_signed, 0, 16);
-          comp[1] = BitfieldExtract(comp_type, vertex_data, is_signed, 16, 16);
-
-          auto op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
-          for (int i = 0; i < xe::countof(comp); i++) {
-            comp[i] = b.createUnaryOp(op, float_type_, comp[i]);
-          }
-
-          components[i] =
-              b.createCompositeConstruct(vec2_float_type_, {comp[0], comp[1]});
-        } else {
-          spv::GLSLstd450 op;
-          if (instr.attributes.is_signed) {
-            op = spv::GLSLstd450::kUnpackSnorm2x16;
-          } else {
-            op = spv::GLSLstd450::kUnpackUnorm2x16;
-          }
-
-          components[i] = CreateGlslStd450InstructionCall(
-              spv::NoPrecision, vec2_float_type_, op, {vertex_data});
-        }
-      }
-
-      vertex = b.createConstructor(
-          spv::NoPrecision, {components[0], components[1]}, vec4_float_type_);
-    } break;
-
-    case xenos::VertexFormat::k_16_16_FLOAT: {
-      spv::Id components[1] = {};
-      for (uint32_t i = 0; i < 1; i++) {
-        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
-                                   b.makeUintConstant(i));
-        auto vertex_ptr = b.createAccessChain(
-            spv::StorageClass::StorageClassUniform, data_ptr, {index});
-        auto vertex_data = b.createLoad(vertex_ptr);
-
-        assert_true(instr.attributes.is_integer);
-        assert_true(instr.attributes.is_signed);
-        components[i] = CreateGlslStd450InstructionCall(
-            spv::NoPrecision, vec2_float_type_,
-            spv::GLSLstd450::kUnpackHalf2x16, {vertex_data});
-      }
-
-      vertex = components[0];
-    } break;
-
-    case xenos::VertexFormat::k_16_16_16_16_FLOAT: {
-      spv::Id components[2] = {};
-      for (uint32_t i = 0; i < 2; i++) {
-        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
-                                   b.makeUintConstant(i));
-        auto vertex_ptr = b.createAccessChain(
-            spv::StorageClass::StorageClassUniform, data_ptr, {index});
-        auto vertex_data = b.createLoad(vertex_ptr);
-
-        assert_true(instr.attributes.is_integer);
-        assert_true(instr.attributes.is_signed);
-        components[i] = CreateGlslStd450InstructionCall(
-            spv::NoPrecision, vec2_float_type_,
-            spv::GLSLstd450::kUnpackHalf2x16, {vertex_data});
-      }
-
-      vertex = b.createConstructor(
-          spv::NoPrecision, {components[0], components[1]}, vec4_float_type_);
-    } break;
-
-    case xenos::VertexFormat::k_32: {
-      spv::Id components[1] = {};
-      for (uint32_t i = 0; i < 1; i++) {
-        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
-                                   b.makeUintConstant(i));
-        auto vertex_ptr = b.createAccessChain(
-            spv::StorageClass::StorageClassUniform, data_ptr, {index});
-        auto vertex_data = b.createLoad(vertex_ptr);
-
-        if (instr.attributes.is_integer) {
-          if (instr.attributes.is_signed) {
-            components[i] =
-                b.createUnaryOp(spv::Op::OpBitcast, int_type_, vertex_data);
-            components[i] = b.createUnaryOp(spv::Op::OpConvertSToF, float_type_,
-                                            vertex_data);
-          } else {
-            components[i] = b.createUnaryOp(spv::Op::OpConvertUToF, float_type_,
-                                            vertex_data);
-          }
-        } else {
-          if (instr.attributes.is_signed) {
-            // TODO(DrChat): This is gonna be harder to convert. There's not
-            // enough precision in a float to shove INT_MAX into it.
-            assert_always();
-            components[i] = b.makeFloatConstant(0.f);
-          } else {
-            components[i] = ConvertNormVar(vertex_data, uint_type_, 32, false);
-          }
-        }
-      }
-
-      // vertex = b.createCompositeConstruct(float_type_, {components[0]});
-      vertex = components[0];
-    } break;
-
-    case xenos::VertexFormat::k_32_32: {
-      spv::Id components[2] = {};
-      for (uint32_t i = 0; i < 2; i++) {
-        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
-                                   b.makeUintConstant(i));
-        auto vertex_ptr = b.createAccessChain(
-            spv::StorageClass::StorageClassUniform, data_ptr, {index});
-        auto vertex_data = b.createLoad(vertex_ptr);
-
-        if (instr.attributes.is_integer) {
-          if (instr.attributes.is_signed) {
-            components[i] =
-                b.createUnaryOp(spv::Op::OpBitcast, int_type_, vertex_data);
-            components[i] = b.createUnaryOp(spv::Op::OpConvertSToF, float_type_,
-                                            vertex_data);
-          } else {
-            components[i] = b.createUnaryOp(spv::Op::OpConvertUToF, float_type_,
-                                            vertex_data);
-          }
-        } else {
-          if (instr.attributes.is_signed) {
-            // TODO(DrChat): This is gonna be harder to convert. There's not
-            // enough precision in a float to shove INT_MAX into it.
-            assert_always();
-            components[i] = b.makeFloatConstant(0.f);
-          } else {
-            components[i] = ConvertNormVar(vertex_data, uint_type_, 32, false);
-          }
-        }
-      }
-
-      vertex = b.createCompositeConstruct(vec2_float_type_,
-                                          {components[0], components[1]});
-    } break;
-
-    case xenos::VertexFormat::k_32_32_32_32: {
-      spv::Id components[4] = {};
-      for (uint32_t i = 0; i < 4; i++) {
-        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
-                                   b.makeUintConstant(i));
-        auto vertex_ptr = b.createAccessChain(
-            spv::StorageClass::StorageClassUniform, data_ptr, {index});
-        auto vertex_data = b.createLoad(vertex_ptr);
-
-        if (instr.attributes.is_integer) {
-          if (instr.attributes.is_signed) {
-            components[i] =
-                b.createUnaryOp(spv::Op::OpBitcast, int_type_, vertex_data);
-            components[i] = b.createUnaryOp(spv::Op::OpConvertSToF, float_type_,
-                                            vertex_data);
-          } else {
-            components[i] = b.createUnaryOp(spv::Op::OpConvertUToF, float_type_,
-                                            vertex_data);
-          }
-        } else {
-          if (instr.attributes.is_signed) {
-            // TODO(DrChat): This is gonna be harder to convert. There's not
-            // enough precision in a float to shove INT_MAX into it.
-            assert_always();
-            components[i] = b.makeFloatConstant(0.f);
-          } else {
-            components[i] = ConvertNormVar(vertex_data, uint_type_, 32, false);
-          }
-        }
-      }
-
-      vertex = b.createCompositeConstruct(
-          vec2_float_type_,
-          {components[0], components[1], components[2], components[3]});
-    } break;
-
-    case xenos::VertexFormat::k_32_FLOAT: {
-      auto vertex_ptr = b.createAccessChain(
-          spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
-      auto vertex_data = b.createLoad(vertex_ptr);
-
-      vertex = b.createUnaryOp(spv::Op::OpBitcast, float_type_, vertex_data);
-    } break;
-
-    case xenos::VertexFormat::k_32_32_FLOAT: {
-      spv::Id components[2] = {};
-      for (uint32_t i = 0; i < 2; i++) {
-        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
-                                   b.makeUintConstant(i));
-        auto vertex_ptr = b.createAccessChain(
-            spv::StorageClass::StorageClassUniform, data_ptr, {index});
-        auto vertex_data = b.createLoad(vertex_ptr);
-
-        components[i] =
-            b.createUnaryOp(spv::Op::OpBitcast, float_type_, vertex_data);
-      }
-
-      vertex = b.createCompositeConstruct(vec2_float_type_,
-                                          {components[0], components[1]});
-    } break;
-
-    case xenos::VertexFormat::k_32_32_32_FLOAT: {
-      spv::Id components[3] = {};
-      for (uint32_t i = 0; i < 3; i++) {
-        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
-                                   b.makeUintConstant(i));
-        auto vertex_ptr = b.createAccessChain(
-            spv::StorageClass::StorageClassUniform, data_ptr, {index});
-        auto vertex_data = b.createLoad(vertex_ptr);
-
-        components[i] =
-            b.createUnaryOp(spv::Op::OpBitcast, float_type_, vertex_data);
-      }
-
-      vertex = b.createCompositeConstruct(
-          vec3_float_type_, {components[0], components[1], components[2]});
-    } break;
-
-    case xenos::VertexFormat::k_32_32_32_32_FLOAT: {
-      spv::Id components[4] = {};
-      for (uint32_t i = 0; i < 4; i++) {
-        auto index = b.createBinOp(spv::Op::OpIAdd, int_type_, vertex_idx,
-                                   b.makeUintConstant(i));
-        auto vertex_ptr = b.createAccessChain(
-            spv::StorageClass::StorageClassUniform, data_ptr, {index});
-        auto vertex_data = b.createLoad(vertex_ptr);
-
-        components[i] =
-            b.createUnaryOp(spv::Op::OpBitcast, float_type_, vertex_data);
-      }
-
-      vertex = b.createCompositeConstruct(
-          vec4_float_type_,
-          {components[0], components[1], components[2], components[3]});
-    } break;
-
-    case xenos::VertexFormat::k_2_10_10_10: {
-      auto vertex_ptr = b.createAccessChain(
-          spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
-      auto vertex_data = b.createLoad(vertex_ptr);
-      assert(b.getTypeId(vertex_data) == uint_type_);
-
-      // This needs to be converted.
-      bool is_signed = instr.attributes.is_signed;
-      bool is_integer = instr.attributes.is_integer;
-      auto comp_type = is_signed ? int_type_ : uint_type_;
-
-      if (is_signed) {
-        vertex_data =
-            b.createUnaryOp(spv::Op::OpBitcast, int_type_, vertex_data);
-      }
-
-      spv::Id components[4] = {0};
-      components[0] =
-          BitfieldExtract(comp_type, vertex_data, is_signed, 00, 10);
-      components[1] =
-          BitfieldExtract(comp_type, vertex_data, is_signed, 10, 10);
-      components[2] =
-          BitfieldExtract(comp_type, vertex_data, is_signed, 20, 10);
-      components[3] =
-          BitfieldExtract(comp_type, vertex_data, is_signed, 30, 02);
-
-      auto op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
-      for (int i = 0; i < xe::countof(components); i++) {
-        components[i] = b.createUnaryOp(op, float_type_, components[i]);
-      }
-
-      if (!is_integer) {
-        components[0] =
-            ConvertNormVar(components[0], float_type_, 10, is_signed);
-        components[1] =
-            ConvertNormVar(components[1], float_type_, 10, is_signed);
-        components[2] =
-            ConvertNormVar(components[2], float_type_, 10, is_signed);
-        components[3] =
-            ConvertNormVar(components[3], float_type_, 02, is_signed);
-      }
-
-      vertex = b.createCompositeConstruct(
-          vec4_float_type_, std::vector<Id>({components[0], components[1],
-                                             components[2], components[3]}));
-    } break;
-
-    case xenos::VertexFormat::k_10_11_11: {
-      auto vertex_ptr = b.createAccessChain(
-          spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
-      auto vertex_data = b.createLoad(vertex_ptr);
-      assert(b.getTypeId(vertex_data) == uint_type_);
-
-      // This needs to be converted.
-      bool is_signed = instr.attributes.is_signed;
-      bool is_integer = instr.attributes.is_integer;
-      auto op =
-          is_signed ? spv::Op::OpBitFieldSExtract : spv::Op::OpBitFieldUExtract;
-      auto comp_type = is_signed ? int_type_ : uint_type_;
-
-      if (is_signed) {
-        vertex_data =
-            b.createUnaryOp(spv::Op::OpBitcast, int_type_, vertex_data);
-      }
-
-      assert_true(comp_type == b.getTypeId(vertex_data));
-
-      spv::Id components[3] = {0};
-      /*
-      components[2] = b.createTriOp(
-          op, comp_type, vertex, b.makeUintConstant(0), b.makeUintConstant(10));
-      components[1] =
-          b.createTriOp(op, comp_type, vertex, b.makeUintConstant(10),
-                        b.makeUintConstant(11));
-      components[0] =
-          b.createTriOp(op, comp_type, vertex, b.makeUintConstant(21),
-                        b.makeUintConstant(11));
-      */
-      // Workaround until NVIDIA fixes their compiler :|
-      components[0] =
-          BitfieldExtract(comp_type, vertex_data, is_signed, 00, 11);
-      components[1] =
-          BitfieldExtract(comp_type, vertex_data, is_signed, 11, 11);
-      components[2] =
-          BitfieldExtract(comp_type, vertex_data, is_signed, 22, 10);
-
-      op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
-      for (int i = 0; i < 3; i++) {
-        components[i] = b.createUnaryOp(op, float_type_, components[i]);
-      }
-
-      if (!is_integer) {
-        components[0] =
-            ConvertNormVar(components[0], float_type_, 11, is_signed);
-        components[1] =
-            ConvertNormVar(components[1], float_type_, 11, is_signed);
-        components[2] =
-            ConvertNormVar(components[2], float_type_, 10, is_signed);
-      }
-
-      vertex = b.createCompositeConstruct(
-          vec3_float_type_,
-          std::vector<Id>({components[0], components[1], components[2]}));
-    } break;
-
-    case xenos::VertexFormat::k_11_11_10: {
-      auto vertex_ptr = b.createAccessChain(
-          spv::StorageClass::StorageClassUniform, data_ptr, {vertex_idx});
-      auto vertex_data = b.createLoad(vertex_ptr);
-      assert(b.getTypeId(vertex_data) == uint_type_);
-
-      // This needs to be converted.
-      bool is_signed = instr.attributes.is_signed;
-      bool is_integer = instr.attributes.is_integer;
-      auto op =
-          is_signed ? spv::Op::OpBitFieldSExtract : spv::Op::OpBitFieldUExtract;
-      auto comp_type = is_signed ? int_type_ : uint_type_;
-
-      spv::Id components[3] = {0};
-      /*
-      components[2] = b.createTriOp(
-          op, comp_type, vertex, b.makeUintConstant(0), b.makeUintConstant(11));
-      components[1] =
-          b.createTriOp(op, comp_type, vertex, b.makeUintConstant(11),
-                        b.makeUintConstant(11));
-      components[0] =
-          b.createTriOp(op, comp_type, vertex, b.makeUintConstant(22),
-                        b.makeUintConstant(10));
-      */
-      // Workaround until NVIDIA fixes their compiler :|
-      components[0] =
-          BitfieldExtract(comp_type, vertex_data, is_signed, 00, 10);
-      components[1] =
-          BitfieldExtract(comp_type, vertex_data, is_signed, 10, 11);
-      components[2] =
-          BitfieldExtract(comp_type, vertex_data, is_signed, 21, 11);
-
-      op = is_signed ? spv::Op::OpConvertSToF : spv::Op::OpConvertUToF;
-      for (int i = 0; i < 3; i++) {
-        components[i] = b.createUnaryOp(op, float_type_, components[i]);
-      }
-
-      if (!is_integer) {
-        components[0] =
-            ConvertNormVar(components[0], float_type_, 11, is_signed);
-        components[1] =
-            ConvertNormVar(components[1], float_type_, 11, is_signed);
-        components[2] =
-            ConvertNormVar(components[2], float_type_, 10, is_signed);
-      }
-
-      vertex = b.createCompositeConstruct(
-          vec3_float_type_,
-          std::vector<Id>({components[0], components[1], components[2]}));
-    } break;
-
-    case xenos::VertexFormat::kUndefined:
-      break;
+  int num_components = builder_->getNumTypeComponents(vector_type);
+  id_vector_temp_util_.clear();
+  id_vector_temp_util_.reserve(size_t(num_components));
+  for (int i = 0; i < num_components; ++i) {
+    id_vector_temp_util_.push_back(scalar);
   }
-
-  assert_not_zero(vertex);
-  StoreToResult(vertex, instr.result);
+  return builder_->makeCompositeConstant(vector_type, id_vector_temp_util_,
+                                         is_spec_constant);
 }
 
-void SpirvShaderTranslator::ProcessTextureFetchInstruction(
-    const ParsedTextureFetchInstruction& instr) {
-  auto& b = *builder_;
+uint32_t SpirvShaderTranslator::GetPsParamGenInterpolator() const {
+  assert_true(is_pixel_shader());
+  Modification modification = GetSpirvShaderModification();
+  // param_gen_interpolator is already 4 bits, no need for an interpolator count
+  // safety check.
+  return (modification.pixel.param_gen_enable &&
+          modification.pixel.param_gen_interpolator < register_count())
+             ? modification.pixel.param_gen_interpolator
+             : UINT32_MAX;
+}
 
-  // Close the open predicated block if this instr isn't predicated or the
-  // conditions do not match.
-  if (open_predicated_block_ &&
-      (!instr.is_predicated ||
-       instr.predicate_condition != predicated_block_cond_)) {
-    b.createBranch(predicated_block_end_);
-    b.setBuildPoint(predicated_block_end_);
-    open_predicated_block_ = false;
-    predicated_block_cond_ = false;
-    predicated_block_end_ = nullptr;
+void SpirvShaderTranslator::EnsureBuildPointAvailable() {
+  if (!builder_->getBuildPoint()->isTerminated()) {
+    return;
+  }
+  spv::Block& new_block = builder_->makeNewBlock();
+  new_block.setUnreachable();
+  builder_->setBuildPoint(&new_block);
+}
+
+void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
+  // Create the inputs.
+  if (IsSpirvTessEvalShader()) {
+    input_primitive_id_ = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassInput, type_int_, "gl_PrimitiveID");
+    builder_->addDecoration(input_primitive_id_, spv::DecorationBuiltIn,
+                            spv::BuiltInPrimitiveId);
+    main_interface_.push_back(input_primitive_id_);
+  } else {
+    input_vertex_index_ = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassInput, type_int_, "gl_VertexIndex");
+    builder_->addDecoration(input_vertex_index_, spv::DecorationBuiltIn,
+                            spv::BuiltInVertexIndex);
+    main_interface_.push_back(input_vertex_index_);
   }
 
-  if (!open_predicated_block_ && instr.is_predicated) {
-    Id pred_cond =
-        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                      b.makeBoolConstant(instr.predicate_condition));
-    auto block = &b.makeNewBlock();
-    open_predicated_block_ = true;
-    predicated_block_cond_ = instr.predicate_condition;
-    predicated_block_end_ = &b.makeNewBlock();
-
-    b.createSelectionMerge(predicated_block_end_,
-                           spv::SelectionControlMaskNone);
-    b.createConditionalBranch(pred_cond, block, predicated_block_end_);
-    b.setBuildPoint(block);
+  // Create the Xenia-specific outputs.
+  // TODO(Triang3l): Change to an interpolator array.
+  for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
+    spv::Id interpolator = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassOutput, type_float4_,
+        (kInterpolatorNamePrefix + std::to_string(i)).c_str());
+    input_output_interpolators_[i] = interpolator;
+    builder_->addDecoration(interpolator, spv::DecorationLocation, int(i));
+    builder_->addDecoration(interpolator, spv::DecorationInvariant);
+    main_interface_.push_back(interpolator);
   }
 
-  // Operand 0 is the offset
-  // Operand 1 is the sampler index
-  Id dest = vec4_float_zero_;
-  Id src = LoadFromOperand(instr.operands[0]);
-  assert_not_zero(src);
+  // Create the gl_PerVertex output for used system outputs.
+  std::vector<spv::Id> struct_per_vertex_members;
+  struct_per_vertex_members.reserve(kOutputPerVertexMemberCount);
+  struct_per_vertex_members.push_back(type_float4_);
+  spv::Id type_struct_per_vertex =
+      builder_->makeStructType(struct_per_vertex_members, "gl_PerVertex");
+  builder_->addMemberName(type_struct_per_vertex,
+                          kOutputPerVertexMemberPosition, "gl_Position");
+  builder_->addMemberDecoration(type_struct_per_vertex,
+                                kOutputPerVertexMemberPosition,
+                                spv::DecorationInvariant);
+  builder_->addMemberDecoration(type_struct_per_vertex,
+                                kOutputPerVertexMemberPosition,
+                                spv::DecorationBuiltIn, spv::BuiltInPosition);
+  builder_->addDecoration(type_struct_per_vertex, spv::DecorationBlock);
+  output_per_vertex_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassOutput, type_struct_per_vertex, "");
+  main_interface_.push_back(output_per_vertex_);
+}
 
-  uint32_t dim_idx = 0;
-  switch (instr.dimension) {
-    case xenos::FetchOpDimension::k1D:
-    case xenos::FetchOpDimension::k2D: {
-      dim_idx = 0;
-    } break;
-    case xenos::FetchOpDimension::k3DOrStacked: {
-      dim_idx = 1;
-    } break;
-    case xenos::FetchOpDimension::kCube: {
-      dim_idx = 2;
-    } break;
-    default:
-      assert_unhandled_case(instr.dimension);
+void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
+  var_main_point_size_edge_flag_kill_vertex_ = builder_->createVariable(
+      spv::NoPrecision, spv::StorageClassFunction, type_float3_,
+      "xe_var_point_size_edge_flag_kill_vertex");
+
+  // Zero the interpolators.
+  for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
+    builder_->createStore(const_float4_0_, input_output_interpolators_[i]);
   }
 
-  switch (instr.opcode) {
-    case FetchOpcode::kTextureFetch: {
-      auto texture_index =
-          b.makeUintConstant(tex_binding_map_[instr.operands[1].storage_index]);
-      auto texture_ptr =
-          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
-                              tex_[dim_idx], std::vector<Id>({texture_index}));
-      auto texture = b.createLoad(texture_ptr);
-
-      if (instr.dimension == xenos::FetchOpDimension::k1D) {
-        // Upgrade 1D src coordinate into 2D
-        src = b.createCompositeConstruct(vec2_float_type_,
-                                         {src, b.makeFloatConstant(0.f)});
-      }
-
-      spv::Builder::TextureParameters params = {0};
-      params.coords = src;
-      params.sampler = texture;
-      if (instr.attributes.use_register_lod) {
-        params.lod = b.createLoad(lod_);
-      }
-      if (instr.attributes.offset_x || instr.attributes.offset_y ||
-          instr.attributes.offset_z) {
-        float offset_x = instr.attributes.offset_x;
-        float offset_y = instr.attributes.offset_y;
-        float offset_z = instr.attributes.offset_z;
-
-        // Round numbers away from zero. No effect if offset is 0.
-        offset_x += instr.attributes.offset_x < 0 ? -0.5f : 0.5f;
-        offset_y += instr.attributes.offset_y < 0 ? -0.5f : 0.5f;
-        offset_z += instr.attributes.offset_z < 0 ? -0.5f : 0.5f;
-
-        Id offset = 0;
-        switch (instr.dimension) {
-          case xenos::FetchOpDimension::k1D: {
-            // https://msdn.microsoft.com/en-us/library/windows/desktop/bb944006.aspx
-            // "Because the runtime does not support 1D textures, the compiler
-            // will use a 2D texture with the knowledge that the y-coordinate is
-            // unimportant."
-            offset = b.makeCompositeConstant(
-                vec2_int_type_,
-                {b.makeIntConstant(int(offset_x)), b.makeIntConstant(0)});
-          } break;
-          case xenos::FetchOpDimension::k2D: {
-            offset = b.makeCompositeConstant(
-                vec2_int_type_, {b.makeIntConstant(int(offset_x)),
-                                 b.makeIntConstant(int(offset_y))});
-          } break;
-          case xenos::FetchOpDimension::k3DOrStacked: {
-            offset = b.makeCompositeConstant(
-                vec3_int_type_, {b.makeIntConstant(int(offset_x)),
-                                 b.makeIntConstant(int(offset_y)),
-                                 b.makeIntConstant(int(offset_z))});
-          } break;
-          case xenos::FetchOpDimension::kCube: {
-            // FIXME(DrChat): Is this the correct dimension? I forget
-            offset = b.makeCompositeConstant(
-                vec3_int_type_, {b.makeIntConstant(int(offset_x)),
-                                 b.makeIntConstant(int(offset_y)),
-                                 b.makeIntConstant(int(offset_z))});
-          } break;
-        }
-
-        params.offset = offset;
-      }
-
-      dest =
-          b.createTextureCall(spv::NoPrecision, vec4_float_type_, false, false,
-                              false, false, is_vertex_shader(), params);
-    } break;
-
-    case FetchOpcode::kGetTextureGradients: {
-      Id src_x = b.createCompositeExtract(src, float_type_, 0);
-      Id src_y = b.createCompositeExtract(src, float_type_, 1);
-
-      dest = b.createCompositeConstruct(
-          vec4_float_type_,
-          {
-              b.createUnaryOp(spv::OpDPdx, float_type_, src_x),
-              b.createUnaryOp(spv::OpDPdy, float_type_, src_x),
-              b.createUnaryOp(spv::OpDPdx, float_type_, src_y),
-              b.createUnaryOp(spv::OpDPdy, float_type_, src_y),
-          });
-    } break;
-
-    case FetchOpcode::kGetTextureWeights: {
-      // fract(src0 * textureSize);
-      auto texture_index =
-          b.makeUintConstant(tex_binding_map_[instr.operands[1].storage_index]);
-      auto texture_ptr =
-          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
-                              tex_[dim_idx], std::vector<Id>({texture_index}));
-      auto texture = b.createLoad(texture_ptr);
-      auto image =
-          b.createUnaryOp(spv::OpImage, b.getImageType(texture), texture);
-
-      switch (instr.dimension) {
-        case xenos::FetchOpDimension::k1D:
-        case xenos::FetchOpDimension::k2D: {
-          spv::Builder::TextureParameters params;
-          std::memset(&params, 0, sizeof(params));
-          params.sampler = image;
-          params.lod = b.makeIntConstant(0);
-          auto size = b.createTextureQueryCall(spv::Op::OpImageQuerySizeLod,
-                                               params, true);
-          size =
-              b.createUnaryOp(spv::Op::OpConvertUToF, vec2_float_type_, size);
-
-          auto weight =
-              b.createBinOp(spv::Op::OpFMul, vec2_float_type_, size, src);
-          weight = CreateGlslStd450InstructionCall(
-              spv::NoPrecision, vec2_float_type_, spv::GLSLstd450::kFract,
-              {weight});
-
-          dest = b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_,
-                            {weight, vec4_float_zero_, 0, 1, 2, 2});
-        } break;
-
-        default:
-          // TODO(DrChat): The rest of these.
-          assert_unhandled_case(instr.dimension);
-          break;
-      }
-    } break;
-
-    case FetchOpcode::kGetTextureComputedLod: {
-      // TODO(DrChat): Verify if this implementation is correct.
-      // This is only valid in pixel shaders.
-      assert_true(is_pixel_shader());
-
-      auto texture_index =
-          b.makeUintConstant(tex_binding_map_[instr.operands[1].storage_index]);
-      auto texture_ptr =
-          b.createAccessChain(spv::StorageClass::StorageClassUniformConstant,
-                              tex_[dim_idx], std::vector<Id>({texture_index}));
-      auto texture = b.createLoad(texture_ptr);
-
-      if (instr.dimension == xenos::FetchOpDimension::k1D) {
-        // Upgrade 1D src coordinate into 2D
-        src = b.createCompositeConstruct(vec2_float_type_,
-                                         {src, b.makeFloatConstant(0.f)});
-      }
-
-      spv::Builder::TextureParameters params = {};
-      params.sampler = texture;
-      params.coords = src;
-      auto lod =
-          b.createTextureQueryCall(spv::Op::OpImageQueryLod, params, false);
-
-      dest = b.createCompositeExtract(lod, float_type_, 1);
-      dest = b.smearScalar(spv::NoPrecision, dest, vec4_float_type_);
-    } break;
-
-    case FetchOpcode::kSetTextureLod: {
-      // <lod register> = src1.x (MIP level)
-      // ... immediately after
-      // tfetch UseRegisterLOD=true
-      b.createStore(src, lod_);
-    } break;
-
-    default:
-      // TODO: the rest of these
-      assert_unhandled_case(instr.opcode);
-      break;
-  }
-
-  if (dest) {
-    b.createStore(dest, pv_);
-    StoreToResult(dest, instr.result);
+  // Load the vertex index or the tessellation parameters.
+  if (register_count()) {
+    // TODO(Triang3l): Barycentric coordinates and patch index.
+    if (IsSpirvVertexShader()) {
+      // TODO(Triang3l): Fetch the vertex index from the shared memory when
+      // fullDrawIndexUint32 isn't available and the index is 32-bit and needs
+      // endian swap.
+      // TODO(Triang3l): Close line loop primitive.
+      // Load the unswapped index as uint for swapping.
+      spv::Id vertex_index = builder_->createUnaryOp(
+          spv::OpBitcast, type_uint_,
+          builder_->createLoad(input_vertex_index_, spv::NoPrecision));
+      // Endian-swap the index and convert to int.
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(
+          builder_->makeIntConstant(kSystemConstantIndexVertexIndexEndian));
+      spv::Id vertex_index_endian =
+          builder_->createLoad(builder_->createAccessChain(
+                                   spv::StorageClassUniform,
+                                   uniform_system_constants_, id_vector_temp_),
+                               spv::NoPrecision);
+      vertex_index = builder_->createUnaryOp(
+          spv::OpBitcast, type_int_,
+          EndianSwap32Uint(vertex_index, vertex_index_endian));
+      // Add the base to the index.
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(
+          builder_->makeIntConstant(kSystemConstantIndexVertexBaseIndex));
+      vertex_index = builder_->createBinOp(
+          spv::OpIAdd, type_int_, vertex_index,
+          builder_->createLoad(builder_->createAccessChain(
+                                   spv::StorageClassUniform,
+                                   uniform_system_constants_, id_vector_temp_),
+                               spv::NoPrecision));
+      // Write the index to r0.x as float.
+      id_vector_temp_.clear();
+      id_vector_temp_.reserve(2);
+      id_vector_temp_.push_back(const_int_0_);
+      id_vector_temp_.push_back(const_int_0_);
+      builder_->createStore(
+          builder_->createUnaryOp(spv::OpConvertSToF, type_float_,
+                                  vertex_index),
+          builder_->createAccessChain(spv::StorageClassFunction,
+                                      var_main_registers_, id_vector_temp_));
+    }
   }
 }
 
-void SpirvShaderTranslator::ProcessAluInstruction(
-    const ParsedAluInstruction& instr) {
-  if (instr.IsNop()) {
+void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(
+      builder_->makeIntConstant(kOutputPerVertexMemberPosition));
+  spv::Id position_ptr = builder_->createAccessChain(
+      spv::StorageClassOutput, output_per_vertex_, id_vector_temp_);
+  spv::Id guest_position = builder_->createLoad(position_ptr, spv::NoPrecision);
+
+  // Check if the shader already returns W, not 1/W, and if it doesn't, turn 1/W
+  // into W.
+  spv::Id position_w =
+      builder_->createCompositeExtract(guest_position, type_float_, 3);
+  spv::Id is_w_not_reciprocal = builder_->createBinOp(
+      spv::OpINotEqual, type_bool_,
+      builder_->createBinOp(
+          spv::OpBitwiseAnd, type_uint_, main_system_constant_flags_,
+          builder_->makeUintConstant(
+              static_cast<unsigned int>(kSysFlag_WNotReciprocal))),
+      const_uint_0_);
+  spv::Id guest_position_w_inv = builder_->createBinOp(
+      spv::OpFDiv, type_float_, const_float_1_, position_w);
+  builder_->addDecoration(guest_position_w_inv, spv::DecorationNoContraction);
+  position_w =
+      builder_->createTriOp(spv::OpSelect, type_float_, is_w_not_reciprocal,
+                            position_w, guest_position_w_inv);
+
+  // Check if the shader returns XY/W rather than XY, and if it does, revert
+  // that.
+  // TODO(Triang3l): Check if having XY or Z pre-divided by W should result in
+  // affine interpolation.
+  uint_vector_temp_.clear();
+  uint_vector_temp_.reserve(2);
+  uint_vector_temp_.push_back(0);
+  uint_vector_temp_.push_back(1);
+  spv::Id position_xy = builder_->createRvalueSwizzle(
+      spv::NoPrecision, type_float2_, guest_position, uint_vector_temp_);
+  spv::Id is_xy_divided_by_w = builder_->createBinOp(
+      spv::OpINotEqual, type_bool_,
+      builder_->createBinOp(
+          spv::OpBitwiseAnd, type_uint_, main_system_constant_flags_,
+          builder_->makeUintConstant(
+              static_cast<unsigned int>(kSysFlag_XYDividedByW))),
+      const_uint_0_);
+  spv::Id guest_position_xy_mul_w = builder_->createBinOp(
+      spv::OpVectorTimesScalar, type_float2_, position_xy, position_w);
+  builder_->addDecoration(guest_position_xy_mul_w,
+                          spv::DecorationNoContraction);
+  position_xy =
+      builder_->createTriOp(spv::OpSelect, type_float2_, is_xy_divided_by_w,
+                            guest_position_xy_mul_w, position_xy);
+
+  // Check if the shader returns Z/W rather than Z, and if it does, revert that.
+  // TODO(Triang3l): Check if having XY or Z pre-divided by W should result in
+  // affine interpolation.
+  spv::Id position_z =
+      builder_->createCompositeExtract(guest_position, type_float_, 2);
+  spv::Id is_z_divided_by_w = builder_->createBinOp(
+      spv::OpINotEqual, type_bool_,
+      builder_->createBinOp(
+          spv::OpBitwiseAnd, type_uint_, main_system_constant_flags_,
+          builder_->makeUintConstant(
+              static_cast<unsigned int>(kSysFlag_ZDividedByW))),
+      const_uint_0_);
+  spv::Id guest_position_z_mul_w =
+      builder_->createBinOp(spv::OpFMul, type_float_, position_z, position_w);
+  builder_->addDecoration(guest_position_z_mul_w, spv::DecorationNoContraction);
+  position_z =
+      builder_->createTriOp(spv::OpSelect, type_float_, is_z_divided_by_w,
+                            guest_position_z_mul_w, position_z);
+
+  // Build XYZ of the position with W format handled.
+  spv::Id position_xyz;
+  {
+    std::unique_ptr<spv::Instruction> composite_construct_op =
+        std::make_unique<spv::Instruction>(
+            builder_->getUniqueId(), type_float3_, spv::OpCompositeConstruct);
+    composite_construct_op->addIdOperand(position_xy);
+    composite_construct_op->addIdOperand(position_z);
+    position_xyz = composite_construct_op->getResultId();
+    builder_->getBuildPoint()->addInstruction(
+        std::move(composite_construct_op));
+  }
+
+  // Apply the NDC scale and offset for guest to host viewport transformation.
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantNdcScale));
+  spv::Id ndc_scale = builder_->createLoad(
+      builder_->createAccessChain(spv::StorageClassUniform,
+                                  uniform_system_constants_, id_vector_temp_),
+      spv::NoPrecision);
+  position_xyz =
+      builder_->createBinOp(spv::OpFMul, type_float3_, position_xyz, ndc_scale);
+  builder_->addDecoration(position_xyz, spv::DecorationNoContraction);
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(
+      builder_->makeIntConstant(kSystemConstantNdcOffset));
+  spv::Id ndc_offset = builder_->createLoad(
+      builder_->createAccessChain(spv::StorageClassUniform,
+                                  uniform_system_constants_, id_vector_temp_),
+      spv::NoPrecision);
+  spv::Id ndc_offset_mul_w = builder_->createBinOp(
+      spv::OpVectorTimesScalar, type_float3_, ndc_offset, position_w);
+  builder_->addDecoration(ndc_offset_mul_w, spv::DecorationNoContraction);
+  position_xyz = builder_->createBinOp(spv::OpFAdd, type_float3_, position_xyz,
+                                       ndc_offset_mul_w);
+  builder_->addDecoration(position_xyz, spv::DecorationNoContraction);
+
+  // Store the position converted to the host.
+  spv::Id position;
+  {
+    std::unique_ptr<spv::Instruction> composite_construct_op =
+        std::make_unique<spv::Instruction>(
+            builder_->getUniqueId(), type_float4_, spv::OpCompositeConstruct);
+    composite_construct_op->addIdOperand(position_xyz);
+    composite_construct_op->addIdOperand(position_w);
+    position = composite_construct_op->getResultId();
+    builder_->getBuildPoint()->addInstruction(
+        std::move(composite_construct_op));
+  }
+  builder_->createStore(position, position_ptr);
+}
+
+void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
+  // Interpolator inputs.
+  uint32_t interpolator_count =
+      std::min(xenos::kMaxInterpolators, register_count());
+  for (uint32_t i = 0; i < interpolator_count; ++i) {
+    spv::Id interpolator = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassInput, type_float4_,
+        (kInterpolatorNamePrefix + std::to_string(i)).c_str());
+    input_output_interpolators_[i] = interpolator;
+    builder_->addDecoration(interpolator, spv::DecorationLocation, int(i));
+    main_interface_.push_back(interpolator);
+  }
+
+  bool param_gen_needed = GetPsParamGenInterpolator() != UINT32_MAX;
+
+  // Fragment coordinates.
+  // TODO(Triang3l): More conditions - fragment shader interlock render backend,
+  // alpha to coverage (if RT 0 is written, and there's no early depth /
+  // stencil), depth writing in the fragment shader (per-sample if supported).
+  if (param_gen_needed) {
+    input_fragment_coord_ = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassInput, type_float4_, "gl_FragCoord");
+    builder_->addDecoration(input_fragment_coord_, spv::DecorationBuiltIn,
+                            spv::BuiltInFragCoord);
+    main_interface_.push_back(input_fragment_coord_);
+  }
+
+  // Is front facing.
+  // TODO(Triang3l): Needed for stencil in the fragment shader interlock render
+  // backend.
+  if (param_gen_needed && !GetSpirvShaderModification().pixel.param_gen_point) {
+    input_front_facing_ = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassInput, type_bool_, "gl_FrontFacing");
+    builder_->addDecoration(input_front_facing_, spv::DecorationBuiltIn,
+                            spv::BuiltInFrontFacing);
+    main_interface_.push_back(input_front_facing_);
+  }
+
+  // Framebuffer attachment outputs.
+  std::fill(output_fragment_data_.begin(), output_fragment_data_.end(),
+            spv::NoResult);
+  static const char* const kFragmentDataNames[] = {
+      "xe_out_fragment_data_0",
+      "xe_out_fragment_data_1",
+      "xe_out_fragment_data_2",
+      "xe_out_fragment_data_3",
+  };
+  uint32_t color_targets_remaining = current_shader().writes_color_targets();
+  uint32_t color_target_index;
+  while (xe::bit_scan_forward(color_targets_remaining, &color_target_index)) {
+    color_targets_remaining &= ~(UINT32_C(1) << color_target_index);
+    spv::Id output_fragment_data_rt = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassOutput, type_float4_,
+        kFragmentDataNames[color_target_index]);
+    output_fragment_data_[color_target_index] = output_fragment_data_rt;
+    builder_->addDecoration(output_fragment_data_rt, spv::DecorationLocation,
+                            int(color_target_index));
+    // Make invariant as pixel shaders may be used for various precise
+    // computations.
+    builder_->addDecoration(output_fragment_data_rt, spv::DecorationInvariant);
+    main_interface_.push_back(output_fragment_data_rt);
+  }
+}
+
+void SpirvShaderTranslator::StartFragmentShaderInMain() {
+  uint32_t param_gen_interpolator = GetPsParamGenInterpolator();
+
+  // Copy the interpolators to general-purpose registers.
+  // TODO(Triang3l): Centroid.
+  uint32_t interpolator_count =
+      std::min(xenos::kMaxInterpolators, register_count());
+  for (uint32_t i = 0; i < interpolator_count; ++i) {
+    if (i == param_gen_interpolator) {
+      continue;
+    }
+    id_vector_temp_.clear();
+    // Register array element.
+    id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
+    builder_->createStore(
+        builder_->createLoad(input_output_interpolators_[i], spv::NoPrecision),
+        builder_->createAccessChain(spv::StorageClassFunction,
+                                    var_main_registers_, id_vector_temp_));
+  }
+
+  // Pixel parameters.
+  if (param_gen_interpolator != UINT32_MAX) {
+    Modification modification = GetSpirvShaderModification();
+    // Rounding the position down, and taking the absolute value, so in case the
+    // host GPU for some reason has quads used for derivative calculation at odd
+    // locations, the left and top edges will have correct derivative magnitude
+    // and LODs.
+    // Assuming that if PsParamGen is needed at all, param_gen_point is always
+    // set for point primitives, and is always disabled for other primitive
+    // types.
+    // OpFNegate requires sign bit flipping even for 0.0 (in this case, the
+    // first column or row of pixels) only since SPIR-V 1.5 revision 2 (not the
+    // base 1.5).
+    // TODO(Triang3l): When SPIR-V 1.6 is used in Xenia, see if OpFNegate can be
+    // used there, should be cheaper because it may be implemented as a hardware
+    // instruction modifier, though it respects the rule for subnormal numbers -
+    // see the actual hardware instructions in both OpBitwiseXor and OpFNegate
+    // cases.
+    spv::Id const_sign_bit = builder_->makeUintConstant(UINT32_C(1) << 31);
+    // TODO(Triang3l): Resolution scale inversion.
+    // X - pixel X .0 in the magnitude, is back-facing in the sign bit.
+    assert_true(input_fragment_coord_ != spv::NoResult);
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(const_int_0_);
+    spv::Id param_gen_x = builder_->createLoad(
+        builder_->createAccessChain(spv::StorageClassInput,
+                                    input_fragment_coord_, id_vector_temp_),
+        spv::NoPrecision);
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(param_gen_x);
+    param_gen_x = builder_->createBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor, id_vector_temp_);
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(param_gen_x);
+    param_gen_x = builder_->createBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_);
+    if (!modification.pixel.param_gen_point) {
+      assert_true(input_front_facing_ != spv::NoResult);
+      param_gen_x = builder_->createTriOp(
+          spv::OpSelect, type_float_,
+          builder_->createBinOp(
+              spv::OpLogicalOr, type_bool_,
+              builder_->createBinOp(
+                  spv::OpIEqual, type_bool_,
+                  builder_->createBinOp(
+                      spv::OpBitwiseAnd, type_uint_,
+                      main_system_constant_flags_,
+                      builder_->makeUintConstant(kSysFlag_PrimitivePolygonal)),
+                  const_uint_0_),
+              builder_->createLoad(input_front_facing_, spv::NoPrecision)),
+          param_gen_x,
+          builder_->createUnaryOp(
+              spv::OpBitcast, type_float_,
+              builder_->createBinOp(
+                  spv::OpBitwiseXor, type_uint_,
+                  builder_->createUnaryOp(spv::OpBitcast, type_uint_,
+                                          param_gen_x),
+                  const_sign_bit)));
+    }
+    // Y - pixel Y .0 in the magnitude, is point in the sign bit.
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(builder_->makeIntConstant(1));
+    spv::Id param_gen_y = builder_->createLoad(
+        builder_->createAccessChain(spv::StorageClassInput,
+                                    input_fragment_coord_, id_vector_temp_),
+        spv::NoPrecision);
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(param_gen_y);
+    param_gen_y = builder_->createBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor, id_vector_temp_);
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(param_gen_y);
+    param_gen_y = builder_->createBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_);
+    if (modification.pixel.param_gen_point) {
+      param_gen_y = builder_->createUnaryOp(
+          spv::OpBitcast, type_float_,
+          builder_->createBinOp(
+              spv::OpBitwiseXor, type_uint_,
+              builder_->createUnaryOp(spv::OpBitcast, type_uint_, param_gen_y),
+              const_sign_bit));
+    }
+    // Z - point S in the magnitude, is line in the sign bit.
+    spv::Id param_gen_z;
+    if (modification.pixel.param_gen_point) {
+      // TODO(Triang3l): Point coordinates.
+      param_gen_z = const_float_0_;
+    } else {
+      param_gen_z = builder_->createUnaryOp(
+          spv::OpBitcast, type_float_,
+          builder_->createTriOp(
+              spv::OpSelect, type_uint_,
+              builder_->createBinOp(
+                  spv::OpINotEqual, type_bool_,
+                  builder_->createBinOp(
+                      spv::OpBitwiseAnd, type_uint_,
+                      main_system_constant_flags_,
+                      builder_->makeUintConstant(kSysFlag_PrimitiveLine)),
+                  const_uint_0_),
+              const_sign_bit, const_uint_0_));
+    }
+    // W - point T in the magnitude.
+    // TODO(Triang3l): Point coordinates.
+    spv::Id param_gen_w = const_float_0_;
+    // Store the pixel parameters.
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(4);
+    id_vector_temp_.push_back(param_gen_x);
+    id_vector_temp_.push_back(param_gen_y);
+    id_vector_temp_.push_back(param_gen_z);
+    id_vector_temp_.push_back(param_gen_w);
+    spv::Id param_gen =
+        builder_->createCompositeConstruct(type_float4_, id_vector_temp_);
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(
+        builder_->makeIntConstant(int(param_gen_interpolator)));
+    builder_->createStore(param_gen, builder_->createAccessChain(
+                                         spv::StorageClassFunction,
+                                         var_main_registers_, id_vector_temp_));
+  }
+
+  // Initialize the colors for safety.
+  for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+    spv::Id output_fragment_data_rt = output_fragment_data_[i];
+    if (output_fragment_data_rt != spv::NoResult) {
+      builder_->createStore(const_float4_0_, output_fragment_data_rt);
+    }
+  }
+}
+
+void SpirvShaderTranslator::UpdateExecConditionals(
+    ParsedExecInstruction::Type type, uint32_t bool_constant_index,
+    bool condition) {
+  // Check if we can merge the new exec with the previous one, or the jump with
+  // the previous exec. The instruction-level predicate check is also merged in
+  // this case.
+  if (type == ParsedExecInstruction::Type::kConditional) {
+    // Can merge conditional with conditional, as long as the bool constant and
+    // the expected values are the same.
+    if (cf_exec_conditional_merge_ &&
+        cf_exec_bool_constant_or_predicate_ == bool_constant_index &&
+        cf_exec_condition_ == condition) {
+      return;
+    }
+  } else if (type == ParsedExecInstruction::Type::kPredicated) {
+    // Can merge predicated with predicated if the conditions are the same and
+    // the previous exec hasn't modified the predicate register.
+    if (!cf_exec_predicate_written_ && cf_exec_conditional_merge_ &&
+        cf_exec_bool_constant_or_predicate_ == kCfExecBoolConstantPredicate &&
+        cf_exec_condition_ == condition) {
+      return;
+    }
+  } else {
+    // Can merge unconditional with unconditional.
+    assert_true(type == ParsedExecInstruction::Type::kUnconditional);
+    if (!cf_exec_conditional_merge_) {
+      return;
+    }
+  }
+
+  CloseExecConditionals();
+
+  if (type == ParsedExecInstruction::Type::kUnconditional) {
     return;
   }
 
-  auto& b = *builder_;
-
-  // Close the open predicated block if this instr isn't predicated or the
-  // conditions do not match.
-  if (open_predicated_block_ &&
-      (!instr.is_predicated ||
-       instr.predicate_condition != predicated_block_cond_)) {
-    b.createBranch(predicated_block_end_);
-    b.setBuildPoint(predicated_block_end_);
-    open_predicated_block_ = false;
-    predicated_block_cond_ = false;
-    predicated_block_end_ = nullptr;
-  }
-
-  if (!open_predicated_block_ && instr.is_predicated) {
-    Id pred_cond =
-        b.createBinOp(spv::Op::OpLogicalEqual, bool_type_, b.createLoad(p0_),
-                      b.makeBoolConstant(instr.predicate_condition));
-    auto block = &b.makeNewBlock();
-    open_predicated_block_ = true;
-    predicated_block_cond_ = instr.predicate_condition;
-    predicated_block_end_ = &b.makeNewBlock();
-
-    b.createSelectionMerge(predicated_block_end_,
-                           spv::SelectionControlMaskNone);
-    b.createConditionalBranch(pred_cond, block, predicated_block_end_);
-    b.setBuildPoint(block);
-  }
-
-  bool close_predicated_block_vector = false;
-  bool store_vector =
-      ProcessVectorAluOperation(instr, close_predicated_block_vector);
-  bool close_predicated_block_scalar = false;
-  bool store_scalar =
-      ProcessScalarAluOperation(instr, close_predicated_block_scalar);
-
-  if (store_vector) {
-    StoreToResult(b.createLoad(pv_), instr.vector_and_constant_result);
-  }
-  if (store_scalar) {
-    StoreToResult(b.createLoad(ps_), instr.scalar_result);
-  }
-
-  if ((close_predicated_block_vector || close_predicated_block_scalar) &&
-      open_predicated_block_) {
-    b.createBranch(predicated_block_end_);
-    b.setBuildPoint(predicated_block_end_);
-    open_predicated_block_ = false;
-    predicated_block_cond_ = false;
-    predicated_block_end_ = nullptr;
-  }
-}
-
-spv::Function* SpirvShaderTranslator::CreateCubeFunction() {
-  auto& b = *builder_;
-  spv::Block* function_block = nullptr;
-  auto function = b.makeFunctionEntry(spv::NoPrecision, vec4_float_type_,
-                                      "cube", {vec4_float_type_},
-                                      {{spv::NoPrecision}}, &function_block);
-  auto src = function->getParamId(0);
-  auto face_id = b.createVariable(spv::StorageClass::StorageClassFunction,
-                                  float_type_, "face_id");
-  auto sc = b.createVariable(spv::StorageClass::StorageClassFunction,
-                             float_type_, "sc");
-  auto tc = b.createVariable(spv::StorageClass::StorageClassFunction,
-                             float_type_, "tc");
-  auto ma = b.createVariable(spv::StorageClass::StorageClassFunction,
-                             float_type_, "ma");
-
-  // Pseudocode:
-  /*
-  vec4 cube(vec4 src1) {
-  vec3 src = vec3(src1.y, src1.x, src1.z);
-  vec3 abs_src = abs(src);
-  int face_id;
-  float sc;
-  float tc;
-  float ma;
-  if (abs_src.x > abs_src.y && abs_src.x > abs_src.z) {
-    if (src.x > 0.0) {
-      face_id = 0; sc = -abs_src.z; tc = -abs_src.y; ma = abs_src.x;
-    } else {
-      face_id = 1; sc =  abs_src.z; tc = -abs_src.y; ma = abs_src.x;
-    }
-  } else if (abs_src.y > abs_src.x && abs_src.y > abs_src.z) {
-    if (src.y > 0.0) {
-      face_id = 2; sc =  abs_src.x; tc =  abs_src.z; ma = abs_src.y;
-    } else {
-      face_id = 3; sc =  abs_src.x; tc = -abs_src.z; ma = abs_src.y;
-    }
+  EnsureBuildPointAvailable();
+  spv::Id condition_id;
+  if (type == ParsedExecInstruction::Type::kConditional) {
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(3);
+    // Bool constants (member 0).
+    id_vector_temp_.push_back(const_int_0_);
+    // 128-bit vector.
+    id_vector_temp_.push_back(
+        builder_->makeIntConstant(int(bool_constant_index >> 7)));
+    // 32-bit scalar of a 128-bit vector.
+    id_vector_temp_.push_back(
+        builder_->makeIntConstant(int((bool_constant_index >> 5) & 3)));
+    spv::Id bool_constant_scalar =
+        builder_->createLoad(builder_->createAccessChain(
+                                 spv::StorageClassUniform,
+                                 uniform_bool_loop_constants_, id_vector_temp_),
+                             spv::NoPrecision);
+    condition_id = builder_->createBinOp(
+        spv::OpINotEqual, type_bool_,
+        builder_->createBinOp(
+            spv::OpBitwiseAnd, type_uint_, bool_constant_scalar,
+            builder_->makeUintConstant(uint32_t(1)
+                                       << (bool_constant_index & 31))),
+        const_uint_0_);
+    cf_exec_bool_constant_or_predicate_ = bool_constant_index;
+  } else if (type == ParsedExecInstruction::Type::kPredicated) {
+    condition_id = builder_->createLoad(var_main_predicate_, spv::NoPrecision);
+    cf_exec_bool_constant_or_predicate_ = kCfExecBoolConstantPredicate;
   } else {
-    if (src.z > 0.0) {
-      face_id = 4; sc =  abs_src.x; tc = -abs_src.y; ma = abs_src.z;
-    } else {
-      face_id = 5; sc = -abs_src.x; tc = -abs_src.y; ma = abs_src.z;
+    assert_unhandled_case(type);
+    return;
+  }
+  cf_exec_condition_ = condition;
+  cf_exec_conditional_merge_ = new spv::Block(
+      builder_->getUniqueId(), builder_->getBuildPoint()->getParent());
+  SpirvCreateSelectionMerge(cf_exec_conditional_merge_->getId());
+  spv::Block& inner_block = builder_->makeNewBlock();
+  builder_->createConditionalBranch(
+      condition_id, condition ? &inner_block : cf_exec_conditional_merge_,
+      condition ? cf_exec_conditional_merge_ : &inner_block);
+  builder_->setBuildPoint(&inner_block);
+}
+
+void SpirvShaderTranslator::UpdateInstructionPredication(bool predicated,
+                                                         bool condition) {
+  if (!predicated) {
+    CloseInstructionPredication();
+    return;
+  }
+
+  if (cf_instruction_predicate_merge_) {
+    if (cf_instruction_predicate_condition_ == condition) {
+      // Already in the needed instruction-level conditional.
+      return;
     }
-  }
-  float s = (sc / ma + 1.0) / 2.0;
-  float t = (tc / ma + 1.0) / 2.0;
-  return vec4(t, s, 2.0 * ma, float(face_id));
-  }
-  */
-
-  auto abs_src = CreateGlslStd450InstructionCall(
-      spv::NoPrecision, vec4_float_type_, spv::GLSLstd450::kFAbs, {src});
-  auto abs_src_x = b.createCompositeExtract(abs_src, float_type_, 0);
-  auto abs_src_y = b.createCompositeExtract(abs_src, float_type_, 1);
-  auto abs_src_z = b.createCompositeExtract(abs_src, float_type_, 2);
-  auto neg_src_x = b.createUnaryOp(spv::Op::OpFNegate, float_type_, abs_src_x);
-  auto neg_src_y = b.createUnaryOp(spv::Op::OpFNegate, float_type_, abs_src_y);
-  auto neg_src_z = b.createUnaryOp(spv::Op::OpFNegate, float_type_, abs_src_z);
-
-  //  Case 1: abs(src).x > abs(src).yz
-  {
-    auto x_gt_y = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
-                                abs_src_x, abs_src_y);
-    auto x_gt_z = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
-                                abs_src_x, abs_src_z);
-    auto c1 = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, x_gt_y, x_gt_z);
-    spv::Builder::If if1(c1, 0, b);
-
-    //  sc =  abs(src).y
-    b.createStore(abs_src_y, sc);
-    //  ma =  abs(src).x
-    b.createStore(abs_src_x, ma);
-
-    auto src_x = b.createCompositeExtract(src, float_type_, 0);
-    auto c2 = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_, src_x,
-                            b.makeFloatConstant(0));
-    //  src.x > 0:
-    //    face_id = 2
-    //    tc = -abs(src).z
-    //  src.x <= 0:
-    //    face_id = 3
-    //    tc =  abs(src).z
-    auto tmp_face_id =
-        b.createTriOp(spv::Op::OpSelect, float_type_, c2,
-                      b.makeFloatConstant(2), b.makeFloatConstant(3));
-    auto tmp_tc =
-        b.createTriOp(spv::Op::OpSelect, float_type_, c2, neg_src_z, abs_src_z);
-
-    b.createStore(tmp_face_id, face_id);
-    b.createStore(tmp_tc, tc);
-
-    if1.makeEndIf();
+    CloseInstructionPredication();
   }
 
-  //  Case 2: abs(src).y > abs(src).xz
-  {
-    auto y_gt_x = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
-                                abs_src_y, abs_src_x);
-    auto y_gt_z = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
-                                abs_src_y, abs_src_z);
-    auto c1 = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, y_gt_x, y_gt_z);
-    spv::Builder::If if1(c1, 0, b);
-
-    //  tc = -abs(src).x
-    b.createStore(neg_src_x, tc);
-    //  ma =  abs(src).y
-    b.createStore(abs_src_y, ma);
-
-    auto src_y = b.createCompositeExtract(src, float_type_, 1);
-    auto c2 = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_, src_y,
-                            b.makeFloatConstant(0));
-    //  src.y > 0:
-    //    face_id = 0
-    //    sc = -abs(src).z
-    //  src.y <= 0:
-    //    face_id = 1
-    //    sc =  abs(src).z
-    auto tmp_face_id =
-        b.createTriOp(spv::Op::OpSelect, float_type_, c2,
-                      b.makeFloatConstant(0), b.makeFloatConstant(1));
-    auto tmp_sc =
-        b.createTriOp(spv::Op::OpSelect, float_type_, c2, neg_src_z, abs_src_z);
-
-    b.createStore(tmp_face_id, face_id);
-    b.createStore(tmp_sc, sc);
-
-    if1.makeEndIf();
+  // If the instruction predicate condition is the same as the exec predicate
+  // condition, no need to open a check. However, if there was a `setp` prior
+  // to this instruction, the predicate value now may be different than it was
+  // in the beginning of the exec.
+  if (!cf_exec_predicate_written_ && cf_exec_conditional_merge_ &&
+      cf_exec_bool_constant_or_predicate_ == kCfExecBoolConstantPredicate &&
+      cf_exec_condition_ == condition) {
+    return;
   }
 
-  //  Case 3: abs(src).z > abs(src).yx
-  {
-    auto z_gt_x = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
-                                abs_src_z, abs_src_x);
-    auto z_gt_y = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
-                                abs_src_z, abs_src_y);
-    auto c1 = b.createBinOp(spv::Op::OpLogicalAnd, bool_type_, z_gt_x, z_gt_y);
-    spv::Builder::If if1(c1, 0, b);
-
-    //  tc = -abs(src).x
-    b.createStore(neg_src_x, tc);
-    //  ma =  abs(src).z
-    b.createStore(abs_src_z, ma);
-
-    auto src_z = b.createCompositeExtract(src, float_type_, 2);
-    auto c2 = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_, src_z,
-                            b.makeFloatConstant(0));
-    //  src.z > 0:
-    //    face_id = 4
-    //    sc = -abs(src).y
-    //  src.z <= 0:
-    //    face_id = 5
-    //    sc =  abs(src).y
-    auto tmp_face_id =
-        b.createTriOp(spv::Op::OpSelect, float_type_, c2,
-                      b.makeFloatConstant(4), b.makeFloatConstant(5));
-    auto tmp_sc =
-        b.createTriOp(spv::Op::OpSelect, float_type_, c2, neg_src_y, abs_src_y);
-
-    b.createStore(tmp_face_id, face_id);
-    b.createStore(tmp_sc, sc);
-
-    if1.makeEndIf();
-  }
-
-  //  s = (sc / ma + 1.0) / 2.0
-  auto s = b.createBinOp(spv::Op::OpFDiv, float_type_, b.createLoad(sc),
-                         b.createLoad(ma));
-  s = b.createBinOp(spv::Op::OpFAdd, float_type_, s, b.makeFloatConstant(1.0));
-  s = b.createBinOp(spv::Op::OpFDiv, float_type_, s, b.makeFloatConstant(2.0));
-
-  //  t = (tc / ma + 1.0) / 2.0
-  auto t = b.createBinOp(spv::Op::OpFDiv, float_type_, b.createLoad(tc),
-                         b.createLoad(ma));
-  t = b.createBinOp(spv::Op::OpFAdd, float_type_, t, b.makeFloatConstant(1.0));
-  t = b.createBinOp(spv::Op::OpFDiv, float_type_, t, b.makeFloatConstant(2.0));
-
-  auto ma_times_two = b.createBinOp(spv::Op::OpFMul, float_type_,
-                                    b.createLoad(ma), b.makeFloatConstant(2.0));
-
-  //  dest = vec4(t, s, 2.0 * ma, face_id)
-  auto ret = b.createCompositeConstruct(
-      vec4_float_type_,
-      std::vector<Id>({t, s, ma_times_two, b.createLoad(face_id)}));
-  b.makeReturn(false, ret);
-
-  return function;
+  cf_instruction_predicate_condition_ = condition;
+  EnsureBuildPointAvailable();
+  spv::Id predicate_id =
+      builder_->createLoad(var_main_predicate_, spv::NoPrecision);
+  spv::Block& predicated_block = builder_->makeNewBlock();
+  cf_instruction_predicate_merge_ = new spv::Block(
+      builder_->getUniqueId(), builder_->getBuildPoint()->getParent());
+  SpirvCreateSelectionMerge(cf_instruction_predicate_merge_->getId());
+  builder_->createConditionalBranch(
+      predicate_id,
+      condition ? &predicated_block : cf_instruction_predicate_merge_,
+      condition ? cf_instruction_predicate_merge_ : &predicated_block);
+  builder_->setBuildPoint(&predicated_block);
 }
 
-bool SpirvShaderTranslator::ProcessVectorAluOperation(
-    const ParsedAluInstruction& instr, bool& close_predicated_block) {
-  close_predicated_block = false;
-
-  if (!instr.vector_and_constant_result.GetUsedWriteMask() &&
-      !ucode::GetAluVectorOpcodeInfo(instr.vector_opcode).changed_state) {
-    return false;
+void SpirvShaderTranslator::CloseInstructionPredication() {
+  if (!cf_instruction_predicate_merge_) {
+    return;
   }
-
-  auto& b = *builder_;
-
-  // TODO: If we have identical operands, reuse previous one.
-  Id sources[3] = {0};
-  Id dest = vec4_float_zero_;
-  for (uint32_t i = 0; i < instr.vector_operand_count; i++) {
-    sources[i] = LoadFromOperand(instr.vector_operands[i]);
+  spv::Block& inner_block = *builder_->getBuildPoint();
+  if (!inner_block.isTerminated()) {
+    builder_->createBranch(cf_instruction_predicate_merge_);
   }
-
-  switch (instr.vector_opcode) {
-    case AluVectorOpcode::kAdd: {
-      dest = b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, sources[0],
-                           sources[1]);
-    } break;
-
-    case AluVectorOpcode::kCndEq: {
-      // dest = src0 == 0.0 ? src1 : src2;
-      auto c = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
-                             vec4_float_zero_);
-      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, sources[1],
-                           sources[2]);
-    } break;
-
-    case AluVectorOpcode::kCndGe: {
-      // dest = src0 >= 0.0 ? src1 : src2;
-      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, vec4_bool_type_,
-                             sources[0], vec4_float_zero_);
-      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, sources[1],
-                           sources[2]);
-    } break;
-
-    case AluVectorOpcode::kCndGt: {
-      // dest = src0 > 0.0 ? src1 : src2;
-      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
-                             sources[0], vec4_float_zero_);
-      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c, sources[1],
-                           sources[2]);
-    } break;
-
-    case AluVectorOpcode::kCube: {
-      dest =
-          b.createFunctionCall(cube_function_, std::vector<Id>({sources[1]}));
-    } break;
-
-    case AluVectorOpcode::kDst: {
-      auto src0_y = b.createCompositeExtract(sources[0], float_type_, 1);
-      auto src1_y = b.createCompositeExtract(sources[1], float_type_, 1);
-      auto dst_y = b.createBinOp(spv::Op::OpFMul, float_type_, src0_y, src1_y);
-
-      auto src0_z = b.createCompositeExtract(sources[0], float_type_, 2);
-      auto src1_w = b.createCompositeExtract(sources[1], float_type_, 3);
-      dest = b.createCompositeConstruct(
-          vec4_float_type_,
-          std::vector<Id>({b.makeFloatConstant(1.f), dst_y, src0_z, src1_w}));
-    } break;
-
-    case AluVectorOpcode::kDp2Add: {
-      auto src0_xy = b.createOp(spv::Op::OpVectorShuffle, vec2_float_type_,
-                                {sources[0], sources[0], 0, 1});
-      auto src1_xy = b.createOp(spv::Op::OpVectorShuffle, vec2_float_type_,
-                                {sources[1], sources[1], 0, 1});
-      auto src2_x = b.createCompositeExtract(sources[2], float_type_, 0);
-      dest = b.createBinOp(spv::Op::OpDot, float_type_, src0_xy, src1_xy);
-      dest = b.createBinOp(spv::Op::OpFAdd, float_type_, dest, src2_x);
-      dest = b.smearScalar(spv::NoPrecision, dest, vec4_float_type_);
-    } break;
-
-    case AluVectorOpcode::kDp3: {
-      auto src0_xyz = b.createOp(spv::Op::OpVectorShuffle, vec3_float_type_,
-                                 {sources[0], sources[0], 0, 1, 2});
-      auto src1_xyz = b.createOp(spv::Op::OpVectorShuffle, vec3_float_type_,
-                                 {sources[1], sources[1], 0, 1, 2});
-      dest = b.createBinOp(spv::Op::OpDot, float_type_, src0_xyz, src1_xyz);
-      dest = b.smearScalar(spv::NoPrecision, dest, vec4_float_type_);
-    } break;
-
-    case AluVectorOpcode::kDp4: {
-      dest = b.createBinOp(spv::Op::OpDot, float_type_, sources[0], sources[1]);
-      dest = b.smearScalar(spv::NoPrecision, dest, vec4_float_type_);
-    } break;
-
-    case AluVectorOpcode::kFloor: {
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, vec4_float_type_,
-                                             spv::GLSLstd450::kFloor,
-                                             {sources[0]});
-    } break;
-
-    case AluVectorOpcode::kFrc: {
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, vec4_float_type_,
-                                             spv::GLSLstd450::kFract,
-                                             {sources[0]});
-    } break;
-
-    case AluVectorOpcode::kKillEq: {
-      auto continue_block = &b.makeNewBlock();
-      auto kill_block = &b.makeNewBlock();
-      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_,
-                                sources[0], sources[1]);
-      cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
-      b.createConditionalBranch(cond, kill_block, continue_block);
-
-      b.setBuildPoint(kill_block);
-      b.createNoResultOp(spv::Op::OpKill);
-
-      b.setBuildPoint(continue_block);
-      dest = vec4_float_zero_;
-    } break;
-
-    case AluVectorOpcode::kKillGe: {
-      auto continue_block = &b.makeNewBlock();
-      auto kill_block = &b.makeNewBlock();
-      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual,
-                                vec4_bool_type_, sources[0], sources[1]);
-      cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
-      b.createConditionalBranch(cond, kill_block, continue_block);
-
-      b.setBuildPoint(kill_block);
-      b.createNoResultOp(spv::Op::OpKill);
-
-      b.setBuildPoint(continue_block);
-      dest = vec4_float_zero_;
-    } break;
-
-    case AluVectorOpcode::kKillGt: {
-      auto continue_block = &b.makeNewBlock();
-      auto kill_block = &b.makeNewBlock();
-      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
-                                sources[0], sources[1]);
-      cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
-      b.createConditionalBranch(cond, kill_block, continue_block);
-
-      b.setBuildPoint(kill_block);
-      b.createNoResultOp(spv::Op::OpKill);
-
-      b.setBuildPoint(continue_block);
-      dest = vec4_float_zero_;
-    } break;
-
-    case AluVectorOpcode::kKillNe: {
-      auto continue_block = &b.makeNewBlock();
-      auto kill_block = &b.makeNewBlock();
-      auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_,
-                                sources[0], sources[1]);
-      cond = b.createUnaryOp(spv::Op::OpAny, bool_type_, cond);
-      b.createConditionalBranch(cond, kill_block, continue_block);
-
-      b.setBuildPoint(kill_block);
-      b.createNoResultOp(spv::Op::OpKill);
-
-      b.setBuildPoint(continue_block);
-      dest = vec4_float_zero_;
-    } break;
-
-    case AluVectorOpcode::kMad: {
-      dest = b.createBinOp(spv::Op::OpFMul, vec4_float_type_, sources[0],
-                           sources[1]);
-      dest = b.createBinOp(spv::Op::OpFAdd, vec4_float_type_, dest, sources[2]);
-    } break;
-
-    case AluVectorOpcode::kMax4: {
-      auto src0_x = b.createCompositeExtract(sources[0], float_type_, 0);
-      auto src0_y = b.createCompositeExtract(sources[0], float_type_, 1);
-      auto src0_z = b.createCompositeExtract(sources[0], float_type_, 2);
-      auto src0_w = b.createCompositeExtract(sources[0], float_type_, 3);
-
-      auto max_xy = CreateGlslStd450InstructionCall(
-          spv::NoPrecision, float_type_, spv::GLSLstd450::kFMax,
-          {src0_x, src0_y});
-      auto max_zw = CreateGlslStd450InstructionCall(
-          spv::NoPrecision, float_type_, spv::GLSLstd450::kFMax,
-          {src0_z, src0_w});
-      auto max_xyzw = CreateGlslStd450InstructionCall(
-          spv::NoPrecision, float_type_, spv::GLSLstd450::kFMax,
-          {max_xy, max_zw});
-
-      // FIXME: Docs say this only updates pv.x?
-      dest = b.smearScalar(spv::NoPrecision, max_xyzw, vec4_float_type_);
-    } break;
-
-    case AluVectorOpcode::kMaxA: {
-      // a0 = clamp(floor(src0.w + 0.5), -256, 255)
-      auto addr = b.createCompositeExtract(sources[0], float_type_, 3);
-      addr = b.createBinOp(spv::Op::OpFAdd, float_type_, addr,
-                           b.makeFloatConstant(0.5f));
-      addr = b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, addr);
-      addr = CreateGlslStd450InstructionCall(
-          spv::NoPrecision, int_type_, spv::GLSLstd450::kSClamp,
-          {addr, b.makeIntConstant(-256), b.makeIntConstant(255)});
-      b.createStore(addr, a0_);
-
-      // dest = src0 >= src1 ? src0 : src1
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, vec4_float_type_,
-                                             spv::GLSLstd450::kFMax,
-                                             {sources[0], sources[1]});
-    } break;
-
-    case AluVectorOpcode::kMax: {
-      if (sources[0] == sources[1]) {
-        // mov dst, src
-        dest = sources[0];
-        break;
-      }
-
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, vec4_float_type_,
-                                             spv::GLSLstd450::kFMax,
-                                             {sources[0], sources[1]});
-    } break;
-
-    case AluVectorOpcode::kMin: {
-      if (sources[0] == sources[1]) {
-        // mov dst, src
-        dest = sources[0];
-        break;
-      }
-
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, vec4_float_type_,
-                                             spv::GLSLstd450::kFMin,
-                                             {sources[0], sources[1]});
-    } break;
-
-    case AluVectorOpcode::kMul: {
-      dest = b.createBinOp(spv::Op::OpFMul, vec4_float_type_, sources[0],
-                           sources[1]);
-    } break;
-
-    case AluVectorOpcode::kSetpEqPush: {
-      auto c0 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
-                              vec4_float_zero_);
-      auto c1 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[1],
-                              vec4_float_zero_);
-      auto c_and =
-          b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
-      auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
-      c_and_x = b.smearScalar(spv::NoPrecision, c_and_x, vec4_bool_type_);
-      auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
-
-      // p0
-      b.createStore(c_and_w, p0_);
-      close_predicated_block = true;
-
-      // dest
-      auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
-      s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
-                           b.makeFloatConstant(1.f));
-      auto s0 = b.smearScalar(spv::NoPrecision, s0_x, vec4_float_type_);
-
-      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
-                           vec4_float_zero_, s0);
-    } break;
-
-    case AluVectorOpcode::kSetpGePush: {
-      auto c0 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
-                              vec4_float_zero_);
-      auto c1 = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, vec4_bool_type_,
-                              sources[1], vec4_float_zero_);
-      auto c_and =
-          b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
-      auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
-      c_and_x = b.smearScalar(spv::NoPrecision, c_and_x, vec4_bool_type_);
-      auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
-
-      // p0
-      b.createStore(c_and_w, p0_);
-      close_predicated_block = true;
-
-      // dest
-      auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
-      s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
-                           b.makeFloatConstant(1.f));
-      auto s0 = b.smearScalar(spv::NoPrecision, s0_x, vec4_float_type_);
-
-      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
-                           vec4_float_zero_, s0);
-    } break;
-
-    case AluVectorOpcode::kSetpGtPush: {
-      auto c0 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
-                              vec4_float_zero_);
-      auto c1 = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
-                              sources[1], vec4_float_zero_);
-      auto c_and =
-          b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
-      auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
-      c_and_x = b.smearScalar(spv::NoPrecision, c_and_x, vec4_bool_type_);
-      auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
-
-      // p0
-      b.createStore(c_and_w, p0_);
-      close_predicated_block = true;
-
-      // dest
-      auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
-      s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
-                           b.makeFloatConstant(1.f));
-      auto s0 = b.smearScalar(spv::NoPrecision, s0_x, vec4_float_type_);
-
-      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
-                           vec4_float_zero_, s0);
-    } break;
-
-    case AluVectorOpcode::kSetpNePush: {
-      auto c0 = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_,
-                              sources[0], vec4_float_zero_);
-      auto c1 = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[1],
-                              vec4_float_zero_);
-      auto c_and =
-          b.createBinOp(spv::Op::OpLogicalAnd, vec4_bool_type_, c0, c1);
-      auto c_and_x = b.createCompositeExtract(c_and, bool_type_, 0);
-      c_and_x = b.smearScalar(spv::NoPrecision, c_and_x, vec4_bool_type_);
-      auto c_and_w = b.createCompositeExtract(c_and, bool_type_, 3);
-
-      // p0
-      b.createStore(c_and_w, p0_);
-      close_predicated_block = true;
-
-      // dest
-      auto s0_x = b.createCompositeExtract(sources[0], float_type_, 0);
-      s0_x = b.createBinOp(spv::Op::OpFAdd, float_type_, s0_x,
-                           b.makeFloatConstant(1.f));
-      auto s0 = b.smearScalar(spv::NoPrecision, s0_x, vec4_float_type_);
-
-      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c_and_x,
-                           vec4_float_zero_, s0);
-    } break;
-
-    case AluVectorOpcode::kSeq: {
-      // foreach(el) src0 == src1 ? 1.0 : 0.0
-      auto c = b.createBinOp(spv::Op::OpFOrdEqual, vec4_bool_type_, sources[0],
-                             sources[1]);
-      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
-                           vec4_float_one_, vec4_float_zero_);
-    } break;
-
-    case AluVectorOpcode::kSge: {
-      // foreach(el) src0 >= src1 ? 1.0 : 0.0
-      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, vec4_bool_type_,
-                             sources[0], sources[1]);
-      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
-                           vec4_float_one_, vec4_float_zero_);
-    } break;
-
-    case AluVectorOpcode::kSgt: {
-      // foreach(el) src0 > src1 ? 1.0 : 0.0
-      auto c = b.createBinOp(spv::Op::OpFOrdGreaterThan, vec4_bool_type_,
-                             sources[0], sources[1]);
-      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
-                           vec4_float_one_, vec4_float_zero_);
-    } break;
-
-    case AluVectorOpcode::kSne: {
-      // foreach(el) src0 != src1 ? 1.0 : 0.0
-      auto c = b.createBinOp(spv::Op::OpFOrdNotEqual, vec4_bool_type_,
-                             sources[0], sources[1]);
-      dest = b.createTriOp(spv::Op::OpSelect, vec4_float_type_, c,
-                           vec4_float_one_, vec4_float_zero_);
-    } break;
-
-    case AluVectorOpcode::kTrunc: {
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, vec4_float_type_,
-                                             GLSLstd450::kTrunc, {sources[0]});
-    } break;
-
-    default:
-      assert_unhandled_case(instr.vector_opcode);
-      break;
-  }
-
-  assert_not_zero(dest);
-  assert_true(b.getTypeId(dest) == vec4_float_type_);
-  if (dest) {
-    b.createStore(dest, pv_);
-    return true;
-  }
-  return false;
+  inner_block.getParent().addBlock(cf_instruction_predicate_merge_);
+  builder_->setBuildPoint(cf_instruction_predicate_merge_);
+  cf_instruction_predicate_merge_ = nullptr;
 }
 
-bool SpirvShaderTranslator::ProcessScalarAluOperation(
-    const ParsedAluInstruction& instr, bool& close_predicated_block) {
-  close_predicated_block = false;
-
-  if (instr.scalar_opcode == ucode::AluScalarOpcode::kRetainPrev &&
-      !instr.scalar_result.GetUsedWriteMask()) {
-    return false;
-  }
-
-  auto& b = *builder_;
-
-  // TODO: If we have identical operands, reuse previous one.
-  Id sources[3] = {0};
-  Id dest = b.makeFloatConstant(0);
-  for (uint32_t i = 0, x = 0; i < instr.scalar_operand_count; i++) {
-    auto src = LoadFromOperand(instr.scalar_operands[i]);
-
-    // Pull components out of the vector operands and use them as sources.
-    if (instr.scalar_operands[i].component_count > 1) {
-      for (uint32_t j = 0; j < instr.scalar_operands[i].component_count; j++) {
-        sources[x++] = b.createCompositeExtract(src, float_type_, j);
-      }
-    } else {
-      sources[x++] = src;
+void SpirvShaderTranslator::CloseExecConditionals() {
+  // Within the exec - instruction-level predicate check.
+  CloseInstructionPredication();
+  // Exec level.
+  if (cf_exec_conditional_merge_) {
+    spv::Block& inner_block = *builder_->getBuildPoint();
+    if (!inner_block.isTerminated()) {
+      builder_->createBranch(cf_exec_conditional_merge_);
     }
+    inner_block.getParent().addBlock(cf_exec_conditional_merge_);
+    builder_->setBuildPoint(cf_exec_conditional_merge_);
+    cf_exec_conditional_merge_ = nullptr;
   }
-
-  switch (instr.scalar_opcode) {
-    case AluScalarOpcode::kAdds:
-    case AluScalarOpcode::kAddsc0:
-    case AluScalarOpcode::kAddsc1: {
-      // dest = src0 + src1
-      dest =
-          b.createBinOp(spv::Op::OpFAdd, float_type_, sources[0], sources[1]);
-    } break;
-
-    case AluScalarOpcode::kAddsPrev: {
-      // dest = src0 + ps
-      dest = b.createBinOp(spv::Op::OpFAdd, float_type_, sources[0],
-                           b.createLoad(ps_));
-    } break;
-
-    case AluScalarOpcode::kCos: {
-      // dest = cos(src0)
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
-                                             GLSLstd450::kCos, {sources[0]});
-    } break;
-
-    case AluScalarOpcode::kExp: {
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
-                                             GLSLstd450::kExp2, {sources[0]});
-    } break;
-
-    case AluScalarOpcode::kFloors: {
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
-                                             GLSLstd450::kFloor, {sources[0]});
-    } break;
-
-    case AluScalarOpcode::kFrcs: {
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
-                                             GLSLstd450::kFract, {sources[0]});
-    } break;
-
-    case AluScalarOpcode::kKillsEq: {
-      auto continue_block = &b.makeNewBlock();
-      auto kill_block = &b.makeNewBlock();
-      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
-                                b.makeFloatConstant(0.f));
-      b.createConditionalBranch(cond, kill_block, continue_block);
-
-      b.setBuildPoint(kill_block);
-      b.createNoResultOp(spv::Op::OpKill);
-
-      b.setBuildPoint(continue_block);
-      dest = b.makeFloatConstant(0.f);
-    } break;
-
-    case AluScalarOpcode::kKillsGe: {
-      auto continue_block = &b.makeNewBlock();
-      auto kill_block = &b.makeNewBlock();
-      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
-                                sources[0], b.makeFloatConstant(0.f));
-      b.createConditionalBranch(cond, kill_block, continue_block);
-
-      b.setBuildPoint(kill_block);
-      b.createNoResultOp(spv::Op::OpKill);
-
-      b.setBuildPoint(continue_block);
-      dest = b.makeFloatConstant(0.f);
-    } break;
-
-    case AluScalarOpcode::kKillsGt: {
-      auto continue_block = &b.makeNewBlock();
-      auto kill_block = &b.makeNewBlock();
-      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
-                                sources[0], b.makeFloatConstant(0.f));
-      b.createConditionalBranch(cond, kill_block, continue_block);
-
-      b.setBuildPoint(kill_block);
-      b.createNoResultOp(spv::Op::OpKill);
-
-      b.setBuildPoint(continue_block);
-      dest = b.makeFloatConstant(0.f);
-    } break;
-
-    case AluScalarOpcode::kKillsNe: {
-      auto continue_block = &b.makeNewBlock();
-      auto kill_block = &b.makeNewBlock();
-      auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, bool_type_, sources[0],
-                                b.makeFloatConstant(0.f));
-      b.createConditionalBranch(cond, kill_block, continue_block);
-
-      b.setBuildPoint(kill_block);
-      b.createNoResultOp(spv::Op::OpKill);
-
-      b.setBuildPoint(continue_block);
-      dest = b.makeFloatConstant(0.f);
-    } break;
-
-    case AluScalarOpcode::kKillsOne: {
-      auto continue_block = &b.makeNewBlock();
-      auto kill_block = &b.makeNewBlock();
-      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
-                                b.makeFloatConstant(1.f));
-      b.createConditionalBranch(cond, kill_block, continue_block);
-
-      b.setBuildPoint(kill_block);
-      b.createNoResultOp(spv::Op::OpKill);
-
-      b.setBuildPoint(continue_block);
-      dest = b.makeFloatConstant(0.f);
-    } break;
-
-    case AluScalarOpcode::kLogc: {
-      auto t = CreateGlslStd450InstructionCall(
-          spv::NoPrecision, float_type_, spv::GLSLstd450::kLog2, {sources[0]});
-
-      // FIXME: We don't check to see if t == -INF, we just check for INF
-      auto c = b.createUnaryOp(spv::Op::OpIsInf, bool_type_, t);
-      dest = b.createTriOp(spv::Op::OpSelect, float_type_, c,
-                           b.makeFloatConstant(-FLT_MAX), t);
-    } break;
-
-    case AluScalarOpcode::kLog: {
-      dest = CreateGlslStd450InstructionCall(
-          spv::NoPrecision, float_type_, spv::GLSLstd450::kLog2, {sources[0]});
-    } break;
-
-    case AluScalarOpcode::kMaxAsf: {
-      auto addr =
-          b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, sources[0]);
-      addr = CreateGlslStd450InstructionCall(
-          spv::NoPrecision, int_type_, spv::GLSLstd450::kSClamp,
-          {addr, b.makeIntConstant(-256), b.makeIntConstant(255)});
-      b.createStore(addr, a0_);
-
-      // dest = src0 >= src1 ? src0 : src1
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
-                                             spv::GLSLstd450::kFMax,
-                                             {sources[0], sources[1]});
-    } break;
-
-    case AluScalarOpcode::kMaxAs: {
-      // a0 = clamp(floor(src0 + 0.5), -256, 255)
-      auto addr = b.createBinOp(spv::Op::OpFAdd, float_type_, sources[0],
-                                b.makeFloatConstant(0.5f));
-      addr = b.createUnaryOp(spv::Op::OpConvertFToS, int_type_, addr);
-      addr = CreateGlslStd450InstructionCall(
-          spv::NoPrecision, int_type_, spv::GLSLstd450::kSClamp,
-          {addr, b.makeIntConstant(-256), b.makeIntConstant(255)});
-      b.createStore(addr, a0_);
-
-      // dest = src0 >= src1 ? src0 : src1
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
-                                             spv::GLSLstd450::kFMax,
-                                             {sources[0], sources[1]});
-    } break;
-
-    case AluScalarOpcode::kMaxs: {
-      if (sources[0] == sources[1]) {
-        // mov dst, src
-        dest = sources[0];
-      }
-
-      // dest = max(src0, src1)
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
-                                             GLSLstd450::kFMax,
-                                             {sources[0], sources[1]});
-    } break;
-
-    case AluScalarOpcode::kMins: {
-      if (sources[0] == sources[1]) {
-        // mov dst, src
-        dest = sources[0];
-      }
-
-      // dest = min(src0, src1)
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
-                                             GLSLstd450::kFMin,
-                                             {sources[0], sources[1]});
-    } break;
-
-    case AluScalarOpcode::kMuls:
-    case AluScalarOpcode::kMulsc0:
-    case AluScalarOpcode::kMulsc1: {
-      // dest = src0 * src1
-      dest =
-          b.createBinOp(spv::Op::OpFMul, float_type_, sources[0], sources[1]);
-    } break;
-
-    case AluScalarOpcode::kMulsPrev: {
-      // dest = src0 * ps
-      dest = b.createBinOp(spv::Op::OpFMul, float_type_, sources[0],
-                           b.createLoad(ps_));
-    } break;
-
-    case AluScalarOpcode::kMulsPrev2: {
-      // TODO: Uh... see GLSL translator for impl.
-    } break;
-
-    case AluScalarOpcode::kRcpc: {
-      dest = b.createBinOp(spv::Op::OpFDiv, float_type_,
-                           b.makeFloatConstant(1.f), sources[0]);
-      dest = CreateGlslStd450InstructionCall(
-          spv::NoPrecision, float_type_, spv::GLSLstd450::kFClamp,
-          {dest, b.makeFloatConstant(-FLT_MAX), b.makeFloatConstant(FLT_MAX)});
-    } break;
-
-    case AluScalarOpcode::kRcpf: {
-      dest = b.createBinOp(spv::Op::OpFDiv, float_type_,
-                           b.makeFloatConstant(1.f), sources[0]);
-      auto c = b.createUnaryOp(spv::Op::OpIsInf, bool_type_, dest);
-      dest = b.createTriOp(spv::Op::OpSelect, float_type_, c,
-                           b.makeFloatConstant(0.f), dest);
-    } break;
-
-    case AluScalarOpcode::kRcp: {
-      // dest = src0 != 0.0 ? 1.0 / src0 : 0.0;
-      auto c = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
-                             b.makeFloatConstant(0.f));
-      auto d = b.createBinOp(spv::Op::OpFDiv, float_type_,
-                             b.makeFloatConstant(1.f), sources[0]);
-      dest = b.createTriOp(spv::Op::OpSelect, float_type_, c,
-                           b.makeFloatConstant(0.f), d);
-    } break;
-
-    case AluScalarOpcode::kRsqc: {
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
-                                             spv::GLSLstd450::kInverseSqrt,
-                                             {sources[0]});
-      dest = CreateGlslStd450InstructionCall(
-          spv::NoPrecision, float_type_, spv::GLSLstd450::kFClamp,
-          {dest, b.makeFloatConstant(-FLT_MAX), b.makeFloatConstant(FLT_MAX)});
-    } break;
-
-    case AluScalarOpcode::kRsqf: {
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
-                                             spv::GLSLstd450::kInverseSqrt,
-                                             {sources[0]});
-      auto c1 = b.createUnaryOp(spv::Op::OpIsInf, bool_type_, dest);
-      auto c2 = b.createUnaryOp(spv::Op::OpIsNan, bool_type_, dest);
-      auto c = b.createBinOp(spv::Op::OpLogicalOr, bool_type_, c1, c2);
-      dest = b.createTriOp(spv::Op::OpSelect, float_type_, c,
-                           b.makeFloatConstant(0.f), dest);
-    } break;
-
-    case AluScalarOpcode::kRsq: {
-      // dest = src0 > 0.0 ? inversesqrt(src0) : 0.0;
-      auto c = b.createBinOp(spv::Op::OpFOrdLessThanEqual, bool_type_,
-                             sources[0], b.makeFloatConstant(0.f));
-      auto d = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
-                                               spv::GLSLstd450::kInverseSqrt,
-                                               {sources[0]});
-      dest = b.createTriOp(spv::Op::OpSelect, float_type_, c,
-                           b.makeFloatConstant(0.f), d);
-    } break;
-
-    case AluScalarOpcode::kSeqs: {
-      // dest = src0 == 0.0 ? 1.0 : 0.0;
-      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
-                                b.makeFloatConstant(0.f));
-      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
-                           b.makeFloatConstant(1.f), b.makeFloatConstant(0.f));
-    } break;
-
-    case AluScalarOpcode::kSges: {
-      // dest = src0 >= 0.0 ? 1.0 : 0.0;
-      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
-                                sources[0], b.makeFloatConstant(0.f));
-      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
-                           b.makeFloatConstant(1.f), b.makeFloatConstant(0.f));
-    } break;
-
-    case AluScalarOpcode::kSgts: {
-      // dest = src0 > 0.0 ? 1.0 : 0.0;
-      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
-                                sources[0], b.makeFloatConstant(0.f));
-      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
-                           b.makeFloatConstant(1.f), b.makeFloatConstant(0.f));
-    } break;
-
-    case AluScalarOpcode::kSnes: {
-      // dest = src0 != 0.0 ? 1.0 : 0.0;
-      auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, bool_type_, sources[0],
-                                b.makeFloatConstant(0.f));
-      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
-                           b.makeFloatConstant(1.f), b.makeFloatConstant(0.f));
-    } break;
-
-    case AluScalarOpcode::kSetpClr: {
-      b.createStore(b.makeBoolConstant(false), p0_);
-      close_predicated_block = true;
-      dest = b.makeFloatConstant(FLT_MAX);
-    } break;
-
-    case AluScalarOpcode::kSetpEq: {
-      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
-                                b.makeFloatConstant(0.f));
-      // p0 = cond
-      b.createStore(cond, p0_);
-      close_predicated_block = true;
-
-      // dest = cond ? 0.f : 1.f;
-      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
-                           b.makeFloatConstant(0.f), b.makeFloatConstant(1.f));
-    } break;
-
-    case AluScalarOpcode::kSetpGe: {
-      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThanEqual, bool_type_,
-                                sources[0], b.makeFloatConstant(0.f));
-      // p0 = cond
-      b.createStore(cond, p0_);
-      close_predicated_block = true;
-
-      // dest = cond ? 0.f : 1.f;
-      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
-                           b.makeFloatConstant(0.f), b.makeFloatConstant(1.f));
-    } break;
-
-    case AluScalarOpcode::kSetpGt: {
-      auto cond = b.createBinOp(spv::Op::OpFOrdGreaterThan, bool_type_,
-                                sources[0], b.makeFloatConstant(0.f));
-      // p0 = cond
-      b.createStore(cond, p0_);
-      close_predicated_block = true;
-
-      // dest = cond ? 0.f : 1.f;
-      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
-                           b.makeFloatConstant(0.f), b.makeFloatConstant(1.f));
-    } break;
-
-    case AluScalarOpcode::kSetpInv: {
-      // p0 = src0 == 1.0
-      auto cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
-                                b.makeFloatConstant(1.f));
-      b.createStore(cond, p0_);
-      close_predicated_block = true;
-
-      // if (!cond) dest = src0 == 0.0 ? 1.0 : src0;
-      auto dst_cond = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_,
-                                    sources[0], b.makeFloatConstant(0.f));
-      auto dst_false = b.createTriOp(spv::Op::OpSelect, float_type_, dst_cond,
-                                     b.makeFloatConstant(1.f), sources[0]);
-      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
-                           b.makeFloatConstant(0.f), dst_false);
-    } break;
-
-    case AluScalarOpcode::kSetpNe: {
-      auto cond = b.createBinOp(spv::Op::OpFOrdNotEqual, bool_type_, sources[0],
-                                b.makeFloatConstant(0.f));
-
-      // p0 = cond
-      b.createStore(cond, p0_);
-      close_predicated_block = true;
-
-      // dest = cond ? 0.f : 1.f;
-      dest = b.createTriOp(spv::Op::OpSelect, float_type_, cond,
-                           b.makeFloatConstant(0.f), b.makeFloatConstant(1.f));
-    } break;
-
-    case AluScalarOpcode::kSetpPop: {
-      auto src = b.createBinOp(spv::Op::OpFSub, float_type_, sources[0],
-                               b.makeFloatConstant(1.f));
-      auto c = b.createBinOp(spv::Op::OpFOrdLessThanEqual, bool_type_, src,
-                             b.makeFloatConstant(0.f));
-      b.createStore(c, p0_);
-      close_predicated_block = true;
-
-      dest = CreateGlslStd450InstructionCall(
-          spv::NoPrecision, float_type_, GLSLstd450::kFMax,
-          {sources[0], b.makeFloatConstant(0.f)});
-    } break;
-
-    case AluScalarOpcode::kSetpRstr: {
-      auto c = b.createBinOp(spv::Op::OpFOrdEqual, bool_type_, sources[0],
-                             b.makeFloatConstant(0.f));
-      b.createStore(c, p0_);
-      close_predicated_block = true;
-      dest = sources[0];
-    } break;
-
-    case AluScalarOpcode::kSin: {
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
-                                             GLSLstd450::kSin, {sources[0]});
-    } break;
-
-    case AluScalarOpcode::kSqrt: {
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
-                                             GLSLstd450::kSqrt, {sources[0]});
-    } break;
-
-    case AluScalarOpcode::kSubs:
-    case AluScalarOpcode::kSubsc0:
-    case AluScalarOpcode::kSubsc1: {
-      dest =
-          b.createBinOp(spv::Op::OpFSub, float_type_, sources[0], sources[1]);
-    } break;
-
-    case AluScalarOpcode::kSubsPrev: {
-      dest = b.createBinOp(spv::Op::OpFSub, float_type_, sources[0],
-                           b.createLoad(ps_));
-    } break;
-
-    case AluScalarOpcode::kTruncs: {
-      dest = CreateGlslStd450InstructionCall(spv::NoPrecision, float_type_,
-                                             GLSLstd450::kTrunc, {sources[0]});
-    } break;
-
-    default:
-      assert_unhandled_case(instr.scalar_opcode);
-      break;
-  }
-
-  assert_not_zero(dest);
-  assert_true(b.getTypeId(dest) == float_type_);
-  if (dest) {
-    b.createStore(dest, ps_);
-    return true;
-  }
-  return false;
+  // Nothing relies on the predicate value being unchanged now.
+  cf_exec_predicate_written_ = false;
 }
 
-Id SpirvShaderTranslator::CreateGlslStd450InstructionCall(
-    spv::Decoration precision, Id result_type, GLSLstd450 instruction_ordinal,
-    std::vector<Id> args) {
-  return builder_->createBuiltinCall(result_type, glsl_std_450_instruction_set_,
-                                     static_cast<int>(instruction_ordinal),
-                                     args);
-}
-
-Id SpirvShaderTranslator::LoadFromOperand(const InstructionOperand& op) {
-  auto& b = *builder_;
-
-  Id storage_pointer = 0;
-  Id storage_type = vec4_float_type_;
-  spv::StorageClass storage_class;
-  Id storage_index = 0;             // Storage index at lowest level
-  std::vector<Id> storage_offsets;  // Offsets in nested arrays -> storage
-
-  // Out of the 512 constant registers pixel shaders get the last 256.
-  uint32_t storage_base = 0;
-  if (op.storage_source == InstructionStorageSource::kConstantFloat) {
-    storage_base = is_pixel_shader() ? 256 : 0;
-  }
-
-  switch (op.storage_addressing_mode) {
+spv::Id SpirvShaderTranslator::GetStorageAddressingIndex(
+    InstructionStorageAddressingMode addressing_mode, uint32_t storage_index,
+    bool is_float_constant) {
+  const Shader::ConstantRegisterMap& constant_register_map =
+      current_shader().constant_register_map();
+  EnsureBuildPointAvailable();
+  spv::Id base_pointer = spv::NoResult;
+  switch (addressing_mode) {
     case InstructionStorageAddressingMode::kAbsolute: {
-      storage_index = b.makeUintConstant(storage_base + op.storage_index);
-    } break;
-    case InstructionStorageAddressingMode::kAddressRegisterRelative: {
-      // storage_index + a0
-      storage_index =
-          b.createBinOp(spv::Op::OpIAdd, uint_type_, b.createLoad(a0_),
-                        b.makeUintConstant(storage_base + op.storage_index));
-    } break;
-    case InstructionStorageAddressingMode::kLoopRelative: {
-      // storage_index + aL.x
-      auto idx = b.createCompositeExtract(b.createLoad(aL_), uint_type_, 0);
-      storage_index =
-          b.createBinOp(spv::Op::OpIAdd, uint_type_, idx,
-                        b.makeUintConstant(storage_base + op.storage_index));
-    } break;
-    default:
-      assert_always();
+      uint32_t static_storage_index = storage_index;
+      if (is_float_constant) {
+        static_storage_index =
+            constant_register_map.GetPackedFloatConstantIndex(storage_index);
+        assert_true(static_storage_index != UINT32_MAX);
+        if (static_storage_index == UINT32_MAX) {
+          static_storage_index = 0;
+        }
+      }
+      return builder_->makeIntConstant(int(static_storage_index));
+    }
+    case InstructionStorageAddressingMode::kAddressRegisterRelative:
+      base_pointer = var_main_address_register_;
+      break;
+    case InstructionStorageAddressingMode::kLoopRelative:
+      // Load X component.
+      id_vector_temp_util_.clear();
+      id_vector_temp_util_.push_back(const_int_0_);
+      base_pointer = builder_->createAccessChain(spv::StorageClassFunction,
+                                                 var_main_loop_address_,
+                                                 id_vector_temp_util_);
       break;
   }
+  assert_true(!is_float_constant ||
+              constant_register_map.float_dynamic_addressing);
+  assert_true(base_pointer != spv::NoResult);
+  spv::Id index = builder_->createLoad(base_pointer, spv::NoPrecision);
+  if (storage_index) {
+    index =
+        builder_->createBinOp(spv::OpIAdd, type_int_, index,
+                              builder_->makeIntConstant(int(storage_index)));
+  }
+  return index;
+}
 
-  switch (op.storage_source) {
+spv::Id SpirvShaderTranslator::LoadOperandStorage(
+    const InstructionOperand& operand) {
+  spv::Id index = GetStorageAddressingIndex(
+      operand.storage_addressing_mode, operand.storage_index,
+      operand.storage_source == InstructionStorageSource::kConstantFloat);
+  EnsureBuildPointAvailable();
+  spv::Id vec4_pointer = spv::NoResult;
+  switch (operand.storage_source) {
     case InstructionStorageSource::kRegister:
-      storage_pointer = registers_ptr_;
-      storage_class = spv::StorageClass::StorageClassFunction;
-      storage_type = vec4_float_type_;
-      storage_offsets.push_back(storage_index);
-      assert_true(uint32_t(op.storage_index) < register_count());
+      assert_true(var_main_registers_ != spv::NoResult);
+      id_vector_temp_util_.clear();
+      // Array element.
+      id_vector_temp_util_.push_back(index);
+      vec4_pointer = builder_->createAccessChain(
+          spv::StorageClassFunction, var_main_registers_, id_vector_temp_util_);
       break;
     case InstructionStorageSource::kConstantFloat:
-      storage_pointer = consts_;
-      storage_class = spv::StorageClass::StorageClassUniform;
-      storage_type = vec4_float_type_;
-      storage_offsets.push_back(b.makeUintConstant(0));
-      storage_offsets.push_back(storage_index);
-      break;
-    case InstructionStorageSource::kVertexFetchConstant:
-    case InstructionStorageSource::kTextureFetchConstant:
-      // Should not reach this.
-      assert_always();
+      assert_true(uniform_float_constants_ != spv::NoResult);
+      id_vector_temp_util_.clear();
+      id_vector_temp_util_.reserve(2);
+      // The first and the only structure member.
+      id_vector_temp_util_.push_back(const_int_0_);
+      // Array element.
+      id_vector_temp_util_.push_back(index);
+      vec4_pointer = builder_->createAccessChain(spv::StorageClassUniform,
+                                                 uniform_float_constants_,
+                                                 id_vector_temp_util_);
       break;
     default:
-      assert_always();
-      break;
+      assert_unhandled_case(operand.storage_source);
   }
-
-  if (!storage_pointer) {
-    return b.createUndefined(vec4_float_type_);
-  }
-
-  storage_pointer =
-      b.createAccessChain(storage_class, storage_pointer, storage_offsets);
-  auto storage_value = b.createLoad(storage_pointer);
-  assert_true(b.getTypeId(storage_value) == vec4_float_type_);
-
-  if (op.component_count == 1) {
-    // Don't bother handling constant 0/1 fetches, as they're invalid in scalar
-    // opcodes.
-    uint32_t index = 0;
-    switch (op.components[0]) {
-      case SwizzleSource::kX:
-        index = 0;
-        break;
-      case SwizzleSource::kY:
-        index = 1;
-        break;
-      case SwizzleSource::kZ:
-        index = 2;
-        break;
-      case SwizzleSource::kW:
-        index = 3;
-        break;
-      case SwizzleSource::k0:
-        assert_always();
-        break;
-      case SwizzleSource::k1:
-        assert_always();
-        break;
-    }
-
-    storage_value = b.createCompositeExtract(storage_value, float_type_, index);
-    storage_type = float_type_;
-  }
-
-  if (op.is_absolute_value) {
-    storage_value = CreateGlslStd450InstructionCall(
-        spv::NoPrecision, storage_type, GLSLstd450::kFAbs, {storage_value});
-  }
-  if (op.is_negated) {
-    storage_value =
-        b.createUnaryOp(spv::Op::OpFNegate, storage_type, storage_value);
-  }
-
-  // swizzle
-  if (op.component_count > 1 && !op.IsStandardSwizzle()) {
-    std::vector<uint32_t> operands;
-    operands.push_back(storage_value);
-    operands.push_back(b.makeCompositeConstant(
-        vec2_float_type_,
-        std::vector<Id>({b.makeFloatConstant(0.f), b.makeFloatConstant(1.f)})));
-
-    // Components start from left and are duplicated rightwards
-    // e.g. count = 1, xxxx / count = 2, xyyy ...
-    for (uint32_t i = 0; i < 4; i++) {
-      auto swiz = op.components[i];
-      if (i > op.component_count - 1) {
-        swiz = op.components[op.component_count - 1];
-      }
-
-      switch (swiz) {
-        case SwizzleSource::kX:
-          operands.push_back(0);
-          break;
-        case SwizzleSource::kY:
-          operands.push_back(1);
-          break;
-        case SwizzleSource::kZ:
-          operands.push_back(2);
-          break;
-        case SwizzleSource::kW:
-          operands.push_back(3);
-          break;
-        case SwizzleSource::k0:
-          operands.push_back(4);
-          break;
-        case SwizzleSource::k1:
-          operands.push_back(5);
-          break;
-      }
-    }
-
-    storage_value =
-        b.createOp(spv::Op::OpVectorShuffle, storage_type, operands);
-  }
-
-  return storage_value;
+  assert_true(vec4_pointer != spv::NoResult);
+  return builder_->createLoad(vec4_pointer, spv::NoPrecision);
 }
 
-void SpirvShaderTranslator::StoreToResult(Id source_value_id,
-                                          const InstructionResult& result) {
-  auto& b = *builder_;
-
-  if (result.storage_target == InstructionStorageTarget::kNone) {
-    // No-op?
-    return;
+spv::Id SpirvShaderTranslator::ApplyOperandModifiers(
+    spv::Id operand_value, const InstructionOperand& original_operand,
+    bool invert_negate, bool force_absolute) {
+  spv::Id type = builder_->getTypeId(operand_value);
+  assert_true(type != spv::NoType);
+  if (type == spv::NoType) {
+    return operand_value;
   }
+  if (original_operand.is_absolute_value || force_absolute) {
+    EnsureBuildPointAvailable();
+    id_vector_temp_util_.clear();
+    id_vector_temp_util_.push_back(operand_value);
+    operand_value = builder_->createBuiltinCall(
+        type, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_util_);
+  }
+  if (original_operand.is_negated != invert_negate) {
+    EnsureBuildPointAvailable();
+    operand_value =
+        builder_->createUnaryOp(spv::OpFNegate, type, operand_value);
+    builder_->addDecoration(operand_value, spv::DecorationNoContraction);
+  }
+  return operand_value;
+}
 
+spv::Id SpirvShaderTranslator::GetUnmodifiedOperandComponents(
+    spv::Id operand_storage, const InstructionOperand& original_operand,
+    uint32_t components) {
+  assert_not_zero(components);
+  if (!components) {
+    return spv::NoResult;
+  }
+  assert_true(components <= 0b1111);
+  if (components == 0b1111 && original_operand.IsStandardSwizzle()) {
+    return operand_storage;
+  }
+  EnsureBuildPointAvailable();
+  uint32_t component_count = xe::bit_count(components);
+  if (component_count == 1) {
+    uint32_t scalar_index;
+    xe::bit_scan_forward(components, &scalar_index);
+    return builder_->createCompositeExtract(
+        operand_storage, type_float_,
+        static_cast<unsigned int>(original_operand.GetComponent(scalar_index)) -
+            static_cast<unsigned int>(SwizzleSource::kX));
+  }
+  uint_vector_temp_util_.clear();
+  uint_vector_temp_util_.reserve(component_count);
+  uint32_t components_remaining = components;
+  uint32_t component_index;
+  while (xe::bit_scan_forward(components_remaining, &component_index)) {
+    components_remaining &= ~(uint32_t(1) << component_index);
+    uint_vector_temp_util_.push_back(
+        static_cast<unsigned int>(
+            original_operand.GetComponent(component_index)) -
+        static_cast<unsigned int>(SwizzleSource::kX));
+  }
+  return builder_->createRvalueSwizzle(spv::NoPrecision,
+                                       type_float_vectors_[component_count - 1],
+                                       operand_storage, uint_vector_temp_util_);
+}
+
+void SpirvShaderTranslator::GetOperandScalarXY(
+    spv::Id operand_storage, const InstructionOperand& original_operand,
+    spv::Id& a_out, spv::Id& b_out, bool invert_negate, bool force_absolute) {
+  spv::Id a = GetOperandComponents(operand_storage, original_operand, 0b0001,
+                                   invert_negate, force_absolute);
+  a_out = a;
+  b_out = original_operand.GetComponent(0) != original_operand.GetComponent(1)
+              ? GetOperandComponents(operand_storage, original_operand, 0b0010,
+                                     invert_negate, force_absolute)
+              : a;
+}
+
+spv::Id SpirvShaderTranslator::GetAbsoluteOperand(
+    spv::Id operand_storage, const InstructionOperand& original_operand) {
+  if (original_operand.is_absolute_value && !original_operand.is_negated) {
+    return operand_storage;
+  }
+  EnsureBuildPointAvailable();
+  id_vector_temp_util_.clear();
+  id_vector_temp_util_.push_back(operand_storage);
+  return builder_->createBuiltinCall(builder_->getTypeId(operand_storage),
+                                     ext_inst_glsl_std_450_, GLSLstd450FAbs,
+                                     id_vector_temp_util_);
+}
+
+void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
+                                        spv::Id value) {
   uint32_t used_write_mask = result.GetUsedWriteMask();
   if (!used_write_mask) {
     return;
   }
 
-  Id storage_pointer = 0;
-  Id storage_type = vec4_float_type_;
-  spv::StorageClass storage_class;
-  Id storage_index = 0;             // Storage index at lowest level
-  std::vector<Id> storage_offsets;  // Offsets in nested arrays -> storage
+  EnsureBuildPointAvailable();
 
-  switch (result.storage_addressing_mode) {
-    case InstructionStorageAddressingMode::kAbsolute: {
-      storage_index = b.makeUintConstant(result.storage_index);
-    } break;
-    case InstructionStorageAddressingMode::kAddressRegisterRelative: {
-      // storage_index + a0
-      storage_index =
-          b.createBinOp(spv::Op::OpIAdd, uint_type_, b.createLoad(a0_),
-                        b.makeUintConstant(result.storage_index));
-    } break;
-    case InstructionStorageAddressingMode::kLoopRelative: {
-      // storage_index + aL.x
-      auto idx = b.createCompositeExtract(b.createLoad(aL_), uint_type_, 0);
-      storage_index = b.createBinOp(spv::Op::OpIAdd, uint_type_, idx,
-                                    b.makeUintConstant(result.storage_index));
-    } break;
-    default:
-      assert_always();
-      return;
-  }
-
-  bool storage_array;
+  spv::Id target_pointer = spv::NoResult;
   switch (result.storage_target) {
-    case InstructionStorageTarget::kRegister:
-      storage_pointer = registers_ptr_;
-      storage_class = spv::StorageClass::StorageClassFunction;
-      storage_type = vec4_float_type_;
-      storage_offsets.push_back(storage_index);
-      storage_array = true;
-      assert_true(uint32_t(result.storage_index) < register_count());
+    case InstructionStorageTarget::kNone:
       break;
+    case InstructionStorageTarget::kRegister: {
+      assert_true(var_main_registers_ != spv::NoResult);
+      // Must call GetStorageAddressingIndex first because of
+      // id_vector_temp_util_ usage in it.
+      spv::Id register_index = GetStorageAddressingIndex(
+          result.storage_addressing_mode, result.storage_index);
+      id_vector_temp_util_.clear();
+      // Array element.
+      id_vector_temp_util_.push_back(register_index);
+      target_pointer = builder_->createAccessChain(
+          spv::StorageClassFunction, var_main_registers_, id_vector_temp_util_);
+    } break;
     case InstructionStorageTarget::kInterpolator:
       assert_true(is_vertex_shader());
-      storage_pointer = interpolators_;
-      storage_class = spv::StorageClass::StorageClassOutput;
-      storage_type = vec4_float_type_;
-      storage_offsets.push_back(storage_index);
-      storage_array = true;
+      target_pointer = input_output_interpolators_[result.storage_index];
       break;
     case InstructionStorageTarget::kPosition:
       assert_true(is_vertex_shader());
-      assert_not_zero(pos_);
-      storage_pointer = pos_;
-      storage_class = spv::StorageClass::StorageClassOutput;
-      storage_type = vec4_float_type_;
-      storage_offsets.push_back(0);
-      storage_array = false;
-      break;
-    case InstructionStorageTarget::kPointSizeEdgeFlagKillVertex:
-      assert_true(is_vertex_shader());
-      storage_pointer = point_size_;
-      storage_class = spv::StorageClass::StorageClassOutput;
-      storage_type = float_type_;
-      storage_offsets.push_back(0);
-      storage_array = false;
+      id_vector_temp_util_.clear();
+      id_vector_temp_util_.push_back(
+          builder_->makeIntConstant(kOutputPerVertexMemberPosition));
+      target_pointer = builder_->createAccessChain(
+          spv::StorageClassOutput, output_per_vertex_, id_vector_temp_util_);
       break;
     case InstructionStorageTarget::kColor:
       assert_true(is_pixel_shader());
-      assert_not_zero(frag_outputs_);
-      storage_pointer = frag_outputs_;
-      storage_class = spv::StorageClass::StorageClassOutput;
-      storage_type = vec4_float_type_;
-      storage_offsets.push_back(storage_index);
-      storage_array = true;
-      break;
-    case InstructionStorageTarget::kDepth:
-      assert_true(is_pixel_shader());
-      storage_pointer = frag_depth_;
-      storage_class = spv::StorageClass::StorageClassOutput;
-      storage_type = float_type_;
-      storage_offsets.push_back(0);
-      storage_array = false;
-      break;
-    case InstructionStorageTarget::kNone:
-      assert_always();
+      assert_not_zero(used_write_mask);
+      assert_true(current_shader().writes_color_target(result.storage_index));
+      target_pointer = output_fragment_data_[result.storage_index];
+      // May be spv::NoResult if the color output is explicitly removed due to
+      // an empty write mask without independent blending.
+      // TODO(Triang3l): Store the alpha of the first output in this case for
+      // alpha test and alpha to coverage.
       break;
     default:
-      assert_unhandled_case(result.storage_target);
+      // TODO(Triang3l): All storage targets.
       break;
   }
-
-  if (!storage_pointer) {
-    assert_always();
+  if (target_pointer == spv::NoResult) {
     return;
   }
 
-  if (storage_array) {
-    storage_pointer =
-        b.createAccessChain(storage_class, storage_pointer, storage_offsets);
+  uint32_t constant_values;
+  uint32_t constant_components =
+      result.GetUsedConstantComponents(constant_values);
+  if (value == spv::NoResult) {
+    // The instruction processing function decided that nothing useful needs to
+    // be stored for some reason, however, some components still need to be
+    // written on the guest side - fill them with zeros.
+    constant_components = used_write_mask;
+  }
+  uint32_t non_constant_components = used_write_mask & ~constant_components;
+
+  unsigned int value_num_components =
+      value != spv::NoResult
+          ? static_cast<unsigned int>(builder_->getNumComponents(value))
+          : 0;
+
+  if (result.is_clamped && non_constant_components) {
+    // Apply the saturation modifier to the result.
+    id_vector_temp_util_.clear();
+    id_vector_temp_util_.reserve(3);
+    id_vector_temp_util_.push_back(value);
+    id_vector_temp_util_.push_back(
+        const_float_vectors_0_[value_num_components - 1]);
+    id_vector_temp_util_.push_back(
+        const_float_vectors_1_[value_num_components - 1]);
+    value = builder_->createBuiltinCall(
+        type_float_vectors_[value_num_components - 1], ext_inst_glsl_std_450_,
+        GLSLstd450NClamp, id_vector_temp_util_);
   }
 
-  bool source_is_scalar = b.isScalar(source_value_id);
-  bool storage_is_scalar = b.isScalarType(b.getDerefTypeId(storage_pointer));
-  spv::Id source_type = b.getTypeId(source_value_id);
-
-  // Only load from storage if we need it later.
-  Id storage_value = 0;
-  if ((source_is_scalar && !storage_is_scalar) || used_write_mask != 0b1111) {
-    storage_value = b.createLoad(storage_pointer);
-  }
-
-  // Clamp the input value.
-  if (result.is_clamped) {
-    source_value_id = CreateGlslStd450InstructionCall(
-        spv::NoPrecision, source_type, spv::GLSLstd450::kFClamp,
-        {source_value_id,
-         b.smearScalar(spv::NoPrecision, b.makeFloatConstant(0.f), source_type),
-         b.smearScalar(spv::NoPrecision, b.makeFloatConstant(1.f),
-                       source_type)});
-  }
-
-  // destination swizzle
-  if (!result.IsStandardSwizzle() && !source_is_scalar) {
-    std::vector<uint32_t> operands;
-    operands.push_back(source_value_id);
-    operands.push_back(b.makeCompositeConstant(
-        vec2_float_type_,
-        std::vector<Id>({b.makeFloatConstant(0.f), b.makeFloatConstant(1.f)})));
-
-    // Components start from left and are duplicated rightwards
-    // e.g. count = 1, xxxx / count = 2, xyyy ...
-    uint32_t source_components = b.getNumComponents(source_value_id);
-    for (int i = 0; i < 4; i++) {
-      if (!(used_write_mask & (1 << i))) {
-        // Undefined / don't care.
-        operands.push_back(0);
-        continue;
-      }
-
-      auto swiz = result.components[i];
-      switch (swiz) {
-        case SwizzleSource::kX:
-          operands.push_back(0);
-          break;
-        case SwizzleSource::kY:
-          operands.push_back(1);
-          break;
-        case SwizzleSource::kZ:
-          operands.push_back(2);
-          break;
-        case SwizzleSource::kW:
-          operands.push_back(3);
-          break;
-        case SwizzleSource::k0:
-          operands.push_back(source_components + 0);
-          break;
-        case SwizzleSource::k1:
-          operands.push_back(source_components + 1);
-          break;
-      }
+  // The value contains either result.GetUsedResultComponents() in a condensed
+  // way, or a scalar to be replicated. Decompress them to create a mapping from
+  // guest result components to the ones in the value vector.
+  uint32_t used_result_components = result.GetUsedResultComponents();
+  unsigned int result_unswizzled_value_components[4] = {};
+  if (value_num_components > 1) {
+    unsigned int value_component = 0;
+    uint32_t used_result_components_remaining = used_result_components;
+    uint32_t result_component;
+    while (xe::bit_scan_forward(used_result_components_remaining,
+                                &result_component)) {
+      used_result_components_remaining &= ~(uint32_t(1) << result_component);
+      result_unswizzled_value_components[result_component] =
+          std::min(value_component++, value_num_components - 1);
     }
-
-    source_value_id =
-        b.createOp(spv::Op::OpVectorShuffle, vec4_float_type_, operands);
   }
 
-  // write mask
-  if (used_write_mask != 0b1111 && !source_is_scalar && !storage_is_scalar) {
-    std::vector<uint32_t> operands;
-    operands.push_back(source_value_id);
-    operands.push_back(storage_value);
-
-    for (int i = 0; i < b.getNumTypeComponents(storage_type); i++) {
-      operands.push_back((used_write_mask & (1 << i))
-                             ? i
-                             : b.getNumComponents(source_value_id) + i);
+  // Get swizzled mapping of non-constant components to the components of
+  // `value`.
+  unsigned int result_swizzled_value_components[4] = {};
+  for (uint32_t i = 0; i < 4; ++i) {
+    if (!(non_constant_components & (1 << i))) {
+      continue;
     }
+    SwizzleSource swizzle = result.components[i];
+    assert_true(swizzle >= SwizzleSource::kX && swizzle <= SwizzleSource::kW);
+    result_swizzled_value_components[i] =
+        result_unswizzled_value_components[uint32_t(swizzle) -
+                                           uint32_t(SwizzleSource::kX)];
+  }
 
-    source_value_id =
-        b.createOp(spv::Op::OpVectorShuffle, storage_type, operands);
-  } else if (source_is_scalar && !storage_is_scalar) {
-    assert_not_zero(used_write_mask);
+  spv::Id target_type = builder_->getDerefTypeId(target_pointer);
+  unsigned int target_num_components =
+      builder_->getNumTypeComponents(target_type);
+  assert_true(
+      target_num_components ==
+      GetInstructionStorageTargetUsedComponentCount(result.storage_target));
+  uint32_t target_component_mask = (1 << target_num_components) - 1;
+  assert_zero(used_write_mask & ~target_component_mask);
 
-    if (used_write_mask == 0b1111) {
-      source_value_id =
-          b.smearScalar(spv::NoPrecision, source_value_id, storage_type);
-    } else {
-      // Find first enabled component
-      uint32_t index = 0;
-      for (uint32_t i = 0; i < 4; i++) {
-        if (used_write_mask & (1 << i)) {
-          index = i;
-          break;
+  spv::Id value_to_store;
+  if (target_component_mask == used_write_mask) {
+    // All components are overwritten - no need to load the original value.
+    // Possible cases:
+    // * Non-constants only.
+    //   * Vector target.
+    //     * Vector source.
+    //       * Identity swizzle - store directly.
+    //       * Non-identity swizzle - shuffle.
+    //     * Scalar source - smear.
+    //   * Scalar target.
+    //     * Vector source - extract.
+    //     * Scalar source - store directly.
+    // * Constants only.
+    //   * Vector target - make composite constant.
+    //   * Scalar target - store directly.
+    // * Mixed non-constants and constants (only for vector targets - scalar
+    //   targets fully covered by the previous cases).
+    //   * Vector source - shuffle with {0, 1} also applying swizzle.
+    //   * Scalar source - construct composite.
+    if (!constant_components) {
+      if (target_num_components > 1) {
+        if (value_num_components > 1) {
+          // Non-constants only - vector target, vector source.
+          bool is_identity_swizzle =
+              target_num_components == value_num_components;
+          for (uint32_t i = 0; is_identity_swizzle && i < target_num_components;
+               ++i) {
+            is_identity_swizzle &= result_swizzled_value_components[i] == i;
+          }
+          if (is_identity_swizzle) {
+            value_to_store = value;
+          } else {
+            uint_vector_temp_util_.clear();
+            uint_vector_temp_util_.reserve(target_num_components);
+            uint_vector_temp_util_.insert(
+                uint_vector_temp_util_.cend(), result_swizzled_value_components,
+                result_swizzled_value_components + target_num_components);
+            value_to_store = builder_->createRvalueSwizzle(
+                spv::NoPrecision, target_type, value, uint_vector_temp_util_);
+          }
+        } else {
+          // Non-constants only - vector target, scalar source.
+          value_to_store =
+              builder_->smearScalar(spv::NoPrecision, value, target_type);
+        }
+      } else {
+        if (value_num_components > 1) {
+          // Non-constants only - scalar target, vector source.
+          value_to_store = builder_->createCompositeExtract(
+              value, type_float_, result_swizzled_value_components[0]);
+        } else {
+          // Non-constants only - scalar target, scalar source.
+          value_to_store = value;
         }
       }
-      source_value_id = b.createCompositeInsert(source_value_id, storage_value,
-                                                storage_type, index);
+    } else if (!non_constant_components) {
+      if (target_num_components > 1) {
+        // Constants only - vector target.
+        id_vector_temp_util_.clear();
+        id_vector_temp_util_.reserve(target_num_components);
+        for (uint32_t i = 0; i < target_num_components; ++i) {
+          id_vector_temp_util_.push_back(
+              (constant_values & (1 << i)) ? const_float_1_ : const_float_0_);
+        }
+        value_to_store =
+            builder_->makeCompositeConstant(target_type, id_vector_temp_util_);
+      } else {
+        // Constants only - scalar target.
+        value_to_store =
+            (constant_values & 0b0001) ? const_float_1_ : const_float_0_;
+      }
+    } else {
+      assert_true(target_num_components > 1);
+      if (value_num_components > 1) {
+        // Mixed non-constants and constants - vector source.
+        std::unique_ptr<spv::Instruction> shuffle_op =
+            std::make_unique<spv::Instruction>(
+                builder_->getUniqueId(), target_type, spv::OpVectorShuffle);
+        shuffle_op->addIdOperand(value);
+        shuffle_op->addIdOperand(const_float2_0_1_);
+        for (uint32_t i = 0; i < target_num_components; ++i) {
+          shuffle_op->addImmediateOperand(
+              (constant_components & (1 << i))
+                  ? value_num_components + ((constant_values >> i) & 1)
+                  : result_swizzled_value_components[i]);
+        }
+        value_to_store = shuffle_op->getResultId();
+        builder_->getBuildPoint()->addInstruction(std::move(shuffle_op));
+      } else {
+        // Mixed non-constants and constants - scalar source.
+        id_vector_temp_util_.clear();
+        id_vector_temp_util_.reserve(target_num_components);
+        for (uint32_t i = 0; i < target_num_components; ++i) {
+          if (constant_components & (1 << i)) {
+            id_vector_temp_util_.push_back(
+                (constant_values & (1 << i)) ? const_float_1_ : const_float_0_);
+          } else {
+            id_vector_temp_util_.push_back(value);
+          }
+        }
+        value_to_store = builder_->createCompositeConstruct(
+            target_type, id_vector_temp_util_);
+      }
     }
-  } else if (!source_is_scalar && storage_is_scalar) {
-    // Num writes /needs/ to be 1, and let's assume it's the first element.
-    assert_true(xe::bit_count(used_write_mask) == 1);
-
-    for (uint32_t i = 0; i < 4; i++) {
-      if (used_write_mask & (1 << i)) {
-        source_value_id =
-            b.createCompositeExtract(source_value_id, storage_type, 0);
-        break;
+  } else {
+    // Only certain components are overwritten.
+    // Scalar targets are always overwritten fully, can't reach this case for
+    // them.
+    assert_true(target_num_components > 1);
+    value_to_store = builder_->createLoad(target_pointer, spv::NoPrecision);
+    // Two steps:
+    // 1) Insert constants by shuffling (first so dependency chain of step 2 is
+    //    simpler if constants are written first).
+    // 2) Insert value components - via shuffling for vector source, via
+    //    composite inserts for scalar value.
+    if (constant_components) {
+      std::unique_ptr<spv::Instruction> shuffle_op =
+          std::make_unique<spv::Instruction>(builder_->getUniqueId(),
+                                             target_type, spv::OpVectorShuffle);
+      shuffle_op->addIdOperand(value_to_store);
+      shuffle_op->addIdOperand(const_float2_0_1_);
+      for (uint32_t i = 0; i < target_num_components; ++i) {
+        shuffle_op->addImmediateOperand((constant_components & (1 << i))
+                                            ? target_num_components +
+                                                  ((constant_values >> i) & 1)
+                                            : i);
+      }
+      value_to_store = shuffle_op->getResultId();
+      builder_->getBuildPoint()->addInstruction(std::move(shuffle_op));
+    }
+    if (non_constant_components) {
+      if (value_num_components > 1) {
+        std::unique_ptr<spv::Instruction> shuffle_op =
+            std::make_unique<spv::Instruction>(
+                builder_->getUniqueId(), target_type, spv::OpVectorShuffle);
+        shuffle_op->addIdOperand(value_to_store);
+        shuffle_op->addIdOperand(value);
+        for (uint32_t i = 0; i < target_num_components; ++i) {
+          shuffle_op->addImmediateOperand(
+              (non_constant_components & (1 << i))
+                  ? target_num_components + result_swizzled_value_components[i]
+                  : i);
+        }
+        value_to_store = shuffle_op->getResultId();
+        builder_->getBuildPoint()->addInstruction(std::move(shuffle_op));
+      } else {
+        for (uint32_t i = 0; i < target_num_components; ++i) {
+          if (non_constant_components & (1 << i)) {
+            value_to_store = builder_->createCompositeInsert(
+                value, value_to_store, target_type, i);
+          }
+        }
       }
     }
   }
+  builder_->createStore(value_to_store, target_pointer);
+}
 
-  // Perform store into the pointer.
-  assert_true(b.getNumComponents(source_value_id) ==
-              b.getNumTypeComponents(storage_type));
+spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
+  spv::Id type = builder_->getTypeId(value);
+  spv::Id const_uint_8_scalar = builder_->makeUintConstant(8);
+  spv::Id const_uint_00ff00ff_scalar = builder_->makeUintConstant(0x00FF00FF);
+  spv::Id const_uint_16_scalar = builder_->makeUintConstant(16);
+  spv::Id const_uint_8_typed, const_uint_00ff00ff_typed, const_uint_16_typed;
+  int num_components = builder_->getNumTypeComponents(type);
+  if (num_components > 1) {
+    id_vector_temp_.reserve(num_components);
+    id_vector_temp_.clear();
+    id_vector_temp_.insert(id_vector_temp_.cend(), num_components,
+                           const_uint_8_scalar);
+    const_uint_8_typed = builder_->makeCompositeConstant(type, id_vector_temp_);
+    id_vector_temp_.clear();
+    id_vector_temp_.insert(id_vector_temp_.cend(), num_components,
+                           const_uint_00ff00ff_scalar);
+    const_uint_00ff00ff_typed =
+        builder_->makeCompositeConstant(type, id_vector_temp_);
+    id_vector_temp_.clear();
+    id_vector_temp_.insert(id_vector_temp_.cend(), num_components,
+                           const_uint_16_scalar);
+    const_uint_16_typed =
+        builder_->makeCompositeConstant(type, id_vector_temp_);
+  } else {
+    const_uint_8_typed = const_uint_8_scalar;
+    const_uint_00ff00ff_typed = const_uint_00ff00ff_scalar;
+    const_uint_16_typed = const_uint_16_scalar;
+  }
 
-  assert_true(b.getTypeId(source_value_id) ==
-              b.getDerefTypeId(storage_pointer));
-  b.createStore(source_value_id, storage_pointer);
+  // 8-in-16 or one half of 8-in-32 (doing 8-in-16 swap).
+  spv::Id is_8in16 = builder_->createBinOp(
+      spv::OpIEqual, type_bool_, endian,
+      builder_->makeUintConstant(
+          static_cast<unsigned int>(xenos::Endian::k8in16)));
+  spv::Id is_8in32 = builder_->createBinOp(
+      spv::OpIEqual, type_bool_, endian,
+      builder_->makeUintConstant(
+          static_cast<unsigned int>(xenos::Endian::k8in32)));
+  spv::Id is_8in16_or_8in32 =
+      builder_->createBinOp(spv::OpLogicalOr, type_bool_, is_8in16, is_8in32);
+  spv::Block& block_pre_8in16 = *builder_->getBuildPoint();
+  assert_false(block_pre_8in16.isTerminated());
+  spv::Block& block_8in16 = builder_->makeNewBlock();
+  spv::Block& block_8in16_merge = builder_->makeNewBlock();
+  SpirvCreateSelectionMerge(block_8in16_merge.getId());
+  builder_->createConditionalBranch(is_8in16_or_8in32, &block_8in16,
+                                    &block_8in16_merge);
+  builder_->setBuildPoint(&block_8in16);
+  spv::Id swapped_8in16 = builder_->createBinOp(
+      spv::OpBitwiseOr, type,
+      builder_->createBinOp(
+          spv::OpBitwiseAnd, type,
+          builder_->createBinOp(spv::OpShiftRightLogical, type, value,
+                                const_uint_8_typed),
+          const_uint_00ff00ff_typed),
+      builder_->createBinOp(
+          spv::OpShiftLeftLogical, type,
+          builder_->createBinOp(spv::OpBitwiseAnd, type, value,
+                                const_uint_00ff00ff_typed),
+          const_uint_8_typed));
+  builder_->createBranch(&block_8in16_merge);
+  builder_->setBuildPoint(&block_8in16_merge);
+  {
+    std::unique_ptr<spv::Instruction> phi_op =
+        std::make_unique<spv::Instruction>(builder_->getUniqueId(), type,
+                                           spv::OpPhi);
+    phi_op->addIdOperand(swapped_8in16);
+    phi_op->addIdOperand(block_8in16.getId());
+    phi_op->addIdOperand(value);
+    phi_op->addIdOperand(block_pre_8in16.getId());
+    value = phi_op->getResultId();
+    builder_->getBuildPoint()->addInstruction(std::move(phi_op));
+  }
+
+  // 16-in-32 or another half of 8-in-32 (doing 16-in-32 swap).
+  spv::Id is_16in32 = builder_->createBinOp(
+      spv::OpIEqual, type_bool_, endian,
+      builder_->makeUintConstant(
+          static_cast<unsigned int>(xenos::Endian::k16in32)));
+  spv::Id is_8in32_or_16in32 =
+      builder_->createBinOp(spv::OpLogicalOr, type_bool_, is_8in32, is_16in32);
+  spv::Block& block_pre_16in32 = *builder_->getBuildPoint();
+  spv::Block& block_16in32 = builder_->makeNewBlock();
+  spv::Block& block_16in32_merge = builder_->makeNewBlock();
+  SpirvCreateSelectionMerge(block_16in32_merge.getId());
+  builder_->createConditionalBranch(is_8in32_or_16in32, &block_16in32,
+                                    &block_16in32_merge);
+  builder_->setBuildPoint(&block_16in32);
+  id_vector_temp_.clear();
+  id_vector_temp_.reserve(4);
+  id_vector_temp_.push_back(builder_->createBinOp(
+      spv::OpShiftRightLogical, type, value, const_uint_16_typed));
+  id_vector_temp_.push_back(value);
+  id_vector_temp_.insert(id_vector_temp_.cend(), 2,
+                         builder_->makeIntConstant(16));
+  spv::Id swapped_16in32 =
+      builder_->createOp(spv::OpBitFieldInsert, type, id_vector_temp_);
+  builder_->createBranch(&block_16in32_merge);
+  builder_->setBuildPoint(&block_16in32_merge);
+  {
+    std::unique_ptr<spv::Instruction> phi_op =
+        std::make_unique<spv::Instruction>(builder_->getUniqueId(), type,
+                                           spv::OpPhi);
+    phi_op->addIdOperand(swapped_16in32);
+    phi_op->addIdOperand(block_16in32.getId());
+    phi_op->addIdOperand(value);
+    phi_op->addIdOperand(block_pre_16in32.getId());
+    value = phi_op->getResultId();
+    builder_->getBuildPoint()->addInstruction(std::move(phi_op));
+  }
+
+  return value;
+}
+
+spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(
+    spv::Id address_dwords_int) {
+  spv::Block& head_block = *builder_->getBuildPoint();
+  assert_false(head_block.isTerminated());
+
+  spv::StorageClass storage_class = features_.spirv_version >= spv::Spv_1_3
+                                        ? spv::StorageClassStorageBuffer
+                                        : spv::StorageClassUniform;
+  uint32_t buffer_count_log2 = GetSharedMemoryStorageBufferCountLog2();
+  if (!buffer_count_log2) {
+    // Single binding - load directly.
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(2);
+    // The only SSBO struct member.
+    id_vector_temp_.push_back(const_int_0_);
+    id_vector_temp_.push_back(address_dwords_int);
+    return builder_->createLoad(
+        builder_->createAccessChain(storage_class, buffers_shared_memory_,
+                                    id_vector_temp_),
+        spv::NoPrecision);
+  }
+
+  // The memory is split into multiple bindings - check which binding to load
+  // from. 29 is log2(512 MB), but addressing in dwords (4 B). Not indexing the
+  // array with the variable itself because it needs VK_EXT_descriptor_indexing.
+  uint32_t binding_address_bits = (29 - 2) - buffer_count_log2;
+  spv::Id binding_index = builder_->createBinOp(
+      spv::OpShiftRightLogical, type_uint_,
+      builder_->createUnaryOp(spv::OpBitcast, type_uint_, address_dwords_int),
+      builder_->makeUintConstant(binding_address_bits));
+  spv::Id binding_address = builder_->createBinOp(
+      spv::OpBitwiseAnd, type_int_, address_dwords_int,
+      builder_->makeIntConstant(
+          int((uint32_t(1) << binding_address_bits) - 1)));
+  uint32_t buffer_count = 1 << buffer_count_log2;
+  spv::Block* switch_case_blocks[512 / 128];
+  for (uint32_t i = 0; i < buffer_count; ++i) {
+    switch_case_blocks[i] = &builder_->makeNewBlock();
+  }
+  spv::Block& switch_merge_block = builder_->makeNewBlock();
+  spv::Id value_phi_result = builder_->getUniqueId();
+  std::unique_ptr<spv::Instruction> value_phi_op =
+      std::make_unique<spv::Instruction>(value_phi_result, type_uint_,
+                                         spv::OpPhi);
+  SpirvCreateSelectionMerge(switch_merge_block.getId(),
+                            spv::SelectionControlDontFlattenMask);
+  {
+    std::unique_ptr<spv::Instruction> switch_op =
+        std::make_unique<spv::Instruction>(spv::OpSwitch);
+    switch_op->addIdOperand(binding_index);
+    // Highest binding index is the default case.
+    switch_op->addIdOperand(switch_case_blocks[buffer_count - 1]->getId());
+    switch_case_blocks[buffer_count - 1]->addPredecessor(&head_block);
+    for (uint32_t i = 0; i < buffer_count - 1; ++i) {
+      switch_op->addImmediateOperand(int(i));
+      switch_op->addIdOperand(switch_case_blocks[i]->getId());
+      switch_case_blocks[i]->addPredecessor(&head_block);
+    }
+    builder_->getBuildPoint()->addInstruction(std::move(switch_op));
+  }
+  for (uint32_t i = 0; i < buffer_count; ++i) {
+    builder_->setBuildPoint(switch_case_blocks[i]);
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(3);
+    id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
+    // The only SSBO struct member.
+    id_vector_temp_.push_back(const_int_0_);
+    id_vector_temp_.push_back(binding_address);
+    value_phi_op->addIdOperand(builder_->createLoad(
+        builder_->createAccessChain(storage_class, buffers_shared_memory_,
+                                    id_vector_temp_),
+        spv::NoPrecision));
+    value_phi_op->addIdOperand(switch_case_blocks[i]->getId());
+    builder_->createBranch(&switch_merge_block);
+  }
+  builder_->setBuildPoint(&switch_merge_block);
+  builder_->getBuildPoint()->addInstruction(std::move(value_phi_op));
+  return value_phi_result;
+}
+
+spv::Id SpirvShaderTranslator::PWLGammaToLinear(spv::Id gamma,
+                                                bool gamma_pre_saturated) {
+  spv::Id value_type = builder_->getTypeId(gamma);
+  assert_true(builder_->isFloatType(builder_->getScalarTypeId(value_type)));
+  bool is_vector = builder_->isVectorType(value_type);
+  assert_true(is_vector || builder_->isFloatType(value_type));
+  int num_components = builder_->getNumTypeComponents(value_type);
+  assert_true(num_components < 4);
+  spv::Id bool_type = type_bool_vectors_[num_components - 1];
+
+  spv::Id const_vector_0 = const_float_vectors_0_[num_components - 1];
+  spv::Id const_vector_1 = SpirvSmearScalarResultOrConstant(
+      builder_->makeFloatConstant(1.0f), value_type);
+
+  if (!gamma_pre_saturated) {
+    // Saturate, flushing NaN to 0.
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(3);
+    id_vector_temp_.push_back(gamma);
+    id_vector_temp_.push_back(const_vector_0);
+    id_vector_temp_.push_back(const_vector_1);
+    gamma = builder_->createBuiltinCall(value_type, ext_inst_glsl_std_450_,
+                                        GLSLstd450NClamp, id_vector_temp_);
+  }
+
+  spv::Id is_piece_at_least_3 = builder_->createBinOp(
+      spv::OpFOrdGreaterThanEqual, bool_type, gamma,
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(192.0f / 255.0f), value_type));
+  spv::Id scale_3_or_2 = builder_->createTriOp(
+      spv::OpSelect, value_type, is_piece_at_least_3,
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(8.0f / 1024.0f), value_type),
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(4.0f / 1024.0f), value_type));
+  spv::Id offset_3_or_2 = builder_->createTriOp(
+      spv::OpSelect, value_type, is_piece_at_least_3,
+      SpirvSmearScalarResultOrConstant(builder_->makeFloatConstant(-1024.0f),
+                                       value_type),
+      SpirvSmearScalarResultOrConstant(builder_->makeFloatConstant(-256.0f),
+                                       value_type));
+
+  spv::Id is_piece_at_least_1 = builder_->createBinOp(
+      spv::OpFOrdGreaterThanEqual, bool_type, gamma,
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(64.0f / 255.0f), value_type));
+  spv::Id scale_1_or_0 = builder_->createTriOp(
+      spv::OpSelect, value_type, is_piece_at_least_1,
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(2.0f / 1024.0f), value_type),
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(1.0f / 1024.0f), value_type));
+  spv::Id offset_1_or_0 = builder_->createTriOp(
+      spv::OpSelect, value_type, is_piece_at_least_1,
+      SpirvSmearScalarResultOrConstant(builder_->makeFloatConstant(-64.0f),
+                                       value_type),
+      const_vector_0);
+
+  spv::Id is_piece_at_least_2 = builder_->createBinOp(
+      spv::OpFOrdGreaterThanEqual, bool_type, gamma,
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(96.0f / 255.0f), value_type));
+  spv::Id scale =
+      builder_->createTriOp(spv::OpSelect, value_type, is_piece_at_least_2,
+                            scale_3_or_2, scale_1_or_0);
+  spv::Id offset =
+      builder_->createTriOp(spv::OpSelect, value_type, is_piece_at_least_2,
+                            offset_3_or_2, offset_1_or_0);
+
+  spv::Op value_times_scalar_opcode =
+      is_vector ? spv::OpVectorTimesScalar : spv::OpFMul;
+  // linear = gamma * (255.0f * 1024.0f) * scale + offset
+  spv::Id linear =
+      builder_->createBinOp(value_times_scalar_opcode, value_type, gamma,
+                            builder_->makeFloatConstant(255.0f * 1024.0f));
+  builder_->addDecoration(linear, spv::DecorationNoContraction);
+  linear = builder_->createBinOp(spv::OpFMul, value_type, linear, scale);
+  builder_->addDecoration(linear, spv::DecorationNoContraction);
+  linear = builder_->createBinOp(spv::OpFAdd, value_type, linear, offset);
+  builder_->addDecoration(linear, spv::DecorationNoContraction);
+  // linear += trunc(linear * scale)
+  spv::Id linear_integer_term =
+      builder_->createBinOp(spv::OpFMul, value_type, linear, scale);
+  builder_->addDecoration(linear_integer_term, spv::DecorationNoContraction);
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(linear_integer_term);
+  linear_integer_term = builder_->createBuiltinCall(
+      value_type, ext_inst_glsl_std_450_, GLSLstd450Trunc, id_vector_temp_);
+  linear = builder_->createBinOp(spv::OpFAdd, value_type, linear,
+                                 linear_integer_term);
+  builder_->addDecoration(linear, spv::DecorationNoContraction);
+  // linear *= 1.0f / 1023.0f
+  linear = builder_->createBinOp(value_times_scalar_opcode, value_type, linear,
+                                 builder_->makeFloatConstant(1.0f / 1023.0f));
+  builder_->addDecoration(linear, spv::DecorationNoContraction);
+  return linear;
+}
+
+spv::Id SpirvShaderTranslator::LinearToPWLGamma(spv::Id linear,
+                                                bool linear_pre_saturated) {
+  spv::Id value_type = builder_->getTypeId(linear);
+  assert_true(builder_->isFloatType(builder_->getScalarTypeId(value_type)));
+  bool is_vector = builder_->isVectorType(value_type);
+  assert_true(is_vector || builder_->isFloatType(value_type));
+  int num_components = builder_->getNumTypeComponents(value_type);
+  assert_true(num_components < 4);
+  spv::Id bool_type = type_bool_vectors_[num_components - 1];
+
+  spv::Id const_vector_0 = const_float_vectors_0_[num_components - 1];
+  spv::Id const_vector_1 = SpirvSmearScalarResultOrConstant(
+      builder_->makeFloatConstant(1.0f), value_type);
+
+  if (!linear_pre_saturated) {
+    // Saturate, flushing NaN to 0.
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(3);
+    id_vector_temp_.push_back(linear);
+    id_vector_temp_.push_back(const_vector_0);
+    id_vector_temp_.push_back(const_vector_1);
+    linear = builder_->createBuiltinCall(value_type, ext_inst_glsl_std_450_,
+                                         GLSLstd450NClamp, id_vector_temp_);
+  }
+
+  spv::Id is_piece_at_least_3 = builder_->createBinOp(
+      spv::OpFOrdGreaterThanEqual, bool_type, linear,
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(512.0f / 1023.0f), value_type));
+  spv::Id scale_3_or_2 = builder_->createTriOp(
+      spv::OpSelect, value_type, is_piece_at_least_3,
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(1023.0f / 8.0f), value_type),
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(1023.0f / 4.0f), value_type));
+  spv::Id offset_3_or_2 = builder_->createTriOp(
+      spv::OpSelect, value_type, is_piece_at_least_3,
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(128.0f / 255.0f), value_type),
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(64.0f / 255.0f), value_type));
+
+  spv::Id is_piece_at_least_1 = builder_->createBinOp(
+      spv::OpFOrdGreaterThanEqual, bool_type, linear,
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(64.0f / 1023.0f), value_type));
+  spv::Id scale_1_or_0 = builder_->createTriOp(
+      spv::OpSelect, value_type, is_piece_at_least_1,
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(1023.0f / 2.0f), value_type),
+      SpirvSmearScalarResultOrConstant(builder_->makeFloatConstant(1023.0f),
+                                       value_type));
+  spv::Id offset_1_or_0 = builder_->createTriOp(
+      spv::OpSelect, value_type, is_piece_at_least_1,
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(32.0f / 255.0f), value_type),
+      const_vector_0);
+
+  spv::Id is_piece_at_least_2 = builder_->createBinOp(
+      spv::OpFOrdGreaterThanEqual, bool_type, linear,
+      SpirvSmearScalarResultOrConstant(
+          builder_->makeFloatConstant(128.0f / 1023.0f), value_type));
+  spv::Id scale =
+      builder_->createTriOp(spv::OpSelect, value_type, is_piece_at_least_2,
+                            scale_3_or_2, scale_1_or_0);
+  spv::Id offset =
+      builder_->createTriOp(spv::OpSelect, value_type, is_piece_at_least_2,
+                            offset_3_or_2, offset_1_or_0);
+
+  // gamma = trunc(linear * scale) * (1.0f / 255.0f) + offset
+  spv::Id gamma = builder_->createBinOp(spv::OpFMul, value_type, linear, scale);
+  builder_->addDecoration(gamma, spv::DecorationNoContraction);
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(gamma);
+  gamma = builder_->createBuiltinCall(value_type, ext_inst_glsl_std_450_,
+                                      GLSLstd450Trunc, id_vector_temp_);
+  gamma = builder_->createBinOp(
+      is_vector ? spv::OpVectorTimesScalar : spv::OpFMul, value_type, gamma,
+      builder_->makeFloatConstant(1.0f / 255.0f));
+  builder_->addDecoration(gamma, spv::DecorationNoContraction);
+  gamma = builder_->createBinOp(spv::OpFAdd, value_type, gamma, offset);
+  builder_->addDecoration(gamma, spv::DecorationNoContraction);
+  return gamma;
 }
 
 }  // namespace gpu

@@ -29,13 +29,8 @@
 #include "xenia/base/platform_win.h"
 #endif
 
-// Implement AMD's VMA here.
-#define VMA_IMPLEMENTATION
-#include "xenia/ui/vulkan/vulkan_mem_alloc.h"
-
-// TODO(Triang3l): Disable Vulkan validation before releasing a stable version.
 DEFINE_bool(
-    vulkan_validation, true,
+    vulkan_validation, false,
     "Enable Vulkan validation (VK_LAYER_KHRONOS_validation). Messages will be "
     "written to the OS debug log without vulkan_debug_messenger or to the "
     "Xenia log with it.",
@@ -548,22 +543,10 @@ bool VulkanProvider::Initialize() {
        ++i) {
     VkPhysicalDevice physical_device_current = physical_devices[i];
 
-    // Get physical device features and check if the needed ones are supported.
-    // Need this before obtaining the queues as sparse binding is an optional
-    // feature.
+    // Get physical device features. Need this before obtaining the queues as
+    // sparse binding is an optional feature.
     ifn_.vkGetPhysicalDeviceFeatures(physical_device_current,
                                      &device_features_);
-    // Passing indices directly from guest memory, where they are big-endian; a
-    // workaround using fetch from shared memory for 32-bit indices that need
-    // swapping isn't implemented yet. Not supported only Qualcomm Adreno 4xx.
-    if (!device_features_.fullDrawIndexUint32) {
-      continue;
-    }
-    // TODO(Triang3l): Make geometry shaders optional by providing compute
-    // shader fallback (though that would require vertex shader stores).
-    if (!device_features_.geometryShader) {
-      continue;
-    }
 
     // Get the needed queues:
     // - Graphics and compute.
@@ -704,11 +687,17 @@ bool VulkanProvider::Initialize() {
     }
     std::memset(&device_extensions_, 0, sizeof(device_extensions_));
     if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
+      device_extensions_.khr_bind_memory2 = true;
       device_extensions_.khr_dedicated_allocation = true;
+      device_extensions_.khr_get_memory_requirements2 = true;
+      device_extensions_.khr_sampler_ycbcr_conversion = true;
       if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 2, 0)) {
         device_extensions_.khr_image_format_list = true;
         device_extensions_.khr_shader_float_controls = true;
         device_extensions_.khr_spirv_1_4 = true;
+        if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 3, 0)) {
+          device_extensions_.khr_maintenance4 = true;
+        }
       }
     }
     device_extensions_enabled.clear();
@@ -717,15 +706,28 @@ bool VulkanProvider::Initialize() {
     // core to device_extensions_enabled. Adding literals to
     // device_extensions_enabled for the most C string lifetime safety.
     static const std::pair<const char*, size_t> kUsedDeviceExtensions[] = {
-        {"VK_AMD_shader_info", offsetof(DeviceExtensions, amd_shader_info)},
         {"VK_EXT_fragment_shader_interlock",
          offsetof(DeviceExtensions, ext_fragment_shader_interlock)},
+        {"VK_EXT_memory_budget", offsetof(DeviceExtensions, ext_memory_budget)},
+        {"VK_EXT_shader_stencil_export",
+         offsetof(DeviceExtensions, ext_shader_stencil_export)},
+        {"VK_KHR_bind_memory2", offsetof(DeviceExtensions, khr_bind_memory2)},
         {"VK_KHR_dedicated_allocation",
          offsetof(DeviceExtensions, khr_dedicated_allocation)},
+        {"VK_KHR_get_memory_requirements2",
+         offsetof(DeviceExtensions, khr_get_memory_requirements2)},
         {"VK_KHR_image_format_list",
          offsetof(DeviceExtensions, khr_image_format_list)},
+        {"VK_KHR_maintenance4", offsetof(DeviceExtensions, khr_maintenance4)},
         {"VK_KHR_portability_subset",
          offsetof(DeviceExtensions, khr_portability_subset)},
+        // While vkGetPhysicalDeviceFormatProperties should be used to check the
+        // format support (device support for Y'CbCr formats is not required by
+        // this extension or by Vulkan 1.1), still adding
+        // VK_KHR_sampler_ycbcr_conversion to this list to enable this extension
+        // on the device on Vulkan 1.0.
+        {"VK_KHR_sampler_ycbcr_conversion",
+         offsetof(DeviceExtensions, khr_sampler_ycbcr_conversion)},
         {"VK_KHR_shader_float_controls",
          offsetof(DeviceExtensions, khr_shader_float_controls)},
         {"VK_KHR_spirv_1_4", offsetof(DeviceExtensions, khr_spirv_1_4)},
@@ -917,10 +919,47 @@ bool VulkanProvider::Initialize() {
     }
   }
   // Extensions - disable the specific extension if failed to get its functions.
-  if (device_extensions_.amd_shader_info) {
+  if (device_extensions_.khr_bind_memory2) {
     bool functions_loaded = true;
-#include "xenia/ui/vulkan/functions/device_amd_shader_info.inc"
-    device_extensions_.amd_shader_info = functions_loaded;
+    if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
+#define XE_UI_VULKAN_FUNCTION_PROMOTED XE_UI_VULKAN_FUNCTION_PROMOTE
+#include "xenia/ui/vulkan/functions/device_khr_bind_memory2.inc"
+#undef XE_UI_VULKAN_FUNCTION_PROMOTED
+    } else {
+#define XE_UI_VULKAN_FUNCTION_PROMOTED XE_UI_VULKAN_FUNCTION_DONT_PROMOTE
+#include "xenia/ui/vulkan/functions/device_khr_bind_memory2.inc"
+#undef XE_UI_VULKAN_FUNCTION_PROMOTED
+    }
+    device_extensions_.khr_bind_memory2 = functions_loaded;
+  }
+  if (device_extensions_.khr_get_memory_requirements2) {
+    bool functions_loaded = true;
+    if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
+#define XE_UI_VULKAN_FUNCTION_PROMOTED XE_UI_VULKAN_FUNCTION_PROMOTE
+#include "xenia/ui/vulkan/functions/device_khr_get_memory_requirements2.inc"
+#undef XE_UI_VULKAN_FUNCTION_PROMOTED
+    } else {
+#define XE_UI_VULKAN_FUNCTION_PROMOTED XE_UI_VULKAN_FUNCTION_DONT_PROMOTE
+#include "xenia/ui/vulkan/functions/device_khr_get_memory_requirements2.inc"
+#undef XE_UI_VULKAN_FUNCTION_PROMOTED
+    }
+    device_extensions_.khr_get_memory_requirements2 = functions_loaded;
+    // VK_KHR_dedicated_allocation can still work without the dedicated
+    // allocation preference getter even though it requires
+    // VK_KHR_get_memory_requirements2 to be supported and enabled.
+  }
+  if (device_extensions_.khr_maintenance4) {
+    bool functions_loaded = true;
+    if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 3, 0)) {
+#define XE_UI_VULKAN_FUNCTION_PROMOTED XE_UI_VULKAN_FUNCTION_PROMOTE
+#include "xenia/ui/vulkan/functions/device_khr_maintenance4.inc"
+#undef XE_UI_VULKAN_FUNCTION_PROMOTED
+    } else {
+#define XE_UI_VULKAN_FUNCTION_PROMOTED XE_UI_VULKAN_FUNCTION_DONT_PROMOTE
+#include "xenia/ui/vulkan/functions/device_khr_maintenance4.inc"
+#undef XE_UI_VULKAN_FUNCTION_PROMOTED
+    }
+    device_extensions_.khr_maintenance4 = functions_loaded;
   }
   if (device_extensions_.khr_swapchain) {
     bool functions_loaded = true;
@@ -954,14 +993,22 @@ bool VulkanProvider::Initialize() {
       VK_VERSION_MINOR(device_properties_.apiVersion),
       VK_VERSION_PATCH(device_properties_.apiVersion));
   XELOGVK("Vulkan device extensions:");
-  XELOGVK("* VK_AMD_shader_info: {}",
-          device_extensions_.amd_shader_info ? "yes" : "no");
   XELOGVK("* VK_EXT_fragment_shader_interlock: {}",
           device_extensions_.ext_fragment_shader_interlock ? "yes" : "no");
+  XELOGVK("* VK_EXT_memory_budget: {}",
+          device_extensions_.ext_memory_budget ? "yes" : "no");
+  XELOGVK("* VK_EXT_shader_stencil_export: {}",
+          device_extensions_.ext_shader_stencil_export ? "yes" : "no");
+  XELOGVK("* VK_KHR_bind_memory2: {}",
+          device_extensions_.khr_bind_memory2 ? "yes" : "no");
   XELOGVK("* VK_KHR_dedicated_allocation: {}",
           device_extensions_.khr_dedicated_allocation ? "yes" : "no");
+  XELOGVK("* VK_KHR_get_memory_requirements2: {}",
+          device_extensions_.khr_get_memory_requirements2 ? "yes" : "no");
   XELOGVK("* VK_KHR_image_format_list: {}",
           device_extensions_.khr_image_format_list ? "yes" : "no");
+  XELOGVK("* VK_KHR_maintenance4: {}",
+          device_extensions_.khr_maintenance4 ? "yes" : "no");
   XELOGVK("* VK_KHR_portability_subset: {}",
           device_extensions_.khr_portability_subset ? "yes" : "no");
   if (device_extensions_.khr_portability_subset) {
@@ -990,6 +1037,8 @@ bool VulkanProvider::Initialize() {
     XELOGVK("  * Triangle fans: {}",
             device_portability_subset_features_.triangleFans ? "yes" : "no");
   }
+  XELOGVK("* VK_KHR_sampler_ycbcr_conversion: {}",
+          device_extensions_.khr_sampler_ycbcr_conversion ? "yes" : "no");
   XELOGVK("* VK_KHR_shader_float_controls: {}",
           device_extensions_.khr_shader_float_controls ? "yes" : "no");
   if (device_extensions_.khr_shader_float_controls) {

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2016 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,22 +10,15 @@
 #ifndef XENIA_GPU_VULKAN_VULKAN_TEXTURE_CACHE_H_
 #define XENIA_GPU_VULKAN_VULKAN_TEXTURE_CACHE_H_
 
-#include <algorithm>
-#include <list>
+#include <array>
+#include <memory>
 #include <unordered_map>
-#include <unordered_set>
+#include <utility>
 
-#include "xenia/base/mutex.h"
-#include "xenia/gpu/register_file.h"
-#include "xenia/gpu/sampler_info.h"
-#include "xenia/gpu/shader.h"
-#include "xenia/gpu/texture_conversion.h"
-#include "xenia/gpu/texture_info.h"
-#include "xenia/gpu/trace_writer.h"
-#include "xenia/gpu/vulkan/vulkan_command_processor.h"
-#include "xenia/gpu/xenos.h"
-#include "xenia/ui/vulkan/circular_buffer.h"
-#include "xenia/ui/vulkan/fenced_pools.h"
+#include "xenia/base/hash.h"
+#include "xenia/gpu/texture_cache.h"
+#include "xenia/gpu/vulkan/vulkan_shader.h"
+#include "xenia/gpu/vulkan/vulkan_shared_memory.h"
 #include "xenia/ui/vulkan/vulkan_mem_alloc.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
@@ -33,205 +26,334 @@ namespace xe {
 namespace gpu {
 namespace vulkan {
 
-//
-class VulkanTextureCache {
+class VulkanCommandProcessor;
+
+class VulkanTextureCache final : public TextureCache {
  public:
-  struct TextureView;
-
-  // This represents an uploaded Vulkan texture.
-  struct Texture {
-    TextureInfo texture_info;
-    std::vector<std::unique_ptr<TextureView>> views;
-
-    VkFormat format;
-    VkImage image;
-    VkImageLayout image_layout;
-    VmaAllocation alloc;
-    VmaAllocationInfo alloc_info;
-    VkFramebuffer framebuffer;  // Blit target frame buffer.
-    VkImageUsageFlags usage_flags;
-
-    bool is_watched;
-    bool pending_invalidation;
-
-    // Pointer to the latest usage fence.
-    VkFence in_flight_fence;
-  };
-
-  struct TextureView {
-    Texture* texture;
-    VkImageView view;
-
-    union {
-      uint16_t swizzle;
-      struct {
-        // FIXME: This only applies on little-endian platforms!
-        uint16_t swiz_x : 3;
-        uint16_t swiz_y : 3;
-        uint16_t swiz_z : 3;
-        uint16_t swiz_w : 3;
-        uint16_t : 4;
-      };
+  // Sampler parameters that can be directly converted to a host sampler or used
+  // for checking whether samplers bindings are up to date.
+  union SamplerParameters {
+    uint32_t value;
+    struct {
+      xenos::ClampMode clamp_x : 3;         // 3
+      xenos::ClampMode clamp_y : 3;         // 6
+      xenos::ClampMode clamp_z : 3;         // 9
+      xenos::BorderColor border_color : 2;  // 11
+      uint32_t mag_linear : 1;              // 12
+      uint32_t min_linear : 1;              // 13
+      uint32_t mip_linear : 1;              // 14
+      xenos::AnisoFilter aniso_filter : 3;  // 17
+      uint32_t mip_min_level : 4;           // 21
+      uint32_t mip_base_map : 1;            // 22
+      // Maximum mip level is in the texture resource itself, but mip_base_map
+      // can be used to limit fetching to mip_min_level.
     };
+
+    SamplerParameters() : value(0) { static_assert_size(*this, sizeof(value)); }
+    struct Hasher {
+      size_t operator()(const SamplerParameters& parameters) const {
+        return std::hash<uint32_t>{}(parameters.value);
+      }
+    };
+    bool operator==(const SamplerParameters& parameters) const {
+      return value == parameters.value;
+    }
+    bool operator!=(const SamplerParameters& parameters) const {
+      return value != parameters.value;
+    }
   };
 
-  VulkanTextureCache(Memory* memory, RegisterFile* register_file,
-                     TraceWriter* trace_writer,
-                     ui::vulkan::VulkanProvider& provider);
-  ~VulkanTextureCache();
-
-  VkResult Initialize();
-  void Shutdown();
-
-  // Descriptor set layout containing all possible texture bindings.
-  // The set contains one descriptor for each texture sampler [0-31].
-  VkDescriptorSetLayout texture_descriptor_set_layout() const {
-    return texture_descriptor_set_layout_;
+  // Transient descriptor set layouts must be initialized in the command
+  // processor.
+  static std::unique_ptr<VulkanTextureCache> Create(
+      const RegisterFile& register_file, VulkanSharedMemory& shared_memory,
+      uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
+      VulkanCommandProcessor& command_processor,
+      VkPipelineStageFlags guest_shader_pipeline_stages) {
+    std::unique_ptr<VulkanTextureCache> texture_cache(new VulkanTextureCache(
+        register_file, shared_memory, draw_resolution_scale_x,
+        draw_resolution_scale_y, command_processor,
+        guest_shader_pipeline_stages));
+    if (!texture_cache->Initialize()) {
+      return nullptr;
+    }
+    return std::move(texture_cache);
   }
 
-  // Prepares a descriptor set containing the samplers and images for all
-  // bindings. The textures will be uploaded/converted/etc as needed.
-  // Requires a fence to be provided that will be signaled when finished
-  // using the returned descriptor set.
-  VkDescriptorSet PrepareTextureSet(
-      VkCommandBuffer setup_command_buffer, VkFence completion_fence,
-      const std::vector<Shader::TextureBinding>& vertex_bindings,
-      const std::vector<Shader::TextureBinding>& pixel_bindings);
+  ~VulkanTextureCache();
 
-  // TODO(benvanik): ReadTexture.
+  void BeginSubmission(uint64_t new_submission_index) override;
 
-  Texture* Lookup(const TextureInfo& texture_info);
+  // Must be called within a frame - creates and untiles textures needed by
+  // shaders, and enqueues transitioning them into the sampled usage. This may
+  // bind compute pipelines (notifying the command processor about that), and
+  // also since it may insert deferred barriers, before flushing the barriers
+  // preceding host GPU work.
+  void RequestTextures(uint32_t used_texture_mask) override;
 
-  // Looks for a texture either containing or matching these parameters.
-  // Caller is responsible for checking if the texture returned is an exact
-  // match or just contains the texture given by the parameters.
-  // If offset_x and offset_y are not null, this may return a texture that
-  // contains this address at an offset.
-  Texture* LookupAddress(uint32_t guest_address, uint32_t width,
-                         uint32_t height, xenos::TextureFormat format,
-                         VkOffset2D* out_offset = nullptr);
+  VkImageView GetActiveBindingOrNullImageView(uint32_t fetch_constant_index,
+                                              xenos::FetchOpDimension dimension,
+                                              bool is_signed) const;
 
-  TextureView* DemandView(Texture* texture, uint16_t swizzle);
+  SamplerParameters GetSamplerParameters(
+      const VulkanShader::SamplerBinding& binding) const;
 
-  // Demands a texture for the purpose of resolving from EDRAM. This either
-  // creates a new texture or returns a previously created texture.
-  Texture* DemandResolveTexture(const TextureInfo& texture_info);
+  // Must be called for every used sampler at least once in a single submission,
+  // and a submission must be open for this to be callable.
+  // Returns:
+  // - The sampler, if obtained successfully - and increases its last usage
+  //   submission index - and has_overflown_out = false.
+  // - VK_NULL_HANDLE and has_overflown_out = true if there's a total sampler
+  //   count overflow in a submission that potentially hasn't completed yet.
+  // - VK_NULL_HANDLE and has_overflown_out = false in case of a general failure
+  //   to create a sampler.
+  VkSampler UseSampler(SamplerParameters parameters, bool& has_overflown_out);
+  // Returns the submission index to await (may be the current submission in
+  // case of an overflow within a single submission - in this case, it must be
+  // ended, and a new one must be started) in case of sampler count overflow, so
+  // samplers may be freed, and UseSamplers may take their slots.
+  uint64_t GetSubmissionToAwaitOnSamplerOverflow(
+      uint32_t overflowed_sampler_count) const;
 
-  // Clears all cached content.
-  void ClearCache();
+  // Returns the 2D view of the front buffer texture (for fragment shader
+  // reading - the barrier will be pushed in the command processor if needed),
+  // or VK_NULL_HANDLE in case of failure. May call LoadTextureData.
+  VkImageView RequestSwapTexture(uint32_t& width_scaled_out,
+                                 uint32_t& height_scaled_out,
+                                 xenos::TextureFormat& format_out);
 
-  // Frees any unused resources
-  void Scavenge();
+ protected:
+  bool IsSignedVersionSeparateForFormat(TextureKey key) const override;
+  uint32_t GetHostFormatSwizzle(TextureKey key) const override;
+
+  uint32_t GetMaxHostTextureWidthHeight(
+      xenos::DataDimension dimension) const override;
+  uint32_t GetMaxHostTextureDepthOrArraySize(
+      xenos::DataDimension dimension) const override;
+
+  std::unique_ptr<Texture> CreateTexture(TextureKey key) override;
+
+  bool LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
+                                             bool load_mips) override;
+
+  void UpdateTextureBindingsImpl(uint32_t fetch_constant_mask) override;
 
  private:
-  struct UpdateSetInfo;
+  enum LoadDescriptorSetIndex {
+    kLoadDescriptorSetIndexDestination,
+    kLoadDescriptorSetIndexSource,
+    kLoadDescriptorSetIndexConstants,
+    kLoadDescriptorSetCount,
+  };
 
-  // Cached Vulkan sampler.
+  struct HostFormat {
+    LoadShaderIndex load_shader;
+    // Do NOT add integer formats to this - they are not filterable, can only be
+    // read with ImageFetch, not ImageSample! If any game is seen using
+    // num_format 1 for fixed-point formats (for floating-point, it's normally
+    // set to 1 though), add a constant buffer containing multipliers for the
+    // textures and multiplication to the tfetch implementation.
+    VkFormat format;
+    // Whether the format is block-compressed on the host (the host block size
+    // matches the guest format block size in this case), and isn't decompressed
+    // on load.
+    bool block_compressed;
+
+    // Set up dynamically based on what's supported by the device.
+    bool linear_filterable;
+  };
+
+  struct HostFormatPair {
+    HostFormat format_unsigned;
+    HostFormat format_signed;
+    // Mapping of Xenos swizzle components to Vulkan format components.
+    uint32_t swizzle;
+    // Whether the unsigned and the signed formats are compatible for one image
+    // and the same image data (on a portability subset device, this should also
+    // take imageViewFormatReinterpretation into account).
+    bool unsigned_signed_compatible;
+  };
+
+  class VulkanTexture final : public Texture {
+   public:
+    enum class Usage {
+      kUndefined,
+      kTransferDestination,
+      kGuestShaderSampled,
+      kSwapSampled,
+    };
+
+    // Takes ownership of the image and its memory.
+    explicit VulkanTexture(VulkanTextureCache& texture_cache,
+                           const TextureKey& key, VkImage image,
+                           VmaAllocation allocation);
+    ~VulkanTexture();
+
+    VkImage image() const { return image_; }
+
+    // Doesn't transition (the caller must insert the barrier).
+    Usage SetUsage(Usage new_usage) {
+      Usage old_usage = usage_;
+      usage_ = new_usage;
+      return old_usage;
+    }
+
+    VkImageView GetView(bool is_signed, uint32_t host_swizzle,
+                        bool is_array = true);
+
+   private:
+    union ViewKey {
+      uint32_t key;
+      struct {
+        uint32_t is_signed_separate_view : 1;
+        uint32_t host_swizzle : 12;
+        uint32_t is_array : 1;
+      };
+
+      ViewKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+
+      struct Hasher {
+        size_t operator()(const ViewKey& key) const {
+          return std::hash<decltype(key.key)>{}(key.key);
+        }
+      };
+      bool operator==(const ViewKey& other_key) const {
+        return key == other_key.key;
+      }
+      bool operator!=(const ViewKey& other_key) const {
+        return !(*this == other_key);
+      }
+    };
+
+    static constexpr VkComponentSwizzle GetComponentSwizzle(
+        uint32_t texture_swizzle, uint32_t component_index) {
+      xenos::XE_GPU_TEXTURE_SWIZZLE texture_component_swizzle =
+          xenos::XE_GPU_TEXTURE_SWIZZLE(
+              (texture_swizzle >> (3 * component_index)) & 0b111);
+      if (texture_component_swizzle ==
+          xenos::XE_GPU_TEXTURE_SWIZZLE(component_index)) {
+        // The portability subset requires all swizzles to be IDENTITY, return
+        // IDENTITY specifically, not R, G, B, A.
+        return VK_COMPONENT_SWIZZLE_IDENTITY;
+      }
+      switch (texture_component_swizzle) {
+        case xenos::XE_GPU_TEXTURE_SWIZZLE_R:
+          return VK_COMPONENT_SWIZZLE_R;
+        case xenos::XE_GPU_TEXTURE_SWIZZLE_G:
+          return VK_COMPONENT_SWIZZLE_G;
+        case xenos::XE_GPU_TEXTURE_SWIZZLE_B:
+          return VK_COMPONENT_SWIZZLE_B;
+        case xenos::XE_GPU_TEXTURE_SWIZZLE_A:
+          return VK_COMPONENT_SWIZZLE_A;
+        case xenos::XE_GPU_TEXTURE_SWIZZLE_0:
+          return VK_COMPONENT_SWIZZLE_ZERO;
+        case xenos::XE_GPU_TEXTURE_SWIZZLE_1:
+          return VK_COMPONENT_SWIZZLE_ONE;
+        default:
+          // An invalid value.
+          return VK_COMPONENT_SWIZZLE_IDENTITY;
+      }
+    }
+
+    VkImage image_;
+    VmaAllocation allocation_;
+
+    Usage usage_ = Usage::kUndefined;
+
+    std::unordered_map<ViewKey, VkImageView, ViewKey::Hasher> views_;
+  };
+
+  struct VulkanTextureBinding {
+    VkImageView image_view_unsigned;
+    VkImageView image_view_signed;
+
+    VulkanTextureBinding() { Reset(); }
+
+    void Reset() {
+      image_view_unsigned = VK_NULL_HANDLE;
+      image_view_signed = VK_NULL_HANDLE;
+    }
+  };
+
   struct Sampler {
-    SamplerInfo sampler_info;
     VkSampler sampler;
+    uint64_t last_usage_submission;
+    std::pair<const SamplerParameters, Sampler>* used_previous;
+    std::pair<const SamplerParameters, Sampler>* used_next;
   };
 
-  struct WatchedTexture {
-    Texture* texture;
-    bool is_mip;
-  };
+  static constexpr bool AreDimensionsCompatible(
+      xenos::FetchOpDimension binding_dimension,
+      xenos::DataDimension resource_dimension) {
+    switch (binding_dimension) {
+      case xenos::FetchOpDimension::k1D:
+      case xenos::FetchOpDimension::k2D:
+        return resource_dimension == xenos::DataDimension::k1D ||
+               resource_dimension == xenos::DataDimension::k2DOrStacked;
+      case xenos::FetchOpDimension::k3DOrStacked:
+        return resource_dimension == xenos::DataDimension::k3D;
+      case xenos::FetchOpDimension::kCube:
+        return resource_dimension == xenos::DataDimension::kCube;
+      default:
+        return false;
+    }
+  }
 
-  // Allocates a new texture and memory to back it on the GPU.
-  Texture* AllocateTexture(const TextureInfo& texture_info,
-                           VkFormatFeatureFlags required_flags =
-                               VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
-  bool FreeTexture(Texture* texture);
+  explicit VulkanTextureCache(
+      const RegisterFile& register_file, VulkanSharedMemory& shared_memory,
+      uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
+      VulkanCommandProcessor& command_processor,
+      VkPipelineStageFlags guest_shader_pipeline_stages);
 
-  void WatchTexture(Texture* texture);
-  void TextureTouched(Texture* texture);
-  std::pair<uint32_t, uint32_t> MemoryInvalidationCallback(
-      uint32_t physical_address_start, uint32_t length, bool exact_range);
-  static std::pair<uint32_t, uint32_t> MemoryInvalidationCallbackThunk(
-      void* context_ptr, uint32_t physical_address_start, uint32_t length,
-      bool exact_range);
+  bool Initialize();
 
-  // Demands a texture. If command_buffer is null and the texture hasn't been
-  // uploaded to graphics memory already, we will return null and bail.
-  Texture* Demand(const TextureInfo& texture_info,
-                  VkCommandBuffer command_buffer = nullptr,
-                  VkFence completion_fence = nullptr);
-  Sampler* Demand(const SamplerInfo& sampler_info);
+  const HostFormatPair& GetHostFormatPair(TextureKey key) const;
 
-  void FlushPendingCommands(VkCommandBuffer command_buffer,
-                            VkFence completion_fence);
+  void GetTextureUsageMasks(VulkanTexture::Usage usage,
+                            VkPipelineStageFlags& stage_mask,
+                            VkAccessFlags& access_mask, VkImageLayout& layout);
 
-  bool ConvertTexture(uint8_t* dest, VkBufferImageCopy* copy_region,
-                      uint32_t mip, const TextureInfo& src);
+  xenos::ClampMode NormalizeClampMode(xenos::ClampMode clamp_mode) const;
 
-  static const FormatInfo* GetFormatInfo(xenos::TextureFormat format);
-  static texture_conversion::CopyBlockCallback GetFormatCopyBlock(
-      xenos::TextureFormat format);
-  static TextureExtent GetMipExtent(const TextureInfo& src, uint32_t mip);
-  static uint32_t ComputeMipStorage(const FormatInfo* format_info,
-                                    uint32_t width, uint32_t height,
-                                    uint32_t depth, uint32_t mip);
-  static uint32_t ComputeMipStorage(const TextureInfo& src, uint32_t mip);
-  static uint32_t ComputeTextureStorage(const TextureInfo& src);
+  VulkanCommandProcessor& command_processor_;
+  VkPipelineStageFlags guest_shader_pipeline_stages_;
 
-  // Writes a texture back into guest memory. This call is (mostly) asynchronous
-  // but the texture must not be flagged for destruction.
-  void WritebackTexture(Texture* texture);
+  // Using the Vulkan Memory Allocator because texture count in games is
+  // naturally pretty much unbounded, while Vulkan implementations, especially
+  // on Windows versions before 10, may have an allocation count limit as low as
+  // 4096.
+  VmaAllocator vma_allocator_ = VK_NULL_HANDLE;
 
-  // Queues commands to upload a texture from system memory, applying any
-  // conversions necessary. This may flush the command buffer to the GPU if we
-  // run out of staging memory.
-  bool UploadTexture(VkCommandBuffer command_buffer, VkFence completion_fence,
-                     Texture* dest, const TextureInfo& src);
+  static const HostFormatPair kBestHostFormats[64];
+  static const HostFormatPair kHostFormatGBGRUnaligned;
+  static const HostFormatPair kHostFormatBGRGUnaligned;
+  HostFormatPair host_formats_[64];
 
-  void HashTextureBindings(XXH3_state_t* hash_state, uint32_t& fetch_mask,
-                           const std::vector<Shader::TextureBinding>& bindings);
-  bool SetupTextureBindings(
-      VkCommandBuffer command_buffer, VkFence completion_fence,
-      UpdateSetInfo* update_set_info,
-      const std::vector<Shader::TextureBinding>& bindings);
-  bool SetupTextureBinding(VkCommandBuffer command_buffer,
-                           VkFence completion_fence,
-                           UpdateSetInfo* update_set_info,
-                           const Shader::TextureBinding& binding);
+  VkPipelineLayout load_pipeline_layout_ = VK_NULL_HANDLE;
+  std::array<VkPipeline, kLoadShaderCount> load_pipelines_{};
+  std::array<VkPipeline, kLoadShaderCount> load_pipelines_scaled_{};
 
-  // Removes invalidated textures from the cache, queues them for delete.
-  void RemoveInvalidatedTextures();
+  // If both images can be placed in the same allocation, it's one allocation,
+  // otherwise it's two separate.
+  std::array<VkDeviceMemory, 2> null_images_memory_{};
+  VkImage null_image_2d_array_cube_ = VK_NULL_HANDLE;
+  VkImage null_image_3d_ = VK_NULL_HANDLE;
+  VkImageView null_image_view_2d_array_ = VK_NULL_HANDLE;
+  VkImageView null_image_view_cube_ = VK_NULL_HANDLE;
+  VkImageView null_image_view_3d_ = VK_NULL_HANDLE;
+  bool null_images_cleared_ = false;
 
-  Memory* memory_ = nullptr;
+  std::array<VulkanTextureBinding, xenos::kTextureFetchConstantCount>
+      vulkan_texture_bindings_;
 
-  RegisterFile* register_file_ = nullptr;
-  TraceWriter* trace_writer_ = nullptr;
-  ui::vulkan::VulkanProvider& provider_;
+  uint32_t sampler_max_count_;
 
-  std::unique_ptr<xe::ui::vulkan::CommandBufferPool> wb_command_pool_ = nullptr;
-  std::unique_ptr<xe::ui::vulkan::DescriptorPool> descriptor_pool_ = nullptr;
-  std::unordered_map<uint64_t, VkDescriptorSet> texture_sets_;
-  VkDescriptorSetLayout texture_descriptor_set_layout_ = nullptr;
+  xenos::AnisoFilter max_anisotropy_;
 
-  VmaAllocator mem_allocator_ = nullptr;
-
-  ui::vulkan::CircularBuffer staging_buffer_;
-  ui::vulkan::CircularBuffer wb_staging_buffer_;
-  std::unordered_map<uint64_t, Texture*> textures_;
-  std::unordered_map<uint64_t, Sampler*> samplers_;
-  std::list<Texture*> pending_delete_textures_;
-
-  void* memory_invalidation_callback_handle_ = nullptr;
-
-  xe::global_critical_region global_critical_region_;
-  std::list<WatchedTexture> watched_textures_;
-  std::unordered_set<Texture*>* invalidated_textures_;
-  std::unordered_set<Texture*> invalidated_textures_sets_[2];
-
-  struct UpdateSetInfo {
-    // Bitmap of all 32 fetch constants and whether they have been setup yet.
-    // This prevents duplication across the vertex and pixel shader.
-    uint32_t has_setup_fetch_mask;
-    uint32_t image_write_count = 0;
-    VkWriteDescriptorSet image_writes[32];
-    VkDescriptorImageInfo image_infos[32];
-  } update_set_info_;
+  std::unordered_map<SamplerParameters, Sampler, SamplerParameters::Hasher>
+      samplers_;
+  std::pair<const SamplerParameters, Sampler>* sampler_used_first_ = nullptr;
+  std::pair<const SamplerParameters, Sampler>* sampler_used_last_ = nullptr;
 };
 
 }  // namespace vulkan

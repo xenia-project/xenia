@@ -7,10 +7,8 @@ project("xenia-ui-vulkan")
   kind("StaticLib")
   language("C++")
   links({
-    "fmt",
     "xenia-base",
     "xenia-ui",
-    "xenia-ui-spirv",
   })
   includedirs({
     project_root.."/third_party/Vulkan-Headers/include",
@@ -19,9 +17,7 @@ project("xenia-ui-vulkan")
   local_platform_files("functions")
   files({
     "../shaders/bytecode/vulkan_spirv/*.h",
-    "shaders/bytecode/vulkan_spirv/*.h",
   })
-  removefiles({"*_demo.cc"})
 
 group("demos")
 project("xenia-ui-window-vulkan-demo")
@@ -33,7 +29,6 @@ project("xenia-ui-window-vulkan-demo")
     "imgui",
     "xenia-base",
     "xenia-ui",
-    "xenia-ui-spirv",
     "xenia-ui-vulkan",
   })
   includedirs({

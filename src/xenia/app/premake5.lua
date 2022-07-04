@@ -27,7 +27,6 @@ project("xenia-app")
     "xenia-kernel",
     "xenia-patcher",
     "xenia-ui",
-    "xenia-ui-spirv",
     "xenia-ui-vulkan",
     "xenia-patcher",
     "xenia-vfs",
@@ -44,7 +43,6 @@ project("xenia-app")
     "libavutil",
     "mspack",
     "snappy",
-    "spirv-tools",
     "xxhash",
   })
   defines({
