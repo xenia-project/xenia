@@ -62,7 +62,7 @@ def targets_android(platform):
         # 'xenia-kernel',
         'xenia-ui',
         'xenia-ui-vulkan',
-        'xenia-ui-window-vulkan-demo',
+        # 'xenia-ui-window-vulkan-demo',
         'xenia-vfs',
         'xenia-vfs-dump',
     ]
