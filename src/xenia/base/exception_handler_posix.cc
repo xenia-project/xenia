@@ -77,6 +77,8 @@ void ExceptionHandlerCallback(int signum, siginfo_t* siginfo, void* sigctx) {
   for (size_t i = 0; i < xe::countof(handlers_) && handlers_[i].first; ++i) {
     if (handlers_[i].first(&ex, handlers_[i].second)) {
       // Exception handled.
+      // TODO(benvanik): Update all thread state? Dirty flags?
+      ctx->uc_mcontext.gregs[REG_RIP] = thread_context.rip;
       return;
     }
   }
