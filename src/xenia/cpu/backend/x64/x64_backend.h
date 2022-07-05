@@ -27,8 +27,6 @@ namespace x64 {
 
 class X64CodeCache;
 
-#define XENIA_HAS_X64_BACKEND 1
-
 typedef void* (*HostToGuestThunk)(void* target, void* arg0, void* arg1);
 typedef void* (*GuestToHostThunk)(void* target, void* arg0, void* arg1);
 typedef void (*ResolveFunctionThunk)();
