@@ -35,8 +35,7 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
     return EXCEPTION_CONTINUE_SEARCH;
   }
 
-  // TODO(benvanik): avoid this by mapping X64Context virtual?
-  X64Context thread_context;
+  HostThreadContext thread_context;
   thread_context.rip = ex_info->ContextRecord->Rip;
   thread_context.eflags = ex_info->ContextRecord->EFlags;
   std::memcpy(thread_context.int_registers, &ex_info->ContextRecord->Rax,

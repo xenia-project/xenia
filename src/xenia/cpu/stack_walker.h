@@ -13,7 +13,7 @@
 #include <memory>
 #include <string>
 
-#include "xenia/base/x64_context.h"
+#include "xenia/base/host_thread_context.h"
 #include "xenia/cpu/function.h"
 
 namespace xe {
@@ -83,8 +83,8 @@ class StackWalker {
   virtual size_t CaptureStackTrace(void* thread_handle,
                                    uint64_t* frame_host_pcs,
                                    size_t frame_offset, size_t frame_count,
-                                   const X64Context* in_host_context,
-                                   X64Context* out_host_context,
+                                   const HostThreadContext* in_host_context,
+                                   HostThreadContext* out_host_context,
                                    uint64_t* out_stack_hash = nullptr) = 0;
 
   // Resolves symbol information for the given stack frames.

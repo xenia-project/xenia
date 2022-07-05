@@ -13,7 +13,7 @@
 #include <memory>
 #include <vector>
 
-#include "xenia/base/x64_context.h"
+#include "xenia/base/host_thread_context.h"
 #include "xenia/cpu/breakpoint.h"
 #include "xenia/cpu/debug_listener.h"
 #include "xenia/cpu/processor.h"

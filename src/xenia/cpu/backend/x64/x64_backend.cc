@@ -163,7 +163,7 @@ std::unique_ptr<GuestFunction> X64Backend::CreateGuestFunction(
   return std::make_unique<X64Function>(module, address);
 }
 
-uint64_t ReadCapstoneReg(X64Context* context, x86_reg reg) {
+uint64_t ReadCapstoneReg(HostThreadContext* context, x86_reg reg) {
   switch (reg) {
     case X86_REG_RAX:
       return context->rax;
