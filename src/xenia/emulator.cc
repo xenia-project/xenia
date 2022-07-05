@@ -24,9 +24,9 @@
 #include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/mapped_memory.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/string.h"
 #include "xenia/cpu/backend/code_cache.h"
-#include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/gpu/graphics_system.h"
@@ -49,6 +49,10 @@
 #include "xenia/vfs/devices/null_device.h"
 #include "xenia/vfs/devices/stfs_container_device.h"
 #include "xenia/vfs/virtual_file_system.h"
+
+#if XE_ARCH_AMD64
+#include "xenia/cpu/backend/x64/x64_backend.h"
+#endif  // XE_ARCH
 
 DEFINE_double(time_scalar, 1.0,
               "Scalar used to speed or slow time (1x, 2x, 1/2x, etc).",
@@ -161,17 +165,17 @@ X_STATUS Emulator::Setup(
 
   std::unique_ptr<xe::cpu::backend::Backend> backend;
   if (!backend) {
-#if defined(XENIA_HAS_X64_BACKEND) && XENIA_HAS_X64_BACKEND
+#if XE_ARCH_AMD64
     if (cvars::cpu == "x64") {
       backend.reset(new xe::cpu::backend::x64::X64Backend());
     }
-#endif  // XENIA_HAS_X64_BACKEND
+#endif  // XE_ARCH
     if (cvars::cpu == "any") {
-#if defined(XENIA_HAS_X64_BACKEND) && XENIA_HAS_X64_BACKEND
       if (!backend) {
+#if XE_ARCH_AMD64
         backend.reset(new xe::cpu::backend::x64::X64Backend());
+#endif  // XE_ARCH
       }
-#endif  // XENIA_HAS_X64_BACKEND
     }
   }
 

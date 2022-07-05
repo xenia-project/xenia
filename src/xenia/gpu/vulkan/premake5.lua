@@ -34,7 +34,6 @@ project("xenia-gpu-vulkan-trace-viewer")
     "xenia-base",
     "xenia-core",
     "xenia-cpu",
-    "xenia-cpu-backend-x64",
     "xenia-gpu",
     "xenia-gpu-vulkan",
     "xenia-hid",
@@ -63,6 +62,11 @@ project("xenia-gpu-vulkan-trace-viewer")
     "vulkan_trace_viewer_main.cc",
     "../../ui/windowed_app_main_"..platform_suffix..".cc",
   })
+
+  filter("architecture:x86_64")
+    links({
+      "xenia-cpu-backend-x64",
+    })
 
   filter("platforms:Linux")
     links({
@@ -93,7 +97,6 @@ project("xenia-gpu-vulkan-trace-dump")
     "xenia-base",
     "xenia-core",
     "xenia-cpu",
-    "xenia-cpu-backend-x64",
     "xenia-gpu",
     "xenia-gpu-vulkan",
     "xenia-hid",
@@ -122,6 +125,11 @@ project("xenia-gpu-vulkan-trace-dump")
     "vulkan_trace_dump_main.cc",
     "../../base/console_app_main_"..platform_suffix..".cc",
   })
+
+  filter("architecture:x86_64")
+    links({
+      "xenia-cpu-backend-x64",
+    })
 
   filter("platforms:Linux")
     links({
