@@ -805,8 +805,8 @@ bool Processor::ResumeAllThreads() {
   return true;
 }
 
-void Processor::UpdateThreadExecutionStates(uint32_t override_thread_id,
-                                            X64Context* override_context) {
+void Processor::UpdateThreadExecutionStates(
+    uint32_t override_thread_id, HostThreadContext* override_context) {
   auto global_lock = global_critical_region_.Acquire();
   uint64_t frame_host_pcs[64];
   xe::cpu::StackFrame cpu_frames[64];
@@ -828,7 +828,7 @@ void Processor::UpdateThreadExecutionStates(uint32_t override_thread_id,
 
     // Grab stack trace and X64 context then resolve all symbols.
     uint64_t hash;
-    X64Context* in_host_context = nullptr;
+    HostThreadContext* in_host_context = nullptr;
     if (override_thread_id == thread_info->thread_id) {
       // If we were passed an override context we use that. Otherwise, ask the
       // stack walker for a new context.

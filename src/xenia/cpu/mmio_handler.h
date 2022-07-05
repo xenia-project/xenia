@@ -18,7 +18,7 @@
 
 namespace xe {
 class Exception;
-class X64Context;
+class HostThreadContext;
 }  // namespace xe
 
 namespace xe {

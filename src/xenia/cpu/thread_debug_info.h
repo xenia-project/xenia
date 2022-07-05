@@ -12,7 +12,7 @@
 
 #include <vector>
 
-#include "xenia/base/x64_context.h"
+#include "xenia/base/host_thread_context.h"
 #include "xenia/cpu/thread.h"
 #include "xenia/cpu/thread_state.h"
 
@@ -70,10 +70,10 @@ struct ThreadDebugInfo {
   // Last-sampled PPC context.
   // This is updated whenever the debugger stops.
   ppc::PPCContext guest_context;
-  // Last-sampled host x64 context.
+  // Last-sampled host context.
   // This is updated whenever the debugger stops and must be used instead of any
   // value taken from the StackWalker as it properly respects exception stacks.
-  X64Context host_context;
+  HostThreadContext host_context;
 
   // A single frame in a call stack.
   struct Frame {

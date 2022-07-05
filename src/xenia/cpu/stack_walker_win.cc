@@ -153,8 +153,8 @@ class Win32StackWalker : public StackWalker {
 
   size_t CaptureStackTrace(void* thread_handle, uint64_t* frame_host_pcs,
                            size_t frame_offset, size_t frame_count,
-                           const X64Context* in_host_context,
-                           X64Context* out_host_context,
+                           const HostThreadContext* in_host_context,
+                           HostThreadContext* out_host_context,
                            uint64_t* out_stack_hash) override {
     // TODO(benvanik): use xstate?
     // https://msdn.microsoft.com/en-us/library/windows/desktop/hh134240(v=vs.85).aspx
