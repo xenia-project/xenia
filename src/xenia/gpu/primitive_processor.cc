@@ -942,7 +942,7 @@ void PrimitiveProcessor::Get16BitResetIndexUsage(
       is_ffff_simd =
           _mm_or_si128(is_ffff_simd, _mm_cmpeq_epi16(source_simd, ffff_simd));
 #elif XE_ARCH_ARM64
-      is_reset_simd = vcorrq_u16(
+      is_reset_simd = vorrq_u16(
           is_reset_simd, vceqq_u16(source_simd, reset_index_guest_endian_simd));
       is_ffff_simd = vmaxq_u16(is_ffff_simd, source_simd);
 #else
