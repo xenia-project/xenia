@@ -647,7 +647,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     TransferInvocation(const Transfer& transfer,
                        const TransferShaderKey& shader_key)
         : transfer(transfer), shader_key(shader_key) {}
-    bool operator<(const TransferInvocation& other_invocation) {
+    bool operator<(const TransferInvocation& other_invocation) const {
       // TODO(Triang3l): See if it may be better to sort by the source in the
       // first place, especially when reading the same data multiple times (like
       // to write the stencil bits after depth) for better read locality.
@@ -784,7 +784,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     DumpInvocation(const ResolveCopyDumpRectangle& rectangle,
                    const DumpPipelineKey& pipeline_key)
         : rectangle(rectangle), pipeline_key(pipeline_key) {}
-    bool operator<(const DumpInvocation& other_invocation) {
+    bool operator<(const DumpInvocation& other_invocation) const {
       // Sort by the pipeline key primarily to reduce pipeline state (context)
       // switches.
       if (pipeline_key != other_invocation.pipeline_key) {
