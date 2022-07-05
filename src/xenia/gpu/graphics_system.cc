@@ -52,11 +52,11 @@ GraphicsSystem::GraphicsSystem() : vsync_worker_running_(false) {}
 
 GraphicsSystem::~GraphicsSystem() = default;
 
-X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
+X_STATUS GraphicsSystem::Setup(Memory* memory, cpu::Processor* processor,
                                kernel::KernelState* kernel_state,
                                ui::WindowedAppContext* app_context,
                                [[maybe_unused]] bool is_surface_required) {
-  memory_ = processor->memory();
+  memory_ = memory;
   processor_ = processor;
   kernel_state_ = kernel_state;
   app_context_ = app_context;
@@ -233,6 +233,7 @@ void GraphicsSystem::EnableReadPointerWriteBack(uint32_t ptr,
 
 void GraphicsSystem::SetInterruptCallback(uint32_t callback,
                                           uint32_t user_data) {
+  assert_false(callback && !processor_);
   interrupt_callback_ = callback;
   interrupt_callback_data_ = user_data;
   XELOGGPU("SetInterruptCallback({:08X}, {:08X})", callback, user_data);

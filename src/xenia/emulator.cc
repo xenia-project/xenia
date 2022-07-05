@@ -228,7 +228,7 @@ X_STATUS Emulator::Setup(
 
   // Setup the core components.
   result = graphics_system_->Setup(
-      processor_.get(), kernel_state_.get(),
+      memory_.get(), processor_.get(), kernel_state_.get(),
       display_window_ ? &display_window_->app_context() : nullptr,
       display_window_ != nullptr);
   if (result) {
