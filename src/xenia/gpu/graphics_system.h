@@ -43,12 +43,13 @@ class GraphicsSystem {
   virtual std::string name() const = 0;
 
   Memory* memory() const { return memory_; }
+  // The Processor is optional and may be null (needed only for interrupts).
   cpu::Processor* processor() const { return processor_; }
   kernel::KernelState* kernel_state() const { return kernel_state_; }
   ui::GraphicsProvider* provider() const { return provider_.get(); }
   ui::Presenter* presenter() const { return presenter_.get(); }
 
-  virtual X_STATUS Setup(cpu::Processor* processor,
+  virtual X_STATUS Setup(Memory* memory, cpu::Processor* processor,
                          kernel::KernelState* kernel_state,
                          ui::WindowedAppContext* app_context,
                          bool is_surface_required);

@@ -39,12 +39,12 @@ std::string D3D12GraphicsSystem::name() const {
   return "Direct3D 12";
 }
 
-X_STATUS D3D12GraphicsSystem::Setup(cpu::Processor* processor,
+X_STATUS D3D12GraphicsSystem::Setup(Memory* memory, cpu::Processor* processor,
                                     kernel::KernelState* kernel_state,
                                     ui::WindowedAppContext* app_context,
                                     bool is_surface_required) {
   provider_ = xe::ui::d3d12::D3D12Provider::Create();
-  return GraphicsSystem::Setup(processor, kernel_state, app_context,
+  return GraphicsSystem::Setup(memory, processor, kernel_state, app_context,
                                is_surface_required);
 }
 

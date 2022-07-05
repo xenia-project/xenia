@@ -30,7 +30,8 @@ class VulkanGraphicsSystem : public GraphicsSystem {
     return "Vulkan - HEAVILY INCOMPLETE, early development";
   }
 
-  X_STATUS Setup(cpu::Processor* processor, kernel::KernelState* kernel_state,
+  X_STATUS Setup(Memory* memory, cpu::Processor* processor,
+                 kernel::KernelState* kernel_state,
                  ui::WindowedAppContext* app_context,
                  bool is_surface_required) override;
 
