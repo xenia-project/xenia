@@ -29,8 +29,7 @@ class D3D12GraphicsSystem : public GraphicsSystem {
 
   std::string name() const override;
 
-  X_STATUS Setup(Memory* memory, cpu::Processor* processor,
-                 kernel::KernelState* kernel_state,
+  X_STATUS Setup(cpu::Processor* processor, kernel::KernelState* kernel_state,
                  ui::WindowedAppContext* app_context,
                  bool is_surface_required) override;
 

@@ -21,12 +21,12 @@ VulkanGraphicsSystem::VulkanGraphicsSystem() {}
 
 VulkanGraphicsSystem::~VulkanGraphicsSystem() {}
 
-X_STATUS VulkanGraphicsSystem::Setup(Memory* memory, cpu::Processor* processor,
+X_STATUS VulkanGraphicsSystem::Setup(cpu::Processor* processor,
                                      kernel::KernelState* kernel_state,
                                      ui::WindowedAppContext* app_context,
                                      bool is_surface_required) {
   provider_ = xe::ui::vulkan::VulkanProvider::Create(is_surface_required);
-  return GraphicsSystem::Setup(memory, processor, kernel_state, app_context,
+  return GraphicsSystem::Setup(processor, kernel_state, app_context,
                                is_surface_required);
 }
 
