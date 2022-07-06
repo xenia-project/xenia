@@ -27,6 +27,7 @@
 #include "xenia/base/platform.h"
 #include "xenia/base/string.h"
 #include "xenia/cpu/backend/code_cache.h"
+#include "xenia/cpu/backend/null_backend.h"
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/gpu/graphics_system.h"
@@ -131,6 +132,7 @@ Emulator::~Emulator() {
 
 X_STATUS Emulator::Setup(
     ui::Window* display_window, ui::ImGuiDrawer* imgui_drawer,
+    bool require_cpu_backend,
     std::function<std::unique_ptr<apu::AudioSystem>(cpu::Processor*)>
         audio_system_factory,
     std::function<std::unique_ptr<gpu::GraphicsSystem>()>
@@ -164,19 +166,20 @@ X_STATUS Emulator::Setup(
   export_resolver_ = std::make_unique<xe::cpu::ExportResolver>();
 
   std::unique_ptr<xe::cpu::backend::Backend> backend;
-  if (!backend) {
 #if XE_ARCH_AMD64
-    if (cvars::cpu == "x64") {
+  if (cvars::cpu == "x64") {
+    backend.reset(new xe::cpu::backend::x64::X64Backend());
+  }
+#endif  // XE_ARCH
+  if (cvars::cpu == "any") {
+    if (!backend) {
+#if XE_ARCH_AMD64
       backend.reset(new xe::cpu::backend::x64::X64Backend());
-    }
 #endif  // XE_ARCH
-    if (cvars::cpu == "any") {
-      if (!backend) {
-#if XE_ARCH_AMD64
-        backend.reset(new xe::cpu::backend::x64::X64Backend());
-#endif  // XE_ARCH
-      }
     }
+  }
+  if (!backend && !require_cpu_backend) {
+    backend.reset(new xe::cpu::backend::NullBackend());
   }
 
   // Initialize the CPU.

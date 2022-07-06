@@ -134,7 +134,11 @@ bool Processor::Setup(std::unique_ptr<backend::Backend> backend) {
   // Stack walker is used when profiling, debugging, and dumping.
   // Note that creation may fail, in which case we'll have to disable those
   // features.
-  stack_walker_ = StackWalker::Create(backend_->code_cache());
+  // The code cache may be unavailable in case of a "null" backend.
+  cpu::backend::CodeCache* code_cache = backend_->code_cache();
+  if (code_cache) {
+    stack_walker_ = StackWalker::Create(code_cache);
+  }
   if (!stack_walker_) {
     // TODO(benvanik): disable features.
     if (cvars::debug) {
