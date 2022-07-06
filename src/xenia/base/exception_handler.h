@@ -48,13 +48,19 @@ namespace xe {
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-constexpr uint32_t kArm64LoadStoreAnyMask = UINT32_C(0x0A000000);
-constexpr uint32_t kArm64LoadStoreAnyValue = UINT32_C(0x08000000);
-constexpr uint32_t kArm64LoadStorePairAnyMask = UINT32_C(0x3A000000);
-constexpr uint32_t kArm64LoadStorePairAnyValue = UINT32_C(0x28000000);
-constexpr uint32_t kArm64LoadStorePairLoadBit = UINT32_C(1) << 22;
-constexpr uint32_t kArm64LoadStoreMask = UINT32_C(0xC4C00000);
+// `Instruction address + literal offset` loads.
+// This includes PRFM_lit.
+constexpr uint32_t kArm64LoadLiteralFMask = UINT32_C(0x3B000000);
+constexpr uint32_t kArm64LoadLiteralFixed = UINT32_C(0x18000000);
 
+constexpr uint32_t kArm64LoadStoreAnyFMask = UINT32_C(0x0A000000);
+constexpr uint32_t kArm64LoadStoreAnyFixed = UINT32_C(0x08000000);
+
+constexpr uint32_t kArm64LoadStorePairAnyFMask = UINT32_C(0x3A000000);
+constexpr uint32_t kArm64LoadStorePairAnyFixed = UINT32_C(0x28000000);
+constexpr uint32_t kArm64LoadStorePairLoadBit = UINT32_C(1) << 22;
+
+constexpr uint32_t kArm64LoadStoreMask = UINT32_C(0xC4C00000);
 enum class Arm64LoadStoreOp : uint32_t {
   kSTRB_w = UINT32_C(0x00000000),
   kSTRH_w = UINT32_C(0x40000000),
@@ -81,6 +87,17 @@ enum class Arm64LoadStoreOp : uint32_t {
   kLDR_q = UINT32_C(0x04C00000),
   kPRFM = UINT32_C(0xC0800000),
 };
+
+constexpr uint32_t kArm64LoadStoreOffsetFMask = UINT32_C(0x3B200C00);
+enum class Arm64LoadStoreOffsetFixed : uint32_t {
+  kUnscaledOffset = UINT32_C(0x38000000),
+  kPostIndex = UINT32_C(0x38000400),
+  kPreIndex = UINT32_C(0x38000C00),
+  kRegisterOffset = UINT32_C(0x38200800),
+};
+
+constexpr uint32_t kArm64LoadStoreUnsignedOffsetFMask = UINT32_C(0x3B000000);
+constexpr uint32_t kArm64LoadStoreUnsignedOffsetFixed = UINT32_C(0x39000000);
 
 bool IsArm64LoadPrefetchStore(uint32_t instruction, bool& is_store_out);
 
@@ -114,6 +131,14 @@ class Exception {
   Code code() const { return code_; }
 
   // Returns the platform-specific thread context info.
+  // Note that certain registers must be modified through Modify* proxy
+  // functions rather than directly:
+  // x86-64:
+  // - General-purpose registers (r##, r8-r15).
+  // - XMM registers.
+  // AArch64:
+  // - General-purpose registers (Xn), including FP and LR.
+  // - SIMD and floating-point registers (Vn).
   HostThreadContext* thread_context() const { return thread_context_; }
 
   // Returns the program counter where the exception occurred.
@@ -139,6 +164,35 @@ class Exception {
 #endif  // XE_ARCH
   }
 
+#if XE_ARCH_AMD64
+  // The index is relative to X64Register::kIntRegisterFirst.
+  uint64_t& ModifyIntRegister(uint32_t index) {
+    assert_true(index <= 15);
+    modified_int_registers_ |= UINT16_C(1) << index;
+    return thread_context_->int_registers[index];
+  }
+  uint16_t modified_int_registers() const { return modified_int_registers_; }
+  vec128_t& ModifyXmmRegister(uint32_t index) {
+    assert_true(index <= 15);
+    modified_xmm_registers_ |= UINT16_C(1) << index;
+    return thread_context_->xmm_registers[index];
+  }
+  uint16_t modified_xmm_registers() const { return modified_xmm_registers_; }
+#elif XE_ARCH_ARM64
+  uint64_t& ModifyXRegister(uint32_t index) {
+    assert_true(index <= 30);
+    modified_x_registers_ |= UINT32_C(1) << index;
+    return thread_context_->x[index];
+  }
+  uint32_t modified_x_registers() const { return modified_x_registers_; }
+  vec128_t& ModifyVRegister(uint32_t index) {
+    assert_true(index <= 31);
+    modified_v_registers_ |= UINT32_C(1) << index;
+    return thread_context_->v[index];
+  }
+  uint32_t modified_v_registers() const { return modified_v_registers_; }
+#endif  // XE_ARCH
+
   // In case of AV, address that was read from/written to.
   uint64_t fault_address() const { return fault_address_; }
 
@@ -150,6 +204,13 @@ class Exception {
  private:
   Code code_ = Code::kInvalidException;
   HostThreadContext* thread_context_ = nullptr;
+#if XE_ARCH_AMD64
+  uint16_t modified_int_registers_ = 0;
+  uint16_t modified_xmm_registers_ = 0;
+#elif XE_ARCH_ARM64
+  uint32_t modified_x_registers_ = 0;
+  uint32_t modified_v_registers_ = 0;
+#endif  // XE_ARCH
   uint64_t fault_address_ = 0;
   AccessViolationOperation access_violation_operation_ =
       AccessViolationOperation::kUnknown;

@@ -19,6 +19,7 @@
 #include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/breakpoint.h"
@@ -675,7 +676,13 @@ bool Processor::OnThreadBreakpointHit(Exception* ex) {
 
   // Apply thread context changes.
   // TODO(benvanik): apply to all threads?
+#if XE_ARCH_AMD64
   ex->set_resume_pc(thread_info->host_context.rip);
+#elif XE_ARCH_ARM64
+  ex->set_resume_pc(thread_info->host_context.pc);
+#else
+#error Instruction pointer not specified for the target CPU architecture.
+#endif  // XE_ARCH
 
   // Resume execution.
   return true;

@@ -16,6 +16,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/host_thread_context.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/math.h"
 #include "xenia/base/platform.h"
 
 namespace xe {
@@ -43,6 +44,8 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
 #if XE_ARCH_AMD64
   thread_context.rip = uint64_t(mcontext.gregs[REG_RIP]);
   thread_context.eflags = uint32_t(mcontext.gregs[REG_EFL]);
+  // The REG_ order may be different than the register indices in the
+  // instruction encoding.
   thread_context.rax = uint64_t(mcontext.gregs[REG_RAX]);
   thread_context.rcx = uint64_t(mcontext.gregs[REG_RCX]);
   thread_context.rdx = uint64_t(mcontext.gregs[REG_RDX]);
@@ -160,11 +163,61 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
   for (size_t i = 0; i < xe::countof(handlers_) && handlers_[i].first; ++i) {
     if (handlers_[i].first(&ex, handlers_[i].second)) {
       // Exception handled.
-      // TODO(benvanik): Update all thread state? Dirty flags?
 #if XE_ARCH_AMD64
-      mcontext.gregs[REG_RIP] = thread_context.rip;
+      mcontext.gregs[REG_RIP] = greg_t(thread_context.rip);
+      mcontext.gregs[REG_EFL] = greg_t(thread_context.eflags);
+      uint32_t modified_register_index;
+      // The order must match the order in X64Register.
+      static const size_t kIntRegisterMap[] = {
+          REG_RAX, REG_RCX, REG_RDX, REG_RBX, REG_RSP, REG_RBP,
+          REG_RSI, REG_RDI, REG_R8,  REG_R9,  REG_R10, REG_R11,
+          REG_R12, REG_R13, REG_R14, REG_R15,
+      };
+      uint16_t modified_int_registers_remaining = ex.modified_int_registers();
+      while (xe::bit_scan_forward(modified_int_registers_remaining,
+                                  &modified_register_index)) {
+        modified_int_registers_remaining &=
+            ~(UINT16_C(1) << modified_register_index);
+        mcontext.gregs[kIntRegisterMap[modified_register_index]] =
+            thread_context.int_registers[modified_register_index];
+      }
+      uint16_t modified_xmm_registers_remaining = ex.modified_xmm_registers();
+      while (xe::bit_scan_forward(modified_xmm_registers_remaining,
+                                  &modified_register_index)) {
+        modified_xmm_registers_remaining &=
+            ~(UINT16_C(1) << modified_register_index);
+        std::memcpy(&mcontext.fpregs->_xmm[modified_register_index],
+                    &thread_context.xmm_registers[modified_register_index],
+                    sizeof(vec128_t));
+      }
 #elif XE_ARCH_ARM64
+      uint32_t modified_register_index;
+      uint32_t modified_x_registers_remaining = ex.modified_x_registers();
+      while (xe::bit_scan_forward(modified_x_registers_remaining,
+                                  &modified_register_index)) {
+        modified_x_registers_remaining &=
+            ~(UINT32_C(1) << modified_register_index);
+        mcontext.regs[modified_register_index] =
+            thread_context.x[modified_register_index];
+      }
+      mcontext.sp = thread_context.sp;
       mcontext.pc = thread_context.pc;
+      mcontext.pstate = thread_context.pstate;
+      if (mcontext_fpsimd) {
+        mcontext_fpsimd->fpsr = thread_context.fpsr;
+        mcontext_fpsimd->fpcr = thread_context.fpcr;
+        uint32_t modified_v_registers_remaining = ex.modified_v_registers();
+        while (xe::bit_scan_forward(modified_v_registers_remaining,
+                                    &modified_register_index)) {
+          modified_v_registers_remaining &=
+              ~(UINT32_C(1) << modified_register_index);
+          std::memcpy(&mcontext_fpsimd->vregs[modified_register_index],
+                      &thread_context.v[modified_register_index],
+                      sizeof(vec128_t));
+          mcontext.regs[modified_register_index] =
+              thread_context.x[modified_register_index];
+        }
+      }
 #endif  // XE_ARCH
       return;
     }

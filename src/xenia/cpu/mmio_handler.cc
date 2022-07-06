@@ -18,6 +18,7 @@
 #include "xenia/base/exception_handler.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
+#include "xenia/base/platform.h"
 
 namespace xe {
 namespace cpu {
@@ -114,28 +115,10 @@ bool MMIOHandler::CheckStore(uint32_t virtual_address, uint32_t value) {
   return false;
 }
 
-struct DecodedMov {
-  size_t length;
-  // Inidicates this is a load (or conversely a store).
-  bool is_load;
-  // Indicates the memory must be swapped.
-  bool byte_swap;
-  // Source (for store) or target (for load) register.
-  // AX  CX  DX  BX  SP  BP  SI  DI   // REX.R=0
-  // R8  R9  R10 R11 R12 R13 R14 R15  // REX.R=1
-  uint32_t value_reg;
-  // [base + (index * scale) + displacement]
-  bool mem_has_base;
-  uint8_t mem_base_reg;
-  bool mem_has_index;
-  uint8_t mem_index_reg;
-  uint8_t mem_scale;
-  int32_t mem_displacement;
-  bool is_constant;
-  int32_t constant;
-};
-
-bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
+bool MMIOHandler::TryDecodeLoadStore(const uint8_t* p,
+                                     DecodedLoadStore& decoded_out) {
+  std::memset(&decoded_out, 0, sizeof(decoded_out));
+#if XE_ARCH_AMD64
   uint8_t i = 0;  // Current byte decode index.
   uint8_t rex = 0;
   if ((p[i] & 0xF0) == 0x40) {
@@ -148,8 +131,8 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
     // 44 0f 38 f1 a4 02 00     movbe  DWORD PTR [rdx+rax*1+0x0],r12d
     // 42 0f 38 f1 8c 22 00     movbe  DWORD PTR [rdx+r12*1+0x0],ecx
     // 0f 38 f1 8c 02 00 00     movbe  DWORD PTR [rdx + rax * 1 + 0x0], ecx
-    mov->is_load = false;
-    mov->byte_swap = true;
+    decoded_out.is_load = false;
+    decoded_out.byte_swap = true;
     i += 3;
   } else if (p[i] == 0x0F && p[i + 1] == 0x38 && p[i + 2] == 0xF0) {
     // MOVBE r32, m32 (load)
@@ -159,8 +142,8 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
     // 46 0f 38 f0 a4 22 00     movbe  r12d,DWORD PTR [rdx+r12*1+0x0]
     // 0f 38 f0 8c 02 00 00     movbe  ecx,DWORD PTR [rdx+rax*1+0x0]
     // 0F 38 F0 1C 02           movbe  ebx,dword ptr [rdx+rax]
-    mov->is_load = true;
-    mov->byte_swap = true;
+    decoded_out.is_load = true;
+    decoded_out.byte_swap = true;
     i += 3;
   } else if (p[i] == 0x89) {
     // MOV m32, r32 (store)
@@ -168,8 +151,8 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
     // 44 89 24 02              mov  DWORD PTR[rdx + rax * 1], r12d
     // 42 89 0c 22              mov  DWORD PTR[rdx + r12 * 1], ecx
     // 89 0c 02                 mov  DWORD PTR[rdx + rax * 1], ecx
-    mov->is_load = false;
-    mov->byte_swap = false;
+    decoded_out.is_load = false;
+    decoded_out.byte_swap = false;
     ++i;
   } else if (p[i] == 0x8B) {
     // MOV r32, m32 (load)
@@ -178,16 +161,16 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
     // 42 8b 0c 22              mov  ecx, DWORD PTR[rdx + r12 * 1]
     // 46 8b 24 22              mov  r12d, DWORD PTR[rdx + r12 * 1]
     // 8b 0c 02                 mov  ecx, DWORD PTR[rdx + rax * 1]
-    mov->is_load = true;
-    mov->byte_swap = false;
+    decoded_out.is_load = true;
+    decoded_out.byte_swap = false;
     ++i;
   } else if (p[i] == 0xC7) {
     // MOV m32, simm32
     // https://web.archive.org/web/20161017042413/https://www.asmpedia.org/index.php?title=MOV
     // C7 04 02 02 00 00 00     mov  dword ptr [rdx+rax],2
-    mov->is_load = false;
-    mov->byte_swap = false;
-    mov->is_constant = true;
+    decoded_out.is_load = false;
+    decoded_out.byte_swap = false;
+    decoded_out.is_constant = true;
     ++i;
   } else {
     return false;
@@ -204,13 +187,13 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
   uint8_t mod = (modrm & 0b11000000) >> 6;
   uint8_t reg = (modrm & 0b00111000) >> 3;
   uint8_t rm = (modrm & 0b00000111);
-  mov->value_reg = reg + (rex_r ? 8 : 0);
-  mov->mem_has_base = false;
-  mov->mem_base_reg = 0;
-  mov->mem_has_index = false;
-  mov->mem_index_reg = 0;
-  mov->mem_scale = 1;
-  mov->mem_displacement = 0;
+  decoded_out.value_reg = reg + (rex_r ? 8 : 0);
+  decoded_out.mem_has_base = false;
+  decoded_out.mem_base_reg = 0;
+  decoded_out.mem_has_index = false;
+  decoded_out.mem_index_reg = 0;
+  decoded_out.mem_scale = 1;
+  decoded_out.mem_displacement = 0;
   bool has_sib = false;
   switch (rm) {
     case 0b100:  // SIB
@@ -221,17 +204,17 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
         // RIP-relative not supported.
         return false;
       }
-      mov->mem_has_base = true;
-      mov->mem_base_reg = rm + (rex_b ? 8 : 0);
+      decoded_out.mem_has_base = true;
+      decoded_out.mem_base_reg = rm + (rex_b ? 8 : 0);
       break;
     default:
-      mov->mem_has_base = true;
-      mov->mem_base_reg = rm + (rex_b ? 8 : 0);
+      decoded_out.mem_has_base = true;
+      decoded_out.mem_base_reg = rm + (rex_b ? 8 : 0);
       break;
   }
   if (has_sib) {
     uint8_t sib = p[i++];
-    mov->mem_scale = 1 << ((sib & 0b11000000) >> 8);
+    decoded_out.mem_scale = 1 << ((sib & 0b11000000) >> 8);
     uint8_t sib_index = (sib & 0b00111000) >> 3;
     uint8_t sib_base = (sib & 0b00000111);
     switch (sib_index) {
@@ -239,8 +222,9 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
         // No index.
         break;
       default:
-        mov->mem_has_index = true;
-        mov->mem_index_reg = sib_index + (rex_x ? 8 : 0);
+        decoded_out.mem_has_index = true;
+        decoded_out.mem_index_reg = sib_index + (rex_x ? 8 : 0);
+        decoded_out.mem_index_size = sizeof(uint64_t);
         break;
     }
     switch (sib_base) {
@@ -249,29 +233,162 @@ bool TryDecodeMov(const uint8_t* p, DecodedMov* mov) {
         assert_zero(mod);
         return false;
       default:
-        mov->mem_has_base = true;
-        mov->mem_base_reg = sib_base + (rex_b ? 8 : 0);
+        decoded_out.mem_has_base = true;
+        decoded_out.mem_base_reg = sib_base + (rex_b ? 8 : 0);
         break;
     }
   }
   switch (mod) {
     case 0b00: {
-      mov->mem_displacement += 0;
+      decoded_out.mem_displacement += 0;
     } break;
     case 0b01: {
-      mov->mem_displacement += int8_t(p[i++]);
+      decoded_out.mem_displacement += int8_t(p[i++]);
     } break;
     case 0b10: {
-      mov->mem_displacement += xe::load<int32_t>(p + i);
+      decoded_out.mem_displacement += xe::load<int32_t>(p + i);
       i += 4;
     } break;
   }
-  if (mov->is_constant) {
-    mov->constant = xe::load<int32_t>(p + i);
+  if (decoded_out.is_constant) {
+    decoded_out.constant = xe::load<int32_t>(p + i);
     i += 4;
   }
-  mov->length = i;
+  decoded_out.length = i;
   return true;
+
+#elif XE_ARCH_ARM64
+  decoded_out.length = sizeof(uint32_t);
+  uint32_t instruction = *reinterpret_cast<const uint32_t*>(p);
+
+  // Literal loading (PC-relative) is not handled.
+
+  if ((instruction & kArm64LoadStoreAnyFMask) != kArm64LoadStoreAnyFixed) {
+    // Not a load or a store instruction.
+    return false;
+  }
+
+  if ((instruction & kArm64LoadStorePairAnyFMask) ==
+      kArm64LoadStorePairAnyFixed) {
+    // Handling MMIO only for single 32-bit values, not for pairs.
+    return false;
+  }
+
+  uint8_t value_reg_base;
+  switch (Arm64LoadStoreOp(instruction & kArm64LoadStoreMask)) {
+    case Arm64LoadStoreOp::kSTR_w:
+      decoded_out.is_load = false;
+      value_reg_base = DecodedLoadStore::kArm64ValueRegX0;
+      break;
+    case Arm64LoadStoreOp::kLDR_w:
+      decoded_out.is_load = true;
+      value_reg_base = DecodedLoadStore::kArm64ValueRegX0;
+      break;
+    case Arm64LoadStoreOp::kSTR_s:
+      decoded_out.is_load = false;
+      value_reg_base = DecodedLoadStore::kArm64ValueRegV0;
+      break;
+    case Arm64LoadStoreOp::kLDR_s:
+      decoded_out.is_load = true;
+      value_reg_base = DecodedLoadStore::kArm64ValueRegV0;
+      break;
+    default:
+      return false;
+  }
+
+  // `Rt` field (load / store register).
+  decoded_out.value_reg = value_reg_base + (instruction & 31);
+  if (decoded_out.is_load &&
+      decoded_out.value_reg == DecodedLoadStore::kArm64ValueRegZero) {
+    // Zero constant rather than a register read.
+    decoded_out.is_constant = true;
+    decoded_out.constant = 0;
+  }
+
+  decoded_out.mem_has_base = true;
+  // The base is Xn (for 0...30) or SP (for 31).
+  // `Rn` field (first source register).
+  decoded_out.mem_base_reg = (instruction >> 5) & 31;
+
+  bool is_unsigned_offset =
+      (instruction & kArm64LoadStoreUnsignedOffsetFMask) ==
+      kArm64LoadStoreUnsignedOffsetFixed;
+  if (is_unsigned_offset) {
+    // LDR|STR Wt|St, [Xn|SP{, #pimm}]
+    // pimm (positive immediate) is scaled by the size of the data (4 for
+    // words).
+    // `ImmLSUnsigned` field.
+    uint32_t unsigned_offset = (instruction >> 10) & 4095;
+    decoded_out.mem_displacement =
+        ptrdiff_t(sizeof(uint32_t) * unsigned_offset);
+  } else {
+    Arm64LoadStoreOffsetFixed offset =
+        Arm64LoadStoreOffsetFixed(instruction & kArm64LoadStoreOffsetFMask);
+    // simm (signed immediate) is not scaled.
+    // Only applicable to kUnscaledOffset, kPostIndex and kPreIndex.
+    // `ImmLS` field.
+    int32_t signed_offset = int32_t(instruction << (32 - (9 + 12))) >> (32 - 9);
+    // For both post- and pre-indexing, the new address is written to the
+    // register after the data register write, thus if Xt and Xn are the same,
+    // the final value in the register will be the new address.
+    // https://developer.arm.com/documentation/ddi0596/2020-12/Base-Instructions/LDR--immediate---Load-Register--immediate--
+    switch (offset) {
+      case Arm64LoadStoreOffsetFixed::kUnscaledOffset: {
+        // LDUR|STUR Wt|St, [Xn|SP{, #simm}]
+        decoded_out.mem_displacement = signed_offset;
+      } break;
+      case Arm64LoadStoreOffsetFixed::kPostIndex: {
+        // LDR|STR Wt|St, [Xn|SP], #simm
+        decoded_out.mem_base_writeback = true;
+        decoded_out.mem_base_writeback_offset = signed_offset;
+      } break;
+      case Arm64LoadStoreOffsetFixed::kPreIndex: {
+        // LDR|STR Wt|St, [Xn|SP, #simm]!
+        decoded_out.mem_base_writeback = true;
+        decoded_out.mem_base_writeback_offset = signed_offset;
+        decoded_out.mem_displacement = signed_offset;
+      } break;
+      case Arm64LoadStoreOffsetFixed::kRegisterOffset: {
+        // LDR|STR Wt|St, [Xn|SP, (Wm|Xm){, extend {amount}}]
+        // `Rm` field.
+        decoded_out.mem_index_reg = (instruction >> 16) & 31;
+        if (decoded_out.mem_index_reg != DecodedLoadStore::kArm64RegZero) {
+          decoded_out.mem_has_index = true;
+          // Allowed extend types in the `option` field are UXTW (0b010), LSL
+          // (0b011 - identical to UXTX), SXTW (0b110), SXTX (0b111).
+          // The shift (0 or 2 for 32-bit LDR/STR) can be applied regardless of
+          // the extend type ("LSL" is just a term for assembly readability,
+          // internally it's treated simply as UXTX).
+          // If bit 0 of the `option` field is 0 (UXTW, SXTW), the index
+          // register is treated as 32-bit (Wm) extended to 64-bit. If it's 1
+          // (LSL aka UXTX, SXTX), the index register is treated as 64-bit (Xm).
+          // `ExtendMode` (`option`) field.
+          uint32_t extend_mode = (instruction >> 13) & 0b111;
+          if (!(extend_mode & 0b010)) {
+            // Sub-word index - undefined.
+            return false;
+          }
+          decoded_out.mem_index_size =
+              (extend_mode & 0b001) ? sizeof(uint64_t) : sizeof(uint32_t);
+          decoded_out.mem_index_sign_extend = (extend_mode & 0b100) != 0;
+          // Shift is either 0 or log2(sizeof(load or store size)).
+          // Supporting MMIO only for 4-byte words.
+          // `ImmShiftLS` field.
+          decoded_out.mem_scale =
+              (instruction & (UINT32_C(1) << 12)) ? sizeof(uint32_t) : 1;
+        }
+      } break;
+      default:
+        return false;
+    }
+  }
+
+  return true;
+
+#else
+#error TryDecodeLoadStore not implemented for the target CPU architecture.
+  return false;
+#endif  // XE_ARCH
 }
 
 bool MMIOHandler::ExceptionCallbackThunk(Exception* ex, void* data) {
@@ -300,11 +417,13 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
   // Access violations are pretty rare, so we can do a linear search here.
   // Only check if in the virtual range, as we only support virtual ranges.
   const MMIORange* range = nullptr;
+  uint32_t fault_guest_virtual_address = 0;
   if (ex->fault_address() < uint64_t(physical_membase_)) {
-    uint32_t fault_virtual_address = host_to_guest_virtual_(
+    fault_guest_virtual_address = host_to_guest_virtual_(
         host_to_guest_virtual_context_, fault_host_address);
     for (const auto& test_range : mapped_ranges_) {
-      if ((fault_virtual_address & test_range.mask) == test_range.address) {
+      if ((fault_guest_virtual_address & test_range.mask) ==
+          test_range.address) {
         // Address is within the range of this mapping.
         range = &test_range;
         break;
@@ -336,44 +455,114 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
 
   auto rip = ex->pc();
   auto p = reinterpret_cast<const uint8_t*>(rip);
-  DecodedMov mov = {0};
-  bool decoded = TryDecodeMov(p, &mov);
-  if (!decoded) {
-    XELOGE("Unable to decode MMIO mov at {}", p);
+  DecodedLoadStore decoded_load_store;
+  if (!TryDecodeLoadStore(p, decoded_load_store)) {
+    XELOGE("Unable to decode MMIO load or store instruction at {}", p);
     assert_always("Unknown MMIO instruction type");
     return false;
   }
 
-  if (mov.is_load) {
+  HostThreadContext& thread_context = *ex->thread_context();
+
+#if XE_ARCH_ARM64
+  // Preserve the base address with the pre- or the post-index offset to write
+  // it after writing the result (since the base address register and the
+  // register to load to may be the same, in which case it should receive the
+  // original base address with the offset).
+  uintptr_t mem_base_writeback_address = 0;
+  if (decoded_load_store.mem_has_base &&
+      decoded_load_store.mem_base_writeback) {
+    if (decoded_load_store.mem_base_reg ==
+        DecodedLoadStore::kArm64MemBaseRegSp) {
+      mem_base_writeback_address = thread_context.sp;
+    } else {
+      assert_true(decoded_load_store.mem_base_reg <= 30);
+      mem_base_writeback_address =
+          thread_context.x[decoded_load_store.mem_base_reg];
+    }
+    mem_base_writeback_address += decoded_load_store.mem_base_writeback_offset;
+  }
+#endif  // XE_ARCH_ARM64
+
+  uint8_t value_reg = decoded_load_store.value_reg;
+  if (decoded_load_store.is_load) {
     // Load of a memory value - read from range, swap, and store in the
     // register.
     uint32_t value = range->read(nullptr, range->callback_context,
-                                 static_cast<uint32_t>(ex->fault_address()));
-    uint64_t* reg_ptr = &ex->thread_context()->int_registers[mov.value_reg];
-    if (!mov.byte_swap) {
+                                 fault_guest_virtual_address);
+    if (!decoded_load_store.byte_swap) {
       // We swap only if it's not a movbe, as otherwise we are swapping twice.
       value = xe::byte_swap(value);
     }
-    *reg_ptr = value;
+#if XE_ARCH_AMD64
+    ex->ModifyIntRegister(value_reg) = value;
+#elif XE_ARCH_ARM64
+    if (value_reg >= DecodedLoadStore::kArm64ValueRegX0 &&
+        value_reg <= (DecodedLoadStore::kArm64ValueRegX0 + 30)) {
+      ex->ModifyXRegister(value_reg - DecodedLoadStore::kArm64ValueRegX0) =
+          value;
+    } else if (value_reg >= DecodedLoadStore::kArm64ValueRegV0 &&
+               value_reg <= (DecodedLoadStore::kArm64ValueRegV0 + 31)) {
+      ex->ModifyVRegister(value_reg - DecodedLoadStore::kArm64ValueRegV0)
+          .u32[0] = value;
+    } else {
+      assert_true(value_reg == DecodedLoadStore::kArm64ValueRegZero);
+      // Register write is ignored for X31.
+    }
+#else
+#error Register value writing not implemented for the target CPU architecture.
+#endif  // XE_ARCH
   } else {
     // Store of a register value - read register, swap, write to range.
-    int32_t value;
-    if (mov.is_constant) {
-      value = uint32_t(mov.constant);
+    uint32_t value;
+    if (decoded_load_store.is_constant) {
+      value = uint32_t(decoded_load_store.constant);
     } else {
-      uint64_t* reg_ptr = &ex->thread_context()->int_registers[mov.value_reg];
-      value = static_cast<uint32_t>(*reg_ptr);
-      if (!mov.byte_swap) {
+#if XE_ARCH_AMD64
+      value = uint32_t(thread_context.int_registers[value_reg]);
+#elif XE_ARCH_ARM64
+      if (value_reg >= DecodedLoadStore::kArm64ValueRegX0 &&
+          value_reg <= (DecodedLoadStore::kArm64ValueRegX0 + 30)) {
+        value = uint32_t(
+            thread_context.x[value_reg - DecodedLoadStore::kArm64ValueRegX0]);
+      } else if (value_reg >= DecodedLoadStore::kArm64ValueRegV0 &&
+                 value_reg <= (DecodedLoadStore::kArm64ValueRegV0 + 31)) {
+        value = thread_context.v[value_reg - DecodedLoadStore::kArm64ValueRegV0]
+                    .u32[0];
+      } else {
+        assert_true(value_reg == DecodedLoadStore::kArm64ValueRegZero);
+        value = 0;
+      }
+#else
+#error Register value reading not implemented for the target CPU architecture.
+#endif  // XE_ARCH
+      if (!decoded_load_store.byte_swap) {
         // We swap only if it's not a movbe, as otherwise we are swapping twice.
-        value = xe::byte_swap(static_cast<uint32_t>(value));
+        value = xe::byte_swap(value);
       }
     }
-    range->write(nullptr, range->callback_context,
-                 static_cast<uint32_t>(ex->fault_address()), value);
+    range->write(nullptr, range->callback_context, fault_guest_virtual_address,
+                 value);
   }
 
+#if XE_ARCH_ARM64
+  // Write the base address with the pre- or the post-index offset, overwriting
+  // the register to load to if it's the same.
+  if (decoded_load_store.mem_has_base &&
+      decoded_load_store.mem_base_writeback) {
+    if (decoded_load_store.mem_base_reg ==
+        DecodedLoadStore::kArm64MemBaseRegSp) {
+      thread_context.sp = mem_base_writeback_address;
+    } else {
+      assert_true(decoded_load_store.mem_base_reg <= 30);
+      ex->ModifyXRegister(decoded_load_store.mem_base_reg) =
+          mem_base_writeback_address;
+    }
+  }
+#endif  // XE_ARCH_ARM64
+
   // Advance RIP to the next instruction so that we resume properly.
-  ex->set_resume_pc(rip + mov.length);
+  ex->set_resume_pc(rip + decoded_load_store.length);
 
   return true;
 }
