@@ -45,7 +45,7 @@ def targets_android(platform):
         'xenia-apu-nop',
         'xenia-base',
         'xenia-base-tests',
-        # 'xenia-cpu',
+        'xenia-cpu',
         # 'xenia-cpu-tests',
         # 'xenia-cpu-ppc-tests',
         # 'xenia-cpu-backend-x64',
@@ -55,7 +55,7 @@ def targets_android(platform):
         'xenia-gpu-null',
         'xenia-gpu-vulkan',
         # 'xenia-gpu-vulkan-trace-viewer',
-        # 'xenia-gpu-vulkan-trace-dump',
+        'xenia-gpu-vulkan-trace-dump',
         'xenia-hid',
         # 'xenia-hid-demo',
         'xenia-hid-nop',
@@ -68,7 +68,6 @@ def targets_android(platform):
     ]
     if platform == 'Android-x86_64':
         targets.extend([
-            'xenia-cpu',
             'xenia-cpu-tests',
             'xenia-cpu-ppc-tests',
             'xenia-cpu-backend-x64',
