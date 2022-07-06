@@ -40,11 +40,14 @@ namespace xe {
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 bool IsArm64LoadPrefetchStore(uint32_t instruction, bool& is_store_out) {
-  if ((instruction & kArm64LoadStoreAnyMask) != kArm64LoadStoreAnyValue) {
+  if ((instruction & kArm64LoadLiteralFMask) == kArm64LoadLiteralFixed) {
+    return true;
+  }
+  if ((instruction & kArm64LoadStoreAnyFMask) != kArm64LoadStoreAnyFixed) {
     return false;
   }
-  if ((instruction & kArm64LoadStorePairAnyMask) ==
-      kArm64LoadStorePairAnyValue) {
+  if ((instruction & kArm64LoadStorePairAnyFMask) ==
+      kArm64LoadStorePairAnyFixed) {
     is_store_out = !(instruction & kArm64LoadStorePairLoadBit);
     return true;
   }

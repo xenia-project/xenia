@@ -27,10 +27,10 @@ static const char* kRegisterNames[] = {
     "x0",  "x1",  "x2",  "x3",     "x4",   "x5",   "x6",  "x7",  "x8",  "x9",
     "x10", "x11", "x12", "x13",    "x14",  "x15",  "x16", "x17", "x18", "x19",
     "x20", "x21", "x22", "x23",    "x24",  "x25",  "x26", "x27", "x28", "x29",
-    "x30", "sp",  "pc",  "pstate", "fpsr", "fpcr", "q0",  "q1",  "q2",  "q3",
-    "q4",  "q5",  "q6",  "q7",     "q8",   "q9",   "q10", "q11", "q12", "q13",
-    "q14", "q15", "q16", "q17",    "q18",  "q19",  "q20", "q21", "q22", "q23",
-    "q24", "q25", "q26", "q27",    "q28",  "q29",  "q30", "q31",
+    "x30", "sp",  "pc",  "pstate", "fpsr", "fpcr", "v0",  "v1",  "v2",  "v3",
+    "v4",  "v5",  "v6",  "v7",     "v8",   "v9",   "v10", "v11", "v12", "v13",
+    "v14", "v15", "v16", "v17",    "v18",  "v19",  "v20", "v21", "v22", "v23",
+    "v24", "v25", "v26", "v27",    "v28",  "v29",  "v30", "v31",
 #endif  // XE_ARCH
 };
 
@@ -47,12 +47,12 @@ std::string HostThreadContext::GetStringFromValue(HostRegister reg,
     case X64Register::kEflags:
       return hex ? string_util::to_hex_string(eflags) : std::to_string(eflags);
     default:
-      if (int(reg) >= int(X64Register::kRax) &&
-          int(reg) <= int(X64Register::kR15)) {
-        auto value = int_registers[int(reg) - int(X64Register::kRax)];
+      if (reg >= X64Register::kIntRegisterFirst &&
+          reg <= X64Register::kIntRegisterLast) {
+        auto value =
+            int_registers[int(reg) - int(X64Register::kIntRegisterFirst)];
         return hex ? string_util::to_hex_string(value) : std::to_string(value);
-      } else if (int(reg) >= int(X64Register::kXmm0) &&
-                 int(reg) <= int(X64Register::kXmm15)) {
+      } else if (reg >= X64Register::kXmm0 && reg <= X64Register::kXmm15) {
         auto value = xmm_registers[int(reg) - int(X64Register::kXmm0)];
         return hex ? string_util::to_hex_string(value) : xe::to_string(value);
       } else {
@@ -73,12 +73,10 @@ std::string HostThreadContext::GetStringFromValue(HostRegister reg,
     case Arm64Register::kFpcr:
       return hex ? string_util::to_hex_string(fpcr) : std::to_string(fpcr);
     default:
-      if (int(reg) >= int(Arm64Register::kX0) &&
-          int(reg) <= int(Arm64Register::kX30)) {
+      if (reg >= Arm64Register::kX0 && reg <= Arm64Register::kX30) {
         auto value = x[int(reg) - int(Arm64Register::kX0)];
         return hex ? string_util::to_hex_string(value) : std::to_string(value);
-      } else if (int(reg) >= int(Arm64Register::kV0) &&
-                 int(reg) <= int(Arm64Register::kV31)) {
+      } else if (reg >= Arm64Register::kV0 && reg <= Arm64Register::kV31) {
         auto value = v[int(reg) - int(Arm64Register::kV0)];
         return hex ? string_util::to_hex_string(value) : xe::to_string(value);
       } else {

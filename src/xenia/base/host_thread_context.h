@@ -23,12 +23,17 @@
 namespace xe {
 
 // NOTE: The order of the registers in the enumerations must match the order in
-// the string table in host_thread_context.cc.
+// the string table in host_thread_context.cc, as well as remapping tables in
+// exception handler implementations.
 
 enum class X64Register {
   kRip,
   kEflags,
-  kRax,
+
+  kIntRegisterFirst,
+  // The order matches the indices in the instruction encoding, as well as the
+  // Windows CONTEXT structure.
+  kRax = kIntRegisterFirst,
   kRcx,
   kRdx,
   kRbx,
@@ -44,6 +49,8 @@ enum class X64Register {
   kR13,
   kR14,
   kR15,
+  kIntRegisterLast = kR15,
+
   kXmm0,
   kXmm1,
   kXmm2,
@@ -101,8 +108,7 @@ enum class Arm64Register {
   kPstate,
   kFpsr,
   kFpcr,
-  // In assembly, the whole 128 bits of the Neon vector registers are accessible
-  // as Q# (quadword registers). VFP also uses these registers.
+  // The whole 128 bits of a Vn register are also known as Qn (quadword).
   kV0,
   kV1,
   kV2,
