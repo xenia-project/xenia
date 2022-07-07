@@ -257,8 +257,9 @@ void SpirvShaderTranslator::StartTranslation() {
       "xe_uniform_system_constants");
   builder_->addDecoration(uniform_system_constants_,
                           spv::DecorationDescriptorSet,
-                          kDescriptorSetSystemConstants);
-  builder_->addDecoration(uniform_system_constants_, spv::DecorationBinding, 0);
+                          int(kDescriptorSetConstants));
+  builder_->addDecoration(uniform_system_constants_, spv::DecorationBinding,
+                          int(kConstantBufferSystem));
   if (features_.spirv_version >= spv::Spv_1_4) {
     main_interface_.push_back(uniform_system_constants_);
   }
@@ -285,12 +286,13 @@ void SpirvShaderTranslator::StartTranslation() {
     uniform_float_constants_ = builder_->createVariable(
         spv::NoPrecision, spv::StorageClassUniform, type_float_constants,
         "xe_uniform_float_constants");
+    builder_->addDecoration(uniform_float_constants_,
+                            spv::DecorationDescriptorSet,
+                            int(kDescriptorSetConstants));
     builder_->addDecoration(
-        uniform_float_constants_, spv::DecorationDescriptorSet,
-        int(is_pixel_shader() ? kDescriptorSetFloatConstantsPixel
-                              : kDescriptorSetFloatConstantsVertex));
-    builder_->addDecoration(uniform_float_constants_, spv::DecorationBinding,
-                            0);
+        uniform_float_constants_, spv::DecorationBinding,
+        int(is_pixel_shader() ? kConstantBufferFloatPixel
+                              : kConstantBufferFloatVertex));
     if (features_.spirv_version >= spv::Spv_1_4) {
       main_interface_.push_back(uniform_float_constants_);
     }
@@ -326,9 +328,9 @@ void SpirvShaderTranslator::StartTranslation() {
       "xe_uniform_bool_loop_constants");
   builder_->addDecoration(uniform_bool_loop_constants_,
                           spv::DecorationDescriptorSet,
-                          int(kDescriptorSetBoolLoopConstants));
+                          int(kDescriptorSetConstants));
   builder_->addDecoration(uniform_bool_loop_constants_, spv::DecorationBinding,
-                          0);
+                          int(kConstantBufferBoolLoop));
   if (features_.spirv_version >= spv::Spv_1_4) {
     main_interface_.push_back(uniform_bool_loop_constants_);
   }
@@ -352,8 +354,9 @@ void SpirvShaderTranslator::StartTranslation() {
       "xe_uniform_fetch_constants");
   builder_->addDecoration(uniform_fetch_constants_,
                           spv::DecorationDescriptorSet,
-                          int(kDescriptorSetFetchConstants));
-  builder_->addDecoration(uniform_fetch_constants_, spv::DecorationBinding, 0);
+                          int(kDescriptorSetConstants));
+  builder_->addDecoration(uniform_fetch_constants_, spv::DecorationBinding,
+                          int(kConstantBufferFetch));
   if (features_.spirv_version >= spv::Spv_1_4) {
     main_interface_.push_back(uniform_fetch_constants_);
   }

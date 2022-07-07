@@ -49,10 +49,6 @@ class VulkanCommandProcessor : public CommandProcessor {
  public:
   // Single-descriptor layouts for use within a single frame.
   enum class SingleTransientDescriptorLayout {
-    kUniformBufferGuestVertex,
-    kUniformBufferFragment,
-    kUniformBufferGuestShader,
-    kUniformBufferSystemConstants,
     kUniformBufferCompute,
     kStorageBufferCompute,
     kCount,
@@ -530,6 +526,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkDescriptorSetLayout descriptor_set_layout_empty_ = VK_NULL_HANDLE;
   VkDescriptorSetLayout descriptor_set_layout_shared_memory_and_edram_ =
       VK_NULL_HANDLE;
+  VkDescriptorSetLayout descriptor_set_layout_constants_ = VK_NULL_HANDLE;
   std::array<VkDescriptorSetLayout,
              size_t(SingleTransientDescriptorLayout::kCount)>
       descriptor_set_layouts_single_transient_{};
@@ -551,6 +548,10 @@ class VulkanCommandProcessor : public CommandProcessor {
   std::array<std::vector<VkDescriptorSet>,
              size_t(SingleTransientDescriptorLayout::kCount)>
       single_transient_descriptors_free_;
+  // <Usage frame, set>.
+  std::deque<std::pair<uint64_t, VkDescriptorSet>>
+      constants_transient_descriptors_used_;
+  std::vector<VkDescriptorSet> constants_transient_descriptors_free_;
 
   ui::vulkan::SingleTypeDescriptorSetAllocator
       transient_descriptor_allocator_sampled_image_;
@@ -701,6 +702,11 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   // Pipeline layout of the current guest graphics pipeline.
   const PipelineLayout* current_guest_graphics_pipeline_layout_;
+  VkDescriptorBufferInfo current_constant_buffer_infos_
+      [SpirvShaderTranslator::kConstantBufferCount];
+  // Whether up-to-date data has been written to constant (uniform) buffers, and
+  // the buffer infos in current_constant_buffer_infos_ point to them.
+  uint32_t current_constant_buffers_up_to_date_;
   VkDescriptorSet current_graphics_descriptor_sets_
       [SpirvShaderTranslator::kDescriptorSetCount];
   // Whether descriptor sets in current_graphics_descriptor_sets_ point to

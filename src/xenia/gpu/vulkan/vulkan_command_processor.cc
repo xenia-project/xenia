@@ -59,7 +59,8 @@ VulkanCommandProcessor::VulkanCommandProcessor(
       transient_descriptor_allocator_uniform_buffer_(
           *static_cast<const ui::vulkan::VulkanProvider*>(
               graphics_system->provider()),
-          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 32768, 32768),
+          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+          SpirvShaderTranslator::kConstantBufferCount * 32768, 32768),
       transient_descriptor_allocator_storage_buffer_(
           *static_cast<const ui::vulkan::VulkanProvider*>(
               graphics_system->provider()),
@@ -176,84 +177,61 @@ bool VulkanCommandProcessor::SetupContext() {
         "and the EDRAM");
     return false;
   }
-  // Transient: uniform buffer for the guest vertex shader stages.
+  // Guest draw constants.
+  VkDescriptorSetLayoutBinding descriptor_set_layout_bindings_constants
+      [SpirvShaderTranslator::kConstantBufferCount] = {};
+  for (uint32_t i = 0; i < SpirvShaderTranslator::kConstantBufferCount; ++i) {
+    VkDescriptorSetLayoutBinding& constants_binding =
+        descriptor_set_layout_bindings_constants[i];
+    constants_binding.binding = i;
+    constants_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    constants_binding.descriptorCount = 1;
+    constants_binding.pImmutableSamplers = nullptr;
+  }
+  descriptor_set_layout_bindings_constants
+      [SpirvShaderTranslator::kConstantBufferSystem]
+          .stageFlags =
+      guest_shader_stages |
+      (device_features.tessellationShader
+           ? VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT
+           : 0) |
+      (device_features.geometryShader ? VK_SHADER_STAGE_GEOMETRY_BIT : 0);
+  descriptor_set_layout_bindings_constants
+      [SpirvShaderTranslator::kConstantBufferFloatVertex]
+          .stageFlags = guest_shader_vertex_stages_;
+  descriptor_set_layout_bindings_constants
+      [SpirvShaderTranslator::kConstantBufferFloatPixel]
+          .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  descriptor_set_layout_bindings_constants
+      [SpirvShaderTranslator::kConstantBufferBoolLoop]
+          .stageFlags = guest_shader_stages;
+  descriptor_set_layout_bindings_constants
+      [SpirvShaderTranslator::kConstantBufferFetch]
+          .stageFlags = guest_shader_stages;
+  descriptor_set_layout_create_info.bindingCount =
+      uint32_t(xe::countof(descriptor_set_layout_bindings_constants));
+  descriptor_set_layout_create_info.pBindings =
+      descriptor_set_layout_bindings_constants;
+  if (dfn.vkCreateDescriptorSetLayout(
+          device, &descriptor_set_layout_create_info, nullptr,
+          &descriptor_set_layout_constants_) != VK_SUCCESS) {
+    XELOGE(
+        "Failed to create a Vulkan descriptor set layout for guest draw "
+        "constant buffers");
+    return false;
+  }
+  // Transient: uniform buffer for compute shaders.
   VkDescriptorSetLayoutBinding descriptor_set_layout_binding_transient;
   descriptor_set_layout_binding_transient.binding = 0;
   descriptor_set_layout_binding_transient.descriptorType =
       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
   descriptor_set_layout_binding_transient.descriptorCount = 1;
   descriptor_set_layout_binding_transient.stageFlags =
-      guest_shader_vertex_stages_;
+      VK_SHADER_STAGE_COMPUTE_BIT;
   descriptor_set_layout_binding_transient.pImmutableSamplers = nullptr;
   descriptor_set_layout_create_info.bindingCount = 1;
   descriptor_set_layout_create_info.pBindings =
       &descriptor_set_layout_binding_transient;
-  if (dfn.vkCreateDescriptorSetLayout(
-          device, &descriptor_set_layout_create_info, nullptr,
-          &descriptor_set_layouts_single_transient_[size_t(
-              SingleTransientDescriptorLayout::kUniformBufferGuestVertex)]) !=
-      VK_SUCCESS) {
-    XELOGE(
-        "Failed to create a Vulkan descriptor set layout for a uniform buffer "
-        "bound to the guest vertex shader stages");
-    return false;
-  }
-  // Transient: uniform buffer for fragment shaders.
-  descriptor_set_layout_binding_transient.descriptorType =
-      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-  descriptor_set_layout_binding_transient.stageFlags =
-      VK_SHADER_STAGE_FRAGMENT_BIT;
-  if (dfn.vkCreateDescriptorSetLayout(
-          device, &descriptor_set_layout_create_info, nullptr,
-          &descriptor_set_layouts_single_transient_[size_t(
-              SingleTransientDescriptorLayout::kUniformBufferFragment)]) !=
-      VK_SUCCESS) {
-    XELOGE(
-        "Failed to create a Vulkan descriptor set layout for a uniform buffer "
-        "bound to the fragment shader");
-    return false;
-  }
-  // Transient: uniform buffer for the guest shader stages.
-  descriptor_set_layout_binding_transient.descriptorType =
-      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-  descriptor_set_layout_binding_transient.stageFlags = guest_shader_stages;
-  if (dfn.vkCreateDescriptorSetLayout(
-          device, &descriptor_set_layout_create_info, nullptr,
-          &descriptor_set_layouts_single_transient_[size_t(
-              SingleTransientDescriptorLayout::kUniformBufferGuestShader)]) !=
-      VK_SUCCESS) {
-    XELOGE(
-        "Failed to create a Vulkan descriptor set layout for a uniform buffer "
-        "bound to the guest shader stages");
-    return false;
-  }
-  // Transient: system constants.
-  descriptor_set_layout_binding_transient.descriptorType =
-      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-  descriptor_set_layout_binding_transient.stageFlags = guest_shader_stages;
-  if (device_features.tessellationShader) {
-    descriptor_set_layout_binding_transient.stageFlags |=
-        VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
-  }
-  if (device_features.geometryShader) {
-    descriptor_set_layout_binding_transient.stageFlags |=
-        VK_SHADER_STAGE_GEOMETRY_BIT;
-  }
-  if (dfn.vkCreateDescriptorSetLayout(
-          device, &descriptor_set_layout_create_info, nullptr,
-          &descriptor_set_layouts_single_transient_[size_t(
-              SingleTransientDescriptorLayout ::
-                  kUniformBufferSystemConstants)]) != VK_SUCCESS) {
-    XELOGE(
-        "Failed to create a Vulkan descriptor set layout for the system "
-        "constants uniform buffer");
-    return false;
-  }
-  // Transient: uniform buffer for compute shaders.
-  descriptor_set_layout_binding_transient.descriptorType =
-      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-  descriptor_set_layout_binding_transient.stageFlags =
-      VK_SHADER_STAGE_COMPUTE_BIT;
   if (dfn.vkCreateDescriptorSetLayout(
           device, &descriptor_set_layout_create_info, nullptr,
           &descriptor_set_layouts_single_transient_[size_t(
@@ -1052,6 +1030,9 @@ void VulkanCommandProcessor::ShutdownContext() {
         dfn.vkDestroyDescriptorSetLayout, device,
         descriptor_set_layout_single_transient);
   }
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout,
+                                         device,
+                                         descriptor_set_layout_constants_);
   ui::vulkan::util::DestroyAndNullHandle(
       dfn.vkDestroyDescriptorSetLayout, device,
       descriptor_set_layout_shared_memory_and_edram_);
@@ -1134,27 +1115,25 @@ void VulkanCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
         float_constant_index -= 256;
         if (current_float_constant_map_pixel_[float_constant_index >> 6] &
             (1ull << (float_constant_index & 63))) {
-          current_graphics_descriptor_set_values_up_to_date_ &=
-              ~(UINT32_C(1)
-                << SpirvShaderTranslator::kDescriptorSetFloatConstantsPixel);
+          current_constant_buffers_up_to_date_ &= ~(
+              UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFloatPixel);
         }
       } else {
         if (current_float_constant_map_vertex_[float_constant_index >> 6] &
             (1ull << (float_constant_index & 63))) {
-          current_graphics_descriptor_set_values_up_to_date_ &=
-              ~(UINT32_C(1)
-                << SpirvShaderTranslator::kDescriptorSetFloatConstantsVertex);
+          current_constant_buffers_up_to_date_ &= ~(
+              UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFloatVertex);
         }
       }
     }
   } else if (index >= XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031 &&
              index <= XE_GPU_REG_SHADER_CONSTANT_LOOP_31) {
-    current_graphics_descriptor_set_values_up_to_date_ &= ~(
-        UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetBoolLoopConstants);
+    current_constant_buffers_up_to_date_ &=
+        ~(UINT32_C(1) << SpirvShaderTranslator::kConstantBufferBoolLoop);
   } else if (index >= XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 &&
              index <= XE_GPU_REG_SHADER_CONSTANT_FETCH_31_5) {
-    current_graphics_descriptor_set_values_up_to_date_ &=
-        ~(UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetFetchConstants);
+    current_constant_buffers_up_to_date_ &=
+        ~(UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFetch);
     if (texture_cache_) {
       texture_cache_->TextureFetchConstantWritten(
           (index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0) / 6);
@@ -1890,24 +1869,8 @@ VulkanCommandProcessor::GetPipelineLayout(size_t texture_count_pixel,
   descriptor_set_layouts
       [SpirvShaderTranslator::kDescriptorSetSharedMemoryAndEdram] =
           descriptor_set_layout_shared_memory_and_edram_;
-  descriptor_set_layouts
-      [SpirvShaderTranslator::kDescriptorSetBoolLoopConstants] =
-          GetSingleTransientDescriptorLayout(
-              SingleTransientDescriptorLayout::kUniformBufferGuestShader);
-  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetSystemConstants] =
-      GetSingleTransientDescriptorLayout(
-          SingleTransientDescriptorLayout::kUniformBufferSystemConstants);
-  descriptor_set_layouts
-      [SpirvShaderTranslator::kDescriptorSetFloatConstantsPixel] =
-          GetSingleTransientDescriptorLayout(
-              SingleTransientDescriptorLayout::kUniformBufferFragment);
-  descriptor_set_layouts
-      [SpirvShaderTranslator::kDescriptorSetFloatConstantsVertex] =
-          GetSingleTransientDescriptorLayout(
-              SingleTransientDescriptorLayout::kUniformBufferGuestVertex);
-  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetFetchConstants] =
-      GetSingleTransientDescriptorLayout(
-          SingleTransientDescriptorLayout::kUniformBufferGuestShader);
+  descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetConstants] =
+      descriptor_set_layout_constants_;
   // Mutable layouts.
   descriptor_set_layouts[SpirvShaderTranslator::kDescriptorSetSamplersVertex] =
       descriptor_set_layout_samplers_vertex;
@@ -2774,6 +2737,7 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
                 sizeof(current_float_constant_map_pixel_));
     std::memset(current_graphics_descriptor_sets_, 0,
                 sizeof(current_graphics_descriptor_sets_));
+    current_constant_buffers_up_to_date_ = 0;
     current_graphics_descriptor_sets_
         [SpirvShaderTranslator::kDescriptorSetSharedMemoryAndEdram] =
             shared_memory_and_edram_descriptor_set_;
@@ -2796,6 +2760,16 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
                                              used_transient_descriptor.layout)]
           .push_back(used_transient_descriptor.set);
       single_transient_descriptors_used_.pop_front();
+    }
+    while (!constants_transient_descriptors_used_.empty()) {
+      const std::pair<uint64_t, VkDescriptorSet>& used_transient_descriptor =
+          constants_transient_descriptors_used_.front();
+      if (used_transient_descriptor.first > frame_completed_) {
+        break;
+      }
+      constants_transient_descriptors_free_.push_back(
+          used_transient_descriptor.second);
+      constants_transient_descriptors_used_.pop_front();
     }
     while (!texture_transient_descriptor_sets_used_.empty()) {
       const UsedTextureTransientDescriptorSet& used_transient_descriptor_set =
@@ -3092,6 +3066,8 @@ void VulkanCommandProcessor::ClearTransientDescriptorPools() {
   transient_descriptor_allocator_sampler_.Reset();
   transient_descriptor_allocator_sampled_image_.Reset();
 
+  constants_transient_descriptors_free_.clear();
+  constants_transient_descriptors_used_.clear();
   for (std::vector<VkDescriptorSet>& transient_descriptors_free :
        single_transient_descriptors_free_) {
     transient_descriptors_free.clear();
@@ -3520,8 +3496,8 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   }
 
   if (dirty) {
-    current_graphics_descriptor_set_values_up_to_date_ &=
-        ~(UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetSystemConstants);
+    current_constant_buffers_up_to_date_ &=
+        ~(UINT32_C(1) << SpirvShaderTranslator::kConstantBufferSystem);
   }
 }
 
@@ -3537,7 +3513,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
-  // Invalidate descriptors for changed data.
+  // Invalidate constant buffers and descriptors for changed data.
 
   // Float constants.
   // These are the constant base addresses/ranges for shaders.
@@ -3559,10 +3535,8 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
       // If no float constants at all, any buffer can be reused for them, so not
       // invalidating.
       if (float_constant_count_vertex) {
-        current_graphics_descriptor_set_values_up_to_date_ &=
-            ~(
-                UINT32_C(1)
-                << SpirvShaderTranslator::kDescriptorSetFloatConstantsVertex);
+        current_constant_buffers_up_to_date_ &=
+            ~(UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFloatVertex);
       }
     }
   }
@@ -3577,15 +3551,149 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
         current_float_constant_map_pixel_[i] =
             float_constant_map_pixel.float_bitmap[i];
         if (float_constant_count_pixel) {
-          current_graphics_descriptor_set_values_up_to_date_ &=
-              ~(UINT32_C(1)
-                << SpirvShaderTranslator::kDescriptorSetFloatConstantsPixel);
+          current_constant_buffers_up_to_date_ &= ~(
+              UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFloatPixel);
         }
       }
     }
   } else {
     std::memset(current_float_constant_map_pixel_, 0,
                 sizeof(current_float_constant_map_pixel_));
+  }
+
+  // Write the new constant buffers.
+  constexpr uint32_t kAllConstantBuffersMask =
+      (UINT32_C(1) << SpirvShaderTranslator::kConstantBufferCount) - 1;
+  assert_zero(current_constant_buffers_up_to_date_ & ~kAllConstantBuffersMask);
+  if ((current_constant_buffers_up_to_date_ & kAllConstantBuffersMask) !=
+      kAllConstantBuffersMask) {
+    current_graphics_descriptor_set_values_up_to_date_ &=
+        ~(UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetConstants);
+    size_t uniform_buffer_alignment = size_t(
+        provider.device_properties().limits.minUniformBufferOffsetAlignment);
+    // System constants.
+    if (!(current_constant_buffers_up_to_date_ &
+          (UINT32_C(1) << SpirvShaderTranslator::kConstantBufferSystem))) {
+      VkDescriptorBufferInfo& buffer_info = current_constant_buffer_infos_
+          [SpirvShaderTranslator::kConstantBufferSystem];
+      uint8_t* mapping = uniform_buffer_pool_->Request(
+          frame_current_, sizeof(SpirvShaderTranslator::SystemConstants),
+          uniform_buffer_alignment, buffer_info.buffer, buffer_info.offset);
+      if (!mapping) {
+        return false;
+      }
+      buffer_info.range = sizeof(SpirvShaderTranslator::SystemConstants);
+      std::memcpy(mapping, &system_constants_,
+                  sizeof(SpirvShaderTranslator::SystemConstants));
+      current_constant_buffers_up_to_date_ |=
+          UINT32_C(1) << SpirvShaderTranslator::kConstantBufferSystem;
+    }
+    // Vertex shader float constants.
+    if (!(current_constant_buffers_up_to_date_ &
+          (UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFloatVertex))) {
+      VkDescriptorBufferInfo& buffer_info = current_constant_buffer_infos_
+          [SpirvShaderTranslator::kConstantBufferFloatVertex];
+      // Even if the shader doesn't need any float constants, a valid binding
+      // must still be provided (the pipeline layout always has float constants,
+      // for both the vertex shader and the pixel shader), so if the first draw
+      // in the frame doesn't have float constants at all, still allocate a
+      // dummy buffer.
+      size_t float_constants_size =
+          sizeof(float) * 4 *
+          std::max(float_constant_count_vertex, UINT32_C(1));
+      uint8_t* mapping = uniform_buffer_pool_->Request(
+          frame_current_, float_constants_size, uniform_buffer_alignment,
+          buffer_info.buffer, buffer_info.offset);
+      if (!mapping) {
+        return false;
+      }
+      buffer_info.range = VkDeviceSize(float_constants_size);
+      for (uint32_t i = 0; i < 4; ++i) {
+        uint64_t float_constant_map_entry =
+            current_float_constant_map_vertex_[i];
+        uint32_t float_constant_index;
+        while (xe::bit_scan_forward(float_constant_map_entry,
+                                    &float_constant_index)) {
+          float_constant_map_entry &= ~(1ull << float_constant_index);
+          std::memcpy(mapping,
+                      &regs[XE_GPU_REG_SHADER_CONSTANT_000_X + (i << 8) +
+                            (float_constant_index << 2)]
+                           .f32,
+                      sizeof(float) * 4);
+          mapping += sizeof(float) * 4;
+        }
+      }
+      current_constant_buffers_up_to_date_ |=
+          UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFloatVertex;
+    }
+    // Pixel shader float constants.
+    if (!(current_constant_buffers_up_to_date_ &
+          (UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFloatPixel))) {
+      VkDescriptorBufferInfo& buffer_info = current_constant_buffer_infos_
+          [SpirvShaderTranslator::kConstantBufferFloatPixel];
+      size_t float_constants_size =
+          sizeof(float) * 4 * std::max(float_constant_count_pixel, UINT32_C(1));
+      uint8_t* mapping = uniform_buffer_pool_->Request(
+          frame_current_, float_constants_size, uniform_buffer_alignment,
+          buffer_info.buffer, buffer_info.offset);
+      if (!mapping) {
+        return false;
+      }
+      buffer_info.range = VkDeviceSize(float_constants_size);
+      for (uint32_t i = 0; i < 4; ++i) {
+        uint64_t float_constant_map_entry =
+            current_float_constant_map_pixel_[i];
+        uint32_t float_constant_index;
+        while (xe::bit_scan_forward(float_constant_map_entry,
+                                    &float_constant_index)) {
+          float_constant_map_entry &= ~(1ull << float_constant_index);
+          std::memcpy(mapping,
+                      &regs[XE_GPU_REG_SHADER_CONSTANT_256_X + (i << 8) +
+                            (float_constant_index << 2)]
+                           .f32,
+                      sizeof(float) * 4);
+          mapping += sizeof(float) * 4;
+        }
+      }
+      current_constant_buffers_up_to_date_ |=
+          UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFloatPixel;
+    }
+    // Bool and loop constants.
+    if (!(current_constant_buffers_up_to_date_ &
+          (UINT32_C(1) << SpirvShaderTranslator::kConstantBufferBoolLoop))) {
+      VkDescriptorBufferInfo& buffer_info = current_constant_buffer_infos_
+          [SpirvShaderTranslator::kConstantBufferBoolLoop];
+      constexpr size_t kBoolLoopConstantsSize = sizeof(uint32_t) * (8 + 32);
+      uint8_t* mapping = uniform_buffer_pool_->Request(
+          frame_current_, kBoolLoopConstantsSize, uniform_buffer_alignment,
+          buffer_info.buffer, buffer_info.offset);
+      if (!mapping) {
+        return false;
+      }
+      buffer_info.range = VkDeviceSize(kBoolLoopConstantsSize);
+      std::memcpy(mapping, &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].u32,
+                  kBoolLoopConstantsSize);
+      current_constant_buffers_up_to_date_ |=
+          UINT32_C(1) << SpirvShaderTranslator::kConstantBufferBoolLoop;
+    }
+    // Fetch constants.
+    if (!(current_constant_buffers_up_to_date_ &
+          (UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFetch))) {
+      VkDescriptorBufferInfo& buffer_info = current_constant_buffer_infos_
+          [SpirvShaderTranslator::kConstantBufferFetch];
+      constexpr size_t kFetchConstantsSize = sizeof(uint32_t) * 6 * 32;
+      uint8_t* mapping = uniform_buffer_pool_->Request(
+          frame_current_, kFetchConstantsSize, uniform_buffer_alignment,
+          buffer_info.buffer, buffer_info.offset);
+      if (!mapping) {
+        return false;
+      }
+      buffer_info.range = VkDeviceSize(kFetchConstantsSize);
+      std::memcpy(mapping, &regs[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0].u32,
+                  kFetchConstantsSize);
+      current_constant_buffers_up_to_date_ |=
+          UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFetch;
+    }
   }
 
   // Textures and samplers.
@@ -3694,158 +3802,57 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
 
   // Write the new descriptor sets.
 
-  VkWriteDescriptorSet
-      write_descriptor_sets[SpirvShaderTranslator::kDescriptorSetCount];
+  // Consecutive bindings updated via a single VkWriteDescriptorSet must have
+  // identical stage flags, but for the constants they vary.
+  std::array<VkWriteDescriptorSet,
+             SpirvShaderTranslator::kDescriptorSetCount - 1 +
+                 SpirvShaderTranslator::kConstantBufferCount>
+      write_descriptor_sets;
   uint32_t write_descriptor_set_count = 0;
   uint32_t write_descriptor_set_bits = 0;
   assert_not_zero(
       current_graphics_descriptor_set_values_up_to_date_ &
       (UINT32_C(1)
        << SpirvShaderTranslator::kDescriptorSetSharedMemoryAndEdram));
-  // Bool and loop constants.
-  VkDescriptorBufferInfo buffer_info_bool_loop_constants;
+  // Constant buffers.
   if (!(current_graphics_descriptor_set_values_up_to_date_ &
-        (UINT32_C(1)
-         << SpirvShaderTranslator::kDescriptorSetBoolLoopConstants))) {
-    VkWriteDescriptorSet& write_bool_loop_constants =
-        write_descriptor_sets[write_descriptor_set_count++];
-    constexpr size_t kBoolLoopConstantsSize = sizeof(uint32_t) * (8 + 32);
-    uint8_t* mapping_bool_loop_constants = WriteTransientUniformBufferBinding(
-        kBoolLoopConstantsSize,
-        SingleTransientDescriptorLayout::kUniformBufferGuestShader,
-        buffer_info_bool_loop_constants, write_bool_loop_constants);
-    if (!mapping_bool_loop_constants) {
-      return false;
-    }
-    std::memcpy(mapping_bool_loop_constants,
-                &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].u32,
-                kBoolLoopConstantsSize);
-    write_descriptor_set_bits |=
-        UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetBoolLoopConstants;
-    current_graphics_descriptor_sets_
-        [SpirvShaderTranslator::kDescriptorSetBoolLoopConstants] =
-            write_bool_loop_constants.dstSet;
-  }
-  // System constants.
-  VkDescriptorBufferInfo buffer_info_system_constants;
-  if (!(current_graphics_descriptor_set_values_up_to_date_ &
-        (UINT32_C(1)
-         << SpirvShaderTranslator::kDescriptorSetSystemConstants))) {
-    VkWriteDescriptorSet& write_system_constants =
-        write_descriptor_sets[write_descriptor_set_count++];
-    uint8_t* mapping_system_constants = WriteTransientUniformBufferBinding(
-        sizeof(SpirvShaderTranslator::SystemConstants),
-        SingleTransientDescriptorLayout::kUniformBufferSystemConstants,
-        buffer_info_system_constants, write_system_constants);
-    if (!mapping_system_constants) {
-      return false;
-    }
-    std::memcpy(mapping_system_constants, &system_constants_,
-                sizeof(SpirvShaderTranslator::SystemConstants));
-    write_descriptor_set_bits |=
-        UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetSystemConstants;
-    current_graphics_descriptor_sets_
-        [SpirvShaderTranslator::kDescriptorSetSystemConstants] =
-            write_system_constants.dstSet;
-  }
-  // Pixel shader float constants.
-  VkDescriptorBufferInfo buffer_info_float_constant_pixel;
-  if (!(current_graphics_descriptor_set_values_up_to_date_ &
-        (UINT32_C(1)
-         << SpirvShaderTranslator::kDescriptorSetFloatConstantsPixel))) {
-    // Even if the shader doesn't need any float constants, a valid binding must
-    // still be provided (the pipeline layout always has float constants, for
-    // both the vertex shader and the pixel shader), so if the first draw in the
-    // frame doesn't have float constants at all, still allocate an empty
-    // buffer.
-    VkWriteDescriptorSet& write_float_constants_pixel =
-        write_descriptor_sets[write_descriptor_set_count++];
-    uint8_t* mapping_float_constants_pixel = WriteTransientUniformBufferBinding(
-        sizeof(float) * 4 * std::max(float_constant_count_pixel, UINT32_C(1)),
-        SingleTransientDescriptorLayout::kUniformBufferFragment,
-        buffer_info_float_constant_pixel, write_float_constants_pixel);
-    if (!mapping_float_constants_pixel) {
-      return false;
-    }
-    for (uint32_t i = 0; i < 4; ++i) {
-      uint64_t float_constant_map_entry = current_float_constant_map_pixel_[i];
-      uint32_t float_constant_index;
-      while (xe::bit_scan_forward(float_constant_map_entry,
-                                  &float_constant_index)) {
-        float_constant_map_entry &= ~(1ull << float_constant_index);
-        std::memcpy(mapping_float_constants_pixel,
-                    &regs[XE_GPU_REG_SHADER_CONSTANT_256_X + (i << 8) +
-                          (float_constant_index << 2)]
-                         .f32,
-                    sizeof(float) * 4);
-        mapping_float_constants_pixel += sizeof(float) * 4;
+        (UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetConstants))) {
+    VkDescriptorSet constants_descriptor_set;
+    if (!constants_transient_descriptors_free_.empty()) {
+      constants_descriptor_set = constants_transient_descriptors_free_.back();
+      constants_transient_descriptors_free_.pop_back();
+    } else {
+      constants_descriptor_set =
+          transient_descriptor_allocator_uniform_buffer_.Allocate(
+              descriptor_set_layout_constants_,
+              SpirvShaderTranslator::kConstantBufferCount);
+      if (constants_descriptor_set == VK_NULL_HANDLE) {
+        return false;
       }
     }
-    write_descriptor_set_bits |=
-        UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetFloatConstantsPixel;
-    current_graphics_descriptor_sets_
-        [SpirvShaderTranslator::kDescriptorSetFloatConstantsPixel] =
-            write_float_constants_pixel.dstSet;
-  }
-  // Vertex shader float constants.
-  VkDescriptorBufferInfo buffer_info_float_constant_vertex;
-  if (!(current_graphics_descriptor_set_values_up_to_date_ &
-        (UINT32_C(1)
-         << SpirvShaderTranslator::kDescriptorSetFloatConstantsVertex))) {
-    VkWriteDescriptorSet& write_float_constants_vertex =
-        write_descriptor_sets[write_descriptor_set_count++];
-    uint8_t* mapping_float_constants_vertex =
-        WriteTransientUniformBufferBinding(
-            sizeof(float) * 4 *
-                std::max(float_constant_count_vertex, UINT32_C(1)),
-            SingleTransientDescriptorLayout::kUniformBufferGuestVertex,
-            buffer_info_float_constant_vertex, write_float_constants_vertex);
-    if (!mapping_float_constants_vertex) {
-      return false;
-    }
-    for (uint32_t i = 0; i < 4; ++i) {
-      uint64_t float_constant_map_entry = current_float_constant_map_vertex_[i];
-      uint32_t float_constant_index;
-      while (xe::bit_scan_forward(float_constant_map_entry,
-                                  &float_constant_index)) {
-        float_constant_map_entry &= ~(1ull << float_constant_index);
-        std::memcpy(mapping_float_constants_vertex,
-                    &regs[XE_GPU_REG_SHADER_CONSTANT_000_X + (i << 8) +
-                          (float_constant_index << 2)]
-                         .f32,
-                    sizeof(float) * 4);
-        mapping_float_constants_vertex += sizeof(float) * 4;
-      }
+    constants_transient_descriptors_used_.emplace_back(
+        frame_current_, constants_descriptor_set);
+    // Consecutive bindings updated via a single VkWriteDescriptorSet must have
+    // identical stage flags, but for the constants they vary.
+    for (uint32_t i = 0; i < SpirvShaderTranslator::kConstantBufferCount; ++i) {
+      VkWriteDescriptorSet& write_constants =
+          write_descriptor_sets[write_descriptor_set_count++];
+      write_constants.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+      write_constants.pNext = nullptr;
+      write_constants.dstSet = constants_descriptor_set;
+      write_constants.dstBinding = i;
+      write_constants.dstArrayElement = 0;
+      write_constants.descriptorCount = 1;
+      write_constants.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+      write_constants.pImageInfo = nullptr;
+      write_constants.pBufferInfo = &current_constant_buffer_infos_[i];
+      write_constants.pTexelBufferView = nullptr;
     }
     write_descriptor_set_bits |=
-        UINT32_C(1)
-        << SpirvShaderTranslator::kDescriptorSetFloatConstantsVertex;
+        UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetConstants;
     current_graphics_descriptor_sets_
-        [SpirvShaderTranslator::kDescriptorSetFloatConstantsVertex] =
-            write_float_constants_vertex.dstSet;
-  }
-  // Fetch constants.
-  VkDescriptorBufferInfo buffer_info_fetch_constants;
-  if (!(current_graphics_descriptor_set_values_up_to_date_ &
-        (UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetFetchConstants))) {
-    VkWriteDescriptorSet& write_fetch_constants =
-        write_descriptor_sets[write_descriptor_set_count++];
-    constexpr size_t kFetchConstantsSize = sizeof(uint32_t) * 6 * 32;
-    uint8_t* mapping_fetch_constants = WriteTransientUniformBufferBinding(
-        kFetchConstantsSize,
-        SingleTransientDescriptorLayout::kUniformBufferGuestShader,
-        buffer_info_fetch_constants, write_fetch_constants);
-    if (!mapping_fetch_constants) {
-      return false;
-    }
-    std::memcpy(mapping_fetch_constants,
-                &regs[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0].u32,
-                kFetchConstantsSize);
-    write_descriptor_set_bits |=
-        UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetFetchConstants;
-    current_graphics_descriptor_sets_
-        [SpirvShaderTranslator::kDescriptorSetFetchConstants] =
-            write_fetch_constants.dstSet;
+        [SpirvShaderTranslator::kDescriptorSetConstants] =
+            constants_descriptor_set;
   }
   // Vertex shader samplers.
   if (write_vertex_samplers) {
@@ -3926,7 +3933,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
   // Write.
   if (write_descriptor_set_count) {
     dfn.vkUpdateDescriptorSets(device, write_descriptor_set_count,
-                               write_descriptor_sets, 0, nullptr);
+                               write_descriptor_sets.data(), 0, nullptr);
   }
   // Only make valid if all descriptor sets have been allocated and written
   // successfully.
