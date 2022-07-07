@@ -131,6 +131,16 @@ class SpirvShaderTranslator : public ShaderTranslator {
     float color_exp_bias[4];
   };
 
+  enum ConstantBuffer : uint32_t {
+    kConstantBufferSystem,
+    kConstantBufferFloatVertex,
+    kConstantBufferFloatPixel,
+    kConstantBufferBoolLoop,
+    kConstantBufferFetch,
+
+    kConstantBufferCount,
+  };
+
   // The minimum limit for maxPerStageDescriptorStorageBuffers is 4, and for
   // maxStorageBufferRange it's 128 MB. These are the values of those limits on
   // Arm Mali as of November 2020. Xenia needs 512 MB shared memory to be bound,
@@ -159,18 +169,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
     // Never changed.
     kDescriptorSetSharedMemoryAndEdram,
-    // Pretty rarely used and rarely changed - flow control constants.
-    kDescriptorSetBoolLoopConstants,
-    // May stay the same across many draws.
-    kDescriptorSetSystemConstants,
-    // Less frequently changed (per-material).
-    kDescriptorSetFloatConstantsPixel,
-    // Quite frequently changed (for one object drawn multiple times, for
-    // instance - may contain projection matrices).
-    kDescriptorSetFloatConstantsVertex,
-    // Very frequently changed, especially for UI draws, and for models drawn in
-    // multiple parts - contains vertex and texture fetch constants.
-    kDescriptorSetFetchConstants,
+    // Changed in case of changes in the data.
+    kDescriptorSetConstants,
 
     // Mutable part of the pipeline layout:
     kDescriptorSetMutableLayoutsStart,
