@@ -817,7 +817,7 @@ void UserModule::CalculateHash() {
   auto find_code_section_page = [&security_info](bool from_bottom) {
     for (uint32_t i = 0; i < security_info->page_descriptor_count; i++) {
       const uint32_t page_index =
-          from_bottom ? i : security_info->page_descriptor_count - i;
+          from_bottom ? i : (security_info->page_descriptor_count - 1) - i;
       xex2_page_descriptor page_descriptor;
       page_descriptor.value =
           xe::byte_swap(security_info->page_descriptors[page_index].value);
