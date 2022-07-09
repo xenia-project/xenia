@@ -529,6 +529,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
     spv::Id type_float_vectors_[4];
   };
 
+  spv::Id type_interpolators_;
+
   spv::Id const_int_0_;
   spv::Id const_int4_0_;
   spv::Id const_uint_0_;
@@ -589,11 +591,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // PS, only when needed - bool.
   spv::Id input_front_facing_;
 
-  // In vertex or tessellation evaluation shaders - outputs, always
-  // xenos::kMaxInterpolators.
-  // In pixel shaders - inputs, min(xenos::kMaxInterpolators, register_count()).
-  spv::Id input_output_interpolators_[xenos::kMaxInterpolators];
-  static const std::string kInterpolatorNamePrefix;
+  // VS output or PS input, only when needed - type_interpolators_.
+  // The Qualcomm Adreno driver has strict requirements for stage linkage - if
+  // this is an array in one stage, it must be an array in the other (in case of
+  // Xenia, including geometry shaders); it must not be an array in one and just
+  // elements in consecutive locations in another.
+  spv::Id input_output_interpolators_;
 
   enum OutputPerVertexMember : unsigned int {
     kOutputPerVertexMemberPosition,
