@@ -642,6 +642,16 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     entry_point->addIdOperand(interface_id);
   }
 
+  // Specify the binding indices for samplers when the number of textures is
+  // known, as samplers are located after images in the texture descriptor set.
+  size_t texture_binding_count = texture_bindings_.size();
+  size_t sampler_binding_count = sampler_bindings_.size();
+  for (size_t i = 0; i < sampler_binding_count; ++i) {
+    builder_->addDecoration(sampler_bindings_[i].variable,
+                            spv::DecorationBinding,
+                            int(texture_binding_count + i));
+  }
+
   // TODO(Triang3l): Avoid copy?
   std::vector<unsigned int> module_uints;
   builder_->dump(module_uints);

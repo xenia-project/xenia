@@ -176,14 +176,21 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kDescriptorSetMutableLayoutsStart,
 
     // Rarely used at all, but may be changed at an unpredictable rate when
-    // vertex textures are used.
-    kDescriptorSetSamplersVertex = kDescriptorSetMutableLayoutsStart,
-    kDescriptorSetTexturesVertex,
+    // vertex textures are used (for example, for bones of an object, which may
+    // consist of multiple draw commands with different materials).
+    kDescriptorSetTexturesVertex = kDescriptorSetMutableLayoutsStart,
     // Per-material textures.
-    kDescriptorSetSamplersPixel,
     kDescriptorSetTexturesPixel,
+
     kDescriptorSetCount,
   };
+  static_assert(
+      kDescriptorSetCount <= 4,
+      "The number of descriptor sets used by translated shaders must be within "
+      "the minimum Vulkan maxBoundDescriptorSets requirement of 4, which is "
+      "the limit on most GPUs used in Android devices - Arm Mali, Imagination "
+      "PowerVR, Qualcomm Adreno 6xx and older, as well as on old PC Nvidia "
+      "drivers");
 
   // "Xenia Emulator Microcode Translator".
   // https://github.com/KhronosGroup/SPIRV-Headers/blob/c43a43c7cc3af55910b9bec2a71e3e8a622443cf/include/spirv/spir-v.xml#L79
