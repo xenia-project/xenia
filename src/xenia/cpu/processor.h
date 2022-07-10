@@ -215,8 +215,9 @@ class Processor {
   // Updates all cached thread execution info (state, call stacks, etc).
   // The given override thread handle and context will be used in place of
   // sampled values for that thread.
-  void UpdateThreadExecutionStates(uint32_t override_handle = 0,
-                                   X64Context* override_context = nullptr);
+  void UpdateThreadExecutionStates(
+      uint32_t override_handle = 0,
+      HostThreadContext* override_context = nullptr);
 
   // Suspends all breakpoints, uninstalling them as required.
   // No breakpoints will be triggered until they are resumed.

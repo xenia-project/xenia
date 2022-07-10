@@ -15,7 +15,6 @@ project("xenia-app")
     "xenia-base",
     "xenia-core",
     "xenia-cpu",
-    "xenia-cpu-backend-x64",
     "xenia-debug-ui",
     "xenia-gpu",
     "xenia-gpu-null",
@@ -59,6 +58,11 @@ project("xenia-app")
   resincludedirs({
     project_root,
   })
+
+  filter("architecture:x86_64")
+    links({
+      "xenia-cpu-backend-x64",
+    })
 
   filter("platforms:Windows")
     files({

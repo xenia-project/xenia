@@ -1414,14 +1414,17 @@ void Value::DotProduct3(Value* other) {
   assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
   switch (type) {
     case VEC128_TYPE: {
-      alignas(16) float result[4];
-      __m128 src1 = _mm_load_ps(constant.v128.f32);
-      __m128 src2 = _mm_load_ps(other->constant.v128.f32);
-      __m128 dest = _mm_dp_ps(src1, src2, 0b01110001);
-      _mm_store_ps(result, dest);
       // TODO(rick): is this sane?
       type = FLOAT32_TYPE;
-      constant.f32 = result[0];
+      // Using x86 DPPS ordering for consistency with x86-64 code generation:
+      // (X1 * X2 + Y1 * Y2) + (Z1 * Z2 + 0.0f)
+      // (+ 0.0f for zero sign, as zero imm8[4:7] bits result in zero terms,
+      // not in complete exclusion of them)
+      // TODO(Triang3l): NaN on overflow.
+      constant.f32 =
+          (constant.v128.f32[0] * other->constant.v128.f32[0] +
+           constant.v128.f32[1] * other->constant.v128.f32[1]) +
+          (constant.v128.f32[2] * other->constant.v128.f32[2] + 0.0f);
     } break;
     default:
       assert_unhandled_case(type);
@@ -1433,14 +1436,15 @@ void Value::DotProduct4(Value* other) {
   assert_true(this->type == VEC128_TYPE && other->type == VEC128_TYPE);
   switch (type) {
     case VEC128_TYPE: {
-      alignas(16) float result[4];
-      __m128 src1 = _mm_load_ps(constant.v128.f32);
-      __m128 src2 = _mm_load_ps(other->constant.v128.f32);
-      __m128 dest = _mm_dp_ps(src1, src2, 0b11110001);
-      _mm_store_ps(result, dest);
       // TODO(rick): is this sane?
       type = FLOAT32_TYPE;
-      constant.f32 = result[0];
+      // Using x86 DPPS ordering for consistency with x86-64 code generation:
+      // (X1 * X2 + Y1 * Y2) + (Z1 * Z2 + W1 * W2)
+      // TODO(Triang3l): NaN on overflow.
+      constant.f32 = (constant.v128.f32[0] * other->constant.v128.f32[0] +
+                      constant.v128.f32[1] * other->constant.v128.f32[1]) +
+                     (constant.v128.f32[2] * other->constant.v128.f32[2] +
+                      constant.v128.f32[3] * other->constant.v128.f32[3]);
     } break;
     default:
       assert_unhandled_case(type);

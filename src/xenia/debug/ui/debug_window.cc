@@ -960,7 +960,7 @@ void DebugWindow::DrawRegistersPane() {
         auto reg = static_cast<X64Register>(i);
         ImGui::BeginGroup();
         ImGui::AlignTextToFramePadding();
-        ImGui::Text("%3s", X64Context::GetRegisterName(reg));
+        ImGui::Text("%3s", HostThreadContext::GetRegisterName(reg));
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(4, 0));
         ImGui::SameLine();
@@ -985,7 +985,7 @@ void DebugWindow::DrawRegistersPane() {
             static_cast<X64Register>(static_cast<int>(X64Register::kXmm0) + i);
         ImGui::BeginGroup();
         ImGui::AlignTextToFramePadding();
-        ImGui::Text("%5s", X64Context::GetRegisterName(reg));
+        ImGui::Text("%5s", HostThreadContext::GetRegisterName(reg));
         ImGui::SameLine();
         ImGui::Dummy(ImVec2(4, 0));
         ImGui::SameLine();

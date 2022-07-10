@@ -131,6 +131,16 @@ class SpirvShaderTranslator : public ShaderTranslator {
     float color_exp_bias[4];
   };
 
+  enum ConstantBuffer : uint32_t {
+    kConstantBufferSystem,
+    kConstantBufferFloatVertex,
+    kConstantBufferFloatPixel,
+    kConstantBufferBoolLoop,
+    kConstantBufferFetch,
+
+    kConstantBufferCount,
+  };
+
   // The minimum limit for maxPerStageDescriptorStorageBuffers is 4, and for
   // maxStorageBufferRange it's 128 MB. These are the values of those limits on
   // Arm Mali as of November 2020. Xenia needs 512 MB shared memory to be bound,
@@ -159,31 +169,28 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
     // Never changed.
     kDescriptorSetSharedMemoryAndEdram,
-    // Pretty rarely used and rarely changed - flow control constants.
-    kDescriptorSetBoolLoopConstants,
-    // May stay the same across many draws.
-    kDescriptorSetSystemConstants,
-    // Less frequently changed (per-material).
-    kDescriptorSetFloatConstantsPixel,
-    // Quite frequently changed (for one object drawn multiple times, for
-    // instance - may contain projection matrices).
-    kDescriptorSetFloatConstantsVertex,
-    // Very frequently changed, especially for UI draws, and for models drawn in
-    // multiple parts - contains vertex and texture fetch constants.
-    kDescriptorSetFetchConstants,
+    // Changed in case of changes in the data.
+    kDescriptorSetConstants,
 
     // Mutable part of the pipeline layout:
     kDescriptorSetMutableLayoutsStart,
 
     // Rarely used at all, but may be changed at an unpredictable rate when
-    // vertex textures are used.
-    kDescriptorSetSamplersVertex = kDescriptorSetMutableLayoutsStart,
-    kDescriptorSetTexturesVertex,
+    // vertex textures are used (for example, for bones of an object, which may
+    // consist of multiple draw commands with different materials).
+    kDescriptorSetTexturesVertex = kDescriptorSetMutableLayoutsStart,
     // Per-material textures.
-    kDescriptorSetSamplersPixel,
     kDescriptorSetTexturesPixel,
+
     kDescriptorSetCount,
   };
+  static_assert(
+      kDescriptorSetCount <= 4,
+      "The number of descriptor sets used by translated shaders must be within "
+      "the minimum Vulkan maxBoundDescriptorSets requirement of 4, which is "
+      "the limit on most GPUs used in Android devices - Arm Mali, Imagination "
+      "PowerVR, Qualcomm Adreno 6xx and older, as well as on old PC Nvidia "
+      "drivers");
 
   // "Xenia Emulator Microcode Translator".
   // https://github.com/KhronosGroup/SPIRV-Headers/blob/c43a43c7cc3af55910b9bec2a71e3e8a622443cf/include/spirv/spir-v.xml#L79
@@ -522,6 +529,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
     spv::Id type_float_vectors_[4];
   };
 
+  spv::Id type_interpolators_;
+
   spv::Id const_int_0_;
   spv::Id const_int4_0_;
   spv::Id const_uint_0_;
@@ -582,11 +591,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // PS, only when needed - bool.
   spv::Id input_front_facing_;
 
-  // In vertex or tessellation evaluation shaders - outputs, always
-  // xenos::kMaxInterpolators.
-  // In pixel shaders - inputs, min(xenos::kMaxInterpolators, register_count()).
-  spv::Id input_output_interpolators_[xenos::kMaxInterpolators];
-  static const std::string kInterpolatorNamePrefix;
+  // VS output or PS input, only when needed - type_interpolators_.
+  // The Qualcomm Adreno driver has strict requirements for stage linkage - if
+  // this is an array in one stage, it must be an array in the other (in case of
+  // Xenia, including geometry shaders); it must not be an array in one and just
+  // elements in consecutive locations in another.
+  spv::Id input_output_interpolators_;
 
   enum OutputPerVertexMember : unsigned int {
     kOutputPerVertexMemberPosition,

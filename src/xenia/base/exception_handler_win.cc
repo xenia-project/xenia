@@ -35,8 +35,7 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
     return EXCEPTION_CONTINUE_SEARCH;
   }
 
-  // TODO(benvanik): avoid this by mapping X64Context virtual?
-  X64Context thread_context;
+  HostThreadContext thread_context;
   thread_context.rip = ex_info->ContextRecord->Rip;
   thread_context.eflags = ex_info->ContextRecord->EFlags;
   std::memcpy(thread_context.int_registers, &ex_info->ContextRecord->Rax,
@@ -79,8 +78,26 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
   for (size_t i = 0; i < xe::countof(handlers_) && handlers_[i].first; ++i) {
     if (handlers_[i].first(&ex, handlers_[i].second)) {
       // Exception handled.
-      // TODO(benvanik): update all thread state? Dirty flags?
       ex_info->ContextRecord->Rip = thread_context.rip;
+      ex_info->ContextRecord->EFlags = thread_context.eflags;
+      uint32_t modified_register_index;
+      uint16_t modified_int_registers_remaining = ex.modified_int_registers();
+      while (xe::bit_scan_forward(modified_int_registers_remaining,
+                                  &modified_register_index)) {
+        modified_int_registers_remaining &=
+            ~(UINT16_C(1) << modified_register_index);
+        (&ex_info->ContextRecord->Rax)[modified_register_index] =
+            thread_context.int_registers[modified_register_index];
+      }
+      uint16_t modified_xmm_registers_remaining = ex.modified_xmm_registers();
+      while (xe::bit_scan_forward(modified_xmm_registers_remaining,
+                                  &modified_register_index)) {
+        modified_xmm_registers_remaining &=
+            ~(UINT16_C(1) << modified_register_index);
+        std::memcpy(&ex_info->ContextRecord->Xmm0 + modified_register_index,
+                    &thread_context.xmm_registers[modified_register_index],
+                    sizeof(vec128_t));
+      }
       return EXCEPTION_CONTINUE_EXECUTION;
     }
   }

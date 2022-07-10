@@ -2573,10 +2573,10 @@ size_t SpirvShaderTranslator::FindOrAddSamplerBinding(
       builder_->makeSamplerType(), name.str().c_str());
   builder_->addDecoration(
       new_sampler_binding.variable, spv::DecorationDescriptorSet,
-      int(is_vertex_shader() ? kDescriptorSetSamplersVertex
-                             : kDescriptorSetSamplersPixel));
-  builder_->addDecoration(new_sampler_binding.variable, spv::DecorationBinding,
-                          int(new_sampler_binding_index));
+      int(is_vertex_shader() ? kDescriptorSetTexturesVertex
+                             : kDescriptorSetTexturesPixel));
+  // The binding indices will be specified later after all textures are added as
+  // samplers are located after images in the descriptor set.
   if (features_.spirv_version >= spv::Spv_1_4) {
     main_interface_.push_back(new_sampler_binding.variable);
   }

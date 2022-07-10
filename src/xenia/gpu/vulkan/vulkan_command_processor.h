@@ -36,7 +36,7 @@
 #include "xenia/gpu/vulkan/vulkan_texture_cache.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/ui/vulkan/single_type_descriptor_set_allocator.h"
+#include "xenia/ui/vulkan/linked_type_descriptor_set_allocator.h"
 #include "xenia/ui/vulkan/vulkan_presenter.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/vulkan/vulkan_upload_buffer_pool.h"
@@ -49,10 +49,6 @@ class VulkanCommandProcessor : public CommandProcessor {
  public:
   // Single-descriptor layouts for use within a single frame.
   enum class SingleTransientDescriptorLayout {
-    kUniformBufferGuestVertex,
-    kUniformBufferFragment,
-    kUniformBufferGuestShader,
-    kUniformBufferSystemConstants,
     kUniformBufferCompute,
     kStorageBufferCompute,
     kCount,
@@ -231,9 +227,9 @@ class VulkanCommandProcessor : public CommandProcessor {
       VkDescriptorSet& descriptor_set_out);
 
   // The returned reference is valid until a cache clear.
-  VkDescriptorSetLayout GetTextureDescriptorSetLayout(bool is_samplers,
-                                                      bool is_vertex,
-                                                      size_t binding_count);
+  VkDescriptorSetLayout GetTextureDescriptorSetLayout(bool is_vertex,
+                                                      size_t texture_count,
+                                                      size_t sampler_count);
   // The returned reference is valid until a cache clear.
   const VulkanPipelineCache::PipelineLayoutProvider* GetPipelineLayout(
       size_t texture_count_pixel, size_t sampler_count_pixel,
@@ -298,12 +294,11 @@ class VulkanCommandProcessor : public CommandProcessor {
   union TextureDescriptorSetLayoutKey {
     uint32_t key;
     struct {
-      // 0 - sampled image descriptors, 1 - sampler descriptors.
-      uint32_t is_samplers : 1;
+      // If texture and sampler counts are both 0, use
+      // descriptor_set_layout_empty_ instead as these are owning references.
+      uint32_t texture_count : 16;
+      uint32_t sampler_count : 15;
       uint32_t is_vertex : 1;
-      // For 0, use descriptor_set_layout_empty_ instead as these are owning
-      // references.
-      uint32_t binding_count : 30;
     };
 
     TextureDescriptorSetLayoutKey() : key(0) {
@@ -354,40 +349,26 @@ class VulkanCommandProcessor : public CommandProcessor {
     explicit PipelineLayout(
         VkPipelineLayout pipeline_layout,
         VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref,
-        VkDescriptorSetLayout descriptor_set_layout_samplers_vertex_ref,
-        VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref,
-        VkDescriptorSetLayout descriptor_set_layout_samplers_pixel_ref)
+        VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref)
         : pipeline_layout_(pipeline_layout),
           descriptor_set_layout_textures_vertex_ref_(
               descriptor_set_layout_textures_vertex_ref),
-          descriptor_set_layout_samplers_vertex_ref_(
-              descriptor_set_layout_samplers_vertex_ref),
           descriptor_set_layout_textures_pixel_ref_(
-              descriptor_set_layout_textures_pixel_ref),
-          descriptor_set_layout_samplers_pixel_ref_(
-              descriptor_set_layout_samplers_pixel_ref) {}
+              descriptor_set_layout_textures_pixel_ref) {}
     VkPipelineLayout GetPipelineLayout() const override {
       return pipeline_layout_;
     }
     VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref() const {
       return descriptor_set_layout_textures_vertex_ref_;
     }
-    VkDescriptorSetLayout descriptor_set_layout_samplers_vertex_ref() const {
-      return descriptor_set_layout_samplers_vertex_ref_;
-    }
     VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref() const {
       return descriptor_set_layout_textures_pixel_ref_;
-    }
-    VkDescriptorSetLayout descriptor_set_layout_samplers_pixel_ref() const {
-      return descriptor_set_layout_samplers_pixel_ref_;
     }
 
    private:
     VkPipelineLayout pipeline_layout_;
     VkDescriptorSetLayout descriptor_set_layout_textures_vertex_ref_;
-    VkDescriptorSetLayout descriptor_set_layout_samplers_vertex_ref_;
     VkDescriptorSetLayout descriptor_set_layout_textures_pixel_ref_;
-    VkDescriptorSetLayout descriptor_set_layout_samplers_pixel_ref_;
   };
 
   struct UsedSingleTransientDescriptor {
@@ -458,16 +439,20 @@ class VulkanCommandProcessor : public CommandProcessor {
                                   uint32_t used_texture_mask);
   bool UpdateBindings(const VulkanShader* vertex_shader,
                       const VulkanShader* pixel_shader);
-  // Allocates a descriptor set and fills the VkWriteDescriptorSet structure.
-  // The descriptor set layout must be the one for the given is_samplers,
-  // is_vertex, binding_count (from GetTextureDescriptorSetLayout - may be
+  // Allocates a descriptor set and fills one or two VkWriteDescriptorSet
+  // structure instances (for images and samplers).
+  // The descriptor set layout must be the one for the given is_vertex,
+  // texture_count, sampler_count (from GetTextureDescriptorSetLayout - may be
   // already available at the moment of the call, no need to locate it again).
-  // Returns whether the allocation was successful.
-  bool WriteTransientTextureBindings(
-      bool is_samplers, bool is_vertex, uint32_t binding_count,
+  // Returns how many VkWriteDescriptorSet structure instances have been
+  // written, or 0 if there was a failure to allocate the descriptor set or no
+  // bindings were requested.
+  uint32_t WriteTransientTextureBindings(
+      bool is_vertex, uint32_t texture_count, uint32_t sampler_count,
       VkDescriptorSetLayout descriptor_set_layout,
-      const VkDescriptorImageInfo* image_info,
-      VkWriteDescriptorSet& write_descriptor_set_out);
+      const VkDescriptorImageInfo* texture_image_info,
+      const VkDescriptorImageInfo* sampler_image_info,
+      VkWriteDescriptorSet* descriptor_set_writes_out);
 
   bool device_lost_ = false;
 
@@ -530,6 +515,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkDescriptorSetLayout descriptor_set_layout_empty_ = VK_NULL_HANDLE;
   VkDescriptorSetLayout descriptor_set_layout_shared_memory_and_edram_ =
       VK_NULL_HANDLE;
+  VkDescriptorSetLayout descriptor_set_layout_constants_ = VK_NULL_HANDLE;
   std::array<VkDescriptorSetLayout,
              size_t(SingleTransientDescriptorLayout::kCount)>
       descriptor_set_layouts_single_transient_{};
@@ -543,19 +529,27 @@ class VulkanCommandProcessor : public CommandProcessor {
                      PipelineLayoutKey::Hasher>
       pipeline_layouts_;
 
-  ui::vulkan::SingleTypeDescriptorSetAllocator
+  // No specific reason for 32768, just the "too much" descriptor count from
+  // Direct3D 12 PIX warnings.
+  static constexpr uint32_t kLinkedTypeDescriptorPoolSetCount = 32768;
+  static const VkDescriptorPoolSize kDescriptorPoolSizeUniformBuffer;
+  static const VkDescriptorPoolSize kDescriptorPoolSizeStorageBuffer;
+  static const VkDescriptorPoolSize kDescriptorPoolSizeTextures[2];
+  ui::vulkan::LinkedTypeDescriptorSetAllocator
       transient_descriptor_allocator_uniform_buffer_;
-  ui::vulkan::SingleTypeDescriptorSetAllocator
+  ui::vulkan::LinkedTypeDescriptorSetAllocator
       transient_descriptor_allocator_storage_buffer_;
   std::deque<UsedSingleTransientDescriptor> single_transient_descriptors_used_;
   std::array<std::vector<VkDescriptorSet>,
              size_t(SingleTransientDescriptorLayout::kCount)>
       single_transient_descriptors_free_;
+  // <Usage frame, set>.
+  std::deque<std::pair<uint64_t, VkDescriptorSet>>
+      constants_transient_descriptors_used_;
+  std::vector<VkDescriptorSet> constants_transient_descriptors_free_;
 
-  ui::vulkan::SingleTypeDescriptorSetAllocator
-      transient_descriptor_allocator_sampled_image_;
-  ui::vulkan::SingleTypeDescriptorSetAllocator
-      transient_descriptor_allocator_sampler_;
+  ui::vulkan::LinkedTypeDescriptorSetAllocator
+      transient_descriptor_allocator_textures_;
   std::deque<UsedTextureTransientDescriptorSet>
       texture_transient_descriptor_sets_used_;
   std::unordered_map<TextureDescriptorSetLayoutKey,
@@ -701,6 +695,11 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   // Pipeline layout of the current guest graphics pipeline.
   const PipelineLayout* current_guest_graphics_pipeline_layout_;
+  VkDescriptorBufferInfo current_constant_buffer_infos_
+      [SpirvShaderTranslator::kConstantBufferCount];
+  // Whether up-to-date data has been written to constant (uniform) buffers, and
+  // the buffer infos in current_constant_buffer_infos_ point to them.
+  uint32_t current_constant_buffers_up_to_date_;
   VkDescriptorSet current_graphics_descriptor_sets_
       [SpirvShaderTranslator::kDescriptorSetCount];
   // Whether descriptor sets in current_graphics_descriptor_sets_ point to

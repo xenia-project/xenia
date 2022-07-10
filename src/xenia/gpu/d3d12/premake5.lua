@@ -30,7 +30,6 @@ project("xenia-gpu-d3d12-trace-viewer")
     "xenia-base",
     "xenia-core",
     "xenia-cpu",
-    "xenia-cpu-backend-x64",
     "xenia-gpu",
     "xenia-gpu-d3d12",
     "xenia-hid",
@@ -68,6 +67,11 @@ project("xenia-gpu-d3d12-trace-viewer")
     })
   end
 
+  filter("architecture:x86_64")
+    links({
+      "xenia-cpu-backend-x64",
+    })
+
 group("src")
 project("xenia-gpu-d3d12-trace-dump")
   uuid("686b859c-0046-44c4-a02c-41fc3fb75698")
@@ -79,7 +83,6 @@ project("xenia-gpu-d3d12-trace-dump")
     "xenia-base",
     "xenia-core",
     "xenia-cpu",
-    "xenia-cpu-backend-x64",
     "xenia-gpu",
     "xenia-gpu-d3d12",
     "xenia-hid",
@@ -115,3 +118,8 @@ project("xenia-gpu-d3d12-trace-dump")
       "1>scratch/stdout-trace-dump.txt",
     })
   end
+
+  filter("architecture:x86_64")
+    links({
+      "xenia-cpu-backend-x64",
+    })

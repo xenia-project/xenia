@@ -75,9 +75,6 @@ SpirvShaderTranslator::Features::Features(
   }
 }
 
-const std::string SpirvShaderTranslator::kInterpolatorNamePrefix =
-    "xe_interpolator_";
-
 SpirvShaderTranslator::SpirvShaderTranslator(const Features& features)
     : features_(features) {}
 
@@ -164,6 +161,8 @@ void SpirvShaderTranslator::StartTranslation() {
   type_float2_ = builder_->makeVectorType(type_float_, 2);
   type_float3_ = builder_->makeVectorType(type_float_, 3);
   type_float4_ = builder_->makeVectorType(type_float_, 4);
+  type_interpolators_ = builder_->makeArrayType(
+      type_float4_, builder_->makeUintConstant(xenos::kMaxInterpolators), 0);
 
   const_int_0_ = builder_->makeIntConstant(0);
   id_vector_temp_.clear();
@@ -257,8 +256,9 @@ void SpirvShaderTranslator::StartTranslation() {
       "xe_uniform_system_constants");
   builder_->addDecoration(uniform_system_constants_,
                           spv::DecorationDescriptorSet,
-                          kDescriptorSetSystemConstants);
-  builder_->addDecoration(uniform_system_constants_, spv::DecorationBinding, 0);
+                          int(kDescriptorSetConstants));
+  builder_->addDecoration(uniform_system_constants_, spv::DecorationBinding,
+                          int(kConstantBufferSystem));
   if (features_.spirv_version >= spv::Spv_1_4) {
     main_interface_.push_back(uniform_system_constants_);
   }
@@ -285,12 +285,13 @@ void SpirvShaderTranslator::StartTranslation() {
     uniform_float_constants_ = builder_->createVariable(
         spv::NoPrecision, spv::StorageClassUniform, type_float_constants,
         "xe_uniform_float_constants");
+    builder_->addDecoration(uniform_float_constants_,
+                            spv::DecorationDescriptorSet,
+                            int(kDescriptorSetConstants));
     builder_->addDecoration(
-        uniform_float_constants_, spv::DecorationDescriptorSet,
-        int(is_pixel_shader() ? kDescriptorSetFloatConstantsPixel
-                              : kDescriptorSetFloatConstantsVertex));
-    builder_->addDecoration(uniform_float_constants_, spv::DecorationBinding,
-                            0);
+        uniform_float_constants_, spv::DecorationBinding,
+        int(is_pixel_shader() ? kConstantBufferFloatPixel
+                              : kConstantBufferFloatVertex));
     if (features_.spirv_version >= spv::Spv_1_4) {
       main_interface_.push_back(uniform_float_constants_);
     }
@@ -326,9 +327,9 @@ void SpirvShaderTranslator::StartTranslation() {
       "xe_uniform_bool_loop_constants");
   builder_->addDecoration(uniform_bool_loop_constants_,
                           spv::DecorationDescriptorSet,
-                          int(kDescriptorSetBoolLoopConstants));
+                          int(kDescriptorSetConstants));
   builder_->addDecoration(uniform_bool_loop_constants_, spv::DecorationBinding,
-                          0);
+                          int(kConstantBufferBoolLoop));
   if (features_.spirv_version >= spv::Spv_1_4) {
     main_interface_.push_back(uniform_bool_loop_constants_);
   }
@@ -352,8 +353,9 @@ void SpirvShaderTranslator::StartTranslation() {
       "xe_uniform_fetch_constants");
   builder_->addDecoration(uniform_fetch_constants_,
                           spv::DecorationDescriptorSet,
-                          int(kDescriptorSetFetchConstants));
-  builder_->addDecoration(uniform_fetch_constants_, spv::DecorationBinding, 0);
+                          int(kDescriptorSetConstants));
+  builder_->addDecoration(uniform_fetch_constants_, spv::DecorationBinding,
+                          int(kConstantBufferFetch));
   if (features_.spirv_version >= spv::Spv_1_4) {
     main_interface_.push_back(uniform_fetch_constants_);
   }
@@ -637,6 +639,16 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
       builder_->addEntryPoint(execution_model, function_main_, "main");
   for (spv::Id interface_id : main_interface_) {
     entry_point->addIdOperand(interface_id);
+  }
+
+  // Specify the binding indices for samplers when the number of textures is
+  // known, as samplers are located after images in the texture descriptor set.
+  size_t texture_binding_count = texture_bindings_.size();
+  size_t sampler_binding_count = sampler_bindings_.size();
+  for (size_t i = 0; i < sampler_binding_count; ++i) {
+    builder_->addDecoration(sampler_bindings_[i].variable,
+                            spv::DecorationBinding,
+                            int(texture_binding_count + i));
   }
 
   // TODO(Triang3l): Avoid copy?
@@ -1056,17 +1068,15 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
     main_interface_.push_back(input_vertex_index_);
   }
 
-  // Create the Xenia-specific outputs.
-  // TODO(Triang3l): Change to an interpolator array.
-  for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
-    spv::Id interpolator = builder_->createVariable(
-        spv::NoPrecision, spv::StorageClassOutput, type_float4_,
-        (kInterpolatorNamePrefix + std::to_string(i)).c_str());
-    input_output_interpolators_[i] = interpolator;
-    builder_->addDecoration(interpolator, spv::DecorationLocation, int(i));
-    builder_->addDecoration(interpolator, spv::DecorationInvariant);
-    main_interface_.push_back(interpolator);
-  }
+  // Create the interpolator output.
+  input_output_interpolators_ =
+      builder_->createVariable(spv::NoPrecision, spv::StorageClassOutput,
+                               type_interpolators_, "xe_out_interpolators");
+  builder_->addDecoration(input_output_interpolators_, spv::DecorationLocation,
+                          0);
+  builder_->addDecoration(input_output_interpolators_,
+                          spv::DecorationInvariant);
+  main_interface_.push_back(input_output_interpolators_);
 
   // Create the gl_PerVertex output for used system outputs.
   std::vector<spv::Id> struct_per_vertex_members;
@@ -1095,7 +1105,12 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
 
   // Zero the interpolators.
   for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
-    builder_->createStore(const_float4_0_, input_output_interpolators_[i]);
+    id_vector_temp_.clear();
+    id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
+    builder_->createStore(const_float4_0_,
+                          builder_->createAccessChain(
+                              spv::StorageClassOutput,
+                              input_output_interpolators_, id_vector_temp_));
   }
 
   // Load the vertex index or the tessellation parameters.
@@ -1269,17 +1284,13 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
 }
 
 void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
-  // Interpolator inputs.
-  uint32_t interpolator_count =
-      std::min(xenos::kMaxInterpolators, register_count());
-  for (uint32_t i = 0; i < interpolator_count; ++i) {
-    spv::Id interpolator = builder_->createVariable(
-        spv::NoPrecision, spv::StorageClassInput, type_float4_,
-        (kInterpolatorNamePrefix + std::to_string(i)).c_str());
-    input_output_interpolators_[i] = interpolator;
-    builder_->addDecoration(interpolator, spv::DecorationLocation, int(i));
-    main_interface_.push_back(interpolator);
-  }
+  // Interpolator input.
+  input_output_interpolators_ =
+      builder_->createVariable(spv::NoPrecision, spv::StorageClassInput,
+                               type_interpolators_, "xe_in_interpolators");
+  builder_->addDecoration(input_output_interpolators_, spv::DecorationLocation,
+                          0);
+  main_interface_.push_back(input_output_interpolators_);
 
   bool param_gen_needed = GetPsParamGenInterpolator() != UINT32_MAX;
 
@@ -1347,7 +1358,10 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
     // Register array element.
     id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
     builder_->createStore(
-        builder_->createLoad(input_output_interpolators_[i], spv::NoPrecision),
+        builder_->createLoad(builder_->createAccessChain(
+                                 spv::StorageClassInput,
+                                 input_output_interpolators_, id_vector_temp_),
+                             spv::NoPrecision),
         builder_->createAccessChain(spv::StorageClassFunction,
                                     var_main_registers_, id_vector_temp_));
   }
@@ -1824,7 +1838,12 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
     } break;
     case InstructionStorageTarget::kInterpolator:
       assert_true(is_vertex_shader());
-      target_pointer = input_output_interpolators_[result.storage_index];
+      id_vector_temp_util_.clear();
+      id_vector_temp_util_.push_back(
+          builder_->makeIntConstant(int(result.storage_index)));
+      target_pointer = builder_->createAccessChain(spv::StorageClassOutput,
+                                                   input_output_interpolators_,
+                                                   id_vector_temp_util_);
       break;
     case InstructionStorageTarget::kPosition:
       assert_true(is_vertex_shader());

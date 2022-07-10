@@ -661,6 +661,12 @@ void VulkanRenderTargetCache::Shutdown(bool from_destructor) {
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
+  // Destroy all render targets before the descriptor set pool is destroyed -
+  // may happen if shutting down the VulkanRenderTargetCache by destroying it,
+  // so ShutdownCommon is called by the RenderTargetCache destructor, when it's
+  // already too late.
+  DestroyAllRenderTargets(true);
+
   for (const auto& dump_pipeline_pair : dump_pipelines_) {
     // May be null to prevent recreation attempts.
     if (dump_pipeline_pair.second != VK_NULL_HANDLE) {

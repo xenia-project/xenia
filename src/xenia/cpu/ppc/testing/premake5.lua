@@ -11,7 +11,6 @@ project("xenia-cpu-ppc-tests")
     "fmt",
     "mspack",
     "xenia-core",
-    "xenia-cpu-backend-x64",
     "xenia-cpu",
     "xenia-base",
   })
@@ -24,6 +23,10 @@ project("xenia-cpu-ppc-tests")
   })
   filter("files:*.s")
     flags({"ExcludeFromBuild"})
+  filter("architecture:x86_64")
+    links({
+      "xenia-cpu-backend-x64",
+    })
   filter("platforms:Windows")
     debugdir(project_root)
     debugargs({

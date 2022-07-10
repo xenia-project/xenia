@@ -19,6 +19,7 @@
 #include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/breakpoint.h"
@@ -133,7 +134,11 @@ bool Processor::Setup(std::unique_ptr<backend::Backend> backend) {
   // Stack walker is used when profiling, debugging, and dumping.
   // Note that creation may fail, in which case we'll have to disable those
   // features.
-  stack_walker_ = StackWalker::Create(backend_->code_cache());
+  // The code cache may be unavailable in case of a "null" backend.
+  cpu::backend::CodeCache* code_cache = backend_->code_cache();
+  if (code_cache) {
+    stack_walker_ = StackWalker::Create(code_cache);
+  }
   if (!stack_walker_) {
     // TODO(benvanik): disable features.
     if (cvars::debug) {
@@ -698,7 +703,13 @@ bool Processor::OnThreadBreakpointHit(Exception* ex) {
 
   // Apply thread context changes.
   // TODO(benvanik): apply to all threads?
+#if XE_ARCH_AMD64
   ex->set_resume_pc(thread_info->host_context.rip);
+#elif XE_ARCH_ARM64
+  ex->set_resume_pc(thread_info->host_context.pc);
+#else
+#error Instruction pointer not specified for the target CPU architecture.
+#endif  // XE_ARCH
 
   // Resume execution.
   return true;
@@ -828,8 +839,8 @@ bool Processor::ResumeAllThreads() {
   return true;
 }
 
-void Processor::UpdateThreadExecutionStates(uint32_t override_thread_id,
-                                            X64Context* override_context) {
+void Processor::UpdateThreadExecutionStates(
+    uint32_t override_thread_id, HostThreadContext* override_context) {
   auto global_lock = global_critical_region_.Acquire();
   uint64_t frame_host_pcs[64];
   xe::cpu::StackFrame cpu_frames[64];
@@ -851,7 +862,7 @@ void Processor::UpdateThreadExecutionStates(uint32_t override_thread_id,
 
     // Grab stack trace and X64 context then resolve all symbols.
     uint64_t hash;
-    X64Context* in_host_context = nullptr;
+    HostThreadContext* in_host_context = nullptr;
     if (override_thread_id == thread_info->thread_id) {
       // If we were passed an override context we use that. Otherwise, ask the
       // stack walker for a new context.
