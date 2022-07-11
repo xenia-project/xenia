@@ -21,6 +21,7 @@
 #include "xenia/base/clock.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/threading.h"
 #include "xenia/hid/hid_flags.h"
 #include "xenia/hid/input_system.h"
@@ -36,7 +37,9 @@
 
 // Available input drivers:
 #include "xenia/hid/nop/nop_hid.h"
+#if !XE_PLATFORM_ANDROID
 #include "xenia/hid/sdl/sdl_hid.h"
+#endif  // !XE_PLATFORM_ANDROID
 #if XE_PLATFORM_WIN32
 #include "xenia/hid/winkey/winkey_hid.h"
 #include "xenia/hid/xinput/xinput_hid.h"
@@ -122,11 +125,13 @@ std::vector<std::unique_ptr<hid::InputDriver>> HidDemoApp::CreateInputDrivers(
   std::vector<std::unique_ptr<hid::InputDriver>> drivers;
   if (cvars::hid.compare("nop") == 0) {
     drivers.emplace_back(xe::hid::nop::Create(window, kZOrderHidInput));
+#if !XE_PLATFORM_ANDROID
   } else if (cvars::hid.compare("sdl") == 0) {
     auto driver = xe::hid::sdl::Create(window, kZOrderHidInput);
     if (XSUCCEEDED(driver->Setup())) {
       drivers.emplace_back(std::move(driver));
     }
+#endif  // !XE_PLATFORM_ANDROID
 #if XE_PLATFORM_WIN32
   } else if (cvars::hid.compare("winkey") == 0) {
     auto driver = xe::hid::winkey::Create(window, kZOrderHidInput);
@@ -140,10 +145,12 @@ std::vector<std::unique_ptr<hid::InputDriver>> HidDemoApp::CreateInputDrivers(
     }
 #endif  // XE_PLATFORM_WIN32
   } else {
+#if !XE_PLATFORM_ANDROID
     auto sdl_driver = xe::hid::sdl::Create(window, kZOrderHidInput);
     if (sdl_driver && XSUCCEEDED(sdl_driver->Setup())) {
       drivers.emplace_back(std::move(sdl_driver));
     }
+#endif  // !XE_PLATFORM_ANDROID
 #if XE_PLATFORM_WIN32
     auto xinput_driver = xe::hid::xinput::Create(window, kZOrderHidInput);
     if (xinput_driver && XSUCCEEDED(xinput_driver->Setup())) {

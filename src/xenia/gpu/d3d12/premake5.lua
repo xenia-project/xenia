@@ -22,7 +22,7 @@ project("xenia-gpu-d3d12")
 group("src")
 project("xenia-gpu-d3d12-trace-viewer")
   uuid("7b5b9fcb-7bf1-43ff-a774-d4c41c8706be")
-  kind("WindowedApp")
+  single_library_windowed_app_kind()
   language("C++")
   links({
     "xenia-apu",

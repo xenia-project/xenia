@@ -425,7 +425,9 @@ bool RunTests(const std::string_view test_name) {
   int failed_count = 0;
   int passed_count = 0;
 
+#if XE_ARCH_AMD64
   XELOGI("Instruction feature mask {}.", cvars::x64_extension_mask);
+#endif  // XE_ARCH_AMD64
 
   auto test_path_root = cvars::test_path;
   std::vector<std::filesystem::path> test_files;
