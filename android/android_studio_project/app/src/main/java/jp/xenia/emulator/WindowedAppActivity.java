@@ -13,8 +13,7 @@ import jp.xenia.XeniaRuntimeException;
 
 public abstract class WindowedAppActivity extends Activity {
     static {
-        // TODO(Triang3l): Move all demos to libxenia.so.
-        System.loadLibrary("xenia-ui-window-vulkan-demo");
+        System.loadLibrary("xenia-app");
     }
 
     private final WindowSurfaceOnLayoutChangeListener mWindowSurfaceOnLayoutChangeListener =

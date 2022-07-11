@@ -24,8 +24,14 @@ local function combined_test_suite(test_suite_name, project_root, base_path, con
     libdirs(merge_arrays(config["libdirs"], {
       project_root.."/"..build_bin,
     }))
-    links(merge_arrays(config["links"], {
-    }))
+    links(config["links"])
+    if config.filtered_links ~= nil then
+      for _, filtered_links in ipairs(config.filtered_links) do
+        filter(filtered_links.filter)
+        links(filtered_links.links)
+      end
+      filter({})
+    end
     defines({
       "XE_TEST_SUITE_NAME=\""..test_suite_name.."\"",
     })
@@ -57,8 +63,14 @@ local function split_test_suite(test_suite_name, project_root, base_path, config
       libdirs(merge_arrays(config["libdirs"], {
         project_root.."/"..build_bin,
       }))
-      links(merge_arrays(config["links"], {
-      }))
+      links(config["links"])
+      if config.filtered_links ~= nil then
+        for _, filtered_links in ipairs(config.filtered_links) do
+          filter(filtered_links.filter)
+          links(filtered_links.links)
+        end
+        filter({})
+      end
       files({
         project_root.."/"..build_tools_src.."/test_suite_main.cc",
         file_path,

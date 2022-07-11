@@ -4,25 +4,18 @@ include(project_root.."/tools/build")
 group("src")
 project("xenia-app")
   uuid("d7e98620-d007-4ad8-9dbd-b47c8853a17f")
-  kind("WindowedApp")
-  targetname("xenia")
   language("C++")
   links({
-    "xenia-app-discord",
     "xenia-apu",
     "xenia-apu-nop",
-    "xenia-apu-sdl",
     "xenia-base",
     "xenia-core",
     "xenia-cpu",
-    "xenia-debug-ui",
     "xenia-gpu",
     "xenia-gpu-null",
     "xenia-gpu-vulkan",
-    "xenia-helper-sdl",
     "xenia-hid",
     "xenia-hid-nop",
-    "xenia-hid-sdl",
     "xenia-kernel",
     "xenia-ui",
     "xenia-ui-vulkan",
@@ -48,7 +41,6 @@ project("xenia-app")
   })
   local_platform_files()
   files({
-    "xenia_main.cc",
     "../base/main_init_"..platform_suffix..".cc",
     "../ui/windowed_app_main_"..platform_suffix..".cc",
   })
@@ -57,9 +49,33 @@ project("xenia-app")
     project_root,
   })
 
+  filter(SINGLE_LIBRARY_FILTER)
+    -- Unified library containing all apps as StaticLibs, not just the main
+    -- emulator windowed app.
+    kind("SharedLib")
+    links({
+      "xenia-gpu-vulkan-trace-viewer",
+      "xenia-hid-demo",
+      "xenia-ui-window-vulkan-demo",
+    })
+  filter(NOT_SINGLE_LIBRARY_FILTER)
+    kind("WindowedApp")
+
+  -- `targetname` is broken if building from Gradle, works only for toggling the
+  -- `lib` prefix, as Gradle uses LOCAL_MODULE_FILENAME, not a derivative of
+  -- LOCAL_MODULE, to specify the targets to build when executing ndk-build.
+  filter("platforms:not Android-*")
+    targetname("xenia")
+
   filter("architecture:x86_64")
     links({
       "xenia-cpu-backend-x64",
+    })
+
+  -- TODO(Triang3l): The emulator itself on Android.
+  filter("platforms:not Android-*")
+    files({
+      "xenia_main.cc",
     })
 
   filter("platforms:Windows")
@@ -67,8 +83,18 @@ project("xenia-app")
       "main_resources.rc",
     })
 
-  filter("files:../base/main_init_"..platform_suffix..".cc")
+  filter({"architecture:x86_64", "files:../base/main_init_"..platform_suffix..".cc"})
     vectorextensions("IA32")  -- Disable AVX for main_init_win.cc so our AVX check doesn't use AVX instructions.
+
+  filter("platforms:not Android-*")
+    links({
+      "xenia-app-discord",
+      "xenia-apu-sdl",
+      -- TODO(Triang3l): CPU debugger on Android.
+      "xenia-debug-ui",
+      "xenia-helper-sdl",
+      "xenia-hid-sdl",
+    })
 
   filter("platforms:Linux")
     links({
@@ -85,6 +111,12 @@ project("xenia-app")
       "xenia-hid-winkey",
       "xenia-hid-xinput",
       "xenia-ui-d3d12",
+    })
+
+  filter({"platforms:Windows", SINGLE_LIBRARY_FILTER})
+    links({
+      "xenia-gpu-d3d12-trace-viewer",
+      "xenia-ui-window-d3d12-demo",
     })
 
   filter("platforms:Windows")
