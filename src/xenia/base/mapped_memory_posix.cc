@@ -9,8 +9,10 @@
 
 #include "xenia/base/mapped_memory.h"
 
+#include <fcntl.h>
 #include <sys/mman.h>
-#include <cstdio>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <memory>
 
 #include "xenia/base/string.h"
@@ -19,61 +21,63 @@ namespace xe {
 
 class PosixMappedMemory : public MappedMemory {
  public:
-  PosixMappedMemory(const std::filesystem::path& path, Mode mode)
-      : MappedMemory(path, mode), file_handle(nullptr) {}
+  PosixMappedMemory(const std::filesystem::path& path, Mode mode, void* data,
+                    size_t size, int file_descriptor)
+      : MappedMemory(path, mode, data, size),
+        file_descriptor_(file_descriptor) {}
 
   ~PosixMappedMemory() override {
     if (data_) {
-      munmap(data_, size_);
+      munmap(data_, size());
     }
-    if (file_handle) {
-      fclose(file_handle);
+    if (file_descriptor_ >= 0) {
+      close(file_descriptor_);
     }
   }
 
-  FILE* file_handle;
+ private:
+  int file_descriptor_;
 };
 
 std::unique_ptr<MappedMemory> MappedMemory::Open(
     const std::filesystem::path& path, Mode mode, size_t offset,
     size_t length) {
-  const char* mode_str;
+  int open_flags = 0;
   int prot;
   switch (mode) {
     case Mode::kRead:
-      mode_str = "rb";
+      open_flags |= O_RDONLY;
       prot = PROT_READ;
       break;
     case Mode::kReadWrite:
-      mode_str = "r+b";
+      open_flags |= O_RDWR;
       prot = PROT_READ | PROT_WRITE;
       break;
   }
 
-  auto mm =
-      std::unique_ptr<PosixMappedMemory>(new PosixMappedMemory(path, mode));
-
-  mm->file_handle = fopen(path.c_str(), mode_str);
-  if (!mm->file_handle) {
+  int file_descriptor = open(path.c_str(), open_flags);
+  if (file_descriptor < 0) {
     return nullptr;
   }
 
-  size_t map_length;
-  map_length = length;
+  size_t map_length = length;
   if (!length) {
-    fseeko(mm->file_handle, 0, SEEK_END);
-    map_length = ftello(mm->file_handle);
-    fseeko(mm->file_handle, 0, SEEK_SET);
+    struct stat64 file_stat;
+    if (fstat64(file_descriptor, &file_stat)) {
+      close(file_descriptor);
+      return nullptr;
+    }
+    map_length = size_t(file_stat.st_size);
   }
-  mm->size_ = map_length;
 
-  mm->data_ =
-      mmap(0, map_length, prot, MAP_SHARED, fileno(mm->file_handle), offset);
-  if (!mm->data_) {
+  void* data = mmap(0, map_length, prot, MAP_SHARED, file_descriptor, offset);
+  if (!data) {
+    close(file_descriptor);
     return nullptr;
   }
 
-  return std::move(mm);
+  return std::unique_ptr<MappedMemory>(
+      new PosixMappedMemory(path, mode, data, map_length, file_descriptor));
 }
 
 std::unique_ptr<ChunkedMappedMemoryWriter> ChunkedMappedMemoryWriter::Open(
