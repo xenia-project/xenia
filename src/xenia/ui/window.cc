@@ -645,6 +645,19 @@ void Window::OnMouseWheel(MouseEvent& e,
   }
 }
 
+void Window::OnTouchEvent(TouchEvent& e,
+                          WindowDestructionReceiver& destruction_receiver) {
+  PropagateEventThroughInputListeners(
+      [&e](auto listener) {
+        listener->OnTouchEvent(e);
+        return e.is_handled();
+      },
+      destruction_receiver);
+  if (destruction_receiver.IsWindowDestroyed()) {
+    return;
+  }
+}
+
 void Window::SendEventToListeners(
     std::function<void(WindowListener*)> fn,
     WindowDestructionReceiver& destruction_receiver) {

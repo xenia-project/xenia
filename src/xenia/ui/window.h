@@ -597,6 +597,9 @@ class Window {
   void OnMouseWheel(MouseEvent& e,
                     WindowDestructionReceiver& destruction_receiver);
 
+  void OnTouchEvent(TouchEvent& e,
+                    WindowDestructionReceiver& destruction_receiver);
+
  private:
   struct ListenerIterationContext {
     explicit ListenerIterationContext(ListenerIterationContext* outer_context,
