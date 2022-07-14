@@ -16,7 +16,7 @@ namespace xe {
 namespace cpu {
 namespace compiler {
 namespace passes {
-
+using ScalarNZM = uint64_t;
 class SimplificationPass : public ConditionalGroupSubpass {
  public:
   SimplificationPass();
@@ -44,14 +44,27 @@ class SimplificationPass : public ConditionalGroupSubpass {
   bool CheckSelect(hir::Instr* i, hir::HIRBuilder* builder);
   bool CheckScalarConstCmp(hir::Instr* i, hir::HIRBuilder* builder);
   bool CheckIsTrueIsFalse(hir::Instr* i, hir::HIRBuilder* builder);
-
+  // for rlwinm
+  bool TryHandleANDROLORSHLSeq(hir::Instr* i, hir::HIRBuilder* builder);
+  bool TransformANDROLORSHLSeq(
+      hir::Instr* i,  // the final instr in the rlwinm sequence (the AND)
+      hir::HIRBuilder* builder,
+      ScalarNZM input_nzm,  // the NZM of the value being rot'ed/masked (input)
+      uint64_t mask,        // mask after rotation
+      uint64_t rotation,    // rot amount prior to masking
+      hir::Instr* input_def,  // the defining instr of the input var
+      hir::Value* input       // the input variable to the rlwinm
+  );
   static bool Is1BitOpcode(hir::Opcode def_opcode);
-  static uint64_t GetScalarNZM(hir::Value* value, hir::Instr* def,
-                               uint64_t typemask, hir::Opcode def_opcode);
+
+  /* we currently have no caching, and although it is rare some games
+             may have massive (in the hundreds) chains of ands + ors + shifts in
+             a single unbroken basic block (exsploderman web of shadows) */
+  static constexpr unsigned MAX_NZM_DEPTH = 16;
   // todo: use valuemask
   // returns maybenonzeromask for value (mask of bits that may possibly hold
   // information)
-  static uint64_t GetScalarNZM(hir::Value* value);
+  static ScalarNZM GetScalarNZM(const hir::Value* value, unsigned depth = 0);
 };
 
 }  // namespace passes
