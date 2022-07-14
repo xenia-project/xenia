@@ -35,6 +35,22 @@ class PosixMappedMemory : public MappedMemory {
     }
   }
 
+  void Close(uint64_t truncate_size) override {
+    if (data_) {
+      munmap(data_, size());
+      data_ = nullptr;
+    }
+    if (file_descriptor_ >= 0) {
+      if (truncate_size) {
+        ftruncate64(file_descriptor_, off64_t(truncate_size));
+      }
+      close(file_descriptor_);
+      file_descriptor_ = -1;
+    }
+  }
+
+  void Flush() override { msync(data(), size(), MS_ASYNC); }
+
  private:
   int file_descriptor_;
 };
