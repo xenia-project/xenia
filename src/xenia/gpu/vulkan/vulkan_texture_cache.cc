@@ -1796,8 +1796,8 @@ bool VulkanTextureCache::Initialize() {
   // S3TC.
   // Not checking the textureCompressionBC feature because its availability
   // means that all BC formats are supported, however, the device may expose
-  // some BC formats without this feature. Xenia doesn't BC6H and BC7 at all,
-  // and has fallbacks for each used format.
+  // some BC formats without this feature. Xenia doesn't use BC6H and BC7 at
+  // all, and has fallbacks for each used format.
   // TODO(Triang3l): Raise the host texture memory usage limit if S3TC has to be
   // decompressed.
   // TODO(Triang3l): S3TC -> 5551 or 4444 as an option.
