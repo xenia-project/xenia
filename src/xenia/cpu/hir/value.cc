@@ -8,6 +8,7 @@
  */
 
 #include "xenia/cpu/hir/value.h"
+#include "xenia/cpu/hir/instr.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -1680,7 +1681,13 @@ bool Value::CompareInt64(Opcode opcode, Value* a, Value* b) {
       return false;
   }
 }
-
+hir::Instr* Value::GetDefSkipAssigns() {
+  if (def) {
+    return def->GetDestDefSkipAssigns();
+  } else {
+    return nullptr;
+  }
+}
 }  // namespace hir
 }  // namespace cpu
 }  // namespace xe

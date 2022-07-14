@@ -178,103 +178,329 @@ bool SimplificationPass::CheckXor(hir::Instr* i, hir::HIRBuilder* builder) {
 bool SimplificationPass::Is1BitOpcode(hir::Opcode def_opcode) {
   return def_opcode >= OPCODE_IS_TRUE && def_opcode <= OPCODE_DID_SATURATE;
 }
-uint64_t SimplificationPass::GetScalarNZM(hir::Value* value, hir::Instr* def,
 
-                                          uint64_t typemask,
-                                          hir::Opcode def_opcode) {
-  if (def_opcode == OPCODE_SHL) {
-    hir::Value* shifted = def->src1.value;
-    hir::Value* shiftby = def->src2.value;
-    // todo: nzm shift
-    if (shiftby->IsConstant()) {
-      uint64_t shifted_nzm = GetScalarNZM(shifted);
-      return shifted_nzm << shiftby->AsUint64();
-    }
-  } else if (def_opcode == OPCODE_SHR) {
-    hir::Value* shifted = def->src1.value;
-    hir::Value* shiftby = def->src2.value;
-    // todo: nzm shift
-    if (shiftby->IsConstant()) {
-      uint64_t shifted_nzm = GetScalarNZM(shifted);
-      return shifted_nzm >> shiftby->AsUint64();
-    }
+inline static uint64_t RotateOfSize(ScalarNZM nzm, unsigned rotation,
+                                    TypeName typ) {
+  unsigned mask = (static_cast<unsigned int>(GetTypeSize(typ)) * CHAR_BIT) - 1;
+
+  rotation &= mask;
+  return (nzm << rotation) |
+         (nzm >>
+          ((static_cast<unsigned int>(-static_cast<int>(rotation))) & mask));
+}
+
+static inline uint64_t BswapOfSize(ScalarNZM nzm, TypeName typ) {
+  // should work for all sizes, including uint8
+
+  return xe::byte_swap<uint64_t>(nzm) >> (64 - (GetTypeSize(typ) * CHAR_BIT));
+}
+
+ScalarNZM SimplificationPass::GetScalarNZM(const hir::Value* value,
+                                           unsigned depth) {
+redo:
+
+  uint64_t typemask = GetScalarTypeMask(value->type);
+  if (value->IsConstant()) {
+    return value->constant.u64 & typemask;
   }
-  // todo : sha, check signbit
-  else if (def_opcode == OPCODE_ROTATE_LEFT) {
-    hir::Value* shifted = def->src1.value;
-    hir::Value* shiftby = def->src2.value;
-    // todo: nzm shift
-    if (shiftby->IsConstant()) {
-      uint64_t shifted_nzm = GetScalarNZM(shifted);
-      return xe::rotate_left(shifted_nzm,
-                             static_cast<uint8_t>(shiftby->AsUint64()));
+  if (depth >= MAX_NZM_DEPTH) {
+    return typemask;
+  }
+  const hir::Instr* def = value->def;
+  if (!def) {
+    return typemask;
+  }
+
+  const hir::Value *def_src1 = def->src1.value, *def_src2 = def->src2.value,
+                   *def_src3 = def->src3.value;
+
+  const hir::Opcode def_opcode = def->opcode->num;
+  auto RecurseScalarNZM = [depth](const hir::Value* value) {
+    return GetScalarNZM(value, depth + 1);
+  };
+
+  switch (def_opcode) {
+    case OPCODE_SHL: {
+      const hir::Value* shifted = def_src1;
+      const hir::Value* shiftby = def_src2;
+      // todo: nzm shift
+      if (shiftby->IsConstant()) {
+        ScalarNZM shifted_nzm = RecurseScalarNZM(shifted);
+        return (shifted_nzm << shiftby->constant.u8) & typemask;
+      }
+      break;
     }
-  } else if (def_opcode == OPCODE_XOR || def_opcode == OPCODE_OR) {
-    return GetScalarNZM(def->src1.value) | GetScalarNZM(def->src2.value);
-  } else if (def_opcode == OPCODE_NOT) {
-    return typemask;  //~GetScalarNZM(def->src1.value);
-  } else if (def_opcode == OPCODE_ASSIGN) {
-    return GetScalarNZM(def->src1.value);
-  } else if (def_opcode == OPCODE_BYTE_SWAP) {
-    uint64_t input_nzm = GetScalarNZM(def->src1.value);
-    switch (GetTypeSize(def->dest->type)) {
-      case 1:
+    case OPCODE_SHR: {
+      const hir::Value* shifted = def_src1;
+      const hir::Value* shiftby = def_src2;
+      // todo: nzm shift
+      if (shiftby->IsConstant()) {
+        ScalarNZM shifted_nzm = RecurseScalarNZM(shifted);
+        return shifted_nzm >> shiftby->constant.u8;
+      }
+      break;
+    }
+    case OPCODE_SHA: {
+      uint64_t signmask = GetScalarSignbitMask(value->type);
+      const hir::Value* shifted = def_src1;
+      const hir::Value* shiftby = def_src2;
+
+      if (shiftby->IsConstant()) {
+        ScalarNZM shifted_nzm = RecurseScalarNZM(shifted);
+        uint32_t shift_amnt = shiftby->constant.u8;
+        if ((shifted_nzm & signmask) == 0) {
+          return shifted_nzm >> shift_amnt;
+        } else {
+          uint64_t sign_shifted_in = typemask >> shift_amnt;  // vacate
+          sign_shifted_in = (~sign_shifted_in) &
+                            typemask;  // generate duplication of the signbit
+
+          return ((shifted_nzm >> shift_amnt) | sign_shifted_in) &
+                 typemask;  // todo: mask with typemask might not be needed
+        }
+      }
+      break;
+    }
+    case OPCODE_ROTATE_LEFT: {
+      const hir::Value* shifted = def_src1;
+      const hir::Value* shiftby = def_src2;
+      // todo: nzm shift
+      if (shiftby->IsConstant()) {
+        ScalarNZM rotated_nzm = RecurseScalarNZM(shifted);
+        return RotateOfSize(rotated_nzm, shiftby->constant.u8, value->type);
+      }
+      break;
+    }
+
+    case OPCODE_OR:
+    case OPCODE_XOR:
+
+      return RecurseScalarNZM(def_src1) | RecurseScalarNZM(def_src2);
+    case OPCODE_NOT:
+      return typemask;  //~GetScalarNZM(def->src1.value);
+    case OPCODE_ASSIGN:
+      value = def_src1;
+      goto redo;
+    case OPCODE_BYTE_SWAP:
+      return BswapOfSize(RecurseScalarNZM(def_src1), value->type);
+    case OPCODE_ZERO_EXTEND:
+      value = def_src1;
+      goto redo;
+    case OPCODE_TRUNCATE:
+      return RecurseScalarNZM(def_src1) & typemask;
+
+    case OPCODE_AND:
+      return RecurseScalarNZM(def_src1) & RecurseScalarNZM(def_src2);
+
+    case OPCODE_MIN:
+      /*
+      * for min:
+  the nzm will be that of the narrowest operand, because if one value
+ is capable of being much larger than the other it can never actually
+ reach a value that is outside the range of the other values nzm,
+ because that would make it not the minimum of the two
+
+  ahh, actually, we have to be careful about constants then.... for
+ now, just return or
+*/
+    case OPCODE_MAX:
+      return RecurseScalarNZM(def_src1) | RecurseScalarNZM(def_src2);
+    case OPCODE_SELECT:
+      return RecurseScalarNZM(def_src2) | RecurseScalarNZM(def_src3);
+
+    case OPCODE_CNTLZ: {
+      size_t type_bit_size = (CHAR_BIT * GetTypeSize(def_src1->type));
+      // if 0, ==type_bit_size
+      return type_bit_size | ((type_bit_size)-1);
+    }
+    case OPCODE_SIGN_EXTEND: {
+      ScalarNZM input_nzm = RecurseScalarNZM(def_src1);
+      if ((input_nzm & GetScalarSignbitMask(def_src1->type)) == 0) {
         return input_nzm;
-      case 2:
-        return xe::byte_swap<unsigned short>(
-            static_cast<unsigned short>(input_nzm));
 
-      case 4:
-        return xe::byte_swap<unsigned int>(
-            static_cast<unsigned int>(input_nzm));
-      case 8:
-        return xe::byte_swap<unsigned long long>(input_nzm);
-      default:
-        xenia_assert(0);
-        return typemask;
+        // return input_nzm;
+      } else {
+        uint64_t from_mask = GetScalarTypeMask(def_src1->type);
+        uint64_t to_mask = typemask;
+        to_mask &= ~from_mask;
+        to_mask |= input_nzm;
+        return to_mask & typemask;
+      }
+      break;
     }
-  } else if (def_opcode == OPCODE_ZERO_EXTEND) {
-    return GetScalarNZM(def->src1.value);
-  } else if (def_opcode == OPCODE_TRUNCATE) {
-    return GetScalarNZM(def->src1.value);  // caller will truncate by masking
-  } else if (def_opcode == OPCODE_AND) {
-    return GetScalarNZM(def->src1.value) & GetScalarNZM(def->src2.value);
-  } else if (def_opcode == OPCODE_SELECT) {
-    return GetScalarNZM(def->src2.value) | GetScalarNZM(def->src3.value);
-  } else if (def_opcode == OPCODE_MIN) {
-    /*
-        the nzm will be that of the narrowest operand, because if one value is
-       capable of being much larger than the other it can never actually reach
-        a value that is outside the range of the other values nzm, because that
-       would make it not the minimum of the two
-
-        ahh, actually, we have to be careful about constants then.... for now,
-       just return or
-    */
-    return GetScalarNZM(def->src2.value) | GetScalarNZM(def->src1.value);
-  } else if (def_opcode == OPCODE_MAX) {
-    return GetScalarNZM(def->src2.value) | GetScalarNZM(def->src1.value);
-  } else if (Is1BitOpcode(def_opcode)) {
-    return 1ULL;
-  } else if (def_opcode == OPCODE_CAST) {
-    return GetScalarNZM(def->src1.value);
   }
 
+  if (Is1BitOpcode(def_opcode)) {
+    return 1ULL;
+  }
   return typemask;
 }
-uint64_t SimplificationPass::GetScalarNZM(hir::Value* value) {
-  if (value->IsConstant()) {
-    return value->AsUint64();
+
+bool SimplificationPass::TransformANDROLORSHLSeq(
+    hir::Instr* i,  // the final instr in the rlwinm sequence (the AND)
+    hir::HIRBuilder* builder,
+    ScalarNZM input_nzm,    // the NZM of the value being rot'ed/masked (input)
+    uint64_t mask,          // mask after rotation
+    uint64_t rotation,      // rot amount prior to masking
+    hir::Instr* input_def,  // the defining instr of the input var
+    hir::Value* input       // the input variable to the rlwinm
+) {
+  /*
+
+    Usually you perform a rotation at the source level by decomposing it into
+    two shifts, one left and one right, and an or of those two. your compiler
+    then recognizes that you are doing a shift and generates the machine
+    instruction for a 32 bit int, you would do (value<<LEFT_ROT_AMNT) |
+    (value>>( (-LEFT_ROT_AMNT)&31 )); in order to reason about the bits actually
+    used by our rotate and mask operation we decompose our rotate into these two
+    shifts and check them against our mask to determine whether the masking is
+    useless, or if it only covers bits from the left or right shift if it is a
+    right shift, and the mask exactly covers all bits that were not vacated
+    right, we eliminate the mask
+
+  */
+  uint32_t right_shift_for_rotate =
+      (static_cast<uint32_t>(-static_cast<int32_t>(rotation)) & 31);
+  uint32_t left_shift_for_rotate = (rotation & 31);
+
+  uint64_t rotation_shiftmask_right =
+      static_cast<uint64_t>((~0U) >> right_shift_for_rotate);
+  uint64_t rotation_shiftmask_left =
+      static_cast<uint64_t>((~0U) << left_shift_for_rotate);
+
+  if (rotation_shiftmask_left == mask) {
+    Value* rotation_fix = builder->Shl(input, left_shift_for_rotate);
+    rotation_fix->def->MoveBefore(i);
+    i->Replace(&OPCODE_AND_info, 0);
+    i->set_src1(rotation_fix);
+    i->set_src2(builder->LoadConstantUint64(0xFFFFFFFFULL));
+    return true;
+  } else if (rotation_shiftmask_right == mask) {
+    // no need to AND at all, the bits were vacated
+
+    i->Replace(&OPCODE_SHR_info, 0);
+    i->set_src1(input);
+    i->set_src2(
+        builder->LoadConstantInt8(static_cast<int8_t>(right_shift_for_rotate)));
+    return true;
+  } else if ((rotation_shiftmask_right & mask) ==
+             mask) {  // only uses bits from right
+    Value* rotation_fix = builder->Shr(input, right_shift_for_rotate);
+    rotation_fix->def->MoveBefore(i);
+    i->set_src1(rotation_fix);
+    return true;
+
+  } else if ((rotation_shiftmask_left & mask) == mask) {
+    Value* rotation_fix = builder->Shl(input, left_shift_for_rotate);
+    rotation_fix->def->MoveBefore(i);
+    i->set_src1(rotation_fix);
+    return true;
+  }
+  return false;
+}
+/*
+    todo: investigate breaking this down into several different optimization
+   rules. one for rotates that can be made into shifts one for 64 bit rotates
+   that can become 32 bit and probably one or two other rules would need to be
+   added for this)
+*/
+bool SimplificationPass::TryHandleANDROLORSHLSeq(hir::Instr* i,
+                                                 hir::HIRBuilder* builder) {
+  // todo: could probably make this work for all types without much trouble, but
+  // not sure if it would benefit any of them
+  if (i->dest->type != INT64_TYPE) {
+    return false;
+  }
+  auto [defined_by_rotate, mask] =
+      i->BinaryValueArrangeByDefOpAndConstant(&OPCODE_ROTATE_LEFT_info);
+
+  if (!defined_by_rotate) {
+    return false;
   }
 
-  uint64_t default_return = GetScalarTypeMask(value->type);
+  uint64_t mask_value = mask->AsUint64();
 
-  hir::Instr* def = value->def;
-  if (!def) {
-    return default_return;
+  if (static_cast<uint64_t>(static_cast<uint32_t>(mask_value)) != mask_value) {
+    return false;
   }
-  return GetScalarNZM(value, def, default_return, def->opcode->num) &
-         default_return;
+
+  Instr* rotinsn = defined_by_rotate->def;
+
+  Value* rotated_variable = rotinsn->src1.value;
+  Value* rotation_amount = rotinsn->src2.value;
+  if (!rotation_amount->IsConstant()) {
+    return false;
+  }
+
+  uint32_t rotation_value = rotation_amount->constant.u8;
+  if (rotation_value > 31) {
+    return false;
+  }
+
+  if (rotated_variable->IsConstant()) {
+    return false;
+  }
+  Instr* rotated_variable_def = rotated_variable->GetDefSkipAssigns();
+
+  if (!rotated_variable_def) {
+    return false;
+  }
+  if (rotated_variable_def->opcode != &OPCODE_OR_info) {
+    return false;
+  }
+  // now we have our or that concatenates the var with itself, find the shift by
+  // 32
+  auto [shl_insn_defined, expected_input] =
+      rotated_variable_def->BinaryValueArrangeByPredicateExclusive(
+          [](Value* shl_check) {
+            Instr* shl_def = shl_check->GetDefSkipAssigns();
+
+            if (!shl_def) {
+              return false;
+            }
+
+            Value* shl_left = shl_def->src1.value;
+            Value* shl_right = shl_def->src2.value;
+            if (!shl_left || !shl_right) {
+              return false;
+            }
+            if (shl_def->opcode != &OPCODE_SHL_info) {
+              return false;
+            }
+            return !shl_left->IsConstant() && shl_right->IsConstant() &&
+                   shl_right->constant.u8 == 32;
+          });
+
+  if (!shl_insn_defined) {
+    return false;
+  }
+
+  Instr* shl_insn = shl_insn_defined->GetDefSkipAssigns();
+
+  Instr* shl_left_definition = shl_insn->src1.value->GetDefSkipAssigns();
+  Instr* expected_input_definition = expected_input->GetDefSkipAssigns();
+
+  // we expect (x << 32) | x
+
+  if (shl_left_definition != expected_input_definition) {
+    return false;
+  }
+  // next check the nzm for the input, if the high 32 bits are clear we know we
+  // can optimize. the input ought to have been cleared by an AND with ~0U or
+  // truncate zeroextend if its a rlwinx
+
+  // todo: it shouldnt have to search very far for the nzm, we dont need the
+  // whole depth of the use-def chain traversed, add a maxdef var? or do
+  // additional opts here depending on the nzm
+  ScalarNZM input_nzm = GetScalarNZM(expected_input);
+
+  if (static_cast<uint64_t>(static_cast<uint32_t>(input_nzm)) != input_nzm) {
+    return false;  // bits from the or may overlap!!
+  }
+
+  return TransformANDROLORSHLSeq(i, builder, input_nzm, mask_value,
+                                 rotation_value, expected_input_definition,
+                                 expected_input);
 }
 bool SimplificationPass::CheckAnd(hir::Instr* i, hir::HIRBuilder* builder) {
 retry_and_simplification:
@@ -290,6 +516,10 @@ retry_and_simplification:
       return true;
     }
     return false;
+  }
+
+  if (TryHandleANDROLORSHLSeq(i, builder)) {
+    return true;
   }
 
   // todo: check if masking with mask that covers all of zero extension source
@@ -591,7 +821,7 @@ bool SimplificationPass::SimplifyBitArith(hir::HIRBuilder* builder) {
     while (i) {
       // vector types use the same opcodes as scalar ones for AND/OR/XOR! we
       // don't handle these in our simplifications, so skip
-      if (i->dest && IsScalarIntegralType( i->dest->type) ) {
+      if (i->dest && IsScalarIntegralType(i->dest->type)) {
         if (i->opcode == &OPCODE_OR_info) {
           result |= CheckOr(i, builder);
         } else if (i->opcode == &OPCODE_XOR_info) {
