@@ -10,6 +10,8 @@
 #ifndef XENIA_UI_WINDOW_ANDROID_H_
 #define XENIA_UI_WINDOW_ANDROID_H_
 
+#include <jni.h>
+
 #include "xenia/ui/menu_item.h"
 #include "xenia/ui/window.h"
 
@@ -30,6 +32,7 @@ class AndroidWindow : public Window {
   uint32_t GetMediumDpi() const override { return 160; }
 
   void OnActivitySurfaceLayoutChange();
+  bool OnActivitySurfaceMotionEvent(jobject event);
   void OnActivitySurfaceChanged() { OnSurfaceChanged(true); }
   void PaintActivitySurface(bool force_paint) { OnPaint(force_paint); }
 
@@ -42,6 +45,9 @@ class AndroidWindow : public Window {
   std::unique_ptr<Surface> CreateSurfaceImpl(
       Surface::TypeFlags allowed_types) override;
   void RequestPaintImpl() override;
+
+ private:
+  uint32_t mouse_button_state_ = 0;
 };
 
 // Dummy for the menu item - menus are controlled by the layout.

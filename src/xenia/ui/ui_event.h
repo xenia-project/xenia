@@ -10,6 +10,7 @@
 #ifndef XENIA_UI_UI_EVENT_H_
 #define XENIA_UI_UI_EVENT_H_
 
+#include <cstdint>
 #include <filesystem>
 
 #include "xenia/ui/virtual_key.h"
@@ -154,6 +155,46 @@ class MouseEvent : public UIEvent {
   int32_t scroll_x_ = 0;
   // Positive is up (away from the user), negative is down (towards the user).
   int32_t scroll_y_ = 0;
+};
+
+class TouchEvent : public UIEvent {
+ public:
+  enum class Action {
+    kDown,
+    kUp,
+    // Should be treated as an up event, but without performing the usual action
+    // for releasing.
+    kCancel,
+    kMove,
+  };
+
+  // Can be used by event listeners as the value for when there's no current
+  // pointer, for example.
+  static constexpr uint32_t kPointerIDNone = UINT32_MAX;
+
+  explicit TouchEvent(Window* target, uint32_t pointer_id, Action action,
+                      float x, float y)
+      : UIEvent(target),
+        pointer_id_(pointer_id),
+        action_(action),
+        x_(x),
+        y_(y) {}
+
+  bool is_handled() const { return handled_; }
+  void set_handled(bool value) { handled_ = value; }
+
+  uint32_t pointer_id() { return pointer_id_; }
+  Action action() const { return action_; }
+  // Can be outside the boundaries of the surface.
+  float x() const { return x_; }
+  float y() const { return y_; }
+
+ private:
+  bool handled_ = false;
+  uint32_t pointer_id_;
+  Action action_;
+  float x_;
+  float y_;
 };
 
 }  // namespace ui

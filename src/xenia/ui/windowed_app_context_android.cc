@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <array>
 #include <cstdint>
+#include <cstring>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
@@ -128,6 +129,12 @@ void AndroidWindowedAppContext::JniActivityOnWindowSurfaceLayoutChange(
   if (activity_window_) {
     activity_window_->OnActivitySurfaceLayoutChange();
   }
+}
+
+bool AndroidWindowedAppContext::JniActivityOnWindowSurfaceMotionEvent(
+    jobject event) {
+  return activity_window_ &&
+         activity_window_->OnActivitySurfaceMotionEvent(event);
 }
 
 void AndroidWindowedAppContext::JniActivityOnWindowSurfaceChanged(
@@ -250,6 +257,62 @@ bool AndroidWindowedAppContext::Initialize(JNIEnv* ui_thread_jni_env,
   android_base_initialized_ = true;
   ui_thread_jni_env_->DeleteLocalRef(application_context_init_ref);
 
+  // Initialize common windowed app JNI IDs.
+  {
+    jclass motion_event_class_local_ref =
+        ui_thread_jni_env_->FindClass("android/view/MotionEvent");
+    if (!motion_event_class_local_ref) {
+      XELOGE(
+          "AndroidWindowedAppContext: Failed to find the motion event class");
+      Shutdown();
+      return false;
+    }
+    motion_event_class_ =
+        reinterpret_cast<jclass>(ui_thread_jni_env_->NewGlobalRef(
+            reinterpret_cast<jobject>(motion_event_class_local_ref)));
+    ui_thread_jni_env_->DeleteLocalRef(
+        reinterpret_cast<jobject>(motion_event_class_local_ref));
+  }
+  if (!motion_event_class_) {
+    XELOGE(
+        "AndroidWindowedAppContext: Failed to create a global reference to the "
+        "motion event class");
+    Shutdown();
+    return false;
+  }
+  bool motion_event_ids_obtained = true;
+  motion_event_ids_obtained &=
+      (jni_ids_.motion_event_get_action = ui_thread_jni_env_->GetMethodID(
+           motion_event_class_, "getAction", "()I")) != nullptr;
+  motion_event_ids_obtained &=
+      (jni_ids_.motion_event_get_axis_value = ui_thread_jni_env_->GetMethodID(
+           motion_event_class_, "getAxisValue", "(II)F")) != nullptr;
+  motion_event_ids_obtained &=
+      (jni_ids_.motion_event_get_button_state = ui_thread_jni_env_->GetMethodID(
+           motion_event_class_, "getButtonState", "()I")) != nullptr;
+  motion_event_ids_obtained &=
+      (jni_ids_.motion_event_get_pointer_id = ui_thread_jni_env_->GetMethodID(
+           motion_event_class_, "getPointerId", "(I)I")) != nullptr;
+  motion_event_ids_obtained &=
+      (jni_ids_.motion_event_get_pointer_count =
+           ui_thread_jni_env_->GetMethodID(
+               motion_event_class_, "getPointerCount", "()I")) != nullptr;
+  motion_event_ids_obtained &=
+      (jni_ids_.motion_event_get_source = ui_thread_jni_env_->GetMethodID(
+           motion_event_class_, "getSource", "()I")) != nullptr;
+  motion_event_ids_obtained &=
+      (jni_ids_.motion_event_get_x = ui_thread_jni_env_->GetMethodID(
+           motion_event_class_, "getX", "(I)F")) != nullptr;
+  motion_event_ids_obtained &=
+      (jni_ids_.motion_event_get_y = ui_thread_jni_env_->GetMethodID(
+           motion_event_class_, "getY", "(I)F")) != nullptr;
+  if (!motion_event_ids_obtained) {
+    XELOGE(
+        "AndroidWindowedAppContext: Failed to get the motion event class IDs");
+    Shutdown();
+    return false;
+  }
+
   // Initialize interfacing with the WindowedAppActivity.
   activity_ = ui_thread_jni_env_->NewGlobalRef(activity);
   if (!activity_) {
@@ -341,6 +404,12 @@ void AndroidWindowedAppContext::Shutdown() {
   if (activity_) {
     ui_thread_jni_env_->DeleteGlobalRef(activity_);
     activity_ = nullptr;
+  }
+
+  std::memset(&jni_ids_, 0, sizeof(jni_ids_));
+  if (motion_event_class_) {
+    ui_thread_jni_env_->DeleteGlobalRef(motion_event_class_);
+    motion_event_class_ = nullptr;
   }
 
   if (android_base_initialized_) {
@@ -493,6 +562,14 @@ Java_jp_xenia_emulator_WindowedAppActivity_onWindowSurfaceLayoutChange(
     jint top, jint right, jint bottom) {
   reinterpret_cast<xe::ui::AndroidWindowedAppContext*>(app_context_ptr)
       ->JniActivityOnWindowSurfaceLayoutChange(left, top, right, bottom);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_jp_xenia_emulator_WindowedAppActivity_onWindowSurfaceMotionEvent(
+    JNIEnv* jni_env, jobject activity, jlong app_context_ptr, jobject event) {
+  return jboolean(
+      reinterpret_cast<xe::ui::AndroidWindowedAppContext*>(app_context_ptr)
+          ->JniActivityOnWindowSurfaceMotionEvent(event));
 }
 
 JNIEXPORT void JNICALL
