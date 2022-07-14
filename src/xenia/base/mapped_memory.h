@@ -32,6 +32,10 @@ class MappedMemory {
   MappedMemory(const std::filesystem::path& path, Mode mode, void* data,
                size_t size)
       : path_(path), mode_(mode), data_(data), size_(size) {}
+  MappedMemory(const MappedMemory& mapped_memory) = delete;
+  MappedMemory& operator=(const MappedMemory& mapped_memory) = delete;
+  MappedMemory(MappedMemory&& mapped_memory) = delete;
+  MappedMemory& operator=(MappedMemory&& mapped_memory) = delete;
   virtual ~MappedMemory() = default;
 
   std::unique_ptr<MappedMemory> Slice(Mode mode, size_t offset, size_t length) {
