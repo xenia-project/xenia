@@ -160,9 +160,7 @@ def pipeline_linux_desktop(name, image, arch, cc, build_release_all):
                     for c in Debug Release
                     do
                       mkdir cmake-$c
-                      cd cmake-$c
-                      cmake -DCMAKE_BUILD_TYPE=$c ..
-                      cd ..
+                      cmake -S . -B cmake-$c -G Ninja -DCMAKE_BUILD_TYPE=$c
                     done
                     '''.format(cc),
                 ],
