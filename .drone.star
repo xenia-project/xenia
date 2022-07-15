@@ -8,7 +8,7 @@ def main(ctx):
     ]
 
 def image_linux_x86_64():
-    return 'xeniaproject/buildenv:2022-01-01'
+    return 'xeniaproject/buildenv:2022-07-15'
 
 def volume_build(toolchain, path='/drone/src/build'):
     return {
