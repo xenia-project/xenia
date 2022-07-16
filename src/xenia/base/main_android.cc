@@ -15,6 +15,7 @@
 #include <cstdlib>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/system.h"
@@ -44,7 +45,8 @@ static void AndroidThreadJNIEnvDestructor(void* jni_env_pointer) {
 
 void InitializeAndroidAppFromMainThread(int32_t api_level,
                                         JNIEnv* main_thread_jni_env,
-                                        jobject application_context) {
+                                        jobject application_context,
+                                        jobject launch_arguments_bundle) {
   if (android_initializations_++) {
     // Already initialized for another component in the process.
     return;
@@ -95,6 +97,11 @@ void InitializeAndroidAppFromMainThread(int32_t api_level,
 
   // Logging uses threading.
   xe::threading::AndroidInitialize();
+
+  // Initialize the cvars before logging.
+  if (launch_arguments_bundle) {
+    cvar::ParseLaunchArgumentsFromAndroidBundle(launch_arguments_bundle);
+  }
 
   // Multiple apps can be launched within one process - don't pass the actual
   // app name.

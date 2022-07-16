@@ -230,7 +230,7 @@ bool AndroidWindowedAppContext::Initialize(JNIEnv* ui_thread_jni_env,
     return false;
   }
 
-  // Get the application context.
+  // Get activity methods needed for initialization.
   jmethodID activity_get_application_context = ui_thread_jni_env_->GetMethodID(
       activity_class_, "getApplicationContext", "()Landroid/content/Context;");
   if (!activity_get_application_context) {
@@ -240,6 +240,16 @@ bool AndroidWindowedAppContext::Initialize(JNIEnv* ui_thread_jni_env,
     Shutdown();
     return false;
   }
+  jmethodID activity_get_intent = ui_thread_jni_env_->GetMethodID(
+      activity_class_, "getIntent", "()Landroid/content/Intent;");
+  if (!activity_get_intent) {
+    __android_log_write(ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
+                        "Failed to get the getIntent method of the activity");
+    Shutdown();
+    return false;
+  }
+
+  // Get the application context.
   jobject application_context_init_ref = ui_thread_jni_env_->CallObjectMethod(
       activity, activity_get_application_context);
   if (!application_context_init_ref) {
@@ -250,11 +260,59 @@ bool AndroidWindowedAppContext::Initialize(JNIEnv* ui_thread_jni_env,
     return false;
   }
 
+  // Get the launch arguments.
+  jobject launch_arguments_bundle_init_ref = nullptr;
+  {
+    jobject intent_init_ref =
+        ui_thread_jni_env_->CallObjectMethod(activity, activity_get_intent);
+    if (!intent_init_ref) {
+      __android_log_write(
+          ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
+          "Failed to get the intent that has started the activity");
+    } else {
+      jclass intent_class = ui_thread_jni_env_->GetObjectClass(intent_init_ref);
+      if (!intent_class) {
+        __android_log_write(ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
+                            "Failed to get the intent class");
+      } else {
+        jmethodID intent_get_bundle_extra = ui_thread_jni_env_->GetMethodID(
+            intent_class, "getBundleExtra",
+            "(Ljava/lang/String;)Landroid/os/Bundle;");
+        if (!intent_get_bundle_extra) {
+          __android_log_write(
+              ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
+              "Failed to get the getBundleExtra method of the intent");
+        } else {
+          jstring launch_arguments_extra_name =
+              ui_thread_jni_env_->NewStringUTF(
+                  "jp.xenia.emulator.WindowedAppActivity.EXTRA_CVARS");
+          if (!launch_arguments_extra_name) {
+            __android_log_write(
+                ANDROID_LOG_ERROR, "AndroidWindowedAppContext",
+                "Failed to create the launch arguments intent extra data name "
+                "string");
+          } else {
+            launch_arguments_bundle_init_ref =
+                ui_thread_jni_env_->CallObjectMethod(
+                    intent_init_ref, intent_get_bundle_extra,
+                    launch_arguments_extra_name);
+            ui_thread_jni_env_->DeleteLocalRef(launch_arguments_extra_name);
+          }
+        }
+        ui_thread_jni_env_->DeleteLocalRef(intent_class);
+      }
+      ui_thread_jni_env_->DeleteLocalRef(intent_init_ref);
+    }
+  }
+
   // Initialize Xenia globals that may depend on the base globals and logging.
   xe::InitializeAndroidAppFromMainThread(
       AConfiguration_getSdkVersion(configuration_), ui_thread_jni_env_,
-      application_context_init_ref);
+      application_context_init_ref, launch_arguments_bundle_init_ref);
   android_base_initialized_ = true;
+  if (launch_arguments_bundle_init_ref) {
+    ui_thread_jni_env_->DeleteLocalRef(launch_arguments_bundle_init_ref);
+  }
   ui_thread_jni_env_->DeleteLocalRef(application_context_init_ref);
 
   // Initialize common windowed app JNI IDs.
