@@ -11,6 +11,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
+#include "xenia/base/filesystem.h"
 #include "xenia/base/main_android.h"
 
 namespace cvar {
@@ -188,7 +189,7 @@ void ParseLaunchArgumentsFromAndroidBundle(jobject bundle) {
         const char* cvar_string_value_utf =
             jni_env->GetStringUTFChars(cvar_string_value, nullptr);
         if (cvar_string_value_utf) {
-          cvar_path->SetCommandLineValue(cvar_string_value_utf);
+          cvar_path->SetCommandLineValue(xe::to_path(cvar_string_value_utf));
           jni_env->ReleaseStringUTFChars(cvar_string_value,
                                          cvar_string_value_utf);
         }
