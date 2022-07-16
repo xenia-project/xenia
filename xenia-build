@@ -673,11 +673,11 @@ class SetupCommand(Command):
         print('')
 
         print('- running premake...')
-        if run_platform_premake(target_os_override=args['target_os']) == 0:
-            print('')
-            print('Success!')
+        ret = run_platform_premake(target_os_override=args['target_os'])
+        print('')
+        print('Success!' if ret == 0 else 'Error!')
 
-        return 0
+        return ret
 
 
 class PullCommand(Command):
@@ -755,11 +755,11 @@ class PremakeCommand(Command):
         # Update premake. If no binary found, it will be built from source.
         print('Running premake...')
         print('')
-        if run_platform_premake(target_os_override=args['target_os'],
-                                cc=args['cc'], devenv=args['devenv']) == 0:
-            print('Success!')
+        ret = run_platform_premake(target_os_override=args['target_os'],
+                                   cc=args['cc'], devenv=args['devenv'])
+        print('Success!' if ret == 0 else 'Error!')
 
-        return 0
+        return ret
 
 
 class BaseBuildCommand(Command):
