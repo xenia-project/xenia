@@ -673,3 +673,10 @@ DEFINE_OPCODE(
     "set_rounding_mode",
     OPCODE_SIG_X_V,
     0)
+
+DEFINE_OPCODE(
+    OPCODE_VECTOR_DENORMFLUSH,
+    "vector_denormflush",
+    OPCODE_SIG_V_V,
+    0
+)

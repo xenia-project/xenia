@@ -118,7 +118,12 @@ enum XmmConst {
   XMM2To32,
   XMMFloatInf,
   XMMIntsToBytes,
-  XMMShortsToBytes
+  XMMShortsToBytes,
+  XMMLVSLTableBase,
+  XMMLVSRTableBase,
+  XMMSingleDenormalMask,
+  XMMThreeFloatMask, //for clearing the fourth float prior to DOT_PRODUCT_3
+  XMMXenosF16ExtRangeStart
 };
 
 // Unfortunately due to the design of xbyak we have to pass this to the ctor.
@@ -147,6 +152,7 @@ enum X64EmitterFeatureFlags {
   kX64EmitAVX512Ortho64 = kX64EmitAVX512Ortho | kX64EmitAVX512DQ,
   kX64FastJrcx = 1 << 12, //jrcxz is as fast as any other jump ( >= Zen1)
   kX64FastLoop = 1 << 13, //loop/loope/loopne is as fast as any other jump ( >= Zen2)
+  kX64EmitAVX512VBMI = 1 << 14
 };
 class ResolvableGuestCall {
  public:
@@ -225,7 +231,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   Xbyak::Reg64 GetContextReg();
   Xbyak::Reg64 GetMembaseReg();
-  void ReloadContext();
+
   void ReloadMembase();
 
   void nop(size_t length = 1);

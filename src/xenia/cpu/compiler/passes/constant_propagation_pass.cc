@@ -312,13 +312,18 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
                 result = true;
               } else if (i->src2.value->IsConstant() &&
                          i->src3.value->IsConstant()) {
-                // TODO: Select
-                // v->set_from(i->src2.value);
-                // v->Select(i->src3.value, i->src1.value);
-                // i->Remove();
+                v->set_from(i->src2.value);
+                v->Select(i->src3.value, i->src1.value);
+                i->Remove();
+                result = true;
               }
             } else {
-              // TODO: vec128 select
+              if (i->src2.value->IsConstant() && i->src3.value->IsConstant()) {
+                v->set_from(i->src2.value);
+                v->Select(i->src3.value, i->src1.value);
+                i->Remove();
+                result = true;
+              }
             }
           }
           break;
@@ -744,8 +749,35 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             result = true;
           }
           break;
-        // TODO(benvanik): INSERT/EXTRACT
-        // TODO(benvanik): PERMUTE/SWIZZLE
+       
+        case OPCODE_PERMUTE: {
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant() &&
+              i->src3.value->IsConstant() &&
+              (i->flags == INT8_TYPE || i->flags == INT16_TYPE)) {
+            v->set_from(i->src1.value);
+            v->Permute(i->src2.value, i->src3.value, (TypeName)i->flags);
+            i->Remove();
+            result = true;
+          }
+          break;
+        }
+        case OPCODE_INSERT:
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant() &&
+              i->src3.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->Insert(i->src2.value, i->src3.value, (TypeName)i->flags);
+            i->Remove();
+            result = true;
+          }
+          break;
+        case OPCODE_SWIZZLE:
+          if (i->src1.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->Swizzle((uint32_t)i->src2.offset, (TypeName)i->flags);
+            i->Remove();
+            result = true;
+          }
+          break;
         case OPCODE_EXTRACT:
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_zero(v->type);
@@ -867,24 +899,6 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           }
           break;
 
-        case OPCODE_DOT_PRODUCT_3:
-          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
-            v->set_from(i->src1.value);
-            v->DotProduct3(i->src2.value);
-            i->Remove();
-            result = true;
-          }
-          break;
-
-        case OPCODE_DOT_PRODUCT_4:
-          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
-            v->set_from(i->src1.value);
-            v->DotProduct4(i->src2.value);
-            i->Remove();
-            result = true;
-          }
-          break;
-
         case OPCODE_VECTOR_AVERAGE:
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
@@ -896,7 +910,14 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             result = true;
           }
           break;
-
+        case OPCODE_VECTOR_DENORMFLUSH:
+          if (i->src1.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->DenormalFlush();
+            i->Remove();
+            result = true;
+          }
+          break;
         default:
           // Ignored.
           break;

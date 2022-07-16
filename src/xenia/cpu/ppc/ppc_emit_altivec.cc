@@ -279,14 +279,21 @@ int InstrEmit_stvlx_(PPCHIRBuilder& f, const InstrData& i, uint32_t vd,
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantInt8(0xF));
   // ea &= ~0xF
   ea = f.And(ea, f.LoadConstantUint64(~0xFull));
+  Value* shrs = f.LoadVectorShr(eb);
+  Value* zerovec = f.LoadZeroVec128();
+
   // v = (old & ~mask) | ((new >> eb) & mask)
-  Value* new_value = f.Permute(f.LoadVectorShr(eb), f.LoadZeroVec128(),
-                               f.LoadVR(vd), INT8_TYPE);
+  Value* new_value = f.Permute(shrs, zerovec, f.LoadVR(vd), INT8_TYPE);
   Value* old_value = f.ByteSwap(f.Load(ea, VEC128_TYPE));
+  /*
+  these permutes need to be looked at closer. keep in mind Permute is meant to
+  emulate vmx's shuffles and does not generate particularly good code. The logic
+  here looks as if it might make more sense as a comparison (
+*/
   // mask = FFFF... >> eb
-  Value* mask = f.Permute(f.LoadVectorShr(eb), f.LoadZeroVec128(),
-                          f.Not(f.LoadZeroVec128()), INT8_TYPE);
-  Value* v = f.Or(f.AndNot(old_value, mask), f.And(new_value, mask));
+  Value* mask = f.Permute(shrs, zerovec, f.Not(zerovec), INT8_TYPE);
+
+  Value* v = f.Select(mask, old_value, new_value);
   // ea &= ~0xF (handled above)
   f.Store(ea, f.ByteSwap(v));
   return 0;
@@ -321,14 +328,14 @@ int InstrEmit_stvrx_(PPCHIRBuilder& f, const InstrData& i, uint32_t vd,
   ea = CalculateEA_0(f, ra, rb);
   eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantInt8(0xF));
   ea = f.And(ea, f.LoadConstantUint64(~0xFull));
+  Value* shrs = f.LoadVectorShr(eb);
+  Value* zerovec = f.LoadZeroVec128();
   // v = (old & ~mask) | ((new << eb) & mask)
-  Value* new_value = f.Permute(f.LoadVectorShr(eb), f.LoadVR(vd),
-                               f.LoadZeroVec128(), INT8_TYPE);
+  Value* new_value = f.Permute(shrs, f.LoadVR(vd), zerovec, INT8_TYPE);
   Value* old_value = f.ByteSwap(f.Load(ea, VEC128_TYPE));
   // mask = ~FFFF... >> eb
-  Value* mask = f.Permute(f.LoadVectorShr(eb), f.Not(f.LoadZeroVec128()),
-                          f.LoadZeroVec128(), INT8_TYPE);
-  Value* v = f.Or(f.AndNot(old_value, mask), f.And(new_value, mask));
+  Value* mask = f.Permute(shrs, f.Not(zerovec), zerovec, INT8_TYPE);
+  Value* v = f.Select(mask, old_value, new_value);
   // ea &= ~0xF (handled above)
   f.Store(ea, f.ByteSwap(v));
   f.MarkLabel(skip_label);
@@ -815,8 +822,16 @@ int InstrEmit_vlogefp128(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_vmaddfp_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb,
                        uint32_t vc) {
+  /*
+      chrispy: testing on POWER8 revealed that altivec vmaddfp unconditionally
+     flushes denormal inputs to 0, regardless of NJM setting
+  */
+  Value* a = f.VectorDenormFlush(f.LoadVR(va));
+  Value* b = f.VectorDenormFlush(f.LoadVR(vb));
+  Value* c = f.VectorDenormFlush(f.LoadVR(vc));
   // (VD) <- ((VA) * (VC)) + (VB)
-  Value* v = f.MulAdd(f.LoadVR(va), f.LoadVR(vc), f.LoadVR(vb));
+  Value* v = f.MulAdd(a, c, b);
+  // todo: do denormal results also unconditionally become 0?
   f.StoreVR(vd, v);
   return 0;
 }
@@ -832,9 +847,14 @@ int InstrEmit_vmaddfp128(PPCHIRBuilder& f, const InstrData& i) {
 }
 
 int InstrEmit_vmaddcfp128(PPCHIRBuilder& f, const InstrData& i) {
+  /*
+    see vmaddfp about these denormflushes
+  */
+  Value* a = f.VectorDenormFlush(f.LoadVR(VX128_VA128));
+  Value* b = f.VectorDenormFlush(f.LoadVR(VX128_VB128));
+  Value* d = f.VectorDenormFlush(f.LoadVR(VX128_VD128));
   // (VD) <- ((VA) * (VD)) + (VB)
-  Value* v = f.MulAdd(f.LoadVR(VX128_VA128), f.LoadVR(VX128_VD128),
-                      f.LoadVR(VX128_VB128));
+  Value* v = f.MulAdd(a, d, b);
   f.StoreVR(VX128_VD128, v);
   return 0;
 }
@@ -1085,7 +1105,8 @@ int InstrEmit_vmsum3fp128(PPCHIRBuilder& f, const InstrData& i) {
   // Dot product XYZ.
   // (VD.xyzw) = (VA.x * VB.x) + (VA.y * VB.y) + (VA.z * VB.z)
   Value* v = f.DotProduct3(f.LoadVR(VX128_VA128), f.LoadVR(VX128_VB128));
-  v = f.Splat(v, VEC128_TYPE);
+  //chrispy: denormal outputs for Dot product are unconditionally made 0
+  v = f.VectorDenormFlush(v);
   f.StoreVR(VX128_VD128, v);
   return 0;
 }
@@ -1094,7 +1115,7 @@ int InstrEmit_vmsum4fp128(PPCHIRBuilder& f, const InstrData& i) {
   // Dot product XYZW.
   // (VD.xyzw) = (VA.x * VB.x) + (VA.y * VB.y) + (VA.z * VB.z) + (VA.w * VB.w)
   Value* v = f.DotProduct4(f.LoadVR(VX128_VA128), f.LoadVR(VX128_VB128));
-  v = f.Splat(v, VEC128_TYPE);
+  v = f.VectorDenormFlush(v);
   f.StoreVR(VX128_VD128, v);
   return 0;
 }
@@ -1151,7 +1172,19 @@ int InstrEmit_vnmsubfp_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb,
   // (VD) <- -(((VA) * (VC)) - (VB))
   // NOTE: only one rounding should take place, but that's hard...
   // This really needs VFNMSUB132PS/VFNMSUB213PS/VFNMSUB231PS but that's AVX.
-  Value* v = f.Neg(f.MulSub(f.LoadVR(va), f.LoadVR(vc), f.LoadVR(vb)));
+  // NOTE2: we could make vnmsub a new opcode, and then do it in double
+  // precision, rounding after the neg
+
+  /*
+  chrispy: this is untested, but i believe this has the same DAZ behavior for
+  inputs as vmadd
+  */
+
+  Value* a = f.VectorDenormFlush(f.LoadVR(va));
+  Value* b = f.VectorDenormFlush(f.LoadVR(vb));
+  Value* c = f.VectorDenormFlush(f.LoadVR(vc));
+
+  Value* v = f.Neg(f.MulSub(a, c, b));
   f.StoreVR(vd, v);
   return 0;
 }

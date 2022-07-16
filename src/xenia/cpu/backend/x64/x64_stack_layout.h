@@ -122,7 +122,8 @@ class StackLayout {
    *
    */
   static const size_t GUEST_STACK_SIZE = 104;
-  static const size_t GUEST_CTX_HOME = 80;
+  //was GUEST_CTX_HOME, can't remove because that'd throw stack alignment off. instead, can be used as a temporary in sequences
+  static const size_t GUEST_SCRATCH64 = 80;
   static const size_t GUEST_RET_ADDR = 88;
   static const size_t GUEST_CALL_RET_ADDR = 96;
 };

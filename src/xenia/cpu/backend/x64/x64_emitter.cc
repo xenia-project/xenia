@@ -101,13 +101,11 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
   TEST_EMIT_FEATURE(kX64EmitAVX512VL, Xbyak::util::Cpu::tAVX512VL);
   TEST_EMIT_FEATURE(kX64EmitAVX512BW, Xbyak::util::Cpu::tAVX512BW);
   TEST_EMIT_FEATURE(kX64EmitAVX512DQ, Xbyak::util::Cpu::tAVX512DQ);
-
-  
-
-
+  TEST_EMIT_FEATURE(kX64EmitAVX512VBMI, Xbyak::util::Cpu::tAVX512VBMI);
 #undef TEST_EMIT_FEATURE
   /*
-  fix for xbyak bug/omission, amd cpus are never checked for lzcnt. fixed in latest version of xbyak
+  fix for xbyak bug/omission, amd cpus are never checked for lzcnt. fixed in
+  latest version of xbyak
 */
   unsigned int data[4];
   Xbyak::util::Cpu::getCpuid(0x80000001, data);
@@ -117,21 +115,19 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
     }
   }
   if (cpu_.has(Xbyak::util::Cpu::tAMD)) {
-  
-      bool is_zennish = cpu_.displayFamily >= 0x17;
+    bool is_zennish = cpu_.displayFamily >= 0x17;
 
-      if (is_zennish) {
-        feature_flags_ |= kX64FastJrcx;
+    if (is_zennish) {
+      feature_flags_ |= kX64FastJrcx;
 
-        if (cpu_.displayFamily > 0x17) {
-          feature_flags_ |= kX64FastLoop;
+      if (cpu_.displayFamily > 0x17) {
+        feature_flags_ |= kX64FastLoop;
 
-        } else if (cpu_.displayFamily == 0x17 && cpu_.displayModel >= 0x31) {
-          feature_flags_ |= kX64FastLoop;
-        }  // todo:figure out at model zen+ became zen2, this is just the model
-           // for my cpu, which is ripper90
-      
-      }
+      } else if (cpu_.displayFamily == 0x17 && cpu_.displayModel >= 0x31) {
+        feature_flags_ |= kX64FastLoop;
+      }  // todo:figure out at model zen+ became zen2, this is just the model
+         // for my cpu, which is ripper90
+    }
   }
 }
 
@@ -263,7 +259,10 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   code_offsets.prolog_stack_alloc = getSize();
   code_offsets.body = getSize();
 
+  /*
+  * chrispy: removed this, it serves no purpose
   mov(qword[rsp + StackLayout::GUEST_CTX_HOME], GetContextReg());
+  */
   mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rcx);
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], 0);
 
@@ -296,9 +295,11 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   }
 
   // Load membase.
-  mov(GetMembaseReg(),
+  /*
+  * chrispy: removed this, as long as we load it in HostToGuestThunk we can
+  count on no other code modifying it. mov(GetMembaseReg(),
       qword[GetContextReg() + offsetof(ppc::PPCContext, virtual_membase)]);
-
+  */
   // Body.
   auto block = builder->first_block();
   while (block) {
@@ -318,7 +319,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
         // NOTE: If you encounter this after adding a new instruction, do a full
         // rebuild!
         assert_always();
-        XELOGE("Unable to process HIR opcode {}", instr->opcode->name);
+        XELOGE("Unable to process HIR opcode {}", GetOpcodeName(instr->opcode));
         break;
       }
       instr = new_tail;
@@ -331,8 +332,10 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   L(epilog_label);
   epilog_label_ = nullptr;
   EmitTraceUserCallReturn();
+  /*
+  * chrispy: removed this, it serves no purpose
   mov(GetContextReg(), qword[rsp + StackLayout::GUEST_CTX_HOME]);
-
+  */
   code_offsets.epilog = getSize();
 
   add(rsp, (uint32_t)stack_size);
@@ -342,7 +345,6 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
 
   if (cvars::emit_source_annotations) {
     nop(5);
-
   }
 
   assert_zero(code_offsets.prolog);
@@ -676,37 +678,9 @@ Xbyak::Reg64 X64Emitter::GetNativeParam(uint32_t param) {
 Xbyak::Reg64 X64Emitter::GetContextReg() { return rsi; }
 Xbyak::Reg64 X64Emitter::GetMembaseReg() { return rdi; }
 
-void X64Emitter::ReloadContext() {
-  mov(GetContextReg(), qword[rsp + StackLayout::GUEST_CTX_HOME]);
-}
-
 void X64Emitter::ReloadMembase() {
   mov(GetMembaseReg(), qword[GetContextReg() + 8]);  // membase
 }
-#define __NH_CONCAT(x, y) x##y
-#define _MH_CONCAT(cb, ...) cb (__VA_ARGS__)
-
-#define mh_concat2_m(x, y) __NH_CONCAT(x, y)
-
-#define DECLNOP(n, ...) \
-  static constexpr unsigned char mh_concat2_m(nop_, n)[] = {__VA_ARGS__}
-
-DECLNOP(1, 0x90);
-DECLNOP(2, 0x66, 0x90);
-DECLNOP(3, 0x0F, 0x1F, 0x00);
-DECLNOP(4, 0x0F, 0x1F, 0x40, 0x00);
-DECLNOP(5, 0x0F, 0x1F, 0x44, 0x00, 0x00);
-DECLNOP(6, 0x66, 0x0F, 0x1F, 0x44, 0x00, 0x00);
-DECLNOP(7, 0x0F, 0x1F, 0x80, 0x00, 0x00, 0x00, 0x00);
-DECLNOP(8, 0x0F, 0x1F, 0x84, 00, 00, 00, 00, 00);
-DECLNOP(9, 0x66, 0x0F, 0x1F, 0x84, 00, 00, 00, 00, 00);
-
-static constexpr const unsigned char* const g_noptable[] = {
-    &nop_1[0], &nop_1[0], &nop_2[0], &nop_3[0], &nop_4[0],
-    &nop_5[0], &nop_6[0], &nop_7[0], &nop_8[0], &nop_9[0]};
-
-static constexpr unsigned LENGTHOF_NOPTABLE =
-    sizeof(g_noptable) / sizeof(g_noptable[0]);
 
 // Len Assembly                                   Byte Sequence
 // ============================================================================
@@ -720,17 +694,8 @@ static constexpr unsigned LENGTHOF_NOPTABLE =
 // 8b  NOP DWORD ptr [EAX + EAX*1 + 00000000H]    0F 1F 84 00 00 00 00 00H
 // 9b  66 NOP DWORD ptr [EAX + EAX*1 + 00000000H] 66 0F 1F 84 00 00 00 00 00H
 void X64Emitter::nop(size_t length) {
-  while (length != 0) {
-    unsigned patchsize = length % LENGTHOF_NOPTABLE;
-
-    // patch_memory(locptr, size, (char*)g_noptable[patchsize]);
-
-    for (unsigned i = 0; i < patchsize; ++i) {
-      db(g_noptable[patchsize][i]);
-    }
-
-    //locptr += patchsize;
-    length -= patchsize;
+  for (size_t i = 0; i < length; ++i) {
+    db(0x90);
   }
 }
 
@@ -912,8 +877,17 @@ static const vec128_t xmm_consts[] = {
                     0x80, 0x80, 0x80, 0x80),
     /*XMMShortsToBytes*/
     v128_setr_bytes(0, 2, 4, 6, 8, 10, 12, 14, 0x80, 0x80, 0x80, 0x80, 0x80,
-                    0x80, 0x80, 0x80)
-};
+                    0x80, 0x80, 0x80),
+    /*XMMLVSLTableBase*/
+    vec128b(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15),
+    /*XMMLVSRTableBase*/
+    vec128b(16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31),
+    /* XMMSingleDenormalMask */
+    vec128i(0x7f800000),
+    /* XMMThreeFloatMask */
+    vec128i(~0U, ~0U, ~0U, 0U),
+    /*XMMXenosF16ExtRangeStart*/
+    vec128f(65504)};
 
 void* X64Emitter::FindByteConstantOffset(unsigned bytevalue) {
   for (auto& vec : xmm_consts) {
@@ -1013,7 +987,6 @@ void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {
     // 1111...
     vpcmpeqb(dest, dest);
   } else {
-
     for (size_t i = 0; i < (kConstDataSize / sizeof(vec128_t)); ++i) {
       if (xmm_consts[i] == v) {
         vmovapd(dest, GetXmmConstPtr((XmmConst)i));

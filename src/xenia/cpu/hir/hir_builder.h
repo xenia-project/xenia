@@ -199,6 +199,7 @@ class HIRBuilder {
   Value* VectorCompareSGE(Value* value1, Value* value2, TypeName part_type);
   Value* VectorCompareUGT(Value* value1, Value* value2, TypeName part_type);
   Value* VectorCompareUGE(Value* value1, Value* value2, TypeName part_type);
+  Value* VectorDenormFlush(Value* value1);
 
   Value* Add(Value* value1, Value* value2, uint32_t arithmetic_flags = 0);
   Value* AddWithCarry(Value* value1, Value* value2, Value* value3,

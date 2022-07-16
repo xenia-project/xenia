@@ -104,6 +104,9 @@ struct ValueMask {
 
 class Value {
  public:
+  /*
+    todo : this should be intrusive and be part of Instr instead.
+  */
   typedef struct Use_s {
     Instr* instr;
     Use_s* prev;
@@ -128,17 +131,16 @@ class Value {
   TypeName type;
 
   uint32_t flags;
-  RegAssignment reg;
-  ConstantValue constant;
 
   Instr* def;
   Use* use_head;
   // NOTE: for performance reasons this is not maintained during construction.
   Instr* last_use;
-  Value* local_slot;
-
-  // TODO(benvanik): remove to shrink size.
-  void* tag;
+  RegAssignment reg;
+  union {
+    Value* local_slot;
+    ConstantValue constant;
+  };
 
   Use* AddUse(Arena* arena, Instr* instr);
   void RemoveUse(Use* use);
@@ -209,7 +211,20 @@ class Value {
     flags = other->flags;
     constant.v128 = other->constant.v128;
   }
+  bool HasLocalSlot() const {
+    return !(flags & VALUE_IS_CONSTANT) && local_slot;
+  }
+  void SetLocalSlot(Value* lslot) {
+    assert(!(flags & VALUE_IS_CONSTANT));
+    local_slot = lslot;
+  }
 
+  Value* GetLocalSlot() {
+    return (flags & VALUE_IS_CONSTANT) ? nullptr : local_slot;
+  }
+  const Value* GetLocalSlot() const {
+    return (flags & VALUE_IS_CONSTANT) ? nullptr : local_slot;
+  }
   inline bool IsConstant() const { return !!(flags & VALUE_IS_CONSTANT); }
   bool IsConstantTrue() const {
     if (type == VEC128_TYPE) {
@@ -555,7 +570,10 @@ class Value {
   void Shr(Value* other);
   void Sha(Value* other);
   void RotateLeft(Value* other);
+  void Insert(Value* index, Value* part, TypeName type);
   void Extract(Value* vec, Value* index);
+  void Permute(Value* src1, Value* src2, TypeName type);
+  void Swizzle(uint32_t mask, TypeName type);
   void Select(Value* other, Value* ctrl);
   void Splat(Value* other);
   void VectorCompareEQ(Value* other, TypeName type);
@@ -575,6 +593,8 @@ class Value {
   void VectorAverage(Value* other, TypeName type, bool is_unsigned,
                      bool saturate);
   void ByteSwap();
+  void DenormalFlush();
+
   void CountLeadingZeros(const Value* other);
   bool Compare(Opcode opcode, Value* other);
   hir::Instr* GetDefSkipAssigns();

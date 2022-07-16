@@ -132,10 +132,10 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
     while (outgoing_ordinal != -1) {
       Value* src_value = value_map[outgoing_ordinal];
       assert_not_null(src_value);
-      if (!src_value->local_slot) {
-        src_value->local_slot = builder->AllocLocal(src_value->type);
+      if (!src_value->HasLocalSlot()) {
+        src_value->SetLocalSlot(builder->AllocLocal(src_value->type));
       }
-      builder->StoreLocal(src_value->local_slot, src_value);
+      builder->StoreLocal(src_value->GetLocalSlot(), src_value);
 
       // If we are in the block the value was defined in:
       if (src_value->def->block == block) {
@@ -168,10 +168,10 @@ void DataFlowAnalysisPass::AnalyzeFlow(HIRBuilder* builder,
     while (incoming_ordinal != -1) {
       Value* src_value = value_map[incoming_ordinal];
       assert_not_null(src_value);
-      if (!src_value->local_slot) {
-        src_value->local_slot = builder->AllocLocal(src_value->type);
+      if (!src_value->HasLocalSlot()) {
+        src_value->SetLocalSlot(builder->AllocLocal(src_value->type));
       }
-      Value* local_value = builder->LoadLocal(src_value->local_slot);
+      Value* local_value = builder->LoadLocal(src_value->GetLocalSlot());
       builder->last_instr()->MoveBefore(block->instr_head);
 
       // Swap uses of original value with the local value.
