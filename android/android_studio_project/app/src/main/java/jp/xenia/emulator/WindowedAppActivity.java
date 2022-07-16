@@ -14,6 +14,13 @@ import org.jetbrains.annotations.Nullable;
 import jp.xenia.XeniaRuntimeException;
 
 public abstract class WindowedAppActivity extends Activity {
+    // The EXTRA_CVARS value literal is also used in the native code.
+
+    /**
+     * Name of the Bundle intent extra containing Xenia config variable launch arguments.
+     */
+    public static final String EXTRA_CVARS = "jp.xenia.emulator.WindowedAppActivity.EXTRA_CVARS";
+
     static {
         System.loadLibrary("xenia-app");
     }

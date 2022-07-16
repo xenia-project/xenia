@@ -20,7 +20,12 @@
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/filesystem.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/string_util.h"
+
+#if XE_PLATFORM_ANDROID
+#include <jni.h>
+#endif  // XE_PLATFORM_ANDROID
 
 namespace cvar {
 
@@ -56,6 +61,7 @@ class CommandVar : virtual public ICommandVar {
   const std::string& description() const override;
   void AddToLaunchOptions(cxxopts::Options* options) override;
   void LoadFromLaunchOptions(cxxopts::ParseResult* result) override;
+  void SetCommandLineValue(T val);
   T* current_value() { return current_value_; }
 
  protected:
@@ -67,7 +73,6 @@ class CommandVar : virtual public ICommandVar {
   T Convert(std::string val);
   static std::string ToString(T val);
   void SetValue(T val);
-  void SetCommandLineValue(T val);
   void UpdateValue() override;
 };
 #pragma warning(push)
@@ -297,6 +302,9 @@ inline void AddCommandVar(ICommandVar* cv) {
 void ParseLaunchArguments(int& argc, char**& argv,
                           const std::string_view positional_help,
                           const std::vector<std::string>& positional_options);
+#if XE_PLATFORM_ANDROID
+void ParseLaunchArgumentsFromAndroidBundle(jobject bundle);
+#endif  // XE_PLATFORM_ANDROID
 
 template <typename T>
 IConfigVar* define_configvar(const char* name, T* default_value,

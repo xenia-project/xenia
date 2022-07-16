@@ -31,7 +31,8 @@ namespace xe {
 // must be called in `main`, with a null main thread JNI environment.
 void InitializeAndroidAppFromMainThread(int32_t api_level,
                                         JNIEnv* main_thread_jni_env,
-                                        jobject application_context);
+                                        jobject application_context,
+                                        jobject launch_arguments_bundle);
 void ShutdownAndroidAppFromMainThread();
 
 // May be the minimum supported level if the initialization was done without a
