@@ -280,7 +280,8 @@ enum Opcode {
   OPCODE_ATOMIC_EXCHANGE,
   OPCODE_ATOMIC_COMPARE_EXCHANGE,
   OPCODE_SET_ROUNDING_MODE,
-  __OPCODE_MAX_VALUE,  // Keep at end.
+  OPCODE_VECTOR_DENORMFLUSH,  // converts denormals to signed zeros in a vector
+  __OPCODE_MAX_VALUE,         // Keep at end.
 };
 
 enum OpcodeFlags {
@@ -352,17 +353,42 @@ static bool IsOpcodeBinaryValue(uint32_t signature) {
          ((OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_V << 6));
 }
 
+static void UnpackOpcodeSig(uint32_t sig, OpcodeSignatureType& dest,
+                            OpcodeSignatureType& src1,
+                            OpcodeSignatureType& src2,
+                            OpcodeSignatureType& src3) {
+  dest = GET_OPCODE_SIG_TYPE_DEST(sig);
+  src1 = GET_OPCODE_SIG_TYPE_SRC1(sig);
+  src2 = GET_OPCODE_SIG_TYPE_SRC2(sig);
+  src3 = GET_OPCODE_SIG_TYPE_SRC3(sig);
+}
+
+constexpr uint32_t GetNumOperandsForSig(uint32_t sig) {
+  sig >>= 3;
+
+  uint32_t result = 0;
+  while (sig) {
+    if (sig & 0x7) {
+      ++result;
+    }
+    sig >>= 3;
+  }
+  return result;
+}
 typedef struct {
+  Opcode num;
   uint32_t flags;
   uint32_t signature;
-  const char* name;
-  Opcode num;
 } OpcodeInfo;
 
 #define DEFINE_OPCODE(num, name, sig, flags) extern const OpcodeInfo num##_info;
 #include "xenia/cpu/hir/opcodes.inl"
 #undef DEFINE_OPCODE
 
+const char* GetOpcodeName(Opcode num);
+static inline const char* GetOpcodeName(const OpcodeInfo* info) {
+  return GetOpcodeName(info->num);
+}
 }  // namespace hir
 }  // namespace cpu
 }  // namespace xe

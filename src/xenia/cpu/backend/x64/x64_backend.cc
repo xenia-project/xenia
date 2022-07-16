@@ -446,10 +446,11 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   EmitSaveNonvolatileRegs();
 
   mov(rax, rcx);
-  mov(rsi, rdx);  // context
-  mov(rcx, r8);   // return address
+  mov(rsi, rdx);                                                    // context
+  mov(rdi, ptr[rdx + offsetof(ppc::PPCContext, virtual_membase)]);  // membase
+  mov(rcx, r8);  // return address
   call(rax);
-
+  vzeroupper();
   EmitLoadNonvolatileRegs();
 
   code_offsets.epilog = getSize();
@@ -500,7 +501,8 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
 
   code_offsets.prolog_stack_alloc = getSize();
   code_offsets.body = getSize();
-
+  // chrispy: added this for proper vmsum impl, avx2 bitshifts
+  vzeroupper();
   // Save off volatile registers.
   EmitSaveVolatileRegs();
 

@@ -127,6 +127,26 @@ struct VECTOR_CONVERT_F2I
 };
 EMITTER_OPCODE_TABLE(OPCODE_VECTOR_CONVERT_F2I, VECTOR_CONVERT_F2I);
 
+struct VECTOR_DENORMFLUSH
+    : Sequence<VECTOR_DENORMFLUSH,
+               I<OPCODE_VECTOR_DENORMFLUSH, V128Op, V128Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.vxorps(e.xmm1, e.xmm1, e.xmm1);  // 0.25 P0123
+
+    e.vandps(e.xmm0, i.src1,
+             e.GetXmmConstPtr(XMMSingleDenormalMask));  // 0.25 P0123
+    e.vcmpneqps(e.xmm2, e.xmm0, e.xmm1);                // 0.5 P01
+    e.vandps(e.xmm1, i.src1,
+             e.GetXmmConstPtr(XMMSignMaskF32));  // 0.5 P0123 take signs, zeros
+                                                 // must keep their signs
+    e.vandps(e.xmm0, i.src1, e.xmm2);            // P0123
+    e.vorps(i.dest, e.xmm0, e.xmm1);  // P0123 make sure zeros keep signs
+
+    // if it does not equal zero, we stay
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_VECTOR_DENORMFLUSH, VECTOR_DENORMFLUSH);
+
 // ============================================================================
 // OPCODE_LOAD_VECTOR_SHL
 // ============================================================================
@@ -154,15 +174,20 @@ struct LOAD_VECTOR_SHL_I8
     if (i.src1.is_constant) {
       auto sh = i.src1.constant();
       assert_true(sh < xe::countof(lvsl_table));
-      e.mov(e.rax, (uintptr_t)&lvsl_table[sh]);
-      e.vmovaps(i.dest, e.ptr[e.rax]);
+      if (sh == 0) {
+        e.vmovdqa(i.dest, e.GetXmmConstPtr(XMMLVSLTableBase));
+      } else {
+        // this is probably extremely rare
+        e.LoadConstantXmm(i.dest, lvsl_table[sh]);
+      }
     } else {
       // TODO(benvanik): find a cheaper way of doing this.
-      e.movzx(e.rdx, i.src1);
-      e.and_(e.dx, 0xF);
-      e.shl(e.dx, 4);
-      e.mov(e.rax, (uintptr_t)lvsl_table);
-      e.vmovaps(i.dest, e.ptr[e.rax + e.rdx]);
+      // chrispy: removed mask, ppc_emit_altivec already pre-ands it.
+      e.vmovd(e.xmm0, i.src1.reg().cvt32());
+      // broadcast byte
+      // dont use broadcastb with avx2, its slower than shuf
+      e.vpshufb(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMZero));
+      e.vpaddb(i.dest, e.xmm0, e.GetXmmConstPtr(XMMLVSLTableBase));
     }
   }
 };
@@ -195,15 +220,23 @@ struct LOAD_VECTOR_SHR_I8
     if (i.src1.is_constant) {
       auto sh = i.src1.constant();
       assert_true(sh < xe::countof(lvsr_table));
-      e.mov(e.rax, (uintptr_t)&lvsr_table[sh]);
-      e.vmovaps(i.dest, e.ptr[e.rax]);
+      if (sh == 0) {
+        e.vmovdqa(i.dest, e.GetXmmConstPtr(XMMLVSRTableBase));
+      } else {
+        e.LoadConstantXmm(i.dest, lvsr_table[sh]);
+      }
     } else {
       // TODO(benvanik): find a cheaper way of doing this.
-      e.movzx(e.rdx, i.src1);
-      e.and_(e.dx, 0xF);
-      e.shl(e.dx, 4);
-      e.mov(e.rax, (uintptr_t)lvsr_table);
-      e.vmovaps(i.dest, e.ptr[e.rax + e.rdx]);
+
+      // chrispy: removed mask, ppc_emit_altivec already pre-ands it. removed
+      // lookup as well, compute from LVSR base instead
+      e.vmovd(e.xmm0, i.src1.reg().cvt32());
+      e.vmovdqa(e.xmm1, e.GetXmmConstPtr(XMMLVSRTableBase));
+      // broadcast byte
+      // dont use broadcastb with avx2, its slower than shuf
+      e.vpshufb(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMZero));
+
+      e.vpsubb(i.dest, e.xmm1, e.xmm0);
     }
   }
 };
@@ -728,7 +761,7 @@ struct VECTOR_SHL_V128
     }
   }
 
-static void EmitInt8(X64Emitter& e, const EmitArgType& i) {
+  static void EmitInt8(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): native version (with shift magic).
 
     if (e.IsFeatureEnabled(kX64EmitAVX2)) {
@@ -1793,6 +1826,14 @@ struct PERMUTE_I32
     }
   }
 };
+//todo: use this on const src1
+static vec128_t FixupConstantShuf8(vec128_t input) {
+  for (uint32_t i = 0; i < 16; ++i) {
+    input.u8[i] ^= 0x03;
+    input.u8[i] &= 0x1F;
+  }
+  return input;
+}
 struct PERMUTE_V128
     : Sequence<PERMUTE_V128,
                I<OPCODE_PERMUTE, V128Op, V128Op, V128Op, V128Op>> {
@@ -1855,7 +1896,8 @@ struct PERMUTE_V128
       } else {
         e.vpshufb(src3_shuf, i.src3, e.xmm2);
       }
-      // Build a mask with values in src2 having 0 and values in src3 having 1.
+      // Build a mask with values in src2 having 0 and values in src3
+      // having 1.
       e.vpcmpgtb(i.dest, e.xmm2, e.GetXmmConstPtr(XMMPermuteControl15));
       e.vpblendvb(i.dest, src2_shuf, src3_shuf, i.dest);
     }

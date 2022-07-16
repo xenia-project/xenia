@@ -365,7 +365,7 @@ bool RegisterAllocationPass::SpillOneRegister(HIRBuilder* builder, Block* block,
   auto new_head_use = next_use;
 
   // Allocate local.
-  if (spill_value->local_slot) {
+  if (spill_value->HasLocalSlot()) {
     // Value is already assigned a slot. Since we allocate in order and this is
     // all SSA we know the stored value will be exactly what we want. Yay,
     // we can prevent the redundant store!
@@ -373,10 +373,10 @@ bool RegisterAllocationPass::SpillOneRegister(HIRBuilder* builder, Block* block,
     // use the spilled value and prevent the need for more locals.
   } else {
     // Allocate a local slot.
-    spill_value->local_slot = builder->AllocLocal(spill_value->type);
+    spill_value->SetLocalSlot(builder->AllocLocal(spill_value->type));
 
     // Add store.
-    builder->StoreLocal(spill_value->local_slot, spill_value);
+    builder->StoreLocal(spill_value->GetLocalSlot(), spill_value);
     auto spill_store = builder->last_instr();
     auto spill_store_use = spill_store->src2_use;
     assert_null(spill_store_use->prev);
@@ -417,7 +417,7 @@ bool RegisterAllocationPass::SpillOneRegister(HIRBuilder* builder, Block* block,
   // use is after the instruction requesting the spill we know we haven't
   // done allocation for that code yet and can let that be handled
   // automatically when we get to it.
-  auto new_value = builder->LoadLocal(spill_value->local_slot);
+  auto new_value = builder->LoadLocal(spill_value->GetLocalSlot());
   auto spill_load = builder->last_instr();
   spill_load->MoveBefore(next_use->instr);
   // Note: implicit first use added.
@@ -429,7 +429,7 @@ bool RegisterAllocationPass::SpillOneRegister(HIRBuilder* builder, Block* block,
 
   // Set the local slot of the new value to our existing one. This way we will
   // reuse that same memory if needed.
-  new_value->local_slot = spill_value->local_slot;
+  new_value->SetLocalSlot( spill_value->GetLocalSlot());
 
   // Rename all future uses of the SSA value to the new value as loaded
   // from the local.

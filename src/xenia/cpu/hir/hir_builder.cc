@@ -260,9 +260,9 @@ void HIRBuilder::Dump(StringBuffer* str) {
         str->Append(" = ");
       }
       if (i->flags) {
-        str->AppendFormat("{}.{}", info->name, i->flags);
+        str->AppendFormat("{}.{}", GetOpcodeName(info), i->flags);
       } else {
-        str->Append(info->name);
+        str->Append(GetOpcodeName(info));
       }
       if (src1_type) {
         str->Append(' ');
@@ -712,7 +712,6 @@ Value* HIRBuilder::AllocValue(TypeName type) {
   value->use_head = NULL;
   value->last_use = NULL;
   value->local_slot = NULL;
-  value->tag = NULL;
   value->reg.set = NULL;
   value->reg.index = -1;
   return value;
@@ -723,12 +722,11 @@ Value* HIRBuilder::CloneValue(Value* source) {
   value->ordinal = next_value_ordinal_++;
   value->type = source->type;
   value->flags = source->flags;
+  value->local_slot = NULL;
   value->constant.v128 = source->constant.v128;
   value->def = NULL;
   value->use_head = NULL;
   value->last_use = NULL;
-  value->local_slot = NULL;
-  value->tag = NULL;
   value->reg.set = NULL;
   value->reg.index = -1;
   return value;
@@ -1493,7 +1491,16 @@ Value* HIRBuilder::VectorCompareUGE(Value* value1, Value* value2,
   return VectorCompareXX(OPCODE_VECTOR_COMPARE_UGE_info, value1, value2,
                          part_type);
 }
-
+Value* HIRBuilder::VectorDenormFlush(Value* value1) {
+  return value1;
+  ASSERT_VECTOR_TYPE(value1);
+  Instr* i =
+      AppendInstr(OPCODE_VECTOR_DENORMFLUSH_info, 0, AllocValue(VEC128_TYPE));
+  i->set_src1(value1);
+  i->src2.value = nullptr;
+  i->src3.value = nullptr;
+  return i->dest;
+}
 Value* HIRBuilder::Add(Value* value1, Value* value2,
                        uint32_t arithmetic_flags) {
   ASSERT_TYPES_EQUAL(value1, value2);
@@ -1713,13 +1720,13 @@ Value* HIRBuilder::Log2(Value* value) {
   return i->dest;
 }
 
+
 Value* HIRBuilder::DotProduct3(Value* value1, Value* value2) {
   ASSERT_VECTOR_TYPE(value1);
   ASSERT_VECTOR_TYPE(value2);
   ASSERT_TYPES_EQUAL(value1, value2);
 
-  Instr* i =
-      AppendInstr(OPCODE_DOT_PRODUCT_3_info, 0, AllocValue(FLOAT32_TYPE));
+  Instr* i = AppendInstr(OPCODE_DOT_PRODUCT_3_info, 0, AllocValue(VEC128_TYPE));
   i->set_src1(value1);
   i->set_src2(value2);
   i->src3.value = NULL;
@@ -1731,8 +1738,7 @@ Value* HIRBuilder::DotProduct4(Value* value1, Value* value2) {
   ASSERT_VECTOR_TYPE(value2);
   ASSERT_TYPES_EQUAL(value1, value2);
 
-  Instr* i =
-      AppendInstr(OPCODE_DOT_PRODUCT_4_info, 0, AllocValue(FLOAT32_TYPE));
+  Instr* i = AppendInstr(OPCODE_DOT_PRODUCT_4_info, 0, AllocValue(VEC128_TYPE));
   i->set_src1(value1);
   i->set_src2(value2);
   i->src3.value = NULL;

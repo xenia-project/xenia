@@ -15,14 +15,23 @@ namespace hir {
 
 #define DEFINE_OPCODE(num, name, sig, flags) \
   const OpcodeInfo num##_info = {            \
+      num,                                   \
       flags,                                 \
       sig,                                   \
-      name,                                  \
-      num,                                   \
   };
 #include "xenia/cpu/hir/opcodes.inl"
 #undef DEFINE_OPCODE
 
+const char* GetOpcodeName(Opcode num) {
+  switch (num) {
+#define DEFINE_OPCODE(num, name, sig, flags) \
+  case num:                                  \
+    return name;
+#include "xenia/cpu/hir/opcodes.inl"
+#undef DEFINE_OPCODE
+  }
+  return "invalid opcode";
+}
 }  // namespace hir
 }  // namespace cpu
 }  // namespace xe

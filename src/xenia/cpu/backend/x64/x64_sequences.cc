@@ -35,11 +35,14 @@
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 #include "xenia/cpu/backend/x64/x64_op.h"
 #include "xenia/cpu/backend/x64/x64_tracers.h"
+// needed for stmxcsr
+#include "xenia/cpu/backend/x64/x64_stack_layout.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/processor.h"
 
 DEFINE_bool(use_fast_dot_product, false,
-            "Experimental optimization, much shorter sequence on dot products, treating inf as overflow instead of using mcxsr"
+            "Experimental optimization, much shorter sequence on dot products, "
+            "treating inf as overflow instead of using mcxsr"
             "four insn dotprod",
             "CPU");
 namespace xe {
@@ -1996,8 +1999,8 @@ struct DIV_V128 : Sequence<DIV_V128, I<OPCODE_DIV, V128Op, V128Op, V128Op>> {
     assert_true(!i.instr->flags);
     EmitAssociativeBinaryXmmOp(e, i,
                                [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
-                               //  e.vrcpps(e.xmm0, src2);
-                                 //e.vmulps(dest, src1, e.xmm0);
+                                 //  e.vrcpps(e.xmm0, src2);
+                                 // e.vmulps(dest, src1, e.xmm0);
                                  e.vdivps(dest, src1, src2);
                                });
   }
@@ -2607,68 +2610,84 @@ struct LOG2_V128 : Sequence<LOG2_V128, I<OPCODE_LOG2, V128Op, V128Op>> {
 };
 EMITTER_OPCODE_TABLE(OPCODE_LOG2, LOG2_F32, LOG2_F64, LOG2_V128);
 
-struct DOT_PRODUCT_V128 {
-  static void Emit(X64Emitter& e, Xmm dest, Xmm src1, Xmm src2, uint8_t imm) {
-    if (cvars::use_fast_dot_product) {
-      e.vdpps(dest, src1, src2, imm);
-      e.vandps(e.xmm0, dest, e.GetXmmConstPtr(XMMAbsMaskPS));
-      e.vcmpgeps(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMFloatInf));
-      e.vblendvps(dest, dest, e.GetXmmConstPtr(XMMQNaN), e.xmm0);
-
-    } else {
-      // TODO(benvanik): apparently this is very slow
-      // - find alternative?
-      Xbyak::Label end;
-      e.inLocalLabel();
-
-      // Grab space to put MXCSR.
-      // TODO(gibbed): stick this in TLS or
-      // something?
-      e.sub(e.rsp, 8);
-
-      // Grab MXCSR and mask off the overflow flag,
-      // because it's sticky.
-      e.vstmxcsr(e.dword[e.rsp]);
-      e.mov(e.eax, e.dword[e.rsp]);
-      e.and_(e.eax, uint32_t(~8));
-      e.mov(e.dword[e.rsp], e.eax);
-      e.vldmxcsr(e.dword[e.rsp]);
-
-      // Hey we can do the dot product now.
-      e.vdpps(dest, src1, src2, imm);
-
-      // Load MXCSR...
-      e.vstmxcsr(e.dword[e.rsp]);
-
-      // ..free our temporary space and get MXCSR at
-      // the same time
-      e.pop(e.rax);
-
-      // Did we overflow?
-      e.test(e.al, 8);
-      e.jz(end);
-
-      // Infinity? HA! Give NAN.
-      e.vmovdqa(dest, e.GetXmmConstPtr(XMMQNaN));
-
-      e.L(end);
-      e.outLocalLabel();
-    }
-  }
-};
-
 // ============================================================================
 // OPCODE_DOT_PRODUCT_3
 // ============================================================================
 struct DOT_PRODUCT_3_V128
     : Sequence<DOT_PRODUCT_3_V128,
-               I<OPCODE_DOT_PRODUCT_3, F32Op, V128Op, V128Op>> {
+               I<OPCODE_DOT_PRODUCT_3, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // https://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
-    EmitCommutativeBinaryXmmOp(
-        e, i, [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
-          DOT_PRODUCT_V128::Emit(e, dest, src1, src2, 0b01110001);
-        });
+    // todo: add fast_dot_product path that just checks for infinity instead of
+    // using mxcsr
+    auto mxcsr_storage = e.dword[e.rsp + StackLayout::GUEST_SCRATCH64];
+
+    // this is going to hurt a bit...
+    /*
+    this implementation is accurate, it matches the results of xb360 vmsum3
+    except that vmsum3 is often off by 1 bit, but its extremely slow. it is a
+    long, unbroken chain of dependencies, and the three uses of mxcsr all cost
+    about 15-20 cycles at the very least on amd zen processors. on older amd the
+    figures agner has are pretty horrible. it looks like its just as bad on
+    modern intel cpus also up until just recently. perhaps a better way of
+    detecting overflow would be to just compare with inf. todo: test whether cmp
+    with inf can replace
+    */
+    e.vstmxcsr(mxcsr_storage);
+
+    e.mov(e.eax, 8);
+
+    auto src1v = e.xmm0;
+    auto src2v = e.xmm1;
+    if (i.src1.is_constant) {
+      src1v = e.xmm0;
+      e.LoadConstantXmm(src1v, i.src1.constant());
+    } else {
+      src1v = i.src1.reg();
+    }
+    if (i.src2.is_constant) {
+      src2v = e.xmm1;
+      e.LoadConstantXmm(src2v, i.src2.constant());
+    } else {
+      src2v = i.src2.reg();
+    }
+    e.not_(e.eax);
+    // todo: maybe the top element should be cleared by the InstrEmit_ function
+    // so that in the future this could be optimized away if the top is known to
+    // be zero. Right now im not sure that happens often though and its
+    // currently not worth it also, maybe pre-and if constant
+    e.vandps(e.xmm3, src1v, e.GetXmmConstPtr(XMMThreeFloatMask));
+    e.vandps(e.xmm2, src2v, e.GetXmmConstPtr(XMMThreeFloatMask));
+
+    e.and_(mxcsr_storage, e.eax);
+    e.vldmxcsr(mxcsr_storage);  // overflow flag is cleared, now we're good to
+                                // go
+
+    e.vcvtps2pd(e.ymm0, e.xmm3);
+    e.vcvtps2pd(e.ymm1, e.xmm2);
+    /*
+        ymm0 = src1 as doubles, ele 3 cleared
+        ymm1 = src2 as doubles, ele 3 cleared
+    */
+    e.vmulpd(e.ymm3, e.ymm0, e.ymm1);
+    e.vextractf128(e.xmm2, e.ymm3, 1);
+    e.vunpckhpd(e.xmm0, e.xmm3, e.xmm3);  // get element [1] in xmm3
+    e.vaddsd(e.xmm3, e.xmm3, e.xmm2);
+    e.not_(e.eax);
+    e.vaddsd(e.xmm2, e.xmm3, e.xmm0);
+    e.vcvtsd2ss(e.xmm1, e.xmm2);
+
+    // this is awful
+    e.vstmxcsr(mxcsr_storage);
+    e.test(mxcsr_storage, e.eax);
+    Xbyak::Label ret_qnan;
+    Xbyak::Label done;
+    e.jnz(ret_qnan);
+    // e.vshufps(i.dest, e.xmm1,e.xmm1, 0);  // broadcast
+    e.vbroadcastss(i.dest, e.xmm1);
+    e.jmp(done);
+    e.L(ret_qnan);
+    e.vmovaps(i.dest, e.GetXmmConstPtr(XMMQNaN));
+    e.L(done);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_DOT_PRODUCT_3, DOT_PRODUCT_3_V128);
@@ -2678,13 +2697,81 @@ EMITTER_OPCODE_TABLE(OPCODE_DOT_PRODUCT_3, DOT_PRODUCT_3_V128);
 // ============================================================================
 struct DOT_PRODUCT_4_V128
     : Sequence<DOT_PRODUCT_4_V128,
-               I<OPCODE_DOT_PRODUCT_4, F32Op, V128Op, V128Op>> {
+               I<OPCODE_DOT_PRODUCT_4, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // https://msdn.microsoft.com/en-us/library/bb514054(v=vs.90).aspx
-    EmitCommutativeBinaryXmmOp(
-        e, i, [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
-          DOT_PRODUCT_V128::Emit(e, dest, src1, src2, 0b11110001);
-        });
+    // todo: add fast_dot_product path that just checks for infinity instead of
+    // using mxcsr
+    auto mxcsr_storage = e.dword[e.rsp + StackLayout::GUEST_SCRATCH64];
+
+    e.vstmxcsr(mxcsr_storage);
+
+    e.mov(e.eax, 8);
+
+    auto src1v = e.xmm3;
+    auto src2v = e.xmm2;
+    if (i.src1.is_constant) {
+      src1v = e.xmm3;
+      e.LoadConstantXmm(src1v, i.src1.constant());
+    } else {
+      src1v = i.src1.reg();
+    }
+    if (i.src2.is_constant) {
+      src2v = e.xmm2;
+      e.LoadConstantXmm(src2v, i.src2.constant());
+    } else {
+      src2v = i.src2.reg();
+    }
+    e.not_(e.eax);
+
+    e.and_(mxcsr_storage, e.eax);
+    e.vldmxcsr(mxcsr_storage);
+
+    e.vcvtps2pd(e.ymm0, src1v);
+    e.vcvtps2pd(e.ymm1, src2v);
+    /*
+        e.vandps(e.xmm3, src1v, e.GetXmmConstPtr(XMMThreeFloatMask));
+    e.vandps(e.xmm2, src2v, e.GetXmmConstPtr(XMMThreeFloatMask));
+
+    e.and_(mxcsr_storage, e.eax);
+    e.vldmxcsr(mxcsr_storage);  // overflow flag is cleared, now we're good to
+                                // go
+
+    e.vcvtps2pd(e.ymm0, e.xmm3);
+    e.vcvtps2pd(e.ymm1, e.xmm2);
+
+
+    e.vmulpd(e.ymm5, e.ymm0, e.ymm1);
+    e.vextractf128(e.xmm4, e.ymm5, 1);
+    e.vunpckhpd(e.xmm3, e.xmm5, e.xmm5);  // get element [1] in xmm3
+    e.vaddsd(e.xmm5, e.xmm5, e.xmm4);
+    e.not_(e.eax);
+    e.vaddsd(e.xmm2, e.xmm5, e.xmm3);
+    e.vcvtsd2ss(e.xmm1, e.xmm2);
+
+    */
+    e.vmulpd(e.ymm3, e.ymm0, e.ymm1);
+    e.vextractf128(e.xmm2, e.ymm3, 1);
+    e.vaddpd(e.xmm3, e.xmm3, e.xmm2);
+
+    e.vunpckhpd(e.xmm0, e.xmm3, e.xmm3);
+    e.not_(e.eax);
+    e.vaddsd(e.xmm2, e.xmm3, e.xmm0);
+    e.vcvtsd2ss(e.xmm1, e.xmm2);
+
+    e.vstmxcsr(mxcsr_storage);
+
+    e.test(mxcsr_storage, e.eax);
+
+    Xbyak::Label ret_qnan;
+    Xbyak::Label done;
+    e.jnz(ret_qnan);  // reorder these jmps later, just want to get this fix in
+                      //  e.vshufps(i.dest, e.xmm1, e.xmm1, 0);
+    e.vbroadcastss(i.dest, e.xmm1);
+    e.jmp(done);
+    e.L(ret_qnan);
+    e.vmovaps(i.dest, e.GetXmmConstPtr(XMMQNaN));
+    e.L(done);
+    //   e.DebugBreak();
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_DOT_PRODUCT_4, DOT_PRODUCT_4_V128);
@@ -2759,7 +2846,6 @@ struct AND_I64 : Sequence<AND_I64, I<OPCODE_AND, I64Op, I64Op, I64Op>> {
 };
 struct AND_V128 : Sequence<AND_V128, I<OPCODE_AND, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-
     EmitCommutativeBinaryXmmOp(e, i,
                                [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
                                  e.vpand(dest, src1, src2);
@@ -3419,7 +3505,7 @@ bool SelectSequence(X64Emitter* e, const Instr* i, const Instr** new_tail) {
       return true;
     }
   }
-  XELOGE("No sequence match for variant {}", i->opcode->name);
+  XELOGE("No sequence match for variant {}", GetOpcodeName(i->opcode));
   return false;
 }
 

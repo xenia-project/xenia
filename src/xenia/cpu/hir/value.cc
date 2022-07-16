@@ -864,10 +864,112 @@ void Value::Extract(Value* vec, Value* index) {
       break;
   }
 }
+void Value::Permute(Value* src1, Value* src2, TypeName type) {
+  if (type == INT8_TYPE) {
+    uint8_t table[32];
 
+    for (uint32_t i = 0; i < 16; ++i) {
+      table[i] = src1->constant.v128.u8[i];
+      table[i + 16] = src2->constant.v128.u8[i];
+    }
+
+    for (uint32_t i = 0; i < 16; ++i) {
+      constant.v128.u8[i] = table[(constant.v128.u8[i] ^ 3) & 0x1f];
+    }
+  } else if (type == INT16_TYPE) {
+    vec128_t perm = (constant.v128 & vec128s(0xF)) ^ vec128s(0x1);
+    vec128_t perm_ctrl = vec128b(0);
+    for (int i = 0; i < 8; i++) {
+      perm_ctrl.i16[i] = perm.i16[i] > 7 ? -1 : 0;
+
+      auto v = uint8_t(perm.u16[i]);
+      perm.u8[i * 2] = v * 2;
+      perm.u8[i * 2 + 1] = v * 2 + 1;
+    }
+    auto lod = [](const vec128_t& v) {
+      return _mm_loadu_si128((const __m128i*)&v);
+    };
+    auto sto = [](vec128_t& v, __m128i x) {
+      return _mm_storeu_si128((__m128i*)&v, x);
+    };
+
+    __m128i xmm1 = lod(src1->constant.v128);
+    __m128i xmm2 = lod(src2->constant.v128);
+    xmm1 = _mm_shuffle_epi8(xmm1, lod(perm));
+    xmm2 = _mm_shuffle_epi8(xmm2, lod(perm));
+    uint8_t mask = 0;
+    for (int i = 0; i < 8; i++) {
+      if (perm_ctrl.i16[i] == 0) {
+        mask |= 1 << (7 - i);
+      }
+    }
+
+    vec128_t unp_mask = vec128b(0);
+    for (int i = 0; i < 8; i++) {
+      if (mask & (1 << i)) {
+        unp_mask.u16[i] = 0xFFFF;
+      }
+    }
+
+    sto(constant.v128, _mm_blendv_epi8(xmm1, xmm2, lod(unp_mask)));
+
+  } else {
+    assert_unhandled_case(type);
+  }
+}
+void Value::Insert(Value* index, Value* part, TypeName type) {
+  vec128_t* me = &constant.v128;
+
+  switch (type) {
+    case INT8_TYPE:
+      me->u8[index->constant.u8 ^ 3] = part->constant.u8;
+      break;
+    case INT16_TYPE:
+      me->u16[index->constant.u8 ^ 1] = part->constant.u16;
+      break;
+    case INT32_TYPE:
+      me->u32[index->constant.u8] = part->constant.u32;
+      break;
+  }
+}
+void Value::Swizzle(uint32_t mask, TypeName type) {
+  if (type == INT32_TYPE || type == FLOAT32_TYPE) {
+    vec128_t result = vec128b(0);
+    for (uint32_t i = 0; i < 4; ++i) {
+      result.u32[i] = constant.v128.u32[(mask >> (i * 2)) & 0b11];
+    }
+    constant.v128 = result;
+  } else {
+    assert_unhandled_case(type);
+  }
+}
 void Value::Select(Value* other, Value* ctrl) {
-  // TODO
-  assert_always();
+  if (ctrl->type == VEC128_TYPE) {
+    constant.v128.low = (constant.v128.low & ~ctrl->constant.v128.low) |
+                        (other->constant.v128.low & ctrl->constant.v128.low);
+    constant.v128.high = (constant.v128.high & ~ctrl->constant.v128.high) |
+                         (other->constant.v128.high & ctrl->constant.v128.high);
+
+  } else {
+    if (ctrl->constant.u8) {
+      switch (other->type) {
+        case INT8_TYPE:
+          constant.u8 = other->constant.u8;
+          break;
+        case INT16_TYPE:
+          constant.u16 = other->constant.u16;
+          break;
+        case INT32_TYPE:
+        case FLOAT32_TYPE:
+          constant.u32 = other->constant.u32;
+          break;
+        case INT64_TYPE:
+        case FLOAT64_TYPE:
+          constant.u64 = other->constant.u64;
+          break;
+      }
+    }
+  }
 }
 
 void Value::Splat(Value* other) {
@@ -1532,7 +1634,15 @@ void Value::ByteSwap() {
       break;
   }
 }
-
+void Value::DenormalFlush() {
+  for (int i = 0; i < 4; ++i) {
+    uint32_t current_element = constant.v128.u32[i];
+    if ((current_element & 0x7f800000) == 0) {
+      current_element = current_element & 0x80000000;
+    }
+    constant.v128.u32[i] = current_element;
+  }
+}
 void Value::CountLeadingZeros(const Value* other) {
   switch (other->type) {
     case INT8_TYPE:
