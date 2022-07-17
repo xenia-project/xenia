@@ -140,7 +140,7 @@ public abstract class WindowedAppActivity extends Activity {
         }
 
         @Override
-        public boolean onGenericMotion(View v, MotionEvent event) {
+        public boolean onGenericMotion(final View view, final MotionEvent event) {
             if (mAppContext == 0) {
                 return false;
             }
@@ -149,7 +149,7 @@ public abstract class WindowedAppActivity extends Activity {
 
         @SuppressLint("ClickableViewAccessibility")
         @Override
-        public boolean onTouch(View v, MotionEvent event) {
+        public boolean onTouch(final View view, final MotionEvent event) {
             if (mAppContext == 0) {
                 return false;
             }
