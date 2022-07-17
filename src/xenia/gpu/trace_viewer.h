@@ -10,7 +10,7 @@
 #ifndef XENIA_GPU_TRACE_VIEWER_H_
 #define XENIA_GPU_TRACE_VIEWER_H_
 
-#include <string>
+#include <string_view>
 
 #include "xenia/emulator.h"
 #include "xenia/gpu/shader.h"
@@ -95,7 +95,7 @@ class TraceViewer : public xe::ui::WindowedApp {
     kHostDisasm,
   };
 
-  bool Load(const std::filesystem::path& trace_file_path);
+  bool Load(const std::string_view trace_file_path);
 
   void DrawUI();
   void DrawControllerUI();
