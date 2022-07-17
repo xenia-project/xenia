@@ -431,6 +431,7 @@ def get_clang_format_binary():
     attempts = [
         'C:\\Program Files\\LLVM\\bin\\clang-format.exe',
         'C:\\Program Files (x86)\\LLVM\\bin\\clang-format.exe',
+        'clang-format-14',
         'clang-format-13',
         'clang-format',
         ]
