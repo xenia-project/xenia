@@ -32,6 +32,8 @@ class SimplificationPass : public ConditionalGroupSubpass {
   bool SimplifyAssignments(hir::HIRBuilder* builder);
   hir::Value* CheckValue(hir::Value* value, bool& result);
   bool SimplifyBitArith(hir::HIRBuilder* builder);
+  bool BackpropTruncations(hir::Instr* i, hir::HIRBuilder* builder);
+  bool BackpropTruncations(hir::HIRBuilder* builder);
   // handle either or or xor with 0
   bool CheckOrXorZero(hir::Instr* i);
   bool CheckOr(hir::Instr* i, hir::HIRBuilder* builder);
@@ -44,6 +46,17 @@ class SimplificationPass : public ConditionalGroupSubpass {
   bool CheckSelect(hir::Instr* i, hir::HIRBuilder* builder);
   bool CheckScalarConstCmp(hir::Instr* i, hir::HIRBuilder* builder);
   bool CheckIsTrueIsFalse(hir::Instr* i, hir::HIRBuilder* builder);
+  bool CheckSHRByConst(hir::Instr* i, hir::HIRBuilder* builder,
+                       hir::Value* variable, unsigned int shift);
+
+  bool CheckSHR(hir::Instr* i, hir::HIRBuilder* builder);
+  bool CheckSAR(hir::Instr* i, hir::HIRBuilder* builder);
+  // called by CheckXor, handles transforming a 1 bit value xored against 1
+  bool CheckBooleanXor1(hir::Instr* i, hir::HIRBuilder* builder,
+                        hir::Value* xored);
+  bool CheckXorOfTwoBools(hir::Instr* i, hir::HIRBuilder* builder,
+                          hir::Value* b1, hir::Value* b2);
+
   // for rlwinm
   bool TryHandleANDROLORSHLSeq(hir::Instr* i, hir::HIRBuilder* builder);
   bool TransformANDROLORSHLSeq(

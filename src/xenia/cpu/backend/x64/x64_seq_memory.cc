@@ -12,11 +12,11 @@
 #include <algorithm>
 #include <cstring>
 
+#include "xenia/base/cvar.h"
 #include "xenia/base/memory.h"
 #include "xenia/cpu/backend/x64/x64_op.h"
 #include "xenia/cpu/backend/x64/x64_tracers.h"
 #include "xenia/cpu/ppc/ppc_context.h"
-#include "xenia/base/cvar.h"
 
 DEFINE_bool(
     elide_e0_check, false,
@@ -83,11 +83,17 @@ RegExp ComputeMemoryAddressOffset(X64Emitter& e, const T& guest,
         !is_definitely_not_eo(guest)) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
+
+      // todo: do branching or use an alt membase and cmov
       e.xor_(e.eax, e.eax);
-      e.cmp(guest.reg().cvt32(), 0xE0000000 - offset_const);
+      e.lea(e.edx, e.ptr[guest.reg().cvt32() + offset_const]);
+
+      e.cmp(e.edx, e.GetContextReg().cvt32());
       e.setae(e.al);
       e.shl(e.eax, 12);
-      e.add(e.eax, guest.reg().cvt32());
+      e.add(e.eax, e.edx);
+      return e.GetMembaseReg() + e.rax;
+
     } else {
       // Clear the top 32 bits, as they are likely garbage.
       // TODO(benvanik): find a way to avoid doing this.
@@ -122,7 +128,7 @@ RegExp ComputeMemoryAddress(X64Emitter& e, const T& guest) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
       e.xor_(e.eax, e.eax);
-      e.cmp(guest.reg().cvt32(), 0xE0000000);
+      e.cmp(guest.reg().cvt32(), e.GetContextReg().cvt32());
       e.setae(e.al);
       e.shl(e.eax, 12);
       e.add(e.eax, guest.reg().cvt32());
@@ -208,7 +214,7 @@ struct ATOMIC_COMPARE_EXCHANGE_I32
     if (xe::memory::allocation_granularity() > 0x1000) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
-      e.cmp(i.src1.reg().cvt32(), 0xE0000000);
+      e.cmp(i.src1.reg().cvt32(), e.GetContextReg().cvt32());
       e.setae(e.cl);
       e.movzx(e.ecx, e.cl);
       e.shl(e.ecx, 12);
@@ -229,7 +235,7 @@ struct ATOMIC_COMPARE_EXCHANGE_I64
     if (xe::memory::allocation_granularity() > 0x1000) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
-      e.cmp(i.src1.reg().cvt32(), 0xE0000000);
+      e.cmp(i.src1.reg().cvt32(), e.GetContextReg().cvt32());
       e.setae(e.cl);
       e.movzx(e.ecx, e.cl);
       e.shl(e.ecx, 12);
@@ -1113,7 +1119,7 @@ struct CACHE_CONTROL
       if (xe::memory::allocation_granularity() > 0x1000) {
         // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
         // it via memory mapping.
-        e.cmp(i.src1.reg().cvt32(), 0xE0000000);
+        e.cmp(i.src1.reg().cvt32(), e.GetContextReg().cvt32());
         e.setae(e.al);
         e.movzx(e.eax, e.al);
         e.shl(e.eax, 12);

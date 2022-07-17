@@ -759,6 +759,18 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             i->Remove();
             result = true;
           }
+
+          else if (i->src2.value->IsConstantZero() && i->src3.value->IsConstantZero() &&
+                   i->flags == INT8_TYPE /*probably safe for int16 too*/) {
+            /*
+                chrispy: hoisted this check here from x64_seq_vector where if src1 is not constant, but src2 and src3 are zero, then we know the result will always be zero
+            */
+
+            v->set_zero(VEC128_TYPE);
+            i->Remove();
+            result = true;
+          }
+          
           break;
         }
         case OPCODE_INSERT:

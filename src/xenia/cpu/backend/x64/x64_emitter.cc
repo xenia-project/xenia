@@ -32,6 +32,9 @@
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/function.h"
 #include "xenia/cpu/function_debug_info.h"
+#include "xenia/cpu/hir/instr.h"
+#include "xenia/cpu/hir/opcodes.h"
+#include "xenia/cpu/hir/value.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/symbol.h"
 #include "xenia/cpu/thread_state.h"
@@ -393,7 +396,8 @@ void X64Emitter::DebugBreak() {
 }
 
 uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
-  auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
+  auto thread_state =
+      reinterpret_cast<ppc::PPCContext_s*>(raw_context)->thread_state;
   uint32_t str_ptr = uint32_t(thread_state->context()->r[3]);
   // uint16_t str_len = uint16_t(thread_state->context()->r[4]);
   auto str = thread_state->memory()->TranslateVirtual<const char*>(str_ptr);
@@ -408,7 +412,8 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
 }
 
 uint64_t TrapDebugBreak(void* raw_context, uint64_t address) {
-  auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
+  auto thread_state =
+      reinterpret_cast<ppc::PPCContext_s*>(raw_context)->thread_state;
   XELOGE("tw/td forced trap hit! This should be a crash!");
   if (cvars::break_on_debugbreak) {
     xe::debugging::Break();
@@ -447,7 +452,8 @@ void X64Emitter::UnimplementedInstr(const hir::Instr* i) {
 
 // This is used by the X64ThunkEmitter's ResolveFunctionThunk.
 uint64_t ResolveFunction(void* raw_context, uint64_t target_address) {
-  auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
+  auto thread_state =
+      reinterpret_cast<ppc::PPCContext_s*>(raw_context)->thread_state;
 
   // TODO(benvanik): required?
   assert_not_zero(target_address);
@@ -1191,7 +1197,109 @@ Xbyak::Address X64Emitter::StashConstantXmm(int index, const vec128_t& v) {
   MovMem64(addr + 8, v.high);
   return ptr[addr];
 }
+static bool IsVectorCompare(const Instr* i) {
+  hir::Opcode op = i->opcode->num;
+  return op >= hir::OPCODE_VECTOR_COMPARE_EQ &&
+         op <= hir::OPCODE_VECTOR_COMPARE_UGE;
+}
 
+static bool IsFlaggedVectorOp(const Instr* i) {
+  if (IsVectorCompare(i)) {
+    return true;
+  }
+  hir::Opcode op = i->opcode->num;
+  using namespace hir;
+  switch (op) {
+    case OPCODE_VECTOR_SUB:
+    case OPCODE_VECTOR_ADD:
+    case OPCODE_SWIZZLE:
+      return true;
+  }
+  return false;
+}
+
+static SimdDomain GetDomainForFlaggedVectorOp(const hir::Instr* df) {
+  switch (df->flags) {  // check what datatype we compared as
+    case hir::INT16_TYPE:
+    case hir::INT32_TYPE:
+    case hir::INT8_TYPE:
+    case hir::INT64_TYPE:
+      return SimdDomain::INTEGER;
+    case hir::FLOAT32_TYPE:
+    case hir::FLOAT64_TYPE:  // pretty sure float64 doesnt occur with vectors.
+                             // here for completeness
+      return SimdDomain::FLOATING;
+    default:
+      return SimdDomain::DONTCARE;
+  }
+  return SimdDomain::DONTCARE;
+}
+// this list is incomplete
+static bool IsDefiniteIntegerDomainOpcode(hir::Opcode opc) {
+  using namespace hir;
+  switch (opc) {
+    case OPCODE_LOAD_VECTOR_SHL:
+    case OPCODE_LOAD_VECTOR_SHR:
+    case OPCODE_VECTOR_CONVERT_F2I:
+    case OPCODE_VECTOR_MIN:  // there apparently is no FLOAT32_TYPE for min/maxs
+                             // flags
+    case OPCODE_VECTOR_MAX:
+    case OPCODE_VECTOR_SHL:
+    case OPCODE_VECTOR_SHR:
+    case OPCODE_VECTOR_SHA:
+    case OPCODE_VECTOR_ROTATE_LEFT:
+    case OPCODE_VECTOR_AVERAGE:  // apparently no float32 type for this
+    case OPCODE_EXTRACT:
+    case OPCODE_INSERT:  // apparently no f32 type for these two
+      return true;
+  }
+  return false;
+}
+static bool IsDefiniteFloatingDomainOpcode(hir::Opcode opc) {
+  using namespace hir;
+  switch (opc) {
+    case OPCODE_VECTOR_CONVERT_I2F:
+    case OPCODE_VECTOR_DENORMFLUSH:
+    case OPCODE_DOT_PRODUCT_3:
+    case OPCODE_DOT_PRODUCT_4:
+    case OPCODE_LOG2:
+    case OPCODE_POW2:
+    case OPCODE_RECIP:
+    case OPCODE_ROUND:
+    case OPCODE_SQRT:
+    case OPCODE_MUL:
+    case OPCODE_MUL_SUB:
+    case OPCODE_MUL_ADD:
+    case OPCODE_ABS:
+      return true;
+  }
+  return false;
+}
+
+SimdDomain X64Emitter::DeduceSimdDomain(const hir::Value* for_value) {
+  hir::Instr* df = for_value->def;
+  if (!df) {
+    // todo: visit uses to figure out domain
+    return SimdDomain::DONTCARE;
+
+  } else {
+    SimdDomain result = SimdDomain::DONTCARE;
+
+    if (IsFlaggedVectorOp(df)) {
+      result = GetDomainForFlaggedVectorOp(df);
+    } else if (IsDefiniteIntegerDomainOpcode(df->opcode->num)) {
+      result = SimdDomain::INTEGER;
+    } else if (IsDefiniteFloatingDomainOpcode(df->opcode->num)) {
+      result = SimdDomain::FLOATING;
+    }
+
+    // todo: check if still dontcare, if so, visit uses of the value to figure
+    // it out
+    return result;
+  }
+
+  return SimdDomain::DONTCARE;
+}
 }  // namespace x64
 }  // namespace backend
 }  // namespace cpu

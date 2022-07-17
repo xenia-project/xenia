@@ -44,7 +44,39 @@ enum RegisterFlags {
   REG_DEST = (1 << 0),
   REG_ABCD = (1 << 1),
 };
+/*
+    SSE/AVX/AVX512 has seperate move instructions/shuffle instructions for float
+   data and int data for a reason most processors implement two distinct
+   pipelines, one for the integer domain and one for the floating point domain
+    currently, xenia makes no distinction between the two. Crossing domains is
+   expensive. On Zen processors the penalty is one cycle each time you cross,
+   plus the two pipelines need to synchronize Often xenia will emit an integer
+   instruction, then a floating instruction, then integer again. this
+   effectively adds at least two cycles to the time taken These values will in
+   the future be used as tags to operations that tell them which domain to
+   operate in, if its at all possible to avoid crossing
+*/
+enum class SimdDomain : uint32_t {
+  FLOATING,
+  INTEGER,
+  DONTCARE,
+  CONFLICTING  // just used as a special result for PickDomain, different from
+               // dontcare (dontcare means we just dont know the domain,
+               // CONFLICTING means its used in multiple domains)
+};
 
+static SimdDomain PickDomain2(SimdDomain dom1, SimdDomain dom2) {
+  if (dom1 == dom2) {
+    return dom1;
+  }
+  if (dom1 == SimdDomain::DONTCARE) {
+    return dom2;
+  }
+  if (dom2 == SimdDomain::DONTCARE) {
+    return dom1;
+  }
+  return SimdDomain::CONFLICTING;
+}
 enum XmmConst {
   XMMZero = 0,
   XMMOne,
@@ -122,7 +154,7 @@ enum XmmConst {
   XMMLVSLTableBase,
   XMMLVSRTableBase,
   XMMSingleDenormalMask,
-  XMMThreeFloatMask, //for clearing the fourth float prior to DOT_PRODUCT_3
+  XMMThreeFloatMask,  // for clearing the fourth float prior to DOT_PRODUCT_3
   XMMXenosF16ExtRangeStart
 };
 
@@ -150,8 +182,9 @@ enum X64EmitterFeatureFlags {
 
   kX64EmitAVX512Ortho = kX64EmitAVX512F | kX64EmitAVX512VL,
   kX64EmitAVX512Ortho64 = kX64EmitAVX512Ortho | kX64EmitAVX512DQ,
-  kX64FastJrcx = 1 << 12, //jrcxz is as fast as any other jump ( >= Zen1)
-  kX64FastLoop = 1 << 13, //loop/loope/loopne is as fast as any other jump ( >= Zen2)
+  kX64FastJrcx = 1 << 12,  // jrcxz is as fast as any other jump ( >= Zen1)
+  kX64FastLoop =
+      1 << 13,  // loop/loope/loopne is as fast as any other jump ( >= Zen2)
   kX64EmitAVX512VBMI = 1 << 14
 };
 class ResolvableGuestCall {
@@ -259,6 +292,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   FunctionDebugInfo* debug_info() const { return debug_info_; }
 
   size_t stack_size() const { return stack_size_; }
+  SimdDomain DeduceSimdDomain(const hir::Value* for_value);
 
  protected:
   void* Emplace(const EmitFunctionInfo& func_info,

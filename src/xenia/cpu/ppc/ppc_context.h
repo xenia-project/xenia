@@ -246,30 +246,7 @@ enum class PPCRegister {
 };
 
 #pragma pack(push, 8)
-typedef struct PPCContext_s {
-  // Must be stored at 0x0 for now.
-  // TODO(benvanik): find a nice way to describe this to the JIT.
-  ThreadState* thread_state;  // 0x0
-  // TODO(benvanik): this is getting nasty. Must be here.
-  uint8_t* virtual_membase;  // 0x8
-
-  // Most frequently used registers first.
-  uint64_t lr;      // 0x10 Link register
-  uint64_t ctr;     // 0x18 Count register
-  uint64_t r[32];   // 0x20 General purpose registers
-  double f[32];     // 0x120 Floating-point registers
-  vec128_t v[128];  // 0x220 VMX128 vector registers
-
-  // XER register:
-  // Split to make it easier to do individual updates.
-  uint8_t xer_ca;  // 0xA20
-  uint8_t xer_ov;  // 0xA21
-  uint8_t xer_so;  // 0xA22
-
-  // Condition registers:
-  // These are split to make it easier to do DCE on unused stores.
-  uint64_t cr() const;
-  void set_cr(uint64_t value);
+typedef struct alignas(64) PPCContext_s {
   union {
     uint32_t value;
     struct {
@@ -395,6 +372,25 @@ typedef struct PPCContext_s {
     } bits;
   } fpscr;  // Floating-point status and control register
 
+  // Most frequently used registers first.
+
+  uint64_t r[32];   // 0x20 General purpose registers
+  uint64_t ctr;     // 0x18 Count register
+  uint64_t lr;      // 0x10 Link register
+  double f[32];     // 0x120 Floating-point registers
+  vec128_t v[128];  // 0x220 VMX128 vector registers
+
+  // XER register:
+  // Split to make it easier to do individual updates.
+  uint8_t xer_ca;
+  uint8_t xer_ov;
+  uint8_t xer_so;
+
+  // Condition registers:
+  // These are split to make it easier to do DCE on unused stores.
+  uint64_t cr() const;
+  void set_cr(uint64_t value);
+
   uint8_t vscr_sat;
 
   // uint32_t get_fprf() {
@@ -425,7 +421,8 @@ typedef struct PPCContext_s {
 
   // Value of last reserved load
   uint64_t reserved_val;
-
+  ThreadState* thread_state;
+  uint8_t* virtual_membase;  
   static std::string GetRegisterName(PPCRegister reg);
   std::string GetStringFromValue(PPCRegister reg) const;
   void SetValueFromString(PPCRegister reg, std::string value);

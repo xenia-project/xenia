@@ -1826,7 +1826,7 @@ struct PERMUTE_I32
     }
   }
 };
-//todo: use this on const src1
+// todo: use this on const src1
 static vec128_t FixupConstantShuf8(vec128_t input) {
   for (uint32_t i = 0; i < 16; ++i) {
     input.u8[i] ^= 0x03;
@@ -1984,7 +1984,11 @@ struct SWIZZLE
       } else {
         src1 = i.src1;
       }
-      e.vpshufd(i.dest, src1, swizzle_mask);
+      if (element_type == INT32_TYPE && true) {
+        e.vpshufd(i.dest, src1, swizzle_mask);
+      } else if (element_type == FLOAT32_TYPE) {
+        e.vshufps(i.dest, src1, swizzle_mask);
+      }
     } else if (element_type == INT64_TYPE || element_type == FLOAT64_TYPE) {
       assert_always();
     } else {

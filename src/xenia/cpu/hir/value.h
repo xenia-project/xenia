@@ -598,6 +598,8 @@ class Value {
   void CountLeadingZeros(const Value* other);
   bool Compare(Opcode opcode, Value* other);
   hir::Instr* GetDefSkipAssigns();
+  // tunnel_flags is updated to the kinds we actually traversed
+  hir::Instr* GetDefTunnelMovs(unsigned int* tunnel_flags);
 
  private:
   static bool CompareInt8(Opcode opcode, Value* a, Value* b);

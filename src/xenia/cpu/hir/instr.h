@@ -25,6 +25,14 @@ namespace hir {
 
 class Block;
 class Label;
+// todo: better name
+enum MovTunnel {
+  MOVTUNNEL_ASSIGNS = 1,
+  MOVTUNNEL_MOVZX = 2,
+  MOVTUNNEL_MOVSX = 4,
+  MOVTUNNEL_TRUNCATE = 8,
+  MOVTUNNEL_AND32FF = 16,  // tunnel through and with 0xFFFFFFFF
+};
 
 class Instr {
  public:
@@ -44,17 +52,28 @@ class Instr {
   } Op;
 
   Value* dest;
-  Op src1;
-  Op src2;
-  Op src3;
+  union {
+    struct {
+      Op src1;
+      Op src2;
+      Op src3;
+    };
+    Op srcs[3];
+  };
+  union {
+    struct {
+      Value::Use* src1_use;
+      Value::Use* src2_use;
+      Value::Use* src3_use;
+    };
+    Value::Use* srcs_use[3];
+  };
+  void set_srcN(Value* value, uint32_t idx);
+  void set_src1(Value* value) { set_srcN(value, 0); }
 
-  Value::Use* src1_use;
-  Value::Use* src2_use;
-  Value::Use* src3_use;
+  void set_src2(Value* value) { set_srcN(value, 1); }
 
-  void set_src1(Value* value);
-  void set_src2(Value* value);
-  void set_src3(Value* value);
+  void set_src3(Value* value) { set_srcN(value, 2); }
 
   void MoveBefore(Instr* other);
   void Replace(const OpcodeInfo* new_opcode, uint16_t new_flags);
@@ -104,6 +123,8 @@ if both are constant, return nullptr, nullptr
   }
 
   Instr* GetDestDefSkipAssigns();
+  Instr* GetDestDefTunnelMovs(unsigned int* tunnel_flags);
+
   // returns [def op, constant]
   std::pair<Value*, Value*> BinaryValueArrangeByDefOpAndConstant(
       const OpcodeInfo* op_ptr) {
@@ -114,6 +135,28 @@ if both are constant, return nullptr, nullptr
       return {nullptr, nullptr};
     }
     return result;
+  }
+  /*
+  Invokes the provided lambda callback on each operand that is a Value. Callback
+  is invoked with Value*, uint32_t index
+*/
+  template <typename TCallable>
+  void VisitValueOperands(TCallable&& call_for_values) {
+    uint32_t signature = opcode->signature;
+
+    OpcodeSignatureType t_dest, t_src1, t_src2, t_src3;
+
+    UnpackOpcodeSig(signature, t_dest, t_src1, t_src2, t_src3);
+
+    if (t_src1 == OPCODE_SIG_TYPE_V) {
+      call_for_values(src1.value, 0);
+    }
+    if (t_src2 == OPCODE_SIG_TYPE_V) {
+      call_for_values(src2.value, 1);
+    }
+    if (t_src3 == OPCODE_SIG_TYPE_V) {
+      call_for_values(src3.value, 2);
+    }
   }
 };
 
