@@ -95,6 +95,11 @@ class TraceViewer : public xe::ui::WindowedApp {
     kHostDisasm,
   };
 
+  // Same as for Dear ImGui tooltips. Windows are translucent as the controls
+  // may take a pretty large fraction of the screen, especially on small
+  // screens, so the image from the guest can be seen through them.
+  static constexpr float kWindowBgAlpha = 0.6f;
+
   bool Load(const std::string_view trace_file_path);
 
   void DrawUI();

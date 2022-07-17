@@ -223,6 +223,7 @@ void TraceViewer::DrawUI() {
 void TraceViewer::DrawControllerUI() {
   ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(340, 60));
+  ImGui::SetNextWindowBgAlpha(kWindowBgAlpha);
   if (!ImGui::Begin("Controller", nullptr)) {
     ImGui::End();
     return;
@@ -274,6 +275,7 @@ void TraceViewer::DrawPacketDisassemblerUI() {
       ImVec2(float(window_->GetActualLogicalWidth()) - 500 - 5, 5),
       ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(500, 300));
+  ImGui::SetNextWindowBgAlpha(kWindowBgAlpha);
   if (!ImGui::Begin("Packet Disassembler", nullptr)) {
     ImGui::End();
     return;
@@ -493,6 +495,7 @@ int TraceViewer::RecursiveDrawCommandBufferUI(
 void TraceViewer::DrawCommandListUI() {
   ImGui::SetNextWindowPos(ImVec2(5, 70), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(200, 640));
+  ImGui::SetNextWindowBgAlpha(kWindowBgAlpha);
   if (!ImGui::Begin("Command List", nullptr)) {
     ImGui::End();
     return;
@@ -1106,6 +1109,7 @@ void TraceViewer::DrawStateUI() {
       ImVec2(float(window_->GetActualLogicalWidth()) - 500 - 5, 30),
       ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(500, 680));
+  ImGui::SetNextWindowBgAlpha(kWindowBgAlpha);
   if (!ImGui::Begin("State", nullptr)) {
     ImGui::End();
     return;
