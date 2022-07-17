@@ -25,12 +25,12 @@
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 
 #include <algorithm>
-#include <cstring>
 #include <unordered_map>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/string.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 #include "xenia/cpu/backend/x64/x64_op.h"
@@ -63,7 +63,7 @@ struct COMMENT : Sequence<COMMENT, I<OPCODE_COMMENT, VoidOp, OffsetOp>> {
       auto str = reinterpret_cast<const char*>(i.src1.value);
       // TODO(benvanik): pass through.
       // TODO(benvanik): don't just leak this memory.
-      auto str_copy = strdup(str);
+      auto str_copy = xe_strdup(str);
       e.mov(e.rdx, reinterpret_cast<uint64_t>(str_copy));
       e.CallNative(reinterpret_cast<void*>(TraceString));
     }

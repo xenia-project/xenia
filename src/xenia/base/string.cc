@@ -9,8 +9,15 @@
 
 #include "xenia/base/string.h"
 
+#include <string.h>
 #include <algorithm>
 #include <locale>
+
+#include "xenia/base/platform.h"
+
+#if !XE_PLATFORM_WIN32
+#include <strings.h>
+#endif  // !XE_PLATFORM_WIN32
 
 #define UTF_CPP_CPLUSPLUS 201703L
 #include "third_party/utfcpp/source/utf8.h"
@@ -18,6 +25,30 @@
 namespace utfcpp = utf8;
 
 namespace xe {
+
+int xe_strcasecmp(const char* string1, const char* string2) {
+#if XE_PLATFORM_WIN32
+  return _stricmp(string1, string2);
+#else
+  return strcasecmp(string1, string2);
+#endif  // XE_PLATFORM_WIN32
+}
+
+int xe_strncasecmp(const char* string1, const char* string2, size_t count) {
+#if XE_PLATFORM_WIN32
+  return _strnicmp(string1, string2, count);
+#else
+  return strncasecmp(string1, string2, count);
+#endif  // XE_PLATFORM_WIN32
+}
+
+char* xe_strdup(const char* source) {
+#if XE_PLATFORM_WIN32
+  return _strdup(source);
+#else
+  return strdup(source);
+#endif  // XE_PLATFORM_WIN32
+}
 
 std::string to_utf8(const std::u16string_view source) {
   return utfcpp::utf16to8(source);

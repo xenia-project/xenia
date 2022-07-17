@@ -107,7 +107,7 @@ DECLARE_XBOXKRNL_EXPORT1(RtlLowerChar, kNone, kImplemented);
 
 dword_result_t RtlCompareString_entry(lpstring_t string_1, lpstring_t string_2,
                                       dword_t case_insensitive) {
-  int ret = case_insensitive ? strcasecmp(string_1, string_2)
+  int ret = case_insensitive ? xe_strcasecmp(string_1, string_2)
                              : std::strcmp(string_1, string_2);
 
   return ret;
@@ -130,7 +130,7 @@ dword_result_t RtlCompareStringN_entry(lpstring_t string_1,
   }
   auto len = std::min(string_1_len, string_2_len);
 
-  int ret = case_insensitive ? strncasecmp(string_1, string_2, len)
+  int ret = case_insensitive ? xe_strncasecmp(string_1, string_2, len)
                              : std::strncmp(string_1, string_2, len);
 
   return ret;

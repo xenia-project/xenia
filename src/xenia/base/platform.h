@@ -67,9 +67,6 @@
 #endif
 
 #if XE_PLATFORM_WIN32
-#define strdup _strdup
-#define strcasecmp _stricmp
-#define strncasecmp _strnicmp
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX  // Don't want windows.h including min/max macros.
 #endif            // XE_PLATFORM_WIN32
