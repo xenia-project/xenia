@@ -16,6 +16,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
+#include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/system.h"
@@ -98,6 +99,8 @@ void InitializeAndroidAppFromMainThread(int32_t api_level,
   // Logging uses threading.
   xe::threading::AndroidInitialize();
 
+  xe::filesystem::AndroidInitialize();
+
   // Initialize the cvars before logging.
   if (launch_arguments_bundle) {
     cvar::ParseLaunchArgumentsFromAndroidBundle(launch_arguments_bundle);
@@ -134,6 +137,8 @@ void ShutdownAndroidAppFromMainThread() {
   xe::memory::AndroidShutdown();
 
   xe::ShutdownLogging();
+
+  xe::filesystem::AndroidShutdown();
 
   xe::threading::AndroidShutdown();
 
