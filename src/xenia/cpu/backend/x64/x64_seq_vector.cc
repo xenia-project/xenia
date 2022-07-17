@@ -1984,10 +1984,10 @@ struct SWIZZLE
       } else {
         src1 = i.src1;
       }
-      if (element_type == INT32_TYPE && true) {
+      if (element_type == INT32_TYPE) {
         e.vpshufd(i.dest, src1, swizzle_mask);
       } else if (element_type == FLOAT32_TYPE) {
-        e.vshufps(i.dest, src1, swizzle_mask);
+        e.vshufps(i.dest, src1, src1, swizzle_mask);
       }
     } else if (element_type == INT64_TYPE || element_type == FLOAT64_TYPE) {
       assert_always();
