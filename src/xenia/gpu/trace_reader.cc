@@ -16,6 +16,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/math.h"
+#include "xenia/base/platform.h"
 #include "xenia/gpu/packet_disassembler.h"
 #include "xenia/gpu/trace_protocol.h"
 #include "xenia/memory.h"
@@ -23,10 +24,19 @@
 namespace xe {
 namespace gpu {
 
-bool TraceReader::Open(const std::filesystem::path& path) {
+bool TraceReader::Open(const std::string_view path) {
   Close();
 
-  mmap_ = MappedMemory::Open(path, MappedMemory::Mode::kRead);
+  mmap_.reset();
+#if XE_PLATFORM_ANDROID
+  if (xe::filesystem::IsAndroidContentUri(path)) {
+    mmap_ =
+        MappedMemory::OpenForAndroidContentUri(path, MappedMemory::Mode::kRead);
+  }
+#endif  // XE_PLATFORM_ANDROID
+  if (!mmap_) {
+    mmap_ = MappedMemory::Open(xe::to_path(path), MappedMemory::Mode::kRead);
+  }
   if (!mmap_) {
     return false;
   }

@@ -10,13 +10,16 @@
 #include "xenia/gpu/trace_viewer.h"
 
 #include <cinttypes>
+#include <string>
 
 #include "third_party/half/include/half.hpp"
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
+#include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/platform.h"
 #include "xenia/base/string.h"
 #include "xenia/base/system.h"
 #include "xenia/base/threading.h"
@@ -38,7 +41,8 @@
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
 
-DEFINE_path(target_trace_file, "", "Specifies the trace file to load.", "GPU");
+DEFINE_string(target_trace_file, "", "Specifies the trace file to load.",
+              "GPU");
 
 namespace xe {
 namespace gpu {
@@ -62,9 +66,13 @@ TraceViewer::TraceViewer(xe::ui::WindowedAppContext& app_context,
 TraceViewer::~TraceViewer() = default;
 
 bool TraceViewer::OnInitialize() {
-  std::filesystem::path path = cvars::target_trace_file;
+  std::string path = cvars::target_trace_file;
 
   // If no path passed, ask the user.
+  // On Android, however, there's no synchronous file picker, and the trace file
+  // must be picked externally and provided to the trace viewer activity via the
+  // intent.
+#if !XE_PLATFORM_ANDROID
   if (path.empty()) {
     auto file_picker = xe::ui::FilePicker::Create();
     file_picker->set_mode(ui::FilePicker::Mode::kOpen);
@@ -78,10 +86,11 @@ bool TraceViewer::OnInitialize() {
     if (file_picker->Show()) {
       auto selected_files = file_picker->selected_files();
       if (!selected_files.empty()) {
-        path = selected_files[0];
+        path = xe::path_to_utf8(selected_files[0]);
       }
     }
   }
+#endif  // !XE_PLATFORM_ANDROID
 
   if (path.empty()) {
     xe::ShowSimpleMessageBox(xe::SimpleMessageBoxType::Warning,
@@ -89,15 +98,12 @@ bool TraceViewer::OnInitialize() {
     return false;
   }
 
-  // Normalize the path and make absolute.
-  auto abs_path = std::filesystem::absolute(path);
-
   if (!Setup()) {
     xe::ShowSimpleMessageBox(xe::SimpleMessageBoxType::Error,
                              "Unable to setup trace viewer");
     return false;
   }
-  if (!Load(std::move(abs_path))) {
+  if (!Load(path)) {
     xe::ShowSimpleMessageBox(xe::SimpleMessageBoxType::Error,
                              "Unable to load trace file; not found?");
     return false;
@@ -179,9 +185,8 @@ void TraceViewer::TraceViewerDialog::OnDraw(ImGuiIO& io) {
   trace_viewer_.DrawUI();
 }
 
-bool TraceViewer::Load(const std::filesystem::path& trace_file_path) {
-  auto file_name = trace_file_path.filename();
-  window_->SetTitle("Xenia GPU Trace Viewer: " + xe::path_to_utf8(file_name));
+bool TraceViewer::Load(const std::string_view trace_file_path) {
+  window_->SetTitle("Xenia GPU Trace Viewer: " + std::string(trace_file_path));
 
   if (!player_->Open(trace_file_path)) {
     XELOGE("Could not load trace file");
