@@ -67,7 +67,7 @@ struct XeResolveInfo {
   uint edram_format;
   uint edram_format_ints_log2;
   xesl_uint2 resolution_scale;
-  xesl_bool2 duplicate_second_host_pixel;
+  xesl_uint2 half_pixel_offset_fill_source;
   xesl_uint2 edram_offset_scaled;
   uint width_div_8_scaled;
   #ifdef XE_RESOLVE_CLEAR
@@ -99,16 +99,16 @@ XeResolveInfo XeResolveGetInfo(xesl_function_param_pushConstants) {
   resolve_info.edram_format_ints_log2 = (edram_info >> 29u) & 1u;
   #ifdef XE_RESOLVE_RESOLUTION_SCALED
     resolve_info.resolution_scale =
-        (xesl_uint_x2(coordinate_info) >> xesl_uint2(27u, 29u)) & 3u;
+        (xesl_uint_x2(coordinate_info) >> xesl_uint2(16u, 19u)) & 7u;
     if ((edram_info & (1u << 30u)) != 0u) {
-      resolve_info.duplicate_second_host_pixel =
-          xesl_greaterThan(resolve_info.resolution_scale, xesl_uint_x2(1u));
+      resolve_info.half_pixel_offset_fill_source =
+          resolve_info.resolution_scale >> 1u;
     } else {
-      resolve_info.duplicate_second_host_pixel = xesl_bool_x2(false);
+      resolve_info.half_pixel_offset_fill_source = xesl_uint_x2(0u);
     }
   #else
     resolve_info.resolution_scale = xesl_uint_x2(1u);
-    resolve_info.duplicate_second_host_pixel = xesl_bool_x2(false);
+    resolve_info.half_pixel_offset_fill_source = xesl_uint_x2(0u);
   #endif
   resolve_info.edram_offset_scaled =
       (((xesl_uint_x2(coordinate_info) >> xesl_uint2(0u, 4u)) &
@@ -217,12 +217,12 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
 
   // Offset to the first sample to participate in averaging (or the sample to be
   // copied if not averaging).
-  uint XeResolveColorCopySourcePixelAddressIntsYDuplicating(
+  uint XeResolveColorCopySourcePixelAddressIntsYHalfPixelOffsetFilling(
       XeResolveInfo resolve_info, xesl_uint2 pixel_index) {
     return XeEdramOffsetInts(
         xesl_uint2(pixel_index.x,
                    max(pixel_index.y,
-                       uint(resolve_info.duplicate_second_host_pixel.y))) +
+                       resolve_info.half_pixel_offset_fill_source.y)) +
             resolve_info.edram_offset_scaled,
         resolve_info.edram_base_tiles, resolve_info.edram_pitch_tiles,
         resolve_info.edram_msaa_samples, false,

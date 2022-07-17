@@ -41,13 +41,21 @@ xesl_entry_inputs_end_code_begin_compute
       xesl_function_call_uintVectorBuffer(xe_resolve_edram)
       xesl_function_call_next_after_uintVectorBuffer
       resolve_info,
-      XeResolveColorCopySourcePixelAddressIntsYDuplicating(resolve_info,
-                                                           pixel_index),
+      XeResolveColorCopySourcePixelAddressIntsYHalfPixelOffsetFilling(
+          resolve_info, pixel_index),
       pixel_0, pixel_1, pixel_2, pixel_3);
   xesl_uint4 packed_01, packed_23;
   XePack64bpp4Pixels(pixel_0, pixel_1, pixel_2, pixel_3,
                      resolve_info.dest_format, packed_01, packed_23);
-  if (resolve_info.duplicate_second_host_pixel.x && pixel_index.x == 0u) {
+  xesl_dont_flatten
+  if (pixel_index.x == 0u &&
+      resolve_info.half_pixel_offset_fill_source.x != 0u) {
+    if (resolve_info.half_pixel_offset_fill_source.x >= 2u) {
+      if (resolve_info.half_pixel_offset_fill_source.x >= 3u) {
+        packed_23.xy = packed_23.zw;
+      }
+      packed_01.zw = packed_23.xy;
+    }
     packed_01.xy = packed_01.zw;
   }
   uint dest_address =

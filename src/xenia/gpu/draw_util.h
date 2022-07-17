@@ -350,9 +350,10 @@ union ResolveEdramInfo {
     uint32_t base_tiles : xenos::kEdramBaseTilesBits;
     uint32_t format : xenos::kRenderTargetFormatBits;
     uint32_t format_is_64bpp : 1;
-    // Whether to take the value of column/row 1 for column/row 0, to reduce
-    // the impact of the half-pixel offset with resolution scaling.
-    uint32_t duplicate_second_pixel : 1;
+    // Whether to fill the half-pixel offset gap on the left and the top sides
+    // of the resolve region with the contents of the first surely covered
+    // column / row with resolution scaling.
+    uint32_t fill_half_pixel_offset : 1;
   };
   ResolveEdramInfo() : packed(0) { static_assert_size(*this, sizeof(packed)); }
 };
@@ -371,12 +372,10 @@ union ResolveCoordinateInfo {
     // totally broken way - in this case, the resolve must be dropped.
     uint32_t width_div_8 : xenos::kResolveSizeBits -
                            xenos::kResolveAlignmentPixelsLog2;
-    uint32_t height_div_8 : xenos::kResolveSizeBits -
-                            xenos::kResolveAlignmentPixelsLog2;
 
-    // 1 to 3.
-    uint32_t draw_resolution_scale_x : 2;
-    uint32_t draw_resolution_scale_y : 2;
+    // 1 to 7.
+    uint32_t draw_resolution_scale_x : 3;
+    uint32_t draw_resolution_scale_y : 3;
   };
   ResolveCoordinateInfo() : packed(0) {
     static_assert_size(*this, sizeof(packed));
@@ -387,8 +386,8 @@ union ResolveCoordinateInfo {
 // the area in tiles, but the pitch between rows is edram_info.pitch_tiles.
 void GetResolveEdramTileSpan(ResolveEdramInfo edram_info,
                              ResolveCoordinateInfo coordinate_info,
-                             uint32_t& base_out, uint32_t& row_length_used_out,
-                             uint32_t& rows_out);
+                             uint32_t height_div_8, uint32_t& base_out,
+                             uint32_t& row_length_used_out, uint32_t& rows_out);
 
 union ResolveCopyDestCoordinateInfo {
   uint32_t packed;
@@ -496,6 +495,11 @@ struct ResolveInfo {
   uint32_t color_original_base;
 
   ResolveCoordinateInfo coordinate_info;
+  // Like coordinate_info.width_div_8, but not needed for shaders.
+  // In pixels.
+  // May be zero if the original rectangle was somehow specified in a totally
+  // broken way - in this case, the resolve must be dropped.
+  uint32_t height_div_8;
 
   reg::RB_COPY_DEST_INFO copy_dest_info;
   ResolveCopyDestCoordinateInfo copy_dest_coordinate_info;
@@ -525,7 +529,7 @@ struct ResolveInfo {
                             uint32_t& rows_out, uint32_t& pitch_out) const {
     ResolveEdramInfo edram_info =
         IsCopyingDepth() ? depth_edram_info : color_edram_info;
-    GetResolveEdramTileSpan(edram_info, coordinate_info, base_out,
+    GetResolveEdramTileSpan(edram_info, coordinate_info, height_div_8, base_out,
                             row_length_used_out, rows_out);
     pitch_out = edram_info.pitch_tiles;
   }
@@ -570,7 +574,7 @@ struct ResolveInfo {
       uint32_t draw_resolution_scale_y) const {
     // 8 guest MSAA samples per invocation.
     uint32_t width_samples_div_8 = coordinate_info.width_div_8;
-    uint32_t height_samples_div_8 = coordinate_info.height_div_8;
+    uint32_t height_samples_div_8 = height_div_8;
     xenos::MsaaSamples samples = IsCopyingDepth()
                                      ? depth_edram_info.msaa_samples
                                      : color_edram_info.msaa_samples;

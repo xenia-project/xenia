@@ -40,11 +40,21 @@ xesl_entry_inputs_end_code_begin_compute
       xesl_function_call_uintVectorBuffer(xe_resolve_edram)
       xesl_function_call_next_after_uintVectorBuffer
       resolve_info,
-      XeResolveColorCopySourcePixelAddressIntsYDuplicating(resolve_info,
-                                                           pixel_index),
+      XeResolveColorCopySourcePixelAddressIntsYHalfPixelOffsetFilling(
+          resolve_info,
+          xesl_uint2(max(pixel_index.x,
+                         resolve_info.half_pixel_offset_fill_source.x),
+                     pixel_index.y)),
       pixel_0, pixel_1);
-  if (resolve_info.duplicate_second_host_pixel.x && pixel_index.x == 0u) {
-    pixel_0 = pixel_1;
+  // Inside the half-pixel offset filling columns, pixel_0 now contains the
+  // pixel to stretch, pixel_1 contains the pixel after it. However, this means
+  // that the pixel offset is not aligned to 2 anymore. If 1 is the pixel to
+  // stretch, the two pixels will be 1 and 2 for pixel_index.x == 0. If 3 is,
+  // they will be 3 and 4 for pixel_index.x == 0 and 2. However, in the former
+  // case, they should be 1 and 1, and in the latter, 3 and 3.
+  xesl_dont_flatten
+  if (pixel_index.x < resolve_info.half_pixel_offset_fill_source.x) {
+    pixel_1 = pixel_0;
   }
   // Only 32_32_32_32_FLOAT color format is 128bpp.
   uint dest_address =

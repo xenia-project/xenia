@@ -30,7 +30,7 @@ uint XeHostDepthStoreRectUnscaledWidthDiv8(uint rect_constant) {
 }
 
 xesl_uint2 XeHostDepthStoreRTResolutionScale(uint rt_constant) {
-  return (xesl_uint_x2(rt_constant) >> xesl_uint2(10u, 12u)) & 0x3u;
+  return (xesl_uint_x2(rt_constant) >> xesl_uint2(10u, 13u)) & 0x7u;
 }
 
 // As host depth is needed for at most one transfer destination per update, base
@@ -42,7 +42,7 @@ uint XeHostDepthStoreRTPitchTiles(uint rt_constant) {
 }
 
 bool XeHostDepthStoreRTMsaa2xSupported(uint rt_constant) {
-  return bool((rt_constant >> 14u) & 0x1u);
+  return bool((rt_constant >> 16u) & 0x1u);
 }
 
 // 40-sample columns are not swapped for addressing simplicity (because this is

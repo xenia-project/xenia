@@ -76,7 +76,7 @@
        %5245 = OpVariable %_ptr_Uniform__struct_1161 Uniform
       %int_0 = OpConstant %int 0
 %_ptr_Uniform_uint = OpTypePointer Uniform %uint
-       %1915 = OpConstantComposite %v2uint %uint_4 %uint_6
+       %1927 = OpConstantComposite %v2uint %uint_4 %uint_7
 %_ptr_Uniform_v3uint = OpTypePointer Uniform %v3uint
 %_ptr_Input_v3uint = OpTypePointer Input %v3uint
 %gl_GlobalInvocationID = OpVariable %_ptr_Input_v3uint Input
@@ -94,7 +94,7 @@
 %_ptr_Uniform_v2uint = OpTypePointer Uniform %v2uint
 %_ptr_Uniform_v4uint = OpTypePointer Uniform %v4uint
 %gl_WorkGroupSize = OpConstantComposite %v3uint %uint_4 %uint_32 %uint_1
-       %1870 = OpConstantComposite %v2uint %uint_3 %uint_3
+       %1954 = OpConstantComposite %v2uint %uint_7 %uint_7
      %uint_8 = OpConstant %uint 8
        %5663 = OpFunction %void None %1282
       %15110 = OpLabel
@@ -106,8 +106,8 @@
       %22279 = OpBitwiseAnd %uint %13606 %uint_2
       %19223 = OpINotEqual %bool %22279 %uint_0
       %17247 = OpCompositeConstruct %v2uint %13606 %13606
-      %22947 = OpShiftRightLogical %v2uint %17247 %1915
-       %6551 = OpBitwiseAnd %v2uint %22947 %1870
+      %22947 = OpShiftRightLogical %v2uint %17247 %1927
+       %6551 = OpBitwiseAnd %v2uint %22947 %1954
       %18732 = OpAccessChain %_ptr_Uniform_uint %5245 %int_1
       %24236 = OpLoad %uint %18732
       %20154 = OpAccessChain %_ptr_Uniform_uint %5245 %int_2
@@ -377,7 +377,7 @@ const uint32_t texture_load_8bpb_scaled_cs[] = {
     0x0000000B, 0x0000000B, 0x00040020, 0x00000706, 0x00000002, 0x00000489,
     0x0004003B, 0x00000706, 0x0000147D, 0x00000002, 0x0004002B, 0x0000000C,
     0x00000A0B, 0x00000000, 0x00040020, 0x00000288, 0x00000002, 0x0000000B,
-    0x0005002C, 0x00000011, 0x0000077B, 0x00000A16, 0x00000A1C, 0x00040020,
+    0x0005002C, 0x00000011, 0x00000787, 0x00000A16, 0x00000A1F, 0x00040020,
     0x00000291, 0x00000002, 0x00000014, 0x00040020, 0x00000292, 0x00000001,
     0x00000014, 0x0004003B, 0x00000292, 0x00000F48, 0x00000001, 0x0006002C,
     0x00000014, 0x00000A34, 0x00000A16, 0x00000A0A, 0x00000A0A, 0x00040017,
@@ -389,7 +389,7 @@ const uint32_t texture_load_8bpb_scaled_cs[] = {
     0x000007A8, 0x0004003B, 0x00000A25, 0x0000107A, 0x00000002, 0x00040020,
     0x0000028E, 0x00000002, 0x00000011, 0x00040020, 0x00000294, 0x00000002,
     0x00000017, 0x0006002C, 0x00000014, 0x00000BC3, 0x00000A16, 0x00000A6A,
-    0x00000A0D, 0x0005002C, 0x00000011, 0x0000074E, 0x00000A13, 0x00000A13,
+    0x00000A0D, 0x0005002C, 0x00000011, 0x000007A2, 0x00000A1F, 0x00000A1F,
     0x0004002B, 0x0000000B, 0x00000A22, 0x00000008, 0x00050036, 0x00000008,
     0x0000161F, 0x00000000, 0x00000502, 0x000200F8, 0x00003B06, 0x000300F7,
     0x00004C7A, 0x00000000, 0x000300FB, 0x00000A0A, 0x00002E68, 0x000200F8,
@@ -397,8 +397,8 @@ const uint32_t texture_load_8bpb_scaled_cs[] = {
     0x0004003D, 0x0000000B, 0x00003526, 0x000060D7, 0x000500C7, 0x0000000B,
     0x00005707, 0x00003526, 0x00000A10, 0x000500AB, 0x00000009, 0x00004B17,
     0x00005707, 0x00000A0A, 0x00050050, 0x00000011, 0x0000435F, 0x00003526,
-    0x00003526, 0x000500C2, 0x00000011, 0x000059A3, 0x0000435F, 0x0000077B,
-    0x000500C7, 0x00000011, 0x00001997, 0x000059A3, 0x0000074E, 0x00050041,
+    0x00003526, 0x000500C2, 0x00000011, 0x000059A3, 0x0000435F, 0x00000787,
+    0x000500C7, 0x00000011, 0x00001997, 0x000059A3, 0x000007A2, 0x00050041,
     0x00000288, 0x0000492C, 0x0000147D, 0x00000A0E, 0x0004003D, 0x0000000B,
     0x00005EAC, 0x0000492C, 0x00050041, 0x00000288, 0x00004EBA, 0x0000147D,
     0x00000A11, 0x0004003D, 0x0000000B, 0x00005788, 0x00004EBA, 0x00050041,

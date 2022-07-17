@@ -811,8 +811,7 @@ bool VulkanRenderTargetCache::Resolve(const Memory& memory,
   }
 
   // Nothing to copy/clear.
-  if (!resolve_info.coordinate_info.width_div_8 ||
-      !resolve_info.coordinate_info.height_div_8) {
+  if (!resolve_info.coordinate_info.width_div_8 || !resolve_info.height_div_8) {
     return true;
   }
 
