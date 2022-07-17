@@ -74,6 +74,10 @@ def targets_android(platform):
         ])
     return targets
 
+def xenia_base_tests_filters():
+    # https://github.com/xenia-project/xenia/issues/2036
+    return 'exclude:"Wait on Timer" exclude:"Wait on Multiple Timers"'
+
 # Run lint in a separate pipeline so that it will try building even if lint fails
 def pipeline_lint():
     return {
@@ -263,7 +267,7 @@ def pipeline_linux_desktop(name, image, arch, cc, build_release_all):
                 'image': image,
                 'volumes': [volume_build('premake')],
                 'commands': [
-                    'valgrind --error-exitcode=99 ./build/bin/Linux/Debug/xenia-base-tests --durations yes',
+                    'valgrind --error-exitcode=99 ./build/bin/Linux/Debug/xenia-base-tests --durations yes ' + xenia_base_tests_filters(),
                 ],
                 'depends_on': ['build-premake-debug-tests'],
             },
@@ -273,7 +277,7 @@ def pipeline_linux_desktop(name, image, arch, cc, build_release_all):
                 'image': image,
                 'volumes': [volume_build('premake')],
                 'commands': [
-                    './build/bin/Linux/Release/xenia-base-tests --success --durations yes',
+                    './build/bin/Linux/Release/xenia-base-tests --success --durations yes ' + xenia_base_tests_filters(),
                 ],
                 'depends_on': ['build-premake-release-tests'],
             },
@@ -283,7 +287,7 @@ def pipeline_linux_desktop(name, image, arch, cc, build_release_all):
                 'image': image,
                 'volumes': [volume_build('cmake')],
                 'commands': [
-                    './build/bin/Linux/Release/xenia-base-tests --success --durations yes',
+                    './build/bin/Linux/Release/xenia-base-tests --success --durations yes ' + xenia_base_tests_filters(),
                 ],
                 'depends_on': ['build-cmake-release-tests'],
             },
