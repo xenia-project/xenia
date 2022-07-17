@@ -22,6 +22,9 @@ android {
                         "-j${Runtime.runtime.availableProcessors()}",
                         // Work around "Bad file descriptor" on Windows on NDK r22+.
                         '--output-sync=none'
+                // For the app, don't build the executables designed for running from a terminal.
+                // To build the executables, run ndk-build manually.
+                targets 'xenia-app'
             }
         }
         ndk {
