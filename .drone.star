@@ -23,57 +23,6 @@ def command_cc(cc):
 def command_ndk_build(platform, configuration, target):
     return '$ANDROID_NDK_ROOT/build/ndk-build NDK_PROJECT_PATH:=./bin/{configuration} NDK_APPLICATION_MK:=./xenia.Application.mk PREMAKE_ANDROIDNDK_PLATFORMS:={platform} PREMAKE_ANDROIDNDK_CONFIGURATIONS:={configuration} -j$(nproc) {target}'.format(platform=platform, configuration=configuration, target=target)
 
-def targets_android(platform):
-    targets = [
-        'aes_128',
-        'capstone',
-        'dxbc',
-        'discord-rpc',
-        'cxxopts',
-        'cpptoml',
-        'avcodec',
-        'avutil',
-        'fmt',
-        'glslang-spirv',
-        'imgui',
-        'mspack',
-        'snappy',
-        'xxhash',
-        'xenia-app',
-        # 'xenia-app-discord',
-        'xenia-apu',
-        'xenia-apu-nop',
-        'xenia-base',
-        'xenia-base-tests',
-        'xenia-core',
-        'xenia-cpu',
-        'xenia-cpu-tests',
-        'xenia-cpu-ppc-tests',
-        # 'xenia-cpu-backend-x64',
-        # 'xenia-debug-ui',
-        'xenia-gpu',
-        'xenia-gpu-shader-compiler',
-        'xenia-gpu-null',
-        'xenia-gpu-vulkan',
-        'xenia-gpu-vulkan-trace-viewer',
-        'xenia-gpu-vulkan-trace-dump',
-        'xenia-hid',
-        'xenia-hid-demo',
-        'xenia-hid-nop',
-        'xenia-kernel',
-        'xenia-ui',
-        'xenia-ui-vulkan',
-        'xenia-ui-window-vulkan-demo',
-        'xenia-vfs',
-        'xenia-vfs-dump',
-    ]
-    if platform == 'Android-x86_64':
-        targets.extend([
-            'xenia-cpu-backend-x64',
-            'xenia-debug-ui',
-        ])
-    return targets
-
 def xenia_base_tests_filters():
     # https://github.com/xenia-project/xenia/issues/2036
     return 'exclude:"Wait on Timer" exclude:"Wait on Multiple Timers"'
@@ -391,7 +340,7 @@ def pipeline_android(name, image, arch, platform):
                 'image': image,
                 'commands': [
                     'cd build',
-                    command_ndk_build(platform, 'Debug', ' '.join(targets_android(platform))),
+                    command_ndk_build(platform, 'Debug', 'all'),
                 ],
                 'depends_on': ['toolchain'],
             },
@@ -401,7 +350,7 @@ def pipeline_android(name, image, arch, platform):
                 'image': image,
                 'commands': [
                     'cd build',
-                    command_ndk_build(platform, 'Release', ' '.join(targets_android(platform))),
+                    command_ndk_build(platform, 'Release', 'all'),
                 ],
                 'depends_on': ['toolchain'],
             },
