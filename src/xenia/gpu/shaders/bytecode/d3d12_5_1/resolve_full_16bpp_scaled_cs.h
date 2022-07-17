@@ -45,41 +45,40 @@ dcl_uav_typed_buffer (uint,uint,uint,uint) U0[0:0], space=0
 dcl_input vThreadID.xy
 dcl_temps 24
 dcl_thread_group 8, 8, 1
-ubfe r0.xyz, l(2, 2, 11, 0), l(27, 29, 5, 0), CB0[0][0].yyyy
-and r1.xyzw, CB0[0][0].xxzz, l(1023, 0x40000000, 7, 8)
-if_nz r1.y
-  ult r2.xy, l(1, 1, 0, 0), r0.xyxx
+and r0.xyzw, CB0[0][0].xxzz, l(1023, 0x40000000, 7, 8)
+if_nz r0.y
+  ubfe r1.xy, l(2, 2, 0, 0), l(17, 20, 0, 0), CB0[0][0].yyyy
 else 
-  mov r2.xy, l(0,0,0,0)
+  mov r1.xy, l(0,0,0,0)
 endif 
-imul null, r0.z, r0.x, r0.z
-and r0.w, CB0[0][0].z, l(0x01000000)
+ubfe r2.xyz, l(3, 3, 11, 0), l(16, 19, 5, 0), CB0[0][0].yyyy
+imul null, r0.y, r2.x, r2.z
+and r1.z, CB0[0][0].z, l(0x01000000)
 ushr r3.xyzw, CB0[0][0].ywww, l(4, 10, 20, 24)
 ishl r4.x, vThreadID.x, l(2)
-ishl r0.z, r0.z, l(3)
-uge r0.z, r4.x, r0.z
-if_nz r0.z
+ishl r0.y, r0.y, l(3)
+uge r0.y, r4.x, r0.y
+if_nz r0.y
   ret 
 endif 
 ubfe r5.xyzw, l(2, 12, 4, 1), l(10, 13, 25, 29), CB0[0][0].xxxx
 mov r6.x, CB0[0][0].y
 mov r6.y, r3.x
 bfi r2.zw, l(0, 0, 4, 1), l(0, 0, 3, 3), r6.xxxy, l(0, 0, 0, 0)
-ibfe r0.z, l(6), l(16), CB0[0][0].z
-ishl r0.z, r0.z, l(23)
-iadd r0.z, r0.z, l(0x3f800000)
-bfi r1.y, l(10), l(5), CB0[0][0].w, l(0)
+ibfe r0.y, l(6), l(16), CB0[0][0].z
+ishl r0.y, r0.y, l(23)
+iadd r0.y, r0.y, l(0x3f800000)
+bfi r1.w, l(10), l(5), CB0[0][0].w, l(0)
 bfi r3.xz, l(4, 0, 4, 0), l(3, 0, 3, 0), r3.zzwz, l(0, 0, 0, 0)
 ubfe r6.xy, l(6, 3, 0, 0), l(7, 28, 0, 0), CB0[0][0].zwzz
-and r2.y, r2.y, l(1)
-umax r4.y, r2.y, vThreadID.y
-imad r2.yz, r2.zzwz, r0.xxyx, r4.xxyx
-uge r2.w, l(3), r6.y
-if_nz r2.w
+umax r4.y, r1.y, vThreadID.y
+imad r2.zw, r2.zzzw, r2.xxxy, r4.xxxy
+uge r1.y, l(3), r6.y
+if_nz r1.y
   mov r7.y, r6.y
 else 
-  ieq r2.w, r6.y, l(5)
-  if_nz r2.w
+  ieq r1.y, r6.y, l(5)
+  if_nz r1.y
     mov r7.y, l(2)
   else 
     mov r7.y, l(0)
@@ -87,39 +86,39 @@ else
 endif 
 uge r4.yw, r5.xxxx, l(0, 2, 0, 1)
 and r4.yw, r4.yyyw, l(0, 1, 0, 1)
-ishl r2.yz, r2.yyzy, r4.yywy
+ishl r2.zw, r2.zzzw, r4.yyyw
 ushr r7.x, r7.y, l(1)
 and r6.zw, r7.xxxy, l(0, 0, 1, 1)
-iadd r2.yz, r2.yyzy, r6.zzwz
-imul null, r7.yz, r0.xxyx, l(0, 80, 16, 0)
+iadd r2.zw, r2.zzzw, r6.zzzw
+imul null, r7.yz, r2.xxyx, l(0, 80, 16, 0)
 ushr r7.x, r7.y, r5.w
-udiv r6.zw, null, r2.yyyz, r7.xxxz
-imad r1.x, r6.w, r1.x, r6.z
-iadd r1.x, r1.x, r5.y
-imad r2.yz, -r6.zzwz, r7.xxzx, r2.yyzy
-imul null, r2.w, r7.z, r7.y
-imad r2.y, r2.z, r7.x, r2.y
-ishl r2.y, r2.y, r5.w
-imad r1.x, r1.x, r2.w, r2.y
-iadd r2.y, r4.y, r5.w
-ishl r2.z, l(1), r2.y
+udiv r6.zw, null, r2.zzzw, r7.xxxz
+imad r0.x, r6.w, r0.x, r6.z
+iadd r0.x, r0.x, r5.y
+imad r2.zw, -r6.zzzw, r7.xxxz, r2.zzzw
+imul null, r1.y, r7.z, r7.y
+imad r2.z, r2.w, r7.x, r2.z
+ishl r2.z, r2.z, r5.w
+imad r0.x, r0.x, r1.y, r2.z
+iadd r1.y, r4.y, r5.w
+ishl r2.z, l(1), r1.y
 if_nz r5.w
   ieq r2.w, r2.z, l(2)
   if_nz r2.w
-    ishl r2.w, r1.x, l(2)
+    ishl r2.w, r0.x, l(2)
     ld_raw r7.xyzw, r2.w, T0[0].zwxy
     iadd r2.w, r2.w, l(16)
     ld_raw r8.xyzw, r2.w, T0[0].zwxy
     mov r9.xy, r7.zwzz
     mov r10.xy, r8.zwzz
   else 
-    ishl r2.w, r1.x, l(2)
+    ishl r2.w, r0.x, l(2)
     ld_raw r9.xy, r2.w, T0[0].xyxx
-    iadd r2.w, r1.x, r2.z
+    iadd r2.w, r0.x, r2.z
     ishl r2.w, r2.w, l(2)
     ld_raw r7.xy, r2.w, T0[0].xyxx
-    ishl r4.yw, l(0, 2, 0, 3), r2.yyyy
-    iadd r4.yw, r1.xxxx, r4.yyyw
+    ishl r4.yw, l(0, 2, 0, 3), r1.yyyy
+    iadd r4.yw, r0.xxxx, r4.yyyw
     ishl r4.yw, r4.yyyw, l(0, 2, 0, 2)
     ld_raw r10.xy, r4.y, T0[0].xyxx
     ld_raw r8.xy, r4.w, T0[0].xyxx
@@ -171,16 +170,16 @@ if_nz r5.w
 else 
   ieq r2.w, r2.z, l(1)
   if_nz r2.w
-    ishl r2.w, r1.x, l(2)
+    ishl r2.w, r0.x, l(2)
     ld_raw r8.xyzw, r2.w, T0[0].wxyz
   else 
-    ishl r2.w, r1.x, l(2)
+    ishl r2.w, r0.x, l(2)
     ld_raw r8.y, r2.w, T0[0].xxxx
-    iadd r2.w, r1.x, r2.z
+    iadd r2.w, r0.x, r2.z
     ishl r2.w, r2.w, l(2)
     ld_raw r8.z, r2.w, T0[0].xxxx
-    ishl r4.yw, l(0, 2, 0, 3), r2.yyyy
-    iadd r4.yw, r1.xxxx, r4.yyyw
+    ishl r4.yw, l(0, 2, 0, 3), r1.yyyy
+    iadd r4.yw, r0.xxxx, r4.yyyw
     ishl r4.yw, r4.yyyw, l(0, 2, 0, 2)
     ld_raw r8.w, r4.y, T0[0].xxxx
     ld_raw r8.x, r4.w, T0[0].xxxx
@@ -362,8 +361,8 @@ else
 endif 
 uge r2.w, r6.y, l(4)
 if_nz r2.w
-  mul r2.w, r0.z, l(0.500000)
-  imad r3.w, l(80), r0.x, r1.x
+  mul r2.w, r0.y, l(0.500000)
+  imad r3.w, l(80), r2.x, r0.x
   if_nz r5.w
     ieq r4.y, r2.z, l(2)
     if_nz r4.y
@@ -379,7 +378,7 @@ if_nz r2.w
       iadd r4.y, r2.z, r3.w
       ishl r4.y, r4.y, l(2)
       ld_raw r11.xy, r4.y, T0[0].xyxx
-      ishl r4.yw, l(0, 2, 0, 3), r2.yyyy
+      ishl r4.yw, l(0, 2, 0, 3), r1.yyyy
       iadd r4.yw, r3.wwww, r4.yyyw
       ishl r4.yw, r4.yyyw, l(0, 2, 0, 2)
       ld_raw r14.xy, r4.y, T0[0].xyxx
@@ -440,7 +439,7 @@ if_nz r2.w
       iadd r4.y, r2.z, r3.w
       ishl r4.y, r4.y, l(2)
       ld_raw r12.z, r4.y, T0[0].xxxx
-      ishl r4.yw, l(0, 2, 0, 3), r2.yyyy
+      ishl r4.yw, l(0, 2, 0, 3), r1.yyyy
       iadd r4.yw, r3.wwww, r4.yyyw
       ishl r4.yw, r4.yyyw, l(0, 2, 0, 2)
       ld_raw r12.w, r4.y, T0[0].xxxx
@@ -628,25 +627,25 @@ if_nz r2.w
   uge r4.y, r6.y, l(6)
   if_nz r4.y
     ishl r4.y, l(1), r5.w
-    mul r0.z, r0.z, l(0.250000)
-    iadd r1.x, r1.x, r4.y
+    mul r0.y, r0.y, l(0.250000)
+    iadd r0.x, r0.x, r4.y
     if_nz r5.w
       ieq r4.w, r2.z, l(2)
       if_nz r4.w
-        ishl r4.w, r1.x, l(2)
+        ishl r4.w, r0.x, l(2)
         ld_raw r11.xyzw, r4.w, T0[0].zwxy
         iadd r4.w, r4.w, l(16)
         ld_raw r12.xyzw, r4.w, T0[0].zwxy
         mov r13.xy, r11.zwzz
         mov r14.xy, r12.zwzz
       else 
-        ishl r4.w, r1.x, l(2)
+        ishl r4.w, r0.x, l(2)
         ld_raw r13.xy, r4.w, T0[0].xyxx
-        iadd r4.w, r2.z, r1.x
+        iadd r4.w, r2.z, r0.x
         ishl r4.w, r4.w, l(2)
         ld_raw r11.xy, r4.w, T0[0].xyxx
-        ishl r5.xy, l(2, 3, 0, 0), r2.yyyy
-        iadd r5.xy, r1.xxxx, r5.xyxx
+        ishl r5.xy, l(2, 3, 0, 0), r1.yyyy
+        iadd r5.xy, r0.xxxx, r5.xyxx
         ishl r5.xy, r5.xyxx, l(2, 2, 0, 0)
         ld_raw r14.xy, r5.x, T0[0].xyxx
         ld_raw r12.xy, r5.y, T0[0].xyxx
@@ -698,16 +697,16 @@ if_nz r2.w
     else 
       ieq r4.w, r2.z, l(1)
       if_nz r4.w
-        ishl r4.w, r1.x, l(2)
+        ishl r4.w, r0.x, l(2)
         ld_raw r12.xyzw, r4.w, T0[0].wxyz
       else 
-        ishl r4.w, r1.x, l(2)
+        ishl r4.w, r0.x, l(2)
         ld_raw r12.y, r4.w, T0[0].xxxx
-        iadd r4.w, r2.z, r1.x
+        iadd r4.w, r2.z, r0.x
         ishl r4.w, r4.w, l(2)
         ld_raw r12.z, r4.w, T0[0].xxxx
-        ishl r5.xy, l(2, 3, 0, 0), r2.yyyy
-        iadd r5.xy, r1.xxxx, r5.xyxx
+        ishl r5.xy, l(2, 3, 0, 0), r1.yyyy
+        iadd r5.xy, r0.xxxx, r5.xyxx
         ishl r5.xy, r5.xyxx, l(2, 2, 0, 0)
         ld_raw r12.w, r5.x, T0[0].xxxx
         ld_raw r12.x, r5.y, T0[0].xxxx
@@ -891,24 +890,24 @@ if_nz r2.w
     add r11.xyzw, r7.xyzw, r11.xyzw
     add r14.xyzw, r10.xyzw, r14.xyzw
     add r12.xyzw, r8.xyzw, r12.xyzw
-    iadd r1.x, r3.w, r4.y
+    iadd r0.x, r3.w, r4.y
     if_nz r5.w
       ieq r3.w, r2.z, l(2)
       if_nz r3.w
-        ishl r3.w, r1.x, l(2)
+        ishl r3.w, r0.x, l(2)
         ld_raw r15.xyzw, r3.w, T0[0].zwxy
         iadd r3.w, r3.w, l(16)
         ld_raw r16.xyzw, r3.w, T0[0].zwxy
         mov r17.xy, r15.zwzz
         mov r18.xy, r16.zwzz
       else 
-        ishl r3.w, r1.x, l(2)
+        ishl r3.w, r0.x, l(2)
         ld_raw r17.xy, r3.w, T0[0].xyxx
-        iadd r3.w, r2.z, r1.x
+        iadd r3.w, r2.z, r0.x
         ishl r3.w, r3.w, l(2)
         ld_raw r15.xy, r3.w, T0[0].xyxx
-        ishl r4.yw, l(0, 2, 0, 3), r2.yyyy
-        iadd r4.yw, r1.xxxx, r4.yyyw
+        ishl r4.yw, l(0, 2, 0, 3), r1.yyyy
+        iadd r4.yw, r0.xxxx, r4.yyyw
         ishl r4.yw, r4.yyyw, l(0, 2, 0, 2)
         ld_raw r18.xy, r4.y, T0[0].xyxx
         ld_raw r16.xy, r4.w, T0[0].xyxx
@@ -960,19 +959,19 @@ if_nz r2.w
     else 
       ieq r3.w, r2.z, l(1)
       if_nz r3.w
-        ishl r3.w, r1.x, l(2)
+        ishl r3.w, r0.x, l(2)
         ld_raw r16.xyzw, r3.w, T0[0].wxyz
       else 
-        ishl r3.w, r1.x, l(2)
+        ishl r3.w, r0.x, l(2)
         ld_raw r16.y, r3.w, T0[0].xxxx
-        iadd r2.z, r2.z, r1.x
+        iadd r2.z, r2.z, r0.x
         ishl r2.z, r2.z, l(2)
         ld_raw r16.z, r2.z, T0[0].xxxx
-        ishl r2.yz, l(0, 2, 3, 0), r2.yyyy
-        iadd r2.yz, r1.xxxx, r2.yyzy
-        ishl r2.yz, r2.yyzy, l(0, 2, 2, 0)
-        ld_raw r16.w, r2.y, T0[0].xxxx
-        ld_raw r16.x, r2.z, T0[0].xxxx
+        ishl r4.yw, l(0, 2, 0, 3), r1.yyyy
+        iadd r4.yw, r0.xxxx, r4.yyyw
+        ishl r4.yw, r4.yyyw, l(0, 2, 0, 2)
+        ld_raw r16.w, r4.y, T0[0].xxxx
+        ld_raw r16.x, r4.w, T0[0].xxxx
       endif 
       switch r5.z
         case l(0)
@@ -1040,7 +1039,7 @@ if_nz r2.w
         ishl r19.xyz, r19.xyzx, l(16, 16, 16, 0)
         iadd r19.xyz, r20.xyzx, r19.xyzx
         movc r17.xyz, r6.yzwy, r19.xyzx, l(0,0,0,0)
-        utof r2.yz, r5.zzwz
+        utof r4.yw, r5.zzzw
         ushr r5.xyzw, r16.zwwz, l(10, 10, 20, 20)
         mov r19.x, r16.z
         mov r19.yz, r5.xxwx
@@ -1060,7 +1059,7 @@ if_nz r2.w
         ishl r19.xyz, r19.xyzx, l(16, 16, 16, 0)
         iadd r19.xyz, r20.xyzx, r19.xyzx
         movc r15.xyz, r6.yzwy, r19.xyzx, l(0,0,0,0)
-        mul r2.yz, r2.yyzy, l(0.000000, 0.333333, 0.333333, 0.000000)
+        mul r4.yw, r4.yyyw, l(0.000000, 0.333333, 0.000000, 0.333333)
         mov r5.x, r16.w
         and r6.yzw, r5.xxyz, l(0, 1023, 1023, 1023)
         and r19.xyz, r5.xyzx, l(127, 127, 127, 0)
@@ -1079,29 +1078,29 @@ if_nz r2.w
         iadd r5.xyz, r19.xyzx, r5.xyzx
         movc r18.xyz, r6.yzwy, r5.xyzx, l(0,0,0,0)
         ushr r5.xyzw, r16.wxxx, l(30, 10, 20, 30)
-        utof r4.yw, r5.xxxw
+        utof r6.yz, r5.xxwx
         mov r5.x, r16.x
-        and r6.yzw, r5.xxyz, l(0, 1023, 1023, 1023)
-        and r19.xyz, r5.xyzx, l(127, 127, 127, 0)
-        ubfe r20.xyz, l(3, 3, 3, 0), l(7, 7, 7, 0), r5.xyzx
-        firstbit_hi r21.xyz, r19.xyzx
-        iadd r21.xyz, r21.xyzx, l(-24, -24, -24, 0)
-        movc r21.xyz, r19.xyzx, r21.xyzx, l(8,8,8,0)
-        iadd r22.xyz, -r21.xyzx, l(1, 1, 1, 0)
-        movc r22.xyz, r20.xyzx, r20.xyzx, r22.xyzx
-        bfi r5.xyz, l(7, 7, 7, 0), r21.xyzx, r5.xyzx, l(0, 0, 0, 0)
+        and r19.xyz, r5.xyzx, l(1023, 1023, 1023, 0)
+        and r20.xyz, r5.xyzx, l(127, 127, 127, 0)
+        ubfe r21.xyz, l(3, 3, 3, 0), l(7, 7, 7, 0), r5.xyzx
+        firstbit_hi r22.xyz, r20.xyzx
+        iadd r22.xyz, r22.xyzx, l(-24, -24, -24, 0)
+        movc r22.xyz, r20.xyzx, r22.xyzx, l(8,8,8,0)
+        iadd r23.xyz, -r22.xyzx, l(1, 1, 1, 0)
+        movc r23.xyz, r21.xyzx, r21.xyzx, r23.xyzx
+        bfi r5.xyz, l(7, 7, 7, 0), r22.xyzx, r5.xyzx, l(0, 0, 0, 0)
         and r5.xyz, r5.xyzx, l(127, 127, 127, 0)
-        movc r5.xyz, r20.xyzx, r19.xyzx, r5.xyzx
-        ishl r19.xyz, r22.xyzx, l(23, 23, 23, 0)
-        iadd r19.xyz, r19.xyzx, l(0x3e000000, 0x3e000000, 0x3e000000, 0)
+        movc r5.xyz, r21.xyzx, r20.xyzx, r5.xyzx
+        ishl r20.xyz, r23.xyzx, l(23, 23, 23, 0)
+        iadd r20.xyz, r20.xyzx, l(0x3e000000, 0x3e000000, 0x3e000000, 0)
         ishl r5.xyz, r5.xyzx, l(16, 16, 16, 0)
-        iadd r5.xyz, r19.xyzx, r5.xyzx
-        movc r16.xyz, r6.yzwy, r5.xyzx, l(0,0,0,0)
-        mul r4.yw, r4.yyyw, l(0.000000, 0.333333, 0.000000, 0.333333)
-        mov r17.w, r2.y
-        mov r15.w, r2.z
-        mov r18.w, r4.y
-        mov r16.w, r4.w
+        iadd r5.xyz, r20.xyzx, r5.xyzx
+        movc r16.xyz, r19.xyzx, r5.xyzx, l(0,0,0,0)
+        mul r5.xy, r6.yzyy, l(0.333333, 0.333333, 0.000000, 0.000000)
+        mov r17.w, r4.y
+        mov r15.w, r4.w
+        mov r18.w, r5.x
+        mov r16.w, r5.y
         break 
         case l(4)
         ishl r5.xyzw, r16.yzwx, l(16, 16, 16, 16)
@@ -1154,254 +1153,265 @@ if_nz r2.w
     add r10.xyzw, r14.xyzw, r18.xyzw
     add r8.xyzw, r12.xyzw, r16.xyzw
   else 
-    mov r0.z, r2.w
+    mov r0.y, r2.w
   endif 
 endif 
-mul r5.xyzw, r0.zzzz, r9.xyzw
-mul r7.xyzw, r0.zzzz, r7.xyzw
-mul r9.xyzw, r0.zzzz, r10.xyzw
-mul r8.xyzw, r0.zzzz, r8.xyzw
-if_nz r0.w
+mul r5.xyzw, r0.yyyy, r9.xyzw
+mul r7.xyzw, r0.yyyy, r7.xyzw
+mul r9.xyzw, r0.yyyy, r10.xyzw
+mul r8.xyzw, r0.yyyy, r8.xyzw
+if_nz r1.z
   mov r5.xz, r5.zzxz
   mov r7.xz, r7.zzxz
   mov r9.xz, r9.zzxz
   mov r8.xz, r8.zzxz
 endif 
-ieq r0.z, r4.x, l(0)
-and r0.z, r0.z, r2.x
-if_nz r0.z
-  mov r5.xyzw, r7.xyzw
-endif 
-mov r4.z, vThreadID.y
-imad r2.yz, r3.xxzx, r0.xxyx, r4.xxzx
-ushr r2.x, r2.y, l(3)
-udiv r0.zw, null, r2.xxxz, r0.xxxy
-if_nz r1.w
-  ubfe r1.x, l(3), l(4), CB0[0][0].z
-  ishl r1.w, r3.y, l(5)
-  ishr r3.xy, r0.wwww, l(4, 3, 0, 0)
-  ishr r2.w, r1.x, l(2)
-  ushr r1.w, r1.w, l(4)
-  and r1.w, r1.w, l(2046)
-  imad r1.w, r2.w, r1.w, r3.x
-  ushr r3.x, r1.y, l(5)
-  ibfe r3.zw, l(0, 0, 27, 29), l(0, 0, 2, 0), r0.zzzz
-  imad r1.w, r1.w, r3.x, r3.z
-  ishl r3.x, r0.w, l(9)
-  ishr r3.x, r3.x, l(6)
-  and r3.x, r3.x, l(48)
-  iadd r2.w, r2.w, r3.y
-  bfi r3.y, l(1), l(1), r2.w, l(0)
-  iadd r3.y, r3.y, r3.w
-  bfi r3.y, l(2), l(1), r3.y, l(0)
-  bfi r2.w, l(1), l(0), r2.w, r3.y
-  bfi r3.yz, l(0, 21, 21, 0), l(0, 9, 12, 0), r1.wwww, l(0, 0, 0, 0)
-  imad r3.xy, r3.xxxx, l(2, 16, 0, 0), r3.yzyy
-  bfi r1.xw, l(2, 0, 0, 2), l(7, 0, 0, 10), r1.xxxx, r3.xxxy
-  bfi r3.x, l(1), l(4), r0.w, l(0)
-  ubfe r3.y, l(3), l(6), r1.x
-  and r3.z, r2.w, l(6)
-  bfi r2.w, l(1), l(8), r2.w, l(0)
-  imad r2.w, r3.y, l(32), r2.w
-  imad r2.w, r3.z, l(4), r2.w
-  bfi r1.xw, l(5, 0, 0, 5), l(0, 0, 0, 3), r3.xxxx, r1.xxxw
-  bfi r1.w, l(9), l(3), r2.w, r1.w
-  bfi r1.x, l(6), l(0), r1.x, r1.w
-else 
-  ibfe r3.xy, l(27, 29, 0, 0), l(2, 0, 0, 0), r0.zzzz
-  ishr r3.zw, r0.wwww, l(0, 0, 5, 2)
-  ushr r1.y, r1.y, l(5)
-  imad r1.y, r3.z, r1.y, r3.x
-  bfi r4.xyz, l(4, 4, 4, 0), l(4, 7, 6, 0), r0.wwww, l(0, 0, 0, 0)
-  bfi r4.xyz, l(24, 24, 24, 0), l(8, 11, 10, 0), r1.yyyy, r4.xyzx
-  ishl r1.y, r0.w, l(7)
-  and r1.y, r1.y, l(2048)
-  bfi r1.y, l(12), l(0), r1.y, r4.y
-  and r1.w, r4.z, l(1792)
-  iadd r1.y, r1.y, r1.w
-  and r1.w, r3.w, l(2)
-  iadd r1.w, r3.y, r1.w
-  bfi r1.w, l(2), l(6), r1.w, l(0)
-  iadd r1.y, r1.y, r1.w
-  bfi r1.x, l(6), l(0), r4.x, r1.y
-endif 
-imad r0.zw, -r0.zzzw, r0.xxxy, r2.xxxz
-imul null, r0.x, r0.y, r0.x
-imad r0.y, r0.z, r0.y, r0.w
-ishl r0.y, r0.y, l(4)
-bfi r0.y, l(3), l(1), r2.y, r0.y
-imad r0.x, r1.x, r0.x, r0.y
-ushr r0.x, r0.x, l(3)
 switch r6.x
   case l(3)
   mov_sat r5.xyzw, r5.xyzw
-  mad r2.xyzw, r5.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r2.xyzw, r2.xyzw
-  imad r0.w, r2.y, l(32), r2.x
-  imad r0.w, r2.z, l(1024), r0.w
-  imad r0.w, r2.w, l(0x00008000), r0.w
+  mad r6.xyzw, r5.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r6.xyzw, r6.xyzw
+  imad r1.y, r6.y, l(32), r6.x
+  imad r1.y, r6.z, l(1024), r1.y
+  imad r1.y, r6.w, l(0x00008000), r1.y
   mov_sat r7.xyzw, r7.xyzw
-  mad r2.xyzw, r7.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r2.xyzw, r2.xyzw
-  imad r1.x, r2.y, l(32), r2.x
-  imad r1.x, r2.z, l(1024), r1.x
-  ishl r1.y, r2.w, l(31)
-  imad r1.x, r1.x, l(0x00010000), r1.y
-  iadd r0.y, r0.w, r1.x
+  mad r6.xyzw, r7.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r6.xyzw, r6.xyzw
+  imad r1.z, r6.y, l(32), r6.x
+  imad r1.z, r6.z, l(1024), r1.z
+  ishl r2.z, r6.w, l(31)
+  imad r1.z, r1.z, l(0x00010000), r2.z
+  iadd r0.x, r1.z, r1.y
   mov_sat r9.xyzw, r9.xyzw
-  mad r2.xyzw, r9.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r2.xyzw, r2.xyzw
-  imad r0.w, r2.y, l(32), r2.x
-  imad r0.w, r2.z, l(1024), r0.w
-  imad r0.w, r2.w, l(0x00008000), r0.w
+  mad r6.xyzw, r9.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r6.xyzw, r6.xyzw
+  imad r1.y, r6.y, l(32), r6.x
+  imad r1.y, r6.z, l(1024), r1.y
+  imad r1.y, r6.w, l(0x00008000), r1.y
   mov_sat r8.xyzw, r8.xyzw
-  mad r2.xyzw, r8.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r2.xyzw, r2.xyzw
-  imad r1.x, r2.y, l(32), r2.x
-  imad r1.x, r2.z, l(1024), r1.x
-  ishl r1.y, r2.w, l(31)
-  imad r1.x, r1.x, l(0x00010000), r1.y
-  iadd r0.z, r0.w, r1.x
+  mad r6.xyzw, r8.xyzw, l(31.000000, 31.000000, 31.000000, 1.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r6.xyzw, r6.xyzw
+  imad r1.z, r6.y, l(32), r6.x
+  imad r1.z, r6.z, l(1024), r1.z
+  ishl r2.z, r6.w, l(31)
+  imad r1.z, r1.z, l(0x00010000), r2.z
+  iadd r0.y, r1.z, r1.y
   break 
   case l(4)
   mov_sat r5.xyz, r5.xyzx
-  mad r1.xyw, r5.xyxz, l(31.000000, 63.000000, 0.000000, 31.000000), l(0.500000, 0.500000, 0.000000, 0.500000)
-  ftou r1.xyw, r1.xyxw
-  imad r0.w, r1.y, l(32), r1.x
-  imad r0.w, r1.w, l(2048), r0.w
+  mad r6.xyz, r5.xyzx, l(31.000000, 63.000000, 31.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r6.xyz, r6.xyzx
+  imad r1.y, r6.y, l(32), r6.x
+  imad r1.y, r6.z, l(2048), r1.y
   mov_sat r7.xyz, r7.xyzx
-  mad r1.xyw, r7.xyxz, l(31.000000, 63.000000, 0.000000, 31.000000), l(0.500000, 0.500000, 0.000000, 0.500000)
-  ftou r1.xyw, r1.xyxw
-  imad r1.x, r1.y, l(32), r1.x
-  ishl r1.y, r1.w, l(27)
-  imad r1.x, r1.x, l(0x00010000), r1.y
-  iadd r0.y, r0.w, r1.x
+  mad r6.xyz, r7.xyzx, l(31.000000, 63.000000, 31.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r6.xyz, r6.xyzx
+  imad r1.z, r6.y, l(32), r6.x
+  ishl r2.z, r6.z, l(27)
+  imad r1.z, r1.z, l(0x00010000), r2.z
+  iadd r0.x, r1.z, r1.y
   mov_sat r9.xyz, r9.xyzx
-  mad r1.xyw, r9.xyxz, l(31.000000, 63.000000, 0.000000, 31.000000), l(0.500000, 0.500000, 0.000000, 0.500000)
-  ftou r1.xyw, r1.xyxw
-  imad r0.w, r1.y, l(32), r1.x
-  imad r0.w, r1.w, l(2048), r0.w
+  mad r6.xyz, r9.xyzx, l(31.000000, 63.000000, 31.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r6.xyz, r6.xyzx
+  imad r1.y, r6.y, l(32), r6.x
+  imad r1.y, r6.z, l(2048), r1.y
   mov_sat r8.xyz, r8.xyzx
-  mad r1.xyw, r8.xyxz, l(31.000000, 63.000000, 0.000000, 31.000000), l(0.500000, 0.500000, 0.000000, 0.500000)
-  ftou r1.xyw, r1.xyxw
-  imad r1.x, r1.y, l(32), r1.x
-  ishl r1.y, r1.w, l(27)
-  imad r1.x, r1.x, l(0x00010000), r1.y
-  iadd r0.z, r0.w, r1.x
+  mad r6.xyz, r8.xyzx, l(31.000000, 63.000000, 31.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r6.xyz, r6.xyzx
+  imad r1.z, r6.y, l(32), r6.x
+  ishl r2.z, r6.z, l(27)
+  imad r1.z, r1.z, l(0x00010000), r2.z
+  iadd r0.y, r1.z, r1.y
   break 
   case l(5)
   mov_sat r5.xyz, r5.xyzx
-  mad r1.xyw, r5.xyxz, l(31.000000, 31.000000, 0.000000, 63.000000), l(0.500000, 0.500000, 0.000000, 0.500000)
-  ftou r1.xyw, r1.xyxw
-  imad r0.w, r1.y, l(32), r1.x
-  imad r0.w, r1.w, l(1024), r0.w
+  mad r6.xyz, r5.xyzx, l(31.000000, 31.000000, 63.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r6.xyz, r6.xyzx
+  imad r1.y, r6.y, l(32), r6.x
+  imad r1.y, r6.z, l(1024), r1.y
   mov_sat r7.xyz, r7.xyzx
-  mad r1.xyw, r7.xyxz, l(31.000000, 31.000000, 0.000000, 63.000000), l(0.500000, 0.500000, 0.000000, 0.500000)
-  ftou r1.xyw, r1.xyxw
-  imad r1.x, r1.y, l(32), r1.x
-  ishl r1.y, r1.w, l(26)
-  imad r1.x, r1.x, l(0x00010000), r1.y
-  iadd r0.y, r0.w, r1.x
+  mad r6.xyz, r7.xyzx, l(31.000000, 31.000000, 63.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r6.xyz, r6.xyzx
+  imad r1.z, r6.y, l(32), r6.x
+  ishl r2.z, r6.z, l(26)
+  imad r1.z, r1.z, l(0x00010000), r2.z
+  iadd r0.x, r1.z, r1.y
   mov_sat r9.xyz, r9.xyzx
-  mad r1.xyw, r9.xyxz, l(31.000000, 31.000000, 0.000000, 63.000000), l(0.500000, 0.500000, 0.000000, 0.500000)
-  ftou r1.xyw, r1.xyxw
-  imad r0.w, r1.y, l(32), r1.x
-  imad r0.w, r1.w, l(1024), r0.w
+  mad r6.xyz, r9.xyzx, l(31.000000, 31.000000, 63.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r6.xyz, r6.xyzx
+  imad r1.y, r6.y, l(32), r6.x
+  imad r1.y, r6.z, l(1024), r1.y
   mov_sat r8.xyz, r8.xyzx
-  mad r1.xyw, r8.xyxz, l(31.000000, 31.000000, 0.000000, 63.000000), l(0.500000, 0.500000, 0.000000, 0.500000)
-  ftou r1.xyw, r1.xyxw
-  imad r1.x, r1.y, l(32), r1.x
-  ishl r1.y, r1.w, l(26)
-  imad r1.x, r1.x, l(0x00010000), r1.y
-  iadd r0.z, r0.w, r1.x
+  mad r6.xyz, r8.xyzx, l(31.000000, 31.000000, 63.000000, 0.000000), l(0.500000, 0.500000, 0.500000, 0.000000)
+  ftou r6.xyz, r6.xyzx
+  imad r1.z, r6.y, l(32), r6.x
+  ishl r2.z, r6.z, l(26)
+  imad r1.z, r1.z, l(0x00010000), r2.z
+  iadd r0.y, r1.z, r1.y
   break 
   case l(10)
   mov_sat r5.xy, r5.xyxx
   mov_sat r5.zw, r7.xxxy
-  mad r2.xyzw, r5.xyzw, l(255.000000, 255.000000, 255.000000, 255.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r2.xyzw, r2.xyzw
-  imad r0.w, r2.y, l(256), r2.x
-  imad r0.w, r2.z, l(0x00010000), r0.w
-  imad r0.y, r2.w, l(0x01000000), r0.w
+  mad r6.xyzw, r5.xyzw, l(255.000000, 255.000000, 255.000000, 255.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r6.xyzw, r6.xyzw
+  imad r1.y, r6.y, l(256), r6.x
+  imad r1.y, r6.z, l(0x00010000), r1.y
+  imad r0.x, r6.w, l(0x01000000), r1.y
   mov_sat r9.xy, r9.xyxx
   mov_sat r9.zw, r8.xxxy
-  mad r2.xyzw, r9.xyzw, l(255.000000, 255.000000, 255.000000, 255.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r2.xyzw, r2.xyzw
-  imad r0.w, r2.y, l(256), r2.x
-  imad r0.w, r2.z, l(0x00010000), r0.w
-  imad r0.z, r2.w, l(0x01000000), r0.w
+  mad r6.xyzw, r9.xyzw, l(255.000000, 255.000000, 255.000000, 255.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r6.xyzw, r6.xyzw
+  imad r1.y, r6.y, l(256), r6.x
+  imad r1.y, r6.z, l(0x00010000), r1.y
+  imad r0.y, r6.w, l(0x01000000), r1.y
   break 
   case l(15)
   mov_sat r5.xyzw, r5.xyzw
-  mad r2.xyzw, r5.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r2.xyzw, r2.xyzw
-  imad r0.w, r2.y, l(16), r2.x
-  imad r0.w, r2.z, l(256), r0.w
-  imad r0.w, r2.w, l(4096), r0.w
+  mad r6.xyzw, r5.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r6.xyzw, r6.xyzw
+  imad r1.y, r6.y, l(16), r6.x
+  imad r1.y, r6.z, l(256), r1.y
+  imad r1.y, r6.w, l(4096), r1.y
   mov_sat r7.xyzw, r7.xyzw
-  mad r2.xyzw, r7.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r2.xyzw, r2.xyzw
-  imad r1.x, r2.y, l(16), r2.x
-  imad r1.x, r2.z, l(256), r1.x
-  ishl r1.y, r2.w, l(28)
-  imad r1.x, r1.x, l(0x00010000), r1.y
-  iadd r0.y, r0.w, r1.x
+  mad r6.xyzw, r7.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r6.xyzw, r6.xyzw
+  imad r1.z, r6.y, l(16), r6.x
+  imad r1.z, r6.z, l(256), r1.z
+  ishl r2.z, r6.w, l(28)
+  imad r1.z, r1.z, l(0x00010000), r2.z
+  iadd r0.x, r1.z, r1.y
   mov_sat r9.xyzw, r9.xyzw
-  mad r2.xyzw, r9.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r2.xyzw, r2.xyzw
-  imad r0.w, r2.y, l(16), r2.x
-  imad r0.w, r2.z, l(256), r0.w
-  imad r0.w, r2.w, l(4096), r0.w
+  mad r6.xyzw, r9.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r6.xyzw, r6.xyzw
+  imad r1.y, r6.y, l(16), r6.x
+  imad r1.y, r6.z, l(256), r1.y
+  imad r1.y, r6.w, l(4096), r1.y
   mov_sat r8.xyzw, r8.xyzw
-  mad r2.xyzw, r8.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r2.xyzw, r2.xyzw
-  imad r1.x, r2.y, l(16), r2.x
-  imad r1.x, r2.z, l(256), r1.x
-  ishl r1.y, r2.w, l(28)
-  imad r1.x, r1.x, l(0x00010000), r1.y
-  iadd r0.z, r0.w, r1.x
+  mad r6.xyzw, r8.xyzw, l(15.000000, 15.000000, 15.000000, 15.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r6.xyzw, r6.xyzw
+  imad r1.z, r6.y, l(16), r6.x
+  imad r1.z, r6.z, l(256), r1.z
+  ishl r2.z, r6.w, l(28)
+  imad r1.z, r1.z, l(0x00010000), r2.z
+  iadd r0.y, r1.z, r1.y
   break 
   case l(24)
   mov_sat r8.z, r5.x
   mov_sat r8.y, r7.x
   mov_sat r8.w, r9.x
   mov_sat r8.x, r8.x
-  mad r2.xyzw, r8.zywx, l(65535.000000, 65535.000000, 65535.000000, 65535.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
-  ftou r2.xyzw, r2.xyzw
-  imad r0.yz, r2.yywy, l(0, 0x00010000, 0x00010000, 0), r2.xxzx
+  mad r6.xyzw, r8.zywx, l(65535.000000, 65535.000000, 65535.000000, 65535.000000), l(0.500000, 0.500000, 0.500000, 0.500000)
+  ftou r6.xyzw, r6.xyzw
+  imad r0.xy, r6.ywyy, l(0x00010000, 0x00010000, 0, 0), r6.xzxx
   break 
   default 
-  f32tof16 r0.w, r5.x
-  f32tof16 r1.x, r7.x
-  imad r0.y, r1.x, l(0x00010000), r0.w
-  f32tof16 r0.w, r9.x
-  f32tof16 r1.x, r8.x
-  imad r0.z, r1.x, l(0x00010000), r0.w
+  f32tof16 r1.y, r5.x
+  f32tof16 r1.z, r7.x
+  imad r0.x, r1.z, l(0x00010000), r1.y
+  f32tof16 r1.y, r9.x
+  f32tof16 r1.z, r8.x
+  imad r0.y, r1.z, l(0x00010000), r1.y
   break 
 endswitch 
-ieq r0.w, r1.z, l(1)
-if_nz r0.w
-  ishl r1.xy, r0.yzyy, l(8, 8, 0, 0)
-  ushr r1.zw, r0.yyyz, l(0, 0, 8, 8)
-  and r1.xyzw, r1.xyzw, l(0xff00ff00, 0xff00ff00, 0x00ff00ff, 0x00ff00ff)
-  iadd r0.yz, r1.zzwz, r1.xxyx
+ieq r1.y, r4.x, l(0)
+ine r1.z, r1.x, l(0)
+and r1.y, r1.z, r1.y
+if_nz r1.y
+  uge r1.y, r1.x, l(2)
+  if_nz r1.y
+    uge r1.x, r1.x, l(3)
+    if_nz r1.x
+      ushr r1.x, r0.y, l(16)
+      bfi r0.y, l(16), l(0), r1.x, r0.y
+    endif 
+    bfi r0.x, l(16), l(16), r0.y, r0.x
+  endif 
+  ushr r1.x, r0.x, l(16)
+  bfi r0.x, l(16), l(0), r1.x, r0.x
 endif 
-store_uav_typed U0[0].xyzw, r0.xxxx, r0.yzyy
+mov r4.z, vThreadID.y
+imad r1.yz, r3.xxzx, r2.xxyx, r4.xxzx
+ushr r1.x, r1.y, l(3)
+udiv r2.zw, null, r1.xxxz, r2.xxxy
+if_nz r0.w
+  ubfe r0.w, l(3), l(4), CB0[0][0].z
+  ishl r3.x, r3.y, l(5)
+  ishr r3.yz, r2.wwww, l(0, 4, 3, 0)
+  ishr r3.w, r0.w, l(2)
+  ushr r3.x, r3.x, l(4)
+  and r3.x, r3.x, l(2046)
+  imad r3.x, r3.w, r3.x, r3.y
+  ushr r3.y, r1.w, l(5)
+  ibfe r4.xy, l(27, 29, 0, 0), l(2, 0, 0, 0), r2.zzzz
+  imad r3.x, r3.x, r3.y, r4.x
+  ishl r3.y, r2.w, l(9)
+  ishr r3.y, r3.y, l(6)
+  and r3.y, r3.y, l(48)
+  iadd r3.z, r3.w, r3.z
+  bfi r3.w, l(1), l(1), r3.z, l(0)
+  iadd r3.w, r3.w, r4.y
+  bfi r3.w, l(2), l(1), r3.w, l(0)
+  bfi r3.z, l(1), l(0), r3.z, r3.w
+  bfi r3.xw, l(21, 0, 0, 21), l(9, 0, 0, 12), r3.xxxx, l(0, 0, 0, 0)
+  imad r3.xy, r3.yyyy, l(2, 16, 0, 0), r3.xwxx
+  bfi r3.xy, l(2, 2, 0, 0), l(7, 10, 0, 0), r0.wwww, r3.xyxx
+  bfi r0.w, l(1), l(4), r2.w, l(0)
+  ubfe r3.w, l(3), l(6), r3.x
+  and r4.x, r3.z, l(6)
+  bfi r3.z, l(1), l(8), r3.z, l(0)
+  imad r3.z, r3.w, l(32), r3.z
+  imad r3.z, r4.x, l(4), r3.z
+  bfi r3.xy, l(5, 5, 0, 0), l(0, 3, 0, 0), r0.wwww, r3.xyxx
+  bfi r0.w, l(9), l(3), r3.z, r3.y
+  bfi r0.w, l(6), l(0), r3.x, r0.w
+else 
+  ibfe r3.xy, l(27, 29, 0, 0), l(2, 0, 0, 0), r2.zzzz
+  ishr r3.zw, r2.wwww, l(0, 0, 5, 2)
+  ushr r1.w, r1.w, l(5)
+  imad r1.w, r3.z, r1.w, r3.x
+  bfi r4.xyz, l(4, 4, 4, 0), l(4, 7, 6, 0), r2.wwww, l(0, 0, 0, 0)
+  bfi r4.xyz, l(24, 24, 24, 0), l(8, 11, 10, 0), r1.wwww, r4.xyzx
+  ishl r1.w, r2.w, l(7)
+  and r1.w, r1.w, l(2048)
+  bfi r1.w, l(12), l(0), r1.w, r4.y
+  and r3.x, r4.z, l(1792)
+  iadd r1.w, r1.w, r3.x
+  and r3.x, r3.w, l(2)
+  iadd r3.x, r3.y, r3.x
+  bfi r3.x, l(2), l(6), r3.x, l(0)
+  iadd r1.w, r1.w, r3.x
+  bfi r0.w, l(6), l(0), r4.x, r1.w
+endif 
+imad r1.xz, -r2.zzwz, r2.xxyx, r1.xxzx
+imul null, r1.w, r2.y, r2.x
+imad r1.x, r1.x, r2.y, r1.z
+ishl r1.x, r1.x, l(4)
+bfi r1.x, l(3), l(1), r1.y, r1.x
+imad r0.w, r0.w, r1.w, r1.x
+ushr r0.w, r0.w, l(3)
+ieq r0.z, r0.z, l(1)
+if_nz r0.z
+  ishl r1.xy, r0.xyxx, l(8, 8, 0, 0)
+  ushr r1.zw, r0.xxxy, l(0, 0, 8, 8)
+  and r1.xyzw, r1.xyzw, l(0xff00ff00, 0xff00ff00, 0x00ff00ff, 0x00ff00ff)
+  iadd r0.xy, r1.zwzz, r1.xyxx
+endif 
+store_uav_typed U0[0].xyzw, r0.wwww, r0.xyxx
 ret 
-// Approximately 1343 instruction slots used
+// Approximately 1353 instruction slots used
 #endif
 
 const BYTE resolve_full_16bpp_scaled_cs[] =
 {
-     68,  88,  66,  67, 184,  86, 
-    145, 206, 157,  60, 184, 151, 
-      8,  95,  58, 246, 251,  75, 
-    140,  49,   1,   0,   0,   0, 
-    252, 162,   0,   0,   5,   0, 
+     68,  88,  66,  67,  86,  81, 
+    102, 164, 109,  81,   1, 135, 
+     38,  56,  93,  24, 251, 173, 
+    109,  54,   1,   0,   0,   0, 
+     24, 164,   0,   0,   5,   0, 
       0,   0,  52,   0,   0,   0, 
     148,   2,   0,   0, 164,   2, 
       0,   0, 180,   2,   0,   0, 
-     96, 162,   0,   0,  82,  68, 
+    124, 163,   0,   0,  82,  68, 
      69,  70,  88,   2,   0,   0, 
       1,   0,   0,   0, 232,   0, 
       0,   0,   3,   0,   0,   0, 
@@ -1509,8 +1519,8 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
      71,  78,   8,   0,   0,   0, 
       0,   0,   0,   0,   8,   0, 
       0,   0,  83,  72,  69,  88, 
-    164, 159,   0,   0,  81,   0, 
-      5,   0, 233,  39,   0,   0, 
+    192, 160,   0,   0,  81,   0, 
+      5,   0,  48,  40,   0,   0, 
     106,   8,   0,   1,  89,   0, 
       0,   7,  70, 142,  48,   0, 
       0,   0,   0,   0,   0,   0, 
@@ -1530,192 +1540,192 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
      24,   0,   0,   0, 155,   0, 
       0,   4,   8,   0,   0,   0, 
       8,   0,   0,   0,   1,   0, 
+      0,   0,   1,   0,   0,  12, 
+    242,   0,  16,   0,   0,   0, 
+      0,   0,   6, 138,  48,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      2,  64,   0,   0, 255,   3, 
+      0,   0,   0,   0,   0,  64, 
+      7,   0,   0,   0,   8,   0, 
+      0,   0,  31,   0,   4,   3, 
+     26,   0,  16,   0,   0,   0, 
       0,   0, 138,   0,   0,  17, 
-    114,   0,  16,   0,   0,   0, 
+     50,   0,  16,   0,   1,   0, 
       0,   0,   2,  64,   0,   0, 
       2,   0,   0,   0,   2,   0, 
-      0,   0,  11,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   2,  64, 
-      0,   0,  27,   0,   0,   0, 
-     29,   0,   0,   0,   5,   0, 
+      0,   0,  17,   0,   0,   0, 
+     20,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
      86, 133,  48,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   1,   0, 
-      0,  12, 242,   0,  16,   0, 
-      1,   0,   0,   0,   6, 138, 
-     48,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,  18,   0, 
+      0,   1,  54,   0,   0,   8, 
+     50,   0,  16,   0,   1,   0, 
       0,   0,   2,  64,   0,   0, 
-    255,   3,   0,   0,   0,   0, 
-      0,  64,   7,   0,   0,   0, 
-      8,   0,   0,   0,  31,   0, 
-      4,   3,  26,   0,  16,   0, 
-      1,   0,   0,   0,  79,   0, 
-      0,  10,  50,   0,  16,   0, 
-      2,   0,   0,   0,   2,  64, 
-      0,   0,   1,   0,   0,   0, 
-      1,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
-     70,   0,  16,   0,   0,   0, 
-      0,   0,  18,   0,   0,   1, 
-     54,   0,   0,   8,  50,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,  21,   0, 
+      0,   1, 138,   0,   0,  17, 
+    114,   0,  16,   0,   2,   0, 
+      0,   0,   2,  64,   0,   0, 
+      3,   0,   0,   0,   3,   0, 
+      0,   0,  11,   0,   0,   0, 
+      0,   0,   0,   0,   2,  64, 
+      0,   0,  16,   0,   0,   0, 
+     19,   0,   0,   0,   5,   0, 
+      0,   0,   0,   0,   0,   0, 
+     86, 133,  48,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,  38,   0, 
+      0,   8,   0, 208,   0,   0, 
+     34,   0,  16,   0,   0,   0, 
+      0,   0,  10,   0,  16,   0, 
+      2,   0,   0,   0,  42,   0, 
      16,   0,   2,   0,   0,   0, 
-      2,  64,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,  21,   0,   0,   1, 
-     38,   0,   0,   8,   0, 208, 
-      0,   0,  66,   0,  16,   0, 
-      0,   0,   0,   0,  10,   0, 
-     16,   0,   0,   0,   0,   0, 
-     42,   0,  16,   0,   0,   0, 
-      0,   0,   1,   0,   0,   9, 
-    130,   0,  16,   0,   0,   0, 
-      0,   0,  42, 128,  48,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      1,  64,   0,   0,   0,   0, 
-      0,   1,  85,   0,   0,  12, 
-    242,   0,  16,   0,   3,   0, 
-      0,   0, 214, 143,  48,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      2,  64,   0,   0,   4,   0, 
-      0,   0,  10,   0,   0,   0, 
-     20,   0,   0,   0,  24,   0, 
-      0,   0,  41,   0,   0,   6, 
-     18,   0,  16,   0,   4,   0, 
-      0,   0,  10,   0,   2,   0, 
-      1,  64,   0,   0,   2,   0, 
-      0,   0,  41,   0,   0,   7, 
-     66,   0,  16,   0,   0,   0, 
-      0,   0,  42,   0,  16,   0, 
-      0,   0,   0,   0,   1,  64, 
-      0,   0,   3,   0,   0,   0, 
-     80,   0,   0,   7,  66,   0, 
-     16,   0,   0,   0,   0,   0, 
-     10,   0,  16,   0,   4,   0, 
-      0,   0,  42,   0,  16,   0, 
-      0,   0,   0,   0,  31,   0, 
-      4,   3,  42,   0,  16,   0, 
-      0,   0,   0,   0,  62,   0, 
-      0,   1,  21,   0,   0,   1, 
-    138,   0,   0,  17, 242,   0, 
-     16,   0,   5,   0,   0,   0, 
-      2,  64,   0,   0,   2,   0, 
-      0,   0,  12,   0,   0,   0, 
-      4,   0,   0,   0,   1,   0, 
-      0,   0,   2,  64,   0,   0, 
-     10,   0,   0,   0,  13,   0, 
-      0,   0,  25,   0,   0,   0, 
-     29,   0,   0,   0,   6, 128, 
-     48,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,  54,   0,   0,   7, 
-     18,   0,  16,   0,   6,   0, 
-      0,   0,  26, 128,  48,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-     54,   0,   0,   5,  34,   0, 
-     16,   0,   6,   0,   0,   0, 
-     10,   0,  16,   0,   3,   0, 
-      0,   0, 140,   0,   0,  20, 
-    194,   0,  16,   0,   2,   0, 
-      0,   0,   2,  64,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   4,   0,   0,   0, 
-      1,   0,   0,   0,   2,  64, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   3,   0, 
-      0,   0,   3,   0,   0,   0, 
-      6,   4,  16,   0,   6,   0, 
-      0,   0,   2,  64,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0, 139,   0, 
-      0,  11,  66,   0,  16,   0, 
-      0,   0,   0,   0,   1,  64, 
-      0,   0,   6,   0,   0,   0, 
-      1,  64,   0,   0,  16,   0, 
-      0,   0,  42, 128,  48,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-     41,   0,   0,   7,  66,   0, 
-     16,   0,   0,   0,   0,   0, 
-     42,   0,  16,   0,   0,   0, 
-      0,   0,   1,  64,   0,   0, 
-     23,   0,   0,   0,  30,   0, 
-      0,   7,  66,   0,  16,   0, 
-      0,   0,   0,   0,  42,   0, 
-     16,   0,   0,   0,   0,   0, 
-      1,  64,   0,   0,   0,   0, 
-    128,  63, 140,   0,   0,  13, 
-     34,   0,  16,   0,   1,   0, 
-      0,   0,   1,  64,   0,   0, 
-     10,   0,   0,   0,   1,  64, 
-      0,   0,   5,   0,   0,   0, 
-     58, 128,  48,   0,   0,   0, 
+      1,   0,   0,   9,  66,   0, 
+     16,   0,   1,   0,   0,   0, 
+     42, 128,  48,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   1,  64, 
-      0,   0,   0,   0,   0,   0, 
-    140,   0,   0,  20,  82,   0, 
+      0,   0,   0,   0,   0,   1, 
+     85,   0,   0,  12, 242,   0, 
      16,   0,   3,   0,   0,   0, 
-      2,  64,   0,   0,   4,   0, 
-      0,   0,   0,   0,   0,   0, 
-      4,   0,   0,   0,   0,   0, 
-      0,   0,   2,  64,   0,   0, 
-      3,   0,   0,   0,   0,   0, 
-      0,   0,   3,   0,   0,   0, 
-      0,   0,   0,   0, 166,  11, 
-     16,   0,   3,   0,   0,   0, 
-      2,  64,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0, 138,   0,   0,  17, 
-     50,   0,  16,   0,   6,   0, 
-      0,   0,   2,  64,   0,   0, 
-      6,   0,   0,   0,   3,   0, 
+    214, 143,  48,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   2,  64, 
-      0,   0,   7,   0,   0,   0, 
-     28,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-    230, 138,  48,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   1,   0, 
+      0,   0,   4,   0,   0,   0, 
+     10,   0,   0,   0,  20,   0, 
+      0,   0,  24,   0,   0,   0, 
+     41,   0,   0,   6,  18,   0, 
+     16,   0,   4,   0,   0,   0, 
+     10,   0,   2,   0,   1,  64, 
+      0,   0,   2,   0,   0,   0, 
+     41,   0,   0,   7,  34,   0, 
+     16,   0,   0,   0,   0,   0, 
+     26,   0,  16,   0,   0,   0, 
+      0,   0,   1,  64,   0,   0, 
+      3,   0,   0,   0,  80,   0, 
       0,   7,  34,   0,  16,   0, 
-      2,   0,   0,   0,  26,   0, 
+      0,   0,   0,   0,  10,   0, 
+     16,   0,   4,   0,   0,   0, 
+     26,   0,  16,   0,   0,   0, 
+      0,   0,  31,   0,   4,   3, 
+     26,   0,  16,   0,   0,   0, 
+      0,   0,  62,   0,   0,   1, 
+     21,   0,   0,   1, 138,   0, 
+      0,  17, 242,   0,  16,   0, 
+      5,   0,   0,   0,   2,  64, 
+      0,   0,   2,   0,   0,   0, 
+     12,   0,   0,   0,   4,   0, 
+      0,   0,   1,   0,   0,   0, 
+      2,  64,   0,   0,  10,   0, 
+      0,   0,  13,   0,   0,   0, 
+     25,   0,   0,   0,  29,   0, 
+      0,   0,   6, 128,  48,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+     54,   0,   0,   7,  18,   0, 
+     16,   0,   6,   0,   0,   0, 
+     26, 128,  48,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,  54,   0, 
+      0,   5,  34,   0,  16,   0, 
+      6,   0,   0,   0,  10,   0, 
+     16,   0,   3,   0,   0,   0, 
+    140,   0,   0,  20, 194,   0, 
      16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,   1,   0, 
+      2,  64,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      4,   0,   0,   0,   1,   0, 
+      0,   0,   2,  64,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   3,   0,   0,   0, 
+      3,   0,   0,   0,   6,   4, 
+     16,   0,   6,   0,   0,   0, 
+      2,  64,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0, 139,   0,   0,  11, 
+     34,   0,  16,   0,   0,   0, 
+      0,   0,   1,  64,   0,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,  16,   0,   0,   0, 
+     42, 128,  48,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,  41,   0, 
+      0,   7,  34,   0,  16,   0, 
+      0,   0,   0,   0,  26,   0, 
+     16,   0,   0,   0,   0,   0, 
+      1,  64,   0,   0,  23,   0, 
+      0,   0,  30,   0,   0,   7, 
+     34,   0,  16,   0,   0,   0, 
+      0,   0,  26,   0,  16,   0, 
+      0,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0, 128,  63, 
+    140,   0,   0,  13, 130,   0, 
+     16,   0,   1,   0,   0,   0, 
+      1,  64,   0,   0,  10,   0, 
+      0,   0,   1,  64,   0,   0, 
+      5,   0,   0,   0,  58, 128, 
+     48,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   1,  64,   0,   0, 
+      0,   0,   0,   0, 140,   0, 
+      0,  20,  82,   0,  16,   0, 
+      3,   0,   0,   0,   2,  64, 
+      0,   0,   4,   0,   0,   0, 
+      0,   0,   0,   0,   4,   0, 
+      0,   0,   0,   0,   0,   0, 
+      2,  64,   0,   0,   3,   0, 
+      0,   0,   0,   0,   0,   0, 
+      3,   0,   0,   0,   0,   0, 
+      0,   0, 166,  11,  16,   0, 
+      3,   0,   0,   0,   2,  64, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+    138,   0,   0,  17,  50,   0, 
+     16,   0,   6,   0,   0,   0, 
+      2,  64,   0,   0,   6,   0, 
+      0,   0,   3,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   2,  64,   0,   0, 
+      7,   0,   0,   0,  28,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0, 230, 138, 
+     48,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
       0,   0,  83,   0,   0,   6, 
      34,   0,  16,   0,   4,   0, 
       0,   0,  26,   0,  16,   0, 
-      2,   0,   0,   0,  26,   0, 
+      1,   0,   0,   0,  26,   0, 
       2,   0,  35,   0,   0,   9, 
-     98,   0,  16,   0,   2,   0, 
-      0,   0, 166,  11,  16,   0, 
-      2,   0,   0,   0,   6,   1, 
-     16,   0,   0,   0,   0,   0, 
-      6,   1,  16,   0,   4,   0, 
+    194,   0,  16,   0,   2,   0, 
+      0,   0, 166,  14,  16,   0, 
+      2,   0,   0,   0,   6,   4, 
+     16,   0,   2,   0,   0,   0, 
+      6,   4,  16,   0,   4,   0, 
       0,   0,  80,   0,   0,   7, 
-    130,   0,  16,   0,   2,   0, 
+     34,   0,  16,   0,   1,   0, 
       0,   0,   1,  64,   0,   0, 
       3,   0,   0,   0,  26,   0, 
      16,   0,   6,   0,   0,   0, 
-     31,   0,   4,   3,  58,   0, 
-     16,   0,   2,   0,   0,   0, 
+     31,   0,   4,   3,  26,   0, 
+     16,   0,   1,   0,   0,   0, 
      54,   0,   0,   5,  34,   0, 
      16,   0,   7,   0,   0,   0, 
      26,   0,  16,   0,   6,   0, 
       0,   0,  18,   0,   0,   1, 
-     32,   0,   0,   7, 130,   0, 
-     16,   0,   2,   0,   0,   0, 
+     32,   0,   0,   7,  34,   0, 
+     16,   0,   1,   0,   0,   0, 
      26,   0,  16,   0,   6,   0, 
       0,   0,   1,  64,   0,   0, 
       5,   0,   0,   0,  31,   0, 
-      4,   3,  58,   0,  16,   0, 
-      2,   0,   0,   0,  54,   0, 
+      4,   3,  26,   0,  16,   0, 
+      1,   0,   0,   0,  54,   0, 
       0,   5,  34,   0,  16,   0, 
       7,   0,   0,   0,   1,  64, 
       0,   0,   2,   0,   0,   0, 
@@ -1738,10 +1748,10 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,   0,   0,   1,   0, 
       0,   0,   0,   0,   0,   0, 
       1,   0,   0,   0,  41,   0, 
-      0,   7,  98,   0,  16,   0, 
-      2,   0,   0,   0,  86,   6, 
+      0,   7, 194,   0,  16,   0, 
+      2,   0,   0,   0, 166,  14, 
      16,   0,   2,   0,   0,   0, 
-     86,   7,  16,   0,   4,   0, 
+     86,  13,  16,   0,   4,   0, 
       0,   0,  85,   0,   0,   7, 
      18,   0,  16,   0,   7,   0, 
       0,   0,  26,   0,  16,   0, 
@@ -1754,14 +1764,14 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,   0,   0,   0,   0, 
       0,   0,   1,   0,   0,   0, 
       1,   0,   0,   0,  30,   0, 
-      0,   7,  98,   0,  16,   0, 
-      2,   0,   0,   0,  86,   6, 
+      0,   7, 194,   0,  16,   0, 
+      2,   0,   0,   0, 166,  14, 
      16,   0,   2,   0,   0,   0, 
-    166,  11,  16,   0,   6,   0, 
+    166,  14,  16,   0,   6,   0, 
       0,   0,  38,   0,   0,  11, 
       0, 208,   0,   0,  98,   0, 
      16,   0,   7,   0,   0,   0, 
-      6,   1,  16,   0,   0,   0, 
+      6,   1,  16,   0,   2,   0, 
       0,   0,   2,  64,   0,   0, 
       0,   0,   0,   0,  80,   0, 
       0,   0,  16,   0,   0,   0, 
@@ -1773,57 +1783,57 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,  78,   0,   0,   8, 
     194,   0,  16,   0,   6,   0, 
       0,   0,   0, 208,   0,   0, 
-     86,   9,  16,   0,   2,   0, 
+    166,  14,  16,   0,   2,   0, 
       0,   0,   6,   8,  16,   0, 
       7,   0,   0,   0,  35,   0, 
       0,   9,  18,   0,  16,   0, 
-      1,   0,   0,   0,  58,   0, 
+      0,   0,   0,   0,  58,   0, 
      16,   0,   6,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
+     10,   0,  16,   0,   0,   0, 
       0,   0,  42,   0,  16,   0, 
       6,   0,   0,   0,  30,   0, 
       0,   7,  18,   0,  16,   0, 
-      1,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
+      0,   0,   0,   0,  10,   0, 
+     16,   0,   0,   0,   0,   0, 
      26,   0,  16,   0,   5,   0, 
       0,   0,  35,   0,   0,  10, 
-     98,   0,  16,   0,   2,   0, 
-      0,   0, 166,  11,  16, 128, 
+    194,   0,  16,   0,   2,   0, 
+      0,   0, 166,  14,  16, 128, 
      65,   0,   0,   0,   6,   0, 
-      0,   0,   6,   2,  16,   0, 
-      7,   0,   0,   0,  86,   6, 
+      0,   0,   6,   8,  16,   0, 
+      7,   0,   0,   0, 166,  14, 
      16,   0,   2,   0,   0,   0, 
      38,   0,   0,   8,   0, 208, 
-      0,   0, 130,   0,  16,   0, 
-      2,   0,   0,   0,  42,   0, 
+      0,   0,  34,   0,  16,   0, 
+      1,   0,   0,   0,  42,   0, 
      16,   0,   7,   0,   0,   0, 
      26,   0,  16,   0,   7,   0, 
       0,   0,  35,   0,   0,   9, 
-     34,   0,  16,   0,   2,   0, 
-      0,   0,  42,   0,  16,   0, 
+     66,   0,  16,   0,   2,   0, 
+      0,   0,  58,   0,  16,   0, 
       2,   0,   0,   0,  10,   0, 
      16,   0,   7,   0,   0,   0, 
-     26,   0,  16,   0,   2,   0, 
+     42,   0,  16,   0,   2,   0, 
       0,   0,  41,   0,   0,   7, 
-     34,   0,  16,   0,   2,   0, 
-      0,   0,  26,   0,  16,   0, 
+     66,   0,  16,   0,   2,   0, 
+      0,   0,  42,   0,  16,   0, 
       2,   0,   0,   0,  58,   0, 
      16,   0,   5,   0,   0,   0, 
      35,   0,   0,   9,  18,   0, 
-     16,   0,   1,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
-      0,   0,  58,   0,  16,   0, 
-      2,   0,   0,   0,  26,   0, 
+     16,   0,   0,   0,   0,   0, 
+     10,   0,  16,   0,   0,   0, 
+      0,   0,  26,   0,  16,   0, 
+      1,   0,   0,   0,  42,   0, 
      16,   0,   2,   0,   0,   0, 
      30,   0,   0,   7,  34,   0, 
-     16,   0,   2,   0,   0,   0, 
+     16,   0,   1,   0,   0,   0, 
      26,   0,  16,   0,   4,   0, 
       0,   0,  58,   0,  16,   0, 
       5,   0,   0,   0,  41,   0, 
       0,   7,  66,   0,  16,   0, 
       2,   0,   0,   0,   1,  64, 
       0,   0,   1,   0,   0,   0, 
-     26,   0,  16,   0,   2,   0, 
+     26,   0,  16,   0,   1,   0, 
       0,   0,  31,   0,   4,   3, 
      58,   0,  16,   0,   5,   0, 
       0,   0,  32,   0,   0,   7, 
@@ -1835,7 +1845,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
      16,   0,   2,   0,   0,   0, 
      41,   0,   0,   7, 130,   0, 
      16,   0,   2,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
+     10,   0,  16,   0,   0,   0, 
       0,   0,   1,  64,   0,   0, 
       2,   0,   0,   0, 165,   0, 
       0,   8, 242,   0,  16,   0, 
@@ -1863,7 +1873,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   1,  41,   0,   0,   7, 
     130,   0,  16,   0,   2,   0, 
       0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   1,  64, 
       0,   0,   2,   0,   0,   0, 
     165,   0,   0,   8,  50,   0, 
      16,   0,   9,   0,   0,   0, 
@@ -1873,7 +1883,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,  30,   0,   0,   7, 
     130,   0,  16,   0,   2,   0, 
       0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,  42,   0, 
+      0,   0,   0,   0,  42,   0, 
      16,   0,   2,   0,   0,   0, 
      41,   0,   0,   7, 130,   0, 
      16,   0,   2,   0,   0,   0, 
@@ -1891,10 +1901,10 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,   2,   0,   0,   0, 
       0,   0,   0,   0,   3,   0, 
       0,   0,  86,   5,  16,   0, 
-      2,   0,   0,   0,  30,   0, 
+      1,   0,   0,   0,  30,   0, 
       0,   7, 162,   0,  16,   0, 
       4,   0,   0,   0,   6,   0, 
-     16,   0,   1,   0,   0,   0, 
+     16,   0,   0,   0,   0,   0, 
      86,  13,  16,   0,   4,   0, 
       0,   0,  41,   0,   0,  10, 
     162,   0,  16,   0,   4,   0, 
@@ -2128,7 +2138,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       2,   0,   0,   0,  41,   0, 
       0,   7, 130,   0,  16,   0, 
       2,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
+     16,   0,   0,   0,   0,   0, 
       1,  64,   0,   0,   2,   0, 
       0,   0, 165,   0,   0,   8, 
     242,   0,  16,   0,   8,   0, 
@@ -2139,7 +2149,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   1,  41,   0,   0,   7, 
     130,   0,  16,   0,   2,   0, 
       0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   1,  64, 
       0,   0,   2,   0,   0,   0, 
     165,   0,   0,   8,  34,   0, 
      16,   0,   8,   0,   0,   0, 
@@ -2149,7 +2159,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,  30,   0,   0,   7, 
     130,   0,  16,   0,   2,   0, 
       0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,  42,   0, 
+      0,   0,   0,   0,  42,   0, 
      16,   0,   2,   0,   0,   0, 
      41,   0,   0,   7, 130,   0, 
      16,   0,   2,   0,   0,   0, 
@@ -2167,10 +2177,10 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,   2,   0,   0,   0, 
       0,   0,   0,   0,   3,   0, 
       0,   0,  86,   5,  16,   0, 
-      2,   0,   0,   0,  30,   0, 
+      1,   0,   0,   0,  30,   0, 
       0,   7, 162,   0,  16,   0, 
       4,   0,   0,   0,   6,   0, 
-     16,   0,   1,   0,   0,   0, 
+     16,   0,   0,   0,   0,   0, 
      86,  13,  16,   0,   4,   0, 
       0,   0,  41,   0,   0,  10, 
     162,   0,  16,   0,   4,   0, 
@@ -3132,15 +3142,15 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
      58,   0,  16,   0,   2,   0, 
       0,   0,  56,   0,   0,   7, 
     130,   0,  16,   0,   2,   0, 
-      0,   0,  42,   0,  16,   0, 
+      0,   0,  26,   0,  16,   0, 
       0,   0,   0,   0,   1,  64, 
       0,   0,   0,   0,   0,  63, 
      35,   0,   0,   9, 130,   0, 
      16,   0,   3,   0,   0,   0, 
       1,  64,   0,   0,  80,   0, 
       0,   0,  10,   0,  16,   0, 
-      0,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
+      2,   0,   0,   0,  10,   0, 
+     16,   0,   0,   0,   0,   0, 
      31,   0,   4,   3,  58,   0, 
      16,   0,   5,   0,   0,   0, 
      32,   0,   0,   7,  34,   0, 
@@ -3207,7 +3217,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,   0,   0,   0,   0, 
       2,   0,   0,   0,   0,   0, 
       0,   0,   3,   0,   0,   0, 
-     86,   5,  16,   0,   2,   0, 
+     86,   5,  16,   0,   1,   0, 
       0,   0,  30,   0,   0,   7, 
     162,   0,  16,   0,   4,   0, 
       0,   0, 246,  15,  16,   0, 
@@ -3483,7 +3493,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,   0,   0,   0,   0, 
       2,   0,   0,   0,   0,   0, 
       0,   0,   3,   0,   0,   0, 
-     86,   5,  16,   0,   2,   0, 
+     86,   5,  16,   0,   1,   0, 
       0,   0,  30,   0,   0,   7, 
     162,   0,  16,   0,   4,   0, 
       0,   0, 246,  15,  16,   0, 
@@ -4471,13 +4481,13 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,   1,   0,   0,   0, 
      58,   0,  16,   0,   5,   0, 
       0,   0,  56,   0,   0,   7, 
-     66,   0,  16,   0,   0,   0, 
-      0,   0,  42,   0,  16,   0, 
+     34,   0,  16,   0,   0,   0, 
+      0,   0,  26,   0,  16,   0, 
       0,   0,   0,   0,   1,  64, 
       0,   0,   0,   0, 128,  62, 
      30,   0,   0,   7,  18,   0, 
-     16,   0,   1,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
+     16,   0,   0,   0,   0,   0, 
+     10,   0,  16,   0,   0,   0, 
       0,   0,  26,   0,  16,   0, 
       4,   0,   0,   0,  31,   0, 
       4,   3,  58,   0,  16,   0, 
@@ -4491,7 +4501,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,  41,   0,   0,   7, 
     130,   0,  16,   0,   4,   0, 
       0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   1,  64, 
       0,   0,   2,   0,   0,   0, 
     165,   0,   0,   8, 242,   0, 
      16,   0,  11,   0,   0,   0, 
@@ -4518,7 +4528,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
      18,   0,   0,   1,  41,   0, 
       0,   7, 130,   0,  16,   0, 
       4,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
+     16,   0,   0,   0,   0,   0, 
       1,  64,   0,   0,   2,   0, 
       0,   0, 165,   0,   0,   8, 
      50,   0,  16,   0,  13,   0, 
@@ -4529,7 +4539,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   7, 130,   0,  16,   0, 
       4,   0,   0,   0,  42,   0, 
      16,   0,   2,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
+     10,   0,  16,   0,   0,   0, 
       0,   0,  41,   0,   0,   7, 
     130,   0,  16,   0,   4,   0, 
       0,   0,  58,   0,  16,   0, 
@@ -4546,10 +4556,10 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       2,   0,   0,   0,   3,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,  86,   5, 
-     16,   0,   2,   0,   0,   0, 
+     16,   0,   1,   0,   0,   0, 
      30,   0,   0,   7,  50,   0, 
      16,   0,   5,   0,   0,   0, 
-      6,   0,  16,   0,   1,   0, 
+      6,   0,  16,   0,   0,   0, 
       0,   0,  70,   0,  16,   0, 
       5,   0,   0,   0,  41,   0, 
       0,  10,  50,   0,  16,   0, 
@@ -4783,7 +4793,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
      16,   0,   4,   0,   0,   0, 
      41,   0,   0,   7, 130,   0, 
      16,   0,   4,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
+     10,   0,  16,   0,   0,   0, 
       0,   0,   1,  64,   0,   0, 
       2,   0,   0,   0, 165,   0, 
       0,   8, 242,   0,  16,   0, 
@@ -4794,7 +4804,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
      18,   0,   0,   1,  41,   0, 
       0,   7, 130,   0,  16,   0, 
       4,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
+     16,   0,   0,   0,   0,   0, 
       1,  64,   0,   0,   2,   0, 
       0,   0, 165,   0,   0,   8, 
      34,   0,  16,   0,  12,   0, 
@@ -4805,7 +4815,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   7, 130,   0,  16,   0, 
       4,   0,   0,   0,  42,   0, 
      16,   0,   2,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
+     10,   0,  16,   0,   0,   0, 
       0,   0,  41,   0,   0,   7, 
     130,   0,  16,   0,   4,   0, 
       0,   0,  58,   0,  16,   0, 
@@ -4822,10 +4832,10 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       2,   0,   0,   0,   3,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,  86,   5, 
-     16,   0,   2,   0,   0,   0, 
+     16,   0,   1,   0,   0,   0, 
      30,   0,   0,   7,  50,   0, 
      16,   0,   5,   0,   0,   0, 
-      6,   0,  16,   0,   1,   0, 
+      6,   0,  16,   0,   0,   0, 
       0,   0,  70,   0,  16,   0, 
       5,   0,   0,   0,  41,   0, 
       0,  10,  50,   0,  16,   0, 
@@ -5799,7 +5809,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,  70,  14,  16,   0, 
      12,   0,   0,   0,  30,   0, 
       0,   7,  18,   0,  16,   0, 
-      1,   0,   0,   0,  58,   0, 
+      0,   0,   0,   0,  58,   0, 
      16,   0,   3,   0,   0,   0, 
      26,   0,  16,   0,   4,   0, 
       0,   0,  31,   0,   4,   3, 
@@ -5813,7 +5823,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
      16,   0,   3,   0,   0,   0, 
      41,   0,   0,   7, 130,   0, 
      16,   0,   3,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
+     10,   0,  16,   0,   0,   0, 
       0,   0,   1,  64,   0,   0, 
       2,   0,   0,   0, 165,   0, 
       0,   8, 242,   0,  16,   0, 
@@ -5841,7 +5851,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   1,  41,   0,   0,   7, 
     130,   0,  16,   0,   3,   0, 
       0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   1,  64, 
       0,   0,   2,   0,   0,   0, 
     165,   0,   0,   8,  50,   0, 
      16,   0,  17,   0,   0,   0, 
@@ -5852,7 +5862,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
     130,   0,  16,   0,   3,   0, 
       0,   0,  42,   0,  16,   0, 
       2,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
+     16,   0,   0,   0,   0,   0, 
      41,   0,   0,   7, 130,   0, 
      16,   0,   3,   0,   0,   0, 
      58,   0,  16,   0,   3,   0, 
@@ -5869,10 +5879,10 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,   2,   0,   0,   0, 
       0,   0,   0,   0,   3,   0, 
       0,   0,  86,   5,  16,   0, 
-      2,   0,   0,   0,  30,   0, 
+      1,   0,   0,   0,  30,   0, 
       0,   7, 162,   0,  16,   0, 
       4,   0,   0,   0,   6,   0, 
-     16,   0,   1,   0,   0,   0, 
+     16,   0,   0,   0,   0,   0, 
      86,  13,  16,   0,   4,   0, 
       0,   0,  41,   0,   0,  10, 
     162,   0,  16,   0,   4,   0, 
@@ -6106,7 +6116,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       3,   0,   0,   0,  41,   0, 
       0,   7, 130,   0,  16,   0, 
       3,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
+     16,   0,   0,   0,   0,   0, 
       1,  64,   0,   0,   2,   0, 
       0,   0, 165,   0,   0,   8, 
     242,   0,  16,   0,  16,   0, 
@@ -6117,7 +6127,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   1,  41,   0,   0,   7, 
     130,   0,  16,   0,   3,   0, 
       0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   1,  64, 
       0,   0,   2,   0,   0,   0, 
     165,   0,   0,   8,  34,   0, 
      16,   0,  16,   0,   0,   0, 
@@ -6128,7 +6138,7 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
      66,   0,  16,   0,   2,   0, 
       0,   0,  42,   0,  16,   0, 
       2,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
+     16,   0,   0,   0,   0,   0, 
      41,   0,   0,   7,  66,   0, 
      16,   0,   2,   0,   0,   0, 
      42,   0,  16,   0,   2,   0, 
@@ -6139,33 +6149,33 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
      16,   0,   2,   0,   0,   0, 
       6, 112,  32,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
-     41,   0,   0,  10,  98,   0, 
-     16,   0,   2,   0,   0,   0, 
+     41,   0,   0,  10, 162,   0, 
+     16,   0,   4,   0,   0,   0, 
       2,  64,   0,   0,   0,   0, 
       0,   0,   2,   0,   0,   0, 
-      3,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   3,   0, 
       0,   0,  86,   5,  16,   0, 
-      2,   0,   0,   0,  30,   0, 
-      0,   7,  98,   0,  16,   0, 
-      2,   0,   0,   0,   6,   0, 
-     16,   0,   1,   0,   0,   0, 
-     86,   6,  16,   0,   2,   0, 
+      1,   0,   0,   0,  30,   0, 
+      0,   7, 162,   0,  16,   0, 
+      4,   0,   0,   0,   6,   0, 
+     16,   0,   0,   0,   0,   0, 
+     86,  13,  16,   0,   4,   0, 
       0,   0,  41,   0,   0,  10, 
-     98,   0,  16,   0,   2,   0, 
-      0,   0,  86,   6,  16,   0, 
-      2,   0,   0,   0,   2,  64, 
+    162,   0,  16,   0,   4,   0, 
+      0,   0,  86,  13,  16,   0, 
+      4,   0,   0,   0,   2,  64, 
       0,   0,   0,   0,   0,   0, 
-      2,   0,   0,   0,   2,   0, 
-      0,   0,   0,   0,   0,   0, 
+      2,   0,   0,   0,   0,   0, 
+      0,   0,   2,   0,   0,   0, 
     165,   0,   0,   8, 130,   0, 
      16,   0,  16,   0,   0,   0, 
-     26,   0,  16,   0,   2,   0, 
+     26,   0,  16,   0,   4,   0, 
       0,   0,   6, 112,  32,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0, 165,   0,   0,   8, 
      18,   0,  16,   0,  16,   0, 
-      0,   0,  42,   0,  16,   0, 
-      2,   0,   0,   0,   6, 112, 
+      0,   0,  58,   0,  16,   0, 
+      4,   0,   0,   0,   6, 112, 
      32,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,  21,   0, 
       0,   1,  76,   0,   0,   3, 
@@ -6515,9 +6525,9 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
-     86,   0,   0,   5,  98,   0, 
-     16,   0,   2,   0,   0,   0, 
-    166,  11,  16,   0,   5,   0, 
+     86,   0,   0,   5, 162,   0, 
+     16,   0,   4,   0,   0,   0, 
+    166,  14,  16,   0,   5,   0, 
       0,   0,  85,   0,   0,  10, 
     242,   0,  16,   0,   5,   0, 
       0,   0, 230,  11,  16,   0, 
@@ -6643,13 +6653,13 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
-     56,   0,   0,  10,  98,   0, 
-     16,   0,   2,   0,   0,   0, 
-     86,   6,  16,   0,   2,   0, 
+     56,   0,   0,  10, 162,   0, 
+     16,   0,   4,   0,   0,   0, 
+     86,  13,  16,   0,   4,   0, 
       0,   0,   2,  64,   0,   0, 
       0,   0,   0,   0, 171, 170, 
-    170,  62, 171, 170, 170,  62, 
-      0,   0,   0,   0,  54,   0, 
+    170,  62,   0,   0,   0,   0, 
+    171, 170, 170,  62,  54,   0, 
       0,   5,  18,   0,  16,   0, 
       5,   0,   0,   0,  58,   0, 
      16,   0,  16,   0,   0,   0, 
@@ -6771,28 +6781,28 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,  30,   0,   0,   0, 
      10,   0,   0,   0,  20,   0, 
       0,   0,  30,   0,   0,   0, 
-     86,   0,   0,   5, 162,   0, 
-     16,   0,   4,   0,   0,   0, 
-      6,  12,  16,   0,   5,   0, 
+     86,   0,   0,   5,  98,   0, 
+     16,   0,   6,   0,   0,   0, 
+      6,   3,  16,   0,   5,   0, 
       0,   0,  54,   0,   0,   5, 
      18,   0,  16,   0,   5,   0, 
       0,   0,  10,   0,  16,   0, 
      16,   0,   0,   0,   1,   0, 
-      0,  10, 226,   0,  16,   0, 
-      6,   0,   0,   0,   6,   9, 
+      0,  10, 114,   0,  16,   0, 
+     19,   0,   0,   0,  70,   2, 
      16,   0,   5,   0,   0,   0, 
-      2,  64,   0,   0,   0,   0, 
+      2,  64,   0,   0, 255,   3, 
       0,   0, 255,   3,   0,   0, 
-    255,   3,   0,   0, 255,   3, 
+    255,   3,   0,   0,   0,   0, 
       0,   0,   1,   0,   0,  10, 
-    114,   0,  16,   0,  19,   0, 
+    114,   0,  16,   0,  20,   0, 
       0,   0,  70,   2,  16,   0, 
       5,   0,   0,   0,   2,  64, 
       0,   0, 127,   0,   0,   0, 
     127,   0,   0,   0, 127,   0, 
       0,   0,   0,   0,   0,   0, 
     138,   0,   0,  15, 114,   0, 
-     16,   0,  20,   0,   0,   0, 
+     16,   0,  21,   0,   0,   0, 
       2,  64,   0,   0,   3,   0, 
       0,   0,   3,   0,   0,   0, 
       3,   0,   0,   0,   0,   0, 
@@ -6802,43 +6812,43 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,   0,   0,  70,   2, 
      16,   0,   5,   0,   0,   0, 
     135,   0,   0,   5, 114,   0, 
-     16,   0,  21,   0,   0,   0, 
-     70,   2,  16,   0,  19,   0, 
+     16,   0,  22,   0,   0,   0, 
+     70,   2,  16,   0,  20,   0, 
       0,   0,  30,   0,   0,  10, 
-    114,   0,  16,   0,  21,   0, 
+    114,   0,  16,   0,  22,   0, 
       0,   0,  70,   2,  16,   0, 
-     21,   0,   0,   0,   2,  64, 
+     22,   0,   0,   0,   2,  64, 
       0,   0, 232, 255, 255, 255, 
     232, 255, 255, 255, 232, 255, 
     255, 255,   0,   0,   0,   0, 
      55,   0,   0,  12, 114,   0, 
-     16,   0,  21,   0,   0,   0, 
-     70,   2,  16,   0,  19,   0, 
+     16,   0,  22,   0,   0,   0, 
+     70,   2,  16,   0,  20,   0, 
       0,   0,  70,   2,  16,   0, 
-     21,   0,   0,   0,   2,  64, 
+     22,   0,   0,   0,   2,  64, 
       0,   0,   8,   0,   0,   0, 
       8,   0,   0,   0,   8,   0, 
       0,   0,   0,   0,   0,   0, 
      30,   0,   0,  11, 114,   0, 
-     16,   0,  22,   0,   0,   0, 
+     16,   0,  23,   0,   0,   0, 
      70,   2,  16, 128,  65,   0, 
-      0,   0,  21,   0,   0,   0, 
+      0,   0,  22,   0,   0,   0, 
       2,  64,   0,   0,   1,   0, 
       0,   0,   1,   0,   0,   0, 
       1,   0,   0,   0,   0,   0, 
       0,   0,  55,   0,   0,   9, 
-    114,   0,  16,   0,  22,   0, 
+    114,   0,  16,   0,  23,   0, 
       0,   0,  70,   2,  16,   0, 
-     20,   0,   0,   0,  70,   2, 
-     16,   0,  20,   0,   0,   0, 
-     70,   2,  16,   0,  22,   0, 
+     21,   0,   0,   0,  70,   2, 
+     16,   0,  21,   0,   0,   0, 
+     70,   2,  16,   0,  23,   0, 
       0,   0, 140,   0,   0,  17, 
     114,   0,  16,   0,   5,   0, 
       0,   0,   2,  64,   0,   0, 
       7,   0,   0,   0,   7,   0, 
       0,   0,   7,   0,   0,   0, 
       0,   0,   0,   0,  70,   2, 
-     16,   0,  21,   0,   0,   0, 
+     16,   0,  22,   0,   0,   0, 
      70,   2,  16,   0,   5,   0, 
       0,   0,   2,  64,   0,   0, 
       0,   0,   0,   0,   0,   0, 
@@ -6853,19 +6863,19 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,  55,   0,   0,   9, 
     114,   0,  16,   0,   5,   0, 
       0,   0,  70,   2,  16,   0, 
-     20,   0,   0,   0,  70,   2, 
-     16,   0,  19,   0,   0,   0, 
+     21,   0,   0,   0,  70,   2, 
+     16,   0,  20,   0,   0,   0, 
      70,   2,  16,   0,   5,   0, 
       0,   0,  41,   0,   0,  10, 
-    114,   0,  16,   0,  19,   0, 
+    114,   0,  16,   0,  20,   0, 
       0,   0,  70,   2,  16,   0, 
-     22,   0,   0,   0,   2,  64, 
+     23,   0,   0,   0,   2,  64, 
       0,   0,  23,   0,   0,   0, 
      23,   0,   0,   0,  23,   0, 
       0,   0,   0,   0,   0,   0, 
      30,   0,   0,  10, 114,   0, 
-     16,   0,  19,   0,   0,   0, 
-     70,   2,  16,   0,  19,   0, 
+     16,   0,  20,   0,   0,   0, 
+     70,   2,  16,   0,  20,   0, 
       0,   0,   2,  64,   0,   0, 
       0,   0,   0,  62,   0,   0, 
       0,  62,   0,   0,   0,  62, 
@@ -6879,36 +6889,36 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,  30,   0,   0,   7, 
     114,   0,  16,   0,   5,   0, 
       0,   0,  70,   2,  16,   0, 
-     19,   0,   0,   0,  70,   2, 
+     20,   0,   0,   0,  70,   2, 
      16,   0,   5,   0,   0,   0, 
      55,   0,   0,  12, 114,   0, 
      16,   0,  16,   0,   0,   0, 
-    150,   7,  16,   0,   6,   0, 
+     70,   2,  16,   0,  19,   0, 
       0,   0,  70,   2,  16,   0, 
       5,   0,   0,   0,   2,  64, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
-     56,   0,   0,  10, 162,   0, 
-     16,   0,   4,   0,   0,   0, 
-     86,  13,  16,   0,   4,   0, 
+     56,   0,   0,  10,  50,   0, 
+     16,   0,   5,   0,   0,   0, 
+    150,   5,  16,   0,   6,   0, 
       0,   0,   2,  64,   0,   0, 
-      0,   0,   0,   0, 171, 170, 
+    171, 170, 170,  62, 171, 170, 
     170,  62,   0,   0,   0,   0, 
-    171, 170, 170,  62,  54,   0, 
+      0,   0,   0,   0,  54,   0, 
       0,   5, 130,   0,  16,   0, 
      17,   0,   0,   0,  26,   0, 
-     16,   0,   2,   0,   0,   0, 
+     16,   0,   4,   0,   0,   0, 
      54,   0,   0,   5, 130,   0, 
      16,   0,  15,   0,   0,   0, 
-     42,   0,  16,   0,   2,   0, 
+     58,   0,  16,   0,   4,   0, 
       0,   0,  54,   0,   0,   5, 
     130,   0,  16,   0,  18,   0, 
-      0,   0,  26,   0,  16,   0, 
-      4,   0,   0,   0,  54,   0, 
+      0,   0,  10,   0,  16,   0, 
+      5,   0,   0,   0,  54,   0, 
       0,   5, 130,   0,  16,   0, 
-     16,   0,   0,   0,  58,   0, 
-     16,   0,   4,   0,   0,   0, 
+     16,   0,   0,   0,  26,   0, 
+     16,   0,   5,   0,   0,   0, 
       2,   0,   0,   1,   6,   0, 
       0,   3,   1,  64,   0,   0, 
       4,   0,   0,   0,  41,   0, 
@@ -7121,31 +7131,31 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
      16,   0,  12,   0,   0,   0, 
      70,  14,  16,   0,  16,   0, 
       0,   0,  18,   0,   0,   1, 
-     54,   0,   0,   5,  66,   0, 
+     54,   0,   0,   5,  34,   0, 
      16,   0,   0,   0,   0,   0, 
      58,   0,  16,   0,   2,   0, 
       0,   0,  21,   0,   0,   1, 
      21,   0,   0,   1,  56,   0, 
       0,   7, 242,   0,  16,   0, 
-      5,   0,   0,   0, 166,  10, 
+      5,   0,   0,   0,  86,   5, 
      16,   0,   0,   0,   0,   0, 
      70,  14,  16,   0,   9,   0, 
       0,   0,  56,   0,   0,   7, 
     242,   0,  16,   0,   7,   0, 
-      0,   0, 166,  10,  16,   0, 
+      0,   0,  86,   5,  16,   0, 
       0,   0,   0,   0,  70,  14, 
      16,   0,   7,   0,   0,   0, 
      56,   0,   0,   7, 242,   0, 
      16,   0,   9,   0,   0,   0, 
-    166,  10,  16,   0,   0,   0, 
+     86,   5,  16,   0,   0,   0, 
       0,   0,  70,  14,  16,   0, 
      10,   0,   0,   0,  56,   0, 
       0,   7, 242,   0,  16,   0, 
-      8,   0,   0,   0, 166,  10, 
+      8,   0,   0,   0,  86,   5, 
      16,   0,   0,   0,   0,   0, 
      70,  14,  16,   0,   8,   0, 
       0,   0,  31,   0,   4,   3, 
-     58,   0,  16,   0,   0,   0, 
+     42,   0,  16,   0,   1,   0, 
       0,   0,  54,   0,   0,   5, 
      82,   0,  16,   0,   5,   0, 
       0,   0, 166,   8,  16,   0, 
@@ -7160,402 +7170,130 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
      82,   0,  16,   0,   8,   0, 
       0,   0, 166,   8,  16,   0, 
       8,   0,   0,   0,  21,   0, 
-      0,   1,  32,   0,   0,   7, 
-     66,   0,  16,   0,   0,   0, 
-      0,   0,  10,   0,  16,   0, 
-      4,   0,   0,   0,   1,  64, 
-      0,   0,   0,   0,   0,   0, 
-      1,   0,   0,   7,  66,   0, 
-     16,   0,   0,   0,   0,   0, 
-     42,   0,  16,   0,   0,   0, 
-      0,   0,  10,   0,  16,   0, 
-      2,   0,   0,   0,  31,   0, 
-      4,   3,  42,   0,  16,   0, 
-      0,   0,   0,   0,  54,   0, 
-      0,   5, 242,   0,  16,   0, 
-      5,   0,   0,   0,  70,  14, 
-     16,   0,   7,   0,   0,   0, 
-     21,   0,   0,   1,  54,   0, 
-      0,   4,  66,   0,  16,   0, 
-      4,   0,   0,   0,  26,   0, 
-      2,   0,  35,   0,   0,   9, 
-     98,   0,  16,   0,   2,   0, 
-      0,   0,   6,   2,  16,   0, 
-      3,   0,   0,   0,   6,   1, 
-     16,   0,   0,   0,   0,   0, 
-      6,   2,  16,   0,   4,   0, 
-      0,   0,  85,   0,   0,   7, 
-     18,   0,  16,   0,   2,   0, 
-      0,   0,  26,   0,  16,   0, 
-      2,   0,   0,   0,   1,  64, 
-      0,   0,   3,   0,   0,   0, 
-     78,   0,   0,   8, 194,   0, 
-     16,   0,   0,   0,   0,   0, 
-      0, 208,   0,   0,   6,   8, 
-     16,   0,   2,   0,   0,   0, 
-      6,   4,  16,   0,   0,   0, 
-      0,   0,  31,   0,   4,   3, 
-     58,   0,  16,   0,   1,   0, 
-      0,   0, 138,   0,   0,  11, 
-     18,   0,  16,   0,   1,   0, 
-      0,   0,   1,  64,   0,   0, 
-      3,   0,   0,   0,   1,  64, 
-      0,   0,   4,   0,   0,   0, 
-     42, 128,  48,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,  41,   0, 
-      0,   7, 130,   0,  16,   0, 
-      1,   0,   0,   0,  26,   0, 
-     16,   0,   3,   0,   0,   0, 
-      1,  64,   0,   0,   5,   0, 
-      0,   0,  42,   0,   0,  10, 
-     50,   0,  16,   0,   3,   0, 
-      0,   0, 246,  15,  16,   0, 
-      0,   0,   0,   0,   2,  64, 
-      0,   0,   4,   0,   0,   0, 
-      3,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-     42,   0,   0,   7, 130,   0, 
-     16,   0,   2,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
-      0,   0,   1,  64,   0,   0, 
-      2,   0,   0,   0,  85,   0, 
-      0,   7, 130,   0,  16,   0, 
-      1,   0,   0,   0,  58,   0, 
-     16,   0,   1,   0,   0,   0, 
-      1,  64,   0,   0,   4,   0, 
-      0,   0,   1,   0,   0,   7, 
-    130,   0,  16,   0,   1,   0, 
-      0,   0,  58,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
-      0,   0, 254,   7,   0,   0, 
-     35,   0,   0,   9, 130,   0, 
-     16,   0,   1,   0,   0,   0, 
-     58,   0,  16,   0,   2,   0, 
-      0,   0,  58,   0,  16,   0, 
-      1,   0,   0,   0,  10,   0, 
-     16,   0,   3,   0,   0,   0, 
-     85,   0,   0,   7,  18,   0, 
-     16,   0,   3,   0,   0,   0, 
-     26,   0,  16,   0,   1,   0, 
-      0,   0,   1,  64,   0,   0, 
-      5,   0,   0,   0, 139,   0, 
-      0,  15, 194,   0,  16,   0, 
-      3,   0,   0,   0,   2,  64, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,  27,   0, 
-      0,   0,  29,   0,   0,   0, 
-      2,  64,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      2,   0,   0,   0,   0,   0, 
-      0,   0, 166,  10,  16,   0, 
-      0,   0,   0,   0,  35,   0, 
-      0,   9, 130,   0,  16,   0, 
-      1,   0,   0,   0,  58,   0, 
-     16,   0,   1,   0,   0,   0, 
-     10,   0,  16,   0,   3,   0, 
-      0,   0,  42,   0,  16,   0, 
-      3,   0,   0,   0,  41,   0, 
-      0,   7,  18,   0,  16,   0, 
-      3,   0,   0,   0,  58,   0, 
-     16,   0,   0,   0,   0,   0, 
-      1,  64,   0,   0,   9,   0, 
-      0,   0,  42,   0,   0,   7, 
-     18,   0,  16,   0,   3,   0, 
-      0,   0,  10,   0,  16,   0, 
-      3,   0,   0,   0,   1,  64, 
-      0,   0,   6,   0,   0,   0, 
-      1,   0,   0,   7,  18,   0, 
-     16,   0,   3,   0,   0,   0, 
-     10,   0,  16,   0,   3,   0, 
-      0,   0,   1,  64,   0,   0, 
-     48,   0,   0,   0,  30,   0, 
-      0,   7, 130,   0,  16,   0, 
-      2,   0,   0,   0,  58,   0, 
-     16,   0,   2,   0,   0,   0, 
-     26,   0,  16,   0,   3,   0, 
-      0,   0, 140,   0,   0,  11, 
-     34,   0,  16,   0,   3,   0, 
-      0,   0,   1,  64,   0,   0, 
-      1,   0,   0,   0,   1,  64, 
-      0,   0,   1,   0,   0,   0, 
-     58,   0,  16,   0,   2,   0, 
-      0,   0,   1,  64,   0,   0, 
-      0,   0,   0,   0,  30,   0, 
-      0,   7,  34,   0,  16,   0, 
-      3,   0,   0,   0,  26,   0, 
-     16,   0,   3,   0,   0,   0, 
-     58,   0,  16,   0,   3,   0, 
-      0,   0, 140,   0,   0,  11, 
-     34,   0,  16,   0,   3,   0, 
-      0,   0,   1,  64,   0,   0, 
-      2,   0,   0,   0,   1,  64, 
-      0,   0,   1,   0,   0,   0, 
-     26,   0,  16,   0,   3,   0, 
-      0,   0,   1,  64,   0,   0, 
-      0,   0,   0,   0, 140,   0, 
-      0,  11, 130,   0,  16,   0, 
-      2,   0,   0,   0,   1,  64, 
-      0,   0,   1,   0,   0,   0, 
-      1,  64,   0,   0,   0,   0, 
-      0,   0,  58,   0,  16,   0, 
-      2,   0,   0,   0,  26,   0, 
-     16,   0,   3,   0,   0,   0, 
-    140,   0,   0,  20,  98,   0, 
-     16,   0,   3,   0,   0,   0, 
-      2,  64,   0,   0,   0,   0, 
-      0,   0,  21,   0,   0,   0, 
-     21,   0,   0,   0,   0,   0, 
-      0,   0,   2,  64,   0,   0, 
-      0,   0,   0,   0,   9,   0, 
-      0,   0,  12,   0,   0,   0, 
-      0,   0,   0,   0, 246,  15, 
-     16,   0,   1,   0,   0,   0, 
-      2,  64,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,  35,   0,   0,  12, 
-     50,   0,  16,   0,   3,   0, 
-      0,   0,   6,   0,  16,   0, 
-      3,   0,   0,   0,   2,  64, 
-      0,   0,   2,   0,   0,   0, 
-     16,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-    150,   5,  16,   0,   3,   0, 
-      0,   0, 140,   0,   0,  17, 
-    146,   0,  16,   0,   1,   0, 
-      0,   0,   2,  64,   0,   0, 
-      2,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      2,   0,   0,   0,   2,  64, 
-      0,   0,   7,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,  10,   0,   0,   0, 
-      6,   0,  16,   0,   1,   0, 
-      0,   0,   6,   4,  16,   0, 
-      3,   0,   0,   0, 140,   0, 
-      0,  11,  18,   0,  16,   0, 
-      3,   0,   0,   0,   1,  64, 
-      0,   0,   1,   0,   0,   0, 
-      1,  64,   0,   0,   4,   0, 
-      0,   0,  58,   0,  16,   0, 
-      0,   0,   0,   0,   1,  64, 
-      0,   0,   0,   0,   0,   0, 
-    138,   0,   0,   9,  34,   0, 
-     16,   0,   3,   0,   0,   0, 
+      0,   1,  76,   0,   0,   3, 
+     10,   0,  16,   0,   6,   0, 
+      0,   0,   6,   0,   0,   3, 
       1,  64,   0,   0,   3,   0, 
-      0,   0,   1,  64,   0,   0, 
-      6,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
-      1,   0,   0,   7,  66,   0, 
-     16,   0,   3,   0,   0,   0, 
-     58,   0,  16,   0,   2,   0, 
-      0,   0,   1,  64,   0,   0, 
-      6,   0,   0,   0, 140,   0, 
-      0,  11, 130,   0,  16,   0, 
-      2,   0,   0,   0,   1,  64, 
-      0,   0,   1,   0,   0,   0, 
-      1,  64,   0,   0,   8,   0, 
-      0,   0,  58,   0,  16,   0, 
-      2,   0,   0,   0,   1,  64, 
-      0,   0,   0,   0,   0,   0, 
-     35,   0,   0,   9, 130,   0, 
-     16,   0,   2,   0,   0,   0, 
-     26,   0,  16,   0,   3,   0, 
-      0,   0,   1,  64,   0,   0, 
-     32,   0,   0,   0,  58,   0, 
-     16,   0,   2,   0,   0,   0, 
-     35,   0,   0,   9, 130,   0, 
-     16,   0,   2,   0,   0,   0, 
-     42,   0,  16,   0,   3,   0, 
-      0,   0,   1,  64,   0,   0, 
-      4,   0,   0,   0,  58,   0, 
-     16,   0,   2,   0,   0,   0, 
-    140,   0,   0,  17, 146,   0, 
-     16,   0,   1,   0,   0,   0, 
-      2,  64,   0,   0,   5,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   5,   0, 
-      0,   0,   2,  64,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      3,   0,   0,   0,   6,   0, 
-     16,   0,   3,   0,   0,   0, 
-      6,  12,  16,   0,   1,   0, 
-      0,   0, 140,   0,   0,  11, 
-    130,   0,  16,   0,   1,   0, 
-      0,   0,   1,  64,   0,   0, 
-      9,   0,   0,   0,   1,  64, 
-      0,   0,   3,   0,   0,   0, 
-     58,   0,  16,   0,   2,   0, 
-      0,   0,  58,   0,  16,   0, 
-      1,   0,   0,   0, 140,   0, 
-      0,  11,  18,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
-      0,   0,   6,   0,   0,   0, 
-      1,  64,   0,   0,   0,   0, 
-      0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,  58,   0, 
-     16,   0,   1,   0,   0,   0, 
-     18,   0,   0,   1, 139,   0, 
-      0,  15,  50,   0,  16,   0, 
-      3,   0,   0,   0,   2,  64, 
-      0,   0,  27,   0,   0,   0, 
-     29,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      2,  64,   0,   0,   2,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0, 166,  10,  16,   0, 
-      0,   0,   0,   0,  42,   0, 
-      0,  10, 194,   0,  16,   0, 
-      3,   0,   0,   0, 246,  15, 
-     16,   0,   0,   0,   0,   0, 
-      2,  64,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      5,   0,   0,   0,   2,   0, 
-      0,   0,  85,   0,   0,   7, 
-     34,   0,  16,   0,   1,   0, 
-      0,   0,  26,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
-      0,   0,   5,   0,   0,   0, 
-     35,   0,   0,   9,  34,   0, 
-     16,   0,   1,   0,   0,   0, 
-     42,   0,  16,   0,   3,   0, 
-      0,   0,  26,   0,  16,   0, 
-      1,   0,   0,   0,  10,   0, 
-     16,   0,   3,   0,   0,   0, 
-    140,   0,   0,  20, 114,   0, 
-     16,   0,   4,   0,   0,   0, 
-      2,  64,   0,   0,   4,   0, 
-      0,   0,   4,   0,   0,   0, 
-      4,   0,   0,   0,   0,   0, 
-      0,   0,   2,  64,   0,   0, 
-      4,   0,   0,   0,   7,   0, 
-      0,   0,   6,   0,   0,   0, 
-      0,   0,   0,   0, 246,  15, 
-     16,   0,   0,   0,   0,   0, 
-      2,  64,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0, 140,   0,   0,  17, 
-    114,   0,  16,   0,   4,   0, 
-      0,   0,   2,  64,   0,   0, 
-     24,   0,   0,   0,  24,   0, 
-      0,   0,  24,   0,   0,   0, 
-      0,   0,   0,   0,   2,  64, 
-      0,   0,   8,   0,   0,   0, 
-     11,   0,   0,   0,  10,   0, 
-      0,   0,   0,   0,   0,   0, 
-     86,   5,  16,   0,   1,   0, 
-      0,   0,  70,   2,  16,   0, 
-      4,   0,   0,   0,  41,   0, 
-      0,   7,  34,   0,  16,   0, 
-      1,   0,   0,   0,  58,   0, 
-     16,   0,   0,   0,   0,   0, 
-      1,  64,   0,   0,   7,   0, 
-      0,   0,   1,   0,   0,   7, 
-     34,   0,  16,   0,   1,   0, 
-      0,   0,  26,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
-      0,   0,   0,   8,   0,   0, 
-    140,   0,   0,  11,  34,   0, 
-     16,   0,   1,   0,   0,   0, 
-      1,  64,   0,   0,  12,   0, 
-      0,   0,   1,  64,   0,   0, 
-      0,   0,   0,   0,  26,   0, 
-     16,   0,   1,   0,   0,   0, 
-     26,   0,  16,   0,   4,   0, 
-      0,   0,   1,   0,   0,   7, 
-    130,   0,  16,   0,   1,   0, 
-      0,   0,  42,   0,  16,   0, 
-      4,   0,   0,   0,   1,  64, 
-      0,   0,   0,   7,   0,   0, 
-     30,   0,   0,   7,  34,   0, 
-     16,   0,   1,   0,   0,   0, 
-     26,   0,  16,   0,   1,   0, 
-      0,   0,  58,   0,  16,   0, 
-      1,   0,   0,   0,   1,   0, 
-      0,   7, 130,   0,  16,   0, 
-      1,   0,   0,   0,  58,   0, 
-     16,   0,   3,   0,   0,   0, 
-      1,  64,   0,   0,   2,   0, 
-      0,   0,  30,   0,   0,   7, 
-    130,   0,  16,   0,   1,   0, 
-      0,   0,  26,   0,  16,   0, 
-      3,   0,   0,   0,  58,   0, 
-     16,   0,   1,   0,   0,   0, 
-    140,   0,   0,  11, 130,   0, 
-     16,   0,   1,   0,   0,   0, 
-      1,  64,   0,   0,   2,   0, 
-      0,   0,   1,  64,   0,   0, 
-      6,   0,   0,   0,  58,   0, 
-     16,   0,   1,   0,   0,   0, 
-      1,  64,   0,   0,   0,   0, 
-      0,   0,  30,   0,   0,   7, 
-     34,   0,  16,   0,   1,   0, 
-      0,   0,  26,   0,  16,   0, 
-      1,   0,   0,   0,  58,   0, 
-     16,   0,   1,   0,   0,   0, 
-    140,   0,   0,  11,  18,   0, 
-     16,   0,   1,   0,   0,   0, 
-      1,  64,   0,   0,   6,   0, 
-      0,   0,   1,  64,   0,   0, 
-      0,   0,   0,   0,  10,   0, 
-     16,   0,   4,   0,   0,   0, 
-     26,   0,  16,   0,   1,   0, 
-      0,   0,  21,   0,   0,   1, 
-     35,   0,   0,  10, 194,   0, 
-     16,   0,   0,   0,   0,   0, 
-    166,  14,  16, 128,  65,   0, 
-      0,   0,   0,   0,   0,   0, 
-      6,   4,  16,   0,   0,   0, 
-      0,   0,   6,   8,  16,   0, 
-      2,   0,   0,   0,  38,   0, 
-      0,   8,   0, 208,   0,   0, 
-     18,   0,  16,   0,   0,   0, 
-      0,   0,  26,   0,  16,   0, 
-      0,   0,   0,   0,  10,   0, 
-     16,   0,   0,   0,   0,   0, 
-     35,   0,   0,   9,  34,   0, 
-     16,   0,   0,   0,   0,   0, 
-     42,   0,  16,   0,   0,   0, 
-      0,   0,  26,   0,  16,   0, 
-      0,   0,   0,   0,  58,   0, 
-     16,   0,   0,   0,   0,   0, 
-     41,   0,   0,   7,  34,   0, 
-     16,   0,   0,   0,   0,   0, 
-     26,   0,  16,   0,   0,   0, 
-      0,   0,   1,  64,   0,   0, 
-      4,   0,   0,   0, 140,   0, 
-      0,  11,  34,   0,  16,   0, 
-      0,   0,   0,   0,   1,  64, 
-      0,   0,   3,   0,   0,   0, 
-      1,  64,   0,   0,   1,   0, 
-      0,   0,  26,   0,  16,   0, 
-      2,   0,   0,   0,  26,   0, 
-     16,   0,   0,   0,   0,   0, 
-     35,   0,   0,   9,  18,   0, 
-     16,   0,   0,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
-      0,   0,  10,   0,  16,   0, 
-      0,   0,   0,   0,  26,   0, 
-     16,   0,   0,   0,   0,   0, 
-     85,   0,   0,   7,  18,   0, 
-     16,   0,   0,   0,   0,   0, 
-     10,   0,  16,   0,   0,   0, 
-      0,   0,   1,  64,   0,   0, 
-      3,   0,   0,   0,  76,   0, 
-      0,   3,  10,   0,  16,   0, 
-      6,   0,   0,   0,   6,   0, 
-      0,   3,   1,  64,   0,   0, 
-      3,   0,   0,   0,  54,  32, 
-      0,   5, 242,   0,  16,   0, 
-      5,   0,   0,   0,  70,  14, 
+      0,   0,  54,  32,   0,   5, 
+    242,   0,  16,   0,   5,   0, 
+      0,   0,  70,  14,  16,   0, 
+      5,   0,   0,   0,  50,   0, 
+      0,  15, 242,   0,  16,   0, 
+      6,   0,   0,   0,  70,  14, 
      16,   0,   5,   0,   0,   0, 
+      2,  64,   0,   0,   0,   0, 
+    248,  65,   0,   0, 248,  65, 
+      0,   0, 248,  65,   0,   0, 
+    128,  63,   2,  64,   0,   0, 
+      0,   0,   0,  63,   0,   0, 
+      0,  63,   0,   0,   0,  63, 
+      0,   0,   0,  63,  28,   0, 
+      0,   5, 242,   0,  16,   0, 
+      6,   0,   0,   0,  70,  14, 
+     16,   0,   6,   0,   0,   0, 
+     35,   0,   0,   9,  34,   0, 
+     16,   0,   1,   0,   0,   0, 
+     26,   0,  16,   0,   6,   0, 
+      0,   0,   1,  64,   0,   0, 
+     32,   0,   0,   0,  10,   0, 
+     16,   0,   6,   0,   0,   0, 
+     35,   0,   0,   9,  34,   0, 
+     16,   0,   1,   0,   0,   0, 
+     42,   0,  16,   0,   6,   0, 
+      0,   0,   1,  64,   0,   0, 
+      0,   4,   0,   0,  26,   0, 
+     16,   0,   1,   0,   0,   0, 
+     35,   0,   0,   9,  34,   0, 
+     16,   0,   1,   0,   0,   0, 
+     58,   0,  16,   0,   6,   0, 
+      0,   0,   1,  64,   0,   0, 
+      0, 128,   0,   0,  26,   0, 
+     16,   0,   1,   0,   0,   0, 
+     54,  32,   0,   5, 242,   0, 
+     16,   0,   7,   0,   0,   0, 
+     70,  14,  16,   0,   7,   0, 
+      0,   0,  50,   0,   0,  15, 
+    242,   0,  16,   0,   6,   0, 
+      0,   0,  70,  14,  16,   0, 
+      7,   0,   0,   0,   2,  64, 
+      0,   0,   0,   0, 248,  65, 
+      0,   0, 248,  65,   0,   0, 
+    248,  65,   0,   0, 128,  63, 
+      2,  64,   0,   0,   0,   0, 
+      0,  63,   0,   0,   0,  63, 
+      0,   0,   0,  63,   0,   0, 
+      0,  63,  28,   0,   0,   5, 
+    242,   0,  16,   0,   6,   0, 
+      0,   0,  70,  14,  16,   0, 
+      6,   0,   0,   0,  35,   0, 
+      0,   9,  66,   0,  16,   0, 
+      1,   0,   0,   0,  26,   0, 
+     16,   0,   6,   0,   0,   0, 
+      1,  64,   0,   0,  32,   0, 
+      0,   0,  10,   0,  16,   0, 
+      6,   0,   0,   0,  35,   0, 
+      0,   9,  66,   0,  16,   0, 
+      1,   0,   0,   0,  42,   0, 
+     16,   0,   6,   0,   0,   0, 
+      1,  64,   0,   0,   0,   4, 
+      0,   0,  42,   0,  16,   0, 
+      1,   0,   0,   0,  41,   0, 
+      0,   7,  66,   0,  16,   0, 
+      2,   0,   0,   0,  58,   0, 
+     16,   0,   6,   0,   0,   0, 
+      1,  64,   0,   0,  31,   0, 
+      0,   0,  35,   0,   0,   9, 
+     66,   0,  16,   0,   1,   0, 
+      0,   0,  42,   0,  16,   0, 
+      1,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   1,   0, 
+     42,   0,  16,   0,   2,   0, 
+      0,   0,  30,   0,   0,   7, 
+     18,   0,  16,   0,   0,   0, 
+      0,   0,  42,   0,  16,   0, 
+      1,   0,   0,   0,  26,   0, 
+     16,   0,   1,   0,   0,   0, 
+     54,  32,   0,   5, 242,   0, 
+     16,   0,   9,   0,   0,   0, 
+     70,  14,  16,   0,   9,   0, 
+      0,   0,  50,   0,   0,  15, 
+    242,   0,  16,   0,   6,   0, 
+      0,   0,  70,  14,  16,   0, 
+      9,   0,   0,   0,   2,  64, 
+      0,   0,   0,   0, 248,  65, 
+      0,   0, 248,  65,   0,   0, 
+    248,  65,   0,   0, 128,  63, 
+      2,  64,   0,   0,   0,   0, 
+      0,  63,   0,   0,   0,  63, 
+      0,   0,   0,  63,   0,   0, 
+      0,  63,  28,   0,   0,   5, 
+    242,   0,  16,   0,   6,   0, 
+      0,   0,  70,  14,  16,   0, 
+      6,   0,   0,   0,  35,   0, 
+      0,   9,  34,   0,  16,   0, 
+      1,   0,   0,   0,  26,   0, 
+     16,   0,   6,   0,   0,   0, 
+      1,  64,   0,   0,  32,   0, 
+      0,   0,  10,   0,  16,   0, 
+      6,   0,   0,   0,  35,   0, 
+      0,   9,  34,   0,  16,   0, 
+      1,   0,   0,   0,  42,   0, 
+     16,   0,   6,   0,   0,   0, 
+      1,  64,   0,   0,   0,   4, 
+      0,   0,  26,   0,  16,   0, 
+      1,   0,   0,   0,  35,   0, 
+      0,   9,  34,   0,  16,   0, 
+      1,   0,   0,   0,  58,   0, 
+     16,   0,   6,   0,   0,   0, 
+      1,  64,   0,   0,   0, 128, 
+      0,   0,  26,   0,  16,   0, 
+      1,   0,   0,   0,  54,  32, 
+      0,   5, 242,   0,  16,   0, 
+      8,   0,   0,   0,  70,  14, 
+     16,   0,   8,   0,   0,   0, 
      50,   0,   0,  15, 242,   0, 
-     16,   0,   2,   0,   0,   0, 
-     70,  14,  16,   0,   5,   0, 
+     16,   0,   6,   0,   0,   0, 
+     70,  14,  16,   0,   8,   0, 
       0,   0,   2,  64,   0,   0, 
       0,   0, 248,  65,   0,   0, 
     248,  65,   0,   0, 248,  65, 
@@ -7564,622 +7302,430 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,   0,  63,   0,   0, 
       0,  63,   0,   0,   0,  63, 
      28,   0,   0,   5, 242,   0, 
-     16,   0,   2,   0,   0,   0, 
-     70,  14,  16,   0,   2,   0, 
+     16,   0,   6,   0,   0,   0, 
+     70,  14,  16,   0,   6,   0, 
       0,   0,  35,   0,   0,   9, 
-    130,   0,  16,   0,   0,   0, 
+     66,   0,  16,   0,   1,   0, 
       0,   0,  26,   0,  16,   0, 
-      2,   0,   0,   0,   1,  64, 
+      6,   0,   0,   0,   1,  64, 
       0,   0,  32,   0,   0,   0, 
-     10,   0,  16,   0,   2,   0, 
+     10,   0,  16,   0,   6,   0, 
       0,   0,  35,   0,   0,   9, 
-    130,   0,  16,   0,   0,   0, 
+     66,   0,  16,   0,   1,   0, 
       0,   0,  42,   0,  16,   0, 
-      2,   0,   0,   0,   1,  64, 
+      6,   0,   0,   0,   1,  64, 
       0,   0,   0,   4,   0,   0, 
-     58,   0,  16,   0,   0,   0, 
-      0,   0,  35,   0,   0,   9, 
-    130,   0,  16,   0,   0,   0, 
+     42,   0,  16,   0,   1,   0, 
+      0,   0,  41,   0,   0,   7, 
+     66,   0,  16,   0,   2,   0, 
       0,   0,  58,   0,  16,   0, 
-      2,   0,   0,   0,   1,  64, 
-      0,   0,   0, 128,   0,   0, 
-     58,   0,  16,   0,   0,   0, 
-      0,   0,  54,  32,   0,   5, 
-    242,   0,  16,   0,   7,   0, 
-      0,   0,  70,  14,  16,   0, 
-      7,   0,   0,   0,  50,   0, 
-      0,  15, 242,   0,  16,   0, 
-      2,   0,   0,   0,  70,  14, 
-     16,   0,   7,   0,   0,   0, 
-      2,  64,   0,   0,   0,   0, 
-    248,  65,   0,   0, 248,  65, 
-      0,   0, 248,  65,   0,   0, 
-    128,  63,   2,  64,   0,   0, 
-      0,   0,   0,  63,   0,   0, 
-      0,  63,   0,   0,   0,  63, 
-      0,   0,   0,  63,  28,   0, 
-      0,   5, 242,   0,  16,   0, 
-      2,   0,   0,   0,  70,  14, 
-     16,   0,   2,   0,   0,   0, 
-     35,   0,   0,   9,  18,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,  31,   0,   0,   0, 
+     35,   0,   0,   9,  66,   0, 
      16,   0,   1,   0,   0,   0, 
-     26,   0,  16,   0,   2,   0, 
+     42,   0,  16,   0,   1,   0, 
       0,   0,   1,  64,   0,   0, 
-     32,   0,   0,   0,  10,   0, 
+      0,   0,   1,   0,  42,   0, 
      16,   0,   2,   0,   0,   0, 
-     35,   0,   0,   9,  18,   0, 
-     16,   0,   1,   0,   0,   0, 
-     42,   0,  16,   0,   2,   0, 
-      0,   0,   1,  64,   0,   0, 
-      0,   4,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
-     41,   0,   0,   7,  34,   0, 
-     16,   0,   1,   0,   0,   0, 
-     58,   0,  16,   0,   2,   0, 
-      0,   0,   1,  64,   0,   0, 
-     31,   0,   0,   0,  35,   0, 
-      0,   9,  18,   0,  16,   0, 
-      1,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
-      1,  64,   0,   0,   0,   0, 
-      1,   0,  26,   0,  16,   0, 
-      1,   0,   0,   0,  30,   0, 
-      0,   7,  34,   0,  16,   0, 
-      0,   0,   0,   0,  58,   0, 
+     30,   0,   0,   7,  34,   0, 
      16,   0,   0,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
-      0,   0,  54,  32,   0,   5, 
-    242,   0,  16,   0,   9,   0, 
-      0,   0,  70,  14,  16,   0, 
-      9,   0,   0,   0,  50,   0, 
-      0,  15, 242,   0,  16,   0, 
-      2,   0,   0,   0,  70,  14, 
-     16,   0,   9,   0,   0,   0, 
-      2,  64,   0,   0,   0,   0, 
-    248,  65,   0,   0, 248,  65, 
-      0,   0, 248,  65,   0,   0, 
-    128,  63,   2,  64,   0,   0, 
-      0,   0,   0,  63,   0,   0, 
-      0,  63,   0,   0,   0,  63, 
-      0,   0,   0,  63,  28,   0, 
-      0,   5, 242,   0,  16,   0, 
-      2,   0,   0,   0,  70,  14, 
-     16,   0,   2,   0,   0,   0, 
-     35,   0,   0,   9, 130,   0, 
-     16,   0,   0,   0,   0,   0, 
-     26,   0,  16,   0,   2,   0, 
-      0,   0,   1,  64,   0,   0, 
-     32,   0,   0,   0,  10,   0, 
-     16,   0,   2,   0,   0,   0, 
-     35,   0,   0,   9, 130,   0, 
-     16,   0,   0,   0,   0,   0, 
-     42,   0,  16,   0,   2,   0, 
-      0,   0,   1,  64,   0,   0, 
-      0,   4,   0,   0,  58,   0, 
-     16,   0,   0,   0,   0,   0, 
-     35,   0,   0,   9, 130,   0, 
-     16,   0,   0,   0,   0,   0, 
-     58,   0,  16,   0,   2,   0, 
-      0,   0,   1,  64,   0,   0, 
-      0, 128,   0,   0,  58,   0, 
-     16,   0,   0,   0,   0,   0, 
-     54,  32,   0,   5, 242,   0, 
-     16,   0,   8,   0,   0,   0, 
-     70,  14,  16,   0,   8,   0, 
-      0,   0,  50,   0,   0,  15, 
-    242,   0,  16,   0,   2,   0, 
-      0,   0,  70,  14,  16,   0, 
-      8,   0,   0,   0,   2,  64, 
-      0,   0,   0,   0, 248,  65, 
-      0,   0, 248,  65,   0,   0, 
-    248,  65,   0,   0, 128,  63, 
-      2,  64,   0,   0,   0,   0, 
-      0,  63,   0,   0,   0,  63, 
-      0,   0,   0,  63,   0,   0, 
-      0,  63,  28,   0,   0,   5, 
-    242,   0,  16,   0,   2,   0, 
-      0,   0,  70,  14,  16,   0, 
-      2,   0,   0,   0,  35,   0, 
-      0,   9,  18,   0,  16,   0, 
-      1,   0,   0,   0,  26,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,  32,   0, 
-      0,   0,  10,   0,  16,   0, 
-      2,   0,   0,   0,  35,   0, 
-      0,   9,  18,   0,  16,   0, 
-      1,   0,   0,   0,  42,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,   0,   4, 
-      0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,  41,   0, 
-      0,   7,  34,   0,  16,   0, 
-      1,   0,   0,   0,  58,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,  31,   0, 
-      0,   0,  35,   0,   0,   9, 
-     18,   0,  16,   0,   1,   0, 
-      0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
-      0,   0,   0,   0,   1,   0, 
-     26,   0,  16,   0,   1,   0, 
-      0,   0,  30,   0,   0,   7, 
-     66,   0,  16,   0,   0,   0, 
-      0,   0,  58,   0,  16,   0, 
-      0,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
-      2,   0,   0,   1,   6,   0, 
-      0,   3,   1,  64,   0,   0, 
-      4,   0,   0,   0,  54,  32, 
-      0,   5, 114,   0,  16,   0, 
-      5,   0,   0,   0,  70,   2, 
-     16,   0,   5,   0,   0,   0, 
-     50,   0,   0,  15, 178,   0, 
-     16,   0,   1,   0,   0,   0, 
-     70,   8,  16,   0,   5,   0, 
-      0,   0,   2,  64,   0,   0, 
-      0,   0, 248,  65,   0,   0, 
-    124,  66,   0,   0,   0,   0, 
-      0,   0, 248,  65,   2,  64, 
-      0,   0,   0,   0,   0,  63, 
-      0,   0,   0,  63,   0,   0, 
-      0,   0,   0,   0,   0,  63, 
-     28,   0,   0,   5, 178,   0, 
-     16,   0,   1,   0,   0,   0, 
-     70,  12,  16,   0,   1,   0, 
-      0,   0,  35,   0,   0,   9, 
-    130,   0,  16,   0,   0,   0, 
+     42,   0,  16,   0,   1,   0, 
       0,   0,  26,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
-      0,   0,  32,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
-      0,   0,  35,   0,   0,   9, 
-    130,   0,  16,   0,   0,   0, 
-      0,   0,  58,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
-      0,   0,   0,   8,   0,   0, 
-     58,   0,  16,   0,   0,   0, 
+      1,   0,   0,   0,   2,   0, 
+      0,   1,   6,   0,   0,   3, 
+      1,  64,   0,   0,   4,   0, 
       0,   0,  54,  32,   0,   5, 
-    114,   0,  16,   0,   7,   0, 
+    114,   0,  16,   0,   5,   0, 
       0,   0,  70,   2,  16,   0, 
-      7,   0,   0,   0,  50,   0, 
-      0,  15, 178,   0,  16,   0, 
-      1,   0,   0,   0,  70,   8, 
-     16,   0,   7,   0,   0,   0, 
+      5,   0,   0,   0,  50,   0, 
+      0,  15, 114,   0,  16,   0, 
+      6,   0,   0,   0,  70,   2, 
+     16,   0,   5,   0,   0,   0, 
       2,  64,   0,   0,   0,   0, 
     248,  65,   0,   0, 124,  66, 
-      0,   0,   0,   0,   0,   0, 
-    248,  65,   2,  64,   0,   0, 
+      0,   0, 248,  65,   0,   0, 
+      0,   0,   2,  64,   0,   0, 
       0,   0,   0,  63,   0,   0, 
-      0,  63,   0,   0,   0,   0, 
-      0,   0,   0,  63,  28,   0, 
-      0,   5, 178,   0,  16,   0, 
-      1,   0,   0,   0,  70,  12, 
+      0,  63,   0,   0,   0,  63, 
+      0,   0,   0,   0,  28,   0, 
+      0,   5, 114,   0,  16,   0, 
+      6,   0,   0,   0,  70,   2, 
+     16,   0,   6,   0,   0,   0, 
+     35,   0,   0,   9,  34,   0, 
      16,   0,   1,   0,   0,   0, 
-     35,   0,   0,   9,  18,   0, 
-     16,   0,   1,   0,   0,   0, 
-     26,   0,  16,   0,   1,   0, 
+     26,   0,  16,   0,   6,   0, 
       0,   0,   1,  64,   0,   0, 
      32,   0,   0,   0,  10,   0, 
+     16,   0,   6,   0,   0,   0, 
+     35,   0,   0,   9,  34,   0, 
      16,   0,   1,   0,   0,   0, 
-     41,   0,   0,   7,  34,   0, 
-     16,   0,   1,   0,   0,   0, 
-     58,   0,  16,   0,   1,   0, 
+     42,   0,  16,   0,   6,   0, 
       0,   0,   1,  64,   0,   0, 
-     27,   0,   0,   0,  35,   0, 
-      0,   9,  18,   0,  16,   0, 
-      1,   0,   0,   0,  10,   0, 
+      0,   8,   0,   0,  26,   0, 
      16,   0,   1,   0,   0,   0, 
-      1,  64,   0,   0,   0,   0, 
-      1,   0,  26,   0,  16,   0, 
-      1,   0,   0,   0,  30,   0, 
-      0,   7,  34,   0,  16,   0, 
-      0,   0,   0,   0,  58,   0, 
-     16,   0,   0,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
-      0,   0,  54,  32,   0,   5, 
-    114,   0,  16,   0,   9,   0, 
-      0,   0,  70,   2,  16,   0, 
-      9,   0,   0,   0,  50,   0, 
-      0,  15, 178,   0,  16,   0, 
-      1,   0,   0,   0,  70,   8, 
-     16,   0,   9,   0,   0,   0, 
-      2,  64,   0,   0,   0,   0, 
-    248,  65,   0,   0, 124,  66, 
-      0,   0,   0,   0,   0,   0, 
-    248,  65,   2,  64,   0,   0, 
-      0,   0,   0,  63,   0,   0, 
-      0,  63,   0,   0,   0,   0, 
-      0,   0,   0,  63,  28,   0, 
-      0,   5, 178,   0,  16,   0, 
-      1,   0,   0,   0,  70,  12, 
-     16,   0,   1,   0,   0,   0, 
-     35,   0,   0,   9, 130,   0, 
-     16,   0,   0,   0,   0,   0, 
-     26,   0,  16,   0,   1,   0, 
-      0,   0,   1,  64,   0,   0, 
-     32,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
-     35,   0,   0,   9, 130,   0, 
-     16,   0,   0,   0,   0,   0, 
-     58,   0,  16,   0,   1,   0, 
-      0,   0,   1,  64,   0,   0, 
-      0,   8,   0,   0,  58,   0, 
-     16,   0,   0,   0,   0,   0, 
      54,  32,   0,   5, 114,   0, 
-     16,   0,   8,   0,   0,   0, 
-     70,   2,  16,   0,   8,   0, 
+     16,   0,   7,   0,   0,   0, 
+     70,   2,  16,   0,   7,   0, 
       0,   0,  50,   0,   0,  15, 
-    178,   0,  16,   0,   1,   0, 
-      0,   0,  70,   8,  16,   0, 
-      8,   0,   0,   0,   2,  64, 
+    114,   0,  16,   0,   6,   0, 
+      0,   0,  70,   2,  16,   0, 
+      7,   0,   0,   0,   2,  64, 
       0,   0,   0,   0, 248,  65, 
       0,   0, 124,  66,   0,   0, 
-      0,   0,   0,   0, 248,  65, 
+    248,  65,   0,   0,   0,   0, 
       2,  64,   0,   0,   0,   0, 
       0,  63,   0,   0,   0,  63, 
-      0,   0,   0,   0,   0,   0, 
-      0,  63,  28,   0,   0,   5, 
-    178,   0,  16,   0,   1,   0, 
-      0,   0,  70,  12,  16,   0, 
-      1,   0,   0,   0,  35,   0, 
-      0,   9,  18,   0,  16,   0, 
+      0,   0,   0,  63,   0,   0, 
+      0,   0,  28,   0,   0,   5, 
+    114,   0,  16,   0,   6,   0, 
+      0,   0,  70,   2,  16,   0, 
+      6,   0,   0,   0,  35,   0, 
+      0,   9,  66,   0,  16,   0, 
       1,   0,   0,   0,  26,   0, 
-     16,   0,   1,   0,   0,   0, 
+     16,   0,   6,   0,   0,   0, 
       1,  64,   0,   0,  32,   0, 
       0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,  41,   0, 
-      0,   7,  34,   0,  16,   0, 
-      1,   0,   0,   0,  58,   0, 
-     16,   0,   1,   0,   0,   0, 
+      6,   0,   0,   0,  41,   0, 
+      0,   7,  66,   0,  16,   0, 
+      2,   0,   0,   0,  42,   0, 
+     16,   0,   6,   0,   0,   0, 
       1,  64,   0,   0,  27,   0, 
       0,   0,  35,   0,   0,   9, 
-     18,   0,  16,   0,   1,   0, 
-      0,   0,  10,   0,  16,   0, 
+     66,   0,  16,   0,   1,   0, 
+      0,   0,  42,   0,  16,   0, 
       1,   0,   0,   0,   1,  64, 
       0,   0,   0,   0,   1,   0, 
-     26,   0,  16,   0,   1,   0, 
+     42,   0,  16,   0,   2,   0, 
       0,   0,  30,   0,   0,   7, 
-     66,   0,  16,   0,   0,   0, 
-      0,   0,  58,   0,  16,   0, 
-      0,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
-      2,   0,   0,   1,   6,   0, 
-      0,   3,   1,  64,   0,   0, 
-      5,   0,   0,   0,  54,  32, 
-      0,   5, 114,   0,  16,   0, 
-      5,   0,   0,   0,  70,   2, 
-     16,   0,   5,   0,   0,   0, 
-     50,   0,   0,  15, 178,   0, 
-     16,   0,   1,   0,   0,   0, 
-     70,   8,  16,   0,   5,   0, 
-      0,   0,   2,  64,   0,   0, 
-      0,   0, 248,  65,   0,   0, 
-    248,  65,   0,   0,   0,   0, 
-      0,   0, 124,  66,   2,  64, 
-      0,   0,   0,   0,   0,  63, 
-      0,   0,   0,  63,   0,   0, 
-      0,   0,   0,   0,   0,  63, 
-     28,   0,   0,   5, 178,   0, 
-     16,   0,   1,   0,   0,   0, 
-     70,  12,  16,   0,   1,   0, 
-      0,   0,  35,   0,   0,   9, 
-    130,   0,  16,   0,   0,   0, 
-      0,   0,  26,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
-      0,   0,  32,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
-      0,   0,  35,   0,   0,   9, 
-    130,   0,  16,   0,   0,   0, 
-      0,   0,  58,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
-      0,   0,   0,   4,   0,   0, 
-     58,   0,  16,   0,   0,   0, 
-      0,   0,  54,  32,   0,   5, 
-    114,   0,  16,   0,   7,   0, 
-      0,   0,  70,   2,  16,   0, 
-      7,   0,   0,   0,  50,   0, 
-      0,  15, 178,   0,  16,   0, 
-      1,   0,   0,   0,  70,   8, 
-     16,   0,   7,   0,   0,   0, 
-      2,  64,   0,   0,   0,   0, 
-    248,  65,   0,   0, 248,  65, 
-      0,   0,   0,   0,   0,   0, 
-    124,  66,   2,  64,   0,   0, 
-      0,   0,   0,  63,   0,   0, 
-      0,  63,   0,   0,   0,   0, 
-      0,   0,   0,  63,  28,   0, 
-      0,   5, 178,   0,  16,   0, 
-      1,   0,   0,   0,  70,  12, 
-     16,   0,   1,   0,   0,   0, 
-     35,   0,   0,   9,  18,   0, 
-     16,   0,   1,   0,   0,   0, 
-     26,   0,  16,   0,   1,   0, 
-      0,   0,   1,  64,   0,   0, 
-     32,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
-     41,   0,   0,   7,  34,   0, 
-     16,   0,   1,   0,   0,   0, 
-     58,   0,  16,   0,   1,   0, 
-      0,   0,   1,  64,   0,   0, 
-     26,   0,   0,   0,  35,   0, 
-      0,   9,  18,   0,  16,   0, 
-      1,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
-      1,  64,   0,   0,   0,   0, 
-      1,   0,  26,   0,  16,   0, 
-      1,   0,   0,   0,  30,   0, 
-      0,   7,  34,   0,  16,   0, 
-      0,   0,   0,   0,  58,   0, 
-     16,   0,   0,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
-      0,   0,  54,  32,   0,   5, 
-    114,   0,  16,   0,   9,   0, 
-      0,   0,  70,   2,  16,   0, 
-      9,   0,   0,   0,  50,   0, 
-      0,  15, 178,   0,  16,   0, 
-      1,   0,   0,   0,  70,   8, 
-     16,   0,   9,   0,   0,   0, 
-      2,  64,   0,   0,   0,   0, 
-    248,  65,   0,   0, 248,  65, 
-      0,   0,   0,   0,   0,   0, 
-    124,  66,   2,  64,   0,   0, 
-      0,   0,   0,  63,   0,   0, 
-      0,  63,   0,   0,   0,   0, 
-      0,   0,   0,  63,  28,   0, 
-      0,   5, 178,   0,  16,   0, 
-      1,   0,   0,   0,  70,  12, 
-     16,   0,   1,   0,   0,   0, 
-     35,   0,   0,   9, 130,   0, 
-     16,   0,   0,   0,   0,   0, 
-     26,   0,  16,   0,   1,   0, 
-      0,   0,   1,  64,   0,   0, 
-     32,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
-     35,   0,   0,   9, 130,   0, 
-     16,   0,   0,   0,   0,   0, 
-     58,   0,  16,   0,   1,   0, 
-      0,   0,   1,  64,   0,   0, 
-      0,   4,   0,   0,  58,   0, 
-     16,   0,   0,   0,   0,   0, 
-     54,  32,   0,   5, 114,   0, 
-     16,   0,   8,   0,   0,   0, 
-     70,   2,  16,   0,   8,   0, 
-      0,   0,  50,   0,   0,  15, 
-    178,   0,  16,   0,   1,   0, 
-      0,   0,  70,   8,  16,   0, 
-      8,   0,   0,   0,   2,  64, 
-      0,   0,   0,   0, 248,  65, 
-      0,   0, 248,  65,   0,   0, 
-      0,   0,   0,   0, 124,  66, 
-      2,  64,   0,   0,   0,   0, 
-      0,  63,   0,   0,   0,  63, 
-      0,   0,   0,   0,   0,   0, 
-      0,  63,  28,   0,   0,   5, 
-    178,   0,  16,   0,   1,   0, 
-      0,   0,  70,  12,  16,   0, 
-      1,   0,   0,   0,  35,   0, 
-      0,   9,  18,   0,  16,   0, 
+     18,   0,  16,   0,   0,   0, 
+      0,   0,  42,   0,  16,   0, 
       1,   0,   0,   0,  26,   0, 
      16,   0,   1,   0,   0,   0, 
+     54,  32,   0,   5, 114,   0, 
+     16,   0,   9,   0,   0,   0, 
+     70,   2,  16,   0,   9,   0, 
+      0,   0,  50,   0,   0,  15, 
+    114,   0,  16,   0,   6,   0, 
+      0,   0,  70,   2,  16,   0, 
+      9,   0,   0,   0,   2,  64, 
+      0,   0,   0,   0, 248,  65, 
+      0,   0, 124,  66,   0,   0, 
+    248,  65,   0,   0,   0,   0, 
+      2,  64,   0,   0,   0,   0, 
+      0,  63,   0,   0,   0,  63, 
+      0,   0,   0,  63,   0,   0, 
+      0,   0,  28,   0,   0,   5, 
+    114,   0,  16,   0,   6,   0, 
+      0,   0,  70,   2,  16,   0, 
+      6,   0,   0,   0,  35,   0, 
+      0,   9,  34,   0,  16,   0, 
+      1,   0,   0,   0,  26,   0, 
+     16,   0,   6,   0,   0,   0, 
       1,  64,   0,   0,  32,   0, 
       0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,  41,   0, 
-      0,   7,  34,   0,  16,   0, 
-      1,   0,   0,   0,  58,   0, 
+      6,   0,   0,   0,  35,   0, 
+      0,   9,  34,   0,  16,   0, 
+      1,   0,   0,   0,  42,   0, 
+     16,   0,   6,   0,   0,   0, 
+      1,  64,   0,   0,   0,   8, 
+      0,   0,  26,   0,  16,   0, 
+      1,   0,   0,   0,  54,  32, 
+      0,   5, 114,   0,  16,   0, 
+      8,   0,   0,   0,  70,   2, 
+     16,   0,   8,   0,   0,   0, 
+     50,   0,   0,  15, 114,   0, 
+     16,   0,   6,   0,   0,   0, 
+     70,   2,  16,   0,   8,   0, 
+      0,   0,   2,  64,   0,   0, 
+      0,   0, 248,  65,   0,   0, 
+    124,  66,   0,   0, 248,  65, 
+      0,   0,   0,   0,   2,  64, 
+      0,   0,   0,   0,   0,  63, 
+      0,   0,   0,  63,   0,   0, 
+      0,  63,   0,   0,   0,   0, 
+     28,   0,   0,   5, 114,   0, 
+     16,   0,   6,   0,   0,   0, 
+     70,   2,  16,   0,   6,   0, 
+      0,   0,  35,   0,   0,   9, 
+     66,   0,  16,   0,   1,   0, 
+      0,   0,  26,   0,  16,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,  32,   0,   0,   0, 
+     10,   0,  16,   0,   6,   0, 
+      0,   0,  41,   0,   0,   7, 
+     66,   0,  16,   0,   2,   0, 
+      0,   0,  42,   0,  16,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,  27,   0,   0,   0, 
+     35,   0,   0,   9,  66,   0, 
      16,   0,   1,   0,   0,   0, 
+     42,   0,  16,   0,   1,   0, 
+      0,   0,   1,  64,   0,   0, 
+      0,   0,   1,   0,  42,   0, 
+     16,   0,   2,   0,   0,   0, 
+     30,   0,   0,   7,  34,   0, 
+     16,   0,   0,   0,   0,   0, 
+     42,   0,  16,   0,   1,   0, 
+      0,   0,  26,   0,  16,   0, 
+      1,   0,   0,   0,   2,   0, 
+      0,   1,   6,   0,   0,   3, 
+      1,  64,   0,   0,   5,   0, 
+      0,   0,  54,  32,   0,   5, 
+    114,   0,  16,   0,   5,   0, 
+      0,   0,  70,   2,  16,   0, 
+      5,   0,   0,   0,  50,   0, 
+      0,  15, 114,   0,  16,   0, 
+      6,   0,   0,   0,  70,   2, 
+     16,   0,   5,   0,   0,   0, 
+      2,  64,   0,   0,   0,   0, 
+    248,  65,   0,   0, 248,  65, 
+      0,   0, 124,  66,   0,   0, 
+      0,   0,   2,  64,   0,   0, 
+      0,   0,   0,  63,   0,   0, 
+      0,  63,   0,   0,   0,  63, 
+      0,   0,   0,   0,  28,   0, 
+      0,   5, 114,   0,  16,   0, 
+      6,   0,   0,   0,  70,   2, 
+     16,   0,   6,   0,   0,   0, 
+     35,   0,   0,   9,  34,   0, 
+     16,   0,   1,   0,   0,   0, 
+     26,   0,  16,   0,   6,   0, 
+      0,   0,   1,  64,   0,   0, 
+     32,   0,   0,   0,  10,   0, 
+     16,   0,   6,   0,   0,   0, 
+     35,   0,   0,   9,  34,   0, 
+     16,   0,   1,   0,   0,   0, 
+     42,   0,  16,   0,   6,   0, 
+      0,   0,   1,  64,   0,   0, 
+      0,   4,   0,   0,  26,   0, 
+     16,   0,   1,   0,   0,   0, 
+     54,  32,   0,   5, 114,   0, 
+     16,   0,   7,   0,   0,   0, 
+     70,   2,  16,   0,   7,   0, 
+      0,   0,  50,   0,   0,  15, 
+    114,   0,  16,   0,   6,   0, 
+      0,   0,  70,   2,  16,   0, 
+      7,   0,   0,   0,   2,  64, 
+      0,   0,   0,   0, 248,  65, 
+      0,   0, 248,  65,   0,   0, 
+    124,  66,   0,   0,   0,   0, 
+      2,  64,   0,   0,   0,   0, 
+      0,  63,   0,   0,   0,  63, 
+      0,   0,   0,  63,   0,   0, 
+      0,   0,  28,   0,   0,   5, 
+    114,   0,  16,   0,   6,   0, 
+      0,   0,  70,   2,  16,   0, 
+      6,   0,   0,   0,  35,   0, 
+      0,   9,  66,   0,  16,   0, 
+      1,   0,   0,   0,  26,   0, 
+     16,   0,   6,   0,   0,   0, 
+      1,  64,   0,   0,  32,   0, 
+      0,   0,  10,   0,  16,   0, 
+      6,   0,   0,   0,  41,   0, 
+      0,   7,  66,   0,  16,   0, 
+      2,   0,   0,   0,  42,   0, 
+     16,   0,   6,   0,   0,   0, 
       1,  64,   0,   0,  26,   0, 
       0,   0,  35,   0,   0,   9, 
-     18,   0,  16,   0,   1,   0, 
-      0,   0,  10,   0,  16,   0, 
+     66,   0,  16,   0,   1,   0, 
+      0,   0,  42,   0,  16,   0, 
       1,   0,   0,   0,   1,  64, 
       0,   0,   0,   0,   1,   0, 
-     26,   0,  16,   0,   1,   0, 
-      0,   0,  30,   0,   0,   7, 
-     66,   0,  16,   0,   0,   0, 
-      0,   0,  58,   0,  16,   0, 
-      0,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
-      2,   0,   0,   1,   6,   0, 
-      0,   3,   1,  64,   0,   0, 
-     10,   0,   0,   0,  54,  32, 
-      0,   5,  50,   0,  16,   0, 
-      5,   0,   0,   0,  70,   0, 
-     16,   0,   5,   0,   0,   0, 
-     54,  32,   0,   5, 194,   0, 
-     16,   0,   5,   0,   0,   0, 
-      6,   4,  16,   0,   7,   0, 
-      0,   0,  50,   0,   0,  15, 
-    242,   0,  16,   0,   2,   0, 
-      0,   0,  70,  14,  16,   0, 
-      5,   0,   0,   0,   2,  64, 
-      0,   0,   0,   0, 127,  67, 
-      0,   0, 127,  67,   0,   0, 
-    127,  67,   0,   0, 127,  67, 
-      2,  64,   0,   0,   0,   0, 
-      0,  63,   0,   0,   0,  63, 
-      0,   0,   0,  63,   0,   0, 
-      0,  63,  28,   0,   0,   5, 
-    242,   0,  16,   0,   2,   0, 
-      0,   0,  70,  14,  16,   0, 
-      2,   0,   0,   0,  35,   0, 
-      0,   9, 130,   0,  16,   0, 
-      0,   0,   0,   0,  26,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,   0,   1, 
-      0,   0,  10,   0,  16,   0, 
-      2,   0,   0,   0,  35,   0, 
-      0,   9, 130,   0,  16,   0, 
-      0,   0,   0,   0,  42,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,   0,   0, 
-      1,   0,  58,   0,  16,   0, 
-      0,   0,   0,   0,  35,   0, 
-      0,   9,  34,   0,  16,   0, 
-      0,   0,   0,   0,  58,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,   0,   0, 
-      0,   1,  58,   0,  16,   0, 
-      0,   0,   0,   0,  54,  32, 
-      0,   5,  50,   0,  16,   0, 
-      9,   0,   0,   0,  70,   0, 
-     16,   0,   9,   0,   0,   0, 
-     54,  32,   0,   5, 194,   0, 
-     16,   0,   9,   0,   0,   0, 
-      6,   4,  16,   0,   8,   0, 
-      0,   0,  50,   0,   0,  15, 
-    242,   0,  16,   0,   2,   0, 
-      0,   0,  70,  14,  16,   0, 
-      9,   0,   0,   0,   2,  64, 
-      0,   0,   0,   0, 127,  67, 
-      0,   0, 127,  67,   0,   0, 
-    127,  67,   0,   0, 127,  67, 
-      2,  64,   0,   0,   0,   0, 
-      0,  63,   0,   0,   0,  63, 
-      0,   0,   0,  63,   0,   0, 
-      0,  63,  28,   0,   0,   5, 
-    242,   0,  16,   0,   2,   0, 
-      0,   0,  70,  14,  16,   0, 
-      2,   0,   0,   0,  35,   0, 
-      0,   9, 130,   0,  16,   0, 
-      0,   0,   0,   0,  26,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,   0,   1, 
-      0,   0,  10,   0,  16,   0, 
-      2,   0,   0,   0,  35,   0, 
-      0,   9, 130,   0,  16,   0, 
-      0,   0,   0,   0,  42,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,   0,   0, 
-      1,   0,  58,   0,  16,   0, 
-      0,   0,   0,   0,  35,   0, 
-      0,   9,  66,   0,  16,   0, 
-      0,   0,   0,   0,  58,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,   0,   0, 
-      0,   1,  58,   0,  16,   0, 
-      0,   0,   0,   0,   2,   0, 
-      0,   1,   6,   0,   0,   3, 
-      1,  64,   0,   0,  15,   0, 
-      0,   0,  54,  32,   0,   5, 
-    242,   0,  16,   0,   5,   0, 
-      0,   0,  70,  14,  16,   0, 
-      5,   0,   0,   0,  50,   0, 
-      0,  15, 242,   0,  16,   0, 
-      2,   0,   0,   0,  70,  14, 
-     16,   0,   5,   0,   0,   0, 
-      2,  64,   0,   0,   0,   0, 
-    112,  65,   0,   0, 112,  65, 
-      0,   0, 112,  65,   0,   0, 
-    112,  65,   2,  64,   0,   0, 
-      0,   0,   0,  63,   0,   0, 
-      0,  63,   0,   0,   0,  63, 
-      0,   0,   0,  63,  28,   0, 
-      0,   5, 242,   0,  16,   0, 
-      2,   0,   0,   0,  70,  14, 
-     16,   0,   2,   0,   0,   0, 
-     35,   0,   0,   9, 130,   0, 
-     16,   0,   0,   0,   0,   0, 
-     26,   0,  16,   0,   2,   0, 
-      0,   0,   1,  64,   0,   0, 
-     16,   0,   0,   0,  10,   0, 
-     16,   0,   2,   0,   0,   0, 
-     35,   0,   0,   9, 130,   0, 
-     16,   0,   0,   0,   0,   0, 
      42,   0,  16,   0,   2,   0, 
-      0,   0,   1,  64,   0,   0, 
-      0,   1,   0,   0,  58,   0, 
-     16,   0,   0,   0,   0,   0, 
-     35,   0,   0,   9, 130,   0, 
-     16,   0,   0,   0,   0,   0, 
-     58,   0,  16,   0,   2,   0, 
-      0,   0,   1,  64,   0,   0, 
-      0,  16,   0,   0,  58,   0, 
-     16,   0,   0,   0,   0,   0, 
-     54,  32,   0,   5, 242,   0, 
-     16,   0,   7,   0,   0,   0, 
-     70,  14,  16,   0,   7,   0, 
+      0,   0,  30,   0,   0,   7, 
+     18,   0,  16,   0,   0,   0, 
+      0,   0,  42,   0,  16,   0, 
+      1,   0,   0,   0,  26,   0, 
+     16,   0,   1,   0,   0,   0, 
+     54,  32,   0,   5, 114,   0, 
+     16,   0,   9,   0,   0,   0, 
+     70,   2,  16,   0,   9,   0, 
       0,   0,  50,   0,   0,  15, 
-    242,   0,  16,   0,   2,   0, 
-      0,   0,  70,  14,  16,   0, 
-      7,   0,   0,   0,   2,  64, 
-      0,   0,   0,   0, 112,  65, 
-      0,   0, 112,  65,   0,   0, 
-    112,  65,   0,   0, 112,  65, 
+    114,   0,  16,   0,   6,   0, 
+      0,   0,  70,   2,  16,   0, 
+      9,   0,   0,   0,   2,  64, 
+      0,   0,   0,   0, 248,  65, 
+      0,   0, 248,  65,   0,   0, 
+    124,  66,   0,   0,   0,   0, 
       2,  64,   0,   0,   0,   0, 
       0,  63,   0,   0,   0,  63, 
       0,   0,   0,  63,   0,   0, 
-      0,  63,  28,   0,   0,   5, 
-    242,   0,  16,   0,   2,   0, 
-      0,   0,  70,  14,  16,   0, 
-      2,   0,   0,   0,  35,   0, 
-      0,   9,  18,   0,  16,   0, 
+      0,   0,  28,   0,   0,   5, 
+    114,   0,  16,   0,   6,   0, 
+      0,   0,  70,   2,  16,   0, 
+      6,   0,   0,   0,  35,   0, 
+      0,   9,  34,   0,  16,   0, 
       1,   0,   0,   0,  26,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,  16,   0, 
+     16,   0,   6,   0,   0,   0, 
+      1,  64,   0,   0,  32,   0, 
       0,   0,  10,   0,  16,   0, 
-      2,   0,   0,   0,  35,   0, 
-      0,   9,  18,   0,  16,   0, 
+      6,   0,   0,   0,  35,   0, 
+      0,   9,  34,   0,  16,   0, 
       1,   0,   0,   0,  42,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,   0,   1, 
-      0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,  41,   0, 
-      0,   7,  34,   0,  16,   0, 
-      1,   0,   0,   0,  58,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,  28,   0, 
+     16,   0,   6,   0,   0,   0, 
+      1,  64,   0,   0,   0,   4, 
+      0,   0,  26,   0,  16,   0, 
+      1,   0,   0,   0,  54,  32, 
+      0,   5, 114,   0,  16,   0, 
+      8,   0,   0,   0,  70,   2, 
+     16,   0,   8,   0,   0,   0, 
+     50,   0,   0,  15, 114,   0, 
+     16,   0,   6,   0,   0,   0, 
+     70,   2,  16,   0,   8,   0, 
+      0,   0,   2,  64,   0,   0, 
+      0,   0, 248,  65,   0,   0, 
+    248,  65,   0,   0, 124,  66, 
+      0,   0,   0,   0,   2,  64, 
+      0,   0,   0,   0,   0,  63, 
+      0,   0,   0,  63,   0,   0, 
+      0,  63,   0,   0,   0,   0, 
+     28,   0,   0,   5, 114,   0, 
+     16,   0,   6,   0,   0,   0, 
+     70,   2,  16,   0,   6,   0, 
       0,   0,  35,   0,   0,   9, 
-     18,   0,  16,   0,   1,   0, 
-      0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,   1,  64, 
+     66,   0,  16,   0,   1,   0, 
+      0,   0,  26,   0,  16,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,  32,   0,   0,   0, 
+     10,   0,  16,   0,   6,   0, 
+      0,   0,  41,   0,   0,   7, 
+     66,   0,  16,   0,   2,   0, 
+      0,   0,  42,   0,  16,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,  26,   0,   0,   0, 
+     35,   0,   0,   9,  66,   0, 
+     16,   0,   1,   0,   0,   0, 
+     42,   0,  16,   0,   1,   0, 
+      0,   0,   1,  64,   0,   0, 
+      0,   0,   1,   0,  42,   0, 
+     16,   0,   2,   0,   0,   0, 
+     30,   0,   0,   7,  34,   0, 
+     16,   0,   0,   0,   0,   0, 
+     42,   0,  16,   0,   1,   0, 
+      0,   0,  26,   0,  16,   0, 
+      1,   0,   0,   0,   2,   0, 
+      0,   1,   6,   0,   0,   3, 
+      1,  64,   0,   0,  10,   0, 
+      0,   0,  54,  32,   0,   5, 
+     50,   0,  16,   0,   5,   0, 
+      0,   0,  70,   0,  16,   0, 
+      5,   0,   0,   0,  54,  32, 
+      0,   5, 194,   0,  16,   0, 
+      5,   0,   0,   0,   6,   4, 
+     16,   0,   7,   0,   0,   0, 
+     50,   0,   0,  15, 242,   0, 
+     16,   0,   6,   0,   0,   0, 
+     70,  14,  16,   0,   5,   0, 
+      0,   0,   2,  64,   0,   0, 
+      0,   0, 127,  67,   0,   0, 
+    127,  67,   0,   0, 127,  67, 
+      0,   0, 127,  67,   2,  64, 
+      0,   0,   0,   0,   0,  63, 
+      0,   0,   0,  63,   0,   0, 
+      0,  63,   0,   0,   0,  63, 
+     28,   0,   0,   5, 242,   0, 
+     16,   0,   6,   0,   0,   0, 
+     70,  14,  16,   0,   6,   0, 
+      0,   0,  35,   0,   0,   9, 
+     34,   0,  16,   0,   1,   0, 
+      0,   0,  26,   0,  16,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,   0,   1,   0,   0, 
+     10,   0,  16,   0,   6,   0, 
+      0,   0,  35,   0,   0,   9, 
+     34,   0,  16,   0,   1,   0, 
+      0,   0,  42,   0,  16,   0, 
+      6,   0,   0,   0,   1,  64, 
       0,   0,   0,   0,   1,   0, 
      26,   0,  16,   0,   1,   0, 
-      0,   0,  30,   0,   0,   7, 
-     34,   0,  16,   0,   0,   0, 
+      0,   0,  35,   0,   0,   9, 
+     18,   0,  16,   0,   0,   0, 
       0,   0,  58,   0,  16,   0, 
-      0,   0,   0,   0,  10,   0, 
-     16,   0,   1,   0,   0,   0, 
-     54,  32,   0,   5, 242,   0, 
-     16,   0,   9,   0,   0,   0, 
-     70,  14,  16,   0,   9,   0, 
-      0,   0,  50,   0,   0,  15, 
-    242,   0,  16,   0,   2,   0, 
-      0,   0,  70,  14,  16,   0, 
-      9,   0,   0,   0,   2,  64, 
-      0,   0,   0,   0, 112,  65, 
-      0,   0, 112,  65,   0,   0, 
-    112,  65,   0,   0, 112,  65, 
-      2,  64,   0,   0,   0,   0, 
-      0,  63,   0,   0,   0,  63, 
-      0,   0,   0,  63,   0,   0, 
-      0,  63,  28,   0,   0,   5, 
-    242,   0,  16,   0,   2,   0, 
-      0,   0,  70,  14,  16,   0, 
-      2,   0,   0,   0,  35,   0, 
-      0,   9, 130,   0,  16,   0, 
-      0,   0,   0,   0,  26,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,  16,   0, 
-      0,   0,  10,   0,  16,   0, 
-      2,   0,   0,   0,  35,   0, 
-      0,   9, 130,   0,  16,   0, 
-      0,   0,   0,   0,  42,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,   0,   1, 
-      0,   0,  58,   0,  16,   0, 
-      0,   0,   0,   0,  35,   0, 
-      0,   9, 130,   0,  16,   0, 
-      0,   0,   0,   0,  58,   0, 
-     16,   0,   2,   0,   0,   0, 
-      1,  64,   0,   0,   0,  16, 
-      0,   0,  58,   0,  16,   0, 
-      0,   0,   0,   0,  54,  32, 
-      0,   5, 242,   0,  16,   0, 
-      8,   0,   0,   0,  70,  14, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   0,   1, 
+     26,   0,  16,   0,   1,   0, 
+      0,   0,  54,  32,   0,   5, 
+     50,   0,  16,   0,   9,   0, 
+      0,   0,  70,   0,  16,   0, 
+      9,   0,   0,   0,  54,  32, 
+      0,   5, 194,   0,  16,   0, 
+      9,   0,   0,   0,   6,   4, 
      16,   0,   8,   0,   0,   0, 
      50,   0,   0,  15, 242,   0, 
-     16,   0,   2,   0,   0,   0, 
-     70,  14,  16,   0,   8,   0, 
+     16,   0,   6,   0,   0,   0, 
+     70,  14,  16,   0,   9,   0, 
+      0,   0,   2,  64,   0,   0, 
+      0,   0, 127,  67,   0,   0, 
+    127,  67,   0,   0, 127,  67, 
+      0,   0, 127,  67,   2,  64, 
+      0,   0,   0,   0,   0,  63, 
+      0,   0,   0,  63,   0,   0, 
+      0,  63,   0,   0,   0,  63, 
+     28,   0,   0,   5, 242,   0, 
+     16,   0,   6,   0,   0,   0, 
+     70,  14,  16,   0,   6,   0, 
+      0,   0,  35,   0,   0,   9, 
+     34,   0,  16,   0,   1,   0, 
+      0,   0,  26,   0,  16,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,   0,   1,   0,   0, 
+     10,   0,  16,   0,   6,   0, 
+      0,   0,  35,   0,   0,   9, 
+     34,   0,  16,   0,   1,   0, 
+      0,   0,  42,   0,  16,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   1,   0, 
+     26,   0,  16,   0,   1,   0, 
+      0,   0,  35,   0,   0,   9, 
+     34,   0,  16,   0,   0,   0, 
+      0,   0,  58,   0,  16,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   0,   1, 
+     26,   0,  16,   0,   1,   0, 
+      0,   0,   2,   0,   0,   1, 
+      6,   0,   0,   3,   1,  64, 
+      0,   0,  15,   0,   0,   0, 
+     54,  32,   0,   5, 242,   0, 
+     16,   0,   5,   0,   0,   0, 
+     70,  14,  16,   0,   5,   0, 
+      0,   0,  50,   0,   0,  15, 
+    242,   0,  16,   0,   6,   0, 
+      0,   0,  70,  14,  16,   0, 
+      5,   0,   0,   0,   2,  64, 
+      0,   0,   0,   0, 112,  65, 
+      0,   0, 112,  65,   0,   0, 
+    112,  65,   0,   0, 112,  65, 
+      2,  64,   0,   0,   0,   0, 
+      0,  63,   0,   0,   0,  63, 
+      0,   0,   0,  63,   0,   0, 
+      0,  63,  28,   0,   0,   5, 
+    242,   0,  16,   0,   6,   0, 
+      0,   0,  70,  14,  16,   0, 
+      6,   0,   0,   0,  35,   0, 
+      0,   9,  34,   0,  16,   0, 
+      1,   0,   0,   0,  26,   0, 
+     16,   0,   6,   0,   0,   0, 
+      1,  64,   0,   0,  16,   0, 
+      0,   0,  10,   0,  16,   0, 
+      6,   0,   0,   0,  35,   0, 
+      0,   9,  34,   0,  16,   0, 
+      1,   0,   0,   0,  42,   0, 
+     16,   0,   6,   0,   0,   0, 
+      1,  64,   0,   0,   0,   1, 
+      0,   0,  26,   0,  16,   0, 
+      1,   0,   0,   0,  35,   0, 
+      0,   9,  34,   0,  16,   0, 
+      1,   0,   0,   0,  58,   0, 
+     16,   0,   6,   0,   0,   0, 
+      1,  64,   0,   0,   0,  16, 
+      0,   0,  26,   0,  16,   0, 
+      1,   0,   0,   0,  54,  32, 
+      0,   5, 242,   0,  16,   0, 
+      7,   0,   0,   0,  70,  14, 
+     16,   0,   7,   0,   0,   0, 
+     50,   0,   0,  15, 242,   0, 
+     16,   0,   6,   0,   0,   0, 
+     70,  14,  16,   0,   7,   0, 
       0,   0,   2,  64,   0,   0, 
       0,   0, 112,  65,   0,   0, 
     112,  65,   0,   0, 112,  65, 
@@ -8188,163 +7734,675 @@ const BYTE resolve_full_16bpp_scaled_cs[] =
       0,   0,   0,  63,   0,   0, 
       0,  63,   0,   0,   0,  63, 
      28,   0,   0,   5, 242,   0, 
-     16,   0,   2,   0,   0,   0, 
-     70,  14,  16,   0,   2,   0, 
+     16,   0,   6,   0,   0,   0, 
+     70,  14,  16,   0,   6,   0, 
       0,   0,  35,   0,   0,   9, 
-     18,   0,  16,   0,   1,   0, 
+     66,   0,  16,   0,   1,   0, 
       0,   0,  26,   0,  16,   0, 
-      2,   0,   0,   0,   1,  64, 
+      6,   0,   0,   0,   1,  64, 
       0,   0,  16,   0,   0,   0, 
-     10,   0,  16,   0,   2,   0, 
+     10,   0,  16,   0,   6,   0, 
       0,   0,  35,   0,   0,   9, 
-     18,   0,  16,   0,   1,   0, 
+     66,   0,  16,   0,   1,   0, 
       0,   0,  42,   0,  16,   0, 
-      2,   0,   0,   0,   1,  64, 
+      6,   0,   0,   0,   1,  64, 
       0,   0,   0,   1,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
+     42,   0,  16,   0,   1,   0, 
       0,   0,  41,   0,   0,   7, 
+     66,   0,  16,   0,   2,   0, 
+      0,   0,  58,   0,  16,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,  28,   0,   0,   0, 
+     35,   0,   0,   9,  66,   0, 
+     16,   0,   1,   0,   0,   0, 
+     42,   0,  16,   0,   1,   0, 
+      0,   0,   1,  64,   0,   0, 
+      0,   0,   1,   0,  42,   0, 
+     16,   0,   2,   0,   0,   0, 
+     30,   0,   0,   7,  18,   0, 
+     16,   0,   0,   0,   0,   0, 
+     42,   0,  16,   0,   1,   0, 
+      0,   0,  26,   0,  16,   0, 
+      1,   0,   0,   0,  54,  32, 
+      0,   5, 242,   0,  16,   0, 
+      9,   0,   0,   0,  70,  14, 
+     16,   0,   9,   0,   0,   0, 
+     50,   0,   0,  15, 242,   0, 
+     16,   0,   6,   0,   0,   0, 
+     70,  14,  16,   0,   9,   0, 
+      0,   0,   2,  64,   0,   0, 
+      0,   0, 112,  65,   0,   0, 
+    112,  65,   0,   0, 112,  65, 
+      0,   0, 112,  65,   2,  64, 
+      0,   0,   0,   0,   0,  63, 
+      0,   0,   0,  63,   0,   0, 
+      0,  63,   0,   0,   0,  63, 
+     28,   0,   0,   5, 242,   0, 
+     16,   0,   6,   0,   0,   0, 
+     70,  14,  16,   0,   6,   0, 
+      0,   0,  35,   0,   0,   9, 
+     34,   0,  16,   0,   1,   0, 
+      0,   0,  26,   0,  16,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,  16,   0,   0,   0, 
+     10,   0,  16,   0,   6,   0, 
+      0,   0,  35,   0,   0,   9, 
+     34,   0,  16,   0,   1,   0, 
+      0,   0,  42,   0,  16,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,   0,   1,   0,   0, 
+     26,   0,  16,   0,   1,   0, 
+      0,   0,  35,   0,   0,   9, 
      34,   0,  16,   0,   1,   0, 
       0,   0,  58,   0,  16,   0, 
-      2,   0,   0,   0,   1,  64, 
-      0,   0,  28,   0,   0,   0, 
-     35,   0,   0,   9,  18,   0, 
-     16,   0,   1,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
-      0,   0,   1,  64,   0,   0, 
-      0,   0,   1,   0,  26,   0, 
-     16,   0,   1,   0,   0,   0, 
-     30,   0,   0,   7,  66,   0, 
-     16,   0,   0,   0,   0,   0, 
-     58,   0,  16,   0,   0,   0, 
-      0,   0,  10,   0,  16,   0, 
-      1,   0,   0,   0,   2,   0, 
-      0,   1,   6,   0,   0,   3, 
-      1,  64,   0,   0,  24,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,   0,  16,   0,   0, 
+     26,   0,  16,   0,   1,   0, 
       0,   0,  54,  32,   0,   5, 
-     66,   0,  16,   0,   8,   0, 
-      0,   0,  10,   0,  16,   0, 
-      5,   0,   0,   0,  54,  32, 
-      0,   5,  34,   0,  16,   0, 
-      8,   0,   0,   0,  10,   0, 
-     16,   0,   7,   0,   0,   0, 
-     54,  32,   0,   5, 130,   0, 
-     16,   0,   8,   0,   0,   0, 
-     10,   0,  16,   0,   9,   0, 
-      0,   0,  54,  32,   0,   5, 
-     18,   0,  16,   0,   8,   0, 
-      0,   0,  10,   0,  16,   0, 
+    242,   0,  16,   0,   8,   0, 
+      0,   0,  70,  14,  16,   0, 
       8,   0,   0,   0,  50,   0, 
       0,  15, 242,   0,  16,   0, 
-      2,   0,   0,   0, 102,   3, 
+      6,   0,   0,   0,  70,  14, 
      16,   0,   8,   0,   0,   0, 
-      2,  64,   0,   0,   0, 255, 
-    127,  71,   0, 255, 127,  71, 
-      0, 255, 127,  71,   0, 255, 
-    127,  71,   2,  64,   0,   0, 
+      2,  64,   0,   0,   0,   0, 
+    112,  65,   0,   0, 112,  65, 
+      0,   0, 112,  65,   0,   0, 
+    112,  65,   2,  64,   0,   0, 
       0,   0,   0,  63,   0,   0, 
       0,  63,   0,   0,   0,  63, 
       0,   0,   0,  63,  28,   0, 
       0,   5, 242,   0,  16,   0, 
-      2,   0,   0,   0,  70,  14, 
-     16,   0,   2,   0,   0,   0, 
-     35,   0,   0,  12,  98,   0, 
-     16,   0,   0,   0,   0,   0, 
-     86,   7,  16,   0,   2,   0, 
-      0,   0,   2,  64,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      1,   0,   0,   0,   1,   0, 
-      0,   0,   0,   0,   6,   2, 
-     16,   0,   2,   0,   0,   0, 
-      2,   0,   0,   1,  10,   0, 
-      0,   1, 130,   0,   0,   5, 
-    130,   0,  16,   0,   0,   0, 
-      0,   0,  10,   0,  16,   0, 
-      5,   0,   0,   0, 130,   0, 
-      0,   5,  18,   0,  16,   0, 
-      1,   0,   0,   0,  10,   0, 
-     16,   0,   7,   0,   0,   0, 
-     35,   0,   0,   9,  34,   0, 
-     16,   0,   0,   0,   0,   0, 
-     10,   0,  16,   0,   1,   0, 
+      6,   0,   0,   0,  70,  14, 
+     16,   0,   6,   0,   0,   0, 
+     35,   0,   0,   9,  66,   0, 
+     16,   0,   1,   0,   0,   0, 
+     26,   0,  16,   0,   6,   0, 
       0,   0,   1,  64,   0,   0, 
-      0,   0,   1,   0,  58,   0, 
-     16,   0,   0,   0,   0,   0, 
-    130,   0,   0,   5, 130,   0, 
-     16,   0,   0,   0,   0,   0, 
-     10,   0,  16,   0,   9,   0, 
-      0,   0, 130,   0,   0,   5, 
-     18,   0,  16,   0,   1,   0, 
-      0,   0,  10,   0,  16,   0, 
-      8,   0,   0,   0,  35,   0, 
+     16,   0,   0,   0,  10,   0, 
+     16,   0,   6,   0,   0,   0, 
+     35,   0,   0,   9,  66,   0, 
+     16,   0,   1,   0,   0,   0, 
+     42,   0,  16,   0,   6,   0, 
+      0,   0,   1,  64,   0,   0, 
+      0,   1,   0,   0,  42,   0, 
+     16,   0,   1,   0,   0,   0, 
+     41,   0,   0,   7,  66,   0, 
+     16,   0,   2,   0,   0,   0, 
+     58,   0,  16,   0,   6,   0, 
+      0,   0,   1,  64,   0,   0, 
+     28,   0,   0,   0,  35,   0, 
       0,   9,  66,   0,  16,   0, 
-      0,   0,   0,   0,  10,   0, 
+      1,   0,   0,   0,  42,   0, 
      16,   0,   1,   0,   0,   0, 
       1,  64,   0,   0,   0,   0, 
-      1,   0,  58,   0,  16,   0, 
-      0,   0,   0,   0,   2,   0, 
-      0,   1,  23,   0,   0,   1, 
-     32,   0,   0,   7, 130,   0, 
-     16,   0,   0,   0,   0,   0, 
+      1,   0,  42,   0,  16,   0, 
+      2,   0,   0,   0,  30,   0, 
+      0,   7,  34,   0,  16,   0, 
+      0,   0,   0,   0,  42,   0, 
+     16,   0,   1,   0,   0,   0, 
+     26,   0,  16,   0,   1,   0, 
+      0,   0,   2,   0,   0,   1, 
+      6,   0,   0,   3,   1,  64, 
+      0,   0,  24,   0,   0,   0, 
+     54,  32,   0,   5,  66,   0, 
+     16,   0,   8,   0,   0,   0, 
+     10,   0,  16,   0,   5,   0, 
+      0,   0,  54,  32,   0,   5, 
+     34,   0,  16,   0,   8,   0, 
+      0,   0,  10,   0,  16,   0, 
+      7,   0,   0,   0,  54,  32, 
+      0,   5, 130,   0,  16,   0, 
+      8,   0,   0,   0,  10,   0, 
+     16,   0,   9,   0,   0,   0, 
+     54,  32,   0,   5,  18,   0, 
+     16,   0,   8,   0,   0,   0, 
+     10,   0,  16,   0,   8,   0, 
+      0,   0,  50,   0,   0,  15, 
+    242,   0,  16,   0,   6,   0, 
+      0,   0, 102,   3,  16,   0, 
+      8,   0,   0,   0,   2,  64, 
+      0,   0,   0, 255, 127,  71, 
+      0, 255, 127,  71,   0, 255, 
+    127,  71,   0, 255, 127,  71, 
+      2,  64,   0,   0,   0,   0, 
+      0,  63,   0,   0,   0,  63, 
+      0,   0,   0,  63,   0,   0, 
+      0,  63,  28,   0,   0,   5, 
+    242,   0,  16,   0,   6,   0, 
+      0,   0,  70,  14,  16,   0, 
+      6,   0,   0,   0,  35,   0, 
+      0,  12,  50,   0,  16,   0, 
+      0,   0,   0,   0, 214,   5, 
+     16,   0,   6,   0,   0,   0, 
+      2,  64,   0,   0,   0,   0, 
+      1,   0,   0,   0,   1,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0, 134,   0,  16,   0, 
+      6,   0,   0,   0,   2,   0, 
+      0,   1,  10,   0,   0,   1, 
+    130,   0,   0,   5,  34,   0, 
+     16,   0,   1,   0,   0,   0, 
+     10,   0,  16,   0,   5,   0, 
+      0,   0, 130,   0,   0,   5, 
+     66,   0,  16,   0,   1,   0, 
+      0,   0,  10,   0,  16,   0, 
+      7,   0,   0,   0,  35,   0, 
+      0,   9,  18,   0,  16,   0, 
+      0,   0,   0,   0,  42,   0, 
+     16,   0,   1,   0,   0,   0, 
+      1,  64,   0,   0,   0,   0, 
+      1,   0,  26,   0,  16,   0, 
+      1,   0,   0,   0, 130,   0, 
+      0,   5,  34,   0,  16,   0, 
+      1,   0,   0,   0,  10,   0, 
+     16,   0,   9,   0,   0,   0, 
+    130,   0,   0,   5,  66,   0, 
+     16,   0,   1,   0,   0,   0, 
+     10,   0,  16,   0,   8,   0, 
+      0,   0,  35,   0,   0,   9, 
+     34,   0,  16,   0,   0,   0, 
+      0,   0,  42,   0,  16,   0, 
+      1,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   1,   0, 
+     26,   0,  16,   0,   1,   0, 
+      0,   0,   2,   0,   0,   1, 
+     23,   0,   0,   1,  32,   0, 
+      0,   7,  34,   0,  16,   0, 
+      1,   0,   0,   0,  10,   0, 
+     16,   0,   4,   0,   0,   0, 
+      1,  64,   0,   0,   0,   0, 
+      0,   0,  39,   0,   0,   7, 
+     66,   0,  16,   0,   1,   0, 
+      0,   0,  10,   0,  16,   0, 
+      1,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   0,   0, 
+      1,   0,   0,   7,  34,   0, 
+     16,   0,   1,   0,   0,   0, 
      42,   0,  16,   0,   1,   0, 
-      0,   0,   1,  64,   0,   0, 
+      0,   0,  26,   0,  16,   0, 
       1,   0,   0,   0,  31,   0, 
-      4,   3,  58,   0,  16,   0, 
-      0,   0,   0,   0,  41,   0, 
-      0,  10,  50,   0,  16,   0, 
-      1,   0,   0,   0, 150,   5, 
-     16,   0,   0,   0,   0,   0, 
-      2,  64,   0,   0,   8,   0, 
-      0,   0,   8,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,  85,   0,   0,  10, 
-    194,   0,  16,   0,   1,   0, 
-      0,   0,  86,   9,  16,   0, 
-      0,   0,   0,   0,   2,  64, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   8,   0, 
-      0,   0,   8,   0,   0,   0, 
-      1,   0,   0,  10, 242,   0, 
+      4,   3,  26,   0,  16,   0, 
+      1,   0,   0,   0,  80,   0, 
+      0,   7,  34,   0,  16,   0, 
+      1,   0,   0,   0,  10,   0, 
      16,   0,   1,   0,   0,   0, 
-     70,  14,  16,   0,   1,   0, 
+      1,  64,   0,   0,   2,   0, 
+      0,   0,  31,   0,   4,   3, 
+     26,   0,  16,   0,   1,   0, 
+      0,   0,  80,   0,   0,   7, 
+     18,   0,  16,   0,   1,   0, 
+      0,   0,  10,   0,  16,   0, 
+      1,   0,   0,   0,   1,  64, 
+      0,   0,   3,   0,   0,   0, 
+     31,   0,   4,   3,  10,   0, 
+     16,   0,   1,   0,   0,   0, 
+     85,   0,   0,   7,  18,   0, 
+     16,   0,   1,   0,   0,   0, 
+     26,   0,  16,   0,   0,   0, 
+      0,   0,   1,  64,   0,   0, 
+     16,   0,   0,   0, 140,   0, 
+      0,  11,  34,   0,  16,   0, 
+      0,   0,   0,   0,   1,  64, 
+      0,   0,  16,   0,   0,   0, 
+      1,  64,   0,   0,   0,   0, 
+      0,   0,  10,   0,  16,   0, 
+      1,   0,   0,   0,  26,   0, 
+     16,   0,   0,   0,   0,   0, 
+     21,   0,   0,   1, 140,   0, 
+      0,  11,  18,   0,  16,   0, 
+      0,   0,   0,   0,   1,  64, 
+      0,   0,  16,   0,   0,   0, 
+      1,  64,   0,   0,  16,   0, 
+      0,   0,  26,   0,  16,   0, 
+      0,   0,   0,   0,  10,   0, 
+     16,   0,   0,   0,   0,   0, 
+     21,   0,   0,   1,  85,   0, 
+      0,   7,  18,   0,  16,   0, 
+      1,   0,   0,   0,  10,   0, 
+     16,   0,   0,   0,   0,   0, 
+      1,  64,   0,   0,  16,   0, 
+      0,   0, 140,   0,   0,  11, 
+     18,   0,  16,   0,   0,   0, 
+      0,   0,   1,  64,   0,   0, 
+     16,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   0,   0, 
+     10,   0,  16,   0,   1,   0, 
+      0,   0,  10,   0,  16,   0, 
+      0,   0,   0,   0,  21,   0, 
+      0,   1,  54,   0,   0,   4, 
+     66,   0,  16,   0,   4,   0, 
+      0,   0,  26,   0,   2,   0, 
+     35,   0,   0,   9,  98,   0, 
+     16,   0,   1,   0,   0,   0, 
+      6,   2,  16,   0,   3,   0, 
+      0,   0,   6,   1,  16,   0, 
+      2,   0,   0,   0,   6,   2, 
+     16,   0,   4,   0,   0,   0, 
+     85,   0,   0,   7,  18,   0, 
+     16,   0,   1,   0,   0,   0, 
+     26,   0,  16,   0,   1,   0, 
+      0,   0,   1,  64,   0,   0, 
+      3,   0,   0,   0,  78,   0, 
+      0,   8, 194,   0,  16,   0, 
+      2,   0,   0,   0,   0, 208, 
+      0,   0,   6,   8,  16,   0, 
+      1,   0,   0,   0,   6,   4, 
+     16,   0,   2,   0,   0,   0, 
+     31,   0,   4,   3,  58,   0, 
+     16,   0,   0,   0,   0,   0, 
+    138,   0,   0,  11, 130,   0, 
+     16,   0,   0,   0,   0,   0, 
+      1,  64,   0,   0,   3,   0, 
+      0,   0,   1,  64,   0,   0, 
+      4,   0,   0,   0,  42, 128, 
+     48,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,  41,   0,   0,   7, 
+     18,   0,  16,   0,   3,   0, 
+      0,   0,  26,   0,  16,   0, 
+      3,   0,   0,   0,   1,  64, 
+      0,   0,   5,   0,   0,   0, 
+     42,   0,   0,  10,  98,   0, 
+     16,   0,   3,   0,   0,   0, 
+    246,  15,  16,   0,   2,   0, 
       0,   0,   2,  64,   0,   0, 
-      0, 255,   0, 255,   0, 255, 
-      0, 255, 255,   0, 255,   0, 
-    255,   0, 255,   0,  30,   0, 
-      0,   7,  98,   0,  16,   0, 
-      0,   0,   0,   0, 166,  11, 
-     16,   0,   1,   0,   0,   0, 
-      6,   1,  16,   0,   1,   0, 
-      0,   0,  21,   0,   0,   1, 
-    164,   0,   0,   8, 242, 224, 
-     33,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   6,   0, 
+      0,   0,   0,   0,   4,   0, 
+      0,   0,   3,   0,   0,   0, 
+      0,   0,   0,   0,  42,   0, 
+      0,   7, 130,   0,  16,   0, 
+      3,   0,   0,   0,  58,   0, 
      16,   0,   0,   0,   0,   0, 
-    150,   5,  16,   0,   0,   0, 
-      0,   0,  62,   0,   0,   1, 
-     83,  84,  65,  84, 148,   0, 
-      0,   0,  63,   5,   0,   0, 
+      1,  64,   0,   0,   2,   0, 
+      0,   0,  85,   0,   0,   7, 
+     18,   0,  16,   0,   3,   0, 
+      0,   0,  10,   0,  16,   0, 
+      3,   0,   0,   0,   1,  64, 
+      0,   0,   4,   0,   0,   0, 
+      1,   0,   0,   7,  18,   0, 
+     16,   0,   3,   0,   0,   0, 
+     10,   0,  16,   0,   3,   0, 
+      0,   0,   1,  64,   0,   0, 
+    254,   7,   0,   0,  35,   0, 
+      0,   9,  18,   0,  16,   0, 
+      3,   0,   0,   0,  58,   0, 
+     16,   0,   3,   0,   0,   0, 
+     10,   0,  16,   0,   3,   0, 
+      0,   0,  26,   0,  16,   0, 
+      3,   0,   0,   0,  85,   0, 
+      0,   7,  34,   0,  16,   0, 
+      3,   0,   0,   0,  58,   0, 
+     16,   0,   1,   0,   0,   0, 
+      1,  64,   0,   0,   5,   0, 
+      0,   0, 139,   0,   0,  15, 
+     50,   0,  16,   0,   4,   0, 
+      0,   0,   2,  64,   0,   0, 
+     27,   0,   0,   0,  29,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   2,  64, 
+      0,   0,   2,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+    166,  10,  16,   0,   2,   0, 
+      0,   0,  35,   0,   0,   9, 
+     18,   0,  16,   0,   3,   0, 
+      0,   0,  10,   0,  16,   0, 
+      3,   0,   0,   0,  26,   0, 
+     16,   0,   3,   0,   0,   0, 
+     10,   0,  16,   0,   4,   0, 
+      0,   0,  41,   0,   0,   7, 
+     34,   0,  16,   0,   3,   0, 
+      0,   0,  58,   0,  16,   0, 
+      2,   0,   0,   0,   1,  64, 
+      0,   0,   9,   0,   0,   0, 
+     42,   0,   0,   7,  34,   0, 
+     16,   0,   3,   0,   0,   0, 
+     26,   0,  16,   0,   3,   0, 
+      0,   0,   1,  64,   0,   0, 
+      6,   0,   0,   0,   1,   0, 
+      0,   7,  34,   0,  16,   0, 
+      3,   0,   0,   0,  26,   0, 
+     16,   0,   3,   0,   0,   0, 
+      1,  64,   0,   0,  48,   0, 
+      0,   0,  30,   0,   0,   7, 
+     66,   0,  16,   0,   3,   0, 
+      0,   0,  58,   0,  16,   0, 
+      3,   0,   0,   0,  42,   0, 
+     16,   0,   3,   0,   0,   0, 
+    140,   0,   0,  11, 130,   0, 
+     16,   0,   3,   0,   0,   0, 
+      1,  64,   0,   0,   1,   0, 
+      0,   0,   1,  64,   0,   0, 
+      1,   0,   0,   0,  42,   0, 
+     16,   0,   3,   0,   0,   0, 
+      1,  64,   0,   0,   0,   0, 
+      0,   0,  30,   0,   0,   7, 
+    130,   0,  16,   0,   3,   0, 
+      0,   0,  58,   0,  16,   0, 
+      3,   0,   0,   0,  26,   0, 
+     16,   0,   4,   0,   0,   0, 
+    140,   0,   0,  11, 130,   0, 
+     16,   0,   3,   0,   0,   0, 
+      1,  64,   0,   0,   2,   0, 
+      0,   0,   1,  64,   0,   0, 
+      1,   0,   0,   0,  58,   0, 
+     16,   0,   3,   0,   0,   0, 
+      1,  64,   0,   0,   0,   0, 
+      0,   0, 140,   0,   0,  11, 
+     66,   0,  16,   0,   3,   0, 
+      0,   0,   1,  64,   0,   0, 
+      1,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   0,   0, 
+     42,   0,  16,   0,   3,   0, 
+      0,   0,  58,   0,  16,   0, 
+      3,   0,   0,   0, 140,   0, 
+      0,  20, 146,   0,  16,   0, 
+      3,   0,   0,   0,   2,  64, 
+      0,   0,  21,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,  21,   0,   0,   0, 
+      2,  64,   0,   0,   9,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,  12,   0, 
+      0,   0,   6,   0,  16,   0, 
+      3,   0,   0,   0,   2,  64, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+     35,   0,   0,  12,  50,   0, 
+     16,   0,   3,   0,   0,   0, 
+     86,   5,  16,   0,   3,   0, 
+      0,   0,   2,  64,   0,   0, 
+      2,   0,   0,   0,  16,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0, 198,   0, 
+     16,   0,   3,   0,   0,   0, 
+    140,   0,   0,  17,  50,   0, 
+     16,   0,   3,   0,   0,   0, 
+      2,  64,   0,   0,   2,   0, 
+      0,   0,   2,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   2,  64,   0,   0, 
+      7,   0,   0,   0,  10,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0, 246,  15, 
+     16,   0,   0,   0,   0,   0, 
+     70,   0,  16,   0,   3,   0, 
+      0,   0, 140,   0,   0,  11, 
+    130,   0,  16,   0,   0,   0, 
+      0,   0,   1,  64,   0,   0, 
+      1,   0,   0,   0,   1,  64, 
+      0,   0,   4,   0,   0,   0, 
+     58,   0,  16,   0,   2,   0, 
+      0,   0,   1,  64,   0,   0, 
+      0,   0,   0,   0, 138,   0, 
+      0,   9, 130,   0,  16,   0, 
+      3,   0,   0,   0,   1,  64, 
+      0,   0,   3,   0,   0,   0, 
+      1,  64,   0,   0,   6,   0, 
+      0,   0,  10,   0,  16,   0, 
+      3,   0,   0,   0,   1,   0, 
+      0,   7,  18,   0,  16,   0, 
+      4,   0,   0,   0,  42,   0, 
+     16,   0,   3,   0,   0,   0, 
+      1,  64,   0,   0,   6,   0, 
+      0,   0, 140,   0,   0,  11, 
+     66,   0,  16,   0,   3,   0, 
+      0,   0,   1,  64,   0,   0, 
+      1,   0,   0,   0,   1,  64, 
+      0,   0,   8,   0,   0,   0, 
+     42,   0,  16,   0,   3,   0, 
+      0,   0,   1,  64,   0,   0, 
+      0,   0,   0,   0,  35,   0, 
+      0,   9,  66,   0,  16,   0, 
+      3,   0,   0,   0,  58,   0, 
+     16,   0,   3,   0,   0,   0, 
+      1,  64,   0,   0,  32,   0, 
+      0,   0,  42,   0,  16,   0, 
+      3,   0,   0,   0,  35,   0, 
+      0,   9,  66,   0,  16,   0, 
+      3,   0,   0,   0,  10,   0, 
+     16,   0,   4,   0,   0,   0, 
+      1,  64,   0,   0,   4,   0, 
+      0,   0,  42,   0,  16,   0, 
+      3,   0,   0,   0, 140,   0, 
+      0,  17,  50,   0,  16,   0, 
+      3,   0,   0,   0,   2,  64, 
+      0,   0,   5,   0,   0,   0, 
+      5,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      2,  64,   0,   0,   0,   0, 
+      0,   0,   3,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0, 246,  15,  16,   0, 
+      0,   0,   0,   0,  70,   0, 
+     16,   0,   3,   0,   0,   0, 
+    140,   0,   0,  11, 130,   0, 
+     16,   0,   0,   0,   0,   0, 
+      1,  64,   0,   0,   9,   0, 
+      0,   0,   1,  64,   0,   0, 
+      3,   0,   0,   0,  42,   0, 
+     16,   0,   3,   0,   0,   0, 
+     26,   0,  16,   0,   3,   0, 
+      0,   0, 140,   0,   0,  11, 
+    130,   0,  16,   0,   0,   0, 
+      0,   0,   1,  64,   0,   0, 
+      6,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   0,   0, 
+     10,   0,  16,   0,   3,   0, 
+      0,   0,  58,   0,  16,   0, 
+      0,   0,   0,   0,  18,   0, 
+      0,   1, 139,   0,   0,  15, 
+     50,   0,  16,   0,   3,   0, 
+      0,   0,   2,  64,   0,   0, 
+     27,   0,   0,   0,  29,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   2,  64, 
+      0,   0,   2,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+    166,  10,  16,   0,   2,   0, 
+      0,   0,  42,   0,   0,  10, 
+    194,   0,  16,   0,   3,   0, 
+      0,   0, 246,  15,  16,   0, 
+      2,   0,   0,   0,   2,  64, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   5,   0, 
+      0,   0,   2,   0,   0,   0, 
+     85,   0,   0,   7, 130,   0, 
+     16,   0,   1,   0,   0,   0, 
+     58,   0,  16,   0,   1,   0, 
+      0,   0,   1,  64,   0,   0, 
+      5,   0,   0,   0,  35,   0, 
+      0,   9, 130,   0,  16,   0, 
+      1,   0,   0,   0,  42,   0, 
+     16,   0,   3,   0,   0,   0, 
+     58,   0,  16,   0,   1,   0, 
+      0,   0,  10,   0,  16,   0, 
+      3,   0,   0,   0, 140,   0, 
+      0,  20, 114,   0,  16,   0, 
+      4,   0,   0,   0,   2,  64, 
+      0,   0,   4,   0,   0,   0, 
+      4,   0,   0,   0,   4,   0, 
+      0,   0,   0,   0,   0,   0, 
+      2,  64,   0,   0,   4,   0, 
+      0,   0,   7,   0,   0,   0, 
+      6,   0,   0,   0,   0,   0, 
+      0,   0, 246,  15,  16,   0, 
+      2,   0,   0,   0,   2,  64, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+    140,   0,   0,  17, 114,   0, 
+     16,   0,   4,   0,   0,   0, 
+      2,  64,   0,   0,  24,   0, 
+      0,   0,  24,   0,   0,   0, 
      24,   0,   0,   0,   0,   0, 
+      0,   0,   2,  64,   0,   0, 
+      8,   0,   0,   0,  11,   0, 
+      0,   0,  10,   0,   0,   0, 
+      0,   0,   0,   0, 246,  15, 
+     16,   0,   1,   0,   0,   0, 
+     70,   2,  16,   0,   4,   0, 
+      0,   0,  41,   0,   0,   7, 
+    130,   0,  16,   0,   1,   0, 
+      0,   0,  58,   0,  16,   0, 
+      2,   0,   0,   0,   1,  64, 
+      0,   0,   7,   0,   0,   0, 
+      1,   0,   0,   7, 130,   0, 
+     16,   0,   1,   0,   0,   0, 
+     58,   0,  16,   0,   1,   0, 
+      0,   0,   1,  64,   0,   0, 
+      0,   8,   0,   0, 140,   0, 
+      0,  11, 130,   0,  16,   0, 
+      1,   0,   0,   0,   1,  64, 
+      0,   0,  12,   0,   0,   0, 
+      1,  64,   0,   0,   0,   0, 
+      0,   0,  58,   0,  16,   0, 
+      1,   0,   0,   0,  26,   0, 
+     16,   0,   4,   0,   0,   0, 
+      1,   0,   0,   7,  18,   0, 
+     16,   0,   3,   0,   0,   0, 
+     42,   0,  16,   0,   4,   0, 
+      0,   0,   1,  64,   0,   0, 
+      0,   7,   0,   0,  30,   0, 
+      0,   7, 130,   0,  16,   0, 
+      1,   0,   0,   0,  58,   0, 
+     16,   0,   1,   0,   0,   0, 
+     10,   0,  16,   0,   3,   0, 
+      0,   0,   1,   0,   0,   7, 
+     18,   0,  16,   0,   3,   0, 
+      0,   0,  58,   0,  16,   0, 
+      3,   0,   0,   0,   1,  64, 
+      0,   0,   2,   0,   0,   0, 
+     30,   0,   0,   7,  18,   0, 
+     16,   0,   3,   0,   0,   0, 
+     26,   0,  16,   0,   3,   0, 
+      0,   0,  10,   0,  16,   0, 
+      3,   0,   0,   0, 140,   0, 
+      0,  11,  18,   0,  16,   0, 
+      3,   0,   0,   0,   1,  64, 
+      0,   0,   2,   0,   0,   0, 
+      1,  64,   0,   0,   6,   0, 
+      0,   0,  10,   0,  16,   0, 
+      3,   0,   0,   0,   1,  64, 
+      0,   0,   0,   0,   0,   0, 
+     30,   0,   0,   7, 130,   0, 
+     16,   0,   1,   0,   0,   0, 
+     58,   0,  16,   0,   1,   0, 
+      0,   0,  10,   0,  16,   0, 
+      3,   0,   0,   0, 140,   0, 
+      0,  11, 130,   0,  16,   0, 
+      0,   0,   0,   0,   1,  64, 
+      0,   0,   6,   0,   0,   0, 
+      1,  64,   0,   0,   0,   0, 
+      0,   0,  10,   0,  16,   0, 
+      4,   0,   0,   0,  58,   0, 
+     16,   0,   1,   0,   0,   0, 
+     21,   0,   0,   1,  35,   0, 
+      0,  10,  82,   0,  16,   0, 
+      1,   0,   0,   0, 166,  11, 
+     16, 128,  65,   0,   0,   0, 
+      2,   0,   0,   0,   6,   1, 
+     16,   0,   2,   0,   0,   0, 
+      6,   2,  16,   0,   1,   0, 
+      0,   0,  38,   0,   0,   8, 
+      0, 208,   0,   0, 130,   0, 
+     16,   0,   1,   0,   0,   0, 
+     26,   0,  16,   0,   2,   0, 
+      0,   0,  10,   0,  16,   0, 
+      2,   0,   0,   0,  35,   0, 
+      0,   9,  18,   0,  16,   0, 
+      1,   0,   0,   0,  10,   0, 
+     16,   0,   1,   0,   0,   0, 
+     26,   0,  16,   0,   2,   0, 
+      0,   0,  42,   0,  16,   0, 
+      1,   0,   0,   0,  41,   0, 
+      0,   7,  18,   0,  16,   0, 
+      1,   0,   0,   0,  10,   0, 
+     16,   0,   1,   0,   0,   0, 
+      1,  64,   0,   0,   4,   0, 
+      0,   0, 140,   0,   0,  11, 
+     18,   0,  16,   0,   1,   0, 
+      0,   0,   1,  64,   0,   0, 
+      3,   0,   0,   0,   1,  64, 
       0,   0,   1,   0,   0,   0, 
-    133,   0,   0,   0,  68,   1, 
-      0,   0, 175,   0,   0,   0, 
-     62,   0,   0,   0,  31,   0, 
+     26,   0,  16,   0,   1,   0, 
+      0,   0,  10,   0,  16,   0, 
+      1,   0,   0,   0,  35,   0, 
+      0,   9, 130,   0,  16,   0, 
+      0,   0,   0,   0,  58,   0, 
+     16,   0,   0,   0,   0,   0, 
+     58,   0,  16,   0,   1,   0, 
+      0,   0,  10,   0,  16,   0, 
+      1,   0,   0,   0,  85,   0, 
+      0,   7, 130,   0,  16,   0, 
+      0,   0,   0,   0,  58,   0, 
+     16,   0,   0,   0,   0,   0, 
+      1,  64,   0,   0,   3,   0, 
+      0,   0,  32,   0,   0,   7, 
+     66,   0,  16,   0,   0,   0, 
+      0,   0,  42,   0,  16,   0, 
+      0,   0,   0,   0,   1,  64, 
+      0,   0,   1,   0,   0,   0, 
+     31,   0,   4,   3,  42,   0, 
+     16,   0,   0,   0,   0,   0, 
+     41,   0,   0,  10,  50,   0, 
+     16,   0,   1,   0,   0,   0, 
+     70,   0,  16,   0,   0,   0, 
+      0,   0,   2,  64,   0,   0, 
+      8,   0,   0,   0,   8,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,  85,   0, 
+      0,  10, 194,   0,  16,   0, 
+      1,   0,   0,   0,   6,   4, 
+     16,   0,   0,   0,   0,   0, 
+      2,  64,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      8,   0,   0,   0,   8,   0, 
+      0,   0,   1,   0,   0,  10, 
+    242,   0,  16,   0,   1,   0, 
+      0,   0,  70,  14,  16,   0, 
+      1,   0,   0,   0,   2,  64, 
+      0,   0,   0, 255,   0, 255, 
+      0, 255,   0, 255, 255,   0, 
+    255,   0, 255,   0, 255,   0, 
+     30,   0,   0,   7,  50,   0, 
+     16,   0,   0,   0,   0,   0, 
+    230,  10,  16,   0,   1,   0, 
+      0,   0,  70,   0,  16,   0, 
+      1,   0,   0,   0,  21,   0, 
+      0,   1, 164,   0,   0,   8, 
+    242, 224,  33,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+    246,  15,  16,   0,   0,   0, 
+      0,   0,  70,   0,  16,   0, 
+      0,   0,   0,   0,  62,   0, 
+      0,   1,  83,  84,  65,  84, 
+    148,   0,   0,   0,  73,   5, 
+      0,   0,  24,   0,   0,   0, 
+      0,   0,   0,   0,   1,   0, 
+      0,   0, 133,   0,   0,   0, 
+     69,   1,   0,   0, 177,   0, 
+      0,   0,  62,   0,   0,   0, 
+     33,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,  44,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0, 196,   0,   0,   0, 
+     64,   0,   0,   0,  83,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
-      0,   0,  44,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-    197,   0,   0,   0,  64,   0, 
-      0,   0,  83,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   1,   0,   0,   0
+      0,   0,   0,   0,   1,   0, 
+      0,   0
 };

@@ -55,11 +55,12 @@ namespace gpu {
 // because textures are streamed this way anyway.
 class TextureCache {
  public:
-  // Hard limit, originating from the half-pixel offset (two-pixel offset is too
-  // much, the resolve shaders, being generic for different scales, only
-  // duplicate the second pixel into the first, not the third), and also due to
-  // the bit counts used for passing the scale to shaders.
-  static constexpr uint32_t kMaxDrawResolutionScaleAlongAxis = 3;
+  // Hard limit, originating from the half-pixel offset filling hack in the
+  // resolve shaders only filling up to 3 pixels, due to the bit counts used for
+  // passing the scale to shaders, and because the full 490 MB EDRAM buffer is
+  // within the minimum Direct3D 12 requirement of 128 * 2^20 texels in a single
+  // buffer binding (counted as R32 for a byte address buffer).
+  static constexpr uint32_t kMaxDrawResolutionScaleAlongAxis = 7;
 
   TextureCache(const TextureCache& texture_cache) = delete;
   TextureCache& operator=(const TextureCache& texture_cache) = delete;

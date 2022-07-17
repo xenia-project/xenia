@@ -39,7 +39,7 @@ xesl_entry_inputs_end_code_begin_compute
       XeEdramOffsetInts(
           xesl_uint2(pixel_index.x,
                      max(pixel_index.y,
-                         uint(resolve_info.duplicate_second_host_pixel.y))) +
+                         resolve_info.half_pixel_offset_fill_source.y)) +
               resolve_info.edram_offset_scaled,
           resolve_info.edram_base_tiles, resolve_info.edram_pitch_tiles,
           kXenosMsaaSamples_4X, resolve_info.edram_is_depth, 0u,
@@ -68,7 +68,15 @@ xesl_entry_inputs_end_code_begin_compute
     pixels_4567.zw = xesl_typedStorageBufferLoad(
         xe_resolve_edram, source_address_int4s + 3u).yw;
   }
-  if (resolve_info.duplicate_second_host_pixel.x && pixel_index.x == 0u) {
+  xesl_dont_flatten
+  if (pixel_index.x == 0u &&
+      resolve_info.half_pixel_offset_fill_source.x != 0u) {
+    if (resolve_info.half_pixel_offset_fill_source.x >= 2u) {
+      if (resolve_info.half_pixel_offset_fill_source.x >= 3u) {
+        pixels_0123.z = pixels_0123.w;
+      }
+      pixels_0123.y = pixels_0123.z;
+    }
     pixels_0123.x = pixels_0123.y;
   }
   XeResolveSwap8PixelsRedBlue32bpp(resolve_info, pixels_0123, pixels_4567);

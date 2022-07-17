@@ -1840,10 +1840,13 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
 
   auto& cbuffer_pool = command_processor_.GetConstantBufferPool();
   LoadConstants load_constants;
+  // 3 bits for each.
+  assert_true(texture_resolution_scale_x <= 7);
+  assert_true(texture_resolution_scale_y <= 7);
   load_constants.is_tiled_3d_endian_scale =
       uint32_t(texture_key.tiled) | (uint32_t(is_3d) << 1) |
       (uint32_t(texture_key.endianness) << 2) |
-      (texture_resolution_scale_x << 4) | (texture_resolution_scale_y << 6);
+      (texture_resolution_scale_x << 4) | (texture_resolution_scale_y << 7);
 
   // The loop is slices within levels because the base and the levels may need
   // different portions of the scaled resolve virtual address space to be

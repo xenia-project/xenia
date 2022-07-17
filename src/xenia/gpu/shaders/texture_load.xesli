@@ -84,7 +84,7 @@ XeTextureLoadInfo XeTextureLoadGetInfo(
   load_info.endian_32 = (is_tiled_3d_endian_scale >> 2u) & 3u;
   #ifdef XE_TEXTURE_LOAD_RESOLUTION_SCALED
     load_info.resolution_scale =
-        ((xesl_uint_x2(is_tiled_3d_endian_scale)) >> xesl_uint2(4u, 6u)) & 3u;
+        ((xesl_uint_x2(is_tiled_3d_endian_scale)) >> xesl_uint2(4u, 7u)) & 7u;
   #else
     load_info.resolution_scale = xesl_uint2(1u, 1u);
   #endif

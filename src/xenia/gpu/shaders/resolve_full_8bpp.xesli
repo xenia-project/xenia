@@ -41,10 +41,18 @@ xesl_entry_inputs_end_code_begin_compute
       xesl_function_call_uintVectorBuffer(xe_resolve_edram)
       xesl_function_call_next_after_uintVectorBuffer
       resolve_info,
-      XeResolveColorCopySourcePixelAddressIntsYDuplicating(resolve_info,
-                                                           pixel_index),
+      XeResolveColorCopySourcePixelAddressIntsYHalfPixelOffsetFilling(
+          resolve_info, pixel_index),
       pixels_0123, pixels_4567);
-  if (resolve_info.duplicate_second_host_pixel.x && pixel_index.x == 0u) {
+  xesl_dont_flatten
+  if (pixel_index.x == 0u &&
+      resolve_info.half_pixel_offset_fill_source.x != 0u) {
+    if (resolve_info.half_pixel_offset_fill_source.x >= 2u) {
+      if (resolve_info.half_pixel_offset_fill_source.x >= 3u) {
+        pixels_0123.z = pixels_0123.w;
+      }
+      pixels_0123.y = pixels_0123.z;
+    }
     pixels_0123.x = pixels_0123.y;
   }
   // Convert to R8.

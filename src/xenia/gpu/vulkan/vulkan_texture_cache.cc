@@ -1352,10 +1352,13 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   VkDescriptorSet descriptor_set_source_current = VK_NULL_HANDLE;
 
   LoadConstants load_constants;
+  // 3 bits for each.
+  assert_true(texture_resolution_scale_x <= 7);
+  assert_true(texture_resolution_scale_y <= 7);
   load_constants.is_tiled_3d_endian_scale =
       uint32_t(texture_key.tiled) | (uint32_t(is_3d) << 1) |
       (uint32_t(texture_key.endianness) << 2) |
-      (texture_resolution_scale_x << 4) | (texture_resolution_scale_y << 6);
+      (texture_resolution_scale_x << 4) | (texture_resolution_scale_y << 7);
 
   uint32_t guest_x_blocks_per_group_log2 =
       load_shader_info.GetGuestXBlocksPerGroupLog2();
