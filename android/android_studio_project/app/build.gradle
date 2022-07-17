@@ -3,14 +3,14 @@ plugins {
 }
 
 android {
-    compileSdkVersion 30
-    ndkVersion '23.0.7599858'
+    compileSdkVersion 33
+    ndkVersion '25.0.8775105'
 
     defaultConfig {
         applicationId 'jp.xenia.emulator'
         // 24 (7.0) - Vulkan.
         minSdkVersion 24
-        targetSdkVersion 30
+        targetSdkVersion 33
         versionCode 1
         versionName 'Prototype'
         externalNativeBuild {
