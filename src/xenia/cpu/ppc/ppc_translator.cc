@@ -14,6 +14,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/reset_scope.h"
+#include "xenia/base/string.h"
 #include "xenia/cpu/compiler/compiler_passes.h"
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/ppc/ppc_frontend.h"
@@ -155,7 +156,7 @@ bool PPCTranslator::Translate(GuestFunction* function,
   // Stash source.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmSource) {
     DumpSource(function, &string_buffer_);
-    debug_info->set_source_disasm(strdup(string_buffer_.buffer()));
+    debug_info->set_source_disasm(xe_strdup(string_buffer_.buffer()));
     string_buffer_.Reset();
   }
 
@@ -171,7 +172,7 @@ bool PPCTranslator::Translate(GuestFunction* function,
   // Stash raw HIR.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmRawHir) {
     builder_->Dump(&string_buffer_);
-    debug_info->set_raw_hir_disasm(strdup(string_buffer_.buffer()));
+    debug_info->set_raw_hir_disasm(xe_strdup(string_buffer_.buffer()));
     string_buffer_.Reset();
   }
 
@@ -183,7 +184,7 @@ bool PPCTranslator::Translate(GuestFunction* function,
   // Stash optimized HIR.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmHir) {
     builder_->Dump(&string_buffer_);
-    debug_info->set_hir_disasm(strdup(string_buffer_.buffer()));
+    debug_info->set_hir_disasm(xe_strdup(string_buffer_.buffer()));
     string_buffer_.Reset();
   }
 

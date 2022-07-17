@@ -19,6 +19,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
+#include "xenia/base/string.h"
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/hir/label.h"
 #include "xenia/cpu/ppc/ppc_context.h"
@@ -215,25 +216,25 @@ void PPCHIRBuilder::MaybeBreakOnInstruction(uint32_t address) {
 
   auto op = cvars::break_condition_op.c_str();
   // TODO(rick): table?
-  if (strcasecmp(op, "eq") == 0) {
+  if (xe_strcasecmp(op, "eq") == 0) {
     TrapTrue(CompareEQ(left, right));
-  } else if (strcasecmp(op, "ne") == 0) {
+  } else if (xe_strcasecmp(op, "ne") == 0) {
     TrapTrue(CompareNE(left, right));
-  } else if (strcasecmp(op, "slt") == 0) {
+  } else if (xe_strcasecmp(op, "slt") == 0) {
     TrapTrue(CompareSLT(left, right));
-  } else if (strcasecmp(op, "sle") == 0) {
+  } else if (xe_strcasecmp(op, "sle") == 0) {
     TrapTrue(CompareSLE(left, right));
-  } else if (strcasecmp(op, "sgt") == 0) {
+  } else if (xe_strcasecmp(op, "sgt") == 0) {
     TrapTrue(CompareSGT(left, right));
-  } else if (strcasecmp(op, "sge") == 0) {
+  } else if (xe_strcasecmp(op, "sge") == 0) {
     TrapTrue(CompareSGE(left, right));
-  } else if (strcasecmp(op, "ult") == 0) {
+  } else if (xe_strcasecmp(op, "ult") == 0) {
     TrapTrue(CompareULT(left, right));
-  } else if (strcasecmp(op, "ule") == 0) {
+  } else if (xe_strcasecmp(op, "ule") == 0) {
     TrapTrue(CompareULE(left, right));
-  } else if (strcasecmp(op, "ugt") == 0) {
+  } else if (xe_strcasecmp(op, "ugt") == 0) {
     TrapTrue(CompareUGT(left, right));
-  } else if (strcasecmp(op, "uge") == 0) {
+  } else if (xe_strcasecmp(op, "uge") == 0) {
     TrapTrue(CompareUGE(left, right));
   } else {
     assert_always();
