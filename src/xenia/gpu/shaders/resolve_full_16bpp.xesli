@@ -41,17 +41,24 @@ xesl_entry_inputs_end_code_begin_compute
       xesl_function_call_uintVectorBuffer(xe_resolve_edram)
       xesl_function_call_next_after_uintVectorBuffer
       resolve_info,
-      XeResolveColorCopySourcePixelAddressIntsYDuplicating(resolve_info,
-                                                           pixel_index),
+      XeResolveColorCopySourcePixelAddressIntsYHalfPixelOffsetFilling(
+          resolve_info, pixel_index),
       pixel_0, pixel_1, pixel_2, pixel_3);
-  if (resolve_info.duplicate_second_host_pixel.x && pixel_index.x == 0u) {
-    pixel_0 = pixel_1;
+  xesl_uint2 packed = XePack16bpp4PixelsInUInt2(
+      pixel_0, pixel_1, pixel_2, pixel_3, resolve_info.dest_format);
+  xesl_dont_flatten
+  if (pixel_index.x == 0u &&
+      resolve_info.half_pixel_offset_fill_source.x != 0u) {
+    if (resolve_info.half_pixel_offset_fill_source.x >= 2u) {
+      if (resolve_info.half_pixel_offset_fill_source.x >= 3u) {
+        packed.y = (packed.y >> 16u) | (packed.y & 0xFFFF0000u);
+      }
+      packed.x = (packed.x & 0xFFFFu) | (packed.y << 16u);
+    }
+    packed.x = (packed.x >> 16u) | (packed.x & 0xFFFF0000u);
   }
   xesl_typedStorageBufferStore(
       xe_resolve_dest,
       XeResolveDestPixelAddress(resolve_info, pixel_index, 1u) >> 3u,
-      XeEndianSwap16(XePack16bpp4PixelsInUInt2(pixel_0, pixel_1, pixel_2,
-                                               pixel_3,
-                                               resolve_info.dest_format),
-                     resolve_info.dest_endian_128));
+      XeEndianSwap16(packed, resolve_info.dest_endian_128));
 xesl_entry_code_end_compute

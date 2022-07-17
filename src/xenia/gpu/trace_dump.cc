@@ -10,6 +10,7 @@
 #include "xenia/gpu/trace_dump.h"
 
 #include "third_party/stb/stb_image_write.h"
+#include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/string.h"
@@ -109,7 +110,7 @@ bool TraceDump::Setup() {
 bool TraceDump::Load(const std::filesystem::path& trace_file_path) {
   trace_file_path_ = trace_file_path;
 
-  if (!player_->Open(trace_file_path_)) {
+  if (!player_->Open(xe::path_to_utf8(trace_file_path_))) {
     XELOGE("Could not load trace file");
     return false;
   }

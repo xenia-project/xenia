@@ -10,7 +10,7 @@
 #ifndef XENIA_GPU_TRACE_VIEWER_H_
 #define XENIA_GPU_TRACE_VIEWER_H_
 
-#include <string>
+#include <string_view>
 
 #include "xenia/emulator.h"
 #include "xenia/gpu/shader.h"
@@ -95,7 +95,12 @@ class TraceViewer : public xe::ui::WindowedApp {
     kHostDisasm,
   };
 
-  bool Load(const std::filesystem::path& trace_file_path);
+  // Same as for Dear ImGui tooltips. Windows are translucent as the controls
+  // may take a pretty large fraction of the screen, especially on small
+  // screens, so the image from the guest can be seen through them.
+  static constexpr float kWindowBgAlpha = 0.6f;
+
+  bool Load(const std::string_view trace_file_path);
 
   void DrawUI();
   void DrawControllerUI();

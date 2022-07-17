@@ -10,7 +10,7 @@
 #ifndef XENIA_GPU_TRACE_READER_H_
 #define XENIA_GPU_TRACE_READER_H_
 
-#include <string>
+#include <string_view>
 #include <vector>
 
 #include "xenia/base/mapped_memory.h"
@@ -99,7 +99,7 @@ class TraceReader {
   const Frame* frame(int n) const { return &frames_[n]; }
   int frame_count() const { return int(frames_.size()); }
 
-  bool Open(const std::filesystem::path& path);
+  bool Open(const std::string_view path);
 
   void Close();
 

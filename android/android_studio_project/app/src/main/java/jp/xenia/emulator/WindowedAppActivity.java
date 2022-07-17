@@ -1,8 +1,10 @@
 package jp.xenia.emulator;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.res.AssetManager;
 import android.os.Bundle;
+import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.View;
@@ -12,15 +14,18 @@ import org.jetbrains.annotations.Nullable;
 import jp.xenia.XeniaRuntimeException;
 
 public abstract class WindowedAppActivity extends Activity {
+    // The EXTRA_CVARS value literal is also used in the native code.
+
+    /**
+     * Name of the Bundle intent extra containing Xenia config variable launch arguments.
+     */
+    public static final String EXTRA_CVARS = "jp.xenia.emulator.WindowedAppActivity.EXTRA_CVARS";
+
     static {
-        // TODO(Triang3l): Move all demos to libxenia.so.
-        System.loadLibrary("xenia-ui-window-vulkan-demo");
+        System.loadLibrary("xenia-app");
     }
 
-    private final WindowSurfaceOnLayoutChangeListener mWindowSurfaceOnLayoutChangeListener =
-            new WindowSurfaceOnLayoutChangeListener();
-    private final WindowSurfaceHolderCallback mWindowSurfaceHolderCallback =
-            new WindowSurfaceHolderCallback();
+    private final WindowSurfaceListener mWindowSurfaceListener = new WindowSurfaceListener();
 
     // May be 0 while destroying (mainly while the superclass is).
     private long mAppContext = 0;
@@ -36,6 +41,8 @@ public abstract class WindowedAppActivity extends Activity {
     private native void onWindowSurfaceLayoutChange(
             long appContext, int left, int top, int right, int bottom);
 
+    private native boolean onWindowSurfaceMotionEvent(long appContext, MotionEvent event);
+
     private native void onWindowSurfaceChanged(long appContext, Surface windowSurface);
 
     private native void paintWindow(long appContext, boolean forcePaint);
@@ -49,8 +56,10 @@ public abstract class WindowedAppActivity extends Activity {
 
         // Detach from the old surface.
         if (mWindowSurfaceView != null) {
-            mWindowSurfaceView.getHolder().removeCallback(mWindowSurfaceHolderCallback);
-            mWindowSurfaceView.removeOnLayoutChangeListener(mWindowSurfaceOnLayoutChangeListener);
+            mWindowSurfaceView.getHolder().removeCallback(mWindowSurfaceListener);
+            mWindowSurfaceView.setOnTouchListener(null);
+            mWindowSurfaceView.setOnGenericMotionListener(null);
+            mWindowSurfaceView.removeOnLayoutChangeListener(mWindowSurfaceListener);
             mWindowSurfaceView = null;
             if (mAppContext != 0) {
                 onWindowSurfaceChanged(mAppContext, null);
@@ -62,12 +71,12 @@ public abstract class WindowedAppActivity extends Activity {
         }
 
         mWindowSurfaceView = windowSurfaceView;
-        // The native window code assumes that, when the surface exists, it covers the entire
-        // window.
         // FIXME(Triang3l): This doesn't work if the layout has already been performed.
-        mWindowSurfaceView.addOnLayoutChangeListener(mWindowSurfaceOnLayoutChangeListener);
+        mWindowSurfaceView.addOnLayoutChangeListener(mWindowSurfaceListener);
+        mWindowSurfaceView.setOnGenericMotionListener(mWindowSurfaceListener);
+        mWindowSurfaceView.setOnTouchListener(mWindowSurfaceListener);
         final SurfaceHolder windowSurfaceHolder = mWindowSurfaceView.getHolder();
-        windowSurfaceHolder.addCallback(mWindowSurfaceHolderCallback);
+        windowSurfaceHolder.addCallback(mWindowSurfaceListener);
         // If setting after the creation of the surface.
         if (mAppContext != 0) {
             final Surface windowSurface = windowSurfaceHolder.getSurface();
@@ -116,7 +125,11 @@ public abstract class WindowedAppActivity extends Activity {
         super.onDestroy();
     }
 
-    private class WindowSurfaceOnLayoutChangeListener implements View.OnLayoutChangeListener {
+    private class WindowSurfaceListener implements
+            View.OnGenericMotionListener,
+            View.OnLayoutChangeListener,
+            View.OnTouchListener,
+            SurfaceHolder.Callback2 {
         @Override
         public void onLayoutChange(
                 final View v, final int left, final int top, final int right, final int bottom,
@@ -125,9 +138,24 @@ public abstract class WindowedAppActivity extends Activity {
                 onWindowSurfaceLayoutChange(mAppContext, left, top, right, bottom);
             }
         }
-    }
 
-    private class WindowSurfaceHolderCallback implements SurfaceHolder.Callback2 {
+        @Override
+        public boolean onGenericMotion(final View view, final MotionEvent event) {
+            if (mAppContext == 0) {
+                return false;
+            }
+            return onWindowSurfaceMotionEvent(mAppContext, event);
+        }
+
+        @SuppressLint("ClickableViewAccessibility")
+        @Override
+        public boolean onTouch(final View view, final MotionEvent event) {
+            if (mAppContext == 0) {
+                return false;
+            }
+            return onWindowSurfaceMotionEvent(mAppContext, event);
+        }
+
         @Override
         public void surfaceCreated(final SurfaceHolder holder) {
             if (mAppContext == 0) {

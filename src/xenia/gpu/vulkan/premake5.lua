@@ -26,7 +26,7 @@ project("xenia-gpu-vulkan")
 group("src")
 project("xenia-gpu-vulkan-trace-viewer")
   uuid("86a1dddc-a26a-4885-8c55-cf745225d93e")
-  kind("WindowedApp")
+  single_library_windowed_app_kind()
   language("C++")
   links({
     "xenia-apu",

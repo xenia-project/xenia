@@ -59,6 +59,7 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
   void OnMouseMove(MouseEvent& e) override;
   void OnMouseUp(MouseEvent& e) override;
   void OnMouseWheel(MouseEvent& e) override;
+  void OnTouchEvent(TouchEvent& e) override;
   // For now, no need for OnDpiChanged because redrawing is done continuously.
 
  private:
@@ -70,7 +71,8 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
 
   void ClearInput();
   void OnKey(KeyEvent& e, bool is_down);
-  void UpdateMousePosition(const MouseEvent& e);
+  void UpdateMousePosition(float x, float y);
+  void SwitchToPhysicalMouseAndUpdateMousePosition(const MouseEvent& e);
 
   Window* window_;
   size_t z_order_;
@@ -91,6 +93,16 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
   // Resources specific to an immediate drawer - must be destroyed before
   // detaching the presenter.
   std::unique_ptr<ImmediateTexture> font_texture_;
+
+  // If there's an active pointer, the ImGui mouse is controlled by this touch.
+  // If it's TouchEvent::kPointerIDNone, the ImGui mouse is controlled by the
+  // mouse.
+  uint32_t touch_pointer_id_ = TouchEvent::kPointerIDNone;
+  // Whether after the next frame (since the mouse up event needs to be handled
+  // with the correct mouse position still), the ImGui mouse position should be
+  // reset (for instance, after releasing a touch), so it's not hovering over
+  // anything.
+  bool reset_mouse_position_after_next_frame_ = false;
 
   double frame_time_tick_frequency_;
   uint64_t last_frame_time_ticks_;

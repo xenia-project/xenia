@@ -3,14 +3,14 @@ plugins {
 }
 
 android {
-    compileSdkVersion 30
-    ndkVersion '23.0.7599858'
+    compileSdkVersion 33
+    ndkVersion '25.0.8775105'
 
     defaultConfig {
         applicationId 'jp.xenia.emulator'
         // 24 (7.0) - Vulkan.
         minSdkVersion 24
-        targetSdkVersion 30
+        targetSdkVersion 33
         versionCode 1
         versionName 'Prototype'
         externalNativeBuild {
@@ -18,13 +18,17 @@ android {
                 arguments 'NDK_APPLICATION_MK:=../../../build/xenia.Application.mk',
                         'PREMAKE_ANDROIDNDK_PLATFORMS:=Android-ARM64',
                         'PREMAKE_ANDROIDNDK_PLATFORMS+=Android-x86_64',
+                        // ndk.jobs doesn't work as of Gradle 7.1.0.
+                        "-j${Runtime.runtime.availableProcessors()}",
                         // Work around "Bad file descriptor" on Windows on NDK r22+.
                         '--output-sync=none'
+                // For the app, don't build the executables designed for running from a terminal.
+                // To build the executables, run ndk-build manually.
+                targets 'xenia-app'
             }
         }
         ndk {
             abiFilters 'arm64-v8a', 'x86_64'
-            jobs Runtime.runtime.availableProcessors()
             stl 'c++_static'
         }
     }

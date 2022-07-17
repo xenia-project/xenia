@@ -15,6 +15,7 @@
 #include "third_party/capstone/include/capstone/x86.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/reset_scope.h"
+#include "xenia/base/string.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
@@ -86,7 +87,7 @@ bool X64Assembler::Assemble(GuestFunction* function, HIRBuilder* builder,
   if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmMachineCode) {
     DumpMachineCode(machine_code, code_size, function->source_map(),
                     &string_buffer_);
-    debug_info->set_machine_code_disasm(strdup(string_buffer_.buffer()));
+    debug_info->set_machine_code_disasm(xe_strdup(string_buffer_.buffer()));
     string_buffer_.Reset();
   }
 

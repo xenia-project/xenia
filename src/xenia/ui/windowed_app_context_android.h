@@ -28,16 +28,34 @@ class WindowedApp;
 
 class AndroidWindowedAppContext final : public WindowedAppContext {
  public:
+  // Precached JNI references and IDs that may be used for windowed app purposes
+  // by external code.
+  struct JniIDs {
+    // android.view.MotionEvent.
+    jmethodID motion_event_get_action;
+    jmethodID motion_event_get_axis_value;
+    jmethodID motion_event_get_button_state;
+    jmethodID motion_event_get_pointer_count;
+    jmethodID motion_event_get_pointer_id;
+    jmethodID motion_event_get_source;
+    jmethodID motion_event_get_x;
+    jmethodID motion_event_get_y;
+  };
+
   WindowedApp* app() const { return app_.get(); }
 
   void NotifyUILoopOfPendingFunctions() override;
 
   void PlatformQuitFromUIThread() override;
 
+  JNIEnv* ui_thread_jni_env() const { return ui_thread_jni_env_; }
+
   uint32_t GetPixelDensity() const {
     return configuration_ ? uint32_t(AConfiguration_getDensity(configuration_))
                           : 160;
   }
+
+  const JniIDs& jni_ids() const { return jni_ids_; }
 
   int32_t window_surface_layout_left() const {
     return window_surface_layout_left_;
@@ -70,6 +88,7 @@ class AndroidWindowedAppContext final : public WindowedAppContext {
   void JniActivityOnDestroy();
   void JniActivityOnWindowSurfaceLayoutChange(jint left, jint top, jint right,
                                               jint bottom);
+  bool JniActivityOnWindowSurfaceMotionEvent(jobject event);
   void JniActivityOnWindowSurfaceChanged(jobject window_surface_object);
   void JniActivityPaintWindow(bool force_paint);
 
@@ -116,6 +135,9 @@ class AndroidWindowedAppContext final : public WindowedAppContext {
   jclass activity_class_ = nullptr;
 
   bool android_base_initialized_ = false;
+
+  jclass motion_event_class_ = nullptr;
+  JniIDs jni_ids_ = {};
 
   jobject activity_ = nullptr;
   jmethodID activity_method_finish_ = nullptr;

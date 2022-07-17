@@ -32,9 +32,6 @@ class Win32MappedMemory : public MappedMemory {
   // CreateFileMapping returns nullptr in case of failure.
   static constexpr HANDLE kMappingHandleInvalid = nullptr;
 
-  Win32MappedMemory(const std::filesystem::path& path, Mode mode)
-      : MappedMemory(path, mode) {}
-
   ~Win32MappedMemory() override {
     if (data_) {
       UnmapViewOfFile(data_);
@@ -135,7 +132,7 @@ std::unique_ptr<MappedMemory> MappedMemory::Open(
       offset & ~static_cast<size_t>(system_info.dwAllocationGranularity - 1);
   const size_t aligned_length = length + (offset - aligned_offset);
 
-  auto mm = std::make_unique<Win32MappedMemory>(path, mode);
+  auto mm = std::make_unique<Win32MappedMemory>();
   mm->view_access_ = view_access;
 
   mm->file_handle = CreateFile(path.c_str(), file_access, file_share, nullptr,

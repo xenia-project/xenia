@@ -28,11 +28,11 @@
 
 // Very prominent in 545407F2.
 DEFINE_bool(
-    resolve_resolution_scale_duplicate_second_pixel, true,
-    "When using resolution scale, apply the hack that duplicates the "
-    "right/lower host pixel in the left and top sides of render target resolve "
-    "areas to eliminate the gap caused by half-pixel offset (this is necessary "
-    "for certain games to display the scene graphics).",
+    resolve_resolution_scale_fill_half_pixel_offset, true,
+    "When using resolution scaling, apply the hack that stretches the first "
+    "surely covered host pixel in the left and top sides of render target "
+    "resolve areas to eliminate the gap caused by the half-pixel offset (this "
+    "is necessary for certain games to display the scene graphics).",
     "GPU");
 
 namespace xe {
@@ -696,7 +696,8 @@ xenos::CopySampleSelect SanitizeCopySampleSelect(
 
 void GetResolveEdramTileSpan(ResolveEdramInfo edram_info,
                              ResolveCoordinateInfo coordinate_info,
-                             uint32_t& base_out, uint32_t& row_length_used_out,
+                             uint32_t height_div_8, uint32_t& base_out,
+                             uint32_t& row_length_used_out,
                              uint32_t& rows_out) {
   // Due to 64bpp, and also not to make an assumption that the offsets are
   // limited to (80 - 8, 8 - 8) with 2x MSAA, and (40 - 8, 8 - 8) with 4x MSAA,
@@ -716,8 +717,7 @@ void GetResolveEdramTileSpan(ResolveEdramInfo edram_info,
   uint32_t y0 = (coordinate_info.edram_offset_y_div_8 << y_scale_log2) /
                 xenos::kEdramTileHeightSamples;
   uint32_t y1 =
-      (((coordinate_info.edram_offset_y_div_8 + coordinate_info.height_div_8)
-        << y_scale_log2) +
+      (((coordinate_info.edram_offset_y_div_8 + height_div_8) << y_scale_log2) +
        (xenos::kEdramTileHeightSamples - 1)) /
       xenos::kEdramTileHeightSamples;
   base_out = edram_info.base_tiles + y0 * edram_info.pitch_tiles + x0;
@@ -744,6 +744,11 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
                     bool fixed_rg16_truncated_to_minus_1_to_1,
                     bool fixed_rgba16_truncated_to_minus_1_to_1,
                     ResolveInfo& info_out) {
+  // Don't pass uninitialized values to shaders, not to leak data to frame
+  // captures. Also initialize an invalid resolve to empty.
+  info_out.coordinate_info.packed = 0;
+  info_out.height_div_8 = 0;
+
   auto rb_copy_control = regs.Get<reg::RB_COPY_CONTROL>();
   info_out.rb_copy_control = rb_copy_control;
 
@@ -756,10 +761,6 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
     assert_always();
     return false;
   }
-
-  // Don't pass uninitialized values to shaders, not to leak data to frame
-  // captures.
-  info_out.coordinate_info.packed = 0;
 
   // Get the extent of pixels covered by the resolve rectangle, according to the
   // top-left rasterization rule.
@@ -876,11 +877,11 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
 
   info_out.coordinate_info.width_div_8 =
       uint32_t(x1 - x0) >> xenos::kResolveAlignmentPixelsLog2;
-  info_out.coordinate_info.height_div_8 =
+  info_out.height_div_8 =
       uint32_t(y1 - y0) >> xenos::kResolveAlignmentPixelsLog2;
-  // 2 bits for each.
-  assert_true(draw_resolution_scale_x <= 3);
-  assert_true(draw_resolution_scale_y <= 3);
+  // 3 bits for each.
+  assert_true(draw_resolution_scale_x <= 7);
+  assert_true(draw_resolution_scale_y <= 7);
   info_out.coordinate_info.draw_resolution_scale_x = draw_resolution_scale_x;
   info_out.coordinate_info.draw_resolution_scale_y = draw_resolution_scale_y;
 
@@ -1033,9 +1034,9 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
       base_offset_y_tiles * surface_pitch_tiles + base_offset_x_tiles;
 
   // Write the color/depth EDRAM info.
-  bool duplicate_second_pixel =
+  bool fill_half_pixel_offset =
       (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) &&
-      cvars::resolve_resolution_scale_duplicate_second_pixel &&
+      cvars::resolve_resolution_scale_fill_half_pixel_offset &&
       cvars::half_pixel_offset && !regs.Get<reg::PA_SU_VTX_CNTL>().pix_center;
   int32_t exp_bias = is_depth ? 0 : rb_copy_dest_info.copy_dest_exp_bias;
   ResolveEdramInfo depth_edram_info;
@@ -1048,7 +1049,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
         rb_depth_info.depth_base + edram_base_offset_tiles;
     depth_edram_info.format = uint32_t(rb_depth_info.depth_format);
     depth_edram_info.format_is_64bpp = 0;
-    depth_edram_info.duplicate_second_pixel = uint32_t(duplicate_second_pixel);
+    depth_edram_info.fill_half_pixel_offset = uint32_t(fill_half_pixel_offset);
     info_out.depth_original_base = rb_depth_info.depth_base;
   } else {
     info_out.depth_original_base = 0;
@@ -1070,7 +1071,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
         color_info.color_base + (edram_base_offset_tiles << is_64bpp);
     color_edram_info.format = uint32_t(color_info.color_format);
     color_edram_info.format_is_64bpp = is_64bpp;
-    color_edram_info.duplicate_second_pixel = uint32_t(duplicate_second_pixel);
+    color_edram_info.fill_half_pixel_offset = uint32_t(fill_half_pixel_offset);
     if ((fixed_rg16_truncated_to_minus_1_to_1 &&
          color_info.color_format == xenos::ColorRenderTargetFormat::k_16_16) ||
         (fixed_rgba16_truncated_to_minus_1_to_1 &&
@@ -1173,9 +1174,8 @@ ResolveCopyShaderIndex ResolveInfo::GetCopyShader(
     uint32_t width =
         (coordinate_info.width_div_8 << xenos::kResolveAlignmentPixelsLog2) *
         draw_resolution_scale_x;
-    uint32_t height =
-        (coordinate_info.height_div_8 << xenos::kResolveAlignmentPixelsLog2) *
-        draw_resolution_scale_y;
+    uint32_t height = (height_div_8 << xenos::kResolveAlignmentPixelsLog2) *
+                      draw_resolution_scale_y;
     const ResolveCopyShaderInfo& shader_info =
         resolve_copy_shader_info[size_t(shader)];
     group_count_x_out = (width + ((1 << shader_info.group_size_x_log2) - 1)) >>

@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Xenia</string>
-    <string name="activity_label_window_demo">Xenia Window Demo</string>
+    <string name="activity_label_gpu_trace_viewer">GPU Trace Viewer</string>
+    <string name="activity_label_window_demo">Window Demo</string>
 </resources>

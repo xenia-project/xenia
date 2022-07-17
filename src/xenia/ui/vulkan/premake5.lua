@@ -22,7 +22,7 @@ project("xenia-ui-vulkan")
 group("demos")
 project("xenia-ui-window-vulkan-demo")
   uuid("97598f13-3177-454c-8e58-c59e2b6ede27")
-  kind("WindowedApp")
+  single_library_windowed_app_kind()
   language("C++")
   links({
     "fmt",

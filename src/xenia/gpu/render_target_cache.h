@@ -376,8 +376,8 @@ class RenderTargetCache {
     uint32_t constant;
     struct {
       uint32_t pitch_tiles : xenos::kEdramPitchTilesBits;
-      uint32_t resolution_scale_x : 2;
-      uint32_t resolution_scale_y : 2;
+      uint32_t resolution_scale_x : 3;
+      uint32_t resolution_scale_y : 3;
       // Whether 2x MSAA is supported natively rather than through 4x.
       uint32_t msaa_2x_supported : 1;
     };
@@ -513,6 +513,9 @@ class RenderTargetCache {
       uint32_t pitch_tiles, bool msaa_2x_supported) const {
     HostDepthStoreRenderTargetConstant constant;
     constant.pitch_tiles = pitch_tiles;
+    // 3 bits for each.
+    assert_true(draw_resolution_scale_x() <= 7);
+    assert_true(draw_resolution_scale_y() <= 7);
     constant.resolution_scale_x = draw_resolution_scale_x();
     constant.resolution_scale_y = draw_resolution_scale_y();
     constant.msaa_2x_supported = uint32_t(msaa_2x_supported);

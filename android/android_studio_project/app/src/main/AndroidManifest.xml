@@ -15,12 +15,6 @@
     <!-- Granted automatically - guest sockets. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!--
-    Needs to be requested - loading games from outside the app data directory.
-    WRITE_EXTERNAL_STORAGE is not required to write to the external app data directory since API 19.
-    -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -30,13 +24,26 @@
         android:theme="@android:style/Theme.Material.Light">
 
         <activity
-            android:name="jp.xenia.emulator.WindowDemoActivity"
-            android:label="@string/activity_label_window_demo">
+            android:name="jp.xenia.emulator.LauncherActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name="jp.xenia.emulator.GpuTraceViewerActivity"
+            android:exported="true"
+            android:label="@string/activity_label_gpu_trace_viewer"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+
+        <activity
+            android:name="jp.xenia.emulator.WindowDemoActivity"
+            android:exported="true"
+            android:label="@string/activity_label_window_demo"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
 
     </application>
 

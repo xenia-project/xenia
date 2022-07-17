@@ -1352,10 +1352,13 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   VkDescriptorSet descriptor_set_source_current = VK_NULL_HANDLE;
 
   LoadConstants load_constants;
+  // 3 bits for each.
+  assert_true(texture_resolution_scale_x <= 7);
+  assert_true(texture_resolution_scale_y <= 7);
   load_constants.is_tiled_3d_endian_scale =
       uint32_t(texture_key.tiled) | (uint32_t(is_3d) << 1) |
       (uint32_t(texture_key.endianness) << 2) |
-      (texture_resolution_scale_x << 4) | (texture_resolution_scale_y << 6);
+      (texture_resolution_scale_x << 4) | (texture_resolution_scale_y << 7);
 
   uint32_t guest_x_blocks_per_group_log2 =
       load_shader_info.GetGuestXBlocksPerGroupLog2();
@@ -1796,8 +1799,8 @@ bool VulkanTextureCache::Initialize() {
   // S3TC.
   // Not checking the textureCompressionBC feature because its availability
   // means that all BC formats are supported, however, the device may expose
-  // some BC formats without this feature. Xenia doesn't BC6H and BC7 at all,
-  // and has fallbacks for each used format.
+  // some BC formats without this feature. Xenia doesn't use BC6H and BC7 at
+  // all, and has fallbacks for each used format.
   // TODO(Triang3l): Raise the host texture memory usage limit if S3TC has to be
   // decompressed.
   // TODO(Triang3l): S3TC -> 5551 or 4444 as an option.

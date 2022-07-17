@@ -1077,7 +1077,7 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
       std::min(uint32_t(resolve_info.coordinate_info.width_div_8) << 3,
                pitch_pixels - clear_rectangle.x_pixels);
   clear_rectangle.height_pixels =
-      std::min(uint32_t(resolve_info.coordinate_info.height_div_8) << 3,
+      std::min(uint32_t(resolve_info.height_div_8) << 3,
                render_target_height_pixels - clear_rectangle.y_pixels);
   if (!clear_rectangle.width_pixels || !clear_rectangle.height_pixels) {
     // Outside the pitch / height (or initially specified as 0).
