@@ -8,6 +8,7 @@
  */
 #include <regex>
 
+#include "xenia/config.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
@@ -61,7 +62,7 @@ PatchFileEntry PatchDB::ReadPatchFile(const std::filesystem::path& file_path) {
   std::shared_ptr<cpptoml::table> patch_toml_fields;
 
   try {
-    patch_toml_fields = cpptoml::parse_file(path_to_utf8(file_path));
+    patch_toml_fields = ParseFile(file_path);
   } catch (...) {
     XELOGE("PatchDB: Cannot load patch file: {}", path_to_utf8(file_path));
     patch_file.title_id = -1;
