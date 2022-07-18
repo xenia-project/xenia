@@ -9,7 +9,6 @@
 
 #include "xenia/cpu/compiler/passes/simplification_pass.h"
 
-#include <__msvc_int128.hpp>
 #include "xenia/base/byte_order.h"
 #include "xenia/base/profiling.h"
 namespace xe {
