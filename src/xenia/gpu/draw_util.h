@@ -603,14 +603,6 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
                     bool fixed_rgba16_truncated_to_minus_1_to_1,
                     ResolveInfo& info_out);
 
-// Taking user configuration - stretching or letterboxing, overscan region to
-// crop to fill while maintaining the aspect ratio - into account, returns the
-// area where the frame should be presented in the host window.
-void GetPresentArea(uint32_t source_width, uint32_t source_height,
-                    uint32_t window_width, uint32_t window_height,
-                    int32_t& target_x_out, int32_t& target_y_out,
-                    uint32_t& target_width_out, uint32_t& target_height_out);
-
 }  // namespace draw_util
 }  // namespace gpu
 }  // namespace xe
