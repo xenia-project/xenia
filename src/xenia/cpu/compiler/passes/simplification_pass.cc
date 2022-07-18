@@ -9,6 +9,7 @@
 
 #include "xenia/cpu/compiler/passes/simplification_pass.h"
 
+#include <__msvc_int128.hpp>
 #include "xenia/base/byte_order.h"
 #include "xenia/base/profiling.h"
 namespace xe {
@@ -22,6 +23,52 @@ using namespace xe::cpu::hir;
 using xe::cpu::hir::HIRBuilder;
 using xe::cpu::hir::Instr;
 using xe::cpu::hir::Value;
+using vmask_portion_t = uint64_t;
+template <uint32_t Ndwords>
+struct Valuemask_t {
+  vmask_portion_t bits[Ndwords];
+
+  static Valuemask_t create_empty(vmask_portion_t fill = 0) {
+    Valuemask_t result;
+    for (uint32_t i = 0; i < Ndwords; ++i) {
+      result.bits[i] = fill;
+    }
+    return result;
+  }
+  template <typename TCallable>
+  Valuemask_t operate(TCallable&& oper) const {
+    Valuemask_t result = create_empty();
+
+    for (uint32_t i = 0; i < Ndwords; ++i) {
+      result.bits[i] = oper(bits[i]);
+    }
+    return result;
+  }
+  template <typename TCallable>
+  Valuemask_t operate(TCallable&& oper, Valuemask_t other) const {
+    Valuemask_t result = create_empty();
+
+    for (uint32_t i = 0; i < Ndwords; ++i) {
+      result.bits[i] = oper(bits[i], other.bits[i]);
+    }
+    return result;
+  }
+  Valuemask_t operator&(ValueMask other) const {
+    return operate([](vmask_portion_t x, vmask_portion_t y) { return x & y; },
+                   other);
+  }
+  Valuemask_t operator|(ValueMask other) const {
+    return operate([](vmask_portion_t x, vmask_portion_t y) { return x | y; },
+                   other);
+  }
+  Valuemask_t operator^(ValueMask other) const {
+    return operate([](vmask_portion_t x, vmask_portion_t y) { return x ^ y; },
+                   other);
+  }
+  Valuemask_t operator~() const {
+    return operate([](vmask_portion_t x) { return ~x; }, other);
+  }
+};
 
 SimplificationPass::SimplificationPass() : ConditionalGroupSubpass() {}
 
@@ -36,6 +83,7 @@ bool SimplificationPass::Run(HIRBuilder* builder, bool& result) {
     iter_result |= SimplifyBitArith(builder);
     iter_result |= EliminateConversions(builder);
     iter_result |= SimplifyAssignments(builder);
+    iter_result |= BackpropTruncations(builder);
     result |= iter_result;
   } while (iter_result);
   return true;
@@ -151,19 +199,88 @@ bool SimplificationPass::CheckOr(hir::Instr* i, hir::HIRBuilder* builder) {
   }
   return false;
 }
+bool SimplificationPass::CheckBooleanXor1(hir::Instr* i,
+                                          hir::HIRBuilder* builder,
+                                          hir::Value* xored) {
+  unsigned tunflags = MOVTUNNEL_ASSIGNS | MOVTUNNEL_MOVZX;
+
+  Instr* xordef = xored->GetDefTunnelMovs(&tunflags);
+  if (!xordef) {
+    return false;
+  }
+
+  Opcode xorop = xordef->opcode->num;
+  bool need_zx = (tunflags & MOVTUNNEL_MOVZX) != 0;
+
+  Value* new_value = nullptr;
+  if (xorop == OPCODE_IS_FALSE) {
+    new_value = builder->IsTrue(xordef->src1.value);
+
+  } else if (xorop == OPCODE_IS_TRUE) {
+    new_value = builder->IsFalse(xordef->src1.value);
+  } else if (xorop == OPCODE_COMPARE_EQ) {
+    new_value = builder->CompareNE(xordef->src1.value, xordef->src2.value);
+
+  } else if (xorop == OPCODE_COMPARE_NE) {
+    new_value = builder->CompareEQ(xordef->src1.value, xordef->src2.value);
+  }  // todo: other conds
+
+  if (!new_value) {
+    return false;
+  }
+
+  new_value->def->MoveBefore(i);
+
+  i->Replace(need_zx ? &OPCODE_ZERO_EXTEND_info : &OPCODE_ASSIGN_info, 0);
+  i->set_src1(new_value);
+
+  return true;
+}
+
+bool SimplificationPass::CheckXorOfTwoBools(hir::Instr* i,
+                                            hir::HIRBuilder* builder,
+                                            hir::Value* b1, hir::Value* b2) {
+  // todo: implement
+  return false;
+}
 bool SimplificationPass::CheckXor(hir::Instr* i, hir::HIRBuilder* builder) {
   if (CheckOrXorZero(i)) {
     return true;
   } else {
-    if (i->src1.value == i->src2.value) {
+    Value* src1 = i->src1.value;
+    Value* src2 = i->src2.value;
+
+    if (SameValueOrEqualConstant(src1, src2)) {
       i->Replace(&OPCODE_ASSIGN_info, 0);
       i->set_src1(builder->LoadZero(i->dest->type));
       return true;
     }
-    uint64_t type_mask = GetScalarTypeMask(i->dest->type);
-
     auto [constant_value, variable_value] =
         i->BinaryValueArrangeAsConstAndVar();
+    ScalarNZM nzm1 = GetScalarNZM(src1);
+    ScalarNZM nzm2 = GetScalarNZM(src2);
+
+    if ((nzm1 & nzm2) ==
+        0) {  // no bits of the two sources overlap, this ought to be an OR
+      // cs:optimizing
+      /* i->Replace(&OPCODE_OR_info, 0);
+      i->set_src1(src1);
+      i->set_src2(src2);*/
+
+      i->opcode = &OPCODE_OR_info;
+
+      return true;
+    }
+
+    if (nzm1 == 1ULL && nzm2 == 1ULL) {
+      if (constant_value) {
+        return CheckBooleanXor1(i, builder, variable_value);
+      } else {
+        return CheckXorOfTwoBools(i, builder, src1, src2);
+      }
+    }
+
+    uint64_t type_mask = GetScalarTypeMask(i->dest->type);
 
     if (!constant_value) return false;
 
@@ -504,11 +621,12 @@ bool SimplificationPass::TryHandleANDROLORSHLSeq(hir::Instr* i,
 }
 bool SimplificationPass::CheckAnd(hir::Instr* i, hir::HIRBuilder* builder) {
 retry_and_simplification:
+
   auto [constant_value, variable_value] = i->BinaryValueArrangeAsConstAndVar();
   if (!constant_value) {
     // added this for srawi
-    uint64_t nzml = GetScalarNZM(i->src1.value);
-    uint64_t nzmr = GetScalarNZM(i->src2.value);
+    ScalarNZM nzml = GetScalarNZM(i->src1.value);
+    ScalarNZM nzmr = GetScalarNZM(i->src2.value);
 
     if ((nzml & nzmr) == 0) {
       i->Replace(&OPCODE_ASSIGN_info, 0);
@@ -524,9 +642,15 @@ retry_and_simplification:
 
   // todo: check if masking with mask that covers all of zero extension source
   uint64_t type_mask = GetScalarTypeMask(i->dest->type);
-  // if masking with entire width, pointless instruction so become an assign
 
-  if (constant_value->AsUint64() == type_mask) {
+  ScalarNZM nzm = GetScalarNZM(variable_value);
+  // if masking with entire width, pointless instruction so become an assign
+  // chrispy: changed this to use the nzm instead, this optimizes away many and
+  // instructions
+  // chrispy: changed this again. detecting if nzm is a subset of and mask, if
+  // so eliminate ex: (bool value) & 0xff = (bool value). the nzm is not equal
+  // to the mask, but it is a subset so can be elimed
+  if ((constant_value->AsUint64() & nzm) == nzm) {
     i->Replace(&OPCODE_ASSIGN_info, 0);
     i->set_src1(variable_value);
     return true;
@@ -555,7 +679,7 @@ retry_and_simplification:
         Value* or_left = true_variable_def->src1.value;
         Value* or_right = true_variable_def->src2.value;
 
-        uint64_t left_nzm = GetScalarNZM(or_left);
+        ScalarNZM left_nzm = GetScalarNZM(or_left);
 
         // use the other or input instead of the or output
         if ((constant_value->AsUint64() & left_nzm) == 0) {
@@ -565,7 +689,7 @@ retry_and_simplification:
           return true;
         }
 
-        uint64_t right_nzm = GetScalarNZM(or_right);
+        ScalarNZM right_nzm = GetScalarNZM(or_right);
 
         if ((constant_value->AsUint64() & right_nzm) == 0) {
           i->Replace(&OPCODE_AND_info, 0);
@@ -593,6 +717,21 @@ retry_and_simplification:
   return false;
 }
 bool SimplificationPass::CheckAdd(hir::Instr* i, hir::HIRBuilder* builder) {
+  Value* src1 = i->src1.value;
+  Value* src2 = i->src2.value;
+
+  ScalarNZM nzm1 = GetScalarNZM(src1);
+  ScalarNZM nzm2 = GetScalarNZM(src2);
+  if ((nzm1 & nzm2) == 0) {  // no bits overlap, there will never be a carry
+                             // from any bits to any others, make this an OR
+
+    /* i->Replace(&OPCODE_OR_info, 0);
+    i->set_src1(src1);
+    i->set_src2(src2);*/
+    i->opcode = &OPCODE_OR_info;
+    return true;
+  }
+
   auto [definition, added_constant] =
       i->BinaryValueArrangeByDefOpAndConstant(&OPCODE_NOT_info);
 
@@ -645,7 +784,7 @@ bool SimplificationPass::CheckScalarConstCmp(hir::Instr* i,
     return false;
   }
 
-  uint64_t nzm_for_var = GetScalarNZM(variable);
+  ScalarNZM nzm_for_var = GetScalarNZM(variable);
   Opcode cmpop = i->opcode->num;
   uint64_t constant_unpacked = constant_value->AsUint64();
   uint64_t signbit_for_var = GetScalarSignbitMask(variable->type);
@@ -667,6 +806,14 @@ bool SimplificationPass::CheckScalarConstCmp(hir::Instr* i,
   // x != 0 -> !!x
   if (cmpop == OPCODE_COMPARE_NE && constant_unpacked == 0) {
     i->Replace(&OPCODE_IS_TRUE_info, 0);
+    i->set_src1(variable);
+    return true;
+  }
+
+  if (cmpop == OPCODE_COMPARE_ULE &&
+      constant_unpacked ==
+          0) {  // less than or equal to zero = (== 0) = IS_FALSE
+    i->Replace(&OPCODE_IS_FALSE_info, 0);
     i->set_src1(variable);
     return true;
   }
@@ -774,7 +921,7 @@ bool SimplificationPass::CheckIsTrueIsFalse(hir::Instr* i,
     return false;
   }
 
-  uint64_t input_nzm = GetScalarNZM(input);
+  ScalarNZM input_nzm = GetScalarNZM(input);
 
   if (istrue &&
       input_nzm == 1) {  // doing istrue on a value thats already a bool bitwise
@@ -813,6 +960,98 @@ bool SimplificationPass::CheckIsTrueIsFalse(hir::Instr* i,
    input_def = input_def->GetDestDefSkipAssigns();*/
   return false;
 }
+bool SimplificationPass::CheckSHRByConst(hir::Instr* i,
+                                         hir::HIRBuilder* builder,
+                                         hir::Value* variable,
+                                         unsigned int shift) {
+  if (shift >= 3 && shift <= 6) {
+    // is possible shift of lzcnt res, do some tunneling
+
+    unsigned int tflags = MOVTUNNEL_ASSIGNS | MOVTUNNEL_MOVZX |
+                          MOVTUNNEL_TRUNCATE | MOVTUNNEL_MOVSX |
+                          MOVTUNNEL_AND32FF;
+
+    Instr* vardef = variable->def;
+
+    hir::Instr* var_def = variable->GetDefTunnelMovs(&tflags);
+
+    if (var_def && var_def->opcode == &OPCODE_CNTLZ_info) {
+      Value* lz_input = var_def->src1.value;
+      TypeName type_of_lz_input = lz_input->type;
+      size_t shift_for_zero =
+          xe::log2_floor(GetTypeSize(type_of_lz_input) * CHAR_BIT);
+
+      if (shift == shift_for_zero) {
+        // we ought to be OPCODE_IS_FALSE!
+        /*
+            explanation: if an input to lzcnt is zero, the result will be the
+           bit size of the input type, which is always a power of two any
+           nonzero result will be less than the bit size so you can test for
+           zero by doing, for instance with a 32 bit value, lzcnt32(input) >> 5
+            this is a very common way of testing for zero without branching on
+           ppc, and the xb360 ppc compiler used it a lot we optimize this away
+           for simplicity and to enable further optimizations, but actually this
+           is also quite fast on modern x86 processors as well, for instance on
+           zen 2 the rcp through of lzcnt is 0.25, meaning four can be executed
+           in one cycle
+
+        */
+
+        if (variable->type != INT8_TYPE) {
+          Value* isfalsetest = builder->IsFalse(lz_input);
+
+          isfalsetest->def->MoveBefore(i);
+          i->Replace(&OPCODE_ZERO_EXTEND_info, 0);
+          i->set_src1(isfalsetest);
+
+        } else {
+          i->Replace(&OPCODE_IS_FALSE_info, 0);
+          i->set_src1(lz_input);
+        }
+        return true;
+      }
+    }
+  }
+  return false;
+}
+bool SimplificationPass::CheckSHR(hir::Instr* i, hir::HIRBuilder* builder) {
+  Value* shr_lhs = i->src1.value;
+  Value* shr_rhs = i->src2.value;
+  if (!shr_lhs || !shr_rhs) return false;
+  if (shr_rhs->IsConstant()) {
+    return CheckSHRByConst(i, builder, shr_lhs, shr_rhs->AsUint32());
+  }
+
+  return false;
+}
+
+bool SimplificationPass::CheckSAR(hir::Instr* i, hir::HIRBuilder* builder) {
+  Value* l = i->src1.value;
+  Value* r = i->src2.value;
+  ScalarNZM l_nzm = GetScalarNZM(l);
+  uint64_t signbit_mask = GetScalarSignbitMask(l->type);
+  size_t typesize = GetTypeSize(l->type);
+
+  /*
+    todo: folding this requires the mask of constant bits
+  if (r->IsConstant()) {
+    uint32_t const_r = r->AsUint32();
+
+    if (const_r == (typesize * CHAR_BIT) - 1) { //the shift is being done to
+  fill the result with the signbit of the input.
+
+
+    }
+  }*/
+  if ((l_nzm & signbit_mask) == 0) {  // signbit will never be set, might as
+                                      // well be an SHR. (this does happen)
+    i->opcode = &OPCODE_SHR_info;
+
+    return true;
+  }
+
+  return false;
+}
 bool SimplificationPass::SimplifyBitArith(hir::HIRBuilder* builder) {
   bool result = false;
   auto block = builder->first_block();
@@ -822,19 +1061,24 @@ bool SimplificationPass::SimplifyBitArith(hir::HIRBuilder* builder) {
       // vector types use the same opcodes as scalar ones for AND/OR/XOR! we
       // don't handle these in our simplifications, so skip
       if (i->dest && IsScalarIntegralType(i->dest->type)) {
-        if (i->opcode == &OPCODE_OR_info) {
+        Opcode iop = i->opcode->num;
+
+        if (iop == OPCODE_OR) {
           result |= CheckOr(i, builder);
-        } else if (i->opcode == &OPCODE_XOR_info) {
+        } else if (iop == OPCODE_XOR) {
           result |= CheckXor(i, builder);
-        } else if (i->opcode == &OPCODE_AND_info) {
+        } else if (iop == OPCODE_AND) {
           result |= CheckAnd(i, builder);
-        } else if (i->opcode == &OPCODE_ADD_info) {
+        } else if (iop == OPCODE_ADD) {
           result |= CheckAdd(i, builder);
-        } else if (IsScalarBasicCmp(i->opcode->num)) {
+        } else if (IsScalarBasicCmp(iop)) {
           result |= CheckScalarConstCmp(i, builder);
-        } else if (i->opcode == &OPCODE_IS_FALSE_info ||
-                   i->opcode == &OPCODE_IS_TRUE_info) {
+        } else if (iop == OPCODE_IS_FALSE || iop == OPCODE_IS_TRUE) {
           result |= CheckIsTrueIsFalse(i, builder);
+        } else if (iop == OPCODE_SHR) {
+          result |= CheckSHR(i, builder);
+        } else if (iop == OPCODE_SHA) {
+          result |= CheckSAR(i, builder);
         }
       }
 
@@ -928,7 +1172,6 @@ bool SimplificationPass::CheckByteSwap(Instr* i) {
   }
   return false;
 }
-
 bool SimplificationPass::SimplifyAssignments(HIRBuilder* builder) {
   // Run over the instructions and rename assigned variables:
   //   v1 = v0
@@ -952,22 +1195,11 @@ bool SimplificationPass::SimplifyAssignments(HIRBuilder* builder) {
   while (block) {
     auto i = block->instr_head;
     while (i) {
-      uint32_t signature = i->opcode->signature;
-      if (GET_OPCODE_SIG_TYPE_SRC1(signature) == OPCODE_SIG_TYPE_V) {
+      i->VisitValueOperands([&result, i, this](Value* value, uint32_t idx) {
         bool modified = false;
-        i->set_src1(CheckValue(i->src1.value, modified));
+        i->set_srcN(CheckValue(value, modified), idx);
         result |= modified;
-      }
-      if (GET_OPCODE_SIG_TYPE_SRC2(signature) == OPCODE_SIG_TYPE_V) {
-        bool modified = false;
-        i->set_src2(CheckValue(i->src2.value, modified));
-        result |= modified;
-      }
-      if (GET_OPCODE_SIG_TYPE_SRC3(signature) == OPCODE_SIG_TYPE_V) {
-        bool modified = false;
-        i->set_src3(CheckValue(i->src3.value, modified));
-        result |= modified;
-      }
+      });
 
       i = i->next;
     }
@@ -976,6 +1208,71 @@ bool SimplificationPass::SimplifyAssignments(HIRBuilder* builder) {
   return result;
 }
 
+struct TruncateSimplifier {
+  TypeName type_from, type_to;
+  uint32_t sizeof_from, sizeof_to;
+  uint32_t bit_sizeof_from, bit_sizeof_to;
+  uint64_t typemask_from, typemask_to;
+  hir::HIRBuilder* builder;
+  hir::Instr* truncate_instr;
+  hir::Value* truncated_value;
+  hir::Instr* truncated_value_def;
+};
+bool SimplificationPass::BackpropTruncations(hir::Instr* i,
+                                             hir::HIRBuilder* builder) {
+  if (i->opcode != &OPCODE_TRUNCATE_info) {
+    return false;
+  }
+  TypeName type_from = i->src1.value->type;
+  TypeName type_to = i->dest->type;
+
+  uint32_t sizeof_from = static_cast<uint32_t>(GetTypeSize(type_from));
+  uint32_t sizeof_to = static_cast<uint32_t>(GetTypeSize(type_to));
+
+  Instr* input_def = i->src1.value->GetDefSkipAssigns();
+  if (!input_def) {
+    return false;
+  }
+  Opcode input_opc = input_def->opcode->num;
+
+  if (input_opc == OPCODE_SHL && input_def->src2.value->IsConstant()) {
+    uint32_t src2_shift = input_def->src2.value->AsUint32();
+    if (src2_shift < (sizeof_to * CHAR_BIT)) {
+      Value* truncated_preshift =
+          builder->Truncate(input_def->src1.value, type_to);
+
+      truncated_preshift->def->MoveBefore(i);
+      i->Replace(&OPCODE_SHL_info, 0);
+      i->set_src1(truncated_preshift);
+      i->set_src2(input_def->src2.value);
+      return true;
+    }
+  }
+  if (input_opc == OPCODE_LOAD_CONTEXT) {
+    if (sizeof_from == 8 && sizeof_to == 4) {
+      Value* loadof = builder->LoadContext(input_def->src1.offset, INT32_TYPE);
+      loadof->def->MoveBefore(input_def);
+      i->Replace(&OPCODE_ASSIGN_info, 0);
+      i->set_src1(loadof);
+      return true;
+    }
+  }
+
+  return false;
+}
+bool SimplificationPass::BackpropTruncations(hir::HIRBuilder* builder) {
+  bool result = false;
+  auto block = builder->first_block();
+  while (block) {
+    auto i = block->instr_head;
+    while (i) {
+      result |= BackpropTruncations(i, builder);
+      i = i->next;
+    }
+    block = block->next;
+  }
+  return result;
+}
 Value* SimplificationPass::CheckValue(Value* value, bool& result) {
   auto def = value->def;
   if (def && def->opcode == &OPCODE_ASSIGN_info) {

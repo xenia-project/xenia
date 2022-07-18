@@ -1798,6 +1798,13 @@ hir::Instr* Value::GetDefSkipAssigns() {
     return nullptr;
   }
 }
+hir::Instr* Value::GetDefTunnelMovs(unsigned int* tunnel_flags) {
+  if (def) {
+    return def->GetDestDefTunnelMovs(tunnel_flags);
+  } else {
+    return nullptr;
+  }
+}
 }  // namespace hir
 }  // namespace cpu
 }  // namespace xe

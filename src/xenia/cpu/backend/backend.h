@@ -63,6 +63,10 @@ class Backend {
   virtual void InstallBreakpoint(Breakpoint* breakpoint) {}
   virtual void InstallBreakpoint(Breakpoint* breakpoint, Function* fn) {}
   virtual void UninstallBreakpoint(Breakpoint* breakpoint) {}
+  // ctx points to the start of a ppccontext, ctx - page_allocation_granularity
+  // up until the start of ctx may be used by the backend to store whatever data
+  // they want
+  virtual void InitializeBackendContext(void* ctx) {}
 
  protected:
   Processor* processor_ = nullptr;
