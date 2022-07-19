@@ -8,7 +8,7 @@ def main(ctx):
     ]
 
 def image_linux_x86_64():
-    return 'xeniaproject/buildenv:2022-01-01'
+    return 'xeniaproject/buildenv:2022-07-15'
 
 def volume_build(toolchain, path='/drone/src/build'):
     return {
@@ -23,56 +23,9 @@ def command_cc(cc):
 def command_ndk_build(platform, configuration, target):
     return '$ANDROID_NDK_ROOT/build/ndk-build NDK_PROJECT_PATH:=./bin/{configuration} NDK_APPLICATION_MK:=./xenia.Application.mk PREMAKE_ANDROIDNDK_PLATFORMS:={platform} PREMAKE_ANDROIDNDK_CONFIGURATIONS:={configuration} -j$(nproc) {target}'.format(platform=platform, configuration=configuration, target=target)
 
-def targets_android(platform):
-    targets = [
-        'aes_128',
-        'capstone',
-        'dxbc',
-        'discord-rpc',
-        'cxxopts',
-        'cpptoml',
-        'avcodec',
-        'avutil',
-        'fmt',
-        'glslang-spirv',
-        'imgui',
-        'mspack',
-        'snappy',
-        'xxhash',
-        'xenia-app',
-        # 'xenia-app-discord',
-        'xenia-apu',
-        'xenia-apu-nop',
-        'xenia-base',
-        'xenia-base-tests',
-        'xenia-core',
-        'xenia-cpu',
-        'xenia-cpu-tests',
-        'xenia-cpu-ppc-tests',
-        # 'xenia-cpu-backend-x64',
-        # 'xenia-debug-ui',
-        'xenia-gpu',
-        'xenia-gpu-shader-compiler',
-        'xenia-gpu-null',
-        'xenia-gpu-vulkan',
-        'xenia-gpu-vulkan-trace-viewer',
-        'xenia-gpu-vulkan-trace-dump',
-        'xenia-hid',
-        'xenia-hid-demo',
-        'xenia-hid-nop',
-        'xenia-kernel',
-        'xenia-ui',
-        'xenia-ui-vulkan',
-        'xenia-ui-window-vulkan-demo',
-        'xenia-vfs',
-        'xenia-vfs-dump',
-    ]
-    if platform == 'Android-x86_64':
-        targets.extend([
-            'xenia-cpu-backend-x64',
-            'xenia-debug-ui',
-        ])
-    return targets
+def xenia_base_tests_filters():
+    # https://github.com/xenia-project/xenia/issues/2036
+    return 'exclude:"Wait on Timer" exclude:"Wait on Multiple Timers"'
 
 # Run lint in a separate pipeline so that it will try building even if lint fails
 def pipeline_lint():
@@ -160,9 +113,7 @@ def pipeline_linux_desktop(name, image, arch, cc, build_release_all):
                     for c in Debug Release
                     do
                       mkdir cmake-$c
-                      cd cmake-$c
-                      cmake -DCMAKE_BUILD_TYPE=$c ..
-                      cd ..
+                      cmake -S . -B cmake-$c -G Ninja -DCMAKE_BUILD_TYPE=$c
                     done
                     '''.format(cc),
                 ],
@@ -265,7 +216,7 @@ def pipeline_linux_desktop(name, image, arch, cc, build_release_all):
                 'image': image,
                 'volumes': [volume_build('premake')],
                 'commands': [
-                    'valgrind --error-exitcode=99 ./build/bin/Linux/Debug/xenia-base-tests --durations yes',
+                    'valgrind --error-exitcode=99 ./build/bin/Linux/Debug/xenia-base-tests --durations yes ' + xenia_base_tests_filters(),
                 ],
                 'depends_on': ['build-premake-debug-tests'],
             },
@@ -275,7 +226,7 @@ def pipeline_linux_desktop(name, image, arch, cc, build_release_all):
                 'image': image,
                 'volumes': [volume_build('premake')],
                 'commands': [
-                    './build/bin/Linux/Release/xenia-base-tests --success --durations yes',
+                    './build/bin/Linux/Release/xenia-base-tests --success --durations yes ' + xenia_base_tests_filters(),
                 ],
                 'depends_on': ['build-premake-release-tests'],
             },
@@ -285,7 +236,7 @@ def pipeline_linux_desktop(name, image, arch, cc, build_release_all):
                 'image': image,
                 'volumes': [volume_build('cmake')],
                 'commands': [
-                    './build/bin/Linux/Release/xenia-base-tests --success --durations yes',
+                    './build/bin/Linux/Release/xenia-base-tests --success --durations yes ' + xenia_base_tests_filters(),
                 ],
                 'depends_on': ['build-cmake-release-tests'],
             },
@@ -389,7 +340,7 @@ def pipeline_android(name, image, arch, platform):
                 'image': image,
                 'commands': [
                     'cd build',
-                    command_ndk_build(platform, 'Debug', ' '.join(targets_android(platform))),
+                    command_ndk_build(platform, 'Debug', 'all'),
                 ],
                 'depends_on': ['toolchain'],
             },
@@ -399,7 +350,7 @@ def pipeline_android(name, image, arch, platform):
                 'image': image,
                 'commands': [
                     'cd build',
-                    command_ndk_build(platform, 'Release', ' '.join(targets_android(platform))),
+                    command_ndk_build(platform, 'Release', 'all'),
                 ],
                 'depends_on': ['toolchain'],
             },
