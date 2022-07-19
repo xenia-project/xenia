@@ -694,12 +694,6 @@ void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
     // XN_SYS_SIGNINCHANGED x2
     listener->EnqueueNotification(0x0000000A, 1);
     listener->EnqueueNotification(0x0000000A, 1);
-    // XN_SYS_INPUTDEVICESCHANGED x2
-    listener->EnqueueNotification(0x00000012, 0);
-    listener->EnqueueNotification(0x00000012, 0);
-    // XN_SYS_INPUTDEVICECONFIGCHANGED x2
-    listener->EnqueueNotification(0x00000013, 0);
-    listener->EnqueueNotification(0x00000013, 0);
   }
 }
 
