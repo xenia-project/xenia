@@ -713,10 +713,9 @@ void DxbcShaderTranslator::StartPixelShader() {
             : dxbc::Src::LF(0.0f));
   }
 
-  // Write the pixel parameters - screen (XY absolute value) and point sprite
-  // (ZW absolute value) coordinates, facing (X sign bit) - to the specified
-  // interpolator register (PsParamGen). The negate modified in DXBC flips the
-  // sign bit.
+  // Write the pixel parameters to the specified interpolator register
+  // (PsParamGen). The negate modified in DXBC flips the sign bit, so it can be
+  // used to write the flags.
   if (param_gen_interpolator != UINT32_MAX) {
     uint32_t param_gen_temp = uses_register_dynamic_addressing
                                   ? PushSystemTemp()
