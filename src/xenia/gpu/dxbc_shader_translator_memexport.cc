@@ -133,9 +133,8 @@ void DxbcShaderTranslator::ExportToMemory() {
       // because it's the center and is covered with the half-pixel offset too).
       // Using control_temp.yz as per-axis temporary variables.
       in_position_used_ |= resolution_scaled_axes;
-      a_.OpFToU(
-          dxbc::Dest::R(control_temp, resolution_scaled_axes << 1),
-          dxbc::Src::V1D(uint32_t(InOutRegister::kPSInPosition), 0b0100 << 2));
+      a_.OpFToU(dxbc::Dest::R(control_temp, resolution_scaled_axes << 1),
+                dxbc::Src::V1D(in_reg_ps_position_, 0b0100 << 2));
       a_.OpUDiv(dxbc::Dest::Null(),
                 dxbc::Dest::R(control_temp, resolution_scaled_axes << 1),
                 dxbc::Src::R(control_temp, 0b1001 << 2),
@@ -177,8 +176,7 @@ void DxbcShaderTranslator::ExportToMemory() {
       a_.OpIEq(
           dxbc::Dest::R(control_temp,
                         inner_condition_provided ? 0b0010 : 0b0001),
-          dxbc::Src::V1D(uint32_t(InOutRegister::kPSInFrontFaceAndSampleIndex),
-                         dxbc::Src::kYYYY),
+          dxbc::Src::V1D(in_reg_ps_front_face_sample_index_, dxbc::Src::kYYYY),
           dxbc::Src::R(control_temp, dxbc::Src::kYYYY));
       if (inner_condition_provided) {
         // Merge with the previous condition in control_temp.x.

@@ -2135,11 +2135,12 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   }
   // TODO(Triang3l): Memory export.
 
-  reg::RB_DEPTHCONTROL normalized_depth_control =
-      draw_util::GetNormalizedDepthControl(regs);
-  uint32_t normalized_color_mask =
-      pixel_shader ? draw_util::GetNormalizedColorMask(
-                         regs, pixel_shader->writes_color_targets())
+  uint32_t ps_param_gen_pos = UINT32_MAX;
+  uint32_t interpolator_mask =
+      pixel_shader ? (vertex_shader->writes_interpolators() &
+                      pixel_shader->GetInterpolatorInputMask(
+                          regs.Get<reg::SQ_PROGRAM_CNTL>(),
+                          regs.Get<reg::SQ_CONTEXT_MISC>(), ps_param_gen_pos))
                    : 0;
 
   PrimitiveProcessor::ProcessingResult primitive_processing_result;
@@ -2177,11 +2178,11 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     // Shader modifications.
     vertex_shader_modification =
         pipeline_cache_->GetCurrentVertexShaderModification(
-            *vertex_shader,
-            primitive_processing_result.host_vertex_shader_type);
+            *vertex_shader, primitive_processing_result.host_vertex_shader_type,
+            interpolator_mask);
     pixel_shader_modification =
         pixel_shader ? pipeline_cache_->GetCurrentPixelShaderModification(
-                           *pixel_shader, normalized_color_mask)
+                           *pixel_shader, interpolator_mask, ps_param_gen_pos)
                      : SpirvShaderTranslator::Modification(0);
 
     // Translate the shaders now to obtain the sampler bindings.
@@ -2270,6 +2271,12 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   }
 
   // Set up the render targets - this may perform dispatches and draws.
+  reg::RB_DEPTHCONTROL normalized_depth_control =
+      draw_util::GetNormalizedDepthControl(regs);
+  uint32_t normalized_color_mask =
+      pixel_shader ? draw_util::GetNormalizedColorMask(
+                         regs, pixel_shader->writes_color_targets())
+                   : 0;
   if (!render_target_cache_->Update(is_rasterization_done,
                                     normalized_depth_control,
                                     normalized_color_mask, *vertex_shader)) {
