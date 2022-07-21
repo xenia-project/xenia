@@ -34,7 +34,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     // TODO(Triang3l): Change to 0xYYYYMMDD once it's out of the rapid
     // prototyping stage (easier to do small granular updates with an
     // incremental counter).
-    static constexpr uint32_t kVersion = 4;
+    static constexpr uint32_t kVersion = 5;
 
     enum class DepthStencilMode : uint32_t {
       kNoModifiers,
@@ -46,6 +46,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
     };
 
     struct {
+      // uint32_t 0.
+      // Interpolators written by the vertex shader and needed by the pixel
+      // shader.
+      uint32_t interpolator_mask : xenos::kMaxInterpolators;
       // Dynamically indexable register count from SQ_PROGRAM_CNTL.
       uint32_t dynamic_addressable_register_count : 8;
       // Pipeline stage and input configuration.
@@ -53,6 +57,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
           : Shader::kHostVertexShaderTypeBitCount;
     } vertex;
     struct PixelShaderModification {
+      // uint32_t 0.
+      // Interpolators written by the vertex shader and needed by the pixel
+      // shader.
+      uint32_t interpolator_mask : xenos::kMaxInterpolators;
+      uint32_t interpolators_centroid : xenos::kMaxInterpolators;
+      // uint32_t 1.
       // Dynamically indexable register count from SQ_PROGRAM_CNTL.
       uint32_t dynamic_addressable_register_count : 8;
       uint32_t param_gen_enable : 1;
@@ -66,7 +76,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
     } pixel;
     uint64_t value = 0;
 
-    Modification(uint64_t modification_value = 0) : value(modification_value) {}
+    explicit Modification(uint64_t modification_value = 0)
+        : value(modification_value) {
+      static_assert_size(*this, sizeof(value));
+    }
   };
 
   enum : uint32_t {
@@ -346,6 +359,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
            current_shader().implicit_early_z_write_allowed();
   }
 
+  uint32_t GetModificationInterpolatorMask() const {
+    Modification modification = GetSpirvShaderModification();
+    return is_vertex_shader() ? modification.vertex.interpolator_mask
+                              : modification.pixel.interpolator_mask;
+  }
+
   // Returns UINT32_MAX if PsParamGen doesn't need to be written.
   uint32_t GetPsParamGenInterpolator() const;
 
@@ -529,8 +548,6 @@ class SpirvShaderTranslator : public ShaderTranslator {
     spv::Id type_float_vectors_[4];
   };
 
-  spv::Id type_interpolators_;
-
   spv::Id const_int_0_;
   spv::Id const_int4_0_;
   spv::Id const_uint_0_;
@@ -591,12 +608,16 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // PS, only when needed - bool.
   spv::Id input_front_facing_;
 
-  // VS output or PS input, only when needed - type_interpolators_.
-  // The Qualcomm Adreno driver has strict requirements for stage linkage - if
-  // this is an array in one stage, it must be an array in the other (in case of
-  // Xenia, including geometry shaders); it must not be an array in one and just
-  // elements in consecutive locations in another.
-  spv::Id input_output_interpolators_;
+  // VS output or PS input, only the ones that are needed (spv::NoResult for the
+  // unneeded interpolators), indexed by the guest interpolator index - float4.
+  // The Qualcomm Adreno driver has strict requirements for stage linkage - as
+  // Xenia uses separate variables, not an array (so the interpolation
+  // qualifiers can be applied to each element separately), the interpolators
+  // must also be separate variables in the other stage, including the geometry
+  // shader (not just an array assuming that consecutive locations will be
+  // linked as consecutive array elements, on Qualcomm, they won't be linked at
+  // all).
+  std::array<spv::Id, xenos::kMaxInterpolators> input_output_interpolators_;
 
   enum OutputPerVertexMember : unsigned int {
     kOutputPerVertexMemberPosition,

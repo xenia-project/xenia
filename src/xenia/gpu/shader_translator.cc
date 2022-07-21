@@ -233,6 +233,26 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
   }
 }
 
+uint32_t Shader::GetInterpolatorInputMask(reg::SQ_PROGRAM_CNTL sq_program_cntl,
+                                          reg::SQ_CONTEXT_MISC sq_context_misc,
+                                          uint32_t& param_gen_pos_out) const {
+  assert_true(type() == xenos::ShaderType::kPixel);
+  uint32_t interpolator_count = std::min(
+      xenos::kMaxInterpolators,
+      std::max(register_static_address_bound(),
+               GetDynamicAddressableRegisterCount(sq_program_cntl.ps_num_reg)));
+  uint32_t interpolator_mask = (UINT32_C(1) << interpolator_count) - 1;
+  if (sq_program_cntl.param_gen &&
+      sq_context_misc.param_gen_pos < interpolator_count) {
+    // Will be overwritten by PsParamGen.
+    interpolator_mask &= ~(UINT32_C(1) << sq_context_misc.param_gen_pos);
+    param_gen_pos_out = sq_context_misc.param_gen_pos;
+  } else {
+    param_gen_pos_out = UINT32_MAX;
+  }
+  return interpolator_mask;
+}
+
 void Shader::GatherExecInformation(
     const ParsedExecInstruction& instr,
     ucode::VertexFetchInstruction& previous_vfetch_full,
@@ -470,7 +490,8 @@ void Shader::GatherFetchResultInformation(const InstructionResult& result) {
 
 void Shader::GatherAluResultInformation(
     const InstructionResult& result, uint32_t memexport_alloc_current_count) {
-  if (!result.GetUsedWriteMask()) {
+  uint32_t used_write_mask = result.GetUsedWriteMask();
+  if (!used_write_mask) {
     return;
   }
   switch (result.storage_target) {
@@ -482,6 +503,12 @@ void Shader::GatherAluResultInformation(
       } else {
         uses_register_dynamic_addressing_ = true;
       }
+      break;
+    case InstructionStorageTarget::kInterpolator:
+      writes_interpolators_ |= uint32_t(1) << result.storage_index;
+      break;
+    case InstructionStorageTarget::kPointSizeEdgeFlagKillVertex:
+      writes_point_size_edge_flag_kill_vertex_ |= used_write_mask;
       break;
     case InstructionStorageTarget::kExportData:
       if (memexport_alloc_current_count > 0 &&

@@ -509,6 +509,9 @@ union alignas(uint32_t) PA_CL_CLIP_CNTL {
     uint32_t z_nan_retain : 1;            // +23
     uint32_t w_nan_retain : 1;            // +24
   };
+  struct {
+    uint32_t ucp_ena : 6;
+  };
   static constexpr Register register_index = XE_GPU_REG_PA_CL_CLIP_CNTL;
 };
 static_assert_size(PA_CL_CLIP_CNTL, sizeof(uint32_t));

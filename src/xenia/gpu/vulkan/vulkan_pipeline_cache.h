@@ -70,9 +70,11 @@ class VulkanPipelineCache {
   // have microcode analyzed.
   SpirvShaderTranslator::Modification GetCurrentVertexShaderModification(
       const Shader& shader,
-      Shader::HostVertexShaderType host_vertex_shader_type) const;
+      Shader::HostVertexShaderType host_vertex_shader_type,
+      uint32_t interpolator_mask) const;
   SpirvShaderTranslator::Modification GetCurrentPixelShaderModification(
-      const Shader& shader, uint32_t normalized_color_mask) const;
+      const Shader& shader, uint32_t interpolator_mask,
+      uint32_t param_gen_pos) const;
 
   bool EnsureShadersTranslated(VulkanShader::VulkanTranslation* vertex_shader,
                                VulkanShader::VulkanTranslation* pixel_shader);
@@ -262,8 +264,10 @@ class VulkanPipelineCache {
   // Whether the pipeline for the given description is supported by the device.
   bool ArePipelineRequirementsMet(const PipelineDescription& description) const;
 
-  static bool GetGeometryShaderKey(PipelineGeometryShader geometry_shader_type,
-                                   GeometryShaderKey& key_out);
+  static bool GetGeometryShaderKey(
+      PipelineGeometryShader geometry_shader_type,
+      SpirvShaderTranslator::Modification vertex_shader_modification,
+      GeometryShaderKey& key_out);
   VkShaderModule GetGeometryShader(GeometryShaderKey key);
 
   // Can be called from creation threads - all needed data must be fully set up

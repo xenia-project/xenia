@@ -78,9 +78,10 @@ class PipelineCache {
   // have microcode analyzed.
   DxbcShaderTranslator::Modification GetCurrentVertexShaderModification(
       const Shader& shader,
-      Shader::HostVertexShaderType host_vertex_shader_type) const;
+      Shader::HostVertexShaderType host_vertex_shader_type,
+      uint32_t interpolator_mask) const;
   DxbcShaderTranslator::Modification GetCurrentPixelShaderModification(
-      const Shader& shader,
+      const Shader& shader, uint32_t interpolator_mask, uint32_t param_gen_pos,
       reg::RB_DEPTHCONTROL normalized_depth_control) const;
 
   // If draw_util::IsRasterizationPotentiallyDone is false, the pixel shader
@@ -290,8 +291,11 @@ class PipelineCache {
       const uint32_t* bound_depth_and_color_render_target_formats,
       PipelineRuntimeDescription& runtime_description_out);
 
-  static bool GetGeometryShaderKey(PipelineGeometryShader geometry_shader_type,
-                                   GeometryShaderKey& key_out);
+  static bool GetGeometryShaderKey(
+      PipelineGeometryShader geometry_shader_type,
+      DxbcShaderTranslator::Modification vertex_shader_modification,
+      DxbcShaderTranslator::Modification pixel_shader_modification,
+      GeometryShaderKey& key_out);
   static void CreateDxbcGeometryShader(GeometryShaderKey key,
                                        std::vector<uint32_t>& shader_out);
   const std::vector<uint32_t>& GetGeometryShader(GeometryShaderKey key);
