@@ -21,23 +21,20 @@ cbuffer xe_system_cbuffer : register(b0) {
   float2 xe_point_constant_diameter;
   float2 xe_point_screen_diameter_to_ndc_radius;
 
-  uint xe_interpolator_sampling_pattern;
-  uint xe_ps_param_gen;
-  uint2 xe_sample_count_log2;
-
   uint4 xe_texture_swizzled_signs[2];
 
   uint xe_textures_resolved;
+  uint2 xe_sample_count_log2;
   float xe_alpha_test_reference;
+
   uint xe_alpha_to_mask;
   uint xe_edram_32bpp_tile_pitch_dwords_scaled;
+  uint xe_edram_depth_base_dwords_scaled;
 
   float4 xe_color_exp_bias;
 
   float2 xe_edram_poly_offset_front;
   float2 xe_edram_poly_offset_back;
-
-  uint xe_edram_depth_base_dwords_scaled;
 
   uint4 xe_edram_stencil[2];
 

@@ -2163,12 +2163,21 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       draw_util::GetNormalizedDepthControl(regs);
 
   // Shader modifications.
+  uint32_t ps_param_gen_pos = UINT32_MAX;
+  uint32_t interpolator_mask =
+      pixel_shader ? (vertex_shader->writes_interpolators() &
+                      pixel_shader->GetInterpolatorInputMask(
+                          regs.Get<reg::SQ_PROGRAM_CNTL>(),
+                          regs.Get<reg::SQ_CONTEXT_MISC>(), ps_param_gen_pos))
+                   : 0;
   DxbcShaderTranslator::Modification vertex_shader_modification =
       pipeline_cache_->GetCurrentVertexShaderModification(
-          *vertex_shader, primitive_processing_result.host_vertex_shader_type);
+          *vertex_shader, primitive_processing_result.host_vertex_shader_type,
+          interpolator_mask);
   DxbcShaderTranslator::Modification pixel_shader_modification =
       pixel_shader ? pipeline_cache_->GetCurrentPixelShaderModification(
-                         *pixel_shader, normalized_depth_control)
+                         *pixel_shader, interpolator_mask, ps_param_gen_pos,
+                         normalized_depth_control)
                    : DxbcShaderTranslator::Modification(0);
 
   // Set up the render targets - this may perform dispatches and draws.
@@ -3234,24 +3243,13 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   if (pa_cl_vte_cntl.vtx_w0_fmt) {
     flags |= DxbcShaderTranslator::kSysFlag_WNotReciprocal;
   }
-  // User clip planes (UCP_ENA_#), when not CLIP_DISABLE.
-  if (!pa_cl_clip_cntl.clip_disable) {
-    flags |= (pa_cl_clip_cntl.value & 0b111111)
-             << DxbcShaderTranslator::kSysFlag_UserClipPlane0_Shift;
-  }
   // Whether the primitive is polygonal and SV_IsFrontFace matters.
   if (primitive_polygonal) {
     flags |= DxbcShaderTranslator::kSysFlag_PrimitivePolygonal;
   }
   // Primitive type.
-  if (vgt_draw_initiator.prim_type == xenos::PrimitiveType::kPointList) {
-    flags |= DxbcShaderTranslator::kSysFlag_PrimitivePoint;
-  } else if (draw_util::IsPrimitiveLine(regs)) {
+  if (draw_util::IsPrimitiveLine(regs)) {
     flags |= DxbcShaderTranslator::kSysFlag_PrimitiveLine;
-  }
-  // Primitive killing condition.
-  if (pa_cl_clip_cntl.vtx_kill_or) {
-    flags |= DxbcShaderTranslator::kSysFlag_KillIfAnyVertexKilled;
   }
   // Depth format.
   if (rb_depth_info.depth_format == xenos::DepthRenderTargetFormat::kD24FS8) {
@@ -3332,18 +3330,24 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   system_constants_.vertex_index_max = vgt_max_vtx_indx;
 
   // User clip planes (UCP_ENA_#), when not CLIP_DISABLE.
+  // The shader knows only the total count - tightly packing the user clip
+  // planes that are actually used.
   if (!pa_cl_clip_cntl.clip_disable) {
-    for (uint32_t i = 0; i < 6; ++i) {
-      if (!(pa_cl_clip_cntl.value & (1 << i))) {
-        continue;
-      }
-      const float* ucp = &regs[XE_GPU_REG_PA_CL_UCP_0_X + i * 4].f32;
-      if (std::memcmp(system_constants_.user_clip_planes[i], ucp,
+    float* user_clip_plane_write_ptr = system_constants_.user_clip_planes[0];
+    uint32_t user_clip_planes_remaining = pa_cl_clip_cntl.ucp_ena;
+    uint32_t user_clip_plane_index;
+    while (xe::bit_scan_forward(user_clip_planes_remaining,
+                                &user_clip_plane_index)) {
+      user_clip_planes_remaining &= ~(UINT32_C(1) << user_clip_plane_index);
+      const float* user_clip_plane =
+          &regs[XE_GPU_REG_PA_CL_UCP_0_X + user_clip_plane_index * 4].f32;
+      if (std::memcmp(user_clip_plane_write_ptr, user_clip_plane,
                       4 * sizeof(float))) {
         dirty = true;
-        std::memcpy(system_constants_.user_clip_planes[i], ucp,
+        std::memcpy(user_clip_plane_write_ptr, user_clip_plane,
                     4 * sizeof(float));
       }
+      user_clip_plane_write_ptr += 4;
     }
   }
 
@@ -3393,22 +3397,6 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
       point_screen_diameter_to_ndc_radius_x;
   system_constants_.point_screen_diameter_to_ndc_radius[1] =
       point_screen_diameter_to_ndc_radius_y;
-
-  // Interpolator sampling pattern, centroid or center.
-  uint32_t interpolator_sampling_pattern =
-      xenos::GetInterpolatorSamplingPattern(
-          rb_surface_info.msaa_samples, sq_context_misc.sc_sample_cntl,
-          regs.Get<reg::SQ_INTERPOLATOR_CNTL>().sampling_pattern);
-  dirty |= system_constants_.interpolator_sampling_pattern !=
-           interpolator_sampling_pattern;
-  system_constants_.interpolator_sampling_pattern =
-      interpolator_sampling_pattern;
-
-  // Pixel parameter register.
-  uint32_t ps_param_gen =
-      sq_program_cntl.param_gen ? sq_context_misc.param_gen_pos : UINT_MAX;
-  dirty |= system_constants_.ps_param_gen != ps_param_gen;
-  system_constants_.ps_param_gen = ps_param_gen;
 
   // Texture signedness / gamma.
   bool gamma_render_target_as_srgb =

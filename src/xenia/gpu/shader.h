@@ -22,6 +22,7 @@
 #include "xenia/base/byte_order.h"
 #include "xenia/base/math.h"
 #include "xenia/base/string_buffer.h"
+#include "xenia/gpu/registers.h"
 #include "xenia/gpu/ucode.h"
 #include "xenia/gpu/xenos.h"
 
@@ -652,11 +653,11 @@ void ParseAluInstruction(const ucode::AluInstruction& op,
 
 class Shader {
  public:
-  // Type of the vertex shader in a D3D11-like rendering pipeline - shader
-  // interface depends on in, so it must be known at translation time.
-  // If values are changed, INVALIDATE SHADER STORAGES (increase their version
-  // constexpr) where those are stored! And check bit count where this is
-  // packed. This is : uint32_t for simplicity of packing in bit fields.
+  // Type of the vertex shader on the host - shader interface depends on in, so
+  // it must be known at translation time. If values are changed, INVALIDATE
+  // SHADER STORAGES (increase their version constexpr) where those are stored!
+  // And check bit count where this is packed. This is : uint32_t for simplicity
+  // of packing in bit fields.
   enum class HostVertexShaderType : uint32_t {
     kVertex,
 
@@ -668,9 +669,22 @@ class Shader {
     kQuadDomainCPIndexed,
     kQuadDomainPatchIndexed,
     kDomainEnd,
+
+    // For implementation without unconditional support for memory writes from
+    // vertex shaders, vertex shader converted to a compute shader doing only
+    // memory export.
+    kMemexportCompute,
+
+    // 4 host vertices for 1 guest vertex, for implementations without
+    // unconditional geometry shader support.
+    kPointListAsTriangleStrip,
+    // 3 guest vertices processed by the host shader invocation to choose the
+    // strip orientation, for implementations without unconditional geometry
+    // shader support.
+    kRectangleListAsTriangleStrip,
   };
   // For packing HostVertexShaderType in bit fields.
-  static constexpr uint32_t kHostVertexShaderTypeBitCount = 3;
+  static constexpr uint32_t kHostVertexShaderTypeBitCount = 4;
 
   static constexpr bool IsHostVertexShaderTypeDomain(
       HostVertexShaderType host_vertex_shader_type) {
@@ -932,6 +946,21 @@ class Shader {
     return uses_texture_fetch_instruction_results_;
   }
 
+  // Whether each interpolator is written on any execution path.
+  uint32_t writes_interpolators() const { return writes_interpolators_; }
+
+  // Whether the system vertex shader exports are written on any execution path.
+  uint32_t writes_point_size_edge_flag_kill_vertex() const {
+    return writes_point_size_edge_flag_kill_vertex_;
+  }
+
+  // Returns the mask of the interpolators the pixel shader potentially requires
+  // from the vertex shader, and also the PsParamGen destination register, or
+  // UINT32_MAX if it's not needed.
+  uint32_t GetInterpolatorInputMask(reg::SQ_PROGRAM_CNTL sq_program_cntl,
+                                    reg::SQ_CONTEXT_MISC sq_context_misc,
+                                    uint32_t& param_gen_pos_out) const;
+
   // True if the shader overrides the pixel depth.
   bool writes_depth() const { return writes_depth_; }
 
@@ -1018,11 +1047,13 @@ class Shader {
   std::set<uint32_t> label_addresses_;
   uint32_t cf_pair_index_bound_ = 0;
   uint32_t register_static_address_bound_ = 0;
+  uint32_t writes_interpolators_ = 0;
+  uint32_t writes_point_size_edge_flag_kill_vertex_ = 0;
+  uint32_t writes_color_targets_ = 0b0000;
   bool uses_register_dynamic_addressing_ = false;
   bool kills_pixels_ = false;
   bool uses_texture_fetch_instruction_results_ = false;
   bool writes_depth_ = false;
-  uint32_t writes_color_targets_ = 0b0000;
 
   // Modification bits -> translation.
   std::unordered_map<uint64_t, Translation*> translations_;

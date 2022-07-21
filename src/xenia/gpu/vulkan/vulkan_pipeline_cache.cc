@@ -16,6 +16,7 @@
 #include <memory>
 #include <utility>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "third_party/glslang/SPIRV/SpvBuilder.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
@@ -116,43 +117,56 @@ VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
 
 SpirvShaderTranslator::Modification
 VulkanPipelineCache::GetCurrentVertexShaderModification(
-    const Shader& shader,
-    Shader::HostVertexShaderType host_vertex_shader_type) const {
+    const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
+    uint32_t interpolator_mask) const {
   assert_true(shader.type() == xenos::ShaderType::kVertex);
   assert_true(shader.is_ucode_analyzed());
   const auto& regs = register_file_;
+
   auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
-  return SpirvShaderTranslator::Modification(
+
+  SpirvShaderTranslator::Modification modification(
       shader_translator_->GetDefaultVertexShaderModification(
-          shader.GetDynamicAddressableRegisterCount(sq_program_cntl.vs_num_reg),
+          shader.GetDynamicAddressableRegisterCount(
+              regs.Get<reg::SQ_PROGRAM_CNTL>().vs_num_reg),
           host_vertex_shader_type));
+
+  modification.vertex.interpolator_mask = interpolator_mask;
+
+  return modification;
 }
 
 SpirvShaderTranslator::Modification
 VulkanPipelineCache::GetCurrentPixelShaderModification(
-    const Shader& shader, uint32_t normalized_color_mask) const {
+    const Shader& shader, uint32_t interpolator_mask,
+    uint32_t param_gen_pos) const {
   assert_true(shader.type() == xenos::ShaderType::kPixel);
   assert_true(shader.is_ucode_analyzed());
   const auto& regs = register_file_;
-  auto sq_program_cntl = regs.Get<reg::SQ_PROGRAM_CNTL>();
 
   SpirvShaderTranslator::Modification modification(
       shader_translator_->GetDefaultPixelShaderModification(
           shader.GetDynamicAddressableRegisterCount(
-              sq_program_cntl.ps_num_reg)));
+              regs.Get<reg::SQ_PROGRAM_CNTL>().ps_num_reg)));
 
-  if (sq_program_cntl.param_gen) {
-    auto sq_context_misc = regs.Get<reg::SQ_CONTEXT_MISC>();
-    if (sq_context_misc.param_gen_pos <
-        std::min(std::max(modification.pixel.dynamic_addressable_register_count,
-                          shader.register_static_address_bound()),
-                 xenos::kMaxInterpolators)) {
-      modification.pixel.param_gen_enable = 1;
-      modification.pixel.param_gen_interpolator = sq_context_misc.param_gen_pos;
-      auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
-      modification.pixel.param_gen_point = uint32_t(
-          vgt_draw_initiator.prim_type == xenos::PrimitiveType::kPointList);
-    }
+  modification.pixel.interpolator_mask = interpolator_mask;
+  modification.pixel.interpolators_centroid =
+      interpolator_mask &
+      ~xenos::GetInterpolatorSamplingPattern(
+          regs.Get<reg::RB_SURFACE_INFO>().msaa_samples,
+          regs.Get<reg::SQ_CONTEXT_MISC>().sc_sample_cntl,
+          regs.Get<reg::SQ_INTERPOLATOR_CNTL>().sampling_pattern);
+
+  if (param_gen_pos < xenos::kMaxInterpolators) {
+    modification.pixel.param_gen_enable = 1;
+    modification.pixel.param_gen_interpolator = param_gen_pos;
+    modification.pixel.param_gen_point =
+        uint32_t(regs.Get<reg::VGT_DRAW_INITIATOR>().prim_type ==
+                 xenos::PrimitiveType::kPointList);
+  } else {
+    modification.pixel.param_gen_enable = 0;
+    modification.pixel.param_gen_interpolator = 0;
+    modification.pixel.param_gen_point = 0;
   }
 
   using DepthStencilMode =
@@ -267,7 +281,10 @@ bool VulkanPipelineCache::ConfigurePipeline(
   }
   VkShaderModule geometry_shader = VK_NULL_HANDLE;
   GeometryShaderKey geometry_shader_key;
-  if (GetGeometryShaderKey(description.geometry_shader, geometry_shader_key)) {
+  if (GetGeometryShaderKey(
+          description.geometry_shader,
+          SpirvShaderTranslator::Modification(vertex_shader->modification()),
+          geometry_shader_key)) {
     geometry_shader = GetGeometryShader(geometry_shader_key);
     if (geometry_shader == VK_NULL_HANDLE) {
       return false;
@@ -796,20 +813,28 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
 }
 
 bool VulkanPipelineCache::GetGeometryShaderKey(
-    PipelineGeometryShader geometry_shader_type, GeometryShaderKey& key_out) {
+    PipelineGeometryShader geometry_shader_type,
+    SpirvShaderTranslator::Modification vertex_shader_modification,
+    GeometryShaderKey& key_out) {
   if (geometry_shader_type == PipelineGeometryShader::kNone) {
     return false;
   }
   GeometryShaderKey key;
   key.type = geometry_shader_type;
-  // TODO(Triang3l): Make the linkage parameters depend on the real needs of the
-  // vertex and the pixel shader.
-  key.interpolator_count = xenos::kMaxInterpolators;
-  key.user_clip_plane_count = /* 6 */ 0;
-  key.user_clip_plane_cull = 0;
-  key.has_vertex_kill_and = /* 1 */ 0;
-  key.has_point_size = /* 1 */ 0;
-  key.has_point_coordinates = /* 1 */ 0;
+  // TODO(Triang3l): Once all needed inputs and outputs are added, uncomment the
+  // real counts here.
+  key.interpolator_count =
+      xe::bit_count(vertex_shader_modification.vertex.interpolator_mask);
+  key.user_clip_plane_count =
+      /* vertex_shader_modification.vertex.user_clip_plane_count */ 0;
+  key.user_clip_plane_cull =
+      /* vertex_shader_modification.vertex.user_clip_plane_cull */ 0;
+  key.has_vertex_kill_and =
+      /* vertex_shader_modification.vertex.vertex_kill_and */ 0;
+  key.has_point_size =
+      /* vertex_shader_modification.vertex.output_point_size */ 0;
+  key.has_point_coordinates =
+      /* pixel_shader_modification.pixel.param_gen_point */ 0;
   key_out = key;
   return true;
 }
@@ -887,12 +912,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
           ? builder.makeArrayType(
                 type_float, builder.makeUintConstant(cull_distance_count), 0)
           : spv::NoType;
-  spv::Id type_interpolators =
-      key.interpolator_count
-          ? builder.makeArrayType(
-                type_float4, builder.makeUintConstant(key.interpolator_count),
-                0)
-          : spv::NoType;
   spv::Id type_point_coordinates = key.has_point_coordinates
                                        ? builder.makeVectorType(type_float, 2)
                                        : spv::NoType;
@@ -958,15 +977,16 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                              type_array_in_gl_per_vertex, "gl_in");
   main_interface.push_back(in_gl_per_vertex);
 
-  // Interpolators output.
-  spv::Id out_interpolators = spv::NoResult;
-  if (key.interpolator_count) {
-    out_interpolators =
-        builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
-                               type_interpolators, "xe_out_interpolators");
-    builder.addDecoration(out_interpolators, spv::DecorationLocation, 0);
-    builder.addDecoration(out_interpolators, spv::DecorationInvariant);
-    main_interface.push_back(out_interpolators);
+  // Interpolators outputs.
+  std::array<spv::Id, xenos::kMaxInterpolators> out_interpolators;
+  for (uint32_t i = 0; i < key.interpolator_count; ++i) {
+    spv::Id out_interpolator = builder.createVariable(
+        spv::NoPrecision, spv::StorageClassOutput, type_float4,
+        fmt::format("xe_out_interpolator_{}", i).c_str());
+    out_interpolators[i] = out_interpolator;
+    builder.addDecoration(out_interpolator, spv::DecorationLocation, i);
+    builder.addDecoration(out_interpolator, spv::DecorationInvariant);
+    main_interface.push_back(out_interpolator);
   }
 
   // Point coordinate output.
@@ -981,16 +1001,17 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     main_interface.push_back(out_point_coordinates);
   }
 
-  // Interpolator input.
-  spv::Id in_interpolators = spv::NoResult;
-  if (key.interpolator_count) {
-    in_interpolators = builder.createVariable(
+  // Interpolator inputs.
+  std::array<spv::Id, xenos::kMaxInterpolators> in_interpolators;
+  for (uint32_t i = 0; i < key.interpolator_count; ++i) {
+    spv::Id in_interpolator = builder.createVariable(
         spv::NoPrecision, spv::StorageClassInput,
-        builder.makeArrayType(type_interpolators,
-                              const_input_primitive_vertex_count, 0),
-        "xe_in_interpolators");
-    builder.addDecoration(in_interpolators, spv::DecorationLocation, 0);
-    main_interface.push_back(in_interpolators);
+        builder.makeArrayType(type_float4, const_input_primitive_vertex_count,
+                              0),
+        fmt::format("xe_in_interpolator_{}", i).c_str());
+    in_interpolators[i] = in_interpolator;
+    builder.addDecoration(in_interpolator, spv::DecorationLocation, i);
+    main_interface.push_back(in_interpolator);
   }
 
   // Point size input.
@@ -1295,15 +1316,15 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       for (uint32_t i = 0; i < 3; ++i) {
         spv::Id vertex_index = vertex_indices[i];
         // Interpolators.
-        if (key.interpolator_count) {
-          id_vector_temp.clear();
-          id_vector_temp.push_back(vertex_index);
+        id_vector_temp.clear();
+        id_vector_temp.push_back(vertex_index);
+        for (uint32_t j = 0; j < key.interpolator_count; ++j) {
           builder.createStore(
-              builder.createLoad(
-                  builder.createAccessChain(spv::StorageClassInput,
-                                            in_interpolators, id_vector_temp),
-                  spv::NoPrecision),
-              out_interpolators);
+              builder.createLoad(builder.createAccessChain(
+                                     spv::StorageClassInput,
+                                     in_interpolators[j], id_vector_temp),
+                                 spv::NoPrecision),
+              out_interpolators[j]);
         }
         // Point coordinates.
         if (key.has_point_coordinates) {
@@ -1350,13 +1371,11 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       // Construct the fourth vertex.
       // Interpolators.
       for (uint32_t i = 0; i < key.interpolator_count; ++i) {
-        spv::Id const_int_i = builder.makeIntConstant(int32_t(i));
+        spv::Id in_interpolator = in_interpolators[i];
         id_vector_temp.clear();
-        id_vector_temp.reserve(2);
         id_vector_temp.push_back(vertex_indices[0]);
-        id_vector_temp.push_back(const_int_i);
         spv::Id vertex_interpolator_v0 = builder.createLoad(
-            builder.createAccessChain(spv::StorageClassInput, in_interpolators,
+            builder.createAccessChain(spv::StorageClassInput, in_interpolator,
                                       id_vector_temp),
             spv::NoPrecision);
         id_vector_temp[0] = vertex_indices[1];
@@ -1364,7 +1383,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
             spv::OpFSub, type_float4,
             builder.createLoad(
                 builder.createAccessChain(spv::StorageClassInput,
-                                          in_interpolators, id_vector_temp),
+                                          in_interpolator, id_vector_temp),
                 spv::NoPrecision),
             vertex_interpolator_v0);
         builder.addDecoration(vertex_interpolator_v01,
@@ -1374,16 +1393,11 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
             spv::OpFAdd, type_float4, vertex_interpolator_v01,
             builder.createLoad(
                 builder.createAccessChain(spv::StorageClassInput,
-                                          in_interpolators, id_vector_temp),
+                                          in_interpolator, id_vector_temp),
                 spv::NoPrecision));
         builder.addDecoration(vertex_interpolator_v3,
                               spv::DecorationNoContraction);
-        id_vector_temp.clear();
-        id_vector_temp.push_back(const_int_i);
-        builder.createStore(
-            vertex_interpolator_v3,
-            builder.createAccessChain(spv::StorageClassOutput,
-                                      out_interpolators, id_vector_temp));
+        builder.createStore(vertex_interpolator_v3, out_interpolators[i]);
       }
       // Point coordinates.
       if (key.has_point_coordinates) {
@@ -1489,15 +1503,15 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         spv::Id const_vertex_index =
             builder.makeIntConstant(int32_t(i ^ (i >> 1)));
         // Interpolators.
-        if (key.interpolator_count) {
-          id_vector_temp.clear();
-          id_vector_temp.push_back(const_vertex_index);
+        id_vector_temp.clear();
+        id_vector_temp.push_back(const_vertex_index);
+        for (uint32_t j = 0; j < key.interpolator_count; ++j) {
           builder.createStore(
-              builder.createLoad(
-                  builder.createAccessChain(spv::StorageClassInput,
-                                            in_interpolators, id_vector_temp),
-                  spv::NoPrecision),
-              out_interpolators);
+              builder.createLoad(builder.createAccessChain(
+                                     spv::StorageClassInput,
+                                     in_interpolators[j], id_vector_temp),
+                                 spv::NoPrecision),
+              out_interpolators[j]);
         }
         // Point coordinates.
         if (key.has_point_coordinates) {

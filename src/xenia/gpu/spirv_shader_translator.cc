@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "third_party/fmt/include/fmt/format.h"
 #include "third_party/glslang/SPIRV/GLSL.std.450.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
@@ -105,6 +106,8 @@ void SpirvShaderTranslator::Reset() {
 
   input_fragment_coord_ = spv::NoResult;
   input_front_facing_ = spv::NoResult;
+  std::fill(input_output_interpolators_.begin(),
+            input_output_interpolators_.end(), spv::NoResult);
 
   sampler_bindings_.clear();
   texture_bindings_.clear();
@@ -161,8 +164,6 @@ void SpirvShaderTranslator::StartTranslation() {
   type_float2_ = builder_->makeVectorType(type_float_, 2);
   type_float3_ = builder_->makeVectorType(type_float_, 3);
   type_float4_ = builder_->makeVectorType(type_float_, 4);
-  type_interpolators_ = builder_->makeArrayType(
-      type_float4_, builder_->makeUintConstant(xenos::kMaxInterpolators), 0);
 
   const_int_0_ = builder_->makeIntConstant(0);
   id_vector_temp_.clear();
@@ -449,22 +450,12 @@ void SpirvShaderTranslator::StartTranslation() {
   var_main_tfetch_gradients_v_ = builder_->createVariable(
       spv::NoPrecision, spv::StorageClassFunction, type_float3_,
       "xe_var_tfetch_gradients_v", const_float3_0_);
-  uint32_t register_array_size = register_count();
-  if (register_array_size) {
-    id_vector_temp_.clear();
-    id_vector_temp_.reserve(register_array_size);
-    // TODO(Triang3l): In PS, only need to initialize starting from the
-    // interpolators, probably manually. But likely not very important - the
-    // compiler in the driver will likely eliminate that write.
-    for (uint32_t i = 0; i < register_array_size; ++i) {
-      id_vector_temp_.push_back(const_float4_0_);
-    }
+  if (register_count()) {
     spv::Id type_register_array = builder_->makeArrayType(
-        type_float4_, builder_->makeUintConstant(register_array_size), 0);
-    var_main_registers_ = builder_->createVariable(
-        spv::NoPrecision, spv::StorageClassFunction, type_register_array,
-        "xe_var_registers",
-        builder_->makeCompositeConstant(type_register_array, id_vector_temp_));
+        type_float4_, builder_->makeUintConstant(register_count()), 0);
+    var_main_registers_ =
+        builder_->createVariable(spv::NoPrecision, spv::StorageClassFunction,
+                                 type_register_array, "xe_var_registers");
   }
 
   // Write the execution model-specific prologue with access to variables in the
@@ -1068,15 +1059,24 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
     main_interface_.push_back(input_vertex_index_);
   }
 
-  // Create the interpolator output.
-  input_output_interpolators_ =
-      builder_->createVariable(spv::NoPrecision, spv::StorageClassOutput,
-                               type_interpolators_, "xe_out_interpolators");
-  builder_->addDecoration(input_output_interpolators_, spv::DecorationLocation,
-                          0);
-  builder_->addDecoration(input_output_interpolators_,
-                          spv::DecorationInvariant);
-  main_interface_.push_back(input_output_interpolators_);
+  // Create the interpolator outputs.
+  {
+    uint32_t interpolator_location = 0;
+    uint32_t interpolators_remaining = GetModificationInterpolatorMask();
+    uint32_t interpolator_index;
+    while (xe::bit_scan_forward(interpolators_remaining, &interpolator_index)) {
+      interpolators_remaining &= ~(UINT32_C(1) << interpolator_index);
+      spv::Id interpolator = builder_->createVariable(
+          spv::NoPrecision, spv::StorageClassOutput, type_float4_,
+          fmt::format("xe_out_interpolator_{}", interpolator_index).c_str());
+      input_output_interpolators_[interpolator_index] = interpolator;
+      builder_->addDecoration(interpolator, spv::DecorationLocation,
+                              int(interpolator_location));
+      builder_->addDecoration(interpolator, spv::DecorationInvariant);
+      main_interface_.push_back(interpolator);
+      ++interpolator_location;
+    }
+  }
 
   // Create the gl_PerVertex output for used system outputs.
   std::vector<spv::Id> struct_per_vertex_members;
@@ -1103,14 +1103,26 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
       spv::NoPrecision, spv::StorageClassFunction, type_float3_,
       "xe_var_point_size_edge_flag_kill_vertex");
 
-  // Zero the interpolators.
-  for (uint32_t i = 0; i < xenos::kMaxInterpolators; ++i) {
+  // Zero general-purpose registers to prevent crashes when the game
+  // references them after only initializing them conditionally.
+  for (uint32_t i = 0; i < register_count(); ++i) {
     id_vector_temp_.clear();
     id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
-    builder_->createStore(const_float4_0_,
-                          builder_->createAccessChain(
-                              spv::StorageClassOutput,
-                              input_output_interpolators_, id_vector_temp_));
+    builder_->createStore(
+        const_float4_0_,
+        builder_->createAccessChain(spv::StorageClassFunction,
+                                    var_main_registers_, id_vector_temp_));
+  }
+
+  // Zero the interpolators.
+  {
+    uint32_t interpolators_remaining = GetModificationInterpolatorMask();
+    uint32_t interpolator_index;
+    while (xe::bit_scan_forward(interpolators_remaining, &interpolator_index)) {
+      interpolators_remaining &= ~(UINT32_C(1) << interpolator_index);
+      builder_->createStore(const_float4_0_,
+                            input_output_interpolators_[interpolator_index]);
+    }
   }
 
   // Load the vertex index or the tessellation parameters.
@@ -1284,13 +1296,28 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
 }
 
 void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
-  // Interpolator input.
-  input_output_interpolators_ =
-      builder_->createVariable(spv::NoPrecision, spv::StorageClassInput,
-                               type_interpolators_, "xe_in_interpolators");
-  builder_->addDecoration(input_output_interpolators_, spv::DecorationLocation,
-                          0);
-  main_interface_.push_back(input_output_interpolators_);
+  // Interpolator inputs.
+  Modification shader_modification = GetSpirvShaderModification();
+  {
+    uint32_t interpolator_location = 0;
+    uint32_t interpolators_remaining = GetModificationInterpolatorMask();
+    uint32_t interpolator_index;
+    while (xe::bit_scan_forward(interpolators_remaining, &interpolator_index)) {
+      interpolators_remaining &= ~(UINT32_C(1) << interpolator_index);
+      spv::Id interpolator = builder_->createVariable(
+          spv::NoPrecision, spv::StorageClassInput, type_float4_,
+          fmt::format("xe_in_interpolator_{}", interpolator_index).c_str());
+      input_output_interpolators_[interpolator_index] = interpolator;
+      builder_->addDecoration(interpolator, spv::DecorationLocation,
+                              int(interpolator_location));
+      if (shader_modification.pixel.interpolators_centroid &
+          (UINT32_C(1) << interpolator_index)) {
+        builder_->addDecoration(interpolator, spv::DecorationCentroid);
+      }
+      main_interface_.push_back(interpolator);
+      ++interpolator_location;
+    }
+  }
 
   bool param_gen_needed = GetPsParamGenInterpolator() != UINT32_MAX;
 
@@ -1346,22 +1373,22 @@ void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
 void SpirvShaderTranslator::StartFragmentShaderInMain() {
   uint32_t param_gen_interpolator = GetPsParamGenInterpolator();
 
-  // Copy the interpolators to general-purpose registers.
-  // TODO(Triang3l): Centroid.
-  uint32_t interpolator_count =
-      std::min(xenos::kMaxInterpolators, register_count());
-  for (uint32_t i = 0; i < interpolator_count; ++i) {
+  // Zero general-purpose registers to prevent crashes when the game
+  // references them after only initializing them conditionally, and copy
+  // interpolants to GPRs.
+  uint32_t interpolator_mask = GetModificationInterpolatorMask();
+  for (uint32_t i = 0; i < register_count(); ++i) {
     if (i == param_gen_interpolator) {
       continue;
     }
     id_vector_temp_.clear();
-    // Register array element.
     id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
     builder_->createStore(
-        builder_->createLoad(builder_->createAccessChain(
-                                 spv::StorageClassInput,
-                                 input_output_interpolators_, id_vector_temp_),
-                             spv::NoPrecision),
+        (i < xenos::kMaxInterpolators &&
+         (interpolator_mask & (UINT32_C(1) << i)))
+            ? builder_->createLoad(input_output_interpolators_[i],
+                                   spv::NoPrecision)
+            : const_float4_0_,
         builder_->createAccessChain(spv::StorageClassFunction,
                                     var_main_registers_, id_vector_temp_));
   }
@@ -1836,15 +1863,11 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
       target_pointer = builder_->createAccessChain(
           spv::StorageClassFunction, var_main_registers_, id_vector_temp_util_);
     } break;
-    case InstructionStorageTarget::kInterpolator:
+    case InstructionStorageTarget::kInterpolator: {
       assert_true(is_vertex_shader());
-      id_vector_temp_util_.clear();
-      id_vector_temp_util_.push_back(
-          builder_->makeIntConstant(int(result.storage_index)));
-      target_pointer = builder_->createAccessChain(spv::StorageClassOutput,
-                                                   input_output_interpolators_,
-                                                   id_vector_temp_util_);
-      break;
+      target_pointer = input_output_interpolators_[result.storage_index];
+      // Unused interpolators are spv::NoResult in input_output_interpolators_.
+    } break;
     case InstructionStorageTarget::kPosition:
       assert_true(is_vertex_shader());
       id_vector_temp_util_.clear();
