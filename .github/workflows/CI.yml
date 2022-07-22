@@ -47,6 +47,7 @@ on:
 
 jobs:
   build-windows:
+    name: Build (Windows, ${{ matrix.config.vsver }}) #  runner.os can't be used here
     runs-on: ${{ matrix.config.runs-on }}
     env:
       POWERSHELL_TELEMETRY_OPTOUT: 1
@@ -94,7 +95,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $asset="xenia_canary.zip"
-          7z a $asset .\artifacts\xenia_canary\*.exe LICENSE
+          rm -recurse -force artifacts\xenia_canary\*.pdb # Ideally this would use xr, but I can't get it to work
+          7z a $asset .\artifacts\xenia_canary\*
           If ($(Get-Item $asset).length -le 100000) {
             Throw "Error: Archive $asset too small!"
           }
