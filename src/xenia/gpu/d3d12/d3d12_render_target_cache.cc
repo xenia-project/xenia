@@ -3287,13 +3287,19 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
 
   // Apply the source 32bpp tile index.
   // r1.w = destination to source EDRAM tile adjustment
-  a.OpIBFE(dxbc::Dest::R(1, 0b1000), dxbc::Src::LU(xenos::kEdramBaseTilesBits),
+  a.OpIBFE(dxbc::Dest::R(1, 0b1000),
+           dxbc::Src::LU(xenos::kEdramBaseTilesBits + 1),
            dxbc::Src::LU(xenos::kEdramPitchTilesBits * 2),
            dxbc::Src::CB(cbuffer_index_address, kTransferCBVRegisterAddress, 0,
                          dxbc::Src::kXXXX));
-  // r1.w = 32bpp tile index within the source
+  // r1.w = 32bpp tile index within the source, or the tile index within the
+  //        source minus the EDRAM tile count if transferring across addressing
+  //        wrapping (if negative)
   a.OpIAdd(dxbc::Dest::R(1, 0b1000), dxbc::Src::R(0, dxbc::Src::kZZZZ),
            dxbc::Src::R(1, dxbc::Src::kWWWW));
+  // r1.w = 32bpp tile index within the source
+  a.OpAnd(dxbc::Dest::R(1, 0b1000), dxbc::Src::R(1, dxbc::Src::kWWWW),
+          dxbc::Src::LU(xenos::kEdramTileCount - 1));
   // r2.x = source pitch in 32bpp tiles
   a.OpUBFE(dxbc::Dest::R(2, 0b0001), dxbc::Src::LU(xenos::kEdramPitchTilesBits),
            dxbc::Src::LU(xenos::kEdramPitchTilesBits),
@@ -3887,6 +3893,9 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
               }
               // Combine the tile sample index and the tile index into buffer
               // address to r0.x.
+              // The tile index doesn't need to be wrapped, as the host depth is
+              // written to the beginning of the buffer, without the base
+              // offset.
               a.OpUMAd(dxbc::Dest::R(0, 0b0001),
                        dxbc::Src::LU(tile_width_samples),
                        dxbc::Src::R(0, dxbc::Src::kYYYY),
@@ -3906,16 +3915,23 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
               // source.
               // r0.w = destination to host depth source EDRAM tile adjustment
               a.OpIBFE(dxbc::Dest::R(0, 0b1000),
-                       dxbc::Src::LU(xenos::kEdramBaseTilesBits),
+                       dxbc::Src::LU(xenos::kEdramBaseTilesBits + 1),
                        dxbc::Src::LU(xenos::kEdramPitchTilesBits * 2),
                        dxbc::Src::CB(cbuffer_index_host_depth_address,
                                      kTransferCBVRegisterHostDepthAddress, 0,
                                      dxbc::Src::kXXXX));
-              // r0.z = tile index relative to the host depth source base
+              // r0.z = tile index relative to the host depth source base, or
+              //        the tile index within the host depth source minus the
+              //        EDRAM tile count if transferring across addressing
+              //        wrapping (if negative)
               // r0.w = free
               a.OpIAdd(dxbc::Dest::R(0, 0b0100),
                        dxbc::Src::R(0, dxbc::Src::kZZZZ),
                        dxbc::Src::R(0, dxbc::Src::kWWWW));
+              // r0.z = tile index relative to the host depth source base
+              a.OpAnd(dxbc::Dest::R(0, 0b0100),
+                      dxbc::Src::R(0, dxbc::Src::kZZZZ),
+                      dxbc::Src::LU(xenos::kEdramTileCount - 1));
               // Convert position and sample index from within the destination
               // tile to within the host depth source tile, like for the guest
               // render target, but for 32bpp -> 32bpp only.
@@ -5943,28 +5959,38 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
            dxbc::Src::R(1, dxbc::Src::kXXXX),
            dxbc::Src::R(0, dxbc::Src::kZZZZ));
 
-  // Extract the index of the first tile of the dispatch in the EDRAM to r0.z.
+  // Extract the index of the first tile (taking EDRAM addressing wrapping into
+  // account) of the dispatch in the EDRAM to r0.z.
   // r0.x = X sample position within the tile
   // r0.y = Y sample position within the tile
   // r0.z = first EDRAM tile index in the dispatch
   // r0.w = tile index relative to the dump rectangle base
-  a.OpUBFE(dxbc::Dest::R(0, 0b0100), dxbc::Src::LU(xenos::kEdramBaseTilesBits),
-           dxbc::Src::LU(0),
+  a.OpUBFE(dxbc::Dest::R(0, 0b0100),
+           dxbc::Src::LU(xenos::kEdramBaseTilesBits + 1), dxbc::Src::LU(0),
            dxbc::Src::CB(kDumpCbufferOffsets, kDumpCbufferOffsets, 0,
                          dxbc::Src::kXXXX));
-  // Add the base tile in the dispatch to the dispatch-local tile index to r0.w.
+  // Add the base tile in the dispatch to the dispatch-local tile index to r0.w,
+  // not wrapping yet so in case of a wraparound, the address relative to the
+  // base in the texture after subtraction of the base won't be negative.
   // r0.x = X sample position within the tile
   // r0.y = Y sample position within the tile
   // r0.z = free
-  // r0.w = tile index in the EDRAM
+  // r0.w = non-wrapped tile index in the EDRAM
   a.OpIAdd(dxbc::Dest::R(0, 0b1000), dxbc::Src::R(0, dxbc::Src::kWWWW),
            dxbc::Src::R(0, dxbc::Src::kZZZZ));
+  // Wrap the address of the tile in the EDRAM to r0.z.
+  // r0.x = X sample position within the tile
+  // r0.y = Y sample position within the tile
+  // r0.z = wrapped tile index in the EDRAM
+  // r0.w = non-wrapped tile index in the EDRAM
+  a.OpAnd(dxbc::Dest::R(0, 0b0100), dxbc::Src::R(0, dxbc::Src::kWWWW),
+          dxbc::Src::LU(xenos::kEdramTileCount - 1));
   // Convert the tile index to samples and add the X sample index to it to r0.z.
   // r0.x = X sample position within the tile
   // r0.y = Y sample position within the tile
   // r0.z = tile sample offset in the EDRAM plus X sample offset
-  // r0.w = tile index in the EDRAM
-  a.OpUMAd(dxbc::Dest::R(0, 0b0100), dxbc::Src::R(0, dxbc::Src::kWWWW),
+  // r0.w = non-wrapped tile index in the EDRAM
+  a.OpUMAd(dxbc::Dest::R(0, 0b0100), dxbc::Src::R(0, dxbc::Src::kZZZZ),
            dxbc::Src::LU(
                draw_resolution_scale_x * draw_resolution_scale_y *
                (xenos::kEdramTileWidthSamples >> uint32_t(format_is_64bpp)) *
@@ -5975,7 +6001,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
   // r0.x = X sample position within the tile
   // r0.y = Y sample position within the tile
   // r0.z = sample offset in the EDRAM without the depth column swapping
-  // r0.w = tile index in the EDRAM
+  // r0.w = non-wrapped tile index in the EDRAM
   a.OpUMAd(dxbc::Dest::R(0, 0b0100), dxbc::Src::R(0, dxbc::Src::kYYYY),
            dxbc::Src::LU(tile_width), dxbc::Src::R(0, dxbc::Src::kZZZZ));
   if (key.is_depth) {
@@ -5984,7 +6010,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
     // r0.x = X sample position within the tile
     // r0.y = Y sample position within the tile
     // r0.z = sample offset in the EDRAM without the depth column swapping
-    // r0.w = tile index in the EDRAM
+    // r0.w = non-wrapped tile index in the EDRAM
     // r1.x = 0xFFFFFFFF if in the right 40-sample half, 0 otherwise
     a.OpUGE(dxbc::Dest::R(1, 0b0001), dxbc::Src::R(0, dxbc::Src::kXXXX),
             dxbc::Src::LU(tile_width_half));
@@ -5992,7 +6018,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
     // r0.x = X sample position within the tile
     // r0.y = Y sample position within the tile
     // r0.z = sample offset in the EDRAM without the depth column swapping
-    // r0.w = tile index in the EDRAM
+    // r0.w = non-wrapped tile index in the EDRAM
     // r1.x = depth half-tile flipping offset
     a.OpMovC(dxbc::Dest::R(1, 0b0001), dxbc::Src::R(1, dxbc::Src::kXXXX),
              dxbc::Src::LI(-int32_t(tile_width_half)),
@@ -6002,7 +6028,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
     // r0.x = X sample position within the tile
     // r0.y = Y sample position within the tile
     // r0.z = sample offset in the EDRAM
-    // r0.w = tile index in the EDRAM
+    // r0.w = non-wrapped tile index in the EDRAM
     // r1.x = free
     a.OpIAdd(dxbc::Dest::R(0, 0b0100), dxbc::Src::R(0, dxbc::Src::kZZZZ),
              dxbc::Src::R(1, dxbc::Src::kXXXX));
@@ -6012,10 +6038,10 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
   // r0.x = X sample position within the tile
   // r0.y = Y sample position within the tile
   // r0.z = sample offset in the EDRAM
-  // r0.w = tile index in the EDRAM
+  // r0.w = non-wrapped tile index in the EDRAM
   // r1.x = source texture base tile index
   a.OpUBFE(dxbc::Dest::R(1, 0b0001), dxbc::Src::LU(xenos::kEdramBaseTilesBits),
-           dxbc::Src::LU(xenos::kEdramBaseTilesBits),
+           dxbc::Src::LU(xenos::kEdramBaseTilesBits + 1),
            dxbc::Src::CB(kDumpCbufferOffsets, kDumpCbufferOffsets, 0,
                          dxbc::Src::kXXXX));
   // Get the linear tile index within the source texture to r0.w.

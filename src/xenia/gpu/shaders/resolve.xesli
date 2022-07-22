@@ -94,13 +94,13 @@ XeResolveInfo XeResolveGetInfo(xesl_function_param_pushConstants) {
   resolve_info.edram_pitch_tiles = edram_info & ((1u << 10u) - 1u);
   resolve_info.edram_msaa_samples = (edram_info >> 10u) & ((1u << 2u) - 1u);
   resolve_info.edram_is_depth = (edram_info & (1u << 12u)) != 0u;
-  resolve_info.edram_base_tiles = (edram_info >> 13u) & ((1u << 12u) - 1u);
-  resolve_info.edram_format = (edram_info >> 25u) & ((1u << 4u) - 1u);
-  resolve_info.edram_format_ints_log2 = (edram_info >> 29u) & 1u;
+  resolve_info.edram_base_tiles = (edram_info >> 13u) & ((1u << 11u) - 1u);
+  resolve_info.edram_format = (edram_info >> 24u) & ((1u << 4u) - 1u);
+  resolve_info.edram_format_ints_log2 = (edram_info >> 28u) & 1u;
   #ifdef XE_RESOLVE_RESOLUTION_SCALED
     resolve_info.resolution_scale =
         (xesl_uint_x2(coordinate_info) >> xesl_uint2(16u, 19u)) & 7u;
-    if ((edram_info & (1u << 30u)) != 0u) {
+    if ((edram_info & (1u << 29u)) != 0u) {
       resolve_info.half_pixel_offset_fill_source =
           resolve_info.resolution_scale >> 1u;
     } else {
@@ -224,7 +224,7 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
                    max(pixel_index.y,
                        resolve_info.half_pixel_offset_fill_source.y)) +
             resolve_info.edram_offset_scaled,
-        resolve_info.edram_base_tiles, resolve_info.edram_pitch_tiles,
+        resolve_info.edram_base_tiles, true, resolve_info.edram_pitch_tiles,
         resolve_info.edram_msaa_samples, false,
         resolve_info.edram_format_ints_log2,
         XeResolveFirstSampleIndex(resolve_info.sample_select),

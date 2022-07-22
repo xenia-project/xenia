@@ -16,7 +16,11 @@
 #define kXenosMsaaSamples_2X 1u
 #define kXenosMsaaSamples_4X 2u
 
-uint XeEdramOffsetInts(xesl_uint2 pixel_index, uint base_tiles,
+// `wrap = false` can be used if it's known that the resulting tile indices
+// can't exceed 11 bits, and the modulo operator doesn't need to be performed to
+// access the data in the render targets that are located in both ends of the
+// EDRAM at the same time.
+uint XeEdramOffsetInts(xesl_uint2 pixel_index, uint base_tiles, bool wrap,
                        uint pitch_tiles, uint msaa_samples, bool is_depth,
                        uint format_ints_log2, uint pixel_sample_index,
                        xesl_uint2 resolution_scale) {
@@ -43,9 +47,15 @@ uint XeEdramOffsetInts(xesl_uint2 pixel_index, uint base_tiles,
              ((rt_sample_index.x >= tile_width_half) ? -int(tile_width_half)
                                                      : int(tile_width_half)));
   }
-  return base_tiles * (tile_size_at_32bpp.x * tile_size_at_32bpp.y) +
-         ((rt_sample_index.y * tile_size_samples.x + rt_sample_index.x) <<
-          format_ints_log2);
+  uint address =
+      base_tiles * (tile_size_at_32bpp.x * tile_size_at_32bpp.y) +
+      ((rt_sample_index.y * tile_size_samples.x + rt_sample_index.x) <<
+       format_ints_log2);
+  if (wrap) {
+    // EDRAM addressing is periodic (modulo the EDRAM size).
+    address %= tile_size_at_32bpp.x * tile_size_at_32bpp.y * 2048u;
+  }
+  return address;
 }
 
 #endif  // XENIA_GPU_SHADERS_EDRAM_XESLI_

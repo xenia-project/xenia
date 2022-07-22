@@ -412,13 +412,13 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
     // Same as RenderTargetKey::pitch_tiles_at_32bpp.
     uint32_t pitch_tiles_at_32bpp : 8;  // 8
     // [0, 2047].
-    uint32_t depth_base_tiles : xenos::kEdramBaseTilesBits - 1;    // 19
-    uint32_t color_0_base_tiles : xenos::kEdramBaseTilesBits - 1;  // 30
+    uint32_t depth_base_tiles : xenos::kEdramBaseTilesBits;    // 19
+    uint32_t color_0_base_tiles : xenos::kEdramBaseTilesBits;  // 30
 
-    uint32_t color_1_base_tiles : xenos::kEdramBaseTilesBits - 1;  // 43
-    uint32_t color_2_base_tiles : xenos::kEdramBaseTilesBits - 1;  // 54
+    uint32_t color_1_base_tiles : xenos::kEdramBaseTilesBits;  // 43
+    uint32_t color_2_base_tiles : xenos::kEdramBaseTilesBits;  // 54
 
-    uint32_t color_3_base_tiles : xenos::kEdramBaseTilesBits - 1;  // 75
+    uint32_t color_3_base_tiles : xenos::kEdramBaseTilesBits;  // 75
 
     // Including all the padding, for a stable hash.
     FramebufferKey() { Reset(); }
@@ -619,16 +619,13 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       // All in tiles.
       uint32_t dest_pitch : xenos::kEdramPitchTilesBits;
       uint32_t source_pitch : xenos::kEdramPitchTilesBits;
-      // Safe to use 12 bits for signed difference - no ownership transfer can
-      // ever occur between render targets with EDRAM base >= 2048 as this would
-      // result in 0-length spans. 10 + 10 + 12 is exactly 32, any more bits,
-      // and more root 32-bit constants will be used.
       // Destination base in tiles minus source base in tiles (not vice versa
       // because this is a transform of the coordinate system, not addresses
       // themselves).
+      // + 1 bit because this is a signed difference between two EDRAM bases.
       // 0 for host_depth_source_is_copy (ignored in this case anyway as
       // destination == source anyway).
-      int32_t source_to_dest : xenos::kEdramBaseTilesBits;
+      int32_t source_to_dest : xenos::kEdramBaseTilesBits + 1;
     };
     TransferAddressConstant() : constant(0) {
       static_assert_size(*this, sizeof(constant));
@@ -746,7 +743,9 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   union DumpOffsets {
     uint32_t offsets;
     struct {
-      uint32_t dispatch_first_tile : xenos::kEdramBaseTilesBits;
+      // May be beyond the EDRAM tile count in case of EDRAM addressing
+      // wrapping, thus + 1 bit.
+      uint32_t dispatch_first_tile : xenos::kEdramBaseTilesBits + 1;
       uint32_t source_base_tiles : xenos::kEdramBaseTilesBits;
     };
     DumpOffsets() : offsets(0) { static_assert_size(*this, sizeof(offsets)); }

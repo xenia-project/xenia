@@ -39,7 +39,7 @@ xesl_entry_inputs_end_code_begin_compute
       XeEdramOffsetInts(
           (xesl_GlobalInvocationID.xy << xesl_uint2(3u, 0u)) +
               (resolve_info.edram_offset_scaled << extent_scale),
-          resolve_info.edram_base_tiles, resolve_info.edram_pitch_tiles,
+          resolve_info.edram_base_tiles, true, resolve_info.edram_pitch_tiles,
           kXenosMsaaSamples_1X, false, 1u, 0u, resolve_info.resolution_scale)
       >> 2u;
   uint i;
