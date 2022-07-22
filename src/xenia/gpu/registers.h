@@ -684,7 +684,11 @@ static_assert_size(RB_COLORCONTROL, sizeof(uint32_t));
 union alignas(uint32_t) RB_COLOR_INFO {
   uint32_t value;
   struct {
-    uint32_t color_base : 12;                         // +0 in tiles.
+    // The original R400 structure has 12-bit color_base, however the Xenos has
+    // periodic 11-bit EDRAM tile addressing, so this field was split in Xenia
+    // for convenience and to avoid mistakes.
+    uint32_t color_base : 11;                         // +0 in tiles.
+    uint32_t color_base_bit_11 : 1;                   // +11
     uint32_t : 4;                                     // +12
     xenos::ColorRenderTargetFormat color_format : 4;  // +16
     int32_t color_exp_bias : 6;                       // +20
@@ -775,7 +779,11 @@ static_assert_size(RB_STENCILREFMASK, sizeof(uint32_t));
 union alignas(uint32_t) RB_DEPTH_INFO {
   uint32_t value;
   struct {
-    uint32_t depth_base : 12;                         // +0 in tiles.
+    // The original R400 structure has 12-bit depth_base, however the Xenos has
+    // periodic 11-bit EDRAM tile addressing, so this field was split in Xenia
+    // for convenience and to avoid mistakes.
+    uint32_t depth_base : 11;                         // +0 in tiles.
+    uint32_t depth_base_bit_11 : 1;                   // +11
     uint32_t : 4;                                     // +12
     xenos::DepthRenderTargetFormat depth_format : 1;  // +16
   };

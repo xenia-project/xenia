@@ -45,8 +45,8 @@ xesl_entry_inputs_end_code_begin_compute
   uint edram_address_int4s =
       XeEdramOffsetInts(
           (xesl_uint2(pixel_index) << 1u) | (xesl_GlobalInvocationID.xy & 1u),
-          0u, XeHostDepthStoreRTPitchTiles(rt_constant), kXenosMsaaSamples_1X,
-          false, 0u, 0u, resolution_scale)
+          0u, false, XeHostDepthStoreRTPitchTiles(rt_constant),
+          kXenosMsaaSamples_1X, false, 0u, 0u, resolution_scale)
       >> 2u;
   // Render target horizontal sample in bit 0, vertical sample in bit 1.
   int source_sample_left = int((xesl_GlobalInvocationID.y & 1u) << 1u);

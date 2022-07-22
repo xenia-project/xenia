@@ -43,7 +43,7 @@ xesl_entry_inputs_end_code_begin_compute
                  xesl_GlobalInvocationID.y >> 1u));
   uint dest_sample_index = xesl_GlobalInvocationID.y & 1u;
   uint edram_address_int4s =
-      XeEdramOffsetInts(xesl_uint2(pixel_index), 0u,
+      XeEdramOffsetInts(xesl_uint2(pixel_index), 0u, false,
                         XeHostDepthStoreRTPitchTiles(rt_constant),
                         kXenosMsaaSamples_2X, false, 0u, dest_sample_index,
                         resolution_scale)
