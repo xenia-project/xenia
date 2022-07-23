@@ -42,6 +42,7 @@ class Instr {
 
   const OpcodeInfo* opcode;
   uint16_t flags;
+  uint16_t backend_flags;  // backends may do whatever they wish with this
   uint32_t ordinal;
 
   typedef union {
@@ -158,6 +159,11 @@ if both are constant, return nullptr, nullptr
       call_for_values(src3.value, 2);
     }
   }
+  bool IsFake() const;
+
+  // gets previous instr, skipping instrs like COMMENT, OPCODE_CONTEXT_BARRIER,
+  // OPCODE_SOURCE_OFFSET
+  const hir::Instr* GetNonFakePrev() const;
 };
 
 }  // namespace hir

@@ -226,6 +226,15 @@ class Value {
     return (flags & VALUE_IS_CONSTANT) ? nullptr : local_slot;
   }
   inline bool IsConstant() const { return !!(flags & VALUE_IS_CONSTANT); }
+
+  inline bool IsEqual(const Value* other) const {
+    if (this == other) {
+      return true;
+    } else if ((this->flags & other->flags) & VALUE_IS_CONSTANT) {
+      return this->IsConstantEQ(other);
+    }
+    return false;
+  }
   bool IsConstantTrue() const {
     if (type == VEC128_TYPE) {
       assert_always();
@@ -327,7 +336,7 @@ class Value {
       return false;
     }
   }
-  bool IsConstantEQ(Value* other) const {
+  bool IsConstantEQ(const Value* other) const {
     if (type == VEC128_TYPE) {
       assert_always();
     }
@@ -594,12 +603,18 @@ class Value {
                      bool saturate);
   void ByteSwap();
   void DenormalFlush();
-
+  void ToSingle();
   void CountLeadingZeros(const Value* other);
   bool Compare(Opcode opcode, Value* other);
   hir::Instr* GetDefSkipAssigns();
   // tunnel_flags is updated to the kinds we actually traversed
   hir::Instr* GetDefTunnelMovs(unsigned int* tunnel_flags);
+
+  // does the value only have one instr that uses it?
+  bool HasSingleUse() const;
+  // returns true if every single use is as an operand to a single instruction
+  // (add var2, var1, var1)
+  bool AllUsesByOneInsn() const;
 
  private:
   static bool CompareInt8(Opcode opcode, Value* a, Value* b);

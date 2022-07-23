@@ -692,6 +692,7 @@ Instr* HIRBuilder::AppendInstr(const OpcodeInfo& opcode_info, uint16_t flags,
   instr->block = block;
   instr->opcode = &opcode_info;
   instr->flags = flags;
+  instr->backend_flags = 0;
   instr->dest = dest;
   instr->src1.value = instr->src2.value = instr->src3.value = NULL;
   instr->src1_use = instr->src2_use = instr->src3_use = NULL;
@@ -1492,11 +1493,18 @@ Value* HIRBuilder::VectorCompareUGE(Value* value1, Value* value2,
                          part_type);
 }
 Value* HIRBuilder::VectorDenormFlush(Value* value1) {
-  return value1;
   ASSERT_VECTOR_TYPE(value1);
   Instr* i =
       AppendInstr(OPCODE_VECTOR_DENORMFLUSH_info, 0, AllocValue(VEC128_TYPE));
   i->set_src1(value1);
+  i->src2.value = nullptr;
+  i->src3.value = nullptr;
+  return i->dest;
+}
+Value* HIRBuilder::ToSingle(Value* value) {
+  assert_true(value->type == FLOAT64_TYPE);
+  Instr* i = AppendInstr(OPCODE_TO_SINGLE_info, 0, AllocValue(FLOAT64_TYPE));
+  i->set_src1(value);
   i->src2.value = nullptr;
   i->src3.value = nullptr;
   return i->dest;
@@ -1719,7 +1727,6 @@ Value* HIRBuilder::Log2(Value* value) {
   i->src2.value = i->src3.value = NULL;
   return i->dest;
 }
-
 
 Value* HIRBuilder::DotProduct3(Value* value1, Value* value2) {
   ASSERT_VECTOR_TYPE(value1);

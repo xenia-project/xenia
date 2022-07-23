@@ -105,6 +105,7 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
   TEST_EMIT_FEATURE(kX64EmitAVX512BW, Xbyak::util::Cpu::tAVX512BW);
   TEST_EMIT_FEATURE(kX64EmitAVX512DQ, Xbyak::util::Cpu::tAVX512DQ);
   TEST_EMIT_FEATURE(kX64EmitAVX512VBMI, Xbyak::util::Cpu::tAVX512VBMI);
+  TEST_EMIT_FEATURE(kX64EmitPrefetchW, Xbyak::util::Cpu::tPREFETCHW);
 #undef TEST_EMIT_FEATURE
   /*
   fix for xbyak bug/omission, amd cpus are never checked for lzcnt. fixed in
@@ -121,6 +122,10 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
     bool is_zennish = cpu_.displayFamily >= 0x17;
 
     if (is_zennish) {
+      // ik that i heard somewhere that this is the case for zen, but i need to
+      // verify. cant find my original source for that.
+      // todo: ask agner?
+      feature_flags_ |= kX64FlagsIndependentVars;
       feature_flags_ |= kX64FastJrcx;
 
       if (cpu_.displayFamily > 0x17) {
@@ -132,6 +137,9 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
          // for my cpu, which is ripper90
     }
   }
+  may_use_membase32_as_zero_reg_ =
+      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
+          processor()->memory()->virtual_membase())) == 0;
 }
 
 X64Emitter::~X64Emitter() = default;
@@ -210,6 +218,11 @@ void* X64Emitter::Emplace(const EmitFunctionInfo& func_info,
   top_ = old_address;
   reset();
   call_sites_.clear();
+  tail_code_.clear();
+  for (auto&& cached_label : label_cache_) {
+    delete cached_label;
+  }
+  label_cache_.clear();
   return new_execute_address;
 }
 
@@ -261,13 +274,14 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
 
   code_offsets.prolog_stack_alloc = getSize();
   code_offsets.body = getSize();
-
+  xor_(eax, eax);
   /*
   * chrispy: removed this, it serves no purpose
   mov(qword[rsp + StackLayout::GUEST_CTX_HOME], GetContextReg());
   */
   mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rcx);
-  mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], 0);
+
+  mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], rax);  // 0
 
   // Safe now to do some tracing.
   if (debug_info_flags_ & DebugInfoFlags::kDebugInfoTraceFunctions) {
@@ -343,6 +357,13 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
 
   add(rsp, (uint32_t)stack_size);
   ret();
+  // todo: do some kind of sorting by alignment?
+  for (auto&& tail_item : tail_code_) {
+    if (tail_item.alignment) {
+      align(tail_item.alignment);
+    }
+    tail_item.func(*this, tail_item.label);
+  }
 
   code_offsets.tail = getSize();
 
@@ -605,12 +626,10 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
       // rdx = arg0
       // r8  = arg1
       // r9  = arg2
-      auto thunk = backend()->guest_to_host_thunk();
-      mov(rax, reinterpret_cast<uint64_t>(thunk));
       mov(rcx, reinterpret_cast<uint64_t>(builtin_function->handler()));
       mov(rdx, reinterpret_cast<uint64_t>(builtin_function->arg0()));
       mov(r8, reinterpret_cast<uint64_t>(builtin_function->arg1()));
-      call(rax);
+      call(backend()->guest_to_host_thunk());
       // rax = host return
     }
   } else if (function->behavior() == Function::Behavior::kExtern) {
@@ -621,12 +640,10 @@ void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
       // rdx = arg0
       // r8  = arg1
       // r9  = arg2
-      auto thunk = backend()->guest_to_host_thunk();
-      mov(rax, reinterpret_cast<uint64_t>(thunk));
       mov(rcx, reinterpret_cast<uint64_t>(extern_function->extern_handler()));
       mov(rdx,
           qword[GetContextReg() + offsetof(ppc::PPCContext, kernel_state)]);
-      call(rax);
+      call(backend()->guest_to_host_thunk());
       // rax = host return
     }
   }
@@ -656,10 +673,8 @@ void X64Emitter::CallNativeSafe(void* fn) {
   // rdx = arg0
   // r8  = arg1
   // r9  = arg2
-  auto thunk = backend()->guest_to_host_thunk();
-  mov(rax, reinterpret_cast<uint64_t>(thunk));
   mov(rcx, reinterpret_cast<uint64_t>(fn));
-  call(rax);
+  call(backend()->guest_to_host_thunk());
   // rax = host return
 }
 
@@ -715,24 +730,50 @@ bool X64Emitter::ConstantFitsIn32Reg(uint64_t v) {
   }
   return false;
 }
-
+/*
+    WARNING: do not use any regs here, addr is often produced by
+   ComputeAddressOffset, which may use rax/rdx/rcx in its addr expression
+*/
 void X64Emitter::MovMem64(const Xbyak::RegExp& addr, uint64_t v) {
-  if ((v & ~0x7FFFFFFF) == 0) {
+  uint32_t lowpart = static_cast<uint32_t>(v);
+  uint32_t highpart = static_cast<uint32_t>(v >> 32);
+  // check whether the constant coincidentally collides with our membase
+  if (v == (uintptr_t)processor()->memory()->virtual_membase()) {
+    mov(qword[addr], GetMembaseReg());
+  } else if ((v & ~0x7FFFFFFF) == 0) {
     // Fits under 31 bits, so just load using normal mov.
+
     mov(qword[addr], v);
   } else if ((v & ~0x7FFFFFFF) == ~0x7FFFFFFF) {
     // Negative number that fits in 32bits.
     mov(qword[addr], v);
-  } else if (!(v >> 32)) {
+  } else if (!highpart) {
     // All high bits are zero. It'd be nice if we had a way to load a 32bit
     // immediate without sign extending!
     // TODO(benvanik): this is super common, find a better way.
-    mov(dword[addr], static_cast<uint32_t>(v));
-    mov(dword[addr + 4], 0);
+    if (lowpart == 0 && CanUseMembaseLow32As0()) {
+      mov(dword[addr], GetMembaseReg().cvt32());
+    } else {
+      mov(dword[addr], static_cast<uint32_t>(v));
+    }
+    if (CanUseMembaseLow32As0()) {
+      mov(dword[addr + 4], GetMembaseReg().cvt32());
+    } else {
+      mov(dword[addr + 4], 0);
+    }
   } else {
     // 64bit number that needs double movs.
-    mov(dword[addr], static_cast<uint32_t>(v));
-    mov(dword[addr + 4], static_cast<uint32_t>(v >> 32));
+
+    if (lowpart == 0 && CanUseMembaseLow32As0()) {
+      mov(dword[addr], GetMembaseReg().cvt32());
+    } else {
+      mov(dword[addr], lowpart);
+    }
+    if (highpart == 0 && CanUseMembaseLow32As0()) {
+      mov(dword[addr + 4], GetMembaseReg().cvt32());
+    } else {
+      mov(dword[addr + 4], highpart);
+    }
   }
 }
 static inline vec128_t v128_setr_bytes(unsigned char v0, unsigned char v1,
@@ -893,7 +934,13 @@ static const vec128_t xmm_consts[] = {
     /* XMMThreeFloatMask */
     vec128i(~0U, ~0U, ~0U, 0U),
     /*XMMXenosF16ExtRangeStart*/
-    vec128f(65504)};
+    vec128f(65504),
+    /*XMMVSRShlByteshuf*/
+    v128_setr_bytes(13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3, 0x80),
+    // XMMVSRMask
+    vec128b(1)
+
+};
 
 void* X64Emitter::FindByteConstantOffset(unsigned bytevalue) {
   for (auto& vec : xmm_consts) {
@@ -1299,6 +1346,27 @@ SimdDomain X64Emitter::DeduceSimdDomain(const hir::Value* for_value) {
   }
 
   return SimdDomain::DONTCARE;
+}
+Xbyak::Address X64Emitter::GetBackendCtxPtr(int offset_in_x64backendctx) {
+  /*
+    index context ptr negatively to get to backend ctx field
+  */
+  ptrdiff_t delta = (-static_cast<ptrdiff_t>(sizeof(X64BackendContext))) +
+                    offset_in_x64backendctx;
+  return ptr[GetContextReg() + static_cast<int>(delta)];
+}
+Xbyak::Label& X64Emitter::AddToTail(TailEmitCallback callback,
+                                    uint32_t alignment) {
+  TailEmitter emitter{};
+  emitter.func = std::move(callback);
+  emitter.alignment = alignment;
+  tail_code_.push_back(std::move(emitter));
+  return tail_code_.back().label;
+}
+Xbyak::Label& X64Emitter::NewCachedLabel() {
+  Xbyak::Label* tmp = new Xbyak::Label;
+  label_cache_.push_back(tmp);
+  return *tmp;
 }
 }  // namespace x64
 }  // namespace backend
