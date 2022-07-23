@@ -253,6 +253,23 @@ enum class SurfaceNumberFormat : uint32_t {
 // specific depth/stencil values by drawing to a depth buffer's memory through a
 // color render target (to reupload a depth/stencil surface previously evicted
 // from the EDRAM to the main memory, for instance).
+//
+// EDRAM addressing is circular - a render target may be backed by a EDRAM range
+// that extends beyond 2048 tiles, in which case, what would go to the tile 2048
+// will actually be in tile 0, tile 2049 will go to tile 1, and so on. 4D5307F1
+// heavily relies on this behavior for its depth buffer. Specifically, it's used
+// the following way:
+// - First, a depth-only 1120x720 2xMSAA pass is performed with the depth buffer
+//   in tiles [1008, 2268), or [1008, 2048) and [0, 220).
+// - Then, the depth buffer in [1008, 2268) is resolved into a texture, later
+//   used in screen-space effects.
+// - The upper 1120x576 bin is drawn into the color buffer in [0, 1008), using
+//   the [1008, 2016) portion of the previously populated depth buffer for early
+//   depth testing (there seems to be no true early Z on the Xenos, only early
+//   hi-Z, but still it possibly needs to be in sync with the per-sample depth
+//   buffer), and overwriting the tail of the previously filled depth buffer in
+//   [0, 220).
+// - The lower 1120x144 bin is drawn without the pregenerated depth buffer data.
 
 enum class MsaaSamples : uint32_t {
   k1X = 0,
@@ -388,9 +405,9 @@ constexpr uint32_t kEdramSizeBytes = kEdramTileCount * kEdramTileHeightSamples *
 
 // RB_SURFACE_INFO::surface_pitch width.
 constexpr uint32_t kEdramPitchPixelsBits = 14;
-// RB_COLOR_INFO::color_base/RB_DEPTH_INFO::depth_base width (though for the
-// Xbox 360 only 11 make sense, but to avoid bounds checks).
-constexpr uint32_t kEdramBaseTilesBits = 12;
+// The part of RB_COLOR_INFO::color_base and RB_DEPTH_INFO::depth_base width
+// usable on the Xenos, which has periodic 11-bit EDRAM tile addressing.
+constexpr uint32_t kEdramBaseTilesBits = 11;
 
 constexpr uint32_t GetSurfacePitchTiles(uint32_t pitch_pixels,
                                         MsaaSamples msaa_samples,

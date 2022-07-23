@@ -220,8 +220,7 @@ class RenderTargetCache {
   union RenderTargetKey {
     uint32_t key;
     struct {
-      // [0, 2047].
-      uint32_t base_tiles : xenos::kEdramBaseTilesBits - 1;  // 11
+      uint32_t base_tiles : xenos::kEdramBaseTilesBits;  // 11
       // At 4x MSAA (2 horizontal samples), max. align(8192 * 2, 80) / 80 = 205.
       // For pitch at 64bpp, multiply by 2 (or use GetPitchTiles).
       uint32_t pitch_tiles_at_32bpp : 8;                          // 19
@@ -416,6 +415,8 @@ class RenderTargetCache {
           row_first_start(row_first_start),
           row_last_end(row_last_end) {}
     struct Dispatch {
+      // Base plus offset may exceed the EDRAM tile count in case of EDRAM
+      // addressing wrapping.
       uint32_t offset;
       uint32_t width_tiles;
       uint32_t height_tiles;
@@ -667,13 +668,13 @@ class RenderTargetCache {
   // barrier and addressed by different target-independent rasterization pixel
   // positions.
   bool WouldOwnershipChangeRequireTransfers(RenderTargetKey dest,
-                                            uint32_t start_tiles,
+                                            uint32_t start_tiles_base_relative,
                                             uint32_t length_tiles) const;
   // Updates ownership_ranges_, adds the transfers needed for the ownership
   // change to transfers_append_out if it's not null.
   void ChangeOwnership(
-      RenderTargetKey dest, uint32_t start_tiles, uint32_t length_tiles,
-      std::vector<Transfer>* transfers_append_out,
+      RenderTargetKey dest, uint32_t start_tiles_base_relative,
+      uint32_t length_tiles, std::vector<Transfer>* transfers_append_out,
       const Transfer::Rectangle* resolve_clear_cutout = nullptr);
 
   // If failed to create, may contain nullptr to prevent attempting to create a

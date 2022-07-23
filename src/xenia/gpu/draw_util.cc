@@ -1045,6 +1045,8 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
     depth_edram_info.pitch_tiles = surface_pitch_tiles;
     depth_edram_info.msaa_samples = rb_surface_info.msaa_samples;
     depth_edram_info.is_depth = 1;
+    // If wrapping happens, it's fine, it doesn't matter how many times and
+    // where modulo xenos::kEdramTileCount is applied in this context.
     depth_edram_info.base_tiles =
         rb_depth_info.depth_base + edram_base_offset_tiles;
     depth_edram_info.format = uint32_t(rb_depth_info.depth_format);
@@ -1067,6 +1069,8 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
     color_edram_info.pitch_tiles = surface_pitch_tiles << is_64bpp;
     color_edram_info.msaa_samples = rb_surface_info.msaa_samples;
     color_edram_info.is_depth = 0;
+    // If wrapping happens, it's fine, it doesn't matter how many times and
+    // where modulo xenos::kEdramTileCount is applied in this context.
     color_edram_info.base_tiles =
         color_info.color_base + (edram_base_offset_tiles << is_64bpp);
     color_edram_info.format = uint32_t(color_info.color_format);

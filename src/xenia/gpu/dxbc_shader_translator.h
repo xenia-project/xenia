@@ -1143,7 +1143,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // 8:11 - Whether color buffers have been written to, if not written on the
   //        taken execution path, don't export according to Direct3D 9 register
   //        documentation (some games rely on this behavior).
-  // Y - Absolute resolution-scaled EDRAM offset for depth / stencil, in dwords.
+  // Y - Absolute resolution-scaled EDRAM offset for depth / stencil, in dwords,
+  //     before and during depth testing. During color writing, when the depth /
+  //     stencil address is not needed anymore, current color sample address.
   // Z - Base-relative resolution-scaled EDRAM offset for 32bpp color data, in
   //     dwords.
   // W - Base-relative resolution-scaled EDRAM offset for 64bpp color data, in

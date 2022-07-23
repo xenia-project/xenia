@@ -211,8 +211,15 @@ uint32_t RenderTargetCache::Transfer::GetRangeRectangles(
     uint32_t start_tiles, uint32_t end_tiles, uint32_t base_tiles,
     uint32_t pitch_tiles, xenos::MsaaSamples msaa_samples, bool is_64bpp,
     Rectangle* rectangles_out, const Rectangle* cutout) {
+  // EDRAM addressing wrapping must be handled by doing GetRangeRectangles for
+  // two clamped ranges, in this case start_tiles == end_tiles will also
+  // unambiguously mean an empty range rather than the entire EDRAM.
+  assert_true(start_tiles < xenos::kEdramTileCount);
+  assert_true(end_tiles <= xenos::kEdramTileCount);
   assert_true(start_tiles <= end_tiles);
-  assert_true(base_tiles <= start_tiles);
+  // If start_tiles < base_tiles, this is the tail after EDRAM addressing
+  // wrapping.
+  assert_true(start_tiles >= base_tiles || end_tiles <= base_tiles);
   assert_not_zero(pitch_tiles);
   if (start_tiles == end_tiles) {
     return 0;
@@ -225,8 +232,11 @@ uint32_t RenderTargetCache::Transfer::GetRangeRectangles(
   // If the first and / or the last rows have the same X spans as the middle
   // part, merge them with it.
   uint32_t rectangle_count = 0;
-  uint32_t local_start = start_tiles - base_tiles;
-  uint32_t local_end = end_tiles - base_tiles;
+  // If start_tiles < base_tiles, this is the tail after EDRAM addressing
+  // wrapping.
+  uint32_t local_offset = start_tiles < base_tiles ? xenos::kEdramTileCount : 0;
+  uint32_t local_start = local_offset + start_tiles - base_tiles;
+  uint32_t local_end = local_offset + end_tiles - base_tiles;
   // Inclusive.
   uint32_t rows_start = local_start / pitch_tiles;
   // Exclusive.
@@ -503,10 +513,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
         normalized_depth_control.stencil_enable) {
       depth_and_color_rts_used_bits |= 1;
       auto rb_depth_info = regs.Get<reg::RB_DEPTH_INFO>();
-      // std::min for safety, to avoid negative numbers in case it's completely
-      // wrong.
-      edram_bases[0] =
-          std::min(uint32_t(rb_depth_info.depth_base), xenos::kEdramTileCount);
+      edram_bases[0] = rb_depth_info.depth_base;
       // With pixel shader interlock, always the same addressing disregarding
       // the format.
       resource_formats[0] =
@@ -520,8 +527,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
           reg::RB_COLOR_INFO::rt_register_indices[i]);
       uint32_t rt_bit_index = 1 + i;
       depth_and_color_rts_used_bits |= uint32_t(1) << rt_bit_index;
-      edram_bases[rt_bit_index] =
-          std::min(uint32_t(color_info.color_base), xenos::kEdramTileCount);
+      edram_bases[rt_bit_index] = color_info.color_base;
       xenos::ColorRenderTargetFormat color_format =
           regs.Get<reg::RB_COLOR_INFO>(
                   reg::RB_COLOR_INFO::rt_register_indices[i])
@@ -662,7 +668,8 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   // tiles, and a 64bpp color buffer at 675 requiring 1350 tiles, but the
   // smallest distance between two render target bases is 675 tiles).
   uint32_t rt_max_distance_tiles_at_64bpp = xenos::kEdramTileCount * 2;
-  if (cvars::mrt_edram_used_range_clamp_to_min) {
+  if (cvars::mrt_edram_used_range_clamp_to_min &&
+      edram_bases_sorted_count >= 2) {
     for (uint32_t i = 1; i < edram_bases_sorted_count; ++i) {
       const std::pair<uint32_t, uint32_t>& rt_base_prev =
           edram_bases_sorted[i - 1];
@@ -671,6 +678,15 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
                    (edram_bases_sorted[i].first - rt_base_prev.first)
                        << (((rts_are_64bpp >> rt_base_prev.second) & 1) ^ 1));
     }
+    // Clamp to the distance from the last render target to the first with
+    // EDRAM addressing wrapping.
+    const std::pair<uint32_t, uint32_t>& rt_base_last =
+        edram_bases_sorted[edram_bases_sorted_count - 1];
+    rt_max_distance_tiles_at_64bpp =
+        std::min(rt_max_distance_tiles_at_64bpp,
+                 (xenos::kEdramTileCount + edram_bases_sorted[0].first -
+                  rt_base_last.first)
+                     << (((rts_are_64bpp >> rt_base_last.second) & 1) ^ 1));
   }
 
   // Make sure all the needed render targets are created, and gather lengths of
@@ -700,11 +716,15 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
       rts[rt_bit_index] = render_target;
     }
     uint32_t rt_is_64bpp = (rts_are_64bpp >> rt_bit_index) & 1;
+    // The last render target can occupy the EDRAM until the base of the first
+    // render target (itself in case of 1 render target) with EDRAM addressing
+    // wrapping.
     rt_lengths_tiles[i] = std::min(
         std::min(length_used_tiles_at_32bpp << rt_is_64bpp,
                  rt_max_distance_tiles_at_64bpp >> (rt_is_64bpp ^ 1)),
-        ((i + 1 < edram_bases_sorted_count) ? edram_bases_sorted[i + 1].first
-                                            : xenos::kEdramTileCount) -
+        ((i + 1 < edram_bases_sorted_count)
+             ? edram_bases_sorted[i + 1].first
+             : (xenos::kEdramTileCount + edram_bases_sorted[0].first)) -
             rt_base);
   }
 
@@ -718,8 +738,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     for (uint32_t i = 0; i < edram_bases_sorted_count; ++i) {
       const std::pair<uint32_t, uint32_t>& rt_base_index =
           edram_bases_sorted[i];
-      if (WouldOwnershipChangeRequireTransfers(rt_keys[rt_base_index.second],
-                                               rt_base_index.first,
+      if (WouldOwnershipChangeRequireTransfers(rt_keys[rt_base_index.second], 0,
                                                rt_lengths_tiles[i])) {
         interlock_barrier_needed = true;
         break;
@@ -738,10 +757,10 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   for (uint32_t i = 0; i < edram_bases_sorted_count; ++i) {
     const std::pair<uint32_t, uint32_t>& rt_base_index = edram_bases_sorted[i];
     uint32_t rt_bit_index = rt_base_index.second;
-    ChangeOwnership(
-        rt_keys[rt_bit_index], rt_base_index.first, rt_lengths_tiles[i],
-        interlock_barrier_only ? nullptr
-                               : &last_update_transfers_[rt_bit_index]);
+    ChangeOwnership(rt_keys[rt_bit_index], 0, rt_lengths_tiles[i],
+                    interlock_barrier_only
+                        ? nullptr
+                        : &last_update_transfers_[rt_bit_index]);
   }
 
   if (interlock_barrier_only) {
@@ -870,7 +889,8 @@ uint32_t RenderTargetCache::GetRenderTargetHeight(
   if (!pitch_tiles_at_32bpp) {
     return 0;
   }
-  // Down to the end of EDRAM.
+  // Down to the beginning of the render target in the next 11-bit EDRAM
+  // addressing period.
   uint32_t tile_rows = (xenos::kEdramTileCount + (pitch_tiles_at_32bpp - 1)) /
                        pitch_tiles_at_32bpp;
   // Clamp to the guest limit (tile padding should exceed it) and to the host
@@ -930,65 +950,80 @@ void RenderTargetCache::GetResolveCopyRectanglesToDump(
   if (!row_length || !rows) {
     return;
   }
-  uint32_t resolve_area_end = base + (rows - 1) * pitch + row_length;
-  // Collect render targets owning ranges within the specified rectangle. The
-  // first render target in the range may be before the lower_bound, only being
-  // in the range with its tail.
-  auto it = ownership_ranges_.lower_bound(base);
-  if (it != ownership_ranges_.cbegin()) {
-    auto it_pre = std::prev(it);
-    if (it_pre->second.end_tiles > base) {
-      it = it_pre;
+  auto get_rectangles_in_extent = [&](uint32_t extent_start,
+                                      uint32_t extent_end,
+                                      uint32_t range_local_offset) {
+    // Collect render targets owning ranges within the specified rectangle. The
+    // first render target in the range may be before the lower_bound, only
+    // being in the range with its tail.
+    auto it = ownership_ranges_.lower_bound(extent_start);
+    if (it != ownership_ranges_.cbegin()) {
+      auto it_pre = std::prev(it);
+      if (it_pre->second.end_tiles > extent_start) {
+        it = it_pre;
+      }
     }
-  }
-  for (; it != ownership_ranges_.cend(); ++it) {
-    uint32_t range_global_start = std::max(it->first, base);
-    if (range_global_start >= resolve_area_end) {
-      break;
-    }
-    RenderTargetKey rt_key = it->second.render_target;
-    if (rt_key.IsEmpty()) {
-      continue;
-    }
-    // Merge with other render target ranges with the same current ownership,
-    // but different depth ownership, since it's not relevant to resolving.
-    while (it != ownership_ranges_.cend()) {
-      auto it_next = std::next(it);
-      if (it_next == ownership_ranges_.cend() ||
-          it_next->first >= resolve_area_end ||
-          it_next->second.render_target != rt_key) {
+    for (; it != ownership_ranges_.cend(); ++it) {
+      uint32_t range_global_start = std::max(it->first, extent_start);
+      if (range_global_start >= extent_end) {
         break;
       }
-      it = it_next;
-    }
-
-    uint32_t range_local_start = std::max(range_global_start, base) - base;
-    uint32_t range_local_end =
-        std::min(it->second.end_tiles, resolve_area_end) - base;
-    assert_true(range_local_start < range_local_end);
-
-    uint32_t rows_start = range_local_start / pitch;
-    uint32_t rows_end = (range_local_end + (pitch - 1)) / pitch;
-    uint32_t row_first_start = range_local_start - rows_start * pitch;
-    if (row_first_start >= row_length) {
-      // The first row starts within the pitch padding.
-      if (rows_start + 1 < rows_end) {
-        // Multiple rows - start at the second.
-        ++rows_start;
-        row_first_start = 0;
-      } else {
-        // Single row - nothing to dump.
+      RenderTargetKey rt_key = it->second.render_target;
+      if (rt_key.IsEmpty()) {
         continue;
       }
-    }
+      // Merge with other render target ranges with the same current ownership,
+      // but different depth ownership, since it's not relevant to resolving.
+      while (it != ownership_ranges_.cend()) {
+        auto it_next = std::next(it);
+        if (it_next == ownership_ranges_.cend() ||
+            it_next->first >= extent_end ||
+            it_next->second.render_target != rt_key) {
+          break;
+        }
+        it = it_next;
+      }
 
-    auto it_rt = render_targets_.find(rt_key);
-    assert_true(it_rt != render_targets_.cend());
-    assert_not_null(it_rt->second);
-    // Don't include pitch padding in the last row.
-    rectangles_out.emplace_back(
-        it_rt->second, rows_start, rows_end - rows_start, row_first_start,
-        std::min(pitch - (rows_end * pitch - range_local_end), row_length));
+      uint32_t range_local_start = range_local_offset +
+                                   std::max(range_global_start, extent_start) -
+                                   base;
+      uint32_t range_local_end = range_local_offset +
+                                 std::min(it->second.end_tiles, extent_end) -
+                                 base;
+      assert_true(range_local_start < range_local_end);
+
+      uint32_t rows_start = range_local_start / pitch;
+      uint32_t rows_end = (range_local_end + (pitch - 1)) / pitch;
+      uint32_t row_first_start = range_local_start - rows_start * pitch;
+      if (row_first_start >= row_length) {
+        // The first row starts within the pitch padding.
+        if (rows_start + 1 < rows_end) {
+          // Multiple rows - start at the second.
+          ++rows_start;
+          row_first_start = 0;
+        } else {
+          // Single row - nothing to dump.
+          continue;
+        }
+      }
+
+      auto it_rt = render_targets_.find(rt_key);
+      assert_true(it_rt != render_targets_.cend());
+      assert_not_null(it_rt->second);
+      // Don't include pitch padding in the last row.
+      rectangles_out.emplace_back(
+          it_rt->second, rows_start, rows_end - rows_start, row_first_start,
+          std::min(pitch - (rows_end * pitch - range_local_end), row_length));
+    }
+  };
+  uint32_t resolve_area_end = base + (rows - 1) * pitch + row_length;
+  get_rectangles_in_extent(
+      base, std::min(resolve_area_end, xenos::kEdramTileCount), 0);
+  if (resolve_area_end > xenos::kEdramTileCount) {
+    // The resolve area goes to the next EDRAM addressing period.
+    get_rectangles_in_extent(
+        0, std::min(resolve_area_end & (xenos::kEdramTileCount - 1), base),
+        xenos::kEdramTileCount);
   }
 }
 
@@ -1102,39 +1137,59 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
        << msaa_samples_x_log2) /
           xenos::kEdramTileWidthSamples +
       1 - clear_start_tiles_at_32bpp;
-  uint32_t depth_clear_start_tiles =
-      resolve_info.IsClearingDepth()
-          ? std::min(
-                resolve_info.depth_original_base + clear_start_tiles_at_32bpp,
-                xenos::kEdramTileCount)
-          : xenos::kEdramTileCount;
-  uint32_t color_clear_start_tiles =
-      resolve_info.IsClearingColor()
-          ? std::min(resolve_info.color_original_base +
-                         (clear_start_tiles_at_32bpp
-                          << resolve_info.color_edram_info.format_is_64bpp),
-                     xenos::kEdramTileCount)
-          : xenos::kEdramTileCount;
-  uint32_t depth_clear_end_tiles =
-      std::min(depth_clear_start_tiles + clear_length_tiles_at_32bpp,
-               xenos::kEdramTileCount);
-  uint32_t color_clear_end_tiles =
-      std::min(color_clear_start_tiles +
-                   (clear_length_tiles_at_32bpp
-                    << resolve_info.color_edram_info.format_is_64bpp),
-               xenos::kEdramTileCount);
-  // Prevent overlap.
-  if (depth_clear_start_tiles < color_clear_start_tiles) {
-    depth_clear_end_tiles =
-        std::min(depth_clear_end_tiles, color_clear_start_tiles);
-  } else {
-    color_clear_end_tiles =
-        std::min(color_clear_end_tiles, depth_clear_start_tiles);
+  // Up to the range from the base in the current 11 tile index bits to the base
+  // in the next 11 tile index bits after wrapping can be cleared.
+  uint32_t depth_clear_start_tiles_base_relative = 0;
+  uint32_t depth_clear_length_tiles = 0;
+  if (resolve_info.IsClearingDepth()) {
+    depth_clear_start_tiles_base_relative =
+        std::min(clear_start_tiles_at_32bpp, xenos::kEdramTileCount);
+    depth_clear_length_tiles =
+        std::min(clear_start_tiles_at_32bpp + clear_length_tiles_at_32bpp,
+                 xenos::kEdramTileCount) -
+        depth_clear_start_tiles_base_relative;
+  }
+  uint32_t color_clear_start_tiles_base_relative = 0;
+  uint32_t color_clear_length_tiles = 0;
+  if (resolve_info.IsClearingColor()) {
+    color_clear_start_tiles_base_relative =
+        std::min(clear_start_tiles_at_32bpp
+                     << resolve_info.color_edram_info.format_is_64bpp,
+                 xenos::kEdramTileCount);
+    color_clear_length_tiles =
+        std::min((clear_start_tiles_at_32bpp + clear_length_tiles_at_32bpp)
+                     << resolve_info.color_edram_info.format_is_64bpp,
+                 xenos::kEdramTileCount) -
+        color_clear_start_tiles_base_relative;
+  }
+  if (depth_clear_length_tiles && color_clear_length_tiles) {
+    // Prevent overlap - clear the depth only until the color, the color only
+    // until the depth, in the current or the next 11 bits of the tile index.
+    uint32_t depth_clear_start_tiles_wrapped =
+        (resolve_info.depth_original_base +
+         depth_clear_start_tiles_base_relative) &
+        (xenos::kEdramTileCount - 1);
+    uint32_t color_clear_start_tiles_wrapped =
+        (resolve_info.color_original_base +
+         color_clear_start_tiles_base_relative) &
+        (xenos::kEdramTileCount - 1);
+    depth_clear_length_tiles = std::min(
+        depth_clear_length_tiles,
+        ((color_clear_start_tiles_wrapped < depth_clear_start_tiles_wrapped)
+             ? xenos::kEdramTileCount
+             : 0) +
+            color_clear_start_tiles_wrapped - depth_clear_start_tiles_wrapped);
+    color_clear_length_tiles = std::min(
+        color_clear_length_tiles,
+        ((depth_clear_start_tiles_wrapped < color_clear_start_tiles_wrapped)
+             ? xenos::kEdramTileCount
+             : 0) +
+            depth_clear_start_tiles_wrapped - color_clear_start_tiles_wrapped);
   }
 
   RenderTargetKey depth_render_target_key;
   RenderTarget* depth_render_target = nullptr;
-  if (depth_clear_start_tiles < depth_clear_end_tiles) {
+  if (depth_clear_length_tiles) {
     depth_render_target_key.base_tiles = resolve_info.depth_original_base;
     depth_render_target_key.pitch_tiles_at_32bpp = pitch_tiles_at_32bpp;
     depth_render_target_key.msaa_samples = msaa_samples;
@@ -1143,13 +1198,14 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
         resolve_info.depth_edram_info.format;
     depth_render_target = GetOrCreateRenderTarget(depth_render_target_key);
     if (!depth_render_target) {
+      // Failed to create the depth render target, don't clear it.
       depth_render_target_key = RenderTargetKey();
-      depth_clear_start_tiles = depth_clear_end_tiles;
+      depth_clear_length_tiles = 0;
     }
   }
   RenderTargetKey color_render_target_key;
   RenderTarget* color_render_target = nullptr;
-  if (color_clear_start_tiles < color_clear_end_tiles) {
+  if (color_clear_length_tiles) {
     color_render_target_key.base_tiles = resolve_info.color_original_base;
     color_render_target_key.pitch_tiles_at_32bpp = pitch_tiles_at_32bpp;
     color_render_target_key.msaa_samples = msaa_samples;
@@ -1158,14 +1214,13 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
         xenos::ColorRenderTargetFormat(resolve_info.color_edram_info.format)));
     color_render_target = GetOrCreateRenderTarget(color_render_target_key);
     if (!color_render_target) {
+      // Failed to create the color render target, don't clear it.
       color_render_target_key = RenderTargetKey();
-      color_clear_start_tiles = color_clear_end_tiles;
+      color_clear_length_tiles = 0;
     }
   }
-  if (depth_clear_start_tiles >= depth_clear_end_tiles &&
-      color_clear_start_tiles >= color_clear_end_tiles) {
-    // The region turned out to be outside the EDRAM, or there's complete
-    // overlap, shouldn't be happening. Or failed to create both render targets.
+  if (!depth_clear_length_tiles && !color_clear_length_tiles) {
+    // Complete overlap, or failed to create all the render targets.
     return false;
   }
 
@@ -1173,16 +1228,16 @@ bool RenderTargetCache::PrepareHostRenderTargetsResolveClear(
   depth_render_target_out = depth_render_target;
   depth_transfers_out.clear();
   if (depth_render_target) {
-    ChangeOwnership(depth_render_target_key, depth_clear_start_tiles,
-                    depth_clear_end_tiles - depth_clear_start_tiles,
-                    &depth_transfers_out, &clear_rectangle);
+    ChangeOwnership(
+        depth_render_target_key, depth_clear_start_tiles_base_relative,
+        depth_clear_length_tiles, &depth_transfers_out, &clear_rectangle);
   }
   color_render_target_out = color_render_target;
   color_transfers_out.clear();
   if (color_render_target) {
-    ChangeOwnership(color_render_target_key, color_clear_start_tiles,
-                    color_clear_end_tiles - color_clear_start_tiles,
-                    &color_transfers_out, &clear_rectangle);
+    ChangeOwnership(
+        color_render_target_key, color_clear_start_tiles_base_relative,
+        color_clear_length_tiles, &color_transfers_out, &clear_rectangle);
   }
   return true;
 }
@@ -1285,42 +1340,66 @@ RenderTargetCache::RenderTarget* RenderTargetCache::GetOrCreateRenderTarget(
 }
 
 bool RenderTargetCache::WouldOwnershipChangeRequireTransfers(
-    RenderTargetKey dest, uint32_t start_tiles, uint32_t length_tiles) const {
-  assert_true(start_tiles >= dest.base_tiles);
-  assert_true(length_tiles <= (xenos::kEdramTileCount - start_tiles));
+    RenderTargetKey dest, uint32_t start_tiles_base_relative,
+    uint32_t length_tiles) const {
+  // xenos::kEdramTileCount with length 0 is fine if both the start and the end
+  // are clamped to xenos::kEdramTileCount.
+  assert_true(start_tiles_base_relative <=
+              (xenos::kEdramTileCount - uint32_t(length_tiles != 0)));
+  assert_true(length_tiles <= xenos::kEdramTileCount);
   if (length_tiles == 0) {
     return false;
   }
   bool host_depth_encoding_different =
       dest.is_depth && GetPath() == Path::kHostRenderTargets &&
       IsHostDepthEncodingDifferent(dest.GetDepthFormat());
-  // The map contains consecutive ranges, merged if the adjacent ones are the
-  // same. Find the range starting at >= the start. A portion of the range
-  // preceding it may be intersecting the render target's range (or even fully
-  // contain it).
+  auto would_require_transfers_in_extent = [&](uint32_t extent_start,
+                                               uint32_t extent_end) -> bool {
+    // The map contains consecutive ranges, merged if the adjacent ones are the
+    // same. Find the range starting at >= the start. A portion of the range
+    // preceding it may be intersecting the render target's range (or even fully
+    // contain it).
+    auto it = ownership_ranges_.lower_bound(extent_start);
+    if (it != ownership_ranges_.begin()) {
+      auto it_pre = std::prev(it);
+      if (it_pre->second.end_tiles > extent_start) {
+        it = it_pre;
+      }
+    }
+    for (; it != ownership_ranges_.end(); ++it) {
+      if (it->first >= extent_end) {
+        // Outside the touched extent already.
+        break;
+      }
+      if (it->second.IsOwnedBy(dest, host_depth_encoding_different)) {
+        // Already owned by the needed render target - no need to transfer
+        // anything.
+        continue;
+      }
+      RenderTargetKey transfer_source = it->second.render_target;
+      // Only perform the transfer when actually changing the latest owner, not
+      // just the latest host depth owner - the transfer source is expected to
+      // be different than the destination.
+      if (!transfer_source.IsEmpty() && transfer_source != dest) {
+        return true;
+      }
+    }
+    return false;
+  };
+  // start_tiles_base_relative may already be in the next 11 bits - wrap the
+  // start tile index to use the same code as if that was not the case.
+  uint32_t start_tiles = (dest.base_tiles + start_tiles_base_relative) &
+                         (xenos::kEdramTileCount - 1);
   uint32_t end_tiles = start_tiles + length_tiles;
-  auto it = ownership_ranges_.lower_bound(start_tiles);
-  if (it != ownership_ranges_.begin()) {
-    auto it_pre = std::prev(it);
-    if (it_pre->second.end_tiles > start_tiles) {
-      it = it_pre;
-    }
+  if (would_require_transfers_in_extent(
+          start_tiles, std::min(end_tiles, xenos::kEdramTileCount))) {
+    return true;
   }
-  for (; it != ownership_ranges_.end(); ++it) {
-    if (it->first >= end_tiles) {
-      // Outside the touched range already.
-      break;
-    }
-    if (it->second.IsOwnedBy(dest, host_depth_encoding_different)) {
-      // Already owned by the needed render target - no need to transfer
-      // anything.
-      continue;
-    }
-    RenderTargetKey transfer_source = it->second.render_target;
-    // Only perform the transfer when actually changing the latest owner, not
-    // just the latest host depth owner - the transfer source is expected to
-    // be different than the destination.
-    if (!transfer_source.IsEmpty() && transfer_source != dest) {
+  if (end_tiles > xenos::kEdramTileCount) {
+    // The check extent goes to the next EDRAM addressing period.
+    if (would_require_transfers_in_extent(
+            0,
+            std::min(end_tiles & (xenos::kEdramTileCount - 1), start_tiles))) {
       return true;
     }
   }
@@ -1328,143 +1407,161 @@ bool RenderTargetCache::WouldOwnershipChangeRequireTransfers(
 }
 
 void RenderTargetCache::ChangeOwnership(
-    RenderTargetKey dest, uint32_t start_tiles, uint32_t length_tiles,
-    std::vector<Transfer>* transfers_append_out,
+    RenderTargetKey dest, uint32_t start_tiles_base_relative,
+    uint32_t length_tiles, std::vector<Transfer>* transfers_append_out,
     const Transfer::Rectangle* resolve_clear_cutout) {
-  assert_true(start_tiles >= dest.base_tiles);
-  assert_true(length_tiles <= (xenos::kEdramTileCount - start_tiles));
+  // xenos::kEdramTileCount with length 0 is fine if both the start and the end
+  // are clamped to xenos::kEdramTileCount.
+  assert_true(start_tiles_base_relative <=
+              (xenos::kEdramTileCount - uint32_t(length_tiles != 0)));
+  assert_true(length_tiles <= xenos::kEdramTileCount);
   if (length_tiles == 0) {
     return;
   }
   uint32_t dest_pitch_tiles = dest.GetPitchTiles();
   bool dest_is_64bpp = dest.Is64bpp();
-
   bool host_depth_encoding_different =
       dest.is_depth && GetPath() == Path::kHostRenderTargets &&
       IsHostDepthEncodingDifferent(dest.GetDepthFormat());
-  // The map contains consecutive ranges, merged if the adjacent ones are the
-  // same. Find the range starting at >= the start. A portion of the range
-  // preceding it may be intersecting the render target's range (or even fully
-  // contain it) - split it into the untouched head and the claimed tail if
-  // needed.
-  uint32_t end_tiles = start_tiles + length_tiles;
-  auto it = ownership_ranges_.lower_bound(start_tiles);
-  if (it != ownership_ranges_.begin()) {
-    auto it_pre = std::prev(it);
-    if (it_pre->second.end_tiles > start_tiles &&
-        !it_pre->second.IsOwnedBy(dest, host_depth_encoding_different)) {
-      // Different render target overlapping the range - split the head.
-      ownership_ranges_.emplace(start_tiles, it_pre->second);
-      it_pre->second.end_tiles = start_tiles;
-      // Let the next loop do the transfer and needed merging and splitting
-      // starting from the added tail.
-      it = std::next(it_pre);
+  auto change_ownership_in_extent = [&](uint32_t extent_start,
+                                        uint32_t extent_end) {
+    // The map contains consecutive ranges, merged if the adjacent ones are the
+    // same. Find the range starting at >= the start. A portion of the range
+    // preceding it may be intersecting the render target's range (or even fully
+    // contain it) - split it into the untouched head and the claimed tail if
+    // needed.
+    auto it = ownership_ranges_.lower_bound(extent_start);
+    if (it != ownership_ranges_.begin()) {
+      auto it_pre = std::prev(it);
+      if (it_pre->second.end_tiles > extent_start &&
+          !it_pre->second.IsOwnedBy(dest, host_depth_encoding_different)) {
+        // Different render target overlapping the range - split the head.
+        ownership_ranges_.emplace(extent_start, it_pre->second);
+        it_pre->second.end_tiles = extent_start;
+        // Let the next loop do the transfer and needed merging and splitting
+        // starting from the added tail.
+        it = std::next(it_pre);
+      }
     }
-  }
-  while (it != ownership_ranges_.end()) {
-    if (it->first >= end_tiles) {
-      // Outside the touched range already.
-      break;
-    }
-    if (it->second.IsOwnedBy(dest, host_depth_encoding_different)) {
-      // Already owned by the needed render target - no need to transfer
-      // anything.
-      ++it;
-      continue;
-    }
-    // Take over the current range. Handle the tail - may be outside the range
-    // (split in this case) or within it.
-    if (it->second.end_tiles > end_tiles) {
-      // Split the tail.
-      ownership_ranges_.emplace(end_tiles, it->second);
-      it->second.end_tiles = end_tiles;
-    }
-    if (transfers_append_out) {
-      RenderTargetKey transfer_source = it->second.render_target;
-      // Only perform the copying when actually changing the latest owner, not
-      // just the latest host depth owner - the transfer source is expected to
-      // be different than the destination.
-      if (!transfer_source.IsEmpty() && transfer_source != dest) {
-        uint32_t transfer_end_tiles = std::min(it->second.end_tiles, end_tiles);
-        if (!resolve_clear_cutout ||
-            Transfer::GetRangeRectangles(it->first, transfer_end_tiles,
-                                         dest.base_tiles, dest_pitch_tiles,
-                                         dest.msaa_samples, dest_is_64bpp,
-                                         nullptr, resolve_clear_cutout)) {
-          RenderTargetKey transfer_host_depth_source =
-              host_depth_encoding_different
-                  ? it->second.GetHostDepthRenderTarget(dest.GetDepthFormat())
-                  : RenderTargetKey();
-          if (transfer_host_depth_source == transfer_source) {
-            // Same render target, don't provide a separate host depth source.
-            transfer_host_depth_source = RenderTargetKey();
-          }
-          if (!transfers_append_out->empty() &&
-              transfers_append_out->back().end_tiles == it->first &&
-              transfers_append_out->back().source->key() == transfer_source &&
-              ((transfers_append_out->back().host_depth_source == nullptr) ==
-               transfer_host_depth_source.IsEmpty()) &&
-              (transfer_host_depth_source.IsEmpty() ||
-               transfers_append_out->back().host_depth_source->key() ==
-                   transfer_host_depth_source)) {
-            // Extend the last transfer if, for example, transferring color, but
-            // host depth is different.
-            transfers_append_out->back().end_tiles = transfer_end_tiles;
-          } else {
-            auto transfer_source_rt_it = render_targets_.find(transfer_source);
-            if (transfer_source_rt_it != render_targets_.end()) {
-              assert_not_null(transfer_source_rt_it->second);
-              auto transfer_host_depth_source_rt_it =
-                  !transfer_host_depth_source.IsEmpty()
-                      ? render_targets_.find(transfer_host_depth_source)
-                      : render_targets_.end();
-              if (transfer_host_depth_source.IsEmpty() ||
-                  transfer_host_depth_source_rt_it != render_targets_.end()) {
-                assert_false(transfer_host_depth_source_rt_it !=
-                                 render_targets_.end() &&
-                             !transfer_host_depth_source_rt_it->second);
-                transfers_append_out->emplace_back(
-                    it->first, transfer_end_tiles,
-                    transfer_source_rt_it->second,
-                    transfer_host_depth_source_rt_it != render_targets_.end()
-                        ? transfer_host_depth_source_rt_it->second
-                        : nullptr);
+    while (it != ownership_ranges_.end()) {
+      if (it->first >= extent_end) {
+        // Outside the touched extent already.
+        break;
+      }
+      if (it->second.IsOwnedBy(dest, host_depth_encoding_different)) {
+        // Already owned by the needed render target - no need to transfer
+        // anything.
+        ++it;
+        continue;
+      }
+      // Take over the current range. Handle the tail - may be outside the range
+      // (split in this case) or within it.
+      if (it->second.end_tiles > extent_end) {
+        // Split the tail.
+        ownership_ranges_.emplace(extent_end, it->second);
+        it->second.end_tiles = extent_end;
+      }
+      if (transfers_append_out) {
+        RenderTargetKey transfer_source = it->second.render_target;
+        // Only perform the copying when actually changing the latest owner, not
+        // just the latest host depth owner - the transfer source is expected to
+        // be different than the destination.
+        if (!transfer_source.IsEmpty() && transfer_source != dest) {
+          uint32_t transfer_end_tiles =
+              std::min(it->second.end_tiles, extent_end);
+          if (!resolve_clear_cutout ||
+              Transfer::GetRangeRectangles(it->first, transfer_end_tiles,
+                                           dest.base_tiles, dest_pitch_tiles,
+                                           dest.msaa_samples, dest_is_64bpp,
+                                           nullptr, resolve_clear_cutout)) {
+            RenderTargetKey transfer_host_depth_source =
+                host_depth_encoding_different
+                    ? it->second.GetHostDepthRenderTarget(dest.GetDepthFormat())
+                    : RenderTargetKey();
+            if (transfer_host_depth_source == transfer_source) {
+              // Same render target, don't provide a separate host depth source.
+              transfer_host_depth_source = RenderTargetKey();
+            }
+            if (!transfers_append_out->empty() &&
+                transfers_append_out->back().end_tiles == it->first &&
+                transfers_append_out->back().source->key() == transfer_source &&
+                ((transfers_append_out->back().host_depth_source == nullptr) ==
+                 transfer_host_depth_source.IsEmpty()) &&
+                (transfer_host_depth_source.IsEmpty() ||
+                 transfers_append_out->back().host_depth_source->key() ==
+                     transfer_host_depth_source)) {
+              // Extend the last transfer if, for example, transferring color,
+              // but host depth is different.
+              transfers_append_out->back().end_tiles = transfer_end_tiles;
+            } else {
+              auto transfer_source_rt_it =
+                  render_targets_.find(transfer_source);
+              if (transfer_source_rt_it != render_targets_.end()) {
+                assert_not_null(transfer_source_rt_it->second);
+                auto transfer_host_depth_source_rt_it =
+                    !transfer_host_depth_source.IsEmpty()
+                        ? render_targets_.find(transfer_host_depth_source)
+                        : render_targets_.end();
+                if (transfer_host_depth_source.IsEmpty() ||
+                    transfer_host_depth_source_rt_it != render_targets_.end()) {
+                  assert_false(transfer_host_depth_source_rt_it !=
+                                   render_targets_.end() &&
+                               !transfer_host_depth_source_rt_it->second);
+                  transfers_append_out->emplace_back(
+                      it->first, transfer_end_tiles,
+                      transfer_source_rt_it->second,
+                      transfer_host_depth_source_rt_it != render_targets_.end()
+                          ? transfer_host_depth_source_rt_it->second
+                          : nullptr);
+                }
               }
             }
           }
         }
       }
-    }
-    // Claim the current range.
-    it->second.render_target = dest;
-    if (host_depth_encoding_different) {
-      it->second.GetHostDepthRenderTarget(dest.GetDepthFormat()) = dest;
-    }
-    // Check if can merge with the next range after claiming.
-    std::map<uint32_t, OwnershipRange>::iterator it_next;
-    if (it != ownership_ranges_.end()) {
-      it_next = std::next(it);
-      if (it_next != ownership_ranges_.end() &&
-          it_next->second.AreOwnersSame(it->second)) {
-        // Merge with the next range.
-        it->second.end_tiles = it_next->second.end_tiles;
-        auto it_after = std::next(it_next);
-        ownership_ranges_.erase(it_next);
-        it_next = it_after;
+      // Claim the current range.
+      it->second.render_target = dest;
+      if (host_depth_encoding_different) {
+        it->second.GetHostDepthRenderTarget(dest.GetDepthFormat()) = dest;
       }
-    } else {
-      it_next = ownership_ranges_.end();
-    }
-    // Check if can merge with the previous range after claiming and merging
-    // with the next (thus obtaining the correct end pointer).
-    if (it != ownership_ranges_.begin()) {
-      auto it_prev = std::prev(it);
-      if (it_prev->second.AreOwnersSame(it->second)) {
-        it_prev->second.end_tiles = it->second.end_tiles;
-        ownership_ranges_.erase(it);
+      // Check if can merge with the next range after claiming.
+      std::map<uint32_t, OwnershipRange>::iterator it_next;
+      if (it != ownership_ranges_.end()) {
+        it_next = std::next(it);
+        if (it_next != ownership_ranges_.end() &&
+            it_next->second.AreOwnersSame(it->second)) {
+          // Merge with the next range.
+          it->second.end_tiles = it_next->second.end_tiles;
+          auto it_after = std::next(it_next);
+          ownership_ranges_.erase(it_next);
+          it_next = it_after;
+        }
+      } else {
+        it_next = ownership_ranges_.end();
       }
+      // Check if can merge with the previous range after claiming and merging
+      // with the next (thus obtaining the correct end pointer).
+      if (it != ownership_ranges_.begin()) {
+        auto it_prev = std::prev(it);
+        if (it_prev->second.AreOwnersSame(it->second)) {
+          it_prev->second.end_tiles = it->second.end_tiles;
+          ownership_ranges_.erase(it);
+        }
+      }
+      it = it_next;
     }
-    it = it_next;
+  };
+  // start_tiles_base_relative may already be in the next 11 bits - wrap the
+  // start tile index to use the same code as if that was not the case.
+  uint32_t start_tiles = (dest.base_tiles + start_tiles_base_relative) &
+                         (xenos::kEdramTileCount - 1);
+  uint32_t end_tiles = start_tiles + length_tiles;
+  change_ownership_in_extent(start_tiles,
+                             std::min(end_tiles, xenos::kEdramTileCount));
+  if (end_tiles > xenos::kEdramTileCount) {
+    // The ownership change extent goes to the next EDRAM addressing period.
+    change_ownership_in_extent(
+        0, std::min(end_tiles & (xenos::kEdramTileCount - 1), start_tiles));
   }
 }
 

@@ -2657,17 +2657,24 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                     -int32_t(source_32bpp_tile_half_pixels)))));
   }
 
-  // Transform the destination 32bpp tile index into the source.
-  spv::Id source_tile_index = builder.createUnaryOp(
-      spv::OpBitcast, type_uint,
-      builder.createBinOp(
-          spv::OpIAdd, type_int,
-          builder.createUnaryOp(spv::OpBitcast, type_int, dest_tile_index),
-          builder.createTriOp(
-              spv::OpBitFieldSExtract, type_int,
-              builder.createUnaryOp(spv::OpBitcast, type_int, address_constant),
-              builder.makeUintConstant(xenos::kEdramPitchTilesBits * 2),
-              builder.makeUintConstant(xenos::kEdramBaseTilesBits))));
+  // Transform the destination 32bpp tile index into the source. After the
+  // addition, it may be negative - in which case, the transfer is done across
+  // EDRAM addressing wrapping, and xenos::kEdramTileCount must be added to it,
+  // but `& (xenos::kEdramTileCount - 1)` handles that regardless of the sign.
+  spv::Id source_tile_index = builder.createBinOp(
+      spv::OpBitwiseAnd, type_uint,
+      builder.createUnaryOp(
+          spv::OpBitcast, type_uint,
+          builder.createBinOp(
+              spv::OpIAdd, type_int,
+              builder.createUnaryOp(spv::OpBitcast, type_int, dest_tile_index),
+              builder.createTriOp(
+                  spv::OpBitFieldSExtract, type_int,
+                  builder.createUnaryOp(spv::OpBitcast, type_int,
+                                        address_constant),
+                  builder.makeUintConstant(xenos::kEdramPitchTilesBits * 2),
+                  builder.makeUintConstant(xenos::kEdramBaseTilesBits + 1)))),
+      builder.makeUintConstant(xenos::kEdramTileCount - 1));
   // Split the source 32bpp tile index into X and Y tile index within the source
   // image.
   spv::Id source_pitch_tiles = builder.createTriOp(
@@ -3724,19 +3731,28 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                           push_constants, id_vector_temp),
                 spv::NoPrecision);
             // Transform the destination tile index into the host depth source.
-            spv::Id host_depth_source_tile_index = builder.createUnaryOp(
-                spv::OpBitcast, type_uint,
-                builder.createBinOp(
-                    spv::OpIAdd, type_int,
-                    builder.createUnaryOp(spv::OpBitcast, type_int,
-                                          dest_tile_index),
-                    builder.createTriOp(
-                        spv::OpBitFieldSExtract, type_int,
+            // After the addition, it may be negative - in which case, the
+            // transfer is done across EDRAM addressing wrapping, and
+            // xenos::kEdramTileCount must be added to it, but
+            // `& (xenos::kEdramTileCount - 1)` handles that regardless of the
+            // sign.
+            spv::Id host_depth_source_tile_index = builder.createBinOp(
+                spv::OpBitwiseAnd, type_uint,
+                builder.createUnaryOp(
+                    spv::OpBitcast, type_uint,
+                    builder.createBinOp(
+                        spv::OpIAdd, type_int,
                         builder.createUnaryOp(spv::OpBitcast, type_int,
-                                              host_depth_address_constant),
-                        builder.makeUintConstant(xenos::kEdramPitchTilesBits *
-                                                 2),
-                        builder.makeUintConstant(xenos::kEdramBaseTilesBits))));
+                                              dest_tile_index),
+                        builder.createTriOp(
+                            spv::OpBitFieldSExtract, type_int,
+                            builder.createUnaryOp(spv::OpBitcast, type_int,
+                                                  host_depth_address_constant),
+                            builder.makeUintConstant(
+                                xenos::kEdramPitchTilesBits * 2),
+                            builder.makeUintConstant(
+                                xenos::kEdramBaseTilesBits + 1)))),
+                builder.makeUintConstant(xenos::kEdramTileCount - 1));
             // Split the host depth source tile index into X and Y tile index
             // within the source image.
             spv::Id host_depth_source_pitch_tiles = builder.createTriOp(
@@ -3837,6 +3853,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                                     type_uint, id_vector_temp);
             }
             // Combine the tile sample index and the tile index.
+            // The tile index doesn't need to be wrapped, as the host depth is
+            // written to the beginning of the buffer, without the base offset.
             spv::Id host_depth_offset = builder.createBinOp(
                 spv::OpIAdd, type_uint,
                 builder.createBinOp(
@@ -5427,28 +5445,33 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
                               const_edram_pitch_tiles_bits),
           rectangle_tile_index_y),
       rectangle_tile_index_x);
-  // Add the base tile in the dispatch to the dispatch-local tile index.
+  // Add the base tile in the dispatch to the dispatch-local tile index, not
+  // wrapping yet so in case of a wraparound, the address relative to the base
+  // in the image after subtraction of the base won't be negative.
   id_vector_temp.clear();
   id_vector_temp.push_back(builder.makeIntConstant(kDumpPushConstantOffsets));
   spv::Id offsets_constant = builder.createLoad(
       builder.createAccessChain(spv::StorageClassPushConstant, push_constants,
                                 id_vector_temp),
       spv::NoPrecision);
-  spv::Id const_edram_base_tiles_bits =
-      builder.makeUintConstant(xenos::kEdramBaseTilesBits);
-  spv::Id edram_tile_index = builder.createBinOp(
+  spv::Id const_edram_base_tiles_bits_plus_1 =
+      builder.makeUintConstant(xenos::kEdramBaseTilesBits + 1);
+  spv::Id edram_tile_index_non_wrapped = builder.createBinOp(
       spv::OpIAdd, type_uint,
       builder.createTriOp(spv::OpBitFieldUExtract, type_uint, offsets_constant,
-                          const_uint_0, const_edram_base_tiles_bits),
+                          const_uint_0, const_edram_base_tiles_bits_plus_1),
       rectangle_tile_index);
 
-  // Combine the tile sample index and the tile index into the EDRAM sample
-  // index.
+  // Combine the tile sample index and the tile index, wrapping the tile
+  // addressing, into the EDRAM sample index.
   spv::Id edram_sample_address = builder.createBinOp(
       spv::OpIAdd, type_uint,
-      builder.createBinOp(spv::OpIMul, type_uint,
-                          builder.makeUintConstant(tile_width * tile_height),
-                          edram_tile_index),
+      builder.createBinOp(
+          spv::OpIMul, type_uint,
+          builder.makeUintConstant(tile_width * tile_height),
+          builder.createBinOp(
+              spv::OpBitwiseAnd, type_uint, edram_tile_index_non_wrapped,
+              builder.makeUintConstant(xenos::kEdramTileCount - 1))),
       builder.createBinOp(spv::OpIAdd, type_uint,
                           builder.createBinOp(spv::OpIMul, type_uint,
                                               const_tile_width, tile_sample_y),
@@ -5474,10 +5497,11 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
 
   // Get the linear tile index within the source texture.
   spv::Id source_tile_index = builder.createBinOp(
-      spv::OpISub, type_uint, edram_tile_index,
-      builder.createTriOp(spv::OpBitFieldUExtract, type_uint, offsets_constant,
-                          const_edram_base_tiles_bits,
-                          const_edram_base_tiles_bits));
+      spv::OpISub, type_uint, edram_tile_index_non_wrapped,
+      builder.createTriOp(
+          spv::OpBitFieldUExtract, type_uint, offsets_constant,
+          const_edram_base_tiles_bits_plus_1,
+          builder.makeUintConstant(xenos::kEdramBaseTilesBits)));
   // Split the linear tile index in the source texture into X and Y in tiles.
   spv::Id source_pitch_tiles = builder.createTriOp(
       spv::OpBitFieldUExtract, type_uint, pitches_constant,

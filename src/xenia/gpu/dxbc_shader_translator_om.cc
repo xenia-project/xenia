@@ -449,7 +449,7 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   }
 
   // Add the EDRAM base for depth/stencil.
-  // system_temp_rov_params_.y = EDRAM depth / stencil address
+  // system_temp_rov_params_.y = non-wrapped EDRAM depth / stencil address
   // system_temp_rov_params_.z = dword sample 0 offset within a 32bpp surface if
   //                             needed
   // system_temp_rov_params_.w = dword sample 0 offset within a 64bpp surface if
@@ -460,6 +460,15 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
                 SystemConstants::Index::kEdramDepthBaseDwordsScaled,
                 offsetof(SystemConstants, edram_depth_base_dwords_scaled),
                 dxbc::Src::kXXXX));
+  // Wrap EDRAM addressing for depth/stencil.
+  // system_temp_rov_params_.y = EDRAM depth / stencil address
+  // system_temp_rov_params_.z = dword sample 0 offset within a 32bpp surface if
+  //                             needed
+  // system_temp_rov_params_.w = dword sample 0 offset within a 64bpp surface if
+  //                             needed
+  a_.OpUDiv(dxbc::Dest::Null(), dxbc::Dest::R(system_temp_rov_params_, 0b0010),
+            dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
+            dxbc::Src::LU(tile_size * xenos::kEdramTileCount));
 
   // ***************************************************************************
   // Sample coverage to system_temp_rov_params_.x.
@@ -2146,6 +2155,9 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     ROV_DepthStencilTest();
   }
 
+  // system_temp_rov_params_.y (the depth / stencil sample address) is not
+  // needed anymore, can be used for color writing.
+
   if (!is_depth_only_pixel_shader_) {
     // Check if any sample is still covered after depth testing and writing,
     // skip color writing completely in this case.
@@ -2160,6 +2172,9 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
   // Write color values.
   uint32_t shader_writes_color_targets =
       current_shader().writes_color_targets();
+  uint32_t edram_size_32bpp_samples =
+      (xenos::kEdramTileHeightSamples * draw_resolution_scale_y_) * tile_width *
+      xenos::kEdramTileCount;
   for (uint32_t i = 0; i < 4; ++i) {
     if (!(shader_writes_color_targets & (1 << i))) {
       continue;
@@ -2207,14 +2222,35 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
                  offsetof(SystemConstants, color_exp_bias) + sizeof(float) * i,
                  dxbc::Src::kXXXX));
 
-    // Add the EDRAM bases of the render target to system_temp_rov_params_.zw.
-    a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b1100),
-              dxbc::Src::R(system_temp_rov_params_),
+    dxbc::Src rt_format_flags_src(LoadSystemConstant(
+        SystemConstants::Index::kEdramRTFormatFlags,
+        offsetof(SystemConstants, edram_rt_format_flags) + sizeof(uint32_t) * i,
+        dxbc::Src::kXXXX));
+
+    // Load whether the render target is 64bpp to system_temp_rov_params_.y to
+    // get the needed relative sample address.
+    a_.OpAnd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
+             rt_format_flags_src, dxbc::Src::LU(kRTFormatFlag_64bpp));
+    // Choose the relative sample address for the render target to
+    // system_temp_rov_params_.y.
+    a_.OpMovC(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
+              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
+              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kWWWW),
+              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kZZZZ));
+    // Add the EDRAM base of the render target to system_temp_rov_params_.y.
+    a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
+              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
               LoadSystemConstant(
                   SystemConstants::Index::kEdramRTBaseDwordsScaled,
                   offsetof(SystemConstants, edram_rt_base_dwords_scaled) +
                       sizeof(uint32_t) * i,
                   dxbc::Src::kXXXX));
+    // Wrap EDRAM addressing for the color render target to get the final sample
+    // address in the EDRAM to system_temp_rov_params_.y.
+    a_.OpUDiv(dxbc::Dest::Null(),
+              dxbc::Dest::R(system_temp_rov_params_, 0b0010),
+              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
+              dxbc::Src::LU(edram_size_32bpp_samples));
 
     dxbc::Src rt_blend_factors_ops_src(LoadSystemConstant(
         SystemConstants::Index::kEdramRTBlendFactorsOps,
@@ -2225,10 +2261,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
         SystemConstants::Index::kEdramRTClamp,
         offsetof(SystemConstants, edram_rt_clamp) + sizeof(float) * 4 * i,
         dxbc::Src::kXYZW));
-    dxbc::Src rt_format_flags_src(LoadSystemConstant(
-        SystemConstants::Index::kEdramRTFormatFlags,
-        offsetof(SystemConstants, edram_rt_format_flags) + sizeof(uint32_t) * i,
-        dxbc::Src::kXXXX));
     // Get if not blending to pack the color once for all 4 samples.
     // temp.x = whether blending is disabled.
     a_.OpIEq(temp_x_dest, rt_blend_factors_ops_src, dxbc::Src::LU(0x00010001));
@@ -2341,28 +2373,29 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
         // Loading the previous color to temp.zw.
         // *********************************************************************
 
-        // Get if the format is 64bpp to temp.z.
-        // temp.z = whether the render target is 64bpp.
-        a_.OpAnd(temp_z_dest, rt_format_flags_src,
+        // Load the 32bpp color, or the lower 32 bits of the 64bpp color, to
+        // temp.z.
+        // temp.z = 32-bit packed color or lower 32 bits of the packed color.
+        if (uav_index_edram_ == kBindingIndexUnallocated) {
+          uav_index_edram_ = uav_count_++;
+        }
+        a_.OpLdUAVTyped(
+            temp_z_dest,
+            dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY), 1,
+            dxbc::Src::U(uav_index_edram_, uint32_t(UAVRegister::kEdram),
+                         dxbc::Src::kXXXX));
+        // Get if the format is 64bpp to temp.w.
+        // temp.w = whether the render target is 64bpp.
+        a_.OpAnd(temp_w_dest, rt_format_flags_src,
                  dxbc::Src::LU(kRTFormatFlag_64bpp));
         // Check if the format is 64bpp.
-        // temp.z = free.
-        a_.OpIf(true, temp_z_src);
+        // temp.w = free.
+        a_.OpIf(true, temp_w_src);
         {
-          // Load the lower 32 bits of the 64bpp color to temp.z.
-          // temp.z = lower 32 bits of the packed color.
-          if (uav_index_edram_ == kBindingIndexUnallocated) {
-            uav_index_edram_ = uav_count_++;
-          }
-          a_.OpLdUAVTyped(
-              temp_z_dest,
-              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kWWWW), 1,
-              dxbc::Src::U(uav_index_edram_, uint32_t(UAVRegister::kEdram),
-                           dxbc::Src::kXXXX));
           // Get the address of the upper 32 bits of the color to temp.w.
           // temp.w = address of the upper 32 bits of the packed color.
           a_.OpIAdd(temp_w_dest,
-                    dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kWWWW),
+                    dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
                     dxbc::Src::LU(1));
           // Load the upper 32 bits of the 64bpp color to temp.w.
           // temp.zw = packed destination color/alpha.
@@ -2377,16 +2410,6 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
         // The color is 32bpp.
         a_.OpElse();
         {
-          // Load the 32bpp color to temp.z.
-          // temp.z = packed 32bpp destination color.
-          if (uav_index_edram_ == kBindingIndexUnallocated) {
-            uav_index_edram_ = uav_count_++;
-          }
-          a_.OpLdUAVTyped(
-              temp_z_dest,
-              dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kZZZZ), 1,
-              dxbc::Src::U(uav_index_edram_, uint32_t(UAVRegister::kEdram),
-                           dxbc::Src::kXXXX));
           // Break register dependency in temp.w if the color is 32bpp.
           // temp.zw = packed destination color/alpha.
           a_.OpMov(temp_w_dest, dxbc::Src::LU(0));
@@ -2891,6 +2914,14 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       // Writing the color
       // ***********************************************************************
 
+      // Store the 32bpp color or the lower 32 bits of the 64bpp color.
+      if (uav_index_edram_ == kBindingIndexUnallocated) {
+        uav_index_edram_ = uav_count_++;
+      }
+      a_.OpStoreUAVTyped(
+          dxbc::Dest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
+          dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY), 1,
+          temp_x_src);
       // Get if the format is 64bpp to temp.z.
       // temp.z = whether the render target is 64bpp.
       a_.OpAnd(temp_z_dest, rt_format_flags_src,
@@ -2899,19 +2930,11 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       // temp.z = free.
       a_.OpIf(true, temp_z_src);
       {
-        // Store the lower 32 bits of the 64bpp color.
-        if (uav_index_edram_ == kBindingIndexUnallocated) {
-          uav_index_edram_ = uav_count_++;
-        }
-        a_.OpStoreUAVTyped(
-            dxbc::Dest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
-            dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kWWWW), 1,
-            temp_x_src);
         // Get the address of the upper 32 bits of the color to temp.z (can't
         // use temp.x because components when not blending, packing is done once
         // for all samples, so it has to be preserved).
         a_.OpIAdd(temp_z_dest,
-                  dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kWWWW),
+                  dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
                   dxbc::Src::LU(1));
         // Store the upper 32 bits of the 64bpp color.
         if (uav_index_edram_ == kBindingIndexUnallocated) {
@@ -2921,19 +2944,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
             dxbc::Dest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
             temp_z_src, 1, temp_y_src);
       }
-      // The color is 32bpp.
-      a_.OpElse();
-      {
-        // Store the 32bpp color.
-        if (uav_index_edram_ == kBindingIndexUnallocated) {
-          uav_index_edram_ = uav_count_++;
-        }
-        a_.OpStoreUAVTyped(
-            dxbc::Dest::U(uav_index_edram_, uint32_t(UAVRegister::kEdram)),
-            dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kZZZZ), 1,
-            temp_x_src);
-      }
-      // Close the 64bpp/32bpp conditional.
+      // Close the 64bpp conditional.
       a_.OpEndIf();
 
       // ***********************************************************************
@@ -2946,23 +2957,16 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       // Go to the next sample (samples are at +0, +(80*scale_x), +1,
       // +(80*scale_x+1), so need to do +(80*scale_x), -(80*scale_x-1),
       // +(80*scale_x) and -(80*scale_x+1) after each sample).
-      int32_t next_sample_distance =
-          (j & 1) ? -int32_t(tile_width) + 2 - j : int32_t(tile_width);
-      a_.OpIAdd(
-          dxbc::Dest::R(system_temp_rov_params_, 0b1100),
-          dxbc::Src::R(system_temp_rov_params_),
-          dxbc::Src::LI(0, 0, next_sample_distance, next_sample_distance));
+      // Though no need to do this for the last sample as for the next render
+      // target, the address will be recalculated.
+      if (j < 3) {
+        a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
+                  dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
+                  dxbc::Src::LI((j & 1) ? -int32_t(tile_width) + 2 - j
+                                        : int32_t(tile_width)));
+      }
     }
 
-    // Revert adding the EDRAM bases of the render target to
-    // system_temp_rov_params_.zw.
-    a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b1100),
-              dxbc::Src::R(system_temp_rov_params_),
-              -LoadSystemConstant(
-                  SystemConstants::Index::kEdramRTBaseDwordsScaled,
-                  offsetof(SystemConstants, edram_rt_base_dwords_scaled) +
-                      sizeof(uint32_t) * i,
-                  dxbc::Src::kXXXX));
     // Close the render target write check.
     a_.OpEndIf();
   }

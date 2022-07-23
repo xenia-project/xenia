@@ -41,7 +41,7 @@ xesl_entry_inputs_end_code_begin_compute
       XeHostDepthStoreRectUnscaledOrigin(rect_constant) * resolution_scale +
       (xesl_GlobalInvocationID.xy << xesl_uint2(3u, 0u)));
   uint edram_address_int4s =
-      XeEdramOffsetInts(xesl_uint2(pixel_index), 0u,
+      XeEdramOffsetInts(xesl_uint2(pixel_index), 0u, false,
                         XeHostDepthStoreRTPitchTiles(rt_constant),
                         kXenosMsaaSamples_1X, false, 0u, 0u,
                         resolution_scale)
