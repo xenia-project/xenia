@@ -680,3 +680,10 @@ DEFINE_OPCODE(
     OPCODE_SIG_V_V,
     0
 )
+
+DEFINE_OPCODE(
+	OPCODE_TO_SINGLE,
+	"to_single",
+	OPCODE_SIG_V_V,
+	0
+)

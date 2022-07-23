@@ -281,7 +281,10 @@ enum Opcode {
   OPCODE_ATOMIC_COMPARE_EXCHANGE,
   OPCODE_SET_ROUNDING_MODE,
   OPCODE_VECTOR_DENORMFLUSH,  // converts denormals to signed zeros in a vector
-  __OPCODE_MAX_VALUE,         // Keep at end.
+  OPCODE_TO_SINGLE,  // i could not find a decent name to assign to this opcode,
+                     // as we already have OPCODE_ROUND. round double to float (
+                     // ppc "single" fpu instruction result rounding behavior )
+  __OPCODE_MAX_VALUE,  // Keep at end.
 };
 
 enum OpcodeFlags {
@@ -352,7 +355,9 @@ static bool IsOpcodeBinaryValue(uint32_t signature) {
   return (signature & ~(0x7)) ==
          ((OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_V << 6));
 }
-
+static bool IsOpcodeUnaryValue(uint32_t signature) {
+  return (signature & ~(0x7)) == ((OPCODE_SIG_TYPE_V << 3));
+}
 static void UnpackOpcodeSig(uint32_t sig, OpcodeSignatureType& dest,
                             OpcodeSignatureType& src1,
                             OpcodeSignatureType& src2,

@@ -10,6 +10,7 @@
 #include "xenia/cpu/compiler/passes/simplification_pass.h"
 
 #include "xenia/base/byte_order.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
 namespace xe {
 namespace cpu {
@@ -82,7 +83,7 @@ bool SimplificationPass::Run(HIRBuilder* builder, bool& result) {
     iter_result |= SimplifyBitArith(builder);
     iter_result |= EliminateConversions(builder);
     iter_result |= SimplifyAssignments(builder);
-    iter_result |= BackpropTruncations(builder);
+
     result |= iter_result;
   } while (iter_result);
   return true;
@@ -1207,71 +1208,6 @@ bool SimplificationPass::SimplifyAssignments(HIRBuilder* builder) {
   return result;
 }
 
-struct TruncateSimplifier {
-  TypeName type_from, type_to;
-  uint32_t sizeof_from, sizeof_to;
-  uint32_t bit_sizeof_from, bit_sizeof_to;
-  uint64_t typemask_from, typemask_to;
-  hir::HIRBuilder* builder;
-  hir::Instr* truncate_instr;
-  hir::Value* truncated_value;
-  hir::Instr* truncated_value_def;
-};
-bool SimplificationPass::BackpropTruncations(hir::Instr* i,
-                                             hir::HIRBuilder* builder) {
-  if (i->opcode != &OPCODE_TRUNCATE_info) {
-    return false;
-  }
-  TypeName type_from = i->src1.value->type;
-  TypeName type_to = i->dest->type;
-
-  uint32_t sizeof_from = static_cast<uint32_t>(GetTypeSize(type_from));
-  uint32_t sizeof_to = static_cast<uint32_t>(GetTypeSize(type_to));
-
-  Instr* input_def = i->src1.value->GetDefSkipAssigns();
-  if (!input_def) {
-    return false;
-  }
-  Opcode input_opc = input_def->opcode->num;
-
-  if (input_opc == OPCODE_SHL && input_def->src2.value->IsConstant()) {
-    uint32_t src2_shift = input_def->src2.value->AsUint32();
-    if (src2_shift < (sizeof_to * CHAR_BIT)) {
-      Value* truncated_preshift =
-          builder->Truncate(input_def->src1.value, type_to);
-
-      truncated_preshift->def->MoveBefore(i);
-      i->Replace(&OPCODE_SHL_info, 0);
-      i->set_src1(truncated_preshift);
-      i->set_src2(input_def->src2.value);
-      return true;
-    }
-  }
-  if (input_opc == OPCODE_LOAD_CONTEXT) {
-    if (sizeof_from == 8 && sizeof_to == 4) {
-      Value* loadof = builder->LoadContext(input_def->src1.offset, INT32_TYPE);
-      loadof->def->MoveBefore(input_def);
-      i->Replace(&OPCODE_ASSIGN_info, 0);
-      i->set_src1(loadof);
-      return true;
-    }
-  }
-
-  return false;
-}
-bool SimplificationPass::BackpropTruncations(hir::HIRBuilder* builder) {
-  bool result = false;
-  auto block = builder->first_block();
-  while (block) {
-    auto i = block->instr_head;
-    while (i) {
-      result |= BackpropTruncations(i, builder);
-      i = i->next;
-    }
-    block = block->next;
-  }
-  return result;
-}
 Value* SimplificationPass::CheckValue(Value* value, bool& result) {
   auto def = value->def;
   if (def && def->opcode == &OPCODE_ASSIGN_info) {

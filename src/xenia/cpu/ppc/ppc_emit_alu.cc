@@ -336,6 +336,7 @@ int InstrEmit_mulhwx(PPCHIRBuilder& f, const InstrData& i) {
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+
   Value* v = f.SignExtend(f.MulHi(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE),
                                   f.Truncate(f.LoadGPR(i.XO.RB), INT32_TYPE)),
                           INT64_TYPE);
@@ -353,6 +354,7 @@ int InstrEmit_mulhwux(PPCHIRBuilder& f, const InstrData& i) {
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+
   Value* v = f.ZeroExtend(
       f.MulHi(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE),
               f.Truncate(f.LoadGPR(i.XO.RB), INT32_TYPE), ARITHMETIC_UNSIGNED),

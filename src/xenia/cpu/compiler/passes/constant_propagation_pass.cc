@@ -749,7 +749,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             result = true;
           }
           break;
-       
+
         case OPCODE_PERMUTE: {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant() &&
               i->src3.value->IsConstant() &&
@@ -760,17 +760,20 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             result = true;
           }
 
-          else if (i->src2.value->IsConstantZero() && i->src3.value->IsConstantZero() &&
+          else if (i->src2.value->IsConstantZero() &&
+                   i->src3.value->IsConstantZero() &&
                    i->flags == INT8_TYPE /*probably safe for int16 too*/) {
             /*
-                chrispy: hoisted this check here from x64_seq_vector where if src1 is not constant, but src2 and src3 are zero, then we know the result will always be zero
+                chrispy: hoisted this check here from x64_seq_vector where if
+               src1 is not constant, but src2 and src3 are zero, then we know
+               the result will always be zero
             */
 
             v->set_zero(VEC128_TYPE);
             i->Remove();
             result = true;
           }
-          
+
           break;
         }
         case OPCODE_INSERT:
@@ -926,6 +929,14 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->DenormalFlush();
+            i->Remove();
+            result = true;
+          }
+          break;
+        case OPCODE_TO_SINGLE:
+          if (i->src1.value->IsConstant()) {
+            v->set_from(i->src1.value);
+            v->ToSingle();
             i->Remove();
             result = true;
           }

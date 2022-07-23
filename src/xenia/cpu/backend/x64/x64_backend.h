@@ -31,6 +31,16 @@ typedef void* (*HostToGuestThunk)(void* target, void* arg0, void* arg1);
 typedef void* (*GuestToHostThunk)(void* target, void* arg0, void* arg1);
 typedef void (*ResolveFunctionThunk)();
 
+// located prior to the ctx register
+// some things it would be nice to have be per-emulator instance instead of per
+// context (somehow placing a global X64BackendCtx prior to membase, so we can
+// negatively index the membase reg)
+struct X64BackendContext {
+  void* ResolveFunction_Ptr;  // cached pointer to resolvefunction
+  unsigned int Ox1000;  // constant 0x1000 so we can shrink each tail emitted
+                        // add of it by... 2 bytes lol
+};
+
 class X64Backend : public Backend {
  public:
   static const uint32_t kForceReturnAddress = 0x9FFF0000u;
@@ -65,6 +75,7 @@ class X64Backend : public Backend {
   void InstallBreakpoint(Breakpoint* breakpoint) override;
   void InstallBreakpoint(Breakpoint* breakpoint, Function* fn) override;
   void UninstallBreakpoint(Breakpoint* breakpoint) override;
+  virtual void InitializeBackendContext(void* ctx) override;
 
  private:
   static bool ExceptionCallbackThunk(Exception* ex, void* data);

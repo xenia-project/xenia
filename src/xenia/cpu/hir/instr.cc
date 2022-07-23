@@ -180,6 +180,26 @@ exit_loop:
   *tunnel_flags = traversed_types;
   return current_def;
 }
+bool Instr::IsFake() const {
+  Opcode num = opcode->num;
+  switch (num) {
+    case OPCODE_NOP:
+    case OPCODE_COMMENT:
+    case OPCODE_CONTEXT_BARRIER:
+    case OPCODE_SOURCE_OFFSET:
+      return true;
+  }
+  return false;
+}
+
+const Instr* Instr::GetNonFakePrev() const {
+  const Instr* curr = prev;
+
+  while (curr && curr->IsFake()) {
+    curr = curr->prev;
+  }
+  return curr;
+}
 }  // namespace hir
 }  // namespace cpu
 }  // namespace xe
