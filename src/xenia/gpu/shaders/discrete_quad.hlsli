@@ -1,8 +1,8 @@
 #include "xenos_draw.hlsli"
 
 struct XeHSConstantDataOutput {
-  float edges[3] : SV_TessFactor;
-  float inside : SV_InsideTessFactor;
+  float edges[4] : SV_TessFactor;
+  float inside[2] : SV_InsideTessFactor;
 };
 
 XeHSConstantDataOutput XePatchConstant() {
@@ -15,23 +15,29 @@ XeHSConstantDataOutput XePatchConstant() {
 
   // Don't calculate any variables for SV_TessFactor outside of this loop, or
   // everything will be broken - FXC will add code to make it calculated only
-  // once for all 3 fork instances, but doesn't do it properly.
-  [unroll] for (i = 0u; i < 3u; ++i) {
+  // once for all 4 fork instances, but doesn't do it properly.
+  [unroll] for (i = 0u; i < 4u; ++i) {
     output.edges[i] = xe_tessellation_factor_range.y;
   }
 
-  output.inside = xe_tessellation_factor_range.y;
+  // Don't calculate any variables for SV_InsideTessFactor outside of this loop,
+  // or everything will be broken - FXC will add code to make it calculated only
+  // once for all 2 fork instances, but doesn't do it properly.
+  [unroll] for (i = 0u; i < 2u; ++i) {
+    output.inside[i] = xe_tessellation_factor_range.y;
+  }
 
   return output;
 }
 
-[domain("tri")]
-[partitioning("fractional_even")]
+[domain("quad")]
+[partitioning("integer")]
 [outputtopology("triangle_cw")]
-[outputcontrolpoints(3)]
+[outputcontrolpoints(XE_TESSELLATION_CONTROL_POINT_COUNT)]
 [patchconstantfunc("XePatchConstant")]
 XeHSControlPointOutput main(
-    InputPatch<XeHSControlPointInputIndexed, 3> xe_input_patch,
+    InputPatch<XeHSControlPointInputIndexed,
+               XE_TESSELLATION_CONTROL_POINT_COUNT> xe_input_patch,
     uint xe_control_point_id : SV_OutputControlPointID) {
   XeHSControlPointOutput output;
   output.index = xe_input_patch[xe_control_point_id].index;

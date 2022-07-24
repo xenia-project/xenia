@@ -31,12 +31,13 @@ XeHSConstantDataOutput XePatchConstant() {
 }
 
 [domain("quad")]
-[partitioning("integer")]
+[partitioning("fractional_even")]
 [outputtopology("triangle_cw")]
-[outputcontrolpoints(4)]
+[outputcontrolpoints(XE_TESSELLATION_CONTROL_POINT_COUNT)]
 [patchconstantfunc("XePatchConstant")]
 XeHSControlPointOutput main(
-    InputPatch<XeHSControlPointInputIndexed, 4> xe_input_patch,
+    InputPatch<XeHSControlPointInputIndexed,
+               XE_TESSELLATION_CONTROL_POINT_COUNT> xe_input_patch,
     uint xe_control_point_id : SV_OutputControlPointID) {
   XeHSControlPointOutput output;
   output.index = xe_input_patch[xe_control_point_id].index;

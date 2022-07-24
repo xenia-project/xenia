@@ -77,21 +77,26 @@
 //
 // Tessellation Domain   # of control points
 // -------------------- --------------------
-// Quadrilateral                           4
+// Quadrilateral                           1
 //
 // Tessellation Output Primitive  Partitioning Type 
 // ------------------------------ ------------------
-// Clockwise Triangles            Integer           
+// Clockwise Triangles            Even Fractional   
 //
 hs_5_1
 hs_decls 
-dcl_input_control_point_count 4
-dcl_output_control_point_count 4
+dcl_input_control_point_count 1
+dcl_output_control_point_count 1
 dcl_tessellator_domain domain_quad
-dcl_tessellator_partitioning partitioning_integer
+dcl_tessellator_partitioning partitioning_fractional_even
 dcl_tessellator_output_primitive output_triangle_cw
 dcl_globalFlags refactoringAllowed
 dcl_constantbuffer CB0[0:0][1], immediateIndexed, space=0
+hs_control_point_phase 
+dcl_input v[1][0].x
+dcl_output o0.x
+mov o0.x, v[0][0].x
+ret 
 hs_fork_phase 
 dcl_hs_fork_phase_instance_count 4
 dcl_input vForkInstanceID
@@ -114,20 +119,20 @@ dcl_indexrange o4.x 2
 mov r0.x, vForkInstanceID.x
 mov o[r0.x + 4].x, CB0[0][0].z
 ret 
-// Approximately 6 instruction slots used
+// Approximately 8 instruction slots used
 #endif
 
-const BYTE discrete_quad_hs[] =
+const BYTE continuous_quad_1cp_hs[] =
 {
-     68,  88,  66,  67, 192,  34, 
-     77,  20,  70, 107, 155,  33, 
-    163,  40, 168, 219, 244,   3, 
-    133, 198,   1,   0,   0,   0, 
-    160,  13,   0,   0,   6,   0, 
+     68,  88,  66,  67, 255, 166, 
+     36,  40, 167,  89,  99,  45, 
+     74,  91, 165,  30, 112,  56, 
+     14, 246,   1,   0,   0,   0, 
+    220,  13,   0,   0,   6,   0, 
       0,   0,  56,   0,   0,   0, 
     108,  10,   0,   0, 160,  10, 
       0,   0, 212,  10,   0,   0, 
-    152,  11,   0,   0,   4,  13, 
+    152,  11,   0,   0,  64,  13, 
       0,   0,  82,  68,  69,  70, 
      44,  10,   0,   0,   1,   0, 
       0,   0, 120,   0,   0,   0, 
@@ -614,18 +619,28 @@ const BYTE discrete_quad_hs[] =
     105, 100, 101,  84, 101, 115, 
     115,  70,  97,  99, 116, 111, 
     114,   0, 171, 171,  83,  72, 
-     69,  88, 100,   1,   0,   0, 
-     81,   0,   3,   0,  89,   0, 
+     69,  88, 160,   1,   0,   0, 
+     81,   0,   3,   0, 104,   0, 
       0,   0, 113,   0,   0,   1, 
-    147,  32,   0,   1, 148,  32, 
+    147,   8,   0,   1, 148,   8, 
       0,   1, 149,  24,   0,   1, 
-    150,   8,   0,   1, 151,  24, 
+    150,  32,   0,   1, 151,  24, 
       0,   1, 106,   8,   0,   1, 
      89,   0,   0,   7,  70, 142, 
      48,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   1,   0,   0,   0, 
-      0,   0,   0,   0, 115,   0, 
+      0,   0,   0,   0, 114,   0, 
+      0,   1,  95,   0,   0,   4, 
+     18,  16,  32,   0,   1,   0, 
+      0,   0,   0,   0,   0,   0, 
+    101,   0,   0,   3,  18,  32, 
+     16,   0,   0,   0,   0,   0, 
+     54,   0,   0,   6,  18,  32, 
+     16,   0,   0,   0,   0,   0, 
+     10,  16,  32,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+     62,   0,   0,   1, 115,   0, 
       0,   1, 153,   0,   0,   2, 
       4,   0,   0,   0,  95,   0, 
       0,   2,   0, 112,   1,   0, 
@@ -675,29 +690,29 @@ const BYTE discrete_quad_hs[] =
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,  62,   0, 
       0,   1,  83,  84,  65,  84, 
-    148,   0,   0,   0,   6,   0, 
+    148,   0,   0,   0,   8,   0, 
       0,   0,   1,   0,   0,   0, 
       0,   0,   0,   0,   5,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
-      0,   0,   2,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   4,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-     11,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   4,   0, 
       0,   0,   3,   0,   0,   0, 
-      1,   0,   0,   0,   3,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   5,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      8,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   1,   0, 
+      0,   0,   3,   0,   0,   0, 
+      4,   0,   0,   0,   3,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0

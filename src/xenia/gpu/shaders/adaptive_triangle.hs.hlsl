@@ -51,12 +51,17 @@ XeHSConstantDataOutput XePatchConstant(
 [domain("tri")]
 [partitioning("fractional_even")]
 [outputtopology("triangle_cw")]
-[outputcontrolpoints(3)]
+[outputcontrolpoints(1)]
 [patchconstantfunc("XePatchConstant")]
 XeHSControlPointOutput main(
-    InputPatch<XeHSControlPointInputAdaptive, 3> xe_input_patch) {
+    InputPatch<XeHSControlPointInputAdaptive, 3> xe_input_patch,
+    uint xe_primitive_id : SV_PrimitiveID) {
   XeHSControlPointOutput output;
-  // Not used with control point indices.
-  output.index = 0.0f;
+  // Only the lower 24 bits of the vertex index are used (tested on an Adreno
+  // 200 phone). `((index & 0xFFFFFF) + offset) & 0xFFFFFF` is the same as
+  // `(index + offset) & 0xFFFFFF`.
+  output.index =
+      float(clamp((xe_primitive_id + xe_vertex_index_offset) & 0xFFFFFFu,
+                  xe_vertex_index_min_max.x, xe_vertex_index_min_max.y));
   return output;
 }
