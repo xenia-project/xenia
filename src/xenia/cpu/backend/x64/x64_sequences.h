@@ -13,6 +13,8 @@
 #include "xenia/cpu/hir/instr.h"
 
 #include <unordered_map>
+#define assert_impossible_sequence(name) \
+  assert_always("impossible sequence hit" #name);
 
 namespace xe {
 namespace cpu {

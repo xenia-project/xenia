@@ -688,7 +688,12 @@ void X64ThunkEmitter::EmitLoadNonvolatileRegs() {
   vmovaps(xmm15, qword[rsp + offsetof(StackLayout::Thunk, xmm[9])]);
 #endif
 }
-
+void X64Backend::InitializeBackendContext(void* ctx) {
+  X64BackendContext* bctx = reinterpret_cast<X64BackendContext*>(
+      reinterpret_cast<intptr_t>(ctx) - sizeof(X64BackendContext));
+  bctx->ResolveFunction_Ptr = reinterpret_cast<void*>(&ResolveFunction);
+  bctx->Ox1000 = 0x1000;
+}
 }  // namespace x64
 }  // namespace backend
 }  // namespace cpu

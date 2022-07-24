@@ -379,7 +379,7 @@ typedef struct alignas(64) PPCContext_s {
   uint64_t lr;      // 0x10 Link register
   double f[32];     // 0x120 Floating-point registers
   vec128_t v[128];  // 0x220 VMX128 vector registers
-
+  vec128_t vscr_vec;
   // XER register:
   // Split to make it easier to do individual updates.
   uint8_t xer_ca;
@@ -422,7 +422,7 @@ typedef struct alignas(64) PPCContext_s {
   // Value of last reserved load
   uint64_t reserved_val;
   ThreadState* thread_state;
-  uint8_t* virtual_membase;  
+  uint8_t* virtual_membase;
   static std::string GetRegisterName(PPCRegister reg);
   std::string GetStringFromValue(PPCRegister reg) const;
   void SetValueFromString(PPCRegister reg, std::string value);
@@ -432,6 +432,7 @@ typedef struct alignas(64) PPCContext_s {
                             std::string& result) const;
 } PPCContext;
 #pragma pack(pop)
+constexpr size_t ppcctx_size = sizeof(PPCContext);
 static_assert(sizeof(PPCContext) % 64 == 0, "64b padded");
 
 }  // namespace ppc

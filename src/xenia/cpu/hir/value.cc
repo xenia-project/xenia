@@ -1643,6 +1643,11 @@ void Value::DenormalFlush() {
     constant.v128.u32[i] = current_element;
   }
 }
+void Value::ToSingle() {
+  assert_true(type == FLOAT64_TYPE);
+
+  constant.f64 = static_cast<double>(static_cast<float>(constant.f64));
+}
 void Value::CountLeadingZeros(const Value* other) {
   switch (other->type) {
     case INT8_TYPE:
@@ -1804,6 +1809,25 @@ hir::Instr* Value::GetDefTunnelMovs(unsigned int* tunnel_flags) {
   } else {
     return nullptr;
   }
+}
+// does the value only have one instr that uses it?
+bool Value::HasSingleUse() const {
+  return use_head && use_head->next == nullptr;
+}
+bool Value::AllUsesByOneInsn() const {
+  if (!use_head) {
+    return false;
+  }
+  const Use* first_use = use_head;
+  const Instr* should_match = first_use->instr;
+
+  for (const Use* current_use = first_use->next; current_use;
+       current_use = current_use->next) {
+    if (current_use->instr != should_match) {
+      return false;
+    }
+  }
+  return true;
 }
 }  // namespace hir
 }  // namespace cpu

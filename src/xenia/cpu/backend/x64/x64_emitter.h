@@ -155,7 +155,15 @@ enum XmmConst {
   XMMLVSRTableBase,
   XMMSingleDenormalMask,
   XMMThreeFloatMask,  // for clearing the fourth float prior to DOT_PRODUCT_3
-  XMMXenosF16ExtRangeStart
+  XMMXenosF16ExtRangeStart,
+  XMMVSRShlByteshuf,
+  XMMVSRMask
+};
+// X64Backend specific Instr->runtime_flags
+enum : uint32_t {
+  INSTR_X64_FLAGS_ELIMINATED =
+      1,  // another sequence marked this instruction as not needing codegen,
+          // meaning they likely already handled it
 };
 
 // Unfortunately due to the design of xbyak we have to pass this to the ctor.
@@ -185,7 +193,13 @@ enum X64EmitterFeatureFlags {
   kX64FastJrcx = 1 << 12,  // jrcxz is as fast as any other jump ( >= Zen1)
   kX64FastLoop =
       1 << 13,  // loop/loope/loopne is as fast as any other jump ( >= Zen2)
-  kX64EmitAVX512VBMI = 1 << 14
+  kX64EmitAVX512VBMI = 1 << 14,
+  kX64FlagsIndependentVars =
+      1 << 15,  // if true, instructions that only modify some flags (like
+                // inc/dec) do not introduce false dependencies on EFLAGS
+                // because the individual flags are treated as different vars by
+                // the processor. (this applies to zen)
+  kX64EmitPrefetchW = 1 << 16
 };
 class ResolvableGuestCall {
  public:
@@ -193,6 +207,13 @@ class ResolvableGuestCall {
   uintptr_t destination_;
   // rgcid
   unsigned offset_;
+};
+class X64Emitter;
+using TailEmitCallback = std::function<void(X64Emitter& e, Xbyak::Label& lbl)>;
+struct TailEmitter {
+  Xbyak::Label label;
+  uint32_t alignment;
+  TailEmitCallback func;
 };
 
 class X64Emitter : public Xbyak::CodeGenerator {
@@ -264,7 +285,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   Xbyak::Reg64 GetContextReg();
   Xbyak::Reg64 GetMembaseReg();
-
+  bool CanUseMembaseLow32As0() const { return may_use_membase32_as_zero_reg_; }
   void ReloadMembase();
 
   void nop(size_t length = 1);
@@ -274,6 +295,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void MovMem64(const Xbyak::RegExp& addr, uint64_t v);
 
   Xbyak::Address GetXmmConstPtr(XmmConst id);
+  Xbyak::Address GetBackendCtxPtr(int offset_in_x64backendctx);
+
   void LoadConstantXmm(Xbyak::Xmm dest, float v);
   void LoadConstantXmm(Xbyak::Xmm dest, double v);
   void LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v);
@@ -289,6 +312,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
     return (feature_flags_ & feature_flag) == feature_flag;
   }
 
+  Xbyak::Label& AddToTail(TailEmitCallback callback, uint32_t alignment = 0);
+  Xbyak::Label& NewCachedLabel();
   FunctionDebugInfo* debug_info() const { return debug_info_; }
 
   size_t stack_size() const { return stack_size_; }
@@ -324,6 +349,16 @@ class X64Emitter : public Xbyak::CodeGenerator {
   static const uint32_t xmm_reg_map_[XMM_COUNT];
   uint32_t current_rgc_id_ = 0xEEDDF00F;
   std::vector<ResolvableGuestCall> call_sites_;
+  /*
+    set to true if the low 32 bits of membase == 0.
+    only really advantageous if you are storing 32 bit 0 to a displaced address,
+    which would have to represent 0 as 4 bytes
+  */
+  bool may_use_membase32_as_zero_reg_;
+  std::vector<TailEmitter> tail_code_;
+  std::vector<Xbyak::Label*>
+      label_cache_;  // for creating labels that need to be referenced much
+                     // later by tail emitters
 };
 
 }  // namespace x64

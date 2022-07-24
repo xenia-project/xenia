@@ -355,13 +355,18 @@ int InstrEmit_stvrxl128(PPCHIRBuilder& f, const InstrData& i) {
 }
 
 int InstrEmit_mfvscr(PPCHIRBuilder& f, const InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // is this the right format?
+
+  f.StoreVR(i.VX128_1.RB,
+            f.LoadContext(offsetof(PPCContext, vscr_vec), VEC128_TYPE));
+  return 0;
 }
 
 int InstrEmit_mtvscr(PPCHIRBuilder& f, const InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // is this the right format?
+  Value* v = f.LoadVR(i.VX128_1.RB);
+  f.StoreContext(offsetof(PPCContext, vscr_vec), v);
+  return 0;
 }
 
 int InstrEmit_vaddcuw(PPCHIRBuilder& f, const InstrData& i) {
@@ -1105,7 +1110,7 @@ int InstrEmit_vmsum3fp128(PPCHIRBuilder& f, const InstrData& i) {
   // Dot product XYZ.
   // (VD.xyzw) = (VA.x * VB.x) + (VA.y * VB.y) + (VA.z * VB.z)
   Value* v = f.DotProduct3(f.LoadVR(VX128_VA128), f.LoadVR(VX128_VB128));
-  //chrispy: denormal outputs for Dot product are unconditionally made 0
+  // chrispy: denormal outputs for Dot product are unconditionally made 0
   v = f.VectorDenormFlush(v);
   f.StoreVR(VX128_VD128, v);
   return 0;
