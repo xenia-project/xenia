@@ -150,7 +150,6 @@ void DxbcShaderTranslator::Reset() {
   in_reg_ps_front_face_sample_index_ = UINT32_MAX;
 
   in_domain_location_used_ = 0;
-  in_primitive_id_used_ = false;
   in_control_point_index_used_ = false;
   in_position_used_ = 0;
   in_front_face_used_ = false;
@@ -523,18 +522,14 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
                                                   : dxbc::Dest::R(0, 0b0111),
                  dxbc::Src::VDomain(0b000110));
         if (register_count() >= 2) {
-          // Remap and write the primitive index to r1.x as floating-point.
-          uint32_t primitive_id_temp =
-              uses_register_dynamic_addressing ? PushSystemTemp() : 1;
-          in_primitive_id_used_ = true;
-          RemapAndConvertVertexIndices(primitive_id_temp, 0b0001,
-                                       dxbc::Src::VPrim());
-          if (uses_register_dynamic_addressing) {
-            a_.OpMov(dxbc::Dest::X(0, 1, 0b0001),
-                     dxbc::Src::R(primitive_id_temp, dxbc::Src::kXXXX));
-            // Release primitive_id_temp.
-            PopSystemTemp();
-          }
+          // Copy the patch index (already swapped and converted to float by the
+          // host vertex and hull shaders) to r1.x.
+          in_control_point_index_used_ = true;
+          a_.OpMov(uses_register_dynamic_addressing
+                       ? dxbc::Dest::X(0, 1, 0b0001)
+                       : dxbc::Dest::R(1, 0b0001),
+                   dxbc::Src::VICP(0, kInRegisterDSControlPointIndex,
+                                   dxbc::Src::kXXXX));
           // Write the swizzle of the barycentric coordinates to r1.y. It
           // appears that the tessellator offloads the reordering of coordinates
           // for edges to game shaders.
@@ -604,19 +599,13 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
         a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 0, 0b0110)
                                                   : dxbc::Dest::R(0, 0b0110),
                  dxbc::Src::VDomain(0b010000));
-        // Remap and write the primitive index to r0.x as floating-point.
-        // 4D5307F1 ground quad patches use the primitive index offset.
-        uint32_t primitive_id_temp =
-            uses_register_dynamic_addressing ? PushSystemTemp() : 0;
-        in_primitive_id_used_ = true;
-        RemapAndConvertVertexIndices(primitive_id_temp, 0b0001,
-                                     dxbc::Src::VPrim());
-        if (uses_register_dynamic_addressing) {
-          a_.OpMov(dxbc::Dest::X(0, 0, 0b0001),
-                   dxbc::Src::R(primitive_id_temp, dxbc::Src::kXXXX));
-          // Release primitive_id_temp.
-          PopSystemTemp();
-        }
+        // Copy the patch index (already swapped and converted to float by the
+        // host vertex and hull shaders) to r0.x.
+        in_control_point_index_used_ = true;
+        a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, 0, 0b0001)
+                                                  : dxbc::Dest::R(0, 0b0001),
+                 dxbc::Src::VICP(0, kInRegisterDSControlPointIndex,
+                                 dxbc::Src::kXXXX));
         if (register_count() >= 2) {
           // Write the swizzle of the UV coordinates to r1.x. It appears that
           // the tessellator offloads the reordering of coordinates for edges to
@@ -2763,10 +2752,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
   } else if (IsDxbcDomainShader()) {
     // Control point indices, byte-swapped, biased according to the base index
     // and converted to float by the host vertex and hull shaders
-    // (XEVERTEXID). Needed even for patch-indexed tessellation modes because
-    // hull and domain shaders have strict linkage requirements, all hull shader
-    // outputs must be declared in a domain shader, and the same hull shaders
-    // are used for control-point-indexed and patch-indexed tessellation modes.
+    // (XEVERTEXID).
     size_t control_point_index_position = shader_object_.size();
     shader_object_.resize(shader_object_.size() + kParameterDwords);
     ++parameter_count;
@@ -3351,21 +3337,25 @@ void DxbcShaderTranslator::WriteShaderCode() {
 
   Modification shader_modification = GetDxbcShaderModification();
 
+  uint32_t control_point_count = 1;
   if (IsDxbcDomainShader()) {
-    // Not using control point data since Xenos only has a vertex shader acting
-    // as both vertex shader and domain shader.
-    uint32_t control_point_count = 3;
     dxbc::TessellatorDomain tessellator_domain =
         dxbc::TessellatorDomain::kTriangle;
     switch (shader_modification.vertex.host_vertex_shader_type) {
       case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
-      case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
         control_point_count = 3;
         tessellator_domain = dxbc::TessellatorDomain::kTriangle;
         break;
+      case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
+        control_point_count = 1;
+        tessellator_domain = dxbc::TessellatorDomain::kTriangle;
+        break;
       case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
-      case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
         control_point_count = 4;
+        tessellator_domain = dxbc::TessellatorDomain::kQuad;
+        break;
+      case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
+        control_point_count = 1;
         tessellator_domain = dxbc::TessellatorDomain::kQuad;
         break;
       default:
@@ -3543,30 +3533,9 @@ void DxbcShaderTranslator::WriteShaderCode() {
         // Domain location input.
         ao_.OpDclInput(dxbc::Dest::VDomain(in_domain_location_used_));
       }
-      if (in_primitive_id_used_) {
-        // Primitive (patch) index input.
-        ao_.OpDclInput(dxbc::Dest::VPrim());
-      }
       if (in_control_point_index_used_) {
-        // Control point indices as float input.
-        uint32_t control_point_array_size = 3;
-        switch (shader_modification.vertex.host_vertex_shader_type) {
-          case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
-            control_point_array_size = 3;
-            break;
-          case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
-            control_point_array_size = 4;
-            break;
-          default:
-            // TODO(Triang3l): Support line patches.
-            assert_unhandled_case(
-                shader_modification.vertex.host_vertex_shader_type);
-            EmitTranslationError(
-                "Unsupported host vertex shader type in "
-                "StartVertexOrDomainShader");
-        }
         ao_.OpDclInput(dxbc::Dest::VICP(
-            control_point_array_size, kInRegisterDSControlPointIndex, 0b0001));
+            control_point_count, kInRegisterDSControlPointIndex, 0b0001));
       }
     } else {
       if (register_count()) {

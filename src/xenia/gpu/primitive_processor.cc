@@ -222,8 +222,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
   // Parse the primitive type and the tessellation state (VGT_OUTPUT_PATH_CNTL
   // is only used in the explicit major mode) - there are cases in games when
   // this register is left over after usage of tessellation in draws that don't
-  // need it. Also perform needed vertex count adjustments based on the
-  // primitive type.
+  // need it.
   xenos::PrimitiveType guest_primitive_type = vgt_draw_initiator.prim_type;
   xenos::PrimitiveType host_primitive_type = guest_primitive_type;
   bool tessellation_enabled =
@@ -234,7 +233,6 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
   xenos::TessellationMode tessellation_mode =
       regs.Get<reg::VGT_HOS_CNTL>().tess_mode;
   Shader::HostVertexShaderType host_vertex_shader_type;
-  uint32_t guest_draw_vertex_count = vgt_draw_initiator.num_indices;
   if (tessellation_enabled) {
     // Currently only supporting tessellation in known cases for safety, and not
     // yet converting patch strips / fans to patch lists until games using them
@@ -291,29 +289,12 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         // - 4D5307ED - water - adaptive.
         host_vertex_shader_type =
             Shader::HostVertexShaderType::kTriangleDomainPatchIndexed;
-        // See the comment about the rounding for kQuadPatch.
-        guest_draw_vertex_count =
-            xe::round_up(guest_draw_vertex_count, uint32_t(3), false);
         break;
       case xenos::PrimitiveType::kQuadPatch:
         // - 4D5307F1 - ground - continuous.
         // - 4D5307F2 - garden ground - adaptive.
         host_vertex_shader_type =
             Shader::HostVertexShaderType::kQuadDomainPatchIndexed;
-        // While it's known that num_indices represents the control point count
-        // (4D5307E6, for example, for water triangle patches, performs N
-        // invocations of the memexporting shader calculating the edge
-        // tessellation factors for one patch, and then draws the water with
-        // num_indices = 3 * N), 4D5307F1 ground is drawn with num_indices = 1
-        // rather than 4. Unlike Direct3D 11 tessellation, where the patch count
-        // is `floor(vertex count / control points per patch)`, on the Xenos,
-        // the count appears to be `ceil` of that value (like a
-        // `for (i = 0; i < num_indices; i += 4)` loop is used to emit the
-        // patches). It's unlikely, however, that this adjustment should also be
-        // done for regular primitive types with tessellation enabled, as
-        // they're handled as usual primitive topologies, just post-tessellated.
-        guest_draw_vertex_count =
-            xe::align(guest_draw_vertex_count, uint32_t(4));
         break;
       default:
         // TODO(Triang3l): Support line patches.
@@ -365,6 +346,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
   }
 
   // Process the indices.
+  uint32_t guest_draw_vertex_count = vgt_draw_initiator.num_indices;
   auto vgt_dma_size = regs.Get<reg::VGT_DMA_SIZE>();
   if (vgt_draw_initiator.source_select == xenos::SourceSelect::kDMA &&
       guest_draw_vertex_count > vgt_dma_size.num_words) {
