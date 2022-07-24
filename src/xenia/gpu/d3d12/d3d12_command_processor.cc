@@ -2432,12 +2432,24 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     switch (primitive_processing_result.host_primitive_type) {
       // TODO(Triang3l): Support all primitive types.
       case xenos::PrimitiveType::kTriangleList:
-      case xenos::PrimitiveType::kTrianglePatch:
         primitive_topology = D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
         break;
       case xenos::PrimitiveType::kQuadList:
-      case xenos::PrimitiveType::kQuadPatch:
         primitive_topology = D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST;
+        break;
+      case xenos::PrimitiveType::kTrianglePatch:
+        primitive_topology =
+            (regs.Get<reg::VGT_HOS_CNTL>().tess_mode ==
+             xenos::TessellationMode::kAdaptive)
+                ? D3D_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST
+                : D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST;
+        break;
+      case xenos::PrimitiveType::kQuadPatch:
+        primitive_topology =
+            (regs.Get<reg::VGT_HOS_CNTL>().tess_mode ==
+             xenos::TessellationMode::kAdaptive)
+                ? D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST
+                : D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST;
         break;
       default:
         XELOGE(

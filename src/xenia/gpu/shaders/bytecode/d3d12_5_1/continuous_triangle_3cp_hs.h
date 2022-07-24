@@ -108,7 +108,7 @@ ret
 // Approximately 5 instruction slots used
 #endif
 
-const BYTE continuous_triangle_hs[] =
+const BYTE continuous_triangle_3cp_hs[] =
 {
      68,  88,  66,  67,  40,  16, 
      64, 130, 119, 149, 137,   0, 

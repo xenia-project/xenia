@@ -1106,8 +1106,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
   // Mask of domain location actually used in the domain shader.
   uint32_t in_domain_location_used_;
-  // Whether the primitive ID has been used in the domain shader.
-  bool in_primitive_id_used_;
   // Whether kInRegisterDSControlPointIndex has been used in the shader.
   bool in_control_point_index_used_;
   // Mask of the pixel/sample position actually used in the pixel shader.

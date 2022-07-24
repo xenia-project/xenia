@@ -9,13 +9,9 @@ XeHSConstantDataOutput XePatchConstant() {
   XeHSConstantDataOutput output = (XeHSConstantDataOutput)0;
   uint i;
 
-  // Xenos creates a uniform grid for triangles, but this can't be reproduced
-  // using the tessellator on the PC, so just use what has the closest level of
-  // detail.
+  // 1.0 already added to the factor on the CPU, according to the images in
   // https://www.slideshare.net/blackdevilvikas/next-generation-graphics-programming-on-xbox-360
-
-  // 1.0 already added to the factor on the CPU, according to the images in the
-  // slides above.
+  // (fractional_even also requires a factor of at least 2.0).
 
   // Don't calculate any variables for SV_TessFactor outside of this loop, or
   // everything will be broken - FXC will add code to make it calculated only
@@ -30,12 +26,13 @@ XeHSConstantDataOutput XePatchConstant() {
 }
 
 [domain("tri")]
-[partitioning("integer")]
+[partitioning("fractional_even")]
 [outputtopology("triangle_cw")]
-[outputcontrolpoints(3)]
+[outputcontrolpoints(XE_TESSELLATION_CONTROL_POINT_COUNT)]
 [patchconstantfunc("XePatchConstant")]
 XeHSControlPointOutput main(
-    InputPatch<XeHSControlPointInputIndexed, 3> xe_input_patch,
+    InputPatch<XeHSControlPointInputIndexed,
+               XE_TESSELLATION_CONTROL_POINT_COUNT> xe_input_patch,
     uint xe_control_point_id : SV_OutputControlPointID) {
   XeHSControlPointOutput output;
   output.index = xe_input_patch[xe_control_point_id].index;

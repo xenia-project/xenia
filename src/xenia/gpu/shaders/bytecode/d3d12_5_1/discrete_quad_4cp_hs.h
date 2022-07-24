@@ -54,10 +54,12 @@
 //
 // Name                 Index   Mask Register SysValue  Format   Used
 // -------------------- ----- ------ -------- -------- ------- ------
-// SV_TessFactor            0   x           0  TRIEDGE   float   x   
-// SV_TessFactor            1   x           1  TRIEDGE   float   x   
-// SV_TessFactor            2   x           2  TRIEDGE   float   x   
-// SV_InsideTessFactor      0   x           3   TRIINT   float   x   
+// SV_TessFactor            0   x           0 QUADEDGE   float   x   
+// SV_TessFactor            1   x           1 QUADEDGE   float   x   
+// SV_TessFactor            2   x           2 QUADEDGE   float   x   
+// SV_TessFactor            3   x           3 QUADEDGE   float   x   
+// SV_InsideTessFactor      0   x           4  QUADINT   float   x   
+// SV_InsideTessFactor      1   x           5  QUADINT   float   x   
 //
 //
 // Input signature:
@@ -75,7 +77,7 @@
 //
 // Tessellation Domain   # of control points
 // -------------------- --------------------
-// Triangle                                3
+// Quadrilateral                           4
 //
 // Tessellation Output Primitive  Partitioning Type 
 // ------------------------------ ------------------
@@ -83,42 +85,49 @@
 //
 hs_5_1
 hs_decls 
-dcl_input_control_point_count 3
-dcl_output_control_point_count 3
-dcl_tessellator_domain domain_tri
+dcl_input_control_point_count 4
+dcl_output_control_point_count 4
+dcl_tessellator_domain domain_quad
 dcl_tessellator_partitioning partitioning_integer
 dcl_tessellator_output_primitive output_triangle_cw
 dcl_globalFlags refactoringAllowed
 dcl_constantbuffer CB0[0:0][1], immediateIndexed, space=0
 hs_fork_phase 
-dcl_hs_fork_phase_instance_count 3
+dcl_hs_fork_phase_instance_count 4
 dcl_input vForkInstanceID
-dcl_output_siv o0.x, finalTriUeq0EdgeTessFactor
-dcl_output_siv o1.x, finalTriVeq0EdgeTessFactor
-dcl_output_siv o2.x, finalTriWeq0EdgeTessFactor
+dcl_output_siv o0.x, finalQuadUeq0EdgeTessFactor
+dcl_output_siv o1.x, finalQuadVeq0EdgeTessFactor
+dcl_output_siv o2.x, finalQuadUeq1EdgeTessFactor
+dcl_output_siv o3.x, finalQuadVeq1EdgeTessFactor
 dcl_temps 1
-dcl_indexrange o0.x 3
+dcl_indexrange o0.x 4
 mov r0.x, vForkInstanceID.x
 mov o[r0.x + 0].x, CB0[0][0].z
 ret 
 hs_fork_phase 
-dcl_output_siv o3.x, finalTriInsideTessFactor
-mov o3.x, CB0[0][0].z
+dcl_hs_fork_phase_instance_count 2
+dcl_input vForkInstanceID
+dcl_output_siv o4.x, finalQuadUInsideTessFactor
+dcl_output_siv o5.x, finalQuadVInsideTessFactor
+dcl_temps 1
+dcl_indexrange o4.x 2
+mov r0.x, vForkInstanceID.x
+mov o[r0.x + 4].x, CB0[0][0].z
 ret 
-// Approximately 5 instruction slots used
+// Approximately 6 instruction slots used
 #endif
 
-const BYTE discrete_triangle_hs[] =
+const BYTE discrete_quad_4cp_hs[] =
 {
-     68,  88,  66,  67, 159, 101, 
-     17, 163,   1,  25, 162, 203, 
-     87,  30,  32,  90,   1, 126, 
-    212, 108,   1,   0,   0,   0, 
-     16,  13,   0,   0,   6,   0, 
+     68,  88,  66,  67, 192,  34, 
+     77,  20,  70, 107, 155,  33, 
+    163,  40, 168, 219, 244,   3, 
+    133, 198,   1,   0,   0,   0, 
+    160,  13,   0,   0,   6,   0, 
       0,   0,  56,   0,   0,   0, 
     108,  10,   0,   0, 160,  10, 
       0,   0, 212,  10,   0,   0, 
-    104,  11,   0,   0, 116,  12, 
+    152,  11,   0,   0,   4,  13, 
       0,   0,  82,  68,  69,  70, 
      44,  10,   0,   0,   1,   0, 
       0,   0, 120,   0,   0,   0, 
@@ -572,24 +581,32 @@ const BYTE discrete_triangle_hs[] =
       0,   0,   1,  14,   0,   0, 
      88,  69,  86,  69,  82,  84, 
      69,  88,  73,  68,   0, 171, 
-     80,  67,  83,  71, 140,   0, 
-      0,   0,   4,   0,   0,   0, 
-      8,   0,   0,   0, 104,   0, 
+     80,  67,  83,  71, 188,   0, 
+      0,   0,   6,   0,   0,   0, 
+      8,   0,   0,   0, 152,   0, 
       0,   0,   0,   0,   0,   0, 
-     13,   0,   0,   0,   3,   0, 
+     11,   0,   0,   0,   3,   0, 
       0,   0,   0,   0,   0,   0, 
-      1,  14,   0,   0, 104,   0, 
+      1,  14,   0,   0, 152,   0, 
       0,   0,   1,   0,   0,   0, 
-     13,   0,   0,   0,   3,   0, 
+     11,   0,   0,   0,   3,   0, 
       0,   0,   1,   0,   0,   0, 
-      1,  14,   0,   0, 104,   0, 
+      1,  14,   0,   0, 152,   0, 
       0,   0,   2,   0,   0,   0, 
-     13,   0,   0,   0,   3,   0, 
+     11,   0,   0,   0,   3,   0, 
       0,   0,   2,   0,   0,   0, 
-      1,  14,   0,   0, 118,   0, 
-      0,   0,   0,   0,   0,   0, 
-     14,   0,   0,   0,   3,   0, 
+      1,  14,   0,   0, 152,   0, 
       0,   0,   3,   0,   0,   0, 
+     11,   0,   0,   0,   3,   0, 
+      0,   0,   3,   0,   0,   0, 
+      1,  14,   0,   0, 166,   0, 
+      0,   0,   0,   0,   0,   0, 
+     12,   0,   0,   0,   3,   0, 
+      0,   0,   4,   0,   0,   0, 
+      1,  14,   0,   0, 166,   0, 
+      0,   0,   1,   0,   0,   0, 
+     12,   0,   0,   0,   3,   0, 
+      0,   0,   5,   0,   0,   0, 
       1,  14,   0,   0,  83,  86, 
      95,  84, 101, 115, 115,  70, 
      97,  99, 116, 111, 114,   0, 
@@ -597,11 +614,11 @@ const BYTE discrete_triangle_hs[] =
     105, 100, 101,  84, 101, 115, 
     115,  70,  97,  99, 116, 111, 
     114,   0, 171, 171,  83,  72, 
-     69,  88,   4,   1,   0,   0, 
-     81,   0,   3,   0,  65,   0, 
+     69,  88, 100,   1,   0,   0, 
+     81,   0,   3,   0,  89,   0, 
       0,   0, 113,   0,   0,   1, 
-    147,  24,   0,   1, 148,  24, 
-      0,   1, 149,  16,   0,   1, 
+    147,  32,   0,   1, 148,  32, 
+      0,   1, 149,  24,   0,   1, 
     150,   8,   0,   1, 151,  24, 
       0,   1, 106,   8,   0,   1, 
      89,   0,   0,   7,  70, 142, 
@@ -610,41 +627,57 @@ const BYTE discrete_triangle_hs[] =
       0,   0,   1,   0,   0,   0, 
       0,   0,   0,   0, 115,   0, 
       0,   1, 153,   0,   0,   2, 
-      3,   0,   0,   0,  95,   0, 
+      4,   0,   0,   0,  95,   0, 
       0,   2,   0, 112,   1,   0, 
     103,   0,   0,   4,  18,  32, 
      16,   0,   0,   0,   0,   0, 
-     17,   0,   0,   0, 103,   0, 
+     11,   0,   0,   0, 103,   0, 
       0,   4,  18,  32,  16,   0, 
-      1,   0,   0,   0,  18,   0, 
+      1,   0,   0,   0,  12,   0, 
       0,   0, 103,   0,   0,   4, 
      18,  32,  16,   0,   2,   0, 
-      0,   0,  19,   0,   0,   0, 
+      0,   0,  13,   0,   0,   0, 
+    103,   0,   0,   4,  18,  32, 
+     16,   0,   3,   0,   0,   0, 
+     14,   0,   0,   0, 104,   0, 
+      0,   2,   1,   0,   0,   0, 
+     91,   0,   0,   4,  18,  32, 
+     16,   0,   0,   0,   0,   0, 
+      4,   0,   0,   0,  54,   0, 
+      0,   4,  18,   0,  16,   0, 
+      0,   0,   0,   0,  10, 112, 
+      1,   0,  54,   0,   0,   8, 
+     18,  32, 144,   0,  10,   0, 
+     16,   0,   0,   0,   0,   0, 
+     42, 128,  48,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,  62,   0, 
+      0,   1, 115,   0,   0,   1, 
+    153,   0,   0,   2,   2,   0, 
+      0,   0,  95,   0,   0,   2, 
+      0, 112,   1,   0, 103,   0, 
+      0,   4,  18,  32,  16,   0, 
+      4,   0,   0,   0,  15,   0, 
+      0,   0, 103,   0,   0,   4, 
+     18,  32,  16,   0,   5,   0, 
+      0,   0,  16,   0,   0,   0, 
     104,   0,   0,   2,   1,   0, 
       0,   0,  91,   0,   0,   4, 
-     18,  32,  16,   0,   0,   0, 
-      0,   0,   3,   0,   0,   0, 
+     18,  32,  16,   0,   4,   0, 
+      0,   0,   2,   0,   0,   0, 
      54,   0,   0,   4,  18,   0, 
      16,   0,   0,   0,   0,   0, 
      10, 112,   1,   0,  54,   0, 
-      0,   8,  18,  32, 144,   0, 
-     10,   0,  16,   0,   0,   0, 
-      0,   0,  42, 128,  48,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-     62,   0,   0,   1, 115,   0, 
-      0,   1, 103,   0,   0,   4, 
-     18,  32,  16,   0,   3,   0, 
-      0,   0,  20,   0,   0,   0, 
-     54,   0,   0,   7,  18,  32, 
-     16,   0,   3,   0,   0,   0, 
+      0,   9,  18,  32, 208,   0, 
+      4,   0,   0,   0,  10,   0, 
+     16,   0,   0,   0,   0,   0, 
      42, 128,  48,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,  62,   0, 
       0,   1,  83,  84,  65,  84, 
-    148,   0,   0,   0,   5,   0, 
+    148,   0,   0,   0,   6,   0, 
       0,   0,   1,   0,   0,   0, 
-      0,   0,   0,   0,   4,   0, 
+      0,   0,   0,   0,   5,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   2,   0,   0,   0, 
@@ -655,16 +688,16 @@ const BYTE discrete_triangle_hs[] =
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
+      0,   0,   4,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+     11,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   4,   0, 
       0,   0,   3,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-     10,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   3,   0, 
-      0,   0,   3,   0,   0,   0, 
-      1,   0,   0,   0,   2,   0, 
+      1,   0,   0,   0,   3,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
       0,   0

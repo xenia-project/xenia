@@ -70,10 +70,14 @@ namespace d3d12 {
 namespace shaders {
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/adaptive_quad_hs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/adaptive_triangle_hs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/continuous_quad_hs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/continuous_triangle_hs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/discrete_quad_hs.h"
-#include "xenia/gpu/shaders/bytecode/d3d12_5_1/discrete_triangle_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/continuous_quad_1cp_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/continuous_quad_4cp_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/continuous_triangle_1cp_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/continuous_triangle_3cp_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/discrete_quad_1cp_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/discrete_quad_4cp_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/discrete_triangle_1cp_hs.h"
+#include "xenia/gpu/shaders/bytecode/d3d12_5_1/discrete_triangle_3cp_hs.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/float24_round_ps.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/float24_truncate_ps.h"
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/tessellation_adaptive_vs.h"
@@ -2855,15 +2859,24 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       case xenos::TessellationMode::kDiscrete:
         switch (host_vertex_shader_type) {
           case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
-          case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
-            state_desc.HS.pShaderBytecode = shaders::discrete_triangle_hs;
+            state_desc.HS.pShaderBytecode = shaders::discrete_triangle_3cp_hs;
             state_desc.HS.BytecodeLength =
-                sizeof(shaders::discrete_triangle_hs);
+                sizeof(shaders::discrete_triangle_3cp_hs);
+            break;
+          case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
+            state_desc.HS.pShaderBytecode = shaders::discrete_triangle_1cp_hs;
+            state_desc.HS.BytecodeLength =
+                sizeof(shaders::discrete_triangle_1cp_hs);
             break;
           case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
+            state_desc.HS.pShaderBytecode = shaders::discrete_quad_4cp_hs;
+            state_desc.HS.BytecodeLength =
+                sizeof(shaders::discrete_quad_4cp_hs);
+            break;
           case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
-            state_desc.HS.pShaderBytecode = shaders::discrete_quad_hs;
-            state_desc.HS.BytecodeLength = sizeof(shaders::discrete_quad_hs);
+            state_desc.HS.pShaderBytecode = shaders::discrete_quad_1cp_hs;
+            state_desc.HS.BytecodeLength =
+                sizeof(shaders::discrete_quad_1cp_hs);
             break;
           default:
             assert_unhandled_case(host_vertex_shader_type);
@@ -2873,15 +2886,24 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       case xenos::TessellationMode::kContinuous:
         switch (host_vertex_shader_type) {
           case Shader::HostVertexShaderType::kTriangleDomainCPIndexed:
-          case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
-            state_desc.HS.pShaderBytecode = shaders::continuous_triangle_hs;
+            state_desc.HS.pShaderBytecode = shaders::continuous_triangle_3cp_hs;
             state_desc.HS.BytecodeLength =
-                sizeof(shaders::continuous_triangle_hs);
+                sizeof(shaders::continuous_triangle_3cp_hs);
+            break;
+          case Shader::HostVertexShaderType::kTriangleDomainPatchIndexed:
+            state_desc.HS.pShaderBytecode = shaders::continuous_triangle_1cp_hs;
+            state_desc.HS.BytecodeLength =
+                sizeof(shaders::continuous_triangle_1cp_hs);
             break;
           case Shader::HostVertexShaderType::kQuadDomainCPIndexed:
+            state_desc.HS.pShaderBytecode = shaders::continuous_quad_4cp_hs;
+            state_desc.HS.BytecodeLength =
+                sizeof(shaders::continuous_quad_4cp_hs);
+            break;
           case Shader::HostVertexShaderType::kQuadDomainPatchIndexed:
-            state_desc.HS.pShaderBytecode = shaders::continuous_quad_hs;
-            state_desc.HS.BytecodeLength = sizeof(shaders::continuous_quad_hs);
+            state_desc.HS.pShaderBytecode = shaders::continuous_quad_1cp_hs;
+            state_desc.HS.BytecodeLength =
+                sizeof(shaders::continuous_quad_1cp_hs);
             break;
           default:
             assert_unhandled_case(host_vertex_shader_type);

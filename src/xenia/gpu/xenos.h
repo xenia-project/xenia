@@ -72,8 +72,21 @@ enum class PrimitiveType : uint32_t {
   k2DTriStrip = 0x16,
 
   // Tessellation patches when VGT_OUTPUT_PATH_CNTL::path_select is
-  // VGTOutputPath::kTessellationEnable. The vertex shader receives patch index
-  // rather than control point indices.
+  // VGTOutputPath::kTessellationEnable. The vertex shader receives the patch
+  // index rather than control point indices.
+  // With non-adaptive tessellation, VGT_DRAW_INITIATOR::num_indices is the
+  // patch count (4D5307F1 draws single ground patches by passing 1 as the index
+  // count). VGT_INDX_OFFSET is also applied to the patch index - 4D5307F1 uses
+  // auto-indexed patches with a nonzero VGT_INDX_OFFSET, which contains the
+  // base patch index there.
+  // With adaptive tessellation, however, num_indices is the number of
+  // tessellation factors in the "index buffer" reused for tessellation factors,
+  // which is the patch count multiplied by the edge count (if num_indices is
+  // multiplied further by 4 for quad patches for the ground in 4D5307F2, for
+  // example, some incorrect patches are drawn, so Xenia shouldn't do that; also
+  // 4D5307E6 draws water triangle patches with the number of indices that is 3
+  // times the invocation count of the memexporting shader that calculates the
+  // tessellation factors for a single patch for each "point").
   kLinePatch = 0x10,
   kTrianglePatch = 0x11,
   kQuadPatch = 0x12,
