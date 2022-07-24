@@ -216,6 +216,11 @@ dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
 
     if (license_mask_ptr && XSUCCEEDED(result)) {
       *license_mask_ptr = 0;  // Stub!
+
+      // Set license only for DLCs
+      if (content_data.content_type == xe::XContentType::kMarketplaceContent) {
+        *license_mask_ptr = static_cast<uint32_t>(cvars::license_mask);
+      }
     }
 
     extended_error = X_HRESULT_FROM_WIN32(result);
