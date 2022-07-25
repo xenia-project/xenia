@@ -31,6 +31,7 @@ SpirvShaderTranslator::Features::Features(bool all)
       max_storage_buffer_range(all ? UINT32_MAX : (128 * 1024 * 1024)),
       clip_distance(all),
       cull_distance(all),
+      full_draw_index_uint32(all),
       image_view_format_swizzle(all),
       signed_zero_inf_nan_preserve_float32(all),
       denorm_flush_to_zero_float32(all) {}
@@ -40,7 +41,8 @@ SpirvShaderTranslator::Features::Features(
     : max_storage_buffer_range(
           provider.device_properties().limits.maxStorageBufferRange),
       clip_distance(provider.device_features().shaderClipDistance),
-      cull_distance(provider.device_features().shaderCullDistance) {
+      cull_distance(provider.device_features().shaderCullDistance),
+      full_draw_index_uint32(provider.device_features().fullDrawIndexUint32) {
   uint32_t device_version = provider.device_properties().apiVersion;
   const ui::vulkan::VulkanProvider::DeviceExtensions& device_extensions =
       provider.device_extensions();
@@ -221,6 +223,8 @@ void SpirvShaderTranslator::StartTranslation() {
                           sizeof(uint32_t) * 4);
   const SystemConstant system_constants[] = {
       {"flags", offsetof(SystemConstants, flags), type_uint_},
+      {"vertex_index_load_address",
+       offsetof(SystemConstants, vertex_index_load_address), type_uint_},
       {"vertex_index_endian", offsetof(SystemConstants, vertex_index_endian),
        type_uint_},
       {"vertex_base_index", offsetof(SystemConstants, vertex_base_index),
@@ -1129,18 +1133,73 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
   if (register_count()) {
     // TODO(Triang3l): Barycentric coordinates and patch index.
     if (IsSpirvVertexShader()) {
-      // TODO(Triang3l): Fetch the vertex index from the shared memory when
-      // fullDrawIndexUint32 isn't available and the index is 32-bit and needs
-      // endian swap.
       // TODO(Triang3l): Close line loop primitive.
-      // Load the unswapped index as uint for swapping.
+      // Load the unswapped index as uint for swapping, or for indirect loading
+      // if needed.
       spv::Id vertex_index = builder_->createUnaryOp(
           spv::OpBitcast, type_uint_,
           builder_->createLoad(input_vertex_index_, spv::NoPrecision));
+      if (!features_.full_draw_index_uint32) {
+        // Check if the full 32-bit index needs to be loaded indirectly.
+        spv::Id load_vertex_index = builder_->createBinOp(
+            spv::OpINotEqual, type_bool_,
+            builder_->createBinOp(
+                spv::OpBitwiseAnd, type_uint_, main_system_constant_flags_,
+                builder_->makeUintConstant(
+                    static_cast<unsigned int>(kSysFlag_VertexIndexLoad))),
+            const_uint_0_);
+        spv::Block& block_load_vertex_index_pre = *builder_->getBuildPoint();
+        spv::Block& block_load_vertex_index_start = builder_->makeNewBlock();
+        spv::Block& block_load_vertex_index_merge = builder_->makeNewBlock();
+        SpirvCreateSelectionMerge(block_load_vertex_index_merge.getId(),
+                                  spv::SelectionControlDontFlattenMask);
+        builder_->createConditionalBranch(load_vertex_index,
+                                          &block_load_vertex_index_start,
+                                          &block_load_vertex_index_merge);
+        builder_->setBuildPoint(&block_load_vertex_index_start);
+        // Load the 32-bit index.
+        // TODO(Triang3l): Bounds checking.
+        id_vector_temp_.clear();
+        id_vector_temp_.push_back(
+            builder_->makeIntConstant(kSystemConstantVertexIndexLoadAddress));
+        spv::Id loaded_vertex_index =
+            LoadUint32FromSharedMemory(builder_->createUnaryOp(
+                spv::OpBitcast, type_int_,
+                builder_->createBinOp(
+                    spv::OpIAdd, type_uint_,
+                    builder_->createBinOp(
+                        spv::OpShiftRightLogical, type_uint_,
+                        builder_->createLoad(
+                            builder_->createAccessChain(
+                                spv::StorageClassUniform,
+                                uniform_system_constants_, id_vector_temp_),
+                            spv::NoPrecision),
+                        builder_->makeUintConstant(2)),
+                    vertex_index)));
+        // Get the actual build point for phi.
+        spv::Block& block_load_vertex_index_end = *builder_->getBuildPoint();
+        builder_->createBranch(&block_load_vertex_index_merge);
+        // Select between the loaded index and the original index from Vulkan.
+        builder_->setBuildPoint(&block_load_vertex_index_merge);
+        {
+          std::unique_ptr<spv::Instruction> loaded_vertex_index_phi_op =
+              std::make_unique<spv::Instruction>(builder_->getUniqueId(),
+                                                 type_uint_, spv::OpPhi);
+          loaded_vertex_index_phi_op->addIdOperand(loaded_vertex_index);
+          loaded_vertex_index_phi_op->addIdOperand(
+              block_load_vertex_index_end.getId());
+          loaded_vertex_index_phi_op->addIdOperand(vertex_index);
+          loaded_vertex_index_phi_op->addIdOperand(
+              block_load_vertex_index_pre.getId());
+          vertex_index = loaded_vertex_index_phi_op->getResultId();
+          builder_->getBuildPoint()->addInstruction(
+              std::move(loaded_vertex_index_phi_op));
+        }
+      }
       // Endian-swap the index and convert to int.
       id_vector_temp_.clear();
       id_vector_temp_.push_back(
-          builder_->makeIntConstant(kSystemConstantIndexVertexIndexEndian));
+          builder_->makeIntConstant(kSystemConstantVertexIndexEndian));
       spv::Id vertex_index_endian =
           builder_->createLoad(builder_->createAccessChain(
                                    spv::StorageClassUniform,
@@ -1152,7 +1211,7 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
       // Add the base to the index.
       id_vector_temp_.clear();
       id_vector_temp_.push_back(
-          builder_->makeIntConstant(kSystemConstantIndexVertexBaseIndex));
+          builder_->makeIntConstant(kSystemConstantVertexBaseIndex));
       vertex_index = builder_->createBinOp(
           spv::OpIAdd, type_int_, vertex_index,
           builder_->createLoad(builder_->createAccessChain(

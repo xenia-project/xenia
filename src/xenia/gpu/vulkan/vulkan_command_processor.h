@@ -433,10 +433,11 @@ class VulkanCommandProcessor : public CommandProcessor {
   void UpdateDynamicState(const draw_util::ViewportInfo& viewport_info,
                           bool primitive_polygonal,
                           reg::RB_DEPTHCONTROL normalized_depth_control);
-  void UpdateSystemConstantValues(bool primitive_polygonal,
-                                  xenos::Endian index_endian,
-                                  const draw_util::ViewportInfo& viewport_info,
-                                  uint32_t used_texture_mask);
+  void UpdateSystemConstantValues(
+      bool primitive_polygonal,
+      const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+      const draw_util::ViewportInfo& viewport_info, uint32_t used_texture_mask,
+      bool& vertex_shader_index_load_out);
   bool UpdateBindings(const VulkanShader* vertex_shader,
                       const VulkanShader* pixel_shader);
   // Allocates a descriptor set and fills one or two VkWriteDescriptorSet
