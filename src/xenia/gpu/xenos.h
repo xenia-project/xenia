@@ -208,6 +208,7 @@ enum class Endian128 : uint32_t {
 
 enum class IndexFormat : uint32_t {
   kInt16,
+  // Not very common, but used for some world draws in 545407E0.
   kInt32,
 };
 

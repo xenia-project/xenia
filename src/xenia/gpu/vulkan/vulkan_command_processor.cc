@@ -2383,9 +2383,10 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                      normalized_depth_control);
 
   // Update system constants before uploading them.
-  UpdateSystemConstantValues(primitive_polygonal,
-                             primitive_processing_result.host_index_endian,
-                             viewport_info, used_texture_mask);
+  bool vertex_shader_index_load;
+  UpdateSystemConstantValues(primitive_polygonal, primitive_processing_result,
+                             viewport_info, used_texture_mask,
+                             vertex_shader_index_load);
 
   // Update uniform buffers and descriptor sets after binding the pipeline with
   // the new layout.
@@ -2451,7 +2452,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
 
   // Draw.
   if (primitive_processing_result.index_buffer_type ==
-      PrimitiveProcessor::ProcessedIndexBufferType::kNone) {
+          PrimitiveProcessor::ProcessedIndexBufferType::kNone ||
+      vertex_shader_index_load) {
     deferred_command_buffer_.CmdVkDraw(
         primitive_processing_result.host_draw_vertex_count, 1, 0, 0);
   } else {
@@ -3338,8 +3340,10 @@ void VulkanCommandProcessor::UpdateDynamicState(
 }
 
 void VulkanCommandProcessor::UpdateSystemConstantValues(
-    bool primitive_polygonal, xenos::Endian index_endian,
-    const draw_util::ViewportInfo& viewport_info, uint32_t used_texture_mask) {
+    bool primitive_polygonal,
+    const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+    const draw_util::ViewportInfo& viewport_info, uint32_t used_texture_mask,
+    bool& vertex_shader_index_load_out) {
 #if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
@@ -3362,6 +3366,52 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
 
   // Flags.
   uint32_t flags = 0;
+  // Vertex index shader loading.
+  bool vertex_shader_index_load = false;
+  // Only for ProcessedIndexBufferType kGuest since kHostConverted indices may
+  // be not loaded into the GPU memory (only read on the CPU), though
+  // kHostConverted must never be used for point lists and rectangle lists
+  // without geometry shaders anyway. For regular 32-bit index fetching without
+  // fullDrawIndexUint32, kHostConverted indices are already byte-swapped and
+  // truncated to 24 bits, so indirect fetch is not needed.
+  if (primitive_processing_result.index_buffer_type ==
+      PrimitiveProcessor::ProcessedIndexBufferType::kGuest) {
+    switch (primitive_processing_result.host_vertex_shader_type) {
+      case Shader::HostVertexShaderType::kVertex: {
+        // For guest (usually big-endian) 32-bit indices when they're not
+        // supported by the device.
+        if (vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32) {
+          const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
+          const VkPhysicalDeviceFeatures& device_features =
+              provider.device_features();
+          if (!device_features.fullDrawIndexUint32) {
+            vertex_shader_index_load = true;
+            flags |= SpirvShaderTranslator::kSysFlag_VertexIndexLoad;
+          }
+        }
+      } break;
+      // kMemexportCompute never comes out of the PrimitiveProcessor, as
+      // memexport compute shaders are executed alongside their vertex
+      // counterparts, since they may still result in drawing.
+      case Shader::HostVertexShaderType::kPointListAsTriangleStrip:
+      case Shader::HostVertexShaderType::kRectangleListAsTriangleStrip: {
+        // Always loading the guest index buffer indirectly if it's used, as
+        // host indexing contains a part needed specifically for the host for
+        // the construction of the primitive - host vertices don't map 1:1 to
+        // guest ones.
+        vertex_shader_index_load = true;
+        flags |=
+            SpirvShaderTranslator::kSysFlag_ComputeOrPrimitiveVertexIndexLoad;
+        if (vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32) {
+          flags |= SpirvShaderTranslator ::
+              kSysFlag_ComputeOrPrimitiveVertexIndexLoad32Bit;
+        }
+      } break;
+      default:
+        break;
+    }
+  }
+  vertex_shader_index_load_out = vertex_shader_index_load;
   // W0 division control.
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
   // 8: VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
@@ -3404,9 +3454,21 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   dirty |= system_constants_.flags != flags;
   system_constants_.flags = flags;
 
+  // Index buffer address for loading in the shaders.
+  if (flags &
+      (SpirvShaderTranslator::kSysFlag_VertexIndexLoad |
+       SpirvShaderTranslator::kSysFlag_ComputeOrPrimitiveVertexIndexLoad)) {
+    dirty |= system_constants_.vertex_index_load_address !=
+             primitive_processing_result.guest_index_base;
+    system_constants_.vertex_index_load_address =
+        primitive_processing_result.guest_index_base;
+  }
+
   // Index or tessellation edge factor buffer endianness.
-  dirty |= system_constants_.vertex_index_endian != index_endian;
-  system_constants_.vertex_index_endian = index_endian;
+  dirty |= system_constants_.vertex_index_endian !=
+           primitive_processing_result.host_index_endian;
+  system_constants_.vertex_index_endian =
+      primitive_processing_result.host_index_endian;
 
   // Vertex index offset.
   dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
