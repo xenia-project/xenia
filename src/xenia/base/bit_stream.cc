@@ -41,7 +41,7 @@ uint64_t BitStream::Peek(size_t num_bits) {
 
   // offset -->
   // ..[junk]..| target bits |....[junk].............
-  uint64_t bits = *(uint64_t*)(buffer_ + offset_bytes);
+  uint32_t bits = *(uint32_t*)(buffer_ + offset_bytes);
 
   // We need the data in little endian.
   // TODO: Have a flag specifying endianness of data?
@@ -49,7 +49,7 @@ uint64_t BitStream::Peek(size_t num_bits) {
 
   // Shift right
   // .....[junk]........| target bits |
-  bits >>= 64 - (rel_offset_bits + num_bits);
+  bits >>= 32 - (rel_offset_bits + num_bits);
 
   // AND with mask
   // ...................| target bits |
