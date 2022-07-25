@@ -734,35 +734,14 @@ void DxbcShaderTranslator::StartPixelShader() {
                dxbc::Src::LF(1.0f / draw_resolution_scale_x_,
                              1.0f / draw_resolution_scale_y_, 1.0f, 1.0f));
     }
-    // Take the absolute value of the position and apply the point flag.
     if (shader_modification.pixel.param_gen_point) {
+      // A point - always front-facing (the upper bit of X is 0), not a line
+      // (the upper bit of Z is 0).
+      // Take the absolute value of the position and apply the point flag.
       a_.OpMov(dxbc::Dest::R(param_gen_temp, 0b0001),
                dxbc::Src::R(param_gen_temp, dxbc::Src::kXXXX).Abs());
       a_.OpMov(dxbc::Dest::R(param_gen_temp, 0b0010),
                -(dxbc::Src::R(param_gen_temp, dxbc::Src::kYYYY).Abs()));
-    } else {
-      a_.OpMov(dxbc::Dest::R(param_gen_temp, 0b0011),
-               dxbc::Src::R(param_gen_temp).Abs());
-    }
-    // Faceness.
-    // Check if faceness applies to the current primitive type.
-    // Using Z as a temporary (not written yet).
-    a_.OpAnd(dxbc::Dest::R(param_gen_temp, 0b0100), LoadFlagsSystemConstant(),
-             dxbc::Src::LU(kSysFlag_PrimitivePolygonal));
-    a_.OpIf(true, dxbc::Src::R(param_gen_temp, dxbc::Src::kZZZZ));
-    {
-      // Negate modifier flips the sign bit even for 0 - set it to minus for
-      // backfaces.
-      in_front_face_used_ = true;
-      a_.OpMovC(
-          dxbc::Dest::R(param_gen_temp, 0b0001),
-          dxbc::Src::V1D(in_reg_ps_front_face_sample_index_, dxbc::Src::kXXXX),
-          dxbc::Src::R(param_gen_temp, dxbc::Src::kXXXX),
-          -dxbc::Src::R(param_gen_temp, dxbc::Src::kXXXX));
-    }
-    a_.OpEndIf();
-    if (shader_modification.pixel.param_gen_point) {
-      // A point - not a line (the upper bit of Z is 0).
       // ZW - point sprite coordinates.
       // Saturate to avoid negative point coordinates if the center of the pixel
       // is not covered, and extrapolation is done.
@@ -770,6 +749,26 @@ void DxbcShaderTranslator::StartPixelShader() {
       a_.OpMov(dxbc::Dest::R(param_gen_temp, 0b1100),
                dxbc::Src::V1D(in_reg_ps_point_coordinates_, 0b0100 << 4), true);
     } else {
+      // Take the absolute value of the position and apply the point flag.
+      a_.OpMov(dxbc::Dest::R(param_gen_temp, 0b0011),
+               dxbc::Src::R(param_gen_temp).Abs());
+      // Faceness.
+      // Check if faceness applies to the current primitive type.
+      // Using Z as a temporary (not written yet).
+      a_.OpAnd(dxbc::Dest::R(param_gen_temp, 0b0100), LoadFlagsSystemConstant(),
+               dxbc::Src::LU(kSysFlag_PrimitivePolygonal));
+      a_.OpIf(true, dxbc::Src::R(param_gen_temp, dxbc::Src::kZZZZ));
+      {
+        // Negate modifier flips the sign bit even for 0 - set it to minus for
+        // backfaces.
+        in_front_face_used_ = true;
+        a_.OpMovC(dxbc::Dest::R(param_gen_temp, 0b0001),
+                  dxbc::Src::V1D(in_reg_ps_front_face_sample_index_,
+                                 dxbc::Src::kXXXX),
+                  dxbc::Src::R(param_gen_temp, dxbc::Src::kXXXX),
+                  -dxbc::Src::R(param_gen_temp, dxbc::Src::kXXXX));
+      }
+      a_.OpEndIf();
       // No point coordinates.
       // Z - is line in the sign bit.
       // W - nothing.
