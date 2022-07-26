@@ -691,6 +691,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
             // Writing to the trace irrespective of the cache lookup result
             // because cache behavior depends on runtime configuration and
             // state.
+            // Example of 16-bit reset index replacement: 415607D4.
             trace_writer_.WriteMemoryRead(guest_index_base,
                                           guest_index_buffer_needed_bytes);
             // Not specifying the primitive type in the cache key because not
