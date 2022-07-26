@@ -1619,8 +1619,17 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
     spv::Id param_gen_z, param_gen_w;
     if (modification.pixel.param_gen_point) {
       assert_true(input_point_coordinates_ != spv::NoResult);
+      // Saturate to avoid negative point coordinates if the center of the pixel
+      // is not covered, and extrapolation is done.
+      id_vector_temp_.clear();
+      id_vector_temp_.reserve(3);
+      id_vector_temp_.push_back(
+          builder_->createLoad(input_point_coordinates_, spv::NoPrecision));
+      id_vector_temp_.push_back(const_float2_0_);
+      id_vector_temp_.push_back(const_float2_1_);
       spv::Id param_gen_point_coordinates =
-          builder_->createLoad(input_point_coordinates_, spv::NoPrecision);
+          builder_->createBuiltinCall(type_float2_, ext_inst_glsl_std_450_,
+                                      GLSLstd450NClamp, id_vector_temp_);
       param_gen_z = builder_->createCompositeExtract(
           param_gen_point_coordinates, type_float_, 0);
       param_gen_w = builder_->createCompositeExtract(
