@@ -20,6 +20,11 @@
 #include "xenia/kernel/xboxkrnl/xboxkrnl_rtl.h"
 #include "xenia/xbox.h"
 
+
+DEFINE_uint32(internal_display_resolution_width, 1280,
+              "Set internal display output resolution.", "Display");
+DEFINE_uint32(internal_display_resolution_height, 720,
+              "Set internal display output resolution.", "Display");
 // BT.709 on modern monitors and TVs looks the closest to the Xbox 360 connected
 // to an HDTV.
 DEFINE_uint32(kernel_display_gamma_type, 2,
@@ -134,8 +139,8 @@ DECLARE_XBOXKRNL_EXPORT1(VdGetCurrentDisplayInformation, kVideo, kStub);
 void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   // TODO(benvanik): get info from actual display.
   std::memset(video_mode, 0, sizeof(X_VIDEO_MODE));
-  video_mode->display_width = 1280;
-  video_mode->display_height = 720;
+  video_mode->display_width = cvars::internal_display_resolution_width;
+  video_mode->display_height = cvars::internal_display_resolution_height;
   video_mode->is_interlaced = 0;
   video_mode->is_widescreen = ((video_mode->display_width / 4) >
                               (video_mode->display_height / 3));
