@@ -133,6 +133,11 @@ VulkanPipelineCache::GetCurrentVertexShaderModification(
 
   modification.vertex.interpolator_mask = interpolator_mask;
 
+  modification.vertex.output_point_size =
+      uint32_t((shader.writes_point_size_edge_flag_kill_vertex() & 0b001) &&
+               regs.Get<reg::VGT_DRAW_INITIATOR>().prim_type ==
+                   xenos::PrimitiveType::kPointList);
+
   return modification;
 }
 
@@ -284,6 +289,8 @@ bool VulkanPipelineCache::ConfigurePipeline(
   if (GetGeometryShaderKey(
           description.geometry_shader,
           SpirvShaderTranslator::Modification(vertex_shader->modification()),
+          SpirvShaderTranslator::Modification(
+              pixel_shader ? pixel_shader->modification() : 0),
           geometry_shader_key)) {
     geometry_shader = GetGeometryShader(geometry_shader_key);
     if (geometry_shader == VK_NULL_HANDLE) {
@@ -496,6 +503,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
   PipelinePrimitiveTopology primitive_topology;
   switch (primitive_processing_result.host_primitive_type) {
     case xenos::PrimitiveType::kPointList:
+      geometry_shader = PipelineGeometryShader::kPointList;
       primitive_topology = PipelinePrimitiveTopology::kPointList;
       break;
     case xenos::PrimitiveType::kLineList:
@@ -815,6 +823,7 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
 bool VulkanPipelineCache::GetGeometryShaderKey(
     PipelineGeometryShader geometry_shader_type,
     SpirvShaderTranslator::Modification vertex_shader_modification,
+    SpirvShaderTranslator::Modification pixel_shader_modification,
     GeometryShaderKey& key_out) {
   if (geometry_shader_type == PipelineGeometryShader::kNone) {
     return false;
@@ -831,10 +840,8 @@ bool VulkanPipelineCache::GetGeometryShaderKey(
       /* vertex_shader_modification.vertex.user_clip_plane_cull */ 0;
   key.has_vertex_kill_and =
       /* vertex_shader_modification.vertex.vertex_kill_and */ 0;
-  key.has_point_size =
-      /* vertex_shader_modification.vertex.output_point_size */ 0;
-  key.has_point_coordinates =
-      /* pixel_shader_modification.pixel.param_gen_point */ 0;
+  key.has_point_size = vertex_shader_modification.vertex.output_point_size;
+  key.has_point_coordinates = pixel_shader_modification.pixel.param_gen_point;
   key_out = key;
   return true;
 }
@@ -853,6 +860,13 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   spv::ExecutionMode output_primitive_execution_mode = spv::ExecutionMode(0);
   uint32_t output_max_vertices = 0;
   switch (key.type) {
+    case PipelineGeometryShader::kPointList:
+      // Point to a strip of 2 triangles.
+      input_primitive_execution_mode = spv::ExecutionModeInputPoints;
+      input_primitive_vertex_count = 1;
+      output_primitive_execution_mode = spv::ExecutionModeOutputTriangleStrip;
+      output_max_vertices = 4;
+      break;
     case PipelineGeometryShader::kRectangleList:
       // Triangle to a strip of 2 triangles.
       input_primitive_execution_mode = spv::ExecutionModeTriangles;
@@ -901,6 +915,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   spv::Id type_bool4 = builder.makeVectorType(type_bool, 4);
   spv::Id type_int = builder.makeIntType(32);
   spv::Id type_float = builder.makeFloatType(32);
+  spv::Id type_float2 = builder.makeVectorType(type_float, 2);
   spv::Id type_float4 = builder.makeVectorType(type_float, 4);
   spv::Id type_clip_distances =
       clip_distance_count
@@ -912,9 +927,54 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
           ? builder.makeArrayType(
                 type_float, builder.makeUintConstant(cull_distance_count), 0)
           : spv::NoType;
-  spv::Id type_point_coordinates = key.has_point_coordinates
-                                       ? builder.makeVectorType(type_float, 2)
-                                       : spv::NoType;
+
+  // System constants.
+  // For points:
+  // - float2 point_constant_diameter
+  // - float2 point_screen_diameter_to_ndc_radius
+  enum PointConstant : uint32_t {
+    kPointConstantConstantDiameter,
+    kPointConstantScreenDiameterToNdcRadius,
+    kPointConstantCount,
+  };
+  spv::Id type_system_constants = spv::NoType;
+  if (key.type == PipelineGeometryShader::kPointList) {
+    id_vector_temp.clear();
+    id_vector_temp.resize(kPointConstantCount);
+    id_vector_temp[kPointConstantConstantDiameter] = type_float2;
+    id_vector_temp[kPointConstantScreenDiameterToNdcRadius] = type_float2;
+    type_system_constants =
+        builder.makeStructType(id_vector_temp, "XeSystemConstants");
+    builder.addMemberName(type_system_constants, kPointConstantConstantDiameter,
+                          "point_constant_diameter");
+    builder.addMemberDecoration(
+        type_system_constants, kPointConstantConstantDiameter,
+        spv::DecorationOffset,
+        int(offsetof(SpirvShaderTranslator::SystemConstants,
+                     point_constant_diameter)));
+    builder.addMemberName(type_system_constants,
+                          kPointConstantScreenDiameterToNdcRadius,
+                          "point_screen_diameter_to_ndc_radius");
+    builder.addMemberDecoration(
+        type_system_constants, kPointConstantScreenDiameterToNdcRadius,
+        spv::DecorationOffset,
+        int(offsetof(SpirvShaderTranslator::SystemConstants,
+                     point_screen_diameter_to_ndc_radius)));
+  }
+  spv::Id uniform_system_constants = spv::NoResult;
+  if (type_system_constants != spv::NoType) {
+    builder.addDecoration(type_system_constants, spv::DecorationBlock);
+    uniform_system_constants = builder.createVariable(
+        spv::NoPrecision, spv::StorageClassUniform, type_system_constants,
+        "xe_uniform_system_constants");
+    builder.addDecoration(uniform_system_constants,
+                          spv::DecorationDescriptorSet,
+                          int(SpirvShaderTranslator::kDescriptorSetConstants));
+    builder.addDecoration(uniform_system_constants, spv::DecorationBinding,
+                          int(SpirvShaderTranslator::kConstantBufferSystem));
+    // Generating SPIR-V 1.0, no need to add bindings to the entry point's
+    // interface until SPIR-V 1.4.
+  }
 
   // Inputs and outputs - matching glslang order, in gl_PerVertex gl_in[],
   // user-defined outputs, user-defined inputs, out gl_PerVertex.
@@ -977,6 +1037,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                              type_array_in_gl_per_vertex, "gl_in");
   main_interface.push_back(in_gl_per_vertex);
 
+  uint32_t output_location = 0;
+
   // Interpolators outputs.
   std::array<spv::Id, xenos::kMaxInterpolators> out_interpolators;
   for (uint32_t i = 0; i < key.interpolator_count; ++i) {
@@ -984,22 +1046,27 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         spv::NoPrecision, spv::StorageClassOutput, type_float4,
         fmt::format("xe_out_interpolator_{}", i).c_str());
     out_interpolators[i] = out_interpolator;
-    builder.addDecoration(out_interpolator, spv::DecorationLocation, i);
+    builder.addDecoration(out_interpolator, spv::DecorationLocation,
+                          int(output_location));
     builder.addDecoration(out_interpolator, spv::DecorationInvariant);
     main_interface.push_back(out_interpolator);
+    ++output_location;
   }
 
   // Point coordinate output.
   spv::Id out_point_coordinates = spv::NoResult;
   if (key.has_point_coordinates) {
-    out_point_coordinates = builder.createVariable(
-        spv::NoPrecision, spv::StorageClassOutput, type_point_coordinates,
-        "xe_out_point_coordinates");
+    out_point_coordinates =
+        builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
+                               type_float2, "xe_out_point_coordinates");
     builder.addDecoration(out_point_coordinates, spv::DecorationLocation,
-                          key.interpolator_count);
+                          int(output_location));
     builder.addDecoration(out_point_coordinates, spv::DecorationInvariant);
     main_interface.push_back(out_point_coordinates);
+    ++output_location;
   }
+
+  uint32_t input_location = 0;
 
   // Interpolator inputs.
   std::array<spv::Id, xenos::kMaxInterpolators> in_interpolators;
@@ -1010,8 +1077,10 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                               0),
         fmt::format("xe_in_interpolator_{}", i).c_str());
     in_interpolators[i] = in_interpolator;
-    builder.addDecoration(in_interpolator, spv::DecorationLocation, i);
+    builder.addDecoration(in_interpolator, spv::DecorationLocation,
+                          int(input_location));
     main_interface.push_back(in_interpolator);
+    ++input_location;
   }
 
   // Point size input.
@@ -1023,8 +1092,9 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                               0),
         "xe_in_point_size");
     builder.addDecoration(in_point_size, spv::DecorationLocation,
-                          key.interpolator_count);
+                          int(input_location));
     main_interface.push_back(in_point_size);
+    ++input_location;
   }
 
   // out gl_PerVertex.
@@ -1198,6 +1268,231 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   }
 
   switch (key.type) {
+    case PipelineGeometryShader::kPointList: {
+      // Expand the point sprite, with left-to-right, top-to-bottom UVs.
+
+      spv::Id const_int_0 = builder.makeIntConstant(0);
+      spv::Id const_int_1 = builder.makeIntConstant(1);
+      spv::Id const_float_0 = builder.makeFloatConstant(0.0f);
+
+      // Load the point diameter in guest pixels.
+      id_vector_temp.clear();
+      id_vector_temp.reserve(2);
+      id_vector_temp.push_back(
+          builder.makeIntConstant(int32_t(kPointConstantConstantDiameter)));
+      id_vector_temp.push_back(const_int_0);
+      spv::Id point_guest_diameter_x = builder.createLoad(
+          builder.createAccessChain(spv::StorageClassUniform,
+                                    uniform_system_constants, id_vector_temp),
+          spv::NoPrecision);
+      id_vector_temp.back() = const_int_1;
+      spv::Id point_guest_diameter_y = builder.createLoad(
+          builder.createAccessChain(spv::StorageClassUniform,
+                                    uniform_system_constants, id_vector_temp),
+          spv::NoPrecision);
+      if (key.has_point_size) {
+        // The vertex shader's header writes -1.0 to point_size by default, so
+        // any non-negative value means that it was overwritten by the
+        // translated vertex shader, and needs to be used instead of the
+        // constant size. The per-vertex diameter is already clamped in the
+        // vertex shader (combined with making it non-negative).
+        id_vector_temp.clear();
+        // 0 is the input primitive vertex index.
+        id_vector_temp.push_back(const_int_0);
+        spv::Id point_vertex_diameter = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_point_size,
+                                      id_vector_temp),
+            spv::NoPrecision);
+        spv::Id point_vertex_diameter_written =
+            builder.createBinOp(spv::OpFOrdGreaterThanEqual, type_bool,
+                                point_vertex_diameter, const_float_0);
+        point_guest_diameter_x = builder.createTriOp(
+            spv::OpSelect, type_float, point_vertex_diameter_written,
+            point_vertex_diameter, point_guest_diameter_x);
+        point_guest_diameter_y = builder.createTriOp(
+            spv::OpSelect, type_float, point_vertex_diameter_written,
+            point_vertex_diameter, point_guest_diameter_y);
+      }
+
+      // 4D5307F1 has zero-size snowflakes, drop them quicker, and also drop
+      // points with a constant size of zero since point lists may also be used
+      // as just "compute" with memexport.
+      spv::Id point_size_not_zero = builder.createBinOp(
+          spv::OpLogicalAnd, type_bool,
+          builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
+                              point_guest_diameter_x, const_float_0),
+          builder.createBinOp(spv::OpFOrdGreaterThan, type_bool,
+                              point_guest_diameter_y, const_float_0));
+      spv::Block& point_size_zero_predecessor = *builder.getBuildPoint();
+      spv::Block& point_size_zero_then_block = builder.makeNewBlock();
+      spv::Block& point_size_zero_merge_block = builder.makeNewBlock();
+      {
+        std::unique_ptr<spv::Instruction> selection_merge_op(
+            std::make_unique<spv::Instruction>(spv::OpSelectionMerge));
+        selection_merge_op->addIdOperand(point_size_zero_merge_block.getId());
+        selection_merge_op->addImmediateOperand(
+            spv::SelectionControlDontFlattenMask);
+        point_size_zero_predecessor.addInstruction(
+            std::move(selection_merge_op));
+      }
+      {
+        std::unique_ptr<spv::Instruction> branch_conditional_op(
+            std::make_unique<spv::Instruction>(spv::OpBranchConditional));
+        branch_conditional_op->addIdOperand(point_size_not_zero);
+        branch_conditional_op->addIdOperand(
+            point_size_zero_merge_block.getId());
+        branch_conditional_op->addIdOperand(point_size_zero_then_block.getId());
+        branch_conditional_op->addImmediateOperand(2);
+        branch_conditional_op->addImmediateOperand(1);
+        point_size_zero_predecessor.addInstruction(
+            std::move(branch_conditional_op));
+      }
+      point_size_zero_then_block.addPredecessor(&point_size_zero_predecessor);
+      point_size_zero_merge_block.addPredecessor(&point_size_zero_predecessor);
+      builder.setBuildPoint(&point_size_zero_then_block);
+      builder.createNoResultOp(spv::OpReturn);
+      builder.setBuildPoint(&point_size_zero_merge_block);
+
+      // Transform the diameter in the guest screen coordinates to radius in the
+      // normalized device coordinates, and then to the clip space by
+      // multiplying by W.
+      id_vector_temp.clear();
+      id_vector_temp.reserve(2);
+      id_vector_temp.push_back(builder.makeIntConstant(
+          int32_t(kPointConstantScreenDiameterToNdcRadius)));
+      id_vector_temp.push_back(const_int_0);
+      spv::Id point_radius_x = builder.createBinOp(
+          spv::OpFMul, type_float, point_guest_diameter_x,
+          builder.createLoad(builder.createAccessChain(spv::StorageClassUniform,
+                                                       uniform_system_constants,
+                                                       id_vector_temp),
+                             spv::NoPrecision));
+      builder.addDecoration(point_radius_x, spv::DecorationNoContraction);
+      id_vector_temp.back() = const_int_1;
+      spv::Id point_radius_y = builder.createBinOp(
+          spv::OpFMul, type_float, point_guest_diameter_y,
+          builder.createLoad(builder.createAccessChain(spv::StorageClassUniform,
+                                                       uniform_system_constants,
+                                                       id_vector_temp),
+                             spv::NoPrecision));
+      builder.addDecoration(point_radius_y, spv::DecorationNoContraction);
+      id_vector_temp.clear();
+      id_vector_temp.reserve(2);
+      // 0 is the input primitive vertex index.
+      id_vector_temp.push_back(const_int_0);
+      id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
+      spv::Id point_position = builder.createLoad(
+          builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                    id_vector_temp),
+          spv::NoPrecision);
+      spv::Id point_w =
+          builder.createCompositeExtract(point_position, type_float, 3);
+      point_radius_x =
+          builder.createBinOp(spv::OpFMul, type_float, point_radius_x, point_w);
+      builder.addDecoration(point_radius_x, spv::DecorationNoContraction);
+      point_radius_y =
+          builder.createBinOp(spv::OpFMul, type_float, point_radius_y, point_w);
+      builder.addDecoration(point_radius_y, spv::DecorationNoContraction);
+
+      // Load the inputs for the guest point.
+      // Interpolators.
+      std::array<spv::Id, xenos::kMaxInterpolators> point_interpolators;
+      id_vector_temp.clear();
+      // 0 is the input primitive vertex index.
+      id_vector_temp.push_back(const_int_0);
+      for (uint32_t i = 0; i < key.interpolator_count; ++i) {
+        point_interpolators[i] = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput,
+                                      in_interpolators[i], id_vector_temp),
+            spv::NoPrecision);
+      }
+      // Positions.
+      spv::Id point_x =
+          builder.createCompositeExtract(point_position, type_float, 0);
+      spv::Id point_y =
+          builder.createCompositeExtract(point_position, type_float, 1);
+      std::array<spv::Id, 2> point_edge_x, point_edge_y;
+      for (uint32_t i = 0; i < 2; ++i) {
+        spv::Op point_radius_add_op = i ? spv::OpFAdd : spv::OpFSub;
+        point_edge_x[i] = builder.createBinOp(point_radius_add_op, type_float,
+                                              point_x, point_radius_x);
+        builder.addDecoration(point_edge_x[i], spv::DecorationNoContraction);
+        point_edge_y[i] = builder.createBinOp(point_radius_add_op, type_float,
+                                              point_y, point_radius_y);
+        builder.addDecoration(point_edge_y[i], spv::DecorationNoContraction);
+      };
+      spv::Id point_z =
+          builder.createCompositeExtract(point_position, type_float, 2);
+      // Clip distances.
+      spv::Id point_clip_distances = spv::NoResult;
+      if (clip_distance_count) {
+        id_vector_temp.clear();
+        id_vector_temp.reserve(2);
+        // 0 is the input primitive vertex index.
+        id_vector_temp.push_back(const_int_0);
+        id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
+        point_clip_distances = builder.createLoad(
+            builder.createAccessChain(spv::StorageClassInput, in_gl_per_vertex,
+                                      id_vector_temp),
+            spv::NoPrecision);
+      }
+
+      for (uint32_t i = 0; i < 4; ++i) {
+        // Same interpolators for the entire sprite.
+        for (uint32_t j = 0; j < key.interpolator_count; ++j) {
+          builder.createStore(point_interpolators[j], out_interpolators[j]);
+        }
+        // Top-left, bottom-left, top-right, bottom-right order (chosen
+        // arbitrarily, simply based on counterclockwise meaning front with
+        // frontFace = VkFrontFace(0), but faceness is ignored for non-polygon
+        // primitive types).
+        uint32_t point_vertex_x = i >> 1;
+        uint32_t point_vertex_y = i & 1;
+        // Point coordinates.
+        if (key.has_point_coordinates) {
+          id_vector_temp.clear();
+          id_vector_temp.reserve(2);
+          id_vector_temp.push_back(
+              builder.makeFloatConstant(float(point_vertex_x)));
+          id_vector_temp.push_back(
+              builder.makeFloatConstant(float(point_vertex_y)));
+          builder.createStore(
+              builder.makeCompositeConstant(type_float2, id_vector_temp),
+              out_point_coordinates);
+        }
+        // Position.
+        id_vector_temp.clear();
+        id_vector_temp.reserve(4);
+        id_vector_temp.push_back(point_edge_x[point_vertex_x]);
+        id_vector_temp.push_back(point_edge_y[point_vertex_y]);
+        id_vector_temp.push_back(point_z);
+        id_vector_temp.push_back(point_w);
+        spv::Id point_vertex_position =
+            builder.createCompositeConstruct(type_float4, id_vector_temp);
+        id_vector_temp.clear();
+        id_vector_temp.push_back(const_member_out_gl_per_vertex_position);
+        builder.createStore(
+            point_vertex_position,
+            builder.createAccessChain(spv::StorageClassOutput,
+                                      out_gl_per_vertex, id_vector_temp));
+        // Clip distances.
+        // TODO(Triang3l): Handle ps_ucp_mode properly, clip expanded points if
+        // needed.
+        if (clip_distance_count) {
+          id_vector_temp.clear();
+          id_vector_temp.push_back(
+              const_member_out_gl_per_vertex_clip_distance);
+          builder.createStore(
+              point_clip_distances,
+              builder.createAccessChain(spv::StorageClassOutput,
+                                        out_gl_per_vertex, id_vector_temp));
+        }
+        // Emit the vertex.
+        builder.createNoResultOp(spv::OpEmitVertex);
+      }
+      builder.createNoResultOp(spv::OpEndPrimitive);
+    } break;
+
     case PipelineGeometryShader::kRectangleList: {
       // Construct a strip with the fourth vertex generated by mirroring a
       // vertex across the longest edge (the diagonal).
@@ -1308,8 +1603,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         id_vector_temp.reserve(2);
         id_vector_temp.push_back(const_float_0);
         id_vector_temp.push_back(const_float_0);
-        const_point_coordinates_zero = builder.makeCompositeConstant(
-            type_point_coordinates, id_vector_temp);
+        const_point_coordinates_zero =
+            builder.makeCompositeConstant(type_float2, id_vector_temp);
       }
 
       // Emit the triangle in the strip that consists of the original vertices.
@@ -1491,8 +1786,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         id_vector_temp.reserve(2);
         id_vector_temp.push_back(const_float_0);
         id_vector_temp.push_back(const_float_0);
-        const_point_coordinates_zero = builder.makeCompositeConstant(
-            type_point_coordinates, id_vector_temp);
+        const_point_coordinates_zero =
+            builder.makeCompositeConstant(type_float2, id_vector_temp);
       }
 
       // Build the triangle strip from the original quad vertices in the
