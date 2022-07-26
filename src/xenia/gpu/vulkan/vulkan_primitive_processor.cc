@@ -27,14 +27,13 @@ namespace vulkan {
 VulkanPrimitiveProcessor::~VulkanPrimitiveProcessor() { Shutdown(true); }
 
 bool VulkanPrimitiveProcessor::Initialize() {
-  // TODO(Triang3l): fullDrawIndexUint32 feature check and indirect index fetch.
   const ui::vulkan::VulkanProvider& provider =
       command_processor_.GetVulkanProvider();
   const VkPhysicalDeviceFeatures& device_features = provider.device_features();
   const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
       device_portability_subset_features =
           provider.device_portability_subset_features();
-  if (!InitializeCommon(true,
+  if (!InitializeCommon(device_features.fullDrawIndexUint32,
                         !device_portability_subset_features ||
                             device_portability_subset_features->triangleFans,
                         false, device_features.geometryShader)) {
