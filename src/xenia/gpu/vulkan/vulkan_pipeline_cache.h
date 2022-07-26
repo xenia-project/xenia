@@ -92,6 +92,7 @@ class VulkanPipelineCache {
  private:
   enum class PipelineGeometryShader : uint32_t {
     kNone,
+    kPointList,
     kRectangleList,
     kQuadList,
   };
@@ -267,6 +268,7 @@ class VulkanPipelineCache {
   static bool GetGeometryShaderKey(
       PipelineGeometryShader geometry_shader_type,
       SpirvShaderTranslator::Modification vertex_shader_modification,
+      SpirvShaderTranslator::Modification pixel_shader_modification,
       GeometryShaderKey& key_out);
   VkShaderModule GetGeometryShader(GeometryShaderKey key);
 

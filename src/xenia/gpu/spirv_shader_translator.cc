@@ -106,16 +106,19 @@ void SpirvShaderTranslator::Reset() {
 
   uniform_float_constants_ = spv::NoResult;
 
-  input_fragment_coord_ = spv::NoResult;
+  input_point_coordinates_ = spv::NoResult;
+  input_fragment_coordinates_ = spv::NoResult;
   input_front_facing_ = spv::NoResult;
   std::fill(input_output_interpolators_.begin(),
             input_output_interpolators_.end(), spv::NoResult);
+  output_point_size_ = spv::NoResult;
 
   sampler_bindings_.clear();
   texture_bindings_.clear();
 
   main_interface_.clear();
   var_main_registers_ = spv::NoResult;
+  var_main_point_size_edge_flag_kill_vertex_ = spv::NoResult;
 
   main_switch_op_.reset();
   main_switch_next_pc_phi_operands_.clear();
@@ -230,7 +233,16 @@ void SpirvShaderTranslator::StartTranslation() {
       {"vertex_base_index", offsetof(SystemConstants, vertex_base_index),
        type_int_},
       {"ndc_scale", offsetof(SystemConstants, ndc_scale), type_float3_},
+      {"point_vertex_diameter_min",
+       offsetof(SystemConstants, point_vertex_diameter_min), type_float_},
       {"ndc_offset", offsetof(SystemConstants, ndc_offset), type_float3_},
+      {"point_vertex_diameter_max",
+       offsetof(SystemConstants, point_vertex_diameter_max), type_float_},
+      {"point_constant_diameter",
+       offsetof(SystemConstants, point_constant_diameter), type_float2_},
+      {"point_screen_diameter_to_ndc_radius",
+       offsetof(SystemConstants, point_screen_diameter_to_ndc_radius),
+       type_float2_},
       {"texture_swizzled_signs",
        offsetof(SystemConstants, texture_swizzled_signs), type_uint4_array_2},
       {"texture_swizzles", offsetof(SystemConstants, texture_swizzles),
@@ -1063,9 +1075,10 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
     main_interface_.push_back(input_vertex_index_);
   }
 
+  uint32_t output_location = 0;
+
   // Create the interpolator outputs.
   {
-    uint32_t interpolator_location = 0;
     uint32_t interpolators_remaining = GetModificationInterpolatorMask();
     uint32_t interpolator_index;
     while (xe::bit_scan_forward(interpolators_remaining, &interpolator_index)) {
@@ -1075,11 +1088,27 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
           fmt::format("xe_out_interpolator_{}", interpolator_index).c_str());
       input_output_interpolators_[interpolator_index] = interpolator;
       builder_->addDecoration(interpolator, spv::DecorationLocation,
-                              int(interpolator_location));
+                              int(output_location));
       builder_->addDecoration(interpolator, spv::DecorationInvariant);
       main_interface_.push_back(interpolator);
-      ++interpolator_location;
+      ++output_location;
     }
+  }
+
+  Modification shader_modification = GetSpirvShaderModification();
+
+  // Create the point size output. Not using gl_PointSize from gl_PerVertex not
+  // to rely on the shaderTessellationAndGeometryPointSize feature, and also
+  // because the value written to gl_PointSize must be greater than zero.
+  if (shader_modification.vertex.output_point_size) {
+    output_point_size_ =
+        builder_->createVariable(spv::NoPrecision, spv::StorageClassOutput,
+                                 type_float_, "xe_out_point_size");
+    builder_->addDecoration(output_point_size_, spv::DecorationLocation,
+                            int(output_location));
+    builder_->addDecoration(output_point_size_, spv::DecorationInvariant);
+    main_interface_.push_back(output_point_size_);
+    ++output_location;
   }
 
   // Create the gl_PerVertex output for used system outputs.
@@ -1103,9 +1132,23 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
 }
 
 void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
-  var_main_point_size_edge_flag_kill_vertex_ = builder_->createVariable(
-      spv::NoPrecision, spv::StorageClassFunction, type_float3_,
-      "xe_var_point_size_edge_flag_kill_vertex");
+  // The edge flag isn't used for any purpose by the translator.
+  if (current_shader().writes_point_size_edge_flag_kill_vertex() & 0b101) {
+    id_vector_temp_.clear();
+    id_vector_temp_.reserve(3);
+    // Set the point size to a negative value to tell the point sprite expansion
+    // that it should use the default point size if the vertex shader does not
+    // override it.
+    id_vector_temp_.push_back(builder_->makeFloatConstant(-1.0f));
+    // The edge flag is ignored.
+    id_vector_temp_.push_back(const_float_0_);
+    // Don't kill by default (zero bits 0:30).
+    id_vector_temp_.push_back(const_float_0_);
+    var_main_point_size_edge_flag_kill_vertex_ = builder_->createVariable(
+        spv::NoPrecision, spv::StorageClassFunction, type_float3_,
+        "xe_var_point_size_edge_flag_kill_vertex",
+        builder_->makeCompositeConstant(type_float3_, id_vector_temp_));
+  }
 
   // Zero general-purpose registers to prevent crashes when the game
   // references them after only initializing them conditionally.
@@ -1352,13 +1395,35 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
         std::move(composite_construct_op));
   }
   builder_->createStore(position, position_ptr);
+
+  // Write the point size.
+  if (output_point_size_ != spv::NoResult) {
+    spv::Id point_size;
+    if (current_shader().writes_point_size_edge_flag_kill_vertex() & 0b001) {
+      assert_true(var_main_point_size_edge_flag_kill_vertex_ != spv::NoResult);
+      id_vector_temp_.clear();
+      // X vector component.
+      id_vector_temp_.push_back(const_int_0_);
+      point_size = builder_->createLoad(
+          builder_->createAccessChain(
+              spv::StorageClassFunction,
+              var_main_point_size_edge_flag_kill_vertex_, id_vector_temp_),
+          spv::NoPrecision);
+    } else {
+      // Not statically overridden - write a negative value.
+      point_size = builder_->makeFloatConstant(-1.0f);
+    }
+    builder_->createStore(point_size, output_point_size_);
+  }
 }
 
 void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
-  // Interpolator inputs.
   Modification shader_modification = GetSpirvShaderModification();
+
+  uint32_t input_location = 0;
+
+  // Interpolator inputs.
   {
-    uint32_t interpolator_location = 0;
     uint32_t interpolators_remaining = GetModificationInterpolatorMask();
     uint32_t interpolator_index;
     while (xe::bit_scan_forward(interpolators_remaining, &interpolator_index)) {
@@ -1368,28 +1433,41 @@ void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
           fmt::format("xe_in_interpolator_{}", interpolator_index).c_str());
       input_output_interpolators_[interpolator_index] = interpolator;
       builder_->addDecoration(interpolator, spv::DecorationLocation,
-                              int(interpolator_location));
+                              int(input_location));
       if (shader_modification.pixel.interpolators_centroid &
           (UINT32_C(1) << interpolator_index)) {
         builder_->addDecoration(interpolator, spv::DecorationCentroid);
       }
       main_interface_.push_back(interpolator);
-      ++interpolator_location;
+      ++input_location;
     }
   }
 
   bool param_gen_needed = GetPsParamGenInterpolator() != UINT32_MAX;
+
+  // Point coordinate input.
+  if (shader_modification.pixel.param_gen_point) {
+    if (param_gen_needed) {
+      input_point_coordinates_ =
+          builder_->createVariable(spv::NoPrecision, spv::StorageClassInput,
+                                   type_float2_, "xe_in_point_coordinates");
+      builder_->addDecoration(input_point_coordinates_, spv::DecorationLocation,
+                              int(input_location));
+      main_interface_.push_back(input_point_coordinates_);
+    }
+    ++input_location;
+  }
 
   // Fragment coordinates.
   // TODO(Triang3l): More conditions - fragment shader interlock render backend,
   // alpha to coverage (if RT 0 is written, and there's no early depth /
   // stencil), depth writing in the fragment shader (per-sample if supported).
   if (param_gen_needed) {
-    input_fragment_coord_ = builder_->createVariable(
+    input_fragment_coordinates_ = builder_->createVariable(
         spv::NoPrecision, spv::StorageClassInput, type_float4_, "gl_FragCoord");
-    builder_->addDecoration(input_fragment_coord_, spv::DecorationBuiltIn,
+    builder_->addDecoration(input_fragment_coordinates_, spv::DecorationBuiltIn,
                             spv::BuiltInFragCoord);
-    main_interface_.push_back(input_fragment_coord_);
+    main_interface_.push_back(input_fragment_coordinates_);
   }
 
   // Is front facing.
@@ -1473,13 +1551,14 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
     spv::Id const_sign_bit = builder_->makeUintConstant(UINT32_C(1) << 31);
     // TODO(Triang3l): Resolution scale inversion.
     // X - pixel X .0 in the magnitude, is back-facing in the sign bit.
-    assert_true(input_fragment_coord_ != spv::NoResult);
+    assert_true(input_fragment_coordinates_ != spv::NoResult);
     id_vector_temp_.clear();
     id_vector_temp_.push_back(const_int_0_);
-    spv::Id param_gen_x = builder_->createLoad(
-        builder_->createAccessChain(spv::StorageClassInput,
-                                    input_fragment_coord_, id_vector_temp_),
-        spv::NoPrecision);
+    spv::Id param_gen_x =
+        builder_->createLoad(builder_->createAccessChain(
+                                 spv::StorageClassInput,
+                                 input_fragment_coordinates_, id_vector_temp_),
+                             spv::NoPrecision);
     id_vector_temp_.clear();
     id_vector_temp_.push_back(param_gen_x);
     param_gen_x = builder_->createBuiltinCall(
@@ -1514,10 +1593,11 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
     // Y - pixel Y .0 in the magnitude, is point in the sign bit.
     id_vector_temp_.clear();
     id_vector_temp_.push_back(builder_->makeIntConstant(1));
-    spv::Id param_gen_y = builder_->createLoad(
-        builder_->createAccessChain(spv::StorageClassInput,
-                                    input_fragment_coord_, id_vector_temp_),
-        spv::NoPrecision);
+    spv::Id param_gen_y =
+        builder_->createLoad(builder_->createAccessChain(
+                                 spv::StorageClassInput,
+                                 input_fragment_coordinates_, id_vector_temp_),
+                             spv::NoPrecision);
     id_vector_temp_.clear();
     id_vector_temp_.push_back(param_gen_y);
     param_gen_y = builder_->createBuiltinCall(
@@ -1535,10 +1615,16 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
               const_sign_bit));
     }
     // Z - point S in the magnitude, is line in the sign bit.
-    spv::Id param_gen_z;
+    // W - point T in the magnitude.
+    spv::Id param_gen_z, param_gen_w;
     if (modification.pixel.param_gen_point) {
-      // TODO(Triang3l): Point coordinates.
-      param_gen_z = const_float_0_;
+      assert_true(input_point_coordinates_ != spv::NoResult);
+      spv::Id param_gen_point_coordinates =
+          builder_->createLoad(input_point_coordinates_, spv::NoPrecision);
+      param_gen_z = builder_->createCompositeExtract(
+          param_gen_point_coordinates, type_float_, 0);
+      param_gen_w = builder_->createCompositeExtract(
+          param_gen_point_coordinates, type_float_, 1);
     } else {
       param_gen_z = builder_->createUnaryOp(
           spv::OpBitcast, type_float_,
@@ -1552,10 +1638,8 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
                       builder_->makeUintConstant(kSysFlag_PrimitiveLine)),
                   const_uint_0_),
               const_sign_bit, const_uint_0_));
+      param_gen_w = const_float_0_;
     }
-    // W - point T in the magnitude.
-    // TODO(Triang3l): Point coordinates.
-    spv::Id param_gen_w = const_float_0_;
     // Store the pixel parameters.
     id_vector_temp_.clear();
     id_vector_temp_.reserve(4);
@@ -1927,15 +2011,20 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
       target_pointer = input_output_interpolators_[result.storage_index];
       // Unused interpolators are spv::NoResult in input_output_interpolators_.
     } break;
-    case InstructionStorageTarget::kPosition:
+    case InstructionStorageTarget::kPosition: {
       assert_true(is_vertex_shader());
       id_vector_temp_util_.clear();
       id_vector_temp_util_.push_back(
           builder_->makeIntConstant(kOutputPerVertexMemberPosition));
       target_pointer = builder_->createAccessChain(
           spv::StorageClassOutput, output_per_vertex_, id_vector_temp_util_);
-      break;
-    case InstructionStorageTarget::kColor:
+    } break;
+    case InstructionStorageTarget::kPointSizeEdgeFlagKillVertex: {
+      assert_true(is_vertex_shader());
+      assert_zero(used_write_mask & 0b1000);
+      target_pointer = var_main_point_size_edge_flag_kill_vertex_;
+    } break;
+    case InstructionStorageTarget::kColor: {
       assert_true(is_pixel_shader());
       assert_not_zero(used_write_mask);
       assert_true(current_shader().writes_color_target(result.storage_index));
@@ -1944,7 +2033,7 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
       // an empty write mask without independent blending.
       // TODO(Triang3l): Store the alpha of the first output in this case for
       // alpha test and alpha to coverage.
-      break;
+    } break;
     default:
       // TODO(Triang3l): All storage targets.
       break;
@@ -2179,6 +2268,57 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
       }
     }
   }
+
+  if (result.storage_target ==
+          InstructionStorageTarget::kPointSizeEdgeFlagKillVertex &&
+      used_write_mask & 0b001) {
+    // Make the point size non-negative as negative is used to indicate that the
+    // default size must be used, and also clamp it to the bounds the way the
+    // R400 (Adreno 200, to be more precise) hardware clamps it (functionally
+    // like a signed 32-bit integer, -NaN and -Infinity...-0 to the minimum,
+    // +NaN to the maximum).
+    spv::Id point_size = builder_->createUnaryOp(
+        spv::OpBitcast, type_int_,
+        builder_->createCompositeExtract(value_to_store, type_float_, 0));
+    id_vector_temp_util_.clear();
+    id_vector_temp_util_.push_back(
+        builder_->makeIntConstant(kSystemConstantPointVertexDiameterMin));
+    spv::Id point_vertex_diameter_min = builder_->createUnaryOp(
+        spv::OpBitcast, type_int_,
+        builder_->createLoad(
+            builder_->createAccessChain(spv::StorageClassUniform,
+                                        uniform_system_constants_,
+                                        id_vector_temp_util_),
+            spv::NoPrecision));
+    id_vector_temp_util_.clear();
+    id_vector_temp_util_.reserve(2);
+    id_vector_temp_util_.push_back(point_vertex_diameter_min);
+    id_vector_temp_util_.push_back(point_size);
+    point_size =
+        builder_->createBuiltinCall(type_int_, ext_inst_glsl_std_450_,
+                                    GLSLstd450SMax, id_vector_temp_util_);
+    id_vector_temp_util_.clear();
+    id_vector_temp_util_.push_back(
+        builder_->makeIntConstant(kSystemConstantPointVertexDiameterMax));
+    spv::Id point_vertex_diameter_max = builder_->createUnaryOp(
+        spv::OpBitcast, type_int_,
+        builder_->createLoad(
+            builder_->createAccessChain(spv::StorageClassUniform,
+                                        uniform_system_constants_,
+                                        id_vector_temp_util_),
+            spv::NoPrecision));
+    id_vector_temp_util_.clear();
+    id_vector_temp_util_.reserve(2);
+    id_vector_temp_util_.push_back(point_vertex_diameter_max);
+    id_vector_temp_util_.push_back(point_size);
+    point_size =
+        builder_->createBuiltinCall(type_int_, ext_inst_glsl_std_450_,
+                                    GLSLstd450SMin, id_vector_temp_util_);
+    value_to_store = builder_->createCompositeInsert(
+        builder_->createUnaryOp(spv::OpBitcast, type_float_, point_size),
+        value_to_store, type_float3_, 0);
+  }
+
   builder_->createStore(value_to_store, target_pointer);
 }
 
