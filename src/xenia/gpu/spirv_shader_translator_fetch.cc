@@ -1296,18 +1296,14 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           builder_->addDecoration(face, spv::DecorationNoContraction);
         }
         id_vector_temp_.clear();
-        id_vector_temp_.reserve(2);
+        id_vector_temp_.reserve(3);
+        id_vector_temp_.push_back(face);
         id_vector_temp_.push_back(const_float_0_);
-        id_vector_temp_.push_back(face);
-        face = builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                           GLSLstd450NMax, id_vector_temp_);
-        id_vector_temp_.clear();
-        id_vector_temp_.reserve(2);
         id_vector_temp_.push_back(builder_->makeFloatConstant(5.0f));
-        id_vector_temp_.push_back(face);
-        face = builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                           GLSLstd450FMin, id_vector_temp_);
-        face = builder_->createUnaryOp(spv::OpConvertFToU, type_uint_, face);
+        face = builder_->createUnaryOp(
+            spv::OpConvertFToU, type_uint_,
+            builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                        GLSLstd450NClamp, id_vector_temp_));
         // Split the face index into the axis and the sign.
         spv::Id const_uint_1 = builder_->makeUintConstant(1);
         spv::Id face_axis = builder_->createBinOp(
